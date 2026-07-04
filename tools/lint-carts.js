@@ -91,6 +91,12 @@ for (const f of fs.readdirSync(CARTS).sort()) {
     errors.push(`${at}: homage must be a non-empty string`);
   if ("lineage" in m && typeof m.lineage !== "string") errors.push(`${at}: lineage must be a string`);
 
+  // resizable — optional opt-in (device-adaptive-layout.md Phase 1b). true → the editor ▶-run,
+  // build-app and the CLI compile the cart with -DDE_RESIZABLE (a live-reflowing window; read
+  // screen_w()/screen_h(), lay out with lay.h). Omit or false = fixed canvas (every existing cart).
+  if ("resizable" in m && typeof m.resizable !== "boolean")
+    errors.push(`${at}: resizable must be a boolean (omit it for a fixed-canvas cart)`);
+
   // todo[] — optional per-cart polish punch-list (NOT emitted to index.json; read by cart-todos.js).
   // If present it must be a non-empty array of non-empty strings (drop the field when nothing's left).
   if ("todo" in m) {

@@ -66,6 +66,7 @@ is greppable in source (`grep -l adsr-envelope tools/carts/*.c`).
 | `inputs` / `outputs` | not yet | RESERVED — the data-contract a cart consumes/produces (the "carts that take in AND emit data" direction). Generator ignores until a consumer exists; additive, no future migration. |
 | `see_also` / `notes` | not yet | RESERVED — man-page growth. |
 | `todo` | **no (authoring-only)** | optional `string[]` — the cart's own polish punch-list, one item per string. Deliberately NOT emitted to index.json (no gallery churn); validated by `lint-carts.js`, surfaced by `cart-todos.js`. The data form of [`docs/cart-polish-punchlist.md`](../cart-polish-punchlist.md) — clear an item by deleting it (drop the field when empty). |
+| `resizable` | **no (build directive)** | optional `boolean` — opt into the device-adaptive live-reflow path ([`device-adaptive-layout.md`](device-adaptive-layout.md) Phase 1b). `true` → the editor ▶-run, `build-app`, and the CLI compile the cart with `-DDE_RESIZABLE`: a resizable window whose `screen_w()`/`screen_h()` reflow live (lay out with `lay.h`). Omit or `false` = fixed canvas, exactly as every existing cart. Not emitted to index.json — it's a compile directive, not gallery metadata. |
 
 ### `description`: string or parts
 

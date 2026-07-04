@@ -119,6 +119,16 @@ const LIBTCC_DIR     = path.join(RUNTIME_DIR, 'libtcc')
 const LIBTCC_ARCH_DIR = path.join(LIBTCC_DIR, process.arch)   // 'arm64' | 'x64'
 const TCC_HOST_BIN = path.join(BUILD_DIR, 'cart_live_host')
 
+// Read the cart's de:meta "resizable" flag from the live source buffer (the same block regex
+// build-cart-index.js/lint-carts.js use). Malformed/absent meta → false, never throws (the run
+// path must not die on a mid-edit unparseable comment). See docs/design/cart-metadata.md.
+function parseResizable(code) {
+  try {
+    const m = String(code || '').match(/\/\*\s*de:meta\s*\n([\s\S]*?)\nde:meta\s*\*\//)
+    return m ? JSON.parse(m[1]).resizable === true : false
+  } catch { return false }
+}
+
 // ── cart build prep (shared by run + profile) ─────────────────
 // Resolve config → dims, regenerate the embedded data headers, write cart.c.
 function prepareCart(code, cfg) {
@@ -134,6 +144,10 @@ function prepareCart(code, cfg) {
     scaleFilter: cfg?.scaleFilter || 0,
     keymap:  cfg?.keymap || null,
     studioC: path.join(RUNTIME_DIR, 'studio.c'),
+    // device-adaptive-layout.md Phase 1b: a cart with "resizable": true in its de:meta compiles
+    // with -DDE_RESIZABLE → a live-reflowing window (screen_w()/screen_h()). Parsed from the live
+    // editor buffer with build-cart-index.js's canonical de:meta regex. Default off (fixed canvas).
+    resizable: parseResizable(code),
   }
 
   fs.mkdirSync(BUILD_DIR, { recursive: true })
@@ -257,7 +271,7 @@ function titleDef(name) {
 }
 
 function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
-  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, keymap, studioC } = dims
+  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, keymap, studioC, resizable } = dims
   return [
     `"${CART_SRC}"`,
     `"${studioC}"`,
@@ -273,6 +287,7 @@ function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
     `-DCELL_H=${cellH}`,
     `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
     `-DSCALE_FILTER=${scaleFilter}`,
+    ...(resizable ? ['-DDE_RESIZABLE'] : []),   // de:meta resizable → live-reflow window (studio.c owns FLAG_WINDOW_RESIZABLE)
     ...keymapDefs(keymap),
     ...extraDefs,
     ...optFlags,
@@ -1534,10 +1549,15 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
       rows = []
       for (const line of fs.readFileSync(reelPath, 'utf8').split('\n')) {
         const t = line.trim(); if (!t || t.startsWith('#')) continue
-        const [ref, trans] = t.split('|').map(s => s.trim())
-        let xtype = 'fade', xdur = 0.5
-        if (trans) { const p = trans.split(/\s+/); xtype = p[0] || 'fade'; xdur = parseFloat(p[1]) || 0.5 }
-        rows.push({ clip: ref, xtype, xdur })
+        const [ref, ...segs] = t.split('|').map(s => s.trim())     // ref + any `| verb …` segments (order-independent)
+        const row = { clip: ref, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }
+        for (const seg of segs) {
+          let sm
+          if ((sm = seg.match(/^trim\s+([\d.]+)\s+([\d.]+)/)))  row.trim = [+sm[1], +sm[2]]
+          else if ((sm = seg.match(/^speed\s+([\d.]+)/)))       row.speed = +sm[1]
+          else if ((sm = seg.match(/^(\w+)\s+([\d.]+)/)))     { row.xtype = sm[1]; row.xdur = +sm[2] }
+        }
+        rows.push(row)
       }
     }
     return { ok: true, name: m.name || name, carts, rows }
@@ -1563,7 +1583,13 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
   }
   const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
   let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`
-  reel += rows.map((r, i) => i === 0 ? r.clip : `${r.clip} | ${r.xtype || 'fade'} ${r.xdur || 0.5}`).join('\n') + '\n'
+  reel += rows.map((r, i) => {                                     // ref + segments: transition (not on the 1st) | trim | speed
+    const segs = []
+    if (i > 0) segs.push(`${r.xtype || 'fade'} ${r.xdur || 0.5}`)
+    if (Array.isArray(r.trim) && r.trim.length === 2) segs.push(`trim ${r.trim[0]} ${r.trim[1]}`)
+    if (r.speed && +r.speed !== 1) segs.push(`speed ${+r.speed}`)
+    return segs.length ? `${r.clip} | ${segs.join(' | ')}` : r.clip
+  }).join('\n') + '\n'
   fs.mkdirSync(path.dirname(reelPath), { recursive: true })
   fs.writeFileSync(reelPath, reel)
   log(`wrote tools/reels/${name}.reel\n`)

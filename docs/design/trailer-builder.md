@@ -274,9 +274,13 @@ acidrack/01-demo | fade 0.5                                                   # 
   `pos`/`fade`/`over` are the non-text segments. `pos` = a 9-grid enum (via `lay.h`).
 - **`style` = a named bundle of look (font + ink + paper + accent).** DECIDED for slice 1: **one
   default look — white text + a subtle 1px dark drop shadow** (reads over *any* background, which the
-  overlay case needs; the shadow is one of squishy's rim features, so on-brand). No named-style
-  system yet — the example names (`neon`) are placeholders. A curated 3–4-style set (then raw
-  font/colour knobs as a "custom" escape hatch) comes later, on the maker's taste.
+  overlay case needs; the shadow is one of squishy's rim features, so on-brand). The shadow needs **no
+  new API** — it's just `print` twice (`print_centered(t, x+1, y+1, CLR_DARK_GREY)` then
+  `print_centered(t, x, y, CLR_WHITE)`). No named-style system yet — the example names (`neon`) are
+  placeholders. A curated 3–4-style set (then raw font/colour knobs as a "custom" escape hatch) comes
+  later, on the maker's taste.
+- **The whole slice-1 renderer is pure existing API** — `lay.h` (stack title/sub/body), `print`×2
+  (shadowed text), seeded per-letter offsets (boil). Zero engine changes; it's just a cart.
 
 **Where it stays honest:**
 - **Preserve nearest-neighbour scaling** so the magic colour stays an *exact* RGB after the reel's

@@ -61,10 +61,11 @@ void update(void) {
     ensure_init();
 
 #ifdef DE_RESIZABLE
-    // Phase 1c (device-adaptive-layout.md): built resizable, the REAL window IS the responsive
-    // surface. No fake rect, no drag handle — drag the OS window and the engine reflows
-    // screen_w()/screen_h() live; the identical lay.h code below re-flows against it.
-    vs = box(0, 0, screen_w(), screen_h());
+    // Phase 1c/2 (device-adaptive-layout.md): built resizable, the REAL window/device IS the responsive
+    // surface. No fake rect, no drag handle — the engine reflows screen_w()/screen_h() live and the
+    // identical lay.h code below re-flows against it. vs = the SAFE rect (inside the notch/home-bar on
+    // iOS; the whole screen on desktop) so controls dodge the chrome; the background still bleeds full.
+    { int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh); vs = box(sx, sy, sw, sh); }
     return;
 #endif
 

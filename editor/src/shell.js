@@ -149,7 +149,7 @@ const sections = [
   { title: 'persistence', keys: ['save', 'load', 'save_int', 'load_int', 'save_bytes', 'load_bytes', 'de_state', 'STATE', 'S', 'GameState'] },
   { title: 'external data', keys: ['de_data_path', 'de_dropped_file', 'de_open_path', 'de_switch_cart'] },
   { title: 'debug',     keys: ['printh', 'watch', 'watch_visible', 'paused'] },
-  { title: 'screen',       keys: ['SCREEN_W', 'SCREEN_H', 'screen_w', 'screen_h'] },
+  { title: 'screen',       keys: ['SCREEN_W', 'SCREEN_H', 'screen_w', 'screen_h', 'safe_rect'] },
   { title: 'palette',        keys: ['CLR_BLACK', 'CLR_DARK_BLUE', 'CLR_DARK_PURPLE', 'CLR_DARK_GREEN', 'CLR_BROWN', 'CLR_DARK_GREY', 'CLR_LIGHT_GREY', 'CLR_WHITE', 'CLR_RED', 'CLR_ORANGE', 'CLR_YELLOW', 'CLR_GREEN', 'CLR_BLUE', 'CLR_INDIGO', 'CLR_PINK', 'CLR_LIGHT_PEACH', 'CLR_BROWNISH_BLACK', 'CLR_DARKER_BLUE', 'CLR_DARKER_PURPLE', 'CLR_BLUE_GREEN', 'CLR_DARK_BROWN', 'CLR_DARKER_GREY', 'CLR_MEDIUM_GREY', 'CLR_LIGHT_YELLOW', 'CLR_DARK_RED', 'CLR_DARK_ORANGE', 'CLR_LIME_GREEN', 'CLR_MEDIUM_GREEN', 'CLR_TRUE_BLUE', 'CLR_MAUVE', 'CLR_DARK_PEACH', 'CLR_PEACH'] },
   { title: 'experimental — testing only', keys: ['palette_hex'] },
 ]
@@ -2442,7 +2442,10 @@ if (window.studio?.onLog) {
 // On startup, load the configured welcome cart (settings tab → startup).
 // Works in both Electron and the browser — loadCartFromUrl has a browser-side
 // fallback for parsing carts; only ▶ run requires Electron.
-const EMPTY_TEMPLATE =
+// Kept for historic purposes — the original starter cart, which introduced
+// persistent state (S->x) and update() right away. Superseded by the leaner
+// EMPTY_TEMPLATE below.
+const EMPTY_TEMPLATE_CLASSIC =
 `// dreamengine — write c, make things!
 
 #include "studio.h"
@@ -2464,6 +2467,17 @@ void draw() {
     cls(CLR_DARK_BLUE);
     print("hello!", 10, 10, CLR_PEACH);
     rectfill(S->x, 40, 8, 8, CLR_PEACH);
+}
+`
+
+const EMPTY_TEMPLATE =
+`// dreamengine — write c, make things!
+
+#include "studio.h"
+
+void draw() {
+    cls(CLR_DARK_BLUE);
+    print("hello!", 10, 10, CLR_PEACH);
 }
 `
 

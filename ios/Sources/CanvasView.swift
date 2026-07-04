@@ -65,6 +65,10 @@ final class CanvasView: UIView {
         guard de_is_resizable() != 0 else { return }
         let b = bounds.size
         if b.width > 0, b.height > 0 { de_resize(Int32(b.width), Int32(b.height)) }
+        // hand the engine the notch / home-bar / status-bar insets (points == fb px at SCALE=1) so a
+        // resizable cart lays its controls inside safe_rect() while its background bleeds to the edges.
+        let ins = safeAreaInsets
+        de_set_safe_area(Int32(ins.left), Int32(ins.top), Int32(ins.right), Int32(ins.bottom))
     }
 
     // pick up a de_resize: re-read the engine's active dims and resize the flip scratch when they

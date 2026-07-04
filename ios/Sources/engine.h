@@ -25,6 +25,9 @@ int             de_screen_h(void);
 // it when de_is_resizable() is true — a fixed cart returns 0 and should stay letterboxed at its size.
 void            de_resize(int w, int h);
 int             de_is_resizable(void);
+// Safe-area insets (px; notch / home-bar / status bar). Report them alongside de_resize so a
+// resizable cart keeps controls out of the chrome (it reads the usable rect via safe_rect()).
+void            de_set_safe_area(int left, int top, int right, int bottom);
 void            de_audio_render(float *out, int frames);
 
 void de_touch_begin(int id, float x, float y);

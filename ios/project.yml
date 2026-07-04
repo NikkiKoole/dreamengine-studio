@@ -36,6 +36,10 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
+        # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        "INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad": "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
         # the engine sees its headers (runtime/) + the staged cart data (gen/app/)
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/app, $(SRCROOT)/Sources]

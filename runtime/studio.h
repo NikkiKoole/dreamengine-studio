@@ -20,6 +20,7 @@
 // just return SCREEN_W/SCREEN_H forever.
 int  screen_w(void);   // active canvas width in px  (== SCREEN_W unless the cart is -DDE_RESIZABLE)
 int  screen_h(void);   // active canvas height in px (== SCREEN_H unless the cart is -DDE_RESIZABLE)
+void safe_rect(int *x, int *y, int *w, int *h);   // usable area after device safe-area insets (notch/home-bar); lay controls inside it, bleed the background to screen_w/h. All-screen (0,0,screen_w,screen_h) on desktop.
 
 // ------------------------------------------------------------
 // buttons

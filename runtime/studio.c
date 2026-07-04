@@ -327,6 +327,15 @@ static const bool de_reflow = false;
 // SCREEN_W/H forever. Defined unconditionally — carts run on every build.
 int screen_w(void) { return de_sw; }   // active canvas width  in px (== SCREEN_W unless resizable)
 int screen_h(void) { return de_sh; }   // active canvas height in px (== SCREEN_H unless resizable)
+// safe-area insets (px) the host reports (iOS notch / home-bar). 0 on desktop. de_set_safe_area sets
+// them; safe_rect gives the cart the usable sub-rectangle so controls dodge the chrome (draw your
+// background full-bleed to screen_w/h, lay controls inside safe_rect).
+static int safe_l = 0, safe_t = 0, safe_r = 0, safe_b = 0;
+void safe_rect(int *x, int *y, int *w, int *h) {   // usable area after the device's safe-area insets
+    int rw = de_sw - safe_l - safe_r, rh = de_sh - safe_t - safe_b;
+    if (rw < 1) rw = 1; if (rh < 1) rh = 1;
+    if (x) *x = safe_l; if (y) *y = safe_t; if (w) *w = rw; if (h) *h = rh;
+}
 #ifdef DE_NO_RAYLIB
 // Software CAMERA ROTATION (no GPU to fall back to — iOS/Switch). The world layer is captured
 // into an offscreen buffer at zoom+translate (rotation NOT applied), then rotated about the
@@ -2565,6 +2574,10 @@ int de_screen_h(void) { return de_sh; }
 // the cart opted in (-DDE_RESIZABLE) — a fixed cart returns 0 so the host leaves it letterboxed.
 void de_resize(int w, int h) { de_set_canvas(w, h); }
 int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
+void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home-bar insets (px)
+    safe_l = l < 0 ? 0 : l; safe_t = t < 0 ? 0 : t;
+    safe_r = r < 0 ? 0 : r; safe_b = b < 0 ? 0 : b;
+}
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

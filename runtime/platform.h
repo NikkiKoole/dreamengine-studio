@@ -76,6 +76,9 @@ int de_screen_h(void);
 // a fixed cart returns 0 and stays letterboxed at its compile-time size.
 void de_resize(int w, int h);
 int  de_is_resizable(void);
+// Safe-area insets (px) — notch / home-bar / status bar. The host reports them; a cart reads the
+// usable rect via safe_rect() and keeps its controls inside it (background can still bleed full).
+void de_set_safe_area(int left, int top, int right, int bottom);
 
 // ============================================================================
 // (2) AUDIO — pulled by the host's audio backend (CoreAudio on iOS, Raylib's

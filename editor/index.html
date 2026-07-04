@@ -252,9 +252,20 @@
             <h3>🎞 Trailer <span class="apps-hint" id="tl-app"></span>
               <button id="tl-close" title="close">✕</button></h3>
             <div class="tl-libwrap"><span class="app-sec">clips</span><div id="tl-library"></div></div>
-            <div class="tl-tlwrap"><span class="app-sec">timeline — order · cut · ◇ transition</span><div id="tl-timeline"></div></div>
+            <div class="tl-monwrap" id="tl-monwrap" hidden>
+              <video id="tl-monitor" controls playsinline preload="metadata"></video>
+              <div class="tl-monbar">
+                <span class="tl-monname" id="tl-mon-name"></span>
+                <button id="tl-mon-play" title="play just the trimmed range at its speed">▶ in→out</button>
+                <button id="tl-mon-in" title="set the in point to the current frame">⇤ set in</button>
+                <button id="tl-mon-out" title="set the out point to the current frame">set out ⇥</button>
+                <span class="tl-hint">scrub then set in/out — or drag the handles on the block</span>
+              </div>
+            </div>
+            <div class="tl-tlwrap"><span class="app-sec">timeline — click a block to preview · drag ◧▮ to trim · ◇ transition</span><div id="tl-timeline"></div></div>
             <div class="tl-actions"><button id="tl-build">▶ Build trailer</button>
               <span class="tl-hint">non-destructive — edits the .reel, never the clips</span></div>
+            <pre id="tl-log" class="tl-log" hidden></pre>
             <video id="tl-preview" controls loop hidden></video>
           </section>
         </div>

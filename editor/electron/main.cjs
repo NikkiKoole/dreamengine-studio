@@ -1574,12 +1574,17 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
   rows = (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.clip === 'string' && /^[a-z0-9_-]+\/[a-z0-9_.-]+$/i.test(r.clip))
   if (!rows.length) return { ok: false, error: 'add at least one clip' }
   log(`\n── build trailer: ${name} (${rows.length} clip${rows.length > 1 ? 's' : ''}) ──\n`)
-  for (const r of rows) {                                            // bake any missing clip (never mutates sources)
-    const [cart, label] = r.clip.split('/')
-    if (fs.existsSync(path.join(ROOT, 'editor/public/clips', cart, `${label}.webm`))) continue
-    log(`baking ${r.clip}…\n`)
+  // which clips are missing a baked .webm? bake only those, with a [k/N] counter (the slow phase)
+  const need = [...new Set(rows.map(r => r.clip))]
+    .filter(clip => { const [cart, label] = clip.split('/'); return !fs.existsSync(path.join(ROOT, 'editor/public/clips', cart, `${label}.webm`)) })
+  if (need.length) log(`baking ${need.length} missing clip${need.length > 1 ? 's' : ''}…\n`)
+  else log(`all clips already baked — composing\n`)
+  let k = 0
+  for (const clip of need) {                                         // bake any missing clip (never mutates sources)
+    const [cart, label] = clip.split('/')
+    log(`  [${++k}/${need.length}] baking ${clip}…\n`)
     if (!await spawnP('node', [path.join(ROOT, 'tools/make-gif.js'), cart, '--recipe', label], ROOT, log))
-      return { ok: false, error: `bake failed: ${r.clip}` }
+      return { ok: false, error: `bake failed: ${clip}` }
   }
   const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
   let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`

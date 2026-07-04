@@ -1459,19 +1459,39 @@ compRun?.addEventListener('click', async () => {
 // transition at each join, Build → bake+compose → preview. Sources are never touched.
 const TL_XFADES = ['fade', 'dissolve', 'wipeleft', 'wiperight', 'wipeup', 'wipedown',
   'slideleft', 'slideright', 'circleopen', 'circleclose', 'pixelize', 'radial']
-let tlApp = null, tlLib = [], tlRows = []   // rows: [{clip, xtype, xdur}] — the timeline = the .reel
+let tlApp = null, tlLib = [], tlRows = []   // rows: [{clip, xtype, xdur, trim, speed}] — the timeline = the .reel
+let tlBaked = new Set()   // clips with a baked .webm (scrubbable / probeable)
+let tlDur = {}            // clip → source duration (s), probed client-side from the <video> (no ffprobe)
+let tlFocus = -1          // which block the preview monitor is showing
+const round1 = x => Math.round(x * 10) / 10
+const tlSrc = clip => `/clips/${clip}.webm`   // Vite serves editor/public at root
 async function openTrailer(app) {
   const res = await window.studio?.appClips?.(app)
   if (!res?.ok) { showToast(res?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
   tlApp = app; tlLib = res.carts || []
+  tlBaked = new Set(); for (const c of tlLib) for (const cl of c.clips) if (cl.baked) tlBaked.add(cl.clip)
+  tlDur = {}; tlFocus = -1
   // start from the saved .reel, else a default: each rack's first clip in manifest order
   tlRows = (res.rows && res.rows.length) ? res.rows.map(r => ({ ...r }))
-    : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5 }))
+    : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }))
   document.getElementById('tl-app').textContent = res.name || app
-  const prev = document.getElementById('tl-preview'); if (prev) { prev.hidden = true; prev.removeAttribute('src') }
+  const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
+  const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = true
+  const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
   document.getElementById('trailer-lab').hidden = false
   tlRender()
   document.getElementById('trailer-lab').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+// probe durations for any baked clip we haven't measured yet — a hidden <video>, no ffprobe/IPC
+function tlProbeDurations() {
+  for (const clip of new Set(tlRows.map(r => r.clip))) {
+    if (!tlBaked.has(clip) || tlDur[clip] !== undefined) continue
+    tlDur[clip] = null   // in-flight (falsy → no track drawn yet, but won't re-probe)
+    const v = document.createElement('video')
+    v.preload = 'metadata'; v.muted = true; v.src = tlSrc(clip)
+    v.addEventListener('loadedmetadata', () => { tlDur[clip] = v.duration || 0; tlRender() }, { once: true })
+    v.addEventListener('error', () => { tlDur[clip] = 0 }, { once: true })
+  }
 }
 function tlRender() {
   const lib = document.getElementById('tl-library')
@@ -1479,39 +1499,142 @@ function tlRender() {
     ? c.clips.map(cl => `<button class="kw-mini" data-tl-add="${escHtml(cl.clip)}">＋ ${escHtml(cl.clip)}${cl.baked ? '' : ' <span class="rs-dim">·bake</span>'}</button>`).join('')
     : `<span class="rs-dim">${escHtml(c.cart)}: no clip</span>`).join(' ')
   const tl = document.getElementById('tl-timeline')
-  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips from above</span>'; return }
+  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips from above</span>'; tlProbeDurations(); return }
   tl.innerHTML = tlRows.map((r, i) => {
     const join = i === 0 ? '' : `<span class="tl-join"><select data-tl-x="${i}">`
       + TL_XFADES.map(x => `<option${x === r.xtype ? ' selected' : ''}>${x}</option>`).join('')
       + `</select><input class="tl-secs" type="number" min="0.1" max="2" step="0.1" value="${r.xdur}" data-tl-d="${i}"></span>`
-    return `${join}<span class="tl-block"><span class="tl-lbl">${escHtml(r.clip)}</span>`
+    const dur = tlDur[r.clip]
+    const inT = r.trim ? r.trim[0] : 0, outT = r.trim ? r.trim[1] : (dur || 0)
+    const weight = (r.trim ? (r.trim[1] - r.trim[0]) : dur) || 1   // block width ∝ trimmed length
+    // visual trim track (two draggable handles over the clip's duration) — the pick-cut-points-by-eye bit
+    let track = `<span class="tl-tinfo rs-dim">${tlBaked.has(r.clip) ? '…' : '·bake to trim'}</span>`
+    if (tlBaked.has(r.clip) && dur) {
+      const inP = (inT / dur * 100), outP = (outT / dur * 100)
+      track = `<span class="tl-trim" data-tl-trim="${i}">`
+        + `<span class="tl-range" style="left:${inP}%;right:${100 - outP}%"></span>`
+        + `<span class="tl-h" data-tl-h="${i},0" style="left:${inP}%" title="in"></span>`
+        + `<span class="tl-h" data-tl-h="${i},1" style="left:${outP}%" title="out"></span></span>`
+        + `<span class="tl-tinfo">${inT.toFixed(1)}→${outT.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}</span>`
+    }
+    const speed = `<label class="tl-splbl" title="playback speed (× faster)">×<input class="tl-num" type="number" min="0.1" step="0.25" placeholder="1" value="${r.speed && r.speed !== 1 ? r.speed : ''}" data-tl-sp="${i}"></label>`
+    return `${join}<span class="tl-block${i === tlFocus ? ' tl-focus' : ''}" data-tl-block="${i}" style="flex:${weight} 1 56px">`
+      + `<span class="tl-lbl">${escHtml(r.clip)}</span>${track}<span class="tl-edit">${speed}</span>`
       + `<span class="tl-btns"><button data-tl-mv="${i},-1" title="left">◀</button>`
       + `<button data-tl-mv="${i},1" title="right">▶</button>`
       + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
   }).join('')
+  tlProbeDurations()
 }
-document.getElementById('tl-close')?.addEventListener('click', () => { document.getElementById('trailer-lab').hidden = true })
+// load a clip into the preview monitor + highlight its block (the NLE "one monitor" model)
+function tlFocusBlock(i) {
+  const r = tlRows[i]; if (!r || !tlBaked.has(r.clip)) return
+  tlFocus = i
+  const mon = document.getElementById('tl-monitor'), wrap = document.getElementById('tl-monwrap')
+  if (!mon || !wrap) return
+  wrap.hidden = false
+  document.getElementById('tl-mon-name').textContent = r.clip
+  document.querySelectorAll('.tl-block').forEach(b => b.classList.toggle('tl-focus', +b.dataset.tlBlock === i))
+  const seek = () => { mon.playbackRate = r.speed || 1; try { mon.currentTime = r.trim ? r.trim[0] : 0 } catch {} }
+  if (!mon.src.endsWith(`${r.clip}.webm`)) { mon.src = tlSrc(r.clip); mon.addEventListener('loadedmetadata', seek, { once: true }) }
+  else seek()
+}
+// write a trim for a row (null when it's the full clip), keep focus, re-render
+function tlSetTrim(i, a, b) {
+  const dur = tlDur[tlRows[i].clip] || 0
+  a = Math.max(0, Math.min(round1(a), dur)); b = Math.max(a + 0.1, Math.min(round1(b), dur))
+  tlRows[i].trim = (a <= 0.05 && b >= dur - 0.05) ? null : [a, b]
+  tlRender()
+}
+document.getElementById('tl-close')?.addEventListener('click', () => {
+  document.getElementById('trailer-lab').hidden = true
+  for (const id of ['tl-preview', 'tl-monitor']) {   // stop playback + release files (nothing humming behind a closed panel)
+    const v = document.getElementById(id); if (v) { v.pause?.(); v.removeAttribute('src'); v.load?.(); }
+  }
+  const prev = document.getElementById('tl-preview'); if (prev) prev.hidden = true
+  const mw = document.getElementById('tl-monwrap'); if (mw) mw.hidden = true
+})
 document.getElementById('tl-timeline')?.addEventListener('click', e => {
   const mv = e.target.closest('[data-tl-mv]'); const rm = e.target.closest('[data-tl-rm]')
   if (mv) { const [i, d] = mv.dataset.tlMv.split(',').map(Number); const j = i + d
-    if (j >= 0 && j < tlRows.length) { [tlRows[i], tlRows[j]] = [tlRows[j], tlRows[i]]; tlRender() } }
-  else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlRender() }
+    if (j >= 0 && j < tlRows.length) { [tlRows[i], tlRows[j]] = [tlRows[j], tlRows[i]]; tlFocus = -1; tlRender() } }
+  else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlFocus = -1; tlRender() }
+  else {   // click a block (not a control) → focus it in the monitor
+    const block = e.target.closest('[data-tl-block]')
+    if (block && !e.target.closest('input') && !e.target.closest('[data-tl-h]')) tlFocusBlock(+block.dataset.tlBlock)
+  }
 })
+// drag the in/out handles → live trim, seeking the monitor to the cut frame as you go
+let tlDrag = null
+document.getElementById('tl-timeline')?.addEventListener('pointerdown', e => {
+  const h = e.target.closest('[data-tl-h]'); if (!h) return
+  e.preventDefault()
+  const [i, which] = h.dataset.tlH.split(',').map(Number)
+  const dur = tlDur[tlRows[i].clip]; if (!dur) return
+  tlDrag = { i, which, dur, rect: h.closest('.tl-trim').getBoundingClientRect() }
+  h.setPointerCapture?.(e.pointerId)
+  if (tlFocus !== i) tlFocusBlock(i)
+})
+window.addEventListener('pointermove', e => {
+  if (!tlDrag) return
+  const { i, which, dur, rect } = tlDrag, r = tlRows[i]
+  const t = round1(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * dur)
+  let a = r.trim ? r.trim[0] : 0, b = r.trim ? r.trim[1] : dur
+  if (which === 0) a = Math.min(t, b - 0.1); else b = Math.max(t, a + 0.1)
+  r.trim = (a <= 0.05 && b >= dur - 0.05) ? null : [a, b]
+  // update visuals in place (no full re-render mid-drag) + seek the monitor to the moving edge
+  const inP = a / dur * 100, outP = b / dur * 100
+  const trk = document.querySelector(`[data-tl-trim="${i}"]`)
+  if (trk) { trk.querySelector('.tl-range').style.left = inP + '%'; trk.querySelector('.tl-range').style.right = (100 - outP) + '%'
+    trk.querySelectorAll('.tl-h')[0].style.left = inP + '%'; trk.querySelectorAll('.tl-h')[1].style.left = outP + '%' }
+  const blk = document.querySelector(`.tl-block[data-tl-block="${i}"]`)
+  const info = blk?.querySelector('.tl-tinfo'); if (info) info.textContent = `${a.toFixed(1)}→${b.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}`
+  const mon = document.getElementById('tl-monitor')
+  if (mon && tlFocus === i) { try { mon.currentTime = which === 0 ? a : b } catch {} }
+})
+window.addEventListener('pointerup', () => { if (tlDrag) { tlDrag = null; tlRender() } })
 document.getElementById('tl-timeline')?.addEventListener('change', e => {
-  const x = e.target.closest('[data-tl-x]'); const d = e.target.closest('[data-tl-d]')
+  const x = e.target.closest('[data-tl-x]'); const d = e.target.closest('[data-tl-d]'); const sp = e.target.closest('[data-tl-sp]')
   if (x) tlRows[+x.dataset.tlX].xtype = x.value
   if (d) tlRows[+d.dataset.tlD].xdur = parseFloat(d.value) || 0.5
+  if (sp) { const i = +sp.dataset.tlSp; tlRows[i].speed = parseFloat(sp.value) || 1
+    const mon = document.getElementById('tl-monitor'); if (mon && tlFocus === i) mon.playbackRate = tlRows[i].speed; tlRender() }
+})
+// monitor buttons: capture the scrubbed frame as in/out, or play just the in→out range at speed
+document.getElementById('tl-mon-in')?.addEventListener('click', () => {
+  if (tlFocus < 0) return; const mon = document.getElementById('tl-monitor'), r = tlRows[tlFocus]
+  tlSetTrim(tlFocus, mon.currentTime, r.trim ? r.trim[1] : (tlDur[r.clip] || 0))
+})
+document.getElementById('tl-mon-out')?.addEventListener('click', () => {
+  if (tlFocus < 0) return; const mon = document.getElementById('tl-monitor'), r = tlRows[tlFocus]
+  tlSetTrim(tlFocus, r.trim ? r.trim[0] : 0, mon.currentTime)
+})
+document.getElementById('tl-mon-play')?.addEventListener('click', () => {
+  if (tlFocus < 0) return; const mon = document.getElementById('tl-monitor'), r = tlRows[tlFocus]
+  const end = r.trim ? r.trim[1] : (tlDur[r.clip] || mon.duration)
+  const onTU = () => { if (mon.currentTime >= end - 0.03) { mon.pause(); mon.removeEventListener('timeupdate', onTU) } }
+  mon.playbackRate = r.speed || 1
+  try { mon.currentTime = r.trim ? r.trim[0] : 0 } catch {}
+  mon.addEventListener('timeupdate', onTU); mon.play()
 })
 document.getElementById('tl-library')?.addEventListener('click', e => {
   const add = e.target.closest('[data-tl-add]'); if (!add) return
-  tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5 }); tlRender()
+  tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender()
+})
+// stream the build log (bake + compose progress) into the trailer panel while it's open
+window.studio?.onAsoLog?.(s => {
+  const lab = document.getElementById('trailer-lab'); const tlLog = document.getElementById('tl-log')
+  if (tlLog && lab && !lab.hidden && !tlLog.hidden) { tlLog.textContent += stripAnsi(s); tlLog.scrollTop = tlLog.scrollHeight }
 })
 document.getElementById('tl-build')?.addEventListener('click', async () => {
   if (!tlApp || !tlRows.length) { showToast('add at least one clip', 2500); return }
   const btn = document.getElementById('tl-build'); const stop = busyDots(btn, 'building (bakes + composes)', '▶ Build trailer'); btn.disabled = true
+  const tlLog = document.getElementById('tl-log')
+  if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}…\n` }   // live feedback of what it's doing
   const res = await window.studio.buildReel(tlApp, tlRows)
   stop(); btn.disabled = false
-  if (!res?.ok) { showToast(res?.error || 'build failed', 3500); return }
+  if (!res?.ok) { if (tlLog) tlLog.textContent += `\n✗ ${res?.error || 'build failed'}\n`; showToast(res?.error || 'build failed', 3500); return }
+  if (tlLog) tlLog.textContent += `\n✓ done\n`
   const prev = document.getElementById('tl-preview')
   if (res.out && prev) { prev.src = `/${res.out}?t=${Date.now()}`; prev.hidden = false; prev.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
   else showToast(res.note || 'built', 3000)

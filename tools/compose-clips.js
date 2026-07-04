@@ -19,14 +19,21 @@
 //   # xfade fade 0.5          (default transition type + seconds between cuts)
 //   sloop/01-autodrive                      ← editor/public/clips/sloop/01-autodrive.webm
 //   moog/01-fat        | wipeleft 0.6       ← transition INTO this clip overrides the default
-//   easel/01-selfplay  | circleopen 0.5
+//   easel/01-selfplay  | circleopen 0.5 | trim 0 7 | speed 1.25
 //   path/to/any.webm                        ← a bare path also works
 //
 // A clip ref is `<cart>/<label>` (→ editor/public/clips/<cart>/<label>.webm) or a path.
-// The `| <type> <secs>` on a line sets the transition used to bring THAT clip in (the cut
-// before it); the first clip's is ignored. Transition types are ffmpeg xfade names:
-// fade · dissolve · wipeleft/right/up/down · slideleft/… · circleopen · circleclose ·
-// pixelize · radial · smoothleft/…  (our iris≈circleopen, wipe≈wipeleft, dissolve≈dissolve).
+// After the ref, any number of `| <verb> …` segments (order-independent) edit that clip
+// NON-DESTRUCTIVELY (applied at compose time on a copy; the source .webm is never touched):
+//   | <type> <secs>   the transition that brings THIS clip in (the cut before it); the
+//                     first clip's is ignored. Types are ffmpeg xfade names:
+//                     fade · dissolve · wipeleft/right/up/down · slideleft/… · circleopen ·
+//                     circleclose · pixelize · radial · smoothleft/…  (our iris≈circleopen,
+//                     wipe≈wipeleft, dissolve≈dissolve). The overlap region IS the transition.
+//   | trim A B        keep source seconds A→B (begin/end in-out points); B clamps to the clip's
+//                     length. `trim 0 7` → a 7s clip. Trims BEFORE speed.
+//   | speed F         retime: F× faster (finalDur = trimmedDur / F). `speed 2` halves the length.
+//                     Video via setpts, audio via atempo (chained for F outside 0.5–2×).
 //
 // Clips of different sizes are letterboxed (nearest-neighbour, pixels stay crisp) onto the
 // target canvas. A reel is a standalone *watchable* file, so it's NEAREST-upscaled at encode
@@ -37,7 +44,7 @@
 
 const fs   = require('fs')
 const path = require('path')
-const { spawnSync } = require('child_process')
+const { spawnSync, spawn } = require('child_process')
 const mk = require('./make-cart.js')
 
 const args = process.argv.slice(2)
@@ -71,9 +78,16 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   if ((m = line.match(/^#\s*scale\s+(\d+)/)))      { meta.scale = +m[1]; continue }
   if ((m = line.match(/^#\s*xfade\s+(\w+)\s+([\d.]+)/))) { meta.xtype = m[1]; meta.xdur = +m[2]; continue }
   if (line.startsWith('#')) continue
-  const [refPart, xPart] = line.split('|').map(s => s.trim())
-  const shot = { ref: refPart, xtype: meta.xtype, xdur: meta.xdur }
-  if (xPart) { const xm = xPart.match(/^(\w+)\s+([\d.]+)/); if (xm) { shot.xtype = xm[1]; shot.xdur = +xm[2] } }
+  const [refPart, ...segs] = line.split('|').map(s => s.trim())
+  const shot = { ref: refPart, xtype: meta.xtype, xdur: meta.xdur, trim: null, speed: 1 }
+  for (const seg of segs) {
+    if (!seg) continue
+    let sm
+    if ((sm = seg.match(/^trim\s+([\d.]+)\s+([\d.]+)/)))  { shot.trim = [+sm[1], +sm[2]]; continue }
+    if ((sm = seg.match(/^speed\s+([\d.]+)/)))            { shot.speed = +sm[1]; continue }
+    if ((sm = seg.match(/^(\w+)\s+([\d.]+)/)))            { shot.xtype = sm[1]; shot.xdur = +sm[2]; continue }
+  }
+  if (!(shot.speed > 0)) { console.error(`bad speed on "${refPart}" (must be > 0)`); process.exit(1) }
   // resolve ref → a webm path
   shot.file = /[\/.]/.test(refPart) && refPart.endsWith('.webm') ? path.resolve(refPart)
             : path.join(CLIPS_OUT, ...refPart.split('/')) + '.webm'
@@ -89,11 +103,19 @@ if (opt('--scale', null)) meta.scale = +opt('--scale')
 // ── probe each clip: duration + size + has-audio ──────────────
 const ffprobe = (a) => spawnSync('ffprobe', ['-v', 'error', ...a], { encoding: 'utf8' }).stdout.trim()
 for (const s of shots) {
-  s.dur = parseFloat(ffprobe(['-show_entries', 'format=duration', '-of', 'default=nk=1:nw=1', s.file])) || 0
+  s.srcDur = parseFloat(ffprobe(['-show_entries', 'format=duration', '-of', 'default=nk=1:nw=1', s.file])) || 0
   const wh = ffprobe(['-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', s.file]).split(',')
   s.w = +wh[0]; s.h = +wh[1]
   s.hasAudio = ffprobe(['-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', s.file]).length > 0
-  if (s.dur <= 0) { console.error('could not read duration of', s.file); process.exit(1) }
+  if (s.srcDur <= 0) { console.error('could not read duration of', s.file); process.exit(1) }
+  // trim (begin/end, clamped to the source) → then speed retimes. s.dur is the FINAL
+  // duration everything downstream (xfade offsets, silent-fill, totals) reasons about.
+  const t0 = s.trim ? Math.max(0, Math.min(s.trim[0], s.srcDur)) : 0
+  const t1 = s.trim ? Math.max(t0, Math.min(s.trim[1], s.srcDur)) : s.srcDur
+  s.trimStart = t0; s.trimEnd = t1
+  const trimmed = t1 - t0
+  s.dur = trimmed / s.speed
+  if (s.dur <= 0) { console.error(`"${s.ref}": trim ${t0}→${t1} @ speed ${s.speed} leaves no footage`); process.exit(1) }
 }
 // canvas = base size × an integer NEAREST upscale, so the reel is crisp in any video
 // player (unlike the native clips, which rely on the gallery's CSS image-rendering:pixelated).
@@ -107,16 +129,32 @@ for (let i = 1; i < shots.length; i++) {
   shots[i].xdur = Math.max(0.1, Math.min(shots[i].xdur, cap))
 }
 
+// atempo only accepts 0.5–2.0, so decompose an arbitrary speed into a chain of factors.
+const atempoChain = (f) => {
+  if (Math.abs(f - 1) < 1e-6) return ''
+  const parts = []; let r = f
+  while (r > 2.0 + 1e-9) { parts.push('atempo=2.0'); r /= 2 }
+  while (r < 0.5 - 1e-9) { parts.push('atempo=0.5'); r *= 2 }
+  parts.push(`atempo=${r.toFixed(6)}`)
+  return parts.join(',') + ','
+}
+
 // ── build the ffmpeg filter graph ─────────────────────────────
-// per clip: scale (nearest, keep aspect) → letterbox-pad to WxH → fps → yuv420p → sar 1
+// per clip: [trim → retime] → scale (nearest, keep aspect) → letterbox-pad to WxH → fps → yuv420p → sar 1
 const inputs = []
 const vparts = [], aparts = []
 shots.forEach((s, i) => {
   inputs.push('-i', s.file)
-  vparts.push(`[${i}:v]scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,` +
+  const trimming = s.trimStart > 1e-6 || s.trimEnd < s.srcDur - 1e-6
+  // video: trim (reset PTS to 0) then retime by speed; skip both when untouched (byte-identical)
+  let vpre = ''
+  if (trimming)                 vpre += `trim=start=${s.trimStart}:end=${s.trimEnd},`
+  if (trimming || s.speed !== 1) vpre += `setpts=(PTS-STARTPTS)/${s.speed},`
+  vparts.push(`[${i}:v]${vpre}scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,` +
               `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${meta.fps},format=yuv420p,setsar=1[v${i}]`)
+  const apre = trimming ? `atrim=start=${s.trimStart}:end=${s.trimEnd},asetpts=PTS-STARTPTS,` : ''
   aparts.push(s.hasAudio
-    ? `[${i}:a]aformat=sample_rates=44100:channel_layouts=stereo,asetpts=N/SR/TB[a${i}]`
+    ? `[${i}:a]${apre}aformat=sample_rates=44100:channel_layouts=stereo,${atempoChain(s.speed)}asetpts=N/SR/TB[a${i}]`
     : `aevalsrc=0:d=${s.dur.toFixed(3)}:s=44100:c=stereo[a${i}]`)
 })
 
@@ -138,11 +176,36 @@ fs.mkdirSync(path.dirname(out), { recursive: true })
 const ffArgs = ['-y', ...inputs, '-filter_complex', filter,
   '-map', `[${vcur}]`, '-map', `[${acur}]`,
   '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv444p', '-crf', String(meta.crf), '-b:v', '0',
-  '-c:a', 'libopus', '-b:a', '128k', out]
+  '-c:a', 'libopus', '-b:a', '128k',
+  '-progress', 'pipe:1', '-nostats', out]   // stream encode progress → a rough % counter (the long, otherwise-silent step)
 
 console.log(`composing ${shots.length} clips → ${path.relative(mk.ROOT_DIR, out)}  (${W}×${H} = ${S}× nearest @ ${meta.fps}fps, crf ${meta.crf})`)
-shots.forEach((s, i) => console.log(`  ${i === 0 ? '▸' : `↳ ${shots[i].xtype} ${shots[i].xdur}s`}  ${s.ref}  (${s.dur.toFixed(1)}s${s.hasAudio ? '' : ', silent'})`))
-const r = spawnSync('ffmpeg', ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
-if (r.status !== 0) { console.error(r.stderr?.toString() || 'ffmpeg failed'); process.exit(1) }
-const total = (combined).toFixed(1)
-console.log(`✓ ${path.relative(mk.ROOT_DIR, out)}  (${(fs.statSync(out).size / 1024).toFixed(0)} KB, ~${total}s)`)
+shots.forEach((s, i) => {
+  const edits = [
+    s.trim ? `trim ${s.trimStart}→${s.trimEnd}` : null,
+    s.speed !== 1 ? `${s.speed}×` : null,
+  ].filter(Boolean).join(' ')
+  console.log(`  ${i === 0 ? '▸' : `↳ ${shots[i].xtype} ${shots[i].xdur}s`}  ${s.ref}  (${s.dur.toFixed(1)}s${s.hasAudio ? '' : ', silent'}${edits ? `, ${edits}` : ''})`)
+})
+// stream ffmpeg's -progress (out_time=HH:MM:SS.us, reliable across builds) → a throttled % of the
+// known output duration, so the editor's build log keeps ticking through the long encode.
+const totalSec = combined
+console.log(`  encoding ~${totalSec.toFixed(1)}s of video…`)
+const enc = spawn('ffmpeg', ffArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
+let errBuf = '', lastDecade = -1
+enc.stdout.on('data', d => {
+  for (const line of d.toString().split('\n')) {
+    const m = line.match(/^out_time=(\d+):(\d+):([\d.]+)/)
+    if (!m) continue
+    const sec = (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3])
+    const pct = Math.min(99, Math.floor(sec / totalSec * 100))
+    const decade = Math.floor(pct / 10) * 10
+    if (decade > lastDecade) { lastDecade = decade; process.stdout.write(`  encoding… ${decade}%\n`) }
+  }
+})
+enc.stderr.on('data', d => { errBuf += d.toString() })
+enc.on('error', e => { console.error(String(e.message || e)); process.exit(1) })
+enc.on('exit', code => {
+  if (code !== 0) { console.error(errBuf || 'ffmpeg failed'); process.exit(1) }
+  console.log(`✓ ${path.relative(mk.ROOT_DIR, out)}  (${(fs.statSync(out).size / 1024).toFixed(0)} KB, ~${totalSec.toFixed(1)}s)`)
+})

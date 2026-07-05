@@ -200,8 +200,9 @@ html, body {
   flex-direction: column;
   gap: 24px;
 }
-/* the text-heavy sections read better narrow; the trailer builder wants the full width (monitor + inspector + timeline) */
+/* the text-heavy sections read best narrow; the trailer wants more room for the timeline, but not the whole page */
 #aso-lab, #apps-list-sec { max-width: 720px; }
+#trailer-lab { max-width: 1080px; }
 #apps-body h3 { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
 #apps-body .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
 .aso-tool { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -312,14 +313,39 @@ html, body {
 #tl-close { margin-left: auto; font-size: 12px; padding: 1px 8px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim); }
 .tl-libwrap, .tl-tlwrap { margin: 8px 0; }
 #tl-library { margin-top: 4px; }
-#tl-timeline { display: flex; align-items: stretch; flex-wrap: wrap; gap: 0; margin-top: 6px; }
-.tl-block { display: flex; flex-direction: column; justify-content: space-between; min-width: 56px; padding: 6px 8px;
+/* the timeline is an absolute px-per-second track (blocks positioned by time; scrolls when long) */
+#tl-timeline { display: block; overflow-x: auto; overflow-y: hidden; margin-top: 6px; }
+.tl-track { position: relative; height: 62px; min-width: 100%; }
+.tl-block { position: absolute; top: 0; height: 100%; box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between; padding: 5px 7px;
   background: var(--bg2); border: 1px solid var(--accent); border-radius: 5px; cursor: grab; }
-.tl-block.tl-focus { box-shadow: 0 0 0 2px var(--accent); }
+.tl-block.tl-focus { box-shadow: 0 0 0 2px var(--accent); z-index: 4; }   /* selected rides above its neighbours */
 .tl-block.tl-dragging { opacity: .4; cursor: grabbing; }
 /* drop indicator: a fat accent edge on the block the dragged part will land before / after */
 .tl-block.tl-drop-before { box-shadow: -4px 0 0 -1px var(--accent); }
 .tl-block.tl-drop-after { box-shadow: 4px 0 0 -1px var(--accent); }
+/* the transition overlap between two blocks — a draggable ◇ zone; its width IS xdur (drag to resize) */
+.tl-overlap { position: absolute; top: 0; height: 100%; z-index: 6; display: flex; align-items: center; justify-content: center;
+  cursor: ew-resize; color: var(--fg); font-size: 12px; touch-action: none;
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent) 38%, transparent) 0 3px, transparent 3px 6px);
+  border-left: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); border-right: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+.tl-overlap:hover { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent) 55%, transparent) 0 3px, transparent 3px 6px); }
+.tl-overlap span { text-shadow: 0 0 3px var(--bg2), 0 0 3px var(--bg2); }
+/* overlay track — text overlays ride ABOVE the clip they're pinned to (magic-keyed over it on Build) */
+.tl-tracks { position: relative; }
+.tl-ovlane { position: relative; height: 24px; margin-bottom: 4px; }
+.tl-ovlane:empty::before { content: "overlay track — pick a clip, ‘＋ text overlay’ in the panel"; position: absolute; left: 2px; top: 5px;
+  font-size: 9px; color: var(--fg-dim); font-style: italic; }
+.tl-ovblk { position: absolute; top: 0; height: 100%; box-sizing: border-box; display: flex; align-items: center; padding: 0 8px; overflow: hidden;
+  font-size: 10px; color: var(--fg); cursor: grab; border-radius: 4px;
+  background: color-mix(in srgb, #00e436 24%, var(--bg2)); border: 1px dashed color-mix(in srgb, #00e436 75%, var(--fg-dim)); }
+.tl-ovblk.tl-focus { box-shadow: 0 0 0 2px var(--accent); }
+.tl-ovlbl { pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-ovh { position: absolute; top: 0; width: 6px; height: 100%; cursor: ew-resize; touch-action: none;
+  background: color-mix(in srgb, #00e436 65%, var(--fg-dim)); }
+/* inspector header carries the block's duplicate / remove now (blocks are too small once they overlap) */
+.tl-inhead { display: flex; align-items: center; gap: 6px; }
+.tl-inhead .tl-btns { margin-left: auto; }
 #tl-library .kw-mini { cursor: grab; }
 #tl-library .tl-addcard { cursor: pointer; border-color: var(--accent); color: var(--accent); }
 /* text-card block: a title/sub/body line stack + anim/bg/duration controls */
@@ -359,6 +385,12 @@ html, body {
 .tl-cardph:not([hidden]) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
 .tl-cardph > div { color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,.7); line-height: 1.1; font-weight: 700; }
 .tl-cardph .tl-ph-title { font-size: 26px; } .tl-cardph .tl-ph-sub { font-size: 16px; } .tl-cardph .tl-ph-body { font-size: 12px; font-weight: 500; }
+/* live overlay preview — the selected/in-window text overlay rendered over the monitor while scrubbing (Build is exact) */
+#tl-ov-preview { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.tl-ovp { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 10px; text-align: center; }
+.tl-ovp.top { top: 0; } .tl-ovp.center { top: 50%; transform: translateY(-50%); } .tl-ovp.bottom { bottom: 0; }
+.tl-ovp > div { color: #fff; text-shadow: 1px 1px 0 rgba(0,0,0,.75); font-weight: 700; line-height: 1.05; }
+.tl-ovp .tl-ph-title { font-size: 20px; } .tl-ovp .tl-ph-sub { font-size: 14px; } .tl-ovp .tl-ph-body { font-size: 11px; font-weight: 600; }
 /* the "≈ wipe — exact on Build" badge that flashes when the live player fakes a non-opacity transition */
 .tl-seqbadge { position: absolute; left: 6px; bottom: 6px; z-index: 6; font-size: 10px; padding: 2px 7px; border-radius: 4px;
   background: rgba(0,0,0,.72); color: #fff; pointer-events: none; }
@@ -387,7 +419,7 @@ html, body {
 /* monitor + inspector sit side by side; the inspector holds the SELECTED block's properties so blocks stay compact */
 .tl-work { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; margin: 8px 0; }
 .tl-monwrap { flex: 0 0 320px; margin: 0; }   /* fixed width so the video's intrinsic size can't blow out the flex row */
-.tl-inspector { flex: 1 1 300px; min-width: 240px; align-self: stretch; padding: 10px 12px;
+.tl-inspector { flex: 1 1 300px; min-width: 240px; max-width: 520px; align-self: stretch; padding: 10px 12px;
   background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; }
 .tl-inhint { font-size: 11px; color: var(--fg-dim); font-style: italic; }
 .tl-inhead { font-size: 12px; font-weight: 600; color: var(--fg); margin-bottom: 8px; word-break: break-all; }

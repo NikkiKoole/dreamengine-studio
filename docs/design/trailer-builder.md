@@ -125,7 +125,7 @@ builder gets room below. (A true pop-out modal is nicer but a separate build —
 
 ## Live preview + visual cut points (staged B)
 
-STATUS for this section: **slices 1 + 3 SHIPPED** — slice 1 (2026-07-04): duration-proportional blocks
+STATUS for this section: **COMPLETE — slices 1–4 SHIPPED (2026-07-05).** slice 1 (2026-07-04): duration-proportional blocks
 + a visual trim track (draggable in/out handles) + a preview monitor with scrub-and-set-in/out and
 play-in→out at speed. **slice 3 (2026-07-05): the continuous sequence player** — a `▶ play all` button
 plays the WHOLE reel live from two stacked `<video>`s (double-buffered), opacity-crossfading for
@@ -136,7 +136,7 @@ edit while it's playing (add / remove / reorder / duplicate / clear) **re-syncs 
 (rebuilds the list, restarts from the top) so it never plays a stale timeline; fine tweaks (trim /
 speed / transition type) are picked up on the next `▶ play all`. No new IPC, no ffmpeg, no bake — an
 approximation on purpose; Build stays truth. Slice 2 (overlap-as-transition
-drag) still specced. The v1 (A)
+drag) SHIPPED too (2026-07-05) — see the build-order list. The v1 (A)
 timeline edited numbers in fields then baked to see the result; this tier adds the thing real editors
 have — **scrub the clips and pick cut points by eye, reflected live** — while keeping Build as export.
 
@@ -180,12 +180,16 @@ cache; our baked reel *is* that cache — we just add the live layer above it.)
    block to load it; drag a handle seeks the monitor to the cut frame; ⇤/⇥ capture the scrubbed
    frame as in/out; ▶ plays just the in→out range at the clip's speed). All client-side, no new IPC.
    Delivers "pick cut points visually" on its own, no transitions involved.
-2. Overlap-as-transition: overlapping block layout, drag-to-resize `xdur`, ◇ type picker in the overlap.
-   **Prerequisite SHIPPED (2026-07-05): the timeline+inspector reshape** (see below); the overlap drag
-   itself is the remaining piece.
+2. ✅ **SHIPPED (2026-07-05)** — overlap-as-transition. The timeline is now an **absolute px-per-second
+   track** (blocks positioned by time, scrolls when long); block *i* sits at `right[i−1] − xdur`, so
+   adjacent blocks physically overlap by the transition, and a hatched ◇ handle in each overlap is
+   **draggable to set `xdur`** live (downstream snaps on release; clicking it selects the block so the
+   type shows in the inspector). Built on the timeline+inspector reshape (below).
 3. ✅ **SHIPPED (2026-07-05)** — continuous sequence preview player (two stacked `<video>`s, opacity
    cross-fade for fade/dissolve; card rows as static placeholders; wipes hard-cut + a "exact on Build" badge).
 4. Build unchanged — the exact exporter.
+
+With slices 1–4 done, **the live-preview tier (staged B) is complete.**
 
 **Timeline + inspector reshape (SHIPPED 2026-07-05).** The v1 blocks carried *all* their properties
 inline, so a card block ballooned into a full form and the timeline stopped reading as a timeline (it
@@ -389,8 +393,14 @@ loop-close). What's left, roughly by payoff:
   the punch size, `bpm` the tempo. Verified: the text is visibly wider on the beat than between beats.
   Grammar `bpm <n>` (0 = off), editor card-block field. (`bpm` is a studio.h built-in — the cart var
   is `card_bpm`.) Still open: auto-inherit the BPM from the prior clip's cart (needs clips to stamp tempo).
-- **Overlay-attach editor UI** — `over @a-b` round-trips in the `.reel` today, but there's no
-  click-to-add-overlay-on-a-clip in the editor yet.
+- ✅ **Overlay-attach editor UI — SHIPPED (2026-07-05).** The timeline now has a second **overlay
+  track** above the main lane. A selected clip's inspector has **＋ text overlay** (rides on that clip,
+  magic-keyed transparent); the overlay appears as a green-dashed block above the clip at its `[a,b]`
+  window — drag it to move, its ◧▮ edges to resize, click to edit (lines · window · pos top/center/bottom
+  · entrance · boil/breathe/bpm). Round-trips as `over @a-b …` through build-reel/app-clips; compose keys
+  out CLR_GREEN (`0x00e436`) automatically (no per-card colorkey — the reserved slot). **Live preview:**
+  a selected overlay (and any whose window you scrub into) renders as text over the monitor, positioned
+  by its pos — an approximation; Build is exact. Not yet composited during ▶ play all (a follow-up).
 - **Named styles** — a few curated `font + ink + paper + accent` presets (maker's taste); today every
   card is white-on-shadow.
 - **Dither fade-out** — a real *dissolving* out mid-card (a Bayer/stipple mask), instead of `fade`
@@ -406,8 +416,8 @@ loop-close). What's left, roughly by payoff:
   [`device-adaptive-layout.md`](device-adaptive-layout.md); revisit once a cart can bake vertical.
 - **IAP-tease ordering** — free rack first → "unlock 3 more" CTA card; the montage as a funnel
   ([`demand-generation.md`](demand-generation.md) #4).
-- **Live-scrub preview** — slice 3 (continuous `<video>` sequence player) ✅ SHIPPED 2026-07-05; slice 2
-  (overlap-as-transition drag) still open. See §"Live preview + visual cut points" above.
+- ✅ **Live-scrub preview — DONE (2026-07-05)** — slices 1–4 all shipped (duration-proportional trim
+  track, continuous `<video>` sequence player, overlap-as-transition drag). See §"Live preview" above.
 
 ## See also
 - [`demand-generation.md`](demand-generation.md) — why this is lever #2; the funnel it feeds

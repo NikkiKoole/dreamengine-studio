@@ -397,10 +397,13 @@ loop-close). What's left, roughly by payoff:
   track** above the main lane. A selected clip's inspector has **＋ text overlay** (rides on that clip,
   magic-keyed transparent); the overlay appears as a green-dashed block above the clip at its `[a,b]`
   window — drag it to move, its ◧▮ edges to resize, click to edit (lines · window · pos top/center/bottom
-  · entrance · boil/breathe/bpm). Round-trips as `over @a-b …` through build-reel/app-clips; compose keys
+  · **in AND out transitions** each effect+secs · boil/breathe/bpm). Round-trips as `over @a-b …` through
+  build-reel/app-clips (the `in`/`out` segments → titlecard's in→hold→out); compose keys
   out CLR_GREEN (`0x00e436`) automatically (no per-card colorkey — the reserved slot). **Live preview:**
-  a selected overlay (and any whose window you scrub into) renders as text over the monitor, positioned
-  by its pos — an approximation; Build is exact. Not yet composited during ▶ play all (a follow-up).
+  overlays render as text over the monitor — the selected one (and any whose window you scrub into) while
+  scrubbing, and gated to each clip's window during ▶ play all — positioned by its pos. An approximation
+  (HTML text, no per-letter boil/breathe); Build is exact. So the play-all preview now covers the whole
+  reel: clips + crossfades + card placeholders + overlays.
 - **Named styles** — a few curated `font + ink + paper + accent` presets (maker's taste); today every
   card is white-on-shadow.
 - **Dither fade-out** — a real *dissolving* out mid-card (a Bayer/stipple mask), instead of `fade`

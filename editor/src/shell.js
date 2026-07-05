@@ -1632,7 +1632,8 @@ function tlOvInspector(r, ov, i, o) {
     + `<input class="tl-ctext" data-tl-ovtext="${i},${o},${k}" value="${escHtml(l.text)}" placeholder="text">`
     + `<button class="tl-cx" data-tl-ovlinedel="${i},${o},${k}" title="remove line">✕</button></div>`).join('')
   const posSel = `<select data-tl-ovpos="${i},${o}">` + TL_OVPOS.map(p => `<option${p === (ov.pos || 'bottom') ? ' selected' : ''}>${p}</option>`).join('') + `</select>`
-  const animSel = `<select class="tl-canim" data-tl-ovanim="${i},${o}">` + TL_ANIMS.map(x => `<option${x === (ov.anim || 'fade') ? ' selected' : ''}>${x}</option>`).join('') + `</select>`
+  const inDur = ov.inDur ?? 0.4, inEff = ov.inEffect || ov.anim || 'fade', outDur = ov.outDur ?? 0, outEff = ov.outEffect || 'slide top'
+  const effSel = (val, attr) => `<select class="tl-canim" data-${attr}="${i},${o}">` + TL_ANIMS.map(x => `<option${x === val ? ' selected' : ''}>${x}</option>`).join('') + `</select>`
   const num = (attr, val, mn, mx, st) => `<input class="tl-num" type="number" min="${mn}"${mx != null ? ` max="${mx}"` : ''} step="${st}" data-${attr}="${i},${o}" value="${val}">`
   return `<div class="tl-inhead">▣ overlay on ${escHtml(r.clip)}`
     + `<span class="tl-btns"><button data-tl-ovrm="${i},${o}" title="remove this overlay">✕</button></span></div>`
@@ -1640,8 +1641,10 @@ function tlOvInspector(r, ov, i, o) {
     + `<div class="tl-ingroup"><span class="tl-ink">window (seconds into the clip, 0–${clipDur.toFixed(1)})</span><div class="tl-cardopts">`
     +   `<span class="tl-phase">start ${num('tl-ova', +a.toFixed(1), 0, clipDur, 0.1)}</span>`
     +   `<span class="tl-phase">end ${num('tl-ovb', +b.toFixed(1), 0, clipDur, 0.1)}</span></div></div>`
-    + `<div class="tl-ingroup"><span class="tl-ink">position &amp; entrance</span><div class="tl-cardopts">`
-    +   `<span class="tl-phase">pos ${posSel}</span><span class="tl-phase">anim ${animSel}</span></div></div>`
+    + `<div class="tl-ingroup"><span class="tl-ink">position</span><div class="tl-cardopts"><span class="tl-phase">pos ${posSel}</span></div></div>`
+    + `<div class="tl-ingroup"><span class="tl-ink">in / out transitions</span><div class="tl-cardopts">`
+    +   `<span class="tl-phase" title="entrance — effect + seconds">in ${effSel(inEff, 'tl-ovineff')}${num('tl-ovindur', inDur, 0, null, 0.1)}</span>`
+    +   `<span class="tl-phase" title="exit — effect + seconds (0 = no exit tween)">out ${effSel(outEff, 'tl-ovouteff')}${num('tl-ovoutdur', outDur, 0, null, 0.1)}</span></div></div>`
     + `<div class="tl-ingroup"><span class="tl-ink">life</span><div class="tl-cardopts">`
     +   `<label class="tl-splbl" title="boil — hand-drawn wobble (0…1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-ovboil="${i},${o}" value="${ov.boil ?? 0}"></label>`
     +   `<label class="tl-splbl" title="breathe — grow/shrink pulse (0…1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-ovbreathe="${i},${o}" value="${ov.breathe ?? 0}"></label>`
@@ -1685,18 +1688,29 @@ function tlLoopControl() {
 }
 // live overlay preview — render the selected (and any scrubbed-into) text overlay over the monitor.
 // An approximation of the magic-key composite; Build is exact. Skipped during ▶ play all (a follow-up).
-function tlUpdateOvPreview() {
-  const layer = document.getElementById('tl-ov-preview'), mon = document.getElementById('tl-monitor')
-  if (!layer || !mon) return
-  const i = tlFocus, r = tlRows[i]
-  if (tlSeq || i < 0 || !r || r.card || !(r.overlays && r.overlays.length)) { layer.hidden = true; return }
-  const t = (mon.currentTime - (r.trim ? r.trim[0] : 0)) / (r.speed || 1)   // on-screen seconds into the clip
-  const shown = r.overlays.filter((ov, o) => (tlOvSel && tlOvSel.r === i && tlOvSel.o === o)   // always show the one being edited
-    || (t >= (ov.a || 0) - 0.05 && t <= (ov.b == null ? 1e9 : ov.b) + 0.05))                   // plus any whose window we're in
-  if (!shown.length) { layer.hidden = true; return }
-  layer.innerHTML = shown.map(ov => `<div class="tl-ovp ${ov.pos || 'bottom'}">`
+function tlPaintOv(layer, shown) {   // render a list of overlays into the layer (positioned top/center/bottom), or hide
+  const html = shown.map(ov => `<div class="tl-ovp ${ov.pos || 'bottom'}">`
     + (ov.lines || []).map(l => `<div class="tl-ph-${l.role}">${escHtml(l.text)}</div>`).join('') + `</div>`).join('')
-  layer.hidden = false
+  if (layer._ovhtml === html) { layer.hidden = !html; return }   // skip rewriting unchanged content (called ~60fps during play)
+  layer._ovhtml = html
+  layer.innerHTML = html
+  layer.hidden = !html
+}
+function tlUpdateOvPreview() {
+  const layer = document.getElementById('tl-ov-preview'); if (!layer) return
+  if (tlSeq) {   // ── ▶ play all: composite the playing clip's overlays over the active video buffer ──
+    const it = tlSeq.items[tlSeq.idx]
+    if (!it || it.kind !== 'clip' || !(it.overlays && it.overlays.length)) { layer.hidden = true; return }
+    const v = tlVid(tlSeq.buf), t = (v.currentTime - (it.tStart || 0)) / (it.speed || 1)
+    tlPaintOv(layer, it.overlays.filter(ov => t >= (ov.a || 0) - 0.05 && t <= (ov.b == null ? 1e9 : ov.b) + 0.05))
+    return
+  }
+  // ── scrub mode: the selected overlay + any whose window the monitor is currently in ──
+  const mon = document.getElementById('tl-monitor'), i = tlFocus, r = tlRows[i]
+  if (i < 0 || !r || r.card || !(r.overlays && r.overlays.length)) { layer.hidden = true; return }
+  const t = (mon.currentTime - (r.trim ? r.trim[0] : 0)) / (r.speed || 1)   // on-screen seconds into the clip
+  tlPaintOv(layer, r.overlays.filter((ov, o) => (tlOvSel && tlOvSel.r === i && tlOvSel.o === o)   // always show the one being edited
+    || (t >= (ov.a || 0) - 0.05 && t <= (ov.b == null ? 1e9 : ov.b) + 0.05)))                     // plus any whose window we're in
 }
 document.getElementById('tl-monitor')?.addEventListener('timeupdate', tlUpdateOvPreview)
 // select a block → fill the inspector with its properties; a clip also loads into the monitor to scrub
@@ -1902,7 +1916,7 @@ document.getElementById('tl-inspector')?.addEventListener('click', e => {
   // ── text overlays ──
   else if (ovadd) { const i = +ovadd.dataset.tlOvadd, dur = tlRowDur(tlRows[i])   // a new overlay riding this clip
     const ovs = tlRows[i].overlays || (tlRows[i].overlays = [])
-    ovs.push({ a: round1(Math.min(0.3, dur * 0.1)), b: round1(Math.min(dur, Math.max(1.5, dur * 0.6))), pos: 'bottom', anim: 'fade', lines: [{ role: 'body', text: 'new' }] })
+    ovs.push({ a: round1(Math.min(0.3, dur * 0.1)), b: round1(Math.min(dur, Math.max(1.5, dur * 0.6))), pos: 'bottom', inDur: 0.4, inEffect: 'fade', outDur: 0.4, outEffect: 'slide top', lines: [{ role: 'body', text: 'new' }] })
     tlOvSel = { r: i, o: ovs.length - 1 }; tlSel = -1; tlRender(); tlSeqSync() }
   else if (ovrm) { const [i, o] = ovrm.dataset.tlOvrm.split(',').map(Number); tlRows[i].overlays.splice(o, 1); tlOvSel = null; tlRender(); tlSeqSync() }
   else if (ovsel) { const [i, o] = ovsel.dataset.tlOvsel.split(',').map(Number); tlOvSel = { r: i, o }; tlSel = -1; tlRender() }
@@ -1936,12 +1950,17 @@ document.getElementById('tl-inspector')?.addEventListener('change', e => {
   if (cbpm)  tlRows[+cbpm.dataset.tlCbpm].bpm = Math.max(0, parseFloat(cbpm.value) || 0)
   // ── text-overlay fields (keyed by "i,o" clip,overlay — or "i,o,k" for a line role) ──
   const ov = (el) => { const [i, o] = el.dataset[Object.keys(el.dataset).find(k => k.startsWith('tlOv'))].split(',').map(Number); return tlRows[i].overlays[o] }
-  const ovrole = e.target.closest('[data-tl-ovrole]'); const ovpos = e.target.closest('[data-tl-ovpos]'); const ovanim = e.target.closest('[data-tl-ovanim]')
+  const ovrole = e.target.closest('[data-tl-ovrole]'); const ovpos = e.target.closest('[data-tl-ovpos]')
+  const ovineff = e.target.closest('[data-tl-ovineff]'); const ovindur = e.target.closest('[data-tl-ovindur]')
+  const ovouteff = e.target.closest('[data-tl-ovouteff]'); const ovoutdur = e.target.closest('[data-tl-ovoutdur]')
   const ova = e.target.closest('[data-tl-ova]'); const ovb = e.target.closest('[data-tl-ovb]')
   const ovboil = e.target.closest('[data-tl-ovboil]'); const ovbre = e.target.closest('[data-tl-ovbreathe]'); const ovbpm = e.target.closest('[data-tl-ovbpm]')
   if (ovrole) { const [i, o, k] = ovrole.dataset.tlOvrole.split(',').map(Number); tlRows[i].overlays[o].lines[k].role = ovrole.value; tlRender() }
   if (ovpos)  { ov(ovpos).pos = ovpos.value; tlRender() }
-  if (ovanim) { ov(ovanim).anim = ovanim.value }
+  if (ovineff)  { const o = ov(ovineff); o.inEffect = ovineff.value; if (o.inDur == null) o.inDur = 0.4 }   // set inDur so build uses the in/out path
+  if (ovindur)  { const o = ov(ovindur); o.inDur = Math.max(0, parseFloat(ovindur.value) || 0); o.inEffect = o.inEffect || 'fade' }
+  if (ovouteff) ov(ovouteff).outEffect = ovouteff.value
+  if (ovoutdur) ov(ovoutdur).outDur = Math.max(0, parseFloat(ovoutdur.value) || 0)
   if (ova)    { const o = ov(ova); o.a = Math.max(0, parseFloat(ova.value) || 0); if (o.b <= o.a) o.b = o.a + 0.5; tlRender(); tlSeqSync() }
   if (ovb)    { const o = ov(ovb); o.b = Math.max((o.a || 0) + 0.1, parseFloat(ovb.value) || 0); tlRender(); tlSeqSync() }
   if (ovboil) { ov(ovboil).boil = Math.max(0, Math.min(1, parseFloat(ovboil.value) || 0)) }
@@ -2011,7 +2030,7 @@ function tlBuildSeq() {
   return tlRows.map(r => {
     if (r.card) return { kind: 'card', dur: r.dur || 2, lines: r.lines || [], bg: r.bg == null ? 17 : r.bg, xtype: r.xtype, xdur: r.xdur }
     if (!tlBaked.has(r.clip)) return { kind: 'need', clip: r.clip, dur: 1.5, xtype: r.xtype, xdur: r.xdur }
-    return { kind: 'clip', clip: r.clip, trim: r.trim, tStart: r.trim ? r.trim[0] : 0, tEnd: null, speed: r.speed || 1, xtype: r.xtype, xdur: r.xdur }
+    return { kind: 'clip', clip: r.clip, trim: r.trim, tStart: r.trim ? r.trim[0] : 0, tEnd: null, speed: r.speed || 1, xtype: r.xtype, xdur: r.xdur, overlays: r.overlays || [] }
   })
 }
 // how many seconds the NEXT part overlaps this one (its transition), or the loop-close on the last part.
@@ -2077,6 +2096,7 @@ function tlSeqTick() {
   if (!tlSeq || tlSeq.timer) return
   const S = tlSeq, it = S.items[S.idx]
   if (!it || it.kind !== 'clip') return
+  tlUpdateOvPreview()   // composite this clip's overlays over the playing buffer (a card's placeholder covers it anyway)
   const a = tlVid(S.buf), b = tlVid(1 - S.buf)
   const next = S.items[S.idx + 1]
   const t = a.currentTime

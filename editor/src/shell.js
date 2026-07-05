@@ -1226,6 +1226,32 @@ async function runCart(net) {
 
 runBtn.addEventListener('click', () => runCart(null))
 
+// ● record — run the cart and capture your play as an input track. The take runs for the whole
+// session; you play, then CLOSE the cart window (Esc) to stop + save it to tools/clips/<cart>/NN-take.rec.
+// docs/design/input-recording-looper.md. (Stop-on-close is the scrappy v1; a live stop-hotkey is later.)
+const recBtn = document.getElementById('rec-btn')
+async function recordCart() {
+  if (!window.studio?.record) { showLog({ ok: false, cmd: null, output: 'recording requires the desktop app  (npm start)' }); return }
+  const code = view.state.doc.toString()
+  setErrorLines([])
+  recBtn.textContent = '⏳'; recBtn.disabled = true; runBtn.disabled = true
+  const tilemapCanvas = document.querySelector('#tilemap-canvas')
+  if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+  await window.studio.saveMap(getMapBytes())
+  const result = await window.studio.record(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile })
+  recBtn.textContent = '● rec'; recBtn.disabled = false; runBtn.disabled = false
+  if (result && !result.ok) { showLog(result); return }
+  showToast('● recording — play, then close the window (Esc) to save the take', 6000)
+}
+recBtn.addEventListener('click', recordCart)
+if (settings.showRecord && recBtn) recBtn.style.display = ''   // hidden by default; opt-in via settings → record
+// the exact path also prints into the runtime log (persistent); the toast reveals it in Finder on click
+window.studio?.onRecorded?.(info => {
+  if (info?.ok) showToast(`✓ take saved → ${info.rel}  ·  click to show in Finder`, 12000, () => window.studio.revealPath?.(info.abs || info.rel))
+  else if (info?.empty) showToast('no input captured — nothing saved', 3500)
+  else showToast('recording failed: ' + (info?.error || '?'), 4000)
+})
+
 // ── multiplayer (netplay) button — rung 2, LAN by IP ──────────
 // One machine hosts (P0), another on the same wifi joins by the host's IP (P1).
 // docs/design/multiplayer-research.md. Native run backend only (browsers have no
@@ -2452,11 +2478,13 @@ window.addEventListener('keydown', e => {
 
 const toast = document.getElementById('toast')
 let toastTimer = null
-function showToast(msg, ms = 2000) {
+function showToast(msg, ms = 2000, onClick = null) {
   toast.textContent = msg
   toast.classList.add('visible')
+  toast.classList.toggle('clickable', !!onClick)   // plain toasts stay click-through; this one accepts the click
+  toast.onclick = onClick ? () => { toast.classList.remove('visible'); toast.onclick = null; onClick() } : null
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toast.classList.remove('visible'), ms)
+  toastTimer = setTimeout(() => { toast.classList.remove('visible'); toast.onclick = null }, ms)
 }
 
 function applyCart(cart) {
@@ -2628,15 +2656,45 @@ publishBtn.addEventListener('click', async () => {
   }
 })
 
-// ── drag-and-drop cart loading ────────────────────────────────
-document.addEventListener('dragover', e => e.preventDefault())
+// ── drag-and-drop file loading (.png cart / .rec input track) ──
+// CAPTURE phase + stopPropagation so a FILE dropped on the code editor is handled here and NOT
+// inserted as text by CodeMirror (which grabs the drop at its own element first). Only intercept
+// file drags — an internal text drag (types has no 'Files') passes straight through to CodeMirror.
+const isFileDrag = e => [...(e.dataTransfer?.types || [])].includes('Files')
+document.addEventListener('dragover', e => { if (isFileDrag(e)) { e.preventDefault(); e.stopPropagation() } }, true)
 document.addEventListener('drop', async e => {
-  e.preventDefault()
+  if (!isFileDrag(e)) return
+  e.preventDefault(); e.stopPropagation()
   const file = e.dataTransfer.files[0]
-  if (!file || !file.name.endsWith('.png')) return
+  if (!file) return
+  // drop a .rec input track → replay it against the CURRENT cart in a native window (mirror of ● rec).
+  // The tape's coordinates map to the cart it was recorded on; replaying a foreign cart just looks
+  // like noise. docs/design/input-recording-looper.md.
+  if (file.name.endsWith('.rec')) {
+    if (!window.studio?.replay) { showLog({ ok: false, cmd: null, output: 'replay requires the desktop app  (npm start)' }); return }
+    const recPath = window.studio.getFilePath(file)
+    // a take lives in tools/clips/<slug>/NN-*.rec — the parent folder names the cart it was recorded
+    // on. If that ≠ the open cart, the coordinates won't line up; warn instead of playing silent noise.
+    const owner = recPath.replace(/\\/g, '/').split('/').slice(-2)[0] || ''
+    const mismatch = currentCartFile && owner && owner !== currentCartFile
+    const code = view.state.doc.toString()
+    setErrorLines([])
+    const tilemapCanvas = document.querySelector('#tilemap-canvas')
+    if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+    await window.studio.saveMap(getMapBytes())
+    const result = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, recPath)
+    if (result && !result.ok) { showLog(result); return }
+    showToast(mismatch
+      ? `⚠ ${file.name} was recorded on “${owner}”, not ${currentCartName || 'this cart'} — input won’t line up`
+      : `▶ replaying ${file.name} against ${currentCartName || 'this cart'}`, mismatch ? 6000 : 4000)
+    return
+  }
+  if (!file.name.endsWith('.png')) return
   const filePath = window.studio.getFilePath(file)
   const cart = await window.studio.loadCartFile(filePath)
-  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } currentCartPath = cart.origin || ''; applyCart(cart) }
+  // currentCartFile is the FILE slug (drives the record/replay clip dir), NOT the display title —
+  // take it from the dropped filename (squishy.cart.png → squishy), else a record lands in squishy-lines/.
+  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); currentCartFile = file.name.replace(/\.cart\.png$/i, ''); currentCartPath = cart.origin || ''; applyCart(cart) }
 })
 
 let hideTimer = null

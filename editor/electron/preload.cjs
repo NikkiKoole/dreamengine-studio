@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('studio', {
   run:          (code, cfg) => ipcRenderer.invoke('studio:run', code, cfg),
+  record:       (code, cfg) => ipcRenderer.invoke('studio:record', code, cfg),
+  replay:       (code, cfg, recPath) => ipcRenderer.invoke('studio:replay', code, cfg, recPath),
+  onRecorded:   (cb) => ipcRenderer.on('cart:recorded', (_, info) => cb(info)),
   liveWrite:    (code)      => ipcRenderer.invoke('studio:live-write', code),
   profile:      (code, cfg) => ipcRenderer.invoke('studio:profile', code, cfg),
   saveSprites:  (dataUrl) => ipcRenderer.invoke('studio:save-sprites', dataUrl),
@@ -20,6 +23,7 @@ contextBridge.exposeInMainWorld('studio', {
   publish:      (code, cfg) => ipcRenderer.invoke('studio:publish', code, cfg),
   openExternal: (url)       => ipcRenderer.invoke('studio:open-external', url),
   openPath:     (p)         => ipcRenderer.invoke('studio:open-path', p),
+  revealPath:   (p)         => ipcRenderer.invoke('studio:reveal-path', p),
   setCartName:  (name)     => ipcRenderer.send('cart:set-name', name),
   // Apps view
   listApps:     ()               => ipcRenderer.invoke('studio:list-apps'),

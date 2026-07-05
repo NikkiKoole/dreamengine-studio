@@ -830,6 +830,80 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
   })
 })
 
+// RECORD your own play as an input track. Same compile+spawn as studio:run, but the cart runs
+// with --record <tmp>; studio.c logs input changes per frame (harness_input, native build). On
+// window close we park the take at tools/clips/<slug>/NN-take.rec — the SAME home authored tracks
+// use, so it feeds the whole fan-out (replay · bake a clip · reel · attract).
+// Design: docs/design/input-recording-looper.md ("one track, many surfaces").
+ipcMain.handle('studio:record', async (_event, code, cfg) => {
+  const ROOT = path.join(__dirname, '../..')
+  const dims = prepareCart(code, cfg)
+  const args = macCompileArgs(dims, cfg?.buildMode === 'release' ? ['-O2', '-DDE_RELEASE'] : ['-Os'])
+  const cmd  = `clang ${args.join(' ')}`
+  // key the take on the CANONICAL cart id (the .cart.png basename = tools/carts/<slug>.c = tools/clips/<slug>/),
+  // NOT the display title — "Squishy Lines" must land in tools/clips/squishy/, not squishy-lines/.
+  const slug = (cfg?.cartFile || cfg?.cartName || 'scratch').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'scratch'
+  const recTmp = path.join(BUILD_DIR, '.rec', 'take.rec')
+  fs.mkdirSync(path.dirname(recTmp), { recursive: true })
+  try { if (fs.existsSync(recTmp)) fs.unlinkSync(recTmp) } catch {}   // start clean so an empty take is detectable
+  return new Promise(resolve => {
+    exec(cmd, (err, _stdout, stderr) => {
+      const warnings = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
+      if (err) return resolve({ ok: false, cmd, output: warnings })
+      const wc = _event.sender
+      const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (● recording)`, '--record', recTmp, ...saveDirArgs(cfg)],
+        { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
+      proc.stdout.on('data', c => send('cart:log', c.toString()))
+      proc.stderr.on('data', c => send('cart:log', c.toString()))
+      proc.on('error', () => {})
+      proc.on('exit', () => {                                          // window closed → save the take (if any input landed)
+        try {
+          if (!fs.existsSync(recTmp) || fs.statSync(recTmp).size === 0) return send('cart:recorded', { ok: false, empty: true })
+          const dir = path.join(ROOT, 'tools/clips', slug)
+          fs.mkdirSync(dir, { recursive: true })
+          const nums = fs.readdirSync(dir).map(f => { const m = f.match(/^(\d+)-/); return m ? +m[1] : 0 })
+          const nn = String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0')
+          const dest = path.join(dir, `${nn}-take.rec`)
+          fs.copyFileSync(recTmp, dest)
+          const rel = path.relative(ROOT, dest)
+          send('cart:log', `\n✓ recorded take → ${rel}\n  replay:  node tools/play.js ${slug} replay ${rel}\n  clip:    node tools/make-gif.js ${slug} --recipe ${nn}-take\n`)   // persistent in the log panel
+          send('cart:recorded', { ok: true, rel, abs: dest, slug, label: `${nn}-take` })
+        } catch (e) { send('cart:recorded', { ok: false, error: String(e.message || e) }) }
+      })
+      resolve({ ok: true, cmd, output: warnings || null })
+    })
+  })
+})
+
+// REPLAY a recorded input track (.rec) against the CURRENT cart — the mirror of studio:record.
+// Same compile+spawn as studio:run, but the cart runs with --replay <path>; studio.c feeds the
+// tape's per-frame input back in (deterministic). Nothing to save on exit. The .rec's coordinates
+// map to the cart it was recorded on, so replaying a foreign cart's take just looks like noise —
+// harmless. Fed by dropping a .rec on the editor (shell.js drop handler).
+// Design: docs/design/input-recording-looper.md.
+ipcMain.handle('studio:replay', async (_event, code, cfg, recPath) => {
+  const abs = String(recPath || '')
+  if (!abs || !abs.endsWith('.rec') || !fs.existsSync(abs)) return { ok: false, cmd: null, output: `not a readable .rec file: ${abs || '(none)'}` }
+  const dims = prepareCart(code, cfg)
+  const args = macCompileArgs(dims, cfg?.buildMode === 'release' ? ['-O2', '-DDE_RELEASE'] : ['-Os'])
+  const cmd  = `clang ${args.join(' ')}`
+  return new Promise(resolve => {
+    exec(cmd, (err, _stdout, stderr) => {
+      const warnings = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
+      if (err) return resolve({ ok: false, cmd, output: warnings })
+      const wc = _event.sender
+      const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, '--replay', abs, ...saveDirArgs(cfg)],
+        { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
+      proc.stdout.on('data', c => send('cart:log', c.toString()))
+      proc.stderr.on('data', c => send('cart:log', c.toString()))
+      proc.on('error', () => {})
+      resolve({ ok: true, cmd, output: warnings || null })
+    })
+  })
+})
+
 // EXPORT A WINDOWS .exe you can send to someone (Thread 2 — the send-to-son path).
 // Cross-compiles the current cart with -mwindows (no console window) and
 // -DDE_NET_LOBBY_DEFAULT (double-click boots into the Host/Join/Solo lobby), asks
@@ -1266,6 +1340,12 @@ ipcMain.handle('studio:open-external', (_e, url) => {
 ipcMain.handle('studio:open-path', (_e, p) => {
   const abs = String(p || ''), ROOT = path.join(__dirname, '../..')
   if (abs && abs.startsWith(ROOT)) shell.openPath(abs)
+})
+// reveal a repo file in Finder (accepts an absolute path or a repo-relative one) — used by the record toast
+ipcMain.handle('studio:reveal-path', (_e, p) => {
+  const ROOT = path.join(__dirname, '../..')
+  const abs = path.isAbsolute(String(p || '')) ? String(p) : path.join(ROOT, String(p || ''))
+  if (abs.startsWith(ROOT) && fs.existsSync(abs)) shell.showItemInFolder(abs)
 })
 
 // ── Apps view: list app manifests (apps/<name>/app.json) ──────

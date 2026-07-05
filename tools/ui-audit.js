@@ -10,6 +10,12 @@
 // ui.h widget rect (so the auditor knows which boxes are interactive targets).
 //
 //   node tools/ui-audit.js <name> [--frames N] [--script f | --beats f] [--json]
+//   node tools/ui-audit.js <name> --resize WxH,WxH,…        AUDIT A RESIZE SWEEP — reflow the
+//                                                           canvas through each size (resizable
+//                                                           carts) and flag off-screen / overlap
+//                                                           AT EVERY SIZE; findings are tagged with
+//                                                           the size they occur at. The responsive
+//                                                           layout gate (device-adaptive-layout.md).
 //   node tools/ui-audit.js <name> --explore                 press keys + tap widgets to reveal panels
 //   node tools/ui-audit.js <name> --overlay [out.svg] [--frame N]   visualise the boxes
 //
@@ -37,6 +43,7 @@ const opt = (flag, def) => { const i = args.indexOf(flag); return i >= 0 && i + 
 const asJson      = args.includes('--json')
 const wantOverlay = args.includes('--overlay')
 const wantExplore = args.includes('--explore')
+const resizeSpec  = opt('--resize', null)   // "WxH,WxH,…" → audit the reflow at every size
 const overlayArg  = (() => { const i = args.indexOf('--overlay'); const v = args[i + 1]; return (v && !v.startsWith('--')) ? v : null })()
 
 const ROOT = path.resolve(__dirname, '..')
@@ -47,10 +54,11 @@ const ROOT = path.resolve(__dirname, '..')
 // collect those across every run() so the report can surface them.
 const uiWarnings = new Set()
 let runSeq = 0
-function run(inMode, frames, dumpDir) {
+function run(inMode, frames, dumpDir, resize) {
   const auditPath = path.join(os.tmpdir(), `uiaudit-${name}-${process.pid}-${runSeq++}.jsonl`)
   const play = [path.join('tools', 'play.js'), name, ...inMode,
                 '--headless', '--frames', String(frames), '--uiaudit', auditPath]
+  if (resize) play.push('--resize', resize)   // sweep sizes; each held RESIZE_HOLD frames, all captured
   if (dumpDir) play.push('--dump', dumpDir, '--dump-every', '1')
   const r = spawnSync('node', play, { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'] })
   if (r.stdout) for (const line of r.stdout.toString().split('\n'))
@@ -114,9 +122,32 @@ function widgetTargets(recs) {
   return [...seen.values()]
 }
 
-// ── plan the explore session (keys + widget taps), as a play.js script ──────
+// ── plan the session, run, collect per-frame records ────────────────────────
 let exploreKeys = [], exploreTaps = [], timeline = [], exploreScript = null, frames
-if (wantExplore) {
+const dumpDir = wantOverlay ? path.join(os.tmpdir(), `uiaudit-shots-${name}-${process.pid}`) : null
+const stateRanges = []   // matrix mode: frame-range → which key opened that state
+let recs
+
+if (wantExplore && resizeSpec) {
+  // RESPONSIVE MATRIX: audit every revealed state at every size. The --resize
+  // sweep runs ONCE (it clamps at the last size), so do one sweep PER state —
+  // the default view plus each discovered key pressed first — and stitch the
+  // per-run records together, reindexing frames so they don't collide.
+  exploreKeys = discoverKeys()
+  const nSizes = resizeSpec.split(',').length
+  const sweepFrames = nSizes * 8 + 10                        // RESIZE_HOLD(8)/size + settle
+  const states = [{ label: 'default', token: null }, ...exploreKeys]
+  recs = []; let base = 0
+  for (const st of states) {
+    const scr = path.join(os.tmpdir(), `uiaudit-state-${name}-${process.pid}-${runSeq}.script`)
+    fs.writeFileSync(scr, st.token ? `tap 2 ${st.token} 3\n` : '# default state\n')
+    const r = run(['script', scr], sweepFrames, null, resizeSpec)
+    try { fs.unlinkSync(scr) } catch {}
+    stateRanges.push({ label: st.label, lo: base, hi: base + sweepFrames + 1 })
+    for (const rec of r) { rec.f += base; recs.push(rec) }
+    base += sweepFrames + 1
+  }
+} else if (wantExplore) {
   exploreKeys = discoverKeys()
   exploreTaps = widgetTargets(run(['script', '/dev/null'], 16)).slice(0, 24)   // baseline pass harvests targets
   if (!exploreKeys.length && !exploreTaps.length) {
@@ -137,18 +168,15 @@ if (wantExplore) {
   exploreScript = path.join(os.tmpdir(), `uiaudit-explore-${name}-${process.pid}.script`)
   fs.writeFileSync(exploreScript, lines.join('\n') + '\n')
   frames = Math.max(+opt('--frames', 0), f + 16)
+  recs = run(['script', exploreScript], frames, dumpDir, resizeSpec)
+  try { fs.unlinkSync(exploreScript) } catch {}
 } else {
   frames = +opt('--frames', 120)
+  const inMode = opt('--beats', null) ? ['beats', opt('--beats')]
+               : opt('--script', null) ? ['script', opt('--script')]
+               : ['script', '/dev/null']
+  recs = run(inMode, frames, dumpDir, resizeSpec)
 }
-
-const inMode = wantExplore ? ['script', exploreScript]
-             : opt('--beats', null) ? ['beats', opt('--beats')]
-             : opt('--script', null) ? ['script', opt('--script')]
-             : ['script', '/dev/null']
-const dumpDir = wantOverlay ? path.join(os.tmpdir(), `uiaudit-shots-${name}-${process.pid}`) : null
-
-const recs = run(inMode, frames, dumpDir)
-if (exploreScript) try { fs.unlinkSync(exploreScript) } catch {}
 
 // ── analyse ─────────────────────────────────────────────────────────────────
 const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
@@ -283,7 +311,7 @@ const stale   = waivers.filter(w => w.kind !== 'bad' && !w.used)
 
 // ── report ──────────────────────────────────────────────────────────────────
 if (asJson) {
-  console.log(JSON.stringify({ cart: name, framesSeen, minFrames, screen: { w: SW, h: SH },
+  console.log(JSON.stringify({ cart: name, framesSeen, minFrames, screen: { w: SW, h: SH }, sizesSwept: [...new Set(recs.map(r => `${r.sw}×${r.sh}`))],
     offscreenText: offList, textOverlap: colList, uiLifecycle: [...uiWarnings],
     waived: waivedN, transient: transientN, staleWaivers: stale.map(w => w.raw), badWaivers: badWaivers.map(w => w.raw),
     explored: wantExplore ? { keys: exploreKeys.map(k => k.label), taps: exploreTaps.length, discovered } : undefined },
@@ -291,8 +319,19 @@ if (asJson) {
   process.exit(offList.length || colList.length || uiWarnings.size ? 1 : 0)
 }
 
-const span = (o) => o.first === o.last ? `frame ${o.first}` : `frames ${o.first}–${o.last}`
-console.log(`\nui-audit: ${name}  (${SW}×${SH}, ${framesSeen} frames seen)\n`)
+// size attribution — with a --resize sweep, tag each finding with the canvas size
+// it occurred at (the reflow bug is only meaningful next to the size that caused it)
+const sizeAt = (f) => { const r = byFrame.get(f); return r ? `${r.sw}×${r.sh}` : '?' }
+const stateAt = (f) => { for (const r of stateRanges) if (f >= r.lo && f < r.hi) return r.label; return null }
+const sizesSeen = [...new Set(recs.map(r => `${r.sw}×${r.sh}`))]
+const multi = sizesSeen.length > 1
+const span = (o) => {
+  const fr = o.first === o.last ? `frame ${o.first}` : `frames ${o.first}–${o.last}`
+  const st = stateAt(o.first)
+  const tag = [st && st !== 'default' ? `key ${st}` : null, multi ? sizeAt(o.first) : null].filter(Boolean).join(' · ')
+  return tag ? `${tag} · ${fr}` : fr
+}
+console.log(`\nui-audit: ${name}  (${multi ? sizesSeen.join(' · ') : SW + '×' + SH}, ${framesSeen} frames seen)\n`)
 
 if (offList.length) {
   console.log(`  ✘ ${offList.length} text string(s) run off the screen edge:`)

@@ -19,15 +19,16 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-05 (two lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO + app-trailer toolkit)_
+_Last updated: 2026-07-05 (three lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO + app-trailer toolkit · editor media — record/replay shipped, the panel deferred)_
 
 ---
 
 ## Where we are right now
 
-**Two lanes are active in parallel right now** (different areas — pick the one you're resuming):
-(1) **device-adaptive layout** and (2) **store / ASO + the app-trailer builder**. Both are below;
-neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) + the design board.
+**Three lanes are active in parallel right now** (different areas — pick the one you're resuming):
+(1) **device-adaptive layout**, (2) **store / ASO + the app-trailer builder**, and (3) **editor
+media (record/replay + where it lands)**. All below; none is "the" thread. Shipped/open ledger for
+all: [`STATUS.md`](STATUS.md) + the design board.
 
 > **▶ ACTIVE THREAD (2026-07-05) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
@@ -89,6 +90,27 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > **Editor note:** this lane changed `editor/electron/main.cjs` + `preload.cjs` (new IPCs:
 > aso-score, app-clips, build-reel, app-seeds, aso-suggest/brief/coverage) — **restart Electron
 > (`make`) to light them up**; `shell.js`/CSS/`index.html` hot-reload. All CLI tools work now.
+
+> **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
+> (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed
+> (`a097e9df`):** the editor can **record** your play as a `.rec` input track (opt-in `● rec`
+> button, settings → record → `tools/clips/<cart>/NN-take.rec`) and **replay** one (drop a `.rec`
+> on the window → `studio:replay` runs it against the OPEN cart; warns if the take's folder names a
+> different cart). Two fixes rode along: a dropped `.cart.png` now sets `currentCartFile` from the
+> FILE slug (not the display title, which mis-filed records into `squishy-lines/`); the file-DIALOG
+> load path (`shell.js` ~L2514) still has that same slug bug — one-liner, not yet done.
+> The `studio:replay` **plumbing is the durable piece**; the drop-anywhere trigger is a rootless
+> stopgap (no media home exists yet).
+> **Deliberately NOT built (maker's call, "not yet"):** the media home itself. Pulling that thread
+> surfaced an IA seam, captured in
+> [`design/editor-scopes-and-facets.md`](design/editor-scopes-and-facets.md): media is a **facet**
+> at both **cart AND app** scope (the trailer builder is already the app-scoped half), not a new
+> sibling of code/sprites/map. **Resume at:** that doc's three open questions (own per-cart panel vs
+> a section in the share popover · how the app-scoped trailer twin relates · whether the editor
+> grows an explicit cart|app scope switch) — plan against `share-panel.md`'s 🎬 make-clip button
+> (the cart-media panel under another name) + [`design/cart-clips.md`](design/cart-clips.md)
+> (storage layout). Hot files: `editor/electron/main.cjs` + `preload.cjs` + `src/shell.js` now ALSO
+> carry record/replay — **shared with the trailer lane, and main/preload need an Electron restart.**
 
 ## History & reference (pruned 2026-07-05)
 

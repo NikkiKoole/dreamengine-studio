@@ -57,9 +57,11 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > §"Phase 3 — revised plan" in [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md):
 > per-rack layout brief (R1) → `runtime/disclose.h` (R2, the keystone — three-state strips
 > folded/compact/expanded from the ReBirth study) → `finger_px()` (R3) → ui-audit judgment layer (R4)
-> → re-land acidrack (R5). **Waiting on the maker: the acidrack compact-strip sketch** (which controls
-> earn the middle state per machine). Hot files: `tools/carts/acidrack.c`, `runtime/lay.h` (+ new
-> `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
+> → re-land acidrack (R5). **The acidrack brief is STARTED:
+> [`design/acidrack-layout-brief.md`](design/acidrack-layout-brief.md) — resume THERE; its §2
+> compact-strip taste calls (which controls earn the middle state per machine) wait on the maker,
+> everything downstream (footprints §5 → disclose.h → re-land) follows from that table.** Hot files:
+> `tools/carts/acidrack.c`, `runtime/lay.h` (+ new `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
 
 > **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`

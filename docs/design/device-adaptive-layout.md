@@ -489,9 +489,9 @@ stealing from the homage hardware** — the original solved this screen already.
 - **R4 — the judgment oracle = ui-audit extension**, not a new tool. Spec'd in the REFINED note
   above: a thin pass over `disclose.h`'s self-reported records — degenerate flags, sub-finger
   controls with named remedies, mode overrides, arrangement-vs-brief mismatch.
-- **R5 — re-land acidrack on the method.** Write its brief (R1; the compact-strip sketch is the
-  open taste call — what earns a slot per machine: a 303 likely CUT/RES/DRV + the step lane; the
-  909 selected-voice lane + selector; MASTER delay TIME/FB + PCF). Then replace the hand-rolled
+- **R5 — re-land acidrack on the method.** Its brief is STARTED —
+  [`acidrack-layout-brief.md`](acidrack-layout-brief.md) (the R1 worksheet: three-state sketches,
+  arrangements, done-bar; **§2's compact-strip taste calls await the maker**). Then replace the hand-rolled
   threshold block (`acidrack.c:459-519`) with `disclose.h` + `lay.h` + finger units, **build the
   missing roomy arrangement**, and swap editors per budget. Verify: R4 matrix + **bake it and put
   it in the maker's hands per arrangement** — the on-device eyeball is part of the loop, not the
@@ -518,8 +518,9 @@ it **2–3 arrangements + a disclosure mode per shape** (inline / accordion / ta
   strip): **iPad** = all strips at **compact** (the ReBirth-module state — the rack on one screen),
   expand-in-place for deep edits; **phone-portrait** = working strip expanded, 1–2 compact, rest
   folded, song row pinned; **phone-landscape** = tabs. Editor-swap: piano roll on roomy shapes, the
-  ReBirth step programmer on phones. Sequencer/transport pinned. Open taste call (maker): the
-  compact-strip sketch — what earns a slot per machine.
+  ReBirth step programmer on phones. Sequencer/transport pinned. **Brief started:
+  [`acidrack-layout-brief.md`](acidrack-layout-brief.md)** — §2's compact-strip taste calls
+  (what earns a slot per machine) await the maker; everything else resumes from there.
 - **`epiano` — electromechanical keybed. DO SECOND (broad payoff).** Today: the shared `keybed.h` keybed
   + machine selector (RHODES/WURLI/CLAV) + per-machine stompbox pedals + BARK knob + preset column.
   Target: **keybed width scales to the device** (more octaves on iPad / landscape — the `otafit` finger-

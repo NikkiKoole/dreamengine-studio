@@ -131,6 +131,13 @@ click 165 160 100      # click to close it
 That makes mouse-driven carts (neon rain, the economy game, …) fully scriptable and
 replayable — `mouse_x/y/mouse_pressed` all read the injected pointer under replay.
 
+> **These coordinates are ABSOLUTE canvas pixels — they don't survive a reflow.** A track
+> that taps a widget at `204 135` misses once a device-adaptive rack rearranges for a
+> different viewport (the widget moved / tabbed away). Keyboard tracks (and thus audio) are
+> position-free and portable. For demos meant to run at multiple device sizes (App Store
+> videos), drive from the keyboard where you can — see
+> [`../design/resolution-portable-input.md`](../design/resolution-portable-input.md).
+
 **Touch-path carts too (2026-06-07):** the injected pointer also becomes the
 synthetic mouse-touch, so `tap()`/`tapp()`/`touch_*` and per-finger-pointer carts
 (touchpiano, handpan, sh101) are equally script-drivable — one finger's worth.

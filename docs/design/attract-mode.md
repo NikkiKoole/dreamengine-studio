@@ -151,6 +151,37 @@ flag-gated prototype in one cart (`sloop`) first, and bake [clips](cart-clips.md
 win) before the embed. What changed is only that the top rung is no longer a "maybe" — it has
 a destination.
 
+## Update (2026-07-05): the in-app storefront — a fourth payoff, and the strongest commercial one
+
+The framing above is arcade-nostalgic ("nobody's playing the cabinet"). The real venue is now
+clear: **we no longer have arcades — we have one app with several IAP racks** (Tinyjam;
+`apps/<name>/app.json` already carries `iap.products[]` → `unlocks[]`). That gives attract mode a
+job the ranked payoffs missed:
+
+**A *locked* rack idles into its `de:demo` loop, and first touch offers "unlock to play" instead of
+"press start."** It's the arcade coin-drop reframed as the IAP: watch it play → unlock. This beats
+static App Store screenshots for conversion because it's the *actual rack running live on the
+buyer's own device* — full-bleed, reflowed, with sound the instant they tap. Truthful
+try-before-buy, zero friction, no extra download (a locked rack is already in the multi-cart binary
+via `build-app.js`; the launcher just gates it through `de_switch_cart`). It's also a blunt
+[ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) stranger-bar test: if a rack's
+attract loop doesn't make someone want to unlock it, the rack isn't earning its price.
+
+**The unification this exposes — one authored track, three surfaces:** the same `de:demo`
+performance becomes (1) the App Store **App Preview video**, (2) this **in-app locked-rack
+storefront demo**, and (3) the eventual **web-embed showcase** (payoff 3). Author the demo once per
+rack; it sells the rack everywhere. This is the [`demand-generation.md`](demand-generation.md)
+"free rack → unlock 3 more" choreography made *interactive and on-device*, not just a montage.
+
+**What it costs beyond the native prototype:** the storefront demo runs on the buyer's device, so it
+**reflows** — which makes attract-on-device *commercial*, not just polish. Keyboard-transport
+self-play ships it today (picture reflows, audio identical — see
+[`resolution-portable-input.md`](resolution-portable-input.md) Rung 0); the "show a finger
+interacting" version sells better and is what eventually pulls in that doc's hatch B (semantic
+input). The launcher needs a `locked`/`iap`-aware attract state + a paywall CTA on takeover — a
+small addition to the launcher-as-cart already scoped in [`share-panel.md`](share-panel.md), not a
+new system.
+
 ## Honest take + sequencing
 
 Worth doing, but the next rung, not the urgent one. The cheapest win — collecting demo tracks
@@ -166,6 +197,10 @@ ladder up front.
   (one corner of this).
 - [`headless-autoplay.md`](headless-autoplay.md) — replay for windowless runs / bug-finding
   (the other corner). Attract mode is the missing third: the same replay, **player-facing**.
+- [`resolution-portable-input.md`](resolution-portable-input.md) — the open problem when a demo
+  track (esp. a *touch* one) replays on a **reflowing** rack: absolute canvas pixels miss the moved
+  widget. Attract-on-a-phone is the case that eventually wants its hatch B (semantic input); the
+  native `sloop` prototype dodges it (seeded, keyboard-simple).
 - The clips convention + `tools/make-gif.js` — the shared demo-track source (other workstream;
   this note only *consumes* those tracks, doesn't define them).
 - [`../guides/debug-harness.md`](../guides/debug-harness.md) — the record/replay/script tooling.

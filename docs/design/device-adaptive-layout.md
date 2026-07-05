@@ -327,6 +327,13 @@ The `store-shots`/`store-contact`/`make-gif` pipeline doesn't disappear — it g
 (real device-resolution frames instead of a 320×240 upscale). The framed-on-a-marketing-bg treatment
 stays available as an *optional* style; full-bleed becomes the honest default.
 
+**One gap this doesn't close: the *input track* must also survive the reflow.** A video needs a
+demo performance, and a *touch* track is absolute canvas pixels — so a knob tap that's right at
+320×240 lands on empty space once the rack rearranges for a phone. The plan is **keyboard-first**
+(a rack demos itself via transport/preset keys → one position-free track → identical audio + a
+reflowed picture at every device size), with coordinate-portability systems parked as escape
+hatches. Full note: [`resolution-portable-input.md`](resolution-portable-input.md).
+
 ## The phased plan (riskiest-cheapest first, prototype before engine)
 
 - **Phase 0 — prove the model in cart-land (zero engine risk). ✅ DONE (2026-07-03) —

@@ -9,8 +9,9 @@
 > (`--net-lobby`, rung 2.5) so a *standalone build with no editor* can start
 > netplay with no flags — the send-a-friend-an-exe case. Demo + desync gate via
 > `play.js <cart> netdemo`; see the rung ladder below and the ledger entry in
-> [`STATUS.md`](../STATUS.md). Rung 3 (multicast "Open to LAN") and rungs 4+
-> (browser/internet) remain proposals. See also
+> [`STATUS.md`](../STATUS.md). **Rung 5a step 1 shipped 2026-07-05** (the
+> lockstep core now compiles on web too — see §"Scoped plan" below); rung 4 and
+> 5a steps 2–5 (the WebSocket transport/relay itself) remain proposals. See also
 > [`cart-as-script.md`](cart-as-script.md) (the `STATE`/`de_state()` block this
 > doc leans on), [`headless-autoplay.md`](headless-autoplay.md), and
 > [`../guides/debug-harness.md`](../guides/debug-harness.md) (the determinism
@@ -511,18 +512,21 @@ plan holds against it doesn't apply on a LAN.
 
 ## Scoped plan — rung 5a: web/wasm multiplayer via a WebSocket input-relay
 
-> **Status: proposed (2026-07-02).** The pragmatic first step to get *browsers*
+> **Status: building — step 1 SHIPPED (2026-07-05).** The pragmatic first step to get *browsers*
 > (and iPads) playing, chosen over full WebRTC because it needs no NAT traversal,
 > no STUN/TURN, no signaling dance — just a tiny relay. Reuses the entire native
 > lockstep model (same barrier, same 1-byte packet, same lobby concept); what's
 > new is a WebSocket transport for the web target and the relay itself. WebRTC +
 > join-codes (play with *anyone, anywhere*) stays the later rung 5b upgrade.
 >
-> **Ground truth (verified in-code 2026-07-02):** `net.h` is native-only
-> (`DE_NET_BUILD` = `!PLATFORM_WEB && !DE_NO_RAYLIB`), and under `PLATFORM_WEB`
-> the `inp_*()` input seam is a pass-through to raylib (studio.c, *"web build:
-> harness is a no-op"*). So wasm carts are single-player today, and step 1 below
-> is the real gating work — independent of transport.
+> **Ground truth, corrected in the step-1 build (2026-07-05):** the plan's
+> "un-stub the web `inp_*()` seam" framing was wrong — lockstep never went
+> through the harness's `inp_*()` injection. The real injection point is
+> `btn()` + `net_bits[]` (net.h samples local hardware via `btn_local()`, the
+> barrier resolves both players' bytes, `btn()` answers from them). So step 1
+> became: compile the lockstep CORE under `PLATFORM_WEB` (the `DE_NET_CORE` /
+> `DE_NET_BUILD` split below), give the web loop a non-blocking barrier, and
+> unify the deterministic clock. Shipped as exactly that; see the step table.
 
 ### The architecture in one picture: ONE lockstep core, TWO transports
 
@@ -545,14 +549,15 @@ changes per platform. This is the whole mental model — keep it in view:
         ▼                                                     ▼
    UDP sockets  (native)                          WebSocket → relay  (web)
    localhost · LAN-by-IP · broadcast discovery    room code
-   ✅ SHIPPED (rungs 1–3)                          ◻ rung 5a (this plan)
+   ✅ SHIPPED (rungs 1–3)                          ◻ rung 5a step 2 (transport)
+        (+ a third arm: ✅ echo loopback — the fake peer, both targets)
 ```
 
-Concretely: `net.h` today is `#if !defined(PLATFORM_WEB)`. Rung 5a's real
-structural change is to make the **lockstep core transport-agnostic** and turn
-`net_sendto`/`net_pump` into the `#ifdef PLATFORM_WEB` seam (UDP ↔ WebSocket) —
-so it compiles for both targets, one system, transport chosen at build time. The
-lobby, `de_players()`, packet format, barrier, and `btn()` semantics are *not*
+Concretely — **this split SHIPPED as step 1 (2026-07-05)**: the lockstep core is
+transport-agnostic (`DE_NET_CORE`, compiled for both targets) and every send/
+receive goes through the `net_transport_send`/`net_transport_pump` seam (UDP ↔
+echo today; step 2 adds the WebSocket arm there and nowhere else). The lobby,
+`de_players()`, packet format, barrier, and `btn()` semantics are *not*
 re-implemented; they're the shared core.
 
 **Interop caveat (the only place the two aren't interchangeable):** two natives
@@ -563,7 +568,7 @@ Same-platform play needs none of it; it's the normal case.
 
 | Step | What | Effort | Risk / notes |
 |---|---|---|---|
-| **1. Un-stub the web input seam** | Route the web build's `inp_*()` through the same lockstep frame buffers native uses, so a remote peer's byte can be injected. This is the seam the debug harness/lockstep both need; it's compiled out under emcc today. **Gates everything else.** | ~2–3 days | low-ish; mechanical, but touches the hot `inp_*()` layer — guard with the existing input/replay tests. |
+| **1. Un-stub the web input seam** — **SHIPPED 2026-07-05** | Landed as the "one lockstep core, two transports" split, not an `inp_*()` change (see the corrected ground truth above). `net.h` is now two tiers: **`DE_NET_CORE`** (rings, `NET_PKT_*`, barrier — no sockets, compiles native AND web; `studio.c` gates it on `!DE_NO_RAYLIB`) and **`DE_NET_BUILD`** (UDP transport + `--net-*` flags + lobby, native-only as before). Sends/receives go through the **`net_transport_send`/`net_transport_pump` seam**. New **`net_frame_try_sync()`** non-blocking barrier: web `loop_step` calls it at the top of the tick and **stalls the whole tick** (no `sound_tick`, no update/draw, no clock) while the peer's byte is missing — the browser main thread can't block or WS messages never arrive; native `net_frame_sync()` is now a blocking wrapper around it (netdemo-verified identical). `det_mode`/`det_clock`/`clk()` moved out of the native-only block so web runs the fixed-step deterministic sim under net. Proven by the new **echo transport** (loopback fake peer, zero sockets): `--net-echo` native / `-DDE_NET_ECHO_DEFAULT` web — P2 mirrors P1 through the real pack→send→ring→barrier→`btn(1)` path. Gates run: netdemo `LOCKSTEP OK` (300 frames, per-side scripts), echo trace `p2y==p1y` ×300, `build-all` 466/466, emcc compile of the core both bare and echo-enabled. | ~2–3 days *(actual: 1 session)* | low-ish; mechanical, but touches the hot `inp_*()` layer — guard with the existing input/replay tests. |
 | **2. WebSocket transport for the web target** | A `#ifdef PLATFORM_WEB` transport alongside net.h's UDP: emscripten's WebSocket API (or a small JS shim via `EM_JS`) opens `ws://<relay>/room/<code>`, sends/receives the same `NET_PKT_INPUT` frames. The lockstep barrier, ring buffer, redundancy, seed handshake, BYE all stay identical — only `net_sendto`/`net_pump`'s socket calls swap. | ~2–3 days | medium; emscripten's socket story is the fiddly part — a thin WS layer is more predictable than its BSD-socket emulation. |
 | **3. The relay server** | ~100 lines of Node (`ws`): a client joins a room by code; the server forwards every datagram to the *other* member of that room (blind byte-forwarding — it never parses game state, so beginner cart code stays network-unaware). Host = first in the room, joiner = second; seed still rides the handshake through the relay. | ~1 day | low; stateless, free-tier-sized. Run it on one LAN box (sub-ms) or a $5 VPS (internet, +1 hop). |
 | **4. Web lobby / room UX** | The native lobby types an IP; the web lobby types (or is handed) a **room code** + a relay URL (configurable, defaulting to a hosted one). Reuse the `de_players() >= 2` gate and the Host/Join/Solo shape. | ~1–2 days | low; mostly the lobby draw, already exists for native. |

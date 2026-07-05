@@ -1,15 +1,23 @@
-// net.h — lockstep netplay, rung 1: two native builds exchange one byte of
-// btn() bits per frame over UDP (localhost or LAN by IP). Design + rung ladder:
-// docs/design/multiplayer-research.md.
+// net.h — lockstep netplay. ONE lockstep core, per-platform transports
+// (docs/design/multiplayer-research.md §"one lockstep core, two transports").
 //
-// Like sound.h this file is only compiled inside studio.c, and only for the
-// native Raylib build (studio.c gates the include on !PLATFORM_WEB &&
-// !DE_NO_RAYLIB). Activated at runtime by CLI flags — a normal run touches
-// none of this:
+// Like sound.h this file is only compiled inside studio.c. Two build tiers
+// (gated there, both excluded under DE_NO_RAYLIB):
+//
+//   DE_NET_CORE   the transport-agnostic lockstep core — input rings, packet
+//                 format, frame barrier, echo loopback. Compiles for native
+//                 AND web (no sockets anywhere in it).
+//   DE_NET_BUILD  full native netplay on top of the core: UDP transport,
+//                 --net-* flags, handshake, LAN discovery, boot lobby.
+//                 Native Raylib build only (browsers have no UDP).
+//
+// Native runtime flags — a normal run touches none of this:
 //
 //   --net-host            host a 2-player session (waits for a joiner, then runs)
 //   --net-join <ip>       join a host by IP, e.g. --net-join 127.0.0.1
 //   --net-port <n>        UDP port (default 33445, both sides must match)
+//   --net-echo            loopback fake peer: P2 mirrors P1 through the real
+//                         ring/barrier path, no sockets (injection test/demo)
 //
 // How it works (input lockstep — see the design doc §4):
 //   - Both sides run the SAME deterministic simulation (net implies --det:
@@ -17,15 +25,18 @@
 //   - Each frame, each side samples its LOCAL input (either keymap + touch —
 //     all local input methods are "me"), packs it into one byte (bit = BTN_*),
 //     and schedules it NET_DELAY frames in the future.
-//   - The frame barrier (net_frame_sync) sends my byte and blocks until the
-//     peer's byte for the current frame has arrived; then btn(0)/btn(1) read
-//     from the resolved lockstep bytes — local or remote, the cart can't tell.
+//   - The frame barrier (net_frame_try_sync / net_frame_sync) sends my byte and
+//     waits until the peer's byte for the current frame has arrived; then
+//     btn(0)/btn(1) read from the resolved lockstep bytes — local or remote,
+//     the cart can't tell. Native BLOCKS in the barrier; web can't block (the
+//     JS event loop must run to deliver messages), so loop_step retries
+//     try_sync each tick and STALLS the whole tick (no sim, no sound) on false.
 //   - Packets carry the last NET_REDUN frames of input (GGPO-style redundancy)
 //     so a dropped datagram never stalls anything: the next packet refills it.
 //   - Host is player 0, joiner is player 1. v1 syncs btn() ONLY — a cart that
 //     reads key()/mouse_*() in update() will desync under netplay.
 //
-// Handshake (before the window opens; blocking, console-prompted):
+// Handshake (UDP; before the window opens; blocking, console-prompted):
 //   joiner --HELLO--> host   (repeats every ~200 ms until answered)
 //   host   --WELCOME{seed}--> joiner
 //   then both enter the lockstep loop; frames 0..NET_DELAY-1 are pre-seeded
@@ -41,6 +52,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef DE_NET_BUILD
 #ifdef _WIN32
   // winsock2.h / ws2tcpip.h are included at the TOP of studio.c (before raylib.h,
   // which pulls windows.h) — they MUST precede windows.h or the old winsock v1 in
@@ -58,6 +70,7 @@
   #define NET_CLOSE(s)     close(s)
   #define NET_SLEEP_MS(ms) usleep((ms) * 1000)
 #endif
+#endif // DE_NET_BUILD
 
 #define NET_PORT_DEFAULT 33445
 #define NET_DISCOVERY_PORT 33446 // LAN broadcast port for "Open to LAN" auto-discovery (rung 3)
@@ -73,34 +86,29 @@
 #define NET_PKT_BYE      4     // sender is quitting
 #define NET_PKT_ANNOUNCE 5     // host → LAN broadcast: "a game is here" + u16 game-port (LE)
 
-static bool net_requested = false;   // a --net-host/--net-join flag was passed (main() checks this)
-static bool net_lobby_requested = false;  // --net-lobby (or DE_NET_LOBBY_DEFAULT): show the boot menu
+// ── lockstep core state (transport-agnostic — native AND web) ────────────────
 static bool net_active    = false;   // handshake done, lockstep running
 static bool net_is_host   = false;
+static bool net_echo      = false;   // loopback fake-peer transport (see net_echo_start)
 static int  net_me        = 0;       // my player index: 0 = host, 1 = joiner
-static const char *net_join_ip = NULL;
-static int  net_port      = NET_PORT_DEFAULT;
-
-static int                net_sock = -1;
-static int                net_disco_sock = -1;   // rung 3: joiner's LAN-discovery listen socket
-static struct sockaddr_in net_peer;
-static bool               net_peer_set   = false;
-static bool               net_got_welcome = false;
-static bool               net_peer_bye    = false;
-static unsigned           net_seed_v      = 1;   // host: seed to send; joiner: seed received
+static bool net_peer_bye  = false;
+static unsigned net_seed_v = 1;      // host: seed to send; joiner: seed received
 
 static uint8_t net_ring_bits[2][NET_RING];    // [player][frame % NET_RING] input byte
 static int     net_ring_frame[2][NET_RING];   // which frame the slot holds (-1 = empty)
 static uint8_t net_bits[2];                   // resolved lockstep inputs for the current frame
 static int     net_frame = 0;                 // lockstep sim frame counter
+static int     net_sampled_frame = -1;        // sim frame whose local input is already sampled+sent
+static int     net_try_spins = 0;             // barrier attempts for the current frame (resend cadence)
 
 // btn()'s pre-net body — reads THIS machine's keymaps + touch (defined in studio.c)
 static bool btn_local(int player, int button);
 
-static void net_sendto(const void *buf, int len) {
-    if (net_peer_set)
-        sendto(net_sock, buf, (size_t)len, 0, (struct sockaddr *)&net_peer, sizeof net_peer);
-}
+// the ONE seam that differs per platform (design doc §5a): UDP (native),
+// loopback echo, and — rung 5a step 2 — WebSocket relay (web). Dispatchers
+// are defined at the bottom of this file, after every transport arm.
+static void net_transport_send(const void *buf, int len);
+static void net_transport_pump(void);
 
 static void net_store(int player, int frame, uint8_t bits) {
     int s = frame % NET_RING;
@@ -116,6 +124,106 @@ static bool net_have(int player, int frame) {
 
 static uint8_t net_get(int player, int frame) {
     return net_ring_bits[player][frame % NET_RING];
+}
+
+// send my most recent inputs up to and including `latest` (NET_REDUN-frame window)
+static void net_send_inputs(int latest) {
+    int n = NET_REDUN, f0 = latest - NET_REDUN + 1;
+    if (f0 < 0) { f0 = 0; n = latest + 1; }
+    uint8_t pkt[8 + NET_REDUN] = { 'D', 'N', NET_PKT_INPUT,
+                                   (uint8_t)f0, (uint8_t)(f0 >> 8),
+                                   (uint8_t)(f0 >> 16), (uint8_t)(f0 >> 24), (uint8_t)n };
+    for (int i = 0; i < n; i++) pkt[8 + i] = net_get(net_me, f0 + i);
+    net_transport_send(pkt, 8 + n);
+}
+
+// reset the lockstep state for a fresh session: empty rings, frames
+// 0..NET_DELAY-1 pre-seeded as "no buttons held" on both sides (so nobody
+// waits until frame NET_DELAY), frame counter back to 0.
+static void net_core_reset(void) {
+    memset(net_ring_frame, -1, sizeof net_ring_frame);
+    for (int p = 0; p < 2; p++)
+        for (int f = 0; f < NET_DELAY; f++)
+            net_store(p, f, 0);
+    net_frame = 0;
+    net_sampled_frame = -1;
+    net_try_spins = 0;
+    net_bits[0] = net_bits[1] = 0;
+    net_peer_bye = false;
+}
+
+// echo transport — a loopback fake peer: every INPUT packet I send is stored
+// straight back as the OTHER player's input, so P2 mirrors P1 through the real
+// pack → send → store → barrier → btn() path with no sockets anywhere. This is
+// the transport-agnosticism proof for rung 5a step 1, and the cheapest
+// remote-input-injection oracle on both targets (native --net-echo, web
+// -DDE_NET_ECHO_DEFAULT). No handshake: the seed stays local.
+static void net_echo_start(void) {
+    net_echo    = true;
+    net_is_host = true;
+    net_me      = 0;
+    net_core_reset();
+    net_active  = true;
+}
+
+// Non-blocking barrier attempt. First call for the current sim frame samples
+// local input (both keymaps + touch are "me") and sends it NET_DELAY frames
+// ahead; every call pumps the transport and re-sends on a ~30-attempt cadence
+// (our packet may have dropped). Returns false while the peer's byte for this
+// frame is missing — the caller must NOT advance the sim (web loop_step stalls
+// the whole tick; native wraps this in the blocking loop below). On true,
+// net_bits[] holds both players' resolved bytes and net_frame has advanced.
+static bool net_frame_try_sync(void) {
+#ifdef PLATFORM_WEB
+    if (net_peer_bye) {   // web can't exit() a tab: drop to solo (btn() falls back to btn_local)
+        printf("net: peer left — continuing solo\n");
+        net_active = false;
+        return true;
+    }
+#endif
+    int f = net_frame;
+    if (net_sampled_frame != f) {
+        uint8_t mine = 0;
+        for (int b = 0; b < 8; b++)                       // every local input method is "me":
+            if (btn_local(0, b) || btn_local(1, b))       // either keymap, or the touch overlay
+                mine |= (uint8_t)(1u << b);
+        net_store(net_me, f + NET_DELAY, mine);
+        net_sampled_frame = f;
+        net_try_spins = 0;
+        net_send_inputs(f + NET_DELAY);
+    } else if (++net_try_spins % 30 == 0) {
+        net_send_inputs(f + NET_DELAY);                   // our packet may have dropped
+    }
+
+    net_transport_pump();
+    int peer = net_me ^ 1;
+    if (!net_have(peer, f)) return false;
+
+    net_transport_pump();   // opportunistic drain (future frames land now, not at the next barrier)
+    net_bits[0] = net_get(0, f);
+    net_bits[1] = net_get(1, f);
+    net_frame   = f + 1;
+    net_try_spins = 0;
+    return true;
+}
+
+// ── UDP transport + native-only netplay (rungs 1–3) ──────────────────────────
+#ifdef DE_NET_BUILD
+
+static bool net_requested = false;   // a --net-host/--net-join flag was passed (main() checks this)
+static bool net_lobby_requested = false;  // --net-lobby (or DE_NET_LOBBY_DEFAULT): show the boot menu
+static const char *net_join_ip = NULL;
+static int  net_port      = NET_PORT_DEFAULT;
+
+static int                net_sock = -1;
+static int                net_disco_sock = -1;   // rung 3: joiner's LAN-discovery listen socket
+static struct sockaddr_in net_peer;
+static bool               net_peer_set   = false;
+static bool               net_got_welcome = false;
+
+static void net_sendto(const void *buf, int len) {
+    if (net_peer_set)
+        sendto(net_sock, buf, (size_t)len, 0, (struct sockaddr *)&net_peer, sizeof net_peer);
 }
 
 // drain every pending datagram; handles handshake + input + bye
@@ -156,17 +264,6 @@ static void net_pump(void) {
                 break;
         }
     }
-}
-
-// send my most recent inputs up to and including `latest` (NET_REDUN-frame window)
-static void net_send_inputs(int latest) {
-    int n = NET_REDUN, f0 = latest - NET_REDUN + 1;
-    if (f0 < 0) { f0 = 0; n = latest + 1; }
-    uint8_t pkt[8 + NET_REDUN] = { 'D', 'N', NET_PKT_INPUT,
-                                   (uint8_t)f0, (uint8_t)(f0 >> 8),
-                                   (uint8_t)(f0 >> 16), (uint8_t)(f0 >> 24), (uint8_t)n };
-    for (int i = 0; i < n; i++) pkt[8 + i] = net_get(net_me, f0 + i);
-    net_sendto(pkt, 8 + n);
 }
 
 static void net_shutdown(void) {
@@ -308,10 +405,7 @@ static void net_handshake(unsigned *seed) {
 #else
     fcntl(net_sock, F_SETFL, O_NONBLOCK);
 #endif
-    memset(net_ring_frame, -1, sizeof net_ring_frame);
-    for (int p = 0; p < 2; p++)                 // nobody holds a button before frame 0's
-        for (int f = 0; f < NET_DELAY; f++)     // input can arrive — pre-seed the gap
-            net_store(p, f, 0);
+    net_core_reset();
     net_seed_v = *seed;
 
     if (net_is_host) {
@@ -357,37 +451,50 @@ static void net_handshake(unsigned *seed) {
 }
 
 // the per-frame lockstep barrier — called from loop_step() right before the
-// btn_curr edge snapshot. Samples local input, exchanges it with the peer, and
-// resolves both players' bytes for this frame (btn() reads net_bits under net).
+// btn_curr edge snapshot. The blocking native wrapper around net_frame_try_sync:
+// spins the transport until the peer's byte arrives (echo resolves on the first
+// try), with the rung-1 timeout + "peer left" exit semantics.
 static void net_frame_sync(void) {
-    int f = net_frame++;
-    uint8_t mine = 0;
-    for (int b = 0; b < 8; b++)                       // every local input method is "me":
-        if (btn_local(0, b) || btn_local(1, b))       // either keymap, or the touch overlay
-            mine |= (uint8_t)(1u << b);
-    net_store(net_me, f + NET_DELAY, mine);
-    net_send_inputs(f + NET_DELAY);
-
-    int peer = net_me ^ 1, spins = 0;
-    while (!net_have(peer, f)) {                      // barrier: wait for the peer's byte
-        net_pump();
-        if (net_peer_bye) {
-            printf("net: peer left — exiting\n");
-            net_shutdown();
-            exit(0);
-        }
-        if (net_have(peer, f)) break;
+    int f = net_frame, spins = 0;
+    while (!net_frame_try_sync()) {
+        if (net_peer_bye) break;
         NET_SLEEP_MS(1);
-        if (++spins % 30 == 0) net_send_inputs(f + NET_DELAY);   // our packet may have dropped
-        if (spins == 2000) { printf("net: waiting for peer (frame %d)...\n", f); fflush(stdout); }
+        if (++spins == 2000) { printf("net: waiting for peer (frame %d)...\n", f); fflush(stdout); }
         if (spins >= NET_TIMEOUT_MS) {
             fprintf(stderr, "net: peer timed out at frame %d\n", f);
             net_shutdown();
             exit(1);
         }
     }
-    net_pump();   // opportunistic drain (future frames land now, not at the next barrier)
-    net_bits[0] = net_get(0, f);
-    net_bits[1] = net_get(1, f);
     if (net_peer_bye) { printf("net: peer left — exiting\n"); net_shutdown(); exit(0); }
+}
+
+#endif // DE_NET_BUILD
+
+// ── the transport dispatchers (the seam itself) ──────────────────────────────
+// Echo short-circuits with no I/O; native falls through to UDP. Rung 5a step 2
+// adds the web WebSocket arm here (and nowhere else).
+static void net_transport_send(const void *buf, int len) {
+    if (net_echo) {
+        const uint8_t *b = (const uint8_t *)buf;
+        if (len >= 8 && b[2] == NET_PKT_INPUT) {          // reflect my inputs as the peer's
+            int f0  = b[3] | b[4] << 8 | b[5] << 16 | b[6] << 24;
+            int cnt = b[7];
+            if (f0 >= 0 && 8 + cnt <= len)
+                for (int i = 0; i < cnt; i++) net_store(net_me ^ 1, f0 + i, b[8 + i]);
+        }
+        return;                                           // BYE/handshake: nothing to tell ourselves
+    }
+#ifdef DE_NET_BUILD
+    net_sendto(buf, len);
+#else
+    (void)buf; (void)len;
+#endif
+}
+
+static void net_transport_pump(void) {
+    if (net_echo) return;                                 // echo "delivers" inside send
+#ifdef DE_NET_BUILD
+    net_pump();
+#endif
 }

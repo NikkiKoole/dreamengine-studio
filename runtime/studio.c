@@ -515,12 +515,17 @@ static int     web_tm_id   = -1;       // sticky primary finger
 static Vector2 web_tm_pos  = { 0, 0 }; // window pixels; persists after release
 #endif
 
-#ifndef PLATFORM_WEB
+// deterministic clock — shared by the native harness (--det/replay/script) AND
+// netplay on BOTH targets: lockstep needs the fixed timestep + synthetic now()
+// on web too (rung 5a step 1), so these live outside the harness block below.
 #define DET_DT      (1.0 / 60.0)         // fixed timestep when det_mode is on
-#define KEYSTATE_N  512                  // raylib MAX_KEYBOARD_KEYS
-
 static bool    det_mode      = false;    // fixed dt + seeded RNG -> reproducible runs
 static double  det_clock     = 0.0;      // synthetic now() seconds, advances DET_DT/frame
+// synthetic clock: deterministic runs read frame-derived time, not the wall clock
+static double clk(void) { return det_mode ? det_clock : GetTime(); }
+
+#ifndef PLATFORM_WEB
+#define KEYSTATE_N  512                  // raylib MAX_KEYBOARD_KEYS
 
 static bool    inject_input  = false;    // drive input from replay_ev instead of the hardware
 static unsigned char key_inject[KEYSTATE_N];       // 1 = key down this frame
@@ -552,9 +557,6 @@ static int     max_frames     = 0;       // --frames: stop after N frames (0 = r
 #define RESIZE_HOLD 8
 static int     resize_w[16], resize_h[16], resize_n = 0;
 static int     resize_last_seg = -1;
-
-// synthetic clock: deterministic runs read frame-derived time, not the wall clock
-static double clk(void) { return det_mode ? det_clock : GetTime(); }
 
 // input indirection — every key()/keyp()/btn()/mouse_*() read funnels through these
 // so a replay/script can inject state and a recorder can observe it.
@@ -600,11 +602,11 @@ static float inp_mouse_wheel(void) {
     return GetMouseWheelMove();
 }
 #else
-// web build: harness is a no-op. Mouse reads go straight to raylib UNTIL a
+// web build: harness is a no-op (clk()/det_mode live above — netplay needs the
+// deterministic clock on web too). Mouse reads go straight to raylib UNTIL a
 // real touch is seen — from then on the mouse is synthesized from the touch
 // mirror (web_tm_*), bypassing GLFW's stuck-latch touch emulation (see the
 // web_tm_* block above). Touch devices only ever have a LEFT button.
-static double clk(void) { return GetTime(); }
 static bool inp_down(int k)    { return IsKeyDown(k); }
 static bool inp_pressed(int k) { return IsKeyPressed(k); }
 static bool inp_released(int k){ return IsKeyReleased(k); }
@@ -631,12 +633,18 @@ static bool inp_mouse_released(int b) {
 static float inp_mouse_wheel(void) { return GetMouseWheelMove(); }
 #endif
 
-// lockstep netplay (rung 1 — docs/design/multiplayer-research.md). Runtime-flag
-// gated like the harness above: a run without --net-host/--net-join touches none
-// of it. Native Raylib build only (browsers have no UDP; DE_NO_RAYLIB hosts own
-// their loop, so the blocking barrier doesn't fit there yet).
-#if !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
+// lockstep netplay (rungs 1–3 + 5a — docs/design/multiplayer-research.md).
+// Runtime-flag gated like the harness above: a run without --net-* touches none
+// of it. Two tiers: DE_NET_CORE = the transport-agnostic lockstep core (rings/
+// packets/barrier/echo — compiles for native AND web); DE_NET_BUILD = full
+// native netplay on top (UDP transport, --net-* flags, handshake, LAN
+// discovery, boot lobby — browsers have no UDP). DE_NO_RAYLIB hosts own their
+// loop, so the barrier doesn't fit there yet — both tiers off.
+#ifndef DE_NO_RAYLIB
+#define DE_NET_CORE 1
+#ifndef PLATFORM_WEB
 #define DE_NET_BUILD 1
+#endif
 #include "net.h"
 #endif
 
@@ -2051,6 +2059,14 @@ static void loop_step(void) {
 #ifdef DE_AUDIO_WORKLET
             sound_worklet_resume();   // resume the worklet's AudioContext within the click gesture
 #endif
+#if defined(DE_NET_CORE) && defined(DE_NET_ECHO_DEFAULT)
+            // echo-lockstep test build (rung 5a step 1): boot straight into the
+            // loopback fake peer — P2 mirrors P1 through the real ring/barrier
+            // path. Seed + det BEFORE init(), same ordering the lobby enforces.
+            det_mode = true;
+            SetRandomSeed(1); srand(1);
+            net_echo_start();
+#endif
             init();
             web_started = true;
         }
@@ -2070,12 +2086,29 @@ static void loop_step(void) {
         EndDrawing();
         return;
     }
-    frame_dt = GetFrameTime();
-    // clamp hitches like the native path does (:1067). On web frame_dt is the rAF
-    // delta and is otherwise unbounded — a GC pause / scroll / tab-work stall would
-    // dump the whole gap into the beat clock at once (beat_accum += dt, sound.h),
-    // lurching the sequence forward and skipping beats. See design/audio-timing.md.
-    if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
+#ifdef DE_NET_CORE
+    // lockstep barrier, web flavor (rung 5a step 1): the browser main thread
+    // can't block — the JS event loop must run for transport messages to ever
+    // arrive — so instead of the native blocking barrier this STALLS the whole
+    // tick when the peer's byte isn't here yet: no sound_tick, no update/draw,
+    // no clock advance (the native barrier freezes exactly the same set while
+    // it blocks). Local input is sampled inside try_sync from last tick's poll
+    // — a uniform 1-tick skew, absorbed by NET_DELAY like any input latency.
+    if (net_active && !net_frame_try_sync()) {
+        PollInputEvents();   // EndDrawing normally polls; keep the loop hearing input while stalled
+        return;
+    }
+#endif
+    if (det_mode) {
+        frame_dt = (float)DET_DT;   // netplay: fixed step, same as the native lockstep path
+    } else {
+        frame_dt = GetFrameTime();
+        // clamp hitches like the native path does (:1067). On web frame_dt is the rAF
+        // delta and is otherwise unbounded — a GC pause / scroll / tab-work stall would
+        // dump the whole gap into the beat clock at once (beat_accum += dt, sound.h),
+        // lurching the sequence forward and skipping beats. See design/audio-timing.md.
+        if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
+    }
     sound_tick(frame_dt);
 #else
     // delta time for dt()/the musical clock. det_mode pins it to a fixed step so
@@ -2110,7 +2143,7 @@ static void loop_step(void) {
     // of closing the window. Keys the cart reads itself are claimed and skipped.
     SetExitKey(pause_active ? KEY_NULL : KEY_ESCAPE);
     bool pause_allowed = true;
-#ifdef DE_NET_BUILD
+#ifdef DE_NET_CORE
     if (net_active) pause_allowed = false;   // pausing would stall the lockstep peer (rung-1 scope)
 #endif
     bool pause_opened_now = false;
@@ -2342,8 +2375,8 @@ static void loop_step(void) {
     harness_inspect(fno);                  // on-demand screenshot + state (trigger-file)
     wav_stream_pump();                     // --wav: render this frame's 735 samples
 #endif
-    if (det_mode) det_clock += DET_DT;     // advance the synthetic clock for now()/timer()
 #endif
+    if (det_mode) det_clock += DET_DT;     // advance the synthetic clock for now()/timer() (web too: netplay)
     age_watches();   // frame-end: expire watches whose branch stopped firing
 }
 
@@ -2740,6 +2773,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--net-join") == 0 && i + 1 < argc) { net_join_ip = argv[++i]; net_requested = true; }
         else if (strcmp(argv[i], "--net-port") == 0 && i + 1 < argc) net_port = atoi(argv[++i]);
         else if (strcmp(argv[i], "--net-lobby") == 0) net_lobby_requested = true;  // show the in-window Host/Join/Solo menu
+        else if (strcmp(argv[i], "--net-echo") == 0) net_echo = true;  // loopback fake peer: P2 mirrors P1, no sockets
 #endif
 #ifdef DE_SPEC
         else if (strcmp(argv[i], "--spec")   == 0) spec_mode = 1;
@@ -2764,6 +2798,9 @@ int main(int argc, char **argv) {
         { static char nt[256];  // tag whichever title we have, so the two windows are tellable apart
           snprintf(nt, sizeof nt, "%s — %s", window_title, net_is_host ? "P1 (host)" : "P2");
           window_title = nt; }
+    } else if (net_echo) {
+        det_mode = true;        // same lockstep rules; the fake peer is this process, no handshake
+        net_echo_start();
     }
 #endif
 #ifdef DE_SPEC
@@ -3135,7 +3172,7 @@ static bool btn_local(int player, int button) {
 }
 
 bool btn(int player, int button) {
-#ifdef DE_NET_BUILD
+#ifdef DE_NET_CORE
     if (net_active) {   // lockstep: player 0/1 = host/joiner machine, local or remote
         if (player < 0 || player > 1 || button < 0 || button >= BTN_COUNT) return false;
         return (net_bits[player] >> button) & 1;

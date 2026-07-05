@@ -1472,22 +1472,24 @@ let tlApp = null, tlLib = [], tlRows = []
 let tlLoop = null   // {type, dur} — seamless loop-close back to the start (null = off)
 let tlBaked = new Set()   // clips with a baked .webm (scrubbable / probeable)
 let tlDur = {}            // clip → source duration (s), probed client-side from the <video> (no ffprobe)
-let tlFocus = -1          // which block the preview monitor is showing
+let tlFocus = -1          // which clip block the preview monitor is showing
+let tlSel = -1            // which block is selected → its properties fill the inspector panel
 const round1 = x => Math.round(x * 10) / 10
 const tlSrc = clip => `/clips/${clip}.webm`   // Vite serves editor/public at root
 async function openTrailer(app) {
+  tlSeqStop()
   const res = await window.studio?.appClips?.(app)
   if (!res?.ok) { showToast(res?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
   tlApp = app; tlLib = res.carts || []
   tlBaked = new Set(); for (const c of tlLib) for (const cl of c.clips) if (cl.baked) tlBaked.add(cl.clip)
-  tlDur = {}; tlFocus = -1
+  tlDur = {}; tlFocus = -1; tlSel = -1
   // start from the saved .reel, else a default: each rack's first clip in manifest order
   tlRows = (res.rows && res.rows.length) ? res.rows.map(r => ({ ...r }))
     : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }))
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = res.name || app
   const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
-  const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = true
+  const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = false   // monitor + inspector sit side by side while the panel is open
   const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
   document.getElementById('trailer-lab').hidden = false
   tlRender()
@@ -1504,39 +1506,32 @@ function tlProbeDurations() {
     v.addEventListener('error', () => { tlDur[clip] = 0 }, { once: true })
   }
 }
-// a text-card timeline block: a title/sub/body line stack + in/hold/out timing + bg/boil/breathe
-function cardBlock(r, i) {
-  const roleSel = (role, k) => `<select class="tl-crole" data-tl-role="${i},${k}">`
-    + TL_ROLES.map(o => `<option${o === role ? ' selected' : ''}>${o}</option>`).join('') + `</select>`
-  const lines = (r.lines || []).map((l, k) => `<span class="tl-cline">${roleSel(l.role, k)}`
-    + `<input class="tl-ctext" data-tl-ctext="${i},${k}" value="${escHtml(l.text)}" placeholder="text">`
-    + `<button class="tl-cx" data-tl-cdel="${i},${k}" title="remove line">✕</button></span>`).join('')
-  const animSel = (val, attr) => `<select class="tl-canim" data-${attr}="${i}">`
-    + TL_ANIMS.map(a => `<option${a === (val || 'fade') ? ' selected' : ''}>${a}</option>`).join('') + `</select>`
-  const inDur = r.inDur ?? 0.5, holdDur = r.holdDur ?? 1.5, outDur = r.outDur ?? 0
-  const wb = r.waitBefore ?? 0, wa = r.waitAfter ?? 0
-  const total = wb + inDur + holdDur + outDur + wa
-  const bg = r.bg == null ? 17 : r.bg
-  const num = (attr, val, min) => `<input class="tl-num" type="number" min="${min}" step="0.1" data-${attr}="${i}" value="${val}">`
-  return `<span class="tl-block tl-card" draggable="true" data-tl-block="${i}" style="flex:${total} 1 170px">`
-    + `<span class="tl-lbl">📝 card</span>`
-    + `<span class="tl-cardlines">${lines}<button class="tl-cadd" data-tl-cadd="${i}">＋ line</button></span>`
-    + `<span class="tl-cardopts">`
-    +   `<span class="tl-phase" title="wait — blank lead-in before the in (s)">wait ${num('tl-cwaitb', wb, 0)}</span>`
-    +   `<span class="tl-phase" title="in transition (s + effect)">in ${animSel(r.inEffect, 'tl-cinanim')}${num('tl-cindur', inDur, 0)}</span>`
-    +   `<span class="tl-phase" title="hold — boil/breathe (s)">hold ${num('tl-chold', holdDur, 0)}</span>`
-    +   `<span class="tl-phase" title="out transition (s + effect)">out ${animSel(r.outEffect, 'tl-coutanim')}${num('tl-coutdur', outDur, 0)}</span>`
-    +   `<span class="tl-phase" title="wait — blank tail after the out (s)">wait ${num('tl-cwaita', wa, 0)}</span>`
-    + `</span>`
-    + `<span class="tl-cardopts">`
-    +   `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
-    +   `<input class="tl-num" type="number" min="0" max="31" data-tl-cbg="${i}" value="${bg}"></label>`
-    +   `<label class="tl-splbl" title="boil — hand-drawn wobble (0 = off … 1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cboil="${i}" value="${r.boil ?? 1}"></label>`
-    +   `<label class="tl-splbl" title="breathe — grow/shrink pulse (0 = off … 1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cbreathe="${i}" value="${r.breathe ?? 0}"></label>`
-    +   `<label class="tl-splbl" title="beat-sync BPM (0 = off) — breathe punches + boil ticks on the beat">bpm<input class="tl-num" type="number" min="0" step="1" data-tl-cbpm="${i}" value="${r.bpm ?? 0}"></label>`
-    + `</span>`
-    + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate">⧉</button>`
-    + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
+// ── compact timeline blocks — just a label + duration bar; properties live in the inspector ──
+// the transition marker between two blocks (slice 2 will make this a draggable overlap)
+const tlJoinMark = r => `<span class="tl-joinmark" title="${escHtml(r.xtype)} ${r.xdur}s — set it in the panel">◇</span>`
+// one compact block (clip or card). Duration-proportional width via flex weight; ⧉ dup / ✕ remove.
+function tlBlock(r, i) {
+  const sel = i === tlSel ? ' tl-focus' : ''
+  const btns = `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate">⧉</button>`
+    + `<button data-tl-rm="${i}" title="remove">✕</button></span>`
+  if (r.card) {
+    const total = (r.waitBefore ?? 0) + (r.inDur ?? 0.5) + (r.holdDur ?? 1.5) + (r.outDur ?? 0) + (r.waitAfter ?? 0)
+    const bg = r.bg == null ? 17 : r.bg
+    const first = (r.lines && r.lines[0] && r.lines[0].text) || 'card'
+    return `<span class="tl-block tl-card${sel}" draggable="true" data-tl-block="${i}" style="flex:${total || 1} 1 90px">`
+      + `<span class="tl-lbl"><span class="tl-sw" style="background:${paletteHex(bg)}"></span> 📝 ${escHtml(first)}</span>`
+      + `<span class="tl-dur">${total.toFixed(1)}s</span>${btns}</span>`
+  }
+  const dur = tlDur[r.clip]
+  const inT = r.trim ? r.trim[0] : 0, outT = r.trim ? r.trim[1] : (dur || 0)
+  const weight = (r.trim ? (r.trim[1] - r.trim[0]) : dur) || 1   // block width ∝ trimmed length
+  let bar
+  if (!tlBaked.has(r.clip)) bar = `<span class="tl-dur rs-dim">·bake to preview</span>`
+  else if (!dur) bar = `<span class="tl-dur rs-dim">probing…</span>`
+  else bar = `<span class="tl-minibar"><span class="tl-minirange" style="left:${inT / dur * 100}%;right:${100 - outT / dur * 100}%"></span></span>`
+    + `<span class="tl-dur">${(outT - inT).toFixed(1)}s${r.speed && r.speed !== 1 ? ` ·${r.speed}×` : ''}</span>`
+  return `<span class="tl-block${sel}" draggable="true" data-tl-block="${i}" style="flex:${weight} 1 70px">`
+    + `<span class="tl-lbl">${escHtml(r.clip)}</span>${bar}${btns}</span>`
 }
 function tlRender() {
   const lib = document.getElementById('tl-library')
@@ -1545,32 +1540,63 @@ function tlRender() {
     ? c.clips.map(cl => `<button class="kw-mini" draggable="true" data-tl-add="${escHtml(cl.clip)}" title="click to append · drag onto the timeline to place">＋ ${escHtml(cl.clip)}${cl.baked ? '' : ' <span class="rs-dim">·bake</span>'}</button>`).join('')
     : `<span class="rs-dim">${escHtml(c.cart)}: no clip</span>`).join(' ')
   const tl = document.getElementById('tl-timeline')
-  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips or a text card from above</span>'; tlProbeDurations(); return }
-  tl.innerHTML = tlRows.map((r, i) => {
-    const join = i === 0 ? '' : `<span class="tl-join"><select data-tl-x="${i}">`
-      + TL_XFADES.map(x => `<option${x === r.xtype ? ' selected' : ''}>${x}</option>`).join('')
-      + `</select><input class="tl-secs" type="number" min="0.1" max="2" step="0.1" value="${r.xdur}" data-tl-d="${i}"></span>`
-    if (r.card) return join + cardBlock(r, i)
-    const dur = tlDur[r.clip]
-    const inT = r.trim ? r.trim[0] : 0, outT = r.trim ? r.trim[1] : (dur || 0)
-    const weight = (r.trim ? (r.trim[1] - r.trim[0]) : dur) || 1   // block width ∝ trimmed length
-    // visual trim track (two draggable handles over the clip's duration) — the pick-cut-points-by-eye bit
-    let track = `<span class="tl-tinfo rs-dim">${tlBaked.has(r.clip) ? '…' : '·bake to trim'}</span>`
-    if (tlBaked.has(r.clip) && dur) {
-      const inP = (inT / dur * 100), outP = (outT / dur * 100)
-      track = `<span class="tl-trim" data-tl-trim="${i}">`
-        + `<span class="tl-range" style="left:${inP}%;right:${100 - outP}%"></span>`
-        + `<span class="tl-h" data-tl-h="${i},0" style="left:${inP}%" title="in"></span>`
-        + `<span class="tl-h" data-tl-h="${i},1" style="left:${outP}%" title="out"></span></span>`
-        + `<span class="tl-tinfo">${inT.toFixed(1)}→${outT.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}</span>`
-    }
-    const speed = `<label class="tl-splbl" title="playback speed (× faster)">×<input class="tl-num" type="number" min="0.1" step="0.25" placeholder="1" value="${r.speed && r.speed !== 1 ? r.speed : ''}" data-tl-sp="${i}"></label>`
-    return `${join}<span class="tl-block${i === tlFocus ? ' tl-focus' : ''}" draggable="true" data-tl-block="${i}" style="flex:${weight} 1 56px">`
-      + `<span class="tl-lbl">${escHtml(r.clip)}</span>${track}<span class="tl-edit">${speed}</span>`
-      + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate this part (with its trim + speed)">⧉</button>`
-      + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
-  }).join('') + tlLoopControl()
+  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips or a text card from above</span>' }
+  else tl.innerHTML = tlRows.map((r, i) => (i ? tlJoinMark(r) : '') + tlBlock(r, i)).join('') + tlLoopControl()
+  tlRenderInspector()
   tlProbeDurations()
+}
+// ── inspector — the SELECTED block's full properties (transition-in · trim/speed · card lines/timing/look) ──
+function tlRenderInspector() {
+  const insp = document.getElementById('tl-inspector'); if (!insp) return
+  if (tlSel < 0 || tlSel >= tlRows.length) { insp.innerHTML = '<div class="tl-inhint">click a block in the timeline to edit it</div>'; return }
+  const r = tlRows[tlSel], i = tlSel, parts = []
+  parts.push(`<div class="tl-inhead">${r.card ? '📝 text card' : escHtml(r.clip)}</div>`)
+  if (i > 0) parts.push(`<div class="tl-inrow"><span class="tl-ink">transition in</span>`   // the cut that brings this block in
+    + `<select data-tl-x="${i}">` + TL_XFADES.map(x => `<option${x === r.xtype ? ' selected' : ''}>${x}</option>`).join('') + `</select>`
+    + `<input class="tl-secs" type="number" min="0.1" max="2" step="0.1" value="${r.xdur}" data-tl-d="${i}"></div>`)
+  parts.push(r.card ? tlCardFields(r, i) : tlClipFields(r, i))
+  insp.innerHTML = parts.join('')
+}
+function tlClipFields(r, i) {
+  const dur = tlDur[r.clip]
+  const inT = r.trim ? r.trim[0] : 0, outT = r.trim ? r.trim[1] : (dur || 0)
+  let track = `<div class="tl-tinfo rs-dim">${tlBaked.has(r.clip) ? 'probing…' : '·bake this clip to trim it'}</div>`
+  if (tlBaked.has(r.clip) && dur) {
+    const inP = inT / dur * 100, outP = outT / dur * 100
+    track = `<div class="tl-trim" data-tl-trim="${i}"><span class="tl-range" style="left:${inP}%;right:${100 - outP}%"></span>`
+      + `<span class="tl-h" data-tl-h="${i},0" style="left:${inP}%" title="in"></span>`
+      + `<span class="tl-h" data-tl-h="${i},1" style="left:${outP}%" title="out"></span></div>`
+      + `<div class="tl-tinfo">${inT.toFixed(1)}→${outT.toFixed(1)}s of ${dur.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}</div>`
+  }
+  const speed = `<label class="tl-splbl" title="playback speed (× faster)">speed ×<input class="tl-num" type="number" min="0.1" step="0.25" placeholder="1" value="${r.speed && r.speed !== 1 ? r.speed : ''}" data-tl-sp="${i}"></label>`
+  return `<div class="tl-ingroup"><span class="tl-ink">trim</span>${track}<div class="tl-inhint2">scrub the monitor + ⇤/⇥, or drag the handles</div></div>`
+    + `<div class="tl-ingroup"><span class="tl-ink">speed</span>${speed}</div>`
+}
+function tlCardFields(r, i) {
+  const roleSel = (role, k) => `<select class="tl-crole" data-tl-role="${i},${k}">`
+    + TL_ROLES.map(o => `<option${o === role ? ' selected' : ''}>${o}</option>`).join('') + `</select>`
+  const lines = (r.lines || []).map((l, k) => `<div class="tl-cline">${roleSel(l.role, k)}`
+    + `<input class="tl-ctext" data-tl-ctext="${i},${k}" value="${escHtml(l.text)}" placeholder="text">`
+    + `<button class="tl-cx" data-tl-cdel="${i},${k}" title="remove line">✕</button></div>`).join('')
+  const animSel = (val, attr) => `<select class="tl-canim" data-${attr}="${i}">`
+    + TL_ANIMS.map(a => `<option${a === (val || 'fade') ? ' selected' : ''}>${a}</option>`).join('') + `</select>`
+  const inDur = r.inDur ?? 0.5, holdDur = r.holdDur ?? 1.5, outDur = r.outDur ?? 0
+  const wb = r.waitBefore ?? 0, wa = r.waitAfter ?? 0, bg = r.bg == null ? 17 : r.bg
+  const num = (attr, val, min) => `<input class="tl-num" type="number" min="${min}" step="0.1" data-${attr}="${i}" value="${val}">`
+  return `<div class="tl-ingroup"><span class="tl-ink">lines</span>`
+    +   `<div class="tl-cardlines">${lines}<button class="tl-cadd" data-tl-cadd="${i}">＋ line</button></div></div>`
+    + `<div class="tl-ingroup"><span class="tl-ink">timing</span><div class="tl-cardopts">`
+    +   `<span class="tl-phase" title="wait — blank lead-in before the in (s)">wait ${num('tl-cwaitb', wb, 0)}</span>`
+    +   `<span class="tl-phase" title="in transition (s + effect)">in ${animSel(r.inEffect, 'tl-cinanim')}${num('tl-cindur', inDur, 0)}</span>`
+    +   `<span class="tl-phase" title="hold — boil/breathe (s)">hold ${num('tl-chold', holdDur, 0)}</span>`
+    +   `<span class="tl-phase" title="out transition (s + effect)">out ${animSel(r.outEffect, 'tl-coutanim')}${num('tl-coutdur', outDur, 0)}</span>`
+    +   `<span class="tl-phase" title="wait — blank tail after the out (s)">wait ${num('tl-cwaita', wa, 0)}</span></div></div>`
+    + `<div class="tl-ingroup"><span class="tl-ink">look</span><div class="tl-cardopts">`
+    +   `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
+    +   `<input class="tl-num" type="number" min="0" max="31" data-tl-cbg="${i}" value="${bg}"></label>`
+    +   `<label class="tl-splbl" title="boil — hand-drawn wobble (0 = off … 1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cboil="${i}" value="${r.boil ?? 1}"></label>`
+    +   `<label class="tl-splbl" title="breathe — grow/shrink pulse (0 = off … 1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cbreathe="${i}" value="${r.breathe ?? 0}"></label>`
+    +   `<label class="tl-splbl" title="beat-sync BPM (0 = off) — breathe punches + boil ticks on the beat">bpm<input class="tl-num" type="number" min="0" step="1" data-tl-cbpm="${i}" value="${r.bpm ?? 0}"></label></div></div>`
 }
 // the loop-close diamond after the last block: crossfade the end back into the start (seamless loop)
 function tlLoopControl() {
@@ -1582,15 +1608,19 @@ function tlLoopControl() {
   const secs = `<input class="tl-secs" type="number" min="0.1" max="2" step="0.1" data-tl-loopd value="${on ? tlLoop.dur : 0.5}"${on ? '' : ' disabled'}>`
   return `<span class="tl-loop" title="loop the reel back to the start with a seamless crossfade">${sel}${secs}</span>`
 }
-// load a clip into the preview monitor + highlight its block (the NLE "one monitor" model)
+// select a block → fill the inspector with its properties; a clip also loads into the monitor to scrub
+function tlSelect(i) {
+  tlSel = i; tlRender()
+  const r = tlRows[i]
+  if (r && !r.card) tlFocusBlock(i)
+}
+// load a clip into the preview monitor (the NLE "one monitor" model)
 function tlFocusBlock(i) {
   const r = tlRows[i]; if (!r || !tlBaked.has(r.clip)) return
+  tlSeqStop()   // scrubbing one clip and playing the whole reel fight over the same <video>s
   tlFocus = i
-  const mon = document.getElementById('tl-monitor'), wrap = document.getElementById('tl-monwrap')
-  if (!mon || !wrap) return
-  wrap.hidden = false
+  const mon = document.getElementById('tl-monitor'); if (!mon) return
   document.getElementById('tl-mon-name').textContent = r.clip
-  document.querySelectorAll('.tl-block').forEach(b => b.classList.toggle('tl-focus', +b.dataset.tlBlock === i))
   const seek = () => { mon.playbackRate = r.speed || 1; try { mon.currentTime = r.trim ? r.trim[0] : 0 } catch {} }
   if (!mon.src.endsWith(`${r.clip}.webm`)) { mon.src = tlSrc(r.clip); mon.addEventListener('loadedmetadata', seek, { once: true }) }
   else seek()
@@ -1603,8 +1633,9 @@ function tlSetTrim(i, a, b) {
   tlRender()
 }
 document.getElementById('tl-close')?.addEventListener('click', () => {
+  tlSeqStop()
   document.getElementById('trailer-lab').hidden = true
-  for (const id of ['tl-preview', 'tl-monitor']) {   // stop playback + release files (nothing humming behind a closed panel)
+  for (const id of ['tl-preview', 'tl-monitor', 'tl-monitor2']) {   // stop playback + release files (nothing humming behind a closed panel)
     const v = document.getElementById(id); if (v) { v.pause?.(); v.removeAttribute('src'); v.load?.(); }
   }
   const prev = document.getElementById('tl-preview'); if (prev) prev.hidden = true
@@ -1616,16 +1647,14 @@ const tlCloneRow = s => ({ ...s, trim: s.trim ? [...s.trim] : null,
   overlays: s.overlays ? s.overlays.map(o => ({ ...o, lines: (o.lines || []).map(l => ({ ...l })) })) : undefined })
 document.getElementById('tl-timeline')?.addEventListener('click', e => {
   const dup = e.target.closest('[data-tl-dup]'); const rm = e.target.closest('[data-tl-rm]')
-  const cadd = e.target.closest('[data-tl-cadd]'); const cdel = e.target.closest('[data-tl-cdel]')
-  if (cadd) { const i = +cadd.dataset.tlCadd; (tlRows[i].lines || (tlRows[i].lines = [])).push({ role: 'body', text: '' }); tlRender() }
-  else if (cdel) { const [i, k] = cdel.dataset.tlCdel.split(',').map(Number); tlRows[i].lines.splice(k, 1); tlRender() }
-  else if (dup) { const i = +dup.dataset.tlDup   // repeat a part, all its settings
-    tlRows.splice(i + 1, 0, tlCloneRow(tlRows[i])); tlFocus = -1; tlRender() }
-  else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlFocus = -1; tlRender() }
-  else {   // click a block (not a control) → focus it in the monitor
+  if (dup) { const i = +dup.dataset.tlDup   // repeat a part, all its settings
+    tlRows.splice(i + 1, 0, tlCloneRow(tlRows[i])); tlSel = -1; tlFocus = -1; tlRender() }
+  else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlSel = -1; tlFocus = -1; tlRender() }
+  else {   // click a block (not a button) → select it (fills the inspector, loads a clip in the monitor)
     const block = e.target.closest('[data-tl-block]')
-    if (block && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('[data-tl-h]')) tlFocusBlock(+block.dataset.tlBlock)
+    if (block && !e.target.closest('button')) tlSelect(+block.dataset.tlBlock)
   }
+  if (dup || rm) tlSeqSync()   // the timeline changed shape → refresh a running live preview
 })
 // ── drag & drop: drag a library clip onto the timeline to place it (repeats allowed) · drag a block to reorder ──
 // the insert index under the cursor: before the first block whose horizontal midpoint we're left of
@@ -1663,21 +1692,21 @@ document.getElementById('tl-timeline')?.addEventListener('drop', e => {
   tlShowDrop(null)
   if (data.startsWith('lib:')) {
     tlRows.splice(to, 0, { clip: data.slice(4), xtype: 'fade', xdur: 0.5, trim: null, speed: 1 })
-    tlFocus = -1; tlRender()
+    tlSel = -1; tlFocus = -1; tlRender(); tlSeqSync()
   } else if (data.startsWith('row:')) {
     const from = +data.slice(4); if (from === to || from + 1 === to) return   // dropped in place
     if (to > from) to--                                                        // removing shifts everything left
     const [row] = tlRows.splice(from, 1); tlRows.splice(to, 0, row)
-    tlFocus = -1; tlRender()
+    tlSel = -1; tlFocus = -1; tlRender(); tlSeqSync()
   }
 })
 document.getElementById('tl-timeline')?.addEventListener('dragend', () => {
   document.querySelectorAll('#tl-timeline .tl-block').forEach(b => b.classList.remove('tl-dragging', 'tl-drop-before', 'tl-drop-after'))
 })
-document.getElementById('tl-clear')?.addEventListener('click', () => { tlRows = []; tlFocus = -1; tlRender() })   // start a subset from empty
-// drag the in/out handles → live trim, seeking the monitor to the cut frame as you go
+document.getElementById('tl-clear')?.addEventListener('click', () => { tlRows = []; tlSel = -1; tlFocus = -1; tlRender(); tlSeqSync() })   // start a subset from empty
+// drag the in/out handles (in the inspector) → live trim, seeking the monitor to the cut frame as you go
 let tlDrag = null
-document.getElementById('tl-timeline')?.addEventListener('pointerdown', e => {
+document.getElementById('tl-inspector')?.addEventListener('pointerdown', e => {
   const h = e.target.closest('[data-tl-h]'); if (!h) return
   e.preventDefault()
   const [i, which] = h.dataset.tlH.split(',').map(Number)
@@ -1695,25 +1724,33 @@ window.addEventListener('pointermove', e => {
   r.trim = (a <= 0.05 && b >= dur - 0.05) ? null : [a, b]
   // update visuals in place (no full re-render mid-drag) + seek the monitor to the moving edge
   const inP = a / dur * 100, outP = b / dur * 100
-  const trk = document.querySelector(`[data-tl-trim="${i}"]`)
+  const trk = document.querySelector(`[data-tl-trim="${i}"]`)   // the trim track lives in the inspector now
   if (trk) { trk.querySelector('.tl-range').style.left = inP + '%'; trk.querySelector('.tl-range').style.right = (100 - outP) + '%'
     trk.querySelectorAll('.tl-h')[0].style.left = inP + '%'; trk.querySelectorAll('.tl-h')[1].style.left = outP + '%' }
-  const blk = document.querySelector(`.tl-block[data-tl-block="${i}"]`)
-  const info = blk?.querySelector('.tl-tinfo'); if (info) info.textContent = `${a.toFixed(1)}→${b.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}`
+  const info = document.querySelector('#tl-inspector .tl-tinfo:not(.rs-dim)')
+  if (info) info.textContent = `${a.toFixed(1)}→${b.toFixed(1)}s of ${dur.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}`
   const mon = document.getElementById('tl-monitor')
   if (mon && tlFocus === i) { try { mon.currentTime = which === 0 ? a : b } catch {} }
 })
 window.addEventListener('pointerup', () => { if (tlDrag) { tlDrag = null; tlRender() } })
+// the timeline itself only carries the loop-close control now; block properties are handled in the inspector
 document.getElementById('tl-timeline')?.addEventListener('change', e => {
-  const x = e.target.closest('[data-tl-x]'); const d = e.target.closest('[data-tl-d]'); const sp = e.target.closest('[data-tl-sp]')
-  if (x) tlRows[+x.dataset.tlX].xtype = x.value
-  if (d) tlRows[+d.dataset.tlD].xdur = parseFloat(d.value) || 0.5
-  if (sp) { const i = +sp.dataset.tlSp; tlRows[i].speed = parseFloat(sp.value) || 1
-    const mon = document.getElementById('tl-monitor'); if (mon && tlFocus === i) mon.playbackRate = tlRows[i].speed; tlRender() }
-  // loop-close diamond
   const lx = e.target.closest('[data-tl-loopx]'); const ld = e.target.closest('[data-tl-loopd]')
   if (lx) { tlLoop = lx.value ? { type: lx.value, dur: (tlLoop && tlLoop.dur) || 0.5 } : null; tlRender() }
   if (ld && tlLoop) tlLoop.dur = parseFloat(ld.value) || 0.5
+})
+// ── inspector: all the selected block's property edits (transition-in · trim/speed · card fields) ──
+document.getElementById('tl-inspector')?.addEventListener('click', e => {
+  const cadd = e.target.closest('[data-tl-cadd]'); const cdel = e.target.closest('[data-tl-cdel]')
+  if (cadd) { const i = +cadd.dataset.tlCadd; (tlRows[i].lines || (tlRows[i].lines = [])).push({ role: 'body', text: '' }); tlRender(); tlSeqSync() }
+  else if (cdel) { const [i, k] = cdel.dataset.tlCdel.split(',').map(Number); tlRows[i].lines.splice(k, 1); tlRender(); tlSeqSync() }
+})
+document.getElementById('tl-inspector')?.addEventListener('change', e => {
+  const x = e.target.closest('[data-tl-x]'); const d = e.target.closest('[data-tl-d]'); const sp = e.target.closest('[data-tl-sp]')
+  if (x) { tlRows[+x.dataset.tlX].xtype = x.value; tlRender() }     // re-render so the ◇ join marker reflects it
+  if (d) { tlRows[+d.dataset.tlD].xdur = parseFloat(d.value) || 0.5; tlRender() }
+  if (sp) { const i = +sp.dataset.tlSp; tlRows[i].speed = parseFloat(sp.value) || 1
+    const mon = document.getElementById('tl-monitor'); if (mon && tlFocus === i) mon.playbackRate = tlRows[i].speed; tlRender() }
   // text-card fields
   const role = e.target.closest('[data-tl-role]'); const cbg = e.target.closest('[data-tl-cbg]')
   if (role) { const [i, k] = role.dataset.tlRole.split(',').map(Number); tlRows[i].lines[k].role = role.value; tlRender() }
@@ -1735,7 +1772,7 @@ document.getElementById('tl-timeline')?.addEventListener('change', e => {
   if (cbpm)  tlRows[+cbpm.dataset.tlCbpm].bpm = Math.max(0, parseFloat(cbpm.value) || 0)
 })
 // live text edits — update the model without a re-render (keeps focus in the field)
-document.getElementById('tl-timeline')?.addEventListener('input', e => {
+document.getElementById('tl-inspector')?.addEventListener('input', e => {
   const t = e.target.closest('[data-tl-ctext]'); if (!t) return
   const [i, k] = t.dataset.tlCtext.split(',').map(Number)
   if (tlRows[i] && tlRows[i].lines[k]) tlRows[i].lines[k].text = t.value
@@ -1757,12 +1794,152 @@ document.getElementById('tl-mon-play')?.addEventListener('click', () => {
   try { mon.currentTime = r.trim ? r.trim[0] : 0 } catch {}
   mon.addEventListener('timeupdate', onTU); mon.play()
 })
+// ── slice 3: continuous sequence player — play the WHOLE reel live from <video>s, NO bake ──
+// Two stacked <video>s double-buffer the clips; the incoming one is raised above and its opacity
+// ramps 0→1 so fade/dissolve cross-fade for real. Wipes/slides/pixelize can't be done with opacity,
+// so they hard-cut and flash a "≈ <type> — exact on Build" badge. Card rows show a static text
+// placeholder for their duration (boil/breathe only appear on Build). An approximation on purpose —
+// per the doc, live preview is the render cache; Build is truth. (trailer-builder.md §Live preview slice 3.)
+let tlSeq = null   // active player state (null = stopped)
+const tlVid = k => document.getElementById(k === 0 ? 'tl-monitor' : 'tl-monitor2')
+const OPACITY_X = new Set(['fade', 'dissolve'])   // the only xfades opacity can honestly fake
+function tlSeqStop() {
+  if (!tlSeq) return
+  cancelAnimationFrame(tlSeq.raf); clearTimeout(tlSeq.timer)
+  for (const k of [0, 1]) { const v = tlVid(k); v.pause?.(); }
+  const a = tlVid(0), b = tlVid(1)
+  a.controls = true; a.style.opacity = ''; a.style.zIndex = ''; a.muted = false
+  b.style.opacity = 0; b.style.zIndex = ''; b.muted = true
+  document.getElementById('tl-cardph').hidden = true
+  document.getElementById('tl-seqbadge').hidden = true
+  const btn = document.getElementById('tl-seq-play'); if (btn) btn.textContent = '▶ play all'
+  tlSeq = null
+}
+// a structural timeline edit (add / remove / reorder / clear) happened — keep a RUNNING live preview
+// honest to it by rebuilding the item list and restarting from the top (a no-op when not playing).
+function tlSeqSync() {
+  if (!tlSeq) return
+  cancelAnimationFrame(tlSeq.raf); clearTimeout(tlSeq.timer)
+  const items = tlBuildSeq()
+  if (!items.length) { tlSeqStop(); return }
+  tlSeq.items = items
+  tlSeqPlay(0, tlSeq.buf)
+}
+// flatten the timeline into playable items — EVERY row is represented so nothing silently vanishes.
+// A baked clip's out-point (tEnd) is resolved from the real <video> at play time (no dependence on the
+// async duration probe → no race). An unbaked clip becomes a "bake to preview" placeholder, not a gap.
+function tlBuildSeq() {
+  return tlRows.map(r => {
+    if (r.card) return { kind: 'card', dur: r.dur || 2, lines: r.lines || [], bg: r.bg == null ? 17 : r.bg, xtype: r.xtype, xdur: r.xdur }
+    if (!tlBaked.has(r.clip)) return { kind: 'need', clip: r.clip, dur: 1.5, xtype: r.xtype, xdur: r.xdur }
+    return { kind: 'clip', clip: r.clip, trim: r.trim, tStart: r.trim ? r.trim[0] : 0, tEnd: null, speed: r.speed || 1, xtype: r.xtype, xdur: r.xdur }
+  })
+}
+// how many seconds the NEXT part overlaps this one (its transition), or the loop-close on the last part.
+// The baked reel overlaps every join by this much, so the preview cuts each part this much early to match.
+function tlSeqOverlap(idx) {
+  const next = tlSeq.items[idx + 1]
+  if (next) return next.xdur || 0
+  return tlLoop ? (tlLoop.dur || 0) : 0
+}
+function tlSeqBadge(text) {
+  const el = document.getElementById('tl-seqbadge')
+  el.textContent = text; el.hidden = false
+  clearTimeout(tlSeq.badgeT); tlSeq.badgeT = setTimeout(() => { if (tlSeq) el.hidden = true }, 900)
+}
+// load a clip file into a buffer, seek to its in-point + set speed, then call cb once it's ready to show
+function tlLoadClip(v, it, cb) {
+  const ready = () => { v.playbackRate = it.speed; cb && cb() }
+  const afterMeta = () => {
+    const onSeek = () => { v.removeEventListener('seeked', onSeek); ready() }
+    v.addEventListener('seeked', onSeek)
+    try { v.currentTime = it.tStart } catch { ready() }
+  }
+  if (v.src.endsWith(`${it.clip}.webm`) && v.readyState >= 1) afterMeta()
+  else { v.src = tlSrc(it.clip); v.addEventListener('loadedmetadata', afterMeta, { once: true }) }
+}
+// show/advance to item `idx` in buffer `buf` (the OTHER buffer is left for preloading the next clip)
+function tlSeqPlay(idx, buf) {
+  if (!tlSeq) return
+  if (idx >= tlSeq.items.length) {   // end of reel → loop if the loop-close diamond is on, else stop
+    if (tlLoop && tlSeq.items.length) { tlSeqPlay(0, buf); return }
+    tlSeqStop(); return
+  }
+  tlSeq.idx = idx; tlSeq.buf = buf; tlSeq.xfading = false; tlSeq.timer = 0   // consumed any card timer; 0 so the tick guard passes
+  const it = tlSeq.items[idx], ph = document.getElementById('tl-cardph')
+  const a = tlVid(buf), b = tlVid(1 - buf)
+  if (it.kind === 'card' || it.kind === 'need') {   // no <video> to play — a static placeholder for its duration
+    a.pause(); b.pause(); a.style.opacity = 0; b.style.opacity = 0
+    ph.style.background = it.kind === 'card' ? paletteHex(it.bg) : '#222'
+    ph.innerHTML = it.kind === 'card'
+      ? (it.lines.map(l => `<div class="tl-ph-${l.role}">${escHtml(l.text)}</div>`).join('') || '<div class="tl-ph-body">·</div>')
+      : `<div class="tl-ph-sub">⋯ ${escHtml(it.clip)}</div><div class="tl-ph-body">bake to preview</div>`
+    ph.hidden = false
+    tlSeqBadge(it.kind === 'card' ? '≈ card — motion on Build' : '≈ not baked — Build to include')
+    const showFor = Math.max(0.2, it.dur - tlSeqOverlap(idx))   // cut early by the next join's overlap → matches the bake
+    tlSeq.timer = setTimeout(() => tlSeqPlay(idx + 1, buf), showFor * 1000)
+    return
+  }
+  // a clip: raise this buffer on top, make it the audible one, play from its in-point
+  ph.hidden = true
+  a.style.zIndex = 3; b.style.zIndex = 1
+  a.muted = false; b.muted = true
+  tlLoadClip(a, it, () => {
+    if (!tlSeq || tlSeq.idx !== idx) return
+    if (it.tEnd == null) it.tEnd = it.trim ? it.trim[1] : (a.duration || 0)   // resolve the out-point from the real video
+    a.style.opacity = 1; a.play?.()
+    const next = tlSeq.items[idx + 1]
+    if (next && next.kind === 'clip') tlLoadClip(b, next, () => { if (next.tEnd == null) next.tEnd = next.trim ? next.trim[1] : (b.duration || 0) })   // preload the next clip
+    tlSeq.raf = requestAnimationFrame(tlSeqTick)
+  })
+}
+// per-frame: watch the active clip approach its out-point, then cross-fade (opacity) or hard-cut into the next
+function tlSeqTick() {
+  if (!tlSeq || tlSeq.timer) return
+  const S = tlSeq, it = S.items[S.idx]
+  if (!it || it.kind !== 'clip') return
+  const a = tlVid(S.buf), b = tlVid(1 - S.buf)
+  const next = S.items[S.idx + 1]
+  const t = a.currentTime
+  const tEnd = it.tEnd != null ? it.tEnd : (a.duration || t)
+  const overlapSrc = tlSeqOverlap(S.idx) * it.speed         // source-seconds the outgoing clip spends in the overlap
+  if (!S.xfading) {
+    const canOpacity = next && next.kind === 'clip' && OPACITY_X.has(next.xtype) && (tEnd - it.tStart) > overlapSrc + 0.05
+    if (canOpacity && t >= tEnd - overlapSrc) {             // begin an opacity cross-fade into the next clip
+      S.xfading = true; S.xstart = performance.now(); S.xdur = next.xdur
+      b.style.zIndex = 3; a.style.zIndex = 1                // incoming rides on top; its opacity ramps up over it
+      b.style.opacity = 0; b.muted = false; a.muted = true
+      tlLoadClip(b, next, () => { if (next.tEnd == null) next.tEnd = next.trim ? next.trim[1] : (b.duration || 0); if (tlSeq && S.xfading) b.play?.() })
+    } else if (t >= tEnd - Math.max(overlapSrc, 0.04)) {    // reached the cut point with no opacity fade → hard cut
+      a.pause(); a.style.opacity = 0                         // hide the outgoing frame so it can't peek behind the incoming
+      if (next && next.kind === 'clip' && !OPACITY_X.has(next.xtype)) tlSeqBadge(`≈ ${next.xtype} — exact on Build`)
+      tlSeqPlay(S.idx + 1, 1 - S.buf); return
+    }
+  } else {                                                  // animating the cross-fade in wall-clock time
+    const p = Math.min(1, (performance.now() - S.xstart) / (S.xdur * 1000))
+    b.style.opacity = p
+    if (p >= 1) { a.pause(); a.style.opacity = 0; tlSeqPlay(S.idx + 1, 1 - S.buf); return }
+  }
+  S.raf = requestAnimationFrame(tlSeqTick)
+}
+document.getElementById('tl-seq-play')?.addEventListener('click', () => {
+  if (tlSeq) { tlSeqStop(); return }
+  const items = tlBuildSeq()
+  if (!items.length) { showToast('nothing playable yet — add baked clips (or Build to see cards)', 3000); return }
+  tlFocus = -1; document.querySelectorAll('.tl-block').forEach(b => b.classList.remove('tl-focus'))
+  document.getElementById('tl-monwrap').hidden = false
+  document.getElementById('tl-mon-name').textContent = 'whole trailer (live preview)'
+  const a = tlVid(0); a.controls = false
+  tlSeq = { items, idx: 0, buf: 0, raf: 0, timer: 0, badgeT: 0, xfading: false }
+  document.getElementById('tl-seq-play').textContent = '⏸ stop'
+  tlSeqPlay(0, 0)
+})
 document.getElementById('tl-library')?.addEventListener('click', e => {
   if (e.target.closest('[data-tl-addcard]')) {   // append a fresh text card
-    tlRows.push({ card: true, waitBefore: 0, inDur: 0.5, holdDur: 1.5, outDur: 0, waitAfter: 0, inEffect: 'slide bottom', outEffect: 'slide top', dur: 2, lines: [{ role: 'title', text: 'TITLE' }], bg: 17, boil: 1, breathe: 0, bpm: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); return
+    tlRows.push({ card: true, waitBefore: 0, inDur: 0.5, holdDur: 1.5, outDur: 0, waitAfter: 0, inEffect: 'slide bottom', outEffect: 'slide top', dur: 2, lines: [{ role: 'title', text: 'TITLE' }], bg: 17, boil: 1, breathe: 0, bpm: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); tlSeqSync(); return
   }
   const add = e.target.closest('[data-tl-add]'); if (!add) return
-  tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender()
+  tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender(); tlSeqSync()
 })
 // stream the build log (bake + compose progress) into the trailer panel while it's open
 window.studio?.onAsoLog?.(s => {
@@ -1771,6 +1948,7 @@ window.studio?.onAsoLog?.(s => {
 })
 document.getElementById('tl-build')?.addEventListener('click', async () => {
   if (!tlApp || !tlRows.length) { showToast('add at least one clip', 2500); return }
+  tlSeqStop()
   const btn = document.getElementById('tl-build'); const stop = busyDots(btn, 'building (bakes + composes)', '▶ Build trailer'); btn.disabled = true
   const tlLog = document.getElementById('tl-log')
   if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}…\n` }   // live feedback of what it's doing

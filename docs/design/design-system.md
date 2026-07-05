@@ -201,13 +201,15 @@ not the whole bar. See [ADR-0022](../decisions/0022-collaboration-is-the-north-s
 
 ## 6 · Responsive & touch
 
-> **STATUS: MIXED — the method is LIVING, the engine plumbing is PROPOSED.** The layout
-> primitives (`lay.h`) and widgets (`ui.h`, §9) are **shipped** — `lay.h`'s header notes it was
-> *promoted from the `respond.c` prototype* — and the device-adaptive approach is proven live in
-> `rackfit.c` / `acidfit.c`. What's still **PROPOSED** is the engine-side runtime-viewport /
-> backing-scale plumbing those carts currently *fake* (they drag a virtual screen on purpose).
-> **VERIFY that split against `docs/design/device-adaptive-layout.md`'s own STATUS line + `design-board.js`
-> before promoting** — the carts can't tell you what the engine now does. Extends §1, §4, §5.
+> **STATUS: LIVING — method + engine both shipped; applying to the real racks is Phase 3 (in
+> progress).** The layout primitives (`lay.h`) and widgets (`ui.h`, §9) are **shipped**, the
+> finger-sized approach is proven in `respond.c` / `rackfit.c` / `acidfit.c`, and — as of
+> 2026-07-04 — so is the **engine foundation**: a `-DDE_RESIZABLE` cart fills any device, dodges
+> the notch (`safe_rect()`), and reflows on rotate (device-adaptive-layout.md **Phases 0–2 DONE**,
+> verified on iPhone SE / 15 + iPad Pro 12.9). Read the live dims with `screen_w()` / `screen_h()`.
+> What remains is **Phase 3** — actually reflowing the three Tinyjam product racks
+> (`acidrack` · `yachtrack` · `epiano`), all still locked at fixed 320 × 240; **`acidrack` first.**
+> Plan: [`device-adaptive-layout.md`](device-adaptive-layout.md). Extends §1, §4, §5.
 
 The one idea this section turns on — proven in `rackfit.c`: **size controls to the finger, not to
 the screen.** A fingertip is a fixed physical size (~9 mm ≈ 44 pt) that covers a *different
@@ -412,7 +414,7 @@ Mirrors §1, §3, §4, §9.*
 
 ## 7 · Semantic colour roles
 
-> **STATUS: PROPOSED.** Extends §2 (Palette — pico32). This is deliberately a **floor, not a
+> **STATUS: PROPOSED — being validated by the acidrack Phase-3 reflow (in progress).** Extends §2 (Palette — pico32). This is deliberately a **floor, not a
 > grammar.** §2 gives 32 named colours and full freedom to use them; this section reserves only
 > the *few* that must mean the same thing in every cart, so a player never has to relearn "what's
 > selected / what's an error" per cart. **Everything else stays wild** — machine hues, step
@@ -477,7 +479,7 @@ authority on the palette. These roles are advisory and intentionally minimal.*
 
 ## 8 · Interaction density & depth
 
-> **STATUS: PROPOSED (design notes).** Extends §6 (Responsive & touch). §6 answers *where things
+> **STATUS: PROPOSED (design notes) — being validated by the acidrack Phase-3 reflow (in progress).** Extends §6 (Responsive & touch). §6 answers *where things
 > go and how big*; this section answers a different question — *what the interaction should even
 > be* at a given form factor. Captured as a line of thinking to reuse, not a spec to obey. The
 > insight: **the finger-to-screen ratio doesn't just resize the layout, it changes the interaction

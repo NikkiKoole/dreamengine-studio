@@ -96,9 +96,9 @@ all: [`STATUS.md`](STATUS.md) + the design board.
 > (`a097e9df`):** the editor can **record** your play as a `.rec` input track (opt-in `● rec`
 > button, settings → record → `tools/clips/<cart>/NN-take.rec`) and **replay** one (drop a `.rec`
 > on the window → `studio:replay` runs it against the OPEN cart; warns if the take's folder names a
-> different cart). Two fixes rode along: a dropped `.cart.png` now sets `currentCartFile` from the
-> FILE slug (not the display title, which mis-filed records into `squishy-lines/`); the file-DIALOG
-> load path (`shell.js` ~L2514) still has that same slug bug — one-liner, not yet done.
+> different cart). Slug bug fixed on BOTH load paths (`eafbdc08`): a dropped `.cart.png` and the
+> file-dialog "load cart" button now set `currentCartFile` from the FILE slug, not the display title
+> (which mis-filed records into `squishy-lines/`).
 > The `studio:replay` **plumbing is the durable piece**; the drop-anywhere trigger is a rootless
 > stopgap (no media home exists yet).
 > **Deliberately NOT built (maker's call, "not yet"):** the media home itself. Pulling that thread

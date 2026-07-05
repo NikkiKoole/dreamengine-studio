@@ -3,6 +3,7 @@
   "title": "acid rack",
   "status": "active",
   "created": "2026-07-02",
+  "resizable": true,
   "kind": [
     "instrument",
     "generative"
@@ -448,12 +449,48 @@ static bool fxview[NSTRIP];            // machine strips: panel shows FX instead
 // layout — transport bar / strips / song chain row
 // 24 + 5×18 + 114 = 228 = CHAIN_Y, chain ends 240: exactly flush
 #define TB_H    22
-#define HDR_H   18
+#define HDR_H   18       // the OPEN strip's header — carries the fx + mute buttons
+#define HDRC    15       // a FOLDED strip's slim header — name + mini-pattern + mute square
+#define FX_BTN_X 62      // open-strip fx/seq toggle — tucked between the name and the mini-pattern
 #define PANEL_H 114
 #define CHAIN_Y 228
+
+// ── device-adaptive (Phase 3, design/device-adaptive-layout.md) ─────────────
+// The rack was authored at a fixed 320×240; these make the HORIZONTAL layout
+// fill screen_w() live (+ a 2-row transport when narrow), and pin the chain row
+// to the real bottom. Vertical model unchanged for now (single accordion); the
+// short-landscape "tabs" arrangement is the next increment.
+static int W(void) { return screen_w(); }
+static int tb_h(void) { return W() < 300 ? TB_H * 2 : TB_H; }   // narrow → transport wraps to 2 rows
+static int chain_y(void) { return screen_h() - 12; }
+// px per step to fill a grid from x0 up to (W - right_margin); floored so it never vanishes
+static int spitch(int x0, int right_margin) { int p = (W() - right_margin - x0) / STEPS; return p < 4 ? 4 : p; }
+// shared layout anchors — draw() AND update() both call these so visuals and
+// hit-tests can never drift apart as the canvas resizes.
+static bool rack_wide(void) { return W() >= 300; }              // room for the drum voice-knob columns
+static int drum_pitch(void) { return spitch(36, rack_wide() ? 74 : 4); }  // 909/808 step cell pitch
+static int roll_pitch(void) { return spitch(40, 4); }           // 303 piano-roll / flag step pitch
+static int pcf_pitch(void) { return spitch(36, 76); }           // master PCF lane step pitch
+static int chain_pitch(void) { int p = (W() - 38) / CHAINN; return p < 2 ? 2 : p; }
+static int code_x(void) { return W() - 72; }                    // song-code + GEN/WAV column (master)
+static int vknob_x(void) { return W() - 72; }                   // drum per-voice TUNE/DEC/CHAR columns
+static int mpad_x(void) { return W() - 130; }                   // 909 metal XY pad
+// expanded-panel height: fills the space left after transport + all headers +
+// the chain row, so a tall portrait screen gives the open panel real room (and
+// the knob row can wrap) — clamped so it never collapses on a short screen.
+static int hdr_h(int i) { return i == expanded ? HDR_H : HDRC; }   // open header full; folded rows slim
+static int cmute_x(void) { return W() - 30; }                      // folded-row mute tap zone (left edge)
+static int panel_h(void) { int headers = HDR_H + (NSTRIP - 1) * HDRC; int h = screen_h() - tb_h() - headers - 14; return h < 60 ? 60 : h; }
+// knob row → grid when the panel is too narrow for one comfortable row (§6.5).
+// One comfortable row if it fits; otherwise TWO rows (ceil(n/2) columns), which
+// is what a phone-portrait rack wants — not an emergent column count.
+static int knob_cols(int n) { if (W() - 12 >= n * 26) return n; int c = (n + 1) / 2; return c < 1 ? 1 : c; }
+static int knob_block_h(int n) { int cols = knob_cols(n); int rows = (n + cols - 1) / cols; return (rows - 1) * 22 + 13; }
+static int roll_top(int y0) { return y0 + 12 + knob_block_h(NK); }   // 303 roll sits below the knob block
+
 static int strip_y(int i) {            // header top of strip i
-    int y = TB_H + 2;
-    for (int k = 0; k < i; k++) y += HDR_H + (k == expanded ? PANEL_H : 0);
+    int y = tb_h() + 2;
+    for (int k = 0; k < i; k++) y += hdr_h(k) + (k == expanded ? panel_h() : 0);
     return y;
 }
 
@@ -836,6 +873,7 @@ static void rnd_pcf(Pattern *P) {
                                    : 5 + ((st & 2) ? 2 : 0));                 // open wave
 }
 static void clr_scope(Pattern *P) {
+    if (expanded < 0) return;              // nothing open → no scope, no-op
     switch (expanded) {
     case STRIP_A: case STRIP_B: memset(&P->ln[expanded], 0, sizeof(Line)); break;
     case STRIP_909: for (int v = 0; v < N909; v++) { P->d909[v] = 0; memset(P->st909[v], 0, STEPS); } P->acc909 = 0; break;
@@ -844,6 +882,7 @@ static void clr_scope(Pattern *P) {
     }
 }
 static void rnd_scope(Pattern *P) {
+    if (expanded < 0) return;              // nothing open → no scope, no-op
     switch (expanded) {
     case STRIP_A: case STRIP_B: rnd_303(&P->ln[expanded]); break;
     case STRIP_909: rnd_909(P); break;
@@ -852,6 +891,7 @@ static void rnd_scope(Pattern *P) {
     }
 }
 static void copy_scope(Pattern *dst, const Pattern *src) {
+    if (expanded < 0) return;              // nothing open → no scope, no-op
     switch (expanded) {
     case STRIP_A: case STRIP_B: dst->ln[expanded] = src->ln[expanded]; break;
     case STRIP_909:
@@ -892,6 +932,12 @@ void update(void) {
     if (keyp(']'))       { unsigned sd = rad_hist_fwd(&rs);  if (sd) gen_song(sd); }
     if (keyp('Z'))       { swing -= 2; if (swing < 50) swing = 50; swingf = (swing - 50) / 16.0f; mark_dirty(); }
     if (keyp('X'))       { swing += 2; if (swing > 66) swing = 66; swingf = (swing - 50) / 16.0f; mark_dirty(); }
+    if (keyp('1')) expanded = STRIP_A;      // 1-5 jump straight to a strip (literal keys so
+    if (keyp('2')) expanded = STRIP_B;      // tools/ui-audit.js --explore can discover + drive them)
+    if (keyp('3')) expanded = STRIP_909;
+    if (keyp('4')) expanded = STRIP_808;
+    if (keyp('5')) expanded = STRIP_MST;
+    if (keyp('0')) expanded = -1;           // 0 folds everything (nothing open)
 
     // ── raw-tap surfaces (roll / flags / grid / chain / headers) ──────────
     // sticky widget-ownership (the dubdesk fix): once ui.h captures a finger
@@ -925,12 +971,12 @@ void update(void) {
             continue;
         }
         // start one: the columns sit beside the grid in the SEQ view
-        if (tap && (expanded == STRIP_909 || expanded == STRIP_808) && !fxview[expanded]) {
+        if (tap && (expanded == STRIP_909 || expanded == STRIP_808) && !fxview[expanded] && rack_wide()) {
             int nv = expanded == STRIP_909 ? N909 : N808;
             int rh = expanded == STRIP_909 ? 9 : 10;
             int gy = strip_y(expanded) + HDR_H + (expanded == STRIP_909 ? 4 : 6);
-            if (px >= 248 && px < 284 && py >= gy && py < gy + nv * rh) {
-                int v = (py - gy) / rh, k = (px - 248) / 12;
+            if (px >= vknob_x() && px < vknob_x() + 36 && py >= gy && py < gy + nv * rh) {
+                int v = (py - gy) / rh, k = (px - vknob_x()) / 12;
                 const char **k2 = expanded == STRIP_909 ? K2LAB9 : K2LAB8;
                 if (k != 2 || k2[v]) {
                     kdrag_id = id; kdrag_mach = expanded == STRIP_909 ? 9 : 8;
@@ -940,15 +986,25 @@ void update(void) {
             }
         }
 
-        // strip headers: tap to expand (press only, and not on the MUTE zone)
+        // strip headers: the right zone toggles mute (folded OR open); otherwise a
+        // tap toggles the strip open ↔ closed. Skip the open strip's fx/seq button
+        // zone (that's a ui.h button — it must not also close the strip).
         if (tap) for (int i = 0; i < NSTRIP; i++) {
-            int y = strip_y(i);
-            if (py >= y && py < y + HDR_H && px < 250) { expanded = i; break; }
+            int y = strip_y(i), h = hdr_h(i);
+            if (py < y || py >= y + h) continue;
+            if (px >= cmute_x()) { mute[i] = !mute[i]; mark_dirty(); }
+            else if (i == expanded && i != STRIP_MST && px >= FX_BTN_X - 2 && px < FX_BTN_X + 32) {
+                /* fx/seq toggle zone — ui.h owns this tap */
+            } else {
+                expanded = (i == expanded) ? -1 : i;   // tap header toggles open ↔ closed
+            }
+            break;
         }
 
         // song chain row: tap a cell to cycle A→B→C→D→empty
-        if (tap && py >= CHAIN_Y && py < CHAIN_Y + 14 && px >= 34 && px < 34 + CHAINN * 4) {
-            int c = (px - 34) / 4;
+        int cp = chain_pitch();
+        if (tap && py >= chain_y() && py < chain_y() + 14 && px >= 34 && px < 34 + CHAINN * cp) {
+            int c = (px - 34) / cp;
             chain[c] = (chain[c] == 0xFF) ? 0 : (chain[c] + 1 > 3 ? 0xFF : chain[c] + 1);
             chainN = 0; while (chainN < CHAINN && chain[chainN] != 0xFF) chainN++;
             mark_dirty();
@@ -958,16 +1014,16 @@ void update(void) {
         if ((expanded == STRIP_A || expanded == STRIP_B) && !fxview[expanded]) {
             Line *ln = &P->ln[expanded];
             int y0 = strip_y(expanded) + HDR_H;
-            int rx = 40, ry = y0 + 26;
-            if (px >= rx && px < rx + STEPS * 15 && py >= ry && py < ry + 13 * 5) {
-                int st = (px - rx) / 15, row = 12 - (py - ry) / 5, b = 1 << st;
+            int rx = 40, ry = roll_top(y0), pp = roll_pitch();
+            if (px >= rx && px < rx + STEPS * pp && py >= ry && py < ry + 13 * 5) {
+                int st = (px - rx) / pp, row = 12 - (py - ry) / 5, b = 1 << st;
                 if (tap && (ln->on & b) && ln->pitch[st] == row) ln->on &= ~b;   // tap the note = erase
                 else { ln->on |= b; ln->pitch[st] = (unsigned char)row; }
                 mark_dirty();
             }
             int fy = ry + 13 * 5 + 2;
-            if (tap && px >= rx && px < rx + STEPS * 15 && py >= fy && py < fy + 21) {
-                int st = (px - rx) / 15, row = (py - fy) / 7, b = 1 << st;
+            if (tap && px >= rx && px < rx + STEPS * pp && py >= fy && py < fy + 21) {
+                int st = (px - rx) / pp, row = (py - fy) / 7, b = 1 << st;
                 if (row == 0) ln->oct ^= b; else if (row == 1) ln->acc ^= b; else ln->sld ^= b;
                 mark_dirty();
             }
@@ -977,22 +1033,22 @@ void update(void) {
         // metal XY pad (FX view — a drag surface)
         if (expanded == STRIP_909 && !fxview[STRIP_909]) {
             int y0 = strip_y(STRIP_909) + HDR_H;
-            int gx = 36, gy = y0 + 4;
-            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy && py < gy + N909 * 9) {
-                int st = (px - gx) / 13, v = (py - gy) / 9;
+            int gx = 36, gy = y0 + 4, pp = drum_pitch();
+            if (tap && px >= gx && px < gx + STEPS * pp && py >= gy && py < gy + N909 * 9) {
+                int st = (px - gx) / pp, v = (py - gy) / 9;
                 P->d909[v] ^= 1 << st;
                 if (!(P->d909[v] & (1 << st))) P->st909[v][st] = ST_PLAIN;
                 mark_dirty();
             }
-            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy + N909 * 9 + 2 && py < gy + N909 * 9 + 10) {
-                P->acc909 ^= 1 << ((px - gx) / 13);
+            if (tap && px >= gx && px < gx + STEPS * pp && py >= gy + N909 * 9 + 2 && py < gy + N909 * 9 + 10) {
+                P->acc909 ^= 1 << ((px - gx) / pp);
                 mark_dirty();
             }
         }
         if (expanded == STRIP_909 && fxview[STRIP_909]) {
             int y0 = strip_y(STRIP_909) + HDR_H;
-            if (px >= 190 && px < 250 && py >= y0 + 30 && py < y0 + 70) {
-                mcut = (px - 190) / 60.0f;
+            if (px >= mpad_x() && px < mpad_x() + 60 && py >= y0 + 30 && py < y0 + 70) {
+                mcut = (px - mpad_x()) / 60.0f;
                 mres = 1.0f - (py - (y0 + 30)) / 40.0f;
                 apply_metal_filter();
                 mark_dirty();
@@ -1003,14 +1059,15 @@ void update(void) {
         // + tap a song-code digit to nudge it (regenerates live)
         if (expanded == STRIP_MST) {
             int y0 = strip_y(STRIP_MST) + HDR_H;
-            if (tap && px >= 248 && px < 248 + 64 && py >= y0 + 22 && py < y0 + 33) {
-                int d = (px - 248) / 8, shift = (7 - d) * 4;
+            int xc = code_x();
+            if (tap && px >= xc && px < xc + 64 && py >= y0 + 22 && py < y0 + 33) {
+                int d = (px - xc) / 8, shift = (7 - d) * 4;
                 unsigned nib = ((cur_seed >> shift) + 1u) & 15u;
                 gen_song((cur_seed & ~(15u << shift)) | (nib << shift));
             }
-            int gx = 36, ly = y0 + 34, lh = 72;
-            if (px >= gx && px < gx + STEPS * 13 && py >= ly && py < ly + lh) {
-                int st = (px - gx) / 13;
+            int gx = 36, ly = y0 + 34, lh = 72, pp = pcf_pitch();
+            if (px >= gx && px < gx + STEPS * pp && py >= ly && py < ly + lh) {
+                int st = (px - gx) / pp;
                 int lvl = 7 - (py - ly) * 8 / lh; if (lvl < 0) lvl = 0; if (lvl > 7) lvl = 7;
                 P->pcf[st] = (unsigned char)lvl;
                 mark_dirty();
@@ -1020,27 +1077,27 @@ void update(void) {
         // expanded 808 panel: trigger grid + accent row
         if (expanded == STRIP_808 && !fxview[STRIP_808]) {
             int y0 = strip_y(STRIP_808) + HDR_H;
-            int gx = 36, gy = y0 + 6;
-            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy && py < gy + N808 * 10) {
-                int st = (px - gx) / 13, v = (py - gy) / 10;
+            int gx = 36, gy = y0 + 6, pp = drum_pitch();
+            if (tap && px >= gx && px < gx + STEPS * pp && py >= gy && py < gy + N808 * 10) {
+                int st = (px - gx) / pp, v = (py - gy) / 10;
                 P->d808[v] ^= 1 << st;
                 mark_dirty();
             }
-            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy + N808 * 10 + 2 && py < gy + N808 * 10 + 10) {
-                P->acc808 ^= 1 << ((px - gx) / 13);
+            if (tap && px >= gx && px < gx + STEPS * pp && py >= gy + N808 * 10 + 2 && py < gy + N808 * 10 + 10) {
+                P->acc808 ^= 1 << ((px - gx) / pp);
                 mark_dirty();
             }
         }
     }
 
     // right-click on a matrix knob = reset to center (the shipped recipe)
-    if (mouse_pressed(MOUSE_RIGHT) && (expanded == STRIP_909 || expanded == STRIP_808) && !fxview[expanded]) {
+    if (mouse_pressed(MOUSE_RIGHT) && (expanded == STRIP_909 || expanded == STRIP_808) && !fxview[expanded] && rack_wide()) {
         int nv = expanded == STRIP_909 ? N909 : N808;
         int rh = expanded == STRIP_909 ? 9 : 10;
         int gy = strip_y(expanded) + HDR_H + (expanded == STRIP_909 ? 4 : 6);
         int px = mouse_x(), py = mouse_y();
-        if (px >= 248 && px < 284 && py >= gy && py < gy + nv * rh) {
-            int v = (py - gy) / rh, k = (px - 248) / 12;
+        if (px >= vknob_x() && px < vknob_x() + 36 && py >= gy && py < gy + nv * rh) {
+            int v = (py - gy) / rh, k = (px - vknob_x()) / 12;
             float *kt = expanded == STRIP_909 ? kt9 : kt8;
             float *kd = expanded == STRIP_909 ? kd9 : kd8;
             float *kc = expanded == STRIP_909 ? kc9 : kc8;
@@ -1054,10 +1111,10 @@ void update(void) {
     if (mouse_pressed(MOUSE_RIGHT) && expanded == STRIP_909 && !fxview[STRIP_909]) {
         Pattern *P = &bank[editBank];
         int y0 = strip_y(STRIP_909) + HDR_H;
-        int gx = 36, gy = y0 + 4;
+        int gx = 36, gy = y0 + 4, pp = drum_pitch();
         int px = mouse_x(), py = mouse_y();
-        if (px >= gx && px < gx + STEPS * 13 && py >= gy && py < gy + N909 * 9) {
-            int st = (px - gx) / 13, v = (py - gy) / 9;
+        if (px >= gx && px < gx + STEPS * pp && py >= gy && py < gy + N909 * 9) {
+            int st = (px - gx) / pp, v = (py - gy) / 9;
             if (!(P->d909[v] & (1 << st))) { P->d909[v] |= 1 << st; P->st909[v][st] = ST_FLAM; }
             else P->st909[v][st] = (unsigned char)((P->st909[v][st] + 1) % NSTROKE);
             mark_dirty();
@@ -1138,13 +1195,22 @@ static const int BANKCLR[NBANK] = { CLR_ORANGE, CLR_GREEN, CLR_BLUE, CLR_RED };
 
 static void draw_header(int i, int y) {
     bool open = (i == expanded);
-    rectfill(2, y, 316, HDR_H - 2, open ? CLR_DARKER_GREY : CLR_DARK_GREY);
-    print(open ? "v" : ">", 8, y + 5, CLR_LIGHT_GREY);
-    print(SNAME[i], 18, y + 5, mute[i] ? CLR_MEDIUM_GREY : CLR_WHITE);
-    // live mini pattern — the "folded isn't blind" ticks
+    int h = hdr_h(i);
+    rectfill(2, y, W() - 4, h - 2, open ? CLR_DARKER_GREY : CLR_DARK_GREY);
+    int ty = y + (h - 8) / 2;
+    print(open ? "v" : ">", 8, ty, CLR_LIGHT_GREY);
+    print(SNAME[i], 18, ty, mute[i] ? CLR_MEDIUM_GREY : CLR_WHITE);
+
+    // Uniform header, folded OR open: name · full-length mini-pattern · mute square.
+    // The mini-pattern runs the SAME length in both states; the fx/seq toggle (open
+    // machine strips only) tucks into the gap between the name and the pattern so it
+    // never shortens the preview.
     Pattern *P = &bank[playBank];
+    int led_x = cmute_x() - 10;
+    int mp0 = 96, mpp = (led_x - 4 - mp0) / STEPS; if (mpp < 3) mpp = 3;
+    int mpw = mpp - 1; if (mpw > 4) mpw = 4;
     for (int s = 0; s < STEPS; s++) {
-        int tx = 96 + s * 6;
+        int tx = mp0 + s * mpp;
         bool onn = false;
         if      (i == STRIP_909) { for (int d = 0; d < N909; d++) if (P->d909[d] & (1 << s)) { onn = true; break; } }
         else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (P->d808[d] & (1 << s)) { onn = true; break; } }
@@ -1152,7 +1218,7 @@ static void draw_header(int i, int y) {
         else onn = (P->ln[i].on >> s) & 1;
         int c = onn ? (mute[i] ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_GREY;
         if (running && s == playhead) c = CLR_WHITE;
-        rectfill(tx, y + 6, 4, 6, c);
+        rectfill(tx, y + 3, mpw, h - 6, c);
     }
     // activity LED
     bool lit = false;
@@ -1160,32 +1226,39 @@ static void draw_header(int i, int y) {
     else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (flash808[d] > 0) lit = true; }
     else if (i == STRIP_MST) lit = pcf_on || fxk[F_GLU] > 0.02f;
     else lit = (m[i].h >= 0);
-    circfill(206, y + 9, 2, lit && !mute[i] ? CLR_GREEN : CLR_DARKER_GREY);
-    // view + MUTE toggles (ui.h buttons — per-finger capture, focus ring)
-    if (i != STRIP_MST && ui_button(216, y + 2, 32, HDR_H - 4, fxview[i] ? "seq" : "fx"))
+    circfill(led_x, y + h / 2, 2, lit && !mute[i] ? CLR_GREEN : CLR_DARKER_GREY);
+
+    // fx/seq toggle — OPEN machine strip only, tucked before the mini-pattern
+    if (open && i != STRIP_MST && ui_button(FX_BTN_X, y + 2, 30, h - 4, fxview[i] ? "seq" : "fx"))
         fxview[i] = !fxview[i];
-    if (ui_button(252, y + 2, 34, HDR_H - 4, mute[i] ? "MUTED" : "mute")) { mute[i] = !mute[i]; mark_dirty(); }
+
+    // mute square — green = live, red = muted; SAME affordance folded or open.
+    // The whole right zone (cmute_x..edge) is the tap target (handled in update()).
+    int sq = h - 5, sx = cmute_x() + (30 - sq) / 2, sy = y + 2;
+    rectfill(sx, sy, sq, sq, mute[i] ? CLR_RED : CLR_GREEN);
+    rect(sx, sy, sq, sq, CLR_MEDIUM_GREY);
 }
 
 static void draw_303_panel(int i, int y0) {
     M303 *s = &m[i];
     Line *ln = &bank[editBank].ln[i];
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
 
-    // piano roll: 13 rows (root..octave), playhead column, root rows tinted
-    int rx = 40, ry = y0 + 26;
+    // piano roll: 13 rows (root..octave), playhead column, root rows tinted.
+    // ry sits below the knob block (1 row wide → flush at +26; 2 rows → pushed down)
+    int rx = 40, ry = roll_top(y0), pp = roll_pitch(), cw = pp - 1;
     for (int st = 0; st < STEPS; st++) {
-        int cx = rx + st * 15;
+        int cx = rx + st * pp;
         int bg = (running && st == playhead) ? CLR_DARKER_GREY : CLR_BLACK;
-        rectfill(cx, ry, 14, 13 * 5 - 1, bg);
+        rectfill(cx, ry, cw, 13 * 5 - 1, bg);
         for (int r = 0; r <= 12; r += 12) {  // root + octave guide rows
-            rectfill(cx, ry + (12 - r) * 5, 14, 4, bg == CLR_BLACK ? CLR_DARKER_GREY : CLR_DARK_GREY);
+            rectfill(cx, ry + (12 - r) * 5, cw, 4, bg == CLR_BLACK ? CLR_DARKER_GREY : CLR_DARK_GREY);
         }
         if ((ln->on >> st) & 1) {
             int row = ln->pitch[st];
             int c = ((ln->acc >> st) & 1) ? CLR_RED : BANKCLR[editBank];
-            rectfill(cx, ry + (12 - row) * 5, 14, 4, c);
-            if ((ln->sld >> st) & 1) rectfill(cx + 12, ry + (12 - row) * 5 + 1, 4, 2, CLR_WHITE);
+            rectfill(cx, ry + (12 - row) * 5, cw, 4, c);
+            if ((ln->sld >> st) & 1) rectfill(cx + cw - 2, ry + (12 - row) * 5 + 1, 3, 2, CLR_WHITE);
         }
     }
     font(FONT_SMALL);
@@ -1201,15 +1274,23 @@ static void draw_303_panel(int i, int y0) {
         print(FLAG[r], 14, fy + r * 7, CLR_MEDIUM_GREY);
         unsigned short mask = r == 0 ? ln->oct : r == 1 ? ln->acc : ln->sld;
         for (int st = 0; st < STEPS; st++)
-            rectfill(rx + st * 15, fy + r * 7, 14, 6,
+            rectfill(rx + st * pp, fy + r * 7, cw, 6,
                      (mask >> st) & 1 ? (r == 1 ? CLR_RED : CLR_YELLOW) : CLR_DARKER_GREY);
     }
     font(FONT_NORMAL);
 
-    // knob row LAST — drawn on top so the labels never sink under the roll
-    for (int k = 0; k < NK; k++)
-        if (ui_knob(&s->knob[k], 26 + k * 38, y0 + 12, KNAME[k])) { knob_changed_303(s, k); mark_dirty(); }
-    if (ui_button(288, y0 + 4, 28, 16, s->wave == INSTR_SAW ? "SAW" : "SQR")) {
+    // knob row LAST — drawn on top. Labels are tiny PIXEL ICONS under each knob
+    // (far narrower than text), so the seven knobs stay ONE row until it's really
+    // tight instead of wrapping to two.
+    int cols = knob_cols(NK), kp = (W() - 52) / cols;
+    font(FONT_TINY);
+    for (int k = 0; k < NK; k++) {
+        int cx = 26 + (k % cols) * kp, cy = y0 + 12 + (k / cols) * 22;
+        if (ui_knob(&s->knob[k], cx, cy, "")) { knob_changed_303(s, k); mark_dirty(); }
+        print_rot(KNAME[k], cx - 12, cy, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
+    }
+    font(FONT_NORMAL);
+    if (ui_button(W() - 32, y0 + 4, 28, 16, s->wave == INSTR_SAW ? "SAW" : "SQR")) {
         s->wave = (s->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
         define_303(s); mark_dirty();
     }
@@ -1220,15 +1301,16 @@ static void draw_303_panel(int i, int y0) {
 static void draw_drum_grid(const char **names, int nv, unsigned short *rows,
                            unsigned char st_rows[][STEPS], unsigned short accmask,
                            int *flash, int gx, int gy, int rh) {
+    int pp = drum_pitch(), cw = pp - 1;
     font(FONT_SMALL);
     for (int v = 0; v < nv; v++) {
         print(names[v], 12, gy + v * rh + 2, flash[v] > 0 ? CLR_WHITE : CLR_MEDIUM_GREY);
         for (int st = 0; st < STEPS; st++) {
-            int cx = gx + st * 13;
+            int cx = gx + st * pp;
             bool onn = (rows[v] >> st) & 1;
             int c = onn ? BANKCLR[editBank] : ((st & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);
             if (running && st == playhead && onn) c = CLR_WHITE;
-            rectfill(cx, gy + v * rh, 12, rh - 1, c);
+            rectfill(cx, gy + v * rh, cw, rh - 1, c);
             if (onn && st_rows && st_rows[v][st] != ST_PLAIN)   // stroke ticks
                 for (int t = 0; t <= (int)st_rows[v][st] - ST_FLAM; t++)
                     rectfill(cx + 2 + t * 3, gy + v * rh + rh - 3, 2, 2, CLR_BLACK);
@@ -1237,7 +1319,7 @@ static void draw_drum_grid(const char **names, int nv, unsigned short *rows,
     // TOTAL ACCENT row
     print("AC", 12, gy + nv * rh + 3, CLR_RED);
     for (int st = 0; st < STEPS; st++)
-        rectfill(gx + st * 13, gy + nv * rh + 2, 12, 6,
+        rectfill(gx + st * pp, gy + nv * rh + 2, cw, 6,
                  (accmask >> st) & 1 ? CLR_RED : CLR_DARKER_GREY);
     font(FONT_NORMAL);
 }
@@ -1245,41 +1327,41 @@ static void draw_drum_grid(const char **names, int nv, unsigned short *rows,
 // the per-voice TUNE/DEC/CHAR columns — row-aligned beside the grid, like
 // the source carts' panels (always visible while you sequence)
 static void draw_voice_knobs(int mach, const char **names, const char **k2lab, int nv,
-                             float *kt, float *kd, float *kc, int gy, int rh) {
+                             float *kt, float *kd, float *kc, int gy, int rh, int kx) {
     for (int v = 0; v < nv; v++) {
         int ry = gy + v * rh;
-        draw_miniknob(250, ry, kt[v], kt[v] == 0.5f ? CLR_LIGHT_GREY : CLR_YELLOW);
-        draw_miniknob(262, ry, kd[v], kd[v] == 0.5f ? CLR_LIGHT_GREY : CLR_YELLOW);
-        if (k2lab[v]) draw_miniknob(274, ry, kc[v], kc[v] == 0.5f ? CLR_LIGHT_GREY : CLR_ORANGE);
+        draw_miniknob(kx, ry, kt[v], kt[v] == 0.5f ? CLR_LIGHT_GREY : CLR_YELLOW);
+        draw_miniknob(kx + 12, ry, kd[v], kd[v] == 0.5f ? CLR_LIGHT_GREY : CLR_YELLOW);
+        if (k2lab[v]) draw_miniknob(kx + 24, ry, kc[v], kc[v] == 0.5f ? CLR_LIGHT_GREY : CLR_ORANGE);
     }
     font(FONT_SMALL);
-    print("T", 252, gy + nv * rh + 2, CLR_DARK_GREY);
-    print("D", 264, gy + nv * rh + 2, CLR_DARK_GREY);
-    print("C", 276, gy + nv * rh + 2, CLR_DARK_GREY);
-    // the dragged knob names itself, floating on its own row
+    print("T", kx + 2, gy + nv * rh + 2, CLR_DARK_GREY);
+    print("D", kx + 14, gy + nv * rh + 2, CLR_DARK_GREY);
+    print("C", kx + 26, gy + nv * rh + 2, CLR_DARK_GREY);
+    // the dragged knob names itself, floating on its own row (left of the columns)
     if (kdrag_id != -1 && kdrag_mach == mach) {
         const char *lab = kdrag_k == 0 ? "TUNE" : kdrag_k == 1 ? "DEC" : k2lab[kdrag_v];
         char buf[24];
         snprintf(buf, sizeof buf, "%s %s %.2f", names[kdrag_v], lab ? lab : "", *kdrag_val());
-        int ry = gy + kdrag_v * rh;
-        rectfill(148, ry - 1, 98, 9, CLR_BLACK);
-        print(buf, 152, ry + 1, CLR_YELLOW);
+        int ry = gy + kdrag_v * rh, lx = kx - 102;
+        rectfill(lx, ry - 1, 98, 9, CLR_BLACK);
+        print(buf, lx + 4, ry + 1, CLR_YELLOW);
     }
     font(FONT_NORMAL);
 }
 
 static void draw_909_panel(int y0) {
     Pattern *P = &bank[editBank];
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     draw_drum_grid(NAME909, N909, P->d909, P->st909, P->acc909, flash909, 36, y0 + 4, 9);
-    draw_voice_knobs(9, NAME909, K2LAB9, N909, kt9, kd9, kc9, y0 + 4, 9);
+    if (rack_wide()) draw_voice_knobs(9, NAME909, K2LAB9, N909, kt9, kd9, kc9, y0 + 4, 9, vknob_x());
 }
 
 // ── the per-machine FX views (the [fx] header button) — RB-338 style: ─────
 // each device owns its dist + its send into THE shared delay unit
 static void draw_303_fx(int i, int y0) {
     M303 *s = &m[i];
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     if (ui_knob(&s->knob[K_DRV], 26, y0 + 12, "DIST")) { knob_changed_303(s, K_DRV); mark_dirty(); }
     if (ui_knob(&send[i], 64, y0 + 12, "SEND")) mark_dirty();
     font(FONT_SMALL);
@@ -1289,23 +1371,23 @@ static void draw_303_fx(int i, int y0) {
     font(FONT_NORMAL);
 }
 static void draw_909_fx(int y0) {
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     if (ui_knob(&dist9, 26, y0 + 16, "DIST")) mark_dirty();
     if (ui_knob(&send[2], 64, y0 + 16, "SEND")) mark_dirty();
     // the metal-filter XY pad (X = five metal highpass cutoffs, Y = resonance)
-    int padx = 190, pady = y0 + 30;
+    int padx = mpad_x(), pady = y0 + 30;
     rectfill(padx, pady, 60, 40, CLR_DARKER_GREY);
     rect(padx, pady, 60, 40, CLR_DARK_GREY);
     circfill(padx + (int)(mcut * 60), pady + (int)((1.0f - mres) * 40), 2, CLR_YELLOW);
     // master shuffle — the 909 is where Roland shipped it (Z/X keys too)
-    if (ui_slider(&swingf, 254, y0 + 44, 56, "SHUF")) { swing = 50 + (int)(swingf * 16.0f); mark_dirty(); }
+    if (ui_slider(&swingf, W() - 66, y0 + 44, 56, "SHUF")) { swing = 50 + (int)(swingf * 16.0f); mark_dirty(); }
     font(FONT_SMALL);
     print("METAL", padx + 18, pady + 42, CLR_MEDIUM_GREY);
     print("DIST rides every 909 voice; SEND feeds the delay", 12, y0 + 84, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 static void draw_808_fx(int y0) {
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     if (ui_knob(&dist8, 26, y0 + 16, "DIST")) mark_dirty();
     if (ui_knob(&send[3], 64, y0 + 16, "SEND")) mark_dirty();
     font(FONT_SMALL);
@@ -1315,27 +1397,33 @@ static void draw_808_fx(int y0) {
 
 static void draw_808_panel(int y0) {
     Pattern *P = &bank[editBank];
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     draw_drum_grid(NAME808, N808, P->d808, NULL, P->acc808, flash808, 36, y0 + 6, 10);
-    draw_voice_knobs(8, NAME808, K2LAB8, N808, kt8, kd8, kc8, y0 + 6, 10);
+    if (rack_wide()) draw_voice_knobs(8, NAME808, K2LAB8, N808, kt8, kd8, kc8, y0 + 6, 10, vknob_x());
 }
 
 static void draw_master_panel(int y0) {
     Pattern *P = &bank[editBank];
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     // knob row: TIME/FB (the shared delay unit) · GLU · PCF/RES
-    for (int k = 0; k < NFX; k++)
-        if (ui_knob(&fxk[k], 26 + k * 38, y0 + 12, FXNAME[k])) mark_dirty();
+    int kp = (W() - 90) / NFX;
+    font(FONT_TINY);
+    for (int k = 0; k < NFX; k++) {
+        int cx = 26 + k * kp;
+        if (ui_knob(&fxk[k], cx, y0 + 12, "")) mark_dirty();
+        print_rot(FXNAME[k], cx - 12, y0 + 12, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
+    }
+    font(FONT_NORMAL);
     // the PCF lane — bar-graph levels, one per step, per BANK (it's part of
     // the arrangement: the demo song's build is a ramp drawn here)
-    int gx = 36, ly = y0 + 34, lh = 72;
+    int gx = 36, ly = y0 + 34, lh = 72, pp = pcf_pitch(), cw = pp - 1;
     for (int st = 0; st < STEPS; st++) {
-        int cx = gx + st * 13;
-        rectfill(cx, ly, 12, lh, (st & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);
+        int cx = gx + st * pp;
+        rectfill(cx, ly, cw, lh, (st & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);
         int lvl = P->pcf[st];
         int bh = lvl * lh / 7;
         int c = (running && st == playhead) ? CLR_WHITE : BANKCLR[editBank];
-        if (bh > 0) rectfill(cx, ly + lh - bh, 12, bh, c);
+        if (bh > 0) rectfill(cx, ly + lh - bh, cw, bh, c);
     }
     font(FONT_SMALL);
     print("PCF", 12, ly + 2, CLR_MEDIUM_GREY);
@@ -1343,22 +1431,23 @@ static void draw_master_panel(int y0) {
     font(FONT_NORMAL);
     // the song code — GEN rolls a fresh one ([ ] walk history), tapping a
     // hex digit nudges it (rclick down) and regenerates live, WAV exports
-    if (ui_button(248, y0 + 2, 32, 15, "GEN")) gen_song(0);
-    if (ui_button(284, y0 + 2, 32, 15, "WAV")) export_wav();
+    int xc = code_x();
+    if (ui_button(xc, y0 + 2, 32, 15, "GEN")) gen_song(0);
+    if (ui_button(xc + 36, y0 + 2, 32, 15, "WAV")) export_wav();
     font(FONT_SMALL);
     for (int d = 0; d < 8; d++) {
         char hx[2] = { "0123456789ABCDEF"[(cur_seed >> ((7 - d) * 4)) & 15], 0 };
-        rectfill(248 + d * 8, y0 + 22, 7, 11, CLR_DARKER_GREY);
-        print(hx, 250 + d * 8, y0 + 25, CLR_YELLOW);
+        rectfill(xc + d * 8, y0 + 22, 7, 11, CLR_DARKER_GREY);
+        print(hx, xc + 2 + d * 8, y0 + 25, CLR_YELLOW);
     }
-    print("song code", 252, y0 + 36, CLR_MEDIUM_GREY);
-    print("acid rack", 248, y0 + 84, CLR_INDIGO);
-    print("sends live in each", 248, y0 + 94, CLR_DARK_GREY);
-    print("machine's fx view", 248, y0 + 102, CLR_DARK_GREY);
+    print("song code", xc + 4, y0 + 36, CLR_MEDIUM_GREY);
+    print("acid rack", xc, y0 + 84, CLR_INDIGO);
+    print("sends live in each", xc, y0 + 94, CLR_DARK_GREY);
+    print("machine's fx view", xc, y0 + 102, CLR_DARK_GREY);
     if (export_flash > 0) {
-        print("exporting >", 248, y0 + 50, CLR_GREEN);
-        print(export_name, 248, y0 + 58, CLR_GREEN);
-        print("(build/)", 248, y0 + 66, CLR_MEDIUM_GREY);
+        print("exporting >", xc, y0 + 50, CLR_GREEN);
+        print(export_name, xc, y0 + 58, CLR_GREEN);
+        print("(build/)", xc, y0 + 66, CLR_MEDIUM_GREY);
     }
     font(FONT_NORMAL);
 }
@@ -1368,7 +1457,8 @@ void draw(void) {
     ui_begin();
 
     // ── transport bar ─────────────────────────────────────────────────────
-    rectfill(0, 0, 320, TB_H, CLR_BLACK);
+    bool tworow = W() < 300;
+    rectfill(0, 0, W(), tb_h(), CLR_BLACK);
     if (ui_button(4, 2, 36, 18, running ? "STOP" : "RUN")) {
         running = !running; last16 = -1; if (!running) stop_all();
     }
@@ -1387,12 +1477,14 @@ void draw(void) {
         if (bk == editBank) rect(x, 2, 17, 18, BANKCLR[bk]);
         if (running && bk == playBank) rectfill(x + 6, 17, 5, 2, CLR_WHITE);
     }
-    // pattern ops — scope follows the expanded strip (machine lane; MASTER = whole bank)
-    if (ui_button(180, 2, 26, 18, "CPY")) copyArm = !copyArm;
-    if (copyArm) rect(180, 2, 26, 18, CLR_YELLOW);
-    if (ui_button(208, 2, 26, 18, "CLR")) { clr_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
-    if (ui_button(236, 2, 26, 18, "RND")) { rnd_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
-    if (ui_button(266, 2, 42, 18, songmode ? "SONG" : "LOOP")) { songmode = !songmode; barpos = 0; mark_dirty(); }
+    // pattern ops — scope follows the expanded strip (machine lane; MASTER = whole
+    // bank). One row at 320; wraps to a 2nd row when the bar is too narrow to fit.
+    int ox = tworow ? 4 : 180, oy = tworow ? 24 : 2;
+    if (ui_button(ox, oy, 26, 18, "CPY")) copyArm = !copyArm;
+    if (copyArm) rect(ox, oy, 26, 18, CLR_YELLOW);
+    if (ui_button(ox + 28, oy, 26, 18, "CLR")) { clr_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
+    if (ui_button(ox + 56, oy, 26, 18, "RND")) { rnd_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
+    if (ui_button(ox + 86, oy, 42, 18, songmode ? "SONG" : "LOOP")) { songmode = !songmode; barpos = 0; mark_dirty(); }
 
     // ── strips ────────────────────────────────────────────────────────────
     for (int i = 0; i < NSTRIP; i++) {
@@ -1412,14 +1504,17 @@ void draw(void) {
     }
 
     // ── song chain row ────────────────────────────────────────────────────
-    print("SONG", 4, CHAIN_Y + 3, songmode ? CLR_WHITE : CLR_MEDIUM_GREY);
+    int cy = chain_y();
+    print("SONG", 4, cy + 3, songmode ? CLR_WHITE : CLR_MEDIUM_GREY);
+    int cpitch = (W() - 38) / CHAINN; if (cpitch < 2) cpitch = 2;
+    int cw = cpitch < 3 ? cpitch : 3;
     for (int c = 0; c < CHAINN; c++) {
-        int x = 34 + c * 4;
+        int x = 34 + c * cpitch;
         int bk = chain[c];
         int col = (bk == 0xFF) ? CLR_DARK_GREY : BANKCLR[bk];
-        rectfill(x, CHAIN_Y + 2, 3, 10, col);
+        rectfill(x, cy + 2, cw, 10, col);
         if (songmode && running && chainN > 0 && c == (barpos + chainN - 1) % chainN)
-            rectfill(x, CHAIN_Y, 3, 2, CLR_WHITE);
+            rectfill(x, cy, cw, 2, CLR_WHITE);
     }
 
     if (export_flash > 0) export_flash--;

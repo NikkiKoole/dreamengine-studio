@@ -58,5 +58,47 @@ options not taken: [`sharing.md`](sharing.md).
 
 emcc-compiles to `build/cart.{html,js,wasm}` and serves it from the editor on a local
 port bound to `0.0.0.0` — so a phone/iPad on the same LAN can open it too (that's the
-multitouch test loop). Nothing is published. Needs `brew install emscripten` +
-`runtime/raylib-web/` (the raylib webassembly release unzipped there).
+multitouch test loop). Nothing is published. Needs `brew install emscripten`;
+`runtime/raylib-web/` is committed, so nothing else to install.
+
+### Web-specific behaviour
+
+- **"click to start" screen** — the click satisfies Chrome's autoplay restriction;
+  `InitAudioDevice()`, `sound_init()`, and `init()` all run inside the click handler so the
+  AudioContext is created after a real user gesture. Sound works fully after clicking.
+- **`pget()` works on web** (opt-in via `enable_pget(true)`, off by default) — on web, studio.c
+  does its own `glReadPixels` on the canvas FBO instead of `LoadImageFromTexture` (which runs an
+  ES3-only format probe that spams a cosmetic WebGL1 `INVALID_ENUM`). Validated desktop Chrome +
+  iOS Safari. Details: [`../design/mobile-web-notes.md`](../design/mobile-web-notes.md) §5c.
+- **`save()`/`load()` don't persist** — emscripten's virtual filesystem is in-memory only; data
+  is lost on page reload. Fix later with localStorage.
+- **ScriptProcessorNode deprecation warning** — cosmetic, harmless. Raylib uses miniaudio which
+  hasn't switched to AudioWorklet yet. Sound still works.
+
+### emcc flags and why
+
+```
+-s USE_GLFW=3              # GLFW canvas input (required for Raylib)
+-s TOTAL_MEMORY=67108864   # fixed 64MB heap — ALLOW_MEMORY_GROWTH invalidates
+                           # the HEAPF32 TypedArray view used by the audio callback
+-s EXPORTED_RUNTIME_METHODS=ccall,HEAPF32
+                           # emscripten 5.x no longer exports these on Module by
+                           # default; miniaudio's JS onaudioprocess uses both
+```
+
+### How `runtime/raylib-web/` was built (from source, NOT the release zip)
+
+The pre-compiled `raylib-5.5_webassembly.zip` from GitHub was built with an old emscripten and
+ships miniaudio 0.11.21 (broken ScriptProcessorNode), so the committed lib was built from source:
+
+```bash
+git clone https://github.com/raysan5/raylib.git --branch 5.5 --depth 1 /tmp/raylib-src
+cd /tmp/raylib-src
+emcmake cmake -S . -B build-web -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release
+cmake --build build-web -j4
+# outputs: build-web/raylib/libraylib.a → committed at runtime/raylib-web/lib/libraylib.a
+```
+
+WASM bitcode is architecture-independent so the same file works on any machine with emscripten.
+If you ever need to rebuild it (e.g. a new emscripten major version), run the above and replace
+the file.

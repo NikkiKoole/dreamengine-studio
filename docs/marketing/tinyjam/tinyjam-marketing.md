@@ -423,6 +423,11 @@ Load-bearing pieces, all already specced:
   rolling free AUv3 trial.
 - **AUv3 = the retention + word-of-mouth multiplier** — "I loaded three racks into AUM and jammed
   them together" is the Loopy-Pro-forum post that sells the Master Pass.
+- **In-app try-before-buy via attract mode** ([`attract-mode.md`](../../design/attract-mode.md) →
+  the IAP-storefront payoff) — a *locked* module idles into its embedded demo loop right in the app;
+  first touch offers "unlock to play" (the arcade coin-drop reframed as the IAP). It's the on-device
+  conversion step between "free hub" and "à-la-carte IAP" above, and it reuses the **same authored
+  demo track** as the App Preview video and the web-gallery clip — one performance, three surfaces.
 
 ---
 

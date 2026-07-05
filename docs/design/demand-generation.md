@@ -76,6 +76,10 @@ great" layer, staged:
 - **per-clip speed** — an ffmpeg `setpts` in `compose-clips` + a `.reel` field.
 - **9:16 social framing** (rung 1) applied to the finished reel, and the **IAP-tease
   choreography** (free rack first → "unlock 3 more") that turns the montage into a funnel.
+  The *on-device* twin of this montage is **attract mode as an in-app storefront**
+  ([`attract-mode.md`](attract-mode.md) → the IAP-storefront payoff): a locked rack idles into its
+  demo, first touch = "unlock to play" — the same authored `de:demo` track driving the social clip,
+  the App Preview video, and the in-app preview.
 - text/tweens: **resolving toward engine-native** — kinetic *pixel* type (the engine's own bitmap
   fonts + juice) drawn by a `titlecard` cart, baked like any clip; overlays composite via a
   pixel-perfect **magic-colour key** at compose time (proven). Spec:

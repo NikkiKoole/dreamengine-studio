@@ -452,6 +452,7 @@ static bool fxview[NSTRIP];            // machine strips: panel shows FX instead
 #define HDR_H   18       // the OPEN strip's header — carries the fx + mute buttons
 #define HDRC    15       // a FOLDED strip's slim header — name + mini-pattern + mute square
 #define FX_BTN_X 62      // open-strip fx/seq toggle — tucked between the name and the mini-pattern
+#define TAB_H   16       // tab-strip height on a short (landscape) screen
 #define PANEL_H 114
 #define CHAIN_Y 228
 
@@ -480,7 +481,17 @@ static int mpad_x(void) { return W() - 130; }                   // 909 metal XY 
 // the knob row can wrap) — clamped so it never collapses on a short screen.
 static int hdr_h(int i) { return i == expanded ? HDR_H : HDRC; }   // open header full; folded rows slim
 static int cmute_x(void) { return W() - 30; }                      // folded-row mute tap zone (left edge)
-static int panel_h(void) { int headers = HDR_H + (NSTRIP - 1) * HDRC; int h = screen_h() - tb_h() - headers - 14; return h < 60 ? 60 : h; }
+// A short screen (a landscape phone) can't fit the stacked accordion headers PLUS
+// an open panel, so below this height we switch to a TAB STRIP (device-adaptive-
+// layout.md: "accordion degenerates on a short screen → tabs").
+static bool use_tabs(void) { return screen_h() < 224; }
+static int  tab_rail(void) { return 30; }                     // right end of the tab strip = the fx toggle
+static int  tab_w(void)    { return (W() - 2 - tab_rail()) / NSTRIP; }
+static int panel_h(void) {
+    if (use_tabs()) return screen_h() - tb_h() - TAB_H - 14;  // transport + tab strip + chain
+    int headers = HDR_H + (NSTRIP - 1) * HDRC;
+    int h = screen_h() - tb_h() - headers - 14; return h < 60 ? 60 : h;
+}
 // knob row → grid when the panel is too narrow for one comfortable row (§6.5).
 // One comfortable row if it fits; otherwise TWO rows (ceil(n/2) columns), which
 // is what a phone-portrait rack wants — not an emergent column count.
@@ -492,6 +503,13 @@ static int strip_y(int i) {            // header top of strip i
     int y = tb_h() + 2;
     for (int k = 0; k < i; k++) y += hdr_h(k) + (k == expanded ? panel_h() : 0);
     return y;
+}
+
+// the expanded panel's top-left Y in the CURRENT layout mode — both draw() and
+// update() use this so the panel visuals and hit-tests stay in lockstep.
+static int panel_y0(void) {
+    if (use_tabs()) return tb_h() + 2 + TAB_H;     // below the tab strip
+    return strip_y(expanded) + HDR_H;              // accordion: below the open header
 }
 
 // ── the FX rack — per-DEVICE like the RB-338, master where it must be ─────
@@ -974,7 +992,7 @@ void update(void) {
         if (tap && (expanded == STRIP_909 || expanded == STRIP_808) && !fxview[expanded] && rack_wide()) {
             int nv = expanded == STRIP_909 ? N909 : N808;
             int rh = expanded == STRIP_909 ? 9 : 10;
-            int gy = strip_y(expanded) + HDR_H + (expanded == STRIP_909 ? 4 : 6);
+            int gy = panel_y0() + (expanded == STRIP_909 ? 4 : 6);
             if (px >= vknob_x() && px < vknob_x() + 36 && py >= gy && py < gy + nv * rh) {
                 int v = (py - gy) / rh, k = (px - vknob_x()) / 12;
                 const char **k2 = expanded == STRIP_909 ? K2LAB9 : K2LAB8;
@@ -986,19 +1004,30 @@ void update(void) {
             }
         }
 
-        // strip headers: the right zone toggles mute (folded OR open); otherwise a
-        // tap toggles the strip open ↔ closed. Skip the open strip's fx/seq button
-        // zone (that's a ui.h button — it must not also close the strip).
-        if (tap) for (int i = 0; i < NSTRIP; i++) {
-            int y = strip_y(i), h = hdr_h(i);
-            if (py < y || py >= y + h) continue;
-            if (px >= cmute_x()) { mute[i] = !mute[i]; mark_dirty(); }
-            else if (i == expanded && i != STRIP_MST && px >= FX_BTN_X - 2 && px < FX_BTN_X + 32) {
-                /* fx/seq toggle zone — ui.h owns this tap */
-            } else {
-                expanded = (i == expanded) ? -1 : i;   // tap header toggles open ↔ closed
+        // strip selection — TAB strip on a short screen, accordion headers otherwise.
+        if (tap && use_tabs()) {
+            int ty = tb_h() + 2, tw = tab_w();
+            if (py >= ty && py < ty + TAB_H && px >= 2 && px < 2 + NSTRIP * tw) {
+                int i = (px - 2) / tw; if (i >= NSTRIP) i = NSTRIP - 1;
+                int tx = 2 + i * tw, sq = TAB_H - 8, sx = tx + tw - sq - 3;
+                if (px >= sx) { mute[i] = !mute[i]; mark_dirty(); }   // per-tab mute square
+                else expanded = i;                                    // pick the machine
             }
-            break;
+            // the fx/seq toggle on the rail is a ui.h button (handled at ui_end)
+        } else if (tap) {
+            // accordion headers: right zone toggles mute (folded OR open); else a
+            // tap toggles open ↔ closed. Skip the open strip's fx/seq button zone.
+            for (int i = 0; i < NSTRIP; i++) {
+                int y = strip_y(i), h = hdr_h(i);
+                if (py < y || py >= y + h) continue;
+                if (px >= cmute_x()) { mute[i] = !mute[i]; mark_dirty(); }
+                else if (i == expanded && i != STRIP_MST && px >= FX_BTN_X - 2 && px < FX_BTN_X + 32) {
+                    /* fx/seq toggle zone — ui.h owns this tap */
+                } else {
+                    expanded = (i == expanded) ? -1 : i;   // tap header toggles open ↔ closed
+                }
+                break;
+            }
         }
 
         // song chain row: tap a cell to cycle A→B→C→D→empty
@@ -1013,7 +1042,7 @@ void update(void) {
         // expanded 303 panel: roll + flag rows (paint on drag, erase on tap)
         if ((expanded == STRIP_A || expanded == STRIP_B) && !fxview[expanded]) {
             Line *ln = &P->ln[expanded];
-            int y0 = strip_y(expanded) + HDR_H;
+            int y0 = panel_y0();
             int rx = 40, ry = roll_top(y0), pp = roll_pitch();
             if (px >= rx && px < rx + STEPS * pp && py >= ry && py < ry + 13 * 5) {
                 int st = (px - rx) / pp, row = 12 - (py - ry) / 5, b = 1 << st;
@@ -1032,7 +1061,7 @@ void update(void) {
         // expanded 909 panel: trigger grid + accent row (SEQ view) or the
         // metal XY pad (FX view — a drag surface)
         if (expanded == STRIP_909 && !fxview[STRIP_909]) {
-            int y0 = strip_y(STRIP_909) + HDR_H;
+            int y0 = panel_y0();
             int gx = 36, gy = y0 + 4, pp = drum_pitch();
             if (tap && px >= gx && px < gx + STEPS * pp && py >= gy && py < gy + N909 * 9) {
                 int st = (px - gx) / pp, v = (py - gy) / 9;
@@ -1046,7 +1075,7 @@ void update(void) {
             }
         }
         if (expanded == STRIP_909 && fxview[STRIP_909]) {
-            int y0 = strip_y(STRIP_909) + HDR_H;
+            int y0 = panel_y0();
             if (px >= mpad_x() && px < mpad_x() + 60 && py >= y0 + 30 && py < y0 + 70) {
                 mcut = (px - mpad_x()) / 60.0f;
                 mres = 1.0f - (py - (y0 + 30)) / 40.0f;
@@ -1058,7 +1087,7 @@ void update(void) {
         // expanded MASTER panel: drag the PCF lane (bar-graph levels per step)
         // + tap a song-code digit to nudge it (regenerates live)
         if (expanded == STRIP_MST) {
-            int y0 = strip_y(STRIP_MST) + HDR_H;
+            int y0 = panel_y0();
             int xc = code_x();
             if (tap && px >= xc && px < xc + 64 && py >= y0 + 22 && py < y0 + 33) {
                 int d = (px - xc) / 8, shift = (7 - d) * 4;
@@ -1076,7 +1105,7 @@ void update(void) {
 
         // expanded 808 panel: trigger grid + accent row
         if (expanded == STRIP_808 && !fxview[STRIP_808]) {
-            int y0 = strip_y(STRIP_808) + HDR_H;
+            int y0 = panel_y0();
             int gx = 36, gy = y0 + 6, pp = drum_pitch();
             if (tap && px >= gx && px < gx + STEPS * pp && py >= gy && py < gy + N808 * 10) {
                 int st = (px - gx) / pp, v = (py - gy) / 10;
@@ -1094,7 +1123,7 @@ void update(void) {
     if (mouse_pressed(MOUSE_RIGHT) && (expanded == STRIP_909 || expanded == STRIP_808) && !fxview[expanded] && rack_wide()) {
         int nv = expanded == STRIP_909 ? N909 : N808;
         int rh = expanded == STRIP_909 ? 9 : 10;
-        int gy = strip_y(expanded) + HDR_H + (expanded == STRIP_909 ? 4 : 6);
+        int gy = panel_y0() + (expanded == STRIP_909 ? 4 : 6);
         int px = mouse_x(), py = mouse_y();
         if (px >= vknob_x() && px < vknob_x() + 36 && py >= gy && py < gy + nv * rh) {
             int v = (py - gy) / rh, k = (px - vknob_x()) / 12;
@@ -1110,7 +1139,7 @@ void update(void) {
     // at FLAM, like tr909) — desktop-only for now; long-press is the touch todo
     if (mouse_pressed(MOUSE_RIGHT) && expanded == STRIP_909 && !fxview[STRIP_909]) {
         Pattern *P = &bank[editBank];
-        int y0 = strip_y(STRIP_909) + HDR_H;
+        int y0 = panel_y0();
         int gx = 36, gy = y0 + 4, pp = drum_pitch();
         int px = mouse_x(), py = mouse_y();
         if (px >= gx && px < gx + STEPS * pp && py >= gy && py < gy + N909 * 9) {
@@ -1442,14 +1471,49 @@ static void draw_master_panel(int y0) {
     }
     print("song code", xc + 4, y0 + 36, CLR_MEDIUM_GREY);
     print("acid rack", xc, y0 + 84, CLR_INDIGO);
-    print("sends live in each", xc, y0 + 94, CLR_DARK_GREY);
-    print("machine's fx view", xc, y0 + 102, CLR_DARK_GREY);
+    print("send lives in", xc, y0 + 94, CLR_DARK_GREY);   // (shortened to fit the 72px column)
+    print("the fx views", xc, y0 + 102, CLR_DARK_GREY);
     if (export_flash > 0) {
         print("exporting >", xc, y0 + 50, CLR_GREEN);
         print(export_name, xc, y0 + 58, CLR_GREEN);
         print("(build/)", xc, y0 + 66, CLR_MEDIUM_GREY);
     }
     font(FONT_NORMAL);
+}
+
+// dispatch: draw whichever strip is expanded (its seq view, its fx view, or master)
+static void draw_selected_panel(int y0) {
+    int i = expanded;
+    if (i < 0) return;
+    if      (i == STRIP_MST) draw_master_panel(y0);
+    else if (fxview[i]) {
+        if      (i == STRIP_909) draw_909_fx(y0);
+        else if (i == STRIP_808) draw_808_fx(y0);
+        else                     draw_303_fx(i, y0);
+    }
+    else if (i == STRIP_909) draw_909_panel(y0);
+    else if (i == STRIP_808) draw_808_panel(y0);
+    else                     draw_303_panel(i, y0);
+}
+
+// tab strip for a short (landscape) screen: 5 machine tabs (name + mute square)
+// + one fx/seq toggle for the selected machine on the right rail.
+static void draw_tabs(int y) {
+    int tw = tab_w();
+    for (int i = 0; i < NSTRIP; i++) {
+        int tx = 2 + i * tw;
+        bool sel = (i == expanded);
+        rectfill(tx, y, tw - 1, TAB_H, sel ? CLR_DARKER_GREY : CLR_DARK_GREY);
+        if (sel) rect(tx, y, tw - 1, TAB_H, CLR_TRUE_BLUE);
+        font(FONT_SMALL);
+        print(SNAME[i], tx + 3, y + (TAB_H - 6) / 2, mute[i] ? CLR_MEDIUM_GREY : CLR_WHITE);
+        font(FONT_NORMAL);
+        int sq = TAB_H - 8, sx = tx + tw - sq - 3, sy = y + 4;
+        rectfill(sx, sy, sq, sq, mute[i] ? CLR_RED : CLR_GREEN);      // green = live, red = muted
+    }
+    if (expanded >= 0 && expanded != STRIP_MST &&                     // fx/seq toggle (master has none)
+        ui_button(W() - tab_rail() + 2, y, tab_rail() - 4, TAB_H, fxview[expanded] ? "sq" : "fx"))
+        fxview[expanded] = !fxview[expanded];
 }
 
 void draw(void) {
@@ -1486,20 +1550,14 @@ void draw(void) {
     if (ui_button(ox + 56, oy, 26, 18, "RND")) { rnd_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
     if (ui_button(ox + 86, oy, 42, 18, songmode ? "SONG" : "LOOP")) { songmode = !songmode; barpos = 0; mark_dirty(); }
 
-    // ── strips ────────────────────────────────────────────────────────────
-    for (int i = 0; i < NSTRIP; i++) {
-        int y = strip_y(i);
-        draw_header(i, y);
-        if (i == expanded) {
-            if      (i == STRIP_MST) draw_master_panel(y + HDR_H);
-            else if (fxview[i]) {
-                if      (i == STRIP_909) draw_909_fx(y + HDR_H);
-                else if (i == STRIP_808) draw_808_fx(y + HDR_H);
-                else                     draw_303_fx(i, y + HDR_H);
-            }
-            else if (i == STRIP_909) draw_909_panel(y + HDR_H);
-            else if (i == STRIP_808) draw_808_panel(y + HDR_H);
-            else draw_303_panel(i, y + HDR_H);
+    // ── strips: accordion (tall screen) or a tab strip (short/landscape) ────
+    if (use_tabs()) {
+        draw_tabs(tb_h() + 2);
+        draw_selected_panel(panel_y0());
+    } else {
+        for (int i = 0; i < NSTRIP; i++) {
+            draw_header(i, strip_y(i));
+            if (i == expanded) draw_selected_panel(panel_y0());
         }
     }
 

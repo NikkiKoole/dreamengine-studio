@@ -157,6 +157,7 @@ docs/
 │   ├── cart-specs-index.md       batch-1 spec index + assembly recipe + parallel-build workflow
 │   ├── cart-specs/               per-game cart specs (individual game files, not shown in sidebar)
 │   ├── radio-station-howto.md    ★ START HERE to build a new radio station: the ordered runbook (firewall → design blind → shop palette → chassis → brains → build → register), a spine that links each deep doc at the right step
+│   ├── instrument-map.md         ★ the museum map: the HUB over every instrument doc — which file answers what (shelf / recipes / presets / engines / backlog) + the hardware WINGS inventory (homages by manufacturer: Roland complete, Korg thin, Casio begun…) + the sampler doctrine pointer
 │   ├── instrument-carts.md       the sound-toy shelf: every synth/machine/station/showcase cart, grouped by the building block it copies (radio.h / held-notes / ui.h / INSTR_*) — browse one to play, or find the closest relative when building a new one
 │   ├── instrument-recipes.md     the supply-side palette: every grabbable instrument recipe across the sound carts (showcase presets, Roland drum voices, whimsical patches), organized by ENGINE (107 recipes); the "which recipe" companion to instrument-carts.md's "which cart"
 │   ├── effects-recipes.md        the effects cookbook: named, copy-paste settings for every engine EFFECT (echo/reverb/chorus/flanger/tape/wah/drive[+modes]/bitcrush) with the showcase cart + used-by list — the effects analog of instrument-recipes.md

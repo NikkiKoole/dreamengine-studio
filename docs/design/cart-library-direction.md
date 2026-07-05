@@ -232,6 +232,34 @@ ring-sequencer (`euclid.c`), the shift-register + sequence-strip (`turing.c`), t
 held-voice + feedback-throw (`dubsiren.c`), and the held-voice-pool + coupled-envelope LPG
 (`lpg.c`). A future two-handed "jam station" composing several of these is the natural next move.
 
+### 2d. Hardware libraries — which wing next? (2026-07-05)
+
+The "fantasy-console Behringer" question: the Roland wing is essentially **complete**
+(cr78/tr808/tr909/tb303/sh101/juno/spacecho + acidrack = the whole RB-338; only the TR-606
+is missing, and STATUS #21 already ranks it first — "an afternoon"). Which hardware *line*
+do we clone next? The full shipped-by-wing inventory is
+[`../guides/instrument-map.md`](../guides/instrument-map.md); this section is the
+assessment. Constraints that shape it: STATUS #21's curatorial line (**analog-circuit
+machines only, no sample-playback boxes** — the mellotron's synthesis fake is the one
+licensed exception) and [`instrument-engines.md`](instrument-engines.md)'s FM scope (2-op;
+**the DX7's 6-op/32-algorithm panel is explicitly out** — so a true DX7 is engine-blocked).
+
+| fit | library | honest assessment |
+|---|---|---|
+| ★★★★☆ | **Korg Volca line** | The best *line* analogy (shared tiny chassis, sync chain — a natural tinyjam rack family). But half the range duplicates shipped Rolands: Bass ≈ tb303, Beats ≈ 808/909, Modular ≈ easel. The three that add something new: **Volca Drum** (digital membrane percussion — `INSTR_MEMBRANE` has *no drum-machine consumer*; best sound-value), **Volca Keys** (the new thing is **motion sequencing** — knob rides recorded per step, an interaction no cart has), **Volca FM** (most wanted, but it's the DX7 engine problem in miniature). Skip Bass/Beats. |
+| ★★★★☆ | **TE Pocket Operators** | The best *aesthetic* fit of anything on the table: the segmented-LCD animation is half the product, and a pixel fantasy console does that better than the hardware ([`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) already cites the PO-LCD look). **PO-20 Arcade is literally our chiptune waves.** Caveat: `pocketbox` already owns the buttons-only-groovebox *shape*, so a PO cart's new territory is the LCD-character visuals + punch-in FX + unit chaining, not the sound. PO-33 KO is sampler-blocked. |
+| ★★★★☆ | **The Casio wing** | The sleeper — already begun (`mt70`, and `INSTR_PD` *is* the CZ) and everything in it is cheap. **VL-1** (already parked in STATUS #21): calculator keys + the 8-digit ADSR number you literally type to design a sound — peak "deep honest sim behind a humble surface". **CZ-101**: the PD engine has no machine homage while every other engine family got one; zero engine work. SK-1 only as a cheeky fake (finger-drawn waves as "sampling", pocketbox-style). |
+| ★★☆☆☆ | **Yamaha wing** | DX7 is the biggest missing icon in synth history but engine-blocked (above). A **CS-80** (ribbon + poly aftertouch — touch-native, Vangelis) is buildable today but overlaps juno/solina territory. |
+| ★★★☆☆ | **The museum / pre-Roland wing** | Already curated in STATUS #21: TR-606, EKO ComputeRhythm (draw the punch card), Wurlitzer Sideman (circular playhead), Maestro Rhythm King, and Raymond Scott's Circle Machine — which that list calls the strongest candidate of the lot (visually unlike every music cart we have). Cheapest wins, already ranked. |
+
+**Recommendation.** As a *line* with shared identity, a **"pocket wing"**: PO-20 Arcade +
+Volca Drum + Volca Keys + VL-1 — four small boxes, each adding something no cart has
+(LCD-animation identity · a MEMBRANE drum machine · motion sequencing · the
+type-a-number sound designer), the Volca/PO chassis language tying them together the way
+the Roland family ties acidrack together. As single quick wins first: **TR-606**
+(completes Roland), **VL-1** (tiny, iconic), then **CZ-101** (gives PD its machine). Skip
+Volca Bass/Beats and anything sampler-based.
+
 ### 3. The few genuinely-missing, *teachable* game types
 
 Not "another clone" — each earns its place:

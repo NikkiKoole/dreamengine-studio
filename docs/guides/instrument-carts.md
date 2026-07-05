@@ -25,6 +25,10 @@ the "what is it / what's it like" altitude so it doesn't drift.
 > line rider, flyover, lil blob, lounge larry, pixel zoo) are not instruments and live
 > outside this index.
 
+> **Lost in the instrument docs?** [`instrument-map.md`](instrument-map.md) is the hub over
+> all of them — which file answers what, plus the hardware-wings inventory (homages by
+> manufacturer) and where the what-next assessments live.
+
 Related design docs (forward-looking, not catalogs): **what to build next** — and which new
 instrument adds the most *new sound* — is
 [`design/cart-library-direction.md`](../design/cart-library-direction.md) § 2b (the scored

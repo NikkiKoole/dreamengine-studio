@@ -196,6 +196,7 @@ function visibleText(d) {
   return out
 }
 const offscreen = new Map(), collide = new Map(), byFrame = new Map(), sigByFrame = new Map()
+const wcollide = new Map(), woff = new Map()   // (3) overlapping widgets  (4) off-screen widgets
 let SW = 0, SH = 0, framesSeen = 0
 
 for (const rec of recs) {
@@ -223,6 +224,32 @@ for (const rec of recs) {
       if (a.t === b.t || !overlaps(a, b)) continue
       const key = [a.t, b.t].sort().join(' ∩ '), hit = collide.get(key)
       if (hit) { hit.last = f; hit.n++ } else collide.set(key, { a: a.t, b: b.t, first: f, last: f, n: 1 })
+    }
+
+  // interactive widgets (ui.h rects). (3) two that overlap = piled, unhittable
+  // controls; (4) one past the screen edge = an unreachable control. Both are
+  // things a screenshot won't shout about but a finger will hit — or miss.
+  const wdg = (d || []).filter(e => e.k === 'w' && e.w >= 3 && e.h >= 3)
+  for (const e of wdg) {                             // (4) widget off the edge
+    const sides = []
+    if (e.x < 0)        sides.push('left')
+    if (e.y < 0)        sides.push('top')
+    if (e.x + e.w > SW) sides.push('right')
+    if (e.y + e.h > SH) sides.push('bottom')
+    if (!sides.length) continue
+    const key = `${e.x},${e.y},${e.w}x${e.h}`, hit = woff.get(key)
+    if (hit) { hit.last = f; hit.n++ }
+    else woff.set(key, { x: e.x, y: e.y, w: e.w, h: e.h, sides, first: f, last: f, n: 1 })
+  }
+  for (let i = 0; i < wdg.length; i++)               // (3) widget ∩ widget
+    for (let j = i + 1; j < wdg.length; j++) {
+      const a = wdg[i], b = wdg[j]
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+      if (ox <= 3 || oy <= 3) continue               // mere adjacency/touching is fine
+      const key = `${Math.max(a.x, b.x)},${Math.max(a.y, b.y)}`, hit = wcollide.get(key)
+      if (hit) { hit.last = f; hit.n++ }
+      else wcollide.set(key, { x: Math.max(a.x, b.x), y: Math.max(a.y, b.y), ox, oy, first: f, last: f, n: 1 })
     }
 }
 
@@ -306,17 +333,19 @@ const offSteady = allOff.filter(persists), colSteady = allCol.filter(persists)
 const transientN = (allOff.length - offSteady.length) + (allCol.length - colSteady.length)
 const offList = offSteady.filter(f => !isWaived(f, waiveOff))
 const colList = colSteady.filter(f => !isWaived(f, waiveOver))
+const wList    = [...wcollide.values()].filter(persists)   // overlapping widgets
+const woffList = [...woff.values()].filter(persists)       // off-screen widgets
 const waivedN = (offSteady.length - offList.length) + (colSteady.length - colList.length)
 const stale   = waivers.filter(w => w.kind !== 'bad' && !w.used)
 
 // ── report ──────────────────────────────────────────────────────────────────
 if (asJson) {
   console.log(JSON.stringify({ cart: name, framesSeen, minFrames, screen: { w: SW, h: SH }, sizesSwept: [...new Set(recs.map(r => `${r.sw}×${r.sh}`))],
-    offscreenText: offList, textOverlap: colList, uiLifecycle: [...uiWarnings],
+    offscreenText: offList, textOverlap: colList, widgetOverlap: wList, widgetOffscreen: woffList, uiLifecycle: [...uiWarnings],
     waived: waivedN, transient: transientN, staleWaivers: stale.map(w => w.raw), badWaivers: badWaivers.map(w => w.raw),
     explored: wantExplore ? { keys: exploreKeys.map(k => k.label), taps: exploreTaps.length, discovered } : undefined },
     null, 2))
-  process.exit(offList.length || colList.length || uiWarnings.size ? 1 : 0)
+  process.exit(offList.length || colList.length || wList.length || woffList.length || uiWarnings.size ? 1 : 0)
 }
 
 // size attribution — with a --resize sweep, tag each finding with the canvas size
@@ -344,7 +373,18 @@ if (colList.length) {
   for (const c of colList) console.log(`      "${c.a}"  overlaps  "${c.b}"  [${span(c)}]`)
   console.log('')
 }
-if (!offList.length && !colList.length) console.log('  ✓ no off-screen or overlapping text found.')
+if (wList.length) {
+  console.log(`  ✘ ${wList.length} pair(s) of overlapping widgets (piled controls — hard/impossible to hit):`)
+  for (const w of wList) console.log(`      two controls overlap by ${w.ox}×${w.oy}px near (${w.x},${w.y})  [${span(w)}]`)
+  console.log('')
+}
+if (woffList.length) {
+  console.log(`  ✘ ${woffList.length} widget(s) run off the screen edge (unreachable):`)
+  for (const w of woffList) console.log(`      a ${w.w}×${w.h} control at (${w.x},${w.y}) → past ${w.sides.join('+')}  [${span(w)}]`)
+  console.log('')
+}
+if (!offList.length && !colList.length && !wList.length && !woffList.length)
+  console.log('  ✓ no off-screen / overlapping text or widgets found.')
 
 if (uiWarnings.size) {
   console.log(`\n  ✘ ${uiWarnings.size} ui.h lifecycle bug(s) — widgets render but won't respond to clicks (only hover):`)

@@ -484,7 +484,13 @@ static int cmute_x(void) { return W() - 30; }                      // folded-row
 // A short screen (a landscape phone) can't fit the stacked accordion headers PLUS
 // an open panel, so below this height we switch to a TAB STRIP (device-adaptive-
 // layout.md: "accordion degenerates on a short screen → tabs").
-static bool use_tabs(void) { return screen_h() < 224; }
+// switch to tabs when the accordion's open panel can't actually fit its content
+// (the 303 is tallest: knob block — 1 or 2 rows by width — + roll + flag rows).
+// Content-aware, so an awkward narrow-and-short size flips to tabs instead of
+// overflowing its neighbours (caught by ui-audit --explore --resize).
+static int accordion_panel_h(void) { return screen_h() - tb_h() - (HDR_H + (NSTRIP - 1) * HDRC) - 14; }
+static int panel_content_need(void) { int knobs = (W() - 12 >= NK * 26) ? 13 : 35; return knobs + 13 * 5 + 3 * 7 + 8; }
+static bool use_tabs(void) { return accordion_panel_h() < panel_content_need(); }
 static int  tab_rail(void) { return 30; }                     // right end of the tab strip = the fx toggle
 static int  tab_w(void)    { return (W() - 2 - tab_rail()) / NSTRIP; }
 static int panel_h(void) {
@@ -523,6 +529,11 @@ static int panel_y0(void) {
 enum { F_TIME, F_FB, F_GLU, F_PCF, F_RES, NFX };   // the MASTER strip's knobs
 static const char *FXNAME[NFX] = { "TIME", "FB", "GLU", "PCF", "RES" };
 static float fxk[NFX] = { 0.50f, 0.35f, 0.30f, 0.40f, 0.35f };
+// master knobs live in the LEFT column (the song code owns the right); wrap them
+// to a 2nd row when that column is too narrow — mirrors the 303's knob wrap.
+// mst_lane_y() drops the PCF lane below the knob block; draw + update share it.
+static int mst_cols(void)     { int avail = W() - 84; return avail >= NFX * 26 ? NFX : (NFX + 1) / 2; }
+static int mst_lane_y(int y0) { int rows = (NFX + mst_cols() - 1) / mst_cols(); return y0 + 12 + (rows - 1) * 22 + 24; }
 static float send[4] = { 0.17f, 0.17f, 0.00f, 0.00f };   // per-machine delay send (A, B, 909, 808)
 static float dist9 = 0.0f, dist8 = 0.0f;                 // per-drum-machine drive
 static bool  pcf_on = false;           // is the master filter currently engaged
@@ -1094,7 +1105,7 @@ void update(void) {
                 unsigned nib = ((cur_seed >> shift) + 1u) & 15u;
                 gen_song((cur_seed & ~(15u << shift)) | (nib << shift));
             }
-            int gx = 36, ly = y0 + 34, lh = 72, pp = pcf_pitch();
+            int gx = 36, ly = mst_lane_y(y0), lh = 72, pp = pcf_pitch();
             if (px >= gx && px < gx + STEPS * pp && py >= ly && py < ly + lh) {
                 int st = (px - gx) / pp;
                 int lvl = 7 - (py - ly) * 8 / lh; if (lvl < 0) lvl = 0; if (lvl > 7) lvl = 7;
@@ -1435,17 +1446,17 @@ static void draw_master_panel(int y0) {
     Pattern *P = &bank[editBank];
     rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     // knob row: TIME/FB (the shared delay unit) · GLU · PCF/RES
-    int kp = (W() - 90) / NFX;
+    int avail = W() - 84, cols = mst_cols(), kp = avail / cols;   // wraps to 2 rows when narrow
     font(FONT_TINY);
     for (int k = 0; k < NFX; k++) {
-        int cx = 26 + k * kp;
-        if (ui_knob(&fxk[k], cx, y0 + 12, "")) mark_dirty();
-        print_rot(FXNAME[k], cx - 12, y0 + 12, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
+        int cx = 22 + (k % cols) * kp, cy = y0 + 12 + (k / cols) * 22;
+        if (ui_knob(&fxk[k], cx, cy, "")) mark_dirty();
+        print_rot(FXNAME[k], cx - 12, cy, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
     }
     font(FONT_NORMAL);
     // the PCF lane — bar-graph levels, one per step, per BANK (it's part of
     // the arrangement: the demo song's build is a ramp drawn here)
-    int gx = 36, ly = y0 + 34, lh = 72, pp = pcf_pitch(), cw = pp - 1;
+    int gx = 36, ly = mst_lane_y(y0), lh = 72, pp = pcf_pitch(), cw = pp - 1;
     for (int st = 0; st < STEPS; st++) {
         int cx = gx + st * pp;
         rectfill(cx, ly, cw, lh, (st & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);

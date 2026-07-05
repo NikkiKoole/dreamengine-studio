@@ -1,6 +1,6 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 DONE (2026-07-04) — a resizable cart fills any device + dodges the notch + reflows on rotate (verified iPhone SE / 15 / iPad Pro 12.9 + landscape on the sim). Resume at Phase 3 (per-rack density arrangements) — then Phase 4 (store assets).**
+STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 DONE (2026-07-04) — a resizable cart fills any device + dodges the notch + reflows on rotate (verified iPhone SE / 15 / iPad Pro 12.9 + landscape on the sim). Phase 3 RE-PLANNED (2026-07-05) after the maker's device test — the first acidrack pass reflowed but didn't redesign (see §"Phase 3 — revised plan" + field note [018](../field-notes/018-passing-the-gates-felt-like-done.md)). Resume at the revised plan — then Phase 4 (store assets).**
 This is the **execution + product** doc that graduates the deferred thinking now that there's a
 concrete need (Tinyjam on the App Store).
 
@@ -47,12 +47,15 @@ desktop, chrome-excluded on device); `respond` lays controls inside it while `cl
 full — verified the title bar clears the iPhone 15 notch. Rotation: `INFOPLIST_KEY_UISupportedInterfaceOrientations*`
 allows landscape, `layoutSubviews`→`de_resize` reflows on rotate (confirmed landscape on the sim).
 
-**Start here to resume: Phase 3 — per-rack density arrangements** (the media-query-like adaptation:
-more controls on iPad, collapsed/tabbed on iPhone, per `acidfit`'s progressive-disclosure model).
-`respond` only *scales* its one topology today; a real rack keys its arrangement on the finger-budget
-(`device_class()` + orientation) using the `lay.h` toolkit + the disclosure behaviour layer. The
-engine foundation (fill, safe-area, rotation, growable fb) is complete. Nothing in Phase 0/1/2 pending.
-(Deferred niceties: `device_class()` helper; a HiDPI points-vs-px pass — iOS is SCALE=1 today.)
+**Start here to resume: §"Phase 3 — revised plan (2026-07-05)"** below. The first acidrack pass
+(commits `839dabed`/`ef2108ae`/`302f3947`) made the cart *reflow* but skipped the model this doc
+specs — hand-rolled px thresholds instead of `lay.h` + finger units, no disclosure pass, and **no
+iPad/roomy arrangement at all**. The maker's on-device test caught it; the retrospective is field
+note [018 — Passing the Gates Felt Like Done](../field-notes/018-passing-the-gates-felt-like-done.md).
+The engine foundation (fill, safe-area, rotation, growable fb) is complete and unaffected — what
+changed is *how Phase 3 is executed*: brief first, shared `disclose.h`, judgment oracle, and the
+three-state strip from the ReBirth study. Nothing in Phase 0/1/2 pending. (The `device_class()` /
+finger-unit helper is no longer a deferred nicety — it's step R3 of the revised plan.)
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
 - **This doc** = the *engine change + product plan*: make `SCREEN_W/H` runtime + physically-sized,
@@ -261,6 +264,20 @@ prototypes (`rackfit` / `acidfit`, and next `otafit` for the ribbon/orientation 
 version of this oracle today; it graduates alongside the engine work. This is the responsive-era twin
 of the existing render/audio oracles in [`../guides/checks-and-oracles.md`](../guides/checks-and-oracles.md).
 
+**REFINED (2026-07-05): not a separate tool — a judgment layer on `ui-audit`'s existing matrix.**
+`ui-audit --explore --resize "WxH,…"` already owns the expensive plumbing (the size×state sweep,
+per-size findings, waivers, overlays) — but it's a *defect* oracle (clipped/overlapped/dead), blind
+to *judgment* (which mode was picked, sub-finger controls, a missing arrangement) and blind to
+*absence* (it can't flag what was never drawn — field note 018's core lesson). Rather than inferring
+judgment from pixel boxes, **`disclose.h` self-reports its decision** into the same `--uiaudit`
+JSONL under `DE_TRACE` — one record per size: mode chosen, sections inline/compact/deferred, min
+control size in finger units. The audit then adds a thin pass over those records: flag `inline==0`,
+`min_control < 1fu` (naming the remedy — reflow / `ui_loupe` / lock-orientation), a mode override,
+and arrangement-vs-brief mismatches. Two matrix gaps to close while there: per-size exploration only
+drives *keys* (`ui-audit.js:139`), never widget taps — so tap-only panels (acidrack's strip headers)
+are never opened per size; `disclose.h` enumerating its own sections as openable states fixes this
+*by name* instead of by guessed coordinates.
+
 ### Overrides: emergent defaults, but always an escape hatch (2026-07-03)
 
 The emergent rules produce a *default* — the author must be able to **overwrite a conclusion "just
@@ -405,6 +422,84 @@ hatches. Full note: [`resolution-portable-input.md`](resolution-portable-input.m
 - **Phase 4 — regenerate store assets honestly.** Render each rack at every required device size +
   orientation; feed real frames to `store-shots`/`make-gif`; full-bleed screenshots + videos.
 
+## Phase 3 — revised plan (2026-07-05)
+
+The first acidrack pass proved the failure mode this plan now guards against: the validated model
+(finger budget, two layers, per-shape modes) lived in a prototype cart + this doc, and the
+production work bypassed both — incremental `screen_w()` arithmetic that *reflowed* without
+*redesigning*, judged done because the defect oracle was green. Full retrospective + the
+generalisable rules: **field note
+[018 — Passing the Gates Felt Like Done](../field-notes/018-passing-the-gates-felt-like-done.md)**.
+The structural fixes below make the model the *path of least resistance* instead of a pointer.
+
+### The ReBirth study — what the original got right (2026-07-05, maker + screenshot session)
+
+acidrack's homage rewards a second look: **ReBirth never shows note data as an XY grid — every
+machine edits one lane at a time.** The 303s use a *step programmer* (one octave of piano keys +
+DOWN/UP + ACCENT/SLIDE flags + a STEP counter — the current step's pitch, never all 16 at once);
+the drum machines show per-voice knob columns + a voice-selector row + **one shared 16-step lane**
+(11×16 = 176 cells reduced to 16 on screen). Chrome is rigidly positional (same left pattern/bank
+rail + right mix strip on every machine — learn the anatomy once), and nearly text-free: LEDs,
+7-seg displays, icon-sized buttons. Caveat: ReBirth also cheats with a **pixel-precise mouse** —
+steal the *information architecture*, never the control sizes; the finger budget still governs
+sizing. Two transferable moves:
+
+- **The three-state strip.** Between "folded header" and "full-screen editor" sits ReBirth's
+  machine module — the **compact** state (~3–4 finger-rows): the 2–3 macro knobs you ride live +
+  one finger-sized step lane + mute/fx. *Playable without expanding.* States: **folded** (name +
+  mini-pattern + mute) → **compact** (the ReBirth module) → **expanded** (full editor). The
+  disclosure pass promotes strips folded→compact→expanded by finger-budget. Payoff: **iPad = all
+  strips at compact simultaneously** (the whole ReBirth rack on one screen — the flat/see-and-touch
+  arrangement §8.2 of the design system asks for, which the first pass never built); phone = the
+  working strip expanded, 1–2 others compact, rest folded.
+- **Editor-swap by budget** (the panel-level twin of design-system §8.3's widget swap). Same
+  `Line` data, two editors: roomy shapes keep our piano roll (a better overview than ReBirth ever
+  had); a phone swaps to the ReBirth step programmer — one octave of finger-wide keys + flag
+  buttons + step advance *fits a phone width at full finger size*. Same for drums: full grid on
+  iPad, voice-selector + single lane on phone.
+
+House rules for every rack (maker, 2026-07-05): **decide what to show — never try to show
+everything, but everything stays reachable** (that's what disclosure is); **good icons are smaller
+than text** — this is a fantasy console, not an accounting app; **use the fonts and colours we
+have** (`FONT_TINY`→`FONT_LARGE`, the pico32 palette, design-system §7 roles); **no shame in
+stealing from the homage hardware** — the original solved this screen already.
+
+### The steps (each has a customer the moment it exists)
+
+- **R1 — the layout brief, per rack (write it BEFORE layout code).** A half-page committed spec —
+  `docs/design/<cart>-layout-brief.md` or a section in the rack's design doc: the section inventory
+  with **priorities + min footprints in fingers** (now ×3: folded/compact/expanded), what's
+  **pinned** (the performing surface that never hides), the **arrangement per shape class**
+  (roomy / tall / short-wide), the **widget-swap + editor-swap table**, precision hatches (loupe
+  where), and the **orientation policy**. This is the `seo-brief` palette/mirror pattern applied to
+  layout: the brief is the palette; "done" = *matches the brief on device*, not "no audit findings".
+  It's also where the taste calls get made visibly instead of implicitly in C.
+- **R2 — graduate the behaviour layer: `runtime/disclose.h`.** The keystone. `acidfit`'s priority +
+  footprint budget pass becomes a header (design-system §8.5 already admits this gap). Sections
+  declare `{name, priority, footprints[3] in fu}`; the header runs the per-frame pass, picks the
+  mode per shape (inline-all / accordion / tabs), owns the promote/demote + tab-chip/header
+  interaction, hands the cart `(section, state, Box)` tuples. Plain-C overrides stay
+  (`mode = TABS;`) per §Overrides. Under `DE_TRACE` it **self-reports its decision** to the
+  `--uiaudit` stream (see the REFINED oracle note in §"Both are CHECKABLE") and enumerates its
+  sections as openable states so the matrix can drive tap-only panels by name.
+- **R3 — make the finger unit real.** Engine: `finger_px()` (44pt in current canvas px, from the
+  backing scale) + the `device_class()` convenience. `lay.h`/`disclose.h`/carts threshold on
+  fingers, **never raw px** — today's px thresholds only work because iOS is SCALE=1, a coincidence
+  HiDPI will break.
+- **R4 — the judgment oracle = ui-audit extension**, not a new tool. Spec'd in the REFINED note
+  above: a thin pass over `disclose.h`'s self-reported records — degenerate flags, sub-finger
+  controls with named remedies, mode overrides, arrangement-vs-brief mismatch.
+- **R5 — re-land acidrack on the method.** Write its brief (R1; the compact-strip sketch is the
+  open taste call — what earns a slot per machine: a 303 likely CUT/RES/DRV + the step lane; the
+  909 selected-voice lane + selector; MASTER delay TIME/FB + PCF). Then replace the hand-rolled
+  threshold block (`acidrack.c:459-519`) with `disclose.h` + `lay.h` + finger units, **build the
+  missing roomy arrangement**, and swap editors per budget. Verify: R4 matrix + **bake it and put
+  it in the maker's hands per arrangement** — the on-device eyeball is part of the loop, not the
+  post-mortem.
+- **R6 — `epiano` is the test of the method itself.** Done fresh from a brief; if R1–R4 worked it
+  costs a fraction of acidrack, and its keybed reflow graduates into `keybed.h` (every keybed cart
+  wins). `yachtrack` last, as before.
+
 ## Phase 3 backlog — the three Tinyjam racks (`acidrack` · `yachtrack` · `epiano`)
 
 Phase 1–2 make a cart *able* to fill/reflow; Phase 3 is *designing* each rack's arrangements (density
@@ -415,14 +510,16 @@ it **2–3 arrangements + a disclosure mode per shape** (inline / accordion / ta
 `lay.h`. All three are 320×240 today, packing everything into that fixed frame. Each also carries a
 `de:meta.todo` pointing here (surfaced by `cart-todos.js`).
 
-- **`acidrack` — the RB-338 acid rack. START HERE (its prototype already exists: `acidfit.c`).**
-  Today: an accordion of machine strips (2×TB-303, full 909, curated 808, master) — each strip = name +
-  live 16-tick mini pattern + mute, **tap to expand** a full editor; per-device `[fx]` views; a song-
-  chain row pinned at the bottom. So disclosure *already exists in-cart* — it's just locked at 320×240.
-  Target: **iPad** = more strips expanded inline (roomy); **phone-portrait** = accordion (1–2 expanded,
-  rest slim headers, song row pinned); **phone-landscape** = tabs/segmented (accordion degenerates on a
-  short screen — the `acidfit` finding). Sequencer/transport pinned; sections collapse by finger-budget.
-  `acidfit.c` already reproduces this 5-section inventory + the disclosure behaviour — graft from it.
+- **`acidrack` — the RB-338 acid rack. START HERE — via the revised plan (R1→R5 above), not by
+  patching the first pass.** A first pass landed (2026-07-04/05: fill-width reflow, a 2-row narrow
+  transport, a content-aware tabs fallback — `acidrack.c:459-519`) but it's hand-rolled px math with
+  **no `lay.h`, no finger unit, no disclosure pass, and no iPad/roomy arrangement**; the maker's
+  device test judged it far from done (field note 018). Target (unchanged, now + the three-state
+  strip): **iPad** = all strips at **compact** (the ReBirth-module state — the rack on one screen),
+  expand-in-place for deep edits; **phone-portrait** = working strip expanded, 1–2 compact, rest
+  folded, song row pinned; **phone-landscape** = tabs. Editor-swap: piano roll on roomy shapes, the
+  ReBirth step programmer on phones. Sequencer/transport pinned. Open taste call (maker): the
+  compact-strip sketch — what earns a slot per machine.
 - **`epiano` — electromechanical keybed. DO SECOND (broad payoff).** Today: the shared `keybed.h` keybed
   + machine selector (RHODES/WURLI/CLAV) + per-machine stompbox pedals + BARK knob + preset column.
   Target: **keybed width scales to the device** (more octaves on iPad / landscape — the `otafit` finger-

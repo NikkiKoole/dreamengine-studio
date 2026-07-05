@@ -5,7 +5,7 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*18 journal notes · 3 working docs · regenerate to refresh.*
+*19 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
@@ -13,7 +13,7 @@ Where each numbered note sits on the path from a hunch to something the repo ado
 
 ### 🔭 Observed (1)
 
-- `015` [Repositories Can Learn](015-repositories-can-learn.md) — As DreamEngine evolved, an unexpected pattern began to emerge.
+- `018` [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) — The acidrack Phase-3 reflow (device-adaptive layout) was committed across three sessions, each
 
 ### 🧪 Working Theory (5)
 
@@ -38,6 +38,10 @@ Where each numbered note sits on the path from a hunch to something the repo ado
 - `017` [Context Nudges](017-context-nudges.md) — Documentation often becomes stale not because people forget it exists, but because they are focused elsewhere when making changes.
 - `100` [First Synthesis: The Knowledge Loop](100-first-synthesis.md) — After reviewing the first series of field notes, a recurring pattern appears to connect nearly every aspect of DreamEngine.
 
+### · Unmarked (1)
+
+- `015` [repositories-can-learn](015-repositories-can-learn.md) — Field Note 017 — Repositories Can Learn
+
 ## Timeline
 
 Numbered notes in order — the spine of the journal.
@@ -51,15 +55,16 @@ Numbered notes in order — the spine of the journal.
 - `007` ✅ [The Evolution of Documentation](007-the-evolution-of-documentation.md) *(2026-06-26)*
 - `008` ✅ [The Identity of DreamEngine](008-the-identity-of-dreamengine.md) *(2026-06-26)*
 - `009` ✅ [The Negative Space of DreamEngine](009-the-negative-space-of-dreamengine.md) *(2026-06-26)*
+- `100` ✅ [First Synthesis: The Knowledge Loop](100-first-synthesis.md) *(2026-06-26)*
 - `003` 🧪 [curation](003-curation.md) *(2026-06-30)*
 - `011` 🧪 [Tool Discovery and Documentation](011-tool-discovery.md) *(undated)*
 - `012` ✅ [Self-Describing Artifacts](012-self-describing-artifacts.md) *(undated)*
 - `013` ✅ [Generated Cart Index](013-generated-cart-index.md) *(undated)*
-- `100` ✅ [First Synthesis: The Knowledge Loop](100-first-synthesis.md) *(2026-06-26)*
 - `014` ✅ [Outside-Agent Brainstorms as a Knowledge Source](014-outside-agent-brainstorms-as-a-knowledge-source.md) *(2026-06-29)*
-- `015` 🔭 [Repositories Can Learn](015-repositories-can-learn.md) *(2026-07-01)*
+- `015` · [repositories-can-learn](015-repositories-can-learn.md) *(undated)*
 - `016` ✅ [Knowledge Drift](016-knowledge-drift.md) *(2026-07-02)*
 - `017` ✅ [Context Nudges](017-context-nudges.md) *(2026-07-02)*
+- `018` 🔭 [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) *(2026-07-05)*
 
 ## Related-note graph
 
@@ -73,9 +78,9 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `008` **The Identity of DreamEngine** → `002-context-assembly`, `003-curation`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`
 - `009` **The Negative Space of DreamEngine** → `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`
 - `014` **Outside-Agent Brainstorms as a Knowledge Source** → `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`, `100-first-synthesis`
-- `015` **Repositories Can Learn** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `012-self-describing-artifacts`, `013-generated-cart-index`, `100-first-synthesis`
 - `016` **Knowledge Drift** → `002-context-assembly`, `007-the-evolution-of-documentation`, `012-self-describing-artifacts`, `013-generated-cart-index`, `017-context-nudges`
 - `017` **Context Nudges** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `016-knowledge-drift`
+- `018` **Passing the Gates Felt Like Done** → `015-repositories-can-learn015-repositories-can-learn.md — oracles + conventions as`, `016-knowledge-drift016-knowledge-drift.md — docs drifting from code; here the *work*`, `017-context-nudges017-context-nudges.md — the right doc existed and was even cited in`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts
@@ -109,3 +114,4 @@ gentle nudge **when next touched** — never a rewrite (append-only).
 - `011` [Tool Discovery and Documentation](011-tool-discovery.md) — missing: date
 - `012` [Self-Describing Artifacts](012-self-describing-artifacts.md) — missing: date
 - `013` [Generated Cart Index](013-generated-cart-index.md) — missing: date
+- `015` [repositories-can-learn](015-repositories-can-learn.md) — missing: status, date

@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-04 (two lanes: device-adaptive-layout Phase 1 + growable framebuffer → Phase 2 · store/ASO + app-trailer toolkit)_
+_Last updated: 2026-07-05 (two lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO + app-trailer toolkit)_
 
 ---
 
@@ -29,7 +29,7 @@ _Last updated: 2026-07-04 (two lanes: device-adaptive-layout Phase 1 + growable 
 (1) **device-adaptive layout** and (2) **store / ASO + the app-trailer builder**. Both are below;
 neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-03) — device-adaptive layout.** Make `SCREEN_W/H`
+> **▶ ACTIVE THREAD (2026-07-05) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
 > iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
 > `otafit`; `runtime/lay.h` **shipped**) and **Phase 1 (a+b+c) DONE (2026-07-03)** — the
@@ -50,11 +50,16 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > confirmed on the sim). So **Phase 2 is fully done — the engine foundation (fill/safe-area/rotation/
 > growable fb) carries device-adaptive layout.** **GOTCHA:** `build-all` misses the DE_NO_RAYLIB path —
 > run `build-nr.sh` after touching studio.c (the `--resize`/overlay work broke iOS via missing
-> `raylib_compat` stubs; fixed). **Next agent: Phase 3** — per-rack density arrangements (media-query-like:
-> more controls on iPad, collapsed/tabbed on iPhone per `acidfit`'s disclosure model; `respond` only
-> scales one topology today). Pick-up note atop
-> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Hot files: `runtime/studio.c`
-> (SW raster + fb), `ios/Sources/CanvasView.swift`. Ledger: [`STATUS.md`](STATUS.md) #2.
+> `raylib_compat` stubs; fixed). **Phase 3 RE-PLANNED (2026-07-05):** the first acidrack pass reflowed
+> without redesigning (hand-rolled px math, no `lay.h`/finger unit/disclosure, no iPad arrangement) —
+> caught by the maker's device test; retrospective = field note
+> [018](field-notes/018-passing-the-gates-felt-like-done.md). **Next agent: the revised plan** —
+> §"Phase 3 — revised plan" in [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md):
+> per-rack layout brief (R1) → `runtime/disclose.h` (R2, the keystone — three-state strips
+> folded/compact/expanded from the ReBirth study) → `finger_px()` (R3) → ui-audit judgment layer (R4)
+> → re-land acidrack (R5). **Waiting on the maker: the acidrack compact-strip sketch** (which controls
+> earn the middle state per machine). Hot files: `tools/carts/acidrack.c`, `runtime/lay.h` (+ new
+> `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
 
 > **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`

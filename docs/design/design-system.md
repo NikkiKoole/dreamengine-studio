@@ -521,6 +521,13 @@ Rule of thumb: **area you have → flatten; area you lack → deepen.** Never po
 menu up to the iPad (wasted space, needless taps) or the flat iPad grid down to the phone
 (unhittable).
 
+> **Refinement (2026-07-05): the fold is not binary.** Between "folded header" and "full-screen
+> editor" sits the **compact** state — the ReBirth machine module (2–3 macro knobs + one
+> finger-sized step lane + mute), playable without expanding. Disclosure promotes strips
+> folded → compact → expanded by finger-budget; "iPad flattens" concretely means *everything at
+> compact at once*. Full model + the ReBirth study:
+> [`device-adaptive-layout.md`](device-adaptive-layout.md) §"Phase 3 — revised plan".
+
 **How `acidfit.c` decides, mechanically.** Each section carries a **priority** (array order) and a
 **minimum finger-footprint** (`minW`/`minH` in `fu`) — sized so the controls *inside* stay
 finger-sized (a 303 panel ≈ "7 finger-knobs + labels" ≈ 4.2 × 3.4 fu; a drum grid ≈ "4-wide finger

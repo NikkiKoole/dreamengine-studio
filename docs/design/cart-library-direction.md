@@ -258,7 +258,10 @@ Volca Drum + Volca Keys + VL-1 — four small boxes, each adding something no ca
 type-a-number sound designer), the Volca/PO chassis language tying them together the way
 the Roland family ties acidrack together. As single quick wins first: **TR-606**
 (completes Roland), **VL-1** (tiny, iconic), then **CZ-101** (gives PD its machine). Skip
-Volca Bass/Beats and anything sampler-based.
+Volca Bass/Beats and anything sampler-based — though what a *fantasy-console-like* sampler
+could ever look like (mic-as-controller → single-cycle harvest → resynthesis → SK-1-spec
+PCM; the SP-1200 12-bit and SP-404 touchstones) is now sketched in
+[`mic-and-sampling.md`](mic-and-sampling.md).
 
 ### 3. The few genuinely-missing, *teachable* game types
 

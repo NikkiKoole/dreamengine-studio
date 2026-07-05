@@ -49,7 +49,9 @@ glance. Cart-by-cart detail (what each is, how it's built) stays on the
 > **analog-circuit machines only** — sample-playback boxes (LinnDrum, SP-1200, SK-1, PO-33 KO,
 > MPC) would be caricatures, since the engine has no sample playback. The `mellotron` is the
 > one licensed exception: faked in pure synthesis, per
-> [`recorded-timbres.md`](../design/recorded-timbres.md).
+> [`recorded-timbres.md`](../design/recorded-timbres.md). The doctrine's open "unless" clause —
+> what fantasy-console-like sampling *could* mean on mic-equipped iOS devices —
+> is sketched in [`mic-and-sampling.md`](../design/mic-and-sampling.md).
 
 **Beyond the hardware wings** the shelf also holds the acoustic/expressive instruments
 (upright, fretboard, monochord, handpan, tabla, mouthharp, glass harmonica, hurdy-gurdy,

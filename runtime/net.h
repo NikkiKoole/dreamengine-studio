@@ -85,6 +85,8 @@
 #define NET_PKT_INPUT    3     // + u32 first-frame (LE), u8 count, count input bytes
 #define NET_PKT_BYE      4     // sender is quitting
 #define NET_PKT_ANNOUNCE 5     // host → LAN broadcast: "a game is here" + u16 game-port (LE)
+#define NET_PKT_ROLE     6     // relay → client on room join: + u8 seat (0 = host, 1 = joiner) —
+                               // the ONE packet tools/net-relay.js originates (web transport, rung 5a)
 
 // ── lockstep core state (transport-agnostic — native AND web) ────────────────
 static bool net_active    = false;   // handshake done, lockstep running
@@ -124,6 +126,15 @@ static bool net_have(int player, int frame) {
 
 static uint8_t net_get(int player, int frame) {
     return net_ring_bits[player][frame % NET_RING];
+}
+
+// parse one NET_PKT_INPUT payload (already magic-checked, n >= 8) and store the
+// carried frames as the PEER's inputs — shared by every transport's receive path.
+static void net_input_pkt(const uint8_t *b, int n) {
+    int f0  = b[3] | b[4] << 8 | b[5] << 16 | b[6] << 24;
+    int cnt = b[7];
+    if (f0 >= 0 && 8 + cnt <= n)
+        for (int i = 0; i < cnt; i++) net_store(net_me ^ 1, f0 + i, b[8 + i]);
 }
 
 // send my most recent inputs up to and including `latest` (NET_REDUN-frame window)
@@ -207,6 +218,147 @@ static bool net_frame_try_sync(void) {
     return true;
 }
 
+// ── WebSocket transport (web target — rung 5a step 2) ────────────────────────
+// The same lockstep DN packets, riding binary WebSocket frames through
+// tools/net-relay.js instead of UDP datagrams. Both tabs open the SAME url —
+// ?room=<code> picks the room (+ optional ?relay=ws://host:port, defaulting to
+// the page's own host, i.e. the `net-relay.js --serve` one-box setup); the
+// relay seats them (first = host) with a NET_PKT_ROLE, then the normal
+// HELLO → WELCOME{seed} handshake runs through it. The EM_JS shim passes no
+// strings across the C/JS boundary — JS reads location.search itself, C sees
+// stage codes and raw packet bytes only.
+#if defined(PLATFORM_WEB)
+#include <emscripten/emscripten.h>
+
+// clang-side (non-emcc) analyzers don't know EM_JS — give them a no-op shape.
+#ifndef EM_JS
+#define EM_JS(ret, name, params, ...) static ret name params;
+#endif
+
+EM_JS(int, de_ws_begin, (void), {
+    try {
+        var q = new URLSearchParams(location.search);
+        var room = q.get('room');
+        if (!room) return 0;
+        var rel = q.get('relay') ||
+                  ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+        var ws = new WebSocket(rel + '/room/' + encodeURIComponent(room));
+        ws.binaryType = 'arraybuffer';
+        Module.deWsQ = [];
+        Module.deWsState = 0;
+        ws.onopen    = function ()   { Module.deWsState = 1; };
+        ws.onmessage = function (ev) { Module.deWsQ.push(new Uint8Array(ev.data)); };
+        ws.onclose   = function ()   { Module.deWsState = 2; };
+        ws.onerror   = function ()   { Module.deWsState = 2; };
+        Module.deWs = ws;
+        return 1;
+    } catch (e) { return 0; }
+})
+
+EM_JS(int, de_ws_state, (void), { return Module.deWsState | 0; })   // 0 connecting, 1 open, 2 closed/failed
+
+EM_JS(void, de_ws_send_js, (const void *p, int n), {
+    if (Module.deWs && Module.deWsState === 1)
+        Module.deWs.send(HEAPU8.subarray(p, p + n));   // .send copies, the view is safe
+})
+
+EM_JS(int, de_ws_recv_js, (void *p, int cap), {
+    var q = Module.deWsQ;
+    if (!q || !q.length) return 0;
+    var m = q.shift();
+    var n = Math.min(m.length, cap);
+    HEAPU8.set(m.subarray(0, n), p);
+    return n;
+})
+
+static char net_web_status[80] = "";   // what the pre-init wait screen shows
+static int  net_web_stage = 0;         // 0 untried, 1 connecting/seating, 2 handshaking, 3 done, -1 no ?room=
+static int  net_web_ticks = 0;
+
+// Async web handshake, driven once per tick by the pre-init "click to start"
+// screen in studio.c (the web twin of net_handshake — which BLOCKS, and a
+// browser can't). Returns 0 = still working (draw net_web_status and keep
+// ticking), 1 = lockstep is ON (*seed holds the shared seed — run init() now),
+// -1 = no ?room= in the URL (a plain solo web cart).
+static int net_web_poll(unsigned *seed) {
+    if (net_web_stage == -1) return -1;
+    if (net_web_stage == 3)  return 1;
+    if (net_web_stage == 0) {
+        if (!de_ws_begin()) { net_web_stage = -1; return -1; }
+        snprintf(net_web_status, sizeof net_web_status, "connecting to relay...");
+        net_web_stage = 1;
+        return 0;
+    }
+    if (de_ws_state() == 2) {   // relay unreachable / room full — hold the message (reload retries)
+        snprintf(net_web_status, sizeof net_web_status, "relay unreachable - reload");   // ≤40 chars: fits a 320px screen at 8px/char
+        return 0;
+    }
+    uint8_t buf[64];
+    int n;
+    while ((n = de_ws_recv_js(buf, sizeof buf)) > 0) {
+        if (n < 3 || buf[0] != 'D' || buf[1] != 'N') continue;
+        switch (buf[2]) {
+            case NET_PKT_ROLE:                       // the relay seats us; host rolls the seed
+                if (n >= 4) {
+                    net_me      = buf[3] ? 1 : 0;
+                    net_is_host = (net_me == 0);
+                    if (net_is_host) {
+                        net_seed_v = (unsigned)emscripten_get_now() ^ 0x9e3779b9u;
+                        snprintf(net_web_status, sizeof net_web_status, "waiting for player 2...");
+                    } else {
+                        snprintf(net_web_status, sizeof net_web_status, "found a game - joining...");
+                        uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
+                        de_ws_send_js(hello, sizeof hello);
+                    }
+                    net_web_stage = 2;
+                }
+                break;
+            case NET_PKT_HELLO:                      // host: the joiner arrived → hand it the seed
+                if (net_is_host) {
+                    uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
+                                     (uint8_t)net_seed_v, (uint8_t)(net_seed_v >> 8),
+                                     (uint8_t)(net_seed_v >> 16), (uint8_t)(net_seed_v >> 24) };
+                    de_ws_send_js(w, sizeof w);
+                    net_core_reset();
+                    net_active = true;
+                    net_web_stage = 3;
+                }
+                break;
+            case NET_PKT_WELCOME:                    // joiner: adopt the host's seed
+                if (!net_is_host && n >= 7) {
+                    net_seed_v = (unsigned)buf[3] | (unsigned)buf[4] << 8
+                               | (unsigned)buf[5] << 16 | (unsigned)buf[6] << 24;
+                    net_core_reset();
+                    net_active = true;
+                    net_web_stage = 3;
+                }
+                break;
+        }
+        if (net_web_stage == 3) { *seed = net_seed_v; return 1; }
+    }
+    // joiner: re-HELLO every ~half second until WELCOME (WS is reliable, but this
+    // covers a host tab that was still seating when our first HELLO went out)
+    if (net_web_stage == 2 && !net_is_host && de_ws_state() == 1 && (++net_web_ticks % 30) == 0) {
+        uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
+        de_ws_send_js(hello, sizeof hello);
+    }
+    return 0;
+}
+
+// mid-game receive: INPUT + BYE, same switch the UDP pump runs. A dead socket
+// counts as the peer leaving (the relay also synthesizes a BYE, whichever lands first).
+static void net_ws_pump(void) {
+    uint8_t buf[64];
+    int n;
+    while ((n = de_ws_recv_js(buf, sizeof buf)) > 0) {
+        if (n < 3 || buf[0] != 'D' || buf[1] != 'N') continue;
+        if      (buf[2] == NET_PKT_INPUT && n >= 8) net_input_pkt(buf, n);
+        else if (buf[2] == NET_PKT_BYE)             net_peer_bye = true;
+    }
+    if (net_active && de_ws_state() == 2) net_peer_bye = true;
+}
+#endif // PLATFORM_WEB
+
 // ── UDP transport + native-only netplay (rungs 1–3) ──────────────────────────
 #ifdef DE_NET_BUILD
 
@@ -252,12 +404,7 @@ static void net_pump(void) {
                 }
                 break;
             case NET_PKT_INPUT:
-                if (n >= 8) {
-                    int f0  = buf[3] | buf[4] << 8 | buf[5] << 16 | buf[6] << 24;
-                    int cnt = buf[7];
-                    if (f0 >= 0 && 8 + cnt <= n)
-                        for (int i = 0; i < cnt; i++) net_store(net_me ^ 1, f0 + i, buf[8 + i]);
-                }
+                if (n >= 8) net_input_pkt(buf, n);
                 break;
             case NET_PKT_BYE:
                 net_peer_bye = true;
@@ -472,21 +619,19 @@ static void net_frame_sync(void) {
 #endif // DE_NET_BUILD
 
 // ── the transport dispatchers (the seam itself) ──────────────────────────────
-// Echo short-circuits with no I/O; native falls through to UDP. Rung 5a step 2
-// adds the web WebSocket arm here (and nowhere else).
+// Echo short-circuits with no I/O; native falls through to UDP, web to the
+// WebSocket relay. Every transport speaks the same DN packets.
 static void net_transport_send(const void *buf, int len) {
     if (net_echo) {
         const uint8_t *b = (const uint8_t *)buf;
-        if (len >= 8 && b[2] == NET_PKT_INPUT) {          // reflect my inputs as the peer's
-            int f0  = b[3] | b[4] << 8 | b[5] << 16 | b[6] << 24;
-            int cnt = b[7];
-            if (f0 >= 0 && 8 + cnt <= len)
-                for (int i = 0; i < cnt; i++) net_store(net_me ^ 1, f0 + i, b[8 + i]);
-        }
+        if (len >= 8 && b[2] == NET_PKT_INPUT)            // reflect my inputs as the peer's
+            net_input_pkt(b, len);
         return;                                           // BYE/handshake: nothing to tell ourselves
     }
-#ifdef DE_NET_BUILD
+#if defined(DE_NET_BUILD)
     net_sendto(buf, len);
+#elif defined(PLATFORM_WEB)
+    de_ws_send_js(buf, len);
 #else
     (void)buf; (void)len;
 #endif
@@ -494,7 +639,9 @@ static void net_transport_send(const void *buf, int len) {
 
 static void net_transport_pump(void) {
     if (net_echo) return;                                 // echo "delivers" inside send
-#ifdef DE_NET_BUILD
+#if defined(DE_NET_BUILD)
     net_pump();
+#elif defined(PLATFORM_WEB)
+    net_ws_pump();
 #endif
 }

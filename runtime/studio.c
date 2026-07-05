@@ -2048,10 +2048,17 @@ static void loop_step(void) {
 #endif
 #ifdef PLATFORM_WEB
     if (!web_started) {
+        // pre-init staging: click starts audio (must be inside the gesture), then
+        // netplay — if the URL asks for it — handshakes ASYNC through the relay
+        // before init() runs (the host's seed must land before any rnd(), same
+        // ordering the native lobby enforces; a browser can't block, so this
+        // screen ticks net_web_poll instead). No ?room= → init() right away,
+        // the solo path is one tick longer than before and otherwise identical.
+        static bool web_audio_up = false;
         bool clicked = IsMouseButtonPressed(MOUSE_LEFT_BUTTON)
                     || IsKeyPressed(KEY_ENTER)
                     || IsKeyPressed(KEY_SPACE);
-        if (clicked) {
+        if (clicked && !web_audio_up) {
 #ifndef DE_AUDIO_WORKLET
             InitAudioDevice();        // raylib audio (ScriptProcessor); the worklet build uses its own context
 #endif
@@ -2059,20 +2066,40 @@ static void loop_step(void) {
 #ifdef DE_AUDIO_WORKLET
             sound_worklet_resume();   // resume the worklet's AudioContext within the click gesture
 #endif
+            web_audio_up = true;
+        }
+        if (web_audio_up) {
 #if defined(DE_NET_CORE) && defined(DE_NET_ECHO_DEFAULT)
             // echo-lockstep test build (rung 5a step 1): boot straight into the
             // loopback fake peer — P2 mirrors P1 through the real ring/barrier
-            // path. Seed + det BEFORE init(), same ordering the lobby enforces.
+            // path. Seed + det BEFORE init().
             det_mode = true;
             SetRandomSeed(1); srand(1);
             net_echo_start();
-#endif
             init();
             web_started = true;
+#elif defined(DE_NET_CORE)
+            static unsigned web_seed = 1;
+            int st = net_web_poll(&web_seed);          // -1 solo, 0 still handshaking, 1 lockstep on
+            if (st != 0) {
+                if (st == 1) {
+                    det_mode = true;                   // lockstep = fixed timestep + the shared seed
+                    SetRandomSeed(web_seed); srand(web_seed);
+                }
+                init();
+                web_started = true;
+            }
+#else
+            init();
+            web_started = true;
+#endif
         }
         BeginTextureMode(canvas);
         ClearBackground(palette[0]);
         const char *msg = "click to start";
+#if defined(DE_NET_CORE) && !defined(DE_NET_ECHO_DEFAULT)
+        if (web_audio_up && !web_started && net_web_status[0]) msg = net_web_status;
+#endif
         int tw = (int)(strlen(msg) * 8);
         DrawTextEx(game_font, msg,
             (Vector2){ (de_sw - tw) / 2.0f, de_sh / 2.0f - 4 },

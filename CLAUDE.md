@@ -140,6 +140,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-app-reel.js  APP TRAILER: apps/<name>/app.json carts[] → bake a clip per rack (skips racks with
                              no committed clip) → generate tools/reels/<name>.reel → compose-clips → one reel. The
                              multi-cart video unit; the .reel is committed + hand-editable. Design: docs/design/demand-generation.md
+             net-relay.js    lockstep-netplay RELAY for web/wasm carts (zero-dep hand-rolled WS): rooms by code,
+                             BLIND byte-forwarding (never parses game packets — one relay serves every cart);
+                             --serve <dir> = the one-wifi-box setup (cart + relay in one process); --check
+                             self-test. Rung 5a — docs/design/multiplayer-research.md
+             net-check.js    the one-liner LOCKSTEP GATE (netplay twin of tune-check): echo-mirror + netdemo
+                             pair + relay wire-protocol sim, PASS/FAIL; run after touching net.h / the net seams
              ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels)
              mirror-diff.js  golden-pixel-diff harness: assert a render's symmetry invariant headless
              canvas-diff.js  GPU-vs-software-canvas render oracle: A/Bs a cart in both modes + pixel-diffs;

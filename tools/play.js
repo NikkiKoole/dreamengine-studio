@@ -266,6 +266,7 @@ if (resizeSpec) {                                 // --resize "WxH,WxH,…": swe
     console.log('resize captures →', rd)
   }
 }
+if (hasFlag('--net-echo'))     runArgs.push('--net-echo')   // lockstep vs the loopback fake peer (P2 mirrors P1; implies --det)
 if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // deterministic audio render → WAV
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 

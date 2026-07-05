@@ -6,9 +6,11 @@ a **tool dropdown**, a thickness slider, the **bevel** emboss, the **boil** livi
 **7-colour pen** (incl. CMY), **dithered strokes** (Bayer density ramp via `fillp`), and **per-stroke bevel/boil**
 (select-tool stage 1) + the full **select tool** (stages 2–3: pick a stroke, edit its properties
 non-destructively via the bar + a bevel-size/boil-intensity strip) (`tools/carts/squishy.c`). The
-cart is now a tiny vector editor. What's left: a real **flood-fill** (with a persistent-layer
-refactor — see parking lot), the pixelsnap animated-icon export, a `spec()`, and the boil-cache perf
-pass. v1 plan + progress below.
+cart is now a tiny vector editor. What's left is the **v2 icon-pipeline slice** (plan below):
+**save/load** (stroke files — nothing persists today), **closed-shape fill** (the *vector* fill;
+raster flood-fill + the persistent-layer refactor come later), the **`squishy-export` tool** + a
+live snapped preview — then stamps / trace underlay / stabilizer as the delight pass, plus the
+`spec()` and the boil-cache perf pass. v1 plan + progress below.
 
 > **Update (2026-07-01) — rotation brushes, live width, drop shadow, and a coverage gate.**
 > The brush table is now pure data (a `Brush` carries a width recipe + an **angle recipe** + an icon
@@ -47,6 +49,19 @@ pass. v1 plan + progress below.
 > **cursor** now shows the brush's nominal caliber (was pulsing with pointer speed as you moved — it
 > read as constant resizing), and the gradient body rasterises its coverage **stepped along each
 > segment** like `render_stroke` (was one disk per sample → visible blobs on the thin tapered start).
+
+> **Update (2026-07-05) — the v2 direction: from lovely toy to icon pipeline.** A fresh look at the
+> tinyjam marketing icons (the AI → `pixelsnap` outputs this doc chases) against what's shipped:
+> **five of the seven character ingredients now exist** (wobbly ink outline, bevel + sun, the
+> outline+fill bubble lettering, per-stroke dither, mixed weights). What actually blocks drawing
+> *that icon* in squishy is more basic: **nothing persists** (no save/load — a multi-session piece
+> is impossible), **no filled regions** (the icon is mostly filled blobs), **no garnish stamps**,
+> and **no way out of the cart into an icon file**. That gap analysis became the v2 plan below.
+> Two calls made there worth flagging: **closed-shape fill before flood-fill** (a closed stroke
+> scanline-fills as a *vector* shape — stays pure `f(stroke, seed)` and inherits
+> outline/bevel/dither/gradient/boil/select for free, no layer refactor needed), and the **Krita
+> stance** (steal input-quality features — stabilizer, dwell pressure — never raster layers or
+> brush-engine sprawl; the identity is the editable, seeded, relightable vector scene).
 
 > The shower idea: we'd been making cart icons by running an AI-generated image through a
 > `.cart.js` (sprite-draw + `pixelsnap`). The results are nice — but **frozen**. What if you could
@@ -394,11 +409,15 @@ once v1 lands (not committed):
   Freeing bar space meant dropping the always-on tool-name label — the dropdown icon identifies the
   tool and an ACCENT ring on the header now flags edit mode (the property strip + selection box already
   signalled it).
-- **Flood-fill (still wanted)** — the *raster* other half: flood a bounded region, lay a dither/ramp
-  in it. This one genuinely needs the **persistent layer buffer** (flood-fill is a raster op; the cart
-  re-renders from data each frame and `pget` reads *last* frame). Do it *with* the layer-buffer
-  refactor (the same one the boil-cache perf todo needs) — one chunk that also unlocks the boil cache.
-  Filling a beveled blob with a dither ramp = the tinyjam-knob look.
+- **Flood-fill (still wanted — but no longer first).** The *raster* other half: flood a bounded
+  region, lay a dither/ramp in it. This one genuinely needs the **persistent layer buffer**
+  (flood-fill is a raster op; the cart re-renders from data each frame and `pget` reads *last*
+  frame). Do it *with* the layer-buffer refactor (the same one the boil-cache perf todo and
+  cross-stroke drip pooling need — three customers, one chunk). Filling a beveled blob with a
+  dither ramp = the tinyjam-knob look. **De-prioritised 2026-07-05:** the v2 plan's
+  **closed-shape fill** (a closed stroke scanline-fills as a vector shape) covers the icon's filled
+  blobs without the refactor and inherits every per-stroke feature for free — flood-fill is off the
+  icon's critical path.
 - pressure from dwell-time as well as speed; smoothing/stabiliser on the input path
 - symmetry/mirror modes (kaleidoscope ink) — `linesym` is adjacent
 - a "redraw" boil variant where the *whole path* re-flows (rougher, more animated)
@@ -448,6 +467,67 @@ tool + thickness it was drawn with. And the **boil** toggle makes a finished dra
 - [ ] The icon pipeline: boil frames → `pixelsnap` → an animated sprite strip (the AI-route
       replacement); document the recipe.
 - [x] `de:meta` + bake + `lint-carts`; a screenshot for the owner to play.
+
+## v2 plan — the icon pipeline (the next buildable slice)
+
+*(2026-07-05, from the marketing-icon gap analysis — see the update note up top.)* The one-sentence
+version: **save/load + closed-shape fill + the export tool turns squishy from a lovely toy into the
+icon pipeline; stamps, the live preview, and the trace underlay make it delightful.**
+
+### Core slice — what blocks the icon
+
+- [ ] **Save/load — stroke files.** The enabler for everything; a real icon is a multi-session
+  piece and today a drawing dies with the cart. Strokes are already pure data → `save_bytes()` of
+  the `strokes[]` array into a few named slots (saves are per-cart, `build/saves/squishy/`) is a
+  small change. The deeper win: a **committed stroke file is the drawing's source artifact** — the
+  `tools/clips/` input-track idea applied to art. Deterministic, re-renderable at any size / palette
+  / sun angle forever; the AI route's one frozen frame vs *this*. Version the blob (a magic +
+  version int up front) so the `Stroke` struct can grow without orphaning old saves.
+- [ ] **Closed-shape fill (the vector fill — do this BEFORE flood-fill).** The icon is mostly
+  filled blobs (body, knobs, letters). A CLOSE toggle on a stroke marks it a **closed polygon**:
+  the renderer closes the path and scanline-fills the interior (even-odd over the polyline), then
+  runs the normal stroke pass over the boundary. Stays pure `f(stroke, seed)` — so with **zero new
+  feature code** a filled shape inherits outline (the black rim), bevel (domes under the sun),
+  dither + gradient (the shading), boil (the whole blob breathes), drop shadow, select-edit,
+  z-order. That composition is the whole argument for the vector route; raster flood-fill still
+  arrives later with the layer-buffer refactor (which has three customers — see parking lot) but is
+  no longer on the icon's critical path. Add a `close` column to `SQUISHY_MATRIX` /
+  `squishy-features.js` so the fill is guarded per brush like every other rim/fill feature.
+- [ ] **`squishy-export` — the one-command icon mint.** The existing pipeline sentence ("draw big →
+  boil N frames → `pixelsnap` each → sprite strip") as an actual tool: load a saved stroke file,
+  render N boil frames headless (the `play.js --dump` / `screenshot_request` machinery exists),
+  pipe each through `pixelsnap --grid 96x96 --two 0,7` / `--palette pico32`, emit stills + a frame
+  strip. One command from a stroke file to exactly the artifacts in
+  `docs/marketing/tinyjam/icons/snapped/`. Document the recipe in the tool header.
+
+### Delight slice — what makes it sing
+
+- [ ] **Live snapped preview.** A small corner panel showing the canvas box-downsampled to icon
+  size (1-bit / current palette) *while you draw* — the piece reads completely differently at 96px,
+  and today you only find out after leaving the cart. In-cart approximation is fine (box-filter +
+  threshold/Bayer, reusing the dither vocab); `pixelsnap` stays the authoritative exporter.
+- [ ] **Stamp/ornament tool — the garnish.** Sparkle asterisk, heart, note, speed-ticks, speckle,
+  star, swirl, cross (~8 covers the icon's garnish). Each stamp is a **tiny stroke recipe** (a
+  hand-authored path placed at the tap, usual seed) — NOT a sprite — so stamps wobble under boil,
+  take bevel/colour/shadow, and are select-editable like everything else. Emergent, not
+  special-cased.
+- [ ] **Trace-over underlay — the bridge to the AI route.** Load a reference image dimmed/ghosted
+  *under* the canvas and redraw it in strokes. Keeps AI for what it's good at (composition), ends
+  with what it can't give (stroke structure — a *living* icon, not a cleaned-up still). Needs an
+  image-load path (bake the reference into the sprite sheet via `.cart.js`, or a raw-RGB side file
+  read at init) — decide when building.
+- [ ] **Stabilizer / smoothing** (promoted from the parking lot) — Krita's most-loved input
+  feature; the icon's long confident panel border wants it. A trailing-average / pull-string on the
+  input path *before* sampling into the `Stroke`, so it composes with everything downstream.
+  Dwell-time pressure can ride along.
+
+### The Krita stance (what to steal, what to refuse)
+
+Steal **input quality**: stabilizer, dwell pressure, symmetry (parking lot). Refuse **raster
+layers and brush-engine sprawl** — squishy's identity, the thing Krita can't do, is that the whole
+drawing stays an editable, seeded, relightable vector scene. Every feature keeping that property
+compounds (see closed-shape fill above); every raster feature dilutes it. "Layers" here is the
+z-order that already exists, maybe named groups later.
 
 ## See also
 

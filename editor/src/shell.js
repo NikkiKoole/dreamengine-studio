@@ -2511,7 +2511,10 @@ function applyCart(cart) {
 loadCartBtn.addEventListener('click', async () => {
   if (!window.studio) return
   const cart = await window.studio.loadCart()
-  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } currentCartPath = cart.origin || ''; applyCart(cart) }
+  // currentCartFile is the FILE slug (drives the record/replay clip dir), NOT the display title —
+  // take it from the chosen file's basename (…/squishy.cart.png → squishy), else a record lands in
+  // squishy-lines/. Same fix as the .cart.png drop path above.
+  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); currentCartFile = (cart.origin || '').split('/').pop().replace(/\.cart\.png$/i, ''); currentCartPath = cart.origin || ''; applyCart(cart) }
 })
 
 // ── build for web ─────────────────────────────────────────────

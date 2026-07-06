@@ -112,3 +112,24 @@ than more loose toolbar buttons. Now being planned — [`share-panel.md`](share-
 2. Which app goes to the store first, and its price shape (channel B #3).
 3. Whether the share panel is worth an editor-chrome pass now or after the gallery
    showcase work (cross-cutting).
+
+## Parked: private code repo, public site repo (maker intent, 2026-07-06)
+
+The maker wants to **slowly take the dreamengine repo private** — which forces
+splitting the published output into its own public repo, because GitHub Pages
+doesn't serve private repos on a free account. Not scheduled; captured so the
+constraints don't get relearned:
+
+- **The seam is already clean**: `publish-cart.sh` commits ONLY `site/` — the
+  split is "push site/ to the public repo" (deploy key + a script tweak), the
+  local build flow unchanged.
+- **Name the PUBLIC repo `dreamengine`** (rename the private code repo instead)
+  or every published `nikkikoole.github.io/dreamengine/…` link breaks — the
+  Pages URL follows the repo name. A custom domain (channel A #3) dissolves
+  this coupling entirely and is the better long-term answer.
+- **Render/relay don't care** (private repos work via the GitHub app; the
+  running service isn't touched). The `render.yaml` blueprint stays in the
+  code repo.
+- **Privacy scope caveat**: published `.cart.png`s embed their C source
+  (`de:source` — the sharing mechanism), so *shipped carts stay effectively
+  public*. Private protects the engine/tools/docs/unpublished work.

@@ -1,0 +1,14 @@
+# citygrow — the RUNG-2 A/B (worldgen-plan): the density field vs the old hash lattice.
+# Boot at the settlement-map overview (heat on), F turns the heat off so the biome map
+# shows, then O flips settlements FIELD -> HASH(old): field towns hug coasts and valley
+# floors (harbour towns, empty highlands); hash sprinkles them uniformly over anything
+# passable. The HUD tag names the active source. Deterministic: same seed = same world
+# (two runs dump pixel-identical frames).
+# frames 130
+# fps 30
+down 10 ENTER
+up 12 ENTER
+down 60 F
+up 62 F
+down 120 O
+up 122 O

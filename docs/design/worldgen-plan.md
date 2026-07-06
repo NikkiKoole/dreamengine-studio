@@ -104,13 +104,20 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   *Gates, all green:* `spec.js sloop` **25/0**; deterministic drives with `watch("on_road")`
   flipping correctly — committed as `tools/clips/roadnet2/01-rung1-onoff.script` +
   `tools/clips/sloop/04-rn2-spine.script`.
-- [ ] **Rung 2 — the density field** *(rungs 2–5 live in the `citygrow` bench cart — §Where the
-  code lives)*. Deterministic population field (noise shaped by terrain: flat,
-  low, near-water = dense). Settlement candidates stay on the suppression lattice; **presence, rank,
-  and size come from the field**; city extent = a density threshold contour, not a radius. **Lock the
-  world-bound decision here** (leaning ~500 km, per [`roadnet2-plan.md`](roadnet2-plan.md)'s
-  float-precision note). *Done when:* the settlement map reads organic at overview zoom; same seed →
-  same world.
+- [x] **Rung 2 — the density field. ✅ SHIPPED 2026-07-06** in the new **`citygrow` bench cart**
+  (§Where the code lives — knobbed sliders, seed roll, live overlays). `density_at(x,y)` ∈ [0,1],
+  pure + locally evaluable: regional noise (independent z-slice) × terrain shaping (people live
+  LOW + FLAT — slope probed at a 1.5 km baseline chosen to *null* the heightmap's 3 km roughness
+  octave, land-clamped so rivers don't read as cliffs) × a **graded water-adjacency pull** (coast >
+  river thread — the §Beyond-roads harbour attractor) × a rim fade. Settlements keep the
+  suppression lattice (blue-noise spacing survives, positions identical to worldnet's) but
+  **presence, rank and size come from D**; extent = the `D > K_extent` contour overlay. The A/B is
+  a keypress (O): field towns hug coasts + valley floors, hash sprinkles them uniformly — committed
+  as `tools/clips/citygrow/01-field-vs-hash.script`. *Done-when met:* organic at overview zoom;
+  same seed → same world (two runs dump **pixel-identical** frames). **World bound: implemented at
+  500 km** (density rim-fades over 60 km past R=250 km, no wall) — *maker to confirm by feel* before
+  it's carved into worldnet.h. The field wires into worldnet's `get_node`/`get_hub` with the rung-5.5
+  extraction (the bench stays the prototype home till then, per the one-data-model guard).
 - [ ] **Rung 3 — tensor-field arterials per city.** Per-city field (radial + entering-highway grid
   alignment + terrain + noise; weights hashed per city); trace major streamlines inside the city's
   bounded region; the arterial graph **partitions the city into districts** (enumerable polygons).

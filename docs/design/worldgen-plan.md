@@ -1,7 +1,8 @@
 # worldgen-plan — the realistic procedural world generator
 
-STATUS: READY TO BUILD (2026-07-06) — investigation done, rung ladder specced. Rung 0 (the SNDi
-oracle tool) is the entry point; rungs expand Track-A items A2–A4 of
+STATUS: BUILDING (2026-07-06) — rungs 0–1 SHIPPED (the SNDi oracle `sndi-check.js`; the
+`runtime/worldnet.h` seam — sloop drives the spine). Rung 2 (the density field, in the `citygrow`
+bench) is next; rungs expand Track-A items A2–A4 of
 [`driving-world-program.md`](driving-world-program.md)'s sequenced build order.
 
 The plan of attack for closing the program's named gap: **we don't yet have *realistic* procedural
@@ -89,8 +90,20 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   *Caveats:* intersection density + block area use the bbox (not hull) area, and the `.rvb`s cover
   different extents — read those two rows comparatively, not absolutely. Delft-centre wasn't in
   `data/` at measure time; add it when refetched.
-- [ ] **Rung 1 — the seam first (= Track-A A1).** `road_at()` over roadnet2's graph; sloop drives it.
-  Everything below swaps behind this seam; nothing below blocks it. *Gate:* `spec.js sloop` 25/0.
+- [x] **Rung 1 — the seam first (= Track-A A1). ✅ SHIPPED 2026-07-06.** `road_at()` over
+  roadnet2's graph; sloop drives it. Built as `runtime/worldnet.h` (the ADR-0006 extraction fired
+  immediately — sloop was the second consumer): roadnet2's terrain + lattice + spline links
+  materialized into a typed edge graph (the **edge-type field road/rail/water pinned** before the
+  model froze, per §Beyond roads) with `wn_road_at()` = nearest-edge within class half-width
+  (+2 m pavement for the foot seam, + centre-line `dist` for lane-keeping later) over a per-anchor
+  edge cache + bucket spatial hash (rebuilds once per node-cell crossing; overflow → brute, never
+  wrong). Screen == query held by construction (same enumeration rules; roadnet2's G overlay shows
+  the graph dead on the strokes) and by the extraction oracle (pre/post traces byte-identical).
+  sloop: press **N** → the stub grid swaps for the spine behind the same `road_at()` seam — grip
+  1.0 on-road / 0.55 off, rig spawn-snapped onto the network via `wn_nearest_road_point()`.
+  *Gates, all green:* `spec.js sloop` **25/0**; deterministic drives with `watch("on_road")`
+  flipping correctly — committed as `tools/clips/roadnet2/01-rung1-onoff.script` +
+  `tools/clips/sloop/04-rn2-spine.script`.
 - [ ] **Rung 2 — the density field** *(rungs 2–5 live in the `citygrow` bench cart — §Where the
   code lives)*. Deterministic population field (noise shaped by terrain: flat,
   low, near-water = dense). Settlement candidates stay on the suppression lattice; **presence, rank,

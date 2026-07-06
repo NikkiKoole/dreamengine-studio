@@ -239,8 +239,9 @@ edges now), the field↔graph extraction step (graph is generated directly, not 
    - ⛔ *Polish still open:* the reference **grid is faint** (and too dense at mid-zooms); road
      **density** wants a tuning pass (towns sparse in spots); **node markers** (hub/town dots) are
      big at drive zoom; widths may be a touch wide; **scope** (~500 km) to commit. None block driving.
-3. **Unified `road_at` = nearest-edge** over the *highway* edges first (prove the query +
-   spatial index on the tier we already have), render as strokes. No field anywhere.
+3. ✅ **Unified `road_at` = nearest-edge** (2026-07-06, worldgen-plan rung 1) — over highways AND
+   feeders, per-anchor edge cache + bucket spatial hash, shipped as `runtime/worldnet.h` with the
+   edge-type field pinned; sloop consumes it behind its seam (N key). No field anywhere.
 4. **Collector tier as a warped grid**, generated directly as spline edges into the graph,
    connected to the highways, sized in metres to the locked scale. Per-district straight-vs-warped.
 5. **Access + cul-de-sacs** as the finest spline tier; the palette per district.

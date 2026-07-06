@@ -12,10 +12,13 @@
     "generative-melody"
   ],
   "lineage": "A graph-first rebuild of roadnet (v1), keeping its Catmull-Rom node-lattice spline highways verbatim but replacing the dual field+graph street representation with a single edge-graph — cleaner foundation for the collector/access/building fill-in to come.",
-  "description": "A VECTOR-NATIVE rebuild of roadnet, started from roadnet's clean rung-1..3 baseline: the same elegant spline-highway core (terrain-aware Catmull-Rom roads between ranked hub/town cities over an infinite deterministic heightmap) with the rest deliberately UNFILLED — the clean foundation. The deeper-road fill-in (collectors / access / cul-de-sacs / buildings) is being redone graph-first this time: ONE representation (spline edges in a graph), ONE query (road_at = nearest edge within its class half-width, generalising arterial_at downward), buildings on edges, warped-grid curvy deeper roads, and NO modular street field — the dual field+graph representation is what made v1 messy. WORLDGEN RUNG 1 IS IN: the unified road_at() — a nearest-edge query + spatial index over the SAME spline edges the renderer strokes, materialized around the car once per cell crossing, with the network/edge-type field (road/rail/water) pinned into the edge model from day one. The car reads the surface (off the tarmac it drags to ~60 km/h), the HUD names the road class under you, C spawns the car snapped ONTO the nearest road facing along it, and G at drive zoom overlays the cached graph over the strokes — the two must coincide (screen == query). Plan + build order: docs/design/roadnet2-plan.md; the rung ladder: docs/design/worldgen-plan.md. Controls (L0 core, same as roadnet): drag the panel sliders, ROLL / EXPLORE; then arrows / WASD pan, mouse wheel zooms, SPACE jumps to fresh scenery, R new seed, M reopens the panel, C drop/spawn the car, G graph/cell overlay, H hides the HUD."
+  "description": "A VECTOR-NATIVE rebuild of roadnet, started from roadnet's clean rung-1..3 baseline: the same elegant spline-highway core (terrain-aware Catmull-Rom roads between ranked hub/town cities over an infinite deterministic heightmap) with the rest deliberately UNFILLED — the clean foundation. The deeper-road fill-in (collectors / access / cul-de-sacs / buildings) is being redone graph-first this time: ONE representation (spline edges in a graph), ONE query (road_at = nearest edge within its class half-width, generalising arterial_at downward), buildings on edges, warped-grid curvy deeper roads, and NO modular street field — the dual field+graph representation is what made v1 messy. WORLDGEN RUNG 1 IS IN: the unified wn_road_at() — a nearest-edge query + spatial index over the SAME spline edges the renderer strokes, materialized around the car once per cell crossing, with the network/edge-type field (road/rail/water) pinned into the edge model from day one. The car reads the surface (off the tarmac it drags to ~60 km/h), the HUD names the road class under you, C spawns the car snapped ONTO the nearest road facing along it, and G at drive zoom overlays the cached graph over the strokes — the two must coincide (screen == query). Plan + build order: docs/design/roadnet2-plan.md; the rung ladder: docs/design/worldgen-plan.md. Controls (L0 core, same as roadnet): drag the panel sliders, ROLL / EXPLORE; then arrows / WASD pan, mouse wheel zooms, SPACE jumps to fresh scenery, R new seed, M reopens the panel, C drop/spawn the car, G graph/cell overlay, H hides the HUD."
 }
 de:meta */
 #include "studio.h"
+#include "worldnet.h"   // the shared WORLD SPINE (terrain + lattice + spline links + the
+                        // wn_road_at() graph query) — extracted from this cart at rung 1
+                        // when sloop became the second consumer; this cart stays its home
 #include "ui.h"
 #include <stdio.h>
 
@@ -29,7 +32,7 @@ de:meta */
 // representation is what made roadnet v1 messy. Full plan + build order + the lessons
 // carried over: docs/design/roadnet2-plan.md.
 //
-// STATUS: L0 core + WORLDGEN RUNG 1 (the unified road_at() graph query — see the
+// STATUS: L0 core + WORLDGEN RUNG 1 (the unified wn_road_at() graph query — see the
 // fenced block below; ladder: docs/design/worldgen-plan.md). The vectorland fill-in
 // (collectors → access → cul-de-sacs → buildings) is the work to come, per the plan.
 //
@@ -86,10 +89,9 @@ de:meta */
 // ============================================================================
 
 // ── METRE RE-BASE: 1 world unit = 1 METRE. TILE = px per metre at zoom 1 (so zoom 1 ≈ 4 px/m
-// is a drive zoom; zoom ~0.012 is a town overview; ~0.0008 is continental). WS = the world
-// scale applied to the OLD tile-based design — terrain feature sizes and the bend/bridge/valley
-// distances all stretch by WS so the look is preserved while the lattice moves to real km.
-#define WS   300.0f
+// is a drive zoom; zoom ~0.012 is a town overview; ~0.0008 is continental). WS (worldnet.h) =
+// the world scale applied to the OLD tile-based design — terrain features + the bend/bridge/
+// valley distances all stretch by WS so the look is preserved while the lattice is in real km.
 #define TILE 4                                   // screen px per metre at zoom 1
 #define ZMIN 0.0008f                             // far out — see a continent of cities
 #define ZMAX 3.0f                                // tight — the DRIVE follow-cam
@@ -100,31 +102,12 @@ de:meta */
 #define ROAD_R    2                  // road ribbon radius (px) at this zoom
 #define PANEL_W   96                 // intro-panel width (px); left-drag pans only right of it
 
-// ── tweakable world params — all 0..1 (driven by the intro-panel sliders) ─────
-// Getters map each to its real range; the NODE_CS / HUB_CS macros below call them
-// so every existing call site stays unchanged. Defaults reproduce the tuned look.
-static float P_hub_space  = 0.167f;  // hub lattice spacing  → 12..60 tiles
-static float P_town_space = 0.167f;  // town lattice spacing → 6..30 tiles
-static float P_hub_dens   = 0.75f;   // hub presence         → 40..100 %
-static float P_town_dens  = 0.444f;  // town presence        → 0..90 %
-static float P_jitter     = 0.6f;    // node wiggle off-grid → 0..~0.45·cell
-static float P_web        = 0.5f;    // highway WEB density (β-skeleton): 0 = sparse/tree, 1 = looped/mesh
-static float P_sea        = 0.5f;    // sea level            → subtract 0.30..0.60
-
-static int   hub_cs(void)   { return 25000 + (int)(P_hub_space  * 35000); }  // 25..60 km (cities)
-static int   node_cs(void)  { return 3000  + (int)(P_town_space * 5000);  }  // 3..8 km (towns)
-static int   hub_pct(void)  { return 40 + (int)(P_hub_dens   * 60); }   // 40..100
-static int   town_pct(void) { return (int)(P_town_dens * 90); }         // 0..90
-static int   jit(int cs)    { int j = (int)(P_jitter * cs * 0.45f); return j < 1 ? 1 : j; }
-static float hw_beta(void)  { return 1.8f - P_web * 1.0f; }             // β-skeleton param: 1.8 sparse(RNG) .. 0.8 dense
-static float sea_sub(void)  { return 0.30f + P_sea * 0.30f; }           // 0.30..0.60
-#define NODE_CS  node_cs()
-#define HUB_CS   hub_cs()
+// the tweakable world params (P_*), their range getters, and NODE_CS/HUB_CS now
+// live in worldnet.h — the intro-panel sliders write the P_* globals directly.
 
 static int mode = 0;                 // 0 = intro/setup panel, 1 = explore
 
 static float camX, camY;             // top-left of view, in world-tile coords
-static float seedZ;                  // noise z-slice = the world's "seed"
 static float jumpN;                  // SPACE counter → deterministic far jumps
 static int   show_grid = 0;          // cell-border overlay (seam test)
 static int   show_hud  = 1;
@@ -174,78 +157,8 @@ static void view_metrics(void) {     // recompute P + visible tile span from zoo
     vrows = (int)(SCREEN_H / P) + 3;
 }
 
-// ── deterministic per-cell hash (worldgen's) ─────────────────────────────────
-static unsigned hash2(int a, int b) {
-    unsigned h = (unsigned)(a * 73856093) ^ (unsigned)(b * 19349663);
-    h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
-    return h;
-}
-static int ifloor(float v) { int i = (int)v; return (v < 0 && (float)i != v) ? i - 1 : i; }
-
-// ── HEIGHTMAP + RIVERS — worldgen's createZoomedinWorld(), verbatim (scalein 1) ─
-static float height_at(float i, float j) {
-    i /= WS; j /= WS;                                   // metre re-base: stretch terrain features ×WS
-    float x1 = noise3(i / 100.0f, j / 100.0f, seedZ);   // big continents
-    float x2 = noise3(i / 10.0f,  j / 10.0f,  seedZ);   // fine roughness
-    float x3 = noise3(i / 30.0f,  j / 30.0f,  seedZ);   // medium hills
-    float x = 0.6f * x1 + 0.3f * x3 + 0.1f * x2;
-    x = x - sea_sub();                                   // drop sea level (water slider)
-    float xr = noise2(i / 40.0f, j / 40.0f); xr = xr * xr;
-    if (xr > 0.3f && xr < 0.3f + (0.5f * 0.3f) * 0.5f && x > 0.0f) x = -0.5f;
-    xr = noise2(i / 20.0f, j / 20.0f);
-    if (xr > 0.3f && xr < 0.3f + (0.05f * 0.3f) * 0.5f && x > 0.0f) x = -0.5f;
-    return x;
-}
-static int biome_col(float x) {
-    if (x == -0.5f)  return CLR_DARK_BLUE;     // deep water / river
-    if (x <  0.00f)  return CLR_BLUE;          // shallow water
-    if (x <  0.01f)  return CLR_YELLOW;        // beach
-    if (x <  0.05f)  return CLR_ORANGE;        // dunes
-    if (x <  0.10f)  return CLR_PINK;          // scrub
-    if (x <  0.20f)  return CLR_GREEN;         // grass
-    if (x <  0.30f)  return CLR_DARK_GREEN;    // forest
-    if (x <  0.40f)  return CLR_BROWN;         // hills
-    if (x <  0.45f)  return CLR_DARK_GREY;     // rock
-    return CLR_LIGHT_GREY;                      // peaks
-}
-static int passable(float x) { return x >= 0.0f && x < 0.4f; }   // road LOS test
-
-// ── RANK + SPACING — every node gets a deterministic rank; rare high ranks PLUS
-// priority suppression give blue-noise spacing (no two strong nodes adjacent). All
-// pure functions of cell coords → seam-true. A road's CLASS is f(endpoint ranks). ──
-enum { RK_HAMLET, RK_TOWN, RK_CITY, RK_METRO };
-enum { CL_MOTORWAY, CL_HIGHWAY, CL_ARTERIAL, CL_STREET, CL_DIRT };
-
-static int town_rank(int cx, int cy) {                   // feeder node: town / hamlet
-    unsigned h = hash2(cx * 1900385059u + 61, cy * 2120969693u + 17);
-    return (h % 100u < 35u) ? RK_TOWN : RK_HAMLET;
-}
-// a town CANDIDATE exists here (density gate only — no terrain, so suppression is cheap)
-static int town_present(int cx, int cy) {
-    unsigned h = hash2(cx * 2654435761u + 17, cy * 40503u + 91);
-    return (h % 100u) < (unsigned)town_pct();
-}
-// suppression priority: higher rank wins, hash breaks ties (cell folded in → no ties)
-static unsigned town_prio(int cx, int cy) {
-    unsigned h = hash2(cx * 2654435761u + 17, cy * 40503u + 91);
-    return ((unsigned)town_rank(cx, cy) << 28)
-         | ((h ^ ((unsigned)cx * 2246822519u + (unsigned)cy * 3266489917u)) & 0x0fffffffu);
-}
-
-// METRO de-clustering: a metro candidate demotes to a city if a higher-priority metro
-// candidate sits within R cells — so big cities never bunch up. Keeps the node (the
-// backbone stays dense/connected); only the *rank* changes.
-static int hub_rank(int cx, int cy) {
-    unsigned h = hash2(cx * 915488749u + 31, cy * 147645773u + 7);
-    if (h % 100u >= 15u) return RK_CITY;                 // not even a metro candidate
-    for (int a = cx - 2; a <= cx + 2; a++)
-        for (int b = cy - 2; b <= cy + 2; b++) {
-            if (a == cx && b == cy) continue;
-            unsigned g = hash2(a * 915488749u + 31, b * 147645773u + 7);
-            if (g % 100u < 15u && g > h) return RK_CITY; // a stronger metro nearby → demote
-        }
-    return RK_METRO;
-}
+// hash/terrain/ranks/lattice (hash2 → wn_hash2, height_at, biome_col, passable,
+// RK_*/CL_*, town_*/hub_rank, get_node/get_hub) now live in worldnet.h.
 
 // style per road class: ribbon radius, casing colour, centre colour, has centre-line
 typedef struct { int r, casing, centre, mark; } RStyle;
@@ -257,166 +170,12 @@ static const RStyle RS[5] = {
     /* DIRT     */ { 1, CLR_BROWN,       CLR_BROWN,       0 },
 };
 
-// ── POI NODES — one per cell, with PRIORITY SUPPRESSION for blue-noise spacing (a
-// town drops if a higher-priority town candidate is adjacent — R=1 min distance).
-// Pure function of (cx,cy); the suppression scan is hash-only (cheap), one height_at.
-static int get_node(int cx, int cy, float *wx, float *wy) {
-    if (!town_present(cx, cy)) return 0;                  // density slider
-    unsigned p = town_prio(cx, cy);
-    for (int a = cx - 1; a <= cx + 1; a++)               // min-distance spacing (R=1)
-        for (int b = cy - 1; b <= cy + 1; b++) {
-            if (a == cx && b == cy) continue;
-            if (town_present(a, b) && town_prio(a, b) > p) return 0;   // a stronger neighbour wins
-        }
-    unsigned h = hash2(cx * 2654435761u + 17, cy * 40503u + 91);
-    int j = jit(NODE_CS);                                // wiggle slider × cell
-    float jx = (float)((int)((h >> 7)  % (2*j+1)) - j);
-    float jy = (float)((int)((h >> 15) % (2*j+1)) - j);
-    float x = cx * NODE_CS + NODE_CS * 0.5f + jx;
-    float y = cy * NODE_CS + NODE_CS * 0.5f + jy;
-    if (!passable(height_at(x, y))) return 0;            // habitable land only
-    *wx = x; *wy = y;
-    return 1;
-}
-
-// ── HUBS — the highway backbone, on a coarse lattice. Independent hash layer from
-// towns (different constants), denser (~85%) so the lattice graph stays connected. ─
-static int get_hub(int cx, int cy, float *wx, float *wy) {
-    unsigned h = hash2(cx * 374761393u + 5, cy * 668265263u + 3);
-    if (h % 100u >= (unsigned)hub_pct()) return 0;       // hub-density slider
-    int j = jit(HUB_CS);                                 // wiggle slider × cell
-    float jx = (float)((int)((h >> 6)  % (2*j+1)) - j);
-    float jy = (float)((int)((h >> 14) % (2*j+1)) - j);
-    float x = cx * HUB_CS + HUB_CS * 0.5f + jx;
-    float y = cy * HUB_CS + HUB_CS * 0.5f + jy;
-    if (!passable(height_at(x, y))) return 0;            // habitable land only
-    *wx = x; *wy = y;
-    return 1;
-}
-
 // world tile → screen px (centre of tile) — P = TILE*zoom, set per frame
 static int sxp(float wx) { return (int)((wx - camX) * P + P * 0.5f); }
 static int syp(float wy) { return (int)((wy - camY) * P + P * 0.5f); }
 
-// Catmull-Rom basis through (p0,p1,p2,p3); p1->p2 is the drawn span, t in [0,1].
-// (The geometry SEAM is link_path() below — this is just its base-curve helper.)
-static void catmull(float p0,float p1,float p2,float p3,float t,float *out){
-    float t2=t*t, t3=t2*t;
-    *out = 0.5f*( (2*p1) + (-p0+p2)*t
-                + (2*p0-5*p1+4*p2-p3)*t2
-                + (-p0+3*p1-3*p2+p3)*t3 );
-}
-
-#define LINK_SAMPLES 40             // world-space samples per link (km-long now → sample denser)
-#define MAXBEND      (26.0f*WS)     // furthest a road will detour sideways (metres)
-#define MAX_BRIDGE   (10.0f*WS)     // longest WATER span a road will bridge (metres);
-                                    // wider water = a real barrier (road drops)
-#define VALLEY_D     (6.0f*WS)      // valley-bias: how far sideways to probe (metres)
-#define VALLEY_K     (40.0f*WS)     // ...how strongly height diff pulls the road
-#define VALLEY_MAX   (5.0f*WS)      // ...capped detour toward lower ground (metres)
-#define BEND_STEP    (1.5f*WS)      // probe step for the bend search (metres) — scales with WS so the
-                                    // loop counts stay constant (else km-long links = millions of iters → hang)
-static float lp_x[LINK_SAMPLES + 1], lp_y[LINK_SAMPLES + 1];   // last link_path() result
-static int   lp_br[LINK_SAMPLES + 1];   // per-sample: 1 = this span is a BRIDGE (over water)
-
-static int passable_at(float x, float y) { return passable(height_at(x, y)); }
-
-// Geometry only: sample the base Catmull-Rom (c0,a,b,c3) into lp_, plus a perpendicular
-// BOW of size `bend` peaking at the middle (sin window) — the terrain detour.
-static void build_curve(float c0x, float c0y, float ax, float ay, float bx, float by,
-                        float c3x, float c3y, float bend, float perpx, float perpy) {
-    for (int i = 0; i <= LINK_SAMPLES; i++) {
-        float t = (float)i / LINK_SAMPLES, bxv, byv;
-        catmull(c0x, ax, bx, c3x, t, &bxv);
-        catmull(c0y, ay, by, c3y, t, &byv);
-        float w = sin_deg(t * 180.0f);               // 0 at ends, 1 at the middle
-        lp_x[i] = bxv + perpx * bend * w;
-        lp_y[i] = byv + perpy * bend * w;
-    }
-}
-
-// Scan the current lp_ curve. *peak = any impassable HIGH ground (rock/peak — can't
-// bridge those). *maxwater = longest run of WATER samples (bridgeable). Returns 1 if
-// the whole curve is on passable land (no blockage at all).
-static int classify_curve(int *peak, int *maxwater) {
-    *peak = 0; *maxwater = 0; int run = 0, blocked = 0;
-    for (int i = 0; i <= LINK_SAMPLES; i++) {
-        float h = height_at(lp_x[i], lp_y[i]);
-        if (passable(h)) { run = 0; continue; }
-        blocked++;
-        if (h >= 0.4f) *peak = 1;                    // rock/peak → not bridgeable
-        else { run++; if (run > *maxwater) *maxwater = run; }   // water run
-    }
-    return blocked == 0;
-}
-
-// THE SEAM — the ONE place road geometry is produced. Fills lp_ (+ lp_br bridge flags)
-// with the drivable path A→B (shaped by c0/c3). Tries, in order: straight; BRIDGE a
-// short water gap; BEND around the obstacle on land. Returns the sample count, or 0 if
-// none works (drop). Both the renderer and the future sloop road_at() read lp_.
-static int link_path(float c0x, float c0y, float ax, float ay,
-                     float bx, float by, float c3x, float c3y) {
-    float dx = bx - ax, dy = by - ay, len = fsqrt(dx*dx + dy*dy);
-    if (len < 0.5f) return 0;
-    float ux = dx/len, uy = dy/len, perpx = -uy, perpy = ux;
-    int peak, maxw;
-
-    // 1. base curve clear? then add a gentle VALLEY bias — bend toward the lower of the
-    //    two sides at the midpoint, so roads sag into valleys / hug coasts instead of
-    //    climbing. Pure fn of terrain → seam-true; reverts if the bias hits water/peak.
-    build_curve(c0x, c0y, ax, ay, bx, by, c3x, c3y, 0, perpx, perpy);
-    if (classify_curve(&peak, &maxw)) {
-        float mx, my;
-        catmull(c0x, ax, bx, c3x, 0.5f, &mx);
-        catmull(c0y, ay, by, c3y, 0.5f, &my);
-        float hp = height_at(mx + perpx*VALLEY_D, my + perpy*VALLEY_D);
-        float hn = height_at(mx - perpx*VALLEY_D, my - perpy*VALLEY_D);
-        float vb = (hn - hp) * VALLEY_K;                 // + = the +perp side is lower
-        if (vb >  VALLEY_MAX) vb =  VALLEY_MAX;
-        if (vb < -VALLEY_MAX) vb = -VALLEY_MAX;
-        if (vb > 0.5f || vb < -0.5f) {
-            build_curve(c0x, c0y, ax, ay, bx, by, c3x, c3y, vb, perpx, perpy);
-            if (!classify_curve(&peak, &maxw))           // biased curve hit terrain → revert
-                build_curve(c0x, c0y, ax, ay, bx, by, c3x, c3y, 0, perpx, perpy);
-        }
-        for (int i = 0; i <= LINK_SAMPLES; i++) lp_br[i] = 0;
-        return LINK_SAMPLES + 1;
-    }
-
-    // 2. blocked only by a SHORT stretch of water (a river/strait)? → BRIDGE it.
-    float spacing = len / LINK_SAMPLES;
-    if (!peak && maxw * spacing <= MAX_BRIDGE) {
-        for (int i = 0; i <= LINK_SAMPLES; i++)
-            lp_br[i] = (height_at(lp_x[i], lp_y[i]) < 0.0f);   // tag the over-water spans
-        return LINK_SAMPLES + 1;
-    }
-
-    // 3. peak, or water too wide to bridge → try to BEND around it on land.
-    int steps = (int)(len / BEND_STEP); if (steps < 2) steps = 2; if (steps > 256) steps = 256;
-    float sumt = 0; int nb = 0;
-    for (int s = 1; s < steps; s++) {
-        float t = (float)s / steps;
-        if (!passable_at(ax + dx*t, ay + dy*t)) { sumt += t; nb++; }
-    }
-    if (!nb) return 0;
-    float tc = sumt / nb, ox = ax + dx*tc, oy = ay + dy*tc;
-    float clr = 0; int sgn = 0;
-    for (float off = BEND_STEP; off <= MAXBEND; off += BEND_STEP) {
-        if (passable_at(ox + perpx*off, oy + perpy*off)) { clr = off; sgn =  1; break; }
-        if (passable_at(ox - perpx*off, oy - perpy*off)) { clr = off; sgn = -1; break; }
-    }
-    if (!sgn) return 0;                              // boxed in → drop
-    for (float k = 1.0f; k <= 3.0f; k += 0.5f) {
-        float bend = sgn * (clr * k + 2.0f);
-        float ab = bend < 0 ? -bend : bend; if (ab > MAXBEND * 1.5f) break;
-        build_curve(c0x, c0y, ax, ay, bx, by, c3x, c3y, bend, perpx, perpy);
-        if (classify_curve(&peak, &maxw)) {
-            for (int i = 0; i <= LINK_SAMPLES; i++) lp_br[i] = 0;
-            return LINK_SAMPLES + 1;
-        }
-    }
-    return 0;
-}
+// catmull / build_curve / classify_curve / link_path (THE geometry seam) + the
+// LINK_SAMPLES..BEND_STEP tuning now live in worldnet.h; the strokers below read lp_.
 
 // Stroke the path in lp_ as overlapping circles, fine enough at any zoom. Spans tagged
 // as bridges (lp_br) draw in `bcol` so a road over water reads as a bridge.
@@ -464,9 +223,8 @@ static void stroke_dashes(int n) {
 }
 
 // Draw one classified link for a phase: 0 = casing, 1 = centre (+ centre-line markings).
-// real carriageway HALF-widths in METRES, by class (motorway→dirt). Drawn at hw·P pixels so a
+// ROAD_HW_M (real carriageway half-widths, metres — worldnet.h) drawn at hw·P pixels so a
 // road is true-width when you drive (car sits in its lane) yet floors to 1px on the overview map.
-static const float ROAD_HW_M[5] = { 12.0f, 7.0f, 5.0f, 3.5f, 2.5f };
 static void draw_link(int n, int cls, int phase) {
     const RStyle *s = &RS[cls];
     int r = (int)(ROAD_HW_M[cls] * P); if (r < 1) r = 1;     // metre half-width → px (floored)
@@ -490,8 +248,8 @@ static void draw_link(int n, int cls, int phase) {
 // edge's lune is fully covered → no pop on pan), then it's pure geometry over that set.
 #define HW_MAX 512
 static void draw_highways(int phase) {
-    int c0 = ifloor(camX / HUB_CS) - 4, c1 = ifloor((camX + vcols) / HUB_CS) + 4;
-    int r0 = ifloor(camY / HUB_CS) - 4, r1 = ifloor((camY + vrows) / HUB_CS) + 4;
+    int c0 = wn_ifloor(camX / HUB_CS) - 4, c1 = wn_ifloor((camX + vcols) / HUB_CS) + 4;
+    int r0 = wn_ifloor(camY / HUB_CS) - 4, r1 = wn_ifloor((camY + vrows) / HUB_CS) + 4;
     static float hx[HW_MAX], hy[HW_MAX]; static int hrk[HW_MAX]; int N = 0;
     for (int cx = c0; cx <= c1; cx++)
         for (int cy = r0; cy <= r1 && N < HW_MAX; cy++) {
@@ -520,238 +278,13 @@ static void draw_highways(int phase) {
         }
 }
 
-// nearest present hub to a town, searched over the 5x5 hub cells around it (pure fn).
-// Wide search so a town near a hub-gap still finds the backbone instead of orphaning.
-static int nearest_hub(float tx, float ty, float *hx, float *hy) {
-    int hc = ifloor(tx / HUB_CS), hr = ifloor(ty / HUB_CS);
-    float best = 1e18f; int found = 0;
-    for (int a = hc - 2; a <= hc + 2; a++)
-        for (int b = hr - 2; b <= hr + 2; b++) {
-            float wx, wy; if (!get_hub(a, b, &wx, &wy)) continue;
-            float dx = wx - tx, dy = wy - ty, dd = dx*dx + dy*dy;
-            if (dd < best) { best = dd; *hx = wx; *hy = wy; found = 1; }
-        }
-    return found;
-}
-
-// nearest OTHER town, over the 5x5 town cells around it (pure fn, self excluded)
-static int nearest_town(float tx, float ty, float *nx, float *ny) {
-    int tc = ifloor(tx / NODE_CS), tr = ifloor(ty / NODE_CS);
-    float best = 1e18f; int found = 0;
-    for (int a = tc - 2; a <= tc + 2; a++)
-        for (int b = tr - 2; b <= tr + 2; b++) {
-            float wx, wy; if (!get_node(a, b, &wx, &wy)) continue;
-            if (wx == tx && wy == ty) continue;          // self
-            float dx = wx - tx, dy = wy - ty, dd = dx*dx + dy*dy;
-            if (dd < best) { best = dd; *nx = wx; *ny = wy; found = 1; }
-        }
-    return found;
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// THE GRAPH + road_at() — worldgen-plan RUNG 1 (plan build step 3): the unified
-// nearest-edge query + spatial index over the SAME pure-function edges the
-// renderer strokes. FENCED FOR EXTRACTION (the one-data-model guard, worldgen-plan
-// §Where the code lives): sloop consumes this exact block behind its P1 seam next.
-//
-// Edges near an ANCHOR (the car) are materialized once per node-cell crossing,
-// using the renderer's own ownership rules (β-skeleton pairs; a town's two
-// feeders) so screen == query by construction. Each edge's spans are then walked
-// into a fixed bucket grid over the coverage box; road_at(x,y) tests only the
-// 3×3 buckets around the point: nearest segment wins, on_road when within the
-// class half-width (+EG_PAVE = the pavement strip sloop's foot seam reads).
-// A bucket/pool overflow falls back to a brute scan — slower, never wrong.
-
-enum { NET_ROAD, NET_RAIL, NET_WATER };  // edge-TYPE field — pinned into the data model
-                                         // BEFORE rung 1 freezes it (worldgen-plan §Beyond
-                                         // roads: rivers + rails are later NET_* consumers)
-
-typedef struct {
-    float x[LINK_SAMPLES + 1], y[LINK_SAMPLES + 1];  // sampled polyline, world metres
-    unsigned char br[LINK_SAMPLES + 1];              // per-sample bridge flag (over water)
-    unsigned char cls, net;                          // CL_* + NET_* (all NET_ROAD today)
-} REdge;
-
-// RoadHit — the P1 seam contract (mirrors sloop's / roadnet v1's, so the swap is a
-// body change only). zone = land-use; stubbed to cls until the content rung fills it.
-// dist = metres to the nearest centre-line — lane-keeping falls out for free.
-typedef struct { int on_road, on_pave, cls, zone, net; float dist; } RoadHit;
-
-#define EG_MAX   160     // edges cached around the anchor cell
-#define EG_GRID  24      // spatial-hash buckets per axis over the coverage box
-#define EG_BKT   18      // segment refs per bucket
-#define EG_PAVE  2.0f    // pavement strip beside the carriageway (m) — the walk seam
-#define EG_MARGIN 200.0f // coverage slack beyond the anchor node cell (m)
-
-static REdge eg_e[EG_MAX];
-static int   eg_n, eg_overflow;                    // overflow → brute scan (correct, slower)
-static short eg_bkt[EG_GRID][EG_GRID][EG_BKT];     // ref = (edge << 6) | sample
-static unsigned char eg_bn[EG_GRID][EG_GRID];
-static float eg_x0, eg_y0, eg_bs;                  // coverage-box origin + bucket size
-static int   eg_valid = 0;
-static struct { float p[7], seed; int cx, cy; } eg_key;   // rebuild trigger snapshot
-
-static float seg_d2(float px, float py, float ax, float ay, float bx, float by) {
-    float vx = bx - ax, vy = by - ay;
-    float c1 = (px - ax) * vx + (py - ay) * vy;
-    if (c1 <= 0) { float dx = px - ax, dy = py - ay; return dx*dx + dy*dy; }
-    float c2 = vx*vx + vy*vy;
-    if (c2 <= c1) { float dx = px - bx, dy = py - by; return dx*dx + dy*dy; }
-    float t = c1 / c2, dx = px - (ax + t*vx), dy = py - (ay + t*vy);
-    return dx*dx + dy*dy;
-}
-
-// could this straight link (bent up to `infl` sideways) reach the coverage box?
-static int eg_reach(float ax, float ay, float bx, float by, float infl) {
-    float cxh = eg_x0 + eg_bs * EG_GRID, cyh = eg_y0 + eg_bs * EG_GRID;
-    float lox = (ax < bx ? ax : bx) - infl, hix = (ax > bx ? ax : bx) + infl;
-    float loy = (ay < by ? ay : by) - infl, hiy = (ay > by ? ay : by) + infl;
-    return !(hix < eg_x0 || lox > cxh || hiy < eg_y0 || loy > cyh);
-}
-
-// append the current lp_ curve to the pool + walk its spans into the buckets
-// (half-bucket strides; only cells inside the coverage box are marked)
-static void eg_add(int cls) {
-    if (eg_n >= EG_MAX) { eg_overflow = 1; return; }
-    REdge *e = &eg_e[eg_n];
-    for (int i = 0; i <= LINK_SAMPLES; i++) {
-        e->x[i] = lp_x[i]; e->y[i] = lp_y[i]; e->br[i] = (unsigned char)lp_br[i];
-    }
-    e->cls = (unsigned char)cls; e->net = NET_ROAD;
-    for (int i = 0; i < LINK_SAMPLES; i++) {
-        float ax = e->x[i], ay = e->y[i], dx = e->x[i+1] - ax, dy = e->y[i+1] - ay;
-        float len = fsqrt(dx*dx + dy*dy);
-        int steps = (int)(len / (eg_bs * 0.5f)) + 1;
-        int lastc = -1, lastr = -1;
-        for (int s = 0; s <= steps; s++) {
-            float t = (float)s / steps, px = ax + dx*t, py = ay + dy*t;
-            if (px < eg_x0 || py < eg_y0) { lastc = -1; continue; }
-            int c = (int)((px - eg_x0) / eg_bs), r = (int)((py - eg_y0) / eg_bs);
-            if (c >= EG_GRID || r >= EG_GRID) { lastc = -1; continue; }
-            if (c == lastc && r == lastr) continue;
-            lastc = c; lastr = r;
-            if (eg_bn[r][c] >= EG_BKT) { eg_overflow = 1; continue; }
-            eg_bkt[r][c][eg_bn[r][c]++] = (short)((eg_n << 6) | i);
-        }
-    }
-    eg_n++;
-}
-
-// rebuild the pool around (qx,qy): the renderer's two enumerations, anchored on the
-// query instead of the view. Highways gather hubs ±5 hub cells (lune coverage for any
-// pair near the anchor); feeders gather towns ±6 node cells (the draw margin). Links
-// that can't reach the coverage box are skipped before link_path (the expensive part).
-#define EG_HWN 160
-static void eg_build(float qx, float qy) {
-    eg_n = 0; eg_overflow = 0;
-    for (int r = 0; r < EG_GRID; r++) for (int c = 0; c < EG_GRID; c++) eg_bn[r][c] = 0;
-    int cs = NODE_CS;
-    int acx = ifloor(qx / cs), acy = ifloor(qy / cs);
-    eg_x0 = acx * cs - EG_MARGIN; eg_y0 = acy * cs - EG_MARGIN;
-    eg_bs = (cs + 2 * EG_MARGIN) / EG_GRID;
-
-    // 1. HIGHWAYS — β-skeleton over hubs around the anchor (draw_highways' rule)
-    static float hx[EG_HWN], hy[EG_HWN]; static int hrk[EG_HWN]; int N = 0;
-    int h0 = ifloor(qx / HUB_CS) - 5, h1 = ifloor(qx / HUB_CS) + 5;
-    int v0 = ifloor(qy / HUB_CS) - 5, v1 = ifloor(qy / HUB_CS) + 5;
-    for (int cx = h0; cx <= h1; cx++)
-        for (int cy = v0; cy <= v1 && N < EG_HWN; cy++) {
-            float x, y; if (!get_hub(cx, cy, &x, &y)) continue;
-            hx[N] = x; hy[N] = y; hrk[N] = hub_rank(cx, cy); N++;
-        }
-    float beta = hw_beta(), maxd2 = (3.2f * HUB_CS) * (3.2f * HUB_CS);
-    float infl = MAXBEND * 1.5f + 60.0f;
-    for (int i = 0; i < N; i++)
-        for (int j = i + 1; j < N; j++) {
-            float ax = hx[i], ay = hy[i], bx = hx[j], by = hy[j];
-            float ab2 = (bx-ax)*(bx-ax) + (by-ay)*(by-ay);
-            if (ab2 > maxd2 || ab2 < 1) continue;
-            if (!eg_reach(ax, ay, bx, by, infl)) continue;
-            int linked = 1;
-            for (int k = 0; k < N; k++) {
-                if (k == i || k == j) continue;
-                float ca2 = (hx[k]-ax)*(hx[k]-ax) + (hy[k]-ay)*(hy[k]-ay);
-                float cb2 = (hx[k]-bx)*(hx[k]-bx) + (hy[k]-by)*(hy[k]-by);
-                if (ca2 + cb2 < beta * ab2) { linked = 0; break; }
-            }
-            if (!linked) continue;
-            int cls = (hrk[i] == RK_METRO || hrk[j] == RK_METRO) ? CL_MOTORWAY : CL_HIGHWAY;
-            if (link_path(2*ax-bx, 2*ay-by, ax, ay, bx, by, 2*bx-ax, 2*by-ay)) eg_add(cls);
-        }
-
-    // 2. FEEDERS — the towns' two links each (draw_feeders' rule)
-    int m = 6;
-    for (int cx = acx - m; cx <= acx + m; cx++)
-        for (int cy = acy - m; cy <= acy + m; cy++) {
-            float tx, ty; if (!get_node(cx, cy, &tx, &ty)) continue;
-            int tr = town_rank(cx, cy);
-            float hx2, hy2, nx, ny;
-            if (nearest_hub(tx, ty, &hx2, &hy2) && eg_reach(tx, ty, hx2, hy2, infl)) {
-                int cls = (tr == RK_TOWN) ? CL_ARTERIAL : CL_STREET;
-                if (link_path(2*tx-hx2, 2*ty-hy2, tx, ty, hx2, hy2, 2*hx2-tx, 2*hy2-ty)) eg_add(cls);
-            }
-            if (nearest_town(tx, ty, &nx, &ny) && eg_reach(tx, ty, nx, ny, infl)) {
-                int nr = town_rank(ifloor(nx / NODE_CS), ifloor(ny / NODE_CS));
-                int cls = (tr == RK_TOWN || nr == RK_TOWN) ? CL_STREET : CL_DIRT;
-                if (link_path(2*tx-nx, 2*ty-ny, tx, ty, nx, ny, 2*nx-tx, 2*ny-ty)) eg_add(cls);
-            }
-        }
-}
-
-static void eg_ensure(float qx, float qy) {
-    int cx = ifloor(qx / NODE_CS), cy = ifloor(qy / NODE_CS);
-    float p[7] = { P_hub_space, P_town_space, P_hub_dens, P_town_dens, P_jitter, P_web, P_sea };
-    int same = eg_valid && cx == eg_key.cx && cy == eg_key.cy && eg_key.seed == seedZ;
-    for (int i = 0; same && i < 7; i++) if (eg_key.p[i] != p[i]) same = 0;
-    if (same) return;
-    for (int i = 0; i < 7; i++) eg_key.p[i] = p[i];
-    eg_key.seed = seedZ; eg_key.cx = cx; eg_key.cy = cy; eg_valid = 1;
-    eg_build(qx, qy);
-}
-
-typedef struct { float bw, ba; int cw, ca, pave; } EgBest;   // within-hw best · any best
-static void eg_test(int e, int i, float x, float y, EgBest *b) {
-    const REdge *ed = &eg_e[e];
-    float d2 = seg_d2(x, y, ed->x[i], ed->y[i], ed->x[i+1], ed->y[i+1]);
-    float hw = ROAD_HW_M[ed->cls];
-    if (d2 < b->ba) { b->ba = d2; b->ca = ed->cls; }
-    if (d2 <= hw * hw && d2 < b->bw) { b->bw = d2; b->cw = ed->cls; }
-    if (d2 <= (hw + EG_PAVE) * (hw + EG_PAVE)) b->pave = 1;
-}
-
-// THE QUERY — one call answers surface + class + collision for every tier.
-static RoadHit road_at(float x, float y) {
-    RoadHit r; r.on_road = 0; r.on_pave = 0; r.cls = CL_DIRT; r.zone = 0;
-    r.net = NET_ROAD; r.dist = 1e9f;
-    eg_ensure(x, y);
-    EgBest b = { 1e30f, 1e30f, -1, -1, 0 };
-    int qc = (int)((x - eg_x0) / eg_bs), qr = (int)((y - eg_y0) / eg_bs);
-    if (!eg_overflow && x >= eg_x0 && y >= eg_y0 && qc < EG_GRID && qr < EG_GRID) {
-        for (int dr = -1; dr <= 1; dr++)
-            for (int dc = -1; dc <= 1; dc++) {
-                int c = qc + dc, rr = qr + dr;
-                if (c < 0 || rr < 0 || c >= EG_GRID || rr >= EG_GRID) continue;
-                for (int k = 0; k < eg_bn[rr][c]; k++) {
-                    short ref = eg_bkt[rr][c][k];
-                    eg_test(ref >> 6, ref & 63, x, y, &b);
-                }
-            }
-    } else {                                          // overflow / off-box → brute (still correct)
-        for (int e = 0; e < eg_n; e++)
-            for (int i = 0; i < LINK_SAMPLES; i++) eg_test(e, i, x, y, &b);
-    }
-    if (b.cw >= 0) { r.on_road = 1; r.cls = b.cw; }
-    else if (b.ca >= 0) r.cls = b.ca;
-    r.on_pave = b.pave;
-    r.zone = r.cls;                                   // land-use stub until the content rung
-    if (b.ba < 1e30f) r.dist = fsqrt(b.ba);
-    return r;
-}
-// ═══ end of the fenced graph/query block ═════════════════════════════════════
+// nearest_hub / nearest_town + THE GRAPH + wn_road_at() (the rung-1 fenced block:
+// NET_* edge types, REdge, WnHit, the eg_ edge cache + spatial hash + query) were
+// extracted VERBATIM to worldnet.h when sloop became the second consumer.
 
 // rung-1 car wiring: the surface drives the car (the graph query, not pixels)
 #define OFFROAD_DRAG 0.96f   // extra per-frame speed keep off the tarmac (top ≈ 63 km/h)
-static RoadHit car_hit;      // this frame's query at the car — HUD + grip + trace read it
+static WnHit car_hit;        // this frame's query at the car — HUD + grip + trace read it
 static const char *CLS_NAME[5] = { "MOTORWAY", "HIGHWAY", "ARTERIAL", "STREET", "DIRT" };
 
 // MINOR ROADS — each town links to its nearest hub (feeder onto the backbone) AND to
@@ -761,8 +294,8 @@ static const char *CLS_NAME[5] = { "MOTORWAY", "HIGHWAY", "ARTERIAL", "STREET", 
 // double-draw harmlessly (identical pixels).
 static void draw_feeders(int phase) {
     int m = 5;
-    int c0 = ifloor(camX / NODE_CS) - m, c1 = ifloor((camX + vcols) / NODE_CS) + m;
-    int r0 = ifloor(camY / NODE_CS) - m, r1 = ifloor((camY + vrows) / NODE_CS) + m;
+    int c0 = wn_ifloor(camX / NODE_CS) - m, c1 = wn_ifloor((camX + vcols) / NODE_CS) + m;
+    int r0 = wn_ifloor(camY / NODE_CS) - m, r1 = wn_ifloor((camY + vrows) / NODE_CS) + m;
     for (int cx = c0; cx <= c1; cx++)
         for (int cy = r0; cy <= r1; cy++) {
             float tx, ty; if (!get_node(cx, cy, &tx, &ty)) continue;
@@ -777,7 +310,7 @@ static void draw_feeders(int phase) {
             // local road to the nearest town: street if a town is involved, else a dirt track
             float nx, ny;
             if (nearest_town(tx, ty, &nx, &ny)) {
-                int nr = town_rank(ifloor(nx / NODE_CS), ifloor(ny / NODE_CS));
+                int nr = town_rank(wn_ifloor(nx / NODE_CS), wn_ifloor(ny / NODE_CS));
                 int cls = (tr == RK_TOWN || nr == RK_TOWN) ? CL_STREET : CL_DIRT;
                 np = link_path(2*tx - nx, 2*ty - ny, tx, ty, nx, ny, 2*nx - tx, 2*ny - ty);
                 if (np) draw_link(np, cls, phase);
@@ -788,8 +321,8 @@ static void draw_feeders(int phase) {
 static void draw_nodes(int detail) {
     // towns (feeder tier) — orange = town, small red = hamlet; hidden far out (LOD)
     if (detail) {
-        int c0 = ifloor(camX / NODE_CS) - 2, c1 = ifloor((camX + vcols) / NODE_CS) + 2;
-        int r0 = ifloor(camY / NODE_CS) - 2, r1 = ifloor((camY + vrows) / NODE_CS) + 2;
+        int c0 = wn_ifloor(camX / NODE_CS) - 2, c1 = wn_ifloor((camX + vcols) / NODE_CS) + 2;
+        int r0 = wn_ifloor(camY / NODE_CS) - 2, r1 = wn_ifloor((camY + vrows) / NODE_CS) + 2;
         for (int cx = c0; cx <= c1; cx++)
             for (int cy = r0; cy <= r1; cy++) {
                 float wx, wy; if (!get_node(cx, cy, &wx, &wy)) continue;
@@ -801,8 +334,8 @@ static void draw_nodes(int detail) {
     }
     // hubs (backbone tier) — metros bigger than cities. Shrink with zoom so they don't
     // swarm into a polka-dot field that buries the highways when far out.
-    int h0 = ifloor(camX / HUB_CS) - 2, h1 = ifloor((camX + vcols) / HUB_CS) + 2;
-    int v0 = ifloor(camY / HUB_CS) - 2, v1 = ifloor((camY + vrows) / HUB_CS) + 2;
+    int h0 = wn_ifloor(camX / HUB_CS) - 2, h1 = wn_ifloor((camX + vcols) / HUB_CS) + 2;
+    int v0 = wn_ifloor(camY / HUB_CS) - 2, v1 = wn_ifloor((camY + vrows) / HUB_CS) + 2;
     for (int cx = h0; cx <= h1; cx++)
         for (int cy = v0; cy <= v1; cy++) {
             float wx, wy; if (!get_hub(cx, cy, &wx, &wy)) continue;
@@ -818,11 +351,11 @@ static void draw_nodes(int detail) {
 }
 
 static void draw_grid_overlay(void) {       // the seam test aid: NODE_CS cell borders
-    for (int cx = ifloor(camX / NODE_CS); cx * NODE_CS < camX + vcols; cx++) {
+    for (int cx = wn_ifloor(camX / NODE_CS); cx * NODE_CS < camX + vcols; cx++) {
         int x = (int)((cx * NODE_CS - camX) * P);
         line(x, 0, x, SCREEN_H, CLR_DARK_PURPLE);
     }
-    for (int cy = ifloor(camY / NODE_CS); cy * NODE_CS < camY + vrows; cy++) {
+    for (int cy = wn_ifloor(camY / NODE_CS); cy * NODE_CS < camY + vrows; cy++) {
         int y = (int)((cy * NODE_CS - camY) * P);
         line(0, y, SCREEN_W, y, CLR_DARK_PURPLE);
     }
@@ -838,7 +371,7 @@ static void hud(void) {
         snprintf(buf, sizeof buf, "%3d km/h   %.2f km", (int)kmh, car_odo / 1000.0f);
         print(buf, 84, 2, CLR_YELLOW);
         print(car_hit.on_road ? CLS_NAME[car_hit.cls] : "OFF-ROAD", 232, 2,   // rung 1: what
-              car_hit.on_road ? CLR_GREEN : CLR_ORANGE);                      // road_at() says
+              car_hit.on_road ? CLR_GREEN : CLR_ORANGE);                      // wn_road_at() says
         print_centered("\x18\x19\x1a\x1b/WASD drive   click GPS = map   C drop car",
                        SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
     } else {                                     // MAP overview
@@ -926,8 +459,8 @@ void update(void) {
         if (btn(0,BTN_UP)  ||key('W')) car_spd += CAR_ACCEL;
         if (btn(0,BTN_DOWN)||key('S')) car_spd -= CAR_BRAKE;
         car_spd *= CAR_FRIC; car_spd = clamp(car_spd, CAR_REVMAX, CAR_MAXSPD);
-        // rung 1: the SURFACE drives the car — road_at() at the car, off-road drags
-        car_hit = road_at(car_x, car_y);
+        // rung 1: the SURFACE drives the car — wn_road_at() at the car, off-road drags
+        car_hit = wn_road_at(car_x, car_y);
         if (!car_hit.on_road) car_spd *= OFFROAD_DRAG;
 #ifdef DE_TRACE
         watch("on_road", "%d", car_hit.on_road);
@@ -972,27 +505,15 @@ void update(void) {
         else if (mode == 1) {                              // centre, aligned to it → DRIVE — the
             float p2 = TILE * zoom;                        // deterministic harness entry
             float wx = camX + SCREEN_W * 0.5f / p2, wy = camY + SCREEN_H * 0.5f / p2;
-            eg_ensure(wx, wy);
-            float best = 1e30f; int be = -1, bi = 0;
-            for (int e = 0; e < eg_n; e++)
-                for (int i = 0; i <= LINK_SAMPLES; i++) {
-                    float ddx = eg_e[e].x[i] - wx, ddy = eg_e[e].y[i] - wy;
-                    float dd = ddx*ddx + ddy*ddy;
-                    if (dd < best) { best = dd; be = e; bi = i; }
-                }
-            if (be >= 0) { wx = eg_e[be].x[bi]; wy = eg_e[be].y[bi]; }
-            car_spawn(wx, wy);
-            if (be >= 0) {                                 // face along the road
-                int i0 = bi < LINK_SAMPLES ? bi : bi - 1;
-                car_ang = angle_to((int)eg_e[be].x[i0], (int)eg_e[be].y[i0],
-                                   (int)eg_e[be].x[i0+1], (int)eg_e[be].y[i0+1]);
-            }
+            float rang;
+            if (wn_nearest_road_point(wx, wy, &wx, &wy, &rang)) { car_spawn(wx, wy); car_ang = rang; }
+            else car_spawn(wx, wy);
             vmode = V_DRIVE; zoom = DRIVE_ZOOM; view_metrics();
         }
     }
     if (keyp(KEY_SPACE) && vmode == V_MAP) {     // deterministic jump to fresh scenery
         jumpN += 1.0f;
-        unsigned h = hash2((int)(jumpN * 911), 7);
+        unsigned h = wn_hash2((int)(jumpN * 911), 7);
         camX += (float)((int)(h % 4000u) - 2000) + 800.0f;
         camY += (float)((int)((h >> 11) % 4000u) - 2000) + 800.0f;
     }
@@ -1012,10 +533,10 @@ static void draw_car(void) {                     // metre-sized now (1u = 1m)
 static void draw_grid_ref(void) {
     float gm = GRID_M / M_PER_UNIT;              // grid spacing in world units
     if (gm <= 0.001f) return;
-    for (int i = ifloor(camX/gm); i <= ifloor((camX+vcols)/gm); i++) {
+    for (int i = wn_ifloor(camX/gm); i <= wn_ifloor((camX+vcols)/gm); i++) {
         int x = sxp(i*gm); line(x, 11, x, SCREEN_H, CLR_DARK_GREY);
     }
-    for (int j = ifloor(camY/gm); j <= ifloor((camY+vrows)/gm); j++) {
+    for (int j = wn_ifloor(camY/gm); j <= wn_ifloor((camY+vrows)/gm); j++) {
         int y = syp(j*gm); line(0, y, SCREEN_W, y, CLR_DARK_GREY);
     }
 }

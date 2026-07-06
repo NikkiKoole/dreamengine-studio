@@ -1,0 +1,14 @@
+# sloop — RUNG A1 gate (worldgen-plan rung 1): drive the ROADNET2 SPINE.
+# N swaps the stub grid for worldnet.h's infinite deterministic world — the rig
+# spawns snapped ONTO the network facing along it — gas (Z) follows the arterial,
+# then a hard right leaves the tarmac: watch("on_road") flips 1 -> 0 (~frame 402)
+# and watch("surf_grip") drops 1.00 -> 0.55 (the real on/off-road grip difference).
+# Deterministic: identical trace every run.
+# frames 820
+# fps 30
+down 20 N
+up 22 N
+down 40 Z
+down 350 RIGHT
+up 400 RIGHT
+up 800 Z

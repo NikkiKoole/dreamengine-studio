@@ -135,6 +135,9 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              radio.h     radio-station chrome (chassis, seeded songs, draggable control knobs)
              improv.h    melodic improvisation for the radio stations (auto-solo)
              cards.h     shared playing-card rendering (blackjack/poker/solitaire/strippoker)
+             worldnet.h  the infinite deterministic WORLD SPINE (terrain + ranked lattice + spline
+                         links + the wn_road_at() edge-graph query) — roadnet2 = home, sloop drives
+                         it (N). ONE data model: query this, never re-roll a street field
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

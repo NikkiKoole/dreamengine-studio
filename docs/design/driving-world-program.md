@@ -232,12 +232,12 @@ deliberately independent). Check items off here as they land; the P-sections abo
 [`worldgen-plan.md`](worldgen-plan.md), which prepends **rung 0: an SNDi oracle tool** —
 `sndi-check.js` measuring real `.rvb` cities AND generated graphs — so the generator work is judged
 by numbers from day one.)*
-- [ ] **A1 · Rung B-proc** — give `roadnet2` a `road_at()` (nearest-edge query + spatial index over
-  its vector graph; its `arterial_at()` is already the vector-native prototype) exposing the same
-  `RoadHit{on_road, cls, zone}` contract, and swap it behind sloop's seam — the index/grip/collision
-  consumer transfers verbatim. *Done when:* sloop drives an **infinite, deterministic** roadnet2
-  world (same seed → same world) with the real on/off-road grip difference. *Gates:* `node
-  tools/spec.js sloop` stays 25/0; a deterministic `play.js` drive with `watch("on_road")` flipping correctly.
+- [x] **A1 · Rung B-proc — ✅ SHIPPED 2026-07-06** as `runtime/worldnet.h` (roadnet2's world core +
+  the unified `wn_road_at()` nearest-edge query + spatial index, edge-type field pinned; details in
+  [`worldgen-plan.md`](worldgen-plan.md) rung 1). sloop's **N** key swaps the stub grid for the
+  spine behind the same seam: infinite, deterministic, real on/off-road grip (1.0 / 0.55). *Gates
+  green:* `spec.js sloop` 25/0; deterministic `play.js` drives with `watch("on_road")` flipping —
+  committed clips `roadnet2/01-rung1-onoff` + `sloop/04-rn2-spine`.
 - [ ] **A2 · Street content on the clean graph** — regenerate zones/blocks/lots/footprints from
   `roadnet`'s proven recipes (*reference, not a port* — v1's dual-representation code stays behind);
   fills `RoadHit.zone`; procedural buildings become solid obstacles like the OSM ones. *Done when:*

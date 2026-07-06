@@ -1,3 +1,4 @@
+import Foundation
 import StoreKit
 #if targetEnvironment(simulator)
 import StoreKitTest   // local StoreKit testing — SIMULATOR ONLY (pulls in XCTest; absent on device)
@@ -10,8 +11,16 @@ final class Store {
     static let shared = Store()
 
     // C-readable snapshot of owned product IDs (gate reads this; StoreKit refreshes it).
-    // Plain static (Swift 5.9 has no nonisolated(unsafe)); a gate read tolerates the race.
-    static private(set) var unlockedIDs: Set<String> = []
+    // The C gate (Store_IsModuleUnlocked) reads this on the MAIN thread every frame, while
+    // refresh() writes it from a background Task. A Swift Set is a refcounted copy-on-write
+    // heap object — a read racing the reassignment corrupts its storage refcount (nano-zone
+    // heap corruption that surfaces later at a random malloc, e.g. deep in UIKit). So both
+    // sides go through this lock; the reader COPIES out under it and touches the Set no more.
+    static private let unlockedLock = NSLock()
+    static private var _unlockedIDs: Set<String> = []
+    static private func setUnlocked(_ ids: Set<String>) {
+        unlockedLock.lock(); _unlockedIDs = ids; unlockedLock.unlock()
+    }
 
     // Product ids come from the bundled Tinyjam.storekit (generated from the app manifest by
     // build-app.js) — NOT a hardcoded list, so adding a product to the manifest just works.
@@ -59,12 +68,15 @@ final class Store {
         for await r in Transaction.currentEntitlements {
             if case .verified(let t) = r { owned.insert(t.productID) }
         }
-        Store.unlockedIDs = owned
+        Store.setUnlocked(owned)
         AppGroup.setUnlocked(owned)   // mirror to the App Group so AUv3 extensions can read it
     }
 
     static func isUnlocked(_ id: String) -> Bool {
-        unlockedIDs.contains(id) || unlockedIDs.contains("com.tinyjam.masterpass")
+        unlockedLock.lock()
+        let ids = _unlockedIDs        // COW snapshot under the lock — the contains() below is race-free
+        unlockedLock.unlock()
+        return ids.contains(id) || ids.contains("com.tinyjam.masterpass")
     }
 
     private func listen() -> Task<Void, Never> {

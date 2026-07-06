@@ -27,3 +27,7 @@ tools/assets/mac-app.iconset/
 /apps/*/screenshots/
 # stray cart data blob (build artifact)
 /cart.blob
+
+# published gallery — its own public repo (NikkiKoole/dreamengine) since 2026-07-06;
+# built locally by build-site.js, pushed by publish-cart.sh. See docs/guides/sharing.md.
+site/

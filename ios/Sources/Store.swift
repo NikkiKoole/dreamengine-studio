@@ -86,10 +86,13 @@ extension Store {
     static var testSession: SKTestSession?
     static func startTesting() {
         guard testSession == nil else { return }
-        // iOS 26 SDK: SKTestSession abort()s (not throws) if the XCTest library isn't loaded.
-        // Load it explicitly; if it can't load, skip local testing instead of crashing.
-        guard dlopen("/Developer/Library/Frameworks/XCTest.framework/XCTest", RTLD_NOW) != nil else {
-            NSLog("[store] XCTest unavailable — local StoreKit testing disabled"); return
+        // iOS 26 runtime: SKTestSession abort()s (not throws) unless running in a real XCTest
+        // context — even loading XCTest by hand doesn't satisfy it. Skip local testing there
+        // instead of crashing. Pre-26 runtimes (≤18.x) don't have the requirement and work
+        // in-app as always — that's the sim IAP dev loop (create a device on an 18.x runtime).
+        if #available(iOS 26.0, *) {
+            NSLog("[store] iOS 26 sim runtime — SKTestSession needs a real test run; local StoreKit testing disabled (use an 18.x runtime device for the IAP loop)")
+            return
         }
         do {
             let s = try SKTestSession(configurationFileNamed: "Tinyjam")

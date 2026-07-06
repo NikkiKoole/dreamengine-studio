@@ -1,0 +1,16 @@
+# roadnet2 — WORLDGEN RUNG 1 gate: the road_at() graph query, driven.
+# C spawns the car snapped ONTO the nearest cached road edge facing along it
+# (on_road=1 from frame one), W drives it, then a hard right (D) leaves the
+# tarmac: watch("on_road") must flip 1 -> 0 (~frame 421) and watch("rdist")
+# must grow smoothly as the car pulls away. Deterministic: identical trace
+# on every run (seed 0, spawn view-centre snap).
+# frames 920
+# fps 30
+down 10 ENTER
+up 12 ENTER
+down 20 C
+up 22 C
+down 30 W
+down 400 D
+up 430 D
+up 900 W

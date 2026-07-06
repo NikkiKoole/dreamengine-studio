@@ -115,6 +115,14 @@ than more loose toolbar buttons. Now being planned — [`share-panel.md`](share-
 
 ## Parked: private code repo, public site repo (maker intent, 2026-07-06)
 
+> **EXECUTED same day — the split is done.** Code repo renamed
+> `dreamengine-studio`; the published gallery lives in the public
+> `NikkiKoole/dreamengine` repo (site/ = a checkout of it, gitignored here;
+> branch-based Pages, `pages.yml` retired; `publish-cart.sh` reworked for the
+> two legs). **Flipping the code repo private is now a zero-hassle toggle** —
+> the remaining maker moves are the toggle itself and, someday, the custom
+> domain. The notes below are kept as the reasoning record.
+
 The maker wants to **slowly take the dreamengine repo private** — which forces
 splitting the published output into its own public repo, because GitHub Pages
 doesn't serve private repos on a free account. Not scheduled; captured so the

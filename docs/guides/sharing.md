@@ -9,8 +9,17 @@
 > **SHIPPED (2026-06-05): the URL exists — <https://nikkikoole.github.io/dreamengine/>.**
 > `node tools/build-site.js <name>` compiles a cart to wasm into `site/<name>/` and
 > regenerates the thumbnail gallery; `tools/publish-cart.sh <name>` does build → commit →
-> push in one command (GitHub Pages publishes the committed `site/` via
-> `.github/workflows/pages.yml` — no emscripten in CI, builds happen locally).
+> push in one command.
+> **TWO-REPO layout since 2026-07-06** (the private-code/public-site split,
+> [`../design/sharing-channels.md`](../design/sharing-channels.md) §"Parked: private code
+> repo"): `site/` is **gitignored in this repo** and is its own checkout of the public
+> **`NikkiKoole/dreamengine`** repo, whose `main` branch GitHub Pages serves directly (no
+> workflow — `pages.yml` is retired). The code repo is `dreamengine-studio` and can flip
+> private without touching the published site. **On a machine where `site/` is missing or
+> not a checkout** (it vanishes on the first pull past the split): `git clone
+> git@github.com:NikkiKoole/dreamengine.git site` — publish-cart.sh checks and prints
+> exactly this. Publishing also write-back-commits the published carts' sources in the
+> code repo, by pathspec.
 > **What needs publishing?** `node tools/cart-status.js` lists carts with no `site/` build
 > (NOT PUBLISHED) and carts whose source changed after their last build (STALE PUBLISHED) —
 > plus thumbnails that need rebaking. Run it before a publish pass to find the work; feed the

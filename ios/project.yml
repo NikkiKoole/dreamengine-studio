@@ -49,7 +49,9 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
         # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # all four incl. upside-down: App Store validation REQUIRES the full set when the app
+        # targets iPad (multitasking rule) — upload rejects otherwise (hit 2026-07-06)
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         "INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad": "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
         # the engine sees its headers (runtime/) + the staged cart data (gen/app/)

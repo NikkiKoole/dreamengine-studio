@@ -9,3 +9,5 @@ gen/
 AU/Info.plist
 # spike screenshots
 snap*.png
+# derived store spec (testflight.sh output)
+project-store.yml

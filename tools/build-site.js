@@ -168,6 +168,9 @@ function finishCart(name) {
     name: title, short_name: title, display: 'fullscreen',
     background_color: '#1b1c1f', theme_color: '#1b1c1f', start_url: './',
     icons: [{ src: 'cart.png', sizes: '320x200', type: 'image/png' }],
+    // non-standard, ignored by browsers: the shells' room bar fetches this to
+    // know whether to offer "play together" (netplay rung 5a)
+    players: cartPlayers(name),
   }, null, 2))
   const png = path.join(PNG_DIR, `${name}.cart.png`)
   if (fs.existsSync(png)) fs.copyFileSync(png, path.join(outDir, 'cart.png'))
@@ -205,6 +208,22 @@ function cartIndex() {
 
 function cartMeta(name) {
   return cartIndex().find(c => c.file === `${name}.cart.png`)
+}
+
+// the public wss relay games dial when the page isn't served BY the relay
+// (github.io links) — site/render.yaml deploys it. One constant, used by the
+// gallery's "play together" button and the shells' room bar.
+const RELAY_HOST = 'dreamengine-relay.onrender.com'
+
+// how many players a cart declares — derived from the SOURCE's de_players()
+// (the same fn that gates the native multiplayer lobby), so there's no
+// hand-maintained metadata to drift. 1 when absent/unreadable.
+function cartPlayers(name) {
+  try {
+    const src = fs.readFileSync(path.join(ROOT, 'tools', 'carts', `${name}.c`), 'utf8')
+    const m = src.match(/int\s+de_players\s*\([^)]*\)\s*\{\s*return\s+(\d+)/)
+    return m ? parseInt(m[1], 10) : 1
+  } catch { return 1 }
 }
 
 // phone-playability badge, four tiers. "ready" is strict: any dead input path
@@ -265,15 +284,17 @@ function buildGallery() {
     const meta = cartMeta(name) || { title: name, description: '' }
     // dual-backend = ships a worklet.js alongside the plain build → responds to the Audio toggle
     const dual = fs.existsSync(path.join(SITE_DIR, name, 'worklet.js'))
-    entries.push({ name, added: dateAdded(name), tier: mobileTier(name, meta), dual, ...meta })
+    entries.push({ name, added: dateAdded(name), tier: mobileTier(name, meta), dual,
+                   players: cartPlayers(name), ...meta })
   }
   // server-side default order = newest first (the client re-sorts live)
   entries.sort((a, b) => (b.added || '').localeCompare(a.added || '') || a.title.localeCompare(b.title))
 
   const cards = entries.map(e => {
     const badge = BADGES[e.tier]
+    const mp = e.players >= 2
     // data-search feeds the live filter: name + title + genre + kind + description
-    const hay = [e.name, e.title, e.genre, ...(e.kind || []), e.description]
+    const hay = [e.name, e.title, e.genre, ...(e.kind || []), e.description, mp ? 'multiplayer 2p online' : '']
       .filter(Boolean).join(' ').toLowerCase()
     return `
     <a class="card" href="${e.name}/" data-title="${esc(e.title.toLowerCase())}" data-search="${esc(hay)}" data-added="${e.added}" data-tier="${TIER_RANK[e.tier] ?? 9}">
@@ -282,6 +303,7 @@ function buildGallery() {
         <h2>${esc(e.title)}${e.genre ? ` <span class="tag">${esc(e.genre)}</span>` : ''}${e.dual ? ` <span class="dual" title="Ships two audio backends — a dedicated-thread AudioWorklet build and a plain ScriptProcessor build. Responds to the Audio toggle above.">⚡2×audio</span>` : ''}</h2>
         ${badge ? `<div class="badge ${badge.cls}">${badge.text}</div>` : ''}
         <p>${esc(e.description)}</p>
+        ${mp ? `<button class="mpbtn" data-cart="${e.name}" title="Start an online 2-player room and get an invite link to send a friend (lockstep netplay through the relay)">&#128101; play together</button>` : ''}
         ${e.added ? `<div class="added">added ${e.added}</div>` : ''}
       </div>
     </a>`
@@ -327,6 +349,10 @@ function buildGallery() {
   h2 { font-size: 14px; } .tag { color: #ffa300; font-size: 11px; font-weight: normal; }
   .dual { color: var(--link); font-size: 10px; font-weight: normal; white-space: nowrap; }
   .badge { font-size: 11px; margin-top: 4px; }
+  .mpbtn { display: block; margin-top: 8px; background: transparent; border: 1px solid var(--link);
+           color: var(--link); font: inherit; font-size: 12px; padding: 4px 10px;
+           border-radius: 6px; cursor: pointer; }
+  .mpbtn:hover { background: var(--link); color: var(--bg); }
   .b-ready { color: #00e436; } .b-mostly { color: #ffa300; }
   .b-rough { color: #ff6c24; } .b-desktop { color: var(--dim); }
   .body p { color: var(--dim); font-size: 12px; margin-top: 4px; }
@@ -463,6 +489,20 @@ ${cards}
     a = localStorage.getItem('de:audio') || a
   } catch (e) {}
   applySort(s); applyDesc(d); applyTheme(t); applyAudio(a)
+
+  // "play together" (netplay rung 5a): mint a room code and open the cart in it —
+  // the resulting page URL IS the invite link (the cart page shows a copy button).
+  // On the relay's own domain no ?relay= is needed (the transport defaults to the
+  // page's host); everywhere else (github.io) the public relay is dialed explicitly.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.mpbtn')
+    if (!b) return
+    e.preventDefault(); e.stopPropagation()
+    var code = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4) || 'play'
+    var url = b.dataset.cart + '/?room=' + code
+    if (location.host !== '${RELAY_HOST}') url += '&relay=wss://${RELAY_HOST}'
+    location.href = url
+  })
 })()
 </script>
 </body>

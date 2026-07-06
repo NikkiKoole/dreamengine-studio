@@ -93,6 +93,52 @@
   <button id="fs" title="fullscreen" style="position:fixed; right:10px; bottom:10px; width:34px; height:34px;
        background:#25262b; color:#9a948c; border:1px solid #34353b; border-radius:8px;
        font:16px ui-monospace,Menlo,monospace; cursor:pointer; opacity:.6;">&#x26F6;</button>
+  <div id="roombar" style="display:none; position:fixed; top:10px; right:10px; z-index:6;
+       background:#25262b; color:#9a948c; border:1px solid #34353b; border-radius:8px;
+       padding:6px 10px; font:12px ui-monospace,Menlo,monospace;"></div>
+  <script>
+    // multiplayer room bar (netplay rung 5a) — identical block in web_shell.html;
+    // see the comment there. Kept duplicated because the two shells are separate
+    // self-contained files by design (loader vs emscripten --shell-file).
+    (function () {
+      var RELAY = 'dreamengine-relay.onrender.com';
+      var bar = document.getElementById('roombar');
+      var room = new URLSearchParams(location.search).get('room');
+      function mkbtn(label) {
+        var b = document.createElement('button');
+        b.textContent = label;
+        b.setAttribute('style', 'background:transparent; border:1px solid #06b5e0; color:#06b5e0;' +
+          'font:inherit; padding:2px 8px; border-radius:6px; cursor:pointer;');
+        return b;
+      }
+      if (room) {
+        bar.style.display = 'block';
+        var code = document.createElement('span');
+        code.textContent = 'room ' + room + ' ';
+        var b = mkbtn('copy invite link');
+        b.onclick = function () {
+          var link = location.href;
+          (navigator.clipboard ? navigator.clipboard.writeText(link)
+                               : Promise.reject()).then(function () {
+            b.textContent = 'copied!';
+            setTimeout(function () { b.textContent = 'copy invite link'; }, 1500);
+          }).catch(function () { prompt('invite link:', link); });
+        };
+        bar.appendChild(code); bar.appendChild(b);
+      } else {
+        fetch('manifest.json').then(function (r) { return r.json(); }).then(function (m) {
+          if (!m || !(m.players >= 2)) return;
+          bar.style.display = 'block';
+          var b = mkbtn('👥 play together');
+          b.onclick = function () {
+            var c = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4) || 'play';
+            location.href = '?room=' + c + (location.host !== RELAY ? '&relay=wss://' + RELAY : '');
+          };
+          bar.appendChild(b);
+        }).catch(function () {});
+      }
+    })();
+  </script>
   <script>
     var Module = { canvas: document.getElementById('canvas') };
     Module.deTouchCeiling = (function () {

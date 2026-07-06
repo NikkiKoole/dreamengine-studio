@@ -466,7 +466,7 @@ their `kind[]` tags.
     pentatonic). The classic-machine family is now cr78 + tr808 + tb303.
 
 21. **More classic boxes — the museum shortlist** *(cart-space, zero engine API — parked
-    2026-06-05; the family so far is cr78 + tr808 + tb303 + sh101 + tr909, all in
+    2026-06-05; the family so far is cr78 + tr808 + tb303 + sh101 + tr909 + tr606, all in
     `tools/carts/`)*. Curated by
     API fit; the curatorial line is **analog-circuit machines only** — sample/tape boxes
     (LinnDrum, DMX, SP-1200, Mellotron) would be caricatures since the engine has no sample

@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-05 (three lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO + app-trailer toolkit · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-06 (three lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO — Tiny Jam name reserved on ASC + testflight.sh, blocked on Xcode 26 · editor media — record/replay shipped, the panel deferred)_
 
 ---
 
@@ -64,7 +64,18 @@ all: [`STATUS.md`](STATUS.md) + the design board.
 > everything downstream (footprints §5 → disclose.h → re-land) follows from that table.** Hot files:
 > `tools/carts/acidrack.c`, `runtime/lay.h` (+ new `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
 
-> **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
+> **▶ ACTIVE THREAD (2026-07-06) — store / ASO + the app-trailer builder.**
+> **Store-identity day (2026-07-06), all committed:** the App Store name **"Tiny Jam: Pocket
+> Music Toys" is RESERVED** on App Store Connect (record created, not public); shipping bundle id
+> is **`com.mipolai.tinyjam`** (registered in the dev portal; `apps/tinyjam/app.json` updated —
+> the `com.tinyjam.hello` in `ios/project.yml` is dev-loop-only, see the comment there); the
+> manifest **`icon` key is live** (`build-app.js --ios` → single-size asset catalog, sim-verified
+> in `Assets.car`); **`ios/testflight.sh`** (archive + upload rung) works through cloud-signed
+> Release archive ✓ but **upload is BLOCKED on Apple's iOS-26-SDK rule** — this Mac runs macOS
+> 14.2.1, Xcode 26 needs ≥15.6. **Unblock = maker upgrades macOS + installs Xcode 26, then
+> `cd ios && APP=tinyjam ./testflight.sh`** (uploading one build also cements the name
+> reservation). Expect toolchain wobble after the OS jump (clangd/brew/simulators) — re-verify
+> `build.sh` first.
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`
 > (local — **push to sync other machines**):
 > - **The free ASO keyword loop** (CLI + Apps tab): `aso-research` (now mines competitor

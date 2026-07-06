@@ -22,8 +22,16 @@
 //                                                forwarding/BYE), exits nonzero
 //                                                on failure — the CI gate
 //
+// Beyond the LAN: the repo-root render.yaml is a Render blueprint that deploys
+// this file on the free tier (wss:// handed out automatically) — the published-
+// gallery multiplayer story. Walkthrough: multiplayer-research.md §"Hosting
+// beyond the LAN".
+//
 // Protocol (all binary WS frames):
 //   - WS path /room/<code> (or ?room=<code>) joins that room. Rooms hold 2.
+//     Web carts prepend their cart name to the code ("pong-play") so ONE shared
+//     relay never cross-pairs two different games — the relay itself stays
+//     blind; codes are opaque here.
 //   - On join the relay sends the ONE packet it originates:
 //     ROLE = [ 'D','N', 6, seat ] — seat 0 = host (first in), 1 = joiner.
 //     (packet type 6 = NET_PKT_ROLE in runtime/net.h; 'DN' is the magic.)
@@ -141,7 +149,10 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'applica
 
 function makeServer({ serveDir, log }) {
   const server = http.createServer((req, res) => {
-    if (!serveDir) { res.writeHead(404); res.end('relay only — connect via WebSocket ws://…/room/<code>\n'); return }
+    // no --serve: answer 200 with a liveness note — a browser hit on the bare
+    // URL wakes a slept free-tier host (the "warm it up" trick in render.yaml)
+    // and doubles as the health check
+    if (!serveDir) { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('dreamengine net-relay: up — carts connect via ws(s)://…/room/<code>\n'); return }
     const urlPath = decodeURIComponent((req.url || '/').split('?')[0])
     let file = path.join(serveDir, urlPath === '/' ? 'index.html' : urlPath)
     if (!path.resolve(file).startsWith(path.resolve(serveDir))) { res.writeHead(403); res.end(); return }
@@ -162,7 +173,7 @@ function makeServer({ serveDir, log }) {
 
     // room code: /room/<code> path, or ?room=<code> on any path
     const u = new URL(req.url || '/', 'http://x')
-    const m = u.pathname.match(/^\/room\/([A-Za-z0-9_-]{1,32})$/)
+    const m = u.pathname.match(/^\/room\/([A-Za-z0-9_%.-]{1,64})$/)   // 64: web carts prepend "<cart>-" to the code
     const code = m ? m[1] : (u.searchParams.get('room') || '')
     if (!code) { sock.end(); return }
 

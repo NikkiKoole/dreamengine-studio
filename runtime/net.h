@@ -250,7 +250,13 @@ EM_JS(int, de_ws_begin, (void), {
         if (!room) return 0;
         var rel = q.get('relay') ||
                   ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-        var ws = new WebSocket(rel + '/room/' + encodeURIComponent(room));
+        // rooms are CART-SCOPED by construction: the cart's URL path segment is
+        // prepended to the code, so ?room=play in pong and ?room=play in
+        // blackjack land in different rooms on a shared relay (the relay is
+        // blind — this is the only place game identity exists on the wire).
+        var seg = location.pathname.split('/').filter(function (s) { return s && s !== 'index.html'; });
+        var cart = seg.length ? seg[seg.length - 1] : 'cart';
+        var ws = new WebSocket(rel + '/room/' + encodeURIComponent(cart + '-' + room));
         ws.binaryType = 'arraybuffer';
         Module.deWsQ = [];
         Module.deWsState = 0;

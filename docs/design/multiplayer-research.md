@@ -612,9 +612,32 @@ Options, cheapest-first:
 
 | Option | What it is | Cost / catch |
 |---|---|---|
-| **Free-tier PaaS** (Render, Fly.io, Railway) | `node tools/net-relay.js` as a tiny web service — they hand out an https/wss domain automatically | free tier idles/sleeps on some plans (first joiner waits a few seconds); ~10 min setup |
+| **Free-tier PaaS** (Render, Fly.io, Railway) — **CHOSEN (2026-07-06), blueprint committed** | `node tools/net-relay.js` as a tiny web service — they hand out an https/wss domain automatically | free tier idles/sleeps on some plans (first joiner waits a few seconds); ~10 min setup |
 | **Cloudflare Tunnel** from any always-on box at home | free wss-capable hostname pointed at a local relay | the box must stay on; tunnel setup once |
-| **$5 VPS + Caddy** | Caddy auto-TLS proxying to the relay | the classic; zero surprises, small bill |
+| **$5 VPS + Caddy** | Caddy auto-TLS proxying to the relay | the classic; zero surprises, small bill. The natural upgrade when 5b needs signaling+TURN anyway |
+
+**The blessed path (picked: Render free tier — nothing at home to babysit,
+reversible for the price of editing `?relay=`).** The repo root carries
+**`render.yaml`**, a Render blueprint that deploys the relay as-is:
+
+1. Create a Render account → **New → Blueprint** → point it at this GitHub
+   repo. It finds `render.yaml` and deploys `dreamengine-relay` (Frankfurt,
+   free plan, zero-dep — the blueprint overrides the build step so `sharp`
+   isn't compiled for nothing).
+2. You get `wss://dreamengine-relay.onrender.com` (name per your account).
+   Share links as
+   `https://nikkikoole.github.io/dreamengine/<cart>/?room=<code>&relay=wss://dreamengine-relay.onrender.com`.
+3. **Cold starts:** the free tier sleeps after ~15 idle min; the first
+   connection waits ~30–60 s. Warm it before a session by opening the bare
+   `https://…onrender.com/` URL — the relay answers a plain-text 200 exactly
+   for this.
+
+**One relay, every cart, no collisions:** rooms are **cart-scoped by
+construction** — the web transport prepends the cart's URL path segment to the
+code (`?room=play` in pong becomes room `pong-play` on the wire), so a shared
+relay can host pong and blackjack matches with the same human-friendly code
+simultaneously and never cross-pair them. The relay stays blind; the cart name
+exists only in the room string.
 
 Then the shareable link is
 `https://nikkikoole.github.io/dreamengine/<cart>/?room=<code>&relay=wss://<relay-host>`

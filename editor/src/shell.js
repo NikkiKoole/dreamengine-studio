@@ -1304,6 +1304,7 @@ netBtn?.addEventListener('click', () => {
 // (bound by id), so this is show / position / close only. docs/design/share-panel.md.
 const shareBtn  = document.getElementById('share-btn')
 const shareMenu = document.getElementById('share-menu')
+if (settings.showShare && shareBtn) shareBtn.style.display = ''   // hidden by default; opt-in via settings → share
 let shareOpen = false
 function closeShareMenu() {
   if (!shareOpen) return

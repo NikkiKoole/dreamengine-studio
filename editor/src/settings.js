@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showRecord: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showRecord: false, showShare: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
 
 // ── key bindings ──────────────────────────────────────────────
 // Values are raylib (GLFW) keycodes — letters/digits are ASCII, specials match
@@ -86,6 +86,7 @@ function load() {
     showPublish:   localStorage.getItem('showPublish') === '1',
     showNetplay:   localStorage.getItem('showNetplay') === '1',
     showRecord:    localStorage.getItem('showRecord') === '1',
+    showShare:     localStorage.getItem('showShare') === '1',
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
     backend:       localStorage.getItem('backend')   || DEFAULTS.backend,
     buildMode:     localStorage.getItem('buildMode') || DEFAULTS.buildMode,
@@ -372,6 +373,21 @@ export function buildSettingsPanel(el) {
   ))
   recSection.appendChild(note('records your play as a deterministic input track — play, then close the cart window (Esc) to save it to tools/clips/<cart>/NN-take.rec. Replay it or bake it into a clip (feeds the trailer builder / attract). desktop app only.'))
   el.appendChild(recSection)
+
+  // ── share (advanced) ──────────────────────────────────────────
+  const shareSection = section('share')
+  shareSection.appendChild(checkbox(
+    'show ⇪ share button in the toolbar',
+    settings.showShare,
+    v => {
+      settings.showShare = v
+      save('showShare', v ? '1' : '0')
+      const btn = document.getElementById('share-btn')
+      if (btn) btn.style.display = v ? '' : 'none'
+    },
+  ))
+  shareSection.appendChild(note('one popover with every way to get the current cart out of the editor — export, send to a device, publish.'))
+  el.appendChild(shareSection)
 
   // ── publish to site (advanced) ────────────────────────────────
   const pubSection = section('publish to site')

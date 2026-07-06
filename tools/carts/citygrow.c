@@ -12,13 +12,13 @@
     "road-network"
   ],
   "lineage": "The worldgen-plan rung 2-5 BENCH (docs/design/worldgen-plan.md §Where the code lives): the settlement/street generation grammar grown in its own knobbed sandbox, over the same worldnet.h spine roadnet2 and sloop share, then extracted (citygen.h) once calibrated. Rung 2 first: the population-density field.",
-  "description": "The DENSITY-FIELD bench (worldgen-plan rung 2) - the master input both pillar papers (Parish-Muller, Chen) drive everything from, grown here as a knobbed instrument. A deterministic population field D(x,y) says WHERE PEOPLE LIVE: regional noise shaped by terrain (people live LOW and FLAT - hills and rock drain it), pulled toward water (coasts and rivers attract harbours and river towns - the same water that is itself uninhabitable), fading out past the ~500 km world rim (one characterful place, not an endless smear - the float-precision bound roadnet2-plan called). Settlement candidates stay on worldnet.h's suppression lattice (blue-noise spacing survives), but PRESENCE, RANK and SIZE now come from the field instead of pure hash - so cities cluster along coasts and valley floors, hamlets thin out toward the wilderness, and a city's EXTENT is a density threshold contour, not a radius. Drag the sliders and watch the civilisation redistribute live: region = the size of the population blobs, water/flat = how hard the geography pulls, density = the presence threshold, extent = the city-footprint contour, contrast = field gamma. F toggles the heat overlay (the raw field), E the extent contours, O flips settlements between FIELD (rung 2) and the old pure-HASH lattice - the A/B that shows exactly what this rung buys: hash sprinkles towns uniformly over any passable pixel; the field GROWS them where a geographer would expect. B shows the world rim, R rerolls the seed (same seed = same world, always), SPACE jumps to fresh scenery, wheel zooms continental to town. The graph tiers (arterials, districts, street fill - rungs 3-5) build on this field in this same bench.",
+  "description": "The DENSITY-FIELD bench (worldgen-plan rungs 2-5) - the master input both pillar papers (Parish-Muller, Chen) drive everything from, grown here as a knobbed instrument. RUNG 2, the field: a deterministic population field D(x,y) says WHERE PEOPLE LIVE - regional noise shaped by terrain (people live LOW and FLAT; hills and rock drain it), pulled toward water (coasts and rivers attract harbours and river towns - the same water that is itself uninhabitable), fading out past the ~500 km world rim (one characterful place, not an endless smear). Settlement candidates stay on worldnet.h's suppression lattice (blue-noise spacing survives), but PRESENCE, RANK and SIZE come from the field - cities cluster along coasts and valley floors, hamlets thin toward the wilderness, and a city's EXTENT is a density threshold contour, not a radius. RUNG 3, the arterials: press T over any city and it becomes a CITY VIEW - a per-city TENSOR FIELD (Chen 2008: radial-around-the-core + grid-aligned-to-the-ENTERING-HIGHWAY read live from the worldnet graph + terrain-contour alignment + noise, weights hashed per city) traced as hyperstreamlines of both perpendicular eigen-families with Jobard-Lefer-style separation, wholesale and cached because a city is BOUNDED. The arterials visibly shear along coastlines, wrap around lakes, and orient to their highway gate - every city its own anatomy, same seed same city, always. X exports the traced graph as sndi-check JSON (crossings split, nodes welded) - the first generated network the rung-0 oracle can hold against a real city (first measurement: mean degree 2.65 vs Amersfoort's 2.71; the dead-end rim stubs and missing T-share are rung-5 calibration targets, now measurable). Sliders re-roll everything live; F heat, E extent contours, O the field-vs-hash A/B, B the world rim, SPACE hub-scale hops, R reseed.",
   "todo": [
-    "rung 3: per-city tensor field + traced arterial streamlines (bounded, cached, seeded per city)",
-    "rung 4: district polygons + per-district minor fill via the morph knobs",
-    "rung 5: the live SNDi panel + an OSM target loaded beside it for A/B calibration",
-    "wire the calibrated field into worldnet.h (get_node/get_hub presence/rank from D) so roadnet2 + sloop's world grows organic settlements - the rung-5.5 extraction",
-    "bridgehead attractors: crossings concentrate traffic -> density (needs rung-3 river/crossing sites)"
+    "rung 4: district polygons (the arterial graph already partitions the extent) + per-district minor fill via the morph knobs",
+    "rung 5: the live SNDi panel + an OSM target beside it; calibration targets already measured: trim dangling rim stubs (44% deg-1), grow T-share (real cities are T-dominant), density-modulated d_sep",
+    "true Jobard-Lefer distance separation (the id-grid is coarse; spacing jitters between 0.7x and 1.4x d_sep)",
+    "wire the calibrated field into worldnet.h (get_node/get_hub presence/rank from D) so roadnet2 + sloop's world grows organic settlements - the rung-5.5 extraction; arterials become drivable there (the deferred drive-it gate)",
+    "bridgehead attractors: crossings concentrate traffic -> density (needs rivers as network edges)"
   ]
 }
 de:meta */
@@ -195,6 +195,319 @@ static int fsettle_hub(int cx, int cy, float *wx, float *wy, int *rank, float *D
 }
 // ═══ end of the fenced field block ═══════════════════════════════════════════
 
+// ═════════════════════════════════════════════════════════════════════════════
+// RUNG 3 — TENSOR-FIELD ARTERIALS PER CITY (fenced for extraction). Chen 2008:
+// streets are hyperstreamlines of a 2D symmetric tensor field; the field is
+// LOCALLY EVALUABLE (the reason it was chosen — worldgen-plan §The method):
+//   blend, in double-angle space (tensors have period π, not 2π):
+//     radial-around-centre (strong near the core, fading out)
+//   + grid-aligned-to-the-ENTERING-HIGHWAY (read from the live worldnet graph)
+//   + terrain-contour alignment (perpendicular to the gradient, weighted by slope)
+//   + a low-frequency noise wobble
+// then trace BOTH eigenvector families (θ and θ+90°) from seeded points with
+// Jobard-Lefer-style separation (a per-family id-grid — coarse but deterministic;
+// true distance checks are a bench upgrade, not a blocker). A city is BOUNDED,
+// so the whole arterial set is traced wholesale on first touch and cached,
+// seeded by the hub cell's hash — chunk-safe by construction. Streamlines stop
+// where the POPULATION stops (D fades below the extent floor — Parish-Müller's
+// "streets stop at zero population"), at water, or at a same-family neighbour.
+
+#define AR_STEP   40.0f      // integration step (m)
+#define AR_DSEP   450.0f     // target arterial spacing (m)
+#define AR_MAXL   120        // streamlines per city
+#define AR_MAXP   220        // points per streamline (≈ 8.8 km)
+#define AR_MAXS   512        // seed queue
+#define AR_OG     48         // separation id-grid cells per axis
+
+static int   ar_on = 0;                    // city view active
+static int   ar_ccx, ar_ccy;               // the city's hub cell — identity + seed
+static float ar_cx, ar_cy, ar_R, ar_D;     // centre (m), extent cap, D at centre
+static float ar_hw_ang; static int ar_has_hw;   // entering-highway bearing (rad)
+static float ar_wrad, ar_wgrid;            // per-city hashed weights
+static int   ar_nl; static short ar_np[AR_MAXL];
+static unsigned char ar_lfam[AR_MAXL];
+static float ar_px[AR_MAXL][AR_MAXP], ar_py[AR_MAXL][AR_MAXP];
+static short ar_occ[2][AR_OG][AR_OG];      // separation: line id per cell per family
+static float ar_ox, ar_oy, ar_cs;          // id-grid origin + cell size
+static int   ar_valid = 0;
+static float ar_key[7];                    // (seed + knobs) snapshot → retrace
+static float map_camX, map_camY, map_zoom; // where T left the map
+
+static float ar_theta(float x, float y, int fam) {
+    float vx = 0, vy = 0;
+    float ddx = x - ar_cx, ddy = y - ar_cy;
+    float dist = fsqrt(ddx * ddx + ddy * ddy) + 1.0f;
+    float thr = atan2f(ddy, ddx);                        // radial family (spokes + rings)
+    float wr = ar_wrad / (1.0f + dist / 1500.0f);        // strong near the core
+    vx += wr * cosf(2 * thr); vy += wr * sinf(2 * thr);
+    if (ar_has_hw) {                                     // the entering highway's grid
+        vx += ar_wgrid * cosf(2 * ar_hw_ang);
+        vy += ar_wgrid * sinf(2 * ar_hw_ang);
+    }
+    float d = 1500.0f;                                   // terrain: follow the CONTOURS
+    float gx = (clamp(height_at(x + d, y), 0, 0.4f) - clamp(height_at(x - d, y), 0, 0.4f)) / (2 * d);
+    float gy = (clamp(height_at(x, y + d), 0, 0.4f) - clamp(height_at(x, y - d), 0, 0.4f)) / (2 * d);
+    float steep = clamp(fsqrt(gx * gx + gy * gy) * 4000.0f, 0, 1);
+    if (steep > 0.03f) {
+        float tht = atan2f(gy, gx) + 1.5708f;            // contour = ⟂ gradient
+        float wt = 1.3f * steep;
+        vx += wt * cosf(2 * tht); vy += wt * sinf(2 * tht);
+    }
+    float thn = noise3(x / 9000.0f, y / 9000.0f, seedZ + 3.3f) * 6.2832f;
+    vx += 0.15f * cosf(2 * thn); vy += 0.15f * sinf(2 * thn);
+    float th = 0.5f * atan2f(vy, vx);
+    return fam ? th + 1.5708f : th;
+}
+
+static int ar_in_city(float x, float y) {
+    float ddx = x - ar_cx, ddy = y - ar_cy;
+    if (ddx * ddx + ddy * ddy > ar_R * ar_R) return 0;   // hard extent cap
+    if (height_at(x, y) < 0.0f) return 0;                // water: rung 3 has no bridges
+    return density_at(x, y) > K_extent * 0.45f;          // streets stop where people stop
+}
+
+static int ar_cell(float x, float y, int *r, int *c) {
+    int cc = (int)((x - ar_ox) / ar_cs), rr = (int)((y - ar_oy) / ar_cs);
+    if (x < ar_ox || y < ar_oy || cc >= AR_OG || rr >= AR_OG) return 0;
+    *r = rr; *c = cc;
+    return 1;
+}
+
+// trace one streamline (both directions from the seed), enforcing separation
+static void ar_trace(float sx0, float sy0, int fam) {
+    if (ar_nl >= AR_MAXL) return;
+    int r, c;
+    if (!ar_in_city(sx0, sy0) || !ar_cell(sx0, sy0, &r, &c)) return;
+    if (ar_occ[fam][r][c] >= 0) return;                  // someone's here already
+    int id = ar_nl;
+    float tx[AR_MAXP], ty[AR_MAXP];                      // temp: backward half, reversed later
+    int nb = 0, nf = 0;
+    for (int dir = 0; dir < 2; dir++) {                  // 0 = backward, 1 = forward
+        float x = sx0, y = sy0;
+        float th = ar_theta(x, y, fam);
+        float hx = cosf(th), hy = sinf(th);
+        if (!dir) { hx = -hx; hy = -hy; }
+        for (int s = 0; s < AR_MAXP / 2 - 1; s++) {
+            th = ar_theta(x, y, fam);
+            float dxs = cosf(th), dys = sinf(th);
+            if (dxs * hx + dys * hy < 0) { dxs = -dxs; dys = -dys; }   // continuity
+            hx = dxs; hy = dys;
+            x += dxs * AR_STEP; y += dys * AR_STEP;
+            if (!ar_in_city(x, y) || !ar_cell(x, y, &r, &c)) break;
+            if (ar_occ[fam][r][c] >= 0 && ar_occ[fam][r][c] != id) break;   // separation
+            ar_occ[fam][r][c] = (short)id;
+            if (dir) { ar_px[id][AR_MAXP / 2 + nf] = x; ar_py[id][AR_MAXP / 2 + nf] = y; nf++; }
+            else     { tx[nb] = x; ty[nb] = y; nb++; }
+        }
+    }
+    if (nb + nf < 6) return;                             // too short to be an arterial
+    for (int i = 0; i < nb; i++) {                       // stitch: reversed-back + seed + fwd
+        ar_px[id][AR_MAXP / 2 - 1 - nb + i] = tx[nb - 1 - i];
+        ar_py[id][AR_MAXP / 2 - 1 - nb + i] = ty[nb - 1 - i];
+    }
+    ar_px[id][AR_MAXP / 2 - 1] = sx0; ar_py[id][AR_MAXP / 2 - 1] = sy0;
+    int start = AR_MAXP / 2 - 1 - nb, count = nb + 1 + nf;
+    for (int i = 0; i < count; i++) {                    // compact to the front
+        ar_px[id][i] = ar_px[id][start + i];
+        ar_py[id][i] = ar_py[id][start + i];
+    }
+    ar_np[id] = (short)count; ar_lfam[id] = (unsigned char)fam;
+    ar_nl++;
+}
+
+// the entering highway: nearest big-class edge in the worldnet cache, else the
+// bearing toward the nearest worldnet hub, else a hashed angle. Deterministic.
+static void ar_find_highway(void) {
+    eg_ensure(ar_cx, ar_cy);
+    ar_has_hw = 0;
+    float best = 1e30f;
+    for (int e = 0; e < eg_n; e++) {
+        if (eg_e[e].cls > CL_HIGHWAY) continue;
+        for (int i = 0; i < LINK_SAMPLES; i++) {
+            float mx = (eg_e[e].x[i] + eg_e[e].x[i + 1]) * 0.5f - ar_cx;
+            float my = (eg_e[e].y[i] + eg_e[e].y[i + 1]) * 0.5f - ar_cy;
+            float dd = mx * mx + my * my;
+            if (dd < best && dd < 20000.0f * 20000.0f) {
+                best = dd;
+                ar_hw_ang = atan2f(eg_e[e].y[i + 1] - eg_e[e].y[i],
+                                   eg_e[e].x[i + 1] - eg_e[e].x[i]);
+                ar_has_hw = 1;
+            }
+        }
+    }
+    if (!ar_has_hw) {
+        int hc = wn_ifloor(ar_cx / HUB_CS), hr = wn_ifloor(ar_cy / HUB_CS);
+        float bx, by, bd = 1e30f;
+        for (int a = hc - 2; a <= hc + 2; a++)
+            for (int b = hr - 2; b <= hr + 2; b++) {
+                float wx, wy; if (!get_hub(a, b, &wx, &wy)) continue;
+                float dd = (wx - ar_cx) * (wx - ar_cx) + (wy - ar_cy) * (wy - ar_cy);
+                if (dd > 1 && dd < bd) { bd = dd; bx = wx; by = wy; }
+            }
+        if (bd < 1e30f) { ar_hw_ang = atan2f(by - ar_cy, bx - ar_cx); ar_has_hw = 1; }
+        else { ar_hw_ang = (float)(wn_hash2(ar_ccx, ar_ccy) % 314u) * 0.01f; ar_has_hw = 1; }
+    }
+}
+
+// trace the whole city: seeds = centre + the highway entry, then Jobard-Lefer
+// candidates pushed ±d_sep perpendicular off every traced line (+ a crossing-
+// family seed on the line) until the queue drains. Wholesale, cached, hash-seeded.
+static void ar_build(void) {
+    ar_nl = 0;
+    for (int f = 0; f < 2; f++)
+        for (int rr = 0; rr < AR_OG; rr++)
+            for (int cc = 0; cc < AR_OG; cc++) ar_occ[f][rr][cc] = -1;
+    ar_ox = ar_cx - 1.2f * ar_R; ar_oy = ar_cy - 1.2f * ar_R;
+    ar_cs = (2.4f * ar_R) / AR_OG;
+    unsigned h = wn_hash2(ar_ccx * 2246822519u + 3, ar_ccy * 3266489917u + 29);
+    ar_wrad  = 0.35f + (float)(h % 100u) / 100.0f * 0.9f;          // hashed per city
+    ar_wgrid = 0.45f + (float)((h >> 8) % 100u) / 100.0f * 1.0f;
+    ar_find_highway();
+
+    static float qx[AR_MAXS], qy[AR_MAXS]; static unsigned char qf[AR_MAXS];
+    int qh = 0, qt = 0;
+    qx[qt] = ar_cx; qy[qt] = ar_cy; qf[qt++] = 0;                  // the core, both families
+    qx[qt] = ar_cx; qy[qt] = ar_cy; qf[qt++] = 1;
+    float ex = ar_cx + cosf(ar_hw_ang) * ar_R * 0.7f;              // the highway gate
+    float ey = ar_cy + sinf(ar_hw_ang) * ar_R * 0.7f;
+    qx[qt] = ex; qy[qt] = ey; qf[qt++] = 0;
+    qx[qt] = ex; qy[qt] = ey; qf[qt++] = 1;
+    while (qh < qt && ar_nl < AR_MAXL) {
+        float sx0 = qx[qh], sy0 = qy[qh]; int fam = qf[qh]; qh++;
+        int before = ar_nl;
+        ar_trace(sx0, sy0, fam);
+        if (ar_nl == before) continue;
+        int id = ar_nl - 1;
+        for (int i = 6; i < ar_np[id] - 6 && qt < AR_MAXS - 3; i += 11) {   // every ~d_sep
+            float ax = ar_px[id][i], ay = ar_py[id][i];
+            float tx2 = ar_px[id][i + 1] - ax, ty2 = ar_py[id][i + 1] - ay;
+            float L = fsqrt(tx2 * tx2 + ty2 * ty2); if (L < 1) continue;
+            float px2 = -ty2 / L, py2 = tx2 / L;
+            qx[qt] = ax + px2 * AR_DSEP; qy[qt] = ay + py2 * AR_DSEP; qf[qt++] = (unsigned char)fam;
+            qx[qt] = ax - px2 * AR_DSEP; qy[qt] = ay - py2 * AR_DSEP; qf[qt++] = (unsigned char)fam;
+            qx[qt] = ax; qy[qt] = ay; qf[qt++] = (unsigned char)!fam;       // the crossing family
+        }
+    }
+    ar_valid = 1;
+}
+
+static void ar_ensure(void) {
+    float k[7] = { seedZ, K_extent, K_dens, K_region, K_water, K_flat, K_pow };
+    int same = ar_valid;
+    for (int i = 0; same && i < 7; i++) if (ar_key[i] != k[i]) same = 0;
+    if (same) return;
+    for (int i = 0; i < 7; i++) ar_key[i] = k[i];
+    ar_build();
+}
+
+// enter the city view: the strongest field-hub near the view centre
+static int ar_pick_city(void) {
+    float vx0 = camX + SCREEN_W * 0.5f / P, vy0 = camY + SCREEN_H * 0.5f / P;
+    int hc = wn_ifloor(vx0 / HUB_CS), hr = wn_ifloor(vy0 / HUB_CS);
+    float bestD = -1;
+    for (int a = hc - 2; a <= hc + 2; a++)
+        for (int b = hr - 2; b <= hr + 2; b++) {
+            float wx, wy, D; int rk;
+            if (!fsettle_hub(a, b, &wx, &wy, &rk, &D)) continue;
+            float dd = (wx - vx0) * (wx - vx0) + (wy - vy0) * (wy - vy0);
+            float sc = D - fsqrt(dd) * 6e-6f;            // strongest, biased toward the view
+            if (sc > bestD) {
+                bestD = sc;
+                ar_ccx = a; ar_ccy = b; ar_cx = wx; ar_cy = wy; ar_D = D;
+            }
+        }
+    if (bestD < 0) return 0;
+    ar_R = 2200.0f + 3200.0f * ar_D;                     // SIZE from the field (rung 2)
+    ar_valid = 0;
+    return 1;
+}
+
+// export the traced arterial graph as sndi-check's generated-graph JSON:
+// nodes = streamline endpoints + crossings (5 m weld), edges carry their pts.
+// Written to the cwd (build/ under the harness): citygrow-graph.json.
+#define AX_MAXCUT 64
+static void ar_export(void) {
+    static float cutt[AR_MAXL][AX_MAXCUT]; static int ncut[AR_MAXL];
+    for (int l = 0; l < ar_nl; l++) ncut[l] = 0;
+    for (int a = 0; a < ar_nl; a++)                      // crossings between the two families
+        for (int b = a + 1; b < ar_nl; b++) {
+            if (ar_lfam[a] == ar_lfam[b]) continue;      // same family never crosses (separation)
+            for (int i = 0; i < ar_np[a] - 1; i++)
+                for (int j = 0; j < ar_np[b] - 1; j++) {
+                    float x1 = ar_px[a][i], y1 = ar_py[a][i], x2 = ar_px[a][i + 1], y2 = ar_py[a][i + 1];
+                    float x3 = ar_px[b][j], y3 = ar_py[b][j], x4 = ar_px[b][j + 1], y4 = ar_py[b][j + 1];
+                    if ((x1 < x3 - 60 && x2 < x3 - 60 && x1 < x4 - 60 && x2 < x4 - 60) ||
+                        (x1 > x3 + 60 && x2 > x3 + 60 && x1 > x4 + 60 && x2 > x4 + 60) ||
+                        (y1 < y3 - 60 && y2 < y3 - 60 && y1 < y4 - 60 && y2 < y4 - 60) ||
+                        (y1 > y3 + 60 && y2 > y3 + 60 && y1 > y4 + 60 && y2 > y4 + 60)) continue;
+                    float den = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+                    if (den < 1e-6f && den > -1e-6f) continue;
+                    float t = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / den;
+                    float u = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / den;
+                    if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+                    if (ncut[a] < AX_MAXCUT) cutt[a][ncut[a]++] = i + t;
+                    if (ncut[b] < AX_MAXCUT) cutt[b][ncut[b]++] = j + u;
+                }
+        }
+    FILE *f = fopen("citygrow-graph.json", "w");
+    if (!f) return;
+    fprintf(f, "{\"nodes\":[");
+    int nn = 0;
+    static float nx[AR_MAXL * (AX_MAXCUT + 2)], ny[AR_MAXL * (AX_MAXCUT + 2)];
+    // helper-free node welding: linear probe over emitted nodes (5 m)
+    #define AX_NODE(X, Y, OUT) do {                                            \
+        int _k = -1;                                                           \
+        for (int _i = 0; _i < nn; _i++) {                                      \
+            float _dx = nx[_i] - (X), _dy = ny[_i] - (Y);                      \
+            if (_dx * _dx + _dy * _dy < 25.0f) { _k = _i; break; }             \
+        }                                                                      \
+        if (_k < 0) { nx[nn] = (X); ny[nn] = (Y); _k = nn++; }                 \
+        OUT = _k;                                                              \
+    } while (0)
+    // pass 1: assign node ids along every line (endpoints + sorted cuts)
+    static int lid[AR_MAXL][AX_MAXCUT + 2]; static float lt[AR_MAXL][AX_MAXCUT + 2]; static int lnn[AR_MAXL];
+    for (int l = 0; l < ar_nl; l++) {
+        for (int i = 1; i < ncut[l]; i++)                // insertion sort the cut positions
+            for (int j = i; j > 0 && cutt[l][j] < cutt[l][j - 1]; j--) {
+                float tmp = cutt[l][j]; cutt[l][j] = cutt[l][j - 1]; cutt[l][j - 1] = tmp;
+            }
+        int m = 0;
+        lt[l][m] = 0;
+        for (int i = 0; i < ncut[l]; i++)
+            if (cutt[l][i] > lt[l][m] + 0.35f && cutt[l][i] < ar_np[l] - 1.35f) lt[l][++m] = cutt[l][i];
+        lt[l][++m] = (float)(ar_np[l] - 1);
+        lnn[l] = m + 1;
+        for (int i = 0; i < lnn[l]; i++) {
+            float tt = lt[l][i]; int i0 = (int)tt; float fr = tt - i0;
+            float X = ar_px[l][i0] + (ar_px[l][i0 + (i0 < ar_np[l] - 1)] - ar_px[l][i0]) * fr;
+            float Y = ar_py[l][i0] + (ar_py[l][i0 + (i0 < ar_np[l] - 1)] - ar_py[l][i0]) * fr;
+            AX_NODE(X, Y, lid[l][i]);
+        }
+    }
+    for (int i = 0; i < nn; i++) fprintf(f, "%s[%.1f,%.1f]", i ? "," : "", nx[i], ny[i]);
+    fprintf(f, "],\"edges\":[");
+    int ne = 0;
+    for (int l = 0; l < ar_nl; l++)
+        for (int s = 0; s + 1 < lnn[l]; s++) {
+            if (lid[l][s] == lid[l][s + 1]) continue;
+            // pts BEGIN and END at the welded node coords — sndi-check rebuilds the
+            // graph from pts via 1 m vertex welding, so crossing edges must SHARE
+            // their endpoint vertex exactly or the crossing doesn't exist to it
+            fprintf(f, "%s{\"a\":%d,\"b\":%d,\"pts\":[", ne ? "," : "", lid[l][s], lid[l][s + 1]);
+            fprintf(f, "[%.1f,%.1f]", nx[lid[l][s]], ny[lid[l][s]]);
+            int i0 = (int)floorf(lt[l][s]) + 1, i1 = (int)ceilf(lt[l][s + 1]) - 1;
+            for (int i = i0; i <= i1 && i < ar_np[l]; i++)
+                if ((float)i > lt[l][s] + 0.05f && (float)i < lt[l][s + 1] - 0.05f)
+                    fprintf(f, ",[%.1f,%.1f]", ar_px[l][i], ar_py[l][i]);
+            fprintf(f, ",[%.1f,%.1f]]}", nx[lid[l][s + 1]], ny[lid[l][s + 1]]);
+            ne++;
+        }
+    fprintf(f, "]}\n");
+    fclose(f);
+    #undef AX_NODE
+}
+// ═══ end of the fenced rung-3 block ══════════════════════════════════════════
+
 // ── overlays ─────────────────────────────────────────────────────────────────
 // With the heat on, terrain drops to a silhouette (dark land / blue water) so the
 // field ramp POPS — the bench's money view. Heat off = the normal biome map.
@@ -267,6 +580,44 @@ static void draw_settlements(void) {
             circfill(px, py, rr, CLR_WHITE);
             if (metro && rr >= 3) circfill(px, py, 2, CLR_DARK_BLUE);
         }
+}
+
+// ── the CITY VIEW (rung 3) — the traced arterials over the terrain ───────────
+static void ar_draw(void) {
+    ar_ensure();
+    for (int l = 0; l < ar_nl; l++)                      // casing pass, then centre pass
+        for (int i = 0; i + 1 < ar_np[l]; i++) {
+            int x0 = sxp(ar_px[l][i]), y0 = syp(ar_py[l][i]);
+            int x1 = sxp(ar_px[l][i + 1]), y1 = syp(ar_py[l][i + 1]);
+            line(x0, y0 + 1, x1, y1 + 1, CLR_DARKER_GREY);
+            line(x0 + 1, y0, x1 + 1, y1, CLR_DARKER_GREY);
+        }
+    for (int l = 0; l < ar_nl; l++)
+        for (int i = 0; i + 1 < ar_np[l]; i++)
+            line(sxp(ar_px[l][i]), syp(ar_py[l][i]),
+                 sxp(ar_px[l][i + 1]), syp(ar_py[l][i + 1]),
+                 ar_lfam[l] ? CLR_LIGHT_GREY : CLR_WHITE);   // the two eigen-families
+    int cx = sxp(ar_cx), cy = syp(ar_cy);
+    circfill(cx, cy, 3, CLR_BLACK); circfill(cx, cy, 2, CLR_GREEN);   // the core
+    if (ar_has_hw) {                                     // the highway-gate bearing
+        int gx = sxp(ar_cx + cosf(ar_hw_ang) * ar_R * 0.9f);
+        int gy = syp(ar_cy + sinf(ar_hw_ang) * ar_R * 0.9f);
+        line(cx, cy, gx, gy, CLR_DARK_RED);
+        circfill(gx, gy, 2, CLR_RED);
+    }
+    circ(cx, cy, (int)(ar_R * P), CLR_DARK_PURPLE);      // the extent cap
+}
+
+static void hud_city(void) {
+    char buf[96];
+    rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
+    print("CITYGROW", 4, 2, CLR_LIGHT_GREY);
+    snprintf(buf, sizeof buf, "CITY %d,%d  D %.2f  wr %.2f wg %.2f  hw %d\xf8  lines %d",
+             ar_ccx, ar_ccy, ar_D, ar_wrad, ar_wgrid,
+             (int)(ar_hw_ang * 57.29578f), ar_nl);
+    print(buf, 84, 2, CLR_GREEN);
+    print_centered("T back to map   X export graph JSON (build/)   R reroll",
+                   SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
 }
 
 static void draw_bound(void) {                   // the world rim (B) — ~500 km across
@@ -355,15 +706,31 @@ void update(void) {
                         drag_px = mouse_x(); drag_py = mouse_y(); }
     } else dragging = 0;
 
-    if (keyp(KEY_SPACE) && mode == 1) {
-        jumpN += 1.0f;
+    if (keyp(KEY_SPACE) && mode == 1) {          // hub-scale hops — a fresh NEIGHBOURHOOD each press,
+        jumpN += 1.0f;                           // clamped inside the world rim (there's no one out there)
         unsigned h = wn_hash2((int)(jumpN * 911), 7);
-        camX += (float)((int)(h % 60000u) - 30000) + 12000.0f;
-        camY += (float)((int)((h >> 11) % 60000u) - 30000) + 12000.0f;
+        camX += (float)((int)(h % 300000u) - 150000) + 60000.0f;
+        camY += (float)((int)((h >> 11) % 300000u) - 150000) + 60000.0f;
+        float ccx = camX + SCREEN_W * 0.5f / pp, ccy = camY + SCREEN_H * 0.5f / pp;
+        ccx = clamp(ccx, BOUND_CX - BOUND_R * 0.85f, BOUND_CX + BOUND_R * 0.85f);
+        ccy = clamp(ccy, BOUND_CY - BOUND_R * 0.85f, BOUND_CY + BOUND_R * 0.85f);
+        camX = ccx - SCREEN_W * 0.5f / pp; camY = ccy - SCREEN_H * 0.5f / pp;
     }
     if (keyp('R')) { zoom = OVERVIEW_ZOOM; view_metrics();
                      camX = SPAWN_X - vcols / 2.0f; camY = SPAWN_Y - vrows / 2.0f;
-                     seedZ += 0.37f; jumpN = 0; }
+                     seedZ += 0.37f; jumpN = 0; ar_on = 0; }
+    if (keyp('T') && mode == 1) {                // rung 3: the CITY VIEW ↔ the map
+        if (ar_on) { ar_on = 0; camX = map_camX; camY = map_camY; zoom = map_zoom; view_metrics(); }
+        else if (ar_pick_city()) {
+            map_camX = camX; map_camY = camY; map_zoom = zoom;
+            ar_on = 1;
+            zoom = (SCREEN_H * 0.42f) / (TILE * ar_R);   // the city fills the view
+            view_metrics();
+            camX = ar_cx - SCREEN_W * 0.5f / (TILE * zoom);
+            camY = ar_cy - SCREEN_H * 0.5f / (TILE * zoom);
+        }
+    }
+    if (keyp('X') && ar_on) { ar_ensure(); ar_export(); }
     if (keyp('F')) show_heat   = !show_heat;
     if (keyp('E')) show_extent = !show_extent;
     if (keyp('N')) show_dots   = !show_dots;
@@ -415,6 +782,13 @@ void update(void) {
 
 void draw(void) {
     view_metrics();
+    if (ar_on) {                                 // rung 3: one city, its arterials
+        int heat = show_heat; show_heat = 0;     // biome terrain under the streets
+        draw_terrain(); show_heat = heat;
+        ar_draw();
+        if (show_hud) hud_city();
+        return;
+    }
     draw_terrain();
     draw_field();
     if (show_grid) draw_grid_overlay();

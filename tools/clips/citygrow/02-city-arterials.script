@@ -1,0 +1,20 @@
+# citygrow — RUNG 3: tensor-field arterials, a city's anatomy from its geography.
+# Two hub-scale hops (SPACE), then T enters the CITY VIEW at the strongest
+# field-hub near the view centre: the per-city tensor field (radial core +
+# entering-highway grid + terrain contours + noise, weights hashed per city)
+# traced as crossing eigen-family streamlines — this seed lands a LAKESIDE city
+# whose warped grid wraps around the water. X exports the traced graph as
+# sndi-check JSON to build/citygrow-graph.json (the rung-0 oracle reads it).
+# Deterministic: same seed = same city, byte-identical export.
+# frames 90
+# fps 30
+down 10 ENTER
+up 12 ENTER
+down 20 SPACE
+up 22 SPACE
+down 26 SPACE
+up 28 SPACE
+down 40 T
+up 42 T
+down 70 X
+up 72 X

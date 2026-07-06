@@ -118,11 +118,21 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   500 km** (density rim-fades over 60 km past R=250 km, no wall) — *maker to confirm by feel* before
   it's carved into worldnet.h. The field wires into worldnet's `get_node`/`get_hub` with the rung-5.5
   extraction (the bench stays the prototype home till then, per the one-data-model guard).
-- [ ] **Rung 3 — tensor-field arterials per city.** Per-city field (radial + entering-highway grid
-  alignment + terrain + noise; weights hashed per city); trace major streamlines inside the city's
-  bounded region; the arterial graph **partitions the city into districts** (enumerable polygons).
-  *Done when:* arterials visibly bend with terrain and orient to their highway. *Gate:* `sndi-check`
-  on the majors + drive it.
+- [x] **Rung 3 — tensor-field arterials per city. ✅ SHIPPED 2026-07-06** (in `citygrow`; press
+  **T** over a city). Per-city Chen-2008 tensor field — radial-around-the-core + grid aligned to
+  the **entering highway read live from the worldnet edge cache** + terrain-contour alignment +
+  noise, blended in double-angle space, weights hashed per city — traced as hyperstreamlines of
+  both eigen-families with Jobard-Lefer-style separation (an id-grid; true distance checks are a
+  listed bench upgrade), wholesale + cached because a city is bounded. *Done-when met:* arterials
+  visibly shear along coastlines, wrap around lakes, and orient to their highway gate — two
+  neighbouring cities show distinct anatomies (clip `citygrow/02-city-arterials`). *Gate run:*
+  **X** exports the graph as `sndi-check` JSON (crossings split, nodes welded so the oracle's 1 m
+  vertex-weld sees them) — first measurements: coastal city mean degree 2.65 / lakeside 2.95 vs
+  Amersfoort 2.71; the gaps are now *numbers* (34–45% rim-stub dead-ends to trim, T-share ~1% vs
+  real ~63% — rung-5 calibration targets). *Deferred:* the "drive it" half of the gate waits for
+  the rung-5.5 wiring (the bench has no car); district polygon extraction moved into rung 4 where
+  it's consumed. Export caveat: same-family lines never cross (separation), so crossings are
+  family×family only.
 - [ ] **Rung 4 — per-district minor fill (the Phase-2 payoff).** Each district hashes to
   `(pattern, knob-params)`; generalize streetlab's generators from the fixed toy grid to fill a
   district polygon; stitch to arterials respecting the **continuity tenet** (locals → collectors →

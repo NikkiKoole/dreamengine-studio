@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-06 (four lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the HTML wireframe of the 3 shapes → R5 acidrack redesign · store/ASO — buy-screen crash FIXED (Store.unlockedIDs race, 07690c9b) + Tiny Jam name reserved on ASC + testflight.sh · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-06 (four lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — buy-screen crash FIXED (Store.unlockedIDs race, 07690c9b) + Tiny Jam name reserved on ASC + testflight.sh · editor media — record/replay shipped, the panel deferred)_
 
 ---
 
@@ -104,10 +104,14 @@ none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + th
 > tiny pixels + sub-finger controls; K=3 overflows the font; (2) `de_reflow` is **binary-wide** so
 > yachtrack/epiano render in the top band (per-cart reflow = backlog); (3) **SEAM (backed out):**
 > desktop live-resize freezes the transport — macOS modal loop blocks the main thread, GLFW fires no
-> callback, do NOT re-try the callback route; iOS rotation is fine. **Resume at: the interactive HTML
-> WIREFRAME of the 3 shapes (tall/short-wide/roomy at K=2 logical sizes) with folded/compact/expanded
-> toggles** — the vehicle to make §2's compact-strip taste calls before touching acidrack's C (maker's
-> call), then R5. Parked decisions: landscape side-notch inset (acidrack insets top/bottom only) +
+> callback, do NOT re-try the callback route; iOS rotation is fine. **Resume at: the WIREFRAME CART —
+> extend `tools/carts/acidfit.c` (the existing disclosure prototype) with `lay.h` into the acidrack
+> wireframe (5 strips folded/compact/expanded + transport + song row), viewed across the 3 shapes via
+> `play.js --resize` + libtcc live-reload.** Chosen over an HTML mock (maker's call 2026-07-06): a cart
+> has no translation gap (IS the production path — the field-018 hazard), validates `lay.h`/`disclose.h`
+> can express it, renders real fonts/fingers/insets on device; if a primitive is missing, ADD IT TO
+> `lay.h` (that's R2/R3 groundwork). It's the vehicle for §2's compact-strip taste calls, then R5.
+> Parked decisions: landscape side-notch inset (acidrack insets top/bottom only) +
 > background-audio policy (keep-playing vs pause-on-Home).
 
 > **▶ ACTIVE THREAD (2026-07-06) — store / ASO + the app-trailer builder.**

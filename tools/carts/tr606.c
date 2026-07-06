@@ -289,8 +289,14 @@ static void fire(int v, int boost, int delay) {
     case V_OH: {  // the beating 418+440 pair; decay TEMPO-LINKED (hardware quirk)
         int base = 3 * (15000 / tempo);
         if (base < 150) base = 150; else if (base > 650) base = 650;
-        schedule_hit(delay, k_midi(v, MB4), SL_HATO, vv(5, boost), k_dur(v, base));
-        schedule_hit(delay, k_midi(v, MB5), SL_HATO, vv(4, boost), k_dur(v, base));
+        // 3+2+2, not 5+4: the pair alone must NOT reach full scale (5+4 = 9/7
+        // rail-clips, and any overlap crackles into hard popping), and the ~25Hz
+        // MB4/MB5 beat needs a third member under it or it pinches to silence
+        // (full-depth infra-pitch AM reads as popping, not shimmer — the real
+        // box hides the beat under four more oscillators; MB6 is the cheapest)
+        schedule_hit(delay, k_midi(v, MB4), SL_HATO, vv(3, boost), k_dur(v, base));
+        schedule_hit(delay, k_midi(v, MB5), SL_HATO, vv(2, boost), k_dur(v, base));
+        schedule_hit(delay, k_midi(v, MB6), SL_HATO, vv(2, boost), k_dur(v, base));
         break;
     }
     case V_CH:  // crisp top members; firing also chokes the open hat (shut-off)

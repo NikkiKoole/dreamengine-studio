@@ -2,6 +2,7 @@
   "name":     "Tiny Jam",
   "bundleId": "com.mipolai.tinyjam",
   "version":  "0.1",
+  "icon":     "docs/marketing/tinyjam/icons/tinyjam-icon-1024.png",
   "carts":    ["acidrack", "yachtrack", "epiano"],
   "launcher": "tinyjam-menu",
   "listing": {

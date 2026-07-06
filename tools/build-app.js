@@ -80,7 +80,7 @@ if (!app.name || !Array.isArray(app.carts) || app.carts.length === 0) {
   console.error('manifest needs at least: { "name": "...", "carts": ["cart", ...] }')
   process.exit(1)
 }
-for (const k of ['iap', 'icon'])
+for (const k of ['iap'])
   if (app[k]) console.log(`note: manifest "${k}" is parked for a later rung — accepted, unused today`)
 
 // ── cap: contexts the engine actually has (never drifts from sound.h) ─────────
@@ -405,6 +405,28 @@ ${fs.readFileSync(c.src, 'utf8')}`)
   fs.copyFileSync(path.join(stage, 'map_data.h'), path.join(dir, 'map_data.h'))
   fs.writeFileSync(path.join(ROOT, 'ios/gen/app.dims'),   // outside gen/app so it's not a compiled source
     `DE_SCREEN_W=${d0.screenW}\nDE_SCREEN_H=${d0.screenH}\nDE_MAP_W=${d0.mapW}\nDE_MAP_H=${d0.mapH}\nDE_CELL_W=${d0.cellW}\nDE_CELL_H=${d0.cellH}\n`)
+  // App icon: manifest "icon" (repo-relative PNG — the STORE format: 1024x1024, no alpha) →
+  // a single-size asset catalog at ios/gen/Assets.xcassets. project.yml lists that path as an
+  // OPTIONAL source + sets ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon, so: icon in manifest →
+  // the built app (and its App Store Connect upload) carries it; no icon / single-cart
+  // build.sh runs → catalog absent at xcodegen time, build unchanged. Per-app on purpose —
+  // every app manifest brings its own icon, nothing is baked into the shared ios/ scaffold.
+  const iconCatalog = path.join(ROOT, 'ios/gen/Assets.xcassets')
+  fs.rmSync(iconCatalog, { recursive: true, force: true })      // drop a stale icon from a previous app build
+  if (app.icon) {
+    const iconSrc = path.join(ROOT, app.icon)
+    if (!fs.existsSync(iconSrc)) { console.error(`✗ manifest "icon" not found: ${app.icon}`); process.exit(1) }
+    const setDir = path.join(iconCatalog, 'AppIcon.appiconset')
+    fs.mkdirSync(setDir, { recursive: true })
+    fs.writeFileSync(path.join(iconCatalog, 'Contents.json'),
+      JSON.stringify({ info: { author: 'xcode', version: 1 } }, null, 2) + '\n')
+    fs.copyFileSync(iconSrc, path.join(setDir, 'icon-1024.png'))
+    fs.writeFileSync(path.join(setDir, 'Contents.json'), JSON.stringify({
+      images: [{ filename: 'icon-1024.png', idiom: 'universal', platform: 'ios', size: '1024x1024' }],
+      info: { author: 'xcode', version: 1 },
+    }, null, 2) + '\n')
+    console.log(`✓ staged app icon ${app.icon} → ios/gen/Assets.xcassets`)
+  }
   console.log(`✓ staged ${units.length} cart TUs → ios/gen/app  (${d0.screenW}x${d0.screenH})`)
   units.forEach((c, i) => console.log(`    ctx ${i}: ${c.name}${c === launcher ? '  (launcher)' : ''}`))
   console.log(`  next: cd ios && APP=${target} ./build.sh   (sim)  ·  APP=${target} ./device.sh   (phone)`)

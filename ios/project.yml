@@ -25,6 +25,10 @@ targets:
       - path: ../runtime/studio.c
       - path: ../runtime/raylib_compat.c
       - path: gen/app
+      # Per-app icon, staged by build-app.js --ios from the manifest's "icon" key (absent for
+      # single-cart builds — optional means xcodegen just skips it then).
+      - path: gen/Assets.xcassets
+        optional: true
     dependencies:
       - target: TinyjamAU       # embed the AUv3 extension into the app's PlugIns
         embed: true
@@ -40,6 +44,8 @@ targets:
         # store/TestFlight build must set PRODUCT_BUNDLE_IDENTIFIER to that (extension:
         # com.mipolai.tinyjam.TinyjamAU) — don't ship the hello id.
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello
+        # Inert unless gen/Assets.xcassets was staged (see sources) — no catalog, no actool run.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
         # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)

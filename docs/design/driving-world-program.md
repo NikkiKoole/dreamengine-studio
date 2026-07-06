@@ -228,7 +228,10 @@ The P-ranking above, flattened into **three parallel-safe tracks with gates**. W
 order is strict; the tracks don't block each other (A1 and C1 are the two headline moves and are
 deliberately independent). Check items off here as they land; the P-sections above stay the *why*.
 
-**Track A — the infinite world (the spine):**
+**Track A — the infinite world (the spine):** *(A2–A4 are specced as a gated rung ladder in
+[`worldgen-plan.md`](worldgen-plan.md), which prepends **rung 0: an SNDi oracle tool** —
+`sndi-check.js` measuring real `.rvb` cities AND generated graphs — so the generator work is judged
+by numbers from day one.)*
 - [ ] **A1 · Rung B-proc** — give `roadnet2` a `road_at()` (nearest-edge query + spatial index over
   its vector graph; its `arterial_at()` is already the vector-native prototype) exposing the same
   `RoadHit{on_road, cls, zone}` contract, and swap it behind sloop's seam — the index/grip/collision
@@ -281,7 +284,7 @@ deliberately independent). Check items off here as they land; the P-sections abo
 ## Decisions to make (open forks)
 
 1. **The world spine — what *is* it?** ✅ **Resolved 2026-07-01 (see P0):** the spine = **`roadnet2` (clean vector network: spline core + β-skeleton web + bridges + drive) + a grade-keyed junction dispatcher → `streetlab` (at-grade) / `roadlab` (grade-separated interchanges) + `roadnet`'s street-content recipes regenerated on roadnet2's graph**, exposing one `road_at()`. `roadnet2` carries forward; `streetlab`+`roadlab` are the called junction renderers; `roadnet` becomes a reference/petri-dish (its content is proven but its dual-representation code is not ported).
-2. **Is the abstraction "roads" or "networks"?** Field note 004's open question. If networks, the spine's `road_at()` generalizes to rivers/rails/paths — worth knowing *before* P0 locks the data model.
+2. **Is the abstraction "roads" or "networks"?** Field note 004's open question. ✅ **Answered 2026-07-06: networks** — seas/lakes = a density-field constraint+attractor (not a network), rivers = the rung-3 streamline tracer over the terrain-gradient field, rails = a third network with a stricter grammar (min-radius/grade, stations, level crossings), and a typed cross-network crossing table (road×river = bridge/ferry, road×rail = level crossing, …). The graph's edge-type field goes in **before** the `road_at()` data model freezes. Full reasoning + ladder hooks: [`worldgen-plan.md`](worldgen-plan.md) §"Beyond roads".
 3. **Player view: top-down (sloop today) or pseudo-3D (citydrive's adapter)?** Affects whether seam 3 is on the main path or a side quest.
 
 ## Pointers

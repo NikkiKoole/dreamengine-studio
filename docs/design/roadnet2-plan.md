@@ -8,6 +8,10 @@ yet.** Cart: [`tools/carts/roadnet2.c`](../../tools/carts/roadnet2.c) (currently
 rung-1..3 baseline, commit `c16c9a2`, verbatim — the foundation). v1 lives on at
 [`roadnet.md`](roadnet.md) / [`roadnet-streetlevel.md`](roadnet-streetlevel.md) /
 [`roadnet-handoff.md`](roadnet-handoff.md) as the reference + testbed (don't delete it).
+**The generation-realism work on top of this spine (density field, tensor-field arterials,
+per-district fill, rivers/rails, the SNDi oracle) is specced as a rung ladder in
+[`worldgen-plan.md`](worldgen-plan.md)** — this doc stays the substrate plan (scale, cameras,
+the junction matrix).
 
 ## Why a v2 (the one lesson)
 v1 grew **two parallel representations of the streets** that then diverged:

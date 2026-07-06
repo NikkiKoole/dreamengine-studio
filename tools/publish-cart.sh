@@ -41,6 +41,7 @@ done
 # ── site leg: commit + push inside site/'s OWN repo. Everything under site/
 # belongs to it, so add -A can't sweep foreign WIP (the shared-index hazard
 # lives in the code repo, not here).
+cp tools/net-relay.js site/net-relay.js   # the site repo self-deploys the relay (site/render.yaml → Render); keep the copy in sync
 (
   cd site
   git add -A

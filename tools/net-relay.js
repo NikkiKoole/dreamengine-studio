@@ -22,10 +22,12 @@
 //                                                forwarding/BYE), exits nonzero
 //                                                on failure — the CI gate
 //
-// Beyond the LAN: the repo-root render.yaml is a Render blueprint that deploys
-// this file on the free tier (wss:// handed out automatically) — the published-
-// gallery multiplayer story. Walkthrough: multiplayer-research.md §"Hosting
-// beyond the LAN".
+// Beyond the LAN: the PUBLIC site repo (NikkiKoole/dreamengine) self-deploys
+// this relay — publish-cart.sh syncs a copy to site/net-relay.js, and
+// site/render.yaml is the Render blueprint (free tier, wss:// handed out; the
+// service also --serves the gallery, so games run straight off the Render
+// domain with no ?relay= param). The private code repo is never shared with
+// Render. Walkthrough: multiplayer-research.md §"Hosting beyond the LAN".
 //
 // Protocol (all binary WS frames):
 //   - WS path /room/<code> (or ?room=<code>) joins that room. Rooms hold 2.

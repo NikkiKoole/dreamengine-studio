@@ -617,20 +617,27 @@ Options, cheapest-first:
 | **$5 VPS + Caddy** | Caddy auto-TLS proxying to the relay | the classic; zero surprises, small bill. The natural upgrade when 5b needs signaling+TURN anyway |
 
 **The blessed path (picked: Render free tier — nothing at home to babysit,
-reversible for the price of editing `?relay=`).** The repo root carries
-**`render.yaml`**, a Render blueprint that deploys the relay as-is:
+reversible for the price of editing `?relay=`).** Since the repo split
+(2026-07-06, [`sharing-channels.md`](sharing-channels.md)) the **public site
+repo self-deploys the relay**: `site/render.yaml` is the blueprint and
+`site/net-relay.js` is a copy publish-cart.sh keeps in sync — **Render
+connects to the public `NikkiKoole/dreamengine` repo only**; the (soon
+private) code repo is never shared with any third-party service.
 
-1. Create a Render account → **New → Blueprint** → point it at this GitHub
-   repo. It finds `render.yaml` and deploys `dreamengine-relay` (Frankfurt,
-   free plan, zero-dep — the blueprint overrides the build step so `sharp`
-   isn't compiled for nothing).
-2. You get `wss://dreamengine-relay.onrender.com` (name per your account).
-   Share links as
+1. Create a Render account → **New → Blueprint** → point it at
+   **`NikkiKoole/dreamengine`** (the public site repo). It finds
+   `render.yaml` and deploys `dreamengine-relay` (Frankfurt, free plan,
+   zero-dep).
+2. The service **also serves the gallery** (`--serve .`), so games run
+   straight off the Render domain with **no `?relay=` param at all**:
+   `https://dreamengine-relay.onrender.com/<cart>/?room=<code>`. The
+   github.io links work too, with the explicit param:
    `https://nikkikoole.github.io/dreamengine/<cart>/?room=<code>&relay=wss://dreamengine-relay.onrender.com`.
 3. **Cold starts:** the free tier sleeps after ~15 idle min; the first
    connection waits ~30–60 s. Warm it before a session by opening the bare
-   `https://…onrender.com/` URL — the relay answers a plain-text 200 exactly
-   for this.
+   `https://…onrender.com/` URL (it answers with the gallery).
+4. Redeploys are manual (`autoDeploy: false`) — a publish shouldn't bounce a
+   live match; click deploy on Render when the relay code itself changes.
 
 **One relay, every cart, no collisions:** rooms are **cart-scoped by
 construction** — the web transport prepends the cart's URL path segment to the

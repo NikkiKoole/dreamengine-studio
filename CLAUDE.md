@@ -50,6 +50,10 @@ Two parallel-agent commit hazards (both have bitten):
    - **`git add` first, always** — pathspec can't commit a new *untracked* file on its own.
    - **Exact filenames, never a directory/glob** (`git commit -- editor/` re-sweeps foreign
      changes). And `-m` goes *before* `--`.
+   - **A pathspec commit records those paths' WORKING-TREE content, not the staged state.**
+     Same thing for normal edits — but an index-only change (`git rm --cached` untrack, partial
+     `add -p`) is silently DISCARDED by it (bit us: the site/ untrack no-op'd). For index
+     surgery: verify `git diff --cached --name-only` is exactly yours, then commit bare.
    - Backstop: `git diff --cached --name-only` before committing if unsure.
 2. **Generated registry files.** `editor/public/carts/index.json` is now **generated** from each
    cart's `de:meta` block (`tools/build-cart-index.js`) — you never hand-edit it, so a cart's

@@ -70,12 +70,16 @@ all: [`STATUS.md`](STATUS.md) + the design board.
 > is **`com.mipolai.tinyjam`** (registered in the dev portal; `apps/tinyjam/app.json` updated —
 > the `com.tinyjam.hello` in `ios/project.yml` is dev-loop-only, see the comment there); the
 > manifest **`icon` key is live** (`build-app.js --ios` → single-size asset catalog, sim-verified
-> in `Assets.car`); **`ios/testflight.sh`** (archive + upload rung) works through cloud-signed
-> Release archive ✓ but **upload is BLOCKED on Apple's iOS-26-SDK rule** — this Mac runs macOS
-> 14.2.1, Xcode 26 needs ≥15.6. **Unblock = maker upgrades macOS + installs Xcode 26, then
-> `cd ios && APP=tinyjam ./testflight.sh`** (uploading one build also cements the name
-> reservation). Expect toolchain wobble after the OS jump (clangd/brew/simulators) — re-verify
-> `build.sh` first.
+> in `Assets.car`); **`ios/testflight.sh` RAN TO COMPLETION (2026-07-06)** on the upgraded box
+> (macOS 26.5 + Xcode 26.6 at `/Applications/Xcode26_6.app`): **v0.1 build 202607061929 uploaded
+> to App Store Connect** (cloud-signed Release, name reservation cemented) — next store step is
+> ASC → TestFlight once it clears Processing. Toolchain wobbles found + fixed on the way:
+> (1) `open -a Simulator` launches the STALE Xcode 15.1 copy in ~/Downloads and dyld-crashes —
+> open Xcode26_6's Simulator.app by path; (2) the **iOS 26 sim runtime killed in-app
+> `SKTestSession`** (needs a real XCTest run context now, not just XCTest loaded — dlopen tricks
+> don't help; the 17.2 runtime was auto-deleted in the upgrade) — `Store.swift` now skips local
+> IAP testing gracefully (committed d8a7deba); for the sim purchase dev-loop install an older
+> runtime (`xcodebuild -downloadPlatform iOS -buildVersion 18.4`) or sandbox-test on device.
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`
 > (local — **push to sync other machines**):
 > - **The free ASO keyword loop** (CLI + Apps tab): `aso-research` (now mines competitor

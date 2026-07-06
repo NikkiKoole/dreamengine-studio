@@ -1,6 +1,6 @@
 # The Driving World — program map
 
-STATUS: LIVING MAP (2026-07-02 — player-fantasy scoreboard added; P2 re-rated (the chase pillar makes it player-facing); **on-foot seam rung F0 LANDED in sloop** — get out at the seat cell, walk the collidable world, get back in, spec-pinned). **Milestone: P1 landed (OSM half) — `road_at()` drives sloop over real Delft (build a rig, drive real streets that drive grip, crash real buildings). the geometry-first RENDER arc is UNDERWAY in `citydrive` (the close pseudo-3D view where geometry is visible): ✅ connected asphalt surface (casing+fill, hierarchy by width), ✅ canals under roads (flat bridges), ✅ real OSM BRIDGES as raised decks + ✅ TUNNELS dashed (osm-roads now carries bridge/tunnel/layer) + ✅ street-dressing (pavement/kerb bands, lane markings) + ✅ **real-OSM-data-driven** look — surface (brick/klinker vs asphalt), per-street sidewalks, carriageway width (one-way streets narrow → fatter pavement), lane-count/one-way markings, red cycleways (separate + on-road), real zebra crossings, and give-way haaientanden (real per-approach voorrang) — next in this arc: curb-return junctions via `roadkit.h`, see [`roadkit.md`](roadkit.md). Other open arc: (2) Rung B-proc — the same `road_at()` seam over roadnet2 (the infinite procedural world).** The umbrella over the whole "build a vehicle, drive a procedural world" research — sloop + the road/world/city/render carts as **one program, not a pile of carts.** Sits ABOVE [`road-program-state.md`](road-program-state.md) (which is only the road-geometry tier) and pulls the other layers — movement, the world spine, rendering, real-world data, city content — into one read. Use it to see how far each layer is and **what to finish first.** Update the status table + the "finish first" call when a layer moves.
+STATUS: LIVING MAP (2026-07-06 — the P-ranking sequenced into three parallel-safe gated tracks, see §"The sequenced build order"; 2026-07-02 — player-fantasy scoreboard added; P2 re-rated (the chase pillar makes it player-facing); **on-foot seam rung F0 LANDED in sloop** — get out at the seat cell, walk the collidable world, get back in, spec-pinned). **Milestone: P1 landed (OSM half) — `road_at()` drives sloop over real Delft (build a rig, drive real streets that drive grip, crash real buildings). the geometry-first RENDER arc is UNDERWAY in `citydrive` (the close pseudo-3D view where geometry is visible): ✅ connected asphalt surface (casing+fill, hierarchy by width), ✅ canals under roads (flat bridges), ✅ real OSM BRIDGES as raised decks + ✅ TUNNELS dashed (osm-roads now carries bridge/tunnel/layer) + ✅ street-dressing (pavement/kerb bands, lane markings) + ✅ **real-OSM-data-driven** look — surface (brick/klinker vs asphalt), per-street sidewalks, carriageway width (one-way streets narrow → fatter pavement), lane-count/one-way markings, red cycleways (separate + on-road), real zebra crossings, and give-way haaientanden (real per-approach voorrang) — next in this arc: curb-return junctions via `roadkit.h`, see [`roadkit.md`](roadkit.md). Other open arc: (2) Rung B-proc — the same `road_at()` seam over roadnet2 (the infinite procedural world).** The umbrella over the whole "build a vehicle, drive a procedural world" research — sloop + the road/world/city/render carts as **one program, not a pile of carts.** Sits ABOVE [`road-program-state.md`](road-program-state.md) (which is only the road-geometry tier) and pulls the other layers — movement, the world spine, rendering, real-world data, city content — into one read. Use it to see how far each layer is and **what to finish first.** Update the status table + the "finish first" call when a layer moves.
 
 > Companion to [`big-game-backlog.md`](big-game-backlog.md) (what's left *per cart* + the cross-cutting seams) and [`showreel-teaser.md`](showreel-teaser.md) (the trailer as a forcing function). This doc is the **horizontal map**: the layers, where they converge, and the recommended order. The field note [`field-notes/004-roads-as-convergence-layer.md`](../field-notes/004-roads-as-convergence-layer.md) is the discovery this formalizes.
 
@@ -221,6 +221,62 @@ Rung ladder:
 - More streetlab primitives — staggered junctions, the modal active-travel layer, dendricity metric. The grammar is done; these are sandbox polish. ([`road-program-state.md`](road-program-state.md) tracks them.)
 - The field-based road cutover — correctly blocked on `software-canvas.md` (already in flight).
 - cityplan multi-storey tenements — nice, but not on the critical path to a drivable world.
+
+## The sequenced build order (2026-07-06)
+
+The P-ranking above, flattened into **three parallel-safe tracks with gates**. Within a track the
+order is strict; the tracks don't block each other (A1 and C1 are the two headline moves and are
+deliberately independent). Check items off here as they land; the P-sections above stay the *why*.
+
+**Track A — the infinite world (the spine):**
+- [ ] **A1 · Rung B-proc** — give `roadnet2` a `road_at()` (nearest-edge query + spatial index over
+  its vector graph; its `arterial_at()` is already the vector-native prototype) exposing the same
+  `RoadHit{on_road, cls, zone}` contract, and swap it behind sloop's seam — the index/grip/collision
+  consumer transfers verbatim. *Done when:* sloop drives an **infinite, deterministic** roadnet2
+  world (same seed → same world) with the real on/off-road grip difference. *Gates:* `node
+  tools/spec.js sloop` stays 25/0; a deterministic `play.js` drive with `watch("on_road")` flipping correctly.
+- [ ] **A2 · Street content on the clean graph** — regenerate zones/blocks/lots/footprints from
+  `roadnet`'s proven recipes (*reference, not a port* — v1's dual-representation code stays behind);
+  fills `RoadHit.zone`; procedural buildings become solid obstacles like the OSM ones. *Done when:*
+  driveable streets between solid buildings with **screen == collision** (the invariant v1 broke).
+- [ ] **A3 · The world composer (P3)** — two-tier major→minor generation: per-region `(pattern,
+  region)` via streetlab's `gen_network`, per-crossing `(legs, type)` junction dispatch (consumes
+  B4), stitched at boundaries. Today one pattern fills the whole view.
+- [ ] **A4 · Realism calibration — OSM as the oracle** (no ML) — measure real cities' SNDi profiles
+  through the `osm-junction.js` pipeline, tune the generator to reproduce the statistics, A/B drive
+  generated-vs-real. *Done when:* a generated district's SNDi profile matches the target city's.
+
+**Track B — streets that look real (the citydrive → roadkit arc; plan: [`roadkit.md`](roadkit.md)):**
+- [ ] **B1 · Traffic-signals marker** — the named-next importer chunk (new point-kind enum surgery
+  in `citydrive.c` + `roadview.c`; the nodes are already fetched).
+- [ ] **B2 · roadkit Phase 3 — pure-geometry extract** — `curb_return`, the leg model, `cross_hw`,
+  corner counts into `runtime/roadkit.h`; streetlab includes + calls unchanged. *Hard gate:*
+  streetlab `spec` stays **104/0** (if it can't, the boundary is wrong — fix the seam, don't loosen
+  the spec). Mind the `ux`/`uy` snap difference vs roadlab.
+- [ ] **B3 · roadkit Phase 4 — the field renderer** — N-arm-native curb-return junctions rendered in
+  citydrive's near field via the lateral distance field (`DE_FIELD_ROADS` is the reference),
+  superseding the throwaway disc-joins + decals (markings stop at nodes). *Gates:* `road-check
+  --all`, `mirror-diff`, streetlab spec.
+- [ ] **B4 · roadkit Phase 5 — grade dispatch** — one `roadkit_junction(legs, grade)` routing
+  at-grade → streetlab grammar, grade-separated → roadlab's `make_junction`, keyed identically from
+  a seed or OSM (`bridge`/`layer`/`*_link` + shared-node topology). **This is the junction layer A3
+  consumes.**
+
+**Track C — player-facing life (parallel to A and B):**
+- [ ] **C1 · P2 — traffic-ai onto `road_at()`** — only the followed line changes (`cl[]` → the
+  seam); the behaviours incl. the whole chase pillar are built. *Done when:* a police chase runs
+  through real Delft streets — a showreel scene. *Gate:* the 62 assertions transfer (or a
+  real-world twin spec).
+- [ ] **C2 · F3 — get out and fight** — lift `flank`'s brain as a library header
+  ([ADR-0006](../decisions/0006-library-carts-not-engine.md)) and wire it to the on-foot avatar
+  (the car↔foot handoff is already spec-pinned).
+
+**Convergence (last):**
+- [ ] **D1 · sloop's rig ∪ citydrive's view** (roadkit phase 6) — either the ground-plane render
+  onto sloop's top-down or, more likely, sloop's rigid body driven inside citydrive. Cheap by then:
+  everything meets at the renderer-agnostic `road_at()` seam.
+
+(The "Explicitly defer" list above still applies — those items are not on any track.)
 
 ## Decisions to make (open forks)
 

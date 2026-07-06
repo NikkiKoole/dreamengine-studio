@@ -246,8 +246,9 @@ edges now), the field↔graph extraction step (graph is generated directly, not 
    connected to the highways, sized in metres to the locked scale. Per-district straight-vs-warped.
 5. **Access + cul-de-sacs** as the finest spline tier; the palette per district.
 6. **Buildings on edges** (port v1's `building_at` + parcels), footprints in metres.
-7. **Drive it for real** — full sloop: `road_at` (surface), `building_at` (collision), graph
-   (routing). The car from step 2 graduates from measuring stick to gameplay.
+7. **Drive it for real** — full sloop: `road_at` (surface — ✅ 2026-07-06, sloop's N key drives
+   the spine via `worldnet.h`), `building_at` (collision — waits on the content rung) and graph
+   routing still to come. The car from step 2 graduates from measuring stick to gameplay.
 
 ## Honest caveats (so v2 doesn't repeat v1)
 - **Empty looked clean.** Any fill-in is busier than blank terrain; "clean" comes from

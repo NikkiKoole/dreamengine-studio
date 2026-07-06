@@ -1,6 +1,16 @@
 # roadnet2 — session handoff (2026-06-15)
 
-STATUS: BUILDING — vector-native rebuild; metre base + two-camera harness done; driving (rung 4) + street generation pending.
+STATUS: BUILDING — vector-native rebuild; metre base + two-camera harness done; the unified
+`road_at()` graph query SHIPPED + EXTRACTED to `runtime/worldnet.h` (2026-07-06); street
+generation continues on the worldgen ladder.
+
+> **2026-07-06 — this handoff is partially superseded.** Worldgen rung 1 landed: the world core
+> (terrain + lattice + `link_path` + the new edge-graph `road_at()` query) was **extracted to
+> `runtime/worldnet.h`**, and sloop drives the spine behind its own seam (N key). The car in this
+> cart reads the surface (off-road drag, HUD class tag, C = spawn snapped onto a road, G = the
+> graph-vs-strokes overlay). **The live thread + resume point is
+> [`worldgen-plan.md`](worldgen-plan.md)** (rungs 0–3 shipped; rung 4 pick-up note there); this
+> file remains accurate for the two-camera harness, the β-skeleton, and the interchange sandbox.
 
 Orientation for picking up the **vector-native road rebuild**. The deep plan + the junction
 matrix live in [`roadnet2-plan.md`](roadnet2-plan.md); this is "where it stands, what's next,

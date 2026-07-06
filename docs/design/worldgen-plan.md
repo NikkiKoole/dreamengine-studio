@@ -18,11 +18,12 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
 
 | Piece | Where | State |
 |---|---|---|
-| Deterministic metre-scale spine | `roadnet2` (580 loc) | heightmap+rivers, hub/town **jittered lattice with priority suppression**, β-skeleton highway web, terrain-aware links + valley bridges, drivable. Highway tier only. |
-| Local-street pattern library | `streetlab` `gen_network(pat, seed)` | 5 canonical patterns (grid/organic/radial/cul-de-sac/superblock), **toy-scale** (~54 nodes, fixed grid, jitter/spanning-tree morph — not the papers' generators). |
-| SNDi metrics | in-cart in `streetlab` | degree + degree-share + sinuosity + circuity; **dendricity missing**; lives only inside the cart. |
+| Deterministic metre-scale spine | **`runtime/worldnet.h`** (extracted from `roadnet2` at rung 1) + `roadnet2` (its home/bench) | heightmap+rivers, hub/town **jittered lattice with priority suppression**, β-skeleton highway web, terrain-aware links + valley bridges, **and the unified `wn_road_at()` edge-graph query (edge-type field pinned)** — sloop drives it (N key). Highway/feeder tiers. |
+| Local-street pattern library | `streetlab` `gen_network(pat, seed)` | 5 canonical patterns (grid/organic/radial/cul-de-sac/superblock), **toy-scale** (~54 nodes, fixed grid, jitter/spanning-tree morph — not the papers' generators). Rung 4 generalizes these to district-polygon fill. |
+| SNDi metrics | **`tools/sndi-check.js`** (rung 0) + the in-cart `streetlab` panel | the full composite incl. dendricity, over `.rvb` OR generated-graph JSON, side-by-side A/B — the oracle is live (target table below). |
+| The density field + city arterials | **`citygrow`** (rungs 2–3, the bench) | population field D(x,y) driving settlement presence/rank/size/extent + per-city tensor-field arterial tracing + sndi JSON export. Prototype home until the rung-5.5 extraction. |
 | Content recipes | `roadnet` v1 (reference), `procplaces` (frozen) | zones/blocks/lots proven; v1 code not portable (dual-representation flaw). |
-| Real-city data + graph extraction | `roadview` `.rvb` + `data-tools/roadview/osm-junction.js` | real class/width/surface per way; per-node bearings+classes. The oracle-in-waiting. |
+| Real-city data + graph extraction | `roadview` `.rvb` + `data-tools/roadview/osm-junction.js` | real class/width/surface per way; per-node bearings+classes. Feeds the oracle. |
 | The research | [`road-hierarchy-notes.md`](road-hierarchy-notes.md) §8 | verified: the two pillar methods, the 4 morph knobs, the SNDi validation framework, the continuity tenet. |
 
 ## The gap (what's missing or not great)
@@ -138,6 +139,32 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   district polygon; stitch to arterials respecting the **continuity tenet** (locals → collectors →
   arterials — verified doctrine, notes §3). *Done when:* neighbouring districts visibly differ and
   the seams don't show. This is the rung where "procedural grid" dies.
+
+  **Rung 4 pick-up** (written 2026-07-06 for a cold resume — the HANDOFF lane points here):
+  1. **District polygons first** — the arterial graph already partitions the extent; make the
+     faces enumerable. `ar_export()` in `citygrow.c` already computes all family×family crossings
+     (the segment-intersection + 5 m-weld pass); lift that into an in-cart graph step (nodes +
+     split edges as arrays, not JSON), then extract **planar faces** the standard way: sort each
+     node's incident edges by bearing, walk next-edge-counter-clockwise until closed, drop the
+     unbounded outer face (negative/largest signed area). *Watch out:* same-family streamlines
+     never cross (the id-grid separation), so interior faces are warped quads between the two
+     eigen-families; the dangling **rim stubs** (~34–45% dead-ends, measured) create open
+     boundaries — either trim tails beyond the last crossing first (also a rung-5 calibration
+     item) or keep only closed faces and let the extent ring bound the rest.
+  2. **Pattern per district** — `wn_hash2(face centroid cell)` → one of streetlab's five as
+     *presets of the morph knobs* (notes §8.5: pattern-bias · density-threshold · dendricity ·
+     curvature), biased by D (dense core → grid, edge → cul-de-sac/organic).
+  3. **Generalize the fill** — read `streetlab`'s `gen_network(pat, seed)` first
+     (`node tools/cart-outline.js streetlab --fn gen_network`); the job is re-targeting its
+     five morphs from the fixed ~54-node toy grid onto an arbitrary convex-ish polygon (seed a
+     local lattice clipped to the face inset by the arterial half-width, then apply the same
+     morphs). Minor-street spacing ≈ 80–110 m blocks (roadnet2-plan's anchor table).
+  4. **Stitch** — each district's boundary streets T onto the bounding arterials at controlled
+     spacing (the continuity tenet: locals → collectors → arterials, never local×motorway).
+  5. **Gate** — `sndi-check` the combined city (arterials + minors) vs the rung-0 target table:
+     the missing T-share should climb toward the real ~60% as minors T onto arterials; keep the
+     export deterministic (byte-identical across runs) and update clip
+     `citygrow/02-city-arterials` or add `03-districts`.
 - [ ] **Rung 5 — the calibration loop.** A/B generated districts against rung-0 targets; tune knobs
   into tolerance. *Done when:* `sndi-check --compare <seed> <city.rvb>` passes per pattern. Ongoing
   tuning — but the tool makes it a loop, not a vibe.

@@ -85,9 +85,10 @@ not deliberately deferred.** Deferred-by-plan items are NOT misses; they're in t
 - [ ] **`loops-and-lollipops` as a distinct network pattern** — §7/§8.1 name it separately. streetlab has
       cul-de-sac (dendritic tree + sparse loops); loops-and-lollipops (loop roads feeding cul-de-sac stems)
       is folded into it, not separately selectable. Likely a cheap 6th `gen_network` pattern.
-- [ ] **`dendricity` metric** — §8.2 SNDi measure #2 (tree-likeness). We ship degree + dead-ends + circuity
-      + sinuosity + degree-share, but NOT dendricity. *The Backlog says "add if needed" — flagged here so
-      the SNDi four-measure set is visibly incomplete.*
+- [x] **`dendricity` metric** — ✅ SHIPPED 2026-07-06 in **`tools/sndi-check.js`** (worldgen-plan
+      rung 0): length-share of bridge edges (Tarjan) over the contracted graph, in the full SNDi
+      composite, over a real `.rvb` OR a generated-graph JSON. (streetlab's *in-cart* panel still
+      lacks it — add there only if the live bench A/B ever wants it.)
 
 **Built-but-thin (shipped, but narrower than the notes intend):**
 - [ ] **Bulb-out / curb extension** — `draw_bulb()` is locked to the one config `peds && parking && !bike`;

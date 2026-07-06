@@ -19,16 +19,40 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-06 (three lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO — Tiny Jam name reserved on ASC + testflight.sh, blocked on Xcode 26 · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-06 (four lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO — Tiny Jam name reserved on ASC + testflight.sh, blocked on Xcode 26 · editor media — record/replay shipped, the panel deferred)_
 
 ---
 
 ## Where we are right now
 
-**Three lanes are active in parallel right now** (different areas — pick the one you're resuming):
-(1) **device-adaptive layout**, (2) **store / ASO + the app-trailer builder**, and (3) **editor
-media (record/replay + where it lands)**. All below; none is "the" thread. Shipped/open ledger for
-all: [`STATUS.md`](STATUS.md) + the design board.
+**Four lanes are active in parallel right now** (different areas — pick the one you're resuming):
+(1) **the worldgen ladder** (realistic procedural roadgen), (2) **device-adaptive layout**,
+(3) **store / ASO + the app-trailer builder**, and (4) **editor media (record/replay + where it
+lands)**. All below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) +
+the design board.
+
+> **▶ ACTIVE THREAD (2026-07-06) — the worldgen ladder (realistic roadgen).** One day, four rungs
+> of [`design/worldgen-plan.md`](design/worldgen-plan.md)'s ladder shipped, each gated + committed
+> with a deterministic clip:
+> **Rung 0** `tools/sndi-check.js` (the street-network metric oracle + the real-city target table).
+> **Rung 1** = Track-A A1: **`runtime/worldnet.h`** — roadnet2's world core extracted to a shared
+> library header (terrain + ranked lattice + spline links + the unified `wn_road_at()` nearest-edge
+> query over an edge cache + spatial hash, edge-type field road/rail/water pinned); **sloop's N key
+> drives the spine** behind its `road_at()` seam (grip 1.0/0.55; `spec.js sloop` 25/0; clips
+> `roadnet2/01-rung1-onoff` + `sloop/04-rn2-spine`).
+> **Rungs 2+3** in the new **`citygrow` bench cart**: the population-density field (settlement
+> presence/rank/size/extent from D; O = the field-vs-hash A/B; world bound implemented at 500 km —
+> **maker feel-check pending**) and per-city **tensor-field arterials** (T = city view, X = export
+> sndi JSON; first generated-vs-real numbers: mean degree 2.65/2.95 vs Amersfoort 2.71; clips
+> `citygrow/01-field-vs-hash` + `02-city-arterials`).
+> **Resume-at: [`design/worldgen-plan.md`](design/worldgen-plan.md) → "Rung 4 pick-up" note under
+> the rung ladder** (district polygons from the arterial graph's planar faces → generalize
+> streetlab's five pattern generators to fill a district polygon → stitch under the continuity
+> tenet). Hot files: `tools/carts/citygrow.c` (the bench — rungs 2–5 live here),
+> `runtime/worldnet.h` (shared — targeted edits only, roadnet2 + sloop include it),
+> `tools/carts/roadnet2.c`, `tools/carts/sloop.c` (its rn2 block). Gates to keep green:
+> `spec.js sloop` 25/0 · the three committed clips replay byte-identical · `sndi-check
+> build/citygrow-graph.json` after any generator change.
 
 > **▶ ACTIVE THREAD (2026-07-05) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND

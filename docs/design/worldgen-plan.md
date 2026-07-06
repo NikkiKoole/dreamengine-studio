@@ -67,7 +67,8 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   one command prints a comparable profile for any city or seed. Every later rung is judged by it.
 - [ ] **Rung 1 — the seam first (= Track-A A1).** `road_at()` over roadnet2's graph; sloop drives it.
   Everything below swaps behind this seam; nothing below blocks it. *Gate:* `spec.js sloop` 25/0.
-- [ ] **Rung 2 — the density field.** Deterministic population field (noise shaped by terrain: flat,
+- [ ] **Rung 2 — the density field** *(rungs 2–5 live in the `citygrow` bench cart — §Where the
+  code lives)*. Deterministic population field (noise shaped by terrain: flat,
   low, near-water = dense). Settlement candidates stay on the suppression lattice; **presence, rank,
   and size come from the field**; city extent = a density threshold contour, not a radius. **Lock the
   world-bound decision here** (leaning ~500 km, per [`roadnet2-plan.md`](roadnet2-plan.md)'s
@@ -86,6 +87,9 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
 - [ ] **Rung 5 — the calibration loop.** A/B generated districts against rung-0 targets; tune knobs
   into tolerance. *Done when:* `sndi-check --compare <seed> <city.rvb>` passes per pattern. Ongoing
   tuning — but the tool makes it a loop, not a vibe.
+- [ ] **Rung 5.5 — extract `citygen.h`** (the roadkit trigger discipline — §Where the code lives):
+  the calibrated grammar becomes a library header; `roadnet2` calls it per city cell; `citygrow`
+  stays the spec-locked tuning bench.
 - [ ] **Rung 6 — junction emission (meets roadkit Phase 5 / Track-B B4).** Every graph node emits
   `(legs, bearings, classes, grade)` — grade-separated where a motorway crosses (ramps only, the
   continuity tenet) — feeding roadkit's dispatcher.
@@ -150,6 +154,31 @@ crossing grammar where networks meet.** Field note 004 predicted exactly this.
 - **The OSM oracle extends for free:** `railway=*` / `waterway=*` are ordinary OSM tags — the
   importer + `sndi-check` measure real rail/water networks the same way (rail curvature stats are
   the calibration target for the rail grammar).
+
+## Where the code lives (decided 2026-07-06)
+
+**Rungs 2–5 get a dedicated bench cart — `citygrow` — separate from `roadnet2`.** The repo's proven
+pattern (streetlab/roadlab/lotfill/interiors): each research question gets its own knobbed,
+spec-lockable sandbox, developed in isolation, then consumed. The generation grammar is exactly
+cart-shaped research — morph-knob sliders, seed reroll, instant visual feedback — and iterating on
+it inside roadnet2 would put every experiment on the spine's critical path. The split is clean
+because **a city is bounded**: the bench generates ONE city at a time (density field → arterials →
+districts → fill) with a **live SNDi panel + an OSM target loaded beside it for A/B** — rungs 2–5's
+calibration loop as an interactive instrument. `roadnet2` stays the infinite deterministic
+substrate that later *calls* the proven generator per city cell. (Bonus, real in this repo:
+rung 1 in `roadnet2.c` and rungs 2–5 in `citygrow.c` touch disjoint files — parallel agents don't
+collide. The existing `worldgen` cart was checked and is a noise-terrain/camera toy — not reused.)
+
+**The one guard, non-negotiable — ONE data model.** This is how v1 died (two street
+representations diverged). The bench must emit **the same typed graph the spine consumes** (the
+common model, edge-type field included), and the generator code is **fenced from day one** for
+extraction into a library header — the discipline that made streetlab's OSM-ingest lift cleanly
+toward roadkit. The bench is a *petri dish for the grammar*, never a second home for world state.
+
+**The extraction rung — `citygen.h` (between rungs 5 and 6):** once the grammar passes rung-5
+calibration, extract it per [ADR-0006](../decisions/0006-library-carts-not-engine.md) and have
+`roadnet2` call it per city — the roadkit trigger discipline ("extract when a second consumer
+needs it, designed from a working one"). `citygrow` then stays the tuning bench, spec-locked.
 
 ## Decisions to lock early
 

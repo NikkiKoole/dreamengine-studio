@@ -46,6 +46,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello
         # Inert unless gen/Assets.xcassets was staged (see sources) — no catalog, no actool run.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # no in-app encryption beyond OS-provided → auto-answers the ASC export-compliance
+        # question, so TestFlight builds go straight to "Ready to Test" after processing
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
         # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)

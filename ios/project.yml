@@ -34,6 +34,11 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        # com.tinyjam.hello is the DEV-LOOP identity (throwaway, Xcode-auto-registered). The
+        # SHIPPING id is apps/tinyjam/app.json's bundleId = com.mipolai.tinyjam — registered
+        # manually in the developer portal + reserved on App Store Connect (2026-07-06). A
+        # store/TestFlight build must set PRODUCT_BUNDLE_IDENTIFIER to that (extension:
+        # com.mipolai.tinyjam.TinyjamAU) — don't ship the hello id.
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows

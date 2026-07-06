@@ -462,8 +462,12 @@ static bool fxview[NSTRIP];            // machine strips: panel shows FX instead
 // to the real bottom. Vertical model unchanged for now (single accordion); the
 // short-landscape "tabs" arrangement is the next increment.
 static int W(void) { return screen_w(); }
-static int tb_h(void) { return W() < 300 ? TB_H * 2 : TB_H; }   // narrow → transport wraps to 2 rows
-static int chain_y(void) { return screen_h() - 12; }
+// device safe-area insets (notch / home-bar); 0 on desktop + fixed builds → layout unchanged there.
+// The chrome inset by these: transport drops below the notch, the chain row lifts above the home bar.
+static int saf_t(void) { int t = 0; safe_rect(0, &t, 0, 0); return t; }
+static int saf_b(void) { int y = 0, h = 0; safe_rect(0, &y, 0, &h); return screen_h() - y - h; }
+static int tb_h(void) { return saf_t() + (W() < 300 ? TB_H * 2 : TB_H); }   // + top inset; narrow → 2 rows
+static int chain_y(void) { return screen_h() - saf_b() - 12; }             // pinned above the home bar
 // px per step to fill a grid from x0 up to (W - right_margin); floored so it never vanishes
 static int spitch(int x0, int right_margin) { int p = (W() - right_margin - x0) / STEPS; return p < 4 ? 4 : p; }
 // shared layout anchors — draw() AND update() both call these so visuals and
@@ -488,15 +492,15 @@ static int cmute_x(void) { return W() - 30; }                      // folded-row
 // (the 303 is tallest: knob block — 1 or 2 rows by width — + roll + flag rows).
 // Content-aware, so an awkward narrow-and-short size flips to tabs instead of
 // overflowing its neighbours (caught by ui-audit --explore --resize).
-static int accordion_panel_h(void) { return screen_h() - tb_h() - (HDR_H + (NSTRIP - 1) * HDRC) - 14; }
+static int accordion_panel_h(void) { return screen_h() - tb_h() - (HDR_H + (NSTRIP - 1) * HDRC) - 14 - saf_b(); }
 static int panel_content_need(void) { int knobs = (W() - 12 >= NK * 26) ? 13 : 35; return knobs + 13 * 5 + 3 * 7 + 8; }
 static bool use_tabs(void) { return accordion_panel_h() < panel_content_need(); }
 static int  tab_rail(void) { return 30; }                     // right end of the tab strip = the fx toggle
 static int  tab_w(void)    { return (W() - 2 - tab_rail()) / NSTRIP; }
 static int panel_h(void) {
-    if (use_tabs()) return screen_h() - tb_h() - TAB_H - 14;  // transport + tab strip + chain
+    if (use_tabs()) return screen_h() - tb_h() - TAB_H - 14 - saf_b();  // transport + tab strip + chain
     int headers = HDR_H + (NSTRIP - 1) * HDRC;
-    int h = screen_h() - tb_h() - headers - 14; return h < 60 ? 60 : h;
+    int h = screen_h() - tb_h() - headers - 14 - saf_b(); return h < 60 ? 60 : h;
 }
 // knob row → grid when the panel is too narrow for one comfortable row (§6.5).
 // One comfortable row if it fits; otherwise TWO rows (ceil(n/2) columns), which
@@ -1532,29 +1536,32 @@ void draw(void) {
     ui_begin();
 
     // ── transport bar ─────────────────────────────────────────────────────
+    // sT drops the CONTROLS below the notch; the black bar (tb_h() includes the top inset) bleeds
+    // full-width up under the status bar, so the chrome dodges the safe area without a letterbox seam.
+    int sT = saf_t();
     bool tworow = W() < 300;
     rectfill(0, 0, W(), tb_h(), CLR_BLACK);
-    if (ui_button(4, 2, 36, 18, running ? "STOP" : "RUN")) {
+    if (ui_button(4, 2 + sT, 36, 18, running ? "STOP" : "RUN")) {
         running = !running; last16 = -1; if (!running) stop_all();
     }
     char buf[24];
     snprintf(buf, sizeof buf, "%d", tempo);
-    print(buf, 42, 8, CLR_WHITE);
-    if (ui_button(66, 2, 12, 18, "-")) { tempo -= 2; if (tempo < 60) tempo = 60; bpm(tempo); mark_dirty(); }
-    if (ui_button(80, 2, 12, 18, "+")) { tempo += 2; if (tempo > 200) tempo = 200; bpm(tempo); mark_dirty(); }
+    print(buf, 42, 8 + sT, CLR_WHITE);
+    if (ui_button(66, 2 + sT, 12, 18, "-")) { tempo -= 2; if (tempo < 60) tempo = 60; bpm(tempo); mark_dirty(); }
+    if (ui_button(80, 2 + sT, 12, 18, "+")) { tempo += 2; if (tempo > 200) tempo = 200; bpm(tempo); mark_dirty(); }
     for (int bk = 0; bk < NBANK; bk++) {
         char nm[2] = { (char)('A' + bk), 0 };
         int x = 98 + bk * 20;
-        if (ui_button(x, 2, 17, 18, nm)) {
+        if (ui_button(x, 2 + sT, 17, 18, nm)) {
             if (copyArm) { copy_scope(&bank[bk], &bank[editBank]); copyArm = false; mark_dirty(); }
             editBank = bk;
         }
-        if (bk == editBank) rect(x, 2, 17, 18, BANKCLR[bk]);
-        if (running && bk == playBank) rectfill(x + 6, 17, 5, 2, CLR_WHITE);
+        if (bk == editBank) rect(x, 2 + sT, 17, 18, BANKCLR[bk]);
+        if (running && bk == playBank) rectfill(x + 6, 17 + sT, 5, 2, CLR_WHITE);
     }
     // pattern ops — scope follows the expanded strip (machine lane; MASTER = whole
     // bank). One row at 320; wraps to a 2nd row when the bar is too narrow to fit.
-    int ox = tworow ? 4 : 180, oy = tworow ? 24 : 2;
+    int ox = tworow ? 4 : 180, oy = (tworow ? 24 : 2) + sT;
     if (ui_button(ox, oy, 26, 18, "CPY")) copyArm = !copyArm;
     if (copyArm) rect(ox, oy, 26, 18, CLR_YELLOW);
     if (ui_button(ox + 28, oy, 26, 18, "CLR")) { clr_scope(&bank[editBank]); copyArm = false; mark_dirty(); }

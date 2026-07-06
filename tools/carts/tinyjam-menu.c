@@ -3,6 +3,7 @@
   "title": "tinyjam menu",
   "status": "active",
   "created": "2026-07-03",
+  "resizable": true,
   "kind": ["tech-demo"],
   "teaches": [],
   "lineage": "The umbrella-app launcher — build-ladder rung 3 of docs/design/share-panel.md. Inside a bundle (tools/build-app.js compiles it with -DAPP_BUNDLE) the roster comes from a generated app_roster.h fed by each rack's own de:meta, and picking an entry calls the dispatcher shim's app_launch(); standalone it carries a demo roster so the menu stays a runnable, bakeable cart on its own.",
@@ -73,9 +74,29 @@ __attribute__((weak)) bool Store_TestingAvailable(void)           { return false
 static int rack_owned(const AppRosterEntry *e) {
     return !e->product[0] || Store_IsModuleUnlocked(e->product);   // free, or entitled
 }
+
+// purchase-in-flight feedback: StoreKit takes 0.5–5s to come back (worst on the first
+// purchase, when the storefront initialises) and the row otherwise looks dead — it FEELS
+// like you must hold the button. Stamp the tap, show "buying..." on that row until the
+// entitlement lands (rack_owned flips) or a timeout (sheet cancelled / store error), and
+// swallow re-taps while it's in flight.
+#define BUY_TIMEOUT 12.0f
+static float buy_since[APP_ROSTER_COUNT];   // 0 = idle, else now() at the tap
+static float mp_buy_since = 0;              // same, for the "unlock all" row
+static int buy_pending(float t0) { return t0 > 0 && now() - t0 < BUY_TIMEOUT; }
+static const char *buying_label(void) {     // "buying" + 1..3 animated dots
+    static char bl[16];
+    snprintf(bl, sizeof bl, "buying%.*s", 1 + (int)(now() * 3) % 3, "...");
+    return bl;
+}
 static void pick(int i) {                           // owned/free → open; locked → buy
     const AppRosterEntry *e = &APP_ROSTER[i];
-    if (!rack_owned(e)) { Store_Purchase(e->product); return; }
+    if (!rack_owned(e)) {
+        if (buy_pending(buy_since[i])) return;      // round-trip already in flight — don't re-fire
+        buy_since[i] = now();
+        Store_Purchase(e->product);
+        return;
+    }
     app_launch(i);
 }
 
@@ -108,54 +129,89 @@ void update(void) {
     if (keyp(KEY_ENTER) || btnp(0, BTN_A))    pick(sel);
 }
 
+#define MENU_MAXW 460                                    // cap the column so it doesn't sprawl on iPad
+
 void draw(void) {
     cls(CLR_BLACK);
     ui_begin();
 
-    // header
+    // Responsive layout: everything is anchored to safe_rect() (the usable area after the device's
+    // notch/home-bar insets) instead of the fixed SCREEN_W/H, so the launcher fills any device and
+    // dodges the chrome. The column is centered and width-capped (phone = full width; iPad = a tidy
+    // centered menu). On a fixed / standalone build safe_rect == the whole 320x240 → unchanged.
+    int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh);
+    int w  = sw - 2 * LIST_X; if (w > MENU_MAXW) w = MENU_MAXW;   // capped row width
+    int lx = sx + (sw - w) / 2;                                  // centered column left edge
+    int rx = lx + w;                                            // its right edge
+
+    // header — title + (debug) reset, above a divider
     font(FONT_COMIC);
-    print(APP_NAME, LIST_X, 4, CLR_WHITE);
+    print(APP_NAME, lx, sy + 4, CLR_WHITE);
     font(FONT_NORMAL);
     if (Store_TestingAvailable())                        // DEBUG iOS only: wipe test purchases → all locked again
-        if (ui_button(SCREEN_W - 46, 6, 40, 15, "reset")) Store_ResetPurchases();
-    line(LIST_X, 28, SCREEN_W - LIST_X, 28, CLR_DARKER_GREY);
+        if (ui_button(rx - 40, sy + 6, 40, 15, "reset")) {
+            Store_ResetPurchases();
+            for (int i = 0; i < APP_ROSTER_COUNT; i++) buy_since[i] = 0;   // re-locked rows must not
+            mp_buy_since = 0;                                              // resurrect "buying..."
+        }
+    int hdr_bot = sy + 28;
+    line(lx, hdr_bot, rx, hdr_bot, CLR_DARKER_GREY);
 
-    int y0 = 36, w = SCREEN_W - 2 * LIST_X;
     // "unlock all" master-pass offer row sits between the list and the footer (bundle only,
     // hidden once owned). Reserve its height so the rack list doesn't run under it.
     int mp_on = APP_MASTERPASS_ID[0] && !Store_IsModuleUnlocked(APP_MASTERPASS_ID);
-    int list_bot = SCREEN_H - FOOT_H - (mp_on ? (ROW_H + ROW_GAP) : 0);
-    int rows_fit = (list_bot - y0) / (ROW_H + ROW_GAP);
+    if (!mp_on) mp_buy_since = 0;                       // owned (or no store) → clear the in-flight stamp
+    int foot_top = sy + sh - FOOT_H;
+    int list_bot = foot_top - (mp_on ? (ROW_H + ROW_GAP) : 0);
+    int area_top = hdr_bot + 8;
+    int rows_fit = (list_bot - area_top) / (ROW_H + ROW_GAP);
     if (rows_fit < 1) rows_fit = 1;
-    int top = sel - rows_fit + 1;               // scroll just enough to keep sel visible
-    if (top < 0) top = 0;
+    // vertically CENTER the rows when they all fit (the common case: a handful of racks on a tall
+    // screen); otherwise fall back to scroll-from-top and keep the selected row visible.
+    int y0, top;
+    if (APP_ROSTER_COUNT <= rows_fit) {
+        int rows_h = APP_ROSTER_COUNT * (ROW_H + ROW_GAP) - ROW_GAP;
+        y0 = area_top + ((list_bot - area_top) - rows_h) / 2;
+        top = 0;
+    } else {
+        top = sel - rows_fit + 1; if (top < 0) top = 0;
+        y0 = area_top;
+    }
 
     int cur = app_current();
     for (int r = 0; r < rows_fit && top + r < APP_ROSTER_COUNT; r++) {
         int i = top + r, y = y0 + r * (ROW_H + ROW_GAP), cy = y + (ROW_H - 6) / 2 + 1;
         int locked = !rack_owned(&APP_ROSTER[i]);
-        if (ui_hover(LIST_X, y, w, ROW_H)) sel = i;
-        if (ui_button(LIST_X, y, w, ROW_H, APP_ROSTER[i].title)) { sel = i; pick(i); }
-        if (i == sel) print(">", LIST_X - 10, cy, CLR_YELLOW);
+        if (!locked) buy_since[i] = 0;                  // purchase landed → clear the in-flight stamp
+        if (ui_hover(lx, y, w, ROW_H)) sel = i;
+        if (ui_button(lx, y, w, ROW_H, APP_ROSTER[i].title)) { sel = i; pick(i); }
+        if (i == sel) print(">", lx - 10, cy, CLR_YELLOW);
         if (locked) {                                   // paid + not owned → price, right-aligned
-            char pr[16]; snprintf(pr, sizeof pr, "$%s", APP_ROSTER[i].price);
-            print(pr, LIST_X + w - text_width(pr) - 6, cy, CLR_YELLOW);
-        } else if (i == cur) print("*", LIST_X + w + 4, cy, CLR_GREEN);
+            if (buy_pending(buy_since[i])) {            // StoreKit round-trip in flight → live feedback
+                print(buying_label(), rx - text_width("buying...") - 6, cy, CLR_ORANGE);
+            } else {
+                char pr[16]; snprintf(pr, sizeof pr, "$%s", APP_ROSTER[i].price);
+                print(pr, rx - text_width(pr) - 6, cy, CLR_YELLOW);
+            }
+        } else if (i == cur) print("*", rx + 4, cy, CLR_GREEN);
     }
-    if (top > 0)                                print("^", SCREEN_W - LIST_X - 6, y0 - 8, CLR_LIGHT_GREY);
-    if (top + rows_fit < APP_ROSTER_COUNT)      print("v", SCREEN_W - LIST_X - 6, list_bot - 6, CLR_LIGHT_GREY);
+    if (top > 0)                                print("^", rx - 6, area_top - 8, CLR_LIGHT_GREY);
+    if (top + rows_fit < APP_ROSTER_COUNT)      print("v", rx - 6, list_bot - 6, CLR_LIGHT_GREY);
 
     if (mp_on) {                                        // the "unlock all" offer
         int my = list_bot + 2;
-        char lbl[40]; snprintf(lbl, sizeof lbl, "unlock all - $%s", APP_MASTERPASS_PRICE);
-        if (ui_button(LIST_X, my, w, ROW_H, lbl)) Store_Purchase(APP_MASTERPASS_ID);
+        if (buy_pending(mp_buy_since)) {                // in flight → inert button with live label
+            ui_button(lx, my, w, ROW_H, buying_label());
+        } else {
+            char lbl[40]; snprintf(lbl, sizeof lbl, "unlock all - $%s", APP_MASTERPASS_PRICE);
+            if (ui_button(lx, my, w, ROW_H, lbl)) { mp_buy_since = now(); Store_Purchase(APP_MASTERPASS_ID); }
+        }
     }
 
     // footer: the picked entry's summary (the price/lock already shows on the row)
-    int fy = SCREEN_H - FOOT_H;
-    line(LIST_X, fy, SCREEN_W - LIST_X, fy, CLR_DARKER_GREY);
+    line(lx, foot_top, rx, foot_top, CLR_DARKER_GREY);
     font(FONT_SMALL);
-    wrap_print(APP_ROSTER[sel].desc, LIST_X, fy + 5, w, SCREEN_H - 4, CLR_LIGHT_GREY);
+    wrap_print(APP_ROSTER[sel].desc, lx, foot_top + 5, w, sy + sh - 4, CLR_LIGHT_GREY);
     font(FONT_NORMAL);
 
     ui_end();

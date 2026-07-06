@@ -104,6 +104,39 @@ threshold). To be measured against the §2 sketches — don't guess these in cod
 - `ui-audit --explore --resize` matrix clean + the R4 judgment pass clean.
 - **The maker played each arrangement on glass** (baked, not screenshots) and calls it delightful.
 
+## 7 · Device matrix — the baseline to design against (regenerable)
+
+The shapes we support, and acidrack's *current* reflow in each (the before-picture the redesign
+improves on). Committed snapshot: [`acidrack-device-matrix.png`](acidrack-device-matrix.png).
+
+**Pixel chunk K=2** (`ios/Sources/CanvasView.swift` `pixelChunk`): the iOS canvas reflows to device
+points ÷ 2 **logical** pixels, so it stays chunky-lo-fi + finger-friendly instead of hi-res-tiny. The
+logical size is what the cart lays out in (the parenthetical below). K=1 = tiny pixels; K=3 = so
+chunky the fixed 8px font overflows a phone width (only ~16 chars fit) — 2 is the text-safe sweet spot.
+
+| shape | device | points (portrait) | logical @ K=2 |
+|---|---|---|---|
+| tall (phone) | iPhone SE | 375×667 | 188×334 |
+| tall (phone) | iPhone 15/16 | 393×852 | 196×426 |
+| tall (phone) | 16 Pro Max | 440×956 | 220×478 |
+| short-wide | iPhone 16 landscape | 852×393 | 426×196 |
+| roomy | iPad 11" | 834×1194 | 417×597 |
+| roomy | iPad 13" | 1032×1376 | 516×688 |
+| roomy | iPad 13" landscape | 1376×1032 | 688×516 |
+
+Regenerate (desktop render; safe-area insets read 0 there — they only apply on-device):
+
+```
+node tools/play.js acidrack run --resize "188x334,196x426,220x478,426x196,417x597,516x688,688x516" --frames 120
+montage build/.resize/acidrack/resize_*.png -filter point -geometry '200%+16+20' -tile 4x2 docs/design/acidrack-device-matrix.png
+```
+
+**What it shows (the agenda):** the expanded panel leaves a big **dead void** at every size (worst on
+iPad) — kill it; phone (logical W<300) takes the 2-row transport, iPad the 1-row; landscape correctly
+degenerates to **tabs**; the iPad is almost entirely unused → the all-compact rack (§4). Safe-area
+insets (notch / home-bar) are wired engine-side (`de_set_safe_area` → `safe_rect()`), used by the
+transport + chain row + the app home-chip, but don't appear in this desktop sheet.
+
 Related: [`device-adaptive-layout.md`](device-adaptive-layout.md) (the plan + ReBirth study) ·
 [`design-system.md`](design-system.md) §6/§8/§9 · [`rebirth-classic.md`](rebirth-classic.md) (the
 cart's own design doc) · `tools/carts/acidfit.c` (the disclosure prototype).

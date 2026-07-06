@@ -393,6 +393,22 @@ presets (GOOD LIFE, THE BELLS, ENERGY FLASH, HARDFLOOR, REVOLUTION 909, GABBER) 
 | tr909/crash | FM+NOISE | 0/1000/0/280 · FM(h0.55 t1.00 m0.90) HP4500/2 + noise 0/1200/0/320 | Long crash, FM metal body + noise wash, tone-blended. |
 | tr909/ride | FM | 0/550/0/160 · FM(h0.55 t0.72 m0.58) · HP5000/2 (dual bell 76/83 midi) | Jeff Mills ringing bell, cleaner FM metal than crash. |
 
+### tr606 (machine — 7 voices, from tr606.c)
+
+All raw waves. The metal bank uses the circuit-analysis frequencies (246.4/308/367/418.2/
+440.4/627.2 Hz = midi 59/63/66/68/69/75 — the 418+440 pair beats); kick is the schematic's
+DOUBLE twin-T (TONE knob crossfades the two resonators). Open-hat decay is tempo-linked;
+6 pattern presets (DRUMATIX, ACID PAIR, SKITTER, ELECTRO, TOM DANCE, SPARSE) are grids.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| 606/kick | SINE×2 | 65Hz 0/140/0/40 LP300/2 pitch-env →+6 (0/14) + 87Hz 0/100/0/30 LP350/2, TONE xfade | Two twin-T resonators beating — the tight clicky "tock", no 808 boom. |
+| 606/snare | SINE+NOISE | body 233Hz 0/85/0/25 LP1400/1 pitch-env →+3 (0/15) + snappy 0/115/0/35 HP2400/2 | ONE body mode (unlike the 808's two) under bright paper noise. |
+| 606/tom-lo/hi | SINE+NOISE | 0/230/0/45 pitch-env →+5 (0/60) (midi 45/52) + rumble 0/24/0/10 LP400/2 | Sweet analog toms + the documented LOW-passed rumble burst. |
+| 606/cymbal | SQUARE×4 | body midi 63+75 on 0/780/0/200 HP3000/3 + shimmer midi 69+75 on 0/460/0/140 HP7000/3 | The dual-path (3440/7100Hz) cymbal: clangy midband body + fizzy top, ~650ms. |
+| 606/hat-open | SQUARE | 0/320/0/80 · HP7000/3 (the beating 418+440Hz pair, midi 68+69) | Jewel-box sizzle; decay TEMPO-LINKED like the hardware (~3 steps). |
+| 606/hat-closed | SQUARE | 0/38/0/13 · HP7000/3 (midi 69+75) | ~40ms tick; fires the shut-off circuit (chokes the open hat). |
+
 ### cr78 (machine — 16 voices, from cr78.c)
 
 All raw waves; some voices fired multiple times detuned for beating/layering.

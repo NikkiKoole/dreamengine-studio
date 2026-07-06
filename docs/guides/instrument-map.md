@@ -32,7 +32,7 @@ glance. Cart-by-cart detail (what each is, how it's built) stays on the
 
 | Wing | Shipped | Parked / missing |
 |---|---|---|
-| **Roland** | `cr78` · `tr808` · `tr909` · `tb303` · `sh101` · `juno` (Juno-6) · `spacecho` (RE-201) — plus `acidrack`, the whole ReBirth RB-338 rack. The wing is essentially **complete**. | **TR-606** — [STATUS](../STATUS.md) #21's first pick ("an afternoon"; completes the 303's silver pair). |
+| **Roland** | `cr78` · `tr808` · `tr909` · `tr606` (Drumatix, the 303's silver sibling — shipped 2026-07-06) · `tb303` · `sh101` · `juno` (Juno-6) · `spacecho` (RE-201) — plus `acidrack`, the whole ReBirth RB-338 rack. The wing is **complete**. | — |
 | **Korg** | `kaoss` (Kaoss Pad); the MS-10 exists only as a bass preset (`saw/ms10-bass`). | the **Volca line**, MS-20, Monotron, Electribe — assessed in §2d. |
 | **Moog** | `moog` (the dream synth); the `carlos` and `plantasia` radios ride its signal path. | — |
 | **Buchla / west coast** | `easel` (Music Easel) · `lpg`. | — (the §2c vein is complete). |

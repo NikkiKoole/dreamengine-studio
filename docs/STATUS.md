@@ -469,9 +469,15 @@ their `kind[]` tags.
     API fit; the curatorial line is **analog-circuit machines only** — sample/tape boxes
     (LinnDrum, DMX, SP-1200, Mellotron) would be caricatures since the engine has no sample
     playback. Ranked:
-    - **TR-606 Drumatix (1981)** — first pick: the TB-303's actual companion (sold as a silver
-      pair, sync'd together); all-analog, same six-oscillator metal-bank trick as the 808, both
-      cart templates already exist. An afternoon.
+    - ~~**TR-606 Drumatix (1981)**~~ — **SHIPPED 2026-07-06** as `tools/carts/tr606.c` /
+      `tr606.cart.png` ("an afternoon" held). Metal bank at the circuit-analysis frequencies
+      (246.4/308/367/418.2/440.4/627.2 Hz, the beating 418+440 pair), kick as the schematic's
+      DOUBLE twin-T with a TONE crossfade, single-mode snare, tempo-linked open-hat decay +
+      the shut-off circuit as `instrument_choke`. One measured infidelity, documented in the
+      cart header: the metal paths use highpasses, not the schematic's 7100/3440Hz bandpasses —
+      with 2 bank members where the circuit sums 6, a narrow band starves between the sparse
+      odd harmonics and a wide one leaks fundamentals (Goertzel-probed). Stock-austere panel
+      (accent only) with the mod culture as a MODS toggle. The Roland wing is now complete.
     - ~~**TR-909 (1983)**~~ — **SHIPPED 2026-06-05** as `tools/carts/tr909.c` / `tr909.cart.png`.
       Analog kick/snare/toms/rim/clap as assessed (house kick = +30st/35ms swept sine + a click
       layer on the ATTACK knob). The ROM-sample hats/cymbals got a BETTER workaround than the

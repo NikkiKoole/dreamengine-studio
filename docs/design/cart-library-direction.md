@@ -256,8 +256,9 @@ licensed exception) and [`instrument-engines.md`](instrument-engines.md)'s FM sc
 Volca Drum + Volca Keys + VL-1 — four small boxes, each adding something no cart has
 (LCD-animation identity · a MEMBRANE drum machine · motion sequencing · the
 type-a-number sound designer), the Volca/PO chassis language tying them together the way
-the Roland family ties acidrack together. As single quick wins first: **TR-606**
-(completes Roland), **VL-1** (tiny, iconic), then **CZ-101** (gives PD its machine). Skip
+the Roland family ties acidrack together. As single quick wins first: ~~**TR-606**~~
+(**shipped 2026-07-06** — the Roland wing is complete), **VL-1** (tiny, iconic), then
+**CZ-101** (gives PD its machine). Skip
 Volca Bass/Beats and anything sampler-based — though what a *fantasy-console-like* sampler
 could ever look like (mic-as-controller → single-cycle harvest → resynthesis → SK-1-spec
 PCM; the SP-1200 12-bit and SP-404 touchstones) is now sketched in

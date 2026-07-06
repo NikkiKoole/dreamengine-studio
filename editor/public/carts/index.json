@@ -5716,6 +5716,24 @@
     "genre": "strategy"
   },
   {
+    "title": "tr-606 drumatix",
+    "description": "The tin insect — Roland's TR-606 Drumatix (1981), sold as the TB-303's matching silver sibling (\"your rhythm section in two boxes\"). Thin snappy kick, papery snare, and the jewel-box hats half of electro and all of Aphex Twin ran on. Built from the real circuit: the six-oscillator metal bank at the circuit-analysis frequencies (246.4/308/367/418.2/440.4/627.2 Hz — note the beating 418+440 pair), hats and cymbal shimmer through the schematic's 7.1kHz BANDPASS (not the 808's highpass) with the cymbal body through its own 3.44kHz path, the kick as the schematic's DOUBLE twin-T (two detuned resonators beating, TONE knob crossfades them — no 808 boom), single-mode twin-T snare under bright snappy noise, toms with the low rumble burst, and two documented quirks: the open hat's decay is TEMPO-LINKED (faster song = shorter ring, like the hardware), and the closed hat fires the shut-off circuit (chokes the open hat). Stock panel is austere like the real thing — volume and ACCENT were the only controls — so the per-voice TUNE/DECAY/character knobs hide behind MODS, the drilled-pots mod culture as a toggle. Six presets (Drumatix, Acid Pair, Skitter, Electro, Tom Dance, Sparse), accent row, anachronistic swing. Q-U play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, Z/X swing, M mods, MOUSE edits the grid / accent strip / knobs.",
+    "file": "tr606.cart.png",
+    "created": "2026-07-06",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "subtractive-synth",
+      "additive-synth",
+      "drum-synthesis",
+      "analog-voice-modeling"
+    ],
+    "lineage": "Roland TR-606 (1981), the TB-303's silver sibling — completes the Roland classic-machine family (cr78/tr808/tr909/tb303/sh101). Metal bank + dual-bandpass cymbal modeled from circuit-analysis MEASURED values; kick/snare/toms are the documented circuit topologies (double twin-T + TONE, single twin-T + snappy, resonator + rumble) ear-tuned to reference. Chassis copied from tr808.c.",
+    "homage": "Roland TR-606 Drumatix (1981)"
+  },
+  {
     "title": "tr-808 rhythm composer",
     "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click name to audition, drag knobs to shape.",
     "file": "tr808.cart.png",

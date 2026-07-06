@@ -19,18 +19,47 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-06 (three lanes: device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO — Tiny Jam name reserved on ASC + testflight.sh, blocked on Xcode 26 · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-06 (four lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the HTML wireframe of the 3 shapes → R5 acidrack redesign · store/ASO — buy-screen crash FIXED (Store.unlockedIDs race, 07690c9b) + Tiny Jam name reserved on ASC + testflight.sh · editor media — record/replay shipped, the panel deferred)_
 
 ---
 
 ## Where we are right now
 
-**Three lanes are active in parallel right now** (different areas — pick the one you're resuming):
-(1) **device-adaptive layout**, (2) **store / ASO + the app-trailer builder**, and (3) **editor
-media (record/replay + where it lands)**. All below; none is "the" thread. Shipped/open ledger for
-all: [`STATUS.md`](STATUS.md) + the design board.
+**Four lanes are active in parallel right now** (different areas — pick the one you're resuming):
+(1) **multiplayer — WebRTC P2P (rung 5b)**, (2) **device-adaptive layout**, (3) **store / ASO +
+the app-trailer builder**, and (4) **editor media (record/replay + where it lands)**. All below;
+none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-05) — device-adaptive layout.** Make `SCREEN_W/H`
+> **▶ ACTIVE THREAD (2026-07-06) — multiplayer: WebRTC P2P (rung 5b).** Kicked off by
+> the maker play-testing rung 5a with his son (Mac ↔ Windows, both browsers): it
+> "worked" but ran ~3 fps with 0.3 fps freezes. **Diagnosis:** the published
+> gallery signals through the **Render relay**, so even on one wifi every input
+> tromboned out to the internet and back (~330 ms RTT) — and fixed-delay lockstep
+> (`NET_DELAY=3`, ~50 ms) collapses to one sim-step per round-trip once the cushion
+> drains; the 0.3 fps freezes were TCP head-of-line blocking through the WS relay.
+> A github.io-hosted gallery **structurally can't** be LAN-fast with a relay (static
+> host + https ⇒ needs a public `wss://` box). **The fix is WebRTC P2P.**
+> **SPIKED + PROVEN tonight:** `tools/webrtc-spike/index.html` (committed, reusable
+> connectivity probe; loopback mode + relay mode) opened a real `RTCDataChannel`
+> **Mac ↔ iPhone/Safari across the home wifi at ~12 ms** (vs ~330 ms via Render — a
+> ~25× win), signaling through the **existing `net-relay.js` unchanged**. Two
+> handshake potholes found + fixed, both carrying into the real design: (1)
+> offer-before-peer race → **joiner announces first** (mirrors the WS `HELLO`); (2)
+> the relay re-frames all forwards as **binary** (`wsEncode` opcode 2) → send
+> signaling as binary, distinguish from `ROLE` by the `DN` magic. Bonus proven:
+> DataChannel `{ordered:false,maxRetransmits:0}` (UDP-like) kills the TCP-freeze
+> mode; Safari-on-iOS connects even over http. **Key insight:** browser↔browser
+> needs **NO `libdatachannel`** (browsers have WebRTC built in) — it's a thin
+> `EM_JS` shim parallel to the shipped `de_ws_*`, plugged into the
+> `net_transport_send`/`pump` seam as the 3rd arm. **Resume-at:**
+> [`design/multiplayer-research.md`](design/multiplayer-research.md) §"Scoped plan —
+> rung 5b" — the 7-step table (start: step 1 `de_rtc_*` shim + step 2 signaling).
+> Implementation NOT started; the spike settled the unknowns. Measured jitter (12 ms
+> base, 70 ms phone-wifi spikes > the 50 ms fixed cushion) is the case for **adaptive
+> `NET_DELAY`** (step 5). Hot file when building: `runtime/net.h` (targeted `Edit`s,
+> shared). Gate: `node tools/net-check.js`.
+
+> **▶ ACTIVE THREAD (2026-07-06) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
 > iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
 > `otafit`; `runtime/lay.h` **shipped**) and **Phase 1 (a+b+c) DONE (2026-07-03)** — the
@@ -63,8 +92,31 @@ all: [`STATUS.md`](STATUS.md) + the design board.
 > compact-strip taste calls (which controls earn the middle state per machine) wait on the maker,
 > everything downstream (footprints §5 → disclose.h → re-land) follows from that table.** Hot files:
 > `tools/carts/acidrack.c`, `runtime/lay.h` (+ new `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
+> **Update 2026-07-06 — resizable-app PLUMBING landed (commit `be7b2cad`), before R5's redesign.** The
+> Tiny Jam *app* now reflows to fill the device on the sim (was 320×240 letterboxed — resizable only
+> existed for single-cart builds): `RESIZABLE=1` on `ios/build.sh`'s `APP=` path, the launcher menu
+> made reflow-aware (`safe_rect()` + centered column), the app home-chip moved inside the safe area
+> (was stuck under the notch → couldn't reach the overview), acidrack's transport + chain row inset by
+> `safe_rect()`. **Device matrix committed** as the design baseline (`design/acidrack-device-matrix.png`
+> + regen recipe in the brief §7). Three findings, all written up in
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md) §"2026-07-06": (1) **pixel
+> chunk K** (`CanvasView.swift pixelChunk`, =2) — reflow to `points/K` logical px or you get hi-res
+> tiny pixels + sub-finger controls; K=3 overflows the font; (2) `de_reflow` is **binary-wide** so
+> yachtrack/epiano render in the top band (per-cart reflow = backlog); (3) **SEAM (backed out):**
+> desktop live-resize freezes the transport — macOS modal loop blocks the main thread, GLFW fires no
+> callback, do NOT re-try the callback route; iOS rotation is fine. **Resume at: the interactive HTML
+> WIREFRAME of the 3 shapes (tall/short-wide/roomy at K=2 logical sizes) with folded/compact/expanded
+> toggles** — the vehicle to make §2's compact-strip taste calls before touching acidrack's C (maker's
+> call), then R5. Parked decisions: landscape side-notch inset (acidrack insets top/bottom only) +
+> background-audio policy (keep-playing vs pause-on-Home).
 
 > **▶ ACTIVE THREAD (2026-07-06) — store / ASO + the app-trailer builder.**
+> **Buy-screen crash FIXED (2026-07-06, commit `07690c9b`):** the "instant, random" abort on the
+> Tiny Jam menu/purchase screen was a **data race** — `Store.unlockedIDs` (a Swift `Set`) read by the
+> C entitlement gate every frame while a StoreKit `Task` reassigned it → nano-heap corruption surfacing
+> later at an unrelated `malloc`. Never reproduced off-device (desktop stubs `Store_*`). Now
+> `NSLock`-guarded. Full lesson in `ios/README.md` §Gotchas — any per-frame `@_cdecl` bridge must be a
+> lock-guarded snapshot, never a bare Swift collection.
 > **Store-identity day (2026-07-06), all committed:** the App Store name **"Tiny Jam: Pocket
 > Music Toys" is RESERVED** on App Store Connect (record created, not public); shipping bundle id
 > is **`com.mipolai.tinyjam`** (registered in the dev portal; `apps/tinyjam/app.json` updated —

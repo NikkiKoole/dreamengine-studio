@@ -164,6 +164,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              guards the sw_force_gpu/DE_CPU_RASTER gotchas; --bytecheck (sha) / --raw / --max / --heatmap
              road-check.js   correctness oracle for coverage-based roads: framebuffer invariants (no naked
                              edges / strays / floating kerb) at ANY angle; --all = config-matrix gate; --overlay
+             sndi-check.js   street-network METRIC oracle (worldgen-plan rung 0): the SNDi composite (degree
+                             shares/dendricity/circuity/sinuosity/orient-entropy) from a real .rvb OR a
+                             generated-graph JSON; multiple files = side-by-side A/B; --check self-test.
+                             THE realism number for procedural roadgen (generated matches real = done)
              build-site.js / publish-cart.sh   build wasm carts + gallery → site/; publish + push
              publish-all.js  batch publish in ONE deploy — run it bare: it CHECKS cart-status, then
                              PROMPTS (smart=not-published+stale / +engine-stale / --all / build-all gate).

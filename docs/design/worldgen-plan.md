@@ -59,12 +59,36 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
 
 ## The rung ladder (each gated, each independently shippable)
 
-- [ ] **Rung 0 — the oracle first: `tools/sndi-check.js`.** Compute the SNDi composite (mean degree,
-  degree-1/3/4 shares, **dendricity** — closing the known metric gap, circuity, sinuosity, block-size
-  histogram) from BOTH an OSM `.rvb` (reuse `osm-junction.js`'s graph builder) and a generated-graph
-  dump. Run on Delft + a US grid city + a medieval old-town → **the per-pattern numeric target
-  table** (closes the notes' open question; park the table in this doc when measured). *Done when:*
-  one command prints a comparable profile for any city or seed. Every later rung is judged by it.
+- [x] **Rung 0 — the oracle first: `tools/sndi-check.js`. ✅ SHIPPED 2026-07-06.** Computes the SNDi
+  composite (mean degree, degree-1/3/4+ shares, **dendricity** = length-share of bridge edges —
+  closing the known metric gap, circuity, sinuosity, orientation entropy — the grid detector,
+  intersection density, ~block area via the Euler cycle proxy) from BOTH an OSM `.rvb` AND a
+  generated-graph JSON dump (the format citygrow will emit is pinned in the tool header). Multiple
+  files print side-by-side = the A/B. `--check` self-tests on synthetic grid+tree (caught two real
+  bugs at birth: chain-walk edge-doubling, quantization welding a cycle into the "tree"). Contracted
+  graph (street nodes = degree≠2), street-node consolidation `--merge` (default 15 m on `.rvb`)
+  collapses dual-carriageway twins + roundabout rings. Deterministic (seeded LCG). 28 MB Rotterdam
+  in 0.7 s. **The first target table** (the notes' open "per-pattern numeric table", now measured):
+
+  <!-- de:driftable cmd="node tools/sndi-check.js data/lower-manhattan.rvb data/san-francisco-hills.rvb data/amersfoort-netherlands.rvb data/rotterdam-netherlands.rvb data/konigssee.rvb" as-of="2026-07-06" inputs="tools/sndi-check.js,data-tools/roadview/osm-roads.js" -->
+  | | Manhattan (grid) | SF hills (grid) | Amersfoort (NL organic) | Rotterdam (NL mixed) | Königssee (alpine) |
+  |---|---|---|---|---|---|
+  | mean degree | 3.04 | 3.06 | 2.71 | 2.84 | 2.20 |
+  | deg-1 / 3 / 4+ % | 21/39/**40** | 25/25/**49** | 23/**63**/14 | 20/**60**/20 | **41**/57/1 |
+  | dendricity | 0.28 | 0.18 | 0.24 | 0.19 | **0.69** |
+  | circuity | 1.27 | 1.31 | 1.66 | 1.54 | 1.87 |
+  | sinuosity | 1.13 | 1.03 | 1.20 | 1.22 | 1.16 |
+  | orient entropy | 0.89 | **0.42** | 0.99 | 0.99 | 0.86 |
+  | ~block ha | 7.3 | 3.0 | 25.2 | 10.8 | 106 |
+
+  The signatures match the research's predictions (§8.2): grids = high deg-4+ + concentrated
+  bearings (SF's 0.42 entropy is THE grid tell; Manhattan's 0.89 is honest — lower Manhattan is
+  colonial-era, not one aligned grid); Dutch organic = T-dominant + high circuity; alpine sparse =
+  near-dendritic. And the gap is already quantified: a perfect synthetic grid scores 0% dead-ends /
+  dendricity 0.000 vs SF's 25% / 0.184 — dead-ends and imperfection ARE part of realism.
+  *Caveats:* intersection density + block area use the bbox (not hull) area, and the `.rvb`s cover
+  different extents — read those two rows comparatively, not absolutely. Delft-centre wasn't in
+  `data/` at measure time; add it when refetched.
 - [ ] **Rung 1 — the seam first (= Track-A A1).** `road_at()` over roadnet2's graph; sloop drives it.
   Everything below swaps behind this seam; nothing below blocks it. *Gate:* `spec.js sloop` 25/0.
 - [ ] **Rung 2 — the density field** *(rungs 2–5 live in the `citygrow` bench cart — §Where the

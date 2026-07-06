@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dreamengine WebRTC spike</title>
+<style>
+  body { font-family: ui-monospace, "Comic Mono", Menlo, monospace; margin: 0;
+         background: #14121c; color: #d8d4e0; padding: 16px; line-height: 1.5; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: #8a86a0; font-size: 13px; margin-bottom: 14px; }
+  #status { font-size: 40px; font-weight: bold; padding: 18px; border-radius: 10px;
+            text-align: center; background: #221f2e; margin-bottom: 12px; transition: background .2s; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .card { background: #1d1a28; border-radius: 8px; padding: 10px 14px; flex: 1; min-width: 140px; }
+  .k { color: #8a86a0; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .v { font-size: 22px; font-weight: bold; }
+  #log { background: #100e17; border-radius: 8px; padding: 10px; font-size: 12px;
+         height: 240px; overflow: auto; white-space: pre-wrap; }
+  .ok { background: #1e3a22 !important; color: #a8e6b0; }
+  .bad { background: #3a1e22 !important; color: #e6a8b0; }
+  .warn { background: #3a331e !important; color: #e6d6a8; }
+  b.lan { color: #7ee6a0; } b.stun { color: #e6d67e; } b.relay { color: #e6907e; }
+  a { color: #9a96ff; }
+</style>
+</head>
+<body>
+<h1>dreamengine · WebRTC data-channel spike</h1>
+<div class="sub">Proves rung 5b piece #1+#2: open a DataChannel through the existing relay, see whether it goes direct (LAN) or via STUN/TURN.</div>
+
+<div id="status">…</div>
+
+<div class="row">
+  <div class="card"><div class="k">mode</div><div class="v" id="mode">–</div></div>
+  <div class="card"><div class="k">role</div><div class="v" id="role">–</div></div>
+  <div class="card"><div class="k">path</div><div class="v" id="path">–</div></div>
+  <div class="card"><div class="k">round-trip</div><div class="v" id="rtt">–</div></div>
+  <div class="card"><div class="k">pkts recv</div><div class="v" id="rx">0</div></div>
+</div>
+
+<div id="log"></div>
+
+<script>
+"use strict";
+// ── config ──────────────────────────────────────────────────────────────────
+// STUN lets peers learn their public address so they can connect directly across
+// networks. Same-wifi doesn't need it (local candidates already work). No TURN
+// here on purpose — the spike WANTS to see whether a direct path forms.
+const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const now = () => performance.now();
+function log(s) { const el = $("log"); el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; console.log(s); }
+function status(text, cls) { const el = $("status"); el.textContent = text; el.className = cls || ""; }
+
+// ── mode select: no ?room= → local loopback (one tab, no network); else relay ──
+const room = params.get("room");
+if (!room) loopback(); else relay(room);
+
+// ── LOOPBACK: two peer connections in ONE page, wired directly. Proves the ─────
+// DataChannel code works with zero relay/network in the picture. Open in one tab.
+async function loopback() {
+  $("mode").textContent = "loopback"; $("role").textContent = "both"; $("path").textContent = "in-page";
+  status("connecting…", "warn");
+  log("LOOPBACK: wiring two RTCPeerConnections in this page (no relay, no network).");
+  const a = new RTCPeerConnection(ICE), b = new RTCPeerConnection(ICE);
+  a.onicecandidate = (e) => e.candidate && b.addIceCandidate(e.candidate);
+  b.onicecandidate = (e) => e.candidate && a.addIceCandidate(e.candidate);
+  const ch = a.createDataChannel("de", { ordered: false, maxRetransmits: 0 });
+  wireChannel(ch, "A");
+  b.ondatachannel = (e) => wireChannel(e.channel, "B");
+  const offer = await a.createOffer(); await a.setLocalDescription(offer);
+  await b.setRemoteDescription(offer);
+  const answer = await b.createAnswer(); await b.setLocalDescription(answer);
+  await a.setRemoteDescription(answer);
+  log("LOOPBACK: offer/answer exchanged locally, waiting for channel to open…");
+}
+
+// ── RELAY: real signaling through tools/net-relay.js. Host (seat 0) makes the ──
+// offer + owns the DataChannel; joiner (seat 1) answers. Open in TWO tabs/devices.
+function relay(code) {
+  $("mode").textContent = "relay"; $("path").textContent = "room " + code;
+  status("connecting to relay…", "warn");
+  const proto = location.protocol === "https:" ? "wss://" : "ws://";
+  const url = proto + location.host + "/room/" + encodeURIComponent(code);
+  log("RELAY: dialing " + url);
+  const ws = new WebSocket(url);
+  ws.binaryType = "arraybuffer";
+
+  let pc = null, seat = null, made = false, gotOffer = false, readyTimer = null;
+  // send signaling as BINARY — the relay re-frames everything as binary (wsEncode
+  // opcode 2), so a text frame would arrive as bytes anyway; send bytes to begin with.
+  const send = (obj) => ws.send(new TextEncoder().encode(JSON.stringify(obj)));
+
+  ws.onopen = () => log("RELAY: websocket open, waiting to be seated…");
+  ws.onclose = () => { if (seat === null) status("relay unreachable", "bad"); };
+  ws.onerror = () => status("relay error — is net-relay.js running?", "bad");
+
+  ws.onmessage = async (ev) => {
+    // the relay re-frames everything as BINARY, so ALL messages arrive as bytes:
+    // its own ROLE packet ['D','N',6,seat], and our signaling JSON. The 'DN' magic
+    // tells them apart (our JSON starts with '{' = 123, never 'D' = 68).
+    const b = new Uint8Array(ev.data);
+    if (b.length >= 4 && b[0] === 68 && b[1] === 78 && b[2] === 6) {   // ROLE
+      seat = b[3];
+      $("role").textContent = seat === 0 ? "host" : "joiner";
+      log("RELAY: seated as seat " + seat + " (" + (seat === 0 ? "host — I offer" : "joiner — I answer") + ")");
+      if (seat === 0) {
+        startPeer(true);                 // host builds the channel, then WAITS for the joiner to announce
+        status("waiting for joiner…", "warn");
+      } else {
+        startPeer(false);                // joiner is ready to answer, and announces itself so the host offers
+        send({ t: "ready" });
+        readyTimer = setInterval(() => { if (!gotOffer) send({ t: "ready" }); }, 800);  // re-ask until an offer lands
+        status("joining — asking host for offer…", "warn");
+      }
+      return;
+    }
+    const msg = JSON.parse(new TextDecoder().decode(b));
+    if (msg.t === "ready") {                // host: the joiner is really in the room now → safe to offer
+      if (seat === 0 && pc && !made) {
+        made = true;
+        log("RELAY: joiner announced — creating offer");
+        const o = await pc.createOffer(); await pc.setLocalDescription(o);
+        send({ t: "offer", sdp: o }); log("RELAY: sent offer");
+      }
+    } else if (msg.t === "offer") {
+      log("RELAY: got offer from peer");
+      gotOffer = true; clearInterval(readyTimer);
+      if (!pc) startPeer(false);
+      await pc.setRemoteDescription(msg.sdp);
+      const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+      send({ t: "answer", sdp: ans });
+      log("RELAY: sent answer");
+    } else if (msg.t === "answer") {
+      log("RELAY: got answer from peer");
+      await pc.setRemoteDescription(msg.sdp);
+    } else if (msg.t === "ice" && msg.c) {
+      try { await pc.addIceCandidate(msg.c); } catch (e) { log("ice add failed: " + e); }
+    }
+  };
+
+  function startPeer(isHost) {
+    if (!window.RTCPeerConnection) {
+      status("no WebRTC in this browser (iOS Safari may need https)", "bad");
+      log("ERROR: RTCPeerConnection unavailable — likely a secure-context block over http://");
+      return;
+    }
+    try { pc = new RTCPeerConnection(ICE); }
+    catch (e) { status("RTCPeerConnection blocked", "bad"); log("ERROR: " + e); return; }
+    pc.onicecandidate = (e) => e.candidate && send({ t: "ice", c: e.candidate });
+    pc.onconnectionstatechange = () => {
+      log("RELAY: connection state → " + pc.connectionState);
+      if (pc.connectionState === "connected") reportPath(pc);
+      if (pc.connectionState === "failed") status("P2P FAILED (would need TURN)", "bad");
+    };
+    if (isHost) {
+      // host owns the channel; the offer is deferred until the joiner's "ready" arrives
+      const ch = pc.createDataChannel("de", { ordered: false, maxRetransmits: 0 });
+      wireChannel(ch, "host");
+    } else {
+      pc.ondatachannel = (e) => wireChannel(e.channel, "joiner");
+    }
+  }
+}
+
+// ── shared: once a DataChannel opens, ping across it and report RTT + rx count ──
+let rxCount = 0;
+function wireChannel(ch, who) {
+  ch.binaryType = "arraybuffer";
+  let pinger = null;
+  ch.onopen = () => {
+    status("DATA CHANNEL OPEN ✓", "ok");
+    log("CHANNEL[" + who + "]: OPEN — sending pings");
+    // 1-byte-ish ping like a lockstep input packet: [0xPP, t0_lo..] as float in a view
+    pinger = setInterval(() => {
+      const buf = new ArrayBuffer(9);
+      const dv = new DataView(buf);
+      dv.setUint8(0, 0x50);            // 'P' ping
+      dv.setFloat64(1, now());         // echo-back timestamp
+      ch.send(buf);
+    }, 200);
+  };
+  ch.onclose = () => { clearInterval(pinger); log("CHANNEL[" + who + "]: closed"); };
+  ch.onmessage = (ev) => {
+    rxCount++; $("rx").textContent = rxCount;
+    const dv = new DataView(ev.data);
+    const tag = dv.getUint8(0);
+    if (tag === 0x50) {                // ping → pong it straight back
+      const buf = new ArrayBuffer(9); const o = new DataView(buf);
+      o.setUint8(0, 0x51); o.setFloat64(1, dv.getFloat64(1)); ch.send(buf);
+    } else if (tag === 0x51) {         // pong → measure round-trip
+      const rtt = now() - dv.getFloat64(1);
+      $("rtt").textContent = rtt.toFixed(1) + " ms";
+    }
+  };
+}
+
+// ── the money shot: which candidate pair won → LAN-direct vs STUN vs TURN ──────
+async function reportPath(pc) {
+  const stats = await pc.getStats();
+  let pair = null, local = null, remote = null;
+  stats.forEach((r) => { if (r.type === "candidate-pair" && r.state === "succeeded" && r.nominated) pair = r; });
+  if (!pair) stats.forEach((r) => { if (r.type === "candidate-pair" && r.state === "succeeded") pair = r; });
+  if (pair) stats.forEach((r) => {
+    if (r.id === pair.localCandidateId) local = r;
+    if (r.id === pair.remoteCandidateId) remote = r;
+  });
+  const t = (local && local.candidateType) || "?";
+  // host = a direct address on your LAN; srflx = via STUN (direct across NAT);
+  // relay = via TURN (traffic detours through a server)
+  let kind, cls;
+  if (t === "host") { kind = "LAN (direct)"; cls = "lan"; }
+  else if (t === "srflx" || t === "prflx") { kind = "STUN (direct, cross-NAT)"; cls = "stun"; }
+  else if (t === "relay") { kind = "TURN (relayed — internet latency)"; cls = "relay"; }
+  else { kind = t; cls = ""; }
+  $("path").innerHTML = '<b class="' + cls + '">' + kind + "</b>";
+  log("PATH: local candidate type = '" + t + "' → " + kind);
+  if (local && remote) log("PATH: " + local.address + ":" + local.port + "  ↔  " + remote.address + ":" + remote.port);
+}
+</script>
+</body>
+</html>

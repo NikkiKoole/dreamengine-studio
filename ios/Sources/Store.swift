@@ -86,6 +86,11 @@ extension Store {
     static var testSession: SKTestSession?
     static func startTesting() {
         guard testSession == nil else { return }
+        // iOS 26 SDK: SKTestSession abort()s (not throws) if the XCTest library isn't loaded.
+        // Load it explicitly; if it can't load, skip local testing instead of crashing.
+        guard dlopen("/Developer/Library/Frameworks/XCTest.framework/XCTest", RTLD_NOW) != nil else {
+            NSLog("[store] XCTest unavailable — local StoreKit testing disabled"); return
+        }
         do {
             let s = try SKTestSession(configurationFileNamed: "Tinyjam")
             s.disableDialogs = true   // local testing: purchases complete instantly, no sheet to

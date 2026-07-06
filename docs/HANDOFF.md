@@ -78,8 +78,10 @@ all: [`STATUS.md`](STATUS.md) + the design board.
 > open Xcode26_6's Simulator.app by path; (2) the **iOS 26 sim runtime killed in-app
 > `SKTestSession`** (needs a real XCTest run context now, not just XCTest loaded — dlopen tricks
 > don't help; the 17.2 runtime was auto-deleted in the upgrade) — `Store.swift` now skips local
-> IAP testing gracefully (committed d8a7deba); for the sim purchase dev-loop install an older
-> runtime (`xcodebuild -downloadPlatform iOS -buildVersion 18.4`) or sandbox-test on device.
+> IAP testing gracefully (gated to iOS 26+); **the sim purchase dev-loop lives on an 18.x
+> runtime device** — iOS 18.4 runtime installed + `DEVICE="iPhone 16 (18.4)" ./build.sh`
+> VERIFIED purchases working (2026-07-06). Device IAP testing still waits on ASC IAP records
+> (Monetization → In-App Purchases; the bundled .storekit only covers the sim).
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`
 > (local — **push to sync other machines**):
 > - **The free ASO keyword loop** (CLI + Apps tab): `aso-research` (now mines competitor

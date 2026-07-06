@@ -512,11 +512,16 @@ plan holds against it doesn't apply on a LAN.
 
 ## Scoped plan — rung 5a: web/wasm multiplayer via a WebSocket input-relay
 
-> **Status: building — steps 1–3 BUILT (2026-07-05); the live two-tab pick is the
-> remaining test.** Steps 2 (WebSocket transport) + 3 (`tools/net-relay.js`) landed
-> the same day as step 1; `node tools/net-check.js` is the one-command gate (echo +
-> netdemo + relay wire-protocol), and `node tools/net-relay.js --serve site/<cart>`
-> is the two-devices-on-one-wifi setup. The pragmatic first step to get *browsers*
+> **Status: shipped — steps 1–3 LIVE-VERIFIED (2026-07-06): two real browsers
+> played a relay match on the home wifi.** Steps 2 (WebSocket transport) + 3
+> (`tools/net-relay.js`) landed the day after step 1; `node tools/net-check.js`
+> is the one-command gate (echo + netdemo + relay wire-protocol), and
+> `node tools/net-relay.js --serve site/<cart>` is the two-devices-on-one-wifi
+> setup. A leaving peer now shows an on-screen banner on the survivor's side
+> ("PLAYER 2 LEFT — PLAYING SOLO") — the console is invisible in a browser.
+> Remaining in 5a: step 4's real lobby (in-cart room-code entry) and step 5's
+> CRC tripwire; see also §"Hosting beyond the LAN" below for the github.io
+> story. The pragmatic first step to get *browsers*
 > (and iPads) playing, chosen over full WebRTC because it needs no NAT traversal,
 > no STUN/TURN, no signaling dance — just a tiny relay. Reuses the entire native
 > lockstep model (same barrier, same 1-byte packet, same lobby concept); what's
@@ -592,6 +597,34 @@ The whole rung 5a is ~1–1.5 weeks part-time and gets browsers **and iPad Safar
 playing — which also unlocks the tinyjam **co-op jamming** spark
 ([`tinyjam-racks.md`](tinyjam-racks.md) → "Spark: co-op jamming"), since a shared
 rack in two browser tabs is exactly this.
+
+### Hosting beyond the LAN — github.io + a wss relay
+
+The cart half is already solved: the gallery publishes to
+<https://nikkikoole.github.io/dreamengine/> (`tools/publish-cart.sh`), and a
+republished multiplayer cart there reads `?room=`/`?relay=` like any other web
+build. **What github.io can NOT do is run the relay** (Pages is static-only) —
+and it forces the second constraint: Pages is **https**, and a browser blocks
+plain `ws://` from an https page (mixed content), so the relay must be
+reachable over **`wss://`** (TLS). The relay itself already works behind any
+TLS terminator — it speaks plain WS and lets the host do the certificates.
+Options, cheapest-first:
+
+| Option | What it is | Cost / catch |
+|---|---|---|
+| **Free-tier PaaS** (Render, Fly.io, Railway) | `node tools/net-relay.js` as a tiny web service — they hand out an https/wss domain automatically | free tier idles/sleeps on some plans (first joiner waits a few seconds); ~10 min setup |
+| **Cloudflare Tunnel** from any always-on box at home | free wss-capable hostname pointed at a local relay | the box must stay on; tunnel setup once |
+| **$5 VPS + Caddy** | Caddy auto-TLS proxying to the relay | the classic; zero surprises, small bill |
+
+Then the shareable link is
+`https://nikkikoole.github.io/dreamengine/<cart>/?room=<code>&relay=wss://<relay-host>`
+— note `?relay=` is **required** there (the default is the page's own host,
+which on github.io has no WS endpoint; without it the cart shows "relay
+unreachable"). LAN play (`net-relay.js --serve`) is unaffected — same code,
+`ws://` is fine on a plain-http LAN page. One more Pages caveat, pre-existing:
+Pages can't set COOP/COEP headers, so the AudioWorklet build's
+SharedArrayBuffer path isn't available there — the gallery's ScriptProcessor
+fallback already covers it (sound works on the published gallery today).
 
 ---
 

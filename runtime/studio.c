@@ -1569,6 +1569,21 @@ static void draw_size_overlay(void) {
     DrawTextEx(game_font, line, (Vector2){ 11, 9 }, 12, 1, (DeColor){ 0, 255, 180, 255 });
 }
 
+#ifdef DE_NET_CORE
+// netplay events the player must SEE (a browser's console is invisible): the
+// net_notice banner net.h sets on a peer leaving — window-space, top-center,
+// counts itself down (~5 s) then disappears.
+static void draw_net_notice(void) {
+    if (net_notice_frames <= 0 || !net_notice[0]) return;
+    net_notice_frames--;
+    float px = GetScreenHeight() / 24.0f; if (px < 12) px = 12;
+    Vector2 m = MeasureTextEx(game_font, net_notice, px, 1);
+    float x = GetScreenWidth() / 2.0f - m.x / 2.0f, y = px;
+    DrawRectangle((int)x - 8, (int)y - 4, (int)m.x + 16, (int)m.y + 8, (DeColor){ 0, 0, 0, 190 });
+    DrawTextEx(game_font, net_notice, (Vector2){ x, y }, px, 1, (DeColor){ 255, 210, 80, 255 });
+}
+#endif
+
 bool paused(void) { return pause_active; }
 
 // draw the pause overlay into the canvas (native resolution) so it scales up
@@ -2385,6 +2400,9 @@ static void loop_step(void) {
                           (DeColor){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
         draw_touch_overlay_window();   // the on-screen controls (window-space, after the blit)
         draw_watch_overlay();
+#ifdef DE_NET_CORE
+        draw_net_notice();             // "PLAYER 2 LEFT" banner (web drop-to-solo)
+#endif
         draw_size_overlay();           // resizable carts: live WxH readout, top-left
     EndDrawing();
     }   // end if (!skip_render) — present

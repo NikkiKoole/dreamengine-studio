@@ -103,6 +103,12 @@ static int     net_frame = 0;                 // lockstep sim frame counter
 static int     net_sampled_frame = -1;        // sim frame whose local input is already sampled+sent
 static int     net_try_spins = 0;             // barrier attempts for the current frame (resend cadence)
 
+// an on-screen netplay notice ("PLAYER 2 LEFT — PLAYING SOLO"): the console is
+// invisible in a browser, so events the player must SEE go here; studio.c's
+// draw_net_notice() shows it as a window-space banner for ~5 s then clears it.
+static char net_notice[64]     = "";
+static int  net_notice_frames  = 0;
+
 // btn()'s pre-net body — reads THIS machine's keymaps + touch (defined in studio.c)
 static bool btn_local(int player, int button);
 
@@ -188,6 +194,8 @@ static bool net_frame_try_sync(void) {
 #ifdef PLATFORM_WEB
     if (net_peer_bye) {   // web can't exit() a tab: drop to solo (btn() falls back to btn_local)
         printf("net: peer left — continuing solo\n");
+        snprintf(net_notice, sizeof net_notice, "PLAYER %d LEFT - PLAYING SOLO", (net_me ^ 1) + 1);
+        net_notice_frames = 300;                 // ~5 s at 60 fps
         net_active = false;
         return true;
     }

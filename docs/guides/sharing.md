@@ -16,6 +16,11 @@
 > plus thumbnails that need rebaking. Run it before a publish pass to find the work; feed the
 > names straight to `publish-cart.sh`.
 > This is the "GitHub Pages" option below, chosen because the repo already lives there.
+> **Multiplayer carts on the published site:** the page half just works (`?room=` +
+> `?relay=wss://…` on the cart URL), but Pages can't run the relay and its https blocks
+> plain `ws://` — the relay needs a `wss://` home. The options table:
+> [`../design/multiplayer-research.md`](../design/multiplayer-research.md) §"Hosting beyond
+> the LAN". On a LAN, skip all of it: `node tools/net-relay.js --serve site/<name>`.
 > **The editor has the button too (2026-06-06):** settings → "publish to site" toggle
 > reveals 🚀 *publish to site* next to "build for web" — compiles the current cart into
 > `site/<name>/`, writes the C source back to `tools/carts/<name>.c`, commits and pushes.

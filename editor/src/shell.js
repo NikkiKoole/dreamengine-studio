@@ -2422,7 +2422,12 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     return
   }
   const card = e.target.closest('.app-card')
-  if (card) { const acts = card.querySelector('.app-actions'); if (acts) acts.hidden = !acts.hidden }
+  if (card) {
+    // a drag to select text (e.g. copying an IAP description into the research box) ends in a
+    // click — don't let that collapse the card. Only toggle on a real click, not a text selection.
+    if (String(window.getSelection?.() || '').length) return
+    const acts = card.querySelector('.app-actions'); if (acts) acts.hidden = !acts.hidden
+  }
 })
 
 // ── live auto-reload ──────────────────────────────────────────

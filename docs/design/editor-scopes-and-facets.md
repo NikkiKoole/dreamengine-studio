@@ -151,6 +151,29 @@ the cart's `.rec` takes + `replay()` (built), baked clips (the 🎬 make-clip br
 📣 entry ([`leads-marketeer.md`](leads-marketeer.md) open-q #4). Mostly a **view** problem, not
 plumbing — the sources exist; they lack a home.
 
+### The zeroth verb: Dream (the loop closes)
+
+The three verbs have a **zeroth** — and the engine is named for it. The full arc is a **cycle, not
+a line**:
+
+```
+Dream → Make → Promote → Ship → Promote ⟳ Dream (the next cart)
+```
+
+- **Dream** is not decoration — it's an **already-enforced phase**: the authoring firewall
+  ([`../guides/cart-authoring-prompt.md`](../guides/cart-authoring-prompt.md)) makes you *imagine the
+  ideal instrument/game from the genre BEFORE reading any existing cart*, and de:meta is written
+  intent-first. "Dream before Make" is house discipline, not a slogan.
+- **Dream is the one verb that is NOT a tab.** You don't dream *inside* a cart — dreaming is the
+  pre-work: your head, the design docs, and browsing the **compendium / gallery** for sparks ("what's
+  possible? what hasn't been done?"). So the editor's *cart-independent* views (Docs, tutorials,
+  gallery) are, loosely, the Dream surface. This fits the scope model: **Dream is scope-less** (about
+  the whole space of possible carts), **Make/Promote are cart-scoped**, **Ship / app-Promote are
+  app-scoped**.
+- **The last Promote loops to Dream:** you announce, the tribe reacts, and that feeds the next idea.
+  The *engine* in dreamengine is the thing that turns the dream all the way around to the next dream —
+  which ties this whole IA back to the [VISION](../VISION.md).
+
 ## Open questions (now resolved above — kept for the trail)
 
 1. **Where does the cart-media facet live** — its own per-cart panel/tab (like sprite/map), or a

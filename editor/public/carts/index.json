@@ -4941,6 +4941,20 @@
     "lineage": "A prosody probe for INSTR_VOICE — exercises connected simlish speech (V/CV/VC/CVC syllable shapes, diphthong glides, coda closings) with per-syllable pitch contours, phrase declination, and intonation modes (statement/question/exclaim), surfacing engine gaps before any new API is added."
   },
   {
+    "title": "scalegrid",
+    "description": "A scale-locked ISOMORPHIC pad grid you play with your fingers - pick a scale and there are NO WRONG NOTES. Voiced by INSTR_PD (the Casio-CZ phase-distortion engine) on a lush 'wowww' sweep pad, so every tap and chord rings. The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE (chroma/major/minor/penta/dorian) and a KEY (root) and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. It is ISOMORPHIC: the row offset is a fixed number of scale DEGREES, so a chord SHAPE is identical in every key and octave (ISO-OCT = row up is +1 octave with roots in a clean left column; ISO-4TH = row up is +a fourth for diagonal chord shapes). Roots are tinted orange. Pads are finger-sized (never crammed): tight screens PACK 1-finger pads, roomy screens CAP the range to 4 octaves and GROW big comfy squares. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library. TAP / drag pads to play (mouse = one finger, multitouch = many). S scale, R key/root, I layout (ISO-OCT / ISO-4TH), Z/X octave down/up, M self-play on/off, H help.",
+    "file": "scalegrid.cart.png",
+    "created": "2026-07-07",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [
+      "scale-quantize",
+      "analog-voice-modeling"
+    ]
+  },
+  {
     "title": "seinelaan 31",
     "description": "A real Eindhoven apartment (Seinelaan 31) walked as a top-down level, built from its Floorplanner .fml by the fmltools pipeline. Walls with walkable doorways and real door/window sprites, each room a distinct floor colour, 72 furniture pieces as top-down pixel sprites baked from Floorplanner CDN renders. WASD/arrows move, T toggles sprites vs boxes. Sibling of floorwalker.",
     "file": "seinelaan.cart.png",

@@ -544,6 +544,7 @@ their `kind[]` tags.
       before the word. Cart: circular sequencer, drag bulb brightness (= pitch/volume per
       step), rotating playhead instead of left-to-right, rotation speed = tempo. `euclid()`
       would feel period-appropriate. Visually unlike every other music cart in the studio.
+      **Specced** — intent-first design of record: [`design/scott-blind-brief.md`](design/scott-blind-brief.md).
     - **Clavivox (1956)** — keyboard theremin with portamento; the great-grandfather of the
       tb303 cart's `note_glide`. Could be a small mouse-played instrument cart.
     - **Electronium (1959-70s)** — not an instrument, a collaborative composition machine you

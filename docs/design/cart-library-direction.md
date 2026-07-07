@@ -115,7 +115,9 @@ pattern at the bottom.
 > *circular* step sequencer (rotating photocell sweeps a ring of brightness knobs) — scores
 > low on *new sound* (it reuses existing oscillators) but high on **new interaction**, a
 > genuinely fresh UI unlike any music cart here; the **Clavivox** (keyboard theremin) is a
-> small `note_glide` instrument. Listed here so they're not lost in STATUS.
+> small `note_glide` instrument. Listed here so they're not lost in STATUS. **The Circle Machine
+> now has an intent-first design of record: [`scott-blind-brief.md`](scott-blind-brief.md)**
+> (Clavivox + Electronium fold in as follow-on voice modes / carts on the same chassis).
 >
 > **Two more candidates (2026-06-11)** — each shows off an engine move no cart leans on:
 >

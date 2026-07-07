@@ -68,8 +68,22 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
    = the ordered list Apple shows; paired app-side with `Store.swift`'s `PurchaseIntent.intents`
    listener (iOS 16.4+) so a tap from the store page / search lands in the purchase. **Still open:**
    per-locale `metadata/<locale>/` folders (the tool reads them but multi-locale isn't exercised) +
-   an editor button. The copy *prose* (description/promo) stays maker-written per the two-part bar —
-   the tool only pipes it.
+   an editor button + **`--custom-page` (Custom Product Pages)**. The copy *prose* (description/promo)
+   stays maker-written per the two-part bar — the tool only pipes it.
+
+   > **Custom Product Pages — a future `--custom-page <slug>` slice (deferred; growth-stage).** ASC
+   > lets you publish up to **35** alternate product-page variants, each with its own screenshots,
+   > preview videos, and promotional text (NOT title/subtitle/keywords/description/icon — those stay
+   > shared) and its own **URL**. They're reached only by that link (an ad/tweet/newsletter), NOT App
+   > Store search, so they're a **conversion/targeting** lever, not ASO — you point per-audience
+   > traffic at a tailored page and measure conversion per page in App Analytics. The Tiny Jam fit:
+   > one page per rack/tribe (an acid page for a techno channel, an e-piano page for a keys crowd) —
+   > exactly the per-tribe campaign-link idea in
+   > [`../marketing/tinyjam/tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §6.2.
+   > API-manageable (`appCustomProductPages` + versions + localizations + their own screenshot sets),
+   > so it mirrors the `--screenshots` dance under a CPP localization. **Deferred until there's traffic
+   > to point at it** — nail the default page + launch first. NB: distinct from **Product Page
+   > Optimization** (A/B test the *default* page, icon variants allowed) — that's a separate feature.
 
    > **IAP + ASO (the discovery angle):** Apple indexes an IAP's **display name** (≤30) for search —
    > "Acid Rack"/"E-Piano"/"Master Pass" extend the app's keyword surface for free, so spend IAP-name

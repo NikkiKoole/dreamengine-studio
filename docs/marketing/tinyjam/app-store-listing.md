@@ -75,6 +75,23 @@ trademarks. Keep them out of *visible* names (IAP display names especially) — 
 for the store. `operator` alone in the hidden keyword field is defensible; `pocket operator`
 spelled out on a visible tile is not.
 
+## Custom Product Pages — per-tribe pages (later, growth-stage)
+
+Beyond the one default page, the App Store lets us publish up to **35 Custom Product Pages**
+(CPP) — alternate variants each with its own **screenshots, preview video, and promotional
+text** (the shared bits — title/subtitle/keywords/description/icon — stay fixed) and its own
+**URL**. They're the App-Store-side twin of the per-tribe campaign links + dedicated
+per-module page in [`tinyjam-marketing.md`](tinyjam-marketing.md) §6.2/§7.2: one page per
+rack/tribe (an *acid* page for a techno channel, an *e-piano* page for a keys crowd), you put
+that page's link in the campaign, and App Analytics reports conversion **per page**.
+
+Key: CPPs are reached **only by their link, not by search** — so they're a *conversion*
+lever, not ASO (that stays the title/subtitle/keywords + promoted-IAP names above). **Deferred
+until we're driving traffic** (nail the default page + launch first). It's API-manageable, so
+it lands as a future `asc-push --custom-page` slice — captured in
+[`../../design/store-agents.md`](../../design/store-agents.md) §"ASC upload + TestFlight tool".
+(Distinct from **Product Page Optimization** — A/B testing the *default* page, icon included.)
+
 ## The one number we're still missing
 
 Difficulty above is a **relative** proxy (crowding × incumbent strength), not absolute search

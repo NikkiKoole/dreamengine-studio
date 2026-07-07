@@ -70,12 +70,13 @@ count is fixed (always ≤3) or per-machine.
   strip border + lit-red M + the pattern/step activity greyed (not green) = "there but silenced."
 - **Patterns — 6 per instrument**, in their **own bordered "PAT" box** clearly grouped with the
   instrument (ReBirth's per-machine PATTERN panel — maker, 2026-07-07), not a loose full-width row.
-  Placement by state: **expanded** + **compact** = a titled box (3×2 of the 6) on the strip's
-  LEFT, machine controls fill the rest to its right; **folded** = a framed row of 6 LEDs in the
-  header. Live pattern lit; muted → the box border/LEDs grey/red too. Distinct from the transport's
+  **Device-adaptive placement** (maker, 2026-07-07): **iPad (roomy)** compact/expanded = a titled box (3×2 of the 6) on the strip's
+  LEFT, machine controls to its right. **Phone (tall/short-wide), all states** = a light framed row
+  of 6 in the header (the folded-header style), body kept full-width. **MASTER has NO patterns** and
+  no step lane (mixer/FX bus, the research doc's "odd one out"): just its knobs. Live pattern lit; muted → the box border/LEDs grey/red too. Distinct from the transport's
   A/B/C/D banks (top) and the song-chain row (bottom) — this is *which of the instrument's 6
   patterns plays*. Try it: `node tools/play.js acidwire run` → `m` mutes, `p` cycles the pattern.
-  (Open: does each instrument also get its own bank A/B/C/D like ReBirth → 6×4, or is 6 flat?)
+  (Decided: **flat 6**, no per-instrument bank for now — banks are a later add if 6 proves tight.)
 
 ## 3 · Editor swap by budget (expanded state, per shape)
 

@@ -53,7 +53,7 @@ static Dev DEV[] = {
 
 // ───────── the rack inventory (acidfit's, + a compact middle state) ─────────
 enum { KNOBS, DRUMS };
-typedef struct { const char *name; int kind; int n; const char *const *labels; const char *const *compact; int nc; } Strip;
+typedef struct { const char *name; int kind; int n; const char *const *labels; const char *const *compact; int nc; int haspat; } Strip;
 static const char *const K303[]  = { "CUT","RES","ENV","DEC","ACC","DRV","SQL" };
 static const char *const K303c[] = { "CUT","RES","DRV" };                 // §2 guess: the knobs you ride live
 static const char *const KMST[]  = { "VOL","TON","VRB" };
@@ -61,12 +61,12 @@ static const char *const KMSTc[] = { "DLY","FB","GLU" };
 static const char *const V909[]  = { "BD","SD","LT","MT","HT","RS","CP","CH","OH","CC","RC" };
 static const char *const V808[]  = { "BD","SD","LT","HT","CP","MA","CB","OH","CH" };
 static const char *const VDUMc[] = { "TUNE","DEC" };                      // §2 guess: selected-voice knobs
-static Strip STRIP[] = {
-    { "303 A",  KNOBS, 7,  K303, K303c, 3 },
-    { "303 B",  KNOBS, 7,  K303, K303c, 3 },
-    { "909",    DRUMS, 11, V909, VDUMc, 2 },
-    { "808",    DRUMS, 9,  V808, VDUMc, 2 },
-    { "MASTER", KNOBS, 3,  KMST, KMSTc, 3 },
+static Strip STRIP[] = {          // haspat: MASTER is the mixer/FX bus, not a pattern instrument
+    { "303 A",  KNOBS, 7,  K303, K303c, 3, 1 },
+    { "303 B",  KNOBS, 7,  K303, K303c, 3, 1 },
+    { "909",    DRUMS, 11, V909, VDUMc, 2, 1 },
+    { "808",    DRUMS, 9,  V808, VDUMc, 2, 1 },
+    { "MASTER", KNOBS, 3,  KMST, KMSTc, 3, 0 },
 };
 #define NSTRIP 5
 #define STEPS 16
@@ -76,6 +76,7 @@ enum { FOLDED, COMPACT, EXPANDED };
 #define NPAT 6                   // patterns per instrument (maker: "a couple, say 6")
 
 static int cur = 0, applied = -1, work = NSTRIP, showlabel = 1, safehint = 1;
+static int g_boxpat = 0;   // pattern selector style this frame: 1 = boxed left panel (iPad), 0 = header row (phone)
 // work: 0..NSTRIP-1 = that strip expanded; NSTRIP = ALL COMPACT (the iPad §4 headline)
 // per-instrument state the main screen must carry: mute + which of the 6 patterns is live
 static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
@@ -152,23 +153,30 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     body = lay_pad(body, 1, 1, 1, 1);
     wf_mute(hdr, mu);
 
-    if (state == FOLDED) {   // header: name · framed pattern LEDs · [M][fx]; body: a mini step preview
+    // PATTERN SELECTOR — pattern instruments only (MASTER is the mixer/FX bus, so none). Device-
+    // adaptive: PHONE → a light framed row of 6 in the HEADER; iPad (roomy) → a boxed LEFT panel.
+    int header_pat = s->haspat && (!g_boxpat || state == FOLDED);
+    int box_pat    = s->haspat && g_boxpat && state != FOLDED;
+    if (header_pat) {
         float muteW = FU * 1.6f;
         Box pb = box(hdr.x + FU * 1.7f, hdr.y + 1, hdr.w - FU * 1.7f - muteW, hdr.h - 2);
-        boxrect(pb, mu ? CLR_DARK_RED : CLR_DARKER_GREY);          // frame → its own little box
+        boxrect(pb, mu ? CLR_DARK_RED : CLR_DARKER_GREY);
         wf_patterns(lay_inset(pb, 1), pc, mu, NPAT);              // one row of 6
-        wf_minipat(body, idx, mu);
-        return;
     }
-    // COMPACT + EXPANDED: the pattern selector is its OWN boxed panel on the LEFT (ReBirth-style),
-    // the machine controls fill the rest to its right — clearly grouped with THIS instrument.
-    float boxW = (state == EXPANDED) ? FU * 2.7f : FU * 2.4f;
-    Box mach; Box pbox = lay_split(body, EDGE_LEFT, boxW, &mach);
-    wf_patbox(pbox, pc, mu);
-    mach = lay_pad(mach, 1, 0, 0, 0);   // gap between the box and the machine
+
+    // MASTER (no patterns) has no step sequence either — just its knobs, no lane / preview.
+    if (state == FOLDED) { if (s->haspat) wf_minipat(body, idx, mu); return; }
+
+    Box mach = body;
+    if (box_pat) {   // iPad: the pattern selector as its own bordered panel on the left
+        float boxW = (state == EXPANDED) ? FU * 2.7f : FU * 2.4f;
+        Box pbox = lay_split(body, EDGE_LEFT, boxW, &mach);
+        wf_patbox(pbox, pc, mu);
+        mach = lay_pad(mach, 1, 0, 0, 0);   // gap between the box and the machine
+    }
 
     if (state == COMPACT) {                        // 2-3 knobs (or drum selector) + one step lane
-        Box lane; Box top = lay_split(mach, EDGE_TOP, FU * 1.3f, &lane);
+        Box lane; Box top = s->haspat ? lay_split(mach, EDGE_TOP, FU * 1.3f, &lane) : mach;
         if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc);
         else { // drum: voice selector chips + selected-voice knobs
             Box kn; Box sel = lay_split(top, EDGE_TOP, FU * 0.7f, &kn);
@@ -176,11 +184,14 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
                 font(FONT_TINY); print_centered(s->labels[i], (int)(c.x+c.w/2), (int)(c.y+(c.h-5)/2), CLR_LIGHT_GREY); }
             wf_knobrow(kn, s->compact, s->nc);
         }
-        wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu);
+        if (s->haspat) wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu);
         return;
     }
-    // EXPANDED — the full editor to the right of the pattern box
-    if (s->kind == KNOBS) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
+    // EXPANDED — the full editor
+    if (s->kind == KNOBS) {
+        if (s->haspat) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
+        else wf_knobrow(mach, s->labels, s->n);   // MASTER: just knobs
+    }
     else wf_padgrid(mach, s->labels, s->n, mu);
 }
 
@@ -260,6 +271,7 @@ void update(void) {
 void draw(void) {
     Dev d = DEV[cur];
     int W = screen_w(), H = screen_h();
+    g_boxpat = (d.cls == ROOMY);   // iPad has room for the boxed PAT panel; phones use the header row
     cls(CLR_BROWNISH_BLACK);
 
     // safe area (simulated status/notch/home; brief §4 — top/bottom only). The device SKIN that

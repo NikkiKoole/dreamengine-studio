@@ -41,7 +41,6 @@ de:meta */
 // cold-open); the first input hands control to the player.
 
 #include "studio.h"
-#include <math.h>
 
 // ── scales (semitone degrees within an octave). CHROMA = all 12. ─────────────
 // Our OWN curated set (not Koala's list/order): the standard theory scales every
@@ -107,22 +106,24 @@ static int   sp_tick = 0, sp_step = 0, sp_handle = -1, sp_pad = -1;
 
 static float clampf(float v, float lo, float hi){ return v < lo ? lo : v > hi ? hi : v; }
 
-// ── the pad grid geometry (lifted from epianofit.c keybed_grid) ──────────────
+// ── the pad grid geometry — a SEAMLESS isomorphic lattice window ─────────────
+// The key invariant (the fix for "chroma is missing a note"): COLUMNS == the row
+// offset. In an isomorphic lattice note(row,col) = base + degree(col + row*off);
+// if the horizontal span (cols) is smaller than the vertical jump (off) some
+// degrees fall in the GAP between rows (chromatic lost A#/B); if larger, some
+// REPEAT (pentatonic doubled two columns). Setting cols == off makes it row-major
+// exact: every scale degree appears once per octave, no gaps, no repeats — for
+// EVERY scale. Rows then fill the height (finger-sized), capped to GRID_MAX_OCT
+// octaves; on a roomy screen the pads grow to fill (the cap-and-grow law).
 static void compute_grid(void) {
     float aw = SCREEN_W, ah = SCREEN_H - HUD_H;
     g_gap = clampf(FINGER_PX * 0.12f, 1, 4);
-    int nsc = SC_N[scale], maxNotes = GRID_MAX_OCT * nsc;
-    int colsMin = (int)((aw + g_gap) / (FINGER_PX + g_gap)); if (colsMin < 1) colsMin = 1;
-    int rowsMin = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rowsMin < 1) rowsMin = 1;
-    int cols, rows;
-    if (colsMin * rowsMin <= maxNotes) {          // tight — pack finger-pads
-        cols = colsMin; rows = rowsMin;
-    } else {                                      // roomy — cap range, grow pads
-        rows = (int)(sqrtf((float)maxNotes * ah / aw) + 0.5f); if (rows < 1) rows = 1;
-        cols = (maxNotes + rows - 1) / rows;      if (cols < 1) cols = 1;
-        if (cols > colsMin) cols = colsMin;       // never shrink a pad below 1 finger
-        if (rows > rowsMin) rows = rowsMin;
-    }
+    int nsc = SC_N[scale];
+    int off = rowoff < 1 ? 1 : (rowoff > nsc ? nsc : rowoff);
+    int cols = off;                                              // the seamless-tiling invariant
+    int rowsFit = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rowsFit < 1) rowsFit = 1;
+    int rowsCap = (GRID_MAX_OCT * nsc + cols - 1) / cols;        // rows for GRID_MAX_OCT octaves
+    int rows = rowsFit < rowsCap ? rowsFit : rowsCap; if (rows < 1) rows = 1;
     g_cols = cols; g_rows = rows;
     g_pw = (aw - g_gap * (cols - 1)) / cols;
     g_ph = (ah - g_gap * (rows - 1)) / rows;
@@ -172,7 +173,7 @@ static const Chip CHIP[] = {
 };
 #define NCHIP (int)(sizeof(CHIP) / sizeof(CHIP[0]))
 static int bar_x[NCHIP + 1];              // cumulative pixel boundaries of the bar cells
-static int prev_ids[16], prev_n = 0;      // last frame's touch ids (for press-edge detection)
+static int bar_prev = -1;                 // chip the latch holds (-1 = released) — click, not hold
 
 static void layout_bar(void) {
     float tot = 0; for (int i = 0; i < NCHIP; i++) tot += CHIP[i].w;
@@ -225,13 +226,15 @@ void update(void) {
     if (keyp('x') || keyp('X')) do_action(ACT_OCTUP);
     if (keyp('m') || keyp('M')) do_action(ACT_SELF);
 
-    // ── control bar: fire on the PRESS edge (mouse click + each newly-landed finger) ──
-    if (mouse_pressed(0)) { int b = bar_hit(mouse_x(), mouse_y()); if (b >= 0) do_action(CHIP[b].act); }
-    for (int t = 0; t < touch_count(); t++) {
-        int id = touch_id(t); bool isnew = true;
-        for (int p = 0; p < prev_n; p++) if (prev_ids[p] == id) { isnew = false; break; }
-        if (isnew) { int b = bar_hit(touch_x(t), touch_y(t)); if (b >= 0) do_action(CHIP[b].act); }
-    }
+    // ── control bar: fire ONCE per press (a CLICK), never repeat while held ──
+    // Latched off "is a pointer resting on a chip this frame" — robust to touch ids
+    // that churn frame-to-frame (that churn was machine-gunning the chips).
+    int bar_chip = -1;
+    if (mouse_down(0)) bar_chip = bar_hit(mouse_x(), mouse_y());
+    for (int t = 0; t < touch_count() && bar_chip < 0; t++)
+        bar_chip = bar_hit(touch_x(t), touch_y(t));
+    if (bar_chip >= 0 && bar_prev < 0) do_action(CHIP[bar_chip].act);   // rising edge only
+    bar_prev = bar_chip;
 
     // ── self-play: a gentle walking arpeggio up the scale (the cold-open) ──
     if (selfplay) {
@@ -269,6 +272,7 @@ void update(void) {
         if (pad < 0) { if (vi >= 0){ note_off(voice[vi].handle); voice[vi].active = 0; } continue; }
         if (vi < 0) {                                   // new finger
             if (free < 0) continue;
+            stop_selfplay();                            // first pad touch hands control over
             voice[free] = (Voice){ 1, id, pad, note_on(pad_midi(pad), I_PD, 6) };
             if (pad < GLOW_MAX) glow[pad] = 1.0f;
         } else if (voice[vi].pad != pad) {              // slid to a new pad — glide (retrigger)
@@ -284,6 +288,7 @@ void update(void) {
         int pad = pad_at(mouse_x(), mouse_y());
         if (pad < 0) { if (mv >= 0){ note_off(voice[mv].handle); voice[mv].active = 0; } }
         else if (mv < 0) {
+            stop_selfplay();                            // first pad click hands control over
             for (int v = 0; v < MAXV; v++) if (!voice[v].active) {
                 voice[v] = (Voice){ 1, -2, pad, note_on(pad_midi(pad), I_PD, 6) };
                 if (pad < GLOW_MAX) glow[pad] = 1.0f; break;

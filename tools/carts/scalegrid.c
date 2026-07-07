@@ -341,7 +341,10 @@ static bool pad_held(int idx) {
     return idx == sp_pad;
 }
 
-// a pointy-top hexagon centred at (cx,cy), half-width hw, half-height hh
+// a regular pointy-top hexagon centred at (cx,cy), half-width hw, half-height hh.
+// The outline uses poly() (NOT line()) so it lands EXACTLY on polyfill's edge — the
+// invariant the `rasterizer test` cart verifies; a Bresenham line() misses it and
+// leaves the ragged fill/outline pixels. Same int vertex array feeds both.
 static void draw_hex(float cx, float cy, float hw, float hh, int fill, int border) {
     int xy[12] = {
         (int)cx,        (int)(cy - hh),        // top point
@@ -352,10 +355,7 @@ static void draw_hex(float cx, float cy, float hw, float hh, int fill, int borde
         (int)(cx - hw), (int)(cy - hh * 0.5f), // upper-left
     };
     polyfill(xy, 6, fill);
-    for (int i = 0; i < 6; i++) {
-        int a = i * 2, b = ((i + 1) % 6) * 2;
-        line(xy[a], xy[a + 1], xy[b], xy[b + 1], border);
-    }
+    poly(xy, 6, border);
 }
 
 void draw(void) {
@@ -378,7 +378,11 @@ void draw(void) {
         float cx, cy; pad_center(idx, &cx, &cy);
         int tcol = (pad_held(idx) || isRoot) ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY;
         if (hexlayout) {
-            draw_hex(cx, cy, g_pw / 2 - 0.5f, g_rp * 0.62f, fill, border);
+            // regular pointy-top hex: width = column pitch, height = width/√3, so
+            // neighbours tile edge-to-edge (no overlap → no overdrawn seams). The
+            // 0.6px shrink leaves a hairline gutter between cells.
+            float cxp = g_pw + g_gap;
+            draw_hex(cx, cy, cxp * 0.5f - 0.6f, cxp * 0.5774f - 0.6f, fill, border);
             if (g_ph >= 10 && g_pw >= 14) {
                 font(FONT_TINY);
                 print_centered(str("%s%d", NOTE[pc], dispOct), (int)cx, (int)cy - 2, tcol);

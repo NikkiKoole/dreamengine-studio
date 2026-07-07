@@ -39,6 +39,14 @@ If you're tempted to add more than ~2 lines to CLAUDE.md, it belongs in a doc �
 
 Why: **multiple agents work in parallel on the same branch.** If any agent creates or switches branches, the others get confused and lose their place. Merge conflicts are rare because work is naturally isolated per cart. This rule **overrides** the usual "branch before committing on the default branch" default.
 
+**Repo split (2026-07): this engine now lives at `dreamengine-studio`.** The original `dreamengine`
+GitHub repo was renamed `dreamengine-studio` (the full engine — `runtime/`/`editor/`/`tools/`); the
+name `dreamengine` was reused for a NEW, separate public repo holding only the published gallery
+(unrelated history). This clone's `origin` should point at `git@github.com:NikkiKoole/dreamengine-studio.git`.
+If a pull fails with *"specifies to merge with 'refs/heads/master' … but no such ref was fetched"*,
+your `origin` is still aimed at the old (gallery) URL — fix with
+`git remote set-url origin git@github.com:NikkiKoole/dreamengine-studio.git` then `git fetch --prune`.
+
 Two parallel-agent commit hazards (both have bitten):
 
 1. **The git index is shared.** Another agent may have files *staged* while you work; a bare

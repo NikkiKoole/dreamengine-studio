@@ -104,8 +104,7 @@ Same pattern data, two editors — the panel-level twin of design-system §8.3's
 
 | shape | arrangement |
 |---|---|
-| roomy — iPad **landscape** | **2×2 grid** of the 4 pattern machines + a slim **MASTER bar** (maker, 2026-07-07): fills the width with squarer panels + uses the vertical space, vs one over-wide stacked column (stretched lanes/buttons + a dead void). ReBirth's machines-grid + master rail. Now in `acidwire`. |
-| roomy — iPad **portrait** | all-compact stack; tap one to expand in place (others stay compact until budget forces demotion). *(Open: 2-col grid here too?)* |
+| roomy — iPad (**both** orientations) | **2×2 grid** of the 4 pattern machines (each its full editor) + a slim **MASTER bar** (maker, 2026-07-07): squarer panels that fill the space in landscape AND portrait — no over-wide lanes, no ~40% dead void (portrait's old all-compact stack). ReBirth's machines-grid + master rail. Now in `acidwire`. *(The §1 "all-5-compact flat rack" is superseded here — the grid shows all machines fully open at once instead.)* |
 | tall (phone portrait) | working strip **expanded** + 1–2 **compact** + rest **folded** |
 | short-wide (phone landscape) | **tabs** (the acidfit finding: accordions degenerate short) — tab bar + one expanded strip |
 

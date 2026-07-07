@@ -11,7 +11,7 @@
   "description": {
     "summary": "The device-matrix WIREFRAME tool: flip acidrack's three-state-strip layout through every shape in device-matrix.md with one key, in the REAL logical size.",
     "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
-    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - s cycle safe-area hint - h hide the label"
+    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - h hide the label"
   }
 }
 de:meta */
@@ -29,23 +29,25 @@ extern void de_resize(int w, int h);   // engine seam (platform.h): set the acti
 
 #define KEY_GRAVE 96                    // the key left of `1` (a `§` on ISO Mac boards)
 
-// ───────── device matrix (device-matrix.md §2) — logical @ K=2 + safe insets ─────────
+// ───────── device matrix (device-matrix.md §2) — logical @ K=2 + safe hardware ─────────
 enum { TALL, WIDE, ROOMY };
-typedef struct { const char *name; int w, h, cls, insT, insB; } Dev;
-// insT/insB = simulated safe-area top/bottom in logical px (notch/status · home bar);
-// acidrack insets top+bottom only (landscape side-notch parked — brief §4).
+enum { N_HOME, N_NOTCH, N_ISLAND, N_PAD };   // top hardware: home-button era · notch · Dynamic Island · none
+typedef struct { const char *name; int w, h, cls, insT, insB, notch, cornR; } Dev;
+// insT/insB = simulated safe-area top/bottom in logical px (status/notch · home bar); notch = the
+// top cutout shape; cornR = screen corner radius. acidrack insets top+bottom only (landscape
+// side-notch parked — brief §4). All device-honest so the wireframe shows WHERE controls can't go.
 static Dev DEV[] = {
-    { "iPhone SE",        188, 334, TALL,  10,  0 },   // home button: status bar, no home indicator
-    { "iPhone 13 mini",   188, 406, TALL,  24, 16 },
-    { "iPhone 16 / 15",   196, 426, TALL,  24, 16 },
-    { "iPhone 16 Plus",   215, 466, TALL,  24, 16 },
-    { "iPhone 16 Pro Max", 220, 478, TALL, 26, 16 },
-    { "iPhone SE land",   334, 188, WIDE,   6,  0 },
-    { "iPhone 16 land",   426, 196, WIDE,   6, 12 },
-    { "iPad mini",        372, 566, ROOMY, 12,  8 },
-    { "iPad 11\"",        417, 597, ROOMY, 12,  8 },
-    { "iPad 13\"",        516, 688, ROOMY, 12,  8 },
-    { "iPad 13\" land",   688, 516, ROOMY, 12,  8 },
+    { "iPhone SE",        188, 334, TALL,  10,  0, N_HOME,    3 },   // home button: status bar, square-ish corners
+    { "iPhone 13 mini",   188, 406, TALL,  24, 16, N_NOTCH,  11 },
+    { "iPhone 16 / 15",   196, 426, TALL,  24, 16, N_ISLAND, 14 },
+    { "iPhone 16 Plus",   215, 466, TALL,  24, 16, N_ISLAND, 14 },
+    { "iPhone 16 Pro Max", 220, 478, TALL, 26, 16, N_ISLAND, 15 },
+    { "iPhone SE land",   334, 188, WIDE,   6,  0, N_HOME,    3 },
+    { "iPhone 16 land",   426, 196, WIDE,   8, 12, N_ISLAND, 14 },   // island on the short side; we hint it top-center
+    { "iPad mini",        372, 566, ROOMY, 12,  8, N_PAD,     9 },
+    { "iPad 11\"",        417, 597, ROOMY, 12,  8, N_PAD,     9 },
+    { "iPad 13\"",        516, 688, ROOMY, 12,  8, N_PAD,    10 },
+    { "iPad 13\" land",   688, 516, ROOMY, 12,  8, N_PAD,    10 },
 };
 #define NDEV 11
 
@@ -149,6 +151,57 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     else wf_padgrid(body, s->labels, s->n);
 }
 
+// ───────── device safe-area SKIN (the point of this whole cart) ─────────
+#define MINI(a,b) ((a) < (b) ? (a) : (b))
+// black the pixels OUTSIDE the corner arc (the rounded screen corner is "off screen")
+static void round_corner(int ox, int oy, int r, int sx, int sy) {
+    for (int y = 0; y < r; y++) for (int x = 0; x < r; x++) {
+        int dx = r - x, dy = r - y;
+        if (dx * dx + dy * dy > r * r) pset(ox + sx * x, oy + sy * y, CLR_BLACK);
+    }
+}
+static void hpill(float x, float y, float w, float h, int col) {   // rounded-end horizontal pill
+    int r = (int)(h / 2);
+    boxfill(box(x + r, y, w - 2 * r, h), col);
+    circfill((int)x + r, (int)y + r, r, col); circfill((int)(x + w) - r, (int)y + r, r, col);
+}
+static void dashrect(Box b, int col) {   // dashed outline = "keep controls inside here"
+    int d = 4, g = 3;
+    for (int x = (int)b.x; x < b.x + b.w; x += d + g) { line(x, (int)b.y, (int)MINI(x + d, b.x + b.w), (int)b.y, col); line(x, (int)(b.y + b.h) - 1, (int)MINI(x + d, b.x + b.w), (int)(b.y + b.h) - 1, col); }
+    for (int y = (int)b.y; y < b.y + b.h; y += d + g) { line((int)b.x, y, (int)b.x, (int)MINI(y + d, b.y + b.h), col); line((int)(b.x + b.w) - 1, y, (int)(b.x + b.w) - 1, (int)MINI(y + d, b.y + b.h), col); }
+}
+// draw the device hardware over the rendered rack: status band + notch/island + home bar + rounded
+// corners + the safe-area boundary. Everything here is a KEEP-OUT the layout must dodge.
+static void draw_safe_skin(int W, int H, Dev d) {
+    // reserved status/home bands (faint) — iOS draws the clock/battery/home-affordance here
+    if (d.insT > 0) boxfill(box(0, 0, W, d.insT), CLR_DARKER_PURPLE);
+    if (d.insB > 0) boxfill(box(0, H - d.insB, W, d.insB), CLR_DARKER_PURPLE);
+    // status-bar mock (shows the band is real estate the app doesn't own)
+    if (d.insT >= 9) { font(FONT_TINY);
+        print("9:41", 4, (int)(d.insT - 5) / 2, CLR_LIGHT_GREY);
+        boxfill(box(W - 12, (d.insT - 5) / 2, 9, 5), CLR_DARK_GREY); boxfill(box(W - 12, (d.insT - 5) / 2 + 1, 7, 3), CLR_LIME_GREEN); }
+    // top cutout hardware (black = a hole in the glass)
+    int cx = W / 2;
+    if (d.notch == N_NOTCH) {
+        int nw = (int)(W * 0.46f), nh = d.insT;
+        boxfill(box(cx - nw / 2, 0, nw, nh), CLR_BLACK);
+        circfill(cx - nw / 2, nh, 3, CLR_BLACK); circfill(cx + nw / 2, nh, 3, CLR_BLACK);   // rounded bottom
+        boxfill(box(cx - nw / 2 - 3, nh - 3, 3, 3), CLR_BLACK); boxfill(box(cx + nw / 2, nh - 3, 3, 3), CLR_BLACK);
+    } else if (d.notch == N_ISLAND) {
+        int iw = (int)(W * 0.30f), ih = (int)(d.insT * 0.55f); if (ih < 6) ih = 6;
+        hpill(cx - iw / 2, 4, iw, ih, CLR_BLACK);
+    }
+    // home indicator (no home-button era)
+    if (d.notch != N_HOME) { int hw = (int)(W * (d.cls == WIDE ? 0.22f : 0.34f));
+        hpill(cx - hw / 2, H - 5, hw, 3, CLR_LIGHT_GREY); }
+    // rounded screen corners
+    int r = d.cornR;
+    round_corner(0, 0, r, 1, 1); round_corner(W - 1, 0, r, -1, 1);
+    round_corner(0, H - 1, r, 1, -1); round_corner(W - 1, H - 1, r, -1, -1);
+    // the safe-area boundary — put every control INSIDE this
+    dashrect(box(2, d.insT, W - 4, H - d.insT - d.insB), CLR_ORANGE);
+}
+
 // footprint of a strip in a given state, in logical px (height)
 static float strip_h(Strip *s, int state) {
     if (state == FOLDED)  return FU * 1.15f;
@@ -172,11 +225,10 @@ void draw(void) {
     int W = screen_w(), H = screen_h();
     cls(CLR_BROWNISH_BLACK);
 
-    // safe area (simulated notch/home; brief §4 — top/bottom only)
+    // safe area (simulated status/notch/home; brief §4 — top/bottom only). The device SKIN that
+    // shows WHERE we can't draw is rendered last (draw_safe_skin), over the rack.
     Box full = box(0, 0, W, H);
     Box safe = lay_pad(full, d.insT, 0, d.insB, 0);
-    if (safehint) { if (d.insT > 0) boxfill(box(0, 0, W, d.insT), CLR_DARKER_PURPLE);
-                    if (d.insB > 0) boxfill(box(0, H - d.insB, W, d.insB), CLR_DARKER_PURPLE); }
 
     // pinned chrome: transport (top) + song row (bottom) — never disclosed away
     float trH = lay_clamp(FU * 1.2f, 12, 30), sgH = lay_clamp(FU * 1.0f, 10, 26);
@@ -231,13 +283,16 @@ void draw(void) {
             Box row = lay_split(cur2, EDGE_TOP, rh + gap, &cur2); draw_strip(&STRIP[i], lay_pad(row, 0, 0, gap, 0), st[i], i == sel); }
     }
 
+    // ─── device safe-area skin over the rack (notch/island/corners/home bar) — toggle s ───
+    if (safehint) draw_safe_skin(W, H, d);
+
     // ─── tool label (inside the device; toggle with h) ───
     if (showlabel) {
         font(FONT_TINY);
         const char *l1 = str("%s  %dx%d  %s", d.name, d.w, d.h, mode);
         const char *l2 = str("%.1fx%.1f fingers  ]/[ shape  w strip  h hide", d.w / FU, d.h / FU);
         int lw = 8 + (int)(strlen(l1) > strlen(l2) ? strlen(l1) : strlen(l2)) * 4;
-        Box chip = box(2, 2, lw < W - 4 ? lw : W - 4, 16);
+        Box chip = box(2, H - d.insB - 20, lw < W - 4 ? lw : W - 4, 16);   // bottom-left: keeps transport + notch visible up top
         boxfill(chip, CLR_BLACK); boxrect(chip, CLR_ORANGE);
         print(l1, (int)chip.x + 3, (int)chip.y + 2, CLR_LIGHT_PEACH);
         print(l2, (int)chip.x + 3, (int)chip.y + 9, CLR_ORANGE);

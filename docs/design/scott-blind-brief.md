@@ -18,6 +18,14 @@ cart is the source of truth for what shipped.
 >    tape — so DIRT drives `tape` (wow/flutter/saturation) + `chorus` (wobble) + `amp_noise` (valve
 >    grime) + `crush` (cranked), defaulted high. The brief's optional "chorus/tape wobble + amp_noise
 >    grime" (§effects) became a first-class control.
+> 3. **Per-ring PHASE — de-sync, humanize, re-sync (the "hands on the disc" feel).** Each ring spins
+>    on its own phase accumulator (its own photocell arm), not a shared clock. **HUMAN** = analog
+>    timing wobble (multi-sine, different per ring) so it's never machine-tight — the rings breathe
+>    against each other even when locked. **DRIFT** spins ring B up to ~22% faster, so the two
+>    continuously phase apart and lap back into alignment (the turntable-drift feel). **SYNC** (button
+>    + `S`) snaps B's phase to A and re-locks. The two arms visibly fan apart as they de-sync. This is
+>    what makes it feel hand-driven rather than a quantized loop — the highest-value addition after the
+>    second ring itself.
 >
 > **Build gotcha for the next music cart:** `reverb()`/`echo()` are **SENDS**, not inserts — every
 > instrument slot defaults to send = 0 (dry), so configuring the tank does nothing audible on its own.

@@ -153,18 +153,31 @@ static void keybed_piano(Box area, float fu, int *nWhite_out, float *keyW_out) {
 }
 
 // ── EDITOR B · scale-locked pad grid — the phone/scale-mode swap ─────────────
-// Fills the box with finger-sized pads, ascending bottom-left; when the scale
-// is not chromatic only in-scale notes appear, so a phone gets real range and
-// no wrong notes. Roots tinted. Returns pad count + octaves exposed.
+// Fills the box with pads, ascending bottom-left; when the scale is not
+// chromatic only in-scale notes appear (no wrong notes). Roots tinted.
+// TWO sizing regimes, so Law 2 ("grow → reveal more, don't shrink/tile forever")
+// holds both ways:
+//   tight  (phone) — pack as many 1-FINGER pads as fit; range is precious.
+//   roomy  (iPad)  — cap the range to GRID_MAX_OCT octaves and GROW the pads to
+//                    fill (big comfy squares); OCT-/OCT+ window the range.
+// Never below 1 finger either way. Returns pad count + octaves exposed.
+#define GRID_MAX_OCT 4
 static void keybed_grid(Box area, float fu, int *pads_out, float *oct_out, float *padW_out) {
-    // pads are discrete buttons → a FULL finger each (never below the floor);
-    // the count derives from that, so pads can't be crammed sub-finger.
     float gap = lay_clamp(fu * 0.12f, 1, 4);
-    float padW = lay_clamp(fu, 8, 200), padH = lay_clamp(fu, 8, 200);
-    int cols = (int)((area.w + gap) / (padW + gap)); if (cols < 1) cols = 1;
-    int rows = (int)((area.h + gap) / (padH + gap)); if (rows < 1) rows = 1;
+    int nsc = SC_N[scale], maxNotes = GRID_MAX_OCT * nsc;
+    int colsMin = (int)((area.w + gap) / (fu + gap)); if (colsMin < 1) colsMin = 1;
+    int rowsMin = (int)((area.h + gap) / (fu + gap)); if (rowsMin < 1) rowsMin = 1;
+    int cols, rows;
+    if (colsMin * rowsMin <= maxNotes) {          // tight — pack finger-pads
+        cols = colsMin; rows = rowsMin;
+    } else {                                      // roomy — cap range, grow pads
+        rows = (int)(sqrtf((float)maxNotes * area.h / area.w) + 0.5f); if (rows < 1) rows = 1;
+        cols = (maxNotes + rows - 1) / rows;      if (cols < 1) cols = 1;
+        if (cols > colsMin) cols = colsMin;       // never shrink a pad below 1 finger
+        if (rows > rowsMin) rows = rowsMin;
+    }
     float pw = (area.w - gap * (cols - 1)) / cols, ph = (area.h - gap * (rows - 1)) / rows;
-    int nsc = SC_N[scale], total = cols * rows;
+    int total = cols * rows;
     *pads_out = total; *oct_out = (float)total / nsc; *padW_out = pw;
     for (int idx = 0; idx < total; idx++) {
         int col = idx % cols, row = idx / cols;

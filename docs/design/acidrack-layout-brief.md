@@ -136,5 +136,7 @@ insets (notch / home-bar) are wired engine-side (`de_set_safe_area` → `safe_re
 transport + chain row + the app home-chip, but don't appear in this desktop sheet.
 
 Related: [`device-adaptive-layout.md`](device-adaptive-layout.md) (the plan + ReBirth study) ·
-[`design-system.md`](design-system.md) §6/§8/§9 · [`rebirth-classic.md`](rebirth-classic.md) (the
-cart's own design doc) · `tools/carts/acidfit.c` (the disclosure prototype).
+[`acidrack-ui-research.md`](acidrack-ui-research.md) (external evidence for §2/§5 — the 303/909/808
++ clones + touch/density numbers) · [`design-system.md`](design-system.md) §6/§8/§9 ·
+[`rebirth-classic.md`](rebirth-classic.md) (the cart's own design doc) · `tools/carts/acidfit.c`
+(the disclosure prototype).

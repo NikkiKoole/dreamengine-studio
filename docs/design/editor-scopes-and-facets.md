@@ -158,7 +158,8 @@ This answers all three open questions below:
 the cart's `.rec` takes + `replay()` (built), baked clips (the 🎬 make-clip browser from
 [`share-panel.md`](share-panel.md)), screenshots, a per-cart trailer, and the cart-scoped **leads**
 📣 entry ([`leads-marketeer.md`](leads-marketeer.md) open-q #4). Mostly a **view** problem, not
-plumbing — the sources exist; they lack a home.
+plumbing — the sources exist; they lack a home. **Full contents spec + MVP:
+[`promote-tab.md`](promote-tab.md)** (one scrolling panel, sections in produce → assemble → reach order).
 
 ### The zeroth verb: Dream (the loop closes)
 

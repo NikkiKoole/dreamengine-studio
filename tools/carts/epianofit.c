@@ -35,6 +35,7 @@ de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>   // snprintf for the metric readout
+#include <string.h>  // strstr for the cramped-flag colour
 
 #include "lay.h"   // Box + the lay_* layout vocabulary
 
@@ -129,8 +130,12 @@ static void preset_strip(Box area, float fu) {
 }
 
 // ── EDITOR A · real piano keys (as many finger-wide whites as fit) ───────────
+// KEY_MIN_F = the comfortable touch minimum in FINGERS (1 finger = 44pt, Apple
+// HIG). A white key is a tall target so we allow a hair under a full finger;
+// count derives from it, so keys are never sized below the floor.
+#define KEY_MIN_F 0.9f
 static void keybed_piano(Box area, float fu, int *nWhite_out, float *keyW_out) {
-    float gap = 1, minKeyW = lay_clamp(fu * 0.62f, 6, 64);
+    float gap = 1, minKeyW = lay_clamp(fu * KEY_MIN_F, 6, 200);
     int nWhite = (int)((area.w + gap) / (minKeyW + gap)); if (nWhite < 3) nWhite = 3;
     float kw = (area.w - gap * (nWhite - 1)) / nWhite;
     *keyW_out = kw; *nWhite_out = nWhite;
@@ -152,8 +157,10 @@ static void keybed_piano(Box area, float fu, int *nWhite_out, float *keyW_out) {
 // is not chromatic only in-scale notes appear, so a phone gets real range and
 // no wrong notes. Roots tinted. Returns pad count + octaves exposed.
 static void keybed_grid(Box area, float fu, int *pads_out, float *oct_out, float *padW_out) {
+    // pads are discrete buttons → a FULL finger each (never below the floor);
+    // the count derives from that, so pads can't be crammed sub-finger.
     float gap = lay_clamp(fu * 0.12f, 1, 4);
-    float padW = lay_clamp(fu * 0.95f, 8, 64), padH = lay_clamp(fu * 0.9f, 8, 64);
+    float padW = lay_clamp(fu, 8, 200), padH = lay_clamp(fu, 8, 200);
     int cols = (int)((area.w + gap) / (padW + gap)); if (cols < 1) cols = 1;
     int rows = (int)((area.h + gap) / (padH + gap)); if (rows < 1) rows = 1;
     float pw = (area.w - gap * (cols - 1)) / cols, ph = (area.h - gap * (rows - 1)) / rows;
@@ -289,16 +296,19 @@ void draw(void) {
     bool use_grid  = (editor == 2) || (editor == 0 && auto_grid);
     if (editor == 1) use_grid = false;
 
-    char metric[96];
+    char metric[110];
     if (use_grid) {
         int pads; float goct, pw;
         keybed_grid(kbody, fu, &pads, &goct, &pw);
-        snprintf(metric, sizeof metric, "GRID %s: %d pads / %.1f oct @ %dpx", SC_NAME[scale], pads, goct, (int)pw);
+        float f = pw / fu;                                   // pad width in FINGERS
+        snprintf(metric, sizeof metric, "GRID %s: %d pads / %.1f oct @ %.2f finger %s",
+                 SC_NAME[scale], pads, goct, f, f < 0.9f ? "CRAMPED" : "ok");
     } else {
         int nw; float kw;
         keybed_piano(kbody, fu, &nw, &kw);
-        snprintf(metric, sizeof metric, "PIANO: %d white / %.1f oct @ %dpx %s", nw, nw / 7.0f, (int)kw,
-                 kw < fu * 0.6f ? "CRAMPED" : "ok");
+        float f = kw / fu;                                   // white-key width in FINGERS
+        snprintf(metric, sizeof metric, "PIANO: %d white / %.1f oct @ %.2f finger %s",
+                 nw, nw / 7.0f, f, f < 0.8f ? "CRAMPED" : "ok");
     }
 
     // ── FX tab overlay (tight shapes only) ────────────────────────────────────
@@ -316,10 +326,11 @@ void draw(void) {
     }
 
     // ── readout ────────────────────────────────────────────────────────────────
+    bool cramped = (strstr(metric, "CRAMPED") != NULL);
     font(FONT_TINY);
     print(str("%s  %dx%dpt  %s | %s | panel:%s | %s",
               d.name, (int)d.wpt, (int)d.hpt, tablet ? "TABLET" : "PHONE", metric, mode, MACH[machine]),
-          4, SCREEN_H - 6, use_grid ? CLR_LIME_GREEN : (tablet ? CLR_GREEN : CLR_LIGHT_GREY));
+          4, SCREEN_H - 6, cramped ? CLR_ORANGE : (use_grid ? CLR_LIME_GREEN : CLR_GREEN));
     print_right(locked >= 0 ? "[1-5 dev 0 auto  m f  s scale  z/x oct  g editor]" : "[auto 1-5  m f s z x g]",
                 SCREEN_W - 4, 3, CLR_DARK_GREY);
     font(FONT_NORMAL);

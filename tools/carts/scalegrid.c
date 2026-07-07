@@ -13,8 +13,8 @@
   ],
   "description": {
     "summary": "A scale-locked ISOMORPHIC pad grid you play with your fingers - pick a scale and there are NO WRONG NOTES. Voiced by INSTR_PD (the Casio-CZ phase-distortion engine) on a lush 'wowww' sweep pad, so every tap and chord rings. An on-screen chip bar makes it fully playable on a phone.",
-    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: each row is offset by a fixed musical interval, so a chord SHAPE is identical in every key and octave AND survives a reflow. ROW toggles the two layouts that are actually musical (ADR-0028): OCT = each row up is +1 octave (the clean scale map); 4TH = each row up is +a fourth (compact Linnstrument-style chord shapes). A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. The grid FILLS BOTH DIMENSIONS with finger-sized pads - never below one finger, as many as fit across and down; where the surface is wider than the scale the notes simply REPEAT (a shape is playable in several places), never leaving a gap. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
-    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (OCT<->4TH layout), OCT-/OCT+, HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-layout, Z/X octave, G hex, M self-play, H help."
+    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: each row is offset by a fixed musical interval, so a chord SHAPE is identical in every key and octave AND survives a reflow. ROW toggles the two layouts that are actually musical (ADR-0028): OCT = each row up is +1 octave (the clean scale map); 4TH = each row up is +a fourth (compact Linnstrument-style chord shapes). A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. The grid FILLS BOTH DIMENSIONS with finger-sized pads - never below one finger, as many as fit across and down; where the surface is wider than the scale the notes simply REPEAT (a shape is playable in several places), never leaving a gap. A SIZE chip cycles the pad size (dense many-pad surface <-> few chunky pads) since the densest fill isn't always what you want. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
+    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (OCT<->4TH layout), OCT-/OCT+, SIZE (pad size), HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-layout, Z/X octave, P pad size, G hex, M self-play, H help."
   }
 }
 de:meta */
@@ -90,6 +90,11 @@ static bool show_help = false;
 static bool hexlayout = false;  // HEX packing: alternate rows offset by half a pad so all 6
                                 // neighbours are EQUIDISTANT (a Tonnetz / harmonic-table grid —
                                 // diagonal chord shapes need the same finger stretch as sideways).
+static int sizemode = 0;        // pad SIZE preset (SIZE chip / P key): 0 = densest (finger floor,
+                                // most range), up = fewer, chunkier pads. Never below one finger.
+static const float SIZE_MULT[] = { 1.0f, 1.55f, 2.4f };   // pad-unit multiplier per preset
+#define NSIZE (int)(sizeof(SIZE_MULT) / sizeof(SIZE_MULT[0]))
+static const char *const SIZE_NAME[NSIZE] = { "PAD:S", "PAD:M", "PAD:L" };
 
 // grid geometry, recomputed each frame (cheap; a city is bounded, so is a grid)
 static int   g_cols, g_rows;
@@ -133,8 +138,9 @@ static void compute_grid(void) {
     g_gap = clampf(FINGER_PX * 0.12f, 1, 4);
     g_x = 0; g_y = HUD_H;
 
-    int cols = (int)((aw + g_gap) / (FINGER_PX + g_gap)); if (cols < 1) cols = 1;   // finger-fit W
-    int rows = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rows < 1) rows = 1;   // finger-fit H
+    float unit = FINGER_PX * SIZE_MULT[sizemode];                                   // pad target (>= finger)
+    int cols = (int)((aw + g_gap) / (unit + g_gap)); if (cols < 1) cols = 1;         // fit across
+    int rows = (int)((ah + g_gap) / (unit + g_gap)); if (rows < 1) rows = 1;         // fit down
     int off  = mode_off(); if (off > cols) off = cols; if (off < 1) off = 1;        // no-gap clamp
     rowoff = off;                                                                    // pad_midi reads this
 
@@ -218,11 +224,12 @@ static void set_pad_voice(void) {
 // ── on-screen control bar (touch has no keyboard) — cyclable chips ───────────
 // Every parameter the keyboard cycles gets a tappable chip so the cart is fully
 // playable on a phone. The row cells are laid out by weight across the bar width.
-enum { ACT_NONE, ACT_SCALE, ACT_KEY, ACT_ROW, ACT_OCTDN, ACT_OCTUP, ACT_SELF, ACT_HEX };
+enum { ACT_NONE, ACT_SCALE, ACT_KEY, ACT_ROW, ACT_OCTDN, ACT_OCTUP, ACT_SELF, ACT_HEX, ACT_SIZE };
 typedef struct { float w; int act; } Chip;
 static const Chip CHIP[] = {
-    { 1.5f, ACT_SCALE }, { 1.1f, ACT_KEY }, { 1.7f, ACT_ROW },
-    { 0.7f, ACT_OCTDN }, { 0.6f, ACT_NONE }, { 0.7f, ACT_OCTUP }, { 1.0f, ACT_HEX }, { 1.1f, ACT_SELF },
+    { 1.5f, ACT_SCALE }, { 1.0f, ACT_KEY }, { 1.3f, ACT_ROW },
+    { 0.6f, ACT_OCTDN }, { 0.5f, ACT_NONE }, { 0.6f, ACT_OCTUP },
+    { 1.0f, ACT_SIZE }, { 0.9f, ACT_HEX }, { 1.0f, ACT_SELF },
 };
 #define NCHIP (int)(sizeof(CHIP) / sizeof(CHIP[0]))
 static int bar_x[NCHIP + 1];              // cumulative pixel boundaries of the bar cells
@@ -251,6 +258,7 @@ static void do_action(int act) {
         case ACT_OCTUP: if (octave < 7) octave++; break;
         case ACT_SELF:  if (selfplay) stop_selfplay(); else selfplay = true; break;
         case ACT_HEX:   hexlayout = !hexlayout; break;
+        case ACT_SIZE:  sizemode = (sizemode + 1) % NSIZE; break;
         default: break;
     }
 }
@@ -271,6 +279,7 @@ void update(void) {
     if (keyp('x') || keyp('X')) do_action(ACT_OCTUP);
     if (keyp('m') || keyp('M')) do_action(ACT_SELF);
     if (keyp('g') || keyp('G')) do_action(ACT_HEX);      // square <-> hex packing
+    if (keyp('p') || keyp('P')) do_action(ACT_SIZE);     // cycle pad size (density)
 
     // ── control bar: fire ONCE per press (a CLICK), never repeat while held ──
     // Latched off "is a pointer resting on a chip this frame" — robust to touch ids
@@ -437,6 +446,7 @@ void draw(void) {
             case ACT_NONE:  lbl = str("O%d", octave); chip = 0; fg = CLR_LIGHT_GREY;  break;   // octave readout
             case ACT_HEX:   lbl = hexlayout ? "HEX" : "SQR";
                             bg = hexlayout ? CLR_DARK_GREEN : CLR_DARKER_BLUE;        break;
+            case ACT_SIZE:  lbl = SIZE_NAME[sizemode];        bg = CLR_DARK_BLUE;      break;
             case ACT_SELF:  lbl = selfplay ? "AUTO" : "PLAY";
                             bg = selfplay ? CLR_LIME_GREEN : CLR_DARKER_BLUE;
                             fg = selfplay ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY;       break;
@@ -466,7 +476,7 @@ void draw(void) {
 #include <math.h>
 
 void spec(void) {
-    root = 0; octave = 4; hexlayout = false;
+    root = 0; octave = 4; hexlayout = false; sizemode = 0;
 
     // ── 1) NO-GAP LATTICE: every scale, BOTH row modes (OCT + 4TH). The offset must be
     //       <= the column count (else notes fall in the gap between rows — the "chroma
@@ -493,10 +503,19 @@ void spec(void) {
                       "OCT: one row up is +12 semitones (when a full octave fits)");
     }
 
-    // ── 2) FINGER FLOOR: pads are NEVER smaller than one finger, in both dimensions. ──
-    scale = 1; rowmode = 0; hexlayout = false; compute_grid();
-    expect(g_pw >= FINGER_PX - 0.5f, "pads are never narrower than a finger");
-    expect(g_ph >= FINGER_PX - 0.5f, "pads are never shorter than a finger");
+    // ── 2) FINGER FLOOR + SIZE CYCLE: pads are NEVER smaller than one finger at ANY size
+    //       preset, and a bigger preset yields fewer (chunkier) pads. ──
+    scale = 1; rowmode = 0; hexlayout = false;
+    int prevPads = 1 << 30;
+    for (int sz = 0; sz < NSIZE; sz++) {
+        sizemode = sz; compute_grid();
+        expect(g_pw >= FINGER_PX - 0.5f, "pads never narrower than a finger (every size)");
+        expect(g_ph >= FINGER_PX - 0.5f, "pads never shorter than a finger (every size)");
+        int pads = g_cols * g_rows;
+        expect(pads <= prevPads, "a bigger SIZE preset yields fewer/equal pads");
+        prevPads = pads;
+    }
+    sizemode = 0;
 
     // ── 3) HIT-TEST ROUND-TRIP: every pad's own centre must hit-test back to that pad,
     //       in BOTH square and hex packing (geometry ⇔ hit-test agree). ──

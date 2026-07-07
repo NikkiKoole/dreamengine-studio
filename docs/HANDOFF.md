@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
@@ -94,7 +94,7 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > (scale-lock to reuse for grid.h); `tools/carts/epianofit.c` (the earlier silent layout mock, still
 > the epiano-brief reference). Gate: `node tools/spec.js scalegrid` (71/0).
 
-> **▶ ACTIVE THREAD (2026-07-07) — multiplayer: WebRTC P2P (rung 5b) — BUILT + play-tested.**
+> **▶ ACTIVE THREAD (2026-07-07) — multiplayer: WebRTC P2P (rung 5b) — SHIPPED + PUBLISHED (follow-ups parked).**
 > Steps 1–4 shipped (commit `05a5dc76`): the WebRTC DataChannel is now the WEB game
 > transport (`de_rtc_*` EM_JS shim in `runtime/net.h`), the relay reused **unchanged**
 > as signaling only. Play-tested Mac↔iPhone over wifi at LAN speed — the rung-5a
@@ -108,11 +108,14 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > on clean links. **Pairing UI:** a Host/Join split (gallery + in-cart bar); Join via
 > native `prompt()` because an inline `<input>` is blocked by the running cart's key
 > handlers on iOS. **Resume-at:** [`design/multiplayer-research.md`](design/multiplayer-research.md)
-> §"rung 5b" step table — **step 5 (adaptive `NET_DELAY`)** is NEXT (claw back the
-> latency the fixed cushion costs), then **step 7 (TURN)** for the un-punchable
-> ~10–20% (today they see "connection failed - reload"). Publishing pong to github.io
-> is the open ship step (the net.h transport + `NET_DELAY` change affects EVERY
-> netplay cart → rebuild on publish). Hot file: `runtime/net.h` (targeted `Edit`s,
+> §"rung 5b" step table. **Published 2026-07-07** — pong is live on github.io (it's
+> the only netplay cart, so that's the whole rollout; the Render relay needed no
+> redeploy — it's signaling only now). **PARKED follow-ups** (not being worked):
+> **step 5 (adaptive `NET_DELAY`)** — the fixed 10-frame cushion feels good but adds
+> lag on clean links; adaptive sizes it to live jitter to claw that back (the
+> maker's-call "when we want to sand off the floatiness"). **step 7 (TURN)** — for the
+> un-punchable ~10–20% (today they see "connection failed - reload"); needs a free
+> Cloudflare/Metered account. Hot file if resumed: `runtime/net.h` (targeted `Edit`s,
 > shared). Gate: `node tools/net-check.js`. Local play-test: `node tools/net-relay.js --serve site`.
 
 > **▶ ACTIVE THREAD (2026-07-06) — device-adaptive layout.** Make `SCREEN_W/H`

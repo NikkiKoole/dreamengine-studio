@@ -142,10 +142,11 @@ real cart needs one) — no speculative tribes rotting in the ledger.
    amplifies every radio cart. Venue URLs are in the ledger but flagged **VERIFY** where I couldn't
    confirm the exact sub (Reddit blocks fetch — browser-check before posting, that's the workflow).
    **Still open:**
-   - **Three judgment-call scenes with weaker/broader rooms** — `satie` (Erik Satie → r/classicalmusic
-     / r/piano?), `bossa` (bossa nova → r/Jazz / r/bossanova?), `mariachi`, `tango` (dance-heavy
-     r/tango?). One-cart each, rooms I can't confidently name. Mint or leave on the generative
-     amplifier? (maker call.)
+   - **Four judgment-call scenes** (`satie`, `bossa`, `mariachi`, `tango`) — ⏸️ **PARKED
+     (2026-07-07, maker's call: "leave the weaker ones for now").** One-cart each with weaker/broader
+     rooms I couldn't confidently name (r/classicalmusic? r/Jazz? dance-heavy r/tango?). They already
+     get the `generative` amplifier + music cross-cutting, so they're not orphaned. Revisit only if
+     one of these carts becomes a launch focus.
    - **The `generative` domain** — ✅ **RESOLVED (2026-07-07): domain `any`** (maker: "generative is
      both music and art"). r/generative + lines welcome generative *art*, so it's a cross-domain maker
      community (Disquiet Junto flagged music-leaning in its etiquette). This also gives the worldgen
@@ -174,13 +175,14 @@ real cart needs one) — no speculative tribes rotting in the ledger.
      `cathedral`/`pan`/`varispeed`/`ampnoise`/`enginelab`/`tracker`/`univibe`) get no tribe by design;
      `touchpiano` (near-empty `de:meta`) and `mallet` (modal/percussion) are the only real one-offs
      still homeless — low priority, both fixable with a de:meta touch-up or a tiny tribe later.
-3. **Games** (coverage 24%, only `arcade` so far) — clusters into board/card/sim/puzzle/
-   adventure. **Decision pending:** per the GTM games are web-gallery-only, so game buckets may
-   be low value — do we invest? (asked, not yet answered.)
-4. **The editor Apps-page surface** — the maker's framing: "another type of search thing that
-   can work freely or bound to carts/apps." A card that shows a cart/app's buckets + venues +
-   a draftable post, plus a free-form `discover` box. Mirrors how `aso-score` got a 📊 glance.
-   Not started.
+3. **Games** (coverage 24%, only `arcade`) — ⏸️ **PARKED (2026-07-07, maker's call: "leave games
+   for now").** Per the GTM games are web-gallery-only, so game buckets are low value. Don't invest
+   until/unless a game gets its own store push. `arcade` stays as the one game tribe.
+4. **The editor Apps-page surface** — ⭐ **the one remaining build task on this lane** (the maker's
+   framing: "another type of search thing that can work freely or bound to carts/apps"). A card that
+   shows a cart/app's tribes + venues + a draftable post, plus a free-form `discover` box. Mirrors
+   how `aso-score` got a 📊 glance. **Not started** — this is the resume-at for the next session on
+   this lane. The tool + a 90%-filled music taxonomy are ready to surface.
 
 ## Where it lives / next session
 

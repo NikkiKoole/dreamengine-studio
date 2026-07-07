@@ -283,18 +283,25 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > scaffold from the cart's own words · `track` outreach log · `audit` whole-catalogue coverage,
 > free/local · `list` · `--check`) + `tools/leads-ledger.json` (committed, hand-editable; **18
 > tribes**/9 cross-cutting, seeded from tinyjam-marketing §3.9). The model is **buckets**: a tribe =
-> tags + venues + hook; carts auto-match on `de:meta`; a `domain` (music/game) pre-filter keeps
-> games off music-press venues. Dry runs across the catalogue hardened the matcher (fm 2-char
-> over-match, genre-string crash, subtractive noise) and grew the taxonomy on demand (drum-machine,
-> arcade, string-machine tribes; BeatCraft/Aaron creator venues). Reddit's free API is dead (403) —
-> discover uses free Google autocomplete + search-url launchers.
-> **Resume-at: [`design/leads-marketeer.md`](design/leads-marketeer.md) → "Open questions /
-> resume-at"** — do (1) drop the bare `subtractive` tag from the `moog` tribe (agreed-safe by the
-> grenadier run) + re-`audit`; then (2) fill music gaps (genre-radio / acoustic-world / novelty
-> buckets — `audit` lists them; music coverage 62%); (3) decide whether games get buckets (GTM says
-> web-gallery-only); (4) build the editor **Apps-page** surface (a cart/app card: buckets + venues +
-> draftable post + free-form discover box). Hot files: `tools/leads-ledger.json` (hand-edit to add
-> venues), `tools/leads.js`. No gates beyond `node tools/leads.js --check`.
+> tags + venues + hook; carts auto-match on `de:meta`; a `domain` (music/game/any) pre-filter keeps
+> games off music-press venues. Reddit's free API is dead (403) — discover uses free Google
+> autocomplete + search-url launchers.
+> **Update 2026-07-07 — the MUSIC TAXONOMY is substantially filled: 18 → 32 tribes, music coverage
+> 62% → 90%.** The big idea (from a maker insight): **the tribe is the SCENE, not the FORMAT.** The
+> genre-radio carts each homage a specific artist (jingle=Mac DeMarco, eno=Brian Eno, afrobeat=Fela,
+> house=Daft Punk) → scene tribes keyed on the identity word, with `generative` (r/generative·lines·
+> Disquiet) as a cross-domain FORMAT amplifier. Added: ambient/citypop/afrobeat/frenchhouse/
+> indie-jangle/microtonal/generative, `piano`+`vintage-poly` (homed the piano/juno misfiles),
+> physical-modeling/guitar/world-folk (acoustic cluster), novelty-toy/vocal-synth. Fixed the `moog`
+> subtractive over-match (31→14) and the `drone`/`vowel`/`vocoder` generic-adjective noise (tag on
+> identity, never technique). Model refinement written into `leads-marketeer.md`.
+> **PARKED (maker's call):** the 4 weak-room scenes (satie/bossa/mariachi/tango — stay on the
+> generative amplifier) + games buckets (GTM: web-gallery-only; `arcade` is the one game tribe).
+> **Resume-at: [`design/leads-marketeer.md`](design/leads-marketeer.md) → open-question #4** — the ONE
+> remaining build task: the editor **Apps-page** surface (a cart/app card: tribes + venues + draftable
+> post + free-form discover box; mirrors `aso-score`'s 📊 glance). Tool + 90% taxonomy are ready to
+> surface. Hot files: `tools/leads-ledger.json` (hand-edit to add venues), `tools/leads.js`. Gate:
+> `node tools/leads.js --check`.
 
 ## History & reference (pruned 2026-07-05)
 

@@ -80,6 +80,10 @@ static int   scale = 0;
 static float k_tempo, k_ringmod, k_reverb, k_echo, k_dirt;
 static bool  pdown_prev = false;
 static float ap_rm = -1, ap_rv = -1, ap_ec = -1, ap_dt = -1;   // last-applied fx (fx-frame rule)
+static float phase[2];              // each ring's OWN rotation (revolutions) — they can de-sync
+static float last_pos;              // previous frame's musical position (for the delta)
+static int   last_abs[2] = { -999, -999 };  // last absolute tick each ring fired
+static float k_drift, k_human;      // DRIFT = deliberate de-sync (ring B spins faster) · HUMAN = analog wobble
 
 static int   n_steps(int r) { return 4 + (int)(rg[r].ksteps * 12 + 0.5f); }  // 4..16
 static int   tempo(void)    { return 70 + (int)(k_tempo * 110 + 0.5f); }       // 70..180
@@ -114,6 +118,13 @@ static void set_voice(int r, int v) {
     if (rg[r].voice == V_GLIDE) { rg[r].glide_h = note_on(ROOTS[r] + 12, SL_GLIDE, 0); note_glide(rg[r].glide_h, 90); }
 }
 
+// snap the two rings back together (and lock) — the "put a hand on the spinning disc" re-sync
+static void resync(void) {
+    phase[1] = phase[0];
+    k_drift = 0;
+    for (int r = 0; r < 2; r++) last_abs[r] = (int)(phase[r] * n_steps(r));  // no spurious retrigger
+}
+
 // the Electronium "suggest": nudge every bulb of both rings a touch — morph, stay musical
 static void nudge(void) {
     for (int r = 0; r < 2; r++)
@@ -136,6 +147,10 @@ void init(void) {
     k_reverb  = 0.55f;                  // send: roomy → drenched
     k_echo    = 0.40f;                  // send: slapback → dub throw
     k_dirt    = 0.45f;                  // the records swim in it — start dirty
+    k_drift   = 0.0f;                    // locked by default — turn it up to shove the rings apart
+    k_human   = 0.30f;                   // a little analog looseness in the timing (never machine-tight)
+    phase[0] = phase[1] = 0.0f;
+    last_pos = 0.0f;
 
     static const float seedA[12] = { .5f,.65f,.8f,.6f, 0,.7f,.85f,.55f, 0,.75f,.9f,.45f };
     static const float seedB[7]  = { .7f, 0,.5f,.6f, 0,.8f,.4f };   // sparser, lower counter-line
@@ -196,6 +211,7 @@ void update(void) {
     if (btnp(0, BTN_DOWN))  rg[selR].lvl[selS] = clampf(rg[selR].lvl[selS] - 0.08f, 0, 1);
     if (keyp('V'))          set_voice(selR, rg[selR].voice + 1);
     if (keyp('K'))          scale = (scale + 1) % NSCALE;
+    if (keyp('S'))          resync();
     if (keyp(KEY_SPACE))    nudge();
 
     // ── drag a bulb up/down to set its note (grab on the down-edge, ring area only) ──
@@ -217,15 +233,24 @@ void update(void) {
         rg[grabR].lvl[grab] = clampf((float)(CY + RAD[0] + 8 - my) / (2 * RAD[0] + 16), 0, 1);
     pdown_prev = down;
 
-    // ── transport: one arm sweeps both rings; a ring triggers when the arm crosses a bulb.
-    //    different step counts → the two rings drift apart (polymeter). 1 rev = 1 bar. ──
+    // ── transport: each ring has its OWN spinning arm (1 rev = 1 bar). HUMAN adds analog
+    //    timing wobble; DRIFT spins ring B faster so it phases against A (out of sync, then
+    //    laps back around); SYNC snaps them together. A ring fires when its arm crosses a bulb. ──
     bpm(tempo());
     float pos = beat() * 4 + beat_pos() * 4.0f;          // monotonic sixteenths
-    float theta = fmodf(pos / 16.0f, 1.0f);              // 0..1 of a revolution
+    float dpos = pos - last_pos; last_pos = pos;         // musical delta this frame
+    if (dpos < 0) dpos = 0;                              // guard (bpm change / wrap)
+    float base = dpos / 16.0f;                           // one revolution per bar
+    float hd = 0.006f + k_human * 0.06f;                 // wobble depth 0.6%..6.6%
+    float f  = (float)frame();
+    float humA = 1.0f + hd * (0.6f * sinf(f * 0.031f)        + 0.4f * sinf(f * 0.013f + 1.0f));
+    float humB = 1.0f + hd * (0.6f * sinf(f * 0.027f + 2.1f) + 0.4f * sinf(f * 0.017f + 3.3f));
+    phase[0] += base * humA;
+    phase[1] += base * humB * (1.0f + k_drift * 0.22f);  // DRIFT: up to ~22% faster → continuous phasing
     for (int r = 0; r < 2; r++) {
         int n = n_steps(r);
-        int cs = (int)(theta * n) % n;
-        if (cs != rg[r].last_step) { rg[r].last_step = cs; trigger(r, cs); }
+        int ab = (int)(phase[r] * n);
+        if (ab != last_abs[r]) { last_abs[r] = ab; int loc = ((ab % n) + n) % n; rg[r].last_step = loc; trigger(r, loc); }
     }
 
     apply_fx();
@@ -239,6 +264,9 @@ void update(void) {
     watch("stepsA", "%d", n_steps(0));
     watch("stepsB", "%d", n_steps(1));
     watch("dirt",   "%.2f", k_dirt);
+    watch("drift",  "%.2f", k_drift);
+    watch("human",  "%.2f", k_human);
+    watch("dphase", "%.3f", fmodf(phase[0] - phase[1] + 1.0f, 1.0f));   // A-vs-B phase separation
 #endif
 }
 
@@ -266,9 +294,8 @@ static void draw_ring(int r) {
 
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
-    float pos = beat() * 4 + beat_pos() * 4.0f;
-    float theta = fmodf(pos / 16.0f, 1.0f);
-    float armA = -1.5707963f + theta * 6.2831853f;
+    float aA = -1.5707963f + fmodf(phase[0], 1.0f) * 6.2831853f;   // each ring's own arm angle
+    float aB = -1.5707963f + fmodf(phase[1], 1.0f) * 6.2831853f;
 
     print("CIRCLE MACHINE", 4, 4, CLR_LIGHT_YELLOW);
     font(FONT_SMALL);
@@ -280,27 +307,30 @@ void draw(void) {
     circ(CX, CY, RAD[1], CLR_DARKER_GREY);
     draw_ring(1);                                                   // inner first
     draw_ring(0);                                                   // outer on top
-    // the rotating photocell arm (sweeps both rings)
-    int ax = CX + (int)(cosf(armA) * (RAD[0] + 3)), ay = CY + (int)(sinf(armA) * (RAD[0] + 3));
-    line(CX, CY, ax, ay, CLR_DARK_GREY);
-    circfill(ax, ay, 3, CLR_LIGHT_YELLOW);
+    // TWO photocell arms — one per ring. They fan apart as the rings de-sync, converge on SYNC.
+    int ax0 = CX + (int)(cosf(aA) * (RAD[0] + 3)), ay0 = CY + (int)(sinf(aA) * (RAD[0] + 3));
+    int ax1 = CX + (int)(cosf(aB) * (RAD[1] + 3)), ay1 = CY + (int)(sinf(aB) * (RAD[1] + 3));
+    line(CX, CY, ax0, ay0, CLR_DARK_GREY);   circfill(ax0, ay0, 3, CLR_LIGHT_YELLOW);   // ring A arm
+    line(CX, CY, ax1, ay1, CLR_BROWN);       circfill(ax1, ay1, 2, CLR_ORANGE);         // ring B arm
     circfill(CX, CY, 2, CLR_DARK_GREY);                            // hub
 
     // ── right panel ──
     ui_begin();
     font(FONT_SMALL);
-    ui_knob(&k_tempo,               206, 32, "TEMPO");
-    ui_knob(&rg[selR].ksteps,     244, 32, "STEPS");
-    ui_knob(&rg[selR].lvl[selS],  282, 32, "LEVEL");
-    ui_knob(&k_ringmod,             206, 80, "RINGMOD");
-    ui_knob(&k_reverb,              244, 80, "REVERB");
-    ui_knob(&k_echo,                282, 80, "ECHO");
-    ui_knob(&k_dirt,                206, 128, "DIRT");
-    if (ui_button(244, 118, 74, 15, str("RING %c", 'A' + selR)))     selR ^= 1;
-    if (ui_button(244, 136, 74, 15, VNAME[rg[selR].voice]))        set_voice(selR, rg[selR].voice + 1);
-    if (ui_button(244, 154, 74, 15, "NUDGE"))                        nudge();
-    print("1/2 ring  drag bulb=note", 200, 176, CLR_DARK_GREY);
-    print("V voice  K scale  SPACE=nudge", 200, 184, CLR_DARK_GREY);
+    ui_knob(&k_tempo,              206, 30, "TEMPO");
+    ui_knob(&rg[selR].ksteps,      244, 30, "STEPS");
+    ui_knob(&rg[selR].lvl[selS],   282, 30, "LEVEL");
+    ui_knob(&k_ringmod,            206, 72, "RINGMOD");
+    ui_knob(&k_reverb,             244, 72, "REVERB");
+    ui_knob(&k_echo,               282, 72, "ECHO");
+    ui_knob(&k_dirt,               206, 114, "DIRT");
+    ui_knob(&k_drift,              244, 114, "DRIFT");
+    ui_knob(&k_human,              282, 114, "HUMAN");
+    if (ui_button(200, 148, 56, 14, str("RING %c", 'A' + selR)))  selR ^= 1;
+    if (ui_button(262, 148, 56, 14, VNAME[rg[selR].voice]))       set_voice(selR, rg[selR].voice + 1);
+    if (ui_button(200, 166, 56, 14, "SYNC"))                      resync();
+    if (ui_button(262, 166, 56, 14, "NUDGE"))                     nudge();
+    print("S=sync  V=voice  K=scale", 200, 186, CLR_DARK_GREY);
     font(FONT_NORMAL);
     ui_end();
 }

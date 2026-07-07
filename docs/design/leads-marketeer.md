@@ -98,11 +98,16 @@ real cart needs one) — no speculative tribes rotting in the ledger.
 
 ## Open questions / resume-at
 
-1. **The `subtractive` over-match** (RECOMMENDED next, agreed-safe by the grenadier run):
-   drop the bare `subtractive` tag from the `moog` tribe (keep `moog/minimoog/ladder
-   filter/vco/modular/eurorack/steiner-parker`). Kills the false positive on
-   tr808/909/cr78/more-note-bass; genuine modular carts still match via other tags. Also check
-   `moog` (31 carts) and `arcade` (40) aren't otherwise over-broad. Then re-`audit`.
+1. **The `subtractive` over-match** — ✅ **DONE (2026-07-07).** Dropped BOTH `subtractive` and
+   `subtractive-synth` from the `moog` tribe (keeping only the moog/modular *identity* words:
+   `moog/minimoog/ladder filter/vco/modular/eurorack/steiner-parker`) — dropping the bare tag
+   alone wouldn't have killed the tr808/909/cr78/more-note-bass false positives, since they also
+   matched via `subtractive-synth`. `moog` went 31 → 14 carts; the 17 that left are all drum/acid/
+   misc-synth carts that belong to `drum-machine`/`acid` (verified: tr808→drum+acid, more-note-bass→
+   drum+acid). Genuine modular carts kept via other tags (moog, filterenv via moog/ladder-filter;
+   sh101, grenadier via vco/modular). `arcade` (40) was checked and is fine — 32 bare-`arcade`
+   matches are genuine arcade-cabinet titles; only `poker` is a stray (not worth a fix). `--check`
+   green.
 2. **Fill the music bucket-gaps** the `audit` surfaced (music coverage 62%): a **genre-radio**
    family (ambient/bossa/eno/gamelan/satie/tango/city-pop radio), an **acoustic/world**
    bucket (guitar/brass/reed/pipe/bowed/hurdy-gurdy/glass-harmonica/monochord), a **novelty**

@@ -417,20 +417,34 @@ void update(void) {
     if (keyp('M')) muted[sel] = !muted[sel];              // (un)mute
     if (keyp('P')) patn[sel] = (patn[sel] + 1) % NPAT;    // cycle its 6 patterns
     if (keyp('F')) focused = (focused == sel) ? -1 : sel; // FOCUS the working strip / X-close
-    if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }
+#ifndef DE_RESIZABLE
+    if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }   // design tool: force the fake device size
+#endif
 }
 
 void draw(void) {
     Dev d = DEV[cur];
     int W = screen_w(), H = screen_h();
-    g_boxpat = (d.cls == ROOMY);   // iPad has room for the boxed PAT panel; phones use the header row
+    // DUAL MODE. DESKTOP (design tool): the canvas is a FAKE device (de_resize'd to DEV[cur]); use its
+    // baked class + insets + draw the simulated skin/label. DEVICE (-DDE_RESIZABLE, iOS/real screen):
+    // the canvas IS the device — classify the REAL W/H and read the REAL safe-area; no fake skin/flip.
+    int cls_, insT, insB;
+#ifdef DE_RESIZABLE
+    int device_mode = 1;
+    { int mn = W < H ? W : H; cls_ = (mn >= 340) ? ROOMY : (W > H ? WIDE : TALL); }
+    { int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh); insT = sy; insB = H - (sy + sh); }   // top/bottom only (brief §4)
+#else
+    int device_mode = 0;
+    cls_ = d.cls; insT = d.insT; insB = d.insB;
+#endif
+    g_boxpat = (cls_ == ROOMY);   // roomy has room for the boxed PAT panel; phones use the header row
     m_press = mouse_pressed(0); m_x = mouse_x(); m_y = mouse_y();   // one pointer press per frame (tap/click)
     cls(CLR_BROWNISH_BLACK);
 
-    // safe area (simulated status/notch/home; brief §4 — top/bottom only). The device SKIN that
-    // shows WHERE we can't draw is rendered last (draw_safe_skin), over the rack.
+    // safe area (top/bottom insets — simulated on desktop, real on device). The fake device SKIN is
+    // drawn last (draw_safe_skin), and only in design-tool mode; on device the real hardware provides it.
     Box full = box(0, 0, W, H);
-    Box safe = lay_pad(full, d.insT, 0, d.insB, 0);
+    Box safe = lay_pad(full, insT, 0, insB, 0);
 
     // pinned chrome: just the transport (top). No song-chain row + no A/B/C/D banks for now —
     // we're always in LOOP mode (maker, 2026-07-07); the strips get the reclaimed height.
@@ -450,7 +464,7 @@ void draw(void) {
         // ─── FOCUS: one instrument fills the body, X closes back to the rack ───
         mode = "FOCUS (f / tap X closes)";
         draw_focus(&STRIP[focused], bodyarea, focused);
-    } else if (d.cls == WIDE) {
+    } else if (cls_ == WIDE) {
         // ─── short-wide: TABS (accordions degenerate short — acidfit finding) ───
         mode = "tabs";
         int sel = (work >= NSTRIP) ? 0 : work;
@@ -470,7 +484,7 @@ void draw(void) {
         }
         draw_strip(&STRIP[sel], lay_pad(panel, 0, gap, 0, 0), EXPANDED, 1);
 
-    } else if (d.cls == ROOMY && d.w > d.h) {
+    } else if (cls_ == ROOMY && W > H) {
         // ─── iPad LANDSCAPE: 2×2 grid of the 4 pattern machines + a MASTER bar (maker, 2026-07-07).
         //     Fills the width with squarer panels + uses the vertical space, vs one over-wide column
         //     with stretched lanes/buttons and a dead void below. ReBirth's machines-grid + master rail.
@@ -480,7 +494,7 @@ void draw(void) {
             draw_strip(&STRIP[i], lay_grid(grid, 2, 4, i, gap), EXPANDED, i == work);
         draw_strip(&STRIP[4], lay_pad(mbar, 0, gap, 0, 0), EXPANDED, work == 4);   // MASTER: knobs only
 
-    } else if (d.cls == ROOMY) {
+    } else if (cls_ == ROOMY) {
         // ─── roomy PORTRAIT: the ALL-COMPACT rack (§4 headline) — tap one → expands in place ───
         mode = (work >= NSTRIP) ? "roomy · all compact" : "roomy · one expanded";
         // assign states, measure total, then lay out top-down
@@ -507,11 +521,11 @@ void draw(void) {
     }
 
     // ─── device safe-area skin over the rack (notch/island/corners/home bar) — toggle s ───
-    if (safehint) draw_safe_skin(W, H, d);
+    if (!device_mode && safehint) draw_safe_skin(W, H, d);
     if (fingergrid) draw_fingergrid(W, H);
 
     // ─── tool label (inside the device; toggle with h) ───
-    if (showlabel) {
+    if (!device_mode && showlabel) {
         font(FONT_TINY);
         const char *l1 = str("%s  %dx%d  %s", d.name, d.w, d.h, mode);
         const char *l2 = str("%.1fx%.1f fingers  ]/[ shape  w strip  h hide", d.w / FU, d.h / FU);

@@ -1371,6 +1371,8 @@ asoResults?.addEventListener('click', e => {
   if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
   const chip = e.target.closest('a[data-term]')
   if (chip) { e.preventDefault(); document.getElementById('aso-terms').value = chip.dataset.term; asoRun?.click() }
+  const cp = e.target.closest('[data-copy]')
+  if (cp) { e.preventDefault(); navigator.clipboard?.writeText(cp.dataset.copy).then(() => showToast('post scaffold copied — open a venue and paste', 2500)) }
 })
 asoRun?.addEventListener('click', async () => {
   if (!window.studio?.asoResearch) { showToast('research requires the desktop app  (npm start)', 3000); return }
@@ -1459,6 +1461,53 @@ async function runScore(app) {
   const res = await window.studio.asoScore(app)
   if (res?.ok && res.data) renderScore(res.data)
   else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'score failed')}</div>`
+}
+
+// leads — the demand-GENERATION glance (twin of score's capture glance). Per cart of the app:
+// its tribes + venues (clickable → open in browser) + a ready-to-copy post scaffold. We prep;
+// the maker does the actual posting (copy the draft, open the venue, paste — "leave it to us").
+const venueIcon = { reddit: '🔺', facebook: '📘', forum: '💬', youtube: '▶', tiktok: '🎵', web: '🌐', discord: '💬' }
+function renderLeads(data) {
+  if (!asoResults) return
+  const vlink = v => `<div class="ld-venue">${venueIcon[v.kind] || '·'} `
+    + (v.url ? `<a href="#" data-url="${escHtml(v.url)}">${escHtml(v.name)}</a>` : escHtml(v.name))
+    + (v.etiquette ? ` <span class="rs-dim">— ${escHtml(v.etiquette)}</span>` : '') + `</div>`
+  let h = `<div class="sc-head"><b>find tribes — ${escHtml(data.app || '')}</b> <span class="rs-dim">where to gift-post each cart · we prep, you post</span></div>`
+  for (const c of (data.carts || [])) {
+    if (!c || !c.ok) { h += `<div class="ld-cart"><b>${escHtml(c?.cart || '?')}</b> <span class="rs-dim">— ${escHtml(c?.error || 'no match')}</span></div>`; continue }
+    h += `<div class="ld-cart"><div class="ld-title"><b>${escHtml(c.title || c.cart)}</b> <span class="rs-dim">${escHtml(c.domain)} · ${c.tribes.length} tribe${c.tribes.length === 1 ? '' : 's'}</span></div>`
+    if (!c.tribes.length) h += `<div class="rs-dim">no tribe matched — try <code>node tools/leads.js discover ${escHtml(c.cart)} "your genre"</code></div>`
+    for (const t of c.tribes) {
+      h += `<div class="ld-tribe"><div class="ld-tlab">${escHtml(t.label)} `
+        + t.matched.map(m => `<span class="rs-chip">${escHtml(m)}</span>`).join(' ') + `</div>`
+      if (t.hook) h += `<div class="ld-hook">“${escHtml(t.hook)}”</div>`
+      h += t.venues.map(vlink).join('') + `</div>`
+    }
+    if (c.draft) {
+      h += `<details class="ld-draft"><summary>📝 post scaffold → ${escHtml(c.draft.tribe)} <span class="rs-dim">(your voice fills the [brackets])</span></summary>`
+        + `<button class="ld-copy" data-copy="${escHtml(c.draft.body)}">copy</button>`
+        + `<pre class="ld-body">${escHtml(c.draft.body)}</pre></details>`
+    }
+    h += `</div>`
+  }
+  if (data.crosscutting && data.crosscutting.length) {
+    h += `<div class="ld-cart"><div class="ld-title"><b>Cross-cutting</b> <span class="rs-dim">— every music launch also posts here</span></div>`
+      + data.crosscutting.map(vlink).join('') + `</div>`
+  }
+  h += `<div class="sc-gotchas"><b>before you post</b><ul>`
+    + `<li>venue URLs are <b>candidates to browser-check</b> (Reddit blocks automated lookup) — confirm the room's still active + right before posting.</li>`
+    + `<li><b>gift-first, always</b>: you're a member there first. The scaffold uses the cart's OWN words + the tribe hook; your voice fills the [brackets]. Never a copy-paste spam.</li>`
+    + `<li>log it after: <code>node tools/leads.js track add &lt;cart&gt; "&lt;venue&gt;" --status posted --url &lt;link&gt;</code></li>`
+    + `</ul></div>`
+  asoResults.innerHTML = h
+}
+async function runLeads(app) {
+  if (!window.studio?.leads) { showToast('find tribes requires the desktop app  (npm start)', 3000); return }
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
+  document.getElementById('aso-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const res = await window.studio.leads(app)
+  if (res?.ok) renderLeads(res)
+  else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'find tribes failed')}</div>`
 }
 
 const asoVal = id => (document.getElementById(id)?.value || '')
@@ -2240,6 +2289,8 @@ async function renderAppsList() {
         <button data-act="score">📊 score listing</button>
         <button data-act="lint">✅ lint listing</button>
         <button data-act="coverage">🪞 check copy</button>
+        <span class="app-sec">reach</span>
+        <button data-act="leads">📣 find tribes</button>
       </div>`
     card.querySelector('.app-name').textContent = a.name
     card.querySelector('.app-meta').textContent = meta
@@ -2332,6 +2383,13 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     if (act === 'score') {
       const stop = busyDots(btn, 'scoring (fetches difficulty)', label); btn.disabled = true
       await runScore(app)
+      stop(); btn.disabled = false
+      return
+    }
+    // leads — tribes + venues + post scaffold per cart, in the same results panel (local, fast)
+    if (act === 'leads') {
+      const stop = busyDots(btn, 'matching tribes', label); btn.disabled = true
+      await runLeads(app)
       stop(); btn.disabled = false
       return
     }

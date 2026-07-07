@@ -1,8 +1,8 @@
 # Leads — the local marketeer (find venues to post + track outreach)
 
-STATUS: BUILDING (2026-07-07) — the tool + ledger are built and working; the MUSIC tribe
-taxonomy is substantially filled (32 tribes, 90% music coverage — remaining gaps are engine
-tech-demos that get no tribe by design). Open: the games-buckets decision + the editor Apps-page surface.
+STATUS: BUILDING (2026-07-07) — tool + ledger built; MUSIC tribe taxonomy substantially filled
+(32 tribes, 90% music coverage — remaining gaps are engine tech-demos that get no tribe by design);
+editor Apps-page surface BUILT v1 (📣 find tribes glance). Open: v2 discover box; games parked.
 The demand-GENERATION twin of the `aso-*` demand-CAPTURE tools. Sits under
 [`demand-generation.md`](demand-generation.md) lever #3 ("showing up in the tribe").
 
@@ -178,11 +178,18 @@ real cart needs one) — no speculative tribes rotting in the ledger.
 3. **Games** (coverage 24%, only `arcade`) — ⏸️ **PARKED (2026-07-07, maker's call: "leave games
    for now").** Per the GTM games are web-gallery-only, so game buckets are low value. Don't invest
    until/unless a game gets its own store push. `arcade` stays as the one game tribe.
-4. **The editor Apps-page surface** — ⭐ **the one remaining build task on this lane** (the maker's
-   framing: "another type of search thing that can work freely or bound to carts/apps"). A card that
-   shows a cart/app's tribes + venues + a draftable post, plus a free-form `discover` box. Mirrors
-   how `aso-score` got a 📊 glance. **Not started** — this is the resume-at for the next session on
-   this lane. The tool + a 90%-filled music taxonomy are ready to surface.
+4. **The editor Apps-page surface** — ✅ **BUILT v1 (2026-07-07).** The Apps card gained a **reach**
+   section with a **📣 find tribes** button (next to the ASO 📊 glance it mirrors). It runs
+   `leads.js match <cart> --json` for every cart of the app and renders, in the shared results panel:
+   per cart → its tribes (label + matched-tag chips + hook + venues as **clickable links that open in
+   the browser**), the shared cross-cutting venues once, and a collapsible **📝 post scaffold** per
+   cart with a **copy** button — the maker copies the draft, opens a venue, and posts (we prep, they
+   paste, per the maker's "leave the copy-pasting to us"). New `--json` mode on `leads.js match`
+   (payload = tribes+venues+draft) is the enabler; IPC `studio:leads` (app-scoped, loops the carts).
+   **Wiring:** `editor/electron/main.cjs` + `preload.cjs` (new `studio:leads` IPC — **needs an Electron
+   restart** via `make`), `editor/src/shell.js` (`renderLeads`/`runLeads` + button + copy handler),
+   `shell.css` (`.ld-*`). **Not yet built:** the free-form per-cart `discover` box (autocomplete venue
+   hunt) — the natural v2; and a cart-scoped entry (this v1 is app-scoped like the ASO tools).
 
 ## Where it lives / next session
 

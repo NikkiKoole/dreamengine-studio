@@ -303,6 +303,19 @@ html, body {
 .sc-gotchas ul { margin: 6px 0 0; padding-left: 16px; }
 .sc-gotchas li { font-size: 11px; color: var(--fg-dim); margin: 4px 0; line-height: 1.45; }
 .sc-gotchas code { font-size: 10px; }
+/* leads glance — tribes + venues + post scaffold (demand generation) */
+.ld-cart { margin: 10px 0; padding-top: 8px; border-top: 1px solid var(--border); }
+.ld-title { font-size: 12px; margin-bottom: 4px; }
+.ld-tribe { margin: 6px 0 6px 10px; padding-left: 8px; border-left: 2px solid var(--border); }
+.ld-tlab { font-size: 12px; font-weight: 600; }
+.ld-hook { font-size: 11px; color: var(--fg-dim); font-style: italic; margin: 2px 0 3px; }
+.ld-venue { font-size: 11px; margin: 2px 0; }
+.ld-venue a { color: var(--accent); text-decoration: none; }
+.ld-venue a:hover { text-decoration: underline; }
+.ld-draft { margin: 6px 0 2px 10px; }
+.ld-draft summary { font-size: 11px; cursor: pointer; color: var(--fg-dim); }
+.ld-copy { font-size: 10px; margin: 6px 0 4px; padding: 1px 8px; cursor: pointer; }
+.ld-body { font-size: 11px; white-space: pre-wrap; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 8px; margin: 4px 0 0; user-select: text; line-height: 1.4; }
 /* clickable keyword / IAP "keys" + char-count badges on the app card */
 .kw-chips { margin: 3px 0 2px; }
 .kw-chip {

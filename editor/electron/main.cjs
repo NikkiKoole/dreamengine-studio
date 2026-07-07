@@ -1497,6 +1497,33 @@ ipcMain.handle('studio:aso-compose', async (_e, f = {}) =>
   runAsoTool(_e, 'aso-compose.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),
     ...flag('candidates', f.candidates)]))
 
+// ── leads (demand GENERATION): where do I post about this app's carts? ─────────
+// The generation twin of the ASO capture tools. leads is per-CART, an app is many carts, so this
+// runs `leads.js match <cart> --json` for each cart of the app and aggregates. Returns tribes +
+// venues + a ready-to-copy post scaffold per cart; the maker does the actual posting (we prep, they paste).
+function runLeadsJson(cart) {
+  const ROOT = path.join(__dirname, '../..')
+  return new Promise(resolve => {
+    let out = '', err = ''
+    const proc = spawn('node', [path.join(ROOT, 'tools/leads.js'), 'match', String(cart), '--json'], { cwd: ROOT })
+    proc.stdout.on('data', c => out += c.toString())
+    proc.stderr.on('data', c => err += c.toString())
+    proc.on('exit', () => { try { resolve(JSON.parse(out)) } catch { resolve({ ok: false, cart, error: (err.trim() || 'no de:meta / not a cart') }) } })
+    proc.on('error', e => resolve({ ok: false, cart, error: String(e.message) }))
+  })
+}
+ipcMain.handle('studio:leads', async (_e, name) => {
+  const ROOT = path.join(__dirname, '../..')
+  let carts = []
+  try { carts = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', String(name), 'app.json'), 'utf8')).carts || [] }
+  catch (e) { return { ok: false, error: `no apps/${name}/app.json (${e.message})` } }
+  if (!carts.length) return { ok: false, error: 'app.json has no carts' }
+  const per = await Promise.all(carts.map(runLeadsJson))
+  // cross-cutting is domain-wide (same for every music cart) — surface it once, from the first hit
+  const crosscutting = per.find(p => p.ok && p.crosscutting?.length)?.crosscutting || []
+  return { ok: true, app: String(name), carts: per, crosscutting }
+})
+
 // ── Apps view: per-app actions (app-scoped) ───────────────────
 // build the multi-cart app (Mac / iOS) or its press page, streaming to the runtime log.
 function spawnP(bin, args, cwd, log) {

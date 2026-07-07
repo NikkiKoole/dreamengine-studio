@@ -17,7 +17,7 @@
 // materials + the venue's etiquette so you don't post the wrong tone into a gift-first space.
 //
 // COMMANDS
-//   node tools/leads.js match <cart>              tribes + venues for a cart (offline)
+//   node tools/leads.js match <cart> [--json]     tribes + venues for a cart (offline; --json = editor glance payload)
 //   node tools/leads.js discover <cart|term...>   venue-hunt links + autocomplete signals
 //   node tools/leads.js draft <cart> [tribe|venue]  a gift-first post scaffold (offline)
 //   node tools/leads.js track                      the outreach board (grouped by status)
@@ -174,10 +174,31 @@ function venueLine(v) {
 }
 
 // ── match ──────────────────────────────────────────────────────────────────
-function cmdMatch(name) {
+function cmdMatch(rest) {
+  const name = rest[0];
+  const wantJson = rest.includes("--json");
   const ledger = loadLedger();
   const meta = loadCart(name);
   const hits = matchTribes(meta, ledger);
+  const dom = cartDomain(meta);
+  const cc = ledger.crosscutting.filter((v) => domainOk(dom, v.domain || "any"));
+  const venOut = (v) => ({ name: v.name, url: v.url, kind: v.kind, etiquette: v.etiquette });
+
+  // --json: one payload with everything the editor Apps-page glance renders (tribes + venues +
+  // a ready-to-copy draft for the top tribe). The maker does the actual posting — we prep, they paste.
+  if (wantJson) {
+    const top = hits[0]?.tribe;
+    process.stdout.write(JSON.stringify({
+      ok: true, cart: name, title: meta.title || name, domain: dom,
+      tribes: hits.map(({ tribe, matched }) => ({
+        id: tribe.id, label: tribe.label, hook: tribe.hook || "", matched, venues: tribe.venues.map(venOut),
+      })),
+      crosscutting: cc.map(venOut),
+      draft: top ? { tribe: top.label, ...draftScaffold(meta, top, null, name) } : null,
+    }));
+    return;
+  }
+
   console.log(`\n${bold(`Leads for ${cyan(meta.title || name)}`)}  ${dim(`(cart: ${name})`)}\n`);
   if (!hits.length) {
     console.log(dim("  No tribe matched this cart's de:meta.\n"));
@@ -190,8 +211,6 @@ function cmdMatch(name) {
     tribe.venues.forEach((v) => console.log(venueLine(v)));
     console.log("");
   }
-  const dom = cartDomain(meta);
-  const cc = ledger.crosscutting.filter((v) => domainOk(dom, v.domain || "any"));
   console.log(`  ${bold("Cross-cutting")}  ${dim(`(every ${dom === "any" ? "" : dom + " "}launch also posts here)`)}`);
   cc.forEach((v) => console.log(venueLine(v)));
   console.log(`\n  ${dim("next:")} node tools/leads.js draft ${name}   ·   node tools/leads.js discover ${name}\n`);
@@ -298,6 +317,33 @@ function firstSentences(text, n) {
   const parts = (text || "").split(/(?<=[.!?])\s+/);
   return parts.slice(0, n).join(" ").trim();
 }
+// Build the gift-first post scaffold — shared by `draft` (text) and `match --json` (editor glance).
+// Never invents marketing copy: it arranges the cart's OWN de:meta + the tribe hook and leaves
+// [bracketed] voice slots. Returns { title, etiquette, body }.
+function draftScaffold(meta, tribe, venue, name) {
+  const desc = flattenDesc(meta.description);
+  const summary = typeof meta.description === "object" && meta.description.summary
+    ? meta.description.summary
+    : firstSentences(desc, 2);
+  const controls = typeof meta.description === "object" ? meta.description.controls : null;
+  const et = (venue && venue.etiquette) || tribe.venues[0]?.etiquette || "gift-first";
+  const L = [];
+  L.push(`Title: ${tribe.hook || `[one line — what it is, for a ${tribe.label} reader]`}`);
+  L.push("");
+  L.push(`[Gift-first opener — you are a member here first. Show, don't sell. e.g. "Made a little`);
+  L.push(` free web toy that scratches the ${tribe.label.split(" ")[0].toLowerCase()} itch — thought this crowd might enjoy it."]`);
+  L.push("");
+  L.push(`What it is: ${summary}`);
+  if (controls) L.push(`How you play it: ${controls}`);
+  L.push("");
+  L.push(`▶ Play it free in the browser: [web-gallery link — build-site.js / publish-cart.sh]`);
+  L.push(`📎 8-sec clip: [make-gif.js 9:16 export from tools/clips/${name}/]`);
+  L.push("");
+  L.push(`[Soft close — invite, don't ask. "No signup, nothing to buy — just curious what you'd change."`);
+  L.push(` Match the room: ${et}]`);
+  return { title: tribe.hook || "", etiquette: et, body: L.join("\n") };
+}
+
 function cmdDraft(name, target) {
   const ledger = loadLedger();
   const meta = loadCart(name);
@@ -315,33 +361,12 @@ function cmdDraft(name, target) {
   if (!tribe) tribe = hits[0]?.tribe;
   if (!tribe) die(`no tribe matched ${name} — pass one explicitly: node tools/leads.js draft ${name} <tribeId>`);
 
-  const desc = flattenDesc(meta.description);
-  const summary = typeof meta.description === "object" && meta.description.summary
-    ? meta.description.summary
-    : firstSentences(desc, 2);
-  const controls = typeof meta.description === "object" ? meta.description.controls : null;
-  const et = (venue && venue.etiquette) || tribe.venues[0]?.etiquette || "gift-first";
-
+  const { etiquette: et, body } = draftScaffold(meta, tribe, venue, name);
   console.log(`\n${bold("Post scaffold")} — ${cyan(meta.title || name)} → ${bold(tribe.label)}`);
   if (venue) console.log(dim(`  target venue: ${venue.name}  (${venue.url})`));
   console.log(dim(`  etiquette: ${et}`));
   console.log(dim("  ── this is a SCAFFOLD: your voice fills the [brackets]; the rest is the cart's own words ──\n"));
-
-  const L = [];
-  L.push(`Title: ${tribe.hook || `[one line — what it is, for a ${tribe.label} reader]`}`);
-  L.push("");
-  L.push(`[Gift-first opener — you are a member here first. Show, don't sell. e.g. "Made a little`);
-  L.push(` free web toy that scratches the ${tribe.label.split(" ")[0].toLowerCase()} itch — thought this crowd might enjoy it."]`);
-  L.push("");
-  L.push(`What it is: ${summary}`);
-  if (controls) L.push(`How you play it: ${controls}`);
-  L.push("");
-  L.push(`▶ Play it free in the browser: [web-gallery link — build-site.js / publish-cart.sh]`);
-  L.push(`📎 8-sec clip: [make-gif.js 9:16 export from tools/clips/${name}/]`);
-  L.push("");
-  L.push(`[Soft close — invite, don't ask. "No signup, nothing to buy — just curious what you'd change."`);
-  L.push(` Match the room: ${et}]`);
-  console.log(L.join("\n"));
+  console.log(body);
   console.log(`\n  ${dim("materials pulled from de:meta; edit freely. Log it after posting:")}`);
   console.log(`  ${dim(`node tools/leads.js track add ${name} "${venue ? venue.name : tribe.venues[0]?.name || "venue"}" --status posted --url <link>`)}\n`);
 }
@@ -446,7 +471,7 @@ function cmdCheck() {
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   switch (cmd) {
-    case "match": if (!rest[0]) die("usage: node tools/leads.js match <cart>"); return cmdMatch(rest[0]);
+    case "match": if (!rest[0]) die("usage: node tools/leads.js match <cart> [--json]"); return cmdMatch(rest);
     case "discover": return cmdDiscover(rest);
     case "draft": if (!rest[0]) die("usage: node tools/leads.js draft <cart> [tribe|venue]"); return cmdDraft(rest[0], rest[1]);
     case "track": return cmdTrack(rest);

@@ -42,4 +42,5 @@ contextBridge.exposeInMainWorld('studio', {
   asoApp:       (name, tool)     => ipcRenderer.invoke('studio:aso-app', name, tool),
   appShots:     (name)           => ipcRenderer.invoke('studio:app-shots', name),
   appSeeds:     (name, source)   => ipcRenderer.invoke('studio:app-seeds', name, source),
+  leads:        (name)           => ipcRenderer.invoke('studio:leads', name),
 })

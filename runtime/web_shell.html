@@ -51,22 +51,68 @@
        background:#25262b; color:#9a948c; border:1px solid #34353b; border-radius:8px;
        padding:6px 10px; font:12px ui-monospace,Menlo,monospace;"></div>
   <script>
-    // multiplayer room bar (netplay rung 5a — design/multiplayer-research.md).
+    // multiplayer room bar (netplay rung 5b — design/multiplayer-research.md).
     // With ?room= the page URL *is* the invite: show the code + a copy button
-    // (text on the canvas can't be selected). Without one, offer "play
-    // together" when manifest.json says the cart is 2P (a `players` field
+    // (text on the canvas can't be selected) — the HOST sends this so the joiner
+    // lands in the SAME room. Without one, offer "play together" — a HOST/JOIN
+    // split (both blindly minting a random room was the old "wrong room" bug),
+    // shown only when manifest.json says the cart is 2P (a `players` field
     // build-site.js stamps in; absent → fetch fails silent → bar stays hidden,
     // so the editor's build-web preview is unaffected).
     (function () {
       var RELAY = 'dreamengine-relay.onrender.com';
       var bar = document.getElementById('roombar');
       var room = new URLSearchParams(location.search).get('room');
+      var relaySuffix = (location.host !== RELAY ? '&relay=wss://' + RELAY : '');
       function mkbtn(label) {
         var b = document.createElement('button');
         b.textContent = label;
         b.setAttribute('style', 'background:transparent; border:1px solid #06b5e0; color:#06b5e0;' +
           'font:inherit; padding:2px 8px; border-radius:6px; cursor:pointer;');
         return b;
+      }
+      // HOST/JOIN dialog — one player hosts (mints a room, sends the link), the
+      // other joins with that link/code. Ends the "we both picked random rooms".
+      function playDialog() {
+        var ov = document.createElement('div');
+        ov.setAttribute('style', 'position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:20;' +
+          'display:flex; align-items:center; justify-content:center; font:14px ui-monospace,Menlo,monospace;');
+        var box = document.createElement('div');
+        box.setAttribute('style', 'background:#25262b; color:#e8e6e3; border:1px solid #34353b;' +
+          'border-radius:12px; padding:20px; max-width:320px; width:90%;');
+        var mk = function (label, color) {
+          var b = document.createElement('button'); b.textContent = label;
+          b.setAttribute('style', 'width:100%; box-sizing:border-box; padding:9px; border-radius:8px;' +
+            'border:1px solid ' + color + '; background:transparent; color:' + color + '; font:inherit; cursor:pointer;');
+          return b;
+        };
+        var sub = document.createElement('div');
+        sub.textContent = 'One of you hosts and sends the invite link. The other joins with it.';
+        sub.setAttribute('style', 'color:#9a948c; font-size:12px; margin-bottom:14px; line-height:1.4;');
+        var host = mk('🎮 Host a game', '#06b5e0'); host.style.marginBottom = '10px';
+        // JOIN uses the native prompt() — a running emscripten build installs global
+        // key handlers that swallow keystrokes to an HTML <input>, so an inline field
+        // is unusable on the cart page; prompt() is an OS dialog emscripten can't touch.
+        var join = mk('🔑 Join a game', '#7ee6a0'); join.style.marginBottom = '14px';
+        var cancel = mk('cancel', '#9a948c'); cancel.style.border = 'none';
+        box.appendChild(sub); box.appendChild(host); box.appendChild(join); box.appendChild(cancel);
+        ov.appendChild(box); document.body.appendChild(ov);
+        var close = function () { ov.remove(); };
+        ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+        cancel.onclick = close;
+        host.onclick = function () {
+          var c = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4) || 'play';
+          location.href = '?room=' + c + relaySuffix;
+        };
+        join.onclick = function () {
+          var v = prompt('Paste the invite link or room code your friend sent:');
+          if (v === null) return;   // cancelled
+          v = v.trim(); if (!v) return;
+          if (/^https?:\/\//i.test(v)) { location.href = v; return; }   // full link — go as-is
+          var m = v.match(/[?&]room=([a-z0-9]+)/i);
+          var c = m ? m[1] : v.replace(/[^a-z0-9]/gi, '').slice(0, 16);
+          if (c) location.href = '?room=' + c + relaySuffix;
+        };
       }
       if (room) {
         bar.style.display = 'block';
@@ -81,16 +127,16 @@
             setTimeout(function () { b.textContent = 'copy invite link'; }, 1500);
           }).catch(function () { prompt('invite link:', link); });
         };
-        bar.appendChild(code); bar.appendChild(b);
+        var hint = document.createElement('div');
+        hint.textContent = 'send this link to a friend to join';
+        hint.setAttribute('style', 'color:#6c6b73; font-size:10px; margin-top:3px;');
+        bar.appendChild(code); bar.appendChild(b); bar.appendChild(hint);
       } else {
         fetch('manifest.json').then(function (r) { return r.json(); }).then(function (m) {
           if (!m || !(m.players >= 2)) return;
           bar.style.display = 'block';
           var b = mkbtn('👥 play together');
-          b.onclick = function () {
-            var c = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4) || 'play';
-            location.href = '?room=' + c + (location.host !== RELAY ? '&relay=wss://' + RELAY : '');
-          };
+          b.onclick = playDialog;
           bar.appendChild(b);
         }).catch(function () {});
       }

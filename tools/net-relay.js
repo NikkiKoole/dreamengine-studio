@@ -157,6 +157,9 @@ function makeServer({ serveDir, log }) {
     if (!serveDir) { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('dreamengine net-relay: up — carts connect via ws(s)://…/room/<code>\n'); return }
     const urlPath = decodeURIComponent((req.url || '/').split('?')[0])
     let file = path.join(serveDir, urlPath === '/' ? 'index.html' : urlPath)
+    // a directory path (…/ ) serves its index.html, matching github.io — so the
+    // gallery's "play together" link (cart/?room=…) resolves the same locally
+    if (urlPath !== '/' && urlPath.endsWith('/')) file = path.join(file, 'index.html')
     if (!path.resolve(file).startsWith(path.resolve(serveDir))) { res.writeHead(403); res.end(); return }
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(404); res.end('not found\n'); return }

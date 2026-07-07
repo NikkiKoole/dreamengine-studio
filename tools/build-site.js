@@ -490,18 +490,66 @@ ${cards}
   } catch (e) {}
   applySort(s); applyDesc(d); applyTheme(t); applyAudio(a)
 
-  // "play together" (netplay rung 5a): mint a room code and open the cart in it —
-  // the resulting page URL IS the invite link (the cart page shows a copy button).
-  // On the relay's own domain no ?relay= is needed (the transport defaults to the
-  // page's host); everywhere else (github.io) the public relay is dialed explicitly.
+  // "play together" (netplay rung 5b): a HOST/JOIN split, not a blind random room.
+  // Both clicking a single "play together" minted two different random codes → two
+  // rooms → never met. Now one player HOSTS (mints a room; the page URL IS the
+  // invite link) and the other JOINS with that link/code. On the relay's own
+  // domain no ?relay= is needed (the transport defaults to the page's host);
+  // everywhere else (github.io) the public relay is dialed explicitly.
+  function mpGo(cart, code) {
+    var url = cart + '/?room=' + code
+    if (location.host !== '${RELAY_HOST}') url += '&relay=wss://${RELAY_HOST}'
+    location.href = url
+  }
+  function mpDialog(cart) {
+    var ov = document.createElement('div')
+    ov.setAttribute('style', 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;' +
+      'display:flex;align-items:center;justify-content:center;font:14px ui-monospace,Menlo,monospace;')
+    var box = document.createElement('div')
+    box.setAttribute('style', 'background:#25262b;color:#e8e6e3;border:1px solid #34353b;' +
+      'border-radius:12px;padding:20px;max-width:320px;width:90%;')
+    var mk = function (label, color) {
+      var b = document.createElement('button')
+      b.textContent = label
+      b.setAttribute('style', 'width:100%;box-sizing:border-box;padding:9px;border-radius:8px;' +
+        'border:1px solid ' + color + ';background:transparent;color:' + color + ';font:inherit;cursor:pointer;')
+      return b
+    }
+    var title = document.createElement('div'); title.textContent = 'Play ' + cart + ' together'
+    title.setAttribute('style', 'font-size:15px;margin-bottom:4px;')
+    var sub = document.createElement('div')
+    sub.textContent = 'One of you hosts and sends the invite link. The other joins with it.'
+    sub.setAttribute('style', 'color:#9a948c;font-size:12px;margin-bottom:14px;line-height:1.4;')
+    var host = mk('🎮 Host a game', '#06b5e0'); host.style.marginBottom = '10px'
+    var join = mk('🔑 Join a game', '#7ee6a0'); join.style.marginBottom = '14px'
+    var cancel = mk('cancel', '#9a948c'); cancel.style.border = 'none'
+    box.appendChild(title); box.appendChild(sub); box.appendChild(host)
+    box.appendChild(join); box.appendChild(cancel)
+    ov.appendChild(box); document.body.appendChild(ov)
+    var close = function () { ov.remove() }
+    ov.addEventListener('click', function (e) { if (e.target === ov) close() })
+    cancel.onclick = close
+    host.onclick = function () {
+      var code = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4) || 'play'
+      mpGo(cart, code)
+    }
+    // JOIN via native prompt() — reliable typing/paste on iOS (an inline <input>
+    // can be blocked by a running cart's global key handlers on the cart page)
+    join.onclick = function () {
+      var v = prompt('Paste the invite link or room code your friend sent:')
+      if (v === null) return
+      v = v.trim(); if (!v) return
+      if (/^https?:\\/\\//i.test(v)) { location.href = v; return }   // a full link — go as-is (carries room + relay)
+      var m = v.match(/[?&]room=([a-z0-9]+)/i)
+      var code = m ? m[1] : v.replace(/[^a-z0-9]/gi, '').slice(0, 16)
+      if (code) mpGo(cart, code)
+    }
+  }
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.mpbtn')
     if (!b) return
     e.preventDefault(); e.stopPropagation()
-    var code = Math.random().toString(36).replace(/[^a-z0-9]/g, '').slice(0, 4) || 'play'
-    var url = b.dataset.cart + '/?room=' + code
-    if (location.host !== '${RELAY_HOST}') url += '&relay=wss://${RELAY_HOST}'
-    location.href = url
+    mpDialog(b.dataset.cart)
   })
 })()
 </script>

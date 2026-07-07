@@ -74,7 +74,10 @@
 
 #define NET_PORT_DEFAULT 33445
 #define NET_DISCOVERY_PORT 33446 // LAN broadcast port for "Open to LAN" auto-discovery (rung 3)
-#define NET_DELAY        3     // input latency in frames (~50 ms at 60 fps)
+#define NET_DELAY        10    // input latency in frames (~165 ms at 60 fps) — cushions
+                               // WebRTC/wifi jitter (measured ~70 ms radio-sleep spikes
+                               // exceed a 3-frame/50 ms buffer → 1-frame lockstep stalls).
+                               // rung 5b confirm-test; adaptive sizing is step 5.
 #define NET_RING         128   // per-player ring of input bytes (≫ max peer drift)
 #define NET_REDUN        8     // input frames per packet (drop-proofing redundancy)
 #define NET_TIMEOUT_MS   10000 // barrier gives up after this long without the peer
@@ -112,9 +115,9 @@ static int  net_notice_frames  = 0;
 // btn()'s pre-net body — reads THIS machine's keymaps + touch (defined in studio.c)
 static bool btn_local(int player, int button);
 
-// the ONE seam that differs per platform (design doc §5a): UDP (native),
-// loopback echo, and — rung 5a step 2 — WebSocket relay (web). Dispatchers
-// are defined at the bottom of this file, after every transport arm.
+// the ONE seam that differs per platform (design doc §5): UDP (native),
+// loopback echo, and — rung 5b — a WebRTC DataChannel (web, P2P; the relay is
+// signaling only). Dispatchers are defined at the bottom, after every arm.
 static void net_transport_send(const void *buf, int len);
 static void net_transport_pump(void);
 
@@ -226,15 +229,30 @@ static bool net_frame_try_sync(void) {
     return true;
 }
 
-// ── WebSocket transport (web target — rung 5a step 2) ────────────────────────
-// The same lockstep DN packets, riding binary WebSocket frames through
-// tools/net-relay.js instead of UDP datagrams. Both tabs open the SAME url —
-// ?room=<code> picks the room (+ optional ?relay=ws://host:port, defaulting to
-// the page's own host, i.e. the `net-relay.js --serve` one-box setup); the
-// relay seats them (first = host) with a NET_PKT_ROLE, then the normal
-// HELLO → WELCOME{seed} handshake runs through it. The EM_JS shim passes no
-// strings across the C/JS boundary — JS reads location.search itself, C sees
-// stage codes and raw packet bytes only.
+// ── WebRTC transport (web target — rung 5b) ──────────────────────────────────
+// The same lockstep DN packets, now riding an RTCDataChannel PEER-TO-PEER
+// instead of tromboning through the relay. On one wifi peers connect directly
+// (~12 ms LAN, vs ~330 ms via a relay); across networks STUN hole-punches a
+// direct path; only un-punchable pairs (~10–20%) would need TURN (step 7, not
+// wired yet). Everything above the net_transport_* seam is unchanged.
+//
+// The relay (tools/net-relay.js) is reused UNCHANGED as the SIGNALING channel:
+// it blind-forwards the SDP offer/answer + ICE candidates within a room until
+// the DataChannel opens, then game traffic leaves it entirely. So github.io
+// stays the host and the relay's cold-start no longer touches gameplay.
+//
+// The whole WebRTC + WebSocket-signaling dance lives in JS (browsers have
+// WebRTC built in — no libdatachannel). The C side sees only: seat (host/
+// joiner), a channel-open state, and raw packet bytes — the same shape as the
+// old WS shim (de_ws_*), so net_web_poll/pump reuse the DN handshake verbatim.
+//
+// Both peers open the SAME url — ?room=<code> picks the room (+ optional
+// ?relay=wss://host, defaulting to the page's own host). Two potholes the spike
+// surfaced, both fixed here: (1) offer-before-peer race → the JOINER announces
+// first (a "ready" message) and the host offers only on hearing it; (2) the
+// relay re-frames every forward as binary, so signaling JSON is sent as bytes
+// and told apart from the relay's own ROLE packet by the 'DN' magic (our JSON
+// starts with '{'=123, never 'D'=68). Design: docs/design/multiplayer-research.md §"rung 5b".
 #if defined(PLATFORM_WEB)
 #include <emscripten/emscripten.h>
 
@@ -243,7 +261,11 @@ static bool net_frame_try_sync(void) {
 #define EM_JS(ret, name, params, ...) static ret name params;
 #endif
 
-EM_JS(int, de_ws_begin, (void), {
+// Start the connection: open the signaling WebSocket to the relay, get seated
+// (first in the room = host), run WebRTC signaling, and open the DataChannel.
+// All async — the C side polls de_rtc_state()/de_rtc_seat() and drains
+// de_rtc_recv_js(). Returns 1 if a ?room= was present (dance started), else 0.
+EM_JS(int, de_rtc_begin, (void), {
     try {
         var q = new URLSearchParams(location.search);
         var room = q.get('room');
@@ -256,28 +278,98 @@ EM_JS(int, de_ws_begin, (void), {
         // blind — this is the only place game identity exists on the wire).
         var seg = location.pathname.split('/').filter(function (s) { return s && s !== 'index.html'; });
         var cart = seg.length ? seg[seg.length - 1] : 'cart';
+        // STUN lets peers learn their public address to connect directly across
+        // NAT; same-wifi doesn't need it (host candidates already win). No TURN
+        // here yet (step 7) — a symmetric-NAT pair falls to connectionState
+        // 'failed' → de_rtc_state 2 → "connection failed - reload".
+        var ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        Module.deRtcQ = [];       // DataChannel messages (Uint8Array) awaiting the C drain
+        Module.deRtcState = 0;    // 0 connecting/signaling, 1 channel OPEN, 2 failed
+        Module.deRtcSeat = -1;    // 0 host, 1 joiner, -1 not seated yet
+        Module.deRtcCh = null;
+        var pc = null, seat = null, made = false, gotOffer = false, readyTimer = null;
+
         var ws = new WebSocket(rel + '/room/' + encodeURIComponent(cart + '-' + room));
         ws.binaryType = 'arraybuffer';
-        Module.deWsQ = [];
-        Module.deWsState = 0;
-        ws.onopen    = function ()   { Module.deWsState = 1; };
-        ws.onmessage = function (ev) { Module.deWsQ.push(new Uint8Array(ev.data)); };
-        ws.onclose   = function ()   { Module.deWsState = 2; };
-        ws.onerror   = function ()   { Module.deWsState = 2; };
-        Module.deWs = ws;
+        // signaling JSON as BINARY — the relay reframes every forward as binary
+        // (wsEncode opcode 2), so a text frame would arrive as bytes anyway.
+        var sig = function (obj) {
+            if (ws.readyState === 1) ws.send(new TextEncoder().encode(JSON.stringify(obj)));
+        };
+        var wire = function (channel) {
+            Module.deRtcCh = channel;
+            channel.binaryType = 'arraybuffer';
+            channel.onopen    = function ()   { Module.deRtcState = 1; };
+            channel.onmessage = function (ev) { Module.deRtcQ.push(new Uint8Array(ev.data)); };
+            channel.onclose   = function ()   { if (Module.deRtcState !== 0) Module.deRtcState = 2; };
+        };
+        var startPeer = function (isHost) {
+            if (!window.RTCPeerConnection) { Module.deRtcState = 2; return; }
+            try { pc = new RTCPeerConnection(ICE); }
+            catch (e) { Module.deRtcState = 2; return; }
+            pc.onicecandidate = function (e) { if (e.candidate) sig({ t: 'ice', c: e.candidate }); };
+            pc.onconnectionstatechange = function () {
+                if (pc.connectionState === 'failed') Module.deRtcState = 2;   // would need TURN
+            };
+            if (isHost) {
+                // host owns the channel; the offer waits for the joiner's "ready"
+                wire(pc.createDataChannel('de', { ordered: false, maxRetransmits: 0 }));
+            } else {
+                pc.ondatachannel = function (e) { wire(e.channel); };
+            }
+        };
+
+        ws.onclose = function () { if (seat === null) Module.deRtcState = 2; };  // never seated → relay down
+        ws.onerror = function () { if (seat === null) Module.deRtcState = 2; };
+        ws.onmessage = async function (ev) {
+            var b = new Uint8Array(ev.data);
+            if (b.length >= 4 && b[0] === 68 && b[1] === 78 && b[2] === 6) {   // ROLE ['D','N',6,seat]
+                seat = b[3]; Module.deRtcSeat = seat;
+                if (seat === 0) {
+                    startPeer(true);                 // host: build the channel, wait for "ready"
+                } else {
+                    startPeer(false);                // joiner: ready to answer, announce so the host offers
+                    sig({ t: 'ready' });
+                    readyTimer = setInterval(function () { if (!gotOffer) sig({ t: 'ready' }); }, 800);
+                }
+                return;
+            }
+            var msg;
+            try { msg = JSON.parse(new TextDecoder().decode(b)); } catch (e) { return; }
+            if (msg.t === 'ready') {                 // host: joiner is really in the room → safe to offer
+                if (seat === 0 && pc && !made) {
+                    made = true;
+                    var o = await pc.createOffer(); await pc.setLocalDescription(o);
+                    sig({ t: 'offer', sdp: o });
+                }
+            } else if (msg.t === 'offer') {          // joiner: answer it
+                gotOffer = true; if (readyTimer) clearInterval(readyTimer);
+                if (!pc) startPeer(false);
+                await pc.setRemoteDescription(msg.sdp);
+                var ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+                sig({ t: 'answer', sdp: ans });
+            } else if (msg.t === 'answer') {         // host: adopt the answer
+                if (pc) await pc.setRemoteDescription(msg.sdp);
+            } else if (msg.t === 'ice' && msg.c) {   // trickle ICE (may arrive pre-remote-desc → try/catch)
+                try { await pc.addIceCandidate(msg.c); } catch (e) {}
+            }
+        };
+        Module.deRtcWs = ws;
         return 1;
     } catch (e) { return 0; }
 })
 
-EM_JS(int, de_ws_state, (void), { return Module.deWsState | 0; })   // 0 connecting, 1 open, 2 closed/failed
+EM_JS(int, de_rtc_state, (void), { return Module.deRtcState | 0; })            // 0 connecting, 1 open, 2 failed
+EM_JS(int, de_rtc_seat,  (void), { return (Module.deRtcSeat === undefined ? -1 : Module.deRtcSeat) | 0; })
 
-EM_JS(void, de_ws_send_js, (const void *p, int n), {
-    if (Module.deWs && Module.deWsState === 1)
-        Module.deWs.send(HEAPU8.subarray(p, p + n));   // .send copies, the view is safe
+EM_JS(void, de_rtc_send_js, (const void *p, int n), {
+    var ch = Module.deRtcCh;
+    if (ch && ch.readyState === 'open') ch.send(HEAPU8.subarray(p, p + n));   // .send copies, the view is safe
 })
 
-EM_JS(int, de_ws_recv_js, (void *p, int cap), {
-    var q = Module.deWsQ;
+EM_JS(int, de_rtc_recv_js, (void *p, int cap), {
+    var q = Module.deRtcQ;
     if (!q || !q.length) return 0;
     var m = q.shift();
     var n = Math.min(m.length, cap);
@@ -286,7 +378,7 @@ EM_JS(int, de_ws_recv_js, (void *p, int cap), {
 })
 
 static char net_web_status[80] = "";   // what the pre-init wait screen shows
-static int  net_web_stage = 0;         // 0 untried, 1 connecting/seating, 2 handshaking, 3 done, -1 no ?room=
+static int  net_web_stage = 0;         // 0 untried, 1 connecting/signaling, 2 seed handshake, 3 done, -1 no ?room=
 static int  net_web_ticks = 0;
 
 // Async web handshake, driven once per tick by the pre-init "click to start"
@@ -294,47 +386,59 @@ static int  net_web_ticks = 0;
 // browser can't). Returns 0 = still working (draw net_web_status and keep
 // ticking), 1 = lockstep is ON (*seed holds the shared seed — run init() now),
 // -1 = no ?room= in the URL (a plain solo web cart).
+//
+// The DataChannel opening (de_rtc_state == 1) means BOTH peers are connected —
+// only then do we run the seed handshake (HELLO → WELCOME{seed}) over the
+// channel, reusing the exact DN packets the UDP/WS paths use. The channel is
+// UNRELIABLE (maxRetransmits:0) so those packets can drop; the joiner re-HELLOs
+// and the host re-answers WELCOME (idempotent, also from net_rtc_pump once
+// in-game) until the seed lands.
 static int net_web_poll(unsigned *seed) {
     if (net_web_stage == -1) return -1;
     if (net_web_stage == 3)  return 1;
     if (net_web_stage == 0) {
-        if (!de_ws_begin()) { net_web_stage = -1; return -1; }
-        snprintf(net_web_status, sizeof net_web_status, "connecting to relay...");
+        if (!de_rtc_begin()) { net_web_stage = -1; return -1; }
+        snprintf(net_web_status, sizeof net_web_status, "connecting...");
         net_web_stage = 1;
         return 0;
     }
-    if (de_ws_state() == 2) {   // relay unreachable / room full — hold the message (reload retries)
-        snprintf(net_web_status, sizeof net_web_status, "relay unreachable - reload");   // ≤40 chars: fits a 320px screen at 8px/char
+    if (de_rtc_state() == 2) {   // relay down / P2P failed (needs TURN) — hold the message (reload retries)
+        snprintf(net_web_status, sizeof net_web_status, "connection failed - reload");   // ≤40 chars: fits a 320px screen
         return 0;
     }
+    if (net_web_stage == 1) {
+        if (de_rtc_state() != 1) {                   // DataChannel not open yet (still seating / signaling)
+            int seat = de_rtc_seat();
+            if (seat == 0)      snprintf(net_web_status, sizeof net_web_status, "waiting for player 2...");
+            else if (seat == 1) snprintf(net_web_status, sizeof net_web_status, "connecting to host...");
+            else                snprintf(net_web_status, sizeof net_web_status, "connecting...");
+            return 0;
+        }
+        // channel open → both peers are here. Adopt the relay's seat, start the seed handshake.
+        net_me      = de_rtc_seat() ? 1 : 0;
+        net_is_host = (net_me == 0);
+        snprintf(net_web_status, sizeof net_web_status, "connected - starting...");
+        if (!net_is_host) {
+            uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
+            de_rtc_send_js(hello, sizeof hello);
+        }
+        net_web_stage = 2;
+        return 0;
+    }
+    // stage 2: seed handshake over the DataChannel
     uint8_t buf[64];
     int n;
-    while ((n = de_ws_recv_js(buf, sizeof buf)) > 0) {
+    while ((n = de_rtc_recv_js(buf, sizeof buf)) > 0) {
         if (n < 3 || buf[0] != 'D' || buf[1] != 'N') continue;
         switch (buf[2]) {
-            case NET_PKT_ROLE:                       // the relay seats us; host rolls the seed
-                if (n >= 4) {
-                    net_me      = buf[3] ? 1 : 0;
-                    net_is_host = (net_me == 0);
-                    if (net_is_host) {
-                        net_seed_v = (unsigned)emscripten_get_now() ^ 0x9e3779b9u;
-                        snprintf(net_web_status, sizeof net_web_status, "waiting for player 2...");
-                    } else {
-                        snprintf(net_web_status, sizeof net_web_status, "found a game - joining...");
-                        uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
-                        de_ws_send_js(hello, sizeof hello);
-                    }
-                    net_web_stage = 2;
-                }
-                break;
-            case NET_PKT_HELLO:                      // host: the joiner arrived → hand it the seed
+            case NET_PKT_HELLO:                      // host: the joiner asked → hand it the seed
                 if (net_is_host) {
+                    if (!net_active) net_seed_v = (unsigned)emscripten_get_now() ^ 0x9e3779b9u;
                     uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
                                      (uint8_t)net_seed_v, (uint8_t)(net_seed_v >> 8),
                                      (uint8_t)(net_seed_v >> 16), (uint8_t)(net_seed_v >> 24) };
-                    de_ws_send_js(w, sizeof w);
-                    net_core_reset();
-                    net_active = true;
+                    de_rtc_send_js(w, sizeof w);
+                    if (!net_active) { net_core_reset(); net_active = true; }
                     net_web_stage = 3;
                 }
                 break;
@@ -350,26 +454,34 @@ static int net_web_poll(unsigned *seed) {
         }
         if (net_web_stage == 3) { *seed = net_seed_v; return 1; }
     }
-    // joiner: re-HELLO every ~half second until WELCOME (WS is reliable, but this
-    // covers a host tab that was still seating when our first HELLO went out)
-    if (net_web_stage == 2 && !net_is_host && de_ws_state() == 1 && (++net_web_ticks % 30) == 0) {
+    // joiner: re-HELLO ~4×/s until WELCOME (the unreliable channel can drop either
+    // packet; the host re-answers each HELLO here and, once in-game, in net_rtc_pump)
+    if (net_web_stage == 2 && !net_is_host && (++net_web_ticks % 15) == 0) {
         uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
-        de_ws_send_js(hello, sizeof hello);
+        de_rtc_send_js(hello, sizeof hello);
     }
     return 0;
 }
 
-// mid-game receive: INPUT + BYE, same switch the UDP pump runs. A dead socket
-// counts as the peer leaving (the relay also synthesizes a BYE, whichever lands first).
-static void net_ws_pump(void) {
+// mid-game receive: INPUT + BYE, same switch the UDP pump runs. A HELLO here is
+// a joiner whose WELCOME dropped (the channel is unreliable) — the host, already
+// in-game, re-answers so the joiner can finish its handshake and join. A closed
+// channel counts as the peer leaving.
+static void net_rtc_pump(void) {
     uint8_t buf[64];
     int n;
-    while ((n = de_ws_recv_js(buf, sizeof buf)) > 0) {
+    while ((n = de_rtc_recv_js(buf, sizeof buf)) > 0) {
         if (n < 3 || buf[0] != 'D' || buf[1] != 'N') continue;
         if      (buf[2] == NET_PKT_INPUT && n >= 8) net_input_pkt(buf, n);
         else if (buf[2] == NET_PKT_BYE)             net_peer_bye = true;
+        else if (buf[2] == NET_PKT_HELLO && net_is_host) {   // late joiner re-asking → re-answer WELCOME
+            uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
+                             (uint8_t)net_seed_v, (uint8_t)(net_seed_v >> 8),
+                             (uint8_t)(net_seed_v >> 16), (uint8_t)(net_seed_v >> 24) };
+            de_rtc_send_js(w, sizeof w);
+        }
     }
-    if (net_active && de_ws_state() == 2) net_peer_bye = true;
+    if (net_active && de_rtc_state() == 2) net_peer_bye = true;
 }
 #endif // PLATFORM_WEB
 
@@ -634,7 +746,7 @@ static void net_frame_sync(void) {
 
 // ── the transport dispatchers (the seam itself) ──────────────────────────────
 // Echo short-circuits with no I/O; native falls through to UDP, web to the
-// WebSocket relay. Every transport speaks the same DN packets.
+// WebRTC DataChannel. Every transport speaks the same DN packets.
 static void net_transport_send(const void *buf, int len) {
     if (net_echo) {
         const uint8_t *b = (const uint8_t *)buf;
@@ -645,7 +757,7 @@ static void net_transport_send(const void *buf, int len) {
 #if defined(DE_NET_BUILD)
     net_sendto(buf, len);
 #elif defined(PLATFORM_WEB)
-    de_ws_send_js(buf, len);
+    de_rtc_send_js(buf, len);
 #else
     (void)buf; (void)len;
 #endif
@@ -656,6 +768,6 @@ static void net_transport_pump(void) {
 #if defined(DE_NET_BUILD)
     net_pump();
 #elif defined(PLATFORM_WEB)
-    net_ws_pump();
+    net_rtc_pump();
 #endif
 }

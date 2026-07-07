@@ -72,6 +72,8 @@ static Device DEVS[5] = {
 
 static int tick = 0, locked = -1, machine = 0, curpreset = 0;
 static int scale = 0, octave = 3, editor = 0;   // scale idx (0=chromatic) · base octave · editor(0 auto,1 piano,2 grid)
+static int root = 0, isolayout = 0;             // KEY root (0=C..11=B) · grid layout(0 linear,1 iso-4th,2 iso-oct)
+static const char *const LAYNAME[3] = { "LINEAR", "ISO-4TH", "ISO-OCT" };
 static bool fx_open = false;
 
 // ── a wireframe knob: dial + pointer + label (angle varies by index) ─────────
@@ -179,23 +181,29 @@ static void keybed_grid(Box area, float fu, int *pads_out, float *oct_out, float
     float pw = (area.w - gap * (cols - 1)) / cols, ph = (area.h - gap * (rows - 1)) / rows;
     int total = cols * rows;
     *pads_out = total; *oct_out = (float)total / nsc; *padW_out = pw;
+    // per-cell note: LINEAR wraps by column count; ISO fixes the row offset in
+    // scale DEGREES (right = +1 degree, up = +off degrees) so a chord/scale shape
+    // is the same everywhere AND survives a reflow. Transposed by the KEY root.
     for (int idx = 0; idx < total; idx++) {
-        int col = idx % cols, row = idx / cols;
-        int order = (rows - 1 - row) * cols + col;    // bottom-left = lowest
-        int deg = order % nsc, oc = order / nsc;
-        int pc = SC[scale][deg] % 12;
-        int midi = 12 * octave + 12 * oc + SC[scale][deg];
+        int col = idx % cols, row = idx / cols, rfb = rows - 1 - row;   // rfb: 0 = bottom
+        int degIndex;
+        if (isolayout == 0) degIndex = rfb * cols + col;               // LINEAR (column-wrap)
+        else { int off = (isolayout == 1) ? 3 : nsc;                   // ISO-4TH (+3 deg) / ISO-OCT (+octave)
+               degIndex = col + rfb * off; }
+        int deg = ((degIndex % nsc) + nsc) % nsc, oc = degIndex / nsc;
+        int absSemi = 12 * octave + root + SC[scale][deg] + 12 * oc;    // absolute semitone above C0
+        int pc = ((absSemi % 12) + 12) % 12, dispOct = absSemi / 12;
         Box pad = lay_inset(box(area.x + col * (pw + gap), area.y + row * (ph + gap), pw, ph), 0.5f);
+        int isRoot = (deg == 0);                                       // the KEY root note
         int black = (pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10);
-        int fill = (deg == 0) ? CLR_ORANGE : (black ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE);
-        boxfill(pad, fill); boxrect(pad, (deg == 0) ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
+        int fill = isRoot ? CLR_ORANGE : (black ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE);
+        boxfill(pad, fill); boxrect(pad, isRoot ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
         if (pad.h >= 8 && pad.w >= 10) {
             font(FONT_TINY);
-            print_centered(str("%s%d", NOTE[pc], octave + oc),
+            print_centered(str("%s%d", NOTE[pc], dispOct),
                            (int)(pad.x + pad.w / 2), (int)(pad.y + (pad.h - 5) / 2),
-                           (deg == 0) ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);
+                           isRoot ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);
         }
-        (void)midi;
     }
 }
 
@@ -206,6 +214,8 @@ void update(void) {
     if (keyp('m') || keyp('M')) machine = (machine + 1) % 3;
     if (keyp('f') || keyp('F')) fx_open = !fx_open;
     if (keyp('s') || keyp('S')) scale = (scale + 1) % 5;
+    if (keyp('r') || keyp('R')) root = (root + 1) % 12;
+    if (keyp('i') || keyp('I')) isolayout = (isolayout + 1) % 3;
     if (keyp('g') || keyp('G')) editor = (editor + 1) % 3;
     if (keyp('z') || keyp('Z')) { if (octave > 0) octave--; }
     if (keyp('x') || keyp('X')) { if (octave < 8) octave++; }
@@ -289,11 +299,14 @@ void draw(void) {
     kbody = lay_pad(kbody, 0, 0, 0, 0);
     float octW = lay_clamp(fu * 3.4f, 42, 190);
     Box sclbar; Box octbar = lay_split(kbar, EDGE_RIGHT, octW, &sclbar);
-    // SCALE selector (left)
-    Box rest2; Box sclchip = lay_split(sclbar, EDGE_LEFT, lay_clamp(fu * 4.2f, 46, 220), &rest2);
+    // SCALE + KEY selectors (left) — the two real note controls
+    Box afterScale; Box sclchip = lay_split(sclbar, EDGE_LEFT, lay_clamp(fu * 3.8f, 44, 200), &afterScale);
+    Box afterKey;   Box keychip = lay_split(lay_pad(afterScale, 0, 0, 0, 1), EDGE_LEFT, lay_clamp(fu * 2.6f, 30, 140), &afterKey);
     boxfill(sclchip, CLR_DARKER_BLUE); boxrect(sclchip, CLR_ORANGE);
+    boxfill(keychip, CLR_DARKER_BLUE); boxrect(keychip, CLR_ORANGE);
     font(FONT_TINY);
-    print(str("SCALE \x1a %s", SC_NAME[scale]), (int)sclchip.x + 2, (int)(sclchip.y + (sclchip.h - 5) / 2), CLR_LIGHT_PEACH);
+    print(str("SCALE \x1a%s", SC_NAME[scale]), (int)sclchip.x + 2, (int)(sclchip.y + (sclchip.h - 5) / 2), CLR_LIGHT_PEACH);
+    print(str("KEY \x1a%s", NOTE[root]), (int)keychip.x + 2, (int)(keychip.y + (keychip.h - 5) / 2), CLR_LIGHT_PEACH);
     // prominent OCT- [root] OCT+ (right)
     float og = lay_clamp(fu * 0.08f, 1, 2);
     Box om = lay_cell(octbar, 0, 3, 0, og), ol = lay_cell(octbar, 0, 3, 1, og), op = lay_cell(octbar, 0, 3, 2, og);
@@ -302,7 +315,7 @@ void draw(void) {
     print_centered("OCT-", (int)(om.x + om.w / 2), (int)(om.y + (om.h - 5) / 2), CLR_LIGHT_PEACH);
     print_centered("OCT+", (int)(op.x + op.w / 2), (int)(op.y + (op.h - 5) / 2), CLR_LIGHT_PEACH);
     boxfill(ol, CLR_BROWNISH_BLACK); boxrect(ol, CLR_DARK_GREY);
-    print_centered(str("C%d", octave), (int)(ol.x + ol.w / 2), (int)(ol.y + (ol.h - 5) / 2), CLR_ORANGE);
+    print_centered(str("%s%d", NOTE[root], octave), (int)(ol.x + ol.w / 2), (int)(ol.y + (ol.h - 5) / 2), CLR_ORANGE);
 
     // editor swap: piano where there's width AND chromatic; else the pad grid.
     bool auto_grid = (scale != 0) || (portrait && !tablet);
@@ -314,8 +327,9 @@ void draw(void) {
         int pads; float goct, pw;
         keybed_grid(kbody, fu, &pads, &goct, &pw);
         float f = pw / fu;                                   // pad width in FINGERS
-        snprintf(metric, sizeof metric, "GRID %s: %d pads / %.1f oct @ %.2f finger %s",
-                 SC_NAME[scale], pads, goct, f, f < 0.9f ? "CRAMPED" : "ok");
+        (void)goct;
+        snprintf(metric, sizeof metric, "GRID %s/%s %s: %d pads @ %.2f finger %s",
+                 SC_NAME[scale], NOTE[root], LAYNAME[isolayout], pads, f, f < 0.9f ? "CRAMPED" : "ok");
     } else {
         int nw; float kw;
         keybed_piano(kbody, fu, &nw, &kw);
@@ -344,7 +358,7 @@ void draw(void) {
     print(str("%s  %dx%dpt  %s | %s | panel:%s | %s",
               d.name, (int)d.wpt, (int)d.hpt, tablet ? "TABLET" : "PHONE", metric, mode, MACH[machine]),
           4, SCREEN_H - 6, cramped ? CLR_ORANGE : (use_grid ? CLR_LIME_GREEN : CLR_GREEN));
-    print_right(locked >= 0 ? "[1-5 dev 0 auto  m f  s scale  z/x oct  g editor]" : "[auto 1-5  m f s z x g]",
+    print_right(locked >= 0 ? "[1-5 dev 0auto  m f  s scale r key  z/x oct  i iso  g ed]" : "[auto 1-5 m f s r z x i g]",
                 SCREEN_W - 4, 3, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

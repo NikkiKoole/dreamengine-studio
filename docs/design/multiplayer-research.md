@@ -11,9 +11,11 @@
 > `play.js <cart> netdemo`; see the rung ladder below and the ledger entry in
 > [`STATUS.md`](../STATUS.md). **Rung 5a (WebSocket relay) LIVE-VERIFIED
 > 2026-07-06** (two browsers played on the home wifi); **rung 5b (WebRTC P2P)
-> SPIKED 2026-07-06** — a Mac↔iPhone DataChannel connected directly over wifi at
-> ~12 ms (vs ~330 ms through the remote relay), proving the "github.io + LAN-fast +
-> play-anywhere" path (see §"rung 5b"). Rung 4 remains a proposal. See also
+> BUILT + play-tested 2026-07-07** — the WebRTC DataChannel is now the WEB game
+> transport (the relay reused unchanged as signaling only), play-tested
+> Mac↔iPhone over wifi at LAN speed; steps 1–4 shipped, `NET_DELAY` bumped to a
+> fixed 10-frame cushion for wifi jitter (adaptive sizing = step 5, still open;
+> TURN = step 7). See §"rung 5b". Rung 4 remains a proposal. See also
 > [`cart-as-script.md`](cart-as-script.md) (the `STATE`/`de_state()` block this
 > doc leans on), [`headless-autoplay.md`](headless-autoplay.md), and
 > [`../guides/debug-harness.md`](../guides/debug-harness.md) (the determinism
@@ -662,15 +664,19 @@ fallback already covers it (sound works on the published gallery today).
 
 ## Scoped plan — rung 5b: WebRTC peer-to-peer (play anywhere, LAN-fast)
 
-> **Status: SPIKED — approach proven end-to-end (2026-07-06).** A throwaway
-> browser page (`tools/webrtc-spike/index.html`, committed as a reusable
-> connectivity probe) opened a real `RTCDataChannel` **Mac ↔ iPhone across the
-> home wifi**, signaling through the *existing* `net-relay.js` unchanged. Result:
-> **~12 ms round-trip vs ~330 ms through the Render relay — a ~25× win** — with
-> occasional 70 ms spikes (phone wifi radio power-save, not the netcode). The
-> next step is wiring WebRTC into `net.h` as a third transport arm; the spike
-> settled the unknowns and the two handshake potholes below. Implementation NOT
-> started.
+> **Status: BUILT + play-tested (2026-07-07).** Steps 1–4 shipped
+> (commit `05a5dc76`): the WebRTC DataChannel is the web game transport
+> (`de_rtc_*` EM_JS shim in `runtime/net.h`), the relay reused unchanged as
+> signaling only; play-tested Mac↔iPhone over wifi at LAN speed. The spike's two
+> handshake potholes (below) are baked in. The measured ~70 ms wifi radio-sleep
+> jitter exceeded the old 3-frame/50 ms cushion → visible 1-frame stalls, so
+> `NET_DELAY` is bumped to a **fixed 10-frame (~165 ms)** cushion — playable, but
+> a blunt instrument: **step 5 (adaptive `NET_DELAY`)** is the open refinement
+> that keeps latency low on clean links. **Step 7 (TURN)** for the un-punchable
+> ~10–20% is also still open (today they hit "connection failed - reload").
+> Pairing is a Host/Join split (`build-site.js` gallery + `web_shell.html` bar),
+> Join via native `prompt()` (an inline `<input>` is blocked by the running
+> cart's key handlers on iOS). The `webrtc-spike/` page stays as a probe.
 
 **Why 5b at all.** Rung 5a (WebSocket relay) *structurally cannot* be LAN-fast
 from a **github.io** page: Pages is static (can't host a relay) and https (a
@@ -717,13 +723,13 @@ safer.
 
 | Step | What | Effort | Risk |
 |---|---|---|---|
-| **1. `de_rtc_*` EM_JS shim** | Browser WebRTC as the 3rd transport arm: `RTCPeerConnection` + unreliable DataChannel, `begin/state/send/recv` mirroring the WS shim; dispatch from the `net_transport_*` seam | ~2–3 days | low — spike proved the browser side |
-| **2. Signaling over the existing relay** | joiner-`ready` → host offer → answer → trickle ICE, all as binary through the room; roles from the existing `NET_PKT_ROLE` (seat 0 = host, no offer glare) | ~2 days | medium — trickle-ICE timing is the fiddly bit; spike de-risked it |
-| **3. STUN config** | one free public STUN URL (`stun:stun.l.google.com:19302`) in the peer config → cross-network hole-punch. Same-wifi doesn't need it | ~½ day | low |
-| **4. Connection-state UX** | room bar shows connecting → signaling → **connected (LAN / relay)**; also fixes the 5a "both-clicked / wrong room" confusion (host shares link, joiner clicks it) | ~1–2 days | low |
-| **5. Adaptive `NET_DELAY`** | measure live RTT off the DataChannel, size the input-delay buffer to cover jitter (the spike's 12 ms base + 70 ms spikes exceed the current fixed 3-frame/50 ms cushion → occasional 1-frame hitch without this). This is the "feels laggy" fix for real-network play | ~1 day | low |
+| **1. `de_rtc_*` EM_JS shim** ✅ DONE | Browser WebRTC as the 3rd transport arm: `RTCPeerConnection` + unreliable DataChannel, `begin/state/seat/send/recv` mirroring the WS shim; dispatch from the `net_transport_*` seam | ~2–3 days | low — spike proved the browser side |
+| **2. Signaling over the existing relay** ✅ DONE | joiner-`ready` → host offer → answer → trickle ICE, all as binary through the room; roles from the existing `NET_PKT_ROLE` (seat 0 = host, no offer glare). Seed handshake (HELLO/WELCOME) rides the opened channel; self-heals over the unreliable channel | ~2 days | medium — trickle-ICE timing is the fiddly bit; spike de-risked it |
+| **3. STUN config** ✅ DONE | one free public STUN URL (`stun:stun.l.google.com:19302`) in the peer config → cross-network hole-punch. Same-wifi doesn't need it | ~½ day | low |
+| **4. Connection-state UX** ✅ DONE | wait screen shows connecting → waiting/joining → connected; Host/Join split (gallery + in-cart bar) fixes the 5a "both-clicked / wrong room" confusion (host shares link, joiner uses it) | ~1–2 days | low |
+| **5. Adaptive `NET_DELAY`** ⬅ NEXT | measure live RTT off the DataChannel, size the input-delay buffer to cover jitter. Currently a **fixed 10-frame (~165 ms)** cushion covers the ~70 ms spikes but adds latency on clean links; adaptive claws that back. This is the "feels laggy vs. hitches" dial | ~1 day | low |
 | **6. Desync tripwire** (opt) | per-frame CRC of the `de_state()` block; wasm↔wasm is bit-identical so it's insurance, reused from the netdemo gate | ~1 day | low |
-| **7. TURN fallback** (opt) | free TURN (Cloudflare / Metered Open Relay) for the ~10–20% of pairs STUN can't punch — makes across-town play reliable for *everyone*. Same-wifi never touches it | ~½ day + a free account | low |
+| **7. TURN fallback** (opt) | free TURN (Cloudflare / Metered Open Relay) for the ~10–20% of pairs STUN can't punch — makes across-town play reliable for *everyone*. Same-wifi never touches it. Today those pairs hit "connection failed - reload" | ~½ day + a free account | low |
 
 **Ballpark: ~1.5–2 weeks part-time** for browser↔browser; steps 5–7 are optional
 polish/reach.

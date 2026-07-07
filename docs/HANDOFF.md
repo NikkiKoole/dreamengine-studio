@@ -94,34 +94,26 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > (scale-lock to reuse for grid.h); `tools/carts/epianofit.c` (the earlier silent layout mock, still
 > the epiano-brief reference). Gate: `node tools/spec.js scalegrid` (71/0).
 
-> **▶ ACTIVE THREAD (2026-07-06) — multiplayer: WebRTC P2P (rung 5b).** Kicked off by
-> the maker play-testing rung 5a with his son (Mac ↔ Windows, both browsers): it
-> "worked" but ran ~3 fps with 0.3 fps freezes. **Diagnosis:** the published
-> gallery signals through the **Render relay**, so even on one wifi every input
-> tromboned out to the internet and back (~330 ms RTT) — and fixed-delay lockstep
-> (`NET_DELAY=3`, ~50 ms) collapses to one sim-step per round-trip once the cushion
-> drains; the 0.3 fps freezes were TCP head-of-line blocking through the WS relay.
-> A github.io-hosted gallery **structurally can't** be LAN-fast with a relay (static
-> host + https ⇒ needs a public `wss://` box). **The fix is WebRTC P2P.**
-> **SPIKED + PROVEN tonight:** `tools/webrtc-spike/index.html` (committed, reusable
-> connectivity probe; loopback mode + relay mode) opened a real `RTCDataChannel`
-> **Mac ↔ iPhone/Safari across the home wifi at ~12 ms** (vs ~330 ms via Render — a
-> ~25× win), signaling through the **existing `net-relay.js` unchanged**. Two
-> handshake potholes found + fixed, both carrying into the real design: (1)
-> offer-before-peer race → **joiner announces first** (mirrors the WS `HELLO`); (2)
-> the relay re-frames all forwards as **binary** (`wsEncode` opcode 2) → send
-> signaling as binary, distinguish from `ROLE` by the `DN` magic. Bonus proven:
-> DataChannel `{ordered:false,maxRetransmits:0}` (UDP-like) kills the TCP-freeze
-> mode; Safari-on-iOS connects even over http. **Key insight:** browser↔browser
-> needs **NO `libdatachannel`** (browsers have WebRTC built in) — it's a thin
-> `EM_JS` shim parallel to the shipped `de_ws_*`, plugged into the
-> `net_transport_send`/`pump` seam as the 3rd arm. **Resume-at:**
-> [`design/multiplayer-research.md`](design/multiplayer-research.md) §"Scoped plan —
-> rung 5b" — the 7-step table (start: step 1 `de_rtc_*` shim + step 2 signaling).
-> Implementation NOT started; the spike settled the unknowns. Measured jitter (12 ms
-> base, 70 ms phone-wifi spikes > the 50 ms fixed cushion) is the case for **adaptive
-> `NET_DELAY`** (step 5). Hot file when building: `runtime/net.h` (targeted `Edit`s,
-> shared). Gate: `node tools/net-check.js`.
+> **▶ ACTIVE THREAD (2026-07-07) — multiplayer: WebRTC P2P (rung 5b) — BUILT + play-tested.**
+> Steps 1–4 shipped (commit `05a5dc76`): the WebRTC DataChannel is now the WEB game
+> transport (`de_rtc_*` EM_JS shim in `runtime/net.h`), the relay reused **unchanged**
+> as signaling only. Play-tested Mac↔iPhone over wifi at LAN speed — the rung-5a
+> problem (3 fps + freezes from tromboning through the Render relay at ~330 ms) is
+> gone. Signaling + the seed handshake ride the channel; everything above the
+> `net_transport_*` seam is untouched. The spike's two potholes are baked in
+> (joiner-announces-first; binary signaling told from `ROLE` by the `DN` magic).
+> **Jitter fix so far = a blunt one:** the phone's ~70 ms wifi radio-sleep spikes
+> stalled the old 3-frame/50 ms cushion (a 1-frame hitch every 1–2 s), so `NET_DELAY`
+> is bumped to a **fixed 10 frames (~165 ms)** — feels good, at the cost of input lag
+> on clean links. **Pairing UI:** a Host/Join split (gallery + in-cart bar); Join via
+> native `prompt()` because an inline `<input>` is blocked by the running cart's key
+> handlers on iOS. **Resume-at:** [`design/multiplayer-research.md`](design/multiplayer-research.md)
+> §"rung 5b" step table — **step 5 (adaptive `NET_DELAY`)** is NEXT (claw back the
+> latency the fixed cushion costs), then **step 7 (TURN)** for the un-punchable
+> ~10–20% (today they see "connection failed - reload"). Publishing pong to github.io
+> is the open ship step (the net.h transport + `NET_DELAY` change affects EVERY
+> netplay cart → rebuild on publish). Hot file: `runtime/net.h` (targeted `Edit`s,
+> shared). Gate: `node tools/net-check.js`. Local play-test: `node tools/net-relay.js --serve site`.
 
 > **▶ ACTIVE THREAD (2026-07-06) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND

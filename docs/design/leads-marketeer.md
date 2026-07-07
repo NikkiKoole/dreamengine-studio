@@ -97,9 +97,10 @@ real cart needs one) — no speculative tribes rotting in the ledger.
 
 ## What's done (2026-07-07)
 
-- Tool with all 7 commands; ledger with **27 tribes** (the 2026-07-07 scene/format pass added
+- Tool with all 7 commands; ledger with **30 tribes** (the 2026-07-07 scene/format pass added
   ambient/citypop/afrobeat/frenchhouse/indie-jangle/microtonal + the cross-domain `generative`
-  tribe, then `piano`/`vintage-poly` for the two misfiles) and **9 cross-cutting** (4 music / 5 game).
+  tribe, `piano`/`vintage-poly` for the misfiles, then physical-modeling/guitar/world-folk for the
+  acoustic cluster) and **9 cross-cutting** (4 music / 5 game). Music coverage 62% → 84%.
 - Matching hardened by dry runs (see log below).
 - Discoverable: CLAUDE.md tools list, `demand-generation.md` lever #3, tinyjam §3.9 backlink.
 
@@ -154,11 +155,19 @@ real cart needs one) — no speculative tribes rotting in the ledger.
      the electric-piano `keys` scene. **`juno-6`** → new `vintage-poly` tribe (Juno/Jupiter/Prophet
      analog poly + chorus; Vintage Synth Explorer · r/synthesizers), NOT moog/modular. Tags kept
      identity-specific (`grand piano`, `juno-6`) to avoid the preset-name/incidental-mention noise.
-   - **The other music gaps** (still ~30 un-tribed): **acoustic/world** (guitar/brass/reed/pipe/
-     bowed/hurdy-gurdy/glass-harmonica/monochord → physical-modeling + world-music rooms),
-     **novelty/toy** (otamatone/stylophone/touch-piano/glass-harmonica → YouTube/TikTok novelty
-     channels, no dedicated sub), **vocal-synth** (vox/voxab/voxlab/say → r/Vocaloid + formant/vocoder).
-     Engine tech-demos (`fxmod`/`lfoshapes`/`reverb spaces`/`varispeed`/`ampnoise`) → no tribe.
+   - **Acoustic/world** — ✅ **DONE (2026-07-07).** Not one bucket: split into `physical-modeling`
+     (the waveguide/Karplus-Strong/STK showcases — guitar/bowed/brass/reed/pipe/pluck/monochord +
+     piano; the real synth-nerd/Mutable-Rings scene; r/synthesizers · KVR · Modartt · r/modular),
+     `guitar` (fretboard + pedalboard → r/guitar · r/acousticguitar), and `world-folk` (hurdy-gurdy/
+     mouth-harp/glass-harmonica/dan-bau/handpan → r/WorldMusic · r/folk). Coverage 74% → **84%**.
+     Radio carts (afrobeat/mariachi) bleed lightly into physical-modeling because they *name* their
+     waveguide voices — accepted (correct primary homes elsewhere). `pan` (stereo-panning demo) and
+     `cathedral` (reverb demo) correctly stay tech-demos, no tribe.
+   - **The remaining music gaps** (~21, mostly correct non-tribes): **novelty/toy** (otamatone/
+     stylophone/touch-piano/le petomane/mario-paint composer → YouTube/TikTok novelty channels, no
+     dedicated sub) and **vocal-synth** (vox4/voxab/voxlab/voxpad/say → r/Vocaloid + formant/vocoder)
+     are the next real clusters; `mallet` (modal/percussion) has no home yet. Engine tech-demos
+     (`fxmod`/`lfoshapes`/`reverb spaces`/`varispeed`/`ampnoise`/`enginelab`/`tracker`/`univibe`) → no tribe.
 3. **Games** (coverage 24%, only `arcade` so far) — clusters into board/card/sim/puzzle/
    adventure. **Decision pending:** per the GTM games are web-gallery-only, so game buckets may
    be low value — do we invest? (asked, not yet answered.)

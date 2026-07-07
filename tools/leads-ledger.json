@@ -803,6 +803,108 @@
         }
       ],
       "domain": "music"
+    },
+    {
+      "id": "physical-modeling",
+      "label": "Physical-modeling / waveguide synths (Karplus-Strong - STK - Rings)",
+      "tags": [
+        "physical modeling",
+        "physical model",
+        "waveguide",
+        "karplus-strong",
+        "karplus strong",
+        "stk physical",
+        "mutable rings",
+        "modal synthesis"
+      ],
+      "hook": "An acoustic instrument built from physics, not samples — bow it, overblow it, pluck it, and hear the model respond.",
+      "venues": [
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "physical-modeling threads love a browser waveguide toy; gift-first"
+        },
+        {
+          "name": "KVR Audio forum",
+          "url": "https://www.kvraudio.com/forum/",
+          "kind": "forum",
+          "etiquette": "deep synthesis nerds; show the model, not a pitch"
+        },
+        {
+          "name": "Modartt / Pianoteq forum",
+          "url": "https://forum.modartt.com/",
+          "kind": "forum",
+          "etiquette": "physical-modelled-instrument makers; gift-first"
+        },
+        {
+          "name": "r/modular",
+          "url": "https://www.reddit.com/r/modular/",
+          "kind": "reddit",
+          "etiquette": "the Mutable Rings/Elements crowd; gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "guitar",
+      "label": "Guitarists (acoustic - fretboard)",
+      "tags": [
+        "fretboard",
+        "six-string",
+        "six string",
+        "fingerpicking",
+        "strum guitar",
+        "acoustic guitar"
+      ],
+      "hook": "A playable fretboard in the browser — finger geometry and all, no guitar required.",
+      "venues": [
+        {
+          "name": "r/guitar",
+          "url": "https://www.reddit.com/r/guitar/",
+          "kind": "reddit",
+          "etiquette": "huge; a genuinely fun playable toy, not a pitch"
+        },
+        {
+          "name": "r/acousticguitar",
+          "url": "https://www.reddit.com/r/acousticguitar/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "world-folk",
+      "label": "World / folk / traditional instruments",
+      "tags": [
+        "hurdy-gurdy",
+        "hurdygurdy",
+        "jaw harp",
+        "jew s harp",
+        "mouth harp",
+        "glass harmonica",
+        "dan bau",
+        "pan flute",
+        "panflute",
+        "hang drum"
+      ],
+      "hook": "An unusual traditional instrument you can actually play — the hurdy-gurdy crank, the jaw-harp twang, the glass-rim shimmer.",
+      "venues": [
+        {
+          "name": "r/WorldMusic",
+          "url": "https://www.reddit.com/r/WorldMusic/",
+          "kind": "reddit",
+          "etiquette": "world+traditional instrument enthusiasts; gift-first"
+        },
+        {
+          "name": "r/folk",
+          "url": "https://www.reddit.com/r/folk/",
+          "kind": "reddit",
+          "etiquette": "folk + traditional players; show, do not sell"
+        }
+      ],
+      "domain": "music"
     }
   ],
   "crosscutting": [

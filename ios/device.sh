@@ -61,6 +61,9 @@ stage_cart "$AU_CART" au
 SW="${DE_SCREEN_W:-320}"; SH="${DE_SCREEN_H:-200}"
 MW="${DE_MAP_W:-128}"; MH="${DE_MAP_H:-64}"; CWv="${DE_CELL_W:-16}"; CHv="${DE_CELL_H:-16}"
 DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=$SW SCREEN_H=$SH SCALE=1 MAP_W=$MW MAP_H=$MH CELL_W=$CWv CELL_H=$CHv"
+# RESIZABLE=1: build with -DDE_RESIZABLE so a resizable cart reflows to fill the device viewport
+# (CanvasView calls de_resize) — same flag build.sh uses. e.g. RESIZABLE=1 CART=acidwire ./device.sh
+[ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
 
 CONFIG="${CONFIG:-Debug}"   # CONFIG=Release for the optimized engine (real perf; no #if DEBUG perf overlay)
 echo "▸ generating + building (signed for device, $CONFIG, ${SW}x${SH})…"

@@ -1,9 +1,11 @@
 # Editor scopes & facets — where media lands
 
-> **STATUS: exploring** (2026-07-05) — an observation captured so it isn't lost, NOT a plan.
-> No decision here. Origin: adding a "drop a `.rec` and replay it" affordance in the editor
-> surfaced that there's **no logical home** for per-cart media yet — and pulling that thread
-> showed a seam in the editor's whole information architecture.
+> **STATUS: exploring** (2026-07-05; updated 2026-07-07 — third data point: reach/leads) — an
+> observation captured so it isn't lost, NOT a plan. No decision here. Origin: adding a "drop a
+> `.rec` and replay it" affordance in the editor surfaced that there's **no logical home** for
+> per-cart media yet — and pulling that thread showed a seam in the editor's whole information
+> architecture. The leads **📣 find tribes** glance (2026-07-07) hit the exact same wall (app-scoped
+> only, cart-scoped home missing), confirming the pattern — see "Crack #3" below.
 >
 > - "What's shipped / open / cut?" → [`../STATUS.md`](../STATUS.md).
 > - Where clip/reel FILES live on disk (the storage layout) → [`cart-clips.md`](cart-clips.md).
@@ -38,6 +40,7 @@ that simply **exists at both scopes** the editor already has:
 |---|---|---|
 | **code** | code · sprites · map | (the manifest — apps view) |
 | **media** | takes (`.rec`) · clips · shots | reels/trailers · store screenshots · press kit |
+| **reach** | tribes + venues + gift-post scaffold (`leads.js`) | + ASO keywords/listing/score · press kit |
 
 The cart-media panel (takes → replay / bake) and the app-media view (clips → reel → trailer)
 would **share components** — a clip tile, a "bake" action, a drop target — but each appears
@@ -48,8 +51,26 @@ right *and* incomplete: there's a per-**app** twin, and it already exists as the
 
 The editor's mental model is quietly shifting from *"an editor for the open cart"* to *"an editor
 with a **scope** (cart | app) and **facets** within each scope."* **Apps was crack #1; media is
-crack #2.** Two data points is enough to see the pattern — and enough to want to *not* solve it
-ad-hoc a second time.
+crack #2; reach (leads/ASO) is crack #3.** Three data points is more than enough to see the pattern
+— and enough to want to *not* solve it ad-hoc a third time.
+
+### Crack #3: reach (leads / ASO) — added 2026-07-07
+
+The `leads.js` **📣 find tribes** glance shipped app-scoped only (it lives on the Apps card,
+mirroring the ASO 📊 score glance). But the maker immediately felt the gap: *"we can only find
+tribes for an app — this ends up being about **where in the editor** we get to these panels."* Same
+tell as media — the panel exists, but its **cart-scoped home is missing**. And the reach facet is
+**scope-asymmetric**, which sharpens the seam:
+
+- **ASO** (keywords / listing / score) is **genuinely app-only** — only an app has an App Store
+  listing to research and grade.
+- **leads** (which tribe, which venue, a gift-post scaffold) is **genuinely both** — *every* gallery
+  cart, app-bundled or standalone, has a tribe to post to. `leads.js match <cart>` is already
+  per-cart on the CLI; only the editor surface is app-bound.
+
+So the honest fix isn't "add a cart 📣 button" in isolation — it's the same scope×facet decision
+below. A cart-scoped leads entry (on the open cart, or in the tutorials list) is the concrete v2,
+but it should fall out of answering Q3, not precede it.
 
 ## What exists today (so a plan starts rooted)
 

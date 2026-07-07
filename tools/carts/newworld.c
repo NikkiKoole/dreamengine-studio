@@ -15,7 +15,7 @@
   "description": {
     "summary": "A Joe Meek 'Outer Space Music Fantasy' box: slide a swooping lead across the night sky, loop it, and drown it in tape echo, spring reverb and wobble.",
     "detail": "One expressive gesture + one method. DRAG the big ribbon (the night sky) — x = pitch (snaps toward the scale so tunes stay in tune, glides between for the steel-guitar swoop), up/down = swell. Five held voices (a reedy LEAD saw, a Casio-CZ SWEEP, an FM GLASS bell, and TWO pure SINE theremins). Each voice loops on its OWN lane — the two sines let you loop a bed AND a lead both on sine: arm REC, play a bed on SINE, switch to SINE2 or LEAD and solo over it — every voice loops independently, clear any lane on its own (the Meek tape-layering, playable). The found-sound pads (bubble/bottle/zap/drain) and the fx rack (tape ECHO, spring reverb, tape WOBBLE, granular FREEZE + REVERSE, lo-fi GRIME) ARE the instrument. Live self-resampling — no sampler. Cold-opens playing itself; first touch hands over.",
-    "controls": "Drag the ribbon = play (x pitch / y swell). 1-5 = voice (SINE + SINE2). G = scale (which notes the ribbon snaps to), snap chip = glide amount. Z X C V = found-sound pads (top zone = normal), A S D F = the same pads a fourth lower (bottom zone). Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
+    "controls": "Drag the ribbon = play (x pitch / y swell). 1-5 = voice (SINE + SINE2). G = scale (which notes the ribbon snaps to), snap chip = glide amount. Z X C V = found-sound pads (top zone = normal), A S D F = the same pads lower in the same scale (bottom zone). Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
   }
 }
 de:meta */
@@ -55,13 +55,14 @@ static const char *V_NAME[NVOICE] = { "LEAD", "SWEEP", "GLASS", "SINE", "SINE2" 
 static const int V_COL[NVOICE]    = { CLR_ORANGE, CLR_YELLOW, CLR_MAUVE, CLR_BLUE, CLR_GREEN };
 
 static const int  P_SLOT[NPAD] = { SL_BUBBLE, SL_BOTTLE, SL_ZAP, SL_DRAIN };
-static const int  P_MIDI[NPAD] = { 84, 67, 72, 50 };
+static const int  P_OCT[NPAD]  = { 5, 4, 4, 3 };   // register per sound (degree octave)
+static const int  P_N[NPAD]    = { 2, 3, 2, 2 };   // scale degree within that octave (top zone)
 static const int  P_VOL[NPAD]  = { 5, 6, 6, 5 };
 static const int  P_DUR[NPAD]  = { 60, 260, 90, 320 };
 static const char *P_NAME[NPAD]  = { "BUBBLE", "BOTTLE", "ZAP", "DRAIN" };
-static const char  P_KEY_HI[NPAD] = { 'Z', 'X', 'C', 'V' };   // top zone — normal pitch
-static const char  P_KEY_LO[NPAD] = { 'A', 'S', 'D', 'F' };   // bottom zone — a fourth lower
-#define PAD_LO 5                                               // the "lo" version drops a perfect fourth
+static const char  P_KEY_HI[NPAD] = { 'Z', 'X', 'C', 'V' };   // top zone — the scale degree
+static const char  P_KEY_LO[NPAD] = { 'A', 'S', 'D', 'F' };   // bottom zone — lower in the SAME scale
+#define LO_STEPS 2                                             // the "lo" version drops 2 scale degrees
 
 // the ribbon (the night sky) -------------------------------------------------
 #define RX 6
@@ -125,6 +126,9 @@ static float ribbon_midi(int x) {
 static float ribbon_vol(int y) {
     return clamp(remap((float)y, RY + 4, RY + RH - 4, 7.0f, 1.6f), 0.6f, 7.0f); // top = loud
 }
+static int pad_midi(int p, int lo) {            // a found-sound's pitch, snapped to the CURRENT scale
+    return degree(SCALES[scale_i], P_OCT[p], P_N[p] - (lo ? LO_STEPS : 0));
+}
 static int midi_to_x(float m) {                     // inverse-ish, for drawing ghosts
     float a = (float)degree(SCALES[scale_i], BASEOCT, 0);
     float b = (float)degree(SCALES[scale_i], BASEOCT, NDEG);
@@ -141,7 +145,7 @@ static void fire_ev(Ev *e) {
     if (e->kind == EV_NOTE) {
         hit((int)e->pitch, e->slot, e->vol, e->dur);
         for (int p = 0; p < NPAD; p++) if (P_SLOT[p] == e->slot)
-            { if ((int)e->pitch < P_MIDI[p]) pf_lo[p] = 5; else pf_hi[p] = 5; }
+            { if ((int)e->pitch < pad_midi(p, 0)) pf_lo[p] = 5; else pf_hi[p] = 5; }
     } else if (e->kind == EV_CC) {
         note_pitch(vrep[e->aux], e->pitch); note_vol(vrep[e->aux], (float)e->vol);
         gho_p = e->pitch; gho_v = e->vol; gho_on = 1; gho_voice = e->aux;
@@ -297,7 +301,7 @@ void update(void) {
         int lo = keyp(P_KEY_LO[p]) || tapp(x, 136, 73, 10);       // bottom zone = a fourth lower
         if (hi || lo) {
             if (playing_self) handover();
-            int midi = P_MIDI[p] - (lo ? PAD_LO : 0);
+            int midi = pad_midi(p, lo);
             hit(midi, P_SLOT[p], P_VOL[p], P_DUR[p]);
             rec_ev(EV_NOTE, P_SLOT[p], midi, P_VOL[p], P_DUR[p], p, LANE_PERC, 0, 0);
             if (lo) pf_lo[p] = 6; else pf_hi[p] = 6;
@@ -392,10 +396,13 @@ void draw(void) {
         int tw = (i * 7 + (int)(now() * 2)) % 5;
         pset(sx, sy, tw < 2 ? CLR_DARK_GREY : (tw == 4 ? CLR_WHITE : CLR_LIGHT_GREY));
     }
-    // scale-degree tick marks along the foot of the sky
+    // scale "frets": a faint dotted guide at each in-scale note, roots (C) brighter — the ribbon
+    // is fretless (slide anywhere), but this SHOWS the scale you're sliding across so you can aim
     for (int d = 0; d <= NDEG; d++) {
         int tx = RX + (int)((float)d / NDEG * RW);
-        line(tx, RY + RH - 5, tx, RY + RH - 2, CLR_DARKER_GREY);
+        int root = (degree(SCALES[scale_i], BASEOCT, d) % 12) == 0;
+        for (int yy = RY + 5; yy < RY + RH - 6; yy += (root ? 2 : 4))
+            pset(tx, yy, root ? CLR_DARK_BLUE : CLR_DARKER_GREY);
     }
     // low lunar horizon
     int hy = RY + RH - 6;
@@ -481,6 +488,6 @@ void draw(void) {
 
     // ---- HUD ----
     font(FONT_SMALL);
-    print("drag sky: x=pitch y=swell   1-5 voice   ZXCV sounds / ASDF a 4th lower   REC loops each lane", RX, 186, CLR_INDIGO);
+    print("drag sky: x=pitch y=swell   1-5 voice   ZXCV/ASDF sounds (in scale)   G scale   REC loops", RX, 186, CLR_INDIGO);
     font(FONT_NORMAL);
 }

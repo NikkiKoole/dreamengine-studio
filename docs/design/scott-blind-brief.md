@@ -1,10 +1,29 @@
 # Raymond Scott's Circle Machine — the blind band brief
 
-STATUS: READY TO BUILD 2026-07-07 — intent-first design of record; not yet built. The archetype is
-chosen (the **Circle Machine** generative step sequencer, STATUS #21's ranked top pick of the
-pre-Roland wing), the palette below is mapped to `runtime/studio.h` but **not yet confirmed against a
-build** (Phase 2 owns that). Resume-at = shop the chassis (see the firewall note) and build the
-rotating-scanner surface.
+STATUS: BUILT 2026-07-07 — shipped as `tools/carts/circlemachine.c` / `circlemachine.cart.png`. The
+rotating-photocell ring, bulb-brightness-as-note, the three voices (RING/GLIDE/BONGO), NUDGE, and the
+ringmod/reverb/echo processing all landed. **Two departures from the brief below, both to serve the
+record over the guardrail** — see "shipped as" note. This brief remains the design of record; the
+cart is the source of truth for what shipped.
+
+> **Shipped as — two changes from the intent-first brief (2026-07-07):**
+> 1. **TWO concentric rings, not one.** The focus guardrail below argued for a single ring. Listening
+>    back, the records aren't one clean voice — the hypnotic, never-repeating density comes from
+>    Scott's *multi-voice* machines (the Electronium's 12 channels, the room-sized Wall of Sound). So
+>    the cart runs two rings with **different step counts under one arm** — they drift against each
+>    other (polymeter, the `euclid.c` trick), which *is* that texture. This deepens the one idea (a
+>    ring you configure and let cycle) rather than bolting on a panel, so it keeps faith with the
+>    discipline while being far more Scott.
+> 2. **A DIRT layer.** The first pass was too clean (ringmod/reverb/echo only). The records *swim* in
+>    tape — so DIRT drives `tape` (wow/flutter/saturation) + `chorus` (wobble) + `amp_noise` (valve
+>    grime) + `crush` (cranked), defaulted high. The brief's optional "chorus/tape wobble + amp_noise
+>    grime" (§effects) became a first-class control.
+>
+> **Build gotcha for the next music cart:** `reverb()`/`echo()` are **SENDS**, not inserts — every
+> instrument slot defaults to send = 0 (dry), so configuring the tank does nothing audible on its own.
+> Route each voice with `instrument_reverb(slot, send)` / `instrument_echo(slot, send)` (the knobs
+> drive the *sends*; `reverb()`/`echo()` just set the space once). This bit the first build ("reverb
+> and echo aren't doing much"). (`ringmod`/`tape`/`chorus`/`crush` are master-wide and need no send.)
 
 > Intent-first brief written from Scott's machines and his documented technique **before** reading
 > any cousin cart (the firewall — [`../guides/cart-authoring-prompt.md`](../guides/cart-authoring-prompt.md)).

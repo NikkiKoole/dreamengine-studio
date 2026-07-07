@@ -14,8 +14,8 @@
   "homage": "Joe Meek & the Blue Men — I Hear a New World (1959-60)",
   "description": {
     "summary": "A Joe Meek 'Outer Space Music Fantasy' box: slide a swooping lead across the night sky, loop it, and drown it in tape echo, spring reverb and wobble.",
-    "detail": "One expressive gesture + one method. DRAG the big ribbon (the night sky) — x = pitch (snaps toward the scale so tunes stay in tune, glides between for the steel-guitar swoop), up/down = swell. Three held voices (a reedy LEAD, an alien VOX, a pure SINE theremin). Arm REC and everything you play loops so you can layer a bed then solo over it — the Meek tape-layering, playable. The found-sound pads (bubble/bottle/zap/drain) and the fx rack (tape ECHO, spring reverb, tape WOBBLE, granular FREEZE + REVERSE, lo-fi GRIME) ARE the instrument. Live self-resampling — no sampler. Cold-opens playing itself; first touch hands over.",
-    "controls": "Drag the ribbon = play (x pitch / y swell). 1/2/3 = voice. S = scale, snap chip = glide amount. Z X C V = found-sound pads. Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear."
+    "detail": "One expressive gesture + one method. DRAG the big ribbon (the night sky) — x = pitch (snaps toward the scale so tunes stay in tune, glides between for the steel-guitar swoop), up/down = swell. Four held voices (a reedy LEAD saw, a Casio-CZ SWEEP, an FM GLASS bell, a pure SINE theremin). Each voice loops on its OWN lane: arm REC, play a bed on SINE, switch to LEAD and solo over it — every voice loops independently, clear any lane on its own (the Meek tape-layering, playable). The found-sound pads (bubble/bottle/zap/drain) and the fx rack (tape ECHO, spring reverb, tape WOBBLE, granular FREEZE + REVERSE, lo-fi GRIME) ARE the instrument. Live self-resampling — no sampler. Cold-opens playing itself; first touch hands over.",
+    "controls": "Drag the ribbon = play (x pitch / y swell). 1-4 = voice. S = scale, snap chip = glide amount. Z X C V = found-sound pads. Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
   }
 }
 de:meta */
@@ -38,18 +38,20 @@ de:meta */
 
 // instrument slots -----------------------------------------------------------
 #define SL_LEAD   5              // ribbon voice 0 — reedy saw lead (clavioline-ish)
-#define SL_VOX    6              // ribbon voice 1 — formant "creature" voice
-#define SL_SINE   7              // ribbon voice 2 — pure sine theremin
-#define SL_BUBBLE 8              // pad 0 — straw-in-water bloop
-#define SL_BOTTLE 9              // pad 1 — struck milk bottle
-#define SL_ZAP    10             // pad 2 — shorted circuit
-#define SL_DRAIN  11             // pad 3 — draining sink whoosh
-#define NVOICE 3
+#define SL_SWEEP  6              // ribbon voice 1 — Casio-CZ / PD resonant "wowww" sweep
+#define SL_GLASS  7              // ribbon voice 2 — FM bell / celeste glass
+#define SL_SINE   8              // ribbon voice 3 — pure sine theremin
+#define SL_BUBBLE 9              // pad 0 — straw-in-water bloop
+#define SL_BOTTLE 10             // pad 1 — struck milk bottle
+#define SL_ZAP    11             // pad 2 — shorted circuit
+#define SL_DRAIN  12             // pad 3 — draining sink whoosh
+#define NVOICE 4
 #define NPAD   4
+#define LANE_PERC NVOICE         // found-sound one-shots share one loop lane
 
-static const int V_SLOT[NVOICE]  = { SL_LEAD, SL_VOX, SL_SINE };
-static const char *V_NAME[NVOICE] = { "LEAD", "VOX", "SINE" };
-static const int V_COL[NVOICE]   = { CLR_ORANGE, CLR_PINK, CLR_BLUE };
+static const int V_SLOT[NVOICE]   = { SL_LEAD, SL_SWEEP, SL_GLASS, SL_SINE };
+static const char *V_NAME[NVOICE] = { "LEAD", "SWEEP", "GLASS", "SINE" };
+static const int V_COL[NVOICE]    = { CLR_ORANGE, CLR_YELLOW, CLR_MAUVE, CLR_BLUE };
 
 static const int  P_SLOT[NPAD] = { SL_BUBBLE, SL_BOTTLE, SL_ZAP, SL_DRAIN };
 static const int  P_MIDI[NPAD] = { 84, 67, 72, 50 };
@@ -76,7 +78,7 @@ static int   snap_i = 0;
 
 // events + transport ---------------------------------------------------------
 enum { EV_NOTE, EV_CC, EV_OFF };
-typedef struct { float pos, pitch; int kind, slot, vol, dur, aux, gx, gy; } Ev;
+typedef struct { float pos, pitch; int kind, slot, vol, dur, aux, lane, gx, gy; } Ev;
 static Ev  ev[MAXEV];
 static int nev;
 static int armed;                       // loop record on
@@ -127,9 +129,9 @@ static int midi_to_x(float m) {                     // inverse-ish, for drawing 
 }
 
 // ---------------------------------------------------------------------------
-static void rec_ev(int kind, int slot, float pitch, int vol, int dur, int aux, int gx, int gy) {
+static void rec_ev(int kind, int slot, float pitch, int vol, int dur, int aux, int lane, int gx, int gy) {
     if (!armed || nev >= MAXEV) return;
-    ev[nev++] = (Ev){ lp, pitch, kind, slot, vol, dur, aux, gx, gy };
+    ev[nev++] = (Ev){ lp, pitch, kind, slot, vol, dur, aux, lane, gx, gy };
 }
 
 static void fire_ev(Ev *e) {
@@ -154,10 +156,21 @@ static void fire_replay(void) {
     }
 }
 
-static void clear_loop(void) {
+static void clear_all(void) {
     nev = 0;
     for (int v = 0; v < NVOICE; v++) note_vol(vrep[v], 0);
     gho_on = 0;
+}
+static void clear_lane(int L) {                 // clear one voice's loop lane
+    int w = 0;
+    for (int i = 0; i < nev; i++) if (ev[i].lane != L) ev[w++] = ev[i];
+    nev = w;
+    if (L < NVOICE) note_vol(vrep[L], 0);
+    gho_on = 0;
+}
+static int has_lane(int L) {
+    for (int i = 0; i < nev; i++) if (ev[i].lane == L) return 1;
+    return 0;
 }
 
 // reconfigure the master fx section — only when a chip changed (set-and-hold).
@@ -195,10 +208,18 @@ void init(void) {
     instrument(SL_LEAD, INSTR_SAW, 22, 220, 6, 320);
     instrument_filter(SL_LEAD, FILTER_LOW, 1500, 5);
     instrument_lfo(SL_LEAD, 0, LFO_PITCH, 5.0f, 0.16f);
-    // ribbon voice 1 — formant "creature" voice
-    instrument(SL_VOX, INSTR_VOICE, 30, 220, 6, 300);
-    instrument_lfo(SL_VOX, 0, LFO_PITCH, 5.5f, 0.22f);
-    // ribbon voice 2 — pure sine theremin, wide vibrato
+    // ribbon voice 1 — Casio-CZ phase-distortion resonant "wowww" sweep (holds)
+    instrument(SL_SWEEP, INSTR_PD, 26, 240, 6, 340);
+    instrument_harmonics(SL_SWEEP, 0.82f);      // a resonant wavetype detent
+    instrument_timbre(SL_SWEEP, 0.55f);         // resonant-peak brightness
+    instrument_morph(SL_SWEEP, 0.6f);           // the CZ DCW sweep
+    instrument_lfo(SL_SWEEP, 0, LFO_PITCH, 5.2f, 0.14f);
+    // ribbon voice 2 — FM bell / celeste glass (bright ping, then holds glassy)
+    instrument(SL_GLASS, INSTR_FM, 4, 260, 5, 360);
+    instrument_harmonics(SL_GLASS, 0.42f);      // off-integer ratio = inharmonic bell
+    instrument_timbre(SL_GLASS, 0.5f);          // brightness
+    instrument_morph(SL_GLASS, 0.15f);          // mostly clean
+    // ribbon voice 3 — pure sine theremin, wide vibrato
     instrument(SL_SINE, INSTR_SINE, 40, 180, 7, 320);
     instrument_lfo(SL_SINE, 0, LFO_PITCH, 5.6f, 0.30f);
     for (int v = 0; v < NVOICE; v++) {
@@ -223,7 +244,7 @@ static const int SELF_MOTIF[8] = { 0, 2, 3, 2, 5, 3, 1, -1 };
 static int self_step = -1;
 
 static void self_play(void) {
-    cur = 2;                                    // the sine theremin drifts
+    cur = 3;                                    // the sine theremin drifts
     if ((int)songb != self_step) {              // advance once per beat
         self_step = (int)songb;
     }
@@ -231,9 +252,9 @@ static void self_play(void) {
     int idx = ((int)(ph)) % 8;
     float base = (float)degree(SCALES[scale_i], BASEOCT + 1, SELF_MOTIF[idx < 0 ? 0 : idx] + 4);
     float wobble = sinf(songb * 1.3f) * 1.4f;   // a swooping bend between steps
-    note_pitch(vlive[2], base + wobble);
+    note_pitch(vlive[3], base + wobble);
     float sw = 2.6f + 2.0f * (0.5f + 0.5f * sinf(songb * 0.8f));
-    note_vol(vlive[2], sw);
+    note_vol(vlive[3], sw);
     energy = energy * 0.9f + sw * 0.1f;
 }
 
@@ -258,16 +279,16 @@ void update(void) {
 
     // ---- voice / scale / snap chips ----
     for (int v = 0; v < NVOICE; v++)
-        if (keyp('1' + v) || tapp(6 + v * 40, 108, 38, 14)) { cur = v; if (playing_self) handover(); }
-    if (keyp('S') || tapp(126, 108, 90, 14)) scale_i = (scale_i + 1) % 4;
-    if (tapp(218, 108, 96, 14)) snap_i = (snap_i + 1) % 4;
+        if (keyp('1' + v) || tapp(6 + v * 36, 108, 34, 14)) { cur = v; if (playing_self) handover(); }
+    if (keyp('S') || tapp(152, 108, 76, 14)) scale_i = (scale_i + 1) % 4;
+    if (tapp(232, 108, 82, 14)) snap_i = (snap_i + 1) % 4;
 
     // ---- found-sound pads ----
     for (int p = 0; p < NPAD; p++) {
         if (keyp(P_KEY[p]) || tapp(6 + p * 77, 126, 73, 20)) {
             if (playing_self) handover();
             hit(P_MIDI[p], P_SLOT[p], P_VOL[p], P_DUR[p]);
-            rec_ev(EV_NOTE, P_SLOT[p], P_MIDI[p], P_VOL[p], P_DUR[p], p, 0, 0);
+            rec_ev(EV_NOTE, P_SLOT[p], P_MIDI[p], P_VOL[p], P_DUR[p], p, LANE_PERC, 0, 0);
             pad_flash[p] = 6;
         }
     }
@@ -286,8 +307,9 @@ void update(void) {
     varispeed(vspeed);
 
     // ---- looper transport chips ----
-    if (keyp(KEY_SPACE) || tapp(6, 168, 60, 14)) armed ^= 1;
-    if (keyp(KEY_BACKSPACE) || tapp(70, 168, 44, 14)) clear_loop();
+    if (keyp(KEY_SPACE) || tapp(6, 168, 56, 14)) armed ^= 1;
+    if (keyp(KEY_BACKSPACE) || tapp(66, 168, 52, 14)) clear_lane(cur);   // clear THIS voice's lane
+    if (tapp(122, 168, 44, 14)) clear_all();
 
     // ---- the ribbon: claim a finger, drag it. x = pitch, y = swell ----
     int found = 0;
@@ -307,13 +329,13 @@ void update(void) {
         note_pitch(vlive[cur], p); note_vol(vlive[cur], v);
         energy = energy * 0.85f + v * 0.15f;
         if (!rib_on || fabsf(p - rec_p) > 0.1f || (int)v != rec_v) {
-            rec_ev(EV_CC, V_SLOT[cur], p, (int)v, 0, cur, rib_px, rib_py);
+            rec_ev(EV_CC, V_SLOT[cur], p, (int)v, 0, cur, cur, rib_px, rib_py);
             rec_p = p; rec_v = (int)v;
         }
         rib_on = 1;
     } else if (rib_on) {
         note_vol(vlive[cur], 0);
-        rec_ev(EV_OFF, V_SLOT[cur], 0, 0, 0, cur, 0, 0);
+        rec_ev(EV_OFF, V_SLOT[cur], 0, 0, 0, cur, cur, 0, 0);
         rib_on = 0;
     }
 
@@ -400,10 +422,13 @@ void draw(void) {
     }
 
     // ---- voice / scale / snap row ----
-    for (int v = 0; v < NVOICE; v++)
-        chip(6 + v * 40, 108, 38, V_NAME[v], cur == v && !playing_self, V_COL[v]);
-    chip(126, 108, 90, str("S:%s", SCALE_NAME[scale_i]), 1, CLR_DARK_GREEN);
-    chip(218, 108, 96, str("GLIDE:%s", SNAP_NAME[snap_i]), 1, CLR_DARK_GREEN);
+    for (int v = 0; v < NVOICE; v++) {
+        int x = 6 + v * 36;
+        chip(x, 108, 34, V_NAME[v], cur == v && !playing_self, V_COL[v]);
+        if (has_lane(v)) circfill(x + 30, 111, 2, blink(20) ? CLR_RED : CLR_DARK_PURPLE); // looped
+    }
+    chip(152, 108, 76, str("S:%s", SCALE_NAME[scale_i]), 1, CLR_DARK_GREEN);
+    chip(232, 108, 82, str("GLIDE:%s", SNAP_NAME[snap_i]), 1, CLR_DARK_GREEN);
 
     // ---- found-sound pads ----
     for (int p = 0; p < NPAD; p++) {
@@ -427,11 +452,12 @@ void draw(void) {
     chip(256, 150, 48, "GRIME t",         fx_grime,  CLR_BROWN);
 
     // ---- looper transport ----
-    chip(6,  168, 60, armed ? "REC \x95" : "REC spc", armed, CLR_RED);
-    if (armed && blink(16)) circfill(60, 175, 2, CLR_WHITE);
-    chip(70, 168, 44, "CLR bk", 0, CLR_DARKER_BLUE);
+    chip(6,  168, 56, armed ? "REC on" : "REC spc", armed, CLR_RED);
+    if (armed && blink(16)) circfill(54, 175, 2, CLR_WHITE);
+    chip(66, 168, 52, str("CLR %s", V_NAME[cur]), 0, CLR_DARKER_BLUE);
+    chip(122, 168, 40, "ALL", 0, CLR_DARKER_BLUE);
     // loop progress bar
-    int bx = 122, bw = 192;
+    int bx = 168, bw = 146;
     rect(bx, 170, bw, 10, CLR_DARK_BLUE);
     int ph = (int)(lp / LOOP_BEATS * (bw - 2));
     rectfill(bx + 1, 171, ph, 8, nev ? CLR_DARK_GREEN : CLR_DARKER_BLUE);
@@ -442,6 +468,6 @@ void draw(void) {
 
     // ---- HUD ----
     font(FONT_SMALL);
-    print("drag sky: x=pitch y=swell   1/2/3 voice   Z-V found-sounds   REC layers a loop", RX, 186, CLR_INDIGO);
+    print("drag sky: x=pitch y=swell   1-4 pick voice   Z-V sounds   REC loops each voice on its lane", RX, 186, CLR_INDIGO);
     font(FONT_NORMAL);
 }

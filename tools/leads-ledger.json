@@ -556,6 +556,195 @@
           "domain": "game"
         }
       ]
+    },
+    {
+      "id": "ambient",
+      "label": "Ambient / drone heads (Brian Eno)",
+      "tags": [
+        "ambient",
+        "brian eno",
+        "music for airports",
+        "tape loops"
+      ],
+      "hook": "Slow, held, evolving drones — a Music for Airports in your pocket.",
+      "venues": [
+        {
+          "name": "r/ambientmusic",
+          "url": "https://www.reddit.com/r/ambientmusic/",
+          "kind": "reddit",
+          "etiquette": "VERIFY the exact sub (r/ambientmusic vs r/ambient); gift-first, listeners+makers"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "citypop",
+      "label": "City pop / vaporwave revival",
+      "tags": [
+        "city pop",
+        "vaporwave",
+        "tatsuro yamashita",
+        "mariya takeuchi",
+        "future funk"
+      ],
+      "hook": "An endless city-pop station — Tatsuro-warm chords and a neon skyline, right in the browser.",
+      "venues": [
+        {
+          "name": "r/CityPop",
+          "url": "https://www.reddit.com/r/CityPop/",
+          "kind": "reddit",
+          "etiquette": "Japanese city-pop fans; gift-first, aesthetic-led"
+        },
+        {
+          "name": "r/Vaporwave",
+          "url": "https://www.reddit.com/r/Vaporwave/",
+          "kind": "reddit",
+          "etiquette": "adjacent aesthetic crowd; lean into the visual"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "afrobeat",
+      "label": "Afrobeat (Fela) heads",
+      "tags": [
+        "afrobeat",
+        "fela kuti",
+        "tony allen",
+        "africa 70"
+      ],
+      "hook": "Program a Fela-style groove — interlocking guitars, horns and Tony Allen drums, generated live.",
+      "venues": [
+        {
+          "name": "r/Afrobeat",
+          "url": "https://www.reddit.com/r/Afrobeat/",
+          "kind": "reddit",
+          "etiquette": "TRAP: r/Afrobeat = Fela/classic, NOT r/afrobeats (modern Nigerian pop) — post to the right room"
+        },
+        {
+          "name": "r/WorldMusic",
+          "url": "https://www.reddit.com/r/WorldMusic/",
+          "kind": "reddit",
+          "etiquette": "broader world-music crowd; gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "frenchhouse",
+      "label": "French house / French touch",
+      "tags": [
+        "french house",
+        "french touch",
+        "daft punk",
+        "stardust",
+        "filter house",
+        "cassius"
+      ],
+      "hook": "A filter-house station that never stops — the Daft Punk / Stardust sidechain-and-filter sound.",
+      "venues": [
+        {
+          "name": "r/DaftPunk",
+          "url": "https://www.reddit.com/r/DaftPunk/",
+          "kind": "reddit",
+          "etiquette": "huge, devoted; gift a French-house toy, do not spam"
+        },
+        {
+          "name": "r/House",
+          "url": "https://www.reddit.com/r/House/",
+          "kind": "reddit",
+          "etiquette": "house-music crowd; browser toy angle"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "indie-jangle",
+      "label": "Indie / jangle / Mac DeMarco",
+      "tags": [
+        "mac demarco",
+        "jangle"
+      ],
+      "hook": "Chewy jangle chords and a woozy chorus — a Mac-DeMarco-flavoured loop machine.",
+      "venues": [
+        {
+          "name": "r/macdemarco",
+          "url": "https://www.reddit.com/r/macdemarco/",
+          "kind": "reddit",
+          "etiquette": "devoted fandom; playful, gift-first"
+        },
+        {
+          "name": "r/indieheads",
+          "url": "https://www.reddit.com/r/indieheads/",
+          "kind": "reddit",
+          "etiquette": "large indie community; show, do not sell"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "microtonal",
+      "label": "Microtonal / xenharmonic / gamelan",
+      "tags": [
+        "gamelan",
+        "microtonal",
+        "xenharmonic",
+        "just intonation",
+        "javanese",
+        "balinese",
+        "12-tet",
+        "slendro",
+        "pelog"
+      ],
+      "hook": "A gamelan station that leaves 12-TET — real slendro/pelog tunings you can hear and steer.",
+      "venues": [
+        {
+          "name": "r/microtonal",
+          "url": "https://www.reddit.com/r/microtonal/",
+          "kind": "reddit",
+          "etiquette": "active tuning-nerd makers; the just-intonation angle lands here"
+        },
+        {
+          "name": "Xenharmonic Alliance (FB)",
+          "url": "https://www.facebook.com/groups/xenharmonic2/",
+          "kind": "facebook",
+          "etiquette": "VERIFY group url; the microtonal maker hub"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "generative",
+      "label": "Generative / algorithmic music makers",
+      "tags": [
+        "generative",
+        "generative music",
+        "algorithmic composition",
+        "aleatoric",
+        "music that plays itself"
+      ],
+      "hook": "Music that composes itself from a seed and a set of rules — a tiny station you steer, not a loop you loop.",
+      "venues": [
+        {
+          "name": "r/generative",
+          "url": "https://www.reddit.com/r/generative/",
+          "kind": "reddit",
+          "etiquette": "generative art+music makers; a browser generative toy is exactly their thing"
+        },
+        {
+          "name": "lines (llllllll.co)",
+          "url": "https://llllllll.co/",
+          "kind": "forum",
+          "etiquette": "the monome/generative/experimental maker forum — very active; show, do not sell"
+        },
+        {
+          "name": "Disquiet Junto",
+          "url": "https://disquiet.com/junto/",
+          "kind": "web",
+          "etiquette": "Marc Weidenbaum s generative-music community; gift/collab framing"
+        }
+      ],
+      "domain": "music"
     }
   ],
   "crosscutting": [

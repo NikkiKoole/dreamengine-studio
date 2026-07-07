@@ -29,6 +29,28 @@ lineage, homage, teaches, description → one lowercased blob) and any tribe who
 matches, ranked by how many tags hit. A cart can land in several buckets (the acid rack →
 acid + drum-machine + modular).
 
+### Model refinement (2026-07-07): a tribe is the SCENE, not the FORMAT
+
+The genre-radio carts forced a sharpening of what a "tribe" is. The mistake was to reach for a
+single **`genre-radio`** bucket — but "radio" is the *format* (the cart shape), not a room anybody
+gathers in. The homages show the real rooms: `jingle` **is** Mac DeMarco, `eno` **is** Brian Eno,
+`afrobeat` **is** Fela Kuti / Tony Allen, `house` **is** Daft Punk / French house, `citypop` **is**
+Tatsuro Yamashita. So:
+
+- **The tribe is the scene / fandom** — the actual place those people hang out (r/macdemarco,
+  r/ambientmusic, r/CityPop, r/DaftPunk). A tribe **earns its slot only if it has a real, reachable
+  room.** A one-cart artist-tribe is fine (only `jingle` is Mac DeMarco) — the whole value is
+  gift-posting into *that specific room*; it still obeys "add on demand, no speculative tribes."
+- **The format is a cross-cutting-style amplifier, not a scene.** Every radio cart is *generative*,
+  so `generative` (r/generative, lines/llllllll, Disquiet Junto) is its own **format tribe** that
+  amplifies the whole radio family, while the ambient *scene* tribe (Brian Eno / drone) stays
+  reserved for the carts that are actually ambient. A cart like `citypop` correctly lands in
+  **city-pop scene + generative format** — not lumped into "ambient" just because it's generative.
+- **Guard the generic-adjective tag.** A bare word that describes *technique* rather than *identity*
+  over-matches exactly like `subtractive` did on `moog`: `drone` pulled in 19 pad-synth carts, and
+  `generative` bleeds across domains (generative *art* vs *music*). Tag on the identity word
+  (`brian eno`, `mac demarco`, `gamelan`), not the adjective.
+
 Two layers sit **above** the buckets:
 
 - **Domain** (`music` / `game` / `any`) — a coarse pre-filter from `de:meta` (instrument/radio
@@ -75,8 +97,9 @@ real cart needs one) — no speculative tribes rotting in the ledger.
 
 ## What's done (2026-07-07)
 
-- Tool with all 7 commands; ledger with **18 tribes** (15 music + `arcade` + `drum-machine` +
-  `string-machine`) and **9 cross-cutting** (4 music / 5 game).
+- Tool with all 7 commands; ledger with **25 tribes** (23 music + `arcade` game; the 2026-07-07
+  scene/format pass added ambient/citypop/afrobeat/frenchhouse/indie-jangle/microtonal + the
+  `generative` format tribe) and **9 cross-cutting** (4 music / 5 game).
 - Matching hardened by dry runs (see log below).
 - Discoverable: CLAUDE.md tools list, `demand-generation.md` lever #3, tinyjam §3.9 backlink.
 
@@ -108,11 +131,28 @@ real cart needs one) — no speculative tribes rotting in the ledger.
    sh101, grenadier via vco/modular). `arcade` (40) was checked and is fine — 32 bare-`arcade`
    matches are genuine arcade-cabinet titles; only `poker` is a stray (not worth a fix). `--check`
    green.
-2. **Fill the music bucket-gaps** the `audit` surfaced (music coverage 62%): a **genre-radio**
-   family (ambient/bossa/eno/gamelan/satie/tango/city-pop radio), an **acoustic/world**
-   bucket (guitar/brass/reed/pipe/bowed/hurdy-gurdy/glass-harmonica/monochord), a **novelty**
-   bucket (otamatone/touch-piano). Some (`fxmod`/`lfoshapes`/`reverb spaces`/`say`) are engine
-   tech-demos — probably no tribe at all.
+2. **Fill the music bucket-gaps** (music coverage 62% → **73%**). The radio family is done, but
+   done as **scene tribes, not one "genre-radio" bucket** (see the model refinement above). Added
+   2026-07-07: `ambient` (Brian Eno / drone), `citypop` (city-pop / vaporwave), `afrobeat` (Fela),
+   `frenchhouse` (Daft Punk / French touch), `indie-jangle` (Mac DeMarco), `microtonal` (gamelan /
+   xenharmonic), and the `generative` **format** tribe (r/generative · lines · Disquiet Junto) that
+   amplifies every radio cart. Venue URLs are in the ledger but flagged **VERIFY** where I couldn't
+   confirm the exact sub (Reddit blocks fetch — browser-check before posting, that's the workflow).
+   **Still open:**
+   - **Three judgment-call scenes with weaker/broader rooms** — `satie` (Erik Satie → r/classicalmusic
+     / r/piano?), `bossa` (bossa nova → r/Jazz / r/bossanova?), `mariachi`, `tango` (dance-heavy
+     r/tango?). One-cart each, rooms I can't confidently name. Mint or leave on the generative
+     amplifier? (maker call.)
+   - **The `generative` domain question** — it's `music` now, so domain-`any` procedural-*visual*
+     carts (`roadnet`/`wfc`/`citygrow`) bleed into it. But r/generative + lines genuinely welcome
+     generative *art*, so `generative` may want to be domain `any` (a cross-domain maker community,
+     with only Disquiet music-leaning). Would also give the worldgen carts a real venue. (maker call.)
+   - **The other music gaps** (still ~34 un-tribed): **acoustic/world** (guitar/brass/reed/pipe/
+     bowed/hurdy-gurdy/glass-harmonica/monochord → physical-modeling + world-music rooms),
+     **novelty/toy** (otamatone/stylophone/touch-piano/glass-harmonica → YouTube/TikTok novelty
+     channels, no dedicated sub), **vocal-synth** (vox/voxab/voxlab/say → r/Vocaloid + formant/vocoder),
+     and cheap misfiles worth fixing: `piano` should sit in `keys`, `juno-6` (Roland analog poly) has
+     no home. Engine tech-demos (`fxmod`/`lfoshapes`/`reverb spaces`/`varispeed`/`ampnoise`) → no tribe.
 3. **Games** (coverage 24%, only `arcade` so far) — clusters into board/card/sim/puzzle/
    adventure. **Decision pending:** per the GTM games are web-gallery-only, so game buckets may
    be low value — do we invest? (asked, not yet answered.)

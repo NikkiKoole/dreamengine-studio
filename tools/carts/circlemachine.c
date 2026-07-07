@@ -17,8 +17,14 @@
   "description": {
     "summary": "Raymond Scott's Circle Machine, doubled: TWO rings of glowing bulbs swept by one rotating photocell arm — a step sequencer from 1959. Each bulb's brightness sets its note (brighter = higher); drag it dark for a rest. The rings have different step counts, so they drift against each other and never line up — over a bed of tape wobble, saturation and grime.",
     "detail": "Not a keyboard — a machine you configure and let cycle, the way Scott actually worked. Two concentric rings (outer = lead, inner = a lower counter-line) each with its own step count; one arm sweeps both, so they drift in and out of phase (polymeter — his multi-voice, never-repeating texture). Drag a bulb up/down to set its pitch (snapped to the scale); drag it to the bottom for a rest. Three voices per ring: RING (a clean electronic bleep), GLIDE (the Clavivox — one voice that slides between notes), BONGO (the Bandito auto-drummer). DIRT is the tape machine — wow/flutter, saturation, valve hiss and, cranked, bitcrush — the wobble and grime the records swim in. RINGMOD adds Scott's metallic clang; REVERB and ECHO the tape space; NUDGE mutates the loop (the Electronium 'suggest-and-steer').",
-    "controls": "1/2 (or the A|B button) pick a ring. Drag a bulb up/down = its note (bottom = rest). Arrows: LEFT/RIGHT select a bulb, UP/DOWN change its note. TEMPO = spin speed. STEPS = the selected ring's size (drift). LEVEL edits the selected bulb. VOICE cycles RING/GLIDE/BONGO for the selected ring. SCALE (K) cycles the scale. DIRT = tape wobble + saturation + grime. RINGMOD/REVERB/ECHO shape the sound. NUDGE (SPACE) mutates the loop."
-  }
+    "controls": "1/2 (or the A|B button) pick a ring. Drag a bulb up/down = its note (bottom = rest). Arrows: LEFT/RIGHT select a bulb, UP/DOWN change its note. TEMPO = spin speed. STEPS = the selected ring's size (drift). LEVEL edits the selected bulb. VOICE cycles RING/GLIDE/BONGO for the selected ring. SCALE (K) cycles the scale. DIRT = tape wobble + saturation + grime. RINGMOD/REVERB/ECHO shape the sound. SYNC (S) re-locks the rings, DRIFT/HUMAN de-sync + humanize them, NUDGE (SPACE) mutates the loop."
+  },
+  "todo": [
+    "Clavivox sibling cart — the *played* keyboard-theremin (velocity-keyed portamento, left-hand envelope keys) on this note_glide chassis (scott-blind-brief.md follow-on / STATUS #21).",
+    "Electronium sibling cart — a guided-generative 'nudge' machine you steer ('faster', 'more like that'), the ambitious third Scott archetype; could reuse the radio/improv brains.",
+    "Give the inner ring a touch more visual separation from the hub — it currently sits close to centre.",
+    "Consider a small default DRIFT so the rings phase out of the box (currently locked at 0)."
+  ]
 }
 de:meta */
 #include "studio.h"

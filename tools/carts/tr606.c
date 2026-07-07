@@ -8,7 +8,6 @@
   ],
   "teaches": [
     "step-sequencer",
-    "subtractive-synth",
     "additive-synth",
     "drum-synthesis",
     "analog-voice-modeling"

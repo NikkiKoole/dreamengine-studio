@@ -9,9 +9,9 @@
   ],
   "teaches": [],
   "description": {
-    "summary": "The device-matrix WIREFRAME tool: flip acidrack's three-state-strip layout through every shape in device-matrix.md with one key, in the REAL logical size.",
+    "summary": "The device-matrix WIREFRAME tool for the acidrack redesign — CLICKABLE/TAPPABLE (touch+mouse): flip acidrack's four-state layout through every device shape and click the controls (mute, patterns, open a strip, focus, tabs) to study the interaction, not just the pixels.",
     "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
-    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label"
+    "controls": "TAP/CLICK: a strip NAME opens it (compact->expanded->focus) - the M button (un)mutes - a pattern chip selects it - a landscape TAB name opens it + its M mutes without opening - the focus X closes - the bottom-left label flips to the next device. KEYS mirror it: ]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label"
   }
 }
 de:meta */
@@ -86,6 +86,16 @@ static int fingergrid = 0; // 'g': overlay a 1-finger (44pt = FU logical px) ref
 static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
 static int patn[NSTRIP]  = { 0, 2, 1, 3, 0 };   // current pattern 0..NPAT-1
 
+// ───────── immediate-mode click layer (touch + mouse) ─────────
+// One pointer press per frame; hit(box) returns true once for the first control it lands in and
+// CONSUMES it, so nested controls (M inside a header inside a strip) resolve specific→general by
+// draw order. Single-touch taps synthesise the mouse, so this is one path for desktop + device.
+static int m_press = 0, m_x = 0, m_y = 0;
+static int clicked(Box b) {
+    if (m_press && m_x >= b.x && m_x < b.x + b.w && m_y >= b.y && m_y < b.y + b.h) { m_press = 0; return 1; }
+    return 0;
+}
+
 // ───────── strip-content wireframe bits ─────────
 static void wf_knob(Box cell, int i, const char *label) {
     Box dial; Box lab = lay_split(cell, EDGE_BOTTOM, lay_clamp(FU * 0.28f, 4, 8), &dial);
@@ -128,30 +138,34 @@ static void wf_minipat(Box area, int seed, int mu) {   // folded: a row of tiny 
     for (int i = 0; i < STEPS; i++) { Box s = lay_wrap(area, STEPS, i, FU * 0.2f, 1); if (s.w < 1) continue;
         int on = ((i + seed) % 3 == 0); boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
 }
-// per-instrument PATTERN selector: NPAT numbered slots in `cols` columns, the live one lit
-static void wf_patterns(Box area, int cur, int mu, int cols) {
+// per-instrument PATTERN selector for strip `idx`: NPAT numbered slots, live one lit; tap to select.
+static void wf_patterns(Box area, int idx, int cols) {
+    int cur = patn[idx], mu = muted[idx];
     float gap = lay_clamp(FU * 0.09f, 1, 3);
     for (int i = 0; i < NPAT; i++) {
         Box c = lay_grid(area, cols, NPAT, i, gap); if (c.w < 3) continue;
         int on = (i == cur);
         boxfill(c, on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARK_GREY); boxrect(c, CLR_DARKER_GREY);
         if (c.h >= 7) { font(FONT_TINY); print_centered(str("%d", i + 1), (int)(c.x + c.w / 2), (int)(c.y + (c.h - 5) / 2), on ? CLR_BLACK : CLR_MEDIUM_GREY); }
+        if (clicked(c)) patn[idx] = i;
     }
 }
 // the pattern selector as its OWN little box (ReBirth's per-machine PATTERN panel): a titled,
 // bordered unit clearly grouped with the instrument. 3×2 grid of the 6 patterns.
-static void wf_patbox(Box b, int cur, int mu) {
-    boxfill(b, CLR_BROWNISH_BLACK); boxrect(b, mu ? CLR_DARK_RED : CLR_MEDIUM_GREY);
+static void wf_patbox(Box b, int idx) {
+    boxfill(b, CLR_BROWNISH_BLACK); boxrect(b, muted[idx] ? CLR_DARK_RED : CLR_MEDIUM_GREY);
     Box grid; Box lab = lay_split(lay_inset(b, 1), EDGE_TOP, lay_clamp(FU * 0.26f, 4, 7), &grid);
     font(FONT_TINY); print("PAT", (int)lab.x + 1, (int)lab.y, CLR_MEDIUM_GREY);
-    wf_patterns(grid, cur, mu, 3);
+    wf_patterns(grid, idx, 3);
 }
-static void wf_mute(Box hdr, int mu) {   // [M][fx] cluster at the header's right edge; M lit red when muted
+static void wf_mute(Box hdr, int idx) {   // [M][fx] cluster at the header's right edge; tap M to (un)mute
+    int mu = muted[idx];
     float bw = lay_clamp(FU * 0.7f, 8, 20);
     Box fx = lay_at(hdr, L_TR, bw, hdr.h - 2, 1); boxfill(fx, CLR_DARK_GREY); boxrect(fx, CLR_MEDIUM_GREY);
     font(FONT_TINY); print_centered("fx", (int)(fx.x + fx.w / 2), (int)(fx.y + (fx.h - 5) / 2), CLR_LIGHT_GREY);
     Box m = box(fx.x - bw * 0.65f - 2, fx.y, bw * 0.65f, fx.h); boxfill(m, mu ? CLR_RED : CLR_DARK_RED); boxrect(m, mu ? CLR_WHITE : CLR_MEDIUM_GREY);
     print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), mu ? CLR_WHITE : CLR_LIGHT_PEACH);
+    if (clicked(m)) muted[idx] = !muted[idx];
 }
 
 // beat-grouped 16-step columns inside `row` (shared by the drum grid + 303 grid)
@@ -250,11 +264,13 @@ static void draw_focus(Strip *s, Box area, int idx) {
     float xs = bar.h - 2; Box xb = lay_at(bar, L_TR, xs, xs, 1);       // the close X, top-right
     boxfill(xb, CLR_RED); boxrect(xb, CLR_WHITE);
     print_centered("X", (int)(xb.x + xb.w / 2), (int)(xb.y + (xb.h - 6) / 2), CLR_WHITE);
+    if (clicked(xb)) focused = -1;                                     // tap X → back to the rack
     Box mb = box(xb.x - xs - 2, xb.y, xs, xs); boxfill(mb, mu ? CLR_RED : CLR_DARK_RED); boxrect(mb, CLR_MEDIUM_GREY);
     print_centered("M", (int)(mb.x + mb.w / 2), (int)(mb.y + (mb.h - 6) / 2), CLR_LIGHT_PEACH);
+    if (clicked(mb)) muted[idx] = !muted[idx];
     if (s->haspat) { font(FONT_TINY);   // pattern selector between name and M
         Box pb = box(bar.x + FU * 3.2f, bar.y + 2, mb.x - (bar.x + FU * 3.2f) - 3, bar.h - 4);
-        if (pb.w > 20) wf_patterns(pb, pc, mu, NPAT); }
+        if (pb.w > 20) wf_patterns(pb, idx, NPAT); }
     body = lay_pad(body, 1, 2, 1, 1);
     if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
     else if (s->haspat) { Box grid; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.6f, &grid); wf_303grid(grid, idx, mu); wf_knobrow(kn, s->labels, s->n); }
@@ -272,7 +288,9 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     font(FONT_TINY); print(s->name, (int)hdr.x + 2, (int)(hdr.y + (hdr.h - 5) / 2), CLR_LIGHT_PEACH);
     body = lay_pad(body, 1, 1, 1, 1);
-    wf_mute(hdr, mu);
+    wf_mute(hdr, idx);
+    // tap the strip NAME to open it up: folded/compact → expanded (working); expanded → focus.
+    if (clicked(box(hdr.x, hdr.y, FU * 1.5f, hdr.h))) { if (state == EXPANDED) focused = idx; else work = idx; }
 
     // PATTERN SELECTOR — pattern instruments only (MASTER is the mixer/FX bus, so none). Device-
     // adaptive: PHONE → a light framed row of 6 in the HEADER; iPad (roomy) → a boxed LEFT panel.
@@ -282,7 +300,7 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
         float muteW = FU * 1.6f;
         Box pb = box(hdr.x + FU * 1.7f, hdr.y + 1, hdr.w - FU * 1.7f - muteW, hdr.h - 2);
         boxrect(pb, mu ? CLR_DARK_RED : CLR_DARKER_GREY);
-        wf_patterns(lay_inset(pb, 1), pc, mu, NPAT);              // one row of 6
+        wf_patterns(lay_inset(pb, 1), idx, NPAT);              // one row of 6
     }
 
     // MASTER (no patterns) has no step sequence either — just its knobs, no lane / preview.
@@ -292,7 +310,7 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     if (box_pat) {   // iPad: the pattern selector as its own bordered panel on the left
         float boxW = (state == EXPANDED) ? FU * 2.7f : FU * 2.4f;
         Box pbox = lay_split(body, EDGE_LEFT, boxW, &mach);
-        wf_patbox(pbox, pc, mu);
+        wf_patbox(pbox, idx);
         mach = lay_pad(mach, 1, 0, 0, 0);   // gap between the box and the machine
     }
 
@@ -406,6 +424,7 @@ void draw(void) {
     Dev d = DEV[cur];
     int W = screen_w(), H = screen_h();
     g_boxpat = (d.cls == ROOMY);   // iPad has room for the boxed PAT panel; phones use the header row
+    m_press = mouse_pressed(0); m_x = mouse_x(); m_y = mouse_y();   // one pointer press per frame (tap/click)
     cls(CLR_BROWNISH_BLACK);
 
     // safe area (simulated status/notch/home; brief §4 — top/bottom only). The device SKIN that
@@ -446,6 +465,8 @@ void draw(void) {
             font(FONT_TINY); print_centered(STRIP[i].name, (int)(nm.x + nm.w / 2), (int)(nm.y + (nm.h - 5) / 2), CLR_LIGHT_PEACH);
             boxfill(mbtn, m ? CLR_RED : CLR_DARK_RED); boxrect(mbtn, m ? CLR_WHITE : CLR_MEDIUM_GREY);
             print_centered("M", (int)(mbtn.x + mbtn.w / 2), (int)(mbtn.y + (mbtn.h - 5) / 2), m ? CLR_WHITE : CLR_LIGHT_PEACH);
+            if (clicked(mbtn)) muted[i] = !muted[i];    // mute from the tab, without opening it
+            if (clicked(nm)) work = i;                  // tap the tab name to open that instrument
         }
         draw_strip(&STRIP[sel], lay_pad(panel, 0, gap, 0, 0), EXPANDED, 1);
 
@@ -499,6 +520,7 @@ void draw(void) {
         boxfill(chip, CLR_BLACK); boxrect(chip, CLR_ORANGE);
         print(l1, (int)chip.x + 3, (int)chip.y + 2, CLR_LIGHT_PEACH);
         print(l2, (int)chip.x + 3, (int)chip.y + 9, CLR_ORANGE);
+        if (clicked(chip)) cur = (cur + 1) % NDEV;   // tap the label to flip to the next device shape
     }
     font(FONT_NORMAL);
 }

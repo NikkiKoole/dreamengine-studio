@@ -1,25 +1,27 @@
 # scalegrid — the scale-locked isomorphic pad grid (INSTR_PD "sweep pad" voice).
-# Cold-opens PLAYING ITSELF (a walking arpeggio up the pentatonic grid); then a hand
-# takes over — taps a chord, switches scale (S recolors + relocks the notes), plays
-# again. The point: every tap is in-scale, so nothing sounds wrong.
-# frames 540  fps 60  scale 3  crf 30
+# Cold-opens PLAYING ITSELF (a walking arpeggio up the grid); then a hand takes over —
+# taps an in-scale chord, cycles the SCALE (recolors + relocks), and DIALS THE ROW OFFSET
+# (I) so you hear the isomorphic anatomy change. The point: every tap is in-scale, so
+# nothing sounds wrong, whatever you pick.
+# frames 600  fps 60  scale 3  crf 30
 
 # ~0-130: self-play arpeggio (no input) — the delightful cold-open
-# a hand arrives: tap three pads = an in-scale chord
+# a hand arrives: tap an in-scale chord
 click 150 60 130
 click 156 150 100
 click 162 240 70
-# hold a low chord (drag reads as held while mouse is down handled per-frame)
 click 210 90 165
-click 216 180 130
-# switch scale: PENTA -> ... (S), the grid recolors and relocks
+click 216 200 120
+# cycle the SCALE a couple of times (recolors + relocks the notes)
 tap 270 S
-click 300 70 120
-click 306 150 90
-click 312 230 60
-# nudge the key up (R) and the layout (I) — same shapes, new tonality
-tap 360 R
-tap 400 I
-click 430 100 140
-click 436 190 100
-click 442 270 70
+tap 300 S
+click 330 70 120
+click 336 160 90
+click 342 250 60
+# DIAL THE ROW OFFSET — the ADR-0028 knob: same shapes, new interval per row
+tap 390 I
+click 420 100 150
+click 426 210 100
+tap 470 I
+click 500 120 140
+click 506 240 90

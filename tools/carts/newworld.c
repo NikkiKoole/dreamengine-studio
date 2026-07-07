@@ -15,7 +15,7 @@
   "description": {
     "summary": "A Joe Meek 'Outer Space Music Fantasy' box: slide a swooping lead across the night sky, loop it, and drown it in tape echo, spring reverb and wobble.",
     "detail": "One expressive gesture + one method. DRAG the big ribbon (the night sky) — x = pitch (snaps toward the scale so tunes stay in tune, glides between for the steel-guitar swoop), up/down = swell. Five held voices (a reedy LEAD saw, a Casio-CZ SWEEP, an FM GLASS bell, and TWO pure SINE theremins). Each voice loops on its OWN lane — the two sines let you loop a bed AND a lead both on sine: arm REC, play a bed on SINE, switch to SINE2 or LEAD and solo over it — every voice loops independently, clear any lane on its own (the Meek tape-layering, playable). The found-sound pads (bubble/bottle/zap/drain) and the fx rack (tape ECHO, spring reverb, tape WOBBLE, granular FREEZE + REVERSE, lo-fi GRIME) ARE the instrument. Live self-resampling — no sampler. Cold-opens playing itself; first touch hands over.",
-    "controls": "Drag the ribbon = play (x pitch / y swell). 1-5 = voice (SINE + SINE2). S = scale, snap chip = glide amount. Z X C V = found-sound pads. Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
+    "controls": "Drag the ribbon = play (x pitch / y swell). 1-5 = voice (SINE + SINE2). S = scale, snap chip = glide amount. Z X C V = found-sound pads (top zone = normal), A S D F = the same pads a fourth lower (bottom zone). Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
   }
 }
 de:meta */
@@ -58,8 +58,10 @@ static const int  P_SLOT[NPAD] = { SL_BUBBLE, SL_BOTTLE, SL_ZAP, SL_DRAIN };
 static const int  P_MIDI[NPAD] = { 84, 67, 72, 50 };
 static const int  P_VOL[NPAD]  = { 5, 6, 6, 5 };
 static const int  P_DUR[NPAD]  = { 60, 260, 90, 320 };
-static const char *P_NAME[NPAD] = { "BUBBLE", "BOTTLE", "ZAP", "DRAIN" };
-static const char  P_KEY[NPAD]  = { 'Z', 'X', 'C', 'V' };
+static const char *P_NAME[NPAD]  = { "BUBBLE", "BOTTLE", "ZAP", "DRAIN" };
+static const char  P_KEY_HI[NPAD] = { 'Z', 'X', 'C', 'V' };   // top zone — normal pitch
+static const char  P_KEY_LO[NPAD] = { 'A', 'S', 'D', 'F' };   // bottom zone — a fourth lower
+#define PAD_LO 5                                               // the "lo" version drops a perfect fourth
 
 // the ribbon (the night sky) -------------------------------------------------
 #define RX 6
@@ -106,7 +108,7 @@ static int   fx_hash = -1;              // reconfigure only when this changes
 // self-play + visuals --------------------------------------------------------
 static int   playing_self = 1;
 static float energy;                    // amplitude for the reactive creatures
-static int   pad_flash[NPAD];
+static int   pf_hi[NPAD], pf_lo[NPAD];  // pad flash: top / bottom zone
 
 // ---------------------------------------------------------------------------
 // ribbon mapping: x -> a scale-snapped float midi, y -> swell volume
@@ -138,7 +140,8 @@ static void rec_ev(int kind, int slot, float pitch, int vol, int dur, int aux, i
 static void fire_ev(Ev *e) {
     if (e->kind == EV_NOTE) {
         hit((int)e->pitch, e->slot, e->vol, e->dur);
-        for (int p = 0; p < NPAD; p++) if (P_SLOT[p] == e->slot) pad_flash[p] = 5;
+        for (int p = 0; p < NPAD; p++) if (P_SLOT[p] == e->slot)
+            { if ((int)e->pitch < P_MIDI[p]) pf_lo[p] = 5; else pf_hi[p] = 5; }
     } else if (e->kind == EV_CC) {
         note_pitch(vrep[e->aux], e->pitch); note_vol(vrep[e->aux], (float)e->vol);
         gho_p = e->pitch; gho_v = e->vol; gho_on = 1; gho_voice = e->aux;
@@ -289,11 +292,15 @@ void update(void) {
 
     // ---- found-sound pads ----
     for (int p = 0; p < NPAD; p++) {
-        if (keyp(P_KEY[p]) || tapp(6 + p * 77, 126, 73, 20)) {
+        int x = 6 + p * 77;
+        int hi = keyp(P_KEY_HI[p]) || tapp(x, 126, 73, 10);       // top zone = normal
+        int lo = keyp(P_KEY_LO[p]) || tapp(x, 136, 73, 10);       // bottom zone = a fourth lower
+        if (hi || lo) {
             if (playing_self) handover();
-            hit(P_MIDI[p], P_SLOT[p], P_VOL[p], P_DUR[p]);
-            rec_ev(EV_NOTE, P_SLOT[p], P_MIDI[p], P_VOL[p], P_DUR[p], p, LANE_PERC, 0, 0);
-            pad_flash[p] = 6;
+            int midi = P_MIDI[p] - (lo ? PAD_LO : 0);
+            hit(midi, P_SLOT[p], P_VOL[p], P_DUR[p]);
+            rec_ev(EV_NOTE, P_SLOT[p], midi, P_VOL[p], P_DUR[p], p, LANE_PERC, 0, 0);
+            if (lo) pf_lo[p] = 6; else pf_hi[p] = 6;
         }
     }
 
@@ -344,7 +351,7 @@ void update(void) {
     }
 
     energy *= 0.96f;
-    for (int p = 0; p < NPAD; p++) if (pad_flash[p] > 0) pad_flash[p]--;
+    for (int p = 0; p < NPAD; p++) { if (pf_hi[p] > 0) pf_hi[p]--; if (pf_lo[p] > 0) pf_lo[p]--; }
 
 #ifdef DE_TRACE
     watch("lp", "%.2f pass=%d ev=%d", lp, loop_i, nev);
@@ -437,11 +444,13 @@ void draw(void) {
     // ---- found-sound pads ----
     for (int p = 0; p < NPAD; p++) {
         int x = 6 + p * 77;
-        rectfill(x, 126, 73, 20, pad_flash[p] ? CLR_LIGHT_PEACH : CLR_DARKER_BLUE);
+        rectfill(x, 126, 73, 10, pf_hi[p] ? CLR_LIGHT_PEACH : CLR_DARKER_BLUE);   // top = normal
+        rectfill(x, 136, 73, 10, pf_lo[p] ? CLR_LIGHT_PEACH : CLR_DARK_BLUE);     // bottom = lo
         rect(x, 126, 73, 20, CLR_DARK_BLUE);
+        line(x, 136, x + 72, 136, CLR_DARKER_BLUE);                              // zone divider
         font(FONT_SMALL);
-        print(P_NAME[p], x + 4, 129, pad_flash[p] ? CLR_BLACK : CLR_MAUVE);
-        print(str("%c", P_KEY[p]), x + 4, 137, pad_flash[p] ? CLR_BLACK : CLR_DARK_GREY);
+        print(str("%c %s", P_KEY_HI[p], P_NAME[p]), x + 3, 128, pf_hi[p] ? CLR_BLACK : CLR_MAUVE);
+        print(str("%c  lo", P_KEY_LO[p]),           x + 3, 138, pf_lo[p] ? CLR_BLACK : CLR_DARK_GREY);
         font(FONT_NORMAL);
     }
 
@@ -472,6 +481,6 @@ void draw(void) {
 
     // ---- HUD ----
     font(FONT_SMALL);
-    print("drag sky: x=pitch y=swell   1-5 pick voice   Z-V sounds   REC loops each voice on its lane", RX, 186, CLR_INDIGO);
+    print("drag sky: x=pitch y=swell   1-5 voice   ZXCV sounds / ASDF a 4th lower   REC loops each lane", RX, 186, CLR_INDIGO);
     font(FONT_NORMAL);
 }

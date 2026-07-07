@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
@@ -168,15 +168,29 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > tiny pixels + sub-finger controls; K=3 overflows the font; (2) `de_reflow` is **binary-wide** so
 > yachtrack/epiano render in the top band (per-cart reflow = backlog); (3) **SEAM (backed out):**
 > desktop live-resize freezes the transport — macOS modal loop blocks the main thread, GLFW fires no
-> callback, do NOT re-try the callback route; iOS rotation is fine. **Resume at: the WIREFRAME CART —
-> extend `tools/carts/acidfit.c` (the existing disclosure prototype) with `lay.h` into the acidrack
-> wireframe (5 strips folded/compact/expanded + transport + song row), viewed across the 3 shapes via
-> `play.js --resize` + libtcc live-reload.** Chosen over an HTML mock (maker's call 2026-07-06): a cart
-> has no translation gap (IS the production path — the field-018 hazard), validates `lay.h`/`disclose.h`
-> can express it, renders real fonts/fingers/insets on device; if a primitive is missing, ADD IT TO
-> `lay.h` (that's R2/R3 groundwork). It's the vehicle for §2's compact-strip taste calls, then R5.
-> Parked decisions: landscape side-notch inset (acidrack insets top/bottom only) +
-> background-audio policy (keep-playing vs pause-on-Home).
+> callback, do NOT re-try the callback route; iOS rotation is fine.
+> **Update 2026-07-07 — the WIREFRAME CART is built and mature: `tools/carts/acidwire.c`** (chosen
+> over an HTML mock — a cart has no translation gap, IS the production path, field-018). It's a full,
+> **interactive** device-matrix wireframe + an exemplar (guide:
+> [`guides/interactive-wireframes.md`](guides/interactive-wireframes.md)). What it has:
+> **dual-mode** — desktop = fake-device flipper (flip all 11 [`device-matrix.md`](design/device-matrix.md)
+> shapes, tap label); **device (`-DDE_RESIZABLE`)** = classifies the REAL screen + safe_rect and fills
+> it (RUNS ON THE iOS SIM: `cd ios && RESIZABLE=1 CART=acidwire ./build.sh`; physical:
+> `./device.sh` — device.sh gained `RESIZABLE=` this session). **Four states** folded/compact/
+> **expanded**/**focus** (fullscreen, name = back). **Touch+mouse** click layer (`clicked(box)`): tap
+> strip name to open→focus, M mute, pattern chip select, tab name/M, play/stop. **Per-instrument**
+> mute + a **flat 6 patterns** (device-adaptive: iPad boxed PAT panel, phone header row). **Real
+> editors**: 303 = pitch piano-roll + slide/accent lanes + knobs; drums = full voices×steps grid
+> (factual 909/808 voice names). **Arrangements**: phone tall = expand+compact+fold; phone landscape =
+> tabs (per-tab M); **iPad BOTH orientations = 2×2 machine grid + master bar** (kills the portrait
+> void). **Finger-honest**: `FU`=22 logical px, a `g` finger-grid overlay; header made finger-tall.
+> GOTCHA banked: raylib letter keycodes are UPPERCASE (`keyp('W')` not `'w'`). Brief kept current:
+> [`design/acidrack-layout-brief.md`](design/acidrack-layout-brief.md).
+> **Resume at:** play acidwire on GLASS, then (a) the **narrow-303 input model** (4-row vs 2-row+gesture
+> — a touch-ergonomics call to make on device, brief §3), (b) dense adjacent rows on the smallest
+> phones (11-voice selector / 16-step columns → paging or prev/next), then (c) **R5**: graduate this
+> layout into the real `acidrack.c` (with audio). Parked: landscape side-notch inset + background-audio
+> policy (keep-playing vs pause-on-Home).
 
 > **▶ ACTIVE THREAD (2026-07-06) — store / ASO + the app-trailer builder.**
 > **Buy-screen crash FIXED (2026-07-06, commit `07690c9b`):** the "instant, random" abort on the

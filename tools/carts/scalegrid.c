@@ -341,18 +341,25 @@ static bool pad_held(int idx) {
     return idx == sp_pad;
 }
 
-// a regular pointy-top hexagon centred at (cx,cy), half-width hw, half-height hh.
+// a REGULAR pointy-top hexagon centred at (cx,cy) with circumradius R (centre→vertex).
+// Vertices are built from a ROUNDED centre + offsets MIRRORED about it (icx±hw, icy±sh),
+// so the shape is exactly left/right- and top/bottom-symmetric and the top/bottom points
+// sit dead-centre between the shoulders — truncating each vertex independently drifted the
+// apex a sub-pixel off. Regular ratios: half-width hw = (√3/2)·R, shoulder sh = R/2.
 // The outline uses poly() (NOT line()) so it lands EXACTLY on polyfill's edge — the
-// invariant the `rasterizer test` cart verifies; a Bresenham line() misses it and
-// leaves the ragged fill/outline pixels. Same int vertex array feeds both.
-static void draw_hex(float cx, float cy, float hw, float hh, int fill, int border) {
+// invariant the `rasterizer test` cart verifies. Same int vertex array feeds both.
+static void draw_hex(float cx, float cy, float R, int fill, int border) {
+    int icx = (int)(cx + 0.5f),  icy = (int)(cy + 0.5f);
+    int hw  = (int)(0.8660254f * R + 0.5f);   // half flat-to-flat width
+    int hh  = (int)(R + 0.5f);                 // half point-to-point height (= R)
+    int sh  = (int)(0.5f * R + 0.5f);          // shoulder y offset (= R/2)
     int xy[12] = {
-        (int)cx,        (int)(cy - hh),        // top point
-        (int)(cx + hw), (int)(cy - hh * 0.5f), // upper-right
-        (int)(cx + hw), (int)(cy + hh * 0.5f), // lower-right
-        (int)cx,        (int)(cy + hh),        // bottom point
-        (int)(cx - hw), (int)(cy + hh * 0.5f), // lower-left
-        (int)(cx - hw), (int)(cy - hh * 0.5f), // upper-left
+        icx,      icy - hh,   // top point
+        icx + hw, icy - sh,   // upper-right
+        icx + hw, icy + sh,   // lower-right
+        icx,      icy + hh,   // bottom point
+        icx - hw, icy + sh,   // lower-left
+        icx - hw, icy - sh,   // upper-left
     };
     polyfill(xy, 6, fill);
     poly(xy, 6, border);
@@ -378,11 +385,11 @@ void draw(void) {
         float cx, cy; pad_center(idx, &cx, &cy);
         int tcol = (pad_held(idx) || isRoot) ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY;
         if (hexlayout) {
-            // regular pointy-top hex: width = column pitch, height = width/√3, so
-            // neighbours tile edge-to-edge (no overlap → no overdrawn seams). The
-            // 0.6px shrink leaves a hairline gutter between cells.
+            // regular pointy-top hex: circumradius R = (column pitch)/√3, so the
+            // flat-to-flat width == the column pitch and cells tile edge-to-edge (no
+            // overlap → no overdrawn seams). The 0.7px shrink leaves a hairline gutter.
             float cxp = g_pw + g_gap;
-            draw_hex(cx, cy, cxp * 0.5f - 0.6f, cxp * 0.5774f - 0.6f, fill, border);
+            draw_hex(cx, cy, cxp * 0.5774f - 0.7f, fill, border);
             if (g_ph >= 10 && g_pw >= 14) {
                 font(FONT_TINY);
                 print_centered(str("%s%d", NOTE[pc], dispOct), (int)cx, (int)cy - 2, tcol);

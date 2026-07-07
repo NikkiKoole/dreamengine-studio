@@ -11,7 +11,7 @@
   "description": {
     "summary": "The device-matrix WIREFRAME tool: flip acidrack's three-state-strip layout through every shape in device-matrix.md with one key, in the REAL logical size.",
     "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
-    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - h hide the label"
+    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label"
   }
 }
 de:meta */
@@ -80,6 +80,7 @@ enum { FOLDED, COMPACT, EXPANDED };
 static int cur = 0, applied = -1, work = NSTRIP, showlabel = 1, safehint = 1;
 static int g_boxpat = 0;   // pattern selector style this frame: 1 = boxed left panel (iPad), 0 = header row (phone)
 static int focused = -1;   // FOCUS/fullscreen: strip index shown full-screen (X closes), or -1 = the rack
+static int fingergrid = 0; // 'g': overlay a 1-finger (44pt = FU logical px) reference grid to eyeball fit
 // work: 0..NSTRIP-1 = that strip expanded; NSTRIP = ALL COMPACT (the iPad §4 headline)
 // per-instrument state the main screen must carry: mute + which of the 6 patterns is live
 static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
@@ -319,6 +320,14 @@ static void draw_safe_skin(int W, int H, Dev d) {
     // the safe-area boundary — put every control INSIDE this
     dashrect(box(2, d.insT, W - 4, H - d.insT - d.insB), CLR_ORANGE);
 }
+// 'g' overlay: a 1-finger reference grid (FU = 44pt = 22 logical px cells). Any control smaller than
+// one cell is below the comfortable finger target — eyeball fit across shapes without measuring.
+static void draw_fingergrid(int W, int H) {
+    for (float x = FU; x < W; x += FU) for (int y = 0; y < H; y += 3) pset((int)x, y, CLR_INDIGO);
+    for (float y = FU; y < H; y += FU) for (int x = 0; x < W; x += 3) pset(x, (int)y, CLR_INDIGO);
+    boxfill(box(3, 3, FU, FU), CLR_INDIGO);   // one solid finger swatch = the target size
+    font(FONT_TINY); print("1 finger", 3, (int)FU + 4, CLR_INDIGO);
+}
 
 // footprint of a strip in a given state, in logical px (height)
 static float strip_h(Strip *s, int state) {
@@ -337,6 +346,7 @@ void update(void) {
     if (keyp('W') || keyp(KEY_DOWN)) work = (work + 1) % (NSTRIP + 1);
     if (keyp('H')) showlabel = !showlabel;
     if (keyp('S')) safehint = !safehint;
+    if (keyp('G')) fingergrid = !fingergrid;
     // per-instrument controls, acting on the working strip (or 303-A when all-compact)
     int sel = (work < NSTRIP) ? work : 0;
     if (keyp('M')) muted[sel] = !muted[sel];              // (un)mute
@@ -422,6 +432,7 @@ void draw(void) {
 
     // ─── device safe-area skin over the rack (notch/island/corners/home bar) — toggle s ───
     if (safehint) draw_safe_skin(W, H, d);
+    if (fingergrid) draw_fingergrid(W, H);
 
     // ─── tool label (inside the device; toggle with h) ───
     if (showlabel) {

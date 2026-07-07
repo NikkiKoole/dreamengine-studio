@@ -12,12 +12,12 @@
     "scale-quantize",
     "subtractive-synth"
   ],
-  "lineage": "After Raymond Scott's Circle Machine (~1959, Manhattan Research Inc.) — a step sequencer a decade before the word. Novel here: the sequencer is a RING swept by a rotating photocell arm, not a left-to-right grid, and each bulb's BRIGHTNESS sets both pitch (up the scale) and accent — the one control the real machine had.",
+  "lineage": "After Raymond Scott's Circle Machine (~1959, Manhattan Research Inc.) — a step sequencer a decade before the word. Novel here: the sequencer is a RING swept by a rotating photocell arm, not a left-to-right grid; each bulb's BRIGHTNESS sets both pitch and accent; and TWO concentric rings run at once with different step counts, drifting against each other (polymeter) the way Scott's multi-voice machines (the Electronium's 12 channels, the Wall of Sound) layered — so the loop never repeats.",
   "homage": "Raymond Scott — Circle Machine",
   "description": {
-    "summary": "Raymond Scott's Circle Machine: a ring of glowing bulbs swept by a rotating photocell arm — a step sequencer from 1959. Each bulb's brightness sets its note (brighter = higher, up the scale); drag it dark for a rest. The arm spins at tempo and plays whatever it passes, round and round.",
-    "detail": "Not a keyboard — a machine you configure and let cycle, the way Scott actually worked. Drag a bulb up/down to set its pitch (snapped to the scale so it always plays in tune); drag it to the bottom for a rest. The photocell arm sweeps the ring; rotation speed IS the tempo. Three voices on the same ring: RING (a clean electronic bleep), GLIDE (the Clavivox — one voice that slides between notes, portamento), and BONGO (the Bandito auto-drummer — pitched electronic percussion). RINGMOD adds Scott's signature metallic clang; REVERB and ECHO are his tape space. NUDGE mutates the loop a little (the Electronium 'suggest-and-steer' duet), so you curate variations instead of authoring every step.",
-    "controls": "Drag a bulb up/down = its note (down to the bottom = rest). Arrow keys: LEFT/RIGHT select a bulb, UP/DOWN change its note. TEMPO = spin speed. STEPS = ring size. LEVEL knob edits the selected bulb. VOICE cycles RING/GLIDE/BONGO. SCALE cycles the scale. NUDGE (or SPACE) mutates the loop. RINGMOD/REVERB/ECHO shape the sound."
+    "summary": "Raymond Scott's Circle Machine, doubled: TWO rings of glowing bulbs swept by one rotating photocell arm — a step sequencer from 1959. Each bulb's brightness sets its note (brighter = higher); drag it dark for a rest. The rings have different step counts, so they drift against each other and never line up — over a bed of tape wobble, saturation and grime.",
+    "detail": "Not a keyboard — a machine you configure and let cycle, the way Scott actually worked. Two concentric rings (outer = lead, inner = a lower counter-line) each with its own step count; one arm sweeps both, so they drift in and out of phase (polymeter — his multi-voice, never-repeating texture). Drag a bulb up/down to set its pitch (snapped to the scale); drag it to the bottom for a rest. Three voices per ring: RING (a clean electronic bleep), GLIDE (the Clavivox — one voice that slides between notes), BONGO (the Bandito auto-drummer). DIRT is the tape machine — wow/flutter, saturation, valve hiss and, cranked, bitcrush — the wobble and grime the records swim in. RINGMOD adds Scott's metallic clang; REVERB and ECHO the tape space; NUDGE mutates the loop (the Electronium 'suggest-and-steer').",
+    "controls": "1/2 (or the A|B button) pick a ring. Drag a bulb up/down = its note (bottom = rest). Arrows: LEFT/RIGHT select a bulb, UP/DOWN change its note. TEMPO = spin speed. STEPS = the selected ring's size (drift). LEVEL edits the selected bulb. VOICE cycles RING/GLIDE/BONGO for the selected ring. SCALE (K) cycles the scale. DIRT = tape wobble + saturation + grime. RINGMOD/REVERB/ECHO shape the sound. NUDGE (SPACE) mutates the loop."
   }
 }
 de:meta */
@@ -27,25 +27,27 @@ de:meta */
 
 // CIRCLE MACHINE — after Raymond Scott's Circle Machine (~1959, Manhattan Research Inc.):
 // a RING of incandescent bulbs, each with a brightness knob, swept by a photocell on a
-// rotating spindle. As the photocell passes a bulb, that bulb's brightness sets the PITCH
-// of a tone; the spindle's rotation speed sets the tempo. A step sequencer a decade before
-// the word — and, per STATUS #21, visually unlike every other music cart here.
+// rotating spindle. The photocell passes a bulb; that bulb's brightness sets the PITCH of a
+// tone; spindle speed = tempo. A step sequencer a decade before the word (STATUS #21).
 //
-// The whole machine is ONE gesture: dial a loop of pitches into the ring and let it cycle.
-// You perform by reaching into the running loop and reshaping it — the Scott "man-machine
-// duet" made tactile. Design of record: docs/design/scott-blind-brief.md.
+// Doubled, because the records aren't one clean voice: TWO concentric rings with DIFFERENT
+// step counts run under one arm and DRIFT against each other (polymeter) — the hypnotic,
+// never-repeating, multi-voice texture of Scott's bigger machines (the Electronium's 12
+// channels, the Wall of Sound). And it all swims in TAPE — wow/flutter, saturation, valve
+// grime — the wobble and dirt those records are drenched in. Design: docs/design/scott-blind-brief.md.
 //
-//   • a ring of bulbs; brightness = note (brighter = higher, up the scale); dark = rest
-//   • a rotating photocell arm sweeps the ring — rotation speed = TEMPO
-//   • drag a bulb up/down to set its note · arrows select + tune · LEVEL knob too
-//   • 3 voices on the same ring — RING (bleep) · GLIDE (Clavivox portamento) · BONGO (Bandito)
-//   • RINGMOD (the metallic clang) · REVERB · ECHO — Scott's processing
+//   • two rings of bulbs; brightness = note (brighter = higher); dark = rest
+//   • one rotating photocell arm sweeps both — different step counts → they drift apart
+//   • 1/2 pick a ring · drag a bulb up/down = its note · arrows select + tune
+//   • 3 voices per ring — RING (bleep) · GLIDE (Clavivox portamento) · BONGO (Bandito)
+//   • DIRT = tape wobble + saturation + grime · RINGMOD (clang) · REVERB · ECHO
 //   • NUDGE / SPACE mutates the loop — the Electronium "suggest and steer"
 
 #define MAXN 16
-#define CX   96
-#define CY   108
-#define R    82
+#define CX   92
+#define CY   104
+static const int RAD[2] = { 82, 50 };            // outer (A) , inner (B)
+static const int ROOTS[2] = { 48, 36 };          // A = C3 lead, B = C2 counter-line
 
 // ── voices ──
 enum { V_RING, V_GLIDE, V_BONGO, V_COUNT };
@@ -61,38 +63,43 @@ static const Scale SCALES[] = {
     { "BLUES",  6, { 0, 3, 5, 6, 7, 10 } },
 };
 #define NSCALE (int)(sizeof(SCALES)/sizeof(SCALES[0]))
-#define ROOT   48                                // C3
 
-// ── state ──
-static float lvl[MAXN];                          // per-bulb brightness 0..1 (0 = rest)
-static float k_tempo, k_steps, k_ringmod, k_reverb, k_echo;
-static int   sel = 0, grab = -1;
-static int   gstep = -1, last_tick = -1;
-static int   voice = V_RING, scale = 0;
-static int   flash[MAXN];
-static int   glide_h = -1;                       // the Clavivox held voice
+// ── a ring ──
+typedef struct {
+    float lvl[MAXN];        // per-bulb brightness 0..1 (0 = rest)
+    float ksteps;           // step-count knob → 4..16
+    int   voice;
+    int   flash[MAXN];
+    int   glide_h;          // the Clavivox held voice (-1 = none)
+    int   last_step;        // last step the arm triggered (crossing detection)
+} Ring;
+
+static Ring  rg[2];
+static int   selR = 0, selS = 0, grab = -1, grabR = 0;
+static int   scale = 0;
+static float k_tempo, k_ringmod, k_reverb, k_echo, k_dirt;
 static bool  pdown_prev = false;
-static float ap_rm = -1, ap_rv = -1, ap_ec = -1; // last-applied fx (fx-frame rule)
+static float ap_rm = -1, ap_rv = -1, ap_ec = -1, ap_dt = -1;   // last-applied fx (fx-frame rule)
 
-static int   n_steps(void) { return 4 + (int)(k_steps * 12 + 0.5f); }   // 4..16
-static int   tempo(void)   { return 70 + (int)(k_tempo * 110 + 0.5f); } // 70..180
+static int   n_steps(int r) { return 4 + (int)(rg[r].ksteps * 12 + 0.5f); }  // 4..16
+static int   tempo(void)    { return 70 + (int)(k_tempo * 110 + 0.5f); }       // 70..180
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 // a bulb's screen position (12 o'clock = step 0, clockwise)
-static void bulb_pos(int i, int n, int *x, int *y) {
+static void bulb_pos(int r, int i, int n, int *x, int *y) {
     float a = -1.5707963f + (float)i / n * 6.2831853f;
-    *x = CX + (int)(cosf(a) * R);
-    *y = CY + (int)(sinf(a) * R);
+    *x = CX + (int)(cosf(a) * RAD[r]);
+    *y = CY + (int)(sinf(a) * RAD[r]);
 }
 
-// a bulb's MIDI note from its brightness, snapped to the scale; -1 = rest
-static int bulb_midi(int i) {
-    if (lvl[i] < 0.06f) return -1;
+// a bulb's MIDI note from its brightness, snapped to the ring's scale/root; -1 = rest
+static int bulb_midi(int r, int i) {
+    if (rg[r].lvl[i] < 0.06f) return -1;
     const Scale *s = &SCALES[scale];
     int maxdeg = s->n * 2;                        // ~two octaves of range
-    int deg = (int)((lvl[i] - 0.06f) / 0.94f * maxdeg + 0.5f);
+    int deg = (int)((rg[r].lvl[i] - 0.06f) / 0.94f * maxdeg + 0.5f);
     if (deg > maxdeg) deg = maxdeg;
-    return ROOT + (deg / s->n) * 12 + s->iv[deg % s->n];
+    return ROOTS[r] + (deg / s->n) * 12 + s->iv[deg % s->n];
 }
 
 // unified pointer (mouse OR first touch)
@@ -100,19 +107,20 @@ static bool pdn(void) { return mouse_down(0) || touch_count() > 0; }
 static int  ptx(void) { return touch_count() > 0 ? touch_x(0) : mouse_x(); }
 static int  pty(void) { return touch_count() > 0 ? touch_y(0) : mouse_y(); }
 
-static void set_voice(int v) {
-    if (v == voice) return;
-    if (voice == V_GLIDE && glide_h >= 0) { note_off(glide_h); glide_h = -1; }  // leaving glide
-    voice = ((v % V_COUNT) + V_COUNT) % V_COUNT;
-    if (voice == V_GLIDE) { glide_h = note_on(ROOT + 12, SL_GLIDE, 0); note_glide(glide_h, 80); }
+static void set_voice(int r, int v) {
+    if (v == rg[r].voice) return;
+    if (rg[r].voice == V_GLIDE && rg[r].glide_h >= 0) { note_off(rg[r].glide_h); rg[r].glide_h = -1; }
+    rg[r].voice = ((v % V_COUNT) + V_COUNT) % V_COUNT;
+    if (rg[r].voice == V_GLIDE) { rg[r].glide_h = note_on(ROOTS[r] + 12, SL_GLIDE, 0); note_glide(rg[r].glide_h, 90); }
 }
 
-// the Electronium "suggest": nudge every bulb a touch, so the loop morphs but stays musical
+// the Electronium "suggest": nudge every bulb of both rings a touch — morph, stay musical
 static void nudge(void) {
-    for (int i = 0; i < MAXN; i++) {
-        if (rnd(3) == 0) lvl[i] = clampf(lvl[i] + (rnd(3) - 1) * 0.15f, 0, 1);
-        if (rnd(9) == 0) lvl[i] = (lvl[i] < 0.06f) ? 0.5f : 0.0f;   // flip a rest occasionally
-    }
+    for (int r = 0; r < 2; r++)
+        for (int i = 0; i < MAXN; i++) {
+            if (rnd(3) == 0) rg[r].lvl[i] = clampf(rg[r].lvl[i] + (rnd(3) - 1) * 0.15f, 0, 1);
+            if (rnd(9) == 0) rg[r].lvl[i] = (rg[r].lvl[i] < 0.06f) ? 0.5f : 0.0f;
+        }
 }
 
 void init(void) {
@@ -120,141 +128,179 @@ void init(void) {
     instrument(SL_GLIDE, INSTR_SINE,   8, 260, 6, 140);  // the Clavivox — holds + slides
     instrument(SL_BONGO, INSTR_MEMBRANE, 0, 90, 0, 40);  // the Bandito auto-drummer
 
-    k_tempo   = (108 - 70) / 110.0f;    // ~108 BPM
-    k_steps   = (12 - 4) / 12.0f;       // 12 bulbs
-    k_ringmod = 0.0f;
-    k_reverb  = 0.35f;
-    k_echo    = 0.20f;
+    reverb(0.80f, 0.40f);               // configure the space ONCE — a long tape-plate hall
+    echo(320, 0.55f, 0.45f);            // and the echo bus (darkish tape repeats); the KNOBS drive the SENDS
 
-    // a gentle rising/falling contour with a couple of rests — pretty on cold-open (ADR-0022)
-    static const float seed[12] = { .45f,.6f,.75f,.55f, 0,.65f,.8f,.5f, 0,.7f,.85f,.4f };
-    for (int i = 0; i < MAXN; i++) lvl[i] = seed[i % 12];
+    k_tempo   = (108 - 70) / 110.0f;    // ~108 BPM
+    k_ringmod = 0.12f;                  // a little metallic edge by default
+    k_reverb  = 0.55f;                  // send: roomy → drenched
+    k_echo    = 0.40f;                  // send: slapback → dub throw
+    k_dirt    = 0.45f;                  // the records swim in it — start dirty
+
+    static const float seedA[12] = { .5f,.65f,.8f,.6f, 0,.7f,.85f,.55f, 0,.75f,.9f,.45f };
+    static const float seedB[7]  = { .7f, 0,.5f,.6f, 0,.8f,.4f };   // sparser, lower counter-line
+    rg[0].ksteps = (12 - 4) / 12.0f;  // 12 bulbs
+    rg[1].ksteps = (7  - 4) / 12.0f;  // 7 bulbs → drifts against the 12
+    for (int i = 0; i < MAXN; i++) { rg[0].lvl[i] = seedA[i % 12]; rg[1].lvl[i] = seedB[i % 7]; }
+    for (int r = 0; r < 2; r++) { rg[r].voice = V_RING; rg[r].glide_h = -1; rg[r].last_step = -1; }
 }
 
 // set-and-hold fx: reconfigure ONLY when a knob has moved (never every frame)
 static void apply_fx(void) {
     if (fabsf(k_ringmod - ap_rm) > 0.005f) { ringmod(180.0f, k_ringmod); ap_rm = k_ringmod; }
-    if (fabsf(k_reverb  - ap_rv) > 0.005f) { reverb(k_reverb, 0.45f);    ap_rv = k_reverb; }
-    if (fabsf(k_echo    - ap_ec) > 0.005f) { echo(270, k_echo * 0.85f, 0.5f); ap_ec = k_echo; }
+    if (fabsf(k_reverb  - ap_rv) > 0.005f) {   // reverb is a SEND — route each voice into the tank
+        for (int s = SL_RING; s <= SL_BONGO; s++) instrument_reverb(s, k_reverb);
+        ap_rv = k_reverb;
+    }
+    if (fabsf(k_echo    - ap_ec) > 0.005f) {   // echo is a SEND too — how much each voice throws
+        for (int s = SL_RING; s <= SL_BONGO; s++) instrument_echo(s, k_echo);
+        ap_ec = k_echo;
+    }
+    if (fabsf(k_dirt    - ap_dt) > 0.005f) {                    // the tape machine
+        float d = k_dirt;
+        tape(0.18f + 0.55f * d, 0.12f + 0.45f * d, 0.25f + 0.55f * d);   // wow / flutter / saturation
+        chorus(0.7f, 0.25f + 0.45f * d, 0.20f + 0.35f * d);              // the wobble
+        amp_noise(0.10f * d, 0.08f * d, 60);                            // valve grime floor
+        crush(d > 0.6f ? 16.0f - (d - 0.6f) * 20.0f : 16.0f, 1.0f, d > 0.6f ? (d - 0.6f) * 1.2f : 0.0f);
+        ap_dt = d;
+    }
 }
 
-static void trigger(int i) {
-    int midi = bulb_midi(i);
+static void trigger(int r, int i) {
+    int midi = bulb_midi(r, i);
     if (midi < 0) {                                  // rest
-        if (voice == V_GLIDE && glide_h >= 0) note_vol(glide_h, 0);
+        if (rg[r].voice == V_GLIDE && rg[r].glide_h >= 0) note_vol(rg[r].glide_h, 0);
         return;
     }
-    int vol = 3 + (int)(lvl[i] * 4);                 // brighter bulb = louder (accent)
-    switch (voice) {
-        case V_RING:  hit(midi, SL_RING, vol, 60000 / tempo() / 4 * 4 / 5); break;
+    int vol = 3 + (int)(rg[r].lvl[i] * 4);         // brighter bulb = louder (accent)
+    switch (rg[r].voice) {
+        case V_RING:  hit(midi, SL_RING, vol, 60000 / tempo() / 5); break;
         case V_BONGO: hit(midi, SL_BONGO, vol, 90); break;
         case V_GLIDE:
-            if (glide_h >= 0) { note_pitch(glide_h, (float)midi); note_vol(glide_h, 3 + lvl[i] * 3); }
+            if (rg[r].glide_h >= 0) { note_pitch(rg[r].glide_h, (float)midi); note_vol(rg[r].glide_h, 3 + rg[r].lvl[i] * 3); }
             break;
     }
-    flash[i] = frame();
+    rg[r].flash[i] = frame();
 }
 
 void update(void) {
-    int n = n_steps();
-    if (sel >= n) sel = n - 1;
+    int nA = n_steps(selR);
+    if (selS >= nA) selS = nA - 1;
 
     // ── keyboard ──
-    if (btnp(0, BTN_LEFT))  sel = (sel - 1 + n) % n;
-    if (btnp(0, BTN_RIGHT)) sel = (sel + 1) % n;
-    if (btnp(0, BTN_UP))    lvl[sel] = clampf(lvl[sel] + 0.08f, 0, 1);
-    if (btnp(0, BTN_DOWN))  lvl[sel] = clampf(lvl[sel] - 0.08f, 0, 1);
-    if (keyp('V'))          set_voice(voice + 1);
+    if (keyp('1')) selR = 0;
+    if (keyp('2')) selR = 1;
+    if (btnp(0, BTN_LEFT))  selS = (selS - 1 + nA) % nA;
+    if (btnp(0, BTN_RIGHT)) selS = (selS + 1) % nA;
+    if (btnp(0, BTN_UP))    rg[selR].lvl[selS] = clampf(rg[selR].lvl[selS] + 0.08f, 0, 1);
+    if (btnp(0, BTN_DOWN))  rg[selR].lvl[selS] = clampf(rg[selR].lvl[selS] - 0.08f, 0, 1);
+    if (keyp('V'))          set_voice(selR, rg[selR].voice + 1);
     if (keyp('K'))          scale = (scale + 1) % NSCALE;
     if (keyp(KEY_SPACE))    nudge();
 
     // ── drag a bulb up/down to set its note (grab on the down-edge, ring area only) ──
     bool down = pdn(); int mx = ptx(), my = pty();
     if (down && !pdown_prev && mx < 185) {
-        int best = -1; float bd = 121;              // within ~11px
-        for (int i = 0; i < n; i++) {
-            int bx, by; bulb_pos(i, n, &bx, &by);
-            float d2 = (float)((mx - bx) * (mx - bx) + (my - by) * (my - by));
-            if (d2 < bd) { bd = d2; best = i; }
+        int best = -1, bestR = 0; float bd = 121;         // within ~11px, across both rings
+        for (int r = 0; r < 2; r++) {
+            int n = n_steps(r);
+            for (int i = 0; i < n; i++) {
+                int bx, by; bulb_pos(r, i, n, &bx, &by);
+                float d2 = (float)((mx - bx) * (mx - bx) + (my - by) * (my - by));
+                if (d2 < bd) { bd = d2; best = i; bestR = r; }
+            }
         }
-        if (best >= 0) { grab = best; sel = best; }
+        if (best >= 0) { grab = best; grabR = bestR; selR = bestR; selS = best; }
     }
     if (!down) grab = -1;
     if (grab >= 0 && down)
-        lvl[grab] = clampf((float)(CY + R + 8 - my) / (2 * R + 16), 0, 1);   // up = brighter
+        rg[grabR].lvl[grab] = clampf((float)(CY + RAD[0] + 8 - my) / (2 * RAD[0] + 16), 0, 1);
     pdown_prev = down;
 
-    // ── transport: the spindle. n bulbs per revolution, one bulb per 16th at TEMPO ──
+    // ── transport: one arm sweeps both rings; a ring triggers when the arm crosses a bulb.
+    //    different step counts → the two rings drift apart (polymeter). 1 rev = 1 bar. ──
     bpm(tempo());
-    float pos = beat() * 4 + beat_pos() * 4.0f;
-    int tick = (int)pos;
-    if (tick != last_tick) { last_tick = tick; gstep++; trigger(gstep % n); }
+    float pos = beat() * 4 + beat_pos() * 4.0f;          // monotonic sixteenths
+    float theta = fmodf(pos / 16.0f, 1.0f);              // 0..1 of a revolution
+    for (int r = 0; r < 2; r++) {
+        int n = n_steps(r);
+        int cs = (int)(theta * n) % n;
+        if (cs != rg[r].last_step) { rg[r].last_step = cs; trigger(r, cs); }
+    }
 
     apply_fx();
 
 #ifdef DE_TRACE
-    watch("voice", "%s", VNAME[voice]);
-    watch("scale", "%s", SCALES[scale].name);
-    watch("tempo", "%d", tempo());
-    watch("steps", "%d", n);
-    watch("sel",   "%d", sel);
-    watch("cur",   "%d", gstep < 0 ? -1 : gstep % n);
+    watch("ring",   "%c", 'A' + selR);
+    watch("voiceA", "%s", VNAME[rg[0].voice]);
+    watch("voiceB", "%s", VNAME[rg[1].voice]);
+    watch("scale",  "%s", SCALES[scale].name);
+    watch("tempo",  "%d", tempo());
+    watch("stepsA", "%d", n_steps(0));
+    watch("stepsB", "%d", n_steps(1));
+    watch("dirt",   "%.2f", k_dirt);
 #endif
+}
+
+static void draw_ring(int r) {
+    int n = n_steps(r), cur = rg[r].last_step;
+    for (int i = 0; i < n; i++) {
+        int x, y; bulb_pos(r, i, n, &x, &y);
+        float lv = rg[r].lvl[i];
+        bool rest = lv < 0.06f;
+        bool head = (i == cur);
+        bool hot  = (frame() - rg[r].flash[i]) < 6;
+        bool selb = (r == selR && i == selS);
+        if (rest) {
+            circfill(x, y, 2, selb ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
+        } else {
+            int rr = 2 + (int)(lv * 4);
+            int glow = (head && hot) ? CLR_WHITE : (lv > 0.66f ? CLR_LIGHT_YELLOW
+                                                  : lv > 0.33f ? CLR_ORANGE : CLR_BROWN);
+            if (lv > 0.5f) circfill(x, y, rr + 2, CLR_DARK_BROWN);   // halo
+            circfill(x, y, rr, glow);
+        }
+        if (selb) circ(x, y, 8, CLR_MEDIUM_GREY);                   // selection ring
+    }
 }
 
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
-    int n = n_steps();
-    int cur = gstep < 0 ? -1 : gstep % n;
-    float frac = beat_pos() * 4.0f; frac -= (int)frac;                // within the 16th
-    float armA = -1.5707963f + (((cur < 0 ? 0 : cur) + frac) / n) * 6.2831853f;
+    float pos = beat() * 4 + beat_pos() * 4.0f;
+    float theta = fmodf(pos / 16.0f, 1.0f);
+    float armA = -1.5707963f + theta * 6.2831853f;
 
     print("CIRCLE MACHINE", 4, 4, CLR_LIGHT_YELLOW);
     font(FONT_SMALL);
-    print(str("%s  %s", VNAME[voice], SCALES[scale].name), 4, 14, CLR_ORANGE);
+    print(str("A:%s  B:%s  %s", VNAME[rg[0].voice], VNAME[rg[1].voice], SCALES[scale].name), 4, 14, CLR_ORANGE);
     font(FONT_NORMAL);
     print_right(str("%d BPM", tempo()), 190, 4, CLR_LIGHT_GREY);
 
-    // guide ring + the rotating photocell arm
-    circ(CX, CY, R, CLR_DARKER_GREY);
-    int ax = CX + (int)(cosf(armA) * (R + 3)), ay = CY + (int)(sinf(armA) * (R + 3));
+    circ(CX, CY, RAD[0], CLR_DARKER_GREY);                          // guide rings
+    circ(CX, CY, RAD[1], CLR_DARKER_GREY);
+    draw_ring(1);                                                   // inner first
+    draw_ring(0);                                                   // outer on top
+    // the rotating photocell arm (sweeps both rings)
+    int ax = CX + (int)(cosf(armA) * (RAD[0] + 3)), ay = CY + (int)(sinf(armA) * (RAD[0] + 3));
     line(CX, CY, ax, ay, CLR_DARK_GREY);
-    circfill(ax, ay, 3, CLR_LIGHT_YELLOW);                            // the photocell
-
-    // the bulbs
-    for (int i = 0; i < n; i++) {
-        int x, y; bulb_pos(i, n, &x, &y);
-        bool rest = lvl[i] < 0.06f;
-        bool head = (i == cur);
-        bool hot  = (frame() - flash[i]) < 6;
-        if (rest) {
-            circfill(x, y, 2, i == sel ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
-        } else {
-            int r = 2 + (int)(lvl[i] * 4);
-            int glow = (head && hot) ? CLR_WHITE : (lvl[i] > 0.66f ? CLR_LIGHT_YELLOW
-                                                  : lvl[i] > 0.33f ? CLR_ORANGE : CLR_BROWN);
-            if (lvl[i] > 0.5f) circfill(x, y, r + 2, CLR_DARK_BROWN);  // halo
-            circfill(x, y, r, glow);
-        }
-        if (i == sel) circ(x, y, 8, CLR_MEDIUM_GREY);                 // selection ring
-    }
-    // center hub, pulses on the beat
-    circfill(CX, CY, (frame() - flash[cur < 0 ? 0 : cur]) < 6 ? 4 : 2, CLR_DARK_GREY);
+    circfill(ax, ay, 3, CLR_LIGHT_YELLOW);
+    circfill(CX, CY, 2, CLR_DARK_GREY);                            // hub
 
     // ── right panel ──
     ui_begin();
     font(FONT_SMALL);
-    ui_knob(&k_tempo,   206, 34, "TEMPO");
-    ui_knob(&k_steps,   246, 34, "STEPS");
-    ui_knob(&lvl[sel],  286, 34, "LEVEL");
-    ui_knob(&k_ringmod, 206, 86, "RINGMOD");
-    ui_knob(&k_reverb,  246, 86, "REVERB");
-    ui_knob(&k_echo,    286, 86, "ECHO");
-    if (ui_button(200, 126, 58, 16, VNAME[voice]))          set_voice(voice + 1);
-    if (ui_button(262, 126, 56, 16, SCALES[scale].name))    scale = (scale + 1) % NSCALE;
-    if (ui_button(200, 148, 118, 16, "NUDGE"))              nudge();
-    print("drag a bulb up/down = note", 200, 172, CLR_DARK_GREY);
-    print("V voice  K scale  SPACE=nudge", 200, 180, CLR_DARK_GREY);
+    ui_knob(&k_tempo,               206, 32, "TEMPO");
+    ui_knob(&rg[selR].ksteps,     244, 32, "STEPS");
+    ui_knob(&rg[selR].lvl[selS],  282, 32, "LEVEL");
+    ui_knob(&k_ringmod,             206, 80, "RINGMOD");
+    ui_knob(&k_reverb,              244, 80, "REVERB");
+    ui_knob(&k_echo,                282, 80, "ECHO");
+    ui_knob(&k_dirt,                206, 128, "DIRT");
+    if (ui_button(244, 118, 74, 15, str("RING %c", 'A' + selR)))     selR ^= 1;
+    if (ui_button(244, 136, 74, 15, VNAME[rg[selR].voice]))        set_voice(selR, rg[selR].voice + 1);
+    if (ui_button(244, 154, 74, 15, "NUDGE"))                        nudge();
+    print("1/2 ring  drag bulb=note", 200, 176, CLR_DARK_GREY);
+    print("V voice  K scale  SPACE=nudge", 200, 184, CLR_DARK_GREY);
     font(FONT_NORMAL);
     ui_end();
 }

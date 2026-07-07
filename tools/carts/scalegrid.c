@@ -12,9 +12,9 @@
     "analog-voice-modeling"
   ],
   "description": {
-    "summary": "A scale-locked ISOMORPHIC pad grid you play with your fingers - pick a scale and there are NO WRONG NOTES. Voiced by INSTR_PD (the Casio-CZ phase-distortion engine) on a lush 'wowww' sweep pad, so every tap and chord rings. An on-screen chip bar makes it fully playable on a phone.",
-    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: each row is offset by a fixed musical interval, so a chord SHAPE is identical in every key and octave AND survives a reflow. ROW toggles the two layouts that are actually musical (ADR-0028): OCT = each row up is +1 octave (the clean scale map); 4TH = each row up is +a fourth (compact Linnstrument-style chord shapes). A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. The grid FILLS BOTH DIMENSIONS with finger-sized pads - never below one finger, as many as fit across and down; where the surface is wider than the scale the notes simply REPEAT (a shape is playable in several places), never leaving a gap. A SIZE chip cycles the pad size (dense many-pad surface <-> few chunky pads) since the densest fill isn't always what you want. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
-    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (OCT<->4TH layout), OCT-/OCT+, SIZE (pad size), HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-layout, Z/X octave, P pad size, G hex, M self-play, H help."
+    "summary": "A scale-locked ISOMORPHIC pad grid you play with your fingers - pick a scale and there are NO WRONG NOTES. A VOICE chip cycles the sound engine (a Casio-CZ 'sweep pad', a Rhodes epiano, a vibraphone, a drawbar organ, a plucked string) so you can hear the same pads through different instruments. An on-screen chip bar makes it fully playable on a phone.",
+    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: each row is offset by a fixed musical interval, so a chord SHAPE is identical in every key and octave AND survives a reflow. ROW toggles the two layouts that are actually musical (ADR-0028): OCT = each row up is +1 octave (the clean scale map); 4TH = each row up is +a fourth (compact Linnstrument-style chord shapes). A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. The grid FILLS BOTH DIMENSIONS with finger-sized pads - never below one finger, as many as fit across and down; where the surface is wider than the scale the notes simply REPEAT (a shape is playable in several places), never leaving a gap. A SIZE chip cycles the pad size (dense many-pad surface <-> few chunky pads) since the densest fill isn't always what you want. A VOICE chip cycles the sound engine (PD sweep pad / EPIANO / MALLET / ORGAN / PLUCK), each a one-line INSTR_* preset, so the grid can be heard through several instruments. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
+    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY (+octave), ROW (OCT<->4TH layout), OCT-/OCT+, VOICE (sound engine), SIZE (pad size), HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-layout, Z/X octave, V voice, P pad size, G hex, M self-play, H help."
   }
 }
 de:meta */
@@ -92,6 +92,7 @@ static bool hexlayout = false;  // HEX packing: alternate rows offset by half a 
                                 // diagonal chord shapes need the same finger stretch as sideways).
 static int sizemode = 0;        // pad SIZE preset (SIZE chip / P key): 0 = densest (finger floor,
                                 // most range), up = fewer, chunkier pads. Never below one finger.
+static int voicemode = 0;       // which sound ENGINE plays the pads (VOICE chip / V key)
 static const float SIZE_MULT[] = { 1.0f, 1.55f, 2.4f };   // pad-unit multiplier per preset
 #define NSIZE (int)(sizeof(SIZE_MULT) / sizeof(SIZE_MULT[0]))
 static const char *const SIZE_NAME[NSIZE] = { "PAD:S", "PAD:M", "PAD:L" };
@@ -212,24 +213,38 @@ static int pad_at(int px, int py) {
     return row * g_cols + col;
 }
 
-static void set_pad_voice(void) {
-    // "sweep pad" preset from the pd cart: reso-tri wave, full DCW "wowww".
-    // envs converted from the pd cart's slider→ms formulas.
-    instrument(I_PD, INSTR_PD, 76, 627, 5, 755);
-    instrument_harmonics(I_PD, 0.69f);   // wavetype: resonant triangle
-    instrument_timbre(I_PD, 0.38f);      // distortion / brightness
-    instrument_morph(I_PD, 0.95f);       // full DCW envelope sweep — the "wowww"
+// ── the pad VOICE presets — one engine each, so you can hear the grid played by a
+//    handful of different sounds (V key / VOICE chip cycles). ADSR + the three modeled-
+//    engine macros (harmonics/timbre/morph); macros are ignored by the plain waves. ──
+typedef struct { const char *name; int wave, a, d, s, r; float h, t, m; } VoicePreset;
+static const VoicePreset VOICES[] = {
+    { "PAD",    INSTR_PD,     76, 627, 5, 755, 0.69f, 0.38f, 0.95f },  // Casio-CZ "sweep pad"
+    { "EPIANO", INSTR_EPIANO,  2,   0, 6, 900, 0.50f, 0.50f, 0.50f },  // Rhodes
+    { "MALLET", INSTR_MALLET,  1,   0, 7, 900, 0.55f, 0.45f, 0.70f },  // vibraphone/bell
+    { "ORGAN",  INSTR_ORGAN,  20,   0, 7, 200, 0.50f, 0.50f, 0.50f },  // sustained drawbar
+    { "PLUCK",  INSTR_PLUCK,   2, 200, 4, 320, 0.70f, 0.45f, 0.30f },  // plucked string
+};
+#define NVOICE (int)(sizeof(VOICES) / sizeof(VOICES[0]))
+
+// (re)configure the pad instrument slot for the current voice — SET-AND-HOLD, called
+// once at startup and only when the voice CHANGES (never per frame).
+static void apply_voice(void) {
+    const VoicePreset *v = &VOICES[voicemode];
+    instrument(I_PD, v->wave, v->a, v->d, v->s, v->r);
+    instrument_harmonics(I_PD, v->h);
+    instrument_timbre(I_PD, v->t);
+    instrument_morph(I_PD, v->m);
 }
 
 // ── on-screen control bar (touch has no keyboard) — cyclable chips ───────────
 // Every parameter the keyboard cycles gets a tappable chip so the cart is fully
 // playable on a phone. The row cells are laid out by weight across the bar width.
-enum { ACT_NONE, ACT_SCALE, ACT_KEY, ACT_ROW, ACT_OCTDN, ACT_OCTUP, ACT_SELF, ACT_HEX, ACT_SIZE };
+enum { ACT_NONE, ACT_SCALE, ACT_KEY, ACT_ROW, ACT_OCTDN, ACT_OCTUP, ACT_SELF, ACT_HEX, ACT_SIZE, ACT_VOICE };
 typedef struct { float w; int act; } Chip;
 static const Chip CHIP[] = {
-    { 1.5f, ACT_SCALE }, { 1.0f, ACT_KEY }, { 1.3f, ACT_ROW },
-    { 0.6f, ACT_OCTDN }, { 0.5f, ACT_NONE }, { 0.6f, ACT_OCTUP },
-    { 1.0f, ACT_SIZE }, { 0.9f, ACT_HEX }, { 1.0f, ACT_SELF },
+    { 1.4f, ACT_SCALE }, { 1.0f, ACT_KEY }, { 1.2f, ACT_ROW },
+    { 0.55f, ACT_OCTDN }, { 0.55f, ACT_OCTUP },
+    { 1.1f, ACT_VOICE }, { 0.95f, ACT_SIZE }, { 0.85f, ACT_HEX }, { 1.0f, ACT_SELF },
 };
 #define NCHIP (int)(sizeof(CHIP) / sizeof(CHIP[0]))
 static int bar_x[NCHIP + 1];              // cumulative pixel boundaries of the bar cells
@@ -259,6 +274,7 @@ static void do_action(int act) {
         case ACT_SELF:  if (selfplay) stop_selfplay(); else selfplay = true; break;
         case ACT_HEX:   hexlayout = !hexlayout; break;
         case ACT_SIZE:  sizemode = (sizemode + 1) % NSIZE; break;
+        case ACT_VOICE: voicemode = (voicemode + 1) % NVOICE; break;
         default: break;
     }
 }
@@ -268,6 +284,8 @@ static const char *row_label(void) { return rowmode == 0 ? "ROW:OCT" : "ROW:4TH"
 void update(void) {
     compute_grid();
     layout_bar();
+    static int appliedVoice = -1;                        // (re)apply the pad voice on change only
+    if (appliedVoice != voicemode) { apply_voice(); appliedVoice = voicemode; }
     for (int i = 0; i < GLOW_MAX; i++) if (glow[i] > 0) glow[i] = clampf(glow[i] - 0.08f, 0, 1);
 
     // ── keyboard shortcuts (desktop; each one mirrors an on-screen chip) ──
@@ -280,6 +298,7 @@ void update(void) {
     if (keyp('m') || keyp('M')) do_action(ACT_SELF);
     if (keyp('g') || keyp('G')) do_action(ACT_HEX);      // square <-> hex packing
     if (keyp('p') || keyp('P')) do_action(ACT_SIZE);     // cycle pad size (density)
+    if (keyp('v') || keyp('V')) do_action(ACT_VOICE);    // cycle the sound engine
 
     // ── control bar: fire ONCE per press (a CLICK), never repeat while held ──
     // Latched off "is a pointer resting on a chip this frame" — robust to touch ids
@@ -439,11 +458,11 @@ void draw(void) {
         const char *lbl = ""; int fg = CLR_LIGHT_PEACH, bg = CLR_DARKER_BLUE, chip = 1;
         switch (CHIP[i].act) {
             case ACT_SCALE: lbl = SC_NAME[scale];             bg = CLR_DARKER_PURPLE; break;
-            case ACT_KEY:   lbl = str("KEY %s", NOTE[root]);                          break;
+            case ACT_KEY:   lbl = str("%s%d", NOTE[root], octave);                    break;   // key + octave
             case ACT_ROW:   lbl = row_label();                bg = CLR_DARK_BLUE;     break;
             case ACT_OCTDN: lbl = "OCT-";                                             break;
             case ACT_OCTUP: lbl = "OCT+";                                             break;
-            case ACT_NONE:  lbl = str("O%d", octave); chip = 0; fg = CLR_LIGHT_GREY;  break;   // octave readout
+            case ACT_VOICE: lbl = VOICES[voicemode].name;     bg = CLR_DARKER_PURPLE; break;
             case ACT_HEX:   lbl = hexlayout ? "HEX" : "SQR";
                             bg = hexlayout ? CLR_DARK_GREEN : CLR_DARKER_BLUE;        break;
             case ACT_SIZE:  lbl = SIZE_NAME[sizemode];        bg = CLR_DARK_BLUE;      break;
@@ -476,7 +495,7 @@ void draw(void) {
 #include <math.h>
 
 void spec(void) {
-    root = 0; octave = 4; hexlayout = false; sizemode = 0;
+    root = 0; octave = 4; hexlayout = false; sizemode = 0; voicemode = 0;
 
     // ── 1) NO-GAP LATTICE: every scale, BOTH row modes (OCT + 4TH). The offset must be
     //       <= the column count (else notes fall in the gap between rows — the "chroma

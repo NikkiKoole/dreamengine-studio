@@ -1,7 +1,8 @@
 # Leads — the local marketeer (find venues to post + track outreach)
 
-STATUS: BUILDING (2026-07-07) — the tool + ledger are built and working; the tribe
-taxonomy is being filled cart-by-cart, and the editor Apps-page surface is not started.
+STATUS: BUILDING (2026-07-07) — the tool + ledger are built and working; the MUSIC tribe
+taxonomy is substantially filled (32 tribes, 90% music coverage — remaining gaps are engine
+tech-demos that get no tribe by design). Open: the games-buckets decision + the editor Apps-page surface.
 The demand-GENERATION twin of the `aso-*` demand-CAPTURE tools. Sits under
 [`demand-generation.md`](demand-generation.md) lever #3 ("showing up in the tribe").
 
@@ -97,10 +98,11 @@ real cart needs one) — no speculative tribes rotting in the ledger.
 
 ## What's done (2026-07-07)
 
-- Tool with all 7 commands; ledger with **30 tribes** (the 2026-07-07 scene/format pass added
+- Tool with all 7 commands; ledger with **32 tribes** (the 2026-07-07 scene/format pass added
   ambient/citypop/afrobeat/frenchhouse/indie-jangle/microtonal + the cross-domain `generative`
-  tribe, `piano`/`vintage-poly` for the misfiles, then physical-modeling/guitar/world-folk for the
-  acoustic cluster) and **9 cross-cutting** (4 music / 5 game). Music coverage 62% → 84%.
+  tribe, `piano`/`vintage-poly` for the misfiles, physical-modeling/guitar/world-folk for the
+  acoustic cluster, then novelty-toy/vocal-synth) and **9 cross-cutting** (4 music / 5 game).
+  Music coverage 62% → **90%**.
 - Matching hardened by dry runs (see log below).
 - Discoverable: CLAUDE.md tools list, `demand-generation.md` lever #3, tinyjam §3.9 backlink.
 
@@ -163,11 +165,15 @@ real cart needs one) — no speculative tribes rotting in the ledger.
      Radio carts (afrobeat/mariachi) bleed lightly into physical-modeling because they *name* their
      waveguide voices — accepted (correct primary homes elsewhere). `pan` (stereo-panning demo) and
      `cathedral` (reverb demo) correctly stay tech-demos, no tribe.
-   - **The remaining music gaps** (~21, mostly correct non-tribes): **novelty/toy** (otamatone/
-     stylophone/touch-piano/le petomane/mario-paint composer → YouTube/TikTok novelty channels, no
-     dedicated sub) and **vocal-synth** (vox4/voxab/voxlab/voxpad/say → r/Vocaloid + formant/vocoder)
-     are the next real clusters; `mallet` (modal/percussion) has no home yet. Engine tech-demos
-     (`fxmod`/`lfoshapes`/`reverb spaces`/`varispeed`/`ampnoise`/`enginelab`/`tracker`/`univibe`) → no tribe.
+   - **Novelty/toy + vocal-synth** — ✅ **DONE (2026-07-07).** `novelty-toy` (otamatone/otafamily/
+     stylophone/le petomane/mario-paint → r/synthesizers + short-form video, which is the *real* reach
+     for novelty instruments) and `vocal-synth` (vox/voxab/voxlab/voxpad/say/vowel — the INSTR_VOICE
+     formant engine → r/Vocaloid + r/synthesizers). Tagged on identity (`formant voice`/`phoneme`/
+     `simlish`, not bare `vowel`/`vocoder` which catch filter/effect mentions). Music coverage **90%**.
+   - **What's left is correctly un-tribed:** engine tech-demos (`fxmod`/`lfoshapes`/`reverb spaces`/
+     `cathedral`/`pan`/`varispeed`/`ampnoise`/`enginelab`/`tracker`/`univibe`) get no tribe by design;
+     `touchpiano` (near-empty `de:meta`) and `mallet` (modal/percussion) are the only real one-offs
+     still homeless — low priority, both fixable with a de:meta touch-up or a tiny tribe later.
 3. **Games** (coverage 24%, only `arcade` so far) — clusters into board/card/sim/puzzle/
    adventure. **Decision pending:** per the GTM games are web-gallery-only, so game buckets may
    be low value — do we invest? (asked, not yet answered.)

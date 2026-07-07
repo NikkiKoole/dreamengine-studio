@@ -905,6 +905,64 @@
         }
       ],
       "domain": "music"
+    },
+    {
+      "id": "novelty-toy",
+      "label": "Toy / novelty synths (Otamatone - Stylophone)",
+      "tags": [
+        "otamatone",
+        "stylophone",
+        "dubreq",
+        "maywa denki",
+        "le petomane",
+        "mario paint",
+        "toy synth",
+        "novelty synth"
+      ],
+      "hook": "A gloriously silly pocket instrument — the kind that goes viral on a phone screen.",
+      "venues": [
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "toy synths welcome; keep it playful, gift-first"
+        },
+        {
+          "name": "short-form video (TikTok / YouTube Shorts)",
+          "url": "https://www.tiktok.com/search?q=otamatone",
+          "kind": "tiktok",
+          "etiquette": "the REAL reach for novelty instruments — a 15s funny clip beats any forum post; make the clip, do not pitch"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "vocal-synth",
+      "label": "Vocal / formant synthesis (vocoder - singing synth)",
+      "tags": [
+        "formant voice",
+        "phoneme",
+        "simlish",
+        "singing synth",
+        "vocaloid",
+        "talkbox"
+      ],
+      "hook": "Make it sing (or talk) — sculpt vowels and phonemes from raw formants, no samples.",
+      "venues": [
+        {
+          "name": "r/Vocaloid",
+          "url": "https://www.reddit.com/r/Vocaloid/",
+          "kind": "reddit",
+          "etiquette": "singing-synth fandom; a formant toy is a curiosity here — gift-first, not a pitch"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "vocal/formant synthesis threads; show the engine"
+        }
+      ],
+      "domain": "music"
     }
   ],
   "crosscutting": [

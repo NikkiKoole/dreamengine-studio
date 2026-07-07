@@ -66,6 +66,18 @@ DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=$SW SCREEN_H=$SH SCALE=1 MAP_W=$MW M
 [ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
 
 CONFIG="${CONFIG:-Debug}"   # CONFIG=Release for the optimized engine (real perf; no #if DEBUG perf overlay)
+
+# actool needs an AppIcon set (project.yml sets APPICON_NAME=AppIcon, and the optional
+# catalog reference is always emitted). APP builds with a manifest "icon" already staged
+# gen/Assets.xcassets; otherwise (single cart / editor / icon-less app) stage the repo's
+# default placeholder so CompileAssetCatalog succeeds for ANY cart.
+if [ ! -f gen/Assets.xcassets/AppIcon.appiconset/Contents.json ]; then
+  mkdir -p gen/Assets.xcassets/AppIcon.appiconset
+  printf '{ "info": { "author": "xcode", "version": 1 } }\n' > gen/Assets.xcassets/Contents.json
+  cp default-icon.png gen/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+  printf '{ "images": [{ "filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024" }], "info": { "author": "xcode", "version": 1 } }\n' > gen/Assets.xcassets/AppIcon.appiconset/Contents.json
+fi
+
 echo "▸ generating + building (signed for device, $CONFIG, ${SW}x${SH})…"
 xcodegen generate --spec project.yml >/dev/null
 xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIG" \

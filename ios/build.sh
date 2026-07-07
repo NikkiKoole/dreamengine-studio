@@ -50,6 +50,17 @@ else
 fi
 stage_cart "$AU_CART" au
 
+# actool needs an AppIcon set (project.yml sets APPICON_NAME=AppIcon, and the optional
+# catalog reference is always emitted). APP builds with a manifest "icon" already staged
+# gen/Assets.xcassets; otherwise (single cart / editor / icon-less app) stage the repo's
+# default placeholder so CompileAssetCatalog succeeds for ANY cart.
+if [ ! -f gen/Assets.xcassets/AppIcon.appiconset/Contents.json ]; then
+  mkdir -p gen/Assets.xcassets/AppIcon.appiconset
+  printf '{ "info": { "author": "xcode", "version": 1 } }\n' > gen/Assets.xcassets/Contents.json
+  cp default-icon.png gen/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+  printf '{ "images": [{ "filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024" }], "info": { "author": "xcode", "version": 1 } }\n' > gen/Assets.xcassets/AppIcon.appiconset/Contents.json
+fi
+
 echo "▸ generating xcodeproj from project.yml…"
 xcodegen generate --spec project.yml >/dev/null
 

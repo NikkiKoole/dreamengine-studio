@@ -110,6 +110,12 @@ for the single-instrument (keybed) shape. Fill:
 **Gate: the maker signs off the taste calls here, on paper.** This is the committed intent artifact
 018 found missing — without it, "reflows at several sizes" is indistinguishable from "done".
 
+**Don't agonize over a taste call** ([ADR-0028](../decisions/0028-sensible-defaults-optional-tweaks.md)):
+where reasonable users could differ (a grid layout, a range cap, a scale), pick the option a
+*stranger* gets immediately, ship it as the default, and leave a **seam** (an enum + one switch
+point) so it can flip or become a tweak later. Record the call as *decided (provisional)* and move
+on — a feel/sound default gets confirmed on glass, not debated on paper.
+
 ## 4 · Prototype the arrangements in a fit-cart — never raw `screen_w()` math
 
 Build the arrangements as a **mock cart first** (the `rackfit` / `acidfit` lineage), using:

@@ -180,6 +180,12 @@ The non-obvious rules that keep carts consistent and readable — these bite whe
 - **A small glyph reads where a word can't.** A cramped text HUD (`HP 80  ammo 12|36`) becomes
   minimal and beautiful by swapping labels for code-drawn glyphs (♥ / clip / skull). `flank.c` is
   the worked example.
+- **Sensible defaults, optional tweaks — don't agonize.** For any value where reasonable users could
+  differ (a grid layout, a range cap, a scale), pick the option a *stranger* gets immediately, ship
+  it, and leave a **seam** (an enum + one switch point, not a settings wall) so it can flip or become
+  a tweak later at one-line cost. Surface the tweak only when real use shows a legitimate second
+  audience needs it — behind disclosure, never on the main surface. Drop a merely-worse option rather
+  than offer it. See [ADR-0028](../decisions/0028-sensible-defaults-optional-tweaks.md).
 
 ### Draw-name do / don't
 

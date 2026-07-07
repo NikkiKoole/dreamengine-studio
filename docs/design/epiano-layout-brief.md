@@ -102,6 +102,20 @@ below it:
 **DECISION D7 — a prominent `OCT- C3 OCT+`** cluster (finger-sized buttons + a root readout),
 replacing the two crammed arrows of the first pass.
 
+**DECISION D8 — a KEY / root selector** (closes O3). A `KEY ▸ G` chip in the note bar (C…B)
+transposes the scale + grid; roots re-tint and the octave readout shows the real root (`G3`). Scales
+were hardcoded to C; a real instrument plays in any key.
+
+**DECISION D9 — grid layout: default ISO-OCT, ISO-4TH as a seam, LINEAR dropped** (closes O4; an
+instance of [ADR-0028](../decisions/0028-sensible-defaults-optional-tweaks.md)). The pad grid is
+**isomorphic** — a fixed row offset in scale *degrees*, so a chord/scale shape is identical in every
+key and octave *and* survives a reflow. Ship default **ISO-OCT** (row up = +one octave; roots in a
+left column, runs read left→right — the most legible cold-open, clears the beginner-as-critic bar).
+Keep **ISO-4TH** (row up = +a fourth; Push-style diagonal chord shapes) as a **seam** (`isolayout`
+enum, cycled by `i` in the mock) — a per-player tweak surfaced later if chord players ask, not a
+launch setting. **LINEAR dropped**: its wrap point shifts on reflow — a defect, not a taste. The
+default is *provisional* until confirmed on glass with sound (the mock is silent — §6 O6b).
+
 Measured across the matrix (from the mock — this is the §5 evidence, and the acceptance target):
 
 | shape · scale | editor | measure |
@@ -150,16 +164,16 @@ These are the acceptance numbers — the build matches the §3 table on device o
 - **O2 · piano reachable under a locked scale?** A locked scale forces the grid on every shape. Do
   players who want *real keys in a key* get a toggle/loupe back to the piano, or is grid-when-scaled
   absolute? (`g` is the mock's override; not a shipping control yet.)
-- **O3 · a ROOT / KEY selector.** Scales are hardcoded to C. A real instrument wants a key (play in
-  G, in D…). Almost certainly a second small control in the note bar (`KEY ▸ C`). **Likely a yes —
-  flag for the build.**
-- **O4 · grid layout — linear vs isomorphic.** The grid ascends bottom-left linearly. An isomorphic
-  layout (rows offset by a 4th/5th, à la Launchpad/Push) is far more playable for chords/runs. Worth
-  a spike before committing linear.
+- **O3 · ~~a ROOT / KEY selector~~** — DECIDED (D8): yes, `KEY` chip added to the note bar.
+- **O4 · ~~grid layout — linear vs isomorphic~~** — DECIDED (D9): default ISO-OCT, ISO-4TH kept as a
+  seam, LINEAR dropped (per ADR-0028).
 - **O5 · raw macros + autoplay home on phone** — currently raw macros sit in the FX tab. Is that the
   right drawer, or do they want their own?
 - **O6 · orientation** — leaning `free` (grid saves portrait). Confirm on glass: does phone-portrait
   grid actually feel good enough to not lock landscape?
+- **O6b · confirm the ISO-OCT default with SOUND** — D9's default is provisional; the mock is silent,
+  and a note layout is a feel/sound call (ADR-0028's "confirm on glass"). Play it in the real cart
+  before locking; ISO-4TH is one keystroke away if it wins.
 
 ## 7 · Done means
 

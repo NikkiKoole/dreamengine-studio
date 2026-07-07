@@ -64,6 +64,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0025](0025-external-data-hooks-are-committed-api.md) | The external-data hooks (`de_data_path`/`de_dropped_file`/`de_open_path`) are committed API — paths, not formats; sloop/roadview/citydrive proved them | accepted |
 | [0026](0026-store-pipeline-in-house-not-fastlane.md) | Store pipeline: in-house App Store Connect API tool, not Fastlane — steal only its metadata folder layout; assets/copy derive from the cart, drift-checked | accepted |
 | [0027](0027-sound-state-flows-through-the-request-queue.md) | Cart-facing sound state flows ONLY through the request queue — the de_switch_cart context log is complete because the queue is universal; `bpm()`'s direct write raced the switch (heard as tempo jumps) | accepted |
+| [0028](0028-sensible-defaults-optional-tweaks.md) | Sensible defaults, optional tweaks — pick the option a stranger gets, ship it, leave a seam (enum + one switch point, not a settings wall); surface a tweak only on evidence of need, behind disclosure; drop merely-worse options. Don't agonize | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

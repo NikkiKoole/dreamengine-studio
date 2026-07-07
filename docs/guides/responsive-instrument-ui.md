@@ -90,7 +90,9 @@ equal knobs stay equal — don't tier *within* the signature row).
 ## 3 · Write the layout brief — BEFORE any layout code
 
 Copy [`../design/acidrack-layout-brief.md`](../design/acidrack-layout-brief.md) as the template
-(it *is* the template — keep it ~half a page per section). Fill:
+(it *is* the template — keep it ~half a page per section);
+[`../design/epiano-layout-brief.md`](../design/epiano-layout-brief.md) is a worked second example
+for the single-instrument (keybed) shape. Fill:
 
 - **§0 house rules** (carry them verbatim — they apply to every rack).
 - **§1 the three-state strip** — folded → compact → expanded per instrument.

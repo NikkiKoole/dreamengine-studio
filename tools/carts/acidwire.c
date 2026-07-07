@@ -81,6 +81,7 @@ static int cur = 0, applied = -1, work = NSTRIP, showlabel = 1, safehint = 1;
 static int g_boxpat = 0;   // pattern selector style this frame: 1 = boxed left panel (iPad), 0 = header row (phone)
 static int focused = -1;   // FOCUS/fullscreen: strip index shown full-screen (X closes), or -1 = the rack
 static int fingergrid = 0; // 'g': overlay a 1-finger (44pt = FU logical px) reference grid to eyeball fit
+static int playing = 0;    // transport play/stop (tap the ▶/■ button)
 // work: 0..NSTRIP-1 = that strip expanded; NSTRIP = ALL COMPACT (the iPad §4 headline)
 // per-instrument state the main screen must carry: mute + which of the 6 patterns is live
 static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
@@ -382,6 +383,14 @@ static void draw_safe_skin(int W, int H, Dev d) {
     // the safe-area boundary — put every control INSIDE this
     dashrect(box(2, d.insT, W - 4, H - d.insT - d.insB), CLR_ORANGE);
 }
+// a right-pointing play triangle filling box b (rows narrowing to the tip)
+static void play_tri(Box b, int col) {
+    int n = (int)b.h; if (n < 1) n = 1;
+    for (int i = 0; i < n; i++) {
+        float d = fabsf(i - (n - 1) / 2.0f) / ((n - 1) / 2.0f + 0.001f);
+        line((int)b.x, (int)b.y + i, (int)b.x + (int)(b.w * (1.0f - d)), (int)b.y + i, col);
+    }
+}
 // 'g' overlay: a 1-finger reference grid (FU = 44pt = 22 logical px cells). Any control smaller than
 // one cell is below the comfortable finger target — eyeball fit across shapes without measuring.
 static void draw_fingergrid(int W, int H) {
@@ -451,7 +460,14 @@ void draw(void) {
     Box bodyarea  = lay_pad(afterTr, 2, 1, 2, 1);
 
     boxfill(transport, CLR_TRUE_BLUE);
-    font(FONT_SMALL); print("\x10 STOP  139", (int)transport.x + 3, (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_PEACH);
+    // play/stop toggle (drawn icon, tappable) + tempo + LOOP mode
+    float bs = lay_clamp(trH * 0.7f, 8, 22);
+    Box pbtn = box(transport.x + 3, transport.y + (transport.h - bs) / 2, bs, bs);
+    boxfill(pbtn, CLR_DARKER_BLUE); boxrect(pbtn, CLR_LIGHT_PEACH);
+    if (playing) boxfill(box(pbtn.x + bs * 0.3f, pbtn.y + bs * 0.3f, bs * 0.4f, bs * 0.4f), CLR_LIGHT_PEACH);   // ■ stop
+    else         play_tri(lay_inset(pbtn, bs * 0.28f), CLR_LIME_GREEN);                                        // ▶ play
+    if (clicked(pbtn)) playing = !playing;
+    font(FONT_SMALL); print("139 BPM", (int)(pbtn.x + bs + 5), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_PEACH);
     print_right("LOOP", (int)(transport.x + transport.w - 3), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_GREY);
 
     float gap = lay_clamp(FU * 0.18f, 1, 4);
@@ -481,26 +497,16 @@ void draw(void) {
         }
         draw_strip(&STRIP[sel], lay_pad(panel, 0, gap, 0, 0), EXPANDED, 1);
 
-    } else if (cls_ == ROOMY && W > H) {
-        // ─── iPad LANDSCAPE: 2×2 grid of the 4 pattern machines + a MASTER bar (maker, 2026-07-07).
-        //     Fills the width with squarer panels + uses the vertical space, vs one over-wide column
-        //     with stretched lanes/buttons and a dead void below. ReBirth's machines-grid + master rail.
-        mode = "roomy land · 2x2 + master";
+    } else if (cls_ == ROOMY) {
+        // ─── iPad (either orientation): 2×2 grid of the 4 pattern machines + a MASTER bar (maker,
+        //     2026-07-07). Squarer panels that fill the space in BOTH orientations — no over-wide
+        //     lanes (landscape) and no ~40% dead void (portrait's old all-compact stack). ReBirth's
+        //     machines-grid + master rail. Every machine shows its full editor at once.
+        mode = (W > H) ? "roomy land · 2x2 + master" : "roomy tall · 2x2 + master";
         Box grid; Box mbar = lay_split(bodyarea, EDGE_BOTTOM, FU * 2.0f, &grid);
         for (int i = 0; i < 4; i++)   // 303A · 303B / 909 · 808
             draw_strip(&STRIP[i], lay_grid(grid, 2, 4, i, gap), EXPANDED, i == work);
         draw_strip(&STRIP[4], lay_pad(mbar, 0, gap, 0, 0), EXPANDED, work == 4);   // MASTER: knobs only
-
-    } else if (cls_ == ROOMY) {
-        // ─── roomy PORTRAIT: the ALL-COMPACT rack (§4 headline) — tap one → expands in place ───
-        mode = (work >= NSTRIP) ? "roomy · all compact" : "roomy · one expanded";
-        // assign states, measure total, then lay out top-down
-        int st[NSTRIP]; float tot = 0;
-        for (int i = 0; i < NSTRIP; i++) { st[i] = (i == work) ? EXPANDED : COMPACT; tot += strip_h(&STRIP[i], st[i]) + gap; }
-        float scale = (tot > bodyarea.h) ? bodyarea.h / tot : 1.0f;   // never overflow
-        Box cur2 = bodyarea;
-        for (int i = 0; i < NSTRIP; i++) { float rh = strip_h(&STRIP[i], st[i]) * scale;
-            Box row = lay_split(cur2, EDGE_TOP, rh + gap, &cur2); draw_strip(&STRIP[i], lay_pad(row, 0, 0, gap, 0), st[i], i == work); }
 
     } else {
         // ─── tall (phone portrait): working EXPANDED + compact + folded, by budget ───

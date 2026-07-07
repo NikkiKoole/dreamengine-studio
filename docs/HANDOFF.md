@@ -261,15 +261,22 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > The `studio:replay` **plumbing is the durable piece**; the drop-anywhere trigger is a rootless
 > stopgap (no media home exists yet).
 > **Deliberately NOT built (maker's call, "not yet"):** the media home itself. Pulling that thread
-> surfaced an IA seam, captured in
-> [`design/editor-scopes-and-facets.md`](design/editor-scopes-and-facets.md): media is a **facet**
-> at both **cart AND app** scope (the trailer builder is already the app-scoped half), not a new
-> sibling of code/sprites/map. **Resume at:** that doc's three open questions (own per-cart panel vs
-> a section in the share popover · how the app-scoped trailer twin relates · whether the editor
-> grows an explicit cart|app scope switch) — plan against `share-panel.md`'s 🎬 make-clip button
-> (the cart-media panel under another name) + [`design/cart-clips.md`](design/cart-clips.md)
-> (storage layout). Hot files: `editor/electron/main.cjs` + `preload.cjs` + `src/shell.js` now ALSO
-> carry record/replay — **shared with the trailer lane, and main/preload need an Electron restart.**
+> surfaced an IA seam, now **RESOLVED (2026-07-07)** in
+> [`design/editor-scopes-and-facets.md`](design/editor-scopes-and-facets.md) → **"Resolution: Make /
+> Promote / Ship"**. The model: the editor's per-cart work groups into **Dream → Make → Promote →
+> Ship** (a cycle); **Make** = the existing code/pixels tabs, **Ship** = the existing share popup,
+> and the only thing with no home is **Promote** (replays · clips · screenshots · trailer · tribes —
+> a browse-and-assemble library). Scope is **emergent** (a cart is *opened*, an app is *selected* —
+> you never edit an app, you promote its set); apps consume cart-Promote data **bottom-up** (trailer/
+> shots/leads already do, behind the scenes). Right-sized: **the verbs are a lens, not a top-bar to
+> build — the whole payoff is ONE new Promote tab next to code/pixels.**
+> **Resume at (the concrete next build):** the per-cart **Promote tab** — surface the cart's `.rec`
+> takes + `replay()` (built), baked clips (the 🎬 make-clip browser, `share-panel.md`), screenshots,
+> a per-cart trailer, and the cart-scoped **leads** 📣 (its app-scoped twin already shipped, see the
+> leads lane). Mostly a **view** problem — all sources already on disk per
+> [`design/cart-clips.md`](design/cart-clips.md). Hot files: `editor/src/shell.js` (+ its CSS),
+> `editor/electron/main.cjs` + `preload.cjs` (record/replay — **shared with the trailer + leads
+> lanes; main/preload need an Electron restart**).
 
 > **▶ ACTIVE THREAD (2026-07-07) — leads: the local marketeer (demand generation).** A new
 > tool that answers "where do I post about this cart?" — the generation twin of the `aso-*`

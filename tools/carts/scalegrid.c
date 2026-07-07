@@ -13,8 +13,8 @@
   ],
   "description": {
     "summary": "A scale-locked ISOMORPHIC pad grid you play with your fingers - pick a scale and there are NO WRONG NOTES. Voiced by INSTR_PD (the Casio-CZ phase-distortion engine) on a lush 'wowww' sweep pad, so every tap and chord rings. An on-screen chip bar makes it fully playable on a phone.",
-    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: the ROW OFFSET is a number of scale DEGREES, so a chord SHAPE is identical in every key and octave AND survives a reflow. That offset is a LIVE DIAL (the ADR-0028 knob) - tap ROW to sweep it (ROW:OCT = up an octave per row with roots in a clean left column; ROW:4th / +N = tighter diagonal chord shapes) and hear the anatomy change. A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. Pads are finger-sized (never crammed): tight screens PACK 1-finger pads, roomy screens CAP the range to 4 octaves and GROW big comfy squares. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
-    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (isomorphic row offset), OCT-/OCT+, HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-offset, Z/X octave, G hex, M self-play, H help."
+    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: each row is offset by a fixed musical interval, so a chord SHAPE is identical in every key and octave AND survives a reflow. ROW toggles the two layouts that are actually musical (ADR-0028): OCT = each row up is +1 octave (the clean scale map); 4TH = each row up is +a fourth (compact Linnstrument-style chord shapes). A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. The grid FILLS BOTH DIMENSIONS with finger-sized pads - never below one finger, as many as fit across and down; where the surface is wider than the scale the notes simply REPEAT (a shape is playable in several places), never leaving a gap. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
+    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (OCT<->4TH layout), OCT-/OCT+, HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-layout, Z/X octave, G hex, M self-play, H help."
   }
 }
 de:meta */
@@ -80,11 +80,12 @@ static const char *const NOTE[12]        = { "C","C#","D","D#","E","F","F#","G",
 static int scale  = 3;       // PENTA — the cold-open where every combo sounds good
 static int root   = 0;       // C
 static int octave = 4;       // mid register (MIDI 48 = C at octave 4)
-static int rowoff = 5;       // the ISOMORPHIC ROW OFFSET in scale DEGREES (1..nsc). This
-                             // is the ADR-0028 knob: rowoff == nsc means each row up is
-                             // +1 octave (ISO-OCT, the ship default); 3 in a diatonic
-                             // scale = up a FOURTH (ISO-4TH); any value is a valid grid —
-                             // tap ROW to dial it and hear how the chord shapes change.
+static int rowmode = 0;      // the ISOMORPHIC ROW layout (ADR-0028 knob, tapped via ROW):
+                             //   0 = OCT — each row up is +1 octave (the clean scale map)
+                             //   1 = 4TH — each row up is +a fourth (Linnstrument-style, compact
+                             //             chord shapes). Only these two layouts are musical.
+static int rowoff = 5;       // DERIVED each frame in compute_grid(): the effective row offset in
+                             // scale DEGREES, = the mode's interval clamped to the column count.
 static bool show_help = false;
 static bool hexlayout = false;  // HEX packing: alternate rows offset by half a pad so all 6
                                 // neighbours are EQUIDISTANT (a Tonnetz / harmonic-table grid —
@@ -109,41 +110,49 @@ static int   sp_tick = 0, sp_step = 0, sp_handle = -1, sp_pad = -1;
 
 static float clampf(float v, float lo, float hi){ return v < lo ? lo : v > hi ? hi : v; }
 
-// ── the pad grid geometry — a SEAMLESS isomorphic lattice window ─────────────
-// The key invariant (the fix for "chroma is missing a note"): COLUMNS == the row
-// offset. In an isomorphic lattice note(row,col) = base + degree(col + row*off);
-// if the horizontal span (cols) is smaller than the vertical jump (off) some
-// degrees fall in the GAP between rows (chromatic lost A#/B); if larger, some
-// REPEAT (pentatonic doubled two columns). Setting cols == off makes it row-major
-// exact: every scale degree appears once per octave, no gaps, no repeats — for
-// EVERY scale. Rows then fill the height (finger-sized), capped to GRID_MAX_OCT
-// octaves; on a roomy screen the pads grow to fill (the cap-and-grow law).
+// the row offset (in scale degrees) for the current mode: OCT = one octave (nsc degrees),
+// 4TH = the degree whose semitone value is closest to a perfect fourth (5 semitones).
+static int mode_off(void) {
+    int nsc = SC_N[scale];
+    if (rowmode == 0) return nsc;                    // OCT
+    int best = 1, bd = 99;                           // 4TH — nearest-to-5-semitones degree
+    for (int d = 1; d < nsc; d++) { int diff = SC[scale][d] - 5; if (diff < 0) diff = -diff;
+                                    if (diff < bd) { bd = diff; best = d; } }
+    return best;
+}
+
+// ── the pad grid geometry — FILL BOTH DIMENSIONS with finger-sized pads ───────
+// Hard rule (maker's): a pad is NEVER below one finger; within that, pack as many
+// as fit across AND down. Columns are the finger-fit of the WIDTH (independent of
+// the scale), rows the finger-fit of the HEIGHT. The isomorphic offset is clamped
+// to <= columns so the lattice still has NO GAPS (the "chroma missing A#/B" fix);
+// when columns exceed the offset the surplus notes simply REPEAT across the surface
+// (the Linnstrument feel — a shape is playable in several places), which is fine.
 static void compute_grid(void) {
     float aw = SCREEN_W, ah = SCREEN_H - HUD_H;
     g_gap = clampf(FINGER_PX * 0.12f, 1, 4);
-    int nsc = SC_N[scale];
-    int off = rowoff < 1 ? 1 : (rowoff > nsc ? nsc : rowoff);
-    int cols = off;                                              // the seamless-tiling invariant
     g_x = 0; g_y = HUD_H;
+
+    int cols = (int)((aw + g_gap) / (FINGER_PX + g_gap)); if (cols < 1) cols = 1;   // finger-fit W
+    int rows = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rows < 1) rows = 1;   // finger-fit H
+    int off  = mode_off(); if (off > cols) off = cols; if (off < 1) off = 1;        // no-gap clamp
+    rowoff = off;                                                                    // pad_midi reads this
+
     if (hexlayout) {
         // pointy-top hex packing: odd rows shift half a pad (fit that half into the width),
         // and the ROW PITCH is √3/2 of the column pitch — the ratio that makes all six
         // neighbours the same centre-to-centre distance (equidistant diagonals).
         g_pw = (aw - g_gap * (cols - 1)) / (cols + 0.5f);
         g_rp = (g_pw + g_gap) * 0.866f;
-        int rowsFit = (int)(ah / g_rp);                          if (rowsFit < 1) rowsFit = 1;
-        int rowsCap = (GRID_MAX_OCT * nsc + cols - 1) / cols;
-        g_rows = rowsFit < rowsCap ? rowsFit : rowsCap; if (g_rows < 1) g_rows = 1;
+        int rowsFit = (int)(ah / g_rp); if (rowsFit < 1) rowsFit = 1;
+        rows = rowsFit;
         g_ph = g_rp - g_gap;
     } else {
-        int rowsFit = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rowsFit < 1) rowsFit = 1;
-        int rowsCap = (GRID_MAX_OCT * nsc + cols - 1) / cols;    // rows for GRID_MAX_OCT octaves
-        g_rows = rowsFit < rowsCap ? rowsFit : rowsCap; if (g_rows < 1) g_rows = 1;
         g_pw = (aw - g_gap * (cols - 1)) / cols;
-        g_ph = (ah - g_gap * (g_rows - 1)) / g_rows;
+        g_ph = (ah - g_gap * (rows - 1)) / rows;
         g_rp = g_ph + g_gap;
     }
-    g_cols = cols;
+    g_cols = cols; g_rows = rows;
 }
 
 // centre of pad idx (row-major); odd rows shift half a column in hex mode
@@ -235,12 +244,9 @@ static void stop_selfplay(void) {
 }
 static void do_action(int act) {
     switch (act) {
-        // cycling the scale keeps the row offset "stuck to octave" if it was, else clamps
-        case ACT_SCALE: { int o = SC_N[scale]; scale = (scale + 1) % NSCALE;
-                          int n = SC_N[scale]; if (rowoff == o || rowoff > n) rowoff = n;
-                          if (rowoff < 1) rowoff = 1; } break;
-        case ACT_KEY:   root = (root + 1) % 12; break;
-        case ACT_ROW:   rowoff = rowoff % SC_N[scale] + 1; break;        // dial 1..nsc, wrapping
+        case ACT_SCALE: scale = (scale + 1) % NSCALE; break;
+        case ACT_KEY:   root  = (root + 1) % 12; break;
+        case ACT_ROW:   rowmode ^= 1; break;                             // OCT <-> 4TH
         case ACT_OCTDN: if (octave > 1) octave--; break;
         case ACT_OCTUP: if (octave < 7) octave++; break;
         case ACT_SELF:  if (selfplay) stop_selfplay(); else selfplay = true; break;
@@ -248,14 +254,8 @@ static void do_action(int act) {
         default: break;
     }
 }
-// the ROW chip's label — names the musical interval when the offset matches one
-static const char *row_label(void) {
-    int nsc = SC_N[scale];
-    if (rowoff >= nsc)           return "ROW:OCT";
-    if (nsc == 7 && rowoff == 3) return "ROW:4th";
-    if (nsc == 7 && rowoff == 4) return "ROW:5th";
-    return str("ROW:+%d", rowoff);
-}
+// the ROW chip's label — the two musical layouts
+static const char *row_label(void) { return rowmode == 0 ? "ROW:OCT" : "ROW:4TH"; }
 
 void update(void) {
     compute_grid();
@@ -453,7 +453,7 @@ void draw(void) {
         print("tap/drag pads to play", bx + 6, by + 15, CLR_LIGHT_GREY);
         print("tap the chips up top:", bx + 6, by + 27, CLR_LIGHT_GREY);
         print("SCALE  KEY  ROW  OCT", bx + 6, by + 37, CLR_LIGHT_GREY);
-        print("ROW = isomorphic step", bx + 6, by + 47, CLR_LIGHT_GREY);
+        print("ROW = OCT / 4TH layout", bx + 6, by + 47, CLR_LIGHT_GREY);
         print("no wrong notes in-scale", bx + 6, by + 57, CLR_LIME_GREEN);
     }
 }
@@ -468,37 +468,40 @@ void draw(void) {
 void spec(void) {
     root = 0; octave = 4; hexlayout = false;
 
-    // ── 1) SEAMLESS LATTICE: every scale in octave mode (rowoff == nsc) tiles with NO gap
-    //       and NO repeat — the regression for "chroma was missing A#/B" and "penta doubled
-    //       two columns". cols must equal the scale size; a row must be exactly one octave
-    //       (every degree once); one row up must be +12 semitones. ──
+    // ── 1) NO-GAP LATTICE: every scale, BOTH row modes (OCT + 4TH). The offset must be
+    //       <= the column count (else notes fall in the gap between rows — the "chroma
+    //       missing A#/B" bug), and the lattice's degree coverage must be CONTIGUOUS (no
+    //       hole). Repeats are allowed now (fill-the-surface), so we check contiguity, not
+    //       uniqueness. In OCT, one row up is +12 semitones whenever a full octave fits. ──
     for (int s = 0; s < NSCALE; s++) {
-        scale = s; rowoff = SC_N[s];
-        compute_grid();
-        expect_eq(g_cols, SC_N[s], "octave mode: columns == scale size (seamless tiling)");
-        int seen = 0, dupe = 0;
-        for (int c = 0; c < g_cols; c++) {
-            int pc = ((pad_midi((g_rows - 1) * g_cols + c) % 12) + 12) % 12;
-            if (seen & (1 << pc)) dupe = 1;
-            seen |= (1 << pc);
+        scale = s;
+        for (int m = 0; m < 2; m++) {
+            rowmode = m; compute_grid();
+            expect(rowoff <= g_cols, "no-gap: row offset <= columns (every degree reachable)");
+            char seen[300]; for (int i = 0; i < 300; i++) seen[i] = 0;
+            int lo = 299, hi = 0;
+            for (int idx = 0; idx < g_cols * g_rows; idx++) {
+                int di = idx % g_cols + (g_rows - 1 - idx / g_cols) * rowoff;
+                if (di >= 0 && di < 300) { seen[di] = 1; if (di < lo) lo = di; if (di > hi) hi = di; }
+            }
+            int holes = 0; for (int i = lo; i <= hi; i++) if (!seen[i]) holes++;
+            expect_eq(holes, 0, "no-gap: lattice covers a contiguous degree range (no missing note)");
         }
-        expect(!dupe, "octave mode: a row has no duplicate pitch class (no overlap)");
-        expect_eq(__builtin_popcount(seen), SC_N[s], "octave mode: a row covers every scale degree once (no gap)");
-        if (g_rows >= 2)
+        rowmode = 0; compute_grid();
+        if (rowoff == SC_N[s] && g_rows >= 2)
             expect_eq(pad_midi((g_rows - 2) * g_cols) - pad_midi((g_rows - 1) * g_cols), 12,
-                      "octave mode: one row up is exactly +12 semitones");
+                      "OCT: one row up is +12 semitones (when a full octave fits)");
     }
 
-    // ── 2) ROW-OFFSET dial stays in range and drives the column count (cols == offset). ──
-    scale = 1; rowoff = 999; compute_grid();
-    expect(g_cols >= 1 && g_cols <= SC_N[1], "rowoff is clamped into [1, nsc]");
-    rowoff = 3; compute_grid();
-    expect_eq(g_cols, 3, "cols follow the row offset (the isomorphic invariant)");
+    // ── 2) FINGER FLOOR: pads are NEVER smaller than one finger, in both dimensions. ──
+    scale = 1; rowmode = 0; hexlayout = false; compute_grid();
+    expect(g_pw >= FINGER_PX - 0.5f, "pads are never narrower than a finger");
+    expect(g_ph >= FINGER_PX - 0.5f, "pads are never shorter than a finger");
 
     // ── 3) HIT-TEST ROUND-TRIP: every pad's own centre must hit-test back to that pad,
     //       in BOTH square and hex packing (geometry ⇔ hit-test agree). ──
     for (int hx = 0; hx < 2; hx++) {
-        hexlayout = hx; scale = 3; rowoff = SC_N[3]; compute_grid();
+        hexlayout = hx; scale = 3; rowmode = 0; compute_grid();
         int bad = 0;
         for (int idx = 0; idx < g_cols * g_rows; idx++) {
             float cx, cy; pad_center(idx, &cx, &cy);
@@ -511,7 +514,7 @@ void spec(void) {
     // hex CORNERS too — a point just inside each of a hexagon's 6 vertices must hit THAT
     // hex, not the neighbour. This is the bug the centre-only test missed: the slanted
     // top/bottom corners were falling into the rectangular band of the row above/below.
-    hexlayout = true; scale = 3; rowoff = SC_N[3]; compute_grid();
+    hexlayout = true; scale = 3; rowmode = 0; compute_grid();
     float R = (g_pw + g_gap) * 0.5774f;
     int cornerBad = 0;
     for (int idx = 0; idx < g_cols * g_rows; idx++) {

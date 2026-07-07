@@ -508,6 +508,20 @@ through its own resonant filter, summed; the cutoffs are ridden live from an Alp
 > call per ring per step, with a per-track step count (polymeter). The voices are the standard
 > synth-drum kit; only the clave perc is bespoke.
 
+### circlemachine (instrument — 3 voices on a ring, from circlemachine.c)
+
+| recipe | engine | params | notes |
+|---|---|---|---|
+| circlemachine/ring | SQUARE | A1 D150 S0 R40 · LP3200/2 | The stepped electronic bleep — one clean square per lit bulb, softened by a lowpass. Default voice; bulb brightness = scale degree. |
+| circlemachine/glide | SINE | A8 D260 S6 R140 · `note_glide` 90ms | The Clavivox — ONE held sine that `note_pitch`-slides between lit steps (portamento); a rest drops it to vol 0. |
+| circlemachine/bongo | MEMBRANE | A0 D90 S0 R40 | The Bandito auto-drummer — a pitched electronic bongo per step. |
+
+> No new *engine* work — the character is the RIG, not the patch: two rings on independent phase
+> accumulators (HUMAN wobble + DRIFT de-sync + SYNC re-lock), a DIRT bus (`tape` + `chorus` +
+> `amp_noise` + `crush`), `ringmod` clang, and reverb/echo **SENDS** (`instrument_reverb` /
+> `instrument_echo` — configuring the tank alone is silent). Design + the send gotcha:
+> [`../design/scott-blind-brief.md`](../design/scott-blind-brief.md).
+
 ### turing (machine — 1 sequence voice + 2 drums, from turing.c)
 
 | recipe | engine | params | notes |

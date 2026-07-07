@@ -65,6 +65,15 @@ not decisions:
 Decide too: **where mute/fx sit** in compact (right edge as today?), and whether the compact knob
 count is fixed (always ≤3) or per-machine.
 
+**Per-instrument controls the main screen must carry (maker, 2026-07-07) — now in `acidwire`:**
+- **Mute** — a `[M]` toggle per strip in *every* state (header right). Muted reads unmistakably: red
+  strip border + lit-red M + the pattern/step activity greyed (not green) = "there but silenced."
+- **Patterns — 6 per instrument**, a per-strip selector with the live one lit. Placement by state:
+  **expanded** = a finger-sized bank of 6; **compact** = a thin 6-slot row above the knobs;
+  **folded** = 6 mini LEDs in the header (number + current lit). Distinct from the transport's
+  A/B/C/D banks (top) and the song-chain row (bottom) — this is *which of the instrument's 6
+  patterns plays*. Try it: `node tools/play.js acidwire run` → `m` mutes, `p` cycles the pattern.
+
 ## 3 · Editor swap by budget (expanded state, per shape)
 
 Same pattern data, two editors — the panel-level twin of design-system §8.3's widget swap:

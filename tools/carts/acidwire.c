@@ -11,7 +11,7 @@
   "description": {
     "summary": "The device-matrix WIREFRAME tool: flip acidrack's three-state-strip layout through every shape in device-matrix.md with one key, in the REAL logical size.",
     "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
-    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - h hide the label"
+    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - h hide the label"
   }
 }
 de:meta */
@@ -73,9 +73,13 @@ static Strip STRIP[] = {
 
 enum { FOLDED, COMPACT, EXPANDED };
 #define FU 22.0f                 // a 44pt finger = 22 logical px at K=2 (constant — the point of the matrix)
+#define NPAT 6                   // patterns per instrument (maker: "a couple, say 6")
 
 static int cur = 0, applied = -1, work = NSTRIP, showlabel = 1, safehint = 1;
 // work: 0..NSTRIP-1 = that strip expanded; NSTRIP = ALL COMPACT (the iPad §4 headline)
+// per-instrument state the main screen must carry: mute + which of the 6 patterns is live
+static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
+static int patn[NSTRIP]  = { 0, 2, 1, 3, 0 };   // current pattern 0..NPAT-1
 
 // ───────── strip-content wireframe bits ─────────
 static void wf_knob(Box cell, int i, const char *label) {
@@ -91,51 +95,66 @@ static void wf_knobrow(Box area, const char *const *labels, int n) {
     float gap = lay_clamp(FU * 0.12f, 1, 3);
     for (int i = 0; i < n; i++) { Box c = lay_grid(area, n, n, i, gap); if (c.w > 4 && c.h > 6) wf_knob(lay_inset(c, 0.5f), i, labels[i]); }
 }
-static void wf_steplane(Box area, int seed) {
+static void wf_steplane(Box area, int seed, int mu) {   // mu = muted → grey, not green
     float gap = lay_clamp(FU * 0.06f, 1, 2);
     for (int i = 0; i < STEPS; i++) {
         Box s = lay_wrap(area, STEPS, i, FU * 0.42f, gap); if (s.w < 2) continue;
         int on = ((i + seed) % 4 == 0) || i == 6 || i == 11;
-        boxfill(lay_inset(s, 0.5f), on ? CLR_LIME_GREEN : CLR_DARK_GREY);
+        boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_LIME_GREEN) : CLR_DARK_GREY);
     }
 }
-static void wf_padgrid(Box area, const char *const *labels, int n) {
+static void wf_padgrid(Box area, const char *const *labels, int n, int mu) {
     float gap = lay_clamp(FU * 0.1f, 1, 3);
     for (int i = 0; i < n; i++) {
         Box c = lay_grid(area, 4, n, i, gap); if (c.w < 4 || c.h < 4) continue;
-        Box pad = lay_inset(c, 0.5f); boxfill(pad, (i % 3 == 0) ? CLR_DARK_ORANGE : CLR_DARKER_PURPLE); boxrect(pad, CLR_DARKER_BLUE);
+        Box pad = lay_inset(c, 0.5f); boxfill(pad, (i % 3 == 0) ? (mu ? CLR_MEDIUM_GREY : CLR_DARK_ORANGE) : CLR_DARKER_PURPLE); boxrect(pad, CLR_DARKER_BLUE);
         if (pad.h >= 8) { font(FONT_TINY); print_centered(labels[i], (int)(pad.x + pad.w / 2), (int)(pad.y + (pad.h - 5) / 2), CLR_LIGHT_PEACH); }
     }
 }
-static void wf_minipat(Box area, int seed) {   // folded: a row of tiny on/off dots
+static void wf_minipat(Box area, int seed, int mu) {   // folded: a row of tiny on/off dots
     for (int i = 0; i < STEPS; i++) { Box s = lay_wrap(area, STEPS, i, FU * 0.2f, 1); if (s.w < 1) continue;
-        int on = ((i + seed) % 3 == 0); boxfill(lay_inset(s, 0.5f), on ? CLR_ORANGE : CLR_DARKER_BLUE); }
+        int on = ((i + seed) % 3 == 0); boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
 }
-static void wf_mute(Box hdr) {   // [M][fx] cluster at the header's right edge
+// per-instrument PATTERN selector: NPAT numbered slots, the live one lit
+static void wf_patterns(Box area, int cur, int mu) {
+    float gap = lay_clamp(FU * 0.09f, 1, 3);
+    for (int i = 0; i < NPAT; i++) {
+        Box c = lay_grid(area, NPAT, NPAT, i, gap); if (c.w < 3) continue;
+        int on = (i == cur);
+        boxfill(c, on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARK_GREY); boxrect(c, CLR_MEDIUM_GREY);
+        if (c.h >= 7) { font(FONT_TINY); print_centered(str("%d", i + 1), (int)(c.x + c.w / 2), (int)(c.y + (c.h - 5) / 2), on ? CLR_BLACK : CLR_MEDIUM_GREY); }
+    }
+}
+static void wf_mute(Box hdr, int mu) {   // [M][fx] cluster at the header's right edge; M lit red when muted
     float bw = lay_clamp(FU * 0.7f, 8, 20);
     Box fx = lay_at(hdr, L_TR, bw, hdr.h - 2, 1); boxfill(fx, CLR_DARK_GREY); boxrect(fx, CLR_MEDIUM_GREY);
     font(FONT_TINY); print_centered("fx", (int)(fx.x + fx.w / 2), (int)(fx.y + (fx.h - 5) / 2), CLR_LIGHT_GREY);
-    Box m = box(fx.x - bw * 0.65f - 2, fx.y, bw * 0.65f, fx.h); boxfill(m, CLR_DARK_RED); boxrect(m, CLR_MEDIUM_GREY);
-    print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), CLR_LIGHT_PEACH);
+    Box m = box(fx.x - bw * 0.65f - 2, fx.y, bw * 0.65f, fx.h); boxfill(m, mu ? CLR_RED : CLR_DARK_RED); boxrect(m, mu ? CLR_WHITE : CLR_MEDIUM_GREY);
+    print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), mu ? CLR_WHITE : CLR_LIGHT_PEACH);
 }
 
 // draw one strip at `state` inside `rect`
 static void draw_strip(Strip *s, Box rect, int state, int accent) {
-    boxfill(rect, CLR_DARKER_BLUE); boxrect(rect, accent ? CLR_TRUE_BLUE : CLR_DARK_GREY);
+    int idx = (int)(s - STRIP), mu = muted[idx], pc = patn[idx];
+    boxfill(rect, CLR_DARKER_BLUE); boxrect(rect, mu ? CLR_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     Box body; float hh = lay_clamp(FU * 0.42f, 7, 12);
     Box hdr = lay_split(lay_inset(rect, 1), EDGE_TOP, hh, &body);
-    boxfill(hdr, accent ? CLR_TRUE_BLUE : CLR_DARK_GREY);
+    boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     font(FONT_TINY); print(s->name, (int)hdr.x + 2, (int)(hdr.y + (hdr.h - 5) / 2), CLR_LIGHT_PEACH);
     body = lay_pad(body, 1, 1, 1, 1);
+    wf_mute(hdr, mu);
 
-    if (state == FOLDED) {                        // name · mini-pattern · [M]
-        Box mute; Box pat = lay_split(hdr, EDGE_RIGHT, FU * 1.3f, &mute); (void)mute;
-        wf_minipat(lay_pad(box(hdr.x + FU * 1.6f, hdr.y, hdr.w - FU * 3.0f, hdr.h), 0, 2, 0, 2), (int)(s - STRIP));
-        (void)pat; return;
+    if (state == FOLDED) {   // header: name · 6 pattern LEDs · [M][fx]; body: a mini step preview
+        float muteW = FU * 1.6f;
+        wf_patterns(box(hdr.x + FU * 1.7f, hdr.y + 1, hdr.w - FU * 1.7f - muteW, hdr.h - 2), pc, mu);
+        wf_minipat(body, idx, mu);
+        return;
     }
-    wf_mute(hdr);
-    if (state == COMPACT) {                        // 2-3 knobs (or selector) + one step lane
-        Box lane; Box top = lay_split(body, EDGE_TOP, FU * 1.3f, &lane);
+    // COMPACT + EXPANDED both lead with the pattern selector row
+    if (state == COMPACT) {                        // patterns + 2-3 knobs (or selector) + one step lane
+        Box rest; Box prow = lay_split(body, EDGE_TOP, FU * 0.7f, &rest);
+        wf_patterns(prow, pc, mu);
+        Box lane; Box top = lay_split(lay_pad(rest, 0, 1, 0, 0), EDGE_TOP, FU * 1.3f, &lane);
         if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc);
         else { // drum: voice selector chips + selected-voice knobs
             Box kn; Box sel = lay_split(top, EDGE_TOP, FU * 0.7f, &kn);
@@ -143,12 +162,14 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
                 font(FONT_TINY); print_centered(s->labels[i], (int)(c.x+c.w/2), (int)(c.y+(c.h-5)/2), CLR_LIGHT_GREY); }
             wf_knobrow(kn, s->compact, s->nc);
         }
-        wf_steplane(lay_pad(lane, 0, 1, 0, 1), (int)(s - STRIP));
+        wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu);
         return;
     }
-    // EXPANDED — the full editor
-    if (s->kind == KNOBS) { Box lane; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), (int)(s - STRIP)); }
-    else wf_padgrid(body, s->labels, s->n);
+    // EXPANDED — the full editor, with a finger-sized pattern bank up top
+    Box editor; Box prowE = lay_split(body, EDGE_TOP, FU * 1.0f, &editor);
+    wf_patterns(prowE, pc, mu); editor = lay_pad(editor, 0, 1, 0, 0);
+    if (s->kind == KNOBS) { Box lane; Box kn = lay_split(editor, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
+    else wf_padgrid(editor, s->labels, s->n, mu);
 }
 
 // ───────── device safe-area SKIN (the point of this whole cart) ─────────
@@ -204,9 +225,9 @@ static void draw_safe_skin(int W, int H, Dev d) {
 
 // footprint of a strip in a given state, in logical px (height)
 static float strip_h(Strip *s, int state) {
-    if (state == FOLDED)  return FU * 1.15f;
-    if (state == COMPACT) return FU * 2.7f;
-    return (s->kind == DRUMS ? FU * 5.4f : FU * 4.6f);   // EXPANDED
+    if (state == FOLDED)  return FU * 1.15f;              // patterns live in the header row
+    if (state == COMPACT) return FU * 3.4f;              // + a pattern-selector row
+    return (s->kind == DRUMS ? FU * 6.4f : FU * 5.6f);   // EXPANDED (+ finger pattern bank)
 }
 
 void update(void) {
@@ -217,6 +238,10 @@ void update(void) {
     if (keyp('w') || keyp(KEY_DOWN)) work = (work + 1) % (NSTRIP + 1);
     if (keyp('h')) showlabel = !showlabel;
     if (keyp('s')) safehint = !safehint;
+    // per-instrument controls, acting on the working strip (or 303-A when all-compact)
+    int sel = (work < NSTRIP) ? work : 0;
+    if (keyp('m')) muted[sel] = !muted[sel];              // (un)mute
+    if (keyp('p')) patn[sel] = (patn[sel] + 1) % NPAT;    // cycle its 6 patterns
     if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }
 }
 

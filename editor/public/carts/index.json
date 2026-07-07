@@ -1879,6 +1879,17 @@
     "lineage": "Showcases INSTR_EPIANO with three electromechanical machines (Rhodes/Wurli/Clav), each with its authentic stompbox chain; novel in the per-machine pedal + preset UI modelled after the real hardware signal path."
   },
   {
+    "title": "epianofit",
+    "description": "The layout mock for epiano's responsive redesign - the step-4 artifact of the responsive-instrument-ui.md playbook, applied to a SINGLE-instrument keybed cart (vs acidfit's 5-strip rack). NO audio, just the widgets, laid out against a fake device to answer 'does epiano stay playable from an iPhone SE to an iPad?'. epiano's real inventory: a KEYBED (the pinned hero), a 3-way machine selector (RHODES/WURLI/CLAV), two ride-live macros (BRITE/BARK), 3 FX pedals, a preset browser, and a drawer of raw macros (HARM/TIMB/MORPH). The keybed is pinned bottom in EVERY shape; the panel above it DISCLOSES - inline-all on a tablet, a compact strip + an FX tab on a phone. Surfaces the EP-specific responsive truth: playable OCTAVES scale with width (the keybed twin of otafit's ribbon-length metric) - a phone portrait keybed is cramped, landscape is the win. Presets auto-cycle across 5 device shapes; 1-5 lock, 0 auto, 'm' cycles the machine, 'f' opens the FX tab on tight shapes.",
+    "file": "epianofit.cart.png",
+    "created": "2026-07-07",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
+  },
+  {
     "title": "eq",
     "description": "A 2-band shelving EQ that can BOOST as well as cut - the library's first effect that can lift a band (the SVF filters only cut). A SAW bass + a bright SQUARE lead loop play; drag the LOW (~80 Hz) and HIGH (~6 kHz) faders +/-12 dB each and watch the response curve bend - up = boost, down = cut. Route the EQ over the WHOLE mix (eq) or just the BASS (instrument_eq), or hit AMP to stack DRIVE_ASYM + a mid-forward EQ for a guitar-amp tone. A cycles the route, B toggles AMP, arrows nudge each band.",
     "file": "eq.cart.png",

@@ -76,7 +76,7 @@ final class Store {
         unlockedLock.lock()
         let ids = _unlockedIDs        // COW snapshot under the lock — the contains() below is race-free
         unlockedLock.unlock()
-        return ids.contains(id) || ids.contains("com.tinyjam.masterpass")
+        return ids.contains(id) || ids.contains("com.mipolai.tinyjam.masterpass")
     }
 
     private func listen() -> Task<Void, Never> {

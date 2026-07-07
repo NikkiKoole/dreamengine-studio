@@ -52,7 +52,7 @@ void de_update(double t) {
     // store gate indicator (top-right): green if the Rebirth rack is unlocked, else red.
     // Proves the C→Swift StoreKit bridge round-trips, reflecting live entitlements (a purchase
     // from the headless test persists in the simulator's StoreKit-test store → shows green).
-    int unlocked = Store_IsModuleUnlocked("com.tinyjam.rebirth");
+    int unlocked = Store_IsModuleUnlocked("com.mipolai.tinyjam.acidrack");
     for (int y = 14; y < 22; y++)
         for (int x = DE_W - 10; x < DE_W - 2; x++)
             pset(x, y, unlocked ? 90 : 220, unlocked ? 220 : 60, unlocked ? 110 : 60);

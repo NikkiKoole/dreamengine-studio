@@ -23,17 +23,17 @@ final class StoreTests: XCTestCase {
 
     func testPurchaseUnlocksModule() async throws {
         await cleanSlate()
-        XCTAssertFalse(Store.isUnlocked("com.tinyjam.rebirth"), "should start locked")
+        XCTAssertFalse(Store.isUnlocked("com.mipolai.tinyjam.acidrack"), "should start locked")
 
-        await Store.shared.purchase("com.tinyjam.rebirth")
-        XCTAssertTrue(Store.isUnlocked("com.tinyjam.rebirth"), "should unlock after purchase")
+        await Store.shared.purchase("com.mipolai.tinyjam.acidrack")
+        XCTAssertTrue(Store.isUnlocked("com.mipolai.tinyjam.acidrack"), "should unlock after purchase")
         XCTAssertFalse(Store.isUnlocked("com.tinyjam.funk"), "other racks stay locked")
     }
 
     func testMasterPassUnlocksEverything() async throws {
         await cleanSlate()
-        await Store.shared.purchase("com.tinyjam.masterpass")
+        await Store.shared.purchase("com.mipolai.tinyjam.masterpass")
         XCTAssertTrue(Store.isUnlocked("com.tinyjam.funk"), "master pass unlocks all")
-        XCTAssertTrue(Store.isUnlocked("com.tinyjam.rebirth"), "master pass unlocks all")
+        XCTAssertTrue(Store.isUnlocked("com.mipolai.tinyjam.acidrack"), "master pass unlocks all")
     }
 }

@@ -50,10 +50,19 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
 1. **The real submission gates** — which app first, price, the original-palette rule
    ([`sharing-channels.md`](sharing-channels.md) §Channel B). *Nothing ships until these are
    the maker's call.*
-2. **The ASC upload + TestFlight tool** — the one big unbuilt piece
-   ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)): in-house against the
-   App Store Connect API (JWT/ES256 from a `.p8`), the chunked asset-upload dance, per-locale
-   `metadata/<locale>/` folders.
+2. **The ASC upload + TestFlight tool** — ~~the one big unbuilt piece~~ **BUILT (2026-07-07):
+   `tools/asc-push.js`** ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
+   in-house against the App Store Connect API (JWT/ES256 from a `.p8`, zero deps), proven live
+   against Tiny Jam. `--metadata` (title/subtitle/keywords/desc/promo/URLs/copyright, GET-and-diff
+   on `--dry-run`) · `--screenshots` (the chunked reserve→PUT→commit→poll dance) · `--iap`
+   (create→localize→price→availability→review-shot → READY_TO_SUBMIT, idempotent) · `--check`
+   offline gate. Auth lives in `~/.appstoreconnect/` (`.p8` + `config.json`), never git; `*.p8`
+   gitignored as a backstop. Three API gotchas baked in as fixes: ES256 needs the JOSE raw
+   signature (`dsaEncoding:'ieee-p1363'`, not DER); IAP relationships traverse `/v2/`; inline price
+   creation needs the `${local-id}` id format; and "Missing Metadata" on an IAP is the *availability*
+   resource, not the review screenshot. **Still open:** per-locale `metadata/<locale>/` folders
+   (the tool reads them but multi-locale isn't exercised) + wiring an editor button. The copy
+   *prose* (description/promo) stays maker-written per the two-part bar — the tool only pipes it.
 3. **Search-Term-Rank popularity column** — feed `aso-research` real 1–100 popularity once
    Apple's beta reaches the account (App Store Connect → Analytics → Insights; §ASO deep-dive).
    *Interim free stand-in SHIPPED:* `aso-suggest.js` (Google-autocomplete demand proxy — §"the

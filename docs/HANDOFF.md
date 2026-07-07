@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-06 (four lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — buy-screen crash FIXED (Store.unlockedIDs race, 07690c9b) + Tiny Jam name reserved on ASC + testflight.sh · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-07 (four lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred)_
 
 ---
 
@@ -163,6 +163,19 @@ none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + th
 > **Editor note:** this lane changed `editor/electron/main.cjs` + `preload.cjs` (new IPCs:
 > aso-score, app-clips, build-reel, app-seeds, aso-suggest/brief/coverage) — **restart Electron
 > (`make`) to light them up**; `shell.js`/CSS/`index.html` hot-reload. All CLI tools work now.
+> **Update 2026-07-07 — the ASC upload tool is BUILT: `tools/asc-push.js`** (the store track's
+> "one big unbuilt piece", ADR-0026). In-house against the App Store Connect API, zero deps, proven
+> LIVE against Tiny Jam: **keywords + app screenshots pushed**, and **all 3 IAPs created →
+> localized → priced → availability → review-shot → `READY_TO_SUBMIT`**. `--metadata`/
+> `--screenshots`/`--iap`/`--dry-run`/`--check`. Auth in `~/.appstoreconnect/` (`.p8` + `config.json`,
+> never git; `*.p8` gitignored). **Also this session:** the IAP product ids were renamed to the
+> bundle-nested scheme **`com.mipolai.tinyjam.{acidrack,epiano,masterpass}`** (was `com.tinyjam.*`;
+> rebirth→acidrack) across `app.json` + `Store.swift`/`canvas.c`/`Tinyjam.storekit` + the two iOS
+> tests, and the `.storekit` was resynced to the manifest (dropped a phantom "funk", fixed the master
+> pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**. **Resume at:** the
+> credentials are set up (Key `Z5DTR9TFW2`); next store moves are per-locale `metadata/<locale>/`
+> folders + an editor button for `asc-push`, then the maker-gated submission. Snapshot in
+> [`design/store-agents.md`](design/store-agents.md) §"ASC upload + TestFlight tool".
 
 > **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
 > (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed

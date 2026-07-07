@@ -19,17 +19,18 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-07 (six lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap)_
+_Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
 ## Where we are right now
 
-**Six lanes are active in parallel right now** (different areas — pick the one you're resuming):
+**Seven lanes are active in parallel right now** (different areas — pick the one you're resuming):
 (1) **the worldgen ladder** (realistic procedural roadgen), (2) **multiplayer — WebRTC P2P (rung
 5b)**, (3) **device-adaptive layout**, (4) **store / ASO + the app-trailer builder**, (5) **editor
-media (record/replay + where it lands)**, and (6) **responsive instrument UI + the scale-grid**. All
-below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
+media (record/replay + where it lands)**, (6) **responsive instrument UI + the scale-grid**, and
+(7) **leads — the local marketeer** (find venues to post + track outreach). All below; none is
+"the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
 > **▶ ACTIVE THREAD (2026-07-06) — the worldgen ladder (realistic roadgen).** One day, four rungs
 > of [`design/worldgen-plan.md`](design/worldgen-plan.md)'s ladder shipped, each gated + committed
@@ -260,6 +261,26 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > (the cart-media panel under another name) + [`design/cart-clips.md`](design/cart-clips.md)
 > (storage layout). Hot files: `editor/electron/main.cjs` + `preload.cjs` + `src/shell.js` now ALSO
 > carry record/replay — **shared with the trailer lane, and main/preload need an Electron restart.**
+
+> **▶ ACTIVE THREAD (2026-07-07) — leads: the local marketeer (demand generation).** A new
+> tool that answers "where do I post about this cart?" — the generation twin of the `aso-*`
+> capture tools. **What shipped (committed):** `tools/leads.js` (7 commands: `match` cart→tribe→
+> venues · `discover` venue-hunt links + Google-autocomplete signals · `draft` a gift-first post
+> scaffold from the cart's own words · `track` outreach log · `audit` whole-catalogue coverage,
+> free/local · `list` · `--check`) + `tools/leads-ledger.json` (committed, hand-editable; **18
+> tribes**/9 cross-cutting, seeded from tinyjam-marketing §3.9). The model is **buckets**: a tribe =
+> tags + venues + hook; carts auto-match on `de:meta`; a `domain` (music/game) pre-filter keeps
+> games off music-press venues. Dry runs across the catalogue hardened the matcher (fm 2-char
+> over-match, genre-string crash, subtractive noise) and grew the taxonomy on demand (drum-machine,
+> arcade, string-machine tribes; BeatCraft/Aaron creator venues). Reddit's free API is dead (403) —
+> discover uses free Google autocomplete + search-url launchers.
+> **Resume-at: [`design/leads-marketeer.md`](design/leads-marketeer.md) → "Open questions /
+> resume-at"** — do (1) drop the bare `subtractive` tag from the `moog` tribe (agreed-safe by the
+> grenadier run) + re-`audit`; then (2) fill music gaps (genre-radio / acoustic-world / novelty
+> buckets — `audit` lists them; music coverage 62%); (3) decide whether games get buckets (GTM says
+> web-gallery-only); (4) build the editor **Apps-page** surface (a cart/app card: buckets + venues +
+> draftable post + free-form discover box). Hot files: `tools/leads-ledger.json` (hand-edit to add
+> venues), `tools/leads.js`. No gates beyond `node tools/leads.js --check`.
 
 ## History & reference (pruned 2026-07-05)
 

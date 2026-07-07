@@ -226,6 +226,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              promoted purchases → product-page + search surface; pairs with Store.swift PurchaseIntent) ·
                              --dry-run GETs live + diffs · --check offline gate. Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
                              Design: docs/design/store-agents.md §"ASC upload + TestFlight tool"
+             leads.js        the local MARKETEER (demand GENERATION, the twin of the aso-* capture tools): maps a
+                             cart's de:meta to its TRIBE(s) + the venues where that tribe gathers (`match`), hunts
+                             NEW venues (`discover` = ready search urls + Google-autocomplete community signals; Reddit's
+                             free API is dead), scaffolds a gift-first post from the cart's OWN words + the tribe hook
+                             (`draft` — no invented prose, per store-agents' rule), and tracks outreach (`track add`).
+                             Ledger: tools/leads-ledger.json (committed, hand-editable; seeded from tinyjam-marketing §3.9).
+                             Design: docs/design/demand-generation.md (lever #3 "showing up in the tribe")
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B

@@ -253,6 +253,12 @@ the IAP copy match what the buyer gets.
 The actual links for the channels named above (web-verified 2026-06-29). Reddit / Facebook-group /
 Discord links are canonical homes — confirm any rotating invite link is current before posting.
 
+> **Now tool-backed.** This directory is seeded into `tools/leads-ledger.json`, driven by
+> **`tools/leads.js`** (the local marketeer): `match <cart>` maps a cart to its tribe(s) + these
+> venues, `discover` hunts new ones, `draft` scaffolds a gift-first post, `track` logs where you've
+> posted. See [`../../design/demand-generation.md`](../../design/demand-generation.md) lever #3. Edit
+> the ledger to add venues / fix rotating links — it's the living copy of this table.
+
 **Cross-cutting (every campaign):**
 - Loopy Pro forum — https://forum.loopypro.com/
 - Sound Test Room (YouTube) — https://www.youtube.com/channel/UCDU1ULcAb0OMgv0Xi0CbYYw

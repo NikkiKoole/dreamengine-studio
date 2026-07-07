@@ -1,0 +1,629 @@
+{
+  "_comment": "The committed LEADS LEDGER for tools/leads.js — the marketeer tool. Venues (places to post about a cart) grouped by TRIBE, plus cross-cutting amplifiers and an outreach log. Seeded (2026-07-07) from docs/marketing/tinyjam/tinyjam-marketing.md §3.9 (web-verified 2026-06-29) + §3 tables. THIS FILE IS THE SOURCE OF TRUTH — hand-edit freely: add venues, fix rotating invite links, refine tags/hooks. `tags` drive cart→tribe matching (matched against the cart's de:meta text); `hook` is a maker-editable one-liner seed (most are verbatim from the doc — a few are placeholder seeds, edit to taste). `outreach[]` is appended by `leads.js track add`.",
+  "version": 1,
+  "tribes": [
+    {
+      "id": "omnichord",
+      "label": "Strum-harp / Omnichord cult",
+      "tags": [
+        "omnichord",
+        "qchord",
+        "autoharp",
+        "strum-harp",
+        "strumharp"
+      ],
+      "hook": "The strum-harp you've been priced out of — in your pocket, and it sequences itself.",
+      "venues": [
+        {
+          "name": "Suzuki Omnichord & QChord (FB group)",
+          "url": "https://www.facebook.com/groups/Omnichord.QChord/",
+          "kind": "facebook",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "Omnichord Heaven",
+          "url": "https://www.omnichord-heaven.com/",
+          "kind": "web",
+          "etiquette": "endorsed resource — reach out, don't spam"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first; self-promo tolerated if it's a genuinely fun demo"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "fm",
+      "label": "FM-synthesis / DX7 cult",
+      "tags": [
+        "fm",
+        "dx7",
+        "dexed",
+        "2-op",
+        "fm-synth",
+        "frequency modulation"
+      ],
+      "hook": "FM bells, basses and bite — the DX sound, finally fun to program.",
+      "venues": [
+        {
+          "name": "KVR Audio forum",
+          "url": "https://www.kvraudio.com/forum/",
+          "kind": "forum",
+          "etiquette": "deep nerds; show the synthesis, not the sales pitch"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "keys",
+      "label": "Electric-piano / Rhodes-Wurli-Clav players",
+      "tags": [
+        "rhodes",
+        "wurlitzer",
+        "wurli",
+        "clavinet",
+        "clav",
+        "electric piano",
+        "epiano",
+        "electromechanical",
+        "neo-soul"
+      ],
+      "hook": "Rhodes, Wurli and Clav warmth — tap a groove, not a paycheck.",
+      "venues": [
+        {
+          "name": "Vintage Synth Explorer forum",
+          "url": "https://forum.vintagesynth.com/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "mellotron",
+      "label": "Mellotron / tape-choir cult (prog · psych · cinematic)",
+      "tags": [
+        "mellotron",
+        "tape-choir",
+        "tape choir",
+        "tron",
+        "chamberlin"
+      ],
+      "hook": "Haunted tape strings and choir — the most evocative keyboard ever, in a toy.",
+      "venues": [
+        {
+          "name": "Vintage Synth Explorer forum",
+          "url": "https://forum.vintagesynth.com/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "string-machine",
+      "domain": "music",
+      "label": "String-machine / vintage string-ensemble cult",
+      "tags": [
+        "solina",
+        "string ensemble",
+        "string machine",
+        "string synth",
+        "string-synth",
+        "divide-down",
+        "elka rhapsody",
+        "logan string",
+        "arp string"
+      ],
+      "hook": "Lush divide-down strings — one chord and you’re scoring a 70s film.",
+      "venues": [
+        {
+          "name": "Vintage Synth Explorer forum",
+          "url": "https://forum.vintagesynth.com/",
+          "kind": "forum",
+          "etiquette": "gift-first",
+          "domain": "music"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first",
+          "domain": "music"
+        },
+        {
+          "name": "KVR Audio forum",
+          "url": "https://www.kvraudio.com/forum/",
+          "kind": "forum",
+          "etiquette": "gift-first",
+          "domain": "music"
+        }
+      ]
+    },
+    {
+      "id": "moog",
+      "label": "Analog / modular synth heads",
+      "tags": [
+        "moog",
+        "minimoog",
+        "subtractive-synth",
+        "subtractive",
+        "ladder filter",
+        "vco",
+        "modular",
+        "eurorack",
+        "steiner-parker"
+      ],
+      "hook": "Three detuned oscillators, fat and beating — the Model D sound in your pocket.",
+      "venues": [
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "r/modular",
+          "url": "https://www.reddit.com/r/modular/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "Music Thing / Turing Machine",
+          "url": "https://www.musicthing.co.uk/Turing-Machine/",
+          "kind": "web",
+          "etiquette": "DIY-synth community"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "easel",
+      "label": "West-Coast / Buchla synthesis grail",
+      "tags": [
+        "buchla",
+        "easel",
+        "west-coast",
+        "low-pass gate",
+        "lpg",
+        "serge",
+        "ciani",
+        "subotnick"
+      ],
+      "hook": "West-Coast weirdness — electricity as the instrument.",
+      "venues": [
+        {
+          "name": "Loopy Pro forum (West-Coast/Buchla/Serge thread)",
+          "url": "https://forum.loopypro.com/",
+          "kind": "forum",
+          "etiquette": "indie-friendly; TestFlight welcome"
+        },
+        {
+          "name": "r/modular",
+          "url": "https://www.reddit.com/r/modular/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "acid",
+      "label": "Acid / 303 cult (acid-house · techno)",
+      "tags": [
+        "acid",
+        "303",
+        "tb-303",
+        "tr-808",
+        "tr-909",
+        "rebirth",
+        "x0xb0x",
+        "acid house",
+        "acid techno"
+      ],
+      "hook": "Two acid lines and a drum machine, squelching forever — and you steer it.",
+      "venues": [
+        {
+          "name": "KVR Audio forum (TB-303 threads)",
+          "url": "https://www.kvraudio.com/forum/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "r/edmproduction",
+          "url": "https://www.reddit.com/r/edmproduction/",
+          "kind": "reddit",
+          "etiquette": "self-promo heavily restricted — gift-first only"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "drum-machine",
+      "label": "Drum-machine / beatmaking / Roland-classic heads",
+      "tags": [
+        "drum machine",
+        "drum-machine",
+        "rhythm composer",
+        "drum synthesis",
+        "drumatix",
+        "tr-606",
+        "tr-707",
+        "tr-727",
+        "tr-808",
+        "tr-909",
+        "cr-78",
+        "x0xb0x",
+        "electro",
+        "breakbeat"
+      ],
+      "hook": "808 boom, 909 snap, 606 tin — program a beat on the real circuits.",
+      "venues": [
+        {
+          "name": "r/edmproduction",
+          "url": "https://www.reddit.com/r/edmproduction/",
+          "kind": "reddit",
+          "etiquette": "self-promo heavily restricted — gift-first only"
+        },
+        {
+          "name": "r/idm",
+          "url": "https://www.reddit.com/r/idm/",
+          "kind": "reddit",
+          "etiquette": "the Aphex/electro crowd the 606 was built for; gift-first"
+        },
+        {
+          "name": "Gearspace — Electronic Music Instruments forum",
+          "url": "https://gearspace.com/board/electronic-music-instruments-and-electronic-music-production/",
+          "kind": "forum",
+          "etiquette": "big, gear-serious; show the circuit modelling"
+        },
+        {
+          "name": "ModWiggler forum (Roland/DIY drum section)",
+          "url": "https://modwiggler.com/forum/",
+          "kind": "forum",
+          "etiquette": "DIY / x0x-clone builders; gift-first"
+        },
+        {
+          "name": "KVR Audio forum",
+          "url": "https://www.kvraudio.com/forum/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "BeatCraft Studio (YouTube)",
+          "url": "https://www.youtube.com/@BeatCraftStudio-m7v",
+          "kind": "youtube",
+          "etiquette": "beatmaking channel — pitch a short clip + playable web link",
+          "domain": "music"
+        },
+        {
+          "name": "Aaron Batzdorff (TikTok)",
+          "url": "https://www.tiktok.com/@aaronbatzdorff",
+          "kind": "tiktok",
+          "etiquette": "beat/music creator — short-form clip; tag/DM, gift-first",
+          "domain": "music"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "dungeonsynth",
+      "label": "Dungeon-synth scene",
+      "tags": [
+        "dungeon synth",
+        "dungeonsynth",
+        "dungeon-synth",
+        "medieval ambient"
+      ],
+      "hook": "Lo-fi tape dungeons and misty keeps — score your own crawl.",
+      "venues": [
+        {
+          "name": "r/dungeonsynth",
+          "url": "https://www.reddit.com/r/dungeonsynth/",
+          "kind": "reddit",
+          "etiquette": "small devoted scene; gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "exotica",
+      "label": "Exotica / tiki / lounge revival",
+      "tags": [
+        "exotica",
+        "tiki",
+        "lounge",
+        "space-age",
+        "bachelor pad",
+        "vibraphone",
+        "martin denny",
+        "esquivel"
+      ],
+      "hook": "Vibraphone, bird calls and bongos — mix a cocktail-lounge loop.",
+      "venues": [
+        {
+          "name": "Tiki Central (exotica forum)",
+          "url": "https://tikicentral.com/viewforum.php?forum_id=11",
+          "kind": "forum",
+          "etiquette": "aesthetic-obsessed; gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "circuitbending",
+      "label": "Circuit-benders / glitch experimentalists",
+      "tags": [
+        "circuit-bent",
+        "circuit bending",
+        "circuitbending",
+        "glitch",
+        "bent",
+        "toy-town",
+        "lo-fi experimental"
+      ],
+      "hook": "Bent nursery-toy sounds, but they stay in tune — broken on purpose.",
+      "venues": [
+        {
+          "name": "circuit-bent.net",
+          "url": "https://circuit-bent.net/",
+          "kind": "web",
+          "etiquette": "the scene hub"
+        },
+        {
+          "name": "r/circuitbending",
+          "url": "https://www.reddit.com/r/circuitbending/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "dub",
+      "label": "Dub / soundsystem culture",
+      "tags": [
+        "dub",
+        "dubsiren",
+        "dub siren",
+        "reggae",
+        "soundsystem",
+        "king tubby",
+        "spring reverb"
+      ],
+      "hook": "Siren, spring reverb and tape delay — dub it out.",
+      "venues": [
+        {
+          "name": "Sound On Sound forum (dub-siren thread)",
+          "url": "https://www.soundonsound.com/forum/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "spaghetti-western",
+      "label": "Morricone / desert-noir film-score fans",
+      "tags": [
+        "spaghetti western",
+        "morricone",
+        "desert noir",
+        "western",
+        "film score",
+        "soundtrack"
+      ],
+      "hook": "Whistling saw, twang and a lonely trumpet — your own standoff theme.",
+      "venues": [
+        {
+          "name": "Filmtracks",
+          "url": "https://www.filmtracks.com/",
+          "kind": "forum",
+          "etiquette": "collector base; gift-first"
+        },
+        {
+          "name": "Maintitles",
+          "url": "https://www.maintitles.net/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "Film Score Monthly",
+          "url": "https://www.filmscoremonthly.com/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "lofi",
+      "label": "Lo-fi / cozy / chillhop crowd",
+      "tags": [
+        "lofi",
+        "lo-fi",
+        "chillhop",
+        "cozy",
+        "chill"
+      ],
+      "hook": "A warm, twinkly loop that plays itself — lo-fi you can noodle on.",
+      "venues": [
+        {
+          "name": "Lofi Girl (YouTube)",
+          "url": "https://www.youtube.com/channel/UCSJ4gkVC6NrvII8umztf0Ow",
+          "kind": "youtube",
+          "etiquette": "pitch a clip; huge reach"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "handpan",
+      "label": "Handpan / hang-drum community",
+      "tags": [
+        "handpan",
+        "hang drum",
+        "hang-drum",
+        "hang",
+        "pantam"
+      ],
+      "hook": "The handpan's bloom, in your pocket — tap a meditation.",
+      "venues": [
+        {
+          "name": "handpan.org",
+          "url": "https://www.handpan.org/",
+          "kind": "web",
+          "etiquette": "gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "martenot",
+      "label": "Ondes Martenot / rare-instrument aficionados",
+      "tags": [
+        "ondes martenot",
+        "martenot",
+        "theremin",
+        "greenwood",
+        "radiohead"
+      ],
+      "hook": "The extinct instrument Radiohead made famous — playable, in your pocket.",
+      "venues": [
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "r/radiohead",
+          "url": "https://www.reddit.com/r/radiohead/",
+          "kind": "reddit",
+          "etiquette": "fan space — gift-first, no hard sell"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "arcade",
+      "domain": "game",
+      "label": "Arcade / score-chasers (shmup · twin-stick · high-score)",
+      "tags": [
+        "arcade",
+        "shoot-em-up",
+        "shmup",
+        "score attack",
+        "high score",
+        "twin-stick",
+        "bullet hell",
+        "quick-draw",
+        "reflex"
+      ],
+      "hook": "Quarter-munching arcade action — one more run at the high score.",
+      "venues": [
+        {
+          "name": "r/shmups",
+          "url": "https://www.reddit.com/r/shmups/",
+          "kind": "reddit",
+          "etiquette": "devoted shmup scene; gift-first",
+          "domain": "game"
+        },
+        {
+          "name": "r/arcade",
+          "url": "https://www.reddit.com/r/arcade/",
+          "kind": "reddit",
+          "etiquette": "gift-first",
+          "domain": "game"
+        }
+      ]
+    }
+  ],
+  "crosscutting": [
+    {
+      "name": "Loopy Pro forum",
+      "url": "https://forum.loopypro.com/",
+      "kind": "forum",
+      "etiquette": "the iOS-music town square; indie-friendly. Post TestFlight builds here FIRST.",
+      "domain": "music"
+    },
+    {
+      "name": "Sound Test Room (YouTube — Doug Woods)",
+      "url": "https://www.youtube.com/channel/UCDU1ULcAb0OMgv0Xi0CbYYw",
+      "kind": "youtube",
+      "etiquette": "biggest iOS-music reviewer; pitch a TestFlight + short clip",
+      "domain": "music"
+    },
+    {
+      "name": "Discchord (Tim Webb)",
+      "url": "https://discchord.com/",
+      "kind": "web",
+      "etiquette": "iOS music news + podcast",
+      "domain": "music"
+    },
+    {
+      "name": "Gavinski's Tutorials (YouTube)",
+      "url": "https://www.youtube.com/channel/UCBuVA1pbhMpToJI_bZBzihw",
+      "kind": "youtube",
+      "etiquette": "iPad/desktop app walkthroughs",
+      "domain": "music"
+    },
+    {
+      "name": "r/WebGames",
+      "url": "https://www.reddit.com/r/WebGames/",
+      "kind": "reddit",
+      "etiquette": "PERFECT for the playable web build — no install to try; gift-first",
+      "domain": "game"
+    },
+    {
+      "name": "r/playmygame",
+      "url": "https://www.reddit.com/r/playmygame/",
+      "kind": "reddit",
+      "etiquette": "built for exactly this; post a link + clip",
+      "domain": "game"
+    },
+    {
+      "name": "itch.io (devlog + browser build)",
+      "url": "https://itch.io/",
+      "kind": "web",
+      "etiquette": "host a web build + devlog; the itch community browses new games",
+      "domain": "game"
+    },
+    {
+      "name": "TIGSource forums",
+      "url": "https://forums.tigsource.com/",
+      "kind": "forum",
+      "etiquette": "indie-dev town square; devlog-friendly",
+      "domain": "game"
+    },
+    {
+      "name": "r/IndieGaming",
+      "url": "https://www.reddit.com/r/IndieGaming/",
+      "kind": "reddit",
+      "etiquette": "gift-first; a clip travels",
+      "domain": "game"
+    }
+  ],
+  "outreach": []
+}

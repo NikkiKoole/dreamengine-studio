@@ -512,7 +512,9 @@ get back to the overview); acidrack's **transport + chain row inset by `safe_rec
 helpers — the notch/home-bar dodge, R5-adjacent but done early since untappable-under-notch is a
 correctness bug, not polish). **Device matrix committed** as the design baseline:
 [`acidrack-device-matrix.png`](acidrack-device-matrix.png) + regen recipe in
-[`acidrack-layout-brief.md`](acidrack-layout-brief.md) §7.
+[`acidrack-layout-brief.md`](acidrack-layout-brief.md) §7. **Promoted 2026-07-07 to its own carried
+reference — [`device-matrix.md`](device-matrix.md)** (grown to 11 shapes incl. iPhone SE + iPad mini;
+§3 adds the App Store asset pixel sizes for the store pipeline). Design every rack against §2 there.
 
 Three findings worth remembering:
 

@@ -112,7 +112,9 @@ the irreducible **agent** core.
 
 **v0.1 SHIPPED (2026-07-03): `tools/store-shots.js`** — the deterministic asset leg. Takes a
 native cart frame (`play.js --dump`) → App Store screenshots at exact device sizes
-(iphone69 1290×2796, ipad13 2048×2732, …). ffmpeg-based, no node deps.
+(iphone69 1290×2796, ipad13 2048×2732, …). ffmpeg-based, no node deps. **The full required-size
+matrix (+ the "at least" upload set + video note) lives in
+[`device-matrix.md`](device-matrix.md) §3** — the carried reference the store pipeline renders to.
 > **The aspect-ratio gap, solved without engine work.** Carts render at one fixed lo-fi ratio
 > (`SCREEN_W/H` are compile-time); App Store devices are other ratios (tall iPhone, 4:3 iPad),
 > and responsive layout ([`responsive-layout.md`](responsive-layout.md)) isn't built. The fix:

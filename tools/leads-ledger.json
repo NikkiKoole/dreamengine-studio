@@ -715,7 +715,7 @@
     },
     {
       "id": "generative",
-      "label": "Generative / algorithmic music makers",
+      "label": "Generative / algorithmic makers (music + art)",
       "tags": [
         "generative",
         "generative music",
@@ -741,7 +741,65 @@
           "name": "Disquiet Junto",
           "url": "https://disquiet.com/junto/",
           "kind": "web",
-          "etiquette": "Marc Weidenbaum s generative-music community; gift/collab framing"
+          "etiquette": "Marc Weidenbaum s generative-MUSIC community (music-leaning of the three); gift/collab framing"
+        }
+      ],
+      "domain": "any"
+    },
+    {
+      "id": "piano",
+      "label": "Acoustic piano / harpsichord (physical modeling)",
+      "tags": [
+        "grand piano",
+        "pianoteq"
+      ],
+      "hook": "A struck-string piano you can stretch and detune — grand through harpsichord to celesta, one physical model.",
+      "venues": [
+        {
+          "name": "Pianoteq / Modartt forum",
+          "url": "https://forum.modartt.com/",
+          "kind": "forum",
+          "etiquette": "physical-modelled-piano makers; show the model, gift-first"
+        },
+        {
+          "name": "r/piano",
+          "url": "https://www.reddit.com/r/piano/",
+          "kind": "reddit",
+          "etiquette": "players+enthusiasts; a beautiful toy piano lands if it is playable, not a pitch"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "physical-modeling threads; gift-first"
+        }
+      ],
+      "domain": "music"
+    },
+    {
+      "id": "vintage-poly",
+      "label": "Vintage polysynth / chorus (Juno - Jupiter - Prophet)",
+      "tags": [
+        "juno-6",
+        "roland juno",
+        "juno chorus",
+        "jupiter-8",
+        "prophet-5",
+        "oberheim"
+      ],
+      "hook": "Lush divide-down poly and that bucket-brigade chorus wash — flip the switch and mono fans out to stereo.",
+      "venues": [
+        {
+          "name": "Vintage Synth Explorer forum",
+          "url": "https://forum.vintagesynth.com/",
+          "kind": "forum",
+          "etiquette": "gift-first"
+        },
+        {
+          "name": "r/synthesizers",
+          "url": "https://www.reddit.com/r/synthesizers/",
+          "kind": "reddit",
+          "etiquette": "gift-first"
         }
       ],
       "domain": "music"

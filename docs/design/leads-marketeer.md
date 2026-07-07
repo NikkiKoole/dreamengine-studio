@@ -97,9 +97,9 @@ real cart needs one) — no speculative tribes rotting in the ledger.
 
 ## What's done (2026-07-07)
 
-- Tool with all 7 commands; ledger with **25 tribes** (23 music + `arcade` game; the 2026-07-07
-  scene/format pass added ambient/citypop/afrobeat/frenchhouse/indie-jangle/microtonal + the
-  `generative` format tribe) and **9 cross-cutting** (4 music / 5 game).
+- Tool with all 7 commands; ledger with **27 tribes** (the 2026-07-07 scene/format pass added
+  ambient/citypop/afrobeat/frenchhouse/indie-jangle/microtonal + the cross-domain `generative`
+  tribe, then `piano`/`vintage-poly` for the two misfiles) and **9 cross-cutting** (4 music / 5 game).
 - Matching hardened by dry runs (see log below).
 - Discoverable: CLAUDE.md tools list, `demand-generation.md` lever #3, tinyjam §3.9 backlink.
 
@@ -143,16 +143,22 @@ real cart needs one) — no speculative tribes rotting in the ledger.
      / r/piano?), `bossa` (bossa nova → r/Jazz / r/bossanova?), `mariachi`, `tango` (dance-heavy
      r/tango?). One-cart each, rooms I can't confidently name. Mint or leave on the generative
      amplifier? (maker call.)
-   - **The `generative` domain question** — it's `music` now, so domain-`any` procedural-*visual*
-     carts (`roadnet`/`wfc`/`citygrow`) bleed into it. But r/generative + lines genuinely welcome
-     generative *art*, so `generative` may want to be domain `any` (a cross-domain maker community,
-     with only Disquiet music-leaning). Would also give the worldgen carts a real venue. (maker call.)
-   - **The other music gaps** (still ~34 un-tribed): **acoustic/world** (guitar/brass/reed/pipe/
+   - **The `generative` domain** — ✅ **RESOLVED (2026-07-07): domain `any`** (maker: "generative is
+     both music and art"). r/generative + lines welcome generative *art*, so it's a cross-domain maker
+     community (Disquiet Junto flagged music-leaning in its etiquette). This also gives the worldgen
+     carts (`roadnet`/`wfc`/`citygrow`) a real venue, while real games (highnoon/dinorun) don't match
+     — they never claim "generative".
+   - **The misfiles** — ✅ **DONE (2026-07-07).** On a closer look neither fit an existing tribe, so
+     each got its own small real room: **`piano`** → new `piano` tribe (physical-modeled acoustic
+     keys — grand/harpsichord/celesta; venues Pianoteq/Modartt forum · r/piano · r/synthesizers), NOT
+     the electric-piano `keys` scene. **`juno-6`** → new `vintage-poly` tribe (Juno/Jupiter/Prophet
+     analog poly + chorus; Vintage Synth Explorer · r/synthesizers), NOT moog/modular. Tags kept
+     identity-specific (`grand piano`, `juno-6`) to avoid the preset-name/incidental-mention noise.
+   - **The other music gaps** (still ~30 un-tribed): **acoustic/world** (guitar/brass/reed/pipe/
      bowed/hurdy-gurdy/glass-harmonica/monochord → physical-modeling + world-music rooms),
      **novelty/toy** (otamatone/stylophone/touch-piano/glass-harmonica → YouTube/TikTok novelty
-     channels, no dedicated sub), **vocal-synth** (vox/voxab/voxlab/say → r/Vocaloid + formant/vocoder),
-     and cheap misfiles worth fixing: `piano` should sit in `keys`, `juno-6` (Roland analog poly) has
-     no home. Engine tech-demos (`fxmod`/`lfoshapes`/`reverb spaces`/`varispeed`/`ampnoise`) → no tribe.
+     channels, no dedicated sub), **vocal-synth** (vox/voxab/voxlab/say → r/Vocaloid + formant/vocoder).
+     Engine tech-demos (`fxmod`/`lfoshapes`/`reverb spaces`/`varispeed`/`ampnoise`) → no tribe.
 3. **Games** (coverage 24%, only `arcade` so far) — clusters into board/card/sim/puzzle/
    adventure. **Decision pending:** per the GTM games are web-gallery-only, so game buckets may
    be low value — do we invest? (asked, not yet answered.)

@@ -1,10 +1,12 @@
-# scale-grid — a scale-locked isomorphic pad grid (where should it live?)
+# scale-grid — a scale-locked isomorphic pad grid
 
-STATUS: EXPLORING (2026-07-07) — **first decision to make: where does this live** (a `keybed.h`
-mode · its own cart · a new `grid.h` library — see §3). Prototyped in `epianofit.c`; born from the
-epiano responsive spike but it is **not** epiano-specific — it's a general note-input surface. Split
-out of [`epiano-layout-brief.md`](epiano-layout-brief.md) so the piano redesign stays faithful and
-this good-but-separate idea gets its own home.
+STATUS: PROTOTYPED (2026-07-07) — **the playable showcase shipped** as the `scalegrid` cart
+(`tools/carts/scalegrid.c`), device-tested on multitouch and pinned by a 71-assertion `spec()`. The
+"where does it live" question (§3) is answered **B-then-C**: built as its own cart first, with the
+grid maths kept self-contained so it lifts cleanly into a `grid.h` library — **the `grid.h` extraction
+is the one open step**. Born from the epiano responsive spike but it is **not** epiano-specific — it's
+a general note-input surface, split out of [`epiano-layout-brief.md`](epiano-layout-brief.md) so the
+piano redesign stays faithful and this good-but-separate idea got its own home.
 
 > **Why this doc exists (the drift check, 2026-07-07).** Designing epiano's responsive layout, we
 > co-designed a *new* input surface — a scale-locked pad grid — onto the mock. It's a genuinely nice
@@ -16,81 +18,93 @@ this good-but-separate idea gets its own home.
 
 ## 1 · What it is
 
-A note-input surface where the player picks a **SCALE** (chromatic / major / minor / pentatonic /
-dorian) and a **KEY** (root, C…B). Instead of a piano's white/black keys you get a grid of finger
-pads:
+A note-input surface where the player picks a **SCALE** and a **KEY** (root, C…B). Instead of a
+piano's white/black keys you get a grid of finger pads:
 
 - **Scale-locked** — non-chromatic scales show *only in-scale notes*, so there are **no wrong notes**;
-  roots are tinted. Chromatic shows all 12 (sharps tinted darker).
-- **Isomorphic** — the row offset is a fixed number of scale *degrees*, so a chord/scale shape is
-  identical in every key and octave **and survives a reflow** (unlike a column-wrap layout, whose
-  shapes shift when the grid resizes). Default **ISO-OCT** (row up = +one octave; roots in a clean
-  left column — the legible cold-open); **ISO-4TH** (row up = +a fourth; diagonal chord shapes) kept
-  as a selectable seam; **LINEAR dropped** (reflow-defective). Per
-  [ADR-0028](../decisions/0028-sensible-defaults-optional-tweaks.md).
-- **Finger-gated** — pads are ≥ 1 finger (44pt); the count derives from the floor, never crammed.
-- **Range: cap-and-grow** — tight shapes pack finger-pads; roomy shapes cap to `GRID_MAX_OCT` (4)
-  octaves and *grow* the pads to fill (big comfy squares); `OCT−/OCT+` window the range.
+  roots are tinted orange. Chromatic shows all 12 (sharps tinted darker). Shipped set = **11 scales**:
+  chromatic, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor,
+  hirajoshi, blues, and **FOREST** (the open/spread SoundForest voicing `{0,2,5,9,11,16}`, from
+  melodypaint's research — its top note reaches a maj3 past the octave; no canonical scale name).
+  Our own naming/order, deliberately **not** a clone of Koala's list.
+- **Isomorphic** — each row is offset by a fixed musical interval, so a chord/scale *shape* is
+  identical in every key and octave **and survives a reflow**. **ROW toggles the only two layouts that
+  are musical** (per [ADR-0028](../decisions/0028-sensible-defaults-optional-tweaks.md)): **OCT** (row
+  up = +1 octave — the clean scale map, roots recur in columns; the default) and **4TH** (row up =
+  +a fourth — compact Linnstrument-style chord shapes). LINEAR and the arbitrary +N offsets were
+  **dropped** (reflow-defective / not musical).
+- **Fill both dimensions, finger-first** — the hard rule (maker's): a pad is **never below one finger**,
+  and within that the grid packs as many pads as fit **across AND down**. A **SIZE** cycle (`PAD:S/M/L`)
+  scales the pad unit so you can trade density for chunkier pads. Where the surface is wider than the
+  scale, notes simply **repeat** (a shape is playable in several places — the Linnstrument feel), never
+  leaving a gap. *(This supersedes the earlier "cap-and-grow to `GRID_MAX_OCT`" model.)*
+- **No gaps, ever** — the isomorphic offset is clamped to `≤ columns`, so the lattice's degree coverage
+  is contiguous. (This is the fix for the two bugs the mock's model would have had: chromatic dropping
+  A#/B into the row gap, and pentatonic doubling columns.)
+- **Optional HEX packing** — a `SQR ↔ HEX` toggle repacks the pads into interlocking **regular
+  pointy-top hexagons** (a Tonnetz / harmonic-table layout, √3⁄2 row pitch) so all six neighbours are
+  **equidistant** — a diagonal chord reach is the same finger stretch as a sideways one. Hit-testing is
+  **nearest-centre** (a hexagon *is* the Voronoi cell of its centre — exact at the slanted corners).
+- **Voiced by a cycle of engines** — a **VOICE** cycle plays the pads through `INSTR_*` engines: PD
+  sweep pad (default) / EPIANO / MALLET / ORGAN / PLUCK, so the same grid can be heard several ways.
+- **Delightful cold-open** — it self-plays a walking arpeggio on load; the first pad touch hands over.
 
-## 2 · The prototype (what exists today)
+## 2 · What shipped — the `scalegrid` cart
 
-All of the above is live in **`tools/carts/epianofit.c`** (the responsive mock — no audio):
-`s` scale · `r` key/root · `i` layout (LINEAR/ISO-4TH/ISO-OCT) · `z`/`x` octave · `g` force
-piano/grid · `n` native full-bleed. Measured across the device matrix (finger-gated, all touch-safe):
+**`tools/carts/scalegrid.c`** — the playable, sound-bearing showcase (the `epianofit.c` mock proved
+the *layout* silently; this is the real instrument). Fully polyphonic multitouch; on-screen chip bar
+so it's playable on a phone with no keyboard:
 
-| shape · scale | grid | pads @ finger |
-|---|---|---|
-| iPad landscape · MAJOR | ISO-OCT, cap+grow | 30 pads @ 2.41 finger |
-| iPhone portrait · chroma | ISO-OCT, pack | 54 pads @ 1.25 finger |
-| iPhone SE · chroma | pack | 36 pads @ 1.01 finger |
-| native 320×240 landscape · MAJOR | cap+grow | 30 pads @ 1.03 finger |
+`SCALE · KEY(+octave) · ROW(OCT/4TH) · OCT-/OCT+ · VOICE · SIZE · HEX · AUTO`
+(keyboard mirrors: `S R I Z/X V P G M`, `H` help).
 
-The scale/key/isomorphic maths and finger-gating are decided; what's undecided is **where the
-feature is built** so it's reusable and doesn't distort epiano.
+**Pinned by `spec()` — 71 assertions** (`node tools/spec.js scalegrid`): the no-gap lattice across all
+11 scales × both row modes, the finger floor at every SIZE preset, the hit-test round-trip (square +
+hex) *and* hex corner points, and hexagon regularity (all six edges equal, apex centred). So the
+correctness we'd otherwise eyeball in pixel zooms is proven, not guessed. Clip:
+`tools/clips/scalegrid/01-selfplay-then-hands`. **Confirmed on glass** (multitouch, device build).
 
-## 3 · THE FIRST QUESTION — where does it live?
+## 3 · Where does it live? — ANSWERED: B → C
 
-Three homes; this is the decision to make before any build:
+The original three homes:
 
-- **A · an opt-in mode inside `keybed.h`.** The header already powers every keybed cart
-  (epiano / moog / touchpiano / mellotron). Add a "grid mode": the cart's editor-swap draws piano
-  *or* grid, sharing note-on/off, octave, and touch pooling. **Pro:** one implementation, *every*
-  keybed cart gains it free, epiano keeps its piano default and gets the grid as a swap. **Con:**
-  `keybed.h`'s job is a *piano manual* (white/black, glissando); a grid is a different topology —
-  risks a muddy two-headed header.
-- **B · its own cart.** A dedicated grid instrument. **Pro:** clean identity, `keybed.h` stays
-  focused. **Con:** reinvents note plumbing, lifts no other cart, another cart to maintain.
-- **C · a new library header `grid.h`** (a twin of `keybed.h`, reusing `solo.h`'s scale-lock maths).
-  Any cart draws it as an alternate note surface via the editor-swap; it can also stand alone as its
-  own cart. **Pro:** `keybed.h` stays the piano; the grid is a clean, shared module; lifts every
-  cart AND works solo. **Con:** one more header to design (but it's small and well-scoped).
+- **A · a mode inside `keybed.h`** — rejected: `keybed.h`'s job is a *piano manual* (white/black,
+  glissando); a grid is a different topology — a muddy two-headed header.
+- **B · its own cart** — where it is now. Gave it a clean identity and a place to settle every design
+  question by ear on a real device.
+- **C · a new `grid.h` library** (twin of `keybed.h`, reusing `solo.h`'s scale-lock maths) — **still
+  the destination.** The whole keybed shelf reuses it, and `epiano` composes it via the editor-swap.
 
-**Recommendation: C (a `grid.h` library).** It keeps the piano keybed pure, gives the grid a real
-home the whole shelf can reuse, composes with the editor-swap in `epiano`, and doesn't fork into a
-one-off cart. Reuse `solo.h` for the scale→semitone maths rather than re-deriving it. But this is a
-**maker's architecture call** — it's the first thing to solve, and it gates the build.
+**Resolution:** built as **B first** (the proving ground), but the grid maths are kept in **self-
+contained pure functions** — `compute_grid` / `pad_midi` / `pad_center` / `pad_at` / `hex_verts` — so
+the lift into **`grid.h` (C)** is a mechanical extraction, not a rewrite. That extraction is the open
+next step; reuse `solo.h` for the scale→semitone maths rather than re-deriving it.
 
-## 4 · Open sub-questions (after the home is picked)
+## 4 · Open sub-questions — resolved
 
-- **`GRID_MAX_OCT` value** — 4 now (generous small-keyboard range). 3 = bigger pads / 5 = more range.
-- **Confirm the ISO-OCT default WITH SOUND** — the mock is silent; a note layout is a feel/sound
-  call (ADR-0028's "confirm on glass"). ISO-4TH is one keystroke away if it wins.
-- **Isomorphic layout** — DECIDED at the mock level (fixed degree offset; ISO-OCT default), but
-  re-confirm once it's audible.
-- **Chord affordances** — isomorphic shapes beg for chord pads / strum; out of scope for v1, note it.
+- **Confirm the layout WITH SOUND** — ✅ done on device. OCT reads as the clean scale map; 4TH gives
+  the compact chord shapes. Both earned their place, so ROW ships as an OCT↔4TH toggle (not a default
+  with a hidden seam).
+- **Isomorphic layout** — ✅ fixed degree offset, OCT default, 4TH toggle, LINEAR dropped.
+- **`GRID_MAX_OCT` / range** — superseded. The grid fills both dimensions with finger pads; the **SIZE**
+  cycle (`PAD:S/M/L`) sets density instead of a fixed octave cap.
+- **HEX vs square** — added as a live toggle (was not in the original scope); equidistant-neighbour
+  ergonomics vs. the tidy square map — the player picks.
+- **Chord affordances** (chord pads / strum) — still **out of scope**; the isomorphic + hex layouts
+  already make chord *shapes* ergonomic. A future note if it's wanted.
 
 ## 5 · Relationship to epiano (both, eventually)
 
 `epiano`'s redesign ([`epiano-layout-brief.md`](epiano-layout-brief.md)) stays **faithful**: the
-classic chromatic piano keybed that scales with device width + the reflowing pedalboard (its own
-`de:meta` Phase-3 plan). The **editor-swap** is the seam: once `grid.h` (or whichever home wins)
-exists, epiano can offer the scale-grid as an *optional* alternate editor — the piano is the soul,
-the grid is a bonus. Neither blocks the other; build the grid home first (the maker's chosen
-starting point), then wire epiano's swap to it.
+classic chromatic piano keybed that scales with device width + the reflowing pedalboard. The
+**editor-swap** is the seam: once **`grid.h`** exists (the §3 open step), epiano can offer the
+scale-grid as an *optional* alternate editor — the piano is the soul, the grid is a bonus. The
+showcase now proves the grid is worth wiring in. Neither blocks the other.
 
 Related: [`epiano-layout-brief.md`](epiano-layout-brief.md) (the piano half) ·
 [`acidrack-ui-research.md`](acidrack-ui-research.md) (touch/density numbers) ·
 [`../guides/responsive-instrument-ui.md`](../guides/responsive-instrument-ui.md) (the playbook) ·
 [ADR-0028](../decisions/0028-sensible-defaults-optional-tweaks.md) (defaults + seams) ·
-`tools/carts/epianofit.c` (the prototype) · `runtime/keybed.h` · `runtime/solo.h` (scale-lock to
-reuse) · [`device-adaptive-layout.md`](device-adaptive-layout.md).
+`tools/carts/scalegrid.c` (the SHIPPED showcase) · `tools/carts/epianofit.c` (the earlier silent
+mock) · `runtime/keybed.h` · `runtime/solo.h` (scale-lock to reuse for `grid.h`) ·
+[`device-adaptive-layout.md`](device-adaptive-layout.md).

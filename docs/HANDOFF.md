@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-07 (six lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid split out to scale-grid.md, FIRST = pick its home (grid.h recommended))_
+_Last updated: 2026-07-07 (six lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap)_
 
 ---
 
@@ -72,20 +72,26 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > - [`design/epiano-layout-brief.md`](design/epiano-layout-brief.md) — **re-scoped** to the FAITHFUL
 >   epiano (the classic `keybed.h` piano that scales with width + a disclosing sound panel).
 > - [`design/scale-grid.md`](design/scale-grid.md) — the scale-locked isomorphic pad grid **split
->   out** as its own feature (it drifted onto the mock; it's a *general* note surface, not epiano's
->   soul — the maker wants the piano kept AND the grid, eventually).
+>   out** as its own feature (a *general* note surface, not epiano's soul — the maker wants the piano
+>   kept AND the grid, eventually).
+> - **SHIPPED (2026-07-07): the `scalegrid` cart** (`tools/carts/scalegrid.c`) — the playable,
+>   sound-bearing showcase, device-tested on multitouch, pinned by a **71-assertion `spec()`**. 11
+>   scales (incl. blues + the SoundForest "FOREST" voicing), ROW = OCT↔4TH toggle, SQR↔HEX packing
+>   (equidistant-neighbour Tonnetz grid, nearest-centre hit-test, pixel-correct regular hexagons),
+>   fill-both-dims finger-first sizing + a SIZE cycle, and a VOICE cycle (PD/EPIANO/MALLET/ORGAN/PLUCK).
+>   No-gap lattice proven across all scales × both modes. The maker's verdict on glass: "a very nice
+>   musical toy."
 >
-> **Resume-at (the maker's chosen FIRST thing to build): [`design/scale-grid.md`](design/scale-grid.md)
-> §3 — decide WHERE the grid lives** (a `keybed.h` mode · its own cart · a new `grid.h` library;
-> recommendation = `grid.h`, reusing `solo.h`'s scale-lock maths). Then: build that home → wire
-> epiano's optional **editor-swap** to it. Separately, epiano's faithful Phase-3 (piano scales with
-> width; may graduate into `keybed.h`) per its brief. **Both, eventually — the grid does not replace
-> the beloved piano.**
+> **Resume-at: the scale-grid "where does it live" question (scale-grid.md §3) is ANSWERED B→C** —
+> built as its own cart first, grid maths kept in self-contained pure fns (`compute_grid`/`pad_midi`/
+> `pad_center`/`pad_at`/`hex_verts`). **The one open step: extract those into a `grid.h` library**
+> (twin of `keybed.h`, reuse `solo.h`'s scale-lock) so the whole shelf reuses it — then wire epiano's
+> optional **editor-swap** to it. Separately, epiano's faithful Phase-3 (piano scales with width) per
+> its brief. **Both, eventually — the grid does not replace the beloved piano.**
 >
-> **Hot files:** `tools/carts/epianofit.c` (the shared mock for both lines); the two briefs +
-> scale-grid.md. **Gotcha:** the mock defaults to *exploring the grid* (scale/iso on) — that's the
-> feature under design, not a decision that epiano ships a grid. Read the docs for scope, not the
-> mock's defaults.
+> **Hot files:** `tools/carts/scalegrid.c` (the shipped grid — extract from here), `runtime/solo.h`
+> (scale-lock to reuse for grid.h); `tools/carts/epianofit.c` (the earlier silent layout mock, still
+> the epiano-brief reference). Gate: `node tools/spec.js scalegrid` (71/0).
 
 > **▶ ACTIVE THREAD (2026-07-06) — multiplayer: WebRTC P2P (rung 5b).** Kicked off by
 > the maker play-testing rung 5a with his son (Mac ↔ Windows, both browsers): it

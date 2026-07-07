@@ -145,7 +145,7 @@ These are the acceptance numbers — the build matches the §3/§4 tables on dev
 
 Design against the carried matrix in [`device-matrix.md`](device-matrix.md) §2 (don't re-table it).
 
-Related: [`scale-grid.md`](scale-grid.md) (the split-out grid feature — build its home first) ·
+Related: [`scale-grid.md`](scale-grid.md) (the split-out grid feature — SHIPPED as the scalegrid cart; the `grid.h` extraction is the step before epiano's editor-swap can use it) ·
 [`../guides/responsive-instrument-ui.md`](../guides/responsive-instrument-ui.md) (the playbook — this
 brief is its step 3, `epianofit` its step 4) ·
 [`acidrack-layout-brief.md`](acidrack-layout-brief.md) (the sibling rack brief + template) ·

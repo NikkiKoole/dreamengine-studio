@@ -94,11 +94,13 @@ Same pattern data, two editors — the panel-level twin of design-system §8.3's
 | shape | arrangement |
 |---|---|
 | roomy (iPad, either orientation) | **all 5 strips at compact**, stacked; tap one → expands in place (others stay compact until budget forces demotion) |
-| tall (phone portrait) | working strip **expanded** + 1–2 **compact** + rest **folded**; song row pinned |
+| tall (phone portrait) | working strip **expanded** + 1–2 **compact** + rest **folded** |
 | short-wide (phone landscape) | **tabs** (the acidfit finding: accordions degenerate short) — tab bar + one expanded strip |
 
-**Pinned always:** transport + bank buttons (top), song-chain row (bottom). Disclosure hides
-secondary panels, never the performing surface.
+**Pinned always:** just the transport (top). **Cut for now (maker, 2026-07-07):** the top A/B/C/D
+banks and the bottom song-chain row are both gone — we're **always in LOOP mode** (transport shows a
+`LOOP` tag); the strips get that reclaimed height. Bring song/arrangement back when loop-mode jamming
+is solid. Disclosure hides secondary panels, never the performing surface.
 **Orientation policy:** `free` (revisit after the compact strip exists — if phone-portrait plays
 well, landscape may matter less).
 

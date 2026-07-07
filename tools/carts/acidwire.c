@@ -267,19 +267,16 @@ void draw(void) {
     Box full = box(0, 0, W, H);
     Box safe = lay_pad(full, d.insT, 0, d.insB, 0);
 
-    // pinned chrome: transport (top) + song row (bottom) — never disclosed away
-    float trH = lay_clamp(FU * 1.2f, 12, 30), sgH = lay_clamp(FU * 1.0f, 10, 26);
-    Box afterTr, afterSg;
+    // pinned chrome: just the transport (top). No song-chain row + no A/B/C/D banks for now —
+    // we're always in LOOP mode (maker, 2026-07-07); the strips get the reclaimed height.
+    float trH = lay_clamp(FU * 1.2f, 12, 30);
+    Box afterTr;
     Box transport = lay_split(safe, EDGE_TOP, trH, &afterTr);
-    Box song      = lay_split(afterTr, EDGE_BOTTOM, sgH, &afterSg);
-    Box bodyarea  = lay_pad(afterSg, 2, 1, 2, 1);
+    Box bodyarea  = lay_pad(afterTr, 2, 1, 2, 1);
 
     boxfill(transport, CLR_TRUE_BLUE);
     font(FONT_SMALL); print("\x10 STOP  139", (int)transport.x + 3, (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_PEACH);
-    { const char *bk = "A B C D"; print_right(bk, (int)(transport.x + transport.w - 3), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_PEACH); }
-    boxfill(song, CLR_DARKER_BLUE); boxrect(song, CLR_DARK_GREY);
-    for (int i = 0; i < 16; i++) { Box c = lay_wrap(lay_inset(song, 1.5f), 16, i, FU * 0.4f, 1); if (c.w < 2) continue; boxfill(lay_inset(c, 0.5f), (i % 4 == 0) ? CLR_ORANGE : CLR_DARK_GREY); }
-    font(FONT_TINY); print("SONG", (int)song.x + 2, (int)song.y - 6 < transport.y ? (int)song.y + 1 : (int)song.y + 1, CLR_DARK_GREY);
+    print_right("LOOP", (int)(transport.x + transport.w - 3), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_GREY);
 
     float gap = lay_clamp(FU * 0.18f, 1, 4);
     const char *mode;

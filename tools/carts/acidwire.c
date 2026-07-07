@@ -11,7 +11,7 @@
   "description": {
     "summary": "The device-matrix WIREFRAME tool for the acidrack redesign — CLICKABLE/TAPPABLE (touch+mouse): flip acidrack's four-state layout through every device shape and click the controls (mute, patterns, open a strip, focus, tabs) to study the interaction, not just the pixels.",
     "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
-    "controls": "TAP/CLICK: a strip NAME opens it (compact->expanded->focus) - the M button (un)mutes - a pattern chip selects it - a landscape TAB name opens it + its M mutes without opening - the focus X closes - the bottom-left label flips to the next device. KEYS mirror it: ]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label"
+    "controls": "TAP/CLICK: a strip NAME opens it (compact->expanded->focus) - the M button (un)mutes - a pattern chip selects it - a landscape TAB name opens it + its M mutes without opening - in FOCUS the instrument NAME (‹) is the back button (no X; [M][fx] sit top-right) - the bottom-left label flips to the next device. KEYS mirror it: ]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label"
   }
 }
 de:meta */
@@ -256,20 +256,17 @@ static void wf_303lane(Box area, int seed, int mu) {
 // FOCUS / fullscreen: one instrument fills the area, over a title bar with name · patterns · [M] · X.
 // The phone's route to the whole-machine overview (drum full grid / 303 programmer) — closes via X.
 static void draw_focus(Strip *s, Box area, int idx) {
-    int mu = muted[idx], pc = patn[idx];
+    int mu = muted[idx];
     boxfill(area, CLR_DARKER_BLUE); boxrect(area, mu ? CLR_RED : CLR_TRUE_BLUE);
     Box body; Box bar = lay_split(lay_inset(area, 2), EDGE_TOP, lay_clamp(FU * 1.3f, 12, 26), &body);
     boxfill(bar, mu ? CLR_DARK_RED : CLR_TRUE_BLUE);
-    font(FONT_SMALL); print(s->name, (int)bar.x + 3, (int)(bar.y + (bar.h - 6) / 2), CLR_LIGHT_PEACH);
-    float xs = bar.h - 2; Box xb = lay_at(bar, L_TR, xs, xs, 1);       // the close X, top-right
-    boxfill(xb, CLR_RED); boxrect(xb, CLR_WHITE);
-    print_centered("X", (int)(xb.x + xb.w / 2), (int)(xb.y + (xb.h - 6) / 2), CLR_WHITE);
-    if (clicked(xb)) focused = -1;                                     // tap X → back to the rack
-    Box mb = box(xb.x - xs - 2, xb.y, xs, xs); boxfill(mb, mu ? CLR_RED : CLR_DARK_RED); boxrect(mb, CLR_MEDIUM_GREY);
-    print_centered("M", (int)(mb.x + mb.w / 2), (int)(mb.y + (mb.h - 6) / 2), CLR_LIGHT_PEACH);
-    if (clicked(mb)) muted[idx] = !muted[idx];
-    if (s->haspat) { font(FONT_TINY);   // pattern selector between name and M
-        Box pb = box(bar.x + FU * 3.2f, bar.y + 2, mb.x - (bar.x + FU * 3.2f) - 3, bar.h - 4);
+    // no dedicated X: the NAME is the back button (a ‹ cue) — tap it to leave focus. That frees the
+    // top-right for the [M][fx] cluster that belongs there (maker, 2026-07-07).
+    font(FONT_SMALL); print(str("< %s", s->name), (int)bar.x + 3, (int)(bar.y + (bar.h - 6) / 2), CLR_LIGHT_PEACH);
+    if (clicked(box(bar.x, bar.y, FU * 3.0f, bar.h))) focused = -1;
+    wf_mute(bar, idx);                                                 // [M][fx] at the right (M taps to mute)
+    if (s->haspat) { font(FONT_TINY);   // pattern selector between the name and the [M][fx] cluster
+        float px = bar.x + FU * 3.2f; Box pb = box(px, bar.y + 2, bar.x + bar.w - FU * 2.4f - px, bar.h - 4);
         if (pb.w > 20) wf_patterns(pb, idx, NPAT); }
     body = lay_pad(body, 1, 2, 1, 1);
     if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
@@ -462,7 +459,7 @@ void draw(void) {
 
     if (focused >= 0) {
         // ─── FOCUS: one instrument fills the body, X closes back to the rack ───
-        mode = "FOCUS (f / tap X closes)";
+        mode = "FOCUS (tap name / f to leave)";
         draw_focus(&STRIP[focused], bodyarea, focused);
     } else if (cls_ == WIDE) {
         // ─── short-wide: TABS (accordions degenerate short — acidfit finding) ───

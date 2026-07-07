@@ -2659,6 +2659,14 @@ void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 
+// Canvas-only resize on desktop (the DE_NO_RAYLIB branch above defines these for the iOS host):
+// sets the ACTIVE canvas to w×h and lets the fixed window LETTERBOX it (present = gr_place). No
+// SetWindowSize — the window stays put. Lets a cart drive its own logical size, e.g. the acidwire
+// device-matrix wireframe (device-matrix.md) flipping through device shapes. de_is_resizable stays
+// honest (only -DDE_RESIZABLE carts opt into live window→canvas reflow).
+void de_resize(int w, int h) { de_set_canvas(w, h); }
+int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
+
 #ifdef DE_NET_BUILD
 // ── netplay boot lobby (rung 2.5 — docs/design/multiplayer-research.md) ───────
 // An in-window Host / Join / Solo menu so a STANDALONE build (no editor, just a

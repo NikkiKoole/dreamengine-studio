@@ -97,17 +97,27 @@ static void wf_knobrow(Box area, const char *const *labels, int n) {
     for (int i = 0; i < n; i++) { Box c = lay_grid(area, n, n, i, gap); if (c.w > 4 && c.h > 6) wf_knob(lay_inset(c, 0.5f), i, labels[i]); }
 }
 // the step lane: 16 steps grouped in 4s so downbeats read at a glance (acidrack-ui-research §3 —
-// "the single biggest legibility win, costs nothing"). The GROUPING is a bigger gap between beats
+// "the single biggest legibility win, costs nothing"). Grouping = a bigger gap between beats
 // (Gestalt) + a warm downbeat marker; the ACTIVE steps (lime) stay dominant. mu = muted → grey.
+// AUTO-FOLDS to 2×8 when a 1×16 row would push cells below the touch floor — i.e. on phones
+// (research §3: naive 1×16 ≈ 23pt/step; portrait folds to 2×8, still chunked in 4s). iPad stays 1×16.
 static void wf_steplane(Box area, int seed, int mu) {
     float g = 1, G = lay_clamp(FU * 0.18f, 2, 6);          // within-beat gap · between-beat gap (bigger)
-    float cw = (area.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
-    float x = area.x;
-    for (int i = 0; i < STEPS; i++) {
-        int on = ((i + seed) % 4 == 0) || i == 6 || i == 11;
-        int off = (i % 4 == 0) ? CLR_DARK_BROWN : CLR_DARKER_GREY;   // downbeat gets a warm marker
-        boxfill(box(x, area.y, cw, area.h), mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
-        x += cw + g; if (i % 4 == 3) x += G - g;           // widen the gap after each beat
+    float cw1 = (area.w - 12 * g - 3 * G) / 16.0f;         // width a 1×16 cell would get
+    int rows = (cw1 < 11 && area.h >= 16) ? 2 : 1;         // too narrow + room below → fold to 2×8
+    int per = 16 / rows;
+    float rh = (area.h - (rows - 1) * 2) / (float)rows;
+    for (int r = 0; r < rows; r++) {
+        int grps = per / 4;
+        float cw = (area.w - (per - grps) * g - (grps - 1) * G) / (float)per; if (cw < 1) cw = 1;
+        float x = area.x, y = area.y + r * (rh + 2);
+        for (int c = 0; c < per; c++) {
+            int i = r * per + c;
+            int on = ((i + seed) % 4 == 0) || i == 6 || i == 11;
+            int off = (i % 4 == 0) ? CLR_DARK_BROWN : CLR_DARKER_GREY;   // downbeat gets a warm marker
+            boxfill(box(x, y, cw, rh), mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+            x += cw + g; if (c % 4 == 3) x += G - g;        // widen the gap after each beat
+        }
     }
 }
 static void wf_padgrid(Box area, const char *const *labels, int n, int mu) {

@@ -190,6 +190,10 @@ real cart needs one) — no speculative tribes rotting in the ledger.
    restart** via `make`), `editor/src/shell.js` (`renderLeads`/`runLeads` + button + copy handler),
    `shell.css` (`.ld-*`). **Not yet built:** the free-form per-cart `discover` box (autocomplete venue
    hunt) — the natural v2; and a cart-scoped entry (this v1 is app-scoped like the ASO tools).
+   **Where the cart-scoped entry lands (decided 2026-07-07):** the new per-cart **Promote tab** —
+   leads is one row in it, alongside replays/clips/screenshots/trailer. See
+   [`editor-scopes-and-facets.md`](editor-scopes-and-facets.md) → "Resolution: Make / Promote / Ship".
+   The app-scoped 📣 glance stays where it is; the cart-scoped twin ships when the Promote tab does.
 
 ## Where it lives / next session
 

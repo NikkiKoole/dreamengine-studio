@@ -23,6 +23,15 @@ cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.
 
+> **Scope note (2026-07-07) — this popup is SHIP, not PROMOTE.** A later IA pass
+> ([`editor-scopes-and-facets.md`](editor-scopes-and-facets.md) → "Resolution") split the editor's
+> per-cart facets into three verbs: **Make** (code/sprites/map/sound), **Promote** (the promo/meta
+> layer — replays · clips · screenshots · trailer · tribes, a browse-and-assemble *library*), and
+> **Ship** (this share popup — export the exe/web/`.app` binary, publish to github.io / the store).
+> The share popup is firmly **Ship**: it acts on the *binary* and fires a one-shot publish. The
+> promo/meta layer (this doc's 🎬 make-clip browser, the trailer builder, `leads`) belongs to a new
+> per-cart **Promote tab**, NOT inside this popup. Keep the two apart when building.
+
 ## The two commitments
 
 **1 · No Xcode, no GUI toolchains — ever.** Already the `ios/` ethos (xcodegen +

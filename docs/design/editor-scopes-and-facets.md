@@ -1,11 +1,12 @@
 # Editor scopes & facets — where media lands
 
-> **STATUS: exploring** (2026-07-05; updated 2026-07-07 — third data point: reach/leads) — an
-> observation captured so it isn't lost, NOT a plan. No decision here. Origin: adding a "drop a
-> `.rec` and replay it" affordance in the editor surfaced that there's **no logical home** for
-> per-cart media yet — and pulling that thread showed a seam in the editor's whole information
-> architecture. The leads **📣 find tribes** glance (2026-07-07) hit the exact same wall (app-scoped
-> only, cart-scoped home missing), confirming the pattern — see "Crack #3" below.
+> **STATUS: direction chosen** (2026-07-05 explore → 2026-07-07 resolved) — the IA seam is now
+> resolved into a **Make / Promote / Ship** model with a new per-cart **Promote tab** (see
+> "Resolution" below); still an observation-and-direction, not a built feature. Origin: adding a
+> "drop a `.rec` and replay it" affordance surfaced there's **no logical home** for per-cart media —
+> and pulling that thread showed a seam in the editor's whole information architecture. The leads
+> **📣 find tribes** glance (2026-07-07) hit the exact same wall (app-scoped only, no cart-scoped
+> home), a third data point that confirmed the pattern and forced the resolution.
 >
 > - "What's shipped / open / cut?" → [`../STATUS.md`](../STATUS.md).
 > - Where clip/reel FILES live on disk (the storage layout) → [`cart-clips.md`](cart-clips.md).
@@ -86,12 +87,57 @@ but it should fall out of answering Q3, not precede it.
   `tools/reels/*.reel` → `editor/public/reels/`.
 - **The cart-authoring hand-editing gaps** live in [`editor-cart-workflow.md`](editor-cart-workflow.md).
 
-## Open questions (deliberately unanswered)
+## Resolution (2026-07-07): Make / Promote / Ship — Promote is a new per-cart tab
+
+A conversation working through the seam landed a direction. The key move: there are **three
+verbs, not two** — the editor's per-cart facets group by *what you're doing*, and the old word
+"media" was blurring the middle one with the other two:
+
+- **Make** — author the cart: code · sprites · map · sound. *Changes the cart.* (the existing tabs)
+- **Promote** — the promo/meta layer: the cart's recorded replays (`.rec`), baked clips, screenshots,
+  its trailer (clips → reel), and its tribes (`leads`). A **new per-cart tab.** It's a
+  **browse-and-assemble *library*, not a publish button** — "here are this cart's takes and clips;
+  stitch two into a trailer; here are its shots and its tribes."
+- **Ship** — the **existing share popup**: export the exe / web / `.app` binary, publish to
+  github.io or the store. *Distributes the runnable.* **Promote is NOT this** — the share popup
+  stays exactly what it is (it acts on the *binary* and fires a one-shot publish).
+
+Why "rename pixels → media" nagged: pixels is **Make**, the trailer/shots/tribes are **Promote**,
+the exe/publish is **Ship** — three drawers, and "media" was trying to be the middle one while
+sitting in the Make column.
+
+This answers all three open questions below:
+
+1. **Where does the cart-media facet live** → **its own per-cart Promote tab**, sibling to
+   sprites/map. (Not inside the share popup — that's Ship, a different verb.)
+2. **How does the app-scoped twin relate** → **apps consume cart-Promote data.** The app trailer
+   stitches per-cart clips, app screenshots come from per-cart dumps, app leads aggregate per-cart
+   tribes — this **already happens behind the scenes** (`build-app-reel.js`, `store-shots.js`, the
+   📣 find-tribes glance). So the dependency is **bottom-up: carts produce promo assets; apps
+   assemble them.** The Apps view *is* app-scoped Promote; the new tab is its per-cart **source**,
+   which never had a visible home. Shared components (clip tile, bake action, leads row), two homes.
+3. **Does the editor grow an explicit scope switch** → **no — scope is emergent.** A **cart is
+   opened** (from the library → cart scope, the Promote tab), an **app is selected** (in the Apps
+   view → app scope). You never *edit* an app — there's no single artifact to load into
+   code/sprites/map; you edit its carts and *promote the set*. The subject you last touched *is* the
+   scope. (Wrinkle, and it's correct not a bug: a cart can belong to an app — you still edit it as a
+   cart and promote it as part of the app from the Apps view. Same cart, two lives, two places.)
+
+**What lands in the cart Promote tab** (all data already on disk per [`cart-clips.md`](cart-clips.md)):
+the cart's `.rec` takes + `replay()` (built), baked clips (the 🎬 make-clip browser from
+[`share-panel.md`](share-panel.md)), screenshots, a per-cart trailer, and the cart-scoped **leads**
+📣 entry ([`leads-marketeer.md`](leads-marketeer.md) open-q #4). Mostly a **view** problem, not
+plumbing — the sources exist; they lack a home.
+
+## Open questions (now resolved above — kept for the trail)
 
 1. **Where does the cart-media facet live** — its own per-cart panel/tab (like sprite/map), or a
    section inside the existing share popover? (Share is about *distributing*; media is about
    *producing* — record → replay → bake → assemble. That tension is the crux.)
+   → **RESOLVED: its own per-cart Promote tab; the share popup is Ship, a separate verb.**
 2. **How does the app-scoped twin relate** — is the trailer builder re-housed under one "media"
    umbrella with the cart panel, or do they stay separate views that share components?
+   → **RESOLVED: separate homes, shared components; apps consume cart-Promote data bottom-up.**
 3. **Does the editor grow an explicit scope switch** (cart | app), or does each facet just know
    its own scope? (i.e. is "scope" a real first-class concept in the UI, or an emergent one?)
+   → **RESOLVED: emergent — a cart is opened, an app is selected; the last-touched subject is the scope.**

@@ -87,6 +87,11 @@ Same pattern data, two editors — the panel-level twin of design-system §8.3's
 - **Phone:** swap to ReBirth's one-lane editors — the 303 **step programmer** (one octave of
   finger-wide keys + OCT/ACC/SLD flags + step advance — fits a phone width at full finger size);
   drums = voice selector + that voice's single lane.
+- **OPEN — the narrow-303 input model (maker, 2026-07-07, decide ON DEVICE):** the full 303 note
+  grid can't be finger-tappable per-step on a narrow phone (16 cols). Options: **~4 rows of buttons**
+  to expose everything (pitch/oct/acc/slide) at finger size, OR **2 rows + a smarter gesture** (e.g.
+  drag-for-pitch, tap-hold for accent/slide). Which feels right is a touch-ergonomics call — resolve
+  by playing it on glass, not by desktop eyeballing.
 - ~~OPEN: does the phone step programmer replace the roll outright, or is the roll still reachable
   for overview?~~ **Resolved (maker, 2026-07-07): FOCUS/fullscreen** is the phone's overview route —
   the 4th state beyond expanded. A instrument fills the screen over a title bar (name · patterns ·

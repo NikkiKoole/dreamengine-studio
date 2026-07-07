@@ -315,14 +315,16 @@ async function uploadScreenshot(setId, filePath) {
       relationships: { appScreenshotSet: { data: { type: 'appScreenshotSets', id: setId } } },
     },
   })
-  const state = await uploadReserved('appScreenshots', reserve.data, buf, fileName)
+  const id = await putAndCommit('appScreenshots', reserve.data, buf, fileName)
+  const state = await pollAsset('appScreenshots', id)
   console.log(`    ${state === 'COMPLETE' ? '✓' : '✗'} ${fileName} (${state})`)
   if (state !== 'COMPLETE') throw new Error(`${fileName}: asset delivery ${state}`)
 }
 
-// The asset dance shared by app screenshots + IAP review screenshots: PUT each reserved chunk to its
-// presigned URL, commit with the md5, poll until Apple finishes processing.
-async function uploadReserved(type, reserved, buf, label) {
+// The asset dance shared by every ASC upload: PUT each reserved chunk to its presigned URL, then
+// commit with the md5. Returns the resource id — the caller polls for readiness (which field signals
+// "done" differs per resource: screenshots use assetDeliveryState, images use imageAsset).
+async function putAndCommit(type, reserved, buf, label) {
   const id = reserved.id
   for (const op of reserved.attributes.uploadOperations || []) {
     const headers = {}
@@ -334,14 +336,26 @@ async function uploadReserved(type, reserved, buf, label) {
   const md5 = crypto.createHash('md5').update(buf).digest('hex')
   await api('PATCH', `/v1/${type}/${id}`,
     { data: { type, id, attributes: { uploaded: true, sourceFileChecksum: md5 } } })
-  return pollAsset(type, id)
+  return id
 }
 
+// screenshots (app + IAP review): readiness = assetDeliveryState reaches COMPLETE
 async function pollAsset(type, id) {
   for (let i = 0; i < 30; i++) {
     const r = await api('GET', `/v1/${type}/${id}`)
     const st = r.data.attributes.assetDeliveryState?.state
     if (st === 'COMPLETE' || st === 'FAILED') return st
+    await sleep(2000)
+  }
+  return 'TIMEOUT'
+}
+
+// IAP promo images: readiness = the processed imageAsset (CDN template url) appears
+async function pollImage(id) {
+  for (let i = 0; i < 30; i++) {
+    const r = await api('GET', `/v1/inAppPurchaseImages/${id}`)
+    if (r.data.attributes.imageAsset) return 'COMPLETE'
+    if (r.data.attributes.errorType) return 'FAILED'
     await sleep(2000)
   }
   return 'TIMEOUT'
@@ -407,8 +421,32 @@ async function ensureIAPReviewShot(iapId, p) {
       relationships: { inAppPurchaseV2: { data: { type: 'inAppPurchases', id: iapId } } },
     },
   })
-  const state = await uploadReserved('inAppPurchaseAppStoreReviewScreenshots', reserve.data, buf, path.basename(file))
+  const id = await putAndCommit('inAppPurchaseAppStoreReviewScreenshots', reserve.data, buf, path.basename(file))
+  const state = await pollAsset('inAppPurchaseAppStoreReviewScreenshots', id)
   console.log(`    ${state === 'COMPLETE' ? '✓' : '✗'} review screenshot ${path.basename(file)} (${state})`)
+}
+
+// The 1024x1024 promoted-IAP image (the `images` relationship). Optional: apps/<app>/iap-images/<slug>.png.
+async function ensureIAPImage(iapId, p) {
+  const slug = p.productId.split('.').pop()
+  const file = path.join(appDir, 'iap-images', slug + '.png')
+  if (!fs.existsSync(file)) return // optional — silent if absent
+  const cur = await api('GET', `/v2/inAppPurchases/${iapId}/images?limit=10`)
+  if ((cur.data || []).some(i => i.attributes.imageAsset)) {
+    console.log('    = promo image present'); return
+  }
+  const buf = fs.readFileSync(file)
+  const reserve = await api('POST', '/v1/inAppPurchaseImages', {
+    data: {
+      type: 'inAppPurchaseImages',
+      attributes: { fileName: path.basename(file), fileSize: buf.length },
+      // NB: images use 'inAppPurchase' — localization/review-shot use 'inAppPurchaseV2' (Apple inconsistency)
+      relationships: { inAppPurchase: { data: { type: 'inAppPurchases', id: iapId } } },
+    },
+  })
+  const id = await putAndCommit('inAppPurchaseImages', reserve.data, buf, path.basename(file))
+  const state = await pollImage(id) // PREPARE_FOR_SUBMISSION is fine — it's reviewed with the app
+  console.log(`    ${state === 'COMPLETE' ? '✓' : '✗'} promo image ${path.basename(file)} (${state})`)
 }
 
 async function pushIAP() {
@@ -448,6 +486,7 @@ async function pushIAP() {
     await ensureIAPPrice(iap.id, p)
     await ensureIAPAvailability(iap.id, territories)
     await ensureIAPReviewShot(iap.id, p)
+    await ensureIAPImage(iap.id, p)
   }
   if (opt.dryRun) console.log('\n  (--dry-run: nothing created)')
 }

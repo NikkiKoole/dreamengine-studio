@@ -206,8 +206,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              asc-push.js     PUSH the non-cart product surface to App Store Connect from apps/<name>/app.json — the
                              in-house upload tool ADR-0026 chose over Fastlane (zero deps: Node fetch + ES256 JWT).
                              --metadata (title/subtitle/keywords/desc/promo/URLs/copyright) · --screenshots · --iap
-                             (create→localize→price→availability→review-shot, idempotent) · --dry-run GETs live +
-                             diffs · --check offline gate. Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
+                             (create→localize→price→availability→review-shot→1024² promo image → READY_TO_SUBMIT,
+                             idempotent; images from apps/<app>/iap-images/<slug>.png) · --dry-run GETs live + diffs ·
+                             --check offline gate. Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
                              Design: docs/design/store-agents.md §"ASC upload + TestFlight tool"
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")

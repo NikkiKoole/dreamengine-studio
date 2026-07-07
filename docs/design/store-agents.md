@@ -55,14 +55,24 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
    in-house against the App Store Connect API (JWT/ES256 from a `.p8`, zero deps), proven live
    against Tiny Jam. `--metadata` (title/subtitle/keywords/desc/promo/URLs/copyright, GET-and-diff
    on `--dry-run`) · `--screenshots` (the chunked reserve→PUT→commit→poll dance) · `--iap`
-   (create→localize→price→availability→review-shot → READY_TO_SUBMIT, idempotent) · `--check`
-   offline gate. Auth lives in `~/.appstoreconnect/` (`.p8` + `config.json`), never git; `*.p8`
-   gitignored as a backstop. Three API gotchas baked in as fixes: ES256 needs the JOSE raw
-   signature (`dsaEncoding:'ieee-p1363'`, not DER); IAP relationships traverse `/v2/`; inline price
-   creation needs the `${local-id}` id format; and "Missing Metadata" on an IAP is the *availability*
-   resource, not the review screenshot. **Still open:** per-locale `metadata/<locale>/` folders
-   (the tool reads them but multi-locale isn't exercised) + wiring an editor button. The copy
-   *prose* (description/promo) stays maker-written per the two-part bar — the tool only pipes it.
+   (create→localize→price→availability→review-shot→1024² promo image → READY_TO_SUBMIT, idempotent;
+   images from `apps/<app>/iap-images/<slug>.png`) · `--check` offline gate. Auth lives in
+   `~/.appstoreconnect/` (`.p8` + `config.json`), never git; `*.p8` gitignored as a backstop. Four
+   API gotchas baked in as fixes: ES256 needs the JOSE raw signature (`dsaEncoding:'ieee-p1363'`, not
+   DER); IAP localization/review-shot relationships traverse `/v2/` and are named `inAppPurchaseV2`
+   but the *image* relationship is `inAppPurchase`; inline price creation needs the `${local-id}` id
+   format; "Missing Metadata" on an IAP is the *availability* resource, not the review screenshot; and
+   images signal readiness via `imageAsset`, screenshots via `assetDeliveryState`. **Still open:**
+   per-locale `metadata/<locale>/` folders (the tool reads them but multi-locale isn't exercised) +
+   a `--promote` step (mark an IAP a promoted purchase so it shows in search) + an editor button. The
+   copy *prose* (description/promo) stays maker-written per the two-part bar — the tool only pipes it.
+
+   > **IAP + ASO (the discovery angle):** Apple indexes an IAP's **display name** (≤30) for search —
+   > "Acid Rack"/"E-Piano"/"Master Pass" extend the app's keyword surface for free, so spend IAP-name
+   > taste on findable words, not the app's 100-char keyword field. The IAP **description** (≤45) is
+   > NOT indexed (purchase-sheet blurb only) — same as the app description, which the App Store also
+   > doesn't index (unlike Google Play). Only title/subtitle/keywords (+ IAP names) rank. A **promoted**
+   > IAP (the 1024² image + the promote flag) becomes its own tappable search result — an extra surface.
 3. **Search-Term-Rank popularity column** — feed `aso-research` real 1–100 popularity once
    Apple's beta reaches the account (App Store Connect → Analytics → Insights; §ASO deep-dive).
    *Interim free stand-in SHIPPED:* `aso-suggest.js` (Google-autocomplete demand proxy — §"the

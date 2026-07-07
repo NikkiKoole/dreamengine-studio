@@ -58,14 +58,16 @@ static const char *const K303[]  = { "CUT","RES","ENV","DEC","ACC","DRV","SQL" }
 static const char *const K303c[] = { "CUT","RES","DRV" };                 // §2 guess: the knobs you ride live
 static const char *const KMST[]  = { "VOL","TON","VRB" };
 static const char *const KMSTc[] = { "DLY","FB","GLU" };
+// factual voice selectors (Roland manuals): TR-909 = 11 voices; TR-808 = 11 (toms↔congas,
+// RS↔claves, CP↔maracas via a switch; AC/accent is a global track, not in the voice row).
 static const char *const V909[]  = { "BD","SD","LT","MT","HT","RS","CP","CH","OH","CC","RC" };
-static const char *const V808[]  = { "BD","SD","LT","HT","CP","MA","CB","OH","CH" };
+static const char *const V808[]  = { "BD","SD","LT","MT","HT","RS","CP","CB","CY","OH","CH" };
 static const char *const VDUMc[] = { "TUNE","DEC" };                      // §2 guess: selected-voice knobs
 static Strip STRIP[] = {          // haspat: MASTER is the mixer/FX bus, not a pattern instrument
     { "303 A",  KNOBS, 7,  K303, K303c, 3, 1 },
     { "303 B",  KNOBS, 7,  K303, K303c, 3, 1 },
     { "909",    DRUMS, 11, V909, VDUMc, 2, 1 },
-    { "808",    DRUMS, 9,  V808, VDUMc, 2, 1 },
+    { "808",    DRUMS, 11, V808, VDUMc, 2, 1 },
     { "MASTER", KNOBS, 3,  KMST, KMSTc, 3, 0 },
 };
 #define NSTRIP 5
@@ -194,10 +196,10 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     if (state == COMPACT) {                        // 2-3 knobs (or drum selector) + one step lane
         Box lane; Box top = s->haspat ? lay_split(mach, EDGE_TOP, FU * 1.3f, &lane) : mach;
         if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc);
-        else { // drum: voice selector chips + selected-voice knobs
+        else { // drum: voice selector (ALL voices, factual) + selected-voice knobs
             Box kn; Box sel = lay_split(top, EDGE_TOP, FU * 0.7f, &kn);
-            float g = 2; for (int i = 0; i < 6 && i < s->n; i++) { Box c = lay_grid(sel, 6, 6, i, g); boxfill(lay_inset(c,0.5f), i==0?CLR_DARK_ORANGE:CLR_DARK_GREY);
-                font(FONT_TINY); print_centered(s->labels[i], (int)(c.x+c.w/2), (int)(c.y+(c.h-5)/2), CLR_LIGHT_GREY); }
+            float g = 1.5f; for (int i = 0; i < s->n; i++) { Box c = lay_grid(sel, s->n, s->n, i, g); boxfill(lay_inset(c,0.5f), i==0?CLR_DARK_ORANGE:CLR_DARK_GREY);
+                if (c.w >= 7) { font(FONT_TINY); print_centered(s->labels[i], (int)(c.x+c.w/2), (int)(c.y+(c.h-5)/2), CLR_LIGHT_GREY); } }
             wf_knobrow(kn, s->compact, s->nc);
         }
         if (s->haspat) wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu);
@@ -319,8 +321,18 @@ void draw(void) {
             font(FONT_TINY); print_centered(STRIP[i].name, (int)(t.x + t.w / 2), (int)(t.y + (t.h - 5) / 2), CLR_LIGHT_PEACH); }
         draw_strip(&STRIP[sel], lay_pad(panel, 0, gap, 0, 0), EXPANDED, 1);
 
+    } else if (d.cls == ROOMY && d.w > d.h) {
+        // ─── iPad LANDSCAPE: 2×2 grid of the 4 pattern machines + a MASTER bar (maker, 2026-07-07).
+        //     Fills the width with squarer panels + uses the vertical space, vs one over-wide column
+        //     with stretched lanes/buttons and a dead void below. ReBirth's machines-grid + master rail.
+        mode = "roomy land · 2x2 + master";
+        Box grid; Box mbar = lay_split(bodyarea, EDGE_BOTTOM, FU * 2.0f, &grid);
+        for (int i = 0; i < 4; i++)   // 303A · 303B / 909 · 808
+            draw_strip(&STRIP[i], lay_grid(grid, 2, 4, i, gap), EXPANDED, i == work);
+        draw_strip(&STRIP[4], lay_pad(mbar, 0, gap, 0, 0), EXPANDED, work == 4);   // MASTER: knobs only
+
     } else if (d.cls == ROOMY) {
-        // ─── roomy: the ALL-COMPACT rack (§4 headline) — tap one → expands in place ───
+        // ─── roomy PORTRAIT: the ALL-COMPACT rack (§4 headline) — tap one → expands in place ───
         mode = (work >= NSTRIP) ? "roomy · all compact" : "roomy · one expanded";
         // assign states, measure total, then lay out top-down
         int st[NSTRIP]; float tot = 0;

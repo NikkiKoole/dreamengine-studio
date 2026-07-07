@@ -19,16 +19,50 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-07 (four lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-07 (five lanes: multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid split out to scale-grid.md, FIRST = pick its home (grid.h recommended))_
 
 ---
 
 ## Where we are right now
 
-**Four lanes are active in parallel right now** (different areas — pick the one you're resuming):
+**Five lanes are active in parallel right now** (different areas — pick the one you're resuming):
 (1) **multiplayer — WebRTC P2P (rung 5b)**, (2) **device-adaptive layout**, (3) **store / ASO +
-the app-trailer builder**, and (4) **editor media (record/replay + where it lands)**. All below;
-none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
+the app-trailer builder**, (4) **editor media (record/replay + where it lands)**, and (5)
+**responsive instrument UI + the scale-grid**. All below; none is "the" thread. Shipped/open ledger
+for all: [`STATUS.md`](STATUS.md) + the design board.
+
+> **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
+> A research question ("what's the best responsive UI for a music cart?") turned into
+> reusable process + two live design docs + a clearly-scoped new feature to build. **What shipped
+> (docs/tools, all committed):**
+> - [`design/acidrack-ui-research.md`](design/acidrack-ui-research.md) — external survey of the
+>   303/909/808 + best clones + the touch/density numbers (48px floor, band table).
+> - [`guides/responsive-instrument-ui.md`](guides/responsive-instrument-ui.md) — the reusable
+>   **playbook**: sound→inventory→steal-IA→tier→**brief**→prototype→sweep→hands→ship, with the
+>   field-note-018 traps baked in as guards.
+> - [`decisions/0028-sensible-defaults-optional-tweaks.md`](decisions/0028-sensible-defaults-optional-tweaks.md)
+>   — the rule: pick the stranger-legible default, ship it, leave a **seam**; don't agonize, don't
+>   over-configure. Wired into design-system §5 + the playbook.
+> - `tools/carts/epianofit.c` — the step-4 layout **MOCK** (no audio): device-fit + finger unit +
+>   disclosure across all shapes. Keys: `1-5` lock device / `0` auto / `m` machine / `f` fx / `s`
+>   scale / `r` key / `i` iso-layout / `g` force piano-or-grid / `n` native full-bleed.
+> - [`design/epiano-layout-brief.md`](design/epiano-layout-brief.md) — **re-scoped** to the FAITHFUL
+>   epiano (the classic `keybed.h` piano that scales with width + a disclosing sound panel).
+> - [`design/scale-grid.md`](design/scale-grid.md) — the scale-locked isomorphic pad grid **split
+>   out** as its own feature (it drifted onto the mock; it's a *general* note surface, not epiano's
+>   soul — the maker wants the piano kept AND the grid, eventually).
+>
+> **Resume-at (the maker's chosen FIRST thing to build): [`design/scale-grid.md`](design/scale-grid.md)
+> §3 — decide WHERE the grid lives** (a `keybed.h` mode · its own cart · a new `grid.h` library;
+> recommendation = `grid.h`, reusing `solo.h`'s scale-lock maths). Then: build that home → wire
+> epiano's optional **editor-swap** to it. Separately, epiano's faithful Phase-3 (piano scales with
+> width; may graduate into `keybed.h`) per its brief. **Both, eventually — the grid does not replace
+> the beloved piano.**
+>
+> **Hot files:** `tools/carts/epianofit.c` (the shared mock for both lines); the two briefs +
+> scale-grid.md. **Gotcha:** the mock defaults to *exploring the grid* (scale/iso on) — that's the
+> feature under design, not a decision that epiano ships a grid. Read the docs for scope, not the
+> mock's defaults.
 
 > **▶ ACTIVE THREAD (2026-07-06) — multiplayer: WebRTC P2P (rung 5b).** Kicked off by
 > the maker play-testing rung 5a with his son (Mac ↔ Windows, both browsers): it

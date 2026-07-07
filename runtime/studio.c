@@ -2174,6 +2174,13 @@ static void loop_step(void) {
     // lay the controls into the resulting band. At the default size (window == game) the placement
     // is the identity overlay → game_rect + control positions are byte-identical to before.
     { Placement pl = gr_place(GetScreenWidth(), GetScreenHeight(), de_sw, de_sh);
+      // DECK reserves a band below the game for on-screen touch controls. With none shown
+      // (show_touch_ui off — e.g. a keyboard-driven letterbox like the acidwire wireframe in
+      // landscape), that band is dead space and top-pinning just shoves the game up — CENTER instead.
+      if (!show_touch_ui && pl.mode == PLACE_DECK) {
+          pl.game.y = pl.band_h / 2.0f;   // band_h == vertical leftover; center vertically (x already centered)
+          pl.mode = PLACE_OVERLAY; pl.band_w = 0; pl.band_h = 0;
+      }
       game_rect = pl.game; layout_touch_controls(pl);
       place_mode = pl.mode; band_x = pl.band_x; band_y = pl.band_y; band_w = pl.band_w; band_h = pl.band_h; }
 #endif

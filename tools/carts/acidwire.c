@@ -265,7 +265,9 @@ static void draw_focus(Strip *s, Box area, int idx) {
 static void draw_strip(Strip *s, Box rect, int state, int accent) {
     int idx = (int)(s - STRIP), mu = muted[idx], pc = patn[idx];
     boxfill(rect, CLR_DARKER_BLUE); boxrect(rect, mu ? CLR_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
-    Box body; float hh = lay_clamp(FU * 0.42f, 7, 12);
+    // the header is a finger-tall control bar: on phone it holds the pattern row + M + fx, and a
+    // ~9px header made those un-tappable. ~0.85 finger clears the touch floor (fat pads do the rest).
+    Box body; float hh = lay_clamp(FU * 0.85f, 16, 22);
     Box hdr = lay_split(lay_inset(rect, 1), EDGE_TOP, hh, &body);
     boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     font(FONT_TINY); print(s->name, (int)hdr.x + 2, (int)(hdr.y + (hdr.h - 5) / 2), CLR_LIGHT_PEACH);
@@ -376,7 +378,7 @@ static void draw_fingergrid(int W, int H) {
 
 // footprint of a strip in a given state, in logical px (height)
 static float strip_h(Strip *s, int state) {
-    if (state == FOLDED)  return FU * 1.15f;              // patterns live in the header row
+    if (state == FOLDED)  return FU * 1.4f;               // finger-tall header + a slim preview strip
     if (state == COMPACT) return FU * 2.9f;              // pattern box is a LEFT column, not a row
     return (s->kind == DRUMS ? FU * 5.8f : FU * 5.0f);   // EXPANDED
 }
@@ -434,9 +436,17 @@ void draw(void) {
         mode = "tabs";
         int sel = (work >= NSTRIP) ? 0 : work;
         Box panel; Box tabs = lay_split(bodyarea, EDGE_TOP, FU * 1.1f, &panel);
-        for (int i = 0; i < NSTRIP; i++) { Box t = lay_grid(tabs, NSTRIP, NSTRIP, i, gap);
-            boxfill(t, i == sel ? CLR_TRUE_BLUE : CLR_DARK_GREY); boxrect(t, CLR_MEDIUM_GREY);
-            font(FONT_TINY); print_centered(STRIP[i].name, (int)(t.x + t.w / 2), (int)(t.y + (t.h - 5) / 2), CLR_LIGHT_PEACH); }
+        for (int i = 0; i < NSTRIP; i++) {
+            Box t = lay_grid(tabs, NSTRIP, NSTRIP, i, gap);
+            int m = muted[i];
+            boxfill(t, i == sel ? CLR_TRUE_BLUE : (m ? CLR_DARK_RED : CLR_DARK_GREY));
+            boxrect(t, m ? CLR_RED : CLR_MEDIUM_GREY);
+            // each tab carries its own mute button (right) — mute without opening the tab first.
+            Box nm; Box mbtn = lay_split(lay_inset(t, 1), EDGE_RIGHT, lay_clamp(FU * 0.8f, 9, 18), &nm);
+            font(FONT_TINY); print_centered(STRIP[i].name, (int)(nm.x + nm.w / 2), (int)(nm.y + (nm.h - 5) / 2), CLR_LIGHT_PEACH);
+            boxfill(mbtn, m ? CLR_RED : CLR_DARK_RED); boxrect(mbtn, m ? CLR_WHITE : CLR_MEDIUM_GREY);
+            print_centered("M", (int)(mbtn.x + mbtn.w / 2), (int)(mbtn.y + (mbtn.h - 5) / 2), m ? CLR_WHITE : CLR_LIGHT_PEACH);
+        }
         draw_strip(&STRIP[sel], lay_pad(panel, 0, gap, 0, 0), EXPANDED, 1);
 
     } else if (d.cls == ROOMY && d.w > d.h) {

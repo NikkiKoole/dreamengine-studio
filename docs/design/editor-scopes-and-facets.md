@@ -106,6 +106,28 @@ Why "rename pixels → media" nagged: pixels is **Make**, the trailer/shots/trib
 the exe/publish is **Ship** — three drawers, and "media" was trying to be the middle one while
 sitting in the Make column.
 
+### The order: Promote *brackets* Ship (which is why it's a tab, not a step)
+
+The intuitive lifecycle is **Make → Promote → Ship**, but it's not a clean line — **Promote sits on
+*both* sides of Ship**:
+
+```
+Make → Promote(produce assets) → Ship(publish, using them) → Promote(announce, with the URL)
+```
+
+- **Before Ship** — promo assets are an *input* to Ship, not an output: the App Store **requires**
+  screenshots to submit, and you'd cut the trailer first. So you produce in Promote, then Ship *uses*
+  what you produced.
+- **After Ship** — a tribe gift-post needs a **link to point at**, and that link (gallery URL / store
+  page) doesn't exist until you've shipped. So the *posting* half of Promote loops back after Ship.
+
+That's the load-bearing consequence: **Make and Ship are events** (author it once, publish it), but
+**Promote is the workspace you keep returning to** — before shipping (assemble) and after (announce).
+So it earns a **persistent tab**, not a wizard step wedged between Make and Ship. **UI tab order**
+left-to-right stays **Make · Promote · Ship** (matches the dominant flow + reading order, even though
+Promote's announce-tail loops back). In practice "Make" is the *existing* code/sprites/map tabs, so
+building this is **two** new surfaces: the **Promote** tab and a **Ship** that is today's share popup.
+
 This answers all three open questions below:
 
 1. **Where does the cart-media facet live** → **its own per-cart Promote tab**, sibling to

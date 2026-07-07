@@ -123,10 +123,19 @@ Make → Promote(produce assets) → Ship(publish, using them) → Promote(annou
 
 That's the load-bearing consequence: **Make and Ship are events** (author it once, publish it), but
 **Promote is the workspace you keep returning to** — before shipping (assemble) and after (announce).
-So it earns a **persistent tab**, not a wizard step wedged between Make and Ship. **UI tab order**
-left-to-right stays **Make · Promote · Ship** (matches the dominant flow + reading order, even though
-Promote's announce-tail loops back). In practice "Make" is the *existing* code/sprites/map tabs, so
-building this is **two** new surfaces: the **Promote** tab and a **Ship** that is today's share popup.
+So it earns a **persistent tab**, not a wizard step wedged between Make and Ship.
+
+**The verbs are a LENS, not a top-bar to build (right-sized 2026-07-07).** Don't reorganize the editor
+into three Make/Promote/Ship buttons — that's wishful thinking. The verbs are for *deciding where a
+thing lives*, and the answer is small and concrete:
+
+- **Make** needs no button — it's *already* the **code / pixels (sprites/map)** tabs. Leave them flat;
+  there's no "Make" wrapper.
+- **Ship** needs no button — it's *already* the **share popup**. Leave it.
+- **Promote is the only thing with no home today** → the single net-new UI element is a **Promote
+  tab/button sitting next to code/pixels.** That's the whole build.
+
+So the model's payoff is: *add one tab.* Everything else already exists under a different name.
 
 This answers all three open questions below:
 

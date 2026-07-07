@@ -342,25 +342,30 @@ static bool pad_held(int idx) {
 }
 
 // a REGULAR pointy-top hexagon centred at (cx,cy) with circumradius R (centre→vertex).
-// Vertices are built from a ROUNDED centre + offsets MIRRORED about it (icx±hw, icy±sh),
-// so the shape is exactly left/right- and top/bottom-symmetric and the top/bottom points
-// sit dead-centre between the shoulders — truncating each vertex independently drifted the
-// apex a sub-pixel off. Regular ratios: half-width hw = (√3/2)·R, shoulder sh = R/2.
-// The outline uses poly() (NOT line()) so it lands EXACTLY on polyfill's edge — the
-// invariant the `rasterizer test` cart verifies. Same int vertex array feeds both.
+// Everything is derived from ONE rounded integer, the shoulder offset sh = round(R/2),
+// so the shape survives rasterization as a TRUE regular hexagon: apex = 2·sh and
+// half-width = √3·sh, which makes ALL SIX edges exactly 2·sh long (the vertical edge is
+// 2·sh; each slanted edge is √((√3·sh)² + sh²) = 2·sh). Rounding R, R/2 and (√3/2)R
+// INDEPENDENTLY (the old way) let apex ≠ 2·shoulder, so the roof height and the vertical
+// edge disagreed by a pixel and the six edges were unequal. Centre is rounded and every
+// offset MIRRORED about it, so it's exactly left/right- and top/bottom-symmetric.
+// Outline uses poly() (NOT line()) so it lands EXACTLY on polyfill's edge — the invariant
+// the `rasterizer test` cart verifies. Same int vertex array feeds fill and outline.
+// fill xy[12] with the 6 vertices (pure — the spec inspects this to prove regularity)
+static void hex_verts(float cx, float cy, float R, int xy[12]) {
+    int icx = (int)(cx + 0.5f), icy = (int)(cy + 0.5f);
+    int sh  = (int)(0.5f * R + 0.5f); if (sh < 1) sh = 1;   // the base unit — every edge = 2·sh
+    int hh  = 2 * sh;                                       // apex offset (locked to 2·sh)
+    int hw  = (int)(1.7320508f * sh + 0.5f);                // half flat-to-flat width = √3·sh
+    xy[0]=icx;      xy[1]=icy-hh;   // top point
+    xy[2]=icx+hw;   xy[3]=icy-sh;   // upper-right
+    xy[4]=icx+hw;   xy[5]=icy+sh;   // lower-right
+    xy[6]=icx;      xy[7]=icy+hh;   // bottom point
+    xy[8]=icx-hw;   xy[9]=icy+sh;   // lower-left
+    xy[10]=icx-hw;  xy[11]=icy-sh;  // upper-left
+}
 static void draw_hex(float cx, float cy, float R, int fill, int border) {
-    int icx = (int)(cx + 0.5f),  icy = (int)(cy + 0.5f);
-    int hw  = (int)(0.8660254f * R + 0.5f);   // half flat-to-flat width
-    int hh  = (int)(R + 0.5f);                 // half point-to-point height (= R)
-    int sh  = (int)(0.5f * R + 0.5f);          // shoulder y offset (= R/2)
-    int xy[12] = {
-        icx,      icy - hh,   // top point
-        icx + hw, icy - sh,   // upper-right
-        icx + hw, icy + sh,   // lower-right
-        icx,      icy + hh,   // bottom point
-        icx - hw, icy + sh,   // lower-left
-        icx - hw, icy - sh,   // upper-left
-    };
+    int xy[12]; hex_verts(cx, cy, R, xy);
     polyfill(xy, 6, fill);
     poly(xy, 6, border);
 }
@@ -389,7 +394,7 @@ void draw(void) {
             // flat-to-flat width == the column pitch and cells tile edge-to-edge (no
             // overlap → no overdrawn seams). The 0.7px shrink leaves a hairline gutter.
             float cxp = g_pw + g_gap;
-            draw_hex(cx, cy, cxp * 0.5774f - 0.7f, fill, border);
+            draw_hex(cx, cy, cxp * 0.5774f, fill, border);
             if (g_ph >= 10 && g_pw >= 14) {
                 font(FONT_TINY);
                 print_centered(str("%s%d", NOTE[pc], dispOct), (int)cx, (int)cy - 2, tcol);
@@ -440,3 +445,70 @@ void draw(void) {
         print("no wrong notes in-scale", bx + 6, by + 57, CLR_LIME_GREEN);
     }
 }
+
+// ── spec() — pins the two things we kept eyeballing in zooms (docs/design/spec-harness.md).
+//    Run: node tools/spec.js scalegrid  (or all: node tools/spec.js). The pure functions —
+//    compute_grid / pad_midi / pad_center / pad_at / hex_verts — are exercised directly. ──
+#ifdef DE_SPEC
+#include "spec.h"
+#include <math.h>
+
+void spec(void) {
+    root = 0; octave = 4; hexlayout = false;
+
+    // ── 1) SEAMLESS LATTICE: every scale in octave mode (rowoff == nsc) tiles with NO gap
+    //       and NO repeat — the regression for "chroma was missing A#/B" and "penta doubled
+    //       two columns". cols must equal the scale size; a row must be exactly one octave
+    //       (every degree once); one row up must be +12 semitones. ──
+    for (int s = 0; s < NSCALE; s++) {
+        scale = s; rowoff = SC_N[s];
+        compute_grid();
+        expect_eq(g_cols, SC_N[s], "octave mode: columns == scale size (seamless tiling)");
+        int seen = 0, dupe = 0;
+        for (int c = 0; c < g_cols; c++) {
+            int pc = ((pad_midi((g_rows - 1) * g_cols + c) % 12) + 12) % 12;
+            if (seen & (1 << pc)) dupe = 1;
+            seen |= (1 << pc);
+        }
+        expect(!dupe, "octave mode: a row has no duplicate pitch class (no overlap)");
+        expect_eq(__builtin_popcount(seen), SC_N[s], "octave mode: a row covers every scale degree once (no gap)");
+        if (g_rows >= 2)
+            expect_eq(pad_midi((g_rows - 2) * g_cols) - pad_midi((g_rows - 1) * g_cols), 12,
+                      "octave mode: one row up is exactly +12 semitones");
+    }
+
+    // ── 2) ROW-OFFSET dial stays in range and drives the column count (cols == offset). ──
+    scale = 1; rowoff = 999; compute_grid();
+    expect(g_cols >= 1 && g_cols <= SC_N[1], "rowoff is clamped into [1, nsc]");
+    rowoff = 3; compute_grid();
+    expect_eq(g_cols, 3, "cols follow the row offset (the isomorphic invariant)");
+
+    // ── 3) HIT-TEST ROUND-TRIP: every pad's own centre must hit-test back to that pad,
+    //       in BOTH square and hex packing (geometry ⇔ hit-test agree). ──
+    for (int hx = 0; hx < 2; hx++) {
+        hexlayout = hx; scale = 3; rowoff = SC_N[3]; compute_grid();
+        int bad = 0;
+        for (int idx = 0; idx < g_cols * g_rows; idx++) {
+            float cx, cy; pad_center(idx, &cx, &cy);
+            if (pad_at((int)(cx + 0.5f), (int)(cy + 0.5f)) != idx) bad++;
+        }
+        expect_eq(bad, 0, hx ? "hex: every pad centre hit-tests to its own index"
+                             : "square: every pad centre hit-tests to its own index");
+    }
+    hexlayout = false;
+
+    // ── 4) HEXAGON is REGULAR: all six edges equal length (within a pixel) and the apex
+    //       sits dead-centre — the "points aren't 100% correct" fix. ──
+    int xy[12]; hex_verts(100.4f, 80.6f, 30.0f, xy);
+    float e0 = 0; int allEq = 1;
+    for (int i = 0; i < 6; i++) {
+        int a = i * 2, b = ((i + 1) % 6) * 2;
+        float len = sqrtf((float)((xy[a]-xy[b])*(xy[a]-xy[b]) + (xy[a+1]-xy[b+1])*(xy[a+1]-xy[b+1])));
+        if (i == 0) e0 = len; else if (!spec_close(len, e0, 1.0f)) allEq = 0;
+    }
+    expect(allEq, "hex: all six edges are equal length (regular hexagon)");
+    expect_eq(xy[0], (xy[2] + xy[10]) / 2, "hex: top apex x is centred between the shoulders");
+    expect_eq(xy[6], xy[0], "hex: bottom apex x == top apex x (vertical symmetry)");
+    expect_eq(xy[3] - xy[1], xy[7] - xy[5], "hex: roof height == floor height (top/bottom symmetry)");
+}
+#endif

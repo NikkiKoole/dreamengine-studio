@@ -68,11 +68,14 @@ count is fixed (always ≤3) or per-machine.
 **Per-instrument controls the main screen must carry (maker, 2026-07-07) — now in `acidwire`:**
 - **Mute** — a `[M]` toggle per strip in *every* state (header right). Muted reads unmistakably: red
   strip border + lit-red M + the pattern/step activity greyed (not green) = "there but silenced."
-- **Patterns — 6 per instrument**, a per-strip selector with the live one lit. Placement by state:
-  **expanded** = a finger-sized bank of 6; **compact** = a thin 6-slot row above the knobs;
-  **folded** = 6 mini LEDs in the header (number + current lit). Distinct from the transport's
+- **Patterns — 6 per instrument**, in their **own bordered "PAT" box** clearly grouped with the
+  instrument (ReBirth's per-machine PATTERN panel — maker, 2026-07-07), not a loose full-width row.
+  Placement by state: **expanded** + **compact** = a titled box (3×2 of the 6) on the strip's
+  LEFT, machine controls fill the rest to its right; **folded** = a framed row of 6 LEDs in the
+  header. Live pattern lit; muted → the box border/LEDs grey/red too. Distinct from the transport's
   A/B/C/D banks (top) and the song-chain row (bottom) — this is *which of the instrument's 6
   patterns plays*. Try it: `node tools/play.js acidwire run` → `m` mutes, `p` cycles the pattern.
+  (Open: does each instrument also get its own bank A/B/C/D like ReBirth → 6×4, or is 6 flat?)
 
 ## 3 · Editor swap by budget (expanded state, per shape)
 

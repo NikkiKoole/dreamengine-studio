@@ -115,15 +115,23 @@ static void wf_minipat(Box area, int seed, int mu) {   // folded: a row of tiny 
     for (int i = 0; i < STEPS; i++) { Box s = lay_wrap(area, STEPS, i, FU * 0.2f, 1); if (s.w < 1) continue;
         int on = ((i + seed) % 3 == 0); boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
 }
-// per-instrument PATTERN selector: NPAT numbered slots, the live one lit
-static void wf_patterns(Box area, int cur, int mu) {
+// per-instrument PATTERN selector: NPAT numbered slots in `cols` columns, the live one lit
+static void wf_patterns(Box area, int cur, int mu, int cols) {
     float gap = lay_clamp(FU * 0.09f, 1, 3);
     for (int i = 0; i < NPAT; i++) {
-        Box c = lay_grid(area, NPAT, NPAT, i, gap); if (c.w < 3) continue;
+        Box c = lay_grid(area, cols, NPAT, i, gap); if (c.w < 3) continue;
         int on = (i == cur);
-        boxfill(c, on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARK_GREY); boxrect(c, CLR_MEDIUM_GREY);
+        boxfill(c, on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARK_GREY); boxrect(c, CLR_DARKER_GREY);
         if (c.h >= 7) { font(FONT_TINY); print_centered(str("%d", i + 1), (int)(c.x + c.w / 2), (int)(c.y + (c.h - 5) / 2), on ? CLR_BLACK : CLR_MEDIUM_GREY); }
     }
+}
+// the pattern selector as its OWN little box (ReBirth's per-machine PATTERN panel): a titled,
+// bordered unit clearly grouped with the instrument. 3×2 grid of the 6 patterns.
+static void wf_patbox(Box b, int cur, int mu) {
+    boxfill(b, CLR_BROWNISH_BLACK); boxrect(b, mu ? CLR_DARK_RED : CLR_MEDIUM_GREY);
+    Box grid; Box lab = lay_split(lay_inset(b, 1), EDGE_TOP, lay_clamp(FU * 0.26f, 4, 7), &grid);
+    font(FONT_TINY); print("PAT", (int)lab.x + 1, (int)lab.y, CLR_MEDIUM_GREY);
+    wf_patterns(grid, cur, mu, 3);
 }
 static void wf_mute(Box hdr, int mu) {   // [M][fx] cluster at the header's right edge; M lit red when muted
     float bw = lay_clamp(FU * 0.7f, 8, 20);
@@ -144,17 +152,23 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     body = lay_pad(body, 1, 1, 1, 1);
     wf_mute(hdr, mu);
 
-    if (state == FOLDED) {   // header: name · 6 pattern LEDs · [M][fx]; body: a mini step preview
+    if (state == FOLDED) {   // header: name · framed pattern LEDs · [M][fx]; body: a mini step preview
         float muteW = FU * 1.6f;
-        wf_patterns(box(hdr.x + FU * 1.7f, hdr.y + 1, hdr.w - FU * 1.7f - muteW, hdr.h - 2), pc, mu);
+        Box pb = box(hdr.x + FU * 1.7f, hdr.y + 1, hdr.w - FU * 1.7f - muteW, hdr.h - 2);
+        boxrect(pb, mu ? CLR_DARK_RED : CLR_DARKER_GREY);          // frame → its own little box
+        wf_patterns(lay_inset(pb, 1), pc, mu, NPAT);              // one row of 6
         wf_minipat(body, idx, mu);
         return;
     }
-    // COMPACT + EXPANDED both lead with the pattern selector row
-    if (state == COMPACT) {                        // patterns + 2-3 knobs (or selector) + one step lane
-        Box rest; Box prow = lay_split(body, EDGE_TOP, FU * 0.7f, &rest);
-        wf_patterns(prow, pc, mu);
-        Box lane; Box top = lay_split(lay_pad(rest, 0, 1, 0, 0), EDGE_TOP, FU * 1.3f, &lane);
+    // COMPACT + EXPANDED: the pattern selector is its OWN boxed panel on the LEFT (ReBirth-style),
+    // the machine controls fill the rest to its right — clearly grouped with THIS instrument.
+    float boxW = (state == EXPANDED) ? FU * 2.7f : FU * 2.4f;
+    Box mach; Box pbox = lay_split(body, EDGE_LEFT, boxW, &mach);
+    wf_patbox(pbox, pc, mu);
+    mach = lay_pad(mach, 1, 0, 0, 0);   // gap between the box and the machine
+
+    if (state == COMPACT) {                        // 2-3 knobs (or drum selector) + one step lane
+        Box lane; Box top = lay_split(mach, EDGE_TOP, FU * 1.3f, &lane);
         if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc);
         else { // drum: voice selector chips + selected-voice knobs
             Box kn; Box sel = lay_split(top, EDGE_TOP, FU * 0.7f, &kn);
@@ -165,11 +179,9 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
         wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu);
         return;
     }
-    // EXPANDED — the full editor, with a finger-sized pattern bank up top
-    Box editor; Box prowE = lay_split(body, EDGE_TOP, FU * 1.0f, &editor);
-    wf_patterns(prowE, pc, mu); editor = lay_pad(editor, 0, 1, 0, 0);
-    if (s->kind == KNOBS) { Box lane; Box kn = lay_split(editor, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
-    else wf_padgrid(editor, s->labels, s->n, mu);
+    // EXPANDED — the full editor to the right of the pattern box
+    if (s->kind == KNOBS) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
+    else wf_padgrid(mach, s->labels, s->n, mu);
 }
 
 // ───────── device safe-area SKIN (the point of this whole cart) ─────────
@@ -226,8 +238,8 @@ static void draw_safe_skin(int W, int H, Dev d) {
 // footprint of a strip in a given state, in logical px (height)
 static float strip_h(Strip *s, int state) {
     if (state == FOLDED)  return FU * 1.15f;              // patterns live in the header row
-    if (state == COMPACT) return FU * 3.4f;              // + a pattern-selector row
-    return (s->kind == DRUMS ? FU * 6.4f : FU * 5.6f);   // EXPANDED (+ finger pattern bank)
+    if (state == COMPACT) return FU * 2.9f;              // pattern box is a LEFT column, not a row
+    return (s->kind == DRUMS ? FU * 5.8f : FU * 5.0f);   // EXPANDED
 }
 
 void update(void) {

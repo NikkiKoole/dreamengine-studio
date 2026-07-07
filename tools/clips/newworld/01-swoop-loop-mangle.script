@@ -1,0 +1,39 @@
+# newworld — "I Hear a New World": cold-opens self-playing, then a hand takes over,
+# swoops a looped lead, and drowns it in tape fx. Deterministic demo seed.
+# frames 720
+# fps 30
+# --- let the self-play intro breathe (the drifting sine over echo+spring) ---
+# --- arm the loop, lay a slow swooping bed on the SINE voice ---
+tap 120 SPACE 2
+click 130 40 60 0
+move 132 90 44
+move 134 150 38
+move 136 210 50
+move 138 270 62
+move 140 300 40
+# --- switch to the reedy LEAD, solo a second layer over the looping bed ---
+tap 200 1 2
+click 210 260 30 0
+move 212 210 34
+move 214 160 28
+move 216 120 40
+move 218 90 52
+# --- toss in found-sounds ---
+tap 250 Z 2
+tap 262 X 2
+tap 274 V 2
+# --- ride the fx: DUB echo, HALL spring, then a granular FREEZE + REVERSE grab ---
+tap 300 Q 2
+tap 312 W 2
+tap 340 E 2
+tap 360 R 2
+# --- a tape WOBBLE dive (click the wobble chip), then GRIME ---
+click 400 130 157 0
+tap 440 T 2
+# --- another swoop over the frozen cloud on the alien VOX ---
+tap 480 2 2
+click 490 100 30 0
+move 492 160 40
+move 494 220 55
+move 496 280 44
+move 498 250 60

@@ -143,6 +143,15 @@ under `DE_NO_RAYLIB` (portable host-feed, like the web bridge). Next: MIDI CC �
 - **Desktop-only:** dragging the cart *window* mid-playback freezes the music (macOS modal-resize loop
   blocks the main-thread transport; GLFW fires no callback during it — backed out, see
   device-adaptive-layout.md §2026-07-06). Does NOT affect iOS (rotation is one discrete `de_resize`).
+- **`CompileAssetCatalog` fails for an arbitrary single cart** (`** BUILD FAILED ** … CompileAssetCatalog
+  … Assets.xcassets`). `project.yml` sets `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`, and despite the
+  `optional: true` on the catalog source, **xcodegen still emits the reference** — so `actool` runs and
+  HARD-fails when `gen/Assets.xcassets` is absent or has no `AppIcon` set (a minimal Contents.json is
+  NOT enough — the named app icon must exist). Only `APP=<manifest>` builds with a manifest `icon` ever
+  staged one. Fix (commit `56bcfdc2`): `build.sh`/`device.sh` stage `ios/default-icon.png` (a 1024,
+  no-alpha placeholder) into a valid `AppIcon.appiconset` before `xcodegen` whenever one isn't already
+  present, so `CART=<any>`, `EDITOR=1`, and icon-less apps all build. `gen/` is gitignored; the default
+  icon is the only committed asset. A dev build just shows the placeholder icon (cosmetic).
 
 ## Status
 

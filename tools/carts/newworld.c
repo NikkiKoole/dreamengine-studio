@@ -15,7 +15,7 @@
   "description": {
     "summary": "A Joe Meek 'Outer Space Music Fantasy' box: slide a swooping lead across the night sky, loop it, and drown it in tape echo, spring reverb and wobble.",
     "detail": "One expressive gesture + one method. DRAG the big ribbon (the night sky) — x = pitch (snaps toward the scale so tunes stay in tune, glides between for the steel-guitar swoop), up/down = swell. Five held voices (a reedy LEAD saw, a Casio-CZ SWEEP, an FM GLASS bell, and TWO pure SINE theremins). Each voice loops on its OWN lane — the two sines let you loop a bed AND a lead both on sine: arm REC, play a bed on SINE, switch to SINE2 or LEAD and solo over it — every voice loops independently, clear any lane on its own (the Meek tape-layering, playable). The found-sound pads (bubble/bottle/zap/drain) and the fx rack (tape ECHO, spring reverb, tape WOBBLE, granular FREEZE + REVERSE, lo-fi GRIME) ARE the instrument. Live self-resampling — no sampler. Cold-opens playing itself; first touch hands over.",
-    "controls": "Drag the ribbon = play (x pitch / y swell). 1-5 = voice (SINE + SINE2). S = scale, snap chip = glide amount. Z X C V = found-sound pads (top zone = normal), A S D F = the same pads a fourth lower (bottom zone). Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
+    "controls": "Drag the ribbon = play (x pitch / y swell). 1-5 = voice (SINE + SINE2). G = scale (which notes the ribbon snaps to), snap chip = glide amount. Z X C V = found-sound pads (top zone = normal), A S D F = the same pads a fourth lower (bottom zone). Q echo · W spring · E freeze · R reverse · T grime · wobble chip = tape-dive. SPACE = arm loop · BACKSPACE = clear this voice's lane · ALL = clear everything."
   }
 }
 de:meta */
@@ -287,7 +287,7 @@ void update(void) {
     // ---- voice / scale / snap chips ----
     for (int v = 0; v < NVOICE; v++)
         if (keyp('1' + v) || tapp(6 + v * 32, 108, 30, 14)) { if (playing_self) handover(); cur = v; }
-    if (keyp('S') || tapp(170, 108, 66, 14)) scale_i = (scale_i + 1) % 4;
+    if (keyp('G') || tapp(170, 108, 66, 14)) scale_i = (scale_i + 1) % 4;   // G = cycle scale (S is a pad key)
     if (tapp(240, 108, 74, 14)) snap_i = (snap_i + 1) % 4;
 
     // ---- found-sound pads ----
@@ -438,7 +438,7 @@ void draw(void) {
         chip(x, 108, 30, V_NAME[v], cur == v && !playing_self, V_COL[v]);
         if (has_lane(v)) circfill(x + 26, 111, 2, blink(20) ? CLR_RED : CLR_DARK_PURPLE); // looped
     }
-    chip(170, 108, 66, str("S:%s", SCALE_NAME[scale_i]), 1, CLR_DARK_GREEN);
+    chip(170, 108, 66, str("%s g", SCALE_NAME[scale_i]), 1, CLR_DARK_GREEN);
     chip(240, 108, 74, str("GLIDE:%s", SNAP_NAME[snap_i]), 1, CLR_DARK_GREEN);
 
     // ---- found-sound pads ----

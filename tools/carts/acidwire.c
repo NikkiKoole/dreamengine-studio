@@ -179,19 +179,63 @@ static void wf_drumgrid(Box area, Strip *s, int mu) {
     }
 }
 // the 303 step programmer as a mini piano-roll: one note per step over an octave of key-striped rows.
+// a 303 pattern is MELODIC, not on/off: per step a note (pitch on a scale, over octaves), a gate
+// (note / rest), plus ACCENT and SLIDE (glide) flags. These deterministic per-step generators stand
+// in for real data so the editor reads like an acid line.
+static int p303_rest(int seed, int i) { return ((i * 3 + seed) % 7) == 5; }
+static int p303_note(int seed, int i) { int sc[7] = {0,3,5,7,10,12,15}; return sc[(i*2 + seed) % 7] + ((seed + i) % 3 == 0 ? 12 : 0); } // minor-ish + octave jumps
+static int p303_acc (int seed, int i) { return (i % 4 == 0) || ((i * 5 + seed) % 6 == 1); }
+static int p303_sld (int seed, int i) { return ((i * 2 + seed) % 5) == 2; }
+
+// the FULL 303 step programmer: a pitch piano-roll (key-striped, spans >1 octave so OCTAVE reads) +
+// an ACCENT lane + a SLIDE(glide) lane. The 303's real anatomy (acidrack-ui-research §2: note/accent/
+// slide/gate layers), the melodic twin of the drum grid.
 static void wf_303grid(Box area, int seed, int mu) {
-    int rows = 13;
-    float rh = area.h / (float)rows;
-    for (int r = 0; r < rows; r++) {   // piano-key striping so pitch reads
+    Box notes; Box flags = lay_split(area, EDGE_BOTTOM, lay_clamp(FU * 0.9f, 8, 22), &notes);
+    int rows = 15;                                     // ~15 semitones → octave range is visible
+    float rh = notes.h / (float)rows;
+    for (int r = 0; r < rows; r++) {                   // piano-key striping so pitch reads
         int black = (r % 12 == 1 || r % 12 == 3 || r % 12 == 6 || r % 12 == 8 || r % 12 == 10);
-        boxfill(box(area.x, area.y + r * rh, area.w, rh - 0.5f), black ? CLR_BROWNISH_BLACK : CLR_DARKER_BLUE);
+        boxfill(box(notes.x, notes.y + r * rh, notes.w, rh - 0.5f), black ? CLR_BROWNISH_BLACK : CLR_DARKER_BLUE);
     }
+    float g = 1, G = lay_clamp(FU * 0.16f, 2, 5);
+    float cw = (notes.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
+    float x = notes.x; float prevX = -1, prevY = -1;
+    for (int i = 0; i < STEPS; i++) {
+        if (!p303_rest(seed, i)) {
+            int note = p303_note(seed, i) % rows;
+            float ny = notes.y + (rows - 1 - note) * rh, ncx = x + cw / 2, ncy = ny + rh / 2;
+            if (p303_sld(seed, i) && prevX >= 0)       // slide: tie a line from the previous note
+                line((int)prevX, (int)prevY, (int)ncx, (int)ncy, mu ? CLR_MEDIUM_GREY : CLR_INDIGO);
+            boxfill(box(x, ny, cw, rh - 0.5f), mu ? CLR_MEDIUM_GREY : (p303_acc(seed, i) ? CLR_ORANGE : CLR_LIME_GREEN));
+            prevX = ncx; prevY = ncy;
+        } else prevX = -1;
+        x += cw + g; if (i % 4 == 3) x += G - g;
+    }
+    // ACC + SLD flag lanes
+    Box sld; Box acc = lay_split(flags, EDGE_TOP, flags.h / 2, &sld);
+    float lblW = lay_clamp(FU * 0.9f, 10, 20);
+    Box ac; Box acl = lay_split(acc, EDGE_LEFT, lblW, &ac);
+    Box sc; Box sll = lay_split(sld, EDGE_LEFT, lblW, &sc);
+    font(FONT_TINY); print("ACC", (int)acl.x + 1, (int)acl.y, CLR_ORANGE); print("SLD", (int)sll.x + 1, (int)sll.y, CLR_INDIGO);
+    float ax = ac.x, sx2 = sc.x;
+    for (int i = 0; i < STEPS; i++) {
+        boxfill(box(ax, ac.y + 1, cw, ac.h - 2), mu ? CLR_DARKER_GREY : (p303_acc(seed, i) ? CLR_ORANGE : CLR_DARK_GREY));
+        boxfill(box(sx2, sc.y + 1, cw, sc.h - 2), mu ? CLR_DARKER_GREY : (p303_sld(seed, i) ? CLR_INDIGO : CLR_DARK_GREY));
+        ax += cw + g; sx2 += cw + g; if (i % 4 == 3) { ax += G - g; sx2 += G - g; }
+    }
+}
+// compact 303 preview: the melodic contour — a pitch bar per step (accent = orange, rest = empty).
+static void wf_303lane(Box area, int seed, int mu) {
     float g = 1, G = lay_clamp(FU * 0.16f, 2, 5);
     float cw = (area.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
     float x = area.x;
     for (int i = 0; i < STEPS; i++) {
-        int note = (seed * 5 + i * 3) % rows, on = (i + seed) % 3 != 1;
-        if (on) boxfill(box(x, area.y + note * rh, cw, rh - 0.5f), mu ? CLR_MEDIUM_GREY : CLR_LIME_GREEN);
+        if (!p303_rest(seed, i)) {
+            float f = (p303_note(seed, i) % 15) / 14.0f;      // pitch → bar height
+            float h = 2 + f * (area.h - 2);
+            boxfill(box(x, area.y + area.h - h, cw, h), mu ? CLR_MEDIUM_GREY : (p303_acc(seed, i) ? CLR_ORANGE : CLR_LIME_GREEN));
+        }
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
 }
@@ -259,12 +303,13 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
                 if (c.w >= 7) { font(FONT_TINY); print_centered(s->labels[i], (int)(c.x+c.w/2), (int)(c.y+(c.h-5)/2), CLR_LIGHT_GREY); } }
             wf_knobrow(kn, s->compact, s->nc);
         }
-        if (s->haspat) wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu);
+        if (s->haspat) { if (s->kind == KNOBS) wf_303lane(lay_pad(lane, 0, 1, 0, 1), idx, mu);   // 303: melodic contour
+                         else wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu); }                 // drum: selected voice
         return;
     }
     // EXPANDED — the full editor
     if (s->kind == KNOBS) {
-        if (s->haspat) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
+        if (s->haspat) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_303grid(lay_pad(lane,0,1,0,1), idx, mu); }   // 303: full programmer
         else wf_knobrow(mach, s->labels, s->n);   // MASTER: just knobs
     }
     else wf_drumgrid(mach, s, mu);   // DRUMS: the real voices×steps sequencer grid

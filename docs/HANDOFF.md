@@ -292,11 +292,17 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > identity, never technique). Model refinement written into `leads-marketeer.md`.
 > **PARKED (maker's call):** the 4 weak-room scenes (satie/bossa/mariachi/tango — stay on the
 > generative amplifier) + games buckets (GTM: web-gallery-only; `arcade` is the one game tribe).
-> **Resume-at: [`design/leads-marketeer.md`](design/leads-marketeer.md) → open-question #4** — the ONE
-> remaining build task: the editor **Apps-page** surface (a cart/app card: tribes + venues + draftable
-> post + free-form discover box; mirrors `aso-score`'s 📊 glance). Tool + 90% taxonomy are ready to
-> surface. Hot files: `tools/leads-ledger.json` (hand-edit to add venues), `tools/leads.js`. Gate:
-> `node tools/leads.js --check`.
+> **Update 2026-07-07 — the editor Apps-page surface is BUILT v1:** the Apps card gained a **reach**
+> section + **📣 find tribes** button (mirrors the ASO 📊 glance). Per cart of the app it renders
+> tribes + matched tags + hook + venues (clickable → browser) + a copyable **post scaffold**, plus
+> cross-cutting once — "we prep, you post." New `leads.js match --json` + `studio:leads` IPC
+> (app-scoped, loops the app's carts). **NEEDS AN ELECTRON RESTART** (`make`) — main.cjs/preload.cjs
+> changed. Verified via CLI (tinyjam 3-cart aggregation), not yet eyeballed in the running UI.
+> **Resume-at: [`design/leads-marketeer.md`](design/leads-marketeer.md) → open-question #4** — (a)
+> maker eyeballs 📣 on the tinyjam card after `make`; (b) v2 = the free-form per-cart **discover box**
+> (autocomplete venue hunt) + a cart-scoped entry point (v1 is app-scoped like the ASO tools). Hot
+> files: `editor/src/shell.js` (+shell.css), `editor/electron/main.cjs`/`preload.cjs`, `tools/leads.js`,
+> `tools/leads-ledger.json` (hand-edit venues). Gate: `node tools/leads.js --check`.
 
 ## History & reference (pruned 2026-07-05)
 

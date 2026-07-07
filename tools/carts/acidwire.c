@@ -11,7 +11,7 @@
   "description": {
     "summary": "The device-matrix WIREFRAME tool: flip acidrack's three-state-strip layout through every shape in device-matrix.md with one key, in the REAL logical size.",
     "detail": "A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes.",
-    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - h hide the label"
+    "controls": "]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - h hide the label"
   }
 }
 de:meta */
@@ -79,6 +79,7 @@ enum { FOLDED, COMPACT, EXPANDED };
 
 static int cur = 0, applied = -1, work = NSTRIP, showlabel = 1, safehint = 1;
 static int g_boxpat = 0;   // pattern selector style this frame: 1 = boxed left panel (iPad), 0 = header row (phone)
+static int focused = -1;   // FOCUS/fullscreen: strip index shown full-screen (X closes), or -1 = the rack
 // work: 0..NSTRIP-1 = that strip expanded; NSTRIP = ALL COMPACT (the iPad §4 headline)
 // per-instrument state the main screen must carry: mute + which of the 6 patterns is live
 static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
@@ -158,6 +159,69 @@ static void wf_mute(Box hdr, int mu) {   // [M][fx] cluster at the header's righ
     font(FONT_TINY); print_centered("fx", (int)(fx.x + fx.w / 2), (int)(fx.y + (fx.h - 5) / 2), CLR_LIGHT_GREY);
     Box m = box(fx.x - bw * 0.65f - 2, fx.y, bw * 0.65f, fx.h); boxfill(m, mu ? CLR_RED : CLR_DARK_RED); boxrect(m, mu ? CLR_WHITE : CLR_MEDIUM_GREY);
     print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), mu ? CLR_WHITE : CLR_LIGHT_PEACH);
+}
+
+// beat-grouped 16-step columns inside `row` (shared by the drum grid + 303 grid)
+static void wf_steprow(Box row, int seed, int mu, int voice) {
+    float g = 1, G = lay_clamp(FU * 0.16f, 2, 5);
+    float cw = (row.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
+    float x = row.x;
+    for (int i = 0; i < STEPS; i++) {
+        int on = ((i + seed) % 4 == 0) || (i == 6 && voice % 2 == 0) || (i == 10 && voice % 3 == 0);
+        int off = (i % 4 == 0) ? CLR_DARK_BROWN : CLR_DARKER_GREY;
+        boxfill(box(x, row.y, cw, row.h - 1), mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+        x += cw + g; if (i % 4 == 3) x += G - g;
+    }
+}
+// the FULL drum grid: every voice a row (label + its 16 steps) — the whole pattern at once, the
+// overview a phone can only get in focus/fullscreen (acidrack-ui-research §3 "full grid" on roomy).
+static void wf_drumgrid(Box area, Strip *s, int mu) {
+    float lblW = lay_clamp(FU * 1.4f, 14, 34);
+    for (int v = 0; v < s->n; v++) {
+        Box row = lay_grid(area, 1, s->n, v, 1);
+        Box steps; Box lbl = lay_split(row, EDGE_LEFT, lblW, &steps);
+        boxfill(lbl, CLR_DARKER_BLUE);
+        font(FONT_TINY); print(s->labels[v], (int)lbl.x + 2, (int)(lbl.y + (lbl.h - 5) / 2), CLR_LIGHT_PEACH);
+        wf_steprow(lay_pad(steps, 1, 0, 0, 0), v * 3 + 1, mu, v);
+    }
+}
+// the 303 step programmer as a mini piano-roll: one note per step over an octave of key-striped rows.
+static void wf_303grid(Box area, int seed, int mu) {
+    int rows = 13;
+    float rh = area.h / (float)rows;
+    for (int r = 0; r < rows; r++) {   // piano-key striping so pitch reads
+        int black = (r % 12 == 1 || r % 12 == 3 || r % 12 == 6 || r % 12 == 8 || r % 12 == 10);
+        boxfill(box(area.x, area.y + r * rh, area.w, rh - 0.5f), black ? CLR_BROWNISH_BLACK : CLR_DARKER_BLUE);
+    }
+    float g = 1, G = lay_clamp(FU * 0.16f, 2, 5);
+    float cw = (area.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
+    float x = area.x;
+    for (int i = 0; i < STEPS; i++) {
+        int note = (seed * 5 + i * 3) % rows, on = (i + seed) % 3 != 1;
+        if (on) boxfill(box(x, area.y + note * rh, cw, rh - 0.5f), mu ? CLR_MEDIUM_GREY : CLR_LIME_GREEN);
+        x += cw + g; if (i % 4 == 3) x += G - g;
+    }
+}
+// FOCUS / fullscreen: one instrument fills the area, over a title bar with name · patterns · [M] · X.
+// The phone's route to the whole-machine overview (drum full grid / 303 programmer) — closes via X.
+static void draw_focus(Strip *s, Box area, int idx) {
+    int mu = muted[idx], pc = patn[idx];
+    boxfill(area, CLR_DARKER_BLUE); boxrect(area, mu ? CLR_RED : CLR_TRUE_BLUE);
+    Box body; Box bar = lay_split(lay_inset(area, 2), EDGE_TOP, lay_clamp(FU * 1.3f, 12, 26), &body);
+    boxfill(bar, mu ? CLR_DARK_RED : CLR_TRUE_BLUE);
+    font(FONT_SMALL); print(s->name, (int)bar.x + 3, (int)(bar.y + (bar.h - 6) / 2), CLR_LIGHT_PEACH);
+    float xs = bar.h - 2; Box xb = lay_at(bar, L_TR, xs, xs, 1);       // the close X, top-right
+    boxfill(xb, CLR_RED); boxrect(xb, CLR_WHITE);
+    print_centered("X", (int)(xb.x + xb.w / 2), (int)(xb.y + (xb.h - 6) / 2), CLR_WHITE);
+    Box mb = box(xb.x - xs - 2, xb.y, xs, xs); boxfill(mb, mu ? CLR_RED : CLR_DARK_RED); boxrect(mb, CLR_MEDIUM_GREY);
+    print_centered("M", (int)(mb.x + mb.w / 2), (int)(mb.y + (mb.h - 6) / 2), CLR_LIGHT_PEACH);
+    if (s->haspat) { font(FONT_TINY);   // pattern selector between name and M
+        Box pb = box(bar.x + FU * 3.2f, bar.y + 2, mb.x - (bar.x + FU * 3.2f) - 3, bar.h - 4);
+        if (pb.w > 20) wf_patterns(pb, pc, mu, NPAT); }
+    body = lay_pad(body, 1, 2, 1, 1);
+    if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
+    else if (s->haspat) { Box grid; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.6f, &grid); wf_303grid(grid, idx, mu); wf_knobrow(kn, s->labels, s->n); }
+    else                  wf_knobrow(body, s->labels, s->n); // MASTER: just knobs
 }
 
 // draw one strip at `state` inside `rect`
@@ -276,13 +340,16 @@ void update(void) {
     if (keyp(KEY_RIGHT) || keyp(']') || keyp(KEY_SPACE) || keyp(KEY_GRAVE)) cur = (cur + 1) % NDEV;
     if (keyp(KEY_LEFT)  || keyp('[')) cur = (cur + NDEV - 1) % NDEV;
     for (i = 0; i < 9 && i < NDEV; i++) if (keyp('1' + i)) cur = i;
-    if (keyp('w') || keyp(KEY_DOWN)) work = (work + 1) % (NSTRIP + 1);
-    if (keyp('h')) showlabel = !showlabel;
-    if (keyp('s')) safehint = !safehint;
+    // NOTE: raylib letter keycodes are UPPERCASE (KEY_W==87), so read 'W' not 'w' — a lowercase
+    // literal (119) never matches and the key silently does nothing (this bit: w/f/m/p/s/h were dead).
+    if (keyp('W') || keyp(KEY_DOWN)) work = (work + 1) % (NSTRIP + 1);
+    if (keyp('H')) showlabel = !showlabel;
+    if (keyp('S')) safehint = !safehint;
     // per-instrument controls, acting on the working strip (or 303-A when all-compact)
     int sel = (work < NSTRIP) ? work : 0;
-    if (keyp('m')) muted[sel] = !muted[sel];              // (un)mute
-    if (keyp('p')) patn[sel] = (patn[sel] + 1) % NPAT;    // cycle its 6 patterns
+    if (keyp('M')) muted[sel] = !muted[sel];              // (un)mute
+    if (keyp('P')) patn[sel] = (patn[sel] + 1) % NPAT;    // cycle its 6 patterns
+    if (keyp('F')) focused = (focused == sel) ? -1 : sel; // FOCUS the working strip / X-close
     if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }
 }
 
@@ -311,7 +378,11 @@ void draw(void) {
     float gap = lay_clamp(FU * 0.18f, 1, 4);
     const char *mode;
 
-    if (d.cls == WIDE) {
+    if (focused >= 0) {
+        // ─── FOCUS: one instrument fills the body, X closes back to the rack ───
+        mode = "FOCUS (f / tap X closes)";
+        draw_focus(&STRIP[focused], bodyarea, focused);
+    } else if (d.cls == WIDE) {
         // ─── short-wide: TABS (accordions degenerate short — acidfit finding) ───
         mode = "tabs";
         int sel = (work >= NSTRIP) ? 0 : work;

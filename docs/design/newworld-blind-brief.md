@@ -1,9 +1,10 @@
 # I Hear a New World — the blind band brief
 
-STATUS: READY TO BUILD — blind brief for the `newworld` instrument cart (a Joe Meek "Outer
-Space Music Fantasy" machine). Design agreed 2026-07-07; cart not yet built. Play surface,
-voices, effects and the loop-and-mangle method are locked; engine palette mapping is
-Phase-2-confirm (verify each `INSTR_*`/effect against `runtime/studio.h` before wiring).
+STATUS: SHIPPED 2026-07-07 — built as `tools/carts/newworld.c` / `newworld.cart.png`. The play
+surface (scale-snapping glide ribbon + swell), three held voices, the looper, and the Meek fx
+rack all landed; the palette mapping below was confirmed against `runtime/studio.h` during the
+build (the reedy lead is `INSTR_SAW`+LP, not `INSTR_GUITAR`). This brief remains the design of
+record; the cart is the source of truth for what shipped.
 
 > Intent-first brief written from the record and its production techniques **before** reading
 > any cousin cart (the firewall — [`../guides/cart-authoring-prompt.md`](../guides/cart-authoring-prompt.md)).

@@ -5,10 +5,10 @@ import XCTest
 // App Group suite; a separate reader (the AUv3 extension, here the test) sees them.
 final class AppGroupTests: XCTestCase {
     func testAppWritesExtensionReads() {
-        AppGroup.setUnlocked(["com.tinyjam.rebirth", "com.tinyjam.masterpass"])
+        AppGroup.setUnlocked(["com.mipolai.tinyjam.acidrack", "com.mipolai.tinyjam.masterpass"])
         let seen = AppGroup.unlocked()
-        XCTAssertTrue(seen.contains("com.tinyjam.rebirth"))
-        XCTAssertTrue(seen.contains("com.tinyjam.masterpass"))
+        XCTAssertTrue(seen.contains("com.mipolai.tinyjam.acidrack"))
+        XCTAssertTrue(seen.contains("com.mipolai.tinyjam.masterpass"))
         XCTAssertFalse(seen.contains("com.tinyjam.funk"))
     }
 

@@ -1,3 +1,4 @@
+import Foundation
 import StoreKit
 #if targetEnvironment(simulator)
 import StoreKitTest   // local StoreKit testing — SIMULATOR ONLY (pulls in XCTest; absent on device)
@@ -10,8 +11,16 @@ final class Store {
     static let shared = Store()
 
     // C-readable snapshot of owned product IDs (gate reads this; StoreKit refreshes it).
-    // Plain static (Swift 5.9 has no nonisolated(unsafe)); a gate read tolerates the race.
-    static private(set) var unlockedIDs: Set<String> = []
+    // The C gate (Store_IsModuleUnlocked) reads this on the MAIN thread every frame, while
+    // refresh() writes it from a background Task. A Swift Set is a refcounted copy-on-write
+    // heap object — a read racing the reassignment corrupts its storage refcount (nano-zone
+    // heap corruption that surfaces later at a random malloc, e.g. deep in UIKit). So both
+    // sides go through this lock; the reader COPIES out under it and touches the Set no more.
+    static private let unlockedLock = NSLock()
+    static private var _unlockedIDs: Set<String> = []
+    static private func setUnlocked(_ ids: Set<String>) {
+        unlockedLock.lock(); _unlockedIDs = ids; unlockedLock.unlock()
+    }
 
     // Product ids come from the bundled Tinyjam.storekit (generated from the app manifest by
     // build-app.js) — NOT a hardcoded list, so adding a product to the manifest just works.
@@ -19,6 +28,7 @@ final class Store {
     private var products: [String: Product] = [:]
     private var purchasing = Set<String>()   // products with a purchase sheet already in flight
     private var updatesTask: Task<Void, Never>?
+    private var promoTask: Task<Void, Never>?
 
     static func configuredIDs() -> [String] {
         guard let url = Bundle.main.url(forResource: "Tinyjam", withExtension: "storekit"),
@@ -32,6 +42,7 @@ final class Store {
 
     func start() async {
         if updatesTask == nil { updatesTask = listen() }
+        if #available(iOS 16.4, *), promoTask == nil { promoTask = listenPromoted() }
         await load()
         await refresh()
     }
@@ -59,18 +70,33 @@ final class Store {
         for await r in Transaction.currentEntitlements {
             if case .verified(let t) = r { owned.insert(t.productID) }
         }
-        Store.unlockedIDs = owned
+        Store.setUnlocked(owned)
         AppGroup.setUnlocked(owned)   // mirror to the App Group so AUv3 extensions can read it
     }
 
     static func isUnlocked(_ id: String) -> Bool {
-        unlockedIDs.contains(id) || unlockedIDs.contains("com.tinyjam.masterpass")
+        unlockedLock.lock()
+        let ids = _unlockedIDs        // COW snapshot under the lock — the contains() below is race-free
+        unlockedLock.unlock()
+        return ids.contains(id) || ids.contains("com.mipolai.tinyjam.masterpass")
     }
 
     private func listen() -> Task<Void, Never> {
         Task.detached {
             for await r in Transaction.updates {
                 if case .verified(let t) = r { await t.finish(); await Store.shared.refresh() }
+            }
+        }
+    }
+
+    // A PROMOTED IAP tapped on the App Store product page or in search results delivers a
+    // PurchaseIntent — take the user straight into that purchase (asc-push.js --promote sets these
+    // up server-side). Without this, tapping a promoted IAP just opens the app to no effect.
+    @available(iOS 16.4, *)
+    private func listenPromoted() -> Task<Void, Never> {
+        Task.detached {
+            for await intent in PurchaseIntent.intents {
+                await Store.shared.purchase(intent.product.id)
             }
         }
     }
@@ -86,6 +112,14 @@ extension Store {
     static var testSession: SKTestSession?
     static func startTesting() {
         guard testSession == nil else { return }
+        // iOS 26 runtime: SKTestSession abort()s (not throws) unless running in a real XCTest
+        // context — even loading XCTest by hand doesn't satisfy it. Skip local testing there
+        // instead of crashing. Pre-26 runtimes (≤18.x) don't have the requirement and work
+        // in-app as always — that's the sim IAP dev loop (create a device on an 18.x runtime).
+        if #available(iOS 26.0, *) {
+            NSLog("[store] iOS 26 sim runtime — SKTestSession needs a real test run; local StoreKit testing disabled (use an 18.x runtime device for the IAP loop)")
+            return
+        }
         do {
             let s = try SKTestSession(configurationFileNamed: "Tinyjam")
             s.disableDialogs = true   // local testing: purchases complete instantly, no sheet to

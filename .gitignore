@@ -31,3 +31,6 @@ tools/assets/mac-app.iconset/
 # published gallery — its own public repo (NikkiKoole/dreamengine) since 2026-07-06;
 # built locally by build-site.js, pushed by publish-cart.sh. See docs/guides/sharing.md.
 site/
+
+# App Store Connect API keys — never commit
+*.p8

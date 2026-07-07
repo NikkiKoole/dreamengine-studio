@@ -8,10 +8,10 @@
       "familyShareable" : false,
       "internalID" : "00000000-0000-0000-0000-000000000001",
       "localizations" : [
-        { "description" : "The Rebirth acid-techno rack.", "displayName" : "Tinyjam: Rebirth", "locale" : "en_US" }
+        { "description" : "The acid rack: two 303s, a 909 and an 808.", "displayName" : "Tiny Jam: Acid Rack", "locale" : "en_US" }
       ],
-      "productID" : "com.tinyjam.rebirth",
-      "referenceName" : "Rebirth",
+      "productID" : "com.mipolai.tinyjam.acidrack",
+      "referenceName" : "Acid Rack",
       "type" : "NonConsumable"
     },
     {
@@ -19,20 +19,20 @@
       "familyShareable" : false,
       "internalID" : "00000000-0000-0000-0000-000000000002",
       "localizations" : [
-        { "description" : "The Funk groovebox rack.", "displayName" : "Tinyjam: Funk", "locale" : "en_US" }
+        { "description" : "A warm electric piano keybed.", "displayName" : "Tiny Jam: E-Piano", "locale" : "en_US" }
       ],
-      "productID" : "com.tinyjam.funk",
-      "referenceName" : "Funk",
+      "productID" : "com.mipolai.tinyjam.epiano",
+      "referenceName" : "E-Piano",
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "19.99",
+      "displayPrice" : "5.00",
       "familyShareable" : false,
       "internalID" : "00000000-0000-0000-0000-000000000003",
       "localizations" : [
-        { "description" : "Unlock every rack, now and future.", "displayName" : "Tinyjam Master Pass", "locale" : "en_US" }
+        { "description" : "Unlock every rack, now and future.", "displayName" : "Tiny Jam Master Pass", "locale" : "en_US" }
       ],
-      "productID" : "com.tinyjam.masterpass",
+      "productID" : "com.mipolai.tinyjam.masterpass",
       "referenceName" : "Master Pass",
       "type" : "NonConsumable"
     }

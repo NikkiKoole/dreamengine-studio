@@ -120,6 +120,30 @@ one audio thread (no MIDI-ring locking). Verified by `AUHostTests`: silent with 
 then a host note-on → peak 0.106. Engine seam: `midi_input.h` exposes `de_midi_event`/`de_midi_bend`
 under `DE_NO_RAYLIB` (portable host-feed, like the web bridge). Next: MIDI CC → cart knobs.
 
+## Gotchas (hard-won — read before debugging these)
+
+- **A Swift collection shared between the main thread and a background `Task` = heap corruption, not
+  a "tolerable race."** `Store.unlockedIDs` was a plain `static var Set<String>` read by the C
+  entitlement gate every frame (main thread) while `refresh()` reassigned it from a StoreKit `Task`
+  (background). A `Set`/`Dictionary`/`String` is a refcounted copy-on-write heap object — a read
+  racing the write corrupts its storage refcount → **nano-zone heap corruption that aborts LATER at an
+  unrelated `malloc`** (we saw it deep in CoreFoundation/UIAccessibility string formatting, on the buy
+  screen, "instantly and randomly"). It never reproduced off-device (the desktop build stubs `Store_*`
+  → no background thread). Fix: guard both sides with an `NSLock` and have the reader copy the set out
+  under the lock (commit `07690c9b`). Rule: any `@_cdecl` bridge the C loop reads every frame must be
+  a lock-guarded snapshot or a primitive, never a bare Swift collection.
+- **Multi-cart app build:** `APP=tinyjam ./build.sh` (not `CART=`) builds the manifest app;
+  `APP=tinyjam RESIZABLE=1 ./build.sh` makes it fill the device. `de_reflow` is **binary-wide**, so
+  `RESIZABLE=1` makes *every* cart resizable — carts not written with `screen_w()`/`safe_rect()` render
+  in the top-left band. Per-cart reflow is a backlog item (see device-adaptive-layout.md §2026-07-06).
+- **Pixel chunkiness = `CanvasView.swift` `pixelChunk` (K).** The canvas reflows to `points / K`
+  logical pixels (K=2 today) so pixels stay chunky-lo-fi + controls finger-sized instead of hi-res-tiny
+  at 1pt/px. Safe-area insets are passed in the same `÷K` units. Why 2 (not 3): the fixed 8px font
+  overflows a phone width at K=3.
+- **Desktop-only:** dragging the cart *window* mid-playback freezes the music (macOS modal-resize loop
+  blocks the main-thread transport; GLFW fires no callback during it — backed out, see
+  device-adaptive-layout.md §2026-07-06). Does NOT affect iOS (rotation is one discrete `de_resize`).
+
 ## Status
 
 Spike 0 (toolchain) ✅ · 1 (software-canvas render + inverted loop) ✅ · 2 (audio → CoreAudio) ✅ ·

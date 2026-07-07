@@ -60,15 +60,23 @@ final class CanvasView: UIView {
     // are framebuffer px). Fires on first layout AND on every rotation, so rotation reflows for free.
     // de_resize is a no-op when the size is unchanged, so calling it every layout is cheap. A fixed
     // cart (de_is_resizable()==0) is left at its compile-time size → letterboxed, exactly as before.
+    // Pixel chunkiness ("physically-sized" pixels): the cart reflows to (points / pixelChunk) LOGICAL
+    // pixels, not the raw point size. K=1 = hi-res tiny pixels (each is 1pt); higher K = chunkier lo-fi
+    // pixels + proportionally bigger, finger-friendlier controls. CanvasView blits the small framebuffer
+    // up to the full view (nearest), so a bigger K just means fatter pixels on screen.
+    private let pixelChunk: CGFloat = 2
+
     override func layoutSubviews() {
         super.layoutSubviews()
         guard de_is_resizable() != 0 else { return }
+        let k = max(1, pixelChunk)
         let b = bounds.size
-        if b.width > 0, b.height > 0 { de_resize(Int32(b.width), Int32(b.height)) }
-        // hand the engine the notch / home-bar / status-bar insets (points == fb px at SCALE=1) so a
-        // resizable cart lays its controls inside safe_rect() while its background bleeds to the edges.
+        if b.width > 0, b.height > 0 { de_resize(Int32(b.width / k), Int32(b.height / k)) }
+        // hand the engine the notch / home-bar / status-bar insets — in the SAME logical-pixel units as
+        // the canvas (÷k) — so a resizable cart lays its controls inside safe_rect() while its
+        // background bleeds to the edges.
         let ins = safeAreaInsets
-        de_set_safe_area(Int32(ins.left), Int32(ins.top), Int32(ins.right), Int32(ins.bottom))
+        de_set_safe_area(Int32(ins.left / k), Int32(ins.top / k), Int32(ins.right / k), Int32(ins.bottom / k))
     }
 
     // pick up a de_resize: re-read the engine's active dims and resize the flip scratch when they

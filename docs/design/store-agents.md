@@ -50,10 +50,47 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
 1. **The real submission gates** — which app first, price, the original-palette rule
    ([`sharing-channels.md`](sharing-channels.md) §Channel B). *Nothing ships until these are
    the maker's call.*
-2. **The ASC upload + TestFlight tool** — the one big unbuilt piece
-   ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)): in-house against the
-   App Store Connect API (JWT/ES256 from a `.p8`), the chunked asset-upload dance, per-locale
-   `metadata/<locale>/` folders.
+2. **The ASC upload + TestFlight tool** — ~~the one big unbuilt piece~~ **BUILT (2026-07-07):
+   `tools/asc-push.js`** ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
+   in-house against the App Store Connect API (JWT/ES256 from a `.p8`, zero deps), proven live
+   against Tiny Jam. `--metadata` (title/subtitle/keywords/desc/promo/URLs/copyright, GET-and-diff
+   on `--dry-run`) · `--screenshots` (the chunked reserve→PUT→commit→poll dance) · `--iap`
+   (create→localize→price→availability→review-shot→1024² promo image → READY_TO_SUBMIT, idempotent;
+   images from `apps/<app>/iap-images/<slug>.png`) · `--check` offline gate. Auth lives in
+   `~/.appstoreconnect/` (`.p8` + `config.json`), never git; `*.p8` gitignored as a backstop. Four
+   API gotchas baked in as fixes: ES256 needs the JOSE raw signature (`dsaEncoding:'ieee-p1363'`, not
+   DER); IAP localization/review-shot relationships traverse `/v2/` and are named `inAppPurchaseV2`
+   but the *image* relationship is `inAppPurchase`; inline price creation needs the `${local-id}` id
+   format; "Missing Metadata" on an IAP is the *availability* resource, not the review screenshot; and
+   images signal readiness via `imageAsset`, screenshots via `assetDeliveryState`. **`--promote` BUILT
+   (2026-07-07):** creates a `promotedPurchase` per IAP (`visibleForAllUsers`, relationship named
+   `inAppPurchaseV2`) and sets the display order via `PATCH /v1/apps/{id}/relationships/promotedPurchases`
+   = the ordered list Apple shows; paired app-side with `Store.swift`'s `PurchaseIntent.intents`
+   listener (iOS 16.4+) so a tap from the store page / search lands in the purchase. **Still open:**
+   per-locale `metadata/<locale>/` folders (the tool reads them but multi-locale isn't exercised) +
+   an editor button + **`--custom-page` (Custom Product Pages)**. The copy *prose* (description/promo)
+   stays maker-written per the two-part bar — the tool only pipes it.
+
+   > **Custom Product Pages — a future `--custom-page <slug>` slice (deferred; growth-stage).** ASC
+   > lets you publish up to **35** alternate product-page variants, each with its own screenshots,
+   > preview videos, and promotional text (NOT title/subtitle/keywords/description/icon — those stay
+   > shared) and its own **URL**. They're reached only by that link (an ad/tweet/newsletter), NOT App
+   > Store search, so they're a **conversion/targeting** lever, not ASO — you point per-audience
+   > traffic at a tailored page and measure conversion per page in App Analytics. The Tiny Jam fit:
+   > one page per rack/tribe (an acid page for a techno channel, an e-piano page for a keys crowd) —
+   > exactly the per-tribe campaign-link idea in
+   > [`../marketing/tinyjam/tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §6.2.
+   > API-manageable (`appCustomProductPages` + versions + localizations + their own screenshot sets),
+   > so it mirrors the `--screenshots` dance under a CPP localization. **Deferred until there's traffic
+   > to point at it** — nail the default page + launch first. NB: distinct from **Product Page
+   > Optimization** (A/B test the *default* page, icon variants allowed) — that's a separate feature.
+
+   > **IAP + ASO (the discovery angle):** Apple indexes an IAP's **display name** (≤30) for search —
+   > "Acid Rack"/"E-Piano"/"Master Pass" extend the app's keyword surface for free, so spend IAP-name
+   > taste on findable words, not the app's 100-char keyword field. The IAP **description** (≤45) is
+   > NOT indexed (purchase-sheet blurb only) — same as the app description, which the App Store also
+   > doesn't index (unlike Google Play). Only title/subtitle/keywords (+ IAP names) rank. A **promoted**
+   > IAP (the 1024² image + the promote flag) becomes its own tappable search result — an extra surface.
 3. **Search-Term-Rank popularity column** — feed `aso-research` real 1–100 popularity once
    Apple's beta reaches the account (App Store Connect → Analytics → Insights; §ASO deep-dive).
    *Interim free stand-in SHIPPED:* `aso-suggest.js` (Google-autocomplete demand proxy — §"the
@@ -112,7 +149,9 @@ the irreducible **agent** core.
 
 **v0.1 SHIPPED (2026-07-03): `tools/store-shots.js`** — the deterministic asset leg. Takes a
 native cart frame (`play.js --dump`) → App Store screenshots at exact device sizes
-(iphone69 1290×2796, ipad13 2048×2732, …). ffmpeg-based, no node deps.
+(iphone69 1290×2796, ipad13 2048×2732, …). ffmpeg-based, no node deps. **The full required-size
+matrix (+ the "at least" upload set + video note) lives in
+[`device-matrix.md`](device-matrix.md) §3** — the carried reference the store pipeline renders to.
 > **The aspect-ratio gap, solved without engine work.** Carts render at one fixed lo-fi ratio
 > (`SCREEN_W/H` are compile-time); App Store devices are other ratios (tall iPhone, 4:3 iPad),
 > and responsive layout ([`responsive-layout.md`](responsive-layout.md)) isn't built. The fix:

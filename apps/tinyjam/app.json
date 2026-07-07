@@ -12,9 +12,9 @@
   },
   "iap": {
     "products": [
-      { "id": "com.tinyjam.rebirth",    "price": "2.99", "name": "Tiny Jam: Acid Rack",  "desc": "The acid rack: two 303s, a 909 and an 808.", "unlocks": ["acidrack"] },
-      { "id": "com.tinyjam.epiano",     "price": "2.99", "name": "Tiny Jam: E-Piano",    "desc": "A warm electric piano keybed.",              "unlocks": ["epiano"] },
-      { "id": "com.tinyjam.masterpass", "price": "5.00", "name": "Tiny Jam Master Pass", "desc": "Unlock every rack, now and future.", "unlocks": ["*"] }
+      { "id": "com.mipolai.tinyjam.acidrack",    "price": "2.99", "name": "Tiny Jam: Acid Rack",  "desc": "The acid rack: two 303s, a 909 and an 808.", "unlocks": ["acidrack"] },
+      { "id": "com.mipolai.tinyjam.epiano",     "price": "2.99", "name": "Tiny Jam: E-Piano",    "desc": "A warm electric piano keybed.",              "unlocks": ["epiano"] },
+      { "id": "com.mipolai.tinyjam.masterpass", "price": "5.00", "name": "Tiny Jam Master Pass", "desc": "Unlock every rack, now and future.", "unlocks": ["*"] }
     ]
   }
 }

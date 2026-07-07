@@ -355,6 +355,17 @@
     "homage": "Propellerhead ReBirth RB-338 (1997)"
   },
   {
+    "title": "acidwire",
+    "description": "The device-matrix WIREFRAME tool for the acidrack redesign — CLICKABLE/TAPPABLE (touch+mouse): flip acidrack's four-state layout through every device shape and click the controls (mute, patterns, open a strip, focus, tabs) to study the interaction, not just the pixels. A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes. TAP/CLICK: a strip NAME opens it (compact->expanded->focus) - the M button (un)mutes - a pattern chip selects it - a landscape TAB name opens it + its M mutes without opening - the focus X closes - the bottom-left label flips to the next device. KEYS mirror it: ]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label",
+    "file": "acidwire.cart.png",
+    "created": "2026-07-07",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
+  },
+  {
     "title": "acoustics probe",
     "description": "v3 acoustic-zones PROBE (spatial.md): a little guy walks rooms to hear where the API hurts, hand-wired against existing knobs only. ARROWS to move. FOOTSTEPS change tone by ground (tile click / carpet thud / wood knock / grass rustle) and carry the room's reverb (absorption: bright tile vs dead carpet). Each ROOM sets the master reverb (zone) — crossing rooms re-applies it (listen for the abrupt switch = the 'rideable reverb' gap). A RADIO (left room) + MACHINE (right room) emit continuously; a wall between you and one muffles it (occlusion: raycast -> note_cutoff + note_vol), the doorway opens it up. Findings: cart header + STATUS open item.",
     "file": "acoustics.cart.png",
@@ -1881,6 +1892,17 @@
       "adsr-envelope"
     ],
     "lineage": "Showcases INSTR_EPIANO with three electromechanical machines (Rhodes/Wurli/Clav), each with its authentic stompbox chain; novel in the per-machine pedal + preset UI modelled after the real hardware signal path."
+  },
+  {
+    "title": "epianofit",
+    "description": "The layout mock for epiano's responsive redesign - the step-4 artifact of the responsive-instrument-ui.md playbook, applied to a SINGLE-instrument keybed cart (vs acidfit's 5-strip rack). NO audio, just the widgets, laid out against a fake device. epiano's real inventory: a KEYBED (the pinned hero), a 3-way machine selector (RHODES/WURLI/CLAV), two ride-live macros (BRITE/BARK), 3 FX pedals, a preset browser, a drawer of raw macros. The keybed is pinned bottom in EVERY shape; the SOUND panel above it discloses (inline on tablet, compact strip + FX tab on phone). The keybed itself EDITOR-SWAPS: real piano keys where there's width + chromatic, else a scale-locked PAD GRID that packs more range into less space and (when a scale is picked) shows only in-scale notes. A dedicated keybed bar owns NOTE input: a prominent OCT-/OCT+ pair with a root readout + a SCALE selector (CHROMA/MAJOR/MINOR/PENTA/DORIAN). Surfaces the EP truth that playable range scales with width - and shows the grid beating tall piano keys for range on a phone. Presets auto-cycle across 5 device shapes; 1-5 lock, 0 auto, 'm' machine, 'f' fx, 's' scale, 'z'/'x' octave, 'g' force piano/grid.",
+    "file": "epianofit.cart.png",
+    "created": "2026-07-07",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
   },
   {
     "title": "eq",

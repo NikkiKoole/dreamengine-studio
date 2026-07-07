@@ -9,9 +9,11 @@
 > (`--net-lobby`, rung 2.5) so a *standalone build with no editor* can start
 > netplay with no flags — the send-a-friend-an-exe case. Demo + desync gate via
 > `play.js <cart> netdemo`; see the rung ladder below and the ledger entry in
-> [`STATUS.md`](../STATUS.md). **Rung 5a step 1 shipped 2026-07-05** (the
-> lockstep core now compiles on web too — see §"Scoped plan" below); rung 4 and
-> 5a steps 2–5 (the WebSocket transport/relay itself) remain proposals. See also
+> [`STATUS.md`](../STATUS.md). **Rung 5a (WebSocket relay) LIVE-VERIFIED
+> 2026-07-06** (two browsers played on the home wifi); **rung 5b (WebRTC P2P)
+> SPIKED 2026-07-06** — a Mac↔iPhone DataChannel connected directly over wifi at
+> ~12 ms (vs ~330 ms through the remote relay), proving the "github.io + LAN-fast +
+> play-anywhere" path (see §"rung 5b"). Rung 4 remains a proposal. See also
 > [`cart-as-script.md`](cart-as-script.md) (the `STATE`/`de_state()` block this
 > doc leans on), [`headless-autoplay.md`](headless-autoplay.md), and
 > [`../guides/debug-harness.md`](../guides/debug-harness.md) (the determinism
@@ -655,6 +657,83 @@ unreachable"). LAN play (`net-relay.js --serve`) is unaffected — same code,
 Pages can't set COOP/COEP headers, so the AudioWorklet build's
 SharedArrayBuffer path isn't available there — the gallery's ScriptProcessor
 fallback already covers it (sound works on the published gallery today).
+
+---
+
+## Scoped plan — rung 5b: WebRTC peer-to-peer (play anywhere, LAN-fast)
+
+> **Status: SPIKED — approach proven end-to-end (2026-07-06).** A throwaway
+> browser page (`tools/webrtc-spike/index.html`, committed as a reusable
+> connectivity probe) opened a real `RTCDataChannel` **Mac ↔ iPhone across the
+> home wifi**, signaling through the *existing* `net-relay.js` unchanged. Result:
+> **~12 ms round-trip vs ~330 ms through the Render relay — a ~25× win** — with
+> occasional 70 ms spikes (phone wifi radio power-save, not the netcode). The
+> next step is wiring WebRTC into `net.h` as a third transport arm; the spike
+> settled the unknowns and the two handshake potholes below. Implementation NOT
+> started.
+
+**Why 5b at all.** Rung 5a (WebSocket relay) *structurally cannot* be LAN-fast
+from a **github.io** page: Pages is static (can't host a relay) and https (a
+browser blocks plain `ws://`, so the relay must be a public `wss://` box — i.e.
+internet-latency, always). See §"Hosting beyond the LAN". WebRTC removes the
+relay from the *data* path entirely: peers connect **directly** — same wifi →
+LAN (~12 ms), different networks → STUN hole-punch (direct across NAT), and only
+the un-punchable minority (~10–20%, symmetric/CGNAT) falls back to a TURN relay.
+So github.io stays the host, and couch co-op **and** play-across-town both work.
+
+**The architecture: WebRTC is just a THIRD transport arm.** Everything above the
+`net_transport_send`/`net_transport_pump` seam (lockstep core, barrier, input
+ring, `NET_PKT_*`, seed handshake, `btn()` semantics) is reused verbatim — same
+as the UDP↔WS↔echo split. **Crucially, the browser↔browser case needs NO
+`libdatachannel`**: `RTCPeerConnection`/`RTCDataChannel` are built into every
+browser, so the web arm is a thin `EM_JS` shim (`de_rtc_begin/state/send/recv`)
+exactly parallel to the shipped `de_ws_*` shim. `libdatachannel` is only for a
+*native* binary to speak WebRTC — out of scope here (see boundary).
+
+**Signaling reuses the relay for free.** WebRTC peers must swap an SDP
+offer/answer + ICE candidates before connecting. `net-relay.js` already
+blind-forwards bytes within a room — so it carries the handshake untouched, then
+the DataChannel opens and game traffic leaves it. **No new signaling server.**
+Render's cold-start stops mattering (it only relays the ~1 s setup).
+
+**Two potholes the spike surfaced (both fixes carry into the real design):**
+1. **Offer-before-peer race.** The host fired its offer on being seated, but the
+   joiner hadn't arrived, so the relay (no peer yet) dropped it. Fix: **joiner
+   announces itself first** (a `ready` message), host offers only on hearing it —
+   the same shape as the WS handshake's joiner-`HELLO` → host-`WELCOME`.
+2. **The relay normalizes everything to binary** (`wsEncode` defaults to opcode
+   2). Text signaling arrived as bytes and got dropped. Fix: **send signaling as
+   binary**, tell it apart from the relay's `ROLE` packet by the `DN` magic (our
+   JSON starts with `{`=123, never `D`=68). The real C shim is binary anyway.
+
+**Bonus wins proven:** (a) `RTCDataChannel` configured `{ordered:false,
+maxRetransmits:0}` (UDP-like) — a dropped packet no longer stalls for a TCP
+retransmit, killing rung 5a's 0.3 fps head-of-line-blocking freeze mode; the
+redundancy window refills it like native UDP. (b) **Safari-on-iOS connected over
+plain http** — iOS is not the blocker feared in §5; https (github.io) is even
+safer.
+
+### The step table
+
+| Step | What | Effort | Risk |
+|---|---|---|---|
+| **1. `de_rtc_*` EM_JS shim** | Browser WebRTC as the 3rd transport arm: `RTCPeerConnection` + unreliable DataChannel, `begin/state/send/recv` mirroring the WS shim; dispatch from the `net_transport_*` seam | ~2–3 days | low — spike proved the browser side |
+| **2. Signaling over the existing relay** | joiner-`ready` → host offer → answer → trickle ICE, all as binary through the room; roles from the existing `NET_PKT_ROLE` (seat 0 = host, no offer glare) | ~2 days | medium — trickle-ICE timing is the fiddly bit; spike de-risked it |
+| **3. STUN config** | one free public STUN URL (`stun:stun.l.google.com:19302`) in the peer config → cross-network hole-punch. Same-wifi doesn't need it | ~½ day | low |
+| **4. Connection-state UX** | room bar shows connecting → signaling → **connected (LAN / relay)**; also fixes the 5a "both-clicked / wrong room" confusion (host shares link, joiner clicks it) | ~1–2 days | low |
+| **5. Adaptive `NET_DELAY`** | measure live RTT off the DataChannel, size the input-delay buffer to cover jitter (the spike's 12 ms base + 70 ms spikes exceed the current fixed 3-frame/50 ms cushion → occasional 1-frame hitch without this). This is the "feels laggy" fix for real-network play | ~1 day | low |
+| **6. Desync tripwire** (opt) | per-frame CRC of the `de_state()` block; wasm↔wasm is bit-identical so it's insurance, reused from the netdemo gate | ~1 day | low |
+| **7. TURN fallback** (opt) | free TURN (Cloudflare / Metered Open Relay) for the ~10–20% of pairs STUN can't punch — makes across-town play reliable for *everyone*. Same-wifi never touches it | ~½ day + a free account | low |
+
+**Ballpark: ~1.5–2 weeks part-time** for browser↔browser; steps 5–7 are optional
+polish/reach.
+
+**Scope boundary.** This rung is **2 players, both in browsers/wasm**, direct P2P
+with the relay as signaling only. It deliberately does **not** do: **native**
+(clang binary) WebRTC (needs `libdatachannel` bundled — a separate rung);
+**native↔browser** cross-play (needs the §"determinism risk" clang-vs-emcc proof);
+or **>2 players** (§"player-count ceiling"). TURN (step 7) is the reach case, not
+required for same-wifi. Verify each step with `tools/net-check.js`.
 
 ---
 

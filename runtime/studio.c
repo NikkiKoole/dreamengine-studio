@@ -2174,6 +2174,13 @@ static void loop_step(void) {
     // lay the controls into the resulting band. At the default size (window == game) the placement
     // is the identity overlay → game_rect + control positions are byte-identical to before.
     { Placement pl = gr_place(GetScreenWidth(), GetScreenHeight(), de_sw, de_sh);
+      // DECK reserves a band below the game for on-screen touch controls. With none shown
+      // (show_touch_ui off — e.g. a keyboard-driven letterbox like the acidwire wireframe in
+      // landscape), that band is dead space and top-pinning just shoves the game up — CENTER instead.
+      if (!show_touch_ui && pl.mode == PLACE_DECK) {
+          pl.game.y = pl.band_h / 2.0f;   // band_h == vertical leftover; center vertically (x already centered)
+          pl.mode = PLACE_OVERLAY; pl.band_w = 0; pl.band_h = 0;
+      }
       game_rect = pl.game; layout_touch_controls(pl);
       place_mode = pl.mode; band_x = pl.band_x; band_y = pl.band_y; band_w = pl.band_w; band_h = pl.band_h; }
 #endif
@@ -2658,6 +2665,14 @@ void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home
 }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
+
+// Canvas-only resize on desktop (the DE_NO_RAYLIB branch above defines these for the iOS host):
+// sets the ACTIVE canvas to w×h and lets the fixed window LETTERBOX it (present = gr_place). No
+// SetWindowSize — the window stays put. Lets a cart drive its own logical size, e.g. the acidwire
+// device-matrix wireframe (device-matrix.md) flipping through device shapes. de_is_resizable stays
+// honest (only -DDE_RESIZABLE carts opt into live window→canvas reflow).
+void de_resize(int w, int h) { de_set_canvas(w, h); }
+int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
 
 #ifdef DE_NET_BUILD
 // ── netplay boot lobby (rung 2.5 — docs/design/multiplayer-research.md) ───────

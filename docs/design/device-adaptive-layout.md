@@ -1,6 +1,6 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 DONE (2026-07-04) — a resizable cart fills any device + dodges the notch + reflows on rotate (verified iPhone SE / 15 / iPad Pro 12.9 + landscape on the sim). Phase 3 RE-PLANNED (2026-07-05) after the maker's device test — the first acidrack pass reflowed but didn't redesign (see §"Phase 3 — revised plan" + field note [018](../field-notes/018-passing-the-gates-felt-like-done.md)). Resume at the revised plan — then Phase 4 (store assets).**
+STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 DONE (2026-07-04) — a resizable cart fills any device + dodges the notch + reflows on rotate (verified iPhone SE / 15 / iPad Pro 12.9 + landscape on the sim). Phase 3 RE-PLANNED (2026-07-05) after the maker's device test — the first acidrack pass reflowed but didn't redesign (see §"Phase 3 — revised plan" + field note [018](../field-notes/018-passing-the-gates-felt-like-done.md)). Resizable-app PLUMBING landed 2026-07-06 (K=2 pixel-chunk + safe-area insets + reflow-aware menu; commit be7b2cad — see §"2026-07-06"). Resume at the WIREFRAME CART (extend `acidfit.c` with `lay.h`, chosen over an HTML mock — see §"2026-07-06") → then R5 (acidrack redesign) → Phase 4 (store assets).**
 This is the **execution + product** doc that graduates the deferred thinking now that there's a
 concrete need (Tinyjam on the App Store).
 
@@ -430,7 +430,9 @@ production work bypassed both — incremental `screen_w()` arithmetic that *refl
 *redesigning*, judged done because the defect oracle was green. Full retrospective + the
 generalisable rules: **field note
 [018 — Passing the Gates Felt Like Done](../field-notes/018-passing-the-gates-felt-like-done.md)**.
-The structural fixes below make the model the *path of least resistance* instead of a pointer.
+The structural fixes below make the model the *path of least resistance* instead of a pointer. The
+per-cart order-of-operations these fixes imply is distilled as a reusable runbook:
+[`../guides/responsive-instrument-ui.md`](../guides/responsive-instrument-ui.md).
 
 ### The ReBirth study — what the original got right (2026-07-05, maker + screenshot session)
 
@@ -499,6 +501,70 @@ stealing from the homage hardware** — the original solved this screen already.
 - **R6 — `epiano` is the test of the method itself.** Done fresh from a brief; if R1–R4 worked it
   costs a fraction of acidrack, and its keybed reflow graduates into `keybed.h` (every keybed cart
   wins). `yachtrack` last, as before.
+
+### 2026-07-06 — resizable-app PLUMBING landed + three findings (before R5's redesign)
+
+Got the multi-cart **Tiny Jam app** to actually reflow to fill the device on the sim (it was locked
+320×240 letterboxed — the resizable path only existed for single-cart builds). Committed `be7b2cad`.
+This is the plumbing *under* R5; the acidrack redesign (R1→R5, the §2 taste calls) is still the work.
+What shipped: `RESIZABLE=1` opt-in on `ios/build.sh`'s `APP=` path; the **launcher menu made
+reflow-aware** (`tinyjam-menu.c` lays out inside `safe_rect()`, centered width-capped column); the
+**app home-chip** (`build-app.js`) moved inside the safe area (was stuck under the notch → couldn't
+get back to the overview); acidrack's **transport + chain row inset by `safe_rect()`** (`saf_t`/`saf_b`
+helpers — the notch/home-bar dodge, R5-adjacent but done early since untappable-under-notch is a
+correctness bug, not polish). **Device matrix committed** as the design baseline:
+[`acidrack-device-matrix.png`](acidrack-device-matrix.png) + regen recipe in
+[`acidrack-layout-brief.md`](acidrack-layout-brief.md) §7. **Promoted 2026-07-07 to its own carried
+reference — [`device-matrix.md`](device-matrix.md)** (grown to 11 shapes incl. iPhone SE + iPad mini;
+§3 adds the App Store asset pixel sizes for the store pipeline). Design every rack against §2 there.
+
+Three findings worth remembering:
+
+1. **Pixel chunk K (the "physically-sized" knob), `CanvasView.swift` `pixelChunk`.** iOS is SCALE=1,
+   so reflowing to the full point size (iPhone 16 = 393 pts wide) made each engine pixel = 1 pt →
+   **hi-res tiny pixels** (lost the lo-fi look) AND sub-finger controls. Fix: the canvas reflows to
+   `points / K` **logical** pixels. **K=1** tiny; **K=3** so chunky the fixed 8px font overflows a
+   phone width (only ~16 chars fit — "unlock all – $5.00" ran off both edges); **K=2 is the sweet
+   spot** (chunky + text fits). Set to 2. This is the concrete form of R3's finger unit — but note it
+   also confirms the brief's "**good icons are smaller than text**": the chunkier you go, the more
+   text must become glyphs.
+2. **`de_reflow` is BINARY-WIDE (compile-time), not per-cart.** So with `RESIZABLE=1` on, the *whole*
+   app is resizable — the fixed menu was fixed by making it reflow-aware, but **yachtrack + epiano are
+   NOT reflow-aware** (no `screen_w()`/`safe_rect()` use) so they render in the top-left 320×240 band
+   of the filled canvas. The clean fix is **per-cart `de_reflow`** (a runtime flag set on
+   `de_switch_cart` from each cart's `resizable` meta, so a fixed cart *centers/letterboxes* instead
+   of corner-parking) — a real but separate engine change. Backlog item; acceptable for now while only
+   acidrack is being designed.
+3. **SEAM — desktop live-resize freezes the music (tried to fix, BACKED OUT; do not re-attempt the
+   GLFW-callback route).** On desktop, dragging the cart window's edge runs the macOS **modal event
+   loop, which blocks the main thread** ([glfw #2008](https://github.com/glfw/glfw/issues/2008), a
+   documented limitation). The transport is main-thread + wall-clock (`beat()`→`GetTime()`), but audio
+   synthesis is a separate thread (`SetAudioStreamCallback`), so during the drag the last-scheduled
+   voices ring out / drone while the sequencer freezes → "the music hangs." We tried pumping the
+   transport from GLFW's **window-refresh** callback and then the **window-size** callback (chaining
+   raylib's) — **both fire ZERO times during the live drag on this macOS** (instrumented + confirmed),
+   so there's no hook to pump from. The only remaining route is a background timer/display-link thread
+   calling `update()`, which reintroduces the cross-thread-race class we'd just fixed on iOS — not
+   worth it. **This is desktop-only and cosmetic**: on iOS "resize" is a *rotation* (one discrete
+   `de_resize`, not a sustained modal drag), verified glitch-free on the sim. Left unfixed by choice.
+
+**Resume at — the WIREFRAME CART (maker's call, 2026-07-06; chosen over an HTML mock).** Extend
+[`tools/carts/acidfit.c`](../../tools/carts/acidfit.c) (the existing disclosure prototype) into the
+acidrack layout wireframe: the 5 strips as folded/compact/expanded boxes + the transport + song row,
+laid out with `lay.h`, viewed across the 3 shapes via `play.js --resize` (the matrix sizes) and
+hot-reloaded in libtcc live mode. It's the vehicle for making §2's compact-strip taste calls — but in
+the REAL medium, so the decisions land in code we keep. **Why a cart, not HTML** (weighed the fork):
+an HTML mock iterates fast + shows all shapes at once, but a cart has **no translation gap** (a cart
+IS the production path — an HTML→C hand-off is the exact field-018 hazard), it **validates
+`lay.h`/`disclose.h` can actually express the arrangement** (CSS is a superset — easy to mock
+something unbuildable), and it renders **real fonts / finger sizes / safe-area insets on device**. The
+cart's supposed downsides mostly evaporate: libtcc live-reload closes the iteration gap, `--resize`
+gives the all-shapes filmstrip. **If the wireframe needs a layout primitive `lay.h` lacks, ADD IT TO
+`lay.h`** — discovering those gaps is itself R2/R3 groundwork, not a detour. Then R5 proper. Open decisions parked: the **landscape side-notch** inset (acidrack
+only insets top/bottom, not `saf_l`/`saf_r` — landscape puts the notch on the side; needs a screenshot
+of the bad spot) and **background-audio** policy (keep-playing vs pause-on-background; no
+`UIBackgroundModes: audio` today → device suspends on Home, but the sim doesn't, so it *looks* like it
+keeps playing).
 
 ## Phase 3 backlog — the three Tinyjam racks (`acidrack` · `yachtrack` · `epiano`)
 

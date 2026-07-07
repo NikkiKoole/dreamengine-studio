@@ -218,6 +218,14 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              apps/<name>/app.json + apps/<name>/press.md + apps/studio.md + store-shots/make-gif assets
                              (prose in markdown, structured in flat frontmatter; no node deps). Channel-A own-domain
                              artifact. Design: docs/design/press-kit.md
+             asc-push.js     PUSH the non-cart product surface to App Store Connect from apps/<name>/app.json — the
+                             in-house upload tool ADR-0026 chose over Fastlane (zero deps: Node fetch + ES256 JWT).
+                             --metadata (title/subtitle/keywords/desc/promo/URLs/copyright) · --screenshots · --iap
+                             (create→localize→price→availability→review-shot→1024² promo image → READY_TO_SUBMIT,
+                             idempotent; images from apps/<app>/iap-images/<slug>.png) · --promote (mark IAPs
+                             promoted purchases → product-page + search surface; pairs with Store.swift PurchaseIntent) ·
+                             --dry-run GETs live + diffs · --check offline gate. Auth: ~/.appstoreconnect/ (.p8 + config.json), never git.
+                             Design: docs/design/store-agents.md §"ASC upload + TestFlight tool"
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B

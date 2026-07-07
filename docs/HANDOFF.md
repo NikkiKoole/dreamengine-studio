@@ -19,17 +19,17 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-06 (four lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · device-adaptive-layout Phase 3 re-planned after the maker's device test · store/ASO — Tiny Jam name reserved on ASC + testflight.sh, blocked on Xcode 26 · editor media — record/replay shipped, the panel deferred)_
+_Last updated: 2026-07-07 (six lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P SPIKED (Mac↔iPhone ~12ms direct over wifi), implementation not started · device-adaptive-layout — resizable-app PLUMBING landed (Tiny Jam fills the device: K=2 pixel-chunk + safe-area + reflow-aware menu, be7b2cad); next = the wireframe CART (extend acidfit.c with lay.h, chosen over an HTML mock) → R5 acidrack redesign · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid split out to scale-grid.md, FIRST = pick its home (grid.h recommended))_
 
 ---
 
 ## Where we are right now
 
-**Four lanes are active in parallel right now** (different areas — pick the one you're resuming):
-(1) **the worldgen ladder** (realistic procedural roadgen), (2) **device-adaptive layout**,
-(3) **store / ASO + the app-trailer builder**, and (4) **editor media (record/replay + where it
-lands)**. All below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) +
-the design board.
+**Six lanes are active in parallel right now** (different areas — pick the one you're resuming):
+(1) **the worldgen ladder** (realistic procedural roadgen), (2) **multiplayer — WebRTC P2P (rung
+5b)**, (3) **device-adaptive layout**, (4) **store / ASO + the app-trailer builder**, (5) **editor
+media (record/replay + where it lands)**, and (6) **responsive instrument UI + the scale-grid**. All
+below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
 > **▶ ACTIVE THREAD (2026-07-06) — the worldgen ladder (realistic roadgen).** One day, four rungs
 > of [`design/worldgen-plan.md`](design/worldgen-plan.md)'s ladder shipped, each gated + committed
@@ -54,7 +54,69 @@ the design board.
 > `spec.js sloop` 25/0 · the three committed clips replay byte-identical · `sndi-check
 > build/citygrow-graph.json` after any generator change.
 
-> **▶ ACTIVE THREAD (2026-07-05) — device-adaptive layout.** Make `SCREEN_W/H`
+> **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
+> A research question ("what's the best responsive UI for a music cart?") turned into
+> reusable process + two live design docs + a clearly-scoped new feature to build. **What shipped
+> (docs/tools, all committed):**
+> - [`design/acidrack-ui-research.md`](design/acidrack-ui-research.md) — external survey of the
+>   303/909/808 + best clones + the touch/density numbers (48px floor, band table).
+> - [`guides/responsive-instrument-ui.md`](guides/responsive-instrument-ui.md) — the reusable
+>   **playbook**: sound→inventory→steal-IA→tier→**brief**→prototype→sweep→hands→ship, with the
+>   field-note-018 traps baked in as guards.
+> - [`decisions/0028-sensible-defaults-optional-tweaks.md`](decisions/0028-sensible-defaults-optional-tweaks.md)
+>   — the rule: pick the stranger-legible default, ship it, leave a **seam**; don't agonize, don't
+>   over-configure. Wired into design-system §5 + the playbook.
+> - `tools/carts/epianofit.c` — the step-4 layout **MOCK** (no audio): device-fit + finger unit +
+>   disclosure across all shapes. Keys: `1-5` lock device / `0` auto / `m` machine / `f` fx / `s`
+>   scale / `r` key / `i` iso-layout / `g` force piano-or-grid / `n` native full-bleed.
+> - [`design/epiano-layout-brief.md`](design/epiano-layout-brief.md) — **re-scoped** to the FAITHFUL
+>   epiano (the classic `keybed.h` piano that scales with width + a disclosing sound panel).
+> - [`design/scale-grid.md`](design/scale-grid.md) — the scale-locked isomorphic pad grid **split
+>   out** as its own feature (it drifted onto the mock; it's a *general* note surface, not epiano's
+>   soul — the maker wants the piano kept AND the grid, eventually).
+>
+> **Resume-at (the maker's chosen FIRST thing to build): [`design/scale-grid.md`](design/scale-grid.md)
+> §3 — decide WHERE the grid lives** (a `keybed.h` mode · its own cart · a new `grid.h` library;
+> recommendation = `grid.h`, reusing `solo.h`'s scale-lock maths). Then: build that home → wire
+> epiano's optional **editor-swap** to it. Separately, epiano's faithful Phase-3 (piano scales with
+> width; may graduate into `keybed.h`) per its brief. **Both, eventually — the grid does not replace
+> the beloved piano.**
+>
+> **Hot files:** `tools/carts/epianofit.c` (the shared mock for both lines); the two briefs +
+> scale-grid.md. **Gotcha:** the mock defaults to *exploring the grid* (scale/iso on) — that's the
+> feature under design, not a decision that epiano ships a grid. Read the docs for scope, not the
+> mock's defaults.
+
+> **▶ ACTIVE THREAD (2026-07-06) — multiplayer: WebRTC P2P (rung 5b).** Kicked off by
+> the maker play-testing rung 5a with his son (Mac ↔ Windows, both browsers): it
+> "worked" but ran ~3 fps with 0.3 fps freezes. **Diagnosis:** the published
+> gallery signals through the **Render relay**, so even on one wifi every input
+> tromboned out to the internet and back (~330 ms RTT) — and fixed-delay lockstep
+> (`NET_DELAY=3`, ~50 ms) collapses to one sim-step per round-trip once the cushion
+> drains; the 0.3 fps freezes were TCP head-of-line blocking through the WS relay.
+> A github.io-hosted gallery **structurally can't** be LAN-fast with a relay (static
+> host + https ⇒ needs a public `wss://` box). **The fix is WebRTC P2P.**
+> **SPIKED + PROVEN tonight:** `tools/webrtc-spike/index.html` (committed, reusable
+> connectivity probe; loopback mode + relay mode) opened a real `RTCDataChannel`
+> **Mac ↔ iPhone/Safari across the home wifi at ~12 ms** (vs ~330 ms via Render — a
+> ~25× win), signaling through the **existing `net-relay.js` unchanged**. Two
+> handshake potholes found + fixed, both carrying into the real design: (1)
+> offer-before-peer race → **joiner announces first** (mirrors the WS `HELLO`); (2)
+> the relay re-frames all forwards as **binary** (`wsEncode` opcode 2) → send
+> signaling as binary, distinguish from `ROLE` by the `DN` magic. Bonus proven:
+> DataChannel `{ordered:false,maxRetransmits:0}` (UDP-like) kills the TCP-freeze
+> mode; Safari-on-iOS connects even over http. **Key insight:** browser↔browser
+> needs **NO `libdatachannel`** (browsers have WebRTC built in) — it's a thin
+> `EM_JS` shim parallel to the shipped `de_ws_*`, plugged into the
+> `net_transport_send`/`pump` seam as the 3rd arm. **Resume-at:**
+> [`design/multiplayer-research.md`](design/multiplayer-research.md) §"Scoped plan —
+> rung 5b" — the 7-step table (start: step 1 `de_rtc_*` shim + step 2 signaling).
+> Implementation NOT started; the spike settled the unknowns. Measured jitter (12 ms
+> base, 70 ms phone-wifi spikes > the 50 ms fixed cushion) is the case for **adaptive
+> `NET_DELAY`** (step 5). Hot file when building: `runtime/net.h` (targeted `Edit`s,
+> shared). Gate: `node tools/net-check.js`.
+
+> **▶ ACTIVE THREAD (2026-07-06) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
 > iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
 > `otafit`; `runtime/lay.h` **shipped**) and **Phase 1 (a+b+c) DONE (2026-07-03)** — the
@@ -87,19 +149,52 @@ the design board.
 > compact-strip taste calls (which controls earn the middle state per machine) wait on the maker,
 > everything downstream (footprints §5 → disclose.h → re-land) follows from that table.** Hot files:
 > `tools/carts/acidrack.c`, `runtime/lay.h` (+ new `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
+> **Update 2026-07-06 — resizable-app PLUMBING landed (commit `be7b2cad`), before R5's redesign.** The
+> Tiny Jam *app* now reflows to fill the device on the sim (was 320×240 letterboxed — resizable only
+> existed for single-cart builds): `RESIZABLE=1` on `ios/build.sh`'s `APP=` path, the launcher menu
+> made reflow-aware (`safe_rect()` + centered column), the app home-chip moved inside the safe area
+> (was stuck under the notch → couldn't reach the overview), acidrack's transport + chain row inset by
+> `safe_rect()`. **Device matrix committed** as the design baseline (`design/acidrack-device-matrix.png`
+> + regen recipe in the brief §7). Three findings, all written up in
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md) §"2026-07-06": (1) **pixel
+> chunk K** (`CanvasView.swift pixelChunk`, =2) — reflow to `points/K` logical px or you get hi-res
+> tiny pixels + sub-finger controls; K=3 overflows the font; (2) `de_reflow` is **binary-wide** so
+> yachtrack/epiano render in the top band (per-cart reflow = backlog); (3) **SEAM (backed out):**
+> desktop live-resize freezes the transport — macOS modal loop blocks the main thread, GLFW fires no
+> callback, do NOT re-try the callback route; iOS rotation is fine. **Resume at: the WIREFRAME CART —
+> extend `tools/carts/acidfit.c` (the existing disclosure prototype) with `lay.h` into the acidrack
+> wireframe (5 strips folded/compact/expanded + transport + song row), viewed across the 3 shapes via
+> `play.js --resize` + libtcc live-reload.** Chosen over an HTML mock (maker's call 2026-07-06): a cart
+> has no translation gap (IS the production path — the field-018 hazard), validates `lay.h`/`disclose.h`
+> can express it, renders real fonts/fingers/insets on device; if a primitive is missing, ADD IT TO
+> `lay.h` (that's R2/R3 groundwork). It's the vehicle for §2's compact-strip taste calls, then R5.
+> Parked decisions: landscape side-notch inset (acidrack insets top/bottom only) +
+> background-audio policy (keep-playing vs pause-on-Home).
 
 > **▶ ACTIVE THREAD (2026-07-06) — store / ASO + the app-trailer builder.**
+> **Buy-screen crash FIXED (2026-07-06, commit `07690c9b`):** the "instant, random" abort on the
+> Tiny Jam menu/purchase screen was a **data race** — `Store.unlockedIDs` (a Swift `Set`) read by the
+> C entitlement gate every frame while a StoreKit `Task` reassigned it → nano-heap corruption surfacing
+> later at an unrelated `malloc`. Never reproduced off-device (desktop stubs `Store_*`). Now
+> `NSLock`-guarded. Full lesson in `ios/README.md` §Gotchas — any per-frame `@_cdecl` bridge must be a
+> lock-guarded snapshot, never a bare Swift collection.
 > **Store-identity day (2026-07-06), all committed:** the App Store name **"Tiny Jam: Pocket
 > Music Toys" is RESERVED** on App Store Connect (record created, not public); shipping bundle id
 > is **`com.mipolai.tinyjam`** (registered in the dev portal; `apps/tinyjam/app.json` updated —
 > the `com.tinyjam.hello` in `ios/project.yml` is dev-loop-only, see the comment there); the
 > manifest **`icon` key is live** (`build-app.js --ios` → single-size asset catalog, sim-verified
-> in `Assets.car`); **`ios/testflight.sh`** (archive + upload rung) works through cloud-signed
-> Release archive ✓ but **upload is BLOCKED on Apple's iOS-26-SDK rule** — this Mac runs macOS
-> 14.2.1, Xcode 26 needs ≥15.6. **Unblock = maker upgrades macOS + installs Xcode 26, then
-> `cd ios && APP=tinyjam ./testflight.sh`** (uploading one build also cements the name
-> reservation). Expect toolchain wobble after the OS jump (clangd/brew/simulators) — re-verify
-> `build.sh` first.
+> in `Assets.car`); **`ios/testflight.sh` RAN TO COMPLETION (2026-07-06)** on the upgraded box
+> (macOS 26.5 + Xcode 26.6 at `/Applications/Xcode26_6.app`): **v0.1 build 202607061929 uploaded
+> to App Store Connect** (cloud-signed Release, name reservation cemented) — next store step is
+> ASC → TestFlight once it clears Processing. Toolchain wobbles found + fixed on the way:
+> (1) `open -a Simulator` launches the STALE Xcode 15.1 copy in ~/Downloads and dyld-crashes —
+> open Xcode26_6's Simulator.app by path; (2) the **iOS 26 sim runtime killed in-app
+> `SKTestSession`** (needs a real XCTest run context now, not just XCTest loaded — dlopen tricks
+> don't help; the 17.2 runtime was auto-deleted in the upgrade) — `Store.swift` now skips local
+> IAP testing gracefully (gated to iOS 26+); **the sim purchase dev-loop lives on an 18.x
+> runtime device** — iOS 18.4 runtime installed + `DEVICE="iPhone 16 (18.4)" ./build.sh`
+> VERIFIED purchases working (2026-07-06). Device IAP testing still waits on ASC IAP records
+> (Monetization → In-App Purchases; the bundled .storekit only covers the sim).
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`
 > (local — **push to sync other machines**):
 > - **The free ASO keyword loop** (CLI + Apps tab): `aso-research` (now mines competitor
@@ -125,6 +220,19 @@ the design board.
 > **Editor note:** this lane changed `editor/electron/main.cjs` + `preload.cjs` (new IPCs:
 > aso-score, app-clips, build-reel, app-seeds, aso-suggest/brief/coverage) — **restart Electron
 > (`make`) to light them up**; `shell.js`/CSS/`index.html` hot-reload. All CLI tools work now.
+> **Update 2026-07-07 — the ASC upload tool is BUILT: `tools/asc-push.js`** (the store track's
+> "one big unbuilt piece", ADR-0026). In-house against the App Store Connect API, zero deps, proven
+> LIVE against Tiny Jam: **keywords + app screenshots pushed**, and **all 3 IAPs created →
+> localized → priced → availability → review-shot → `READY_TO_SUBMIT`**. `--metadata`/
+> `--screenshots`/`--iap`/`--dry-run`/`--check`. Auth in `~/.appstoreconnect/` (`.p8` + `config.json`,
+> never git; `*.p8` gitignored). **Also this session:** the IAP product ids were renamed to the
+> bundle-nested scheme **`com.mipolai.tinyjam.{acidrack,epiano,masterpass}`** (was `com.tinyjam.*`;
+> rebirth→acidrack) across `app.json` + `Store.swift`/`canvas.c`/`Tinyjam.storekit` + the two iOS
+> tests, and the `.storekit` was resynced to the manifest (dropped a phantom "funk", fixed the master
+> pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**. **Resume at:** the
+> credentials are set up (Key `Z5DTR9TFW2`); next store moves are per-locale `metadata/<locale>/`
+> folders + an editor button for `asc-push`, then the maker-gated submission. Snapshot in
+> [`design/store-agents.md`](design/store-agents.md) §"ASC upload + TestFlight tool".
 
 > **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
 > (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed

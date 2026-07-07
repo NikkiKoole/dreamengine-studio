@@ -37,6 +37,11 @@ if [ -n "${APP:-}" ]; then
   ( cd .. && node tools/build-app.js "$APP" --ios ) || { echo "✗ build-app.js --ios failed"; exit 1; }
   [ -f gen/app.dims ] && { set -a; . ./gen/app.dims; set +a; }
   DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=${DE_SCREEN_W:-320} SCREEN_H=${DE_SCREEN_H:-200} SCALE=1 MAP_W=${DE_MAP_W:-128} MAP_H=${DE_MAP_H:-64} CELL_W=${DE_CELL_W:-16} CELL_H=${DE_CELL_H:-16}"
+  # RESIZABLE=1: build the whole app with -DDE_RESIZABLE so resizable racks reflow to fill the
+  # device (CanvasView calls de_resize). NB de_reflow is binary-wide today, so the fixed launcher
+  # (tinyjam-menu, drawn in SCREEN_W/H space) then renders top-left in the larger canvas until it's
+  # made reflow-aware or de_reflow goes per-cart (device-adaptive-layout.md Phase 3 plumbing).
+  [ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
 else
   stage_cart "$CART" app
   # RESIZABLE=1: build the cart with -DDE_RESIZABLE so it reflows to the device viewport

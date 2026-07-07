@@ -22,6 +22,8 @@ click 342 250 60
 tap 390 I
 click 420 100 150
 click 426 210 100
-tap 470 I
-click 500 120 140
-click 506 240 90
+# flip to HEX packing (equidistant neighbours) and play a diagonal chord shape
+tap 470 G
+click 510 90 150
+click 516 150 110
+click 522 210 150

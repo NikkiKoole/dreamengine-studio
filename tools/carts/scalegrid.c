@@ -13,8 +13,8 @@
   ],
   "description": {
     "summary": "A scale-locked ISOMORPHIC pad grid you play with your fingers - pick a scale and there are NO WRONG NOTES. Voiced by INSTR_PD (the Casio-CZ phase-distortion engine) on a lush 'wowww' sweep pad, so every tap and chord rings. An on-screen chip bar makes it fully playable on a phone.",
-    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: the ROW OFFSET is a number of scale DEGREES, so a chord SHAPE is identical in every key and octave AND survives a reflow. That offset is a LIVE DIAL (the ADR-0028 knob) - tap ROW to sweep it (ROW:OCT = up an octave per row with roots in a clean left column; ROW:4th / +N = tighter diagonal chord shapes) and hear the anatomy change. Roots are tinted orange. Pads are finger-sized (never crammed): tight screens PACK 1-finger pads, roomy screens CAP the range to 4 octaves and GROW big comfy squares. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
-    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (isomorphic row offset), OCT-/OCT+, AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-offset, Z/X octave, M self-play, H help."
+    "detail": "The playable showcase for the scale-grid feature (design/scale-grid.md). Pick a SCALE and a KEY (root) from the on-screen control bar and the grid shows ONLY in-scale notes - so any finger, any chord, any run sounds musical. 11 curated scales (chroma, major, natural minor, minor + major pentatonic, dorian, whole-tone, harmonic minor, hirajoshi, blues, and FOREST - the open/spread 'SoundForest' voicing whose top note reaches past the octave). It is ISOMORPHIC: the ROW OFFSET is a number of scale DEGREES, so a chord SHAPE is identical in every key and octave AND survives a reflow. That offset is a LIVE DIAL (the ADR-0028 knob) - tap ROW to sweep it (ROW:OCT = up an octave per row with roots in a clean left column; ROW:4th / +N = tighter diagonal chord shapes) and hear the anatomy change. A HEX toggle repacks the grid into interlocking hexagons (a Tonnetz / harmonic-table layout, √3/2 row pitch) so all six neighbours are EQUIDISTANT - a diagonal chord reach is the same finger stretch as a sideways one, unlike the square grid where diagonals are farther. Roots are tinted orange. Pads are finger-sized (never crammed): tight screens PACK 1-finger pads, roomy screens CAP the range to 4 octaves and GROW big comfy squares. Fully polyphonic multitouch - every finger holds its own sustained INSTR_PD voice; slide a finger across pads to glide a run. It cold-opens PLAYING ITSELF (a gentle walking arpeggio) so a stranger hears the idea before touching it; the first tap hands control over. The grid maths (scale-lock + isomorphic degree offset + cap-and-grow finger sizing) is lifted from the epianofit mock and kept self-contained here, ready to graduate into a grid.h library.",
+    "controls": "TAP / drag pads to play (mouse = one finger, multitouch = many). On-screen chips: SCALE, KEY, ROW (isomorphic row offset), OCT-/OCT+, HEX (square<->hexagon packing), AUTO (self-play). Keyboard mirrors them: S scale, R key, I row-offset, Z/X octave, G hex, M self-play, H help."
   }
 }
 de:meta */
@@ -86,10 +86,13 @@ static int rowoff = 5;       // the ISOMORPHIC ROW OFFSET in scale DEGREES (1..n
                              // scale = up a FOURTH (ISO-4TH); any value is a valid grid —
                              // tap ROW to dial it and hear how the chord shapes change.
 static bool show_help = false;
+static bool hexlayout = false;  // HEX packing: alternate rows offset by half a pad so all 6
+                                // neighbours are EQUIDISTANT (a Tonnetz / harmonic-table grid —
+                                // diagonal chord shapes need the same finger stretch as sideways).
 
 // grid geometry, recomputed each frame (cheap; a city is bounded, so is a grid)
 static int   g_cols, g_rows;
-static float g_x, g_y, g_pw, g_ph, g_gap;
+static float g_x, g_y, g_pw, g_ph, g_gap, g_rp;   // g_rp = row PITCH (< pad+gap in hex mode)
 
 // per-pad strike glow (transient; decays), indexed by pad idx
 #define GLOW_MAX 512
@@ -121,13 +124,34 @@ static void compute_grid(void) {
     int nsc = SC_N[scale];
     int off = rowoff < 1 ? 1 : (rowoff > nsc ? nsc : rowoff);
     int cols = off;                                              // the seamless-tiling invariant
-    int rowsFit = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rowsFit < 1) rowsFit = 1;
-    int rowsCap = (GRID_MAX_OCT * nsc + cols - 1) / cols;        // rows for GRID_MAX_OCT octaves
-    int rows = rowsFit < rowsCap ? rowsFit : rowsCap; if (rows < 1) rows = 1;
-    g_cols = cols; g_rows = rows;
-    g_pw = (aw - g_gap * (cols - 1)) / cols;
-    g_ph = (ah - g_gap * (rows - 1)) / rows;
     g_x = 0; g_y = HUD_H;
+    if (hexlayout) {
+        // pointy-top hex packing: odd rows shift half a pad (fit that half into the width),
+        // and the ROW PITCH is √3/2 of the column pitch — the ratio that makes all six
+        // neighbours the same centre-to-centre distance (equidistant diagonals).
+        g_pw = (aw - g_gap * (cols - 1)) / (cols + 0.5f);
+        g_rp = (g_pw + g_gap) * 0.866f;
+        int rowsFit = (int)(ah / g_rp);                          if (rowsFit < 1) rowsFit = 1;
+        int rowsCap = (GRID_MAX_OCT * nsc + cols - 1) / cols;
+        g_rows = rowsFit < rowsCap ? rowsFit : rowsCap; if (g_rows < 1) g_rows = 1;
+        g_ph = g_rp - g_gap;
+    } else {
+        int rowsFit = (int)((ah + g_gap) / (FINGER_PX + g_gap)); if (rowsFit < 1) rowsFit = 1;
+        int rowsCap = (GRID_MAX_OCT * nsc + cols - 1) / cols;    // rows for GRID_MAX_OCT octaves
+        g_rows = rowsFit < rowsCap ? rowsFit : rowsCap; if (g_rows < 1) g_rows = 1;
+        g_pw = (aw - g_gap * (cols - 1)) / cols;
+        g_ph = (ah - g_gap * (g_rows - 1)) / g_rows;
+        g_rp = g_ph + g_gap;
+    }
+    g_cols = cols;
+}
+
+// centre of pad idx (row-major); odd rows shift half a column in hex mode
+static void pad_center(int idx, float *cx, float *cy) {
+    int col = idx % g_cols, row = idx / g_cols;
+    float xoff = (hexlayout && (row & 1)) ? (g_pw + g_gap) * 0.5f : 0;
+    *cx = g_x + xoff + col * (g_pw + g_gap) + g_pw / 2;
+    *cy = g_y + row * g_rp + g_ph / 2;
 }
 
 // per-cell note: ISO fixes the row offset in scale DEGREES (right = +1 degree,
@@ -143,13 +167,21 @@ static int pad_midi(int idx) {
 }
 
 // which pad contains a point (canvas space), or -1 (miss / in a gap / in the HUD)
+// Rows are bands of height g_rp; hex mode shifts odd rows half a column. (Hex hit
+// cells are rectangular bands — a sub-finger approximation of the drawn hexagons.)
 static int pad_at(int px, int py) {
-    float lx = px - g_x, ly = py - g_y;
-    if (lx < 0 || ly < 0) return -1;
-    int col = (int)(lx / (g_pw + g_gap)), row = (int)(ly / (g_ph + g_gap));
-    if (col < 0 || col >= g_cols || row < 0 || row >= g_rows) return -1;
-    float cx = lx - col * (g_pw + g_gap), cy = ly - row * (g_ph + g_gap);
-    if (cx > g_pw || cy > g_ph) return -1;        // fell in the gutter between pads
+    float ly = py - g_y;
+    if (ly < 0) return -1;
+    int row = (int)(ly / g_rp);
+    if (row < 0 || row >= g_rows) return -1;
+    float xoff = (hexlayout && (row & 1)) ? (g_pw + g_gap) * 0.5f : 0;
+    float lx = px - g_x - xoff;
+    if (lx < 0) return -1;
+    int col = (int)(lx / (g_pw + g_gap));
+    if (col < 0 || col >= g_cols) return -1;
+    float cx = lx - col * (g_pw + g_gap), cy = ly - row * g_rp;
+    if (cx > g_pw) return -1;                     // fell in the gutter between columns
+    if (!hexlayout && cy > g_ph) return -1;       // (square) fell in the row gutter
     return row * g_cols + col;
 }
 
@@ -165,11 +197,11 @@ static void set_pad_voice(void) {
 // ── on-screen control bar (touch has no keyboard) — cyclable chips ───────────
 // Every parameter the keyboard cycles gets a tappable chip so the cart is fully
 // playable on a phone. The row cells are laid out by weight across the bar width.
-enum { ACT_NONE, ACT_SCALE, ACT_KEY, ACT_ROW, ACT_OCTDN, ACT_OCTUP, ACT_SELF };
+enum { ACT_NONE, ACT_SCALE, ACT_KEY, ACT_ROW, ACT_OCTDN, ACT_OCTUP, ACT_SELF, ACT_HEX };
 typedef struct { float w; int act; } Chip;
 static const Chip CHIP[] = {
     { 1.5f, ACT_SCALE }, { 1.1f, ACT_KEY }, { 1.7f, ACT_ROW },
-    { 0.7f, ACT_OCTDN }, { 0.7f, ACT_NONE }, { 0.7f, ACT_OCTUP }, { 1.2f, ACT_SELF },
+    { 0.7f, ACT_OCTDN }, { 0.6f, ACT_NONE }, { 0.7f, ACT_OCTUP }, { 1.0f, ACT_HEX }, { 1.1f, ACT_SELF },
 };
 #define NCHIP (int)(sizeof(CHIP) / sizeof(CHIP[0]))
 static int bar_x[NCHIP + 1];              // cumulative pixel boundaries of the bar cells
@@ -200,6 +232,7 @@ static void do_action(int act) {
         case ACT_OCTDN: if (octave > 1) octave--; break;
         case ACT_OCTUP: if (octave < 7) octave++; break;
         case ACT_SELF:  if (selfplay) stop_selfplay(); else selfplay = true; break;
+        case ACT_HEX:   hexlayout = !hexlayout; break;
         default: break;
     }
 }
@@ -225,6 +258,7 @@ void update(void) {
     if (keyp('z') || keyp('Z')) do_action(ACT_OCTDN);
     if (keyp('x') || keyp('X')) do_action(ACT_OCTUP);
     if (keyp('m') || keyp('M')) do_action(ACT_SELF);
+    if (keyp('g') || keyp('G')) do_action(ACT_HEX);      // square <-> hex packing
 
     // ── control bar: fire ONCE per press (a CLICK), never repeat while held ──
     // Latched off "is a pointer resting on a chip this frame" — robust to touch ids
@@ -307,33 +341,56 @@ static bool pad_held(int idx) {
     return idx == sp_pad;
 }
 
+// a pointy-top hexagon centred at (cx,cy), half-width hw, half-height hh
+static void draw_hex(float cx, float cy, float hw, float hh, int fill, int border) {
+    int xy[12] = {
+        (int)cx,        (int)(cy - hh),        // top point
+        (int)(cx + hw), (int)(cy - hh * 0.5f), // upper-right
+        (int)(cx + hw), (int)(cy + hh * 0.5f), // lower-right
+        (int)cx,        (int)(cy + hh),        // bottom point
+        (int)(cx - hw), (int)(cy + hh * 0.5f), // lower-left
+        (int)(cx - hw), (int)(cy - hh * 0.5f), // upper-left
+    };
+    polyfill(xy, 6, fill);
+    for (int i = 0; i < 6; i++) {
+        int a = i * 2, b = ((i + 1) % 6) * 2;
+        line(xy[a], xy[a + 1], xy[b], xy[b + 1], border);
+    }
+}
+
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
 
-    // ── the pads ──
+    // ── the pads (square cells, or interlocking hexagons in HEX mode) ──
     for (int idx = 0; idx < g_cols * g_rows; idx++) {
-        int col = idx % g_cols, row = idx / g_cols;
         int midi = pad_midi(idx);
         int pc = ((midi % 12) + 12) % 12, dispOct = midi / 12;
         int isRoot = (((midi - root) % 12 + 12) % 12) == 0;
         int black = (pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10);
 
-        float px = g_x + col * (g_pw + g_gap), py = g_y + row * (g_ph + g_gap);
-        int x = (int)px, y = (int)py, w = (int)g_pw, h = (int)g_ph;
-
         int base = isRoot ? CLR_DARK_ORANGE : (black ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE);
-        int fill = base;
+        int fill = base, border = isRoot ? CLR_LIGHT_PEACH : CLR_DARK_GREY;
         if (pad_held(idx))               fill = isRoot ? CLR_ORANGE : CLR_TRUE_BLUE;
         else if (idx < GLOW_MAX && glow[idx] > 0)
             fill = glow[idx] > 0.5f ? (isRoot ? CLR_LIGHT_PEACH : CLR_TRUE_BLUE)
                                     : (isRoot ? CLR_ORANGE : CLR_BLUE);
-        rectfill(x, y, w, h, fill);
-        rect(x, y, w, h, isRoot ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
 
-        if (h >= 10 && w >= 12) {
-            font(FONT_TINY);
-            print_centered(str("%s%d", NOTE[pc], dispOct), x + w / 2, y + (h - 5) / 2,
-                           (pad_held(idx) || isRoot) ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);
+        float cx, cy; pad_center(idx, &cx, &cy);
+        int tcol = (pad_held(idx) || isRoot) ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY;
+        if (hexlayout) {
+            draw_hex(cx, cy, g_pw / 2 - 0.5f, g_rp * 0.62f, fill, border);
+            if (g_ph >= 10 && g_pw >= 14) {
+                font(FONT_TINY);
+                print_centered(str("%s%d", NOTE[pc], dispOct), (int)cx, (int)cy - 2, tcol);
+            }
+        } else {
+            int x = (int)(cx - g_pw / 2), y = (int)(cy - g_ph / 2), w = (int)g_pw, h = (int)g_ph;
+            rectfill(x, y, w, h, fill);
+            rect(x, y, w, h, border);
+            if (h >= 10 && w >= 12) {
+                font(FONT_TINY);
+                print_centered(str("%s%d", NOTE[pc], dispOct), x + w / 2, y + (h - 5) / 2, tcol);
+            }
         }
     }
 
@@ -350,6 +407,8 @@ void draw(void) {
             case ACT_OCTDN: lbl = "OCT-";                                             break;
             case ACT_OCTUP: lbl = "OCT+";                                             break;
             case ACT_NONE:  lbl = str("O%d", octave); chip = 0; fg = CLR_LIGHT_GREY;  break;   // octave readout
+            case ACT_HEX:   lbl = hexlayout ? "HEX" : "SQR";
+                            bg = hexlayout ? CLR_DARK_GREEN : CLR_DARKER_BLUE;        break;
             case ACT_SELF:  lbl = selfplay ? "AUTO" : "PLAY";
                             bg = selfplay ? CLR_LIME_GREEN : CLR_DARKER_BLUE;
                             fg = selfplay ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY;       break;

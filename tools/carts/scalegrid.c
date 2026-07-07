@@ -167,21 +167,33 @@ static int pad_midi(int idx) {
 }
 
 // which pad contains a point (canvas space), or -1 (miss / in a gap / in the HUD)
-// Rows are bands of height g_rp; hex mode shifts odd rows half a column. (Hex hit
-// cells are rectangular bands — a sub-finger approximation of the drawn hexagons.)
+// which pad contains a point (canvas space), or -1 (miss / margin / HUD).
 static int pad_at(int px, int py) {
+    if (hexlayout) {
+        // A hexagon IS the Voronoi cell of its centre, so the NEAREST centre is the
+        // containing hex — exact at the slanted top/bottom corners where a rectangular
+        // band would mis-assign the point to the row above/below. (grid is small.)
+        int best = -1; long bestd = 0;
+        for (int idx = 0; idx < g_cols * g_rows; idx++) {
+            float cx, cy; pad_center(idx, &cx, &cy);
+            long dx = px - (long)(cx + 0.5f), dy = py - (long)(cy + 0.5f);
+            long d = dx * dx + dy * dy;
+            if (best < 0 || d < bestd) { best = idx; bestd = d; }
+        }
+        long lim = (long)(g_rp * g_rp);           // reject clicks in the margin around the grid
+        return (best >= 0 && bestd <= lim) ? best : -1;
+    }
+    // square: rectangular cells, rows are bands of height g_rp
     float ly = py - g_y;
     if (ly < 0) return -1;
     int row = (int)(ly / g_rp);
     if (row < 0 || row >= g_rows) return -1;
-    float xoff = (hexlayout && (row & 1)) ? (g_pw + g_gap) * 0.5f : 0;
-    float lx = px - g_x - xoff;
+    float lx = px - g_x;
     if (lx < 0) return -1;
     int col = (int)(lx / (g_pw + g_gap));
     if (col < 0 || col >= g_cols) return -1;
     float cx = lx - col * (g_pw + g_gap), cy = ly - row * g_rp;
-    if (cx > g_pw) return -1;                     // fell in the gutter between columns
-    if (!hexlayout && cy > g_ph) return -1;       // (square) fell in the row gutter
+    if (cx > g_pw || cy > g_ph) return -1;        // fell in a gutter
     return row * g_cols + col;
 }
 
@@ -495,6 +507,22 @@ void spec(void) {
         expect_eq(bad, 0, hx ? "hex: every pad centre hit-tests to its own index"
                              : "square: every pad centre hit-tests to its own index");
     }
+
+    // hex CORNERS too — a point just inside each of a hexagon's 6 vertices must hit THAT
+    // hex, not the neighbour. This is the bug the centre-only test missed: the slanted
+    // top/bottom corners were falling into the rectangular band of the row above/below.
+    hexlayout = true; scale = 3; rowoff = SC_N[3]; compute_grid();
+    float R = (g_pw + g_gap) * 0.5774f;
+    int cornerBad = 0;
+    for (int idx = 0; idx < g_cols * g_rows; idx++) {
+        float cx, cy; pad_center(idx, &cx, &cy);
+        int xy[12]; hex_verts(cx, cy, R, xy);
+        for (int v = 0; v < 6; v++) {                 // 30% in from each vertex → unambiguously inside
+            float vx = xy[v * 2] * 0.7f + cx * 0.3f, vy = xy[v * 2 + 1] * 0.7f + cy * 0.3f;
+            if (pad_at((int)(vx + 0.5f), (int)(vy + 0.5f)) != idx) cornerBad++;
+        }
+    }
+    expect_eq(cornerBad, 0, "hex: points just inside every vertex hit that hex (corners, not just centres)");
     hexlayout = false;
 
     // ── 4) HEXAGON is REGULAR: all six edges equal length (within a pixel) and the apex

@@ -28,6 +28,7 @@ final class Store {
     private var products: [String: Product] = [:]
     private var purchasing = Set<String>()   // products with a purchase sheet already in flight
     private var updatesTask: Task<Void, Never>?
+    private var promoTask: Task<Void, Never>?
 
     static func configuredIDs() -> [String] {
         guard let url = Bundle.main.url(forResource: "Tinyjam", withExtension: "storekit"),
@@ -41,6 +42,7 @@ final class Store {
 
     func start() async {
         if updatesTask == nil { updatesTask = listen() }
+        if #available(iOS 16.4, *), promoTask == nil { promoTask = listenPromoted() }
         await load()
         await refresh()
     }
@@ -83,6 +85,18 @@ final class Store {
         Task.detached {
             for await r in Transaction.updates {
                 if case .verified(let t) = r { await t.finish(); await Store.shared.refresh() }
+            }
+        }
+    }
+
+    // A PROMOTED IAP tapped on the App Store product page or in search results delivers a
+    // PurchaseIntent — take the user straight into that purchase (asc-push.js --promote sets these
+    // up server-side). Without this, tapping a promoted IAP just opens the app to no effect.
+    @available(iOS 16.4, *)
+    private func listenPromoted() -> Task<Void, Never> {
+        Task.detached {
+            for await intent in PurchaseIntent.intents {
+                await Store.shared.purchase(intent.product.id)
             }
         }
     }

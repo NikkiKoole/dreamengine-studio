@@ -62,10 +62,14 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
    DER); IAP localization/review-shot relationships traverse `/v2/` and are named `inAppPurchaseV2`
    but the *image* relationship is `inAppPurchase`; inline price creation needs the `${local-id}` id
    format; "Missing Metadata" on an IAP is the *availability* resource, not the review screenshot; and
-   images signal readiness via `imageAsset`, screenshots via `assetDeliveryState`. **Still open:**
+   images signal readiness via `imageAsset`, screenshots via `assetDeliveryState`. **`--promote` BUILT
+   (2026-07-07):** creates a `promotedPurchase` per IAP (`visibleForAllUsers`, relationship named
+   `inAppPurchaseV2`) and sets the display order via `PATCH /v1/apps/{id}/relationships/promotedPurchases`
+   = the ordered list Apple shows; paired app-side with `Store.swift`'s `PurchaseIntent.intents`
+   listener (iOS 16.4+) so a tap from the store page / search lands in the purchase. **Still open:**
    per-locale `metadata/<locale>/` folders (the tool reads them but multi-locale isn't exercised) +
-   a `--promote` step (mark an IAP a promoted purchase so it shows in search) + an editor button. The
-   copy *prose* (description/promo) stays maker-written per the two-part bar — the tool only pipes it.
+   an editor button. The copy *prose* (description/promo) stays maker-written per the two-part bar —
+   the tool only pipes it.
 
    > **IAP + ASO (the discovery angle):** Apple indexes an IAP's **display name** (≤30) for search —
    > "Acid Rack"/"E-Piano"/"Master Pass" extend the app's keyword surface for free, so spend IAP-name

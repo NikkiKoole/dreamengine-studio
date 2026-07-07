@@ -74,12 +74,13 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, dryRun: false, check: false, locale: 'en-US', version: '' }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, dryRun: false, check: false, locale: 'en-US', version: '' }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
   else if (a === '--screenshots') opt.screenshots = true
   else if (a === '--iap') opt.iap = true
+  else if (a === '--promote') opt.promote = true
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
   else if (a === '--locale') opt.locale = argv[++i]
@@ -88,10 +89,10 @@ for (let i = 0; i < argv.length; i++) {
   else { console.error(`unknown arg: ${a}`); process.exit(2) }
 }
 if (!opt.app) {
-  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--iap] [--dry-run] [--check] [--locale en-US]')
+  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--iap] [--promote] [--dry-run] [--check] [--locale en-US]')
   process.exit(2)
 }
-if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap) opt.metadata = true // default action
+if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote) opt.metadata = true // default action
 
 // ── manifest + copy assembly ────────────────────────────────────────────────────────────────
 const appDir = path.join(ROOT, 'apps', opt.app)
@@ -373,6 +374,7 @@ function collectIAP() {
     desc: p.desc || '',
     reviewNote: p.reviewNote || '',
     unlocks: p.unlocks || [],
+    promote: p.promote !== false, // default: promotable (opt out with "promote": false)
   }))
 }
 
@@ -572,6 +574,59 @@ async function ensureIAPPrice(iapId, p) {
   }
 }
 
+// ── promoted purchases (IAP shows on the product page + eligible in App Store search) ───────────
+// Promotes each manifest IAP (opt out per-product with "promote": false), then sets the display
+// order to the manifest order. Needs the IAP to already exist (--iap) with its 1024² image. The APP
+// must handle PurchaseIntent (Store.swift) for tap-to-buy from the store; images/promotion go
+// through review and only surface once the app is live.
+async function pushPromoted() {
+  const products = collectIAP().filter(p => p.promote)
+  if (!products.length) { console.log('  nothing to promote (all products have "promote": false)'); return }
+  const app = await resolveApp()
+  const iaps = await listIAPs(app.id)
+  console.log(`\n▸ promoted IAPs → app ${app.id} (${products.length} to promote, manifest order)`)
+
+  const orderedIds = []
+  for (const p of products) {
+    console.log(`\n  ${p.productId} — "${p.name}"`)
+    const iap = iaps[p.productId]
+    if (!iap) { console.log('    ⚠ not on ASC yet — run --iap first; skipping'); continue }
+    const cur = await apiOrNull('GET', `/v2/inAppPurchases/${iap.id}/promotedPurchase`)
+    let promoId = cur && cur.data && cur.data.id
+    if (opt.dryRun) {
+      console.log(promoId ? `    = already promoted (${cur.data.attributes.state})` : '    + would PROMOTE (visible to all users)')
+      if (promoId) orderedIds.push(promoId)
+      continue
+    }
+    if (promoId) console.log(`    = already promoted (${cur.data.attributes.state})`)
+    else {
+      const r = await api('POST', '/v1/promotedPurchases', {
+        data: {
+          type: 'promotedPurchases',
+          attributes: { visibleForAllUsers: true, enabled: true },
+          relationships: {
+            app: { data: { type: 'apps', id: app.id } },
+            inAppPurchaseV2: { data: { type: 'inAppPurchases', id: iap.id } },
+          },
+        },
+      })
+      promoId = r.data.id
+      console.log(`    ✓ promoted (${promoId})`)
+    }
+    orderedIds.push(promoId)
+  }
+
+  if (opt.dryRun) { console.log('\n  (--dry-run: nothing promoted)'); return }
+  if (orderedIds.length) {
+    // the app's promotedPurchases relationship IS the ordered list Apple displays
+    await api('PATCH', `/v1/apps/${app.id}/relationships/promotedPurchases`,
+      { data: orderedIds.map(id => ({ type: 'promotedPurchases', id })) })
+    console.log(`\n  ✓ display order set (${orderedIds.length}, manifest order)`)
+  }
+  console.log('  NOTE: promoted IAPs surface only once the APP is live, and need the app to handle')
+  console.log('        PurchaseIntent (Store.swift) for tap-to-buy from the store page / search.')
+}
+
 // ── offline self-test ──────────────────────────────────────────────────────────────────────────
 function selfCheck() {
   let ok = true
@@ -660,4 +715,5 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   if (opt.metadata) await pushMetadata()
   if (opt.screenshots) await pushScreenshots()
   if (opt.iap) await pushIAP()
+  if (opt.promote) await pushPromoted()
 })().catch(e => { console.error('\n✗ ' + e.message); process.exit(1) })

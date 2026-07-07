@@ -430,7 +430,9 @@ production work bypassed both — incremental `screen_w()` arithmetic that *refl
 *redesigning*, judged done because the defect oracle was green. Full retrospective + the
 generalisable rules: **field note
 [018 — Passing the Gates Felt Like Done](../field-notes/018-passing-the-gates-felt-like-done.md)**.
-The structural fixes below make the model the *path of least resistance* instead of a pointer.
+The structural fixes below make the model the *path of least resistance* instead of a pointer. The
+per-cart order-of-operations these fixes imply is distilled as a reusable runbook:
+[`../guides/responsive-instrument-ui.md`](../guides/responsive-instrument-ui.md).
 
 ### The ReBirth study — what the original got right (2026-07-05, maker + screenshot session)
 

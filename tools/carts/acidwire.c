@@ -96,12 +96,18 @@ static void wf_knobrow(Box area, const char *const *labels, int n) {
     float gap = lay_clamp(FU * 0.12f, 1, 3);
     for (int i = 0; i < n; i++) { Box c = lay_grid(area, n, n, i, gap); if (c.w > 4 && c.h > 6) wf_knob(lay_inset(c, 0.5f), i, labels[i]); }
 }
-static void wf_steplane(Box area, int seed, int mu) {   // mu = muted → grey, not green
-    float gap = lay_clamp(FU * 0.06f, 1, 2);
+// the step lane: 16 steps grouped in 4s so downbeats read at a glance (acidrack-ui-research §3 —
+// "the single biggest legibility win, costs nothing"). The GROUPING is a bigger gap between beats
+// (Gestalt) + a warm downbeat marker; the ACTIVE steps (lime) stay dominant. mu = muted → grey.
+static void wf_steplane(Box area, int seed, int mu) {
+    float g = 1, G = lay_clamp(FU * 0.18f, 2, 6);          // within-beat gap · between-beat gap (bigger)
+    float cw = (area.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
+    float x = area.x;
     for (int i = 0; i < STEPS; i++) {
-        Box s = lay_wrap(area, STEPS, i, FU * 0.42f, gap); if (s.w < 2) continue;
         int on = ((i + seed) % 4 == 0) || i == 6 || i == 11;
-        boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_LIME_GREEN) : CLR_DARK_GREY);
+        int off = (i % 4 == 0) ? CLR_DARK_BROWN : CLR_DARKER_GREY;   // downbeat gets a warm marker
+        boxfill(box(x, area.y, cw, area.h), mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+        x += cw + g; if (i % 4 == 3) x += G - g;           // widen the gap after each beat
     }
 }
 static void wf_padgrid(Box area, const char *const *labels, int n, int mu) {

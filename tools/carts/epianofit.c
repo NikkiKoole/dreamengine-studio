@@ -75,6 +75,7 @@ static int scale = 0, octave = 3, editor = 0;   // scale idx (0=chromatic) · ba
 static int root = 0, isolayout = 2;             // KEY root (0=C..11=B) · grid layout(0 linear,1 iso-4th,2 iso-oct) — ISO-OCT is the ship default; 'i' cycles (seam for a player setting)
 static const char *const LAYNAME[3] = { "LINEAR", "ISO-4TH", "ISO-OCT" };
 static bool fx_open = false;
+static bool native = false;   // 'n' — render the layout FULL-BLEED at the cart's real dims (no device sim)
 
 // ── a wireframe knob: dial + pointer + label (angle varies by index) ─────────
 static void knob(Box cell, int i, const char *label, int accent, float fu) {
@@ -217,6 +218,7 @@ void update(void) {
     if (keyp('r') || keyp('R')) root = (root + 1) % 12;
     if (keyp('i') || keyp('I')) isolayout = (isolayout + 1) % 3;
     if (keyp('g') || keyp('G')) editor = (editor + 1) % 3;
+    if (keyp('n') || keyp('N')) native = !native;
     if (keyp('z') || keyp('Z')) { if (octave > 0) octave--; }
     if (keyp('x') || keyp('X')) { if (octave < 8) octave++; }
     curpreset = (tick / 90) % NPRESET;
@@ -225,24 +227,42 @@ void update(void) {
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     int preset = locked >= 0 ? locked : (tick / 150) % NDEV;
-    Device d = DEVS[preset];
 
     font(FONT_SMALL);
-    print("EPIANOFIT - epiano's layout mock (responsive-instrument-ui.md step 4)", 4, 3, CLR_LIGHT_GREY);
+    print(native ? "EPIANOFIT - NATIVE full-bleed at the cart's real dims"
+                 : "EPIANOFIT - epiano's layout mock (responsive-instrument-ui.md step 4)",
+          4, 3, CLR_LIGHT_GREY);
 
-    float availX = 6, availY = 26, availW = SCREEN_W - 12, availH = SCREEN_H - 34;
-    float scl = availW / d.wpt; if (d.hpt * scl > availH) scl = availH / d.hpt;
-    Box dev = box(availX + (availW - d.wpt * scl) / 2, availY + (availH - d.hpt * scl) / 2,
-                  d.wpt * scl, d.hpt * scl);
-    float fu = FINGER_PT * scl;
-    bool tablet   = (d.wpt < d.hpt ? d.wpt : d.hpt) >= TABLET_PT;
-    bool portrait = d.hpt > d.wpt;
-
-    boxfill(lay_inset(dev, -3), CLR_DARK_GREY);
-    boxfill(dev, CLR_DARKER_PURPLE);
-    float bez = lay_fluid(0.02f, dev.w, 2, 6);
-    Box screen = portrait ? lay_pad(dev, bez + fu * 0.35f, bez, bez + fu * 0.2f, bez)
+    float fu; bool tablet, portrait; Box screen; char shape[48];
+    if (native) {
+        // Render the layout EDGE-TO-EDGE on the real canvas — no device sim. The
+        // finger unit is PHYSICAL, so at a fixed lo-fi canvas it's a big fraction:
+        // 44pt maps to the canvas as if it fills a ~390pt phone short side.
+        portrait = SCREEN_H > SCREEN_W;
+        tablet   = 0;
+        float shortpx = SCREEN_W < SCREEN_H ? SCREEN_W : SCREEN_H;
+        fu = 44.0f * shortpx / 390.0f;                 // e.g. 320x240 → ~27px
+        screen = box(2, 10, SCREEN_W - 4, SCREEN_H - 18);
+        boxfill(screen, CLR_DARKER_PURPLE);
+        snprintf(shape, sizeof shape, "NATIVE %dx%d %s", (int)SCREEN_W, (int)SCREEN_H,
+                 portrait ? "portrait" : "landscape");
+    } else {
+        Device d = DEVS[preset];
+        float availX = 6, availY = 26, availW = SCREEN_W - 12, availH = SCREEN_H - 34;
+        float scl = availW / d.wpt; if (d.hpt * scl > availH) scl = availH / d.hpt;
+        Box dev = box(availX + (availW - d.wpt * scl) / 2, availY + (availH - d.hpt * scl) / 2,
+                      d.wpt * scl, d.hpt * scl);
+        fu = FINGER_PT * scl;
+        tablet   = (d.wpt < d.hpt ? d.wpt : d.hpt) >= TABLET_PT;
+        portrait = d.hpt > d.wpt;
+        boxfill(lay_inset(dev, -3), CLR_DARK_GREY);
+        boxfill(dev, CLR_DARKER_PURPLE);
+        float bez = lay_fluid(0.02f, dev.w, 2, 6);
+        screen = portrait ? lay_pad(dev, bez + fu * 0.35f, bez, bez + fu * 0.2f, bez)
                           : lay_pad(dev, bez, bez + fu * 0.4f, bez, bez + fu * 0.15f);
+        snprintf(shape, sizeof shape, "%s %dx%dpt %s", d.name, (int)d.wpt, (int)d.hpt,
+                 tablet ? "TABLET" : "PHONE");
+    }
 
     float gap = lay_clamp(fu * 0.14f, 1, 5);
     float titleH = lay_clamp(fu * 0.5f, 8, 20);
@@ -355,8 +375,7 @@ void draw(void) {
     // ── readout ────────────────────────────────────────────────────────────────
     bool cramped = (strstr(metric, "CRAMPED") != NULL);
     font(FONT_TINY);
-    print(str("%s  %dx%dpt  %s | %s | panel:%s | %s",
-              d.name, (int)d.wpt, (int)d.hpt, tablet ? "TABLET" : "PHONE", metric, mode, MACH[machine]),
+    print(str("%s | %s | panel:%s | %s", shape, metric, mode, MACH[machine]),
           4, SCREEN_H - 6, cramped ? CLR_ORANGE : (use_grid ? CLR_LIME_GREEN : CLR_GREEN));
     print_right(locked >= 0 ? "[1-5 dev 0auto  m f  s scale r key  z/x oct  i iso  g ed]" : "[auto 1-5 m f s r z x i g]",
                 SCREEN_W - 4, 3, CLR_DARK_GREY);

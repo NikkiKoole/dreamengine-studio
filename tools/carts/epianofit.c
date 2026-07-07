@@ -72,7 +72,7 @@ static Device DEVS[5] = {
 
 static int tick = 0, locked = -1, machine = 0, curpreset = 0;
 static int scale = 0, octave = 3, editor = 0;   // scale idx (0=chromatic) · base octave · editor(0 auto,1 piano,2 grid)
-static int root = 0, isolayout = 0;             // KEY root (0=C..11=B) · grid layout(0 linear,1 iso-4th,2 iso-oct)
+static int root = 0, isolayout = 2;             // KEY root (0=C..11=B) · grid layout(0 linear,1 iso-4th,2 iso-oct) — ISO-OCT is the ship default; 'i' cycles (seam for a player setting)
 static const char *const LAYNAME[3] = { "LINEAR", "ISO-4TH", "ISO-OCT" };
 static bool fx_open = false;
 

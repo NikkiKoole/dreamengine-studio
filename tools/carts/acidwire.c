@@ -123,14 +123,6 @@ static void wf_steplane(Box area, int seed, int mu) {
         }
     }
 }
-static void wf_padgrid(Box area, const char *const *labels, int n, int mu) {
-    float gap = lay_clamp(FU * 0.1f, 1, 3);
-    for (int i = 0; i < n; i++) {
-        Box c = lay_grid(area, 4, n, i, gap); if (c.w < 4 || c.h < 4) continue;
-        Box pad = lay_inset(c, 0.5f); boxfill(pad, (i % 3 == 0) ? (mu ? CLR_MEDIUM_GREY : CLR_DARK_ORANGE) : CLR_DARKER_PURPLE); boxrect(pad, CLR_DARKER_BLUE);
-        if (pad.h >= 8) { font(FONT_TINY); print_centered(labels[i], (int)(pad.x + pad.w / 2), (int)(pad.y + (pad.h - 5) / 2), CLR_LIGHT_PEACH); }
-    }
-}
 static void wf_minipat(Box area, int seed, int mu) {   // folded: a row of tiny on/off dots
     for (int i = 0; i < STEPS; i++) { Box s = lay_wrap(area, STEPS, i, FU * 0.2f, 1); if (s.w < 1) continue;
         int on = ((i + seed) % 3 == 0); boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
@@ -274,7 +266,7 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
         if (s->haspat) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_steplane(lay_pad(lane,0,1,0,1), idx, mu); }
         else wf_knobrow(mach, s->labels, s->n);   // MASTER: just knobs
     }
-    else wf_padgrid(mach, s->labels, s->n, mu);
+    else wf_drumgrid(mach, s, mu);   // DRUMS: the real voices×steps sequencer grid
 }
 
 // ───────── device safe-area SKIN (the point of this whole cart) ─────────

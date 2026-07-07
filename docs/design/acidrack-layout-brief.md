@@ -87,8 +87,13 @@ Same pattern data, two editors — the panel-level twin of design-system §8.3's
 - **Phone:** swap to ReBirth's one-lane editors — the 303 **step programmer** (one octave of
   finger-wide keys + OCT/ACC/SLD flags + step advance — fits a phone width at full finger size);
   drums = voice selector + that voice's single lane.
-- OPEN: does the phone step programmer replace the roll outright, or is the roll still reachable
-  (pinch/loupe) for overview?
+- ~~OPEN: does the phone step programmer replace the roll outright, or is the roll still reachable
+  for overview?~~ **Resolved (maker, 2026-07-07): FOCUS/fullscreen** is the phone's overview route —
+  the 4th state beyond expanded. A instrument fills the screen over a title bar (name · patterns ·
+  [M] · **X** to close); drum focus = the whole voices×steps grid, 303 focus = the note grid + knobs.
+  So the in-stack phone view can stay one-lane/compact, and the full grid is one tap (focus) away.
+  Now in `acidwire` (`f` toggles). The **drum step grid** (voices×steps, beat-grouped) is also the
+  iPad-landscape expanded/grid cell editor. States are now: **folded · compact · expanded · focus**.
 
 ## 4 · Arrangements per shape (the 2–3 topologies)
 

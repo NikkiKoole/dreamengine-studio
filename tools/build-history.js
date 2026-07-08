@@ -203,6 +203,15 @@ const hasThumb = (name) => fs.existsSync(path.join(CARTS_DIR, name + '.cart.png'
 // `backtick`-wrapped name (how docs actually cite carts). Bare prose words are
 // ignored, so common-word cart names (needs/house/patterns/effects…) don't
 // false-fire. Returns names ranked by weight, only carts that have a thumbnail.
+// Cart names that collide with a studio.h symbol (eq, line, map…) or a ubiquitous
+// concept word: a doc backticking the eq() FUNCTION would otherwise attach the `eq`
+// CART. So an ambiguous name needs the stronger `.c` FILE-reference signal — a bare
+// `backtick` of it is rejected. Non-ambiguous names still attach on either signal. (B)
+const apiWords = new Set(
+  [...readDoc('runtime/studio.h').matchAll(/\b([a-z][a-z0-9_]+)\s*\(/g)].map((m) => m[1])
+)
+const CONCEPT_STOP = new Set(['effects', 'fx', 'sfx'])
+
 function cartsReferencedIn(text, selfName) {
   if (!cartNameRe || !text) return []
   const counts = {}
@@ -210,10 +219,12 @@ function cartsReferencedIn(text, selfName) {
   while ((m = cartNameRe.exec(text))) {
     const tick = m[1] === '`' || m[4] === '`', name = m[2], dotC = !!m[3]
     if (name === selfName || !(dotC || tick)) continue
+    if (!dotC && (apiWords.has(name) || CONCEPT_STOP.has(name))) continue   // ambiguous ⇒ require .c (B)
     if (!hasThumb(name)) continue
     counts[name] = (counts[name] || 0) + (dotC ? 2 : 1) + (tick ? 1 : 0)
   }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([n]) => n)
+  // return [{name, weight}] sorted by weight — callers rank by WEIGHT, not doc-count (C)
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([n, w]) => ({ name: n, weight: w }))
 }
 
 // enrich ADRs: real H1 title + a friendly first-paragraph, and flag the CUT ones
@@ -312,7 +323,7 @@ const eras = spine.eras.map((e) => {
   }
   let spotlight = null
   if (pick) {
-    const carts = pick.relatedCarts.slice(0, 4).map((name) => {
+    const carts = pick.relatedCarts.slice(0, 4).map(({ name }) => {
       const file = name + '.cart.png'
       if (!hasThumb(name)) return null
       return { name, file, title: cartTitle[file] || name, lineage: cartLineage[file] || '',
@@ -362,7 +373,7 @@ const threads = ((spine.threads && spine.threads.items) || []).map((t) => {
   const handoffs = memDocs.filter((d) => /handoff/i.test(d.name))
   // carts: union of each member doc's related carts, ranked by how many docs cite each
   const cc = {}
-  memDocs.forEach((d) => (d.relatedCarts || []).forEach((n) => { cc[n] = (cc[n] || 0) + 1 }))
+  memDocs.forEach((d) => (d.relatedCarts || []).forEach(({ name, weight }) => { cc[name] = (cc[name] || 0) + weight }))
   const ranked = Object.entries(cc).sort((a, b) => b[1] - a[1]).map(([n]) => n)
   const carts = ranked.slice(0, 6).map(inlineThumb).filter(Boolean)
   const days = [...memDocs.map((d) => d.day), ...memAdrs.map((a) => a.day)].filter(Boolean).sort()
@@ -1231,7 +1242,7 @@ const prettyName = s => String(s).replace(/-/g, ' ')
 function renderSpotlight(sp){
   const det = $('details','docspot')
   const badge = '<span class="dsb">'+esc(sp.status || 'design note')+'</span>'
-  const grew = sp.relatedCount ? '<span class="grow">'+sp.relatedCount+' cart'+(sp.relatedCount===1?'':'s')+' grew from this</span>' : ''
+  const grew = sp.relatedCount ? '<span class="grow">'+sp.relatedCount+' cart'+(sp.relatedCount===1?'':'s')+' mentioned here</span>' : ''
   det.appendChild($('summary', null,
     '<span class="caret">▸</span>'+badge+'<b class="dst">'+esc(prettyName(sp.name))+'</b>'+grew))
   const body = $('div','detail-body')
@@ -1261,7 +1272,7 @@ function renderThreads(threads){
   sec.appendChild($('div','rs-head', '<h2>Research threads</h2>'))
   sec.appendChild($('div','rs-lede',
     'Topics that spawned a trail of docs, handoffs and carts — the long investigations. '+
-    'Each links back to its notes; the carts are what grew from the thinking.'))
+    'Each links back to its notes; the carts are the ones these notes mention.'))
   threads.forEach(t => sec.appendChild(renderThread(t)))
   return sec
 }
@@ -1301,7 +1312,7 @@ function renderThread(t){
     r.appendChild(tags); body.appendChild(r)
   }
   if (t.carts.length){
-    const r = $('div','row'); r.appendChild($('div','h','Carts that grew from it'))
+    const r = $('div','row'); r.appendChild($('div','h','Carts these notes mention'))
     const row = $('div','ds-carts')
     t.carts.forEach(c => {
       const fig = $('figure','ds-cart')

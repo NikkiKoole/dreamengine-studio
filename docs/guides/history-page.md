@@ -59,8 +59,8 @@ The generator reads docs as *content*, not just names — so the design notes en
 story on their own. Two surfaces, both derived, both zero-authoring:
 
 - **The design-note spotlight** — a foldout sibling to the hero cart, one per era: the
-  design doc *born that era that spawned the most carts*. It shows the doc's friendly
-  one-liner + the carts that grew from it (click a thumb to load the cart, or open the
+  design doc *born that era that mentions the most carts*. It shows the doc's friendly
+  one-liner + the carts it mentions (click a thumb to load the cart, or open the
   full note). Picked automatically; override per era with `eras[].spotlightDoc:
   "<doc-name>"` in the spine when you want a specific note featured.
   - **Friendly summaries come from `docs/README.md`.** That file is the curated map —
@@ -69,12 +69,19 @@ story on their own. Two surfaces, both derived, both zero-authoring:
     the layout tree into `name → {desc, status}` and reuses it verbatim. **So the single
     maintenance rule is: keep a doc's README line good and the page follows** — nothing is
     re-authored in the spine.
-  - **"Carts that grew from this"** is a content scan: cart names are matched against the
-    real cart list from `index.json`, and counted **only on a strong signal** — a `.c`
-    suffix or a `` `backtick` `` wrap (how docs actually cite carts). Bare prose words are
-    ignored, so common-word cart names (`needs`, `house`, `patterns`, `effects`…) don't
-    false-fire. The same scan drives the spotlight ranking and the "🟡 grew" mark on the
-    *Design notes written* tags (whose tooltips show the README one-liner).
+  - **"Carts these notes mention"** is a content scan — and note the label: it's **mentions,
+    not lineage**. Cart names are matched against the real cart list from `index.json`, counted
+    **only on a strong signal** — a `.c` suffix or a `` `backtick` `` wrap (how docs actually
+    cite carts) — so bare prose words don't false-fire. Two extra precision rules (the scan
+    used to read as nonsense — e.g. the optimization thread listing the carts it *benchmarked*
+    as if they "grew from" it): **(1)** a cart name that also collides with a `studio.h` symbol
+    (`eq`↔`eq()`, `varispeed`, `shimmer`…) or a concept word (`effects`) is **ambiguous** and
+    attaches ONLY on the `.c` file-reference signal, never a bare backtick (a doc backticking
+    the `eq()` function no longer drags in the `eq` cart); **(2)** a thread ranks its carts by
+    **summed reference weight** (`.c` = 2, backtick = 1), not by how many docs mention them, so
+    a deliberate file reference outranks an incidental mention. The same scan drives the
+    spotlight ranking and the "🟡 grew" mark on the *Design notes written* tags (whose tooltips
+    show the README one-liner). See `cartsReferencedIn()` in `build-history.js`.
 
 - **"Roads not taken"** — the **cut decisions**, split out of *Decisions landed* into their
   own row, dashed + struck. Detected automatically by the `cut-` ADR filename; each shows
@@ -96,8 +103,8 @@ parked mid-thread.
 A band of **long investigations** (before the retrospect): a topic that spawned a trail of
 docs, handoffs and carts — roads-&-world-gen, the instrument-engine ports, the effects bus,
 the radio stations, mobile/touch, spatial audio. Each is a foldout with a voiced blurb, its
-cross-referenced docs as chips (notes / handoffs / decisions), and the carts that grew from
-it as thumbnails.
+cross-referenced docs as chips (notes / handoffs / decisions), and the carts those docs
+mention as thumbnails.
 
 Declared in the spine's `threads.items[]`, modelled exactly like `subsystems` —
 **automatic membership:**
@@ -233,7 +240,7 @@ Once a week's worth of work has landed, extend the spine and regenerate:
 ## Moving thumbnails — clip support (proposed wiring)
 
 The page shows a still `.cart.png` in three slots — the **hero** (`heroByEra()`), the
-**spotlight** carts (the design note's "carts that grew from this"), and **thread** carts.
+**spotlight** carts (the design note's "carts these notes mention"), and **thread** carts.
 Those are the natural homes for a short looping clip instead of a still. The exporter
 (`tools/make-gif.js`, [`debug-harness.md`](debug-harness.md) → "Clip capture") already
 targets the convention below, so the generator can light this up with no per-cart wiring.

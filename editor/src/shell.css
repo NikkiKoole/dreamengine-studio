@@ -330,6 +330,24 @@ html, body {
 .ld-tribe { margin: 6px 0 6px 10px; padding-left: 8px; border-left: 2px solid var(--border); }
 .ld-tlab { font-size: 12px; font-weight: 600; }
 .ld-hook { font-size: 11px; color: var(--fg-dim); font-style: italic; margin: 2px 0 3px; }
+/* Promote tab (per-cart): clips/takes + tribes + link. docs/design/promote-tab.md */
+#promote-body { padding: 20px; overflow-y: auto; height: 100%; max-width: 720px; }
+#promote-body h3 { margin: 0 0 14px; font-size: 14px; color: var(--fg); }
+#promote-body .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
+.promote-sec { margin: 0 0 24px; }
+.promote-h { font-size: 12px; font-weight: bold; color: var(--fg); margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.pm-take { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.pm-label { color: var(--fg); }
+.pm-replay { color: var(--accent); text-decoration: none; cursor: pointer; }
+.pm-replay:hover { text-decoration: underline; }
+.pm-noplay { color: var(--fg-dim); }
+.pm-clip { color: var(--accent); text-decoration: none; font-size: 11px; }
+.pm-clip:hover { text-decoration: underline; }
+#promote-rec { margin-top: 8px; font-size: 11px; padding: 2px 10px; cursor: pointer; }
+.pm-link { font-size: 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.pm-link a { color: var(--accent); text-decoration: none; }
+.pm-link a:hover { text-decoration: underline; }
+
 .ld-venue { font-size: 11px; margin: 2px 0; }
 .ld-venue a { color: var(--accent); text-decoration: none; }
 .ld-venue a:hover { text-decoration: underline; }

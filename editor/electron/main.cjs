@@ -1524,6 +1524,40 @@ ipcMain.handle('studio:leads', async (_e, name) => {
   return { ok: true, app: String(name), carts: per, crosscutting }
 })
 
+// ── Promote tab (per-cart) ─────────────────────────────────────
+// Cart-scoped twins of studio:leads / studio:app-clips, for the open cart's Promote tab.
+// Design: docs/design/promote-tab.md. Both reuse the app-scoped logic for ONE cart.
+// cart-leads: wrap runLeadsJson(cart) in the {carts:[…], crosscutting} shape renderLeads expects.
+ipcMain.handle('studio:cart-leads', async (_e, cart) => {
+  if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, error: 'bad cart name' }
+  const one = await runLeadsJson(cart)
+  return { ok: true, carts: [one], crosscutting: (one && one.ok && one.crosscutting) || [] }
+})
+// cart-clips: this cart's takes (tools/clips/<cart>/*.{rec,script,beats}) + baked webm
+// (editor/public/clips/<cart>/*.webm), plus the deterministic gallery URL for section E.
+// A take is ▶-replayable only if it has a .rec (recPath); .script/.beats are recipe-only.
+ipcMain.handle('studio:cart-clips', async (_e, cart) => {
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, error: 'bad cart name' }
+  const pub = path.join(ROOT, 'editor/public/clips', cart)
+  const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')).map(f => f.replace(/\.webm$/, '')) : [])
+  const recDir = path.join(ROOT, 'tools/clips', cart)
+  const takes = {}
+  const takeFiles = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)) : []
+  for (const f of takeFiles) {
+    const label = f.replace(/\.(script|beats|rec)$/, ''); const ext = f.split('.').pop()
+    const t = takes[label] || (takes[label] = { kinds: [], recPath: null })
+    t.kinds.push(ext); if (ext === 'rec') t.recPath = path.join(recDir, f)
+  }
+  const labels = [...new Set([...baked, ...Object.keys(takes)])].sort()
+  const clips = labels.map(l => ({
+    label: l, baked: baked.has(l),
+    clipUrl: baked.has(l) ? `/clips/${cart}/${l}.webm` : null,
+    kinds: takes[l] ? takes[l].kinds : [], recPath: takes[l] ? takes[l].recPath : null,
+  }))
+  return { ok: true, cart, clips, url: `https://nikkikoole.github.io/dreamengine/${cart}/` }
+})
+
 // ── App Store metadata push (the ☁︎ App Store panel) ─────────────
 // Two modes, both via tools/asc-push.js --json so the panel can render a structured checklist:
 //   default (no opts.push)   → --dry-run: GET live + diff → a PLAN the panel shows (read-only, safe)

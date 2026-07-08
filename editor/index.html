@@ -18,6 +18,7 @@
         <button class="tab"        data-tab="tutorials" tabindex="-1">carts</button>
         <button class="tab"        data-tab="help"      tabindex="-1">docs</button>
         <button class="tab"        data-tab="apps"      tabindex="-1">apps</button>
+        <button class="tab"        data-tab="promote"   tabindex="-1">promote</button>
         <button class="tab"        data-tab="settings"  tabindex="-1">settings</button>
       </div>
       <button id="profile-btn" tabindex="-1" title="run the cart for a few seconds and list its CPU hotspots" style="display:none">⏱ profile</button>
@@ -197,6 +198,30 @@
           <!-- export / publish moved into the topbar ⇪ share popover (share-panel.md) -->
         </div>
         <div id="tutorials-body"></div>
+      </div>
+
+      <!-- Promote tab: a cart's media bin + tribes + link — the per-cart Promote verb.
+           MVP = clips/takes (A) + find tribes (D) + gallery link (E). docs/design/promote-tab.md -->
+      <div id="panel-promote" class="panel">
+        <div id="promote-body">
+          <div id="promote-empty" class="apps-empty">open a cart to promote it</div>
+          <div id="promote-main" hidden>
+            <h3>📣 promote <span id="promote-cart" class="apps-hint"></span></h3>
+            <section class="promote-sec">
+              <div class="promote-h">clips &amp; takes <span class="apps-hint">deterministic seeds · ▶ replays a recorded take</span></div>
+              <div id="promote-clips"></div>
+              <button id="promote-rec" title="record your play as an input track — play, then close the window (Esc) to save the take">● record a take</button>
+            </section>
+            <section class="promote-sec">
+              <div class="promote-h">find tribes <span class="apps-hint">where to gift-post · we prep, you post</span></div>
+              <div id="promote-leads"></div>
+            </section>
+            <section class="promote-sec">
+              <div class="promote-h">the link <span class="apps-hint">paste it into a tribe post</span></div>
+              <div id="promote-link"></div>
+            </section>
+          </div>
+        </div>
       </div>
 
       <div id="panel-settings" class="panel"></div>

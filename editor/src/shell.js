@@ -1247,7 +1247,12 @@ recBtn.addEventListener('click', recordCart)
 if (settings.showRecord && recBtn) recBtn.style.display = ''   // hidden by default; opt-in via settings → record
 // the exact path also prints into the runtime log (persistent); the toast reveals it in Finder on click
 window.studio?.onRecorded?.(info => {
-  if (info?.ok) showToast(`✓ take saved → ${info.rel}  ·  click to show in Finder`, 12000, () => window.studio.revealPath?.(info.abs || info.rel))
+  if (info?.ok) {
+    showToast(`✓ take saved → ${info.rel}  ·  find it under promote`, 12000, () => window.studio.revealPath?.(info.abs || info.rel))
+    // the new take should pop into the Promote takes list without a manual refresh — re-render if
+    // that panel is showing (renderPromote is a hoisted fn declaration, so it's live by now).
+    if (document.getElementById('panel-promote')?.classList.contains('active')) renderPromote()
+  }
   else if (info?.empty) showToast('no input captured — nothing saved', 3500)
   else showToast('recording failed: ' + (info?.error || '?'), 4000)
 })
@@ -1522,12 +1527,14 @@ function renderStorePlan(plan, app) {
 // its tribes + venues (clickable → open in browser) + a ready-to-copy post scaffold. We prep;
 // the maker does the actual posting (copy the draft, open the venue, paste — "leave it to us").
 const venueIcon = { reddit: '🔺', facebook: '📘', forum: '💬', youtube: '▶', tiktok: '🎵', web: '🌐', discord: '💬' }
-function renderLeads(data) {
-  if (!asoResults) return
+// build the "find tribes" HTML from a leads payload. Shared by the app-scoped Apps glance
+// (asoResults) and the per-cart Promote tab (#promote-leads) — same payload shape, both render
+// this. data.app present → app scope (header names it); absent → cart scope (payload has one cart).
+function leadsHtml(data) {
   const vlink = v => `<div class="ld-venue">${venueIcon[v.kind] || '·'} `
     + (v.url ? `<a href="#" data-url="${escHtml(v.url)}">${escHtml(v.name)}</a>` : escHtml(v.name))
     + (v.etiquette ? ` <span class="rs-dim">— ${escHtml(v.etiquette)}</span>` : '') + `</div>`
-  let h = `<div class="sc-head"><b>find tribes — ${escHtml(data.app || '')}</b> <span class="rs-dim">where to gift-post each cart · we prep, you post</span></div>`
+  let h = `<div class="sc-head"><b>find tribes${data.app ? ` — ${escHtml(data.app)}` : ''}</b> <span class="rs-dim">where to gift-post ${data.app ? 'each cart' : 'this cart'} · we prep, you post</span></div>`
   for (const c of (data.carts || [])) {
     if (!c || !c.ok) { h += `<div class="ld-cart"><b>${escHtml(c?.cart || '?')}</b> <span class="rs-dim">— ${escHtml(c?.error || 'no match')}</span></div>`; continue }
     h += `<div class="ld-cart"><div class="ld-title"><b>${escHtml(c.title || c.cart)}</b> <span class="rs-dim">${escHtml(c.domain)} · ${c.tribes.length} tribe${c.tribes.length === 1 ? '' : 's'}</span></div>`
@@ -1554,7 +1561,11 @@ function renderLeads(data) {
     + `<li><b>gift-first, always</b>: you're a member there first. The scaffold uses the cart's OWN words + the tribe hook; your voice fills the [brackets]. Never a copy-paste spam.</li>`
     + `<li>log it after: <code>node tools/leads.js track add &lt;cart&gt; "&lt;venue&gt;" --status posted --url &lt;link&gt;</code></li>`
     + `</ul></div>`
-  asoResults.innerHTML = h
+  return h
+}
+function renderLeads(data) {
+  if (!asoResults) return
+  asoResults.innerHTML = leadsHtml(data)
 }
 async function runLeads(app) {
   if (!window.studio?.leads) { showToast('find tribes requires the desktop app  (npm start)', 3000); return }
@@ -1564,6 +1575,75 @@ async function runLeads(app) {
   if (res?.ok) renderLeads(res)
   else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'find tribes failed')}</div>`
 }
+
+// ── Promote tab (per-cart): clips/takes (A) + find tribes (D) + gallery link (E) ──
+// The per-cart Promote verb. Reuses built pieces — leadsHtml() for tribes, recordCart()/
+// studio.replay for takes, the deterministic gallery URL for the link. Rendered on tab open
+// (mirrors renderAppsList). Scope = the currently-open cart (currentCartFile).
+// Design: docs/design/promote-tab.md.
+async function renderPromote() {
+  const empty = document.getElementById('promote-empty')
+  const main  = document.getElementById('promote-main')
+  const cart  = currentCartFile
+  if (!cart) { if (empty) empty.hidden = false; if (main) main.hidden = true; return }
+  if (empty) empty.hidden = true; if (main) main.hidden = false
+  const nameEl = document.getElementById('promote-cart')
+  if (nameEl) nameEl.textContent = currentCartName || cart
+  const clipsEl = document.getElementById('promote-clips')
+  if (!window.studio?.cartClips) {
+    if (clipsEl) clipsEl.innerHTML = `<div class="apps-empty">the Promote tab needs the desktop app  (npm start)</div>`
+    return
+  }
+  // A · clips & takes — replayable takes (▶) + baked clips (🎬)
+  const cc = await window.studio.cartClips(cart)
+  if (clipsEl) {
+    if (!cc?.ok) clipsEl.innerHTML = `<div class="rs-err">${escHtml(cc?.error || 'could not read clips')}</div>`
+    else if (!cc.clips.length) clipsEl.innerHTML = `<div class="apps-empty">no takes or clips yet — record one below (or <code>node tools/play.js ${escHtml(cart)} record</code>)</div>`
+    else clipsEl.innerHTML = cc.clips.map(cl => {
+      // click the take to WATCH it — replays the recorded input against the open cart in a
+      // native window (only .rec takes are replayable; .script/.beats are recipe-only seeds).
+      const label = cl.recPath
+        ? `<a href="#" class="pm-label pm-replay" data-replay="${escHtml(cl.recPath)}" title="watch — replay this take against the open cart">▶ ${escHtml(cl.label)}</a>`
+        : `<span class="pm-label pm-noplay" title="recipe-only (${escHtml(cl.kinds.join('/') || 'no .rec')}) — not a replayable take">${escHtml(cl.label)}</span>`
+      const bake = cl.baked
+        ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the baked clip">🎬 clip</a>`
+        : `<span class="rs-dim">not baked</span>`
+      return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${bake}</div>`
+    }).join('')
+  }
+  // E · the link — the deterministic gallery URL + copy (published-state dot is v2)
+  const linkEl = document.getElementById('promote-link')
+  if (linkEl && cc?.url) {
+    linkEl.innerHTML = `<div class="pm-link"><a href="#" data-url="${escHtml(cc.url)}">${escHtml(cc.url)}</a>`
+      + ` <button class="ld-copy" data-copy="${escHtml(cc.url)}">copy</button></div>`
+      + `<div class="rs-dim">the gallery URL once this cart is published — if it isn't live yet, publish from <b>⇪ share</b> (Ship) first.</div>`
+  }
+  // D · find tribes — same payload/render as the Apps glance, aimed at one cart
+  const leadsEl = document.getElementById('promote-leads')
+  if (leadsEl && window.studio?.cartLeads) {
+    leadsEl.innerHTML = `<div class="rs-dim">matching tribes…</div>`
+    const res = await window.studio.cartLeads(cart)
+    leadsEl.innerHTML = res?.ok ? leadsHtml(res) : `<div class="rs-err">${escHtml(res?.error || 'find tribes failed')}</div>`
+  }
+}
+async function replayTake(recPath) {
+  if (!window.studio?.replay) { showToast('replay requires the desktop app  (npm start)', 3000); return }
+  const code = view.state.doc.toString()
+  const res = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, recPath)
+  if (res && !res.ok) showLog(res)
+}
+// delegated clicks in the Promote panel: data-url / data-copy (same as the Apps glance),
+// ▶ replay a take.
+document.getElementById('promote-body')?.addEventListener('click', e => {
+  const link = e.target.closest('a[data-url]')
+  if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
+  const cp = e.target.closest('[data-copy]')
+  if (cp) { e.preventDefault(); navigator.clipboard?.writeText(cp.dataset.copy).then(() => showToast('copied', 2000)); return }
+  const rp = e.target.closest('[data-replay]')
+  if (rp) { e.preventDefault(); replayTake(rp.dataset.replay); return }
+})
+document.getElementById('promote-rec')?.addEventListener('click', () => recordCart())
+document.querySelector('.tab[data-tab="promote"]')?.addEventListener('click', renderPromote)
 
 const asoVal = id => (document.getElementById(id)?.value || '')
 const lintRun = document.getElementById('lint-run')
@@ -2788,10 +2868,12 @@ publishBtn.addEventListener('click', async () => {
   }
 })
 
-// ── drag-and-drop file loading (.png cart / .rec input track) ──
+// ── drag-and-drop file loading (.png cart) ──
 // CAPTURE phase + stopPropagation so a FILE dropped on the code editor is handled here and NOT
 // inserted as text by CodeMirror (which grabs the drop at its own element first). Only intercept
 // file drags — an internal text drag (types has no 'Files') passes straight through to CodeMirror.
+// (Replaying a .rec take is no longer a drop target — open the cart, go to the promote tab, and
+// click a take to watch it. docs/design/promote-tab.md.)
 const isFileDrag = e => [...(e.dataTransfer?.types || [])].includes('Files')
 document.addEventListener('dragover', e => { if (isFileDrag(e)) { e.preventDefault(); e.stopPropagation() } }, true)
 document.addEventListener('drop', async e => {
@@ -2799,28 +2881,6 @@ document.addEventListener('drop', async e => {
   e.preventDefault(); e.stopPropagation()
   const file = e.dataTransfer.files[0]
   if (!file) return
-  // drop a .rec input track → replay it against the CURRENT cart in a native window (mirror of ● rec).
-  // The tape's coordinates map to the cart it was recorded on; replaying a foreign cart just looks
-  // like noise. docs/design/input-recording-looper.md.
-  if (file.name.endsWith('.rec')) {
-    if (!window.studio?.replay) { showLog({ ok: false, cmd: null, output: 'replay requires the desktop app  (npm start)' }); return }
-    const recPath = window.studio.getFilePath(file)
-    // a take lives in tools/clips/<slug>/NN-*.rec — the parent folder names the cart it was recorded
-    // on. If that ≠ the open cart, the coordinates won't line up; warn instead of playing silent noise.
-    const owner = recPath.replace(/\\/g, '/').split('/').slice(-2)[0] || ''
-    const mismatch = currentCartFile && owner && owner !== currentCartFile
-    const code = view.state.doc.toString()
-    setErrorLines([])
-    const tilemapCanvas = document.querySelector('#tilemap-canvas')
-    if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
-    await window.studio.saveMap(getMapBytes())
-    const result = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, recPath)
-    if (result && !result.ok) { showLog(result); return }
-    showToast(mismatch
-      ? `⚠ ${file.name} was recorded on “${owner}”, not ${currentCartName || 'this cart'} — input won’t line up`
-      : `▶ replaying ${file.name} against ${currentCartName || 'this cart'}`, mismatch ? 6000 : 4000)
-    return
-  }
   if (!file.name.endsWith('.png')) return
   const filePath = window.studio.getFilePath(file)
   const cart = await window.studio.loadCartFile(filePath)

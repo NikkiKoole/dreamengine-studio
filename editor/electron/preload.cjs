@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('studio', {
   appShots:     (name)           => ipcRenderer.invoke('studio:app-shots', name),
   appSeeds:     (name, source)   => ipcRenderer.invoke('studio:app-seeds', name, source),
   leads:        (name)           => ipcRenderer.invoke('studio:leads', name),
+  cartLeads:    (cart)           => ipcRenderer.invoke('studio:cart-leads', cart),
+  cartClips:    (cart)           => ipcRenderer.invoke('studio:cart-clips', cart),
   // App Store metadata: dry-run returns a structured PLAN; { push:[fields] } PATCHes only those live
   ascMetadata:  (name, opts)     => ipcRenderer.invoke('studio:asc-metadata', name, opts),
 })

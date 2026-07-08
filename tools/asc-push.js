@@ -12,6 +12,8 @@
 //   node tools/asc-push.js <app> --metadata --only description,supportUrl   # push ONLY these fields
 //   node tools/asc-push.js <app> --screenshots           # upload apps/<app>/screenshots/*.png
 //   node tools/asc-push.js <app> --metadata --screenshots
+//   node tools/asc-push.js <app> --iap                   # create/sync IAPs (existing prices are LEFT AS-IS)
+//   node tools/asc-push.js <app> --iap --reprice         # ALSO overwrite an existing IAP's price schedule
 //
 // SOURCE OF TRUTH: apps/<app>/app.json  -> listing.{title,subtitle,keywords}  (the copy you edit).
 //   Optional Fastlane-style overrides:  apps/<app>/metadata/<locale>/{description,promotional_text,
@@ -76,7 +78,7 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
@@ -86,6 +88,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
   else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
+  else if (a === '--reprice') opt.reprice = true    // --iap: overwrite an existing IAP price schedule (default leaves it)
   else if (a === '--only') opt.only = argv[++i].split(',').map(s => s.trim()).filter(Boolean)  // push only these fields
   else if (a === '--locale') opt.locale = argv[++i]
   else if (a === '--version') opt.version = argv[++i]
@@ -93,7 +96,7 @@ for (let i = 0; i < argv.length; i++) {
   else { console.error(`unknown arg: ${a}`); process.exit(2) }
 }
 if (!opt.app) {
-  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--iap] [--promote] [--dry-run] [--check] [--locale en-US]')
+  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
   process.exit(2)
 }
 if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote) opt.metadata = true // default action
@@ -564,9 +567,13 @@ async function ensureIAPLocalization(iapId, p) {
 }
 
 async function ensureIAPPrice(iapId, p) {
-  // idempotent: a price schedule is a singleton per IAP (its id == the IAP id). If one exists, leave it.
+  // A price schedule is a singleton per IAP (its id == the IAP id). By default we LEAVE an existing
+  // one (idempotent create). --reprice overwrites it: POSTing a new schedule replaces the old prices.
   const existing = await apiOrNull('GET', `/v2/inAppPurchases/${iapId}/iapPriceSchedule`)
-  if (existing && existing.data) { console.log('    = price already scheduled'); return }
+  if (existing && existing.data && !opt.reprice) {
+    console.log('    = price already scheduled (manifest $' + Number(p.price).toFixed(2) + ' not applied — run --reprice to change it)')
+    return
+  }
 
   // find the USA price point whose customer price matches the manifest price
   const pts = await api('GET', `/v2/inAppPurchases/${iapId}/pricePoints?filter[territory]=${PRICE_TERRITORY}&limit=8000`)
@@ -597,7 +604,7 @@ async function ensureIAPPrice(iapId, p) {
         relationships: { inAppPurchasePricePoint: { data: { type: 'inAppPurchasePricePoints', id: point.id } } },
       }],
     })
-    console.log(`    ✓ price set $${p.price} (base ${PRICE_TERRITORY}, Apple equalizes other territories)`)
+    console.log(`    ✓ price ${existing && existing.data ? 're-set' : 'set'} $${p.price} (base ${PRICE_TERRITORY}, Apple equalizes other territories)`)
   } catch (e) {
     console.log(`    ⚠ price not set: ${e.message.split('\n')[0]} (create/localization still done — set price in ASC)`)
   }

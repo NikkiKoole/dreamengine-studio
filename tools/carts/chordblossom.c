@@ -12,7 +12,7 @@
     "step-sequencer"
   ],
   "homage": "Telepathic Instruments Orchid (ORC-1, 2026) — the chord-generating synth co-founded by Tame Impala's Kevin Parker; itself in the Suzuki Omnichord / '80s home-keyboard lineage.",
-  "lineage": "Truthful homage to the Telepathic Instruments Orchid: you play CHORDS, not notes. A one-octave keybed picks the root, four TYPE buttons + four combinable MODIFIER buttons build the quality, and the signature VOICING dial cascades the chord one note at a time through inversions and octave-spreads across the keyboard. Distinct from the repo's existing Suzuki-Omnichord tribute (omnichord/Strumharpy): keybed-root + type/modifier logic + the voicing cascade are the Orchid's own thing.",
+  "lineage": "Truthful homage to the Telepathic Instruments Orchid: you play CHORDS, not notes. A one-octave keybed picks the root, four TYPE buttons + four combinable MODIFIER buttons build the quality, and the signature VOICING dial cascades the chord one note at a time through inversions and octave-spreads across the keyboard. The real Orchid is a deliberately minimal SONGWRITING idea-machine + 3-part MIDI brain (it sends chords / lead / bass on separate MIDI channels), with ~50 curated non-editable presets across three engines (virtual-analog / FM / reed-EP), a separate sub-bass engine with Follow/Solo, TWO voicing dials (lead AND bass), and a Key mode for diatonic auto-harmony — its depth is the chord-logic + gorgeous sounds, not synthesis or long sequencing (reviewers dispute the drum machine/looper). Distinct from the repo's existing Suzuki-Omnichord tribute (omnichord/Strumharpy): keybed-root + type/modifier logic + the voicing cascade are the Orchid's own thing.",
   "description": {
     "summary": "A chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. Three synth engines (subtractive / FM / reed EP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a strummable sonic-strings plate, a drum machine and a real-time chord looper.",
     "detail": "Three tabs across the top bar (or TAB): CHORD, MIX, RHYTHM. CHORD is the instrument: the keybed at the bottom (tap or the GarageBand keys A S D F G H J for the white roots, W E T Y U for the blacks) sets the ROOT and fires the chord. The upper button row picks ONE chord TYPE (dim / min / maj / sus4); the lower row toggles MODIFIERS that stack freely (6th, m7, maj7, 9th). The VOICING strip (arrow keys or drag) is the star: each step shifts the whole chord up or down by one chord-tone, so it cascades through every inversion and octave spread — turn it while a chord rings and hear it re-voice live, exactly the Orchid's patent-pending trick. A rainbow SONIC STRINGS plate above the keybed is always strummable (mouse or multi-finger) as a harp glissando over the current chord. MIX is the Orchid's nine-knob top row (Sound=engine, Perform=mode, FX, Key/transpose, Bass, Loop mix, BPM, Options=strum tightness, Volume). RHYTHM is a 16-step drum machine (kick/snare/hat/ohat/clap + a BASS row that follows the chord root, six preset grooves) plus a real-time CHORD LOOPER: arm REC and every chord you play is captured to a 4-bar loop that plays back so you can jam over yourself. SPACE = transport play/stop.",
@@ -21,7 +21,9 @@
   "todo": [
     "Use BEAUTIFUL instrument presets, not the bare defaults — voice the three engines from the curated recipes (docs/guides/instrument-recipes.md + instrument-presets.md) so SUB/FM/EP each sound gorgeous, instead of raw INSTR_SAW/FM/EPIANO with basic envelopes.",
     "Fewer knobs, one page: some MIX knobs aren't needed. Put the essentials — chord play + the knobs that matter + a way to trigger the live loop — ALL on a single page, instead of the three separate CHORD/MIX/RHYTHM tabs.",
-    "Make it responsive / device-adaptive (lay.h + docs/guides/responsive-instrument-ui.md) so the layout fits phone and desktop."
+    "Make it responsive / device-adaptive (lay.h + docs/guides/responsive-instrument-ui.md) so the layout fits phone and desktop.",
+    "Two voicing dials + bass Follow/Solo: split VOICING into a LEAD dial and a BASS dial (each walks inversions one note at a time, the real Orchid has both), and add the bass Follow/Solo modes — Solo = take the bassline for a walk, independent of the chord root (the current cart only does Follow=root).",
+    "Key mode: pick a key and map a diatonic, in-key chord to each keybed key (press the white keys, get musically-appropriate chords in that key) — the Orchid's beginner-friendly auto-harmony."
   ]
 }
 de:meta */
@@ -225,6 +227,22 @@ static void cb_release_held(void) {
     nHeld = 0;
 }
 
+// the FOLLOWING sub-bass: on its own SL_BASS engine, auto-plays the chord ROOT
+// (pc[0]) a couple of octaves down + a quieter octave-lower SUB layer for weight
+// (the "thundering bottom", à la more-note-bass). Level from the BASS knob. The
+// sub stays LOW — it ignores the keybed octave shift on purpose. dur ms lets the
+// groove (short, punchy) and a chord-change articulation (longer) differ.
+static void cb_bass_at(int dur, int volBias) {
+    if (kBass < 0.02f) return;
+    int pc[12]; int npc = cb_pcs(pc);
+    if (!npc) return;
+    int bn = 24 + root + transpose + pc[0];              // chord root, low octave
+    int v  = mid(1, (int)(kBass * 6) + 1 + volBias, 7);
+    hit(bn,      SL_BASS, v,               dur);
+    hit(bn - 12, SL_BASS, mid(1, v - 2, 7), dur - 40);   // octave-down SUB layer
+}
+static void cb_bass(void) { cb_bass_at(420, 0); }        // chord-change articulation
+
 // play the current chord in the current performance mode
 static void cb_play(void) {
     cb_build();
@@ -248,7 +266,7 @@ static void cb_play(void) {
             arpIdx = 0;      // beat-clock driven in update(); just (re)arm here
             break;
     }
-    if (kBass > 0.02f) hit(24 + root + transpose, INSTR_SQUARE, mid(1, (int)(kBass * 6) + 1, 7), 480);
+    cb_bass();                                           // Follow: the bass tracks the chord root
     armed = true;
 }
 
@@ -287,7 +305,7 @@ static void play_row(int r) {
         case 2: hit(84, INSTR_NOISE, v[3],  28); break;
         case 3: hit(84, INSTR_NOISE, v[2], 170); break;
         case 4: hit(64, INSTR_NOISE, v[4],  60); break;
-        case 5: hit(36 + root + transpose, INSTR_SQUARE, v[4], 110); break;
+        case 5: cb_bass_at(180, -1); break;              // BASS row grooves the following sub-bass (own engine, tracks root)
     }
 }
 static void loadPreset(int p) {
@@ -321,6 +339,8 @@ static void applyFX(void) {
 void init(void) {
     instrument(SL_HARP, INSTR_TRI, 1, 180, 1, 280);      // sonic strings: soft plucked bell
     instrument_filter(SL_HARP, FILTER_LOW, 2200, 4);
+    instrument(SL_BASS, INSTR_SAW, 6, 240, 4, 220);      // dedicated sub-bass — own engine, Moog ladder (à la more-note-bass)
+    instrument_filter(SL_BASS, FILTER_LADDER, 420, 4);
     reverb(0.6f, 0.4f);
     for (int k = 0; k < NFINGER; k++) strId[k] = NOFINGER;
     for (int k = 0; k < 40; k++) litT[k] = -999;

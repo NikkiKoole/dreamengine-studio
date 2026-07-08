@@ -846,6 +846,9 @@ html, body {
 .rlog-body a:hover { color: #5fd7ff; }
 .rlog-exit  { color: #7ec87e; }
 .rlog-crash { color: #ff6e6e; }
+.rlog-reveal { font-size: 11px; line-height: 1; padding: 1px 5px; margin-left: 2px; cursor: pointer;
+               background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); border-radius: 3px; }
+.rlog-reveal:hover { background: rgba(255,255,255,0.14); }
 
 /* ── panels ─────────────────────────────────────────────── */
 #panels {

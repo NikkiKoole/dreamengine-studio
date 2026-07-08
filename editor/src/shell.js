@@ -3351,6 +3351,15 @@ function rlogAddLine(text, cls) {
     last = m.index + url.length
   }
   line.appendChild(document.createTextNode(text.slice(last)))
+  // a log line that names a repo output file (a baked clip/reel/still/export) gets a 📂 reveal-in-Finder
+  // button — reveal-path takes the repo-relative path as-is. Covers bake/export/screenshot/press lines.
+  const pm = text.match(/(?:editor\/public|apps|docs\/media|build|site)\/[^\s)'"]+\.(?:webm|mp4|gif|apng|png|zip|html|app|exe)/)
+  if (pm && window.studio?.revealPath) {
+    const btn = document.createElement('button')
+    btn.className = 'rlog-reveal'; btn.textContent = '📂'; btn.title = `reveal in Finder — ${pm[0]}`
+    btn.addEventListener('click', () => window.studio.revealPath(pm[0]))
+    line.appendChild(document.createTextNode(' ')); line.appendChild(btn)
+  }
   rlogBody.appendChild(line)
   while (rlogBody.childElementCount > RLOG_MAX_LINES) {
     rlogBody.removeChild(rlogBody.firstChild)

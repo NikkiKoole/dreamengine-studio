@@ -17,7 +17,12 @@
     "summary": "A chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. Three synth engines (subtractive / FM / reed EP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a strummable sonic-strings plate, a drum machine and a real-time chord looper.",
     "detail": "Three tabs across the top bar (or TAB): CHORD, MIX, RHYTHM. CHORD is the instrument: the keybed at the bottom (tap or the GarageBand keys A S D F G H J for the white roots, W E T Y U for the blacks) sets the ROOT and fires the chord. The upper button row picks ONE chord TYPE (dim / min / maj / sus4); the lower row toggles MODIFIERS that stack freely (6th, m7, maj7, 9th). The VOICING strip (arrow keys or drag) is the star: each step shifts the whole chord up or down by one chord-tone, so it cascades through every inversion and octave spread — turn it while a chord rings and hear it re-voice live, exactly the Orchid's patent-pending trick. A rainbow SONIC STRINGS plate above the keybed is always strummable (mouse or multi-finger) as a harp glissando over the current chord. MIX is the Orchid's nine-knob top row (Sound=engine, Perform=mode, FX, Key/transpose, Bass, Loop mix, BPM, Options=strum tightness, Volume). RHYTHM is a 16-step drum machine (kick/snare/hat/ohat/clap + a BASS row that follows the chord root, six preset grooves) plus a real-time CHORD LOOPER: arm REC and every chord you play is captured to a 4-bar loop that plays back so you can jam over yourself. SPACE = transport play/stop.",
     "controls": "keybed roots: A S D F G H J (white C-B) + W E T Y U (black); TYPE: tap or 1-4; MODIFIERS: tap or 5-8 (combinable); VOICING: LEFT/RIGHT arrows or drag the strip; strum the rainbow plate with mouse/fingers; TAB = switch tab; SPACE = drum transport play/stop. MIX tab: turn the nine knobs. RHYTHM tab: tap the grid, 1-6 = preset grooves, REC/PLAY/CLEAR the looper."
-  }
+  },
+  "todo": [
+    "Use BEAUTIFUL instrument presets, not the bare defaults — voice the three engines from the curated recipes (docs/guides/instrument-recipes.md + instrument-presets.md) so SUB/FM/EP each sound gorgeous, instead of raw INSTR_SAW/FM/EPIANO with basic envelopes.",
+    "Fewer knobs, one page: some MIX knobs aren't needed. Put the essentials — chord play + the knobs that matter + a way to trigger the live loop — ALL on a single page, instead of the three separate CHORD/MIX/RHYTHM tabs.",
+    "Make it responsive / device-adaptive (lay.h + docs/guides/responsive-instrument-ui.md) so the layout fits phone and desktop."
+  ]
 }
 de:meta */
 #include "studio.h"

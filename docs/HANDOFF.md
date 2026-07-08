@@ -12,12 +12,18 @@
 (1) what shipped, (2) a **Resume-at** pointer to the owning doc's pick-up point, (3) any hot files
 to avoid colliding on. Rules that keep it honest: **refresh your lane's date whenever you touch it;
 prune a lane the moment it ships or goes quiet** (its detail already lives in `STATUS.md` + the
-doc's pick-up point — don't duplicate, point). A lane dated **>2 weeks** old is presumed stale —
-verify or prune. Everything below the lanes is history; trust `STATUS.md` + the design board over it.
-**Tooling keeps this honest** (`tools/handoff.js`, the driftable two-door pattern): `node
-tools/handoff.js` lists the active lanes + age (and it's the first thing `orient` prints — the
-front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
-by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
+doc's pick-up point — don't duplicate, point). **Write every Resume-at as a real anchor link —
+`[text](design/doc.md#the-section)`, not prose like "→ §3" or "(doc.md §Foo)"** — so the pointer's
+target is machine-checkable: when work ships and that section gets renamed, the anchor breaks and
+`--check` catches it. Keep the *status* itself in the doc (point, don't restate) so a shipped slice
+can't leave a stale sentence here (the trip-up: a "resume at trim+speed" line survived weeks after
+trim+speed shipped, because the status was copied into the pointer instead of pointed-to). A lane
+dated **>2 weeks** old is presumed stale — verify or prune. Everything below the lanes is history;
+trust `STATUS.md` + the design board over it. **Tooling keeps this honest** (`tools/handoff.js`, the
+driftable two-door pattern): `node tools/handoff.js` lists the active lanes + age (and it's the first
+thing `orient` prints — the front door); `node tools/handoff.js --check` flags a lane >2wk old, a
+broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
+So a forgotten stale lane *surfaces* instead of rotting.
 
 _Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
@@ -46,8 +52,8 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > **maker feel-check pending**) and per-city **tensor-field arterials** (T = city view, X = export
 > sndi JSON; first generated-vs-real numbers: mean degree 2.65/2.95 vs Amersfoort 2.71; clips
 > `citygrow/01-field-vs-hash` + `02-city-arterials`).
-> **Resume-at: [`design/worldgen-plan.md`](design/worldgen-plan.md) → "Rung 4 pick-up" note under
-> the rung ladder** (district polygons from the arterial graph's planar faces → generalize
+> **Resume-at: [`design/worldgen-plan.md` → the rung ladder](design/worldgen-plan.md#the-rung-ladder-each-gated-each-independently-shippable)** (the "Rung 4 pick-up" note)
+> (district polygons from the arterial graph's planar faces → generalize
 > streetlab's five pattern generators to fill a district polygon → stitch under the continuity
 > tenet). Hot files: `tools/carts/citygrow.c` (the bench — rungs 2–5 live here),
 > `runtime/worldnet.h` (shared — targeted edits only, roadnet2 + sloop include it),
@@ -83,7 +89,7 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 >   No-gap lattice proven across all scales × both modes. The maker's verdict on glass: "a very nice
 >   musical toy."
 >
-> **Resume-at: the scale-grid "where does it live" question (scale-grid.md §3) is ANSWERED B→C** —
+> **Resume-at: the scale-grid "where does it live" question ([scale-grid.md §3](design/scale-grid.md#3-where-does-it-live-answered-b-c)) is ANSWERED B→C** —
 > built as its own cart first, grid maths kept in self-contained pure fns (`compute_grid`/`pad_midi`/
 > `pad_center`/`pad_at`/`hex_verts`). **The one open step: extract those into a `grid.h` library**
 > (twin of `keybed.h`, reuse `solo.h`'s scale-lock) so the whole shelf reuses it — then wire epiano's
@@ -107,8 +113,8 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > is bumped to a **fixed 10 frames (~165 ms)** — feels good, at the cost of input lag
 > on clean links. **Pairing UI:** a Host/Join split (gallery + in-cart bar); Join via
 > native `prompt()` because an inline `<input>` is blocked by the running cart's key
-> handlers on iOS. **Resume-at:** [`design/multiplayer-research.md`](design/multiplayer-research.md)
-> §"rung 5b" step table. **Published 2026-07-07** — pong is live on github.io (it's
+> handlers on iOS. **Resume-at:** [`multiplayer-research.md` → the step table](design/multiplayer-research.md#the-step-table)
+> (rung 5b). **Published 2026-07-07** — pong is live on github.io (it's
 > the only netplay cart, so that's the whole rollout; the Render relay needed no
 > redeploy — it's signaling only now). **PARKED follow-ups** (not being worked):
 > **step 5 (adaptive `NET_DELAY`)** — the fixed 10-frame cushion feels good but adds
@@ -143,7 +149,7 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > without redesigning (hand-rolled px math, no `lay.h`/finger unit/disclosure, no iPad arrangement) —
 > caught by the maker's device test; retrospective = field note
 > [018](field-notes/018-passing-the-gates-felt-like-done.md). **Next agent: the revised plan** —
-> §"Phase 3 — revised plan" in [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md):
+> [`device-adaptive-layout.md` → Phase 3 — revised plan](design/device-adaptive-layout.md#phase-3-revised-plan-2026-07-05):
 > per-rack layout brief (R1) → `runtime/disclose.h` (R2, the keystone — three-state strips
 > folded/compact/expanded from the ReBirth study) → `finger_px()` (R3) → ui-audit judgment layer (R4)
 > → re-land acidrack (R5). **The acidrack brief is STARTED:
@@ -228,10 +234,10 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 >   the Apps-card **🎞 trailer** section, a **non-destructive** click-to-edit timeline (library, ◀▶
 >   reorder, transition-at-join, Build → bake+compose → preview; edits only the `.reel`).
 >
-> **Resume at:** the trailer's **trim + speed** slice (a `compose-clips` `setpts`/`trim` bump +
-> `.reel` line syntax + block fields — fixes "the 34s reel is too long"), then the maker-gated store
-> track (submission gates → ASC upload tool). **Full snapshot + next:** the pick-up point in
-> [`design/store-agents.md`](design/store-agents.md). Orient: `node tools/topic-brief.js "aso"
+> **Resume at:** the maker-gated **store submission track** (see the 2026-07-07 update at the foot of
+> this lane for the live pick-up — trim + speed already SHIPPED, engine + editor + live preview, per
+> [`trailer-builder.md`](design/trailer-builder.md)). **Full snapshot + next:** the pick-up point in
+> [`store-agents.md`](design/store-agents.md#pick-up-point-next-session). Orient: `node tools/topic-brief.js "aso"
 > "trailer" "demand"`.
 > **Editor note:** this lane changed `editor/electron/main.cjs` + `preload.cjs` (new IPCs:
 > aso-score, app-clips, build-reel, app-seeds, aso-suggest/brief/coverage) — **restart Electron
@@ -248,7 +254,7 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > pass $19.99→$5.00) — **purchase flow re-verified on the iPhone 16 (18.4) sim**. **Resume at:** the
 > credentials are set up (Key `Z5DTR9TFW2`); next store moves are per-locale `metadata/<locale>/`
 > folders + an editor button for `asc-push`, then the maker-gated submission. Snapshot in
-> [`design/store-agents.md`](design/store-agents.md) §"ASC upload + TestFlight tool".
+> [`store-agents.md` → Pick-up point](design/store-agents.md#pick-up-point-next-session).
 
 > **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
 > (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed
@@ -262,8 +268,8 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > stopgap (no media home exists yet).
 > **Deliberately NOT built (maker's call, "not yet"):** the media home itself. Pulling that thread
 > surfaced an IA seam, now **RESOLVED (2026-07-07)** in
-> [`design/editor-scopes-and-facets.md`](design/editor-scopes-and-facets.md) → **"Resolution: Make /
-> Promote / Ship"**. The model: the editor's per-cart work groups into **Dream → Make → Promote →
+> [`editor-scopes-and-facets.md` → Resolution: Make / Promote / Ship](design/editor-scopes-and-facets.md#resolution-2026-07-07-make-promote-ship-promote-is-a-new-per-cart-tab).
+> The model: the editor's per-cart work groups into **Dream → Make → Promote →
 > Ship** (a cycle); **Make** = the existing code/pixels tabs, **Ship** = the existing share popup,
 > and the only thing with no home is **Promote** (replays · clips · screenshots · trailer · tribes —
 > a browse-and-assemble library). Scope is **emergent** (a cart is *opened*, an app is *selected* —
@@ -305,7 +311,7 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > cross-cutting once — "we prep, you post." New `leads.js match --json` + `studio:leads` IPC
 > (app-scoped, loops the app's carts). **NEEDS AN ELECTRON RESTART** (`make`) — main.cjs/preload.cjs
 > changed. Verified via CLI (tinyjam 3-cart aggregation), not yet eyeballed in the running UI.
-> **Resume-at: [`design/leads-marketeer.md`](design/leads-marketeer.md) → open-question #4** — (a)
+> **Resume-at: [`leads-marketeer.md` → Open questions / resume-at](design/leads-marketeer.md#open-questions-resume-at)** (item #4) — (a)
 > maker eyeballs 📣 on the tinyjam card after `make`; (b) v2 = the free-form per-cart **discover box**
 > (autocomplete venue hunt) + a cart-scoped entry point (v1 is app-scoped like the ASO tools). Hot
 > files: `editor/src/shell.js` (+shell.css), `editor/electron/main.cjs`/`preload.cjs`, `tools/leads.js`,

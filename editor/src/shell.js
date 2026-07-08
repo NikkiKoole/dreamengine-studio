@@ -1474,52 +1474,108 @@ async function runStore(app) {
   if (!window.studio?.ascMetadata) { showToast('App Store push requires the desktop app  (npm start)', 3000); return }
   asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = '<div class="rs-dim">checking the live App Store listing…</div>'
   asoResults?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  const res = await window.studio.ascMetadata(app)   // no push → dry-run plan
-  if (!res?.ok) { if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml(res?.error || 'could not reach App Store')}</div>`; return }
-  renderStorePlan(res.data, app)
+  // two channels, one panel: listing copy (metadata) + promoted purchases. Both dry-run (read-only).
+  const [meta, promo] = await Promise.all([
+    window.studio.ascMetadata(app),
+    window.studio.ascPromote ? window.studio.ascPromote(app) : Promise.resolve(null),
+  ])
+  if (!meta?.ok) { if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml(meta?.error || 'could not reach App Store')}</div>`; return }
+  renderStorePanel(meta.data, promo, app)
 }
-function renderStorePlan(plan, app) {
+// The ☁︎ App Store panel: two independent sections, each its own tick-then-push ceremony —
+// "listing copy" (metadata fields) and "promoted purchases" (IAPs surfaced in App Store search).
+function renderStorePanel(plan, promoRes, app) {
   if (!asoResults) return
   const clip = s => { s = String(s || ''); return s.length > 60 ? s.slice(0, 60) + '…' : s }
+  const notEditable = !plan.editable
   const allFields = (plan.groups || []).flatMap(g => g.fields)
   const changed = allFields.filter(f => f.changed)
-  const notEditable = !plan.editable
+  const same = allFields.filter(f => !f.changed)
+
   let h = `<div class="sc-head"><b>App Store — ${escHtml(plan.app.name)}</b> `
     + `<span class="rs-dim">v${escHtml(plan.version.versionString)} · ${escHtml(plan.version.state)} · ${escHtml(plan.version.locale)}</span></div>`
-  if (notEditable) h += `<div class="rs-err">version is ${escHtml(plan.version.state)} — not editable; can't push metadata now</div>`
+  if (notEditable) h += `<div class="rs-err">version is ${escHtml(plan.version.state)} — not editable; can't push now</div>`
+
+  // ── section 1: listing copy (metadata) ──
+  h += `<div class="store-sec">listing copy</div>`
   if (!changed.length) {
-    h += `<div class="store-sync">✓ everything in sync — nothing to push</div>`
-    asoResults.innerHTML = h; return
+    h += `<div class="store-sync">✓ listing in sync — nothing to push</div>`
+  } else {
+    h += `<div class="store-hint">tick fields to push — writes to the <b>live</b> listing</div><div class="store-list">`
+    for (const f of changed) {
+      const over = f.limit && f.local.length > f.limit
+      h += `<label class="store-row"><input type="checkbox" class="store-f" value="${escHtml(f.field)}" checked>`
+        + `<span class="store-fn">${escHtml(f.field)}</span>`
+        + `<span class="store-cc${over ? ' app-over' : ''}">${f.local.length}${f.limit ? '/' + f.limit : ''}</span>`
+        + `<div class="store-diff"><span class="store-live">${f.live ? escHtml(clip(f.live)) : '<em>empty</em>'}</span>`
+        + `<span class="store-arrow">→</span><span class="store-local">${escHtml(clip(f.local))}</span></div></label>`
+    }
+    h += `</div>`
+    if (same.length) h += `<div class="store-same">in sync: ${same.map(f => escHtml(f.field)).join(', ')}</div>`
+    h += `<div class="store-foot"><button class="store-push"${notEditable ? ' disabled' : ''}>☁︎ Push <span class="store-n">${changed.length}</span> fields → live</button>`
+      + `<span class="rs-dim">click 2 of 2</span></div>`
   }
-  h += `<div class="store-hint">tick what to push, then confirm — this writes to the <b>live</b> App Store listing</div><div class="store-list">`
-  for (const f of changed) {
-    const over = f.limit && f.local.length > f.limit
-    h += `<label class="store-row"><input type="checkbox" class="store-f" value="${escHtml(f.field)}" checked>`
-      + `<span class="store-fn">${escHtml(f.field)}</span>`
-      + `<span class="store-cc${over ? ' app-over' : ''}">${f.local.length}${f.limit ? '/' + f.limit : ''}</span>`
-      + `<div class="store-diff"><span class="store-live">${f.live ? escHtml(clip(f.live)) : '<em>empty</em>'}</span>`
-      + `<span class="store-arrow">→</span><span class="store-local">${escHtml(clip(f.local))}</span></div></label>`
+
+  // ── section 2: promoted purchases (IAPs in App Store search — NOT the editor Promote tab) ──
+  const promo = promoRes?.ok ? promoRes.data : null
+  if (promoRes && !promoRes.ok) {
+    h += `<div class="store-sec">promoted purchases</div><div class="rs-dim">${escHtml(promoRes.error || 'unavailable')}</div>`
+  } else if (promo) {
+    const prods = promo.products || []
+    const toPromote = prods.filter(p => p.iapExists && !p.promoted)
+    h += `<div class="store-sec">promoted purchases <span class="rs-dim">— IAPs as tappable App Store search results</span></div>`
+    if (!prods.length) {
+      h += `<div class="store-same">none promotable (all have "promote": false)</div>`
+    } else {
+      h += `<div class="store-list">`
+      for (const p of prods) {
+        const status = !p.iapExists ? '<span class="rs-err">no IAP yet — run --iap</span>'
+          : p.promoted ? `<span class="store-ok">✓ promoted${p.state ? ' (' + escHtml(p.state) + ')' : ''}</span>`
+          : '<span class="store-todo">not promoted</span>'
+        const canTick = p.iapExists && !p.promoted
+        h += `<label class="store-row${canTick ? '' : ' store-row-off'}">`
+          + `<input type="checkbox" class="store-p" value="${escHtml(p.productId)}"${canTick ? ' checked' : ' disabled'}>`
+          + `<span class="store-fn">${escHtml(p.name)}</span> ${status}`
+          + `<div class="store-diff"><span class="rs-dim">${escHtml(p.productId)}</span></div></label>`
+      }
+      h += `</div>`
+      if (toPromote.length) {
+        h += `<div class="store-foot"><button class="store-promote"${notEditable ? ' disabled' : ''}>★ Promote <span class="store-pn">${toPromote.length}</span> → live</button>`
+          + `<span class="rs-dim">needs the app live + Store.swift PurchaseIntent to be tappable</span></div>`
+      } else {
+        h += `<div class="store-sync">✓ all promotable IAPs already promoted</div>`
+      }
+    }
   }
-  h += `</div>`
-  const same = allFields.filter(f => !f.changed)
-  if (same.length) h += `<div class="store-same">in sync: ${same.map(f => escHtml(f.field)).join(', ')}</div>`
-  h += `<div class="store-foot"><button class="store-push"${notEditable ? ' disabled' : ''}>☁︎ Push <span class="store-n">${changed.length}</span> → live</button>`
-    + `<span class="rs-dim">click 2 of 2 — the outward write</span></div>`
+
   asoResults.innerHTML = h
-  const boxes = () => [...asoResults.querySelectorAll('.store-f')]
-  const pushBtn = asoResults.querySelector('.store-push')
-  const nEl = asoResults.querySelector('.store-n')
-  const refresh = () => { const n = boxes().filter(b => b.checked).length; if (nEl) nEl.textContent = n; if (pushBtn) pushBtn.disabled = notEditable || n === 0 }
-  boxes().forEach(b => b.addEventListener('change', refresh))
-  refresh()
-  pushBtn?.addEventListener('click', async () => {
-    const sel = boxes().filter(b => b.checked).map(b => b.value)
-    if (!sel.length) return
-    pushBtn.disabled = true; pushBtn.textContent = 'pushing…'
+
+  // wire section 1 (metadata)
+  const mBoxes = () => [...asoResults.querySelectorAll('.store-f')]
+  const mPush = asoResults.querySelector('.store-push'), mN = asoResults.querySelector('.store-n')
+  const mRefresh = () => { const n = mBoxes().filter(b => b.checked).length; if (mN) mN.textContent = n; if (mPush) mPush.disabled = notEditable || n === 0 }
+  mBoxes().forEach(b => b.addEventListener('change', mRefresh)); mRefresh()
+  mPush?.addEventListener('click', async () => {
+    const sel = mBoxes().filter(b => b.checked).map(b => b.value); if (!sel.length) return
+    mPush.disabled = true; mPush.textContent = 'pushing…'
     const r = await window.studio.ascMetadata(app, { push: sel })
-    if (!r?.ok) { pushBtn.disabled = false; pushBtn.textContent = '☁︎ Push → live'; showToast(r?.error || 'push failed', 4000); return }
+    if (!r?.ok) { mPush.disabled = false; mPush.textContent = '☁︎ Push fields → live'; showToast(r?.error || 'push failed', 4000); return }
     showToast(`pushed to App Store: ${(r.data?.pushed || sel).join(', ')}`, 3500)
-    runStore(app)   // re-run the dry-run → the panel now shows in-sync
+    runStore(app)
+  })
+
+  // wire section 2 (promoted purchases)
+  const pBoxes = () => [...asoResults.querySelectorAll('.store-p:not([disabled])')]
+  const pPush = asoResults.querySelector('.store-promote'), pN = asoResults.querySelector('.store-pn')
+  const pRefresh = () => { const n = pBoxes().filter(b => b.checked).length; if (pN) pN.textContent = n; if (pPush) pPush.disabled = notEditable || n === 0 }
+  pBoxes().forEach(b => b.addEventListener('change', pRefresh)); pRefresh()
+  pPush?.addEventListener('click', async () => {
+    const sel = pBoxes().filter(b => b.checked).map(b => b.value); if (!sel.length) return
+    pPush.disabled = true; pPush.textContent = 'promoting…'
+    const r = await window.studio.ascPromote(app, { push: sel })
+    if (!r?.ok) { pPush.disabled = false; pPush.textContent = '★ Promote → live'; showToast(r?.error || 'promote failed', 4000); return }
+    showToast(`promoted: ${(r.data?.pushed || sel).join(', ')}`, 3500)
+    runStore(app)
   })
 }
 
@@ -1594,17 +1650,17 @@ async function renderPromote() {
     if (clipsEl) clipsEl.innerHTML = `<div class="apps-empty">the Promote tab needs the desktop app  (npm start)</div>`
     return
   }
-  // A · clips & takes — replayable takes (▶) + baked clips (🎬)
+  // A · clips & takes — click a take to WATCH it (▶), open its baked clip (🎬)
   const cc = await window.studio.cartClips(cart)
   if (clipsEl) {
     if (!cc?.ok) clipsEl.innerHTML = `<div class="rs-err">${escHtml(cc?.error || 'could not read clips')}</div>`
     else if (!cc.clips.length) clipsEl.innerHTML = `<div class="apps-empty">no takes or clips yet — record one below (or <code>node tools/play.js ${escHtml(cart)} record</code>)</div>`
     else clipsEl.innerHTML = cc.clips.map(cl => {
-      // click the take to WATCH it — replays the recorded input against the open cart in a
-      // native window (only .rec takes are replayable; .script/.beats are recipe-only seeds).
-      const label = cl.recPath
-        ? `<a href="#" class="pm-label pm-replay" data-replay="${escHtml(cl.recPath)}" title="watch — replay this take against the open cart">▶ ${escHtml(cl.label)}</a>`
-        : `<span class="pm-label pm-noplay" title="recipe-only (${escHtml(cl.kinds.join('/') || 'no .rec')}) — not a replayable take">${escHtml(cl.label)}</span>`
+      // every take format plays: .rec/.script run against the live editor code, .beats via play.js
+      // (the on-disk cart). playKind/playPath come from the IPC; a bare baked clip has no take file.
+      const label = cl.playPath
+        ? `<a href="#" class="pm-label pm-replay" data-play-path="${escHtml(cl.playPath)}" data-play-kind="${escHtml(cl.playKind)}" title="watch — play this ${escHtml(cl.playKind)} take${cl.playKind === 'beats' ? ' (runs the on-disk cart)' : ' against the open cart'}">▶ ${escHtml(cl.label)}</a>`
+        : `<span class="pm-label pm-noplay" title="baked clip only — no take file to replay">${escHtml(cl.label)}</span>`
       const bake = cl.baked
         ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the baked clip">🎬 clip</a>`
         : `<span class="rs-dim">not baked</span>`
@@ -1626,21 +1682,28 @@ async function renderPromote() {
     leadsEl.innerHTML = res?.ok ? leadsHtml(res) : `<div class="rs-err">${escHtml(res?.error || 'find tribes failed')}</div>`
   }
 }
-async function replayTake(recPath) {
+// watch a take: .rec/.script replay against the live editor code; .beats plays via play.js.
+async function playTake(playPath, playKind) {
+  if (playKind === 'beats') {
+    if (!window.studio?.playBeats) { showToast('play requires the desktop app  (npm start)', 3000); return }
+    const res = await window.studio.playBeats(currentCartFile, playPath)
+    if (res && !res.ok) showToast(res.output || 'play failed', 3500)
+    return
+  }
   if (!window.studio?.replay) { showToast('replay requires the desktop app  (npm start)', 3000); return }
   const code = view.state.doc.toString()
-  const res = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, recPath)
+  const res = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, playPath)
   if (res && !res.ok) showLog(res)
 }
 // delegated clicks in the Promote panel: data-url / data-copy (same as the Apps glance),
-// ▶ replay a take.
+// ▶ watch a take.
 document.getElementById('promote-body')?.addEventListener('click', e => {
   const link = e.target.closest('a[data-url]')
   if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
   const cp = e.target.closest('[data-copy]')
   if (cp) { e.preventDefault(); navigator.clipboard?.writeText(cp.dataset.copy).then(() => showToast('copied', 2000)); return }
-  const rp = e.target.closest('[data-replay]')
-  if (rp) { e.preventDefault(); replayTake(rp.dataset.replay); return }
+  const rp = e.target.closest('[data-play-path]')
+  if (rp) { e.preventDefault(); playTake(rp.dataset.playPath, rp.dataset.playKind); return }
 })
 document.getElementById('promote-rec')?.addEventListener('click', () => recordCart())
 document.querySelector('.tab[data-tab="promote"]')?.addEventListener('click', renderPromote)

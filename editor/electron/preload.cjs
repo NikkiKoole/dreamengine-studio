@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('studio', {
   run:          (code, cfg) => ipcRenderer.invoke('studio:run', code, cfg),
   record:       (code, cfg) => ipcRenderer.invoke('studio:record', code, cfg),
   replay:       (code, cfg, recPath) => ipcRenderer.invoke('studio:replay', code, cfg, recPath),
+  playBeats:    (cart, beatsPath) => ipcRenderer.invoke('studio:play-beats', cart, beatsPath),
   onRecorded:   (cb) => ipcRenderer.on('cart:recorded', (_, info) => cb(info)),
   liveWrite:    (code)      => ipcRenderer.invoke('studio:live-write', code),
   profile:      (code, cfg) => ipcRenderer.invoke('studio:profile', code, cfg),
@@ -47,4 +48,6 @@ contextBridge.exposeInMainWorld('studio', {
   cartClips:    (cart)           => ipcRenderer.invoke('studio:cart-clips', cart),
   // App Store metadata: dry-run returns a structured PLAN; { push:[fields] } PATCHes only those live
   ascMetadata:  (name, opts)     => ipcRenderer.invoke('studio:asc-metadata', name, opts),
+  // App Store promoted purchases: dry-run PLAN; { push:[productIds] } promotes only those IAPs
+  ascPromote:   (name, opts)     => ipcRenderer.invoke('studio:asc-promote', name, opts),
 })

@@ -876,15 +876,17 @@ ipcMain.handle('studio:record', async (_event, code, cfg) => {
   })
 })
 
-// REPLAY a recorded input track (.rec) against the CURRENT cart — the mirror of studio:record.
-// Same compile+spawn as studio:run, but the cart runs with --replay <path>; studio.c feeds the
-// tape's per-frame input back in (deterministic). Nothing to save on exit. The .rec's coordinates
-// map to the cart it was recorded on, so replaying a foreign cart's take just looks like noise —
-// harmless. Fed by dropping a .rec on the editor (shell.js drop handler).
-// Design: docs/design/input-recording-looper.md.
-ipcMain.handle('studio:replay', async (_event, code, cfg, recPath) => {
-  const abs = String(recPath || '')
-  if (!abs || !abs.endsWith('.rec') || !fs.existsSync(abs)) return { ok: false, cmd: null, output: `not a readable .rec file: ${abs || '(none)'}` }
+// REPLAY a take against the CURRENT (live-edited) cart — the mirror of studio:record.
+// Same compile+spawn as studio:run; the take drives the cart deterministically. Two on-disk
+// take formats play natively here (studio.c owns both flags): a .rec = a raw per-frame input
+// TAPE (--replay); a .script = a hand-editable FRAME SCRIPT (--script). Both map to the cart
+// they were authored on, so a foreign take just looks like noise — harmless. (A .beats is
+// musical + needs a compile step → studio:play-beats, which routes through play.js instead.)
+// Design: docs/design/input-recording-looper.md, docs/design/promote-tab.md.
+ipcMain.handle('studio:replay', async (_event, code, cfg, takePath) => {
+  const abs = String(takePath || '')
+  const flag = abs.endsWith('.rec') ? '--replay' : abs.endsWith('.script') ? '--script' : null
+  if (!flag || !fs.existsSync(abs)) return { ok: false, cmd: null, output: `not a readable .rec/.script take: ${abs || '(none)'}` }
   const dims = prepareCart(code, cfg)
   const args = macCompileArgs(dims, cfg?.buildMode === 'release' ? ['-O2', '-DDE_RELEASE'] : ['-Os'])
   const cmd  = `clang ${args.join(' ')}`
@@ -894,7 +896,7 @@ ipcMain.handle('studio:replay', async (_event, code, cfg, recPath) => {
       if (err) return resolve({ ok: false, cmd, output: warnings })
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, '--replay', abs, ...saveDirArgs(cfg)],
+      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, flag, abs, ...saveDirArgs(cfg)],
         { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
       proc.stdout.on('data', c => send('cart:log', c.toString()))
       proc.stderr.on('data', c => send('cart:log', c.toString()))
@@ -902,6 +904,23 @@ ipcMain.handle('studio:replay', async (_event, code, cfg, recPath) => {
       resolve({ ok: true, cmd, output: warnings || null })
     })
   })
+})
+
+// PLAY a .beats take — the musical take format. Unlike .rec/.script it has no native flag: play.js
+// compiles the beat-script into frame events, so this shells out to it. Consequence worth knowing:
+// it runs the ON-DISK cart (tools/carts/<cart>.c), NOT the live editor buffer. Design: promote-tab.md.
+ipcMain.handle('studio:play-beats', async (_event, cart, beatsPath) => {
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, output: 'bad cart name' }
+  const abs = String(beatsPath || '')
+  if (!abs.endsWith('.beats') || !fs.existsSync(abs)) return { ok: false, output: `not a readable .beats take: ${abs || '(none)'}` }
+  const wc = _event.sender
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  const proc = spawn('node', [path.join(ROOT, 'tools/play.js'), String(cart), 'beats', abs], { cwd: ROOT })
+  proc.stdout.on('data', c => send('cart:log', c.toString()))
+  proc.stderr.on('data', c => send('cart:log', c.toString()))
+  proc.on('error', e => send('cart:log', String(e.message) + '\n'))
+  return { ok: true }
 })
 
 // EXPORT A WINDOWS .exe you can send to someone (Thread 2 — the send-to-son path).
@@ -1535,7 +1554,9 @@ ipcMain.handle('studio:cart-leads', async (_e, cart) => {
 })
 // cart-clips: this cart's takes (tools/clips/<cart>/*.{rec,script,beats}) + baked webm
 // (editor/public/clips/<cart>/*.webm), plus the deterministic gallery URL for section E.
-// A take is ▶-replayable only if it has a .rec (recPath); .script/.beats are recipe-only.
+// Every take format is playable, so each take exposes a playKind + playPath: .rec/.script play
+// natively via studio:replay, .beats via studio:play-beats. Preference rec > script > beats when
+// a label has more than one (a recorded tape is the most faithful; beats needs a compile).
 ipcMain.handle('studio:cart-clips', async (_e, cart) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, error: 'bad cart name' }
@@ -1546,15 +1567,21 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
   const takeFiles = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)) : []
   for (const f of takeFiles) {
     const label = f.replace(/\.(script|beats|rec)$/, ''); const ext = f.split('.').pop()
-    const t = takes[label] || (takes[label] = { kinds: [], recPath: null })
-    t.kinds.push(ext); if (ext === 'rec') t.recPath = path.join(recDir, f)
+    const t = takes[label] || (takes[label] = { kinds: [], paths: {} })
+    t.kinds.push(ext); t.paths[ext] = path.join(recDir, f)
   }
+  const PREF = ['rec', 'script', 'beats']
   const labels = [...new Set([...baked, ...Object.keys(takes)])].sort()
-  const clips = labels.map(l => ({
-    label: l, baked: baked.has(l),
-    clipUrl: baked.has(l) ? `/clips/${cart}/${l}.webm` : null,
-    kinds: takes[l] ? takes[l].kinds : [], recPath: takes[l] ? takes[l].recPath : null,
-  }))
+  const clips = labels.map(l => {
+    const t = takes[l]
+    const playKind = t ? (PREF.find(k => t.paths[k]) || null) : null
+    return {
+      label: l, baked: baked.has(l),
+      clipUrl: baked.has(l) ? `/clips/${cart}/${l}.webm` : null,
+      kinds: t ? t.kinds : [],
+      playKind, playPath: playKind ? t.paths[playKind] : null,
+    }
+  })
   return { ok: true, cart, clips, url: `https://nikkikoole.github.io/dreamengine/${cart}/` }
 })
 
@@ -1570,6 +1597,28 @@ ipcMain.handle('studio:asc-metadata', async (_e, name, opts = {}) => {
   const push = Array.isArray(opts?.push) ? opts.push.filter(f => /^[A-Za-z]+$/.test(f)) : null
   const args = [path.join(ROOT, 'tools/asc-push.js'), String(name), '--metadata', '--json']
   if (push && push.length) args.push('--only', push.join(','))     // real push of the ticked fields
+  else args.push('--dry-run')                                       // read-only plan
+  return new Promise(resolve => {
+    let out = '', err = ''
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stdout.on('data', c => out += c.toString())
+    proc.stderr.on('data', c => err += c.toString())
+    proc.on('exit', code => {
+      try { resolve({ ok: true, data: JSON.parse(out), pushed: !!(push && push.length) }) }
+      catch { resolve({ ok: false, error: (err.trim() || `asc-push failed (exit ${code})`).replace(/^✗\s*/, '') }) }
+    })
+    proc.on('error', e => resolve({ ok: false, error: String(e.message) }))
+  })
+})
+
+// Promoted-purchases channel of the same ☁︎ panel — twin of asc-metadata but for `--promote`.
+// Separate handler because `--only` here takes PRODUCT IDS (dotted, e.g. com.x.acidrack), not field names.
+ipcMain.handle('studio:asc-promote', async (_e, name, opts = {}) => {
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  const push = Array.isArray(opts?.push) ? opts.push.filter(id => /^[A-Za-z0-9._-]+$/.test(id)) : null
+  const args = [path.join(ROOT, 'tools/asc-push.js'), String(name), '--promote', '--json']
+  if (push && push.length) args.push('--only', push.join(','))     // promote only the ticked IAPs
   else args.push('--dry-run')                                       // read-only plan
   return new Promise(resolve => {
     let out = '', err = ''

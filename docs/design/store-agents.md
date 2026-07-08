@@ -524,6 +524,42 @@ Two Apps-card additions so the *whole* searchable surface is visible and drillab
   apps/<name>/seo-brief.md` link (the `aso-brief` IPC returns the abs path; `open-path` re-checks
   it's inside the repo) so you jump straight to the file — same pattern as build-app's Finder link.
 
+### Apps view: the ☁︎ App Store push panel (BUILT 2026-07-08)
+
+The editor surface for `asc-push` — a **`☁︎ App Store`** button in the Apps card's *publish* section
+that opens a review-then-push panel. The design principle is a **two-click ceremony** (from the
+maker: "a tiny bit of ceremony, 2 buttons is fine, not too many") that keeps the outward write honest
+without nagging:
+
+- **Click 1 = the `☁︎ App Store` button** → runs `asc-push … --dry-run --json` (read-only, safe) and
+  renders the diff as a checklist. Nothing goes live from this click.
+- **Click 2 = a section's push button** → PATCHes **only the ticked items** (`asc-push … --only …`).
+  The panel *is* the confirmation surface — no third "are you sure?" modal.
+
+**One panel, two independent channel sections**, each with its own checklist + push button:
+- **Listing copy** (metadata) — the changed fields (description / promo / support_url / …) as tick
+  rows with `live → local` diffs and char-count-vs-limit badges; in-sync fields shown greyed; "✓ in
+  sync" when there's nothing to push. Push writes only the ticked fields.
+- **Promoted purchases** — each IAP as a row with its state (`✓ promoted` / `not promoted` / `no IAP
+  yet — run --iap`); tickable only when promotable-but-not-yet; a **★ Promote** button that carries
+  the caveat *"needs the app live + `Store.swift` PurchaseIntent to be tappable"*. (This is
+  **promoted purchases**, App Store search — NOT the editor **[Promote tab](promote-tab.md)**; see the
+  NAMING callout under §Submission.)
+
+The push button is disabled when nothing's selected or the version isn't editable
+(`PREPARE_FOR_SUBMISSION` etc.). After a push it re-runs the dry-run so the panel confirms the new
+in-sync state. **Deliberately NOT here: "Submit for Review"** — that's the one irreversible act; this
+panel only touches editable listing copy + promotion, which you can push, look, and fix.
+
+**Wiring.** `asc-push.js` grew `--json` (structured PLAN on dry-run / RESULT on push) + `--only`
+(fields for metadata, product ids for promote) so the panel renders a real checklist instead of
+scraping text. IPCs: `studio:asc-metadata` + `studio:asc-promote` (`main.cjs`) → `ascMetadata` /
+`ascPromote` (`preload.cjs`) → `runStore`/`renderStorePanel` (`shell.js`). **Phasing:** metadata +
+promoted-purchases shipped; **screenshots is the next channel** (deferred until there's more
+screenshot tooling — it slots in as a third section the same way). The per-locale
+`metadata/<locale>/*.txt` overrides `asc-push` reads are the copy source (see
+[`../../apps/tinyjam/metadata/en-US/README.md`](../../apps/tinyjam/metadata/en-US/README.md)).
+
 ### Parked — smarter scoring (brainstorm 2026-07-03, not built)
 
 Two directions surfaced while proving `aso-score`, worth building *only if* the loop earns it:

@@ -155,6 +155,20 @@ if (opt('--crf', null)) meta.crf = +opt('--crf')
 if (opt('--size', null)) { const s = opt('--size').match(/(\d+)x(\d+)/); if (s) meta.size = [+s[1], +s[2]] }
 if (opt('--scale', null)) meta.scale = +opt('--scale')
 
+// per-ratio clip VARIANTS (export-ratios.md Stage 2): when composing at an explicit size, prefer a
+// clip baked AT that size — editor/public/clips/<cart>/<label>--<W>x<H>.webm — over the native clip.
+// A same-aspect variant FILLS the frame; the native clip would letterbox. Bare paths / cards untouched;
+// falls back to native if no variant exists. Keeps the .reel refs clean (`<cart>/<label>`, size-free).
+if (meta.size) {
+  const tag = `${meta.size[0]}x${meta.size[1]}`
+  for (const s of shots) {
+    const parts = (s.ref || '').split('/')
+    if (parts.length !== 2 || s.ref.endsWith('.webm')) continue   // only plain <cart>/<label> refs
+    const variant = path.join(CLIPS_OUT, parts[0], `${parts[1]}--${tag}.webm`)
+    if (fs.existsSync(variant)) s.file = variant
+  }
+}
+
 // bake any @card parts to a webm: write a params file, run the parameterised titlecard
 // cart through make-gif for the card's duration. Content-hashed so an unchanged card is
 // only baked once. (One filtergraph pass downstream then treats it like any clip.)

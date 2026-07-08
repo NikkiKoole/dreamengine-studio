@@ -1566,7 +1566,13 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, error: 'bad cart name' }
   const pub = path.join(ROOT, 'editor/public/clips', cart)
-  const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')).map(f => f.replace(/\.webm$/, '')) : [])
+  // split native clips (<label>.webm) from per-ratio VARIANTS (<label>--<W>x<H>.webm, Stage 2)
+  const baked = new Set(), variants = {}
+  for (const f of (fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')) : [])) {
+    const vm = f.match(/^(.*)--(\d+x\d+)\.webm$/)
+    if (vm) (variants[vm[1]] || (variants[vm[1]] = [])).push(vm[2])
+    else baked.add(f.replace(/\.webm$/, ''))
+  }
   const recDir = path.join(ROOT, 'tools/clips', cart)
   const takes = {}
   const takeFiles = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)) : []
@@ -1584,6 +1590,7 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
       label: l, baked: baked.has(l),
       clipUrl: baked.has(l) ? `/clips/${cart}/${l}.webm` : null,
       kinds: t ? t.kinds : [],
+      variants: (variants[l] || []).sort(),   // per-ratio baked sizes, e.g. ["886x1920","180x320"]
       playKind, playPath: playKind ? t.paths[playKind] : null,
     }
   })
@@ -1598,18 +1605,25 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
 // tools/clips/<cart>/<label>.{rec,script,beats} and writes editor/public/clips/<cart>/<label>.webm
 // (deterministic: same recipe → same clip, with audio). Streams progress to the runtime log.
 // The "produce" verb of the Promote tab made concrete. Design: docs/design/promote-tab.md §A.
-ipcMain.handle('studio:bake-clip', async (_e, cart, label) => {
+// A `size` (WxH) bakes a per-ratio VARIANT at that canvas → editor/public/clips/<cart>/<label>--<WxH>.webm
+// (a small aspect-correct render — chunky pixels, double on delivery); a same-ratio reel then FILLS
+// with it (export-ratios.md Stage 2). No size = the native <label>.webm.
+ipcMain.handle('studio:bake-clip', async (_e, cart, label, size) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, output: 'bad cart name' }
   if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(label || '')) return { ok: false, output: 'bad take label' }
+  const variant = typeof size === 'string' && /^\d+x\d+$/.test(size)
+  const rel = variant ? `editor/public/clips/${cart}/${label}--${size}.webm` : `editor/public/clips/${cart}/${label}.webm`
   const wc = _e.sender
   const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-  send('cart:log', `\n── bake ${cart}/${label} → clip ──\n`)
+  send('cart:log', `\n── bake ${cart}/${label}${variant ? ` @ ${size}` : ''} → clip ──\n`)
+  const args = [path.join(ROOT, 'tools/make-gif.js'), String(cart), '--recipe', String(label)]
+  if (variant) args.push('--screen', size, '--out', rel)
   return new Promise(resolve => {
-    const proc = spawn('node', [path.join(ROOT, 'tools/make-gif.js'), String(cart), '--recipe', String(label)], { cwd: ROOT })
+    const proc = spawn('node', args, { cwd: ROOT })
     proc.stdout.on('data', c => send('cart:log', c.toString()))
     proc.stderr.on('data', c => send('cart:log', c.toString()))
-    proc.on('exit', code => resolve({ ok: code === 0, out: code === 0 ? `editor/public/clips/${cart}/${label}.webm` : null }))
+    proc.on('exit', code => resolve({ ok: code === 0, out: code === 0 ? rel : null }))
     proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve({ ok: false, output: String(e.message) }) })
   })
 })
@@ -1811,7 +1825,9 @@ ipcMain.handle('studio:press-kit', async (_e, name) => {
 // clips available for a cart: baked webms (editor/public/clips/<cart>/) ∪ recipes (tools/clips/<cart>/).
 function reelClipsFor(ROOT, cart) {
   const pub = path.join(ROOT, 'editor/public/clips', cart)
-  const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')).map(f => f.replace(/\.webm$/, '')) : [])
+  // base clips only — per-ratio variants (<label>--<W>x<H>.webm) aren't draggable clips; compose
+  // picks them by the reel's output size (export-ratios.md Stage 2).
+  const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm') && !/--\d+x\d+\.webm$/.test(f)).map(f => f.replace(/\.webm$/, '')) : [])
   const recDir = path.join(ROOT, 'tools/clips', cart)
   const recs = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)).map(f => f.replace(/\.(script|beats|rec)$/, '')) : []
   return [...new Set([...baked, ...recs])].sort().map(l => ({ label: l, clip: `${cart}/${l}`, baked: baked.has(l) }))
@@ -1942,11 +1958,9 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size) => {
   const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
   let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`
   if (typeof size === 'string' && /^\d+x\d+$/.test(size)) {   // output aspect/size (compose-clips letterboxes mismatched clips onto it)
-    reel += `# size ${size}\n`
-    // small social bases (320x180…) upscale ×3 for a watchable reel; App Store device pixels
-    // (886x1920…) are already full-size, so pin scale 1 or compose would render millions of pixels.
-    const [sw, sh] = size.split('x').map(Number)
-    if (Math.max(sw, sh) >= 640) reel += `# scale 1\n`
+    // output EXACTLY the picked (small, chunky-pixel) canvas — scale 1, no hidden upscale. Delivery
+    // doubling (e.g. ×2 → the App Store's 886×1920) is a deliberate later step, not baked in here.
+    reel += `# size ${size}\n# scale 1\n`
   }
   if (loop && loop.type && loop.dur > 0) reel += `# loop ${loop.type} ${loop.dur}\n`   // seamless loop-close
   const lineFor = (r, i) => {   // one row → one or more .reel lines (a clip/card + its overlay continuation lines)

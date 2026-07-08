@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('studio', {
   record:       (code, cfg) => ipcRenderer.invoke('studio:record', code, cfg),
   replay:       (code, cfg, recPath) => ipcRenderer.invoke('studio:replay', code, cfg, recPath),
   playBeats:    (cart, beatsPath) => ipcRenderer.invoke('studio:play-beats', cart, beatsPath),
-  bakeClip:     (cart, label) => ipcRenderer.invoke('studio:bake-clip', cart, label),
+  bakeClip:     (cart, label, size) => ipcRenderer.invoke('studio:bake-clip', cart, label, size),
   cartShot:     (cart) => ipcRenderer.invoke('studio:cart-shot', cart),
   onRecorded:   (cb) => ipcRenderer.on('cart:recorded', (_, info) => cb(info)),
   liveWrite:    (code)      => ipcRenderer.invoke('studio:live-write', code),

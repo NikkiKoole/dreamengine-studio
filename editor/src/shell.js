@@ -1720,14 +1720,13 @@ async function renderPromote() {
       const label = cl.playPath
         ? `<a href="#" class="pm-label pm-replay" data-play-path="${escHtml(cl.playPath)}" data-play-kind="${escHtml(cl.playKind)}" title="watch — play this ${escHtml(cl.playKind)} take${cl.playKind === 'beats' ? ' (runs the on-disk cart)' : ' against the open cart'}">▶ ${escHtml(cl.label)}</a>`
         : `<span class="pm-label pm-noplay" title="baked clip only — no take file to replay">${escHtml(cl.label)}</span>`
-      // baked → open the clip; not baked but has a recipe → a 🎬 bake button (produce a webm);
-      // bare baked-only entry with no recipe → nothing to bake.
-      const bake = cl.baked
-        ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the baked clip">🎬 clip</a>`
-        : cl.playPath
-          ? `<button class="pm-bake" data-bake="${escHtml(cl.label)}" title="bake this take into a shareable clip (webm, with sound)">🎬 bake</button>`
-          : `<span class="rs-dim">not baked</span>`
-      return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${bake}</div>`
+      // native clip → open it; a recipe → 🎬 bake (at the "bake at" ratio above: native or a variant);
+      // variant chips show which per-ratio versions are already baked (export-ratios Stage 2).
+      const clipLink = cl.baked ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the native clip">🎬 clip</a>` : ''
+      const bakeBtn  = cl.playPath ? `<button class="pm-bake" data-bake="${escHtml(cl.label)}" title="bake this take at the output ratio selected above">🎬 bake</button>` : ''
+      const notBaked = (!cl.baked && !cl.playPath) ? `<span class="rs-dim">not baked</span>` : ''
+      const varChips = (cl.variants || []).map(v => `<span class="pm-var" title="${escHtml(v)} baked">${escHtml(ratioLabel(v))}</span>`).join(' ')
+      return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${clipLink} ${bakeBtn} ${notBaked} ${varChips}</div>`
     }).join('')
   }
   // B · stills — a per-cart gallery; click a thumb to open it full size
@@ -1765,12 +1764,16 @@ async function playTake(playPath, playKind) {
   const res = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, playPath)
   if (res && !res.ok) showLog(res)
 }
-// bake a take → a shareable clip (webm), then re-render so the 🎬 clip link appears.
+// friendly labels for the per-ratio output sizes (shared by the bake picker + the variant chips)
+const RATIO_LABEL = { '320x180': '16:9', '180x320': '9:16', '240x240': '1:1', '444x960': 'iPhone', '960x444': 'iPhone L', '600x800': 'iPad' }
+const ratioLabel = v => RATIO_LABEL[v] || v
+// bake a take → a clip (webm) at the "bake at" ratio (native, or a per-ratio variant), then re-render.
 async function bakeTake(label, btn) {
   if (!window.studio?.bakeClip) { showToast('bake requires the desktop app  (npm start)', 3000); return }
+  const size = document.getElementById('promote-bake-ratio')?.value || null   // '' = native
   if (btn) { btn.textContent = '⏳ baking…'; btn.disabled = true }
-  const res = await window.studio.bakeClip(currentCartFile, label)
-  if (res?.ok) { showToast('✓ clip baked', 2500); renderPromote() }
+  const res = await window.studio.bakeClip(currentCartFile, label, size)
+  if (res?.ok) { showToast(`✓ clip baked${size ? ' @ ' + ratioLabel(size) : ''}`, 2500); renderPromote() }
   else { showToast(res?.output || 'bake failed — see the log', 4000); if (btn) { btn.textContent = '🎬 bake'; btn.disabled = false } }
 }
 // delegated clicks in the Promote panel: data-url / data-copy (same as the Apps glance),

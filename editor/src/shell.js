@@ -1463,6 +1463,61 @@ async function runScore(app) {
   else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'score failed')}</div>`
 }
 
+// App Store metadata push — the ☁︎ two-click ceremony. runStore = click 1 (dry-run → checklist);
+// the panel's push button = click 2 (writes ONLY the ticked fields live). Metadata-only for now.
+async function runStore(app) {
+  if (!window.studio?.ascMetadata) { showToast('App Store push requires the desktop app  (npm start)', 3000); return }
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = '<div class="rs-dim">checking the live App Store listing…</div>'
+  asoResults?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  const res = await window.studio.ascMetadata(app)   // no push → dry-run plan
+  if (!res?.ok) { if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml(res?.error || 'could not reach App Store')}</div>`; return }
+  renderStorePlan(res.data, app)
+}
+function renderStorePlan(plan, app) {
+  if (!asoResults) return
+  const clip = s => { s = String(s || ''); return s.length > 60 ? s.slice(0, 60) + '…' : s }
+  const allFields = (plan.groups || []).flatMap(g => g.fields)
+  const changed = allFields.filter(f => f.changed)
+  const notEditable = !plan.editable
+  let h = `<div class="sc-head"><b>App Store — ${escHtml(plan.app.name)}</b> `
+    + `<span class="rs-dim">v${escHtml(plan.version.versionString)} · ${escHtml(plan.version.state)} · ${escHtml(plan.version.locale)}</span></div>`
+  if (notEditable) h += `<div class="rs-err">version is ${escHtml(plan.version.state)} — not editable; can't push metadata now</div>`
+  if (!changed.length) {
+    h += `<div class="store-sync">✓ everything in sync — nothing to push</div>`
+    asoResults.innerHTML = h; return
+  }
+  h += `<div class="store-hint">tick what to push, then confirm — this writes to the <b>live</b> App Store listing</div><div class="store-list">`
+  for (const f of changed) {
+    const over = f.limit && f.local.length > f.limit
+    h += `<label class="store-row"><input type="checkbox" class="store-f" value="${escHtml(f.field)}" checked>`
+      + `<span class="store-fn">${escHtml(f.field)}</span>`
+      + `<span class="store-cc${over ? ' app-over' : ''}">${f.local.length}${f.limit ? '/' + f.limit : ''}</span>`
+      + `<div class="store-diff"><span class="store-live">${f.live ? escHtml(clip(f.live)) : '<em>empty</em>'}</span>`
+      + `<span class="store-arrow">→</span><span class="store-local">${escHtml(clip(f.local))}</span></div></label>`
+  }
+  h += `</div>`
+  const same = allFields.filter(f => !f.changed)
+  if (same.length) h += `<div class="store-same">in sync: ${same.map(f => escHtml(f.field)).join(', ')}</div>`
+  h += `<div class="store-foot"><button class="store-push"${notEditable ? ' disabled' : ''}>☁︎ Push <span class="store-n">${changed.length}</span> → live</button>`
+    + `<span class="rs-dim">click 2 of 2 — the outward write</span></div>`
+  asoResults.innerHTML = h
+  const boxes = () => [...asoResults.querySelectorAll('.store-f')]
+  const pushBtn = asoResults.querySelector('.store-push')
+  const nEl = asoResults.querySelector('.store-n')
+  const refresh = () => { const n = boxes().filter(b => b.checked).length; if (nEl) nEl.textContent = n; if (pushBtn) pushBtn.disabled = notEditable || n === 0 }
+  boxes().forEach(b => b.addEventListener('change', refresh))
+  refresh()
+  pushBtn?.addEventListener('click', async () => {
+    const sel = boxes().filter(b => b.checked).map(b => b.value)
+    if (!sel.length) return
+    pushBtn.disabled = true; pushBtn.textContent = 'pushing…'
+    const r = await window.studio.ascMetadata(app, { push: sel })
+    if (!r?.ok) { pushBtn.disabled = false; pushBtn.textContent = '☁︎ Push → live'; showToast(r?.error || 'push failed', 4000); return }
+    showToast(`pushed to App Store: ${(r.data?.pushed || sel).join(', ')}`, 3500)
+    runStore(app)   // re-run the dry-run → the panel now shows in-sync
+  })
+}
+
 // leads — the demand-GENERATION glance (twin of score's capture glance). Per cart of the app:
 // its tribes + venues (clickable → open in browser) + a ready-to-copy post scaffold. We prep;
 // the maker does the actual posting (copy the draft, open the venue, paste — "leave it to us").
@@ -2291,6 +2346,8 @@ async function renderAppsList() {
         <button data-act="coverage">🪞 check copy</button>
         <span class="app-sec">reach</span>
         <button data-act="leads">📣 find tribes</button>
+        <span class="app-sec">publish</span>
+        <button data-act="store">☁︎ App Store</button>
       </div>`
     card.querySelector('.app-name').textContent = a.name
     card.querySelector('.app-meta').textContent = meta
@@ -2390,6 +2447,14 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     if (act === 'leads') {
       const stop = busyDots(btn, 'matching tribes', label); btn.disabled = true
       await runLeads(app)
+      stop(); btn.disabled = false
+      return
+    }
+    // App Store — click 1 of 2: dry-run the metadata diff into a checklist panel (read-only, safe).
+    // The push (click 2) lives on the panel's button; nothing goes live from this click.
+    if (act === 'store') {
+      const stop = busyDots(btn, 'checking App Store', label); btn.disabled = true
+      await runStore(app)
       stop(); btn.disabled = false
       return
     }

@@ -299,6 +299,27 @@ html, body {
 .sc-why > div { margin: 4px 0; }
 .rs-chip.rs-hard { border-color: #a13030; color: #e88; }
 .sc-gotchas { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; background: var(--bg2); }
+
+/* ☁︎ App Store metadata push panel */
+.store-sync { margin: 8px 0; color: #4a9a4a; font-size: 13px; }
+.store-hint { margin: 6px 0 10px; font-size: 12px; color: var(--fg-dim); }
+.store-list { display: flex; flex-direction: column; gap: 2px; }
+.store-row { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 8px;
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg2); cursor: pointer; }
+.store-row:hover { border-color: var(--accent); }
+.store-fn { font-weight: bold; font-size: 12px; }
+.store-cc { font-size: 11px; color: var(--fg-dim); }
+.store-cc.app-over { color: #e88; font-weight: bold; }
+.store-diff { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 6px; font-size: 11px; color: var(--fg-dim); }
+.store-live { text-decoration: line-through; opacity: 0.7; }
+.store-live em { font-style: italic; opacity: 0.6; }
+.store-arrow { color: var(--accent); }
+.store-local { color: var(--fg); }
+.store-same { margin: 8px 0; font-size: 11px; color: var(--fg-dim); }
+.store-foot { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+.store-push { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent);
+  color: var(--bg); font-weight: bold; cursor: pointer; font-size: 13px; }
+.store-push:disabled { opacity: 0.4; cursor: default; }
 .sc-gotchas b { font-size: 12px; }
 .sc-gotchas ul { margin: 6px 0 0; padding-left: 16px; }
 .sc-gotchas li { font-size: 11px; color: var(--fg-dim); margin: 4px 0; line-height: 1.45; }

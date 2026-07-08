@@ -8,6 +8,8 @@
 //   node tools/asc-push.js <app> --check                 # OFFLINE self-test (no key/network needed)
 //   node tools/asc-push.js <app> --metadata --dry-run    # GET live listing, diff vs manifest, show plan
 //   node tools/asc-push.js <app> --metadata              # PATCH title/subtitle/keywords/… live
+//   node tools/asc-push.js <app> --metadata --dry-run --json      # structured PLAN (feeds the editor panel)
+//   node tools/asc-push.js <app> --metadata --only description,supportUrl   # push ONLY these fields
 //   node tools/asc-push.js <app> --screenshots           # upload apps/<app>/screenshots/*.png
 //   node tools/asc-push.js <app> --metadata --screenshots
 //
@@ -74,7 +76,7 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, dryRun: false, check: false, locale: 'en-US', version: '' }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
@@ -83,6 +85,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--promote') opt.promote = true
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
+  else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
+  else if (a === '--only') opt.only = argv[++i].split(',').map(s => s.trim()).filter(Boolean)  // push only these fields
   else if (a === '--locale') opt.locale = argv[++i]
   else if (a === '--version') opt.version = argv[++i]
   else if (!a.startsWith('-') && !opt.app) opt.app = a
@@ -232,13 +236,11 @@ async function editableInfoLoc(appId) {
 
 async function pushMetadata() {
   const want = collectFields()
-  lintFields(want, /* fatal */ !opt.dryRun)
+  if (opt.only) { const keep = new Set(opt.only); for (const k of Object.keys(want)) if (!keep.has(k)) delete want[k] }
+  lintFields(want, /* fatal */ !opt.dryRun && !opt.json)
   const app = await resolveApp()
-  console.log(`\n▸ ${manifest.bundleId} → app ${app.id} "${app.attributes.name}"`)
-
   const infoLoc = await editableInfoLoc(app.id)
   const { version, loc: verLoc } = await editableVersionLoc(app.id)
-  console.log(`  version ${version.attributes.versionString} (${version.attributes.appStoreState}) · locale ${opt.locale}\n`)
 
   // split desired fields across the three resources
   const infoPatch = {}, verPatch = {}, verAttrPatch = {}
@@ -248,6 +250,33 @@ async function pushMetadata() {
     else if (VERSION_FIELDS.includes(field)) verPatch[field] = val
   }
 
+  // --json: emit a structured PLAN (dry-run) or RESULT (push) for the editor panel — stdout is
+  // JSON only, no human lines. The editor renders the per-field checklist from `groups`.
+  if (opt.json) {
+    const groups = [
+      { key: 'info',    label: 'app name/subtitle', fields: diffFields(infoLoc.attributes, infoPatch) },
+      { key: 'version', label: 'version copy',      fields: diffFields(verLoc.attributes, verPatch) },
+      { key: 'verAttr', label: 'version attributes', fields: diffFields(version.attributes, verAttrPatch) },
+    ].filter(g => g.fields.length)
+    const editable = EDITABLE.has(version.attributes.appStoreState)
+    const plan = {
+      app: { id: app.id, name: app.attributes.name, bundleId: manifest.bundleId },
+      version: { versionString: version.attributes.versionString, state: version.attributes.appStoreState, locale: opt.locale },
+      editable, limits: LIMITS, groups,
+      changedCount: groups.reduce((n, g) => n + g.fields.filter(f => f.changed).length, 0),
+    }
+    if (opt.dryRun) { process.stdout.write(JSON.stringify(plan)); return }
+    if (!editable) die(`version ${plan.version.versionString} is ${plan.version.state} — not editable`)
+    const pushed = []
+    if (Object.keys(infoPatch).length) { await api('PATCH', `/v1/appInfoLocalizations/${infoLoc.id}`, { data: { type: 'appInfoLocalizations', id: infoLoc.id, attributes: infoPatch } }); pushed.push(...Object.keys(infoPatch)) }
+    if (Object.keys(verPatch).length)  { await api('PATCH', `/v1/appStoreVersionLocalizations/${verLoc.id}`, { data: { type: 'appStoreVersionLocalizations', id: verLoc.id, attributes: verPatch } }); pushed.push(...Object.keys(verPatch)) }
+    if (Object.keys(verAttrPatch).length) { await api('PATCH', `/v1/appStoreVersions/${version.id}`, { data: { type: 'appStoreVersions', id: version.id, attributes: verAttrPatch } }); pushed.push(...Object.keys(verAttrPatch)) }
+    process.stdout.write(JSON.stringify({ ...plan, pushed }))
+    return
+  }
+
+  console.log(`\n▸ ${manifest.bundleId} → app ${app.id} "${app.attributes.name}"`)
+  console.log(`  version ${version.attributes.versionString} (${version.attributes.appStoreState}) · locale ${opt.locale}\n`)
   const changed = diffAndPrint('app name/subtitle', infoLoc.attributes, infoPatch)
     | diffAndPrint('version copy', verLoc.attributes, verPatch)
     | diffAndPrint('version attributes', version.attributes, verAttrPatch)
@@ -683,6 +712,13 @@ function lintFields(fields, fatal) {
     if (fatal) die(msg)
     else console.warn('  ⚠ ' + msg)
   }
+}
+// pure diff (no printing) — the --json twin of diffAndPrint; feeds the editor's per-field checklist
+function diffFields(live, want) {
+  return Object.keys(want).map(k => {
+    const cur = live[k] ?? ''
+    return { field: k, live: cur, local: want[k], changed: cur !== want[k], limit: LIMITS[k] || null }
+  })
 }
 function diffAndPrint(label, live, want) {
   const keys = Object.keys(want)

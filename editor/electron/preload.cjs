@@ -43,4 +43,6 @@ contextBridge.exposeInMainWorld('studio', {
   appShots:     (name)           => ipcRenderer.invoke('studio:app-shots', name),
   appSeeds:     (name, source)   => ipcRenderer.invoke('studio:app-seeds', name, source),
   leads:        (name)           => ipcRenderer.invoke('studio:leads', name),
+  // App Store metadata: dry-run returns a structured PLAN; { push:[fields] } PATCHes only those live
+  ascMetadata:  (name, opts)     => ipcRenderer.invoke('studio:asc-metadata', name, opts),
 })

@@ -1524,6 +1524,32 @@ ipcMain.handle('studio:leads', async (_e, name) => {
   return { ok: true, app: String(name), carts: per, crosscutting }
 })
 
+// ── App Store metadata push (the ☁︎ App Store panel) ─────────────
+// Two modes, both via tools/asc-push.js --json so the panel can render a structured checklist:
+//   default (no opts.push)   → --dry-run: GET live + diff → a PLAN the panel shows (read-only, safe)
+//   opts.push = [fields]      → --only <fields>: PATCH ONLY those fields live (the outward write)
+// The two-click ceremony lives in the UI: click 1 opens the panel (dry-run), click 2 pushes the
+// ticked fields. Metadata-only for now (screenshots / IAP are separate channels, added later).
+ipcMain.handle('studio:asc-metadata', async (_e, name, opts = {}) => {
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  const push = Array.isArray(opts?.push) ? opts.push.filter(f => /^[A-Za-z]+$/.test(f)) : null
+  const args = [path.join(ROOT, 'tools/asc-push.js'), String(name), '--metadata', '--json']
+  if (push && push.length) args.push('--only', push.join(','))     // real push of the ticked fields
+  else args.push('--dry-run')                                       // read-only plan
+  return new Promise(resolve => {
+    let out = '', err = ''
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stdout.on('data', c => out += c.toString())
+    proc.stderr.on('data', c => err += c.toString())
+    proc.on('exit', code => {
+      try { resolve({ ok: true, data: JSON.parse(out), pushed: !!(push && push.length) }) }
+      catch { resolve({ ok: false, error: (err.trim() || `asc-push failed (exit ${code})`).replace(/^✗\s*/, '') }) }
+    })
+    proc.on('error', e => resolve({ ok: false, error: String(e.message) }))
+  })
+})
+
 // ── Apps view: per-app actions (app-scoped) ───────────────────
 // build the multi-cart app (Mac / iOS) or its press page, streaming to the runtime log.
 function spawnP(bin, args, cwd, log) {

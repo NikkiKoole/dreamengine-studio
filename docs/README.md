@@ -8,6 +8,14 @@ once, so part of it was always stale. Each file now answers one kind of question
 > `decisions/`. **Vision/philosophy** lives only in `VISION.md`. **Exploratory design**
 > lives in `design/`. Docs *cross-reference*; they don't *duplicate*. If two docs say the
 > same thing, one is wrong — fix it at the source and link.
+>
+> **Cross-reference a section with a numbered `§`-ref** (`audio-notes §8.9`), **not a
+> `#anchor`.** `§`-refs are the house convention and `lint-docs.js` validates them
+> (it deliberately ignores `#anchors`); a repo scan found only 11 anchor links in ~1900 —
+> the corpus doesn't use them. The one exception is `HANDOFF.md`, whose Resume-at pointers
+> ARE anchor links on purpose, validated by `handoff.js --check` (see
+> [`design/driftable-docs.md`](design/driftable-docs.md) — the two-door pattern). Settled;
+> don't re-litigate.
 
 ## Layout
 

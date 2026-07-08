@@ -1,6 +1,6 @@
 /* de:meta
 {
-  "title": "omnichord",
+  "title": "Strumharpy",
   "status": "active",
   "created": "2026-05-30",
   "kind": [

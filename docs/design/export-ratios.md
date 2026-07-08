@@ -1,8 +1,20 @@
 # Export ratios — getting a cart's motion into the frame shape a channel wants
 
-> **STATUS: exploring** (2026-07-08) — a thread opened while building the trailer/reels work
-> ([`trailer-builder.md`](trailer-builder.md), [`promote-tab.md`](promote-tab.md)). Not specced to
-> build yet; this note names the problem and the two approaches so we pick deliberately later.
+> **STATUS: building** (2026-07-08) — **both stages SHIPPED for resizable carts.** A thread opened
+> while building the trailer/reels work ([`trailer-builder.md`](trailer-builder.md),
+> [`promote-tab.md`](promote-tab.md)); the approach-(b) path is now wired end-to-end.
+>
+> **What shipped (2026-07-08).** `make-gif --screen WxH` already renders a resizable cart at any
+> canvas (approach b — the "gap" this doc first guessed at was overstated). On top of that:
+> **Stage 1** — an output-ratio picker on the trailer builder's Build (`# size` in the `.reel` →
+> `compose-clips` renders at that canvas; mismatched clips letterbox). **Stage 2** — per-ratio clip
+> **variants** (`editor/public/clips/<cart>/<label>--<W>x<H>.webm`, baked via the Promote "bake at"
+> picker) that `compose-clips` prefers at a matching `# size`, so a reel **fills** instead of barring.
+> Proven on `onetake` (a keyboard-driven demo): one take → filled reels at 16:9/9:16/1:1 and a filled
+> 444×960 iPhone reel. **Gotcha banked:** canvases must be **even** (odd width 443 breaks ffmpeg's
+> `pad`); App Store presets are **half sizes** (444×960/960×444/600×800) doubled on delivery — chunky
+> pixels double cleanly, and it dodges composing millions of pixels. **Still open:** the **composite
+> (a) path for FIXED-layout carts** (letterbox/bg for a non-resizable cart), and delivery-exact upscale.
 
 ## The reframe: this is a *ratio/resolution* axis, not "App Store work"
 
@@ -118,16 +130,16 @@ approach (a) composite is the truthful fallback.
   [`store-agents.md`](store-agents.md)) — batch-render the app's reel to each required device size,
   the video sibling of `store-shots`.
 
-## The gap + a proposed first step
+## The remaining gap (approach a, fixed-layout carts)
 
-The missing capability is a **video composite-to-target-ratio** (the `store-shots` treatment applied
-per-frame of a clip, not just one frame). `compose-clips` letterboxing is the closest; it does bars,
-not the bg+caption composite.
-
-Smallest useful first step (when we build): teach **`make-gif.js` a `--ratio 9:16` / `--size WxH`**
-(letterbox for now, the cheap win for TikTok on any cart), then a **Promote-tab ratio picker** that
-calls it. Approach (b) for reflowing carts and the full App Store multi-device video pass are later,
-larger rungs.
+Approach (b) — reflow a **resizable** cart at the target canvas — is **done** (Stages 1 & 2 above).
+What's *not* built is the **composite path for FIXED-layout carts**: a non-resizable cart can't fill
+a 9:16 frame, so it needs the `store-shots` treatment for video — the native clip centred on a
+target-sized canvas with **bars or a decorative bg (+ caption)**, per frame. `compose-clips` already
+does the **bars** half (letterbox onto `# size`); the missing bit is the **dressed** composite (bg +
+caption), the video sibling of `store-shots.js`. That's the next rung when a fixed-layout cart needs a
+store/social clip. Also open: **delivery-exact upscale** (double the small canvas to the App Store's
+exact pixels — currently a manual/CLI step).
 
 ## Open questions
 

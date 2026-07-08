@@ -10,11 +10,14 @@
 > `compose-clips` renders at that canvas; mismatched clips letterbox). **Stage 2** — per-ratio clip
 > **variants** (`editor/public/clips/<cart>/<label>--<W>x<H>.webm`, baked via the Promote "bake at"
 > picker) that `compose-clips` prefers at a matching `# size`, so a reel **fills** instead of barring.
-> Proven on `onetake` (a keyboard-driven demo): one take → filled reels at 16:9/9:16/1:1 and a filled
-> 444×960 iPhone reel. **Gotcha banked:** canvases must be **even** (odd width 443 breaks ffmpeg's
-> `pad`); App Store presets are **half sizes** (444×960/960×444/600×800) doubled on delivery — chunky
-> pixels double cleanly, and it dodges composing millions of pixels. **Still open:** the **composite
-> (a) path for FIXED-layout carts** (letterbox/bg for a non-resizable cart), and delivery-exact upscale.
+> Proven on `onetake` (keyboard-driven demo) + `flank` (a fixed 320×200 game → a crisp 720×1280 9:16).
+> **Presets are full-size even frames** — 16:9 1280×720 · 9:16 720×1280 · 1:1 1080×1080 · iPhone 6.9
+> 886×1920 / 1920×886 · iPad 1200×1600 — output at **`# scale 1`** (exactly that size). **Two gotchas
+> banked:** (1) canvases must be **even** (odd widths break ffmpeg's `pad`); (2) never let a small
+> frame **downscale** the source — that was the blur (a 320-wide game squeezed into a 180-wide 9:16).
+> The fixed-cart letterbox now **integer nearest-upscales** the native to FIT the frame (320×200 → ×2 =
+> 640×400 centred with bars), never down. **Still open:** the **dressed** composite (bg+caption instead
+> of plain bars) and delivery-exact upscale (a cart whose art is bigger than an integer fit of the frame).
 
 ## The reframe: this is a *ratio/resolution* axis, not "App Store work"
 
@@ -149,11 +152,11 @@ to route one gameplay clip through the multi-clip reel builder (+ a text-card to
 
 ## The remaining gap
 
-**Done:** approach (b) reflow for resizable carts (Stages 1 & 2), **and** approach (a) **plain-bars
-letterbox** for fixed carts (single clip + reels). **Still open:** the **DRESSED** composite — bars
-replaced by a decorative bg + caption (the video sibling of `store-shots.js`) for a more finished store
-look — and **delivery-exact upscale** (double the small canvas to the App Store's exact pixels, a manual
-CLI step today).
+**Done:** approach (b) reflow for resizable carts, **and** approach (a) **crisp plain-bars letterbox**
+for fixed carts (single clip + reels) — full-size, integer nearest-upscaled. **Still open:** the
+**DRESSED** composite — bars replaced by a decorative bg + caption (the video sibling of
+`store-shots.js`) for a more finished store look; and the rare case where a cart's native is *larger*
+than an integer fit of the frame (would need a fractional/down-scale — currently clamps to ×1).
 
 ## Open questions
 

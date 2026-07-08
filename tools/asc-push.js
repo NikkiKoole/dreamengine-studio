@@ -609,10 +609,49 @@ async function ensureIAPPrice(iapId, p) {
 // must handle PurchaseIntent (Store.swift) for tap-to-buy from the store; images/promotion go
 // through review and only surface once the app is live.
 async function pushPromoted() {
-  const products = collectIAP().filter(p => p.promote)
-  if (!products.length) { console.log('  nothing to promote (all products have "promote": false)'); return }
+  let products = collectIAP().filter(p => p.promote)
+  if (opt.only) { const keep = new Set(opt.only); products = products.filter(p => keep.has(p.productId)) }  // subset by product id
+  if (!products.length) {
+    if (opt.json) { process.stdout.write(JSON.stringify({ channel: 'promote', app: null, products: [], order: [], toPromote: 0, missingIap: [] })); return }
+    console.log('  nothing to promote (all products have "promote": false)'); return
+  }
   const app = await resolveApp()
   const iaps = await listIAPs(app.id)
+
+  // --json: structured PLAN (dry-run) / RESULT (push) for the ☁︎ panel's promoted-purchases section.
+  // Reads each IAP's current promotedPurchase state; the push promotes the not-yet-promoted + sets order.
+  if (opt.json) {
+    const rows = []
+    for (const p of products) {
+      const iap = iaps[p.productId]
+      let promoted = false, state = null
+      if (iap) { const cur = await apiOrNull('GET', `/v2/inAppPurchases/${iap.id}/promotedPurchase`); if (cur && cur.data) { promoted = true; state = cur.data.attributes.state } }
+      rows.push({ productId: p.productId, name: p.name, iapExists: !!iap, promoted, state })
+    }
+    const plan = {
+      channel: 'promote',
+      app: { id: app.id, name: app.attributes.name, bundleId: manifest.bundleId },
+      products: rows, order: products.map(p => p.productId),
+      toPromote: rows.filter(r => r.iapExists && !r.promoted).length,
+      missingIap: rows.filter(r => !r.iapExists).map(r => r.productId),
+    }
+    if (opt.dryRun) { process.stdout.write(JSON.stringify(plan)); return }
+    const orderedIds = [], pushed = []
+    for (const p of products) {
+      const iap = iaps[p.productId]; if (!iap) continue
+      const cur = await apiOrNull('GET', `/v2/inAppPurchases/${iap.id}/promotedPurchase`)
+      let promoId = cur && cur.data && cur.data.id
+      if (!promoId) {
+        const r = await api('POST', '/v1/promotedPurchases', { data: { type: 'promotedPurchases', attributes: { visibleForAllUsers: true, enabled: true }, relationships: { app: { data: { type: 'apps', id: app.id } }, inAppPurchaseV2: { data: { type: 'inAppPurchases', id: iap.id } } } } })
+        promoId = r.data.id; pushed.push(p.productId)
+      }
+      orderedIds.push(promoId)
+    }
+    if (orderedIds.length) await api('PATCH', `/v1/apps/${app.id}/relationships/promotedPurchases`, { data: orderedIds.map(id => ({ type: 'promotedPurchases', id })) })
+    process.stdout.write(JSON.stringify({ ...plan, pushed }))
+    return
+  }
+
   console.log(`\n▸ promoted IAPs → app ${app.id} (${products.length} to promote, manifest order)`)
 
   const orderedIds = []

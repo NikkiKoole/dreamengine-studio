@@ -66,7 +66,9 @@ static const char *MODNAME[NMOD] = { "6", "m7", "maj7", "9" };
 
 // three synth engines, the Orchid's three models.
 #define NENG 3
-static const int   ENG[NENG]      = { INSTR_SAW, INSTR_FM, INSTR_EPIANO };
+// NOTE: play the chord through the SL_CHORD *slot* (configured by applyEngine),
+// never a raw INSTR_ id — INSTR_FM/EPIANO are 18/20, which collide with the
+// 5..31 user-slot range, so note(midi, INSTR_EPIANO,..) means "slot 20" = silent.
 static const char *ENGNAME[NENG]  = { "SUBTRACT", "FM", "REED EP" };
 static const char *ENGSHORT[NENG] = { "SUB", "FM", "EP" };
 
@@ -143,7 +145,7 @@ static float litT[40];
 static int strId[NFINGER], strLast[NFINGER];
 
 // mix knobs (0..1 floats behind ui_knob)
-static float kSound = 0.66f, kPerform = 0.2f, kFX = 0.35f, kKey = 0.5f;
+static float kSound = 0.85f, kPerform = 0.2f, kFX = 0.35f, kKey = 0.5f;   // kSound 0.85 -> engine 2 (EP), matching the default
 static float kBass = 0.7f, kLoop = 0.7f, kBPM = 0.25f, kOptions = 0.3f, kVolume = 0.75f;
 
 // derived / applied
@@ -221,7 +223,7 @@ static void cb_release_held(void) {
 // play the current chord in the current performance mode
 static void cb_play(void) {
     cb_build();
-    int in = ENG[engine];
+    int in = SL_CHORD;                       // the configured slot (applyEngine set its engine+filter+FX)
     switch (perfMode) {
         case PM_PLAIN:
             cb_release_held();
@@ -234,7 +236,7 @@ static void cb_play(void) {
             for (int k = 0; k < nVoiced; k++) schedule_hit(k * strumMs + cb_rand(18), voiced[k], in, masterV, 900);
             break;
         case PM_HARP:
-            for (int k = 0; k < nStr; k++) schedule_hit(k * 12, strNote[k], INSTR_TRI, 4, 260);
+            for (int k = 0; k < nStr; k++) schedule_hit(k * 12, strNote[k], SL_HARP, 4, 260);
             break;
         case PM_ARP:
         case PM_PATTERN:
@@ -441,9 +443,9 @@ void update(void) {
     if (armed && newStep) {
         int st = sixteenth % STEPS;
         if (perfMode == PM_ARP && nVoiced > 0)
-            hit(voiced[arpIdx++ % nVoiced], ENG[engine], masterV, 130);
+            hit(voiced[arpIdx++ % nVoiced], SL_CHORD, masterV, 130);
         else if (perfMode == PM_PATTERN && PAT_RHYTHM[st] == 'x')
-            for (int k = 0; k < nVoiced; k++) schedule_hit(0, voiced[k], ENG[engine], masterV, 150);
+            for (int k = 0; k < nVoiced; k++) schedule_hit(0, voiced[k], SL_CHORD, masterV, 150);
     }
 
     // chord looper playback

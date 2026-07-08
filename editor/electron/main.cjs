@@ -852,7 +852,12 @@ ipcMain.handle('studio:record', async (_event, code, cfg) => {
       if (err) return resolve({ ok: false, cmd, output: warnings })
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (● recording)`, '--record', recTmp, ...saveDirArgs(cfg)],
+      // Record deterministically (--det) so a later --replay reconstructs the SAME world:
+      // a .rec stores only inputs, not the RNG stream. --replay implies --det + the default
+      // seed 1, so an unseeded/wall-clock recording replays into a DIFFERENT world and diverges
+      // (flank: won live, died on replay — bullets hit enemies that weren't there). Seed omitted
+      // so both sides use the runtime default (1); keep them matched.
+      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (● recording)`, '--det', '--record', recTmp, ...saveDirArgs(cfg)],
         { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
       proc.stdout.on('data', c => send('cart:log', c.toString()))
       proc.stderr.on('data', c => send('cart:log', c.toString()))
@@ -1802,85 +1807,111 @@ ipcMain.handle('studio:press-kit', async (_e, name) => {
 // ── trailer builder (docs/design/trailer-builder.md) ──────────
 // app-clips: the LIBRARY — each rack's committed clips (baked webm and/or a recipe) + the current
 // tools/reels/<name>.reel parsed into rows, so the builder opens pre-populated (never blank).
+// ── shared reel/clip helpers (app-clips · reel-load · list-reels) ────────────────
+// clips available for a cart: baked webms (editor/public/clips/<cart>/) ∪ recipes (tools/clips/<cart>/).
+function reelClipsFor(ROOT, cart) {
+  const pub = path.join(ROOT, 'editor/public/clips', cart)
+  const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')).map(f => f.replace(/\.webm$/, '')) : [])
+  const recDir = path.join(ROOT, 'tools/clips', cart)
+  const recs = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)).map(f => f.replace(/\.(script|beats|rec)$/, '')) : []
+  return [...new Set([...baked, ...recs])].sort().map(l => ({ label: l, clip: `${cart}/${l}`, baked: baked.has(l) }))
+}
+// parse a .reel manifest → { rows, loop } in the trailer builder's timeline shape (rows=null if no file).
+function parseReelFile(reelPath) {
+  if (!fs.existsSync(reelPath)) return { rows: null, loop: null }
+  const text = fs.readFileSync(reelPath, 'utf8')
+  const lm = text.match(/^#\s*loop\s+(\w+)\s+([\d.]+)/m)
+  const loop = lm ? { type: lm[1], dur: +lm[2] } : null
+  const rows = []
+  const parseLines = (parts) => parts.reduce((acc, seg) => {   // pull title/sub/body role-lines out of a segment list
+    const cm = seg.match(/^(title|sub|body)\s+(.*)$/); if (cm) acc.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') }); return acc
+  }, [])
+  for (const line of text.split('\n')) {
+    const t = line.trim(); if (!t || t.startsWith('#')) continue
+    if (t.startsWith('@card')) {   // a generated text-card part
+      const parts = t.split('|').map(s => s.trim())
+      const row = { card: true, dur: parseFloat(parts[0].split(/\s+/)[1]) || 2.0, lines: parseLines(parts.slice(1)), anim: 'fade', bg: null, xtype: 'fade', xdur: 0.5 }
+      for (const seg of parts.slice(1)) {
+        let cm
+        if      ((cm = seg.match(/^anim\s+(.+)$/)))       row.anim = cm[1]
+        else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { row.inDur = +cm[1]; row.inEffect = cm[2] }
+        else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { row.outDur = +cm[1]; row.outEffect = cm[2] }
+        else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { row.waitBefore = +cm[1]; row.waitAfter = +cm[2] }
+        else if ((cm = seg.match(/^bg\s+(\d+)/)))         row.bg = +cm[1]
+        else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    row.boil = +cm[1]
+        else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) row.breathe = +cm[1]
+        else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))     row.bpm = +cm[1]
+        else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
+      }
+      row.inEffect = row.inEffect || row.anim || 'fade'   // wait/in/hold/out/wait for the editor (hold derived)
+      if (row.inDur == null) row.inDur = 0.5
+      if (row.outDur == null) row.outDur = 0
+      row.outEffect = row.outEffect || 'slide top'
+      row.waitBefore = row.waitBefore || 0
+      row.waitAfter = row.waitAfter || 0
+      row.holdDur = Math.max(0, (row.dur || 2) - row.waitBefore - row.inDur - row.outDur - row.waitAfter)
+      rows.push(row); continue
+    }
+    if (t.startsWith('over')) {   // a text overlay riding the preceding row
+      const prev = rows[rows.length - 1]; if (!prev) continue
+      const parts = t.split('|').map(s => s.trim())
+      const win = parts[0].match(/@\s*([\d.]+)\s*-\s*([\d.]+)/)
+      const ov = { a: win ? +win[1] : 0, b: win ? +win[2] : 0, pos: 'bottom', anim: 'fade', lines: parseLines(parts.slice(1)) }
+      for (const seg of parts.slice(1)) {
+        let cm
+        if      ((cm = seg.match(/^anim\s+(.+)$/)))       ov.anim = cm[1]
+        else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { ov.inDur = +cm[1]; ov.inEffect = cm[2] }
+        else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { ov.outDur = +cm[1]; ov.outEffect = cm[2] }
+        else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { ov.waitBefore = +cm[1]; ov.waitAfter = +cm[2] }
+        else if ((cm = seg.match(/^pos\s+(\w+)/)))        ov.pos = cm[1]
+        else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    ov.boil = +cm[1]
+        else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) ov.breathe = +cm[1]
+        else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))     ov.bpm = +cm[1]
+      }
+      ;(prev.overlays || (prev.overlays = [])).push(ov); continue
+    }
+    const [ref, ...segs] = t.split('|').map(s => s.trim())     // ref + any `| verb …` segments (order-independent)
+    const row = { clip: ref, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }
+    for (const seg of segs) {
+      let sm
+      if ((sm = seg.match(/^trim\s+([\d.]+)\s+([\d.]+)/)))  row.trim = [+sm[1], +sm[2]]
+      else if ((sm = seg.match(/^speed\s+([\d.]+)/)))       row.speed = +sm[1]
+      else if ((sm = seg.match(/^(\w+)\s+([\d.]+)/)))     { row.xtype = sm[1]; row.xdur = +sm[2] }
+    }
+    rows.push(row)
+  }
+  return { rows, loop }
+}
 ipcMain.handle('studio:app-clips', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad app name' }
-  const clipsFor = cart => {
-    const pub = path.join(ROOT, 'editor/public/clips', cart)
-    const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')).map(f => f.replace(/\.webm$/, '')) : [])
-    const recDir = path.join(ROOT, 'tools/clips', cart)
-    const recs = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)).map(f => f.replace(/\.(script|beats|rec)$/, '')) : []
-    return [...new Set([...baked, ...recs])].sort().map(l => ({ label: l, clip: `${cart}/${l}`, baked: baked.has(l) }))
-  }
   try {
     const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
-    const carts = (m.carts || []).map(c => ({ cart: c, clips: clipsFor(c) }))
-    let rows = null, loop = null
-    const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
-    if (fs.existsSync(reelPath)) {
-      const lm = fs.readFileSync(reelPath, 'utf8').match(/^#\s*loop\s+(\w+)\s+([\d.]+)/m)
-      if (lm) loop = { type: lm[1], dur: +lm[2] }
-      rows = []
-      const parseLines = (parts) => parts.reduce((acc, seg) => {   // pull title/sub/body role-lines out of a segment list
-        const cm = seg.match(/^(title|sub|body)\s+(.*)$/); if (cm) acc.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') }); return acc
-      }, [])
-      for (const line of fs.readFileSync(reelPath, 'utf8').split('\n')) {
-        const t = line.trim(); if (!t || t.startsWith('#')) continue
-        if (t.startsWith('@card')) {   // a generated text-card part
-          const parts = t.split('|').map(s => s.trim())
-          const row = { card: true, dur: parseFloat(parts[0].split(/\s+/)[1]) || 2.0, lines: parseLines(parts.slice(1)), anim: 'fade', bg: null, xtype: 'fade', xdur: 0.5 }
-          for (const seg of parts.slice(1)) {
-            let cm
-            if      ((cm = seg.match(/^anim\s+(.+)$/)))       row.anim = cm[1]
-            else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { row.inDur = +cm[1]; row.inEffect = cm[2] }
-            else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { row.outDur = +cm[1]; row.outEffect = cm[2] }
-            else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { row.waitBefore = +cm[1]; row.waitAfter = +cm[2] }
-            else if ((cm = seg.match(/^bg\s+(\d+)/)))         row.bg = +cm[1]
-            else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    row.boil = +cm[1]
-            else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) row.breathe = +cm[1]
-            else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))     row.bpm = +cm[1]
-            else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
-          }
-          row.inEffect = row.inEffect || row.anim || 'fade'   // wait/in/hold/out/wait for the editor (hold derived)
-          if (row.inDur == null) row.inDur = 0.5
-          if (row.outDur == null) row.outDur = 0
-          row.outEffect = row.outEffect || 'slide top'
-          row.waitBefore = row.waitBefore || 0
-          row.waitAfter = row.waitAfter || 0
-          row.holdDur = Math.max(0, (row.dur || 2) - row.waitBefore - row.inDur - row.outDur - row.waitAfter)
-          rows.push(row); continue
-        }
-        if (t.startsWith('over')) {   // a text overlay riding the preceding row
-          const prev = rows[rows.length - 1]; if (!prev) continue
-          const parts = t.split('|').map(s => s.trim())
-          const win = parts[0].match(/@\s*([\d.]+)\s*-\s*([\d.]+)/)
-          const ov = { a: win ? +win[1] : 0, b: win ? +win[2] : 0, pos: 'bottom', anim: 'fade', lines: parseLines(parts.slice(1)) }
-          for (const seg of parts.slice(1)) {
-            let cm
-            if      ((cm = seg.match(/^anim\s+(.+)$/)))       ov.anim = cm[1]
-            else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { ov.inDur = +cm[1]; ov.inEffect = cm[2] }
-            else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { ov.outDur = +cm[1]; ov.outEffect = cm[2] }
-            else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { ov.waitBefore = +cm[1]; ov.waitAfter = +cm[2] }
-            else if ((cm = seg.match(/^pos\s+(\w+)/)))        ov.pos = cm[1]
-            else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    ov.boil = +cm[1]
-            else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) ov.breathe = +cm[1]
-            else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))     ov.bpm = +cm[1]
-          }
-          ;(prev.overlays || (prev.overlays = [])).push(ov); continue
-        }
-        const [ref, ...segs] = t.split('|').map(s => s.trim())     // ref + any `| verb …` segments (order-independent)
-        const row = { clip: ref, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }
-        for (const seg of segs) {
-          let sm
-          if ((sm = seg.match(/^trim\s+([\d.]+)\s+([\d.]+)/)))  row.trim = [+sm[1], +sm[2]]
-          else if ((sm = seg.match(/^speed\s+([\d.]+)/)))       row.speed = +sm[1]
-          else if ((sm = seg.match(/^(\w+)\s+([\d.]+)/)))     { row.xtype = sm[1]; row.xdur = +sm[2] }
-        }
-        rows.push(row)
-      }
-    }
+    const carts = (m.carts || []).map(c => ({ cart: c, clips: reelClipsFor(ROOT, c) }))
+    const { rows, loop } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
     return { ok: true, name: m.name || name, carts, rows, loop }
   } catch (e) { return { ok: false, error: String(e.message || e) } }
+})
+// list-reels: every saved scenario (tools/reels/*.reel) + whether it has a built webm. Drives the
+// "saved reels" list in the trailer builder — click one to reel-load it. docs/design/trailer-builder.md.
+ipcMain.handle('studio:list-reels', async () => {
+  const ROOT = path.join(__dirname, '../..')
+  const dir = path.join(ROOT, 'tools/reels')
+  if (!fs.existsSync(dir)) return { ok: true, reels: [] }
+  const reels = fs.readdirSync(dir).filter(f => f.endsWith('.reel')).map(f => f.replace(/\.reel$/, '')).sort()
+    .map(nm => ({ name: nm, hasWebm: fs.existsSync(path.join(ROOT, 'editor/public/reels', `${nm}.webm`)) }))
+  return { ok: true, reels }
+})
+// reel-load: parse a saved scenario → rows/loop + a library of every cart its clips reference, so
+// the trailer builder can open ANY saved reel (not just the one named after the current subject).
+ipcMain.handle('studio:reel-load', async (_e, name) => {
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad reel name' }
+  const { rows, loop } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
+  if (!rows) return { ok: false, error: `no tools/reels/${name}.reel` }
+  const carts = [...new Set(rows.filter(r => !r.card && r.clip).map(r => String(r.clip).split('/')[0]))]
+    .map(c => ({ cart: c, clips: reelClipsFor(ROOT, c) }))
+  return { ok: true, name, carts, rows, loop }
 })
 // build-reel: NON-DESTRUCTIVE — write the ordered rows to tools/reels/<name>.reel (a parameter
 // list, sources untouched), bake any referenced clip that isn't baked yet, then compose → the

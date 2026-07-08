@@ -1885,7 +1885,35 @@ async function openTrailer(subject) {
   const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
   document.getElementById('trailer-modal').hidden = false
   tlRender()
+  tlRenderReels()
 }
+// the "saved reels" strip: every tools/reels/*.reel, click to load its scenario into the builder.
+// The current subject's reel is highlighted. docs/design/trailer-builder.md (save/load the scenario).
+async function tlRenderReels() {
+  const el = document.getElementById('tl-reels'); if (!el) return
+  const res = await window.studio?.listReels?.()
+  const reels = (res && res.reels) || []
+  if (!reels.length) { el.innerHTML = '<span class="rs-dim">none saved yet — Build writes one</span>'; return }
+  el.innerHTML = reels.map(r =>
+    `<a href="#" class="tl-reel${r.name === tlApp ? ' tl-reel-cur' : ''}" data-reel="${escHtml(r.name)}" title="load this scenario">${escHtml(r.name)}${r.hasWebm ? ' <span class="rs-dim">▶</span>' : ''}</a>`
+  ).join('')
+}
+async function tlLoadReel(name) {
+  const res = await window.studio?.reelLoad?.(name)
+  if (!res?.ok) { showToast(res?.error || 'could not load reel', 3000); return }
+  tlSeqStop()
+  tlApp = name; tlLib = res.carts || []
+  tlBaked = new Set(); for (const c of tlLib) for (const cl of c.clips) if (cl.baked) tlBaked.add(cl.clip)
+  tlDur = {}; tlFocus = -1; tlSel = -1; tlOvSel = null
+  tlRows = (res.rows || []).map(r => ({ ...r }))
+  tlLoop = res.loop || null
+  document.getElementById('tl-app').textContent = `reel · ${name}`
+  tlRender(); tlRenderReels()
+}
+document.getElementById('tl-reels')?.addEventListener('click', e => {
+  const a = e.target.closest('[data-reel]'); if (!a) return
+  e.preventDefault(); tlLoadReel(a.dataset.reel)
+})
 // probe durations for any baked clip we haven't measured yet — a hidden <video>, no ffprobe/IPC
 function tlProbeDurations() {
   for (const clip of new Set(tlRows.map(r => r.clip))) {

@@ -1,1 +1,1 @@
-module.exports = { screenW: 320, screenH: 240, scale: 3 }
+module.exports = { screenW: 320, screenH: 200, scale: 4 }

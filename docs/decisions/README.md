@@ -65,6 +65,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0026](0026-store-pipeline-in-house-not-fastlane.md) | Store pipeline: in-house App Store Connect API tool, not Fastlane — steal only its metadata folder layout; assets/copy derive from the cart, drift-checked | accepted |
 | [0027](0027-sound-state-flows-through-the-request-queue.md) | Cart-facing sound state flows ONLY through the request queue — the de_switch_cart context log is complete because the queue is universal; `bpm()`'s direct write raced the switch (heard as tempo jumps) | accepted |
 | [0028](0028-sensible-defaults-optional-tweaks.md) | Sensible defaults, optional tweaks — pick the option a stranger gets, ship it, leave a seam (enum + one switch point, not a settings wall); surface a tweak only on evidence of need, behind disclosure; drop merely-worse options. Don't agonize | accepted |
+| [0029](0029-320x200-is-the-base-resolution.md) | 320×200 is the base resolution — the engine default + DOS/DIV heritage, 16:10 (Mac-native), and the neutral middle between iPad 4:3 and iPhone 19.5:9. Author good at 320×200, then make carts resizable to adapt outward; don't chase a device with a fixed size | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

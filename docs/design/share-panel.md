@@ -165,7 +165,7 @@ Deliberately NOT covered — the next spikes, in order of need:
    baked into `studio.c` in ~76 places (framebuffer, clip bounds, blit loops) and shared
    by the ONE `-D` value the whole binary compiles with — so "a cart's resolution" is a
    property of the *binary*, not the cart. `build-app.js` hard-rejects a mismatch for that
-   reason. Both Tinyjam racks are 320×240, so it dodges this. Three ways out, cheapest
+   reason. Tiny Jam's five racks are now all **320×200** ([ADR-0029](../decisions/0029-320x200-is-the-base-resolution.md) — the base res settled: heritage + Mac-native 16:10 + the neutral middle of the iPad↔iPhone spread), so the bundle matches. Three ways out, cheapest
    first (scoped 2026-07-03) — **no longer deferred: this graduated to a planned project,
    [`device-adaptive-layout.md`](device-adaptive-layout.md) (READY TO BUILD), once Tinyjam-on-the-
    App-Store made it a concrete need. B is its engine core, C its cart model; that doc also folds in

@@ -70,6 +70,11 @@ Supersedes the "deferred, no concrete need yet" framing in `responsive-layout.md
 [`share-panel.md`](share-panel.md) next-spike #3, and answers [`ios-plan.md`](ios-plan.md) umbrella
 backlog #2 (multi-resolution racks).
 
+**Base resolution is settled at 320×200** ([ADR-0029](../decisions/0029-320x200-is-the-base-resolution.md)):
+author carts good at 320×200 (engine default + DOS/DIV heritage, 16:10 Mac-native, the neutral middle
+between iPad 4:3 and iPhone 19.5:9), then reflow *outward* to the device — a fixed size can't fit both
+iPhone and iPad, so the base is a design canvas, not a device bet.
+
 ## Why now — one foundation, three payoffs
 
 The engine still bakes `SCREEN_W/H` as compile-time `#define`s (studio.h), hardcoded in ~76 places

@@ -11,6 +11,10 @@
 > - "What's shipped / open / cut?" → [`../STATUS.md`](../STATUS.md).
 > - Where clip/reel FILES live on disk (the storage layout) → [`cart-clips.md`](cart-clips.md).
 >   This note is the complementary half: where the media UI lands in the editor.
+> - **NAMING:** "**Promote**" here = the editor's per-cart media tab. It is **not** Apple's
+>   **promoted purchases** (`asc-push --promote`, IAPs surfaced in App Store search —
+>   [`store-agents.md`](store-agents.md)). Two unrelated features that share a word; keep "Promote"
+>   for this tab.
 
 ---
 

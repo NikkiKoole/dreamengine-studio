@@ -66,7 +66,13 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
    (2026-07-07):** creates a `promotedPurchase` per IAP (`visibleForAllUsers`, relationship named
    `inAppPurchaseV2`) and sets the display order via `PATCH /v1/apps/{id}/relationships/promotedPurchases`
    = the ordered list Apple shows; paired app-side with `Store.swift`'s `PurchaseIntent.intents`
-   listener (iOS 16.4+) so a tap from the store page / search lands in the purchase. **Still open:**
+   listener (iOS 16.4+) so a tap from the store page / search lands in the purchase.
+   > **NAMING (don't conflate the two "promotes").** This is **promoted purchases** — Apple's term for
+   > an IAP surfaced as a tappable result in App Store search / on the product page (`asc-push
+   > --promote`). It is **unrelated** to the editor's **[Promote tab](promote-tab.md)** (a cart's
+   > per-cart media bin: clips / tribes / gallery link). Rule: say **"promoted purchases"** for this
+   > App Store feature; reserve the bare word **"Promote"** for the editor tab. Never call this "promote".
+   **Still open:**
    per-locale `metadata/<locale>/` folders (the tool reads them but multi-locale isn't exercised) +
    an editor button + **`--custom-page` (Custom Product Pages)**. The copy *prose* (description/promo)
    stays maker-written per the two-part bar — the tool only pipes it.

@@ -1,9 +1,25 @@
 # The Promote tab — a cart's media bin + mini press-kit, in the editor
 
-> **STATUS: ready** (2026-07-07) — specced, nobody on it yet. The concrete build that falls out of
+> **NAMING — not App Store "promoted purchases".** This tab is the editor's per-cart media bin
+> (clips / takes / tribes / gallery link). It is **unrelated** to Apple's **promoted purchases**
+> (`asc-push --promote`, an IAP surfaced as a tappable App Store search result —
+> [`store-agents.md`](store-agents.md)). They share a word, nothing else. Bare "Promote" = this tab.
+
+> **STATUS: BUILDING** (2026-07-08) — **MVP shipped** (A + D + E, the whole loop in miniature); v2
+> sections (C trailer, B stills, bake-take→clip) still open. The concrete build that falls out of
 > the [`editor-scopes-and-facets.md`](editor-scopes-and-facets.md) resolution ("Make / Promote /
 > Ship" — Promote is the one verb with no home today). This doc is *what the tab contains*; that doc
 > is *why it exists*.
+>
+> **What landed (MVP, 2026-07-08).** A `promote` tab (after `apps`) with a `#panel-promote` scroll:
+> **A** clips & takes (`studio:cart-clips` lists `tools/clips/<cart>/` takes + `editor/public/clips/<cart>/`
+> baked webm; ▶ replays a `.rec` take via the built `studio:replay`; ● record reuses `recordCart()`),
+> **D** find tribes (`studio:cart-leads` = `runLeadsJson(cart)` wrapped for the shared `leadsHtml()`
+> renderer), **E** the gallery link (deterministic URL + copy). Two thin cart-scoped IPCs were the only
+> new server logic — both reuse the app-scoped helpers. Files: `editor/index.html`, `editor/src/shell.js`
+> (+`shell.css`), `editor/electron/main.cjs`, `preload.cjs`. **Open for v2:** C trailer
+> (`compose-clips.js` UI), B stills capture, "bake take → clip" (`make-gif.js --recipe`), a real
+> published-state dot on E (via `cart-status.js --json`), and auto-refresh after a record completes.
 
 > **One-line pitch.** A per-cart tab that gathers everything you'd use to get this cart *seen* —
 > replays, clips, stills, a trailer, and its tribes — as a **browse-and-assemble library**, not a

@@ -16,7 +16,7 @@
   "description": {
     "summary": "A chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. Three synth engines (subtractive / FM / reed EP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a strummable sonic-strings plate, a drum machine and a real-time chord looper.",
     "detail": "Three tabs across the top bar (or TAB): CHORD, MIX, RHYTHM. CHORD is the instrument: the keybed at the bottom (tap or the GarageBand keys A S D F G H J for the white roots, W E T Y U for the blacks) sets the ROOT and fires the chord. The upper button row picks ONE chord TYPE (dim / min / maj / sus4); the lower row toggles MODIFIERS that stack freely (6th, m7, maj7, 9th). The VOICING strip (arrow keys or drag) is the star: each step shifts the whole chord up or down by one chord-tone, so it cascades through every inversion and octave spread — turn it while a chord rings and hear it re-voice live, exactly the Orchid's patent-pending trick. A rainbow SONIC STRINGS plate above the keybed is always strummable (mouse or multi-finger) as a harp glissando over the current chord. MIX is the Orchid's nine-knob top row (Sound=engine, Perform=mode, FX, Key/transpose, Bass, Loop mix, BPM, Options=strum tightness, Volume). RHYTHM is a 16-step drum machine (kick/snare/hat/ohat/clap + a BASS row that follows the chord root, six preset grooves) plus a real-time CHORD LOOPER: arm REC and every chord you play is captured to a 4-bar loop that plays back so you can jam over yourself. SPACE = transport play/stop.",
-    "controls": "keybed roots: A S D F G H J (white C-B) + W E T Y U (black); TYPE: tap or 1-4; MODIFIERS: tap or 5-8 (combinable); VOICING: LEFT/RIGHT arrows or drag the strip; strum the rainbow plate with mouse/fingers; TAB = switch tab; SPACE = drum transport play/stop. MIX tab: turn the nine knobs. RHYTHM tab: tap the grid, 1-6 = preset grooves, REC/PLAY/CLEAR the looper."
+    "controls": "keybed roots: A S D F G H J (white C-B) + W E T Y U (black); Z/X = octave down/up; TYPE: tap or 1-4; MODIFIERS: tap or 5-8 (combinable); LEAD VOICING: LEFT/RIGHT arrows or drag the strip; BASS VOICING walk: UP/DOWN arrows (steps the following bass through the chord tones); strum the rainbow plate with mouse/fingers; TAB = switch tab; SPACE = drum transport play/stop. MIX tab: turn the nine knobs. RHYTHM tab: tap the grid, 1-6 = preset grooves, REC/PLAY/CLEAR the looper."
   },
   "todo": [
     "Use BEAUTIFUL instrument presets, not the bare defaults — voice the three engines from the curated recipes (docs/guides/instrument-recipes.md + instrument-presets.md) so SUB/FM/EP each sound gorgeous, instead of raw INSTR_SAW/FM/EPIANO with basic envelopes.",
@@ -135,6 +135,7 @@ static bool modOn[NMOD] = { false, false, false, false };
 static int  voicing  = 0;                 // the cascade offset (signature dial)
 static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), whole chord
 static bool retrig   = false;             // RETRIG toggle: re-play the chord on every param change?
+static int  bassVoi  = 0;                 // BASS voicing walk: 0=root, 1=3rd, 2=5th, then up an octave… (the Orchid's bass dial)
 static int  engine   = 2;                 // start on reed EP (warm)
 static int  perfMode = PM_STRUM;
 static int  transpose = 0;                // MIX "Key" knob, -12..+12 semis
@@ -232,13 +233,21 @@ static void cb_release_held(void) {
 // (the "thundering bottom", à la more-note-bass). Level from the BASS knob. The
 // sub stays LOW — it ignores the keybed octave shift on purpose. dur ms lets the
 // groove (short, punchy) and a chord-change articulation (longer) differ.
+// the bass note = the chord's tones stacked from a LOW anchor, WALKED by bassVoi
+// (0 = root, 1 = 3rd, 2 = 5th, then up an octave and around again) — the Orchid's
+// bass voicing dial. Changing chords keeps the offset, so the bass voice-leads.
+static int cb_bass_note(void) {
+    int pc[12]; int npc = cb_pcs(pc);
+    if (!npc) return -1;
+    int idx = mid(0, bassVoi, npc * 3 - 1);              // ~3 octaves of walk
+    return 24 + root + transpose + 12 * (idx / npc) + pc[idx % npc];
+}
 static void cb_bass_at(int dur, int volBias) {
     if (kBass < 0.02f) return;
-    int pc[12]; int npc = cb_pcs(pc);
-    if (!npc) return;
-    int bn = 24 + root + transpose + pc[0];              // chord root, low octave
-    int v  = mid(1, (int)(kBass * 6) + 1 + volBias, 7);
-    hit(bn,      SL_BASS, v,               dur);
+    int bn = cb_bass_note();
+    if (bn < 0) return;
+    int v = mid(1, (int)(kBass * 6) + 1 + volBias, 7);
+    hit(bn,      SL_BASS, v,                dur);
     hit(bn - 12, SL_BASS, mid(1, v - 2, 7), dur - 40);   // octave-down SUB layer
 }
 static void cb_bass(void) { cb_bass_at(420, 0); }        // chord-change articulation
@@ -376,13 +385,18 @@ static void update_chord(void) {
     for (int m = 0; m < NMOD; m++)
         if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param(); }
 
-    // VOICING strip — arrow keys or drag on the strip
+    // LEAD VOICING strip — LEFT/RIGHT or drag on the strip
     if (btnp(0, BTN_LEFT))  { voicing--; cb_param(); }
     if (btnp(0, BTN_RIGHT)) { voicing++; cb_param(); }
     if (tapp(6, 68, SCREEN_W - 12, 14)) {
         int nx = mid(-14, (touch_x(0) - SCREEN_W / 2) / 8, 14);
         if (nx != voicing) { voicing = nx; cb_param(); }
     }
+
+    // BASS VOICING walk — UP/DOWN steps the bass note through the chord tones;
+    // play it on each step so you HEAR the bass move (the point of walking it).
+    if (btnp(0, BTN_UP))   { bassVoi = min(14, bassVoi + 1); cb_bass(); }
+    if (btnp(0, BTN_DOWN)) { bassVoi = max(0,  bassVoi - 1); cb_bass(); }
 
     // engine + perform quick-selectors (small tiles, right of the readout)
     for (int e = 0; e < NENG; e++)
@@ -495,6 +509,8 @@ void update(void) {
     watch("voicing", "%d", voicing);
     watch("octave",  "%d", octave);
     watch("retrig",  "%d", retrig);
+    watch("bassVoi", "%d", bassVoi);
+    watch("bassN",   "%d", cb_bass_note());
     watch("nVoiced", "%d", nVoiced);
     watch("lo",      "%d", nVoiced ? voiced[0] : -1);
     watch("hi",      "%d", nVoiced ? voiced[nVoiced - 1] : -1);
@@ -577,8 +593,10 @@ static void drawChordTab(void) {
     int cx = SCREEN_W / 2 + voicing * 8;
     cx = mid(10, cx, SCREEN_W - 10);
     rectfill(cx - 2, 69, 4, 12, CLR_YELLOW);
-    print(str("VOICING %+d", voicing), 10, 71, CLR_LIGHT_GREY);
-    print(PMNAME[perfMode], SCREEN_W - 4 - text_width(PMNAME[perfMode]), 71, CLR_LIGHT_PEACH);
+    print(str("LEAD %+d  <>", voicing), 10, 71, CLR_LIGHT_GREY);
+    int bn = cb_bass_note();
+    const char *bl = str("BASS %s  ^v", bn < 0 ? "-" : NOTE[bn % 12]);
+    print(bl, SCREEN_W - 4 - text_width(bl), 71, CLR_LIGHT_PEACH);
 
     // sonic-strings plate
     fillp(FILL_CHECKER, CLR_DARKER_PURPLE);

@@ -13,7 +13,7 @@
 to avoid colliding on. Rules that keep it honest: **refresh your lane's date whenever you touch it;
 prune a lane the moment it ships or goes quiet** (its detail already lives in `STATUS.md` + the
 doc's pick-up point — don't duplicate, point). **Write every Resume-at as a real anchor link —
-`[text](design/doc.md#the-section)`, not prose like "→ §3" or "(doc.md §Foo)"** — so the pointer's
+`[text](path#section-slug)` pointing at the target `.md`'s heading, not prose like "→ §3" or "(doc §Foo)"** — so the pointer's
 target is machine-checkable: when work ships and that section gets renamed, the anchor breaks and
 `--check` catches it. Keep the *status* itself in the doc (point, don't restate) so a shipped slice
 can't leave a stale sentence here (the trip-up: a "resume at trim+speed" line survived weeks after

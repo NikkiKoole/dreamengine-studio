@@ -100,8 +100,8 @@ drift is fixed by whoever caused it; the back door catches what slipped through.
 honest — [`handoff.js`](../../tools/handoff.js) bare is the front door (lists the active lanes + age,
 wired into `orient`), `--check` is the back door (flags a lane >2wk old, a broken doc link, or a
 broken `#section` anchor, surfaced by `cart-status.js`). It's a sibling application of the pattern,
-not a `de:driftable` marker: a lane's Resume-at is written as a real `[text](doc.md#section)` link so
-that when work ships and the target section is renamed, the anchor breaks and the back door catches
+not a `de:driftable` marker: a lane's Resume-at is written as a real `[text](path#section)` anchor link
+so that when work ships and the target section is renamed, the anchor breaks and the back door catches
 the now-stale pointer.
 
 **Beyond `docs/` — generated app worksheets.** `--driftable` also scans `apps/*/seo-brief.md`

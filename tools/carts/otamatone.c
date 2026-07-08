@@ -1,6 +1,6 @@
 /* de:meta
 {
-  "title": "otamatone",
+  "title": "Singing Stick",
   "status": "active",
   "created": "2026-06-02",
   "kind": [

@@ -165,6 +165,28 @@ the cart's `.rec` takes + `replay()` (built), baked clips (the 🎬 make-clip br
 plumbing — the sources exist; they lack a home. **Full contents spec + MVP:
 [`promote-tab.md`](promote-tab.md)** (one scrolling panel, sections in produce → assemble → reach order).
 
+### The shared-popup pattern (2026-07-08) — refines "shared components, two homes"
+
+Building the Promote tab surfaced a sharper form of "shared components, two homes." Most promo/reach
+**tools are scope-neutral at the CLI** — `leads match <cart>`, `aso-research <terms>`,
+`compose-clips <clips>`, `make-gif <cart>` take raw inputs, not a scope. The scope is imposed by the
+*surface*, and the dependency is one-directional: **a cart produces raw material; an app aggregates it.**
+
+So the overlap facets (trailer, keyword research, outreach) don't need duplicated UI in both the
+Promote tab and the Apps view — they want **one scope-parameterized popup, opened from both**:
+`open(tool, { kind: 'cart' | 'app', name })`. The caller supplies the subject; the popup is
+scope-blind and runs the neutral CLI. This keeps scope **emergent** (the popup never *switches*
+scope — it receives one) while killing the duplication.
+
+The split that falls out:
+- **Tool-heavy / modal → a shared popup** — the **trailer builder** (SHIPPED 2026-07-08 as the first
+  instance: lifted out of the Apps panel into a top-level modal, `openTrailer({kind,name})`, opened
+  from the Apps card *and* the Promote tab §C) and **keyword research** (next).
+- **Browse-y glance → shared inline component** — **leads/tribes** stays inline in each scroll
+  (`leadsHtml()` already renders a cart or app payload identically; two inline homes, no popup).
+- **Genuinely single-scope → stays put** — takes/clips/stills (cart only); listing grading
+  (ASO brief/score), press kit, device screenshots (app only, they grade/need a real listing).
+
 ### The zeroth verb: Dream (the loop closes)
 
 The three verbs have a **zeroth** — and the engine is named for it. The full arc is a **cycle, not

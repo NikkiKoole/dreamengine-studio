@@ -5,8 +5,11 @@
 > (`asc-push --promote`, an IAP surfaced as a tappable App Store search result —
 > [`store-agents.md`](store-agents.md)). They share a word, nothing else. Bare "Promote" = this tab.
 
-> **STATUS: BUILDING** (2026-07-08) — **A + B + D + E shipped**; only **C (per-cart trailer)** still
-> open. The concrete build that falls out of the
+> **STATUS: BUILDING** (2026-07-08) — **A + B + C + D + E all shipped** (the full tab). **C · trailer**
+> is a scope-parameterized popup shared with the Apps view — see the shared-popup pattern below +
+> [`editor-scopes-and-facets.md`](editor-scopes-and-facets.md). Remaining: a published-state dot on E,
+> delete affordances, and pre-populating a per-cart trailer from a saved `tools/reels/<cart>.reel`.
+> The concrete build that falls out of the
 > [`editor-scopes-and-facets.md`](editor-scopes-and-facets.md) resolution ("Make / Promote / Ship" —
 > Promote is the one verb with no home today). This doc is *what the tab contains*; that doc is *why
 > it exists*.
@@ -21,6 +24,11 @@
 > - **B · stills** — **📸 snapshot** (`studio:cart-shot`) runs the cart headless, keeps a mid frame,
 >   saves `editor/public/shots/<cart>/NN-snap.png` (a NEW sibling of `clips/`); a thumbnail gallery.
 >   Per-cart stills only — NOT the device-sized App Store shots (`store-shots.js`, app-scope).
+> - **C · trailer** — a **🎬 open trailer builder** button opens the trailer builder as a
+>   **scope-parameterized modal** (`openTrailer({kind:'cart',name})`) — the *same* builder the Apps
+>   card opens for an app. Lifted out of the Apps panel into a top-level `.modal` overlay so both
+>   surfaces open it; cart scope stitches one cart's clips, app scope stitches across an app's carts.
+>   The first instance of the **shared-popup pattern** (a scope-neutral tool, one popup, two triggers).
 > - **D · find tribes** — `studio:cart-leads` = `runLeadsJson(cart)` wrapped for the shared `leadsHtml()`.
 > - **E · the gallery link** — deterministic URL + copy.
 >

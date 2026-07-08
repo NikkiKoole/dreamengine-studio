@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showRecord: false, showShare: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showShare: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
 
 // ── key bindings ──────────────────────────────────────────────
 // Values are raylib (GLFW) keycodes — letters/digits are ASCII, specials match
@@ -85,7 +85,6 @@ function load() {
     showProfiler:  localStorage.getItem('showProfiler') === '1',
     showPublish:   localStorage.getItem('showPublish') === '1',
     showNetplay:   localStorage.getItem('showNetplay') === '1',
-    showRecord:    localStorage.getItem('showRecord') === '1',
     showShare:     localStorage.getItem('showShare') === '1',
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
     backend:       localStorage.getItem('backend')   || DEFAULTS.backend,
@@ -359,20 +358,7 @@ export function buildSettingsPanel(el) {
   profSection.appendChild(note('runs the cart for a few seconds, samples it with macOS `sample`, and lists which functions burned the most CPU — straight into the build log. desktop app only.'))
   el.appendChild(profSection)
 
-  // ── record (advanced) ─────────────────────────────────────────
-  const recSection = section('record')
-  recSection.appendChild(checkbox(
-    'show ● rec button in the toolbar',
-    settings.showRecord,
-    v => {
-      settings.showRecord = v
-      save('showRecord', v ? '1' : '0')
-      const btn = document.getElementById('rec-btn')
-      if (btn) btn.style.display = v ? '' : 'none'
-    },
-  ))
-  recSection.appendChild(note('records your play as a deterministic input track — play, then close the cart window (Esc) to save it to tools/clips/<cart>/NN-take.rec. Replay it or bake it into a clip (feeds the trailer builder / attract). desktop app only.'))
-  el.appendChild(recSection)
+  // (recording is triggered from the Promote tab's ● record a take — no toolbar toggle.)
 
   // ── share (advanced) ──────────────────────────────────────────
   const shareSection = section('share')

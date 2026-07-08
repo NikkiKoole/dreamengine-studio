@@ -1226,25 +1226,26 @@ async function runCart(net) {
 
 runBtn.addEventListener('click', () => runCart(null))
 
-// ● record — run the cart and capture your play as an input track. The take runs for the whole
-// session; you play, then CLOSE the cart window (Esc) to stop + save it to tools/clips/<cart>/NN-take.rec.
-// docs/design/input-recording-looper.md. (Stop-on-close is the scrappy v1; a live stop-hotkey is later.)
-const recBtn = document.getElementById('rec-btn')
+// ● record — run the cart and capture your play as an input track. Triggered from the Promote
+// tab's ● record a take (#promote-rec) — there's no toolbar/settings button anymore. The take
+// runs the whole session; you play, then CLOSE the cart window (Esc) to stop + save it to
+// tools/clips/<cart>/NN-take.rec. docs/design/input-recording-looper.md, promote-tab.md §A.
 async function recordCart() {
   if (!window.studio?.record) { showLog({ ok: false, cmd: null, output: 'recording requires the desktop app  (npm start)' }); return }
   const code = view.state.doc.toString()
   setErrorLines([])
-  recBtn.textContent = '⏳'; recBtn.disabled = true; runBtn.disabled = true
+  const recBtn = document.getElementById('promote-rec')
+  if (recBtn) { recBtn.textContent = '⏳ recording…'; recBtn.disabled = true }
+  runBtn.disabled = true
   const tilemapCanvas = document.querySelector('#tilemap-canvas')
   if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
   await window.studio.saveMap(getMapBytes())
   const result = await window.studio.record(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile })
-  recBtn.textContent = '● rec'; recBtn.disabled = false; runBtn.disabled = false
+  if (recBtn) { recBtn.textContent = '● record a take'; recBtn.disabled = false }
+  runBtn.disabled = false
   if (result && !result.ok) { showLog(result); return }
   showToast('● recording — play, then close the window (Esc) to save the take', 6000)
 }
-recBtn.addEventListener('click', recordCart)
-if (settings.showRecord && recBtn) recBtn.style.display = ''   // hidden by default; opt-in via settings → record
 // the exact path also prints into the runtime log (persistent); the toast reveals it in Finder on click
 window.studio?.onRecorded?.(info => {
   if (info?.ok) {

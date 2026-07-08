@@ -1347,8 +1347,10 @@ const asoOut = document.getElementById('aso-out')
 window.studio?.onAsoLog?.(s => { if (asoOut) asoOut.textContent += stripAnsi(s) })   // stripAnsi() defined below (hoisted)
 const asoResults = document.getElementById('aso-results')
 const fmtRatings = x => x >= 1e6 ? (x / 1e6).toFixed(1) + 'M' : x >= 1e3 ? (x / 1e3).toFixed(1) + 'k' : String(x)
-function renderResearch(data) {   // escHtml() is defined elsewhere in shell.js (hoisted / module scope)
-  if (!asoResults) return
+// escHtml() is defined elsewhere in shell.js (hoisted / module scope). researchHtml/suggestHtml
+// are container-agnostic string builders so BOTH the Apps ASO lab (asoResults) and the shared
+// keyword-research popup (#kw-results) can render the same results.
+function researchHtml(data) {
   let h = ''
   for (const t of (data.terms || [])) {
     if (t.error) { h += `<div class="rs-term"><b>"${escHtml(t.term)}"</b> — ${escHtml(t.error)}</div>`; continue }
@@ -1368,8 +1370,9 @@ function renderResearch(data) {   // escHtml() is defined elsewhere in shell.js 
       + data.mined.map(([w, c]) => `<a href="#" class="rs-chip" data-term="${escHtml(w)}">${escHtml(w)}·${c}</a>`).join(' ')
       + `</div>`
   }
-  asoResults.innerHTML = h
+  return h
 }
+function renderResearch(data) { if (asoResults) asoResults.innerHTML = researchHtml(data) }
 asoResults?.addEventListener('click', e => {
   const openL = e.target.closest('[data-openpath]')
   if (openL) { e.preventDefault(); window.studio?.openPath?.(openL.dataset.openpath); return }
@@ -1399,15 +1402,18 @@ document.getElementById('aso-terms')?.addEventListener('keydown', e => { if (e.k
 // suggest — Google-autocomplete demand proxy. TWO audiences: single WORDS → the App Store
 // keyword field (auto-fills the compose box), natural PHRASES → website/press SEO.
 const sugRun = document.getElementById('sug-run')
-function renderSuggest(data) {
-  if (!asoResults) return
+function suggestHtml(data) {
   let h = '<div class="rs-note">Google-intent demand proxy — relative, not App Store volume.</div>'
   h += `<div class="rs-block"><b>App Store keyword words</b> <span class="rs-dim">→ filled into the compose box below</span><div class="rs-chips">`
     + (data.mined || []).map(([w, c]) => `<span class="rs-chip">${escHtml(w)}·${c}</span>`).join(' ') + '</div></div>'
   h += `<div class="rs-block"><b>Website / press-kit phrases</b> <span class="rs-dim">→ meta description, headings, copy</span><div class="rs-phrases">`
     + (data.phrases || []).map(p => `<div class="rs-phrase">${escHtml(p.phrase)} <span class="rs-dim">·${p.demand}</span></div>`).join('') + '</div></div>'
-  asoResults.innerHTML = h
-  const cc = document.getElementById('comp-cands')
+  return h
+}
+function renderSuggest(data) {
+  if (!asoResults) return
+  asoResults.innerHTML = suggestHtml(data)
+  const cc = document.getElementById('comp-cands')   // Apps-lab only: feed the compose box (app-scope)
   if (cc && (data.candidates || []).length) cc.value = data.candidates.join(', ')
 }
 async function runSuggest(terms, cc) {
@@ -1422,6 +1428,58 @@ async function runSuggest(terms, cc) {
 }
 sugRun?.addEventListener('click', () => runSuggest(document.getElementById('sug-terms').value, document.getElementById('sug-cc')?.value))
 document.getElementById('sug-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') sugRun?.click() })
+
+// ── Keyword research popup — the SECOND scope-parameterized shared popup (after the trailer) ──
+// Runs the scope-neutral aso-research (competition) + aso-suggest (demand) for a subject, seeded
+// from its de:meta (cart) or listing (app). Reuses researchHtml/suggestHtml. Opened from the Promote
+// tab (cart) and the Apps card (app). docs/design/editor-scopes-and-facets.md (shared-popup pattern).
+async function openKeywords(subject) {
+  const kind = (subject && typeof subject === 'object' && subject.kind) || 'app'
+  const name = (subject && typeof subject === 'object') ? subject.name : subject
+  document.getElementById('kw-subject').textContent = `${kind} · ${name}`
+  const results = document.getElementById('kw-results'); if (results) results.innerHTML = ''
+  let seed = ''   // seed the terms box from the subject's own words — edit freely
+  if (kind === 'cart') {
+    try {
+      const idx = await fetch('/carts/index.json').then(r => r.json())
+      const e = (idx || []).find(c => (c.file || '') === `${name}.cart.png`)
+      // genre + kind are the market-facing descriptors; teaches are internal technique names (noise here)
+      if (e) seed = [e.genre, ...(e.kind || [])].filter(Boolean).join(', ')
+    } catch {}
+  } else {
+    const L = (appListings[name] && appListings[name].listing) || {}
+    seed = L.keywords || [L.title, L.subtitle].filter(Boolean).join(', ')
+  }
+  const termsEl = document.getElementById('kw-terms'); if (termsEl) termsEl.value = seed
+  document.getElementById('keywords-modal').hidden = false
+  termsEl?.focus()
+}
+async function kwRun(tool) {
+  const results = document.getElementById('kw-results')
+  const terms = document.getElementById('kw-terms')?.value || ''
+  const cc = document.getElementById('kw-cc')?.value || 'us'
+  if (!terms.trim()) { document.getElementById('kw-terms')?.focus(); return }
+  const fn = tool === 'research' ? window.studio?.asoResearch : window.studio?.asoSuggest
+  if (!fn) { showToast('keyword research requires the desktop app  (npm start)', 3000); return }
+  const btn = document.getElementById(tool === 'research' ? 'kw-research' : 'kw-suggest')
+  const stop = busyDots(btn, tool === 'research' ? 'researching' : 'suggesting', tool); if (btn) btn.disabled = true
+  if (results) results.innerHTML = '<div class="rs-dim">working…</div>'
+  const res = await fn(terms, cc)
+  stop(); if (btn) btn.disabled = false
+  if (res?.ok && res.data) results.innerHTML = tool === 'research' ? researchHtml(res.data) : suggestHtml(res.data)
+  else if (results) results.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || (tool + ' failed'))}</div>`
+}
+document.getElementById('kw-research')?.addEventListener('click', () => kwRun('research'))
+document.getElementById('kw-suggest')?.addEventListener('click', () => kwRun('suggest'))
+document.getElementById('kw-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') kwRun('research') })
+document.getElementById('kw-close')?.addEventListener('click', () => { document.getElementById('keywords-modal').hidden = true })
+// popup result clicks: open a store link, or a mined chip re-runs research within the popup
+document.getElementById('kw-results')?.addEventListener('click', e => {
+  const link = e.target.closest('a[data-url]')
+  if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
+  const chip = e.target.closest('a[data-term]')
+  if (chip) { e.preventDefault(); const t = document.getElementById('kw-terms'); if (t) t.value = chip.dataset.term; kwRun('research') }
+})
 
 // score — render aso-score's scorecard WITH its gotchas inline (a bare number in a GUI reads as
 // gospel; the caveats have to travel with it). Committed listing only; the A/B tweak loop is CLI.
@@ -1741,6 +1799,10 @@ document.getElementById('promote-snap')?.addEventListener('click', async (e) => 
 document.getElementById('promote-trailer')?.addEventListener('click', () => {
   if (!currentCartFile) { showToast('open a cart first', 2500); return }
   openTrailer({ kind: 'cart', name: currentCartFile })
+})
+document.getElementById('promote-keywords')?.addEventListener('click', () => {
+  if (!currentCartFile) { showToast('open a cart first', 2500); return }
+  openKeywords({ kind: 'cart', name: currentCartFile })
 })
 document.querySelector('.tab[data-tab="promote"]')?.addEventListener('click', renderPromote)
 
@@ -2541,6 +2603,7 @@ async function renderAppsList() {
         <button data-act="coverage">🪞 check copy</button>
         <span class="app-sec">reach</span>
         <button data-act="leads">📣 find tribes</button>
+        <button data-act="keywords">🔑 keywords</button>
         <span class="app-sec">publish</span>
         <button data-act="store">☁︎ App Store</button>
       </div>`
@@ -2645,6 +2708,7 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       stop(); btn.disabled = false
       return
     }
+    if (act === 'keywords') { openKeywords({ kind: 'app', name: app }); return }
     // App Store — click 1 of 2: dry-run the metadata diff into a checklist panel (read-only, safe).
     // The push (click 2) lives on the panel's button; nothing goes live from this click.
     if (act === 'store') {

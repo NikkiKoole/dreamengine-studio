@@ -221,6 +221,10 @@
               <button id="promote-trailer" title="open the trailer builder for this cart's clips">🎬 open trailer builder</button>
             </section>
             <section class="promote-sec">
+              <div class="promote-h">keywords <span class="apps-hint">competition + demand for this cart's terms</span></div>
+              <button id="promote-keywords" title="research keywords for this cart — App Store competition + Google demand">🔑 keyword research</button>
+            </section>
+            <section class="promote-sec">
               <div class="promote-h">find tribes <span class="apps-hint">where to gift-post · we prep, you post</span></div>
               <div id="promote-leads"></div>
             </section>
@@ -321,6 +325,24 @@
           <span class="tl-hint">non-destructive — edits the .reel, never the clips</span></div>
         <pre id="tl-log" class="tl-log" hidden></pre>
         <video id="tl-preview" controls loop hidden></video>
+      </section>
+    </div>
+
+    <!-- Keyword research — the 2nd scope-parameterized MODAL: competition (aso-research) + demand
+         (aso-suggest) for a subject, seeded from its de:meta (cart) / listing (app). Opened from the
+         Promote tab (cart) and the Apps card (app). openKeywords({kind,name}). -->
+    <div id="keywords-modal" class="modal" hidden>
+      <section id="kw-lab">
+        <h3>🔑 Keyword research <span class="apps-hint" id="kw-subject"></span>
+          <button id="kw-close" title="close">✕</button></h3>
+        <div class="kw-row">
+          <input id="kw-terms" type="text" placeholder="terms, comma-separated" spellcheck="false" />
+          <input id="kw-cc" type="text" value="us" maxlength="2" title="storefront (2-letter country code)" />
+          <button id="kw-research" title="competition — the keyword landscape (App Store)">research</button>
+          <button id="kw-suggest" title="demand + long-tail (Google autocomplete)">suggest</button>
+        </div>
+        <div class="kw-hint">seeded from this subject's de:meta / listing — edit freely. competition (research) + demand (suggest). desktop app only.</div>
+        <div id="kw-results"></div>
       </section>
     </div>
 

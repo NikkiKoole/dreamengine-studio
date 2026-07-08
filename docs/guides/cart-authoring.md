@@ -430,6 +430,22 @@ shrink your layout, magnify the input instead:
   whole-view zoom — `gestures.h` `pinch_scale()` × `camera_ex()`. A loupe shows
   only a slice, so it's the wrong tool here. (`modrack` is the worked example.)
 
+### Keyboard shortcuts make a cart *filmable* (and multi-resolution-portable)
+
+Most carts read the keyboard already — but be aware of a payoff that pulls the other way from
+touch: **keyboard shortcuts are what let a cart demo itself and capture truthfully at every screen
+ratio.** A key press (`key()`/`btn()`) has **no coordinates**, so one recorded take replays
+identically on iPad, iPhone-portrait, a 9:16 TikTok crop — the layout can reflow completely and the
+take still lands (and the audio comes out byte-identical). A **tap is an absolute pixel**: reflow
+moves the widget and the tap misses. So the moment a cart becomes a **multi-resolution** thing you
+want **autoplay video captures** of (App Store previews, a 9:16 social clip), a handful of extra
+keyboard shortcuts — transport (play/stop), pattern/preset cycling, whatever you'd *show off* — are
+**gold**: they turn "record once → render every ratio" from impossible into free. Bind them up front
+even if touch is the primary input; a mouse-only cart needs a re-record per shape (or a
+letterbox/composite fallback). Full reasoning:
+[`../design/export-ratios.md`](../design/export-ratios.md) (the render side) +
+[`../design/resolution-portable-input.md`](../design/resolution-portable-input.md) (the input side).
+
 ## House conventions for instrument carts
 
 > **Building a sound/instrument cart? Start at the shelf:**

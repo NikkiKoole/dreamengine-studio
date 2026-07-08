@@ -3563,6 +3563,21 @@
     "lineage": "A stripped sibling of drummachine and One Note: the same 16-step paintable grid, but the bass lane opens into five scale-locked rows so a monophonic bassline can walk a pentatonic pocket without leaving the on/off sequencer idiom."
   },
   {
+    "title": "motionbox",
+    "description": "The Korg-Electribe MOTION SEQUENCE: a 4-part kit (kick/hat/bass/lead) loops on a 16-step ribbon, and ONE row of four knobs REMAPS to whichever part you select - that scarcity (one row means four things) is what makes an EMX feel deep with so few controls. While it plays you GRAB a knob and wiggle it; the wiggle is recorded per-step into that part's motion lane and plays back locked to the bar, layered per knob, per part. Two ideas make the whole instrument. SCARCITY: select a part and the ribbon + the one knob row + the knob LABELS all remap to it (kick shows TUNE/DECAY/DRIVE/ACC; bass shows CUTOFF/RES/DECAY/ACC). MOTION: while REC is armed, dragging a knob writes its value into that part's 16-step lane at the playhead, replayed forever. Motion is sampled PER-HIT (each note reads its lanes as it fires) so every part gets its own automation without fighting one master filter. SMOOTH interpolates the lane between steps; TRIG holds per step. The mini-strip under each knob is the selected part's recorded motion with the playhead. CLEAR wipes the selected part's motion. TAP a part to select it (its ribbon + knob row appear). TAP a step to toggle it. GRAB a knob and turn it - if REC is armed the turn is recorded as motion for the selected part. REC arms recording. SMOOTH/TRIG flips playback. CLEAR wipes the selected part's motion. Left/Right arrows = tempo.",
+    "file": "motionbox.cart.png",
+    "created": "2026-07-09",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "motion-sequencing"
+    ],
+    "homage": "Korg Electribe EMX-1"
+  },
+  {
     "title": "motorik radio",
     "description": "Endless krautrock - the Neu! x Stereolab homage, station #16, and the first to prove THE PROCESS FORM: a radio with NO sections at all. The relentless motorik 4/4 (a live drummer quantized dead to the grid - kick on every quarter, understated backbeat, straight-8th hat, no fills ever) drives under a thin Farfisa drone (INSTR_ORGAN, the engine that unblocked this station) with maj7 chords PLANING on top (parallel voicings gliding over the drone - the only harmonic motion there is). A single progress value 0..1 runs the WHOLE song: every layer accumulates and then ebbs on its own seeded threshold, never on a bar boundary - so the loop has no seam, which makes it the best game-background music on the dial (nothing ever interrupts). THE MODULATION EVENT: one seeded key lift per song, around two-thirds through, slides the whole drone up under the topline - a story beat, not a grid position. The least performance-random station on the dial; the invariance IS the genre. Seeded per song: key, mode (lydian/major/mixolydian), length, the layer thresholds, the modulation, the pad's planing path, the topline cell, and the band roll (bright Farfisa night vs dark Vox night, round-saw vs buzzy-square Moog bass). The window is an autobahn at night - centerline dashes streaming toward you at the pulse, each layer that enters lighting the scene a little further; the horizon flares when the key lifts. SPACE next drive, R same drive, [ ] history, LEFT/RIGHT feel (idle/cruise/drive/redline - pulls the layers in sooner), UP/DOWN tempo, T tone, M power, H help.",
     "file": "motorik.cart.png",

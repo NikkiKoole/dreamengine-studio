@@ -1672,6 +1672,13 @@ async function renderPromote() {
       return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${bake}</div>`
     }).join('')
   }
+  // B · stills — a per-cart gallery; click a thumb to open it full size
+  const shotsEl = document.getElementById('promote-shots')
+  if (shotsEl) {
+    shotsEl.innerHTML = (cc?.shots && cc.shots.length)
+      ? cc.shots.map(s => `<a href="#" class="pm-shot" data-url="${escHtml(location.origin + s)}" title="open full size"><img src="${escHtml(s)}" loading="lazy"></a>`).join('')
+      : `<div class="apps-empty">no stills yet — 📸 snapshot the cart below</div>`
+  }
   // E · the link — the deterministic gallery URL + copy (published-state dot is v2)
   const linkEl = document.getElementById('promote-link')
   if (linkEl && cc?.url) {
@@ -1721,6 +1728,16 @@ document.getElementById('promote-body')?.addEventListener('click', e => {
   if (bk) { e.preventDefault(); bakeTake(bk.dataset.bake, bk); return }
 })
 document.getElementById('promote-rec')?.addEventListener('click', () => recordCart())
+document.getElementById('promote-snap')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget
+  if (!window.studio?.cartShot) { showToast('snapshot requires the desktop app  (npm start)', 3000); return }
+  if (!currentCartFile) { showToast('open a cart first', 2500); return }
+  btn.textContent = '⏳ capturing…'; btn.disabled = true
+  const res = await window.studio.cartShot(currentCartFile)
+  btn.textContent = '📸 snapshot'; btn.disabled = false
+  if (res?.ok) { showToast('✓ still captured', 2000); renderPromote() }
+  else showToast(res?.output || 'snapshot failed — see the log', 4000)
+})
 document.querySelector('.tab[data-tab="promote"]')?.addEventListener('click', renderPromote)
 
 const asoVal = id => (document.getElementById(id)?.value || '')

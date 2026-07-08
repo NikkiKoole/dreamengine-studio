@@ -1582,7 +1582,12 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
       playKind, playPath: playKind ? t.paths[playKind] : null,
     }
   })
-  return { ok: true, cart, clips, url: `https://nikkikoole.github.io/dreamengine/${cart}/` }
+  // per-cart stills (§B): plain PNGs a stranger would post, editor/public/shots/<cart>/*.png
+  const shotsDir = path.join(ROOT, 'editor/public/shots', cart)
+  const shots = fs.existsSync(shotsDir)
+    ? fs.readdirSync(shotsDir).filter(f => /\.png$/.test(f)).sort().map(f => `/shots/${cart}/${f}`)
+    : []
+  return { ok: true, cart, clips, shots, url: `https://nikkikoole.github.io/dreamengine/${cart}/` }
 })
 // bake a take → a shareable clip. Runs make-gif.js --recipe <label>, which reads the take
 // tools/clips/<cart>/<label>.{rec,script,beats} and writes editor/public/clips/<cart>/<label>.webm
@@ -1602,6 +1607,38 @@ ipcMain.handle('studio:bake-clip', async (_e, cart, label) => {
     proc.on('exit', code => resolve({ ok: code === 0, out: code === 0 ? `editor/public/clips/${cart}/${label}.webm` : null }))
     proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve({ ok: false, output: String(e.message) }) })
   })
+})
+// snapshot the current cart → a plain PNG still (editor/public/shots/<cart>/NN-snap.png), a frame
+// worth posting. Runs play.js headless, dumps ~40 frames, keeps the middle one (past boot). These
+// are per-cart stills — NOT the device-sized App Store shots (store-shots.js, app-scope). §B.
+ipcMain.handle('studio:cart-shot', async (_e, cart) => {
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, output: 'bad cart name' }
+  const wc = _e.sender
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  const scratch = path.join(ROOT, 'build', '.shot', cart)
+  fs.rmSync(scratch, { recursive: true, force: true }); fs.mkdirSync(scratch, { recursive: true })
+  send('cart:log', `\n── snapshot ${cart} ──\n`)
+  const ok = await new Promise(resolve => {
+    const proc = spawn('node', [path.join(ROOT, 'tools/play.js'), String(cart), 'run', '--headless', '--frames', '40', '--dump', scratch], { cwd: ROOT })
+    proc.stdout.on('data', c => send('cart:log', c.toString()))
+    proc.stderr.on('data', c => send('cart:log', c.toString()))
+    proc.on('exit', code => resolve(code === 0))
+    proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve(false) })
+  })
+  if (!ok) return { ok: false, output: 'capture failed — see the log' }
+  let frames = []
+  try { frames = fs.readdirSync(scratch).filter(f => /\.png$/.test(f)).sort() } catch {}
+  if (!frames.length) return { ok: false, output: 'no frames captured' }
+  const pick = frames[Math.floor(frames.length / 2)]
+  const shotsDir = path.join(ROOT, 'editor/public/shots', cart)
+  fs.mkdirSync(shotsDir, { recursive: true })
+  const nums = fs.readdirSync(shotsDir).map(f => parseInt(f, 10)).filter(n => !isNaN(n))
+  const nn = String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0')
+  const rel = `shots/${cart}/${nn}-snap.png`
+  fs.copyFileSync(path.join(scratch, pick), path.join(ROOT, 'editor/public', rel))
+  send('cart:log', `✓ still → editor/public/${rel}\n`)
+  return { ok: true, url: `/${rel}` }
 })
 
 // ── App Store metadata push (the ☁︎ App Store panel) ─────────────

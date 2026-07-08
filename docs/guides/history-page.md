@@ -218,7 +218,15 @@ Once a week's worth of work has landed, extend the spine and regenerate:
    over `denseDayThreshold` also auto-get a 🔥 badge.
 6. **New subsystems?** Add to `subsystems[]` with matchers if the week introduced a new
    through-line (that's how `radio`, `effects`, `roads` got added).
-7. `node tools/build-history.js` and check the console for any unmatched-milestone warnings.
+7. **New research thread — or an orphaned doc?** Re-check `threads.items[]`: a week can
+   start (or advance to a milestone) a long investigation no thread yet catches — declare
+   a new `{ id, title, seed, match, blurb }` (that's how `multiplayer` and `storefront`
+   were added) — and it can spawn docs an *existing* thread should adopt but its `match`
+   misses (that's how `device-adaptive-layout.md` / `device-matrix.md` got folded into
+   `mobile`). Threads auto-collect by filename, but the topic + voiced blurb are hand-authored;
+   eyeball the `design/` docs the week added against every thread's `match` — a design doc that
+   no thread's terms catch is either a new thread or an orphan an existing thread should adopt.
+8. `node tools/build-history.js` and check the console for any unmatched-milestone warnings.
 
 > Heroes and growth stats compute themselves — you only describe the *shape*.
 

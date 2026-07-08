@@ -259,13 +259,16 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > `apps/tinyjam/metadata/en-US/` (description + promo from press.md, `support_url` →
 > https://mipolai.com/tinyjam/support/ live). Built the **☁︎ App Store panel** on the Apps card
 > (`asc-push.js` gained `--json`/`--only`; `studio:asc-metadata` IPC): two-click ceremony — dry-run
-> diff → per-field checklist → push only ticked fields. **NEEDS ELECTRON RESTART** (`make`) — panel
-> not yet eyeballed live. **Next (mine): the promoted-purchases channel** in the SAME ☁︎ panel
-> (`asc-push --promote` already BUILT server-side; needs `--json` + a panel section). **⚠ COORDINATION:
-> another agent is on the editor [Promote tab](design/promote-tab.md) (per-cart media — a DIFFERENT
-> feature, see the NAMING callouts). We share `editor/src/shell.js` + `main.cjs` + `preload.cjs` —
-> targeted edits only, different regions; `tools/asc-push.js` is store-lane-only.** So the promoted-
-> purchases UI waits until their Promote-tab shell.js/main.cjs edits land, to avoid a clobber.
+> diff → per-field checklist → push only ticked fields. **Promoted-purchases channel DONE too**
+> (2e35fa03 + f8bd613f + 4697b11c): the ☁︎ panel now has a second section for `asc-push --promote`
+> (`--json`/`--only` backend + `studio:asc-promote` IPC), each IAP a row with its promoted state,
+> its own ★ Promote button. All 3 tinyjam IAPs already promoted, so it reads "✓ all promotable IAPs
+> already promoted". **NEEDS ELECTRON RESTART** (`make`) — the ☁︎ panel (both sections) is verified
+> at the data layer but not yet eyeballed live. **Naming stays honest:** this is *promoted purchases*
+> (App Store search), NOT the editor [Promote tab](design/promote-tab.md). **Parallel-agent note:**
+> the editor JS half was swept into f8bd613f (the Promote-tab agent's commit) — reconciled clean, my
+> full two-section panel is in HEAD. **Resume at:** eyeball the ☁︎ panel after `make`; screenshots
+> channel is the next unbuilt one (deferred by the maker until there's more screenshot tooling).
 
 > **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
 > (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed

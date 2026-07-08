@@ -1,0 +1,26 @@
+# chordblossom — the VOICING CASCADE demo (the Orchid's signature move).
+# Play E major, sweep the voicing dial up through its inversions and an octave,
+# stack a maj7, voice back down, then switch to a minor chord + add a 9th.
+# frames 300
+# fps 30
+# crf 28
+down 15 D      # root E (major, the default TYPE)
+up   17 D
+down 45 RIGHT  # voicing +1  — first inversion
+up   47 RIGHT
+down 70 RIGHT  # +2 — second inversion
+up   72 RIGHT
+down 95 RIGHT  # +3 — root position, one octave up
+up   97 RIGHT
+down 120 7     # stack a maj7 (modifier)
+up   122 7
+down 150 LEFT  # voice back down
+up   152 LEFT
+down 175 LEFT
+up   177 LEFT
+down 205 2     # switch TYPE to min
+up   207 2
+down 210 H     # root A  -> A minor
+up   212 H
+down 250 8     # add the 9th
+up   252 8

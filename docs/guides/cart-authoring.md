@@ -533,6 +533,7 @@ never hand-edit it — and parallel agents stop colliding on it. Full design + s
 /* de:meta
 {
   "title": "X. short title",
+  "slug": "XX-name",
   "created": "2026-06-29",
   "kind": ["tutorial"],
   "teaches": [],
@@ -541,6 +542,12 @@ never hand-edit it — and parallel agents stop colliding on it. Full design + s
 de:meta */
 #include "studio.h"
 ```
+
+> `slug` is the cart's canonical `<name>` — it **must equal the `.c` filename
+> stem** (here `XX-name`). It's the anchor a `.cart.png` uses to find its own
+> source (`tools/carts/<slug>.c`) when handed over in isolation; `lint-carts.js`
+> enforces the match. See [`../design/cart-metadata.md`](../design/cart-metadata.md)
+> and [`../design/editor-cart-workflow.md`](../design/editor-cart-workflow.md) Gap 1b.
 
 2. *(Optional)* `tools/carts/XX-name.cart.js` for sprites/map.
 3. Run the two-step build above — **the build auto-registers the cart** by regenerating `index.json`

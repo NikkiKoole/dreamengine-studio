@@ -25,18 +25,51 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-08 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-08 (eight lanes: NEW **editor↔cart workflow** — cart provenance `de:meta.slug` (Gap 1b) DECIDED + `lint-carts.js` enforces slug==filename when present + `tools/backfill-slug.js` written & dry-run clean (449 carts need it, 0 mismatch); NOT fired + save-back consumer unbuilt → resume `design/editor-cart-workflow.md` Gap 1b · worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
 ## Where we are right now
 
-**Seven lanes are active in parallel right now** (different areas — pick the one you're resuming):
+**Eight lanes are active in parallel right now** (different areas — pick the one you're resuming):
 (1) **the worldgen ladder** (realistic procedural roadgen), (2) **multiplayer — WebRTC P2P (rung
 5b)**, (3) **device-adaptive layout**, (4) **store / ASO + the app-trailer builder**, (5) **editor
-media (record/replay + where it lands)**, (6) **responsive instrument UI + the scale-grid**, and
-(7) **leads — the local marketeer** (find venues to post + track outreach). All below; none is
+media (record/replay + where it lands)**, (6) **responsive instrument UI + the scale-grid**,
+(7) **leads — the local marketeer** (find venues to post + track outreach), and (8) **editor↔cart
+workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All below; none is
 "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
+
+> **▶ ACTIVE THREAD (2026-07-08) — editor↔cart workflow: cart provenance + save-back.**
+> Chasing two linked gaps that bite when you hand-edit a cart in the editor instead of going
+> through `tools/carts/` + CLI (both in [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md)):
+> **(a) code can't be saved back to source** — you can edit + run a loaded cart, but the only path
+> that writes `tools/carts/<name>.c` is *publish* (heavyweight: wasm + commit + push); gallery carts
+> have no save-in-place origin (the `inGallery` guard), and even `cart:save` only rewrites the
+> `.cart.png`'s `de:source`, which the next CLI bake reverts. **(b) the `.cart.png` doesn't know its
+> own source** — the `.png`→`.c` link is a bare basename convention nothing records, and the
+> `de:meta` `title` is a display string ("acid rack" ↛ acidrack), so a stray PNG can't name its `.c`.
+> **What shipped this session (docs + tooling, NOT yet committed):**
+> - Wrote up the provenance fix as **Gap 1b** — decided on a **`de:meta.slug`** field (the earlier
+>   `de:origin` zTXt-chunk sketch was considered + rejected: `de:meta` rides in the PNG for free via
+>   `de:source`, reuses the existing parser + lint + index generator, and gives drift-detection a
+>   baker-stamped chunk can't). `docs/design/cart-metadata.md` schema row added; `cart-authoring.md`
+>   template updated.
+> - `tools/lint-carts.js` now accepts `slug` and enforces `slug === <filename stem>` **when present**
+>   (optional-while-we-backfill; flip to required once the corpus is covered).
+> - **`tools/backfill-slug.js`** written + dry-run verified: **449 carts need a slug**, 0 mismatches,
+>   0 failures, 25 test/probe carts (no `de:meta`) skipped. It text-inserts `"slug"` as the first
+>   `de:meta` field (strict-JSON, re-parsed to validate) and re-embeds **only** `de:source` into the
+>   `.cart.png` (sprites/map/settings + thumbnail untouched; `index.json` unaffected — slug isn't
+>   emitted there), so `de:source` stays `== .c` (no drift alarms). Not fired yet (`--write`).
+> **Resume-at: [`design/editor-cart-workflow.md` → Gap 1b](design/editor-cart-workflow.md#gap-1b-the-cart-png-doesn-t-know-its-own-source-de-meta-slug).**
+> Open, in order: (1) **run `node tools/backfill-slug.js --write`** (touches 449 `.c` + PNGs — do it
+> while no other agent is active; then `lint-carts.js` + `cart-status.js` clean), ideally bundled with
+> (2) building the actual consumer: the **Gap-1 "save edits back to `tools/carts/<slug>.c` + rebake"**
+> editor action (factor publish's write-back at `main.cjs` ~2107–2117 into a standalone op, minus
+> wasm/commit/push; read the write target from `slug`, still drift-check `de:source` before writing;
+> leave `index.json` + the git commit to the human). Then flip `lint-carts.js` slug to required.
+> Hot files: `tools/lint-carts.js`, `tools/backfill-slug.js`, `editor/electron/main.cjs` (save/publish
+> handlers), `editor/src/shell.js` (Cmd-S / `currentCartPath`).
 
 > **▶ ACTIVE THREAD (2026-07-06) — the worldgen ladder (realistic roadgen).** One day, four rungs
 > of [`design/worldgen-plan.md`](design/worldgen-plan.md)'s ladder shipped, each gated + committed

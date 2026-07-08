@@ -255,6 +255,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              (cart owns its metadata; index.json is a derived view); --check gates staleness
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
                              index.json in sync; owns the tag vocabulary
+             backfill-slug.js  add the canonical `slug` (=filename stem) to every cart's de:meta + re-embed
+                             de:source — the .cart.png→.c provenance anchor (design/editor-cart-workflow.md
+                             Gap 1b); dry-run by default, `--write` to apply (449 carts pending)
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
              squishy-features.js  feature×brush COVERAGE oracle for the squishy cart (renders its matrix
                              grid, pixel-diffs each cell vs baseline → flags silently-no-op features)

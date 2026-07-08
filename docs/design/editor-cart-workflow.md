@@ -3,9 +3,10 @@
 > **Genre: design exploration (scratchpad).** The editor is primarily a
 > Nikki + agent collaboration surface, and three workflow gaps bite whenever a
 > human hand-edits a cart instead of going through `tools/carts/` + CLI: no
-> save-in-place, the two-sprite-sources-of-truth problem (STATUS **open item
-> 23**, "the sprite story"), and gallery metadata being write-only-by-CLI and
-> read-truncated in the UI. Status of what ships → [`../STATUS.md`](../STATUS.md)
+> save-in-place (and, under it, the `.cart.png` not knowing its own source `.c` —
+> Gap 1b, a `de:meta.slug` field), the two-sprite-sources-of-truth problem (STATUS **open item 23**, "the
+> sprite story"), and gallery metadata being write-only-by-CLI and read-truncated
+> in the UI. Status of what ships → [`../STATUS.md`](../STATUS.md)
 > (items 23 + 26). Related: [`mobile-web-notes.md`](mobile-web-notes.md) (the
 > `"mobile":` index.json override is one more hand-maintained metadata field).
 
@@ -42,6 +43,93 @@ means re-choosing a path and re-confirming the overwrite, every time.
 
 Cheap, contained (one IPC handler + a path variable + a keybinding), no new
 formats. This is the highest-value fix of the three.
+
+## Gap 1b — the `.cart.png` doesn't know its own source (`de:meta.slug`)
+
+**The bite.** Gap 1 lets you save edits back into a `.cart.png` — but a gallery
+cart's *real* source of truth is `tools/carts/<name>.c` (what `make-cart.js`
+bakes from), and the editor can only write the `.png`. To ever write code back
+to the `.c`, the editor has to **reconstruct `<name>`**, and the only thing it
+has to reconstruct it from is a **convention nothing records**: the `.cart.png`
+basename must equal the `.c` basename (`main.cjs` ~843: *"the .cart.png basename
+= tools/carts/<slug>.c = tools/clips/<slug>/"*). A PNG in isolation (drag-drop,
+download) cannot tell you which `.c` produced it.
+
+**Why the title doesn't help.** The `de:meta` `title` is a display string, not
+the slug — it can carry spaces and drift freely (`acidrack.c` → title *"acid
+rack"*; there is no rule from `"acid rack"` back to `acidrack.c`). So the *one*
+human-facing label the PNG does carry is exactly the wrong key. Recovery today
+leans on two things, both needing the *filename* not the title: the basename
+convention above, and `index.json` as the sole title↔file back-map (each entry
+has both `file` and `title`; `cart-info.js` ~157 resolves either against it).
+Nothing inside the PNG bytes anchors the link — rename one file and not the
+other, and the mapping silently breaks with nothing to catch it.
+
+**Proposal — a `slug` field in the cart's `de:meta` block.** Record the
+canonical `<name>` right in the `de:meta` the cart already carries:
+
+```c
+/* de:meta
+{
+  "title": "acid rack",
+  "slug": "acidrack",        // canonical <name> → tools/carts/<name>.c / <name>.cart.png
+  …
+}
+de:meta */
+```
+
+**Why `de:meta` and not a new zTXt chunk (the earlier sketch):** the field rides
+in the PNG *for free* — `de:source` already embeds the entire `.c` text,
+including the `de:meta` block, so a `slug` field is carried in every `.cart.png`
+with **no new chunk, no `embedCartChunks` change, no backfill sweep** to write
+information the PNG already holds. The parser already exists (`main.cjs` ~127
+regexes the `de:meta` block out of the source buffer for the `resizable` flag —
+reading `slug` is the same call). And it slots into validation that already
+runs: `lint-carts.js` validates `de:meta` fields and `build-cart-index.js`
+generates `index.json` from them, so a one-line rule — **`de:meta.slug` must
+equal the filename** — makes a rename mismatch a *detectable* drift rather than a
+silent convention break. (A baker-stamped chunk derived *from* the filename could
+not detect a rename — it would silently follow it; `de:meta` is strictly better
+here.)
+
+The one honest cost: `slug` duplicates the filename, and it's an authored claim,
+not a baker-recorded fact. But that redundancy is the *point* — it's the anchor
+that survives when the `.c` is extracted into a PNG that no longer carries its
+filename — and the lint rule keeps the redundancy **checked, not rotting**. The
+"authored vs baked" worry doesn't bite: the `.c` *is* the authored source of
+truth, and its `de:meta` travels with it.
+
+The editor still doesn't *trust* `slug` blindly for a write: before any
+save-back it confirms `tools/carts/<slug>.c` exists and (cheaply) that its
+embedded `de:source` matches — the drift check `cart-info.js` already does.
+`slug` just removes the *guessing* of which file to check.
+
+**What it unlocks:**
+- The Gap-1 "save back to source + rebake" action (the missing round-trip) can
+  read its write target instead of reconstructing it from a basename.
+- A stray `.cart.png` becomes self-describing — `cart-info.js` / drag-drop can
+  report "this came from `tools/carts/acidrack.c`" with no `index.json` lookup.
+- A rename mismatch (filename ≠ `de:meta.slug`) becomes a **detectable** lint
+  failure instead of a silent break.
+
+**Migration.** The slug equals the current filename for every existing cart, so
+backfill is a one-time sweep that writes `"slug": "<basename>"` into each cart's
+`de:meta` (then re-bake so `de:source` picks it up). New carts get it from the
+authoring template. Png-only carts with no `.c` simply omit it; `lint-carts.js`
+can treat `slug` as required-once-present, then required-always after backfill.
+
+This is the shared foundation under both open gaps: the save-back button (Gap 1)
+needs a trustworthy write target, and the same "which source made this?" answer
+is what makes a handed-over `.cart.png` legible. Cheap, additive, and reuses the
+`de:meta` machinery end to end.
+
+> **Considered and rejected: a standalone `de:origin` zTXt chunk** (slug +
+> `sourcePath` + bake timestamp, stamped by `make-cart.js`). Its only real edge
+> is recording what the baker *actually* baked (ground truth) vs an authored
+> claim — but that purity doesn't matter when the `.c` is the source of truth and
+> a lint gate checks the claim, and it costs a new chunk format + embed code +
+> reader + backfill to carry what `de:source` already embeds. See the discussion
+> above; `de:meta.slug` wins on cost and on drift-detection.
 
 ## Gap 2 — the sprite story (= STATUS open item 23)
 
@@ -243,6 +331,7 @@ stays out of scope (not feasible, not needed).
 
 | # | Fix | Size | Risk |
 |---|---|---|---|
+| 0 | `de:meta.slug` field (self-describing PNG → source; foundation for save-back) | S | low |
 | 1 | Save-in-place + Cmd-S (gallery carts excluded) | S | low |
 | 2 | Full-description detail view in gallery | S | none |
 | 3 | Sprite ownership marker (option B) | S–M | low |
@@ -258,6 +347,7 @@ rest are still unstarted.
 
 | # | Fix | Status | Evidence |
 |---|---|---|---|
+| 0 | `de:meta.slug` field | **Not started** | Nothing records the source `.c`: `de:meta` has no `slug` (see `cart-metadata.md` schema); the `.png`→`.c` link is the basename convention (`main.cjs` ~843, `cart-info.js` ~59) and the `index.json` title↔file back-map (`cart-info.js` ~157). Publish is the only source write-back (`main.cjs` ~2110), and it reconstructs `<name>` from the basename. |
 | 1 | Save-in-place + Cmd-S | **Shipped 2026-06-23** | `cart:save` (`editor/electron/main.cjs`) takes an optional `targetPath`: present → write in place onto the existing file (re-embedding chunks, **keeping the baked thumbnail**); absent → the Save As dialog. `embedCartChunks` now strips stale `de:*` chunks before re-embedding. Load handlers return an `origin` (null inside `GALLERY_DIR` — the gallery guard). `shell.js` tracks `currentCartPath`; **Cmd-S** saves in-place when an origin exists else falls through to Save As, **Shift-Cmd-S** forces Save As. Fresh + gallery carts have no origin → Save As. |
 | 2 | Full-description detail view | **Not started** | Description is plain `textContent` (`shell.js` ~line 848) clamped to 3 lines (`shell.css` ~line 1240, `-webkit-line-clamp: 3`); clicking a card loads it directly — no ⓘ / overlay / expand. |
 | 3 | Sprite ownership marker (`spriteSource`) | **Not started** | Zero occurrences of `spriteSource` anywhere; `make-cart.js` has no editor-vs-generator branch; no sprite-tab warning. |

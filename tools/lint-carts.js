@@ -74,6 +74,16 @@ for (const f of fs.readdirSync(CARTS).sort()) {
   const at = `${name}.c de:meta`;
 
   if (!m.title || typeof m.title !== "string") errors.push(`${at}: missing title`);
+  // slug — the canonical <name>, the anchor from a .cart.png back to tools/carts/<name>.c
+  // (design/editor-cart-workflow.md Gap 1b). Optional-while-we-backfill; when present it MUST
+  // equal the filename stem, so the PNG→source link can't silently drift. Backfill: node
+  // tools/backfill-slug.js. Once every cart carries it, flip this to required.
+  if ("slug" in m) {
+    if (typeof m.slug !== "string" || !m.slug)
+      errors.push(`${at}: slug must be a non-empty string`);
+    else if (m.slug !== name)
+      errors.push(`${at}: slug '${m.slug}' must equal the filename stem '${name}' (fix the slug, or rename the .c)`);
+  }
   if ("status" in m && !STATUSES.includes(m.status))
     errors.push(`${at}: bad status '${m.status}' — pick from: ${STATUSES.join(", ")}`);
   if (typeof m.created !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(m.created))

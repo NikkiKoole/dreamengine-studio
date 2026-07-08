@@ -1,0 +1,10 @@
+Tiny Jam is a growing collection of pocket-sized music toys. Each one is a small, playable instrument — a groovebox, a synth, a drum machine — that fits in a pocket and starts making sound the second you open it. No menus to learn, no projects to manage: tap a step, turn a knob, and it plays.
+
+New instruments join the collection over time, so it grows with you.
+
+Features:
+- A handful of tiny, tactile instruments — groovebox, synths, drum machines — in one app
+- Plays the instant you open it: no setup, no projects, no sign-in
+- Real synth and drum voices, driven by knobs and steps you can actually see
+- A growing collection — new instruments added over time
+- Made by one person, sold honestly: no ads, no tracking

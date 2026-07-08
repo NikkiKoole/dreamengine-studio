@@ -1,0 +1,5 @@
+# flank — built by the trailer builder (docs/design/trailer-builder.md)
+# fps 30
+# xfade fade 0.5
+flank/05-take
+@card 2 | fade 0.1 | title "TITLE" | in 0.5 slide bottom | bg 17 | boil 1 | breathe 0

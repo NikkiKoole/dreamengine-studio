@@ -255,6 +255,17 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > credentials are set up (Key `Z5DTR9TFW2`); next store moves are per-locale `metadata/<locale>/`
 > folders + an editor button for `asc-push`, then the maker-gated submission. Snapshot in
 > [`store-agents.md` → Pick-up point](design/store-agents.md#pick-up-point-next-session).
+> **Update 2026-07-08 — metadata channel is submission-complete + has an editor button.** Scaffolded
+> `apps/tinyjam/metadata/en-US/` (description + promo from press.md, `support_url` →
+> https://mipolai.com/tinyjam/support/ live). Built the **☁︎ App Store panel** on the Apps card
+> (`asc-push.js` gained `--json`/`--only`; `studio:asc-metadata` IPC): two-click ceremony — dry-run
+> diff → per-field checklist → push only ticked fields. **NEEDS ELECTRON RESTART** (`make`) — panel
+> not yet eyeballed live. **Next (mine): the promoted-purchases channel** in the SAME ☁︎ panel
+> (`asc-push --promote` already BUILT server-side; needs `--json` + a panel section). **⚠ COORDINATION:
+> another agent is on the editor [Promote tab](design/promote-tab.md) (per-cart media — a DIFFERENT
+> feature, see the NAMING callouts). We share `editor/src/shell.js` + `main.cjs` + `preload.cjs` —
+> targeted edits only, different regions; `tools/asc-push.js` is store-lane-only.** So the promoted-
+> purchases UI waits until their Promote-tab shell.js/main.cjs edits land, to avoid a clobber.
 
 > **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
 > (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed

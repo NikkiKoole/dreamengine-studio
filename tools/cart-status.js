@@ -17,7 +17,10 @@
 //   2. NOT PUBLISHED  — no site/<name>/ web build. Fix: node tools/publish-cart.sh <name>
 //   3. STALE PUBLISHED— site/<name>/ exists but a commit touched the cart's source/thumbnail
 //                       AFTER the last commit that touched its site/ build (git-time compare).
-//                       Fix: re-run publish-cart.sh <name>.
+//                       The site/ build time is read from the SITE REPO's own git log (site/
+//                       became a separate, gitignored repo in the 2026-07 split — this repo's
+//                       `git log -- site` is frozen at the untrack commit). Fix: re-run
+//                       publish-cart.sh <name>.
 //
 // Plus one ADVISORY note (does NOT gate --quiet/CI — engine edits are frequent, you don't
 // republish on each one):
@@ -85,11 +88,35 @@ function gitTimeMap() {
   return map;
 }
 
-// site/<name>/ is a directory of files; its "build time" = newest commit touching any of them
-function siteTime(timeMap, name) {
+// site/ became its OWN git repo in the 2026-07 private-code/public-site split, and is gitignored
+// here — so THIS repo's `git log -- site` is frozen at the untrack commit and can't see any real
+// republish. Read build times from the site repo itself (paths there are `<name>/…`, repo root =
+// site/). Falls back to the legacy in-repo `site/<name>/` map for pre-split clones where site/ is
+// still tracked and not its own repo.
+function siteGitTimeMap() {
+  const map = new Map();
+  if (!fs.existsSync(path.join(SITE_DIR, ".git"))) return null; // not a nested repo → use fallback
+  let out;
+  try {
+    out = execSync("git log --pretty=format:'C%ct' --name-only", {
+      cwd: SITE_DIR, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch (e) { return null; }
   let t = 0;
-  const prefix = `site/${name}/`;
-  for (const [p, ts] of timeMap) if (p.startsWith(prefix) && ts > t) t = ts;
+  for (const line of out.split("\n")) {
+    if (line.startsWith("C")) { t = parseInt(line.slice(1), 10) || 0; continue; }
+    if (!line.trim()) continue;
+    if (!map.has(line)) map.set(line, t); // newest-first → first seen = latest
+  }
+  return map;
+}
+
+// build time of a published cart = newest commit touching any file under its dir. When the site
+// repo map is present, paths are `<name>/…`; the legacy fallback map uses `site/<name>/…`.
+function siteTime(timeMap, siteMap, name) {
+  const [map, prefix] = siteMap ? [siteMap, `${name}/`] : [timeMap, `site/${name}/`];
+  let t = 0;
+  for (const [p, ts] of map) if (p.startsWith(prefix) && ts > t) t = ts;
   return t;
 }
 
@@ -97,6 +124,7 @@ const needRebake = [], notPublished = [], stalePublished = [], noEmbed = [], orp
 
 const pngs = fs.readdirSync(CARTS_DIR).filter(f => f.endsWith(".cart.png")).sort();
 const timeMap = gitTimeMap();
+const siteMap = siteGitTimeMap(); // null → fall back to timeMap's frozen site/ entries
 
 // the synth engine: newest commit touching any of these = the "engine version" a cart's
 // published audio is measured against (sound.h is where the INSTR_ voices + tuning live).
@@ -131,7 +159,7 @@ for (const png of pngs) {
     timeMap.get(`tools/carts/${name}.cart.js`) || 0,
     timeMap.get(`editor/public/carts/${name}.cart.png`) || 0
   );
-  const siteT = siteTime(timeMap, name);
+  const siteT = siteTime(timeMap, siteMap, name);
   if (srcT > 0 && siteT > 0 && srcT > siteT) stalePublished.push(name);
 
   // 4. engine-stale (advisory): an INSTRUMENT cart whose site build predates the latest sound.h
@@ -146,6 +174,7 @@ for (const png of pngs) {
 // site dirs with no matching .cart.png (a removed/renamed cart left behind)
 if (fs.existsSync(SITE_DIR)) {
   for (const d of fs.readdirSync(SITE_DIR)) {
+    if (d.startsWith(".")) continue; // site/ is its own repo now → skip .git etc.
     if (fs.statSync(path.join(SITE_DIR, d)).isDirectory() &&
         !fs.existsSync(path.join(CARTS_DIR, d + ".cart.png"))) orphanSite.push(d);
   }

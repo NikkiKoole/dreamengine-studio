@@ -140,6 +140,11 @@ device** rather than port one track across shapes — per-device capture costs n
 
 ## Related
 
+- [`export-ratios.md`](export-ratios.md) — **the other half of "one take, many ratios."** This doc is
+  the **input** side (does the *track* survive a reflow); export-ratios is the **output** side (getting
+  the rendered motion into a channel's frame shape — 9:16 TikTok, App Store device sizes). The ideal
+  endgoal (one take → every ratio, truthfully) needs *both* to hold: a position-free track (here) AND
+  a reflowing cart (device-adaptive-layout), else you fall back to composite/letterbox (export-ratios approach a).
 - [`../guides/debug-harness.md`](../guides/debug-harness.md) — the replay/script/record engine + the
   track format (`move`/`click` = absolute canvas pixels; keys = position-free) this doc is about.
 - [`device-adaptive-layout.md`](device-adaptive-layout.md) — why the racks reflow; §"store-asset

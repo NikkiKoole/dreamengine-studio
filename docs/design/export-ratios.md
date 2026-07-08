@@ -50,6 +50,35 @@ or stretches. This is the "record a take at 9:16" idea — best for carts built 
 Rule of thumb: **(b) for carts that reflow** (the frame is all game — ideal for TikTok), **(a) as the
 universal fallback** (any cart, bars/bg — and the only sane path for the App Store's fixed sizes).
 
+## The ideal — and why it's hard: one take, many ratios
+
+The endgoal is **record a performance once, render it at every ratio**. Approach (b) is what makes
+that *truthful* (the cart fills each frame, laid out natively) — but it collides with a second
+shipped system, and this is **the hardest case in the whole picture**:
+
+> **A device-adaptive UI changes between ratios** — on iPad five sections sit inline; on
+> iPhone-portrait they collapse into an accordion; some controls hide behind a panel at one shape and
+> are visible at another. So an input *track* recorded at one ratio does **not** truthfully replay at
+> another: a tap recorded as an absolute canvas pixel lands on a widget that moved — or on empty space
+> where a now-hidden control used to be.
+
+This is already worked through in **[`resolution-portable-input.md`](resolution-portable-input.md)** —
+the *input* half of "one take, many ratios" (this doc is the *output* half). Its findings decide when
+(b) is even possible:
+
+- **Keyboard / `btn()` input is position-free → fully portable.** A keyboard-driven (self-playing)
+  take reflows truthfully: one track, one performance, and — the quiet gift — **byte-identical audio
+  at every viewport** (the beat advances from `dt`, not pixels). One take, many ratios *works*.
+- **Touch / mouse input is absolute pixels → does not survive a reflow.** A finger-on-a-control demo
+  must either be re-recorded per shape, or fall back to approach (a) composite (letterbox the native
+  capture — truthful pixels, just not filling the frame).
+
+So the honest synthesis: **one-take-many-ratios is real, but only for position-free (keyboard/
+self-playing) takes on device-adaptive carts.** For everything else — touch demos, fixed-layout carts,
+the App Store's exact sizes — approach (a) composite is the truthful fallback. `resolution-portable-input.md`'s
+bet ("make racks demo themselves from the keyboard") is precisely the move that makes the ideal reachable
+for the cases that matter most.
+
 ## What already exists to build on
 
 - **`store-shots.js`** — the compositing pattern for **stills** (crisp cart on a device-sized bg +
@@ -99,7 +128,9 @@ larger rungs.
 
 ## Related
 
+- [`resolution-portable-input.md`](resolution-portable-input.md) — **the input half** of one-take-many-ratios (does the *track* survive a reflow: keyboard yes, touch no). Read together with this doc — output + input are the two halves.
+- [`device-adaptive-layout.md`](device-adaptive-layout.md) — the enabler for approach (b) (carts that reflow to any aspect) *and* the reason a touch take breaks across ratios.
 - [`trailer-builder.md`](trailer-builder.md) · [`promote-tab.md`](promote-tab.md) · [`cart-clips.md`](cart-clips.md) — the scenarios/takes that render to a ratio.
+- [`input-recording-looper.md`](input-recording-looper.md) — the take/replay format the ratio render consumes.
 - [`store-agents.md`](store-agents.md) — `store-shots.js` (the stills solution this mirrors) + the store pipeline.
-- [`device-adaptive-layout.md`](device-adaptive-layout.md) — the enabler for approach (b) (carts that reflow to any aspect).
 - [`demand-generation.md`](demand-generation.md) — the marketing/video pipeline (#4 app trailer).

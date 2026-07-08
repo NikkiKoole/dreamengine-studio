@@ -296,23 +296,54 @@ int app_current(void) {
 // the rack's own corner UI. So the HIT REGION is big (a fat-finger pad) but a *hold* is
 // required, so quick taps on the rack's controls never trigger it. The little chip fills
 // up as you hold (feedback). Drawn by the shim AFTER the cart, so a standalone cart never
-// shows it. Cross-input: a held finger OR a held mouse button.
+// shows it. Cross-input: a held finger OR a held mouse button. GESTURE OWNERSHIP: the hold only
+// counts a contact that BEGAN inside the pad (started-in, not present-now), so a finger dragged in
+// from the rack — or a knob-drag wandering through the corner — never trips it (see touch-notes.md).
 const homeChip = launcher ? `
 #define HOME_HIT_W 48        // hold-pad: generous, easy to land a finger in
 #define HOME_HIT_H 20        // kept in the top toolbar band (above the rack's knobs)
 #define HOME_HOLD  18        // frames (~0.3s @ 60fps) to confirm — quick taps won't
 #define HOME_W 20
 #define HOME_H 14
-static int home_hold = 0;    // frames a finger has been held in the pad (0 = not holding)
+static int home_hold  = 0;   // frames the OWNING contact has been held in the pad (0 = not holding)
+static int home_owner = -1;  // touch id whose gesture BEGAN inside the pad (-1 = none)
+static int home_prev[16], home_prevn = 0;   // touch ids seen last frame (to detect a fresh landing)
 // The pad sits inside the device safe area (top-left, below the notch) via safe_rect() — its origin
 // is 0,0 on a fixed cart / desktop, so this is unchanged there, but on a resizable rack that fills
 // the screen the pad clears the status bar / notch and stays tappable (was stuck under it).
-static int home_holding(void) {
+static int home_in(int x, int y) {               // is (x,y) inside the hold-pad?
     int sx = 0, sy = 0; safe_rect(&sx, &sy, 0, 0);
-    for (int i = 0; i < touch_count(); i++)          // any finger inside the top-left pad
-        if (touch_x(i) >= sx && touch_x(i) < sx + HOME_HIT_W && touch_y(i) >= sy && touch_y(i) < sy + HOME_HIT_H) return 1;
-    return mouse_down(MOUSE_LEFT)                     // mouse (desktop / editor bundle test)
-        && mouse_x() >= sx && mouse_x() < sx + HOME_HIT_W && mouse_y() >= sy && mouse_y() < sy + HOME_HIT_H;
+    return x >= sx && x < sx + HOME_HIT_W && y >= sy && y < sy + HOME_HIT_H;
+}
+static int home_seen(int id) { for (int i = 0; i < home_prevn; i++) if (home_prev[i] == id) return 1; return 0; }
+// Advance the hold; return 1 the frame it completes. GESTURE OWNERSHIP (see touch-notes.md): only a
+// contact that BEGAN inside the pad drives it — a finger dragged in from the rack, or a knob-drag
+// wandering through the corner, never triggers home. Started-in, not present-now.
+static int home_step(void) {
+    if (home_owner < 0)                          // claim a finger that JUST LANDED inside the pad
+        for (int i = 0; i < touch_count(); i++) {
+            int id = touch_id(i);
+            if (!home_seen(id) && home_in(touch_x(i), touch_y(i))) { home_owner = id; break; }
+        }
+    static int mouse_owner = 0;                  // desktop/editor: a press that BEGAN inside the pad
+    if (mouse_pressed(MOUSE_LEFT) && home_in(mouse_x(), mouse_y())) mouse_owner = 1;
+    if (!mouse_down(MOUSE_LEFT)) mouse_owner = 0;
+
+    int holding = 0;
+    if (home_owner >= 0) {                        // owner still down AND still inside?
+        int fx = -1, fy = -1;
+        for (int i = 0; i < touch_count(); i++) if (touch_id(i) == home_owner) { fx = touch_x(i); fy = touch_y(i); break; }
+        if (fx >= 0 && home_in(fx, fy)) holding = 1;
+        else home_owner = -1;                    // owner lifted or slid off → cancel the hold
+    }
+    if (mouse_owner && home_in(mouse_x(), mouse_y())) holding = 1;
+
+    home_prevn = touch_count() > 16 ? 16 : touch_count();   // remember this frame's ids
+    for (int i = 0; i < home_prevn; i++) home_prev[i] = touch_id(i);
+
+    if (holding) { if (++home_hold >= HOME_HOLD) { home_hold = 0; return 1; } }
+    else home_hold = 0;
+    return 0;
 }
 static void draw_home_chip(void) {
     int sx = 0, sy = 0; safe_rect(&sx, &sy, 0, 0);
@@ -366,7 +397,7 @@ void init(void) {
 }
 
 void update(void) {
-    ${tabLine}${launcher ? '\n    if (active != 0) {                                  // hold the top-left pad → overview\n        if (home_holding()) { if (++home_hold >= HOME_HOLD) { home_hold = 0; activate(0); return; } }\n        else home_hold = 0;\n    }' : ''}
+    ${tabLine}${launcher ? '\n    if (active != 0 && home_step()) { activate(0); return; }   // HOLD the top-left pad (gesture must START inside it) → overview' : ''}
     if (autoswitch && frame() > 0 && frame() % autoswitch == 0)
         activate((active + 1) % ${N});
     carts[active].update();

@@ -114,6 +114,30 @@ Fix in `poll_virtual_touches()`: once any real touch has been seen, the mouse
 is never synthesized again that session (a device with fingers doesn't need the
 mouse fallback; its "mouse" is an emulation).
 
+### Gesture ownership — judge on the finger that STARTED in the element
+
+A recurring correctness rule for any hold/drag/swipe target: **the gesture belongs to the contact
+that *began* inside the element, not to whatever finger happens to be over it *now***. "Present-now"
+checks (`for i in touches: if inside(rect) …`) mis-fire two ways — a finger that started elsewhere
+and drags *in* triggers the target, and the element fights a neighbouring control whose drag wanders
+across it. "Started-in" fixes both: claim the contact by `touch_id` on the frame it lands inside,
+then track that same id until it lifts or leaves.
+
+Three canonical implementations already in the shelf — reach for one, don't re-roll:
+- **`gestures.h` → `swiped_in(dir, x,y,w,h)`** — a swipe judged at lift, owned by its *start* point
+  (`sx,sy`). The explicit "swipe on the left half steers, right half attacks" primitive.
+- **`ui.h` → `ui_captured(id)`** — a widget grabs the finger that pressed it; a cart's own pad/ribbon
+  does `if (ui_captured(touch_id(i))) continue;` to ignore fingers that started on a knob/slider.
+- **`pointer.h`** (`PTR_ACQUIRE`/`FIND`) — the general per-finger pool; `*fresh` flags a new claim, so
+  you stash the start position and decide ownership yourself.
+
+Worked instances: **`dubdesk`** latches ownership so a knob-drag never triggers the SIREN pad
+(`ui_captured` can drop for a frame mid-drag, so it latches its own `own()`/`is_owned()`); the
+**multi-cart app home-chip** (`tools/build-app.js`, `home_step()`) requires the ~0.3s hold to *begin*
+inside the top-left pad — a finger dragged in from the rack, or a knob-drag crossing the corner, never
+sends you home. (No `touch_began` in the API, so `home_step` detects a fresh landing by id-diffing
+against last frame's `touch_id`s.)
+
 ## 4. Raylib gestures — what's available, and the lean
 
 Raylib ships a gestures module (`rgestures.h`) the engine doesn't expose:

@@ -25,7 +25,7 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-08 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview); NEW `export-ratios.md` (one-take-many-ratios, keyboard = the enabler); NEXT = an eyeball pass + `make-gif --ratio` · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-08 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
@@ -294,17 +294,25 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > Reels overview** at the top of the Apps page; click any reel → loads its scenario
 > (`studio:list-reels`/`reel-load`; shared `parseReelFile`/`reelClipsFor` helpers). `tlSubject` (list
 > scope) vs `tlApp` (build target) are now split → ready for named variants.
-> **Docs:** [`promote-tab.md`](design/promote-tab.md) (A–E shipped) · **NEW**
-> [`export-ratios.md`](design/export-ratios.md) (EXPLORING — one-take-many-ratios; **keyboard
-> shortcuts are the enabler**: position-free input → truthful at any ratio) paired with
-> [`resolution-portable-input.md`](design/resolution-portable-input.md) (input side) + a note in
-> [`cart-authoring.md`](guides/cart-authoring.md).
-> **Resume at (open builds):** (1) **an EYEBALL PASS** — ~14 commits, none clicked live yet: restart
-> Electron, run record→watch→bake→📸→trailer→🔑→reels; flag breakage. (2) **named reel variants**
-> (💾 save-as; the `tlSubject`/`tlApp` split is ready). (3) **`make-gif --ratio 9:16` + a Promote-tab
-> ratio picker** — the composite first-step of `export-ratios.md` (cheap TikTok win; sidesteps reflow).
-> (4) per-cart trailer pre-populating from its saved reel · delete affordances · published-state dot on E.
-> Hot files: `editor/src/shell.js`(+`shell.css`), `editor/index.html`, `editor/electron/main.cjs`+`preload.cjs`.
+> **Multi-resolution export SHIPPED (export-ratios.md, both stages, resizable carts):** an **output-ratio
+> picker** on reel-Build (`# size` → compose renders at that canvas) AND a **"bake at" ratio picker** on
+> the Promote 🎬 bake. **Stage 2** = per-ratio clip **variants** (`<label>--<W>x<H>.webm`) that compose
+> PREFERS at a matching size → the reel **FILLS** (else letterbox). Presets: social (16:9/9:16/1:1) +
+> App Store **EVEN half-sizes** (444×960/960×444/600×800, ×2 on delivery — odd widths break ffmpeg pad;
+> `# scale 1` so output = the small canvas). Enabler = **keyboard shortcuts** (position-free take → any
+> ratio). **`onetake` cart** (committed) is the worked proof: keyboard-driven, %-positioned, resizable.
+> **Docs:** [`promote-tab.md`](design/promote-tab.md) (A–E shipped) · [`export-ratios.md`](design/export-ratios.md)
+> (BUILDING — stages 1+2 done) ↔ [`resolution-portable-input.md`](design/resolution-portable-input.md)
+> (the input half) + a filmability note in [`cart-authoring.md`](guides/cart-authoring.md).
+> **Resume at (open builds):** (1) **an EYEBALL PASS** — a big UI stack (Promote tab, popups, reels,
+> ratio pickers, Stage 2) verified only at pipeline/logic level, **none clicked live**: restart Electron,
+> run record→bake→trailer→reel-with-a-text-card→Build-at-a-ratio; flag breakage (likely spots: the ≥2-clips
+> rule, an unbaked clip, or new-IPC wiring). (2) **fixed-layout composite** — the export-ratios gap: a
+> non-resizable cart can't reflow, so it needs a dressed bg+caption letterbox (video `store-shots`).
+> (3) **named reel variants** (💾 save-as; `tlSubject`/`tlApp` split ready) · delivery-exact upscale ·
+> per-cart trailer pre-pop from its reel · delete affordances · published-state dot on E.
+> Hot files: `editor/src/shell.js`(+`shell.css`), `editor/index.html`, `editor/electron/main.cjs`+`preload.cjs`,
+> `tools/compose-clips.js` (variant preference), `tools/make-gif.js` (`--screen`).
 
 > **▶ ACTIVE THREAD (2026-07-07) — leads: the local marketeer (demand generation).** A new
 > tool that answers "where do I post about this cart?" — the generation twin of the `aso-*`

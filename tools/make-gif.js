@@ -112,14 +112,22 @@ if (from) {
   if (!fs.existsSync(playFile)) { console.error('no such file:', playFile); process.exit(1) }
 }
 
-// ── self-describing recipe metadata (`# key value`) ───────────
+// ── self-describing recipe metadata (`# key value`) + auto-length ───────────
+// Derive the clip length from the input track's last event frame so a bake spans
+// the WHOLE take, not the 180-frame default. Works for every track type:
+//   .script/.beats → the `down|up|tap <frame>` event frames
+//   .rec           → the leading `<frame>` of each `<frame> k|m|b …` log line
+// (bit us: .rec was excluded here, so recordings always baked to ~3s regardless
+//  of how long you actually played.)
 const meta = {}
-if (playFile && path.extname(playFile) !== '.rec') {
+if (playFile) {
+  const isRec = path.extname(playFile) === '.rec'
   let maxFrame = 0
   for (const raw of fs.readFileSync(playFile, 'utf8').split('\n')) {
     const mm = raw.match(/^#\s*(frames|fps|scale|crf)\s+(\d+)/)
     if (mm) { meta[mm[1]] = +mm[2]; continue }
-    const fe = raw.match(/^\s*(?:down|up|tap)\s+(\d+)/)   // a .script event frame
+    const fe = isRec ? raw.match(/^\s*(\d+)\s+[kmb]\b/)     // a .rec log line
+                     : raw.match(/^\s*(?:down|up|tap)\s+(\d+)/)   // a .script event frame
     if (fe) maxFrame = Math.max(maxFrame, +fe[1])
   }
   if (meta.frames === undefined && maxFrame > 0) meta.frames = maxFrame + 30   // auto-length + tail

@@ -1841,6 +1841,9 @@ const paletteHex = i => TL_PAL[((i | 0) % 32 + 32) % 32]
 // rows are either a clip {clip, xtype, xdur, trim, speed} or a text card
 // {card:true, dur, lines:[{role,text}], anim, bg, xtype, xdur} — the timeline = the .reel
 let tlApp = null, tlLib = [], tlRows = []
+let tlSubject = null   // the SUBJECT reels group under (cart/app name) — the saved-reels list is scoped
+                       // to it: <subject>.reel + <subject>--<variant>.reel. Distinct from tlApp (the
+                       // build target). Standalone reels (demo/teaser) belong to no subject → not shown here.
 let tlLoop = null   // {type, dur} — seamless loop-close back to the start (null = off)
 let tlBaked = new Set()   // clips with a baked .webm (scrubbable / probeable)
 let tlDur = {}            // clip → source duration (s), probed client-side from the <video> (no ffprobe)
@@ -1872,7 +1875,7 @@ async function openTrailer(subject) {
     res = await window.studio?.appClips?.(name)
     if (!res?.ok) { showToast(res?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
   }
-  tlApp = name; tlLib = res.carts || []
+  tlApp = name; tlSubject = name; tlLib = res.carts || []
   tlBaked = new Set(); for (const c of tlLib) for (const cl of c.clips) if (cl.baked) tlBaked.add(cl.clip)
   tlDur = {}; tlFocus = -1; tlSel = -1; tlOvSel = null
   // start from the saved .reel, else a default: each rack's first clip in manifest order
@@ -1892,8 +1895,10 @@ async function openTrailer(subject) {
 async function tlRenderReels() {
   const el = document.getElementById('tl-reels'); if (!el) return
   const res = await window.studio?.listReels?.()
-  const reels = (res && res.reels) || []
-  if (!reels.length) { el.innerHTML = '<span class="rs-dim">none saved yet — Build writes one</span>'; return }
+  // scope to THIS subject: <subject>.reel + <subject>--<variant>.reel — not every reel in the repo
+  // (the full cross-subject overview is a separate surface). Standalone reels belong to no subject.
+  const reels = ((res && res.reels) || []).filter(r => tlSubject && (r.name === tlSubject || r.name.startsWith(tlSubject + '--')))
+  if (!reels.length) { el.innerHTML = `<span class="rs-dim">no saved reels for ${escHtml(tlSubject || 'this')} yet — Build (or Save) writes one</span>`; return }
   el.innerHTML = reels.map(r =>
     `<a href="#" class="tl-reel${r.name === tlApp ? ' tl-reel-cur' : ''}" data-reel="${escHtml(r.name)}" title="load this scenario">${escHtml(r.name)}${r.hasWebm ? ' <span class="rs-dim">▶</span>' : ''}</a>`
   ).join('')

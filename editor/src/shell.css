@@ -377,7 +377,8 @@ html, body {
 .pm-noplay { color: var(--fg-dim); }
 .pm-clip { color: var(--accent); text-decoration: none; font-size: 11px; }
 .pm-bake { font-size: 10px; padding: 1px 8px; cursor: pointer; }
-.pm-var { font-size: 9px; padding: 0 5px; border: 1px solid var(--border); border-radius: 3px; color: var(--fg-dim); }
+.pm-var { font-size: 9px; padding: 0 5px; border: 1px solid var(--border); border-radius: 3px; color: var(--fg-dim); text-decoration: none; cursor: pointer; }
+.pm-var:hover { color: var(--accent); border-color: var(--accent); }
 .pm-bakeratio-lab { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 11px; color: var(--fg-dim); }
 .pm-bakeratio-lab select { font-family: var(--font); font-size: 11px; background: var(--bg2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
 #promote-shots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }

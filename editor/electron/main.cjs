@@ -1605,26 +1605,54 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
 // tools/clips/<cart>/<label>.{rec,script,beats} and writes editor/public/clips/<cart>/<label>.webm
 // (deterministic: same recipe → same clip, with audio). Streams progress to the runtime log.
 // The "produce" verb of the Promote tab made concrete. Design: docs/design/promote-tab.md §A.
-// A `size` (WxH) bakes a per-ratio VARIANT at that canvas → editor/public/clips/<cart>/<label>--<WxH>.webm
-// (a small aspect-correct render — chunky pixels, double on delivery); a same-ratio reel then FILLS
-// with it (export-ratios.md Stage 2). No size = the native <label>.webm.
+// A `size` (WxH) bakes a per-ratio VARIANT → editor/public/clips/<cart>/<label>--<WxH>.webm, which a
+// same-ratio reel FILLS with (export-ratios.md), AND is a standalone clip you can post (single-clip
+// export). No size = the native <label>.webm. The variant is CART-TYPE AWARE (the export-ratios "fix"):
+//  · RESIZABLE cart → make-gif --screen WxH: the cart reflows/lays out for the target canvas → FILLS.
+//  · FIXED-layout cart → render native, then ffmpeg LETTERBOX into WxH (black bars, crisp nearest) —
+//    because --screen on a fixed cart just crops the world + strands the HUD (a broken frame, not 9:16).
 ipcMain.handle('studio:bake-clip', async (_e, cart, label, size) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, output: 'bad cart name' }
   if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(label || '')) return { ok: false, output: 'bad take label' }
-  const variant = typeof size === 'string' && /^\d+x\d+$/.test(size)
-  const rel = variant ? `editor/public/clips/${cart}/${label}--${size}.webm` : `editor/public/clips/${cart}/${label}.webm`
   const wc = _e.sender
   const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-  send('cart:log', `\n── bake ${cart}/${label}${variant ? ` @ ${size}` : ''} → clip ──\n`)
-  const args = [path.join(ROOT, 'tools/make-gif.js'), String(cart), '--recipe', String(label)]
-  if (variant) args.push('--screen', size, '--out', rel)
-  return new Promise(resolve => {
-    const proc = spawn('node', args, { cwd: ROOT })
+  const variant = typeof size === 'string' && /^\d+x\d+$/.test(size)
+  const nativeRel = `editor/public/clips/${cart}/${label}.webm`
+  const runMakeGif = (extra, outRel) => new Promise(resolve => {
+    const proc = spawn('node', [path.join(ROOT, 'tools/make-gif.js'), String(cart), '--recipe', String(label), ...extra, ...(outRel ? ['--out', outRel] : [])], { cwd: ROOT })
     proc.stdout.on('data', c => send('cart:log', c.toString()))
     proc.stderr.on('data', c => send('cart:log', c.toString()))
-    proc.on('exit', code => resolve({ ok: code === 0, out: code === 0 ? rel : null }))
-    proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve({ ok: false, output: String(e.message) }) })
+    proc.on('exit', code => resolve(code === 0))
+    proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve(false) })
+  })
+  if (!variant) {
+    send('cart:log', `\n── bake ${cart}/${label} → clip ──\n`)
+    const ok = await runMakeGif([], nativeRel)
+    return { ok, out: ok ? nativeRel : null }
+  }
+  const variantRel = `editor/public/clips/${cart}/${label}--${size}.webm`
+  const srcPath = path.join(ROOT, 'tools/carts', `${cart}.c`)
+  const resizable = fs.existsSync(srcPath) && /"resizable"\s*:\s*true/.test(fs.readFileSync(srcPath, 'utf8'))
+  if (resizable) {   // reflow-fill: the cart lays out for the target canvas
+    send('cart:log', `\n── bake ${cart}/${label} @ ${size} (reflow-fill) → clip ──\n`)
+    const ok = await runMakeGif(['--screen', size], variantRel)
+    return { ok, out: ok ? variantRel : null, mode: 'fill' }
+  }
+  // fixed-layout: render native once, then letterbox it into WxH (black bars, crisp)
+  send('cart:log', `\n── bake ${cart}/${label} @ ${size} (letterbox — fixed layout) → clip ──\n`)
+  if (!fs.existsSync(path.join(ROOT, nativeRel))) {
+    send('cart:log', `  (baking native ${label} first)\n`)
+    if (!await runMakeGif([], nativeRel)) return { ok: false, output: 'native bake failed' }
+  }
+  const [W, H] = size.split('x').map(Number)
+  const vf = `scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`
+  return new Promise(resolve => {
+    const ff = spawn('ffmpeg', ['-y', '-i', path.join(ROOT, nativeRel), '-vf', vf, '-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0', '-pix_fmt', 'yuv420p', '-c:a', 'copy', path.join(ROOT, variantRel)], { cwd: ROOT })
+    let err = ''
+    ff.stderr.on('data', c => { err += c.toString() })
+    ff.on('exit', code => { if (code === 0) { send('cart:log', `✓ letterboxed → ${variantRel}\n`); resolve({ ok: true, out: variantRel, mode: 'letterbox' }) } else { send('cart:log', err.split('\n').slice(-4).join('\n') + '\n'); resolve({ ok: false, output: 'ffmpeg letterbox failed — see log' }) } })
+    ff.on('error', e => resolve({ ok: false, output: String(e.message) }))
   })
 })
 // snapshot the current cart → a plain PNG still (editor/public/shots/<cart>/NN-snap.png), a frame

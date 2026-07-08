@@ -1725,7 +1725,8 @@ async function renderPromote() {
       const clipLink = cl.baked ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the native clip">🎬 clip</a>` : ''
       const bakeBtn  = cl.playPath ? `<button class="pm-bake" data-bake="${escHtml(cl.label)}" title="bake this take at the output ratio selected above">🎬 bake</button>` : ''
       const notBaked = (!cl.baked && !cl.playPath) ? `<span class="rs-dim">not baked</span>` : ''
-      const varChips = (cl.variants || []).map(v => `<span class="pm-var" title="${escHtml(v)} baked">${escHtml(ratioLabel(v))}</span>`).join(' ')
+      // each baked variant is a STANDALONE export (single-clip → a post) — click to open/save it
+      const varChips = (cl.variants || []).map(v => `<a href="#" class="pm-var" data-url="${escHtml(location.origin + `/clips/${cart}/${cl.label}--${v}.webm`)}" title="open the ${escHtml(v)} export — save it for a post">${escHtml(ratioLabel(v))} ↗</a>`).join(' ')
       return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${clipLink} ${bakeBtn} ${notBaked} ${varChips}</div>`
     }).join('')
   }
@@ -1773,7 +1774,7 @@ async function bakeTake(label, btn) {
   const size = document.getElementById('promote-bake-ratio')?.value || null   // '' = native
   if (btn) { btn.textContent = '⏳ baking…'; btn.disabled = true }
   const res = await window.studio.bakeClip(currentCartFile, label, size)
-  if (res?.ok) { showToast(`✓ clip baked${size ? ' @ ' + ratioLabel(size) : ''}`, 2500); renderPromote() }
+  if (res?.ok) { showToast(`✓ ${res.mode === 'letterbox' ? 'letterboxed (bars)' : 'baked'}${size ? ' @ ' + ratioLabel(size) : ''}`, 2500); renderPromote() }
   else { showToast(res?.output || 'bake failed — see the log', 4000); if (btn) { btn.textContent = '🎬 bake'; btn.disabled = false } }
 }
 // delegated clicks in the Promote panel: data-url / data-copy (same as the Apps glance),

@@ -1883,6 +1883,7 @@ async function openTrailer(subject) {
     : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }))
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = `${kind === 'cart' ? 'cart · ' : ''}${res.name || name}`
+  { const rsel = document.getElementById('tl-ratio'); if (rsel) rsel.value = res.size || '' }   // reflect the reel's saved output size
   const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
   const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = false   // monitor + inspector sit side by side while the panel is open
   const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
@@ -1913,6 +1914,7 @@ async function tlLoadReel(name) {
   tlRows = (res.rows || []).map(r => ({ ...r }))
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = `reel · ${name}`
+  { const rsel = document.getElementById('tl-ratio'); if (rsel) rsel.value = res.size || '' }   // reflect the reel's saved output size
   tlRender(); tlRenderReels()
 }
 document.getElementById('tl-reels')?.addEventListener('click', e => {
@@ -2596,8 +2598,9 @@ document.getElementById('tl-build')?.addEventListener('click', async () => {
   tlSeqStop()
   const btn = document.getElementById('tl-build'); const stop = busyDots(btn, 'building (bakes + composes)', '▶ Build trailer'); btn.disabled = true
   const tlLog = document.getElementById('tl-log')
-  if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}…\n` }   // live feedback of what it's doing
-  const res = await window.studio.buildReel(tlApp, tlRows, tlLoop)
+  const size = document.getElementById('tl-ratio')?.value || null   // '' = native (first clip's dims)
+  if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}${size ? ` @ ${size}` : ''}…\n` }   // live feedback of what it's doing
+  const res = await window.studio.buildReel(tlApp, tlRows, tlLoop, size)
   stop(); btn.disabled = false
   if (!res?.ok) { if (tlLog) tlLog.textContent += `\n✗ ${res?.error || 'build failed'}\n`; showToast(res?.error || 'build failed', 3500); return }
   if (tlLog) tlLog.textContent += `\n✓ done\n`

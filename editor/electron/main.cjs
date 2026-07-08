@@ -1822,6 +1822,8 @@ function parseReelFile(reelPath) {
   const text = fs.readFileSync(reelPath, 'utf8')
   const lm = text.match(/^#\s*loop\s+(\w+)\s+([\d.]+)/m)
   const loop = lm ? { type: lm[1], dur: +lm[2] } : null
+  const sm = text.match(/^#\s*size\s+(\d+x\d+)/m)   // output aspect/size the reel was built at
+  const size = sm ? sm[1] : null
   const rows = []
   const parseLines = (parts) => parts.reduce((acc, seg) => {   // pull title/sub/body role-lines out of a segment list
     const cm = seg.match(/^(title|sub|body)\s+(.*)$/); if (cm) acc.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') }); return acc
@@ -1880,7 +1882,7 @@ function parseReelFile(reelPath) {
     }
     rows.push(row)
   }
-  return { rows, loop }
+  return { rows, loop, size }
 }
 ipcMain.handle('studio:app-clips', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
@@ -1888,8 +1890,8 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
   try {
     const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
     const carts = (m.carts || []).map(c => ({ cart: c, clips: reelClipsFor(ROOT, c) }))
-    const { rows, loop } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
-    return { ok: true, name: m.name || name, carts, rows, loop }
+    const { rows, loop, size } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
+    return { ok: true, name: m.name || name, carts, rows, loop, size }
   } catch (e) { return { ok: false, error: String(e.message || e) } }
 })
 // list-reels: every saved scenario (tools/reels/*.reel) + whether it has a built webm. Drives the
@@ -1907,16 +1909,16 @@ ipcMain.handle('studio:list-reels', async () => {
 ipcMain.handle('studio:reel-load', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad reel name' }
-  const { rows, loop } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
+  const { rows, loop, size } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
   if (!rows) return { ok: false, error: `no tools/reels/${name}.reel` }
   const carts = [...new Set(rows.filter(r => !r.card && r.clip).map(r => String(r.clip).split('/')[0]))]
     .map(c => ({ cart: c, clips: reelClipsFor(ROOT, c) }))
-  return { ok: true, name, carts, rows, loop }
+  return { ok: true, name, carts, rows, loop, size }
 })
 // build-reel: NON-DESTRUCTIVE — write the ordered rows to tools/reels/<name>.reel (a parameter
 // list, sources untouched), bake any referenced clip that isn't baked yet, then compose → the
 // baked reel the editor previews. rows: [{clip:"cart/label", xtype, xdur}] in order.
-ipcMain.handle('studio:build-reel', async (_e, name, rows, loop) => {
+ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size) => {
   const wc = _e.sender
   const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
   const ROOT = path.join(__dirname, '../..')
@@ -1939,6 +1941,13 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop) => {
   }
   const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
   let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`
+  if (typeof size === 'string' && /^\d+x\d+$/.test(size)) {   // output aspect/size (compose-clips letterboxes mismatched clips onto it)
+    reel += `# size ${size}\n`
+    // small social bases (320x180…) upscale ×3 for a watchable reel; App Store device pixels
+    // (886x1920…) are already full-size, so pin scale 1 or compose would render millions of pixels.
+    const [sw, sh] = size.split('x').map(Number)
+    if (Math.max(sw, sh) >= 640) reel += `# scale 1\n`
+  }
   if (loop && loop.type && loop.dur > 0) reel += `# loop ${loop.type} ${loop.dur}\n`   // seamless loop-close
   const lineFor = (r, i) => {   // one row → one or more .reel lines (a clip/card + its overlay continuation lines)
     const cut = i > 0 ? [`${r.xtype || 'fade'} ${r.xdur || 0.5}`] : []

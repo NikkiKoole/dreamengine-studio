@@ -329,6 +329,20 @@
         </div>
         <div class="tl-tlwrap"><span class="app-sec">timeline — click a block to preview · drag ◧▮ to trim · ◇ transition</span><div id="tl-timeline"></div></div>
         <div class="tl-actions"><button id="tl-build">▶ Build trailer</button>
+          <label class="tl-ratio-lab">output
+            <select id="tl-ratio" title="output aspect/size — a clip that doesn't match gets letterboxed; bake a clip AT this ratio to fill it (docs/design/export-ratios.md)">
+              <option value="">native</option>
+              <optgroup label="social">
+                <option value="320x180">16:9</option>
+                <option value="180x320">9:16 (vertical)</option>
+                <option value="240x240">1:1 (square)</option>
+              </optgroup>
+              <optgroup label="App Store (verify against ASC)">
+                <option value="886x1920">iPhone 6.9″ (portrait)</option>
+                <option value="1920x886">iPhone 6.9″ (landscape)</option>
+                <option value="1200x1600">iPad 13″ (portrait)</option>
+              </optgroup>
+            </select></label>
           <button id="tl-clear" class="tl-clearbtn" title="empty the timeline — then drag in just the parts you want">clear</button>
           <span class="tl-hint">non-destructive — edits the .reel, never the clips</span></div>
         <pre id="tl-log" class="tl-log" hidden></pre>

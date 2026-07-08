@@ -216,6 +216,8 @@ html, body {
 #reels-overview > summary { cursor: pointer; padding: 8px 10px; font-size: 13px; color: var(--fg); user-select: none; }
 #reels-overview[open] > summary { border-bottom: 1px solid var(--border); }
 #reels-all { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; }
+.tl-ratio-lab { font-size: 11px; color: var(--fg-dim); display: inline-flex; align-items: center; gap: 4px; }
+.tl-ratio-lab select { font-family: var(--font); font-size: 11px; background: var(--bg2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
 .tl-reelswrap { margin: 8px 0; }
 #tl-reels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .tl-reel { font-size: 11px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 4px;

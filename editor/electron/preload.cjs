@@ -38,7 +38,7 @@ contextBridge.exposeInMainWorld('studio', {
   appClips:     (name)           => ipcRenderer.invoke('studio:app-clips', name),
   listReels:    ()               => ipcRenderer.invoke('studio:list-reels'),
   reelLoad:     (name)           => ipcRenderer.invoke('studio:reel-load', name),
-  buildReel:    (name, rows, loop) => ipcRenderer.invoke('studio:build-reel', name, rows, loop),
+  buildReel:    (name, rows, loop, size) => ipcRenderer.invoke('studio:build-reel', name, rows, loop, size),
   asoLint:      (fields)         => ipcRenderer.invoke('studio:aso-lint', fields),
   asoCompose:   (fields)         => ipcRenderer.invoke('studio:aso-compose', fields),
   onAsoLog:     (cb)             => ipcRenderer.on('aso:log', (_, s) => cb(s)),

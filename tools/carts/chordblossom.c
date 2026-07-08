@@ -20,10 +20,13 @@
   },
   "todo": [
     "Use BEAUTIFUL instrument presets, not the bare defaults — voice the three engines from the curated recipes (docs/guides/instrument-recipes.md + instrument-presets.md) so SUB/FM/EP each sound gorgeous, instead of raw INSTR_SAW/FM/EPIANO with basic envelopes.",
-    "Fewer knobs, one page: some MIX knobs aren't needed. Put the essentials — chord play + the knobs that matter + a way to trigger the live loop — ALL on a single page, instead of the three separate CHORD/MIX/RHYTHM tabs.",
+    "Fewer knobs, one page: some MIX knobs aren't needed. Put the essentials — chord play + the knobs that matter + a way to trigger the live loop — ALL on a single page, instead of the three CHORD/MIX/RHYTHM tabs. Model the bass knobs/XY on onenote (per more-note-bass's own todo).",
     "Make it responsive / device-adaptive (lay.h + docs/guides/responsive-instrument-ui.md) so the layout fits phone and desktop.",
-    "Two voicing dials + bass Follow/Solo: split VOICING into a LEAD dial and a BASS dial (each walks inversions one note at a time, the real Orchid has both), and add the bass Follow/Solo modes — Solo = take the bassline for a walk, independent of the chord root (the current cart only does Follow=root).",
-    "Key mode: pick a key and map a diatonic, in-key chord to each keybed key (press the white keys, get musically-appropriate chords in that key) — the Orchid's beginner-friendly auto-harmony."
+    "Self-playing BASS: an auto walking-bassline that moves on its own under the groove (a bass sequencer lane à la more-note-bass, or a generative walk), so you don't have to step it by hand — the 'bass playing by itself' feel.",
+    "Bass SOLO mode: play a truly independent bassline off the keybed (the real Orchid's long-press-Bass 'take the bassline for a walk'), separate from the chord root. Follow=root + the manual UP/DOWN bass-voicing walk are already in.",
+    "Two voicing DIALS on the panel: give LEAD and BASS each a proper on-screen dial (the walk logic for both already exists — this is the UI surface, matching the Orchid's two physical dials).",
+    "Key mode: pick a key and map a diatonic, in-key chord to each keybed key (press the white keys, get musically-appropriate chords in that key) — the Orchid's beginner-friendly auto-harmony.",
+    "Live re-voice of a HELD chord: turning the lead voicing dial while a chord rings should GLIDE the held notes to the new voicing (note_pitch, no re-attack) — a third option beyond the current RETRIG toggle (silent vs re-strike)."
   ]
 }
 de:meta */

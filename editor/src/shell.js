@@ -1738,6 +1738,10 @@ document.getElementById('promote-snap')?.addEventListener('click', async (e) => 
   if (res?.ok) { showToast('✓ still captured', 2000); renderPromote() }
   else showToast(res?.output || 'snapshot failed — see the log', 4000)
 })
+document.getElementById('promote-trailer')?.addEventListener('click', () => {
+  if (!currentCartFile) { showToast('open a cart first', 2500); return }
+  openTrailer({ kind: 'cart', name: currentCartFile })
+})
 document.querySelector('.tab[data-tab="promote"]')?.addEventListener('click', renderPromote)
 
 const asoVal = id => (document.getElementById(id)?.value || '')
@@ -1785,24 +1789,40 @@ let tlOvSel = null        // {r, o} — a selected text OVERLAY (clip r, overlay
 const TL_OVPOS = ['top', 'center', 'bottom']   // where the overlay text sits (all the titlecard cart supports)
 const round1 = x => Math.round(x * 10) / 10
 const tlSrc = clip => `/clips/${clip}.webm`   // Vite serves editor/public at root
-async function openTrailer(app) {
+// The trailer builder is scope-parameterized: openTrailer({kind:'app'|'cart', name}) — the Apps card
+// passes an app, the Promote tab passes the open cart. Same modal, same tl* machinery; only the clip
+// SOURCE differs (app → appClips across its carts; cart → cartClips for one). A string arg = an app
+// (back-compat). build-reel writes tools/reels/<name>.reel either way (cart/app share that namespace).
+async function openTrailer(subject) {
   tlSeqStop()
-  const res = await window.studio?.appClips?.(app)
-  if (!res?.ok) { showToast(res?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
-  tlApp = app; tlLib = res.carts || []
+  const kind = (subject && typeof subject === 'object' && subject.kind) || 'app'
+  const name = (subject && typeof subject === 'object') ? subject.name : subject
+  let res
+  if (kind === 'cart') {
+    const cc = await window.studio?.cartClips?.(name)
+    if (!cc?.ok) { showToast(cc?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
+    // adapt cart-clips → the library shape ([{cart, clips:[{label, clip, baked}]}]) the builder expects.
+    // A per-cart trailer starts empty (no saved cart .reel pre-pop yet); Build writes tools/reels/<cart>.reel.
+    const clips = (cc.clips || []).map(c => ({ label: c.label, clip: `${name}/${c.label}`, baked: c.baked }))
+    if (!clips.length) { showToast('no clips yet — bake a take first (🎬 bake)', 3500); return }
+    res = { ok: true, name, carts: [{ cart: name, clips }], rows: null, loop: null }
+  } else {
+    res = await window.studio?.appClips?.(name)
+    if (!res?.ok) { showToast(res?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
+  }
+  tlApp = name; tlLib = res.carts || []
   tlBaked = new Set(); for (const c of tlLib) for (const cl of c.clips) if (cl.baked) tlBaked.add(cl.clip)
   tlDur = {}; tlFocus = -1; tlSel = -1; tlOvSel = null
   // start from the saved .reel, else a default: each rack's first clip in manifest order
   tlRows = (res.rows && res.rows.length) ? res.rows.map(r => ({ ...r }))
     : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }))
   tlLoop = res.loop || null
-  document.getElementById('tl-app').textContent = res.name || app
+  document.getElementById('tl-app').textContent = `${kind === 'cart' ? 'cart · ' : ''}${res.name || name}`
   const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
   const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = false   // monitor + inspector sit side by side while the panel is open
   const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
-  document.getElementById('trailer-lab').hidden = false
+  document.getElementById('trailer-modal').hidden = false
   tlRender()
-  document.getElementById('trailer-lab').scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 // probe durations for any baked clip we haven't measured yet — a hidden <video>, no ffprobe/IPC
 function tlProbeDurations() {
@@ -2045,7 +2065,7 @@ function tlSetTrim(i, a, b) {
 }
 document.getElementById('tl-close')?.addEventListener('click', () => {
   tlSeqStop()
-  document.getElementById('trailer-lab').hidden = true
+  document.getElementById('trailer-modal').hidden = true
   for (const id of ['tl-preview', 'tl-monitor', 'tl-monitor2']) {   // stop playback + release files (nothing humming behind a closed panel)
     const v = document.getElementById(id); if (v) { v.pause?.(); v.removeAttribute('src'); v.load?.(); }
   }
@@ -2448,7 +2468,7 @@ document.getElementById('tl-library')?.addEventListener('click', e => {
 })
 // stream the build log (bake + compose progress) into the trailer panel while it's open
 window.studio?.onAsoLog?.(s => {
-  const lab = document.getElementById('trailer-lab'); const tlLog = document.getElementById('tl-log')
+  const lab = document.getElementById('trailer-modal'); const tlLog = document.getElementById('tl-log')
   if (tlLog && lab && !lab.hidden && !tlLog.hidden) { tlLog.textContent += stripAnsi(s); tlLog.scrollTop = tlLog.scrollHeight }
 })
 document.getElementById('tl-build')?.addEventListener('click', async () => {
@@ -2610,7 +2630,7 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       return
     }
     // open the trailer builder (its own Apps-tab section, not the runtime log)
-    if (act === 'trailer') { await openTrailer(app); return }
+    if (act === 'trailer') { await openTrailer({ kind: 'app', name: app }); return }
     // score the committed listing (--deep hits the network) → scorecard + gotchas in the panel.
     if (act === 'score') {
       const stop = busyDots(btn, 'scoring (fetches difficulty)', label); btn.disabled = true

@@ -202,7 +202,15 @@ html, body {
 }
 /* the text-heavy sections read best narrow; the trailer wants more room for the timeline, but not the whole page */
 #aso-lab, #apps-list-sec { max-width: 720px; }
-#trailer-lab { max-width: 1080px; }
+/* Trailer builder modal — a scope-parameterized popup opened from the Apps card AND the Promote
+   tab. The .modal backdrop overlays any tab; #trailer-lab is the panel floating on it. */
+.modal { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.55);
+         display: flex; align-items: flex-start; justify-content: center; padding: 24px; overflow: auto; }
+.modal[hidden] { display: none; }
+#trailer-lab { width: min(1080px, 94vw); max-height: calc(100vh - 48px); overflow-y: auto; margin: auto;
+               background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+               padding: 16px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4); }
+#trailer-lab .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
 #apps-body h3 { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
 #apps-body .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
 .aso-tool { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -336,7 +344,7 @@ html, body {
 .pm-bake { font-size: 10px; padding: 1px 8px; cursor: pointer; }
 #promote-shots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .pm-shot img { display: block; max-width: 132px; height: auto; border: 1px solid var(--border); image-rendering: pixelated; }
-#promote-snap { font-size: 11px; padding: 2px 10px; cursor: pointer; }
+#promote-snap, #promote-trailer { font-size: 11px; padding: 2px 10px; cursor: pointer; }
 .pm-clip:hover { text-decoration: underline; }
 #promote-rec { margin-top: 8px; font-size: 11px; padding: 2px 10px; cursor: pointer; }
 .pm-link { font-size: 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }

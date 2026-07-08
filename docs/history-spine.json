@@ -3,7 +3,7 @@
   "title": "dreamengine — a history",
   "subtitle": "How a fantasy console grew, week by week. Built structure-first from git, the STATUS ledger, and the decision log.",
   "voiceRef": "guides/voice.md",
-  "window": { "from": "2026-05-28", "to": "2026-07-03", "label": "Weeks 1–6" },
+  "window": { "from": "2026-05-28", "to": "2026-07-07", "label": "Weeks 1–6" },
   "denseDayThreshold": 80,
 
   "weeks": [
@@ -63,7 +63,9 @@
     { "id": "netcode",  "title": "Multiplayer / netcode", "tier": "mid",
       "match": ["netplay", "multiplayer", "lockstep", "winsock", "de_players", "net-lobby", "auto-discovery", "LAN by IP", "LAN-by-IP"] },
     { "id": "store",    "title": "Apps, sharing & the store", "tier": "mid",
-      "match": ["de_switch_cart", "build-app", "multi-cart", "bundle-spike", "share-panel", "share popover", "apps view", "launcher", "tinyjam-menu", "aso-", "app store", "app-store", "store-shots", "store-contact", "store-agents", "press-kit", "presskit", "in-app purchase", "sharing-channels", "per-cart sound", "per-cart sprite", "umbrella"] }
+      "match": ["de_switch_cart", "build-app", "multi-cart", "bundle-spike", "share-panel", "share popover", "apps view", "launcher", "tinyjam-menu", "aso-", "app store", "app-store", "store-shots", "store-contact", "store-agents", "press-kit", "presskit", "in-app purchase", "sharing-channels", "per-cart sound", "per-cart sprite", "umbrella"] },
+    { "id": "promote",  "title": "Demand & promotion", "tier": "mid",
+      "match": ["trailer builder", "titlecard", "build-app-reel", "app-trailer", "app trailer", "leads.js", "leads:", "leads-ledger", "local marketeer", "demand-generation", "demand generation", "editor-scopes", "promote-tab", "Promote tab", "Make / Promote / Ship", "Make/Promote/Ship", "find tribes", "PurchaseIntent", "promoted IAP", "promoted purchase", "attract-mode IAP", "attract as IAP"] }
   ],
 
   "eras": [
@@ -161,6 +163,22 @@
     { "id": "ship-it", "title": "The studio learns to ship",
       "from": "2026-07-03", "to": "2026-07-03",
       "blurb": "The day the project grew a way out to the store. The engine seam lands first: de_switch_cart() gives every cart its own sound, video and sprite-sheet context — a config-request log recorded at drain and replayed on switch — so two carts run in one binary with zero edits, proven by the bundle-spike and hardened by ADR-0027 (cart-facing sound state flows ONLY through the request queue, the rule a bpm tempo-jump regression proved). On top of it, build-app.js turns an apps/<name>/app.json manifest into a multi-cart binary — a four-rung ladder from the dispatcher shim to a de:meta-fed launcher cart (tinyjam-menu) to a signed+notarized .app — and the same manifest builds and runs on iOS, in-app purchases and all (Spikes A + B). The umbrella app gets its name: Tiny Jam. Around the build sits a whole store pipeline, script-prepares-then-agent-decides by design (store-agents.md, over ADR-0026's in-house App Store Connect plan): the ASO lab — aso-research, aso-suggest, aso-lint, aso-compose, aso-brief and its aso-coverage mirror, and aso-score with a winnability check — plus store-shots (native frames → exact device screenshots), store-contact (a hero-frame contact sheet) and press-kit (a self-contained press page). The editor grows an Apps view that drives all of it. Two more threads open the same day: lay.h graduates from a layout vocabulary to a runtime library header and the device-adaptive-layout project kicks off (Phase 0 proven by rackfit's finger-sized reflow, Phase 1a's runtime canvas-dim globals landed), while build-app-reel.js and an in-editor trailer builder start turning a manifest into a demand-generating trailer.",
+      "editorial": "" },
+    { "id": "fits-the-glass", "title": "Carts that fit any glass, and a trailer to sell them",
+      "from": "2026-07-04", "to": "2026-07-04",
+      "blurb": "Device-adaptive layout gets real. The framebuffer moves to the heap with a runtime stride and grows on demand (byte-identical to the old fixed path, so a de:meta resizable cart reflows to any size) — the editor ▶-run reflows it live, a harness --resize sweep exercises it, and Phase 2 lands iOS carts filling the device with safe-area insets and allowed rotation. Alongside it the in-editor trailer builder takes shape: per-clip trim + speed with a live visual preview, a drag-to-arrange timeline (add/remove/reorder/repeat), spec text cards with a magic-colour overlay grammar and a .reel @card syntax, an entrance vocabulary, a seamless loop-close transition, and beat-sync (breathe punches, boil ticks on the beat) — with the titlecard cart as its kinetic pixel-type slice 1 (boil + breathe, a full in/hold/out timeline with per-end effects). Underneath: raylib_compat stubs the window-size calls (GetScreenWidth/Height, SetWindowSize, ImageCrop), a DE_SHOW_SIZE overlay reads out live W×H, and welcome gets a leaner starter template and a new tagline.",
+      "editorial": "" },
+    { "id": "record-and-lockstep", "title": "Record, replay, and the first lockstep handshake",
+      "from": "2026-07-05", "to": "2026-07-05",
+      "blurb": "The editor learns to record and replay input tracks (.rec) — and the information-architecture seam it surfaces (where recorded media lives) opens the editor-media lane. The responsive work grows a gate: ui-audit gains a --resize sweep and a panel×size matrix, catches off-screen and overlapping widgets (not just text), and acidrack becomes the first rack to reflow (Phase 3 — landscape tabs, wrapping master knobs, content-aware tab thresholds). Netplay rung 5a begins and reaches code-complete in a day: the lockstep core compiles on web (a DE_NET_CORE/DE_NET_BUILD split, a transport seam, a non-blocking barrier and an echo fake-peer), then a WebSocket transport and a zero-dep relay — browser netplay code-complete. Around it the instrument museum map (the hub over every instrument doc) and a mic-and-sampling sketch get written, the design-system companion pages trace the evolution trail, and resolution-portable input tracks are reframed as an attract-mode IAP storefront.",
+      "editorial": "" },
+    { "id": "live-split-world", "title": "Multiplayer goes live, the repo splits, and a world draws its own roads",
+      "from": "2026-07-06", "to": "2026-07-06",
+      "blurb": "The biggest single day of the week runs on four fronts. Multiplayer goes live — rung 5a is verified peer-to-peer, a Render relay is deployed and wss-verified, rooms are cart-scoped, and the site grows a play-together button and a room bar; a WebRTC P2P spike (rung 5b) then reaches Mac↔iPhone at ~12ms over wifi. The repo splits in two: site/ is untracked and the published gallery moves to its own public repo, this engine becomes dreamengine-studio, and publish-cart.sh grows two legs. The store lane pushes to TestFlight — Tiny Jam's bundle id is reserved on ASC, per-app icons stage through the manifest, and testflight.sh archives and uploads (v0.1 build live on ASC), with the iOS-26 SDK and SKTestSession wobbles logged. And a world starts generating itself: the worldgen ladder lands rungs 0–3 in one push — sndi-check (the street-network metric oracle) at rung 0, roadnet2's unified road_at() graph query (rung 1a) extracted to worldnet.h as the shared world spine (rung 1) the moment sloop became its second consumer, then citygrow's population-density field (rung 2) and per-city tensor-field arterials (rung 3), with the first generated-vs-real SNDi numbers measured. Plus the tr-606 drumatix, completing the Roland wing.",
+      "editorial": "" },
+    { "id": "reflow-play-promote", "title": "Instruments reflow, a scale grid you can play, and the studio learns to promote",
+      "from": "2026-07-07", "to": "2026-07-07",
+      "blurb": "The 101-commit day, the largest of the week. Instrument UI learns to reflow: a device-matrix reference is written, and acidwire flips acidrack's layout through the whole device matrix with one key — rendering the real safe-area (notch/island/home-bar keep-outs), a real 303 step editor, per-instrument mute and patterns, a focus/fullscreen state and a desktop-fake-flipper-vs-device dual mode — while epianofit mocks the keybed's responsive layout, and the responsive-instrument-ui guide plus ADR-0028 (sensible defaults, optional tweaks) codify the playbook. Three instrument carts ship: scalegrid, a scale-locked isomorphic pad grid you actually play (11 scales, an OCT↔4TH row offset, SQR↔HEX Tonnetz packing with a nearest-centre hit-test, and VOICE and SIZE cycles, all pinned by a 71-assertion spec); newworld, a Joe Meek 'I Hear a New World' found-sound machine; and circlemachine, Raymond Scott's Circle Machine ring-sequencer. The studio learns to promote: asc-push.js pushes metadata/screenshots/IAPs to App Store Connect and marks promoted purchases (with a Store.swift PurchaseIntent), the leads marketeer maps a cart to its tribes and the venues where they gather (music coverage tuned to ~90%), and the editor's information architecture resolves into Make / Promote / Ship — a new per-cart Promote tab, with Dream as the zeroth verb closing the loop to a cycle. Netplay rung 5b (WebRTC P2P) is built, play-tested and published.",
       "editorial": "" }
   ],
 
@@ -178,7 +196,11 @@
     "2026-06-24": "Down to the pixels — the software-canvas investigation runs and comes back GO: a CPU framebuffer renderer, byte-identical to the GPU path, drops cityplan from 11.4ms to 5.0ms a frame (Phases 0–2). Alongside it the det-probes pin rotation determinism to the floor (gap-free, cross-arch trig quantized, RotSprite benchmarked), field-based road rendering ships behind the road-check oracle (ADR 0021), and trackgen's traffic learns crossings, right-of-way and police chases.",
     "2026-07-01": "The week closes on four fronts — roadkit.h declared GO with citydrive as its first consumer (one connected OSM road surface: markings, cycle lanes, canals-under-roads, bridge decks, tunnels), sloop driving real Delft (P1 rungs A–C), squishy grown into a per-stroke vector paint studio, and touch controls generalized to N buttons then swept across ~16 carts.",
     "2026-07-02": "The racks-and-net day — a wave of instrument carts (acidrack's RB-338 rack, tracker, yachtrack rack #2, pocketbox, delia, otafamily), the real TB-303 diode ladder (FILTER_DIODE), lockstep multiplayer over UDP→LAN with send-to-a-friend exports and mac-app.sh, and sw_tritex's 358× win that puts 3D back on the phone (overturning ADR-0024).",
-    "2026-07-03": "The day the studio learned to ship — de_switch_cart runs two carts in one binary (ADR-0027), build-app.js turns a manifest into a multi-cart app that builds signed for Mac and runs on iOS with in-app purchases (named Tiny Jam), a whole ASO/store/press pipeline lands with an editor Apps view, and lay.h graduates as the device-adaptive-layout project begins."
+    "2026-07-03": "The day the studio learned to ship — de_switch_cart runs two carts in one binary (ADR-0027), build-app.js turns a manifest into a multi-cart app that builds signed for Mac and runs on iOS with in-app purchases (named Tiny Jam), a whole ASO/store/press pipeline lands with an editor Apps view, and lay.h graduates as the device-adaptive-layout project begins.",
+    "2026-07-04": "Carts that fit any glass — the framebuffer grows on demand so a resizable cart reflows to any size (iOS fill + safe-area + rotation), and the in-editor trailer builder takes shape (timeline, spec text cards, beat-sync) with titlecard as slice 1.",
+    "2026-07-05": "Record, replay, and the first lockstep handshake — the editor records/replays input tracks (.rec), ui-audit gains the responsive-layout gate, and netplay rung 5a reaches browser code-complete (lockstep core on web → WebSocket transport → zero-dep relay).",
+    "2026-07-06": "The biggest day of the week, on four fronts — multiplayer goes live (Render relay, cart-scoped rooms, a WebRTC 5b spike at ~12ms), the repo splits into dreamengine-studio, the store lane uploads Tiny Jam v0.1 to TestFlight, and the worldgen ladder lands rungs 0–3 (sndi-check, worldnet.h, citygrow's density field + tensor arterials).",
+    "2026-07-07": "The 101-commit day — instruments learn to reflow (acidwire through the whole device matrix, epianofit, the responsive-instrument-ui playbook, ADR-0028), three instrument carts ship (scalegrid's playable scale grid with a 71-assertion spec, newworld, circlemachine), and the studio learns to promote (asc-push, the leads marketeer, the editor's Make/Promote/Ship IA)."
   },
 
   "milestones": [
@@ -352,7 +374,37 @@
     { "title": "store-shots + store-contact + press-kit — screenshots & a press page", "tier": "mid", "era": "ship-it", "subsystem": "store", "match": "store-shots" },
     { "title": "ADR-0027 — cart-facing sound state flows only through the request queue", "tier": "mid", "era": "ship-it", "subsystem": "sound", "match": "ADR-0027" },
     { "title": "lay.h graduates to a runtime library + device-adaptive-layout kicks off", "tier": "foundational", "era": "ship-it", "subsystem": "mobile", "match": "promote lay.h" },
-    { "title": "The editor Apps view — drives the build + store pipeline", "tier": "mid", "era": "ship-it", "subsystem": "store", "match": "Apps view" }
+    { "title": "The editor Apps view — drives the build + store pipeline", "tier": "mid", "era": "ship-it", "subsystem": "store", "match": "Apps view" },
+
+    { "title": "Growable framebuffer — carts reflow to any size", "tier": "foundational", "era": "fits-the-glass", "subsystem": "mobile", "match": "grow-on-demand framebuffer" },
+    { "title": "iOS carts reflow to fill the device (Phase 2 — fill + safe-area + rotation)", "tier": "mid", "era": "fits-the-glass", "subsystem": "ios", "match": "iOS carts reflow to fill" },
+    { "title": "The in-editor trailer builder — timeline, text cards, beat-sync", "tier": "foundational", "era": "fits-the-glass", "subsystem": "promote", "match": "drag-to-arrange the timeline" },
+    { "title": "titlecard — a kinetic pixel-type text card (trailer slice 1)", "tier": "small", "era": "fits-the-glass", "subsystem": "promote", "match": "titlecard cart: kinetic pixel-type" },
+
+    { "title": "Editor record + replay input tracks (.rec)", "tier": "foundational", "era": "record-and-lockstep", "subsystem": "debug", "match": "record + replay input tracks" },
+    { "title": "ui-audit --resize sweep — the responsive-layout gate", "tier": "mid", "era": "record-and-lockstep", "subsystem": "mobile", "match": "the responsive-layout gate" },
+    { "title": "Netplay 5a — browser lockstep code-complete (WS transport + zero-dep relay)", "tier": "foundational", "era": "record-and-lockstep", "subsystem": "netcode", "match": "browser netplay code-complete" },
+    { "title": "The instrument museum map — the hub over every instrument doc", "tier": "small", "era": "record-and-lockstep", "subsystem": "sound", "match": "instrument museum map" },
+
+    { "title": "Multiplayer goes live — Render relay deployed + wss-verified", "tier": "foundational", "era": "live-split-world", "subsystem": "netcode", "match": "relay deployed to Render" },
+    { "title": "The repo splits — the gallery moves to its own public repo (dreamengine-studio)", "tier": "mid", "era": "live-split-world", "subsystem": "pipeline", "match": "the published gallery moves to its own public repo" },
+    { "title": "TestFlight upload — Tiny Jam v0.1 on App Store Connect", "tier": "mid", "era": "live-split-world", "subsystem": "ios", "match": "TestFlight upload DONE" },
+    { "title": "sndi-check — the street-network metric oracle (worldgen rung 0)", "tier": "mid", "era": "live-split-world", "subsystem": "roads", "match": "sndi-check.js: rung 0 SHIPPED" },
+    { "title": "worldnet.h — the shared world spine + unified road_at() (worldgen rung 1)", "tier": "foundational", "era": "live-split-world", "subsystem": "roads", "match": "WORLDGEN RUNG 1 SHIPPED" },
+    { "title": "citygrow — density field + tensor-field arterials (worldgen rungs 2–3)", "tier": "mid", "era": "live-split-world", "subsystem": "roads", "match": "WORLDGEN RUNG 2 SHIPPED" },
+    { "title": "WebRTC P2P spike — Mac↔iPhone at ~12ms (rung 5b)", "tier": "small", "era": "live-split-world", "subsystem": "netcode", "match": "spike WebRTC P2P" },
+    { "title": "tr-606 drumatix — the Roland wing is complete", "tier": "small", "era": "live-split-world", "subsystem": "machines", "match": "tr-606 drumatix" },
+
+    { "title": "acidwire — flip a rack's layout through the whole device matrix", "tier": "foundational", "era": "reflow-play-promote", "subsystem": "mobile", "match": "acidwire — flip acidrack's layout" },
+    { "title": "responsive-instrument-ui — the playbook for a new rack's UI", "tier": "mid", "era": "reflow-play-promote", "subsystem": "mobile", "match": "responsive-instrument-ui" },
+    { "title": "ADR-0028 — sensible defaults, optional tweaks", "tier": "small", "era": "reflow-play-promote", "subsystem": "docs", "match": "ADR-0028" },
+    { "title": "scalegrid — a scale-locked isomorphic pad grid you play (spec 71/0)", "tier": "foundational", "era": "reflow-play-promote", "subsystem": "sound", "match": "scalegrid: a scale-locked ISOMORPHIC pad grid" },
+    { "title": "newworld — Joe Meek's 'I Hear a New World' machine", "tier": "small", "era": "reflow-play-promote", "subsystem": "sound", "match": "I Hear a New World — a Joe Meek" },
+    { "title": "circlemachine — Raymond Scott's Circle Machine ring-sequencer", "tier": "small", "era": "reflow-play-promote", "subsystem": "sound", "match": "Raymond Scott's Circle Machine" },
+    { "title": "asc-push.js — push metadata / screenshots / IAPs to App Store Connect", "tier": "foundational", "era": "reflow-play-promote", "subsystem": "store", "match": "asc-push.js — push metadata" },
+    { "title": "leads — the local marketeer (demand generation)", "tier": "mid", "era": "reflow-play-promote", "subsystem": "promote", "match": "leads.js: local marketeer" },
+    { "title": "Make / Promote / Ship — the editor's information architecture resolves", "tier": "foundational", "era": "reflow-play-promote", "subsystem": "promote", "match": "resolve the seam — Make / Promote / Ship" },
+    { "title": "Netplay 5b — WebRTC P2P built + published", "tier": "mid", "era": "reflow-play-promote", "subsystem": "netcode", "match": "rung 5b WebRTC P2P is BUILT" }
   ],
 
   "threads": {

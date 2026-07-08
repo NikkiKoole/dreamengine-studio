@@ -176,6 +176,26 @@ Concretely:
 > choices** — cross-check before calling any single day a peak or a lull. (An apparent
 > "06-13 lull" was a date-grouping artifact, not a real quiet day.)
 
+### Deferred: a "frontier" band + the todo-debt number
+
+Two present-tense sources now exist that the page doesn't yet read — worth folding in on the
+**same "read it all back" pass as the retrospect** (they're reflection surfaces, not per-era facts):
+
+- **A "frontier — where it stands now" band**, fed by `tools/handoff.js`'s active-lane parse of
+  `docs/HANDOFF.md` (the ▶ ACTIVE THREAD lanes + ages + resume-at pointers). It's the natural
+  complement to the Retrospect: the retrospect looks *back* at the whole arc; this shows the *open
+  edge right now*. Fully derived, zero-authoring, and when a lane lands it just drops off. Place it
+  as a capstone by the Retrospect. **Do NOT weave lanes into a dated past era** — `HANDOFF.md` is a
+  rolling, pruned file (a lane vanishes when its work ships), so a lane pinned to a past era would
+  silently disappear on the next regen and break the "honest with git" contract. Keep it a separate
+  present-tense surface. (The existing per-era "⛏ Open threads" — filename-dated `design/*handoff*.md`
+  — stays as is; that's the retrospective handoff view and it's fine.)
+- **The polish-debt number as retrospect *evidence*, not a list.** `node tools/cart-todos.js --count`
+  (the per-cart `de:meta.todo[]` punch-lists — 292 open across 153 carts at 2026-07-07) is a good
+  `observations` evidence line ("the polish the surface hides"). Do **not** render the todos as a
+  per-era or per-cart surface — hundreds of forward-looking items would drown the narrative; that
+  view already lives in `cart-todos.js` / the compendium.
+
 ## Adding a new week
 
 Once a week's worth of work has landed, extend the spine and regenerate:

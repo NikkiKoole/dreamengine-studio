@@ -149,6 +149,8 @@ static float kBass = 0.7f, kLoop = 0.7f, kBPM = 0.25f, kOptions = 0.3f, kVolume 
 // derived / applied
 static int   tempo    = 96;
 static int   masterV  = 5;                // 1..7 note volume
+static int   strumMs  = 22;               // OPTIONS knob: strum stagger 8..60ms
+static float drumMix  = 0.7f;             // LOOP knob: backing drum level 0..1
 static float appRev = -1, appCho = -1;    // fx set-and-hold guards
 
 // drums
@@ -226,10 +228,10 @@ static void cb_play(void) {
             for (int k = 0; k < nVoiced; k++) heldH[nHeld++] = note_on(voiced[k], in, masterV);
             break;
         case PM_STRUM:
-            for (int k = 0; k < nVoiced; k++) schedule_hit(k * STRUM_MS, voiced[k], in, masterV, 900);
+            for (int k = 0; k < nVoiced; k++) schedule_hit(k * strumMs, voiced[k], in, masterV, 900);
             break;
         case PM_SLOP:
-            for (int k = 0; k < nVoiced; k++) schedule_hit(k * STRUM_MS + cb_rand(18), voiced[k], in, masterV, 900);
+            for (int k = 0; k < nVoiced; k++) schedule_hit(k * strumMs + cb_rand(18), voiced[k], in, masterV, 900);
             break;
         case PM_HARP:
             for (int k = 0; k < nStr; k++) schedule_hit(k * 12, strNote[k], INSTR_TRI, 4, 260);
@@ -271,13 +273,14 @@ static void strike(int k) {
 
 // ── drums ───────────────────────────────────────────────────
 static void play_row(int r) {
+    int v[7]; for (int i = 0; i < 7; i++) v[i] = mid(0, (int)(i * drumMix + 0.5f), 7);   // LOOP knob scales drum level
     switch (r) {
-        case 0: hit(36, INSTR_TRI,   6, 100); break;
-        case 1: hit(55, INSTR_NOISE, 5, 120); break;
-        case 2: hit(84, INSTR_NOISE, 3,  28); break;
-        case 3: hit(84, INSTR_NOISE, 2, 170); break;
-        case 4: hit(64, INSTR_NOISE, 4,  60); break;
-        case 5: hit(36 + root + transpose, INSTR_SQUARE, 4, 110); break;
+        case 0: hit(36, INSTR_TRI,   v[6], 100); break;
+        case 1: hit(55, INSTR_NOISE, v[5], 120); break;
+        case 2: hit(84, INSTR_NOISE, v[3],  28); break;
+        case 3: hit(84, INSTR_NOISE, v[2], 170); break;
+        case 4: hit(64, INSTR_NOISE, v[4],  60); break;
+        case 5: hit(36 + root + transpose, INSTR_SQUARE, v[4], 110); break;
     }
 }
 static void loadPreset(int p) {
@@ -387,6 +390,9 @@ static void update_mix(void) {
     transpose = (int)((kKey - 0.5f) * 24.0f);
     tempo     = 60 + (int)(kBPM * 140.0f);
     masterV   = mid(1, (int)(kVolume * 7) + 1, 7);
+    strumMs   = 8 + (int)(kOptions * 52.0f);
+    drumMix   = kLoop;
+    cb_build();                          // reflect transpose on the plate immediately (silent)
 }
 
 // ── input: the RHYTHM tab (drums + looper) ──────────────────
@@ -574,8 +580,8 @@ static void drawChordTab(void) {
 }
 
 static void knob(float *v, int x, int y, const char *label, const char *val) {
-    ui_knob(v, x, y, label);
-    if (val) print(val, x - text_width(val) / 2, y + 16, CLR_LIGHT_GREY);
+    ui_knob(v, x, y, label);                                        // label sits at y+13
+    if (val) print(val, x - text_width(val) / 2, y + 23, CLR_LIGHT_PEACH);
 }
 static void drawMixTab(void) {
     print("MIX - the nine-knob top row", 8, 18, CLR_LIGHT_PEACH);
@@ -626,8 +632,10 @@ static void drawRhythmTab(void) {
 
 void draw(void) {
     cls(tab == TAB_CHORD ? CLR_DARKER_BLUE : CLR_BROWNISH_BLACK);
+    ui_begin();                          // FIRST: ui.h widgets (the MIX knobs) capture here
     drawTopBar();
     if      (tab == TAB_CHORD)  drawChordTab();
     else if (tab == TAB_MIX)    drawMixTab();
     else                        drawRhythmTab();
+    ui_end();                            // LAST: resolve knob drags — without this they're dead
 }

@@ -1584,6 +1584,25 @@ ipcMain.handle('studio:cart-clips', async (_e, cart) => {
   })
   return { ok: true, cart, clips, url: `https://nikkikoole.github.io/dreamengine/${cart}/` }
 })
+// bake a take → a shareable clip. Runs make-gif.js --recipe <label>, which reads the take
+// tools/clips/<cart>/<label>.{rec,script,beats} and writes editor/public/clips/<cart>/<label>.webm
+// (deterministic: same recipe → same clip, with audio). Streams progress to the runtime log.
+// The "produce" verb of the Promote tab made concrete. Design: docs/design/promote-tab.md §A.
+ipcMain.handle('studio:bake-clip', async (_e, cart, label) => {
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(cart || '')) return { ok: false, output: 'bad cart name' }
+  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(label || '')) return { ok: false, output: 'bad take label' }
+  const wc = _e.sender
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  send('cart:log', `\n── bake ${cart}/${label} → clip ──\n`)
+  return new Promise(resolve => {
+    const proc = spawn('node', [path.join(ROOT, 'tools/make-gif.js'), String(cart), '--recipe', String(label)], { cwd: ROOT })
+    proc.stdout.on('data', c => send('cart:log', c.toString()))
+    proc.stderr.on('data', c => send('cart:log', c.toString()))
+    proc.on('exit', code => resolve({ ok: code === 0, out: code === 0 ? `editor/public/clips/${cart}/${label}.webm` : null }))
+    proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve({ ok: false, output: String(e.message) }) })
+  })
+})
 
 // ── App Store metadata push (the ☁︎ App Store panel) ─────────────
 // Two modes, both via tools/asc-push.js --json so the panel can render a structured checklist:

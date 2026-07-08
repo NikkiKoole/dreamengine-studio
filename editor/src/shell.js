@@ -1661,9 +1661,13 @@ async function renderPromote() {
       const label = cl.playPath
         ? `<a href="#" class="pm-label pm-replay" data-play-path="${escHtml(cl.playPath)}" data-play-kind="${escHtml(cl.playKind)}" title="watch — play this ${escHtml(cl.playKind)} take${cl.playKind === 'beats' ? ' (runs the on-disk cart)' : ' against the open cart'}">▶ ${escHtml(cl.label)}</a>`
         : `<span class="pm-label pm-noplay" title="baked clip only — no take file to replay">${escHtml(cl.label)}</span>`
+      // baked → open the clip; not baked but has a recipe → a 🎬 bake button (produce a webm);
+      // bare baked-only entry with no recipe → nothing to bake.
       const bake = cl.baked
         ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the baked clip">🎬 clip</a>`
-        : `<span class="rs-dim">not baked</span>`
+        : cl.playPath
+          ? `<button class="pm-bake" data-bake="${escHtml(cl.label)}" title="bake this take into a shareable clip (webm, with sound)">🎬 bake</button>`
+          : `<span class="rs-dim">not baked</span>`
       return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${bake}</div>`
     }).join('')
   }
@@ -1695,8 +1699,16 @@ async function playTake(playPath, playKind) {
   const res = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, playPath)
   if (res && !res.ok) showLog(res)
 }
+// bake a take → a shareable clip (webm), then re-render so the 🎬 clip link appears.
+async function bakeTake(label, btn) {
+  if (!window.studio?.bakeClip) { showToast('bake requires the desktop app  (npm start)', 3000); return }
+  if (btn) { btn.textContent = '⏳ baking…'; btn.disabled = true }
+  const res = await window.studio.bakeClip(currentCartFile, label)
+  if (res?.ok) { showToast('✓ clip baked', 2500); renderPromote() }
+  else { showToast(res?.output || 'bake failed — see the log', 4000); if (btn) { btn.textContent = '🎬 bake'; btn.disabled = false } }
+}
 // delegated clicks in the Promote panel: data-url / data-copy (same as the Apps glance),
-// ▶ watch a take.
+// ▶ watch a take, 🎬 bake a take into a clip.
 document.getElementById('promote-body')?.addEventListener('click', e => {
   const link = e.target.closest('a[data-url]')
   if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
@@ -1704,6 +1716,8 @@ document.getElementById('promote-body')?.addEventListener('click', e => {
   if (cp) { e.preventDefault(); navigator.clipboard?.writeText(cp.dataset.copy).then(() => showToast('copied', 2000)); return }
   const rp = e.target.closest('[data-play-path]')
   if (rp) { e.preventDefault(); playTake(rp.dataset.playPath, rp.dataset.playKind); return }
+  const bk = e.target.closest('[data-bake]')
+  if (bk) { e.preventDefault(); bakeTake(bk.dataset.bake, bk); return }
 })
 document.getElementById('promote-rec')?.addEventListener('click', () => recordCart())
 document.querySelector('.tab[data-tab="promote"]')?.addEventListener('click', renderPromote)

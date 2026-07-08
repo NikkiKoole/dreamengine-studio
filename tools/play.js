@@ -234,6 +234,12 @@ const runArgs = []
 if (mode === 'record') {
   if (!modeFile) { console.error('record needs an output file'); process.exit(1) }
   runArgs.push('--record', path.resolve(modeFile))
+  // Record deterministically so replay can reconstruct the SAME world. A .rec
+  // stores only inputs, not the RNG stream — replay implies --det (seeded RNG +
+  // fixed timestep), so a live (unseeded, wall-clock) recording replays into a
+  // DIFFERENT world and diverges (bit flank: won live, died on replay). --seed
+  // passes through below and must match the replay's seed (both default 1).
+  runArgs.push('--det')
 } else if (mode === 'replay') {
   if (!modeFile) { console.error('replay needs a .rec file'); process.exit(1) }
   runArgs.push('--replay', path.resolve(modeFile))

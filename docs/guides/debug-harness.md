@@ -50,6 +50,16 @@ Note this flag is **not** harness-only — it works in any native build, like th
 A recording (`--record`) replays under `--replay`; both feed the same injection
 engine as `--script`, so they behave identically.
 
+> **A `.rec` stores only your inputs — not the RNG stream you played against.** So a
+> recording is only reproducible if the record run and the replay run reconstruct the
+> *same* world. `--replay` implies `--det` (seeded RNG + fixed timestep), so `play.js
+> record` now runs `--det` too (same default seed 1) — otherwise a live, unseeded
+> recording replays into a *different* world and diverges. This bit `flank`: its whole
+> firefight is built from `rnd()` (enemy spawns, weapons, AI), so an old non-det
+> recording "won live, died on replay." Recordings made before this fix aren't
+> reproducible (their world is gone) — re-record. If you record with a non-default
+> `--seed`, replay with the **same** `--seed`.
+
 ---
 
 ## Telemetry: the `DE_TRACE` convention

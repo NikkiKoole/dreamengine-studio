@@ -1,26 +1,32 @@
 # chordblossom — the VOICING CASCADE demo (the Orchid's signature move).
-# Play E major, sweep the voicing dial up through its inversions and an octave,
-# stack a maj7, voice back down, then switch to a minor chord + add a 9th.
+# Params (type / modifier / voicing) change the chord SILENTLY; you hear it only
+# when you play a root. So: set a voicing, then press the root to hear it — the
+# same chord climbs through its inversions and up an octave, then gains a maj7,
+# then switches to a minor chord with a 9th.
 # frames 300
 # fps 30
 # crf 28
-down 15 D      # root E (major, the default TYPE)
+down 15 D      # root E, major, voicing 0  — root position
 up   17 D
-down 45 RIGHT  # voicing +1  — first inversion
+down 45 RIGHT  # voicing +1
 up   47 RIGHT
-down 70 RIGHT  # +2 — second inversion
-up   72 RIGHT
-down 95 RIGHT  # +3 — root position, one octave up
-up   97 RIGHT
-down 120 7     # stack a maj7 (modifier)
-up   122 7
-down 150 LEFT  # voice back down
-up   152 LEFT
-down 175 LEFT
-up   177 LEFT
-down 205 2     # switch TYPE to min
-up   207 2
-down 210 H     # root A  -> A minor
-up   212 H
-down 250 8     # add the 9th
-up   252 8
+down 55 D      # hear it — first inversion
+up   57 D
+down 80 RIGHT  # voicing +2
+up   82 RIGHT
+down 90 D      # hear it — second inversion
+up   92 D
+down 115 RIGHT # voicing +3
+up   117 RIGHT
+down 125 D     # hear it — root position, one octave up
+up   127 D
+down 150 7     # stack a maj7 (silent)
+up   152 7
+down 160 D     # hear the maj7
+up   162 D
+down 195 2     # switch TYPE to min (silent)
+up   197 2
+down 205 8     # add the 9th (silent)
+up   207 8
+down 215 H     # root A  -> A minor add9
+up   217 H

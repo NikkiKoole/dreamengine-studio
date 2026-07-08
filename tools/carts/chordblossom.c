@@ -318,24 +318,29 @@ static void update_chord(void) {
     for (int i = 0; i < 7; i++) if (keyp(WROOT[i])) cb_trigger(WPC[i], chType);
     for (int i = 0; i < 5; i++) if (keyp(BROOT[i])) cb_trigger(BPC[i], chType);
 
+    // Changing a chord PARAMETER (type / modifier / voicing) only re-BUILDS the
+    // chord silently — it re-voices the strum plate and arms the next played
+    // chord, but never re-triggers a sound. You only hear a chord when you play
+    // a root on the keybed or strum the plate.
+
     // TYPE via number keys 1-4
-    for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_play(); }
+    for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_build(); }
     // MODIFIERS via 5-8 (toggle, combinable)
-    for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_play(); }
+    for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_build(); }
 
     // TYPE buttons (top row)
     for (int t = 0; t < 4; t++)
-        if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_play(); }
+        if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_build(); }
     // MODIFIER buttons (lower row) — combinable
     for (int m = 0; m < NMOD; m++)
-        if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_play(); }
+        if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_build(); }
 
     // VOICING strip — arrow keys or drag on the strip
-    if (btnp(0, BTN_LEFT))  { voicing--; if (armed) cb_play(); }
-    if (btnp(0, BTN_RIGHT)) { voicing++; if (armed) cb_play(); }
+    if (btnp(0, BTN_LEFT))  { voicing--; cb_build(); }
+    if (btnp(0, BTN_RIGHT)) { voicing++; cb_build(); }
     if (tapp(6, 68, SCREEN_W - 12, 14)) {
         int nx = mid(-14, (touch_x(0) - SCREEN_W / 2) / 8, 14);
-        if (nx != voicing) { voicing = nx; if (armed) cb_play(); }
+        if (nx != voicing) { voicing = nx; cb_build(); }
     }
 
     // engine + perform quick-selectors (small tiles, right of the readout)

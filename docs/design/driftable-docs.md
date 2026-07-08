@@ -96,6 +96,14 @@ twin of that tool's heuristic mtime tiers.
 Both are soft nudges (advisory, never auto-fix, human decides). The front door raises the odds the
 drift is fixed by whoever caused it; the back door catches what slipped through.
 
+**The two doors generalize past `de:driftable`.** The same shape keeps [`HANDOFF.md`](../HANDOFF.md)
+honest — [`handoff.js`](../../tools/handoff.js) bare is the front door (lists the active lanes + age,
+wired into `orient`), `--check` is the back door (flags a lane >2wk old, a broken doc link, or a
+broken `#section` anchor, surfaced by `cart-status.js`). It's a sibling application of the pattern,
+not a `de:driftable` marker: a lane's Resume-at is written as a real `[text](doc.md#section)` link so
+that when work ships and the target section is renamed, the anchor breaks and the back door catches
+the now-stale pointer.
+
 **Beyond `docs/` — generated app worksheets.** `--driftable` also scans `apps/*/seo-brief.md`
 (the SEO worksheets `aso-brief.js` writes; [`store-agents.md`](store-agents.md) §"palette +
 mirror"). The tool *emits* its own `de:driftable` marker (`inputs` = the cart shelf + the app

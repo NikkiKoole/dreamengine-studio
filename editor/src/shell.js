@@ -1919,6 +1919,31 @@ document.getElementById('tl-reels')?.addEventListener('click', e => {
   const a = e.target.closest('[data-reel]'); if (!a) return
   e.preventDefault(); tlLoadReel(a.dataset.reel)
 })
+// open a saved reel directly in the trailer builder (from the cross-subject overview). Sets the
+// subject from the reel name (<subject>--<variant> → <subject>) so the in-builder list stays scoped.
+async function openReel(name) {
+  tlSeqStop()
+  tlSubject = String(name).split('--')[0]
+  const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
+  const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = false
+  const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
+  document.getElementById('trailer-modal').hidden = false
+  await tlLoadReel(name)
+}
+// the cross-subject Reels overview (top of the Apps page) — every saved scenario, click to open it.
+async function renderReelsOverview() {
+  const el = document.getElementById('reels-all'); if (!el) return
+  const res = await window.studio?.listReels?.()
+  const reels = (res && res.reels) || []
+  el.innerHTML = reels.length
+    ? reels.map(r => `<a href="#" class="tl-reel" data-reel="${escHtml(r.name)}" title="open in the trailer builder">${escHtml(r.name)}${r.hasWebm ? ' <span class="rs-dim">▶</span>' : ''}</a>`).join('')
+    : '<span class="rs-dim">no reels yet — build one in the trailer builder (Apps card or Promote tab)</span>'
+}
+document.getElementById('reels-all')?.addEventListener('click', e => {
+  const a = e.target.closest('[data-reel]'); if (!a) return
+  e.preventDefault(); openReel(a.dataset.reel)
+})
+document.querySelector('.tab[data-tab="apps"]')?.addEventListener('click', renderReelsOverview)
 // probe durations for any baked clip we haven't measured yet — a hidden <video>, no ffprobe/IPC
 function tlProbeDurations() {
   for (const clip of new Set(tlRows.map(r => r.clip))) {

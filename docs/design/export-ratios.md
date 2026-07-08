@@ -24,6 +24,27 @@ This is **orthogonal to the scenario** (the `.reel`, [`trailer-builder.md`](trai
 scenario can render to many ratios; a single take can render to one. Ratio is a *render target*, not
 an arrangement.
 
+## Front and centre: keyboard shortcuts are what make "one take, many ratios" work
+
+> **The enabler, stated plainly: a cart driven by keyboard shortcuts is position-free, so ONE recorded
+> take replays truthfully at ANY ratio — and the cart can demo itself.**
+
+Everything hard about multi-ratio video traces back to *how the input was captured*:
+
+- **Keyboard / `btn()` shortcuts have no coordinates.** `down 90 SPACE` means the same thing on iPad,
+  iPhone-portrait, and a 9:16 crop — the layout can reflow completely and the take still lands. Bonus:
+  the audio is **byte-identical at every viewport** (the beat advances from `dt`, not pixels). So a
+  keyboard-driven take = one performance → every ratio, truthfully.
+- **A tap is a pixel.** `click 204 135` points at wherever a widget *was* at the recording ratio; reflow
+  moves it (or hides it behind a panel) and the tap misses.
+
+So the enabler is really an **authoring property**: *is this cart keyboard-drivable enough to demo
+itself?* Racks/toys that bind transport + pattern/preset cycling to keys get multi-ratio store & social
+video **for free**; a mouse-only cart doesn't, and needs a re-record per shape or the composite fallback.
+Designing a cart with keyboard shortcuts up front is the cheapest thing you can do to make it *filmable*.
+(The full input-portability reasoning: [`resolution-portable-input.md`](resolution-portable-input.md);
+its Rung-0 bet — "make racks demo themselves from the keyboard" — is exactly this move.)
+
 ## The device sizes already live in one place
 
 `tools/store-shots.js` holds the device pixel dims (its `DEVICES` map — `iphone69 1290×2796`,
@@ -62,22 +83,15 @@ shipped system, and this is **the hardest case in the whole picture**:
 > another: a tap recorded as an absolute canvas pixel lands on a widget that moved — or on empty space
 > where a now-hidden control used to be.
 
-This is already worked through in **[`resolution-portable-input.md`](resolution-portable-input.md)** —
-the *input* half of "one take, many ratios" (this doc is the *output* half). Its findings decide when
-(b) is even possible:
+And that's the whole rub — it's the same coordinate problem the front-and-centre section names, just
+seen from the render side. It's fully worked through in
+**[`resolution-portable-input.md`](resolution-portable-input.md)** — the *input* half of "one take,
+many ratios" (this doc is the *output* half).
 
-- **Keyboard / `btn()` input is position-free → fully portable.** A keyboard-driven (self-playing)
-  take reflows truthfully: one track, one performance, and — the quiet gift — **byte-identical audio
-  at every viewport** (the beat advances from `dt`, not pixels). One take, many ratios *works*.
-- **Touch / mouse input is absolute pixels → does not survive a reflow.** A finger-on-a-control demo
-  must either be re-recorded per shape, or fall back to approach (a) composite (letterbox the native
-  capture — truthful pixels, just not filling the frame).
-
-So the honest synthesis: **one-take-many-ratios is real, but only for position-free (keyboard/
-self-playing) takes on device-adaptive carts.** For everything else — touch demos, fixed-layout carts,
-the App Store's exact sizes — approach (a) composite is the truthful fallback. `resolution-portable-input.md`'s
-bet ("make racks demo themselves from the keyboard") is precisely the move that makes the ideal reachable
-for the cases that matter most.
+So the honest synthesis: **one-take-many-ratios is real, but only for position-free (keyboard /
+self-playing) takes on device-adaptive carts** — which is why keyboard shortcuts are the headline, not
+a detail. For everything else — touch demos, fixed-layout carts, the App Store's exact sizes —
+approach (a) composite is the truthful fallback.
 
 ## What already exists to build on
 

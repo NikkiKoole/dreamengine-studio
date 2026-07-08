@@ -29,6 +29,9 @@
 >   card opens for an app. Lifted out of the Apps panel into a top-level `.modal` overlay so both
 >   surfaces open it; cart scope stitches one cart's clips, app scope stitches across an app's carts.
 >   The first instance of the **shared-popup pattern** (a scope-neutral tool, one popup, two triggers).
+> - **keywords** — a **🔑 keyword research** button opens the second shared popup
+>   (`openKeywords({kind:'cart',name})`) — aso-research (competition) + aso-suggest (demand), seeded
+>   from the cart's de:meta (genre+kind). Same popup the Apps card opens for an app.
 > - **D · find tribes** — `studio:cart-leads` = `runLeadsJson(cart)` wrapped for the shared `leadsHtml()`.
 > - **E · the gallery link** — deterministic URL + copy.
 >

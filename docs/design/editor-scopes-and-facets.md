@@ -181,7 +181,10 @@ scope — it receives one) while killing the duplication.
 The split that falls out:
 - **Tool-heavy / modal → a shared popup** — the **trailer builder** (SHIPPED 2026-07-08 as the first
   instance: lifted out of the Apps panel into a top-level modal, `openTrailer({kind,name})`, opened
-  from the Apps card *and* the Promote tab §C) and **keyword research** (next).
+  from the Apps card *and* the Promote tab §C) and **keyword research** (SHIPPED 2026-07-08 as the
+  second: `openKeywords({kind,name})` runs aso-research + aso-suggest, seeded from a cart's de:meta
+  or an app's listing; opened from the Promote tab *and* the Apps-card reach row). Both reuse the
+  same extracted HTML builders (`researchHtml`/`suggestHtml`, `leadsHtml`) the inline surfaces use.
 - **Browse-y glance → shared inline component** — **leads/tribes** stays inline in each scroll
   (`leadsHtml()` already renders a cart or app payload identically; two inline homes, no popup).
 - **Genuinely single-scope → stays put** — takes/clips/stills (cart only); listing grading

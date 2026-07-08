@@ -1766,7 +1766,7 @@ async function playTake(playPath, playKind) {
   if (res && !res.ok) showLog(res)
 }
 // friendly labels for the per-ratio output sizes (shared by the bake picker + the variant chips)
-const RATIO_LABEL = { '320x180': '16:9', '180x320': '9:16', '240x240': '1:1', '444x960': 'iPhone', '960x444': 'iPhone L', '600x800': 'iPad' }
+const RATIO_LABEL = { '1280x720': '16:9', '720x1280': '9:16', '1080x1080': '1:1', '886x1920': 'iPhone', '1920x886': 'iPhone L', '1200x1600': 'iPad' }
 const ratioLabel = v => RATIO_LABEL[v] || v
 // bake a take → a clip (webm) at the "bake at" ratio (native, or a per-ratio variant), then re-render.
 async function bakeTake(label, btn) {

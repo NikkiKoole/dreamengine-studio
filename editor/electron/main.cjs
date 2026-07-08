@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, nativeImage } = require('electron')
-const { exec, execSync, spawn }        = require('child_process')
+const { exec, execSync, spawn, spawnSync } = require('child_process')
 const path                             = require('path')
 const fs                               = require('fs')
 const zlib                             = require('zlib')
@@ -1646,7 +1646,15 @@ ipcMain.handle('studio:bake-clip', async (_e, cart, label, size) => {
     if (!await runMakeGif([], nativeRel)) return { ok: false, output: 'native bake failed' }
   }
   const [W, H] = size.split('x').map(Number)
-  const vf = `scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`
+  // integer nearest-upscale that FITS the native into the frame (never downscale — that's the blur),
+  // then pad. n≥1; a 320×200 game into 720×1280 → ×2 = 640×400 centred with bars, crisp.
+  let n = 3
+  try {
+    const pr = spawnSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=s=x:p=0', path.join(ROOT, nativeRel)], { encoding: 'utf8' })
+    const [nw, nh] = String(pr.stdout || '').trim().split('x').map(Number)
+    if (nw && nh) n = Math.max(1, Math.floor(Math.min(W / nw, H / nh)))
+  } catch {}
+  const vf = `scale=iw*${n}:ih*${n}:flags=neighbor,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`
   return new Promise(resolve => {
     const ff = spawn('ffmpeg', ['-y', '-i', path.join(ROOT, nativeRel), '-vf', vf, '-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0', '-pix_fmt', 'yuv420p', '-c:a', 'copy', path.join(ROOT, variantRel)], { cwd: ROOT })
     let err = ''
@@ -1986,8 +1994,8 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size) => {
   const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
   let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`
   if (typeof size === 'string' && /^\d+x\d+$/.test(size)) {   // output aspect/size (compose-clips letterboxes mismatched clips onto it)
-    // output EXACTLY the picked (small, chunky-pixel) canvas — scale 1, no hidden upscale. Delivery
-    // doubling (e.g. ×2 → the App Store's 886×1920) is a deliberate later step, not baked in here.
+    // output EXACTLY the picked (crisp, full-size) canvas — scale 1, no hidden ×3 upscale. Clips
+    // baked at this ratio fill it edge-to-edge; mismatched clips letterbox (nearest, still crisp).
     reel += `# size ${size}\n# scale 1\n`
   }
   if (loop && loop.type && loop.dur > 0) reel += `# loop ${loop.type} ${loop.dur}\n`   // seamless loop-close

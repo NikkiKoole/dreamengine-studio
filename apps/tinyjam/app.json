@@ -3,18 +3,20 @@
   "bundleId": "com.mipolai.tinyjam",
   "version":  "0.1",
   "icon":     "docs/marketing/tinyjam/icons/tinyjam-icon-1024.png",
-  "carts":    ["acidrack", "yachtrack", "epiano"],
+  "carts":    ["acidrack", "epiano", "omnichord", "pedalboard", "otamatone"],
   "launcher": "tinyjam-menu",
   "listing": {
     "title":    "Tiny Jam: Pocket Music Toys",
     "subtitle": "Make grooves with micro synths",
-    "keywords": "groovebox,drum,machine,sampler,sequencer,beat,studio,loop,mixer,auv3,operator,bass,pads,rhythm,arp"
+    "keywords": "guitar,piano,chord,808,909,303,machine,groovebox,drum,techno,operator,sequencer,harp,beat,keys,midi"
   },
   "iap": {
     "products": [
-      { "id": "com.mipolai.tinyjam.acidrack",    "price": "2.99", "name": "Tiny Jam: Acid Rack",  "desc": "The acid rack: two 303s, a 909 and an 808.", "unlocks": ["acidrack"] },
-      { "id": "com.mipolai.tinyjam.epiano",     "price": "2.99", "name": "Tiny Jam: E-Piano",    "desc": "A warm electric piano keybed.",              "unlocks": ["epiano"] },
-      { "id": "com.mipolai.tinyjam.masterpass", "price": "5.00", "name": "Tiny Jam Master Pass", "desc": "Unlock every rack, now and future.", "unlocks": ["*"] }
+      { "id": "com.mipolai.tinyjam.acidrack",   "price": "1.99", "name": "Acid Rack — Bass & Drum Synth", "desc": "A pocket techno groovebox with live FX.", "unlocks": ["acidrack"] },
+      { "id": "com.mipolai.tinyjam.epiano",     "price": "1.49", "name": "Electric Piano — Vintage Keys", "desc": "Warm Rhodes, Wurlitzer and Clavinet tones.", "unlocks": ["epiano"] },
+      { "id": "com.mipolai.tinyjam.strumharpy", "price": "1.49", "name": "Strumharpy — Chord Harp Toy", "desc": "Strum-harp inspired by the Omnichord.", "unlocks": ["omnichord"] },
+      { "id": "com.mipolai.tinyjam.pedalboard", "price": "1.99", "name": "Pedalboard — Guitar FX Chain", "desc": "Stack stompbox effects to shape your tone.", "unlocks": ["pedalboard"] },
+      { "id": "com.mipolai.tinyjam.masterpass", "price": "4.99", "name": "Tiny Jam Master Pass", "desc": "Unlock everything, now and future.",           "unlocks": ["*"] }
     ]
   }
 }

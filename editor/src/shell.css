@@ -317,9 +317,14 @@ html, body {
 .store-local { color: var(--fg); }
 .store-same { margin: 8px 0; font-size: 11px; color: var(--fg-dim); }
 .store-foot { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
-.store-push { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent);
+.store-push, .store-promote { padding: 7px 14px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent);
   color: var(--bg); font-weight: bold; cursor: pointer; font-size: 13px; }
-.store-push:disabled { opacity: 0.4; cursor: default; }
+.store-push:disabled, .store-promote:disabled { opacity: 0.4; cursor: default; }
+.store-sec { margin: 14px 0 6px; font-size: 11px; font-weight: bold; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--fg-dim); border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+.store-ok { color: #4a9a4a; font-size: 11px; }
+.store-todo { color: var(--fg-dim); font-size: 11px; }
+.store-row-off { opacity: 0.6; }
 .sc-gotchas b { font-size: 12px; }
 .sc-gotchas ul { margin: 6px 0 0; padding-left: 16px; }
 .sc-gotchas li { font-size: 11px; color: var(--fg-dim); margin: 4px 0; line-height: 1.45; }

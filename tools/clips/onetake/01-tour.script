@@ -1,0 +1,16 @@
+# onetake — a keyboard-only tour: move the ball by %, toggle/cycle the title, wipe.
+# Keys ONLY (no move/click), so this one scenario replays truthfully at any canvas size.
+# frames 300  fps 30  scale 2
+tap 10  2
+tap 34  SPACE
+tap 54  4
+tap 84  T
+tap 110 W
+down 150 RIGHT
+up   174 RIGHT
+tap 150 W
+tap 178 1
+tap 198 T
+tap 226 C
+tap 250 SPACE
+tap 274 3

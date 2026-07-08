@@ -3769,6 +3769,17 @@
     "lineage": "After BeatCraft Studio's 'the magic of one note' — a stripped groovebox that proves rhythm + swing beat melody; novel: scale-locked root transposition queued to the next bass step, and an XY pad Moog filter shaping the one voice."
   },
   {
+    "title": "onetake",
+    "description": "The 'one take, many ratios' idea made watchable. Every element is positioned by a PERCENTAGE of the live screen (screen_w()/screen_h()), and every control is a KEYBOARD shortcut - which has no coordinates, so one recorded scenario (keys only) replays truthfully at ANY canvas size. Record it once, then bake the SAME take at a landscape, a square and a 9:16 vertical and watch it reflow. Keys: 1-4 send the ball to 12/38/62/88% of the width, LEFT/RIGHT nudge it, C recenters; SPACE slides the title in/out, T cycles its text; W wipes a panel across. A centre crosshair (50%,50%) and a 75%-width marker stay proportionally put through every reflow - the position-free, resolution-portable ideal from docs/design/export-ratios.md + resolution-portable-input.md.",
+    "file": "onetake.cart.png",
+    "created": "2026-07-08",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "teaches": []
+  },
+  {
     "title": "operation wolf",
     "description": "An on-rails light-gun shooter, mouse to the core. The world scrolls past on a rail — one tile map() recolored per stage with pal() (jungle, enemy camp, airfield) — while soldiers rise from the treeline, telegraph with a raised rifle, then loose bullets and lobbed grenades that come AT the screen; shoot them out of the air. LEFT mouse is the magazine machine gun, RIGHT is the scarce rocket, and you RELOAD by shooting the drifting supply crates. Don't gun down the hands-up civilians — it costs health and score. Wave-based across three stages with a health bar (no lives), best score saved. Muzzle flash, recoil, brass casings, tracer, white hit-flash, fillp explosion rings, screen shake, a damage flash and a low-health alarm. Move mouse to aim, LEFT shoot, RIGHT rocket, shoot a crate to reload.",
     "file": "opwolf.cart.png",

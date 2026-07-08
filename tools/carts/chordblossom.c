@@ -124,6 +124,8 @@ static int  root     = 0;                 // 0..11
 static int  chType   = TY_MAJ;
 static bool modOn[NMOD] = { false, false, false, false };
 static int  voicing  = 0;                 // the cascade offset (signature dial)
+static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), whole chord
+static bool retrig   = false;             // RETRIG toggle: re-play the chord on every param change?
 static int  engine   = 2;                 // start on reed EP (warm)
 static int  perfMode = PM_STRUM;
 static int  transpose = 0;                // MIX "Key" knob, -12..+12 semis
@@ -190,20 +192,20 @@ static int cb_pcs(int *out) {
 // step shifts the whole chord up/down one chord-tone (inversion cascade).
 static void cb_build(void) {
     int pc[12]; int npc = cb_pcs(pc);
-    int base = 24 + root + transpose;             // low anchor (~C1)
+    int base = 24 + root + transpose + octave * 12;   // low anchor (~C1), shifted by Z/X octave
     int tones[128], nt = 0;
     for (int oct = 0; oct < 9 && nt < 120; oct++)
         for (int i = 0; i < npc && nt < 120; i++)
             tones[nt++] = base + pc[i] + 12 * oct;
     int start = 0;
-    while (start < nt && tones[start] < 48 + root + transpose) start++;   // comfortable mid register
+    while (start < nt && tones[start] < 48 + root + transpose + octave * 12) start++;   // comfortable mid register
     int idx = mid(0, start + voicing, nt - npc);
     nVoiced = npc;
     for (int k = 0; k < npc; k++) voiced[k] = tones[idx + k];
 
     // strum-plate strings: the same pitch classes across ~5 octaves, low→high
     nStr = 0;
-    int slow = 36 + root + transpose;
+    int slow = 36 + root + transpose + octave * 12;
     for (int oct = 0; oct < 5 && nStr < 40; oct++)
         for (int i = 0; i < npc && nStr < 40; i++)
             strNote[nStr++] = slow + pc[i] + 12 * oct;
@@ -250,6 +252,11 @@ static void cb_trigger(int newRoot, int newType) {
     }
     cb_play();
 }
+
+// a chord PARAMETER changed (type / modifier / voicing / octave): always
+// re-voice the plate + arm the next hit SILENTLY. If RETRIG is on, also re-play
+// the chord now (the "hear every tweak" behaviour).
+static void cb_param(void) { cb_build(); if (retrig) cb_play(); }
 
 // ── strum plate helpers ─────────────────────────────────────
 static int stringAt(int x) {
@@ -318,35 +325,40 @@ static void update_chord(void) {
     for (int i = 0; i < 7; i++) if (keyp(WROOT[i])) cb_trigger(WPC[i], chType);
     for (int i = 0; i < 5; i++) if (keyp(BROOT[i])) cb_trigger(BPC[i], chType);
 
-    // Changing a chord PARAMETER (type / modifier / voicing) only re-BUILDS the
-    // chord silently — it re-voices the strum plate and arms the next played
-    // chord, but never re-triggers a sound. You only hear a chord when you play
-    // a root on the keybed or strum the plate.
+    // Z / X shift the whole keybed an octave down / up
+    if (keyp('Z')) { octave = max(-2, octave - 1); cb_param(); }
+    if (keyp('X')) { octave = min( 2, octave + 1); cb_param(); }
+
+    // Changing a chord PARAMETER (type / modifier / voicing / octave) re-voices
+    // the plate + arms the next played chord via cb_param(). With RETRIG OFF
+    // (default) that is SILENT — you hear a chord only when you play a root or
+    // strum. With RETRIG ON, every tweak also re-plays the chord.
 
     // TYPE via number keys 1-4
-    for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_build(); }
+    for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_param(); }
     // MODIFIERS via 5-8 (toggle, combinable)
-    for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_build(); }
+    for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_param(); }
 
     // TYPE buttons (top row)
     for (int t = 0; t < 4; t++)
-        if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_build(); }
+        if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param(); }
     // MODIFIER buttons (lower row) — combinable
     for (int m = 0; m < NMOD; m++)
-        if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_build(); }
+        if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param(); }
 
     // VOICING strip — arrow keys or drag on the strip
-    if (btnp(0, BTN_LEFT))  { voicing--; cb_build(); }
-    if (btnp(0, BTN_RIGHT)) { voicing++; cb_build(); }
+    if (btnp(0, BTN_LEFT))  { voicing--; cb_param(); }
+    if (btnp(0, BTN_RIGHT)) { voicing++; cb_param(); }
     if (tapp(6, 68, SCREEN_W - 12, 14)) {
         int nx = mid(-14, (touch_x(0) - SCREEN_W / 2) / 8, 14);
-        if (nx != voicing) { voicing = nx; cb_build(); }
+        if (nx != voicing) { voicing = nx; cb_param(); }
     }
 
     // engine + perform quick-selectors (small tiles, right of the readout)
     for (int e = 0; e < NENG; e++)
         if (tapp(220 + e * 33, 16, 31, 12)) { engine = e; }
-    if (tapp(6, 138, 150, 10))  perfMode = (perfMode + 1) % NPERF;
+    if (tapp(6,   138, 90,  12)) perfMode = (perfMode + 1) % NPERF;   // cycle perform mode
+    if (tapp(100, 138, 100, 12)) retrig   = !retrig;                  // RETRIG toggle
 
     // sonic-strings plate — every finger strums its own glissando
     for (int i = 0; i < touch_count(); i++) {
@@ -448,6 +460,8 @@ void update(void) {
 #ifdef DE_TRACE
     watch("root",    "%d", root);
     watch("voicing", "%d", voicing);
+    watch("octave",  "%d", octave);
+    watch("retrig",  "%d", retrig);
     watch("nVoiced", "%d", nVoiced);
     watch("lo",      "%d", nVoiced ? voiced[0] : -1);
     watch("hi",      "%d", nVoiced ? voiced[nVoiced - 1] : -1);
@@ -548,8 +562,14 @@ static void drawChordTab(void) {
             circfill(touch_x(i), touch_y(i), 3, CLR_WHITE);
     print("SONIC STRINGS ~ strum", PLATE_X + 4, PLATE_Y + PLATE_H - 10, CLR_INDIGO);
 
-    // perf-mode tap hint + keybed
-    print(str("mode: %s (tap)", PMNAME[perfMode]), 6, 139, CLR_DARK_GREY);
+    // control strip: perform-mode cycle · RETRIG toggle · octave (Z/X)
+    rectfill(6, 138, 90, 12, CLR_DARKER_PURPLE);
+    rect(6, 138, 90, 12, CLR_MAUVE);
+    print(PMNAME[perfMode], 10, 140, CLR_LIGHT_GREY);
+    rectfill(100, 138, 100, 12, retrig ? CLR_GREEN : CLR_DARKER_PURPLE);
+    rect(100, 138, 100, 12, retrig ? CLR_WHITE : CLR_MAUVE);
+    print(str("RETRIG %s", retrig ? "ON" : "OFF"), 104, 140, retrig ? CLR_BLACK : CLR_LIGHT_GREY);
+    print(str("OCT %+d  Z/X", octave), 208, 140, CLR_DARK_GREY);
     drawKeybed();
 }
 

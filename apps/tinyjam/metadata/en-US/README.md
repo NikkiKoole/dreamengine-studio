@@ -20,8 +20,8 @@ node tools/asc-push.js tinyjam --metadata             # PATCH live
 | keywords | `../../app.json` → `listing.keywords` | 100 |
 | **description** | `description.txt` (here) | 4000 |
 | **promotional_text** | `promotional_text.txt` (here) | 170 |
+| **support_url** | `support_url.txt` (here) → https://mipolai.com/tinyjam/support/ | — |
 | whats_new | *(unmanaged — see below)* | 4000 |
-| support_url | *(unmanaged — see below)* | — |
 | marketing_url | *(unmanaged — see below)* | — |
 
 name/subtitle/keywords stay in the manifest (don't duplicate them here). `description.txt` +
@@ -33,8 +33,8 @@ human-readable master; these are the store-push copies. If you change one, run
 
 ## Deliberately left unmanaged (need a maker decision, not AI prose)
 
-- **support_url / marketing_url** — no URL exists yet. When the press page / support address
-  is live, drop `support_url.txt` (required by Apple to submit) and optionally `marketing_url.txt`.
+- **marketing_url** — optional; add `marketing_url.txt` if an about/landing page goes live (distinct
+  from the support URL). See [`../../support-page-brief.md`](../../support-page-brief.md).
 - **whats_new** — only matters for an *update*; a first release doesn't need it. Add `whats_new.txt`
   before shipping v1.x.
 

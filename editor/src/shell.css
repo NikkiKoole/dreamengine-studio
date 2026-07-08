@@ -217,12 +217,22 @@ html, body {
           padding: 16px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4); }
 #kw-lab h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; }
 #kw-lab .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
-.kw-row { display: flex; gap: 6px; margin-bottom: 6px; }
-.kw-row #kw-terms { flex: 1; }
-.kw-row #kw-cc { width: 40px; text-align: center; }
+.kw-row { display: flex; gap: 8px; margin-bottom: 6px; }
+#kw-lab input[type="text"] {
+  background: var(--bg); border: 1px solid var(--border); color: var(--fg);
+  font-family: var(--font); font-size: 12px; padding: 6px 10px;
+}
+.kw-row #kw-terms { flex: 1; min-width: 0; }
+.kw-row #kw-cc { flex: none; width: 44px; text-align: center; padding: 6px 4px; }
+#kw-lab button:not(#kw-close) {
+  background: none; border: 1px solid var(--border); color: var(--fg);
+  font-family: var(--font); font-size: 12px; padding: 6px 14px; cursor: pointer; white-space: nowrap;
+}
+#kw-lab button:not(#kw-close):hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+#kw-lab button:disabled { opacity: 0.5; cursor: default; }
 .kw-hint { color: var(--fg-dim); font-size: 11px; margin-bottom: 10px; }
 #kw-results { font-size: 12px; }
-#kw-close { margin-left: auto; }
+#kw-close { margin-left: auto; font-size: 12px; padding: 1px 8px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim); }
 #apps-body h3 { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
 #apps-body .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
 .aso-tool { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }

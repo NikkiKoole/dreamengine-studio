@@ -25,7 +25,7 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-07 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — record/replay shipped, the panel deferred · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-08 (seven lanes: worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview); NEW `export-ratios.md` (one-take-many-ratios, keyboard = the enabler); NEXT = an eyeball pass + `make-gif --ratio` · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
@@ -270,33 +270,41 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 > full two-section panel is in HEAD. **Resume at:** eyeball the ☁︎ panel after `make`; screenshots
 > channel is the next unbuilt one (deferred by the maker until there's more screenshot tooling).
 
-> **▶ ACTIVE THREAD (2026-07-05) — editor media (record / replay + where it lands).**
-> (Adjacent to the trailer lane above; shares its editor files.) **Shipped + committed
-> (`a097e9df`):** the editor can **record** your play as a `.rec` input track (opt-in `● rec`
-> button, settings → record → `tools/clips/<cart>/NN-take.rec`) and **replay** one (drop a `.rec`
-> on the window → `studio:replay` runs it against the OPEN cart; warns if the take's folder names a
-> different cart). Slug bug fixed on BOTH load paths (`eafbdc08`): a dropped `.cart.png` and the
-> file-dialog "load cart" button now set `currentCartFile` from the FILE slug, not the display title
-> (which mis-filed records into `squishy-lines/`).
-> The `studio:replay` **plumbing is the durable piece**; the drop-anywhere trigger is a rootless
-> stopgap (no media home exists yet).
-> **Deliberately NOT built (maker's call, "not yet"):** the media home itself. Pulling that thread
-> surfaced an IA seam, now **RESOLVED (2026-07-07)** in
-> [`editor-scopes-and-facets.md` → Resolution: Make / Promote / Ship](design/editor-scopes-and-facets.md#resolution-2026-07-07-make-promote-ship-promote-is-a-new-per-cart-tab).
-> The model: the editor's per-cart work groups into **Dream → Make → Promote →
-> Ship** (a cycle); **Make** = the existing code/pixels tabs, **Ship** = the existing share popup,
-> and the only thing with no home is **Promote** (replays · clips · screenshots · trailer · tribes —
-> a browse-and-assemble library). Scope is **emergent** (a cart is *opened*, an app is *selected* —
-> you never edit an app, you promote its set); apps consume cart-Promote data **bottom-up** (trailer/
-> shots/leads already do, behind the scenes). Right-sized: **the verbs are a lens, not a top-bar to
-> build — the whole payoff is ONE new Promote tab next to code/pixels.**
-> **Resume at (the concrete next build):** the per-cart **Promote tab** — surface the cart's `.rec`
-> takes + `replay()` (built), baked clips (the 🎬 make-clip browser, `share-panel.md`), screenshots,
-> a per-cart trailer, and the cart-scoped **leads** 📣 (its app-scoped twin already shipped, see the
-> leads lane). Mostly a **view** problem — all sources already on disk per
-> [`design/cart-clips.md`](design/cart-clips.md). Hot files: `editor/src/shell.js` (+ its CSS),
-> `editor/electron/main.cjs` + `preload.cjs` (record/replay — **shared with the trailer + leads
-> lanes; main/preload need an Electron restart**).
+> **▶ ACTIVE THREAD (2026-07-08) — the Promote tab + the shared-popup pattern (SHIPPED).**
+> (Was "editor media"; shares editor files with the trailer + leads lanes — main/preload need an
+> Electron restart.) The per-cart **Promote tab** is BUILT (A–E) — a tab next to code/pixels/apps,
+> resolving the media-home seam from
+> [`editor-scopes-and-facets.md`](design/editor-scopes-and-facets.md#resolution-2026-07-07-make-promote-ship-promote-is-a-new-per-cart-tab)
+> (Dream → Make → Promote → Ship; Make/Ship already existed, Promote was the homeless verb).
+> **Sections:** **A** clips & takes — list the cart's takes, click one to WATCH it (`.rec`/`.script`
+> native via `studio:replay`, `.beats` via `studio:play-beats`), ● record a take, 🎬 **bake** a take →
+> clip (`studio:bake-clip` → `make-gif --recipe`), auto-refresh on record; **B** stills — 📸
+> `studio:cart-shot` → `editor/public/shots/<cart>/NN-snap.png` (a NEW sibling of `clips/`); **C**
+> trailer; **D** find tribes (cart-scoped `studio:cart-leads`); **E** gallery link. The old toolbar
+> `● rec` button + `showRecord` setting are **RETIRED** — recording is Promote-only.
+> **The shared-popup pattern (the maker's idea):** a scope-neutral tool gets ONE popup opened from
+> BOTH the Promote tab (cart) and the Apps card (app) — `open({kind,name})`, caller supplies scope,
+> popup is scope-blind. Two shipped instances: **trailer builder** (lifted out of the Apps panel into
+> a top-level `.modal`; `openTrailer({kind,name})` — cart stitches one cart's clips, app stitches
+> across an app's) and **keyword research** (`openKeywords` — `aso-research`+`aso-suggest` seeded from
+> de:meta/listing). Browse-y glances stay INLINE (`leadsHtml`/`researchHtml`/`suggestHtml` extracted so
+> popup + inline render identically).
+> **Reels save/load (the .reel *scenario*, not the heavy webm):** a **saved-reels strip** in the
+> builder scoped to the subject (`<subject>.reel` + `<subject>--<variant>.reel`) + a **cross-subject
+> Reels overview** at the top of the Apps page; click any reel → loads its scenario
+> (`studio:list-reels`/`reel-load`; shared `parseReelFile`/`reelClipsFor` helpers). `tlSubject` (list
+> scope) vs `tlApp` (build target) are now split → ready for named variants.
+> **Docs:** [`promote-tab.md`](design/promote-tab.md) (A–E shipped) · **NEW**
+> [`export-ratios.md`](design/export-ratios.md) (EXPLORING — one-take-many-ratios; **keyboard
+> shortcuts are the enabler**: position-free input → truthful at any ratio) paired with
+> [`resolution-portable-input.md`](design/resolution-portable-input.md) (input side) + a note in
+> [`cart-authoring.md`](guides/cart-authoring.md).
+> **Resume at (open builds):** (1) **an EYEBALL PASS** — ~14 commits, none clicked live yet: restart
+> Electron, run record→watch→bake→📸→trailer→🔑→reels; flag breakage. (2) **named reel variants**
+> (💾 save-as; the `tlSubject`/`tlApp` split is ready). (3) **`make-gif --ratio 9:16` + a Promote-tab
+> ratio picker** — the composite first-step of `export-ratios.md` (cheap TikTok win; sidesteps reflow).
+> (4) per-cart trailer pre-populating from its saved reel · delete affordances · published-state dot on E.
+> Hot files: `editor/src/shell.js`(+`shell.css`), `editor/index.html`, `editor/electron/main.cjs`+`preload.cjs`.
 
 > **▶ ACTIVE THREAD (2026-07-07) — leads: the local marketeer (demand generation).** A new
 > tool that answers "where do I post about this cart?" — the generation twin of the `aso-*`

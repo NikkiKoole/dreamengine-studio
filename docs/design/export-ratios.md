@@ -130,16 +130,30 @@ approach (a) composite is the truthful fallback.
   [`store-agents.md`](store-agents.md)) — batch-render the app's reel to each required device size,
   the video sibling of `store-shots`.
 
-## The remaining gap (approach a, fixed-layout carts)
+## The worked user story that shaped this (2026-07-08)
 
-Approach (b) — reflow a **resizable** cart at the target canvas — is **done** (Stages 1 & 2 above).
-What's *not* built is the **composite path for FIXED-layout carts**: a non-resizable cart can't fill
-a 9:16 frame, so it needs the `store-shots` treatment for video — the native clip centred on a
-target-sized canvas with **bars or a decorative bg (+ caption)**, per frame. `compose-clips` already
-does the **bars** half (letterbox onto `# size`); the missing bit is the **dressed** composite (bg +
-caption), the video sibling of `store-shots.js`. That's the next rung when a fixed-layout cart needs a
-store/social clip. Also open: **delivery-exact upscale** (double the small canvas to the App Store's
-exact pixels — currently a manual/CLI step).
+Walking a real goal caught a trap the feature list hid: *"Nikki has a **game cart** (not an app), records
+a cool moment, wants a **9:16 portrait** clip for TikTok."* His cart is **fixed-layout** — and the
+"bake at 9:16" picker used `--screen 180x320`, which on a fixed cart just **crops the world and strands
+the HUD** (a broken frame, verified on `flank`). It only ever worked for *resizable* carts; the common
+case was a silent trap. The story also showed there was **no single-clip "export at ratio"** — you had
+to route one gameplay clip through the multi-clip reel builder (+ a text-card to clear the ≥2 rule).
+
+**Both fixed (2026-07-08):**
+- **`studio:bake-clip` is now cart-type aware.** Resizable → reflow-fill (`--screen`); **fixed-layout →
+  render native, then ffmpeg LETTERBOX into the ratio** (black bars, crisp nearest — the standard TikTok
+  gameplay format). No more broken crops.
+- **Single-clip export.** A baked variant (`<label>--<W>x<H>.webm`) is a standalone pos(t)able clip; the
+  Promote clip row shows it as a **clickable chip** that opens it. So *record → 🎬 bake at 9:16 → click
+  the chip* — no reel, no ≥2 hack.
+
+## The remaining gap
+
+**Done:** approach (b) reflow for resizable carts (Stages 1 & 2), **and** approach (a) **plain-bars
+letterbox** for fixed carts (single clip + reels). **Still open:** the **DRESSED** composite — bars
+replaced by a decorative bg + caption (the video sibling of `store-shots.js`) for a more finished store
+look — and **delivery-exact upscale** (double the small canvas to the App Store's exact pixels, a manual
+CLI step today).
 
 ## Open questions
 

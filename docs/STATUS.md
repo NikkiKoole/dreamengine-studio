@@ -871,8 +871,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     knobs + CV inlets (same 3 macros, all CV-modulatable). Bonus: `MEMBRANE` would give the
     **Bandito** preset *real* bongos instead of the MALLET stand-in.
 
-    **The blocker is `SOUND_INSTR_SLOTS = 32` (slots 0–31 all used).** modrack gives each MACRO
-    engine a dedicated slot, and there are no free slots. The allocation:
+    **UPDATE (2026-07-09): the slot blocker is GONE — Option B shipped.** `SOUND_INSTR_SLOTS` was
+    bumped 32→**48** (commit `5db23270`, alongside 16→32 voices), so slots **32–47 are now free**.
+    The remaining modrack work is only wiring the other 8 MACRO engines into those freed slots; the
+    capacity that blocked it no longer does. The allocation below describes the *old* 0–31 layout.
+
+    **The (former) blocker was `SOUND_INSTR_SLOTS = 32` (slots 0–31 all used).** modrack gives each MACRO
+    engine a dedicated slot, and there were no free slots. The allocation:
     - **0–4** — the engine's raw built-in waves (reserved).
     - **5–22 (18 slots) — the VOICE module's `wav` knob.** 9 waveforms (`saw/sqr/tri/sin/noi` +
       4 drawn user tables `org/vox/bel/fld`, baked via `wave_set()`) × **2 envelope banks**:

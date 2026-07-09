@@ -1,7 +1,7 @@
 # Rebirth-classic — the RB-338 homage rack: 2×303 + 808 + 909 in one cart
 
 STATUS: SHIPPED (2026-07-02, one day, design → cart) — **`acidrack.c`, all four increments**: the
-320×240 accordion rack (2× diode-ladder 303 + full 909 + curated 808), banks A–D + 64-bar chain,
+320×240 accordion rack (2× diode-ladder 303 + full 909 + full 16-voice 808), banks A–D + 64-bar chain,
 per-DEVICE FX ([fx] view per machine: dist + delay send into the one shared unit; MASTER keeps
 glue + the PCF lane), CPY/CLR/RND scoped to the open strip, and the SEEDED GENERATOR: an 8-hex
 song code deterministically fills all banks + the chain (byte-identical trace+WAV acceptance
@@ -50,7 +50,7 @@ first.
 | Cart | Slots | What ports verbatim | What must change |
 |---|---|---|---|
 | `tb303.c` | 1 (`SLOT 9`) | voice recipe (~17 lines: saw/square + LP + drive + slapback), slide = `note_glide`+`note_pitch` on the held handle with **no re-trigger**, accent = vol 7 vs 5 + scaled env amount, 70% staccato gate, knob→param maps | all state is file-scope globals with `SLOT` hardcoded → wrap in a struct, instantiate ×2 on two slots. `bpm()`/echo are global engine state → owned by the rack transport, not the machine |
-| `tr808.c` | 14 (9..22) | all 16 voice recipes, choke (`instrument_choke`), presets, the offbeat-8th swing (admitted anachronism) | voice set curated down (§2 slot math); grid/knob code merges with the 909's (shared skeleton) |
+| `tr808.c` | 14 (9..22) | all 16 voice recipes, choke (`instrument_choke`), presets, the offbeat-8th swing (admitted anachronism) | ships COMPLETE in the rack now (16 voices, no curation — see §slot math); grid/knob code merges with the 909's (shared skeleton) |
 | `tr909.c` | 13 (9..21) | analog kick/snare/toms + FM-clang metal recipes, stroke family (flam 22ms / drag / ratchet), period-correct even-16th shuffle, metal-filter XY pad, choke | same skeleton merge; slots renumbered |
 
 The 808 and 909 carts are **near-identical skeletons** (same `Pat` struct, `grid[NV][STEPS]`,
@@ -59,20 +59,22 @@ builds **one drum-panel implementation with two voice tables**, not two copied p
 stroke chars (`x`/`f`/`d`/`r`) and `gstroke[][]` are the superset format; the 808 just doesn't use
 strokes.
 
-### Slot math (the one hard constraint)
+### Slot math (a constraint that dissolved)
 
-Definable slots are 5..31 (27; convention parks 9..31 = 23 for the cart). Full kits don't fit:
-2×303 (2) + 808 (14) + 909 (13) = **29**. Resolution — **curate the 808's rack voice set** (the
-909 stays complete; it's the star kit):
+**UPDATE (2026-07-09): there is no slot squeeze — the 808 is now the COMPLETE 16-voice kit.** This
+section was written against `SOUND_INSTR_SLOTS = 32` (definable 5..31 = 27), but the engine had
+*already* been bumped to **48** (definable 5..47 = 43; commit `5db23270`). The "growing the engine
+past 32 slots" that this section rejected as unearned had actually shipped for other reasons — we
+just didn't know, because `studio.h`'s doc line still said "5..31". So the whole rack fits with room
+to spare: 2×303 (2) + 909 (13) + full 808 (16 voices across slots 20..33, sharing the tom/conga and
+rim/clave circuits like the hardware) = **~29 of 43**. The 808 now ships every voice, ordered for
+acid (always-on kick/hats/clap/snare on top, cowbell + accents next, toms/congas at the bottom).
 
-- 808 keeps ≈9: BD, SD, CP, CB, MA, OH, CH + 2 toms (LT/HT sharing the tom slot-pair as today).
-- 808 cuts: congas ×3, clave, rimshot, cymbal — the voices acid house least missed. (ReBirth's own
-  panels were curated too.)
-- Total ≈ 2 + 9 + 13 = **24 slots**. Fits with a little headroom.
-
-Rejected alternatives: re-`instrument()`-ing shared analog slots per trigger (breaks set-and-hold,
-kills 808+909 kick layering); growing the engine past 32 slots (real blast radius, not earned by
-congas).
+Original (now-obsolete) plan, kept for the reasoning: *curate the 808 down to ≈9 (BD, SD, CP, CB,
+MA, OH, CH + 2 toms), cutting congas ×3 / clave / rimshot / cymbal — the voices acid house least
+missed.* Rejected alternative that still holds: re-`instrument()`-ing shared analog slots *per
+trigger* (breaks set-and-hold, kills 808+909 kick layering) — which is why the extra voices got
+dedicated slots, not a reconfigured pool.
 
 ### Effects: ReBirth's rack maps one-to-one onto existing master inserts
 

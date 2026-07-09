@@ -27,7 +27,7 @@
     "SAVE / RECALL patterns (persistence via save_bytes) - the EMX stores its patterns; motionbox forgets everything on quit. Serialize each part's trig[] + lanes + base + the mutes/tempo/swing/drive, load on init. The biggest hole: it's what makes Slice 5's pattern slots actually meaningful rather than ephemeral.",
     "Per-part LEVEL + PAN - the EMX has a per-part level fader and pan (both motion-able); right now there's no way to BALANCE the kit or use stereo at all. instrument_pan exists; PAN is great motion-fodder (auto-panned hats). Fits scarcity - two more per-part params the knob row can remap to.",
     "REAL-TIME recording - the EMX's other input method beyond step-toggle: tap the ribbon in time and it captures + quantizes the hits to the nearest step. A whole authentic workflow that's absent; pairs with the existing motion REC (play a groove live, then wiggle the knobs over it).",
-    "OSC PAGE - REDESIGN wanted (decided 2026-07-09): the shipped page (WAVE/ATK/TUNE/PWM, set-and-hold via apply_part_osc) is INTERIM. Change it to the Plaits/Mutable 'MODEL + 3 context-macros' the engine ALREADY has: MODEL (the 14 macro engines fm/pd/pluck/reed/brass/... via instrument()) + HARM / TIMB / MORPH (instrument_harmonics/timbre/morph), each meaning something DIFFERENT per model (FM harm=ratio, PD harm=wavetype, BRASS harm=trumpet->tuba). This is the EMX 'oscillator model + Edit1/Edit2' done right, and it IS modrack's MOD_MACRO (eng+har/tmb/mor). Why better: (1) dissolves the per-part-page problem - the OSC page already exists for every part, the macros just do the selected model's thing (inert on a plain wave, self-explanatory), so NO hide/show PLAY page and no switch-instrument edge case; (2) the macros are LFO+MOTION targets (LFO_HARMONICS/ENV_TIMBRE), so you can RECORD A TIMBRE SWEEP as motion - timbre-as-motion, the cart's soul. Keep a live MODEL readout + a couple plain waves. The chord idea is NOT a model in our engine (chord() is a trigger) - keep it separate.",
+    "OSC PAGE REDESIGN - DONE (2026-07-10): the page is now Plaits/Mutable 'MODEL + 3 context-macros'. MODEL (a curated list: plain waves SIN/SAW/SQR/NOI where the macros are inert, then the modeled engines FM/PD/PLUCK/MALLET/MEMBRANE/REED/BRASS/EPIANO) + HARM/TIMB/MORPH (instrument_harmonics/timbre/morph), each meaning something different per model. apply_part_osc re-issues instrument() on a MODEL swap (RECIPE now carries the per-part attack, since the ATK knob is gone) and re-asserts the macros on the new engine. The macros ride the motion lanes for free (arm REC + sweep TIMB = timbre-as-motion) - no LFO wiring needed since motion here is lane-based. DECISION: dropped per-part TUNE (transpose) and PWM to fit MODEL+3 in the 4-knob row - TUNE defaulted to centre (no-op) so nothing broke; if it's missed in play-testing, fold it onto the TONE page (swap ACC) rather than adding a 4th page/5th knob. The chord idea stays separate (chord() is a trigger, not a model).",
     "Deeper voice knobs still wanting SPACE (all 3 pages full at 4 knobs each - needs a 4th page or a repurpose): a multimode filter select (LP/HP/BP/BP+), an LFO SHAPE knob (lfo_shape gives tri/square/S&H/random; currently sine), and a filter-EG ATTACK (currently fixed 3ms - the OSC ATK is the AMP attack, a different envelope).",
     "UNISON for the lead - the engine primitive SHIPPED (instrument_unison, ADR-0030), so this is now a ONE-SLOT change, no refactor: instrument_unison(lead_slot, 7, detune) makes the lead a fat supersaw, and ride instrument_unison_detune (or ENV_DETUNE per note) for the detune BLOOM - motion-recordable, the cart's soul. chord-from-one-note (chord(root, CHORD_*, ...)) and instrument_sync(slot, ratio) remain the alternatives for chord/hard-sync fatness. Do after save/recall.",
     "ENGINE PROMOTION - DONE (2026-07-09): instrument_unison(slot, voices, detune) + the live instrument_unison_detune twin + LFO_DETUNE/ENV_DETUNE dests shipped; showcase cart 'supersaw' (JP-8000 7-saw). The corrected trigger - moog and mt70 are NOT unison (independent-oscillator / additive synthesis, not detuned copies), so the promotion stands on new demand (groovebox pad, filterenv saw pair, motionbox lead, supersaw) not on 4 carts collapsing in - is recorded in ADR-0030 + docs/design/unison-primitive.md. motionbox's own adoption is the UNISON-for-the-lead item above.",
@@ -105,17 +105,23 @@ static const int  PCOL [NPARTS] = { CLR_RED, CLR_YELLOW, CLR_BLUE, CLR_GREEN };
 static const char *PGNAME[NPAGES] = { "TONE", "MOD", "OSC" };
 static int  curPage = PG_TONE;
 
-// the OSC page: pick the oscillator MODEL + shape it (all set-and-hold, no firing-path change).
-static const int   WAVES [6] = { INSTR_SINE, INSTR_TRI, INSTR_SAW, INSTR_SQUARE, INSTR_NOISE, INSTR_FM };
-static const char *WAVENM[6] = { "SIN", "TRI", "SAW", "SQR", "NOI", "FM" };
-static const char *OSCLABEL[NK] = { "WAVE", "ATK", "TUNE", "PWM" };   // MODEL / amp attack / transpose / pulse-width
-// each part's amp-envelope timings from init() — re-issued verbatim when WAVE/ATK change so a
-// model swap keeps the part's decay/release (instrument() sets ONLY wave+timings; filter/LFO/EG survive).
-static const int   RECIPE[NPARTS][3] = {   // decay_ms, sustain, release_ms (attack comes from the ATK knob)
-    { 280, 0, 60 },   // KICK
-    {  40, 0, 30 },   // HAT
-    { 240, 0, 180 },  // BASS
-    {  90, 0, 220 },  // LEAD
+// the OSC page: pick the oscillator MODEL + the 3 Plaits macros (all set-and-hold, no firing-path
+// change). A couple of plain waves (SIN/SAW/SQR/NOI — the macros are inert) then the modeled
+// engines, where HARM/TIMB/MORPH each mean something DIFFERENT per model (FM ratio, PLUCK ring,
+// BRASS bore …). The macros are the same 3 knobs everywhere — the API never grows (Plaits discipline).
+static const int   MODELS [] = { INSTR_SINE, INSTR_SAW, INSTR_SQUARE, INSTR_NOISE,
+                                 INSTR_FM, INSTR_PD, INSTR_PLUCK, INSTR_MALLET,
+                                 INSTR_MEMBRANE, INSTR_REED, INSTR_BRASS, INSTR_EPIANO };
+static const char *MODELNM[] = { "SIN","SAW","SQR","NOI","FM","PD","PLK","MLT","DRM","REED","BRS","EP" };
+#define NMODEL ((int)(sizeof MODELS / sizeof *MODELS))
+static const char *OSCLABEL[NK] = { "MODEL", "HARM", "TIMB", "MORPH" };   // engine + the 3 macros
+// each part's amp-envelope timings from init() — re-issued verbatim on a MODEL swap so the part
+// keeps its attack/decay/release (instrument() sets ONLY wave+timings; filter/LFO/EG survive).
+static const int   RECIPE[NPARTS][4] = {   // attack_ms, decay_ms, sustain, release_ms
+    { 0, 280, 0, 60 },   // KICK
+    { 0,  40, 0, 30 },   // HAT
+    { 0, 240, 0, 180 },  // BASS
+    { 1,  90, 0, 220 },  // LEAD
 };
 
 // the one knob row REMAPS per (part x page). TONE labels are per-part (the original scarcity);
@@ -155,15 +161,15 @@ static const char *PRESET[NPARTS] = {
     "x.x.x.x.x.x.x.x.",   // BASS  rolling 8ths
     "....x.......x...",   // LEAD  a sparse topline
 };
-// per-page starting positions. TONE = the old kit; MOD = { RATE, DEPTH, DEST, EG>CUT } with
-// DEPTH 0 (LFO off) so nothing moves until dialed; LEAD keeps its pluck (EG>CUT 0.5).
-// TONE = the old kit; MOD = {RATE,DEPTH,DEST,EG>CUT} (DEPTH 0 = LFO off); OSC = {WAVE,ATK,TUNE,PWM}
-// with WAVE defaulted to each part's init model, TUNE 0.5 = centre (no detune), so the defaults are silent.
+// per-page starting positions. TONE = the old kit; MOD = {RATE,DEPTH,DEST,EG>CUT} with DEPTH 0
+// (LFO off) so nothing moves until dialed; LEAD keeps its pluck (EG>CUT 0.5). OSC = {MODEL,HARM,
+// TIMB,MORPH} with MODEL defaulted to each part's plain-wave voice and the macros at 0.5 (inert on
+// a plain wave), so the defaults are silent — pick a modeled engine and the macros come alive.
 static const float KBASE[NPARTS][NPAGES][NK] = {
-    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.00f, 0.00f, 0.50f, 0.50f } },   // KICK (WAVE SIN)
-    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.75f, 0.00f, 0.50f, 0.50f } },   // HAT  (WAVE NOI)
-    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.35f }, { 0.40f, 0.00f, 0.50f, 0.50f } },   // BASS (WAVE SAW; EG>CUT 0.35 = acid pluck)
-    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.50f }, { 0.40f, 0.00f, 0.50f, 0.50f } },   // LEAD (WAVE SAW; EG>CUT 0.5 = pluck)
+    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.04f, 0.50f, 0.50f, 0.50f } },   // KICK (MODEL SIN)
+    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.29f, 0.50f, 0.50f, 0.50f } },   // HAT  (MODEL NOI)
+    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.35f }, { 0.12f, 0.50f, 0.50f, 0.50f } },   // BASS (MODEL SAW; EG>CUT 0.35 = acid pluck)
+    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.50f }, { 0.12f, 0.50f, 0.50f, 0.50f } },   // LEAD (MODEL SAW; EG>CUT 0.5 = pluck)
 };
 
 static bool  smooth = true;   // SMOOTH (lerp between steps) vs TRIG (hold per step)
@@ -290,24 +296,28 @@ static void apply_part_mod(int pi) {
     }
 }
 
-// the OSC page → oscillator MODEL + amp attack + transpose + pulse-width, also SET-AND-HOLD.
-// The instrument() re-issue keeps the part's decay/release (RECIPE) and does NOT disturb the
-// filter/LFO/EG set elsewhere — SR_INSTR touches only wave + amp timings.
-static int   lastWave[NPARTS], lastAtk[NPARTS];
-static float lastTune[NPARTS], lastDuty[NPARTS];
+// the OSC page → oscillator MODEL + the 3 Plaits macros (HARM/TIMB/MORPH), also SET-AND-HOLD.
+// The instrument() re-issue keeps the part's attack/decay/release (RECIPE) and does NOT disturb
+// the filter/LFO/EG set elsewhere — SR_INSTR touches only wave + amp timings. The macros ride the
+// motion lanes for free (arm REC + sweep TIMB → a recorded per-step timbre contour = timbre-as-motion).
+static int   lastWave[NPARTS];
+static float lastHarm[NPARTS], lastTimb[NPARTS], lastMorph[NPARTS];
 static void apply_part_osc(int pi) {
     Part *P = &parts[pi];
-    int   slot = SLOT[pi];
-    int   wave = WAVES[(int)(cur_value(&P->k[PG_OSC][0]) * 5.999f)];   // MODEL select
-    int   atk  = (int)(cur_value(&P->k[PG_OSC][1]) * 300);            // 0..300ms amp attack (soft pad ↔ pluck)
-    if (wave != lastWave[pi] || atk != lastAtk[pi]) {
-        instrument(slot, wave, atk, RECIPE[pi][0], RECIPE[pi][1], RECIPE[pi][2]);
-        lastWave[pi] = wave; lastAtk[pi] = atk;
+    int   slot  = SLOT[pi];
+    int   model = MODELS[(int)(cur_value(&P->k[PG_OSC][0]) * (NMODEL - 0.001f))];   // MODEL select
+    if (model != lastWave[pi]) {
+        instrument(slot, model, RECIPE[pi][0], RECIPE[pi][1], RECIPE[pi][2], RECIPE[pi][3]);
+        lastWave[pi] = model;
+        lastHarm[pi] = lastTimb[pi] = lastMorph[pi] = -999.0f;   // re-assert the macros on the new model
     }
-    float tune = (cur_value(&P->k[PG_OSC][2]) - 0.5f) * 24.0f;         // ±12 semitones transpose
-    if (tune != lastTune[pi]) { instrument_tune(slot, tune); lastTune[pi] = tune; }
-    float duty = cur_value(&P->k[PG_OSC][3]);                          // pulse width (square only)
-    if (duty != lastDuty[pi]) { instrument_duty(slot, duty); lastDuty[pi] = duty; }
+    // the 3 macros — each means something different per model (inert on a plain wave)
+    float harm  = cur_value(&P->k[PG_OSC][1]);
+    float timb  = cur_value(&P->k[PG_OSC][2]);
+    float morph = cur_value(&P->k[PG_OSC][3]);
+    if (harm  != lastHarm[pi])  { instrument_harmonics(slot, harm);  lastHarm[pi]  = harm;  }
+    if (timb  != lastTimb[pi])  { instrument_timbre   (slot, timb);  lastTimb[pi]  = timb;  }
+    if (morph != lastMorph[pi]) { instrument_morph    (slot, morph); lastMorph[pi] = morph; }
 }
 
 void init() {
@@ -338,7 +348,7 @@ void init() {
         flash[p] = -99;
         lastEg[p] = lastRate[p] = lastDepth[p] = -1.0f;   // sentinels → apply_part_mod fires once
         lastDec[p] = lastDest[p] = -1;
-        lastWave[p] = lastAtk[p] = -1; lastTune[p] = lastDuty[p] = -999.0f;   // apply_part_osc fires once
+        lastWave[p] = -1; lastHarm[p] = lastTimb[p] = lastMorph[p] = -999.0f;   // apply_part_osc fires once
     }
     PTR_CLEAR(ptr);
 }
@@ -467,7 +477,7 @@ void draw() {
                 : (i == 2) ? str("DEST %s", DESTNM [(int)(P->live * 3.999f)])   // vibrato/wah/trem/pan
                 :            MODLABEL[i];
         else /* PG_OSC */
-            lbl = (i == 0) ? str("WAVE %s", WAVENM[(int)(P->live * 5.999f)])    // oscillator model
+            lbl = (i == 0) ? str("MODEL %s", MODELNM[(int)(P->live * (NMODEL - 0.001f))])   // engine
                 :            OSCLABEL[i];
 
         ui_knob(&P->live, kx[i], KY, lbl);

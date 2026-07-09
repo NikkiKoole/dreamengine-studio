@@ -1,10 +1,12 @@
 # The unison primitive (`instrument_unison`) — design notes
 
-> **STATUS: READY TO BUILD** (design locked 2026-07-09, ADR pending). The API below mirrors existing
-> engine conventions on every axis — no invention. Not yet cut into the engine. Showcase cart when it
-> lands: **`supersaw`**. Promotion follows the recipe→macro→engine ladder
+> **STATUS: SHIPPED (2026-07-09).** `instrument_unison` + `instrument_unison_detune` + `LFO_DETUNE` /
+> `ENV_DETUNE` are wired end-to-end (studio.h/sound.h/studioDocs.js/shell.js), compile- and
+> tune-gated, and the **`supersaw`** showcase cart is built + baked. Decision recorded in
+> [ADR-0030](../decisions/0030-unison-is-a-primitive.md); it follows the recipe→macro→engine ladder
 > ([ADR-0016](../decisions/0016-combo-organ-recipe-then-macro-or-engine.md),
-> [ADR-0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)).
+> [ADR-0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)). Stereo **width** is the
+> one deliberate follow-up (see below).
 
 ## What it is
 
@@ -83,17 +85,25 @@ instrument_unison_detune(LEAD, knob);      // motionbox writes `knob` into a mot
 instrument_env(LEAD, 0, ENV_DETUNE, 0, 400, 1.0f);   // spread blooms over the first 400ms of each note
 ```
 
+## How it shipped (the engine, briefly)
+
+The N copies render **inside one slot's voice**: `v->phase` is the center (exact pitch), plus up to six
+extra phase accumulators (`uni_ph[]`, mirroring the existing hard-sync `sync_ph`) advanced at detuned
+increments and summed, then `× 1/√N` so loudness stays put. The detune multiplier is the linearized
+`2^(x/12) ≈ 1 + 0.0577623·x` — near unity the beating is what matters, not exact cents, and it stays
+bit-portable (no per-sample transcendental). Wavetable slots only; unison takes precedence over hard
+sync when both are set. Off (`voices ≤ 1`) is byte-identical — the branch never runs. Plumbed through
+the request queue (`SR_INSTR_UNISON` / `SR_INSTR_UNISON_DETUNE`) like every other slot param
+([ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md)).
+
 ## Deferred (deliberately)
 
 - **Stereo width.** Half the JP-8000 magic is the detuned voices panned across the field. But
   `instrument_sync`/`note_sync`, `instrument_drive`/`note_drive` all arrived one scalar at a time —
-  we add `instrument_unison_width(slot, w)` alongside the `supersaw` showcase **if** mono unison proves
-  not enough. Don't front-load it into the v1 signature.
-- **The ADR.** The promotion decision (with this corrected trigger) gets written when we cut the engine
-  code, per the usual "decision at build time" rhythm — this doc is the design; the ADR is the record.
-- **Engine implementation.** How the N copies are rendered (a per-voice oscillator bank inside one slot
-  vs. an internal voice-multiplier at the sample loop), CPU budget for 7× a saw, and how `voices`
-  interacts with polyphony are the build questions — out of scope here, they belong with the code.
+  add `instrument_unison_width(slot, w)` **if** mono unison proves not enough, sized against the
+  `supersaw` showcase. Not front-loaded into v1.
+- **CPU.** Unison multiplies the per-sample oscillator cost by the voice count on that slot (capped at
+  7, opt-in). Watch `profile-fleet` if a cart stacks unison on heavy polyphony.
 
 ## The showcase — `supersaw`
 

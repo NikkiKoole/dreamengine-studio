@@ -375,6 +375,7 @@ void instrument_motion(int slot, float vx, float vy);     // that bus's velocity
 #define LFO_TIMBRE  5   // sweep the timbre macro (brightness; on PD-reso = a resonant filter sweep with no filter). depth 0..1
 #define LFO_MORPH   6   // sweep the morph macro (the engine's 3rd axis — PD DCW depth, FM feedback, organ chorus, EP bark). depth 0..1
 #define LFO_PAN     7   // auto-pan — sweep the stereo position. depth 0..1 (1 = full L↔R). the declarative path for tremolo-pan / rotary-style motion
+#define LFO_DETUNE  8   // sweep the unison spread — the breathing/chorusing width wobble. depth in semitones. needs instrument_unison on
 void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth);  // attach LFO `which` (0..2 — a slot has 3) to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF or the macro dests LFO_HARMONICS/TIMBRE/MORPH (engine voices). rate 4–8 Hz typical. depth 0 = off. Shape defaults SINE — set via lfo_shape()
 void lfo_shape(int slot, int which, int shape);   // set the WAVEFORM of a slot's LFO `which` (0..2) to an LFO_SHAPE_* (default SINE). Call alongside instrument_lfo(); persists across instrument_lfo() retunes. SH on LFO_PITCH = a random-step arp; SQUARE on LFO_CUTOFF = a stepped filter
 void note_lfo_shape(int handle, int which, int shape);   // same, for a live held note (note_on handle) — set its LFO `which` waveform to LFO_SHAPE_*
@@ -405,6 +406,7 @@ void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mo
 #define ENV_HARMONICS 3 // one-shot sweep of the harmonics macro (engine voices; SNAPPED — steps detents). amount 0..1
 #define ENV_TIMBRE  4   // one-shot sweep of the timbre macro (a per-note brightness contour). amount 0..1
 #define ENV_MORPH   5   // one-shot sweep of the morph macro (e.g. a per-note PD DCW shape on top of the engine's own). amount 0..1
+#define ENV_DETUNE  6   // one-shot sweep of the unison spread — THE bloom: one thin saw opening into a wall of N on the attack. amount in semitones. needs instrument_unison on
 void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);  // attach mod-envelope `which` (0..2) to a slot. dest ENV_CUTOFF/PITCH/DUTY or the macro dests ENV_HARMONICS/TIMBRE/MORPH. pluck: ENV_CUTOFF amount 1500, attack 0, decay 120. amount 0 = off
 void instrument_follow(int slot, int dest, int attack_ms, int release_ms, float amount);  // envelope FOLLOWER: tracks the slot's own amplitude (fast attack, slow release) → dest LFO_CUTOFF/VOLUME/PITCH. The touch-responsive auto-wah (FILTER_BAND + this) — play harder, it opens more. amount = Hz (cutoff); 0 = off
 void note_follow(int handle, int dest, int attack_ms, int release_ms, float amount);  // set a held note's envelope follower live — same shape as instrument_follow(); amount 0 = off
@@ -435,6 +437,8 @@ void note_aux(int handle, int idx, float value); // per-engine aux channel, LIVE
 #define DRIVE_FOLD    2   // sine wavefolder — metallic, glassy, ring-mod-ish as you push it
 #define DRIVE_ASYM    3   // asymmetric tube — adds EVEN harmonics (the round, fat, single-ended-amp grit)
 void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)
+void instrument_unison(int slot, int voices, float detune);  // UNISON: sum `voices` (1..7) detuned copies of the slot's wave = the supersaw wall. detune = spread in semitones (0.1 shimmer .. 0.7 wide). voices applies at the next note; detune rides LIVE. wavetable slots only (saw/square/tri/sine). 1 = off (default)
+void instrument_unison_detune(int slot, float detune);  // ride the unison spread alone, LIVE — 0 = thin single osc, wider = the wall blooms open. the detune-BLOOM gesture. sweep it, or drive it with LFO_DETUNE / ENV_DETUNE
 void instrument_drive(int slot, float x);      // overdrive a slot 0.0..1.0 — 0 = clean (default), 0.3 = warm, 1 = fuzz. loudness stays put; character changes
 void instrument_drive_mode(int slot, int mode); // pick the waveshaper: DRIVE_SOFT (default) / DRIVE_HARD / DRIVE_FOLD / DRIVE_ASYM. amount stays instrument_drive()
 void note_drive(int handle, float x);          // sweep a held note's drive live, slewed — ride it up mid-phrase for the acid scream

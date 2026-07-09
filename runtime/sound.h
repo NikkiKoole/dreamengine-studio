@@ -93,11 +93,14 @@ typedef struct {
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
+    int   uni_voices;               // UNISON stack: 1 = off (default), 2..7 = N detuned wavetable copies summed (instrument_unison)
+    float uni_detune;               // unison spread in semitones (edge voices at ±this); read LIVE per sample like tune_mul. default 0
     uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
 } Instrument;
 
 #define SOUND_LFOS 3
 #define SOUND_ENVS 3   // routable mod-envelopes per instrument (the one-shot twin of the LFOs)
+#define SOUND_UNISON_MAX 7   // JP-8000 Super Saw = 7 detuned voices; the max unison stack per slot
 
 // An RBJ constant-skirt bandpass biquad — the body-resonator formant used by INSTR_GUITAR's
 // 4 body modes. Coeffs set by sound_biquad_set(), one sample run by sound_biquad_run().
@@ -143,6 +146,9 @@ typedef struct {
     float  drv, drv_target;        // post-filter drive (current + slew target, same machinery)
     float  sync_ph;                // hard-sync SLAVE oscillator phase (reset when v->phase wraps)
     float  sync_ratio, sync_ratio_target;  // oscillator hard sync: slave:master freq ratio (0 = off; current + slew target)
+    int    uni_voices;             // UNISON stack size snapshot at note-on (1 = off; 2..SOUND_UNISON_MAX)
+    float  uni_norm;               // 1/sqrt(voices) loudness normalize, precomputed at note-on
+    float  uni_ph[SOUND_UNISON_MAX - 1];  // phase accumulators for the detuned copies (copy 0 = v->phase, the center)
     int    drv_mode;               // waveshaper flavour (DRIVE_*), copied from the instrument at note-on
     float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
@@ -1811,6 +1817,8 @@ typedef enum {
     SR_NOTE_SYNC     = 117,  // a=ratio*1000 (live, slewed), e0/e1=handle — sweep a held note's hard-sync ratio
     SR_CART_SWITCH   = 118,  // a=context id (0..SOUND_CART_CTX-1) — umbrella-app cart switch: reset + replay that context's config log (de_switch_cart, share-panel.md)
     SR_BPM           = 119,  // a=rate — tempo. Queued like all config so it RECORDS into the cart context; a direct global write raced de_switch_cart (main thread wrote the new cart's bpm before the audio thread snapshotted the old one's — heard as tempo jumps in the bundle)
+    SR_INSTR_UNISON        = 120,  // a=slot, b=voices, c=detune*1000 — configure the unison stack (instrument_unison)
+    SR_INSTR_UNISON_DETUNE = 121,  // a=slot, b=detune*1000 — ride the unison spread alone (instrument_unison_detune), read LIVE like tune
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1893,6 +1901,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
         case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
         case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY:
+        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE:
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
             return CTXK_KA;
@@ -4734,6 +4743,12 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->drv  = v->drv_target  = ins->drive;
     v->sync_ph = 0.0f;
     v->sync_ratio = v->sync_ratio_target = ins->sync_ratio;
+    // UNISON: snapshot the stack size; copies start phase-aligned (all 0, deterministic) and
+    // drift apart as they play — the bloom from a phase-coherent attack. Detune rides live from
+    // the bank per sample (like tune_mul). uni_norm keeps summed loudness ~constant.
+    v->uni_voices = (ins->uni_voices < 1) ? 1 : (ins->uni_voices > SOUND_UNISON_MAX ? SOUND_UNISON_MAX : ins->uni_voices);
+    v->uni_norm   = (v->uni_voices > 1) ? 1.0f / sqrtf((float)v->uni_voices) : 1.0f;
+    for (int u = 0; u < SOUND_UNISON_MAX - 1; u++) v->uni_ph[u] = 0.0f;
     v->drv_mode = ins->drive_mode;
     v->eng_p[0] = ins->eng_p[0];
     v->eng_p[1] = ins->eng_p[1];
@@ -4787,6 +4802,7 @@ static void sound_set_step(Voice *v, SfxStep step, int step_dur_units) {
     v->phase            = 0.0f;
     v->sync_ph          = 0.0f;
     v->sync_ratio       = v->sync_ratio_target = 0.0f;   // SFX never syncs; clear any stale ratio from a reused voice
+    v->uni_voices       = 1; v->uni_norm = 1.0f;         // SFX steps never unison; clear any stale stack from a reused voice
     v->step_samples     = 0;
     v->step_len_samples = (step_dur_units * SOUND_SAMPLE_RATE) / 100;
     if (v->step_len_samples < 1) v->step_len_samples = 1;
@@ -5064,6 +5080,21 @@ static void sound_fire_req(SoundReq r) {
         float semis = r.b / 1000.0f;
         if (semis < -24.0f) semis = -24.0f; if (semis > 24.0f) semis = 24.0f;
         instr_bank[slot].tune_mul = powf(2.0f, semis / 12.0f);
+    } else if (r.kind == SR_INSTR_UNISON) {   // a=slot, b=voices, c=detune*1000
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        int n = r.b;
+        if (n < 1) n = 1; if (n > SOUND_UNISON_MAX) n = SOUND_UNISON_MAX;
+        float det = r.c / 1000.0f;
+        if (det < 0.0f) det = 0.0f; if (det > 12.0f) det = 12.0f;
+        instr_bank[slot].uni_voices = n;
+        instr_bank[slot].uni_detune = det;
+    } else if (r.kind == SR_INSTR_UNISON_DETUNE) {   // a=slot, b=detune*1000 (live, like tune)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float det = r.b / 1000.0f;
+        if (det < 0.0f) det = 0.0f; if (det > 12.0f) det = 12.0f;
+        instr_bank[slot].uni_detune = det;
     } else if (r.kind == SR_INSTR_FOLLOW) {   // a=slot b=dest c=atk_ms e0=rel_ms e2=amount*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -5616,6 +5647,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float duty = v->duty, trem = 1.0f, pitch_mul = 1.0f, cutoff = v->flt_cutoff;
             float harm_mod = 0.0f, timb_mod = 0.0f, mor_mod = 0.0f;   // macro modulation (engine voices)
             float pan_mod = 0.0f;   // LFO_PAN offset (auto-pan), added to the slewed base pan below
+            float detune_mod = 0.0f;   // LFO_DETUNE/ENV_DETUNE offset (semitones), added to the unison spread below
             if (v->sfx_idx < 0) {
                 for (int L = 0; L < SOUND_LFOS; L++) {
                     if (v->lfo_depth[L] <= 0.0f) continue;
@@ -5631,6 +5663,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     else if (v->lfo_dest[L] == LFO_TIMBRE)    timb_mod += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_MORPH)     mor_mod  += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_PAN)       pan_mod  += lfo * v->lfo_depth[L];   // auto-pan (depth 0..1 = full sweep)
+                    else if (v->lfo_dest[L] == LFO_DETUNE)    detune_mod += lfo * v->lfo_depth[L]; // unison width wobble (depth in semitones; needs unison on)
                 }
                 // mod-envelopes (one-shot AD, timer = step_samples): same destinations as the
                 // LFOs but a per-note contour instead of a cycle. The pitch env multiplies freq;
@@ -5646,6 +5679,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     else if (v->env_dest[e] == ENV_HARMONICS) harm_mod += m;   // engine macros (one-shot contour)
                     else if (v->env_dest[e] == ENV_TIMBRE)    timb_mod += m;
                     else if (v->env_dest[e] == ENV_MORPH)     mor_mod  += m;
+                    else if (v->env_dest[e] == ENV_DETUNE)    detune_mod += m;   // the attack bloom (amount in semitones; needs unison on)
                 }
                 // envelope follower: the 3rd mod source — uses LAST sample's tracked level
                 // (flw_amp, updated just after the oscillator below), so it modulates from the
@@ -5677,6 +5711,16 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (mor_mod  != 0.0f) v->mor  = v->mor  + mor_mod  < 0 ? 0 : (v->mor  + mor_mod  > 1 ? 1 : v->mor  + mor_mod);
                 s = sound_engine_sample(v, pitch_mul);
                 v->harm = h0; v->timb = t0; v->mor = m0;
+            } else if (v->uni_voices > 1) {
+                // UNISON: sum N detuned copies of the wave. Copy 0 is the CENTER (v->phase, exact
+                // pitch); the extra copies read uni_ph[] — already advanced at their detuned rate
+                // below — so summing them here is all the read has to do. uni_norm keeps loudness
+                // ~constant (character, not volume). Takes precedence over hard sync (both are
+                // alternative fatteners; a slot uses one or the other).
+                float sum = sound_osc(v->wave, v->phase, duty, &v->noise_state);
+                for (int u = 0; u < v->uni_voices - 1; u++)
+                    sum += sound_osc(v->wave, v->uni_ph[u], duty, &v->noise_state);
+                s = sum * v->uni_norm;
             } else {
                 // hard sync: when on, the audible waveform reads the SLAVE phase (reset by the
                 // master below); ratio 1 = transparent, higher = the bright tearing sweep.
@@ -5764,6 +5808,20 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
             float ph_inc = v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             v->phase += ph_inc;
+            if (v->uni_voices > 1) {                        // advance the detuned copies at their own rates
+                // spread live from the bank + LFO/ENV_DETUNE mod (semitones). Linearize 2^(x/12) ≈
+                // 1 + 0.0577623·x — near unity, the beating is what matters, not exact cents; and it
+                // stays bit-portable (no per-sample transcendental). Positions are symmetric in
+                // [-1,+1] (one partner sharp when only one extra copy, like the classic 2-saw detune).
+                float det = instr_bank[v->instr_slot].uni_detune + detune_mod;
+                if (det < 0.0f) det = 0.0f; if (det > 12.0f) det = 12.0f;
+                int m = v->uni_voices - 1;
+                for (int u = 0; u < m; u++) {
+                    float spos = (m == 1) ? 1.0f : (-1.0f + 2.0f * (float)u / (float)(m - 1));
+                    v->uni_ph[u] += ph_inc * (1.0f + 0.0577623f * det * spos);
+                    v->uni_ph[u] -= floorf(v->uni_ph[u]);
+                }
+            }
             if (v->sync_ratio > 0.0f) {                    // advance the slave at ratio × master
                 v->sync_ph += ph_inc * v->sync_ratio;
                 v->sync_ph -= floorf(v->sync_ph);          // may wrap >once per sample at high ratio
@@ -6347,6 +6405,19 @@ void instrument_tune(int slot, float semitones) {
     sound_push_ctrl(SR_INSTR_TUNE, slot, (int)(semitones * 1000.0f), 0, 0, 0, 0);
 }
 
+// ── unison: N detuned copies of one wavetable oscillator summed = the supersaw fat (ADR-0030,
+//    design/unison-primitive.md). voices snapshots at the next note; detune rides LIVE like tune. ──
+
+void instrument_unison(int slot, int voices, float detune) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_UNISON, slot, voices, (int)(detune * 1000.0f), 0, 0, 0);
+}
+
+void instrument_unison_detune(int slot, float detune) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_UNISON_DETUNE, slot, (int)(detune * 1000.0f), 0, 0, 0, 0);
+}
+
 // ── drive: post-filter tanh saturation, per slot (audio-notes §17 — the missing nonlinearity) ──
 
 void instrument_drive(int slot, float x) {
@@ -6897,6 +6968,8 @@ static void sound_reset_state(void) {
         instr_bank[i].timbre     = 0.5f;
         instr_bank[i].morph      = 0.5f;
         instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
+        instr_bank[i].uni_voices = 1;      // unison off (instrument_unison) — one oscillator
+        instr_bank[i].uni_detune = 0.0f;
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
         instr_bank[i].drive_mode = 0;      // DRIVE_SOFT (tanh) until instrument_drive_mode()
         instr_bank[i].sync_ratio = 0.0f;   // hard sync off until instrument_sync() — old carts unchanged

@@ -29,7 +29,7 @@
     "REAL-TIME recording - the EMX's other input method beyond step-toggle: tap the ribbon in time and it captures + quantizes the hits to the nearest step. A whole authentic workflow that's absent; pairs with the existing motion REC (play a groove live, then wiggle the knobs over it).",
     "KNOB-ROW PAGES - a SECOND remap axis, the EMX's own answer to scarcity: a small ALWAYS-VISIBLE page selector (TONE / MOD / OSC, not a hidden menu) reassigns the SAME 4 knobs to a different bank per part, so 4 knobs cover ~12 params with NO new surface (the real EMX fits a whole synth into ~5 knobs this way). It's 'one row means four things' one level deeper, not a betrayal of it. Keep pages FEW + lit so the humble/legible surface holds. Prereq for the LFO + OSC-page todos; motion lanes become per (part x page x knob).",
     "OSC PAGE - per synth part: MODEL + its 2 realtime 'Edit' params (the MMT heart: analog/sync/cross-mod/ring-mod + UNISON = up to 6 detuned oscs for a thick supersaw lead, + CHORD = a full chord from one note). Reached via the knob-row PAGE axis so it costs NO new knobs - the 4 knobs become MODEL / EDIT1 / EDIT2 / GLIDE on the OSC page. Engine: instrument() model select + instrument_tune for the unison detune spread.",
-    "LEAD/synth FILTER EG + accent-brightness - the expressive PLUCK the lead lacks (its filter is static per hit): a per-note EG->cutoff sweep via instrument_env(ENV_CUTOFF). Two scarcity-FREE wins need no page - make DECAY also shape a matching cutoff decay, and make ACC ALSO open the filter (accent = louder AND brighter, exactly the EMX accent part). EG depth/time get full control on the MOD page.",
+    "LEAD FILTER EG + accent-brightness - DONE for LEAD (2026-07-09): a per-note EG->cutoff pluck (instrument_env ENV_CUTOFF, amount 4500Hz) whose decay tracks the DECAY knob, + ACC now ALSO opens the filter (accent = louder AND brighter, +4000Hz). Verified: soloed lead shows a per-note brightness spike-then-close. REMAINING (needs the page axis): apply the same to the BASS acid voice, and expose EG DEPTH/ATTACK for full control on the MOD page.",
     "LEAD/synth LFO (MOD page) - tempo-syncable vibrato / cutoff wah / tremolo / auto-pan (instrument_lfo LFO_PITCH/CUTOFF/VOLUME/PAN), the EMX's 6-destination modulation. The 4 knobs on the MOD page = EG->CUT / LFO RATE / LFO DEPTH / LFO DEST. Motion-able like everything else, and multimode filter (LP/HP/BP/BP+) is a cheap add here."
   ],
   "description": {
@@ -203,9 +203,13 @@ static void apply_part_hit(int pi) {
         } break;
         case LEAD: {   // CUTOFF, RES, DECAY, ACC
             static const int TOPLINE[5] = { 57, 60, 64, 67, 72 };       // A-minor topline
-            instrument_filter(SL_LEAD, FILTER_LOW,
-                              (int)(200 * powf(9000.0f / 200.0f, v0)), (int)(1 + v1 * 10));
-            hit(TOPLINE[leadArp % 5], SL_LEAD, 2 + (int)(v3 * 5), 40 + (int)(v2 * 340));
+            int base  = (int)(200 * powf(9000.0f / 200.0f, v0));        // CUTOFF knob
+            int decMs = 40 + (int)(v2 * 340);                           // DECAY knob = note length
+            // ACC also OPENS the filter — accent = louder AND brighter (the EMX accent, no new knob)
+            instrument_filter(SL_LEAD, FILTER_LOW, base + (int)(v3 * 4000), (int)(1 + v1 * 10));
+            // filter EG: a per-note cutoff sweep (the 'pew' pluck) whose decay tracks the DECAY knob
+            instrument_env(SL_LEAD, 0, ENV_CUTOFF, 3, decMs, 4500);
+            hit(TOPLINE[leadArp % 5], SL_LEAD, 2 + (int)(v3 * 5), decMs);
             leadArp++;
         } break;
     }

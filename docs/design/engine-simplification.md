@@ -154,11 +154,18 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   advance, triangle LFO, delay-in-samples clamp, `moddel_hermite` read (the shared
   read at `sound.h:624`), and the `wet/dry` blend by hand (chorus `720`, flanger
   `758`, …). The blend line `dry*(1-mix)+wet*mix` recurs in nearly every `*_process`
-  (e.g. `1266`) — a one-liner helper.
-- [ ] **Master/instrument FX setter pairs.** ~10 near-identical `SR_X`/`SR_INSTR_X`
+  (e.g. `1266`) — a one-liner helper. **Partial: the blend one-liner is done** —
+  `mix_wet(dry, wet, mix)` collapses the 9 blend sites. The full phase/LFO/clamp/read
+  *skeleton* is left: chorus/flanger/tape differ in buffer length, stereo taps and mod
+  depth, so a mechanical unify is not byte-safe — deferred (bucket ②).
+- [x] **Master/instrument FX setter pairs.** ~10 near-identical `SR_X`/`SR_INSTR_X`
   copy-paste arms in `sound_fire_req` (dispatch guarded at `sound.h:1883–1906`), plus
   a copy-pasted "auto-place kind in `insert_order`" scan (`5156–5157`, `5189–5190`).
-  Factor both into helpers.
+  Factor both into helpers. **Done (the SR_INSTR_* preamble):** `fx_instr_bus(slot)`
+  (validate slot → resolve/allocate aux bus, or -1) collapses the `if(slot bad)return;
+  int b=fx_bus_for` 2-liner at all 20 arms; the `if (b >= 1)` guard is unchanged, so
+  byte-identical (verified all 20 arms guarded; soundcheck 900f clean). The 2-line
+  `insert_order` scan (only 2 sites) left inline — below the dedup threshold.
 
 ---
 

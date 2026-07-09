@@ -35,6 +35,8 @@
 // NOTE arg order: clampf(lo, hi, v) — bounds first (studio.h's clamp(v,lo,hi) puts the value first).
 static inline float clamp01(float v)                     { return v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v; }
 static inline float clampf (float lo, float hi, float v) { return v < lo ? lo : v > hi ? hi : v; }
+// linear dry/wet blend — the `dry*(1-mix)+wet*mix` line every effect's *_process ends on.
+static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0f - mix) + wet * mix; }
 #define SOUND_SAMPLE_RATE  44100
 #define SOUND_VOICES       32   // polyphony (8→16→32; needs SOUND_HANDLE_BITS≥5). ~9-10KB/voice .bss; CPU is the real cost (every active voice runs per-sample) — long-ringing modal/Karplus engines + chords starved 16
 #define SOUND_SFX_STEPS    32
@@ -905,8 +907,8 @@ static void crush_process(int b, int i, float *mixL, float *mixR) {
         crush_holdR[b][i] = floorf(*mixR * levels + 0.5f) / levels;   // bias, and a decaying tail fades to 0
     }
     float mix = crush_mix[b][i];
-    *mixL = dryL * (1.0f - mix) + crush_holdL[b][i] * mix;
-    *mixR = dryR * (1.0f - mix) + crush_holdR[b][i] * mix;
+    *mixL = mix_wet(dryL, crush_holdL[b][i], mix);
+    *mixR = mix_wet(dryR, crush_holdR[b][i], mix);
 }
 static void fx_set_crush(int b, int i, float bits, float rate, float mix) {
     bits = clampf(1.0f, 16.0f, bits);
@@ -956,8 +958,8 @@ static void drive_process(int b, int i, float *mixL, float *mixR) {
     // DC blocker on the wet path (asym is one-sided) — one-pole HP ~7Hz, like the voice path
     float yL = dc_block(&drvins_dcx[b][i][0], &drvins_dcy[b][i][0], wL, 0.999f);
     float yR = dc_block(&drvins_dcx[b][i][1], &drvins_dcy[b][i][1], wR, 0.999f);
-    *mixL = *mixL * (1.0f - mix) + yL * mix;
-    *mixR = *mixR * (1.0f - mix) + yR * mix;
+    *mixL = mix_wet(*mixL, yL, mix);
+    *mixR = mix_wet(*mixR, yR, mix);
 }
 static void fx_set_drive(int b, int i, float amt, int mode, float mix) {
     amt = clamp01(amt);
@@ -1299,7 +1301,7 @@ static float phaser_chan(float in, float coeff, float fb, float mix, int stages,
         st[s] = ap;
         pIn = ap;
     }
-    return dry * (1.0f - mix) + pIn * mix;
+    return mix_wet(dry, pIn, mix);
 }
 static void phaser_process(int b, float *mixL, float *mixR) {
     phaser_phase[b] += phaser_rate[b] * (1.0f / (float)SOUND_SAMPLE_RATE);
@@ -1434,8 +1436,8 @@ static void leslie_process(int b, float *mixL, float *mixR) {
     float rp = (float)leslie_wpos[b] - delaySamples; if (rp < 0.0f) rp += LESLIE_BUF;
     float wetL = (loL * drumAM) * drumLvl + (moddel_hermite(leslie_bufL[b], LESLIE_BUF, rp) * hornAM) * hornLvl;
     float wetR = (loR * drumAM) * drumLvl + (moddel_hermite(leslie_bufR[b], LESLIE_BUF, rp) * hornAM) * hornLvl;
-    *mixL = *mixL * (1.0f - mix) + wetL * mix;
-    *mixR = *mixR * (1.0f - mix) + wetR * mix;
+    *mixL = mix_wet(*mixL, wetL, mix);
+    *mixR = mix_wet(*mixR, wetR, mix);
 }
 static void fx_set_leslie(int b, int speed, float drive, float balance, float doppler, float mix) {
     if (speed < 0) speed = 0; if (speed > 2) speed = 2;
@@ -1626,8 +1628,8 @@ static void shallow_process(int b, float *mixL, float *mixR) {
     shw_lp[b] += (wet - shw_lp[b]) * cut;
     float gated = shw_lp[b] * (0.5f + e * 0.5f);                     // 0.5..1.0 gain — musical, never crushed
     float mix = shw_mix[b];
-    *mixL = *mixL * (1.0f - mix) + gated * mix;
-    *mixR = *mixR * (1.0f - mix) + gated * mix;
+    *mixL = mix_wet(*mixL, gated, mix);
+    *mixR = mix_wet(*mixR, gated, mix);
 }
 static void fx_set_shallow(int b, float rate, float depth, float mix) {
     rate = clampf(0.2f, 8.0f, rate);
@@ -4804,6 +4806,12 @@ static int fx_bus_for(int slot) {
     instr_bank[slot].fx_bus = fx_next_bus++;
     return instr_bank[slot].fx_bus;
 }
+// instrument FX bus for a per-slot request: validate the slot, then resolve/allocate its aux bus.
+// Returns the bus (>=1) or -1 (bad slot or pool exhausted) — every SR_INSTR_* arm guards `if (b >= 1)`.
+static int fx_instr_bus(int slot) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return -1;
+    return fx_bus_for(slot);
+}
 
 // choke group: a new note on `instr_slot` silences every active voice whose slot is in that
 // slot's choke_mask (a closed hat cuts the open hat, etc). Stolen voices pay their last output
@@ -5191,8 +5199,7 @@ static void sound_fire_req(SoundReq r) {
         for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GRAINS) present = true;
         if (!present && insert_order_n[0] < N_INSERTS) insert_order[0][insert_order_n[0]++] = FX_GRAINS;
     } else if (r.kind == SR_INSTR_GRAINS) { // per-instrument: a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback,mix)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) {
             float feedback = (r.e2 / 1001) / 100.0f;   // unpack: e2 = feedback*100 *1001 + mix*1000
             float mix      = (r.e2 % 1001) / 1000.0f;
@@ -5204,74 +5211,62 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_GRAINS_FREEZE) {        // a=on
         fx_set_grains_freeze(0, r.a != 0);
     } else if (r.kind == SR_INSTR_GRAINS_FREEZE) {  // a=slot, b=on
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_grains_freeze(b, r.b != 0);
     } else if (r.kind == SR_GRAINS_PITCH) {         // a=semitones*100, b=spread*1000, c=reverse
         fx_set_grains_pitch(0, r.a / 100.0f, r.b / 1000.0f, r.c != 0);
     } else if (r.kind == SR_INSTR_GRAINS_PITCH) {   // a=slot, b=semitones*100, c=spread*1000, e0=reverse
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_grains_pitch(b, r.b / 100.0f, r.c / 1000.0f, r.e0 != 0);
     } else if (r.kind == SR_CHORUS) {       // master chorus (bus 0): a=rate*1000, b=depth*1000, c=mix*1000
         fx_set_chorus(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_CHORUS) { // per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=mix*1000
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_chorus(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_FLANGER) {      // master flanger (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000)
         fx_set_flanger(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_FLANGER) { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_flanger(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
     } else if (r.kind == SR_TAPE) {         // master tape (bus 0): a=wow, b=flutter, c=sat (×1000)
         fx_set_tape(0, 0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_TAPE) {   // per-instrument: a=slot, b=wow, c=flutter, e0=sat (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_tape(b, 0, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_WAH) {          // master auto-wah (bus 0): a=sens, b=res, c=mix (×1000)
         fx_set_wah(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_WAH) {    // per-instrument: a=slot, b=sens, c=res, e0=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_wah(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_WAH_LFO) {      // master LFO-wah (bus 0): a=rate, b=res, c=mix (×1000)
         fx_set_wah_lfo(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_WAH_LFO) {// per-instrument: a=slot, b=rate, c=res, e0=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_wah_lfo(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_TREMOLO) {      // master tremolo (bus 0): a=rate*1000, b=depth*1000, c=shape
         fx_set_tremolo(0, r.a / 1000.0f, r.b / 1000.0f, r.c);
     } else if (r.kind == SR_INSTR_TREMOLO) {// per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=shape
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_tremolo(b, r.b / 1000.0f, r.c / 1000.0f, r.e0);
     } else if (r.kind == SR_AUTOPAN) {      // master auto-pan (bus 0): a=rate*1000, b=depth*1000, c=shape
         fx_set_autopan(0, r.a / 1000.0f, r.b / 1000.0f, r.c);
     } else if (r.kind == SR_INSTR_AUTOPAN) {// per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=shape
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_autopan(b, r.b / 1000.0f, r.c / 1000.0f, r.e0);
     } else if (r.kind == SR_RINGMOD) {      // master ring mod (bus 0): a=freq_hz, b=mix*1000
         fx_set_ringmod(0, (float)r.a, r.b / 1000.0f);
     } else if (r.kind == SR_INSTR_RINGMOD) {// per-instrument: a=slot, b=freq_hz, c=mix*1000
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_ringmod(b, (float)r.b, r.c / 1000.0f);
     } else if (r.kind == SR_PHASER) {       // master phaser (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000), e1=stages
         fx_set_phaser(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1);
     } else if (r.kind == SR_INSTR_PHASER) { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000), e2=stages
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_phaser(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2);
     } else if (r.kind == SR_UNIVIBE) {      // master univibe (bus 0): a=rate, b=depth, c=mix (×1000) — phaser in optical mode
         fx_set_univibe(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_UNIVIBE) { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_univibe(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_DROPOUT) {      // master tape-failure dropout: a=amount, b=depth (×1000)
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
@@ -5282,8 +5277,7 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_SHIMMER) {      // master shimmer reverb (tank 0): a=size, b=damp, c=shimmer, e0=mix (×1000)
         fx_set_shimmer(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_SHIMMER) { // per-instrument: a=slot, b=size, c=damp, e0=shimmer, e1=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_shimmer(shim_tank_for_bus(b), r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
     } else if (r.kind == SR_GATE) {         // master noise gate (bus 0): a=threshold(×1000), b=attack_ms, c=release_ms
         fx_set_gate(0, r.a / 1000.0f, r.b, r.c);
@@ -5291,8 +5285,7 @@ static void sound_fire_req(SoundReq r) {
         for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GATE) present = true;
         if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_GATE; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
     } else if (r.kind == SR_INSTR_GATE) {   // per-instrument: a=slot, b=threshold(×1000), c=attack_ms, e0=release_ms
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_gate(b, r.b / 1000.0f, r.c, r.e0);
             bool present = false;
@@ -5305,8 +5298,7 @@ static void sound_fire_req(SoundReq r) {
         for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_SHALLOW) present = true;
         if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_SHALLOW; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
     } else if (r.kind == SR_INSTR_SHALLOW) { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_shallow(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
             bool present = false;
@@ -5316,8 +5308,7 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_LESLIE) {       // master Leslie (bus 0): a=speed, b=drive, c=balance, e0=doppler, e1=mix (×1000 except speed)
         fx_set_leslie(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
     } else if (r.kind == SR_INSTR_LESLIE) { // per-instrument: a=slot, b=speed, c=drive, e0=balance, e1=doppler, e2=mix
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_leslie(b, r.b, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
     } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, c=count; b/e0/e1/e2 = 4 slots each, 1 byte/slot (kind 5 bits | instance 3 bits)
         int bus = r.a;
@@ -5334,8 +5325,7 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_BITCRUSH) {     // master bitcrush (bus 0): a=bits*100, b=rate*100, c=mix*1000
         fx_set_crush(0, 0, r.a / 100.0f, r.b / 100.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_BITCRUSH) { // per-instrument: a=slot, b=bits*100, c=rate*100, e0=mix*1000
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_crush(b, 0, r.b / 100.0f, r.c / 100.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_EQ) {           // master EQ (bus 0), instance 0: a=low_db*1000, b=mid_db*1000, c=high_db*1000
         fx_set_eq(0, 0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
@@ -5348,14 +5338,12 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_FILTER_INST) {  // master filter (bus 0), instance r.a: b=mode, c=cutoff_hz, e0=res*1000
         fx_set_filter(0, r.a, r.b, (float)r.c, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_EQ) {     // per-instrument, instance 0: a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_eq(b, 0, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_FORMANT) {      // master formant/vowel filter (bus 0): a=vowel, b=q, c=mix (×1000)
         fx_set_formant(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_FORMANT) { // per-instrument: a=slot, b=vowel, c=q, e0=mix (×1000)
-        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
-        int b = fx_bus_for(r.a);
+        int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_formant(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_SIDECHAIN) {    // a=victim_bus, b=key, c=amount*1000, e0=atk_ms, e1=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;

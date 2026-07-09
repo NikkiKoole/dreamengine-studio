@@ -14,7 +14,6 @@
   ],
   "homage": "Korg Electribe EMX-1",
   "todo": [
-    "Slice 3 - the PERFORMANCE layer: live PART MUTES (tap a part tab while running to drop it in/out) + a master DRIVE / tube saturation (the EMX 'Valve Force' grit) + a SWING knob. The single biggest jump toward 'a thing you jam on', and a prerequisite for the arrangement work below.",
     "Slice 4 - per-part LENGTH / polymeter: give each part its own last-step (e.g. hat loops every 16, bass every 12) so they drift against each other. One number per part, pure emergent groove - the authentic EMX per-part last-step.",
     "Slice 5 - PATTERN SLOTS (A/B/C/D) + chaining: a few patterns you flip between live (and chain into a song) - real arrangement / 'more than one bar'. The EMX pattern is the loop unit; the song is chained patterns.",
     "Slice 6 - a tempo-synced DELAY you can MOTION-RECORD (the dub 'throw' that smears the whole groove into the distance) + per-part FX sends. The engine already has echo/reverb; the win is making the send knob motion-able.",
@@ -29,7 +28,7 @@
   "description": {
     "summary": "The Korg-Electribe MOTION SEQUENCE: a 4-part kit (kick/hat/bass/lead) loops on a 16-step ribbon, and ONE row of four knobs REMAPS to whichever part you select - that scarcity (one row means four things) is what makes an EMX feel deep with so few controls. While it plays you GRAB a knob and wiggle it; the wiggle is recorded per-step into that part's motion lane and plays back locked to the bar, layered per knob, per part.",
     "detail": "Two ideas make the whole instrument. SCARCITY: select a part and the ribbon + the one knob row + the knob LABELS all remap to it (kick shows TUNE/DECAY/DRIVE/ACC; bass shows CUTOFF/RES/DECAY/ACC). MOTION: while REC is armed, dragging a knob writes its value into that part's 16-step lane at the playhead, replayed forever. Motion is sampled PER-HIT (each note reads its lanes as it fires) so every part gets its own automation without fighting one master filter. SMOOTH interpolates the lane between steps; TRIG holds per step. The mini-strip under each knob is the selected part's recorded motion with the playhead. CLEAR wipes the selected part's motion.",
-    "controls": "TAP a part to select it (its ribbon + knob row appear). TAP a step to toggle it. GRAB a knob and turn it - if REC is armed the turn is recorded as motion for the selected part. REC arms recording. SMOOTH/TRIG flips playback. CLEAR wipes the selected part's motion. Left/Right arrows = tempo."
+    "controls": "TAP a part to select it (its ribbon + knob row appear); RE-TAP the selected part to MUTE it (drop it in/out live). TAP a step to toggle it. GRAB a knob and turn it - if REC is armed the turn is recorded as motion for the selected part. REC arms recording. SMOOTH/TRIG flips playback. CLEAR wipes the selected part's motion. The MASTER row: DRIVE = tube saturation over the whole mix, SWING = lag the off-beat 16ths. Left/Right arrows = tempo."
   }
 }
 de:meta */
@@ -54,12 +53,19 @@ de:meta */
 // carry their own automation with no master-filter fight.
 //
 //   TAP a part      select it — the ribbon + knob row + labels remap to it
+//   RE-TAP a part   mute it (drop it in/out of the mix live — the EMX part mute)
 //   TAP a step      toggle it in the selected part's ribbon
 //   GRAB a knob     turn it; if REC is armed the turn records as motion for that part
 //   REC             arm / disarm motion recording
 //   SMOOTH / TRIG   interpolate the lane (swoopy) vs hold per step (stair-step)
 //   CLEAR           wipe the selected part's motion
+//   DRIVE (master)  tube saturation over the whole mix — the EMX 'Valve Force' grit
+//   SWING (master)  delay the off-beat 16ths for a triplet groove
 //   < / >           tempo down / up
+//
+// Slice 3 adds the PERFORMANCE layer — the jump from a pattern that plays to a thing you
+// jam on: live part MUTES (re-tap a part to drop it), a master DRIVE (drive_insert tube grit
+// over the summed bus), and a SWING knob that lags the odd 16ths.
 
 #define STEPS   16
 #define NK      4     // knobs per part
@@ -119,6 +125,11 @@ static int   tempo    = 124;
 static int   flash[NPARTS];   // frame() each part last fired
 static int   leadArp  = 0;    // cascading-lead position
 
+// slice 3 — the performance layer (global, not per-part)
+static bool  mute[NPARTS] = { false, false, false, false };  // live part mutes (drop in/out)
+static float masterDrive  = 0.0f;   // master tube saturation over the summed bus ('Valve Force')
+static float swing        = 0.0f;   // groove: lag the off-beat 16ths (0 = straight)
+
 // per-finger ribbon paint
 typedef struct { int id, paint, last; } Ptr;   // id MUST be first (pointer.h)
 static Ptr ptr[PTR_MAX];
@@ -142,6 +153,8 @@ static const int kx[NK] = { 44, 124, 204, 284 };   // knob centres
 #define LSX 24      // lane strip half-width
 #define LSY 120     // lane strip top
 #define LSH 14
+#define MKY 149     // master-knob row (DRIVE / SWING) centre
+static const int mkx[2] = { 248, 294 };   // DRIVE, SWING knob centres
 
 // the value a param is CURRENTLY producing — from its lane if motion is live, else base
 static float cur_value(Param *p) {
@@ -219,15 +232,18 @@ void init() {
 void update() {
     bpm(tempo);
 
-    // ── transport: playhead off the synth clock ──
-    float pos16 = beat() * 4 + beat_pos() * 4.0f;
+    // ── transport: playhead off the synth clock (SWING lags the off-beat 16ths) ──
+    float pos16 = beat() * 4 + beat_pos() * 4.0f;   // monotonic loop position in 16ths
     g_phase = fmodf(pos16, STEPS);
-    int sixteenth = (int)pos16;
-    if (sixteenth != last_16) {
-        last_16 = sixteenth;
-        cur_step = sixteenth % STEPS;
+    float s = swing * 0.6f;                         // 0 = straight … ~2/3 = hard triplet swing
+    if (pos16 > last_16 + STEPS + 1) last_16 = (int)pos16 - 1;   // resync after a stall, no burst
+    for (int n = last_16 + 1;                                    // fire every 16th we've crossed
+         pos16 >= n + ((n & 1) ? s : 0.0f);                      // odd steps arrive late by s
+         n = last_16 + 1) {
+        last_16  = n;
+        cur_step = ((n % STEPS) + STEPS) % STEPS;
         for (int p = 0; p < NPARTS; p++)
-            if (parts[p].trig[cur_step]) apply_part_hit(p);   // every part reads its own lanes as it fires
+            if (parts[p].trig[cur_step] && !mute[p]) apply_part_hit(p);   // muted parts drop out
     }
 
     // ── tempo ──
@@ -280,8 +296,12 @@ void draw() {
     int pw = 74, px0 = 8;
     for (int p = 0; p < NPARTS; p++) {
         int bx = px0 + p * (pw + 2), by = 15, bh = 15;
-        if (ui_button(bx, by, pw, bh, PNAME[p])) selPart = p;
+        if (ui_button(bx, by, pw, bh, PNAME[p])) {
+            if (p == selPart) mute[p] = !mute[p];   // re-tap the selected part → drop it in/out
+            else              selPart = p;
+        }
         if (p == selPart) rect(bx, by, pw, bh, PCOL[p]);
+        if (mute[p]) line(bx + 3, by + bh / 2, bx + pw - 4, by + bh / 2, CLR_RED);  // struck = muted
         // motion dot — this part carries recorded motion
         bool hasMot = false;
         for (int i = 0; i < NK; i++) if (parts[p].k[i].motion) hasMot = true;
@@ -343,6 +363,18 @@ void draw() {
         rectfill(sx + cur_step * sw / STEPS, LSY, 1, LSH, CLR_LIGHT_GREY);
         rect(sx, LSY, sw, LSH, P->motion ? CLR_GREEN : CLR_DARK_GREY);
     }
+    font(FONT_NORMAL);
+
+    // ── the master row: DRIVE (mix tube grit) + SWING (groove) — global, not per-part ──
+    font(FONT_SMALL);
+    print("MASTER", mkx[0] - text_width("MASTER") / 2, MKY - 15, CLR_DARK_GREY);
+    static float lastDrive = -1.0f;
+    ui_knob(&masterDrive, mkx[0], MKY, "DRIVE");
+    if (masterDrive != lastDrive) {                 // set-and-hold: reconfigure only on change
+        drive_insert(masterDrive, DRIVE_SOFT, masterDrive);   // 0 = clean bypass (byte-identical)
+        lastDrive = masterDrive;
+    }
+    ui_knob(&swing, mkx[1], MKY, "SWING");          // read by the transport next frame
     font(FONT_NORMAL);
 
     // ── transport: REC · SMOOTH/TRIG · CLEAR ──

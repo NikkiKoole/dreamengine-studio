@@ -7,10 +7,7 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Keyboard + persistence: text_input() reads typed characters, keyp(KEY_BACKSPACE/KEY_ENTER) handles special keys, and save_bytes()/load_bytes() remember a whole struct between runs — type your name, press ENTER, reopen the cart and it greets you. Also shows text_width() for centering and blink() for the cursor.",
-  "todo": [
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
-  ]
+  "description": "Keyboard + persistence: text_input() reads typed characters, keyp(KEY_BACKSPACE/KEY_ENTER) handles special keys, and save_bytes()/load_bytes() remember a whole struct between runs — type your name, press ENTER, reopen the cart and it greets you. Also shows text_width() for centering and blink() for the cursor."
 }
 de:meta */
 #include "studio.h"
@@ -84,5 +81,5 @@ void draw(void) {
 
     if (msgT > 0) print_centered("saved!", SCREEN_W/2, 122, CLR_GREEN);
 
-    print_centered("letters to type    BACKSPACE    ENTER = save", SCREEN_W/2, SCREEN_H - 14, CLR_DARK_GREY);
+    hint("letters to type    BACKSPACE    ENTER = save");
 }

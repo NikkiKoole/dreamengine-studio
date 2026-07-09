@@ -11,10 +11,7 @@
     "algorithm-visualization"
   ],
   "lineage": "Standalone CPU-shader gallery built around the new pset_rgb/pget_rgb primitives; each of the ten shaders (UV, hue sweep, SDF rings, plasma, noise, checker, interference, torch, ripple, feedback) is a self-contained two-to-five line lesson.",
-  "description": "A CPU fragment shader, the dreamengine way: there is no GPU shader hook, so every pixel is just a little C function returning a 0xRRGGBB colour through pset_rgb() - full 24-bit colour, bypassing the 32-colour palette, painted on the CPU. Flip through ten worked shaders - uv coords (red=x, green=y), hue sweep, distance field, plasma, value-noise clouds, warped checker, interference, a cursor torch and cursor ripples, and finally FEEDBACK: the read-AND-write shader that reads the previous frame back with pget_rgb (the new true-colour read-back), dims it, and re-paints it rotated+zoomed, so the screen becomes its own memory - a glowing swirling tunnel you can paint into by holding the mouse. Each shader is a few readable lines that ARE the lesson. UP/DOWN changes the pixel size so you can watch the fragments turn chunky (and trade detail for speed); LEFT/RIGHT or keys 1..9 switch shader; SPACE freezes time. The companion to the pset_rgb / pget_rgb engine primitives.",
-  "todo": [
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
-  ]
+  "description": "A CPU fragment shader, the dreamengine way: there is no GPU shader hook, so every pixel is just a little C function returning a 0xRRGGBB colour through pset_rgb() - full 24-bit colour, bypassing the 32-colour palette, painted on the CPU. Flip through ten worked shaders - uv coords (red=x, green=y), hue sweep, distance field, plasma, value-noise clouds, warped checker, interference, a cursor torch and cursor ripples, and finally FEEDBACK: the read-AND-write shader that reads the previous frame back with pget_rgb (the new true-colour read-back), dims it, and re-paints it rotated+zoomed, so the screen becomes its own memory - a glowing swirling tunnel you can paint into by holding the mouse. Each shader is a few readable lines that ARE the lesson. UP/DOWN changes the pixel size so you can watch the fragments turn chunky (and trade detail for speed); LEFT/RIGHT or keys 1..9 switch shader; SPACE freezes time. The companion to the pset_rgb / pget_rgb engine primitives."
 }
 de:meta */
 #include "studio.h"
@@ -244,6 +241,5 @@ void draw(void) {
     print(str("%d/%d  %s", cur + 1, NSHADER, NAMES[cur]), 4, 2, CLR_WHITE);
     print_right(NOTE[cur], SCREEN_W - 4, 2, CLR_YELLOW);
     rectfill(0, SCREEN_H - 9, SCREEN_W, 9, CLR_BLACK);
-    print(str("<-/->  shader     up/dn  pixel %d     space  %s", ps, frozen ? "frozen" : "live"),
-          4, SCREEN_H - 7, CLR_LIGHT_GREY);
+    hint(str("<-/->  shader     up/dn  pixel %d     space  %s", ps, frozen ? "frozen" : "live"));
 }

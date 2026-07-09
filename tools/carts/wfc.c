@@ -13,10 +13,7 @@
     "autotiling"
   ],
   "lineage": "Purpose-built tech demo for WFC terrain generation paired with marching-squares autotiling, showing the two techniques as a live before/after toggle.",
-  "description": "Wave Function Collapse (simple tiled model) generating terrain, then auto-tiling for smooth transitions. Every cell starts in superposition; OBSERVE collapses the lowest-entropy cell, PROPAGATE ripples the constraint out (a level may only touch levels within +/-1, so water never borders forest -> beaches must appear). A neighbour-agreement bonus grows coherent islands & bays instead of noise. Renders two ways: BANDS (flat colour per cell -- the hard-edged worldgen look) and SMOOTH (marching-squares auto-tiling: each level's coastline drawn over the level below). B toggles between them = a live before/after of generation (WFC) vs transitions (auto-tiling). Opens on a finished map; SPACE step, A auto, R regenerate (watch it collapse).",
-  "todo": [
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
-  ]
+  "description": "Wave Function Collapse (simple tiled model) generating terrain, then auto-tiling for smooth transitions. Every cell starts in superposition; OBSERVE collapses the lowest-entropy cell, PROPAGATE ripples the constraint out (a level may only touch levels within +/-1, so water never borders forest -> beaches must appear). A neighbour-agreement bonus grows coherent islands & bays instead of noise. Renders two ways: BANDS (flat colour per cell -- the hard-edged worldgen look) and SMOOTH (marching-squares auto-tiling: each level's coastline drawn over the level below). B toggles between them = a live before/after of generation (WFC) vs transitions (auto-tiling). Opens on a finished map; SPACE step, A auto, R regenerate (watch it collapse)."
 }
 de:meta */
 #include "studio.h"
@@ -262,8 +259,5 @@ void draw(void) {
     int hx = print("WFC ", 4, HUD_Y + 2, CLR_WHITE);
     print(done ? "done" : "collapsing", hx, HUD_Y + 2, done ? CLR_GREEN : CLR_YELLOW);
     print_right(RNAME[rmode], SCREEN_W - 4, HUD_Y + 2, CLR_BLUE);
-    font(FONT_SMALL);
-    print(str("SPACE step   A auto   R regenerate   B render mode     steps %d  restarts %d", steps, restarts),
-          4, HUD_Y + 13, CLR_DARK_GREY);
-    font(FONT_NORMAL);
+    hint(str("SPACE step   A auto   R regenerate   B render mode     steps %d  restarts %d", steps, restarts));
 }

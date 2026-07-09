@@ -12,10 +12,7 @@
     "dithering-gradient"
   ],
   "lineage": "Follows shadelab (CPU shader exploration) and precedes raymarch; adds Hugo Elias's classic demoscene 2D wave-equation height-field sim alongside a sine-only fake mode, teaching both paths to displacement mapping.",
-  "description": "Water light effects and a two-part lesson in DISPLACEMENT MAPPING: warp WHERE you read a colour and the picture appears to ripple. Press TAB to flip between the same idea done two ways. FAKED (the N64 way): the displacement is a few scrolling SINE waves computed on the fly over a procedural pool floor - no memory, no physics, basically free, exactly how Mario 64 and Ocarina of Time faked moving water on a GPU that could not run a shader. REAL (displacement mapping proper): the displacement now comes from a real HEIGHT-FIELD WATER SIMULATION - two ping-pong buffers holding the surface height, each cell becoming the average of its neighbours minus its previous value times a little damping (the wave equation, the previous frame feeding the next is the feedback), and the surface SLOPE steers where each pixel LOOKS UP A REAL CAPTURED IMAGE (src[]); drop a stone and the rings expand, reflect off the walls, cross and interfere, and fade - the classic demoscene 2D water (Hugo Elias). Same umbrella technique, two ways to make the map: a formula, or a simulation you can poke. Everything painted in 24-bit true colour through pset_rgb / rectfill_rgb. Three floor textures / source images: pool tiles, a sandy tropical bottom, and a high-contrast checkerboard whose straight lines visibly BEND so you see the distortion itself. TAB switch FAKED/REAL, drag the mouse to push the water, CLICK to drop a stone, C toggles caustics (the light web), W toggles waves (FAKED), UP/DOWN strength, [ ] pixel size, SPACE freezes, 1/2/3 or LEFT/RIGHT switch floor. Companion to shadelab.",
-  "todo": [
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
-  ]
+  "description": "Water light effects and a two-part lesson in DISPLACEMENT MAPPING: warp WHERE you read a colour and the picture appears to ripple. Press TAB to flip between the same idea done two ways. FAKED (the N64 way): the displacement is a few scrolling SINE waves computed on the fly over a procedural pool floor - no memory, no physics, basically free, exactly how Mario 64 and Ocarina of Time faked moving water on a GPU that could not run a shader. REAL (displacement mapping proper): the displacement now comes from a real HEIGHT-FIELD WATER SIMULATION - two ping-pong buffers holding the surface height, each cell becoming the average of its neighbours minus its previous value times a little damping (the wave equation, the previous frame feeding the next is the feedback), and the surface SLOPE steers where each pixel LOOKS UP A REAL CAPTURED IMAGE (src[]); drop a stone and the rings expand, reflect off the walls, cross and interfere, and fade - the classic demoscene 2D water (Hugo Elias). Same umbrella technique, two ways to make the map: a formula, or a simulation you can poke. Everything painted in 24-bit true colour through pset_rgb / rectfill_rgb. Three floor textures / source images: pool tiles, a sandy tropical bottom, and a high-contrast checkerboard whose straight lines visibly BEND so you see the distortion itself. TAB switch FAKED/REAL, drag the mouse to push the water, CLICK to drop a stone, C toggles caustics (the light web), W toggles waves (FAKED), UP/DOWN strength, [ ] pixel size, SPACE freezes, 1/2/3 or LEFT/RIGHT switch floor. Companion to shadelab."
 }
 de:meta */
 #include "studio.h"
@@ -299,7 +296,6 @@ void draw(void) {
           4, 2, mode ? CLR_LIME_GREEN : CLR_WHITE);
     print_right("TAB", SCREEN_W - 4, 2, CLR_YELLOW);
     rectfill(0, SCREEN_H - 9, SCREEN_W, 9, CLR_BLACK);
-    print(str("floor: %s   C caustics %s   str %.1f   space %s",
-              TEXNAME[cur], caus ? "on" : "OFF", amt, frozen ? "frozen" : "live"),
-          4, SCREEN_H - 7, CLR_LIGHT_GREY);
+    hint(str("floor: %s   C caustics %s   str %.1f   space %s",
+              TEXNAME[cur], caus ? "on" : "OFF", amt, frozen ? "frozen" : "live"));
 }

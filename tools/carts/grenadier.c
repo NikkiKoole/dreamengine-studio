@@ -12,10 +12,7 @@
   ],
   "lineage": "A cart-side port of the Grendel RA-99 Grenadier semi-modular filterbank — three parallel resonant filters on stacked held voices, with CMOS randomization drift modeling the hardware's character.",
   "homage": "Grendel RA-99 Grenadier (Rare Waves, 2020)",
-  "description": "A triple voltage-controlled FILTERBANK drone/acid synth, after the Grendel RA-99 Grenadier (Rare Waves, 2020) — a CMOS semi-modular box whose whole voice is THREE parallel resonant filters swept together in a 2D space (the TB-303 filter is its tonal cousin). Ported entirely cart-side (no new engine DSP): three held voices on one root, each through its own resonant filter, summed. The XY PAD is the instrument — ALPHA (x) sweeps all three filters ±2 octaves, BETA (y) opens the SPACING from a tight cluster to a wide spread; a live frequency-response strip shows the three peaks move. LAYOUT switches RA-99 (lowpass + 2 bandpass) vs RA-9 (three bandpass). The in-scale KEYBED (A S D F G H J K L) sets the drone ROOT and glides to it. SPACE / Q / MORPH (a trapezoid VCO morphing triangle→square) / RND (per-trigger CMOS drift). GATE pulses the drone in time for the techno chug. Drag the SWEEP pad; ASDFGHJKL = root; ↑/↓ gate rate; ← / → tempo.",
-  "todo": [
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
-  ]
+  "description": "A triple voltage-controlled FILTERBANK drone/acid synth, after the Grendel RA-99 Grenadier (Rare Waves, 2020) — a CMOS semi-modular box whose whole voice is THREE parallel resonant filters swept together in a 2D space (the TB-303 filter is its tonal cousin). Ported entirely cart-side (no new engine DSP): three held voices on one root, each through its own resonant filter, summed. The XY PAD is the instrument — ALPHA (x) sweeps all three filters ±2 octaves, BETA (y) opens the SPACING from a tight cluster to a wide spread; a live frequency-response strip shows the three peaks move. LAYOUT switches RA-99 (lowpass + 2 bandpass) vs RA-9 (three bandpass). The in-scale KEYBED (A S D F G H J K L) sets the drone ROOT and glides to it. SPACE / Q / MORPH (a trapezoid VCO morphing triangle→square) / RND (per-trigger CMOS drift). GATE pulses the drone in time for the techno chug. Drag the SWEEP pad; ASDFGHJKL = root; ↑/↓ gate rate; ← / → tempo."
 }
 de:meta */
 #include "studio.h"
@@ -286,7 +283,7 @@ void draw() {
     ui_knob(&k_rnd,   166, ky, "RND");
     if (ui_button(6,  148, 78, 16, ra9 ? "LAYOUT RA-9" : "LAYOUT RA-99")) ra9 = !ra9;
     if (ui_button(90, 148, 64, 16, gate_on ? "GATE *" : "GATE")) gate_on = !gate_on;
-    print("ASDFGHJKL root  -  drag SWEEP  -  up/dn gate rate  -  L/R tempo", 6, 190, CLR_DARK_GREY);
+    hint("ASDFGHJKL root  -  drag SWEEP  -  up/dn gate rate  -  L/R tempo");
     font(FONT_NORMAL);
     ui_end();
 }

@@ -197,11 +197,25 @@ across many carts — handle those **once, systemically**, then sweep:
   the 320px right edge and is clipped. **Systemic fix shipped: `hint(const char *text)`** (studio.h) —
   a bottom-anchored footer that auto-picks the largest of the 8×8/small/tiny fonts that fits the
   screen width (muted light-grey), so the line can't run off the edge. Migration = swap each cart's
-  bottom `print(...)` for `hint("...")`. **Proof batch done (7):** doomfire, cube3d, lsystem, sort,
-  textured3d, solid3d, rampkit — their `ui-audit?:` markers cleared. Remaining ~39: sweep the rest
-  (`node tools/cart-todos.js --grep "control-hint"`). Note two classes `hint()` doesn't fully solve:
-  carts whose hint is *already* at tiny and simply too verbose (e.g. **brass**, ~96 chars > TINY's
-  ~80 — needs shorter copy), and *colored multi-segment* hints (want a hand pass or one grey line).
+  bottom `print(...)` for `hint("...")`. **Converted so far (18), `ui-audit?:` markers cleared:**
+  doomfire, cube3d, lsystem, sort, textured3d, solid3d, rampkit, grenadier, tr808, voxlab, vox,
+  boggle, typesave, caustics, raymarch, shadelab, wfc, pipetune. What's LEFT (`node tools/cart-todos.js
+  --grep "control-hint"`) is the hard tail — `hint()` alone doesn't fix these, they need a per-cart
+  hand pass (a judgement call on copy/layout, hence set aside):
+    - **Too verbose** — the string exceeds even TINY (~80 chars @ 320px), so it clips at any font;
+      needs the *copy* shortened: brass (~96), monochord (~110), tempo (~100), sightlines (~95),
+      fretboard (~95), organ (~90), sfxed (~90), palettelab (~88), dijkstra (~93).
+    - **Colored multi-segment** — a 3-colour hint that collapsing to one grey line would flatten:
+      brass, pipe, reed.
+    - **Multi-line bottom block** — 2–3 stacked info lines, not one footer (`hint()` does one line):
+      say, vox4, voxpad, voxab.
+    - **Panel-anchored label, not a footer** — the clipped text is beside a panel at a fixed x;
+      wants an x-shift/shrink, not relocation to screen-bottom: collision-lab-2, dwarffort, facegen,
+      otamatone.
+    - **Likely false positive / already fits** (low-confidence marker, verified on render): skystrike
+      (31-char centered title hint), collision-lab-3 (fits + debug readouts share the row),
+      pasture, worldpointer (a clean 2-line pair). Diagnostic carts (soundcheck, uikit) + a few
+      unclassified (digdug, pathfinding, procplaces) still want an eyeball.
   (Confident per-cart HUD findings carry a plain `ui-audit:` prefix instead.)
 - [ ] **Mouse support for the 3D + label-button carts.** wheel-zoom + drag-rotate + a toggle for
   auto-rotate, and pinch-zoom seams for touch — textured3d, solid3d, 3d-wireframe; plus clickable

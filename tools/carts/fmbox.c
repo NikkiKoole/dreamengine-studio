@@ -15,8 +15,8 @@
   "lineage": "The Elektron Model:Cycles reimagined — an all-FM percussion groovebox. Chassis from drummachine.c (grid + beat() playhead + pointer paint); voices are six INSTR_FM machines instead of the analog kit. Adds the thing no cart has: per-step PARAMETER LOCKS. Design: docs/design/fmbox-blind-brief.md.",
   "description": {
     "summary": "An all-FM drum box: six machines on ONE FM engine, plus per-step parameter locks.",
-    "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock.",
-    "controls": "TAP a cell = toggle. HOLD a lit cell + DRAG UP = p-lock the selected macro to that step (fling down to clear). Tap a machine name to select it; tap a knob (or arrows UP/DOWN) to select a macro, DRAG the knob to set the machine's base value. WASD move cursor, Z toggle, X clear grid. Arrows LEFT/RIGHT tempo. BPM buttons top-right."
+    "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock. A seventh selectable parameter, PROB, is the CONDITIONAL TRIG: set a step's chance to fire (the cell drains from the top — full = certain, half = a maybe) and it re-rolls live every loop, so the groove never repeats exactly. PROB rides the same select-and-drag gesture as the six macros, but it changes WHETHER a hit happens, not how it sounds.",
+    "controls": "TAP a cell = toggle. HOLD a lit cell + DRAG UP = set the SELECTED parameter for that step (a macro p-lock, or PROB = the trig chance); fling down to clear. Tap a machine name to select it; tap a fader (or arrows UP/DOWN) to pick a parameter — the six FM macros or PROB — and DRAG the fader to set the machine's base value. WASD move cursor, Z toggle, X clear grid. Arrows LEFT/RIGHT tempo. BPM buttons top-right."
   }
 }
 de:meta */
@@ -37,6 +37,10 @@ de:meta */
 //     and drag up to lock the *selected* macro just for that step. The loop
 //     then evolves on its own — a snare that opens across the bar, a tone that
 //     walks. The lock reads as a fill-height bar inside the cell.
+//   * CONDITIONAL TRIGS: PROB is a 7th selectable parameter (edited with the
+//     same gesture) — a per-step CHANCE to fire, re-rolled live each loop, so a
+//     <100% step is a genuine "maybe". It answers "does this hit happen?" (the
+//     cell drains from the top) as opposed to a macro's "how does it sound?".
 //
 // The six macros map straight onto our FM engine's controls:
 //   PIT pitch (base note)     DEC decay (gate length)    COL colour  = timbre
@@ -48,16 +52,18 @@ de:meta */
 
 #define ROWS  6
 #define STEPS 16
-#define NMAC  6         // PIT DEC COL SHP SWP CON
+#define NMAC   6        // the six FM-engine macros (PIT DEC COL SHP SWP CON) — applied to the voice
+#define NPARAM 7        // + PROB: a per-step CONDITIONAL TRIG (chance to fire), edited like a 7th macro
 #define SLOT0 5         // FM machines live in slots 5..10
 #define SNOISE 11       // the snare's noise crack layer
 
-// macro indices — named per CLAUDE.md's data-driven rule (never raw numbers)
-enum { K_PIT, K_DEC, K_COL, K_SHP, K_SWP, K_CON };
+// parameter indices — named per CLAUDE.md's data-driven rule (never raw numbers).
+// K_PIT..K_CON are the FM macros; K_PROB (== NMAC) is the conditional-trig chance.
+enum { K_PIT, K_DEC, K_COL, K_SHP, K_SWP, K_CON, K_PROB };
 enum { M_KICK, M_SNARE, M_METAL, M_PERC, M_TONE, M_CHORD };
 
 static const char *LABEL[ROWS] = { "KICK", "SNARE", "METAL", "PERC", "TONE", "CHORD" };
-static const char *MNAME[NMAC] = { "PITCH", "DECAY", "COLOR", "SHAPE", "SWEEP", "CONTOUR" };
+static const char *MNAME[NPARAM] = { "PITCH", "DECAY", "COLOR", "SHAPE", "SWEEP", "CONTOUR", "PROB" };
 static const int   LIT  [ROWS] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN, CLR_BLUE, CLR_INDIGO };
 
 // the note range each machine's PIT macro sweeps (lo..hi MIDI)
@@ -66,14 +72,15 @@ static const int MIDI_HI[ROWS] = { 46, 64, 84, 79, 57, 67 };
 // amp release per machine (ms) — METAL rings, the rest are tight
 static const int REL[ROWS]     = { 60, 50, 320, 80, 140, 180 };
 
-// base macro values per machine (0..1) — the electro-FM kit you hear on load
-static float mac[ROWS][NMAC] = {
-    /* KICK  */ { 0.20f, 0.35f, 0.15f, 0.02f, 0.75f, 0.10f },
-    /* SNARE */ { 0.45f, 0.22f, 0.80f, 0.45f, 0.15f, 0.55f },
-    /* METAL */ { 0.50f, 0.70f, 0.85f, 0.62f, 0.00f, 0.20f },
-    /* PERC  */ { 0.55f, 0.25f, 0.55f, 0.40f, 0.35f, 0.10f },
-    /* TONE  */ { 0.25f, 0.45f, 0.45f, 0.15f, 0.10f, 0.20f },
-    /* CHORD */ { 0.40f, 0.50f, 0.50f, 0.15f, 0.00f, 0.15f },
+// base values per machine: the six FM macros (0..1) + PROB (1.0 = always fires) — the electro kit on load
+static float mac[ROWS][NPARAM] = {
+    /*           PIT    DEC    COL    SHP    SWP    CON   PROB */
+    /* KICK  */ { 0.20f, 0.35f, 0.15f, 0.02f, 0.75f, 0.10f, 1.00f },
+    /* SNARE */ { 0.45f, 0.22f, 0.80f, 0.45f, 0.15f, 0.55f, 1.00f },
+    /* METAL */ { 0.50f, 0.70f, 0.85f, 0.62f, 0.00f, 0.20f, 1.00f },
+    /* PERC  */ { 0.55f, 0.25f, 0.55f, 0.40f, 0.35f, 0.10f, 1.00f },
+    /* TONE  */ { 0.25f, 0.45f, 0.45f, 0.15f, 0.10f, 0.20f, 1.00f },
+    /* CHORD */ { 0.40f, 0.50f, 0.50f, 0.15f, 0.00f, 0.15f, 1.00f },
 };
 
 // a starter groove so it sounds alive the moment it loads
@@ -86,8 +93,9 @@ static const char *PRESET[ROWS] = {
     "............x...",   // CHORD — one stab before the loop
 };
 
-// p-locks: per step, per macro. -1 = no lock; 0..100 = value*100 for that step.
-static signed char plock[ROWS][STEPS][NMAC];
+// p-locks: per step, per parameter. -1 = no lock; 0..100 = value*100 for that step.
+// (index K_PROB holds the per-step conditional-trig chance the same way.)
+static signed char plock[ROWS][STEPS][NPARAM];
 
 static bool grid[ROWS][STEPS];
 static int  curR = 0, curC = 0;       // keyboard cursor cell
@@ -111,8 +119,8 @@ static float clampf(float v, float lo, float hi){ return v < lo ? lo : v > hi ? 
 #define CH 14    // cell h
 #define KY  144  // knob row top
 #define KH  34   // knob bar height
-#define KX  16   // first knob left
-#define KSTRIDE 50
+#define KX  8    // first knob left
+#define KSTRIDE 44   // 7 params (6 macros + PROB) across the width
 
 // per-finger drag state
 typedef struct {
@@ -142,17 +150,17 @@ static int label_row(int x, int y) {          // left column, over a row → tha
     int rr = (y - GY) / SY;
     return (rr >= 0 && rr < ROWS) ? rr : -1;
 }
-static int knob_idx(int x, int y) {           // which macro knob is under (x,y)?
+static int knob_idx(int x, int y) {           // which param fader is under (x,y)? (full stride = fat-finger)
     if (y < KY || y > KY + KH) return -1;
-    for (int k = 0; k < NMAC; k++)
-        if (x >= KX + k * KSTRIDE && x < KX + k * KSTRIDE + 22) return k;
+    for (int k = 0; k < NPARAM; k++)
+        if (x >= KX + k * KSTRIDE && x < KX + (k + 1) * KSTRIDE) return k;
     return -1;
 }
 
 static void clear_grid(void) {
     for (int r = 0; r < ROWS; r++)
         for (int c = 0; c < STEPS; c++) { grid[r][c] = false;
-            for (int k = 0; k < NMAC; k++) plock[r][c][k] = -1; }
+            for (int k = 0; k < NPARAM; k++) plock[r][c][k] = -1; }
 }
 
 // the value a macro takes on a given step (locked value, else machine base)
@@ -205,7 +213,7 @@ void init() {
     for (int r = 0; r < ROWS; r++)
         for (int c = 0; c < STEPS; c++) {
             grid[r][c] = (PRESET[r][c] == 'x');
-            for (int k = 0; k < NMAC; k++) plock[r][c][k] = -1;
+            for (int k = 0; k < NPARAM; k++) plock[r][c][k] = -1;
         }
 
     // seed a couple of p-locks so the headline is legible on load:
@@ -215,6 +223,8 @@ void init() {
     plock[M_TONE][0 ][K_PIT] = 20; plock[M_TONE][3 ][K_PIT] = 30;
     plock[M_TONE][6 ][K_PIT] = 45; plock[M_TONE][9 ][K_PIT] = 35;
     plock[M_TONE][12][K_PIT] = 55; plock[M_TONE][15][K_PIT] = 65;
+    // and two PROB trigs so the loop never repeats exactly — PERC ghost notes at 50%.
+    plock[M_PERC][5 ][K_PROB] = 50; plock[M_PERC][11][K_PROB] = 50;
 
     PTR_CLEAR(ptr);
 }
@@ -229,7 +239,13 @@ void update() {
         last_16  = sixteenth;
         cur_step = sixteenth % STEPS;
         for (int r = 0; r < ROWS; r++)
-            if (grid[r][cur_step]) play_machine(r, cur_step);
+            if (grid[r][cur_step]) {
+                // conditional trig: fire with the step's PROB chance (re-rolled live every loop,
+                // so a <100% step is a genuine "maybe" — the loop never repeats exactly)
+                float chance = step_val(r, cur_step, K_PROB);
+                if (chance >= 0.999f || rnd(1000) < (int)(chance * 1000.0f))
+                    play_machine(r, cur_step);
+            }
     }
 
     // ── keyboard: WASD cursor, Z toggle, X clear, arrows tempo + macro select ──
@@ -242,8 +258,8 @@ void update() {
 
     if (btnp(1, BTN_LEFT)  || tapp(BTN[B_BPMDN].x, BTN[B_BPMDN].y, BTN[B_BPMDN].w, BTN[B_BPMDN].h)) tempo = max(60,  tempo - 4);
     if (btnp(1, BTN_RIGHT) || tapp(BTN[B_BPMUP].x, BTN[B_BPMUP].y, BTN[B_BPMUP].w, BTN[B_BPMUP].h)) tempo = min(220, tempo + 4);
-    if (btnp(1, BTN_UP))    selMac = (selMac + NMAC - 1) % NMAC;
-    if (btnp(1, BTN_DOWN))  selMac = (selMac + 1) % NMAC;
+    if (btnp(1, BTN_UP))    selMac = (selMac + NPARAM - 1) % NPARAM;
+    if (btnp(1, BTN_DOWN))  selMac = (selMac + 1) % NPARAM;
 
     // ── touch / mouse ──
     for (int i = 0; i < touch_count(); i++) {
@@ -338,15 +354,22 @@ void draw() {
             int x = GX + c * SX, y = GY + r * SY;
             if (grid[r][c]) {
                 rectfill(x, y, CW, CH, LIT[r]);
-                // p-lock of the SELECTED macro → a fill-height bar (the height IS the value)
-                signed char pl = plock[r][c][selMac];
-                if (pl >= 0) {
-                    int h = 1 + (pl * (CH - 2)) / 100;
-                    rectfill(x + 1, y + CH - 1 - h, CW - 2, h, CLR_WHITE);
+                if (selMac == K_PROB) {
+                    // PROB view: the cell DRAINS from the top as the chance drops
+                    // (full = certain, half = 50%, a sliver = a rare maybe)
+                    int fill = (int)(step_val(r, c, K_PROB) * CH + 0.5f);
+                    if (fill < CH) rectfill(x, y, CW, CH - fill, CLR_BROWNISH_BLACK);
+                } else {
+                    // macro p-lock → an additive fill-height bar (the height IS the value)
+                    signed char pl = plock[r][c][selMac];
+                    if (pl >= 0) {
+                        int h = 1 + (pl * (CH - 2)) / 100;
+                        rectfill(x + 1, y + CH - 1 - h, CW - 2, h, CLR_WHITE);
+                    }
                 }
-                // any lock at all → a corner tick, so other-macro locks stay visible
+                // any lock at all → a corner tick, so other-param locks stay visible
                 bool anylock = false;
-                for (int k = 0; k < NMAC; k++) anylock |= (plock[r][c][k] >= 0);
+                for (int k = 0; k < NPARAM; k++) anylock |= (plock[r][c][k] >= 0);
                 if (anylock) rectfill(x + CW - 3, y + 1, 2, 2, CLR_BLACK);
                 if (c == cur_step) rect(x, y, CW, CH, CLR_WHITE);
             } else {
@@ -360,16 +383,17 @@ void draw() {
     // cursor outline
     rect(GX + curC * SX - 1, GY + curR * SY - 1, CW + 2, CH + 2, CLR_GREEN);
 
-    // ── knob row: the selected machine's six macros ──
+    // ── param row: the selected machine's six FM macros + PROB (the conditional trig) ──
     print_right(str("%s", LABEL[selRow]), 316, KY - 12, LIT[selRow]);
     print(str("edit: %s", LABEL[selRow]), 4, KY - 12, CLR_LIGHT_GREY);
-    for (int k = 0; k < NMAC; k++) {
+    for (int k = 0; k < NPARAM; k++) {
         int x = KX + k * KSTRIDE;
-        bool sel = (k == selMac);
-        // bar track
-        rectfill(x, KY, 12, KH, CLR_DARKER_GREY);
+        bool sel = (k == selMac), isprob = (k == K_PROB);
+        if (isprob) rectfill(x - 3, KY - 2, 1, KH + 4, CLR_DARK_GREY);   // divider: trig, not a macro
+        rectfill(x, KY, 12, KH, isprob ? CLR_DARKER_BLUE : CLR_DARKER_GREY);
         int h = (int)(mac[selRow][k] * (KH - 2));
-        rectfill(x + 1, KY + KH - 1 - h, 10, h, sel ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
+        int fillc = sel ? (isprob ? CLR_GREEN : CLR_LIGHT_YELLOW) : CLR_MEDIUM_GREY;
+        rectfill(x + 1, KY + KH - 1 - h, 10, h, fillc);
         if (sel) rect(x - 1, KY - 1, 14, KH + 2, CLR_WHITE);
         font(FONT_SMALL);
         int tw = text_width(MNAME[k]);
@@ -378,7 +402,7 @@ void draw() {
     }
 
     font(FONT_SMALL);
-    print("tap cell=toggle - hold+drag up=lock selected macro - fling down=clear", 4, 192, CLR_DARK_GREY);
+    print("tap=toggle - hold+drag=set selected param (PROB=chance) - fling down=clear", 4, 192, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 
@@ -417,5 +441,13 @@ void spec(void) {
     expect_eq(locks, 0, "clear_grid() removes every p-lock");
     expect(spec_close(step_val(M_METAL, 14, K_COL), mac[M_METAL][K_COL], 0.001f),
            "after clear, step_val() falls back to base");
+
+    // 5) the conditional trig (PROB) rides the SAME step_val() contract as a macro
+    expect(spec_close(step_val(M_KICK, 0, K_PROB), 1.0f, 0.001f),
+           "PROB defaults to 1.0 (a step always fires)");
+    plock[M_KICK][0][K_PROB] = 50;
+    expect(spec_close(step_val(M_KICK, 0, K_PROB), 0.5f, 0.02f), "a PROB lock reads as the chance");
+    expect(spec_close(step_val(M_KICK, 0, K_COL), mac[M_KICK][K_COL], 0.001f),
+           "a PROB lock leaves the FM macros at base (trig is orthogonal to sound)");
 }
 #endif

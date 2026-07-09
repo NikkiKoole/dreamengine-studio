@@ -28,7 +28,7 @@
     "Per-part LEVEL + PAN - the EMX has a per-part level fader and pan (both motion-able); right now there's no way to BALANCE the kit or use stereo at all. instrument_pan exists; PAN is great motion-fodder (auto-panned hats). Fits scarcity - two more per-part params the knob row can remap to.",
     "REAL-TIME recording - the EMX's other input method beyond step-toggle: tap the ribbon in time and it captures + quantizes the hits to the nearest step. A whole authentic workflow that's absent; pairs with the existing motion REC (play a groove live, then wiggle the knobs over it).",
     "OSC PAGE - the next knob-row page after TONE + MOD (the page axis shipped 2026-07-09; bump NPAGES + add labels + wiring). Per synth part: MODEL + its 2 realtime 'Edit' params (the MMT heart: analog/sync/cross-mod/ring-mod + UNISON = up to 6 detuned oscs for a thick supersaw lead, + CHORD = a full chord from one note). Reached via the knob-row PAGE axis so it costs NO new knobs - the 4 knobs become MODEL / EDIT1 / EDIT2 / GLIDE on the OSC page. Engine: instrument() model select + instrument_tune for the unison detune spread.",
-    "MOD-page polish (shipped 2026-07-09: LFO RATE=tempo-locked divisions / DEPTH / DEST + filter EG>CUT, per-note retriggered, set-and-hold + motion-able for every part; depth widened + rate tempo-locked so short hits wobble audibly): add an EG ATTACK control (currently fixed 3ms), give the BASS acid voice the same accent-brightness (ACC opens the filter - currently LEAD-only) + a tasteful default EG>CUT, and a multimode filter (LP/HP/BP/BP+) select. Cheap adds now the axis exists."
+    "MOD-page polish - DONE so far (2026-07-09): live readouts on the two quantized knobs (RATE shows its division 1/2..1/32, DEST shows VIB/WAH/TREM/PAN - they were opaque before), and the BASS acid voice now has accent-brightness (ACC opens the filter) + a default EG>CUT pluck, parity with the lead. REMAINING items need more knob space (the MOD row is full at 4) so they wait on the OSC page: an EG ATTACK control (currently fixed 3ms), a multimode filter (LP/HP/BP/BP+) select, and an LFO SHAPE knob (currently sine - lfo_shape gives tri/square/S&H/random)."
   ],
   "description": {
     "summary": "The Korg-Electribe MOTION SEQUENCE: a 4-part kit (kick/hat/bass/lead) loops on a 16-step ribbon, and ONE row of four knobs REMAPS to whichever part you select - that scarcity (one row means four things) is what makes an EMX feel deep with so few controls. While it plays you GRAB a knob and wiggle it; the wiggle is recorded per-step into that part's motion lane and plays back locked to the bar, layered per knob, per part.",
@@ -105,6 +105,8 @@ static const char *KLABEL[NPARTS][NK] = {
     { "CUTOFF", "RES", "DECAY", "ACC" },   // LEAD  TONE
 };
 static const char *MODLABEL[NK] = { "RATE", "DEPTH", "DEST", "EG>CUT" };   // the MOD page (all parts)
+static const char *RATEDIV[5] = { "1/2", "1/4", "1/8", "1/16", "1/32" };   // RATE knob → the shown division
+static const char *DESTNM [4] = { "VIB", "WAH", "TREM", "PAN" };           // DEST knob → the shown target
 static const int   LFO_DESTS[4] = { LFO_PITCH, LFO_CUTOFF, LFO_VOLUME, LFO_PAN };  // MOD DEST knob → dest
 static const float LFO_DIV[5]   = { 0.5f, 1.0f, 2.0f, 4.0f, 8.0f };  // MOD RATE knob → LFO cycles PER BEAT (tempo-locked)
 
@@ -136,7 +138,7 @@ static const char *PRESET[NPARTS] = {
 static const float KBASE[NPARTS][NPAGES][NK] = {
     { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.50f, 0.00f, 0.00f, 0.00f } },   // KICK  tone / mod {RATE,DEPTH,DEST,EG>CUT}
     { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.00f } },   // HAT   (RATE 0.5 = 2 cycles/beat; DEPTH 0 = LFO off)
-    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.00f } },   // BASS
+    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.35f } },   // BASS  (EG>CUT 0.35 = acid pluck)
     { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.50f } },   // LEAD  (EG>CUT 0.5 = pluck)
 };
 
@@ -214,8 +216,9 @@ static void apply_part_hit(int pi) {
             hit(90, SL_HAT, 2 + (int)(v3 * 4), 18 + (int)(v1 * 170));
         } break;
         case BASS: {   // CUTOFF, RES, DECAY, ACC
-            instrument_filter(SL_BASS, FILTER_LOW,
-                              (int)(120 * powf(9000.0f / 120.0f, v0)), (int)(1 + v1 * 12));
+            int base = (int)(120 * powf(9000.0f / 120.0f, v0));         // CUTOFF knob
+            // ACC also OPENS the filter — accent = louder AND brighter (parity with the lead)
+            instrument_filter(SL_BASS, FILTER_LOW, base + (int)(v3 * 3000), (int)(1 + v1 * 12));
             hit(33, SL_BASS, 2 + (int)(v3 * 5), 40 + (int)(v2 * 340));   // A1 acid root
         } break;
         case LEAD: {   // CUTOFF, RES, DECAY, ACC
@@ -407,9 +410,15 @@ void draw() {
     // ── the one knob row (edits the SELECTED part on the CURRENT page) + each knob's lane ──
     for (int i = 0; i < NK; i++) {
         Param *P = &SP->k[curPage][i];
-        const char *lbl = (curPage == PG_TONE) ? KLABEL[selPart][i] : MODLABEL[i];
         // show the lane/base value UNLESS a finger is holding this knob
         if (!ui_cap_for(&P->live)) P->live = cur_value(P);
+
+        // label: TONE = per-part names; MOD = names, but the two QUANTIZED knobs read out live
+        const char *lbl;
+        if (curPage == PG_TONE) lbl = KLABEL[selPart][i];
+        else if (i == 0)        lbl = str("RATE %s", RATEDIV[(int)(P->live * 4.999f)]);   // tempo division
+        else if (i == 2)        lbl = str("DEST %s", DESTNM [(int)(P->live * 3.999f)]);   // vibrato/wah/trem/pan
+        else                    lbl = MODLABEL[i];
 
         ui_knob(&P->live, kx[i], KY, lbl);
 

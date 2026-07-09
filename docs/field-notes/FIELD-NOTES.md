@@ -80,7 +80,7 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `015` **Repositories Can Learn** → `002-context-assembly`, `011-tool-discovery`, `012-self-describing-artifacts`, `013-generated-cart-index`, `018-passing-the-gates-felt-like-done`
 - `016` **Knowledge Drift** → `002-context-assembly`, `007-the-evolution-of-documentation`, `012-self-describing-artifacts`, `013-generated-cart-index`, `017-context-nudges`
 - `017` **Context Nudges** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `016-knowledge-drift`
-- `018` **Passing the Gates Felt Like Done** → `015-repositories-can-learn015-repositories-can-learn.md — oracles + conventions as`, `016-knowledge-drift016-knowledge-drift.md — docs drifting from code; here the *work*`, `017-context-nudges017-context-nudges.md — the right doc existed and was even cited in`
+- `018` **Passing the Gates Felt Like Done** → `015-repositories-can-learn`, `016-knowledge-drift`, `017-context-nudges`
 - `019` **Completing the Creative Loop** → `005-inflection`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`, `100-first-synthesis`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 

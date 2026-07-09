@@ -177,7 +177,13 @@ function parseNote(file) {
       if (/^#/.test(l)) break;
       const item = l.match(/^[*-]\s+(.+)$/);
       if (item) {
-        const slug = item[1].replace(/[`\[\]()]/g, '').trim();
+        let s = item[1];
+        // markdown link → use the link TEXT only (not text+href concatenated)
+        const link = s.match(/\[([^\]]+)\]\([^)]*\)/);
+        if (link) s = link[1];
+        // drop any trailing " — description" and take the leading slug token
+        s = s.replace(/[`]/g, '').split(/\s+[—–-]\s+/)[0].trim();
+        const slug = s.split(/\s+/)[0].replace(/[\[\]()]/g, '').trim();
         if (slug && slug !== '...' && slug !== '…') related.push(slug);
       }
     }

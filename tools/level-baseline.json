@@ -249,26 +249,26 @@
     {
       "eng": 27,
       "midi": 45,
-      "peakDb": -17.76,
-      "rmsDb": -31.81
+      "peakDb": -17.86,
+      "rmsDb": -39.06
     },
     {
       "eng": 27,
       "midi": 57,
-      "peakDb": -15.97,
-      "rmsDb": -35.13
+      "peakDb": -16.79,
+      "rmsDb": -42.61
     },
     {
       "eng": 27,
       "midi": 69,
-      "peakDb": -19.92,
-      "rmsDb": -39.14
+      "peakDb": -18.72,
+      "rmsDb": -52.72
     },
     {
       "eng": 27,
       "midi": 81,
-      "peakDb": -18.99,
-      "rmsDb": -44.57
+      "peakDb": -18.45,
+      "rmsDb": -68.75
     },
     {
       "eng": 28,
@@ -279,14 +279,14 @@
     {
       "eng": 28,
       "midi": 57,
-      "peakDb": -15.07,
-      "rmsDb": -23.34
+      "peakDb": -15.23,
+      "rmsDb": -23.38
     },
     {
       "eng": 28,
       "midi": 69,
-      "peakDb": -17.09,
-      "rmsDb": -25.38
+      "peakDb": -16.94,
+      "rmsDb": -25.24
     },
     {
       "eng": 28,

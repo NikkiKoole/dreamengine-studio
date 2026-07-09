@@ -96,6 +96,11 @@ run `canvas-diff` (and `mirror-diff` where symmetry applies) before/after.
   (`4349`/`4342`)** are verbatim copies of the same reflection-symmetric DDA, differing
   *only* by `sw_pset` vs `pset` (~30 lines; comment at `4335` admits it).
   Parameterize one over a plot callback (or `#define`-templated body).
+  **⚠ Assessed 2026-07-10: leave as-is.** The only difference is *which plot fn is called
+  per pixel*, in a per-pixel rasterizer hot path. A plot **callback** is an un-inlinable
+  indirect call per pixel → real perf regression on the line path. A `#define`-templated
+  body is byte-identical + perf-neutral but is macro soup for ~30 lines of stable code —
+  not worth it. Honest duplication wins here.
 - [ ] **`circfill` (`4164`) should delegate to `ovalfill` (`5496`)** — a circle is
   `rx==ry`, and `circfill_pat` (`4109`) already delegates to `ovalfill_pat`. ~25 lines
   vanish. (`disc_inside` at `4124` is likewise `ellipse_inside` with `rx==ry`.)
@@ -110,6 +115,11 @@ run `canvas-diff` (and `mirror-diff` where symmetry applies) before/after.
   (`5524`), `rrect` (`5104`), `poly_stroke_cov` (`4990`), `sector_draw` stroke
   (`4260`), `thick_draw` stroke (`5076`). One helper over a function pointer / macro
   collapses all six.
+  **⚠ Assessed 2026-07-10: leave as-is.** Same hot-path tension as the line twin, worse:
+  the inside-predicate is called **5× per pixel** across an O(r²) bbox, so a
+  function-pointer helper would likely make outlines *slower*. The maker already parked
+  the O(perimeter) span rewrite of these as low-leverage (see the `circ` comment +
+  `docs/guides/engine-optimization.md` → "Outline strokes (parked)"). Not worth a macro.
 - [x] **Retire the soak-period scaffolding.** `sw_tritex_legacy` (`898`, TODO at
   `897`) and `poly_fill_cov_legacy` (`4913`, TODO at `4912`) plus their runtime
   toggles (`blit_fast_on`, `tritex_fast_on`, `disc_fill_fast`, `poly_fill_fast`,

@@ -551,7 +551,10 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
 - **Which check to run for a change → [`docs/guides/checks-and-oracles.md`](docs/guides/checks-and-oracles.md)**
   — the reverse index (task → gate) for render/perf/audio/cart-logic/docs. Check it before hand-rolling
   a verification; the matching deterministic oracle usually already exists (`canvas-diff`, `mirror-diff`,
-  `road-check`, `build-all`, `spec`, the audio gates below, …).
+  `road-check`, `build-all`, `spec`, the audio gates below, …). Its "Orienting" section also holds the
+  **verify-a-claim-by-reading** rule: a grep finds *candidates* — read them before asserting a count
+  ("N carts do X") or a capability ("the engine has no Y"); a keyword/API-*name* match misses recipes
+  and hits prose.
 - **Audio self-tests** (run the matching one after the matching edit; all deterministic, `--save`
   re-blesses an intended change; findings in [`docs/design/audio-notes.md`](docs/design/audio-notes.md)):
   - touched `runtime/sound.h` (queues/requests): `node tools/play.js soundcheck script /dev/null

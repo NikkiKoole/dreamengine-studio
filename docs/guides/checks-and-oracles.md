@@ -81,6 +81,23 @@ This page is only the routing layer.
 | what cart teaches technique X | **`cart-index.js`** |
 | cross-cart duplication (refactor candidates) | **`cart-dupes.js`** |
 
+> **Answer a CLAIM by reading, not by grepping.** A raw `grep` finds *candidates* — it does **not**
+> establish a **count** ("N carts do X") or a **capability** ("the engine has no Y"). Both mislead: a
+> keyword match hits prose and unrelated uses, and an API-*name* search misses capabilities that are a
+> *composition* of existing calls, not a single symbol. Two misses that cost real time (2026-07-09,
+> motionbox):
+> - *"the engine has no supersaw / chord-from-one-note primitive"* — from an `api.js` name search → no
+>   match. **Wrong:** `chord()` is built in, and a supersaw is the *mt70 multi-slot trick* (`moog.c` had
+>   already built it, zero engine code). A capability is often a recipe, not a symbol.
+> - *"many carts hand-roll unison"* — from `grep -l 'detune|unison'` → ~8 hits. **Wrong:** reading each,
+>   only 3 genuinely stack detuned slots; the rest matched "detune"/"fat" in prose.
+>
+> So: **grep (or the tools above) to find candidates → open each and read it → *then* assert.** For
+> "does capability X exist?" prefer **`api.js`** + **`topic-brief.js`** (they point at the recipe, not
+> just the name); for "which / how-many carts do X?" use **`cart-index.js`** and confirm the shortlist
+> by reading. The number, or the "there's no such thing," you're about to write down is exactly the
+> claim most worth double-checking.
+
 ---
 
 *Adding a check?* Put the contract in the tool's header + one line in CLAUDE.md's tool list, then add

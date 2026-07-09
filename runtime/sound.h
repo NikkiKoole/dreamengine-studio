@@ -103,6 +103,7 @@ typedef struct {
     float sc_send;                  // how much this slot drives that key 0..1; 0 = not a trigger (default)
     int   fx_bus;                   // insert bus for chorus/flanger: 0 = master (default), 1.. = a private aux bus (instrument_chorus/flanger)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
+    float level;                    // per-slot output level (instrument_level); read LIVE at mix. 1.0 = unity/byte-identical bypass, <1 trims — the mixer leg drive/echo/reverb/pan already had
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
     int   uni_voices;               // UNISON stack: 1 = off (default), 2..7 = N detuned wavetable copies summed (instrument_unison)
@@ -1857,6 +1858,7 @@ typedef enum {
     SR_BPM           = 119,  // a=rate — tempo. Queued like all config so it RECORDS into the cart context; a direct global write raced de_switch_cart (main thread wrote the new cart's bpm before the audio thread snapshotted the old one's — heard as tempo jumps in the bundle)
     SR_INSTR_UNISON        = 120,  // a=slot, b=voices, c=detune*1000 — configure the unison stack (instrument_unison)
     SR_INSTR_UNISON_DETUNE = 121,  // a=slot, b=detune*1000 — ride the unison spread alone (instrument_unison_detune), read LIVE like tune
+    SR_INSTR_LEVEL         = 122,  // a=slot, b=level*1000 — per-slot output level/gain (instrument_level), read LIVE at mix like tune_mul
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1939,7 +1941,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
         case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
         case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY:
-        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE:
+        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL:
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
             return CTXK_KA;
@@ -5487,6 +5489,13 @@ static void sound_fire_req(SoundReq r) {
         if (x < -1.0f) x = -1.0f; if (x > 1.0f) x = 1.0f;
         instr_bank[slot].pan = x;
     } break;
+    case SR_INSTR_LEVEL: {  // a=slot, b=level*1000 — per-slot output level
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float x = r.b / 1000.0f;
+        if (x < 0.0f) x = 0.0f;
+        instr_bank[slot].level = x;
+    } break;
     case SR_NOTE_PAN: {     // a=pan*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
@@ -5850,6 +5859,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 s = dc_block(&v->drv_dc_x1, &v->drv_dc_y1, s, 0.999f);
             }
             float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
+            if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
+                contrib *= instr_bank[v->instr_slot].level;   // per-slot output level (instrument_level); read LIVE, 1.0 = byte-identical bypass
             // stereo pan (stereo.md): clamp the slewed base pan + any LFO_PAN offset to [-1,1],
             // then split into L/R gains by the master pan law.
             float pan = v->pan + pan_mod;
@@ -6313,6 +6324,12 @@ void instrument_pan(int slot, float pan) {
 void note_pan(int handle, float pan) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_PAN, (int)(pan * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+void instrument_level(int slot, float gain) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (gain < 0.0f) gain = 0.0f;
+    sound_push_ctrl(SR_INSTR_LEVEL, slot, (int)(gain * 1000.0f), 0, 0, 0, 0);
 }
 
 // ── spatial audio (spatial.md): a listener + positioned sources → automatic pan/distance/Doppler ──
@@ -7044,6 +7061,7 @@ static void sound_reset_state(void) {
         instr_bank[i].sync_ratio = 0.0f;   // hard sync off until instrument_sync() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
+        instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
         instr_bank[i].sc_send    = 0.0f;

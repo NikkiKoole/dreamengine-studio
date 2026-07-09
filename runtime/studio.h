@@ -347,6 +347,7 @@ void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, in
 void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
 void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. voices inherit at note-on. sweep live with note_pan or LFO_PAN
+void instrument_level(int slot, float gain);              // per-slot output LEVEL 0..1 — 1 = unity (default, byte-identical), 0.5 ≈ half, 0 = silent. balance a multi-part mix; ride it live like drive/echo. the level leg of the per-slot mixer (drive/echo/reverb/pan)
 
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned

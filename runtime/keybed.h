@@ -17,7 +17,7 @@
 // Usage — minimal (the built-in drawn manual draws AND hit-tests):
 //   #include "keybed.h"
 //   void init(void){ instrument(5, INSTR_SAW, 8, 140, 6, 260);
-//                     keybed_config(5, 4, 2);                 // slot 5, base octave C4, 2 octaves
+//                     keybed_config(5, 4, 14);                // slot 5, base octave C4, 14 WHITE KEYS (2 octaves) — 3rd arg is white-key COUNT, not octaves
 //                     keybed_layout(0, 56, SCREEN_W, SCREEN_H - 56); }
 //   void update(void){ keybed_update(); }                    // drains touch + QWERTY + MIDI
 //   void draw(void){ cls(CLR_BLACK); keybed_draw(); }

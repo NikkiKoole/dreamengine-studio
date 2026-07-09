@@ -201,10 +201,14 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
 - [x] **`btn_local` keymap table.** The near-identical 8-case per-player switches in
   `btn_local` (`studio.c:3298`+) → `static const int keymap[2][BTN_COUNT]` + one
   `inp_down(keymap[player][button])`.
-- [ ] **Font table.** Font load (`studio.c:3070–3095`), unload (`~3105`), and the
+- [x] **Font table.** Font load (`studio.c:3070–3095`), unload (`~3105`), and the
   two lookup if-chains `cur_font()`/`cur_font_img()` (`3849`/`3856`) repeat the same
   per-font work 3 times over. A `{Font*, Image*, data, len, keyColor}` table indexed
-  by font id drives all of it.
+  by font id drives all of it. **Done:** `FONT_SLOT[]`/`FONT_IMG[]` (font id → Font/CPU
+  image) + a local `FONT_SRC[]` (data/len/first_char) now drive the load loop, the
+  sw_print CPU-copy loop, `cur_font()`/`cur_font_img()` (one index each), and the unload
+  loop — five per-font blocks → four short loops. Iterated in id order = same calls/args
+  as before → byte-identical (fonts demo renders identical sha vs HEAD; build-all 479/479).
 - [x] **`env_is(name, val)` helper.** 9 near-identical `getenv + strcmp` blocks
   (`studio.c:2849–2867`). (The 10th, `DE_SHOW_SIZE`, is a "set & not 0" test, not an
   `==`-match — left inline.)

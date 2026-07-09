@@ -194,6 +194,11 @@ static int             active_font_id = FONT_NORMAL;
 // LoadImageFromTexture). Same index meaning as active_font_id via cur_font_img().
 static Image           game_font_img = {0}, font_small_img = {0}, font_tiny_img = {0}, font_comic_img = {0}, font_thin_img = {0};
 static bool            custom_font = false;
+// font id (FONT_NORMAL..FONT_THIN) → its GPU Font + CPU image atlas. One table drives load,
+// the sw_print CPU copies, cur_font()/cur_font_img() lookup, and unload — see de_init.
+enum { FONT_COUNT = 5 };
+static Font  *const FONT_SLOT[FONT_COUNT] = { &game_font, &font_small, &font_tiny, &font_comic, &font_thin };
+static Image *const FONT_IMG [FONT_COUNT] = { &game_font_img, &font_small_img, &font_tiny_img, &font_comic_img, &font_thin_img };
 static DeColor           palette[PALETTE_SIZE];
 static DeColor           base_palette[PALETTE_SIZE];   // pristine copy, for pal_reset()
 // pal()-on-sprites: a palette-swap shader. Sprite texels are exact palette RGBs,
@@ -3057,45 +3062,27 @@ int main(int argc, char **argv) {
     canvas_snap = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
 
-    {
-        Image fontImage = de_image_decode(DOS_8X8_FONT, DOS_8X8_FONT_LEN);
-        game_font = LoadFontFromImage(fontImage, (DeColor){ 255, 255, 0, 255 }, 0);
-        SetTextureFilter(game_font.texture, TEXTURE_FILTER_POINT);
-        UnloadImage(fontImage);
-        custom_font = true;
-    }
-    {
-        Image img = de_image_decode(FONT4X6_DATA, FONT4X6_DATA_LEN);
-        font_small = LoadFontFromImage(img, (DeColor){ 255, 255, 0, 255 }, 32);
-        SetTextureFilter(font_small.texture, TEXTURE_FILTER_POINT);
+    static const struct { const unsigned char *data; int len; int first_char; } FONT_SRC[FONT_COUNT] = {
+        { DOS_8X8_FONT,        DOS_8X8_FONT_LEN,        0  },   // FONT_NORMAL — 8×8 DOS
+        { FONT4X6_DATA,        FONT4X6_DATA_LEN,        32 },   // FONT_SMALL  — 4×6
+        { FONT3X5_DATA,        FONT3X5_DATA_LEN,        32 },   // FONT_TINY   — 3×5
+        { FONTCOMIC10X20_DATA, FONTCOMIC10X20_DATA_LEN, 0  },   // FONT_COMIC  — Comic Mono Bold 10×20
+        { FONTTHIN8X8_DATA,    FONTTHIN8X8_DATA_LEN,    0  },   // FONT_THIN   — IBM CGA thin 8×8
+    };
+    for (int i = 0; i < FONT_COUNT; i++) {
+        Image img = de_image_decode(FONT_SRC[i].data, FONT_SRC[i].len);
+        *FONT_SLOT[i] = LoadFontFromImage(img, (DeColor){ 255, 255, 0, 255 }, FONT_SRC[i].first_char);
+        SetTextureFilter(FONT_SLOT[i]->texture, TEXTURE_FILTER_POINT);
         UnloadImage(img);
     }
-    {
-        Image img = de_image_decode(FONT3X5_DATA, FONT3X5_DATA_LEN);
-        font_tiny = LoadFontFromImage(img, (DeColor){ 255, 255, 0, 255 }, 32);
-        SetTextureFilter(font_tiny.texture, TEXTURE_FILTER_POINT);
-        UnloadImage(img);
-    }
-    {
-        Image img = de_image_decode(FONTCOMIC10X20_DATA, FONTCOMIC10X20_DATA_LEN);
-        font_comic = LoadFontFromImage(img, (DeColor){ 255, 255, 0, 255 }, 0);   // Comic Mono Bold @ 18px, 10×20 cells
-        SetTextureFilter(font_comic.texture, TEXTURE_FILTER_POINT);
-        UnloadImage(img);
-    }
-    {
-        Image img = de_image_decode(FONTTHIN8X8_DATA, FONTTHIN8X8_DATA_LEN);
-        font_thin = LoadFontFromImage(img, (DeColor){ 255, 255, 0, 255 }, 0);    // IBM CGA "thin" 8×8, narrow-stroke alternate
-        SetTextureFilter(font_thin.texture, TEXTURE_FILTER_POINT);
-        UnloadImage(img);
-    }
+    custom_font = true;   // FONT_NORMAL is always our embedded DOS font (was set in its load block)
 
     // CPU copies of the font atlases for the software-canvas glyph blit (sw_print). RGBA so
     // GetImageColor is a plain read; alpha is the glyph mask (LoadFontFromImage keyed the bg out).
-    game_font_img  = LoadImageFromTexture(game_font.texture);  ImageFormat(&game_font_img,  PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    font_small_img = LoadImageFromTexture(font_small.texture); ImageFormat(&font_small_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    font_tiny_img  = LoadImageFromTexture(font_tiny.texture);  ImageFormat(&font_tiny_img,  PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    font_comic_img = LoadImageFromTexture(font_comic.texture); ImageFormat(&font_comic_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    font_thin_img  = LoadImageFromTexture(font_thin.texture);  ImageFormat(&font_thin_img,  PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    for (int i = 0; i < FONT_COUNT; i++) {
+        *FONT_IMG[i] = LoadImageFromTexture(FONT_SLOT[i]->texture);
+        ImageFormat(FONT_IMG[i], PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    }
 
 #ifdef SPRITES_MULTI
     for (int i = 0; i < SPRITES_MULTI; i++) {          // per-cart sheets: pre-load all, boot cart is ctx 0
@@ -3188,11 +3175,9 @@ int main(int argc, char **argv) {
     if (uiaudit_file) { fclose(uiaudit_file); uiaudit_file = NULL; }
     free(replay_ev); replay_ev = NULL;
 
-    if (custom_font) UnloadFont(game_font);
-    if (font_small.texture.id > 0) UnloadFont(font_small);
-    if (font_tiny.texture.id  > 0) UnloadFont(font_tiny);
-    if (font_comic.texture.id > 0) UnloadFont(font_comic);
-    if (font_thin.texture.id > 0) UnloadFont(font_thin);
+    if (custom_font) UnloadFont(game_font);                         // FONT_NORMAL: guarded by custom_font, not texture id
+    for (int i = 1; i < FONT_COUNT; i++)                            // the rest: unload if actually loaded
+        if (FONT_SLOT[i]->texture.id > 0) UnloadFont(*FONT_SLOT[i]);
     if (pal_shader_ok) UnloadShader(pal_shader);
     if (scale_shader_ok) UnloadShader(scale_shader);
     if (smooth_rt_ok) UnloadRenderTexture(smooth_rt);
@@ -3825,20 +3810,8 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
 
 void font(int f) { active_font_id = (f == FONT_SMALL || f == FONT_TINY || f == FONT_COMIC || f == FONT_THIN) ? f : FONT_NORMAL; }
 
-static Font cur_font(void) {
-    if (active_font_id == FONT_SMALL) return font_small;
-    if (active_font_id == FONT_TINY)  return font_tiny;
-    if (active_font_id == FONT_COMIC) return font_comic;
-    if (active_font_id == FONT_THIN) return font_thin;
-    return game_font;
-}
-static Image *cur_font_img(void) {
-    if (active_font_id == FONT_SMALL) return &font_small_img;
-    if (active_font_id == FONT_TINY)  return &font_tiny_img;
-    if (active_font_id == FONT_COMIC) return &font_comic_img;
-    if (active_font_id == FONT_THIN)  return &font_thin_img;
-    return &game_font_img;
-}
+static Font cur_font(void) { return *FONT_SLOT[active_font_id]; }        // active_font_id clamped to 0..FONT_COUNT-1 by font()
+static Image *cur_font_img(void) { return FONT_IMG[active_font_id]; }
 // software text: blit each glyph from the font atlas (tinted to `color`), mirroring DrawTextEx's
 // glyph iteration at scale 1 (these bitmap fonts draw at baseSize). Returns the pen x after the text.
 static int sw_print(const char *text, int x, int y, DeColor tint) {

@@ -131,11 +131,13 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   duplicated verbatim 3× (`sound.h:4849, 4863, 5452`: `SR_NOTE`, `SR_NOTE_ON`,
   `SR_HIT_AT`). **Done:** `sound_choke_group(int instr_slot)` computes the cmask *and*
   runs the steal loop (the cmask calc was duplicated too), so all three sites are one call.
-- [ ] **Karplus tap-read + T60→feedback helper.** `ks_tap_read` (fractional read +
+- [x] **Karplus tap-read + T60→feedback helper.** `ks_tap_read` (fractional read +
   wrap + lerp) and `fb = expf(-6.9078f/(t60*f))` are duplicated between
   `sound_engine_sample` (`4342`+; `fb` at `4372`) and `sound_guitar_sample` (`4043`+;
   `fb` at `4053`), and the tap-read reappears in the echo send (`~5890`). Extract
-  `ks_tap_read` / `t60_to_fb`.
+  `ks_tap_read` / `t60_to_fb`. **Done** for the two Voice-based sites (guitar + modal
+  engine). The echo send uses the same shape on `echo_buf` (different buffer + wrap) —
+  not folded into the `Voice*`-typed helper.
 - [x] **`ks_seed_bore(v, targetLen, noiseScale)`** — bore/string delay-line seeding
   (size ×2.5, cap at `SOUND_KS_MAX-1`, floor 4, seed noise, set `initfreq`) is
   copy-pasted across reed/pipe/bowed/brass (`sound.h:3019, 3163, 3263, 3424`),

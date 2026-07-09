@@ -4034,6 +4034,20 @@ static void sound_guitar_start(Voice *v) {
     v->gt_on = true;
 }
 
+// Karplus-Strong loop shared bits (guitar + the modal engine string). t60_to_fb: the feedback
+// coefficient so the loop decays to −60dB in t60 seconds at frequency f (fb^(f·t60)=0.001).
+// ks_tap_read: linear-interpolated read `len_f` samples behind the write head of v->ks_buf,
+// with the buffer wrap. (The echo send uses the same shape on echo_buf — different buffer, not folded.)
+static inline float t60_to_fb(float t60, float f) { return expf(-6.9078f / (t60 * f)); }
+static inline float ks_tap_read(Voice *v, float len_f, int alloc) {
+    float rpos = (float)v->ks_widx - len_f;
+    if (rpos < 0.0f) rpos += (float)alloc;
+    int   i0 = (int)rpos;   if (i0 >= alloc) i0 = 0;
+    int   i1 = i0 + 1;      if (i1 >= alloc) i1 = 0;
+    float fr = rpos - (float)i0;
+    return v->ks_buf[i0] + (v->ks_buf[i1] - v->ks_buf[i0]) * fr;
+}
+
 // per-sample: KS string with morph-driven decay (mute) → parallel body resonator → DC blocker.
 static inline float sound_guitar_sample(Voice *v, float pitch_mul) {
     int alloc = v->ks_len;
@@ -4045,13 +4059,8 @@ static inline float sound_guitar_sample(Voice *v, float pitch_mul) {
     if (len_f < 2.0f) len_f = 2.0f;
     // morph = mute: T60 from a long open ring (mor=0, ~6s) to a tight pizzicato stop (mor=1, ~80ms)
     float t60 = 0.08f * expf((1.0f - v->mor) * 4.3f);
-    float fb  = expf(-6.9078f / (t60 * f));
-    float rpos = (float)v->ks_widx - len_f;
-    if (rpos < 0.0f) rpos += (float)alloc;
-    int   i0 = (int)rpos;        if (i0 >= alloc) i0 = 0;
-    int   i1 = i0 + 1;           if (i1 >= alloc) i1 = 0;
-    float fr  = rpos - (float)i0;
-    float dry = v->ks_buf[i0] + (v->ks_buf[i1] - v->ks_buf[i0]) * fr;
+    float fb  = t60_to_fb(t60, f);
+    float dry = ks_tap_read(v, len_f, alloc);
     // loop filter: the KS damping average, but timbre keeps the upper harmonics (1–3k presence)
     // alive instead of nuking them every pass — the cure for the "thin/dull" spectral hump
     float lpf  = (dry + v->ks_last) * 0.5f;
@@ -4359,13 +4368,8 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     // knob honest across the neck; at the very top the 0.5 average below becomes the real
     // ceiling (it still darkens highs faster — which is what sells "string").
     float t60 = 0.04f * expf(v->harm * 8.0f);            // 0.04 * 2980^harm seconds to -60dB
-    float fb  = expf(-6.9078f / (t60 * f));              // fb^(freq*t60) = 0.001
-    float rpos = (float)v->ks_widx - len_f;
-    if (rpos < 0.0f) rpos += (float)alloc;
-    int   i0 = (int)rpos;        if (i0 >= alloc) i0 = 0;
-    int   i1 = i0 + 1;           if (i1 >= alloc) i1 = 0;
-    float fr  = rpos - (float)i0;
-    float out = v->ks_buf[i0] + (v->ks_buf[i1] - v->ks_buf[i0]) * fr;
+    float fb  = t60_to_fb(t60, f);                       // fb^(freq*t60) = 0.001
+    float out = ks_tap_read(v, len_f, alloc);
     v->ks_buf[v->ks_widx] = (out + v->ks_last) * 0.5f * fb;   // damping average + feedback
     v->ks_last = out;
     if (++v->ks_widx >= alloc) v->ks_widx = 0;

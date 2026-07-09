@@ -678,6 +678,7 @@ static float ctrl_scale_btn = 1.0f;  // the BUTTON diamond's own scale — RAILS
 static int  place_mode = PLACE_OVERLAY;
 static int  band_x = 0, band_y = 0, band_w = 0, band_h = 0;
 static bool touch_debug_on = false;
+static bool net_debug_on    = false;   // F2: net-health overlay (frame/buffer/stalls/pkts) — see draw_net_debug
 
 static inline float eff_stick_r(void) { return STICK_RADIUS * ctrl_scale; }
 static inline float eff_btn_r(void)   { return BTN_RADIUS   * ctrl_scale_btn; }
@@ -1555,6 +1556,36 @@ static void draw_watch_overlay(void) {
     }
 }
 
+#ifdef DE_NET_CORE
+// F2 net-health overlay (top-right, window space): the numbers that explain a
+// netplay hang. PEER BUFFER is the runway before the lockstep barrier blocks —
+// watch it drop to 0 right before a freeze (network jitter/loss or a peer hitch).
+// tx/rx climbing together = healthy; rx flat while tx climbs = we're not hearing
+// the peer. Toggle with F2. Design: docs/design/multiplayer-research.md.
+static void draw_net_debug(void) {
+    if (!net_debug_on || !net_active) return;
+    int pad = 8, lh = 14, w = 262, h = pad*2 + 4*lh;
+    int x = GetScreenWidth() - w - 8, y = 8;
+    DrawRectangle(x, y, w, h, (DeColor){ 0, 0, 0, 190 });
+    DrawRectangleLines(x, y, w, h, (DeColor){ 120, 220, 255, 150 });
+    int buf = net_peer_buffer_depth();
+    DeColor bufcol = buf <= 1 ? (DeColor){ 255,  90,  90, 255 }    // starving → red
+                   : buf <= 4 ? (DeColor){ 255, 210,  80, 255 }    // thin → amber
+                              : (DeColor){ 120, 255, 120, 255 };   // healthy → green
+    char l[80];
+    snprintf(l, sizeof l, "NET  f=%d  P%d %s", net_frame, net_me, net_is_host ? "host" : "join");
+    DrawTextEx(game_font, l, (Vector2){ x+pad, y+pad },        12, 1, WHITE);
+    snprintf(l, sizeof l, "peer buffer: %d frames", buf);
+    DrawTextEx(game_font, l, (Vector2){ x+pad, y+pad+lh },     12, 1, bufcol);
+    snprintf(l, sizeof l, "pkts  tx:%ld  rx:%ld", net_stat_tx, net_stat_rx);
+    DrawTextEx(game_font, l, (Vector2){ x+pad, y+pad+lh*2 },   12, 1, WHITE);
+    snprintf(l, sizeof l, "stalls:%ld last:%dms tot:%ldms",
+             net_stat_stalls, net_stat_last_stall_ms, net_stat_stall_ms_total);
+    DrawTextEx(game_font, l, (Vector2){ x+pad, y+pad+lh*3 },   12, 1,
+               net_stat_stalls > 0 ? (DeColor){ 255, 210, 80, 255 } : WHITE);
+}
+#endif
+
 // live canvas/window size readout for resizable-layout debugging — top-left, window space (crisp,
 // scale-independent). Opt-in via env DE_SHOW_SIZE=1 (works from play.js or `DE_SHOW_SIZE=1 make`) and
 // only for a resizable cart (de_reflow). de_sw×de_sh is what screen_w()/screen_h() (and lay.h) see;
@@ -1782,8 +1813,14 @@ static void json_str(FILE *f, const char *s) {
 // frame (age 0 — age_watches() runs after us). Reading a session = reading this.
 static void harness_trace(int fno) {
     if (!trace_file) return;
-    fprintf(trace_file, "{\"f\":%d,\"t\":%.4f,\"beat\":%d,\"bpos\":%.4f,\"w\":{",
+    fprintf(trace_file, "{\"f\":%d,\"t\":%.4f,\"beat\":%d,\"bpos\":%.4f,",
             fno, clk(), beat(), beat_pos());
+#ifdef DE_NET_CORE
+    if (net_active)   // net-health timeline: buffer runway + stalls per frame (tooling #2)
+        fprintf(trace_file, "\"net\":{\"buf\":%d,\"tx\":%ld,\"rx\":%ld,\"stalls\":%ld,\"stall_ms\":%ld},",
+                net_peer_buffer_depth(), net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total);
+#endif
+    fputs("\"w\":{", trace_file);
     int first = 1;
     for (int i = 0; i < watch_count; i++) {
         if (watches[i].age != 0) continue;
@@ -2187,6 +2224,9 @@ static void loop_step(void) {
     poll_virtual_touches();
     if (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8) update_dpad(); else update_stick();
     if (inp_pressed(KEY_F1)) watch_show = !watch_show;
+#ifdef DE_NET_CORE
+    if (inp_pressed(KEY_F2)) net_debug_on = !net_debug_on;   // net-health overlay
+#endif
 
     // pause overlay — PAUSE_KEY or ENTER toggles; when open ESC resumes instead
     // of closing the window. Keys the cart reads itself are claimed and skipped.
@@ -2409,6 +2449,7 @@ static void loop_step(void) {
         draw_watch_overlay();
 #ifdef DE_NET_CORE
         draw_net_notice();             // "PLAYER 2 LEFT" banner (web drop-to-solo)
+        draw_net_debug();              // F2: net-health overlay (frame/buffer/stalls/pkts)
 #endif
         draw_size_overlay();           // resizable carts: live WxH readout, top-left
     EndDrawing();
@@ -2700,6 +2741,16 @@ void de_resize(int w, int h) { de_set_canvas(w, h); }
 int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
 
 #ifdef DE_NET_BUILD
+// Windows starts the window HIDDEN (see InitWindow) to avoid the undrawn-white flash; this reveals
+// it after the FIRST present. Called after EndDrawing in every loop that can be first on screen —
+// the net lobby (2-player carts boot into it) AND the main loop — so the window always appears.
+static bool de_win_reveal_pending = false;
+static inline void de_reveal_window_once(void) {
+#if defined(_WIN32) && !defined(DE_NO_RAYLIB)
+    if (de_win_reveal_pending) { ClearWindowState(FLAG_WINDOW_HIDDEN); de_win_reveal_pending = false; }
+#endif
+}
+
 // ── netplay boot lobby (rung 2.5 — docs/design/multiplayer-research.md) ───────
 // An in-window Host / Join / Solo menu so a STANDALONE build (no editor, just a
 // double-clicked exe) can start multiplayer with no CLI flags. Shown when
@@ -2728,6 +2779,7 @@ static void net_lobby_status_frame(void) {
     net_lobby_center(line, cy, px, palette[7]);
     if (net_is_host) net_lobby_center("tell the other player to Join this address", cy + px * 2, px * 0.6f, palette[13]);
     EndDrawing();
+    de_reveal_window_once();   // in case a join goes straight to connecting without the menu first
 }
 
 // The menu loop. Sets net_is_host / net_join_ip / net_requested on a host/join
@@ -2778,6 +2830,7 @@ static void net_lobby_menu(const char *title) {
             }
         }
         EndDrawing();
+        de_reveal_window_once();   // 2-player carts boot here first — reveal the window from the lobby
         // live-inspection: same .bake/window_screenshot_request hook the game loop
         // honors, so the lobby is capturable headlessly (dev preview + this rung's gate)
         FILE *sf = fopen(".bake/window_screenshot_request", "r");
@@ -2930,7 +2983,35 @@ int main(int argc, char **argv) {
     // resizes the window (dev-preview window-fill); the compile flag additionally reflows the canvas.
     if (de_reflow) SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 #endif
+#if defined(_WIN32) && !defined(DE_NO_RAYLIB)
+    // Start the window HIDDEN so the DPI grow below AND the first frame happen off-screen; we reveal
+    // it after the first present (in the loop). Without this you see an undrawn (white) window flash,
+    // and worse under DPI scaling: the SetWindowSize grow leaves a white rect the size of the
+    // un-scaled window in the top-left until the real frame paints over it. Headless stays hidden.
+    if (!hide_window) { SetConfigFlags(FLAG_WINDOW_HIDDEN); de_win_reveal_pending = true; }
+#endif
     InitWindow(win_w, win_h, window_title);
+#if defined(_WIN32) && !defined(DE_NO_RAYLIB)
+    // Windows high-DPI fix: GLFW marks the process DPI-aware at init, so Windows hands us RAW
+    // physical pixels and refuses to upscale — on a 4K/scaled panel SCREEN_W*SCALE is tiny, and
+    // the OS "display scaling" slider has no effect. macOS Retina sizes windows in points, so it
+    // already looks right (this is why the export "loses" scaling only on Windows). We grow the
+    // window by the monitor's content scale ourselves; gr_place() then re-fits the canvas at the
+    // largest INTEGER scale into the bigger window every frame (crisp, centred). Opt out: DE_DPI=0.
+    { const char *dz = getenv("DE_DPI");
+      if (!(dz && strcmp(dz, "0") == 0) && !de_reflow) {   // reflow carts already track the window
+        Vector2 dpi = GetWindowScaleDPI();                 // {1,1} at 100%, {1.5,1.5} at 150%, …
+        if (dpi.x > 1.05f || dpi.y > 1.05f) {
+            int nw = (int)(win_w * dpi.x + 0.5f), nh = (int)(win_h * dpi.y + 0.5f);
+            SetWindowSize(nw, nh);
+            int mon = GetCurrentMonitor();                 // recentre — SetWindowSize grows from top-left
+            SetWindowPosition((GetMonitorWidth(mon)  - nw) / 2 + GetMonitorPosition(mon).x,
+                              (GetMonitorHeight(mon) - nh) / 2 + GetMonitorPosition(mon).y);
+            win_w = nw; win_h = nh;
+        }
+      }
+    }
+#endif
 #if !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
     // seed the active dims from the initial window (DE_WINDOW may have overridden it); a resizable
     // cart launched at a non-default size reflows from frame 0, not only after the first drag.
@@ -3096,6 +3177,7 @@ int main(int argc, char **argv) {
 #endif
     while (!WindowShouldClose()) {
         loop_step();
+        de_reveal_window_once();   // first frame presented — reveal (see the hide at InitWindow)
         if (screenshot_mode && ++screenshot_frames_done >= 3) break;
         if (max_frames > 0 && frame_count >= max_frames) break;   // bounded harness run
     }

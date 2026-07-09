@@ -184,8 +184,12 @@ if (mode === 'netdemo') {
     // lockstep verdict: both sims are (supposed to be) identical, so the two
     // traces must match line for line — first differing line = desync frame
     try {
-      const A = fs.readFileSync(traceOf('host'), 'utf8').trim().split('\n')
-      const B = fs.readFileSync(traceOf('join'), 'utf8').trim().split('\n')
+      // drop the per-peer "net":{...} diagnostics block — it legitimately differs
+      // between host and joiner (each side's own buffer/tx/rx). Desync = the SIM
+      // state (f/beat/bpos + the watch "w" object) diverging, nothing else.
+      const noNet = s => s.replace(/"net":\{[^}]*\},/, '')
+      const A = fs.readFileSync(traceOf('host'), 'utf8').trim().split('\n').map(noNet)
+      const B = fs.readFileSync(traceOf('join'), 'utf8').trim().split('\n').map(noNet)
       const n = Math.min(A.length, B.length)
       let bad = -1
       for (let i = 0; i < n; i++) if (A[i] !== B[i]) { bad = i; break }

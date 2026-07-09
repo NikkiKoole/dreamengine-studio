@@ -106,6 +106,19 @@ static int     net_frame = 0;                 // lockstep sim frame counter
 static int     net_sampled_frame = -1;        // sim frame whose local input is already sampled+sent
 static int     net_try_spins = 0;             // barrier attempts for the current frame (resend cadence)
 
+// ── net diagnostics (F2 overlay + --trace fields) — docs/design/multiplayer-research.md ──
+// Best-effort counters that explain a netplay HANG: the lockstep barrier blocks
+// the whole frame until the peer's input arrives, so a "freeze" is the barrier
+// waiting. The peer-input BUFFER draining toward 0 is the leading indicator.
+// Zero cost when nothing reads them.
+static long net_stat_tx     = 0;   // INPUT packets sent
+static long net_stat_rx     = 0;   // INPUT packets received (peer inputs)
+static long net_stat_stalls = 0;   // frames the blocking barrier had to wait (native)
+static int  net_stat_last_stall_ms    = 0;   // duration of the most recent stall (ms)
+static int  net_stat_last_stall_frame = -1;  // which sim frame that stall was on
+static long net_stat_stall_ms_total   = 0;   // cumulative stall time this session (ms)
+#define NET_STALL_LOG_MS 100       // stalls at/over this get one console log line
+
 // an on-screen netplay notice ("PLAYER 2 LEFT — PLAYING SOLO"): the console is
 // invisible in a browser, so events the player must SEE go here; studio.c's
 // draw_net_notice() shows it as a window-space banner for ~5 s then clears it.
@@ -137,13 +150,24 @@ static uint8_t net_get(int player, int frame) {
     return net_ring_bits[player][frame % NET_RING];
 }
 
+// how many consecutive future frames of the PEER's input are already queued from
+// net_frame onward — the lockstep "runway before we stall" number. 0 at net_frame
+// means we're blocking right now. This is the single most useful hang diagnostic.
+static int net_peer_buffer_depth(void) {
+    int peer = net_me ^ 1, d = 0;
+    for (int f = net_frame; f < net_frame + NET_RING && net_have(peer, f); f++) d++;
+    return d;
+}
+
 // parse one NET_PKT_INPUT payload (already magic-checked, n >= 8) and store the
 // carried frames as the PEER's inputs — shared by every transport's receive path.
 static void net_input_pkt(const uint8_t *b, int n) {
     int f0  = b[3] | b[4] << 8 | b[5] << 16 | b[6] << 24;
     int cnt = b[7];
-    if (f0 >= 0 && 8 + cnt <= n)
+    if (f0 >= 0 && 8 + cnt <= n) {
         for (int i = 0; i < cnt; i++) net_store(net_me ^ 1, f0 + i, b[8 + i]);
+        net_stat_rx++;
+    }
 }
 
 // send my most recent inputs up to and including `latest` (NET_REDUN-frame window)
@@ -155,6 +179,7 @@ static void net_send_inputs(int latest) {
                                    (uint8_t)(f0 >> 16), (uint8_t)(f0 >> 24), (uint8_t)n };
     for (int i = 0; i < n; i++) pkt[8 + i] = net_get(net_me, f0 + i);
     net_transport_send(pkt, 8 + n);
+    net_stat_tx++;
 }
 
 // reset the lockstep state for a fresh session: empty rings, frames
@@ -499,6 +524,31 @@ static struct sockaddr_in net_peer;
 static bool               net_peer_set   = false;
 static bool               net_got_welcome = false;
 
+// ── net-debug log FILE (the "send Claude a log after the session" artifact) ──
+// A hang on a -mwindows exe has no console; this persists a timeline to disk both
+// sides can send back. One line/second heartbeat + a line per stall, seat-suffixed
+// so a two-process run (netdemo, cwd=build/) never clobbers. Default on for any net
+// session; DE_NET_LOG=off disables, DE_NET_LOG=<path> relocates. Flushed per line so
+// a force-quit on a hang still leaves the tail.
+static FILE *net_log      = NULL;
+static bool  net_log_tried = false;
+static void net_log_open(void) {
+    if (net_log_tried) return;
+    net_log_tried = true;
+    const char *p = getenv("DE_NET_LOG");
+    if (p && (strcmp(p, "off") == 0 || strcmp(p, "0") == 0)) return;   // opt-out
+    char path[256];
+    if (p && p[0] && strcmp(p, "1") != 0) snprintf(path, sizeof path, "%s", p);
+    else snprintf(path, sizeof path, "net-debug-P%d.log", net_me);
+    net_log = fopen(path, "w");
+    if (net_log) {
+        fprintf(net_log, "# dreamengine net-debug — seat P%d (%s)  port %d  seed %u  NET_DELAY %d\n"
+                         "# cols: TAG frame | buffer(frames ahead) tx rx stalls stall_ms_total | wait_ms\n",
+                net_me, net_is_host ? "host" : "join", net_port, net_seed_v, NET_DELAY);
+        fflush(net_log);
+    }
+}
+
 static void net_sendto(const void *buf, int len) {
     if (net_peer_set)
         sendto(net_sock, buf, (size_t)len, 0, (struct sockaddr *)&net_peer, sizeof net_peer);
@@ -540,6 +590,11 @@ static void net_pump(void) {
 }
 
 static void net_shutdown(void) {
+    if (net_log) {   // seal the log with a summary line before we go (clean exit or peer-left)
+        fprintf(net_log, "END frame=%d stalls=%ld stall_ms_total=%ld tx=%ld rx=%ld\n",
+                net_frame, net_stat_stalls, net_stat_stall_ms_total, net_stat_tx, net_stat_rx);
+        fclose(net_log); net_log = NULL;
+    }
     if (net_sock < 0) return;
     uint8_t bye[3] = { 'D', 'N', NET_PKT_BYE };
     for (int i = 0; i < 3; i++) net_sendto(bye, sizeof bye);  // best-effort (UDP)
@@ -728,6 +783,7 @@ static void net_handshake(unsigned *seed) {
 // spins the transport until the peer's byte arrives (echo resolves on the first
 // try), with the rung-1 timeout + "peer left" exit semantics.
 static void net_frame_sync(void) {
+    net_log_open();   // lazy: opens on the first synced frame (seat/port/seed are known by now)
     int f = net_frame, spins = 0;
     while (!net_frame_try_sync()) {
         if (net_peer_bye) break;
@@ -738,6 +794,27 @@ static void net_frame_sync(void) {
             net_shutdown();
             exit(1);
         }
+    }
+    if (spins > 0 && !net_peer_bye) {   // we actually waited — record the stall (~1 ms/spin)
+        net_stat_stalls++;
+        net_stat_last_stall_ms    = spins;
+        net_stat_last_stall_frame = f;
+        net_stat_stall_ms_total  += spins;
+        if (spins >= NET_STALL_LOG_MS) {   // notable stall → one console line (invisible on -mwindows, fine)
+            printf("net: stalled %d ms at frame %d (peer buffer now %d, tx %ld rx %ld)\n",
+                   spins, f, net_peer_buffer_depth(), net_stat_tx, net_stat_rx);
+            fflush(stdout);
+        }
+        if (net_log) {   // the persistable artifact — every stall, even on the console-less exe
+            fprintf(net_log, "STALL %d | %d %ld %ld %ld %ld | %d\n", f, net_peer_buffer_depth(),
+                    net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total, spins);
+            fflush(net_log);
+        }
+    }
+    if (net_log && net_frame % 60 == 0) {   // ~1 Hz heartbeat so a healthy stretch is on the record too
+        fprintf(net_log, "HB %d | %d %ld %ld %ld %ld |\n", net_frame, net_peer_buffer_depth(),
+                net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total);
+        fflush(net_log);
     }
     if (net_peer_bye) { printf("net: peer left — exiting\n"); net_shutdown(); exit(0); }
 }

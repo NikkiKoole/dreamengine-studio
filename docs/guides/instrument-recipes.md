@@ -112,6 +112,27 @@ tine harmonic.
 > `fm/bell`/`fm/clang` the bell/cymbal shelf, `fm/bass` the bass shelf. The 909's hats are
 > also FM (see INSTR_FM under tr909, below).
 
+**FM percussion kit** — from **fmbox.c** (the Elektron Model:Cycles reimagined): the SAME
+`INSTR_FM` engine voiced as six drum "machines" via the three macros + a per-note pitch-env, all
+on `instrument(slot, INSTR_FM, 0, 120, 0, R)` with the gate length set per hit. `fm/snare` is the
+genuine new recipe (the brief's predicted gap) — an FM body layered with an `INSTR_NOISE` crack; no
+other cart pairs FM with a noise layer.
+
+| name | source cart | recipe | character |
+|---|---|---|---|
+| fm/kick | fmbox.c | R60 · h0.02 t0.15 m0.10 · pitch-env +27st→note, MIDI~32 | Sub-ratio FM kick; the hard downward pitch blip is the donk. |
+| fm/snare | fmbox.c | R50 · h0.45 t0.80 m0.55 + INSTR_NOISE (BAND 1900/3) crack | Bright FM body under a band-passed noise snap — the new gap. |
+| fm/metal | fmbox.c | R320 · h0.62 t0.85 m0.20 · long gate | Inharmonic ringing accent (off-integer ratio) — the metallic soul. |
+| fm/perc | fmbox.c | R80 · h0.40 t0.55 m0.10 · pitch-env, short gate | Tuned glassy blip / tom, dry and short. |
+| fm/tone | fmbox.c | R140 · h0.15 t0.45 m0.20 · MIDI~39 | Round low-ratio FM bass/lead — the melodic machine. |
+| fm/chord | fmbox.c | R180 · h0.15 t0.50 m0.15 · root+3+7 triad | FM epiano-ish stab, the one polyphonic machine. |
+
+> **Cross-ref:** these overlap the fm.c archetypes on purpose — `fm/metal` is `fm/bell`/`fm/clang`
+> voiced short, `fm/kick`/`fm/tone` sit on the `fm/bass` sub-ratio shelf, `fm/chord` on `fm/epiano`.
+> The genuinely new one is `fm/snare` (FM + noise). What makes fmbox distinct is per-STEP macro
+> moves (p-locks) + conditional trigs, not the base voices — see
+> [`../design/fmbox-blind-brief.md`](../design/fmbox-blind-brief.md).
+
 ## INSTR_EPIANO — electric-piano (Rhodes/Wurli/Clav models)
 
 All from **epiano** (showcase), same base `A1 D0 S7 R1500`; the harmonics macro picks the

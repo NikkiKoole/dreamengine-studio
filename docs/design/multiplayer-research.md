@@ -9,7 +9,10 @@
 > (`--net-lobby`, rung 2.5) so a *standalone build with no editor* can start
 > netplay with no flags — the send-a-friend-an-exe case. Demo + desync gate via
 > `play.js <cart> netdemo`; see the rung ladder below and the ledger entry in
-> [`STATUS.md`](../STATUS.md). **Rung 5a (WebSocket relay) LIVE-VERIFIED
+> [`STATUS.md`](../STATUS.md). **Debugging a hang/desync in a live game:** the
+> `F2` net-health overlay (peer-buffer runway + stalls + tx/rx), a console stall
+> log, and a per-frame `net` field in `--trace` — see
+> [`../guides/debug-harness.md`](../guides/debug-harness.md) §"Netplay diagnostics". **Rung 5a (WebSocket relay) LIVE-VERIFIED
 > 2026-07-06** (two browsers played on the home wifi); **rung 5b (WebRTC P2P)
 > BUILT + play-tested 2026-07-07** — the WebRTC DataChannel is now the WEB game
 > transport (the relay reused unchanged as signaling only), play-tested
@@ -672,7 +675,10 @@ fallback already covers it (sound works on the published gallery today).
 > jitter exceeded the old 3-frame/50 ms cushion → visible 1-frame stalls, so
 > `NET_DELAY` is bumped to a **fixed 10-frame (~165 ms)** cushion — playable, but
 > a blunt instrument: **step 5 (adaptive `NET_DELAY`)** is the open refinement
-> that keeps latency low on clean links. **Step 7 (TURN)** for the un-punchable
+> that keeps latency low on clean links — and a **native LAN session (2026-07-09,
+> see §"Field evidence")** showed the fixed cushion is not just latency-suboptimal
+> but genuinely inadequate on bad wifi, AND that step 5 needs a second half
+> (re-centering, not only RTT-sizing). **Step 7 (TURN)** for the un-punchable
 > ~10–20% is also still open (today they hit "connection failed - reload").
 > Pairing is a Host/Join split (`build-site.js` gallery + `web_shell.html` bar),
 > Join via native `prompt()` (an inline `<input>` is blocked by the running
@@ -727,12 +733,88 @@ safer.
 | **2. Signaling over the existing relay** ✅ DONE | joiner-`ready` → host offer → answer → trickle ICE, all as binary through the room; roles from the existing `NET_PKT_ROLE` (seat 0 = host, no offer glare). Seed handshake (HELLO/WELCOME) rides the opened channel; self-heals over the unreliable channel | ~2 days | medium — trickle-ICE timing is the fiddly bit; spike de-risked it |
 | **3. STUN config** ✅ DONE | one free public STUN URL (`stun:stun.l.google.com:19302`) in the peer config → cross-network hole-punch. Same-wifi doesn't need it | ~½ day | low |
 | **4. Connection-state UX** ✅ DONE | wait screen shows connecting → waiting/joining → connected; Host/Join split (gallery + in-cart bar) fixes the 5a "both-clicked / wrong room" confusion (host shares link, joiner uses it) | ~1–2 days | low |
-| **5. Adaptive `NET_DELAY`** ⬅ NEXT | measure live RTT off the DataChannel, size the input-delay buffer to cover jitter. Currently a **fixed 10-frame (~165 ms)** cushion covers the ~70 ms spikes but adds latency on clean links; adaptive claws that back. This is the "feels laggy vs. hitches" dial | ~1 day | low |
+| **5. Adaptive + re-centering `NET_DELAY`** ⬅ NEXT | TWO halves, per the 2026-07-09 field evidence. **(a) Size** the input-delay buffer to cover live jitter (measure RTT off the channel) — currently a **fixed 10-frame (~165 ms)** cushion covers ~70 ms spikes but adds latency on clean links; adaptive claws that back ("feels laggy vs. hitches" dial). **(b) Re-center:** after a burst drains the shared cushion, lockstep never rebuilds it — all slack ends up on one peer (buffer ~2×NET_DELAY) while the other is pinned at **buffer 0**, micro-stalling on every frame's jitter (measured: one peer stalled on **62 % of frames**). Sizing alone doesn't fix this; the fed peer must give a frame back so the starved peer rebuilds. This is the actual cure for the constant stutter. | ~1–2 days | low–med |
 | **6. Desync tripwire** (opt) | per-frame CRC of the `de_state()` block; wasm↔wasm is bit-identical so it's insurance, reused from the netdemo gate | ~1 day | low |
 | **7. TURN fallback** (opt) | free TURN (Cloudflare / Metered Open Relay) for the ~10–20% of pairs STUN can't punch — makes across-town play reliable for *everyone*. Same-wifi never touches it. Today those pairs hit "connection failed - reload" | ~½ day + a free account | low |
 
 **Ballpark: ~1.5–2 weeks part-time** for browser↔browser; steps 5–7 are optional
 polish/reach.
+
+### Field evidence — native LAN session, 2026-07-09
+
+First real two-machine play-test of the native path: Mac (editor host, P0) ↔ Windows
+`.exe` (joiner, P1), pong, ~58 s (3504 frames), on office wifi. Captured with the new
+net diagnostics (F2 overlay + `net-debug-P<seat>.log` + `--trace` `net` field — see
+[`../guides/debug-harness.md`](../guides/debug-harness.md) §"Netplay diagnostics").
+Findings — all on the **shared lockstep core**, so they apply to the WebRTC path too:
+
+- **Not CPU-bound.** Host `perf.json`: 0.36 ms cart work / 16.67 ms frame, solid 60 fps.
+  Every stall was a *network wait*, not compute. Rules out the machines.
+- **Two distinct failures, both from `NET_DELAY` being a fixed, non-rebalancing cushion:**
+  1. **Constant micro-stutter (the hidden one).** After the first burst drained the
+     joiner's cushion, it sat at **buffer 0 for the rest of the match** — stalling on
+     **2190 / 3514 frames (62 %)**, 1–8 ms each — while the host sat at buffer ~20.
+     Lockstep never re-centered the slack. → motivates step 5's **(b) re-center** half.
+  2. **Periodic 1–2 s freezes, ~every 18 s** (host frames 165/1296/2388/3453), each
+     **correlated on both peers 11 frames apart** (= NET_DELAY+1 → the *same* event
+     through the lockstep offset). Bidirectional → a shared-channel event; a follow-up
+     `ping` + link-quality check (see §"the wifi-burst question") pinned it to **shared-AP
+     airtime congestion** on a busy office network (pristine −39 dBm link, 300 ms+ RTT
+     with zero loss), NOT a radio scan and NOT our code. **Un-bufferable:** a 60–120-frame
+     gap can't be hidden by any cushion without adding seconds of input lag. Environmental
+     ceiling both transports share.
+- **Tooling gap:** the stall recorder + log file live in the native barrier
+  (`net_frame_sync`, `DE_NET_BUILD`); the web path uses `net_frame_try_sync` and is not
+  yet instrumented. Wiring the same counters into the web tick is a prerequisite for
+  watching step 5 work on the WebRTC build.
+
+### The wifi-burst question — how to find the cause
+
+The ~18 s / 1–2 s freezes are the part no netcode can hide, so they're worth
+diagnosing directly. What the logs pin down: **bidirectional** loss (both peers waited
+for each other at the same wall-clock moment), **regular** (~18 s, low variance), and
+**seconds-long**. That combination rules out most things and points at a *shared
+radio/channel* event, not congestion or a slow machine.
+
+**Measured verdict (2026-07-09, office wifi "Floorplanner"): shared-AP airtime
+congestion — NOT a radio scan, NOT our code.** The initial guess was a periodic
+off-channel roaming scan, but the tests below refuted it:
+
+- **The host's link is pristine**, so roaming/scan is off the table: 5 GHz **channel 100
+  (40 MHz)**, **−39 dBm / −95 dBm** (SNR 56 dB — excellent), 360 Mbps 802.11ac. A radio
+  this well-connected has no reason to hunt for a better AP.
+- **A 3-min `ping` to the router with NO game running** was clean for ~100 s, then hit a
+  **~40 s window of 100–374 ms RTT with ZERO packet loss**, then cleared. High-RTT +
+  no-loss is the signature of **congestion / bufferbloat** (packets queuing, not
+  dropping) — not a scan (which shows brief *losses*/gaps) and not our traffic (none was
+  running). So the channel/AP was simply loaded for ~40 s.
+- **The game-search code was also ruled out by reading it:** the host only broadcasts
+  `net_announce` in the pre-game wait loop (`net.h`, `spins % 100`), which exits the
+  instant a joiner connects; the joiner closes its discovery socket on join
+  (`net_discover_end`, `studio.c`). No discovery/broadcast traffic runs during a match.
+
+Conclusion: on a busy **shared office AP**, many clients contend for the same airtime, so
+latency intermittently balloons to 300–400 ms even with a perfect signal. The game — LAN
+lockstep over *two* wireless hops (host→AP→joiner) — freezes whenever a congestion window
+lands. This is environmental and largely outside a corporate-AP user's control.
+
+Diagnostic path used (built-in tools, no code — reusable next time):
+
+- **Isolate game vs. environment:** `ping -i 0.2 <router-ip>` for a few minutes with **no
+  game running**. Sustained high RTT with ~0 loss ⇒ congestion; brief losses/timeouts on
+  a regular interval ⇒ a radio scan. (Ours was the former.)
+- **Read the link quality:** `system_profiler SPAirPortDataType` (or ⌥-click the wifi
+  menu → Wireless Diagnostics → Scan) for RSSI/channel/band. A strong RSSI (better than
+  ~−60 dBm) rules out roaming scans; a crowded channel points at contention.
+- **Find a local hog (if any):** `nettop -P` during a bad window — is *this* machine
+  transferring, or is the congestion external (other clients / the AP)?
+
+Remedies (all environmental — the engine can't hide 300 ms+ spikes): **wire the host via
+ethernet** (removes one wireless hop and its contention), check/ improve the *joiner's*
+link too (it's the second hop), move to a **less-loaded AP or channel**, or accept that a
+busy shared AP will hitch. The engine-side lever (step 5 adaptive + re-centering
+`NET_DELAY`) smooths small jitter and cures the constant stutter, but not congestion
+spikes this large.
 
 **Scope boundary.** This rung is **2 players, both in browsers/wasm**, direct P2P
 with the relay as signaling only. It deliberately does **not** do: **native**

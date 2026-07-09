@@ -155,6 +155,11 @@ static void keybed_octave_shift(int d) {
     kb_base_oct = n;
 }
 
+// MIDI note of white key i, and of the black key to its right (i indexes WHITE keys):
+// base + whole-octave jumps + the semitone within the octave. One formula, one place.
+static int keybed_white_midi(int i) { return keybed_base_midi() + (i / 7) * 12 + KB_WSEMI[i % 7]; }
+static int kb_black_midi   (int i) { return keybed_base_midi() + (i / 7) * 12 + KB_BSEMI[i % 7]; }
+
 // ── geometry: which MIDI note is under canvas point (x,y)? -1 = none ──
 static int keybed_midi_at(int px, int py) {
     if (kb_w <= 0 || kb_h <= 0) return -1;
@@ -168,10 +173,10 @@ static int keybed_midi_at(int px, int py) {
         for (int k = wk - 1; k <= wk; k++) {
             if (!kb_has_black(k)) continue;
             int bx = kb_x + (k + 1) * wkw - blackW / 2;     // straddles the white-key boundary
-            if (px >= bx && px < bx + blackW) return keybed_base_midi() + (k / 7) * 12 + KB_BSEMI[k % 7];
+            if (px >= bx && px < bx + blackW) return kb_black_midi(k);
         }
     }
-    return keybed_base_midi() + (wk / 7) * 12 + KB_WSEMI[wk % 7];
+    return keybed_white_midi(wk);
 }
 
 // rect of white key i (0..white_count-1) — for custom drawing
@@ -179,13 +184,12 @@ static void keybed_white_rect(int i, int *x, int *y, int *w, int *h) {
     int nwhite = keybed_white_count(); int wkw = kb_w / nwhite;
     if (x) *x = kb_x + i * wkw; if (y) *y = kb_y; if (w) *w = wkw; if (h) *h = kb_h;
 }
-static int keybed_white_midi(int i) { return keybed_base_midi() + (i / 7) * 12 + KB_WSEMI[i % 7]; }
 // black key right of white i, or returns false if none
 static bool keybed_black_rect(int i, int *x, int *y, int *w, int *h, int *midi) {
     int nwhite = keybed_white_count(); if (!kb_has_black(i)) return false;
     int wkw = kb_w / nwhite, blackH = kb_h * 60 / 100, blackW = wkw * 7 / 12;
     if (x) *x = kb_x + (i + 1) * wkw - blackW / 2; if (y) *y = kb_y; if (w) *w = blackW; if (h) *h = blackH;
-    if (midi) *midi = keybed_base_midi() + (i / 7) * 12 + KB_BSEMI[i % 7];
+    if (midi) *midi = kb_black_midi(i);
     return true;
 }
 
@@ -197,9 +201,9 @@ static bool kb_note_touch_free(int midi) { return midi >= 0 && midi < 128 && !(k
 // QWERTY note for the n-th white/black char of the layout strings
 static int kb_qwerty_midi(char c) {
     const char *W = KEYBED_WHITE_KEYS, *B = KEYBED_BLACK_KEYS;
-    for (int i = 0; W[i]; i++) if (W[i] == c) return keybed_base_midi() + (i / 7) * 12 + KB_WSEMI[i % 7];
+    for (int i = 0; W[i]; i++) if (W[i] == c) return keybed_white_midi(i);
     for (int i = 0; B[i]; i++) if (B[i] == c && B[i] != ' ' && KB_BSEMI[i % 7] >= 0)
-        return keybed_base_midi() + (i / 7) * 12 + KB_BSEMI[i % 7];
+        return kb_black_midi(i);
     return -1;
 }
 
@@ -269,7 +273,7 @@ static void keybed_draw(void) {
     // black keys
     for (int k = 0; k < nwhite; k++) {
         if (!kb_has_black(k)) continue;
-        int x = kb_x + (k + 1) * wkw - blackW / 2, midi = keybed_base_midi() + (k / 7) * 12 + KB_BSEMI[k % 7];
+        int x = kb_x + (k + 1) * wkw - blackW / 2, midi = kb_black_midi(k);
         bool down = keybed_held(midi);
         rectfill(x, kb_y, blackW, blackH, down ? CLR_ORANGE : kb_glow[midi] > 0.1f ? CLR_DARK_ORANGE : CLR_DARKER_GREY);
         rect(x, kb_y, blackW, blackH, CLR_BLACK);

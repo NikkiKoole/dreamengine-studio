@@ -275,32 +275,25 @@ static int link_path(float c0x, float c0y, float ax, float ay,
 // real carriageway HALF-widths in METRES, by class (motorway→dirt)
 static const float ROAD_HW_M[5] = { 12.0f, 7.0f, 5.0f, 3.5f, 2.5f };
 
-// nearest present hub to a town, searched over the 5x5 hub cells around it (pure fn).
-static int nearest_hub(float tx, float ty, float *hx, float *hy) {
-    int hc = wn_ifloor(tx / HUB_CS), hr = wn_ifloor(ty / HUB_CS);
+// nearest present cell over the 5×5 block around (tx,ty): `get` yields a cell's world point;
+// excl_self drops an exact self-match. Query-rate (25 cells), so the getter fn-ptr is free.
+static int nearest_present(int (*get)(int,int,float*,float*), float cs, int excl_self,
+                           float tx, float ty, float *ox, float *oy) {
+    int cc = wn_ifloor(tx / cs), cr = wn_ifloor(ty / cs);
     float best = 1e18f; int found = 0;
-    for (int a = hc - 2; a <= hc + 2; a++)
-        for (int b = hr - 2; b <= hr + 2; b++) {
-            float wx, wy; if (!get_hub(a, b, &wx, &wy)) continue;
+    for (int a = cc - 2; a <= cc + 2; a++)
+        for (int b = cr - 2; b <= cr + 2; b++) {
+            float wx, wy; if (!get(a, b, &wx, &wy)) continue;
+            if (excl_self && wx == tx && wy == ty) continue;
             float dx = wx - tx, dy = wy - ty, dd = dx*dx + dy*dy;
-            if (dd < best) { best = dd; *hx = wx; *hy = wy; found = 1; }
+            if (dd < best) { best = dd; *ox = wx; *oy = wy; found = 1; }
         }
     return found;
 }
-
-// nearest OTHER town, over the 5x5 town cells around it (pure fn, self excluded)
-static int nearest_town(float tx, float ty, float *nx, float *ny) {
-    int tc = wn_ifloor(tx / NODE_CS), tr = wn_ifloor(ty / NODE_CS);
-    float best = 1e18f; int found = 0;
-    for (int a = tc - 2; a <= tc + 2; a++)
-        for (int b = tr - 2; b <= tr + 2; b++) {
-            float wx, wy; if (!get_node(a, b, &wx, &wy)) continue;
-            if (wx == tx && wy == ty) continue;          // self
-            float dx = wx - tx, dy = wy - ty, dd = dx*dx + dy*dy;
-            if (dd < best) { best = dd; *nx = wx; *ny = wy; found = 1; }
-        }
-    return found;
-}
+// nearest present hub to a town, over the 5x5 hub cells around it (pure fn).
+static int nearest_hub (float tx, float ty, float *hx, float *hy) { return nearest_present(get_hub,  HUB_CS,  0, tx, ty, hx, hy); }
+// nearest OTHER town, over the 5x5 town cells around it (pure fn, self excluded).
+static int nearest_town(float tx, float ty, float *nx, float *ny) { return nearest_present(get_node, NODE_CS, 1, tx, ty, nx, ny); }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE GRAPH + wn_road_at() — worldgen-plan RUNG 1: the unified nearest-edge query

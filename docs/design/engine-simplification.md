@@ -255,19 +255,25 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   `clamp`; `rad_footer` (`465–468`) is a documented no-op to remove once callers are
   gone; `rad_knob_int`/`rad_knob_sel`/`rad_knob_float` (`375–424`) are three wrappers
   that differ only in the value↔t map.
-- [ ] **`radio.h` coord `#define`s** — panel/button coordinates are duplicated between
+- [x] **`radio.h` coord `#define`s** — panel/button coordinates are duplicated between
   draw and hit-test (`?`-button `288,172,81` at `289` + `453`; B-button `32,172,81` at
   `534` + `460`; panel `44,40,232,122` in both help + band panels). **The clickable
-  area can drift from the drawn one.** Hoist to `#define`s.
-- [ ] **`keybed.h` MIDI formula helpers** — `base + (i/7)*12 + KB_WSEMI[i%7]` recurs
+  area can drift from the drawn one.** Hoist to `#define`s. **Done:** `RAD_HELP_BTN_X`/
+  `RAD_BAND_BTN_X`/`RAD_BTN_Y`/`RAD_BTN_HIT_R2`/`RAD_PANEL_X/Y/W` — centres + panel box
+  shared by draw and hit-test (draw r=6 vs hit r=9 left as the intentional fat-finger
+  pad). Pure literal→macro → byte-identical; build-all 479/479.
+- [x] **`keybed.h` MIDI formula helpers** — `base + (i/7)*12 + KB_WSEMI[i%7]` recurs
   ~4× (`174, 182, 200`, and `keybed_white_midi` at `182`) and a black `KB_BSEMI`
   variant alongside; `keybed_midi_at` (`159`)/`keybed_draw` recompute inline instead
-  of calling `keybed_white_midi()` / a matching `kb_black_midi(i)`.
-- [ ] **`worldnet.h`** — `nearest_hub`/`nearest_town` (`280–304`) are the same 5×5
+  of calling `keybed_white_midi()` / a matching `kb_black_midi(i)`. **Done:**
+  `keybed_white_midi()` + new `kb_black_midi()` moved above `keybed_midi_at` and all 6
+  inline sites routed through them. Byte-identical (epiano renders identical vs HEAD).
+- [x] **`worldnet.h`** — `nearest_hub`/`nearest_town` (`280–304`) are the same 5×5
   search with divergence risk (share a `nearest_present(getter, …)`); stale
   `(void)ux;(void)uy;` at `217–218` (both used on the line above). Delete the casts.
-  **Partial (2026-07-09): stale `(void)` casts deleted.** The `nearest_present` dedup
-  is bucket ② (needs a getter-fn refactor + verify) — still open.
+  **Done:** casts deleted (2026-07-09) + `nearest_present(get, cs, excl_self, …)` now
+  backs both — query-rate so the getter fn-ptr is free. Byte-identical (roadnet2
+  renders identical vs HEAD).
 
 ---
 

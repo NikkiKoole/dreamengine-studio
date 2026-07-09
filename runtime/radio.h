@@ -192,6 +192,15 @@ enum {
 #define RAD_TUNE_BTN_W 36
 #define RAD_TUNE_BTN_H 16
 #define RAD_DIAL_SP    11            // px per MHz (was 13; tightened to fit the button)
+// help (?) + band (B) button centres and the popup-panel box — SHARED by draw + hit-test so the
+// clickable area can't drift from the drawn one (draw r=6 vs hit r=9 differ on purpose: fat-finger pad).
+#define RAD_HELP_BTN_X 288
+#define RAD_BAND_BTN_X 32
+#define RAD_BTN_Y      172
+#define RAD_BTN_HIT_R2 81
+#define RAD_PANEL_X    44
+#define RAD_PANEL_Y    40
+#define RAD_PANEL_W    232
 #ifndef RAD_STATIC_SLOT
 #define RAD_STATIC_SLOT 31           // reserved noise slot for the static (carts use <= ~15)
 #endif
@@ -286,8 +295,8 @@ static int rad_input(int *tempo, int tmin, int tmax, int tstep,
     if (keyp('M')) { *radioOn = !*radioOn; ev |= RAD_EV_POWER; }
     if (keyp('H')) *showHelp = !*showHelp;
     if (mouse_pressed(MOUSE_LEFT)) {                 // the ?-button, bottom right
-        int hx = mouse_x() - 288, hy = mouse_y() - 172;
-        if (hx * hx + hy * hy < 81) *showHelp = !*showHelp;
+        int hx = mouse_x() - RAD_HELP_BTN_X, hy = mouse_y() - RAD_BTN_Y;
+        if (hx * hx + hy * hy < RAD_BTN_HIT_R2) *showHelp = !*showHelp;
     }
     return ev;
 }
@@ -450,16 +459,16 @@ static void rad_power_led(bool on, int accent, int dim) {
 
 // the ?-button (its hit test lives in rad_input), bottom-right
 static void rad_help_button(int accent) {
-    circfill(288, 172, 6, CLR_DARKER_GREY);
-    circ(288, 172, 6, CLR_BLACK);
+    circfill(RAD_HELP_BTN_X, RAD_BTN_Y, 6, CLR_DARKER_GREY);
+    circ(RAD_HELP_BTN_X, RAD_BTN_Y, 6, CLR_BLACK);
     print("?", 285, 169, accent);
 }
 // the B-button (its hit test lives in rad_band_input), bottom-left — mirror of
 // the ?-button. Draw it only on stations that register a band panel; it's the
 // sole affordance for THE BAND now that the footer hint is gone.
 static void rad_band_button(int accent) {
-    circfill(32, 172, 6, CLR_DARKER_GREY);
-    circ(32, 172, 6, CLR_BLACK);
+    circfill(RAD_BAND_BTN_X, RAD_BTN_Y, 6, CLR_DARKER_GREY);
+    circ(RAD_BAND_BTN_X, RAD_BTN_Y, 6, CLR_BLACK);
     print("B", 29, 169, accent);
 }
 // footer retired — the ? and B buttons replace the one-line hint, freeing the
@@ -475,8 +484,8 @@ static void rad_help_panel(const char *title, const char *(*rows)[2], int nrows,
     // common 8-row case, so existing panels stay pixel-identical.
     int notesY = 58 + nrows * 9 + 2;            // notes sit one line below the last control row
     int panelH = (notesY + nnotes * 9 + 2) - 40;
-    rectfill(44, 40, 232, panelH, CLR_BLACK);
-    rect(44, 40, 232, panelH, accent);
+    rectfill(RAD_PANEL_X, RAD_PANEL_Y, RAD_PANEL_W, panelH, CLR_BLACK);
+    rect(RAD_PANEL_X, RAD_PANEL_Y, RAD_PANEL_W, panelH, accent);
     print(title, 52, 46, accent);
     font(FONT_SMALL);
     for (int i = 0; i < nrows; i++) {
@@ -531,8 +540,8 @@ static int rad_chair(RadBand *b, const char *name,
 static int rad_band_input(RadBand *b, bool *showHelp) {
     if (keyp('B')) { b->show = !b->show; if (b->show) *showHelp = false; }
     if (mouse_pressed(MOUSE_LEFT)) {                 // the B-button, bottom left
-        int dx = mouse_x() - 32, dy = mouse_y() - 172;
-        if (dx * dx + dy * dy < 81) { b->show = !b->show; if (b->show) *showHelp = false; }
+        int dx = mouse_x() - RAD_BAND_BTN_X, dy = mouse_y() - RAD_BTN_Y;
+        if (dx * dx + dy * dy < RAD_BTN_HIT_R2) { b->show = !b->show; if (b->show) *showHelp = false; }
     }
     if (*showHelp) b->show = false;
     if (!b->show) return -1;
@@ -553,8 +562,8 @@ static int rad_band_input(RadBand *b, bool *showHelp) {
 // draw the panel — same chassis spot as the help overlay
 static void rad_band_panel(const RadBand *b, int accent) {
     if (!b->show) return;
-    rectfill(44, 40, 232, 122, CLR_BLACK);
-    rect(44, 40, 232, 122, accent);
+    rectfill(RAD_PANEL_X, RAD_PANEL_Y, RAD_PANEL_W, 122, CLR_BLACK);
+    rect(RAD_PANEL_X, RAD_PANEL_Y, RAD_PANEL_W, 122, accent);
     print("THE BAND", 52, 46, accent);
     font(FONT_SMALL);
     for (int i = 0; i < b->n; i++) {

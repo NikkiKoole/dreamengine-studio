@@ -123,10 +123,13 @@ run `canvas-diff` (and `mirror-diff` where symmetry applies) before/after.
 
 Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
 
-- [ ] **Filter pairs share a core.** `sound_ladder` (`4433`) vs `sound_diode`
+- [x] **Filter pairs share a core.** `sound_ladder` (`4433`) vs `sound_diode`
   (`4492`) are ~90% identical (differ by one `tanhf` on feedback + tap stage 3 vs 4);
   same for `sound_svf` (`4408`) vs `sound_steiner` (`4463`). Share a core with a
-  flag/param instead of two full copies.
+  flag/param instead of two full copies. **Done:** `svf_step(v,in,cut,nl_res)` and
+  `ladder_core(v,in,cut,diode)`; each wrapper passes a literal flag so `static inline`
+  const-folds the branch (no per-sample cost). Proven byte-identical by `filter-spec`
+  (all four modes low/ladder/steiner/diode identical mine-vs-HEAD).
 - [x] **`sound_choke_group(cmask)`** — the choke-group voice-steal block is
   duplicated verbatim 3× (`sound.h:4849, 4863, 5452`: `SR_NOTE`, `SR_NOTE_ON`,
   `SR_HIT_AT`). **Done:** `sound_choke_group(int instr_slot)` computes the cmask *and*

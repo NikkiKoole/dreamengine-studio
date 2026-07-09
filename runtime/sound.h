@@ -4399,16 +4399,23 @@ static inline float sound_ad_env(int s, int a, int d) {
 // returns the lowpass/highpass/bandpass/notch tap. `flt_q` is damping (1/Q); smaller = more
 // resonant. (A TPT/Cytomic SVF was A/B'd here 2026-06-08 — objectively + audibly identical at
 // the resonances we use, so it wasn't worth two codepaths; the wah realism gap was the sweep.)
-static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
+// shared Chamberlin SVF integrator: advance flt_low/flt_band one sample, return the highpass tap.
+// nl_res = Steiner-Parker nonlinear resonance (tanh on the band feedback = the bite). svf() and
+// steiner() differ ONLY in this flag + their output stage (raw taps vs tanh-driven taps).
+static inline float svf_step(Voice *v, float in, float cutoff_hz, bool nl_res) {
     float f = 2.0f * sinf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
-    if (f > 0.99f)   f = 0.99f;          // keep the simple SVF stable
-    if (f < 0.0005f) f = 0.0005f;
+    if (f > 0.99f) f = 0.99f; else if (f < 0.0005f) f = 0.0005f;   // keep the simple SVF stable
     v->flt_low += f * v->flt_band;
-    float high = in - v->flt_low - v->flt_q * v->flt_band;
+    float high = in - v->flt_low - v->flt_q * (nl_res ? tanhf(v->flt_band) : v->flt_band);
     v->flt_band += f * high;
     // clamp state so a high-resonance sweep can't blow up
     if      (v->flt_low  >  4.0f) v->flt_low  =  4.0f; else if (v->flt_low  < -4.0f) v->flt_low  = -4.0f;
     if      (v->flt_band >  4.0f) v->flt_band =  4.0f; else if (v->flt_band < -4.0f) v->flt_band = -4.0f;
+    return high;
+}
+
+static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
+    float high = svf_step(v, in, cutoff_hz, false);
     switch (v->flt_mode) {
         case FILTER_LOW:   return v->flt_low;
         case FILTER_HIGH:  return high;
@@ -4424,18 +4431,22 @@ static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
 // climbs (the ladder's signature), and near k=4 it self-oscillates into a pure tone.
 // Reuses v->flt_q (the SVF damping, 2.0=open .. 0.05=peak) so the resonance knob maps
 // the same way. Lowpass-only, like the real circuit. ±8 state clamp = NaN/runaway net.
-static inline float sound_ladder(Voice *v, float in, float cutoff_hz) {
+// shared 4-pole TPT ladder core. diode=false → Moog ladder (linear feedback, stage-4 output);
+// diode=true → TB-303 diode ladder (a hair more feedback, tanh-soft-clipped feedback = the scream,
+// stage-3 output + res makeup). The two engines differ ONLY in those three flag-selected spots.
+static inline float ladder_core(Voice *v, float in, float cutoff_hz, bool diode) {
     float g  = tanf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
     float G  = g / (1.0f + g);                          // one-pole TPT integrator gain
     float res = (2.0f - v->flt_q) * (1.0f / 0.13f);     // recover res 0..15 from the damping
     if (res < 0.0f) res = 0.0f; else if (res > 15.0f) res = 15.0f;
-    float k  = res * (4.0f / 15.0f);                    // feedback 0..4 (≈4 self-oscillates)
+    float k  = res * ((diode ? 4.3f : 4.0f) / 15.0f);   // feedback (Moog ≈4 self-osc; diode a hair past, tanh bounds it)
 
     float oG = 1.0f - G;
     float S1 = oG * v->lad_s[0], S2 = oG * v->lad_s[1], S3 = oG * v->lad_s[2], S4 = oG * v->lad_s[3];
     float G2 = G * G, G3 = G2 * G, G4 = G3 * G;
     float B  = G3 * S1 + G2 * S2 + G * S3 + S4;         // the ladder's instantaneous feedback term
-    float u  = (in - k * B) / (1.0f + k * G4);          // resolve the zero-delay input (1+k*G4 > 1, safe)
+    float fb = diode ? tanhf(B * 1.5f) * (1.0f / 1.5f) : B;   // diodes: unity small-signal, clip the scream
+    float u  = (in - k * fb) / (1.0f + k * G4);         // resolve the zero-delay input (1+k*G4 > 1, safe)
 
     float y1 = G * u  + S1; v->lad_s[0] = 2.0f * y1 - v->lad_s[0];
     float y2 = G * y1 + S2; v->lad_s[1] = 2.0f * y2 - v->lad_s[1];
@@ -4446,8 +4457,10 @@ static inline float sound_ladder(Voice *v, float in, float cutoff_hz) {
         if      (v->lad_s[i] >  8.0f) v->lad_s[i] =  8.0f;
         else if (v->lad_s[i] < -8.0f) v->lad_s[i] = -8.0f;
     }
-    return y4;
+    return diode ? y3 * (1.0f + 0.20f * k)              // stage-3 tap + gentle res makeup
+                 : y4;
 }
+static inline float sound_ladder(Voice *v, float in, float cutoff_hz) { return ladder_core(v, in, cutoff_hz, false); }
 
 // Steiner-Parker-FLAVOURED nonlinear 2-pole lowpass — one sample (the Behringer Neutron's
 // voice). A Chamberlin SVF (reuses flt_low/flt_band — only one filter runs per voice) with
@@ -4455,13 +4468,7 @@ static inline float sound_ladder(Voice *v, float in, float cutoff_hz) {
 // stays clean and the ladder stays creamy, this one gets dirty and SCREAMS as resonance
 // climbs — the raw, aggressive Steiner bite. tanh bounds it (stable, no runaway).
 static inline float sound_steiner(Voice *v, float in, float cutoff_hz) {
-    float f = 2.0f * sinf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
-    if (f > 0.99f) f = 0.99f; else if (f < 0.0005f) f = 0.0005f;
-    v->flt_low += f * v->flt_band;
-    float high = in - v->flt_low - v->flt_q * tanhf(v->flt_band);   // nonlinear resonance = the bite
-    v->flt_band += f * high;
-    if      (v->flt_low  >  4.0f) v->flt_low  =  4.0f; else if (v->flt_low  < -4.0f) v->flt_low  = -4.0f;
-    if      (v->flt_band >  4.0f) v->flt_band =  4.0f; else if (v->flt_band < -4.0f) v->flt_band = -4.0f;
+    float high = svf_step(v, in, cutoff_hz, true);   // nonlinear resonance = the bite
     // multimode like the real Steiner-Parker — every tap output-driven for the aggressive voice
     switch (v->flt_mode) {
         case FILTER_STEINER_HP: return tanhf(high * 1.3f);
@@ -4483,31 +4490,7 @@ static inline float sound_steiner(Voice *v, float in, float cutoff_hz) {
 // Feedback still comes off stage 4, so bass drain + self-oscillation keep ladder behavior.
 // tanh bounds the loop (k may exceed 4 safely; self-osc settles where loop gain hits 1).
 // Lowpass-only, like the hardware.
-static inline float sound_diode(Voice *v, float in, float cutoff_hz) {
-    float g  = tanf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
-    float G  = g / (1.0f + g);                          // one-pole TPT integrator gain
-    float res = (2.0f - v->flt_q) * (1.0f / 0.13f);     // recover res 0..15 from the damping
-    if (res < 0.0f) res = 0.0f; else if (res > 15.0f) res = 15.0f;
-    float k  = res * (4.3f / 15.0f);                    // a hair past 4 — the tanh bounds it
-
-    float oG = 1.0f - G;
-    float S1 = oG * v->lad_s[0], S2 = oG * v->lad_s[1], S3 = oG * v->lad_s[2], S4 = oG * v->lad_s[3];
-    float G2 = G * G, G3 = G2 * G, G4 = G3 * G;
-    float B  = G3 * S1 + G2 * S2 + G * S3 + S4;         // state part of the stage-4 feedback
-    float fb = tanhf(B * 1.5f) * (1.0f / 1.5f);         // the diodes: unity small-signal, clips the scream
-    float u  = (in - k * fb) / (1.0f + k * G4);         // linear resolve on the u-part (approx, bounded)
-
-    float y1 = G * u  + S1; v->lad_s[0] = 2.0f * y1 - v->lad_s[0];
-    float y2 = G * y1 + S2; v->lad_s[1] = 2.0f * y2 - v->lad_s[1];
-    float y3 = G * y2 + S3; v->lad_s[2] = 2.0f * y3 - v->lad_s[2];
-    float y4 = G * y3 + S4; v->lad_s[3] = 2.0f * y4 - v->lad_s[3];
-
-    for (int i = 0; i < 4; i++) {                        // belt-and-braces, like the ladder clamp
-        if      (v->lad_s[i] >  8.0f) v->lad_s[i] =  8.0f;
-        else if (v->lad_s[i] < -8.0f) v->lad_s[i] = -8.0f;
-    }
-    return y3 * (1.0f + 0.20f * k);                      // stage-3 tap + gentle res makeup
-}
+static inline float sound_diode(Voice *v, float in, float cutoff_hz) { return ladder_core(v, in, cutoff_hz, true); }
 
 // Drop any held-note ownership a voice carries (it's about to be reused or has finished),
 // so the handle that owned it goes stale and its setters start no-op'ing.

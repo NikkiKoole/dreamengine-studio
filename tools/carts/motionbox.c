@@ -218,6 +218,11 @@ void init() {
     instrument_filter(SL_LEAD, FILTER_LOW, 3000, 4);
     instrument_echo(SL_LEAD, 0.22f);                        // dreamy topline tail
 
+    // place the master saturator in the mix chain — drive_insert() only SETS params;
+    // FX_DRIVE isn't in the default pedal ladder, so without this the DRIVE knob is silent.
+    int master_fx[] = { FX_DRIVE };
+    fx_order(0, master_fx, 1);
+
     for (int p = 0; p < NPARTS; p++) {
         for (int c = 0; c < STEPS; c++) parts[p].trig[c] = (PRESET[p][c] == 'x');
         for (int i = 0; i < NK; i++) {

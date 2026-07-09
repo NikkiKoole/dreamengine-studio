@@ -110,12 +110,20 @@ run `canvas-diff` (and `mirror-diff` where symmetry applies) before/after.
   (`5524`), `rrect` (`5104`), `poly_stroke_cov` (`4990`), `sector_draw` stroke
   (`4260`), `thick_draw` stroke (`5076`). One helper over a function pointer / macro
   collapses all six.
-- [ ] **Retire the soak-period scaffolding.** `sw_tritex_legacy` (`898`, TODO at
+- [x] **Retire the soak-period scaffolding.** `sw_tritex_legacy` (`898`, TODO at
   `897`) and `poly_fill_cov_legacy` (`4913`, TODO at `4912`) plus their runtime
   toggles (`blit_fast_on`, `tritex_fast_on`, `disc_fill_fast`, `poly_fill_fast`,
   `clamp_cache_on`, `pset_batch`; declared `253–272`, parsed `2849–2860`) are
   self-labelled switches — once trusted, deleting the legacy paths + flags removes a
-  lot of duplicated primitive code.
+  lot of duplicated primitive code. **Done 2026-07-10 for the four that soaked default-on
+  2–3½ weeks:** `poly_fill_fast` (+ `poly_fill_cov_legacy`), `disc_fill_fast`,
+  `blit_fast_on`, `clamp_cache_on` — flags, env toggles, and legacy fork/body removed;
+  the fast paths are now unconditional (their in-path fallbacks for rotation/dither/
+  recolor/pathological remain — those aren't scaffolding). Default render unchanged
+  (canvas-diff `drawall` byte-for-byte vs HEAD). **Kept:** `tritex_fast_on` +
+  `sw_tritex_legacy` (only ~1wk soak — still A/B-able) and `pset_batch` (NOT a soak flag
+  — a per-platform default: `DE_BATCH_PSET_DEFAULT` is 0 native / 1 web, so retiring it
+  would change platform behaviour, not remove dead code).
 
 ---
 

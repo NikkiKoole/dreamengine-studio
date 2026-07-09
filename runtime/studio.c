@@ -250,11 +250,9 @@ static int             fp_global  = 0;                // current fillp() pattern
 static int             fp_hole    = -1;               // fillp() 1-bit color (-1 = transparent)
 static int             fp_anc_x   = 0;                // fillp() lattice origin (world coords)
 static int             fp_anc_y   = 0;                // — shifts the pattern phase; anchor to a
-static bool            poly_fill_fast = true;        // false → legacy per-pixel polygon fill (A/B; env DE_POLY_FILL=legacy)
-static bool            disc_fill_fast = true;        // false → legacy per-pixel circle/oval fill (A/B; env DE_DISC_FILL=legacy)
-static bool            clamp_cache_on = true;        // false → recompute the fill scan-box every call (A/B; env DE_CLAMP_CACHE=off)
-static bool            blit_fast_on   = true;        // false → legacy per-pixel sw_blit (A/B; env DE_BLIT_FAST=off). Fast path: direct uint32 row-copy for the axis-aligned, unscaled, unflipped, zoom==1, no-pal blit
-static bool            tritex_fast_on = true;        // false → legacy sw_tritex (A/B; env DE_TRITEX_FAST=off). Fast path: bbox clamped to the visible region + hoisted row-write plot (zoom==1 canvas)
+// The poly-fill / disc-fill / blit / clamp-cache A/B flags were RETIRED 2026-07-10 after
+// 2–3½ weeks soaking as the sole real-world path (their fast paths are now unconditional).
+static bool            tritex_fast_on = true;        // false → legacy sw_tritex (A/B; env DE_TRITEX_FAST=off). Fast path: bbox clamped to the visible region + hoisted row-write plot (zoom==1 canvas). Last A/B flag — kept (newest, ~1wk soak)
 // NB: a branchless masked-blend inner loop was tried here (write EVERY pixel, blend by an alpha
 // mask, no per-pixel branch → auto-vectorizable) and MEASURED 1.5× SLOWER on bunnymark (37 vs 24
 // ms/frame, bit-identical). It's a TRADE, not a dead end — which side wins depends on sprite
@@ -837,8 +835,8 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
     // common case). Read the source row as uint32 (RGBA8 bytes pack to sw_pack()'s layout on LE) and
     // write straight into cbuf, alpha forced opaque — skipping the per-pixel img_texel/sw_keyed/sw_pset/
     // sw_w2s/sw_pack call chain + the i*sw/dw divide. Byte-identical to the loop below (same alpha<128
-    // and colorkey skip, same opaque store); A/B via DE_BLIT_FAST=off. This is the sprite hotspot.
-    if (blit_fast_on && !recolor && !fx && !fy && dw == sw && dh == sh
+    // and colorkey skip, same opaque store). This is the sprite hotspot.
+    if (!recolor && !fx && !fy && dw == sw && dh == sh
         && cam.zoom == 1.0f && spritesheet_img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) {
         int ox, oy; sw_w2s(dx, dy, &ox, &oy);                          // screen origin (one camera translate)
         int xmin = 0, ymin = 0, xmax = de_sw, ymax = de_sh;
@@ -2853,11 +2851,7 @@ static bool env_is(const char *name, const char *val) {
 
 int main(int argc, char **argv) {
     // A/B toggles — a DE_* env var flips a fast/legacy path without recompiling (see each flag's decl).
-    if (env_is("DE_POLY_FILL",      "legacy")) poly_fill_fast     = false;  // old per-pixel polygon fill
-    if (env_is("DE_DISC_FILL",      "legacy")) disc_fill_fast     = false;  // old per-pixel circle/oval fill
-    if (env_is("DE_CLAMP_CACHE",    "off"))    clamp_cache_on     = false;  // recompute the clamp-box every call
     if (env_is("DE_BATCH_PSET",     "on"))     pset_batch         = true;   // coalesce psets into one draw call
-    if (env_is("DE_BLIT_FAST",      "off"))    blit_fast_on       = false;  // legacy per-pixel sw_blit
     if (env_is("DE_TRITEX_FAST",    "off"))    tritex_fast_on     = false;  // legacy unclamped sw_tritex
     if (env_is("DE_SOFTWARE_CANVAS","on"))     { sw_canvas_enabled = true; sw_canvas_active = true; }  // Phase 0 probe
     if (env_is("DE_CPU_RASTER",     "on"))     cpu_raster_enabled = true;   // line()/rectfill_rot → CPU everywhere
@@ -4156,7 +4150,7 @@ void circfill(int cx, int cy, int r, int color) {
     // solid fill; ZOOM is fine (rotation-0 camera is axis-aligned affine → the run of 1×1
     // world quads tiles to exactly the same screen pixels as one w×1 quad; only rotation
     // breaks that). A rotated camera or fillp() dither falls back to per-pixel.
-    if (disc_fill_fast && r >= 1 && cam.rotation == 0.0f && !fp_on) {
+    if (r >= 1 && cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
         poly_clamp_scan(&x0, &y0, &x1, &y1);            // skip off-screen rows/cols (the poly-path win)
         DeColor col = palette[color % PALETTE_SIZE];
@@ -4868,7 +4862,7 @@ static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1) {
     static bool  c_valid = false;
     static float s_tx = 0, s_ty = 0, s_ox = 0, s_oy = 0, s_rot = 0, s_zoom = 0, s_vw = 0, s_vh = 0;
     int lo_x, lo_y, hi_x, hi_y;
-    if (clamp_cache_on && c_valid &&
+    if (c_valid &&
         cam.target.x == s_tx && cam.target.y == s_ty &&
         cam.offset.x == s_ox && cam.offset.y == s_oy &&
         cam.rotation == s_rot && cam.zoom == s_zoom && vw == s_vw && vh == s_vh) {
@@ -4889,20 +4883,6 @@ static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1) {
     if (*x0 < lo_x) *x0 = lo_x;  if (*y0 < lo_y) *y0 = lo_y;
     if (*x1 > hi_x) *x1 = hi_x;  if (*y1 > hi_y) *y1 = hi_y;
 }
-// ── A/B SWITCH (temporary, 2026-06) ──────────────────────────────────────────
-// The original per-pixel fill, kept beside the new scanline span fill below so we
-// can flip back instantly while the new path soaks. Set poly_fill_fast = false to
-// route EVERY polygon fill through this exact old code (the reference behaviour).
-// poly_fill_fast lives up by the other globals (env DE_POLY_FILL=legacy flips it at
-// startup). TODO: once the span fill is trusted, delete poly_fill_cov_legacy + the flag.
-static void poly_fill_cov_legacy(const int *xy, int n, int color) {
-    if (n < 3) return;
-    int x0, y0, x1, y1; poly_bbox(xy, n, &x0, &y0, &x1, &y1);
-    poly_clamp_scan(&x0, &y0, &x1, &y1);
-    for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++)
-            if (poly_inside(x + 0.5f, y + 0.5f, xy, n)) plot_pat(x, y, color);
-}
 
 // Scanline span fill: the SAME even-odd coverage as poly_inside (pixel-centre
 // x+0.5 / y+0.5), but found per ROW as sorted edge crossings instead of tested per
@@ -4922,7 +4902,6 @@ static void poly_fill_cov_legacy(const int *xy, int n, int color) {
 //     plot_pat, preserving the documented rotated-fill staircase and the dither lattice
 //     exactly. (Both paths still skip the per-pixel poly_inside, so both get faster.)
 static void poly_fill_cov(const int *xy, int n, int color) {
-    if (!poly_fill_fast) { poly_fill_cov_legacy(xy, n, color); return; }
     if (n < 3) return;
     int x0, y0, x1, y1; poly_bbox(xy, n, &x0, &y0, &x1, &y1);
     poly_clamp_scan(&x0, &y0, &x1, &y1);
@@ -5483,7 +5462,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
     // SPAN fast path — per row, hx = rx·√(1-(dy/ry)²) → one DrawRectangle (see circfill).
-    if (disc_fill_fast && cam.rotation == 0.0f && !fp_on) {
+    if (cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - rx, y0 = cy - ry, x1 = cx + rx, y1 = cy + ry;
         poly_clamp_scan(&x0, &y0, &x1, &y1);
         DeColor col = palette[color % PALETTE_SIZE];

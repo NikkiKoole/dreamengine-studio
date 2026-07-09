@@ -27,15 +27,13 @@
     "SAVE / RECALL patterns (persistence via save_bytes) - the EMX stores its patterns; motionbox forgets everything on quit. Serialize each part's trig[] + lanes + base + the mutes/tempo/swing/drive, load on init. The biggest hole: it's what makes Slice 5's pattern slots actually meaningful rather than ephemeral.",
     "Per-part LEVEL + PAN - the EMX has a per-part level fader and pan (both motion-able); right now there's no way to BALANCE the kit or use stereo at all. instrument_pan exists; PAN is great motion-fodder (auto-panned hats). Fits scarcity - two more per-part params the knob row can remap to.",
     "REAL-TIME recording - the EMX's other input method beyond step-toggle: tap the ribbon in time and it captures + quantizes the hits to the nearest step. A whole authentic workflow that's absent; pairs with the existing motion REC (play a groove live, then wiggle the knobs over it).",
-    "KNOB-ROW PAGES - a SECOND remap axis, the EMX's own answer to scarcity: a small ALWAYS-VISIBLE page selector (TONE / MOD / OSC, not a hidden menu) reassigns the SAME 4 knobs to a different bank per part, so 4 knobs cover ~12 params with NO new surface (the real EMX fits a whole synth into ~5 knobs this way). It's 'one row means four things' one level deeper, not a betrayal of it. Keep pages FEW + lit so the humble/legible surface holds. Prereq for the LFO + OSC-page todos; motion lanes become per (part x page x knob).",
-    "OSC PAGE - per synth part: MODEL + its 2 realtime 'Edit' params (the MMT heart: analog/sync/cross-mod/ring-mod + UNISON = up to 6 detuned oscs for a thick supersaw lead, + CHORD = a full chord from one note). Reached via the knob-row PAGE axis so it costs NO new knobs - the 4 knobs become MODEL / EDIT1 / EDIT2 / GLIDE on the OSC page. Engine: instrument() model select + instrument_tune for the unison detune spread.",
-    "LEAD FILTER EG + accent-brightness - DONE for LEAD (2026-07-09): a per-note EG->cutoff pluck (instrument_env ENV_CUTOFF, amount 4500Hz) whose decay tracks the DECAY knob, + ACC now ALSO opens the filter (accent = louder AND brighter, +4000Hz). Verified: soloed lead shows a per-note brightness spike-then-close. REMAINING (needs the page axis): apply the same to the BASS acid voice, and expose EG DEPTH/ATTACK for full control on the MOD page.",
-    "LEAD/synth LFO (MOD page) - tempo-syncable vibrato / cutoff wah / tremolo / auto-pan (instrument_lfo LFO_PITCH/CUTOFF/VOLUME/PAN), the EMX's 6-destination modulation. The 4 knobs on the MOD page = EG->CUT / LFO RATE / LFO DEPTH / LFO DEST. Motion-able like everything else, and multimode filter (LP/HP/BP/BP+) is a cheap add here."
+    "OSC PAGE - the next knob-row page after TONE + MOD (the page axis shipped 2026-07-09; bump NPAGES + add labels + wiring). Per synth part: MODEL + its 2 realtime 'Edit' params (the MMT heart: analog/sync/cross-mod/ring-mod + UNISON = up to 6 detuned oscs for a thick supersaw lead, + CHORD = a full chord from one note). Reached via the knob-row PAGE axis so it costs NO new knobs - the 4 knobs become MODEL / EDIT1 / EDIT2 / GLIDE on the OSC page. Engine: instrument() model select + instrument_tune for the unison detune spread.",
+    "MOD-page polish (the MOD page shipped 2026-07-09: LFO RATE/DEPTH/DEST + filter EG>CUT, set-and-hold + motion-able for every part): tempo-SYNC the LFO rate (currently free-running Hz), add an EG ATTACK control (currently fixed 3ms), give the BASS acid voice the same accent-brightness (ACC opens the filter - currently LEAD-only) + a tasteful default EG>CUT, and a multimode filter (LP/HP/BP/BP+) select. All cheap adds now the axis exists."
   ],
   "description": {
     "summary": "The Korg-Electribe MOTION SEQUENCE: a 4-part kit (kick/hat/bass/lead) loops on a 16-step ribbon, and ONE row of four knobs REMAPS to whichever part you select - that scarcity (one row means four things) is what makes an EMX feel deep with so few controls. While it plays you GRAB a knob and wiggle it; the wiggle is recorded per-step into that part's motion lane and plays back locked to the bar, layered per knob, per part.",
     "detail": "Two ideas make the whole instrument. SCARCITY: select a part and the ribbon + the one knob row + the knob LABELS all remap to it (kick shows TUNE/DECAY/DRIVE/ACC; bass shows CUTOFF/RES/DECAY/ACC). MOTION: while REC is armed, dragging a knob writes its value into that part's 16-step lane at the playhead, replayed forever. Motion is sampled PER-HIT (each note reads its lanes as it fires) so every part gets its own automation without fighting one master filter. SMOOTH interpolates the lane between steps; TRIG holds per step. The mini-strip under each knob is the selected part's recorded motion with the playhead. CLEAR wipes the selected part's motion.",
-    "controls": "TAP a part to select it (its ribbon + knob row appear); RE-TAP the selected part to MUTE it (drop it in/out live). TAP a step to toggle it. GRAB a knob and turn it - if REC is armed the turn is recorded as motion for the selected part. REC arms recording. SMOOTH/TRIG flips playback. CLEAR wipes the selected part's motion. The MASTER row: DRIVE = tube saturation over the whole mix, SWING = lag the off-beat 16ths. Left/Right arrows = tempo."
+    "controls": "TAP a part to select it (its ribbon + knob row appear); RE-TAP the selected part to MUTE it (drop it in/out live). TAP a PAGE (TONE / MOD) to remap the SAME 4 knobs to a different bank - TONE = the kit, MOD = the modulation (LFO RATE/DEPTH/DEST + filter EG>CUT). TAP a step to toggle it. GRAB a knob and turn it - if REC is armed the turn is recorded as motion for the selected part on the current page. REC arms recording. SMOOTH/TRIG flips playback. CLEAR wipes the current page's motion. The MASTER row: DRIVE = tube saturation over the whole mix, SWING = lag the off-beat 16ths. Left/Right arrows = tempo."
   }
 }
 de:meta */
@@ -61,37 +59,51 @@ de:meta */
 //
 //   TAP a part      select it — the ribbon + knob row + labels remap to it
 //   RE-TAP a part   mute it (drop it in/out of the mix live — the EMX part mute)
+//   TAP a PAGE      TONE / MOD — remap the SAME knob row to a different bank (the page axis)
 //   TAP a step      toggle it in the selected part's ribbon
 //   GRAB a knob     turn it; if REC is armed the turn records as motion for that part
 //   REC             arm / disarm motion recording
 //   SMOOTH / TRIG   interpolate the lane (swoopy) vs hold per step (stair-step)
-//   CLEAR           wipe the selected part's motion
+//   CLEAR           wipe the selected part's motion on the CURRENT page
 //   DRIVE (master)  tube saturation over the whole mix — the EMX 'Valve Force' grit
 //   SWING (master)  delay the off-beat 16ths for a triplet groove
 //   < / >           tempo down / up
 //
-// Slice 3 adds the PERFORMANCE layer — the jump from a pattern that plays to a thing you
-// jam on: live part MUTES (re-tap a part to drop it), a master DRIVE (drive_insert tube grit
-// over the summed bus), and a SWING knob that lags the odd 16ths.
+// Slice 3 adds the PERFORMANCE layer — live part MUTES, a master DRIVE, a SWING knob.
+//
+// The PAGE AXIS is the EMX's own answer to scarcity: the four knobs already remap per PART;
+// now they ALSO remap per PAGE (TONE / MOD), so four knobs reach ~8 params with no new
+// surface — 'one row means four things', one level deeper. TONE is the kit (per-part labels);
+// MOD is one modulation bank for every part — a filter-EG depth (the lead's pluck) + an LFO
+// (RATE / DEPTH / DEST = vibrato / cutoff wah / tremolo / auto-pan). The MOD layer is applied
+// SET-AND-HOLD (apply_part_mod): reconfigured only when a value changes, and motion rides it
+// because a motion lane changes per step. Motion is now per (part x page x knob).
 
 #define STEPS   16
-#define NK      4     // knobs per part
+#define NK      4     // knobs per row
 #define NPARTS  4
+#define NPAGES  2     // knob-row PAGES: the SECOND remap axis (TONE / MOD) — scarcity, one level deeper
 
 // instrument slots + part identity
 enum { KICK, HAT, BASS, LEAD };
 enum { SL_KICK = 5, SL_HAT, SL_BASS, SL_LEAD };
+enum { PG_TONE, PG_MOD };                               // the knob-row pages
 static const int  SLOT [NPARTS] = { SL_KICK, SL_HAT, SL_BASS, SL_LEAD };
 static const char *PNAME[NPARTS] = { "KICK", "HAT", "BASS", "LEAD" };
 static const int  PCOL [NPARTS] = { CLR_RED, CLR_YELLOW, CLR_BLUE, CLR_GREEN };
+static const char *PGNAME[NPAGES] = { "TONE", "MOD" };
+static int  curPage = PG_TONE;
 
-// the one knob row — its four labels REMAP per selected part (scarcity = the instrument)
+// the one knob row REMAPS per (part x page). TONE labels are per-part (the original scarcity);
+// the MOD page is one modulation bank (LFO + filter-EG depth) shared by every part.
 static const char *KLABEL[NPARTS][NK] = {
-    { "TUNE", "DECAY", "DRIVE", "ACC" },   // KICK
-    { "TONE", "DECAY", "RES",   "ACC" },   // HAT
-    { "CUTOFF", "RES", "DECAY", "ACC" },   // BASS
-    { "CUTOFF", "RES", "DECAY", "ACC" },   // LEAD
+    { "TUNE", "DECAY", "DRIVE", "ACC" },   // KICK  TONE
+    { "TONE", "DECAY", "RES",   "ACC" },   // HAT   TONE
+    { "CUTOFF", "RES", "DECAY", "ACC" },   // BASS  TONE
+    { "CUTOFF", "RES", "DECAY", "ACC" },   // LEAD  TONE
 };
+static const char *MODLABEL[NK] = { "RATE", "DEPTH", "DEST", "EG>CUT" };   // the MOD page (all parts)
+static const int   LFO_DESTS[4] = { LFO_PITCH, LFO_CUTOFF, LFO_VOLUME, LFO_PAN };  // MOD DEST knob → dest
 
 // a Param = one knob's motion-sequence state
 typedef struct {
@@ -103,7 +115,7 @@ typedef struct {
 
 typedef struct {
     bool  trig[STEPS];       // the step ribbon
-    Param k[NK];             // the four knobs for this part
+    Param k[NPAGES][NK];     // four knobs PER PAGE — the page axis (motion is per part x page x knob)
 } Part;
 
 static Part parts[NPARTS];
@@ -116,11 +128,13 @@ static const char *PRESET[NPARTS] = {
     "x.x.x.x.x.x.x.x.",   // BASS  rolling 8ths
     "....x.......x...",   // LEAD  a sparse topline
 };
-static const float KBASE[NPARTS][NK] = {
-    { 0.45f, 0.35f, 0.30f, 0.70f },   // KICK  tune/decay/drive/acc
-    { 0.60f, 0.25f, 0.20f, 0.55f },   // HAT   tone/decay/res/acc
-    { 0.55f, 0.30f, 0.45f, 0.60f },   // BASS  cutoff/res/decay/acc
-    { 0.65f, 0.25f, 0.50f, 0.55f },   // LEAD  cutoff/res/decay/acc
+// per-page starting positions. TONE = the old kit; MOD = { RATE, DEPTH, DEST, EG>CUT } with
+// DEPTH 0 (LFO off) so nothing moves until dialed; LEAD keeps its pluck (EG>CUT 0.5).
+static const float KBASE[NPARTS][NPAGES][NK] = {
+    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.30f, 0.00f, 0.00f, 0.00f } },   // KICK  tone / mod
+    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.30f, 0.00f, 0.00f, 0.00f } },   // HAT
+    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.30f, 0.00f, 0.00f, 0.00f } },   // BASS
+    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.30f, 0.00f, 0.00f, 0.50f } },   // LEAD (EG>CUT 0.5 = pluck)
 };
 
 static bool  smooth = true;   // SMOOTH (lerp between steps) vs TRIG (hold per step)
@@ -184,8 +198,8 @@ static int ribbon_col(int x, int y) {
 // per-hit instrument_filter/drive (fires ~8x/sec, well within set-and-hold budget).
 static void apply_part_hit(int pi) {
     Part *P = &parts[pi];
-    float v0 = cur_value(&P->k[0]), v1 = cur_value(&P->k[1]);
-    float v2 = cur_value(&P->k[2]), v3 = cur_value(&P->k[3]);
+    float v0 = cur_value(&P->k[PG_TONE][0]), v1 = cur_value(&P->k[PG_TONE][1]);
+    float v2 = cur_value(&P->k[PG_TONE][2]), v3 = cur_value(&P->k[PG_TONE][3]);
     switch (pi) {
         case KICK: {   // TUNE, DECAY, DRIVE, ACC
             instrument_drive(SL_KICK, v2 * 0.6f);
@@ -207,13 +221,41 @@ static void apply_part_hit(int pi) {
             int decMs = 40 + (int)(v2 * 340);                           // DECAY knob = note length
             // ACC also OPENS the filter — accent = louder AND brighter (the EMX accent, no new knob)
             instrument_filter(SL_LEAD, FILTER_LOW, base + (int)(v3 * 4000), (int)(1 + v1 * 10));
-            // filter EG: a per-note cutoff sweep (the 'pew' pluck) whose decay tracks the DECAY knob
-            instrument_env(SL_LEAD, 0, ENV_CUTOFF, 3, decMs, 4500);
-            hit(TOPLINE[leadArp % 5], SL_LEAD, 2 + (int)(v3 * 5), decMs);
+            hit(TOPLINE[leadArp % 5], SL_LEAD, 2 + (int)(v3 * 5), decMs);   // filter-EG pluck is set-and-hold (MOD page)
             leadArp++;
         } break;
     }
     flash[pi] = frame();
+}
+
+// the MOD page → the filter-EG (pluck depth) + the LFO, applied SET-AND-HOLD: reconfigure a
+// part's voice ONLY when a MOD value changes, never every frame (motion still rides it — a
+// motion lane changes per step, which reconfigures then). Per-voice params, so it's outside
+// the bus set-and-hold rule, but we still gate to be clean + phase-stable.
+static float lastEg[NPARTS], lastRate[NPARTS], lastDepth[NPARTS];
+static int   lastDec[NPARTS], lastDest[NPARTS];
+static void apply_part_mod(int pi) {
+    Part *P = &parts[pi];
+    int   slot = SLOT[pi];
+    // filter EG: a per-note cutoff sweep (the 'pew'); depth = EG>CUT knob, decay tracks TONE DECAY
+    float egHz  = cur_value(&P->k[PG_MOD][3]) * 9000.0f;
+    int   decMs = 40 + (int)(cur_value(&P->k[PG_TONE][2]) * 340);
+    if (egHz != lastEg[pi] || decMs != lastDec[pi]) {
+        instrument_env(slot, 0, ENV_CUTOFF, 3, decMs, egHz);   // amount 0 = off (a flat filter)
+        lastEg[pi] = egHz; lastDec[pi] = decMs;
+    }
+    // LFO: RATE / DEPTH / DEST — vibrato / cutoff wah / tremolo / auto-pan
+    int   dest   = LFO_DESTS[(int)(cur_value(&P->k[PG_MOD][2]) * 3.999f)];
+    float rate   = 0.1f + cur_value(&P->k[PG_MOD][0]) * 11.9f;
+    float depthK = cur_value(&P->k[PG_MOD][1]);
+    float depth  = depthK == 0.0f      ? 0.0f              // 0 = off, whatever the dest
+                 : dest == LFO_PITCH   ? depthK * 2.0f     // semitones (vibrato)
+                 : dest == LFO_CUTOFF  ? depthK * 6000.0f  // Hz (wah)
+                 :                       depthK;           // 0..1 (tremolo / auto-pan)
+    if (rate != lastRate[pi] || depth != lastDepth[pi] || dest != lastDest[pi]) {
+        instrument_lfo(slot, 0, dest, rate, depth);
+        lastRate[pi] = rate; lastDepth[pi] = depth; lastDest[pi] = dest;
+    }
 }
 
 void init() {
@@ -236,11 +278,14 @@ void init() {
 
     for (int p = 0; p < NPARTS; p++) {
         for (int c = 0; c < STEPS; c++) parts[p].trig[c] = (PRESET[p][c] == 'x');
-        for (int i = 0; i < NK; i++) {
-            parts[p].k[i].base = KBASE[p][i];
-            parts[p].k[i].live = KBASE[p][i];
-        }
+        for (int pg = 0; pg < NPAGES; pg++)
+            for (int i = 0; i < NK; i++) {
+                parts[p].k[pg][i].base = KBASE[p][pg][i];
+                parts[p].k[pg][i].live = KBASE[p][pg][i];
+            }
         flash[p] = -99;
+        lastEg[p] = lastRate[p] = lastDepth[p] = -1.0f;   // sentinels → apply_part_mod fires once
+        lastDec[p] = lastDest[p] = -1;
     }
     PTR_CLEAR(ptr);
 }
@@ -261,6 +306,9 @@ void update() {
         for (int p = 0; p < NPARTS; p++)
             if (parts[p].trig[cur_step] && !mute[p]) apply_part_hit(p);   // muted parts drop out
     }
+
+    // MOD page → each part's LFO + filter-EG (set-and-hold; motion rides it via the lanes)
+    for (int p = 0; p < NPARTS; p++) apply_part_mod(p);
 
     // ── tempo ──
     if (btnp(1, BTN_LEFT))  tempo = max(80,  tempo - 4);
@@ -318,9 +366,10 @@ void draw() {
         }
         if (p == selPart) rect(bx, by, pw, bh, PCOL[p]);
         if (mute[p]) line(bx + 3, by + bh / 2, bx + pw - 4, by + bh / 2, CLR_RED);  // struck = muted
-        // motion dot — this part carries recorded motion
+        // motion dot — this part carries recorded motion on ANY page
         bool hasMot = false;
-        for (int i = 0; i < NK; i++) if (parts[p].k[i].motion) hasMot = true;
+        for (int pg = 0; pg < NPAGES; pg++)
+            for (int i = 0; i < NK; i++) if (parts[p].k[pg][i].motion) hasMot = true;
         if (hasMot) circfill(bx + pw - 6, by + 4, 2, CLR_GREEN);
     }
     font(FONT_NORMAL);
@@ -340,17 +389,24 @@ void draw() {
         }
     }
 
-    print(rec ? "RECORDING - turn a knob" : "arm REC, then turn a knob",
-          GX, 68, rec ? CLR_RED : CLR_MEDIUM_GREY);
-
-    // ── the one knob row (edits the SELECTED part) + each knob's motion lane ──
+    // ── the PAGE selector: the SECOND remap axis — same 4 knobs, a different bank ──
     font(FONT_SMALL);
+    for (int pg = 0; pg < NPAGES; pg++) {
+        int bx = GX + pg * 48, by = 67, bw = 46, bh = 12;
+        if (ui_button(bx, by, bw, bh, PGNAME[pg])) curPage = pg;
+        if (pg == curPage) rect(bx, by, bw, bh, CLR_LIGHT_YELLOW);
+    }
+    print_right(rec ? "REC: turn a knob" : "arm REC, then turn",
+                318, 69, rec ? CLR_RED : CLR_MEDIUM_GREY);
+
+    // ── the one knob row (edits the SELECTED part on the CURRENT page) + each knob's lane ──
     for (int i = 0; i < NK; i++) {
-        Param *P = &SP->k[i];
+        Param *P = &SP->k[curPage][i];
+        const char *lbl = (curPage == PG_TONE) ? KLABEL[selPart][i] : MODLABEL[i];
         // show the lane/base value UNLESS a finger is holding this knob
         if (!ui_cap_for(&P->live)) P->live = cur_value(P);
 
-        ui_knob(&P->live, kx[i], KY, KLABEL[selPart][i]);
+        ui_knob(&P->live, kx[i], KY, lbl);
 
         // record / set-base: the motion-sequence gesture, into the selected part
         if (ui_cap_for(&P->live)) {
@@ -400,8 +456,8 @@ void draw() {
 
     if (ui_button(78, 176, 78, 16, smooth ? "SMOOTH" : "TRIG")) smooth = !smooth;
 
-    if (ui_button(164, 176, 62, 16, "CLEAR")) {                     // clears the SELECTED part
-        for (int i = 0; i < NK; i++) SP->k[i].motion = false;
+    if (ui_button(164, 176, 62, 16, "CLEAR")) {                     // clears the CURRENT PAGE's lanes
+        for (int i = 0; i < NK; i++) SP->k[curPage][i].motion = false;
     }
     ui_end();
 }

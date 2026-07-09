@@ -15,7 +15,11 @@
   ],
   "lineage": "Roland TB-303 (1981) acid machine; a monosynth-plus-sequencer where the sound is the resonant lowpass — live cutoff/reso/drive modulation on a held voice, authentic non-retriggering slide, and an N-key random root-heavy minor-pentatonic line generator.",
   "homage": "Roland TB-303 Bass Line (1981)",
-  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass — the engine's FILTER_DIODE, a real diode-ladder model (~18dB/oct, bass drains as the resonance climbs, and the resonance saturates inside the loop so it growls, the way a 303 does) — sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and seven draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), DRV is the instrument_drive/note_drive saturation (tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite), and SWING shuffles the off-16ths (an anachronism, like the drum carts' — the real 303 was straight). The full 303 sequencer: per-step OCTAVE up OR down, accent, slide, and TIE (hold the previous note across steps — the sustained roots a slide can't give you), plus an adjustable pattern LENGTH (tap the ruler above the roll; odd lengths roll against the beat for hypnotic polymeter). Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents, slides and ties, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
+  "todo": [
+    "note-off / erase now works (was a capture bug: erase set PTR_ROLL so the held drag repainted it). Optional nicety: right-click / right-drag to erase a run of steps on desktop.",
+    "port the full sequencer (ties / octave-down / length / swing) into acidrack's embedded 303 lanes — acidrack has its OWN 303, so these features are standalone-only for now (acidrack todo already flags its 303 doesn't shuffle)."
+  ],
+  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass — the engine's FILTER_DIODE, a real diode-ladder model (~18dB/oct, bass drains as the resonance climbs, and the resonance saturates inside the loop so it growls, the way a 303 does) — sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and eight draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), DRV is the instrument_drive/note_drive saturation (tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite), SQL (squelch) multiplies the filter-env sweep up to 3x (full ENV + full SQL = a 9kHz scream), and SWING shuffles the off-16ths (an anachronism, like the drum carts' — the real 303 was straight). The full 303 sequencer: per-step OCTAVE up OR down, accent, slide, and TIE (hold the previous note across steps — the sustained roots a slide can't give you; put SLD on a tie step and the held note glides on into the next, so you can slide from one long tied note into another), plus an adjustable pattern LENGTH (tap the strip along the bottom; odd lengths roll against the beat for hypnotic polymeter, and a red divider in the roll marks the loop end). Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents, slides and ties, the honest way it was always done). H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
 }
 de:meta */
 #include "studio.h"
@@ -60,14 +64,15 @@ de:meta */
 //     moves it on the ringing voice. RES + DRV up = the proper acid bite.
 //
 //   POINTER piano roll: press/drag to draw the line, press a note to
-//           erase it. The ruler ABOVE the roll sets pattern LENGTH (tap a
-//           column = loop end). Rows below the roll: OCT (tap cycles +1 / -1
-//           / off), ACC (accent), SLD (slide into next step), TIE (hold the
-//           previous note through this step — sustain, no retrigger, no pitch
-//           change). Knobs: drag vertically (or hover +
-//           wheel on desktop) — SWG is the swing/shuffle. The SAW/SQR switch toggles the wave. The
-//           SQUELCH slider (bottom) multiplies the filter-env sweep up to
-//           3x — ENV knob full + slider full = the 9kHz scream.
+//           erase it (tap the lit note = rest; only PLACING captures the
+//           finger for drag-paint, so an erase-tap isn't repainted). Rows below
+//           the roll: OCT (tap cycles +1 / -1 / off), ACC (accent), SLD (slide
+//           into next step), TIE (hold the previous note through this step —
+//           sustain, no retrigger, no pitch change). The strip along the BOTTOM
+//           sets pattern LENGTH (tap a cell = loop end; a red divider marks it
+//           in the roll). Knobs: drag vertically (or hover +
+//           wheel on desktop) — SWG is the swing/shuffle, SQL (lower-left,
+//           under CUT) is the filter-env depth. The SAW/SQR switch toggles the wave.
 //           MULTITOUCH: every finger is its own pointer — ride CUT and RES
 //           with two fingers while the line runs (the acid move). Header is
 //           tappable too: < name > pattern, BPM halves tempo, > run/stop.
@@ -81,9 +86,9 @@ de:meta */
 
 // knobs — named indices (house rule). Values all 0..100, mapped per-knob.
 // K_DRV appended at the END (never insert mid-list — reorders cross-wire saved values).
-enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SWING, NK };
-static const char *KNAME[NK] = { "CUT", "RES", "ENV", "DEC", "ACC", "DRV", "SWG" };
-static int knob[NK] = { 45, 70, 60, 40, 60, 35, 0 };
+enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SWING, K_SQ, NK };
+static const char *KNAME[NK] = { "CUT", "RES", "ENV", "DEC", "ACC", "DRV", "SWG", "SQL" };
+static int knob[NK] = { 45, 70, 60, 40, 60, 35, 0, 33 };   // SQL = the ex-squelch (env-sweep depth)
 
 // per-step pattern data (the real 303's programming model)
 static int  pitches[STEPS];              // semitone 0..12 above BASE
@@ -121,7 +126,6 @@ static int   last16 = -1, playhead = 0;
 static int   h = -1;          // the one voice
 static bool  prev_slide;      // did the step we just played carry a slide?
 static int   wave = INSTR_SAW;
-static int   squelch = 33;    // 0..100 → 1x..3x filter-env depth
 static bool  show_help;
 
 // per-finger pointer table — every finger drags its own knob, the slider,
@@ -141,7 +145,7 @@ static int env_hz(void)  { return knob[K_ENV] * 30; }                // 0..3000
 static int dec_ms(void)  { return 30 + knob[K_DEC] * 5; }            // 30..530
 static float acc_mul(void) { return 1.0f + knob[K_ACC] * 0.015f; }   // 1..2.5
 static float drv_x(void)   { return knob[K_DRV] / 100.0f; }          // 0..1
-static float sq_mul(void)  { return 1.0f + squelch * 0.02f; }        // 1..3
+static float sq_mul(void)  { return 1.0f + knob[K_SQ] * 0.02f; }     // 1..3 (the SQL knob)
 
 static void define_voice(void) {
     instrument(SLOT, wave, 2, 60, 6, 25);
@@ -212,7 +216,8 @@ void init(void) {
 #define SLDY (ACCY + 9)
 #define TIEY (SLDY + 9)
 
-static const int KX[NK] = { 22, 60, 98, 136, 174, 212, 250 };   // 7th (SWG) clears the wave box at 270
+static const int KX[NK] = { 22, 60, 98, 136, 174, 212, 250, 22 };   // 7th (SWG) clears the wave box; 8th (SQL) sits under CUT
+static const int KYA[NK] = { 38, 38, 38, 38, 38, 38, 38, 92 };      // per-knob Y: the row at 38, SQL down the left margin
 #define KY 38
 #define KR 11
 
@@ -238,19 +243,30 @@ void update(void) {
 
     int mx = mouse_x(), my = mouse_y();
 
+    // capture guard — the hand-rolled ui_grabbed: while ANY finger is dragging
+    // a knob or painting the roll, ignore the header taps + the wheel so a drag
+    // can't reach through and change an unrelated control. (Per-finger capture
+    // in the ptr pool already isolates the grabbed finger itself; this guards
+    // the few hit-tests that live OUTSIDE that pool.)
+    bool grabbed = false;
+    for (int i = 0; i < PTR_MAX; i++)
+        if (ptr[i].id != PTR_NONE && ptr[i].mode != PTR_IDLE) grabbed = true;
+
     if (show_help) {                       // help swallows the pointer; music keeps playing
         if (keyp('H') || tapp(0, 0, 320, 200)) show_help = false;   // any tap closes
         goto clock;
     }
-    if (keyp('H') || tapp(258, 178, 56, 18)) show_help = true;
+    if (keyp('H') || (!grabbed && tapp(258, 178, 56, 18))) show_help = true;
 
     // ── tappable header: < name > pattern, BPM halves tempo, > run/stop ──
-    if (tapp(146, 0, 18, 22)) { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; all_off(); }
-    if (tapp(214, 0, 18, 22)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; all_off(); }
-    if (tapp(166, 0, 46, 22) && !PRESET[pre].nt[0]) gen_random();   // tap RANDOM's name = reroll
-    if (tapp(226, 0, 30, 22)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
-    if (tapp(256, 0, 34, 22)) { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
-    if (tapp(292, 0, 28, 22)) { running = !running; last16 = -1; if (!running) all_off(); }
+    if (!grabbed) {
+        if (tapp(146, 0, 18, 22)) { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; all_off(); }
+        if (tapp(214, 0, 18, 22)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; all_off(); }
+        if (tapp(166, 0, 46, 22) && !PRESET[pre].nt[0]) gen_random();   // tap RANDOM's name = reroll
+        if (tapp(226, 0, 30, 22)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
+        if (tapp(256, 0, 34, 22)) { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
+        if (tapp(292, 0, 28, 22)) { running = !running; last16 = -1; if (!running) all_off(); }
+    }
 
     // ── touch: every finger is its own pointer — a knob, the slider, the
     // wave switch, or drawing in the roll, all independently and at once
@@ -263,7 +279,7 @@ void update(void) {
         if (fresh) {                                   // finger just landed
             *p = (Ptr){ id, PTR_IDLE, -1, ty };
             for (int k = 0; k < NK; k++) {
-                int dx = tx - KX[k], dy = ty - KY;
+                int dx = tx - KX[k], dy = ty - KYA[k];
                 if (dx * dx + dy * dy <= (KR + 3) * (KR + 3)) { p->mode = PTR_KNOB; p->k = k; }
             }
             if (p->mode != PTR_IDLE) continue;
@@ -272,19 +288,21 @@ void update(void) {
                 define_voice();
                 continue;
             }
-            if (tx >= 76 && tx < 252 && ty >= 180 && ty < 194) {       // squelch slider
-                p->mode = PTR_SLIDER;
-                continue;                                              // value set below next frame
+            if (tx >= 80 && tx < 240 && ty >= 182 && ty < 195) {       // LENGTH strip (in the old squelch spot)
+                int c = (tx - 80) / 10; if (c < 0) c = 0; if (c > 15) c = 15;
+                plen = c + 1;
+                continue;
             }
             int col = (tx - RX) / RSX;
             if (tx >= RX && col >= 0 && col < STEPS) {
-                if (ty >= RY - 8 && ty < RY - 1) {                     // length ruler: set loop end
-                    plen = col + 1;
-                } else if (ty >= RY && ty < RY + 13 * RSY) {           // piano roll
+                if (ty >= RY && ty < RY + 13 * RSY) {                  // piano roll
                     int row = 12 - (ty - RY) / RSY;
-                    if (on[col] && pitches[col] == row) on[col] = false;   // press your note = erase
-                    else { on[col] = true; pitches[col] = row; tie[col] = false; }  // a drawn note isn't a tie
-                    p->mode = PTR_ROLL;
+                    if (on[col] && pitches[col] == row) {
+                        on[col] = false;                               // tap your note = erase (rest) — NO capture
+                    } else {                                           // place/move a note; capture for draw-drag
+                        on[col] = true; pitches[col] = row; tie[col] = false;
+                        p->mode = PTR_ROLL;                            // ONLY placing grabs the finger, so an
+                    }                                                  // erase-tap can't be repainted by the drag branch
                 } else {                                               // flag rows: press toggles
                     if (ty >= OCTY && ty < OCTY + 7) oct[col] = oct[col] == 0 ? 1 : oct[col] == 1 ? -1 : 0;  // +1 → -1 → off
                     if (ty >= ACCY && ty < ACCY + 7) acc[col]  = !acc[col];
@@ -299,10 +317,6 @@ void update(void) {
                 if (knob[p->k] > 100) knob[p->k] = 100;
                 knob_changed(p->k);
             }
-        } else if (p->mode == PTR_SLIDER) {
-            squelch = (tx - 80) * 100 / 168;
-            if (squelch < 0)   squelch = 0;
-            if (squelch > 100) squelch = 100;
         } else if (p->mode == PTR_ROLL) {
             int col = (tx - RX) / RSX;
             if (tx >= RX && col >= 0 && col < STEPS && ty >= RY && ty < RY + 13 * RSY) {
@@ -319,9 +333,9 @@ void update(void) {
 
     // ── knobs: hover + wheel still works on desktop ──────────────────────
     float wh = mouse_wheel();
-    if (wh != 0.0f)
+    if (wh != 0.0f && !grabbed)
         for (int k = 0; k < NK; k++) {
-            int dx = mx - KX[k], dy = my - KY;
+            int dx = mx - KX[k], dy = my - KYA[k];
             if (dx * dx + dy * dy <= (KR + 3) * (KR + 3)) {
                 knob[k] += wh > 0 ? 4 : -4;
                 if (knob[k] < 0)   knob[k] = 0;
@@ -346,7 +360,9 @@ clock:
         last16  = trig;
         playhead = s;
         if (tie[s]) {
-            prev_slide = false;                        // hold: no retrigger, no release
+            prev_slide = sld[s];                       // hold: no retrigger. SLD on a tie step
+                                                       // arms a glide OUT of the held note into
+                                                       // the next — long tied notes that slide.
         } else if (on[s]) {
             int midi = BASE + pitches[s] + oct[s] * 12;
             int vol  = acc[s] ? 7 : 5;
@@ -391,11 +407,12 @@ void draw(void) {
 
     // knobs
     for (int k = 0; k < NK; k++) {
-        circfill(KX[k], KY, KR, CLR_BLACK);
-        circ(KX[k], KY, KR, CLR_DARK_GREY);
+        int ky = KYA[k];
+        circfill(KX[k], ky, KR, CLR_BLACK);
+        circ(KX[k], ky, KR, CLR_DARK_GREY);
         float a = (-135.0f + 270.0f * knob[k] / 100.0f) * 0.0174533f - 1.5708f;
-        line(KX[k], KY, KX[k] + (int)(cosf(a) * (KR - 2)), KY + (int)(sinf(a) * (KR - 2)), CLR_WHITE);
-        print(KNAME[k], KX[k] - 11, KY + KR + 4, CLR_BLACK);
+        line(KX[k], ky, KX[k] + (int)(cosf(a) * (KR - 2)), ky + (int)(sinf(a) * (KR - 2)), CLR_WHITE);
+        print(KNAME[k], KX[k] - 11, ky + KR + 4, CLR_BLACK);
     }
     // wave switch
     rectfill(270, 30, 36, 18, CLR_BLACK);
@@ -410,14 +427,6 @@ void draw(void) {
         if (whitek[r % 12]) rectfill(RX, y, 16 * RSX - 2, RSY - 1, CLR_BROWNISH_BLACK);
         rectfill(RX - 12, y, 10, RSY - 1, whitek[r % 12] ? CLR_WHITE : CLR_DARK_GREY);
         if (r % 12 == 0) print("C", RX - 10, y, CLR_BLACK);
-    }
-    // LENGTH ruler above the roll — tap a column to set the loop end (the
-    // bright cap = last step; "LEN BAR" in the help panel). No text label here:
-    // it'd collide with the CUT knob label above it.
-    for (int s = 0; s < STEPS; s++) {
-        int x = RX + s * RSX;
-        rectfill(x, RY - 8, RSX - 3, 3, s < plen ? (s == plen - 1 ? CLR_GREEN : CLR_DARK_GREEN)
-                                                 : CLR_DARKER_GREY);
     }
     // playhead
     if (running)
@@ -436,7 +445,14 @@ void draw(void) {
             int y2 = ROWY(pitches[nx]);
             line(x + RSX - 3, y + 3, x + RSX, y2 + 3, CLR_LIGHT_PEACH);
         }
-        if (tie[nx]) rectfill(x + RSX - 3, y + 1, 3 + (RSX - 3), RSY - 3, c);  // held into a tie
+        if (tie[nx]) {
+            rectfill(x + RSX - 3, y + 1, 3 + (RSX - 3), RSY - 3, c);           // held into a tie
+            int nx2 = (nx + 1) % plen;
+            if (sld[nx] && on[nx2]) {                  // the held note slides on OUT of the tie
+                int xt = RX + nx * RSX, y2 = ROWY(pitches[nx2]);
+                line(xt + RSX - 3, y + 3, xt + RSX, y2 + 3, CLR_LIGHT_PEACH);
+            }
+        }
     }
 
     // OCT flag row (tri-state: +1 up / -1 down / off)
@@ -463,14 +479,19 @@ void draw(void) {
     // loop divider — everything right of it is outside the pattern
     if (plen < STEPS) {
         int dx = RX + plen * RSX - 1;
-        line(dx, RY - 8, dx, TIEY + 6, CLR_DARK_RED);
+        line(dx, RY - 2, dx, TIEY + 6, CLR_DARK_RED);
     }
 
-    // squelch slider — depth multiplier on the filter-env sweep
-    print("SQUELCH", 14, 184, CLR_BLACK);
-    rectfill(80, 186, 168, 3, CLR_DARK_GREY);
-    rectfill(80, 186, squelch * 168 / 100, 3, CLR_DARK_RED);
-    rectfill(78 + squelch * 168 / 100, 182, 5, 11, CLR_BLACK);
+    // LENGTH strip — tap a cell to set the loop end (the bright cap = last
+    // step; the red divider in the roll marks where it cuts). Moved down here
+    // into the old squelch-slider spot so it isn't cramped against the knobs.
+    sprintf(buf, "LEN %d", plen);
+    print(buf, 14, 184, CLR_BLACK);
+    for (int s = 0; s < STEPS; s++) {
+        int x = 80 + s * 10;
+        rectfill(x, 184, 9, 8, s < plen ? (s == plen - 1 ? CLR_GREEN : CLR_DARK_GREEN)
+                                        : CLR_DARKER_GREY);
+    }
     print("H HELP", 262, 184, CLR_DARK_GREY);
 
     if (show_help) {
@@ -487,7 +508,7 @@ void draw(void) {
             "TIE       HOLD PREV NOTE (SUSTAIN)",
             "SWG KNOB  SWING THE OFF-16THS",
             "DRV       POST-FILTER GRIT",
-            "SQUELCH   FILTER-ENV DEPTH",
+            "SQL KNOB  FILTER-ENV DEPTH",
             "WAVE BOX  SAW / SQR   N NEW RND",
             "< > PATTERN  ^v TEMPO (TAP)",
             "SPACE/TAP > RUN/STOP  H CLOSE",

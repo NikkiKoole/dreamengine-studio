@@ -268,8 +268,12 @@ void update() {
                 p->id = PTR_NONE;
             }
         } else if (p->kind == KIND_KNOB) {
+            // absolute fader: the value tracks the finger's position within the bar,
+            // so you never have to drag past the slider to reach the top. A clean tap
+            // (no move) just selects the macro without changing it.
             if (abs(ty - p->startY) > 3) p->moved = true;
-            mac[selRow][p->mac] = clampf(p->startVal + (p->startY - ty) / 90.0f, 0, 1);
+            if (p->moved)
+                mac[selRow][p->mac] = clampf((float)(KY + KH - ty) / (KH - 2), 0, 1);
         } else if (p->kind == KIND_CELL) {
             if (abs(ty - p->startY) > 4) p->moved = true;
             if (p->moved) {
@@ -278,7 +282,7 @@ void update() {
                 if (ty > cellBot + 26) {
                     plock[p->r][p->c][selMac] = -1;
                 } else {
-                    float v = clampf(p->startVal + (p->startY - ty) / 90.0f, 0, 1);
+                    float v = clampf(p->startVal + (p->startY - ty) / 45.0f, 0, 1);
                     plock[p->r][p->c][selMac] = (signed char)(v * 100.0f);
                     grid[p->r][p->c] = true;               // a locked step is a lit step
                 }

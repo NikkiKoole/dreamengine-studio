@@ -185,6 +185,7 @@ int  text_width(const char *text);                                 // pixel widt
 int  print(const char *text, int x, int y, int color);             // returns x after the last char (so you can chain or check if text went offscreen)
 int  print_centered(const char *text, int x, int y, int color);    // draw text centered on x; returns x after last char
 int  print_right(const char *text, int right_x, int y, int color); // right-align text at right_x; returns x after last char
+void hint(const char *text);                                       // bottom-anchored control-hint footer ("Z jump  X shoot"). auto-picks the largest of the 8×8/small/tiny fonts that fits the screen width, muted light-grey — so it never runs off the edge
 int  print_scaled(const char *text, int x, int y, int color, int scale); // bigger text for titles/menus (scale 2 = double size); returns x after last char
 int  print_outline(const char *text, int x, int y, int color, int outline_color); // text with a 1px outline in all 8 directions; maximum legibility
 int  print_rot(const char *text, int x, int y, float deg, int color, int pivot); // text rotated `deg` degrees. pivot 0 = around (x,y)=top-left, 1 = around text center

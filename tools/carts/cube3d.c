@@ -14,8 +14,7 @@
   "todo": [
     "Better mouse support (wheel-zoom, drag-rotate).",
     "The L/R spin is weird: it stops the spin but can't restart it.",
-    "Add an onscreen toggle for auto-rotate; leave seams for touch pinch-zoom.",
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+    "Add an onscreen toggle for auto-rotate; leave seams for touch pinch-zoom."
   ]
 }
 de:meta */
@@ -83,5 +82,5 @@ void draw(void) {
     for (int i = 0; i < NV[shape]; i++) circfill(sx[i], sy[i], 2, CLR_LIGHT_YELLOW);
 
     print(str("%s   spin x%.1f", SNAME[shape], spin), 4, 4, CLR_WHITE);
-    print("Z: next solid   up/down: zoom   L/R: spin", 4, SCREEN_H - 9, CLR_LIGHT_GREY);
+    hint("Z: next solid   up/down: zoom   L/R: spin");
 }

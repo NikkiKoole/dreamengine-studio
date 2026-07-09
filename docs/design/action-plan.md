@@ -192,13 +192,17 @@ across many carts — handle those **once, systemically**, then sweep:
   unfinished — define one good shared end-screen treatment and apply it.
 - [ ] **Text-overflow sweep.** Many carts overflow / want a smaller font (civ-tiny, puyo, dr-mario,
   connect-4, monkey-island, larry, football-manager, sokoban, papers-please, xcom, composer…).
-- [ ] **Control-hint overflow (ui-audit, ~47 carts).** A fleet `ui-audit` sweep found that nearly
+- [~] **Control-hint overflow (ui-audit, ~46 carts).** A fleet `ui-audit` sweep found that nearly
   every sound-toy/lab cart's bottom one-line control hint (`"drag X · up/dn Y · Z/X oct"`) runs past
-  the 320px right edge and is clipped. Systemic fix: a shorter / auto-fit / smaller-font (or wrapped)
-  convention for the hint line. Each affected cart carries a soft `ui-audit?:` marker in its
-  `de:meta.todo[]` (query: `node tools/cart-todos.js --grep "ui-audit?"`); fixing the convention once
-  lets the markers be cleared in a sweep. (Confident per-cart HUD findings carry a plain `ui-audit:`
-  prefix instead.)
+  the 320px right edge and is clipped. **Systemic fix shipped: `hint(const char *text)`** (studio.h) —
+  a bottom-anchored footer that auto-picks the largest of the 8×8/small/tiny fonts that fits the
+  screen width (muted light-grey), so the line can't run off the edge. Migration = swap each cart's
+  bottom `print(...)` for `hint("...")`. **Proof batch done (7):** doomfire, cube3d, lsystem, sort,
+  textured3d, solid3d, rampkit — their `ui-audit?:` markers cleared. Remaining ~39: sweep the rest
+  (`node tools/cart-todos.js --grep "control-hint"`). Note two classes `hint()` doesn't fully solve:
+  carts whose hint is *already* at tiny and simply too verbose (e.g. **brass**, ~96 chars > TINY's
+  ~80 — needs shorter copy), and *colored multi-segment* hints (want a hand pass or one grey line).
+  (Confident per-cart HUD findings carry a plain `ui-audit:` prefix instead.)
 - [ ] **Mouse support for the 3D + label-button carts.** wheel-zoom + drag-rotate + a toggle for
   auto-rotate, and pinch-zoom seams for touch — textured3d, solid3d, 3d-wireframe; plus clickable
   text labels across juice/particles/effects/etc.

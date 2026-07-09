@@ -14,8 +14,7 @@
   "description": "PS1-era flat-shaded polygons — no textures, no GPU 3D. The wireframe filled in: every face is one trifill, sorted far-to-near (painter's algorithm, since there's no z-buffer) and culled when it faces away. Brightness comes from the face normal dotted with a light direction; the in-between shades are faked with fillp dither between two palette colours — which is exactly how you squeeze more than 32 shades out of the palette. Z toggles the dither off so you can watch the smooth gradient collapse into hard bands. X swaps icosahedron/cube, up/down zoom, L/R spin.",
   "todo": [
     "Better mouse support (wheel-zoom, drag-rotate); labels fall off-screen.",
-    "Add an onscreen toggle for auto-rotate; leave seams for touch pinch-zoom.",
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+    "Add an onscreen toggle for auto-rotate; leave seams for touch pinch-zoom."
   ]
 }
 de:meta */
@@ -172,5 +171,5 @@ void draw(void) {
     print(str("%s   %d faces", MNAME[model], nf), 4, 4, CLR_WHITE);
     print(dither ? "DITHER: ON  (smooth)" : "DITHER: OFF (banded)", 4, 13,
           dither ? CLR_LIME_GREEN : CLR_ORANGE);
-    print("Z dither  X model  up/down zoom  L/R spin", 4, SCREEN_H - 9, CLR_LIGHT_GREY);
+    hint("Z dither  X model  up/down zoom  L/R spin");
 }

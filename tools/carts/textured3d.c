@@ -15,8 +15,7 @@
   "todo": [
     "Mouse: wheel-zoom, drag-rotate, and let the mouse change rotation.",
     "Make the text labels clickable.",
-    "Add an onscreen toggle for auto-rotate; leave seams so touch pinch-zoom can hook in later.",
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+    "Add an onscreen toggle for auto-rotate; leave seams so touch pinch-zoom can hook in later."
   ]
 }
 de:meta */
@@ -152,5 +151,5 @@ void draw(void) {
     print("TEXTURED CUBE  (tritex + dither)", 4, 4, CLR_WHITE);
     print(str("SUBDIVISION: %dx%d  %s", sub, sub, sub == 1 ? "(raw affine warp)" : "(perspective-tamed)"),
           4, 13, sub == 1 ? CLR_ORANGE : CLR_LIME_GREEN);
-    print("Z shading   X subdivide   up/down zoom   L/R spin", 4, SCREEN_H - 9, CLR_LIGHT_GREY);
+    hint("Z shading   X subdivide   up/down zoom   L/R spin");
 }

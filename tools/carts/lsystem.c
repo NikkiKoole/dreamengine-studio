@@ -14,8 +14,7 @@
   "todo": [
     "Growth feels backward: each iteration adds branches but the plant shrinks vertically — it should grow from small/few to bigger/more.",
     "Changing the angle sometimes changes the plant's size for no clear reason.",
-    "Add cute pixel buttons for the various plant algorithms.",
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+    "Add cute pixel buttons for the various plant algorithms."
   ]
 }
 de:meta */
@@ -163,5 +162,5 @@ void draw(void) {
     print(str("F -> %s", L->pF), 4, 14, CLR_LIME_GREEN);
     if (L->pX) print(str("X -> %s", L->pX), 4, 23, CLR_LIME_GREEN);
 
-    print("up/down grow   L/R angle   Z plant   X wind", 4, SCREEN_H - 9, CLR_LIGHT_GREY);
+    hint("up/down grow   L/R angle   Z plant   X wind");
 }

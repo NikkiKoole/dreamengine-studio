@@ -5619,3 +5619,18 @@ int print_right(const char *text, int right_x, int y, int color) {
     return print(text, right_x - text_width(text), y, color);
 }
 
+void hint(const char *text) {
+    PROF("hint");
+    int prev = active_font_id;
+    // pick the largest font whose rendered width fits the screen; fall back to the smallest
+    int order[3] = { FONT_NORMAL, FONT_SMALL, FONT_TINY };
+    int chosen = FONT_TINY;
+    for (int i = 0; i < 3; i++) {
+        font(order[i]);
+        if (text_width(text) <= SCREEN_W - 4) { chosen = order[i]; break; }
+    }
+    font(chosen);
+    print(text, 2, SCREEN_H - (int)cur_font_size() - 1, CLR_LIGHT_GREY);
+    font(prev);
+}
+

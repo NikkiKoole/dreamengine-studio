@@ -125,4 +125,6 @@ void draw(void) {
 
     // ── reads (coverage only — pget/pget_rgb/sget; results intentionally unused) ────────────────
     (void)pget(40, 60); (void)pget_rgb(40, 60); (void)sget(2, 2);
+
+    hint("hint(): auto-fit bottom control footer");             // bottom-anchored footer; font auto-picked. drawn last so it's on top
 }

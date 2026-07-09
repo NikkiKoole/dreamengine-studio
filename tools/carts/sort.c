@@ -14,8 +14,7 @@
   "description": "Watch and hear sorting algorithms run. A sort only ever compares and swaps; this records that stream of operations and replays it slowly, lighting the bars it touches and playing a note pitched to each bar height. Bubble, selection, insertion and quicksort each make a very different sound. Z cycles algorithm, X shuffles, up/down change speed.",
   "todo": [
     "Labels run off-screen — fix layout.",
-    "Add some cute pixel buttons.",
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+    "Add some cute pixel buttons."
   ]
 }
 de:meta */
@@ -95,5 +94,5 @@ void draw(void) {
         rectfill(8 + i * w, SCREEN_H - 12 - bars[i], w - 1, bars[i], col);
     }
     print(str("%s   %d / %d ops   speed %d", ANAME[algo], head, nev, speed), 4, 4, CLR_WHITE);
-    print("Z: next algorithm   X: shuffle   up/down: speed", 4, SCREEN_H - 9, CLR_LIGHT_GREY);
+    hint("Z: next algorithm   X: shuffle   up/down: speed");
 }

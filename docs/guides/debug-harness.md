@@ -198,6 +198,33 @@ or prefix your command with `caffeinate -dims`.
 
 ---
 
+## Netplay diagnostics — why did it hang? (`F2` · stall log · trace `net`)
+
+Netplay is **lockstep**: every frame the barrier (`net_frame_sync`) *blocks* until the
+peer's input for that frame arrives, so a "freeze" is the barrier waiting — usually
+network jitter/loss beyond the `NET_DELAY` (~165 ms) cushion, or a peer that hitched.
+Three built-in tools surface it (all `DE_NET_CORE`, zero cost off):
+
+- **`F2` net-health overlay** (top-right, any net build incl. the exported `.exe`).
+  Shows `net_frame`, **peer buffer** = frames of peer input queued ahead (the runway
+  before the barrier blocks — green ≥5, amber ≤4, red ≤1; watch it hit 0 right before a
+  freeze), `tx`/`rx` packet counts (rx flat while tx climbs = not hearing the peer), and
+  `stalls`/`last`/`tot` ms. This is the fastest "network vs local-hitch" read.
+- **Stall log line** — any barrier wait ≥ `NET_STALL_LOG_MS` (100 ms) prints
+  `net: stalled <ms> at frame <f> (peer buffer now …, tx … rx …)` to the console (native
+  console builds; invisible under `-mwindows`, use the overlay there).
+- **Trace `net` field** — a harness/`netdemo` run adds `"net":{"buf","tx","rx","stalls",
+  "stall_ms"}` per line, so you can autopsy a captured hang frame-by-frame. `netdemo`'s
+  desync check ignores it (per-peer by design); real desync = the `w` sim state diverging.
+- **Net-debug log FILE** — the "play, then send me the log" artifact, for when there's no
+  console (the `-mwindows` `.exe`) and no harness. Any net session writes
+  `net-debug-P<seat>.log` next to the running binary (the editor run → `build/`; a
+  double-clicked exe → its own folder): a header, a ~1 Hz heartbeat
+  (`HB frame | buf tx rx stalls stall_ms_total`), a `STALL` line per wait (with `wait_ms`),
+  and an `END` summary. Flushed per line, so a force-quit on a hang still leaves the tail.
+  `DE_NET_LOG=off` disables it, `DE_NET_LOG=<path>` relocates it. Both players send their
+  file back; comparing the two timelines shows which side stalled and whether `rx` stopped.
+
 ## The three ways to "play together"
 
 1. **Record → replay & inspect** — you play once, then
@@ -428,6 +455,19 @@ node tools/wav-analyze.js /tmp/a.wav /tmp/b.wav # compare; "bytes identical: tru
 The worked example: the §15 voice-budget experiment rendered the house cart at
 8 vs 16 voices with identical scripts — the byte-diff *is* the starvation
 measurement (identical = never starved; different = voices were being stolen).
+
+> **Gotcha — an A/B is only valid if BOTH sides are deterministic (cost an hour).**
+> `--wav` renders deterministically *only when the run is deterministic*, and the mode
+> decides that: **`run` is NOT `--det`** (unseeded RNG), while `replay`/`script`/`beats`
+> imply `--det`. So diffing a `run --wav` against a `script --wav` shows a difference on
+> *every* run — that's the RNG stream diverging, **not** your change. It reads as a
+> convincing false PASS: "the samples differ, so my effect works." The trap that bit:
+> A/B-ing a master-drive toggle as `run` (off) vs `script` (on) "proved" the drive worked
+> when it was in fact silent (`FX_DRIVE` wasn't in the fx chain). **Rule: render both sides
+> in the SAME deterministic mode** — a `script` (with the effect off) as the control vs a
+> `script` (effect on), same `--seed`/`--frames`. Then a byte-diff means only your change.
+> To toggle an effect without input, drive both with a script and change only the cart, or
+> park the difference in the input track — never mix `run` with `script`.
 
 **Stereo / panning / effects-bus work — `--stereo`.** The default report downmixes
 L+R→mono, so it's *blind to the stereo field*. `--stereo` reads the channels

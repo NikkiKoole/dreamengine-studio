@@ -1507,7 +1507,13 @@ v1, document it on the panel.
     one-sided, like the voice path). `FX_DRIVE`=15 — the **last** kind that fits `fx_order`'s 4-bit-per-slot
     packing (a 16th `FX_*` needs a packing change). `SR_DRIVE_INSERT`=89; master-only, NOT in the default
     chain (the cart places `FX_DRIVE` via `fx_order(0,…)`, like FX_ECHO/REVERB). `mix 0` (or `amount 0`) →
-    dormant/byte-identical. Full 4-place wiring + tcc. Verified: soundcheck compile-gate `ok` + 900-frame
+    dormant/byte-identical.
+    **TRAP (cost an hour, motionbox 2026-07-09): `drive_insert()` does NOT self-place `FX_DRIVE` in the
+    chain — but its cousins `FX_GRAINS`/`FX_GATE`/`FX_SHALLOW` DO** (their `SR_*` handlers auto-append to
+    `insert_order[0]`; `SR_DRIVE_INSERT` only calls `fx_set_drive`). So `drive_insert()` alone SETS the
+    saturator's params but it's never visited → the knob is configured yet **silent**, no warning. Fix is
+    one line in `init()`: `int c[]={FX_DRIVE}; fx_order(0,c,1);`. If a future refactor unifies this, make
+    drive self-place like the others and delete this trap. Full 4-place wiring + tcc. Verified: soundcheck compile-gate `ok` + 900-frame
     tripwire silent; a clean→hard-drive switch mid-render jumps RMS 0.18→0.89 (the wall-of-fuzz fills the
     waveform). **Showcase: `modrack`'s SAT module** (whole-mix saturator; + the "Sat bus" preset that grits
     a whole beat). Per-voice drive stays the separate tool for the 303/acid post-filter scream.

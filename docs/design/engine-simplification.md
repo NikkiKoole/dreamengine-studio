@@ -44,7 +44,7 @@ The same 3–4-line idioms are hand-inlined dozens of times. One helper collapse
   / `clampf(lo,hi,v)` and use everywhere. The macro-clamp for harm/timb/mor
   (`sound.h:5709`+) re-evaluates the same sum 3× per branch — a local + `clamp01`
   makes each one a readable line.
-- [ ] **`studio.c` clamps** — `fade` (`5480`), `touch_layout` button clamp (`3427`),
+- [x] **`studio.c` clamps** — `fade` (`5480`), `touch_layout` button clamp (`3427`),
   `camera_ex` zoom guard (`4574`) reimplement the existing `clamp`/`clampi`/`mid`.
   Use the helpers that already exist.
 - [x] **`voice_white(Voice *v)` in `sound.h`.** The LCG noise draw
@@ -62,10 +62,10 @@ The same 3–4-line idioms are hand-inlined dozens of times. One helper collapse
   (reed/pipe/bowed/brass, `sound.h:3045, 3189, 3322, 3459`); `3.14159265f` 13× (all
   `PI*cutoff/rate` filters), `0.78539816f` (π/4) 2×, `6.9078f` (=ln 1000) 4×. Define
   file-level `SOUND_PI` / `SOUND_TWO_PI`, drop the 4 inconsistent locals.
-- [ ] **`DEG2RAD` consistency in `studio.c`.** `gradient()` (`5156–5157`) hand-writes
+- [x] **`DEG2RAD` consistency in `studio.c`.** `gradient()` (`5156–5157`) hand-writes
   `angle_deg * 3.14159265f / 180.0f` and `sw_rot_composite` (`4522`) uses the raw
   literal `0.01745329252f`; the rest of the file uses `DEG2RAD`. Use it here too.
-- [ ] **`ROT_QUANT` constant in `studio.c`.** The determinism idiom
+- [x] **`ROT_QUANT` constant in `studio.c`.** The determinism idiom
   `roundf(x*4096.f)/4096.f` with bare `4096.f` appears in `de_cpu_img_rot` (`3757`)
   and `de_cpu_rectfill_rot` (`4027`). Name it (`#define ROT_QUANT 4096.f` + a
   `quantize()` inline) so the constant lives in one place.

@@ -3424,7 +3424,7 @@ void touch_controls(bool on) { show_touch_ui = on; }
 void touch_layout(int move_mode, int n_buttons) {
     show_touch_ui   = true;                                   // declaring a layout opts the controls in
     touch_move_mode = (move_mode >= TOUCH_ANALOG && move_mode <= TOUCH_DPAD8) ? move_mode : TOUCH_ANALOG;
-    touch_n_buttons = n_buttons < 0 ? 0 : (n_buttons > 4 ? 4 : n_buttons);
+    touch_n_buttons = clampi(n_buttons, 0, 4);
 }
 
 int   touch_layout_mode(void) { return place_mode; }   // PlaceMode and TOUCH_LAYOUT_* share 0/1/2 numbering
@@ -3739,6 +3739,11 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     UIAUDIT('s', dx, dy, dw, dh, NULL);
 }
 
+// quantize a rotation cos/sin to 1/ROT_QUANT so the rotated-blit matrix is bit-identical across
+// arm64/x86/wasm (the determinism convention proven in tools/det-probes/). One name, two callers.
+#define ROT_QUANT 4096.f
+static inline float quantize(float x) { return roundf(x * ROT_QUANT) / ROT_QUANT; }
+
 // CPU rotated sprite blit: INVERSE-map nearest — for each dest screen pixel, rotate it back about the
 // pivot to unrotated dest-local coords, map to source (dw→sw, dh→sh scale), nearest-sample the sheet.
 // Convention proven in tools/det-probes/rotspr.c: nearest == today's GPU point-filter quality + it's
@@ -3754,7 +3759,7 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
                            float deg, int ox, int oy, bool use_pal, int fonttint) {
     if (!img->data || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
     float a = deg * DEG2RAD;
-    float c = roundf(cosf(a) * 4096.f) / 4096.f, s = roundf(sinf(a) * 4096.f) / 4096.f;
+    float c = quantize(cosf(a)), s = quantize(sinf(a));
     float px0 = dx + ox, py0 = dy + oy;                       // pivot (world)
     bool recolor = use_pal && pal_active;
     bool oncanvas = sw_canvas_active;                          // hoist: plot straight to cbuf vs the pset dispatch
@@ -4024,7 +4029,7 @@ void rectfill_rgb(int x, int y, int w, int h, int hex) {
 // so a canvas A/B of a rotated-fill cart is byte-exact. Camera translate/zoom + clip come for free.
 static void de_cpu_rectfill_rot(int cx, int cy, int w, int h, float deg, int color) {
     float a = deg * DEG2RAD;
-    float c = roundf(cosf(a) * 4096.f) / 4096.f, s = roundf(sinf(a) * 4096.f) / 4096.f;
+    float c = quantize(cosf(a)), s = quantize(sinf(a));
     float hw = w * 0.5f, hh = h * 0.5f;
     float ex = fabsf(c * hw) + fabsf(s * hh), ey = fabsf(s * hw) + fabsf(c * hh);   // world bbox half-extents
     int x0 = (int)floorf(cx - ex), x1 = (int)ceilf(cx + ex);
@@ -4519,7 +4524,7 @@ static void smooth_composite(void) {
 // are skipped, so the cls() background shows in the rotated-out corners — matching the GPU.
 static void sw_rot_composite(void) {
     if (!sw_rot_active) return;
-    float a  = sw_rot_angle * 0.01745329252f;          // deg→rad; sign matches raylib Camera2D
+    float a  = sw_rot_angle * DEG2RAD;                 // deg→rad; sign matches raylib Camera2D
     float cs = cosf(a), sn = sinf(a);
     float ox = cam.offset.x, oy = cam.offset.y;         // pivot = screen centre (camera_ex pins it there)
     for (int dy = 0; dy < de_sh; dy++) {
@@ -4571,7 +4576,7 @@ void camera_ex(int x, int y, float zoom, float angle) {
         sw_rot_composite();
     }
 #endif
-    float zd = zoom > 1.0f ? zoom - 1.0f : 1.0f - zoom;
+    float zd = fabsf(zoom - 1.0f);
 #ifndef PLATFORM_WEB
     // smooth_zoom is a GPU-path device: its EndTextureMode/BeginTextureMode(smooth_rt) dance is
     // INVALID during a software-canvas frame (the sw path never opens a render target — cf.
@@ -5153,8 +5158,8 @@ static const int BAYER4[4][4] = {
 void gradient(int x, int y, int w, int h, int c_a, int c_b, float angle_deg) {
     PROF("gradient");
     if (w <= 0 || h <= 0) return;
-    float ca = cosf(angle_deg * 3.14159265f / 180.0f);
-    float sa = sinf(angle_deg * 3.14159265f / 180.0f);
+    float ca = cosf(angle_deg * DEG2RAD);
+    float sa = sinf(angle_deg * DEG2RAD);
     float cx = x + w * 0.5f, cy = y + h * 0.5f;
     float half_ext = fabsf(ca) * w * 0.5f + fabsf(sa) * h * 0.5f;
     if (half_ext < 0.5f) half_ext = 0.5f;
@@ -5477,7 +5482,7 @@ void palette_hex(int i, int hex) {
                           (unsigned char)( hex        & 0xFF), 255 };
     pal_recompute();
 }
-void fade(float a)        { fade_amt  = a < 0 ? 0 : (a > 1 ? 1 : a); }
+void fade(float a)        { fade_amt  = clamp(a, 0.0f, 1.0f); }
 void shake(float a)       { if (a > shake_amt) shake_amt = a; }
 
 int print_scaled(const char *t, int x, int y, int color, int scale) {

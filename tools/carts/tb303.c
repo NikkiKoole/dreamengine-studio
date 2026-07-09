@@ -17,7 +17,8 @@
   "homage": "Roland TB-303 Bass Line (1981)",
   "todo": [
     "note-off / erase now works (was a capture bug: erase set PTR_ROLL so the held drag repainted it). Optional nicety: right-click / right-drag to erase a run of steps on desktop.",
-    "port the full sequencer (ties / octave-down / length / swing) into acidrack's embedded 303 lanes — acidrack has its OWN 303, so these features are standalone-only for now (acidrack todo already flags its 303 doesn't shuffle)."
+    "port the full sequencer (ties / octave-down / length / swing) into acidrack's embedded 303 lanes — acidrack has its OWN 303, so these features are standalone-only for now (acidrack todo already flags its 303 doesn't shuffle).",
+    "slide connector may not draw when sliding BETWEEN a tie note and a normal note — saw it once, couldn't reproduce. The tie→slide-out connector only covers note→tie→note; other tie/normal adjacencies may miss a line. Now scriptable to repro via the harness press/release/drag — build a saved .script that lays down the exact tie+slide combo and eyeball the connector. (The separate LEN-wrap glitch that drew stray slide lines + phantom tie bars is fixed: draw is linear + clipped to < plen.)"
   ],
   "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass — the engine's FILTER_DIODE, a real diode-ladder model (~18dB/oct, bass drains as the resonance climbs, and the resonance saturates inside the loop so it growls, the way a 303 does) — sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and eight draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), DRV is the instrument_drive/note_drive saturation (tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite), SQL (squelch) multiplies the filter-env sweep up to 3x (full ENV + full SQL = a 9kHz scream), and SWING shuffles the off-16ths (an anachronism, like the drum carts' — the real 303 was straight). The full 303 sequencer: per-step OCTAVE up OR down, accent, slide, and TIE (hold the previous note across steps — the sustained roots a slide can't give you; put SLD on a tie step and the held note glides on into the next, so you can slide from one long tied note into another), plus an adjustable pattern LENGTH (tap the strip along the bottom; odd lengths roll against the beat for hypnotic polymeter, and a red divider in the roll marks the loop end). Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents, slides and ties, the honest way it was always done). H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
 }
@@ -441,17 +442,22 @@ void draw(void) {
         rectfill(x, y, RSX - 3, RSY - 1, c);
         if (oct[s] > 0) rect(x, y, RSX - 3, RSY - 1, CLR_BLUE);          // +1 octave
         else if (oct[s] < 0) rect(x, y, RSX - 3, RSY - 1, CLR_INDIGO);  // -1 octave
-        int nx = (s + 1) % plen;
-        if (sld[s] && on[nx]) {                        // connector into next note
-            int y2 = ROWY(pitches[nx]);
-            line(x + RSX - 3, y + 3, x + RSX, y2 + 3, CLR_LIGHT_PEACH);
-        }
-        if (tie[nx]) {
-            rectfill(x + RSX - 3, y + 1, 3 + (RSX - 3), RSY - 3, c);           // held into a tie
-            int nx2 = (nx + 1) % plen;
-            if (sld[nx] && on[nx2]) {                  // the held note slides on OUT of the tie
-                int xt = RX + nx * RSX, y2 = ROWY(pitches[nx2]);
-                line(xt + RSX - 3, y + 3, xt + RSX, y2 + 3, CLR_LIGHT_PEACH);
+        // connectors/tie-bars are LINEAR (s+1) and stay INSIDE the loop (< plen):
+        // a %plen wrap drew stray slide lines + phantom tie bars from the last
+        // step back across the grid whenever LEN < 16.
+        int nx = s + 1;
+        if (nx < plen) {
+            if (sld[s] && on[nx]) {                    // connector into next note
+                int y2 = ROWY(pitches[nx]);
+                line(x + RSX - 3, y + 3, x + RSX, y2 + 3, CLR_LIGHT_PEACH);
+            }
+            if (tie[nx]) {
+                rectfill(x + RSX - 3, y + 1, 3 + (RSX - 3), RSY - 3, c);       // held into a tie
+                int nx2 = nx + 1;
+                if (nx2 < plen && sld[nx] && on[nx2]) {  // the held note slides on OUT of the tie
+                    int xt = RX + nx * RSX, y2 = ROWY(pitches[nx2]);
+                    line(xt + RSX - 3, y + 3, xt + RSX, y2 + 3, CLR_LIGHT_PEACH);
+                }
             }
         }
     }

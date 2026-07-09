@@ -127,18 +127,24 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   (`4492`) are ~90% identical (differ by one `tanhf` on feedback + tap stage 3 vs 4);
   same for `sound_svf` (`4408`) vs `sound_steiner` (`4463`). Share a core with a
   flag/param instead of two full copies.
-- [ ] **`sound_choke_group(cmask)`** — the choke-group voice-steal block is
+- [x] **`sound_choke_group(cmask)`** — the choke-group voice-steal block is
   duplicated verbatim 3× (`sound.h:4849, 4863, 5452`: `SR_NOTE`, `SR_NOTE_ON`,
-  `SR_HIT_AT`).
+  `SR_HIT_AT`). **Done:** `sound_choke_group(int instr_slot)` computes the cmask *and*
+  runs the steal loop (the cmask calc was duplicated too), so all three sites are one call.
 - [ ] **Karplus tap-read + T60→feedback helper.** `ks_tap_read` (fractional read +
   wrap + lerp) and `fb = expf(-6.9078f/(t60*f))` are duplicated between
   `sound_engine_sample` (`4342`+; `fb` at `4372`) and `sound_guitar_sample` (`4043`+;
   `fb` at `4053`), and the tap-read reappears in the echo send (`~5890`). Extract
   `ks_tap_read` / `t60_to_fb`.
-- [ ] **`ks_seed_bore(v, targetLen, noiseScale)`** — bore/string delay-line seeding
+- [x] **`ks_seed_bore(v, targetLen, noiseScale)`** — bore/string delay-line seeding
   (size ×2.5, cap at `SOUND_KS_MAX-1`, floor 4, seed noise, set `initfreq`) is
   copy-pasted across reed/pipe/bowed/brass (`sound.h:3019, 3163, 3263, 3424`),
-  comments and all; only the noise scale differs.
+  comments and all; only the noise scale differs. **Done — scoped narrower than the
+  above claim.** The shared core is only *cap + floor + seed-noise*; the ×2.5 source
+  (pipe adds `+2`) and the `initfreq` formula differ per engine, so those stay inline.
+  `ks_seed_bore(v, len, scale)` clamps to `[4, KS_MAX-1]`, seeds, returns the clamped
+  len — used by reed/pipe/brass. **Bowed is NOT folded in** (dual delay line + pizz/arco
+  branch — structurally different, not "only the noise scale").
 - [ ] **Modulated-delay skeleton (chorus/flanger/tape).** Each re-writes phase
   advance, triangle LFO, delay-in-samples clamp, `moddel_hermite` read (the shared
   read at `sound.h:624`), and the `wet/dry` blend by hand (chorus `720`, flanger

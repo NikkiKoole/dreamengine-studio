@@ -644,6 +644,17 @@ static inline float white8(int *state) {
 }
 static inline float voice_white(Voice *v) { return white8(&v->noise_state); }
 
+// seed a Karplus/waveguide delay line: clamp the requested length to the shared buffer [4, KS_MAX-1],
+// fill it with tiny startup noise (oscillates faster than silence), return the clamped length. Shared
+// by reed/pipe/brass; the ×N length calc + initfreq stay per-engine (they differ), and the bowed
+// string seeds differently (dual line + pizz/arco branch), so it is deliberately not folded in.
+static int ks_seed_bore(Voice *v, int len, float noiseScale) {
+    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
+    if (len < 4) len = 4;
+    for (int i = 0; i < len; i++) v->ks_buf[i] = voice_white(v) * noiseScale;
+    return len;
+}
+
 // 4-point Hermite interpolation read from ANY mod-delay buffer (navkit hermiteInterp) — smoother
 // than linear, so a swept fractional tap doesn't alias. THE shared read of the modulated-delay
 // technique: chorus and flanger (and later tape) each instantiate their own buffer but read it
@@ -3033,12 +3044,7 @@ static void sound_reed_start(Voice *v) {
     // is harmless (it just starts the oscillation, like brass/pipe).
     float d0 = (float)SOUND_SAMPLE_RATE / f / 2.0f;         // TRUE fractional half-wavelength note-on delay (the
     if (d0 < 4.0f) d0 = 4.0f;                               // interpolated read honours it; truncating to int
-    int len = (int)(d0 * 2.5f);                            // sharpened high notes — see audio-notes §18 / brass)
-    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;     // capped at the buffer; bottoms out ~43Hz
-    if (len < 4) len = 4;
-    for (int i = 0; i < len; i++) {                         // seed with tiny noise (faster than silence)
-        v->ks_buf[i] = voice_white(v) * 0.01f;
-    }
+    int len = ks_seed_bore(v, (int)(d0 * 2.5f), 0.01f);    // ×2.5 oversizes the bore for down-bends (audio-notes §18)
     v->rd_len = len; v->rd_idx = 0; v->rd_initfreq = d0 * f / (float)len;
     v->rd_lp = v->rd_dc_prev = v->rd_dc_state = v->rd_vib_ph = v->rd_tilt = v->rd_noise_lp = 0.0f;
     v->rd_drift_ph = v->rd_drift = 0.0f;
@@ -3174,12 +3180,7 @@ static void sound_pipe_start(Voice *v) {
     // sized at the note only bends UP). pp_initfreq below already references targetBore/len, so the
     // note-on read length stays exactly targetBore whatever len is → tuning byte-identical; only the
     // clamp ceiling rises. The pipe self-oscillates from the jet, so the longer noise seed is harmless.
-    int len = (int)(targetBore * 2.5f) + 2;
-    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
-    if (len < 4) len = 4;
-    for (int i = 0; i < len; i++) {                         // seed with noise (faster oscillation startup)
-        v->ks_buf[i] = voice_white(v) * 0.05f;
-    }
+    int len = ks_seed_bore(v, (int)(targetBore * 2.5f) + 2, 0.05f);   // +2 & louder seed: the jet self-oscillates
     v->pp_len = len; v->pp_idx = 0;
     v->pp_initfreq = f * targetBore / (float)len;            // effLen at curf=f = targetBore (exact, fractional)
     for (int i = 0; i < 64; i++) v->pp_jet[i] = 0.0f;
@@ -3428,13 +3429,7 @@ static void sound_brass_start(Voice *v) {
     // the note-on delay is exactly SR/(2·f) — tuning is unchanged, this only opens room beneath it.
     float d0 = (float)SOUND_SAMPLE_RATE / f / 2.0f;        // TRUE fractional note-on delay (the interpolated read
     if (d0 < 4.0f) d0 = 4.0f;                              // honours it) — truncating to int sized the bore short,
-    int len = (int)(d0 * 2.5f);                            // sharpening high notes (C#6 +64¢); see audio-notes §18
-    // longer bore → ~16 semitones of down-bend room
-    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;     // capped at the buffer; bottoms out ~43Hz
-    if (len < 4) len = 4;
-    for (int i = 0; i < len; i++) {                         // seed with tiny noise (faster than silence)
-        v->ks_buf[i] = voice_white(v) * 0.01f;
-    }
+    int len = ks_seed_bore(v, (int)(d0 * 2.5f), 0.01f);    // ×2.5 → ~16 semitones of down-bend room (audio-notes §18)
     // br_initfreq chosen so effLen == d0i at note-on (the formula effLen = br_len·br_initfreq/curf gives
     // d0i·f/curf — IDENTICAL to the old line, so every pitch/tuning value is unchanged); the only
     // difference is the clamp ceiling is now br_len (longer) instead of d0i, which opens the down-bend.
@@ -4823,6 +4818,21 @@ static int fx_bus_for(int slot) {
     return instr_bank[slot].fx_bus;
 }
 
+// choke group: a new note on `instr_slot` silences every active voice whose slot is in that
+// slot's choke_mask (a closed hat cuts the open hat, etc). Stolen voices pay their last output
+// into the declick tail. Was inlined verbatim at SR_NOTE / SR_NOTE_ON / SR_HIT_AT.
+static void sound_choke_group(int instr_slot) {
+    uint32_t cmask = (instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS) ? instr_bank[instr_slot].choke_mask : 0;
+    if (!cmask) return;
+    for (int i = 0; i < SOUND_VOICES; i++) {
+        if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
+            if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
+            steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
+            voices[i].active = false;
+        }
+    }
+}
+
 // Fire a request now (called on the audio thread).
 static void sound_fire_req(SoundReq r) {
     if (r.kind == SR_SFX) {
@@ -4843,32 +4853,12 @@ static void sound_fire_req(SoundReq r) {
         }
     } else if (r.kind == SR_NOTE) {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
-        uint32_t cmask = (r.b >= 0 && r.b < SOUND_INSTR_SLOTS) ? instr_bank[r.b].choke_mask : 0;
-        if (cmask) {
-            for (int i = 0; i < SOUND_VOICES; i++) {
-                if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
-                    if (voices[i].held && voices[i].owner_slot >= 0)
-                        held_voice[voices[i].owner_slot] = -1;
-                    steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
-                    voices[i].active = false;
-                }
-            }
-        }
+        sound_choke_group(r.b);
         sound_setup_note(&voices[sound_find_voice()], r.a, r.b, r.c, gate);
     } else if (r.kind == SR_NOTE_ON) {    // held / sustained — e0 = handle slot, e1 = generation
         int slot = r.e0, gen = r.e1;
         if (slot >= 0 && slot < SOUND_VOICES) {
-            uint32_t cmask = (r.b >= 0 && r.b < SOUND_INSTR_SLOTS) ? instr_bank[r.b].choke_mask : 0;
-            if (cmask) {
-                for (int i = 0; i < SOUND_VOICES; i++) {
-                    if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
-                        if (voices[i].held && voices[i].owner_slot >= 0)
-                            held_voice[voices[i].owner_slot] = -1;
-                        steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
-                        voices[i].active = false;
-                    }
-                }
-            }
+            sound_choke_group(r.b);
             if (held_voice[slot] >= 0) sound_begin_release(&voices[held_voice[slot]]);  // slot reused → fade the old one
             int vi = sound_find_voice();
             sound_setup_note(&voices[vi], r.a, r.b, r.c, SOUND_HELD_GATE);
@@ -5444,16 +5434,7 @@ static void sound_fire_req(SoundReq r) {
         if (v) { v->sp_on = true; v->sp_vx = r.a / 1000.0f; v->sp_vy = r.b / 1000.0f; spatial_recompute(v); }
     } else if (r.kind == SR_HIT_AT) {          // a=midi, b=instr, c=vol, e0=gate, e1=x*1000, e2=y*1000
         int gate = r.e0 > 0 ? r.e0 : SOUND_SAMPLE_RATE / 4;
-        uint32_t cmask = (r.b >= 0 && r.b < SOUND_INSTR_SLOTS) ? instr_bank[r.b].choke_mask : 0;
-        if (cmask) {
-            for (int i = 0; i < SOUND_VOICES; i++) {
-                if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
-                    if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
-                    steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
-                    voices[i].active = false;
-                }
-            }
-        }
+        sound_choke_group(r.b);
         Voice *v = &voices[sound_find_voice()];
         sound_setup_note(v, r.a, r.b, r.c, gate);
         v->sp_on = true; v->sp_x = r.e1 / 1000.0f; v->sp_y = r.e2 / 1000.0f;

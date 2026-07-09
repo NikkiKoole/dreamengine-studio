@@ -17,7 +17,10 @@
     "summary": "An all-FM drum box: six machines on ONE FM engine, plus per-step parameter locks.",
     "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock. A seventh selectable parameter, PROB, is the CONDITIONAL TRIG: set a step's chance to fire (the cell drains from the top — full = certain, half = a maybe) and it re-rolls live every loop, so the groove never repeats exactly. PROB rides the same select-and-drag gesture as the six macros, but it changes WHETHER a hit happens, not how it sounds.",
     "controls": "TAP a cell = toggle. HOLD a lit cell + DRAG UP = set the SELECTED parameter for that step (a macro p-lock, or PROB = the trig chance); fling down to clear. Tap a machine name to select it; tap a fader (or arrows UP/DOWN) to pick a parameter — the six FM macros or PROB — and DRAG the fader to set the machine's base value. WASD move cursor, Z toggle, X clear grid. Arrows LEFT/RIGHT tempo. BPM buttons top-right."
-  }
+  },
+  "todo": [
+    "Add A:B loop-ratio conditional trigs (1:2, 2:3, ...) — the DETERMINISTIC sibling to PROB: a per-step 'fire on the A-th of every B loops' tag, so a pattern evolves over several bars but reproducibly (WAV/spec-safe, unlike PROB's live re-roll). Needs a DISCRETE affordance (a small ratio tag on the cell + a cycle gesture), not the continuous fill-height drag. See docs/design/fmbox-blind-brief.md."
+  ]
 }
 de:meta */
 #include "studio.h"

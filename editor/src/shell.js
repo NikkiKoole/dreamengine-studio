@@ -1,6 +1,6 @@
 import { view, setEditorTheme, setErrorLines, onDocChange } from './main.js'
 import { initOutline, refreshOutline } from './outline.js'
-import { ENGINE_SOURCES, showEngineFileIn } from './navigate.js'
+import { ENGINE_SOURCES, showEngineFileIn, renderEngineOutline } from './navigate.js'
 import './sprite-editor.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
@@ -335,7 +335,7 @@ function formatSig(sig) {
 function renderApiReference() {
   currentDocPath = ''
   setActiveNav('api')
-  docsContent.classList.remove('docs-history')
+  docsContent.classList.remove('docs-history', 'docs-engine')
   docsContent.innerHTML = ''
 
   const intro = document.createElement('div')
@@ -401,16 +401,30 @@ function renderApiReference() {
 async function showEngineSource(file) {
   currentDocPath = 'engine:' + file
   setActiveNav('engine:' + file)
-  docsContent.classList.remove('docs-history')
+  docsContent.classList.remove('docs-history', 'docs-engine')
+  docsContent.classList.add('docs-engine')   // full-height: editor scrolls internally, outline stays put
   docsContent.innerHTML = ''
   const head = document.createElement('div')
   head.className = 'engine-src-head'
   head.textContent = `runtime/${file} — read-only`
   docsContent.appendChild(head)
+  // editor on the left, function outline on the right (mirrors the cart code tab)
+  const row = document.createElement('div')
+  row.className = 'engine-src-row'
   const wrap = document.createElement('div')
   wrap.className = 'engine-src'
-  docsContent.appendChild(wrap)
+  const aside = document.createElement('aside')
+  aside.className = 'engine-outline'
+  const ohead = document.createElement('div')
+  ohead.className = 'engine-outline-head'
+  ohead.textContent = 'outline'
+  const olist = document.createElement('div')
+  olist.className = 'engine-outline-list'
+  aside.append(ohead, olist)
+  row.append(wrap, aside)
+  docsContent.appendChild(row)
   await showEngineFileIn(wrap, file)
+  renderEngineOutline(olist)
   docsContent.scrollTop = 0
 }
 
@@ -431,7 +445,7 @@ window.addEventListener('engine-source', (e) => {
 function showHistory() {
   currentDocPath = 'history'
   setActiveNav('history')
-  docsContent.classList.add('docs-history')
+  docsContent.classList.remove('docs-engine'); docsContent.classList.add('docs-history')
   docsContent.innerHTML = `<iframe class="history-frame" src="/docs/history.html" title="project history" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
@@ -442,7 +456,7 @@ function showHistory() {
 function showCompendium() {
   currentDocPath = 'compendium'
   setActiveNav('compendium')
-  docsContent.classList.add('docs-history')
+  docsContent.classList.remove('docs-engine'); docsContent.classList.add('docs-history')
   docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/cart-compendium.html" title="cart technique compendium" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
@@ -453,7 +467,7 @@ function showCompendium() {
 function showDesignBoard() {
   currentDocPath = 'designboard'
   setActiveNav('designboard')
-  docsContent.classList.add('docs-history')
+  docsContent.classList.remove('docs-engine'); docsContent.classList.add('docs-history')
   docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/design-board.html" title="design board" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
@@ -464,7 +478,7 @@ function showDesignBoard() {
 function showReflections() {
   currentDocPath = 'reflections'
   setActiveNav('reflections')
-  docsContent.classList.add('docs-history')
+  docsContent.classList.remove('docs-engine'); docsContent.classList.add('docs-history')
   docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/reflections.html" title="reflections" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
@@ -475,7 +489,7 @@ function showReflections() {
 function showBandBriefs() {
   currentDocPath = 'bandbriefs'
   setActiveNav('bandbriefs')
-  docsContent.classList.add('docs-history')
+  docsContent.classList.remove('docs-engine'); docsContent.classList.add('docs-history')
   docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/band-briefs.html" title="band briefs" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
@@ -502,7 +516,7 @@ window.addEventListener('message', (e) => {
 async function showDoc(relPath) {
   currentDocPath = relPath
   setActiveNav(relPath)
-  docsContent.classList.remove('docs-history')
+  docsContent.classList.remove('docs-history', 'docs-engine')
   let md
   try {
     md = await (await fetch('/docs/' + relPath)).text()

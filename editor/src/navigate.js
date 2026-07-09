@@ -24,7 +24,7 @@ import { cpp } from '@codemirror/lang-cpp'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { dayTheme } from './dayTheme.js'
 import { studioDocs } from './studioDocs.js'
-import { flashField } from './main.js'
+import { flashField, flashRange } from './main.js'
 
 // the files offered in the sidebar group, curated order: the public API,
 // then the cart-land library headers, then engine internals
@@ -106,6 +106,64 @@ function makeViewerState(docText) {
 // <math.h> and friends are system headers, not ours. shell.js listens.
 export function openFileViewer(file) {
   window.dispatchEvent(new CustomEvent('engine-source', { detail: { file } }))
+}
+
+// ── outline for the viewer ──────────────────────────────────────
+// Same idea as outline.js (the cart's function list), but for engine source.
+// Engine files are mostly DECLARATIONS (studio.h: `void spr(...);`) as well as
+// DEFINITIONS (sound.h/studio.c: `static void foo(...) {`), so the regex ends
+// on `;` OR `{` — where the cart outline only matches definitions. Same
+// heuristic, column-0-anchored, house style (no real parser).
+const SYM_RE = /^(?:static\s+)?(?:inline\s+)?(?:unsigned\s+|signed\s+)?(int|float|bool|void|char|long|short|double|[A-Z]\w*)(\s+\*?\s*|\s*\*\s*)([A-Za-z_]\w*)\s*\([^;{)]*\)\s*[;{]/gm
+const NOT_FUNCS = new Set(['if', 'for', 'while', 'switch', 'return', 'sizeof', 'else', 'typedef'])
+
+function parseSymbols(doc) {
+  const out = []
+  const seen = new Set()
+  SYM_RE.lastIndex = 0
+  let m
+  while ((m = SYM_RE.exec(doc))) {
+    const ret = m[1]
+    const name = m[3]
+    if (NOT_FUNCS.has(name) || seen.has(name)) continue
+    seen.add(name)
+    const namePos = m.index + m[0].indexOf(name, ret.length)
+    out.push({ name, ret, pos: namePos })
+  }
+  return out
+}
+
+// jump the viewer to a symbol (readOnly view — selection + scroll still work)
+function jumpInViewer(pos, len) {
+  if (!vview) return
+  vview.dispatch({
+    selection: { anchor: pos, head: pos },
+    effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin: 48 }),
+  })
+  flashRange(vview, pos, pos + len)
+}
+
+// Populate `listEl` with the current viewer file's functions (click to jump).
+// Called by shell.js right after showEngineFileIn mounts a file.
+export function renderEngineOutline(listEl) {
+  if (!listEl) return
+  const syms = vview ? parseSymbols(vview.state.doc.toString()) : []
+  listEl.innerHTML = ''
+  if (!syms.length) {
+    const empty = document.createElement('div')
+    empty.className = 'outline-empty'
+    empty.textContent = 'no functions'
+    listEl.appendChild(empty)
+    return
+  }
+  for (const s of syms) {
+    const btn = document.createElement('button')
+    btn.className = 'outline-item'
+    btn.innerHTML = `<span class="outline-ret">${s.ret}</span> <span class="outline-name">${s.name}</span>`
+    btn.title = `jump to ${s.name}`
+    btn.addEventListener('click', () => jumpInViewer(s.pos, s.name.length))
+    listEl.appendChild(btn)
+  }
 }
 
 // Mount/refresh the viewer inside `container` (the docs content pane) showing

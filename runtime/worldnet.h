@@ -215,7 +215,6 @@ static int link_path(float c0x, float c0y, float ax, float ay,
     float dx = bx - ax, dy = by - ay, len = fsqrt(dx*dx + dy*dy);
     if (len < 0.5f) return 0;
     float ux = dx/len, uy = dy/len, perpx = -uy, perpy = ux;
-    (void)ux; (void)uy;
     int peak, maxw;
 
     // 1. base curve clear? then add a gentle VALLEY bias toward the lower side.

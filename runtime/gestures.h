@@ -112,8 +112,7 @@ static bool swiped(int dir) {
 static bool swiped_in(int dir, int x, int y, int w, int h) {
     for (int i = 0; i < g_swipe_n; i++)
         if (g_swipes[i].dir == dir &&
-            g_swipes[i].sx >= x && g_swipes[i].sx < x + w &&
-            g_swipes[i].sy >= y && g_swipes[i].sy < y + h) return true;
+            point_in_box(g_swipes[i].sx, g_swipes[i].sy, x, y, w, h)) return true;   // shared half-open rect test (studio.h)
     return false;
 }
 

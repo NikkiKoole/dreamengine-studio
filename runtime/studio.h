@@ -399,8 +399,8 @@ void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mo
 
 // modulation envelopes per instrument — a one-shot AD contour (the envelope twin of the LFO).
 // fires once per note: ramps up over attack_ms, then decays back over decay_ms. amount is
-// bipolar and its units depend on dest. 2 per slot (which 0..1), so a filter sweep + a pitch
-// blip can run together. there is NO ENV_VOLUME — that's the amp envelope (instrument()).
+// bipolar and its units depend on dest. 3 per slot (which 0..2), so a filter sweep + a pitch
+// blip + a macro contour can run together. there is NO ENV_VOLUME — that's the amp envelope (instrument()).
 #define ENV_CUTOFF  0   // sweep filter cutoff — the pluck "pew"/"dwow". amount in Hz (+ opens then closes). needs a filter on the slot
 #define ENV_PITCH   1   // pitch blip — drum punch / attack snap / zap. amount in semitones (+ starts sharp, settles to the note)
 #define ENV_DUTY    2   // pulse-width sweep (square/pulse slots only). amount 0.0..1.0

@@ -2845,27 +2845,25 @@ static void net_lobby_menu(const char *title) {
 }
 #endif // DE_NET_BUILD
 
+// env_is(name, val): is env var `name` set to exactly `val`? (the A/B-toggle idiom, once.)
+static bool env_is(const char *name, const char *val) {
+    const char *s = getenv(name);
+    return s && strcmp(s, val) == 0;
+}
+
 int main(int argc, char **argv) {
-    { const char *pf = getenv("DE_POLY_FILL");          // A/B the polygon fill without recompiling:
-      if (pf && strcmp(pf, "legacy") == 0) poly_fill_fast = false; }   // DE_POLY_FILL=legacy → old per-pixel path
-    { const char *df = getenv("DE_DISC_FILL");          // A/B the circle/oval fill:
-      if (df && strcmp(df, "legacy") == 0) disc_fill_fast = false; }   // DE_DISC_FILL=legacy → old per-pixel path
-    { const char *cc = getenv("DE_CLAMP_CACHE");        // A/B the per-frame clamp-box cache:
-      if (cc && strcmp(cc, "off") == 0) clamp_cache_on = false; }      // DE_CLAMP_CACHE=off → recompute every call
-    { const char *bp = getenv("DE_BATCH_PSET");         // A/B the batched-pset path:
-      if (bp && strcmp(bp, "on") == 0) pset_batch = true; }            // DE_BATCH_PSET=on → coalesce psets into one draw call
-    { const char *bf = getenv("DE_BLIT_FAST");          // A/B the software-canvas sprite-blit fast path:
-      if (bf && strcmp(bf, "off") == 0) blit_fast_on = false; }        // DE_BLIT_FAST=off → legacy per-pixel sw_blit
-    { const char *tf = getenv("DE_TRITEX_FAST");        // A/B the software textured-triangle fast path:
-      if (tf && strcmp(tf, "off") == 0) tritex_fast_on = false; }      // DE_TRITEX_FAST=off → legacy unclamped sw_tritex
-    { const char *sc = getenv("DE_SOFTWARE_CANVAS");    // A/B the software canvas (Phase 0 probe):
-      if (sc && strcmp(sc, "on") == 0) { sw_canvas_enabled = true; sw_canvas_active = true; } }  // DE_SOFTWARE_CANVAS=on
-    { const char *cl = getenv("DE_CPU_RASTER");         // CPU rasterizers off-canvas too (A/B hygiene, see decl):
-      if (cl && strcmp(cl, "on") == 0) cpu_raster_enabled = true; }   // DE_CPU_RASTER=on → line()/rectfill_rot → CPU everywhere
-    { const char *ao = getenv("DE_AUDIO");              // DE_AUDIO=off → skip all audio (see decl):
-      if (ao && strcmp(ao, "off") == 0) audio_off = true; }
+    // A/B toggles — a DE_* env var flips a fast/legacy path without recompiling (see each flag's decl).
+    if (env_is("DE_POLY_FILL",      "legacy")) poly_fill_fast     = false;  // old per-pixel polygon fill
+    if (env_is("DE_DISC_FILL",      "legacy")) disc_fill_fast     = false;  // old per-pixel circle/oval fill
+    if (env_is("DE_CLAMP_CACHE",    "off"))    clamp_cache_on     = false;  // recompute the clamp-box every call
+    if (env_is("DE_BATCH_PSET",     "on"))     pset_batch         = true;   // coalesce psets into one draw call
+    if (env_is("DE_BLIT_FAST",      "off"))    blit_fast_on       = false;  // legacy per-pixel sw_blit
+    if (env_is("DE_TRITEX_FAST",    "off"))    tritex_fast_on     = false;  // legacy unclamped sw_tritex
+    if (env_is("DE_SOFTWARE_CANVAS","on"))     { sw_canvas_enabled = true; sw_canvas_active = true; }  // Phase 0 probe
+    if (env_is("DE_CPU_RASTER",     "on"))     cpu_raster_enabled = true;   // line()/rectfill_rot → CPU everywhere
+    if (env_is("DE_AUDIO",          "off"))    audio_off          = true;   // skip all audio
     { const char *ss = getenv("DE_SHOW_SIZE");          // DE_SHOW_SIZE=1 → live WxH overlay (resizable carts)
-      if (ss && ss[0] && strcmp(ss, "0") != 0) size_overlay_on = true; }
+      if (ss && ss[0] && strcmp(ss, "0") != 0) size_overlay_on = true; }    // kept: "set & not 0", not an ==match
 #ifndef DE_WINDOW_TITLE            // exports bake the cart name in (a double-clicked app gets no argv)
 #define DE_WINDOW_TITLE "dreamengine"
 #endif
@@ -3292,46 +3290,31 @@ static int action_btn_index(int button) {
 // btn()'s hardware read — THIS machine's keymaps + touch overlay. Under netplay
 // this becomes "sample my local input" (net.h ORs both players' keymaps into MY
 // packed byte); the public btn() below answers from the lockstep bytes instead.
+// per-player QWERTY keymap: keymap[player][BTN_*] → raylib keycode. Replaces two parallel
+// 8-case switches; BTN_UP..BTN_Y are 0..7 so the button index rows the table directly.
+static const int keymap[2][BTN_COUNT] = {
+    { P0_BTN_UP, P0_BTN_DOWN, P0_BTN_LEFT, P0_BTN_RIGHT, P0_BTN_A, P0_BTN_B, P0_BTN_X, P0_BTN_Y },
+    { P1_BTN_UP, P1_BTN_DOWN, P1_BTN_LEFT, P1_BTN_RIGHT, P1_BTN_A, P1_BTN_B, P1_BTN_X, P1_BTN_Y },
+};
 static bool btn_local(int player, int button) {
-    if (player == 0) {
-        if (show_touch_ui) {
-            bool dpad = (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8);
-            float sx = dpad ? 0 : stick_x(), sy = dpad ? 0 : stick_y();
-            switch (button) {
-                case BTN_UP:    if (dpad ? dpad_up    : (sy < -STICK_DEADZONE)) return true; break;
-                case BTN_DOWN:  if (dpad ? dpad_down  : (sy >  STICK_DEADZONE)) return true; break;
-                case BTN_LEFT:  if (dpad ? dpad_left  : (sx < -STICK_DEADZONE)) return true; break;
-                case BTN_RIGHT: if (dpad ? dpad_right : (sx >  STICK_DEADZONE)) return true; break;
-                default: {
-                    int i = action_btn_index(button);
-                    if (i >= 0 && i < touch_n_buttons && any_touch_in_circle(btn_cx[i], btn_cy[i], eff_btn_r()))
-                        return true;
-                    break;
-                }
+    if (player == 0 && show_touch_ui) {
+        bool dpad = (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8);
+        float sx = dpad ? 0 : stick_x(), sy = dpad ? 0 : stick_y();
+        switch (button) {
+            case BTN_UP:    if (dpad ? dpad_up    : (sy < -STICK_DEADZONE)) return true; break;
+            case BTN_DOWN:  if (dpad ? dpad_down  : (sy >  STICK_DEADZONE)) return true; break;
+            case BTN_LEFT:  if (dpad ? dpad_left  : (sx < -STICK_DEADZONE)) return true; break;
+            case BTN_RIGHT: if (dpad ? dpad_right : (sx >  STICK_DEADZONE)) return true; break;
+            default: {
+                int i = action_btn_index(button);
+                if (i >= 0 && i < touch_n_buttons && any_touch_in_circle(btn_cx[i], btn_cy[i], eff_btn_r()))
+                    return true;
+                break;
             }
         }
-        switch (button) {
-            case BTN_UP:    return inp_down(P0_BTN_UP);
-            case BTN_DOWN:  return inp_down(P0_BTN_DOWN);
-            case BTN_LEFT:  return inp_down(P0_BTN_LEFT);
-            case BTN_RIGHT: return inp_down(P0_BTN_RIGHT);
-            case BTN_A:     return inp_down(P0_BTN_A);
-            case BTN_B:     return inp_down(P0_BTN_B);
-            case BTN_X:     return inp_down(P0_BTN_X);
-            case BTN_Y:     return inp_down(P0_BTN_Y);
-        }
-    } else if (player == 1) {
-        switch (button) {
-            case BTN_UP:    return inp_down(P1_BTN_UP);
-            case BTN_DOWN:  return inp_down(P1_BTN_DOWN);
-            case BTN_LEFT:  return inp_down(P1_BTN_LEFT);
-            case BTN_RIGHT: return inp_down(P1_BTN_RIGHT);
-            case BTN_A:     return inp_down(P1_BTN_A);
-            case BTN_B:     return inp_down(P1_BTN_B);
-            case BTN_X:     return inp_down(P1_BTN_X);
-            case BTN_Y:     return inp_down(P1_BTN_Y);
-        }
     }
+    if (player >= 0 && player < 2 && button >= 0 && button < BTN_COUNT)
+        return inp_down(keymap[player][button]);
     return false;
 }
 

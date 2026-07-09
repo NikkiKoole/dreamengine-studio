@@ -77,10 +77,13 @@ The same 3–4-line idioms are hand-inlined dozens of times. One helper collapse
 
 ## Group B — one point-in-rect, shared across the tree
 
-- [ ] **Unify point-in-rect.** Reimplemented in four headers with subtly different
+- [x] **Unify point-in-rect.** Reimplemented in four headers with subtly different
   types/bounds: `studio.h:787 point_in_box` (int), `lay.h:128 binside` (float),
   `ui.h:202 ui_in` (int, `<` bounds), and an inline copy in `gestures.h:114–116`.
   At minimum `gestures.h` should reuse one; ideally document/unify the named variants.
+  **Done (the "at minimum"):** `gestures.h swiped_in` now calls `point_in_box` (exact
+  same half-open int test). The float `binside`/`ui_in` variants are genuinely
+  different-typed and left distinct on purpose — not worth forcing into one.
 
 ---
 
@@ -156,15 +159,16 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   given #1's `clamp01`.
 - [ ] **Engine dispatch → `switch`/table.** `sound_engine_sample` (`sound.h:4342`)
   tests `v->wave` against 13 constants sequentially before the Karplus fall-through.
-- [ ] **`btn_local` keymap table.** The near-identical 8-case per-player switches in
+- [x] **`btn_local` keymap table.** The near-identical 8-case per-player switches in
   `btn_local` (`studio.c:3298`+) → `static const int keymap[2][BTN_COUNT]` + one
   `inp_down(keymap[player][button])`.
 - [ ] **Font table.** Font load (`studio.c:3070–3095`), unload (`~3105`), and the
   two lookup if-chains `cur_font()`/`cur_font_img()` (`3849`/`3856`) repeat the same
   per-font work 3 times over. A `{Font*, Image*, data, len, keyColor}` table indexed
   by font id drives all of it.
-- [ ] **`env_is(name, val)` helper.** 9 near-identical `getenv + strcmp` blocks
-  (`studio.c:2849–2867`).
+- [x] **`env_is(name, val)` helper.** 9 near-identical `getenv + strcmp` blocks
+  (`studio.c:2849–2867`). (The 10th, `DE_SHOW_SIZE`, is a "set & not 0" test, not an
+  `==`-match — left inline.)
 
 ---
 
@@ -206,13 +210,16 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
 - [ ] **`worldnet.h`** — `nearest_hub`/`nearest_town` (`280–304`) are the same 5×5
   search with divergence risk (share a `nearest_present(getter, …)`); stale
   `(void)ux;(void)uy;` at `217–218` (both used on the line above). Delete the casts.
+  **Partial (2026-07-09): stale `(void)` casts deleted.** The `nearest_present` dedup
+  is bucket ② (needs a getter-fn refactor + verify) — still open.
 
 ---
 
 ## Doc-only fix (spotted during the review)
 
-- [ ] **`studio.h:401` env-count doc bug** — says mod-envelopes are "2 per slot (which
+- [x] **`studio.h:401` env-count doc bug** — says mod-envelopes are "2 per slot (which
   0..1)" but `note_env` (`330`) and `instrument_env` (`410`) both say `which (0..2)`.
   One is wrong; reconcile against the `sound.h` implementation. (Also `INSTR_VOICE 24`
   at `312` is declared after `INSTR_PIPE 25` at `311` — breaks the ascending block;
-  cosmetic.)
+  cosmetic.) **Fixed:** `SOUND_ENVS` is 3 → now reads "3 per slot (which 0..2)". The
+  cosmetic `INSTR_VOICE`/`INSTR_PIPE` reorder left alone (pure `#define` shuffle, no bug).

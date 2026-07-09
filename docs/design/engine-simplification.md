@@ -96,6 +96,12 @@ run `canvas-diff` (and `mirror-diff` where symmetry applies) before/after.
 - [ ] **`circfill` (`4164`) should delegate to `ovalfill` (`5496`)** — a circle is
   `rx==ry`, and `circfill_pat` (`4109`) already delegates to `ovalfill_pat`. ~25 lines
   vanish. (`disc_inside` at `4124` is likewise `ellipse_inside` with `rx==ry`.)
+  **⚠ Assessed 2026-07-09: NOT byte-safe — leave as-is.** `disc_inside` is *exact*
+  (`dx = int+0.5` is a half-integer, so `dx²+dy² ≤ r²` never rounds), but
+  `ellipse_inside` divides first (`dx/r`) then squares — which rounds — so a boundary
+  pixel can flip. Delegating would shift a few edge pixels on some circles, and also
+  change negative-radius behaviour (circfill draws nothing; ovalfill abs's it) and drop
+  the `UIAUDIT('c')` marker. The math is equal; the floats aren't.
 - [ ] **`outline_ring(bbox, inside_predicate, color)`** — the "pixel is inside AND a
   4-neighbour is outside" test is copy-pasted **6×**: `circ` (`4143`), `oval`
   (`5524`), `rrect` (`5104`), `poly_stroke_cov` (`4990`), `sector_draw` stroke
@@ -171,7 +177,7 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   (`1814`+) → `write_state_json()`; `MAP_DATA` load duplicated in `de_init`
   (`2689`) and `main` (`3046`) → `de_load_map()`; `sprf` builds unused `Rectangle`
   src/dst on the software path (`3708`+).
-- [ ] **Dead `PAUSE_KEY` guard** — redefined at `studio.c:3280–3281` but already
+- [x] **Dead `PAUSE_KEY` guard** — redefined at `studio.c:3280–3281` but already
   defined at `455–456`, so the second `#ifndef` is always skipped. Delete.
 - [ ] **`net.h` packet helpers** — WELCOME/HELLO builder + seed LE encode/decode
   pasted ~4× (seed LE encode/decode at `463–464`, `472–473`, `504–505`; constants

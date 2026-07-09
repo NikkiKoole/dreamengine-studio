@@ -3277,9 +3277,6 @@ int main(int argc, char **argv) {
 #ifndef P1_BTN_Y
 #define P1_BTN_Y     KEY_SEMICOLON
 #endif
-#ifndef PAUSE_KEY
-#define PAUSE_KEY    KEY_P
-#endif
 
 // action-button index for BTN_A/B/X/Y — 0..3 into btn_cx[]/btn_cy[], or -1 for a non-action button.
 static int action_btn_index(int button) {

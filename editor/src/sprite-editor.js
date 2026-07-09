@@ -2,9 +2,12 @@
 document.addEventListener('DOMContentLoaded', function () {
 
   // ── fetch palette ──────────────────────────────────────────
-  fetch('/palettes/pico32.json')
+  const hexToRgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255] }
+  let palette = []   // pico32 as [[r,g,b], …]; used by the swatches + the aseprite exporter
+  const paletteReady = fetch('/palettes/pico32.json')
     .then(r => r.json())
     .then(res => {
+      palette = res.palette.map(hexToRgb)
       for (let i = 0; i < res.palette.length; i++) {
         const d = document.createElement('div')
         d.style.backgroundColor = res.palette[i]
@@ -39,6 +42,10 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   let selectedTilemapIndices = [0, 0]
+
+  // the mode buttons that hold a persistent "active" highlight — undo/redo and
+  // the export buttons live in the same bar but are one-shot push buttons.
+  const TOOL_IDS = ['pixel', 'fill', 'selection', 'stamp', 'linetool']
 
   spriteCanvas.oncontextmenu = e => { e.preventDefault(); e.stopPropagation() }
   spriteCanvas.addEventListener('mousedown', mousedownCanvas)
@@ -729,10 +736,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── tools ui ───────────────────────────────────────────────
   function setToolActive(id) {
-    Array.from(togglegroup.children).forEach(el => {
-      if (el.tagName !== 'BUTTON') return
-      el.className = el.id === id ? 'active' : ''
-      if (el.id === id) tooldata.action = id
+    TOOL_IDS.forEach(tid => {
+      const el = document.getElementById(tid)
+      if (!el) return
+      el.className = tid === id ? 'active' : ''
+      if (tid === id) tooldata.action = id
     })
     updateSpriteStatus()
   }
@@ -741,13 +749,15 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelector('#linetool').innerText = lineToolFunctions[lineToolIndex]
   }
 
-  Array.from(togglegroup.children).forEach(c => {
+  TOOL_IDS.forEach(id => {
+    const c = document.getElementById(id)
+    if (!c) return
     c.addEventListener('click', () => {
-      if (c.id === 'linetool' && tooldata.action === 'linetool') {
+      if (id === 'linetool' && tooldata.action === 'linetool') {
         lineToolIndex = (lineToolIndex + 1) % lineToolFunctions.length
         makeLineToolUI()
       }
-      setToolActive(c.id)
+      setToolActive(id)
     })
   })
 
@@ -773,6 +783,148 @@ document.addEventListener('DOMContentLoaded', function () {
   redoButton.addEventListener('click', () => { redo(ctx) })
   updateHistoryButtons()
   updateSpriteStatus()
+
+  // ── export ─────────────────────────────────────────────────
+  // Both exporters snapshot the live sprite cell back into the sheet first,
+  // so the file matches exactly what's on screen.
+  function download(blob, name) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = name
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  // PNG = the current frame's 128×128 sheet, 1:1 pixels.
+  function exportPng() {
+    copySpriteToTilemap()
+    tilemap.toBlob(blob => download(blob, 'spritesheet.png'))
+  }
+
+  // Aseprite (.aseprite / .ase) binary writer. Little-endian throughout.
+  // Spec: https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md
+  function makeAseBuf() {
+    const b = []
+    return {
+      b,
+      u8:  v => b.push(v & 0xff),
+      u16: v => { b.push(v & 0xff, (v >>> 8) & 0xff) },
+      i16: function (v) { this.u16(v & 0xffff) },
+      u32: v => { b.push(v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff) },
+      bytes: arr => { for (let i = 0; i < arr.length; i++) b.push(arr[i] & 0xff) },
+      str: function (s) { const e = new TextEncoder().encode(s); this.u16(e.length); this.bytes(e) },
+      pos: () => b.length,
+      patchU32: (p, v) => { b[p] = v & 0xff; b[p + 1] = (v >>> 8) & 0xff; b[p + 2] = (v >>> 16) & 0xff; b[p + 3] = (v >>> 24) & 0xff },
+    }
+  }
+
+  function aseChunk(buf, type, fn) {
+    const start = buf.pos()
+    buf.u32(0)          // chunk size (backpatched)
+    buf.u16(type)
+    fn()
+    buf.patchU32(start, buf.pos() - start)
+  }
+
+  function aseFrame(buf, durationMs, chunkCount, fn) {
+    const start = buf.pos()
+    buf.u32(0)                                              // frame bytes (backpatched)
+    buf.u16(0xF1FA)                                         // frame magic
+    buf.u16(chunkCount > 0xffff ? 0xffff : chunkCount)      // old chunk count
+    buf.u16(durationMs)
+    buf.bytes([0, 0])                                       // reserved
+    buf.u32(chunkCount)                                     // new chunk count
+    fn()
+    buf.patchU32(start, buf.pos() - start)
+  }
+
+  const loadImage = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = src })
+
+  // Render one frame's dataURL to native-size RGBA bytes (row-major, R,G,B,A).
+  async function framePixels(dataURL, w, h) {
+    const img = await loadImage(dataURL)
+    const c = document.createElement('canvas'); c.width = w; c.height = h
+    const cx = c.getContext('2d'); cx.imageSmoothingEnabled = false
+    cx.clearRect(0, 0, w, h)
+    cx.drawImage(img, 0, 0, w, h)
+    return cx.getImageData(0, 0, w, h).data
+  }
+
+  async function exportAse() {
+    await paletteReady
+    const { mapwidth: w, mapheight: h } = settings
+    // sync the live cell, then snapshot every frame's sheet
+    copySpriteToTilemap()
+    frames[framePointer].data = tilemap.toDataURL()
+    const pix = []
+    for (const f of frames) pix.push(await framePixels(f.data, w, h))
+
+    const buf = makeAseBuf()
+    // ── file header (128 bytes) ──
+    buf.u32(0)              // file size (backpatched)
+    buf.u16(0xA5E0)         // magic
+    buf.u16(frames.length)  // frame count
+    buf.u16(w); buf.u16(h)
+    buf.u16(32)             // color depth: RGBA (lossless — keeps real transparency)
+    buf.u32(1)              // flags: layer opacity valid
+    buf.u16(100)            // speed (deprecated)
+    buf.u32(0); buf.u32(0)
+    buf.u8(0)               // transparent index (unused in RGBA)
+    buf.bytes([0, 0, 0])
+    buf.u16(palette.length) // number of colors
+    buf.u8(1); buf.u8(1)    // pixel w/h ratio
+    buf.i16(0); buf.i16(0)  // grid x/y
+    buf.u16(16); buf.u16(16)// grid w/h (matches the 16×16 sprite cells)
+    for (let i = 0; i < 84; i++) buf.u8(0)  // reserved → header is exactly 128 bytes
+
+    for (let fi = 0; fi < frames.length; fi++) {
+      // frame 0 also carries the palette + layer; every frame carries its cel
+      const chunkCount = fi === 0 ? 4 : 1
+      aseFrame(buf, 100, chunkCount, () => {
+        if (fi === 0) {
+          // new palette chunk (0x2019) — what modern Aseprite reads
+          aseChunk(buf, 0x2019, () => {
+            buf.u32(palette.length); buf.u32(0); buf.u32(palette.length - 1)
+            buf.bytes([0, 0, 0, 0, 0, 0, 0, 0])
+            for (const [r, g, b] of palette) { buf.u16(0); buf.u8(r); buf.u8(g); buf.u8(b); buf.u8(255) }
+          })
+          // old palette chunk (0x0004) — for older readers' swatch panel
+          aseChunk(buf, 0x0004, () => {
+            buf.u16(1); buf.u8(0); buf.u8(palette.length === 256 ? 0 : palette.length)
+            for (const [r, g, b] of palette) { buf.u8(r); buf.u8(g); buf.u8(b) }
+          })
+          // layer chunk (0x2004)
+          aseChunk(buf, 0x2004, () => {
+            buf.u16(3)   // flags: visible | editable
+            buf.u16(0)   // type: normal
+            buf.u16(0)   // child level
+            buf.u16(0); buf.u16(0)   // default w/h (ignored)
+            buf.u16(0)   // blend: normal
+            buf.u8(255)  // opacity
+            buf.bytes([0, 0, 0])
+            buf.str('sprites')
+          })
+        }
+        // cel chunk (0x2005), raw RGBA image data
+        aseChunk(buf, 0x2005, () => {
+          buf.u16(0)              // layer index
+          buf.i16(0); buf.i16(0)  // x/y position
+          buf.u8(255)             // opacity
+          buf.u16(0)              // cel type: 0 = raw image data
+          buf.i16(0)              // z-index
+          buf.bytes([0, 0, 0, 0, 0])   // reserved (z-index + 5 = 7 bytes after cel type)
+          buf.u16(w); buf.u16(h)
+          buf.bytes(pix[fi])      // w*h*4 RGBA bytes
+        })
+      })
+    }
+
+    buf.patchU32(0, buf.pos())   // file size
+    download(new Blob([new Uint8Array(buf.b)], { type: 'application/octet-stream' }), 'spritesheet.aseprite')
+  }
+
+  document.querySelector('#export-png').addEventListener('click', e => { exportPng(); e.currentTarget.blur() })
+  document.querySelector('#export-ase').addEventListener('click', e => { exportAse(); e.currentTarget.blur() })
 
   document.querySelector('#help-button').addEventListener('click', () => {
     const panel = document.querySelector('#help-text')

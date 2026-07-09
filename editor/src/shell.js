@@ -2,6 +2,7 @@ import { view, setEditorTheme, setErrorLines, onDocChange } from './main.js'
 import { initOutline, refreshOutline } from './outline.js'
 import { ENGINE_SOURCES, showEngineFileIn, renderEngineOutline } from './navigate.js'
 import './sprite-editor.js'
+import { aseToDataUrl } from './aseprite.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
 import { settings, buildSettingsPanel, applyCartSettings } from './settings.js'
@@ -3134,17 +3135,46 @@ publishBtn.addEventListener('click', async () => {
 // click a take to watch it. docs/design/promote-tab.md.)
 const isFileDrag = e => [...(e.dataTransfer?.types || [])].includes('Files')
 document.addEventListener('dragover', e => { if (isFileDrag(e)) { e.preventDefault(); e.stopPropagation() } }, true)
+// Push a sprite-sheet image (as a data-URL) into the sprite editor and reveal it.
+function importSpriteSheet(dataUrl) {
+  window.dispatchEvent(new CustomEvent('de:load-sprites', { detail: dataUrl }))
+  pixMode = 'sprites'
+  switchTab('pixels')
+}
+const fileToDataUrl = file => new Promise((res, rej) => {
+  const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file)
+})
+
 document.addEventListener('drop', async e => {
   if (!isFileDrag(e)) return
   e.preventDefault(); e.stopPropagation()
   const file = e.dataTransfer.files[0]
   if (!file) return
-  if (!file.name.endsWith('.png')) return
-  const filePath = window.studio.getFilePath(file)
-  const cart = await window.studio.loadCartFile(filePath)
-  // currentCartFile is the FILE slug (drives the record/replay clip dir), NOT the display title —
-  // take it from the dropped filename (squishy.cart.png → squishy), else a record lands in squishy-lines/.
-  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); currentCartFile = file.name.replace(/\.cart\.png$/i, ''); currentCartPath = cart.origin || ''; applyCart(cart) }
+  const name = file.name.toLowerCase()
+
+  // .cart.png → load the whole cart (its embedded source/sprites/settings)
+  if (name.endsWith('.cart.png')) {
+    const filePath = window.studio.getFilePath(file)
+    const cart = await window.studio.loadCartFile(filePath)
+    // currentCartFile is the FILE slug (drives the record/replay clip dir), NOT the display title —
+    // take it from the dropped filename (squishy.cart.png → squishy), else a record lands in squishy-lines/.
+    if (cart && cart.ok) { if (cart.name) setCartName(cart.name); currentCartFile = file.name.replace(/\.cart\.png$/i, ''); currentCartPath = cart.origin || ''; applyCart(cart) }
+    return
+  }
+
+  // a plain image or an Aseprite file → import into the sprite sheet (the inverse
+  // of the ⬇ png / ⬇ ase export buttons). Drawn at native size into the 128×128
+  // sheet, so a matching-size sheet round-trips exactly.
+  try {
+    if (name.endsWith('.png')) {
+      importSpriteSheet(await fileToDataUrl(file))
+    } else if (name.endsWith('.ase') || name.endsWith('.aseprite')) {
+      importSpriteSheet(await aseToDataUrl(await file.arrayBuffer()))
+    }
+  } catch (err) {
+    console.error('sprite import failed:', err)
+    alert('Could not import that file as sprites:\n' + (err?.message || err))
+  }
 })
 
 let hideTimer = null

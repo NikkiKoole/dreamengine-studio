@@ -189,10 +189,16 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
 
 ## Group E — table-driven instead of parallel switches / if-ladders
 
-- [ ] **`sound_fire_req` → `switch`.** It's a ~690-line `else if` chain (`sound.h:4832`)
+- [x] **`sound_fire_req` → `switch`.** It's a ~690-line `else if` chain (`sound.h:4832`)
   on a dense `SoundReqKind` enum — a textbook `switch` (jump table + unhandled-case
   warning). Many arms are literally `decode (a/1000) → clamp → store`; a small helper
-  given #1's `clamp01`.
+  given #1's `clamp01`. **Done:** mechanical
+  transform of the 121-arm chain → `switch (r.kind)` — only the boundary lines changed
+  (each `} else if (r.kind == SR_X) {` → `} break; case SR_X: {`), bodies + their
+  indentation untouched. Byte-identical: compiles with no dup-case (so no dup SR_ ids),
+  soundcheck 900f clean, tune-check + fx-check unchanged, filter-spec byte-for-byte vs
+  pre-switch HEAD. The `-Wswitch` net now catches an unhandled new SR_*. (The suggested
+  per-arm decode→clamp→store helper is a separate follow-up — not done here.)
 - [x] **Engine dispatch → `switch`/table.** `sound_engine_sample` (`sound.h:4342`)
   tests `v->wave` against 13 constants sequentially before the Karplus fall-through.
   **Done:** `switch (v->wave)` over the 13 engine ids (dense → jump table), Karplus

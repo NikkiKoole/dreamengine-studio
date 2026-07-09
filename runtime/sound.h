@@ -4833,7 +4833,8 @@ static void sound_choke_group(int instr_slot) {
 
 // Fire a request now (called on the audio thread).
 static void sound_fire_req(SoundReq r) {
-    if (r.kind == SR_SFX) {
+    switch (r.kind) {
+    case SR_SFX: {
         int n = r.a;
         if (n == -1) {
             for (int i = 0; i < SOUND_VOICES; i++)
@@ -4849,11 +4850,13 @@ static void sound_fire_req(SoundReq r) {
             v->step       = 0;
             sound_set_step(v, sfx_bank[n].steps[0], sfx_bank[n].step_dur);
         }
-    } else if (r.kind == SR_NOTE) {
+    } break;
+    case SR_NOTE: {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
         sound_choke_group(r.b);
         sound_setup_note(&voices[sound_find_voice()], r.a, r.b, r.c, gate);
-    } else if (r.kind == SR_NOTE_ON) {    // held / sustained — e0 = handle slot, e1 = generation
+    } break;
+    case SR_NOTE_ON: {    // held / sustained — e0 = handle slot, e1 = generation
         int slot = r.e0, gen = r.e1;
         if (slot >= 0 && slot < SOUND_VOICES) {
             sound_choke_group(r.b);
@@ -4865,40 +4868,51 @@ static void sound_fire_req(SoundReq r) {
             voices[vi].owner_gen  = gen;
             held_voice[slot] = vi;
         }
-    } else if (r.kind == SR_NOTE_OFF) {
+    } break;
+    case SR_NOTE_OFF: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { sound_begin_release(v); held_voice[r.e0] = -1; }
-    } else if (r.kind == SR_NOTE_PITCH) {   // a = midi * 256 (fixed-point float)
+    } break;
+    case SR_NOTE_PITCH: {   // a = midi * 256 (fixed-point float)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->freq_target = sound_midi_to_freq_f(r.a / 256.0f);
-    } else if (r.kind == SR_NOTE_VOL) {
+    } break;
+    case SR_NOTE_VOL: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float vv = r.a / 1000.0f; vv = vv < 0.0f ? 0.0f : vv > 7.0f ? 7.0f : vv; v->vol_target = vv / 7.0f; }
-    } else if (r.kind == SR_NOTE_CUTOFF) {
+    } break;
+    case SR_NOTE_CUTOFF: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->cutoff_target = (float)r.a;
-    } else if (r.kind == SR_VOICE_PARAM) {   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab)
+    } break;
+    case SR_VOICE_PARAM: {   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v && r.a >= 0 && r.a < VOX_NPARAM) {
             float x = r.b / 1000.0f; x = clamp01(x);
             v->vox_p[r.a] = x;
         }
-    } else if (r.kind == SR_VOICE_CONS) {     // EXPERIMENTAL INSTR_VOICE consonant onset (voxlab)
+    } break;
+    case SR_VOICE_CONS: {     // EXPERIMENTAL INSTR_VOICE consonant onset (voxlab)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { v->vox_cons = (r.a >= 0 && r.a < VC_COUNT) ? r.a : -1; v->vox_cons_t = 0.0f; }
-    } else if (r.kind == SR_VOICE_CODA) {     // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab)
+    } break;
+    case SR_VOICE_CODA: {     // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { v->vox_coda = (r.a >= 0 && r.a < VC_COUNT) ? r.a : -1; v->vox_coda_t = 0.0f; }
-    } else if (r.kind == SR_VOICE_NASAL) {    // INSTR_VOICE nasal color (public voice_nasal)
+    } break;
+    case SR_VOICE_NASAL: {    // INSTR_VOICE nasal color (public voice_nasal)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float x = r.a / 1000.0f; x = clamp01(x); v->vox_p[7] = x; }
-    } else if (r.kind == SR_NOTE_DUTY) {
+    } break;
+    case SR_NOTE_DUTY: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float d = r.a / 1000.0f; v->duty_target = d < 0.01f ? 0.01f : d > 0.99f ? 0.99f : d; }
-    } else if (r.kind == SR_NOTE_RES) {
+    } break;
+    case SR_NOTE_RES: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float res = r.a / 1000.0f; res = res < 0.0f ? 0.0f : res > 15.0f ? 15.0f : res; v->flt_q_target = 2.0f - res * 0.13f; }
-    } else if (r.kind == SR_NOTE_LFO) {   // a=which, b=dest, c=rate*1000, e2=depth*1000 (phase kept → no click)
+    } break;
+    case SR_NOTE_LFO: {   // a=which, b=dest, c=rate*1000, e2=depth*1000 (phase kept → no click)
         Voice *v = sound_held_voice(r.e0, r.e1);
         int L = r.a;
         if (v && L >= 0 && L < SOUND_LFOS) {
@@ -4906,20 +4920,24 @@ static void sound_fire_req(SoundReq r) {
             v->lfo_rate[L]  = r.c  / 1000.0f;
             v->lfo_depth[L] = r.e2 / 1000.0f;
         }
-    } else if (r.kind == SR_NOTE_FILTER) {
+    } break;
+    case SR_NOTE_FILTER: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->flt_mode = r.a;
-    } else if (r.kind == SR_NOTE_GLIDE) {
+    } break;
+    case SR_NOTE_GLIDE: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float k = r.a <= 0 ? 1.0f : 1000.0f / ((float)r.a * (float)SOUND_SAMPLE_RATE);
             v->freq_slew = k > 1.0f ? 1.0f : k < 0.00001f ? 0.00001f : k;
         }
-    } else if (r.kind == SR_NOTE_OFF_ALL) {
+    } break;
+    case SR_NOTE_OFF_ALL: {
         for (int i = 0; i < SOUND_VOICES; i++)
             if (voices[i].active && voices[i].held) { sound_begin_release(&voices[i]); }
         for (int i = 0; i < SOUND_VOICES; i++) held_voice[i] = -1;
-    } else if (r.kind == SR_INSTR) {
+    } break;
+    case SR_INSTR: {
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         Instrument *ins = &instr_bank[slot];
@@ -4929,17 +4947,20 @@ static void sound_fire_req(SoundReq r) {
         ins->d_samp  = r.e1;
         ins->r_samp  = r.e2;
         // duty is left untouched — set independently via instrument_duty()
-    } else if (r.kind == SR_INSTR_DUTY) {
+    } break;
+    case SR_INSTR_DUTY: {
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float duty = r.b / 1000.0f;
         duty = clampf(0.01f, 0.99f, duty);
         instr_bank[slot].duty = duty;
-    } else if (r.kind == SR_ENG_TUNE) {
+    } break;
+    case SR_ENG_TUNE: {
         int slot = r.a, idx = r.b;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 4) return;
         instr_bank[slot].eng_p[idx] = r.c / 1000.0f;
-    } else if (r.kind == SR_INSTR_LFO) {
+    } break;
+    case SR_INSTR_LFO: {
         int slot = r.a;
         int L = r.e1;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -4947,14 +4968,16 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].lfo_dest[L]  = r.b;
         instr_bank[slot].lfo_rate[L]  = r.c  / 1000.0f;
         instr_bank[slot].lfo_depth[L] = r.e0 / 1000.0f;
-    } else if (r.kind == SR_INSTR_FILTER) {
+    } break;
+    case SR_INSTR_FILTER: {
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         int res = r.e0 < 0 ? 0 : r.e0 > 15 ? 15 : r.e0;
         instr_bank[slot].flt_mode   = r.b;
         instr_bank[slot].flt_cutoff = (float)r.c;
         instr_bank[slot].flt_q      = 2.0f - res * 0.13f;   // res 0 → damped, 15 → resonant peak
-    } else if (r.kind == SR_INSTR_ENV) {   // a=slot, b=which, c=dest, e0=attack, e1=decay, e2=amount*1000
+    } break;
+    case SR_INSTR_ENV: {   // a=slot, b=which, c=dest, e0=attack, e1=decay, e2=amount*1000
         int slot = r.a, e = r.b;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         if (e < 0 || e >= SOUND_ENVS) return;
@@ -4962,7 +4985,8 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].env_a_samp[e] = r.e0;
         instr_bank[slot].env_d_samp[e] = r.e1;
         instr_bank[slot].env_amount[e] = r.e2 / 1000.0f;
-    } else if (r.kind == SR_NOTE_ENV) {    // a=(which<<4)|dest, b=attack, c=decay, e2=amount*1000
+    } break;
+    case SR_NOTE_ENV: {    // a=(which<<4)|dest, b=attack, c=decay, e2=amount*1000
         Voice *v = sound_held_voice(r.e0, r.e1);
         int e = (r.a >> 4) & 0xf, dest = r.a & 0xf;
         if (v && e >= 0 && e < SOUND_ENVS) {
@@ -4971,14 +4995,16 @@ static void sound_fire_req(SoundReq r) {
             v->env_d_samp[e] = r.c;
             v->env_amount[e] = r.e2 / 1000.0f;
         }
-    } else if (r.kind == SR_WAVE_SET) {    // a=which, b=start index, c/e0/e1/e2 = values*32767
+    } break;
+    case SR_WAVE_SET: {    // a=which, b=start index, c/e0/e1/e2 = values*32767
         if (r.a >= 0 && r.a < SOUND_USER_WAVES && r.b >= 0 && r.b + 3 < SOUND_WAVE_LEN) {
             user_wave[r.a][r.b]     = r.c  / 32767.0f;
             user_wave[r.a][r.b + 1] = r.e0 / 32767.0f;
             user_wave[r.a][r.b + 2] = r.e1 / 32767.0f;
             user_wave[r.a][r.b + 3] = r.e2 / 32767.0f;
         }
-    } else if (r.kind == SR_INSTR_MACRO) {  // a=slot, b=which 0..2, c=val*1000
+    } break;
+    case SR_INSTR_MACRO: {  // a=slot, b=which 0..2, c=val*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.c / 1000.0f;
@@ -4986,7 +5012,8 @@ static void sound_fire_req(SoundReq r) {
         if      (r.b == 0) instr_bank[slot].harmonics = x;
         else if (r.b == 1) instr_bank[slot].timbre    = x;
         else if (r.b == 2) instr_bank[slot].morph     = x;
-    } else if (r.kind == SR_NOTE_MACRO) {   // a=which 0..2, b=val*1000 (live, slewed)
+    } break;
+    case SR_NOTE_MACRO: {   // a=which 0..2, b=val*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float x = r.b / 1000.0f;
@@ -4996,49 +5023,57 @@ static void sound_fire_req(SoundReq r) {
             else if (r.a == 2) v->mor_target  = x;
             if (v->wave == INSTR_VOICE) vox_apply_macros(v);   // live VOWEL/SIZE/EFFORT
         }
-    } else if (r.kind == SR_INSTR_CHOKE) {  // a=slot_a, b=slot_b
+    } break;
+    case SR_INSTR_CHOKE: {  // a=slot_a, b=slot_b
         if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS && r.b >= 0 && r.b < SOUND_INSTR_SLOTS)
             instr_bank[r.a].choke_mask |= (1u << r.b);
-    } else if (r.kind == SR_INSTR_DRIVE) {  // a=slot, b=val*1000
+    } break;
+    case SR_INSTR_DRIVE: {  // a=slot, b=val*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.b / 1000.0f;
         x = clamp01(x);
         instr_bank[slot].drive = x;
-    } else if (r.kind == SR_NOTE_DRIVE) {   // a=val*1000 (live, slewed)
+    } break;
+    case SR_NOTE_DRIVE: {   // a=val*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float x = r.a / 1000.0f;
             x = clamp01(x);
             v->drv_target = x;
         }
-    } else if (r.kind == SR_INSTR_SYNC) {   // a=slot, b=ratio*1000
+    } break;
+    case SR_INSTR_SYNC: {   // a=slot, b=ratio*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.b / 1000.0f;
         x = clampf(0.0f, 16.0f, x);
         instr_bank[slot].sync_ratio = x;
-    } else if (r.kind == SR_NOTE_SYNC) {    // a=ratio*1000 (live, slewed)
+    } break;
+    case SR_NOTE_SYNC: {    // a=ratio*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float x = r.a / 1000.0f;
             x = clampf(0.0f, 16.0f, x);
             v->sync_ratio_target = x;
         }
-    } else if (r.kind == SR_INSTR_DRIVE_MODE) {  // a=slot, b=mode (DRIVE_*)
+    } break;
+    case SR_INSTR_DRIVE_MODE: {  // a=slot, b=mode (DRIVE_*)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         int m = r.b;
         if (m < 0 || m > 3) m = 0;
         instr_bank[slot].drive_mode = m;
-    } else if (r.kind == SR_NOTE_DRIVE_MODE) {   // a=mode (DRIVE_*), e0/e1=handle (live, snaps)
+    } break;
+    case SR_NOTE_DRIVE_MODE: {   // a=mode (DRIVE_*), e0/e1=handle (live, snaps)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             int m = r.a;
             if (m < 0 || m > 3) m = 0;
             v->drv_mode = m;
         }
-    } else if (r.kind == SR_ECHO) {         // a=time_ms, b=feedback*1000, c=tone*1000
+    } break;
+    case SR_ECHO: {         // a=time_ms, b=feedback*1000, c=tone*1000
         echo_used = true;
         float ms = (float)r.a;
         ms = clampf(1.0f, 2000.0f, ms);
@@ -5048,20 +5083,23 @@ static void sound_fire_req(SoundReq r) {
         fb = clampf(0.0f, 1.1f, fb);   // >1.0 = self-osc zone (tanh-bounded)
         echo_fb = fb;
         echo_tone_coef = sound_echo_coef(r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_ECHO) {   // a=slot, b=send*1000
+    } break;
+    case SR_INSTR_ECHO: {   // a=slot, b=send*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.b / 1000.0f;
         x = clamp01(x);
         instr_bank[slot].echo = x;
         echo_used = true;
-    } else if (r.kind == SR_INSTR_TUNE) {   // a=slot, b=semitones*1000 (signed)
+    } break;
+    case SR_INSTR_TUNE: {   // a=slot, b=semitones*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float semis = r.b / 1000.0f;
         if (semis < -24.0f) semis = -24.0f; if (semis > 24.0f) semis = 24.0f;
         instr_bank[slot].tune_mul = powf(2.0f, semis / 12.0f);
-    } else if (r.kind == SR_INSTR_UNISON) {   // a=slot, b=voices, c=detune*1000
+    } break;
+    case SR_INSTR_UNISON: {   // a=slot, b=voices, c=detune*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         int n = r.b;
@@ -5070,20 +5108,23 @@ static void sound_fire_req(SoundReq r) {
         det = clampf(0.0f, 12.0f, det);
         instr_bank[slot].uni_voices = n;
         instr_bank[slot].uni_detune = det;
-    } else if (r.kind == SR_INSTR_UNISON_DETUNE) {   // a=slot, b=detune*1000 (live, like tune)
+    } break;
+    case SR_INSTR_UNISON_DETUNE: {   // a=slot, b=detune*1000 (live, like tune)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float det = r.b / 1000.0f;
         det = clampf(0.0f, 12.0f, det);
         instr_bank[slot].uni_detune = det;
-    } else if (r.kind == SR_INSTR_FOLLOW) {   // a=slot b=dest c=atk_ms e0=rel_ms e2=amount*1000
+    } break;
+    case SR_INSTR_FOLLOW: {   // a=slot b=dest c=atk_ms e0=rel_ms e2=amount*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         instr_bank[slot].flw_dest   = r.b;
         instr_bank[slot].flw_atk    = sound_follow_coef(r.c);
         instr_bank[slot].flw_rel    = sound_follow_coef(r.e0);
         instr_bank[slot].flw_amount = r.e2 / 1000.0f;
-    } else if (r.kind == SR_NOTE_FOLLOW) {    // a=dest b=atk_ms c=rel_ms e0/e1=handle e2=amount*1000
+    } break;
+    case SR_NOTE_FOLLOW: {    // a=dest b=atk_ms c=rel_ms e0/e1=handle e2=amount*1000
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             v->flw_dest   = r.a;
@@ -5091,7 +5132,8 @@ static void sound_fire_req(SoundReq r) {
             v->flw_rel    = sound_follow_coef(r.c);
             v->flw_amount = r.e2 / 1000.0f;
         }
-    } else if (r.kind == SR_NOTE_ECHO) {    // a=val*1000 (live, slewed)
+    } break;
+    case SR_NOTE_ECHO: {    // a=val*1000 (live, slewed)
         echo_used = true;
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
@@ -5099,7 +5141,8 @@ static void sound_fire_req(SoundReq r) {
             x = clamp01(x);
             v->eko_target = x;
         }
-    } else if (r.kind == SR_REVERB) {       // a=size*1000, b=damping*1000 — configure tank 0 (the master send)
+    } break;
+    case SR_REVERB: {       // a=size*1000, b=damping*1000 — configure tank 0 (the master send)
         reverb_used = true;
         float size = r.a / 1000.0f;
         size = clamp01(size);
@@ -5107,14 +5150,16 @@ static void sound_fire_req(SoundReq r) {
         float damp = r.b / 1000.0f;
         damp = clamp01(damp);
         rvb_tank[0].damp = damp;
-    } else if (r.kind == SR_INSTR_REVERB) { // a=slot, b=send*1000
+    } break;
+    case SR_INSTR_REVERB: { // a=slot, b=send*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.b / 1000.0f;
         x = clamp01(x);
         instr_bank[slot].reverb = x;
         reverb_used = true;
-    } else if (r.kind == SR_NOTE_REVERB) {  // a=val*1000 (live, slewed)
+    } break;
+    case SR_NOTE_REVERB: {  // a=val*1000 (live, slewed)
         reverb_used = true;
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
@@ -5122,7 +5167,8 @@ static void sound_fire_req(SoundReq r) {
             x = clamp01(x);
             v->rvb_target = x;
         }
-    } else if (r.kind == SR_REVERB_BUS) {   // a=tank(1..N-1), b=size*1000, c=damp*1000 — make tank N a reverb send-bus
+    } break;
+    case SR_REVERB_BUS: {   // a=tank(1..N-1), b=size*1000, c=damp*1000 — make tank N a reverb send-bus
         int tank = r.a;
         if (tank < 1 || tank >= SOUND_REVERB_TANKS) return;   // tank 0 is reverb()'s master send — not a bus
         if (tank_bus[tank] == 0) {            // first call for this tank: claim a dedicated aux bus
@@ -5143,7 +5189,8 @@ static void sound_fire_req(SoundReq r) {
         rvb_tank[tank].damp = damp;
         rvb_tank[tank].mix  = 1.0f;   // a dedicated send-bus is full wet (wet-replace) — keeps reverbspace byte-identical
         rvb_tank[tank].used = true;
-    } else if (r.kind == SR_INSTR_REVERB_BUS) { // a=slot, b=tank, c=mix*1000 — route a slot's send into tank N's bus
+    } break;
+    case SR_INSTR_REVERB_BUS: { // a=slot, b=tank, c=mix*1000 — route a slot's send into tank N's bus
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         int tank = r.b;
@@ -5151,7 +5198,8 @@ static void sound_fire_req(SoundReq r) {
         float mix = r.c / 1000.0f; mix = clamp01(mix);
         instr_bank[slot].reverb   = mix;
         instr_bank[slot].rvb_tank = tank;
-    } else if (r.kind == SR_REVERB_BUS_FX) {  // a=tank, b=fx, c/e0/e1=params*1000 — an insert AFTER the reverb on tank N's bus
+    } break;
+    case SR_REVERB_BUS_FX: {  // a=tank, b=fx, c/e0/e1=params*1000 — an insert AFTER the reverb on tank N's bus
         int tank = r.a;
         if (tank < 1 || tank >= SOUND_REVERB_TANKS) return;
         int bus = tank_bus[tank];
@@ -5169,7 +5217,8 @@ static void sound_fire_req(SoundReq r) {
         bool present = false;
         for (int s = 0; s < insert_order_n[bus]; s++) if (insert_order[bus][s] == fx) present = true;
         if (!present && insert_order_n[bus] < N_INSERTS) { insert_inst[bus][insert_order_n[bus]] = 0; insert_order[bus][insert_order_n[bus]++] = fx; }
-    } else if (r.kind == SR_REVERB_INSERT) {  // a=size*1000, b=damp*1000, c=mix*1000 — master mix-reverb INSERT (bus 0, tank 1)
+    } break;
+    case SR_REVERB_INSERT: {  // a=size*1000, b=damp*1000, c=mix*1000 — master mix-reverb INSERT (bus 0, tank 1)
         float size = r.a / 1000.0f; size = clamp01(size);
         float damp = r.b / 1000.0f; damp = clamp01(damp);
         float mix  = r.c / 1000.0f; mix = clamp01(mix);
@@ -5179,7 +5228,8 @@ static void sound_fire_req(SoundReq r) {
         rvb_tank[1].mix  = mix;       // <1 = dry+wet blend in the chain (an honest reverb pedal)
         rvb_tank[1].used = true;
         // the cart places FX_REVERB in its fx_order(0, …) list to set the reverb's position in the master chain
-    } else if (r.kind == SR_ECHO_INSERT) {  // a=time_ms, b=fb*1000, c=tone*1000, e0=mix*1000 — master in-line delay INSERT
+    } break;
+    case SR_ECHO_INSERT: {  // a=time_ms, b=fb*1000, c=tone*1000, e0=mix*1000 — master in-line delay INSERT
         float ms = (float)r.a; if (ms < 1.0f) ms = 1.0f;
         echo_ins_time_target = ms * (float)SOUND_SAMPLE_RATE / 1000.0f;
         if (echo_ins_time_target > (float)(SOUND_ECHO_MAX - 4)) echo_ins_time_target = (float)(SOUND_ECHO_MAX - 4);
@@ -5191,17 +5241,21 @@ static void sound_fire_req(SoundReq r) {
         echo_ins_mix  = mix;
         echo_ins_used = (mix > 0.0f);   // mix 0 = off (dormant → byte-identical), like the other inserts
         // the cart places FX_ECHO in its fx_order(0, …) list to set the delay's position in the master chain
-    } else if (r.kind == SR_DRIVE_INSERT) {  // a=amount*1000, b=mode, c=mix*1000 — mix-bus saturation INSERT (bus 0, instance 0)
+    } break;
+    case SR_DRIVE_INSERT: {  // a=amount*1000, b=mode, c=mix*1000 — mix-bus saturation INSERT (bus 0, instance 0)
         fx_set_drive(0, 0, r.a / 1000.0f, r.b, r.c / 1000.0f);
-    } else if (r.kind == SR_DRIVE_INST) {     // master drive (bus 0), instance r.a (Increment F): b=amount*1000, c=mode, e0=mix*1000
+    } break;
+    case SR_DRIVE_INST: {     // master drive (bus 0), instance r.a (Increment F): b=amount*1000, c=mode, e0=mix*1000
         fx_set_drive(0, r.a, r.b / 1000.0f, r.c, r.e0 / 1000.0f);
         // the cart places FX_DRIVE in its fx_order(0, …) list to set the saturator's position in the master chain
-    } else if (r.kind == SR_GRAINS) {       // master granular delay (bus 0): a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000
+    } break;
+    case SR_GRAINS: {       // master granular delay (bus 0): a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000
         fx_set_grains(0, (float)r.a, r.b / 100.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
         bool present = false;   // auto-place FX_GRAINS in bus 0's chain (not in the default ladder, like FX_ECHO)
         for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GRAINS) present = true;
         if (!present && insert_order_n[0] < N_INSERTS) insert_order[0][insert_order_n[0]++] = FX_GRAINS;
-    } else if (r.kind == SR_INSTR_GRAINS) { // per-instrument: a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback,mix)
+    } break;
+    case SR_INSTR_GRAINS: { // per-instrument: a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback,mix)
         int b = fx_instr_bus(r.a);
         if (b >= 1) {
             float feedback = (r.e2 / 1001) / 100.0f;   // unpack: e2 = feedback*100 *1001 + mix*1000
@@ -5211,83 +5265,114 @@ static void sound_fire_req(SoundReq r) {
             for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_GRAINS) present = true;
             if (!present && insert_order_n[b] < N_INSERTS) insert_order[b][insert_order_n[b]++] = FX_GRAINS;
         }
-    } else if (r.kind == SR_GRAINS_FREEZE) {        // a=on
+    } break;
+    case SR_GRAINS_FREEZE: {        // a=on
         fx_set_grains_freeze(0, r.a != 0);
-    } else if (r.kind == SR_INSTR_GRAINS_FREEZE) {  // a=slot, b=on
+    } break;
+    case SR_INSTR_GRAINS_FREEZE: {  // a=slot, b=on
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_grains_freeze(b, r.b != 0);
-    } else if (r.kind == SR_GRAINS_PITCH) {         // a=semitones*100, b=spread*1000, c=reverse
+    } break;
+    case SR_GRAINS_PITCH: {         // a=semitones*100, b=spread*1000, c=reverse
         fx_set_grains_pitch(0, r.a / 100.0f, r.b / 1000.0f, r.c != 0);
-    } else if (r.kind == SR_INSTR_GRAINS_PITCH) {   // a=slot, b=semitones*100, c=spread*1000, e0=reverse
+    } break;
+    case SR_INSTR_GRAINS_PITCH: {   // a=slot, b=semitones*100, c=spread*1000, e0=reverse
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_grains_pitch(b, r.b / 100.0f, r.c / 1000.0f, r.e0 != 0);
-    } else if (r.kind == SR_CHORUS) {       // master chorus (bus 0): a=rate*1000, b=depth*1000, c=mix*1000
+    } break;
+    case SR_CHORUS: {       // master chorus (bus 0): a=rate*1000, b=depth*1000, c=mix*1000
         fx_set_chorus(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_CHORUS) { // per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=mix*1000
+    } break;
+    case SR_INSTR_CHORUS: { // per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=mix*1000
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_chorus(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_FLANGER) {      // master flanger (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000)
+    } break;
+    case SR_FLANGER: {      // master flanger (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000)
         fx_set_flanger(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_INSTR_FLANGER) { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000)
+    } break;
+    case SR_INSTR_FLANGER: { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_flanger(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
-    } else if (r.kind == SR_TAPE) {         // master tape (bus 0): a=wow, b=flutter, c=sat (×1000)
+    } break;
+    case SR_TAPE: {         // master tape (bus 0): a=wow, b=flutter, c=sat (×1000)
         fx_set_tape(0, 0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_TAPE) {   // per-instrument: a=slot, b=wow, c=flutter, e0=sat (×1000)
+    } break;
+    case SR_INSTR_TAPE: {   // per-instrument: a=slot, b=wow, c=flutter, e0=sat (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_tape(b, 0, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_WAH) {          // master auto-wah (bus 0): a=sens, b=res, c=mix (×1000)
+    } break;
+    case SR_WAH: {          // master auto-wah (bus 0): a=sens, b=res, c=mix (×1000)
         fx_set_wah(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_WAH) {    // per-instrument: a=slot, b=sens, c=res, e0=mix (×1000)
+    } break;
+    case SR_INSTR_WAH: {    // per-instrument: a=slot, b=sens, c=res, e0=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_wah(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_WAH_LFO) {      // master LFO-wah (bus 0): a=rate, b=res, c=mix (×1000)
+    } break;
+    case SR_WAH_LFO: {      // master LFO-wah (bus 0): a=rate, b=res, c=mix (×1000)
         fx_set_wah_lfo(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_WAH_LFO) {// per-instrument: a=slot, b=rate, c=res, e0=mix (×1000)
+    } break;
+    case SR_INSTR_WAH_LFO: {// per-instrument: a=slot, b=rate, c=res, e0=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_wah_lfo(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_TREMOLO) {      // master tremolo (bus 0): a=rate*1000, b=depth*1000, c=shape
+    } break;
+    case SR_TREMOLO: {      // master tremolo (bus 0): a=rate*1000, b=depth*1000, c=shape
         fx_set_tremolo(0, r.a / 1000.0f, r.b / 1000.0f, r.c);
-    } else if (r.kind == SR_INSTR_TREMOLO) {// per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=shape
+    } break;
+    case SR_INSTR_TREMOLO: {// per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=shape
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_tremolo(b, r.b / 1000.0f, r.c / 1000.0f, r.e0);
-    } else if (r.kind == SR_AUTOPAN) {      // master auto-pan (bus 0): a=rate*1000, b=depth*1000, c=shape
+    } break;
+    case SR_AUTOPAN: {      // master auto-pan (bus 0): a=rate*1000, b=depth*1000, c=shape
         fx_set_autopan(0, r.a / 1000.0f, r.b / 1000.0f, r.c);
-    } else if (r.kind == SR_INSTR_AUTOPAN) {// per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=shape
+    } break;
+    case SR_INSTR_AUTOPAN: {// per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=shape
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_autopan(b, r.b / 1000.0f, r.c / 1000.0f, r.e0);
-    } else if (r.kind == SR_RINGMOD) {      // master ring mod (bus 0): a=freq_hz, b=mix*1000
+    } break;
+    case SR_RINGMOD: {      // master ring mod (bus 0): a=freq_hz, b=mix*1000
         fx_set_ringmod(0, (float)r.a, r.b / 1000.0f);
-    } else if (r.kind == SR_INSTR_RINGMOD) {// per-instrument: a=slot, b=freq_hz, c=mix*1000
+    } break;
+    case SR_INSTR_RINGMOD: {// per-instrument: a=slot, b=freq_hz, c=mix*1000
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_ringmod(b, (float)r.b, r.c / 1000.0f);
-    } else if (r.kind == SR_PHASER) {       // master phaser (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000), e1=stages
+    } break;
+    case SR_PHASER: {       // master phaser (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000), e1=stages
         fx_set_phaser(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1);
-    } else if (r.kind == SR_INSTR_PHASER) { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000), e2=stages
+    } break;
+    case SR_INSTR_PHASER: { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000), e2=stages
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_phaser(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2);
-    } else if (r.kind == SR_UNIVIBE) {      // master univibe (bus 0): a=rate, b=depth, c=mix (×1000) — phaser in optical mode
+    } break;
+    case SR_UNIVIBE: {      // master univibe (bus 0): a=rate, b=depth, c=mix (×1000) — phaser in optical mode
         fx_set_univibe(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_UNIVIBE) { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
+    } break;
+    case SR_INSTR_UNIVIBE: { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_univibe(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_DROPOUT) {      // master tape-failure dropout: a=amount, b=depth (×1000)
+    } break;
+    case SR_DROPOUT: {      // master tape-failure dropout: a=amount, b=depth (×1000)
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
-    } else if (r.kind == SR_AMP_NOISE) {    // optional rig-noise floor: a=hiss, b=hum (×1000), c=mains_hz
+    } break;
+    case SR_AMP_NOISE: {    // optional rig-noise floor: a=hiss, b=hum (×1000), c=mains_hz
         fx_set_amp_noise(r.a / 1000.0f, r.b / 1000.0f, r.c);
-    } else if (r.kind == SR_VARISPEED) {    // master tape varispeed: a=speed (×1000)
+    } break;
+    case SR_VARISPEED: {    // master tape varispeed: a=speed (×1000)
         fx_set_varispeed(r.a / 1000.0f);
-    } else if (r.kind == SR_SHIMMER) {      // master shimmer reverb (tank 0): a=size, b=damp, c=shimmer, e0=mix (×1000)
+    } break;
+    case SR_SHIMMER: {      // master shimmer reverb (tank 0): a=size, b=damp, c=shimmer, e0=mix (×1000)
         fx_set_shimmer(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_INSTR_SHIMMER) { // per-instrument: a=slot, b=size, c=damp, e0=shimmer, e1=mix (×1000)
+    } break;
+    case SR_INSTR_SHIMMER: { // per-instrument: a=slot, b=size, c=damp, e0=shimmer, e1=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_shimmer(shim_tank_for_bus(b), r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
-    } else if (r.kind == SR_GATE) {         // master noise gate (bus 0): a=threshold(×1000), b=attack_ms, c=release_ms
+    } break;
+    case SR_GATE: {         // master noise gate (bus 0): a=threshold(×1000), b=attack_ms, c=release_ms
         fx_set_gate(0, r.a / 1000.0f, r.b, r.c);
         bool present = false;               // auto-place FX_GATE in bus 0's chain (not in the default ladder)
         for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GATE) present = true;
         if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_GATE; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
-    } else if (r.kind == SR_INSTR_GATE) {   // per-instrument: a=slot, b=threshold(×1000), c=attack_ms, e0=release_ms
+    } break;
+    case SR_INSTR_GATE: {   // per-instrument: a=slot, b=threshold(×1000), c=attack_ms, e0=release_ms
         int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_gate(b, r.b / 1000.0f, r.c, r.e0);
@@ -5295,12 +5380,14 @@ static void sound_fire_req(SoundReq r) {
             for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_GATE) present = true;
             if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_GATE; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
         }
-    } else if (r.kind == SR_SHALLOW) {      // master shallow water (bus 0): a=rate, b=depth, c=mix (×1000)
+    } break;
+    case SR_SHALLOW: {      // master shallow water (bus 0): a=rate, b=depth, c=mix (×1000)
         fx_set_shallow(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
         bool present = false;               // auto-place FX_SHALLOW in bus 0's chain (not in the default ladder, like FX_GRAINS)
         for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_SHALLOW) present = true;
         if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_SHALLOW; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
-    } else if (r.kind == SR_INSTR_SHALLOW) { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
+    } break;
+    case SR_INSTR_SHALLOW: { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) {
             fx_set_shallow(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
@@ -5308,12 +5395,15 @@ static void sound_fire_req(SoundReq r) {
             for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_SHALLOW) present = true;
             if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_SHALLOW; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
         }
-    } else if (r.kind == SR_LESLIE) {       // master Leslie (bus 0): a=speed, b=drive, c=balance, e0=doppler, e1=mix (×1000 except speed)
+    } break;
+    case SR_LESLIE: {       // master Leslie (bus 0): a=speed, b=drive, c=balance, e0=doppler, e1=mix (×1000 except speed)
         fx_set_leslie(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
-    } else if (r.kind == SR_INSTR_LESLIE) { // per-instrument: a=slot, b=speed, c=drive, e0=balance, e1=doppler, e2=mix
+    } break;
+    case SR_INSTR_LESLIE: { // per-instrument: a=slot, b=speed, c=drive, e0=balance, e1=doppler, e2=mix
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_leslie(b, r.b, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
-    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, c=count; b/e0/e1/e2 = 4 slots each, 1 byte/slot (kind 5 bits | instance 3 bits)
+    } break;
+    case SR_FX_ORDER: {     // set a bus's insert order: a=bus, c=count; b/e0/e1/e2 = 4 slots each, 1 byte/slot (kind 5 bits | instance 3 bits)
         int bus = r.a;
         if (bus < 0 || bus >= SOUND_FX_BUSES) return;
         int n = r.c; if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS; if (n > FX_ORDER_SLOTS) n = FX_ORDER_SLOTS;
@@ -5325,30 +5415,41 @@ static void sound_fire_req(SoundReq r) {
             insert_inst[bus][s]  = inst;   // 0 unless the cart tagged the kind with FX_INST(kind, n)
         }
         insert_order_n[bus] = n;
-    } else if (r.kind == SR_BITCRUSH) {     // master bitcrush (bus 0): a=bits*100, b=rate*100, c=mix*1000
+    } break;
+    case SR_BITCRUSH: {     // master bitcrush (bus 0): a=bits*100, b=rate*100, c=mix*1000
         fx_set_crush(0, 0, r.a / 100.0f, r.b / 100.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_BITCRUSH) { // per-instrument: a=slot, b=bits*100, c=rate*100, e0=mix*1000
+    } break;
+    case SR_INSTR_BITCRUSH: { // per-instrument: a=slot, b=bits*100, c=rate*100, e0=mix*1000
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_crush(b, 0, r.b / 100.0f, r.c / 100.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_EQ) {           // master EQ (bus 0), instance 0: a=low_db*1000, b=mid_db*1000, c=high_db*1000
+    } break;
+    case SR_EQ: {           // master EQ (bus 0), instance 0: a=low_db*1000, b=mid_db*1000, c=high_db*1000
         fx_set_eq(0, 0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_EQ_INST) {      // master EQ (bus 0), instance r.a (Increment F): b=low_db*1000, c=mid_db*1000, e0=high_db*1000
+    } break;
+    case SR_EQ_INST: {      // master EQ (bus 0), instance r.a (Increment F): b=low_db*1000, c=mid_db*1000, e0=high_db*1000
         fx_set_eq(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_CRUSH_INST) {   // master bitcrush (bus 0), instance r.a: b=bits*100, c=rate*100, e0=mix*1000
+    } break;
+    case SR_CRUSH_INST: {   // master bitcrush (bus 0), instance r.a: b=bits*100, c=rate*100, e0=mix*1000
         fx_set_crush(0, r.a, r.b / 100.0f, r.c / 100.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_TAPE_INST) {    // master tape (bus 0), instance r.a: b=wow*1000, c=flut*1000, e0=sat*1000
+    } break;
+    case SR_TAPE_INST: {    // master tape (bus 0), instance r.a: b=wow*1000, c=flut*1000, e0=sat*1000
         fx_set_tape(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_FILTER_INST) {  // master filter (bus 0), instance r.a: b=mode, c=cutoff_hz, e0=res*1000
+    } break;
+    case SR_FILTER_INST: {  // master filter (bus 0), instance r.a: b=mode, c=cutoff_hz, e0=res*1000
         fx_set_filter(0, r.a, r.b, (float)r.c, r.e0 / 1000.0f);
-    } else if (r.kind == SR_INSTR_EQ) {     // per-instrument, instance 0: a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000
+    } break;
+    case SR_INSTR_EQ: {     // per-instrument, instance 0: a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_eq(b, 0, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_FORMANT) {      // master formant/vowel filter (bus 0): a=vowel, b=q, c=mix (×1000)
+    } break;
+    case SR_FORMANT: {      // master formant/vowel filter (bus 0): a=vowel, b=q, c=mix (×1000)
         fx_set_formant(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_FORMANT) { // per-instrument: a=slot, b=vowel, c=q, e0=mix (×1000)
+    } break;
+    case SR_INSTR_FORMANT: { // per-instrument: a=slot, b=vowel, c=q, e0=mix (×1000)
         int b = fx_instr_bus(r.a);
         if (b >= 1) fx_set_formant(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_SIDECHAIN) {    // a=victim_bus, b=key, c=amount*1000, e0=atk_ms, e1=rel_ms
+    } break;
+    case SR_SIDECHAIN: {    // a=victim_bus, b=key, c=amount*1000, e0=atk_ms, e1=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
         int key = r.b; if (key < 0) key = 0; if (key >= N_SC_KEYS) key = N_SC_KEYS - 1;
         float amount = r.c / 1000.0f; amount = clamp01(amount);
@@ -5358,13 +5459,15 @@ static void sound_fire_req(SoundReq r) {
         sc[vb].atk    = 1.0f - expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].rel    = 1.0f - expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].used   = (amount > 0.0005f);   // amount 0 → dormant (byte-identical)
-    } else if (r.kind == SR_SIDECHAIN_KEY) { // a=slot, b=key, c=send*1000
+    } break;
+    case SR_SIDECHAIN_KEY: { // a=slot, b=key, c=send*1000
         int slot = r.a; if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         int key = r.b; if (key < 0) key = 0; if (key >= N_SC_KEYS) key = N_SC_KEYS - 1;
         float send = r.c / 1000.0f; send = clamp01(send);
         instr_bank[slot].sc_key  = key;
         instr_bank[slot].sc_send = send;
-    } else if (r.kind == SR_GLUE) {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
+    } break;
+    case SR_GLUE: {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
         float amount = r.b / 1000.0f; amount = clamp01(amount);
         int atk = r.c < 1 ? 1 : r.c, rel = r.e0 < 1 ? 1 : r.e0;
@@ -5373,44 +5476,55 @@ static void sound_fire_req(SoundReq r) {
         sc[vb].atk    = 1.0f - expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].rel    = 1.0f - expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].used   = (amount > 0.0005f);
-    } else if (r.kind == SR_FILTER) {       // a=mode, b=cutoff_hz, c=res*1000 — master resonant filter (bus 0)
+    } break;
+    case SR_FILTER: {       // a=mode, b=cutoff_hz, c=res*1000 — master resonant filter (bus 0)
         fx_set_filter(0, 0, r.a, (float)r.b, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
+    } break;
+    case SR_INSTR_PAN: {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.b / 1000.0f;
         if (x < -1.0f) x = -1.0f; if (x > 1.0f) x = 1.0f;
         instr_bank[slot].pan = x;
-    } else if (r.kind == SR_NOTE_PAN) {     // a=pan*1000 (live, slewed)
+    } break;
+    case SR_NOTE_PAN: {     // a=pan*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float x = r.a / 1000.0f;
             if (x < -1.0f) x = -1.0f; if (x > 1.0f) x = 1.0f;
             v->pan_target = x;
         }
-    } else if (r.kind == SR_PAN_LAW) {      // a=law (PAN_LINEAR/PAN_POWER)
+    } break;
+    case SR_PAN_LAW: {      // a=law (PAN_LINEAR/PAN_POWER)
         g_pan_law = (r.a == PAN_POWER) ? PAN_POWER : PAN_LINEAR;
-    } else if (r.kind == SR_LISTENER) {        // a=x*1000, b=y*1000 — the listener (ears) position
+    } break;
+    case SR_LISTENER: {        // a=x*1000, b=y*1000 — the listener (ears) position
         g_listener_x = r.a / 1000.0f; g_listener_y = r.b / 1000.0f;
         spatial_recompute_all(); spatial_recompute_emitters();
-    } else if (r.kind == SR_LISTENER_VEL) {    // a=vx*1000, b=vy*1000 — listener velocity (Doppler)
+    } break;
+    case SR_LISTENER_VEL: {    // a=vx*1000, b=vy*1000 — listener velocity (Doppler)
         g_listener_vx = r.a / 1000.0f; g_listener_vy = r.b / 1000.0f;
         spatial_recompute_all(); spatial_recompute_emitters();
-    } else if (r.kind == SR_SPATIAL_MODEL) {   // a=ref*1000, b=max*1000, c=rolloff*1000
+    } break;
+    case SR_SPATIAL_MODEL: {   // a=ref*1000, b=max*1000, c=rolloff*1000
         g_spatial_ref = r.a / 1000.0f; if (g_spatial_ref < 0.0f) g_spatial_ref = 0.0f;
         g_spatial_max = r.b / 1000.0f; if (g_spatial_max < g_spatial_ref + 0.001f) g_spatial_max = g_spatial_ref + 0.001f;
         g_spatial_rolloff = r.c / 1000.0f; if (g_spatial_rolloff < 0.0f) g_spatial_rolloff = 0.0f;
         spatial_recompute_all(); spatial_recompute_emitters();
-    } else if (r.kind == SR_SPATIAL_SPEED) {   // a=c*1000 — speed of sound; 0 = Doppler off
+    } break;
+    case SR_SPATIAL_SPEED: {   // a=c*1000 — speed of sound; 0 = Doppler off
         g_spatial_c = r.a / 1000.0f; if (g_spatial_c < 0.0f) g_spatial_c = 0.0f;
         spatial_recompute_all(); spatial_recompute_emitters();
-    } else if (r.kind == SR_NOTE_POS) {        // a=x*1000, b=y*1000, e0/e1=handle — place a held voice
+    } break;
+    case SR_NOTE_POS: {        // a=x*1000, b=y*1000, e0/e1=handle — place a held voice
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { v->sp_on = true; v->sp_x = r.a / 1000.0f; v->sp_y = r.b / 1000.0f; spatial_recompute(v); }
-    } else if (r.kind == SR_NOTE_MOTION) {     // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity
+    } break;
+    case SR_NOTE_MOTION: {     // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { v->sp_on = true; v->sp_vx = r.a / 1000.0f; v->sp_vy = r.b / 1000.0f; spatial_recompute(v); }
-    } else if (r.kind == SR_HIT_AT) {          // a=midi, b=instr, c=vol, e0=gate, e1=x*1000, e2=y*1000
+    } break;
+    case SR_HIT_AT: {          // a=midi, b=instr, c=vol, e0=gate, e1=x*1000, e2=y*1000
         int gate = r.e0 > 0 ? r.e0 : SOUND_SAMPLE_RATE / 4;
         sound_choke_group(r.b);
         Voice *v = &voices[sound_find_voice()];
@@ -5420,13 +5534,16 @@ static void sound_fire_req(SoundReq r) {
         v->pan = v->pan_target;                 // snapshot: snap pan/gain/Doppler (no slew-in for a blip)
         v->sp_gain = v->sp_gain_target;
         v->doppler_mul = v->doppler_target;
-    } else if (r.kind == SR_INSTR_POS) {       // a=slot, b=x*1000, c=y*1000 — position an instrument's bus (v2 emitter)
+    } break;
+    case SR_INSTR_POS: {       // a=slot, b=x*1000, c=y*1000 — position an instrument's bus (v2 emitter)
         int b = fx_bus_for(r.a);
         if (b >= 1) spatial_set_bus(b, r.b / 1000.0f, r.c / 1000.0f, emit_vx[b], emit_vy[b]);
-    } else if (r.kind == SR_INSTR_MOTION) {    // a=slot, b=vx*1000, c=vy*1000 — emitter bus velocity
+    } break;
+    case SR_INSTR_MOTION: {    // a=slot, b=vx*1000, c=vy*1000 — emitter bus velocity
         int b = fx_bus_for(r.a);
         if (b >= 1) spatial_set_bus(b, emit_x[b], emit_y[b], r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_FX_MOD) {          // a=target, b=value*1000, c=bus — CV sink (modrack); cancels any LFO on this target
+    } break;
+    case SR_FX_MOD: {          // a=target, b=value*1000, c=bus — CV sink (modrack); cancels any LFO on this target
         int b = r.c, t = r.a;
         if (b >= 0 && b < SOUND_FX_BUSES && t >= 0 && t < FXMOD_N) {
             fxmod_tgt[b][t] = r.b / 1000.0f;
@@ -5434,7 +5551,8 @@ static void sound_fire_req(SoundReq r) {
             if (!fxmod_on[b][t]) { fxmod_on[b][t] = true; fxmod_prime[b][t] = true; }
             fxmod_any = true;
         }
-    } else if (r.kind == SR_FX_LFO) {          // a=target, b=rate*100, c=bus, e0=depth*1000, e1=center*1000, e2=shape — engine LFO (depth 0 = detach)
+    } break;
+    case SR_FX_LFO: {          // a=target, b=rate*100, c=bus, e0=depth*1000, e1=center*1000, e2=shape — engine LFO (depth 0 = detach)
         int b = r.c, t = r.a;
         if (b >= 0 && b < SOUND_FX_BUSES && t >= 0 && t < FXMOD_N) {
             float depth = r.e0 / 1000.0f;
@@ -5452,15 +5570,18 @@ static void sound_fire_req(SoundReq r) {
                 fxmod_any = true;
             }
         }
-    } else if (r.kind == SR_LFO_SHAPE) {       // a=which, b=shape, c=slot(>=0 → instrument) | handle in e0/e1 (c<0 → live note)
+    } break;
+    case SR_LFO_SHAPE: {       // a=which, b=shape, c=slot(>=0 → instrument) | handle in e0/e1 (c<0 → live note)
         int which = r.a, shape = r.b;
         if (which >= 0 && which < SOUND_LFOS && shape >= 0 && shape <= LFO_SHAPE_RANDOM) {
             if (r.c >= 0 && r.c < SOUND_INSTR_SLOTS) instr_bank[r.c].lfo_shape[which] = shape;   // slot config → new voices
             else { Voice *v = sound_held_voice(r.e0, r.e1); if (v) v->lfo_shape[which] = shape; } // live held note
         }
-    } else if (r.kind == SR_BPM) {             // a=rate — tempo (queued so the cart context records it)
+    } break;
+    case SR_BPM: {             // a=rate — tempo (queued so the cart context records it)
         sound_bpm = r.a;
-    } else if (r.kind == SR_CART_SWITCH) {     // a=context id — umbrella-app cart switch (de_switch_cart, share-panel.md)
+    } break;
+    case SR_CART_SWITCH: {     // a=context id — umbrella-app cart switch (de_switch_cart, share-panel.md)
         int ctx = r.a;
         if (ctx >= 0 && ctx < SOUND_CART_CTX && ctx != ctx_active) {
             float tailL = 0.0f, tailR = 0.0f;                  // declick: fade the old cart's last sample out
@@ -5473,6 +5594,7 @@ static void sound_fire_req(SoundReq r) {
                 sound_fire_req(ctx_log[ctx][i]);               // a log never contains SR_CART_SWITCH (it's an event kind)
             steal_tailL += tailL; steal_tailR += tailR;
         }
+    } break;
     }
 }
 

@@ -5,8 +5,9 @@
 > tune-gated, and the **`supersaw`** showcase cart is built + baked. Decision recorded in
 > [ADR-0030](../decisions/0030-unison-is-a-primitive.md); it follows the recipe→macro→engine ladder
 > ([ADR-0016](../decisions/0016-combo-organ-recipe-then-macro-or-engine.md),
-> [ADR-0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)). Stereo **width** is the
-> one deliberate follow-up (see below).
+> [ADR-0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)). Stereo **width** now
+> exists as a **cart-land recipe** in `supersaw` (two panned, mutually-detuned stacks); the *engine*
+> primitive stays deferred until ≥2 carts want it (see "Deferred" below).
 
 ## What it is
 
@@ -98,10 +99,24 @@ the request queue (`SR_INSTR_UNISON` / `SR_INSTR_UNISON_DETUNE`) like every othe
 
 ## Deferred (deliberately)
 
-- **Stereo width.** Half the JP-8000 magic is the detuned voices panned across the field. But
-  `instrument_sync`/`note_sync`, `instrument_drive`/`note_drive` all arrived one scalar at a time —
-  add `instrument_unison_width(slot, w)` **if** mono unison proves not enough, sized against the
-  `supersaw` showcase. Not front-loaded into v1.
+- **Stereo width — now a proven CART-LAND RECIPE in `supersaw`, engine promotion still deferred.**
+  Half the JP-8000 magic is the detuned voices panned across the field. Rather than front-load an
+  engine primitive, `supersaw` proves the effect as a recipe (2026-07-09): a **second** unison stack
+  (slot 6) panned right while the first pans left, with the two stacks **detuned a few cents against
+  each other** (`instrument_tune` ±) so they decorrelate — two *identical* stacks panned hard L/R
+  would only re-sum to a centred mono image; it's the mutual detune that makes it real width, exactly
+  as a hardware supersaw's spread works. The keybed drives the left stack; `keybed_on_note`/`_off`
+  mirror every press onto the right. Verified with a stereo WAV render (L/R correlation drops
+  monotonically **1.00 → 0.93 → 0.40** as the WIDTH knob opens 0 → 0.45 → 0.9, channels staying
+  balanced — decorrelation, not re-centring).
+  - **Cost of the recipe:** doubles the voice count on that instrument (two stacks) — fine for one
+    lead, and it's the honest "prove before promote" price.
+  - **The engine primitive (`instrument_unison_width(slot, w)`) stays deferred** until **≥2 carts
+    want it** (the recipe→macro→engine trigger). Its one real cost — running the per-voice *filter*
+    path per-channel so width tracks a live cutoff sweep — is why it shouldn't ride on one instrument:
+    the cheap engine alternative (mid/side with an unfiltered side path) is specifically wrong for
+    `supersaw`'s signature live-cutoff gesture. See the scoping in ADR-0030's follow-up thinking; the
+    two-slot recipe sidesteps it because each stack has its own filter, so the sweep tracks for free.
 - **CPU.** Unison multiplies the per-sample oscillator cost by the voice count on that slot (capped at
   7, opt-in). Watch `profile-fleet` if a cart stacks unison on heavy polyphony.
 

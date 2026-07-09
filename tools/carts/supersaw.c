@@ -14,7 +14,7 @@
   "lineage": "The showcase cart for instrument_unison (ADR-0030 / design/unison-primitive.md): the primitive's reason to exist, the detune-BLOOM gesture that moog's 3-oscillator fat can't reach.",
   "description": {
     "summary": "The Roland JP-8000 Super Saw: SEVEN detuned sawtooth oscillators stacked on ONE key = the fat, wide trance-lead wall. The whole instrument is one gesture — the DETUNE knob BLOOMS a single thin saw open into all seven, and the live output waveform thickens with it. Play a chord and it's enormous.",
-    "detail": "The most-unison synth ever made, in one engine call: instrument_unison(slot, 7, detune) renders seven slightly-detuned saws inside a single slot, summed and loudness-normalized. The beating between the copies IS the sound. DETUNE rides LIVE (instrument_unison_detune) — the detune-BLOOM: drag from 0 (one thin, plain saw) up to wide (a shimmering seven-voice wall) and every held note opens at once. VOICES cycles the stack 1→3→5→7 so you hear scarcity build into the wall. CUTOFF is the trance ladder-filter tone (set-and-hold; retrigger to hear it). The scope up top is the ACTUAL output (scope_read) — watch the clean saw fuzz out as the wall blooms; the fan of ticks below it is the seven voices spreading in pitch. This is the EXTREME end of unison that moog's 3-osc detune only hints at.",
+    "detail": "The most-unison synth ever made, in one engine call: instrument_unison(slot, 7, detune) renders seven slightly-detuned saws inside a single slot, summed and loudness-normalized. The beating between the copies IS the sound. DETUNE rides LIVE (instrument_unison_detune) — the detune-BLOOM: drag from 0 (one thin, plain saw) up to wide (a shimmering seven-voice wall) and every held note opens at once. VOICES cycles the stack 1→3→5→7 so you hear scarcity build into the wall. CUTOFF sweeps the trance ladder-filter LIVE — every ringing note follows (note_cutoff on the keybed's held handles). The scope up top is the ACTUAL output (scope_read) — watch the clean saw fuzz out as the wall blooms; the fan of ticks below it is the seven voices spreading in pitch. This is the EXTREME end of unison that moog's 3-osc detune only hints at.",
     "controls": "Play the keys (touch / mouse / A-K QWERTY / MIDI) — chords sound huge. Drag DETUNE for the bloom (the star). Drag CUTOFF for the filter tone. Tap VOICES to cycle 1/3/5/7 saws. Z/X shift octave."
   }
 }
@@ -55,7 +55,7 @@ void init(void) {
     instrument_filter(LEAD, FILTER_LADDER, cutoff_hz(), 4);   // the trance 4-pole
     instrument_drive(LEAD, 0.12f);                            // a touch of warmth
     instrument_unison(LEAD, voices, detune_semis());          // THE primitive — the whole cart
-    keybed_config(LEAD, 4, 2);                                // slot 5, base C4, 2 octaves
+    keybed_config(LEAD, 4, 14);                               // slot 5, base C4, 14 white keys (2 octaves)
     keybed_layout(0, SCREEN_H - 74, SCREEN_W, 74);
 }
 
@@ -63,13 +63,18 @@ void update(void) {
     keybed_update();                                          // touch + mouse + QWERTY + MIDI
 }
 
-// re-apply engine params only when they CHANGE (set-and-hold; never spam the queue every frame)
+// re-apply engine params only when they CHANGE (avoid spamming the queue every frame)
 static void apply_params(void) {
     float d = detune_semis();
-    if (d != last_detune)   { instrument_unison_detune(LEAD, d);              last_detune = d; }  // LIVE bloom
+    if (d != last_detune)   { instrument_unison_detune(LEAD, d);              last_detune = d; }  // LIVE bloom (reads the bank per-sample)
     if (voices != last_voices) { instrument_unison(LEAD, voices, d);          last_voices = voices; }
     int c = cutoff_hz();
-    if (c != (int)last_cutoff) { instrument_filter(LEAD, FILTER_LADDER, c, 4); last_cutoff = c; }
+    if (c != (int)last_cutoff) {
+        instrument_filter(LEAD, FILTER_LADDER, c, 4);          // new notes start here
+        for (int m = 0; m < 128; m++)                          // AND sweep every ringing note LIVE (note_cutoff is a live-ride)
+            if (keybed_held(m)) note_cutoff(keybed_handle(m), c);
+        last_cutoff = c;
+    }
 }
 
 // the bloom scope: the REAL output waveform, and a fan of the seven voices' pitches

@@ -193,8 +193,11 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   on a dense `SoundReqKind` enum — a textbook `switch` (jump table + unhandled-case
   warning). Many arms are literally `decode (a/1000) → clamp → store`; a small helper
   given #1's `clamp01`.
-- [ ] **Engine dispatch → `switch`/table.** `sound_engine_sample` (`sound.h:4342`)
+- [x] **Engine dispatch → `switch`/table.** `sound_engine_sample` (`sound.h:4342`)
   tests `v->wave` against 13 constants sequentially before the Karplus fall-through.
+  **Done:** `switch (v->wave)` over the 13 engine ids (dense → jump table), Karplus
+  string preserved as the fall-through past the switch. Per-sample hot path, so a small
+  perf win too. Byte-identical — tune-check all modeled engines unchanged vs baseline.
 - [x] **`btn_local` keymap table.** The near-identical 8-case per-player switches in
   `btn_local` (`studio.c:3298`+) → `static const int keymap[2][BTN_COUNT]` + one
   `inp_down(keymap[player][button])`.

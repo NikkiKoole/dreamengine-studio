@@ -4341,19 +4341,22 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
 }
 
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
-    if (v->wave == INSTR_MALLET) return sound_mallet_sample(v, pitch_mul);
-    if (v->wave == INSTR_FM)     return sound_fm_sample(v, pitch_mul);
-    if (v->wave == INSTR_ORGAN)  return sound_organ_sample(v, pitch_mul);
-    if (v->wave == INSTR_EPIANO) return sound_epiano_sample(v, pitch_mul);
-    if (v->wave == INSTR_PD)     return sound_pd_sample(v, pitch_mul);
-    if (v->wave == INSTR_MEMBRANE) return sound_membrane_sample(v, pitch_mul);
-    if (v->wave == INSTR_REED)   return sound_reed_sample(v, pitch_mul);
-    if (v->wave == INSTR_PIPE)   return sound_pipe_sample(v, pitch_mul);
-    if (v->wave == INSTR_VOICE)  return sound_voice_sample(v, pitch_mul);
-    if (v->wave == INSTR_GUITAR) return sound_guitar_sample(v, pitch_mul);
-    if (v->wave == INSTR_PIANO)  return sound_piano_sample(v, pitch_mul);
-    if (v->wave == INSTR_BOWED)  return sound_bowed_sample(v, pitch_mul);
-    if (v->wave == INSTR_BRASS)  return sound_brass_sample(v, pitch_mul);
+    switch (v->wave) {                                       // dense engine ids → jump table (was 13 sequential compares)
+        case INSTR_MALLET:   return sound_mallet_sample(v, pitch_mul);
+        case INSTR_FM:       return sound_fm_sample(v, pitch_mul);
+        case INSTR_ORGAN:    return sound_organ_sample(v, pitch_mul);
+        case INSTR_EPIANO:   return sound_epiano_sample(v, pitch_mul);
+        case INSTR_PD:       return sound_pd_sample(v, pitch_mul);
+        case INSTR_MEMBRANE: return sound_membrane_sample(v, pitch_mul);
+        case INSTR_REED:     return sound_reed_sample(v, pitch_mul);
+        case INSTR_PIPE:     return sound_pipe_sample(v, pitch_mul);
+        case INSTR_VOICE:    return sound_voice_sample(v, pitch_mul);
+        case INSTR_GUITAR:   return sound_guitar_sample(v, pitch_mul);
+        case INSTR_PIANO:    return sound_piano_sample(v, pitch_mul);
+        case INSTR_BOWED:    return sound_bowed_sample(v, pitch_mul);
+        case INSTR_BRASS:    return sound_brass_sample(v, pitch_mul);
+    }
+    // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;

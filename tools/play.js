@@ -54,11 +54,15 @@
 //   tap     <frame> <key> [dur]    press, release dur frames later (default 6)
 //   move    <frame> <x> <y>        move the pointer to a canvas pixel
 //   click   <frame> <x> <y> [btn]  move there + click  (btn 1=right, 2=mid; default left)
+//   press   <frame> <x> <y> [btn]  button DOWN and HELD (pair with a later `release`)
+//   release <frame> <x> <y> [btn]  button up — ends a held press
+//   drag <f0> <x0> <y0> <f1> <x1> <y1> [btn]   press → glide (one move/frame) → release
 //   wheel   <frame> <delta>        scroll the wheel <delta> ticks on that frame (+up / -down)
 //   <key> = a single char (a, z, 1) or a name (SPACE ENTER LEFT RIGHT UP DOWN TAB BACKSPACE)
 //   self-describing meta as `# frames/fps/scale/crf N` lines (make-gif reads these).
-//   MOUSE IS SCRIPTABLE (move/click) — clicks at KNOWN spots (menu buttons, a fixed
-//   target) are reliable; live-aiming a MOVING target blind misses, so use `record`
+//   MOUSE IS SCRIPTABLE — click at KNOWN spots; press/release/drag give you HELD
+//   presses so knob / slider / paint DRAGS are replayable (a held target, not a
+//   moving one). Live-aiming a moving target blind still misses; use `record`
 //   (a .rec) for that. GOTCHA: dismiss a cart's TITLE screen (ENTER/Z) before its
 //   gameplay keys register. Full reel-making runbook: docs/guides/debug-harness.md.
 

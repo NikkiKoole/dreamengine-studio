@@ -2510,6 +2510,23 @@ static void load_script(const char *path) {
         char cmd[32], key[32]; int frame, p = 6, q = 0;
         if (line[0] == '#' || line[0] == '\n') continue;
         { int amt; if (sscanf(line, "%31s %d %d", cmd, &frame, &amt) == 3 && !strcmp(cmd, "wheel")) { ev_push(frame, 3, amt, 0); continue; } }
+        // drag <f0> <x0> <y0> <f1> <x1> <y1> [btn] — press at (x0,y0), glide to
+        // (x1,y1) with one move per frame, release at f1. Sugar for the whole
+        // press/move.../release dance so knob + slider + paint drags are one line.
+        { int f0, x0, y0, f1, x1, y1, db = 0;
+          int nn = sscanf(line, "%31s %d %d %d %d %d %d %d", cmd, &f0, &x0, &y0, &f1, &x1, &y1, &db);
+          if (nn >= 7 && !strcmp(cmd, "drag")) {
+              if (f1 < f0) f1 = f0;
+              ev_push(f0, 1, x0, y0);
+              ev_push(f0, 2, db & 3, 1);                       // press
+              for (int fr = f0 + 1; fr < f1; fr++) {           // interpolated moves, one per frame
+                  ev_push(fr, 1, x0 + (x1 - x0) * (fr - f0) / (f1 - f0),
+                                 y0 + (y1 - y0) * (fr - f0) / (f1 - f0));
+              }
+              ev_push(f1, 1, x1, y1);
+              ev_push(f1, 2, db & 3, 0);                       // release
+              continue;
+          } }
         if (sscanf(line, "%31s %d %31s %d", cmd, &frame, key, &p) >= 3 &&
             (!strcmp(cmd,"down")||!strcmp(cmd,"up")||!strcmp(cmd,"tap"))) {
             int kc = key_code(key);
@@ -2519,12 +2536,20 @@ static void load_script(const char *path) {
             continue;
         }
         if (sscanf(line, "%31s %d %d %d", cmd, &frame, &p, &q) >= 4) {
-            int btn = 0; sscanf(line, "%*s %*d %*d %*d %d", &btn);   // optional 4th arg for click
+            int btn = 0; sscanf(line, "%*s %*d %*d %*d %d", &btn);   // optional 4th arg (button)
             if      (!strcmp(cmd, "move"))  ev_push(frame, 1, p, q);
             else if (!strcmp(cmd, "click")) {
                 ev_push(frame, 1, p, q);              // pointer to (x,y)
                 ev_push(frame, 2, btn & 3, 1);        // button down
                 ev_push(frame + 3, 2, btn & 3, 0);    // button up 3 frames later
+            }
+            else if (!strcmp(cmd, "press")) {         // button DOWN and HELD (no auto-up)
+                ev_push(frame, 1, p, q);              // — pair with a later `release` to drag by hand
+                ev_push(frame, 2, btn & 3, 1);
+            }
+            else if (!strcmp(cmd, "release")) {       // button up (ends a held press)
+                ev_push(frame, 1, p, q);
+                ev_push(frame, 2, btn & 3, 0);
             }
         }
     }

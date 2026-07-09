@@ -139,8 +139,21 @@ up    132 N
 click 165 160 100      # click to close it
 ```
 
-That makes mouse-driven carts (neon rain, the economy game, …) fully scriptable and
-replayable — `mouse_x/y/mouse_pressed` all read the injected pointer under replay.
+**Held presses + drags** (knobs, sliders, paint-drags — anything that needs the
+button DOWN across frames, not an atomic click):
+
+```
+press   5  250 38      # button DOWN at (250,38) on frame 5, and HELD
+release 40 250 8       # button UP on frame 40 (here: a knob dragged from y38→y8)
+drag  5 22 92 40 22 20 # sugar: press at (22,92), glide to (22,20) one move/frame, release at 40
+```
+
+`press`/`release`/`drag` are what make **drag** interactions replayable — a knob turn,
+a slider, painting a step lane. (A plain `click` is down+up on one frame, so it can
+never exercise a drag or a held-capture path.) All take an optional trailing button arg
+(1=right, 2=middle). That makes mouse-driven carts (neon rain, the economy game, the
+instrument carts …) fully scriptable and replayable — `mouse_x/y/mouse_pressed` all read
+the injected pointer under replay.
 
 > **These coordinates are ABSOLUTE canvas pixels — they don't survive a reflow.** A track
 > that taps a widget at `204 135` misses once a device-adaptive rack rearranges for a

@@ -15,7 +15,7 @@
   ],
   "lineage": "Roland TB-303 (1981) acid machine; a monosynth-plus-sequencer where the sound is the resonant lowpass — live cutoff/reso/drive modulation on a held voice, authentic non-retriggering slide, and an N-key random root-heavy minor-pentatonic line generator.",
   "homage": "Roland TB-303 Bass Line (1981)",
-  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass — the engine's FILTER_DIODE, a real diode-ladder model (~18dB/oct, bass drains as the resonance climbs, and the resonance saturates inside the loop so it growls, the way a 303 does) — sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and six draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), and DRV is the new instrument_drive/note_drive saturation: tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite. Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents and slides, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
+  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass — the engine's FILTER_DIODE, a real diode-ladder model (~18dB/oct, bass drains as the resonance climbs, and the resonance saturates inside the loop so it growls, the way a 303 does) — sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and seven draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), DRV is the instrument_drive/note_drive saturation (tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite), and SWING shuffles the off-16ths (an anachronism, like the drum carts' — the real 303 was straight). The full 303 sequencer: per-step OCTAVE up OR down, accent, slide, and TIE (hold the previous note across steps — the sustained roots a slide can't give you), plus an adjustable pattern LENGTH (tap the ruler above the roll; odd lengths roll against the beat for hypnotic polymeter). Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents, slides and ties, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
 }
 de:meta */
 #include "studio.h"
@@ -60,9 +60,12 @@ de:meta */
 //     moves it on the ringing voice. RES + DRV up = the proper acid bite.
 //
 //   POINTER piano roll: press/drag to draw the line, press a note to
-//           erase it. Rows below the roll: OCT (+1 octave), ACC (accent),
-//           SLD (slide into next step). Knobs: drag vertically (or hover +
-//           wheel on desktop). The SAW/SQR switch toggles the wave. The
+//           erase it. The ruler ABOVE the roll sets pattern LENGTH (tap a
+//           column = loop end). Rows below the roll: OCT (tap cycles +1 / -1
+//           / off), ACC (accent), SLD (slide into next step), TIE (hold the
+//           previous note through this step — sustain, no retrigger, no pitch
+//           change). Knobs: drag vertically (or hover +
+//           wheel on desktop) — SWG is the swing/shuffle. The SAW/SQR switch toggles the wave. The
 //           SQUELCH slider (bottom) multiplies the filter-env sweep up to
 //           3x — ENV knob full + slider full = the 9kHz scream.
 //           MULTITOUCH: every finger is its own pointer — ride CUT and RES
@@ -78,32 +81,37 @@ de:meta */
 
 // knobs — named indices (house rule). Values all 0..100, mapped per-knob.
 // K_DRV appended at the END (never insert mid-list — reorders cross-wire saved values).
-enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, NK };
-static const char *KNAME[NK] = { "CUT", "RES", "ENV", "DEC", "ACC", "DRV" };
-static int knob[NK] = { 45, 70, 60, 40, 60, 35 };
+enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SWING, NK };
+static const char *KNAME[NK] = { "CUT", "RES", "ENV", "DEC", "ACC", "DRV", "SWG" };
+static int knob[NK] = { 45, 70, 60, 40, 60, 35, 0 };
 
 // per-step pattern data (the real 303's programming model)
-static int  pitches[STEPS];   // semitone 0..12 above BASE
-static bool on[STEPS], octv[STEPS], acc[STEPS], sld[STEPS];
+static int  pitches[STEPS];              // semitone 0..12 above BASE
+static bool on[STEPS], acc[STEPS], sld[STEPS], tie[STEPS];
+static signed char oct[STEPS];           // -1 / 0 / +1 octave transpose (real 303 has both)
+static int  plen = STEPS;                // pattern length 1..16 (real 303 runs 1..16)
 
 typedef struct {
-    const char *name; int tempo;
+    const char *name; int tempo, len;
     const char *nt;    // 16 chars: '.' rest, '0'-'9'/'A'/'B'/'C' = semitone 0-12
-    const char *oc, *ac, *sl;
+    const char *oc;    // 'x' = +1 octave, 'v' = -1 octave, else none
+    const char *ac, *sl, *ti;   // ti: 'x' = TIE — hold the previous note through this step
 } Pat;
 
 static const Pat PRESET[] = {
-    { "ACID 1", 130,
+    { "ACID 1", 130, 16,
       "0.C03.7A0.C0537A",
       "................",
       "x...x...x...x...",
-      "......x.......x." },
-    { "SQUELCH", 125,
+      "......x.......x.",
+      ".x.............." },       // tie: the root sustains over step 1
+    { "SQUELCH", 125, 16,
       "0..0..7.0..3..A.",
-      ".........x......",
+      ".........v......",       // an octave-down accent note
       "x.......x.......",
-      "..x.....x......." },
-    { "RANDOM", 132, "", "", "", "" },   // generated — press N for a new one
+      "..x.....x.......",
+      "................" },
+    { "RANDOM", 132, 16, "", "", "", "", "" },   // generated — press N for a new one
 };
 #define NP ((int)(sizeof PRESET / sizeof PRESET[0]))
 
@@ -146,19 +154,24 @@ static void define_voice(void) {
 static void sync_echo(void) { echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f); }   // dotted-8th
 
 static void gen_random(void) {
+    plen = STEPS;
     int prev = 0;
     for (int s = 0; s < STEPS; s++) {
+        tie[s] = false;
         on[s] = chance(72);
         // root-heavy minor pentatonic walk — the acid alphabet
         static const int pool[8] = { 0, 0, 0, 3, 5, 7, 10, 12 };
         int p = pool[rnd_between(0, 7)];
         if (chance(35)) p = prev;           // repeated notes groove harder
         pitches[s] = prev = p;
-        octv[s] = chance(15);
-        acc[s]  = chance(30);
-        sld[s]  = chance(25);
+        oct[s] = chance(12) ? (chance(50) ? 1 : -1) : 0;   // up OR down, sometimes
+        acc[s] = chance(30);
+        sld[s] = chance(25);
     }
-    on[0] = true; pitches[0] = 0;           // land on the root
+    on[0] = true; pitches[0] = 0; tie[0] = false;   // land on the root
+    // sprinkle ties onto rests → the prior note sustains (a 303 signature)
+    for (int s = 1; s < STEPS; s++)
+        if (!on[s] && chance(22)) tie[s] = true;
 }
 
 static void load_preset(void) {
@@ -166,14 +179,17 @@ static void load_preset(void) {
     tempo = p->tempo;
     bpm(tempo);
     sync_echo();
+    plen = p->len ? p->len : STEPS;
     if (!p->nt[0]) { gen_random(); return; }
     for (int s = 0; s < STEPS; s++) {
         char c = p->nt[s];
-        on[s] = c != '.';
+        tie[s] = p->ti && p->ti[s] == 'x';
+        on[s] = c != '.' && !tie[s];        // a tie step carries no fresh note
         pitches[s] = c >= 'A' ? 10 + c - 'A' : c >= '0' ? c - '0' : 0;
-        octv[s] = p->oc[s] == 'x';
-        acc[s]  = p->ac[s] == 'x';
-        sld[s]  = p->sl[s] == 'x';
+        char o = p->oc[s];
+        oct[s] = o == 'x' ? 1 : o == 'v' ? -1 : 0;
+        acc[s] = p->ac[s] == 'x';
+        sld[s] = p->sl[s] == 'x';
     }
 }
 
@@ -189,13 +205,14 @@ void init(void) {
 #define RX   60    // roll left edge
 #define RY   64    // roll top edge
 #define RSX  15    // column stride
-#define RSY  7     // semitone row height (13 rows: C..C, top = +12)
+#define RSY  6     // semitone row height (13 rows: C..C, top = +12) — tightened to fit the TIE row
 #define ROWY(r) (RY + (12 - (r)) * RSY)
 #define OCTY (RY + 13 * RSY + 4)
 #define ACCY (OCTY + 9)
 #define SLDY (ACCY + 9)
+#define TIEY (SLDY + 9)
 
-static const int KX[NK] = { 22, 66, 110, 154, 198, 242 };
+static const int KX[NK] = { 22, 60, 98, 136, 174, 212, 250 };   // 7th (SWG) clears the wave box at 270
 #define KY 38
 #define KR 11
 
@@ -261,15 +278,18 @@ void update(void) {
             }
             int col = (tx - RX) / RSX;
             if (tx >= RX && col >= 0 && col < STEPS) {
-                if (ty >= RY && ty < RY + 13 * RSY) {                  // piano roll
+                if (ty >= RY - 8 && ty < RY - 1) {                     // length ruler: set loop end
+                    plen = col + 1;
+                } else if (ty >= RY && ty < RY + 13 * RSY) {           // piano roll
                     int row = 12 - (ty - RY) / RSY;
                     if (on[col] && pitches[col] == row) on[col] = false;   // press your note = erase
-                    else { on[col] = true; pitches[col] = row; }
+                    else { on[col] = true; pitches[col] = row; tie[col] = false; }  // a drawn note isn't a tie
                     p->mode = PTR_ROLL;
                 } else {                                               // flag rows: press toggles
-                    if (ty >= OCTY && ty < OCTY + 7) octv[col] = !octv[col];
+                    if (ty >= OCTY && ty < OCTY + 7) oct[col] = oct[col] == 0 ? 1 : oct[col] == 1 ? -1 : 0;  // +1 → -1 → off
                     if (ty >= ACCY && ty < ACCY + 7) acc[col]  = !acc[col];
                     if (ty >= SLDY && ty < SLDY + 7) sld[col]  = !sld[col];
+                    if (ty >= TIEY && ty < TIEY + 7) { tie[col] = !tie[col]; if (tie[col]) on[col] = false; }
                 }
             }
         } else if (p->mode == PTR_KNOB) {
@@ -287,7 +307,7 @@ void update(void) {
             int col = (tx - RX) / RSX;
             if (tx >= RX && col >= 0 && col < STEPS && ty >= RY && ty < RY + 13 * RSY) {
                 int row = 12 - (ty - RY) / RSY;
-                on[col] = true; pitches[col] = row;    // drag paints
+                on[col] = true; pitches[col] = row; tie[col] = false;   // drag paints
             }
         }
         p->lastY = ty;
@@ -313,15 +333,22 @@ void update(void) {
 clock:
     if (!running) return;
 
-    // sixteenth clock; the held voice can't be scheduled ahead, so steps
-    // trigger on the frame the counter flips (like drummachine.c)
-    int s16 = beat() * 4 + (int)(beat_pos() * 4.0f);
-    int s   = s16 & 15;
-    if (s16 != last16) {
-        last16  = s16;
+    // sixteenth clock with SWING; the held voice can't be scheduled ahead, so
+    // steps trigger on the frame the counter flips (like drummachine.c). Swing
+    // delays the odd 16ths' onset by up to ~0.6 of a step (the shuffle) — the
+    // even steps stay put, so the pair bounces long-short.
+    int   raw  = beat() * 4 + (int)(beat_pos() * 4.0f);
+    float frac = beat_pos() * 4.0f; frac -= (int)frac;    // 0..1 within the raw 16th
+    float sw   = knob[K_SWING] / 100.0f * 0.60f;          // 0..0.6 of a step
+    int   trig = ((raw & 1) && frac < sw) ? raw - 1 : raw;  // in the swing gap → prior even step
+    int   s    = trig % plen; if (s < 0) s = 0;
+    if (trig != last16) {
+        last16  = trig;
         playhead = s;
-        if (on[s]) {
-            int midi = BASE + pitches[s] + (octv[s] ? 12 : 0);
+        if (tie[s]) {
+            prev_slide = false;                        // hold: no retrigger, no release
+        } else if (on[s]) {
+            int midi = BASE + pitches[s] + oct[s] * 12;
             int vol  = acc[s] ? 7 : 5;
             if (h >= 0 && prev_slide) {
                 note_glide(h, 60);                     // the slide
@@ -338,10 +365,11 @@ clock:
         } else {
             all_off();                                 // rest releases the gate
         }
-    } else if (h >= 0 && on[s] && !sld[s]) {
-        // staccato gate: non-slid notes release at ~70% of the step
-        float f = beat_pos() * 4.0f; f -= (int)f;
-        if (f > 0.7f) { note_off(h); h = -1; }
+    } else if (h >= 0 && on[s] && !sld[s] && !tie[(s + 1) % plen]) {
+        // staccato gate: release ~70% through the step — UNLESS the next step
+        // ties (then the note sustains into it). Account for the swung onset.
+        float onset = (trig & 1) ? sw : 0.0f;
+        if (frac > onset + 0.7f * (1.0f - onset)) { note_off(h); h = -1; }
     }
 }
 
@@ -383,6 +411,14 @@ void draw(void) {
         rectfill(RX - 12, y, 10, RSY - 1, whitek[r % 12] ? CLR_WHITE : CLR_DARK_GREY);
         if (r % 12 == 0) print("C", RX - 10, y, CLR_BLACK);
     }
+    // LENGTH ruler above the roll — tap a column to set the loop end (the
+    // bright cap = last step; "LEN BAR" in the help panel). No text label here:
+    // it'd collide with the CUT knob label above it.
+    for (int s = 0; s < STEPS; s++) {
+        int x = RX + s * RSX;
+        rectfill(x, RY - 8, RSX - 3, 3, s < plen ? (s == plen - 1 ? CLR_GREEN : CLR_DARK_GREEN)
+                                                 : CLR_DARKER_GREY);
+    }
     // playhead
     if (running)
         rectfill(RX + playhead * RSX - 1, RY - 2, RSX - 1, 13 * RSY + 2, CLR_DARKER_GREY);
@@ -393,25 +429,41 @@ void draw(void) {
         int x = RX + s * RSX, y = ROWY(pitches[s]);
         int c = (running && s == playhead) ? CLR_WHITE : acc[s] ? CLR_RED : CLR_ORANGE;
         rectfill(x, y, RSX - 3, RSY - 1, c);
-        if (octv[s]) rect(x, y, RSX - 3, RSY - 1, CLR_BLUE);
-        if (sld[s] && on[(s + 1) & 15]) {              // connector into next note
-            int y2 = ROWY(pitches[(s + 1) & 15]);
+        if (oct[s] > 0) rect(x, y, RSX - 3, RSY - 1, CLR_BLUE);          // +1 octave
+        else if (oct[s] < 0) rect(x, y, RSX - 3, RSY - 1, CLR_INDIGO);  // -1 octave
+        int nx = (s + 1) % plen;
+        if (sld[s] && on[nx]) {                        // connector into next note
+            int y2 = ROWY(pitches[nx]);
             line(x + RSX - 3, y + 3, x + RSX, y2 + 3, CLR_LIGHT_PEACH);
         }
+        if (tie[nx]) rectfill(x + RSX - 3, y + 1, 3 + (RSX - 3), RSY - 3, c);  // held into a tie
     }
 
-    // flag rows
-    static const char *FL[3] = { "OCT", "ACC", "SLD" };
-    static const int   FC[3] = { CLR_BLUE, CLR_RED, CLR_GREEN };
+    // OCT flag row (tri-state: +1 up / -1 down / off)
+    print("OCT", RX - 36, OCTY, CLR_BLACK);
+    for (int s = 0; s < STEPS; s++) {
+        int x = RX + s * RSX;
+        if (oct[s] > 0)      rectfill(x, OCTY, RSX - 3, 6, CLR_BLUE);
+        else if (oct[s] < 0) rectfill(x, OCTY, RSX - 3, 6, CLR_INDIGO);
+        else                 rect(x, OCTY, RSX - 3, 6, CLR_MEDIUM_GREY);
+    }
+    // ACC / SLD / TIE flag rows
+    static const char *FL[3] = { "ACC", "SLD", "TIE" };
+    static const int   FY[3] = { ACCY, SLDY, TIEY };
+    static const int   FC[3] = { CLR_RED, CLR_GREEN, CLR_YELLOW };
     for (int f = 0; f < 3; f++) {
-        int y = f == 0 ? OCTY : f == 1 ? ACCY : SLDY;
-        print(FL[f], RX - 36, y, CLR_BLACK);
-        bool *arr = f == 0 ? octv : f == 1 ? acc : sld;
+        print(FL[f], RX - 36, FY[f], CLR_BLACK);
+        bool *arr = f == 0 ? acc : f == 1 ? sld : tie;
         for (int s = 0; s < STEPS; s++) {
             int x = RX + s * RSX;
-            if (arr[s]) rectfill(x, y, RSX - 3, 6, FC[f]);
-            else        rect(x, y, RSX - 3, 6, CLR_MEDIUM_GREY);
+            if (arr[s]) rectfill(x, FY[f], RSX - 3, 6, FC[f]);
+            else        rect(x, FY[f], RSX - 3, 6, CLR_MEDIUM_GREY);
         }
+    }
+    // loop divider — everything right of it is outside the pattern
+    if (plen < STEPS) {
+        int dx = RX + plen * RSX - 1;
+        line(dx, RY - 8, dx, TIEY + 6, CLR_DARK_RED);
     }
 
     // squelch slider — depth multiplier on the filter-env sweep
@@ -422,24 +474,26 @@ void draw(void) {
     print("H HELP", 262, 184, CLR_DARK_GREY);
 
     if (show_help) {
-        rectfill(40, 28, 240, 152, CLR_BLACK);
-        rect(40, 28, 240, 152, CLR_LIGHT_GREY);
-        print("TB-303 CONTROLS", 100, 36, CLR_YELLOW);
+        rectfill(30, 22, 260, 172, CLR_BLACK);
+        rect(30, 22, 260, 172, CLR_LIGHT_GREY);
+        print("TB-303 CONTROLS", 95, 28, CLR_YELLOW);
         static const char *HL[] = {
             "ROLL      DRAW/DRAG NOTES",
             "          CLICK NOTE = ERASE",
-            "OCT       STEP UP ONE OCTAVE",
+            "LEN BAR   SET PATTERN LENGTH",
+            "OCT       TAP: +1 / -1 / OFF",
             "ACC       ACCENT: LOUD+SHARP",
             "SLD       SLIDE TO NEXT NOTE",
-            "KNOBS     DRAG OR WHEEL",
+            "TIE       HOLD PREV NOTE (SUSTAIN)",
+            "SWG KNOB  SWING THE OFF-16THS",
             "DRV       POST-FILTER GRIT",
             "SQUELCH   FILTER-ENV DEPTH",
-            "WAVE BOX  SAW / SQR",
-            "N         NEW RANDOM (TAP NAME)",
+            "WAVE BOX  SAW / SQR   N NEW RND",
             "< > PATTERN  ^v TEMPO (TAP)",
             "SPACE/TAP > RUN/STOP  H CLOSE",
         };
-        for (int i = 0; i < 12; i++)
-            print(HL[i], 52, 50 + i * 11, i < 9 ? CLR_WHITE : CLR_LIGHT_PEACH);
+        int n = (int)(sizeof HL / sizeof HL[0]);
+        for (int i = 0; i < n; i++)
+            print(HL[i], 42, 42 + i * 11, i < 8 ? CLR_WHITE : CLR_LIGHT_PEACH);
     }
 }

@@ -211,6 +211,69 @@ day one — original faceplate name, RB-338 in `lineage`/`homage` metadata where
    dancer from [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md), `rack.h` when customer #2
    arrives.
 
+## Modern-era feature backlog (real-hardware precedents)
+
+Recorded 2026-07-09 from a research pass on what the 303/808/909 *reissues and clones* added over
+the decades — the features acid/house/techno players missed on the originals. These live as items in
+`acidrack.c`'s `de:meta.todo[]` (surfaced by `cart-todos.js`); this section is the **why + sources**
+so the next builder doesn't re-research. Priority order overall: **step probability → per-track
+length/polymeter → sidechain pump → the Devilfish 303 knobs → motion/p-lock lanes** (cheapest-and-most-
+alive first; the deep one last).
+
+**Already in acidrack (don't re-add):** per-machine DIST (≈ the TD-3's Boss-DS-1 distortion), the
+seeded GEN/song-code (≈ the TD-3's random-pattern generator), per-voice TUNE/DEC/CHAR, flam/drag/
+ratchet strokes, the METAL hat pad, accent rows, period-correct shuffle, the master PCF lane + GLU
+glue-comp, banks + song chain. **Deliberately skipped (moot in one cart):** the clones' MIDI/USB/
+CV-gate/DIN-sync/patch-point/PC-editor additions — all about wiring to *other* hardware.
+
+### The 303 (Devil Fish → Behringer TD-3 / TD-3-MO)
+The stock 303 is thin; the famous Robin Whittle "Devil Fish" mod (and Behringer's TD-3-MO recreation
+of it) added the knobs acid producers actually wanted:
+- **Separate accent decay** — the signature mod: a normal-decay knob *plus* an independent accent
+  decay, so accented steps ring/breathe differently. acidrack's `DEC` is shared across all steps today.
+- **Variable slide time** — a knob, instead of the fixed non-retriggering glide.
+- **Soft attack** — rounds the note onset for subtler, less-clicky lines.
+- **Sub-oscillator** — a deep sub beneath the saw/square for fatter bass.
+- **Accent-sweep modes** — acidrack already routes accent into the filter env; the TD-3-MO makes the
+  *sweep speed* selectable (3 modes).
+
+**Song-level transpose** (the design conclusion, not a clone knob): the arrangement feature the stock
+303 lacked — every clone workflow gets it via incoming MIDI-note transpose. In acidrack it belongs at
+the **song/arrangement layer, not as a 303 knob**: a per-song-cell semitone offset (`int8_t
+songTranspose[64]`) added into *both* 303s' `pitches[]` at the **bar boundary** (drums ignore it). It's
+the pitch twin of the existing per-bank PCF lane, and applying it at the bar boundary sidesteps the
+open slide/tie/shuffle scheduling caveat (no mid-pattern pitch mutation). A continuous *knob* is the
+wrong control — musical transposition is discrete and rhythmic. Per-303 override (one line a third/
+fifth above) is a later nicety; default shared.
+
+### The 808/909 (Behringer RD-8/RD-9 → Roland TR-8S)
+The drum-machine additions are mostly **sequencer/performance**, which is exactly the house/techno
+workflow — and three of the four are **not greenfield**, we've shipped the mechanism already:
+- **Step probability** — each active step gets a % chance to fire; the modern move for a living,
+  never-quite-repeating loop. *Reference:* `pocketbox.c`'s Elektron trigger conditions (`CONDS[]`
+  table + `cond_ok()` gate, incl. a 50% + `X:Y` loop conditions); `turing.c` is the pure per-step
+  flip-probability engine (`flip_prob()`).
+- **Per-track step length / polymeter** (RD-9 "Poly") — a 15-step hat against a 16-step kick drifts
+  in and out of phase; long-form techno evolution from one loop. acidrack is locked to `STEPS=16`.
+- **Sidechain "pump"** — duck the non-drum buses to the kick for the house/techno breathing. acidrack
+  has the GLU glue-comp but no kick-triggered duck; a single PUMP-amount knob keyed off the kick step.
+- **Motion / parameter-lock lanes** (TR-8S motion · Elektron p-locks) — automate any per-voice knob
+  per-step or by recording knob moves, played as a delta over the base. acidrack already has the
+  *concept* via the per-bank PCF lane; generalize to per-voice lanes. *Reference:* `pocketbox.c` has
+  literal per-step LOCK 1–4 pages; `motionbox.c` is the continuous motion-record flavor. (This is
+  build-order item 5's "per-machine pattern locks", now with sources.) The deepest build — do last.
+- **Smaller flavor:** Wave Designer / transient shaping (attack+sustain punch per voice), a dual-mode
+  LP/HP recordable filter per machine (acidrack's PCF is a master lowpass), and Scatter/beat-repeat
+  glitch fills (acidrack has per-step ratchet but no global performance-glitch).
+
+Sources: [MusicTech — TD-3](https://musictech.com/news/behringer-td-3-release/) ·
+[Sound On Sound — TD-3-MO](https://www.soundonsound.com/reviews/behringer-td-3-mo) ·
+[MusicTech — TD-3-MO / Devil Fish mods](https://musictech.com/news/gear/behringer-td-3-mo-bass-synth-recreation-roland-tb-303-devil-fish-mod-available/) ·
+[Sound On Sound — Mode Machines Xoxbox](https://www.soundonsound.com/reviews/mode-machines-xoxbox) ·
+[Behringer RD-9](https://www.behringer.com/en/products/0704-AAB) ·
+[Sound On Sound — Behringer RD-8](https://www.soundonsound.com/reviews/behringer-rd-8-rhythm-designer?page=2) ·
+[Sound On Sound — Roland TR-8S](https://www.soundonsound.com/reviews/roland-tr-8s).
+
 ## Open questions
 
 - **Chain length / structure** — 64 flat entries, or entries with a repeat count (`B×4`)? Flat is

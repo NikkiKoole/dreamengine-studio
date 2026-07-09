@@ -2651,6 +2651,13 @@ static Image de_image_decode(const unsigned char *png, int len) {
 }
 #endif
 
+// load the cart's embedded tilemap, or zero the grid if it shipped none. Defined BEFORE the
+// DE_NO_RAYLIB guard so both entry points see it — the no-raylib de_init and the raylib main.
+static void de_load_map(void) {
+    if (MAP_DATA_LEN >= sizeof(map_data)) memcpy(map_data, MAP_DATA, sizeof map_data);
+    else                                  memset(map_data, 0, sizeof map_data);
+}
+
 #ifdef DE_NO_RAYLIB
 // ============================================================================
 // DE_NO_RAYLIB entry points (platform.h) — the host (iOS CADisplayLink, a headless
@@ -2689,8 +2696,7 @@ void de_init(DeRenderer renderer) {
     de_ensure_fb(SCREEN_W, SCREEN_H);            // heap framebuffer(s), grows if a resizable cart enlarges
     load_palette();
     init_touch_layout();
-    if (MAP_DATA_LEN >= sizeof(map_data)) memcpy(map_data, MAP_DATA, sizeof map_data);
-    else                                  memset(map_data, 0, sizeof map_data);
+    de_load_map();
     de_setup_baked_fonts();
 #ifdef SPRITES_MULTI
     for (int i = 0; i < SPRITES_MULTI; i++) {   // per-cart sheets on the SW path (iOS): pre-load all
@@ -3040,11 +3046,7 @@ int main(int argc, char **argv) {
     scale_shader_init(); // sharp-bilinear present filter (modes 2/3; no-op otherwise)
     init_touch_layout();
 
-    if (MAP_DATA_LEN >= sizeof(map_data)) {
-        memcpy(map_data, MAP_DATA, sizeof(map_data));
-    } else {
-        memset(map_data, 0, sizeof(map_data));
-    }
+    de_load_map();
 
     // low-res canvas — all drawing goes here, then scaled up. Sized to fb_w×fb_h (== SCREEN_W/H for a
     // fixed cart; the window-seeded size for a resizable one). Grows later via de_grow_gpu on resize.
@@ -3668,18 +3670,18 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
     PROF("sprf");
     if (spritesheet.width == 0) return;
     int cols = spritesheet.width / SPRITE_SIZE;
-    Rectangle src = {
+    if (sw_canvas_active) {
+        sw_blit((int)(index % cols) * SPRITE_SIZE, (int)(index / cols) * SPRITE_SIZE,
+                SPRITE_SIZE, SPRITE_SIZE, x, y, SPRITE_SIZE, SPRITE_SIZE, flip_x, flip_y, true);
+        UIAUDIT('s', x, y, SPRITE_SIZE, SPRITE_SIZE, NULL); return;
+    }
+    Rectangle src = {                                   // GPU path only — built here so the sw path above skips it
         .x      = (index % cols) * SPRITE_SIZE,
         .y      = (index / cols) * SPRITE_SIZE,
         .width  = flip_x ? -SPRITE_SIZE : SPRITE_SIZE,
         .height = flip_y ? -SPRITE_SIZE : SPRITE_SIZE,
     };
     Rectangle dst = { x, y, SPRITE_SIZE, SPRITE_SIZE };
-    if (sw_canvas_active) {
-        sw_blit((int)(index % cols) * SPRITE_SIZE, (int)(index / cols) * SPRITE_SIZE,
-                SPRITE_SIZE, SPRITE_SIZE, x, y, SPRITE_SIZE, SPRITE_SIZE, flip_x, flip_y, true);
-        UIAUDIT('s', x, y, SPRITE_SIZE, SPRITE_SIZE, NULL); return;
-    }
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
@@ -4382,36 +4384,35 @@ static void pget_warn_once(void) {
                     "Call enable_pget(true) in init() (or around your reading mode).\n");
 }
 
-int pget(int x, int y) {
-    if (!pget_enabled)        { pget_warn_once(); return 0; }
-    if (!pget_snapshot_valid) return 0;   // enabled but no snapshot yet (first frame, or web)
-    // pget(x,y) takes a WORLD coord and reads the screen pixel it landed on, so run it
-    // through the camera matrix. exact under translate; approximate under zoom/rotation
-    // (it samples the rendered canvas, which is the documented limitation).
-    Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
-    int rx = (int)s.x;
-    int ry = (int)s.y;
-    if (rx < 0 || rx >= de_sw || ry < 0 || ry >= de_sh) return 0;   // in the active canvas?
-    // RT data is bottom-up in raylib; flip Y to match draw coords. pget_snapshot is the FULL-size
-    // GPU render texture (SCREEN_W×SCREEN_H), so its flip origin stays SCREEN_H, not de_sh.
-    DeColor c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);
-    for (int i = 0; i < PALETTE_SIZE; i++) {
+// palette index of an exact-RGB match, or 0 if none (also the "read-back off" default).
+static int palette_index_of(DeColor c) {
+    for (int i = 0; i < PALETTE_SIZE; i++)
         if (palette[i].r == c.r && palette[i].g == c.g && palette[i].b == c.b) return i;
-    }
     return 0;
+}
+// shared pget/pget_rgb read: WORLD coord → camera matrix → the snapshot texel it landed on. Exact
+// under translate, approximate under zoom/rotation (samples the rendered canvas — the documented
+// limit). Returns false (leaving *out) when read-back is off / no snapshot yet / off-canvas — each
+// caller picks its own empty sentinel. RT data is bottom-up so flip Y about SCREEN_H (full snapshot).
+static bool pget_texel(int x, int y, DeColor *out) {
+    if (!pget_enabled)        { pget_warn_once(); return false; }
+    if (!pget_snapshot_valid) return false;
+    Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
+    int rx = (int)s.x, ry = (int)s.y;
+    if (rx < 0 || rx >= de_sw || ry < 0 || ry >= de_sh) return false;
+    *out = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);
+    return true;
+}
+int pget(int x, int y) {
+    DeColor c; if (!pget_texel(x, y, &c)) return 0;
+    return palette_index_of(c);
 }
 
 // true-colour read-back: the raw 0xRRGGBB at (x,y), skipping pget's palette match.
 // pairs with pset_rgb for feedback shaders (read your own true-colour canvas, write it
 // back). returns -1 off-screen so a real black pixel (0x000000) isn't ambiguous.
 int pget_rgb(int x, int y) {
-    if (!pget_enabled)        { pget_warn_once(); return -1; }
-    if (!pget_snapshot_valid) return -1;   // enabled but no snapshot yet (first frame, or web)
-    Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
-    int rx = (int)s.x;
-    int ry = (int)s.y;
-    if (rx < 0 || rx >= de_sw || ry < 0 || ry >= de_sh) return -1;   // in the active canvas?
-    DeColor c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);   // RT is bottom-up; flip Y (full-size snapshot → SCREEN_H)
+    DeColor c; if (!pget_texel(x, y, &c)) return -1;
     return (c.r << 16) | (c.g << 8) | c.b;
 }
 
@@ -4422,10 +4423,7 @@ int sget(int sx, int sy) {
     if (!spritesheet_img.data) return 0;
     if (sx < 0 || sx >= spritesheet_img.width || sy < 0 || sy >= spritesheet_img.height) return 0;
     DeColor c = GetImageColor(spritesheet_img, sx, sy);
-    for (int i = 0; i < PALETTE_SIZE; i++) {
-        if (palette[i].r == c.r && palette[i].g == c.g && palette[i].b == c.b) return i;
-    }
-    return 0;
+    return palette_index_of(c);
 }
 
 // push the current cam to the GPU. if we're mid-draw (inside BeginMode2D), restart

@@ -230,6 +230,13 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   (`1814`+) → `write_state_json()`; `MAP_DATA` load duplicated in `de_init`
   (`2689`) and `main` (`3046`) → `de_load_map()`; `sprf` builds unused `Rectangle`
   src/dst on the software path (`3708`+).
+  **Mostly done 2026-07-10:** `pget_texel()` (the shared world→snapshot-texel guard, each
+  caller keeps its own empty sentinel), `palette_index_of(DeColor)` (pget+sget),
+  `de_load_map()` (de_init + main — note it lives BEFORE the `#ifdef DE_NO_RAYLIB` guard so
+  both entry points see it), and `sprf` now builds src/dst only on the GPU branch (dead on
+  the sw path). Byte-identical (build-all 479/479; canvas-diff drawall unchanged, boom
+  sprites 0px). **Left:** `harness_inspect`→`write_state_json()` — trace-only (`-DDE_TRACE`),
+  parked in the bucket-② set with a `play.js --trace` gate.
 - [x] **Dead `PAUSE_KEY` guard** — redefined at `studio.c:3280–3281` but already
   defined at `455–456`, so the second `#ifndef` is always skipped. Delete.
 - [ ] **`net.h` packet helpers** — WELCOME/HELLO builder + seed LE encode/decode

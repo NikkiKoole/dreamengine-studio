@@ -5567,6 +5567,21 @@
     "homage": "Summer Games (1984)"
   },
   {
+    "title": "supersaw",
+    "description": "The Roland JP-8000 Super Saw: SEVEN detuned sawtooth oscillators stacked on ONE key = the fat, wide trance-lead wall. The whole instrument is one gesture — the DETUNE knob BLOOMS a single thin saw open into all seven, and the live output waveform thickens with it. Play a chord and it's enormous. The most-unison synth ever made, in one engine call: instrument_unison(slot, 7, detune) renders seven slightly-detuned saws inside a single slot, summed and loudness-normalized. The beating between the copies IS the sound. DETUNE rides LIVE (instrument_unison_detune) — the detune-BLOOM: drag from 0 (one thin, plain saw) up to wide (a shimmering seven-voice wall) and every held note opens at once. VOICES cycles the stack 1→3→5→7 so you hear scarcity build into the wall. CUTOFF is the trance ladder-filter tone (set-and-hold; retrigger to hear it). The scope up top is the ACTUAL output (scope_read) — watch the clean saw fuzz out as the wall blooms; the fan of ticks below it is the seven voices spreading in pitch. This is the EXTREME end of unison that moog's 3-osc detune only hints at. Play the keys (touch / mouse / A-K QWERTY / MIDI) — chords sound huge. Drag DETUNE for the bloom (the star). Drag CUTOFF for the filter tone. Tap VOICES to cycle 1/3/5/7 saws. Z/X shift octave.",
+    "file": "supersaw.cart.png",
+    "created": "2026-07-09",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "subtractive-synth"
+    ],
+    "lineage": "The showcase cart for instrument_unison (ADR-0030 / design/unison-primitive.md): the primitive's reason to exist, the detune-BLOOM gesture that moog's 3-oscillator fat can't reach.",
+    "homage": "Roland JP-8000 Super Saw"
+  },
+  {
     "title": "Swarmturf",
     "description": "Splatoon x boids: you steer a flock that PAINTS the ground it flies over, carving turf out of a rival swarm's color. Hold LEFT-CLICK (or WASD) to pull your swarm toward the cursor; most painted ground when the timer runs out wins. Click / Z to replay.",
     "file": "swarmturf.cart.png",

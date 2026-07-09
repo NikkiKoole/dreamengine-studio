@@ -57,7 +57,7 @@ enum { K_PIT, K_DEC, K_COL, K_SHP, K_SWP, K_CON };
 enum { M_KICK, M_SNARE, M_METAL, M_PERC, M_TONE, M_CHORD };
 
 static const char *LABEL[ROWS] = { "KICK", "SNARE", "METAL", "PERC", "TONE", "CHORD" };
-static const char *MNAME[NMAC] = { "PIT", "DEC", "COL", "SHP", "SWP", "CON" };
+static const char *MNAME[NMAC] = { "PITCH", "DECAY", "COLOR", "SHAPE", "SWEEP", "CONTOUR" };
 static const int   LIT  [ROWS] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN, CLR_BLUE, CLR_INDIGO };
 
 // the note range each machine's PIT macro sweeps (lo..hi MIDI)
@@ -372,7 +372,8 @@ void draw() {
         rectfill(x + 1, KY + KH - 1 - h, 10, h, sel ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
         if (sel) rect(x - 1, KY - 1, 14, KH + 2, CLR_WHITE);
         font(FONT_SMALL);
-        print(MNAME[k], x - 1, KY + KH + 2, sel ? CLR_WHITE : CLR_LIGHT_GREY);
+        int tw = text_width(MNAME[k]);
+        print(MNAME[k], x + 6 - tw / 2, KY + KH + 2, sel ? CLR_WHITE : CLR_LIGHT_GREY);
         font(FONT_NORMAL);
     }
 

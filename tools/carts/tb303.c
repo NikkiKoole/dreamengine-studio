@@ -256,7 +256,7 @@ void update(void) {
         if (keyp('H') || tapp(0, 0, 320, 200)) show_help = false;   // any tap closes
         goto clock;
     }
-    if (keyp('H') || (!grabbed && tapp(258, 178, 56, 18))) show_help = true;
+    if (keyp('H') || (!grabbed && tapp(304, 0, 16, 22))) show_help = true;   // "H" in the top-right corner
 
     // ── tappable header: < name > pattern, BPM halves tempo, > run/stop ──
     if (!grabbed) {
@@ -264,8 +264,8 @@ void update(void) {
         if (tapp(214, 0, 18, 22)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; all_off(); }
         if (tapp(166, 0, 46, 22) && !PRESET[pre].nt[0]) gen_random();   // tap RANDOM's name = reroll
         if (tapp(226, 0, 30, 22)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
-        if (tapp(256, 0, 34, 22)) { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
-        if (tapp(292, 0, 28, 22)) { running = !running; last16 = -1; if (!running) all_off(); }
+        if (tapp(256, 0, 28, 22)) { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
+        if (tapp(286, 0, 18, 22)) { running = !running; last16 = -1; if (!running) all_off(); }
     }
 
     // ── touch: every finger is its own pointer — a knob, the slider, the
@@ -288,8 +288,8 @@ void update(void) {
                 define_voice();
                 continue;
             }
-            if (tx >= 80 && tx < 240 && ty >= 182 && ty < 195) {       // LENGTH strip (in the old squelch spot)
-                int c = (tx - 80) / 10; if (c < 0) c = 0; if (c > 15) c = 15;
+            if (tx >= RX && tx < RX + STEPS * RSX && ty >= 182 && ty < 195) {   // LENGTH strip (grid-aligned)
+                int c = (tx - RX) / RSX; if (c < 0) c = 0; if (c > 15) c = 15;
                 plen = c + 1;
                 continue;
             }
@@ -403,7 +403,8 @@ void draw(void) {
     print(PRESET[pre].name, 160, 8, CLR_DARK_RED);
     sprintf(buf, "%3d BPM", tempo);
     print(buf, 230, 8, CLR_BLACK);
-    print(running ? ">" : "#", 300, 8, running ? CLR_DARK_GREEN : CLR_DARK_RED);
+    print(running ? ">" : "#", 296, 8, running ? CLR_DARK_GREEN : CLR_DARK_RED);
+    print("H", 310, 8, CLR_DARK_GREY);                 // help — tap the corner (or press H)
 
     // knobs
     for (int k = 0; k < NK; k++) {
@@ -482,17 +483,16 @@ void draw(void) {
         line(dx, RY - 2, dx, TIEY + 6, CLR_DARK_RED);
     }
 
-    // LENGTH strip — tap a cell to set the loop end (the bright cap = last
-    // step; the red divider in the roll marks where it cuts). Moved down here
-    // into the old squelch-slider spot so it isn't cramped against the knobs.
-    sprintf(buf, "LEN %d", plen);
-    print(buf, 14, 184, CLR_BLACK);
+    // LENGTH strip — one cell per step, aligned under the roll columns so it
+    // lines up with the grid. Green = in the pattern, bright cap = last step;
+    // the red divider in the roll marks the same cut. (Label only — the lit
+    // cells + divider read the length; no number needed.)
+    print("LEN", RX - 36, 184, CLR_BLACK);
     for (int s = 0; s < STEPS; s++) {
-        int x = 80 + s * 10;
-        rectfill(x, 184, 9, 8, s < plen ? (s == plen - 1 ? CLR_GREEN : CLR_DARK_GREEN)
-                                        : CLR_DARKER_GREY);
+        int x = RX + s * RSX;
+        rectfill(x, 184, RSX - 3, 8, s < plen ? (s == plen - 1 ? CLR_GREEN : CLR_DARK_GREEN)
+                                              : CLR_DARKER_GREY);
     }
-    print("H HELP", 262, 184, CLR_DARK_GREY);
 
     if (show_help) {
         rectfill(30, 22, 260, 172, CLR_BLACK);

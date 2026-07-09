@@ -15,7 +15,7 @@
   "description": {
     "summary": "The Roland JP-8000 Super Saw: SEVEN detuned sawtooth oscillators stacked on ONE key = the fat, wide trance-lead wall. The whole instrument is one gesture — the DETUNE knob BLOOMS a single thin saw open into all seven, and the live output waveform thickens with it. Play a chord and it's enormous.",
     "detail": "The most-unison synth ever made, in one engine call: instrument_unison(slot, 7, detune) renders seven slightly-detuned saws inside a single slot, summed and loudness-normalized. The beating between the copies IS the sound. DETUNE rides LIVE (instrument_unison_detune) — the detune-BLOOM: drag from 0 (one thin, plain saw) up to wide (a shimmering seven-voice wall) and every held note opens at once. VOICES cycles the stack 1→3→5→7 so you hear scarcity build into the wall. CUTOFF sweeps the trance ladder-filter LIVE — every ringing note follows (note_cutoff on the keybed's held handles). The scope up top is the ACTUAL output (scope_read) — watch the clean saw fuzz out as the wall blooms; the fan of ticks below it is the seven voices spreading in pitch. This is the EXTREME end of unison that moog's 3-osc detune only hints at.",
-    "controls": "Play the keys (touch / mouse / A-K QWERTY / MIDI) — chords sound huge. Drag DETUNE for the bloom (the star). Drag CUTOFF for the filter tone. Tap VOICES to cycle 1/3/5/7 saws. Z/X shift octave."
+    "controls": "Play the keys (touch / mouse / A-K QWERTY / MIDI) — chords sound huge. Drag DETUNE for the bloom (the star). Drag CUTOFF for the filter sweep (live — every ringing note follows). Tap VOICES to cycle 1/3/5/7 voices. Tap WAVE to cycle the oscillator (SAW/SQUARE/PULSE/TRI/SINE — the waves unison fattens). Z/X shift octave."
   }
 }
 de:meta */
@@ -42,16 +42,25 @@ static int   voices   = 7;       // unison stack (cycles 1/3/5/7)
 
 #define UNI_MAX_DETUNE 0.70f     // widest spread, semitones (edge voices at ±this)
 
+// the WAVE cycle — the wavetable oscillators unison actually fattens (modeled engines can't
+// unison, so they're deliberately NOT here). SAW = the classic supersaw; SINE = pure beating.
+enum { W_SAW, W_SQUARE, W_PULSE, W_TRI, W_SINE, W_COUNT };
+static const char *WAVE_NAME[W_COUNT]  = { "SAW", "SQUARE", "PULSE", "TRI", "SINE" };
+static const int   WAVE_INSTR[W_COUNT] = { INSTR_SAW, INSTR_SQUARE, INSTR_SQUARE, INSTR_TRI, INSTR_SINE };
+static const float WAVE_DUTY[W_COUNT]  = { 0.5f, 0.5f, 0.22f, 0.5f, 0.5f };   // PULSE = a thin square
+static int wave = W_SAW;
+
 static float scope[512];
 static float last_detune = -1, last_cutoff = -1;
-static int   last_voices = -1;
+static int   last_voices = -1, last_wave = -1;
 
 static float detune_semis(void) { return k_detune * UNI_MAX_DETUNE; }
 static int   cutoff_hz(void)    { return (int)(220 + k_cutoff * k_cutoff * 6800); }   // exp-ish sweep
 
 void init(void) {
     // a bright, sustained lead: instant attack, full sustain, a gentle release tail
-    instrument(LEAD, INSTR_SAW, 4, 0, 7, 260);
+    instrument(LEAD, WAVE_INSTR[wave], 4, 0, 7, 260);
+    instrument_duty(LEAD, WAVE_DUTY[wave]);
     instrument_filter(LEAD, FILTER_LADDER, cutoff_hz(), 4);   // the trance 4-pole
     instrument_drive(LEAD, 0.12f);                            // a touch of warmth
     instrument_unison(LEAD, voices, detune_semis());          // THE primitive — the whole cart
@@ -65,6 +74,15 @@ void update(void) {
 
 // re-apply engine params only when they CHANGE (avoid spamming the queue every frame)
 static void apply_params(void) {
+    // WAVE change re-programs the slot (note-on-face); instrument() resets the slot, so re-apply
+    // the rest by forcing the change-checks below to re-fire.
+    if (wave != last_wave) {
+        instrument(LEAD, WAVE_INSTR[wave], 4, 0, 7, 260);
+        instrument_duty(LEAD, WAVE_DUTY[wave]);
+        instrument_drive(LEAD, 0.12f);
+        last_wave = wave;
+        last_detune = last_cutoff = -1; last_voices = -1;      // force filter/unison re-apply
+    }
     float d = detune_semis();
     if (d != last_detune)   { instrument_unison_detune(LEAD, d);              last_detune = d; }  // LIVE bloom (reads the bank per-sample)
     if (voices != last_voices) { instrument_unison(LEAD, voices, d);          last_voices = voices; }
@@ -128,9 +146,12 @@ void draw(void) {
     ui_knob(&k_detune, 46, ky, "DETUNE");
     ui_knob(&k_cutoff, SCREEN_W - 46, ky, "CUTOFF");
 
-    // VOICES cycle button (1/3/5/7) — the wall building from scarcity
-    if (ui_button(SCREEN_W / 2 - 34, ky - 8, 68, 16, str("VOICES %d", voices))) {
+    // two stacked cycle buttons in the center column
+    if (ui_button(SCREEN_W / 2 - 48, 82, 96, 15, str("VOICES %d", voices))) {   // 1/3/5/7 — scarcity building into the wall
         voices += 2; if (voices > 7) voices = 1;
+    }
+    if (ui_button(SCREEN_W / 2 - 48, 100, 96, 15, str("WAVE %s", WAVE_NAME[wave]))) {   // the waves unison fattens
+        wave = (wave + 1) % W_COUNT;
     }
     ui_end();
 

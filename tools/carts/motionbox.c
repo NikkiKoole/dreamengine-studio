@@ -28,7 +28,7 @@
     "Per-part LEVEL + PAN - the EMX has a per-part level fader and pan (both motion-able); right now there's no way to BALANCE the kit or use stereo at all. instrument_pan exists; PAN is great motion-fodder (auto-panned hats). Fits scarcity - two more per-part params the knob row can remap to.",
     "REAL-TIME recording - the EMX's other input method beyond step-toggle: tap the ribbon in time and it captures + quantizes the hits to the nearest step. A whole authentic workflow that's absent; pairs with the existing motion REC (play a groove live, then wiggle the knobs over it).",
     "OSC PAGE - the next knob-row page after TONE + MOD (the page axis shipped 2026-07-09; bump NPAGES + add labels + wiring). Per synth part: MODEL + its 2 realtime 'Edit' params (the MMT heart: analog/sync/cross-mod/ring-mod + UNISON = up to 6 detuned oscs for a thick supersaw lead, + CHORD = a full chord from one note). Reached via the knob-row PAGE axis so it costs NO new knobs - the 4 knobs become MODEL / EDIT1 / EDIT2 / GLIDE on the OSC page. Engine: instrument() model select + instrument_tune for the unison detune spread.",
-    "MOD-page polish (the MOD page shipped 2026-07-09: LFO RATE/DEPTH/DEST + filter EG>CUT, set-and-hold + motion-able for every part): tempo-SYNC the LFO rate (currently free-running Hz), add an EG ATTACK control (currently fixed 3ms), give the BASS acid voice the same accent-brightness (ACC opens the filter - currently LEAD-only) + a tasteful default EG>CUT, and a multimode filter (LP/HP/BP/BP+) select. All cheap adds now the axis exists."
+    "MOD-page polish (shipped 2026-07-09: LFO RATE=tempo-locked divisions / DEPTH / DEST + filter EG>CUT, per-note retriggered, set-and-hold + motion-able for every part; depth widened + rate tempo-locked so short hits wobble audibly): add an EG ATTACK control (currently fixed 3ms), give the BASS acid voice the same accent-brightness (ACC opens the filter - currently LEAD-only) + a tasteful default EG>CUT, and a multimode filter (LP/HP/BP/BP+) select. Cheap adds now the axis exists."
   ],
   "description": {
     "summary": "The Korg-Electribe MOTION SEQUENCE: a 4-part kit (kick/hat/bass/lead) loops on a 16-step ribbon, and ONE row of four knobs REMAPS to whichever part you select - that scarcity (one row means four things) is what makes an EMX feel deep with so few controls. While it plays you GRAB a knob and wiggle it; the wiggle is recorded per-step into that part's motion lane and plays back locked to the bar, layered per knob, per part.",
@@ -74,10 +74,12 @@ de:meta */
 // The PAGE AXIS is the EMX's own answer to scarcity: the four knobs already remap per PART;
 // now they ALSO remap per PAGE (TONE / MOD), so four knobs reach ~8 params with no new
 // surface — 'one row means four things', one level deeper. TONE is the kit (per-part labels);
-// MOD is one modulation bank for every part — a filter-EG depth (the lead's pluck) + an LFO
-// (RATE / DEPTH / DEST = vibrato / cutoff wah / tremolo / auto-pan). The MOD layer is applied
-// SET-AND-HOLD (apply_part_mod): reconfigured only when a value changes, and motion rides it
-// because a motion lane changes per step. Motion is now per (part x page x knob).
+// MOD is one modulation bank for every part — a filter-EG depth (the lead's pluck) + a
+// per-note-retriggered LFO (RATE = tempo-locked divisions / DEPTH / DEST = vibrato / cutoff
+// wah / tremolo / auto-pan). RATE locks to the beat so short hits wobble WITH the groove (a
+// free-running Hz barely fits a cycle in a percussive note). Applied SET-AND-HOLD
+// (apply_part_mod): reconfigured only when a value changes, and motion rides it because a
+// motion lane changes per step. Motion is now per (part x page x knob).
 
 #define STEPS   16
 #define NK      4     // knobs per row
@@ -104,6 +106,7 @@ static const char *KLABEL[NPARTS][NK] = {
 };
 static const char *MODLABEL[NK] = { "RATE", "DEPTH", "DEST", "EG>CUT" };   // the MOD page (all parts)
 static const int   LFO_DESTS[4] = { LFO_PITCH, LFO_CUTOFF, LFO_VOLUME, LFO_PAN };  // MOD DEST knob → dest
+static const float LFO_DIV[5]   = { 0.5f, 1.0f, 2.0f, 4.0f, 8.0f };  // MOD RATE knob → LFO cycles PER BEAT (tempo-locked)
 
 // a Param = one knob's motion-sequence state
 typedef struct {
@@ -131,10 +134,10 @@ static const char *PRESET[NPARTS] = {
 // per-page starting positions. TONE = the old kit; MOD = { RATE, DEPTH, DEST, EG>CUT } with
 // DEPTH 0 (LFO off) so nothing moves until dialed; LEAD keeps its pluck (EG>CUT 0.5).
 static const float KBASE[NPARTS][NPAGES][NK] = {
-    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.30f, 0.00f, 0.00f, 0.00f } },   // KICK  tone / mod
-    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.30f, 0.00f, 0.00f, 0.00f } },   // HAT
-    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.30f, 0.00f, 0.00f, 0.00f } },   // BASS
-    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.30f, 0.00f, 0.00f, 0.50f } },   // LEAD (EG>CUT 0.5 = pluck)
+    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.50f, 0.00f, 0.00f, 0.00f } },   // KICK  tone / mod {RATE,DEPTH,DEST,EG>CUT}
+    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.00f } },   // HAT   (RATE 0.5 = 2 cycles/beat; DEPTH 0 = LFO off)
+    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.00f } },   // BASS
+    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.50f } },   // LEAD  (EG>CUT 0.5 = pluck)
 };
 
 static bool  smooth = true;   // SMOOTH (lerp between steps) vs TRIG (hold per step)
@@ -244,14 +247,16 @@ static void apply_part_mod(int pi) {
         instrument_env(slot, 0, ENV_CUTOFF, 3, decMs, egHz);   // amount 0 = off (a flat filter)
         lastEg[pi] = egHz; lastDec[pi] = decMs;
     }
-    // LFO: RATE / DEPTH / DEST — vibrato / cutoff wah / tremolo / auto-pan
+    // LFO: RATE (tempo-locked division) / DEPTH / DEST — vibrato / cutoff wah / tremolo / auto-pan.
+    // The engine retriggers the LFO per note (phase resets at note-on), so a tempo-locked rate
+    // makes short hits wobble WITH the groove; fast divisions fit >1 cycle inside a short note.
     int   dest   = LFO_DESTS[(int)(cur_value(&P->k[PG_MOD][2]) * 3.999f)];
-    float rate   = 0.1f + cur_value(&P->k[PG_MOD][0]) * 11.9f;
+    float rate   = (tempo / 60.0f) * LFO_DIV[(int)(cur_value(&P->k[PG_MOD][0]) * 4.999f)];
     float depthK = cur_value(&P->k[PG_MOD][1]);
     float depth  = depthK == 0.0f      ? 0.0f              // 0 = off, whatever the dest
-                 : dest == LFO_PITCH   ? depthK * 2.0f     // semitones (vibrato)
-                 : dest == LFO_CUTOFF  ? depthK * 6000.0f  // Hz (wah)
-                 :                       depthK;           // 0..1 (tremolo / auto-pan)
+                 : dest == LFO_PITCH   ? depthK * 5.0f     // semitones — wide vibrato
+                 : dest == LFO_CUTOFF  ? depthK * 6000.0f  // Hz — dramatic wah
+                 :                       depthK;           // 0..1 — full tremolo / auto-pan
     if (rate != lastRate[pi] || depth != lastDepth[pi] || dest != lastDest[pi]) {
         instrument_lfo(slot, 0, dest, rate, depth);
         lastRate[pi] = rate; lastDepth[pi] = depth; lastDest[pi] = dest;

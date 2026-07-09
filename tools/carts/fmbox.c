@@ -381,3 +381,41 @@ void draw() {
     print("tap cell=toggle - hold+drag up=lock selected macro - fling down=clear", 4, 192, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
+
+// ── spec() — the cart-logic safety net (docs/design/spec-harness.md). The headline of fmbox is the
+//    PARAMETER LOCK, and its whole contract lives in one pure fn: step_val(r,step,k) returns the
+//    step's LOCKED value if it has one, else the machine's base macro. That's the honest, oracle-
+//    judgeable core of the ADR-0022 bar. Run: `node tools/spec.js fmbox` (or all: `node tools/spec.js`). ──
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    step(1);   // run init() (lazily) — seeds the demo p-locks — plus one update()
+
+    // 1) an unlocked step falls through to the machine's base macro value
+    expect(plock[M_KICK][1][K_COL] < 0, "an untouched step has no lock");
+    expect(spec_close(step_val(M_KICK, 1, K_COL), mac[M_KICK][K_COL], 0.001f),
+           "unlocked step_val() == machine base");
+
+    // 2) the seeded METAL COLOR locks rise monotonically across the bar (the visible headline)
+    float a = step_val(M_METAL, 2,  K_COL), b = step_val(M_METAL, 6,  K_COL),
+          c = step_val(M_METAL, 10, K_COL), d = step_val(M_METAL, 14, K_COL);
+    expect(a < b && b < c && c < d, "METAL COLOR p-locks brighten across the bar");
+    expect(spec_close(a, 0.40f, 0.02f), "METAL step-2 COLOR locked to ~0.40");
+
+    // 3) a lock overrides ONLY its own macro — the others still read base
+    plock[M_TONE][8][K_COL] = 75;
+    expect(spec_close(step_val(M_TONE, 8, K_COL), 0.75f, 0.02f), "a locked macro reads its lock");
+    expect(spec_close(step_val(M_TONE, 8, K_PIT), mac[M_TONE][K_PIT], 0.001f),
+           "locking COLOR leaves PITCH at base (locks are per-macro)");
+
+    // 4) clearing wipes every lock back to base
+    clear_grid();
+    int locks = 0;
+    for (int r = 0; r < ROWS; r++)
+        for (int cc = 0; cc < STEPS; cc++)
+            for (int k = 0; k < NMAC; k++) locks += (plock[r][cc][k] >= 0);
+    expect_eq(locks, 0, "clear_grid() removes every p-lock");
+    expect(spec_close(step_val(M_METAL, 14, K_COL), mac[M_METAL][K_COL], 0.001f),
+           "after clear, step_val() falls back to base");
+}
+#endif

@@ -1,0 +1,9 @@
+# portapop phase-1 seam proof: record a 4-note bass riff, stop, play it back.
+# 100 bpm, ~36 frames/beat. R starts a 4-beat (~144f) count-in; recording begins ~f154.
+tap 10 R
+tap 160 A
+tap 196 D
+tap 232 G
+tap 268 F
+tap 450 R
+tap 470 SPACE

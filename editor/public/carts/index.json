@@ -4576,6 +4576,20 @@
     "genre": "sports"
   },
   {
+    "title": "portapop",
+    "description": "The bedroom cassette 4-track, phase 1: play the upright bass onto tape, one honest take. Hit record, count in, play a pass, stop — then play it back and it loops as you played it (no quantize). The smallest slice that proves the machine records itself. A skeleton of the portapop multitracker (design/portapop.md). ONE instrument (a pizzicato upright bass, INSTR_BOWED), ONE track, TAKE mode only. The transport is the star: RECORD arms a one-bar count-in then captures every note you play as a control event; STOP snaps the take to whole bars and that becomes the song; PLAY loops the take back verbatim. Recording is un-quantized on purpose — the little rushes and drags are the point. This is the proving slice: the console, the shelf of instruments, ping-pong bounce, and the tape glue all come later. Fingerboard: tap/click a string (E A D G, low to high) left-to-right for pitch. Keyboard: GarageBand map A S D F G H J K (+ W E T Y U black keys), Z/X octave. Transport: R record (with count-in), SPACE play/stop, BACKSPACE clear the take. On-screen REC/PLAY/CLR buttons do the same.",
+    "file": "portapop.cart.png",
+    "created": "2026-07-10",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "gesture-loop"
+    ],
+    "lineage": "Phase-1 skeleton of the portapop cassette 4-track (design/portapop.md). Record core (Ev/rec_ev/fire_replay) descends from loopstation.c; the bass voice + fingerboard surface are a lean cut of upright.c. This slice proves the recordable seam + the take model with ONE instrument, ONE track, TAKE mode only — no console, no shelf, no ping-pong yet.",
+    "homage": "Tascam Portastudio"
+  },
+  {
     "title": "Procedural Places",
     "description": "A testbed for procedural generation: one free-fly explorer that hosts PLUGGABLE generators. Ships with two structurally-opposite ones - ROADS & CITIES (a noise density field zones the world into city/town/rural/highway and a nested road lattice is promoted per zone; cities cluster on the noise peaks, organic not a bullseye) and TERRAIN (fbm elevation as colour bands: sea/beach/grass/forest/rock/snow). Same seed = byte-identical world every run (engine value noise, seeded via noise3's z-slice). Forest/dungeon/cave gens slot in as more headers. Arrows/WASD pan, Z/X (or wheel) zoom, R new seed, 1/2 switch generator, TAB field overlay.",
     "file": "procplaces.cart.png",

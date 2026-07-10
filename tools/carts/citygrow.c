@@ -18,7 +18,8 @@
     "rung 5: the live SNDi panel + an OSM target beside it; calibration targets already measured: trim dangling rim stubs (44% deg-1), grow T-share (real cities are T-dominant), density-modulated d_sep",
     "true Jobard-Lefer distance separation (the id-grid is coarse; spacing jitters between 0.7x and 1.4x d_sep)",
     "wire the calibrated field into worldnet.h (get_node/get_hub presence/rank from D) so roadnet2 + sloop's world grows organic settlements - the rung-5.5 extraction; arterials become drivable there (the deferred drive-it gate)",
-    "bridgehead attractors: crossings concentrate traffic -> density (needs rivers as network edges)"
+    "bridgehead attractors: crossings concentrate traffic -> density (needs rivers as network edges)",
+    "PERF: draw() recomputes the terrain/density noise per-pixel every frame - attach-profiler shows ~89% of cart CPU in noise3 (63.7%) + noise2 (16.4%) + height_at (8.8%), all via draw>density_at>height_at>noise3 and draw>draw_terrain>height_at. Cache height_at/density_at into a buffer that only recomputes on map/seed/pan/zoom change instead of every frame."
   ]
 }
 de:meta */
@@ -64,6 +65,7 @@ static int   vcols, vrows;
 static int   dragging = 0, drag_px, drag_py;
 static int   show_heat = 1, show_extent = 1, show_dots = 1, show_bound = 0;
 static int   show_grid = 0, show_hud = 1;
+static int   show_dist = 0;                // rung 4: district faces overlay (K)
 static int   use_field = 1;           // 1 = rung-2 field settlements · 0 = old pure-hash (the A/B)
 
 static void view_metrics(void) {
@@ -233,6 +235,26 @@ static int   ar_valid = 0;
 static float ar_key[7];                    // (seed + knobs) snapshot → retrace
 static float map_camX, map_camY, map_zoom; // where T left the map
 
+// ── Rung 4: the arterial GRAPH + the district faces it encloses ─────────────
+// ONE data model (the worldgen-plan non-negotiable — v1 died of two diverging
+// street reps): the JSON export (X) AND the district-face extraction (K) are both
+// built from THIS graph, never recomputed two different ways. nodes = streamline
+// endpoints + family×family crossings (5 m weld); edges = arterial segments
+// between them (with provenance back to their streamline, for the JSON pts);
+// faces = the planar regions those edges enclose = the districts rung 4 fills.
+#define AX_MAXCUT 64          // crossing cuts recorded per streamline
+#define GN_MAX    8192        // welded graph nodes (≥ old export capacity)
+#define GE_MAX    8192        // graph edges (arterial segments between crossings)
+#define FACE_MAX  384         // districts kept
+#define FACEV_MAX 64          // stored corners per district (outer face is dropped)
+static int   g_valid = 0;
+static float gnx[GN_MAX], gny[GN_MAX]; static int g_nn;
+static int   gea[GE_MAX], geb[GE_MAX]; static int g_ne;
+static short ge_line[GE_MAX]; static float ge_t0[GE_MAX], ge_t1[GE_MAX]; // → JSON pts
+static int   fc_n; static short fc_nv[FACE_MAX];
+static short fc_v[FACE_MAX][FACEV_MAX];
+static float fc_cx[FACE_MAX], fc_cy[FACE_MAX], fc_area[FACE_MAX];
+
 static float ar_theta(float x, float y, int fam) {
     float vx = 0, vy = 0;
     float ddx = x - ar_cx, ddy = y - ar_cy;
@@ -354,6 +376,7 @@ static void ar_find_highway(void) {
 // family seed on the line) until the queue drains. Wholesale, cached, hash-seeded.
 static void ar_build(void) {
     ar_nl = 0;
+    g_valid = 0;                            // the graph + faces derive from the arterials
     for (int f = 0; f < 2; f++)
         for (int rr = 0; rr < AR_OG; rr++)
             for (int cc = 0; cc < AR_OG; cc++) ar_occ[f][rr][cc] = -1;
@@ -422,11 +445,11 @@ static int ar_pick_city(void) {
     return 1;
 }
 
-// export the traced arterial graph as sndi-check's generated-graph JSON:
-// nodes = streamline endpoints + crossings (5 m weld), edges carry their pts.
-// Written to the cwd (build/ under the harness): citygrow-graph.json.
-#define AX_MAXCUT 64
-static void ar_export(void) {
+// ── the shared graph builder (feeds BOTH the JSON export and the faces) ──────
+// crossings between the two families → welded nodes → arterial segments split at
+// every crossing. Edge order + node ids are IDENTICAL to the old inline export
+// (same crossing pass, same lid weld pass), so citygrow-graph.json is unchanged.
+static void ar_graph(void) {
     static float cutt[AR_MAXL][AX_MAXCUT]; static int ncut[AR_MAXL];
     for (int l = 0; l < ar_nl; l++) ncut[l] = 0;
     for (int a = 0; a < ar_nl; a++)                      // crossings between the two families
@@ -449,19 +472,14 @@ static void ar_export(void) {
                     if (ncut[b] < AX_MAXCUT) cutt[b][ncut[b]++] = j + u;
                 }
         }
-    FILE *f = fopen("citygrow-graph.json", "w");
-    if (!f) return;
-    fprintf(f, "{\"nodes\":[");
-    int nn = 0;
-    static float nx[AR_MAXL * (AX_MAXCUT + 2)], ny[AR_MAXL * (AX_MAXCUT + 2)];
-    // helper-free node welding: linear probe over emitted nodes (5 m)
-    #define AX_NODE(X, Y, OUT) do {                                            \
+    g_nn = 0; g_ne = 0;
+    #define G_NODE(X, Y, OUT) do {                                             \
         int _k = -1;                                                           \
-        for (int _i = 0; _i < nn; _i++) {                                      \
-            float _dx = nx[_i] - (X), _dy = ny[_i] - (Y);                      \
+        for (int _i = 0; _i < g_nn; _i++) {                                    \
+            float _dx = gnx[_i] - (X), _dy = gny[_i] - (Y);                    \
             if (_dx * _dx + _dy * _dy < 25.0f) { _k = _i; break; }             \
         }                                                                      \
-        if (_k < 0) { nx[nn] = (X); ny[nn] = (Y); _k = nn++; }                 \
+        if (_k < 0 && g_nn < GN_MAX) { gnx[g_nn] = (X); gny[g_nn] = (Y); _k = g_nn++; } \
         OUT = _k;                                                              \
     } while (0)
     // pass 1: assign node ids along every line (endpoints + sorted cuts)
@@ -481,30 +499,134 @@ static void ar_export(void) {
             float tt = lt[l][i]; int i0 = (int)tt; float fr = tt - i0;
             float X = ar_px[l][i0] + (ar_px[l][i0 + (i0 < ar_np[l] - 1)] - ar_px[l][i0]) * fr;
             float Y = ar_py[l][i0] + (ar_py[l][i0 + (i0 < ar_np[l] - 1)] - ar_py[l][i0]) * fr;
-            AX_NODE(X, Y, lid[l][i]);
+            G_NODE(X, Y, lid[l][i]);
         }
     }
-    for (int i = 0; i < nn; i++) fprintf(f, "%s[%.1f,%.1f]", i ? "," : "", nx[i], ny[i]);
-    fprintf(f, "],\"edges\":[");
-    int ne = 0;
-    for (int l = 0; l < ar_nl; l++)
+    for (int l = 0; l < ar_nl; l++)                      // split each line into segments at its nodes
         for (int s = 0; s + 1 < lnn[l]; s++) {
             if (lid[l][s] == lid[l][s + 1]) continue;
-            // pts BEGIN and END at the welded node coords — sndi-check rebuilds the
-            // graph from pts via 1 m vertex welding, so crossing edges must SHARE
-            // their endpoint vertex exactly or the crossing doesn't exist to it
-            fprintf(f, "%s{\"a\":%d,\"b\":%d,\"pts\":[", ne ? "," : "", lid[l][s], lid[l][s + 1]);
-            fprintf(f, "[%.1f,%.1f]", nx[lid[l][s]], ny[lid[l][s]]);
-            int i0 = (int)floorf(lt[l][s]) + 1, i1 = (int)ceilf(lt[l][s + 1]) - 1;
-            for (int i = i0; i <= i1 && i < ar_np[l]; i++)
-                if ((float)i > lt[l][s] + 0.05f && (float)i < lt[l][s + 1] - 0.05f)
-                    fprintf(f, ",[%.1f,%.1f]", ar_px[l][i], ar_py[l][i]);
-            fprintf(f, ",[%.1f,%.1f]]}", nx[lid[l][s + 1]], ny[lid[l][s + 1]]);
-            ne++;
+            if (g_ne < GE_MAX) {
+                gea[g_ne] = lid[l][s]; geb[g_ne] = lid[l][s + 1];
+                ge_line[g_ne] = (short)l; ge_t0[g_ne] = lt[l][s]; ge_t1[g_ne] = lt[l][s + 1];
+                g_ne++;
+            }
         }
+    #undef G_NODE
+}
+
+// ── planar face extraction: the districts the arterials enclose ──────────────
+// half-edges (darts): dart d → edge e=d>>1, dir=d&1. Walk next-edge always taking
+// the dart just CLOCKWISE of the reverse at each arrival node → one bounded face
+// per interior region; the unbounded outer face (largest |area|) is dropped.
+// Dangling rim stubs (the ~44% dead-ends) fold into the outer walk automatically.
+static void ar_faces(void) {
+    fc_n = 0;
+    int nd = 2 * g_ne;
+    if (nd < 6) return;
+    static int   dfrom[2 * GE_MAX], dto[2 * GE_MAX]; static float dang[2 * GE_MAX];
+    static int   drank[2 * GE_MAX]; static char dvis[2 * GE_MAX];
+    static int   nadj[2 * GE_MAX]; static int nstart[GN_MAX + 1], ncnt[GN_MAX];
+    for (int d = 0; d < nd; d++) {
+        int e = d >> 1, dir = d & 1;
+        int a = dir ? geb[e] : gea[e], b = dir ? gea[e] : geb[e];
+        dfrom[d] = a; dto[d] = b;
+        dang[d] = atan2f(gny[b] - gny[a], gnx[b] - gnx[a]);
+        dvis[d] = 0;
+    }
+    for (int v = 0; v < g_nn; v++) ncnt[v] = 0;
+    for (int d = 0; d < nd; d++) ncnt[dfrom[d]]++;
+    nstart[0] = 0;
+    for (int v = 0; v < g_nn; v++) nstart[v + 1] = nstart[v] + ncnt[v];
+    for (int v = 0; v < g_nn; v++) ncnt[v] = 0;          // reused as a fill cursor
+    for (int d = 0; d < nd; d++) { int v = dfrom[d]; nadj[nstart[v] + ncnt[v]++] = d; }
+    for (int v = 0; v < g_nn; v++) {                     // sort each node's darts CCW by bearing
+        int s = nstart[v], n = ncnt[v];
+        for (int i = 1; i < n; i++)
+            for (int j = i; j > 0 && dang[nadj[s + j]] < dang[nadj[s + j - 1]]; j--) {
+                int tmp = nadj[s + j]; nadj[s + j] = nadj[s + j - 1]; nadj[s + j - 1] = tmp;
+            }
+        for (int i = 0; i < n; i++) drank[nadj[s + i]] = i;
+    }
+    for (int d0 = 0; d0 < nd; d0++) {                    // walk every unvisited dart into its face
+        if (dvis[d0]) continue;
+        int seq[FACEV_MAX]; int nv = 0, trunc = 0, steps = 0;
+        float area = 0;
+        int d = d0;
+        do {
+            dvis[d] = 1;
+            int a = dfrom[d], b = dto[d];
+            area += gnx[a] * gny[b] - gnx[b] * gny[a];    // full-cycle shoelace (even if not stored)
+            if (nv < FACEV_MAX) seq[nv++] = a; else trunc = 1;
+            int v = b, rev = d ^ 1, deg = ncnt[v];
+            if (deg == 0) { trunc = 1; break; }
+            int pr = (drank[rev] - 1 + deg) % deg;
+            d = nadj[nstart[v] + pr];
+        } while (d != d0 && ++steps < 2 * GE_MAX);
+        area *= 0.5f;
+        if (nv < 3) continue;
+        if (fc_n < FACE_MAX) {
+            fc_nv[fc_n] = trunc ? 0 : (short)nv;         // trunc = the huge outer boundary; keep only its area
+            for (int i = 0; i < nv && !trunc; i++) fc_v[fc_n][i] = (short)seq[i];
+            float cx = 0, cy = 0;
+            for (int i = 0; i < nv; i++) { cx += gnx[seq[i]]; cy += gny[seq[i]]; }
+            fc_cx[fc_n] = cx / nv; fc_cy[fc_n] = cy / nv;
+            fc_area[fc_n] = area;
+            fc_n++;
+        }
+    }
+    int outer = -1; float amax = -1;                     // drop the unbounded outer face
+    for (int i = 0; i < fc_n; i++) {
+        float m = fc_area[i] < 0 ? -fc_area[i] : fc_area[i];
+        if (m > amax) { amax = m; outer = i; }
+    }
+    if (outer >= 0) {                                    // swap-remove
+        fc_n--;
+        fc_nv[outer] = fc_nv[fc_n];
+        for (int i = 0; i < fc_nv[outer]; i++) fc_v[outer][i] = fc_v[fc_n][i];
+        fc_cx[outer] = fc_cx[fc_n]; fc_cy[outer] = fc_cy[fc_n]; fc_area[outer] = fc_area[fc_n];
+    }
+    // toss any leftover zero-vert (truncated) shells that weren't the dropped outer
+    for (int i = 0; i < fc_n; ) {
+        if (fc_nv[i] < 3) { fc_n--; fc_nv[i] = fc_nv[fc_n];
+                            for (int k = 0; k < fc_nv[i]; k++) fc_v[i][k] = fc_v[fc_n][k];
+                            fc_cx[i] = fc_cx[fc_n]; fc_cy[i] = fc_cy[fc_n]; fc_area[i] = fc_area[fc_n]; }
+        else i++;
+    }
+}
+
+static void ar_graph_ensure(void) {
+    ar_ensure();                                         // arterials current for this seed+knobs
+    if (g_valid) return;
+    ar_graph();
+    ar_faces();
+    g_valid = 1;
+}
+
+// export the traced arterial graph as sndi-check's generated-graph JSON:
+// nodes = streamline endpoints + crossings (5 m weld), edges carry their pts.
+// Written to the cwd (build/ under the harness): citygrow-graph.json.
+static void ar_export(void) {
+    ar_graph_ensure();
+    FILE *f = fopen("citygrow-graph.json", "w");
+    if (!f) return;
+    fprintf(f, "{\"nodes\":[");
+    for (int i = 0; i < g_nn; i++) fprintf(f, "%s[%.1f,%.1f]", i ? "," : "", gnx[i], gny[i]);
+    fprintf(f, "],\"edges\":[");
+    for (int e = 0; e < g_ne; e++) {
+        int a = gea[e], b = geb[e], l = ge_line[e];
+        // pts BEGIN and END at the welded node coords — sndi-check rebuilds the
+        // graph from pts via 1 m vertex welding, so crossing edges must SHARE
+        // their endpoint vertex exactly or the crossing doesn't exist to it
+        fprintf(f, "%s{\"a\":%d,\"b\":%d,\"pts\":[", e ? "," : "", a, b);
+        fprintf(f, "[%.1f,%.1f]", gnx[a], gny[a]);
+        int i0 = (int)floorf(ge_t0[e]) + 1, i1 = (int)ceilf(ge_t1[e]) - 1;
+        for (int i = i0; i <= i1 && i < ar_np[l]; i++)
+            if ((float)i > ge_t0[e] + 0.05f && (float)i < ge_t1[e] - 0.05f)
+                fprintf(f, ",[%.1f,%.1f]", ar_px[l][i], ar_py[l][i]);
+        fprintf(f, ",[%.1f,%.1f]]}", gnx[b], gny[b]);
+    }
     fprintf(f, "]}\n");
     fclose(f);
-    #undef AX_NODE
 }
 // ═══ end of the fenced rung-3 block ══════════════════════════════════════════
 
@@ -608,15 +730,40 @@ static void ar_draw(void) {
     circ(cx, cy, (int)(ar_R * P), CLR_DARK_PURPLE);      // the extent cap
 }
 
+// ── Rung 4 (K): the DISTRICTS — the planar faces the arterials enclose ───────
+// Each face is one district: a coloured dither wash (hashed per district so
+// neighbours differ) + a bright outline + a centroid dot. This is the partition
+// the per-district minor fill (rung 4.2–4.4) is generated INTO.
+static void ar_dist_draw(void) {
+    ar_graph_ensure();
+    static const int pal[6] = { CLR_RED, CLR_ORANGE, CLR_YELLOW,
+                                CLR_GREEN, CLR_BLUE, CLR_PINK };
+    for (int fi = 0; fi < fc_n; fi++) {
+        int nv = fc_nv[fi]; if (nv < 3 || nv > FACEV_MAX) continue;
+        int xy[2 * FACEV_MAX];
+        for (int i = 0; i < nv; i++) {
+            xy[2 * i]     = sxp(gnx[fc_v[fi][i]]);
+            xy[2 * i + 1] = syp(gny[fc_v[fi][i]]);
+        }
+        unsigned h = wn_hash2((int)(fc_cx[fi] * 0.02f), (int)(fc_cy[fi] * 0.02f));
+        int col = pal[h % 6];
+        fillp(0x5A5A, -1);                               // ~50% dither: terrain shows through
+        polyfill(xy, nv, col);
+        fillp_reset();
+        poly(xy, nv, col);
+        int cx = sxp(fc_cx[fi]), cy = syp(fc_cy[fi]);
+        circfill(cx, cy, 1, CLR_WHITE);
+    }
+}
+
 static void hud_city(void) {
     char buf[96];
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print("CITYGROW", 4, 2, CLR_LIGHT_GREY);
-    snprintf(buf, sizeof buf, "CITY %d,%d  D %.2f  wr %.2f wg %.2f  hw %d\xf8  lines %d",
-             ar_ccx, ar_ccy, ar_D, ar_wrad, ar_wgrid,
-             (int)(ar_hw_ang * 57.29578f), ar_nl);
+    snprintf(buf, sizeof buf, "CITY %d,%d  D %.2f  lines %d  nodes %d  districts %d",
+             ar_ccx, ar_ccy, ar_D, ar_nl, show_dist ? g_nn : 0, show_dist ? fc_n : 0);
     print(buf, 84, 2, CLR_GREEN);
-    print_centered("T back to map   X export graph JSON (build/)   R reroll",
+    print_centered("T map   X export JSON   K districts   R reroll",
                    SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
 }
 
@@ -737,6 +884,7 @@ void update(void) {
     if (keyp('O')) use_field   = !use_field;
     if (keyp('B')) show_bound  = !show_bound;
     if (keyp('G')) show_grid   = !show_grid;
+    if (keyp('K')) show_dist   = !show_dist;    // rung 4: district faces
     if (keyp('H')) show_hud    = !show_hud;
     if (keyp('M')) mode = 0;
 
@@ -786,6 +934,7 @@ void draw(void) {
         int heat = show_heat; show_heat = 0;     // biome terrain under the streets
         draw_terrain(); show_heat = heat;
         ar_draw();
+        if (show_dist) ar_dist_draw();
         if (show_hud) hud_city();
         return;
     }

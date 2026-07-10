@@ -30,14 +30,15 @@ const cw = Math.floor((SCREEN - MTX_LW) / COLS), ch = Math.floor((SCREEN - MTX_H
 
 // EXPECTED support per brush: which of [bevel,outline,shadow,dither,grad,boil] SHOULD change the render.
 // 1 = must apply, 0 = intentionally inert (N/A for this brush). This is the source of truth for INTENT.
-// gradient FILL is wired for the solid stamp-family only (like dither) — off for drip/nib/oil/airy brushes.
+// gradient FILL covers every solid-body brush: the stamp family, the wet-paint + oil bodies
+// (round silhouette) and the nib family (true ribbon shape) — only the airy brushes skip it.
 const EXPECT = {
   ink:      [1,1,1,1,1,1], pencil: [1,1,1,1,1,1], liner: [1,1,1,1,1,1], marker: [1,1,1,1,1,1],
   chalk:    [1,1,1,1,1,1],
   sketch:   [0,0,0,0,0,1], spray:  [0,0,0,0,0,1], bristle:[0,0,0,0,0,1],
   paint:    [1,1,1,1,1,1],   // drip: rim/dither/gradient all apply to the wet body (drips run in the "from" colour)
-  nib:      [1,1,1,1,0,1], brushpen:[1,1,1,1,0,1], reed:[1,1,1,1,0,1], twist:[1,1,1,1,0,1],
-  oil:      [0,0,1,0,0,1],   // impasto: bevel intrinsic (not a toggle), no outline/dither/grad; drop-shadow + boil apply
+  nib:      [1,1,1,1,1,1], brushpen:[1,1,1,1,1,1], reed:[1,1,1,1,1,1], twist:[1,1,1,1,1,1],
+  oil:      [0,0,1,0,1,1],   // impasto: bevel intrinsic (not a toggle), no outline/dither; grad body + drop-shadow + boil apply
 };
 const APPLIED_MIN = 12;   // ≥ this many changed pixels in a cell ⇒ the feature did something
 

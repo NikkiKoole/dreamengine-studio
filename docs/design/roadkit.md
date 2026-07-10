@@ -2,7 +2,7 @@
 
 STATUS: BUILDING (2026-07-01) — Phase 1 (connectivity: one connected asphalt surface + bridges/tunnels)
 **and Phase 2 (cheap street-dressing: light pavement/kerb bands + dashed white centre-line markings, class-based
-widths, + an in-cart junction/node graph)** shipped in `citydrive`; curb-return junctions + the `roadkit.h` extract next. The decision + plan to extract the shared road-rendering &
+widths, + an in-cart junction/node graph)** shipped in `citydrive`. **B2 SHIPPED 2026-07-10: `runtime/roadkit.h` extracted** — the pure junction geometry (curb_return, edge_corner, rk_count_corners, rk_cross_hw) now lives in the shared header; streetlab calls it, spec 104/0 + mirror-diff + road-check all green (see Phasing 3). Next: B3 the field renderer into citydrive + B4 grade dispatch. The decision + plan to extract the shared road-rendering &
 junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md))
 so `streetlab` (the spec-locked *source*), `roadlab` (interchange bench) and — **the first render consumer
 — `citydrive`** (the pseudo-3D real-OSM view where the grammar is actually *visible*) all call ONE
@@ -206,11 +206,15 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    with a give-way node, priority road bare) and falls back to the class-priority inference elsewhere — 21 of
    Delft centre's junctions are now real-data-driven, the rest inferred. **Next:** a traffic-signals marker.
    needs new kind indices (enum surgery in `citydrive.c` + `roadview.c`), so it's the next importer chunk.
-3. **Pure-geometry extract (safe first roadkit step).** Move the pure fns (`curb_return`, the leg model,
-   `cross_hw`, corner counts) into `roadkit.h`; `streetlab` `#include`s it and calls them unchanged.
-   **`spec` must stay 104/0** — a pure move, no behaviour change. De-risks + gives a real interface.
-   (Note: even `ux`/`uy` differ between streetlab (near-zero snap) and roadlab (none) — roadkit needs a
-   deliberate canonical form; don't blind-copy.)
+3. **Pure-geometry extract (safe first roadkit step). ✅ SHIPPED 2026-07-10 (B2).** `runtime/roadkit.h`
+   now holds the pure param-driven primitives — `curb_return` (the M1 fillet), `edge_corner` (the corner
+   solver), `rk_count_corners(brg,n)` (corner count from a **bearings array** — no more streetlab-legs
+   coupling, so citydrive/citygen pass their own arms) and `rk_cross_hw(...)` (the typed-section sum) —
+   plus the snap-safe `rk_ux`/`rk_uy`/`rk_ri`. `streetlab` `#include`s it: its `curb_return`/`edge_corner`
+   are gone, `count_corners`/`cross_hw` are thin delegating wrappers over its own knobs. **Gates all
+   green: `spec` 104/0, `mirror-diff` byte-identical to baseline (68=68), `road-check --all` all PASS.**
+   The `ux`/`uy` divergence was handled as flagged — roadkit carries streetlab's **snapping** version
+   (kept its spec exact); roadlab's non-snapping form reconciles when it adopts roadkit at B4.
 4. **Field renderer into roadkit** *(KEPT ON THE TABLE — the clean successor).* One lateral distance
    field: asphalt = within half-width of the nearest centerline → connectivity #1, markings #2, and
    curb-returns all become **thresholds on the field**, replacing the disc-joins + decals with the

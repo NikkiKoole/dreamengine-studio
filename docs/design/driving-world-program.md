@@ -254,10 +254,12 @@ by numbers from day one.)*
 **Track B — streets that look real (the citydrive → roadkit arc; plan: [`roadkit.md`](roadkit.md)):**
 - [ ] **B1 · Traffic-signals marker** — the named-next importer chunk (new point-kind enum surgery
   in `citydrive.c` + `roadview.c`; the nodes are already fetched).
-- [ ] **B2 · roadkit Phase 3 — pure-geometry extract** — `curb_return`, the leg model, `cross_hw`,
-  corner counts into `runtime/roadkit.h`; streetlab includes + calls unchanged. *Hard gate:*
-  streetlab `spec` stays **104/0** (if it can't, the boundary is wrong — fix the seam, don't loosen
-  the spec). Mind the `ux`/`uy` snap difference vs roadlab.
+- [x] **B2 · roadkit Phase 3 — pure-geometry extract. ✅ SHIPPED 2026-07-10.** `runtime/roadkit.h`
+  holds `curb_return`, `edge_corner`, `rk_count_corners(brg,n)` (bearings-array, not streetlab-legs —
+  so citydrive/citygen pass their own arms) + `rk_cross_hw(...)` + the snap-safe `rk_ux/rk_uy/rk_ri`;
+  streetlab `#include`s it and delegates. *Hard gate held:* streetlab `spec` **104/0**, `mirror-diff`
+  byte-identical to baseline, `road-check --all` all PASS. The `ux`/`uy` snap divergence was handled —
+  roadkit carries streetlab's snapping form; roadlab reconciles at B4.
 - [ ] **B3 · roadkit Phase 4 — the field renderer** — N-arm-native curb-return junctions rendered in
   citydrive's near field via the lateral distance field (`DE_FIELD_ROADS` is the reference),
   superseding the throwaway disc-joins + decals (markings stop at nodes). *Gates:* `road-check

@@ -193,7 +193,8 @@ static void wf_minipat(Box area, int sidx, int mu) {   // folded: a row of tiny 
 }
 // per-instrument PATTERN selector for strip `idx`: NPAT numbered slots, live one lit; tap to select.
 // SQUARE pattern cells, RIGHT-ALIGNED in `area` (so the left of the header stays free for the icon).
-static void wf_patterns(Box area, int idx, int cols) {
+// Returns the grid's LEFT x (so a caller can tuck controls just left of the patterns).
+static float wf_patterns(Box area, int idx, int cols) {
     int cur = patn[idx], mu = muted[idx];
     int rows = (NPAT + cols - 1) / cols;
     float gap = lay_clamp(FU * 0.09f, 1, 3);
@@ -213,6 +214,7 @@ static void wf_patterns(Box area, int idx, int cols) {
         if (b.h >= 7) { font(FONT_TINY); print_centered(str("%d", i + 1), (int)(b.x + b.w / 2), (int)(b.y + (b.h - 5) / 2), on ? CLR_BLACK : CLR_MEDIUM_GREY); }
         if (clicked(b)) patn[idx] = i;
     }
+    return ox;
 }
 // the pattern selector as its OWN little box (ReBirth's per-machine PATTERN panel): a titled,
 // bordered unit clearly grouped with the instrument. 3×2 grid of the 6 patterns.
@@ -413,16 +415,14 @@ static int wf_header(Box hdr, int idx, int state, int accent, int hdrops) {
         if (clicked(pgb)) pagesel[idx] = (pagesel[idx] + 1) % NKPAGE;
         hleft = pgb.x + pgW + 4;
     }
-    if (hdrops && s->haspat) {   // landscape: RND|CLR in the header's free zone, with a margin from the icon
-        float ow = lay_clamp(FU * 1.6f, 24, 40), mg = lay_clamp(FU * 0.5f, 6, 12);
-        Box ob = box(hleft + mg, hdr.y + 2, ow, hdr.h - 4);
-        wf_ops(ob, idx);
-        hleft = ob.x + ow + 4;
-    }
     if (s->haspat && (!g_boxpat || state == FOLDED)) {         // patterns: right-aligned row of squares
         float muteW = FU * 1.6f;                               // reserve mute/fader + a margin before it
         Box pb = box(hleft, hdr.y + 1, hdr.x + hdr.w - muteW - hleft, hdr.h - 2);
-        wf_patterns(pb, idx, PATCOLS);
+        float patLeft = wf_patterns(pb, idx, PATCOLS);
+        if (hdrops) {   // landscape: RND|CLR tucked just LEFT of the patterns (margin between) — frees the after-icon slot
+            float ow = lay_clamp(FU * 1.6f, 24, 40), mg = lay_clamp(FU * 0.7f, 8, 14);
+            wf_ops(box(patLeft - mg - ow, hdr.y + 2, ow, hdr.h - 4), idx);
+        }
     }
     // FALLBACK: a tap anywhere else on the header (the icon or its empty space) = tapping the icon.
     // Buttons above already consumed their taps, so this only fires on the non-button area.

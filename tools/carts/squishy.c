@@ -19,7 +19,6 @@
     "Polish the tool-icon glyphs — ink/chalk still read a bit muddy at 16px, and the nib-family marks (brushpen comma / reed zigzag / twist coil) are small (sprite-draw.js in squishy.cart.js).",
     "Cache finished strokes + the boil frames to layer buffers instead of re-rendering every stroke every frame.",
     "The pixelsnap animated-icon export: boil frames → pixelsnap → an animated sprite strip.",
-    "spec(): same-seed determinism + jitter-bounds.",
     "Feature × drawtool coverage is guarded by `node tools/squishy-features.js` (SQUISHY_MATRIX grid + pixel-diff vs a declared support matrix) — extend the matrix/EXPECT when a new brush or rim feature lands.",
     "Gradient angle is a 0..360 slider in the G popover; a drag-to-aim dial (dpaint-style, like the sun dial) would feel better."
   ]
@@ -1289,3 +1288,173 @@ void draw(void) {
 
     draw_panel();   // on top of the strokes
 }
+
+// ── spec() — the cart-logic safety net (docs/design/spec-harness.md). The cart's whole soul is
+//    "a stroke is DATA and rendering is a PURE FUNCTION of (stroke, seed)" — so the spec pins
+//    exactly that contract on the pure seams: same-seed DETERMINISM (identical inputs → identical
+//    widths / boil offsets / nib edges / coverage) and JITTER-BOUNDS (wobble, boil and reed-chatter
+//    all stay inside their declared envelopes). Logic only — the pixel side is squishy-features.js.
+//    Run: `node tools/spec.js squishy` (or all carts: `node tools/spec.js`). ──
+#ifdef DE_SPEC
+#include "spec.h"
+#include <string.h>
+
+// brush indices, named (the BRUSHES table order) — per the "name your indices" house rule
+enum { T_INK, T_PENCIL, T_LINER, T_MARKER, T_CHALK, T_SKETCH, T_SPRAY, T_BRISTLE,
+       T_PAINT, T_NIB, T_BRUSHPEN, T_REED, T_TWIST, T_OIL };
+
+static Stroke sp_a, sp_b;   // a Stroke is ~24KB (MAX_SAMPLES) — keep spec strokes off the stack
+static void sp_fill(Stroke *st, int tool, unsigned seed, int n, float speed) {
+    memset(st, 0, sizeof *st);
+    st->seed = seed; st->tool = tool; st->thick = 1.0f; st->nib_angle = NIB_ANGLE_DEF;
+    st->boil_style = BOIL_WOBBLE; st->grad_spread = GRAD_SPREAD_DEF; st->n = n;
+    for (int i = 0; i < n; i++) {
+        st->pts[i].x = 60 + i * 3.0f; st->pts[i].y = 90 + i * 2.0f;
+        st->pts[i].speed = speed; st->pts[i].thick = 1.0f;
+    }
+}
+static float sp_len2d(float x, float y)     { return sqrtf(x * x + y * y); }
+static float sp_angdiff(float a, float b)   { float d = fmodf(a - b + 540.0f, 360.0f) - 180.0f; return fabsf(d); }
+static float sp_ang(float x, float y)       { return atan2f(y, x) * RAD2DEG; }
+
+void spec(void) {
+    // ── the hash foundation: deterministic, and hashf lands in [0,1) ──
+    expect(hashu(12345u) == hashu(12345u) && hashf(7u) == hashf(7u), "hash is deterministic");
+    { int ok = 1;
+      for (unsigned k = 0; k < 500; k++) { float h = hashf(k * 2654435761u); if (h < 0 || h >= 1) ok = 0; }
+      expect(ok, "hashf stays in [0,1) across 500 keys"); }
+
+    // ── sample_width: same-seed determinism ──
+    sp_fill(&sp_a, T_INK, 0xABCDu, 40, 0);
+    sp_fill(&sp_b, T_INK, 0xABCDu, 40, 0);
+    { int same = 1, i;
+      for (i = 0; i < 40; i++) if (sample_width(&sp_a, i, 0) != sample_width(&sp_b, i, 0)) same = 0;
+      expect(same, "same stroke + same seed => identical widths at every sample"); }
+    sp_fill(&sp_b, T_INK, 0xABCEu, 40, 0);
+    { int diff = 0, i;
+      for (i = 0; i < 40; i++) if (sample_width(&sp_a, i, 0) != sample_width(&sp_b, i, 0)) diff = 1;
+      expect(diff, "a different seed changes the wobble (seed reaches the width)"); }
+
+    // ── sample_width: taper to a point at each end, full width in the middle ──
+    expect(spec_close(sample_width(&sp_a, 0, 0),  0, 0.001f), "width tapers to 0 at the start");
+    expect(spec_close(sample_width(&sp_a, 39, 0), 0, 0.001f), "width tapers to 0 at the end");
+    expect(sample_width(&sp_a, 20, 0) > 1.0f,                 "full width mid-stroke");
+    sp_fill(&sp_b, T_INK, 0xABCDu, 1, 0);
+    expect(sample_width(&sp_b, 0, 0) > 1.0f, "a single-point dab keeps full width (no taper)");
+
+    // ── sample_width: jitter-bounds — ink's wobble stays inside its declared noise envelope ──
+    { int ok = 1, i; unsigned f;
+      float maxw = BRUSHES[T_INK].maxw, noise = BRUSHES[T_INK].noise;   // speed 0 => wspeed = maxw
+      for (f = 0; f < BOIL_FRAMES; f++)
+          for (i = 9; i <= 30; i++) {                                    // the untapered middle (taper = 9 samples)
+              float w = sample_width(&sp_a, i, VARIANT[f]);
+              if (w < maxw * (1 - noise) - 0.001f || w > maxw * (1 + noise) + 0.001f) ok = 0;
+          }
+      expect(ok, "ink wobble stays inside maxw*(1 +/- noise) mid-stroke"); }
+
+    // ── sample_width: the speed curve + wheel pressure (brushpen: noise 0 => exact) ──
+    sp_fill(&sp_a, T_BRUSHPEN, 0x5EEDu, 40, 0);                         // standstill
+    sp_fill(&sp_b, T_BRUSHPEN, 0x5EEDu, 40, 99.0f);                     // way past speedref
+    expect(spec_close(sample_width(&sp_a, 20, 0), BRUSHES[T_BRUSHPEN].maxw, 0.01f), "standstill = the brush's full caliber");
+    expect(spec_close(sample_width(&sp_b, 20, 0), BRUSHES[T_BRUSHPEN].minw, 0.01f), "full speed = the brush's thinnest");
+    sp_a.pts[20].thick = 2.0f;                                          // mid-stroke wheel pressure
+    expect(spec_close(sample_width(&sp_a, 20, 0), BRUSHES[T_BRUSHPEN].maxw * 2, 0.01f), "per-point pressure scales the width");
+
+    // ── boil: offsets bounded by BOIL_JIT, deterministic, and alive across variants ──
+    { int ok = 1, i; unsigned f;
+      for (f = 0; f < BOIL_FRAMES; f++)
+          for (i = 0; i < 100; i++)
+              if (fabsf(boil_off(0xB011u, i, VARIANT[f], 0x11)) > BOIL_JIT) ok = 0;
+      expect(ok, "boil_off never exceeds BOIL_JIT"); }
+    sp_fill(&sp_a, T_INK, 0xB011u, 20, 0);
+    { Boil off_ = { 0, BOIL_WOBBLE, 0, 0, 0, 0 };                       // amt 0 = still
+      float x = sp_a.pts[5].x, y = sp_a.pts[5].y; boil_pt(&sp_a, 5, &x, &y, &off_);
+      expect(x == sp_a.pts[5].x && y == sp_a.pts[5].y, "boil amt 0 leaves the point untouched"); }
+    { Boil w1 = { 1.0f, BOIL_WOBBLE, sp_a.seed ^ VARIANT[1], 0, 0, 0 };
+      int ok = 1, moved = 0, i;
+      for (i = 0; i < 20; i++) {
+          float x = sp_a.pts[i].x, y = sp_a.pts[i].y, x2, y2;
+          boil_pt(&sp_a, i, &x, &y, &w1);
+          x2 = sp_a.pts[i].x; y2 = sp_a.pts[i].y; boil_pt(&sp_a, i, &x2, &y2, &w1);
+          if (x != x2 || y != y2) ok = 0;                               // same frame-seed => same wobble
+          if (fabsf(x - sp_a.pts[i].x) > BOIL_JIT || fabsf(y - sp_a.pts[i].y) > BOIL_JIT) ok = 0;
+          if (x != sp_a.pts[i].x || y != sp_a.pts[i].y) moved = 1;
+          x2 = sp_a.pts[i].x; y2 = sp_a.pts[i].y;
+          { Boil w0 = { 1.0f, BOIL_WOBBLE, sp_a.seed ^ VARIANT[0], 0, 0, 0 };
+            boil_pt(&sp_a, i, &x2, &y2, &w0);
+            if (x2 != x || y2 != y) moved |= 2; }                       // a different variant lands elsewhere
+      }
+      expect(ok, "wobble is deterministic per frame-seed and bounded by BOIL_JIT*amt");
+      expect(moved == 3, "wobble actually moves points, differently per boil variant"); }
+    { Boil br = { 1.0f, BOIL_BREATHE, 0, 60.0f, 90.0f, 90.0f };         // phase 90 => scale = 1 + BREATHE_AMT exactly
+      float x = 60.0f, y = 90.0f;
+      boil_pt(&sp_a, 0, &x, &y, &br);
+      expect(x == 60.0f && y == 90.0f, "breathe leaves the stroke centre fixed");
+      x = 80.0f; y = 90.0f; boil_pt(&sp_a, 0, &x, &y, &br);
+      expect(spec_close(x - 60.0f, 20.0f * (1 + BREATHE_AMT), 0.01f), "breathe scales about the centre by BREATHE_AMT"); }
+
+    // ── nib_edge: the four angle recipes ──
+    sp_fill(&sp_a, T_NIB, 0x91Bu, 30, 0);
+    { float nx, ny; nib_edge(&sp_a, 3, 0, &nx, &ny);
+      expect(spec_close(sp_len2d(nx, ny), BRUSHES[T_NIB].maxw * 0.5f, 0.01f), "fixed nib: half-width = maxw/2, speed-blind");
+      expect(sp_angdiff(sp_ang(nx, ny), NIB_ANGLE_DEF) < 0.1f,                "fixed nib: edge sits at the captured nib angle");
+      nib_edge(&sp_a, 3, 2.0f, &nx, &ny);
+      expect(spec_close(sp_len2d(nx, ny), BRUSHES[T_NIB].maxw * 0.5f + 2.0f, 0.01f), "grow fattens the ribbon (the outline pass)"); }
+    sp_fill(&sp_a, T_BRUSHPEN, 0x91Bu, 30, 0);
+    sp_fill(&sp_b, T_BRUSHPEN, 0x91Bu, 30, 99.0f);
+    { float nx, ny, fx, fy; nib_edge(&sp_a, 5, 0, &nx, &ny); nib_edge(&sp_b, 5, 0, &fx, &fy);
+      expect(spec_close(sp_len2d(nx, ny), BRUSHES[T_BRUSHPEN].maxw * 0.5f, 0.01f), "brushpen swells to maxw/2 at a standstill");
+      expect(spec_close(sp_len2d(fx, fy), BRUSHES[T_BRUSHPEN].minw * 0.5f, 0.01f), "brushpen thins to minw/2 at full speed"); }
+    sp_fill(&sp_a, T_REED, 0x8EEDu, 30, 0);
+    { int ok = 1, chatter = 0, i; float pnx = 0, pny = 0;
+      for (i = 0; i < 30; i++) {
+          float nx, ny, nx2, ny2; nib_edge(&sp_a, i, 0, &nx, &ny); nib_edge(&sp_a, i, 0, &nx2, &ny2);
+          if (nx != nx2 || ny != ny2) ok = 0;                           // chatter is seeded, not random
+          if (sp_angdiff(sp_ang(nx, ny), NIB_ANGLE_DEF) > BRUSHES[T_REED].angle_param + 0.1f) ok = 0;
+          if (i && (nx != pnx || ny != pny)) chatter = 1;
+          pnx = nx; pny = ny;
+      }
+      expect(ok, "reed chatter is deterministic and stays inside +/- angle_param");
+      expect(chatter, "reed chatter actually varies along the stroke"); }
+    sp_fill(&sp_a, T_TWIST, 0x2157u, 30, 0);
+    { int ok = 1, i;
+      for (i = 0; i < 30; i++) {
+          float nx, ny; nib_edge(&sp_a, i, 0, &nx, &ny);
+          if (sp_angdiff(sp_ang(nx, ny), NIB_ANGLE_DEF + i * BRUSHES[T_TWIST].angle_param) > 0.1f) ok = 0;
+      }
+      expect(ok, "twist winds exactly angle_param degrees per point"); }
+
+    // ── the gradient coverage helpers (the fill's silhouette seam) ──
+    { int x, y;
+      for (y = 40; y <= 120; y++) for (x = 40; x <= 120; x++) drip_cov[y][x] = 0;
+      cov_disk(60, 60, 3.0f, 40, 120, 40, 120);
+      expect(drip_cov[60][60] == 1 && drip_cov[60][63] == 1, "cov_disk marks the disk");
+      expect(drip_cov[60][65] == 0 && drip_cov[52][60] == 0, "cov_disk stops at its radius");
+      cov_seg(80, 100, 96, 108, 40, 120, 40, 120);
+      expect(drip_cov[100][80] == 1 && drip_cov[108][96] == 1 && drip_cov[104][88] == 1,
+             "cov_seg marks both endpoints + the midpoint");
+      cov_tri(100, 44, 116, 44, 108, 60, 40, 120, 40, 120);
+      expect(drip_cov[48][108] == 1, "cov_tri covers its interior");
+      expect(drip_cov[58][100] == 0, "cov_tri leaves the outside unmarked");
+      cov_disk(44, 44, 10.0f, 46, 120, 46, 120);                        // disk centre OUTSIDE the clip box
+      expect(drip_cov[44][44] == 0 && drip_cov[46][46] == 1, "coverage clips to the caller's bbox"); }
+
+    // ── pick / z-order / undo — the select tool's state seams ──
+    sp_fill(&strokes[0], T_INK,    0x1111u, 20, 0);                     // path around (60..117, 90..128)
+    sp_fill(&strokes[1], T_MARKER, 0x2222u, 20, 0);
+    { int i; for (i = 0; i < 20; i++) { strokes[1].pts[i].x = 250 + i; strokes[1].pts[i].y = 40.0f; } }
+    nstrokes = 2; selected = -1;
+    expect_eq(pick_stroke(90, 110),  0, "pick lands on the ink stroke");
+    expect_eq(pick_stroke(258, 42),  1, "pick lands on the marker stroke");
+    expect_eq(pick_stroke(20, 300), -1, "pick in empty paper finds nothing");
+    selected = 0; to_front();
+    expect_eq(pick_stroke(90, 110), 1, "to_front moves the stroke to the top of the z-order");
+    expect_eq(selected, 1,            "to_front keeps the same stroke selected");
+    to_back();
+    expect_eq(pick_stroke(90, 110), 0, "to_back returns it under the marker");
+    selected = 1; do_undo();
+    expect_eq(nstrokes, 1,  "undo drops the top stroke");
+    expect_eq(selected, -1, "undo clears a selection that pointed past the end");
+    nstrokes = 0; selected = -1;                                        // leave the cart's state clean
+}
+#endif

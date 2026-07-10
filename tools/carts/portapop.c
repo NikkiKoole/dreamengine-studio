@@ -15,7 +15,7 @@
   "description": {
     "summary": "The bedroom cassette 4-track, phase 1: play the upright bass onto tape, one honest take — slides, bends and all. Hit record, count in, play a pass, stop, then play it back and it loops exactly as you played it (no quantize). The slice that proves the machine records itself.",
     "detail": "A skeleton of the portapop multitracker (design/portapop.md). ONE instrument — the full pizzicato upright bass (INSTR_BOWED): press ON a string to grab a note and slide LEFT/RIGHT to glide the pitch continuously, PULL up/down to bend, or start in the open gap and sweep THROUGH a string to pick it. ONE track, TAKE mode only. The transport is the star: RECORD arms a one-bar count-in then captures every note AND every slide as control events; STOP snaps the take to whole bars (that becomes the song); PLAY loops it back verbatim, glides included. Un-quantized on purpose — the rushes and drags are the point. The console, the shelf of instruments, ping-pong bounce and the tape glue all come later.",
-    "controls": "Fingerboard: press ON a string (E A D G, low to high) and slide L/R to glide pitch, pull up/down to bend, lift to damp; press in the open gap next to a string and sweep through it to pick. Keyboard: GarageBand map A S D F G H J K (+ W E T Y U black keys), Z/X octave. Transport: R record (count-in), SPACE play/stop, BACKSPACE clear. On-screen REC/PLY/CLR buttons mirror the keys."
+    "controls": "Fingerboard: press ON a string (E A D G, low to high) and slide L/R to glide pitch, pull up/down to bend, lift to damp; press in the open gap next to a string and sweep through it to pick. TUNE (I) toggles fretless (land exactly where you press) vs fretted (new note-ons snap to the nearest in-tune semitone; slides stay continuous). Keyboard: GarageBand map A S D F G H J K (+ W E T Y U black keys), Z/X octave. Transport: R record (count-in), SPACE play/stop, BACKSPACE clear. On-screen REC/PLY/CLR/TUNE buttons mirror the keys."
   }
 }
 de:meta */
@@ -94,6 +94,9 @@ static const char gb_bkey[7]   = { 'W', 'E', 'T', 'Y', 'U', 'O', 'P' };
 static const int  gb_bsemi[7]  = { 1, 3, 6, 8, 10, 13, 15 };
 #define KB_ROOT 28                         // 'A' = E1 at octave 0
 static int octv = 1;
+static int snap = 0;                        // I / TUNE chip: snap a new note-ON to the nearest
+                                            // semitone (fretted attack); slides/bends stay continuous
+static float snap_pitch(float m) { return snap ? roundf(m) : m; }
 
 static int   lane_at(int y) { int l = (y - TOPBAR) / LANE_H; return l < 0 ? 0 : (l > 3 ? 3 : l); }
 static int   cy_of(int lane) { return TOPBAR + lane * LANE_H + LANE_H / 2; }
@@ -216,6 +219,7 @@ void update(void) {
         nev = 0; song_len = 0; mode = TR_STOP; tpos = 0;
         if (vrep >= 0) { note_off(vrep); vrep = -1; } g_on = 0;
     }
+    if (keyp('I') || tapp(118, 26, 30, 14)) snap ^= 1;   // fretless <-> fretted attack
 
     // ── advance transport + clicks + replay ──
     if (mode != TR_STOP) tpos += db;
@@ -238,8 +242,8 @@ void update(void) {
     if (mouse_pressed(MOUSE_LEFT) && my >= TOPBAR && mx >= NECK_X0 - 6 && mx <= NECK_X1 + 6) {
         int near = 0, nd = 9999;
         for (int l = 0; l < NLANE; l++) { int d = abs(my - cy_of(l)); if (d < nd) { nd = d; near = l; } }
-        if (nd <= GRAB_PX) {                            // ON a string → grab (fretless: land exactly here)
-            pp_on(MOUSE, near, SBASE[near] + pos_at(mx), 7);
+        if (nd <= GRAB_PX) {                            // ON a string → grab (fretless, or snapped to tune)
+            pp_on(MOUSE, near, snap_pitch(SBASE[near] + pos_at(mx)), 7);
             b_gesture = GRAB; b_fx = mx; b_fy = my;
         } else {                                        // open gap → a pick (sweep to pluck)
             b_owner = MOUSE; b_gesture = PICK;
@@ -262,7 +266,7 @@ void update(void) {
         for (int l = 0; l < NLANE; l++) {               // pluck each string the finger sweeps through
             int cy = cy_of(l);
             if ((b_prevy < cy && my >= cy) || (b_prevy > cy && my <= cy))
-                pp_on(MOUSE, l, SBASE[l] + clamp(roundf(pos_at(mx)), 0, SPAN), 7);
+                pp_on(MOUSE, l, snap_pitch(SBASE[l] + clamp(pos_at(mx), 0, SPAN)), 7);
         }
         b_fx = mx; b_fy = my; b_prevy = my;
     }
@@ -312,6 +316,9 @@ static void draw_topbar(void) {
     int plon = (mode == TR_PLAY);
     rectfill(44, 26, 34, 14, plon ? CLR_GREEN : CLR_DARK_BLUE); rect(44, 26, 34, 14, plon ? CLR_WHITE : CLR_DARK_GREY); print("PLY", 50, 30, plon ? CLR_BLACK : CLR_GREEN);
     rectfill(82, 26, 34, 14, CLR_DARK_BLUE); rect(82, 26, 34, 14, CLR_DARK_GREY); print("CLR", 88, 30, CLR_MEDIUM_GREY);
+    // fretless <-> fretted: lit = new note-ons snap to the nearest in-tune semitone
+    rectfill(118, 26, 30, 14, snap ? CLR_BLUE_GREEN : CLR_DARK_BLUE); rect(118, 26, 30, 14, snap ? CLR_WHITE : CLR_DARK_GREY);
+    font(FONT_SMALL); print("TUNE", 122, 30, snap ? CLR_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
 
     float shown = tpos < 0 ? 0 : tpos;
     int bar = (int)(shown / BEATS_PER_BAR) + 1, bt = (int)(shown) % BEATS_PER_BAR + 1;
@@ -379,6 +386,6 @@ void draw(void) {
 
     draw_topbar();
     font(FONT_SMALL);
-    print("R rec  SPACE play/stop  BKSP clear   press+slide a string, or sweep to pick", 6, SCREEN_H - 9, CLR_DARK_PEACH);
+    print("R rec  SPACE play/stop  BKSP clr  I tune   press+slide a string, or sweep to pick", 6, SCREEN_H - 9, CLR_DARK_PEACH);
     font(FONT_NORMAL);
 }

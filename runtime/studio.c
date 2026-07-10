@@ -210,9 +210,27 @@ static Shader          pal_shader;
 static bool            pal_shader_ok = false;
 static int             loc_base_pal  = -1;
 static int             loc_cur_pal   = -1;
+// blend() on the GPU path (ADR-0031 option 1): a fragment shader mixes each draw with a SNAPSHOT of
+// the canvas taken when blend() activates (reading the live target is GL feedback — forbidden). Desktop
+// 330 only; web/iOS default to the software canvas, which does blend without a shader.
+static Shader          blend_shader;
+static bool            blend_shader_ok = false;
+static int             loc_blend_base  = -1;   // basePal[64] (nearest-match, constant)
+static int             loc_blend_cur   = -1;   // curPal[64]  (output, follows pal())
+static int             loc_blend_snap  = -1;   // snapshot sampler (dst)
+static int             loc_blend_res   = -1;   // canvas resolution (px) → snapshot UV
+static int             loc_blend_mode  = -1;   // BLEND_AVG/ADD/MUL/SUB
+static RenderTexture2D blend_snap;             // canvas-so-far copy the blend shader samples as dst
 static bool            pal_active    = false;          // any palette[i] != base_palette[i]?
 static float           cur_pal_rgb[PALETTE_SIZE * 3];  // current palette, normalized — uploaded to the shader
 static bool            cur_pal_dirty = true;
+// blend tables (ADR-0031 / docs/design/blend-tables.md): blend_lut[mode][src][dst] = result index.
+// Built ONCE from base_palette[] (the RGB mixing happens here, at build time; the framebuffer only
+// ever holds palette colors) — dynamic build, no baked constants, so a future palette swap just
+// rebuilds. blend_mode is sticky drawing-scope state like pal()/fillp(); NONE = plain overwrite.
+static int             blend_mode    = BLEND_NONE;
+static unsigned char   blend_lut[5][PALETTE_SIZE][PALETTE_SIZE];   // [BLEND_*][src][dst]; index 0 (NONE) unused
+static bool            blend_lut_ready = false;
 // runtime colorkey() on the software canvas: the GPU path bakes the keyed colour into the
 // `spritesheet` texture (alpha 0); the canvas samples the pristine `spritesheet_img`, so it
 // must skip the key itself. Snapshot the RGB at colorkey() time (matches when the GPU bakes it).
@@ -421,6 +439,9 @@ static void de_grow_gpu(void) {
     UnloadRenderTexture(canvas_snap);
     canvas_snap = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
+    UnloadRenderTexture(blend_snap);
+    blend_snap = LoadRenderTexture(fb_w, fb_h);
+    SetTextureFilter(blend_snap.texture, TEXTURE_FILTER_POINT);
     if (smooth_rt_ok &&   // resize the smooth-zoom supersample offscreen too (only if a cart allocated it)
         (smooth_rt.texture.width != fb_w * 2 || smooth_rt.texture.height != fb_h * 2)) {
         UnloadRenderTexture(smooth_rt);
@@ -442,6 +463,9 @@ static void poly_stroke_cov(const int *xy, int n, int color);
 // pal()-on-sprites helpers (defined in the graphics section, used earlier in main/pal)
 static void pal_shader_init(void);
 static void pal_recompute(void);
+static void blend_shader_init(void);
+static void blend_gpu_begin(void);
+static void blend_gpu_end(void);
 static void scale_shader_init(void);
 static void scale_shader_ensure(void);
 static void smooth_composite(void);
@@ -761,6 +785,42 @@ static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
     else { *sx = (int)floorf((wx - cam.target.x) * cam.zoom + cam.offset.x);
            *sy = (int)floorf((wy - cam.target.y) * cam.zoom + cam.offset.y); }
 }
+// --- blend tables (ADR-0031). Same luma-weighted argmin as sw_recolor (2·Δr²+4·Δg²+3·Δb²);
+// plain Euclidean picked perceptually-off neighbors for warm mixes (blend-tables.md finding #4).
+static int blend_nearest(int r, int g, int b) {
+    int best = 0, bestd = 1 << 30;
+    for (int i = 0; i < PALETTE_SIZE; i++) {
+        int dr = r - base_palette[i].r, dg = g - base_palette[i].g, db = b - base_palette[i].b;
+        int d = 2*dr*dr + 4*dg*dg + 3*db*db;
+        if (d < bestd) { bestd = d; best = i; }   // strict < → first (0-31) match wins, like sw_recolor
+    }
+    return best;
+}
+// build the three preset tables from base_palette[] — the RGB mix happens here, once. Cheap
+// (~3·64² nearest searches); call after base_palette is populated (and on any future palette swap).
+static void blend_tables_build(void) {
+    for (int s = 0; s < PALETTE_SIZE; s++) for (int d = 0; d < PALETTE_SIZE; d++) {
+        DeColor cs = base_palette[s], cd = base_palette[d];
+        blend_lut[BLEND_AVG][s][d] = blend_nearest((cs.r+cd.r)/2, (cs.g+cd.g)/2, (cs.b+cd.b)/2);
+        int ar = cs.r+cd.r, ag = cs.g+cd.g, ab = cs.b+cd.b;                 // additive, clamped high
+        blend_lut[BLEND_ADD][s][d] = blend_nearest(ar>255?255:ar, ag>255?255:ag, ab>255?255:ab);
+        blend_lut[BLEND_MUL][s][d] = blend_nearest(cs.r*cd.r/255, cs.g*cd.g/255, cs.b*cd.b/255);
+        int sr = cd.r-cs.r, sg = cd.g-cs.g, sb = cd.b-cs.b;                 // subtractive (dst-src), clamped low
+        blend_lut[BLEND_SUB][s][d] = blend_nearest(sr<0?0:sr, sg<0?0:sg, sb<0?0:sb);
+    }
+    blend_lut_ready = true;
+}
+// recover a palette index from a packed framebuffer color (exact when no pal() swap is live, else
+// nearest). Only called on the blend path (blend_mode != NONE), so the 64-iter loop is off the hot path.
+static inline int blend_index_of(uint32_t p) {
+    return blend_nearest((int)(p & 0xFF), (int)((p >> 8) & 0xFF), (int)((p >> 16) & 0xFF));
+}
+// mix a source draw color with the destination already on the canvas, via the active table. Output
+// is palette[result] so a live pal() swap still recolors the blended pixel (mirrors sw_recolor).
+static inline uint32_t sw_blend_packed(uint32_t src_p, uint32_t dst_p) {
+    int idx = blend_lut[blend_mode][blend_index_of(src_p)][blend_index_of(dst_p)];
+    return sw_pack(palette[idx]);
+}
 // raw screen-pixel write: clip (screen space, like GPU scissor) + bottom-up store (matches the FBO
 // layout, so the present's -de_sh flip + the screenshot path treat sw and GPU canvases the same).
 // Phase 1b: bounds + flip origin follow the ACTIVE canvas (de_sw/de_sh); the row STRIDE stays the
@@ -768,8 +828,11 @@ static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
 // bottom-left de_sw×de_sh sub-region and the present grabs it. Byte-identical when de == max.
 static inline void sw_plot1(int sx, int sy, uint32_t p) {
     if (clip_active && (sx < clip_cx || sx >= clip_cx + clip_cw || sy < clip_cy || sy >= clip_cy + clip_ch)) return;
-    if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh)
-        sw_dst[(de_sh - 1 - sy) * fb_w + sx] = p;
+    if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh) {
+        size_t off = (size_t)(de_sh - 1 - sy) * fb_w + sx;
+        if (blend_mode) p = sw_blend_packed(p, sw_dst[off]);   // mix with what's already on the canvas
+        sw_dst[off] = p;
+    }
 }
 // software-canvas pixel write. zoom==1: one texel (the hot path). zoom!=1: fill the world pixel's
 // screen footprint (a zoom×zoom block) so a zoomed pset/blit/line stays gap-free.
@@ -805,7 +868,10 @@ static void sw_fillrect(int x, int y, int w, int h, DeColor c) {
                        if (x1>clip_cx+clip_cw) x1=clip_cx+clip_cw; if (y1>clip_cy+clip_ch) y1=clip_cy+clip_ch; }
     if (x0<0) x0=0; if (y0<0) y0=0; if (x1>de_sw) x1=de_sw; if (y1>de_sh) y1=de_sh;
     uint32_t p = sw_pack(c);
-    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*fb_w]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
+    if (blend_mode)   // per-pixel mix (rectfill/circfill spans) — the glow/shadow case; slower, only when a blend is live
+        for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*fb_w]; for (int xx = x0; xx < x1; xx++) row[xx] = sw_blend_packed(p, row[xx]); }
+    else
+        for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*fb_w]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
 // one fill-scanline span: cbuf row write under the software canvas, else the GPU DrawRectangle.
 // Lets the circ/oval/poly span fast-paths stay span-based (not per-pixel) on the canvas.
@@ -854,7 +920,7 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
     // write straight into cbuf, alpha forced opaque — skipping the per-pixel img_texel/sw_keyed/sw_pset/
     // sw_w2s/sw_pack call chain + the i*sw/dw divide. Byte-identical to the loop below (same alpha<128
     // and colorkey skip, same opaque store). This is the sprite hotspot.
-    if (!recolor && !fx && !fy && dw == sw && dh == sh
+    if (!recolor && !fx && !fy && dw == sw && dh == sh && !blend_mode   // blend → slow path (writes via sw_pset, which mixes)
         && cam.zoom == 1.0f && spritesheet_img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) {
         int ox, oy; sw_w2s(dx, dy, &ox, &oy);                          // screen origin (one camera translate)
         int xmin = 0, ymin = 0, xmax = de_sw, ymax = de_sh;
@@ -892,9 +958,9 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
     // Unscaled (dw==sw) both formulas reduce to i, so flips/recolors at 1:1 are unchanged.
     // Flipped: texcoords run (s+size)→s, so the centre maps to (s+size) - (i+0.5)*size/dsize.
     for (int j = 0; j < dh; j++) {
-        int syy = fy ? (int)((sy + sh) - (j + 0.5f) * sh / dh) : (sy + (int)((j + 0.5f) * sh / dh));
+        int syy = fy ? (int)((sy + sh) - (j + 0.5f) * sh / dh) : (sy + (int)(j * sh / dh));
         for (int i = 0; i < dw; i++) {
-            int sxx = fx ? (int)((sx + sw) - (i + 0.5f) * sw / dw) : (sx + (int)((i + 0.5f) * sw / dw));
+            int sxx = fx ? (int)((sx + sw) - (i + 0.5f) * sw / dw) : (sx + (int)(i * sw / dw));
             DeColor c = img_texel(&spritesheet_img, sxx, syy);
             if (c.a < 128 || sw_keyed(c)) continue;
             sw_pset(dx + i, dy + j, recolor ? sw_recolor(c) : c);
@@ -1499,6 +1565,7 @@ static void load_palette() {
     for (int i = 32; i < PALETTE_SIZE; i++) palette[i] = palette[i - 32];  // upper half mirrors 0-31 (see PALETTE_SIZE note)
 
     for (int i = 0; i < PALETTE_SIZE; i++) base_palette[i] = palette[i];   // keep an unmodified copy for pal_reset()
+    blend_tables_build();                                                  // ADR-0031: build blend LUTs from the live palette (never baked)
 }
 
 // ------------------------------------------------------------
@@ -2416,6 +2483,7 @@ static void loop_step(void) {
 #else
         draw();
 #endif
+        if (blend_mode) { blend_gpu_end(); blend_mode = BLEND_NONE; }  // cart forgot blend_reset() — close the shader before we unwind
         if (smooth_capturing) smooth_composite();   // cart never called camera() — composite now
         cam_active = false;
         EndMode2D();
@@ -3090,6 +3158,7 @@ int main(int argc, char **argv) {
     de_ensure_fb(de_sw, de_sh);   // heap framebuffer sized to the (possibly window-seeded) canvas; == SCREEN_W/H for a fixed cart
     load_palette();
     pal_shader_init();   // pal()-on-sprites swap shader (needs the GL context from InitWindow)
+    blend_shader_init(); // blend()-on-GPU mix shader (same — needs the GL context)
     scale_shader_init(); // sharp-bilinear present filter (modes 2/3; no-op otherwise)
     init_touch_layout();
 
@@ -3110,6 +3179,8 @@ int main(int argc, char **argv) {
 #endif
     canvas_snap = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
+    blend_snap = LoadRenderTexture(fb_w, fb_h);
+    SetTextureFilter(blend_snap.texture, TEXTURE_FILTER_POINT);
 
     static const struct { const unsigned char *data; int len; int first_char; } FONT_SRC[FONT_COUNT] = {
         { DOS_8X8_FONT,        DOS_8X8_FONT_LEN,        0  },   // FONT_NORMAL — 8×8 DOS
@@ -3577,6 +3648,125 @@ static void pal_shader_init(void) {
     SetShaderValueV(pal_shader, loc_base_pal, base_rgb, SHADER_UNIFORM_VEC3, PALETTE_SIZE);
     pal_shader_ok = true;
 }
+
+// blend() fragment shader (desktop 330; web/iOS use the software canvas). src = this draw's colour
+// (texel×fragColor — white texel for shapes, sheet texel for sprites); dst = the canvas snapshot at
+// this pixel. Mix in RGB, then snap to the nearest base-palette entry and output its CURRENT colour
+// (so pal() still recolors, and the metric matches sw_blend_packed's 2·4·3 luma weighting).
+#ifdef PLATFORM_WEB
+static const char *BLEND_FS =
+    "#version 100\n"
+    "precision mediump float;\n"
+    "varying vec2 fragTexCoord;\n"
+    "varying vec4 fragColor;\n"
+    "uniform sampler2D texture0;\n"
+    "uniform vec4 colDiffuse;\n"
+    "uniform sampler2D snapTex;\n"
+    "uniform vec2 resolution;\n"
+    "uniform int  blendMode;\n"
+    "uniform vec3 basePal[64];\n"
+    "uniform vec3 curPal[64];\n"
+    "void main() {\n"
+    "    vec4 texel = texture2D(texture0, fragTexCoord) * colDiffuse * fragColor;\n"
+    "    if (texel.a < 0.5) discard;\n"
+    "    vec3 src = texel.rgb;\n"
+    "    vec3 dst = texture2D(snapTex, gl_FragCoord.xy / resolution).rgb;\n"
+    "    vec3 m;\n"
+    "    if      (blendMode == 2) m = min(src + dst, 1.0);\n"
+    "    else if (blendMode == 1) m = (src + dst) * 0.5;\n"
+    "    else if (blendMode == 3) m = src * dst;\n"
+    "    else                     m = max(dst - src, 0.0);\n"
+    "    float bestD = 1e20;\n"
+    "    vec3 outc = curPal[0];\n"
+    "    for (int i = 0; i < 64; i++) {\n"
+    "        vec3 dd = m - basePal[i];\n"
+    "        float dist = 2.0*dd.r*dd.r + 4.0*dd.g*dd.g + 3.0*dd.b*dd.b;\n"
+    "        if (dist < bestD) { bestD = dist; outc = curPal[i]; }\n"
+    "    }\n"
+    "    gl_FragColor = vec4(outc, 1.0);\n"
+    "}\n";
+#else
+static const char *BLEND_FS =
+    "#version 330\n"
+    "in vec2 fragTexCoord;\n"
+    "in vec4 fragColor;\n"
+    "out vec4 finalColor;\n"
+    "uniform sampler2D texture0;\n"
+    "uniform vec4 colDiffuse;\n"
+    "uniform sampler2D snapTex;\n"
+    "uniform vec2 resolution;\n"
+    "uniform int  blendMode;\n"
+    "uniform vec3 basePal[64];\n"
+    "uniform vec3 curPal[64];\n"
+    "void main() {\n"
+    "    vec4 texel = texture(texture0, fragTexCoord) * colDiffuse * fragColor;\n"
+    "    if (texel.a < 0.5) discard;\n"                                   // transparent/colorkey → no blend, no write
+    "    vec3 src = texel.rgb;\n"
+    "    vec3 dst = texture(snapTex, gl_FragCoord.xy / resolution).rgb;\n"
+    "    vec3 m;\n"
+    "    if      (blendMode == 2) m = min(src + dst, 1.0);\n"             // ADD
+    "    else if (blendMode == 1) m = (src + dst) * 0.5;\n"              // AVG
+    "    else if (blendMode == 3) m = src * dst;\n"                      // MUL
+    "    else                     m = max(dst - src, 0.0);\n"           // SUB (4)
+    "    float bestD = 1e20;\n"
+    "    vec3 outc = curPal[0];\n"
+    "    for (int i = 0; i < 64; i++) {\n"
+    "        vec3 dd = m - basePal[i];\n"
+    "        float dist = 2.0*dd.r*dd.r + 4.0*dd.g*dd.g + 3.0*dd.b*dd.b;\n"
+    "        if (dist < bestD) { bestD = dist; outc = curPal[i]; }\n"
+    "    }\n"
+    "    finalColor = vec4(outc, 1.0);\n"
+    "}\n";
+#endif
+static void blend_shader_init(void) {
+    blend_shader = LoadShaderFromMemory(0, BLEND_FS);
+    if (blend_shader.id == 0) return;
+    loc_blend_base = GetShaderLocation(blend_shader, "basePal");
+    loc_blend_cur  = GetShaderLocation(blend_shader, "curPal");
+    loc_blend_snap = GetShaderLocation(blend_shader, "snapTex");
+    loc_blend_res  = GetShaderLocation(blend_shader, "resolution");
+    loc_blend_mode = GetShaderLocation(blend_shader, "blendMode");
+    if (loc_blend_base < 0 || loc_blend_cur < 0 || loc_blend_snap < 0) { UnloadShader(blend_shader); return; }
+    float base_rgb[PALETTE_SIZE * 3];
+    for (int i = 0; i < PALETTE_SIZE; i++) {
+        base_rgb[i*3+0] = base_palette[i].r / 255.0f;
+        base_rgb[i*3+1] = base_palette[i].g / 255.0f;
+        base_rgb[i*3+2] = base_palette[i].b / 255.0f;
+    }
+    SetShaderValueV(blend_shader, loc_blend_base, base_rgb, SHADER_UNIFORM_VEC3, PALETTE_SIZE);
+    blend_shader_ok = true;
+}
+// snapshot the canvas-so-far into blend_snap (we're mid-draw inside BeginTextureMode + maybe
+// BeginMode2D — unwind, copy, restore, like zoom_rect), push uniforms, then start the shader so
+// every following draw mixes against the snapshot. Snapshot semantics: draws in one scope see the
+// frozen dst, not each other (overlapping blended draws don't accumulate — cf. the live-dst sw path).
+static void blend_gpu_begin(void) {
+    if (!blend_shader_ok) return;
+    bool wascam = cam_active;
+    if (wascam) EndMode2D();
+    EndTextureMode();
+    BeginTextureMode(blend_snap);
+    DrawTexturePro(canvas.texture,
+                   (Rectangle){ 0, 0, (float)de_sw, -(float)de_sh },   // -de_sh flips the bottom-up RT upright into snap (cf. zoom_rect)
+                   (Rectangle){ 0, 0, (float)de_sw, (float)de_sh },
+                   (Vector2){ 0, 0 }, 0.0f, WHITE);
+    EndTextureMode();
+    BeginTextureMode(canvas);
+    if (wascam) BeginMode2D(cam);
+    float res[2] = { (float)fb_w, (float)fb_h };
+    BeginShaderMode(blend_shader);   // enable FIRST — SetShaderValueTexture binds to the active shader's slot
+    SetShaderValue(blend_shader, loc_blend_res, res, SHADER_UNIFORM_VEC2);
+    SetShaderValue(blend_shader, loc_blend_mode, &blend_mode, SHADER_UNIFORM_INT);
+    float cur_rgb[PALETTE_SIZE * 3];   // build from the LIVE palette (reflects pal() swaps; cur_pal_rgb isn't populated until a pal() call)
+    for (int i = 0; i < PALETTE_SIZE; i++) {
+        cur_rgb[i*3+0] = palette[i].r / 255.0f;
+        cur_rgb[i*3+1] = palette[i].g / 255.0f;
+        cur_rgb[i*3+2] = palette[i].b / 255.0f;
+    }
+    SetShaderValueV(blend_shader, loc_blend_cur, cur_rgb, SHADER_UNIFORM_VEC3, PALETTE_SIZE);
+    SetShaderValueTexture(blend_shader, loc_blend_snap, blend_snap.texture);
+}
+static void blend_gpu_end(void) { if (blend_shader_ok) EndShaderMode(); }
 
 // "sharp bilinear" present filter. Keeps each source texel a FLAT colour and
 // confines the blend to a 1-output-pixel seam at texel edges (fwidth sizes the
@@ -4116,6 +4306,23 @@ static void circfill_pat(int cx, int cy, int r, int pattern, int c1, int c0) {
 // the 1-bits are transparent (holes) — exactly like PICO-8 fillp.
 void fillp(int pattern, int hole_color) { fp_on = true; fp_global = pattern; fp_hole = hole_color; }
 void fillp_reset(void)  { fp_on = false; }
+// blend() — sticky drawing-scope mix mode (ADR-0031). Software canvas (canonical for 2D, ADR-0024)
+// reads dst directly and mixes in sw_plot1/sw_fillrect. GPU path snapshots the canvas and runs the
+// blend shader (blend_gpu_begin/end). NONE = plain overwrite.
+void blend(int mode) {
+    int m = (mode >= BLEND_NONE && mode <= BLEND_SUB) ? mode : BLEND_NONE;
+    if (!sw_canvas_active) {                 // GPU path: (re)snapshot on activate/mode-change
+        if (blend_mode) blend_gpu_end();     // close the previous scope's shader first
+        blend_mode = m;
+        if (m) blend_gpu_begin();            // snapshot canvas-so-far + start the shader
+        return;
+    }
+    blend_mode = m;                          // software path: sw_plot1/sw_fillrect read blend_mode
+}
+void blend_reset(void) {
+    if (!sw_canvas_active && blend_mode) blend_gpu_end();
+    blend_mode = BLEND_NONE;
+}
 void fillp_anchor(int ox, int oy) { fp_anc_x = ox; fp_anc_y = oy; }
 
 // Pixel-center coverage tests — one definition shared by fill, outline, and dither.

@@ -137,6 +137,7 @@ const sections = [
   { title: 'keyboard',  keys: ['key', 'keyp', 'keyr', 'text_input', 'KEY_SPACE', 'KEY_ENTER', 'KEY_BACKSPACE', 'KEY_ESCAPE', 'KEY_TAB', 'KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN'] },
   { title: 'midi',         keys: ['midi_get', 'midi_held', 'midi_bend', 'midi_present', 'midi_name'] },
   { title: 'patterns',     keys: ['fillp', 'fillp_reset', 'fillp_anchor', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
+  { title: 'blend',        keys: ['blend', 'blend_reset', 'BLEND_NONE', 'BLEND_AVG', 'BLEND_ADD', 'BLEND_MUL', 'BLEND_SUB'] },
   { title: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },
   { title: 'noise',       keys: ['noise', 'noise2', 'noise3'] },
   { title: '3d',           keys: ['V3', 'rot3', 'project3', 'zsort', 'quadfill'] },

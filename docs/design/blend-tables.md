@@ -1,6 +1,6 @@
 # Blend tables — index-only translucency, glow, and shadow
 
-STATUS: EXPLORING — cart prototype `blendlab.c` recorded its findings; engine adoption waits on the palette decision (STATUS #18, [palette-and-color.md](palette-and-color.md) first).
+STATUS: BUILT — [ADR-0031](../decisions/0031-blend-tables-before-palette.md) built the engine feature BEFORE the palette decision (safe because tables build from the live `palette[]`, not baked). `blend()` / `blend_reset()` + `BLEND_AVG/ADD/MUL/SUB` ship on BOTH renderers — software canvas (live dst) and the GPU desktop path (shader + per-scope snapshot). Verified on the `blendfx` demo. Cart prototype `blendlab.c` recorded the original findings below; the palette question (STATUS #18, [palette-and-color.md](palette-and-color.md)) stays open and is deliberately decoupled.
 
 > **Genre: design exploration.** The design behind [STATUS open item 18](../STATUS.md)
 > ("blend tables — the substantive capability gap", from the 2026-06-03 Picotron
@@ -172,3 +172,13 @@ fill-pattern semantics live in **two** paths (`rectfill_pat` texture path,
   tech-demo shipped, zero engine changes. Findings above. Next step: decide
   (ADR) whether to build the engine version, with option 1 (shader + scope
   snapshot) as the candidate design.
+- **2026-07-10** — [ADR-0031](../decisions/0031-blend-tables-before-palette.md): build now, before
+  the palette decision (tables build from the live palette, so a palette change just rebuilds).
+  **Both renderers landed.** Software-canvas path (`blend()` / `blend_reset()` +
+  `BLEND_AVG/ADD/MUL/SUB`) reads dst from its own framebuffer, no snapshot. `BLEND_SUB` added as a
+  fourth preset (the ADD-opposite finding #3 didn't foresee). **GPU desktop path** = the option-1
+  shader + per-scope canvas snapshot (`blend_snap` RT, `BLEND_FS` 330/ES-100). All five modes
+  verified by eye on the `blendfx` demo on both paths. Gotchas logged in the ADR:
+  `SetShaderValueTexture` after `BeginShaderMode`; build the shader's output palette from live
+  `palette[]`. Intended GPU-vs-software divergence (snapshot vs live dst → overlapping ADD doesn't
+  accumulate on GPU) keeps blend out of the `drawall`/`canvas-diff` parity gate.

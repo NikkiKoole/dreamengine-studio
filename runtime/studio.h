@@ -220,6 +220,16 @@ void fillp_reset(void);
 // world (0,0), so a MOVING shape slides over a fixed lattice and the dither appears to crawl.
 // anchor to a shape's own center before filling it and the pattern travels with the shape.
 void fillp_anchor(int ox, int oy);
+// blend modes — once set, everything drawn MIXES with what's already on screen (index-only, so the
+// canvas still holds palette colors). the mix is snapped to the nearest of the palette, so a little
+// banding is normal — that IS the look. blend_reset() (or BLEND_NONE) goes back to plain overwrite.
+#define BLEND_NONE 0   // plain overwrite (the default)
+#define BLEND_AVG  1   // 50% average — glass, water, soft shadow (AVG with black = a drop shadow)
+#define BLEND_ADD  2   // additive — glow, light, fire, lasers (brightens whatever is behind)
+#define BLEND_MUL  3   // multiply — fog, darken, tint (deepens + tints whatever is behind)
+#define BLEND_SUB  4   // subtractive — carve light out toward black (cold shadow, scorch); the opposite of ADD
+void blend(int mode);                                   // start mixing every following draw with the screen: BLEND_AVG / BLEND_ADD / BLEND_MUL / BLEND_SUB. persists until blend_reset()
+void blend_reset(void);                                 // stop blending — back to plain overwrite (the default)
 void circ(int x, int y, int radius, int color);         // circle border
 void circfill(int x, int y, int radius, int color);     // filled circle
 void oval(int x, int y, int rx, int ry, int color);     // ellipse border (rx,ry = half-width/height)

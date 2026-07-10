@@ -44,7 +44,7 @@ const CATEGORIES = {
     tags: [
       'raycasting', 'mode7', 'parallax', 'camera-follow', 'viewport-clipping', 'dithering-gradient', 'palette-cycling',
       'software-rasterizer', 'procedural-mesh', 'sprite-stacking', 'no-sprite-vehicles', 'radial-symmetry',
-      'isometric-projection', 'voronoi', 'velocity-brush',
+      'isometric-projection', 'voronoi', 'velocity-brush', 'blend-modes',
     ],
   },
   game: {

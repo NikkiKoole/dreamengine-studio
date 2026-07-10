@@ -179,6 +179,7 @@ void SetMouseCursor(int cursor) { }
 void SetRandomSeed(unsigned int seed) { de_rng_state = seed ? seed : 1u; }
 void SetShaderValue(Shader shader, int locIndex, const void *value, int uniformType) { }
 void SetShaderValueV(Shader shader, int locIndex, const void *value, int uniformType, int count) { }
+void SetShaderValueTexture(Shader shader, int locIndex, Texture2D texture) { }
 void SetTargetFPS(int fps) { }
 void SetTextureFilter(Texture2D texture, int filter) { }
 void SetTextureWrap(Texture2D texture, int wrap) { }

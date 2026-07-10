@@ -18,6 +18,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // BEJEWELED
@@ -55,6 +56,7 @@ static bool clearing[N][N];        // marked for this clear pass
 enum { ST_IDLE, ST_SWAP, ST_BACK, ST_CLEAR, ST_FALL, ST_OVER };
 static int   state;
 static float anim_t;               // 0..1 progress of the current animated transition
+static float end_t;                // seconds since the game-over card came up
 
 // active swap (two adjacent cells)
 static int   sa_r, sa_c, sb_r, sb_c;
@@ -166,7 +168,7 @@ static void fill_board(void) {
 static void reset_game(void) {
     for (int i = 0; i < 120; i++) bits[i].life = 0;
     fill_board();
-    state = ST_IDLE; anim_t = 0;
+    state = ST_IDLE; anim_t = 0; end_t = 0;
     sel_r = sel_c = drag_r = drag_c = -1;
     score = 0; moves = START_MOVES; cascade = 0; clock_t = 0;
 }
@@ -256,6 +258,7 @@ void update(void) {
         }
 
     if (state == ST_OVER) {
+        end_t += dt();
         if (mouse_pressed(MOUSE_LEFT) || keyp(KEY_SPACE) || keyp(KEY_ENTER))
             reset_game();
         return;
@@ -492,14 +495,14 @@ void draw(void) {
     print("A NEIGHBOR", 8, 60, CLR_DARK_GREY);
     print("TO SWAP", 8, 70, CLR_DARK_GREY);
 
+    // game-over card — the shared end-screen treatment (endcard.h)
     if (state == ST_OVER) {
-        fade(0.5f);
-        int bw = 160, bh = 64, bxp = SCREEN_W / 2 - bw / 2, byp = SCREEN_H / 2 - bh / 2;
-        rectfill(bxp, byp, bw, bh, CLR_DARK_BLUE);
-        rect(bxp, byp, bw, bh, CLR_PINK);
-        print_centered("GAME OVER", SCREEN_W/2, byp + 8, CLR_PINK);
-        print_centered(str("SCORE %d", score), SCREEN_W/2, byp + 24, CLR_WHITE);
-        print_centered(str("BEST %d", hiscore), SCREEN_W/2, byp + 36, CLR_YELLOW);
-        print_centered("click to play again", SCREEN_W/2, byp + 50, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 160, 64, SCREEN_H / 2 - 32, CLR_DARK_BLUE, CLR_PINK, CLR_DARK_PURPLE);
+        if (c.settled) {
+            print_centered("GAME OVER", SCREEN_W/2, c.y + 8, CLR_PINK);
+            print_centered(str("SCORE %d", score), SCREEN_W/2, c.y + 24, CLR_WHITE);
+            print_centered(str("BEST %d", hiscore), SCREEN_W/2, c.y + 36, CLR_YELLOW);
+            if (blink(18)) print_centered("click to play again", SCREEN_W/2, c.y + 50, CLR_LIGHT_GREY);
+        }
     }
 }

@@ -16,13 +16,11 @@
   "lineage": "Doodle Jump (2009) homage; adds crumbling and moving platform types, a parallax starfield, squash-on-bounce juice, and save-load best score — all layered on top of the standard endless-jumper loop.",
   "genre": "platformer",
   "homage": "Doodle Jump (2009)",
-  "description": "An endless vertical jumper in the Doodle-Jump grain: a little astronaut auto-bounces forever off procedurally spawned platforms while you steer to keep landing on the next ledge up. Green platforms are solid, blue ones slide and bounce at the edges, and cracked brown ones crumble away after a single bounce, so dawdling drops you. Grab bobbing stars for a sparkly bonus, ride the climbing camera through a parallax starfield, and don't fall off the bottom — every landing squashes the astronaut, shatters fling debris, and the screen kicks on a break. Height is your score and your best run is saved between sessions. Steer with A/D or Left/Right (wraps at the screen edges); jumping is automatic; press Z to jump again after a fall.",
-  "todo": [
-    "The end-fade issue (recurring across carts) — apply the shared end-state treatment."
-  ]
+  "description": "An endless vertical jumper in the Doodle-Jump grain: a little astronaut auto-bounces forever off procedurally spawned platforms while you steer to keep landing on the next ledge up. Green platforms are solid, blue ones slide and bounce at the edges, and cracked brown ones crumble away after a single bounce, so dawdling drops you. Grab bobbing stars for a sparkly bonus, ride the climbing camera through a parallax starfield, and don't fall off the bottom — every landing squashes the astronaut, shatters fling debris, and the screen kicks on a break. Height is your score and your best run is saved between sessions. Steer with A/D or Left/Right (wraps at the screen edges); jumping is automatic; press Z to jump again after a fall."
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 
 // JUMPSTAR — endless vertical jumper (Doodle-Jump grain).
 // You auto-bounce off platforms forever; steer Left/Right (wraps at edges).
@@ -373,27 +371,23 @@ void draw(void) {
 
     camera(0, 0);
 
-    // death tint
-    if (dead) {
-        fade(clamp(death_t * 1.2f, 0, 0.55f));
-    }
-
     // HUD
     print(str("%dm", score), 4, 4, CLR_WHITE);
     print_right(str("BEST %d", best), SCREEN_W - 4, 4, CLR_LIGHT_YELLOW);
     if (star_bonus > 0)
         print_centered(str("+%d *", star_bonus), SCREEN_W/2, 4, CLR_YELLOW);
 
+    // game-over card — the shared end-screen treatment (endcard.h)
     if (dead) {
         int total = score + star_bonus;
-        int by = SCREEN_H/2 - 28;
-        rectfill(SCREEN_W/2 - 70, by, 140, 60, CLR_BLACK);
-        rect    (SCREEN_W/2 - 70, by, 140, 60, CLR_RED);
-        print_centered("GAME OVER", SCREEN_W/2, by + 8, CLR_RED);
-        print_centered(str("HEIGHT %dm", score), SCREEN_W/2, by + 22, CLR_WHITE);
-        print_centered(str("STARS  %d", star_bonus), SCREEN_W/2, by + 32, CLR_YELLOW);
-        print_centered(str("SCORE  %d", total), SCREEN_W/2, by + 42, CLR_LIGHT_YELLOW);
-        if (blink(20))
-            print_centered("Z to jump again", SCREEN_W/2, by + 54, CLR_LIGHT_GREY);
+        EndCard c = endcard(death_t, 140, 60, SCREEN_H/2 - 28, CLR_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            print_centered("GAME OVER", SCREEN_W/2, c.y + 8, CLR_RED);
+            print_centered(str("HEIGHT %dm", score), SCREEN_W/2, c.y + 22, CLR_WHITE);
+            print_centered(str("STARS  %d", star_bonus), SCREEN_W/2, c.y + 32, CLR_YELLOW);
+            print_centered(str("SCORE  %d", total), SCREEN_W/2, c.y + 42, CLR_LIGHT_YELLOW);
+            if (blink(20))
+                print_centered("Z to jump again", SCREEN_W/2, c.y + 54, CLR_LIGHT_GREY);
+        }
     }
 }

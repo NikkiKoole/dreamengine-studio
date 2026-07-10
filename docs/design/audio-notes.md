@@ -2155,3 +2155,14 @@ Environmental gotcha discovered mid-spike, for the record: the play.js harness (
 cart, even `--headless`) **segfaults in `rlglInit`/`InitWindow` when the Mac's display is
 asleep** — a 3 A.M. render suddenly crashing signal-11 with an empty trace is the screen lock,
 not your engine edit. Fix: `caffeinate -du node tools/play.js …` (wakes + holds the display).
+
+**NaN-guard on the ladder cutoff (2026-07-11).** `ladder_core` (both `FILTER_DIODE` and the
+Moog `FILTER_LOW`) now clamps `cutoff_hz` to `[10, 0.49·SR]` before the `tanf`. A cutoff **at/
+above Nyquist** makes `tanf(π·fc/SR)` blow up → `g` Inf/NaN → `G` NaN, and a cutoff **≤ 0** is
+just as invalid; the resulting NaN lands in `lad_s[]` and the existing `±8` state clamp does
+**not** catch it (`NaN > 8` and `NaN < −8` are both false), so the voice — and everything it
+feeds through the master bus — goes **permanently silent** until reload. The clamp is a strict
+no-op for every valid cutoff (all cart cutoffs sit in ~10–10800 Hz), so it's a pure safety net,
+not a tone change. Found via acidrack playtest: filter-*tracking* on an **octave-down** note
+computed a negative cutoff (`cut_hz + trk·(midi−BASE)·k`, `midi < BASE`) → dead silence. Rule:
+any new per-voice cutoff math must stay positive and sub-Nyquist; the engine now backstops it.

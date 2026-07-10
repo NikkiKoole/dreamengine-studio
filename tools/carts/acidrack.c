@@ -23,8 +23,8 @@
     "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing",
     "device-adaptive redesign (Phase 3 — design/device-adaptive-layout.md): reflow the machine-strip accordion per device — iPad more strips inline, phone-portrait accordion, phone-landscape tabs (accordion degenerates on a short screen). The disclosure model already exists in-cart; graft the arrangements from acidfit.c. Build resizable: RESIZABLE=1 CART=acidrack ./ios/build.sh",
     "compact drum view — the authentic Roland x0x model: instead of a full N-voice matrix, show ONE big editable 16-step lane for the selected voice + an instrument-select knob/buttons to switch which voice the 16 cells map to (that's exactly how the real 808/909 solved the panel-space problem — never a grid). Pairs well with a thin per-voice density overview (each voice one row of filled/empty dots, tap to promote to the big lane). The 808's 16 voices make this most valuable there; would also make phone-portrait trivially fit. Alt/bolder mode discussed: Euclidean per-voice (hits, rotation) knobs — a whole acid beat in ~5 voices × 2 knobs, no step-drawing. See the chat where the full-16 expansion landed.",
-    "303 voice depth — the useful Devil Fish / TD-3-MO mods (real acid clones added these because the stock 303 is thin): SEPARATE ACCENT DECAY (the signature Devil Fish two-decay — a normal-decay knob + an INDEPENDENT accent-decay so accented steps ring/breathe differently; acidrack's DEC is shared across all steps today) · variable SLIDE TIME (a knob, not the fixed non-retriggering glide) · SOFT ATTACK (rounds the note onset for subtler, less-clicky lines) · a SUB-OSC beneath the saw/square (TD-3-MO's deep sub = fatter bass). All per-303, live-rideable knobs on the expanded strip. Skipped the clones' MIDI/USB/CV/gate/patch-point/PC-editor additions (wiring to OTHER hardware — moot in one cart) and distortion + random-gen (already have DIST + GEN).",
-    "accent-sweep modes — acidrack already routes accent into the 303 filter env; the TD-3-MO makes the accent SWEEP SPEED selectable (3 modes). A small per-machine toggle would give the classic squelchier-at-fast-sweep control. Pairs with the separate-accent-decay item above.",
+    "SHIPPED (2026-07-11): 303 DEEP-page — the Devil Fish / TD-3-MO depth mods, each a true engine port (sources: firstpr.com.au/rwi/dfish, Robin Whittle's manual). The P1/P2 button on each 303 seq panel flips the knob row between the classic 7 and the DEEP 5: ADEC (separate accent-decay — the signature two-decay; accented steps get their own ENV_CUTOFF decay time), SLDT (variable slide time 20-300ms, was fixed 60), ATK (soft attack 0.5-30ms = the amp-env attack, rounds the click), TRK (filter tracking — higher notes open the cutoff), SUB (an octave-down INSTR_TRI sub voice on slots 34/35, gated/slid in lockstep — off = no voice spent). Plus the accent-SWEEP mode button (off/slow/med/fast onset) and a cutoff-range bump to ~5kHz. All DEEP defaults are no-ops (ADEC=DEC, SLDT≈60ms, ATK≈2ms, TRK/SUB/SWEEP off) so the stock sound is unchanged until you turn a knob. SAVE_MAGIC bumped to v8. Deliberately SKIPPED (still true): the clones' MIDI/USB/CV-gate/patch-point/PC-editor + self-resonance/filter-FM (hardware wiring, moot in one cart); env-mod-to-3x (SQL already does it) and overdrive (DRV, though ours is post-filter vs the Devil Fish pre-filter overdrive + post-VCA Muffler — a future 'Muffler' distortion could revisit that). FOLLOW-UP TUNING (2026-07-11): ATK now ALSO rounds the filter onset (0 at stock → ~28ms) and TRK steepened (170 Hz/semitone) so both bite harder; note that full-mix WAV correlation understates per-knob impact because the 303 sits under the 909+808 drums (measure the 303 in isolation).",
+    "SHIPPED (2026-07-11): vanilla tb303 parity for the 303 lines — OCTAVE DOWN (the OCT flag row now tap-CYCLES off→up→down→off; up=yellow, down=indigo; -12 via a new octd mask) and TIE (a 4th flag row: green = hold the previous note through this step — the sustain a slide can't give; step_303 sustains it, gate_303 won't cut into a tie). The generator sprinkles both (octave up/down ~15%, ties on ~18% of rests). Swing was already present (master SHUF). Also SHIPPED: per-line pattern LENGTH — a LEN strip under the flag rows sets each 303 line's length 1..16 (Line.len, 0=full); the transport steps each line at s16 % lnlen so a short line DRIFTS against the 16-step bar (true polymeter, continuous counter across bar/bank seams); the roll shows the line's OWN playhead (lpos[]), dims the dead zone, and draws a red loop-end divider. The tb303-vs-acidrack gap is now closed. Also added a STD button on P2 that resets that 303's Devil Fish knobs to stock (reset_deep: ADEC=DEC, SLDT/ATK stock, TRK/SUB/SWEEP off) — 'as if no Devil Fish'. SAVE_MAGIC v10 (Line grew: +octd,+tie,+len). BUGFIX (2026-07-11, found in playtest): filter TRACKING on an octave-DOWN note computed a NEGATIVE cutoff → NaN in the diode ladder → poisoned the master bus = sudden permanent silence; now clamped (cut>=30) in step_303. Any new cutoff math near the ladder MUST stay positive.",
     "song-level transpose — a per-song-cell semitone offset (int8_t songTranspose[64]) added into BOTH 303s' pitches[] at the bar boundary (drums ignore it), so one bank = one riff reused at multiple pitches. It's the pitch twin of the existing per-bank PCF lane, and applying it at the bar boundary sidesteps the slide/tie/shuffle scheduling caveat above (no mid-pattern pitch mutation). This is the arrangement feature the stock 303 lacked and every clone workflow added via MIDI-note transpose — see the chat on modern-303 usage. A per-303 override (one plays a third/fifth above) is a later nicety; default is shared.",
     "more pattern memory (minor) — x0xb0x carried 128 patterns vs the 303's handful; acidrack has 4 banks A-D. If song-building starves for raw material, add user-savable pattern slots. Low priority: the song chain already reuses A-D across 64 bars.",
     "drum step PROBABILITY — the biggest modern-drum-machine feature acidrack lacks (Elektron → Behringer RD-8/RD-9 all added it): each active drum step gets a % chance to fire, so hats/fills breathe and the loop never repeats identically. THE house/techno move for a living pattern out of a static grid. Cheap: a per-cell 0-100 (or 4-5 buckets) rolled against a per-step RNG at trigger time. Highest bang-for-buck here. Pairs with per-track length below. NOT greenfield — GRAFT IT FROM tr808.c / tr909.c, which SHIPPED exactly this and are the closest reference (same editable-grid family as acidrack, not the pocketbox sequencer model): `gprob[NV][STEPS]` per-cell % + `snap_prob()` to the RD-8/RD-9 buckets (100/75/50/25), driven by an AXIS-LOCKED gesture — a VERTICAL drag on a cell rides its fire-chance while a horizontal drag still paints on/off (one gesture, axis decided at first move); a sub-100 cell draws as a shorter bar in its full-height socket. tr909.c also proved the STROKE FAMILY worth grafting alongside it — flam/drag/ratchet per cell (right-click cycles on desktop; a STROKE header toggle arms tap-to-cycle on touch) — the humanize trick that pairs naturally with probability. Older/secondary references only: pocketbox.c's Elektron trigger conditions (CONDS[]/cond_ok(), incl. 50% + X:Y loop conditions) and turing.c's pure per-step flip-probability engine (flip_prob()).",
@@ -35,7 +35,7 @@
   "description": {
     "summary": "Two 303s, the full 909, the full 16-voice 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV.",
     "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (all 11 voices, the real 909 roster — ordered for acid: kick/hats/clap/snare up top, rim + ride/crash next, the fill toms at the bottom — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the COMPLETE tr808 (all 16 voices: boom kick, snare, 3 toms + 3 congas on the shared bridged-T circuit, rim/clave, clap, maracas, cowbell, cymbal, open/closed hats — ordered for acid: the always-on kick/hats/clap/snare up top, cowbell + accents next, the fill voices at the bottom; the old 9-voice curation was based on a slot budget that never really applied — the engine has 48 slots, not 32), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · drum grids: per-voice TUNE/DEC/CHAR mini-knobs beside the rows (drag up=coarse right=fine, rclick=reset) · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · 303 flag rows toggle per step: OCT (tap-cycles up→down→off), ACC, SLD, and TIE (holds the previous note through the step — sustain a slide can't give) · LEN strip under the flags sets each line's length 1-16 (short = polymeter drift; red divider = loop end) · 303 P1/P2 button flips the knob page (P2 = DEEP: ADEC separate-accent-decay / SLDT slide-time / ATK soft-attack / TRK filter-tracking / SUB sub-osc, + the accent-SWEEP mode button + STD = reset this 303's Devil Fish knobs to stock) · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · drum grids: per-voice TUNE/DEC/CHAR mini-knobs beside the rows (drag up=coarse right=fine, rclick=reset) · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
   }
 }
 de:meta */
@@ -73,9 +73,11 @@ de:meta */
 // ample room; the old "808 curated to fit 5..31" budget was based on studio.h's
 // stale doc line and no longer applies (self-contained cart — nothing else
 // defines slots here).
-// 303s: 5,6 · 909 complete: 7..19 (13) · 808 complete: 20..33 (14) · 34..47 free
+// 303s: 5,6 · 909 complete: 7..19 (13) · 808 complete: 20..33 (14) · 34,35 = 303 subs · 36..47 free
 #define SLOT_A    5           // 303-A
 #define SLOT_B    6           // 303-B
+#define SLOT_SUB_A 34         // 303-A sub-osc layer (Devil Fish / TD-3-MO depth — octave-down voice)
+#define SLOT_SUB_B 35         // 303-B sub-osc layer
 // tr909 (complete kit — recipes verbatim from tr909.c)
 #define SL9_BD    7
 #define SL9_BDC   8           // kick click layer (the ATTACK knob sound)
@@ -125,6 +127,8 @@ enum { ST_PLAIN, ST_FLAM, ST_DRAG, ST_RATCHET, NSTROKE };   // 909 stroke family
 typedef struct {                       // one 303 line in one bank
     unsigned char  pitch[STEPS];       // semitone 0..12 above BASE
     unsigned short on, oct, acc, sld;  // per-step bitmasks
+    unsigned short octd, tie;          // oct DOWN (-12) · TIE = hold prev note through this step (sustain)
+    unsigned char  len;                // pattern LENGTH 1..16 (0 = full 16); short = polymeter drift vs the bar
 } Line;
 typedef struct {                       // one bank = a whole-rack snapshot
     Line           ln[2];              // [0]=303-A [1]=303-B
@@ -151,12 +155,24 @@ static int  editBank = 0;              // which bank A-D the panels edit
 static int  playBank = 0;              // which bank is sounding this bar
 static int  barpos = 0;                // position in the chain
 static int  last16 = -1, playhead = 0;
+static int  lpos[2] = { 0, 0 };        // each 303 line's OWN sounding step (per-line LENGTH → polymeter drift)
 static int  swing = 50;                // master shuffle 50..66 — 909-style, even 16ths drag
 static float swingf = 0.0f;            // the SHUF slider's 0..1 view of it
 
 // ── the machines ──────────────────────────────────────────────────────────
-enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SQL, NK };
-static const char *KNAME[NK] = { "CUT", "RES", "ENV", "DEC", "ACC", "DRV", "SQL" };
+// K_CUT..K_SQL = the classic 303 knobs (page 0). K_ADEC..K_SUB = the Devil Fish /
+// TD-3-MO depth knobs (page 1, the DEEP page). All live in one knob[] array.
+enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SQL,
+       K_ADEC, K_SLDT, K_ATK, K_TRK, K_SUB, NK };
+static const char *KNAME[NK] = { "CUT", "RES", "ENV", "DEC", "ACC", "DRV", "SQL",
+                                 "ADEC", "SLDT", "ATK", "TRK", "SUB" };
+// the two knob PAGES drawn on the 303 seq panel (both fit ONE row; roll stays put)
+static const int KPAGE0[] = { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SQL };
+static const int KPAGE1[] = { K_ADEC, K_SLDT, K_ATK, K_TRK, K_SUB };
+#define NKP0  (int)(sizeof KPAGE0 / sizeof *KPAGE0)
+#define NKP1  (int)(sizeof KPAGE1 / sizeof *KPAGE1)
+#define NKMAX NKP0                         // the roll reserves space for the taller page
+static int kpage[2];                       // per-303 knob page: 0 = classic, 1 = DEEP
 
 typedef struct {
     int   slot;
@@ -165,26 +181,43 @@ typedef struct {
     int   wave;             // INSTR_SAW / INSTR_SQUARE
     int   h;                // held note handle (-1 = none)
     bool  prev_slide;
+    int   hsub;             // sub-osc held handle (-1 = none)
+    int   sweep;            // accent-sweep mode 0=off 1=slow 2=med 3=fast
 } M303;
+// DEEP-page defaults chosen to be NO-OPS out of the box: ADEC = that machine's DEC
+// (accent decays like a normal note until moved), SLDT≈60ms, ATK≈2ms (the stock
+// values), TRK/SUB = 0 (off). So adding the page changes nothing until you turn a knob.
 static M303 m[2] = {
-    { SLOT_A, "303-A", { 0.45f, 0.70f, 0.60f, 0.40f, 0.60f, 0.35f, 0.33f }, INSTR_SAW,    -1, false },
-    { SLOT_B, "303-B", { 0.38f, 0.75f, 0.55f, 0.45f, 0.60f, 0.45f, 0.33f }, INSTR_SQUARE, -1, false },
+    { SLOT_A, "303-A", { 0.45f, 0.70f, 0.60f, 0.40f, 0.60f, 0.35f, 0.33f,
+                         0.40f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SAW,    -1, false, -1, 0 },
+    { SLOT_B, "303-B", { 0.38f, 0.75f, 0.55f, 0.45f, 0.60f, 0.45f, 0.33f,
+                         0.45f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SQUARE, -1, false, -1, 0 },
 };
+static int sub_slot(M303 *s) { return s->slot == SLOT_A ? SLOT_SUB_A : SLOT_SUB_B; }
 
-// knob value mappings — same curves as tb303.c, knobs normalized 0..1
-static int   cut_hz(M303 *s)  { return (int)(60.0f * powf(2.0f, s->knob[K_CUT] * 6.0f)); } // 60..3840
+// knob value mappings — the classic curves are tb303.c's verbatim; the DEEP-page
+// curves are the Devil Fish / TD-3-MO ranges (see the de:meta todo for provenance).
+static int   cut_hz(M303 *s)  { return (int)(60.0f * powf(2.0f, s->knob[K_CUT] * 6.38f)); } // 60..~5100 (Devil Fish doubled the range to 5kHz)
 static int   res_q(M303 *s)   { return (int)(s->knob[K_RES] * 15.0f); }
 static float env_hz(M303 *s)  { return s->knob[K_ENV] * 3000.0f; }
-static int   dec_ms(M303 *s)  { return 30 + (int)(s->knob[K_DEC] * 500.0f); }
+static int   dec_ms(M303 *s)  { return 30 + (int)(s->knob[K_DEC]  * 500.0f); }
+static int   adec_ms(M303 *s) { return 30 + (int)(s->knob[K_ADEC] * 500.0f); }  // accent's OWN filter-env decay (the two-decay)
+static int   slide_ms(M303 *s){ return 20 + (int)(s->knob[K_SLDT] * 280.0f); }  // portamento 20..300ms (stock ≈60)
+static int   atk_ms(M303 *s)  { return (int)(0.5f + s->knob[K_ATK] * 29.5f); }  // amp attack 0.5..30ms (soft attack)
+static float sub_lvl(M303 *s) { return s->knob[K_SUB]; }                        // 0 = no sub voice at all
 static float acc_mul(M303 *s) { return 1.0f + s->knob[K_ACC] * 1.5f; }
 static float sq_mul(M303 *s)  { return 1.0f + s->knob[K_SQL] * 2.0f; }
+static int   sweep_atk(M303 *s) { static const int A[4] = { 0, 10, 5, 2 }; return A[s->sweep & 3]; } // accent-sweep onset ms
 
-// the 303 voice — tb303.c's recipe verbatim, on the diode ladder
+// the 303 voice — tb303.c's recipe verbatim, on the diode ladder. The sub slot
+// (Devil Fish / TD-3-MO depth) is a clean triangle an octave down; it sits UNDER
+// the filtered voice (post-filter weight) and is gated in lockstep in step_303.
 static void define_303(M303 *s) {
-    instrument(s->slot, s->wave, 2, 60, 6, 25);
+    instrument(s->slot, s->wave, atk_ms(s), 60, 6, 25);    // ATK = soft-attack (the amp-env attack)
     instrument_duty(s->slot, 0.48f);
     instrument_filter(s->slot, FILTER_DIODE, cut_hz(s), res_q(s));
     instrument_drive(s->slot, s->knob[K_DRV]);
+    instrument(sub_slot(s), INSTR_TRI, atk_ms(s), 60, 6, 25);
 }
 static void knob_changed_303(M303 *s, int k) {
     if (k == K_CUT || k == K_RES) {
@@ -193,39 +226,89 @@ static void knob_changed_303(M303 *s, int k) {
     } else if (k == K_DRV) {
         instrument_drive(s->slot, s->knob[K_DRV]);
         if (s->h >= 0) note_drive(s->h, s->knob[K_DRV]);
-    }                                                // ENV/DEC/ACC/SQL apply at next trigger
+    } else if (k == K_ATK) {
+        define_303(s);                               // soft attack = amp-env attack; set-and-hold, on change only
+    }                                                // ENV/DEC/ACC/SQL/ADEC/SLDT/TRK/SUB apply at next trigger
 }
-static void off_303(M303 *s) { if (s->h >= 0) { note_off(s->h); s->h = -1; } s->prev_slide = false; }
+// STD button on P2: reset the DEEP page to no-ops → sounds exactly like a stock 303
+// with no Devil Fish at all (accent decays like a normal note, stock slide/attack, no
+// tracking/sub/sweep). Classic P1 knobs + the vanilla flag rows are left untouched.
+static void reset_deep(M303 *s) {
+    s->knob[K_ADEC] = s->knob[K_DEC];   // accent decays like a normal note (two-decay off)
+    s->knob[K_SLDT] = 0.14f;            // ≈60ms stock slide
+    s->knob[K_ATK]  = 0.05f;            // ≈2ms stock attack
+    s->knob[K_TRK]  = 0.0f;             // no filter tracking
+    s->knob[K_SUB]  = 0.0f;             // no sub voice
+    s->sweep = 0;                       // accent-sweep off
+    define_303(s);                      // re-apply the stock amp attack
+}
+static void off_303(M303 *s) {
+    if (s->h    >= 0) { note_off(s->h);    s->h    = -1; }
+    if (s->hsub >= 0) { note_off(s->hsub); s->hsub = -1; }
+    s->prev_slide = false;
+}
+
+static int lnlen(const Line *ln) { return ln->len ? ln->len : STEPS; }   // per-line LENGTH (0 = full 16)
 
 // step trigger — the authentic circuit, from tb303.c: a slid step does NOT
 // retrigger (glide carries the pitch, the filter env keeps decaying); accent
 // is louder AND a harder env kick; non-slid gates drop at ~70% of the step.
+// DEEP page adds: separate ACCENT DECAY, variable SLIDE TIME, FILTER TRACKING,
+// the accent-SWEEP onset, and the octave-down SUB voice (all no-ops at default).
+// `st` is the line's OWN step (s16 % lnlen) — a short line drifts against the bar.
 static void step_303(M303 *s, Line *ln, int st) {
     int b = 1 << st;
     if (ln->on & b) {
-        int midi = BASE + ln->pitch[st] + ((ln->oct & b) ? 12 : 0);
-        int vol  = (ln->acc & b) ? 7 : 5;
+        int  midi = BASE + ln->pitch[st] + ((ln->oct & b) ? 12 : (ln->octd & b) ? -12 : 0);
+        int  vol  = (ln->acc & b) ? 7 : 5;
+        bool acc  = (ln->acc & b) != 0;
         if (s->h >= 0 && s->prev_slide) {
-            note_glide(s->h, 60);
+            int g = slide_ms(s);                     // variable SLIDE TIME (was fixed 60)
+            note_glide(s->h, g);
             note_pitch(s->h, (float)midi);
             note_vol(s->h, vol);                     // env does NOT refire — authentic
+            if (s->hsub >= 0) { note_glide(s->hsub, g); note_pitch(s->hsub, (float)midi - 12); }
         } else {
-            if (s->h >= 0) note_off(s->h);
-            float e = env_hz(s) * sq_mul(s) * ((ln->acc & b) ? acc_mul(s) : 1.0f);
-            instrument_env(s->slot, 0, ENV_CUTOFF, 0, dec_ms(s), e);
+            if (s->h    >= 0) note_off(s->h);
+            if (s->hsub >= 0) { note_off(s->hsub); s->hsub = -1; }
+            float e    = env_hz(s) * sq_mul(s) * (acc ? acc_mul(s) : 1.0f);
+            int   dec  = acc ? adec_ms(s) : dec_ms(s);         // separate ACCENT DECAY (the two-decay)
+            int   soft = atk_ms(s) - 2; if (soft < 0) soft = 0;// SOFT ATTACK also rounds the FILTER onset (0 at stock, ~28ms wide open)
+            int   atk  = acc ? sweep_atk(s) : 0;               // accent-SWEEP onset (0 = off/instant)
+            if (soft > atk) atk = soft;                        // whichever rounds more wins
+            if (s->knob[K_TRK] > 0.001f) {                     // FILTER TRACKING: higher notes open the cutoff
+                int cut = cut_hz(s) + (int)(s->knob[K_TRK] * (midi - BASE) * 170.0f);
+                if (cut < 30) cut = 30;                        // musical floor (engine ladder_core now also guards, but keep the tracked cutoff sane)
+                instrument_filter(s->slot, FILTER_DIODE, cut, res_q(s));
+            }
+            instrument_env(s->slot, 0, ENV_CUTOFF, atk, dec, e);
             s->h = note_on(midi, s->slot, vol);
             note_glide(s->h, 0);
+            float sl = sub_lvl(s);                             // SUB-OSC: an octave down, only when dialed in
+            if (sl > 0.001f) {
+                s->hsub = note_on(midi - 12, sub_slot(s), 0);
+                note_vol(s->hsub, vol * sl);                    // SUB level 0..1 (note_vol takes fractions)
+                note_glide(s->hsub, 0);
+            }
         }
+        s->prev_slide = (ln->sld & b) != 0;
+    } else if (ln->tie & b) {
+        // TIE: hold the previous note through this step (sustain, no retrigger,
+        // no gate). A SLD flag on a tie step glides the held note into the NEXT.
         s->prev_slide = (ln->sld & b) != 0;
     } else {
         off_303(s);
     }
 }
 static void gate_303(M303 *s, Line *ln, int st) {   // staccato release mid-step
+    if (ln->tie & (1 << ((st + 1) % lnlen(ln)))) return;  // next step ties → let it ring on (sustain)
     int b = 1 << st;
     if (s->h >= 0 && (ln->on & b) && !(ln->sld & b)) {
         float f = beat_pos() * 4.0f; f -= (int)f;
-        if (f > 0.7f) { note_off(s->h); s->h = -1; }
+        if (f > 0.7f) {
+            note_off(s->h); s->h = -1;
+            if (s->hsub >= 0) { note_off(s->hsub); s->hsub = -1; }
+        }
     }
 }
 
@@ -546,7 +629,7 @@ static int cmute_x(void) { return W() - 30; }                      // folded-row
 // Content-aware, so an awkward narrow-and-short size flips to tabs instead of
 // overflowing its neighbours (caught by ui-audit --explore --resize).
 static int accordion_panel_h(void) { return screen_h() - tb_h() - (HDR_H + (NSTRIP - 1) * HDRC) - 14 - saf_b(); }
-static int panel_content_need(void) { int knobs = (W() - 12 >= NK * 26) ? 13 : 35; return knobs + 13 * 5 + 3 * 7 + 8; }
+static int panel_content_need(void) { int knobs = (W() - 12 >= NKMAX * 26) ? 13 : 35; return knobs + 13 * 5 + 4 * 7 + 6 + 8; }  // roll + 4 flag rows + LEN strip
 static bool use_tabs(void) { return accordion_panel_h() < panel_content_need(); }
 static int  tab_rail(void) { return 30; }                     // right end of the tab strip = the fx toggle
 static int  tab_w(void)    { return (W() - 2 - tab_rail()) / NSTRIP; }
@@ -560,7 +643,7 @@ static int panel_h(void) {
 // is what a phone-portrait rack wants — not an emergent column count.
 static int knob_cols(int n) { if (W() - 12 >= n * 26) return n; int c = (n + 1) / 2; return c < 1 ? 1 : c; }
 static int knob_block_h(int n) { int cols = knob_cols(n); int rows = (n + cols - 1) / cols; return (rows - 1) * 22 + 13; }
-static int roll_top(int y0) { return y0 + 12 + knob_block_h(NK); }   // 303 roll sits below the knob block
+static int roll_top(int y0) { return y0 + 12 + knob_block_h(NKMAX); }   // 303 roll sits below the (taller) knob page
 
 static int strip_y(int i) {            // header top of strip i
     int y = tb_h() + 2;
@@ -682,7 +765,7 @@ static void ride_pcf(void) {
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D0007u   // v7: full 16-voice 808 (+congas/rim/clave/cymbal) — struct grew, old saves ignored
+#define SAVE_MAGIC 0xAC1D000Au   // v10: 303 octave-DOWN + TIE + per-line LENGTH (vanilla tb303 parity) — Line struct grew, old saves ignored
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
@@ -691,7 +774,7 @@ typedef struct {
     unsigned cur_seed;
     float    knob[2][NK], mcut, mres, fxk[NFX], send[4], dist9, dist8;
     float    kt9[N909], kd9[N909], kc9[N909], kt8[N808], kd8[N808], kc8[N808];
-    int      wave[2];
+    int      wave[2], sweep[2];
     bool     songmode, mute[NSTRIP];
 } SaveBlob;
 static int  save_cooldown = 0;         // >0 → a save is pending
@@ -708,7 +791,7 @@ static void save_song(void) {
     memcpy(sb.send, send, sizeof send); sb.dist9 = dist9; sb.dist8 = dist8;
     memcpy(sb.kt9, kt9, sizeof kt9); memcpy(sb.kd9, kd9, sizeof kd9); memcpy(sb.kc9, kc9, sizeof kc9);
     memcpy(sb.kt8, kt8, sizeof kt8); memcpy(sb.kd8, kd8, sizeof kd8); memcpy(sb.kc8, kc8, sizeof kc8);
-    for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; }
+    for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; sb.sweep[i] = m[i].sweep; }
     sb.songmode = songmode;
     memcpy(sb.mute, mute, sizeof mute);
     save_bytes(&sb, sizeof sb);
@@ -726,7 +809,7 @@ static bool load_song(void) {
     memcpy(send, sb.send, sizeof send); dist9 = sb.dist9; dist8 = sb.dist8;
     memcpy(kt9, sb.kt9, sizeof kt9); memcpy(kd9, sb.kd9, sizeof kd9); memcpy(kc9, sb.kc9, sizeof kc9);
     memcpy(kt8, sb.kt8, sizeof kt8); memcpy(kd8, sb.kd8, sizeof kd8); memcpy(kc8, sb.kc8, sizeof kc8);
-    for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; }
+    for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; m[i].sweep = sb.sweep[i]; }
     songmode = sb.songmode;
     memcpy(mute, sb.mute, sizeof sb.mute);
     return true;
@@ -800,11 +883,13 @@ static void gen_line(Line *ln, int density) {      // one 16-step acid line
         ln->on |= b;
         int pc = schance(35) ? prev : pool[rad_srnd(&rs, 8)];
         ln->pitch[st] = (unsigned char)pc; prev = pc;
-        if (schance(15)) ln->oct |= b;
+        if (schance(15)) { if (schance(40)) ln->octd |= b; else ln->oct |= b; }  // octave down OR up
         if (schance(30)) ln->acc |= b;
         if (schance(25)) ln->sld |= b;
     }
     ln->on |= 1; ln->pitch[0] = 0;                 // land on the root
+    for (int st = 1; st < STEPS; st++)             // sprinkle ties onto rests → the prior note sustains (a 303 signature)
+        if (!((ln->on >> st) & 1) && schance(18)) ln->tie |= 1 << st;
 }
 static Line thin_line(const Line *src, int keep_pct) {   // per-bank density derive
     Line ln = *src;
@@ -1133,13 +1218,26 @@ void update(void) {
             if (px >= rx && px < rx + STEPS * pp && py >= ry && py < ry + 13 * 5) {
                 int st = (px - rx) / pp, row = 12 - (py - ry) / 5, b = 1 << st;
                 if (tap && (ln->on & b) && ln->pitch[st] == row) ln->on &= ~b;   // tap the note = erase
-                else { ln->on |= b; ln->pitch[st] = (unsigned char)row; }
+                else { ln->on |= b; ln->pitch[st] = (unsigned char)row; ln->tie &= ~b; }  // a fresh note clears any tie here
                 mark_dirty();
             }
             int fy = ry + 13 * 5 + 2;
-            if (tap && px >= rx && px < rx + STEPS * pp && py >= fy && py < fy + 21) {
+            if (tap && px >= rx && px < rx + STEPS * pp && py >= fy && py < fy + 28) {
                 int st = (px - rx) / pp, row = (py - fy) / 7, b = 1 << st;
-                if (row == 0) ln->oct ^= b; else if (row == 1) ln->acc ^= b; else ln->sld ^= b;
+                if      (row == 0) {                                 // OCT: off → up → down → off
+                    if      (ln->oct  & b) { ln->oct &= ~b; ln->octd |= b; }
+                    else if (ln->octd & b)   ln->octd &= ~b;
+                    else                     ln->oct  |= b;
+                }
+                else if (row == 1) ln->acc ^= b;
+                else if (row == 2) ln->sld ^= b;
+                else               { ln->tie ^= b; if (ln->tie & b) ln->on &= ~b; }  // a tie carries no fresh note
+                mark_dirty();
+            }
+            int ly = fy + 4 * 7 + 1;                                  // LENGTH strip
+            if (tap && px >= rx && px < rx + STEPS * pp && py >= ly && py < ly + 6) {
+                int c = (px - rx) / pp + 1;                           // tapped cell → length
+                ln->len = (c >= STEPS) ? 0 : (unsigned char)c;        // last cell = full 16 (stored as 0)
                 mark_dirty();
             }
         }
@@ -1270,8 +1368,10 @@ void update(void) {
         // 303s trigger on the flip (a held voice can't be scheduled ahead;
         // they also don't shuffle — noted in the design doc, revisit if the
         // straight-303-against-swung-drums clash bothers the ears at 60+)
-        if (!mute[STRIP_A]) step_303(&m[0], &P->ln[0], st); else off_303(&m[0]);
-        if (!mute[STRIP_B]) step_303(&m[1], &P->ln[1], st); else off_303(&m[1]);
+        lpos[0] = s16 % lnlen(&P->ln[0]);            // each line's OWN step (short len → polymeter drift vs the bar)
+        lpos[1] = s16 % lnlen(&P->ln[1]);
+        if (!mute[STRIP_A]) step_303(&m[0], &P->ln[0], lpos[0]); else off_303(&m[0]);
+        if (!mute[STRIP_B]) step_303(&m[1], &P->ln[1], lpos[1]); else off_303(&m[1]);
 
         // drums: schedule the NEXT step sample-accurate (the tr909 pattern) —
         // that's what makes shuffle and flam graces land between the frames
@@ -1303,8 +1403,8 @@ void update(void) {
         }
     } else {
         Pattern *P = &bank[playBank];
-        gate_303(&m[0], &P->ln[0], st);
-        gate_303(&m[1], &P->ln[1], st);
+        gate_303(&m[0], &P->ln[0], lpos[0]);          // the line's OWN current step (per-line length)
+        gate_303(&m[1], &P->ln[1], lpos[1]);
     }
 }
 
@@ -1365,52 +1465,77 @@ static void draw_303_panel(int i, int y0) {
     // piano roll: 13 rows (root..octave), playhead column, root rows tinted.
     // ry sits below the knob block (1 row wide → flush at +26; 2 rows → pushed down)
     int rx = 40, ry = roll_top(y0), pp = roll_pitch(), cw = pp - 1;
+    int L = lnlen(ln);                                   // per-line LENGTH; steps >= L are the dead zone
     for (int st = 0; st < STEPS; st++) {
         int cx = rx + st * pp;
-        int bg = (running && st == playhead) ? CLR_DARKER_GREY : CLR_BLACK;
+        bool dead = st >= L;
+        int bg = (running && st == lpos[i]) ? CLR_DARKER_GREY : CLR_BLACK;   // the LINE's own playhead (drifts if short)
         rectfill(cx, ry, cw, 13 * 5 - 1, bg);
         for (int r = 0; r <= 12; r += 12) {  // root + octave guide rows
             rectfill(cx, ry + (12 - r) * 5, cw, 4, bg == CLR_BLACK ? CLR_DARKER_GREY : CLR_DARK_GREY);
         }
         if ((ln->on >> st) & 1) {
             int row = ln->pitch[st];
-            int c = ((ln->acc >> st) & 1) ? CLR_RED : BANKCLR[editBank];
+            int c = dead ? CLR_DARK_GREY : (((ln->acc >> st) & 1) ? CLR_RED : BANKCLR[editBank]);   // dead steps dimmed
             rectfill(cx, ry + (12 - row) * 5, cw, 4, c);
             if ((ln->sld >> st) & 1) rectfill(cx + cw - 2, ry + (12 - row) * 5 + 1, 3, 2, CLR_WHITE);
         }
     }
+    if (L < STEPS) rectfill(rx + L * pp - 1, ry, 1, 13 * 5 - 1, CLR_RED);   // LENGTH divider — the loop end (tb303-style)
     font(FONT_SMALL);
     print("C3", 2, ry + 4, CLR_MEDIUM_GREY);
     print("C2", 2, ry + 12 * 5 - 5, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
-    // flag rows
-    static const char *FLAG[3] = { "OCT", "ACC", "SLD" };
+    // flag rows: OCT (up=yellow / down=indigo) · ACC · SLD · TIE (green = hold)
+    static const char *FLAG[4] = { "OCT", "ACC", "SLD", "TIE" };
     int fy = ry + 13 * 5 + 2;
     font(FONT_SMALL);
-    for (int r = 0; r < 3; r++) {
+    for (int r = 0; r < 4; r++) {
         print(FLAG[r], 14, fy + r * 7, CLR_MEDIUM_GREY);
-        unsigned short mask = r == 0 ? ln->oct : r == 1 ? ln->acc : ln->sld;
-        for (int st = 0; st < STEPS; st++)
-            rectfill(rx + st * pp, fy + r * 7, cw, 6,
-                     (mask >> st) & 1 ? (r == 1 ? CLR_RED : CLR_YELLOW) : CLR_DARKER_GREY);
+        for (int st = 0; st < STEPS; st++) {
+            int b = 1 << st, c;
+            if      (r == 0) c = (ln->oct & b) ? CLR_YELLOW : (ln->octd & b) ? CLR_INDIGO : CLR_DARKER_GREY;
+            else if (r == 1) c = (ln->acc & b) ? CLR_RED    : CLR_DARKER_GREY;
+            else if (r == 2) c = (ln->sld & b) ? CLR_YELLOW : CLR_DARKER_GREY;
+            else             c = (ln->tie & b) ? CLR_GREEN  : CLR_DARKER_GREY;
+            rectfill(rx + st * pp, fy + r * 7, cw, 6, c);
+        }
     }
+    // LENGTH strip: tap a cell to set the loop length (last cell = full 16). A short
+    // line drifts against the 16-step bar (polymeter). The red divider in the roll marks it.
+    int ly = fy + 4 * 7 + 1;
+    print("LEN", 14, ly, CLR_MEDIUM_GREY);
+    for (int st = 0; st < STEPS; st++)
+        rectfill(rx + st * pp, ly, cw, 5, st < L ? CLR_INDIGO : CLR_DARKER_GREY);
     font(FONT_NORMAL);
 
-    // knob row LAST — drawn on top. Labels are tiny PIXEL ICONS under each knob
-    // (far narrower than text), so the seven knobs stay ONE row until it's really
-    // tight instead of wrapping to two.
-    int cols = knob_cols(NK), kp = (W() - 52) / cols;
+    // knob row LAST — drawn on top. TWO PAGES: P1 = the classic 7, P2 = the DEEP
+    // page (the Devil Fish / TD-3-MO depth knobs). Labels are tiny vertical text.
+    // Both pages fit ONE row; the roll below is sized for the taller page (NKMAX)
+    // so it never shifts when you flip. (Right-aligned buttons assume a wide panel
+    // — phone-portrait wrapping is the device-adaptive-redesign todo's job.)
+    const int *pg = kpage[i] ? KPAGE1 : KPAGE0;
+    int npg  = kpage[i] ? NKP1 : NKP0;
+    int cols = knob_cols(NKMAX), kp = (W() - 52) / cols;
     font(FONT_TINY);
-    for (int k = 0; k < NK; k++) {
-        int cx = 26 + (k % cols) * kp, cy = y0 + 12 + (k / cols) * 22;
+    for (int j = 0; j < npg; j++) {
+        int k = pg[j];
+        int cx = 26 + (j % cols) * kp, cy = y0 + 12 + (j / cols) * 22;
         if (ui_knob(&s->knob[k], cx, cy, "")) { knob_changed_303(s, k); mark_dirty(); }
         print_rot(KNAME[k], cx - 12, cy, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
     }
     font(FONT_NORMAL);
+    // top-right controls (above the roll): [wave] [page]  + [STD reset][accent-sweep] on P2
     if (ui_button(W() - 32, y0 + 4, 28, 16, s->wave == INSTR_SAW ? "SAW" : "SQR")) {
         s->wave = (s->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
         define_303(s); mark_dirty();
+    }
+    if (ui_button(W() - 60, y0 + 4, 24, 16, kpage[i] ? "P2" : "P1")) { kpage[i] = !kpage[i]; mark_dirty(); }
+    if (kpage[i]) {
+        if (ui_button(W() - 86, y0 + 4, 24, 16, "STD")) { reset_deep(s); mark_dirty(); }   // reset DEEP → stock 303 (no Devil Fish)
+        static const char *SWL[4] = { "SW:off", "SW:slo", "SW:med", "SW:fst" };            // accent-sweep onset (Devil Fish: 3 speeds + off)
+        if (ui_button(W() - 134, y0 + 4, 44, 16, SWL[s->sweep & 3])) { s->sweep = (s->sweep + 1) & 3; mark_dirty(); }
     }
 }
 

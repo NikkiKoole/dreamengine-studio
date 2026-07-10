@@ -4448,6 +4448,13 @@ static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
 // diode=true → TB-303 diode ladder (a hair more feedback, tanh-soft-clipped feedback = the scream,
 // stage-3 output + res makeup). The two engines differ ONLY in those three flag-selected spots.
 static inline float ladder_core(Voice *v, float in, float cutoff_hz, bool diode) {
+    // GUARD the cutoff before tanf(): a cutoff at/above Nyquist makes tanf explode (→ g
+    // Inf/NaN → G NaN), and a <=0 cutoff is just as invalid. A NaN here poisons lad_s[]
+    // permanently (the ±8 clamp below does NOT catch NaN: NaN>8 and NaN<-8 are both false),
+    // silencing the voice AND everything it feeds (master bus) until reload. No valid cart
+    // cutoff is out of [10, ~0.49*SR], so this is a no-op for real audio — pure safety net.
+    if      (cutoff_hz < 10.0f)                        cutoff_hz = 10.0f;
+    else if (cutoff_hz > SOUND_SAMPLE_RATE * 0.49f)    cutoff_hz = SOUND_SAMPLE_RATE * 0.49f;
     float g  = tanf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
     float G  = g / (1.0f + g);                          // one-pole TPT integrator gain
     float res = (2.0f - v->flt_q) * (1.0f / 0.13f);     // recover res 0..15 from the damping

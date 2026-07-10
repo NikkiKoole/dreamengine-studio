@@ -82,7 +82,8 @@ Related ingredient the maker flagged worth more use: **the live-looper** (`loops
 first cart that records itself"). Overdubbing a theremin/martenot line *over* the tape-kit's
 loops is the Workshop's actual workflow (performance onto tape), and it's the looper crossover
 `tinyjam-racks.md` §Open questions + `input-recording-looper.md` already flag — this box is its
-natural customer.
+natural customer. The overdub-onto-tape workflow gets its own dedicated sketch in
+[`portastudio.md`](portastudio.md) (the bedroom cassette 4-track — takes not loops).
 
 **And the deeper realization (maker, 2026-07-02): the looper is the *notation* for buttonless
 instruments.** The step grid works for drums and 303 lines because they're discrete; a theremin /

@@ -16,7 +16,7 @@
   "lineage": "The Elektron Model:Cycles reimagined — an all-FM percussion groovebox. Chassis from drummachine.c (grid + beat() playhead + pointer paint); voices are six INSTR_FM machines instead of the analog kit. Adds the thing no cart has: per-step PARAMETER LOCKS. Design: docs/design/fmbox-blind-brief.md.",
   "description": {
     "summary": "An all-FM drum box: six machines on ONE FM engine, plus per-step parameter locks.",
-    "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock. A seventh selectable parameter, PROB, is the CONDITIONAL TRIG: set a step's chance to fire (the cell drains from the top — full = certain, half = a maybe) and it re-rolls live every loop, so the groove never repeats exactly. PROB rides the same select-and-drag gesture as the six macros, but it changes WHETHER a hit happens, not how it sounds.",
+    "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock. A seventh selectable parameter, PROB, is the CONDITIONAL TRIG: set a step's chance to fire (the cell drains from the top — full = certain, half = a maybe) and it re-rolls live every loop, so the groove never repeats exactly. PROB rides the same select-and-drag gesture as the six macros, but it changes WHETHER a hit happens, not how it sounds. Between the grid and the faders sits a monochrome LCD DANCER strip (Pocket Operator / Game & Watch lineage): a little segmented-LCD guy who dances to the SAME events the ear hears — kick stomps him, snare claps him, a chord is a ta-da, metal is a star, perc a pop ring, and the tone lands an eighth note at its pitch. Event-driven off the sequencer itself, never an FFT.",
     "controls": "TAP a cell = toggle. HOLD a lit cell + DRAG UP = set the SELECTED parameter for that step (a macro p-lock, or PROB = the trig chance); fling down to clear. Tap a machine name to select it; tap a fader (or arrows UP/DOWN) to pick a parameter — the six FM macros or PROB — and DRAG the fader to set the machine's base value. WASD move cursor, Z toggle, X clear grid. Arrows LEFT/RIGHT tempo. BPM buttons top-right."
   },
   "todo": [
@@ -53,6 +53,11 @@ de:meta */
 // A p-lock is applied the honest way: right before a step fires, the slot's
 // macros are set to that step's locked values (or the machine's base). That's a
 // per-STEP write, never per-frame, so it's not the effects-frame trap.
+//
+// The LCD DANCER strip (between grid and faders) is the first cut of the
+// event-driven visualizer specced in docs/design/tinyjam-racks-followup.md §3:
+// play_machine() stamps flash[]/fires[]/viz_midi[] for every hit, and draw_viz()
+// turns those into segmented-LCD poses — driven by the song data, never an FFT.
 
 #define ROWS  6
 #define STEPS 16
@@ -108,6 +113,8 @@ static int  selMac = K_COL;           // the macro the grid p-locks + shows
 static int  cur_step = 0;             // playhead column
 static int  last_16 = -1;             // last sixteenth we triggered
 static int  flash[ROWS];              // frame() each row last fired
+static int  fires[ROWS];              // how often each row has fired (dancer alternates on parity)
+static int  viz_midi[ROWS];           // the midi each row last fired (TONE's note lands at its pitch)
 static int  tempo = 124;
 
 static void play_machine(int r, int step);   // fwd — set_cell auditions through it
@@ -121,8 +128,10 @@ static float clampf(float v, float lo, float hi){ return v < lo ? lo : v > hi ? 
 #define SY 16    // row stride
 #define CW 14    // cell w
 #define CH 14    // cell h
-#define KY  144  // knob row top
-#define KH  34   // knob bar height
+#define VY 119   // LCD dancer strip top (between grid and knobs)
+#define VH 18    // LCD dancer strip height
+#define KY  150  // knob row top
+#define KH  28   // knob bar height
 #define KX  8    // first knob left
 #define KSTRIDE 44   // 7 params (6 macros + PROB) across the width
 
@@ -197,13 +206,58 @@ static void play_machine(int r, int step) {
     } else {
         hit(midi, slot, 5, dur);
     }
-    flash[r] = frame();
+    flash[r] = frame();               // the dancer's event tap: every hit the ear hears...
+    fires[r]++;                       // ...is a frame-stamped event the strip reads
+    viz_midi[r] = midi;
 }
 
 static void set_cell(int r, int c, bool on) {
     grid[r][c] = on;
     curR = r; curC = c; selRow = r;
     if (on) play_machine(r, c);                            // audition on turn-on
+}
+
+// ── the LCD dancer strip — a segmented-LCD window (Pocket Operator / Game & Watch
+//    lineage) where a little guy dances to the SAME events the ear hears. Driven by
+//    the song data (play_machine stamps flash[]/fires[]/viz_midi[]), never an FFT:
+//    kick → stomp, snare → clap, chord → ta-da, metal → star, perc → pop ring,
+//    tone → an eighth note landing at its pitch. Sprites: fmbox.cart.js, one ink. ──
+#define DANCER_X 152                  // dancer sprite left (figure centre ≈ 160)
+
+static void draw_viz(void) {
+    rectfill(0, VY, 320, VH, CLR_BLACK);                   // the LCD glass
+    int fr = frame();
+
+    // pose: idle bobs on the half-beat; events override it (chord > snare > kick)
+    int pose = (beat_pos() < 0.5f) ? 0 : 1;
+    if (fires[M_KICK]  && fr - flash[M_KICK]  < 9)  pose = 2 + (fires[M_KICK] & 1);
+    if (fires[M_SNARE] && fr - flash[M_SNARE] < 9)  pose = 4;
+    if (fires[M_CHORD] && fr - flash[M_CHORD] < 12) pose = 5;
+    spr(pose, DANCER_X, VY + 1);
+
+    // METAL → a star blinking beside the head, swapping sides per hit
+    int d = fr - flash[M_METAL];
+    if (fires[M_METAL] && d < 14 && ((d >> 2) & 1) == 0)
+        spr(6, DANCER_X + ((fires[M_METAL] & 1) ? 20 : -20), VY + 1);
+
+    // PERC → a pop ring farther out
+    d = fr - flash[M_PERC];
+    if (fires[M_PERC] && d < 8)
+        spr(7, DANCER_X + ((fires[M_PERC] & 1) ? 36 : -36), VY + 1);
+
+    // TONE → an eighth note popping up where its PITCH lands (low = left, high = right)
+    d = fr - flash[M_TONE];
+    if (fires[M_TONE] && d < 16) {
+        int x = 14 + (viz_midi[M_TONE] - MIDI_LO[M_TONE]) * 104
+                     / (MIDI_HI[M_TONE] - MIDI_LO[M_TONE]);
+        int hop = d < 8 ? (8 - d) / 3 : 0;                 // settles as it fades
+        spr(8, x, VY + 1 + (2 - hop));
+    }
+
+    // step ruler: 16 ghost segments, the playhead one lit (an LCD, so off ≠ invisible)
+    for (int c = 0; c < STEPS; c++)
+        rectfill(206 + c * 7, VY + VH - 5, 2, 3,
+                 c == cur_step ? CLR_LIGHT_YELLOW : CLR_DARKER_GREY);
 }
 
 void init() {
@@ -387,6 +441,8 @@ void draw() {
     // cursor outline
     rect(GX + curC * SX - 1, GY + curR * SY - 1, CW + 2, CH + 2, CLR_GREEN);
 
+    draw_viz();
+
     // ── param row: the selected machine's six FM macros + PROB (the conditional trig) ──
     print_right(str("%s", LABEL[selRow]), 316, KY - 12, LIT[selRow]);
     print(str("edit: %s", LABEL[selRow]), 4, KY - 12, CLR_LIGHT_GREY);
@@ -453,5 +509,11 @@ void spec(void) {
     expect(spec_close(step_val(M_KICK, 0, K_PROB), 0.5f, 0.02f), "a PROB lock reads as the chance");
     expect(spec_close(step_val(M_KICK, 0, K_COL), mac[M_KICK][K_COL], 0.001f),
            "a PROB lock leaves the FM macros at base (trig is orthogonal to sound)");
+
+    // 6) the dancer's event tap: every fired hit stamps fires[]/viz_midi[] (the strip
+    //    reads the SAME events the ear hears — the preset kick fires on step 0)
+    expect(fires[M_KICK] >= 1, "a fired step increments the dancer's fires[] tap");
+    expect(viz_midi[M_KICK] >= MIDI_LO[M_KICK] && viz_midi[M_KICK] <= MIDI_HI[M_KICK],
+           "the tap records the hit's midi within the machine's range");
 }
 #endif

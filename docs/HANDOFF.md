@@ -25,7 +25,7 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-10 (eight lanes: **editor↔cart workflow** — Gap 1b (`de:meta.slug`) + Gap 1 (code save-back) SHIPPED & committed: slug backfilled across all 455 carts + `lint-carts.js` REQUIRES it; the **"save to source" button** writes the Code-tab buffer back to `tools/carts/<slug>.c` + rebakes in place; NEXT = the PIXEL side (Gap 2 sprite story) → resume `design/editor-cart-workflow.md` Gap 2 · worldgen ladder — rungs 0–7 SHIPPED (district fill + Rotterdam calibration via `sndi-check --compare`; `citygen.h` extracted → sloop's M drives a generated city w/ collidable buildings) + the junction grammar `roadkit.h` (B2 pure geometry + B3 field renderer, streetlab byte-identical; citydrive draws curb-return junctions through it, J); NEXT = B4 grade dispatch → roadlab interchanges / the N+M infinite-world reconciliation · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-10 (eight lanes: **editor↔cart workflow** — Gap 1b (`de:meta.slug`) + Gap 1 (code save-back) SHIPPED & committed: slug backfilled across all 455 carts + `lint-carts.js` REQUIRES it; the **"save to source" button** writes the Code-tab buffer back to `tools/carts/<slug>.c` + rebakes in place; and the **PIXEL side (Gap 2) Option D SHIPPED** — reversible slot-level sprite PATCHES for generator carts (`tools/lib/sprite-patch.js` core + `make-cart` composite-on-bake + editor save-to-source diff; `de:spritepatch` chunk), so hand-edits survive the next CLI bake; NEXT = eyeball live + a discard button → resume `design/editor-cart-workflow.md` Gap 2 · worldgen ladder — rungs 0–7 SHIPPED (district fill + Rotterdam calibration via `sndi-check --compare`; `citygen.h` extracted → sloop's M drives a generated city w/ collidable buildings) + the junction grammar `roadkit.h` (B2 pure geometry + B3 field renderer, streetlab byte-identical; citydrive draws curb-return junctions through it, J); NEXT = B4 grade dispatch → roadlab interchanges / the N+M infinite-world reconciliation · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
@@ -39,7 +39,7 @@ media (record/replay + where it lands)**, (6) **responsive instrument UI + the s
 workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All below; none is
 "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-10) — editor↔cart workflow: the CODE round-trip SHIPPED, the PIXEL side next.**
+> **▶ ACTIVE THREAD (2026-07-10) — editor↔cart workflow: CODE round-trip + the PIXEL side (Option D) SHIPPED.**
 > Closing the gaps that bite when you hand-edit a cart in the editor instead of going through
 > `tools/carts/` + CLI (all in [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md)).
 > **Gap 1b (provenance) + Gap 1 (code save-back) are DONE and committed:**
@@ -55,18 +55,30 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 >   baked in: it re-embeds like `cart:save` in-place — does NOT shell out to `make-cart.js <src> <png>`,
 >   which rebuilds sprites from the `.cart.js` and would BLANK a hand-drawn sheet (make-cart.js ~378).
 > - Also shipped: a Settings → "cart panel" toggle to hide the save/load/save-to-source row.
-> **NEXT = the PIXEL side (Gap 2, the sprite story = STATUS item 23):** hand-painted sprite edits have
-> no path back to `tools/carts/`, and repainting a `.cart.js`-generator cart's sheet is silently
-> reverted by the next bake. save-to-source deliberately punts on this (source only + a `⚠ generator
-> exists` warning). Finding from this session: **all 58 sprite carts in the gallery use a `.cart.js`
-> generator — there are ZERO hand-drawn-sprite carts**, so Option A (pixels→.cart.js freeze) helps
-> nobody today; the real need is letting a human touch up a GENERATOR cart reversibly → **Option D
-> (slot-level patch/overlay, fingerprinted, proven by `gen-rom-font.js`'s `COMIC_PATCHES`)** looks
-> right, with **Option B (ownership marker)** as the cheap enforce-the-rule fallback. Decide A/B/C/D first.
-> **Resume-at: [`design/editor-cart-workflow.md` → Gap 2 the sprite story](design/editor-cart-workflow.md#gap-2--the-sprite-story--status-open-item-23).**
-> Hot files: `editor/electron/main.cjs` (`cart:save` / `cart:save-to-source`), `editor/src/shell.js`
-> (`saveToSource` / `gatherCartChunks`), `editor/src/sprite-editor.js` (the canvas), `tools/make-cart.js`
-> (`loadConfig` / the `<src> <png>` bake ~368-405), `tools/gen-rom-font.js` (`COMIC_PATCHES` prior art).
+> **PIXEL side (Gap 2, the sprite story = STATUS item 23) — Option D SHIPPED (bake + persist halves).**
+> The finding that **all generator carts are `.cart.js`-driven (ZERO hand-drawn)** meant the real need was
+> *reversible touch-ups on a generator cart* → straight to D (not A's freeze / B's marker). Committed:
+> - **`tools/lib/sprite-patch.js`** — the slot-level overlay CORE (palette-index space, no PNG decode):
+>   `fingerprintSlot`/`fingerprintSheet` (over the generator OUTPUT, not the source), `applyPatch`
+>   (fast-path → per-slot base-match → pure-addition-over-empty → else STALE: drop loudly + prune, so a
+>   wholesale regenerate self-empties), `buildPatch`, stable serialize. Tested 26/26 core + 8/8 bake-int.
+> - **`make-cart.js`** — `buildSpriteSheet` split into `genSlots`+`slotsToSheetPng` (byte-identical, verified
+>   on 4 real carts); `bakeSprites()` composites a sibling `tools/carts/<name>.sprites.patch.json`; the
+>   `<src> <png>` bake mirrors the surviving patch into the `.cart.png` as `de:spritepatch` (`--run` preserves it).
+> - **Editor save-to-source** (`main.cjs cart:save-to-source` + `shell.js readSheetSlots`/`saveToSource`) —
+>   diffs the sprite canvas vs the RE-RUN generator, writes only changed slots (deletes the file when nothing
+>   differs). Stateless (generator re-runnable → no snapshot). Data-layer-validated on 5 real carts (untouched
+>   sheet ⇒ empty patch, no spurious diffs); **NOT yet eyeballed live** (needs `make` to restart Electron).
+> **NEXT (eyeball-gated slice):** (1) `make`, open `05b-colorkey` (or any generator cart), hand-edit a slot →
+> save-to-source → confirm the toast + a sibling `.sprites.patch.json`, then `make-cart.js --run` keeps the
+> edit; (2) add an in-editor **"discard hand-edits"** button (= delete sibling + rebake) + a hand-owned-slots
+> **load indicator** (today discard = CLI `rm …sprites.patch.json`); (3) A's freeze stays the future "promote a
+> cart gone hand-drawn" path. **Edge:** a cart whose `.cart.png` already drifted from its generator captures the
+> drift as a patch on first save (defensible; `--run` rebake cleans it).
+> **Resume-at: [`design/editor-cart-workflow.md` → Gap 2 the sprite story](design/editor-cart-workflow.md#gap-2--the-sprite-story--status-open-item-23)** ("Option D — what shipped").
+> Hot files: `editor/electron/main.cjs` (`cart:save-to-source`), `editor/src/shell.js`
+> (`saveToSource`/`readSheetSlots`), `editor/src/sprite-editor.js` (the canvas), `tools/make-cart.js`
+> (`bakeSprites` / the `<src> <png>` bake), `tools/lib/sprite-patch.js` (the core).
 
 > **▶ ACTIVE THREAD (2026-07-10) — the worldgen ladder + the junction grammar (realistic roadgen).**
 > The ladder (rungs 0–3 shipped earlier) is now built end-to-end AND DRIVABLE, and the road-junction

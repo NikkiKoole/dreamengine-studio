@@ -861,9 +861,11 @@ ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64, 
 // edit survives the next CLI bake and is ready to commit. `slug` comes from the
 // cart's de:meta (backfilled + lint-required) — the PNG→source anchor
 // (editor-cart-workflow Gap 1/1b). Source only: sprites/map are NOT written to a
-// .cart.js generator (the two-sources-of-truth sprite story, STATUS item 23) — we
-// flag when a generator exists. Deliberately NOT a git commit (cart-commit.js does that).
-ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesDataUrl, mapBase64, settings }) => {
+// .cart.js generator: hand-edits to a generator cart's sheet are persisted as a
+// reversible slot-level PATCH (editor-cart-workflow Gap 2, "Option D") — the
+// generator stays a live program, the touch-ups survive the next CLI bake. See
+// tools/lib/sprite-patch.js. Deliberately NOT a git commit (cart-commit.js does that).
+ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesDataUrl, mapBase64, settings, spriteSlots }) => {
   if (!slug || !/^[\w-]+$/.test(slug)) return { ok: false, error: 'no cart slug (open a repo cart first)' }
   const ROOT    = path.join(__dirname, '../..')
   const cPath   = path.join(ROOT, 'tools', 'carts', `${slug}.c`)
@@ -879,13 +881,39 @@ ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesData
     //    sheet when there's no generator (make-cart.js ~line 378).
     const chunkData = { source, sprites: spritesDataUrl, map: mapBase64 }
     if (settings) chunkData.settings = JSON.stringify(settings)
+
+    // 2b. GENERATOR carts: diff the editor sheet against the (re-run) generator and
+    //     store only the changed slots as a patch beside the .c + mirrored into the
+    //     .cart.png (de:spritepatch). Stateless — the diff base is the generator's
+    //     current output, so there's no snapshot to keep. de:sprites stays the
+    //     editor canvas (= the composited view the user drew).
+    const cartJsPath   = cPath.replace(/\.c$/, '.cart.js')
+    const hasGenerator = fs.existsSync(cartJsPath)
+    let patchedSlots = 0, spriteError = null
+    if (hasGenerator && Array.isArray(spriteSlots)) {
+      try {
+        const mc = require('../../tools/make-cart.js')
+        const sp = require('../../tools/lib/sprite-patch.js')
+        try { delete require.cache[require.resolve(cartJsPath)] } catch {}   // pick up a live .cart.js edit
+        const cfg = mc.loadConfig(cPath)
+        if (cfg.sprites) {
+          const gen    = mc.genSlots(cfg.sprites, cfg.charMap)
+          const edited = {}
+          for (let s = 0; s < 64; s++) if (spriteSlots[s]) edited[s] = spriteSlots[s]
+          const patch  = sp.buildPatch(slug, gen, edited)
+          sp.writePatch(cPath, patch)   // writes the sibling file, or DELETES it if no slot differs
+          patchedSlots = Object.keys(patch.slots).length
+          if (patchedSlots) chunkData.spritepatch = sp.serializePatch(patch)
+        }
+      } catch (e) { spriteError = e.message }
+    }
+
     fs.writeFileSync(pngPath, embedCartChunks(fs.readFileSync(pngPath), chunkData))
     // 3. regenerate index.json so a de:meta edit (title/tags/…) registers
     let indexError = null
     try { require('../../tools/build-cart-index.js').writeIndex() }
     catch (e) { indexError = e.message }
-    const hasGenerator = fs.existsSync(cPath.replace(/\.c$/, '.cart.js'))
-    return { ok: true, cRel: `tools/carts/${slug}.c`, hasGenerator, indexError }
+    return { ok: true, cRel: `tools/carts/${slug}.c`, hasGenerator, patchedSlots, spriteError, indexError }
   } catch (e) {
     return { ok: false, error: e.message }
   }

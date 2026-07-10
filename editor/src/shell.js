@@ -2913,6 +2913,41 @@ function gatherCartChunks() {
   return { source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings }
 }
 
+// Read the 128×128 sprite sheet as 64 slots of 256 palette INDICES (row-major
+// 16×16), snapping each pixel to the nearest pico32 colour (transparent → 0). This
+// is what save-to-source diffs against a generator cart's output to build the
+// reversible sprite PATCH (Gap 2 / Option D). Returns null if the canvas is absent
+// or unreadable. Nearest-colour (not exact) tolerates any 1-LSB PNG round-trip.
+let _palRgb = null
+function readSheetSlots() {
+  const cv = document.querySelector('#tilemap-canvas')
+  if (!cv || cv.width < 128 || cv.height < 128) return null
+  let img
+  try { img = cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, 128, 128) }
+  catch { return null }
+  const d = img.data
+  if (!_palRgb) _palRgb = TL_PAL.map(h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255] })
+  const nearest = (r, g, b) => {
+    let bi = 0, bd = Infinity
+    for (let i = 0; i < 32; i++) {
+      const p = _palRgb[i], dr = r - p[0], dg = g - p[1], db = b - p[2], dd = dr * dr + dg * dg + db * db
+      if (dd < bd) { bd = dd; bi = i; if (dd === 0) break }
+    }
+    return bi
+  }
+  const slots = new Array(64)
+  for (let slot = 0; slot < 64; slot++) {
+    const ox = (slot % 8) * 16, oy = Math.floor(slot / 8) * 16
+    const arr = new Array(256)
+    for (let py = 0; py < 16; py++) for (let px = 0; px < 16; px++) {
+      const i = ((oy + py) * 128 + (ox + px)) * 4
+      arr[py * 16 + px] = d[i + 3] < 8 ? 0 : nearest(d[i], d[i + 1], d[i + 2])
+    }
+    slots[slot] = arr
+  }
+  return slots
+}
+
 // Save the open cart. `forceDialog` (Save As) always prompts; otherwise we
 // save-in-place when we have a real on-disk origin, else fall through to the
 // dialog (fresh / gallery carts have no origin to overwrite).
@@ -2947,17 +2982,20 @@ async function saveToSource() {
   const slug = currentCartFile
   if (!slug) { showToast('open a repo cart first', 2500); return }
   const { source, spritesDataUrl, mapBase64, settings: cartSettings } = gatherCartChunks()
+  const spriteSlots = readSheetSlots()   // for the generator-cart reversible sprite patch (Gap 2)
   // busy feedback: a long-lived toast (replaced by the result) + a disabled,
   // relabelled button, so the write+rebake round-trip never looks like a no-op.
   const btn = saveSourceBtn, label = btn ? btn.textContent : ''
   showToast(`saving → tools/carts/${slug}.c …`, 60000)
   if (btn) { btn.disabled = true; btn.textContent = 'saving…' }
   try {
-    const res = await window.studio.saveToSource({ slug, source, spritesDataUrl, mapBase64, settings: cartSettings })
+    const res = await window.studio.saveToSource({ slug, source, spritesDataUrl, mapBase64, settings: cartSettings, spriteSlots })
     if (!res || !res.ok) { showToast(res && res.error ? `save to source: ${res.error}` : 'save to source failed', 4500); return }
     let msg = `saved → ${res.cRel} + rebaked`
-    if (res.hasGenerator) msg += `  ⚠ ${slug}.cart.js exists — editor sprite/map edits won't reach it (sprite story)`
-    showToast(msg, res.hasGenerator ? 6000 : 3500)
+    if (res.patchedSlots > 0) msg += `  ✎ ${res.patchedSlots} hand-edited sprite slot(s) saved as a reversible patch`
+    else if (res.hasGenerator) msg += `  (${slug}.cart.js generator — no sprite edits to patch)`
+    if (res.spriteError) msg += `  ⚠ sprite patch: ${res.spriteError}`
+    showToast(msg, res.patchedSlots ? 6500 : 3500)
     if (res.indexError) console.warn('save to source: index.json regen failed:', res.indexError)
   } catch (e) {
     showToast('save to source failed: ' + ((e && e.message) || e), 4500)

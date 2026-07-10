@@ -150,6 +150,13 @@ is what makes a handed-over `.cart.png` legible. Cheap, additive, and reuses the
 
 ## Gap 2 — the sprite story (= STATUS open item 23)
 
+> **STATUS 2026-07-10 — Option D SHIPPED (bake + persist halves).** The core
+> (`tools/lib/sprite-patch.js`), the `make-cart.js` composite-on-bake, and the
+> editor **save-to-source** diff-and-write are live and tested (see "Option D —
+> what shipped" below). Still open: an in-editor **discard** button + a
+> hand-owned-slots **load indicator** (both eyeball-gated). The options survey
+> below is kept for the record.
+
 Facts and the bite are ledgered in [`../STATUS.md`](../STATUS.md) **open item
 23** — short version: editor pixels and a `.cart.js` generator are two sprite
 sources of truth that don't know about each other; repainting a generator
@@ -291,16 +298,47 @@ Later you (or the agent) rewrite the stick art in the generator → slot-5 hash
 changes → `base` mismatches → the patch is discarded with a warning, because a
 hand-edit against the old knob is meaningless on the new one.
 
-**Lean: B as the cheap guard now; D as the real human-in-the-loop answer; A the
-freeze tool; C already half-done.** B is one field plus two checks and stops the
-silent-revert *today* — ship it first. D is the one that fits collaborative
-drawing (you draw, the generator survives, patches discard-or-promote on
-purpose); build it when hand-tweaking generator carts becomes routine, and note
-that B's `spriteSource` marker is a natural precursor (a third value,
-`"generator+patch"`, switches D on per cart). A is genuinely useful the day a
-hand-drawn cart needs to enter `tools/carts/` source of truth, and it doubles as
-D's "promote" path. A reverse-engineering "array → sprite-draw program" exporter
-stays out of scope (not feasible, not needed).
+**Lean (as originally recorded): B the cheap guard, D the real answer, A the
+freeze tool, C already half-done.** In the event we went **straight to D** — the
+finding that *all* generator carts are `.cart.js`-driven (zero hand-drawn) meant
+B's "which source owns this?" marker had no ambiguity to resolve; the real need
+was reversible touch-ups on generator carts, which is exactly D. B is no longer
+needed as a precursor. A stays the future "promote a hand-drawn cart into
+`tools/carts/`" path (also D's promote exit). A reverse-engineering "array →
+sprite-draw program" exporter stays out of scope (not feasible, not needed).
+
+### Option D — what shipped (2026-07-10)
+
+The scheme above, minus one simplification: **no `de:gensheet` chunk.** The
+generator is always re-runnable (`make-cart.js`'s `loadConfig` → `genSlots`), so
+neither the bake nor the editor needs a stored pristine copy — the editor's patch
+is a **fresh diff of the current canvas against the re-run generator**, stateless,
+no snapshot bookkeeping. Everything works in palette-**index** space (256 ints
+0–31 per slot), so nothing ever decodes a PNG.
+
+- **`tools/lib/sprite-patch.js`** — the shared core, palette/PNG-agnostic:
+  `fingerprintSlot`/`fingerprintSheet` (sha256→16hex over the generator OUTPUT),
+  `applyPatch` (the 4-step bake algorithm above, with the loud stale-drop + prune),
+  `buildPatch` (diff a hand-edited sheet vs the generator), and stable
+  read/write/serialize (numeric slot order → clean re-bakes don't churn git).
+- **`make-cart.js`** — `buildSpriteSheet` split into `genSlots` + `slotsToSheetPng`
+  (byte-identical, verified); `bakeSprites()` runs the generator, composites the
+  sibling patch, prunes stale slots (loud), and the `<src> <png>` bake mirrors the
+  surviving patch into the `.cart.png` as `de:spritepatch`. `--run` already
+  preserves `de:*` chunks, so a thumbnail rebake keeps the patch.
+- **Editor `cart:save-to-source`** (`main.cjs`) — for a cart with a `.cart.js`,
+  the renderer (`shell.js` `readSheetSlots`) hands over the 128×128 sheet as 64
+  index-slots (nearest-pico32, transparent→0); main re-runs the generator,
+  `buildPatch`es the diff, and `writePatch`es the sibling file (or **deletes** it
+  when nothing differs) + mirrors `de:spritepatch`. The toast reports "N
+  hand-edited sprite slot(s) saved as a reversible patch."
+
+**Still open (eyeball-gated):** an in-editor "discard hand-edits" button (= delete
+the sibling file + rebake to restore the generator) and a "hand-owned slots"
+indicator on load. Today discard is the CLI `rm …sprites.patch.json` + rebake.
+**Known edge:** a cart whose committed `.cart.png` sprites have already DRIFTED
+from its generator captures that drift as a patch on first save — defensible
+(preserves what's on screen), cleaned by a `--run` rebake.
 
 ## Gap 3 — gallery metadata: can't add, can't edit, can't even read all of it
 

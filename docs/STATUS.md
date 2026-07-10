@@ -608,8 +608,20 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     fingerprint-stale patches discard, blessed ones promote into source) — is the
     human-in-the-loop answer; all four are weighed in
     [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md) §Gap 2 (options
-    A–D). Until one ships: generator carts should get sprite changes in the generator,
-    hand-drawn carts in the editor — never both.
+    A–D). **Option D SHIPPED (2026-07-10) — the bake + persist halves.** `tools/lib/sprite-patch.js`
+    is the slot-level overlay core (fingerprint the generator OUTPUT, not the source; per-slot
+    stale-drop; wholesale-regenerate self-empties). `make-cart.js` composites a sibling
+    `tools/carts/<name>.sprites.patch.json` over the generator on every bake and mirrors the
+    surviving patch into the `.cart.png` as `de:spritepatch`. The editor's **save-to-source** now
+    diffs the sprite canvas against the (re-run) generator and writes only the changed slots as that
+    patch — hand-edits to a generator cart survive the next CLI bake, the generator stays a live
+    program. **Discard mechanism today:** `rm tools/carts/<name>.sprites.patch.json` then rebake (an
+    in-editor "discard hand-edits" button + a "hand-owned slots" load indicator are the eyeball-gated
+    next slice). Gates: `node tools/…` core + bake sims (see the design doc). Rule stands for
+    *hand-drawn* carts (no generator; their pixels already live in the `.cart.png`); generator carts
+    now round-trip. Edge: a cart whose committed `.cart.png` sprites already DRIFTED from its
+    generator will capture that drift as a patch on first save — defensible (preserves what's shown),
+    resolved by a clean `--run` rebake.
 22. **Mobile-web readiness** *(new 2026-06-05, born from the live gallery + first
     real-device session)* — desktop-authored carts meet phones now. Shipped from
     the worklist (both 2026-06-05): ~~`tools/mobile-lint.js`~~ static checker

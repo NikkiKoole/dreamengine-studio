@@ -116,8 +116,9 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > 25/0 · `spec.js streetlab` 104/0 · `spec.js citydrive` 11/0 · **`spec.js roadlab` 25/0** · streetlab
 > `mirror-diff` + `road-check --all` · `sndi-check --compare build/citygrow-city.json
 > data/rotterdam-netherlands.rvb` PASS. For a roadkit interchange edit, the byte-identical render check is
-> the real safety net (topology spec can't see geometry): `play.js roadlab script <input> --dump` vs a
-> committed baseline — a stored input track lives at `tools/clips/roadlab/` if one was parked.
+> the real safety net (topology spec can't see geometry): dump the committed seed
+> `tools/clips/roadlab/01-junction-cycle.script` BEFORE and AFTER the edit and diff — must be byte-identical
+> (`node tools/play.js roadlab script tools/clips/roadlab/01-junction-cycle.script --frames 60 --dump <dir>`).
 
 > **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
 > A research question ("what's the best responsive UI for a music cart?") turned into

@@ -333,9 +333,14 @@ no snapshot bookkeeping. Everything works in palette-**index** space (256 ints
   when nothing differs) + mirrors `de:spritepatch`. The toast reports "N
   hand-edited sprite slot(s) saved as a reversible patch."
 
-**Still open (eyeball-gated):** an in-editor "discard hand-edits" button (= delete
-the sibling file + rebake to restore the generator) and a "hand-owned slots"
-indicator on load. Today discard is the CLI `rm …sprites.patch.json` + rebake.
+**Discard + indicator SHIPPED (2026-07-10).** The pixels tab carries a bar
+(`#sprite-patch-bar`) that names the hand-owned slots on load — the load handlers
+now thread `de:spritepatch` through to `applyCart` → `setSpritePatchBar`. Beside it,
+a **"discard hand-edits"** button (`cart:discard-sprite-patch`) deletes the sibling
+patch, re-runs the generator, re-embeds the pristine sheet without the
+`de:spritepatch` chunk, and reloads the canvas. CLI discard (`rm …sprites.patch.json`
++ rebake) still works. The whole editor UI (save-path + this) needs a live eyeball
+after `make` (main.cjs/preload changed).
 **Known edge:** a cart whose committed `.cart.png` sprites have already DRIFTED
 from its generator captures that drift as a patch on first save — defensible
 (preserves what's on screen), cleaned by a `--run` rebake.

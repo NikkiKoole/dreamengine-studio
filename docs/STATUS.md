@@ -615,9 +615,12 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     surviving patch into the `.cart.png` as `de:spritepatch`. The editor's **save-to-source** now
     diffs the sprite canvas against the (re-run) generator and writes only the changed slots as that
     patch — hand-edits to a generator cart survive the next CLI bake, the generator stays a live
-    program. **Discard mechanism today:** `rm tools/carts/<name>.sprites.patch.json` then rebake (an
-    in-editor "discard hand-edits" button + a "hand-owned slots" load indicator are the eyeball-gated
-    next slice). Gates: `node tools/…` core + bake sims (see the design doc). Rule stands for
+    program. **Discard + indicator SHIPPED (2026-07-10):** the pixels tab shows a bar naming the
+    hand-owned slots on load (from `de:spritepatch`, threaded through the cart-load handlers) with a
+    **"discard hand-edits"** button (`cart:discard-sprite-patch` — delete the sibling + re-run the
+    generator + drop the chunk + reload the canvas). CLI discard (`rm …sprites.patch.json` + rebake)
+    still works. Gates: `node tools/…` core + bake sims + a discard-logic sim (see the design doc);
+    the editor UI needs a live eyeball (main.cjs/preload changed → `make`). Rule stands for
     *hand-drawn* carts (no generator; their pixels already live in the `.cart.png`); generator carts
     now round-trip. Edge: a cart whose committed `.cart.png` sprites already DRIFTED from its
     generator will capture that drift as a patch on first save — defensible (preserves what's shown),

@@ -833,7 +833,7 @@ async function loadCartFromUrl(url) {
     if (!chunks.source) return
     let settings = null
     try { settings = chunks.settings ? JSON.parse(chunks.settings) : null } catch {}
-    cart = { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings }
+    cart = { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings, spritepatch: chunks.spritepatch || null }
   }
   if (cart && cart.ok) { applyCart(cart); switchTab('code') }
 }
@@ -2996,6 +2996,7 @@ async function saveToSource() {
     else if (res.hasGenerator) msg += `  (${slug}.cart.js generator — no sprite edits to patch)`
     if (res.spriteError) msg += `  ⚠ sprite patch: ${res.spriteError}`
     showToast(msg, res.patchedSlots ? 6500 : 3500)
+    setSpritePatchBar(res.patchSlots || [])   // reflect the (re)written patch — or clear it if it emptied
     if (res.indexError) console.warn('save to source: index.json regen failed:', res.indexError)
   } catch (e) {
     showToast('save to source failed: ' + ((e && e.message) || e), 4500)
@@ -3004,6 +3005,48 @@ async function saveToSource() {
   }
 }
 if (saveSourceBtn) saveSourceBtn.addEventListener('click', saveToSource)
+
+// ── the sprite-patch bar (Gap 2 / Option D) ───────────────────
+// Shows which sprite slots are hand-owned (patched over the generator) on the
+// loaded cart, and offers a one-click DISCARD (delete the patch + restore the
+// generator's sprites). Hidden entirely when there's no patch.
+function setSpritePatchBar(slots) {
+  const bar  = document.getElementById('sprite-patch-bar')
+  const info = document.getElementById('sprite-patch-info')
+  if (!bar || !info) return
+  const list = Array.isArray(slots) ? slots.slice().map(Number).sort((a, b) => a - b) : []
+  if (!list.length) { bar.style.display = 'none'; return }
+  info.textContent = `✎ ${list.length} slot${list.length > 1 ? 's' : ''} hand-owned over the generator: ${list.map(s => '#' + s).join(', ')}`
+  bar.style.display = ''
+}
+
+// parse the de:spritepatch chunk (JSON) into the sorted slot-index list the bar shows
+function patchSlotsFromChunk(patchJson) {
+  if (!patchJson) return []
+  try { return Object.keys(JSON.parse(patchJson).slots || {}).map(Number) } catch { return [] }
+}
+
+async function discardSpritePatch() {
+  if (!window.studio || !window.studio.discardSpritePatch) { showToast('discard needs Electron', 2500); return }
+  const slug = currentCartFile
+  if (!slug) { showToast('open a repo cart first', 2500); return }
+  if (!confirm(`Discard hand-edits on ${slug} and restore the generator's sprites?\nThis deletes tools/carts/${slug}.sprites.patch.json.`)) return
+  const btn = document.getElementById('discard-patch-btn'), label = btn ? btn.textContent : ''
+  if (btn) { btn.disabled = true; btn.textContent = 'discarding…' }
+  try {
+    const res = await window.studio.discardSpritePatch({ slug })
+    if (!res || !res.ok) { showToast(res && res.error ? `discard: ${res.error}` : 'discard failed', 4000); return }
+    if (res.spritesDataUrl) window.dispatchEvent(new CustomEvent('de:load-sprites', { detail: res.spritesDataUrl }))
+    setSpritePatchBar([])
+    showToast(`hand-edits discarded — ${slug} restored to its generator sprites`, 3500)
+  } catch (e) {
+    showToast('discard failed: ' + ((e && e.message) || e), 4000)
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label }
+  }
+}
+const discardPatchBtn = document.getElementById('discard-patch-btn')
+if (discardPatchBtn) discardPatchBtn.addEventListener('click', discardSpritePatch)
 // hide the whole cart-actions row (save / load / save to source) if opted out in settings
 if (settings.hideCartButtons) {
   const cartActions = document.getElementById('cart-actions')
@@ -3046,6 +3089,7 @@ function applyCart(cart) {
   if (cart.spritesDataUrl) {
     window.dispatchEvent(new CustomEvent('de:load-sprites', { detail: cart.spritesDataUrl }))
   }
+  setSpritePatchBar(patchSlotsFromChunk(cart.spritepatch))   // flag hand-owned slots (Gap 2)
   if (cart.mapBase64) {
     const bin = atob(cart.mapBase64)
     const bytes = new Uint8Array(bin.length)

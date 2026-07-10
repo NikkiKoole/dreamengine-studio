@@ -69,12 +69,14 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 >   diffs the sprite canvas vs the RE-RUN generator, writes only changed slots (deletes the file when nothing
 >   differs). Stateless (generator re-runnable → no snapshot). Data-layer-validated on 5 real carts (untouched
 >   sheet ⇒ empty patch, no spurious diffs); **NOT yet eyeballed live** (needs `make` to restart Electron).
-> **NEXT (eyeball-gated slice):** (1) `make`, open `05b-colorkey` (or any generator cart), hand-edit a slot →
-> save-to-source → confirm the toast + a sibling `.sprites.patch.json`, then `make-cart.js --run` keeps the
-> edit; (2) add an in-editor **"discard hand-edits"** button (= delete sibling + rebake) + a hand-owned-slots
-> **load indicator** (today discard = CLI `rm …sprites.patch.json`); (3) A's freeze stays the future "promote a
-> cart gone hand-drawn" path. **Edge:** a cart whose `.cart.png` already drifted from its generator captures the
-> drift as a patch on first save (defensible; `--run` rebake cleans it).
+> **Save-path VERIFIED LIVE (2026-07-10, maker)** — hand-edit → save-to-source → patch persists across `--run`.
+> **Discard + indicator BUILT (2026-07-10, data-layer tested 5/5, NOT yet eyeballed live):** the pixels tab shows
+> a `#sprite-patch-bar` naming the hand-owned slots on load (load handlers thread `de:spritepatch` →
+> `applyCart` → `setSpritePatchBar`) + a **"discard hand-edits"** button (`cart:discard-sprite-patch`: delete
+> sibling → re-run generator → drop the chunk → reload canvas). **NEXT:** (1) `make` (main.cjs/preload changed),
+> open a patched cart → confirm the bar names the slot + discard restores the generator sprites; (2) A's freeze
+> stays the future "promote a cart gone hand-drawn" path. **Edge:** a cart whose `.cart.png` already drifted from
+> its generator captures the drift as a patch on first save (defensible; `--run` rebake cleans it).
 > **Resume-at: [`design/editor-cart-workflow.md` → Gap 2 the sprite story](design/editor-cart-workflow.md#gap-2--the-sprite-story--status-open-item-23)** ("Option D — what shipped").
 > Hot files: `editor/electron/main.cjs` (`cart:save-to-source`), `editor/src/shell.js`
 > (`saveToSource`/`readSheetSlots`), `editor/src/sprite-editor.js` (the canvas), `tools/make-cart.js`

@@ -889,7 +889,7 @@ ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesData
     //     editor canvas (= the composited view the user drew).
     const cartJsPath   = cPath.replace(/\.c$/, '.cart.js')
     const hasGenerator = fs.existsSync(cartJsPath)
-    let patchedSlots = 0, spriteError = null
+    let patchedSlots = 0, patchSlots = [], spriteError = null
     if (hasGenerator && Array.isArray(spriteSlots)) {
       try {
         const mc = require('../../tools/make-cart.js')
@@ -902,7 +902,8 @@ ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesData
           for (let s = 0; s < 64; s++) if (spriteSlots[s]) edited[s] = spriteSlots[s]
           const patch  = sp.buildPatch(slug, gen, edited)
           sp.writePatch(cPath, patch)   // writes the sibling file, or DELETES it if no slot differs
-          patchedSlots = Object.keys(patch.slots).length
+          patchSlots   = Object.keys(patch.slots).map(Number)
+          patchedSlots = patchSlots.length
           if (patchedSlots) chunkData.spritepatch = sp.serializePatch(patch)
         }
       } catch (e) { spriteError = e.message }
@@ -913,7 +914,41 @@ ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesData
     let indexError = null
     try { require('../../tools/build-cart-index.js').writeIndex() }
     catch (e) { indexError = e.message }
-    return { ok: true, cRel: `tools/carts/${slug}.c`, hasGenerator, patchedSlots, spriteError, indexError }
+    return { ok: true, cRel: `tools/carts/${slug}.c`, hasGenerator, patchedSlots, patchSlots, spriteError, indexError }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+// ── discard a generator cart's sprite patch (Gap 2 / Option D) ──────
+// The editor "discard hand-edits" button: delete the sibling
+// tools/carts/<slug>.sprites.patch.json (the "kill" op), re-run the generator to
+// rebuild the pristine sheet, and re-embed it into the gallery .cart.png WITHOUT
+// the de:spritepatch chunk. Returns the fresh sprites data URL so the editor
+// reloads the canvas. (Deliberately NOT a git commit.)
+ipcMain.handle('cart:discard-sprite-patch', async (_event, { slug }) => {
+  if (!slug || !/^[\w-]+$/.test(slug)) return { ok: false, error: 'no cart slug' }
+  const ROOT      = path.join(__dirname, '../..')
+  const cPath     = path.join(ROOT, 'tools', 'carts', `${slug}.c`)
+  const cartJs    = cPath.replace(/\.c$/, '.cart.js')
+  const patchPath = cPath.replace(/\.c$/, '.sprites.patch.json')
+  const pngPath   = path.join(GALLERY_DIR, `${slug}.cart.png`)
+  if (!fs.existsSync(pngPath)) return { ok: false, error: `no gallery ${slug}.cart.png` }
+  try {
+    const mc = require('../../tools/make-cart.js')
+    if (fs.existsSync(patchPath)) fs.unlinkSync(patchPath)   // kill the patch (idempotent)
+    try { delete require.cache[require.resolve(cartJs)] } catch {}
+    const cfg    = mc.loadConfig(cPath)
+    const pngBuf = cfg.sprites ? mc.buildSpriteSheet(cfg.sprites, cfg.charMap) : mc.makeBlankSpritePng()
+    const spritesDataUrl = 'data:image/png;base64,' + pngBuf.toString('base64')
+    // re-embed: keep the existing source/map/settings, rebuild sprites, DROP the
+    // de:spritepatch chunk (embedCartChunks strips all de:* then writes only what we pass).
+    const existing  = extractCartChunks(fs.readFileSync(pngPath))
+    const chunkData = { source: existing.source, sprites: spritesDataUrl }
+    if (existing.map)      chunkData.map      = existing.map
+    if (existing.settings) chunkData.settings = existing.settings
+    fs.writeFileSync(pngPath, embedCartChunks(fs.readFileSync(pngPath), chunkData))
+    return { ok: true, spritesDataUrl }
   } catch (e) {
     return { ok: false, error: e.message }
   }
@@ -931,20 +966,20 @@ ipcMain.handle('cart:load', async () => {
   const chunks = extractCartChunks(fs.readFileSync(filePaths[0]))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
   const name = path.basename(filePaths[0]).replace(/\.cart\.png$/i, '')
-  return { ok: true, name, origin: inGallery(filePaths[0]) ? null : filePaths[0], source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
+  return { ok: true, name, origin: inGallery(filePaths[0]) ? null : filePaths[0], source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings), spritepatch: chunks.spritepatch || null }
 })
 
 ipcMain.handle('cart:load-buffer', async (_event, bytes) => {
   const chunks = extractCartChunks(Buffer.from(bytes))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
-  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
+  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings), spritepatch: chunks.spritepatch || null }
 })
 
 ipcMain.handle('cart:load-file', async (_event, filePath) => {
   const chunks = extractCartChunks(fs.readFileSync(filePath))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
   const name = path.basename(filePath).replace(/\.cart\.png$/i, '')
-  return { ok: true, name, origin: inGallery(filePath) ? null : filePath, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
+  return { ok: true, name, origin: inGallery(filePath) ? null : filePath, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings), spritepatch: chunks.spritepatch || null }
 })
 
 // ── sprites handler ───────────────────────────────────────────

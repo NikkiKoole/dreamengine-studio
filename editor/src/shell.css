@@ -1662,6 +1662,27 @@ mark.docs-find-hit.current {
   color: var(--accent);
 }
 
+/* the sprite-patch bar (Gap 2 / Option D): shown only when the loaded generator
+   cart carries hand-owned slots — names them + offers a one-click discard. */
+#sprite-patch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+#sprite-patch-info { color: var(--accent); }
+#discard-patch-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+#discard-patch-btn:hover { border-color: var(--accent); color: var(--accent); }
+
 .tutorials-search {
   position: sticky;
   top: -32px;                 /* cancels #panel-tutorials padding-top → pins flush to the top while scrolling */

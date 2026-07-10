@@ -4145,7 +4145,7 @@ void circ(int cx, int cy, int r, int color) {
     PROF("circ");
     // outline = pixels inside the disc that have at least one outside 4-neighbour.
     // SEAM for an O(perimeter) outline (the fills got the span treatment; the STROKES
-    // didn't). This scans the whole O(r²) bbox testing disc_inside 5×/pixel for an O(r)
+    // didn't). This scans the O(r²) bbox (visible-clamped below) testing disc_inside 5×/pixel for an O(r)
     // ring — a span version would, per row, emit just the endpoints [a,b] of the disc
     // span (from dx=√(r²-dy²), like circfill) plus the extra cap pixels where the row
     // above/below is narrower. Same idea fits `oval` and `poly_stroke_cov` below. PARKED —
@@ -4153,8 +4153,12 @@ void circ(int cx, int cy, int r, int color) {
     // 1.6ms/9% budget after the fill fix, and outlines are small/rare fleet-wide (survey:
     // circ ~109/frame across 9 carts). Finish-the-set tidiness, not a fleet win. See
     // docs/guides/engine-optimization.md → "Outline strokes (parked)".
-    for (int y = cy - r; y <= cy + r; y++)
-        for (int x = cx - r; x <= cx + r; x++)
+    // Scan box clamped to the visible region (poly_clamp_scan) — the skipped pixels are
+    // provably off-viewport, so pset would have dropped them anyway. Byte-identical.
+    int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
+    poly_clamp_scan(&x0, &y0, &x1, &y1);
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++)
             if (disc_inside(x,y,cx,cy,r) &&
                 (!disc_inside(x-1,y,cx,cy,r) || !disc_inside(x+1,y,cx,cy,r) ||
                  !disc_inside(x,y-1,cx,cy,r) || !disc_inside(x,y+1,cx,cy,r)))
@@ -4190,9 +4194,12 @@ void circfill(int cx, int cy, int r, int color) {
             if (a <= b) sw_span(a, y, b - a + 1, col);
         }
     } else {
-        // legacy / fallback — all pixels inside the disc; plot_pat handles solid + fillp dither
-        for (int y = cy - r; y <= cy + r; y++)
-            for (int x = cx - r; x <= cx + r; x++)
+        // legacy / fallback — all pixels inside the disc; plot_pat handles solid + fillp dither.
+        // Scan box clamped like the fast path — skipped pixels are off-viewport (byte-identical).
+        int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
+        poly_clamp_scan(&x0, &y0, &x1, &y1);
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
                 if (disc_inside(x, y, cx, cy, r)) plot_pat(x, y, color);
     }
     UIAUDIT('c', cx - r, cy - r, 2 * r + 1, 2 * r + 1, NULL);
@@ -4263,8 +4270,11 @@ static void sector_draw(int cx, int cy, int r_in, int r_out, float s, float e,
     float lo = s < e ? s : e, hi = s < e ? e : s;
     int full = (hi - lo) >= 360.0f;
     float ri2 = (float)r_in * r_in, ro2 = (float)r_out * r_out;
-    for (int yy = cy - r_out; yy <= cy + r_out; yy++)
-        for (int xx = cx - r_out; xx <= cx + r_out; xx++) {
+    // Scan box clamped to the visible region — skipped pixels are off-viewport (byte-identical).
+    int x0 = cx - r_out, y0 = cy - r_out, x1 = cx + r_out, y1 = cy + r_out;
+    poly_clamp_scan(&x0, &y0, &x1, &y1);
+    for (int yy = y0; yy <= y1; yy++)
+        for (int xx = x0; xx <= x1; xx++) {
             if (!sector_inside(xx,yy,cx,cy,ri2,ro2,lo,hi,full)) continue;
             if (stroke_only &&                                         // skip interior pixels
                 sector_inside(xx-1,yy,cx,cy,ri2,ro2,lo,hi,full) &&
@@ -5062,6 +5072,7 @@ static void thick_draw(int x1, int y1, int x2, int y2, int w, int color, bool st
     int r = (int)hw + 1;
     int x0 = (x1 < x2 ? x1 : x2) - r, x9 = (x1 > x2 ? x1 : x2) + r;
     int y0 = (y1 < y2 ? y1 : y2) - r, y9 = (y1 > y2 ? y1 : y2) + r;
+    poly_clamp_scan(&x0, &y0, &x9, &y9);    // off-viewport rows/cols cost nothing (byte-identical)
     for (int py = y0; py <= y9; py++)
         for (int px = x0; px <= x9; px++) {
             if (!capsule_inside(px,py,x1,y1,dx,dy,len2,hw2)) continue;
@@ -5088,9 +5099,12 @@ void rrect(int x, int y, int w, int h, int r, int color) {
     if (r <= 0) { rect(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
-    // outline = pixels inside that have at least one outside 4-neighbour
-    for (int py = y; py < y + h; py++)
-        for (int px = x; px < x + w; px++)
+    // outline = pixels inside that have at least one outside 4-neighbour.
+    // Scan box clamped to the visible region — skipped pixels are off-viewport (byte-identical).
+    int sx0 = x, sy0 = y, sx1 = x + w - 1, sy1 = y + h - 1;
+    poly_clamp_scan(&sx0, &sy0, &sx1, &sy1);
+    for (int py = sy0; py <= sy1; py++)
+        for (int px = sx0; px <= sx1; px++)
             if (rrect_inside(px,py,x,y,w,h,r) &&
                 (!rrect_inside(px-1,py,x,y,w,h,r) || !rrect_inside(px+1,py,x,y,w,h,r) ||
                  !rrect_inside(px,py-1,x,y,w,h,r) || !rrect_inside(px,py+1,x,y,w,h,r)))
@@ -5102,9 +5116,12 @@ void rrectfill(int x, int y, int w, int h, int r, int color) {
     if (r <= 0) { rectfill(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
-    // fill = all pixels inside; plot_pat handles both solid and fillp dither
-    for (int py = y; py < y + h; py++)
-        for (int px = x; px < x + w; px++)
+    // fill = all pixels inside; plot_pat handles both solid and fillp dither.
+    // Scan box clamped to the visible region — skipped pixels are off-viewport (byte-identical).
+    int sx0 = x, sy0 = y, sx1 = x + w - 1, sy1 = y + h - 1;
+    poly_clamp_scan(&sx0, &sy0, &sx1, &sy1);
+    for (int py = sy0; py <= sy1; py++)
+        for (int px = sx0; px <= sx1; px++)
             if (rrect_inside(px, py, x, y, w, h, r)) plot_pat(px, py, color);
 }
 
@@ -5497,8 +5514,12 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
             if (a <= b) sw_span(a, y, b - a + 1, col);
         }
     } else {
-        for (int y = cy - ry; y <= cy + ry; y++)
-            for (int x = cx - rx; x <= cx + rx; x++)
+        // fallback (rotated camera / fillp) — scan box clamped like the fast path;
+        // skipped pixels are off-viewport (byte-identical).
+        int x0 = cx - rx, y0 = cy - ry, x1 = cx + rx, y1 = cy + ry;
+        poly_clamp_scan(&x0, &y0, &x1, &y1);
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
                 if (ellipse_inside(x, y, cx, cy, rx, ry)) plot_pat(x, y, color);
     }
 }
@@ -5508,8 +5529,11 @@ void oval(int cx, int cy, int rx, int ry, int color) {
     // Same O(perimeter)-outline seam as `circ` (see its note); PARKED, low-leverage.
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
-    for (int y = cy - ry; y <= cy + ry; y++)
-        for (int x = cx - rx; x <= cx + rx; x++)
+    // Scan box clamped to the visible region — skipped pixels are off-viewport (byte-identical).
+    int x0 = cx - rx, y0 = cy - ry, x1 = cx + rx, y1 = cy + ry;
+    poly_clamp_scan(&x0, &y0, &x1, &y1);
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++)
             if (ellipse_inside(x,y,cx,cy,rx,ry) &&
                 (!ellipse_inside(x-1,y,cx,cy,rx,ry) || !ellipse_inside(x+1,y,cx,cy,rx,ry) ||
                  !ellipse_inside(x,y-1,cx,cy,rx,ry) || !ellipse_inside(x,y+1,cx,cy,rx,ry)))

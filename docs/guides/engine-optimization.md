@@ -263,6 +263,23 @@ carts), and orbit, the one cart that made it visible, is already fine. **Finish-
 not a fleet win** — pursue only if an outline-bound cart shows up. Seams left in `circ` (the full
 note), `oval`, and `poly_stroke_cov` (`studio.c`).
 
+### Scan-box clamp for the per-pixel coverage scans — SHIPPED
+The span fast paths (`circfill`/`ovalfill` solid, `poly_fill_cov`, `poly_stroke_cov`) already
+clamped their scan box to the visible region via `poly_clamp_scan` — but the remaining **per-pixel
+coverage loops didn't**, so a shape whose bounding box hangs off-screen paid for the whole box:
+`circ`, `oval`, `circfill`/`ovalfill` **fallbacks** (rotated camera or `fillp` dither),
+`sector_draw` (arc/arcfill/arcoutline/ring/ringoutline — an `atan2f` per scanned pixel),
+`thick_draw` (thickline/thicklineoutline), and `rrect`/`rrectfill`. Surfaced by the `cityview`
+family's "never circfill" workaround — its `pdisc`→`polyfill` route landed on the clamped path
+while the circle primitives themselves stayed unclamped. Fix: the same one-call clamp at all
+eight sites; **byte-identical by construction** (skipped pixels are provably off-viewport, so
+`pset` would have dropped them after paying per-pixel cost).
+**Validation:** 30-frame dumps byte-identical pre/post (`drawall`/`orbit` + an off-screen-shapes
+probe); `canvas-diff drawall`'s pre-existing GPU-vs-SW divergence confirmed identical on the HEAD
+engine (not introduced). **Result:** the probe (10 huge mostly-off-screen shapes/frame, R≈300–500)
+**76.4 → 1.16ms (66×)**; on-screen shapes unchanged. Note this clamps the *off-screen* waste only —
+the O(r²)-scan-for-an-O(r)-ring outline seam above stays PARKED.
+
 ### Per-frame clamp-box cache — SHIPPED (`13fdeca`)
 `poly_clamp_scan` called `GetScreenToWorld2D` **4× per fill call** (a camera-matrix inverse ×4),
 yet the visible-region box is **constant for the whole frame** unless the cart calls `camera()`.
@@ -339,6 +356,7 @@ competitive, which is the point of the toggle.)
 | 2026-06 | all software fills | per-frame clamp-box cache (4 matrix inverts → per camera-change) | `clampstress` STATIC+PAN byte-identical, `raster_test` 0 | `clampstress` 28%; qbert 9%, oersoep 10%; neutral on large-fill carts | `DE_CLAMP_CACHE=off` · `13fdeca` |
 | 2026-06-25 | software canvas (rotated blits) | texel-read (`img_texel`) + no-scale fast path + inline-plot + camera/row-pointer hoist on `de_cpu_img_rot`/`sw_blit`/`sw_tritex` | `canvas-diff` 0px (byte-identical), `build-all` | `rotstress` 12.70→8.14ms @4000 (~36%); slowdown vs GPU ~11×→7×; **flipped `cityview` to a SW win** | full write-up in [software-canvas.md](../design/software-canvas.md) "Rotated-sampling optimization" |
 | 2026-06-25 | software canvas (sprite blit) | `sw_blit` fast path: direct `uint32` row-copy for the axis-aligned/unscaled/unflipped/`zoom==1`/no-pal/RGBA8 case (skips per-pixel `img_texel`/`sw_keyed`/`sw_pset`/`sw_w2s`/`sw_pack` + the `i*sw/dw` divide; clip once) | `canvas-diff bunnymark` frame 0 = 0px (byte-identical to GPU, path on & off), `build-all` 436/436 | `bunnymark` software 3.25→0.59ms @1200 (**5.5×**); SW-vs-HW sprite gap ~12×→~2× | `DE_BLIT_FAST=off` · `aeebfddd` |
+| 2026-07-10 | per-pixel coverage scans | scan-box clamp (`poly_clamp_scan`) on the 8 remaining unclamped loops: `circ`, `oval`, `circfill`/`ovalfill` fallbacks (rotated cam / `fillp`), `sector_draw` (arc/ring family), `thick_draw`, `rrect`/`rrectfill` | 30-frame dumps byte-identical (`drawall`/`orbit`/off-screen probe); `canvas-diff drawall` divergence confirmed pre-existing on HEAD | off-screen probe (10 huge R≈300–500 shapes) **76.4→1.16ms (66×)**; on-screen unchanged | no flag (clamp-only, byte-identical) |
 | 2026-07-02 | software canvas (textured tris / 3D) | `sw_tritex` scan-box clamp (`poly_clamp_scan` — the raw vertex bbox scanned millions of off-screen cells for near-projected 3D faces) + hoisted row-write plot on the zoom==1 canvas (camera offset/clip folded into loop bounds; decisions = legacy float math verbatim) | 5-cart SW frame dumps byte-identical legacy-vs-fast (textured3d/podracer/citydrive/infiniminer/drawall) + determinism control; `canvas-diff drawall` unchanged vs legacy | **`infiniminer` 1204→3.4ms (358×, now beats its 3.8ms GPU path)**, `podracer` 19.1→1.6ms (12×), `citydrive` 1.5×, `textured3d` 1.15× | `DE_TRITEX_FAST=off` · `0b7af3d2` |
 
 ---

@@ -260,6 +260,17 @@ static void ar_draw(void) {
         circfill(gx, gy, 2, CLR_RED);
     }
     circ(cx, cy, (int)(ar_R * P), CLR_DARK_PURPLE);      // the extent cap
+    // rung 5.5b: the QUERY-SEAM proof — a crosshair at the view centre, coloured
+    // by citygen_road_at (green = on an arterial, yellow = on a minor street, red
+    // = off-road). Pan it over the city: it flips exactly at the drawn streets —
+    // screen == query, the seam sloop will drive.
+    float qwx = camX + SCREEN_W * 0.5f / P, qwy = camY + SCREEN_H * 0.5f / P;
+    CityHit qh = citygen_road_at(qwx, qwy);
+    int qc = qh.on_road ? (qh.minor ? CLR_YELLOW : CLR_GREEN) : CLR_RED;
+    int qx = SCREEN_W / 2, qy = SCREEN_H / 2;
+    line(qx - 5, qy, qx + 5, qy, qc); line(qx, qy - 5, qx, qy + 5, qc);
+    circ(qx, qy, 3, qc);
+    print(qh.on_road ? (qh.minor ? "street" : "ARTERIAL") : "off-road", qx + 8, qy - 3, qc);
 }
 
 // ── Rung 4 (K): the DISTRICTS — the planar faces the arterials enclose ───────
@@ -447,6 +458,19 @@ void update(void) {
         watch("pat_super", "%d", pc[MP_SUPERBLOCK]);
         watch("minor_n",   "%d", ms_n);
         watch("minor_e",   "%d", me_n);
+        // rung 5.5b: the query seam — on_road over a grid, + at the city centre.
+        // Deterministic + agrees with the rendered streets (screen == query).
+        int on = 0, onm = 0, ns = 0;
+        for (int gy = 0; gy < 24; gy++)
+            for (int gx = 0; gx < 24; gx++) {
+                float qx = ar_cx + (gx - 11.5f) * (ar_R / 12.0f);
+                float qy = ar_cy + (gy - 11.5f) * (ar_R / 12.0f);
+                CityHit q = citygen_road_at(qx, qy);
+                ns++; if (q.on_road) { on++; if (q.minor) onm++; }
+            }
+        watch("q_center", "%d", citygen_road_at(ar_cx, ar_cy).on_road);
+        watch("q_onroad", "%d", on);       // of 576 grid samples over the extent
+        watch("q_minor",  "%d", onm);
     }
     // deterministic probes — the rung-2 gate reads these (same seed → same field)
     watch("d_spawn", "%.4f", density_at(SPAWN_X, SPAWN_Y));

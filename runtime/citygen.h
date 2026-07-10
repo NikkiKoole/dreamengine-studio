@@ -720,4 +720,43 @@ static void ar_graph_ensure(void) {
     g_valid = 1;
 }
 
+// ── the QUERY SEAM (rung 5.5b) — the twin of worldnet's wn_road_at, over the
+// generated city. On_road when within a class half-width of any street. This is
+// what the spine / sloop will call to DRIVE the generated city (screen == query:
+// the same segments ar_draw/ms_draw render). Brute-force over the current cached
+// city (a city is bounded → thousands of segments); a caller wanting per-frame
+// speed builds a grid index over these same segments (the rung-5.5c concern).
+#define CG_ART_HW   12.0f     // arterial carriageway half-width (m)
+#define CG_MINOR_HW  5.0f     // minor-street half-width (m)
+typedef struct { int on_road; float dist; int minor; } CityHit;
+
+static float cg_seg_d2(float px, float py, float ax, float ay, float bx, float by) {
+    float dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    float t = L2 > 1e-6f ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+    if (t < 0) t = 0; if (t > 1) t = 1;
+    float qx = ax + t * dx, qy = ay + t * dy;
+    return (px - qx) * (px - qx) + (py - qy) * (py - qy);
+}
+
+static CityHit citygen_road_at(float x, float y) {
+    ar_graph_ensure();
+    float bestA = 1e18f, bestM = 1e18f;
+    for (int l = 0; l < ar_nl; l++)                      // arterials (the traced polylines)
+        for (int i = 0; i + 1 < ar_np[l]; i++) {
+            float d = cg_seg_d2(x, y, ar_px[l][i], ar_py[l][i], ar_px[l][i + 1], ar_py[l][i + 1]);
+            if (d < bestA) bestA = d;
+        }
+    for (int e = 0; e < me_n; e++) {                     // minor streets + stitches
+        float d = cg_seg_d2(x, y, msx[mea[e]], msy[mea[e]], msx[meb[e]], msy[meb[e]]);
+        if (d < bestM) bestM = d;
+    }
+    CityHit h;
+    float dA = fsqrt(bestA), dM = fsqrt(bestM);
+    int on_a = dA <= CG_ART_HW, on_m = dM <= CG_MINOR_HW;
+    h.minor = on_m && (!on_a || dM < dA);                // nearest that we're actually ON
+    h.on_road = on_a || on_m;
+    h.dist = h.minor ? dM : dA;
+    return h;
+}
+
 #endif // CITYGEN_H

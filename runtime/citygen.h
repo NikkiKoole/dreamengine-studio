@@ -724,11 +724,11 @@ static float cg_seg_d2(float px, float py, float ax, float ay, float bx, float b
     return (px - qx) * (px - qx) + (py - qy) * (py - qy);
 }
 
-// ── Rung 7: BUILDINGS — one terrace box lining each minor-street frontage (a
-// Dutch-style block face), set back off the carriageway and kept clear of the
-// arterials. Oriented boxes in metres, cached with the city; the caller (sloop)
-// maps them to world-px and emits them as solid OB_HOUSE obstacles.
-#define CGB_MAX    4000
+// ── Rung 7: BUILDINGS — terraces lining the streets (Dutch block faces), set back off the
+// carriageway. Both the ARTERIALS (the wide roads you actually drive — so the drive is built-up) AND
+// the minor streets are lined; minors near an arterial are skipped so the two don't double up.
+// Oriented boxes in metres, cached with the city; the caller (sloop) emits them as solid OB_HOUSE.
+#define CGB_MAX    10000
 #define CGB_DEPTH  14.0f      // building depth (m)
 #define CGB_SET     3.0f      // setback from the carriageway edge (m)
 static float cgb_mx[CGB_MAX], cgb_my[CGB_MAX], cgb_w[CGB_MAX], cgb_h[CGB_MAX], cgb_ang[CGB_MAX];
@@ -736,6 +736,22 @@ static int   cgb_n;
 
 static void cg_lots(void) {
     cgb_n = 0;
+    #define CGB_ADD(CX,CY,BLEN,ANG) do { if (cgb_n<CGB_MAX && height_at(CX,CY)>=0.0f){ \
+        cgb_mx[cgb_n]=(CX); cgb_my[cgb_n]=(CY); cgb_w[cgb_n]=(BLEN); cgb_h[cgb_n]=CGB_DEPTH; \
+        cgb_ang[cgb_n]=(ANG); cgb_n++; } } while(0)
+    // 1) ARTERIALS — a terrace per side every ~2 segments (~80 m), set back beyond the wide
+    //    carriageway. These give the drive its frontage (the rig spends its time on the arterials).
+    float aoff = CG_ART_HW + CGB_SET + CGB_DEPTH * 0.5f;
+    for (int l = 0; l < ar_nl && cgb_n < CGB_MAX; l++)
+        for (int i = 0; i + 2 < ar_np[l] && cgb_n < CGB_MAX; i += 2) {
+            float ax = ar_px[l][i], ay = ar_py[l][i], bx = ar_px[l][i+2], by = ar_py[l][i+2];
+            float dx = bx-ax, dy = by-ay, len = fsqrt(dx*dx+dy*dy); if (len < 8.0f) continue;
+            float px = -dy/len, py = dx/len, mx = (ax+bx)*0.5f, my = (ay+by)*0.5f;
+            float blen = len*0.9f, ang = atan2f(dy,dx)*57.29578f;
+            CGB_ADD(mx + px*aoff, my + py*aoff, blen, ang);
+            CGB_ADD(mx - px*aoff, my - py*aoff, blen, ang);
+        }
+    // 2) MINOR streets — one terrace per side, off the arterials (so the two passes don't overlap).
     float off = CG_MINOR_HW + CGB_SET + CGB_DEPTH * 0.5f;
     float clr2 = (CG_ART_HW + 4.0f) * (CG_ART_HW + 4.0f);
     for (int e = 0; e < me_n && cgb_n < CGB_MAX; e++) {
@@ -744,23 +760,21 @@ static void cg_lots(void) {
         if (len < 26.0f) continue;                       // stubs too short to line
         float px = -dy / len, py = dx / len;             // perpendicular to the street
         float mx = (ax + bx) * 0.5f, my = (ay + by) * 0.5f;
-        float blen = len * 0.8f; if (blen > 45.0f) blen = 45.0f;   // cap so alleys read between blocks
+        float blen = len * 0.86f; if (blen > 140.0f) blen = 140.0f;   // fill the block FACE (terrace)
         float ang = atan2f(dy, dx) * 57.29578f;
-        for (int s = -1; s <= 1 && cgb_n < CGB_MAX; s += 2) {      // one terrace each side
+        for (int s = -1; s <= 1 && cgb_n < CGB_MAX; s += 2) {
             float cx = mx + px * off * s, cy = my + py * off * s;
-            if (height_at(cx, cy) < 0.0f) continue;      // water
-            float dmin = 1e18f;                          // keep off the arterials (the driven roads)
+            float dmin = 1e18f;                          // skip minors that sit on/near an arterial
             for (int l = 0; l < ar_nl; l++)
                 for (int i = 0; i + 1 < ar_np[l]; i++) {
                     float d = cg_seg_d2(cx, cy, ar_px[l][i], ar_py[l][i], ar_px[l][i + 1], ar_py[l][i + 1]);
                     if (d < dmin) dmin = d;
                 }
             if (dmin < clr2) continue;
-            cgb_mx[cgb_n] = cx; cgb_my[cgb_n] = cy;
-            cgb_w[cgb_n] = blen; cgb_h[cgb_n] = CGB_DEPTH; cgb_ang[cgb_n] = ang;
-            cgb_n++;
+            CGB_ADD(cx, cy, blen, ang);
         }
     }
+    #undef CGB_ADD
 }
 
 static void ar_graph_ensure(void) {

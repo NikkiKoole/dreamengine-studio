@@ -481,7 +481,15 @@ stealing from the homage hardware** — the original solved this screen already.
   where), and the **orientation policy**. This is the `seo-brief` palette/mirror pattern applied to
   layout: the brief is the palette; "done" = *matches the brief on device*, not "no audit findings".
   It's also where the taste calls get made visibly instead of implicitly in C.
-- **R2 — graduate the behaviour layer: `runtime/disclose.h`.** The keystone. `acidfit`'s priority +
+- **R2 — graduate the behaviour layer: `runtime/disclose.h`.** The keystone. **STARTED 2026-07-10 —
+  `runtime/disclose.h` shipped with the CORE + its proof** (`acidwire` now calls it, commits
+  `27637b26`/`d96c4404`): `disclose_shape()` (TALL/WIDE/ROOMY), `disclose_budget()` (the finger-budget
+  accordion pass — working EXPANDED, rest FOLDED→COMPACT by priority), `disclose_stack()` (place them).
+  **Deferred (not yet in the header):** the WIDE tab bar + ROOMY grid are still cart-side lay.h layouts
+  (they show one state, so no *disclosure* — arguably they never need to move in); the tab-chip/promote
+  interaction and the `DE_TRACE` self-report are R4. Reassess whether tabs/grid should graduate when the
+  second rack (epiano) adopts disclose.h. Original spec below:
+  `acidfit`'s priority +
   footprint budget pass becomes a header (design-system §8.5 already admits this gap). Sections
   declare `{name, priority, footprints[3] in fu}`; the header runs the per-frame pass, picks the
   mode per shape (inline-all / accordion / tabs), owns the promote/demote + tab-chip/header

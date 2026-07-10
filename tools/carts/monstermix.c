@@ -33,6 +33,7 @@ de:meta */
 // LEFT/RIGHT choose a slot, UP/DOWN change the part, Z stamp.
 
 #include "studio.h"
+#include "endcard.h"
 
 // ---- monster genetics -------------------------------------------------------
 #define SLOTS 4                       // head, body, legs, color
@@ -54,6 +55,7 @@ static int cust[SLOTS];               // the customer's own look (random)
 // ---- game state -------------------------------------------------------------
 enum { TITLE, PLAY, PRESS, GAMEOVER };
 static int   phase = TITLE;
+static float end_t;                   // seconds since the game-over card came up
 static int   sel;                     // selected slot 0..3
 static int   score, best, combo, lives, orders;
 static float tleft, tmax;             // order timer
@@ -148,7 +150,7 @@ static void new_order(void) {
 }
 
 static void reset_game(void) {
-    score = 0; combo = 0; lives = 3; orders = 0;
+    score = 0; combo = 0; lives = 3; orders = 0; end_t = 0;
     for (int i = 0; i < SLOTS; i++) bld[i] = 0;
     sel = 0;
     new_order();
@@ -195,6 +197,7 @@ void update(void) {
     }
 
     if (phase == GAMEOVER) {
+        end_t += dt();
         if (btnp(0, BTN_A)) { reset_game(); phase = PLAY; }
         return;
     }
@@ -384,11 +387,14 @@ void draw(void) {
         rectfill(SCREEN_W - 3, 0, 3, SCREEN_H, CLR_RED);
     }
 
+    // game-over card — the shared end-screen treatment (endcard.h)
     if (phase == GAMEOVER) {
-        fade(0.55f);
-        print_scaled("GAME OVER", 160 - text_width("GAME OVER"), 70, CLR_RED, 2);
-        print_centered(str("SCORE %d   BEST %d", score, best), 160, 100, CLR_WHITE);
-        if (blink(20)) print_centered("PRESS Z TO RESTART", 160, 120, CLR_YELLOW);
+        EndCard c = endcard(end_t, 200, 60, 66, CLR_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            print_scaled("GAME OVER", 160 - text_width("GAME OVER"), c.y + 8, CLR_RED, 2);
+            print_centered(str("SCORE %d   BEST %d", score, best), 160, c.y + 32, CLR_WHITE);
+            if (blink(20)) print_centered("PRESS Z TO RESTART", 160, c.y + 46, CLR_YELLOW);
+        }
     }
 
 #ifdef DE_TRACE

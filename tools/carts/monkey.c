@@ -20,12 +20,12 @@
     "Text overlaps and runs off-screen — use a smaller font.",
     "Sort actors by y so the character can walk in front of/behind props.",
     "Add a simple iMUSE-like musical layer that responds to what you're doing (we have the tools).",
-    "Win state should fade the screen to half.",
     "ui-audit: the room-description line (\"Mêlée Island docks…\") runs off the right edge."
   ]
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // ── MONKEY ISLAND — a SCUMM dock + a branching chat + INSULT SWORD-FIGHTING ──
@@ -114,6 +114,7 @@ static int   chosen = -1;            // slot you clicked this turn
 static float turn_t = 0;             // animates the clash, then advances
 static int   last_result = 0;        // +1 you parried, -1 you took it
 static bool  player_won = false;
+static float over_t = 0;             // seconds since the end card came up
 static int   foe_lunge = 0, you_lunge = 0;  // pose offsets
 
 // ── audio ───────────────────────────────────────────────────────────────
@@ -406,7 +407,7 @@ static void update_duel(void) {
     if (turn_t > 1.4f) {
         if (you_score >= WIN_HITS || foe_score >= WIN_HITS) {
             player_won = you_score >= WIN_HITS;
-            state = ST_OVER;
+            state = ST_OVER; over_t = 0;
             if (player_won) strum(72, CHORD_MAJ7, INSTR_TRI, 5, 70);
             else { note(36, INSTR_SQUARE, 4); shake(6); }
             return;
@@ -425,6 +426,7 @@ void update(void) {
     case ST_TALK: update_talk(); break;
     case ST_DUEL: update_duel(); break;
     case ST_OVER:
+        over_t += dt();
         if (mouse_pressed(MOUSE_LEFT) || keyp(KEY_SPACE)) {
             // restart the duel (you keep your blade)
             begin_duel();
@@ -649,19 +651,19 @@ static void draw_duel(void) {
 // ── drawing: end card ────────────────────────────────────────────────────
 static void draw_over(void) {
     draw_duel();
-    fade(0.5f);
-    int w = 250, h = 60, bx = (SCREEN_W - w) / 2, by = 64;
-    rectfill(bx, by, w, h, CLR_DARK_BLUE);
-    rect(bx, by, w, h, CLR_LIGHT_YELLOW); rect(bx + 2, by + 2, w - 4, h - 4, CLR_INDIGO);
-    if (player_won) {
-        print_centered("YOU WIN THE DUEL!", SCREEN_W/2, by + 10, CLR_LIME_GREEN);
-        print_centered("\"You fight like a dairy farmer...\"", SCREEN_W/2, by + 26, CLR_LIGHT_PEACH);
-        print_centered("\"...but you won. You ARE a pirate.\"", SCREEN_W/2, by + 38, CLR_LIGHT_PEACH);
-    } else {
-        print_centered("YOU LOSE THE DUEL.", SCREEN_W/2, by + 10, CLR_RED);
-        print_centered("\"Go home, swab. Practice your wit.\"", SCREEN_W/2, by + 28, CLR_LIGHT_PEACH);
+    // the shared end-screen treatment (endcard.h)
+    EndCard c = endcard(over_t, 250, 60, 64, CLR_DARK_BLUE, CLR_LIGHT_YELLOW, CLR_INDIGO);
+    if (c.settled) {
+        if (player_won) {
+            print_centered("YOU WIN THE DUEL!", SCREEN_W/2, c.y + 10, CLR_LIME_GREEN);
+            print_centered("\"You fight like a dairy farmer...\"", SCREEN_W/2, c.y + 26, CLR_LIGHT_PEACH);
+            print_centered("\"...but you won. You ARE a pirate.\"", SCREEN_W/2, c.y + 38, CLR_LIGHT_PEACH);
+        } else {
+            print_centered("YOU LOSE THE DUEL.", SCREEN_W/2, c.y + 10, CLR_RED);
+            print_centered("\"Go home, swab. Practice your wit.\"", SCREEN_W/2, c.y + 28, CLR_LIGHT_PEACH);
+        }
+        if (blink(18)) print_centered("- click to duel again -", SCREEN_W/2, c.y + c.h - 12, CLR_LIGHT_GREY);
     }
-    if (blink(18)) print_centered("- click to duel again -", SCREEN_W/2, by + h - 12, CLR_LIGHT_GREY);
 }
 
 // ── top-level draw ───────────────────────────────────────────────────────

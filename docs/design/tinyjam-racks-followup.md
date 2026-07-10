@@ -110,6 +110,13 @@ plus a clean way to share a song without exposing the rack UI. The PO segmented-
 This view is also genre-agnostic chrome — a candidate for the shared `rack.h` chassis, one dancer
 skin per faceplate.
 
+> **First single-cart cut SHIPPED (2026-07-10): `fmbox`'s LCD dancer strip.** A monochrome
+> segmented-LCD band between grid and faders — kick → stomp, snare → clap, chord → ta-da,
+> metal → star, perc → pop ring, tone → an eighth note landing at its pitch, idle bob off
+> `beat_pos()`. Event tap = `play_machine()` stamping `flash[]/fires[]/viz_midi[]` (the song
+> data, never an FFT); sprites via `sprite-draw.js` in `fmbox.cart.js`, one ink. A second
+> consumer (groovebox or a rack) is the graduation trigger for extracting the shared header.
+
 ### 4. MIDI in — the engine already supports it (committed direction)
 
 The maker confirmed the engine already does MIDI, and wants users to plug controllers in and play.

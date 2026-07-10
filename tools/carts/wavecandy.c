@@ -13,9 +13,9 @@
   ],
   "homage": "Voxengo SPAN (the spectrum view) + FL Studio Wave Candy (the multi-view visualizer, source of the spectrogram)",
   "description": {
-    "summary": "A Wave-Candy-style AUDIO VISUALIZER with four views on the live master mix: a SPAN-style spectrum analyzer, a heat-colored spectrogram waterfall, an oscilloscope, and peak/RMS meters with a clip lamp - all fed by scope_read() and one in-cart 2048-point FFT.",
-    "detail": "The audio-visualizer cart: four views (M cycles) over the REAL post-FX master mix. Every frame it pulls the newest 2048 samples with scope_read(), Hann-windows them, and runs an in-cart radix-2 FFT. SPECTRUM is the Voxengo SPAN layout: one-sided magnitude as dB (0..-72) against a log frequency axis (40 Hz..16 kHz), fast-attack/slow-release ballistics, a yellow peak-hold trace, and a cursor reading out the strongest partial. SPECTROGRAM is the Wave Candy waterfall: time scrolls left, frequency runs up the vertical axis, loudness is a heat ramp (black-blue-purple-red-yellow-white), so held notes draw horizontal stripes and the filter sweep carves a moving ridge you can read seconds after it happened. SCOPE draws the waveform itself, frozen at a rising zero crossing. METERS shows peak + RMS bars with meter ballistics, a white peak-hold tick, a latching CLIP lamp, and the crest factor (peak minus RMS - watch it collapse from a spiky saw to steady noise). Test sources make the physics visible: a SINE is one spike/stripe, a SQUARE has odd harmonics only, a SAW is the full comb, a CHORD is three interleaved combs, NOISE is the flat carpet. The missing Wave Candy view is the vectorscope: scope_read() taps the mono mix, so there is no L/R pair to plot.",
-    "controls": "M cycles views (spectrum / spectrogram / scope / meters) - 1..5 pick the source (sine / square / saw / chord / noise) - Q toggles silence, F toggles the filter sweep, P clears peak holds + waterfall + clip lamp"
+    "summary": "A Wave-Candy-style AUDIO VISUALIZER with five views on the live master mix: a SPAN-style spectrum analyzer, a heat-colored spectrogram waterfall, an oscilloscope, peak/RMS meters with a clip lamp, and a stereo vectorscope (goniometer) - fed by scope_read()/scope_read2() and one in-cart 2048-point FFT.",
+    "detail": "The audio-visualizer cart: five views (M cycles) over the REAL post-FX master mix. Every frame it pulls the newest 2048 samples with scope_read(), Hann-windows them, and runs an in-cart radix-2 FFT. SPECTRUM is the Voxengo SPAN layout: one-sided magnitude as dB (0..-72) against a log frequency axis (40 Hz..16 kHz), fast-attack/slow-release ballistics, a yellow peak-hold trace, and a cursor reading out the strongest partial. SPECTROGRAM is the Wave Candy waterfall: time scrolls left, frequency runs up the vertical axis, loudness is a heat ramp (black-blue-purple-red-yellow-white), so held notes draw horizontal stripes and the filter sweep carves a moving ridge you can read seconds after it happened. SCOPE draws the waveform itself, frozen at a rising zero crossing, with a labelled power-of-2 auto-zoom. METERS shows peak + RMS bars with meter ballistics, a white peak-hold tick, a latching CLIP lamp, and the crest factor (peak minus RMS - watch it collapse from a spiky saw to steady noise). VECTORSCOPE is the goniometer on the raw L/R pair via scope_read2(): mid (L+R) vertical against side (L-R) horizontal plus a correlation readout - a mono mix is a vertical line, W's autopan tilts it side to side, W's chorus opens it into a cloud (the stereo tap was added to the engine FOR this view). Test sources make the physics visible: a SINE is one spike/stripe, a SQUARE has odd harmonics only, a SAW is the full comb, a CHORD is three interleaved combs, NOISE is the flat carpet.",
+    "controls": "M cycles views (spectrum / spectrogram / scope / meters / vectorscope) - 1..5 pick the source (sine / square / saw / chord / noise) - W cycles stereo width (mono / autopan / chorus), F toggles the filter sweep, Q toggles silence, P clears peak holds + waterfall + clip lamp"
   }
 }
 de:meta */
@@ -24,10 +24,9 @@ de:meta */
 #include <stdio.h>
 #include <string.h>
 
-// ── WAVE CANDY — the audio visualizer: 4 views on the master mix ────────────
-// All views read the REAL post-FX master via scope_read(); the FFT lives in the
-// cart (the engine has no spectral API). The one Wave Candy view we CAN'T do is
-// the vectorscope — the tap is mono, no L/R pair to plot.
+// ── WAVE CANDY — the audio visualizer: 5 views on the master mix ────────────
+// All views read the REAL post-FX master — scope_read() (mono) and scope_read2()
+// (the L/R pair); the FFT lives in the cart (the engine has no spectral API).
 //   SPECTRUM     SPAN-style: dB (0..-72) vs log frequency, peak hold, readout
 //   SPECTROGRAM  the waterfall: time scrolls left, frequency vertical, loudness
 //                as heat (black->blue->purple->red->yellow->white) — sweeps and
@@ -35,9 +34,13 @@ de:meta */
 //   SCOPE        the waveform itself, frozen at a rising zero crossing
 //   METERS       peak + RMS bars (fast-attack/slow-release), peak hold, a clip
 //                lamp, and the crest factor (peak minus RMS = the dynamics)
+//   VECTORSCOPE  the goniometer: mid (L+R) vertical vs side (L-R) horizontal,
+//                with a correlation readout — mono is a vertical line, autopan
+//                tilts it side to side, chorus opens it into a cloud
 //
 //   M      cycle views
 //   1..5   source: SINE / SQUARE / SAW / CHORD / NOISE
+//   W      stereo width: MONO / AUTOPAN / CHORUS (feed the vectorscope)
 //   F      ladder-filter sweep on/off (watch the comb get planed off)
 //   Q      silence (analyze the noise floor)
 //   P      clear (peak holds / the waterfall / the clip lamp)
@@ -62,9 +65,11 @@ static float mag[FFT_N / 2];            // one-sided linear magnitude (1.0 = 0 d
 static float disp_db[PW];               // smoothed curve, one column per pixel
 static float hold_db[PW];               // peak-hold trace
 
-static const char *SRC_NAME[5]  = { "SINE", "SQUARE", "SAW", "CHORD", "NOISE" };
-static const char *VIEW_NAME[4] = { "spectrum", "spectrogram", "scope", "meters" };
-static int   view    = 0;
+static const char *SRC_NAME[5]   = { "SINE", "SQUARE", "SAW", "CHORD", "NOISE" };
+static const char *VIEW_NAME[5]  = { "spectrum", "spectrogram", "scope", "meters", "vectorscope" };
+static const char *WIDTH_NAME[3] = { "MONO", "AUTOPAN", "CHORUS" };
+static int   view     = 0;
+static int   width_fx = 0;              // 0 dry mono · 1 autopan · 2 chorus
 static int   source  = 2;               // start on SAW: the full harmonic comb
 static int   muted   = 0;
 static int   sweep   = 0;
@@ -160,6 +165,16 @@ static int   clip_t = 0;                // clip lamp latch, frames
 // meters run left→right: -72 dB at the left edge, 0 dBFS at the right
 static int db_x(float db) { return PX0 + (int)((1.0f - db / DB_FLOOR) * (float)PW + 0.5f); }
 
+// ── vectorscope: the raw L/R pair from scope_read2 ───────────────────────────
+#define VS_N 1024                       // ~23 ms trail
+static float vsL[VS_N], vsR[VS_N];
+
+// stereo width fx are SET-AND-HOLD — (re)configure only when the mode changes
+static void apply_width(void) {
+    autopan(2.0f, width_fx == 1 ? 1.0f : 0.0f, LFO_SHAPE_SINE);
+    chorus(1.5f, 0.5f, width_fx == 2 ? 0.6f : 0.0f);
+}
+
 static void meter_bar(int y0, int y1, float db, float hold, const char *name) {
     int xe = db_x(db);
     for (int x = PX0; x <= xe; x++) {   // segment colors: green safe, red hot
@@ -200,7 +215,8 @@ void update(void) {
     for (int k = 0; k < 5; k++) if (keyp('1' + k)) { source = k; start_source(); }
     if (keyp('Q')) { muted = !muted; start_source(); }
     if (keyp('F')) { sweep = !sweep; if (!sweep) { cutoff = 16000; for (int i=0;i<3;i++) if (hnd[i]>=0) note_cutoff(hnd[i], cutoff); } }
-    if (keyp('M')) view = (view + 1) % 4;
+    if (keyp('M')) view = (view + 1) % 5;
+    if (keyp('W')) { width_fx = (width_fx + 1) % 3; apply_width(); }
     if (keyp('P')) {
         for (int x = 0; x < PW; x++) hold_db[x] = DB_FLOOR;
         memset(sg, CLR_BROWNISH_BLACK, sizeof sg);
@@ -326,7 +342,7 @@ void draw(void) {
             char zl[8]; sprintf(zl, "x%d", (int)g);
             print(zl, PX1 - (int)strlen(zl) * 8 - 2, PY0 + 4, CLR_PEACH);
         }
-    } else {
+    } else if (view == 3) {
         // the meters: peak + RMS bars, peak hold tick, clip lamp, crest factor
         font(FONT_TINY);
         for (int db = 0; db >= (int)DB_FLOOR; db -= 12) {   // vertical dB grid
@@ -343,6 +359,46 @@ void draw(void) {
         print(info, PX0, PY0 + 120, CLR_LIGHT_GREY);
         rectfill(PX1 - 38, PY0 + 4, 34, 11, clip_t > 0 ? CLR_RED : CLR_DARKER_GREY);
         print("CLIP", PX1 - 36, PY0 + 6, clip_t > 0 ? CLR_WHITE : CLR_MEDIUM_GREY);
+    } else {
+        // the vectorscope (goniometer): mid = L+R vertical, side = L-R horizontal
+        scope_read2(vsL, vsR, VS_N);
+        int cx = (PX0 + PX1) / 2, cy = (PY0 + PY1) / 2, half = PH / 2 - 4;
+        line(cx, cy - half, cx, cy + half, CLR_DARKER_GREY);           // mid (mono) axis
+        line(cx - half, cy, cx + half, cy, CLR_DARKER_GREY);           // side axis
+        line(cx - half, cy + half, cx + half, cy - half, CLR_DARKER_GREY);  // the L / R
+        line(cx - half, cy - half, cx + half, cy + half, CLR_DARKER_GREY);  // 45° axes
+        font(FONT_TINY);
+        print("L", cx - half + 2, cy - half + 2, CLR_MEDIUM_GREY);
+        print("R", cx + half - 5, cy - half + 2, CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
+
+        float vpk = 0.0f, sll = 0.0f, srr = 0.0f, slr = 0.0f;
+        for (int i = 0; i < VS_N; i++) {
+            float al = fabsf(vsL[i]), ar = fabsf(vsR[i]);
+            if (al > vpk) vpk = al;
+            if (ar > vpk) vpk = ar;
+            sll += vsL[i] * vsL[i]; srr += vsR[i] * vsR[i]; slr += vsL[i] * vsR[i];
+        }
+        float g = 1.0f;                                     // same honest auto-zoom as the scope
+        while (g < 16.0f && vpk * g < 0.5f) g *= 2.0f;
+        float k = g * (float)half * 0.7071f;
+        for (int i = 1; i < VS_N; i++) {   // side = R-L so left-panned leans toward the L diagonal
+            int x0 = cx + (int)((vsR[i-1] - vsL[i-1]) * k), y0 = cy - (int)((vsL[i-1] + vsR[i-1]) * k);
+            int x1 = cx + (int)((vsR[i]   - vsL[i])   * k), y1 = cy - (int)((vsL[i]   + vsR[i])   * k);
+            x0 = x0 < cx-half ? cx-half : (x0 > cx+half ? cx+half : x0);
+            x1 = x1 < cx-half ? cx-half : (x1 > cx+half ? cx+half : x1);
+            y0 = y0 < cy-half ? cy-half : (y0 > cy+half ? cy+half : y0);
+            y1 = y1 < cy-half ? cy-half : (y1 > cy+half ? cy+half : y1);
+            line(x0, y0, x1, y1, CLR_LIME_GREEN);
+        }
+        char info[24];                                      // +1 mono · 0 wide · -1 out of phase
+        float corr = (sll > 1e-9f && srr > 1e-9f) ? slr / sqrtf(sll * srr) : 1.0f;
+        sprintf(info, "corr %+.2f", corr);
+        print(info, PX0 + 4, PY0 + 4, CLR_LIGHT_GREY);
+        if (g > 1.0f) {
+            sprintf(info, "x%d", (int)g);
+            print(info, PX1 - (int)strlen(info) * 8 - 2, PY0 + 4, CLR_PEACH);
+        }
     }
     rect(PX0, PY0, PW + 1, PH + 1, CLR_DARK_GREY);
 
@@ -354,12 +410,12 @@ void draw(void) {
         sprintf(info, "peak %d hz  %.1f db", (int)(best * BIN_HZ + 0.5f), to_db(mag[best]));
         print(info, PX0, 168, CLR_LIGHT_GREY);
     }
-    sprintf(info, "%s%s%s", muted ? "MUTED" : SRC_NAME[source],
-            sweep ? "  sweep " : "", sweep ? "" : "");
-    if (sweep) sprintf(info + strlen(info), "%d hz", cutoff);
+    sprintf(info, "%s", muted ? "MUTED" : SRC_NAME[source]);
+    if (width_fx) sprintf(info + strlen(info), " +%s", WIDTH_NAME[width_fx]);
+    if (sweep)    sprintf(info + strlen(info), "  sweep %d hz", cutoff);
     print(info, PX0, 178, CLR_PEACH);
     font(FONT_SMALL);
-    print("M VIEW  1-5 SOURCE  F SWEEP  Q MUTE  P CLEAR", PX0, 190, CLR_MEDIUM_GREY);
+    print("M VIEW  1-5 SOURCE  W WIDTH  F SWEEP  Q MUTE  P CLEAR", PX0, 190, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }
 
@@ -368,5 +424,6 @@ void init(void) {
         hann[i] = 0.5f - 0.5f * cosf(6.2831853f * (float)i / (float)(FFT_N - 1));
     for (int x = 0; x < PW; x++) { disp_db[x] = DB_FLOOR; hold_db[x] = DB_FLOOR; }
     memset(sg, CLR_BROWNISH_BLACK, sizeof sg);
+    apply_width();
     start_source();
 }

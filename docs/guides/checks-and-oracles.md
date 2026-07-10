@@ -18,6 +18,7 @@ This page is only the routing layer.
 | `cls`/`pset`/`pset_rgb`/fills on the canvas (byte-exactness) | the `swcanvas_test` **cart** (`canvas-diff --bytecheck`, or the two-run `shasum` in its header) | byte-identical GPU↔SW for the integer primitives |
 | anything that should be **left/right symmetric** | **`mirror-diff.js <cart>`** | the render mirrors about its centre (catches handed rasterizers) |
 | a **coverage-based road / field** (streetlab, roadlab) | **`road-check.js [--all] [--overlay]`** | framebuffer invariants (no naked edges/strays/floating kerb) at any angle |
+| a **procedural street-network generator** (citygen.h, the worldgen rungs) | **`sndi-check.js <real.rvb \| graph.json>…`** | THE realism number: the SNDi composite (degree shares/dendricity/circuity/sinuosity/orient-entropy) vs real cities — generated matches real = done |
 | `fill`/`outline`/`dither` of a shape | the `raster_test` **cart** (`tools/raster_test.script`) | fill, outline, dither, solid all agree pixel-for-pixel (`rasterization-consistency.md`) |
 | **any** draw API signature / new API fn | **`build-all.js`** | every one of 400+ carts still compiles against `studio.h` (catches API rot) |
 | **`studio.c` / `studio.h` itself** (not just carts) | **`build-all.js` AND `bash tools/build-nr.sh <cart>`** | build-all only compiles the **Raylib** path — it MISSES the `DE_NO_RAYLIB` software build (iOS / `build-nr`). A raylib-only symbol (e.g. `GetScreenWidth`, `ImageCrop`) added to a shared path compiles under build-all but breaks iOS. `build-nr.sh` (or a quick `clang -c runtime/studio.c -DDE_NO_RAYLIB=1 …`) catches it. (Bit the device-adaptive `--resize`/overlay work, 2026-07-04.) |
@@ -61,12 +62,22 @@ This page is only the routing layer.
 | game logic in a cart with a `spec()` | **`spec.js [cart] --quiet`** (the gameplay-logic gate) |
 | **lockstep netplay** (`runtime/net.h`, the `inp_*`/`btn` seam, `tools/net-relay.js`, anything that could desync) | **`net-check.js --quiet`** — the one-command gate, three legs: **echo** (pong vs the loopback fake peer: P2 must mirror P1 exactly — the remote-input-injection path with no sockets), **netdemo** (a real host+joiner pair over UDP loopback, different per-side scripts, per-frame trace diff → `LOCKSTEP OK`/`DESYNC`), **relay** (two simulated carts through a real `net-relay.js` speaking the web wire protocol: ROLE→HELLO→WELCOME{seed}→INPUT→BYE). Exits nonzero on any failure. The netdemo leg alone: `play.js pong netdemo --headless --frames 600 --host-script tools/clips/pong/01-netcheck-host.script --join-script tools/clips/pong/02-netcheck-join.script` |
 | a squishy brush or a rim/fill feature (does every brush still apply the features it should?) | **`squishy-features.js`** (renders the `SQUISHY_MATRIX` grid + pixel-diffs each brush×feature cell vs baseline against a declared support matrix — catches a feature that silently no-ops for one brush) |
-| `index.json` (tags / registration) | **`lint-carts.js`** |
+| `index.json` (tags / registration), or **any cart `.c`** (the promoted source hazards: `watch()` non-string format arg, a local shadowing `map`/`line`/`spr`/… ) | **`lint-carts.js`** |
 | anything under `docs/` | **`lint-docs.js`** (links resolve / §-refs / tool-index) |
 | reorganized docs, want gaps not breaks | **`lint-xrefs.js [topic]`** (docs that should cross-link but don't) |
+| a tool a doc describes (is the prose now stale?) | **`stale-doc-check.js [scope]`** (broken-refs tier = real issues; mtime tiers = nudges; `--driftable` = the declared snapshots) |
+| **not sure which meta-check to run / is the self-doc layer healthy?** | **`repo-doctor.js`** — the ONE health strip over all of the above + the generated-page `--check` gates, counts only (embedded in bare `orient`) |
 | a cart's source/sprites (is it baked/published?) | **`cart-status.js --quiet`** |
 | **laying out / sizing a cart's UI** (fit a phone, multiple screens, touch-target size) | reach for **`runtime/lay.h`** (immediate-mode layout vocabulary — split/at/cell/grid/wrap/fluid; see [`../design/device-adaptive-layout.md`](../design/device-adaptive-layout.md)); then **`mobile-lint.js`** flags **tiny touch-targets** and names the remedy — **`ui_loupe(1)`** (the `ui.h` fat-finger magnifier, [`../design/loupe-notes.md`](../design/loupe-notes.md)) or reflow |
 | effects/UI placement, want a "can a phone play this" report | **`mobile-lint.js`**, **`ui-audit.js`** |
+
+## Store / listing (the ASO capture tools' deterministic halves)
+
+| You changed… | Run |
+|---|---|
+| App Store metadata fields (title/subtitle/keywords) | **`aso-lint.js`** (char limits, wasted stopwords/comma-spaces, cross-field repeats; offline) |
+| `press.md` or the listing prose (vs the committed brief) | **`aso-coverage.js`** (phrase/word coverage vs `seo-brief.md` + a STUFFING warning — fails only for reading robotic) |
+| `apps/<name>/app.json` store fields, before pushing | **`asc-push.js --check`** (offline gate) / **`--dry-run`** (GETs live + diffs) |
 
 ## Orienting *before* a change (don't dive in blind)
 

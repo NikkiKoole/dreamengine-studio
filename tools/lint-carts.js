@@ -18,6 +18,19 @@
 //   - every de:meta cart has a baked .cart.png; every .cart.png has a de:meta cart
 //   - editor/public/carts/index.json equals a fresh build-cart-index generate
 //
+// SOURCE HAZARDS (2026-07-10) — two CLAUDE.md gotchas promoted from prose-you-must-remember
+// into checks (the lesson→lint loop; see docs/guides/checks-and-oracles.md). Checked on EVERY
+// .c in tools/carts/ (registered or not — harness carts crash too):
+//   - watch()'s 2nd arg must be a string literal (the format). A bare value makes vsnprintf
+//     read the int as a char* → SIGSEGV, but only under -DDE_TRACE in the state that runs the
+//     line — it hides until it bites (bit loderunner). Comment-stripped + paren-aware, so
+//     watch(str("a%d",n), "x=%d", x) is fine. Waive a false positive: // lint-watch-ignore
+//   - no cart-local declaration shadows a studio.h built-in (map/line/rect/circ/print/spr/
+//     timer/now) — a local shadow compiles, then the first call of the built-in in that scope
+//     doesn't. Struct/union/enum FIELDS are skipped (e->timer can't clash). Pre-lint shadows
+//     are GRANDFATHERED below (renaming means re-embedding those carts — do it when touching
+//     the cart anyway, then delete the entry). Waive deliberately: // lint-shadow-ignore
+//
 // Growing a vocabulary is fine and expected — add the value here (or in teaches-vocab.js)
 // in the same commit as the first cart that uses it.
 
@@ -59,6 +72,110 @@ const TEACHES = new Set(require("./teaches-vocab.js").TEACHES_VOCAB);
 const ROOT = path.join(__dirname, "..");
 const CARTS_DIR = path.join(ROOT, "editor", "public", "carts");
 
+// ---- source hazards (see header) --------------------------------------------------------
+
+const SHADOW_BUILTINS = "map|line|rect|circ|print|spr|timer|now";
+// pre-lint locals, tolerated: "cart:name". Delete an entry when you rename the local
+// (and re-embed the cart) — the lint then guards that cart too.
+const GRANDFATHERED_SHADOWS = new Set([
+  "06b-chords:now", "facegen:line", "hotline:spr", "modrack:now",
+  "newworld:now", "roadlab:circ", "sensi:line", "yachtrack:now",
+]);
+
+// strip // and /* */ comments, preserving strings and line numbers
+function stripComments(src) {
+  let out = "", i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i], d = src[i + 1];
+    if (c === '"' || c === "'") {
+      const q = c; out += c; i++;
+      while (i < n && src[i] !== q) {
+        if (src[i] === "\\") { out += src[i] + (src[i + 1] || ""); i += 2; continue; }
+        out += src[i++];
+      }
+      out += src[i] || ""; i++; continue;
+    }
+    if (c === "/" && d === "/") { while (i < n && src[i] !== "\n") i++; continue; }
+    if (c === "/" && d === "*") {
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) { if (src[i] === "\n") out += "\n"; i++; }
+      i += 2; continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
+function checkSourceHazards(src, name, errors) {
+  const s = stripComments(src);
+  const origLines = src.split("\n");
+  const lineOf = (pos) => s.slice(0, pos).split("\n").length;
+  const waived = (ln, tag) => (origLines[ln - 1] || "").includes(tag);
+
+  // watch() 2nd arg: paren-aware arg split (the 1st arg may itself contain commas)
+  const watchRe = /\bwatch\s*\(/g;
+  let m;
+  while ((m = watchRe.exec(s))) {
+    let i = watchRe.lastIndex, depth = 1;
+    const args = []; let cur = "";
+    while (i < s.length && depth > 0) {
+      const c = s[i];
+      if (c === '"') {
+        cur += c; i++;
+        while (i < s.length && s[i] !== '"') {
+          if (s[i] === "\\") { cur += s[i] + (s[i + 1] || ""); i += 2; continue; }
+          cur += s[i++];
+        }
+        cur += s[i] || ""; i++; continue;
+      }
+      if (c === "(") depth++;
+      if (c === ")") { depth--; if (depth === 0) { args.push(cur); i++; break; } }
+      if (c === "," && depth === 1) { args.push(cur); cur = ""; i++; continue; }
+      cur += c; i++;
+    }
+    const ln = lineOf(m.index);
+    if (args.length >= 2 && !/^\s*"/.test(args[1]) && !waived(ln, "lint-watch-ignore"))
+      errors.push(`${name}.c:${ln}: watch() 2nd arg must be a format STRING — watch("x","%d",v), never watch("x",v) (SIGSEGV under -DDE_TRACE; // lint-watch-ignore to waive)`);
+  }
+
+  // built-in shadowing: skip struct/union/enum bodies via a brace classifier
+  const declRe = new RegExp(
+    String.raw`\b(?:const\s+)?(?:unsigned\s+|signed\s+)?(?:int|float|double|char|bool|short|long|size_t|u?int(?:8|16|32|64)_t|[ui](?:8|16|32|64)|f32|f64)\s+\**\s*(${SHADOW_BUILTINS})\b\s*(?=[=;\[,)])`, "g");
+  const braceKind = []; // stack: true = struct/union/enum body
+  let last = 0, pos = 0, structDepth = 0;
+  // walk braces and run the decl regex on the depth-0 (non-struct) spans between them
+  const scanSpan = (from, to) => {
+    if (structDepth > 0) return;
+    const span = s.slice(from, to);
+    let d;
+    while ((d = declRe.exec(span))) {
+      const ln = lineOf(from + d.index);
+      const key = `${name}:${d[1]}`;
+      if (GRANDFATHERED_SHADOWS.has(key) || waived(ln, "lint-shadow-ignore")) continue;
+      errors.push(`${name}.c:${ln}: '${d[1]}' shadows the studio.h built-in ${d[1]}() — rename it (grid/dmap/tmr/…; // lint-shadow-ignore to waive)`);
+    }
+  };
+  while (pos < s.length) {
+    const c = s[pos];
+    if (c === "{") {
+      scanSpan(last, pos);
+      const isStruct = /(struct|union|enum)(\s+\w+)?\s*$/.test(s.slice(Math.max(0, pos - 64), pos));
+      braceKind.push(isStruct);
+      if (isStruct) structDepth++;
+      last = pos + 1;
+    } else if (c === "}") {
+      scanSpan(last, pos);
+      if (braceKind.pop()) structDepth--;
+      last = pos + 1;
+    }
+    pos++;
+  }
+  scanSpan(last, s.length);
+}
+
+// -----------------------------------------------------------------------------------------
+
 const errors = [];
 const metaCarts = new Set(); // <name>.cart.png for every cart that has a de:meta
 
@@ -66,6 +183,7 @@ for (const f of fs.readdirSync(CARTS).sort()) {
   if (!f.endsWith(".c")) continue;
   const name = f.slice(0, -2);
   const src = fs.readFileSync(path.join(CARTS, f), "utf8");
+  checkSourceHazards(src, name, errors);
   let m;
   try { m = readMeta(src, name); }
   catch (e) { errors.push(`${name}.c: ${e.message}`); continue; }

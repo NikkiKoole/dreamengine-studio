@@ -266,7 +266,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-cart-index.js  GENERATE editor/public/carts/index.json from each cart's de:meta block
                              (cart owns its metadata; index.json is a derived view); --check gates staleness
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
-                             index.json in sync; owns the tag vocabulary
+                             index.json in sync; owns the tag vocabulary. Also the SOURCE hazards
+                             (promoted gotchas): watch() 2nd-arg-must-be-format-string + built-in shadowing
              backfill-slug.js  add the canonical `slug` (=filename stem) to every cart's de:meta + re-embed
                              de:source — the .cart.png→.c provenance anchor (design/editor-cart-workflow.md
                              Gap 1b); dry-run by default, `--write` to apply (449 carts pending)
@@ -280,7 +281,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              ranges — understand/navigate a 1–3k-line cart at ~1/7th the tokens of reading it.
                              --fn <name> dumps ONE function's body (no guessing the end line); --full adds macro values
              orient.js       go cold on a cart in ONE call: build-context + cart-outline back to back (the pair you
-                             always want first). Flags pass through to the outline (--full / --fn <name>)
+                             always want first). Flags pass through to the outline (--full / --fn <name>).
+                             BARE (no cart) = the SESSION front door — starting cold or resuming? run it:
+                             active handoff lanes + the repo-doctor health strip + what's pending, counts only
              topic-brief.js  the HORIZONTAL twin of build-context: a FEATURE/theme dossier across the whole repo
                              from a term-set — design docs (with STATUS + plan progress) + ADRs + ledger + the
                              engine seam + carts that demo/want it + related tools. `node tools/topic-brief.js "touch controls" gamepad`
@@ -331,8 +334,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / broken doc links /
                              broken #section anchors (write Resume-ats as [text](doc.md#section) so a renamed section
                              is caught; surfaced by cart-status.js). Same two-door pattern as driftable-docs
+             repo-doctor.js  ONE health strip over every meta-check (lint-docs/lint-carts + the build-* --check
+                             staleness gates as ✗, the advisory linters as ⚠) run in parallel, counts only —
+                             listings via --full or the named tool itself; embedded in bare orient. --quiet = CI
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
-             build-history.js     generate docs/history.html from git + the spine
+             build-history.js     generate docs/history.html from git + the spine; --check = spine edited after page
              api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js
            det-probes/  standalone cross-compile DETERMINISM oracles + design-exploration probes for the
                     software canvas (run.sh = bit-identical arm64/x86/wasm gate; rotfill/rotline/rotspr/

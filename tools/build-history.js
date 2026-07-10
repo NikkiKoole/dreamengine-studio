@@ -8,8 +8,16 @@
 // the rendered markdown).
 //
 //   node tools/build-history.js            # regenerate docs/history.html
+//   node tools/build-history.js --check    # exit 1 if the spine was edited after the page
 //
 // v1 scope = the spine's window (week 1). Re-run after editing the spine.
+//
+// --check is deliberately NOT regenerate-and-compare (the siblings' pattern):
+// the page embeds LIVE data (handoff lanes, todo counts, git within the window),
+// so content drifts with every commit by design — the page states its asOf and
+// is refreshed on the retrospect rhythm. The one drift that IS a mistake is
+// "edited history-spine.json, forgot to re-run the generator"; that's what
+// --check catches, by last-commit date (working-tree mtime when dirty).
 
 const fs = require('fs')
 const path = require('path')
@@ -22,6 +30,24 @@ const OUT = path.join(REPO, 'docs', 'history.html')
 
 const git = (args) =>
   execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+
+// ---- --check: spine edited after the page? (see header for why not content-compare) ----
+if (process.argv.includes('--check')) {
+  const lastTouched = (f) => {
+    if (!fs.existsSync(f)) return 0
+    try {
+      if (git(['status', '--porcelain', '--', f]).trim()) return fs.statSync(f).mtimeMs / 1000
+      const ct = git(['log', '-1', '--format=%ct', '--', f]).trim()
+      return ct ? Number(ct) : fs.statSync(f).mtimeMs / 1000
+    } catch { return fs.statSync(f).mtimeMs / 1000 }
+  }
+  if (!fs.existsSync(OUT) || lastTouched(SPINE) > lastTouched(OUT)) {
+    console.error('docs/history.html is STALE (history-spine.json edited after it) — run: node tools/build-history.js')
+    process.exit(1)
+  }
+  console.log('history.html up to date ✓ (spine not newer; live-data drift is by design, refreshed on the retrospect rhythm)')
+  process.exit(0)
+}
 
 // ---- load structure ----
 const spine = JSON.parse(fs.readFileSync(SPINE, 'utf8'))

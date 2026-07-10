@@ -189,6 +189,8 @@ docs/
 │   ├── exporting.md              ★ the five ways OUT of the editor (signed Mac .app / Windows .exe / iPhone deploy / publish to site / local web preview) — what each button produces, requirements, which tool owns the detail
 │   ├── sharing.md                ways to publish finished carts (the web/URL flow — exporting.md #4 in depth)
 │   ├── checks-and-oracles.md     ★ REVERSE INDEX: "I changed X → run Y to prove it." Routes a change (render primitive / perf / audio engine / cart logic / docs) to the matching deterministic gate — the task→tool map the flat tool list lacks
+│   ├── game-feel.md              make every player action NOTICEABLE (feel a hit land / a jump take off): the event→feedback table, the effects catalog, copy-paste recipes; canonical carts juice.c + dinorun.c
+│   ├── navkit-porting-handoff.md session-to-session state of the navkit instrument-port program (which engines are in, which are next); companion to porting-from-navkit.md
 │   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect + WAV capture/analysis + UI audit, off-screen text/overlap/hidden-panel finder (tools/play.js, tools/wav-analyze.js, tools/ui-audit.js)
 │   ├── profiler.md               one-click CPU profiler (⏱ profile button): hot functions + call paths, frame budget, draw-call counts
 │   ├── engine-optimization.md    the safe loop for making the engine faster WITHOUT changing output (stress cart → byte-identical dump oracle → keep-both env-flag A/B → perf.json measure) + the ledger; worked example = the polyfill scanline span fill (DE_POLY_FILL=legacy)

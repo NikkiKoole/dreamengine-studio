@@ -5,6 +5,12 @@
 //
 //   node tools/orient.js <name>          # e.g. sloop, or cart:sloop
 //   node tools/orient.js sloop --full    # pass flags straight through to the outline
+//   node tools/orient.js                 # BARE = the SESSION front door (repo-level):
+//                                          active handoff lanes + the repo-doctor health
+//                                          strip + a one-line cart digest. Counts only,
+//                                          never listings — deliberately token-small; the
+//                                          detail lives in the named tool each row points at.
+//                                          Run this when starting cold / resuming a session.
 //
 // It just runs build-context.js then cart-outline.js back to back — the pair
 // you almost always want when picking up an unfamiliar cart, without the second
@@ -25,16 +31,31 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const raw = args.find(a => !a.startsWith("--"));
-if (!raw) {
-  console.error("usage: node tools/orient.js <cart-name> [--full] [--fn <name>]");
-  process.exit(2);
-}
-const passthru = args.filter(a => a !== raw);
 
 function run(tool, toolArgs) {
   const r = spawnSync("node", [path.join(ROOT, "tools", tool), ...toolArgs], { stdio: "inherit" });
   return r.status === null ? 1 : r.status;
 }
+
+// BARE = repo-level session briefing: lanes + health strip + a one-line cart digest.
+// Each piece is counts-only so the whole briefing stays a few hundred tokens.
+if (!raw) {
+  run("handoff.js", []);
+  process.stdout.write("\n");
+  run("repo-doctor.js", []);
+  // cart-status is ~480 lines of listings — distill it to its section headers.
+  const r = spawnSync("node", [path.join(ROOT, "tools", "cart-status.js")], { encoding: "utf8" });
+  const heads = (r.stdout || "").split("\n").filter(l => /\(\d+\)\s*$/.test(l))
+    .map(l => {
+      const n = l.match(/\((\d+)\)\s*$/)[1];
+      const label = l.split("—")[0].replace(/\(.*$/, "").trim().toLowerCase().replace(/\s+/g, "-");
+      return `${n} ${label}`;
+    });
+  if (heads.length) console.log(`\ncarts: ${heads.join(" · ")}   [cart-status.js for the lists]`);
+  console.log("next: orient <cart> · topic-brief \"<theme>\" · design-board ready");
+  process.exit(0);
+}
+const passthru = args.filter(a => a !== raw);
 
 // --fn is a targeted drill, not a cold orient — skip the external context dump
 // and just hand the request to the outline (so `orient x --fn y` ≈ that slice).

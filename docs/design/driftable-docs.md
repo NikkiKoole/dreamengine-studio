@@ -113,6 +113,32 @@ which no file-mtime can see — so the marker catches "your seeds/manifest moved
 before a launch pass" still stands regardless of a ✓ fresh verdict. (The heuristic mtime tiers
 stay a pure `docs/` report; only the curated `--driftable` registry reaches into `apps/`.)
 
+## What we deliberately DON'T gate (settled 2026-07-10 — don't re-flag these)
+
+A 2026-07-10 meta-audit swept every advisory checker and asked which findings deserve promotion
+to a gate. These were **consciously left ungated** — an audit that re-flags them isn't finding
+rot, it's finding this decision:
+
+- **`stale-doc-check`'s mtime tiers** (TOOL DRIFT / DOC CHURN, ~hundreds of nudges) — a mention
+  is not a dependency; gating would force doc churn on every tool edit. The BROKEN-references
+  tier is the real-issue slice, and even that stays advisory (design docs legitimately cite
+  planned-not-built paths).
+- **`lint-xrefs`' missing backlinks / unlinked mentions** — review-tier by design; a hub doc
+  linking out without a link back is often fine. Scope it to a feature when acting on it.
+- **STALE PUBLISHED carts (`cart-status`)** — a *publishing cadence* choice, not rot;
+  `publish-all.js` exists for the batch pass. Same for NOT PUBLISHED.
+- **`design-board --lint`'s unmarked-docs backlog** — a real hygiene debt (42 docs at audit
+  time) but a hard gate on it would be red for weeks and train everyone to ignore red. It
+  GRADUATES to a gate when the backlog reaches zero (`repo-doctor.js` carries this note).
+- **`tune-check` in the pre-commit hook** — ~60s AND legitimately non-zero while an engine is
+  mid-tuning (the flute's high notes ride the breath model); the hook would block every
+  sound.h commit. Stays a reminder + a rung in the audio routine.
+
+Everything else advisory is surfaced (never blocking) by **`repo-doctor.js`** — one health strip
+over all the meta-checks, embedded in bare `orient` so every cold session sees it. That's the
+enforcement model: **gates block only what's cheap, deterministic, and scoped to the staged
+change; everything judgment-shaped gets surfaced at a moment you already visit.**
+
 ## When you write a doc — the rule
 
 Adding a table or counts derived from a tool, that will change as the repo grows? Either move it

@@ -9,7 +9,8 @@
 #      tripwire (full 900-frame run) before committing pitched-engine / queue changes.
 #
 # Enable once per clone:   git config core.hooksPath .githooks
-# (dormant until you do — committing this file changes nobody's flow on its own.)
+# (`make` / `make install` now do this automatically — so on any clone that has run the
+# editor at least once, the hook is live; it's only dormant on a clone that never ran make.)
 
 staged=$(git diff --cached --name-only)
 
@@ -21,6 +22,11 @@ if echo "$staged" | grep -qE '^(editor/public/carts/index\.json|tools/carts/)'; 
   if ! node tools/build-compendium.js --check >/dev/null 2>&1; then
     echo "[pre-commit] ✗ docs/cart-compendium.html is STALE (a cart's teaches/lineage changed)."
     echo "             Fix: node tools/build-compendium.js && git add docs/cart-compendium.html"
+    exit 1
+  fi
+  if ! node tools/build-cart-index.js --check >/dev/null 2>&1; then
+    echo "[pre-commit] ✗ editor/public/carts/index.json is STALE (a cart's de:meta changed without regen)."
+    echo "             Fix: node tools/build-cart-index.js && git add editor/public/carts/index.json"
     exit 1
   fi
 fi
@@ -46,6 +52,33 @@ if echo "$staged" | grep -qE '^docs/design/[^/]*blind-brief\.md$'; then
   if ! node tools/build-band-briefs.js --check >/dev/null 2>&1; then
     echo "[pre-commit] ✗ docs/band-briefs.html is STALE (a blind band brief changed)."
     echo "             Fix: node tools/build-band-briefs.js && git add docs/band-briefs.html"
+    exit 1
+  fi
+fi
+
+# ★ research journal: FIELD-NOTES.md (the index) + docs/reflections.html (the visual page)
+# both derive from docs/field-notes/ — a note edit without regen leaves them stale (bit:
+# reflections.html sat stale until the 2026-07-10 meta-audit because nothing gated it).
+if echo "$staged" | grep -qE '^docs/field-notes/'; then
+  if ! node tools/build-field-notes.js --check >/dev/null 2>&1; then
+    echo "[pre-commit] ✗ docs/field-notes/FIELD-NOTES.md is STALE (a journal note changed)."
+    echo "             Fix: node tools/build-field-notes.js && git add docs/field-notes/FIELD-NOTES.md"
+    exit 1
+  fi
+  if ! node tools/build-reflections.js --check >/dev/null 2>&1; then
+    echo "[pre-commit] ✗ docs/reflections.html is STALE (a journal note changed)."
+    echo "             Fix: node tools/build-reflections.js && git add docs/reflections.html"
+    exit 1
+  fi
+fi
+
+# ★ history: docs/history.html is regenerated from docs/history-spine.json — editing the
+# spine (a retrospect refresh, a new thread) without re-running the generator ships a page
+# that silently lacks the edit. Only fires when the spine itself is staged.
+if echo "$staged" | grep -qE '^docs/history-spine\.json$'; then
+  if ! node tools/build-history.js --check >/dev/null 2>&1; then
+    echo "[pre-commit] ✗ docs/history.html is STALE (history-spine.json edited after it)."
+    echo "             Fix: node tools/build-history.js && git add docs/history.html"
     exit 1
   fi
 fi

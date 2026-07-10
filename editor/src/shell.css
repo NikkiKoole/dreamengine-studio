@@ -1320,17 +1320,27 @@ mark.docs-find-hit.current {
   padding: 32px 48px;
   overflow-y: auto;
   display: none;
-  flex-direction: column;
-  gap: 32px;
+  /* two-column grid — sections pack side by side so the growing panel scrolls less.
+     align-items:start so a short section doesn't stretch to its tall neighbour. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px 48px;
 }
-#panel-settings.active { display: flex; }
+#panel-settings.active { display: grid; }
 #panel-settings .help-section-title { color: var(--fg); }
+/* narrow panel → fall back to one column */
+@media (max-width: 720px) {
+  #panel-settings { grid-template-columns: 1fr; }
+}
 
 .settings-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+/* a section too wide for one column (the key-binding table) spans both, and
+   `order` floats it to the end so the span never leaves a hole mid-grid. */
+.settings-wide { grid-column: 1 / -1; order: 99; }
 
 .settings-row {
   display: flex;

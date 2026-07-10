@@ -167,6 +167,7 @@ export function buildSettingsPanel(el) {
   // Click a key, then press the key you want. Stored as raylib keycodes in
   // settings.keymap and shipped to the build by main.cjs; btn() honors them.
   const keysSection = section('controls')
+  keysSection.classList.add('settings-wide')   // the key table is too wide for one grid column
 
   const BTNS = ['up', 'down', 'left', 'right', 'a', 'b', 'x', 'y']
   const PLAYERS = [['p0', 'player 0'], ['p1', 'player 1']]

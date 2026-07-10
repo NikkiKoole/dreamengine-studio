@@ -266,7 +266,8 @@ surface, full-screen, under the thin Tascam topbar. See TAKE mode above.)
 **Reuse wholesale (zero new work):**
 - The looper core — `rec_ev` / `fire_replay` / `fire_ev` (~70 lines) from
   `loopstation.c`, plus the quantized-note / gesture-CC split.
-- All four instrument voices (see the band table).
+- The shelf's **voices** — each is a one-line `INSTR_*` preset copied over (the *surfaces*
+  are rewritten lean per the Build-approach section; only the voice is reused wholesale).
 - The whole per-slot mixer API + `tape()` + `varispeed()`.
 - `save_bytes()` → a serialized track list **is a song** (song-codec's customer).
 
@@ -285,35 +286,43 @@ prototype, not before.
 
 ## Build approach — how to assemble it (the implementation plan)
 
-**Do NOT copy-paste the 8 instrument carts into one file.** That's ~3,300 lines of
-divergent shells, and fixes to the real `upright`/`guitar`/… never reach the copies. The
-repo already leans the other way (shared cart-land headers: `keybed.h`, `pointer.h`,
-`cards.h`, `radio.h`; `scalegrid`'s author even wrote *"ready to graduate into a grid.h
-library"*). So: **portapop is ONE cart that HOSTS instrument modules.**
+**The new thing here is the Tascam *story*, not the sounds.** portapop's invention is the
+4-track ritual — overdub a take at a time, the console you play, the tape it all bounces
+through, ping-pong, the mode-flip. The instruments are the *cast*, not the point (so the
+[cart-authoring firewall's](../guides/cart-authoring-prompt.md) "design unique voices"
+rule doesn't apply — reuse is correct here; the bedroom-pop *character* comes from the
+**tape stage**, not from a new instrument). That reframes the whole build:
 
-Not `build-app.js`'s multi-cart dispatcher either — that runs one cart at a time
-(`de_switch_cart`). portapop needs up to 4 instruments **live simultaneously** into one
-mix, under one transport. One cart, an array of modules.
+### Simpler variants, NOT full-cart imports (DECIDED)
 
-### The instrument-module interface
+Do **not** drag the 8 standalone carts in whole — each hauls baggage portapop doesn't want
+(autoplay, help overlays, preset banks, tuning rigs, multi-mode chrome). Instead write a
+**lean, purpose-built surface per instrument**, shaped to the take/record workflow. What
+you actually copy is small:
 
-Each shelf voice becomes a self-contained module (its own `<name>.h`, à la `keybed.h`),
-exposing roughly:
+- **The voice** — the `INSTR_*` preset (a *few lines*; `scalegrid`'s `VoicePreset` table
+  shows a whole voice is one line).
+- **The essential *playing* surface** — enough fingerboard / pads / keys to perform, and
+  nothing else.
 
-```c
-void        inst_init(int seed);
-void        inst_input(Rect area);   // touch/keys → note INTENT (calls the sink below)
-void        inst_draw (Rect area);   // render its surface INTO an assigned rect
-VoicePreset inst_voice;              // the INSTR_* id + ADSR + the 3 macros (ports ~verbatim)
-```
+Accepted cost, named once: variants **diverge** — a fix to the real `upright` won't reach
+portapop's mini-upright, and vice versa. For purpose-built surfaces that's the right trade.
+Not `build-app.js`'s multi-cart dispatcher either (that runs one whole cart at a time) — a
+lean surface is far less than a cart.
 
-Per cart, the work is a **split**: keep "surface + input→events," drop "standalone
-`main()` loop / autoplay / help chrome." `scalegrid`'s `VoicePreset` table is the template
-for the voice half (each voice is a one-line `INSTR_*` preset).
+### Share the MACHINE, not the instruments (extract on the second customer)
+
+The house **second-customer rule** (a library header ships only with two real users) says
+*don't pre-abstract*. So: write the variants even if they duplicate, and when a pattern
+genuinely repeats across two of them, extract it to a header *then*. The **one** thing
+shared from day one is portapop's *own* infrastructure — the record sink + transport +
+data model below — because that's the machine, not an instrument. Everything else earns
+its extraction. (Likely later candidates: a shared scale-locked pad; `keybed.h` is
+*already* a header, so the keys variants lean on it for free.)
 
 ### The recordable seam (the single most important decision)
 
-An instrument must **not** call `note_on()` directly. It calls a **portapop-owned sink**:
+A surface must **not** call `note_on()` directly. It calls a **portapop-owned sink**:
 
 ```c
 void pp_note_on (int slot, float pitch, int vol);   // plays the voice AND...
@@ -322,9 +331,9 @@ void pp_note_cc (int slot, float v);                 // the gesture/CC lane (XY 
 ```
 
 The sink both sounds the voice *and* appends an `Ev` to the armed track. Wire this once →
-**every instrument is recordable for free.** This is loopstation's model, generalized (it
-already calls `rec_ev` explicitly rather than intercepting the engine, which gives clean
-per-track attribution — exactly what a per-track take model needs).
+**every surface is recordable for free.** This is loopstation's model (it already calls
+`rec_ev` explicitly rather than intercepting the engine, which gives clean per-track
+attribution — exactly what a per-track take model needs).
 
 ### Data model (adapt loopstation's, don't reinvent)
 
@@ -334,7 +343,7 @@ typedef struct { float pos; int kind, slot, vol, dur, born; float pitch; int aux
 typedef struct { Ev ev[MAXEV]; int n; int armed, muted; } Track;
 // ADD for portapop:
 //   Track.len_bars        — this track's own length (the take you cut)
-//   Track.voice           — which shelf module is cast into it (index 0..7)
+//   Track.voice           — which shelf voice is cast into it (index 0..7)
 //   song_bars = max(track.len_bars)     — recomputed live (the window)
 //   playback: for each track, play its Ev stream, WRAPPING at track.len_bars
 //             until song_bars (→ shorter tracks loop to fill; see recording model)
@@ -343,26 +352,44 @@ typedef struct { Ev ev[MAXEV]; int n; int armed, muted; } Track;
 Grid voices (`drummachine`) are the one **quantized-loop exception**; `fingerdrums` and all
 melodic voices record **as-played** (don't quantize).
 
-### The real friction: rect-relative rendering
+### One surface at a time — the mode-flip does the layout work
 
-Every instrument cart currently draws **full-screen** (hardcodes `SCREEN_W/H`). portapop
-needs them **rect-parameterized** — full-screen in TAKE mode, a small VU/strip in CONSOLE
-mode. That's the bulk of the per-cart refactor; `lay.h` (responsive layout) exists for
-exactly it. Budget for it up front.
+You never draw all the instruments at once. **TAKE mode** draws the *one* armed surface
+full-screen; **CONSOLE mode** draws portapop's *own* console (channel strips + VU), not the
+live instrument surfaces. Two consequences:
+
+- Each variant only ever renders full-screen in its own rect — so the rect-relative
+  refactor that a tiled layout would force **isn't needed**; a purpose-built surface is
+  drawn for TAKE mode from the start.
+- The [#1 cart gotcha](../guides/cart-authoring.md) (leftover `camera`/`pal`/`fillp`
+  leaking between surfaces) mostly **evaporates** — only one surface is up. Just reset
+  `camera(0,0); pal_reset(); fillp_reset();` once on the mode-flip and you're clean.
+
+### Filmable transport — keyboard-bindable from the start
+
+Bind **record / play / stop / arm-track / cast-voice / mode-flip / count-in to keyboard
+keys**, not just touch. A key press has no coordinates, so one recorded take replays
+byte-identically at every screen ratio (iPad / iPhone-portrait / a 9:16 crop) — turning
+"record once → render every App-Store-preview ratio" from impossible into free (the
+[filmability rule](../guides/cart-authoring.md)). Worth doing up front given the store
+plan in "Name & positioning."
 
 ### Phasing (not one big bang)
 
-1. **Prove the seam.** portapop skeleton + loopstation's record core + ONE instrument
-   (`upright`), TAKE mode only, one track. Record → play back one take. *(This is the
-   first thing to build — smallest slice that proves the whole idea.)*
+1. **Prove the seam.** portapop skeleton + loopstation's record core + ONE lean surface
+   (upright), TAKE mode only, one track. Record → play back one take. *(The first thing to
+   build — smallest slice that proves the whole idea.)*
 2. **Add the console.** 2–3 tracks; faders/pan/VU mixdown; the TAKE↔CONSOLE mode-flip.
-3. **Generalize + port the rest**, cheapest first — `piano`/`epiano` share `keybed.h`, so
-   they come almost free; then `scalegrid`, `guitar`, `pdbass`, the drums, the XY smear-lead.
+3. **Add the rest of the shelf**, cheapest first — the keys variants lean on `keybed.h`, so
+   they come nearly free; then the hex pad, guitar, synth bass, the drums, the XY smear-lead.
 4. **Ping-pong, count-in, tape glue** (`tape()`/`varispeed()`/hiss/VU), cassette chrome.
 
-The reassuring part: voices and surfaces already work, so this is mostly *interface
-extraction + a host shell* — the genuinely-new code is exactly the "what's new" list above
-(transport, per-track `Ev` buffers, console UI, ping-pong merge), not new DSP.
+The reassuring part: the voices already exist as one-line presets and the surfaces are
+cheap to draw lean, so the genuinely-new code is exactly the "what's new" list above
+(transport, per-track `Ev` buffers, console UI, ping-pong merge) — not new DSP.
+
+> de:meta note (ship time): `kind: ["instrument"]` auto-enables the web **AudioWorklet**
+> backend (sample-tight audio on a dedicated thread) — exactly what a multitracker wants.
 
 ---
 

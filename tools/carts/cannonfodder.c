@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "cannonfodder",
   "title": "cannon fodder",
   "status": "active",
   "created": "2026-05-31",

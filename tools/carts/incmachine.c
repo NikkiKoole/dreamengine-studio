@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "incmachine",
   "title": "The Incredible Machine",
   "status": "active",
   "created": "2026-06-01",

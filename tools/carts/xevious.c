@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "xevious",
   "title": "solvalou (xevious)",
   "status": "active",
   "created": "2026-05-30",

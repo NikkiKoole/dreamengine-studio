@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tr606",
   "title": "tr-606 drumatix",
   "status": "active",
   "created": "2026-07-06",

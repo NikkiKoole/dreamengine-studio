@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "masseffect",
   "title": "mass effect",
   "status": "active",
   "created": "2026-05-31",

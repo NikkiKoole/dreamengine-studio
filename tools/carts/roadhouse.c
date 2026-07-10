@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "roadhouse",
   "title": "roadhouse radio",
   "status": "active",
   "created": "2026-06-05",

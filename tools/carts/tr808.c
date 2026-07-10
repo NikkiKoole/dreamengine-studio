@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tr808",
   "title": "tr-808 rhythm composer",
   "status": "active",
   "created": "2026-06-05",

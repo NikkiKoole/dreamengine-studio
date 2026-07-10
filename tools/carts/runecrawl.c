@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "runecrawl",
   "title": "runecrawl",
   "status": "active",
   "created": "2026-06-22",

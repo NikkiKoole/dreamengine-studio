@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "seinelaan",
   "title": "seinelaan 31",
   "status": "active",
   "created": "2026-06-12",

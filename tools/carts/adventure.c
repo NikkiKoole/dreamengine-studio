@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "adventure",
   "title": "escape the cave",
   "status": "active",
   "created": "2026-05-30",

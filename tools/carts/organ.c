@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "organ",
   "title": "organ",
   "status": "active",
   "created": "2026-06-07",

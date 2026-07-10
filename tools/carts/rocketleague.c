@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "rocketleague",
   "title": "rocket league",
   "status": "active",
   "created": "2026-05-30",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "outrun",
   "title": "outrun",
   "status": "active",
   "created": "2026-05-31",

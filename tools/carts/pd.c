@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pd",
   "title": "pd",
   "status": "active",
   "created": "2026-06-05",

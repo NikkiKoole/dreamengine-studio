@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "touchlab",
   "title": "touchlab",
   "status": "active",
   "created": "2026-06-05",

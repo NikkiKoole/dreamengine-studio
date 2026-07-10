@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "lowend",
   "title": "low end radio",
   "status": "active",
   "created": "2026-06-04",

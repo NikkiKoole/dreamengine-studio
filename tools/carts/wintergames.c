@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "wintergames",
   "title": "Winter Games",
   "status": "active",
   "created": "2026-06-01",

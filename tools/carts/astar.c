@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "astar",
   "title": "A* pathfinding",
   "status": "active",
   "created": "2026-05-30",

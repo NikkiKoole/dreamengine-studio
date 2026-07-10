@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "reverbspace",
   "title": "reverb spaces",
   "status": "active",
   "created": "2026-06-12",

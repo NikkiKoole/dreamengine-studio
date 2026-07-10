@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "guitar",
   "title": "guitar",
   "status": "active",
   "created": "2026-06-05",

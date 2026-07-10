@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "06b-chords",
   "title": "6b. chords and rhythm",
   "status": "active",
   "created": "2026-07-01",

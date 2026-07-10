@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pocketbox",
   "title": "pocket groove box",
   "status": "active",
   "created": "2026-07-02",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mixbooth",
   "title": "mixing booth",
   "status": "active",
   "created": "2026-07-02",

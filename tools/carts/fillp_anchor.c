@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fillp_anchor",
   "title": "24. moving patterns",
   "status": "active",
   "created": "2026-06-02",

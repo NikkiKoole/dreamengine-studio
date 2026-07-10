@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "supersaw",
   "title": "supersaw",
   "status": "active",
   "created": "2026-07-09",

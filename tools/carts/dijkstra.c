@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dijkstra",
   "title": "dijkstra maps",
   "status": "active",
   "created": "2026-06-15",

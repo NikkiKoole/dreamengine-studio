@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "05b-colorkey",
   "title": "5b. colorkey",
   "status": "active",
   "created": "2026-05-29",

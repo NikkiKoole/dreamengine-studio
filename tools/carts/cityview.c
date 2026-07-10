@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "cityview",
   "title": "cityview",
   "status": "active",
   "created": "2026-06-24",

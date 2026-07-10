@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tinyjam",
   "title": "tinyjam — heart + notes logo",
   "status": "active",
   "created": "2026-06-29",

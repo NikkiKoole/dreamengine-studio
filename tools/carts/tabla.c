@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tabla",
   "title": "tabla",
   "status": "active",
   "created": "2026-06-08",

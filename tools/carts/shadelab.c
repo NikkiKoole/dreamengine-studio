@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "shadelab",
   "title": "shadelab",
   "status": "active",
   "created": "2026-06-11",

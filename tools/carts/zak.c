@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "zak",
   "title": "Zak McKracken",
   "status": "active",
   "created": "2026-06-01",

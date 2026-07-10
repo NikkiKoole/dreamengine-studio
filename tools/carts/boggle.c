@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "boggle",
   "title": "Boggle",
   "status": "active",
   "created": "2026-06-01",

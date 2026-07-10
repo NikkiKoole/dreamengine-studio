@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mistress",
   "title": "electric mistress",
   "status": "active",
   "created": "2026-06-10",

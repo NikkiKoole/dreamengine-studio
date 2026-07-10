@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "09-enemies",
   "title": "9. enemies!",
   "status": "active",
   "created": "2026-05-29",

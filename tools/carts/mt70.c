@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mt70",
   "title": "mt-70",
   "status": "active",
   "created": "2026-06-07",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "summergames",
   "title": "Summer Games",
   "status": "active",
   "created": "2026-06-01",

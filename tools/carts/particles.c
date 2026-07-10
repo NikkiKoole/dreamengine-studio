@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "particles",
   "title": "18. particles",
   "status": "active",
   "created": "2026-05-30",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "10b-camera",
   "title": "10b. camera and clip",
   "status": "active",
   "created": "2026-07-01",

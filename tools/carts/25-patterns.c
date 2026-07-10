@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "25-patterns",
   "title": "25. entity pool and friendly state",
   "status": "active",
   "created": "2026-07-01",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "transport",
   "title": "Transport Tycoon",
   "status": "active",
   "created": "2026-06-01",

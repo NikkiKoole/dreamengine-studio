@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "paperio",
   "title": "paper.io",
   "status": "active",
   "created": "2026-05-30",

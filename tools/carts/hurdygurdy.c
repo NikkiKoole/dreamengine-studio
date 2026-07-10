@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "hurdygurdy",
   "title": "hurdy-gurdy",
   "status": "active",
   "created": "2026-06-02",

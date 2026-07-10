@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "19-breakout",
   "title": "breakout",
   "status": "active",
   "created": "2026-05-29",

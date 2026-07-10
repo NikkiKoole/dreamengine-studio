@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "enginelab",
   "title": "enginelab · dyno",
   "status": "active",
   "created": "2026-06-12",

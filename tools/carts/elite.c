@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "elite",
   "title": "elite",
   "status": "active",
   "created": "2026-05-30",

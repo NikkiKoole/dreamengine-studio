@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "cityplan",
   "title": "Cityplan — a world you can lift the roof off",
   "status": "active",
   "created": "2026-06-23",

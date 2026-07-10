@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "trifill_stress",
   "title": "trifill stress",
   "status": "active",
   "created": "2026-06-02",

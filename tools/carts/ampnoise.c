@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "ampnoise",
   "title": "amp noise",
   "status": "active",
   "created": "2026-06-15",

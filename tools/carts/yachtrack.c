@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "yachtrack",
   "title": "session desk",
   "status": "active",
   "created": "2026-07-02",

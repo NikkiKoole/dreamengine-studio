@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "grid-move",
   "title": "grid move",
   "status": "active",
   "created": "2026-06-04",

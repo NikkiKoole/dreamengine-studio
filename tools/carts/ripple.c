@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "ripple",
   "title": "ripple tank",
   "status": "active",
   "created": "2026-05-30",

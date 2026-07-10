@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "gridcity",
   "title": "gridcity",
   "status": "active",
   "created": "2026-06-23",

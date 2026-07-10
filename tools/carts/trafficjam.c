@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "trafficjam",
   "title": "traffic jam",
   "status": "active",
   "created": "2026-06-03",

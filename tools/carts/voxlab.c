@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "voxlab",
   "title": "voxlab",
   "status": "active",
   "created": "2026-06-09",

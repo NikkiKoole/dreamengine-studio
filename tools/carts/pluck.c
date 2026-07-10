@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pluck",
   "title": "pluck",
   "status": "active",
   "created": "2026-06-05",

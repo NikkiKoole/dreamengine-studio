@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sopwith",
   "title": "sopwith camel",
   "status": "active",
   "created": "2026-05-30",

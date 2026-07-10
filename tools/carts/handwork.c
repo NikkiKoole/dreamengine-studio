@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "handwork",
   "title": "Handwork",
   "status": "active",
   "created": "2026-06-17",

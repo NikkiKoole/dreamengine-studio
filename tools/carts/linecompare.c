@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "linecompare",
   "title": "linecompare",
   "status": "active",
   "created": "2026-06-24",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "calgames",
   "title": "California Games: Half-Pipe",
   "status": "active",
   "created": "2026-06-01",

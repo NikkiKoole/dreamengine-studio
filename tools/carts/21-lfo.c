@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "21-lfo",
   "title": "lfo",
   "status": "active",
   "created": "2026-05-30",

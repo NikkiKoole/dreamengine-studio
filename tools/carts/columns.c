@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "columns",
   "title": "Columns",
   "status": "active",
   "created": "2026-06-01",

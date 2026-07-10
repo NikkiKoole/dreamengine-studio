@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "epianofit",
   "title": "epianofit",
   "status": "active",
   "created": "2026-07-07",

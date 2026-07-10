@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "23-basics",
   "title": "23. variables, conditionals, loops",
   "status": "active",
   "created": "2026-07-01",

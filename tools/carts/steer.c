@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "steer",
   "title": "steer (car drift)",
   "status": "active",
   "created": "2026-06-04",

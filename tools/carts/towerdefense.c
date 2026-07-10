@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "towerdefense",
   "title": "tower defense",
   "status": "active",
   "created": "2026-05-30",

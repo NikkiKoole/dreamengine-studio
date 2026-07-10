@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "13-easing",
   "title": "13. easing",
   "status": "active",
   "created": "2026-05-29",

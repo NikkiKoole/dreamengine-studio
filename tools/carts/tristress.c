@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tristress",
   "title": "tristress",
   "status": "active",
   "created": "2026-06-17",

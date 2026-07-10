@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "gnomeseek",
   "title": "Gnome Hide & Eek",
   "status": "active",
   "created": "2026-06-10",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "hotline",
   "title": "hotline",
   "status": "active",
   "created": "2026-05-31",

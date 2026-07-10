@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fighter",
   "title": "street brawler",
   "status": "active",
   "created": "2026-05-30",

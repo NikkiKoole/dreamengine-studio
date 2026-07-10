@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "palettelab",
   "title": "palette lab",
   "status": "active",
   "created": "2026-06-04",

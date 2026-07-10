@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "drawall",
   "title": "drawall — every draw command",
   "status": "active",
   "created": "2026-06-25",

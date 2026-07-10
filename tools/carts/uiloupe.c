@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "uiloupe",
   "title": "ui.h loupe",
   "status": "active",
   "created": "2026-06-10",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "blendlab",
   "title": "blend lab",
   "status": "active",
   "created": "2026-06-04",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "moog",
   "title": "dream synth",
   "status": "active",
   "created": "2026-05-30",

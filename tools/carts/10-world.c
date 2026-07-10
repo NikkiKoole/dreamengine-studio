@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "10-world",
   "title": "10. build a world",
   "status": "active",
   "created": "2026-05-29",

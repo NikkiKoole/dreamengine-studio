@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sfxgen",
   "title": "sfx generator",
   "status": "active",
   "created": "2026-06-04",

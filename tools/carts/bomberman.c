@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "bomberman",
   "title": "bomberman",
   "status": "active",
   "created": "2026-05-30",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "monstermix",
   "title": "monster mix lab",
   "status": "active",
   "created": "2026-06-04",

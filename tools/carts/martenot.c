@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "martenot",
   "title": "ondes martenot",
   "status": "active",
   "created": "2026-06-12",

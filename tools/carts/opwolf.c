@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "opwolf",
   "title": "operation wolf",
   "status": "active",
   "created": "2026-05-31",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "rampkit",
   "title": "rampkit",
   "status": "active",
   "created": "2026-06-16",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "oilshow",
   "title": "oil show",
   "status": "active",
   "created": "2026-06-04",

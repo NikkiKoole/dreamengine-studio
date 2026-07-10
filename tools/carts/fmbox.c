@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fmbox",
   "title": "fm box",
   "status": "active",
   "created": "2026-07-10",

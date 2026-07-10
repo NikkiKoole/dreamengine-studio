@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "djfilter",
   "title": "DJ Filter",
   "status": "active",
   "created": "2026-06-12",

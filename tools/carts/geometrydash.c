@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "geometrydash",
   "title": "geometry dash",
   "status": "active",
   "created": "2026-05-30",

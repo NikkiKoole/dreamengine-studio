@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "garden",
   "title": "music garden",
   "status": "active",
   "created": "2026-05-30",

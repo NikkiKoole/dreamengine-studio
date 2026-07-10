@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sand",
   "title": "falling sand",
   "status": "active",
   "created": "2026-05-30",

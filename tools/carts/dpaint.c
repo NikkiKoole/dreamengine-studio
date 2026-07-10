@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dpaint",
   "title": "Deluxe Paint",
   "status": "active",
   "created": "2026-05-31",

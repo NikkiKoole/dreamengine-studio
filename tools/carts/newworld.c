@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "newworld",
   "title": "I Hear a New World",
   "status": "active",
   "created": "2026-07-07",

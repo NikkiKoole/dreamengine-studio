@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pendulum",
   "title": "double pendulum",
   "status": "active",
   "created": "2026-05-30",

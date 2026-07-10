@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "wba",
   "title": "wba fm",
   "status": "active",
   "created": "2026-06-22",

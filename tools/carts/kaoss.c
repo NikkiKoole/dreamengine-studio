@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "kaoss",
   "title": "Kaoss",
   "status": "active",
   "created": "2026-06-22",

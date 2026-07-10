@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "shapes",
   "title": "Shapes",
   "status": "active",
   "created": "2026-06-01",

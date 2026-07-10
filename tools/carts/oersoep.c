@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "oersoep",
   "title": "Oersoep",
   "status": "active",
   "created": "2026-06-09",

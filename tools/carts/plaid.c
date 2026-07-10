@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "plaid",
   "title": "plaid fm",
   "status": "active",
   "created": "2026-06-22",

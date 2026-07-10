@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tracker",
   "title": "tracker",
   "status": "active",
   "created": "2026-07-02",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "motorik",
   "title": "motorik radio",
   "status": "active",
   "created": "2026-06-08",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "filterenv",
   "title": "dual env",
   "status": "active",
   "created": "2026-06-03",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "solid3d",
   "title": "solid 3D",
   "status": "active",
   "created": "2026-05-30",

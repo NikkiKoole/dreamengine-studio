@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "highnoon",
   "title": "high noon",
   "status": "active",
   "created": "2026-06-05",

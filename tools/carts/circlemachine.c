@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "circlemachine",
   "title": "Circle Machine",
   "status": "active",
   "created": "2026-07-07",

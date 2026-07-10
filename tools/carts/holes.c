@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "holes",
   "title": "23. holes & colors",
   "status": "active",
   "created": "2026-05-30",

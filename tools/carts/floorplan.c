@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "floorplan",
   "title": "floorplan",
   "status": "active",
   "created": "2026-06-26",

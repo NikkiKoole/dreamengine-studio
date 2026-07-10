@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fontbake",
   "title": "font bake",
   "status": "active",
   "created": "2026-06-05",

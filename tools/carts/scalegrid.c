@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "scalegrid",
   "title": "scalegrid",
   "status": "active",
   "created": "2026-07-07",

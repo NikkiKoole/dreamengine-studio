@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "multitouch",
   "title": "multitouch paint",
   "status": "active",
   "created": "2026-06-05",

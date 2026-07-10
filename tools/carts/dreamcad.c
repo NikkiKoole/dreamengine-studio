@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dreamcad",
   "title": "dreamcad",
   "status": "active",
   "created": "2026-06-02",

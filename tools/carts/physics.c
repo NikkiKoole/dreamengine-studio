@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "physics",
   "title": "Physics playground",
   "status": "active",
   "created": "2026-06-01",

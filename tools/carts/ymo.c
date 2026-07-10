@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "ymo",
   "title": "ymo radio",
   "status": "active",
   "created": "2026-06-05",

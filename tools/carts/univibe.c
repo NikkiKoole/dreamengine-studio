@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "univibe",
   "title": "univibe",
   "status": "active",
   "created": "2026-06-15",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "vampire",
   "title": "vampire survivors",
   "status": "active",
   "created": "2026-05-30",

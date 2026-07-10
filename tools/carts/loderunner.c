@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "loderunner",
   "title": "Lode Runner",
   "status": "active",
   "created": "2026-06-01",

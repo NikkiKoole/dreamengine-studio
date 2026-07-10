@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "touchpiano",
   "title": "touch piano",
   "status": "active",
   "created": "2026-06-05",

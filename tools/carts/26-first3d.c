@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "26-first3d",
   "title": "26. your first 3D",
   "status": "active",
   "created": "2026-07-01",

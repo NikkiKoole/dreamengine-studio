@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "spacecho",
   "title": "re-201 space echo",
   "status": "active",
   "created": "2026-06-05",

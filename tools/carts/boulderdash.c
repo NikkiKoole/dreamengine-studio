@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "boulderdash",
   "title": "Boulder Dash",
   "status": "active",
   "created": "2026-06-01",

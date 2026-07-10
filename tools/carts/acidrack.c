@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "acidrack",
   "title": "acid rack",
   "status": "active",
   "created": "2026-07-02",

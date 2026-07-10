@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "splatoon",
   "title": "splatoon",
   "status": "active",
   "created": "2026-05-30",

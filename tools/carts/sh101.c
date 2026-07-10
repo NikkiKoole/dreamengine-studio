@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sh101",
   "title": "sh-101",
   "status": "active",
   "created": "2026-06-05",

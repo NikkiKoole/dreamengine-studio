@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "interiors",
   "title": "Interiors — a fill language for floor-plans",
   "status": "active",
   "created": "2026-06-17",

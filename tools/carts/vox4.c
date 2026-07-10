@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "vox4",
   "title": "vox4",
   "status": "active",
   "created": "2026-06-10",

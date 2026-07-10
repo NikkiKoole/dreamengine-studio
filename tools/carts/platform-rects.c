@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "platform-rects",
   "title": "platform engine (rects)",
   "status": "active",
   "created": "2026-06-03",

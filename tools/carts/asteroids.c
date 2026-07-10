@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "asteroids",
   "title": "asteroids",
   "status": "active",
   "created": "2026-05-29",

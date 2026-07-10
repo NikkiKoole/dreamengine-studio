@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "neonrain",
   "title": "neon rain",
   "status": "active",
   "created": "2026-05-31",

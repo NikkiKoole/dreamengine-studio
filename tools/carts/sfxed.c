@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sfxed",
   "title": "sfx editor",
   "status": "active",
   "created": "2026-06-04",

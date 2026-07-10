@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mule",
   "title": "M.U.L.E.",
   "status": "active",
   "created": "2026-05-30",

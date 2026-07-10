@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "euclid",
   "title": "Euclid",
   "status": "active",
   "created": "2026-06-22",

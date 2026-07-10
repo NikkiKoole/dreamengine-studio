@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "voxpad",
   "title": "voxpad",
   "status": "active",
   "created": "2026-06-10",

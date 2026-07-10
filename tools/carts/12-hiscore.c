@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "12-hiscore",
   "title": "12. high score",
   "status": "active",
   "created": "2026-05-29",

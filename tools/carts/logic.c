@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "logic",
   "title": "logic",
   "status": "active",
   "created": "2026-06-22",

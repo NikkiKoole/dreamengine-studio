@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "otafit",
   "title": "otafit",
   "status": "active",
   "created": "2026-07-03",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "raster_test",
   "title": "rasterizer test",
   "status": "active",
   "created": "2026-06-01",

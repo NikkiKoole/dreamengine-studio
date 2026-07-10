@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pdbass",
   "title": "pd bass",
   "status": "active",
   "created": "2026-06-12",

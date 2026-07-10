@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fartsynth",
   "title": "le petomane",
   "status": "active",
   "created": "2026-05-30",

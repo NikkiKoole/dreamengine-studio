@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "platform-loop",
   "title": "rail loop (sonic-style)",
   "status": "active",
   "created": "2026-06-03",

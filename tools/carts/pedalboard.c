@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pedalboard",
   "title": "pedalboard",
   "status": "active",
   "created": "2026-06-12",

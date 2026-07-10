@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "qbert",
   "title": "Q*bert",
   "status": "active",
   "created": "2026-06-01",

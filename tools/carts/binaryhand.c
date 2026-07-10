@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "binaryhand",
   "title": "one-hand binary",
   "status": "active",
   "created": "2026-05-30",

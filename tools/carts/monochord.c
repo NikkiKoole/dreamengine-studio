@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "monochord",
   "title": "monochord",
   "status": "active",
   "created": "2026-06-14",

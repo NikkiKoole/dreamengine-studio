@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "lemmings",
   "title": "Lemmings",
   "status": "active",
   "created": "2026-06-01",

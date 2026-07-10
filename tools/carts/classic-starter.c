@@ -1,6 +1,7 @@
 /* de:meta
 {
   "title": "classic starter (v1 default)",
+  "slug": "classic-starter",
   "status": "active",
   "created": "2026-05-30",
   "kind": [

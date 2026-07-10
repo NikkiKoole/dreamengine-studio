@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fire",
   "title": "fire!",
   "status": "active",
   "created": "2026-05-30",

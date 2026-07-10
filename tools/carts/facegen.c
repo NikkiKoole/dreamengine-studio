@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "facegen",
   "title": "facegen",
   "status": "active",
   "created": "2026-06-22",

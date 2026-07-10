@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "effects",
   "title": "20. effects",
   "status": "active",
   "created": "2026-05-30",

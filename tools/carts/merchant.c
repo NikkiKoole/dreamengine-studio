@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "merchant",
   "title": "Merchant",
   "status": "active",
   "created": "2026-06-01",

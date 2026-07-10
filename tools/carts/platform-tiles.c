@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "platform-tiles",
   "title": "tilemap platformer",
   "status": "active",
   "created": "2026-06-03",

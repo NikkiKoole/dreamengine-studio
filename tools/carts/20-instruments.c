@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "20-instruments",
   "title": "instruments",
   "status": "active",
   "created": "2026-05-30",

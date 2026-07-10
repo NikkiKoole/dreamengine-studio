@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "house",
   "title": "house radio",
   "status": "active",
   "created": "2026-06-05",

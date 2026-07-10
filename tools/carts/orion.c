@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "orion",
   "title": "master of orion",
   "status": "active",
   "created": "2026-05-30",

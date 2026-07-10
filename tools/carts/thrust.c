@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "thrust",
   "title": "thrust (inertia)",
   "status": "active",
   "created": "2026-06-04",

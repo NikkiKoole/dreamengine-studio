@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "bejeweled",
   "title": "Bejeweled",
   "status": "active",
   "created": "2026-06-01",

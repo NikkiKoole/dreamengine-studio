@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dinorun",
   "title": "dino run",
   "status": "active",
   "created": "2026-06-02",

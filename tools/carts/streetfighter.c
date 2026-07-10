@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "streetfighter",
   "title": "Street Fighter",
   "status": "active",
   "created": "2026-06-01",

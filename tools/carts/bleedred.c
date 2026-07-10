@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "bleedred",
   "title": "bleed rig - red",
   "status": "active",
   "created": "2026-07-03",

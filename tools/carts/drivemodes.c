@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "drivemodes",
   "title": "drivemodes",
   "status": "active",
   "created": "2026-06-11",

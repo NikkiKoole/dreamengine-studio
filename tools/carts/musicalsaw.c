@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "musicalsaw",
   "title": "musical saw",
   "status": "active",
   "created": "2026-06-02",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "joust",
   "title": "joust",
   "status": "active",
   "created": "2026-05-30",

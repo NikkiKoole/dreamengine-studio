@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "civ",
   "title": "Civ (tiny)",
   "status": "active",
   "created": "2026-06-01",

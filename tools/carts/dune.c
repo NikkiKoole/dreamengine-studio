@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dune",
   "title": "Arrakis",
   "status": "active",
   "created": "2026-05-31",

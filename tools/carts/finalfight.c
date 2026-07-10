@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "finalfight",
   "title": "final fight",
   "status": "active",
   "created": "2026-05-31",

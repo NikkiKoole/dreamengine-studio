@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "grains",
   "title": "grain clouds",
   "status": "active",
   "created": "2026-06-14",

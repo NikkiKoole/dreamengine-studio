@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dwarffort",
   "title": "Dwarffort",
   "status": "active",
   "created": "2026-06-01",

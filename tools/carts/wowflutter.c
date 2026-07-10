@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "wowflutter",
   "title": "wow & flutter",
   "status": "active",
   "created": "2026-06-11",

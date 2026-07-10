@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pan",
   "title": "pan",
   "status": "active",
   "created": "2026-06-09",

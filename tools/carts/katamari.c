@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "katamari",
   "title": "katamari",
   "status": "active",
   "created": "2026-05-30",

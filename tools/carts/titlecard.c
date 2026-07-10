@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "titlecard",
   "title": "titlecard",
   "status": "active",
   "created": "2026-07-04",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "raycaster",
   "title": "raycaster",
   "status": "active",
   "created": "2026-05-30",

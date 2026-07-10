@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "touchvocab",
   "title": "touch vocabulary",
   "status": "active",
   "created": "2026-07-01",

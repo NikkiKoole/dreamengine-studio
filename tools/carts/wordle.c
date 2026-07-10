@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "wordle",
   "title": "Wordle",
   "status": "active",
   "created": "2026-06-01",

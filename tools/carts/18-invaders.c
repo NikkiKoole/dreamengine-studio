@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "18-invaders",
   "title": "space invaders",
   "status": "active",
   "created": "2026-05-29",

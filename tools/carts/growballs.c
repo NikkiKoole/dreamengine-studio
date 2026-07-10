@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "growballs",
   "title": "grow balls",
   "status": "active",
   "created": "2026-06-25",

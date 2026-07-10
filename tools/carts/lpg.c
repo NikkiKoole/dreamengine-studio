@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "lpg",
   "title": "LPG",
   "status": "active",
   "created": "2026-06-22",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dungeonkeeper",
   "title": "dungeon keeper",
   "status": "active",
   "created": "2026-05-31",

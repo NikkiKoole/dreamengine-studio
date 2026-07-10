@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pacman",
   "title": "pac-man",
   "status": "active",
   "created": "2026-05-30",

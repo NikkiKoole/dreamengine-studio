@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "lfoshapes",
   "title": "lfoshapes",
   "status": "active",
   "created": "2026-06-15",

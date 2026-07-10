@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "robotron",
   "title": "robotron 2084",
   "status": "active",
   "created": "2026-05-29",

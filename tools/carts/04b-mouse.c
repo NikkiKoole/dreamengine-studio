@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "04b-mouse",
   "title": "4b. the mouse",
   "status": "active",
   "created": "2026-06-22",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "dpaddemo",
   "title": "touch controls testbench",
   "status": "active",
   "created": "2026-07-01",

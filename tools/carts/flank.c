@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "flank",
   "title": "flank",
   "status": "active",
   "created": "2026-06-15",

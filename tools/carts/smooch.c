@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "smooch",
   "title": "smooch lounge",
   "status": "active",
   "created": "2026-05-31",

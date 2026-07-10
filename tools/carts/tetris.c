@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "tetris",
   "title": "tetris",
   "status": "active",
   "created": "2026-05-30",

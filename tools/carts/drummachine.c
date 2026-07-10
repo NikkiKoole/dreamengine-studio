@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "drummachine",
   "title": "drum machine",
   "status": "active",
   "created": "2026-05-30",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "strippoker",
   "title": "Strip Poker",
   "status": "active",
   "created": "2026-06-01",

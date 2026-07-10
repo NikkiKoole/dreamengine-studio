@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "07-score",
   "title": "7. keeping score",
   "status": "active",
   "created": "2026-05-29",

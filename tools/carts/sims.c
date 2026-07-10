@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sims",
   "title": "lil life (the sims)",
   "status": "active",
   "created": "2026-05-30",

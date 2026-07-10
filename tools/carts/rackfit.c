@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "rackfit",
   "title": "rackfit",
   "status": "active",
   "created": "2026-07-03",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "collision-lab-3",
   "title": "collision lab 3: the world",
   "status": "active",
   "created": "2026-06-04",

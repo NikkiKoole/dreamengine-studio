@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "wfc",
   "title": "wfc terrain",
   "status": "active",
   "created": "2026-06-15",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "inkrunner",
   "title": "ink runner",
   "status": "active",
   "created": "2026-06-05",

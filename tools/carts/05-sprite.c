@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "05-sprite",
   "title": "5. draw your character",
   "status": "active",
   "created": "2026-05-29",

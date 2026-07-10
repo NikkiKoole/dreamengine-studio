@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "bitcrush",
   "title": "bitcrush",
   "status": "active",
   "created": "2026-06-11",

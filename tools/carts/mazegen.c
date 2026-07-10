@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mazegen",
   "title": "maze maker",
   "status": "active",
   "created": "2026-05-30",

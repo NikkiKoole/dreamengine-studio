@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "soccermgr",
   "title": "Football Manager",
   "status": "active",
   "created": "2026-06-01",

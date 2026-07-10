@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "uikit",
   "title": "ui kit",
   "status": "active",
   "created": "2026-06-07",

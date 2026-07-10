@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "papers",
   "title": "papers, please",
   "status": "active",
   "created": "2026-05-30",

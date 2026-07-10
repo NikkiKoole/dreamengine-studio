@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "squishy",
   "title": "Squishy Lines",
   "status": "active",
   "created": "2026-06-30",

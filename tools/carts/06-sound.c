@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "06-sound",
   "title": "6. sounds and music",
   "status": "active",
   "created": "2026-05-29",

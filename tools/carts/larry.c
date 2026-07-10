@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "larry",
   "title": "Leisure Suit Larry",
   "status": "active",
   "created": "2026-06-01",

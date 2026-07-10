@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "acidwire",
   "title": "acidwire",
   "status": "active",
   "created": "2026-07-07",

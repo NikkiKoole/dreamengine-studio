@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "camrot",
   "title": "camrot",
   "status": "active",
   "created": "2026-06-29",

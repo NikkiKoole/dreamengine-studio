@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "battleship",
   "title": "Battleship",
   "status": "active",
   "created": "2026-06-01",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mode7",
   "title": "mode 7",
   "status": "active",
   "created": "2026-05-30",

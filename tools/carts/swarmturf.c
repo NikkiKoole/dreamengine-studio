@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "swarmturf",
   "title": "Swarmturf",
   "status": "active",
   "created": "2026-06-01",

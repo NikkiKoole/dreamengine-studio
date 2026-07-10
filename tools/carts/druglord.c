@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "druglord",
   "title": "druglord",
   "status": "active",
   "created": "2026-05-31",

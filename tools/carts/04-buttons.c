@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "04-buttons",
   "title": "4. press a button",
   "status": "active",
   "created": "2026-05-29",

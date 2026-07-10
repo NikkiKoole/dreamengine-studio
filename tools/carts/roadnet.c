@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "roadnet",
   "title": "roadnet",
   "status": "active",
   "created": "2026-06-13",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "connect4",
   "title": "Connect Four",
   "status": "active",
   "created": "2026-06-01",

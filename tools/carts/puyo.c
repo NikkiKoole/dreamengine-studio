@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "puyo",
   "title": "Puyo",
   "status": "active",
   "created": "2026-06-01",

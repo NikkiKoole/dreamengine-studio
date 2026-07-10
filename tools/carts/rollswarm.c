@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "rollswarm",
   "title": "Rollswarm",
   "status": "active",
   "created": "2026-06-01",

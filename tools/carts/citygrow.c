@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "citygrow",
   "title": "city grow",
   "status": "active",
   "created": "2026-07-06",

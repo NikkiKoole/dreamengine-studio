@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "clavinet",
   "title": "clavinet",
   "status": "active",
   "created": "2026-06-11",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "rope",
   "title": "verlet rope",
   "status": "active",
   "created": "2026-05-30",

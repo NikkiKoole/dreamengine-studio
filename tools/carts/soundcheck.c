@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "soundcheck",
   "title": "sound check",
   "status": "active",
   "created": "2026-06-04",

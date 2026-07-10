@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "icons12",
   "title": "icons12",
   "status": "active",
   "created": "2026-07-09",

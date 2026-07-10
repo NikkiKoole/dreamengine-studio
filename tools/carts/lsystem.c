@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "lsystem",
   "title": "l-system plants",
   "status": "active",
   "created": "2026-05-30",

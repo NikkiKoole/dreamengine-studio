@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "platform",
   "title": "platform game",
   "status": "active",
   "created": "2026-05-29",

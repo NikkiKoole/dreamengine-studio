@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "patterns",
   "title": "22. fill patterns",
   "status": "active",
   "created": "2026-05-30",

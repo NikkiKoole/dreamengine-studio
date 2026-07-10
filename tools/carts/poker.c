@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "poker",
   "title": "video poker",
   "status": "active",
   "created": "2026-05-30",

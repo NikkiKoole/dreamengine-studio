@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fingerdrums",
   "title": "finger drums",
   "status": "active",
   "created": "2026-06-16",

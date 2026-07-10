@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sokoban",
   "title": "sokoban",
   "status": "active",
   "created": "2026-05-30",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "wildfire",
   "title": "Wildfire",
   "status": "active",
   "created": "2026-06-01",

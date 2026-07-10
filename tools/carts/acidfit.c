@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "acidfit",
   "title": "acidfit",
   "status": "active",
   "created": "2026-07-03",

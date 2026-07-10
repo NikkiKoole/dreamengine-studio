@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "sensi",
   "title": "sensible soccer",
   "status": "active",
   "created": "2026-05-31",

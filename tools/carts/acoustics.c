@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "acoustics",
   "title": "acoustics probe",
   "status": "active",
   "created": "2026-06-15",

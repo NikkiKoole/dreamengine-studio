@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "22-filter",
   "title": "filter",
   "status": "active",
   "created": "2026-05-30",

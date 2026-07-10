@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pipe",
   "title": "pipe",
   "status": "active",
   "created": "2026-06-08",

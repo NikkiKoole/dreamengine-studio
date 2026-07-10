@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "touchpad",
   "title": "touchpad",
   "status": "active",
   "created": "2026-06-30",

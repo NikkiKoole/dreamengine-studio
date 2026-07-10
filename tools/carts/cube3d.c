@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "cube3d",
   "title": "3D wireframe",
   "status": "active",
   "created": "2026-05-30",

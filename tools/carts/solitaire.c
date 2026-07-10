@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "solitaire",
   "title": "Klondike Solitaire",
   "status": "active",
   "created": "2026-06-01",

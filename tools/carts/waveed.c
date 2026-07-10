@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "waveed",
   "title": "wave editor",
   "status": "active",
   "created": "2026-06-04",

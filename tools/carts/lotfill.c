@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "lotfill",
   "title": "Lotfill — a tiny world from content atoms",
   "status": "active",
   "created": "2026-06-16",

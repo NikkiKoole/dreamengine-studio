@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "foundry",
   "title": "sprite foundry",
   "status": "active",
   "created": "2026-06-04",

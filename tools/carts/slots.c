@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "slots",
   "title": "one-armed bandit",
   "status": "active",
   "created": "2026-05-30",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "17-hypotrochoid",
   "title": "17. hypotrochoid",
   "status": "active",
   "created": "2026-05-29",

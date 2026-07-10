@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pitchenv",
   "title": "pitch env",
   "status": "active",
   "created": "2026-06-03",

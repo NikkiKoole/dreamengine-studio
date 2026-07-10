@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "monkey",
   "title": "Monkey Island",
   "status": "active",
   "created": "2026-06-01",

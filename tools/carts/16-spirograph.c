@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "16-spirograph",
   "title": "16. spirograph",
   "status": "active",
   "created": "2026-05-29",

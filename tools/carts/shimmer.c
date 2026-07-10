@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "shimmer",
   "title": "shimmer",
   "status": "active",
   "created": "2026-06-15",

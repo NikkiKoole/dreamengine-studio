@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "city",
   "title": "tiny city",
   "status": "active",
   "created": "2026-05-30",

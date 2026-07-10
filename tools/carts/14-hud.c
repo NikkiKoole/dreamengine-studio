@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "14-hud",
   "title": "14. hud layout",
   "status": "active",
   "created": "2026-05-29",

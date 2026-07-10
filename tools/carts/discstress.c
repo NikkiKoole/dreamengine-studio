@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "discstress",
   "title": "discstress",
   "status": "active",
   "created": "2026-06-17",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pixelperfect",
   "title": "Pixel-Perfect Scaling",
   "status": "active",
   "created": "2026-06-12",

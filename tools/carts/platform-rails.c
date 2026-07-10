@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "platform-rails",
   "title": "platform rails (slopes)",
   "status": "active",
   "created": "2026-06-03",

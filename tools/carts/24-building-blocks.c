@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "24-building-blocks",
   "title": "24. functions, arrays, structs",
   "status": "active",
   "created": "2026-07-01",

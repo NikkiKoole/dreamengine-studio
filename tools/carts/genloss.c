@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "genloss",
   "title": "generation loss",
   "status": "active",
   "created": "2026-06-15",

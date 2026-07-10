@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fxmod",
   "title": "fxmod",
   "status": "active",
   "created": "2026-06-15",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "08-catchstar",
   "title": "8. catch the star",
   "status": "active",
   "created": "2026-05-29",

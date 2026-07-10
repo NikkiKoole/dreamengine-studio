@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pang",
   "title": "pang",
   "status": "active",
   "created": "2026-05-30",

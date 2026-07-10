@@ -1,6 +1,7 @@
 /* de:meta
 {
   "title": "1. hello screen",
+  "slug": "01-hello",
   "status": "active",
   "created": "2026-05-29",
   "kind": [

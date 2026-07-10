@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "loveparade",
   "title": "the love parade",
   "status": "active",
   "created": "2026-06-03",

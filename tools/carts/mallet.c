@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "mallet",
   "title": "mallet",
   "status": "active",
   "created": "2026-06-05",

@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "rottext",
   "title": "rotated text (playground)",
   "status": "active",
   "created": "2026-06-12",

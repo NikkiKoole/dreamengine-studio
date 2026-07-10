@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "gta",
   "title": "GTA",
   "status": "active",
   "created": "2026-05-29",

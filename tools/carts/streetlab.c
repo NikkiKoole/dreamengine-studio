@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "streetlab",
   "title": "streetlab",
   "status": "active",
   "created": "2026-06-22",
@@ -15,6 +16,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "roadkit.h"   // the shared at-grade junction geometry (curb_return/edge_corner/cross-section) — Track-B B2
 #include "ui.h"        // on-screen buttons (per-finger capture, fat-finger hit pads) — never hand-roll
 #include <stdio.h>
 #include <math.h>
@@ -182,25 +184,10 @@ static void sline(int x0,int y0,int x1,int y1,int c){
 //    edges; its centre O sits on the bisector of (e1,e2) on the SIDEWALK side (the curbs point outward up
 //    the two streets, so their sum points away from the intersection = toward the block corner). Closed
 //    form: tangent points at distance R/tan(half) along each edge, centre at R/sin(half) along the
-//    bisector. PURE fn — the geometry the spec pins (tangency: dist(O, each edge line) == R). ──
-typedef struct { float ox, oy, t1x, t1y, t2x, t2y; } CurbReturn;
-static CurbReturn curb_return(float kx, float ky, float e1, float e2, float R){
-    float d1x=ux(e1), d1y=uy(e1), d2x=ux(e2), d2y=uy(e2);
-    float bx=d1x+d2x, by=d1y+d2y;                          // bisector (toward the block corner)
-    float bl=sqrtf(bx*bx+by*by); if(bl<1e-4f){ bx=-d1y; by=d1x; bl=1; } bx/=bl; by/=bl;
-    float coshalf = bx*d1x + by*d1y;                       // cos(half-angle) = bisector · edge
-    if (coshalf>1) coshalf=1; if (coshalf<-1) coshalf=-1;
-    float half = acosf(coshalf);
-    float sinhalf = sinf(half); if (sinhalf<1e-4f) sinhalf=1e-4f;
-    float tanhalf = sinhalf/coshalf; if (tanhalf<1e-4f) tanhalf=1e-4f;
-    float tdist = R / tanhalf;                             // K → tangent point, along each edge
-    float cdist = R / sinhalf;                             // K → centre, along the bisector
-    CurbReturn c;
-    c.ox  = kx + bx*cdist;   c.oy  = ky + by*cdist;
-    c.t1x = kx + d1x*tdist;  c.t1y = ky + d1y*tdist;
-    c.t2x = kx + d2x*tdist;  c.t2y = ky + d2y*tdist;
-    return c;
-}
+//    bisector. PURE fn — the geometry the spec pins (tangency: dist(O, each edge line) == R).
+// M1 (curb_return) + the corner solver (edge_corner) + the CurbReturn struct now live in
+// runtime/roadkit.h (Track-B B2); streetlab calls them. The snap-safe ux/uy there are a verbatim
+// copy of this cart's ux/uy, so the geometry — and the 104 spec assertions — are unchanged. ──
 
 // fill the fillet: the curvy triangle bounded by the two curb edges (meeting at the SHARP corner K) and
 // the arc. PAVEMENT sits on the K side of the arc (rounding the re-entrant corner inward); the block keeps
@@ -322,26 +309,11 @@ static int present_legs(int *idx, float *brg){
         float tb=brg[a]; brg[a]=brg[b]; brg[b]=tb; int ti=idx[a]; idx[a]=idx[b]; idx[b]=ti; }
     return n;
 }
-// number of CONVEX corners = adjacent gaps strictly between 0 and 180 (a 180° gap is the straight T back). PURE.
+// convex corners of the present legs — the pure count now lives in roadkit (rk_count_corners);
+// this reads the leg model into a bearings array and delegates. (edge_corner moved there too.)
 static int count_corners(void){
     int idx[NLEG]; float brg[NLEG]; int n=present_legs(idx,brg);
-    if (n<2) return 0;
-    int c=0;
-    for (int i=0;i<n;i++){ float g=fmodf(brg[(i+1)%n]-brg[i]+3600,360); if (g>0.5f && g<179.5f) c++; }
-    return c;
-}
-// corner K = where the two band edges FACING the gap between arms A,B cross (each offset HW toward bisector bm)
-static void edge_corner(float cx,float cy,float HW,float bA,float bB,float bm,float*kx,float*ky){
-    float dAx=ux(bA),dAy=uy(bA), nAx=ux(bA+90),nAy=uy(bA+90);
-    float sA = (nAx*ux(bm)+nAy*uy(bm))>0 ? 1.f : -1.f;     // pick the edge on the gap (grass) side
-    float PAx=cx+sA*HW*nAx, PAy=cy+sA*HW*nAy;
-    float dBx=ux(bB),dBy=uy(bB), nBx=ux(bB+90),nBy=uy(bB+90);
-    float sB = (nBx*ux(bm)+nBy*uy(bm))>0 ? 1.f : -1.f;
-    float PBx=cx+sB*HW*nBx, PBy=cy+sB*HW*nBy;
-    float det = dAx*(-dBy) - (-dBx)*dAy;                   // solve PA + t·DA = PB + u·DB
-    if (fabsf(det)<1e-4f){ *kx=(PAx+PBx)*0.5f; *ky=(PAy+PBy)*0.5f; return; }
-    float t = ((PBx-PAx)*(-dBy) - (-dBx)*(PBy-PAy)) / det;
-    *kx=PAx+dAx*t; *ky=PAy+dAy*t;
+    return rk_count_corners(brg,n);
 }
 // ── M7: the typed CROSS-SECTION (OpenDRIVE lane types §5). A lane-section, centre→out: [median] · driving×N ·
 //    [bike] · [parking] · (sidewalk = the M5 peds layer). The carriageway half-width is the SUM of the lanes
@@ -351,8 +323,8 @@ static void edge_corner(float cx,float cy,float HW,float bA,float bB,float bm,fl
 // both occupy the centreline. This is the single offset the rest of the section (and every junction primitive
 // that reads drive_inner) keys off, so adding TWLTL as a centre lane type re-solves the junction for free.
 static float centre_hw(void){ return medOn?MEDHW : twltlOn?TWLTLHW : 0; }
-static float cross_hw(void){
-    return centre_hw() + lanesPer*LANEW + (bikeOn?BIKEW:0) + (parkOn?PARKW:0);
+static float cross_hw(void){   // = roadkit's typed-section sum, fed this cart's lane toggles
+    return rk_cross_hw(centre_hw(), lanesPer, LANEW, bikeOn?BIKEW:0, parkOn?PARKW:0);
 }
 // ── the lane-section as the SINGLE SOURCE OF TRUTH. Offsets from the centreline (one side), centre→out:
 //    [median 0..MEDHW] · driving lanes · [bike] · [parking]. Turn lanes, the stop bar, and the roundabout

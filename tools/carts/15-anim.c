@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "15-anim",
   "title": "15. animation phase",
   "status": "active",
   "created": "2026-05-29",

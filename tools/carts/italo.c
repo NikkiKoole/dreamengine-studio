@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "italo",
   "title": "italo disco radio",
   "status": "active",
   "created": "2026-06-09",

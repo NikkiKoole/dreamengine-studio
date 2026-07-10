@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "paratrooper",
   "title": "paratrooper",
   "status": "active",
   "created": "2026-05-29",

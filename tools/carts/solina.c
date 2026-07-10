@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "solina",
   "title": "solina",
   "status": "active",
   "created": "2026-06-10",

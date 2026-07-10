@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pet",
   "title": "lil blob (pet)",
   "status": "active",
   "created": "2026-05-30",

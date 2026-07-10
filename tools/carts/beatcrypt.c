@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "beatcrypt",
   "title": "Beatcrypt",
   "status": "active",
   "created": "2026-06-01",

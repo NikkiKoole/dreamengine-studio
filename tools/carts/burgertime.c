@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "burgertime",
   "title": "burger time",
   "status": "active",
   "created": "2026-05-30",

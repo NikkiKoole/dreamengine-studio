@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "digdug",
   "title": "Dig Dug",
   "status": "active",
   "created": "2026-06-01",

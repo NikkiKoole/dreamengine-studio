@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "drift",
   "title": "drift",
   "status": "active",
   "created": "2026-06-10",

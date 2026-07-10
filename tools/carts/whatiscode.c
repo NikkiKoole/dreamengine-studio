@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "whatiscode",
   "title": "what is code?",
   "status": "active",
   "created": "2026-06-07",

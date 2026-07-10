@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "cocktail",
   "title": "cocktail radio",
   "status": "active",
   "created": "2026-06-05",

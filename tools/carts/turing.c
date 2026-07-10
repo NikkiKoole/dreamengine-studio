@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "turing",
   "title": "Turing",
   "status": "active",
   "created": "2026-06-22",

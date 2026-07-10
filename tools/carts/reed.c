@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "reed",
   "title": "reed",
   "status": "active",
   "created": "2026-06-08",

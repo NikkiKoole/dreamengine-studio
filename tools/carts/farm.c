@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "farm",
   "title": "Lil Farm",
   "status": "active",
   "created": "2026-06-01",

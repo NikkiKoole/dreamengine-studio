@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "marble",
   "title": "Marble Madness",
   "status": "active",
   "created": "2026-06-01",

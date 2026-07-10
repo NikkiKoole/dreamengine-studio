@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "advancewars",
   "title": "advance wars",
   "status": "active",
   "created": "2026-05-31",

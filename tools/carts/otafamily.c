@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "otafamily",
   "title": "ota family",
   "status": "active",
   "created": "2026-07-02",

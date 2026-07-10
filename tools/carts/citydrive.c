@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "citydrive",
   "title": "citydrive",
   "status": "active",
   "created": "2026-06-30",

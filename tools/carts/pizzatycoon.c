@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "pizzatycoon",
   "title": "pizza tycoon",
   "status": "active",
   "created": "2026-05-31",

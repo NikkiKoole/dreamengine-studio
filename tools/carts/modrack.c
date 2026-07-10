@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "modrack",
   "title": "modrack",
   "status": "active",
   "created": "2026-06-02",

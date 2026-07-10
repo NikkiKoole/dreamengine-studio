@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fretboard",
   "title": "fretboard",
   "status": "active",
   "created": "2026-06-14",

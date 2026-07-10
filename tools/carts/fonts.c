@@ -1,5 +1,6 @@
 /* de:meta
 {
+  "slug": "fonts",
   "title": "Fonts",
   "status": "active",
   "created": "2026-06-01",

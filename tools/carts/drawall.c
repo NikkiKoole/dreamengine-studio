@@ -32,16 +32,21 @@ de:meta */
 //
 // canvas-diff: max 64
 //
-// Almost every primitive here renders BYTE-EXACT GPU↔SW — a diff over ~63px is a real regression.
-// The one accepted, non-byte-portable divergence is the FRACTIONAL-scale sspr (16→24, 1.5×): its
+// canvas-diff is a GPU↔SW PARITY oracle: it catches GROSS breakage (a primitive drawing the wrong
+// thing blows way past 64) but NOT a subtle ±1-texel sampler change. Almost everything here is
+// byte-exact; the one accepted divergence is the FRACTIONAL-scale sspr (16→24, 1.5×): its
 // nearest-neighbour sampling has dest pixels that map to an EXACTLY integer source coordinate (every
 // 3rd row/col), and that texel-boundary tie is resolved one way by C's floor((i+0.5)*sw/dw) and the
 // OTHER way by the GPU's float UV interpolation — which side wins is GPU/driver-dependent, so it can't
-// be made byte-portable. Constant ~63px on every frame; a thin 1px edge stripe. The INTEGER-scale sspr
-// (2×) right above it stays tie-free and byte-exact, so a genuine sampler regression still shows there
-// (and blows past 64). History: this ran at --max 80 while the sspr diffed ~109px (CPU truncated
-// i*sw/dw vs the GPU's dest-CENTRE sample); the 2026-07-02 floor((i+0.5)*sw/dw) fix cut it to the ~63px
-// boundary-tie floor, which is as byte-exact as a fractional nearest-neighbour scale gets.
+// be made byte-portable. Constant ~63px on every frame; a thin 1px edge stripe.
+//   CAVEAT (do NOT trust canvas-diff to guard the sampler's ABSOLUTE behaviour): the integer-scale
+//   sspr (2×) above is byte-exact, but 2× is INSENSITIVE to the center-vs-truncation sampler choice
+//   (floor((i+0.5)/2) == floor(i/2) for all i), so it can't tell a correct sampler from the old
+//   truncation bug. Worse, on a GPU that rounds the tie DOWN, truncation makes the diff SHRINK
+//   (63→48) — a "regression" can look like an improvement to a parity oracle. To lock the SW
+//   sampler's actual output, use a golden byte-check (det-probes / a SW-vs-golden run), not this.
+// History: ran at --max 80 while the sspr diffed ~109px (CPU truncated i*sw/dw vs the GPU's
+// dest-CENTRE sample); the 2026-07-02 floor((i+0.5)*sw/dw) fix cut it to the ~63px boundary-tie floor.
 #include "studio.h"
 #include <math.h>
 

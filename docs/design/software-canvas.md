@@ -301,8 +301,17 @@ be coalesced.
 >   GPU/driver-dependent, so byte-equality here was never portable — it only held on the machine the
 >   fix was blessed on. `canvas-diff drawall` now carries a `// canvas-diff: max 64` directive (the tool
 >   reads it as the default budget) and drawall keeps BOTH a fractional `sspr` (the ~63px, exercising the
->   sampler at a non-integer ratio) and a tie-free 2× integer `sspr` (byte-exact — so a real sampler
->   regression still surfaces there). Integer *upscales* (2×, 3×) never hit a tie; only fractional ones do.
+>   sampler at a non-integer ratio) and a tie-free 2× integer `sspr`. Integer *upscales* (2×, 3×) never
+>   hit a tie; only fractional ones do.
+>
+>   **canvas-diff is a PARITY oracle — it does NOT byte-guard the sampler's absolute behaviour.** Proven
+>   the hard way (2026-07-10): reinstating the pre-fix truncation (`i*sw/dw`) made drawall's diff *shrink*
+>   63→48px — still a PASS — because on a GPU that rounds the boundary tie down, truncation agrees with the
+>   GPU *better* than the correct center-sampling. And the 2× integer `sspr` can't catch it either:
+>   `floor((i+0.5)/2) == floor(i/2)` for all i, so 2× is byte-identical under both samplers. A parity
+>   oracle measures GPU↔SW *agreement*, which a subtle sampler change can silently *improve*. To lock the
+>   SW sampler's own output, a golden byte-check (det-probes, or a SW-vs-committed-golden run) is the right
+>   tool — canvas-diff only catches GROSS breakage (wrong sprite / off-by-many) that blows past the budget.
 >
 > So an all-frames `shasum` A/B is the **wrong oracle** for a line-drawing cart — use a
 > bounded pixel-diff (`magick compare -metric AE`) + an eyeball, and reserve byte-equality for the

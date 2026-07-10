@@ -27,6 +27,7 @@ de:meta */
 #include "lay.h"
 #include "ui.h"   // real widgets (ui_knob/ui_slider) — per-finger capture + fat hit pads, so the
                   // wireframe's controls actually MOVE (no sound; just honest finger-ergonomics)
+#include "disclose.h"   // the shape classify + finger-budget accordion pass (R2 — this cart is its proof)
 
 extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size
 
@@ -601,7 +602,7 @@ void draw(void) {
     int cls_, insT, insB;
 #ifdef DE_RESIZABLE
     int device_mode = 1;
-    { int mn = W < H ? W : H; cls_ = (mn >= 340) ? ROOMY : (W > H ? WIDE : TALL); }
+    cls_ = disclose_shape(W, H);   // TALL/WIDE/ROOMY — same enum values as disclose's (0/1/2)
     { int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh); insT = sy; insB = H - (sy + sh); }   // top/bottom only (brief §4)
 #else
     int device_mode = 0;
@@ -685,15 +686,18 @@ void draw(void) {
         // ─── tall (phone portrait): working EXPANDED + compact + folded, by budget ───
         mode = "tall · expand+compact+fold";
         int sel = (work >= NSTRIP) ? 0 : work;
-        int st[NSTRIP]; for (int i = 0; i < NSTRIP; i++) st[i] = FOLDED;
-        st[sel] = EXPANDED;
-        float budget = bodyarea.h; for (int i = 0; i < NSTRIP; i++) budget -= strip_h(&STRIP[i], st[i]) + gap;
-        // promote the others to COMPACT in order while there's room
-        for (int i = 0; i < NSTRIP; i++) { if (i == sel) continue; float extra = strip_h(&STRIP[i], COMPACT) - strip_h(&STRIP[i], FOLDED);
-            if (budget >= extra) { st[i] = COMPACT; budget -= extra; } }
-        Box cur2 = bodyarea;
-        for (int i = 0; i < NSTRIP; i++) { float rh = strip_h(&STRIP[i], st[i]);
-            Box row = lay_split(cur2, EDGE_TOP, rh + gap, &cur2); draw_strip(&STRIP[i], lay_pad(row, 0, 0, gap, 0), st[i], i == sel); }
+        // the disclosure pass now lives in disclose.h (R2). Declare each strip's per-state footprints +
+        // priority (lower index promotes first), let disclose_budget pick states + disclose_stack place them.
+        DiscSection sec[NSTRIP];
+        for (int i = 0; i < NSTRIP; i++) {
+            sec[i].prio = NSTRIP - i; sec[i].pinned = 0;
+            sec[i].foot[DISC_FOLDED]   = strip_h(&STRIP[i], FOLDED);
+            sec[i].foot[DISC_COMPACT]  = strip_h(&STRIP[i], COMPACT);
+            sec[i].foot[DISC_EXPANDED] = strip_h(&STRIP[i], EXPANDED);
+        }
+        int st[NSTRIP]; disclose_budget(sec, NSTRIP, sel, bodyarea.h, gap, st);
+        DiscPlace pl[NSTRIP]; disclose_stack(bodyarea, sec, NSTRIP, st, gap, pl);
+        for (int i = 0; i < NSTRIP; i++) draw_strip(&STRIP[i], pl[i].box, st[i], i == sel);
     }
 
     // ─── device safe-area skin over the rack (notch/island/corners/home bar) — toggle s ───

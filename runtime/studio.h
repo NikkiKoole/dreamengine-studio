@@ -21,6 +21,8 @@
 int  screen_w(void);   // active canvas width in px  (== SCREEN_W unless the cart is -DDE_RESIZABLE)
 int  screen_h(void);   // active canvas height in px (== SCREEN_H unless the cart is -DDE_RESIZABLE)
 void safe_rect(int *x, int *y, int *w, int *h);   // usable area after device safe-area insets (notch/home-bar); lay controls inside it, bleed the background to screen_w/h. All-screen (0,0,screen_w,screen_h) on desktop.
+int  finger_px(void);       // logical px for a comfortable ~44pt touch target (from the device backing scale; 22 at the iOS 2× chunk). Size finger controls to this — never a raw px guess (that only works by SCALE=1 coincidence).
+int  device_class(void);    // classify the live screen: 0 = TALL (phone portrait) · 1 = WIDE (phone landscape) · 2 = ROOMY (tablet). Pick arrangements off this, not a device name.
 
 // ------------------------------------------------------------
 // buttons

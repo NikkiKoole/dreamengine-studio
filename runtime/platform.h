@@ -79,6 +79,9 @@ int  de_is_resizable(void);
 // Safe-area insets (px) — notch / home-bar / status bar. The host reports them; a cart reads the
 // usable rect via safe_rect() and keeps its controls inside it (background can still bleed full).
 void de_set_safe_area(int left, int top, int right, int bottom);
+// Backing scale — points per logical canvas px (iOS pixelChunk, e.g. 2). Feeds finger_px() so a
+// finger control is sized physically, not by a raw-px coincidence. Host reports it; default 2.
+void de_set_backing_scale(float k);
 
 // ============================================================================
 // (2) AUDIO — pulled by the host's audio backend (CoreAudio on iOS, Raylib's

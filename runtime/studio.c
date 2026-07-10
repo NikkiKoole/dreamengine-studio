@@ -339,6 +339,19 @@ void safe_rect(int *x, int *y, int *w, int *h) {   // usable area after the devi
     if (rw < 1) rw = 1; if (rh < 1) rh = 1;
     if (x) *x = safe_l; if (y) *y = safe_t; if (w) *w = rw; if (h) *h = rh;
 }
+// physically-sized FINGER UNIT. The host reports the backing scale (points per logical canvas px —
+// iOS's pixelChunk, 2× — via de_set_backing_scale). A comfortable touch target is ~44pt, so a finger
+// is FINGER_PT/scale logical px (22 at 2×). Default 2 so a desktop preview matches the iOS chunk; carts
+// size finger controls to finger_px() instead of a raw constant, which then follows a changed chunk / HiDPI.
+static float de_backing = 2.0f;
+#define FINGER_PT 44.0f
+int finger_px(void) { int p = (int)(FINGER_PT / de_backing + 0.5f); return p < 1 ? 1 : p; }
+// classify the live viewport (same 0/1/2 as disclose.h's DiscShape). ROOMY at >= 340 logical px min-side.
+int device_class(void) {
+    int mn = de_sw < de_sh ? de_sw : de_sh;
+    if (mn >= 340) return 2;                 // ROOMY (tablet)
+    return (de_sw > de_sh) ? 1 : 0;          // WIDE (landscape) : TALL (portrait)
+}
 #ifdef DE_NO_RAYLIB
 // Software CAMERA ROTATION (no GPU to fall back to — iOS/Switch). The world layer is captured
 // into an offscreen buffer at zoom+translate (rotation NOT applied), then rotated about the
@@ -2742,6 +2755,7 @@ void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home
     safe_l = l < 0 ? 0 : l; safe_t = t < 0 ? 0 : t;
     safe_r = r < 0 ? 0 : r; safe_b = b < 0 ? 0 : b;
 }
+void de_set_backing_scale(float k) { de_backing = (k > 0.1f) ? k : 2.0f; }   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

@@ -22,9 +22,10 @@
 // lay_split) that show every panel at one state — no budget, so no disclosure; the cart keeps them.
 // A DE_TRACE self-report of the pass's decision is R4 (the judgment oracle), added when that lands.
 //
-// FINGER UNIT (R3, not yet an engine primitive): author `foot[]` in *finger multiples* — a comfortable
-// touch target is ~44pt, which on the K=2 canvas is ~22 logical px. Pass that as `fu` at the call site
-// (a cart #define, e.g. `FU 22.0f`) until `finger_px()` exists; then swap the constant for the call.
+// FINGER UNIT (R3 — shipped): author `foot[]` in *finger multiples* of `finger_px()` (studio.h) — a
+// comfortable ~44pt touch target in the current canvas's logical px (22 at the iOS 2× chunk), which
+// FOLLOWS a changed chunk / HiDPI instead of a hardcoded 22. Threshold controls on it, never raw px.
+// (`device_class()` is the studio.h twin of `disclose_shape()` when you don't have w/h handy.)
 //
 // Usage:
 //   #include "studio.h"

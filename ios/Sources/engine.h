@@ -28,6 +28,9 @@ int             de_is_resizable(void);
 // Safe-area insets (px; notch / home-bar / status bar). Report them alongside de_resize so a
 // resizable cart keeps controls out of the chrome (it reads the usable rect via safe_rect()).
 void            de_set_safe_area(int left, int top, int right, int bottom);
+// Backing scale — points per logical canvas px (= pixelChunk). Feeds finger_px() so finger controls
+// are sized physically, not by a raw-px coincidence. Report it alongside de_resize.
+void            de_set_backing_scale(float k);
 void            de_audio_render(float *out, int frames);
 
 void de_touch_begin(int id, float x, float y);

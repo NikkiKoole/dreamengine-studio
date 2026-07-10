@@ -70,6 +70,7 @@ final class CanvasView: UIView {
         super.layoutSubviews()
         guard de_is_resizable() != 0 else { return }
         let k = max(1, pixelChunk)
+        de_set_backing_scale(Float(k))   // pt per logical px → finger_px() (a finger = 44pt/k logical px)
         let b = bounds.size
         if b.width > 0, b.height > 0 { de_resize(Int32(b.width / k), Int32(b.height / k)) }
         // hand the engine the notch / home-bar / status-bar insets — in the SAME logical-pixel units as

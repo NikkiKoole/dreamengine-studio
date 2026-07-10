@@ -25,7 +25,7 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-10 (eight lanes: **editor↔cart workflow** — Gap 1b (`de:meta.slug`) + Gap 1 (code save-back) SHIPPED & committed: slug backfilled across all 455 carts + `lint-carts.js` REQUIRES it; the **"save to source" button** writes the Code-tab buffer back to `tools/carts/<slug>.c` + rebakes in place; NEXT = the PIXEL side (Gap 2 sprite story) → resume `design/editor-cart-workflow.md` Gap 2 · worldgen ladder — rungs 0–3 SHIPPED in one day, rung 4 next · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-10 (eight lanes: **editor↔cart workflow** — Gap 1b (`de:meta.slug`) + Gap 1 (code save-back) SHIPPED & committed: slug backfilled across all 455 carts + `lint-carts.js` REQUIRES it; the **"save to source" button** writes the Code-tab buffer back to `tools/carts/<slug>.c` + rebakes in place; NEXT = the PIXEL side (Gap 2 sprite story) → resume `design/editor-cart-workflow.md` Gap 2 · worldgen ladder — rungs 0–7 SHIPPED (district fill + Rotterdam calibration via `sndi-check --compare`; `citygen.h` extracted → sloop's M drives a generated city w/ collidable buildings) + the junction grammar `roadkit.h` (B2 pure geometry + B3 field renderer, streetlab byte-identical; citydrive draws curb-return junctions through it, J); NEXT = B4 grade dispatch → roadlab interchanges / the N+M infinite-world reconciliation · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
 
 ---
 
@@ -68,28 +68,36 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > (`saveToSource` / `gatherCartChunks`), `editor/src/sprite-editor.js` (the canvas), `tools/make-cart.js`
 > (`loadConfig` / the `<src> <png>` bake ~368-405), `tools/gen-rom-font.js` (`COMIC_PATCHES` prior art).
 
-> **▶ ACTIVE THREAD (2026-07-06) — the worldgen ladder (realistic roadgen).** One day, four rungs
-> of [`design/worldgen-plan.md`](design/worldgen-plan.md)'s ladder shipped, each gated + committed
-> with a deterministic clip:
-> **Rung 0** `tools/sndi-check.js` (the street-network metric oracle + the real-city target table).
-> **Rung 1** = Track-A A1: **`runtime/worldnet.h`** — roadnet2's world core extracted to a shared
-> library header (terrain + ranked lattice + spline links + the unified `wn_road_at()` nearest-edge
-> query over an edge cache + spatial hash, edge-type field road/rail/water pinned); **sloop's N key
-> drives the spine** behind its `road_at()` seam (grip 1.0/0.55; `spec.js sloop` 25/0; clips
-> `roadnet2/01-rung1-onoff` + `sloop/04-rn2-spine`).
-> **Rungs 2+3** in the new **`citygrow` bench cart**: the population-density field (settlement
-> presence/rank/size/extent from D; O = the field-vs-hash A/B; world bound implemented at 500 km —
-> **maker feel-check pending**) and per-city **tensor-field arterials** (T = city view, X = export
-> sndi JSON; first generated-vs-real numbers: mean degree 2.65/2.95 vs Amersfoort 2.71; clips
-> `citygrow/01-field-vs-hash` + `02-city-arterials`).
-> **Resume-at: [`design/worldgen-plan.md` → the rung ladder](design/worldgen-plan.md#the-rung-ladder-each-gated-each-independently-shippable)** (the "Rung 4 pick-up" note)
-> (district polygons from the arterial graph's planar faces → generalize
-> streetlab's five pattern generators to fill a district polygon → stitch under the continuity
-> tenet). Hot files: `tools/carts/citygrow.c` (the bench — rungs 2–5 live here),
-> `runtime/worldnet.h` (shared — targeted edits only, roadnet2 + sloop include it),
-> `tools/carts/roadnet2.c`, `tools/carts/sloop.c` (its rn2 block). Gates to keep green:
-> `spec.js sloop` 25/0 · the three committed clips replay byte-identical · `sndi-check
-> build/citygrow-graph.json` after any generator change.
+> **▶ ACTIVE THREAD (2026-07-10) — the worldgen ladder + the junction grammar (realistic roadgen).**
+> The ladder (rungs 0–3 shipped earlier) is now built end-to-end AND DRIVABLE, and the road-junction
+> grammar is extracted + consumed. All gated + committed:
+> **Rungs 4–5 (in `citygrow`):** per-district minor-street FILL — the arterial graph's planar faces →
+> streetlab-pattern presets (grid/organic/cul-de-sac/superblock) → stitched onto the arterials — then
+> CALIBRATED to real Rotterdam via the new **`sndi-check --compare`** gate (five SNDi metrics dead-on;
+> T-junction share 1.1%→64.6%). Clip `citygrow/03-districts`. The residual deg-4+/circuity gap is a
+> documented STRUCTURAL ceiling (arterial X-crossings + straight minors), not fill tuning.
+> **Rung 5.5:** the grammar extracted to **`runtime/citygen.h`** (behaviour-preserving); **sloop's M
+> key drives a generated CITY** (`citygen_road_at` behind `road_at` — a 3rd producer beside stub / OSM /
+> spine). **Rung 7:** its streets are LINED WITH COLLIDABLE BUILDINGS (`citygen` `cg_lots()` → sloop
+> `OB_HOUSE`). Clips `sloop/06-citygen-city` + `07-citygen-buildings`; `spec.js sloop` 25/0.
+> **The junction grammar — `runtime/roadkit.h` (Track-B):** **B2** the pure geometry (`curb_return`,
+> `edge_corner`, `rk_count_corners`, `rk_cross_hw`) + **B3** the N-arm-native field renderer (`RkField`)
+> extracted from streetlab byte-identical (spec 104/0, mirror-diff 68=68, road-check --all all PASS),
+> and **citydrive draws curb-return junctions through it** (J key, ground metres, projected; a
+> `spec()` 11/0 added first as the render safety net).
+> **Resume-at (three open forks, all specced):**
+> (1) **B4 grade dispatch** — `roadkit_junction(legs, grade)` routing at-grade → streetlab / grade-
+> separated → **roadlab interchanges** (the real highway junctions), + **Rung 6** the generated city
+> emits `(legs,bearings,class,grade)` into it. Plan: [`design/roadkit.md`](design/roadkit.md) Phase 5.
+> (2) **the N+M reconciliation** — unify citygen's world model with `worldnet.h`'s β-skeleton lattice
+> so the N-spine + M-city are ONE infinite world (two gated spine edits: `get_node`/`get_hub` from
+> citygen density; highways lead into citygen cities). See [`worldgen-plan.md`](design/worldgen-plan.md) rung 5.5.
+> (3) **polish** — suppress citydrive's round-joint disc at near junctions so the curb-return fully
+> replaces the blob (today it layers over it) + per-pixel field-fill for exact N-arm asphalt.
+> Hot files: `tools/carts/{citygrow,sloop,citydrive,streetlab}.c`, `runtime/{citygen,roadkit,worldnet}.h`
+> (shared — targeted edits only). Gates to keep green: `spec.js sloop` 25/0 · `spec.js streetlab` 104/0 ·
+> `spec.js citydrive` 11/0 · streetlab `mirror-diff` + `road-check --all` · `sndi-check --compare
+> build/citygrow-city.json data/rotterdam-netherlands.rvb` PASS.
 
 > **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
 > A research question ("what's the best responsive UI for a music cart?") turned into

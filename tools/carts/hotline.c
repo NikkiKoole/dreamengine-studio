@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 
 // HOTLINE — top-down, one-hit-kill, instant-retry neon carnage.
 //
@@ -73,6 +74,7 @@ de:meta */
 #define NFLOORS  3
 
 enum { ST_TITLE, ST_PLAY, ST_DEAD, ST_WIN };
+static float panel_t;          // seconds since the current panel state began (title/dead/win)
 enum { TYPE_THUG, TYPE_GUARD };
 enum { S_PATROL, S_INVEST, S_CHASE };
 enum { W_BAT, W_PISTOL, W_SHOTGUN, W_UZI };
@@ -705,6 +707,11 @@ static void update_play(void) {
 // =====================================================================
 
 void update(void) {
+    // panel pop timer — restarts whenever the panel state changes
+    static int prev_state = -1;
+    if (state != prev_state) { prev_state = state; panel_t = 0; }
+    if (state != ST_PLAY) panel_t += dt();
+
     if (keyp('R') && state != ST_TITLE) {
         if (state == ST_WIN) { state = ST_TITLE; return; }
         restart_floor(); return;
@@ -904,14 +911,13 @@ static void draw_hud(void) {
 }
 
 static void panel(const char *title, int tcol, const char *l1, const char *l2, const char *l3) {
-    fade(0.5f);
-    int w = 240, h = 96, x = SCREEN_W / 2 - w / 2, y = SCREEN_H / 2 - h / 2;
-    rectfill(x, y, w, h, CLR_BROWNISH_BLACK);
-    rect(x, y, w, h, tcol);
-    print_scaled(title, SCREEN_W / 2 - text_width(title) * 2 / 2, y + 8, tcol, 2);
-    if (l1) print_centered(l1, SCREEN_W/2, y + 36, CLR_WHITE);
-    if (l2) print_centered(l2, SCREEN_W/2, y + 50, CLR_LIGHT_GREY);
-    if (l3) print_centered(l3, SCREEN_W/2, y + 76, blink(24) ? CLR_YELLOW : CLR_LIGHT_GREY);
+    // the shared end-screen treatment (endcard.h) — also serves the title card
+    EndCard c = endcard(panel_t, 240, 96, SCREEN_H / 2 - 48, CLR_BROWNISH_BLACK, tcol, CLR_DARK_PURPLE);
+    if (!c.settled) return;
+    print_scaled(title, SCREEN_W / 2 - text_width(title) * 2 / 2, c.y + 8, tcol, 2);
+    if (l1) print_centered(l1, SCREEN_W/2, c.y + 36, CLR_WHITE);
+    if (l2) print_centered(l2, SCREEN_W/2, c.y + 50, CLR_LIGHT_GREY);
+    if (l3) print_centered(l3, SCREEN_W/2, c.y + 76, blink(24) ? CLR_YELLOW : CLR_LIGHT_GREY);
 }
 
 // the abstract neon space the room floats in — a slow two-colour dither field that

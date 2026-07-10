@@ -17,6 +17,7 @@
 de:meta */
 #include "studio.h"
 #include "cards.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // ── Klondike Solitaire ────────────────────────────────────────
@@ -64,6 +65,7 @@ static int   grabDX, grabDY;       // offset from card top-left to cursor at gra
 
 static int  won = 0;        // total games won (persisted)
 static bool gameWon = false;
+static float end_t;         // seconds since the win banner came up
 static bool ready = false;
 
 // ── layout helpers ────────────────────────────────────────────
@@ -93,7 +95,7 @@ static void deal_new(void) {
     for (int s = 0; s < 4; s++) fndn[s] = 0;
     wasten = 0; stockn = 0;
     dragSrc = SRC_NONE; dragn = 0;
-    gameWon = false;
+    gameWon = false; end_t = 0;
 
     int d = 0;
     // standard Klondike deal: column p gets p+1 cards, last one face up
@@ -176,6 +178,7 @@ static void return_drag(void) {
 // ── update ────────────────────────────────────────────────────
 void update(void) {
     if (!ready) { init(); }
+    if (gameWon) end_t += dt();
 
     if (keyp('R')) { deal_new(); return; }
 
@@ -341,13 +344,13 @@ void draw(void) {
     print(str("WON %d", won), 6, SCREEN_H - 10, CLR_DARK_GREEN);
     print_right("R = new game", SCREEN_W - 6, SCREEN_H - 10, CLR_DARK_GREEN);
 
-    // win overlay
+    // win overlay — the shared end-screen treatment (endcard.h)
     if (gameWon) {
-        fade(0.5f);
-        rectfill(60, 78, 200, 44, CLR_DARK_BLUE);
-        rect(60, 78, 200, 44, CLR_YELLOW);
-        print_centered("YOU WIN!", SCREEN_W/2, 88, CLR_YELLOW);
-        print_centered(str("games won: %d", won), SCREEN_W/2, 102, CLR_WHITE);
-        print_centered("click to deal again", SCREEN_W/2, 112, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 200, 44, 78, CLR_DARK_BLUE, CLR_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            print_centered("YOU WIN!", SCREEN_W/2, c.y + 10, CLR_YELLOW);
+            print_centered(str("games won: %d", won), SCREEN_W/2, c.y + 24, CLR_WHITE);
+            if (blink(18)) print_centered("click to deal again", SCREEN_W/2, c.y + 34, CLR_LIGHT_GREY);
+        }
     }
 }

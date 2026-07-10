@@ -80,7 +80,7 @@ Those are literally the Casio SK-1's real specs, so the lo-fi is period-authenti
 effect. Small enough to freeze into a `de:` PNG chunk. This is a real engine commitment
 (a PCM voice type + rate/bit reduction in `sound.h`) — hold it until something demands it.
 
-> Note: the [`portastudio.md`](portastudio.md) cassette-4-track sketch deliberately lives
+> Note: the [`portapop.md`](portapop.md) cassette-4-track sketch deliberately lives
 > *below* this boundary — it records **control events, not PCM** (same level as
 > `loopstation`), so it's buildable today without any Tier-4 commitment. The version that
 > would record an actual mic/audio take to tape is what waits on this page.

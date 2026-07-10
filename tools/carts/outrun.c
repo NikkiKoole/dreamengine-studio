@@ -24,6 +24,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 
 // OUTRUN — a sun-drenched pseudo-3D arcade racer with BRANCHING ROADS.
 //
@@ -104,6 +105,7 @@ static Part parts[MAX_PARTS];
 // ---- game state ----
 enum { RACING = 0, FINISHED, DEAD };
 static int   mode;
+static float end_t;             // seconds since the end card came up
 static int   cur_node;          // stage we're driving through
 static int   node_base_seg;     // global segment index where cur_node begins
 static int   biome_of[NODES];   // each node's biome
@@ -233,7 +235,7 @@ static void new_game() {
     OFF_DECEL = -MAX_SPD / 2.0f;
     OFF_LIMIT =  MAX_SPD / 4.0f;
 
-    mode = RACING;
+    mode = RACING; end_t = 0;
     cur_node = 0; node_base_seg = 0;
     position = 0; pworld = 0; speed = 0;
     time_left = 32.0f; stage = 0; chk_flash = 0; chk_bonus = 0;
@@ -273,6 +275,7 @@ static void dust(float x, float y, int col) {
 void update() {
     float D = dt();
     if (mode != RACING) {
+        end_t += dt();
         if (btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(0, BTN_UP)) new_game();
         return;
     }
@@ -616,16 +619,21 @@ void draw() {
         print_centered(str("+%d SECONDS", chk_bonus), SCREEN_W/2, yy + 22, CLR_LIME_GREEN);
     }
 
+    // end cards — the shared end-screen treatment (endcard.h)
     if (mode == FINISHED) {
-        fade(0.5f);
-        print_scaled("YOU MADE IT!", SCREEN_W / 2 - 72, 70, CLR_YELLOW, 2);
-        print_centered(str("FINISHED IN %s", BIOME_NAME[cam_b]), SCREEN_W/2, 96, CLR_WHITE);
-        print_centered(str("%d CHECKPOINTS CLEARED", stage), SCREEN_W/2, 108, CLR_LIME_GREEN);
-        print_centered("PRESS Z TO DRIVE AGAIN", SCREEN_W/2, 130, blink(15) ? CLR_WHITE : CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 230, 68, 64, CLR_DARK_BLUE, CLR_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            print_scaled("YOU MADE IT!", SCREEN_W / 2 - 72, c.y + 8, CLR_YELLOW, 2);
+            print_centered(str("FINISHED IN %s", BIOME_NAME[cam_b]), SCREEN_W/2, c.y + 32, CLR_WHITE);
+            print_centered(str("%d CHECKPOINTS CLEARED", stage), SCREEN_W/2, c.y + 44, CLR_LIME_GREEN);
+            print_centered("PRESS Z TO DRIVE AGAIN", SCREEN_W/2, c.y + 56, blink(15) ? CLR_WHITE : CLR_LIGHT_GREY);
+        }
     } else if (mode == DEAD) {
-        fade(0.55f);
-        print_scaled("OUT OF TIME", SCREEN_W / 2 - 66, 76, CLR_RED, 2);
-        print_centered(str("REACHED STAGE %d", stage + 1), SCREEN_W/2, 100, CLR_WHITE);
-        print_centered("PRESS Z TO RETRY", SCREEN_W/2, 124, blink(15) ? CLR_WHITE : CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 220, 62, 68, CLR_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            print_scaled("OUT OF TIME", SCREEN_W / 2 - 66, c.y + 8, CLR_RED, 2);
+            print_centered(str("REACHED STAGE %d", stage + 1), SCREEN_W/2, c.y + 32, CLR_WHITE);
+            print_centered("PRESS Z TO RETRY", SCREEN_W/2, c.y + 48, blink(15) ? CLR_WHITE : CLR_LIGHT_GREY);
+        }
     }
 }

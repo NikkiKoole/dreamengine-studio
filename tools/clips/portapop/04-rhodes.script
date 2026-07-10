@@ -1,0 +1,18 @@
+# portapop phase 3 KEYS: cast track 1 to KEYS (2 INST-chip taps), record chords, play back.
+# INST chip for track 1 is at x=4..76, y=56..68. Two taps: BASS -> DRUM -> KEYS.
+press 10 10 61
+release 16 10 61
+press 30 10 61
+release 36 10 61
+# record (track 0 armed by default, now KEYS)
+tap 50 R
+# two struck triads (A/D/G on the GB map = MIDI 60/64/67 = C E G)
+tap 210 A
+tap 214 D
+tap 218 G
+tap 340 A
+tap 344 D
+tap 348 G
+tap 520 R
+# play back
+tap 540 SPACE

@@ -10,12 +10,12 @@
   "teaches": [
     "gesture-loop"
   ],
-  "lineage": "Phase-3 build of the portapop cassette 4-track (design/portapop.md). Record core (note-on + pitch-stream + note-off) descends from loopstation.c; the bass is a lean pizzicato cut of upright.c, the drum kit after fingerdrums' acoustic kit. Phase 2 gave it MULTITRACK + a CONSOLE mixer (per-slot level/pan/VU/arm/mute) + overdub monitoring + the TAKE<->CONSOLE mode-flip. Phase 3 makes each track CASTABLE to a different instrument — two of the shelf so far, upright BASS (a melodic fingerboard) and a DRUM kit (four pads) — so you stack a real rhythm section. The remaining shelf voices + ping-pong bounce + the tape glue are still to come.",
+  "lineage": "Phase-3 build of the portapop cassette 4-track (design/portapop.md). Record core (note-on + pitch-stream + note-off) descends from loopstation.c; the bass is a lean pizzicato cut of upright.c, the drum kit after fingerdrums' acoustic kit, the Rhodes the 'stage' INSTR_EPIANO preset from epiano.c. Phase 2 gave it MULTITRACK + a CONSOLE mixer (per-slot level/pan/VU/arm/mute) + overdub monitoring + the TAKE<->CONSOLE mode-flip. Phase 3 makes each track CASTABLE to a different instrument — three of the shelf so far: upright BASS (a melodic fingerboard), a DRUM kit (four pads), and a Rhodes e-piano KEYS (a polyphonic keybed, struck fire-and-forget so chords ring). The remaining shelf voices + ping-pong bounce + the tape glue are still to come.",
   "homage": "Tascam Portastudio",
   "description": {
     "summary": "The bedroom cassette 4-track. Overdub a band alone: cut a bass line, arm the next track and play ALONG, then cast a track to DRUMS and lay a beat under it. Flip to the console to mix — per-track level, pan and bouncing VU. Un-quantized: it loops back exactly as you played it.",
-    "detail": "Phase 3 of the portapop multitracker (design/portapop.md). FOUR tracks, each CASTABLE to an instrument — so far upright BASS (a melodic fingerboard) or a DRUM kit (four pads). Arm a track and RECORD: a one-bar count-in, then it captures your notes/slides (bass) or hits (drums) as control events while the OTHER tracks play back so you overdub in time. The longest take sets the song; shorter tracks loop to fill it. Flip to the CONSOLE (TAB) to mix — a level fader, a pan slider and a live VU per track, plus arm/mute and the instrument chip — the per-slot mixer family (instrument_level/instrument_pan) as the show. Two of the shelf-of-8 so far; more voices, ping-pong bounce and the tape glue are still to come.",
-    "controls": "CONSOLE view: tap a track's INST chip to cast it (BASS <-> DRUM), drag its LEVEL fader + PAN slider, tap ARM to pick the record track, MUTE to silence it. TAKE view (BASS): press ON a string (E A D G), slide to glide, pull to bend, sweep the gap to pick; keys A S D F G H J K (+ W E T Y U), Z/X octave, TUNE (I) snaps to tune. TAKE view (DRUMS): tap a pad (or A kick / S snare / D hat / F tom). Transport (both views): R record (count-in), SPACE play/stop, BACKSPACE clear the armed track, TAB flip views."
+    "detail": "Phase 3 of the portapop multitracker (design/portapop.md). FOUR tracks, each CASTABLE to an instrument — so far upright BASS (a melodic fingerboard), a DRUM kit (four pads), or a Rhodes e-piano (a keybed). Arm a track and RECORD: a one-bar count-in, then it captures your notes/slides (bass), hits (drums) or struck chords (keys) as control events while the OTHER tracks play back so you overdub in time. The longest take sets the song; shorter tracks loop to fill it. Flip to the CONSOLE (TAB) to mix — a level fader, a pan slider and a live VU per track, plus arm/mute and the instrument chip — the per-slot mixer family (instrument_level/instrument_pan) as the show. Three of the shelf-of-8 so far; more voices, ping-pong bounce and the tape glue are still to come.",
+    "controls": "CONSOLE view: tap a track's INST chip to cast it (BASS / DRUM / KEYS), drag its LEVEL fader + PAN slider, tap ARM to pick the record track, MUTE to silence it. TAKE view (BASS): press ON a string (E A D G), slide to glide, pull to bend, sweep the gap to pick; TUNE (I) snaps to tune. TAKE view (DRUMS): tap a pad (or A kick / S snare / D hat / F tom). TAKE view (KEYS): tap the Rhodes keys (or A S D F G H J K + W E T Y U black), Z/X octave — struck, so chords ring. Transport (both views): R record (count-in), SPACE play/stop, BACKSPACE clear the armed track, TAB flip views."
   }
 }
 de:meta */
@@ -33,9 +33,19 @@ de:meta */
 #define MAXEV 1024
 static const int TSLOT[NTRK] = { 5, 6, 7, 8 };     // a track's MELODIC slot (used when cast to BASS)
 
-// the instruments a track can be cast to (phase 3: two of the shelf of 8)
-enum { INST_BASS, INST_DRUMS, NINST };
-static const char *INAME[NINST] = { "BASS", "DRUM" };
+// the instruments a track can be cast to (phase 3: three of the shelf of 8)
+enum { INST_BASS, INST_DRUMS, INST_KEYS, NINST };
+static const char *INAME[NINST] = { "BASS", "DRUM", "KEYS" };
+#define KEYS_DUR 500                               // a struck Rhodes note rings ~this long then decays
+
+// a little keybed for the KEYS instrument (C3 up, ~1.5 octaves)
+static const int KWSEMI[7] = { 0, 2, 4, 5, 7, 9, 11 };
+static const int KBSEMI[7] = { 1, 3, -1, 6, 8, 10, -1 };
+#define KB_BASE 48
+#define KB_NW   10
+static int white_midi(int i) { return KB_BASE + (i / 7) * 12 + KWSEMI[i % 7]; }
+static int black_midi(int i) { int b = KBSEMI[i % 7]; return b < 0 ? -1 : KB_BASE + (i / 7) * 12 + b; }
+static int keyflash, keyflash_midi;
 
 // a shared drum kit (percussion is fire-and-forget, so all drum tracks share these voices;
 // per-track LEVEL/PAN on a drum track rides the kit — two drum tracks would share that mix)
@@ -123,23 +133,39 @@ enum { DRAG_NONE, DRAG_FADER, DRAG_PAN };
 static int drag_kind = DRAG_NONE, drag_trk = -1;
 static const int TCOL[NTRK] = { CLR_ORANGE, CLR_BLUE_GREEN, CLR_PINK, CLR_LIME_GREEN };
 
+// a track's MELODIC slot is (re)configured for its instrument when it's cast
+static void cfg_bass(int s) {
+    instrument(s, INSTR_BOWED, 4, 0, 7, 460);
+    instrument_mode(s, MODE_BOW_PIZZ, 1.0f);
+    instrument_filter(s, FILTER_LOW, 1400, 3);
+    instrument_harmonics(s, 0.30f); instrument_timbre(s, 0.30f); instrument_morph(s, 0.45f);
+    instrument_drive(s, 0.0f); instrument_reverb(s, 0.14f);
+}
+static void cfg_keys(int s) {                       // the "stage" RHODES, verbatim from epiano.c
+    instrument(s, INSTR_EPIANO, 1, 0, 7, 450);
+    instrument_harmonics(s, 0.15f);                 // = the tine machine (M_INST[RHODES])
+    instrument_timbre(s, 0.30f);                    // stage brightness
+    instrument_morph(s, 0.25f);                     // pickup bark
+    instrument_drive(s, 0.0f);                      // bark < 0.5 -> no drive (clean stage Rhodes)
+    instrument_filter(s, FILTER_OFF, 4000, 0);      // wah off
+    instrument_reverb(s, 0.16f);
+}
+static void configure_slot(int t) {
+    if (trk[t].inst == INST_BASS) cfg_bass(TSLOT[t]);
+    else if (trk[t].inst == INST_KEYS) cfg_keys(TSLOT[t]);
+    // DRUMS uses the shared kit, not TSLOT[t]
+}
+
 // ── setup ──
 void init(void) {
     bpm(TEMPO);
     for (int t = 0; t < NTRK; t++) {
-        int s = TSLOT[t];
-        instrument(s, INSTR_BOWED, 4, 0, 7, 460);
-        instrument_mode(s, MODE_BOW_PIZZ, 1.0f);
-        instrument_filter(s, FILTER_LOW, 1400, 3);
-        instrument_harmonics(s, 0.30f);
-        instrument_timbre(s, 0.30f);
-        instrument_morph(s, 0.45f);
-        instrument_reverb(s, 0.14f);
         trk[t].level = 0.85f; trk[t].pan = 0; trk[t].vrep = -1;
         trk[t].applied_level = -1; trk[t].applied_pan = -2;   // force a first push
         trk[t].inst = INST_BASS;
     }
     trk[1].inst = INST_DRUMS;                       // advertise the pairing: track 2 is the kit
+    for (int t = 0; t < NTRK; t++) configure_slot(t);
 
     // the shared drum kit — a warm acoustic-ish set (values after fingerdrums' acoustic kit)
     instrument(KICK, INSTR_SINE, 0, 300, 0, 80); instrument_filter(KICK, FILTER_LOW, 220, 2);
@@ -185,6 +211,14 @@ static void pp_hit(int drum) {
     if (mode == TR_REC && tpos >= 0 && T->n < MAXEV)
         T->ev[T->n++] = (Ev){ tpos, 0, EV_ON, 7, drum };
 }
+// keys: a struck Rhodes note, fire-and-forget (rings + decays) — polyphonic for free
+static void pp_key(int midi) {
+    hit(midi, TSLOT[armed], 6, KEYS_DUR);
+    keyflash = 6; keyflash_midi = midi;
+    Track *T = &trk[armed];
+    if (mode == TR_REC && tpos >= 0 && T->n < MAXEV)
+        T->ev[T->n++] = (Ev){ tpos, (float)midi, EV_ON, 6, 0 };
+}
 
 // ── replay (per track, on its own slot) ──
 static void fire_ev(int t, Ev *e) {
@@ -194,6 +228,10 @@ static void fire_ev(int t, Ev *e) {
 #endif
     if (T->inst == INST_DRUMS) {                    // percussion: fire-and-forget, `lane` = drum
         if (e->kind == EV_ON) { int d = e->lane; hit(DMIDI[d], DSLOT[d], e->vol, DDUR[d]); padflash[d] = 6; T->vu = 1.0f; }
+        return;
+    }
+    if (T->inst == INST_KEYS) {                     // struck Rhodes: fire-and-forget hit, `pitch` = note
+        if (e->kind == EV_ON) { hit((int)e->pitch, TSLOT[t], e->vol, KEYS_DUR); keyflash = 6; keyflash_midi = (int)e->pitch; T->vu = 1.0f; }
         return;
     }
     if (e->kind == EV_ON) {
@@ -285,6 +323,7 @@ static void console_input(void) {
         // INST chip: cycle the track's instrument (clears the take — events reinterpret otherwise)
         if (tapp(x + 4, STR_INST_Y, SW - 8, 12) && !rec) {
             silence(t); trk[t].inst = (trk[t].inst + 1) % NINST;
+            configure_slot(t);                                    // re-voice the melodic slot (bass/keys)
             trk[t].n = 0; trk[t].len = 0; recompute_song();
             trk[t].applied_level = -1; trk[t].applied_pan = -2;   // re-push mix to the new slots
         }
@@ -387,7 +426,7 @@ void update(void) {
         if (keyp('Z') && octv > 0) octv--;
         if (keyp('X') && octv < 3) octv++;
         if (keyp('I')) snap ^= 1;
-    } else if (view == VIEW_TAKE) {                 // armed track is DRUMS: four pads
+    } else if (view == VIEW_TAKE && trk[armed].inst == INST_DRUMS) {   // four pads
         int PW = SCREEN_W / 2, PH = (SCREEN_H - TOPBAR) / 2;
         for (int d = 0; d < 4; d++)
             if (tapp((d % 2) * PW, TOPBAR + (d / 2) * PH, PW, PH)) pp_hit(d);
@@ -395,9 +434,23 @@ void update(void) {
         if (keyp('S')) pp_hit(1);                   // snare
         if (keyp('D')) pp_hit(2);                   // hat
         if (keyp('F')) pp_hit(3);                   // tom
+    } else if (view == VIEW_TAKE) {                 // armed track is KEYS: a Rhodes keybed
+        int ww = SCREEN_W / KB_NW, bh = (int)((SCREEN_H - TOPBAR) * 0.58f);
+        for (int i = 0; i < KB_NW; i++) {           // blacks (upper) first
+            int bm = black_midi(i); if (bm < 0) continue;
+            int bw = 2 * ww / 3, bx = (i + 1) * ww - bw / 2;
+            if (tapp(bx, TOPBAR, bw, bh)) pp_key(bm);
+        }
+        for (int i = 0; i < KB_NW; i++)             // whites (lower)
+            if (tapp(i * ww, TOPBAR + bh, ww, SCREEN_H - TOPBAR - bh)) pp_key(white_midi(i));
+        for (int i = 0; i < 11; i++) if (keyp(gb_wkey[i])) pp_key(KB_BASE + octv * 12 + gb_wsemi[i]);
+        for (int i = 0; i < 7;  i++) if (keyp(gb_bkey[i])) pp_key(KB_BASE + octv * 12 + gb_bsemi[i]);
+        if (keyp('Z') && octv > 0) octv--;
+        if (keyp('X') && octv < 3) octv++;
     } else {
         console_input();
     }
+    if (keyflash > 0) keyflash--;
 
     b_wob += 0.6f;
     if (clickflash > 0) clickflash--;
@@ -473,8 +526,29 @@ static void draw_take_drums(void) {
     font(FONT_NORMAL);
 }
 
+static void draw_take_keys(void) {
+    cls(CLR_BLACK);
+    int ww = SCREEN_W / KB_NW, bh = (int)((SCREEN_H - TOPBAR) * 0.58f);
+    for (int i = 0; i < KB_NW; i++) {               // white keys
+        int m = white_midi(i), on = (keyflash > 0 && keyflash_midi == m);
+        rectfill(i * ww + 1, TOPBAR + 1, ww - 2, SCREEN_H - TOPBAR - 2, on ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
+        rect(i * ww, TOPBAR, ww, SCREEN_H - TOPBAR, CLR_DARK_GREY);
+    }
+    for (int i = 0; i < KB_NW; i++) {               // black keys on top
+        int bm = black_midi(i); if (bm < 0) continue;
+        int bw = 2 * ww / 3, bx = (i + 1) * ww - bw / 2, on = (keyflash > 0 && keyflash_midi == bm);
+        rectfill(bx, TOPBAR, bw, bh, on ? CLR_ORANGE : CLR_BROWNISH_BLACK);
+        rect(bx, TOPBAR, bw, bh, CLR_BLACK);
+    }
+    draw_topbar();
+    font(FONT_SMALL);
+    print("tap keys / A S D F G H J K  (W E T Y U black)  Z/X octave   TAB console", 6, SCREEN_H - 9, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
+
 static void draw_take(void) {
     if (trk[armed].inst == INST_DRUMS) { draw_take_drums(); return; }
+    if (trk[armed].inst == INST_KEYS)  { draw_take_keys();  return; }
     cls(CLR_BROWNISH_BLACK);
     rectfill(0, TOPBAR, SCREEN_W, SCREEN_H - TOPBAR, CLR_BROWN);
     rectfill(NECK_X0 - 6, TOPBAR, NECK_X1 - NECK_X0 + 12, SCREEN_H - TOPBAR, CLR_BROWNISH_BLACK);
@@ -516,8 +590,8 @@ static void draw_console(void) {
         if (trk[t].len > 0) { font(FONT_SMALL); print(str("%db", (int)(trk[t].len / BEATS_PER_BAR)), x + SW - 20, 48, CLR_MEDIUM_GREY); font(FONT_NORMAL); }
 
         // INST chip (tap to cast the track's instrument)
-        int isdrum = (trk[t].inst == INST_DRUMS);
-        rectfill(x + 4, STR_INST_Y, SW - 8, 12, isdrum ? CLR_DARK_GREEN : CLR_DARK_PURPLE);
+        static const int ICOL[NINST] = { CLR_DARK_PURPLE, CLR_DARK_GREEN, CLR_INDIGO };
+        rectfill(x + 4, STR_INST_Y, SW - 8, 12, ICOL[trk[t].inst]);
         rect(x + 4, STR_INST_Y, SW - 8, 12, CLR_DARK_BLUE);
         font(FONT_SMALL); print(INAME[trk[t].inst], x + 8, STR_INST_Y + 3, CLR_LIGHT_PEACH); font(FONT_NORMAL);
 

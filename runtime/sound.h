@@ -396,6 +396,11 @@ static char          wavcap_path[512];
 static float scope_buf[SCOPE_LEN];
 static int   scope_w    = 0;
 static bool  scope_ever = false;
+// stereo twin of the tap (scope_read2 — the vectorscope/goniometer pair): the
+// UNDOWNMIXED L/R rings, separately gated so mono-only scoping stays untouched.
+static float scope2_bufL[SCOPE_LEN], scope2_bufR[SCOPE_LEN];
+static int   scope2_w    = 0;
+static bool  scope2_ever = false;
 
 // write a 16-bit PCM mono 44.1kHz WAV
 static int sound_wav_write(const char *path, const float *buf, int n) {
@@ -6038,6 +6043,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             scope_buf[scope_w] = (mixL + mixR) * 0.5f;
             scope_w = (scope_w + 1) & (SCOPE_LEN - 1);
         }
+        if (scope2_ever) {                             // stereo tap (scope_read2) — the raw L/R pair
+            scope2_bufL[scope2_w] = mixL;
+            scope2_bufR[scope2_w] = mixR;
+            scope2_w = (scope2_w + 1) & (SCOPE_LEN - 1);
+        }
     }
 }
 
@@ -6050,6 +6060,20 @@ void scope_read(float *dst, int n) {
     int w = scope_w;                                   // one snapshot of the write head (racy is fine here)
     for (int i = 0; i < n; i++)
         dst[i] = scope_buf[(w + i + SCOPE_LEN - n) & (SCOPE_LEN - 1)];
+}
+
+// stereo twin: the latest `n` L and R output samples (oldest first, newest last),
+// same-index pairs — the vectorscope/goniometer feed. Same gate/clamp contract.
+void scope_read2(float *l, float *r, int n) {
+    scope2_ever = true;
+    if (n > SCOPE_LEN) n = SCOPE_LEN;
+    if (n < 0) n = 0;
+    int w = scope2_w;                                  // one snapshot of the write head (racy is fine here)
+    for (int i = 0; i < n; i++) {
+        int j = (w + i + SCOPE_LEN - n) & (SCOPE_LEN - 1);
+        l[i] = scope2_bufL[j];
+        r[i] = scope2_bufR[j];
+    }
 }
 
 // ───────── built-in demo sfx ─────────

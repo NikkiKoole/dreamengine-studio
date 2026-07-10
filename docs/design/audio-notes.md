@@ -1092,6 +1092,13 @@ Soundcheck tripwire: PASS.
 > thread writes, draw thread reads — a torn sample is invisible on a scope). NB: only fills
 > with a live audio thread running; the headless `--wav` batch render leaves it flat (the tap
 > arms after the batch). For a STILL waveform image, predict the shape in cart-land instead.
+>
+> **Stereo twin (added 2026-07-10):** `scope_read2(float *l, float *r, int n)` reads the same
+> point in the chain but UNDOWNMIXED — the raw L/R pair, same-index-matched, in its own
+> separately-gated rings (`scope2_ever`; arming the mono tap doesn't arm this one). Built for
+> the vectorscope/goniometer view in the `wavecandy` cart (plot mid=L+R vertical vs side=L−R
+> horizontal: mono = a vertical line, autopan tilts it, chorus opens it into a cloud). Same
+> caveats as the mono tap.
 
 Ear tests don't scale and don't diff. The §15 experiment (and mallet/fm macro
 taste-tuning, and any future DSP change) wants: render a cart's audio to a

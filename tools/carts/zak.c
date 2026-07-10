@@ -18,12 +18,12 @@
   "description": "A SCUMM-style point-and-click caper: you're tabloid reporter Zak, woken by a phone tip that your plane ticket is locked in your desk. Three hand-drawn rooms — a moody SF apartment with a ringing phone and a fishbowl, a hallway with a stuck vending machine and a fire-axe, and a night cab to the airport — wired into a real scene engine with a four-verb bar, a hover-labeled hotspot grammar, an inventory strip, and walk-to-floor navigation. Solve the one combination puzzle (take the paperclip, USE it to bend a lockpick, pick the drawer, grab the ticket) to unlock the cab and win. Mouse: click a verb (Look/Use/Take/Talk) then a hotspot; click the floor to walk; click an inventory item to hold it, then a hotspot to use it; SPACE/ESC clears a message.",
   "todo": [
     "Same y-layering need as the other adventure games (walk in front/behind).",
-    "Some color choices make things hard to see.",
-    "The end fade (shared with the other adventure games) needs the better treatment."
+    "Some color choices make things hard to see."
   ]
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // ── ZAK McKRACKEN — a SCUMM-style point-and-click adventure ──────────
@@ -545,14 +545,13 @@ void draw(void) {
     else print_centered(str("ZAK McKRACKEN  -  %s", scene == SC_FLAT ? "apartment" : scene == SC_HALL ? "hallway" : "taxi"), SCREEN_W/2, BAR_Y + 33, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
-    // ── win card ──
+    // ── win card — the shared end-screen treatment (endcard.h) ──
     if (won) {
-        fade(clamp(win_t, 0, 0.55f));
-        int w = 240, h = 56, bx = (SCREEN_W - w) / 2, by = 48;
-        rectfill(bx, by, w, h, CLR_DARK_BLUE);
-        rect(bx, by, w, h, CLR_LIGHT_YELLOW); rect(bx + 2, by + 2, w - 4, h - 4, CLR_INDIGO);
-        print_centered("OFF TO THE AIRPORT!", SCREEN_W/2, by + 12, CLR_LIGHT_YELLOW);
-        print_centered("The story of a lifetime awaits.", SCREEN_W/2, by + 26, CLR_LIGHT_PEACH);
-        if (blink(18)) print_centered("- click to play again -", SCREEN_W/2, by + 40, CLR_LIGHT_GREY);
+        EndCard c = endcard(win_t, 240, 56, 48, CLR_DARK_BLUE, CLR_LIGHT_YELLOW, CLR_INDIGO);
+        if (c.settled) {
+            print_centered("OFF TO THE AIRPORT!", SCREEN_W/2, c.y + 12, CLR_LIGHT_YELLOW);
+            print_centered("The story of a lifetime awaits.", SCREEN_W/2, c.y + 26, CLR_LIGHT_PEACH);
+            if (blink(18)) print_centered("- click to play again -", SCREEN_W/2, c.y + 40, CLR_LIGHT_GREY);
+        }
     }
 }

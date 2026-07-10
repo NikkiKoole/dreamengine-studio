@@ -88,6 +88,9 @@ static int playing = 0;    // transport play/stop (tap the ▶/■ button)
 // per-instrument state the main screen must carry: mute + which of the 6 patterns is live
 static int muted[NSTRIP] = { 0, 0, 0, 1, 0 };   // 808 muted by default (shows the silenced look)
 static int patn[NSTRIP]  = { 0, 2, 1, 3, 0 };   // current pattern 0..NPAT-1
+static int pagesel[NSTRIP];                     // knob PAGE index (0..2) — the tiny header page button cycles it
+#define NKPAGE 3                                 // placeholder page count until per-page knob sets are wired
+static float level[NSTRIP];                      // per-instrument VOLUME — the header level knob (left of mute)
 
 // ───────── immediate-mode click layer (touch + mouse) ─────────
 // One pointer press per frame; hit(box) returns true once for the first control it lands in and
@@ -116,7 +119,8 @@ static float kv[NSTRIP][7], kvc[NSTRIP][3], tempo = 0.55f;    // kv = full/expan
 // deterministic patterns the wireframe drew before, so the look is unchanged until you edit.
 static unsigned char dstep[NSTRIP][11][STEPS];    // drum: strip × voice × step (hit on/off)
 static signed char   n303[NSTRIP][STEPS];         // 303: pitch row 0..14 per step
-static unsigned char rest303[NSTRIP][STEPS], a303[NSTRIP][STEPS], s303[NSTRIP][STEPS]; // 303: rest / accent / slide
+static unsigned char rest303[NSTRIP][STEPS], a303[NSTRIP][STEPS], s303[NSTRIP][STEPS],
+                     tie303[NSTRIP][STEPS], len303[NSTRIP][STEPS]; // 303: rest / accent / slide / tie / len(gate)
 static int p303_rest(int seed, int i);            // defined below — used here to seed n303/rest303
 static int p303_note(int seed, int i);
 static int p303_acc(int seed, int i);
@@ -125,6 +129,7 @@ static int uiseeded = 0;
 static void wf_seed(void) {   // spread the values once so nothing sits dead at 0
     if (uiseeded) return; uiseeded = 1;
     for (int s = 0; s < NSTRIP; s++) {
+        level[s] = 0.8f;                                     // per-instrument volume (near full)
         for (int i = 0; i < 7; i++) kv[s][i]  = 0.2f + 0.1f * ((s + i) % 6);
         for (int i = 0; i < 3; i++) kvc[s][i] = 0.3f + 0.15f * ((s + i) % 4);
         for (int v = 0; v < 11; v++) for (int i = 0; i < STEPS; i++)
@@ -132,6 +137,7 @@ static void wf_seed(void) {   // spread the values once so nothing sits dead at 
         for (int i = 0; i < STEPS; i++) {
             n303[s][i]   = (signed char)(p303_note(s, i) % 15);
             rest303[s][i] = p303_rest(s, i); a303[s][i] = p303_acc(s, i); s303[s][i] = p303_sld(s, i);
+            tie303[s][i] = (i % 5 == 2); len303[s][i] = (i % 3 != 0);   // placeholder tie/gate patterns
         }
     }
 }
@@ -201,15 +207,43 @@ static void wf_patbox(Box b, int idx) {
     font(FONT_TINY); print("PAT", (int)lab.x + 1, (int)lab.y, CLR_MEDIUM_GREY);
     wf_patterns(grid, idx, 3);
 }
-static void wf_mute(Box hdr, int idx) {   // [M][fx] cluster at the header's right edge; tap M to (un)mute
+// per-strip ICON placeholder — a coloured ~12px square standing in for a real 12×12 icon (not wired
+// yet). Icons replace the "303 A"/"909"/"808" TEXT: a shorter header (more room for the pattern row)
+// AND it sidesteps the Roland trademark names. Real icons drop in later; the square is the stand-in.
+static const int ICOCLR[NSTRIP] = { CLR_LIME_GREEN, CLR_TRUE_BLUE, CLR_ORANGE, CLR_INDIGO, CLR_LIGHT_GREY };
+static void wf_stripicon(Box hdr, int idx, float w) {
     int mu = muted[idx];
-    float bw = lay_clamp(FU * 0.7f, 8, 20);
-    Box fx = lay_at(hdr, L_TR, bw, hdr.h - 2, 1); boxfill(fx, CLR_DARK_GREY); boxrect(fx, CLR_MEDIUM_GREY);
-    font(FONT_TINY); print_centered("fx", (int)(fx.x + fx.w / 2), (int)(fx.y + (fx.h - 5) / 2), CLR_LIGHT_GREY);
-    // [fx] is inert for now — its fullscreen panel + the paged-fx approach were both parked (see the note by kv)
-    Box m = box(fx.x - bw * 0.65f - 2, fx.y, bw * 0.65f, fx.h); boxfill(m, mu ? CLR_RED : CLR_DARK_RED); boxrect(m, mu ? CLR_WHITE : CLR_MEDIUM_GREY);
-    print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), mu ? CLR_WHITE : CLR_LIGHT_PEACH);
-    if (clicked(m)) muted[idx] = !muted[idx];
+    Box ico = box(hdr.x + 2, hdr.y + (hdr.h - w) / 2, w, w);
+    boxfill(ico, mu ? CLR_DARK_GREY : ICOCLR[idx]); boxrect(ico, mu ? CLR_RED : CLR_LIGHT_PEACH);
+}
+// the MUTE button DOUBLES as the per-instrument LEVEL fader (maker's idea, tr808's tap-vs-drag gesture):
+// TAP = toggle mute · VERTICAL DRAG = ride volume. Volume shows as a fill behind the "M". Rightmost +
+// always drawn, so it's a live channel fader no matter which page/state the strip is in.
+static int mdrag = -1, mdrag_y0, mdrag_moved;
+static void wf_mute(Box hdr, int idx) {
+    int mu = muted[idx];
+    float bw = lay_clamp(FU * 0.9f, 14, 22);
+    Box m = lay_at(hdr, L_TR, bw, hdr.h - 2, 1);
+    boxfill(m, CLR_BROWNISH_BLACK);
+    int fh = (int)(level[idx] * (m.h - 2));                       // volume = a bottom-up fill (mini fader)
+    if (fh > 0) boxfill(box(m.x + 1, m.y + m.h - 1 - fh, m.w - 2, fh), mu ? CLR_DARK_GREY : CLR_DARK_ORANGE);
+    boxrect(m, mu ? CLR_RED : CLR_MEDIUM_GREY);
+    font(FONT_TINY); print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), mu ? CLR_RED : CLR_LIGHT_PEACH);
+    // claim the press; a >4px vertical move → level drag, else (released without moving) → a mute tap
+    if (m_press && m_x >= m.x && m_x < m.x + m.w && m_y >= m.y && m_y < m.y + m.h) {
+        mdrag = idx; mdrag_y0 = m_y; mdrag_moved = 0; m_press = 0;
+    }
+    if (mdrag == idx) {
+        if (mouse_down(0)) {
+            int dy = mdrag_y0 - mouse_y();
+            if (dy > 4 || dy < -4) mdrag_moved = 1;
+            if (mdrag_moved) { level[idx] += dy / 40.0f;
+                level[idx] = level[idx] < 0 ? 0 : level[idx] > 1 ? 1 : level[idx]; mdrag_y0 = mouse_y(); }
+        } else {
+            if (!mdrag_moved) muted[idx] = !muted[idx];          // released without dragging → it was a tap
+            mdrag = -1;
+        }
+    }
 }
 
 // beat-grouped 16-step columns inside `row` (shared by the drum grid + 303 grid)
@@ -251,8 +285,8 @@ static int p303_sld (int seed, int i) { return ((i * 2 + seed) % 5) == 2; }
 // the FULL 303 step programmer: a pitch piano-roll (key-striped, spans >1 octave so OCTAVE reads) +
 // an ACCENT lane + a SLIDE(glide) lane. The 303's real anatomy (acidrack-ui-research §2: note/accent/
 // slide/gate layers), the melodic twin of the drum grid.
-static void wf_303grid(Box area, int sidx, int mu) {
-    Box notes; Box flags = lay_split(area, EDGE_BOTTOM, lay_clamp(FU * 0.9f, 8, 22), &notes);
+// the note ROLL only — piano-key striped; tap a row to place/move the note, tap its own row to rest.
+static void wf_303notes(Box notes, int sidx, int mu) {
     int rows = 15;                                     // ~15 semitones → octave range is visible
     float rh = notes.h / (float)rows;
     for (int r = 0; r < rows; r++) {                   // piano-key striping so pitch reads
@@ -263,7 +297,6 @@ static void wf_303grid(Box area, int sidx, int mu) {
     float cw = (notes.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
     float x = notes.x; float prevX = -1, prevY = -1;
     for (int i = 0; i < STEPS; i++) {
-        // the whole column is a tap target: tap a row to place/move the note there; tap the note's own row to rest it.
         Box col = box(x, notes.y, cw, notes.h);
         if (m_press && m_x >= col.x && m_x < col.x + col.w && m_y >= col.y && m_y < col.y + col.h) {
             int rr = rows - 1 - (int)((m_y - notes.y) / rh); if (rr < 0) rr = 0; if (rr >= rows) rr = rows - 1;
@@ -281,21 +314,31 @@ static void wf_303grid(Box area, int sidx, int mu) {
         } else prevX = -1;
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
-    // ACC + SLD flag lanes (tap a cell to toggle)
-    Box sld; Box acc = lay_split(flags, EDGE_TOP, flags.h / 2, &sld);
-    float lblW = lay_clamp(FU * 0.9f, 10, 20);
-    Box ac; Box acl = lay_split(acc, EDGE_LEFT, lblW, &ac);
-    Box sc; Box sll = lay_split(sld, EDGE_LEFT, lblW, &sc);
-    font(FONT_TINY); print("ACC", (int)acl.x + 1, (int)acl.y, CLR_ORANGE); print("SLD", (int)sll.x + 1, (int)sll.y, CLR_INDIGO);
-    float ax = ac.x, sx2 = sc.x;
-    for (int i = 0; i < STEPS; i++) {
-        Box acell = box(ax, ac.y + 1, cw, ac.h - 2), scell = box(sx2, sc.y + 1, cw, sc.h - 2);
-        boxfill(acell, mu ? CLR_DARKER_GREY : (a303[sidx][i] ? CLR_ORANGE : CLR_DARK_GREY));
-        boxfill(scell, mu ? CLR_DARKER_GREY : (s303[sidx][i] ? CLR_INDIGO : CLR_DARK_GREY));
-        if (clicked(acell)) a303[sidx][i] = !a303[sidx][i];
-        if (clicked(scell)) s303[sidx][i] = !s303[sidx][i];
-        ax += cw + g; sx2 += cw + g; if (i % 4 == 3) { ax += G - g; sx2 += G - g; }
+}
+// per-step FLAG lanes, tap a cell to toggle. n = 2 → ACC/SLD (the expanded editor); n = 4 →
+// ACC/SLD/TIE/LEN (the compact FLAGS page — the maker's 303 page spec).
+static void wf_303flags(Box area, int sidx, int mu, int n) {
+    static const char *LN[4]  = { "ACC", "SLD", "TIE", "LEN" };
+    static const int   COL[4] = { CLR_ORANGE, CLR_INDIGO, CLR_TRUE_BLUE, CLR_LIGHT_PEACH };
+    unsigned char *lane[4] = { a303[sidx], s303[sidx], tie303[sidx], len303[sidx] };
+    float g = 1, G = lay_clamp(FU * 0.16f, 2, 5), lblW = lay_clamp(FU * 0.9f, 10, 20);
+    for (int L = 0; L < n; L++) {
+        Box row = lay_grid(area, 1, n, L, 1);
+        Box cells; Box lbl = lay_split(row, EDGE_LEFT, lblW, &cells);
+        font(FONT_TINY); print(LN[L], (int)lbl.x + 1, (int)(lbl.y + (lbl.h - 5) / 2), COL[L]);
+        float cw = (cells.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1; float x = cells.x;
+        for (int i = 0; i < STEPS; i++) {
+            Box c = box(x, cells.y + 1, cw, cells.h - 2);
+            boxfill(c, mu ? CLR_DARKER_GREY : (lane[L][i] ? COL[L] : CLR_DARK_GREY));
+            if (clicked(c)) lane[L][i] = !lane[L][i];
+            x += cw + g; if (i % 4 == 3) x += G - g;
+        }
     }
+}
+static void wf_303grid(Box area, int sidx, int mu) {   // expanded editor: the roll + ACC/SLD lanes
+    Box notes; Box flags = lay_split(area, EDGE_BOTTOM, lay_clamp(FU * 0.9f, 8, 22), &notes);
+    wf_303notes(notes, sidx, mu);
+    wf_303flags(flags, sidx, mu, 2);
 }
 // compact 303 preview: the melodic contour — a pitch bar per step (accent = orange, rest = empty).
 static void wf_303lane(Box area, int sidx, int mu) {
@@ -318,15 +361,18 @@ static void wf_303lane(Box area, int sidx, int mu) {
 static void draw_focus(Strip *s, Box area, int idx) {
     int mu = muted[idx];
     boxfill(area, CLR_DARKER_BLUE); boxrect(area, mu ? CLR_RED : CLR_TRUE_BLUE);
-    Box body; Box bar = lay_split(lay_inset(area, 2), EDGE_TOP, lay_clamp(FU * 1.3f, 12, 26), &body);
+    Box body; Box bar = lay_split(lay_inset(area, 2), EDGE_TOP, lay_clamp(FU * 0.85f, 16, 22), &body);  // match the strip header — no height jump on going fullscreen
     boxfill(bar, mu ? CLR_DARK_RED : CLR_TRUE_BLUE);
-    // no dedicated X: the NAME is the back button (a ‹ cue) — tap it to leave focus. That frees the
-    // top-right for the [M][fx] cluster that belongs there (maker, 2026-07-07).
-    font(FONT_SMALL); print(str("< %s", s->name), (int)bar.x + 3, (int)(bar.y + (bar.h - 6) / 2), CLR_LIGHT_PEACH);
-    if (clicked(box(bar.x, bar.y, FU * 3.0f, bar.h))) focused = -1;
+    // no dedicated X: the ICON is the back button (a ‹ cue to its left) — tap it to leave focus. That
+    // frees the top-right for the [M][fx] cluster that belongs there (maker, 2026-07-07).
+    float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > bar.h - 4) icoW = bar.h - 4;
+    font(FONT_SMALL); print("<", (int)bar.x + 3, (int)(bar.y + (bar.h - 6) / 2), CLR_LIGHT_PEACH);
+    wf_stripicon(box(bar.x + 10, bar.y, bar.w, bar.h), idx, icoW);     // the icon (after the ‹)
+    float backW = icoW + 16;
+    if (clicked(box(bar.x, bar.y, backW, bar.h))) focused = -1;
     wf_mute(bar, idx);                                                 // [M][fx] at the right (M taps to mute)
-    if (s->haspat) { font(FONT_TINY);   // pattern selector between the name and the [M][fx] cluster
-        float px = bar.x + FU * 3.2f; Box pb = box(px, bar.y + 2, bar.x + bar.w - FU * 2.4f - px, bar.h - 4);
+    if (s->haspat) { font(FONT_TINY);   // pattern selector between the icon and the [M][fx] cluster
+        float px = bar.x + backW + 4; Box pb = box(px, bar.y + 2, bar.x + bar.w - FU * 2.4f - px, bar.h - 4);
         if (pb.w > 20) wf_patterns(pb, idx, NPAT); }
     body = lay_pad(body, 1, 2, 1, 1);
     if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
@@ -343,19 +389,34 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     Box body; float hh = lay_clamp(FU * 0.85f, 16, 22);
     Box hdr = lay_split(lay_inset(rect, 1), EDGE_TOP, hh, &body);
     boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
-    font(FONT_TINY); print(s->name, (int)hdr.x + 2, (int)(hdr.y + (hdr.h - 5) / 2), CLR_LIGHT_PEACH);
+    float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > hh - 4) icoW = hh - 4;   // the ~12px icon badge
+    wf_stripicon(hdr, idx, icoW);
     body = lay_pad(body, 1, 1, 1, 1);
     wf_mute(hdr, idx);
-    // tap the strip NAME to open it up: folded/compact → expanded (working); expanded → focus.
-    if (clicked(box(hdr.x, hdr.y, FU * 1.5f, hdr.h))) { if (state == EXPANDED) focused = idx; else work = idx; }
+    // tap the strip ICON to open it up: folded/compact → expanded (working); expanded → focus.
+    if (clicked(box(hdr.x, hdr.y, icoW + 4, hdr.h))) { if (state == EXPANDED) focused = idx; else work = idx; }
+
+    // tiny PAGE button right after the icon (icon-sized — a proven tap target). COMPACT 303 only:
+    // pages are the compact-space solution (maker), cycling the whole body N=notes / K=knobs / F=flags.
+    float hleft = hdr.x + icoW + 4;   // default: patterns start right after the icon
+    int paged = (state == COMPACT && s->kind == KNOBS && s->haspat);   // the two 303s in compact
+    if (paged) {
+        float pgW = icoW;
+        Box pgb = box(hleft, hdr.y + (hh - pgW) / 2, pgW, pgW);
+        boxfill(pgb, CLR_DARK_GREY); boxrect(pgb, CLR_MEDIUM_GREY);
+        static const char *PGL[NKPAGE] = { "N", "K", "F" };   // notes / knobs / flags
+        font(FONT_TINY); print_centered(PGL[pagesel[idx] % NKPAGE], (int)(pgb.x + pgb.w / 2), (int)(pgb.y + (pgb.h - 5) / 2), CLR_LIGHT_PEACH);
+        if (clicked(pgb)) pagesel[idx] = (pagesel[idx] + 1) % NKPAGE;
+        hleft = pgb.x + pgW + 4;
+    }
 
     // PATTERN SELECTOR — pattern instruments only (MASTER is the mixer/FX bus, so none). Device-
-    // adaptive: PHONE → a light framed row of 6 in the HEADER; iPad (roomy) → a boxed LEFT panel.
+    // adaptive: PHONE → a framed row of 6 in the HEADER; iPad (roomy) → a boxed LEFT panel.
     int header_pat = s->haspat && (!g_boxpat || state == FOLDED);
     int box_pat    = s->haspat && g_boxpat && state != FOLDED;
     if (header_pat) {
-        float muteW = FU * 1.6f;
-        Box pb = box(hdr.x + FU * 1.7f, hdr.y + 1, hdr.w - FU * 1.7f - muteW, hdr.h - 2);
+        float muteW = FU * 1.2f;                               // reserve the rightmost [M] (it's also the level fader)
+        Box pb = box(hleft, hdr.y + 1, hdr.x + hdr.w - muteW - hleft, hdr.h - 2);
         boxrect(pb, mu ? CLR_DARK_RED : CLR_DARKER_GREY);
         wf_patterns(lay_inset(pb, 1), idx, NPAT);              // one row of 6
     }
@@ -372,6 +433,13 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     }
 
     if (state == COMPACT) {                        // 2-3 knobs (or drum selector) + one step lane
+        if (s->kind == KNOBS && s->haspat) {       // 303 COMPACT: page the whole body (maker's spec)
+            int pg = pagesel[idx] % NKPAGE;
+            if      (pg == 0) wf_303notes(mach, idx, mu);                 // N — just the notes
+            else if (pg == 1) wf_knobrow(mach, s->labels, s->n, kv[idx]); // K — just the knobs (all 7)
+            else              wf_303flags(mach, idx, mu, 4);              // F — ACC/SLD/TIE/LEN
+            return;
+        }
         Box lane; Box top = s->haspat ? lay_split(mach, EDGE_TOP, FU * 1.3f, &lane) : mach;
         if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc, kvc[idx]);
         else { // drum: voice selector (ALL voices, factual) + selected-voice knobs

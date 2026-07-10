@@ -1,6 +1,6 @@
 # Audio threading — the game-thread / audio-thread model (and how it ports)
 
-STATUS: DESIGNED (2026-06-10) — the thread model already runs native; the staged web AudioWorklet backend is the remaining build.
+STATUS: SHIPPED (2026-06-10; iOS backend-preference 2026-06-11) — native thread model + the full web AudioWorklet backend landed (build stages 0–5); all instrument/radio carts published worklet-capable with a runtime-selected ScriptProcessor fallback and a 3-way auto/worklet/plain audio preference (auto-fallback on old iOS). Nothing outstanding beyond the documented iOS-quirk gotchas.
 
 > SPEC + RATIONALE (2026-06-10). The portable real-time-audio architecture dreamengine
 > already uses, why it generalizes to native iOS / Switch / desktop, and the staged plan

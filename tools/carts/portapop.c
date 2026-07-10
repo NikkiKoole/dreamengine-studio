@@ -10,12 +10,12 @@
   "teaches": [
     "gesture-loop"
   ],
-  "lineage": "Phase-1 skeleton of the portapop cassette 4-track (design/portapop.md). The record core descends from loopstation.c — discrete note events PLUS a continuous pitch-stream (EV_ON/EV_CC/EV_OFF) so slides and bends replay verbatim, exactly like loopstation's theremin track. The bass is the full pizzicato upright fingerboard from upright.c (press to grab + slide + bend, sweep to pick, fretless continuous glide). One instrument, one track, TAKE mode only — no console, shelf, or ping-pong yet.",
+  "lineage": "Phase-2 build of the portapop cassette 4-track (design/portapop.md). Record core (note-on + pitch-stream + note-off) descends from loopstation.c; the bass is a lean pizzicato cut of upright.c. Phase 2 adds MULTITRACK (four tracks, each its own instrument slot), a CONSOLE view with per-slot level/pan faders + VU + arm/mute (the per-slot mixer family made the star), overdub MONITORING (existing tracks play while you cut the next), the longest-take-sets-window + shorter-tracks-loop-to-fill rule, and the TAKE<->CONSOLE mode-flip. Still one instrument (bass) across all four tracks — the shelf of 8 is phase 3; ping-pong + tape glue are phase 4.",
   "homage": "Tascam Portastudio",
   "description": {
-    "summary": "The bedroom cassette 4-track, phase 1: play the upright bass onto tape, one honest take — slides, bends and all. Hit record, count in, play a pass, stop, then play it back and it loops exactly as you played it (no quantize). The slice that proves the machine records itself.",
-    "detail": "A skeleton of the portapop multitracker (design/portapop.md). ONE instrument — the full pizzicato upright bass (INSTR_BOWED): press ON a string to grab a note and slide LEFT/RIGHT to glide the pitch continuously, PULL up/down to bend, or start in the open gap and sweep THROUGH a string to pick it. ONE track, TAKE mode only. The transport is the star: RECORD arms a one-bar count-in then captures every note AND every slide as control events; STOP snaps the take to whole bars (that becomes the song); PLAY loops it back verbatim, glides included. Un-quantized on purpose — the rushes and drags are the point. The console, the shelf of instruments, ping-pong bounce and the tape glue all come later.",
-    "controls": "Fingerboard: press ON a string (E A D G, low to high) and slide L/R to glide pitch, pull up/down to bend, lift to damp; press in the open gap next to a string and sweep through it to pick. TUNE (I) toggles fretless (land exactly where you press) vs fretted (new note-ons snap to the nearest in-tune semitone; slides stay continuous). Keyboard: GarageBand map A S D F G H J K (+ W E T Y U black keys), Z/X octave. Transport: R record (count-in), SPACE play/stop, BACKSPACE clear. On-screen REC/PLY/CLR/TUNE buttons mirror the keys."
+    "summary": "The bedroom cassette 4-track. Overdub yourself one honest take at a time: cut a bass line, then arm the next track and play ALONG to it, stacking a whole band alone. Flip to the console to mix — per-track level, pan and bouncing VU meters. Un-quantized: it loops back exactly as you played it.",
+    "detail": "Phase 2 of the portapop multitracker (design/portapop.md). FOUR tracks, each on its own instrument slot. Arm a track and RECORD: a one-bar count-in, then it captures every note and slide as control events while the OTHER tracks play back so you overdub in time. The longest take sets the song; shorter tracks loop to fill it. Flip to the CONSOLE (TAB) to mix the stack — a level fader, a pan slider and a live VU per track, plus arm/mute — the per-slot mixer family (instrument_level/instrument_pan) as the show. Every track is the pizzicato upright bass for now (the shelf of instruments is phase 3; ping-pong bounce and the tape glue are phase 4).",
+    "controls": "TAKE view (play the armed track): press ON a string (E A D G) and slide to glide, pull to bend, sweep the gap to pick; keyboard A S D F G H J K (+ W E T Y U), Z/X octave; TUNE (I) snaps note-ons to tune. CONSOLE view: drag each track's LEVEL fader + PAN slider, tap ARM to pick the record track, MUTE to silence it. Transport (both views): R record (count-in), SPACE play/stop, BACKSPACE clear the armed track, TAB flip TAKE<->CONSOLE."
   }
 }
 de:meta */
@@ -23,323 +23,353 @@ de:meta */
 #include <math.h>
 #include <stdio.h>
 
-// ── PORTAPOP — phase 1 (the proving slice) ───────────────────────────────────
-// The bedroom cassette 4-track, cut to the one thing that must work first: a patient
-// tape deck you overdub yourself onto. Play the upright bass — with real slides and
-// bends — hit record, count in, play a pass, stop, then hit play and hear it loop back
-// EXACTLY as you played it. That single loop proves the two load-bearing risks:
-//   1. the RECORDABLE SEAM — notes go through pp_on()/pp_slide()/pp_off(), which sound
-//      the voice AND (while armed) record a note-on + a pitch STREAM + a note-off, so a
-//      glide reconstructs, not just the attack;
-//   2. the TAKE MODEL — "play a pass, stop, it loops as-played" (un-quantized).
-// Everything else in design/portapop.md (the console, the shelf of 8, ping-pong bounce,
-// the tape glue, the mode-flip) is additive onto this core.
+// ── PORTAPOP — phase 2: multitrack + console + the mode-flip ──────────────────
+// The bedroom cassette 4-track. Overdub one honest take at a time: cut a bass line,
+// arm the next track, play ALONG to what's down, stack a band alone. Flip to the
+// console to mix — per-track level/pan/VU (the per-slot mixer family as the star).
+// One instrument (bass) across all four tracks for now; the shelf of 8 is phase 3.
 
-#define BASS  5                            // INSTR_BOWED, pizzicato — the one voice
-#define CLICK 6                            // the count-in / metronome tick
+#define NTRK  4
+#define MAXEV 1024
+static const int TSLOT[NTRK] = { 5, 6, 7, 8 };     // each track = its own instrument slot
+#define METRO 9
 
-// ── the take: discrete notes + a continuous pitch stream (loopstation's model) ──
-#define MAXEV 2048
-enum { EV_ON, EV_CC, EV_OFF };             // note-on (attack) · pitch change (slide/bend) · note-off (damp)
-// lane = the STRING actually played (a pitch is reachable on several strings, so we can't
-// recompute it from pitch on replay — that drew the ghost on the wrong string).
-typedef struct { float pos, pitch; int kind, vol, lane; } Ev;   // pos = beats from the top of the take
-static Ev    ev[MAXEV];
-static int   nev;
-static float song_len;                     // take length in beats; 0 = empty
-static float rec_last_pitch;               // delta filter for the CC stream
+enum { EV_ON, EV_CC, EV_OFF };                     // attack · pitch change (slide/bend) · damp
+typedef struct { float pos, pitch; int kind, vol, lane; } Ev;   // lane = the string played
+typedef struct {
+    Ev    ev[MAXEV];
+    int   n;
+    float len;                                     // this track's length in beats (0 = empty)
+    int   muted;
+    float level, pan;                              // console mix: level 0..1, pan -1..+1
+    float applied_level, applied_pan;              // last values pushed to the slot (set-and-hold)
+    int   vrep;                                    // replay voice handle (-1 = none)
+    float vu;                                      // meter (decays)
+    float g_pitch; int g_lane, g_on;               // replay ghost (for the TAKE fingerboard)
+} Track;
+static Track trk[NTRK];
+static int   armed = 0;                            // the track that records / is played live
+static float song_len;                             // = max track len; the loop window
+static float rec_last_pitch;
 
 // ── transport ──
 enum { TR_STOP, TR_COUNTIN, TR_REC, TR_PLAY };
 static int   mode = TR_STOP;
-static float tpos, prev_tpos;              // transport position in beats (negative during count-in)
-static float last_songb;                   // engine beat clock last frame (to derive a delta)
+static float tpos, prev_tpos, last_songb;
 static int   clickflash;
 #define COUNTIN_BEATS 4
-#define REC_MAX_BEATS  64.0f               // safety: auto-stop a runaway recording (16 bars)
-#define BEATS_PER_BAR  4
+#define REC_MAX_BEATS 64.0f
+#define BEATS_PER_BAR 4
 #define TEMPO 100
 
-// ── the bass fingerboard (from upright.c — pizz, fretless, mono last-note-wins) ──
+// ── view ──
+enum { VIEW_TAKE, VIEW_CONSOLE };
+static int view = VIEW_CONSOLE;
+
+// ── the bass fingerboard (pizz, fretless, from upright.c) ──
 #define TOPBAR   44
 #define NECK_X0  30
 #define NECK_X1  292
-#define SPAN     12                        // semitones nut→bridge (one octave)
+#define SPAN     12
 #define NLANE    4
 #define LANE_H   ((SCREEN_H - TOPBAR) / NLANE)
-static const int   SBASE[NLANE] = { 43, 38, 33, 28 };   // G2 D2 A1 E1 (high string on top)
+static const int   SBASE[NLANE] = { 43, 38, 33, 28 };   // G2 D2 A1 E1
 static const char *SLAB [NLANE] = { "G", "D", "A", "E" };
-#define GRAB_PX  13                        // press within this of a string = grab; else a pick
-#define BEND_K   0.05f                     // semitones of bend per pixel pulled
+#define GRAB_PX  13
+#define BEND_K   0.05f
 #define BEND_MAX 2.0f
-
-// the one live mono voice
 #define NONE  (-999)
 #define KBD   (-2)
 #define MOUSE (-3)
 enum { GRAB, PICK };
 static int   b_handle = -1, b_owner = NONE, b_lane = 3, b_gesture, b_kbsemi = -1;
 static float b_midi = 28, b_slide = 28;
-static int   b_press_x, b_press_y, b_prevy, b_fx, b_fy;
-static int   b_sliding;
+static int   b_press_x, b_press_y, b_prevy, b_fx, b_fy, b_sliding;
 static float b_wob;
 
-// the replay voice (drives note_pitch just like loopstation's theremin ghost)
-static int   vrep = -1;
-static float g_pitch;                      // currently-sounding replay pitch (for the ghost dot)
-static int   g_on, g_lane;                 // g_lane = the string the replaying note was recorded on
-
-// GarageBand musical-typing map — 'A' = the low root
 static const char gb_wkey[11]  = "ASDFGHJKL;'";
 static const int  gb_wsemi[11] = { 0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17 };
 static const char gb_bkey[7]   = { 'W', 'E', 'T', 'Y', 'U', 'O', 'P' };
 static const int  gb_bsemi[7]  = { 1, 3, 6, 8, 10, 13, 15 };
-#define KB_ROOT 28                         // 'A' = E1 at octave 0
-static int octv = 1;
-static int snap = 0;                        // I / TUNE chip: snap a new note-ON to the nearest
-                                            // semitone (fretted attack); slides/bends stay continuous
+#define KB_ROOT 28
+static int octv = 1, snap = 0;
 static float snap_pitch(float m) { return snap ? roundf(m) : m; }
 
-static int   lane_at(int y) { int l = (y - TOPBAR) / LANE_H; return l < 0 ? 0 : (l > 3 ? 3 : l); }
 static int   cy_of(int lane) { return TOPBAR + lane * LANE_H + LANE_H / 2; }
 static float pos_at(int x) { return clamp((float)(x - NECK_X0) / (NECK_X1 - NECK_X0), 0, 1) * SPAN; }
 static int   midi_lane(float m) { int l = 3; for (int i = 0; i < NLANE; i++) if (SBASE[i] <= m) { l = i; break; } return l; }
 static int   midi_x(float m, int lane) { return NECK_X0 + (int)((NECK_X1 - NECK_X0) * (m - SBASE[lane]) / SPAN); }
 
+// console drag capture (one control at a time — no ui.h, avoids pointer-pool cross-talk)
+enum { DRAG_NONE, DRAG_FADER, DRAG_PAN };
+static int drag_kind = DRAG_NONE, drag_trk = -1;
+static const int TCOL[NTRK] = { CLR_ORANGE, CLR_BLUE_GREEN, CLR_PINK, CLR_LIME_GREEN };
+
 // ── setup ──
 void init(void) {
     bpm(TEMPO);
-    // the pizzicato upright (from upright.c's setup_pizz, trimmed to the one articulation)
-    instrument(BASS, INSTR_BOWED, 4, 0, 7, 460);
-    instrument_mode(BASS, MODE_BOW_PIZZ, 1.0f);        // pluck the string, don't bow it
-    instrument_filter(BASS, FILTER_LOW, 1400, 3);
-    instrument_harmonics(BASS, 0.30f);                 // dark, woody
-    instrument_timbre(BASS, 0.30f);
-    instrument_morph(BASS, 0.45f);
+    for (int t = 0; t < NTRK; t++) {
+        int s = TSLOT[t];
+        instrument(s, INSTR_BOWED, 4, 0, 7, 460);
+        instrument_mode(s, MODE_BOW_PIZZ, 1.0f);
+        instrument_filter(s, FILTER_LOW, 1400, 3);
+        instrument_harmonics(s, 0.30f);
+        instrument_timbre(s, 0.30f);
+        instrument_morph(s, 0.45f);
+        instrument_reverb(s, 0.14f);
+        trk[t].level = 0.85f; trk[t].pan = 0; trk[t].vrep = -1;
+        trk[t].applied_level = -1; trk[t].applied_pan = -2;   // force a first push
+    }
     reverb(0.28f, 0.5f);
-    instrument_reverb(BASS, 0.14f);
-    // the count-in / metronome click
-    instrument(CLICK, INSTR_TRI, 0, 30, 0, 20);
+    instrument(METRO, INSTR_TRI, 0, 30, 0, 20);
 }
 
-// ── the recordable seam ──────────────────────────────────────────────────────
-// Every note + every slide goes through here. Each sounds the live voice AND (while the
-// transport is armed-and-rolling) records an event, un-quantized. Wire the whole surface
-// to pp_* and recording — glides included — is free.
+// ── the recordable seam (records into the ARMED track) ──
 static void rec(int kind, float pitch, int vol) {
-    if (mode == TR_REC && tpos >= 0 && nev < MAXEV)
-        ev[nev++] = (Ev){ tpos, pitch, kind, vol, b_lane };   // b_lane = the string being played
+    Track *T = &trk[armed];
+    if (mode == TR_REC && tpos >= 0 && T->n < MAXEV)
+        T->ev[T->n++] = (Ev){ tpos, pitch, kind, vol, b_lane };
 }
 static void pp_on(int owner, int lane, float midi, int vol) {
-    if (b_handle >= 0) note_off(b_handle);             // mono: replace what's sounding
+    if (b_handle >= 0) note_off(b_handle);
     b_owner = owner; b_lane = lane; b_midi = b_slide = midi; b_wob = 0;
-    b_handle = note_on((int)(midi + 0.5f), BASS, vol);
-    note_pitch(b_handle, midi);
-    note_glide(b_handle, 70);                           // slides/bends slur smoothly, both ways
-    rec(EV_ON, midi, vol);
-    rec_last_pitch = midi;
+    b_handle = note_on((int)(midi + 0.5f), TSLOT[armed], vol);
+    note_pitch(b_handle, midi); note_glide(b_handle, 70);
+    rec(EV_ON, midi, vol); rec_last_pitch = midi;
     b_fx = midi_x(midi, lane); b_fy = cy_of(lane);
 }
-static void pp_slide(float midi) {                      // continuous pitch move (glide or bend)
+static void pp_slide(float midi) {
     if (b_handle < 0) return;
     b_midi = midi; note_pitch(b_handle, midi);
     if (fabsf(midi - rec_last_pitch) > 0.05f) { rec(EV_CC, midi, 0); rec_last_pitch = midi; }
 }
-static void pp_off(void) {                              // damp
+static void pp_off(void) {
     if (b_handle < 0) return;
     note_off(b_handle); b_handle = -1;
     rec(EV_OFF, 0, 0);
 }
 
-// ── replay ──
-static void fire_ev(Ev *e) {
+// ── replay (per track, on its own slot) ──
+static void fire_ev(int t, Ev *e) {
+    Track *T = &trk[t];
 #ifdef DE_TRACE
-    watch("fire", "kind=%d pos=%.2f midi=%.1f lane=%d", e->kind, e->pos, e->pitch, e->lane);
+    watch("fire", "t%d k%d pos=%.2f midi=%.1f", t, e->kind, e->pos, e->pitch);
 #endif
     if (e->kind == EV_ON) {
-        if (vrep >= 0) note_off(vrep);
-        vrep = note_on((int)(e->pitch + 0.5f), BASS, e->vol);
-        note_pitch(vrep, e->pitch); note_glide(vrep, 70);
-        g_pitch = e->pitch; g_lane = e->lane; g_on = 1;
+        if (T->vrep >= 0) note_off(T->vrep);
+        T->vrep = note_on((int)(e->pitch + 0.5f), TSLOT[t], e->vol);
+        note_pitch(T->vrep, e->pitch); note_glide(T->vrep, 70);
+        T->g_pitch = e->pitch; T->g_lane = e->lane; T->g_on = 1;
+        T->vu = 1.0f;
     } else if (e->kind == EV_CC) {
-        if (vrep >= 0) { note_pitch(vrep, e->pitch); g_pitch = e->pitch; }
-    } else {  // EV_OFF
-        if (vrep >= 0) { note_off(vrep); vrep = -1; }
-        g_on = 0;
+        if (T->vrep >= 0) { note_pitch(T->vrep, e->pitch); T->g_pitch = e->pitch; }
+    } else {
+        if (T->vrep >= 0) { note_off(T->vrep); T->vrep = -1; }
+        T->g_on = 0;
     }
 }
-// fire every event the playhead crossed since last frame (wrap-aware) — loopstation's logic
-static void fire_replay(void) {
-    int wrap = tpos < prev_tpos;
-    for (int i = 0; i < nev; i++) {
-        float p = ev[i].pos;
-        int hitnow = wrap ? (p > prev_tpos || p <= tpos)
-                          : (p > prev_tpos && p <= tpos);
-        if (hitnow) fire_ev(&ev[i]);
+// fire track t's events crossed this frame, looping at ITS OWN length (shorter tracks loop to fill)
+static void fire_track(int t) {
+    Track *T = &trk[t];
+    if (T->muted || T->n == 0 || T->len <= 0) return;
+    float L = T->len;
+    float wp  = fmodf(tpos, L);      if (wp  < 0) wp  += L;
+    float pwp = fmodf(prev_tpos, L); if (pwp < 0) pwp += L;
+    int wrap = wp < pwp;
+    for (int i = 0; i < T->n; i++) {
+        float p = T->ev[i].pos;
+        int hitnow = wrap ? (p > pwp || p <= wp) : (p > pwp && p <= wp);
+        if (hitnow) fire_ev(t, &T->ev[i]);
     }
 }
+static void play_tracks(int skip) { for (int t = 0; t < NTRK; t++) if (t != skip) fire_track(t); }
+static void silence(int t) { if (trk[t].vrep >= 0) { note_off(trk[t].vrep); trk[t].vrep = -1; } trk[t].g_on = 0; }
+static void silence_all(void) { for (int t = 0; t < NTRK; t++) silence(t); }
 
 // ── transport control ──
+static void recompute_song(void) { song_len = 0; for (int t = 0; t < NTRK; t++) if (trk[t].len > song_len) song_len = trk[t].len; }
 static void start_record(void) {
-    nev = 0; song_len = 0;
-    mode = TR_COUNTIN;
-    tpos = prev_tpos = -(float)COUNTIN_BEATS;
+    silence_all();
+    trk[armed].n = 0; trk[armed].len = 0;              // a fresh take replaces this track
+    mode = TR_COUNTIN; tpos = prev_tpos = -(float)COUNTIN_BEATS;
+    view = VIEW_TAKE;
 }
 static void stop_record(void) {
+    Track *T = &trk[armed];
+    float last = 0; for (int i = 0; i < T->n; i++) if (T->ev[i].pos > last) last = T->ev[i].pos;
     int bars = (int)roundf(tpos / BEATS_PER_BAR); if (bars < 1) bars = 1;
-    song_len = (float)(bars * BEATS_PER_BAR);
-    mode = TR_STOP; tpos = prev_tpos = 0;
+    if (bars * BEATS_PER_BAR < last) bars = (int)ceilf(last / BEATS_PER_BAR);   // never drop a late note
+    T->len = (float)(bars * BEATS_PER_BAR);
+    recompute_song();
     if (b_handle >= 0) { note_off(b_handle); b_handle = -1; }
+    mode = TR_STOP; tpos = prev_tpos = 0;
+    view = VIEW_CONSOLE;
 }
 static void start_play(void) {
+    recompute_song();
     if (song_len <= 0) return;
-    mode = TR_PLAY; tpos = 0; prev_tpos = -0.001f;      // so an event at pos 0 fires
+    silence_all();
+    mode = TR_PLAY; tpos = 0; prev_tpos = -0.001f;
+    view = VIEW_CONSOLE;
 }
-static void stop_all(void) {
-    mode = TR_STOP;
-    if (vrep >= 0) { note_off(vrep); vrep = -1; } g_on = 0;
+static void stop_all(void) { mode = TR_STOP; silence_all(); if (b_handle >= 0) { note_off(b_handle); b_handle = -1; } }
+
+// ── console interaction ──
+static void console_input(void) {
+    int mx = mouse_x(), my = mouse_y();
+    int SW = SCREEN_W / NTRK;
+    // faders / pans: capture on press, ride while held, release to let go
+    if (mouse_pressed(MOUSE_LEFT)) {
+        for (int t = 0; t < NTRK; t++) {
+            int x = t * SW;
+            if (mx >= x + 24 && mx <= x + 40 && my >= 56 && my <= 138) { drag_kind = DRAG_FADER; drag_trk = t; break; }
+            if (mx >= x + 6  && mx <= x + SW - 6 && my >= 144 && my <= 156) { drag_kind = DRAG_PAN; drag_trk = t; break; }
+        }
+    }
+    if (mouse_down(MOUSE_LEFT) && drag_trk >= 0) {
+        int x = drag_trk * SW;
+        if (drag_kind == DRAG_FADER) trk[drag_trk].level = clamp(remap((float)my, 56, 138, 1, 0), 0, 1);
+        else if (drag_kind == DRAG_PAN) trk[drag_trk].pan = clamp(remap((float)mx, x + 6, x + SW - 6, -1, 1), -1, 1);
+    }
+    if (!mouse_down(MOUSE_LEFT)) { drag_kind = DRAG_NONE; drag_trk = -1; }
+    // arm / mute buttons (locked while recording)
+    for (int t = 0; t < NTRK; t++) {
+        int x = t * SW;
+        if (tapp(x + 6, 162, 32, 15) && mode != TR_REC && mode != TR_COUNTIN) armed = t;
+        if (tapp(x + 42, 162, SW - 48, 15)) { trk[t].muted ^= 1; if (trk[t].muted) silence(t); }
+    }
 }
 
 // ── update ──
 void update(void) {
     float songb = beat() + beat_pos();
-    float db = songb - last_songb;
-    if (db < 0 || db > 1.0f) db = 0;                    // guard first frame / wrap
+    float db = songb - last_songb; if (db < 0 || db > 1.0f) db = 0;
     last_songb = songb;
     prev_tpos = tpos;
 
-    // ── transport keys + on-screen buttons ──
+    // transport (both views)
     if (keyp('R') || tapp(6, 26, 34, 14)) {
         if (mode == TR_REC || mode == TR_COUNTIN) stop_record();
-        else { if (vrep >= 0) { note_off(vrep); vrep = -1; } g_on = 0; start_record(); }
+        else start_record();
     }
     if (keyp(KEY_SPACE) || tapp(44, 26, 34, 14)) {
         if (mode == TR_PLAY || mode == TR_REC || mode == TR_COUNTIN) stop_all();
         else start_play();
     }
-    if (keyp(KEY_BACKSPACE) || tapp(82, 26, 34, 14)) {
-        nev = 0; song_len = 0; mode = TR_STOP; tpos = 0;
-        if (vrep >= 0) { note_off(vrep); vrep = -1; } g_on = 0;
-    }
-    if (keyp('I') || tapp(118, 26, 30, 14)) snap ^= 1;   // fretless <-> fretted attack
+    if (keyp(KEY_BACKSPACE) || tapp(82, 26, 34, 14)) { silence(armed); trk[armed].n = 0; trk[armed].len = 0; recompute_song(); }
+    if (keyp(KEY_TAB)) view ^= 1;
 
-    // ── advance transport + clicks + replay ──
+    // advance transport + clicks + replay/monitor
     if (mode != TR_STOP) tpos += db;
     if (mode == TR_COUNTIN || mode == TR_REC) {
         if ((int)floorf(tpos) > (int)floorf(prev_tpos)) {
             int acc = ((((int)floorf(tpos)) % BEATS_PER_BAR) + BEATS_PER_BAR) % BEATS_PER_BAR == 0;
-            hit(acc ? 93 : 81, CLICK, acc ? 4 : 2, 25);
-            clickflash = 5;
+            hit(acc ? 93 : 81, METRO, acc ? 4 : 2, 25); clickflash = 5;
         }
     }
     if (mode == TR_COUNTIN && tpos >= 0) mode = TR_REC;
-    if (mode == TR_REC && tpos >= REC_MAX_BEATS) stop_record();
+    if (mode == TR_REC) { if (tpos >= REC_MAX_BEATS) stop_record(); else play_tracks(armed); }  // monitor the others
     if (mode == TR_PLAY) {
         if (tpos >= song_len) { tpos -= song_len; prev_tpos = -0.001f; }
-        fire_replay();
+        play_tracks(-1);                                  // mix all
     }
 
-    // ── fingerboard: press ON a string to grab+slide+bend, sweep the gap to pick ──
-    int mx = mouse_x(), my = mouse_y();
-    if (mouse_pressed(MOUSE_LEFT) && my >= TOPBAR && mx >= NECK_X0 - 6 && mx <= NECK_X1 + 6) {
-        int near = 0, nd = 9999;
-        for (int l = 0; l < NLANE; l++) { int d = abs(my - cy_of(l)); if (d < nd) { nd = d; near = l; } }
-        if (nd <= GRAB_PX) {                            // ON a string → grab (fretless, or snapped to tune)
-            pp_on(MOUSE, near, snap_pitch(SBASE[near] + pos_at(mx)), 7);
-            b_gesture = GRAB; b_fx = mx; b_fy = my;
-        } else {                                        // open gap → a pick (sweep to pluck)
-            b_owner = MOUSE; b_gesture = PICK;
-        }
-        b_press_x = mx; b_press_y = my; b_prevy = my; b_sliding = 0;
-    }
-    else if (mouse_down(MOUSE_LEFT) && b_owner == MOUSE && b_gesture == GRAB && b_handle >= 0) {
-        if (!b_sliding && (abs(mx - b_press_x) > 4 || abs(my - b_press_y) > 4)) b_sliding = 1;
-        if (b_sliding) {
-            int dpx = b_press_y - my;                   // vertical pull (+up / -down)
-            if (abs(dpx) <= 6) b_slide = SBASE[b_lane] + clamp(pos_at(mx), 0, SPAN);   // walk the frets
-            float vbend = clamp((float)dpx * BEND_K, -BEND_MAX, BEND_MAX);              // signed bend
-            pp_slide(b_slide + vbend);
-            int maxpx = (int)(BEND_MAX / BEND_K);
-            b_fx = midi_x(b_slide, b_lane);
-            b_fy = cy_of(b_lane) - (int)clamp((float)dpx, -(float)maxpx, (float)maxpx);
-        }
-    }
-    else if (mouse_down(MOUSE_LEFT) && b_owner == MOUSE && b_gesture == PICK) {
-        for (int l = 0; l < NLANE; l++) {               // pluck each string the finger sweeps through
-            int cy = cy_of(l);
-            if ((b_prevy < cy && my >= cy) || (b_prevy > cy && my <= cy))
-                pp_on(MOUSE, l, snap_pitch(SBASE[l] + clamp(pos_at(mx), 0, SPAN)), 7);
-        }
-        b_fx = mx; b_fy = my; b_prevy = my;
-    }
-    if (!mouse_down(MOUSE_LEFT) && b_owner == MOUSE) {
-        if (b_gesture == GRAB) pp_off();                // grabbed note: lift = damp
-        else b_owner = NONE;                            // picked notes ring out on their own
+    // push per-slot mix only when a fader/pan actually moved (set-and-hold)
+    for (int t = 0; t < NTRK; t++) {
+        if (trk[t].level != trk[t].applied_level) { instrument_level(TSLOT[t], trk[t].level); trk[t].applied_level = trk[t].level; }
+        if (trk[t].pan   != trk[t].applied_pan)   { instrument_pan  (TSLOT[t], trk[t].pan);   trk[t].applied_pan   = trk[t].pan; }
+        if (trk[t].vu > 0) trk[t].vu -= 0.05f;
     }
 
-    // ── computer keyboard (GarageBand map): discrete grab + damp ──
-    for (int i = 0; i < 11; i++) {
-        if (keyp(gb_wkey[i])) {
-            int midi = KB_ROOT + octv * 12 + gb_wsemi[i];
-            pp_on(KBD, midi_lane(midi), (float)midi, 7); b_owner = KBD; b_kbsemi = gb_wsemi[i];
+    // ── the armed track's fingerboard (only meaningful in TAKE view, but harmless to read always) ──
+    if (view == VIEW_TAKE) {
+        int mx = mouse_x(), my = mouse_y();
+        if (mouse_pressed(MOUSE_LEFT) && my >= TOPBAR && mx >= NECK_X0 - 6 && mx <= NECK_X1 + 6) {
+            int near = 0, nd = 9999;
+            for (int l = 0; l < NLANE; l++) { int d = abs(my - cy_of(l)); if (d < nd) { nd = d; near = l; } }
+            if (nd <= GRAB_PX) { pp_on(MOUSE, near, snap_pitch(SBASE[near] + pos_at(mx)), 7); b_gesture = GRAB; b_fx = mx; b_fy = my; }
+            else { b_owner = MOUSE; b_gesture = PICK; }
+            b_press_x = mx; b_press_y = my; b_prevy = my; b_sliding = 0;
         }
-        if (keyr(gb_wkey[i]) && b_owner == KBD && gb_wsemi[i] == b_kbsemi) pp_off();
-    }
-    for (int i = 0; i < 7; i++) {
-        if (keyp(gb_bkey[i])) {
-            int midi = KB_ROOT + octv * 12 + gb_bsemi[i];
-            pp_on(KBD, midi_lane(midi), (float)midi, 7); b_owner = KBD; b_kbsemi = gb_bsemi[i];
+        else if (mouse_down(MOUSE_LEFT) && b_owner == MOUSE && b_gesture == GRAB && b_handle >= 0) {
+            if (!b_sliding && (abs(mx - b_press_x) > 4 || abs(my - b_press_y) > 4)) b_sliding = 1;
+            if (b_sliding) {
+                int dpx = b_press_y - my;
+                if (abs(dpx) <= 6) b_slide = SBASE[b_lane] + clamp(pos_at(mx), 0, SPAN);
+                float vbend = clamp((float)dpx * BEND_K, -BEND_MAX, BEND_MAX);
+                pp_slide(b_slide + vbend);
+                int maxpx = (int)(BEND_MAX / BEND_K);
+                b_fx = midi_x(b_slide, b_lane);
+                b_fy = cy_of(b_lane) - (int)clamp((float)dpx, -(float)maxpx, (float)maxpx);
+            }
         }
-        if (keyr(gb_bkey[i]) && b_owner == KBD && gb_bsemi[i] == b_kbsemi) pp_off();
+        else if (mouse_down(MOUSE_LEFT) && b_owner == MOUSE && b_gesture == PICK) {
+            for (int l = 0; l < NLANE; l++) {
+                int cy = cy_of(l);
+                if ((b_prevy < cy && my >= cy) || (b_prevy > cy && my <= cy))
+                    pp_on(MOUSE, l, snap_pitch(SBASE[l] + clamp(pos_at(mx), 0, SPAN)), 7);
+            }
+            b_fx = mx; b_fy = my; b_prevy = my;
+        }
+        if (!mouse_down(MOUSE_LEFT) && b_owner == MOUSE) { if (b_gesture == GRAB) pp_off(); else b_owner = NONE; }
+
+        for (int i = 0; i < 11; i++) {
+            if (keyp(gb_wkey[i])) { int m = KB_ROOT + octv * 12 + gb_wsemi[i]; pp_on(KBD, midi_lane(m), (float)m, 7); b_owner = KBD; b_kbsemi = gb_wsemi[i]; }
+            if (keyr(gb_wkey[i]) && b_owner == KBD && gb_wsemi[i] == b_kbsemi) pp_off();
+        }
+        for (int i = 0; i < 7; i++) {
+            if (keyp(gb_bkey[i])) { int m = KB_ROOT + octv * 12 + gb_bsemi[i]; pp_on(KBD, midi_lane(m), (float)m, 7); b_owner = KBD; b_kbsemi = gb_bsemi[i]; }
+            if (keyr(gb_bkey[i]) && b_owner == KBD && gb_bsemi[i] == b_kbsemi) pp_off();
+        }
+        if (keyp('Z') && octv > 0) octv--;
+        if (keyp('X') && octv < 3) octv++;
+        if (keyp('I')) snap ^= 1;
+    } else {
+        console_input();
     }
-    if (keyp('Z') && octv > 0) octv--;
-    if (keyp('X') && octv < 3) octv++;
 
     b_wob += 0.6f;
     if (clickflash > 0) clickflash--;
 
 #ifdef DE_TRACE
     watch("mode", "%d", mode);
+    watch("view", "%d", view);
     watch("tpos", "%.2f", tpos);
-    watch("nev", "%d", nev);
+    watch("armed", "%d", armed);
+    watch("lens", "%.0f/%.0f/%.0f/%.0f", trk[0].len, trk[1].len, trk[2].len, trk[3].len);
     watch("song", "%.1f", song_len);
+    watch("ns", "%d/%d/%d/%d", trk[0].n, trk[1].n, trk[2].n, trk[3].n);
 #endif
 }
 
-// ── draw ──
+// ── draw: shared topbar ──
 static void draw_topbar(void) {
     rectfill(0, 0, SCREEN_W, TOPBAR, CLR_DARKER_BLUE);
     line(0, TOPBAR - 1, SCREEN_W, TOPBAR - 1, CLR_BLACK);
     print("PORTAPOP", 6, 5, CLR_LIGHT_PEACH);
-    font(FONT_SMALL); print("4-track \x7f phase 1", 6, 15, CLR_INDIGO); font(FONT_NORMAL);
+    font(FONT_SMALL); print(view == VIEW_TAKE ? "TAKE \x7f trk" : "CONSOLE", 6, 15, CLR_INDIGO);
+    if (view == VIEW_TAKE) print(str("%d", armed + 1), 44, 15, TCOL[armed]);
+    font(FONT_NORMAL);
 
     int recon = (mode == TR_REC || mode == TR_COUNTIN);
     rectfill(6,  26, 34, 14, recon ? CLR_RED   : CLR_DARK_BLUE); rect(6,  26, 34, 14, recon ? CLR_WHITE : CLR_DARK_GREY); print("REC", 12, 30, recon ? CLR_WHITE : CLR_RED);
     int plon = (mode == TR_PLAY);
     rectfill(44, 26, 34, 14, plon ? CLR_GREEN : CLR_DARK_BLUE); rect(44, 26, 34, 14, plon ? CLR_WHITE : CLR_DARK_GREY); print("PLY", 50, 30, plon ? CLR_BLACK : CLR_GREEN);
     rectfill(82, 26, 34, 14, CLR_DARK_BLUE); rect(82, 26, 34, 14, CLR_DARK_GREY); print("CLR", 88, 30, CLR_MEDIUM_GREY);
-    // fretless <-> fretted: lit = new note-ons snap to the nearest in-tune semitone
-    rectfill(118, 26, 30, 14, snap ? CLR_BLUE_GREEN : CLR_DARK_BLUE); rect(118, 26, 30, 14, snap ? CLR_WHITE : CLR_DARK_GREY);
-    font(FONT_SMALL); print("TUNE", 122, 30, snap ? CLR_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
 
     float shown = tpos < 0 ? 0 : tpos;
     int bar = (int)(shown / BEATS_PER_BAR) + 1, bt = (int)(shown) % BEATS_PER_BAR + 1;
-    char buf[24];
-    snprintf(buf, sizeof buf, "%03d.%d", bar, bt); print(buf, 150, 6, CLR_LIME_GREEN);
+    char buf[24]; snprintf(buf, sizeof buf, "%03d.%d", bar, bt); print(buf, 150, 6, CLR_LIME_GREEN);
     font(FONT_SMALL);
-    if (song_len > 0) { snprintf(buf, sizeof buf, "take %d bars  %d ev", (int)(song_len / BEATS_PER_BAR), nev); print(buf, 150, 20, CLR_MEDIUM_GREY); }
-    else print(nev ? "recording..." : "empty - hit REC", 150, 20, CLR_MEDIUM_GREY);
-    print_right(str("%d BPM", TEMPO), SCREEN_W - 6, 6, CLR_INDIGO);
+    if (song_len > 0) { snprintf(buf, sizeof buf, "song %d bars", (int)(song_len / BEATS_PER_BAR)); print(buf, 150, 20, CLR_MEDIUM_GREY); }
+    else print("empty - arm a track, hit REC", 150, 20, CLR_MEDIUM_GREY);
+    print_right(str("%d BPM  TAB view", TEMPO), SCREEN_W - 6, 6, CLR_INDIGO);
     font(FONT_NORMAL);
 
-    if (mode == TR_COUNTIN) {
-        int n = (int)ceilf(-tpos); if (n < 1) n = 1;
-        print_scaled(str("%d", n), SCREEN_W / 2 - 6, 8, 3, clickflash ? CLR_YELLOW : CLR_ORANGE);
-    }
+    if (mode == TR_COUNTIN) { int n = (int)ceilf(-tpos); if (n < 1) n = 1; print_scaled(str("%d", n), SCREEN_W / 2 - 6, 8, 3, clickflash ? CLR_YELLOW : CLR_ORANGE); }
     if (mode == TR_REC && blink(16)) circfill(SCREEN_W - 12, 34, 3, CLR_RED);
 }
 
-// one string, pulled toward the finger when live (the tent = the pitch bend), from upright.c
 static void draw_string(int lane, int live, int fx, int fy, int col) {
     int cy = cy_of(lane), thick = lane;
     int peakx = live ? (fx < NECK_X0 + 1 ? NECK_X0 + 1 : (fx > NECK_X1 - 1 ? NECK_X1 - 1 : fx)) : NECK_X0;
@@ -347,8 +377,7 @@ static void draw_string(int lane, int live, int fx, int fy, int col) {
     for (int x = NECK_X0; x <= NECK_X1; x += 4) {
         int y = cy;
         if (live) {
-            float t = x <= peakx ? (float)(x - NECK_X0) / (peakx - NECK_X0)
-                                 : (float)(NECK_X1 - x) / (NECK_X1 - peakx);
+            float t = x <= peakx ? (float)(x - NECK_X0) / (peakx - NECK_X0) : (float)(NECK_X1 - x) / (NECK_X1 - peakx);
             t = clamp(t, 0, 1);
             y = cy + (int)((fy - cy) * t + sinf(b_wob + x * 0.20f) * t * 1.8f);
         }
@@ -357,36 +386,82 @@ static void draw_string(int lane, int live, int fx, int fy, int col) {
     }
 }
 
-void draw(void) {
+static void draw_take(void) {
     cls(CLR_BROWNISH_BLACK);
     rectfill(0, TOPBAR, SCREEN_W, SCREEN_H - TOPBAR, CLR_BROWN);
     rectfill(NECK_X0 - 6, TOPBAR, NECK_X1 - NECK_X0 + 12, SCREEN_H - TOPBAR, CLR_BROWNISH_BLACK);
-    for (int p = 0; p < 4; p++) circfill(12, TOPBAR + 16 + p * 34, 3, CLR_LIGHT_PEACH);   // pegs
-    rectfill(NECK_X1 + 2, TOPBAR + 4, 4, SCREEN_H - TOPBAR - 8, CLR_LIGHT_PEACH);          // bridge
-
-    for (int s = 1; s < SPAN; s++) {                    // fret guides (fretless — just a guide)
+    for (int p = 0; p < 4; p++) circfill(12, TOPBAR + 16 + p * 34, 3, CLR_LIGHT_PEACH);
+    rectfill(NECK_X1 + 2, TOPBAR + 4, 4, SCREEN_H - TOPBAR - 8, CLR_LIGHT_PEACH);
+    for (int s = 1; s < SPAN; s++) {
         int x = NECK_X0 + (NECK_X1 - NECK_X0) * s / SPAN;
         line(x, TOPBAR + 2, x, SCREEN_H - 2, (s == 5 || s == 7 || s == 12) ? CLR_DARK_PEACH : CLR_DARK_BROWN);
     }
-
-    for (int l = 0; l < NLANE; l++) {                   // the four strings
+    for (int l = 0; l < NLANE; l++) {
         int live = (b_handle >= 0 && b_lane == l);
         draw_string(l, live, b_fx, b_fy, live ? CLR_LIGHT_YELLOW : CLR_LIGHT_GREY);
         print(SLAB[l], 4, cy_of(l) - 3, CLR_LIGHT_PEACH);
     }
-
-    // the live finger dot (yellow) and the replay ghost (green)
     if (b_handle >= 0) {
         int fx = b_fx < NECK_X0 ? NECK_X0 : (b_fx > NECK_X1 ? NECK_X1 : b_fx);
         circfill(fx, b_fy, 4, CLR_YELLOW); circ(fx, b_fy, 4, CLR_WHITE);
     }
-    if (g_on) {
-        int gx = midi_x(g_pitch, g_lane); gx = gx < NECK_X0 ? NECK_X0 : (gx > NECK_X1 ? NECK_X1 : gx);
-        circ(gx, cy_of(g_lane), 3, CLR_GREEN);       // on the string it was RECORDED on, not a guess
-    }
-
+    // ghost of the ARMED track's own recording (if it were playing) is not shown while cutting;
+    // monitors show as small VU dots in the topbar instead
+    for (int t = 0; t < NTRK; t++) if (t != armed && trk[t].vu > 0.02f)
+        circfill(120 + t * 8, 34, 2, TCOL[t]);
     draw_topbar();
     font(FONT_SMALL);
-    print("R rec  SPACE play/stop  BKSP clr  I tune   press+slide a string, or sweep to pick", 6, SCREEN_H - 9, CLR_DARK_PEACH);
+    print("press+slide a string / sweep to pick   I tune   TAB console", 6, SCREEN_H - 9, CLR_DARK_PEACH);
     font(FONT_NORMAL);
+}
+
+static void draw_console(void) {
+    cls(CLR_BLACK);
+    int SW = SCREEN_W / NTRK;
+    for (int t = 0; t < NTRK; t++) {
+        int x = t * SW;
+        int armedhere = (t == armed);
+        rectfill(x + 1, TOPBAR + 2, SW - 2, SCREEN_H - TOPBAR - 4, CLR_DARKER_BLUE);
+        if (armedhere) rect(x + 1, TOPBAR + 2, SW - 2, SCREEN_H - TOPBAR - 4, CLR_RED);
+
+        print(str("%d", t + 1), x + 6, 48, TCOL[t]);
+        if (trk[t].len > 0) { font(FONT_SMALL); print(str("%db", (int)(trk[t].len / BEATS_PER_BAR)), x + SW - 20, 49, CLR_MEDIUM_GREY); font(FONT_NORMAL); }
+
+        // VU meter (fills from the bottom)
+        int vx = x + 8, vy0 = 58, vh = 80;
+        rectfill(vx, vy0, 8, vh, CLR_BROWNISH_BLACK);
+        int vf = (int)(clamp(trk[t].vu, 0, 1) * vh);
+        for (int i = 0; i < vf; i += 3) {
+            int yy = vy0 + vh - i - 2;
+            int c = i > vh * 0.8f ? CLR_RED : (i > vh * 0.55f ? CLR_ORANGE : CLR_GREEN);
+            rectfill(vx + 1, yy, 6, 2, c);
+        }
+
+        // LEVEL fader (drag vertical)
+        int fx = x + 24, fy0 = 56, fh = 82;
+        rectfill(fx + 5, fy0, 2, fh, CLR_DARK_BLUE);
+        int hy = fy0 + (int)((1 - trk[t].level) * fh);
+        rectfill(fx, hy - 3, 16, 6, drag_trk == t && drag_kind == DRAG_FADER ? CLR_WHITE : CLR_LIGHT_GREY);
+        font(FONT_SMALL); print("LVL", fx - 1, fy0 + fh + 1, CLR_DARK_GREY); font(FONT_NORMAL);
+
+        // PAN slider (drag horizontal)
+        int py = 148;
+        rectfill(x + 6, py + 3, SW - 12, 2, CLR_DARK_BLUE);
+        int hx = x + 6 + (int)((trk[t].pan + 1) / 2 * (SW - 12));
+        rectfill(hx - 2, py, 4, 8, drag_trk == t && drag_kind == DRAG_PAN ? CLR_WHITE : CLR_LIGHT_GREY);
+
+        // ARM / MUTE
+        rectfill(x + 6, 162, 32, 15, armedhere ? CLR_RED : CLR_DARK_BLUE); rect(x + 6, 162, 32, 15, armedhere ? CLR_WHITE : CLR_DARK_GREY);
+        font(FONT_SMALL); print("ARM", x + 10, 166, armedhere ? CLR_WHITE : CLR_MEDIUM_GREY);
+        int mu = trk[t].muted;
+        rectfill(x + 42, 162, SW - 48, 15, mu ? CLR_MEDIUM_GREY : CLR_DARK_BLUE); rect(x + 42, 162, SW - 48, 15, mu ? CLR_WHITE : CLR_DARK_GREY);
+        print("MUTE", x + 46, 166, mu ? CLR_BLACK : CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
+    }
+    draw_topbar();
+}
+
+void draw(void) {
+    if (view == VIEW_TAKE) draw_take();
+    else draw_console();
 }

@@ -1,0 +1,20 @@
+# portapop phase-2: record track 1, arm track 2, overdub it (track 1 monitors), play both.
+# 100 bpm ~36 f/beat; 4-beat count-in ~144f.
+# --- track 1 (armed=0 by default) ---
+tap 10 R
+tap 160 A
+tap 200 S
+tap 240 D
+tap 280 F
+tap 440 R
+# --- arm track 2 (index 1): press its ARM button at x=86,y=169 (console) ---
+press 460 86 169
+release 466 86 169
+# --- record track 2, track 1 monitors ---
+tap 480 R
+tap 630 J
+tap 670 K
+tap 710 H
+tap 900 R
+# --- play both (mixdown) ---
+tap 920 SPACE

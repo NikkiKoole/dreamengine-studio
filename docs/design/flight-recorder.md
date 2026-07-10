@@ -75,6 +75,12 @@ old headerless `.rec` files replay unchanged.
   fantasy console at a steady 60fps it's near-invisible and arguably more correct; a settings toggle
   ("record every play") disables it for wall-clock-sensitive carts. Net games skip it (netplay owns
   its own `--det` seed via the handshake). The live/libtcc backend is not recorded in v1.
+- **Recording is an editor ▶ Run concern only — no exported/deployed build ever records.** The
+  `--det --record` flags are injected by the editor at spawn time, never baked into a binary:
+  **iOS** (`DE_NO_RAYLIB`) compiles no `main()`/`--record` arg loop (it uses the `de_frame` entry
+  points); the **web/wasm** build compiles the record harness out entirely (`harness_input` is under
+  `#ifndef PLATFORM_WEB`); and a double-clicked **Mac `.app` / `.exe`** is launched with no
+  `--record` flag, so `rec_file` stays `NULL` and the record branch never fires.
 
 ## The debugging payoff
 

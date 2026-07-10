@@ -18,10 +18,11 @@
     "Inner-ring holes (islands in lakes, courtyards) and the hashed other_area understory; >64-vertex footprint clamp (MAXBV)."
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
-  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface whose WIDTH comes from OSM (width tag / lane count / class, with one-way carriageways narrowed so their freed space becomes a wider pavement), light pavement/kerb bands, OSM-driven lane markings (N-1 dashed dividers from the real lane count; one-way streets drop the centre-line), and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang), and real zebra crossings at OSM crossing nodes; separate cycleways render as red Dutch fietspaden, and on-road bike lanes as a red fietsstrook along the carriageway edge. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out)."
+  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface whose WIDTH comes from OSM (width tag / lane count / class, with one-way carriageways narrowed so their freed space becomes a wider pavement), light pavement/kerb bands, OSM-driven lane markings (N-1 dashed dividers from the real lane count; one-way streets drop the centre-line), and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang), and real zebra crossings at OSM crossing nodes; separate cycleways render as red Dutch fietspaden, and on-road bike lanes as a red fietsstrook along the carriageway edge. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out). J toggles CURB-RETURN JUNCTIONS: each near intersection is drawn through runtime/roadkit.h's shared junction field (the SAME geometry streetlab's spec pins), built in ground metres from the graph's arm bearings and projected — rounded curb corners replacing the round-joint disc blob. Off by default (the disc-join look ships); on, it's the geometry-first junction grammar landing in the drivable view."
 }
 de:meta */
 #include "studio.h"
+#include "roadkit.h"   // the shared junction geometry + field (curb returns) — Track-B B3b
 #include "json.h"      // EXPERIMENTAL cart-land JSON reader (vendored jsmn)
 #include <math.h>
 #include <stdio.h>
@@ -188,6 +189,7 @@ typedef struct {
   int   mode;
   bool  started, tex, roads_on, topdown;
   bool  show_pave, show_mark, show_give;   // per-feature dressing toggles (P/L/G) — master roads_on (R) wraps all
+  bool  show_curbs;                        // B3b: roadkit curb-return junctions in the near field (J)
   float lookrot;                  // mouse-drag orbit offset on top of the heading; decays while driving
   bool  dragging; int dragx;
   float pitch, eye, setback;      // M_PERSP pitched camera: tilt(deg below horizontal), eye height, chase setback
@@ -749,6 +751,31 @@ static void draw_giveway(const Junc*j){
   }
 }
 
+// B3b — CURB-RETURN JUNCTIONS through roadkit's field. We build the SAME RkField streetlab scans, but
+// in GROUND METRES at this junction (hub = the node, arms = the graph bearings, HW = the widest arm, a
+// tight urban curb radius), then project its curb-return FILLET polygons: fill each as asphalt (the
+// rounded corner) and stroke its arc as the kerb. Near-field only (the fillets are sub-pixel at range),
+// and the SAME curb_return geometry streetlab's spec pins — real curb returns replacing the disc blob.
+static int g_curb_fil, g_curb_junc;   // DE_TRACE probe: fillets drawn / near junctions rendered this frame
+static void draw_junction_curbs(const Junc*j){
+  float mx=j->x-S.camx, my=j->y-S.camy; if(mx*mx+my*my > 120.0f*120.0f) return;   // only the CLOSE junctions
+  g_curb_junc++;
+  float maxhw=1.5f; for(int a=0;a<j->narm;a++){ float h=ROAD[j->cls[a]].hw_m; if(h>maxhw)maxhw=h; }
+  float R[RK_MAXARM]; for(int a=0;a<j->narm && a<RK_MAXARM;a++) R[a]=fminf(6.0f, maxhw*1.6f);  // urban curb-return radius
+  RkField f; rk_field_build(&f, j->x, j->y, maxhw, j->brg, j->narm, R, 0.0f);
+  for(int k=0;k<f.nfil;k++){
+    int xy[2*RK_FR_NP], n=0;                                    // project the fillet polygon (ground → screen)
+    for(int v=0; v<RK_FR_NP; v++){
+      float wx=f.fil[k][2*v], wy=f.fil[k][2*v+1];
+      wpt(wx,wy,ground_z(wx,wy), &xy[2*n], &xy[2*n+1]); n++;
+    }
+    polyfill(xy, n, CLR_DARK_GREY);                             // the rounded corner, paved to the kerb
+    g_curb_fil++;
+    for(int v=1; v+1<RK_FR_NP; v++)                             // the curb-return ARC (skip apex vert 0) = the kerb line
+      line(xy[2*v],xy[2*v+1], xy[2*(v+1)],xy[2*(v+1)+1], CLR_BROWNISH_BLACK);
+  }
+}
+
 // unit direction + carriageway half-width of the nearest motor road to (px,py); 0 if none within ~12 m.
 static int nearest_motor_dir(float px,float py, float*ux,float*uy,float*hw){
   float best=144.0f; int found=0;   // 12 m² cutoff
@@ -852,6 +879,7 @@ void update(void) {
   if (keyp('P')) S.show_pave = !S.show_pave;   // pavement/kerb bands
   if (keyp('L')) S.show_mark = !S.show_mark;   // lane centre-line markings
   if (keyp('G')) S.show_give = !S.show_give;   // give-way haaientanden
+  if (keyp('J')) S.show_curbs = !S.show_curbs; // B3b: roadkit curb-return junctions
   if (keyp('V')) S.topdown = !S.topdown;          // flat 2D map to verify footprint vs road placement
   g_hscale = S.topdown ? 0.0f : HSCALE;
   if (S.mode==M_PERSP){                            // live-tune the pitched camera
@@ -962,6 +990,9 @@ void draw(void) {
     // carry a lane division (hw >= 2.5m: highway/arterial/road/secondary/tertiary, not tracks/service).
     if (lod_markings && S.show_mark) for (int w=0; w<nway; w++){ int k=rways[w].kind;
       if (is_motor_road(k) && rways[w].deck==0 && ROAD[k].hw_m>=2.5f) paint_markings(w, R2); }
+    // B3b — CURB-RETURN JUNCTIONS (roadkit field, ground metres, projected). Drawn over the asphalt
+    // surface + before the teeth, near-field only. Opt-in (J) while the disc-join look is the default.
+    if (lod_markings && S.show_curbs) { g_curb_fil=g_curb_junc=0; for (int i=0;i<njunc;i++) draw_junction_curbs(&junc[i]); }
     // HAAIENTANDEN — give-way teeth on the minor approach of each priority-controlled junction.
     if (lod_markings && S.show_give) for (int i=0;i<njunc;i++) draw_giveway(&junc[i]);
     // real CROSSINGS from OSM nodes — a zebra oriented across the nearest carriageway (placed from data,
@@ -1001,6 +1032,7 @@ void draw(void) {
 #ifdef DE_TRACE
   watch("nbld","%d",nbld); watch("nd","%d",nd);   // buildings loaded / extruded this frame
   watch("njunc","%d",njunc);                       // intersections detected in the road graph
+  watch("curbjunc","%d",g_curb_junc); watch("curbfil","%d",g_curb_fil);   // B3b: near junctions / fillets drawn
   watch("npnode","%d",npnode);                     // node-level control points (crossing/give_way/stop/signals/calming)
   { int rc=0; for(int i=0;i<njunc;i++) if(junc[i].realctl) rc++; watch("realctl","%d",rc); }   // junctions with a real give-way/stop node
   { int npri=0; for(int i=0;i<njunc;i++){ int best=99,ntop=0;                 // junctions with a clear voorrang (get teeth)

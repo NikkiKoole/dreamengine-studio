@@ -260,13 +260,14 @@ by numbers from day one.)*
   streetlab `#include`s it and delegates. *Hard gate held:* streetlab `spec` **104/0**, `mirror-diff`
   byte-identical to baseline, `road-check --all` all PASS. The `ux`/`uy` snap divergence was handled —
   roadkit carries streetlab's snapping form; roadlab reconciles at B4.
-- [~] **B3 · roadkit Phase 4 — the field renderer.** **B3a CORE SHIPPED 2026-07-10:** the N-arm-native
-  field predicate is now `roadkit.h`'s space-agnostic `RkField` (`rk_field_build`/`rk_field_road` = arm
+- [x] **B3 · roadkit Phase 4 — the field renderer. ✅ SHIPPED 2026-07-10.** **B3a:** the N-arm-native
+  field predicate is `roadkit.h`'s space-agnostic `RkField` (`rk_field_build`/`rk_field_road` = arm
   union ∪ curb-return fillets ∪ disc); streetlab scans it in screen pixels — byte-identical (`spec`
-  104/0, `mirror-diff` 68=68, `road-check --all` all PASS). citydrive gained a `spec()` (11) as the
-  safety net. *Still open — **B3b**: citydrive evaluates the SAME `RkField` in GROUND METRES per
-  near-field junction (arms from `build_junctions`) and projects it, superseding the throwaway
-  disc-joins + straight-across decals. Gates: citydrive `spec`, `road-check`.*
+  104/0, `mirror-diff` 68=68, `road-check --all` all PASS). **B3b:** citydrive builds the SAME `RkField`
+  in GROUND METRES per near-field junction (arms from `build_junctions`) and **projects its curb-return
+  fillets** — rounded curb corners in the drivable pseudo-3D view (toggle `J`, default off; verified
+  over Manhattan's 301-junction grid; `spec` 11/0). Both consumers gate-locked. *Follow-on polish:
+  suppress the round-joint disc at near junctions so the curb return fully replaces the blob.*
 - [ ] **B4 · roadkit Phase 5 — grade dispatch** — one `roadkit_junction(legs, grade)` routing
   at-grade → streetlab grammar, grade-separated → roadlab's `make_junction`, keyed identically from
   a seed or OSM (`bridge`/`layer`/`*_link` + shared-node topology). **This is the junction layer A3

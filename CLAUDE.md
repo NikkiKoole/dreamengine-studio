@@ -140,9 +140,11 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          it (N). ONE data model: query this, never re-roll a street field
              roadkit.h   the shared AT-GRADE JUNCTION GEOMETRY (pure, param-driven): curb_return
                          (tangent-arc fillet) + edge_corner + rk_count_corners(brg,n) + rk_cross_hw
-                         (typed section) + snap-safe rk_ux/rk_uy. A junction = N arms at bearings;
-                         caller supplies the array. streetlab = spec-locked source (104/0); citydrive/
-                         roadlab/citygen the consumers (field renderer + grade dispatch = B3/B4, WIP)
+                         + the N-arm-native FIELD (RkField + rk_field_build/rk_field_road = arm-union ∪
+                         fillets ∪ disc, space-agnostic). A junction = N arms at bearings; caller
+                         supplies the array. streetlab = spec-locked source (104/0, scans in screen px);
+                         citydrive draws curb-return junctions through it in ground metres (J). B4 grade
+                         dispatch (roadlab interchanges) = WIP
              citygen.h   the calibrated procedural CITY GRAMMAR (worldgen rungs 2–5): density field
                          + tensor-field arterials + district minor-street fill, SNDi-matched to real
                          Rotterdam; citygen_road_at() = the drive seam. citygrow = tuning bench/home;

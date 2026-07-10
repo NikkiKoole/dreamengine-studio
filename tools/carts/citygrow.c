@@ -269,8 +269,14 @@ static unsigned char fc_pat[FACE_MAX];      // rung 4.2: the fill pattern chosen
 // dense core → grid, mid → organic/superblock, fringe → cul-de-sac dead-ends.
 enum { MP_GRID, MP_ORGANIC, MP_CULDESAC, MP_SUPERBLOCK, MP_N };
 #define MP_STITCH MP_N        // rung 4.4: a local street T-ing onto a bounding arterial
-#define MS_STEP   95.0f       // minor-street block spacing (m) — 80–110 m real blocks
+#define MS_STEP   155.0f      // minor-street block spacing (m) — rung-5 calibrated (int/km²)
 #define MS_INSET  50.0f       // clearance inside the bounding arterials (half-width + margin)
+#define MS_STITCHF 0.66f      // rung 5: fraction of perimeter locals that T onto an arterial;
+                              // the rest stay real DEAD-ENDS (raises deg-1 + dendricity + circuity)
+// rung 5: the DENDRICITY knob — per pattern, the fraction of non-tree (loop) edges
+// added back after a spanning tree. Low = tree-like/dead-ends, high = grid. This one
+// knob moves deg-1 / deg-4+ / mean-degree / circuity / dendricity together.
+static const float MS_LOOPF[MP_N] = { 0.50f, 0.32f, 0.10f, 0.06f };  // grid/organic/culdesac/super
 #define MS_LG     18          // local lattice cap per district axis
 #define MS_MAX    12000       // minor nodes over all districts
 #define ME_MAX    24000       // minor edges over all districts
@@ -654,14 +660,17 @@ static int ms_pattern(int fi, unsigned *seed) {
     int cxk = (int)(fc_cx[fi] / MS_STEP), cyk = (int)(fc_cy[fi] / MS_STEP);
     unsigned h = wn_hash2(cxk * 374761393u + 1, cyk * 668265263u + 7);
     *seed = h;
-    float r = (float)(h & 0xFFFF) / 65535.0f;
-    if (d > 0.72f) return (r < 0.72f) ? MP_GRID : MP_ORGANIC;             // dense core: mostly grid
-    if (d > 0.45f) return (r < 0.38f) ? MP_GRID
-                        : (r < 0.72f ? MP_ORGANIC : MP_SUPERBLOCK);       // mid ring
-    return (r < 0.55f) ? MP_CULDESAC : MP_ORGANIC;                        // fringe: dead-ends
+    float r = (float)(h & 0xFFFF) / 65535.0f;   // rung-5 mix — even the core is T-dominant, not a mesh
+    if (d > 0.72f) return (r < 0.40f) ? MP_GRID
+                        : (r < 0.78f ? MP_ORGANIC : MP_SUPERBLOCK);       // dense core: grid + organic
+    if (d > 0.45f) return (r < 0.22f) ? MP_GRID
+                        : (r < 0.60f ? MP_ORGANIC
+                        : (r < 0.80f ? MP_SUPERBLOCK : MP_CULDESAC));     // mid ring
+    return (r < 0.60f) ? MP_CULDESAC : MP_ORGANIC;                        // fringe: dead-ends
 }
 
 static int ms_uf[MS_LG * MS_LG];
+static int ms_ldeg[MS_LG * MS_LG];      // rung 5: local degree, to cap loop-created crossings at T
 static int ms_find(int x) { while (ms_uf[x] != x) x = ms_uf[x] = ms_uf[ms_uf[x]]; return x; }
 
 // fill ONE district: local lattice clipped to the face, connected per its pattern
@@ -669,19 +678,21 @@ static void ms_fill_face(int fi) {
     if (fc_nv[fi] < 3) return;
     unsigned seed; int pat = ms_pattern(fi, &seed);
     fc_pat[fi] = (unsigned char)pat;
-    // bbox of the face
-    float x0 = 1e18f, y0 = 1e18f, x1 = -1e18f, y1 = -1e18f;
+    // a per-district ROTATED lattice, centred on the centroid, sized to the face
+    // radius. The hashed orientation (rung 5) breaks the world-axis grid alignment
+    // → raises orientation entropy toward real cities + reads far less mechanical.
+    float cx = fc_cx[fi], cy = fc_cy[fi], rad = 0;
     for (int i = 0; i < fc_nv[fi]; i++) {
-        float x = gnx[fc_v[fi][i]], y = gny[fc_v[fi][i]];
-        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        float dx = gnx[fc_v[fi][i]] - cx, dy = gny[fc_v[fi][i]] - cy, dd = dx * dx + dy * dy;
+        if (dd > rad) rad = dd;
     }
-    float spanx = x1 - x0, spany = y1 - y0;
-    float step = MS_STEP;                                // coarsen so the lattice fits the cap
-    if (spanx / step > MS_LG - 1) step = spanx / (MS_LG - 1);
-    if (spany / step > MS_LG - 1) step = spany / (MS_LG - 1);
-    int cols = (int)(spanx / step) + 1, rows = (int)(spany / step) + 1;
-    if (cols < 1) cols = 1; if (rows < 1) rows = 1;
-    if (cols > MS_LG) cols = MS_LG; if (rows > MS_LG) rows = MS_LG;
+    rad = fsqrt(rad);
+    float step = MS_STEP;
+    int half = (int)(rad / step) + 1;
+    if (2 * half + 1 > MS_LG) { half = (MS_LG - 1) / 2; step = rad / half; }
+    int cols = 2 * half + 1, rows = cols;
+    float ang = ms_h01((int)(cx * 0.01f), (int)(cy * 0.01f), (int)seed + 13) * 3.14159265f;
+    float ca_ = cosf(ang), sa = sinf(ang);
     // lay the lattice, keep interior nodes (inside + clear of arterials)
     static int   lg[MS_LG][MS_LG];
     int base = ms_n, ln = 0;
@@ -689,7 +700,9 @@ static void ms_fill_face(int fi) {
     for (int r = 0; r < rows; r++)
         for (int c = 0; c < cols; c++) {
             lg[r][c] = -1;
-            float px = x0 + c * step, py = y0 + r * step;
+            float lxr = (c - half) * step, lyr = (r - half) * step;
+            float px = cx + lxr * ca_ - lyr * sa;
+            float py = cy + lxr * sa + lyr * ca_;
             float jx = (ms_h01(c, r, (int)seed)      - 0.5f) * step * jit;
             float jy = (ms_h01(c, r, (int)seed + 97) - 0.5f) * step * jit;
             px += jx; py += jy;
@@ -701,53 +714,48 @@ static void ms_fill_face(int fi) {
         }
     ln = ms_n - base;
     if (ln < 2) return;
+    for (int i = 0; i < ln; i++) ms_ldeg[i] = 0;
     #define ADD_EDGE(A, B) do { if (me_n < ME_MAX) { mea[me_n] = base + (A); meb[me_n] = base + (B); \
-                                me_pat[me_n] = (unsigned char)pat; me_n++; } } while (0)
-    if (pat == MP_GRID || pat == MP_ORGANIC) {           // full local grid
+                                me_pat[me_n] = (unsigned char)pat; me_n++; ms_ldeg[A]++; ms_ldeg[B]++; } } while (0)
+    // unified fill (rung 5): a spanning tree for connectivity + a per-pattern
+    // loop-add-back fraction (MS_LOOPF = the dendricity knob). Even "grid" leaves
+    // a fraction of edges out → real dead-ends + Ts, not a perfect degree-4 mesh.
+    int sb = 2 + (int)(ms_h01(0, 0, (int)seed) * 2.0f);   // superblock frame period 2..3
+    for (int i = 0; i < ln; i++) ms_uf[i] = i;
+    if (pat == MP_SUPERBLOCK)                             // the continuous arterial FRAME first
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++) {
                 if (lg[r][c] < 0) continue;
-                if (c + 1 < cols && lg[r][c + 1] >= 0) ADD_EDGE(lg[r][c], lg[r][c + 1]);
-                if (r + 1 < rows && lg[r + 1][c] >= 0) ADD_EDGE(lg[r][c], lg[r + 1][c]);
+                if (c + 1 < cols && lg[r][c + 1] >= 0 && (r % sb) == 0) {
+                    ADD_EDGE(lg[r][c], lg[r][c + 1]); ms_uf[ms_find(lg[r][c])] = ms_find(lg[r][c + 1]); }
+                if (r + 1 < rows && lg[r + 1][c] >= 0 && (c % sb) == 0) {
+                    ADD_EDGE(lg[r][c], lg[r + 1][c]); ms_uf[ms_find(lg[r][c])] = ms_find(lg[r + 1][c]); }
             }
-    } else {                                             // cul-de-sac / superblock: Kruskal tree + loops
-        int sb = 2 + (int)(ms_h01(0, 0, (int)seed) * 2.0f);   // superblock frame period 2..3
-        for (int i = 0; i < ln; i++) ms_uf[i] = i;
-        // superblock: the arterial FRAME first (every sb-th line, fully connected)
-        if (pat == MP_SUPERBLOCK)
-            for (int r = 0; r < rows; r++)
-                for (int c = 0; c < cols; c++) {
-                    if (lg[r][c] < 0) continue;
-                    if (c + 1 < cols && lg[r][c + 1] >= 0 && (r % sb) == 0) {
-                        ADD_EDGE(lg[r][c], lg[r][c + 1]); ms_uf[ms_find(lg[r][c])] = ms_find(lg[r][c + 1]); }
-                    if (r + 1 < rows && lg[r + 1][c] >= 0 && (c % sb) == 0) {
-                        ADD_EDGE(lg[r][c], lg[r + 1][c]); ms_uf[ms_find(lg[r][c])] = ms_find(lg[r + 1][c]); }
-                }
-        // gather remaining candidate edges + weights, sort, Kruskal
-        static int ca[2 * MS_LG * MS_LG], cb[2 * MS_LG * MS_LG]; static float cw[2 * MS_LG * MS_LG];
-        int nc = 0;
-        for (int r = 0; r < rows; r++)
-            for (int c = 0; c < cols; c++) {
-                if (lg[r][c] < 0) continue;
-                int interior = (pat == MP_CULDESAC) || !((r % sb) == 0);   // superblock skips frame rows
-                int interiorV = (pat == MP_CULDESAC) || !((c % sb) == 0);
-                if (c + 1 < cols && lg[r][c + 1] >= 0 && interior) {
-                    ca[nc] = lg[r][c]; cb[nc] = lg[r][c + 1]; cw[nc] = ms_h01(c, r, (int)seed + 5); nc++; }
-                if (r + 1 < rows && lg[r + 1][c] >= 0 && interiorV) {
-                    ca[nc] = lg[r][c]; cb[nc] = lg[r + 1][c]; cw[nc] = ms_h01(c, r, (int)seed + 555); nc++; }
-            }
-        for (int i = 1; i < nc; i++)                     // insertion sort by weight (small n)
-            for (int j = i; j > 0 && cw[j] < cw[j - 1]; j--) {
-                float tw = cw[j]; cw[j] = cw[j - 1]; cw[j - 1] = tw;
-                int ta = ca[j]; ca[j] = ca[j - 1]; ca[j - 1] = ta;
-                int tb = cb[j]; cb[j] = cb[j - 1]; cb[j - 1] = tb;
-            }
-        float loopf = (pat == MP_SUPERBLOCK) ? 0.06f : 0.12f;
-        for (int i = 0; i < nc; i++) {
-            int ra = ms_find(ca[i]), rb = ms_find(cb[i]);
-            if (ra != rb) { ms_uf[ra] = rb; ADD_EDGE(ca[i], cb[i]); }
-            else if (ms_h01(ca[i], cb[i], (int)seed + 999) < loopf) ADD_EDGE(ca[i], cb[i]);
+    static int ca[2 * MS_LG * MS_LG], cb[2 * MS_LG * MS_LG]; static float cw[2 * MS_LG * MS_LG];
+    int nc = 0;
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            if (lg[r][c] < 0) continue;
+            int skipH = (pat == MP_SUPERBLOCK) && ((r % sb) == 0);   // frame edges already laid
+            int skipV = (pat == MP_SUPERBLOCK) && ((c % sb) == 0);
+            if (c + 1 < cols && lg[r][c + 1] >= 0 && !skipH) {
+                ca[nc] = lg[r][c]; cb[nc] = lg[r][c + 1]; cw[nc] = ms_h01(c, r, (int)seed + 5); nc++; }
+            if (r + 1 < rows && lg[r + 1][c] >= 0 && !skipV) {
+                ca[nc] = lg[r][c]; cb[nc] = lg[r + 1][c]; cw[nc] = ms_h01(c, r, (int)seed + 555); nc++; }
         }
+    for (int i = 1; i < nc; i++)                          // insertion sort by weight (small n)
+        for (int j = i; j > 0 && cw[j] < cw[j - 1]; j--) {
+            float tw = cw[j]; cw[j] = cw[j - 1]; cw[j - 1] = tw;
+            int ta = ca[j]; ca[j] = ca[j - 1]; ca[j - 1] = ta;
+            int tb = cb[j]; cb[j] = cb[j - 1]; cb[j - 1] = tb;
+        }
+    float loopf = MS_LOOPF[pat];
+    for (int i = 0; i < nc; i++) {
+        int ra = ms_find(ca[i]), rb = ms_find(cb[i]);
+        if (ra != rb) { ms_uf[ra] = rb; ADD_EDGE(ca[i], cb[i]); }         // tree edge (connectivity)
+        else if (ms_h01(ca[i], cb[i], (int)seed + 999) < loopf            // a loop — but cap most
+                 && ms_ldeg[ca[i]] < 3 && ms_ldeg[cb[i]] < 3)             // junctions at 3 arms (T, not X)
+            ADD_EDGE(ca[i], cb[i]);
     }
     #undef ADD_EDGE
     // ── stitch (continuity tenet): perimeter locals T onto the bounding arterial ──
@@ -759,6 +767,7 @@ static void ms_fill_face(int fi) {
             int li = base + lg[r][c];
             float px = msx[li], py = msy[li];
             if (ms_dedge(fi, px, py) > MS_INSET + step * 0.75f) continue;   // interior node, skip
+            if (ms_h01(c, r, (int)seed + 41) > MS_STITCHF) continue;        // the rest stay dead-ends
             float bestd = (MS_INSET + step * 1.3f); bestd *= bestd;
             int bl = -1, bi = -1;
             for (int l = 0; l < ar_nl; l++)

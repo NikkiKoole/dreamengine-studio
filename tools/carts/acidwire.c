@@ -377,8 +377,7 @@ static int wf_header(Box hdr, int idx, int state, int accent) {
     boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > hdr.h - 4) icoW = hdr.h - 4;
     wf_stripicon(hdr, idx, icoW);
-    int tapped = clicked(box(hdr.x, hdr.y, icoW + 4, hdr.h));   // the icon IS the tap target
-    wf_mute(hdr, idx);                                         // rightmost (also the level fader)
+    wf_mute(hdr, idx);                                         // rightmost (also the level fader) — claims its tap/drag first
     float hleft = hdr.x + icoW + 4;
     if (state == COMPACT && s->kind == KNOBS && s->haspat) {   // N/K/F page button — compact 303 only
         float pgW = icoW; Box pgb = box(hleft, hdr.y + (hdr.h - pgW) / 2, pgW, pgW);
@@ -393,7 +392,9 @@ static int wf_header(Box hdr, int idx, int state, int accent) {
         Box pb = box(hleft, hdr.y + 1, hdr.x + hdr.w - muteW - hleft, hdr.h - 2);
         wf_patterns(pb, idx, PATCOLS);
     }
-    return tapped;
+    // FALLBACK: a tap anywhere else on the header (the icon or its empty space) = tapping the icon.
+    // Buttons above already consumed their taps, so this only fires on the non-button area.
+    return clicked(hdr);
 }
 // FOCUS / fullscreen: one instrument fills the area under the SAME header (icon tap = leave).
 static void draw_focus(Strip *s, Box area, int idx) {
@@ -581,7 +582,11 @@ void draw(void) {
 
     // pinned chrome: just the transport (top). No song-chain row + no A/B/C/D banks for now —
     // we're always in LOOP mode (maker, 2026-07-07); the strips get the reclaimed height.
-    float trH = lay_clamp(FU * 1.2f, 12, 30);
+    // landscape (WIDE) has little vertical budget, and the transport carries little — keep it slim there.
+    // FLOOR 20px: the multicart Tinyjam HOME hold-pad (build-app.js HOME_HIT_H = 20, top toolbar band) must
+    // seat cleanly here — it's a HOLD gesture that shares this band with the transport, so the band must be
+    // ≥ its 20px or the pad bleeds into the strips. (Portrait stays taller.)
+    float trH = (cls_ == WIDE) ? lay_clamp(FU * 0.95f, 20, 24) : lay_clamp(FU * 1.15f, 12, 30);
     Box afterTr;
     Box transport = lay_split(safe, EDGE_TOP, trH, &afterTr);
     Box bodyarea  = lay_pad(afterTr, 2, 1, 2, 1);
@@ -612,19 +617,16 @@ void draw(void) {
         // ─── short-wide: TABS (accordions degenerate short — acidfit finding) ───
         mode = "tabs";
         int sel = (work >= NSTRIP) ? 0 : work;
-        Box panel; Box tabs = lay_split(bodyarea, EDGE_TOP, FU * 1.1f, &panel);
+        Box panel; Box tabs = lay_split(bodyarea, EDGE_TOP, FU * 0.85f, &panel);   // slim tabs — landscape is tight
         for (int i = 0; i < NSTRIP; i++) {
             Box t = lay_grid(tabs, NSTRIP, NSTRIP, i, gap);
             int m = muted[i];
             boxfill(t, i == sel ? CLR_TRUE_BLUE : (m ? CLR_DARK_RED : CLR_DARK_GREY));
             boxrect(t, m ? CLR_RED : CLR_MEDIUM_GREY);
-            // each tab carries its own mute button (right) — mute without opening the tab first.
-            Box nm; Box mbtn = lay_split(lay_inset(t, 1), EDGE_RIGHT, lay_clamp(FU * 0.8f, 9, 18), &nm);
-            font(FONT_TINY); print_centered(STRIP[i].name, (int)(nm.x + nm.w / 2), (int)(nm.y + (nm.h - 5) / 2), CLR_LIGHT_PEACH);
-            boxfill(mbtn, m ? CLR_RED : CLR_DARK_RED); boxrect(mbtn, m ? CLR_WHITE : CLR_MEDIUM_GREY);
-            print_centered("M", (int)(mbtn.x + mbtn.w / 2), (int)(mbtn.y + (mbtn.h - 5) / 2), m ? CLR_WHITE : CLR_LIGHT_PEACH);
-            if (clicked(mbtn)) muted[i] = !muted[i];    // mute from the tab, without opening it
-            if (clicked(nm)) work = i;                  // tap the tab name to open that instrument
+            // just the NAME now (kept for now; maker will iconize later). NO tab-mute — mute lives in
+            // the header of the open strip (a tab-mute would double it). Whole tab taps to open.
+            font(FONT_TINY); print_centered(STRIP[i].name, (int)(t.x + t.w / 2), (int)(t.y + (t.h - 5) / 2), CLR_LIGHT_PEACH);
+            if (clicked(t)) work = i;
         }
         draw_strip(&STRIP[sel], lay_pad(panel, 0, gap, 0, 0), EXPANDED, 1);
 

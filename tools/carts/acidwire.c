@@ -93,6 +93,8 @@ static int patn[NSTRIP]  = { 0, 2, 1, 3, 0 };   // current pattern 0..NPAT-1
 static int pagesel[NSTRIP];                     // knob PAGE index (0..2) — the tiny header page button cycles it
 #define NKPAGE 3                                 // placeholder page count until per-page knob sets are wired
 static float level[NSTRIP];                      // per-instrument VOLUME — the header level knob (left of mute)
+static int   rndseed[NSTRIP];                    // bumped each RND press so the re-roll changes
+static int   g_shape = TALL;                     // this frame's device class (TALL/WIDE/ROOMY) — set in draw()
 
 // ───────── immediate-mode click layer (touch + mouse) ─────────
 // One pointer press per frame; hit(box) returns true once for the first control it lands in and
@@ -369,10 +371,34 @@ static void wf_303lane(Box area, int sidx, int mu) {
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
 }
-// the shared strip HEADER — icon · [page (compact-303 only)] · patterns(2×4, right-aligned squares) ·
-// mute/fader (rightmost). IDENTICAL in the in-rack strip and the fullscreen FOCUS bar (no jump, no
-// leading '<'). Returns 1 if the ICON was tapped — the caller decides: open/expand, or leave focus.
-static int wf_header(Box hdr, int idx, int state, int accent) {
+// RND re-rolls the pattern, CLR empties it. Content ops (acidrack ships CPY/CLR/RND); wired to the
+// wireframe data so they're real. Only shown WHERE YOU EDIT: landscape header + portrait fullscreen.
+static void rnd_303(int idx) {
+    rndseed[idx]++; int s = idx * 13 + rndseed[idx] * 7 + 1;
+    for (int i = 0; i < STEPS; i++) { n303[idx][i] = (signed char)(p303_note(s, i) % 15); rest303[idx][i] = p303_rest(s, i);
+        a303[idx][i] = p303_acc(s, i); s303[idx][i] = p303_sld(s, i); tie303[idx][i] = (i % 5 == 2); len303[idx][i] = (i % 3 != 0); }
+}
+static void clr_303(int idx) { for (int i = 0; i < STEPS; i++) { rest303[idx][i] = 1; a303[idx][i] = s303[idx][i] = tie303[idx][i] = 0; len303[idx][i] = 1; } }
+static void rnd_drum(int idx) {
+    rndseed[idx]++; int s = idx * 13 + rndseed[idx] * 7 + 1;
+    for (int v = 0; v < 11; v++) for (int i = 0; i < STEPS; i++) dstep[idx][v][i] = (((i + v * 3 + s) % 4) == 0) || ((i * 5 + v + s) % 9 == 0);
+}
+static void clr_drum(int idx) { for (int v = 0; v < 11; v++) for (int i = 0; i < STEPS; i++) dstep[idx][v][i] = 0; }
+// RND | CLR — two side-by-side buttons filling `area`, dispatched by instrument kind.
+static void wf_ops(Box area, int idx) {
+    int drum = STRIP[idx].kind == DRUMS;
+    Box r = lay_grid(area, 2, 2, 0, 2), c = lay_grid(area, 2, 2, 1, 2);
+    boxfill(r, CLR_DARK_GREY); boxrect(r, CLR_MEDIUM_GREY);
+    font(FONT_TINY); print_centered("RND", (int)(r.x + r.w / 2), (int)(r.y + (r.h - 5) / 2), CLR_LIGHT_PEACH);
+    if (clicked(r)) { if (drum) rnd_drum(idx); else rnd_303(idx); }
+    boxfill(c, CLR_DARK_GREY); boxrect(c, CLR_MEDIUM_GREY);
+    print_centered("CLR", (int)(c.x + c.w / 2), (int)(c.y + (c.h - 5) / 2), CLR_LIGHT_PEACH);
+    if (clicked(c)) { if (drum) clr_drum(idx); else clr_303(idx); }
+}
+// the shared strip HEADER — icon · [page (compact-303)] · [ops (landscape)] · patterns (right-aligned
+// squares) · mute/fader (rightmost). IDENTICAL in the in-rack strip and the fullscreen FOCUS bar (no
+// jump, no leading '<'). Returns 1 if the ICON (or empty header) was tapped — caller opens/leaves.
+static int wf_header(Box hdr, int idx, int state, int accent, int hdrops) {
     Strip *s = &STRIP[idx]; int mu = muted[idx];
     boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > hdr.h - 4) icoW = hdr.h - 4;
@@ -386,6 +412,12 @@ static int wf_header(Box hdr, int idx, int state, int accent) {
         font(FONT_TINY); print_centered(PGL[pagesel[idx] % NKPAGE], (int)(pgb.x + pgb.w / 2), (int)(pgb.y + (pgb.h - 5) / 2), CLR_LIGHT_PEACH);
         if (clicked(pgb)) pagesel[idx] = (pagesel[idx] + 1) % NKPAGE;
         hleft = pgb.x + pgW + 4;
+    }
+    if (hdrops && s->haspat) {   // landscape: RND|CLR in the header's free zone, with a margin from the icon
+        float ow = lay_clamp(FU * 1.6f, 24, 40), mg = lay_clamp(FU * 0.5f, 6, 12);
+        Box ob = box(hleft + mg, hdr.y + 2, ow, hdr.h - 4);
+        wf_ops(ob, idx);
+        hleft = ob.x + ow + 4;
     }
     if (s->haspat && (!g_boxpat || state == FOLDED)) {         // patterns: right-aligned row of squares
         float muteW = FU * 1.6f;                               // reserve mute/fader + a margin before it
@@ -401,7 +433,12 @@ static void draw_focus(Strip *s, Box area, int idx) {
     int mu = muted[idx];
     boxfill(area, CLR_DARKER_BLUE);                          // no outer rect/inset — matches the strip so focus↔rack doesn't jump
     Box body; Box bar = lay_split(lay_inset(area, 1), EDGE_TOP, lay_clamp(FU * 1.0f, 18, 24), &body);
-    if (wf_header(bar, idx, EXPANDED, 1)) focused = -1;       // icon tap = leave focus
+    // ops placement follows ORIENTATION, not focus: landscape (width-rich) → IN the header; portrait → a sub-row.
+    if (wf_header(bar, idx, EXPANDED, 1, g_shape == WIDE)) focused = -1;
+    if (s->haspat && g_shape != WIDE) {   // portrait fullscreen only — a thin RND|CLR sub-row under the header
+        Box ops = lay_split(body, EDGE_TOP, lay_clamp(FU * 0.7f, 9, 16), &body);
+        wf_ops(lay_pad(ops, 0, 1, 0, 1), idx);
+    }
     body = lay_pad(body, 1, 2, 1, 1);
     if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
     else if (s->haspat) { Box grid; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.6f, &grid); wf_303grid(grid, idx, mu); wf_knobrow(kn, s->labels, s->n, kv[idx]); }
@@ -414,8 +451,10 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     boxfill(rect, CLR_DARKER_BLUE); boxrect(rect, mu ? CLR_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
     Box body; float hh = lay_clamp(FU * 1.0f, 18, 24);   // a tad bigger than the old header (was 0.85/16–22)
     Box hdr = lay_split(lay_inset(rect, 1), EDGE_TOP, hh, &body);
-    // shared header (same in fullscreen); the icon tap opens/expands the strip
-    if (wf_header(hdr, idx, state, accent)) { if (state == EXPANDED) focused = idx; else work = idx; }
+    // shared header (same in fullscreen); the icon tap opens/expands the strip.
+    // landscape's open strip has header room for RND|CLR; portrait/iPad get them via focus's sub-row.
+    int hdrops = (g_shape == WIDE && state == EXPANDED);
+    if (wf_header(hdr, idx, state, accent, hdrops)) { if (state == EXPANDED) focused = idx; else work = idx; }
     body = lay_pad(body, 1, 1, 1, 1);
     int box_pat = s->haspat && g_boxpat && state != FOLDED;   // dormant (g_boxpat = 0)
 
@@ -568,6 +607,7 @@ void draw(void) {
     int device_mode = 0;
     cls_ = d.cls; insT = d.insT; insB = d.insB;
 #endif
+    g_shape = cls_;   // expose this frame's device class to draw_strip/wf_header (landscape ops etc.)
     g_boxpat = 0;   // patterns live in the HEADER ROW on every device (maker, on iPad glass 2026-07-10) —
                     // preferred over the boxed left PAT panel even on roomy; the box path stays dormant below
     m_press = mouse_pressed(0); m_x = mouse_x(); m_y = mouse_y();   // one pointer press per frame (tap/click)

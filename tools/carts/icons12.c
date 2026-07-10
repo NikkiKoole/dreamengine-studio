@@ -17,6 +17,7 @@
 }
 de:meta */
 
+// this is a stinky cart
 // icons12 — a display board for four code-drawn 12×12 icons.
 // The art lives in icons12.cart.js; here we just lay them out on screen.
 

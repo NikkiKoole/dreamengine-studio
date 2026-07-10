@@ -24,6 +24,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <math.h>   // fabsf — used in the DDA and angle math
 
 // DOOM — a Wolfenstein/Doom-style corridor shooter built on the raycaster.
@@ -88,6 +89,7 @@ static bool  has_key;
 static float bob, fire_cd, flash_muzzle, flash_dmg, msg_t;
 static const char *msg = "";
 static int   gamestate;                 // 0 play · 1 dead · 2 won
+static float end_t;                     // seconds since the end overlay came up
 static float zbuf[SCREEN_W];
 
 // ── enemies ─────────────────────────────────────────────────────────────────
@@ -145,7 +147,7 @@ static void reset_level(void) {
 
     px = 2.5f; py = 2.5f; pa = 8.0f;
     hp = 100; armor = 0; ammo = 24; weapon = 0; has_key = false;
-    bob = fire_cd = flash_muzzle = flash_dmg = msg_t = 0; gamestate = 0;
+    bob = fire_cd = flash_muzzle = flash_dmg = msg_t = 0; gamestate = 0; end_t = 0;
 
     for (int i = 0; i < MAXE; i++)  en[i].active = false;
     for (int i = 0; i < MAXP; i++)  pk[i].active = false;
@@ -264,6 +266,7 @@ static void try_use(void) {
 void update(void) {
     // restart on the death / win screen
     if (gamestate != 0) {
+        end_t += dt();
         if (btnp(0, BTN_A) || btnp(1, BTN_A) || keyp(KEY_SPACE)) reset_level();
         return;
     }
@@ -496,17 +499,21 @@ void draw(void) {
     print_right(weapon == 0 ? "INF" : str("%d", ammo), SCREEN_W - 6, VIEW_H + 12, CLR_WHITE);
     if (has_key) print_right("KEYCARD", SCREEN_W - 6, VIEW_H + 22, CLR_RED);
 
-    // overlays
+    // overlays — the shared end-screen treatment (endcard.h)
     if (gamestate == 1) {
-        fade(0.55f);
-        const char *t = "YOU DIED";
-        print_scaled(t, (SCREEN_W - text_width(t) * 3) / 2, 64, CLR_RED, 3);
-        print_centered("Z TO RESTART", SCREEN_W/2, 108, CLR_WHITE);
+        EndCard c = endcard(end_t, 200, 60, 56, CLR_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            const char *t = "YOU DIED";
+            print_scaled(t, (SCREEN_W - text_width(t) * 3) / 2, c.y + 8, CLR_RED, 3);
+            if (blink(18)) print_centered("Z TO RESTART", SCREEN_W/2, c.y + 44, CLR_WHITE);
+        }
     } else if (gamestate == 2) {
-        fade(0.55f);
-        const char *t = "LEVEL CLEAR";
-        print_scaled(t, (SCREEN_W - text_width(t) * 2) / 2, 62, CLR_YELLOW, 2);
-        print_centered("YOU ESCAPED THE BASE", SCREEN_W/2, 92, CLR_WHITE);
-        print_centered("Z TO PLAY AGAIN", SCREEN_W/2, 108, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 200, 60, 56, CLR_BLACK, CLR_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            const char *t = "LEVEL CLEAR";
+            print_scaled(t, (SCREEN_W - text_width(t) * 2) / 2, c.y + 8, CLR_YELLOW, 2);
+            print_centered("YOU ESCAPED THE BASE", SCREEN_W/2, c.y + 32, CLR_WHITE);
+            if (blink(18)) print_centered("Z TO PLAY AGAIN", SCREEN_W/2, c.y + 46, CLR_LIGHT_GREY);
+        }
     }
 }

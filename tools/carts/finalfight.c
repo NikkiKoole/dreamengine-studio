@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 
 // FINAL FIGHT — a linear arcade BELT-SCROLL beat-'em-up, and a reusable brawler
 // engine. Walk right through a city, fists up, into scroll-locked arenas of
@@ -115,6 +116,7 @@ static Barrel  barrels[MAXB];
 
 static int   cam;                 // camera x
 static int   gphase;
+static float end_t;               // seconds since the end overlay came up
 static int   waveIdx;             // next wave to trigger
 static bool  locked;              // camera/arena locked for a wave
 static int   lockCam;             // frozen camera x while locked
@@ -257,7 +259,7 @@ static void new_game(void) {
     score = 0; lives = 3; combo = 0; comboT = 0; goArrowX = -1; bannerT = 0;
     HERO->weapon = W_NONE;
     reset_hero();
-    gphase = G_INTRO; bannerT = 90; bannerS = "STAGE 1:  THE STREET";
+    gphase = G_INTRO; bannerT = 90; bannerS = "STAGE 1:  THE STREET"; end_t = 0;
     bpm(112);
     // punch / impact instruments
     instrument(5, INSTR_NOISE, 1, 60, 0, 30);   instrument_filter(5, FILTER_LOW, 1400, 6);
@@ -584,7 +586,7 @@ static void parts_update(float k) {
 // ───────────────────────── update ─────────────────────────
 void update(void) {
     if (gphase == G_INTRO) { if (bannerT > 0) bannerT -= 1; if (bannerT <= 0) gphase = G_PLAY; }
-    if (gphase == G_OVER || gphase == G_WIN) { if (btnp(0, BTN_A)) new_game(); return; }
+    if (gphase == G_OVER || gphase == G_WIN) { end_t += dt(); if (btnp(0, BTN_A)) new_game(); return; }
 
     if (hitstop > 0) { hitstop--; return; }
 
@@ -820,15 +822,20 @@ void draw(void) {
 
     draw_hud();
 
+    // end overlays — the shared end-screen treatment (endcard.h)
     if (gphase == G_OVER) {
-        fade(0.6f);
-        print_centered("GAME OVER", SCREEN_W/2, SCREEN_H / 2 - 12, CLR_RED);
-        print_centered(str("SCORE %d", score), SCREEN_W/2, SCREEN_H / 2 + 2, CLR_YELLOW);
-        print_centered("press Z to fight again", SCREEN_W/2, SCREEN_H / 2 + 16, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 220, 52, SCREEN_H/2 - 26, CLR_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            print_centered("GAME OVER", SCREEN_W/2, c.y + 10, CLR_RED);
+            print_centered(str("SCORE %d", score), SCREEN_W/2, c.y + 24, CLR_YELLOW);
+            if (blink(18)) print_centered("press Z to fight again", SCREEN_W/2, c.y + 38, CLR_LIGHT_GREY);
+        }
     } else if (gphase == G_WIN) {
-        fade(0.5f);
-        print_centered("YOU CLEANED UP THE CITY!", SCREEN_W/2, SCREEN_H / 2 - 12, CLR_YELLOW);
-        print_centered(str("FINAL SCORE %d", score), SCREEN_W/2, SCREEN_H / 2 + 2, CLR_WHITE);
-        print_centered("press Z to play again", SCREEN_W/2, SCREEN_H / 2 + 16, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 220, 52, SCREEN_H/2 - 26, CLR_DARK_PURPLE, CLR_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            print_centered("YOU CLEANED UP THE CITY!", SCREEN_W/2, c.y + 10, CLR_YELLOW);
+            print_centered(str("FINAL SCORE %d", score), SCREEN_W/2, c.y + 24, CLR_WHITE);
+            if (blink(18)) print_centered("press Z to play again", SCREEN_W/2, c.y + 38, CLR_LIGHT_GREY);
+        }
     }
 }

@@ -10,7 +10,8 @@ cart is now a tiny vector editor. What's left is the **v2 icon-pipeline slice** 
 **save/load** (stroke files — nothing persists today), **closed-shape fill** (the *vector* fill;
 raster flood-fill + the persistent-layer refactor come later), the **`squishy-export` tool** + a
 live snapped preview — then stamps / trace underlay / stabilizer as the delight pass, plus the
-`spec()` and the boil-cache perf pass. v1 plan + progress below.
+boil-cache perf pass (the `spec()` shipped 2026-07-10 — 40 assertions, `node tools/spec.js squishy`).
+v1 plan + progress below.
 
 > **Update (2026-07-01) — rotation brushes, live width, drop shadow, and a coverage gate.**
 > The brush table is now pure data (a `Brush` carries a width recipe + an **angle recipe** + an icon
@@ -463,7 +464,10 @@ tool + thickness it was drawn with. And the **boil** toggle makes a finished dra
       ~7.5fps (`BOIL_PERIOD` held frames each), driven by `frame()` + a `VARIANT[]` seed table.
       Per-point coherent wobble (the line wiggles, doesn't fizz); the active stroke stays put.
       Ships as a live re-render every frame — the N-cached-frames optimization is the open todo.
-- [ ] `spec()`: same-seed determinism + jitter-bounds assertions.
+- [x] `spec()`: same-seed determinism + jitter-bounds, 40 assertions on the pure seams —
+      `sample_width` (taper/speed/pressure/wobble envelope), boil (`BOIL_JIT` bounds, per-variant
+      determinism, breathe about a fixed centre), all four `nib_edge` angle recipes, the gradient
+      coverage helpers, and the select-tool pick/z-order/undo. `node tools/spec.js squishy`.
 - [ ] The icon pipeline: boil frames → `pixelsnap` → an animated sprite strip (the AI-route
       replacement); document the recipe.
 - [x] `de:meta` + bake + `lint-carts`; a screenshot for the owner to play.

@@ -1,0 +1,11 @@
+# roadlab — cycle the junction TYPE (g key) through two families, holding each for rendering.
+# This is the B4 gate seed: it exercises the ramp splines (arc/loop/scurve) that roadkit.h owns.
+# Regenerate the baseline + re-verify byte-identity after any roadkit interchange edit:
+#   node tools/play.js roadlab script tools/clips/roadlab/01-junction-cycle.script --frames 60 --dump <dir>
+#   (diff <dir> against a dump taken BEFORE the edit — must be byte-identical; roadlab spec must stay 25/0)
+# frames 60
+# fps 30
+down 20 g
+up 22 g
+down 40 g
+up 42 g

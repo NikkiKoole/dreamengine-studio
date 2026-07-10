@@ -110,10 +110,14 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > citygen density; highways lead into citygen cities). See [`worldgen-plan.md`](design/worldgen-plan.md) rung 5.5.
 > (2) **polish** — suppress citydrive's round-joint disc at near junctions so the curb-return fully
 > replaces the blob (today it layers over it) + per-pixel field-fill for exact N-arm asphalt.
-> Hot files: `tools/carts/{citygrow,sloop,citydrive,streetlab}.c`, `runtime/{citygen,roadkit,worldnet}.h`
-> (shared — targeted edits only). Gates to keep green: `spec.js sloop` 25/0 · `spec.js streetlab` 104/0 ·
-> `spec.js citydrive` 11/0 · streetlab `mirror-diff` + `road-check --all` · `sndi-check --compare
-> build/citygrow-city.json data/rotterdam-netherlands.rvb` PASS.
+> Hot files: `tools/carts/{citygrow,sloop,citydrive,streetlab,roadlab}.c`, `runtime/{citygen,roadkit,worldnet}.h`
+> (shared — targeted edits only). **`roadkit.h` is now the shared dependency of all five carts** — any edit
+> to it must re-gate every consumer, not just the one you're touching. Gates to keep green: `spec.js sloop`
+> 25/0 · `spec.js streetlab` 104/0 · `spec.js citydrive` 11/0 · **`spec.js roadlab` 25/0** · streetlab
+> `mirror-diff` + `road-check --all` · `sndi-check --compare build/citygrow-city.json
+> data/rotterdam-netherlands.rvb` PASS. For a roadkit interchange edit, the byte-identical render check is
+> the real safety net (topology spec can't see geometry): `play.js roadlab script <input> --dump` vs a
+> committed baseline — a stored input track lives at `tools/clips/roadlab/` if one was parked.
 
 > **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
 > A research question ("what's the best responsive UI for a music cart?") turned into

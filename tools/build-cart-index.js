@@ -19,7 +19,7 @@
 //   /* de:meta
 //   {
 //     "title": "pixel zoo",
-//     "status": "active",                 // active|showcase|retired|archive|hidden (not emitted yet)
+//     "status": "active",                 // active|showcase|retired|archive|hidden|wip (not emitted yet)
 //     "created": "2026-05-30",            // YYYY-MM-DD, the .c's first-add date in git; immutable
 //     "kind": ["toy","tech-demo"],
 //     "genre": null,                       // omitted from index.json when null/absent

@@ -48,7 +48,9 @@ const GENRES = [
 ];
 
 // cart lifecycle (de:meta.status) — seeds the curated/featuring views (003-curation)
-const STATUSES = ["active", "showcase", "retired", "archive", "hidden"];
+// `wip` = a functional but incomplete slice (e.g. a phase-1 build of a larger design);
+// registered + editable, but not gallery-ready. Flip to `active` when it's finished.
+const STATUSES = ["active", "showcase", "retired", "archive", "hidden", "wip"];
 
 // teaches[] is a CONTROLLED vocabulary like kind/genre: an off-list tag is a hard error,
 // so adding one is a deliberate edit to tools/teaches-vocab.js. lineage is free prose.

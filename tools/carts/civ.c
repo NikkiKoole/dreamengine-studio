@@ -20,12 +20,13 @@
   "todo": [
     "Text overflows.",
     "Maybe force a choice: research OR build warriors OR settlers (unsure how deep to go).",
-    "Founding 3 cities is a weird win state; fade the screen at the end; an enemy (4x-style) might be better.",
+    "Founding 3 cities is a weird win state; an enemy (4x-style) might be better.",
     "ui-audit: \"pick a unit\" and \"END TURN E\" run off the right edge."
   ]
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // ── CIV (tiny) — a pocket 4X ──────────────────────────────────────────────────
@@ -74,6 +75,7 @@ static City  cities[MAXC];
 
 static int   turn, sel = -1, selc = -1;
 static int   result;            // 0 = playing, 1 = win, 2 = stalled
+static float result_t;          // seconds since the end banner came up
 static float research;          // 0..1
 static bool  irrigation;        // the one unlocked improvement
 static bool  ready = false;
@@ -271,7 +273,7 @@ static void reset_game(void) {
     for (int i = 0; i < MAXU; i++) units[i].type = U_NONE;
     for (int i = 0; i < MAXC; i++) cities[i].used = false;
     gen_map();
-    turn = 1; sel = selc = -1; result = 0;
+    turn = 1; sel = selc = -1; result = 0; result_t = 0;
     research = 0; irrigation = false; founded = 0;
     tech_flash = spawn_flash = msg_timer = 0;
     best = load(0);
@@ -309,6 +311,7 @@ void update(void) {
     if (!result && every(2)) note(48 + (beat() % 3) * 4, INSTR_TRI, 1);
 
     if (result) {
+        result_t += dt();
         if (mouse_pressed(MOUSE_LEFT) || btnp(0, BTN_A) || keyp(KEY_SPACE)) reset_game();
         return;
     }
@@ -483,15 +486,16 @@ void draw(void) {
         print("cities grow faster", bx + 16, 104, CLR_LIGHT_YELLOW);
     }
 
-    // end screen
+    // end screen — the shared end-screen treatment (endcard.h)
     if (result) {
-        fade(0.45f);
-        int w = 220, bx = (SCREEN_W - w) / 2;
-        rectfill(bx, 78, w, 46, result == 1 ? CLR_DARK_GREEN : CLR_DARKER_PURPLE);
-        rect(bx, 78, w, 46, CLR_WHITE);
-        print_centered(result == 1 ? "EMPIRE FOUNDED!" : "EXPEDITION STALLED", SCREEN_W/2, 86, result == 1 ? CLR_GREEN : CLR_ORANGE);
-        print_centered(result == 1 ? str("3 cities in %d turns", turn)
-                                   : "ran out of turns", SCREEN_W/2, 100, CLR_LIGHT_GREY);
-        print_centered("click for a new continent", SCREEN_W/2, 112, CLR_YELLOW);
+        EndCard c = endcard(result_t, 220, 46, 78,
+                            result == 1 ? CLR_DARK_GREEN : CLR_DARKER_PURPLE,
+                            CLR_WHITE, result == 1 ? CLR_GREEN : CLR_ORANGE);
+        if (c.settled) {
+            print_centered(result == 1 ? "EMPIRE FOUNDED!" : "EXPEDITION STALLED", SCREEN_W/2, c.y + 8, result == 1 ? CLR_GREEN : CLR_ORANGE);
+            print_centered(result == 1 ? str("3 cities in %d turns", turn)
+                                       : "ran out of turns", SCREEN_W/2, c.y + 22, CLR_LIGHT_GREY);
+            if (blink(18)) print_centered("click for a new continent", SCREEN_W/2, c.y + 34, CLR_YELLOW);
+        }
     }
 }

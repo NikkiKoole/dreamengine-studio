@@ -15,6 +15,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "roadkit.h"   // the shared junction grammar: at-grade field (B2/B3) + interchanges (B4)
 #include "ui.h"        // on-screen buttons (per-finger capture, fat-finger hit pads) — never hand-roll
 #include <stdio.h>
 #include <math.h>
@@ -164,7 +165,6 @@ static void arrow(float x,float y,float dir,int col){      // a small travel-dir
 }
 
 // ── PORT = a point on a lane + the lane's travel direction (degrees) ──
-typedef struct { float x,y,dir; const char*name; } Port;
 static Port ports[16]; static int nport=0;
 static void addport(float x,float y,float dir,const char*nm){ ports[nport++]=(Port){x,y,dir,nm}; }
 
@@ -209,247 +209,20 @@ static const char* movement_problem(int ai, int bi){
 #define R2D 57.29578f                                  // radians → degrees
 static float tan_deg(float d){ return sin_deg(d)/cos_deg(d); }
 
-// ── ARC-SPLINE ramp: LINE → ARC → LINE between two ports (a "simple curve": round the corner where
-//    A's heading-line meets B's heading-line with an arc of radius R). Returns the polyline length. ──
-static int arc_spline(Port a, Port b, float R, float *xs, float *ys){
-    float ad=a.dir;                                         // A is the ENTRY: leave along the inbound lane's travel dir
-    float uax=ux(ad),uay=uy(ad), ubx=ux(b.dir),uby=uy(b.dir);
-    float den=uax*uby-uay*ubx;                              // cross(uA,uB); ~0 ⇒ parallel
-    float dA=b.dir-ad; while(dA>180)dA-=360; while(dA<-180)dA+=360;
-    float fa=dA<0?-dA:dA;
-    int n=0;
-    if (fa<1.f || (den<0.02f&&den>-0.02f)){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // ~straight
-    float s=((b.x-a.x)*uby-(b.y-a.y)*ubx)/den;              // dist A→P along uA (the tangent room on A's side)
-    float Px=a.x+uax*s, Py=a.y+uay*s;
-    float distB=(b.x-Px)*ubx+(b.y-Py)*uby;                  // dist P→B along uB (tangent room on B's side)
-    float avail=(s<distB?s:distB);                          // tightest tangent room
-    if (avail<2.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // corner behind a port ⇒ needs a LOOP; straight stand-in
-    float tanH=sin_deg(fa*0.5f)/cos_deg(fa*0.5f);
-    if (R>avail*0.95f/tanH) R=avail*0.95f/tanH;             // clamp R so the curve FITS the corner (no overshoot/cusp)
-    float T=R*tanH;                                         // tangent length = R·tan(Δ/2)
-    float t1x=Px-uax*T,t1y=Py-uay*T, t2x=Px+ubx*T,t2y=Py+uby*T;
-    float nx=-uay,ny=uax;                                   // ⊥ to uA; pick the centre that's also R from T2
-    float caX=t1x+nx*R,caY=t1y+ny*R, cbX=t1x-nx*R,cbY=t1y-ny*R, cx,cy;
-    if (distance((int)caX,(int)caY,(int)t2x,(int)t2y) < distance((int)cbX,(int)cbY,(int)t2x,(int)t2y)){cx=caX;cy=caY;}
-    else {cx=cbX;cy=cbY;}
-    xs[n]=a.x; ys[n++]=a.y;                                 // LINE a → T1
-    float a0=angle_to((int)cx,(int)cy,(int)t1x,(int)t1y);
-    float a1=angle_to((int)cx,(int)cy,(int)t2x,(int)t2y);
-    float sw=a1-a0; while(sw>180)sw-=360; while(sw<-180)sw+=360;
-    for (int i=0;i<=16;i++){ float ang=a0+sw*(float)i/16; xs[n]=cx+ux(ang)*R; ys[n++]=cy+uy(ang)*R; }  // ARC
-    xs[n]=b.x; ys[n++]=b.y;                                 // LINE T2 → b
-    return n;
-}
 
-// ── CLOTHOID-JOINTED ramp (M2): LINE → CLOTHOID → ARC → CLOTHOID → LINE. The spirals ramp curvature
-//    0 → 1/R → 0 (κ linear in arc length) so steering rate is continuous (G2) — "drives easily".
-//    Construction: the standard spiral SHIFT — measure the spiral's lateral shift p and back-distance k
-//    by integrating ONE local clothoid arm (the §2 forward-integration loop; exact, no Fresnel), shift
-//    the equivalent circle inward by p, take tangent dist Ts=(R+p)·tan(Δ/2)+k, then integrate the real
-//    curve forward. Reduces EXACTLY to arc_spline as Ls→0. ──
-static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *ys){
-    if (Ls < 0.5f) return arc_spline(a,b,R,xs,ys);          // Ls→0 IS the plain arc (avoids 1/(R·Ls) blow-up)
-    float ad=a.dir;                                         // A is the ENTRY: leave along the inbound lane's travel dir
-    float uax=ux(ad),uay=uy(ad), ubx=ux(b.dir),uby=uy(b.dir);
-    float den=uax*uby-uay*ubx;
-    float dA=b.dir-ad; while(dA>180)dA-=360; while(dA<-180)dA+=360;
-    float fa=dA<0?-dA:dA, turn=dA<0?-1.f:1.f;               // |Δ| and turn sign
-    int n=0;
-    if (fa<1.f || (den<0.02f&&den>-0.02f)){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }
-    float P_s=((b.x-a.x)*uby-(b.y-a.y)*ubx)/den;            // dist A→P along uA (tangent room on A's side)
-    float Px=a.x+uax*P_s, Py=a.y+uay*P_s;
-    float distB=(b.x-Px)*ubx+(b.y-Py)*uby;                  // dist P→B along uB (tangent room on B's side)
-    float avail=(P_s<distB?P_s:distB);                      // tightest tangent room
-    if (avail<2.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // corner behind a port ⇒ needs a LOOP; straight stand-in
-    float tanH=tan_deg(fa*0.5f);
-    float T=R*tanH;                                         // bare-arc tangent — KEEP R (and the corner) if it fits
-    if (T>avail*0.95f){ R=avail*0.95f/tanH; T=avail*0.95f; }//   only shrink R if even the plain arc overshoots (rare)
-    float room=avail-T;                                     // leftover tangent room for the spiral back-distance k≈Ls/2
-    if (Ls>room*1.8f) Ls=room*1.8f;                         // trim ONLY the spiral so the lead-in can't overshoot/cusp
-    if (Ls<0.5f) return arc_spline(a,b,R,xs,ys);            //   no spiral room ⇒ the fitted plain arc keeps the corner
-    if (R<2) R=2;
-    // spiral angle θs = Ls/2R; clamp so two spirals fit the deflection (spiral-spiral limit → arc=0)
-    float thS=(Ls/(2*R))*R2D;                               // spiral angle (deg)
-    if (thS > fa*0.5f){ thS=fa*0.5f; Ls=2*R*(thS/R2D); }
-    int NC=10; float ds=Ls/NC, sig=1.f/(R*Ls);              // dκ/ds; integrate one arm with +curvature
-    float lx=0,ly=0,th=0,k=0;                               // local frame: x along tangent, y lateral
-    for(int i=0;i<NC;i++){ float tm=th+(k*ds*0.5f)*R2D; lx+=ux(tm)*ds; ly+=uy(tm)*ds; th+=(k+sig*ds*0.5f)*ds*R2D; k+=sig*ds; }
-    float p =ly - R*(1-cos_deg(thS));                       // lateral shift of the equivalent circle
-    float kk=lx - R*sin_deg(thS);                           // back-distance (TS → equiv-circle PC)
-    float Ts=(R+p)*tan_deg(fa*0.5f) + kk;                   // tangent dist from apex P to the spiral start
-    float TSx=Px-uax*Ts, TSy=Py-uay*Ts;                     // start of entry spiral (after the lead-in line)
-    // emit: LINE a → TS, then forward-integrate spiral / arc / spiral; append exact port b for the run-out
-    xs[n]=a.x; ys[n++]=a.y; xs[n]=TSx; ys[n++]=TSy;
-    float x=TSx,y=TSy,hd=ad,kc=0,sg=turn/(R*Ls);            // entry CLOTHOID: κ 0 → turn/R
-    for(int i=0;i<NC;i++){ float tm=hd+(kc*ds*0.5f)*R2D; x+=ux(tm)*ds; y+=uy(tm)*ds; hd+=(kc+sg*ds*0.5f)*ds*R2D; kc+=sg*ds; xs[n]=x;ys[n++]=y; }
-    float arcDeg=fa-2*thS;                                  // ARC: constant κ over the residual deflection
-    if (arcDeg>0.5f){ int NA=(int)(arcDeg/6)+1; float ads=(R*arcDeg/R2D)/NA;
-        for(int i=0;i<NA;i++){ float tm=hd+(kc*ads*0.5f)*R2D; x+=ux(tm)*ads; y+=uy(tm)*ads; hd+=kc*ads*R2D; xs[n]=x;ys[n++]=y; } }
-    sg=-turn/(R*Ls);                                        // exit CLOTHOID: κ turn/R → 0
-    for(int i=0;i<NC;i++){ float tm=hd+(kc*ds*0.5f)*R2D; x+=ux(tm)*ds; y+=uy(tm)*ds; hd+=(kc+sg*ds*0.5f)*ds*R2D; kc+=sg*ds; xs[n]=x;ys[n++]=y; }
-    xs[n]=b.x; ys[n++]=b.y;                                 // LINE (run-out) → b
-    return n;
-}
-
-// ── LOOP ramp (spec §8.1): the HARD (left-equivalent) turn — go the LONG way (≈270°) so the ramp never
-//    crosses opposing traffic (the cloverleaf trick). LINE(diverge) → ARC(loop, |sweep|>180) → LINE(merge).
-//    The arc is tangent to A's heading at the start and to B's heading at the end; the two line lengths
-//    (diverge stub + merge) are SOLVED (a 2×2, exactly like arc_spline's apex) so a FIXED-R loop still lands
-//    on B. Unique given (A,B,R): the long-way sweep Δ∓360 fixes both the angle AND the turn side. Two loops
-//    nest as concentric offsets (M3) at different R — no solver. ──
-static int loop_spline(Port a, Port b, float R, float *xs, float *ys){
-    float adA=a.dir;                                        // A is the ENTRY: leave along the inbound lane's travel dir
-    float uax=ux(adA),uay=uy(adA), ubx=ux(b.dir),uby=uy(b.dir);
-    float den=uax*uby-uay*ubx;                              // cross(uA,uB); ~0 ⇒ parallel ⇒ no loop solution
-    int n=0;
-    if (den<0.02f&&den>-0.02f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }
-    float dA=b.dir-adA; while(dA>180)dA-=360; while(dA<-180)dA+=360;        // Δ (short deflection)
-    float sweep=(dA>=0)?dA-360.f:dA+360.f;                  // the LONG way round (|sweep|∈(180,360))
-    float st=(sweep>=0)?1.f:-1.f;                           // turn side = sign of the sweep
-    float lnx=-uay,lny=uax;                                 // left normal of uA
-    float cx=a.x+st*lnx*R, cy=a.y+st*lny*R;                 // loop centre (stub=0 baseline: tangent at A)
-    float a0=angle_to((int)cx,(int)cy,(int)a.x,(int)a.y);   // arc start angle (C→A)
-    float a1=a0+sweep;
-    float e0x=cx+ux(a1)*R, e0y=cy+uy(a1)*R;                 // arc end at stub=0
-    float rx=b.x-e0x, ry=b.y-e0y;                           // solve  uA·stub + uB·merge = B − E0  (Cramer)
-    float stub =( rx*uby-ry*ubx)/den;
-    float merge=( uax*ry-uay*rx)/den;
-    if (stub<-2.f||merge<-2.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // no clean loop ⇒ stand-in
-    float dx=uax*stub, dy=uay*stub;                         // translate the whole circle along uA by stub
-    float t1x=a.x+dx,t1y=a.y+dy; cx+=dx; cy+=dy;
-    xs[n]=a.x; ys[n++]=a.y; xs[n]=t1x; ys[n++]=t1y;         // LINE diverge: A → T1
-    int NS=32; for(int i=0;i<=NS;i++){ float ang=a0+sweep*(float)i/NS; xs[n]=cx+ux(ang)*R; ys[n++]=cy+uy(ang)*R; }  // ARC
-    xs[n]=b.x; ys[n++]=b.y;                                 // LINE merge: E → B
-    return n;
-}
-
-// append a circular ARC from P (unit-ish tangent T) to endpoint Q. The centre is the point on P's normal
-// equidistant from P and Q; the sweep direction is whichever matches T. (The biarc primitive below.)
-static int emit_arc_to(float px,float py,float tx,float ty,float qx,float qy,float *xs,float *ys,int n,int steps){
-    float tl=sqrtf(tx*tx+ty*ty); if(tl<0.0001f)tl=1; tx/=tl; ty/=tl;     // unit tangent
-    float nx=-ty, ny=tx;                                                 // left normal
-    float wx=px-qx, wy=py-qy, wn=wx*nx+wy*ny;
-    if (wn>-0.01f && wn<0.01f){ xs[n]=qx; ys[n++]=qy; return n; }         // P,Q,T ~collinear ⇒ straight
-    float s=-(wx*wx+wy*wy)/(2*wn);                                        // signed dist along normal → centre
-    float cx=px+nx*s, cy=py+ny*s, R=(s<0?-s:s);
-    float a0=angle_to((int)cx,(int)cy,(int)px,(int)py);
-    float a1=angle_to((int)cx,(int)cy,(int)qx,(int)qy);
-    float rpx=px-cx, rpy=py-cy;                                          // radial at P; CCW tangent = (−rpy,rpx)
-    int ccw = (-rpy*tx + rpx*ty) >= 0;
-    float sw=a1-a0;
-    if (ccw){ while(sw<=0)sw+=360; while(sw>360)sw-=360; }                // sweep the way T points
-    else    { while(sw>=0)sw-=360; while(sw<-360)sw+=360; }
-    for(int i=1;i<=steps;i++){ float ang=a0+sw*(float)i/steps; xs[n]=cx+ux(ang)*R; ys[n++]=cy+uy(ang)*R; }
-    return n;
-}
-
-// ── FLYOVER ramp (spec §8.1): a SEMI-DIRECT turn that's ALLOWED to cross the conflict point because it's
-//    grade-separated — the characteristic reverse-curve (S) shape (diverge one way, arc back the other),
-//    NOT the 270° loop and NOT the corner-rounder. Built as an equal-tangent BIARC: two circular arcs that
-//    join with a continuous tangent at a midpoint J, connecting A(tangent uA) → B(tangent uB) exactly. The
-//    joint distance d solves a quadratic (equal tangent lengths); the deck (lift) is forced by the caller. ──
-static int scurve_spline(Port a, Port b, float *xs, float *ys){
-    float t0x=ux(a.dir), t0y=uy(a.dir);                     // leave A along the inbound lane's travel dir
-    float t1x=ux(b.dir), t1y=uy(b.dir);                     // arrive B along the outbound lane's travel dir
-    float vx=b.x-a.x, vy=b.y-a.y, vv=vx*vx+vy*vy;
-    float tx=t0x+t1x, ty=t0y+t1y, vt=vx*tx+vy*ty;
-    float dot=t0x*t1x+t0y*t1y, A=2*(dot-1);                 // A→0 as the tangents become parallel
-    int n=0;
-    float d;
-    if (A>-0.0008f){                                        // parallel tangents ⇒ linear (or degenerate)
-        if (vt>-0.5f&&vt<0.5f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }
-        d=vv/(2*vt);
-    } else {
-        float disc=vt*vt-A*vv; if(disc<0)disc=0; disc=sqrtf(disc);
-        float r1=(vt+disc)/A, r2=(vt-disc)/A;
-        d = (r1>0)?r1:r2; if(d<=0)d=(r1>r2?r1:r2);
-    }
-    if (d<1.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; } // degenerate ⇒ stand-in
-    float q1x=a.x+d*t0x, q1y=a.y+d*t0y;                     // ends of the two equal tangents
-    float q2x=b.x-d*t1x, q2y=b.y-d*t1y;
-    float jx=(q1x+q2x)*0.5f, jy=(q1y+q2y)*0.5f;             // joint J (shared tangent = q1→q2)
-    xs[n]=a.x; ys[n++]=a.y;
-    n=emit_arc_to(a.x,a.y, t0x,t0y, jx,jy, xs,ys,n,16);     // arc 1: A → J  (tangent uA at A)
-    n=emit_arc_to(jx,jy, q2x-q1x,q2y-q1y, b.x,b.y, xs,ys,n,16);  // arc 2: J → B  (tangent uB at B)
-    return n;
-}
-
-// ── M6: JUNCTION SCHEMA (OpenDRIVE junction/laneLink, baked to C — docs/design/junction-lanelink.md) ──
-//    The TOPOLOGY layer (interchange-dsl Layer 1): a junction is a TABLE of connections; each connection
-//    is one movement (entry port → exit port) drawn by a ramp PRIMITIVE. The SHAPE lives in the spline
-//    drawers above (M1–M5), NOT here. A roadlab PORT already IS a laneLink endpoint ("a lane + its travel
-//    direction"), so a connection's lanes ARE its laneLinks (here 1:1 parallel ⇒ no lane change). ──
-typedef enum { RP_DIRECT, RP_LOOP, RP_FLYOVER, RP_THROUGH } RampPrim;  // generative: how to draw the
-                                                            // connecting road. OpenDRIVE INFERS shape from
-                                                            // geometry; we generate FROM this. THROUGH = the
-                                                            // road continues straight across (the mainline);
-                                                            // LOOP/FLYOVER are the hard (left-equiv) turns.
-static const char* RP_NAME[] = { "direct", "loop", "flyover", "through" };
-typedef struct { int from, to; } LaneLink;                  // signed lane ids: incoming lane → connecting lane
-typedef struct {
-    int      inPort, outPort;        // entry port (A — the ENTRY, tangent points IN) → exit port (B)
-    RampPrim prim;                   // OUR field (OpenDRIVE drops it; it's the lowered/baked form)
-    LaneLink links[6]; int nLinks;   // lanes carried; nLinks>1 ⇒ lane change allowed (here all parallel)
-    float    R; int lift;            // per-connection radius / flyover deck (0 ⇒ use the global default)
-} Connection;
-typedef struct { const char* name; Connection conns[16]; int nConns; } Junction;  // a 4-way serves 12 movements
-
-// ── THE GENERATOR (spec §8.2): build the connection TABLE from a junction TYPE — interchange-dsl Layer 1
-//    in code. A type is a POLICY (which primitive serves each turn class), NOT geometry. We enumerate every
-//    movement (entry leg → exit leg), classify the turn by relative bearing (DRIVE folds handedness so
-//    "right" is always the easy side), and assign the primitive. PURE function of (legs, type) ⇒ the same
-//    seed grows the same junction. The SHAPE is still the M1–M5 splines; this only decides who connects to
-//    whom, with which primitive. (Supersedes the old hand-authored DEMO table.) ──
-// JUNCTION TYPE = topology (how many legs) × policy (how the hard turn is served). The 4-leg family sits on
-// the full CROSS; the 3-leg family (trumpet/fork/triangle) on a T — see topo_present. (roads.org.uk taxonomy,
-// junction-lanelink §9: a recipe is `topology × policy`.)
-typedef enum { JT_DIAMOND, JT_CLOVERLEAF, JT_STACK, JT_TRUMPET, JT_FORK, JT_TRIANGLE, JT_ROUNDABOUT } JuncType;
-#define NJTYPE 7
-static const char* JT_NAME[NJTYPE] = { "diamond", "cloverleaf", "stack", "trumpet", "fork", "triangle", "roundabout" };
-static int is_ring(JuncType t){ return t==JT_ROUNDABOUT; }   // the PEER family: a circulating carriageway, not the ramp grammar
-typedef enum { T_THROUGH, T_RIGHT, T_LEFT, T_UTURN } Turn;
-typedef struct { RampPrim through, right, left; int serveUturn; } JuncPolicy;
-static const JuncPolicy POLICY[NJTYPE] = {                  // 4-leg types differ ONLY in the LEFT column
-    /* diamond    */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // 4-leg: hard left = at-grade direct (signalised)
-    /* cloverleaf */ { RP_THROUGH, RP_DIRECT, RP_LOOP,    0 },   // 4-leg: hard left = loop (≈270°, no crossing)
-    /* stack      */ { RP_THROUGH, RP_DIRECT, RP_FLYOVER, 0 },   // 4-leg: hard left = flyover (semi-direct, over)
-    /* trumpet    */ { RP_THROUGH, RP_DIRECT, RP_LOOP,    0 },   // 3-leg T: lefts ASYMMETRIC — 1 loop + 1 flyover (below)
-    /* fork       */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // 3-leg T: all at-grade direct (a simple Y)
-    /* triangle   */ { RP_THROUGH, RP_DIRECT, RP_FLYOVER, 0 },   // 3-leg T: 3 flyovers (the loopless free-flow cousin)
-    /* roundabout */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // PEER family — not used (drawn by draw_roundabout)
-};
-// topology — which legs are present for a type. 4-leg (incl. roundabout) = full cross; the 3-leg ramp family
-// (trumpet/fork/triangle) = a T with the NORTH trunk arm (leg 2) dropped — the trunk terminates from the south.
-static int topo_present(JuncType t, int L){ return !((t==JT_TRUMPET||t==JT_FORK||t==JT_TRIANGLE) && L==2); }
 // the 4 legs are encoded in the port layout (setup order = in,out per leg) — leg L: 0=W 1=E 2=N 3=S
 static int leg_in (int L){ return L*2;   }                  // inbound (entry) port of leg L
 static int leg_out(int L){ return L*2+1; }                  // outbound (exit) port of leg L
-static float norm180(float a){ while(a>180)a-=360; while(a<-180)a+=360; return a; }
-static Turn classify_turn(float inDir, float outDir){       // by the change in travel heading through the hub
-    float rel=norm180(outDir-inDir);
-    if (rel>-30 && rel<30)   return T_THROUGH;               // heading ~unchanged ⇒ straight across
-    if (rel>150 || rel<-150) return T_UTURN;                 // ~reversed ⇒ U-turn
-    return (rel*DRIVE > 0) ? T_RIGHT : T_LEFT;               // else easy (right) vs hard (left), DRIVE-folded
-}
 // GENERATE: enumerate every movement over `nleg` legs → one Connection per served movement, per the policy.
 // `lanes` = how many lanes each ramp carries (from the lanes control). Loops get a radius scaled to the lane
 // count so the inner edge can't pinch past the centre (a tight loop can't fit a fat ribbon).
 // SEAM (Phase 2 → docs/design/road-program-state.md): this pure fn is the interchange drawer a seed-driven
 // WORLD calls per grade-separated crossing — (legs, type) in, a drawable connection table out, unchanged.
+// make_junction: roadkit (rk_make_junction) owns the topology now — this thin wrapper adapts roadlab's
+// leg-present mask + ports so every call site + the spec stay unchanged. (Types/POLICY/splines: roadkit.h.)
 static int make_junction(int nleg, JuncType type, int lanes, Junction *out){
-    if (lanes<1) lanes=1;
-    JuncPolicy p = POLICY[type]; out->name = JT_NAME[type]; out->nConns = 0;
-    int leftSeen = 0;                                       // for the trumpet's ASYMMETRIC hard turns
-    for (int o=0;o<nleg;o++) for (int d=0;d<nleg;d++){
-        if (o==d || !legs[o].present || !legs[d].present) continue;   // only served between PRESENT legs (topology)
-        Turn t = classify_turn(ports[leg_in(o)].dir, ports[leg_out(d)].dir);
-        if (t==T_UTURN && !p.serveUturn) continue;
-        RampPrim prim = (t==T_THROUGH)?p.through : (t==T_RIGHT)?p.right : p.left;
-        if (type==JT_TRUMPET && t==T_LEFT) prim = (leftSeen++ == 0) ? RP_LOOP : RP_FLYOVER;  // trumpet: 1 loop + 1 flyover
-        float r = (prim==RP_LOOP)?(lanes*4.f>12.f?lanes*4.f:12.f):0.f;   // loops: R scales with lanes; direct uses global
-        out->conns[out->nConns++] = (Connection){ leg_in(o), leg_out(d), prim, {{-1,-1},{-2,-2}}, lanes, r, 0 };
-    }
-    return out->nConns;
+    unsigned char pres[NLEG]; for (int L=0;L<NLEG;L++) pres[L]=(unsigned char)legs[L].present;
+    return rk_make_junction(nleg, type, lanes, pres, ports, out);
 }
 
 // draw ONE connection: pick the spline by the PRIMITIVE, stroke its laneLink count as a multilane ribbon

@@ -57,6 +57,8 @@ de:meta */
 #define WORLD_H (MH * 16)
 #define CAM_ZOOM 1.14f   // slight zoom in — the HM look, and overscan that hides the tilt's corner gaps
 #define CAM_TILT 2.5f    // subtle constant world rotation (degrees), à la Hotline Miami
+// canvas-diff: N/A — this rotated camera (CAM_TILT) trips sw_force_gpu, so the "software" run
+// falls back to GPU after frame 0. The tool warns and only frame 0 differs; not a real regression.
 #define CAM_BORDER 40    // let the camera overscan the map by this much, so the neon field shows around the room
 
 // ---- sprite + magic recolor ----

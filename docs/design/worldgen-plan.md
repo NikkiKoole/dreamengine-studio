@@ -216,9 +216,19 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   tuning. *Still nice-to-have:* an in-cart live SNDi panel + an OSM target beside it (the `--compare`
   CLI already makes the loop tight with the agent). Rim stubs (34–45% deg-1 pre-fill) persist in the
   arterial graph; the stitch masks them in the combined number.
-- [ ] **Rung 5.5 — extract `citygen.h`** (the roadkit trigger discipline — §Where the code lives):
-  the calibrated grammar becomes a library header; `roadnet2` calls it per city cell; `citygrow`
-  stays the spec-locked tuning bench.
+- [~] **Rung 5.5 — extract `citygen.h`** (the roadkit trigger discipline — §Where the code lives).
+  **Extraction SHIPPED 2026-07-10:** `runtime/citygen.h` now holds the calibrated grammar (density
+  field + tensor-field arterials + graph/faces + district minor fill + the rung-5 knobs), pure over
+  `worldnet.h` + seedZ + the K_*/MS_* knobs; `citygrow` `#include`s it and is the tuning bench.
+  Verified behaviour-preserving — the whole-city export is **byte-identical** to pre-extraction and
+  the gate still **PASSES 0/8 vs Rotterdam**. **Still open — the WIRING** (the payoff): `roadnet2`/
+  `sloop` don't call it yet, and there's a real reconciliation to do — **citygen grew its OWN world
+  model** (the rung-2 density-field settlements + rung-3 tensor arterials) that is **not yet the same
+  as `worldnet.h`'s** (roadnet2's β-skeleton lattice + hub/town nodes). So "wire into the spine" =
+  (a) point `worldnet.h`'s `get_node`/`get_hub` presence/rank at `citygen`'s density field (organic
+  settlements in the infinite world), and (b) have `wn_road_at` fall through to a cached
+  `citygen_road_at` when near a city (the drivable minor streets). Both are spine edits shared with
+  roadnet2 + sloop — do them gated (spec.js sloop green, a deterministic drive clip), one at a time.
 - [ ] **Rung 6 — junction emission (meets roadkit Phase 5 / Track-B B4).** Every graph node emits
   `(legs, bearings, classes, grade)` — grade-separated where a motorway crosses (ramps only, the
   continuity tenet) — feeding roadkit's dispatcher.

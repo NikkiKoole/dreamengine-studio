@@ -5,7 +5,8 @@
 // transparent breathing room on every side.
 //
 // Slot layout:
-//   0 smiley  ·  1 acid-house smiley  ·  2 steam locomotive  ·  3 palm tree
+//   0 smiley  ·  1 acid-house smiley  ·  2 steam locomotive (v1, cluttered)  ·
+//   3 palm tree  ·  4 steam locomotive v2 (fewer/bigger shapes — reads clean)
 //
 // pico32 indices used: 0 black · 3 dk-green · 4 brown · 5 dk-grey · 6 lt-grey ·
 // 7 white · 8 red · 9 orange · 10 yellow · 11 green · 12 blue · 15 tan/peach ·
@@ -105,6 +106,37 @@ function ic_palm() {
   })
 }
 
+// ── 4: steam locomotive v2 (fewer, bigger shapes — reads clean at 12×12) ────────
+// The lesson of the redraw: at 12px make it a confident ICON of a train, not an
+// accurate locomotive. Four shapes only (funnel · boiler · cab · two wheels),
+// one smoke puff, one headlamp, a consistent top-lit highlight so the boiler
+// reads as round. Faces left.
+function ic_train2() {
+  return icon12((g) => {
+    // smoke — one clear puff drifting up-left off the funnel
+    circlefill(g, 2, 1, 1.2, 7)
+    pixel(g, 1, 0, 6); pixel(g, 3, 0, 6)
+    // boiler barrel (rounded front), red
+    rectfill(g, 1, 4, 7, 7, 8)
+    pixel(g, 0, 5, 8); pixel(g, 0, 6, 8)      // rounded nose
+    line(g, 1, 4, 7, 4, 9)                    // top highlight (orange)
+    // funnel at the front, dark metal
+    rectfill(g, 2, 2, 3, 4, 5)
+    rectfill(g, 1, 2, 4, 2, 5)                // flared cap
+    // cab at the back, taller
+    rectfill(g, 8, 2, 10, 7, 8)               // body
+    rectfill(g, 7, 1, 11, 2, 24)              // dark-red roof overhang
+    rectfill(g, 8, 3, 9, 5, 12)               // bright blue window
+    // footplate / chassis bar
+    rectfill(g, 0, 8, 11, 8, 16)
+    pixel(g, 0, 7, 5); pixel(g, 11, 7, 24)    // buffer / rear corner
+    pixel(g, 0, 4, 10)                        // headlamp
+    // two big driving wheels, grey hubs
+    circlefill(g, 3, 10, 1.6, 0); pixel(g, 3, 10, 6)
+    circlefill(g, 8, 10, 1.6, 0); pixel(g, 8, 10, 6)
+  })
+}
+
 module.exports = {
   screenW: 320, screenH: 200, scale: 4,
   cellW: 16, cellH: 16,
@@ -113,5 +145,6 @@ module.exports = {
     1: ic_acid(),
     2: ic_train(),
     3: ic_palm(),
+    4: ic_train2(),
   },
 }

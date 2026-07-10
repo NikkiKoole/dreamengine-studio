@@ -1580,7 +1580,7 @@ static void draw_watch_overlay(void) {
 // the peer. Toggle with F2. Design: docs/design/multiplayer-research.md.
 static void draw_net_debug(void) {
     if (!net_debug_on || !net_active) return;
-    int pad = 8, lh = 14, w = 262, h = pad*2 + 4*lh;
+    int pad = 8, lh = 14, w = 262, h = pad*2 + 5*lh;
     int x = GetScreenWidth() - w - 8, y = 8;
     DrawRectangle(x, y, w, h, (DeColor){ 0, 0, 0, 190 });
     DrawRectangleLines(x, y, w, h, (DeColor){ 120, 220, 255, 150 });
@@ -1599,6 +1599,14 @@ static void draw_net_debug(void) {
              net_stat_stalls, net_stat_last_stall_ms, net_stat_stall_ms_total);
     DrawTextEx(game_font, l, (Vector2){ x+pad, y+pad+lh*3 },   12, 1,
                net_stat_stalls > 0 ? (DeColor){ 255, 210, 80, 255 } : WHITE);
+    // the wire's side of the story: in-band round trip + how long since the peer's
+    // last INPUT packet (live) + the session's worst silence. A freeze whose length
+    // matches "gap max" was a wire outage; a freeze with rx flowing = starvation.
+    int gap_now = net_stat_rx_last_ms > 0 ? (int)(net_now_ms() - net_stat_rx_last_ms) : -1;
+    snprintf(l, sizeof l, "rtt:%dms  rx: %dms ago  gap max:%dms",
+             net_stat_rtt_ms, gap_now, net_stat_rx_gap_max);
+    DrawTextEx(game_font, l, (Vector2){ x+pad, y+pad+lh*4 },   12, 1,
+               net_stat_rx_gap_max > 250 ? (DeColor){ 255, 210, 80, 255 } : WHITE);
 }
 #endif
 
@@ -1832,9 +1840,10 @@ static void harness_trace(int fno) {
     fprintf(trace_file, "{\"f\":%d,\"t\":%.4f,\"beat\":%d,\"bpos\":%.4f,",
             fno, clk(), beat(), beat_pos());
 #ifdef DE_NET_CORE
-    if (net_active)   // net-health timeline: buffer runway + stalls per frame (tooling #2)
-        fprintf(trace_file, "\"net\":{\"buf\":%d,\"tx\":%ld,\"rx\":%ld,\"stalls\":%ld,\"stall_ms\":%ld},",
-                net_peer_buffer_depth(), net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total);
+    if (net_active)   // net-health timeline: buffer runway + stalls + the wire (rtt / rx silence) per frame
+        fprintf(trace_file, "\"net\":{\"buf\":%d,\"tx\":%ld,\"rx\":%ld,\"stalls\":%ld,\"stall_ms\":%ld,\"rtt\":%d,\"rx_gap_max\":%d},",
+                net_peer_buffer_depth(), net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total,
+                net_stat_rtt_ms, net_stat_rx_gap_max);
 #endif
     fputs("\"w\":{", trace_file);
     int first = 1;
@@ -2189,9 +2198,23 @@ static void loop_step(void) {
     // no clock advance (the native barrier freezes exactly the same set while
     // it blocks). Local input is sampled inside try_sync from last tick's poll
     // — a uniform 1-tick skew, absorbed by NET_DELAY like any input latency.
+    // Stall instrumentation, web flavor: the native barrier records its waits in
+    // net_frame_sync (net.h), but this path just declines the tick — so before
+    // this, a WebRTC session had NO stall numbers at all (the 2026-07-09 field
+    // test's blind spot). A run of consecutive stalled ticks books as ONE stall
+    // with its real wall duration, mirroring the native counters, so the F2
+    // overlay + --trace tell the same story on both targets.
+    static double web_stall_t0 = 0;
     if (net_active && !net_frame_try_sync()) {
+        if (web_stall_t0 == 0) { web_stall_t0 = net_now_ms(); net_stat_stalls++; }
+        net_stat_last_stall_ms    = (int)(net_now_ms() - web_stall_t0);
+        net_stat_last_stall_frame = net_frame;
         PollInputEvents();   // EndDrawing normally polls; keep the loop hearing input while stalled
         return;
+    }
+    if (web_stall_t0 != 0) {   // the stall just ended — book its full duration
+        net_stat_stall_ms_total += (long)(net_now_ms() - web_stall_t0);
+        web_stall_t0 = 0;
     }
 #endif
     if (det_mode) {

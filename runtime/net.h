@@ -52,6 +52,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>       // net_now_ms (clock_gettime) + the log's wall-clock stamps
+#ifdef PLATFORM_WEB
+#include <emscripten/emscripten.h>   // emscripten_get_now — the diagnostics clock on web
+#endif
 #ifdef DE_NET_BUILD
 #ifdef _WIN32
   // winsock2.h / ws2tcpip.h are included at the TOP of studio.c (before raylib.h,
@@ -63,6 +67,7 @@
   #include <sys/socket.h>
   #include <netinet/in.h>
   #include <arpa/inet.h>
+  #include <sys/time.h>   // gettimeofday — net_wallclock's ms-resolution time of day
   #include <fcntl.h>
   #include <unistd.h>
   #include <ifaddrs.h>
@@ -90,6 +95,8 @@
 #define NET_PKT_ANNOUNCE 5     // host → LAN broadcast: "a game is here" + u16 game-port (LE)
 #define NET_PKT_ROLE     6     // relay → client on room join: + u8 seat (0 = host, 1 = joiner) —
                                // the ONE packet tools/net-relay.js originates (web transport, rung 5a)
+#define NET_PKT_PING     7     // + u32 sender's ms clock (LE) — in-band RTT probe (peer echoes it)
+#define NET_PKT_PONG     8     // + the PING's u32 echoed verbatim; sender clocks the round trip
 
 // ── lockstep core state (transport-agnostic — native AND web) ────────────────
 static bool net_active    = false;   // handshake done, lockstep running
@@ -113,11 +120,35 @@ static int     net_try_spins = 0;             // barrier attempts for the curren
 // Zero cost when nothing reads them.
 static long net_stat_tx     = 0;   // INPUT packets sent
 static long net_stat_rx     = 0;   // INPUT packets received (peer inputs)
-static long net_stat_stalls = 0;   // frames the blocking barrier had to wait (native)
+static long net_stat_stalls = 0;   // stalls (native: barrier waits; web: runs of stalled ticks)
 static int  net_stat_last_stall_ms    = 0;   // duration of the most recent stall (ms)
 static int  net_stat_last_stall_frame = -1;  // which sim frame that stall was on
 static long net_stat_stall_ms_total   = 0;   // cumulative stall time this session (ms)
 #define NET_STALL_LOG_MS 100       // stalls at/over this get one console log line
+
+// monotonic ms — the clock behind the rx-gap + RTT numbers below (session-
+// relative, never rolls back with NTP; wall-clock time-of-day is stamped per
+// LOG line separately, so a freeze can be lined up against a concurrent ping).
+static double net_now_ms(void) {
+#if defined(PLATFORM_WEB)
+    return emscripten_get_now();
+#elif defined(_WIN32)
+    return (double)GetTickCount64();
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+#endif
+}
+
+// The stall counters say WE waited; these say what the WIRE did meanwhile —
+// together they split "no packets arrived" (network outage/congestion) from
+// "packets kept arriving but the buffer was already dry" (cushion starvation).
+static double net_stat_rx_last_ms = 0;    // when the last INPUT packet arrived (net_now_ms clock)
+static int    net_stat_rx_gap_hb  = 0;    // worst INPUT inter-arrival gap since the last HB log line (ms)
+static int    net_stat_rx_gap_max = 0;    // worst gap of the whole session (ms)
+static int    net_stat_rtt_ms     = -1;   // latest in-band PING→PONG round trip (ms; -1 = no sample yet)
+static int    net_stat_rtt_max    = 0;    // worst RTT of the session (ms)
 
 // an on-screen netplay notice ("PLAYER 2 LEFT — PLAYING SOLO"): the console is
 // invisible in a browser, so events the player must SEE go here; studio.c's
@@ -165,6 +196,13 @@ static void net_input_pkt(const uint8_t *b, int n) {
     int f0  = b[3] | b[4] << 8 | b[5] << 16 | b[6] << 24;
     int cnt = b[7];
     if (f0 >= 0 && 8 + cnt <= n) {
+        double now = net_now_ms();
+        if (net_stat_rx_last_ms > 0) {   // inter-arrival gap: how long were we deaf before this packet
+            int gap = (int)(now - net_stat_rx_last_ms);
+            if (gap > net_stat_rx_gap_hb)  net_stat_rx_gap_hb  = gap;
+            if (gap > net_stat_rx_gap_max) net_stat_rx_gap_max = gap;
+        }
+        net_stat_rx_last_ms = now;
         for (int i = 0; i < cnt; i++) net_store(net_me ^ 1, f0 + i, b[8 + i]);
         net_stat_rx++;
     }
@@ -180,6 +218,36 @@ static void net_send_inputs(int latest) {
     for (int i = 0; i < n; i++) pkt[8 + i] = net_get(net_me, f0 + i);
     net_transport_send(pkt, 8 + n);
     net_stat_tx++;
+}
+
+// ── in-band RTT probe (PING/PONG) ─────────────────────────────────────────────
+// PING carries the low 32 bits of my net_now_ms; the peer echoes it back as
+// PONG untouched and I clock the round trip — the latency OUR packets actually
+// see, on whichever transport is live. Sent ~2×/s from the barrier, both
+// directions (each side measures its own RTT). Feeds the log/overlay now and is
+// the live input step 5's adaptive NET_DELAY will size against. Either leg may
+// drop on an unreliable channel — fine, the next probe refreshes the sample.
+// (The echo transport forwards only INPUT, so under --net-echo rtt stays -1.)
+static void net_send_ping(void) {
+    uint32_t t = (uint32_t)net_now_ms();
+    uint8_t p[7] = { 'D', 'N', NET_PKT_PING,
+                     (uint8_t)t, (uint8_t)(t >> 8), (uint8_t)(t >> 16), (uint8_t)(t >> 24) };
+    net_transport_send(p, sizeof p);
+}
+
+static void net_ping_pkt(const uint8_t *b, int n) {   // peer's PING → echo it straight back
+    if (n < 7) return;
+    uint8_t p[7] = { 'D', 'N', NET_PKT_PONG, b[3], b[4], b[5], b[6] };
+    net_transport_send(p, sizeof p);
+}
+
+static void net_pong_pkt(const uint8_t *b, int n) {   // my PING came home → clock it
+    if (n < 7) return;
+    uint32_t t0 = (uint32_t)b[3] | (uint32_t)b[4] << 8 | (uint32_t)b[5] << 16 | (uint32_t)b[6] << 24;
+    int rtt = (int)((uint32_t)net_now_ms() - t0);
+    if (rtt < 0) return;                               // u32 clock wrap — drop the one odd sample
+    net_stat_rtt_ms = rtt;
+    if (rtt > net_stat_rtt_max) net_stat_rtt_max = rtt;
 }
 
 // reset the lockstep state for a fresh session: empty rings, frames
@@ -238,6 +306,7 @@ static bool net_frame_try_sync(void) {
         net_sampled_frame = f;
         net_try_spins = 0;
         net_send_inputs(f + NET_DELAY);
+        if (f % 30 == 0) net_send_ping();             // ~2 Hz RTT probe rides the same path
     } else if (++net_try_spins % 30 == 0) {
         net_send_inputs(f + NET_DELAY);                   // our packet may have dropped
     }
@@ -498,6 +567,8 @@ static void net_rtc_pump(void) {
     while ((n = de_rtc_recv_js(buf, sizeof buf)) > 0) {
         if (n < 3 || buf[0] != 'D' || buf[1] != 'N') continue;
         if      (buf[2] == NET_PKT_INPUT && n >= 8) net_input_pkt(buf, n);
+        else if (buf[2] == NET_PKT_PING)            net_ping_pkt(buf, n);
+        else if (buf[2] == NET_PKT_PONG)            net_pong_pkt(buf, n);
         else if (buf[2] == NET_PKT_BYE)             net_peer_bye = true;
         else if (buf[2] == NET_PKT_HELLO && net_is_host) {   // late joiner re-asking → re-answer WELCOME
             uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
@@ -532,6 +603,22 @@ static bool               net_got_welcome = false;
 // a force-quit on a hang still leaves the tail.
 static FILE *net_log      = NULL;
 static bool  net_log_tried = false;
+
+// wall-clock HH:MM:SS.mmm for log lines — so a freeze can be laid NEXT TO a
+// concurrent `ping -i 0.2 <router>` / `nettop` capture or the peer's own log
+// (both machines' clocks are NTP-close) and matched by time of day, not
+// inferred. The 2026-07-09 congestion verdict needed exactly this correlation.
+static void net_wallclock(char *out, size_t n) {
+#ifdef _WIN32
+    SYSTEMTIME st; GetLocalTime(&st);
+    snprintf(out, n, "%02d:%02d:%02d.%03d", st.wHour, st.wMinute, st.wSecond, (int)st.wMilliseconds);
+#else
+    struct timeval tv; gettimeofday(&tv, NULL);
+    struct tm tmv; localtime_r(&tv.tv_sec, &tmv);
+    snprintf(out, n, "%02d:%02d:%02d.%03d", tmv.tm_hour, tmv.tm_min, tmv.tm_sec, (int)(tv.tv_usec / 1000));
+#endif
+}
+
 static void net_log_open(void) {
     if (net_log_tried) return;
     net_log_tried = true;
@@ -542,9 +629,14 @@ static void net_log_open(void) {
     else snprintf(path, sizeof path, "net-debug-P%d.log", net_me);
     net_log = fopen(path, "w");
     if (net_log) {
-        fprintf(net_log, "# dreamengine net-debug — seat P%d (%s)  port %d  seed %u  NET_DELAY %d\n"
-                         "# cols: TAG frame | buffer(frames ahead) tx rx stalls stall_ms_total | wait_ms\n",
-                net_me, net_is_host ? "host" : "join", net_port, net_seed_v, NET_DELAY);
+        char day[24]; time_t tt = time(NULL);
+        strftime(day, sizeof day, "%Y-%m-%d %H:%M:%S", localtime(&tt));
+        fprintf(net_log, "# dreamengine net-debug — seat P%d (%s)  port %d  seed %u  NET_DELAY %d  started %s\n"
+                         "# cols: TAG time frame | buffer(frames ahead) tx rx stalls stall_ms_total | rtt_ms rx_gap_ms | wait_ms\n"
+                         "# rtt_ms = latest in-band PING round trip (-1 none yet); rx_gap_ms = worst gap\n"
+                         "# between peer INPUT packets since the previous HB line (a freeze with a matching\n"
+                         "# rx_gap = the wire went silent; a freeze with a small rx_gap = buffer starvation)\n",
+                net_me, net_is_host ? "host" : "join", net_port, net_seed_v, NET_DELAY, day);
         fflush(net_log);
     }
 }
@@ -582,6 +674,12 @@ static void net_pump(void) {
             case NET_PKT_INPUT:
                 if (n >= 8) net_input_pkt(buf, n);
                 break;
+            case NET_PKT_PING:
+                net_ping_pkt(buf, n);
+                break;
+            case NET_PKT_PONG:
+                net_pong_pkt(buf, n);
+                break;
             case NET_PKT_BYE:
                 net_peer_bye = true;
                 break;
@@ -591,8 +689,9 @@ static void net_pump(void) {
 
 static void net_shutdown(void) {
     if (net_log) {   // seal the log with a summary line before we go (clean exit or peer-left)
-        fprintf(net_log, "END frame=%d stalls=%ld stall_ms_total=%ld tx=%ld rx=%ld\n",
-                net_frame, net_stat_stalls, net_stat_stall_ms_total, net_stat_tx, net_stat_rx);
+        fprintf(net_log, "END frame=%d stalls=%ld stall_ms_total=%ld tx=%ld rx=%ld rtt_max=%d rx_gap_max=%d\n",
+                net_frame, net_stat_stalls, net_stat_stall_ms_total, net_stat_tx, net_stat_rx,
+                net_stat_rtt_max, net_stat_rx_gap_max);
         fclose(net_log); net_log = NULL;
     }
     if (net_sock < 0) return;
@@ -801,19 +900,25 @@ static void net_frame_sync(void) {
         net_stat_last_stall_frame = f;
         net_stat_stall_ms_total  += spins;
         if (spins >= NET_STALL_LOG_MS) {   // notable stall → one console line (invisible on -mwindows, fine)
-            printf("net: stalled %d ms at frame %d (peer buffer now %d, tx %ld rx %ld)\n",
-                   spins, f, net_peer_buffer_depth(), net_stat_tx, net_stat_rx);
+            printf("net: stalled %d ms at frame %d (peer buffer now %d, tx %ld rx %ld, rtt %d ms, rx gap %d ms)\n",
+                   spins, f, net_peer_buffer_depth(), net_stat_tx, net_stat_rx,
+                   net_stat_rtt_ms, net_stat_rx_gap_hb);
             fflush(stdout);
         }
         if (net_log) {   // the persistable artifact — every stall, even on the console-less exe
-            fprintf(net_log, "STALL %d | %d %ld %ld %ld %ld | %d\n", f, net_peer_buffer_depth(),
-                    net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total, spins);
+            char wc[16]; net_wallclock(wc, sizeof wc);
+            fprintf(net_log, "STALL %s %d | %d %ld %ld %ld %ld | %d %d | %d\n", wc, f, net_peer_buffer_depth(),
+                    net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total,
+                    net_stat_rtt_ms, net_stat_rx_gap_hb, spins);
             fflush(net_log);
         }
     }
     if (net_log && net_frame % 60 == 0) {   // ~1 Hz heartbeat so a healthy stretch is on the record too
-        fprintf(net_log, "HB %d | %d %ld %ld %ld %ld |\n", net_frame, net_peer_buffer_depth(),
-                net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total);
+        char wc[16]; net_wallclock(wc, sizeof wc);
+        fprintf(net_log, "HB %s %d | %d %ld %ld %ld %ld | %d %d |\n", wc, net_frame, net_peer_buffer_depth(),
+                net_stat_tx, net_stat_rx, net_stat_stalls, net_stat_stall_ms_total,
+                net_stat_rtt_ms, net_stat_rx_gap_hb);
+        net_stat_rx_gap_hb = 0;   // per-HB window: the next second measures fresh
         fflush(net_log);
     }
     if (net_peer_bye) { printf("net: peer left — exiting\n"); net_shutdown(); exit(0); }

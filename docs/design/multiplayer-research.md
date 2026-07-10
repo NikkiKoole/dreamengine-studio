@@ -733,7 +733,7 @@ safer.
 | **2. Signaling over the existing relay** ✅ DONE | joiner-`ready` → host offer → answer → trickle ICE, all as binary through the room; roles from the existing `NET_PKT_ROLE` (seat 0 = host, no offer glare). Seed handshake (HELLO/WELCOME) rides the opened channel; self-heals over the unreliable channel | ~2 days | medium — trickle-ICE timing is the fiddly bit; spike de-risked it |
 | **3. STUN config** ✅ DONE | one free public STUN URL (`stun:stun.l.google.com:19302`) in the peer config → cross-network hole-punch. Same-wifi doesn't need it | ~½ day | low |
 | **4. Connection-state UX** ✅ DONE | wait screen shows connecting → waiting/joining → connected; Host/Join split (gallery + in-cart bar) fixes the 5a "both-clicked / wrong room" confusion (host shares link, joiner uses it) | ~1–2 days | low |
-| **5. Adaptive + re-centering `NET_DELAY`** ⬅ NEXT | TWO halves, per the 2026-07-09 field evidence. **(a) Size** the input-delay buffer to cover live jitter (measure RTT off the channel) — currently a **fixed 10-frame (~165 ms)** cushion covers ~70 ms spikes but adds latency on clean links; adaptive claws that back ("feels laggy vs. hitches" dial). **(b) Re-center:** after a burst drains the shared cushion, lockstep never rebuilds it — all slack ends up on one peer (buffer ~2×NET_DELAY) while the other is pinned at **buffer 0**, micro-stalling on every frame's jitter (measured: one peer stalled on **62 % of frames**). Sizing alone doesn't fix this; the fed peer must give a frame back so the starved peer rebuilds. This is the actual cure for the constant stutter. | ~1–2 days | low–med |
+| **5. Adaptive + re-centering `NET_DELAY`** ⬅ NEXT | TWO halves, per the 2026-07-09 field evidence. **(a) Size** the input-delay buffer to cover live jitter (its input — the in-band PING/PONG RTT probe — shipped 2026-07-10 in `net.h`; `net_stat_rtt_ms`, ~2 Hz) — currently a **fixed 10-frame (~165 ms)** cushion covers ~70 ms spikes but adds latency on clean links; adaptive claws that back ("feels laggy vs. hitches" dial). **(b) Re-center:** after a burst drains the shared cushion, lockstep never rebuilds it — all slack ends up on one peer (buffer ~2×NET_DELAY) while the other is pinned at **buffer 0**, micro-stalling on every frame's jitter (measured: one peer stalled on **62 % of frames**). Sizing alone doesn't fix this; the fed peer must give a frame back so the starved peer rebuilds. This is the actual cure for the constant stutter. | ~1–2 days | low–med |
 | **6. Desync tripwire** (opt) | per-frame CRC of the `de_state()` block; wasm↔wasm is bit-identical so it's insurance, reused from the netdemo gate | ~1 day | low |
 | **7. TURN fallback** (opt) | free TURN (Cloudflare / Metered Open Relay) for the ~10–20% of pairs STUN can't punch — makes across-town play reliable for *everyone*. Same-wifi never touches it. Today those pairs hit "connection failed - reload" | ~½ day + a free account | low |
 
@@ -763,10 +763,17 @@ Findings — all on the **shared lockstep core**, so they apply to the WebRTC pa
      with zero loss), NOT a radio scan and NOT our code. **Un-bufferable:** a 60–120-frame
      gap can't be hidden by any cushion without adding seconds of input lag. Environmental
      ceiling both transports share.
-- **Tooling gap:** the stall recorder + log file live in the native barrier
-  (`net_frame_sync`, `DE_NET_BUILD`); the web path uses `net_frame_try_sync` and is not
-  yet instrumented. Wiring the same counters into the web tick is a prerequisite for
-  watching step 5 work on the WebRTC build.
+- **Tooling gap → CLOSED (2026-07-10).** The stall recorder + log file used to live only
+  in the native barrier (`net_frame_sync`, `DE_NET_BUILD`); the web tick now books its
+  stalled ticks into the same counters (a run of stalled ticks = one stall with its real
+  duration), so the F2 overlay reads the same on the WebRTC build — the prerequisite for
+  watching step 5 work there. Same pass added the **wire-side instruments** this field
+  session was missing: an in-band **RTT probe** (`NET_PKT_PING`/`PONG`, ~2 Hz — also
+  step 5a's adaptive-`NET_DELAY` input), an **rx inter-arrival gap** counter (splits
+  "wire went silent" from "cushion starvation" per stall), and **wall-clock stamps on
+  every log line** (correlate a freeze with a concurrent `ping` by time of day — the
+  §wifi-burst verdict below no longer has to be inferred from a separate-time ping).
+  Formats: [`../guides/debug-harness.md`](../guides/debug-harness.md) §"Netplay diagnostics".
 
 ### The wifi-burst question — how to find the cause
 

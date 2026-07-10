@@ -205,23 +205,38 @@ peer's input for that frame arrives, so a "freeze" is the barrier waiting — us
 network jitter/loss beyond the `NET_DELAY` (~165 ms) cushion, or a peer that hitched.
 Three built-in tools surface it (all `DE_NET_CORE`, zero cost off):
 
-- **`F2` net-health overlay** (top-right, any net build incl. the exported `.exe`).
+- **`F2` net-health overlay** (top-right, any net build incl. the exported `.exe` AND the
+  web/WebRTC build — the web tick books its stalled ticks into the same counters).
   Shows `net_frame`, **peer buffer** = frames of peer input queued ahead (the runway
   before the barrier blocks — green ≥5, amber ≤4, red ≤1; watch it hit 0 right before a
-  freeze), `tx`/`rx` packet counts (rx flat while tx climbs = not hearing the peer), and
-  `stalls`/`last`/`tot` ms. This is the fastest "network vs local-hitch" read.
+  freeze), `tx`/`rx` packet counts (rx flat while tx climbs = not hearing the peer),
+  `stalls`/`last`/`tot` ms, and the WIRE line: `rtt` (in-band PING→PONG round trip,
+  probed ~2×/s — the latency our own packets see), `rx: N ms ago` (live silence since the
+  peer's last INPUT packet), `gap max` (the session's worst rx silence). **The wire line
+  splits network from starvation:** a freeze whose length matches `gap max` was a wire
+  outage; a freeze while rx kept flowing = the cushion was already dry (the step-5
+  re-center bug), not the network.
 - **Stall log line** — any barrier wait ≥ `NET_STALL_LOG_MS` (100 ms) prints
-  `net: stalled <ms> at frame <f> (peer buffer now …, tx … rx …)` to the console (native
-  console builds; invisible under `-mwindows`, use the overlay there).
+  `net: stalled <ms> at frame <f> (peer buffer now …, tx … rx …, rtt … ms, rx gap … ms)`
+  to the console (native console builds; invisible under `-mwindows`, use the overlay there).
 - **Trace `net` field** — a harness/`netdemo` run adds `"net":{"buf","tx","rx","stalls",
-  "stall_ms"}` per line, so you can autopsy a captured hang frame-by-frame. `netdemo`'s
-  desync check ignores it (per-peer by design); real desync = the `w` sim state diverging.
+  "stall_ms","rtt","rx_gap_max"}` per line, so you can autopsy a captured hang
+  frame-by-frame. `netdemo`'s desync check ignores it (per-peer by design); real desync =
+  the `w` sim state diverging.
 - **Net-debug log FILE** — the "play, then send me the log" artifact, for when there's no
   console (the `-mwindows` `.exe`) and no harness. Any net session writes
   `net-debug-P<seat>.log` next to the running binary (the editor run → `build/`; a
-  double-clicked exe → its own folder): a header, a ~1 Hz heartbeat
-  (`HB frame | buf tx rx stalls stall_ms_total`), a `STALL` line per wait (with `wait_ms`),
-  and an `END` summary. Flushed per line, so a force-quit on a hang still leaves the tail.
+  double-clicked exe → its own folder): a header (incl. the session's start date-time),
+  a ~1 Hz heartbeat (`HB time frame | buf tx rx stalls stall_ms_total | rtt_ms rx_gap_ms |`),
+  a `STALL` line per wait (same cols + `wait_ms`; `rx_gap_ms` = worst gap between peer
+  INPUT packets since the previous HB), and an `END` summary (+ session `rtt_max`/
+  `rx_gap_max`). Every line carries **wall-clock HH:MM:SS.mmm**, so a freeze is matched
+  against a concurrent capture by time of day instead of inferred after the fact: run
+  `ping -i 0.2 <router-ip>` on the host **during** the match — a STALL that lines up with
+  a ping-RTT spike is congestion confirmed directly; a STALL over a clean concurrent ping
+  points back at our code. `rx_gap_ms` answers the other split on its own: STALL with a
+  matching rx gap = the wire went silent; STALL with a small rx gap = starvation.
+  Flushed per line, so a force-quit on a hang still leaves the tail.
   `DE_NET_LOG=off` disables it, `DE_NET_LOG=<path>` relocates it. Both players send their
   file back; comparing the two timelines shows which side stalled and whether `rx` stopped.
 

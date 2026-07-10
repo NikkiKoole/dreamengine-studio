@@ -254,6 +254,22 @@ static short ge_line[GE_MAX]; static float ge_t0[GE_MAX], ge_t1[GE_MAX]; // → 
 static int   fc_n; static short fc_nv[FACE_MAX];
 static short fc_v[FACE_MAX][FACEV_MAX];
 static float fc_cx[FACE_MAX], fc_cy[FACE_MAX], fc_area[FACE_MAX];
+static unsigned char fc_pat[FACE_MAX];      // rung 4.2: the fill pattern chosen per district
+
+// ── Rung 4.2/4.3: the per-district minor-street fill ────────────────────────
+// Each district face gets a LOCAL lattice (block-scale) clipped inside the face
+// (inset off the bounding arterials), connected by ONE of streetlab's morphs
+// chosen per district. streetlab's five patterns are toy-grid code paths; here
+// they're re-targeted onto an arbitrary polygon as presets biased by density D:
+// dense core → grid, mid → organic/superblock, fringe → cul-de-sac dead-ends.
+enum { MP_GRID, MP_ORGANIC, MP_CULDESAC, MP_SUPERBLOCK, MP_N };
+#define MS_STEP   95.0f       // minor-street block spacing (m) — 80–110 m real blocks
+#define MS_INSET  50.0f       // clearance inside the bounding arterials (half-width + margin)
+#define MS_LG     18          // local lattice cap per district axis
+#define MS_MAX    12000       // minor nodes over all districts
+#define ME_MAX    24000       // minor edges over all districts
+static float msx[MS_MAX], msy[MS_MAX]; static int ms_n;
+static int   mea[ME_MAX], meb[ME_MAX]; static unsigned char me_pat[ME_MAX]; static int me_n;
 
 static float ar_theta(float x, float y, int fam) {
     float vx = 0, vy = 0;
@@ -594,11 +610,153 @@ static void ar_faces(void) {
     }
 }
 
+// deterministic 0..1 hash (streetlab's hash01 twin, over the spine's wn_hash2)
+static float ms_h01(int a, int b, int s) {
+    unsigned h = wn_hash2(a * 92821 + s * 68917 + 1, b * 283 + 17);
+    return (float)(h & 0xFFFFFF) / (float)0x1000000;
+}
+// even-odd point-in-face test
+static int ms_pip(int fi, float px, float py) {
+    int nv = fc_nv[fi], in = 0;
+    for (int i = 0, j = nv - 1; i < nv; j = i++) {
+        float yi = gny[fc_v[fi][i]], yj = gny[fc_v[fi][j]];
+        float xi = gnx[fc_v[fi][i]], xj = gnx[fc_v[fi][j]];
+        if (((yi > py) != (yj > py)) &&
+            (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) in = !in;
+    }
+    return in;
+}
+// distance from a point to the nearest face edge (for the arterial-clearance inset)
+static float ms_dedge(int fi, float px, float py) {
+    int nv = fc_nv[fi]; float best = 1e18f;
+    for (int i = 0, j = nv - 1; i < nv; j = i++) {
+        float ax = gnx[fc_v[fi][j]], ay = gny[fc_v[fi][j]];
+        float bx = gnx[fc_v[fi][i]], by = gny[fc_v[fi][i]];
+        float dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+        float t = L2 > 1e-6f ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0;
+        if (t < 0) t = 0; if (t > 1) t = 1;
+        float qx = ax + t * dx, qy = ay + t * dy;
+        float d = (px - qx) * (px - qx) + (py - qy) * (py - qy);
+        if (d < best) best = d;
+    }
+    return fsqrt(best);
+}
+// the pattern for a district — density-biased preset of streetlab's morphs, hashed for variety
+static int ms_pattern(int fi, unsigned *seed) {
+    float d = density_at(fc_cx[fi], fc_cy[fi]);
+    int cxk = (int)(fc_cx[fi] / MS_STEP), cyk = (int)(fc_cy[fi] / MS_STEP);
+    unsigned h = wn_hash2(cxk * 374761393u + 1, cyk * 668265263u + 7);
+    *seed = h;
+    float r = (float)(h & 0xFFFF) / 65535.0f;
+    if (d > 0.72f) return (r < 0.72f) ? MP_GRID : MP_ORGANIC;             // dense core: mostly grid
+    if (d > 0.45f) return (r < 0.38f) ? MP_GRID
+                        : (r < 0.72f ? MP_ORGANIC : MP_SUPERBLOCK);       // mid ring
+    return (r < 0.55f) ? MP_CULDESAC : MP_ORGANIC;                        // fringe: dead-ends
+}
+
+static int ms_uf[MS_LG * MS_LG];
+static int ms_find(int x) { while (ms_uf[x] != x) x = ms_uf[x] = ms_uf[ms_uf[x]]; return x; }
+
+// fill ONE district: local lattice clipped to the face, connected per its pattern
+static void ms_fill_face(int fi) {
+    if (fc_nv[fi] < 3) return;
+    unsigned seed; int pat = ms_pattern(fi, &seed);
+    fc_pat[fi] = (unsigned char)pat;
+    // bbox of the face
+    float x0 = 1e18f, y0 = 1e18f, x1 = -1e18f, y1 = -1e18f;
+    for (int i = 0; i < fc_nv[fi]; i++) {
+        float x = gnx[fc_v[fi][i]], y = gny[fc_v[fi][i]];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    float spanx = x1 - x0, spany = y1 - y0;
+    float step = MS_STEP;                                // coarsen so the lattice fits the cap
+    if (spanx / step > MS_LG - 1) step = spanx / (MS_LG - 1);
+    if (spany / step > MS_LG - 1) step = spany / (MS_LG - 1);
+    int cols = (int)(spanx / step) + 1, rows = (int)(spany / step) + 1;
+    if (cols < 1) cols = 1; if (rows < 1) rows = 1;
+    if (cols > MS_LG) cols = MS_LG; if (rows > MS_LG) rows = MS_LG;
+    // lay the lattice, keep interior nodes (inside + clear of arterials)
+    static int   lg[MS_LG][MS_LG];
+    static float lx[MS_LG][MS_LG], ly[MS_LG][MS_LG];
+    int base = ms_n, ln = 0;
+    float jit = (pat == MP_ORGANIC) ? 0.40f : (pat == MP_CULDESAC ? 0.22f : 0.0f);
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            lg[r][c] = -1;
+            float px = x0 + c * step, py = y0 + r * step;
+            float jx = (ms_h01(c, r, (int)seed)      - 0.5f) * step * jit;
+            float jy = (ms_h01(c, r, (int)seed + 97) - 0.5f) * step * jit;
+            px += jx; py += jy;
+            if (!ms_pip(fi, px, py)) continue;
+            if (ms_dedge(fi, px, py) < MS_INSET) continue;
+            if (ms_n >= MS_MAX) return;
+            lg[r][c] = ms_n - base;                      // local id
+            msx[ms_n] = px; msy[ms_n] = py; ms_n++;
+        }
+    ln = ms_n - base;
+    if (ln < 2) return;
+    #define ADD_EDGE(A, B) do { if (me_n < ME_MAX) { mea[me_n] = base + (A); meb[me_n] = base + (B); \
+                                me_pat[me_n] = (unsigned char)pat; me_n++; } } while (0)
+    if (pat == MP_GRID || pat == MP_ORGANIC) {           // full local grid
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++) {
+                if (lg[r][c] < 0) continue;
+                if (c + 1 < cols && lg[r][c + 1] >= 0) ADD_EDGE(lg[r][c], lg[r][c + 1]);
+                if (r + 1 < rows && lg[r + 1][c] >= 0) ADD_EDGE(lg[r][c], lg[r + 1][c]);
+            }
+    } else {                                             // cul-de-sac / superblock: Kruskal tree + loops
+        int sb = 2 + (int)(ms_h01(0, 0, (int)seed) * 2.0f);   // superblock frame period 2..3
+        for (int i = 0; i < ln; i++) ms_uf[i] = i;
+        // superblock: the arterial FRAME first (every sb-th line, fully connected)
+        if (pat == MP_SUPERBLOCK)
+            for (int r = 0; r < rows; r++)
+                for (int c = 0; c < cols; c++) {
+                    if (lg[r][c] < 0) continue;
+                    if (c + 1 < cols && lg[r][c + 1] >= 0 && (r % sb) == 0) {
+                        ADD_EDGE(lg[r][c], lg[r][c + 1]); ms_uf[ms_find(lg[r][c])] = ms_find(lg[r][c + 1]); }
+                    if (r + 1 < rows && lg[r + 1][c] >= 0 && (c % sb) == 0) {
+                        ADD_EDGE(lg[r][c], lg[r + 1][c]); ms_uf[ms_find(lg[r][c])] = ms_find(lg[r + 1][c]); }
+                }
+        // gather remaining candidate edges + weights, sort, Kruskal
+        static int ca[2 * MS_LG * MS_LG], cb[2 * MS_LG * MS_LG]; static float cw[2 * MS_LG * MS_LG];
+        int nc = 0;
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++) {
+                if (lg[r][c] < 0) continue;
+                int interior = (pat == MP_CULDESAC) || !((r % sb) == 0);   // superblock skips frame rows
+                int interiorV = (pat == MP_CULDESAC) || !((c % sb) == 0);
+                if (c + 1 < cols && lg[r][c + 1] >= 0 && interior) {
+                    ca[nc] = lg[r][c]; cb[nc] = lg[r][c + 1]; cw[nc] = ms_h01(c, r, (int)seed + 5); nc++; }
+                if (r + 1 < rows && lg[r + 1][c] >= 0 && interiorV) {
+                    ca[nc] = lg[r][c]; cb[nc] = lg[r + 1][c]; cw[nc] = ms_h01(c, r, (int)seed + 555); nc++; }
+            }
+        for (int i = 1; i < nc; i++)                     // insertion sort by weight (small n)
+            for (int j = i; j > 0 && cw[j] < cw[j - 1]; j--) {
+                float tw = cw[j]; cw[j] = cw[j - 1]; cw[j - 1] = tw;
+                int ta = ca[j]; ca[j] = ca[j - 1]; ca[j - 1] = ta;
+                int tb = cb[j]; cb[j] = cb[j - 1]; cb[j - 1] = tb;
+            }
+        float loopf = (pat == MP_SUPERBLOCK) ? 0.06f : 0.12f;
+        for (int i = 0; i < nc; i++) {
+            int ra = ms_find(ca[i]), rb = ms_find(cb[i]);
+            if (ra != rb) { ms_uf[ra] = rb; ADD_EDGE(ca[i], cb[i]); }
+            else if (ms_h01(ca[i], cb[i], (int)seed + 999) < loopf) ADD_EDGE(ca[i], cb[i]);
+        }
+    }
+    #undef ADD_EDGE
+}
+
+static void ms_build(void) {
+    ms_n = 0; me_n = 0;
+    for (int fi = 0; fi < fc_n; fi++) ms_fill_face(fi);
+}
+
 static void ar_graph_ensure(void) {
     ar_ensure();                                         // arterials current for this seed+knobs
     if (g_valid) return;
     ar_graph();
     ar_faces();
+    ms_build();
     g_valid = 1;
 }
 
@@ -756,14 +914,28 @@ static void ar_dist_draw(void) {
     }
 }
 
+// ── Rung 4.2/4.3 (K): the MINOR STREETS — coloured by their district's pattern
+// so a stranger can SEE neighbouring districts differ (grid vs organic vs
+// dead-end vs superblock). This is the "procedural grid dies" view.
+static void ms_draw(void) {
+    ar_graph_ensure();
+    static const int pcol[MP_N] = { CLR_WHITE, CLR_YELLOW, CLR_ORANGE, CLR_PINK };
+    for (int e = 0; e < me_n; e++) {
+        int a = mea[e], b = meb[e];
+        line(sxp(msx[a]), syp(msy[a]), sxp(msx[b]), syp(msy[b]), pcol[me_pat[e]]);
+    }
+}
+
 static void hud_city(void) {
     char buf[96];
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print("CITYGROW", 4, 2, CLR_LIGHT_GREY);
-    snprintf(buf, sizeof buf, "CITY %d,%d  D %.2f  lines %d  nodes %d  districts %d",
-             ar_ccx, ar_ccy, ar_D, ar_nl, show_dist ? g_nn : 0, show_dist ? fc_n : 0);
+    static const char *dn[4] = { "off", "faces", "minors", "both" };
+    snprintf(buf, sizeof buf, "CITY %d,%d  D %.2f  lines %d  districts %d  minor %d/%d  [%s]",
+             ar_ccx, ar_ccy, ar_D, ar_nl, show_dist ? fc_n : 0,
+             show_dist >= 2 ? ms_n : 0, show_dist >= 2 ? me_n : 0, dn[show_dist]);
     print(buf, 84, 2, CLR_GREEN);
-    print_centered("T map   X export JSON   K districts   R reroll",
+    print_centered("T map   X export JSON   K districts (grid/organic/deadend/superblock)   R reroll",
                    SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
 }
 
@@ -884,11 +1056,23 @@ void update(void) {
     if (keyp('O')) use_field   = !use_field;
     if (keyp('B')) show_bound  = !show_bound;
     if (keyp('G')) show_grid   = !show_grid;
-    if (keyp('K')) show_dist   = !show_dist;    // rung 4: district faces
+    if (keyp('K')) show_dist   = (show_dist + 1) % 4;  // rung 4: off→faces→minors→both
     if (keyp('H')) show_hud    = !show_hud;
     if (keyp('M')) mode = 0;
 
 #ifdef DE_TRACE
+    if (ar_on) {   // rung-4 gate: district count + the per-district pattern mix + minor-street size
+        ar_graph_ensure();
+        int pc[MP_N] = { 0, 0, 0, 0 };
+        for (int i = 0; i < fc_n; i++) pc[fc_pat[i]]++;
+        watch("districts", "%d", fc_n);
+        watch("pat_grid",  "%d", pc[MP_GRID]);
+        watch("pat_org",   "%d", pc[MP_ORGANIC]);
+        watch("pat_cul",   "%d", pc[MP_CULDESAC]);
+        watch("pat_super", "%d", pc[MP_SUPERBLOCK]);
+        watch("minor_n",   "%d", ms_n);
+        watch("minor_e",   "%d", me_n);
+    }
     // deterministic probes — the rung-2 gate reads these (same seed → same field)
     watch("d_spawn", "%.4f", density_at(SPAWN_X, SPAWN_Y));
     watch("d_far",   "%.4f", density_at(SPAWN_X + 87000.0f, SPAWN_Y - 41000.0f));
@@ -934,7 +1118,8 @@ void draw(void) {
         int heat = show_heat; show_heat = 0;     // biome terrain under the streets
         draw_terrain(); show_heat = heat;
         ar_draw();
-        if (show_dist) ar_dist_draw();
+        if (show_dist == 1 || show_dist == 3) ar_dist_draw();   // the partition
+        if (show_dist >= 2) ms_draw();                          // the minor fill
         if (show_hud) hud_city();
         return;
     }

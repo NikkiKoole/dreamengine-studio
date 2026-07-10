@@ -61,7 +61,10 @@ spiral on-ramp / two-level stack interchange.
 
 ## The projected-primitive vocabulary (ADR 0021)
 The reusable half — proven in `cityview`, destined for a runtime header once a second 3D front-end wants
-them (the `ui.h` "cart-land capability" pattern):
+them (the `ui.h` "cart-land capability" pattern). **That trigger has FIRED (2026-07-10):** `citydrive`
+is the second front-end and carries its own copy of `project`/`wpt`/`pdisc`/`pproj_poly`
+(`citydrive.c`), already diverged (its `pdisc` samples terrain `ground_z()` and dropped the z param;
+its `project()` reads a different state struct). Graduation is now a build item — see Next.
 
 - **`project(x,y,z)`** — the one adapter. Everything else calls it.
 - **`pdisc(cx,cy,r,z)`** — a ground circle is an **ellipse** once rotated; fill a projected N-gon, never
@@ -70,6 +73,12 @@ them (the `ui.h` "cart-land capability" pattern):
 - **`pproj_poly`** — project-then-`polyfill`, respects `fillp`. (lot quads, deck ground shadows.)
 
 ## Next
+- **Graduate the projected primitives to `runtime/proj3d.h`** (ADR-0021's condition is met —
+  `citydrive`'s copy is drifting from `cityview`'s). Design points the divergence already exposed:
+  camera state must be a *parameter* (a small struct: camx/y/z, rot, zoom, hscale + the pinhole
+  fields pitch/eye/setback), `pdisc` takes explicit z (callers pass `ground_z()` themselves), and
+  the hard-coded N=14 should scale with projected radius so big discs don't show facets. Migrate
+  both carts onto it in the same change.
 - **roadlab → cityview data spike (preferred).** Pull `roadlab`'s real computed geometry — lane
   boundaries + the M5 elevation `z(s)` (`z*0.45,0.85` drop-shadow today) — out of the 2D cart and render
   it through `cityview`'s `project()` as an actual flyover. If a trumpet renders right with one coordinate

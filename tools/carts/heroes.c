@@ -24,6 +24,7 @@
 de:meta */
 #include "studio.h"
 #include "cursor.h"
+#include "endcard.h"
 
 // ── HEROES OF MIGHT & MAGIC — a tiny HoMM demake ──────────────────────────────
 // Three modes, one loop:  explore → recruit → build → DO BATTLE.
@@ -65,6 +66,8 @@ enum { M_ADV, M_TOWN, M_BATTLE, M_OVER };
 static int mode = M_ADV;
 static int win_state = -1;     // 0 = player victory, 1 = defeat (in M_OVER)
 static const char *over_reason = "";
+static float over_t;           // seconds since the campaign end card came up
+static float b_over_t;         // seconds since the battle-over banner came up
 
 // ── adventure map ─────────────────────────────────────────────────────────────
 #define COLS 20
@@ -498,7 +501,7 @@ static void enter_battle(void) {
     for (int y = 0; y < BROWS; y++) for (int x = 0; x < BCOLS; x++) b_obst[y][x] = 0;
     b_obst[1][7] = 1; b_obst[3][6] = 1; b_obst[5][8] = 1; b_obst[6][7] = 1;
     spell_pts = 8; spell_arm = SP_NONE; b_winner = -1; round_no = 0;
-    intro_t = 1.1f; bmode = BM_INTRO; b_lunge_t = 0;
+    intro_t = 1.1f; bmode = BM_INTRO; b_lunge_t = 0; b_over_t = 0;
     mode = M_BATTLE;
     bpm(110);
 }
@@ -608,7 +611,7 @@ static void reset_game(void) {
     msg[0] = 0; msg_t = 0; path_len = 0; path_step = 0; walk_engage = 0;
     for (int i = 0; i < 64; i++) sparks[i].life = 0;
     for (int i = 0; i < 12; i++) pops[i].life = 0;
-    flash = 0; mode = M_ADV; win_state = -1; wins = load(0);
+    flash = 0; mode = M_ADV; win_state = -1; wins = load(0); over_t = 0;
     cursor_cx = phero.x; cursor_cy = phero.y;
     ready = true;
 }
@@ -759,6 +762,7 @@ static void update_battle(void) {
     if (b != lb && bmode != BM_OVER) { lb = b; if (b % 2 == 0) note(36, 4, 2); else if (chance(60)) note(60, 8, 1); }
 
     if (bmode == BM_OVER) {
+        b_over_t += dt();
         if (mouse_pressed(MOUSE_LEFT) || btnp(0, BTN_A)) finish_battle(b_winner);
         return;
     }
@@ -807,7 +811,7 @@ void update(void) {
     if (mode == M_ADV)         update_adventure();
     else if (mode == M_TOWN)   update_town();
     else if (mode == M_BATTLE) update_battle();
-    else if (mode == M_OVER)   { if (mouse_pressed(MOUSE_LEFT) || btnp(0, BTN_A)) reset_game(); }
+    else if (mode == M_OVER)   { over_t += dt(); if (mouse_pressed(MOUSE_LEFT) || btnp(0, BTN_A)) reset_game(); }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -986,13 +990,14 @@ static void draw_battle(void) {
         print_centered("BATTLE!", SCREEN_W/2, 86, CLR_RED);
         print_centered("click to begin", SCREEN_W/2, 100, CLR_LIGHT_GREY);
     }
+    // battle-over banner — the shared end-screen treatment (endcard.h)
     if (bmode == BM_OVER) {
-        fade(0.5f);
-        int w = 200, bx = (SCREEN_W - w) / 2;
-        rectfill(bx, 80, w, 36, b_winner == 0 ? CLR_DARK_GREEN : CLR_DARK_PURPLE);
-        rect(bx, 80, w, 36, CLR_WHITE);
-        print_centered(b_winner == 0 ? "FIELD WON" : "ARMY ROUTED", SCREEN_W/2, 88, b_winner == 0 ? CLR_GREEN : CLR_RED);
-        print_centered("click to continue", SCREEN_W/2, 102, CLR_LIGHT_GREY);
+        EndCard c = endcard(b_over_t, 200, 36, 80, b_winner == 0 ? CLR_DARK_GREEN : CLR_DARK_PURPLE,
+                            CLR_WHITE, b_winner == 0 ? CLR_GREEN : CLR_RED);
+        if (c.settled) {
+            print_centered(b_winner == 0 ? "FIELD WON" : "ARMY ROUTED", SCREEN_W/2, c.y + 8, b_winner == 0 ? CLR_GREEN : CLR_RED);
+            if (blink(18)) print_centered("click to continue", SCREEN_W/2, c.y + 22, CLR_LIGHT_GREY);
+        }
     }
 }
 
@@ -1041,14 +1046,15 @@ static void draw_town(void) {
 
 static void draw_over(void) {
     if (win_state == 0) draw_adventure(); else draw_battle();
-    fade(0.55f);
-    int w = 240, bx = (SCREEN_W - w) / 2;
-    rectfill(bx, 70, w, 56, win_state == 0 ? CLR_DARK_GREEN : CLR_DARK_PURPLE);
-    rect(bx, 70, w, 56, CLR_WHITE);
-    print_centered(win_state == 0 ? "VICTORY!" : "DEFEAT", SCREEN_W/2, 78, win_state == 0 ? CLR_GREEN : CLR_RED);
-    print_centered(over_reason, SCREEN_W/2, 94, CLR_LIGHT_GREY);
-    print_centered(str("victories: %d", wins), SCREEN_W/2, 106, CLR_LIGHT_YELLOW);
-    print_centered("click for a new campaign", SCREEN_W/2, 116, CLR_YELLOW);
+    // campaign end card — the shared end-screen treatment (endcard.h)
+    EndCard c = endcard(over_t, 240, 56, 70, win_state == 0 ? CLR_DARK_GREEN : CLR_DARK_PURPLE,
+                        CLR_WHITE, win_state == 0 ? CLR_GREEN : CLR_RED);
+    if (c.settled) {
+        print_centered(win_state == 0 ? "VICTORY!" : "DEFEAT", SCREEN_W/2, c.y + 8, win_state == 0 ? CLR_GREEN : CLR_RED);
+        print_centered(over_reason, SCREEN_W/2, c.y + 24, CLR_LIGHT_GREY);
+        print_centered(str("victories: %d", wins), SCREEN_W/2, c.y + 36, CLR_LIGHT_YELLOW);
+        if (blink(18)) print_centered("click for a new campaign", SCREEN_W/2, c.y + 46, CLR_YELLOW);
+    }
 }
 
 void draw(void) {

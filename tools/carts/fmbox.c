@@ -16,8 +16,8 @@
   "lineage": "The Elektron Model:Cycles reimagined — an all-FM percussion groovebox. Chassis from drummachine.c (grid + beat() playhead + pointer paint); voices are six INSTR_FM machines instead of the analog kit. Adds the thing no cart has: per-step PARAMETER LOCKS. Design: docs/design/fmbox-blind-brief.md.",
   "description": {
     "summary": "An all-FM drum box: six machines on ONE FM engine, plus per-step parameter locks.",
-    "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock. A seventh selectable parameter, PROB, is the CONDITIONAL TRIG: set a step's chance to fire (the cell drains from the top — full = certain, half = a maybe) and it re-rolls live every loop, so the groove never repeats exactly. PROB rides the same select-and-drag gesture as the six macros, but it changes WHETHER a hit happens, not how it sounds. Between the grid and the faders sits a monochrome LCD DANCER strip (Pocket Operator / Game & Watch lineage): a little segmented-LCD guy who dances to the SAME events the ear hears — kick stomps him, snare claps him, a chord is a ta-da, metal is a star, perc a pop ring, and the tone lands an eighth note at its pitch. Event-driven off the sequencer itself, never an FFT.",
-    "controls": "TAP a cell = toggle. HOLD a lit cell + DRAG UP = set the SELECTED parameter for that step (a macro p-lock, or PROB = the trig chance); fling down to clear. Tap a machine name to select it; tap a fader (or arrows UP/DOWN) to pick a parameter — the six FM macros or PROB — and DRAG the fader to set the machine's base value. WASD move cursor, Z toggle, X clear grid. Arrows LEFT/RIGHT tempo. BPM buttons top-right."
+    "detail": "Every 808/909/CR-78 makes analog drums; this makes METALLIC, glassy FM drums — six 'machines' (KICK/SNARE/METAL/PERC/TONE/CHORD) that are all the same 2-op FM engine reconfigured by six macro knobs (PIT pitch, DEC decay, COL colour/brightness, SHP shape/ratio, SWP pitch-sweep, CON contour/feedback). Turn SHP and one machine walks from wood to glass to metal. The headline is the p-LOCK: hold a lit step and drag up to lock the SELECTED macro to a value for THAT step only — a snare that brightens across the bar, a tone that walks in pitch — the loop evolves without you touching it. Locked steps show the value as a fill-height bar inside the cell (the height IS the locked value); fling a cell down to clear its lock. A seventh selectable parameter, PROB, is the CONDITIONAL TRIG: set a step's chance to fire (the cell drains from the top — full = certain, half = a maybe) and it re-rolls live every loop, so the groove never repeats exactly. PROB rides the same select-and-drag gesture as the six macros, but it changes WHETHER a hit happens, not how it sounds. Between the grid and the faders sits a monochrome LCD DANCER strip (Pocket Operator / Game & Watch lineage) that dances to the SAME events the ear hears — kick stomps, snare claps, a chord is a ta-da, metal is a star, perc a pop ring, and the tone lands an eighth note at its pitch. It's event-driven off the sequencer itself, never an FFT — and a little tap-chip (or 'V') swaps the SCENE between three cast members who all react the same way: a dancing DUDE, a chugging TRAIN (kick = a chug puff, snare = a whistle toot, chord = a smoke burst), and a HIPPO (kick = a stomp bounce, snare = a chomp, chord = the big Hungry-Hippo yawn).",
+    "controls": "TAP a cell = toggle. HOLD a lit cell + DRAG UP = set the SELECTED parameter for that step (a macro p-lock, or PROB = the trig chance); fling down to clear. Tap a machine name to select it; tap a fader (or arrows UP/DOWN) to pick a parameter — the six FM macros or PROB — and DRAG the fader to set the machine's base value. WASD move cursor, Z toggle, X clear grid. Arrows LEFT/RIGHT tempo. BPM buttons top-right. Tap the LCD scene chip (or press V) to swap the dancer between DUDE / TRAIN / HIPPO."
   },
   "todo": [
     "Add A:B loop-ratio conditional trigs (1:2, 2:3, ...) — the DETERMINISTIC sibling to PROB: a per-step 'fire on the A-th of every B loops' tag, so a pattern evolves over several bars but reproducibly (WAV/spec-safe, unlike PROB's live re-roll). Needs a DISCRETE affordance (a small ratio tag on the cell + a cycle gesture), not the continuous fill-height drag. See docs/design/fmbox-blind-brief.md."
@@ -116,6 +116,16 @@ static int  flash[ROWS];              // frame() each row last fired
 static int  fires[ROWS];              // how often each row has fired (dancer alternates on parity)
 static int  viz_midi[ROWS];           // the midi each row last fired (TONE's note lands at its pitch)
 static int  tempo = 124;
+
+// the LCD scene: three figure sets react to the SAME events (tap the chip / press
+// 'V' to cycle). Each is a 6-pose block in fmbox.cart.js (dude 0-5, train 6-11,
+// hippo 12-17); the metal/perc/tone glyphs (18-20) are shared across all three.
+#define VIZ_SCENES 3
+#define SP_STAR 18            // METAL glyph (shared)
+#define SP_RING 19            // PERC glyph  (shared)
+#define SP_NOTE 20            // TONE glyph  (shared)
+static int viz_scene = 0;
+static const char *VIZ_NAME[VIZ_SCENES] = { "DUDE", "TRAIN", "HIPPO" };
 
 static void play_machine(int r, int step);   // fwd — set_cell auditions through it
 
@@ -218,41 +228,53 @@ static void set_cell(int r, int c, bool on) {
 }
 
 // ── the LCD dancer strip — a segmented-LCD window (Pocket Operator / Game & Watch
-//    lineage) where a little guy dances to the SAME events the ear hears. Driven by
-//    the song data (play_machine stamps flash[]/fires[]/viz_midi[]), never an FFT:
+//    lineage) where a little figure dances to the SAME events the ear hears. Driven
+//    by the song data (play_machine stamps flash[]/fires[]/viz_midi[]), never an FFT:
 //    kick → stomp, snare → clap, chord → ta-da, metal → star, perc → pop ring,
-//    tone → an eighth note landing at its pitch. Sprites: fmbox.cart.js, one ink. ──
-#define DANCER_X 152                  // dancer sprite left (figure centre ≈ 160)
+//    tone → an eighth note landing at its pitch. THREE scenes swap the 6-pose figure
+//    block (dude/train/hippo); the glyphs are shared. Sprites: fmbox.cart.js, one ink. ──
+#define DANCER_X 152                  // figure sprite left (centre ≈ 160)
+#define SCENE_X 2                     // the scene-toggle chip (far left of the strip)
+#define SCENE_W 40
+#define SCENE_H 14
 
 static void draw_viz(void) {
     rectfill(0, VY, 320, VH, CLR_BLACK);                   // the LCD glass
     int fr = frame();
+    int base = viz_scene * 6;                              // this scene's 6-pose figure block
 
     // pose: idle bobs on the half-beat; events override it (chord > snare > kick)
     int pose = (beat_pos() < 0.5f) ? 0 : 1;
     if (fires[M_KICK]  && fr - flash[M_KICK]  < 9)  pose = 2 + (fires[M_KICK] & 1);
     if (fires[M_SNARE] && fr - flash[M_SNARE] < 9)  pose = 4;
     if (fires[M_CHORD] && fr - flash[M_CHORD] < 12) pose = 5;
-    spr(pose, DANCER_X, VY + 1);
+    spr(base + pose, DANCER_X, VY + 1);
 
     // METAL → a star blinking beside the head, swapping sides per hit
     int d = fr - flash[M_METAL];
     if (fires[M_METAL] && d < 14 && ((d >> 2) & 1) == 0)
-        spr(6, DANCER_X + ((fires[M_METAL] & 1) ? 20 : -20), VY + 1);
+        spr(SP_STAR, DANCER_X + ((fires[M_METAL] & 1) ? 20 : -20), VY + 1);
 
     // PERC → a pop ring farther out
     d = fr - flash[M_PERC];
     if (fires[M_PERC] && d < 8)
-        spr(7, DANCER_X + ((fires[M_PERC] & 1) ? 36 : -36), VY + 1);
+        spr(SP_RING, DANCER_X + ((fires[M_PERC] & 1) ? 36 : -36), VY + 1);
 
-    // TONE → an eighth note popping up where its PITCH lands (low = left, high = right)
+    // TONE → an eighth note popping up where its PITCH lands (low = left, high = right;
+    //   kept right of the scene chip so it never sits on the toggle)
     d = fr - flash[M_TONE];
     if (fires[M_TONE] && d < 16) {
-        int x = 14 + (viz_midi[M_TONE] - MIDI_LO[M_TONE]) * 104
+        int x = 48 + (viz_midi[M_TONE] - MIDI_LO[M_TONE]) * 92
                      / (MIDI_HI[M_TONE] - MIDI_LO[M_TONE]);
         int hop = d < 8 ? (8 - d) / 3 : 0;                 // settles as it fades
-        spr(8, x, VY + 1 + (2 - hop));
+        spr(SP_NOTE, x, VY + 1 + (2 - hop));
     }
+
+    // scene-toggle chip: tap it (or press 'V') to swap dude / train / hippo
+    rect(SCENE_X, VY + 2, SCENE_W, SCENE_H, CLR_DARKER_GREY);
+    font(FONT_SMALL);
+    print(VIZ_NAME[viz_scene], SCENE_X + 4, VY + 6, CLR_LIGHT_YELLOW);
+    font(FONT_NORMAL);
 
     // step ruler: 16 ghost segments, the playhead one lit (an LCD, so off ≠ invisible)
     for (int c = 0; c < STEPS; c++)
@@ -318,6 +340,10 @@ void update() {
     if (btnp(1, BTN_RIGHT) || tapp(BTN[B_BPMUP].x, BTN[B_BPMUP].y, BTN[B_BPMUP].w, BTN[B_BPMUP].h)) tempo = min(220, tempo + 4);
     if (btnp(1, BTN_UP))    selMac = (selMac + NPARAM - 1) % NPARAM;
     if (btnp(1, BTN_DOWN))  selMac = (selMac + 1) % NPARAM;
+
+    // cycle the LCD scene (dude → train → hippo) — tap the chip or press 'V'
+    if (keyp('V') || tapp(SCENE_X, VY + 2, SCENE_W, SCENE_H))
+        viz_scene = (viz_scene + 1) % VIZ_SCENES;
 
     // ── touch / mouse ──
     for (int i = 0; i < touch_count(); i++) {

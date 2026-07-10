@@ -176,74 +176,19 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > Cloudflare/Metered account. Hot file if resumed: `runtime/net.h` (targeted `Edit`s,
 > shared). Gate: `node tools/net-check.js`. Local play-test: `node tools/net-relay.js --serve site`.
 
-> **▶ ACTIVE THREAD (2026-07-06) — device-adaptive layout.** Make `SCREEN_W/H`
-> live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
-> iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
-> `otafit`; `runtime/lay.h` **shipped**) and **Phase 1 (a+b+c) DONE (2026-07-03)** — the
-> engine reflows live on desktop: `de_sw`/`de_sh` runtime globals, a per-cart
-> `-DDE_RESIZABLE` opt-in (`de_reflow`), the cart API `screen_w()`/`screen_h()`, and `respond.c`
-> flipped + verified reflowing. **Plus a GROWABLE framebuffer (B, 2026-07-04):** `sw_cbuf` + GPU
-> `canvas`/`canvas_snap`/smooth are heap + grow-only (`de_ensure_fb`/`de_grow_gpu`/`de_set_canvas`,
-> stride = runtime `fb_w`, cap `DE_MAX_DIM` 4096) — a resizable cart fills **any** window; the earlier
-> side-bands (enlarge) + top-pinned drift (narrow) were the old fixed-max ceiling, now gone. **Editor
-> ▶-run** passes `-DDE_RESIZABLE` from `de:meta "resizable": true`; **`play.js`** does too + a
-> **`--resize "WxH,…"` sweep** (scripted resize→look filmstrip). Byte-identical for fixed carts
-> (SHA-verified on `drawall`, all 465 compile). **Plus Phase 2 iOS FILL DONE (2026-07-04):** seam
-> `de_resize`/`de_is_resizable` (`platform.h`/`ios/Sources/engine.h`/`studio.c`) + `CanvasView.swift`
-> reads dims LIVE and calls `de_resize(bounds points)` from `layoutSubviews` for a resizable cart →
-> `respond` fills iPhone SE / 15 / iPad Pro 12.9 on the sim (build: `RESIZABLE=1 CART=respond DEVICE=…
-> ./build.sh`). **Safe-area + rotation DONE too:** `de_set_safe_area`/`safe_rect()` (controls dodge the
-> notch), landscape allowed in Info.plist + `layoutSubviews`→`de_resize` reflows on rotate (both
-> confirmed on the sim). So **Phase 2 is fully done — the engine foundation (fill/safe-area/rotation/
-> growable fb) carries device-adaptive layout.** **GOTCHA:** `build-all` misses the DE_NO_RAYLIB path —
-> run `build-nr.sh` after touching studio.c (the `--resize`/overlay work broke iOS via missing
-> `raylib_compat` stubs; fixed). **Phase 3 RE-PLANNED (2026-07-05):** the first acidrack pass reflowed
-> without redesigning (hand-rolled px math, no `lay.h`/finger unit/disclosure, no iPad arrangement) —
-> caught by the maker's device test; retrospective = field note
-> [018](field-notes/018-passing-the-gates-felt-like-done.md). **Next agent: the revised plan** —
-> [`device-adaptive-layout.md` → Phase 3 — revised plan](design/device-adaptive-layout.md#phase-3-revised-plan-2026-07-05):
-> per-rack layout brief (R1) → `runtime/disclose.h` (R2, the keystone — three-state strips
-> folded/compact/expanded from the ReBirth study) → `finger_px()` (R3) → ui-audit judgment layer (R4)
-> → re-land acidrack (R5). **The acidrack brief is STARTED:
-> [`design/acidrack-layout-brief.md`](design/acidrack-layout-brief.md) — resume THERE; its §2
-> compact-strip taste calls (which controls earn the middle state per machine) wait on the maker,
-> everything downstream (footprints §5 → disclose.h → re-land) follows from that table.** Hot files:
-> `tools/carts/acidrack.c`, `runtime/lay.h` (+ new `runtime/disclose.h`). Ledger: [`STATUS.md`](STATUS.md) #2.
-> **Update 2026-07-06 — resizable-app PLUMBING landed (commit `be7b2cad`), before R5's redesign.** The
-> Tiny Jam *app* now reflows to fill the device on the sim (was 320×240 letterboxed — resizable only
-> existed for single-cart builds): `RESIZABLE=1` on `ios/build.sh`'s `APP=` path, the launcher menu
-> made reflow-aware (`safe_rect()` + centered column), the app home-chip moved inside the safe area
-> (was stuck under the notch → couldn't reach the overview), acidrack's transport + chain row inset by
-> `safe_rect()`. **Device matrix committed** as the design baseline (`design/acidrack-device-matrix.png`
-> + regen recipe in the brief §7). Three findings, all written up in
-> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md) §"2026-07-06": (1) **pixel
-> chunk K** (`CanvasView.swift pixelChunk`, =2) — reflow to `points/K` logical px or you get hi-res
-> tiny pixels + sub-finger controls; K=3 overflows the font; (2) `de_reflow` is **binary-wide** so
-> yachtrack/epiano render in the top band (per-cart reflow = backlog); (3) **SEAM (backed out):**
-> desktop live-resize freezes the transport — macOS modal loop blocks the main thread, GLFW fires no
-> callback, do NOT re-try the callback route; iOS rotation is fine.
-> **Update 2026-07-07 — the WIREFRAME CART is built and mature: `tools/carts/acidwire.c`** (chosen
-> over an HTML mock — a cart has no translation gap, IS the production path, field-018). It's a full,
-> **interactive** device-matrix wireframe + an exemplar (guide:
-> [`guides/interactive-wireframes.md`](guides/interactive-wireframes.md)). What it has:
-> **dual-mode** — desktop = fake-device flipper (flip all 11 [`device-matrix.md`](design/device-matrix.md)
-> shapes, tap label); **device (`-DDE_RESIZABLE`)** = classifies the REAL screen + safe_rect and fills
-> it (RUNS ON THE iOS SIM: `cd ios && RESIZABLE=1 CART=acidwire ./build.sh`; physical:
-> `./device.sh` — device.sh gained `RESIZABLE=` this session). **Four states** folded/compact/
-> **expanded**/**focus** (fullscreen, name = back). **Touch+mouse** click layer (`clicked(box)`): tap
-> strip name to open→focus, M mute, pattern chip select, tab name/M, play/stop. **Per-instrument**
-> mute + a **flat 6 patterns** (device-adaptive: iPad boxed PAT panel, phone header row). **Real
-> editors**: 303 = pitch piano-roll + slide/accent lanes + knobs; drums = full voices×steps grid
-> (factual 909/808 voice names). **Arrangements**: phone tall = expand+compact+fold; phone landscape =
-> tabs (per-tab M); **iPad BOTH orientations = 2×2 machine grid + master bar** (kills the portrait
-> void). **Finger-honest**: `FU`=22 logical px, a `g` finger-grid overlay; header made finger-tall.
-> GOTCHA banked: raylib letter keycodes are UPPERCASE (`keyp('W')` not `'w'`). Brief kept current:
-> [`design/acidrack-layout-brief.md`](design/acidrack-layout-brief.md).
-> **Resume at:** play acidwire on GLASS, then (a) the **narrow-303 input model** (4-row vs 2-row+gesture
-> — a touch-ergonomics call to make on device, brief §3), (b) dense adjacent rows on the smallest
-> phones (11-voice selector / 16-step columns → paging or prev/next), then (c) **R5**: graduate this
-> layout into the real `acidrack.c` (with audio). Parked: landscape side-notch inset + background-audio
-> policy (keep-playing vs pause-on-Home).
+> **▶ ACTIVE THREAD (2026-07-10) — device-adaptive layout (the acidrack redesign · Phase 3 = R1–R6).**
+> Foundation is DONE (Phases 0–2: `runtime/lay.h` + a resizable/growable-framebuffer canvas + iOS
+> fill/safe-area/rotation). The **`acidwire` wireframe did its job** — interactive, felt on glass across
+> phone portrait/landscape + iPad, all four states; its lessons are field note
+> [020](field-notes/020-the-fit-cart-earns-it-on-glass.md). **R1** (brief) captured, **R2**
+> (`runtime/disclose.h` — shape + finger-budget accordion + stack) SHIPPED + proven in acidwire
+> (`27637b26`/`d96c4404`).
+> **Status + what's-left + the sequence now live in ONE scoreboard — Resume at**
+> [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands-scoreboard).
+> Short version: **R3 next** (`finger_px()` — small engine change) → **R5** (port acidrack onto
+> `disclose.h` + make the deferred CONTENT calls on glass) → R4 alongside → R6 (`epiano`) last.
+> Hot files: `runtime/disclose.h`, `tools/carts/acidwire.c`, `tools/carts/acidrack.c`. Ledger:
+> [`STATUS.md`](STATUS.md) #2. Exemplar/guide: [`guides/interactive-wireframes.md`](guides/interactive-wireframes.md).
 
 > **▶ ACTIVE THREAD (2026-07-06) — store / ASO + the app-trailer builder.**
 > **Buy-screen crash FIXED (2026-07-06, commit `07690c9b`):** the "instant, random" abort on the

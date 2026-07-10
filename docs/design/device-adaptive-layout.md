@@ -4,6 +4,34 @@ STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable fram
 This is the **execution + product** doc that graduates the deferred thinking now that there's a
 concrete need (Tinyjam on the App Store).
 
+## Where this stands (scoreboard)
+
+_As of 2026-07-10._ Foundation (Phases 0–2) is DONE; the redesign (Phase 3 = steps R1–R6) is in
+progress; store assets (Phase 4) come after. The detail for each lives further down; this is the
+at-a-glance.
+
+| Step | What | Status |
+|---|---|---|
+| Phase 0 | disclosure model proven in mock carts (`respond`/`rackfit`/`acidfit`) | ✅ done |
+| Phase 1 | engine reflows live (resizable canvas + growable framebuffer) | ✅ done |
+| Phase 2 | iOS fill + safe-area + rotation | ✅ done |
+| — | the **`acidwire` wireframe** — interactive, on-glass, all shapes + states | ✅ done · did its job (field note [020](../field-notes/020-the-fit-cart-earns-it-on-glass.md)) |
+| R1 | the layout brief — taste calls before code | ✅ layout calls captured in [`acidrack-layout-brief.md`](acidrack-layout-brief.md) §2; **content calls deferred to R5** |
+| R2 | `runtime/disclose.h` — shape + finger-budget accordion + stack | 🟡 **core shipped + proven in acidwire** (`27637b26`/`d96c4404`); WIDE tabs + ROOMY grid + tab-chip interaction + `DE_TRACE` self-report deferred |
+| R3 | real finger unit — `finger_px()` / `device_class()` | ⬜ todo — carts use a `FU` constant meanwhile (works only because iOS is SCALE=1; HiDPI breaks it) |
+| R4 | judgment oracle — `ui-audit` reads disclose's self-report | ⬜ todo — needs the `DE_TRACE` self-report first |
+| R5 | **re-land acidrack on the method** — call `disclose.h`, build the missing iPad arrangement, make the compact/page CONTENT calls *playing it* | ⬜ todo — the big one |
+| R6 | `epiano` fresh from a brief — the method's test; keybed reflow → `keybed.h` | ⬜ todo |
+| Phase 4 | App Store screenshots/assets from the finished racks | ⬜ later |
+
+**Sequence — what unblocks what:**
+1. **R3 next** (small engine change): makes `disclose.h`'s footprints honest — true finger px, not the SCALE=1 coincidence. Unblocks clean authoring for every rack.
+2. **R5** (the acidrack port) needs R2-core (done) + R3. This is where the deferred CONTENT calls — which compact knobs, what the N/K/F pages hold — finally get made, against the real engine, on glass (field note [020](../field-notes/020-the-fit-cart-earns-it-on-glass.md)'s "stop wireframing when the questions turn into instrument questions").
+3. **R4** rides alongside R5 — add disclose's self-report + the `ui-audit` judgment pass once there's a real port to check.
+4. **R6** (`epiano`) last — proves the method generalizes; cheap if R1–R4 held.
+
+**Parked (revisit at R5/R6):** whether the WIDE tabs + ROOMY grid graduate into `disclose.h` (they show one state → no disclosure happening; decide when `epiano` actually needs them); `acidwire`'s page-button CONTENT; `acidwire`'s RND/CLR are wireframe-only (acidrack ships its own CPY/CLR/RND).
+
 **Pick-up point (next session):** Phase 0 is complete (model proven across `respond`/`rackfit`/
 `acidfit`/`otafit`; `lay_*` shipped as `runtime/lay.h`). **Phase 1 is complete — the engine reflows
 live on desktop:**

@@ -85,6 +85,14 @@ static void view_metrics(void) {
 }
 static int sxp(float wx) { return (int)((wx - camX) * P + P * 0.5f); }
 static int syp(float wy) { return (int)((wy - camY) * P + P * 0.5f); }
+// A zoom-scaled ring (world rim / city extent): its radius r = R*P blows up as you zoom in. The software
+// circ() rasterizes the WHOLE ring even when almost all of it is off-screen, so a rim at max zoom costs
+// ~1.3s/frame for a sliver of visible arc. Skip once it's far bigger than the viewport — at that zoom the
+// rim genuinely isn't on screen (you're inside a 100m junction, the 500km rim is nowhere near).
+static void circ_capped(int cx, int cy, int r, int col) {
+    if (r > 4 * (SCREEN_W + SCREEN_H)) return;      // absurd at this zoom — negligible arc, pathological cost
+    circ(cx, cy, r, col);
+}
 
 
 static float map_camX, map_camY, map_zoom; // where T left the map
@@ -263,7 +271,7 @@ static void ar_draw(void) {
         line(cx, cy, gx, gy, CLR_DARK_RED);
         circfill(gx, gy, 2, CLR_RED);
     }
-    circ(cx, cy, (int)(ar_R * P), CLR_DARK_PURPLE);      // the extent cap
+    circ_capped(cx, cy, (int)(ar_R * P), CLR_DARK_PURPLE);      // the extent cap (skips when zoomed past it)
     // rung 5.5b: the QUERY-SEAM proof — a crosshair at the view centre, coloured
     // by citygen_road_at (green = on an arterial, yellow = on a minor street, red
     // = off-road). Pan it over the city: it flips exactly at the drawn streets —
@@ -384,8 +392,8 @@ static void draw_bound(void) {                   // the world rim (B) — ~500 k
     if (!show_bound) return;
     int cx = sxp(BOUND_CX), cy = syp(BOUND_CY);
     int r = (int)(BOUND_R * P);
-    circ(cx, cy, r, CLR_RED);
-    circ(cx, cy, r + (int)(BOUND_FADE * P), CLR_DARK_RED);
+    circ_capped(cx, cy, r, CLR_RED);
+    circ_capped(cx, cy, r + (int)(BOUND_FADE * P), CLR_DARK_RED);
 }
 
 static void draw_grid_overlay(void) {

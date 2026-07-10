@@ -4,9 +4,9 @@ STATUS: SHIPPED 2026-06-29. All 414 carts migrated (content-lossless); `build-ca
 generates index.json; `make-cart` auto-registers on bake; `lint-carts` validates `de:meta` + asserts
 sync; editor default sort flipped to `updated` (array order retired). Opt-in still pending: enriching
 `description` into parts, filling `inputs`/`outputs`. Implements field note
-`013-generated-cart-index` + the action-plan Tier-1 keystone
+[`013-generated-cart-index`](../field-notes/013-generated-cart-index.md) + the action-plan Tier-1 keystone
 ([`action-plan.md`](action-plan.md)). Companion: `lint-carts.js` (owns the tag vocabulary today),
-field note `012-self-describing-artifacts` (the principle), `003-curation` (the featuring system this
+field note [`012-self-describing-artifacts`](../field-notes/012-self-describing-artifacts.md) (the principle), [`003-curation`](../field-notes/003-curation.md) (the featuring system this
 unblocks).
 
 ## The problem
@@ -100,7 +100,7 @@ its own system anyway. So:
   `de:meta` (required fields, vocab, `status`) **and** assert index.json is in sync with a fresh
   generate." Keeps owning `KINDS`/`GENRES`.
 - **`make-cart.js`** (extend) — on bake, regenerate index.json so **baking auto-registers a cart**.
-  This deletes cart-authoring manual step 5.
+  This deletes [cart-authoring](../guides/cart-authoring.md) manual step 5.
 
 ## Migration (one-time, run while no other agent is active)
 

@@ -21,7 +21,7 @@ against the stack and **removes whole creatures** from it (22 → 17); a stack w
 in its top creature fights on. Include ranged units (no melee retaliation, ammo
 optional), **retaliation** (defender hits back once per round), and simple initiative
 (speed order). This is what separates it from `advancewars`; the battle *grid + forecast
-+ HP/shake juice* can otherwise reuse the advance-wars engine.
++ HP/shake juice* can otherwise reuse the [advance-wars](advance-wars.md) engine.
 
 ## The three modes (a clean state machine)
 - **ADVENTURE (default):** tile `map()` overworld; hero has **movement points** spent by

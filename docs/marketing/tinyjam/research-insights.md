@@ -100,7 +100,7 @@ hype, no AI-tells, posting to the *exact* niche sub (r/Omnichord) — and it lan
    audio work can plausibly hit it. Added to the launch build-tasks; the full recipe (signal chain +
    chorus + the fudged-triad/F#-wrap voicing) is in [`omnichord-sound-model.md`](omnichord-sound-model.md).
 4. **Modelling is CPU-heavy** (OH-84 is desktop-only; a lighter OH-27 serves mobile). A faithful model on
-   a phone is a real perf constraint — feeds the iOS / software-canvas decisions.
+   a phone is a real perf constraint — feeds the iOS / [software-canvas](../../design/software-canvas.md) decisions.
 
 ## Competitive landscape (named across both threads — verify/keep current)
 

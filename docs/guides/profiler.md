@@ -191,7 +191,7 @@ Three traps that will waste your time (all bit during the rotation work):
 - **`sample` is wall-clock**, so a vsync-blocked `EndDrawing` and the **audio thread** (`reverb_process`/
   `apply_insert`, which run every callback *even on a silent cart*) dominate the leaves. Make the cart
   genuinely CPU-bound (crank the load so a frame exceeds 16 ms), and run with **`DE_AUDIO=off`** to drop
-  the audio thread entirely. To profile a *software-canvas* path, also set `DE_SOFTWARE_CANVAS=on`.
+  the audio thread entirely. To profile a *[software-canvas](../design/software-canvas.md)* path, also set `DE_SOFTWARE_CANVAS=on`.
 - **play.js builds `-O2`, which inlines the `static` helpers** (e.g. `de_cpu_img_rot` folds into its
   caller; only the non-inlined raylib `GetImageColor` shows by name). For per-primitive attribution use
   the editor's `-O1 -fno-inline` profile build, or compile your own with `-fno-inline`.

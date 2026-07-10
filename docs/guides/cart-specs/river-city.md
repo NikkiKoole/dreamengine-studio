@@ -8,7 +8,7 @@ zones / beat the boss gang). The "random" twist: enemy spawns and drops are proc
 so each run differs.
 
 ## Slice (locked)
-**Build on the brawler engine from `final-fight.c`** (read it first; reuse the combat,
+**Build on the brawler engine from `final-fight.c`** (spec: [final-fight](final-fight.md); read it first; reuse the combat,
 y-sort, 16×32 sprites). Add: a small **overworld of ~4 zones** connected by exits, a
 **shop** (mall/diner) screen, **4 stats** (HP, STR, DEF, STAMINA), 2–3 buyable special
 moves, and procedural enemy placement. Win = beat the boss in the final zone.

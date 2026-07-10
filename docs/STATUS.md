@@ -62,7 +62,7 @@ _Last updated: 2026-07-06 (**LOCKSTEP NETPLAY, RUNG 5A STEPS 1–3 — BROWSER N
   **Rung 0 · `tools/sndi-check.js`** — the street-network METRIC oracle (SNDi composite over a real
   `.rvb` or a generated-graph JSON, side-by-side A/B, `--check` self-test) + the first real-city
   target table (Manhattan/SF/Amersfoort/Rotterdam/Königssee, parked driftable in the plan).
-  **Rung 1 · `runtime/worldnet.h`** (= driving-world-program Track-A A1) — roadnet2's world core
+  **Rung 1 · `runtime/worldnet.h`** (= [driving-world-program](design/driving-world-program.md) Track-A A1) — roadnet2's world core
   extracted to a shared library header the moment sloop became the second consumer: terrain +
   ranked hub/town lattice + terrain-aware spline links + the unified **`wn_road_at()`** nearest-edge
   query (per-anchor edge cache + bucket spatial hash; the **edge-type field road/rail/water pinned**
@@ -830,7 +830,7 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       tap for the Karplus averaging's exact half-sample delay. All in tune now — audio-notes §18 #7.
     - **In tune, no action:** SINE/MALLET/EPIANO/PD/PIANO/GUITAR/FM, and **BOWED** (≤ +3¢ —
       whatever's off about the bowed voice, it is *not* pitch; though its default bow PRESSURE
-      wants a bump — tuning-handoff.md → NEXT). **`INSTR_ORGAN`** reads an octave low but is in
+      wants a bump — [tuning-handoff.md](tuning-handoff.md) → NEXT). **`INSTR_ORGAN`** reads an octave low but is in
       tune (+3–7¢) — that's the 16′ sub-octave drawbar, expected.
 
 32. **Split `runtime/sound.h` per-engine to cut the parallel-agent collision surface** *(new
@@ -873,8 +873,8 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     clean 4th-axis/aux-param API first**, else the preset schema can't capture bowed-pizz /
     guitar-fundamental / voice-nasal. Locked decisions, schema, and build order live in the plan
     doc. *(The audit's "radio voices missing from the recipe docs" subtask was a false positive —
-    resolved on inspection: they're all present and value-accurate in `radio-voices.md` +
-    `instrument-presets.md`, where radio voices belong; the audit checked `instrument-recipes.md`.)*
+    resolved on inspection: they're all present and value-accurate in [`radio-voices.md`](guides/radio-voices.md) +
+    [`instrument-presets.md`](guides/instrument-presets.md), where radio voices belong; the audit checked `instrument-recipes.md`.)*
 
 34. **`line()` draws axis-aligned lines as unreliable `GL_LINES`** *(new 2026-06-11, found via the
     `raycaster` cart)*. `line()` in `runtime/studio.c` is a bare Raylib `DrawLine` → GPU `GL_LINES`.
@@ -1352,7 +1352,7 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     (shared dreamengine icon). No in-editor "export app" button yet — apps live in `apps/`,
     not the carts panel, so that needs an Apps picker (a later UI rung on this CLI).
     Differing-resolution racks stay parked (next-spike #3; paths A/B/C scoped in the doc —
-    B is the tractable per-cart RenderTexture step, C the eventual responsive-layout home).
+    B is the tractable per-cart RenderTexture step, C the eventual [responsive-layout](design/responsive-layout.md) home).
     **Cross-cart bleed fixed (2026-07-03) — the video twin of ADR-0027:** `de_switch_cart`
     was sound-only despite its name, so an outgoing cart's set-and-hold VIDEO state
     (pal/fillp/font/camera) AND its sprite sheet leaked into the next cart. Now it's an

@@ -8,7 +8,7 @@ STATUS: EXPLORING (scratchpad, not built) — pre-rotated atlas + the primitive 
 > - When the foundational primitive is actually built, the "why" gets frozen as an
 >   ADR in [`../decisions/`](../decisions/README.md) (see *When this settles*, bottom).
 >
-> Origin: the `bones` skeleton-animator cart (`tools/carts/bones.c`) draws an 18-bone
+> Origin: the `bones` [skeleton-animator](../guides/cart-specs/skeleton-animator.md) cart (`tools/carts/bones.c`) draws an 18-bone
 > stick figure by rasterizing lines every frame. Fine for one puppet; the question was
 > how to scale to **crowds, richer per-part shapes, and low-end hardware**. This note is
 > the design that came out of that conversation.
@@ -258,4 +258,4 @@ for each bone b:
   **`decisions/NNNN-offscreen-canvases.md`** ADR (foundational, deserves frozen rationale).
 - The `rot_bake`/`shape_bake` helpers landing → note in **`STATUS.md`**; if they stay
   library-level rather than engine API, that itself is an [ADR 0006](../decisions/0006-library-carts-not-engine.md)-style call.
-- Cross-link from **`api-notes.md`** (graphics section) once signatures firm up.
+- Cross-link from **[`api-notes.md`](api-notes.md)** (graphics section) once signatures firm up.

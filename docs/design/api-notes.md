@@ -1099,7 +1099,7 @@ for (int i = 0; i < 8; i++) {
 of structs (`x, y, vx, vy, life, maxlife, color, size`, sometimes `kind`), linear-search
 spawn (first slot with `life <= 0`), skip-dead update, `t = life/maxlife` fade on draw.
 Pool sizes range 16–600. Carts: `particles.c`, `fire.c`, `hotline.c`, `skystrike.c`,
-`podracer.c`, `lander`, `asteroids`, `robotron`, `cannon-fodder`, and many more.
+`podracer.c`, `lander`, `asteroids`, `robotron`, [`cannon-fodder`](../guides/cart-specs/cannon-fodder.md), and many more.
 
 **Design space:**
 - `explode(x, y, age, color)` — stateless radial burst, caller owns the age counter.

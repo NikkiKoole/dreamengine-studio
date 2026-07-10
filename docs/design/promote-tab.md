@@ -4,6 +4,8 @@
 > (clips / takes / tribes / gallery link). It is **unrelated** to Apple's **promoted purchases**
 > (`asc-push --promote`, an IAP surfaced as a tappable App Store search result —
 > [`store-agents.md`](store-agents.md)). They share a word, nothing else. Bare "Promote" = this tab.
+> The planned per-channel ratio picker comes from [`export-ratios.md`](export-ratios.md).
+> The full app-level press page + assets zip is [`press-kit.md`](press-kit.md)'s territory.
 
 > **STATUS: BUILDING** (2026-07-08) — **A + B + C + D + E all shipped** (the full tab). **C · trailer**
 > is a scope-parameterized popup shared with the Apps view — see the shared-popup pattern below +

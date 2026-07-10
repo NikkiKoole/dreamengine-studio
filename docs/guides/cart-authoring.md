@@ -452,7 +452,7 @@ letterbox/composite fallback). Full reasoning:
 > [`instrument-carts.md`](instrument-carts.md). It indexes every existing synth,
 > classic-machine homage, held-note instrument, engine showcase, radio station and
 > sound toy, grouped by the **building block each one copies** (`radio.h` /
-> held-notes / `ui.h` / `INSTR_*`). Find the cart closest to what you're making and
+> [held-notes](../design/held-notes.md) / `ui.h` / `INSTR_*`). Find the cart closest to what you're making and
 > start from its skeleton instead of a blank file — and add a row there when you ship.
 
 **Piano-style computer keys = the GarageBand musical-typing map** (owner

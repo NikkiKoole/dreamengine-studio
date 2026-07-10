@@ -88,7 +88,7 @@ Pitch/spread/reverse are config → push only on change, like the rest of `grain
 - Showcase: extend the `grains` cart with a PITCH slider + a REVERSE toggle (its sliders already
   work post-`ui_end` fix), re-bake, re-`ui-audit`.
 - Recipe row in [`effects-recipes.md`](../guides/effects-recipes.md) (octave-shimmer grains,
-  reverse-grain stutter) + the `audio-notes §17` #19 entry gets a "pitched grains" addendum.
+  reverse-grain stutter) + the [`audio-notes`](audio-notes.md) `§17` #19 entry gets a "pitched grains" addendum.
 
 ---
 

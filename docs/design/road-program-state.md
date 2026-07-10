@@ -104,7 +104,7 @@ not deliberately deferred.** Deferred-by-plan items are NOT misses; they're in t
 
 **Deferred-by-plan (NOT misses — tracked in the Roadmap / Known deferrals):** modal active-travel layer
 (Facet C, Stage 2.5) · crossings & priority markings pass · field-rendering cutover (blocked on
-`software-canvas.md`) · two-tier major→minor generator (Phase 2) · one-way streets (Phase 2) · integration
+[`software-canvas.md`](software-canvas.md)) · two-tier major→minor generator (Phase 2) · one-way streets (Phase 2) · integration
 streetlab × roadnet2 × roadlab (Phase 3).
 
 ## Backlog — loose ends scattered through the research (ranked, addable now)

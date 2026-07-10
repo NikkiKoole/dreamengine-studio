@@ -59,11 +59,11 @@ const CHECKS = [
   { name: "cart index",   tool: "build-cart-index.js",   args: ["--check"],     gate: true },
   { name: "history",      tool: "build-history.js",      args: ["--check"],     gate: true },
   { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
+  { name: "xrefs",        tool: "lint-xrefs.js",         args: ["--strict"],    gate: true }, // GRADUATED 2026-07-10: both tiers reached 0 (were 58/203) — exempt classes documented in its header
   // --- ADVISORY: hygiene / backlog / nudges ---
   { name: "handoff",      tool: "handoff.js",            args: ["--check"] },
   { name: "driftable",    tool: "stale-doc-check.js",    args: ["--driftable"], warn: num(/(\d+) likely drifted/) },
   { name: "doc freshness",tool: "stale-doc-check.js",    args: [],              warn: num(/(\d+) broken/) },
-  { name: "xrefs",        tool: "lint-xrefs.js",         args: [],              warn: num(/(\d+)\/\d+ missing backlinks/) },
 ];
 
 // For a clean check the tool's own final summary line is the row. For a non-clean

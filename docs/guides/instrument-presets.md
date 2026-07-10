@@ -640,7 +640,7 @@ addis's Wurlitzer comp — the EPIANO with harmonics pushed up toward the Wurli 
 `instrument_follow(LFO_CUTOFF, 4/120, 1800)` (auto-wah)
 napoleon's DANCE clavinet ("Canned Heat") — the EPIANO Clav model played as percussive 16th
 chord chucks, with a touch-following auto-wah (a band-pass peak that opens when you dig in =
-the quack). The in-cart stand-in for a real wah pedal (see napoleon-effects-wants.md).
+the quack). The in-cart stand-in for a real wah pedal (see [napoleon-effects-wants.md](../design/napoleon-effects-wants.md)).
 - tier: unique
 - origin: napoleon
 - used by: napoleon (`I_COMP`, DANCE)
@@ -1335,7 +1335,7 @@ gamelan's suling). The "sax only" chair voicing opens it toward an alto (h0.78 t
 ### brass/afro-trumpet  *(FIRST radio `INSTR_BRASS`)*
 `INSTR_BRASS` · A1 D0 S4 R1200 · h0.15 t0.60 m0.42 · *(plays oct +1)* · pan +0.28
 The bright blatty trumpet — voiced a 3rd below the sax to make the section, panned opposite
-for width (the in-cart fake for the missing chorus effect; see afrobeat-effects-wants.md).
+for width (the in-cart fake for the missing chorus effect; see [afrobeat-effects-wants.md](../design/afrobeat-effects-wants.md)).
 **No radio station had used `INSTR_BRASS` before** — the only "brass" on the dial was faked
 (italo's FM stabs, citypop's saw hits). kin: brass.c `brass/trumpet`.
 - tier: unique (kin brass.c `trumpet`)

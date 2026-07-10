@@ -35,7 +35,7 @@ a fifth copy of the truth; we render it.
 | **Logo & Icon** (downloadable) | the app icon from the manifest |
 | **History** (origin story) | `press.md` (hand-written) seeded from `de:meta` `lineage`/`homage` |
 | **Awards** / **Selected articles & quotes** | `press.md` (hand-maintained; starts empty) |
-| **Monetization permission** (streamers/YouTubers may monetise videos) | boilerplate — we grant it (a gift to the tribe; ties to `tinyjam-marketing.md` §9 gift-not-ask) |
+| **Monetization permission** (streamers/YouTubers may monetise videos) | boilerplate — we grant it (a gift to the tribe; ties to [`tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §9 gift-not-ask) |
 | **About the studio** / **Credits** / **Contact** | `apps/studio.md` |
 | **Request press copy** | a mailto / TestFlight link (no `distribute()` dependency) |
 

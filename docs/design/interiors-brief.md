@@ -107,7 +107,7 @@ adjacency → emergent label → furnish flavor.
   type, exactly as lotfill stubs `world_kind_at` and the block grid. **Integration is a provider
   swap, not a rewrite** — keep that seam clean.
 - **`building_at()` / `interior_at()`** is the collision seam the design doc has wanted since
-  `roadnet-streetlevel.md` item 5. Your `solid_at`/`room_at` IS that, written query-first.
+  [`roadnet-streetlevel.md`](roadnet-streetlevel.md) item 5. Your `solid_at`/`room_at` IS that, written query-first.
 - **Multi-storey** is out of scope for the MVP — one floor, top-down. Note it as a refinement.
 
 ## Build plan (lens-first — same playbook as lotfill)

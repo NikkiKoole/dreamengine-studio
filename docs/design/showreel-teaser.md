@@ -3,7 +3,7 @@
 STATUS: BRAINSTORM / planning (2026-06-22). No code. The point of this doc: deciding what a
 teaser would *show* enumerates what we'd have to *build* — so the shot list doubles as a
 prioritized gap list (systems and API). Pairs with [`transitions.md`](transitions.md) (how
-shots are cut) and [`cart-clips.md`](cart-clips.md) (how shots are baked).
+shots are cut) and [`cart-clips.md`](cart-clips.md) (how shots are baked); the traffic shots ride [`traffic-ai.md`](traffic-ai.md).
 
 ## The game
 

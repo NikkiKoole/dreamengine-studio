@@ -132,7 +132,7 @@ rare since the DSL only exists in the spec build, but the repo has a namespace-t
    specs read in button terms and survive a rebind.
 5. `expect` prints JSONL (one line per assertion: `{cart,msg,pass}`) for the runner to parse.
 
-Note: the spec DSL is **dev-only test scaffolding**, not part of the cart-authoring API a
+Note: the spec DSL is **dev-only test scaffolding**, not part of the [cart-authoring](../guides/cart-authoring.md) API a
 player learns — so it deliberately does **not** get the four-place treatment
 (`studioDocs.js`/`shell.js` autocomplete + help tab). It's documented here and in the
 runner's `--help`.
@@ -175,3 +175,8 @@ which is *good* but is upkeep). Write them on the complex sims worth pinning.
 3. A real `spec()` on **one** representative stateful cart (a `roadnet`-class sim) as the
    proven reference — feel it run before rolling out further.
 4. (Later) `--golden` for the procedural generators.
+
+## Built on by
+
+- [`flight-recorder.md`](flight-recorder.md) — the always-on session recorder rides the same deterministic replay core spec() runs headless on.
+- [`pocketbox.md`](pocketbox.md) — cites `spec()` as its gameplay gate.

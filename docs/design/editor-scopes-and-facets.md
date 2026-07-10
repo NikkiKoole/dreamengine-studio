@@ -89,7 +89,7 @@ but it should fall out of answering Q3, not precede it.
 - **Storage layout is locked** — [`cart-clips.md`](cart-clips.md): takes at
   `tools/clips/<cart>/NN-*.rec`, baked clips at `editor/public/clips/<cart>/`, reels at
   `tools/reels/*.reel` → `editor/public/reels/`.
-- **The cart-authoring hand-editing gaps** live in [`editor-cart-workflow.md`](editor-cart-workflow.md).
+- **The [cart-authoring](../guides/cart-authoring.md) hand-editing gaps** live in [`editor-cart-workflow.md`](editor-cart-workflow.md).
 
 ## Resolution (2026-07-07): Make / Promote / Ship — Promote is a new per-cart tab
 

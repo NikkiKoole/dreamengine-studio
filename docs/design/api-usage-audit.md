@@ -33,7 +33,7 @@ closed the way the audit predicted:
 - *Convenience helpers that lost to hand-rolling* were **cut** the same week
   (`music` → [decision 0013](../decisions/0013-cut-music-api.md); `bezier_cubic`,
   `bounce_at_edges`, `anim_once` → [decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)).
-- *Input the platform couldn't test* got tested: the touch-controls program made touch
+- *Input the platform couldn't test* got tested: the [touch-controls](touch-controls.md) program made touch
   mainstream — `touch_x`/`touch_y` are in **57 carts** now (were 1), `tap` in 7,
   `stick_x`/`stick_y`/`touch_controls` each found a consumer. Even `map_scale` found a cart.
 

@@ -226,7 +226,7 @@ not ffmpeg `drawtext` and not a hand-off to CapCut.
 
 **The idea.** CapCut's moat is kinetic text — but it's smooth vector type that looks like every other
 social clip. This engine has what CapCut doesn't: **bitmap fonts** (`dos_8x8`, `FONT_SMALL/TINY/LARGE/
-BOOT/SMOOTH`) and a whole **game-feel juice** vocabulary (ease, overshoot, shake, glow, `anim()`
+BOOT/SMOOTH`) and a whole **[game-feel](../guides/game-feel.md) juice** vocabulary (ease, overshoot, shake, glow, `anim()`
 phase-stagger). So the on-brand move is **kinetic *pixel* type animated with the same juice as the
 games** — unmistakably this engine. A text "part" is drawn by a cart and baked like any clip.
 

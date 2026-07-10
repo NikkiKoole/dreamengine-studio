@@ -4,7 +4,7 @@ STATUS: SURVEY + build candidates (2026-06-30). The iOS deploy is fully terminal
 (`ios/device.sh`, no Xcode GUI), and Apple's whole Instruments suite is reachable the same way via
 **`xcrun xctrace`** — it can *record a trace headlessly and export it to XML*, so an agent can profile
 a cart on the device and read the hot-symbol list back. This doc maps what's worth pulling for a
-**software-canvas engine on real phone silicon** and the small tools we could build around it.
+**[software-canvas](software-canvas.md) engine on real phone silicon** and the small tools we could build around it.
 
 Companions: [`engine-portability.md`](engine-portability.md) (the renderer decision + the on-device
 FPS/bunnymark numbers), [`ios-plan.md`](ios-plan.md) (the iOS roadmap), `ios/measure-device.sh` (the

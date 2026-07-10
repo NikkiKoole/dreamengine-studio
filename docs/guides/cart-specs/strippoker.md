@@ -6,7 +6,7 @@ sweetheart — **Sable** — for a round of **5-card draw**. Win a hand and the
 **REVEAL meter** nudges up a notch; lose and it slips back. Fill it and Sable strikes
 a playful new silhouette pose and throws you a wink — but it stays firmly **PG-13**:
 soft silhouettes, a feather boa, a coy wink, double-entendre banter. No nudity. The
-tone is the smooch-lounge's velvet cabaret cheek, ported to a poker table.
+tone is the [smooch-lounge](smooch-lounge.md)'s velvet cabaret cheek, ported to a poker table.
 
 ## The core loop (one hand)
 1. **Ante**: both sides put a chip in the pot. Five cards dealt face-down to you,

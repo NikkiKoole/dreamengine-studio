@@ -46,7 +46,7 @@ Each spike is a small throwaway that kills one unknown. Riskiest cheap-thing fir
 | # | Spike | Proves | Needs | Status |
 |---|---|---|---|---|
 | 0 | xcodegen + hello-world → simulator (the whole agentic loop) | toolchain works end-to-end | sim | ✅ **done** (`ios/`) |
-| 1 | software-canvas framebuffer → on-screen, driven by the iOS callback loop | the render path + loop inversion | sim | ✅ **done** — C RGBA buffer → CGImage → `CADisplayLink`; see `ios/history/spike1-canvas-loop.png` |
+| 1 | [software-canvas](software-canvas.md) framebuffer → on-screen, driven by the iOS callback loop | the render path + loop inversion | sim | ✅ **done** — C RGBA buffer → CGImage → `CADisplayLink`; see `ios/history/spike1-canvas-loop.png` |
 | 2 | audio: a C synth filling a CoreAudio render callback (`AVAudioSourceNode`) | the audio path | sim | ✅ **done** — stand-in arpeggio; VU meter proves callback pulled; `sound.h` swap-in is the follow-up. See `ios/history/spike2-audio-vu.png` |
 | 3 | save: a `save_bytes` blob in the Documents dir via a Swift path bridge | the save layer | sim | ✅ **done** — `save.{h,c}` (portable stdio) + `de_documents_path` (`@_cdecl`); launch counter persists across relaunch; headless round-trip test. See `ios/history/spike3-save-launchcount.png` |
 | 4 | StoreKit 2 + a local `.storekit` config (StoreKitTest): buy / entitlements, queried from C | the IAP model, no account/network | sim | ✅ **done** — in-house bridge (`Store.swift` + `tinyjam_store.h` via `@_cdecl`); headless XCTest buys → unlocks (master pass unlocks all). See `ios/history/spike4-storekit-gate.png` |

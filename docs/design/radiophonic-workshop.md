@@ -108,7 +108,7 @@ Three ways to spend the combined material; they are not exclusive but one goes f
   collision with the in-flight acidrack work (rack #2 shouldn't start before acidrack proves the
   chassis and triggers the `rack.h` extraction anyway). Cost: the polymetric-loop signature stays
   *invisible* — a radio performs it, nobody sees the unequal lanes.
-- **B. Rack-first** — the rebirth-classic precedent: write the generator lane-native, skip the
+- **B. Rack-first** — the [rebirth-classic](rebirth-classic.md) precedent: write the generator lane-native, skip the
   station. Shows the unequal-length lanes in the UI (the signature move is sequencer-native — its
   best argument). Cost: it would be a second rack in flight while acidrack increments 2–4 are
   unfinished, exactly what the second-customer rule says not to do.

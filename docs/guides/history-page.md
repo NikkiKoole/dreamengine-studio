@@ -229,7 +229,7 @@ Once a week's worth of work has landed, extend the spine and regenerate:
    start (or advance to a milestone) a long investigation no thread yet catches — declare
    a new `{ id, title, seed, match, blurb }` (that's how `multiplayer` and `storefront`
    were added) — and it can spawn docs an *existing* thread should adopt but its `match`
-   misses (that's how `device-adaptive-layout.md` / `device-matrix.md` got folded into
+   misses (that's how [`device-adaptive-layout.md`](../design/device-adaptive-layout.md) / [`device-matrix.md`](../design/device-matrix.md) got folded into
    `mobile`). Threads auto-collect by filename, but the topic + voiced blurb are hand-authored;
    eyeball the `design/` docs the week added against every thread's `match` — a design doc that
    no thread's terms catch is either a new thread or an orphan an existing thread should adopt.

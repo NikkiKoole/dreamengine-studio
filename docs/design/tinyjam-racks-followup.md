@@ -105,7 +105,7 @@ plus a clean way to share a song without exposing the rack UI. The PO segmented-
   no UI. We already have the pipeline — [`tools/make-gif.js`](../../tools/make-gif.js) bakes
   webm/gif/mp4 **with audio** from a committed input track (`tools/clips/<cart>/NN-label.*`). A
   rack "export video" button is mostly arming that, framed 9:16. Doubles as the cheapest showreel
-  win (ties to `cart-clips.md` + ADR-0020).
+  win (ties to [`cart-clips.md`](cart-clips.md) + ADR-0020).
 
 This view is also genre-agnostic chrome — a candidate for the shared `rack.h` chassis, one dancer
 skin per faceplate.
@@ -122,7 +122,7 @@ input is no longer hypothetical. Design notes worth carrying:
   filter live.
 - **Live recording into the grid:** hit Record, play a bassline on a keyboard, auto-quantize to
   the 16-step lane — the rack's sequencer doubles as a live recorder (overlaps the looper
-  crossover already flagged in `tinyjam-racks.md` §Open questions and `input-recording-looper.md`).
+  crossover already flagged in `tinyjam-racks.md` §Open questions and [`input-recording-looper.md`](input-recording-looper.md)).
 - **Visualizer as live feedback:** since the dancer is trigger-driven, every physical pad tap fires
   its animation frame — the character puppets the player's hands.
 

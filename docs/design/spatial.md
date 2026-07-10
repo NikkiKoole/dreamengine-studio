@@ -166,7 +166,7 @@ as a confusion magnet. Adjustable if you'd rather match OpenAL's "velocity."
    under `#ifdef DE_TRACE`. Build → `--run` (bake screenshot) → register in
    `index.json` with tags → `lint-carts.js` → `cart-status.js`.
 7. **Docs** — promote this file's v1 section to shipped; STATUS ledger entry;
-   `audio-notes.md` §17 ledger line.
+   [`audio-notes.md`](audio-notes.md) §17 ledger line.
 
 ### Verification gates (in order)
 1. `node tools/play.js soundcheck script /dev/null --headless --frames 2` → `ok`, no `[sound] WARNING`.

@@ -339,7 +339,7 @@ Standardize across racks so learning one = learning all:
 - radio.h-style extras carried over: tempo, tone knob, band panel, seed display
 
 Must be designed at touch sizes from day one — this rides the current touch pass
-on the instrument carts (`touch-notes.md`, `mobile-web-notes.md`).
+on the instrument carts (`touch-notes.md`, [`mobile-web-notes.md`](mobile-web-notes.md)).
 
 ## Shared chassis: rack.h (the radio.h move, again)
 

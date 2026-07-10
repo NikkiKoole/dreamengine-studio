@@ -102,7 +102,7 @@ Day, night, weather — the sky as a slow clock behind/above the slab.
   keyframes; the candidate technique is a **dithered crossfade** — `fillp()`
   patterns blending the outgoing gradient into the incoming one over a few
   steps (the tint-to-white sequencing trick from the juice notes, applied to
-  sky). `geometry-helpers.md` parks the true-color-lerp idea; we stay
+  sky). [`geometry-helpers.md`](geometry-helpers.md) parks the true-color-lerp idea; we stay
   palette-pure.
 - **Weather**: overcast (grey gradient set, flatter light), rain (streaks +
   wet-dark concrete?), big Dutch cumulus? Weather modulates which keyframe

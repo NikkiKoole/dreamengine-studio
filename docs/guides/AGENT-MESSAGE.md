@@ -1,6 +1,6 @@
 # Parallel-build agent message
 
-Paste this into each spawned session (along with the assembled `brief + <spec>.md`).
+Paste this into each spawned session (along with the assembled `brief + <spec>.md` — see [`cart-specs-index.md`](cart-specs-index.md)).
 It lets the session build the cart fully — including baking its own thumbnail, now that
 `--run` is isolated per cart — and stops it only at the one shared-file step that races the
 other sessions: the `index.json` merge. It ends by emitting just the `index.json` JSON blob,

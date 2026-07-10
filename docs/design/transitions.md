@@ -1,6 +1,7 @@
 # transitions — scene-to-scene wipes, from demo cart to reusable tooling
 
 STATUS: BRAINSTORM / exploration (2026-06-22). Nothing decided, no code planned yet.
+Consumer-in-waiting: [`showreel-teaser.md`](showreel-teaser.md) (how its shots would be cut).
 This note captures what exists (the `transitions` cart), what it would take to make it
 *usable* across carts, and the open design questions — so the thinking isn't lost.
 
@@ -184,7 +185,7 @@ transitions take the **callback** path — a cart that wants SLIDE provides a
 `draw_scene(int which)` it can call for *either* side, and the header drives the camera
 offsets. Option (b) snapshot-to-texture is **deliberately not taken** — it's the only route
 that would need engine support (offscreen capture), and "do it in cart-land" rules it out.
-The accepted cost is the cart-authoring contract: a cart opting into a co-resident transition
+The accepted cost is the [cart-authoring](../guides/cart-authoring.md) contract: a cart opting into a co-resident transition
 must be able to draw scene A *or* B on demand (most carts refactor to a `draw_scene(which)`
 cheaply; the demo already has exactly this shape). The mask-family transitions need no such
 contract — they only overlay, so they stay universal.

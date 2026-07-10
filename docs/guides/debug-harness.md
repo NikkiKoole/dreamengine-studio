@@ -720,7 +720,7 @@ Two-tier verdict (the lesson: sample-diff is wrong for a *chaotic* engine): an e
 native↔wasm diff sits ≥60 dB below the signal (sample-parity), OR — for a chaotic engine like BOWED, whose
 stick-slip friction diverges from a 1-ULP difference — if the two renders still match in RMS level (same
 note, micro-phase only). Finding (2026-06-17): 15/16 engines are sample-faithful; BOWED is perceptual-only;
-the wasm math is faithful — the one real web bug was the worklet sample rate (see web-audio-parity.md).
+the wasm math is faithful — the one real web bug was the worklet sample rate (see [web-audio-parity.md](../design/web-audio-parity.md)).
 **Run after engine-math edits that an optimizer/fast-math/libm change could compile differently.**
 
 ### Web perf A/B — does a graphics change help on WebGL? (browser GPU)
@@ -842,7 +842,7 @@ DE_TRACE` instrumentation `w` will be empty, but `f`/`t` still land correctly.
 
 ---
 
-## Worked example — the smooch-lounge hold mechanic
+## Worked example — the [smooch-lounge](cart-specs/smooch-lounge.md) hold mechanic
 
 The question: *"do I press when the ribbon touches and release when it leaves?"*
 

@@ -1,6 +1,7 @@
 # Flank — tactical enemy AI notes
 
 STATUS: SHIPPED — flank.c prototypes the squad AI (flank/cover/suppress/comms); liftable to the sloop world.
+Sibling brain: [`traffic-ai.md`](traffic-ai.md) (civilian driving, where this is combat).
 
 Living design notes for the **`flank`** cart (`tools/carts/flank.c`): a real-time
 top-down firefight built as a **prototype enemy brain for `sloop`** (the GTA1 /

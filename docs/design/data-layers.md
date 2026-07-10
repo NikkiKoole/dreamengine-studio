@@ -2,6 +2,7 @@
 
 **Status: SHIPPED (2026-06-23).** Built as the `gridcity` cart — all planned layers are in
 (v1 → v2 complete, 32 spec assertions); see the "All planned layers are in" note at the bottom.
+Pairs with [`cityplan.md`](cityplan.md) — the lift-the-roof world these layers would color.
 Optional future depth is listed there but nothing is committed/postponed. A new experiment / pillar the big-game backlog
 doesn't cover: not road *geometry* (roadlab/streetlab) and not a top-down *generator*
 (procplaces) — the **aggregate tile-data simulation** behind SimCity 2000. Given a

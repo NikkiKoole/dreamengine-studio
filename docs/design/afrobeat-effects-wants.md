@@ -105,4 +105,4 @@ predicted the value is: the bus doesn't just add polish, it's the difference bet
 modeled instruments" and "a band." When the bus ships, `afrobeat.c` is a ready acceptance test —
 nearly every effect has a job to do in it.
 
-*(Pairs with the cart `tools/carts/afrobeat.c` and its `radio-voices.md` chart once shipped.)*
+*(Pairs with the cart `tools/carts/afrobeat.c` and its [`radio-voices.md`](../guides/radio-voices.md) chart once shipped.)*

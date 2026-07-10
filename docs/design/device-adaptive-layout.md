@@ -487,7 +487,7 @@ sizing. Two transferable moves:
   strips at compact simultaneously** (the whole ReBirth rack on one screen — the flat/see-and-touch
   arrangement §8.2 of the design system asks for, which the first pass never built); phone = the
   working strip expanded, 1–2 others compact, rest folded.
-- **Editor-swap by budget** (the panel-level twin of design-system §8.3's widget swap). Same
+- **Editor-swap by budget** (the panel-level twin of [design-system](design-system.md) §8.3's widget swap). Same
   `Line` data, two editors: roomy shapes keep our piano roll (a better overview than ReBirth ever
   had); a phone swaps to the ReBirth step programmer — one octave of finger-wide keys + flag
   buttons + step advance *fits a phone width at full finger size*. Same for drums: full grid on

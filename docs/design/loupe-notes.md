@@ -44,7 +44,7 @@ A loupe is for **precision single-target acquisition**: park it, aim at one smal
 control, hit it bigger. That framing decides everything below.
 
 The first instinct was the opposite — "put the magnify transform as low as
-possible so it reaches every input path." `ui-widgets-notes.md §9` settles that
+possible so it reaches every input path." [`ui-widgets-notes.md`](ui-widgets-notes.md) §9 settles that
 dense touch UIs use **three** tools, all on the same virtual-touch pool:
 
 | Tool | Used by (tiny-target carts) | Loupe fit |
@@ -196,8 +196,8 @@ the API is wrong (the §5.2 rule).
 3. **`uiloupe` demo** — DONE (cramped synth panel, one line `ui_loupe(1)`).
 4. **Still open**: retrofit a *real* cart (sfxgen / sh101 fader panel — §6) +
    device pass; the standalone `loupe` POC stays as the teaching demo.
-5. **Docs** (this note done) — still: `cart-authoring.md` library-header note,
-   `mobile-web-notes.md` cross-link, STATUS entry.
+5. **Docs** (this note done) — still: [`cart-authoring.md`](../guides/cart-authoring.md) library-header note,
+   [`mobile-web-notes.md`](mobile-web-notes.md) cross-link, STATUS entry.
 
 ## 8. Tunables
 

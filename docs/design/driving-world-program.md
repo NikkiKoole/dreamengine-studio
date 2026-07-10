@@ -68,7 +68,7 @@ The transition field note 004 called significant: consuming OSM instead of gener
 
 | Cart | Status | Role |
 |---|---|---|
-| **`roadview`** | ✅ shipped | Loads real OSM road geometry at RUNTIME (`.rvb` packed binary; Rotterdam 28 MB in ~0.66 s) — swap the file, see a different city. Pipeline: `data-tools/roadview/osm-roads.js`. Doc: [`external-data-carts.md`](external-data-carts.md). |
+| **`roadview`** | ✅ shipped | Loads real OSM road geometry at RUNTIME (`.rvb` packed binary; Rotterdam 28 MB in ~0.66 s) — swap the file, see a different city. Pipeline: `data-tools/roadview/osm-roads.js`. Doc: [`external-data-carts.md`](external-data-carts.md) · committed API: [ADR-0025](../decisions/0025-external-data-hooks-are-committed-api.md). |
 | **`citydrive`** | (see §5) | The pseudo-3D consumer of the same `.rvb` data. |
 
 ### 7. Agents — life on the network (the frontier)
@@ -221,7 +221,7 @@ Rung ladder:
 
 **Explicitly defer (don't let these masquerade as progress):**
 - More streetlab primitives — staggered junctions, the modal active-travel layer, dendricity metric. The grammar is done; these are sandbox polish. ([`road-program-state.md`](road-program-state.md) tracks them.)
-- The field-based road cutover — correctly blocked on `software-canvas.md` (already in flight).
+- The field-based road cutover — correctly blocked on [`software-canvas.md`](software-canvas.md) (already in flight).
 - cityplan multi-storey tenements — nice, but not on the critical path to a drivable world.
 
 ## The sequenced build order (2026-07-06)

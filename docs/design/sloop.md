@@ -572,7 +572,7 @@ The same `J` that flattens a cone today is what the breakage rung distributes to
 cells (shed a wheel) and the demolition rung distributes to a house's tiles (shatter). Nothing faked,
 nothing thrown away.
 
-**Feedback** (the game-feel rule): reuse what's there — `shake()` (in studio.h, unused so far), the
+**Feedback** (the [game-feel](../guides/game-feel.md) rule): reuse what's there — `shake()` (in studio.h, unused so far), the
 `spark[]` pool as debris/scatter, a crunch via `INSTR_NOISE`, optionally a brief hit-stop on a hard
 crash. Sound + shake scaled by `J`.
 

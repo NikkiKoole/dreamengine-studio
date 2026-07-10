@@ -248,3 +248,5 @@ the radio. Cart name = maker call; working name `yachtrack` (the `acidrack` para
 - **The XY play-pad** (universal control layout): smearing a scale-locked lead over the chart
   is the loopstation crossover — v1 omits it; the HOOK strip is the natural later home.
 - **Naming** — maker call, as with acidrack.
+
+*See also: [`pocketbox.md`](pocketbox.md) — the buttons-only pocket-groovebox reimagining on the same shelf.*

@@ -152,7 +152,7 @@ The ring is a **generative loop you steer**, not a passive pattern:
   few pitches toward the scale, shifts accents — so the player curates variations rather than
   authoring every step. Faithful to "ask the machine to suggest, then steer."
 - Speed, jitter, voice, and the nudge are the whole control set. Deterministic from a seed (so a good
-  loop is a committable clip, per the debug-harness clip convention).
+  loop is a committable clip, per the [debug-harness](../guides/debug-harness.md) clip convention).
 
 ## The window / face
 

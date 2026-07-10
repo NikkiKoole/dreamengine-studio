@@ -3,7 +3,7 @@
 STATUS: SHIPPED — `fmbox.c` is built (2026-07-10): six INSTR_FM machines on drummachine's chassis +
 per-step parameter locks (hold-cell-drag-up, fill-height readout). Phase-1 brief for an all-FM
 percussion groovebox (the Elektron **Model:Cycles** reimagined), written *before* opening any cousin
-cart (the cart-authoring-prompt firewall). Built around FM-drums + p-locks exactly as the verdict below.
+cart (the [cart-authoring-prompt](../guides/cart-authoring-prompt.md) firewall). Built around FM-drums + p-locks exactly as the verdict below.
 
 > Working name **fmbox** (mirrors `groovebox`/`pocketbox`/`drummachine`). Alternatives that read the
 > metallic character better: **sparks**, **metalbox**, **sixmachines**. Pick at build; the doc uses `fmbox`.
@@ -97,7 +97,7 @@ p-lock interaction, not new voices:
 - **CHORD** → `fm/epiano` / `fm/brass` voicing, 3–4 notes.
 - **SNARE** → the genuine **gap**: a bright FM crack + `INSTR_NOISE` body layer. This is likely the
   one new recipe the cart contributes (`fm/snare`), and per the CLAUDE.md rule it goes into
-  `instrument-recipes.md` on ship.
+  [`instrument-recipes.md`](../guides/instrument-recipes.md) on ship.
 
 ## The headline that's actually NEW — parameter locks (p-locks)
 

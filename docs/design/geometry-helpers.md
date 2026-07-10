@@ -4,7 +4,7 @@ Status: **open / proposed** · Date: 2026-06-01 · None merged.
 Refines: [decision 0006](../decisions/0006-library-carts-not-engine.md) (small sharp core),
 [decision 0009](../decisions/0009-small-3d-leaf-helpers.md) (leaf-primitives, not engines).
 Related: [`rasterization-consistency.md`](rasterization-consistency.md) (fills/outlines must agree),
-api-notes.md → "Cart-pattern analysis".
+[api-notes.md](api-notes.md) → "Cart-pattern analysis".
 
 This note answers one question: **what small drawing primitives would most lower the cost
 of building art out of code?** It's evidence-led — every proposal is tied to a pattern the
@@ -124,7 +124,8 @@ approaches, in increasing power:
   what "smooth gradient" normally means, and it makes `vgradient` a thin wrapper.
 
 **Recommendation:** ship the **dithered** form. (The real-RGB path depends on the
-true-color idea in the next section, which is **parked** — don't block gradients on it.)
+true-color idea in the next section, which is **parked** — don't block gradients on it;
+[`galerijflat.md`](galerijflat.md) is the cart design that keeps eyeing it.)
 
 ### 4. Rounded rectangle — UI panels & speech bubbles
 **Evidence:** dialog/HUD boxes are assembled from `rect` + corner `circfill` across many
@@ -264,7 +265,7 @@ about the 32 colors, zero renderer change — and do gradients **dithered**.
 **#1 (ngon/star) + #2 (poly/polyfill)** — highest leverage, most "geometry-first", cut the
 most code, and compose cleanly on `trifill` exactly like `quadfill`. Ship them as one batch
 with a demo/tutorial cart (a "shapes from code" gallery: rotating gears, a hex grid, a
-sparkle burst, a polygon blob) and a baked thumbnail, per the cart-authoring workflow.
+sparkle burst, a polygon blob) and a baked thumbnail, per the [cart-authoring](../guides/cart-authoring.md) workflow.
 
 **Color (`lerp_color`/`rgb`) is NOT in any batch — it's parked** (see its section). If
 gradients (#3) are wanted, do them **dithered**; that needs no color-model decision. The

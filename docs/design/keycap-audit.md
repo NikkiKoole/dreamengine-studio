@@ -21,7 +21,7 @@ STATUS: EXPLORING (swarm snapshot 2026-06-13) — a worklist, re-run by relaunch
 ## Prerequisite: build `runtime/keycap.h`
 
 No `keycap()` helper exists yet. Every cart in the keycap section below is blocked on it.
-The proposed signature (`mobile-web-notes.md` §6b):
+The proposed signature ([`mobile-web-notes.md`](mobile-web-notes.md) §6b):
 
 ```c
 // draws [SPACE] next song — returns true on keyp(KEY_SPACE) OR a tap on the chip

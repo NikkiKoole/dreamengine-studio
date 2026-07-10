@@ -1,6 +1,7 @@
 # Polo & Pan radio — the blind band brief (Phase 1)
 
 STATUS: SHIPPED — the polopan.c radio station is built (mallet/pizz/flute/vocoder band, tropical house).
+The engine shopping it triggered: [`polopan-effects-wants.md`](polopan-effects-wants.md) (all shipped, all wired).
 
 Written *before* opening any cousin cart (radio-station-howto.md firewall). Polo & Pan is an
 **artist station**, not a genre: the dial must play recognizably DIFFERENT *songs of theirs*,

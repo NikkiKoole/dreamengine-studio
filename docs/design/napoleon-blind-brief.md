@@ -92,8 +92,8 @@ dance. (Chord templates encoded as degree/quality rows — stolen-playbook brain
 
 ## Phase 2 — palette shop (gaps = new recipes)
 
-Matched each imagined voice to the supply side (`instrument-recipes.md`) and the demand
-side (`instrument-presets.md`). The headline: only **AIR** uses `INSTR_VOICE`, and as a
+Matched each imagined voice to the supply side ([`instrument-recipes.md`](../guides/instrument-recipes.md)) and the demand
+side ([`instrument-presets.md`](../guides/instrument-presets.md)). The headline: only **AIR** uses `INSTR_VOICE`, and as a
 *robotic vocoder lead* — so the **sung, vibrato falsetto croon** (Kip's serenade + the
 Jamiroquai "ooh") is this cart's highest-value addition: the first radio voice to use the
 formant engine as an actual *singer*, not a vocoder.

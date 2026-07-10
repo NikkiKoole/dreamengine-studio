@@ -9,7 +9,7 @@ once, so part of it was always stale. Each file now answers one kind of question
 > lives in `design/`. Docs *cross-reference*; they don't *duplicate*. If two docs say the
 > same thing, one is wrong — fix it at the source and link.
 >
-> **Cross-reference a section with a numbered `§`-ref** (`audio-notes §2`), **not a
+> **Cross-reference a section with a numbered `§`-ref** ([`audio-notes`](design/audio-notes.md) `§2`), **not a
 > `#anchor`.** `§`-refs are the house convention and `lint-docs.js` validates them
 > (it deliberately ignores `#anchors`); a repo scan found only 11 anchor links in ~1900 —
 > the corpus doesn't use them. The one exception is `HANDOFF.md`, whose Resume-at pointers

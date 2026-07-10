@@ -23,14 +23,14 @@ toggle). Legacy `reverb()` bytes-identical (verified). Leslie + fonts landed, tr
 | `b004363` | **Engine + `fx_order(bus, kinds, n)` API** + `FX_*` constants. The hardcoded master/aux insert ladder is now a per-bus `insert_order[]` the audio thread walks. Default order = old ladder, each step gated on `_used[b]` → **byte-identical when unused**. 4-place wired + tcc regenerated. |
 | `d5d43ba` | **Pedalboard rebuilt as a drag-and-drop chain BUILDER** — `≡ PEDALS` palette → drag to add / reorder / remove; 9 effects. |
 | `e6c51f2` | **Drag polish** — lift-out reorder, live green drop caret, 5-per-row palette chips. |
-| `dc4d169` | **Docs** — STATUS.md ledger, audio-notes §17 item 10, `effects-bus-architecture.md` + `sound-next-steps.md` flipped to "A shipped, C next." |
+| `dc4d169` | **Docs** — STATUS.md ledger, [audio-notes](design/audio-notes.md) §17 item 10, `effects-bus-architecture.md` + [`sound-next-steps.md`](design/sound-next-steps.md) flipped to "A shipped, C next." |
 | `64edd41` | **Web publish** — pedalboard → wasm, pushed; live at the Pages site. |
 
 ## Repo state when I left — DON'T collide
 
 Working tree is dirty with **other agents'** in-flight work (none mine — all my work is committed):
 
-- **Leslie agent**: `sound.h`, `studio.c/.h`, `effects-recipes.md`, `decisions/0015…md`, `navkit-fx-render.c`, `organ.*`, `tools/carts/leslietest.c`. Leslie is correctly **pinned per-bus** (rotary speaker = output stage, not a reorderable pedal), reuses `moddel_hermite`, lives around `sound.h:994`.
+- **Leslie agent**: `sound.h`, `studio.c/.h`, [`effects-recipes.md`](guides/effects-recipes.md), `decisions/0015…md`, `navkit-fx-render.c`, `organ.*`, `tools/carts/leslietest.c`. Leslie is correctly **pinned per-bus** (rotary speaker = output stage, not a reorderable pedal), reuses `moddel_hermite`, lives around `sound.h:994`.
 - **Font agent**: `font-bake.js`, `gen-rom-font.js`, `fontcomic10x20.*` / `fontthin8x8.*`, `FONT_COMIC` / `FONT_THIN` in `studio.h` (and dropped `FONT_LARGE`/`FONT_BOOT`/`FONT_SMOOTH`).
 
 → **Don't edit `sound.h` / `studio.h` until those are committed and the tree is green.**

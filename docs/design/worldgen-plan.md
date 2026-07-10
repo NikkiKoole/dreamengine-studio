@@ -290,7 +290,7 @@ crossing grammar where networks meet.** Field note 004 predicted exactly this.
   street tier grows toward, and junctions that are *switches and wyes, not intersections*.
 - **The crossing grammar is where the richness lives** — networks meeting is a small typed table,
   and each cell is a *visible, drivable* feature: road×river = bridge/ford/ferry · rail×river =
-  viaduct · road×rail = **level crossing** (barriers, a GTA set-piece and a traffic-ai event) or
+  viaduct · road×rail = **level crossing** (barriers, a GTA set-piece and a [traffic-ai](traffic-ai.md) event) or
   bridge by class · rail×road(motorway) = always grade-separated (the continuity tenet generalizes).
 - **Bridges follow rules — they try to be SHORT** (maker's rule, 2026-07-06). A bridge crosses at
   the **local narrowest point, roughly perpendicular** to the water/valley, and the *road* pays the

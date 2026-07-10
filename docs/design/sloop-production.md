@@ -1,6 +1,7 @@
 # sloop — a production/process-optimization subsystem
 
 STATUS: SHIPPED — thecut.c ships the mix/quality subsystem (v2 adds managed workers); sloop-world integration is later.
+Shot-list context: [`showreel-teaser.md`](showreel-teaser.md).
 
 Research note. The goal: a subsystem for **sloop** (the GTA1-style, infinite-world,
 street-level game where you're a person who makes money from products you sell) that

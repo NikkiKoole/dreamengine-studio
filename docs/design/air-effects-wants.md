@@ -85,7 +85,7 @@ missing-effect want.
 
 - **Recognizably-different songs of one artist** — solved as a **chord brain #4 (stolen
   playbook)** layered with per-archetype groove/tempo/lead/form (the artist-station pattern,
-  game-music.md). Pure cart C, no engine/effect needed.
+  [game-music.md](../guides/game-music.md)). Pure cart C, no engine/effect needed.
 - **The melodic "rolling" bassline (La Femme d'Argent)** — a **bass brain** (a seeded ostinato
   outlining root/5th/octave/passing tones over the dorian loop). Cart logic; graduates to a
   header if a second station wants this specific roll.
@@ -100,4 +100,4 @@ synth that sings a vowel" into "the AIR robot voice." When the bus ships, `air.c
 acceptance test: the Solina wants the chorus, the whole mix wants the reverb, and Kelly wants
 the vocoder.
 
-*(Pairs with `tools/carts/air.c` and its `radio-voices.md` chart.)*
+*(Pairs with `tools/carts/air.c` and its [`radio-voices.md`](../guides/radio-voices.md) chart.)*

@@ -256,7 +256,8 @@ adopters that fit the existing shape.
 
 `poly?` = does playing produce simultaneous voices · `real-poly?` = is the real instrument
 polyphonic · `touches` = how many fingers it reads for playing · `gap` = multitouch opportunity
-severity. Radio stations omitted (`n/a` — they play themselves).
+severity; input `held-notes` = the [held-notes](held-notes.md) pattern. Radio stations omitted
+(`n/a` — they play themselves).
 
 | cart | kind | poly? | real-poly? | input | touches | gap |
 |---|---|---|---|---|---|---|

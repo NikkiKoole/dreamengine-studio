@@ -76,7 +76,7 @@ Live knobs over the **master** bus (and the pump). What exists today vs. what sl
 
 | rack slot | status today | how |
 |---|---|---|
-| **PUMP (sidechain)** | **faked cart-side** | per-frame duck of the pad+bass amplitude (and/or filter cutoff) keyed to the kick step — exactly house's trick (`afrobeat-effects-wants.md`: "re-aiming filters per frame"). Knobs: **amount** + **trigger source** (default KICK) + **release**. **Swap for real `sidechain()` when it ships** — the knobs stay, only the wiring changes. |
+| **PUMP (sidechain)** | **faked cart-side** | per-frame duck of the pad+bass amplitude (and/or filter cutoff) keyed to the kick step — exactly house's trick ([`afrobeat-effects-wants.md`](afrobeat-effects-wants.md): "re-aiming filters per frame"). Knobs: **amount** + **trigger source** (default KICK) + **release**. **Swap for real `sidechain()` when it ships** — the knobs stay, only the wiring changes. |
 | **CRUSH (SP-1200)** | **real, exists** | `crush(bits, rate, mix)` on the whole mix — the summed crunch. |
 | **EQ** | **real, exists** | `eq(low, mid, high)` — sculpt the sum. |
 | **TAPE** | **real, exists** | `tape(wow, flutter, sat)` — analog glue/warmth over the mix. |
@@ -93,7 +93,7 @@ Live knobs over the **master** bus (and the pump). What exists today vs. what sl
 - **One row of rack knobs** along the bottom — the hands-free loop frees both hands to ride
   them. The PUMP amount knob is the star: turn it up and *watch + hear* the mix breathe.
 - A **visual pump meter** (the master level visibly ducking on each kick) so the invisible
-  effect becomes legible — game-feel rule: tie the effect to a visible event.
+  effect becomes legible — [game-feel](../guides/game-feel.md) rule: tie the effect to a visible event.
 - Mobile-friendly per `ui.h` (grid taps + knobs) — it's a touch instrument at heart.
 
 ## Explicitly out of scope (a different toy)
@@ -107,7 +107,7 @@ cram them into the groovebox.
 
 Voices designed above *before* reading cousins. For the build, copy the **chassis** from the
 nearest step-sequencer / drum-machine cart (`drummachine.c` and a multi-track sequencer
-cousin via `instrument-carts.md`), reuse `ui.h` for the grid + knobs, and keep the rack as a
+cousin via [`instrument-carts.md`](../guides/instrument-carts.md)), reuse `ui.h` for the grid + knobs, and keep the rack as a
 data-driven knob list (named enum, per CLAUDE.md's data-driven rule) so adding `sidechain()`
 later is a one-row change.
 

@@ -559,7 +559,7 @@ losses so the choice is informed:
 - **Cheap full-screen palette *cycling*** — RGBA bakes the colour at write, so cycling means
   redrawing. No evidence carts use screen-wide cycling today (`pal()` is per-draw sprite recolor,
   ADR-0007), so this is a hypothetical loss, recoverable later as an opt-in paletted mode.
-- **Index-based blend tables** (parked STATUS-18, `blend-tables.md`) are inherently index-space
+- **Index-based blend tables** (parked STATUS-18, [`blend-tables.md`](blend-tables.md)) are inherently index-space
   LUTs; an RGBA canvas would blend in RGB instead — arguably more flexible, but it changes how that
   future feature would be built.
 

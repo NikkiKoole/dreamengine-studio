@@ -122,7 +122,7 @@ Grounded in the current mono mix path (`sound.h` `sound_callback`, the single `f
 2. **Pan wants slew.** A hard `note_pan` jump zippers exactly like a raw vol/duty jump — give it the
    same anti-zipper slew the mix loop already applies to `vol`/`duty`/`cutoff`. Forgetting it = an
    audible click on every pan move.
-3. **Synthesis does NOT double — only the accumulate does.** `api-notes.md` claims stereo "doubles
+3. **Synthesis does NOT double — only the accumulate does.** [`api-notes.md`](api-notes.md) claims stereo "doubles
    every voice's per-sample math"; that's pessimistic. `s = sound_engine_sample(...)` is computed
    **once**; only the final `mix += contrib` splits into `mixL/mixR` via the cached gains. Cost is
    ~one extra multiply-add per voice, not 2× synthesis. (Correct the api-notes line when this ships.)

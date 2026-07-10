@@ -106,3 +106,5 @@ and the "MEDIUM/HARD" guesses become real popularity scores.
 node tools/aso-research.js --country us "pocket operator" "groovebox" "drum machine"
 node tools/aso-lint.js --title "…" --subtitle "…" --keywords "a,b,c" --research "x,y"
 ```
+
+*Press page + assets zip are generated from this material per [`press-kit.md`](../../design/press-kit.md).*

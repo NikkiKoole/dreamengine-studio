@@ -434,7 +434,7 @@ instrument_morph(I_VIBE, 0.9f);                      // ring length — the top 
 hit(midi, I_VIBE, 5, 2500);                          // long gate: never chop the ring
 ```
 
-First customers (`radio-instrument-options.md`): lowend's lead → vibraphone (the
+First customers ([`radio-instrument-options.md`](../design/radio-instrument-options.md)): lowend's lead → vibraphone (the
 Nujabes sound, the single highest-value engine swap), ambient's bell, ymo's
 marimba counterpoint. The roll trick: a mallet *tremolo roll* is just 5–6
 `schedule_hit`s ~70ms apart on one bar, alternating vol 3/4 — see the mallet
@@ -503,7 +503,7 @@ as paste-ready C. Its `seed()` function is the current de-facto bank — sine,
 rounded square, saw, organ drawbars, vocal/clav, random-walk wobble, triangle —
 copy the four-line formula you want into your cart's `init()`. (The planned
 endgame is a curated `runtime/waves.h` carts can `#include` instead of copying —
-see audio-notes §13 for when that lands and why not sooner.)
+see [audio-notes](../design/audio-notes.md) §13 for when that lands and why not sooner.)
 
 Know the limit: a drawn cycle is a **snapshot, not behavior**. It cannot make the
 sounds the radio family actually ran out of — epiano pickup growl, FM bell
@@ -664,7 +664,7 @@ verbatim — extraction is overdue, and the plan is written up below
 
 **The band** (timbre is a pick too): engine voices — PLUCK strings/guitars, MALLET vibes/bells, FM epiano/bells/bass/brass (`instrument()` ADSR included: brass = slow attack!) · drawn waves (`wave_set` — `roadhouse.c`'s Vox drawbars and `tango.c`'s bandoneón reed are the worked examples) · borrowed machine circuits (`tr808.c` → house, `cr78.c` → yacht — copy the `instrument()` lines verbatim) · the per-song timbre roll (seeded band variation, `exotica.c`/`yacht.c` from day one) · **detuned pairs** (`instrument_tune` — two slots, one tuned +0.06, instant unison shimmer; same call = gamelan ombak, or a live tuning trimmer like sh101's TUNE. Reaches scheduled hits, the one pitch control that does).
 
-**A worked combination** (the kind of build this catalog exists for): *a hard-bop brass combo* = cocktail's walking bass + swing ride, `improv.h` soloing on an `INSTR_FM` brass patch (1:1 detent, timbre 0.9, **70ms attack** — the instrument-engines §8.8.3 swell makes the horn speak), chord brain #1 at jazz rate, the trio-set form with trading fours. Every part exists today; the cart is ~150 lines of glue plus a face.
+**A worked combination** (the kind of build this catalog exists for): *a hard-bop brass combo* = cocktail's walking bass + swing ride, `improv.h` soloing on an `INSTR_FM` brass patch (1:1 detent, timbre 0.9, **70ms attack** — the [instrument-engines](../design/instrument-engines.md) §8.8.3 swell makes the horn speak), chord brain #1 at jazz rate, the trio-set form with trading fours. Every part exists today; the cart is ~150 lines of glue plus a face.
 
 ## `radio.h` — the shared chassis, and how to lift it out
 
@@ -1106,7 +1106,7 @@ recipes, the style cheat-sheet, `radio.h`.
 
 ## Verifying without ears
 
-The debug harness makes the music inspectable (see `debug-harness.md`):
+The debug harness makes the music inspectable (see [`debug-harness.md`](debug-harness.md)):
 `watch()` the current bar/chord/step under `#ifdef DE_TRACE`, then
 
 ```bash

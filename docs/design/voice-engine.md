@@ -103,7 +103,7 @@ Things that would deepen the instrument without necessarily adding macros:
 
 - **Glide/portamento between syllables** — legato scat instead of re-triggered steps on the
   jam pad (within-drag pitch glide, re-randomise only on a fresh press).
-- **Choir / unison-detune** — 2–3 voices a few cents apart for the "aah" pad / gospel stack.
+- **Choir / unison-detune** (since promoted to an engine primitive: [`unison-primitive.md`](unison-primitive.md)) — 2–3 voices a few cents apart for the "aah" pad / gospel stack.
 - **Diphthongs** — vowel→vowel morph within a held note (needs a target-vowel set or the
   diphthong axis above).
 - **Mid-note consonants / clusters** — stepping toward real words ("la-la" → "hello"); the

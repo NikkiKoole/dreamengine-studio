@@ -47,7 +47,7 @@ A subtlety worth naming, because it changes the targeting:
 | Shape | What it is | Examples in our shelf | Tribe shape |
 |---|---|---|---|
 | **Instrument module** | one beloved instrument, playable + sequenced | omnichord, epiano (Rhodes/Wurli), fm, moog, mellotron, stylophone, otamatone | **Instrument cult** — owners/fans of one specific machine. Tiny, intense, *trivially findable* (one FB group, one reissue hype cycle). The easiest bullseye. |
-| **Genre rack** | a scene-in-a-box sequencer (the tinyjam rack table) | rebirth-house, rebirth-classic, spaghetti-western, ancient-library (dungeon synth), space-age bachelor pad, radiophonic, broken-fairground, toy-town | **Scene tribe** — people who make/love a *genre*. Bigger, more diffuse, but with passionate cores (dungeon synth, acid, exotica). |
+| **Genre rack** | a scene-in-a-box sequencer (the tinyjam rack table) | rebirth-house, [rebirth-classic](../../design/rebirth-classic.md), spaghetti-western, ancient-library (dungeon synth), space-age bachelor pad, radiophonic, broken-fairground, toy-town | **Scene tribe** — people who make/love a *genre*. Bigger, more diffuse, but with passionate cores (dungeon synth, acid, exotica). |
 
 **Strategic implication:** lead the public launch with **instrument modules** even though the
 *engineering* pilot is a genre rack (rebirth-house). The instrument cults are the cheapest, hottest,
@@ -420,7 +420,7 @@ Per-tribe outreach feeds one shared funnel (assembled from the existing design d
 
 Load-bearing pieces, all already specced:
 
-- **Shareable song URLs** (lz-string codec, product-notes-followup §save/share + action-plan Tier 0)
+- **Shareable song URLs** (lz-string codec, product-notes-followup §save/share + [action-plan](../../design/action-plan.md) Tier 0)
   — every shared tinyjam is a free ad with a one-click "make your own" built in. *Do this first; it's
   the cheapest viral surface in the project.*
 - **Email wishlist** segmented per module — so a strum-harp buyer gets told when the *next* relevant
@@ -522,7 +522,7 @@ thing the post promised, on a heavy page; that bleeds conversions.
 - **The page does double duty — so the copy is load-bearing, not decoration.** It's both the *conversion
   surface* (this section) *and* the *discoverability asset* (§10): crawlers and AI Overviews **can't read
   a wasm canvas, only text**. So the microsite must emit **real indexable HTML prose** around the
-  canvas — a what-is-this line + the hook, **question-style headings** (what is it / is it free / how does
+  canvas — a [what-is-this](../../what-is-this.md) line + the hook, **question-style headings** (what is it / is it free / how does
   an omnichord work / vs minichord), a short FAQ, and a how-it-works section seeded from
   [`omnichord-sound-model.md`](omnichord-sound-model.md). A canvas-only page
   converts *and* ranks worse. (Same copy serves both jobs — write it once, §7.1.)
@@ -530,7 +530,7 @@ thing the post promised, on a heavy page; that bleeds conversions.
   to a ScriptProcessor audio path when the page isn't cross-origin-isolated. To get the **better
   AudioWorklet path** you need **COOP/COEP headers**, so host where you can set them — **Netlify /
   Cloudflare Pages / own server**, *not* vanilla GitHub Pages. Not a blocker; a quality lever. (See
-  audio-threading.md on the SharedArrayBuffer / COOP-COEP wrinkle.)
+  [audio-threading.md](../../design/audio-threading.md) on the SharedArrayBuffer / COOP-COEP wrinkle.)
 - **The maker's site (mipolai.com) can host it.** It's **Apache behind a Varnish cache** (checked
   2026-06-29), so it *can* set the headers via `.htaccess`:
   `Header set Cross-Origin-Opener-Policy "same-origin"` + `Cross-Origin-Embedder-Policy "require-corp"`,

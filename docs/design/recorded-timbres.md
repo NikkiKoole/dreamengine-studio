@@ -91,7 +91,7 @@ A keybed (`note_on`/`note_off`, multitouch), a VOICE selector (strings/choir/flu
 drawn waves), the **8-second forced release** as the headline behaviour, attack-transient + ensemble
 stack baked into each voice, `tape()` + `reverb()` sends. The "more real" payoff over `tapeloop` is
 the per-note attack + the 8s limit + playability (it's an instrument, not a self-playing loop).
-Closest cousins to copy the chassis from: `tapeloop` (the drawn voices + tape) and a held-notes /
+Closest cousins to copy the chassis from: `tapeloop` (the drawn voices + tape) and a [held-notes](held-notes.md) /
 keybed cart (`heldnotes`/`touchpiano`) per the [instrument-carts shelf](../guides/instrument-carts.md).
 
 ## The honest limit

@@ -213,8 +213,8 @@ markings off), so dash phase doesn't create false positives. `--quiet` exits 1 o
    non-roundabout branch, after `streetlab.c:779`.
 2. Pin the gate: pick the kerb-band `--xband`/`--band`, confirm 131→0 for the symmetric default,
    and confirm skew/T are untouched (still use the per-corner path). Wire it into a check (or note
-   the invocation in `debug-harness.md`).
-3. Update the three "accepted floor" mentions — `road-program-state.md` "Accepted floor",
+   the invocation in [`debug-harness.md`](../guides/debug-harness.md)).
+3. Update the three "accepted floor" mentions — [`road-program-state.md`](road-program-state.md) "Accepted floor",
    `streetlab.c` `SEAM` note, `../STATUS.md` §43 — from *accepted* to *fixed for symmetric
    junctions via mirror-blit; skew/T still accept the floor*.
 

@@ -60,4 +60,4 @@ an *artist* station each effect maps to a *specific recognizable record*, so whe
 without the gate, and the serenade cannot bloom without the plate. The instruments are there
 (including the new `INSTR_VOICE` croon); the *room and the medium* are what's missing.
 
-*(Pairs with `tools/carts/napoleon.c` and its `radio-voices.md` chart.)*
+*(Pairs with `tools/carts/napoleon.c` and its [`radio-voices.md`](../guides/radio-voices.md) chart.)*

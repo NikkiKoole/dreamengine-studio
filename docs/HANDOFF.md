@@ -20,7 +20,7 @@ can't leave a stale sentence here (the trip-up: a "resume at trim+speed" line su
 trim+speed shipped, because the status was copied into the pointer instead of pointed-to). A lane
 dated **>2 weeks** old is presumed stale — verify or prune. Everything below the lanes is history;
 trust `STATUS.md` + the design board over it. **Tooling keeps this honest** (`tools/handoff.js`, the
-driftable two-door pattern): `node tools/handoff.js` lists the active lanes + age (and it's the first
+[driftable two-door pattern](design/driftable-docs.md)): `node tools/handoff.js` lists the active lanes + age (and it's the first
 thing `orient` prints — the front door); `node tools/handoff.js --check` flags a lane >2wk old, a
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
@@ -131,7 +131,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 >   field-note-018 traps baked in as guards.
 > - [`decisions/0028-sensible-defaults-optional-tweaks.md`](decisions/0028-sensible-defaults-optional-tweaks.md)
 >   — the rule: pick the stranger-legible default, ship it, leave a **seam**; don't agonize, don't
->   over-configure. Wired into design-system §5 + the playbook.
+>   over-configure. Wired into [design-system](design/design-system.md) §5 + the playbook.
 > - `tools/carts/epianofit.c` — the step-4 layout **MOCK** (no audio): device-fit + finger unit +
 >   disclosure across all shapes. Keys: `1-5` lock device / `0` auto / `m` machine / `f` fx / `s`
 >   scale / `r` key / `i` iso-layout / `g` force piano-or-grid / `n` native full-bleed.
@@ -335,7 +335,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > venues · `discover` venue-hunt links + Google-autocomplete signals · `draft` a gift-first post
 > scaffold from the cart's own words · `track` outreach log · `audit` whole-catalogue coverage,
 > free/local · `list` · `--check`) + `tools/leads-ledger.json` (committed, hand-editable; **18
-> tribes**/9 cross-cutting, seeded from tinyjam-marketing §3.9). The model is **buckets**: a tribe =
+> tribes**/9 cross-cutting, seeded from [tinyjam-marketing](marketing/tinyjam/tinyjam-marketing.md) §3.9). The model is **buckets**: a tribe =
 > tags + venues + hook; carts auto-match on `de:meta`; a `domain` (music/game/any) pre-filter keeps
 > games off music-press venues. Reddit's free API is dead (403) — discover uses free Google
 > autocomplete + search-url launchers.

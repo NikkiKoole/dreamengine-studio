@@ -1,7 +1,7 @@
 # voice — how the editorial prose should sound
 
 A synthesis of Nikki's writing voice, for any **hand-written editorial prose** in the
-project — first customer is the editorial seam of the generated history doc
+project — first customer is the editorial seam of the generated history doc ([`history-page.md`](history-page.md))
 (`docs/design/` history spine), but it applies anywhere a human paragraph gets written
 into the docs rather than auto-derived.
 

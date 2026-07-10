@@ -192,7 +192,7 @@ rest — already vouched for by their shipped carts.
 ## 4. Identity & trademark
 
 Roland-flavored homage stays free (gallery/web); nothing Roland-skinned crosses a paywall — the
-paid identity gets original naming (`tinyjam-marketing.md` §2, the `tj-acid3`/`tj-drums9`
+paid identity gets original naming ([`tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §2, the `tj-acid3`/`tj-drums9`
 convention). Precedent: `moog.c` ships titled **"dream synth."** The rack should follow suit from
 day one — original faceplate name, RB-338 in `lineage`/`homage` metadata where it belongs.
 

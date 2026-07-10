@@ -3,6 +3,7 @@
 STATUS: BUILDING (2026-07-07) — tool + ledger built; MUSIC tribe taxonomy substantially filled
 (32 tribes, 90% music coverage — remaining gaps are engine tech-demos that get no tribe by design);
 editor Apps-page surface BUILT v1 (📣 find tribes glance). Open: v2 discover box; games parked.
+Editor-surface sibling: [`promote-tab.md`](promote-tab.md) (the per-cart media bin the 📣 glance sits beside).
 The demand-GENERATION twin of the `aso-*` demand-CAPTURE tools. Sits under
 [`demand-generation.md`](demand-generation.md) lever #3 ("showing up in the tribe").
 

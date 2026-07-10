@@ -63,7 +63,7 @@ What's left:
 - `tapr` — the touch-release edge trigger. Don't give it a standalone cart; it belongs in the
   still-open touch tutorial (attack list #4, `tap`/`touch_*`) as one release-to-fire target.
 - `watch_visible`, `paused` — dev/debug conveniences, not really teachable concepts. Probably not
-  worth a showcase cart at all; a one-line mention in `debug-harness.md` covers it better.
+  worth a showcase cart at all; a one-line mention in [`debug-harness.md`](../guides/debug-harness.md) covers it better.
 
 (The long tail has shifted too — `print_rot_scaled` (3 carts) and `rectfill_rot` (4 carts/8
 calls) have outgrown "1–2 carts"; still in that band: `arcoutline`, `ringoutline`, `pget_rgb`,
@@ -105,3 +105,5 @@ still-open touch tutorial (#4); `watch_visible`/`paused` are probably dead weigh
 - [`cart-library-direction.md`](cart-library-direction.md) — the cart-shelf companion (what to *build*)
 - the ★ techniques compendium (`tools/build-compendium.js` → editor Docs tab) — what each cart *teaches*
 - [`api-usage-audit.md`](api-usage-audit.md) — the API-usage findings snapshot
+
+*The counting method + derived-number freshness convention: [`driftable-docs.md`](driftable-docs.md).*

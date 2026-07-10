@@ -78,7 +78,7 @@ it teachable, which makes it honest" retired with the teaching star; [0022](../d
 1. **The humble surface leaves the system nowhere to hide.** A photoreal renderer invites
    you to look *at* the picture; 320×200 and 32 colours can only carry a cart if the system
    underneath is *true*. The lo-fi skin is what lets the simulation be the star. (Same instinct
-   as CLAUDE.md's game-feel rule: anti-flash, pro-clarity — "what does the player need to feel?",
+   as CLAUDE.md's [game-feel](../guides/game-feel.md) rule: anti-flash, pro-clarity — "what does the player need to feel?",
    not "what looks cool?")
 2. **The contained cart is a forcing function for focus.** It makes you render *only what the
    sim needs you to feel*, and it keeps each cart to **one honest core** — a scope small enough

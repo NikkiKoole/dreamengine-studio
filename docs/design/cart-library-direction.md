@@ -152,7 +152,7 @@ pattern at the bottom.
    Bottleneck drag = a great one-finger gesture.
 5. **Standing bass (upright)** — PLUCK low register + a noise slap transient; the
    fingerboard is the touch surface. Autopilot = cocktail.c's `walk_note()`
-   (already a graduation candidate in game-music.md) — *tap a chord, the bass
+   (already a graduation candidate in [game-music.md](../guides/game-music.md)) — *tap a chord, the bass
    walks itself*. Arco mode waits on the bowed engine.
 6. **Slide whistle ("pulling whistle")** — cheapest of all: `INSTR_SINE` held
    note + `note_glide` with overshoot + bounce. One finger = one plunger — the
@@ -277,7 +277,7 @@ Not "another clone" — each earns its place:
   programmatic sprite-draw bird with a sampled flap cycle, sspr_ex tilt+squash, feather
   particles, flash/shake/hit-stop, parallax sky/ground. One-button on every device
   (`tapp` full-screen + btnp + key) → phone-playable. The tutorial↔big-game bridge, built.
-  (Also tutorial-curriculum Track C #40.)
+  (Also [tutorial-curriculum](tutorial-curriculum.md) Track C #40.)
 - **An idle / incremental ("numbers go up").** Trivial to code, genuinely engaging, and
   the *first game a beginner can finish and feel proud of.* None exist.
 - **A typing game** (Typing of the Dead style) — educational *and* shows off

@@ -100,7 +100,7 @@ scrolls (wheel over the sidebar); the wheel zooms only over the canvas, toward t
 Touch (2026-06-07): a two-finger **pinch** steps the same crisp zoom stops (anchored at the
 pinch midpoint; the second finger cancels pans/knob drags), and the palette **drag-scrolls**
 — pressing an item defers the pick-up: drag right onto the canvas to place it, drag up/down
-to scroll the list. Same date, the §17 audio-notes pass landed in the rack: CLOCK grew a
+to scroll the list. Same date, the §17 [audio-notes](audio-notes.md) pass landed in the rack: CLOCK grew a
 **swg knob** (0–60%, delays every 2nd 8th-step; /2 and /4 stay on the straight on-beats) and
 DRUM's voices went dark — the kick is the punch-recipe baked in (long sine + `ENV_PITCH`
 donk, slots 26–28) instead of a 90ms tri tick.

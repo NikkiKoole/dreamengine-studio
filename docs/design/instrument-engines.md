@@ -323,7 +323,7 @@ independently shippable:
    wood→bell, timbre = mallet hardness, morph = ring length + the motor tremolo in its top
    third), `mallet` showcase cart with the 5 hardware presets as baked macro positions.
    Built by the §8.8.2 playbook (its first full walk). Open tail: macro taste-tuning by ear
-   + the lowend/ambient/ymo retrofits (`radio-instrument-options.md`).
+   + the lowend/ambient/ymo retrofits ([`radio-instrument-options.md`](radio-instrument-options.md)).
 3. ~~**`INSTR_FM`** (2-op + feedback, buffer-free) — promoted ahead of the organ
    2026-06-05: the demand is on the dial today (citypop's Rhodes overtone, the epiano gap
    blocking the whole Italo/AOR batch, gamelan's bronze, exotica's bells), while nothing
@@ -351,10 +351,10 @@ independently shippable:
    for horns, so brightness now **follows the amp attack** — a 70ms-attack slot speaks
    like a horn, instant-attack patches byte-identical. Both named risks closed; the FM
    tail is plain taste-tuning. (Already exercised in anger: yacht.c's epiano comps,
-   tr909's clang hats, game-music's hard-bop combo recipe.)
+   tr909's clang hats, [game-music](../guides/game-music.md)'s hard-bop combo recipe.)
 4. **`INSTR_ORGAN`** — drawbars → scanner, buffer-free core. *(2026-06-05: the Leslie is
    deferred — ships later as the effects/bus layer's first instance, §8.10; the morph macro's
-   scanner vibrato carries the motion until then.)* Pilots the held-notes + macros-as-CV
+   scanner vibrato carries the motion until then.)* Pilots the [held-notes](held-notes.md) + macros-as-CV
    surface the whole wind family (steps 7/9) will reuse. The resonant SVF still rides along —
    it's the reusable primitive that also gives §5.5 and §8.3's formant.
 5. **`INSTR_EPIANO`** — promoted to its own step by the navkit verification (2026-06-05):
@@ -1046,7 +1046,7 @@ envelope's current value + its target — call it ~2 floats. No note-on excitati
 no stale-state guard needed (cosine from any phase is safe). Pitch: phase advances at
 `freq × pitch_mul / sampleRate` per sample — the §8.8.1 rule satisfied by construction.
 
-**Build order — STEP 0 is non-negotiable (this is the wah-detour scar, §8.8.2 / sound-handoff
+**Build order — STEP 0 is non-negotiable (this is the wah-detour scar, §8.8.2 / [sound-handoff](sound-handoff.md)
 PARKED):** before freezing any numbers, **render navkit's presets 52/53** with
 `tools/navkit-render.c` and A/B them against ours — the macro *architecture* above is
 source-derived and solid, but the `d` ranges, the DCW decay time, and the reso cap are

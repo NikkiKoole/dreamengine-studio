@@ -23,17 +23,37 @@
 //      markdown link to that doc anywhere in the file. The named doc should be
 //      clickable. Fenced code blocks are excluded (a path in a shell example is
 //      fine unlinked). Hyphen-only basenames keep this unambiguous (single-word
-//      names like "spec"/"run" would over-fire and are skipped).
+//      names like "spec"/"run" would over-fire and are skipped). FROZEN files
+//      (decisions/, field-notes/, */raw/) are never asked to edit a link in —
+//      the same append-only principle as the backlink exemptions below.
 //
 //   B. MISSING BACKLINKS (review tier)
 //      A links B but B doesn't link A — an asymmetric reference. Often fine, but
-//      it's exactly the ios-plan ↔ touch-controls case. HUB docs (STATUS, README,
-//      VISION, history, the field-notes index) are exempt as the un-backlinked
-//      side — they legitimately point outward without every doc pointing back.
+//      it's exactly the ios-plan ↔ touch-controls case. Exempt classes (each a
+//      principled "the asymmetry is by design", settled in the 2026-07-10 sweep
+//      that took this tier's backlog to zero — see driftable-docs.md "what we
+//      deliberately don't gate" for the philosophy):
+//        - HUB targets (STATUS, README, VISION, history, the field-notes index,
+//          + any doc with in-degree ≥ HUB_INDEGREE): cited by many, owe nobody
+//          a backlink.
+//        - OUT-HUB linkers (out-degree ≥ OUT_HUB_OUTDEGREE): umbrella/map/ledger
+//          docs (HANDOFF, driving-world-program, instrument-map, probe-carts…)
+//          that link a dozen+ members — the members don't each owe the map a
+//          pointer, and HANDOFF's lanes are transient so a backlink would rot.
+//        - FROZEN targets (docs/decisions/, docs/field-notes/, */raw/): append-
+//          only genres — a new doc citing an old ADR/field note must not force
+//          an edit to history.
+//        - SIBLING blind-briefs: one brief citing another ("like plaid's beat
+//          grid") is an incidental comparison; band-briefs.html already binds
+//          the set.
 //
 // Companion to lint-docs.js (broken links / §-refs / tool-index). Scope: docs/
-// (archive/ skipped — staleness there is the point). ADVISORY — always exits 0;
-// the corpus carries a standing backlog, so scope to a feature to act on it.
+// (archive/ skipped — staleness there is the point). Advisory by default
+// (exit 0); `--strict` exits 1 on any finding — the 2026-07-10 sweep took both
+// tiers to ZERO (58 backlinks / 203 mentions → 0/0 via the exempt classes above
+// + ~140 added links), so repo-doctor now runs it --strict as a GATE. Keep it
+// at zero: a new finding is either a missing link (add it) or a new principled
+// class (teach it here, documented).
 // ============================================================================
 
 const fs = require("fs");
@@ -51,6 +71,10 @@ const touchesScope = (...rels) => !scope || rels.some(r => r.toLowerCase().inclu
 // automatically (a domain hub, the same shape as STATUS). Computed below.
 const HUBS = new Set(["STATUS", "README", "VISION", "history", "FIELD-NOTES", "glossary"]);
 const HUB_INDEGREE = 5;
+// out-hub: a doc that links ≥ this many other docs is an umbrella/map/ledger by
+// construction (corpus median out-degree is 3; the maps sit at 15+) — its link
+// targets owe it no backlink. See the header's exempt-classes note.
+const OUT_HUB_OUTDEGREE = 15;
 
 // ---- collect docs ----
 function walk(dir, out = []) {
@@ -101,11 +125,24 @@ for (const f of files) for (const t of info.get(f).links)
   if (info.has(t) && t !== f) inDegree.set(t, (inDegree.get(t) || 0) + 1);
 const isHub = abs => HUBS.has(path.basename(abs, ".md")) || (inDegree.get(abs) || 0) >= HUB_INDEGREE;
 
+// out-hub / frozen / sibling-brief exemptions (backlink tier only — see header)
+const outDegree = abs => [...info.get(abs).links].filter(t => info.has(t) && t !== abs).length;
+const isOutHub = abs => outDegree(abs) >= OUT_HUB_OUTDEGREE || path.basename(abs, ".md").startsWith("HANDOFF");
+const isFrozen = abs => {
+  const rel = path.relative(ROOT, abs);
+  return rel.startsWith(path.join("docs", "decisions") + path.sep) ||
+         rel.startsWith(path.join("docs", "field-notes") + path.sep) ||
+         rel.includes(path.join("guides", "cart-specs") + path.sep) || // batch-build artifacts
+         rel.split(path.sep).includes("raw");
+};
+const isBrief = abs => /-blind-brief$/.test(path.basename(abs, ".md"));
+
 // ============================================================================
 // A. unlinked mentions
 // ============================================================================
 const unlinked = []; // { rel, base, target, ln, text }
 for (const f of files) {
+  if (isFrozen(f)) continue; // append-only genres are never asked to edit-in a link
   const me = info.get(f);
   const selfBase = path.basename(f, ".md");
   for (const base of targetBases) {
@@ -137,6 +174,9 @@ for (const a of files) {
     if (B.links.has(a)) continue;                    // mutual → fine
     if (isHub(a)) continue;                           // don't demand a backlink TO a hub
     if (isHub(b)) continue;                           // a hub needn't backlink its many citers
+    if (isOutHub(a)) continue;                        // umbrella/map/HANDOFF linker: targets owe it nothing
+    if (isFrozen(b)) continue;                        // append-only genre never owes a backlink
+    if (isBrief(a) && isBrief(b)) continue;           // sibling blind-briefs: incidental comparison
     missingBack.push({ from: A.rel, to: B.rel, fromBase: path.basename(a, ".md") });
   }
 }
@@ -177,4 +217,5 @@ if (backShown.length) {
 if (!unlinkedShown.length && !backShown.length) console.log("no missing cross-references found" + (scope ? ` for "${scope}"` : "") + ".");
 console.log(dim(`${files.length} docs · ${targetBases.length} linkable basenames · ` +
   `${unlinkedShown.length}/${unlinked.length} unlinked mentions · ${backShown.length}/${missingBack.length} missing backlinks${scope ? " (shown/total)" : ""}`));
+if (process.argv.includes("--strict") && (unlinked.length || missingBack.length)) process.exit(1);
 

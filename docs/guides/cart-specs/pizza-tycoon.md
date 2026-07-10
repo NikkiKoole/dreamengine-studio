@@ -10,7 +10,7 @@ deadline. Menu + map driven, characterful, juicy.
 **Districts you buy + recipe/price + a daily revenue sim + mafia job event cards + one
 rival.** Win = highest cash / most shops owned by day N. 🔴 Trim the full management
 sprawl: no staff micro, no decoration mini-game — focus the buy→tune→earn→sabotage loop.
-Shares an economy backbone with `druglord.md` / `trade-winds.md`.
+Shares an economy backbone with `druglord.md` / [`trade-winds.md`](trade-winds.md).
 
 ## Core mechanics
 - **City map:** ~6 districts (varying rent, foot traffic, taste). Buy a shop in one;

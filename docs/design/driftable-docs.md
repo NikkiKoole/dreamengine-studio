@@ -123,8 +123,12 @@ rot, it's finding this decision:
   is not a dependency; gating would force doc churn on every tool edit. The BROKEN-references
   tier is the real-issue slice, and even that stays advisory (design docs legitimately cite
   planned-not-built paths).
-- **`lint-xrefs`' missing backlinks / unlinked mentions** — review-tier by design; a hub doc
-  linking out without a link back is often fine. Scope it to a feature when acting on it.
+- ~~**`lint-xrefs`' missing backlinks / unlinked mentions**~~ — **GRADUATED same day
+  (2026-07-10):** the "often fine" cases became *documented exempt classes in the tool*
+  (out-degree hub linkers, frozen append-only genres incl. cart-specs, sibling blind-briefs)
+  instead of a standing backlog to squint at; the genuine gaps (~140 links) were added, both
+  tiers hit 0/0, and repo-doctor now runs `lint-xrefs --strict` as a GATE. Second worked
+  example of the graduation path, same day as the first.
 - **STALE PUBLISHED carts (`cart-status`)** — a *publishing cadence* choice, not rot;
   `publish-all.js` exists for the batch pass. Same for NOT PUBLISHED.
 - ~~**`design-board --lint`'s unmarked-docs backlog**~~ — **GRADUATED same day (2026-07-10):**
@@ -150,5 +154,5 @@ proportionate answer.
 
 ## See also
 - [`../../tools/stale-doc-check.js`](../../tools/stale-doc-check.js) — the checker (header = full contract)
-- [`teaching-gaps.md`](teaching-gaps.md), [`api-usage-audit.md`](api-usage-audit.md) — the current driftable docs
+- [`api-usage-audit.md`](api-usage-audit.md), [`worldgen-plan.md`](worldgen-plan.md), `apps/tinyjam/seo-brief.md` — the currently registered driftable docs ([`teaching-gaps.md`](teaching-gaps.md) no longer carries a marker)
 - [`../guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) — the task→gate reverse index

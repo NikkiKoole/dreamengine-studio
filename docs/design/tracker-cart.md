@@ -169,3 +169,5 @@ a radio's frozen output could someday land in tracker phrases. Nothing in v1 dep
 - **Track count 4 vs 8:** 4 fits the song view at 8×8 chunky; 8 needs FONT_SMALL. Lean: 4.
 - **Where transpose lives:** chain-entry transpose only (M8 style) vs also a song-row
   transpose. Lean: chain only.
+
+*See also: [`pocketbox.md`](pocketbox.md) — the groovebox sibling (generator-first, where this cart is document-first).*

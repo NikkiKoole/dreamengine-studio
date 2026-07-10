@@ -74,7 +74,7 @@ exact stack (pure C + raylib + `sound.h` rendering headless):
 - **Sandbox save paths.** Can't write next to the binary; query the Documents dir via a 3-line
   Obj-C helper returning a `const char*` to the C side. Maps cleanly onto our `save_*` path layer.
 - **Safe areas + 44 pt touch targets.** Notch/Dynamic-Island insets + min 44 pt hit areas. This is
-  exactly the current touch pass ([`touch-notes.md`], [`mobile-web-notes.md`]) — the fat-finger pads
+  exactly the current touch pass ([`touch-notes.md`](touch-notes.md), [`mobile-web-notes.md`](mobile-web-notes.md)) — the fat-finger pads
   in `ui.h` already encode the hit-pad idea.
 - **Bundle the wasm, never download it.** If a native shell ran *downloaded* wasm it risks App Store
   guideline 2.5.2/4.7 (no downloaded executable code). For us this is moot if we go raylib-native

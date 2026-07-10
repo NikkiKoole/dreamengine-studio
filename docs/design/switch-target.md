@@ -6,7 +6,7 @@ hard part is legal/logistical, not the port.** And the iOS spike already retired
 *engineering* risk.
 
 Companion reading: [`ios-plan.md`](ios-plan.md) (the AOT cart model this leans on),
-[`engine-portability.md`](engine-portability.md) (the platform seam + software-canvas decision),
+[`engine-portability.md`](engine-portability.md) (the platform seam + [software-canvas](software-canvas.md) decision),
 [`../decisions/0023-ship-carts-as-apps-not-the-editor.md`](../decisions/0023-ship-carts-as-apps-not-the-editor.md)
 (we ship finished carts as apps, precompiled — never the editor).
 

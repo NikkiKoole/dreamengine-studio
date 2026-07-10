@@ -93,7 +93,8 @@ animation survives between runs, seeding a neutral standing pose if nothing's sa
 ## Lean into / read
 `drummachine.c` (the bones-rows × frames-cols **grid + playhead** idiom this is built on —
 read it first), `mario-paint-sound.c` / `deluxe-paint.c` (sibling TOOL carts: mouse UI +
-`save_bytes` toy structure), the trig helpers (`dx`/`dy`/`angle_to`/`sin_deg` — degrees),
+`save_bytes` toy structure; specs: [mario-paint-sound](mario-paint-sound.md),
+[deluxe-paint](deluxe-paint.md)), the trig helpers (`dx`/`dy`/`angle_to`/`sin_deg` — degrees),
 `lerp`/`ease_*` (smooth playback between quantised keys), `16-spirograph.c`/`elite.c`
 (turning angles into line art), `typesave.c` (`save_bytes` blob round-trip). Skip: any
 engine entity/animation system (there is none — own arrays + FK by hand), editable bone

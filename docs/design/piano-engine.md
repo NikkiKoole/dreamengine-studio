@@ -1,6 +1,6 @@
 # Piano engine (INSTR_PIANO / StifKarp) — why it sounds like a harp, and the fix list
 
-STATUS: DESIGNED — diagnosis done (a faithful harp port); the fix roadmap (double decay, hammer knock, velocity coupling, stretched tuning) is the build.
+STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, hammer knock, velocity→timbre, per-voicing decay + dulcimer unison, stretched tuning); A/B crest 21.6→25.9 dB, onset brightness 0.10→0.25. Only optional polish remains (ear-tune the per-voicing baselines + PIANO_STRETCH_K; promote the eng_p indices to public MODE_PIANO_* constants).
 
 **Genre: design exploration / handoff.** The diagnosis + roadmap for the one engine in the
 roster that never got past "nice but mediocre." Engine impl: `runtime/sound.h`

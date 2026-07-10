@@ -1,6 +1,6 @@
 # Stereo — the design resolution (§9 open question)
 
-STATUS: DESIGNED (design call ahead of build) — instrument_pan/note_pan + the linear pan law; prerequisite of the §8.10 effects layer.
+STATUS: SHIPPED (2026-06-10) — the stereo path is live: instrument_pan/note_pan + LFO_PAN + linear pan law (constant-power pan_law() as a gated opt-in), stereo-correct soft-clip + steal-declick, demo cart `pan`. The §8.10 effects layer this gates (reverb → delay → ping-pong / auto-pan) is the separate follow-on build, tracked in instrument-engines.md.
 
 > **Genre: design call ahead of build.** Resolves the long-standing §9 "Stereo?" open question
 > in [`audio-notes.md`](audio-notes.md) so the answer exists *before* the effects-bus layer

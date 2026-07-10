@@ -24,6 +24,7 @@
 de:meta */
 #include "studio.h"
 #include "cursor.h"
+#include "endcard.h"
 
 // ── FIELD COMMANDER — turn-based tactics (an Advance Wars demake) ─────────────
 // You (RED) vs the CPU (BLUE) on one hand-made tile map. Move units, capture
@@ -93,6 +94,7 @@ static int turn_no, winner = -1;
 // ── interaction ──────────────────────────────────────────────────────────────
 enum { S_IDLE, S_MOVE, S_ACT, S_TARGET, S_BUILD, S_WIN };
 static int  state = S_IDLE;
+static float end_t;               // seconds since the win banner came up
 static int  cx = 9, cy = 8;       // cursor cell
 static int  sel = -1;             // selected unit
 static int  origX, origY;         // pre-move position (for undo)
@@ -408,6 +410,7 @@ static int char_terr(char c) {
     }
 }
 static void reset_game(void) {
+    end_t = 0;
     for (int y = 0; y < ROWS; y++) {
         const char *row = LAYOUT[y];
         for (int x = 0; x < COLS; x++) {
@@ -506,6 +509,7 @@ void update(void) {
     }
 
     if (state == S_WIN) {
+        end_t += dt();
         if (confirm_pressed() || mouse_pressed(MOUSE_LEFT)) reset_game();
         return;
     }
@@ -752,15 +756,15 @@ void draw(void) {
         }
     }
 
-    // ── win banner ──
+    // ── win banner — the shared end-screen treatment (endcard.h) ──
     if (state == S_WIN) {
-        fade(0.5f);
-        int w = 220, bx = (SCREEN_W-w)/2;
-        rectfill(bx, 78, w, 44, winner==0?CLR_DARK_GREEN:CLR_DARK_PURPLE);
-        rect(bx, 78, w, 44, CLR_WHITE);
-        print_centered(winner==0 ? "VICTORY!" : "DEFEAT", SCREEN_W/2, 86, winner==0?CLR_GREEN:CLR_RED);
-        print_centered(winner==0 ? "the enemy HQ has fallen" : "your forces are routed", SCREEN_W/2, 100, CLR_LIGHT_GREY);
-        print_centered("click for a new battle", SCREEN_W/2, 110, CLR_YELLOW);
+        EndCard c = endcard(end_t, 220, 44, 78, winner==0?CLR_DARK_GREEN:CLR_DARK_PURPLE,
+                            CLR_WHITE, winner==0?CLR_GREEN:CLR_RED);
+        if (c.settled) {
+            print_centered(winner==0 ? "VICTORY!" : "DEFEAT", SCREEN_W/2, c.y + 8, winner==0?CLR_GREEN:CLR_RED);
+            print_centered(winner==0 ? "the enemy HQ has fallen" : "your forces are routed", SCREEN_W/2, c.y + 22, CLR_LIGHT_GREY);
+            if (blink(18)) print_centered("click for a new battle", SCREEN_W/2, c.y + 32, CLR_YELLOW);
+        }
     }
     cursor_draw(CUR_ARROW);
 }

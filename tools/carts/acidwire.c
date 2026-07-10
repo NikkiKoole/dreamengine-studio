@@ -24,6 +24,8 @@ de:meta */
 #include <math.h>
 #include <string.h>
 #include "lay.h"
+#include "ui.h"   // real widgets (ui_knob/ui_slider) — per-finger capture + fat hit pads, so the
+                  // wireframe's controls actually MOVE (no sound; just honest finger-ergonomics)
 
 extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size
 
@@ -97,26 +99,62 @@ static int clicked(Box b) {
     return 0;
 }
 
-// ───────── strip-content wireframe bits ─────────
-static void wf_knob(Box cell, int i, const char *label) {
-    Box dial; Box lab = lay_split(cell, EDGE_BOTTOM, lay_clamp(FU * 0.28f, 4, 8), &dial);
-    float r = lay_clamp((dial.w < dial.h ? dial.w : dial.h) * 0.42f, 3, 22);
-    float cx = dial.x + dial.w / 2, cy = dial.y + dial.h / 2;
-    circfill((int)cx, (int)cy, (int)r, CLR_MEDIUM_GREY); circ((int)cx, (int)cy, (int)r, CLR_DARK_GREY);
-    float a = 2.3f + i * 0.7f;
-    line((int)cx, (int)cy, (int)(cx + r * 0.8f * cosf(a)), (int)(cy + r * 0.8f * sinf(a)), CLR_ORANGE);
-    if (r >= 5) { font(FONT_TINY); print_centered(label, (int)cx, (int)lab.y, CLR_LIGHT_GREY); }
+// ───────── control backing values (no sound — the wireframe just needs them to MOVE so a
+// finger can grab and turn one; that's the only way finger-comfort is honest). Persist per
+// strip across frames. kv = full/expanded + MASTER knobs; kvc = the compact 2-3 knobs. ─────────
+static float kv[NSTRIP][7], kvc[NSTRIP][3], tempo = 0.55f;    // kv = full/expanded + MASTER knobs; kvc = compact 2-3
+// ── PARKED IDEA · PAGED KNOBS (motionbox's model — prototyped + parked 2026-07-10) ─────────────────
+// A thin page-tab strip that swaps what a fixed set of ~3 knobs controls (MAIN / SHP / FX …), so a
+// tight strip reaches every param + fx without a wall of knobs — motionbox's PG_TONE/MOD/OSC/MIX
+// applied here. It WORKS, and it's the clean answer to brief §2's "fixed vs per-machine knob count"
+// (keep it fixed at 3, add pages). WHY PARKED: the tab strip costs a whole extra ROW of vertical
+// budget, and acidrack stacks 5 strips on a phone — that row is too expensive HERE. It's a strong fit
+// for a SINGLE dense panel with vertical room to spare; revisit for a cart like that. Same call sank
+// a fullscreen [fx] panel (roomy send knobs) — not worth the surface in this wireframe. See
+// acidrack-layout-brief.md §2. [fx] is left as an inert button for now.
+// step-sequencer backing data — EDITABLE (tap a cell to toggle). Seeded once from the same
+// deterministic patterns the wireframe drew before, so the look is unchanged until you edit.
+static unsigned char dstep[NSTRIP][11][STEPS];    // drum: strip × voice × step (hit on/off)
+static signed char   n303[NSTRIP][STEPS];         // 303: pitch row 0..14 per step
+static unsigned char rest303[NSTRIP][STEPS], a303[NSTRIP][STEPS], s303[NSTRIP][STEPS]; // 303: rest / accent / slide
+static int p303_rest(int seed, int i);            // defined below — used here to seed n303/rest303
+static int p303_note(int seed, int i);
+static int p303_acc(int seed, int i);
+static int p303_sld(int seed, int i);
+static int uiseeded = 0;
+static void wf_seed(void) {   // spread the values once so nothing sits dead at 0
+    if (uiseeded) return; uiseeded = 1;
+    for (int s = 0; s < NSTRIP; s++) {
+        for (int i = 0; i < 7; i++) kv[s][i]  = 0.2f + 0.1f * ((s + i) % 6);
+        for (int i = 0; i < 3; i++) kvc[s][i] = 0.3f + 0.15f * ((s + i) % 4);
+        for (int v = 0; v < 11; v++) for (int i = 0; i < STEPS; i++)
+            dstep[s][v][i] = (((i + v * 3 + 1) % 4) == 0) || (i == 6 && v % 2 == 0) || (i == 10 && v % 3 == 0);
+        for (int i = 0; i < STEPS; i++) {
+            n303[s][i]   = (signed char)(p303_note(s, i) % 15);
+            rest303[s][i] = p303_rest(s, i); a303[s][i] = p303_acc(s, i); s303[s][i] = p303_sld(s, i);
+        }
+    }
 }
-static void wf_knobrow(Box area, const char *const *labels, int n) {
+
+// ───────── strip-content wireframe bits ─────────
+// A knob is now the REAL ui.h widget: fixed ~1-finger size + hit pad, drag-to-turn. Fixed size is
+// the point (acidfit's "comfort threshold, not fit threshold") — if N knobs can't each get a finger
+// in the row, they overlap, and THAT overflow is the finding (phone → editor swap, brief §3).
+static void wf_knob(Box cell, float *v, const char *label) {
+    int cx = (int)(cell.x + cell.w / 2), cy = (int)(cell.y + cell.h / 2);
+    ui_knob(v, cx, cy, label);
+}
+static void wf_knobrow(Box area, const char *const *labels, int n, float *vals) {
     float gap = lay_clamp(FU * 0.12f, 1, 3);
-    for (int i = 0; i < n; i++) { Box c = lay_grid(area, n, n, i, gap); if (c.w > 4 && c.h > 6) wf_knob(lay_inset(c, 0.5f), i, labels[i]); }
+    for (int i = 0; i < n; i++) { Box c = lay_grid(area, n, n, i, gap); if (c.w > 4 && c.h > 6) wf_knob(lay_inset(c, 0.5f), &vals[i], labels[i]); }
 }
 // the step lane: 16 steps grouped in 4s so downbeats read at a glance (acidrack-ui-research §3 —
 // "the single biggest legibility win, costs nothing"). Grouping = a bigger gap between beats
 // (Gestalt) + a warm downbeat marker; the ACTIVE steps (lime) stay dominant. mu = muted → grey.
 // AUTO-FOLDS to 2×8 when a 1×16 row would push cells below the touch floor — i.e. on phones
 // (research §3: naive 1×16 ≈ 23pt/step; portrait folds to 2×8, still chunked in 4s). iPad stays 1×16.
-static void wf_steplane(Box area, int seed, int mu) {
+static void wf_steplane(Box area, int sidx, int mu) {
+    int voice = 0;   // compact shows the SELECTED voice (selector not yet wired to change it — voice 0 for now)
     float g = 1, G = lay_clamp(FU * 0.18f, 2, 6);          // within-beat gap · between-beat gap (bigger)
     float cw1 = (area.w - 12 * g - 3 * G) / 16.0f;         // width a 1×16 cell would get
     int rows = (cw1 < 11 && area.h >= 16) ? 2 : 1;         // too narrow + room below → fold to 2×8
@@ -128,16 +166,20 @@ static void wf_steplane(Box area, int seed, int mu) {
         float x = area.x, y = area.y + r * (rh + 2);
         for (int c = 0; c < per; c++) {
             int i = r * per + c;
-            int on = ((i + seed) % 4 == 0) || i == 6 || i == 11;
+            Box cell = box(x, y, cw, rh);
+            int on = dstep[sidx][voice][i];
             int off = (i % 4 == 0) ? CLR_DARK_BROWN : CLR_DARKER_GREY;   // downbeat gets a warm marker
-            boxfill(box(x, y, cw, rh), mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+            boxfill(cell, mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+            if (clicked(cell)) dstep[sidx][voice][i] = !on;
             x += cw + g; if (c % 4 == 3) x += G - g;        // widen the gap after each beat
         }
     }
 }
-static void wf_minipat(Box area, int seed, int mu) {   // folded: a row of tiny on/off dots
+static void wf_minipat(Box area, int sidx, int mu) {   // folded: a row of tiny on/off dots (readout of the live pattern)
+    int drum = STRIP[sidx].kind == DRUMS;
     for (int i = 0; i < STEPS; i++) { Box s = lay_wrap(area, STEPS, i, FU * 0.2f, 1); if (s.w < 1) continue;
-        int on = ((i + seed) % 3 == 0); boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
+        int on = drum ? dstep[sidx][0][i] : !rest303[sidx][i];
+        boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
 }
 // per-instrument PATTERN selector for strip `idx`: NPAT numbered slots, live one lit; tap to select.
 static void wf_patterns(Box area, int idx, int cols) {
@@ -164,33 +206,37 @@ static void wf_mute(Box hdr, int idx) {   // [M][fx] cluster at the header's rig
     float bw = lay_clamp(FU * 0.7f, 8, 20);
     Box fx = lay_at(hdr, L_TR, bw, hdr.h - 2, 1); boxfill(fx, CLR_DARK_GREY); boxrect(fx, CLR_MEDIUM_GREY);
     font(FONT_TINY); print_centered("fx", (int)(fx.x + fx.w / 2), (int)(fx.y + (fx.h - 5) / 2), CLR_LIGHT_GREY);
+    // [fx] is inert for now — its fullscreen panel + the paged-fx approach were both parked (see the note by kv)
     Box m = box(fx.x - bw * 0.65f - 2, fx.y, bw * 0.65f, fx.h); boxfill(m, mu ? CLR_RED : CLR_DARK_RED); boxrect(m, mu ? CLR_WHITE : CLR_MEDIUM_GREY);
     print_centered("M", (int)(m.x + m.w / 2), (int)(m.y + (m.h - 5) / 2), mu ? CLR_WHITE : CLR_LIGHT_PEACH);
     if (clicked(m)) muted[idx] = !muted[idx];
 }
 
 // beat-grouped 16-step columns inside `row` (shared by the drum grid + 303 grid)
-static void wf_steprow(Box row, int seed, int mu, int voice) {
+static void wf_steprow(Box row, int sidx, int voice, int mu) {
     float g = 1, G = lay_clamp(FU * 0.16f, 2, 5);
     float cw = (row.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
     float x = row.x;
     for (int i = 0; i < STEPS; i++) {
-        int on = ((i + seed) % 4 == 0) || (i == 6 && voice % 2 == 0) || (i == 10 && voice % 3 == 0);
+        Box cell = box(x, row.y, cw, row.h - 1);
+        int on = dstep[sidx][voice][i];
         int off = (i % 4 == 0) ? CLR_DARK_BROWN : CLR_DARKER_GREY;
-        boxfill(box(x, row.y, cw, row.h - 1), mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+        boxfill(cell, mu ? (on ? CLR_MEDIUM_GREY : CLR_DARKER_GREY) : (on ? CLR_LIME_GREEN : off));
+        if (clicked(cell)) dstep[sidx][voice][i] = !on;
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
 }
 // the FULL drum grid: every voice a row (label + its 16 steps) — the whole pattern at once, the
 // overview a phone can only get in focus/fullscreen (acidrack-ui-research §3 "full grid" on roomy).
 static void wf_drumgrid(Box area, Strip *s, int mu) {
+    int sidx = (int)(s - STRIP);
     float lblW = lay_clamp(FU * 1.4f, 14, 34);
     for (int v = 0; v < s->n; v++) {
         Box row = lay_grid(area, 1, s->n, v, 1);
         Box steps; Box lbl = lay_split(row, EDGE_LEFT, lblW, &steps);
         boxfill(lbl, CLR_DARKER_BLUE);
         font(FONT_TINY); print(s->labels[v], (int)lbl.x + 2, (int)(lbl.y + (lbl.h - 5) / 2), CLR_LIGHT_PEACH);
-        wf_steprow(lay_pad(steps, 1, 0, 0, 0), v * 3 + 1, mu, v);
+        wf_steprow(lay_pad(steps, 1, 0, 0, 0), sidx, v, mu);
     }
 }
 // the 303 step programmer as a mini piano-roll: one note per step over an octave of key-striped rows.
@@ -205,7 +251,7 @@ static int p303_sld (int seed, int i) { return ((i * 2 + seed) % 5) == 2; }
 // the FULL 303 step programmer: a pitch piano-roll (key-striped, spans >1 octave so OCTAVE reads) +
 // an ACCENT lane + a SLIDE(glide) lane. The 303's real anatomy (acidrack-ui-research §2: note/accent/
 // slide/gate layers), the melodic twin of the drum grid.
-static void wf_303grid(Box area, int seed, int mu) {
+static void wf_303grid(Box area, int sidx, int mu) {
     Box notes; Box flags = lay_split(area, EDGE_BOTTOM, lay_clamp(FU * 0.9f, 8, 22), &notes);
     int rows = 15;                                     // ~15 semitones → octave range is visible
     float rh = notes.h / (float)rows;
@@ -217,17 +263,25 @@ static void wf_303grid(Box area, int seed, int mu) {
     float cw = (notes.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
     float x = notes.x; float prevX = -1, prevY = -1;
     for (int i = 0; i < STEPS; i++) {
-        if (!p303_rest(seed, i)) {
-            int note = p303_note(seed, i) % rows;
+        // the whole column is a tap target: tap a row to place/move the note there; tap the note's own row to rest it.
+        Box col = box(x, notes.y, cw, notes.h);
+        if (m_press && m_x >= col.x && m_x < col.x + col.w && m_y >= col.y && m_y < col.y + col.h) {
+            int rr = rows - 1 - (int)((m_y - notes.y) / rh); if (rr < 0) rr = 0; if (rr >= rows) rr = rows - 1;
+            if (!rest303[sidx][i] && n303[sidx][i] == rr) rest303[sidx][i] = 1;   // tap the note again → rest
+            else { n303[sidx][i] = (signed char)rr; rest303[sidx][i] = 0; }       // else place/move it here
+            m_press = 0;
+        }
+        if (!rest303[sidx][i]) {
+            int note = n303[sidx][i];
             float ny = notes.y + (rows - 1 - note) * rh, ncx = x + cw / 2, ncy = ny + rh / 2;
-            if (p303_sld(seed, i) && prevX >= 0)       // slide: tie a line from the previous note
+            if (s303[sidx][i] && prevX >= 0)           // slide: tie a line from the previous note
                 line((int)prevX, (int)prevY, (int)ncx, (int)ncy, mu ? CLR_MEDIUM_GREY : CLR_INDIGO);
-            boxfill(box(x, ny, cw, rh - 0.5f), mu ? CLR_MEDIUM_GREY : (p303_acc(seed, i) ? CLR_ORANGE : CLR_LIME_GREEN));
+            boxfill(box(x, ny, cw, rh - 0.5f), mu ? CLR_MEDIUM_GREY : (a303[sidx][i] ? CLR_ORANGE : CLR_LIME_GREEN));
             prevX = ncx; prevY = ncy;
         } else prevX = -1;
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
-    // ACC + SLD flag lanes
+    // ACC + SLD flag lanes (tap a cell to toggle)
     Box sld; Box acc = lay_split(flags, EDGE_TOP, flags.h / 2, &sld);
     float lblW = lay_clamp(FU * 0.9f, 10, 20);
     Box ac; Box acl = lay_split(acc, EDGE_LEFT, lblW, &ac);
@@ -235,22 +289,27 @@ static void wf_303grid(Box area, int seed, int mu) {
     font(FONT_TINY); print("ACC", (int)acl.x + 1, (int)acl.y, CLR_ORANGE); print("SLD", (int)sll.x + 1, (int)sll.y, CLR_INDIGO);
     float ax = ac.x, sx2 = sc.x;
     for (int i = 0; i < STEPS; i++) {
-        boxfill(box(ax, ac.y + 1, cw, ac.h - 2), mu ? CLR_DARKER_GREY : (p303_acc(seed, i) ? CLR_ORANGE : CLR_DARK_GREY));
-        boxfill(box(sx2, sc.y + 1, cw, sc.h - 2), mu ? CLR_DARKER_GREY : (p303_sld(seed, i) ? CLR_INDIGO : CLR_DARK_GREY));
+        Box acell = box(ax, ac.y + 1, cw, ac.h - 2), scell = box(sx2, sc.y + 1, cw, sc.h - 2);
+        boxfill(acell, mu ? CLR_DARKER_GREY : (a303[sidx][i] ? CLR_ORANGE : CLR_DARK_GREY));
+        boxfill(scell, mu ? CLR_DARKER_GREY : (s303[sidx][i] ? CLR_INDIGO : CLR_DARK_GREY));
+        if (clicked(acell)) a303[sidx][i] = !a303[sidx][i];
+        if (clicked(scell)) s303[sidx][i] = !s303[sidx][i];
         ax += cw + g; sx2 += cw + g; if (i % 4 == 3) { ax += G - g; sx2 += G - g; }
     }
 }
 // compact 303 preview: the melodic contour — a pitch bar per step (accent = orange, rest = empty).
-static void wf_303lane(Box area, int seed, int mu) {
+static void wf_303lane(Box area, int sidx, int mu) {
     float g = 1, G = lay_clamp(FU * 0.16f, 2, 5);
     float cw = (area.w - 12 * g - 3 * G) / 16.0f; if (cw < 1) cw = 1;
     float x = area.x;
     for (int i = 0; i < STEPS; i++) {
-        if (!p303_rest(seed, i)) {
-            float f = (p303_note(seed, i) % 15) / 14.0f;      // pitch → bar height
+        Box cell = box(x, area.y, cw, area.h);            // full-height tap target: tap toggles this step's rest
+        if (!rest303[sidx][i]) {
+            float f = n303[sidx][i] / 14.0f;              // pitch → bar height
             float h = 2 + f * (area.h - 2);
-            boxfill(box(x, area.y + area.h - h, cw, h), mu ? CLR_MEDIUM_GREY : (p303_acc(seed, i) ? CLR_ORANGE : CLR_LIME_GREEN));
+            boxfill(box(x, area.y + area.h - h, cw, h), mu ? CLR_MEDIUM_GREY : (a303[sidx][i] ? CLR_ORANGE : CLR_LIME_GREEN));
         }
+        if (clicked(cell)) rest303[sidx][i] = !rest303[sidx][i];
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
 }
@@ -271,8 +330,8 @@ static void draw_focus(Strip *s, Box area, int idx) {
         if (pb.w > 20) wf_patterns(pb, idx, NPAT); }
     body = lay_pad(body, 1, 2, 1, 1);
     if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
-    else if (s->haspat) { Box grid; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.6f, &grid); wf_303grid(grid, idx, mu); wf_knobrow(kn, s->labels, s->n); }
-    else                  wf_knobrow(body, s->labels, s->n); // MASTER: just knobs
+    else if (s->haspat) { Box grid; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.6f, &grid); wf_303grid(grid, idx, mu); wf_knobrow(kn, s->labels, s->n, kv[idx]); }
+    else                  wf_knobrow(body, s->labels, s->n, kv[idx]); // MASTER: just knobs
 }
 
 // draw one strip at `state` inside `rect`
@@ -314,12 +373,12 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
 
     if (state == COMPACT) {                        // 2-3 knobs (or drum selector) + one step lane
         Box lane; Box top = s->haspat ? lay_split(mach, EDGE_TOP, FU * 1.3f, &lane) : mach;
-        if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc);
+        if (s->kind == KNOBS) wf_knobrow(top, s->compact, s->nc, kvc[idx]);
         else { // drum: voice selector (ALL voices, factual) + selected-voice knobs
             Box kn; Box sel = lay_split(top, EDGE_TOP, FU * 0.7f, &kn);
             float g = 1.5f; for (int i = 0; i < s->n; i++) { Box c = lay_grid(sel, s->n, s->n, i, g); boxfill(lay_inset(c,0.5f), i==0?CLR_DARK_ORANGE:CLR_DARK_GREY);
                 if (c.w >= 7) { font(FONT_TINY); print_centered(s->labels[i], (int)(c.x+c.w/2), (int)(c.y+(c.h-5)/2), CLR_LIGHT_GREY); } }
-            wf_knobrow(kn, s->compact, s->nc);
+            wf_knobrow(kn, s->compact, s->nc, kvc[idx]);
         }
         if (s->haspat) { if (s->kind == KNOBS) wf_303lane(lay_pad(lane, 0, 1, 0, 1), idx, mu);   // 303: melodic contour
                          else wf_steplane(lay_pad(lane, 0, 1, 0, 1), idx, mu); }                 // drum: selected voice
@@ -327,8 +386,8 @@ static void draw_strip(Strip *s, Box rect, int state, int accent) {
     }
     // EXPANDED — the full editor
     if (s->kind == KNOBS) {
-        if (s->haspat) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n); wf_303grid(lay_pad(lane,0,1,0,1), idx, mu); }   // 303: full programmer
-        else wf_knobrow(mach, s->labels, s->n);   // MASTER: just knobs
+        if (s->haspat) { Box lane; Box kn = lay_split(mach, EDGE_BOTTOM, FU * 1.4f, &lane); wf_knobrow(kn, s->labels, s->n, kv[idx]); wf_303grid(lay_pad(lane,0,1,0,1), idx, mu); }   // 303: full programmer
+        else wf_knobrow(mach, s->labels, s->n, kv[idx]);   // MASTER: just knobs
     }
     else wf_drumgrid(mach, s, mu);   // DRUMS: the real voices×steps sequencer grid
 }
@@ -446,6 +505,8 @@ void draw(void) {
     g_boxpat = (cls_ == ROOMY);   // roomy has room for the boxed PAT panel; phones use the header row
     m_press = mouse_pressed(0); m_x = mouse_x(); m_y = mouse_y();   // one pointer press per frame (tap/click)
     cls(CLR_BROWNISH_BLACK);
+    wf_seed(); ui_begin();   // ui.h widgets (knobs/slider) live between ui_begin()…ui_end(); the
+                             // clicked() tap layer (names/M/patterns) is spatially disjoint, so both coexist
 
     // safe area (top/bottom insets — simulated on desktop, real on device). The fake device SKIN is
     // drawn last (draw_safe_skin), and only in design-tool mode; on device the real hardware provides it.
@@ -467,7 +528,11 @@ void draw(void) {
     if (playing) boxfill(box(pbtn.x + bs * 0.3f, pbtn.y + bs * 0.3f, bs * 0.4f, bs * 0.4f), CLR_LIGHT_PEACH);   // ■ stop
     else         play_tri(lay_inset(pbtn, bs * 0.28f), CLR_LIME_GREEN);                                        // ▶ play
     if (clicked(pbtn)) playing = !playing;
-    font(FONT_SMALL); print("139 BPM", (int)(pbtn.x + bs + 5), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_PEACH);
+    // TEMPO — a real ui_slider (drag to set) so sliders get finger-tested too; label shows live BPM.
+    { font(FONT_TINY);
+      int bpm = 90 + (int)(tempo * 90 + 0.5f);                       // 90..180 BPM
+      int slw = (int)lay_clamp(FU * 3.2f, 44, 96);
+      ui_slider(&tempo, (int)(pbtn.x + bs + 5), (int)(transport.y + (transport.h - UI_SLIDER_H) / 2), slw, str("%d BPM", bpm)); }
     print_right("LOOP", (int)(transport.x + transport.w - 3), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_GREY);
 
     float gap = lay_clamp(FU * 0.18f, 1, 4);
@@ -539,5 +604,6 @@ void draw(void) {
         print(l2, (int)chip.x + 3, (int)chip.y + 9, CLR_ORANGE);
         if (clicked(chip)) cur = (cur + 1) % NDEV;   // tap the label to flip to the next device shape
     }
+    ui_end();   // resolve this frame's presses against the widgets drawn above
     font(FONT_NORMAL);
 }

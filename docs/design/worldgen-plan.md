@@ -236,9 +236,17 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   citygen's density field (organic settlements in the infinite world), and (b) have the N-spine's
   highways lead into citygen cities so N and M become one world. Both are shared-spine edits — gated,
   one at a time.
-- [ ] **Rung 6 — junction emission (meets roadkit Phase 5 / Track-B B4).** Every graph node emits
-  `(legs, bearings, classes, grade)` — grade-separated where a motorway crosses (ramps only, the
-  continuity tenet) — feeding roadkit's dispatcher.
+- [x] **Rung 6 — junction emission (meets roadkit Phase 5 / Track-B B4). ✅ SHIPPED 2026-07-10.**
+  `citygen.h` `cg_classify()` tiers the arterials by length (the few longest through-routes = the
+  HIGHWAY tier), then `cg_junctions()` emits a `CgJunc{x,y,legs,bearings,classes,grade}` per arterial
+  graph node: **grade 2 = INTERCHANGE** (highway × highway → a roadlab family, rare), **grade 1 =
+  OVERPASS** (a highway passes through surface roads → flyover), **grade 0 = at-grade** (curb-return
+  grammar). On the test city: 428 junctions → 6 interchanges + 154 overpasses + at-grade, deterministic;
+  `citygrow`'s **J** overlay shows them (red interchange / orange overpass / green at-grade, arms by
+  tier). **This is B4's consumer** — the grade-2 descriptors are exactly what `roadkit_junction(legs,
+  grade)` routes to `roadlab`'s `make_junction`. *Refinement open:* grade-separation is a per-node
+  LABEL, not yet a topology change (the highway still shares the welded crossing node rather than
+  flying over without one); and 154 overpasses is high (fewer highways / smarter crossing rules later).
 - [~] **Rung 7 — content (= Track-A A2).** **Buildings SHIPPED 2026-07-10.** `citygen.h`'s `cg_lots()`
   lines every minor-street frontage with a solid terrace box (set back off the carriageway, kept clear
   of the arterials, capped ~45 m so alleys read), cached with the city (~1282 for the test city).

@@ -777,6 +777,56 @@ static void cg_lots(void) {
     #undef CGB_ADD
 }
 
+// ── Rung 6: JUNCTION EMISSION — every arterial graph node → a (legs, bearings, classes, grade)
+// descriptor, the input roadkit's grade dispatcher (B4) routes: at-grade → the curb-return grammar,
+// grade-separated → roadlab's interchange. Arterials are tiered by LENGTH (the long through-routes are
+// the HIGHWAY tier); a crossing where a highway passes THROUGH lower-tier roads is grade-separated (it
+// flies over — the continuity tenet). Minors T onto arterials at-grade and aren't in this graph.
+enum { CG_HWY, CG_ART, CG_ST };          // road tiers: highway / arterial / street(minor)
+#define CGJ_MAX  512
+#define CGJ_ARM  8
+typedef struct { float x, y; int narm; float brg[CGJ_ARM]; unsigned char cls[CGJ_ARM]; int grade; } CgJunc;
+static unsigned char ar_cls[AR_MAXL];    // per-arterial tier (CG_HWY / CG_ART)
+static CgJunc cgj[CGJ_MAX]; static int cgj_n;
+
+static void cg_classify(void) {          // tier arterials by length — only the FEW longest through-routes
+    float len[AR_MAXL], srt[AR_MAXL];    // are the HIGHWAY tier (grade-separated crossings live on them)
+    for (int l = 0; l < ar_nl; l++) { len[l] = (float)(ar_np[l]-1) * AR_STEP; srt[l] = len[l]; }
+    int K = ar_nl / 8; if (K < 2) K = 2; if (K > 8) K = 8;      // ~12% of the arterials, the long spines
+    for (int i = 0; i < K && i < ar_nl; i++) {                  // partial selection sort → the K-th longest
+        int m = i; for (int j = i+1; j < ar_nl; j++) if (srt[j] > srt[m]) m = j;
+        float t = srt[i]; srt[i] = srt[m]; srt[m] = t;
+    }
+    float thr = ar_nl ? srt[(K < ar_nl ? K : ar_nl) - 1] : 1e9f;
+    for (int l = 0; l < ar_nl; l++) ar_cls[l] = (len[l] >= thr) ? CG_HWY : CG_ART;
+}
+static void cg_junctions(void) {
+    cgj_n = 0;
+    static short nnarm[GN_MAX];                           // arms accumulated per graph node
+    static float nbrg[GN_MAX][CGJ_ARM]; static unsigned char ncls[GN_MAX][CGJ_ARM];
+    for (int v = 0; v < g_nn; v++) nnarm[v] = 0;
+    for (int e = 0; e < g_ne; e++) {                     // each split arterial segment adds an arm at each end
+        int a = gea[e], b = geb[e]; unsigned char cl = ar_cls[ge_line[e]];
+        if (nnarm[a] < CGJ_ARM) { nbrg[a][nnarm[a]] = atan2f(gny[b]-gny[a], gnx[b]-gnx[a])*57.29578f; ncls[a][nnarm[a]]=cl; nnarm[a]++; }
+        if (nnarm[b] < CGJ_ARM) { nbrg[b][nnarm[b]] = atan2f(gny[a]-gny[b], gnx[a]-gnx[b])*57.29578f; ncls[b][nnarm[b]]=cl; nnarm[b]++; }
+    }
+    for (int v = 0; v < g_nn && cgj_n < CGJ_MAX; v++) {
+        if (nnarm[v] < 3) continue;                      // a junction = 3+ arms
+        CgJunc *j = &cgj[cgj_n];
+        j->x = gnx[v]; j->y = gny[v]; j->narm = nnarm[v];
+        int hwy = 0;
+        for (int a = 0; a < nnarm[v]; a++) {
+            j->brg[a] = fmodf(nbrg[v][a] + 720.0f, 360.0f); j->cls[a] = ncls[v][a];
+            if (ncls[v][a] == CG_HWY) hwy++;
+        }
+        // grade: 2 = INTERCHANGE (highway × highway → a roadlab family, B4's real consumer; rare),
+        //        1 = OVERPASS (a highway passes THROUGH surface roads → it flies over; common on a spine),
+        //        0 = AT-GRADE (curb-return grammar).
+        j->grade = (hwy >= 3) ? 2 : (hwy >= 2 && nnarm[v] > hwy) ? 1 : 0;
+        cgj_n++;
+    }
+}
+
 static void ar_graph_ensure(void) {
     ar_ensure();                                         // arterials current for this seed+knobs
     if (g_valid) return;
@@ -785,6 +835,8 @@ static void ar_graph_ensure(void) {
     ms_build();
     g_valid = 1;                                         // set BEFORE cg_lots (it reads the built city)
     cg_lots();
+    cg_classify();                                       // rung 6: tier the arterials …
+    cg_junctions();                                      // … then emit the (legs, bearings, class, grade) junctions
 }
 
 // ── the QUERY SEAM (rung 5.5b) — the twin of worldnet's wn_road_at, over the

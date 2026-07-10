@@ -272,7 +272,11 @@ by numbers from day one.)*
 - [ ] **B4 · roadkit Phase 5 — grade dispatch** — one `roadkit_junction(legs, grade)` routing
   at-grade → streetlab grammar, grade-separated → roadlab's `make_junction`, keyed identically from
   a seed or OSM (`bridge`/`layer`/`*_link` + shared-node topology). **This is the junction layer A3
-  consumes.**
+  consumes.** *Unblocked 2026-07-10:* **Rung 6 now emits the consumer** — citygen's `cg_junctions()`
+  produces `(legs, bearings, class, grade)` per node with grade-2 INTERCHANGE descriptors (6 on the
+  test city). B4 = extract `roadlab`'s `make_junction` topology + ramp splines into roadkit, then the
+  dispatcher renders citygen's grade-2 junctions as interchanges (and OSM's shared-node topology feeds
+  the same seam). The extraction is now warranted (a real consumer exists).
 
 **Track C — player-facing life (parallel to A and B):**
 - [ ] **C1 · P2 — traffic-ai onto `road_at()`** — only the followed line changes (`cl[]` → the

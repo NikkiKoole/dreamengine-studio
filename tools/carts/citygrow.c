@@ -73,6 +73,7 @@ static int   dragging = 0, drag_px, drag_py;
 static int   show_heat = 1, show_extent = 1, show_dots = 1, show_bound = 0;
 static int   show_grid = 0, show_hud = 1;
 static int   show_dist = 0;                // rung 4: district faces overlay (K)
+static int   show_junc = 0;                // rung 6: junction descriptors overlay (J)
 static int   use_field = 1;           // 1 = rung-2 field settlements · 0 = old pure-hash (the A/B)
 
 static void view_metrics(void) {
@@ -316,6 +317,24 @@ static void ms_draw(void) {
     }
 }
 
+// ── Rung 6 (J): the emitted JUNCTION descriptors — every arterial node with its arms drawn by TIER
+// (highway = white, arterial = grey), and the node dot GREEN at-grade / RED grade-separated (a highway
+// flying over). This is the (legs, bearings, class, grade) B4's roadkit dispatcher routes.
+static void cg_junc_draw(void) {
+    ar_graph_ensure();
+    for (int i = 0; i < cgj_n; i++) {
+        CgJunc *j = &cgj[i];
+        int cx = sxp(j->x), cy = syp(j->y);
+        for (int a = 0; a < j->narm; a++) {                // an arm tick out each bearing, coloured by tier
+            float b = j->brg[a] * 0.0174533f;
+            int ex = sxp(j->x + cosf(b) * 120.0f), ey = syp(j->y + sinf(b) * 120.0f);
+            line(cx, cy, ex, ey, j->cls[a] == CG_HWY ? CLR_WHITE : CLR_LIGHT_GREY);
+        }
+        int gc = j->grade == 2 ? CLR_RED : j->grade == 1 ? CLR_ORANGE : CLR_GREEN;   // interchange / overpass / at-grade
+        circfill(cx, cy, j->grade == 2 ? 4 : j->grade == 1 ? 3 : 2, gc);
+    }
+}
+
 static void hud_city(void) {
     char buf[96];
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
@@ -448,6 +467,7 @@ void update(void) {
     if (keyp('B')) show_bound  = !show_bound;
     if (keyp('G')) show_grid   = !show_grid;
     if (keyp('K')) show_dist   = (show_dist + 1) % 4;  // rung 4: off→faces→minors→both
+    if (keyp('J')) show_junc   = !show_junc;           // rung 6: junction descriptors
     if (keyp('H')) show_hud    = !show_hud;
     if (keyp('M')) mode = 0;
 
@@ -463,6 +483,9 @@ void update(void) {
         watch("pat_super", "%d", pc[MP_SUPERBLOCK]);
         watch("minor_n",   "%d", ms_n);
         watch("minor_e",   "%d", me_n);
+        // rung 6: junction emission — total + overpasses (grade 1) + interchanges (grade 2 = B4's roadlab families)
+        { int ov = 0, ix = 0; for (int i = 0; i < cgj_n; i++){ if (cgj[i].grade==1) ov++; else if (cgj[i].grade==2) ix++; }
+          watch("junc", "%d", cgj_n); watch("junc_over", "%d", ov); watch("junc_ixc", "%d", ix); }
         // rung 5.5b: the query seam — on_road over a grid, + at the city centre.
         // Deterministic + agrees with the rendered streets (screen == query).
         int on = 0, onm = 0, ns = 0;
@@ -522,6 +545,7 @@ void draw(void) {
         int heat = show_heat; show_heat = 0;     // biome terrain under the streets
         draw_terrain(); show_heat = heat;
         ar_draw();
+        if (show_junc) cg_junc_draw();                          // rung 6: emitted junctions
         if (show_dist == 1 || show_dist == 3) ar_dist_draw();   // the partition
         if (show_dist >= 2) ms_draw();                          // the minor fill
         if (show_hud) hud_city();

@@ -1,0 +1,21 @@
+# portapop phase 3: record bass on track 1, arm the DRUM track 2, lay a beat, play both.
+# track 1 (index0) defaults BASS+armed; track 2 (index1) defaults DRUMS.
+# --- bass on track 1 ---
+tap 10 R
+tap 160 A
+tap 200 D
+tap 240 G
+tap 440 R
+# --- arm track 2 (drums): press its ARM button (x=86, y=169) ---
+press 460 86 169
+release 466 86 169
+# --- record drums on track 2 (A kick, S snare, D hat) ---
+tap 480 R
+tap 630 A
+tap 660 S
+tap 690 A
+tap 720 S
+tap 750 D
+tap 880 R
+# --- play both ---
+tap 900 SPACE

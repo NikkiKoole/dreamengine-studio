@@ -10,12 +10,12 @@
   "teaches": [
     "gesture-loop"
   ],
-  "lineage": "Phase-2 build of the portapop cassette 4-track (design/portapop.md). Record core (note-on + pitch-stream + note-off) descends from loopstation.c; the bass is a lean pizzicato cut of upright.c. Phase 2 adds MULTITRACK (four tracks, each its own instrument slot), a CONSOLE view with per-slot level/pan faders + VU + arm/mute (the per-slot mixer family made the star), overdub MONITORING (existing tracks play while you cut the next), the longest-take-sets-window + shorter-tracks-loop-to-fill rule, and the TAKE<->CONSOLE mode-flip. Still one instrument (bass) across all four tracks — the shelf of 8 is phase 3; ping-pong + tape glue are phase 4.",
+  "lineage": "Phase-3 build of the portapop cassette 4-track (design/portapop.md). Record core (note-on + pitch-stream + note-off) descends from loopstation.c; the bass is a lean pizzicato cut of upright.c, the drum kit after fingerdrums' acoustic kit. Phase 2 gave it MULTITRACK + a CONSOLE mixer (per-slot level/pan/VU/arm/mute) + overdub monitoring + the TAKE<->CONSOLE mode-flip. Phase 3 makes each track CASTABLE to a different instrument — two of the shelf so far, upright BASS (a melodic fingerboard) and a DRUM kit (four pads) — so you stack a real rhythm section. The remaining shelf voices + ping-pong bounce + the tape glue are still to come.",
   "homage": "Tascam Portastudio",
   "description": {
-    "summary": "The bedroom cassette 4-track. Overdub yourself one honest take at a time: cut a bass line, then arm the next track and play ALONG to it, stacking a whole band alone. Flip to the console to mix — per-track level, pan and bouncing VU meters. Un-quantized: it loops back exactly as you played it.",
-    "detail": "Phase 2 of the portapop multitracker (design/portapop.md). FOUR tracks, each on its own instrument slot. Arm a track and RECORD: a one-bar count-in, then it captures every note and slide as control events while the OTHER tracks play back so you overdub in time. The longest take sets the song; shorter tracks loop to fill it. Flip to the CONSOLE (TAB) to mix the stack — a level fader, a pan slider and a live VU per track, plus arm/mute — the per-slot mixer family (instrument_level/instrument_pan) as the show. Every track is the pizzicato upright bass for now (the shelf of instruments is phase 3; ping-pong bounce and the tape glue are phase 4).",
-    "controls": "TAKE view (play the armed track): press ON a string (E A D G) and slide to glide, pull to bend, sweep the gap to pick; keyboard A S D F G H J K (+ W E T Y U), Z/X octave; TUNE (I) snaps note-ons to tune. CONSOLE view: drag each track's LEVEL fader + PAN slider, tap ARM to pick the record track, MUTE to silence it. Transport (both views): R record (count-in), SPACE play/stop, BACKSPACE clear the armed track, TAB flip TAKE<->CONSOLE."
+    "summary": "The bedroom cassette 4-track. Overdub a band alone: cut a bass line, arm the next track and play ALONG, then cast a track to DRUMS and lay a beat under it. Flip to the console to mix — per-track level, pan and bouncing VU. Un-quantized: it loops back exactly as you played it.",
+    "detail": "Phase 3 of the portapop multitracker (design/portapop.md). FOUR tracks, each CASTABLE to an instrument — so far upright BASS (a melodic fingerboard) or a DRUM kit (four pads). Arm a track and RECORD: a one-bar count-in, then it captures your notes/slides (bass) or hits (drums) as control events while the OTHER tracks play back so you overdub in time. The longest take sets the song; shorter tracks loop to fill it. Flip to the CONSOLE (TAB) to mix — a level fader, a pan slider and a live VU per track, plus arm/mute and the instrument chip — the per-slot mixer family (instrument_level/instrument_pan) as the show. Two of the shelf-of-8 so far; more voices, ping-pong bounce and the tape glue are still to come.",
+    "controls": "CONSOLE view: tap a track's INST chip to cast it (BASS <-> DRUM), drag its LEVEL fader + PAN slider, tap ARM to pick the record track, MUTE to silence it. TAKE view (BASS): press ON a string (E A D G), slide to glide, pull to bend, sweep the gap to pick; keys A S D F G H J K (+ W E T Y U), Z/X octave, TUNE (I) snaps to tune. TAKE view (DRUMS): tap a pad (or A kick / S snare / D hat / F tom). Transport (both views): R record (count-in), SPACE play/stop, BACKSPACE clear the armed track, TAB flip views."
   }
 }
 de:meta */
@@ -31,21 +31,39 @@ de:meta */
 
 #define NTRK  4
 #define MAXEV 1024
-static const int TSLOT[NTRK] = { 5, 6, 7, 8 };     // each track = its own instrument slot
-#define METRO 9
+static const int TSLOT[NTRK] = { 5, 6, 7, 8 };     // a track's MELODIC slot (used when cast to BASS)
+
+// the instruments a track can be cast to (phase 3: two of the shelf of 8)
+enum { INST_BASS, INST_DRUMS, NINST };
+static const char *INAME[NINST] = { "BASS", "DRUM" };
+
+// a shared drum kit (percussion is fire-and-forget, so all drum tracks share these voices;
+// per-track LEVEL/PAN on a drum track rides the kit — two drum tracks would share that mix)
+#define KICK  9
+#define SNARE 10
+#define HAT   11
+#define TOM   12
+#define METRO 13
+static const int   DSLOT[4] = { KICK, SNARE, HAT, TOM };
+static const int   DMIDI[4] = { 36, 52, 84, 45 };
+static const int   DDUR [4] = { 130, 90, 30, 170 };
+static const char *DNAME[4] = { "KICK", "SNARE", "HAT", "TOM" };
+static int padflash[4];
 
 enum { EV_ON, EV_CC, EV_OFF };                     // attack · pitch change (slide/bend) · damp
-typedef struct { float pos, pitch; int kind, vol, lane; } Ev;   // lane = the string played
+// lane = the string played (BASS) OR the drum index 0..3 (DRUMS)
+typedef struct { float pos, pitch; int kind, vol, lane; } Ev;
 typedef struct {
     Ev    ev[MAXEV];
     int   n;
+    int   inst;                                    // INST_BASS / INST_DRUMS
     float len;                                     // this track's length in beats (0 = empty)
     int   muted;
     float level, pan;                              // console mix: level 0..1, pan -1..+1
-    float applied_level, applied_pan;              // last values pushed to the slot (set-and-hold)
-    int   vrep;                                    // replay voice handle (-1 = none)
+    float applied_level, applied_pan;              // last values pushed (set-and-hold)
+    int   vrep;                                    // replay voice handle (BASS only; -1 = none)
     float vu;                                      // meter (decays)
-    float g_pitch; int g_lane, g_on;               // replay ghost (for the TAKE fingerboard)
+    float g_pitch; int g_lane, g_on;               // replay ghost (BASS fingerboard)
 } Track;
 static Track trk[NTRK];
 static int   armed = 0;                            // the track that records / is played live
@@ -119,7 +137,18 @@ void init(void) {
         instrument_reverb(s, 0.14f);
         trk[t].level = 0.85f; trk[t].pan = 0; trk[t].vrep = -1;
         trk[t].applied_level = -1; trk[t].applied_pan = -2;   // force a first push
+        trk[t].inst = INST_BASS;
     }
+    trk[1].inst = INST_DRUMS;                       // advertise the pairing: track 2 is the kit
+
+    // the shared drum kit — a warm acoustic-ish set (values after fingerdrums' acoustic kit)
+    instrument(KICK, INSTR_SINE, 0, 300, 0, 80); instrument_filter(KICK, FILTER_LOW, 220, 2);
+    instrument_env(KICK, 0, ENV_PITCH, 0, 55, 28.0f); instrument_drive(KICK, 0.15f);
+    instrument(SNARE, INSTR_NOISE, 0, 120, 0, 60); instrument_filter(SNARE, FILTER_BAND, 1900, 3);
+    instrument(HAT, INSTR_NOISE, 0, 40, 0, 24); instrument_filter(HAT, FILTER_HIGH, 8500, 2);
+    instrument(TOM, INSTR_MEMBRANE, 1, 0, 7, 300);
+    instrument_harmonics(TOM, 0.28f); instrument_timbre(TOM, 0.18f); instrument_morph(TOM, 0.12f);
+
     reverb(0.28f, 0.5f);
     instrument(METRO, INSTR_TRI, 0, 30, 0, 20);
 }
@@ -148,6 +177,14 @@ static void pp_off(void) {
     note_off(b_handle); b_handle = -1;
     rec(EV_OFF, 0, 0);
 }
+// drums: a fire-and-forget hit; the take stores which drum in `lane` (no pitch stream)
+static void pp_hit(int drum) {
+    hit(DMIDI[drum], DSLOT[drum], 7, DDUR[drum]);
+    padflash[drum] = 6;
+    Track *T = &trk[armed];
+    if (mode == TR_REC && tpos >= 0 && T->n < MAXEV)
+        T->ev[T->n++] = (Ev){ tpos, 0, EV_ON, 7, drum };
+}
 
 // ── replay (per track, on its own slot) ──
 static void fire_ev(int t, Ev *e) {
@@ -155,6 +192,10 @@ static void fire_ev(int t, Ev *e) {
 #ifdef DE_TRACE
     watch("fire", "t%d k%d pos=%.2f midi=%.1f", t, e->kind, e->pos, e->pitch);
 #endif
+    if (T->inst == INST_DRUMS) {                    // percussion: fire-and-forget, `lane` = drum
+        if (e->kind == EV_ON) { int d = e->lane; hit(DMIDI[d], DSLOT[d], e->vol, DDUR[d]); padflash[d] = 6; T->vu = 1.0f; }
+        return;
+    }
     if (e->kind == EV_ON) {
         if (T->vrep >= 0) note_off(T->vrep);
         T->vrep = note_on((int)(e->pitch + 0.5f), TSLOT[t], e->vol);
@@ -214,29 +255,41 @@ static void start_play(void) {
 }
 static void stop_all(void) { mode = TR_STOP; silence_all(); if (b_handle >= 0) { note_off(b_handle); b_handle = -1; } }
 
-// ── console interaction ──
+// ── console strip geometry (shared by input + draw) ──
+#define STR_INST_Y  56
+#define STR_FADE_Y0 72
+#define STR_FADE_Y1 140
+#define STR_PAN_Y   148
+#define STR_BTN_Y   162
+
 static void console_input(void) {
     int mx = mouse_x(), my = mouse_y();
     int SW = SCREEN_W / NTRK;
+    int rec = (mode == TR_REC || mode == TR_COUNTIN);
     // faders / pans: capture on press, ride while held, release to let go
     if (mouse_pressed(MOUSE_LEFT)) {
         for (int t = 0; t < NTRK; t++) {
             int x = t * SW;
-            if (mx >= x + 24 && mx <= x + 40 && my >= 56 && my <= 138) { drag_kind = DRAG_FADER; drag_trk = t; break; }
-            if (mx >= x + 6  && mx <= x + SW - 6 && my >= 144 && my <= 156) { drag_kind = DRAG_PAN; drag_trk = t; break; }
+            if (mx >= x + 24 && mx <= x + 40 && my >= STR_FADE_Y0 && my <= STR_FADE_Y1) { drag_kind = DRAG_FADER; drag_trk = t; break; }
+            if (mx >= x + 6  && mx <= x + SW - 6 && my >= STR_PAN_Y && my <= STR_PAN_Y + 10) { drag_kind = DRAG_PAN; drag_trk = t; break; }
         }
     }
     if (mouse_down(MOUSE_LEFT) && drag_trk >= 0) {
         int x = drag_trk * SW;
-        if (drag_kind == DRAG_FADER) trk[drag_trk].level = clamp(remap((float)my, 56, 138, 1, 0), 0, 1);
+        if (drag_kind == DRAG_FADER) trk[drag_trk].level = clamp(remap((float)my, STR_FADE_Y0, STR_FADE_Y1, 1, 0), 0, 1);
         else if (drag_kind == DRAG_PAN) trk[drag_trk].pan = clamp(remap((float)mx, x + 6, x + SW - 6, -1, 1), -1, 1);
     }
     if (!mouse_down(MOUSE_LEFT)) { drag_kind = DRAG_NONE; drag_trk = -1; }
-    // arm / mute buttons (locked while recording)
     for (int t = 0; t < NTRK; t++) {
         int x = t * SW;
-        if (tapp(x + 6, 162, 32, 15) && mode != TR_REC && mode != TR_COUNTIN) armed = t;
-        if (tapp(x + 42, 162, SW - 48, 15)) { trk[t].muted ^= 1; if (trk[t].muted) silence(t); }
+        // INST chip: cycle the track's instrument (clears the take — events reinterpret otherwise)
+        if (tapp(x + 4, STR_INST_Y, SW - 8, 12) && !rec) {
+            silence(t); trk[t].inst = (trk[t].inst + 1) % NINST;
+            trk[t].n = 0; trk[t].len = 0; recompute_song();
+            trk[t].applied_level = -1; trk[t].applied_pan = -2;   // re-push mix to the new slots
+        }
+        if (tapp(x + 6, STR_BTN_Y, 32, 15) && !rec) armed = t;
+        if (tapp(x + 42, STR_BTN_Y, SW - 48, 15)) { trk[t].muted ^= 1; if (trk[t].muted) silence(t); }
     }
 }
 
@@ -274,15 +327,25 @@ void update(void) {
         play_tracks(-1);                                  // mix all
     }
 
-    // push per-slot mix only when a fader/pan actually moved (set-and-hold)
+    // push per-slot mix only when a fader/pan actually moved (set-and-hold). A drum track
+    // rides all four kit slots (shared kit — see the note at the slot defines).
     for (int t = 0; t < NTRK; t++) {
-        if (trk[t].level != trk[t].applied_level) { instrument_level(TSLOT[t], trk[t].level); trk[t].applied_level = trk[t].level; }
-        if (trk[t].pan   != trk[t].applied_pan)   { instrument_pan  (TSLOT[t], trk[t].pan);   trk[t].applied_pan   = trk[t].pan; }
+        if (trk[t].level != trk[t].applied_level) {
+            if (trk[t].inst == INST_DRUMS) for (int d = 0; d < 4; d++) instrument_level(DSLOT[d], trk[t].level);
+            else instrument_level(TSLOT[t], trk[t].level);
+            trk[t].applied_level = trk[t].level;
+        }
+        if (trk[t].pan != trk[t].applied_pan) {
+            if (trk[t].inst == INST_DRUMS) for (int d = 0; d < 4; d++) instrument_pan(DSLOT[d], trk[t].pan);
+            else instrument_pan(TSLOT[t], trk[t].pan);
+            trk[t].applied_pan = trk[t].pan;
+        }
         if (trk[t].vu > 0) trk[t].vu -= 0.05f;
     }
+    for (int d = 0; d < 4; d++) if (padflash[d] > 0) padflash[d]--;
 
-    // ── the armed track's fingerboard (only meaningful in TAKE view, but harmless to read always) ──
-    if (view == VIEW_TAKE) {
+    // ── the armed track's play surface (TAKE view): bass fingerboard, or drum pads ──
+    if (view == VIEW_TAKE && trk[armed].inst == INST_BASS) {
         int mx = mouse_x(), my = mouse_y();
         if (mouse_pressed(MOUSE_LEFT) && my >= TOPBAR && mx >= NECK_X0 - 6 && mx <= NECK_X1 + 6) {
             int near = 0, nd = 9999;
@@ -324,6 +387,14 @@ void update(void) {
         if (keyp('Z') && octv > 0) octv--;
         if (keyp('X') && octv < 3) octv++;
         if (keyp('I')) snap ^= 1;
+    } else if (view == VIEW_TAKE) {                 // armed track is DRUMS: four pads
+        int PW = SCREEN_W / 2, PH = (SCREEN_H - TOPBAR) / 2;
+        for (int d = 0; d < 4; d++)
+            if (tapp((d % 2) * PW, TOPBAR + (d / 2) * PH, PW, PH)) pp_hit(d);
+        if (keyp('A')) pp_hit(0);                   // kick
+        if (keyp('S')) pp_hit(1);                   // snare
+        if (keyp('D')) pp_hit(2);                   // hat
+        if (keyp('F')) pp_hit(3);                   // tom
     } else {
         console_input();
     }
@@ -386,7 +457,24 @@ static void draw_string(int lane, int live, int fx, int fy, int col) {
     }
 }
 
+static void draw_take_drums(void) {
+    cls(CLR_BROWNISH_BLACK);
+    int PW = SCREEN_W / 2, PH = (SCREEN_H - TOPBAR) / 2;
+    static const int pcol[4] = { CLR_ORANGE, CLR_PINK, CLR_LIME_GREEN, CLR_BLUE_GREEN };
+    for (int d = 0; d < 4; d++) {
+        int px = (d % 2) * PW, py = TOPBAR + (d / 2) * PH, on = padflash[d] > 0;
+        rectfill(px + 2, py + 2, PW - 4, PH - 4, on ? pcol[d] : CLR_DARKER_BLUE);
+        rect(px + 2, py + 2, PW - 4, PH - 4, CLR_DARK_BLUE);
+        print(DNAME[d], px + PW / 2 - text_width(DNAME[d]) / 2, py + PH / 2 - 4, on ? CLR_BLACK : pcol[d]);
+    }
+    draw_topbar();
+    font(FONT_SMALL);
+    print("tap a pad  (A kick  S snare  D hat  F tom)   TAB console", 6, SCREEN_H - 9, CLR_DARK_PEACH);
+    font(FONT_NORMAL);
+}
+
 static void draw_take(void) {
+    if (trk[armed].inst == INST_DRUMS) { draw_take_drums(); return; }
     cls(CLR_BROWNISH_BLACK);
     rectfill(0, TOPBAR, SCREEN_W, SCREEN_H - TOPBAR, CLR_BROWN);
     rectfill(NECK_X0 - 6, TOPBAR, NECK_X1 - NECK_X0 + 12, SCREEN_H - TOPBAR, CLR_BROWNISH_BLACK);
@@ -424,11 +512,17 @@ static void draw_console(void) {
         rectfill(x + 1, TOPBAR + 2, SW - 2, SCREEN_H - TOPBAR - 4, CLR_DARKER_BLUE);
         if (armedhere) rect(x + 1, TOPBAR + 2, SW - 2, SCREEN_H - TOPBAR - 4, CLR_RED);
 
-        print(str("%d", t + 1), x + 6, 48, TCOL[t]);
-        if (trk[t].len > 0) { font(FONT_SMALL); print(str("%db", (int)(trk[t].len / BEATS_PER_BAR)), x + SW - 20, 49, CLR_MEDIUM_GREY); font(FONT_NORMAL); }
+        print(str("%d", t + 1), x + 6, 47, TCOL[t]);
+        if (trk[t].len > 0) { font(FONT_SMALL); print(str("%db", (int)(trk[t].len / BEATS_PER_BAR)), x + SW - 20, 48, CLR_MEDIUM_GREY); font(FONT_NORMAL); }
+
+        // INST chip (tap to cast the track's instrument)
+        int isdrum = (trk[t].inst == INST_DRUMS);
+        rectfill(x + 4, STR_INST_Y, SW - 8, 12, isdrum ? CLR_DARK_GREEN : CLR_DARK_PURPLE);
+        rect(x + 4, STR_INST_Y, SW - 8, 12, CLR_DARK_BLUE);
+        font(FONT_SMALL); print(INAME[trk[t].inst], x + 8, STR_INST_Y + 3, CLR_LIGHT_PEACH); font(FONT_NORMAL);
 
         // VU meter (fills from the bottom)
-        int vx = x + 8, vy0 = 58, vh = 80;
+        int vx = x + 8, vy0 = STR_FADE_Y0, vh = STR_FADE_Y1 - STR_FADE_Y0;
         rectfill(vx, vy0, 8, vh, CLR_BROWNISH_BLACK);
         int vf = (int)(clamp(trk[t].vu, 0, 1) * vh);
         for (int i = 0; i < vf; i += 3) {
@@ -438,24 +532,23 @@ static void draw_console(void) {
         }
 
         // LEVEL fader (drag vertical)
-        int fx = x + 24, fy0 = 56, fh = 82;
+        int fx = x + 24, fy0 = STR_FADE_Y0, fh = STR_FADE_Y1 - STR_FADE_Y0;
         rectfill(fx + 5, fy0, 2, fh, CLR_DARK_BLUE);
         int hy = fy0 + (int)((1 - trk[t].level) * fh);
         rectfill(fx, hy - 3, 16, 6, drag_trk == t && drag_kind == DRAG_FADER ? CLR_WHITE : CLR_LIGHT_GREY);
-        font(FONT_SMALL); print("LVL", fx - 1, fy0 + fh + 1, CLR_DARK_GREY); font(FONT_NORMAL);
+        font(FONT_SMALL); print("LVL", fx - 1, STR_PAN_Y - 6, CLR_DARK_GREY); font(FONT_NORMAL);
 
         // PAN slider (drag horizontal)
-        int py = 148;
-        rectfill(x + 6, py + 3, SW - 12, 2, CLR_DARK_BLUE);
+        rectfill(x + 6, STR_PAN_Y + 3, SW - 12, 2, CLR_DARK_BLUE);
         int hx = x + 6 + (int)((trk[t].pan + 1) / 2 * (SW - 12));
-        rectfill(hx - 2, py, 4, 8, drag_trk == t && drag_kind == DRAG_PAN ? CLR_WHITE : CLR_LIGHT_GREY);
+        rectfill(hx - 2, STR_PAN_Y, 4, 8, drag_trk == t && drag_kind == DRAG_PAN ? CLR_WHITE : CLR_LIGHT_GREY);
 
         // ARM / MUTE
-        rectfill(x + 6, 162, 32, 15, armedhere ? CLR_RED : CLR_DARK_BLUE); rect(x + 6, 162, 32, 15, armedhere ? CLR_WHITE : CLR_DARK_GREY);
-        font(FONT_SMALL); print("ARM", x + 10, 166, armedhere ? CLR_WHITE : CLR_MEDIUM_GREY);
+        rectfill(x + 6, STR_BTN_Y, 32, 15, armedhere ? CLR_RED : CLR_DARK_BLUE); rect(x + 6, STR_BTN_Y, 32, 15, armedhere ? CLR_WHITE : CLR_DARK_GREY);
+        font(FONT_SMALL); print("ARM", x + 10, STR_BTN_Y + 4, armedhere ? CLR_WHITE : CLR_MEDIUM_GREY);
         int mu = trk[t].muted;
-        rectfill(x + 42, 162, SW - 48, 15, mu ? CLR_MEDIUM_GREY : CLR_DARK_BLUE); rect(x + 42, 162, SW - 48, 15, mu ? CLR_WHITE : CLR_DARK_GREY);
-        print("MUTE", x + 46, 166, mu ? CLR_BLACK : CLR_MEDIUM_GREY);
+        rectfill(x + 42, STR_BTN_Y, SW - 48, 15, mu ? CLR_MEDIUM_GREY : CLR_DARK_BLUE); rect(x + 42, STR_BTN_Y, SW - 48, 15, mu ? CLR_WHITE : CLR_DARK_GREY);
+        print("MUTE", x + 46, STR_BTN_Y + 4, mu ? CLR_BLACK : CLR_MEDIUM_GREY);
         font(FONT_NORMAL);
     }
     draw_topbar();

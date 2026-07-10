@@ -4,9 +4,15 @@
 > trademark) that also names the genre — bedroom-pop. "Portastudio" below refers to the
 > real Tascam hardware that inspired this; the cart itself is `portapop`.
 
-> **STATUS: READY (2026-07-10).** Fully specced — every design fork below is resolved
-> (the ✅ list in "Open questions parked"); no blocking 🤔 remain. Ready to build, nobody
-> on it yet. Not started.
+> **STATUS: BUILDING (2026-07-10).** Fully specced (every fork resolved — the ✅ list in
+> "Open questions parked") and now under construction as `tools/carts/portapop.c`.
+> **Done: phases 1–3** — the record→loop seam; the full upright pizz surface (slide/bend/
+> pick) + a TUNE fretless↔fretted toggle; multitrack + the CONSOLE mixer (per-slot
+> level/pan/VU/arm/mute) + overdub monitoring + the TAKE↔CONSOLE mode-flip; and **three
+> castable voices** — upright BASS, a DRUM kit, and a stage RHODES (KEYS). **Left: phase 4**
+> (ping-pong bounce + the tape glue + cassette chrome) and the remaining 5 shelf voices.
+> The live punch-list lives in the cart's `de:meta.todo[]` (`node tools/cart-todos.js
+> portapop`); deterministic seed clips at `tools/clips/portapop/0{1..4}-*.script`.
 >
 > **What it is.** The Tascam Portastudio reimagined as a cart (slug `portapop`): a little
 > cassette 4-track you record a bedroom band into, one part at a time.
@@ -374,15 +380,19 @@ byte-identically at every screen ratio (iPad / iPhone-portrait / a 9:16 crop) �
 [filmability rule](../guides/cart-authoring.md)). Worth doing up front given the store
 plan in "Name & positioning."
 
-### Phasing (not one big bang)
+### Phasing (not one big bang) — progress as of 2026-07-10
 
-1. **Prove the seam.** portapop skeleton + loopstation's record core + ONE lean surface
-   (upright), TAKE mode only, one track. Record → play back one take. *(The first thing to
-   build — smallest slice that proves the whole idea.)*
-2. **Add the console.** 2–3 tracks; faders/pan/VU mixdown; the TAKE↔CONSOLE mode-flip.
-3. **Add the rest of the shelf**, cheapest first — the keys variants lean on `keybed.h`, so
-   they come nearly free; then the hex pad, guitar, synth bass, the drums, the XY smear-lead.
-4. **Ping-pong, count-in, tape glue** (`tape()`/`varispeed()`/hiss/VU), cassette chrome.
+1. ✅ **Prove the seam.** portapop skeleton + loopstation's record core + ONE lean surface
+   (upright), TAKE mode, one track. Record → play back one take. *(Shipped; the smallest
+   slice that proved the idea. Also gained the full pizz surface + the TUNE toggle.)*
+2. ✅ **Add the console.** Four tracks; level/pan/VU mixdown; overdub monitoring; the
+   TAKE↔CONSOLE mode-flip. *(Shipped.)*
+3. 🔨 **Add the shelf**, cheapest first. **Done: BASS, DRUM kit, RHODES (KEYS).** Left: synth
+   bass (pdbass), guitar, the hex scalegrid pad, the XY smear-lead (a CC-stream gesture track),
+   and a drum-GRID variant. Each is now a `cfg_*` + a TAKE surface + a `fire_ev` branch.
+4. ⬜ **Ping-pong bounce + the tape glue** (`tape()`/`varispeed()`/hiss) + cassette chrome —
+   the soul phase (the tape, not the instruments, is what makes it a *record*). Plus a
+   PLAY-time click toggle and song save/load (`save_bytes`). See the cart's `de:meta.todo[]`.
 
 The reassuring part: the voices already exist as one-line presets and the surfaces are
 cheap to draw lean, so the genuinely-new code is exactly the "what's new" list above

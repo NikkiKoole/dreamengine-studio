@@ -41,7 +41,9 @@ de:meta */
 // ── the take: discrete notes + a continuous pitch stream (loopstation's model) ──
 #define MAXEV 2048
 enum { EV_ON, EV_CC, EV_OFF };             // note-on (attack) · pitch change (slide/bend) · note-off (damp)
-typedef struct { float pos, pitch; int kind, vol; } Ev;   // pos = beats from the top of the take
+// lane = the STRING actually played (a pitch is reachable on several strings, so we can't
+// recompute it from pitch on replay — that drew the ghost on the wrong string).
+typedef struct { float pos, pitch; int kind, vol, lane; } Ev;   // pos = beats from the top of the take
 static Ev    ev[MAXEV];
 static int   nev;
 static float song_len;                     // take length in beats; 0 = empty
@@ -85,7 +87,7 @@ static float b_wob;
 // the replay voice (drives note_pitch just like loopstation's theremin ghost)
 static int   vrep = -1;
 static float g_pitch;                      // currently-sounding replay pitch (for the ghost dot)
-static int   g_on;
+static int   g_on, g_lane;                 // g_lane = the string the replaying note was recorded on
 
 // GarageBand musical-typing map — 'A' = the low root
 static const char gb_wkey[11]  = "ASDFGHJKL;'";
@@ -126,7 +128,7 @@ void init(void) {
 // to pp_* and recording — glides included — is free.
 static void rec(int kind, float pitch, int vol) {
     if (mode == TR_REC && tpos >= 0 && nev < MAXEV)
-        ev[nev++] = (Ev){ tpos, pitch, kind, vol };
+        ev[nev++] = (Ev){ tpos, pitch, kind, vol, b_lane };   // b_lane = the string being played
 }
 static void pp_on(int owner, int lane, float midi, int vol) {
     if (b_handle >= 0) note_off(b_handle);             // mono: replace what's sounding
@@ -152,13 +154,13 @@ static void pp_off(void) {                              // damp
 // ── replay ──
 static void fire_ev(Ev *e) {
 #ifdef DE_TRACE
-    watch("fire", "kind=%d pos=%.2f midi=%.1f", e->kind, e->pos, e->pitch);
+    watch("fire", "kind=%d pos=%.2f midi=%.1f lane=%d", e->kind, e->pos, e->pitch, e->lane);
 #endif
     if (e->kind == EV_ON) {
         if (vrep >= 0) note_off(vrep);
         vrep = note_on((int)(e->pitch + 0.5f), BASS, e->vol);
         note_pitch(vrep, e->pitch); note_glide(vrep, 70);
-        g_pitch = e->pitch; g_on = 1;
+        g_pitch = e->pitch; g_lane = e->lane; g_on = 1;
     } else if (e->kind == EV_CC) {
         if (vrep >= 0) { note_pitch(vrep, e->pitch); g_pitch = e->pitch; }
     } else {  // EV_OFF
@@ -379,9 +381,8 @@ void draw(void) {
         circfill(fx, b_fy, 4, CLR_YELLOW); circ(fx, b_fy, 4, CLR_WHITE);
     }
     if (g_on) {
-        int gl = midi_lane(g_pitch);
-        int gx = midi_x(g_pitch, gl); gx = gx < NECK_X0 ? NECK_X0 : (gx > NECK_X1 ? NECK_X1 : gx);
-        circ(gx, cy_of(gl), 3, CLR_GREEN);
+        int gx = midi_x(g_pitch, g_lane); gx = gx < NECK_X0 ? NECK_X0 : (gx > NECK_X1 ? NECK_X1 : gx);
+        circ(gx, cy_of(g_lane), 3, CLR_GREEN);       // on the string it was RECORDED on, not a guess
     }
 
     draw_topbar();

@@ -96,6 +96,24 @@ with a 📂 reveal-in-Finder button + the ready-to-paste replay command), so a r
 even when you didn't think to keep it. Bridging a kept `.rec` into an automatic `spec()` regression is a noted future
 consumer (see [`spec-harness.md`](spec-harness.md) — today `spec()` is hand-authored, not `.rec`-fed).
 
+## Next rung — the replay-takes regression gate (proposed, not built)
+
+Now that keeping takes is one click, they accumulate — and a pile of deterministic, self-seeding
+takes is a regression net waiting to be used. Proposed: a `tools/replay-takes.js` gate (the
+behavioural twin of `build-all.js`, which only *compile*-checks) that replays every committed
+`tools/clips/*.rec` headless and fails on:
+
+- **a crash / non-zero exit** during replay (catches API rot + null derefs the compile gate misses),
+- **a determinism break** — replay twice, diff the `--trace`; a mismatch means the cart stopped being
+  reproducible (some new wall-clock/`rand()` dependency crept in).
+
+Deliberately **not** a brittle golden-trace-vs-committed diff — the spec harness avoids that on purpose
+([`spec-harness.md`](spec-harness.md): "not a predicate swept over a recording"), because any intended
+behaviour change would fail it. This is a *smoke + self-consistency* gate: does every recorded session
+still run and still reproduce? A cart that wants a real assertion still writes a `spec()`. Cheap, rides
+entirely on what's already shipped, and turns the recorder's output into bug-*prevention*, not just
+bug-repro. Sequence it next to `build-all` in the pre-commit checks once written.
+
 ## Boundaries (what this is NOT)
 
 - **Not a savestate.** `de_state()` has no serialize, and cart state is scattered across statics — a

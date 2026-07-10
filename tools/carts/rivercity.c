@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <math.h>
 
 // RIVER CITY — a procedural belt-scroll brawler with a light RPG skin.
@@ -70,6 +71,7 @@ de:meta */
 enum { K_HERO, K_THUG, K_TOUGH, K_BOSS };
 enum { ST_IDLE, ST_WALK, ST_PUNCH, ST_AIR, ST_SPECIAL, ST_HURT, ST_DEAD };
 enum { G_TITLE, G_PLAY, G_SHOP, G_WIN, G_OVER };
+static float end_t;      // seconds since the end card came up
 
 typedef struct {
     int   active;
@@ -208,7 +210,7 @@ static void new_run(void) {
     hero.shirt = 12; hero.pants = 1; hero.hair = 4;   // the hero's blue jacket / brown hair
     hero.hpmax = hp_max; hero.hp = hp_max;
     enter_zone(0);
-    phase = G_PLAY;
+    phase = G_PLAY; end_t = 0;
 }
 
 void init(void) {
@@ -438,7 +440,7 @@ static void play_music(void) {
 // update
 // ---------------------------------------------------------------------------
 void update(void) {
-    if (phase == G_OVER || phase == G_WIN) { if (btnp(0, BTN_A)) new_run(); return; }
+    if (phase == G_OVER || phase == G_WIN) { end_t += dt(); if (btnp(0, BTN_A)) new_run(); return; }
 
     if (phase == G_SHOP) {
         // 0 heal 1 +hp 2 +str 3 +def 4 +stam 5 spin 6 dash
@@ -676,16 +678,21 @@ void draw(void) {
 
     if (intro_t > 0) fade(intro_t / 45.0f);
 
+    // end cards — the shared end-screen treatment (endcard.h)
     if (phase == G_OVER) {
-        fade(0.5f);
-        print_centered("KNOCKED OUT", SCREEN_W/2, 84, CLR_RED);
-        print_centered(str("you reached %s with $%d", ZONE_NAME[zone], cash), SCREEN_W/2, 100, CLR_WHITE);
-        print_centered("press Z for a new run", SCREEN_W/2, 120, CLR_YELLOW);
+        EndCard c = endcard(end_t, 240, 52, 76, CLR_BROWNISH_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            print_centered("KNOCKED OUT", SCREEN_W/2, c.y + 8, CLR_RED);
+            print_centered(str("you reached %s with $%d", ZONE_NAME[zone], cash), SCREEN_W/2, c.y + 24, CLR_WHITE);
+            if (blink(18)) print_centered("press Z for a new run", SCREEN_W/2, c.y + 38, CLR_YELLOW);
+        }
     } else if (phase == G_WIN) {
-        fade(0.35f);
-        print_scaled("CITY CLEARED!", SCREEN_W / 2 - 78, 70, CLR_LIGHT_YELLOW, 2);
-        print_centered(str("you took down the docks boss  -  $%d", cash), SCREEN_W/2, 100, CLR_WHITE);
-        print_centered("press Z to run it again", SCREEN_W/2, 122, CLR_GREEN);
+        EndCard c = endcard(end_t, 250, 62, 66, CLR_DARK_BLUE, CLR_LIGHT_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            print_scaled("CITY CLEARED!", SCREEN_W / 2 - 78, c.y + 8, CLR_LIGHT_YELLOW, 2);
+            print_centered(str("you took down the docks boss  -  $%d", cash), SCREEN_W/2, c.y + 32, CLR_WHITE);
+            if (blink(18)) print_centered("press Z to run it again", SCREEN_W/2, c.y + 48, CLR_GREEN);
+        }
     } else if (win_t > 0) {
         print_centered("BOSS DOWN!", SCREEN_W/2, 84, CLR_LIGHT_YELLOW);
     }

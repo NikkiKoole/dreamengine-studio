@@ -911,8 +911,10 @@ static void draw_hud(void) {
 }
 
 static void panel(const char *title, int tcol, const char *l1, const char *l2, const char *l3) {
-    // the shared end-screen treatment (endcard.h) — also serves the title card
-    EndCard c = endcard(panel_t, 240, 96, SCREEN_H / 2 - 48, CLR_BROWNISH_BLACK, tcol, CLR_DARK_PURPLE);
+    // the shared end-screen treatment (endcard.h) — also serves the title card.
+    // blended-darken curtain (BLEND_MUL) rather than dither: the neon void behind
+    // is already a busy dither field, so grain-on-grain competed — this dims it clean.
+    EndCard c = endcard_blend(panel_t, 240, 96, SCREEN_H / 2 - 48, CLR_BROWNISH_BLACK, tcol, CLR_DARK_PURPLE);
     if (!c.settled) return;
     print_scaled(title, SCREEN_W / 2 - text_width(title) * 2 / 2, c.y + 8, tcol, 2);
     if (l1) print_centered(l1, SCREEN_W/2, c.y + 36, CLR_WHITE);

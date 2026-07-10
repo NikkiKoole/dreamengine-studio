@@ -56,9 +56,23 @@ static void endcard_dim(float t) {
     }
 }
 
-static EndCard endcard(float t, int w, int h, int cy, int bg, int edge, int edge2) {
-    endcard_dim(t);
+// The dim, BLENDED instead of dithered: darken the world uniformly toward black
+// via BLEND_MUL — a clean curtain, no lo-fi grain. Same in-canvas honesty as
+// endcard_dim (shows in --dump frames / gifs / thumbnails) and deliberately NOT
+// fade(). The multiply colour IS the settle: a neutral dark grey lands at ~1/3
+// brightness, matching endcard_dim's 10/16 black. Eased in over ~0.6s through a
+// short grey ladder (index-only, so it steps — that IS the look).
+static void endcard_dim_blend(float t) {
+    float p = ease_out(clamp(t / 0.6f, 0, 1));
+    if (p <= 0) return;
+    static const int ladder[3] = { CLR_LIGHT_GREY, CLR_MEDIUM_GREY, CLR_DARK_GREY };
+    blend(BLEND_MUL);
+    rectfill(0, 0, SCREEN_W, SCREEN_H, ladder[(int)(p * 2.999f)]);
+    blend_reset();
+}
 
+// the pop-in card itself (no dim) — shared by endcard() and endcard_blend()
+static EndCard endcard_card(float t, int w, int h, int cy, int bg, int edge, int edge2) {
     EndCard c = { (SCREEN_W - w) / 2, cy, w, h, t >= 0.55f };
 
     // pop: starts once the dim is underway, ease_back overshoot over 0.3s
@@ -73,6 +87,20 @@ static EndCard endcard(float t, int w, int h, int cy, int bg, int edge, int edge
     rect(px, py, pw, ph, edge);
     if (pw > 8 && ph > 8) rect(px + 2, py + 2, pw - 4, ph - 4, edge2);
     return c;
+}
+
+static EndCard endcard(float t, int w, int h, int cy, int bg, int edge, int edge2) {
+    endcard_dim(t);
+    return endcard_card(t, w, h, cy, bg, edge, edge2);
+}
+
+// endcard() with the blended-darken curtain instead of the dither. Same card,
+// same rect, same .settled gate — swap endcard()→endcard_blend() for a smooth
+// darken. Best when the scene behind is busy/neon and the dither grain competes
+// with it (hotline is the pilot).
+static EndCard endcard_blend(float t, int w, int h, int cy, int bg, int edge, int edge2) {
+    endcard_dim_blend(t);
+    return endcard_card(t, w, h, cy, bg, edge, edge2);
 }
 
 #endif // ENDCARD_H

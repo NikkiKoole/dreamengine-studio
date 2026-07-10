@@ -823,6 +823,36 @@ busy shared AP will hitch. The engine-side lever (step 5 adaptive + re-centering
 `NET_DELAY`) smooths small jitter and cures the constant stutter, but not congestion
 spikes this large.
 
+### Next office session — the checklist
+
+The 2026-07-10 diagnostics pass (RTT probe + rx-gap + wall-clock log stamps — formats in
+[`../guides/debug-harness.md`](../guides/debug-harness.md) §"Netplay diagnostics") turns
+the congestion verdict above from inference into a direct measurement. ~15 min, next time
+both machines are on the office wifi:
+
+1. **Before playing**, on the host Mac, start a timestamped ping to the router and leave
+   it running for the whole match (`netstat -rn | grep default` gives the router IP):
+   `ping --apple-time -i 0.2 <router-ip> > ping.log 2>&1 &`
+   (the `--apple-time` flag prints HH:MM:SS per line — a plain `ping > file` has NO
+   timestamps and can't be correlated; on a Linux host use `ping -D`).
+2. **Play pong for ~2 min** with the `F2` overlay on, long enough to catch a few freezes.
+   Both sides write `net-debug-P<seat>.log` automatically (Mac → `build/`, the Windows
+   `.exe` → its own folder).
+3. **Collect three files:** `net-debug-P0.log`, `net-debug-P1.log`, `ping.log`.
+4. **Read each `STALL` line** — it now carries wall-clock + `rtt_ms` + `rx_gap_ms`:
+   - STALL lines up (by time of day) with a ping-RTT spike ⇒ **AP congestion confirmed**
+     — environmental, done diagnosing; try the ethernet A/B (step 5).
+   - STALL + **clean** concurrent ping + big `rx_gap` ⇒ the outage is on the peer↔peer
+     path, not the AP — look at the **joiner's** link next.
+   - STALL + small `rx_gap` (packets kept arriving) ⇒ **cushion starvation, our bug** —
+     that's the step 5 (b) re-center work, not the network.
+5. **The zero-code A/B:** wire the host on ethernet and play the same 2 min again — if
+   the ~18 s freezes vanish, the shared-AP verdict is sealed with no further tooling.
+
+Also worth one run while there: the **web build** (pong on github.io, phone + Mac on the
+office wifi) with `F2` on — the WebRTC path records stalls since 2026-07-10, so this
+would be the first measured look at the phone-side stutter.
+
 **Scope boundary.** This rung is **2 players, both in browsers/wasm**, direct P2P
 with the relay as signaling only. It deliberately does **not** do: **native**
 (clang binary) WebRTC (needs `libdatachannel` bundled — a separate rung);

@@ -33,6 +33,47 @@ the missing leg — alongside `instrument_pan`/`instrument_drive`/`instrument_ec
 
 ---
 
+## Name & positioning (DECIDED 2026-07-10)
+
+**Name: `portapop`.** A `porta-` wink at the Tascam Portastudio (trademark — cf. the
+Roland-trademark rule in [`product-notes.md`](product-notes.md)) that also names the genre
+target, bedroom-**pop**. Collision-checked 2026-07-10 with `aso-research`/`aso-suggest` +
+a web search: **no App Store app, brand, band, or product owns "portapop"** (the "apps
+that rank" are fuzzy `port`+`pop` matches — none literally named it). The only association
+is a mild foreign-language one ("porta pop" = an email POP *port* in PT/IT, or a Portuguese
+"holder" product) — non-competing with a music app. Safe to own.
+
+**Why not a descriptive name like `fourtrack`?** Tested — it *loses*. (a) `4track` is
+already a shipping app, plus `Reel: 4-Track Recorder`, `RECHORD.XYZ`, `4 Tracks LX` — a
+literal name collision. (b) The category terms are unwinnable for a new small app: "four
+track" 55/100, "multitrack" 65/100, "portastudio" 71/100 (HARD) — and owned by giants
+(GarageBand 116k ratings · BandLab **491k** · Spire 16k · Voloco 83k). A descriptive name
+buys a keyword you can't rank for anyway. **The rule (store-agents §ASO):** you don't need
+the *name* to be the keyword — Apple ranks you for the **title + subtitle + keyword field**
+regardless. So: a distinctive, ownable name + a descriptive subtitle (the pattern every
+competitor uses: *"Spire: Music Recorder & Studio"*).
+
+**The pitch — "the whole band AND the studio, in your pocket" (+ effects).** Positioning
+*direction* only; the exact keyword packing is `aso-compose`'s job at ship time (the vocab
+will have moved), so nothing here is locked:
+
+- **Store title** (≤30): `Portapop: Lo-Fi 4-Track` — carries *lo-fi · 4-track*.
+- **Store subtitle** (≤30): `Your bedroom band & studio` — carries *bedroom · band · studio*.
+  (Alt if FX/tape should be *visible*: `Band, studio & FX — on tape`.)
+- **Keyword field** (100 chars, ship time) mops up the rest: `cassette, tape, recorder,
+  overdub, multitrack, fx, effects, loop, beat, indie` — so FX/cassette/tape rank without
+  crowding the visible name.
+- **Tagline** (press / site / description opener, all heart): *"The whole band and the
+  studio — in your pocket. (We threw in the effects too.)"* — and the longer opener seeds
+  *band · cassette · 4-track · bass · drums · guitar · keys · tape · effects · bedroom
+  studio* for free, the ADR-0022 "delightful to a stranger" half doubling as SEO.
+
+> This is a **cart** today; the store framing above only matters *if/when* it's promoted to
+> a published app (its own `apps/<name>/` + `seo-brief.md`). Captured now so the naming
+> reasoning isn't re-litigated.
+
+---
+
 ## The honest boundary (name it up front)
 
 A real Portastudio records **audio** — any sound source — onto tape. **This engine has

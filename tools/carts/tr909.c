@@ -14,7 +14,7 @@
   ],
   "lineage": "Roland TR-909 (1983), completing the cr78/tr808/tb303 family; hybrid kit where analog voices are subtractive but the ROM-sample hats/cymbals are stood in by an FM voice on the 3.5 inharmonic detent through a closing highpass, plus a flam/drag/ratchet stroke family and period-correct shuffle.",
   "homage": "Roland TR-909 Rhythm Composer (1983)",
-  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag knobs Y=coarse X=fine."
+  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. And a modern-clone touch the 1983 panel never had: TRIG PROBABILITY (the RD-9 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. The stroke family is touch-reachable too: tap the header STROKE button (or S) to arm it, then tapping a cell cycles flam/drag/ratchet instead of toggling (right-click still cycles on desktop). 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag a cell vertically for its fire-chance, drag knobs Y=coarse X=fine."
 }
 de:meta */
 #include "studio.h"
@@ -171,15 +171,27 @@ static bool running  = true;
 static int  last16   = -1;
 static int  playhead = 0;
 static int  flash[NV];
-// stroke kinds, cycled by right-click — named, never raw numbers (house rule)
+// stroke kinds, cycled by right-click (desktop) or long-press (touch) — named, never raw numbers (house rule)
 enum { ST_PLAIN, ST_FLAM, ST_DRAG, ST_RATCHET, NSTROKE };
+static const char *SNAME[NSTROKE] = { "PLAIN", "FLAM", "DRAG", "RATCHET" };
 
 static bool grid[NV][STEPS];   // the live pattern — editable, loaded from preset
 static int  nextz_x = -1;      // the preset '>' tap zone, recorded by draw() ('<' is fixed)
 static unsigned char gstroke[NV][STEPS];  // ST_* per cell (only meaningful when grid on)
+static unsigned char gprob[NV][STEPS];    // per-cell % chance to fire (100 = always; the RD-9 trig-prob)
 static bool gacc[STEPS];       // live accent row
 static bool paint_val;         // what a click-drag writes (set on press)
 static int  paint_stroke;      // the ST_* a right-drag paints (set on press)
+// per-cell left-drag, axis-locked at press: horizontal paints on/off, vertical
+// rides the fire-chance. STROKE mode (a header toggle) repurposes a plain tap to
+// cycle flam/drag/ratchet instead — the touch twin of right-click, no hidden hold.
+static int   gest_r = -1, gest_c;   // cell a left-press landed on (-1 = none)
+static int   gest_x0, gest_y0;      // press / running-reference position
+static int   gest_axis;             // 0=undecided 1=horizontal-paint 2=vertical-prob
+static float probf;                 // working chance during a vertical drag (0..1)
+static bool  gest_on0;              // was the cell on before the press (so a vertical drag keeps its state)
+static unsigned char gest_stroke0;  // its stroke before the press-reset (a prob drag must not clobber the flam)
+static bool  stroke_mode;           // header STROKE toggle: taps cycle the stroke family
 static int  swing = 50;        // 50 = straight .. 66 = full triplet
 
 static float ktune[NV];        // 0..1, center=0.5 → ±12 semitones
@@ -246,6 +258,11 @@ static int k_cv(int v, int lo, int hi) {
     return val < 0 ? 0 : val > 7 ? 7 : val;
 }
 
+// snap a 0..1 drag to the four RD-9-style trig-prob buckets (100/75/50/25)
+static unsigned char snap_prob(float f) {
+    return f >= 0.875f ? 100 : f >= 0.625f ? 75 : f >= 0.375f ? 50 : 25;
+}
+
 static void load_preset(void) {
     const Pat *p = &PRESET[pre];
     for (int v = 0; v < NV; v++)
@@ -254,6 +271,7 @@ static void load_preset(void) {
             grid[v][s]    = c == 'x' || c == 'f' || c == 'd' || c == 'r';
             gstroke[v][s] = c == 'f' ? ST_FLAM : c == 'd' ? ST_DRAG
                           : c == 'r' ? ST_RATCHET : ST_PLAIN;
+            gprob[v][s]   = 100;   // presets are certain patterns; drag a cell down to loosen it
         }
     for (int s = 0; s < STEPS; s++)
         gacc[s] = p->accent && p->accent[s] == 'x';
@@ -366,8 +384,10 @@ static void fire_stroke(int v, int st, int boost, int delay, int step_ms) {
         fire(v, boost, delay);
         break;
     case ST_RATCHET:
+        // repeats DECAY in level (real rolls do), which also stops four equal
+        // bright hat transients from stacking into an audible pop
         for (int k = 0; k < 4; k++)
-            fire(v, k == 0 ? boost : boost - 2, delay + k * step_ms / 4);
+            fire(v, boost - k, delay + k * step_ms / 4);
         break;
     default:
         fire(v, boost, delay);
@@ -473,6 +493,7 @@ void update(void) {
     if (keyp(KEY_DOWN) || tapp(248, 7, 30, 12)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); }
     if (keyp('Z') || tapp(196, 7, 22, 12)) { swing -= 2; if (swing < 50) swing = 50; }                      // SHF halves
     if (keyp('X') || tapp(218, 7, 24, 12)) { swing += 2; if (swing > 66) swing = 66; }
+    if (keyp('S') || tapp(190, 23, 52, 13)) stroke_mode = !stroke_mode;   // STROKE mode: taps cycle flam/drag/ratchet
 
     // knob hover + drag (Y=coarse, X=fine, same as modrack)
     int mx = mouse_x(), my = mouse_y();
@@ -512,14 +533,21 @@ void update(void) {
         apply_metal_filter();
     }
 
-    // mouse: press toggles a cell (drag paints), label click auditions
+    // mouse: press toggles a cell; a horizontal drag paints on/off (as before),
+    // a VERTICAL drag rides that cell's fire-chance (axis locked at first move).
     bool on_knob = hover_v >= 0 || drag_v >= 0;
     int mc, mr = grid_row(mx, my, &mc);
     if (mouse_pressed(MOUSE_LEFT) && !on_knob) {
-        if (mr >= 0) {
+        if (mr >= 0 && stroke_mode) {                    // STROKE mode: a tap cycles the stroke family
+            if (!grid[mr][mc]) { grid[mr][mc] = true; gstroke[mr][mc] = ST_FLAM; }   // off → join at FLAM
+            else gstroke[mr][mc] = (unsigned char)((gstroke[mr][mc] + 1) % NSTROKE);
+        } else if (mr >= 0) {
+            gest_on0 = grid[mr][mc]; gest_stroke0 = gstroke[mr][mc];   // remember before the toggle/reset
             paint_val = !grid[mr][mc];
             grid[mr][mc]    = paint_val;
             gstroke[mr][mc] = ST_PLAIN;
+            gest_r = mr; gest_c = mc; gest_x0 = mx; gest_y0 = my; gest_axis = 0;
+            probf  = gprob[mr][mc] / 100.0f;   // where a vertical drag would start from
         } else if (mr == -1) {
             paint_val = !gacc[mc];
             gacc[mc] = paint_val;
@@ -527,10 +555,28 @@ void update(void) {
             int v = (my - GY) / SY;
             fire(v, 1, 0); flash[v] = 5;
         }
-    } else if (mouse_down(MOUSE_LEFT) && !on_knob) {
-        if (mr >= 0)       { grid[mr][mc] = paint_val; if (!paint_val) gstroke[mr][mc] = ST_PLAIN; }
-        else if (mr == -1) gacc[mc]     = paint_val;
+    } else if (mouse_down(MOUSE_LEFT) && !on_knob && gest_r >= 0) {
+        int dx = mx - gest_x0, dy = my - gest_y0;
+        int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
+        if (gest_axis == 0 && (adx > 4 || ady > 4))     // moved → lock to an axis (paint / probability)
+            gest_axis = ady >= adx ? 2 : 1;
+        if (gest_axis == 2) {                            // vertical → probability of the START cell
+            grid[gest_r][gest_c] = true;                 // a vertical drag means "keep this hit"
+            gstroke[gest_r][gest_c] = gest_on0 ? gest_stroke0 : ST_PLAIN;  // keep the flam/drag/ratchet it had
+            probf += (gest_y0 - my) / 40.0f;             // drag up = surer, down = flakier (~40px = full span)
+            if (probf < 0.20f) probf = 0.20f;            // floor = the 25% bucket, never silent-off
+            if (probf > 1.0f)  probf = 1.0f;
+            gest_y0 = my;
+            gprob[gest_r][gest_c] = snap_prob(probf);
+        } else if (gest_axis == 1 && mr >= 0) {          // horizontal → paint on/off
+            grid[mr][mc] = paint_val;
+            if (!paint_val) gstroke[mr][mc] = ST_PLAIN;
+            else            gprob[mr][mc]   = 100;        // a freshly-painted hit starts certain
+        }
+    } else if (mr == -1 && mouse_down(MOUSE_LEFT) && !on_knob) {
+        gacc[mc] = paint_val;
     }
+    if (!mouse_down(MOUSE_LEFT)) gest_r = -1;
 
     // RIGHT button cycles a cell through the stroke family (an off cell
     // joins at FLAM); right-drag paints the stroke the press landed on.
@@ -562,13 +608,14 @@ void update(void) {
         if (nx & 1) delay += (swing - 50) * 2 * step_ms / 100;
         int boost   = gacc[nx] ? 2 : 0;
         for (int v = 0; v < NV; v++)
-            if (grid[v][nx])
-                fire_stroke(v, gstroke[v][nx], boost, delay, step_ms);
+            if (grid[v][nx] && (gprob[v][nx] >= 100 || rnd(100) < gprob[v][nx]))
+                fire_stroke(v, gstroke[v][nx], boost, delay, step_ms);   // trig-prob roll
 
         if (first) {   // fresh start: also sound the step we're already on
             int b0 = gacc[playhead] ? 2 : 0;
             for (int v = 0; v < NV; v++)
-                if (grid[v][playhead]) fire(v, b0, 0);
+                if (grid[v][playhead] && (gprob[v][playhead] >= 100 || rnd(100) < gprob[v][playhead]))
+                    fire(v, b0, 0);
         }
     }
 }
@@ -595,6 +642,11 @@ void draw(void) {
     nextz_x = nx + 2;
     print(running ? "PLAYING" : "STOPPED", 252, 26, running ? CLR_MEDIUM_GREEN : CLR_RED);
 
+    // STROKE-mode toggle: when lit, a tap on a cell cycles flam/drag/ratchet
+    rectfill(190, 23, 52, 13, stroke_mode ? CLR_DARK_RED : CLR_DARKER_GREY);
+    rect(190, 23, 52, 13, stroke_mode ? CLR_ORANGE : CLR_DARK_GREY);
+    print("STROKE", 197, 26, stroke_mode ? CLR_WHITE : CLR_MEDIUM_GREY);
+
     // playhead column
     if (running)
         rectfill(GX + playhead * SX - 1, GY - 7, SX - 1, NV * SY + 7, CLR_DARKER_GREY);
@@ -620,22 +672,27 @@ void draw(void) {
             // first step of each quarter gets a white tick (beat marker)
             if (grid[v][s]) {
                 int c = (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : CLR_ORANGE;
+                // trig-prob: a less-than-certain hit is a SHORTER bar, drained
+                // from the top (its full-height socket stays outlined below).
+                int bh = 2 + gprob[v][s] * 5 / 100;   // 25%→3px .. 100%→7px
+                int by = y + 7 - bh;
+                if (gprob[v][s] < 100) rect(x, y, SX - 4, 7, CLR_DARK_GREY);
                 switch (gstroke[v][s]) {
                 case ST_FLAM:     // grace tick + main bar
-                    rectfill(x, y, 2, 7, c);
-                    rectfill(x + 4, y, SX - 8, 7, c);
+                    rectfill(x, by, 2, bh, c);
+                    rectfill(x + 4, by, SX - 8, bh, c);
                     break;
                 case ST_DRAG:     // two grace ticks + main bar
-                    rectfill(x, y, 1, 7, c);
-                    rectfill(x + 2, y, 1, 7, c);
-                    rectfill(x + 4, y, SX - 8, 7, c);
+                    rectfill(x, by, 1, bh, c);
+                    rectfill(x + 2, by, 1, bh, c);
+                    rectfill(x + 4, by, SX - 8, bh, c);
                     break;
                 case ST_RATCHET:  // four even chops
                     for (int k = 0; k < 4; k++)
-                        rectfill(x + 1 + k * 2, y, 1, 7, c);
+                        rectfill(x + 1 + k * 2, by, 1, bh, c);
                     break;
                 default:
-                    rectfill(x, y, SX - 4, 7, c);
+                    rectfill(x, by, SX - 4, bh, c);
                 }
             } else
                 rect(x, y, SX - 4, 7, (s & 3) == 0 ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
@@ -643,10 +700,17 @@ void draw(void) {
         if (flash[v] > 0) flash[v]--;
     }
 
-    // hover label — fixed in the header band (never overlaps a knob row)
+    // header label — a live probability readout while dragging a cell, else the hovered knob
     int hv = (drag_v >= 0) ? drag_v : hover_v;
     int hk = (drag_v >= 0) ? drag_k : hover_k;
-    if (hv >= 0 && hk >= 0) {
+    if ((gest_axis == 2 || gest_axis == 3) && gest_r >= 0) {
+        char buf2[24];
+        if (gest_axis == 2) sprintf(buf2, "%s %d%%", VNAME[gest_r], gprob[gest_r][gest_c]);
+        else                sprintf(buf2, "%s %s", VNAME[gest_r], SNAME[gstroke[gest_r][gest_c]]);
+        font(FONT_SMALL);
+        print(buf2, 168, 27, CLR_DARK_RED);
+        font(FONT_NORMAL);
+    } else if (hv >= 0 && hk >= 0) {
         const char *lbl = hk == 2 ? K2LABEL[hv] : KLABEL[hk];
         if (lbl) {
             char buf2[24];
@@ -671,5 +735,7 @@ void draw(void) {
     print("RES^", PADX - 22, PADY, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
-    print("<> PRESET ^v BPM Z/X SHFL RCLK STROKE", 14, 186, CLR_DARK_GREY);
+    font(FONT_SMALL);
+    print("<> PRESET  ^v BPM  Z/X SHFL   V-drag=PROB   STROKE btn: tap=flam", 14, 189, CLR_DARK_GREY);
+    font(FONT_NORMAL);
 }

@@ -15,7 +15,7 @@
   ],
   "lineage": "Roland TR-808 (1980), sibling of cr78; voices modeled from reverse-engineered MEASURED circuit values — the shared six-oscillator metal bank, bridged-T kick with pitch-drop boom, dual-mode snare — with per-voice tune/decay/character knobs.",
   "homage": "Roland TR-808 Rhythm Composer (1980)",
-  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click name to audition, drag knobs to shape."
+  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. And a modern-clone touch the 1980 panel never had: TRIG PROBABILITY (the RD-8 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click name to audition, drag a cell vertically for its fire-chance, drag knobs to shape."
 }
 de:meta */
 #include "studio.h"
@@ -170,6 +170,13 @@ static bool grid[NV][STEPS];   // the live pattern — editable, loaded from pre
 static int  nextz_x = -1;      // the preset '>' tap zone, recorded by draw() ('<' is fixed)
 static bool gacc[STEPS];       // live accent row
 static bool paint_val;         // what a click-drag writes (set on press)
+static unsigned char gprob[NV][STEPS];    // per-cell % chance to fire (100 = always; the RD-8 trig-prob)
+// per-cell vertical DRAG = probability. one gesture, one axis-lock at press:
+// horizontal drag paints on/off (as before), vertical drag rides the chance.
+static int   gest_r = -1, gest_c;   // cell a left-press landed on (-1 = none)
+static int   gest_x0, gest_y0;      // press / running-reference position
+static int   gest_axis;             // 0=undecided 1=horizontal-paint 2=vertical-prob
+static float probf;                 // working chance during a vertical drag (0..1)
 static int  swing = 50;        // 50 = straight .. 66 = full triplet
 
 static float ktune[NV];        // 0..1, center=0.5 → ±12 semitones
@@ -216,11 +223,18 @@ static int k_cv(int v, int lo, int hi) {
     return val < 0 ? 0 : val > 7 ? 7 : val;
 }
 
+// snap a 0..1 drag to the four RD-8-style trig-prob buckets (100/75/50/25)
+static unsigned char snap_prob(float f) {
+    return f >= 0.875f ? 100 : f >= 0.625f ? 75 : f >= 0.375f ? 50 : 25;
+}
+
 static void load_preset(void) {
     const Pat *p = &PRESET[pre];
     for (int v = 0; v < NV; v++)
-        for (int s = 0; s < STEPS; s++)
+        for (int s = 0; s < STEPS; s++) {
             grid[v][s] = p->row[v] && p->row[v][s] == 'x';
+            gprob[v][s] = 100;   // presets are certain patterns; drag a cell down to loosen it
+        }
     for (int s = 0; s < STEPS; s++)
         gacc[s] = p->accent && p->accent[s] == 'x';
     tempo = p->tempo;
@@ -441,13 +455,16 @@ void update(void) {
     }
     if (!mouse_down(MOUSE_LEFT)) { drag_v = -1; drag_k = -1; }
 
-    // mouse: press toggles a cell (drag paints), label click auditions
+    // mouse: press toggles a cell; a horizontal drag paints on/off (as before),
+    // a VERTICAL drag rides that cell's fire-chance (axis locked at first move).
     bool on_knob = hover_v >= 0 || drag_v >= 0;
     int mc, mr = grid_row(mx, my, &mc);
     if (mouse_pressed(MOUSE_LEFT) && !on_knob) {
         if (mr >= 0) {
             paint_val = !grid[mr][mc];
             grid[mr][mc] = paint_val;
+            gest_r = mr; gest_c = mc; gest_x0 = mx; gest_y0 = my; gest_axis = 0;
+            probf  = gprob[mr][mc] / 100.0f;   // where a vertical drag would start from
         } else if (mr == -1) {
             paint_val = !gacc[mc];
             gacc[mc] = paint_val;
@@ -455,10 +472,26 @@ void update(void) {
             int v = (my - GY) / SY;
             fire(v, 1, 0); flash[v] = 5;
         }
-    } else if (mouse_down(MOUSE_LEFT) && !on_knob) {
-        if (mr >= 0)       grid[mr][mc] = paint_val;
-        else if (mr == -1) gacc[mc]     = paint_val;
+    } else if (mouse_down(MOUSE_LEFT) && !on_knob && gest_r >= 0) {
+        int dx = mx - gest_x0, dy = my - gest_y0;
+        int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
+        if (gest_axis == 0 && (adx > 4 || ady > 4))     // lock the axis on first real move
+            gest_axis = ady >= adx ? 2 : 1;
+        if (gest_axis == 2) {                            // vertical → probability of the START cell
+            grid[gest_r][gest_c] = true;                 // a vertical drag means "keep this hit"
+            probf += (gest_y0 - my) / 40.0f;             // drag up = surer, down = flakier (~40px = full span)
+            if (probf < 0.20f) probf = 0.20f;            // floor = the 25% bucket, never silent-off
+            if (probf > 1.0f)  probf = 1.0f;
+            gest_y0 = my;
+            gprob[gest_r][gest_c] = snap_prob(probf);
+        } else if (mr >= 0) {                            // horizontal (or undecided) → paint on/off
+            grid[mr][mc] = paint_val;
+            if (paint_val) gprob[mr][mc] = 100;          // a freshly-painted hit starts certain
+        }
+    } else if (mr == -1 && mouse_down(MOUSE_LEFT) && !on_knob) {
+        gacc[mc] = paint_val;
     }
+    if (!mouse_down(MOUSE_LEFT)) gest_r = -1;
 
     if (!running) return;
 
@@ -480,12 +513,14 @@ void update(void) {
         if ((nx & 3) == 2) delay += (swing - 50) * 4 * step_ms / 100;
         int boost   = gacc[nx] ? 2 : 0;
         for (int v = 0; v < NV; v++)
-            if (grid[v][nx]) fire(v, boost, delay);
+            if (grid[v][nx] && (gprob[v][nx] >= 100 || rnd(100) < gprob[v][nx]))
+                fire(v, boost, delay);   // trig-prob roll
 
         if (first) {   // fresh start: also sound the step we're already on
             int b0 = gacc[playhead] ? 2 : 0;
             for (int v = 0; v < NV; v++)
-                if (grid[v][playhead]) fire(v, b0, 0);
+                if (grid[v][playhead] && (gprob[v][playhead] >= 100 || rnd(100) < gprob[v][playhead]))
+                    fire(v, b0, 0);
         }
     }
 }
@@ -533,19 +568,29 @@ void draw(void) {
         for (int s = 0; s < STEPS; s++) {
             int x = GX + s * SX;
             int q = QCLR[s >> 2];   // step-button color by quarter
-            if (grid[v][s])
-                rectfill(x, y, SX - 4, 7,
-                         (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : q);
-            else
+            if (grid[v][s]) {
+                // trig-prob: a less-than-certain hit is a SHORTER bar, drained
+                // from the top (its full-height socket stays outlined below).
+                int bh = 2 + gprob[v][s] * 5 / 100;   // 25%→3px .. 100%→7px
+                int c  = (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : q;
+                if (gprob[v][s] < 100) rect(x, y, SX - 4, 7, CLR_DARK_GREY);
+                rectfill(x, y + 7 - bh, SX - 4, bh, c);
+            } else
                 rect(x, y, SX - 4, 7, (s & 3) == 0 ? q : CLR_DARKER_GREY);
         }
         if (flash[v] > 0) flash[v]--;
     }
 
-    // hover label — fixed in the header band (never overlaps a knob row)
+    // header label — a live probability readout while dragging a cell, else the hovered knob
     int hv = (drag_v >= 0) ? drag_v : hover_v;
     int hk = (drag_v >= 0) ? drag_k : hover_k;
-    if (hv >= 0 && hk >= 0) {
+    if (gest_axis == 2 && gest_r >= 0) {
+        char buf2[24];
+        sprintf(buf2, "%s %d%%", VNAME[gest_r], gprob[gest_r][gest_c]);
+        font(FONT_SMALL);
+        print(buf2, K0X, 31, CLR_LIGHT_GREY);
+        font(FONT_NORMAL);
+    } else if (hv >= 0 && hk >= 0) {
         const char *lbl = hk == 2 ? K2LABEL[hv] : KLABEL[hk];
         if (lbl) {
             char buf2[24];

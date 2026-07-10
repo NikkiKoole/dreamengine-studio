@@ -121,6 +121,7 @@ typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
 
 typedef struct {
     bool   active;
+    int    choke_fade;         // >0 = ramping out over a choke (counts down to 0, then deactivates) — a declick fade, not a hard cut
     int    sfx_idx;            // -1 if standalone note
     int    step;
     int    step_samples;
@@ -4675,6 +4676,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) slot = 0;
     Instrument *ins = &instr_bank[slot];
     v->active      = true;
+    v->choke_fade  = 0;        // a reused slot never inherits a half-finished choke fade
     v->held        = false;
     v->owner_slot  = -1;
     v->sfx_idx     = -1;
@@ -4818,17 +4820,22 @@ static int fx_instr_bus(int slot) {
     return fx_bus_for(slot);
 }
 
+// ~3ms amplitude ramp when a voice is choked. Longer than the ~2.8ms steal-tail decay it
+// replaces, but it fades the LIVE oscillating voice (spectrum intact) instead of DC-decaying a
+// single held sample, so a very bright voice (909 open hat) can't leave a spectral-cliff click.
+#define CHOKE_FADE_LEN 128
+
 // choke group: a new note on `instr_slot` silences every active voice whose slot is in that
-// slot's choke_mask (a closed hat cuts the open hat, etc). Stolen voices pay their last output
-// into the declick tail. Was inlined verbatim at SR_NOTE / SR_NOTE_ON / SR_HIT_AT.
+// slot's choke_mask (a closed hat cuts the open hat, etc). The cut is a short amplitude fade
+// (choke_fade), not a hard stop — the voice keeps ringing while it ramps out, so no click.
+// Was inlined verbatim at SR_NOTE / SR_NOTE_ON / SR_HIT_AT.
 static void sound_choke_group(int instr_slot) {
     uint32_t cmask = (instr_slot >= 0 && instr_slot < SOUND_INSTR_SLOTS) ? instr_bank[instr_slot].choke_mask : 0;
     if (!cmask) return;
     for (int i = 0; i < SOUND_VOICES; i++) {
-        if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
+        if (voices[i].active && !voices[i].choke_fade && ((cmask >> voices[i].instr_slot) & 1)) {
             if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
-            steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
-            voices[i].active = false;
+            voices[i].choke_fade = CHOKE_FADE_LEN;   // ramp out over ~3ms (applied in the voice loop) → no cliff
         }
     }
 }
@@ -4848,6 +4855,7 @@ static void sound_fire_req(SoundReq r) {
             int vi = sound_find_voice();
             Voice *v = &voices[vi];
             v->active     = true;
+            v->choke_fade = 0;
             v->sfx_idx    = n;
             v->step       = 0;
             sound_set_step(v, sfx_bank[n].steps[0], sfx_bank[n].step_dur);
@@ -5861,6 +5869,12 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
             if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
                 contrib *= instr_bank[v->instr_slot].level;   // per-slot output level (instrument_level); read LIVE, 1.0 = byte-identical bypass
+            // choke ramp-out: fade the LIVE (still-oscillating) voice to silence over CHOKE_FADE_LEN
+            // samples, then free it — a spectrum-preserving declick, vs. the old hard cut + DC tail.
+            if (v->choke_fade > 0) {
+                contrib *= (float)v->choke_fade / (float)CHOKE_FADE_LEN;
+                if (--v->choke_fade == 0) { v->active = false; sound_unclaim_held(vi); continue; }
+            }
             // stereo pan (stereo.md): clamp the slewed base pan + any LFO_PAN offset to [-1,1],
             // then split into L/R gains by the master pan law.
             float pan = v->pan + pan_mod;

@@ -20,12 +20,12 @@
     "When talking to ladies, show a close-up; make the bigger face respond to your words.",
     "Bigger idea: let the player go outside, wander the street, get run over by a car, get into an alley fight.",
     "The jukebox should actually play a song (reuse a radio cart).",
-    "Win screen fades to half (like Monkey Island).",
     "ui-audit: the location description (\"Lucky Lips Lounge…\") and the \"booth\" hotspot label run off the right edge."
   ]
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // ── LEISURE SUIT LARRY (PG-13) — a sleazy-lounge point-and-click ──────
@@ -601,21 +601,20 @@ void draw(void) {
     else print(str("LEISURE SUIT LARRY  -  %s", scene == SC_BAR ? "the bar" : "the booth"),
                92, BAR_Y + 27, CLR_MAUVE);
 
-    // ── win card ──
+    // ── win card — the shared end-screen treatment (endcard.h) ──
     if (won) {
-        fade(clamp(win_t, 0, 0.5f));
-        int w = 252, h = 60, bx = (SCREEN_W - w) / 2, by = 44;
-        rectfill(bx, by, w, h, CLR_DARK_PURPLE);
-        rect(bx, by, w, h, CLR_PINK); rect(bx + 2, by + 2, w - 4, h - 4, CLR_RED);
-        // a popping heart
-        float p = ease_out(clamp(heart_t * 1.6f, 0, 1));
-        int hr = 4 + (int)(p * 6);
-        int hcx = SCREEN_W / 2, hcy = by + 18;
-        circfill(hcx - hr/2, hcy - hr/3, hr/2, CLR_RED);
-        circfill(hcx + hr/2, hcy - hr/3, hr/2, CLR_RED);
-        trifill(hcx - hr, hcy, hcx + hr, hcy, hcx, hcy + hr, CLR_RED);
-        print_centered("- IT'S A DATE -", SCREEN_W/2, by + 30, CLR_LIGHT_YELLOW);
-        print_centered("Larry's still got it. (Had it?)", SCREEN_W/2, by + 42, CLR_LIGHT_PEACH);
-        if (blink(18)) print_centered("click to play again", SCREEN_W/2, by + 52, CLR_LIGHT_GREY);
+        EndCard c = endcard(win_t, 252, 60, 44, CLR_DARK_PURPLE, CLR_PINK, CLR_RED);
+        if (c.settled) {
+            // a popping heart (starts once the card has landed)
+            float p = ease_out(clamp((heart_t - 0.55f) * 1.6f, 0, 1));
+            int hr = 4 + (int)(p * 6);
+            int hcx = SCREEN_W / 2, hcy = c.y + 18;
+            circfill(hcx - hr/2, hcy - hr/3, hr/2, CLR_RED);
+            circfill(hcx + hr/2, hcy - hr/3, hr/2, CLR_RED);
+            trifill(hcx - hr, hcy, hcx + hr, hcy, hcx, hcy + hr, CLR_RED);
+            print_centered("- IT'S A DATE -", SCREEN_W/2, c.y + 30, CLR_LIGHT_YELLOW);
+            print_centered("Larry's still got it. (Had it?)", SCREEN_W/2, c.y + 42, CLR_LIGHT_PEACH);
+            if (blink(18)) print_centered("click to play again", SCREEN_W/2, c.y + 52, CLR_LIGHT_GREY);
+        }
     }
 }

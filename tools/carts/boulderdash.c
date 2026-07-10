@@ -19,6 +19,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <string.h>
 
 // ── BOULDER DASH — dig, grab, don't get crushed ───────────────────
@@ -70,6 +71,7 @@ static int  px, py;            // player cell
 static int  diamonds, quota;
 static float time_left;        // seconds
 static bool open_exit, won, dead;
+static float end_t;            // seconds since the end card came up
 static float tick_acc;         // settle-tick accumulator
 static int   exit_x, exit_y;
 
@@ -80,7 +82,7 @@ static int best_time = 0;
 
 static void build(void) {
     diamonds = 0; quota = 0;
-    open_exit = won = dead = false;
+    open_exit = won = dead = false; end_t = 0;
     time_left = 90.0f; tick_acc = 0;
     memset(falling, 0, sizeof(falling));
     for (int y = 0; y < GH; y++) {
@@ -227,6 +229,7 @@ static void move_enemies(void) {
 
 void update(void) {
     if (won || dead) {
+        end_t += dt();
         if (won && time_left > best_time) { best_time = (int)time_left; save(0, best_time); }
         if (key('R') || keyp('R') || btnp(0, BTN_B) || keyp(KEY_SPACE) || keyp(KEY_ENTER))
             build();
@@ -342,20 +345,20 @@ void draw(void) {
     if (open_exit && !won && !dead)
         print_centered(blink(10) ? "EXIT OPEN!" : "", SCREEN_W/2, 16, CLR_GREEN);
 
+    // end cards — the shared end-screen treatment (endcard.h)
     if (dead) {
-        fade(0.55f);
-        int w = 200, bx = (SCREEN_W - w) / 2;
-        rectfill(bx, 78, w, 40, CLR_DARK_RED);
-        rect(bx, 78, w, 40, CLR_RED);
-        print_centered("CRUSHED!", SCREEN_W/2, 88, CLR_WHITE);
-        print_centered("R / SPACE to dig again", SCREEN_W/2, 104, CLR_LIGHT_PEACH);
+        EndCard c = endcard(end_t, 200, 40, 78, CLR_DARK_RED, CLR_RED, CLR_BROWNISH_BLACK);
+        if (c.settled) {
+            print_centered("CRUSHED!", SCREEN_W/2, c.y + 10, CLR_WHITE);
+            if (blink(18)) print_centered("R / SPACE to dig again", SCREEN_W/2, c.y + 26, CLR_LIGHT_PEACH);
+        }
     }
     if (won) {
-        int w = 220, bx = (SCREEN_W - w) / 2;
-        rectfill(bx, 74, w, 48, CLR_DARK_GREEN);
-        rect(bx, 74, w, 48, CLR_LIME_GREEN);
-        print_centered("CAVE CLEARED!", SCREEN_W/2, 84, CLR_WHITE);
-        print_centered(str("time left %d  best %d", (int)time_left, best_time), SCREEN_W/2, 98, CLR_LIGHT_YELLOW);
-        print_centered("R / SPACE to play again", SCREEN_W/2, 110, CLR_LIGHT_PEACH);
+        EndCard c = endcard(end_t, 220, 48, 74, CLR_DARK_GREEN, CLR_LIME_GREEN, CLR_GREEN);
+        if (c.settled) {
+            print_centered("CAVE CLEARED!", SCREEN_W/2, c.y + 10, CLR_WHITE);
+            print_centered(str("time left %d  best %d", (int)time_left, best_time), SCREEN_W/2, c.y + 24, CLR_LIGHT_YELLOW);
+            if (blink(18)) print_centered("R / SPACE to play again", SCREEN_W/2, c.y + 36, CLR_LIGHT_PEACH);
+        }
     }
 }

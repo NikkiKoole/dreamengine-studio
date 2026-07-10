@@ -2663,14 +2663,17 @@ static int obb_mtv(float cax, float cay, float aux, float auy, float avx, float 
                                                      // not an impact, so no continuous crashing at a wall
 static void crash_body(Obstacle *o, float fwx, float fwy, float ltx, float lty) {
     int movable = (o->kind == OB_CAR);
-    float oc = movable ? cos_deg(o->ang) : 1.0f, os = movable ? sin_deg(o->ang) : 0.0f;
+    float oc = cos_deg(o->ang), os = sin_deg(o->ang);   // the obstacle's ACTUAL orientation — cars AND houses.
+    // (Stub-world houses are ang=0 → this reduces to the old AABB. But OSM footprints and citygen terraces
+    // are ORIENTED, and they're DRAWN oriented via fill_orect(o->ang) — so the collision box must use o->ang
+    // too, or a diagonal building's AABB collision floats off its drawn shape. Bit the long citygen terraces.)
     // rig OBB: its COM-local box (rigL0..rigW1) → world centre + unit axes + half-extents.
     float rcx, rcy; rot((rigL0 + rigL1) * 0.5f, (rigW0 + rigW1) * 0.5f, &rcx, &rcy);   // rig box centre (rot adds sx,sy)
     float rhx = (rigL1 - rigL0) * 0.5f, rhy = (rigW1 - rigW0) * 0.5f;
     // SAT minimum-translation: the TRUE push-out depth + normal (out of the obstacle) + contact point. The
     // old deepest-corner test UNDER-pushed on broadside / long-rig contacts → the rig stayed buried and ground
     // through the car (the bug). SAT clears it fully every frame, and the corner / engulf special-cases collapse
-    // into it. Obstacle axes: a car is oriented, a house passes identity (oc=1,os=0) → an AABB test.
+    // into it. Obstacle axes are its real (oc,os) orientation now (an ang=0 house = an AABB test, as before).
     float bnx, bny, bestPen, bcx, bcy;
     if (!obb_mtv(rcx, rcy, fwx, fwy, ltx, lty, rhx, rhy,
                  o->x, o->y, oc, os, -os, oc, o->hw, o->hh,

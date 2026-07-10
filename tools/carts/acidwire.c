@@ -78,7 +78,8 @@ static Strip STRIP[] = {          // haspat: MASTER is the mixer/FX bus, not a p
 
 enum { FOLDED, COMPACT, EXPANDED };
 #define FU 22.0f                 // a 44pt finger = 22 logical px at K=2 (constant — the point of the matrix)
-#define NPAT 6                   // patterns per instrument (maker: "a couple, say 6")
+#define NPAT 6                   // patterns per instrument (maker: back to 6 — 2×4/8 made the header too tall)
+#define PATCOLS 6                // ONE row of 6, right-aligned (square cells, spacing kept on the left)
 
 static int cur = 0, applied = -1, work = NSTRIP, showlabel = 1, safehint = 1;
 static int g_boxpat = 0;   // pattern selector style this frame: 1 = boxed left panel (iPad), 0 = header row (phone)
@@ -189,15 +190,26 @@ static void wf_minipat(Box area, int sidx, int mu) {   // folded: a row of tiny 
         boxfill(lay_inset(s, 0.5f), on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_BLUE); }
 }
 // per-instrument PATTERN selector for strip `idx`: NPAT numbered slots, live one lit; tap to select.
+// SQUARE pattern cells, RIGHT-ALIGNED in `area` (so the left of the header stays free for the icon).
 static void wf_patterns(Box area, int idx, int cols) {
     int cur = patn[idx], mu = muted[idx];
+    int rows = (NPAT + cols - 1) / cols;
     float gap = lay_clamp(FU * 0.09f, 1, 3);
+    float cell = (area.h - (rows - 1) * gap) / (float)rows;               // square, sized to the height…
+    float maxc = area.h * 0.75f; if (cell > maxc) cell = maxc;            // …capped ~75% of header height (maker: small + margins)
+    float gw = cols * cell + (cols - 1) * gap;
+    if (gw > area.w) { cell = (area.w - (cols - 1) * gap) / (float)cols; gw = area.w; }  // …and never wider than the area
+    float gh = rows * cell + (rows - 1) * gap;
+    float ox = area.x + area.w - gw;                                      // RIGHT-align the grid
+    float oy = area.y + (area.h - gh) / 2;
     for (int i = 0; i < NPAT; i++) {
-        Box c = lay_grid(area, cols, NPAT, i, gap); if (c.w < 3) continue;
+        int r = i / cols, c = i % cols;
+        Box b = box(ox + c * (cell + gap), oy + r * (cell + gap), cell, cell);
+        if (b.w < 3) continue;
         int on = (i == cur);
-        boxfill(c, on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARK_GREY); boxrect(c, CLR_DARKER_GREY);
-        if (c.h >= 7) { font(FONT_TINY); print_centered(str("%d", i + 1), (int)(c.x + c.w / 2), (int)(c.y + (c.h - 5) / 2), on ? CLR_BLACK : CLR_MEDIUM_GREY); }
-        if (clicked(c)) patn[idx] = i;
+        boxfill(b, on ? (mu ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARK_GREY); boxrect(b, CLR_DARKER_GREY);
+        if (b.h >= 7) { font(FONT_TINY); print_centered(str("%d", i + 1), (int)(b.x + b.w / 2), (int)(b.y + (b.h - 5) / 2), on ? CLR_BLACK : CLR_MEDIUM_GREY); }
+        if (clicked(b)) patn[idx] = i;
     }
 }
 // the pattern selector as its OWN little box (ReBirth's per-machine PATTERN panel): a titled,
@@ -357,24 +369,38 @@ static void wf_303lane(Box area, int sidx, int mu) {
         x += cw + g; if (i % 4 == 3) x += G - g;
     }
 }
-// FOCUS / fullscreen: one instrument fills the area, over a title bar with name · patterns · [M] · X.
-// The phone's route to the whole-machine overview (drum full grid / 303 programmer) — closes via X.
+// the shared strip HEADER — icon · [page (compact-303 only)] · patterns(2×4, right-aligned squares) ·
+// mute/fader (rightmost). IDENTICAL in the in-rack strip and the fullscreen FOCUS bar (no jump, no
+// leading '<'). Returns 1 if the ICON was tapped — the caller decides: open/expand, or leave focus.
+static int wf_header(Box hdr, int idx, int state, int accent) {
+    Strip *s = &STRIP[idx]; int mu = muted[idx];
+    boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
+    float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > hdr.h - 4) icoW = hdr.h - 4;
+    wf_stripicon(hdr, idx, icoW);
+    int tapped = clicked(box(hdr.x, hdr.y, icoW + 4, hdr.h));   // the icon IS the tap target
+    wf_mute(hdr, idx);                                         // rightmost (also the level fader)
+    float hleft = hdr.x + icoW + 4;
+    if (state == COMPACT && s->kind == KNOBS && s->haspat) {   // N/K/F page button — compact 303 only
+        float pgW = icoW; Box pgb = box(hleft, hdr.y + (hdr.h - pgW) / 2, pgW, pgW);
+        boxfill(pgb, CLR_DARK_GREY); boxrect(pgb, CLR_MEDIUM_GREY);
+        static const char *PGL[NKPAGE] = { "N", "K", "F" };
+        font(FONT_TINY); print_centered(PGL[pagesel[idx] % NKPAGE], (int)(pgb.x + pgb.w / 2), (int)(pgb.y + (pgb.h - 5) / 2), CLR_LIGHT_PEACH);
+        if (clicked(pgb)) pagesel[idx] = (pagesel[idx] + 1) % NKPAGE;
+        hleft = pgb.x + pgW + 4;
+    }
+    if (s->haspat && (!g_boxpat || state == FOLDED)) {         // patterns: right-aligned row of squares
+        float muteW = FU * 1.6f;                               // reserve mute/fader + a margin before it
+        Box pb = box(hleft, hdr.y + 1, hdr.x + hdr.w - muteW - hleft, hdr.h - 2);
+        wf_patterns(pb, idx, PATCOLS);
+    }
+    return tapped;
+}
+// FOCUS / fullscreen: one instrument fills the area under the SAME header (icon tap = leave).
 static void draw_focus(Strip *s, Box area, int idx) {
     int mu = muted[idx];
-    boxfill(area, CLR_DARKER_BLUE); boxrect(area, mu ? CLR_RED : CLR_TRUE_BLUE);
-    Box body; Box bar = lay_split(lay_inset(area, 2), EDGE_TOP, lay_clamp(FU * 0.85f, 16, 22), &body);  // match the strip header — no height jump on going fullscreen
-    boxfill(bar, mu ? CLR_DARK_RED : CLR_TRUE_BLUE);
-    // no dedicated X: the ICON is the back button (a ‹ cue to its left) — tap it to leave focus. That
-    // frees the top-right for the [M][fx] cluster that belongs there (maker, 2026-07-07).
-    float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > bar.h - 4) icoW = bar.h - 4;
-    font(FONT_SMALL); print("<", (int)bar.x + 3, (int)(bar.y + (bar.h - 6) / 2), CLR_LIGHT_PEACH);
-    wf_stripicon(box(bar.x + 10, bar.y, bar.w, bar.h), idx, icoW);     // the icon (after the ‹)
-    float backW = icoW + 16;
-    if (clicked(box(bar.x, bar.y, backW, bar.h))) focused = -1;
-    wf_mute(bar, idx);                                                 // [M][fx] at the right (M taps to mute)
-    if (s->haspat) { font(FONT_TINY);   // pattern selector between the icon and the [M][fx] cluster
-        float px = bar.x + backW + 4; Box pb = box(px, bar.y + 2, bar.x + bar.w - FU * 2.4f - px, bar.h - 4);
-        if (pb.w > 20) wf_patterns(pb, idx, NPAT); }
+    boxfill(area, CLR_DARKER_BLUE);                          // no outer rect/inset — matches the strip so focus↔rack doesn't jump
+    Box body; Box bar = lay_split(lay_inset(area, 1), EDGE_TOP, lay_clamp(FU * 1.0f, 18, 24), &body);
+    if (wf_header(bar, idx, EXPANDED, 1)) focused = -1;       // icon tap = leave focus
     body = lay_pad(body, 1, 2, 1, 1);
     if (s->kind == DRUMS) wf_drumgrid(body, s, mu);          // the full voices×steps overview
     else if (s->haspat) { Box grid; Box kn = lay_split(body, EDGE_BOTTOM, FU * 1.6f, &grid); wf_303grid(grid, idx, mu); wf_knobrow(kn, s->labels, s->n, kv[idx]); }
@@ -385,42 +411,12 @@ static void draw_focus(Strip *s, Box area, int idx) {
 static void draw_strip(Strip *s, Box rect, int state, int accent) {
     int idx = (int)(s - STRIP), mu = muted[idx], pc = patn[idx];
     boxfill(rect, CLR_DARKER_BLUE); boxrect(rect, mu ? CLR_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
-    // the header is a finger-tall control bar: on phone it holds the pattern row + M + fx, and a
-    // ~9px header made those un-tappable. ~0.85 finger clears the touch floor (fat pads do the rest).
-    Box body; float hh = lay_clamp(FU * 0.85f, 16, 22);
+    Box body; float hh = lay_clamp(FU * 1.0f, 18, 24);   // a tad bigger than the old header (was 0.85/16–22)
     Box hdr = lay_split(lay_inset(rect, 1), EDGE_TOP, hh, &body);
-    boxfill(hdr, mu ? CLR_DARK_RED : (accent ? CLR_TRUE_BLUE : CLR_DARK_GREY));
-    float icoW = lay_clamp(FU * 0.6f, 12, 16); if (icoW > hh - 4) icoW = hh - 4;   // the ~12px icon badge
-    wf_stripicon(hdr, idx, icoW);
+    // shared header (same in fullscreen); the icon tap opens/expands the strip
+    if (wf_header(hdr, idx, state, accent)) { if (state == EXPANDED) focused = idx; else work = idx; }
     body = lay_pad(body, 1, 1, 1, 1);
-    wf_mute(hdr, idx);
-    // tap the strip ICON to open it up: folded/compact → expanded (working); expanded → focus.
-    if (clicked(box(hdr.x, hdr.y, icoW + 4, hdr.h))) { if (state == EXPANDED) focused = idx; else work = idx; }
-
-    // tiny PAGE button right after the icon (icon-sized — a proven tap target). COMPACT 303 only:
-    // pages are the compact-space solution (maker), cycling the whole body N=notes / K=knobs / F=flags.
-    float hleft = hdr.x + icoW + 4;   // default: patterns start right after the icon
-    int paged = (state == COMPACT && s->kind == KNOBS && s->haspat);   // the two 303s in compact
-    if (paged) {
-        float pgW = icoW;
-        Box pgb = box(hleft, hdr.y + (hh - pgW) / 2, pgW, pgW);
-        boxfill(pgb, CLR_DARK_GREY); boxrect(pgb, CLR_MEDIUM_GREY);
-        static const char *PGL[NKPAGE] = { "N", "K", "F" };   // notes / knobs / flags
-        font(FONT_TINY); print_centered(PGL[pagesel[idx] % NKPAGE], (int)(pgb.x + pgb.w / 2), (int)(pgb.y + (pgb.h - 5) / 2), CLR_LIGHT_PEACH);
-        if (clicked(pgb)) pagesel[idx] = (pagesel[idx] + 1) % NKPAGE;
-        hleft = pgb.x + pgW + 4;
-    }
-
-    // PATTERN SELECTOR — pattern instruments only (MASTER is the mixer/FX bus, so none). Device-
-    // adaptive: PHONE → a framed row of 6 in the HEADER; iPad (roomy) → a boxed LEFT panel.
-    int header_pat = s->haspat && (!g_boxpat || state == FOLDED);
-    int box_pat    = s->haspat && g_boxpat && state != FOLDED;
-    if (header_pat) {
-        float muteW = FU * 1.2f;                               // reserve the rightmost [M] (it's also the level fader)
-        Box pb = box(hleft, hdr.y + 1, hdr.x + hdr.w - muteW - hleft, hdr.h - 2);
-        boxrect(pb, mu ? CLR_DARK_RED : CLR_DARKER_GREY);
-        wf_patterns(lay_inset(pb, 1), idx, NPAT);              // one row of 6
-    }
+    int box_pat = s->haspat && g_boxpat && state != FOLDED;   // dormant (g_boxpat = 0)
 
     // MASTER (no patterns) has no step sequence either — just its knobs, no lane / preview.
     if (state == FOLDED) { if (s->haspat) wf_minipat(body, idx, mu); return; }
@@ -530,8 +526,8 @@ static void draw_fingergrid(int W, int H) {
 
 // footprint of a strip in a given state, in logical px (height)
 static float strip_h(Strip *s, int state) {
-    if (state == FOLDED)  return FU * 1.4f;               // finger-tall header + a slim preview strip
-    if (state == COMPACT) return FU * 2.9f;              // pattern box is a LEFT column, not a row
+    if (state == FOLDED)  return FU * 1.5f;               // finger-tall header + a slim preview strip
+    if (state == COMPACT) return FU * 3.0f;              // header + the paged body
     return (s->kind == DRUMS ? FU * 5.8f : FU * 5.0f);   // EXPANDED
 }
 
@@ -571,7 +567,8 @@ void draw(void) {
     int device_mode = 0;
     cls_ = d.cls; insT = d.insT; insB = d.insB;
 #endif
-    g_boxpat = (cls_ == ROOMY);   // roomy has room for the boxed PAT panel; phones use the header row
+    g_boxpat = 0;   // patterns live in the HEADER ROW on every device (maker, on iPad glass 2026-07-10) —
+                    // preferred over the boxed left PAT panel even on roomy; the box path stays dormant below
     m_press = mouse_pressed(0); m_x = mouse_x(); m_y = mouse_y();   // one pointer press per frame (tap/click)
     cls(CLR_BROWNISH_BLACK);
     wf_seed(); ui_begin();   // ui.h widgets (knobs/slider) live between ui_begin()…ui_end(); the

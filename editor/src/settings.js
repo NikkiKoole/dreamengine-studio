@@ -86,6 +86,7 @@ function load() {
     showPublish:   localStorage.getItem('showPublish') === '1',
     showNetplay:   localStorage.getItem('showNetplay') === '1',
     showShare:     localStorage.getItem('showShare') === '1',
+    hideCartButtons: localStorage.getItem('hideCartButtons') === '1',   // hide save/load/save-to-source (default: shown)
     recordPlays:   localStorage.getItem('recordPlays') !== '0',   // flight recorder: default ON
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
     backend:       localStorage.getItem('backend')   || DEFAULTS.backend,
@@ -411,6 +412,21 @@ export function buildSettingsPanel(el) {
   ))
   netSection.appendChild(note('lockstep netplay over the LAN \u2014 host on one machine, join by IP from another, and both drive the same cart (P0 = host, P1 = joiner). Experimental; carts stay network-unaware. desktop app only.'))
   el.appendChild(netSection)
+
+  // \u2500\u2500 cart panel \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const cartPanelSection = section('cart panel')
+  cartPanelSection.appendChild(checkbox(
+    'hide the save / load / save to source buttons',
+    settings.hideCartButtons,
+    v => {
+      settings.hideCartButtons = v
+      save('hideCartButtons', v ? '1' : '0')
+      const row = document.getElementById('cart-actions')
+      if (row) row.style.display = v ? 'none' : ''
+    },
+  ))
+  cartPanelSection.appendChild(note('the save cart / load cart / save to source buttons at the top of the tutorials panel. Rarely needed day-to-day \u2014 hide them for a cleaner panel; carts still load from the gallery and everything else keeps working.'))
+  el.appendChild(cartPanelSection)
 }
 
 function section(title) {

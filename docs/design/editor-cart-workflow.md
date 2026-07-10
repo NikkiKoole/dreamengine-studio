@@ -14,6 +14,18 @@
 
 ## Gap 1 — no save-in-place: every save is "Save As"
 
+> **SHIPPED 2026-07-10.** Two pieces landed:
+> - **Save in-place** for carts loaded from a real on-disk path (`cart:save`
+>   `targetPath` / `currentCartPath`; Cmd-S saves in place, Shift+Cmd-S = Save As).
+> - **Save to source** — a third `save to source` button that writes the Code-tab
+>   buffer back to `tools/carts/<slug>.c` and re-bakes the gallery `.cart.png` in
+>   place (keeping its thumbnail), using the `de:meta.slug` anchor (Gap 1b). Repo
+>   carts only; source-only (the `.cart.js` sprite story stands, Gap 2 — a
+>   generator cart flags a warning); **not** a git commit (that stays a deliberate
+>   `node tools/cart-commit.js <slug>`). IPC `cart:save-to-source` in `main.cjs`;
+>   button + `saveToSource()` in `shell.js`. The rest of this section is the
+>   original design record.
+
 **Today** (`editor/electron/main.cjs`, `ipcMain.handle('cart:save')` ~line 574):
 the save button *always* opens `dialog.showSaveDialog` defaulting to
 `mycart.cart.png`. There is no concept of "the cart file currently open" with a
@@ -337,7 +349,7 @@ stays out of scope (not feasible, not needed).
 | # | Fix | Size | Risk |
 |---|---|---|---|
 | 0 | ✅ `de:meta.slug` field (self-describing PNG → source; foundation for save-back) — **shipped 2026-07-10** | S | low |
-| 1 | Save-in-place + Cmd-S (gallery carts excluded) | S | low |
+| 1 | ✅ Save-in-place + Cmd-S, **+ Save to source (repo carts)** — **shipped 2026-07-10** | S | low |
 | 2 | Full-description detail view in gallery | S | none |
 | 3 | Sprite ownership marker (option B) | S–M | low |
 | 4 | Metadata form → paste-ready index.json entry | M | none (no registry writes) |

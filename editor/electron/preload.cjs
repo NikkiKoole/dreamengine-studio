@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('studio', {
   onLog:        (cb) => ipcRenderer.on('cart:log',  (_, s)    => cb(s)),
   onExit:       (cb) => ipcRenderer.on('cart:exit', (_, info) => cb(info)),
   saveCart:     (payload)  => ipcRenderer.invoke('cart:save', payload),
+  saveToSource: (payload)  => ipcRenderer.invoke('cart:save-to-source', payload),
   loadCart:     ()         => ipcRenderer.invoke('cart:load'),
   loadCartBuffer: (bytes)   => ipcRenderer.invoke('cart:load-buffer', bytes),
   loadCartFile:   (filePath) => ipcRenderer.invoke('cart:load-file', filePath),

@@ -2894,11 +2894,9 @@ if (profileBtn) {
 const saveCartBtn = document.getElementById('save-cart-btn')
 const loadCartBtn = document.getElementById('load-cart-btn')
 
-// Save the open cart. `forceDialog` (Save As) always prompts; otherwise we
-// save-in-place when we have a real on-disk origin, else fall through to the
-// dialog (fresh / gallery carts have no origin to overwrite).
-async function saveCart(forceDialog) {
-  if (!window.studio) return
+// Gather the current editor state (code + sprites + map + settings) as the chunk
+// payload shared by Save As / Save in-place / Save to source.
+function gatherCartChunks() {
   const tilemapCanvas = document.querySelector('#tilemap-canvas')
   const spritesDataUrl = tilemapCanvas ? tilemapCanvas.toDataURL('image/png') : null
   const mapBytes = getMapBytes()
@@ -2912,8 +2910,17 @@ async function saveCart(forceDialog) {
     screenW: settings.screenW, screenH: settings.screenH, scale: settings.scale,
     cellW: settings.cellW, cellH: settings.cellH, mapW: settings.mapW, mapH: settings.mapH,
   }
+  return { source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings }
+}
+
+// Save the open cart. `forceDialog` (Save As) always prompts; otherwise we
+// save-in-place when we have a real on-disk origin, else fall through to the
+// dialog (fresh / gallery carts have no origin to overwrite).
+async function saveCart(forceDialog) {
+  if (!window.studio) return
+  const { source, spritesDataUrl, mapBase64, settings: cartSettings } = gatherCartChunks()
   const targetPath = (!forceDialog && currentCartPath) ? currentCartPath : undefined
-  const saved = await window.studio.saveCart({ source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings, targetPath })
+  const saved = await window.studio.saveCart({ source, spritesDataUrl, mapBase64, settings: cartSettings, targetPath })
   if (!saved || !saved.ok) {
     if (saved && saved.error) showToast(`save failed: ${saved.error}`)
     return
@@ -2929,6 +2936,41 @@ async function saveCart(forceDialog) {
 }
 
 saveCartBtn.addEventListener('click', () => saveCart(false))
+
+// Save to source: write the Code-tab buffer back to tools/carts/<slug>.c and
+// rebake the gallery .cart.png (source only — the .cart.js sprite story stands).
+// For repo carts; external/fresh carts have no source and get a clear error.
+// NOT a git commit — do that deliberately with `node tools/cart-commit.js <slug>`.
+const saveSourceBtn = document.getElementById('save-source-btn')
+async function saveToSource() {
+  if (!window.studio || !window.studio.saveToSource) { showToast('save to source needs Electron', 3000); return }
+  const slug = currentCartFile
+  if (!slug) { showToast('open a repo cart first', 2500); return }
+  const { source, spritesDataUrl, mapBase64, settings: cartSettings } = gatherCartChunks()
+  // busy feedback: a long-lived toast (replaced by the result) + a disabled,
+  // relabelled button, so the write+rebake round-trip never looks like a no-op.
+  const btn = saveSourceBtn, label = btn ? btn.textContent : ''
+  showToast(`saving → tools/carts/${slug}.c …`, 60000)
+  if (btn) { btn.disabled = true; btn.textContent = 'saving…' }
+  try {
+    const res = await window.studio.saveToSource({ slug, source, spritesDataUrl, mapBase64, settings: cartSettings })
+    if (!res || !res.ok) { showToast(res && res.error ? `save to source: ${res.error}` : 'save to source failed', 4500); return }
+    let msg = `saved → ${res.cRel} + rebaked`
+    if (res.hasGenerator) msg += `  ⚠ ${slug}.cart.js exists — editor sprite/map edits won't reach it (sprite story)`
+    showToast(msg, res.hasGenerator ? 6000 : 3500)
+    if (res.indexError) console.warn('save to source: index.json regen failed:', res.indexError)
+  } catch (e) {
+    showToast('save to source failed: ' + ((e && e.message) || e), 4500)
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = label }
+  }
+}
+if (saveSourceBtn) saveSourceBtn.addEventListener('click', saveToSource)
+// hide the whole cart-actions row (save / load / save to source) if opted out in settings
+if (settings.hideCartButtons) {
+  const cartActions = document.getElementById('cart-actions')
+  if (cartActions) cartActions.style.display = 'none'
+}
 
 // Cmd/Ctrl+S → save (in-place if we have an origin); Shift adds → Save As.
 // Capture phase, so CodeMirror doesn't eat it.

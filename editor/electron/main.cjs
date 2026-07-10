@@ -853,6 +853,44 @@ ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64, 
   return { ok: true, filePath, origin: inGallery(filePath) ? null : filePath, inPlace: !!targetPath }
 })
 
+// ── cart save-to-SOURCE (repo carts) ──────────────────────────
+// A gallery/tutorial cart's real source of truth is tools/carts/<slug>.c (what
+// make-cart.js bakes from); the .cart.png is a build product the editor otherwise
+// only reaches via Save As. This writes the Code-tab buffer back to that .c and
+// re-bakes the gallery .cart.png in place (keeping its baked thumbnail), so an
+// edit survives the next CLI bake and is ready to commit. `slug` comes from the
+// cart's de:meta (backfilled + lint-required) — the PNG→source anchor
+// (editor-cart-workflow Gap 1/1b). Source only: sprites/map are NOT written to a
+// .cart.js generator (the two-sources-of-truth sprite story, STATUS item 23) — we
+// flag when a generator exists. Deliberately NOT a git commit (cart-commit.js does that).
+ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesDataUrl, mapBase64, settings }) => {
+  if (!slug || !/^[\w-]+$/.test(slug)) return { ok: false, error: 'no cart slug (open a repo cart first)' }
+  const ROOT    = path.join(__dirname, '../..')
+  const cPath   = path.join(ROOT, 'tools', 'carts', `${slug}.c`)
+  const pngPath = path.join(GALLERY_DIR, `${slug}.cart.png`)
+  if (!fs.existsSync(cPath))   return { ok: false, error: `no tools/carts/${slug}.c — not a repo cart (use Save As)` }
+  if (!fs.existsSync(pngPath)) return { ok: false, error: `no gallery ${slug}.cart.png to rebake` }
+  try {
+    // 1. write the Code-tab buffer back to the .c source
+    fs.writeFileSync(cPath, source)
+    // 2. re-embed into the gallery .cart.png, KEEPING its baked thumbnail. Mirror
+    //    cart:save in-place — do NOT shell out to `make-cart.js <src> <png>`, which
+    //    rebuilds the sprite sheet from the .cart.js and BLANKS a hand-drawn cart's
+    //    sheet when there's no generator (make-cart.js ~line 378).
+    const chunkData = { source, sprites: spritesDataUrl, map: mapBase64 }
+    if (settings) chunkData.settings = JSON.stringify(settings)
+    fs.writeFileSync(pngPath, embedCartChunks(fs.readFileSync(pngPath), chunkData))
+    // 3. regenerate index.json so a de:meta edit (title/tags/…) registers
+    let indexError = null
+    try { require('../../tools/build-cart-index.js').writeIndex() }
+    catch (e) { indexError = e.message }
+    const hasGenerator = fs.existsSync(cPath.replace(/\.c$/, '.cart.js'))
+    return { ok: true, cRel: `tools/carts/${slug}.c`, hasGenerator, indexError }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
 // ── cart load ─────────────────────────────────────────────────
 ipcMain.handle('cart:load', async () => {
   const { filePaths } = await dialog.showOpenDialog({

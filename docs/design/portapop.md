@@ -283,6 +283,89 @@ prototype, not before.
 
 ---
 
+## Build approach — how to assemble it (the implementation plan)
+
+**Do NOT copy-paste the 8 instrument carts into one file.** That's ~3,300 lines of
+divergent shells, and fixes to the real `upright`/`guitar`/… never reach the copies. The
+repo already leans the other way (shared cart-land headers: `keybed.h`, `pointer.h`,
+`cards.h`, `radio.h`; `scalegrid`'s author even wrote *"ready to graduate into a grid.h
+library"*). So: **portapop is ONE cart that HOSTS instrument modules.**
+
+Not `build-app.js`'s multi-cart dispatcher either — that runs one cart at a time
+(`de_switch_cart`). portapop needs up to 4 instruments **live simultaneously** into one
+mix, under one transport. One cart, an array of modules.
+
+### The instrument-module interface
+
+Each shelf voice becomes a self-contained module (its own `<name>.h`, à la `keybed.h`),
+exposing roughly:
+
+```c
+void        inst_init(int seed);
+void        inst_input(Rect area);   // touch/keys → note INTENT (calls the sink below)
+void        inst_draw (Rect area);   // render its surface INTO an assigned rect
+VoicePreset inst_voice;              // the INSTR_* id + ADSR + the 3 macros (ports ~verbatim)
+```
+
+Per cart, the work is a **split**: keep "surface + input→events," drop "standalone
+`main()` loop / autoplay / help chrome." `scalegrid`'s `VoicePreset` table is the template
+for the voice half (each voice is a one-line `INSTR_*` preset).
+
+### The recordable seam (the single most important decision)
+
+An instrument must **not** call `note_on()` directly. It calls a **portapop-owned sink**:
+
+```c
+void pp_note_on (int slot, float pitch, int vol);   // plays the voice AND...
+void pp_note_off(int slot);                          // ...rec_ev()s into the ARMED track
+void pp_note_cc (int slot, float v);                 // the gesture/CC lane (XY smear-lead)
+```
+
+The sink both sounds the voice *and* appends an `Ev` to the armed track. Wire this once →
+**every instrument is recordable for free.** This is loopstation's model, generalized (it
+already calls `rec_ev` explicitly rather than intercepting the engine, which gives clean
+per-track attribution — exactly what a per-track take model needs).
+
+### Data model (adapt loopstation's, don't reinvent)
+
+```c
+// straight from loopstation.c — reuse:
+typedef struct { float pos; int kind, slot, vol, dur, born; float pitch; int aux; } Ev;
+typedef struct { Ev ev[MAXEV]; int n; int armed, muted; } Track;
+// ADD for portapop:
+//   Track.len_bars        — this track's own length (the take you cut)
+//   Track.voice           — which shelf module is cast into it (index 0..7)
+//   song_bars = max(track.len_bars)     — recomputed live (the window)
+//   playback: for each track, play its Ev stream, WRAPPING at track.len_bars
+//             until song_bars (→ shorter tracks loop to fill; see recording model)
+```
+
+Grid voices (`drummachine`) are the one **quantized-loop exception**; `fingerdrums` and all
+melodic voices record **as-played** (don't quantize).
+
+### The real friction: rect-relative rendering
+
+Every instrument cart currently draws **full-screen** (hardcodes `SCREEN_W/H`). portapop
+needs them **rect-parameterized** — full-screen in TAKE mode, a small VU/strip in CONSOLE
+mode. That's the bulk of the per-cart refactor; `lay.h` (responsive layout) exists for
+exactly it. Budget for it up front.
+
+### Phasing (not one big bang)
+
+1. **Prove the seam.** portapop skeleton + loopstation's record core + ONE instrument
+   (`upright`), TAKE mode only, one track. Record → play back one take. *(This is the
+   first thing to build — smallest slice that proves the whole idea.)*
+2. **Add the console.** 2–3 tracks; faders/pan/VU mixdown; the TAKE↔CONSOLE mode-flip.
+3. **Generalize + port the rest**, cheapest first — `piano`/`epiano` share `keybed.h`, so
+   they come almost free; then `scalegrid`, `guitar`, `pdbass`, the drums, the XY smear-lead.
+4. **Ping-pong, count-in, tape glue** (`tape()`/`varispeed()`/hiss/VU), cassette chrome.
+
+The reassuring part: voices and surfaces already work, so this is mostly *interface
+extraction + a host shell* — the genuinely-new code is exactly the "what's new" list above
+(transport, per-track `Ev` buffers, console UI, ping-pong merge), not new DSP.
+
+---
+
 ## Open questions parked (the "sit with it" list)
 
 - ✅ **Loop or song?** → **song / takes** (see the recording-model section). Not a loop.

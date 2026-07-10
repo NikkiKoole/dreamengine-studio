@@ -140,8 +140,9 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          it (N). ONE data model: query this, never re-roll a street field
              citygen.h   the calibrated procedural CITY GRAMMAR (worldgen rungs 2–5): density field
                          + tensor-field arterials + district minor-street fill, SNDi-matched to real
-                         Rotterdam. citygrow = tuning bench/home; a caller sets the city + caches it
-                         (a city is bounded). The generator behind roadnet2/sloop's cities (wiring: WIP)
+                         Rotterdam; citygen_road_at() = the drive seam. citygrow = tuning bench/home;
+                         SLOOP DRIVES IT (press M — a bounded generated city, grip on/off street).
+                         Open: reconciling its world model with worldnet.h so N-spine + M-city are one
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

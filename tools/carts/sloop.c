@@ -15,12 +15,14 @@
   ],
   "lineage": "Inspired by Cataclysm: DDA's vehicle system; sibling to orbit (same integrator) and coaster (same physics honesty); extends worldgen's infinite chunk-streamed city as its drive world.",
   "genre": "sandbox",
-  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. GET OUT OF THE CAR: stop and press F -- you step out of the seat cell as a one-tile person (the seat's occupant, same scale as the rig's parts), walk with arrows/WASD (Z jogs), and the same world pushes back on foot: buildings and parked cars block you, the camera eases in to 1:1, and the GROUND drives your pace - tarmac and the pavement strip beside it walk full speed, grass drags you to ~0.6x (the same road_at() surface seam that drives the rig's grip, so it works identically in the procedural grid and in real OSM Delft). Walk back to your seat and press F to drive again -- on a long rig that means walking to the cab, because entry is the SEAT cell, not 'the vehicle'. A rig with no seat can't be entered, the same rule that makes it drivable. AND WALK INTO A HOUSE: every house has one door on its street-facing wall (found by probing road_at() -- houses face the street because streets are where houses face; a small dark notch marks it while you're on foot). The door is a real hole in the wall: step through it and THAT house's roof lifts off, revealing a deterministic BSP floor plan -- rooms, interior doorways, furniture hugging the corners -- generated from the building's identity, so it's the same house every visit, and guaranteed walkable (the generator re-rolls any plan whose rooms aren't all reachable from the front door). Walls and furniture collide; the camera eases in to 2x while you're under the roof; walk out the door and the roof drops back. Works identically over the procedural grid and real OSM Delft footprints. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city. AND DRIVE THE INFINITE PROCEDURAL SPINE (worldgen rung 1): press N and the stub grid swaps for roadnet2's deterministic world (runtime/worldnet.h — real terrain, ranked towns and cities, terrain-aware spline highways with bridges), the rig dropped onto the nearest road facing along it. The SAME road_at() seam now reads the same edge graph roadnet2 itself queries — one data model — so grip drops the moment you slide off the tarmac, in an endless world where the same seed is the same world everywhere. No buildings out there yet; that's the next rung."
+  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. GET OUT OF THE CAR: stop and press F -- you step out of the seat cell as a one-tile person (the seat's occupant, same scale as the rig's parts), walk with arrows/WASD (Z jogs), and the same world pushes back on foot: buildings and parked cars block you, the camera eases in to 1:1, and the GROUND drives your pace - tarmac and the pavement strip beside it walk full speed, grass drags you to ~0.6x (the same road_at() surface seam that drives the rig's grip, so it works identically in the procedural grid and in real OSM Delft). Walk back to your seat and press F to drive again -- on a long rig that means walking to the cab, because entry is the SEAT cell, not 'the vehicle'. A rig with no seat can't be entered, the same rule that makes it drivable. AND WALK INTO A HOUSE: every house has one door on its street-facing wall (found by probing road_at() -- houses face the street because streets are where houses face; a small dark notch marks it while you're on foot). The door is a real hole in the wall: step through it and THAT house's roof lifts off, revealing a deterministic BSP floor plan -- rooms, interior doorways, furniture hugging the corners -- generated from the building's identity, so it's the same house every visit, and guaranteed walkable (the generator re-rolls any plan whose rooms aren't all reachable from the front door). Walls and furniture collide; the camera eases in to 2x while you're under the roof; walk out the door and the roof drops back. Works identically over the procedural grid and real OSM Delft footprints. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city. AND DRIVE THE INFINITE PROCEDURAL SPINE (worldgen rung 1): press N and the stub grid swaps for roadnet2's deterministic world (runtime/worldnet.h — real terrain, ranked towns and cities, terrain-aware spline highways with bridges), the rig dropped onto the nearest road facing along it. The SAME road_at() seam now reads the same edge graph roadnet2 itself queries — one data model — so grip drops the moment you slide off the tarmac, in an endless world where the same seed is the same world everywhere. No buildings out there yet; that's the next rung. AND DRIVE A GENERATED CITY (worldgen rung 5.5): press M and the world becomes a city grown by runtime/citygen.h — the calibrated worldgen grammar (a population-density field, per-city tensor-field arterials, and district minor-street fill, all tuned until the street network's statistics MATCH a real Dutch city, Rotterdam). The rig drops onto a generated street facing along it, and the SAME road_at() seam reads citygen_road_at, so the moment you turn off a street onto the grass the grip drops exactly like it does over real Delft — one seam, now three producers (stub grid, real OSM, the roadnet2 spine, and the generated city). Same seed = same city."
 }
 de:meta */
 #include "studio.h"
 #include "worldnet.h" // Rung A1 (worldgen-plan rung 1): the shared WORLD SPINE — roadnet2's
                       // terrain + road graph + wn_road_at(), behind this cart's road_at() seam
+#include "citygen.h"  // Rung 5.5c: the calibrated CITY grammar — density + arterials + minor
+                      // streets + citygen_road_at(), behind the same road_at() seam (press M)
 #include "ui.h"
 #include <stdio.h>
 #include <stdlib.h>   // malloc/calloc/free — the OSM spatial index (Rung B)
@@ -617,6 +619,8 @@ static int osm_loaded;                       // Rung B: 1 once a .rvb is loaded 
 // the SAME edge graph roadnet2 queries (one data model). No buildings yet (content rung A2).
 static int  rn2_on;                          // 1 = driving the worldnet spine
 static void rn2_toggle(void);                // (defined with the rn2 block, below the OSM one)
+static int  cg_on;                           // Rung 5.5c: 1 = driving a generated citygen city
+static void cg_toggle(void);                 // (defined with the citygen block, below the rn2 one)
 // Rung C: OSM building footprints → collidable OB_HOUSE obstacles. Declared here (gen_chunk, above the
 // OSM block, emits them); filled by osm_load(). Each is an oriented box (world px + heading) + home chunk.
 #define OSM_MAXBLD 60000                     // delft-centre ≈ 5.3k buildings; whole-city sets more
@@ -1648,7 +1652,7 @@ static void update_drive(float dt_) {
     // tyres let go (slide/understeer) and rough ground adds drag. OSM-only (surf_grip stays 1 with no
     // .rvb) so the default cart's uniform-grip feel is unchanged. gg = the surface-scaled ground grip
     // fed through every friction term (traction cap, braking, the friction circle, lateral bleed).
-    surf_grip = (osm_loaded || rn2_on) ? (road_at(sx, sy).on_road ? 1.0f : OFFROAD_GRIP) : 1.0f;
+    surf_grip = (osm_loaded || rn2_on || cg_on) ? (road_at(sx, sy).on_road ? 1.0f : OFFROAD_GRIP) : 1.0f;
     float gg = GROUND_GRIP * surf_grip;
 
     float fwx = cos_deg(ang), fwy = sin_deg(ang);   // forward unit vector
@@ -2109,6 +2113,7 @@ void update(void) {
       if (dropped) { int was = osm_loaded; osm_load(dropped); if (osm_loaded || was) reset_vehicle(); } }
     if (keyp('O')) de_open_path("../data");
     if (keyp('N')) rn2_toggle();               // Rung A1: stub grid ↔ the roadnet2 spine
+    if (keyp('M')) cg_toggle();                // Rung 5.5c: drive a generated citygen city
 
     handle_input();
     if (foot_deny > 0) foot_deny--;
@@ -2177,7 +2182,7 @@ void update(void) {
       watch("surf_grip", "%.2f", surf_grip);
       watch("road_cls", "%d", _rh.cls);
       watch("osm", "%d", osm_loaded);
-      watch("rn2", "%d", rn2_on); }
+      watch("rn2", "%d", rn2_on); watch("cg", "%d", cg_on); }
     watch("vl", "%.1f", vx * (-fwy) + vy * fwx);
     watch("foot", "%d", mode == MODE_FOOT);        // rung F0: the car↔foot seam, traced
     watch("foot_x", "%.1f", foot_x);
@@ -2349,7 +2354,7 @@ static void ob_init(Obstacle *o, int cx, int cy, int idx) {
 // idx is just the running emit order k — stable because gen order is fixed (cones, then houses).
 static int gen_chunk(int cx, int cy, Obstacle *out) {
     int k = 0;
-    if (rn2_on) return 0;                     // Rung A1: nothing solid over the spine yet — buildings
+    if (rn2_on || cg_on) return 0;            // Rung A1/5.5c: nothing solid over the spine/city yet — buildings
                                               // arrive with the content rung (A2), on the clean graph
     if (osm_loaded) {                         // Rung C: emit the real OSM buildings whose home chunk is this one
         int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
@@ -3151,6 +3156,12 @@ static float osm_pt_seg_d2(float px, float py, float ax, float ay, float bx, flo
 #define RN2_SPAWN_Y 30000.0f
 static float rn2_ox = RN2_SPAWN_X, rn2_oy = RN2_SPAWN_Y;
 
+// ── RUNG 5.5c: a generated CITYGEN city behind the same seam. Same px↔metre map
+// as the spine (CG_PPM, y-down); cg_ox/cg_oy = the metres at world-px (0,0),
+// snapped onto a street on toggle. road_at() answers from citygen_road_at().
+#define CG_PPM  RN2_PPM
+static float cg_ox = RN2_SPAWN_X, cg_oy = RN2_SPAWN_Y;
+
 static void rn2_toggle(void) {
     rn2_on = !rn2_on;
     reset_vehicle();                             // fresh world, rig at world-px (0,0)
@@ -3164,6 +3175,13 @@ static void rn2_toggle(void) {
 
 static RoadHit road_at(float x, float y) {
     RoadHit r; r.zone = zone_at(x, y); r.cls = r.zone; r.on_road = 0; r.on_pave = 0;
+
+    if (cg_on) {                                             // ── Rung 5.5c: a generated citygen city ──
+        CityHit h = citygen_road_at(cg_ox + x / CG_PPM, cg_oy + y / CG_PPM);
+        r.on_road = h.on_road; r.on_pave = h.on_road;        // (walk the street = pavement, for foot mode)
+        r.cls = h.minor ? CL_STREET : CL_ARTERIAL;
+        return r;
+    }
 
     if (rn2_on) {                                            // ── Rung A1: the roadnet2 spine ──
         WnHit h = wn_road_at(rn2_ox + x / RN2_PPM, rn2_oy + y / RN2_PPM);
@@ -3285,10 +3303,57 @@ static void draw_rn2_world(void) {
     }
 }
 
+// Rung 5.5c: drop into a generated citygen city near the spawn, rig ON a street.
+static void cg_toggle(void) {
+    if (osm_loaded) return;                       // a dragged .rvb owns the world
+    cg_on = !cg_on;
+    if (cg_on) rn2_on = 0;                         // one world at a time
+    reset_vehicle();                               // fresh world, rig at world-px (0,0)
+    if (cg_on) {
+        if (citygen_pick_city(RN2_SPAWN_X, RN2_SPAWN_Y)) {
+            float rx, ry, rang;                    // snap the ORIGIN onto a street, face along it
+            if (citygen_nearest_street(ar_cx, ar_cy, &rx, &ry, &rang)) {
+                cg_ox = rx; cg_oy = ry; ang = rang;
+            } else { cg_ox = ar_cx; cg_oy = ar_cy; }
+        } else cg_on = 0;                          // no city near spawn — bail
+    }
+}
+
+// draw the generated city: biome ground + arterials (light) + minor streets
+// (medium), inverse-mapped so what you SEE is what road_at() reads (screen == query).
+static void draw_cg_world(void) {
+    float vhw, vhh; view_half_extent(&vhw, &vhh);
+    int step = 16;
+    int mx = (int)(vhw - SCREEN_W * 0.5f) + step, my = (int)(vhh - SCREEN_H * 0.5f) + step;
+    int x0 = ((int)(cam_x - mx) / step - 1) * step, y0 = ((int)(cam_y - my) / step - 1) * step;
+    int x1 = (int)cam_x + SCREEN_W + mx, y1 = (int)cam_y + SCREEN_H + my;
+    for (int y = y0; y <= y1; y += step)
+        for (int x = x0; x <= x1; x += step)
+            rectfill(x, y, step, step, biome_col(height_at(cg_ox + x / CG_PPM, cg_oy + y / CG_PPM)));
+    float L = cam_x - mx, R = cam_x + SCREEN_W + mx, T = cam_y - my, B = cam_y + SCREEN_H + my;
+    #define CG_SEG(AX, AY, BX2, BY2, W, COL) do {                                          \
+        float ax = ((AX) - cg_ox) * CG_PPM, ay = ((AY) - cg_oy) * CG_PPM;                  \
+        float bx = ((BX2) - cg_ox) * CG_PPM, by = ((BY2) - cg_oy) * CG_PPM;                \
+        float loX = ax<bx?ax:bx, hiX = ax>bx?ax:bx, loY = ay<by?ay:by, hiY = ay>by?ay:by;  \
+        if (!(hiX < L-(W) || loX > R+(W) || hiY < T-(W) || loY > B+(W))) {                 \
+            float ddx = bx-ax, ddy = by-ay, len = fsqrt(ddx*ddx + ddy*ddy);                \
+            rectfill_rot((int)((ax+bx)*0.5f), (int)((ay+by)*0.5f),                         \
+                         (int)(len+(W)), (int)(W), atan2f(ddy,ddx)*57.29578f, (COL));      \
+        } } while (0)
+    float aw = CG_ART_HW * 2.0f * CG_PPM, mw = CG_MINOR_HW * 2.0f * CG_PPM;
+    for (int e = 0; e < me_n; e++)                 // minors first (arterials paint over)
+        CG_SEG(msx[mea[e]], msy[mea[e]], msx[meb[e]], msy[meb[e]], mw, CLR_MEDIUM_GREY);
+    for (int l = 0; l < ar_nl; l++)
+        for (int i = 0; i + 1 < ar_np[l]; i++)
+            CG_SEG(ar_px[l][i], ar_py[l][i], ar_px[l][i+1], ar_py[l][i+1], aw, CLR_LIGHT_GREY);
+    #undef CG_SEG
+}
+
 // Houses are now SOLID obstacles (§9): generated per-chunk in gen_chunk (same ~5 m-facade tiling
 // the old draw_houses used) and drawn from the pool in draw_obstacles, so they can be crashed into
 // and (when smashed) stay demolished. draw_course only paints the flat road + fields under them.
 static void draw_course(void) {
+    if (cg_on)  { draw_cg_world();  return; }                  // Rung 5.5c: a generated citygen city
     if (rn2_on) { draw_rn2_world(); return; }                  // Rung A1: the roadnet2 spine
     if (osm_loaded) { draw_osm_roads(); return; }              // Rung B: real Delft roads (screen == road_at)
 
@@ -3465,7 +3530,7 @@ static void hud(void) {
     print(DES_NAME[cur_des], 4, 4, CLR_DARK_GREY);
     print(ENG[eng_kind].name, 4, 12, ENG[eng_kind].col);   // the rig's engine kind (§1a)
     // top-centre: the real CITY name when driving OSM data, else the procedural zone label
-    print_centered(rn2_on ? "ROADNET2 SPINE" : osm_loaded ? osm_name : ZONE_NAME[cur_zone],
+    print_centered(cg_on ? "GENERATED CITY" : rn2_on ? "ROADNET2 SPINE" : osm_loaded ? osm_name : ZONE_NAME[cur_zone],
                    SCREEN_W / 2, 4, CLR_YELLOW);
     { RoadHit rh = road_at(sx, sy);   // P1 seam, live AT THE RIG COM — matches the surface driving handling
       print_centered(rh.on_road ? "ON ROAD" : "OFF-ROAD", SCREEN_W / 2, 12, rh.on_road ? CLR_GREEN : CLR_ORANGE); }

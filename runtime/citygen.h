@@ -759,4 +759,48 @@ static CityHit citygen_road_at(float x, float y) {
     return h;
 }
 
+// ── pick a city near a world point (the pure twin of citygrow's ar_pick_city —
+// no camera) → sets ar_cx/ar_cy/ar_R/ar_D/ar_ccx/ar_ccy; ar_graph_ensure() then
+// builds it. The caller (sloop) uses this to choose which city to drop into.
+static int citygen_pick_city(float wx, float wy) {
+    int hc = wn_ifloor(wx / HUB_CS), hr = wn_ifloor(wy / HUB_CS);
+    float bestD = -1;
+    for (int a = hc - 2; a <= hc + 2; a++)
+        for (int b = hr - 2; b <= hr + 2; b++) {
+            float x, y, D; int rk;
+            if (!fsettle_hub(a, b, &x, &y, &rk, &D)) continue;
+            float dd = (x - wx) * (x - wx) + (y - wy) * (y - wy);
+            float sc = D - fsqrt(dd) * 6e-6f;
+            if (sc > bestD) { bestD = sc; ar_ccx = a; ar_ccy = b; ar_cx = x; ar_cy = y; ar_D = D; }
+        }
+    if (bestD < 0) return 0;
+    ar_R = 2200.0f + 3200.0f * ar_D;
+    ar_valid = 0;
+    return 1;
+}
+
+// nearest street POINT + tangent to (wx,wy) over the current city — for spawning
+// the rig ON a road, facing along it (the twin of wn_nearest_road_point).
+static int citygen_nearest_street(float wx, float wy, float *rx, float *ry, float *rang) {
+    ar_graph_ensure();
+    float best = 1e18f, bx = wx, by = wy, bang = 0;
+    #define CG_NEAR(ax, ay, bx2, by2) do {                                       \
+        float dx = (bx2) - (ax), dy = (by2) - (ay), L2 = dx * dx + dy * dy;       \
+        float t = L2 > 1e-6f ? ((wx - (ax)) * dx + (wy - (ay)) * dy) / L2 : 0;    \
+        if (t < 0) t = 0; if (t > 1) t = 1;                                       \
+        float qx = (ax) + t * dx, qy = (ay) + t * dy;                             \
+        float d = (wx - qx) * (wx - qx) + (wy - qy) * (wy - qy);                  \
+        if (d < best) { best = d; bx = qx; by = qy; bang = atan2f(dy, dx); }      \
+    } while (0)
+    for (int l = 0; l < ar_nl; l++)
+        for (int i = 0; i + 1 < ar_np[l]; i++)
+            CG_NEAR(ar_px[l][i], ar_py[l][i], ar_px[l][i + 1], ar_py[l][i + 1]);
+    for (int e = 0; e < me_n; e++)
+        CG_NEAR(msx[mea[e]], msy[mea[e]], msx[meb[e]], msy[meb[e]]);
+    #undef CG_NEAR
+    if (best > 1e17f) return 0;
+    *rx = bx; *ry = by; *rang = bang;
+    return 1;
+}
+
 #endif // CITYGEN_H

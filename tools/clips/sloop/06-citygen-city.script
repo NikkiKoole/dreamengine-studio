@@ -1,0 +1,18 @@
+# sloop — RUNG 5.5c: DRIVE A GENERATED CITY. Press M and the stub grid swaps for
+# a city grown by runtime/citygen.h (the worldgen rungs 2-5 grammar: a population
+# density field → tensor-field arterials → district minor-street fill, SNDi-
+# calibrated to real Rotterdam). The rig is dropped ONTO a street facing along it,
+# engine cranked, and the SAME road_at() seam that drives grip over OSM Delft and
+# the roadnet2 spine now reads citygen_road_at — so as you accelerate along a
+# street and then turn off it, the surface flips ON ROAD → OFF ROAD and the grip
+# drops (the rig slides on grass). One seam, a third producer. Deterministic:
+# same seed = same city (on_road trace 1111111110000, byte-stable across runs).
+# frames 200
+# fps 30
+down 8 M
+up 10 M
+down 20 UP
+down 70 RIGHT
+up 110 RIGHT
+down 150 LEFT
+up 175 LEFT

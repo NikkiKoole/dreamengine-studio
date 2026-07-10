@@ -221,14 +221,21 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   field + tensor-field arterials + graph/faces + district minor fill + the rung-5 knobs), pure over
   `worldnet.h` + seedZ + the K_*/MS_* knobs; `citygrow` `#include`s it and is the tuning bench.
   Verified behaviour-preserving — the whole-city export is **byte-identical** to pre-extraction and
-  the gate still **PASSES 0/8 vs Rotterdam**. **Still open — the WIRING** (the payoff): `roadnet2`/
-  `sloop` don't call it yet, and there's a real reconciliation to do — **citygen grew its OWN world
-  model** (the rung-2 density-field settlements + rung-3 tensor arterials) that is **not yet the same
-  as `worldnet.h`'s** (roadnet2's β-skeleton lattice + hub/town nodes). So "wire into the spine" =
-  (a) point `worldnet.h`'s `get_node`/`get_hub` presence/rank at `citygen`'s density field (organic
-  settlements in the infinite world), and (b) have `wn_road_at` fall through to a cached
-  `citygen_road_at` when near a city (the drivable minor streets). Both are spine edits shared with
-  roadnet2 + sloop — do them gated (spec.js sloop green, a deterministic drive clip), one at a time.
+  the gate still **PASSES 0/8 vs Rotterdam**.
+  **The DRIVE seam SHIPPED 2026-07-10 — sloop drives a generated city (the payoff).** `citygen.h`
+  gained `citygen_road_at` (5.5b) + `citygen_pick_city` / `citygen_nearest_street`, and **sloop's M
+  key** drops the rig onto a generated street, reading `citygen_road_at` behind its existing
+  `road_at()` seam — a **third producer** beside the stub grid, real OSM, and the roadnet2 spine.
+  Grip flips `ON ROAD → OFF ROAD` when you turn off a street (deterministic clip
+  `sloop/06-citygen-city`, on_road `1111111110000`); **`spec.js sloop` stays 25/0**. The whole
+  rungs-2→5 generator is now drivable in the flagship — the deferred drive-it gate, cleared.
+  **Still open — the INFINITE-WORLD reconciliation:** M drops into *one bounded* citygen city (like
+  the OSM-Delft bbox), not the endless N-spine world, because **citygen grew its OWN world model**
+  (density-field settlements + tensor arterials) not yet unified with `worldnet.h`'s β-skeleton
+  lattice. The deeper wire-up: (a) point `worldnet.h`'s `get_node`/`get_hub` presence/rank at
+  citygen's density field (organic settlements in the infinite world), and (b) have the N-spine's
+  highways lead into citygen cities so N and M become one world. Both are shared-spine edits — gated,
+  one at a time.
 - [ ] **Rung 6 — junction emission (meets roadkit Phase 5 / Track-B B4).** Every graph node emits
   `(legs, bearings, classes, grade)` — grade-separated where a motorway crosses (ramps only, the
   continuity tenet) — feeding roadkit's dispatcher.

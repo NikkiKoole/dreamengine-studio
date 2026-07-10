@@ -18,15 +18,15 @@ at-a-glance.
 | — | the **`acidwire` wireframe** — interactive, on-glass, all shapes + states | ✅ done · did its job (field note [020](../field-notes/020-the-fit-cart-earns-it-on-glass.md)) |
 | R1 | the layout brief — taste calls before code | ✅ layout calls captured in [`acidrack-layout-brief.md`](acidrack-layout-brief.md) §2; **content calls deferred to R5** |
 | R2 | `runtime/disclose.h` — shape + finger-budget accordion + stack | 🟡 **core shipped + proven in acidwire** (`27637b26`/`d96c4404`); WIDE tabs + ROOMY grid + tab-chip interaction + `DE_TRACE` self-report deferred |
-| R3 | real finger unit — `finger_px()` / `device_class()` | ⬜ todo — carts use a `FU` constant meanwhile (works only because iOS is SCALE=1; HiDPI breaks it) |
+| R3 | real finger unit — `finger_px()` / `device_class()` | ✅ done (`7102af8b`) — engine primitives from a backing-scale seam (iOS reports pixelChunk); acidwire's `FU` now calls `finger_px()`. Verified on device |
 | R4 | judgment oracle — `ui-audit` reads disclose's self-report | ⬜ todo — needs the `DE_TRACE` self-report first |
 | R5 | **re-land acidrack on the method** — call `disclose.h`, build the missing iPad arrangement, make the compact/page CONTENT calls *playing it* | ⬜ todo — the big one |
 | R6 | `epiano` fresh from a brief — the method's test; keybed reflow → `keybed.h` | ⬜ todo |
 | Phase 4 | App Store screenshots/assets from the finished racks | ⬜ later |
 
 **Sequence — what unblocks what:**
-1. **R3 next** (small engine change): makes `disclose.h`'s footprints honest — true finger px, not the SCALE=1 coincidence. Unblocks clean authoring for every rack.
-2. **R5** (the acidrack port) needs R2-core (done) + R3. This is where the deferred CONTENT calls — which compact knobs, what the N/K/F pages hold — finally get made, against the real engine, on glass (field note [020](../field-notes/020-the-fit-cart-earns-it-on-glass.md)'s "stop wireframing when the questions turn into instrument questions").
+1. ~~R3~~ ✅ done — the finger unit is a real engine primitive (`finger_px()`), so footprints are honest across chunks/HiDPI, not the SCALE=1 coincidence.
+2. **R5 next** (the acidrack port) — needs R2-core (done) + R3 (done), both cleared. This is where the deferred CONTENT calls — which compact knobs, what the N/K/F pages hold — finally get made, against the real engine, on glass (field note [020](../field-notes/020-the-fit-cart-earns-it-on-glass.md)'s "stop wireframing when the questions turn into instrument questions").
 3. **R4** rides alongside R5 — add disclose's self-report + the `ui-audit` judgment pass once there's a real port to check.
 4. **R6** (`epiano`) last — proves the method generalizes; cheap if R1–R4 held.
 
@@ -529,10 +529,12 @@ stealing from the homage hardware** — the original solved this screen already.
   WHERE a panel goes and how big; the cart decides WHAT lives inside it* — content-paging inside a
   section (e.g. acidwire's N/K/F) stays cart-side. Full split in
   [`acidrack-layout-brief.md`](acidrack-layout-brief.md) §2 "Validated on glass".
-- **R3 — make the finger unit real.** Engine: `finger_px()` (44pt in current canvas px, from the
-  backing scale) + the `device_class()` convenience. `lay.h`/`disclose.h`/carts threshold on
-  fingers, **never raw px** — today's px thresholds only work because iOS is SCALE=1, a coincidence
-  HiDPI will break.
+- **R3 — make the finger unit real. ✅ DONE (`7102af8b`, 2026-07-10).** Engine: `finger_px()` (44pt
+  in current canvas px, from a **backing scale** — new `de_set_backing_scale()` seam; iOS `CanvasView`
+  reports its `pixelChunk` (2) → 22) + the `device_class()` convenience (TALL/WIDE/ROOMY, the
+  `disclose_shape` twin). Both are studio.h cart API (4-places). `acidwire`'s `FU` now calls
+  `finger_px()` instead of a hardcoded 22 — behavior-identical today, but follows a changed chunk /
+  HiDPI. Verified on device (iPhone SE), `build-all` 481/481, `build-nr`.
 - **R4 — the judgment oracle = ui-audit extension**, not a new tool. Spec'd in the REFINED note
   above: a thin pass over `disclose.h`'s self-reported records — degenerate flags, sub-finger
   controls with named remedies, mode overrides, arrangement-vs-brief mismatch.

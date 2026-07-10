@@ -182,11 +182,12 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > phone portrait/landscape + iPad, all four states; its lessons are field note
 > [020](field-notes/020-the-fit-cart-earns-it-on-glass.md). **R1** (brief) captured, **R2**
 > (`runtime/disclose.h` — shape + finger-budget accordion + stack) SHIPPED + proven in acidwire
-> (`27637b26`/`d96c4404`).
+> (`27637b26`/`d96c4404`); **R3** (`finger_px()`/`device_class()` — real backing-scale finger unit)
+> SHIPPED + verified on device (`7102af8b`).
 > **Status + what's-left + the sequence now live in ONE scoreboard — Resume at**
 > [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands-scoreboard).
-> Short version: **R3 next** (`finger_px()` — small engine change) → **R5** (port acidrack onto
-> `disclose.h` + make the deferred CONTENT calls on glass) → R4 alongside → R6 (`epiano`) last.
+> Short version: **R5 next** (port acidrack onto `disclose.h` + `finger_px()` + make the deferred
+> CONTENT calls on glass) → R4 alongside → R6 (`epiano`) last.
 > Hot files: `runtime/disclose.h`, `tools/carts/acidwire.c`, `tools/carts/acidrack.c`. Ledger:
 > [`STATUS.md`](STATUS.md) #2. Exemplar/guide: [`guides/interactive-wireframes.md`](guides/interactive-wireframes.md).
 

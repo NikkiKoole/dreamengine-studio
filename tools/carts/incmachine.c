@@ -32,6 +32,7 @@ de:meta */
 
 #include <stddef.h>
 #include "studio.h"
+#include "endcard.h"
 
 // ---------------------------------------------------------------- tuning
 #define BALL_R       4
@@ -64,6 +65,7 @@ typedef struct { float x, y, vx, vy, life, maxlife; int col; } Part;
 
 // ---------------------------------------------------------------- state
 static int   gstate;                 // 0 build, 1 running, 2 won-level, 3 won-game
+static float end_t;                  // seconds since the won-game card came up
 static int   level;
 static bool  running;                // physics live?
 static Ball  ball;
@@ -167,7 +169,7 @@ static void load_level(int n) {
 static void reset_ball(void) {
     ball = (Ball){ spawnx, spawny, 0, 0, true };
     running = false;
-    gstate = 0;
+    gstate = 0; end_t = 0;
     winTimer = 0;
     // re-level the seesaws
     for (int i = 0; i < nplaced; i++)
@@ -315,6 +317,7 @@ void update(void) {
     }
 
     if (gstate == 3) { // game complete
+        end_t += dt();
         if (key('R') || keyp(KEY_SPACE)) new_level(0);
         return;
     }
@@ -560,13 +563,14 @@ void draw(void) {
     if (gstate == 2)
         print_centered("IN THE BUCKET!", SCREEN_W/2, SCREEN_H / 2 - 4, blink(4) ? CLR_YELLOW : CLR_GREEN);
 
+    // won-game card — the shared end-screen treatment (endcard.h)
     if (gstate == 3) {
-        fade(0.5f);
-        rectfill(60, 70, 200, 70, CLR_DARK_BLUE);
-        rect(60, 70, 200, 70, CLR_YELLOW);
-        print_centered("MACHINE COMPLETE!", SCREEN_W/2, 84, CLR_WHITE);
-        print_centered("both contraptions solved", SCREEN_W/2, 100, CLR_LIGHT_GREY);
-        if (blink(20)) print_centered("R  TO  PLAY  AGAIN", SCREEN_W/2, 118, CLR_GREEN);
+        EndCard c = endcard(end_t, 200, 70, 70, CLR_DARK_BLUE, CLR_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            print_centered("MACHINE COMPLETE!", SCREEN_W/2, c.y + 14, CLR_WHITE);
+            print_centered("both contraptions solved", SCREEN_W/2, c.y + 30, CLR_LIGHT_GREY);
+            if (blink(20)) print_centered("R  TO  PLAY  AGAIN", SCREEN_W/2, c.y + 48, CLR_GREEN);
+        }
     }
 
     if (gstate == 0 && nplaced == 0)

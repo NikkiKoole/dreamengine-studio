@@ -710,6 +710,19 @@ static void ground_tri(float x0,float y0,float x1,float y1,float x2,float y2,int
   wpt(x2,y2,ground_z(x2,y2),&xy[4],&xy[5]);
   polyfill(xy,3,col);
 }
+// which arms must give way — REAL OSM give-way/stop nodes if this junction has any, else class-priority
+// inference (the bigger road has voorrang). Returns a per-arm bitmask; 0 = no clear priority (every arm
+// the same class → rechts-voor-links/roundabout, no teeth). PURE — the voorrang semantics the grade
+// dispatch (roadkit B4) inherits; pinned by spec().
+static int junc_yieldmask(const Junc*j){
+  if (j->realctl) return j->yield;                     // ground truth: the arms with a give-way/stop node
+  int best=99, ntop=0;
+  for(int a=0;a<j->narm;a++){ int r=road_rank(j->cls[a]); if(r<best) best=r; }
+  for(int a=0;a<j->narm;a++) if(road_rank(j->cls[a])==best) ntop++;
+  if(ntop==j->narm) return 0;                          // all arms equal class → no clear voorrang
+  int m=0; for(int a=0;a<j->narm;a++) if(road_rank(j->cls[a])!=best) m|=(1<<a);
+  return m;
+}
 // HAAIENTANDEN — the give-way row (B6). We know which road is bigger from the arm classes, so at a
 // junction with a clear priority we paint a row of white shark's-teeth across each MINOR approach
 // (apex pointing back at the yielding driver); nothing on the priority road. Ambiguous when every arm
@@ -717,17 +730,7 @@ static void ground_tri(float x0,float y0,float x1,float y1,float x2,float y2,int
 static void draw_giveway(const Junc*j){
   float mx=j->x-S.camx, my=j->y-S.camy; if(mx*mx+my*my > RANGE_M*RANGE_M) return;
   float maxhw=0; for(int a=0;a<j->narm;a++){ float h=ROAD[j->cls[a]].hw_m; if(h>maxhw) maxhw=h; }
-  // which arms yield? REAL OSM give-way/stop nodes if this junction has any, else class-priority inference.
-  int yieldmask;
-  if (j->realctl){
-    yieldmask = j->yield;                              // ground truth: exactly the arms with a give-way/stop node
-  } else {
-    int best=99, ntop=0;
-    for(int a=0;a<j->narm;a++){ int r=road_rank(j->cls[a]); if(r<best) best=r; }
-    for(int a=0;a<j->narm;a++) if(road_rank(j->cls[a])==best) ntop++;
-    if(ntop==j->narm) return;                          // all arms equal class → no clear voorrang, skip
-    yieldmask=0; for(int a=0;a<j->narm;a++) if(road_rank(j->cls[a])!=best) yieldmask |= (1<<a);
-  }
+  int yieldmask = junc_yieldmask(j);
   if(!yieldmask) return;
   const float TH=1.1f, HB=0.35f, PITCH=1.1f;           // tooth height (along road) / half-base / spacing across (m)
   for(int a=0;a<j->narm;a++){ int k=j->cls[a];
@@ -1036,3 +1039,54 @@ void draw(void) {
   font(FONT_NORMAL);
   if (truncated) print("(truncated)", 3, SCREEN_H-10, CLR_RED);
 }
+
+#ifdef DE_SPEC
+#include "spec.h"
+// citydrive's regression lock ahead of the roadkit render refactor (Track-B B3): pins the at-grade
+// JUNCTION GRAPH (build_junctions) + the voorrang yield semantics (junc_yieldmask) roadkit will consume,
+// over the committed data/demo.rvb — so it guards the DATA the render reads without pinning pixels.
+void spec(void){
+    // A SYNTHETIC network (self-contained — no external .rvb, since the spec harness runs from a
+    // work dir where data/ won't resolve): an ARTERIAL crossing a SERVICE road at a SHARED vertex.
+    // OSM semantics — a junction is a shared graph node — so this + must produce exactly one 4-arm node.
+    reset_pools();
+    int s0=nps; PX[nps]=100;PY[nps]=200;nps++; PX[nps]=200;PY[nps]=200;nps++; PX[nps]=300;PY[nps]=200;nps++;
+    rways[nway].kind=K_ARTERIAL; rways[nway].start=s0; rways[nway].count=3; rways[nway].deck=0; nway++;
+    int s1=nps; PX[nps]=200;PY[nps]=100;nps++; PX[nps]=200;PY[nps]=200;nps++; PX[nps]=200;PY[nps]=300;nps++;
+    rways[nway].kind=K_SERVICE;  rways[nway].start=s1; rways[nway].count=3; rways[nway].deck=0; nway++;
+    build_junctions();
+
+    // ── the junction graph roadkit's dispatch consumes ──
+    expect_eq(njunc, 1, "two motor ways sharing a vertex -> exactly one junction");
+    expect_eq(junc[0].narm, 4, "the + crossing has 4 arms");
+    { const Junc*j=&junc[0]; int ok=1;
+      for(int a=0;a<j->narm;a++){
+          if(j->brg[a]<0.f || j->brg[a]>=360.f) ok=0;         // in [0,360)
+          if(a>0 && j->brg[a] < j->brg[a-1]) ok=0;            // sorted ascending
+          if(!is_motor_road(j->cls[a])) ok=0;                 // a motor-road class
+      }
+      expect(ok, "arms well-formed: sorted, in [0,360), motor-road class"); }
+
+    // ── build_junctions is deterministic (same data -> same graph) ──
+    { int n1=njunc; float x=junc[0].x, y=junc[0].y; build_junctions();
+      expect(njunc==n1 && junc[0].x==x && junc[0].y==y, "build_junctions is deterministic"); }
+
+    // ── road_rank: voorrang ordering (LOWER = bigger road wins) ──
+    expect(road_rank(K_HIGHWAY)  < road_rank(K_ARTERIAL), "motorway outranks arterial");
+    expect(road_rank(K_ARTERIAL) < road_rank(K_TERTIARY), "arterial outranks tertiary");
+    expect(road_rank(K_TERTIARY) < road_rank(K_SERVICE),  "tertiary outranks service");
+
+    // ── the synthetic crossing's give-way: the SERVICE arms yield, the ARTERIAL keeps voorrang ──
+    { int m=junc_yieldmask(&junc[0]); int nyield=0, match=1;
+      for(int a=0;a<junc[0].narm;a++){ int y=(m>>a)&1; if(y) nyield++;
+          if(y != (junc[0].cls[a]==K_SERVICE)) match=0; }   // yielding arm iff it's the service class
+      expect_eq(nyield, 2, "the two minor (service) arms give way; the arterial has voorrang");
+      expect(match, "exactly the service arms yield (class-priority inference)"); }
+
+    // ── junc_yieldmask edge cases (the pure voorrang semantics roadkit B4 inherits) ──
+    { Junc j; j.realctl=0; j.yield=0; j.narm=4; for(int a=0;a<4;a++) j.cls[a]=K_ROAD;
+      expect_eq(junc_yieldmask(&j), 0, "all-equal arms -> no clear voorrang (rechts-voor-links, no teeth)"); }
+    { Junc j; j.realctl=1; j.yield=2; j.narm=4; for(int a=0;a<4;a++) j.cls[a]=K_ARTERIAL;  // a real give-way node
+      expect_eq(junc_yieldmask(&j), 2, "a real give-way/stop node is ground truth (overrides class)"); }
+}
+#endif

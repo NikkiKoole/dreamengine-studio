@@ -33,7 +33,9 @@ Three homes, one flow:
   everything.
 - **Keep-to-commit**: the Debug menu's *Keep take* / global **⌘⇧K** copies the current session's ring
   file into `tools/clips/<slug>/NN-take.rec` — the same home authored takes use, feeding the whole
-  fan-out (replay · clip · reel · attract · spec seed).
+  fan-out (replay · clip · reel · attract · spec seed). Its log line carries a **🎬 bake** button
+  (runs `make-gif` on the take in place) and a **📂** reveal, so record → keep → clip → find never
+  leaves the console.
 - **"Record from the moment I'm in" is a trim, not a savestate.** Because we record from a
   deterministic boot, the interesting in-point is just `make-gif --start <n>` at clip time. We never
   snapshot mid-play state (see Boundaries).

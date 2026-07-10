@@ -3408,6 +3408,20 @@ function rlogAddLine(text, cls) {
     btn.addEventListener('click', () => window.studio.revealPath(pm[0]))
     line.appendChild(document.createTextNode(' ')); line.appendChild(btn)
   }
+  // a log line showing a `make-gif … --recipe <label>` command (the "clip:" hint after keeping a
+  // take / recording) gets a 🎬 bake button that RUNS it in place — record → keep → clip without
+  // leaving the console. Output streams back into this same log (the baked .webm line then gets 📂).
+  const bm = text.match(/make-gif\.js\s+([a-z0-9_-]+)\s+--recipe\s+([a-z0-9][\w.-]*)/i)
+  if (bm && window.studio?.bakeClip) {
+    const btn = document.createElement('button')
+    btn.className = 'rlog-reveal'; btn.textContent = '🎬 bake'; btn.title = `bake a clip from this take — ${bm[1]}/${bm[2]}`
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = '🎬 baking…'
+      try { const r = await window.studio.bakeClip(bm[1], bm[2]); btn.textContent = (r && r.ok) ? '✓ baked' : '✗ failed' }
+      catch { btn.textContent = '✗ failed' }
+    })
+    line.appendChild(document.createTextNode(' ')); line.appendChild(btn)
+  }
   rlogBody.appendChild(line)
   while (rlogBody.childElementCount > RLOG_MAX_LINES) {
     rlogBody.removeChild(rlogBody.firstChild)

@@ -3408,6 +3408,20 @@ function rlogAddLine(text, cls) {
     btn.addEventListener('click', () => window.studio.revealPath(pm[0]))
     line.appendChild(document.createTextNode(' ')); line.appendChild(btn)
   }
+  // the flight-recorder "session recorded → build/.rec/…" close line gets a ✂ keep-take button —
+  // promote the just-closed session into tools/clips (no keyboard / menu needed). keepTake logs a
+  // "✓ kept → …" line which itself grows a 🎬 bake + 📂 reveal, so keep → clip is all clicks.
+  const km = text.match(/session recorded → (build\/\.rec\/\S+\.rec)/)
+  if (km && window.studio?.keepTakeFile) {
+    const btn = document.createElement('button')
+    btn.className = 'rlog-reveal'; btn.textContent = '✂ keep take'; btn.title = 'keep this take → tools/clips (for a clip or an exact repro)'
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = '✂ keeping…'
+      try { const r = await window.studio.keepTakeFile(km[1]); btn.textContent = (r && r.ok) ? '✓ kept' : '✗ failed' }
+      catch { btn.textContent = '✗ failed' }
+    })
+    line.appendChild(document.createTextNode(' ')); line.appendChild(btn)
+  }
   // a log line showing a `make-gif … --recipe <label>` command (the "clip:" hint after keeping a
   // take / recording) gets a 🎬 bake button that RUNS it in place — record → keep → clip without
   // leaving the console. Output streams back into this same log (the baked .webm line then gets 📂).

@@ -950,12 +950,12 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
         if (recPath) {
           pruneRing(slug)
           // always tell the log where this session's recording landed — so any close leaves a
-          // findable, replayable repro even if you don't explicitly keep it (⌘⇧K). The `build/`
-          // path gets a 📂 reveal-in-Finder button automatically (rlogAppend).
+          // findable, replayable repro even if you don't keep it. The line gets a ✂ keep-take
+          // button + a 📂 reveal (rlogAddLine, keyed off the "session recorded → …" text).
           try {
             if (fs.existsSync(recPath) && fs.statSync(recPath).size > 0) {
               const rel = path.relative(path.join(__dirname, '../..'), recPath)
-              send('cart:log', `\n↩ session recorded → ${rel}\n  keep it: Debug ▸ Keep take (⌘⇧K)   ·   replay: node tools/play.js ${slug} replay ${rel}\n`)
+              send('cart:log', `\n↩ session recorded → ${rel}\n  replay: node tools/play.js ${slug} replay ${rel}\n`)
             }
           } catch {}
         }
@@ -1416,6 +1416,19 @@ function keepTakeFromMenu(pid) {
   keepTake(target.recPath, target.slug || cartSlug({ cartName: target.name }), send)
 }
 ipcMain.handle('studio:record-keep', (_e, pid) => { keepTakeFromMenu(pid); return { ok: true } })
+
+// Keep a take straight from its ring FILE — the ✂ keep-take button on the console's
+// "session recorded" line (works AFTER the cart has closed, when there's no live pid). Path must
+// live under build/.rec; slug is its directory. Logs the replay + clip commands (→ 🎬 bake button).
+ipcMain.handle('studio:keep-take-file', (_e, recRel) => {
+  const ROOT = path.join(__dirname, '../..')
+  const abs = path.isAbsolute(String(recRel || '')) ? String(recRel) : path.join(ROOT, String(recRel || ''))
+  const ringRoot = path.join(BUILD_DIR, '.rec')
+  if (!abs.startsWith(ringRoot) || !fs.existsSync(abs)) return { ok: false, error: 'not a ring take' }
+  const win = BrowserWindow.getAllWindows()[0]
+  const send = (ch, p) => { if (win && !win.isDestroyed()) win.webContents.send(ch, p) }
+  return keepTake(abs, path.basename(path.dirname(abs)), send)
+})
 
 // ── web preview server ────────────────────────────────────────
 const WEB_PORT = 8765

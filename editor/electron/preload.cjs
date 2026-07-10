@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('studio', {
   profileAttach: (pid, cfg) => ipcRenderer.invoke('studio:profile-attach', pid, cfg),
   onProfileAttached: (cb) => ipcRenderer.on('profile:attached', (_, r) => cb(r)),
   recordKeep:   (pid) => ipcRenderer.invoke('studio:record-keep', pid),
+  keepTakeFile: (recPath) => ipcRenderer.invoke('studio:keep-take-file', recPath),
   saveSprites:  (dataUrl) => ipcRenderer.invoke('studio:save-sprites', dataUrl),
   saveMap:      (bytes)   => ipcRenderer.invoke('studio:save-map', bytes),
   onLog:        (cb) => ipcRenderer.on('cart:log',  (_, s)    => cb(s)),

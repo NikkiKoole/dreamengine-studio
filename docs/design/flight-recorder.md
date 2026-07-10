@@ -31,11 +31,13 @@ Three homes, one flow:
 - **Always-on**: every native Run launches `--det --record <ring> --seed <random>`. The scratch ring
   keeps the last `RING_KEEP` (10) sessions per cart and evicts the oldest — we throw away almost
   everything.
-- **Keep-to-commit**: the Debug menu's *Keep take* / global **⌘⇧K** copies the current session's ring
-  file into `tools/clips/<slug>/NN-take.rec` — the same home authored takes use, feeding the whole
-  fan-out (replay · clip · reel · attract · spec seed). Its log line carries a **🎬 bake** button
-  (runs `make-gif` on the take in place) and a **📂** reveal, so record → keep → clip → find never
-  leaves the console.
+- **Keep-to-commit**: when a cart closes, the console's `↩ session recorded → …` line carries a
+  **✂ keep take** button (and a **📂** reveal) — one click promotes that session's ring file into
+  `tools/clips/<slug>/NN-take.rec`, the same home authored takes use, feeding the whole fan-out
+  (replay · clip · reel · attract · spec seed). The resulting `✓ kept → …` line in turn grows a
+  **🎬 bake** button (runs `make-gif` on the take in place) + a 📂, so record → keep → clip → find
+  never leaves the console. (Global **⌘⇧K** / the Debug menu do the same but work *mid-play* too,
+  without closing.)
 - **"Record from the moment I'm in" is a trim, not a savestate.** Because we record from a
   deterministic boot, the interesting in-point is just `make-gif --start <n>` at clip time. We never
   snapshot mid-play state (see Boundaries).

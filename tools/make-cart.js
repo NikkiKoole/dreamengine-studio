@@ -4,6 +4,7 @@
 const fs   = require('fs')
 const path = require('path')
 const zlib = require('zlib')
+const spritePatch = require('./lib/sprite-patch.js')
 
 const ROOT_DIR    = path.join(__dirname, '..')
 const BUILD_DIR   = path.join(ROOT_DIR, 'build')
@@ -130,18 +131,31 @@ function parseSprite(src, charMap = DEFAULT_CHAR_MAP) {
   return pixels
 }
 
-function buildSpriteSheet(sprites, charMap) {
-  // sprites: { slotIndex: pixelArrayOrString, ... }
-  const COLS = 8, SIZE = 16, SHEET = 128
-  const pixels = new Array(SHEET * SHEET).fill(0)
+// Parse a cart's { slot: pixelArrayOrString } sprites into per-slot palette-index
+// arrays ({ slotIndex: [256 indices] }) — the generator's pristine output, which
+// the sprite-patch core fingerprints + composites against (Gap 2, Option D).
+function genSlots(sprites, charMap) {
   // a cart's charMap EXTENDS the defaults (so it only needs to declare the extra
   // chars it uses, e.g. {M:28}); it does not replace them. Cart entries win on conflict.
   const map = charMap ? { ...DEFAULT_CHAR_MAP, ...charMap } : DEFAULT_CHAR_MAP
+  const slots = {}
   for (const [slot, src] of Object.entries(sprites)) {
-    const idx    = parseInt(slot)
-    const parsed = parseSprite(src, map)
-    const ox     = (idx % COLS) * SIZE
-    const oy     = Math.floor(idx / COLS) * SIZE
+    const idx = parseInt(slot)
+    if (idx >= 0 && idx < 64) slots[idx] = parseSprite(src, map)
+  }
+  return slots
+}
+
+// Render per-slot palette-index arrays ({ slot: [256] }) to a 128×128 sprite sheet
+// PNG (8×8 slot grid, 16×16 each). The one place slot pixels become an image, so
+// the generator output and the patched-composite output take the identical path.
+function slotsToSheetPng(slots) {
+  const COLS = 8, SIZE = 16, SHEET = 128
+  const pixels = new Array(SHEET * SHEET).fill(0)
+  for (const [slot, parsed] of Object.entries(slots)) {
+    const idx = parseInt(slot)
+    const ox  = (idx % COLS) * SIZE
+    const oy  = Math.floor(idx / COLS) * SIZE
     for (let py = 0; py < SIZE; py++) {
       for (let px = 0; px < SIZE; px++) {
         pixels[(oy + py) * SHEET + (ox + px)] = parsed[py * SIZE + px] || 0
@@ -149,6 +163,10 @@ function buildSpriteSheet(sprites, charMap) {
     }
   }
   return makePng(SHEET, SHEET, (x, y) => PAL32[pixels[y * SHEET + x]] || [0,0,0])
+}
+
+function buildSpriteSheet(sprites, charMap) {
+  return slotsToSheetPng(genSlots(sprites, charMap))
 }
 
 // ── map builder ───────────────────────────────────────────────
@@ -204,6 +222,31 @@ function loadConfig(srcFile) {
   }
 }
 
+// ── bake a cart's sprite sheet (generator + optional hand-patch) ─────
+// Runs the .cart.js generator, then composites any sibling
+// tools/carts/<name>.sprites.patch.json on top (Gap 2, Option D): hand-edited
+// slots survive the bake, stale ones are dropped LOUDLY + pruned from the file,
+// and the surviving patch is returned so the caller can mirror it into the
+// .cart.png as a de:spritepatch chunk. Returns { pngBuf, patchJson|null }.
+function bakeSprites(srcFile, cfg) {
+  if (!cfg.sprites) return { pngBuf: makeBlankSpritePng(), patchJson: null }
+  const gen   = genSlots(cfg.sprites, cfg.charMap)
+  const patch = spritePatch.readPatch(srcFile)
+  if (!patch) return { pngBuf: slotsToSheetPng(gen), patchJson: null }
+
+  const { slots, patch: surviving, warnings, changed } = spritePatch.applyPatch(gen, patch)
+  for (const w of warnings) console.log(`⚠ sprite patch: ${w}`)
+  const nSurv = Object.keys(surviving.slots).length
+  if (nSurv > 0) console.log(`applied ${nSurv} hand-patched sprite slot(s) over the generator`)
+  // rewrite the file only when it actually changed (pruned / re-anchored) so a
+  // clean re-bake is git-silent; a fully-stale patch prunes to nothing → deleted.
+  if (changed) spritePatch.writePatch(srcFile, surviving)
+  return {
+    pngBuf:   slotsToSheetPng(slots),
+    patchJson: nSurv > 0 ? spritePatch.serializePatch(surviving) : null,
+  }
+}
+
 // ── extract chunks from an existing cart ─────────────────────
 function extractCartChunks(pngBuf) {
   const result = {}
@@ -234,6 +277,8 @@ module.exports = {
   loadConfig, extractCartChunks, embedCartChunks,
   // primitives reused by tools/sprite-preview.js (shared palette + encoder)
   makePng, parseSprite, PAL32, DEFAULT_CHAR_MAP,
+  // Gap-2 sprite-patch machinery (make-cart is the bake-side consumer)
+  genSlots, slotsToSheetPng, bakeSprites,
 }
 
 // After a bake, regenerate index.json so baking a cart auto-registers it (no manual
@@ -375,7 +420,7 @@ if (args[0] === '--update') {
   }
   const source     = fs.readFileSync(srcFile, 'utf8')
   const cfg        = loadConfig(srcFile)
-  const spritesBuf = cfg.sprites ? buildSpriteSheet(cfg.sprites, cfg.charMap) : makeBlankSpritePng()
+  const { pngBuf: spritesBuf, patchJson } = bakeSprites(srcFile, cfg)
   const mapBytes   = cfg.map ? buildMap(cfg.map.layout || cfg.map, cfg.map.tiles, cfg.mapW, cfg.mapH) : new Uint8Array(8192)
   const spritesUrl = 'data:image/png;base64,' + spritesBuf.toString('base64')
   const mapB64     = Buffer.from(mapBytes).toString('base64')
@@ -396,7 +441,11 @@ if (args[0] === '--update') {
   // strips the old de:* chunks, so re-using the baked PNG as the base is clean.
   const reuse      = fs.existsSync(outFile)
   const baseImage  = reuse ? fs.readFileSync(outFile) : makePlaceholderPng()
-  const cartPng    = embedCartChunks(baseImage, { source, sprites: spritesUrl, map: mapB64, settings: JSON.stringify(cartSettings) })
+  // mirror the surviving sprite patch into the .cart.png (de:spritepatch) so the
+  // editor loads it alongside de:source; embedCartChunks drops any stale de:* first.
+  const chunks     = { source, sprites: spritesUrl, map: mapB64, settings: JSON.stringify(cartSettings) }
+  if (patchJson) chunks.spritepatch = patchJson
+  const cartPng    = embedCartChunks(baseImage, chunks)
   fs.writeFileSync(outFile, cartPng)
   console.log(reuse
     ? `re-embedded source into ${outFile} (kept existing thumbnail — run \`--run\` to re-bake if visuals changed)`

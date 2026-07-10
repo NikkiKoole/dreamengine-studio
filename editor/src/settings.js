@@ -81,6 +81,7 @@ function load() {
     cellW:         parseInt(localStorage.getItem('cellW')   || DEFAULTS.cellW),
     cellH:         parseInt(localStorage.getItem('cellH')   || DEFAULTS.cellH),
     renderEvery:   parseInt(localStorage.getItem('renderEvery') || DEFAULTS.renderEvery),
+    showHelpText:  localStorage.getItem('showHelpText') !== '0',   // the italic section notes (default: shown)
     touchControls: localStorage.getItem('touchControls') === '1',
     worklet:       localStorage.getItem('worklet') === '1',
     showProfiler:  localStorage.getItem('showProfiler') === '1',
@@ -121,6 +122,17 @@ export function applyCartSettings(obj) {
 
 export function buildSettingsPanel(el) {
   el.innerHTML = ''
+
+  // ── help-text toggle (collapses every italic section note) ───
+  el.classList.toggle('hide-notes', !settings.showHelpText)
+  const helpToggle = document.createElement('div')
+  helpToggle.className = 'settings-toolbar'   // full width, floats to the top of the grid
+  helpToggle.appendChild(checkbox(
+    'show help text',
+    settings.showHelpText,
+    v => { settings.showHelpText = v; save('showHelpText', v ? '1' : '0'); el.classList.toggle('hide-notes', !v) },
+  ))
+  el.appendChild(helpToggle)
 
   // ── screen size ──────────────────────────────────────────────
   const screenSection = section('screen')

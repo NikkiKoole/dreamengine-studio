@@ -24,6 +24,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 
 // ── QBERT — hop the pyramid ───────────────────────────────────
@@ -71,6 +72,7 @@ static float cstep_t;       // cooldown between Coily hops
 // ── game state ────────────────────────────────────────────────
 static int  lives, score, level, hi;
 static bool gameover, won;
+static float end_t;         // seconds since the end card came up
 static float respawn_t;     // >0 = frozen, counting down to respawn
 static int   start_done;
 
@@ -190,13 +192,13 @@ static void reset_board(void) {
     calive = false; chop = 1.0f;
     chatch = 2.6f - level * 0.25f; if (chatch < 0.9f) chatch = 0.9f;
     cstep_t = 0;
-    won = false;
+    won = false; end_t = 0;
 }
 
 static void new_game(void) {
     lives = 3; score = 0; level = 0;
     gameover = false; won = false;
-    respawn_t = 0;
+    respawn_t = 0; end_t = 0;
     reset_board();
     hi = load_int("qbert_hi", 0);
     start_done = 1;
@@ -285,6 +287,7 @@ void update(void) {
     if (!start_done) new_game();
 
     if (gameover) {
+        end_t += dt();
         if (keyp('Z') || keyp(KEY_ENTER) || btnp(0, BTN_A)) new_game();
         return;
     }
@@ -296,6 +299,7 @@ void update(void) {
         return;
     }
     if (won) {
+        end_t += dt();
         if (keyp('Z') || keyp(KEY_ENTER) || btnp(0, BTN_A)) {
             level++; score += 100; reset_board();
         }
@@ -409,21 +413,20 @@ void draw(void) {
 
     print_centered("Q E A D = diagonal hops   paint every cube", SCREEN_W/2, SCREEN_H - 9, CLR_DARK_GREY);
 
+    // end cards — the shared end-screen treatment (endcard.h)
     if (won) {
-        fade(0.35f);
-        int w = 230, bx = (SCREEN_W - w) / 2;
-        rectfill(bx, 80, w, 34, CLR_DARK_GREEN);
-        rect(bx, 80, w, 34, CLR_WHITE);
-        print_centered("BOARD CLEAR!", SCREEN_W/2, 88, CLR_YELLOW);
-        print_centered("press Z for the next pyramid", SCREEN_W/2, 100, CLR_WHITE);
+        EndCard c = endcard(end_t, 230, 34, 80, CLR_DARK_GREEN, CLR_WHITE, CLR_GREEN);
+        if (c.settled) {
+            print_centered("BOARD CLEAR!", SCREEN_W/2, c.y + 8, CLR_YELLOW);
+            if (blink(18)) print_centered("press Z for the next pyramid", SCREEN_W/2, c.y + 20, CLR_WHITE);
+        }
     }
     if (gameover) {
-        fade(0.5f);
-        int w = 230, bx = (SCREEN_W - w) / 2;
-        rectfill(bx, 78, w, 40, CLR_DARK_PURPLE);
-        rect(bx, 78, w, 40, CLR_WHITE);
-        print_centered("GAME OVER", SCREEN_W/2, 86, CLR_RED);
-        print_centered(str("score %d   hi %d", score, hi), SCREEN_W/2, 98, CLR_WHITE);
-        print_centered("press Z to play again", SCREEN_W/2, 108, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 230, 40, 78, CLR_DARK_PURPLE, CLR_WHITE, CLR_RED);
+        if (c.settled) {
+            print_centered("GAME OVER", SCREEN_W/2, c.y + 8, CLR_RED);
+            print_centered(str("score %d   hi %d", score, hi), SCREEN_W/2, c.y + 20, CLR_WHITE);
+            if (blink(18)) print_centered("press Z to play again", SCREEN_W/2, c.y + 30, CLR_LIGHT_GREY);
+        }
     }
 }

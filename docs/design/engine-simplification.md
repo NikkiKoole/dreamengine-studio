@@ -1,6 +1,6 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: ready to build** (2026-07-09). A punch-list of *quality-only*
+> **STATUS: BUILDING** (2026-07-09; last landed 2026-07-10) — 25/33 items done, 8 left. A punch-list of *quality-only*
 > cleanups in the engine core (`runtime/studio.c`, `runtime/sound.h`) and the
 > library headers. Every item is a **behaviour-preserving** extraction or rename —
 > no feature work, no bug fixes. Found by a three-way read-only review; none of it

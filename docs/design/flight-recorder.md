@@ -110,9 +110,21 @@ behavioural twin of `build-all.js`, which only *compile*-checks) that replays ev
 Deliberately **not** a brittle golden-trace-vs-committed diff — the spec harness avoids that on purpose
 ([`spec-harness.md`](spec-harness.md): "not a predicate swept over a recording"), because any intended
 behaviour change would fail it. This is a *smoke + self-consistency* gate: does every recorded session
-still run and still reproduce? A cart that wants a real assertion still writes a `spec()`. Cheap, rides
+still run and still reproduce? A cart that wants a real assertion still writes a `spec()`. Rides
 entirely on what's already shipped, and turns the recorder's output into bug-*prevention*, not just
 bug-repro. Sequence it next to `build-all` in the pre-commit checks once written.
+
+**Prerequisite — an uncapped headless replay, or don't build this at all.** Headless replay today
+runs in *real time*: `SetTargetFPS(60)` is unconditional (`runtime/studio.c`), so a 49-second take
+costs 49 wall-clock seconds. Measured 2026-07-10: 28 committed takes ≈ 3 minutes of recorded play →
+×2 for the double-replay determinism check + ~20 cart compiles ≈ **8–10 minutes per full run, growing
+linearly with every take kept** — and effortless take accumulation is the whole point of the recorder.
+The fix is cheap and decides viability: under `--det` the sim clock is already decoupled from wall
+time (`frame_dt = DET_DT`), so the 60fps cap is purely cosmetic in a headless run — a turbo flag
+(skip the FPS cap; ideally skip presenting the frame) makes replay CPU-bound, likely 10–50× faster.
+Precedent in the same file: `--spec` mode already runs the loop unpaced to completion. Even with
+turbo, scope it: pre-commit replays only takes of carts touched by the diff; the full sweep is a
+nightly/occasional run, like `build-all` itself.
 
 ## Boundaries (what this is NOT)
 

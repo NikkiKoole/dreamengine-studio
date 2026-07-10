@@ -18,6 +18,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 
 // TURF WAR — top-down gang-territory takeover.
 //
@@ -93,6 +94,7 @@ static Part parts[MAX_PARTS];
 // ── game state ───────────────────────────────────────────────────
 static int   cnt[NREG][NGANGS];   // members per gang per district (recomputed each frame)
 static int   state;               // 0 play, 1 win, 2 lose
+static float end_t;               // seconds since the end card came up
 static int   best;
 static float banner_t;            // "TURF TAKEN" pop timer
 static float alarm_t;             // last under-attack beep
@@ -204,7 +206,7 @@ static void reset_game(void) {
             int s = find_free();
             if (s >= 0) place(&mem[s], g, START[g], false);
         }
-    state = 0; banner_t = -9; alarm_t = 0; atk_fx = 0;
+    state = 0; end_t = 0; banner_t = -9; alarm_t = 0; atk_fx = 0;
 }
 
 void init(void) {
@@ -274,6 +276,7 @@ void update(void) {
     }
 
     if (state != 0) {
+        end_t += dt();
         if (btnp(0, BTN_A) || btnp(0, BTN_B)) reset_game();
         follow((int)mem[leaderIdx].x, (int)mem[leaderIdx].y, WW, WH);
         return;
@@ -556,14 +559,15 @@ void draw(void) {
     if (now() - banner_t < 1.1f)
         print_scaled("TURF TAKEN!", SCREEN_W / 2 - text_width("TURF TAKEN!"), SCREEN_H / 2 - 16, CLR_GREEN, 2);
 
-    // win / lose
+    // win / lose — the shared end-screen treatment (endcard.h)
     if (state != 0) {
-        fade(0.5f);
-        rectfill(SCREEN_W / 2 - 78, SCREEN_H / 2 - 26, 156, 52, CLR_BLACK);
-        rect(SCREEN_W / 2 - 78, SCREEN_H / 2 - 26, 156, 52, CLR_WHITE);
-        if (state == 1) print_centered("CITY IS YOURS", SCREEN_W/2, SCREEN_H / 2 - 14, CLR_GREEN);
-        else            print_centered("WIPED OUT", SCREEN_W/2, SCREEN_H / 2 - 14, CLR_RED);
-        print_centered(str("you held %d of %d  -  best %d", owned_count(0), NREG, best), SCREEN_W/2, SCREEN_H / 2, CLR_YELLOW);
-        print_centered("Z to run it back", SCREEN_W/2, SCREEN_H / 2 + 14, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 156, 52, SCREEN_H / 2 - 26, CLR_BLACK, CLR_WHITE,
+                            state == 1 ? CLR_GREEN : CLR_RED);
+        if (c.settled) {
+            if (state == 1) print_centered("CITY IS YOURS", SCREEN_W/2, c.y + 12, CLR_GREEN);
+            else            print_centered("WIPED OUT", SCREEN_W/2, c.y + 12, CLR_RED);
+            print_centered(str("you held %d of %d  -  best %d", owned_count(0), NREG, best), SCREEN_W/2, c.y + 26, CLR_YELLOW);
+            if (blink(18)) print_centered("Z to run it back", SCREEN_W/2, c.y + 40, CLR_LIGHT_GREY);
+        }
     }
 }

@@ -1,6 +1,6 @@
 # acidrack — layout brief (the R1 worksheet)
 
-STATUS: DRAFT (2026-07-05) — the first per-rack layout brief (device-adaptive-layout.md §"Phase 3
+STATUS: BUILDING (drafted 2026-07-05) — the first per-rack layout brief (device-adaptive-layout.md §"Phase 3
 — revised plan" R1). **Waiting on the maker: the compact-strip taste calls (§2's open questions).**
 Nothing here is implemented; this is the palette the R5 re-land gets built — and judged — against.
 

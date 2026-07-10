@@ -1,5 +1,7 @@
 # road geometry — references & recommendation (research, 2026-06-16)
 
+STATUS: EXPLORING (research, concluded 2026-06-16) — recommends the arc-spline (LINE|ARC|CLOTHOID) model the roadlab work adopted.
+
 > Part of the road-geometry effort — map & how-we-got-here: [`road-geometry-handoff.md`](road-geometry-handoff.md).
 > What this research feeds: the geometry layer of [`interchange-dsl.md`](interchange-dsl.md).
 

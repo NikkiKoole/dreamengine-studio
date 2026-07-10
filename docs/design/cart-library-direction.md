@@ -1,5 +1,7 @@
 # Cart library direction — what to build next
 
+STATUS: EXPLORING (snapshot 2026-06-03, counts refreshed 2026-06-22) — re-run the counts before acting; the shelf keeps moving.
+
 > **Exploratory.** A snapshot analysis (originally **2026-06-03**; **counts refreshed
 > 2026-06-22**) of the library and an opinionated take on where the *next* carts should
 > go. Not a committed backlog — it's the "stop and look at the whole shelf" memo. Re-run

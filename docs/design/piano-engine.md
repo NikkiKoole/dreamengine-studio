@@ -1,5 +1,7 @@
 # Piano engine (INSTR_PIANO / StifKarp) — why it sounds like a harp, and the fix list
 
+STATUS: DESIGNED — diagnosis done (a faithful harp port); the fix roadmap (double decay, hammer knock, velocity coupling, stretched tuning) is the build.
+
 **Genre: design exploration / handoff.** The diagnosis + roadmap for the one engine in the
 roster that never got past "nice but mediocre." Engine impl: `runtime/sound.h`
 `sound_piano_start` / `sound_piano_sample` (search `INSTR_PIANO`). Showcase + tuning rig:

@@ -1,5 +1,7 @@
 # Blend tables — index-only translucency, glow, and shadow
 
+STATUS: EXPLORING — cart prototype `blendlab.c` recorded its findings; engine adoption waits on the palette decision (STATUS #18, [palette-and-color.md](palette-and-color.md) first).
+
 > **Genre: design exploration.** The design behind [STATUS open item 18](../STATUS.md)
 > ("blend tables — the substantive capability gap", from the 2026-06-03 Picotron
 > comparison). A **cart-space prototype now exists** — `tools/carts/blendlab.c`

@@ -1,5 +1,7 @@
 # Road geometry & the interchange DSL — master handoff (2026-06-16)
 
+STATUS: LIVING (orientation hub) — ★ START HERE map for the interchange tier; ties the detail docs together.
+
 **★ START HERE** if you're picking up the interchange / road-junction-geometry work cold. This is the
 map: how we got here, what we're solving, the research, what failed, and how to continue. The other
 docs are the detail; this ties them together.

@@ -293,8 +293,12 @@ const isPlaceholder = p => /(?:^|\/)(?:x|foo|bar|baz|name|my)\.(?:js|c|h|sh)$/i.
 const proposalCue = l => /\b(or a|would|could|propos|future|someday|todo|maybe|might|imagine|instead of|we('d| would)|a `?--)\b/i.test(l);
 
 const PATH_RE = /\b((?:tools|runtime|editor\/src|editor\/electron|data-tools|det-probes)\/[A-Za-z0-9_./-]+\.(?:js|cjs|c|h|sh))\b/g;
-// tool basename (real, from toolSource) optionally .js/.sh, then a --flag within a short window
-const FLAG_RE = /\b([a-z][a-z0-9-]{2,})(?:\.(?:js|sh))?\b[^`\n]{0,25}?(--[a-z][a-z0-9-]{2,})/g;
+// tool basename (real, from toolSource) optionally .js/.sh — each --flag is bound to the
+// NEAREST preceding real tool within a short window. (A single left-to-right regex paired
+// the flag with the EARLIEST tool on the line instead: "mirror-diff 68=68, road-check --all"
+// blamed mirror-diff for road-check's flag — a false dead-flag, caught 2026-07-10.)
+const TOOLNAME_RE = /\b([a-z][a-z0-9-]{2,})(?:\.(?:js|sh))?\b/g;
+const FLAGONLY_RE = /--[a-z][a-z0-9-]{2,}/g;
 
 const broken = []; // { doc, ln, kind:'path'|'flag', ref, text }
 for (const f of docFiles) {
@@ -312,13 +316,19 @@ for (const f of docFiles) {
       broken.push({ doc: rel, ln: i + 1, kind: "path", ref: p, text: l.trim() });
     }
     if (proposalCue(l)) return; // a line sketching a possible flag isn't a false claim
-    FLAG_RE.lastIndex = 0;
-    while ((m = FLAG_RE.exec(l))) {
-      const tool = m[1], flag = m[2];
-      const src = toolSource.get(tool);
-      if (!src || src.includes(flag)) continue;
-      const k = "f:" + tool + flag + ":" + i; if (seen.has(k)) continue; seen.add(k);
-      broken.push({ doc: rel, ln: i + 1, kind: "flag", ref: `${tool} ${flag}`, text: l.trim() });
+    const toolsOnLine = [];
+    TOOLNAME_RE.lastIndex = 0;
+    while ((m = TOOLNAME_RE.exec(l)))
+      if (toolSource.has(m[1])) toolsOnLine.push({ name: m[1], end: m.index + m[0].length });
+    FLAGONLY_RE.lastIndex = 0;
+    while ((m = FLAGONLY_RE.exec(l))) {
+      const flag = m[0], at = m.index;
+      const owner = toolsOnLine
+        .filter(t => t.end <= at && at - t.end <= 25 && !/[`]/.test(l.slice(t.end, at)))
+        .pop(); // nearest preceding real tool wins
+      if (!owner || toolSource.get(owner.name).includes(flag)) continue;
+      const k = "f:" + owner.name + flag + ":" + i; if (seen.has(k)) continue; seen.add(k);
+      broken.push({ doc: rel, ln: i + 1, kind: "flag", ref: `${owner.name} ${flag}`, text: l.trim() });
     }
   });
 }

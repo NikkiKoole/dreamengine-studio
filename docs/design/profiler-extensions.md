@@ -1,5 +1,7 @@
 # Profiler extensions — first-frame & region timing (PARKED)
 
+STATUS: EXPLORING (PARKED) — first-frame + region-timing designs captured so they aren't lost; not started.
+
 Two follow-ups to the shipped profiler ([`../guides/profiler.md`](../guides/profiler.md)).
 Both are **parked** — captured here so we don't lose the design, not started.
 

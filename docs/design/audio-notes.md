@@ -1,5 +1,7 @@
 # dreamengine — audio design notes
 
+STATUS: LIVING — the sound HUB (surface map, parameter placement, the audio-family index).
+
 A living document for the sound system: what exists in code today, where it sits
 relative to the chips it evokes, the ideas on the table, and a guiding rule —
 **get as much expressivity as possible from as few primitives as possible.**

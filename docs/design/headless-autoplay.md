@@ -1,5 +1,7 @@
 # Headless autoplay — growing the harness toward agents that play themselves
 
+STATUS: EXPLORING (scratchpad) — the staged path toward agents that play the carts; not committed.
+
 > **Genre: design exploration (scratchpad).** Where the debug harness could go, and
 > the staged path to get there. It is **not** the status ledger and **not** a
 > committed plan:

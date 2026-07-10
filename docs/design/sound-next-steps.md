@@ -1,5 +1,7 @@
 # Sound research — actionable next steps
 
+STATUS: EXPLORING (menu, not backlog) — the 2026-06-10 research digest, ordered by leverage.
+
 Distilled from the 2026-06-10 sound-docs pass (the recipe **palette**, the genre-fidelity
 **gap ledger**, and the new-sound / new-demand scoring). A **menu, not a backlog** — nothing
 here is urgent. Ordered roughly by *leverage* (impact ÷ effort); each item links to the doc

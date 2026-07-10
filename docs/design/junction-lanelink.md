@@ -1,5 +1,7 @@
 # junction + laneLink — the formal junction data model (OpenDRIVE ↔ our DSL, 2026-06-17)
 
+STATUS: SHIPPED (2026-06-17) — the schema landed as roadlab M6; §8–9 double as the roadlab build log.
+
 > Part of the road-geometry effort — map & how-we-got-here: [`road-geometry-handoff.md`](road-geometry-handoff.md).
 > Reconciles the standard against our DSL: [`interchange-dsl.md`](interchange-dsl.md) (Layer 1).
 > The geometry it omits lives in: [`road-geometry-refs.md`](road-geometry-refs.md) + roadlab M1–M5.

@@ -1,5 +1,7 @@
 # Polo & Pan — the effects the music asked for (all shipped, all wired)
 
+STATUS: SHIPPED — every effect the music asked for landed and is wired (the title says it).
+
 The blind brief for the **polopan** station ([`polopan-blind-brief.md`](polopan-blind-brief.md))
 named the band *from the music* (intent-first,
 [`../guides/cart-authoring-prompt.md`](../guides/cart-authoring-prompt.md)). Shopping it went

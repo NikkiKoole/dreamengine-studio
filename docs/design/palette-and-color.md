@@ -1,5 +1,7 @@
 # Palette & color — own the palette before blending bakes it in
 
+STATUS: EXPLORING — one decision wearing two questions; sequenced before blend tables bake the borrowed palette in.
+
 > **Genre: design exploration.** Two questions that turn out to be one decision:
 > (1) dreamengine's 32-color palette is **lifted verbatim from PICO-8** — fine
 > for a learning project, borrowed clothes for anything released into the world;

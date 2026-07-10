@@ -1,5 +1,7 @@
 # Probe carts — the experiments that decide what becomes API
 
+STATUS: LIVING (ledger, kept current) — which cart answers which API question, and the verdicts.
+
 > **Genre: ledger (kept current).** Some carts aren't (only) games or toys — they
 > were **built to answer an API question**: *should the engine own X, or can a
 > cart do it?* This file is the census: which cart probes which question, and

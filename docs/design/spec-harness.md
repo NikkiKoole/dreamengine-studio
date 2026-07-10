@@ -101,7 +101,7 @@ For a pure-functional generator, the strongest cheap net needs no `spec()` at al
 render one headless frame at a fixed seed+camera, hash the framebuffer, assert it equals
 a committed golden. *Any* drift in the generator changes the hash. Brittle by design (a
 deliberate visual tweak invalidates it), so it's an opt-in re-bless like the audio
-baselines (`--save`). Exposed as `tools/spec.js --golden`. Best fit for exactly the
+baselines (`--save`). Would be exposed as a `--golden` flag on tools/spec.js (not built). Best fit for exactly the
 "before these sims get bigger" worry.
 
 ## API surface (cart-facing, live only under `-DDE_SPEC`)

@@ -1,6 +1,6 @@
 # Editor scopes & facets — where media lands
 
-> **STATUS: direction chosen** (2026-07-05 explore → 2026-07-07 resolved) — the IA seam is now
+> **STATUS: DESIGNED — direction chosen** (2026-07-05 explore → 2026-07-07 resolved) — the IA seam is now
 > resolved into a **Make / Promote / Ship** model with a new per-cart **Promote tab** (see
 > "Resolution" below); still an observation-and-direction, not a built feature. Origin: adding a
 > "drop a `.rec` and replay it" affordance surfaced there's **no logical home** for per-cart media —

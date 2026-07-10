@@ -23,9 +23,9 @@
 //   ADVISORY  — a ⚠ is hygiene/backlog, never blocks (design-board --lint's
 //               unmarked-docs backlog, stale-doc-check's nudge tiers, missing
 //               backlinks, stale handoff lanes, drifted driftable snapshots).
-//               design-board --lint graduates to a GATE if its backlog ever
-//               reaches zero — until then a hard gate would just train everyone
-//               to ignore red.
+//               (design-board --lint GRADUATED to a gate 2026-07-10 when its
+//               42-doc backlog was cleared — the promised path for any advisory
+//               check that reaches zero.)
 //
 // Token/size contract: the SUMMARY is one line per check (counts, never
 // listings) — safe to embed in orient. The listings live behind --full, or in
@@ -58,8 +58,8 @@ const CHECKS = [
   { name: "reflections",  tool: "build-reflections.js",  args: ["--check"],     gate: true },
   { name: "cart index",   tool: "build-cart-index.js",   args: ["--check"],     gate: true },
   { name: "history",      tool: "build-history.js",      args: ["--check"],     gate: true },
+  { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
   // --- ADVISORY: hygiene / backlog / nudges ---
-  { name: "doc statuses", tool: "design-board.js",       args: ["--lint"] },
   { name: "handoff",      tool: "handoff.js",            args: ["--check"] },
   { name: "driftable",    tool: "stale-doc-check.js",    args: ["--driftable"], warn: num(/(\d+) likely drifted/) },
   { name: "doc freshness",tool: "stale-doc-check.js",    args: [],              warn: num(/(\d+) broken/) },

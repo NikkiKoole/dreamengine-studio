@@ -1,5 +1,7 @@
 # ui.h — a small cross-input widget kit (button · slider · knob · panel · drag-from)
 
+STATUS: SHIPPED — runtime/ui.h landed (button/slider/knob/loupe, per-finger capture) and the shelf runs on it; this doc is the design + build record (STATUS item 25).
+
 > **Genre: design exploration → build record.** Proposal for a cart-land library
 > header (`runtime/ui.h`, the `gestures.h`/`improv.h` pattern — all `static`,
 > zero engine API, no tcc-symbol regen) giving carts a tiny set of UI elements

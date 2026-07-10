@@ -1,5 +1,7 @@
 # cart clips — where moving images (webm/gif) live
 
+STATUS: SHIPPED (convention locked) — exporter + path scheme landed; how-to in guides/debug-harness.md "Clip capture".
+
 CONVENTION (locked; exporter landed). Carts have a still thumbnail today
 (`editor/public/carts/<cart>.cart.png`, which also stores source/sprites/map in zTXt
 chunks). The video exporter — `tools/make-gif.js` (see

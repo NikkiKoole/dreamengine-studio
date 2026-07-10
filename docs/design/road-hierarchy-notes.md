@@ -1,5 +1,7 @@
 # Road hierarchy — research notes (2026-06-17)
 
+STATUS: EXPLORING (research 2026-06-17) — the full functional hierarchy; its "unmodeled frontiers" have since been taken up (streetlab, [worldgen-plan.md](worldgen-plan.md)).
+
 > Research-only notes to situate the road/junction work. **Nothing here was built _when written_** —
 > but the build has since moved: `streetlab` now models **both** unmodeled frontiers (Facet A at-grade
 > junctions, Facet B network topology). For the live build status see

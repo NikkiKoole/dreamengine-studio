@@ -1,5 +1,7 @@
 # Mobile web — making published carts actually playable on a phone
 
+STATUS: LIVING — the publishing-readiness ledger: what phones exposed, the levers, which carts phone-play.
+
 The gallery is live (<https://nikkikoole.github.io/dreamengine/> — see
 [`../guides/sharing.md`](../guides/sharing.md)), which means desktop-authored
 carts now meet phones. This doc collects what that exposed and the proposed

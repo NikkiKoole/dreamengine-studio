@@ -1,5 +1,7 @@
 # CPU shaders — notes & open ideas
 
+STATUS: SHIPPED — the teaching trilogy (shadelab → caustics → raymarch) + shadermath.h; ideas #3 and #5 parked below.
+
 dreamengine has no GPU shader hook. A "fragment shader" here is just a C function
 that returns a `0xRRGGBB` colour, painted to the canvas with the true-colour
 primitives `pset_rgb` / `rectfill_rgb` (24-bit, bypassing the 32-colour palette),

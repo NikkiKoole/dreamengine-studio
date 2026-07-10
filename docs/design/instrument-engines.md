@@ -1,5 +1,7 @@
 # Instrument engines — the navkit port program
 
+STATUS: BUILDING (ongoing program) — engines land one at a time via the §8.8.2 playbook; §8.9 is the candidate queue.
+
 The rich-instrument program: porting navkit's self-contained oscillator engines
 (organ, electric piano, Karplus-Strong strings, mallets, FM, winds…) behind single
 `INSTR_*` ids with the fixed three-macro surface (harmonics / timbre / morph), plus

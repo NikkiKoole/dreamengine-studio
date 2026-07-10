@@ -1,5 +1,7 @@
 # Radio instrument options — per-song timbre roll
 
+STATUS: EXPLORING (menu) — per-station timbre swaps ranked per engine; roll-per-song candidates.
+
 Each station currently picks one fixed timbre per slot. This doc maps what we
 have, what the real genre uses, and which alternatives are worth rolling per
 song so the same radio sounds like a different record each time.

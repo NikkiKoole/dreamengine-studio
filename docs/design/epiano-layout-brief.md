@@ -1,6 +1,6 @@
 # epiano — layout brief (the responsive redesign worksheet)
 
-STATUS: DRAFT (2026-07-07) — the **faithful** epiano Phase-3 responsive re-layout: the classic
+STATUS: BUILDING (drafted 2026-07-07) — the **faithful** epiano Phase-3 responsive re-layout: the classic
 chromatic piano keybed that scales with device width + a disclosing sound panel. Validated by the
 `epianofit` mock. **Scope note (re-scoped 2026-07-07):** the scale-locked pad grid we prototyped is a
 *separate* feature with its own home decision — it lives in [`scale-grid.md`](scale-grid.md), not

@@ -1,5 +1,7 @@
 # API design notes — what to steal from the classics
 
+STATUS: EXPLORING (scratchpad, kept loose) — the classics survey + API rationale; a reference to think against, not a plan.
+
 > **Genre: design exploration (scratchpad).** This is a *design-reference* doc: rationale
 > and proposed signatures for the engine API, surveying what PICO-8, GameMaker, BlitzMax,
 > DIV, p5.js, and Scratch offer and which abstractions earn their keep in a dreamengine

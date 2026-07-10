@@ -1,5 +1,7 @@
 # street-level content — a fill language for lots & land (design seed, 2026-06-16)
 
+STATUS: SHIPPED (v1 in lotfill.c) — the atoms + pipeline built; development continues in [cityplan.md](cityplan.md) (lotfill is now a reference workbench).
+
 > Where the network stops and the *stuff* begins. [`roadnet-streetlevel.md`](roadnet-streetlevel.md)
 > carves the partition (highway→arterial→collector→local→access→lots) and lists **footprints**,
 > **park contents**, the **football field** as the open gaps. This doc is the language that fills

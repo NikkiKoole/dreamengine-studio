@@ -1,5 +1,7 @@
 # Editor ↔ cart workflow — the hand-editing gaps
 
+STATUS: BUILDING (2026-07-10) — active HANDOFF lane; the code round-trip + the pixel side (Option D) shipped, the remaining gaps live here.
+
 > **Genre: design exploration (scratchpad).** The editor is primarily a
 > Nikki + agent collaboration surface, and three workflow gaps bite whenever a
 > human hand-edits a cart instead of going through `tools/carts/` + CLI: no

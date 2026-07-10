@@ -1,5 +1,7 @@
 # Input recording, live-looping & ghosts — what to record, at which level
 
+STATUS: EXPLORING (scratchpad) — cart-level record/loop-back; [flight-recorder.md](flight-recorder.md) took the session-capture half, the music-looper half stays open.
+
 > **Genre: design exploration (scratchpad).** Can a cart record what the player
 > does and play it back in a loop? It is **not** a committed plan:
 > - "What's shipped / open / cut?" → [`../STATUS.md`](../STATUS.md).

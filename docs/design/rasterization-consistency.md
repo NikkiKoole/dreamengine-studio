@@ -1,5 +1,7 @@
 # Rasterization consistency — one clean way to fill/outline a shape
 
+STATUS: SHIPPED (direction 1 — per-pixel CPU coverage) — every filled+outlined primitive now agrees; what remains is verification (thickline), not design.
+
 > **Genre: design exploration → mostly SHIPPED.** This captured a recurring class of
 > pixel bug and the goal: *one* consistent way to rasterize a shape so its fill, outline,
 > dither, solid and adjacent neighbours all agree pixel-for-pixel. **That goal is now

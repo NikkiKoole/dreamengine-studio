@@ -1,5 +1,7 @@
 # Font rendering — playful text, beyond `print`
 
+STATUS: EXPLORING — text-effect proposals; the two baked tiny fonts await print_small/print_tiny wiring.
+
 > **Genre: design exploration (scratchpad).** Rationale + proposed signatures for
 > not-yet-built text effects. It is **not** the status ledger and **not** the decision
 > log:

@@ -1,5 +1,7 @@
 # interchange DSL — describing junctions without coordinates (design sketch, 2026-06-16)
 
+STATUS: SHIPPED (sketch 2026-06-16, realized by roadlab) — the two DSL layers landed via junction-lanelink §8–9; roadlab generates the roads.org.uk catalogue.
+
 > Part of the road-geometry effort — map & how-we-got-here: [`road-geometry-handoff.md`](road-geometry-handoff.md).
 > The research that grounds the geometry layer: [`road-geometry-refs.md`](road-geometry-refs.md).
 

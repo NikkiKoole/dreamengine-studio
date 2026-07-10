@@ -1,5 +1,7 @@
 # roadlab — the working method (a replicable playbook, 2026-06-17)
 
+STATUS: LIVING (playbook) — the replicable working loop behind roadlab; read before starting the next frontier.
+
 > How the roadlab interchange work got built fast and stayed correct, written down so the **next phase**
 > (at-grade junctions, network topology, the seed-driven world — see
 > [`road-hierarchy-notes.md`](road-hierarchy-notes.md)) runs the same way. The artifact matters; the *loop*

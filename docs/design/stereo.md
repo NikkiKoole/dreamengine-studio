@@ -1,5 +1,7 @@
 # Stereo — the design resolution (§9 open question)
 
+STATUS: DESIGNED (design call ahead of build) — instrument_pan/note_pan + the linear pan law; prerequisite of the §8.10 effects layer.
+
 > **Genre: design call ahead of build.** Resolves the long-standing §9 "Stereo?" open question
 > in [`audio-notes.md`](audio-notes.md) so the answer exists *before* the effects-bus layer
 > ([`instrument-engines.md`](instrument-engines.md) §8.10) gets built — stereo is that layer's

@@ -1,6 +1,6 @@
 # Device matrix — the resolutions we design and ship against
 
-STATUS: REFERENCE (2026-07-07) — a **living reference doc**, not a plan. Grow it as we get
+STATUS: LIVING REFERENCE (2026-07-07) — a **living reference doc**, not a plan. Grow it as we get
 devices and as Apple's requirements move. The one canonical place for two questions we keep
 re-asking, so no other doc re-tables them.
 
@@ -94,7 +94,7 @@ cart-aspect ≠ device-aspect gap. See store-agents.md §1.
 ### App preview videos — stricter
 
 App previews must be **real on-device capture** (not a marketing-composited edit) — Guideline
-2.3.3 again; our `make-gif.js … --mp4` clips qualify (actual runtime + real audio). Apple accepts
+2.3.3 again; our `make-gif.js … --format mp4` clips qualify (actual runtime + real audio). Apple accepts
 specific per-family video canvases and they change; **verify the current spec in App Store Connect
 before rendering** rather than trusting a number cached here. Same device families as screenshots
 (6.9" iPhone + 13" iPad cover the minimum), 15–30s, up to 3 per family.
@@ -108,7 +108,7 @@ before rendering** rather than trusting a number cached here. Same device famili
 - **Building a responsive cart / writing a rack layout brief?** Design against **§2**; point your
   brief here instead of re-tabling shapes (acidrack-layout-brief.md §7 does this).
 - **Shipping store assets (the fastlane-ish leg)?** Use **§3** + `store-shots.js` (stills) /
-  `make-gif.js --mp4` (video). The "at least" upload set is 6.9" iPhone + 13" iPad.
+  `make-gif.js --format mp4` (video). The "at least" upload set is 6.9" iPhone + 13" iPad.
 
 Related: [`device-adaptive-layout.md`](device-adaptive-layout.md) (the engine + product plan) ·
 [`acidrack-layout-brief.md`](acidrack-layout-brief.md) (the first rack brief that designs against

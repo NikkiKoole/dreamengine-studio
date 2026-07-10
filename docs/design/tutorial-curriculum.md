@@ -1,5 +1,7 @@
 # Tutorial curriculum — extending the on-ramp (25+)
 
+STATUS: DESIGNED (plan 2026-06-03) — the adapted lesson list for the next tutorial wave; pairs with [teaching-gaps.md](teaching-gaps.md)'s measured evidence.
+
 > **Exploratory.** A plan (2026-06-03) for the next wave of tutorial carts, sourced from
 > studying the [Nerdy Teachers PICO-8 course](https://nerdyteachers.com/PICO-8/). Companion
 > to [`cart-library-direction.md`](cart-library-direction.md) — that memo says *stop cloning

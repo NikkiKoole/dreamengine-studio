@@ -1,5 +1,7 @@
 # attract mode — carts that play themselves until you touch them
 
+STATUS: EXPLORING (proposal, not built) — prototype native in sloop first; the 4th payoff (the in-app IAP storefront, 2026-07-05) raised the stakes.
+
 PROPOSAL (native-first prototype; not built). An arcade cabinet runs a demo loop when
 nobody's playing and hands control over the instant you press a button. dreamengine can do
 the same: a cart replays a bundled demo track, and on the first real input it drops the

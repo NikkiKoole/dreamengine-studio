@@ -127,9 +127,10 @@ rot, it's finding this decision:
   linking out without a link back is often fine. Scope it to a feature when acting on it.
 - **STALE PUBLISHED carts (`cart-status`)** — a *publishing cadence* choice, not rot;
   `publish-all.js` exists for the batch pass. Same for NOT PUBLISHED.
-- **`design-board --lint`'s unmarked-docs backlog** — a real hygiene debt (42 docs at audit
-  time) but a hard gate on it would be red for weeks and train everyone to ignore red. It
-  GRADUATES to a gate when the backlog reaches zero (`repo-doctor.js` carries this note).
+- ~~**`design-board --lint`'s unmarked-docs backlog**~~ — **GRADUATED same day (2026-07-10):**
+  the 42-doc backlog was cleared (every design doc now declares a status) and the check was
+  promoted to a repo-doctor GATE, exactly the path this section promises any advisory check
+  that reaches zero. Kept here struck-through as the worked example.
 - **`tune-check` in the pre-commit hook** — ~60s AND legitimately non-zero while an engine is
   mid-tuning (the flute's high notes ride the breath model); the hook would block every
   sound.h commit. Stays a reminder + a rung in the audio routine.

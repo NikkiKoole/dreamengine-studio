@@ -1,5 +1,7 @@
 # Frame pacing & on-demand rendering — keeping phones cool
 
+STATUS: EXPLORING (researched 2026-06-10) — Lever C (renderEvery) shipped 2026-06-11; the fps cap and reactive repaint are still designs.
+
 > EXPLORATION (researched 2026-06-10). Source: a real phone-play session — carts
 > from the live gallery make the device run **hot**. Three levers; **Lever C (render
 > cadence / `renderEvery`) shipped 2026-06-11** — see below. `fps` cap and reactive

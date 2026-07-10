@@ -1,5 +1,7 @@
 # Sound work — session entrypoint (instrument engines)
 
+STATUS: LIVING (session entrypoint) — start sound sessions here; stays thin, proven items fold into §8.8.x.
+
 > **Genre: living entrypoint.** The one place to start a sound session: where the engine
 > roadmap stands, what's next, and where the durable knowledge lives. NOT a design doc —
 > it points at the canonical docs and stays thin. Fold anything that proves out into

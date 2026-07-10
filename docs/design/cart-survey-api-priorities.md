@@ -1,5 +1,7 @@
 # Cart-survey API priorities — cart evidence first, docs as constraints
 
+STATUS: EXPLORING (recommendation memo) — changes nothing on its own; accepted items go to STATUS.md or an ADR.
+
 > **Genre: design exploration (scratchpad).** This note is a short recommendation memo
 > grounded first in the shipped cart corpus, then filtered through the project's existing
 > decisions and status docs. It does **not** change status on its own; if a recommendation

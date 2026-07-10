@@ -1,6 +1,6 @@
 # External data → carts
 
-**Status:** GRADUATED (2026-07-02) — the runtime hooks (`de_data_path`/`de_dropped_file`/
+**Status:** SHIPPED (graduated 2026-07-02) — the runtime hooks (`de_data_path`/`de_dropped_file`/
 `de_open_path`) are **committed API** per [ADR-0025](../decisions/0025-external-data-hooks-are-committed-api.md)
 (documented in all four places; the commitment is paths-not-formats — what's inside the file
 stays cart-land policy). The question this experiment probed — can a cart load a data blob at

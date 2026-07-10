@@ -1,5 +1,7 @@
 # Baked rotation atlas — fast pre-rotated sprites & a primitive body kit
 
+STATUS: EXPLORING (scratchpad, not built) — pre-rotated atlas + the primitive body kit.
+
 > **Genre: design exploration (scratchpad).** Rationale + proposed signatures for a
 > not-yet-built subsystem. It is **not** the status ledger and **not** the decision log:
 > - "What's shipped / open / cut?" → [`../STATUS.md`](../STATUS.md).

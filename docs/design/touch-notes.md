@@ -1,5 +1,7 @@
 # Touch — multitouch, gestures, and what a real device must answer
 
+STATUS: EXPLORING (scratchpad) — the questions only a physical touchscreen answers; probe cart = touchlab, pick up when an iPad exists.
+
 > **Genre: design exploration (scratchpad).** Where the touch API stands, what's
 > deliberately missing (release events, gestures), and the checklist of questions
 > only a physical touchscreen can answer. The on-device probe is the **`touchlab`**

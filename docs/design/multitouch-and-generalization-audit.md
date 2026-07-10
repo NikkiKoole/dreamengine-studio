@@ -1,5 +1,7 @@
 # Multitouch, polyphony & shared-code audit (the instrument shelf)
 
+STATUS: EXPLORING (audit snapshot 2026-06-13) — mono/poly + touch-reads + shared-header candidates across the instrument shelf.
+
 > AUDIT (snapshot, 2026-06-13): a sweep of all **85 `kind:"instrument"` carts** asking three
 > questions — is the voice **mono or poly**, does the cart **read more than one touch** (and
 > should it?), and what plumbing is **hand-rolled across carts** that could become a shared

@@ -21,6 +21,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <string.h>
 
 // ── SAND BURROW — a Boulderdash dig dropped into terrain that actually flows ──
@@ -55,6 +56,7 @@ static int   facing;      // -1 left, +1 right
 static float bury;        // 0..1 suffocation meter
 static int   gems, quota;
 static bool  won, dead;
+static float end_t;             // seconds since the end card came up
 static const char *death_msg;
 
 static float settle_acc;  // automaton tick accumulator
@@ -161,7 +163,7 @@ static void carve_pocket(int cx, int cy, int r) {     // small empty bubble
 }
 
 static void build(void) {
-    gems = 0; quota = 0; bury = 0; won = dead = false; settle_acc = 0;
+    gems = 0; quota = 0; bury = 0; won = dead = false; end_t = 0; settle_acc = 0;
     death_msg = "";
 
     // fill the cave with sand, ringed by an indestructible rock border
@@ -216,6 +218,7 @@ void init(void) { build(); touch_layout(TOUCH_DPAD4, 1); }
 // ── update ───────────────────────────────────────────────────────────
 void update(void) {
     if (won || dead) {
+        end_t += dt();
         if (keyp('R') || key('R') || btnp(0, BTN_A) || btnp(0, BTN_B) ||
             keyp(KEY_SPACE) || keyp(KEY_ENTER)) build();
         return;
@@ -349,21 +352,21 @@ void draw(void) {
     if (gems >= quota && !won && !dead)
         print_centered(blink(12) ? "EXIT OPEN — head bottom-right" : "", SCREEN_W/2, 200 - 9, CLR_GREEN);
 
+    // end cards — the shared end-screen treatment (endcard.h)
     if (dead) {
-        fade(0.55f);
-        int w = 220, bxw = (SCREEN_W - w) / 2;
-        rectfill(bxw, 80, w, 42, CLR_DARK_RED);
-        rect(bxw, 80, w, 42, CLR_RED);
-        print_centered(death_msg, SCREEN_W/2, 90, CLR_WHITE);
-        print_centered("keep an air pocket overhead!", SCREEN_W/2, 102, CLR_LIGHT_PEACH);
-        print_centered("Z / R to dig again", SCREEN_W/2, 112, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 220, 42, 80, CLR_DARK_RED, CLR_RED, CLR_BROWNISH_BLACK);
+        if (c.settled) {
+            print_centered(death_msg, SCREEN_W/2, c.y + 10, CLR_WHITE);
+            print_centered("keep an air pocket overhead!", SCREEN_W/2, c.y + 22, CLR_LIGHT_PEACH);
+            if (blink(18)) print_centered("Z / R to dig again", SCREEN_W/2, c.y + 32, CLR_LIGHT_GREY);
+        }
     }
     if (won) {
-        int w = 220, bxw = (SCREEN_W - w) / 2;
-        rectfill(bxw, 80, w, 42, CLR_DARK_GREEN);
-        rect(bxw, 80, w, 42, CLR_LIME_GREEN);
-        print_centered("ESCAPED THE BURROW!", SCREEN_W/2, 90, CLR_WHITE);
-        print_centered(str("all %d gems out alive", quota), SCREEN_W/2, 102, CLR_LIGHT_YELLOW);
-        print_centered("Z / R to dig again", SCREEN_W/2, 112, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 220, 42, 80, CLR_DARK_GREEN, CLR_LIME_GREEN, CLR_GREEN);
+        if (c.settled) {
+            print_centered("ESCAPED THE BURROW!", SCREEN_W/2, c.y + 10, CLR_WHITE);
+            print_centered(str("all %d gems out alive", quota), SCREEN_W/2, c.y + 22, CLR_LIGHT_YELLOW);
+            if (blink(18)) print_centered("Z / R to dig again", SCREEN_W/2, c.y + 32, CLR_LIGHT_GREY);
+        }
     }
 }

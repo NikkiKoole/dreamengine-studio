@@ -1,0 +1,28 @@
+# citygrow — RUNG 4: the districts. The arterial graph (rung 3) partitions the
+# city into planar FACES; each face is a district that hashes to one of
+# streetlab's five street patterns as a density-biased preset (dense core →
+# grid, mid → organic/superblock, fringe → cul-de-sac dead-ends) and is filled
+# with a block-scale local lattice clipped inside the face, then STITCHED onto
+# the bounding arterials (red stubs) — locals T onto collectors T onto arterials,
+# the continuity tenet. Two hub hops (SPACE) land the lakeside city, T enters it,
+# then K cycles off → district faces → minor fill → both. This is the view where
+# "procedural grid" dies: neighbouring districts visibly differ.
+# The SNDi gate (V exports the whole city): the missing T-junction share climbs
+# from the arterials-only 1.1% to 64.6% — real Dutch-city territory (Amersfoort
+# 63%, Rotterdam 60%). Deterministic from the script alone (no seed flag needed).
+# frames 120
+# fps 30
+down 10 ENTER
+up 12 ENTER
+down 20 SPACE
+up 22 SPACE
+down 26 SPACE
+up 28 SPACE
+down 40 T
+up 42 T
+down 55 K
+up 57 K
+down 68 K
+up 70 K
+down 82 K
+up 84 K

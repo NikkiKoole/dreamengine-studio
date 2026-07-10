@@ -1,8 +1,11 @@
 # worldgen-plan — the realistic procedural world generator
 
-STATUS: BUILDING (2026-07-06) — rungs 0–1 SHIPPED (the SNDi oracle `sndi-check.js`; the
-`runtime/worldnet.h` seam — sloop drives the spine). Rung 2 (the density field, in the `citygrow`
-bench) is next; rungs expand Track-A items A2–A4 of
+STATUS: BUILDING (2026-07-10) — rungs 0–4 SHIPPED (the SNDi oracle `sndi-check.js`; the
+`runtime/worldnet.h` seam — sloop drives the spine; the `citygrow` bench's density field + tensor-field
+arterials + now **per-district minor fill** — the rung where "procedural grid" dies: the whole city's
+T-junction share hits 64.6%, real Dutch-city territory). Rung 5 (the calibration loop — tune the
+pattern mix into SNDi tolerance) is next, with concrete targets already measured (mean degree slightly
+high at 3.20 vs ~2.8, dead-ends now too FEW at 5.1% vs real ~20%). Rungs expand Track-A items A2–A4 of
 [`driving-world-program.md`](driving-world-program.md)'s sequenced build order.
 
 The plan of attack for closing the program's named gap: **we don't yet have *realistic* procedural
@@ -134,11 +137,32 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   the rung-5.5 wiring (the bench has no car); district polygon extraction moved into rung 4 where
   it's consumed. Export caveat: same-family lines never cross (separation), so crossings are
   family×family only.
-- [ ] **Rung 4 — per-district minor fill (the Phase-2 payoff).** Each district hashes to
-  `(pattern, knob-params)`; generalize streetlab's generators from the fixed toy grid to fill a
-  district polygon; stitch to arterials respecting the **continuity tenet** (locals → collectors →
-  arterials — verified doctrine, notes §3). *Done when:* neighbouring districts visibly differ and
-  the seams don't show. This is the rung where "procedural grid" dies.
+- [x] **Rung 4 — per-district minor fill (the Phase-2 payoff). ✅ SHIPPED 2026-07-10** in `citygrow`
+  (**K** cycles off → district faces → minor fill → both; **V** exports the whole city). The arterial
+  graph's planar **faces** are the districts (`ar_graph()` + `ar_faces()` — a clockwise-next half-edge
+  walk over the crossing graph, outer face dropped; shares ONE data model with the JSON export). Each
+  face hashes to one of streetlab's five patterns as a **density-biased preset** (dense core → grid,
+  mid → organic/superblock, fringe → cul-de-sac dead-ends) and is filled with a block-scale (95 m)
+  local lattice **clipped inside the face** (inset 50 m off the bounding arterials): grid/organic =
+  full lattice (+jitter), cul-de-sac = Kruskal tree + sparse loops, superblock = arterial frame +
+  sealed interior forest. Perimeter locals are **stitched** onto the nearest arterial vertex (the
+  continuity tenet) — snapped exactly so `sndi-check`'s 1 m weld reads a real T. *Done-when met, both
+  halves:* neighbouring districts visibly differ (a dense city: 310 districts split grid 78 / organic
+  123 / cul-de-sac 63 / superblock 46), and the **SNDi gate climbs into real territory** — the whole
+  city vs the arterials-only export:
+
+  | | arterials only | +minors+stitch | real NL (rung 0) |
+  |---|---|---|---|
+  | deg-3 (**T**) | 1.1% | **64.6%** | 60–63% |
+  | deg-1 (dead-end) | 34.5% | 5.1% | 20–25% |
+  | mean degree | 2.95 | 3.20 | 2.71–2.84 |
+  | int. / km² | 5.0 | 58.7 | — |
+
+  The headline — **T-share 1.1% → 64.6%**, dead-on Amersfoort (63%) / Rotterdam (60%). Two residual
+  gaps are now *numbers for rung 5*: mean degree is a touch high (3.20 vs ~2.8 — the grid/organic
+  fill is slightly over-connected) and dead-ends are now too FEW (5.1% vs real ~20% — the cul-de-sac
+  share wants raising). Clip: `citygrow/03-districts`; deterministic (whole-city export byte-identical
+  across runs). This is the rung where "procedural grid" dies.
 
   **Rung 4 pick-up** (written 2026-07-06 for a cold resume — the HANDOFF lane points here):
   1. **District polygons first** — the arterial graph already partitions the extent; make the
@@ -167,7 +191,14 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
      `citygrow/02-city-arterials` or add `03-districts`.
 - [ ] **Rung 5 — the calibration loop.** A/B generated districts against rung-0 targets; tune knobs
   into tolerance. *Done when:* `sndi-check --compare <seed> <city.rvb>` passes per pattern. Ongoing
-  tuning — but the tool makes it a loop, not a vibe.
+  tuning — but the tool makes it a loop, not a vibe. **Rung 4 handed it two concrete targets** (from
+  the whole-city gate): (a) **too few dead-ends** — 5.1% vs real ~20% (SF 25%, Königssee 41%); the
+  grid/organic fill dominates, so raise the cul-de-sac share (widen the `ms_pattern` fringe band) or
+  trim through-connections; (b) **mean degree a touch high** — 3.20 vs NL ~2.8; the full-lattice
+  grid/organic patterns over-connect, so a density-modulated block spacing / a sparser interior would
+  pull it down. Also still open from rung 3: trim the dangling arterial **rim stubs** (34–45% deg-1
+  before fill) — the stitch masks them in the *combined* number but they're still there in the
+  arterial graph. Add a live SNDi panel + an OSM target beside it (the bench's calibration instrument).
 - [ ] **Rung 5.5 — extract `citygen.h`** (the roadkit trigger discipline — §Where the code lives):
   the calibrated grammar becomes a library header; `roadnet2` calls it per city cell; `citygrow`
   stays the spec-locked tuning bench.

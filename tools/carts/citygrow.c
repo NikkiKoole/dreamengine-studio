@@ -12,10 +12,10 @@
     "road-network"
   ],
   "lineage": "The worldgen-plan rung 2-5 BENCH (docs/design/worldgen-plan.md §Where the code lives): the settlement/street generation grammar grown in its own knobbed sandbox, over the same worldnet.h spine roadnet2 and sloop share, then extracted (citygen.h) once calibrated. Rung 2 first: the population-density field.",
-  "description": "The DENSITY-FIELD bench (worldgen-plan rungs 2-5) - the master input both pillar papers (Parish-Muller, Chen) drive everything from, grown here as a knobbed instrument. RUNG 2, the field: a deterministic population field D(x,y) says WHERE PEOPLE LIVE - regional noise shaped by terrain (people live LOW and FLAT; hills and rock drain it), pulled toward water (coasts and rivers attract harbours and river towns - the same water that is itself uninhabitable), fading out past the ~500 km world rim (one characterful place, not an endless smear). Settlement candidates stay on worldnet.h's suppression lattice (blue-noise spacing survives), but PRESENCE, RANK and SIZE come from the field - cities cluster along coasts and valley floors, hamlets thin toward the wilderness, and a city's EXTENT is a density threshold contour, not a radius. RUNG 3, the arterials: press T over any city and it becomes a CITY VIEW - a per-city TENSOR FIELD (Chen 2008: radial-around-the-core + grid-aligned-to-the-ENTERING-HIGHWAY read live from the worldnet graph + terrain-contour alignment + noise, weights hashed per city) traced as hyperstreamlines of both perpendicular eigen-families with Jobard-Lefer-style separation, wholesale and cached because a city is BOUNDED. The arterials visibly shear along coastlines, wrap around lakes, and orient to their highway gate - every city its own anatomy, same seed same city, always. X exports the traced graph as sndi-check JSON (crossings split, nodes welded) - the first generated network the rung-0 oracle can hold against a real city (first measurement: mean degree 2.65 vs Amersfoort's 2.71; the dead-end rim stubs and missing T-share are rung-5 calibration targets, now measurable). Sliders re-roll everything live; F heat, E extent contours, O the field-vs-hash A/B, B the world rim, SPACE hub-scale hops, R reseed.",
+  "description": "The DENSITY-FIELD bench (worldgen-plan rungs 2-5) - the master input both pillar papers (Parish-Muller, Chen) drive everything from, grown here as a knobbed instrument. RUNG 2, the field: a deterministic population field D(x,y) says WHERE PEOPLE LIVE - regional noise shaped by terrain (people live LOW and FLAT; hills and rock drain it), pulled toward water (coasts and rivers attract harbours and river towns - the same water that is itself uninhabitable), fading out past the ~500 km world rim (one characterful place, not an endless smear). Settlement candidates stay on worldnet.h's suppression lattice (blue-noise spacing survives), but PRESENCE, RANK and SIZE come from the field - cities cluster along coasts and valley floors, hamlets thin toward the wilderness, and a city's EXTENT is a density threshold contour, not a radius. RUNG 3, the arterials: press T over any city and it becomes a CITY VIEW - a per-city TENSOR FIELD (Chen 2008: radial-around-the-core + grid-aligned-to-the-ENTERING-HIGHWAY read live from the worldnet graph + terrain-contour alignment + noise, weights hashed per city) traced as hyperstreamlines of both perpendicular eigen-families with Jobard-Lefer-style separation, wholesale and cached because a city is BOUNDED. The arterials visibly shear along coastlines, wrap around lakes, and orient to their highway gate - every city its own anatomy, same seed same city, always. X exports the traced graph as sndi-check JSON (crossings split, nodes welded) - the first generated network the rung-0 oracle can hold against a real city (first measurement: mean degree 2.65 vs Amersfoort's 2.71; the dead-end rim stubs and missing T-share are rung-5 calibration targets, now measurable). RUNG 4, the districts: the arterial graph's planar FACES are the districts - press K in the city view to cycle off/faces/minor-fill/both. Each district hashes to one of streetlab's five street patterns as a density-biased preset (dense core to grid, mid to organic/superblock, fringe to cul-de-sac dead-ends), fills with a block-scale local lattice clipped inside the face, and STITCHES onto the bounding arterials (locals T onto collectors T onto arterials - the continuity tenet). V exports the WHOLE city (arterials + minors + stitches) for sndi-check: the missing T-junction share climbs from the arterials-only 1.1% to 64.6% - real Dutch-city territory (Amersfoort 63%, Rotterdam 60%). This is where 'procedural grid' dies. Sliders re-roll everything live; F heat, E extent contours, O the field-vs-hash A/B, B the world rim, SPACE hub-scale hops, R reseed.",
   "todo": [
-    "rung 4: district polygons (the arterial graph already partitions the extent) + per-district minor fill via the morph knobs",
-    "rung 5: the live SNDi panel + an OSM target beside it; calibration targets already measured: trim dangling rim stubs (44% deg-1), grow T-share (real cities are T-dominant), density-modulated d_sep",
+    "rung 5 CALIBRATION (rung 4 shipped): whole-city T-share now 64.6% (real NL 60-63%), but two gaps measured: dead-ends TOO FEW (5.1% vs real ~20% - raise the cul-de-sac fringe band in ms_pattern / sparser grid interiors) and mean degree a touch high (3.20 vs ~2.8 - the full-lattice grid/organic over-connect). Plus a live SNDi panel + an OSM target beside it for the A/B.",
+    "rung 4 followups: district fill uses straight-edge faces (curved arterials approximated); superblock/cul-de-sac need bigger polygons to read; radial pattern not used (whole-city, not district-scale). Stitch dedups one stub per arterial vertex - could space by class.",
     "true Jobard-Lefer distance separation (the id-grid is coarse; spacing jitters between 0.7x and 1.4x d_sep)",
     "wire the calibrated field into worldnet.h (get_node/get_hub presence/rank from D) so roadnet2 + sloop's world grows organic settlements - the rung-5.5 extraction; arterials become drivable there (the deferred drive-it gate)",
     "bridgehead attractors: crossings concentrate traffic -> density (needs rivers as network edges)",
@@ -37,16 +37,21 @@ de:meta */
 // same worldnet.h spine the real carts drive. Extraction target: citygen.h
 // (rung 5.5), plus the density field wiring INTO worldnet.h's get_node/get_hub.
 //
-// RUNG 2 (this build): THE POPULATION-DENSITY FIELD — the master input.
+// RUNG 2: THE POPULATION-DENSITY FIELD — the master input.
 //   D(x,y) = regional noise · terrain shaping (low+flat) · water pull · rim fade
 // Settlements keep the suppression lattice (blue-noise spacing) but presence,
 // rank and size come from D. City extent = the D > extent contour.
+// RUNG 3 (T): per-city TENSOR-FIELD arterials, traced as two eigen-families.
+// RUNG 4 (K): the arterials' planar faces = DISTRICTS; each fills with a
+//   density-biased streetlab pattern (grid/organic/cul-de-sac/superblock) and
+//   is STITCHED onto the bounding arterials. Whole-city T-share → 64.6% (real).
 //
 //   drag sliders   field re-rolls live      ROLL / EXPLORE
 //   ◄▲▼► / WASD    pan     wheel zoom       SPACE jump   R new seed
-//   F density heat overlay    E extent contours    N settlement dots
-//   O settlements: FIELD (rung 2) vs pure-HASH (the old lattice) — the A/B
-//   B world-rim ring    G lattice grid    M setup panel    H hide hud
+//   F density heat   E extent contours   N settlement dots   B rim   G grid
+//   O settlements: FIELD (rung 2) vs pure-HASH — the A/B     M panel   H hud
+//   MAP:  T enter the strongest city →
+//   CITY: K districts (off/faces/minors/both)   X arterials.json   V city.json
 // ============================================================================
 
 #define TILE 4
@@ -263,6 +268,7 @@ static unsigned char fc_pat[FACE_MAX];      // rung 4.2: the fill pattern chosen
 // they're re-targeted onto an arbitrary polygon as presets biased by density D:
 // dense core → grid, mid → organic/superblock, fringe → cul-de-sac dead-ends.
 enum { MP_GRID, MP_ORGANIC, MP_CULDESAC, MP_SUPERBLOCK, MP_N };
+#define MP_STITCH MP_N        // rung 4.4: a local street T-ing onto a bounding arterial
 #define MS_STEP   95.0f       // minor-street block spacing (m) — 80–110 m real blocks
 #define MS_INSET  50.0f       // clearance inside the bounding arterials (half-width + margin)
 #define MS_LG     18          // local lattice cap per district axis
@@ -270,6 +276,7 @@ enum { MP_GRID, MP_ORGANIC, MP_CULDESAC, MP_SUPERBLOCK, MP_N };
 #define ME_MAX    24000       // minor edges over all districts
 static float msx[MS_MAX], msy[MS_MAX]; static int ms_n;
 static int   mea[ME_MAX], meb[ME_MAX]; static unsigned char me_pat[ME_MAX]; static int me_n;
+static char  art_used[AR_MAXL][AR_MAXP];    // rung 4.4: arterial vertex already has a stitch stub
 
 static float ar_theta(float x, float y, int fam) {
     float vx = 0, vy = 0;
@@ -677,7 +684,6 @@ static void ms_fill_face(int fi) {
     if (cols > MS_LG) cols = MS_LG; if (rows > MS_LG) rows = MS_LG;
     // lay the lattice, keep interior nodes (inside + clear of arterials)
     static int   lg[MS_LG][MS_LG];
-    static float lx[MS_LG][MS_LG], ly[MS_LG][MS_LG];
     int base = ms_n, ln = 0;
     float jit = (pat == MP_ORGANIC) ? 0.40f : (pat == MP_CULDESAC ? 0.22f : 0.0f);
     for (int r = 0; r < rows; r++)
@@ -744,10 +750,35 @@ static void ms_fill_face(int fi) {
         }
     }
     #undef ADD_EDGE
+    // ── stitch (continuity tenet): perimeter locals T onto the bounding arterial ──
+    // snap a stub onto the NEAREST arterial vertex; on export that vertex is shared
+    // (sndi welds ≤1 m) so the arterial gains a real T-junction. One stub per vertex.
+    for (int r = 0; r < rows; r++)
+        for (int c = 0; c < cols; c++) {
+            if (lg[r][c] < 0) continue;
+            int li = base + lg[r][c];
+            float px = msx[li], py = msy[li];
+            if (ms_dedge(fi, px, py) > MS_INSET + step * 0.75f) continue;   // interior node, skip
+            float bestd = (MS_INSET + step * 1.3f); bestd *= bestd;
+            int bl = -1, bi = -1;
+            for (int l = 0; l < ar_nl; l++)
+                for (int i = 0; i < ar_np[l]; i++) {
+                    float dx = ar_px[l][i] - px, dy = ar_py[l][i] - py, d = dx * dx + dy * dy;
+                    if (d < bestd) { bestd = d; bl = l; bi = i; }
+                }
+            if (bl < 0 || art_used[bl][bi]) continue;
+            if (ms_n >= MS_MAX || me_n >= ME_MAX) continue;
+            art_used[bl][bi] = 1;
+            int sidx = ms_n;
+            msx[ms_n] = ar_px[bl][bi]; msy[ms_n] = ar_py[bl][bi]; ms_n++;
+            mea[me_n] = li; meb[me_n] = sidx; me_pat[me_n] = MP_STITCH; me_n++;
+        }
 }
 
 static void ms_build(void) {
     ms_n = 0; me_n = 0;
+    for (int l = 0; l < AR_MAXL; l++)
+        for (int i = 0; i < AR_MAXP; i++) art_used[l][i] = 0;
     for (int fi = 0; fi < fc_n; fi++) ms_fill_face(fi);
 }
 
@@ -782,6 +813,33 @@ static void ar_export(void) {
             if ((float)i > ge_t0[e] + 0.05f && (float)i < ge_t1[e] - 0.05f)
                 fprintf(f, ",[%.1f,%.1f]", ar_px[l][i], ar_py[l][i]);
         fprintf(f, ",[%.1f,%.1f]]}", gnx[b], gny[b]);
+    }
+    fprintf(f, "]}\n");
+    fclose(f);
+}
+
+// rung 4.4 gate: the WHOLE city — arterials + minor streets + stitches — as one
+// sndi-check graph (all edges carry pts; the oracle welds them at 1 m, so a stub
+// snapped onto an arterial vertex reads as a real T). Written: citygrow-city.json.
+// This is the A/B against the arterials-only export: T-share should climb.
+static void ar_export_full(void) {
+    ar_graph_ensure();
+    FILE *f = fopen("citygrow-city.json", "w");
+    if (!f) return;
+    fprintf(f, "{\"nodes\":[],\"edges\":[");
+    int first = 1;
+    for (int e = 0; e < g_ne; e++) {                     // arterials (their full polyline)
+        int a = gea[e], b = geb[e], l = ge_line[e];
+        fprintf(f, "%s{\"pts\":[[%.1f,%.1f]", first ? "" : ",", gnx[a], gny[a]); first = 0;
+        int i0 = (int)floorf(ge_t0[e]) + 1, i1 = (int)ceilf(ge_t1[e]) - 1;
+        for (int i = i0; i <= i1 && i < ar_np[l]; i++)
+            if ((float)i > ge_t0[e] + 0.05f && (float)i < ge_t1[e] - 0.05f)
+                fprintf(f, ",[%.1f,%.1f]", ar_px[l][i], ar_py[l][i]);
+        fprintf(f, ",[%.1f,%.1f]]}", gnx[b], gny[b]);
+    }
+    for (int e = 0; e < me_n; e++) {                     // minors + stitches (straight)
+        int a = mea[e], b = meb[e];
+        fprintf(f, ",{\"pts\":[[%.1f,%.1f],[%.1f,%.1f]]}", msx[a], msy[a], msx[b], msy[b]);
     }
     fprintf(f, "]}\n");
     fclose(f);
@@ -919,7 +977,7 @@ static void ar_dist_draw(void) {
 // dead-end vs superblock). This is the "procedural grid dies" view.
 static void ms_draw(void) {
     ar_graph_ensure();
-    static const int pcol[MP_N] = { CLR_WHITE, CLR_YELLOW, CLR_ORANGE, CLR_PINK };
+    static const int pcol[MP_N + 1] = { CLR_WHITE, CLR_YELLOW, CLR_ORANGE, CLR_PINK, CLR_RED };
     for (int e = 0; e < me_n; e++) {
         int a = mea[e], b = meb[e];
         line(sxp(msx[a]), syp(msy[a]), sxp(msx[b]), syp(msy[b]), pcol[me_pat[e]]);
@@ -935,7 +993,7 @@ static void hud_city(void) {
              ar_ccx, ar_ccy, ar_D, ar_nl, show_dist ? fc_n : 0,
              show_dist >= 2 ? ms_n : 0, show_dist >= 2 ? me_n : 0, dn[show_dist]);
     print(buf, 84, 2, CLR_GREEN);
-    print_centered("T map   X export JSON   K districts (grid/organic/deadend/superblock)   R reroll",
+    print_centered("T map   K districts   X arterials.json  V whole-city.json   R reroll",
                    SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
 }
 
@@ -1049,7 +1107,8 @@ void update(void) {
             camY = ar_cy - SCREEN_H * 0.5f / (TILE * zoom);
         }
     }
-    if (keyp('X') && ar_on) { ar_ensure(); ar_export(); }
+    if (keyp('X') && ar_on) { ar_ensure(); ar_export(); }       // arterials-only (rung 3)
+    if (keyp('V') && ar_on) { ar_graph_ensure(); ar_export_full(); }  // whole city (rung 4 gate)
     if (keyp('F')) show_heat   = !show_heat;
     if (keyp('E')) show_extent = !show_extent;
     if (keyp('N')) show_dots   = !show_dots;

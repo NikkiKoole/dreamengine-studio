@@ -99,14 +99,16 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**. All bel
 > extracted from streetlab byte-identical (spec 104/0, mirror-diff 68=68, road-check --all all PASS),
 > and **citydrive draws curb-return junctions through it** (J key, ground metres, projected; a
 > `spec()` 11/0 added first as the render safety net).
-> **Resume-at (three open forks, all specced):**
-> (1) **B4 grade dispatch** — `roadkit_junction(legs, grade)` routing at-grade → streetlab / grade-
-> separated → **roadlab interchanges** (the real highway junctions), + **Rung 6** the generated city
-> emits `(legs,bearings,class,grade)` into it. Plan: [`design/roadkit.md`](design/roadkit.md) Phase 5.
-> (2) **the N+M reconciliation** — unify citygen's world model with `worldnet.h`'s β-skeleton lattice
+> **B4 SHIPPED 2026-07-10 — the interchange grammar.** roadlab's ramp splines + topology (`Port`,
+> `rk_make_junction`, POLICY/classify_turn) extracted into `roadkit.h` (pure over `Port[]` + `present[]`,
+> byte-identical: roadlab spec 25/0 + render 60/60). **Consumed:** `citygrow` draws citygen's 6 grade-2
+> junctions as real cloverleaf/trumpet interchanges (I key hops between them; a clean cloverleaf renders).
+> Track B (streetlab → roadkit at-grade field + grade-separated interchanges) is COMPLETE.
+> **Resume-at (two open forks, both specced):**
+> (1) **the N+M reconciliation** — unify citygen's world model with `worldnet.h`'s β-skeleton lattice
 > so the N-spine + M-city are ONE infinite world (two gated spine edits: `get_node`/`get_hub` from
 > citygen density; highways lead into citygen cities). See [`worldgen-plan.md`](design/worldgen-plan.md) rung 5.5.
-> (3) **polish** — suppress citydrive's round-joint disc at near junctions so the curb-return fully
+> (2) **polish** — suppress citydrive's round-joint disc at near junctions so the curb-return fully
 > replaces the blob (today it layers over it) + per-pixel field-fill for exact N-arm asphalt.
 > Hot files: `tools/carts/{citygrow,sloop,citydrive,streetlab}.c`, `runtime/{citygen,roadkit,worldnet}.h`
 > (shared — targeted edits only). Gates to keep green: `spec.js sloop` 25/0 · `spec.js streetlab` 104/0 ·

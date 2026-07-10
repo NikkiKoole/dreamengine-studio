@@ -2,7 +2,7 @@
 
 STATUS: BUILDING (2026-07-01) — Phase 1 (connectivity: one connected asphalt surface + bridges/tunnels)
 **and Phase 2 (cheap street-dressing: light pavement/kerb bands + dashed white centre-line markings, class-based
-widths, + an in-cart junction/node graph)** shipped in `citydrive`. **B2 + B3 SHIPPED 2026-07-10: `runtime/roadkit.h`** holds the pure junction geometry (curb_return, edge_corner, rk_count_corners, rk_cross_hw) AND the N-arm-native **field renderer core** (`RkField` + rk_field_build/rk_field_road — the space-agnostic arm-union ∪ fillets ∪ disc predicate); streetlab calls both, spec 104/0 + mirror-diff + road-check all green (see Phasing 3–4). citydrive got a `spec()` (11) as the B3 safety net. **B3b SHIPPED same day** — citydrive draws curb-return junctions through the shared field (ground metres, projected; toggle J, default off). Next: B4 grade dispatch (roadlab interchanges). The decision + plan to extract the shared road-rendering &
+widths, + an in-cart junction/node graph)** shipped in `citydrive`. **B2 + B3 SHIPPED 2026-07-10: `runtime/roadkit.h`** holds the pure junction geometry (curb_return, edge_corner, rk_count_corners, rk_cross_hw) AND the N-arm-native **field renderer core** (`RkField` + rk_field_build/rk_field_road — the space-agnostic arm-union ∪ fillets ∪ disc predicate); streetlab calls both, spec 104/0 + mirror-diff + road-check all green (see Phasing 3–4). citydrive got a `spec()` (11) as the B3 safety net. **B3b SHIPPED same day** — citydrive draws curb-return junctions through the shared field (ground metres, projected; toggle J, default off). **B4 SHIPPED 2026-07-10 — the grade-separated half:** `roadkit.h` now also holds the interchange grammar extracted from `roadlab` (the 4 ramp SPLINES arc/clothoid/loop/scurve + emit_arc_to, the `Port` type, and the topology `rk_make_junction`/POLICY/JuncType/Connection/classify_turn) — the non-snapping `rk_ux_raw`/`rk_uy_raw` beside the field's snapping `rk_ux`, so both conventions live named. Gated byte-identical: roadlab `spec` 25/0 + render 60/60 frames identical. **Consumed:** `citygrow` draws citygen's 6 grade-2 junctions as real cloverleaf/trumpet interchanges through it (I key hops between them). The decision + plan to extract the shared road-rendering &
 junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md))
 so `streetlab` (the spec-locked *source*), `roadlab` (interchange bench) and — **the first render consumer
 — `citydrive`** (the pseudo-3D real-OSM view where the grammar is actually *visible*) all call ONE
@@ -214,7 +214,19 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    are gone, `count_corners`/`cross_hw` are thin delegating wrappers over its own knobs. **Gates all
    green: `spec` 104/0, `mirror-diff` byte-identical to baseline (68=68), `road-check --all` all PASS.**
    The `ux`/`uy` divergence was handled as flagged — roadkit carries streetlab's **snapping** version
-   (kept its spec exact); roadlab's non-snapping form reconciles when it adopts roadkit at B4.
+   (kept its spec exact); **B4 reconciled roadlab's non-snapping form as `rk_ux_raw`/`rk_uy_raw`** — two
+   named helpers, both conventions explicit, so the ramp splines stay byte-identical to roadlab.
+5. **Interchange grammar into roadkit** *(B4 — the grade-separated half, SHIPPED 2026-07-10).*
+   `roadlab`'s ramp splines (`arc_spline`/`clothoid_spline`/`loop_spline`/`scurve_spline` + `emit_arc_to`),
+   the `Port` type, and the topology (`rk_make_junction` + `POLICY`/`JuncType`/`Connection`/`Junction`/
+   `classify_turn`) now live in `roadkit.h`, **pure over `Port[]` + a `present[]` mask** (no cart globals —
+   deliberately NOT `Leg`, to avoid the streetlab collision). `roadlab` `#include`s it and keeps a thin
+   `make_junction` wrapper (`legs[].present` → `present[]`) so every call site + its spec are untouched.
+   **Gates: roadlab `spec` 25/0 AND render byte-identical to baseline (60/60 frames — catches any
+   `rk_ux_raw` rename slip the topology spec can't see).** **Consumed by `citygrow`:** at each grade-2
+   junction `cg_draw_interchange` builds a Port pair per arm → `rk_make_junction` → strokes each ramp by
+   its primitive (loop = red, flyover = orange, direct/through = grey); the I key hops the camera onto
+   the next of the 6 interchanges. A clean cloverleaf renders at a real grade-2 node.
 4. **Field renderer into roadkit** *(the N-arm-native successor to the disc-joins + decals).*
    **B3a CORE SHIPPED 2026-07-10:** the field predicate is now `roadkit.h`'s **`RkField`** —
    `rk_field_build(cx,cy,HW,brg,n,cornerR[],disc)` + `rk_field_road(f,px,py)` = the arm-capsule union ∪

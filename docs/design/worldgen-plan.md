@@ -243,8 +243,11 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
   OVERPASS** (a highway passes through surface roads → flyover), **grade 0 = at-grade** (curb-return
   grammar). On the test city: 428 junctions → 6 interchanges + 154 overpasses + at-grade, deterministic;
   `citygrow`'s **J** overlay shows them (red interchange / orange overpass / green at-grade, arms by
-  tier). **This is B4's consumer** — the grade-2 descriptors are exactly what `roadkit_junction(legs,
-  grade)` routes to `roadlab`'s `make_junction`. *Refinement open:* grade-separation is a per-node
+  tier). **This is B4's consumer — and B4 SHIPPED 2026-07-10:** the grade-2 descriptors now render as
+  real interchanges. `citygrow`'s `cg_draw_interchange` builds a `Port` pair per arm from the bearings,
+  calls `roadkit.h`'s `rk_make_junction` (4-arm → cloverleaf, 3-arm → trumpet), and strokes each ramp by
+  its primitive; the **I** key hops the camera onto the next of the 6 interchanges (a clean cloverleaf
+  renders at a real grade-2 node). *Refinement open:* grade-separation is a per-node
   LABEL, not yet a topology change (the highway still shares the welded crossing node rather than
   flying over without one); and 154 overpasses is high (fewer highways / smarter crossing rules later).
 - [~] **Rung 7 — content (= Track-A A2).** **Buildings SHIPPED 2026-07-10.** `citygen.h`'s `cg_lots()`

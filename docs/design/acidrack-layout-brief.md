@@ -65,6 +65,19 @@ not decisions:
 Decide too: **where mute/fx sit** in compact (right edge as today?), and whether the compact knob
 count is fixed (always ≤3) or per-machine.
 
+**On "fixed ≤3 vs per-machine" — PAGED KNOBS answers it, but PARKED here (maker, 2026-07-10).**
+Prototyped live in `acidwire`: a thin page-tab strip that swaps what a fixed 3-knob set controls
+(MAIN / SHP / FX …), so a tight strip reaches *every* param + fx without a wall of knobs — exactly
+motionbox's `PG_TONE/MOD/OSC/MIX` model. It works, and it's the clean answer to this question: **keep
+the count fixed and small, add pages** (and FX becomes just the last page, retiring the separate
+`[fx]` panel). **Why parked:** on device the tab strip costs a whole extra *row* of vertical budget,
+and acidrack stacks 5 strips on a phone — that row is too expensive here (the maker's call, felt on
+glass: "I don't want this to take a whole row"). So for acidrack the compact row stays a **flat fixed
+≤3 knobs**, no page tabs. Pages are a strong fit for a *single dense panel with vertical room to
+spare* — revisit for a cart like that. The prototype + rationale live in `tools/carts/acidwire.c`
+(the note by `kv`). Corollary decision: **`[fx]` in compact is deferred** — no fullscreen fx panel
+and no fx page for now; the button stays as a labelled placeholder until the fx surface is designed.
+
 **Per-instrument controls the main screen must carry (maker, 2026-07-07) — now in `acidwire`:**
 - **Mute** — a `[M]` toggle per strip in *every* state (header right). Muted reads unmistakably: red
   strip border + lit-red M + the pattern/step activity greyed (not green) = "there but silenced."

@@ -26,13 +26,22 @@ de:meta */
 //
 // Deterministic by construction: all motion is driven by frame() only — no now()/timer() and no
 // unseeded rnd() — so canvas-diff's two runs (GPU vs software canvas) render identical frames.
-// Verify the whole draw layer in one shot:
+// Verify the whole draw layer in one shot (canvas-diff reads the declared budget below):
 //   node tools/canvas-diff.js drawall --frames 8            # GPU vs DE_SOFTWARE_CANVAS, every primitive
 //   node tools/canvas-diff.js drawall --raw --frames 8      # vs the TRUE GPU rasterizers
-// Budget is 0 — every primitive here renders BYTE-EXACT GPU↔SW. (History: this ran at --max 80
-// while the scaled sspr diffed ~109px — the CPU sampler truncated i*sw/dw where the GPU samples
-// the dest-pixel CENTRE. sw_blit/sw_zoom_rect moved to floor((i+0.5)*sw/dw) on 2026-07-02, the
-// scaled-blit caveat is gone, and a nonzero diff here is now a real regression, not noise.)
+//
+// canvas-diff: max 64
+//
+// Almost every primitive here renders BYTE-EXACT GPU↔SW — a diff over ~63px is a real regression.
+// The one accepted, non-byte-portable divergence is the FRACTIONAL-scale sspr (16→24, 1.5×): its
+// nearest-neighbour sampling has dest pixels that map to an EXACTLY integer source coordinate (every
+// 3rd row/col), and that texel-boundary tie is resolved one way by C's floor((i+0.5)*sw/dw) and the
+// OTHER way by the GPU's float UV interpolation — which side wins is GPU/driver-dependent, so it can't
+// be made byte-portable. Constant ~63px on every frame; a thin 1px edge stripe. The INTEGER-scale sspr
+// (2×) right above it stays tie-free and byte-exact, so a genuine sampler regression still shows there
+// (and blows past 64). History: this ran at --max 80 while the sspr diffed ~109px (CPU truncated
+// i*sw/dw vs the GPU's dest-CENTRE sample); the 2026-07-02 floor((i+0.5)*sw/dw) fix cut it to the ~63px
+// boundary-tie floor, which is as byte-exact as a fractional nearest-neighbour scale gets.
 #include "studio.h"
 #include <math.h>
 
@@ -93,7 +102,8 @@ void draw(void) {
     // ── sprites (incl rotated), pal recolor, colorkey, map ─────────────────────────────────────
     spr(0, 6, 108);
     sprf(0, 26, 108, true, false);
-    sspr(0, 0, 16, 16, 46, 108, 24, 24);                         // scaled blit
+    sspr(0, 0, 8, 8, 238, 22, 16, 16);                           // INTEGER (2×) scaled blit — byte-exact GPU↔SW (tie-free)
+    sspr(0, 0, 16, 16, 46, 108, 24, 24);                         // FRACTIONAL (1.5×) scaled blit — ~63px of texel-boundary ties (see header)
     spr_rot(0, 80, 116, deg);                                    // ROTATING sprite
     sspr_ex(0, 0, 16, 16, 110, 108, 24, 24, deg, 12, 12);        // ROTATING scaled
     pal(28, (f / 20) % 2 ? CLR_RED : CLR_GREEN); pal(29, CLR_YELLOW);

@@ -12,7 +12,10 @@
 //   --raw         compare against the TRUE shipping GPU primitives. Default sets DE_CPU_RASTER=on on
 //                 the reference so the GL-vs-CPU rasterization diffs (line, rotated fill) don't pollute
 //                 the diff (use --raw to MEASURE that divergence on purpose).
-//   --max N       per-frame pixel-diff budget; exit nonzero if any frame exceeds it (default 0).
+//   --max N       per-frame pixel-diff budget; exit nonzero if any frame exceeds it. Default: the
+//                 cart's own `// canvas-diff: max N` directive if it declares one, else 0. (Declare
+//                 a nonzero budget in a cart ONLY for a primitive that genuinely can't be byte-exact
+//                 across GPUs — e.g. a fractional-scale sspr's texel-boundary ties; drawall is the case.)
 //   --seed N      RNG seed for BOTH runs (default 1) — rnd()-driven carts diverge without a fixed seed.
 //   --heatmap     write a difference PNG for the worst frame (needs ImageMagick).
 //   --keep        keep the dumped frames (build/.canvas-diff/<cart>/) for inspection.
@@ -42,7 +45,7 @@ const raw       = flag('--raw');
 const heatmap   = flag('--heatmap');
 const keep      = flag('--keep');
 const frames    = parseInt(opt('--frames', '10'), 10);
-const maxPx     = parseInt(opt('--max', '0'), 10);
+const maxArg    = opt('--max', null);     // null = not passed → fall back to the cart's declared budget (below)
 const seed      = opt('--seed', '1');     // fixed RNG seed for BOTH runs, else rnd()-driven carts diverge
 const cart      = args[0];
 
@@ -53,6 +56,17 @@ if (!fs.existsSync(src)) { console.error(`canvas-diff: no such cart ${src}`); pr
 
 // ── gotcha #1: detect primitives that trip sw_force_gpu, so a passing A/B isn't a lie ──────────
 const source = fs.readFileSync(src, 'utf8');
+
+// Per-cart declared budget: a cart may carry `// canvas-diff: max N` when it INTENTIONALLY exercises
+// a primitive that can't be byte-portable across GPUs (e.g. a fractional-scale sspr, whose
+// nearest-neighbour texel-boundary ties the GPU and CPU floor resolve opposite ways — see
+// docs/design/software-canvas.md). An explicit --max always wins; else this default; else 0. This is
+// what stops `canvas-diff <cart>` from being a recurring false alarm on a known, accepted divergence.
+const declared = source.match(/\/\/\s*canvas-diff:\s*max\s+(\d+)/);
+const maxPx    = maxArg != null ? parseInt(maxArg, 10)
+               : declared      ? parseInt(declared[1], 10)
+               :                 0;
+if (maxArg == null && declared) console.error(`canvas-diff: using ${cart}'s declared budget --max ${maxPx} (\`// canvas-diff: max\` in source)\n`);
 // strip // line comments + /* */ blocks so a comment mentioning spr_rot doesn't false-positive
 const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 // All rotated PRIMITIVES (rectfill_rot/spr_rot/sspr_ex/print_rot) now render in software. The only

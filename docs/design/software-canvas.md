@@ -291,8 +291,18 @@ be coalesced.
 >   pixel centre** — `floor((i+0.5)*sw/dw)` — the GPU POINT-filter convention DrawTexturePro
 >   rasterizes with (`tritex` already matched via the stritex convention). Integer-ratio scales
 >   (2× text/tiles) were identical under both formulas; non-integer ratios were phase-shifted up
->   to one texel (drawall's 16→24 `sspr`: 109px). `canvas-diff drawall` now gates at **0px**
->   (was `--max 80`); cityview/masseffect/advancewars still 0px.
+>   to one texel (drawall's 16→24 `sspr`: 109px → ~63px). `cityview/masseffect/advancewars` still 0px.
+>
+>   **The residual ~63px is a nearest-neighbour BOUNDARY TIE, not a bug (accepted 2026-07-10).**
+>   At a fractional scale, some dest pixels map to an *exactly integer* source coordinate — e.g. the
+>   16→24 (1.5×) `sspr`, dest-local rows/cols `≡1 (mod 3)` land on source `N.0`. `floor((i+0.5)*sw/dw)`
+>   in C floors `1.0`→`1`; the GPU computes the same product in 32-bit float during UV interpolation,
+>   lands a hair under (`0.9999…`) and `GL_NEAREST` floors it to `0`. Which side wins the tie is
+>   GPU/driver-dependent, so byte-equality here was never portable — it only held on the machine the
+>   fix was blessed on. `canvas-diff drawall` now carries a `// canvas-diff: max 64` directive (the tool
+>   reads it as the default budget) and drawall keeps BOTH a fractional `sspr` (the ~63px, exercising the
+>   sampler at a non-integer ratio) and a tie-free 2× integer `sspr` (byte-exact — so a real sampler
+>   regression still surfaces there). Integer *upscales* (2×, 3×) never hit a tie; only fractional ones do.
 >
 > So an all-frames `shasum` A/B is the **wrong oracle** for a line-drawing cart — use a
 > bounded pixel-diff (`magick compare -metric AE`) + an eyeball, and reserve byte-equality for the

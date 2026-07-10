@@ -1,6 +1,8 @@
 # data-layers — the SimCity simulation behind the map (design seed)
 
-**Status: DESIGN SEED (2026-06-23).** A new experiment / pillar the big-game backlog
+**Status: SHIPPED (2026-06-23).** Built as the `gridcity` cart — all planned layers are in
+(v1 → v2 complete, 32 spec assertions); see the "All planned layers are in" note at the bottom.
+Optional future depth is listed there but nothing is committed/postponed. A new experiment / pillar the big-game backlog
 doesn't cover: not road *geometry* (roadlab/streetlab) and not a top-down *generator*
 (procplaces) — the **aggregate tile-data simulation** behind SimCity 2000. Given a
 terrain, tile-based roads, and painted RCI zones at various densities, **compute the

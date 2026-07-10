@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <string.h>
 #include <stddef.h>
 
@@ -277,6 +278,7 @@ static int  chain[GRID*GRID];   // packed cell indices (r*GRID+c) in trace order
 static int  chainLen;
 static int  tracing;
 static float roundT;            // seconds remaining
+static float end_t;             // seconds since the round-over card came up
 #define ROUND_LEN 90.0f
 static int  score, best, found;
 static char lastWord[20];       // last submitted word
@@ -316,7 +318,7 @@ static void start_round(void) {
     roundT = ROUND_LEN;
     score = 0; found = 0; foundCount = 0;
     lastWord[0] = 0; lastGood = -1;
-    flashT = 0; over = 0;
+    flashT = 0; over = 0; end_t = 0;
 }
 
 void init(void) {
@@ -383,6 +385,7 @@ void update(void) {
     if (flashT > 0) flashT -= dt();
 
     if (over) {
+        end_t += dt();
         if (keyp('R') || keyp(KEY_ENTER) || mouse_pressed(MOUSE_LEFT) || keyp(KEY_SPACE))
             start_round();
         return;
@@ -506,19 +509,18 @@ void draw(void) {
     }
     hint("hold + drag adjacent letters  -  release to submit  -  R reshuffle");
 
-    // round over overlay
+    // round over overlay — the shared end-screen treatment (endcard.h)
     if (over) {
-        fade(0.55f);
-        int bw = 220, bh = 96, bx = (SCREEN_W-bw)/2, by = (SCREEN_H-bh)/2;
-        rectfill(bx, by, bw, bh, CLR_DARKER_PURPLE);
-        rect(bx, by, bw, bh, CLR_LIGHT_YELLOW);
-        print_scaled("ROUND OVER", bx + (bw - text_width("ROUND OVER")*2)/2, by + 10, CLR_LIGHT_YELLOW, 2);
-        print_centered(str("%d words   %d points", found, score), SCREEN_W/2, by + 40, CLR_WHITE);
-        if (score >= best && score > 0)
-            print_centered("new best!", SCREEN_W/2, by + 54, CLR_GREEN);
-        else
-            print_centered(str("best %d", best), SCREEN_W/2, by + 54, CLR_LIGHT_GREY);
-        if (blink(20))
-            print_centered("press R to play again", SCREEN_W/2, by + 74, CLR_YELLOW);
+        EndCard c = endcard(end_t, 220, 96, (SCREEN_H-96)/2, CLR_DARKER_PURPLE, CLR_LIGHT_YELLOW, CLR_INDIGO);
+        if (c.settled) {
+            print_scaled("ROUND OVER", c.x + (c.w - text_width("ROUND OVER")*2)/2, c.y + 10, CLR_LIGHT_YELLOW, 2);
+            print_centered(str("%d words   %d points", found, score), SCREEN_W/2, c.y + 40, CLR_WHITE);
+            if (score >= best && score > 0)
+                print_centered("new best!", SCREEN_W/2, c.y + 54, CLR_GREEN);
+            else
+                print_centered(str("best %d", best), SCREEN_W/2, c.y + 54, CLR_LIGHT_GREY);
+            if (blink(20))
+                print_centered("press R to play again", SCREEN_W/2, c.y + 74, CLR_YELLOW);
+        }
     }
 }

@@ -958,9 +958,9 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
     // Unscaled (dw==sw) both formulas reduce to i, so flips/recolors at 1:1 are unchanged.
     // Flipped: texcoords run (s+size)→s, so the centre maps to (s+size) - (i+0.5)*size/dsize.
     for (int j = 0; j < dh; j++) {
-        int syy = fy ? (int)((sy + sh) - (j + 0.5f) * sh / dh) : (sy + (int)(j * sh / dh));
+        int syy = fy ? (int)((sy + sh) - (j + 0.5f) * sh / dh) : (sy + (int)((j + 0.5f) * sh / dh));
         for (int i = 0; i < dw; i++) {
-            int sxx = fx ? (int)((sx + sw) - (i + 0.5f) * sw / dw) : (sx + (int)(i * sw / dw));
+            int sxx = fx ? (int)((sx + sw) - (i + 0.5f) * sw / dw) : (sx + (int)((i + 0.5f) * sw / dw));
             DeColor c = img_texel(&spritesheet_img, sxx, syy);
             if (c.a < 128 || sw_keyed(c)) continue;
             sw_pset(dx + i, dy + j, recolor ? sw_recolor(c) : c);

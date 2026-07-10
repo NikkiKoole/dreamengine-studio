@@ -355,7 +355,7 @@ export function buildSettingsPanel(el) {
       if (btn) btn.style.display = v ? '' : 'none'
     },
   ))
-  profSection.appendChild(note('runs the cart for a few seconds, samples it with macOS `sample`, and lists which functions burned the most CPU — straight into the build log. desktop app only.'))
+  profSection.appendChild(note('runs the cart for a few seconds, samples it with macOS `sample`, and lists which functions burned the most CPU — straight into the build log. desktop app only. (to profile a cart you’re already playing, use the “Debug” menu in the macOS menu bar / ⌘⇧P — always available.)'))
   el.appendChild(profSection)
 
   // (recording is triggered from the Promote tab's ● record a take — no toolbar toggle.)

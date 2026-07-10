@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('studio', {
   onRecorded:   (cb) => ipcRenderer.on('cart:recorded', (_, info) => cb(info)),
   liveWrite:    (code)      => ipcRenderer.invoke('studio:live-write', code),
   profile:      (code, cfg) => ipcRenderer.invoke('studio:profile', code, cfg),
+  profileAttach: (pid, cfg) => ipcRenderer.invoke('studio:profile-attach', pid, cfg),
+  onProfileAttached: (cb) => ipcRenderer.on('profile:attached', (_, r) => cb(r)),
   saveSprites:  (dataUrl) => ipcRenderer.invoke('studio:save-sprites', dataUrl),
   saveMap:      (bytes)   => ipcRenderer.invoke('studio:save-map', bytes),
   onLog:        (cb) => ipcRenderer.on('cart:log',  (_, s)    => cb(s)),

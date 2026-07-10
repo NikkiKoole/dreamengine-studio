@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, nativeImage, globalShortcut } = require('electron')
 const { exec, execSync, spawn, spawnSync } = require('child_process')
 const path                             = require('path')
 const fs                               = require('fs')
@@ -401,6 +401,26 @@ function killLiveHost() {
   if (liveProc && !liveProc.killed) { liveProc.__intentional = true; try { liveProc.kill() } catch {} }
   liveProc = null
 }
+
+// ── native cart process registry ───────────────────────────────────────────
+// The native run/record/replay children used to be fire-and-forget (a throwaway
+// `const proc`), so nothing could ever find them again. We keep a handle now,
+// keyed by pid, so the Debug menu can attach a profiler/sampler to the cart you
+// are actually PLAYING (not a cold respawn — STATUS #45) — and so future
+// cross-cart actions have one place to look. We deliberately DON'T kill a
+// previous cart on a new Run: several carts running at once is supported (the OS
+// schedules + mixes them for free; play.js netdemo relies on it).
+const nativeCarts = new Map()   // pid -> { proc, name, kind, startedAt }
+function trackNative(proc, name, kind) {
+  if (!proc || !proc.pid) return proc
+  nativeCarts.set(proc.pid, { proc, name: name || 'dreamengine', kind, startedAt: Date.now() })
+  refreshDebugMenu(); updateCartShortcut()
+  proc.on('exit', () => { nativeCarts.delete(proc.pid); refreshDebugMenu(); updateCartShortcut() })
+  return proc
+}
+function runningCarts() {   // most-recently-started first
+  return [...nativeCarts.values()].sort((a, b) => b.startedAt - a.startedAt)
+}
 function buildTccHost(dims) {
   return new Promise(resolve => {
     if (!fs.existsSync(path.join(LIBTCC_ARCH_DIR, 'libtcc.dylib'))) {
@@ -552,11 +572,27 @@ function parseSample(report) {
   return { total, cartSamples, leaves }
 }
 
+// Promisified exec + a poll for the live-inspection mailbox handshake (the request
+// file disappearing = the running cart served it). Used by attach-profiling.
+function execP(cmd) { return new Promise((res, rej) => exec(cmd, err => err ? rej(err) : res())) }
+function waitForConsumed(file, ms) {
+  return new Promise(resolve => {
+    const start = Date.now()
+    const tick = () => {
+      if (!fs.existsSync(file)) return resolve(true)       // gone = served (fresh dump written)
+      if (Date.now() - start > ms) return resolve(false)   // timed out (cart not polling / DE_RELEASE build)
+      setTimeout(tick, 80)
+    }
+    tick()
+  })
+}
+
 // Read the in-engine perf.json the profiling build (-DDE_PROFILE) writes: frame
 // CPU timing (C) + per-primitive draw-call counts (D). Returns null if absent.
-function readPerf() {
+function readPerf() { return readPerfFrom(path.join(BUILD_DIR, 'perf.json')) }
+function readPerfFrom(file) {
   try {
-    const j = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'perf.json'), 'utf8'))
+    const j = JSON.parse(fs.readFileSync(file, 'utf8'))
     const frames = j.frames || 1
     // merge by name (safety net in case identical string literals weren't pooled)
     const byName = {}
@@ -642,10 +678,14 @@ app.whenReady().then(() => {
   createWindow()
 })
 
+app.on('will-quit', () => { try { globalShortcut.unregisterAll() } catch {} })
+
 // The app menu is rebuilt whenever the loaded cart changes, so the macOS menu
 // bar shows what's open (" dreamengine  Edit  View  <cart>") — the window's own
 // titlebar is hidden (hiddenInset), so this is the visible "what am I editing".
+let _menuCartName = ''       // last cart name we were told about (survives Debug-menu rebuilds)
 function buildAppMenu(cartName) {
+  if (typeof cartName === 'string') _menuCartName = cartName
   const template = [
     {
       label: 'dreamengine',
@@ -675,14 +715,43 @@ function buildAppMenu(cartName) {
       ]
     }
   ]
-  if (cartName) {
+  if (_menuCartName) {
     // macOS top-level menus must have a submenu; this one is informational
     template.push({
-      label: cartName,
+      label: _menuCartName,
       submenu: [{ label: 'loaded cart', enabled: false }],
     })
   }
+  // Debug menu — the one place for cross-cart dev actions. Always present in the
+  // editor (it's unobtrusive up here); absent entirely from any deployed/exported
+  // cart, which is the standalone C binary with no Electron menu. Lists each
+  // RUNNING cart so you pick which one to attach to. The ⌘⇧P hotkey lives on the
+  // global shortcut (updateCartShortcut) so it fires while the CART window is
+  // focused too — menu items are click-only to avoid a double-bind on the accel.
+  {
+    const carts = runningCarts()
+    const items = carts.length
+      ? carts.map(c => ({ label: `Profile “${c.name}”  (attach, ⌘⇧P)`, click: () => profileAttachFromMenu(c.proc.pid) }))
+      : [{ label: 'Profile running cart  (attach)  — press ▶ Run first', enabled: false }]
+    template.push({ label: 'Debug', submenu: items })
+  }
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+function refreshDebugMenu() { buildAppMenu(_menuCartName) }
+
+// The ⌘⇧P hotkey is a GLOBAL shortcut (not just a menu accelerator) so it works
+// while the cart window — not the editor — is focused. Registered only while a
+// cart is actually running + the Debug menu is on, released otherwise, so it
+// never permanently claims the combo system-wide.
+let cartShortcutOn = false
+function updateCartShortcut() {
+  const want = nativeCarts.size > 0
+  if (want && !cartShortcutOn) {
+    try { cartShortcutOn = globalShortcut.register('CommandOrControl+Shift+P', () => profileAttachFromMenu(null)) } catch {}
+  } else if (!want && cartShortcutOn) {
+    try { globalShortcut.unregister('CommandOrControl+Shift+P') } catch {}
+    cartShortcutOn = false
+  }
 }
 
 // renderer tells us the loaded cart's name (shell.js setCartName)
@@ -806,7 +875,7 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
       const cartTitle = cfg?.cartName || 'dreamengine'
       const netFlags  = netArgs(cfg)
-      const proc = spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
+      const proc = trackNative(spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'run')
       proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))   // raylib trace (warnings only) + stray printf + net: HOSTING line
       proc.stderr.on('data', chunk => send('cart:log', chunk.toString()))   // printh() output
       proc.on('exit', (code, signal) => send('cart:exit', { code, signal }))
@@ -857,8 +926,8 @@ ipcMain.handle('studio:record', async (_event, code, cfg) => {
       // seed 1, so an unseeded/wall-clock recording replays into a DIFFERENT world and diverges
       // (flank: won live, died on replay — bullets hit enemies that weren't there). Seed omitted
       // so both sides use the runtime default (1); keep them matched.
-      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (● recording)`, '--det', '--record', recTmp, ...saveDirArgs(cfg)],
-        { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
+      const proc = trackNative(spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (● recording)`, '--det', '--record', recTmp, ...saveDirArgs(cfg)],
+        { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'record')
       proc.stdout.on('data', c => send('cart:log', c.toString()))
       proc.stderr.on('data', c => send('cart:log', c.toString()))
       proc.on('error', () => {})
@@ -901,8 +970,8 @@ ipcMain.handle('studio:replay', async (_event, code, cfg, takePath) => {
       if (err) return resolve({ ok: false, cmd, output: warnings })
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-      const proc = spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, flag, abs, ...saveDirArgs(cfg)],
-        { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
+      const proc = trackNative(spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, flag, abs, ...saveDirArgs(cfg)],
+        { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'replay')
       proc.stdout.on('data', c => send('cart:log', c.toString()))
       proc.stderr.on('data', c => send('cart:log', c.toString()))
       proc.on('error', () => {})
@@ -1197,6 +1266,63 @@ ipcMain.handle('studio:profile', async (_event, code, cfg) => {
     })
   })
 })
+
+// ATTACH-profile a cart you're ALREADY playing (no respawn, no kill) — the answer to
+// "profile the state I played into, not a cold startup" (STATUS #45). Two lenses on the
+// LIVE pid: (a) the live-inspection mailbox dumps a fresh perf JSON (the self-instrumented
+// per-primitive work view, compiled into EVERY native build — no -DDE_PROFILE needed),
+// (b) /usr/bin/sample walks the call-tree without stopping the cart. Returns the same
+// { hotspots, perf } shape the cold profiler does, so renderProfile() renders it unchanged.
+async function runProfileAttach(pid, cfg) {
+  const target = pid ? nativeCarts.get(pid) : runningCarts()[0]
+  if (!target || !target.proc || target.proc.killed || !target.proc.pid)
+    return { ok: false, profile: true, output: 'no running cart to attach to — press ▶ Run first' }
+  const tpid = target.proc.pid
+  const seconds = cfg?.profileSeconds || 4
+
+  // (a) fresh on-demand perf dump FROM THIS pid via the .bake mailbox (pid-targeted so a
+  // sibling cart polling the same file can't serve the wrong frame — the CLAUDE.md hazard)
+  const bake = path.join(BUILD_DIR, '.bake')
+  try { fs.mkdirSync(bake, { recursive: true }) } catch {}
+  const perfOut = path.join(bake, 'perf-attach.json')
+  try { fs.unlinkSync(perfOut) } catch {}
+  try { fs.writeFileSync(path.join(bake, 'profiler_request'), `${perfOut}\npid:${tpid}\n`) } catch {}
+  // Generous window: a backgrounded cart (App Nap when the editor is focused) polls
+  // slowly, so give it room before falling back.
+  const served = await waitForConsumed(path.join(bake, 'profiler_request'), 5000)
+
+  // (b) sample the SAME live pid for the call-tree — do NOT kill it
+  const sampleFile = path.join(BUILD_DIR, 'profile-attach.txt')
+  let report = ''
+  try {
+    await execP(`/usr/bin/sample ${tpid} ${seconds} -file "${sampleFile}"`)
+    report = fs.readFileSync(sampleFile, 'utf8')
+  } catch (e) {
+    return { ok: false, profile: true, output: `sample failed (needs permission to attach?): ${e.message}` }
+  }
+  // Frame-timing: the on-demand mailbox dump (fresh snapshot) is best; if the cart was
+  // throttled and didn't serve it in time, fall back to its own perf.json (auto-flushed
+  // every 30 frames — same running cart, slightly less fresh). Null only if neither exists.
+  let perf = served ? readPerfFrom(perfOut) : null
+  if (!perf) perf = readPerf()
+  return {
+    ok: true, profile: true, attached: true, seconds, cartName: target.name,
+    hotspots: parseSample(report),
+    perf,
+    perfNote: perf ? undefined
+      : 'frame-timing unavailable — the cart didn’t serve the profiler mailbox (window backgrounded/minimised, or a release build). Tip: focus the cart window and press ⌘⇧P.',
+  }
+}
+ipcMain.handle('studio:profile-attach', (_event, pid, cfg) => runProfileAttach(pid, cfg))
+
+// Triggered from the Debug menu / global shortcut (main-side, no renderer round-trip in) —
+// run the attach and push the result to the renderer's build log.
+async function profileAttachFromMenu(pid) {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win || win.isDestroyed()) return
+  const result = await runProfileAttach(pid, {})
+  if (!win.isDestroyed()) win.webContents.send('profile:attached', result)
+}
 
 // ── web preview server ────────────────────────────────────────
 const WEB_PORT = 8765

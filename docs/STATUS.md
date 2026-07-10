@@ -1207,26 +1207,32 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     kept clearly separate) would retire the gotcha class. Explicitly **NOT** the cart-os shared-FS idea: the
     dev tools already compose fine through files; this is just tidying where they land. Low leverage, no rush.
 
-45. **Profile the *running* cart at its current state (attach, don't cold-respawn)** *(2026-06-25)*.
-    Today the editor's Profile button (`studio:profile`, `editor/electron/main.cjs`) compiles a fresh
-    `-DDE_PROFILE` build, spawns a **brand-new** instance, waits 1s, runs `/usr/bin/sample <pid> <seconds>`
-    (default 4), then kills it — so it always profiles a **cold** cart from startup. If you've played the cart
-    into some state (minutes in), that state never exists in the thing being measured. The ask: play into a
-    state, *then* click profile and capture **that moment**. Two routes, one nearly free:
-    - **Cheap (mechanism already exists).** A running cart already watches `.bake/profiler_request`
-      (`runtime/studio.c:1288`) and on demand dumps `{frames,workMsAvg,workMsMax,frameMsAvg,calls[]}` for its
-      *recent* frames — live, no respawn, any native build (the live-inspection mailbox, see
-      [debug-harness.md](guides/debug-harness.md) → "Live inspection"). Wire the Profile button to drop that
-      file into the *already-running* cart (from a normal Run) and read it back. Caveat: this is the runtime's
-      self-instrumented per-function work view (`calls[]`/`work[]`), **not** `sample`'s full symbol call-tree —
-      a coarser, different lens.
-    - **Full call-tree at current state.** `/usr/bin/sample <pid>` works on any running process, so it could
-      sample the cart you're already playing — but the editor must **know the running cart's PID**, and it
-      doesn't: the native Run spawns `proc` as a throwaway local `const` (`main.cjs:729`), no handle kept.
-    - **Connection.** Both this and "open two carts at once" need the SAME missing plumbing — **the kernel
-      keeping a handle on running cart processes** instead of fire-and-forget. A process handle/table in
-      `main.cjs` unlocks attach-profiling, multi-cart, and more direct live-inspection at once. See
-      [cart-os.md](design/cart-os.md) → "Why you can't open two carts today."
+45. **✓ SHIPPED 2026-07-10 — attach-profile the *running* cart at its current state (no cold respawn).**
+    The editor now keeps a **process handle table** for native carts (`nativeCarts` in
+    `editor/electron/main.cjs`): `trackNative()` wraps the run/record/replay spawns that used to be
+    fire-and-forget (a throwaway local `const proc`), keyed by pid, auto-removed on exit. This is the
+    "kernel keeping a handle on running cart processes" the item below called for. On top of it, a new
+    `studio:profile-attach` IPC profiles the cart you're **already playing** — both lenses at its current
+    state, no respawn, no kill:
+    - **frame timing** (the `CPU … ms/frame · p95 · % of budget · fps` line) from the live-inspection
+      mailbox: a **pid-targeted** `.bake/profiler_request` (the `pid:` line so a sibling cart can't serve
+      the wrong frame) → a fresh `{frames,workMsAvg,workMsMax,frameMsAvg,calls[],work[]}` dump. Falls back
+      to the cart's own auto-flushed `perf.json`, then a clear note if a backgrounded/`DE_RELEASE` cart
+      never served it. Works in any normal `-Os` build (the profiler counters compile into every native
+      build — no `-DDE_PROFILE`).
+    - **call-tree** from `/usr/bin/sample <pid>` on the same live pid (not killed) → the same `hotspots`
+      shape the cold profiler renders, so `renderProfile()` is unchanged.
+    UI: an **always-present `Debug` menu** in the editor's macOS menu bar (built in `buildAppMenu`; the
+    `showProfiler` setting still gates only the on-canvas ⏱ cold-profile button). It lists each running
+    cart so you pick which to attach to; a cart-lifetime **global `⌘⇧P`** fires it while the *cart* window
+    is focused. Deployed/exported carts have no Electron menu, so it's absent there by construction.
+    **Decision: a new Run does NOT kill the previous native cart** — several carts running at once stays
+    supported (the OS mixes them; `play.js netdemo` relies on it), and the handle table tracks them all.
+    First real use: `citygrow` profiled mid-play showed ~89% of cart CPU in per-frame terrain-noise
+    recompute (a cached-field todo now in its `de:meta`). **Still open** (the table is the groundwork,
+    not the whole thing): multi-cart *as an editor feature* (side-by-side UI + per-run build dirs so runs
+    stop sharing one `build/`) — the cart-os Tier 3 project, unblocked by this. See
+    [cart-os.md](design/cart-os.md) → "Why you can't open two carts today".
 46. ~~**Editor cart-browser doesn't surface the new metadata facets yet**~~ **FIXED 2026-06-29** *(from the de:meta migration)*.
     Carts now own rich metadata in a `de:meta` block → generated `index.json` (see
     [`design/cart-metadata.md`](design/cart-metadata.md)); the editor's cart browser now surfaces it (`editor/src/shell.js`):

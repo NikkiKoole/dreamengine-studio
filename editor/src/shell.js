@@ -3285,8 +3285,10 @@ function renderProfile(result) {
 
   const head = document.createElement('div')
   head.className = 'build-ok'
-  const who = currentCartName ? `“${currentCartName}”` : 'cart'
+  const who = result.attached && result.cartName ? `“${result.cartName}”`
+            : currentCartName ? `“${currentCartName}”` : 'cart'
   head.textContent = `⏱ profiled ${who} · ${seconds}s`
+            + (result.attached ? ' · attached to the running cart (its current state)' : '')
   buildLog.appendChild(head)
 
   // ── C — frame budget ───────────────────────────────────────────
@@ -3296,6 +3298,8 @@ function renderProfile(result) {
     addLine(`  CPU ${perf.workMedian.toFixed(1)}ms/frame typical · ${perf.workP95.toFixed(1)}ms p95`
           + ` · ${Math.round(perf.budgetPct)}% of the 16.6ms budget · ${verdict}`,
             fps >= 58 ? 'build-ok' : 'build-warn')
+  } else if (result.perfNote) {
+    addLine('  ' + result.perfNote, 'build-warn')
   }
 
   // ── A — hottest functions + call paths ─────────────────────────
@@ -3456,6 +3460,8 @@ if (window.studio?.onLog) {
   window.studio.onLog(scanLiveDiagnostics)
   window.studio.onExit(rlogExit)
   window.studio.onExit(() => { liveHostRunning = false })   // live window closed → stop auto-reload
+  // attach-profiling (Debug menu / ⌘⇧P) runs in main and pushes its result here
+  window.studio?.onProfileAttached?.(result => showLog(result))
 }
 
 // ── welcome cart ──────────────────────────────────────────────

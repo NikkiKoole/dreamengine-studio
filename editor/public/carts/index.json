@@ -1637,7 +1637,7 @@
   },
   {
     "title": "drawall — every draw command",
-    "description": "A reference cart that exercises EVERY studio.h drawing primitive in one frame — pixels, lines (thick/bezier), rects (incl. rotated + fillp dither), circles/ovals/arcs/rings, triangles/ngons/stars/polys, rounded rects, sprites (flipped/scaled/rotated, pal()-recoloured, colorkeyed), a tilemap, a textured triangle (tritex), text (outlined/rotated/scaled), camera/clip/zoom_rect — all spinning per frame. The one cart to throw the whole draw layer at (canvas-diff + build-all hit it), doubling as a visual catalogue of what the engine can draw.",
+    "description": "A reference cart that exercises EVERY studio.h drawing primitive in one frame — pixels, lines (thick/bezier), rects (incl. rotated + fillp dither), circles/ovals/arcs/rings, triangles/ngons/stars/polys, rounded rects, sprites (flipped/scaled/rotated, pal()-recoloured, colorkeyed), a tilemap, a textured triangle (tritex), blend modes (AVG/ADD/MUL/SUB), text (outlined/rotated/scaled), camera/clip/zoom_rect — all spinning per frame. The one cart to throw the whole draw layer at (canvas-diff + build-all hit it), doubling as a visual catalogue of what the engine can draw.",
     "file": "drawall.cart.png",
     "created": "2026-06-25",
     "kind": [

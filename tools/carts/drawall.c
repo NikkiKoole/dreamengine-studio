@@ -11,7 +11,7 @@
     "software-rasterizer"
   ],
   "lineage": "The software-canvas everything-cart — one frame calling every studio.h draw primitive with per-frame rotation, so a regression in any one shows up in a single canvas-diff run.",
-  "description": "A reference cart that exercises EVERY studio.h drawing primitive in one frame — pixels, lines (thick/bezier), rects (incl. rotated + fillp dither), circles/ovals/arcs/rings, triangles/ngons/stars/polys, rounded rects, sprites (flipped/scaled/rotated, pal()-recoloured, colorkeyed), a tilemap, a textured triangle (tritex), text (outlined/rotated/scaled), camera/clip/zoom_rect — all spinning per frame. The one cart to throw the whole draw layer at (canvas-diff + build-all hit it), doubling as a visual catalogue of what the engine can draw."
+  "description": "A reference cart that exercises EVERY studio.h drawing primitive in one frame — pixels, lines (thick/bezier), rects (incl. rotated + fillp dither), circles/ovals/arcs/rings, triangles/ngons/stars/polys, rounded rects, sprites (flipped/scaled/rotated, pal()-recoloured, colorkeyed), a tilemap, a textured triangle (tritex), blend modes (AVG/ADD/MUL/SUB), text (outlined/rotated/scaled), camera/clip/zoom_rect — all spinning per frame. The one cart to throw the whole draw layer at (canvas-diff + build-all hit it), doubling as a visual catalogue of what the engine can draw."
 }
 de:meta */
 // drawall — the EVERYTHING cart: exercises every draw command in studio.h, once per frame, with
@@ -103,6 +103,16 @@ void draw(void) {
     poly_xy[4]=220; poly_xy[5]=98; poly_xy[6]=208; poly_xy[7]=94;
     polyfill(poly_xy, 4, CLR_PINK);
     poly(poly_xy, 4, CLR_WHITE);
+
+    // ── blend modes (ADR-0031): each draw MIXES with the screen. A 2-colour backdrop, then one
+    //    bar per mode so AVG/ADD/MUL/SUB all run on BOTH renderers. Index-only, so the GPU float
+    //    mix and the SW integer table snap a few boundary pixels differently (see header budget).
+    rectfill(230, 76, 43, 24, CLR_DARK_BLUE);
+    rectfill(273, 76, 43, 24, CLR_ORANGE);
+    blend(BLEND_AVG); rectfill(230, 78, 86, 4, CLR_WHITE); blend_reset();   // glass / soft shadow
+    blend(BLEND_ADD); rectfill(230, 83, 86, 4, CLR_RED);   blend_reset();   // glow / light
+    blend(BLEND_MUL); rectfill(230, 88, 86, 4, CLR_GREEN); blend_reset();   // fog / tint
+    blend(BLEND_SUB); rectfill(230, 93, 86, 4, CLR_WHITE); blend_reset();   // carve toward black
 
     // ── sprites (incl rotated), pal recolor, colorkey, map ─────────────────────────────────────
     spr(0, 6, 108);

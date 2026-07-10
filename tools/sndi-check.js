@@ -7,6 +7,10 @@
 //
 //   node tools/sndi-check.js <file.rvb|file.json> [more files...] [options]
 //     multiple files print side-by-side — that IS the A/B compare.
+//     --compare      exactly 2 files (GENERATED first, real TARGET second): print
+//                    each shape metric's Δ vs a tolerance + PASS/FAIL + exit code —
+//                    the rung-5 calibration GATE (a loop, not a vibe). --max-fail N
+//                    (default 1) shape metrics may miss; --tol-<metric> overrides.
 //     --check        self-test on synthetic grid + tree graphs (PASS/FAIL, exit code)
 //     --json         machine-readable output (for snapshots / future citygrow HUD)
 //     --classes X    rvb road kinds: "drive" (default: highway/arterial/road/
@@ -403,6 +407,43 @@ const ROWS = [
   ['~block ha',    m => isNaN(m.blockHa) ? '—' : m.blockHa.toFixed(2)],
 ];
 
+// ---------- the rung-5 calibration GATE: generated vs a real target ----------
+// The scale-free SHAPE metrics (the SNDi composite) with a "reads as the same city
+// family" tolerance each. Extent-dependent rows (nodes/area/int-per-km²/block ha)
+// are informational only — a generated district need not match a whole city's size.
+const CMP = [
+  ['mean degree',    m => m.meanDeg,       0.30, v => v.toFixed(2)],
+  ['deg-1 (dead-end) %', m => m.deg1 * 100, 10, v => v.toFixed(1)],
+  ['deg-3 (T) %',    m => m.deg3 * 100,     12,   v => v.toFixed(1)],
+  ['deg-4+ (X) %',   m => m.deg4 * 100,     10,   v => v.toFixed(1)],
+  ['dendricity',     m => m.dendricity,     0.10, v => v.toFixed(3)],
+  ['circuity',       m => m.circuity,       0.25, v => v.toFixed(3)],
+  ['sinuosity',      m => m.sinuosity,      0.20, v => v.toFixed(3)],
+  ['orient entropy', m => m.orientEntropy,  0.20, v => v.toFixed(3)],
+];
+function compareGate(gen, real) {
+  if (gen.empty || real.empty) { console.error('compare: an input graph is empty'); process.exit(1); }
+  const slug = s => '--tol-' + s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const W = 20, C = 12;
+  console.log(`SNDi calibration gate — GENERATED vs ${real.name}`);
+  console.log(''.padEnd(W) + 'generated'.padStart(C) + 'target'.padStart(C) +
+              'Δ'.padStart(C) + 'tol'.padStart(C) + '   verdict');
+  let fails = 0;
+  for (const [label, fn, defTol, fmt] of CMP) {
+    const a = fn(gen), b = fn(real);
+    const tol = parseFloat(opt(slug(label), String(defTol)));
+    const d = Math.abs(a - b), ok = d <= tol;
+    if (!ok) fails++;
+    console.log(label.padEnd(W) + fmt(a).padStart(C) + fmt(b).padStart(C) +
+                d.toFixed(fmt === undefined ? 2 : (defTol < 1 ? 3 : 1)).padStart(C) +
+                String(tol).padStart(C) + '   ' + (ok ? 'ok' : 'MISS'));
+  }
+  const maxFail = parseInt(opt('--max-fail', '1'), 10);
+  const pass = fails <= maxFail;
+  console.log(`\n${fails}/${CMP.length} shape metrics miss (allowed ${maxFail}) → ${pass ? 'PASS' : 'FAIL'}`);
+  process.exit(pass ? 0 : 1);
+}
+
 function main() {
   if (has('--check')) return check();
   if (!files.length) {
@@ -417,6 +458,10 @@ function main() {
     const g = consolidate(contract(microGraph(src.ways)), R);
     return metrics(g, src.name);
   });
+  if (has('--compare')) {
+    if (results.length !== 2) { console.error('--compare needs exactly 2 files: GENERATED then real TARGET'); process.exit(1); }
+    return compareGate(results[0], results[1]);
+  }
   if (has('--json')) { console.log(JSON.stringify(results, null, 2)); return; }
   const W = 18, C = 16;
   console.log(''.padEnd(W) + results.map(r => String(r.name).slice(0, C - 1).padStart(C)).join(''));

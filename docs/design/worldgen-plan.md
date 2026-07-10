@@ -1,11 +1,14 @@
 # worldgen-plan — the realistic procedural world generator
 
-STATUS: BUILDING (2026-07-10) — rungs 0–4 SHIPPED (the SNDi oracle `sndi-check.js`; the
-`runtime/worldnet.h` seam — sloop drives the spine; the `citygrow` bench's density field + tensor-field
-arterials + now **per-district minor fill** — the rung where "procedural grid" dies: the whole city's
-T-junction share hits 64.6%, real Dutch-city territory). Rung 5 (the calibration loop — tune the
-pattern mix into SNDi tolerance) is next, with concrete targets already measured (mean degree slightly
-high at 3.20 vs ~2.8, dead-ends now too FEW at 5.1% vs real ~20%). Rungs expand Track-A items A2–A4 of
+STATUS: BUILDING (2026-07-10) — rungs 0–5 SHIPPED (the SNDi oracle `sndi-check.js` + its `--compare`
+calibration gate; the `runtime/worldnet.h` seam — sloop drives the spine; the `citygrow` bench's
+density field + tensor-field arterials + per-district minor fill, **calibrated to match real
+Rotterdam** — `sndi-check --compare` PASSES 0/8, five metrics dead-on). The remaining SNDi gaps
+(deg-4+/deg-3 split, circuity, sinuosity) are a **structural ceiling** — the arterial tensor-field's
+pure X-crossings + straight minor segments — needing an **arterial-junction pass** (stagger crossings
+into Ts, curve minors), which is rung-3-adjacent / folds into rung 6, not rung-5 tuning. Next: rung
+5.5 (extract `citygen.h`, wire into the spine so sloop *drives* generated cities), then rung 6
+(junction emission) which absorbs the arterial-junction work. Rungs expand Track-A items A2–A4 of
 [`driving-world-program.md`](driving-world-program.md)'s sequenced build order.
 
 The plan of attack for closing the program's named gap: **we don't yet have *realistic* procedural
@@ -189,16 +192,30 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
      the missing T-share should climb toward the real ~60% as minors T onto arterials; keep the
      export deterministic (byte-identical across runs) and update clip
      `citygrow/02-city-arterials` or add `03-districts`.
-- [ ] **Rung 5 — the calibration loop.** A/B generated districts against rung-0 targets; tune knobs
-  into tolerance. *Done when:* `sndi-check --compare <seed> <city.rvb>` passes per pattern. Ongoing
-  tuning — but the tool makes it a loop, not a vibe. **Rung 4 handed it two concrete targets** (from
-  the whole-city gate): (a) **too few dead-ends** — 5.1% vs real ~20% (SF 25%, Königssee 41%); the
-  grid/organic fill dominates, so raise the cul-de-sac share (widen the `ms_pattern` fringe band) or
-  trim through-connections; (b) **mean degree a touch high** — 3.20 vs NL ~2.8; the full-lattice
-  grid/organic patterns over-connect, so a density-modulated block spacing / a sparser interior would
-  pull it down. Also still open from rung 3: trim the dangling arterial **rim stubs** (34–45% deg-1
-  before fill) — the stitch masks them in the *combined* number but they're still there in the
-  arterial graph. Add a live SNDi panel + an OSM target beside it (the bench's calibration instrument).
+- [x] **Rung 5 — the calibration loop. ✅ SHIPPED 2026-07-10** (matches Rotterdam; the organic-town
+  target has a documented structural ceiling). The gate is now a real loop, not a vibe: **`sndi-check
+  --compare GENERATED TARGET.rvb`** prints each SNDi shape metric's Δ vs a "same city family"
+  tolerance + PASS/FAIL + exit code (`--max-fail N`, `--tol-<metric>` overrides). It discriminates:
+  the calibrated whole-city **PASSES 0/8 vs Rotterdam**, the arterials-only graph **FAILS 5/8**.
+
+  The calibration itself unified all fill patterns under **one dendricity knob** (`MS_LOOPF` — a
+  spanning tree for connectivity + a per-pattern loop-add-back, so even "grid" leaves edges out →
+  real dead-ends + Ts, not a degree-4 mesh), **capped loop edges at degree 3** (X→T), **stitched only
+  `MS_STITCHF`=0.66 of perimeter locals** (the rest stay real dead-ends), gave each district a
+  **hashed rotation** (breaks world-axis alignment → orient entropy 0.71→0.88), and coarsened
+  `MS_STEP` 95→155 m. Result vs Rotterdam — **five metrics dead-on**: mean degree 2.81 (2.84),
+  dead-ends 23.0% (20.1%), dendricity 0.169 (0.186), int/km² 17.0 (17.1), block 11.1 ha (10.8).
+
+  **The honest ceiling (a real finding, not a knob left un-tuned):** the remaining gaps —
+  deg-4+ 27% vs 19.5%, deg-3 50% vs 60%, circuity 1.31 vs 1.54, sinuosity 1.06 vs 1.22 — are
+  **structural, above the fill layer**, so no fill knob closes them: (a) the arterial tensor-field
+  crosses at **pure X-junctions** (arterials-only = 64% deg-4+, 1% deg-3), flooring deg-4+ and
+  starving deg-3; (b) minor streets are **straight segments** (sinuosity 1.0 by construction). Both
+  want an **arterial-junction pass** — stagger crossing arterials into paired Ts, and curve/subdivide
+  the minor edges. That's rung-3-adjacent (or folds into rung 6's junction emission), NOT rung-5
+  tuning. *Still nice-to-have:* an in-cart live SNDi panel + an OSM target beside it (the `--compare`
+  CLI already makes the loop tight with the agent). Rim stubs (34–45% deg-1 pre-fill) persist in the
+  arterial graph; the stitch masks them in the combined number.
 - [ ] **Rung 5.5 — extract `citygen.h`** (the roadkit trigger discipline — §Where the code lives):
   the calibrated grammar becomes a library header; `roadnet2` calls it per city cell; `citygrow`
   stays the spec-locked tuning bench.

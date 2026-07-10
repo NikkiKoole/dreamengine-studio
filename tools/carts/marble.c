@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <math.h>
 
 // MARBLE MADNESS
@@ -189,6 +190,7 @@ static bool hits_side(float fx, float fy) {
 
 enum { ST_PLAY, ST_WIN, ST_OVER };
 static int gstate;
+static float end_t;            // seconds since the end card came up
 static bool newbest;           // this win set a new best (and saved the ghost)
 
 static int roll_slot = 5;
@@ -223,7 +225,7 @@ static void start_game(void) {
     chk_gx = start_gx; chk_gy = start_gy;
     lives = 3;
     time_left = 30.0f;
-    gstate = ST_PLAY;
+    gstate = ST_PLAY; end_t = 0;
     newbest = false;
     grec_n = 0; gframe = 0;    // fresh recording; ghost rolls from the start
     respawn();
@@ -253,6 +255,7 @@ static void die(void) {
 
 void update(void) {
     if (gstate != ST_PLAY) {
+        end_t += dt();
         if (btnp(0, BTN_A) || keyp(KEY_ENTER) || keyp(KEY_SPACE)) start_game();
         return;
     }
@@ -524,22 +527,22 @@ void draw(void) {
     if (best_time > 0)
         print_right(str("BEST %.1f", best_time / 100.0f), SCREEN_W - 3, 2, CLR_LIGHT_YELLOW);
 
-    // ---- overlays ----
+    // ---- overlays ---- the shared end-screen treatment (endcard.h)
     if (gstate == ST_WIN) {
-        fade(0.4f);
-        rectfill(SCREEN_W/2-70, SCREEN_H/2-32, 140, 64, CLR_BLACK);
-        rect    (SCREEN_W/2-70, SCREEN_H/2-32, 140, 64, CLR_YELLOW);
-        print_centered("GOAL!", SCREEN_W/2, SCREEN_H/2-24, CLR_YELLOW);
-        print_centered(str("TIME LEFT %.2f", time_left), SCREEN_W/2, SCREEN_H/2-10, CLR_WHITE);
-        if (newbest)
-            print_centered("NEW BEST - GHOST SAVED", SCREEN_W/2, SCREEN_H/2+4, CLR_BLUE);
-        print_centered("Z to play again", SCREEN_W/2, SCREEN_H/2+18, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 140, 64, SCREEN_H/2-32, CLR_BLACK, CLR_YELLOW, CLR_ORANGE);
+        if (c.settled) {
+            print_centered("GOAL!", SCREEN_W/2, c.y + 8, CLR_YELLOW);
+            print_centered(str("TIME LEFT %.2f", time_left), SCREEN_W/2, c.y + 22, CLR_WHITE);
+            if (newbest)
+                print_centered("NEW BEST - GHOST SAVED", SCREEN_W/2, c.y + 36, CLR_BLUE);
+            if (blink(18)) print_centered("Z to play again", SCREEN_W/2, c.y + 50, CLR_LIGHT_GREY);
+        }
     } else if (gstate == ST_OVER) {
-        fade(0.5f);
-        rectfill(SCREEN_W/2-70, SCREEN_H/2-26, 140, 52, CLR_BLACK);
-        rect    (SCREEN_W/2-70, SCREEN_H/2-26, 140, 52, CLR_RED);
-        print_centered(time_left <= 0 ? "TIME UP" : "GAME OVER", SCREEN_W/2, SCREEN_H/2-18, CLR_RED);
-        print_centered("the marble is lost", SCREEN_W/2, SCREEN_H/2-4, CLR_LIGHT_GREY);
-        print_centered("Z to try again", SCREEN_W/2, SCREEN_H/2+12, CLR_WHITE);
+        EndCard c = endcard(end_t, 140, 52, SCREEN_H/2-26, CLR_BLACK, CLR_RED, CLR_DARK_RED);
+        if (c.settled) {
+            print_centered(time_left <= 0 ? "TIME UP" : "GAME OVER", SCREEN_W/2, c.y + 8, CLR_RED);
+            print_centered("the marble is lost", SCREEN_W/2, c.y + 22, CLR_LIGHT_GREY);
+            if (blink(18)) print_centered("Z to try again", SCREEN_W/2, c.y + 38, CLR_WHITE);
+        }
     }
 }

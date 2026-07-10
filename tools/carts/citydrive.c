@@ -772,7 +772,7 @@ static void draw_junction_curbs(const Junc*j){
     polyfill(xy, n, CLR_DARK_GREY);                             // the rounded corner, paved to the kerb
     g_curb_fil++;
     for(int v=1; v+1<RK_FR_NP; v++)                             // the curb-return ARC (skip apex vert 0) = the kerb line
-      line(xy[2*v],xy[2*v+1], xy[2*(v+1)],xy[2*(v+1)+1], CLR_BROWNISH_BLACK);
+      line(xy[2*v],xy[2*v+1], xy[2*(v+1)],xy[2*(v+1)+1], CLR_LIGHT_GREY);   // light = the kerb/pavement, visible on asphalt
   }
 }
 

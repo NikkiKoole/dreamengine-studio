@@ -1,0 +1,17 @@
+# sloop — RUNG 7: BUILDINGS in the generated city. Press M to drive a citygen
+# city (worldgen rungs 2-5), load the SUPERCAR (9) and tear out from the centre:
+# the minor streets are now lined with solid procedural TERRACES (dark/red/purple
+# roof blocks, set back off the carriageway, kept clear of the arterials you drive)
+# — generated in runtime/citygen.h (cg_lots), emitted by sloop's gen_chunk as the
+# same OB_HOUSE obstacles as real OSM Delft, so they stream, collide, and demolish
+# through the proven path. ~1282 buildings this city. Deterministic: same seed =
+# same city, same buildings.
+# frames 320
+# fps 30
+down 8 M
+up 10 M
+down 16 9
+up 18 9
+down 26 UP
+down 120 RIGHT
+up 150 RIGHT

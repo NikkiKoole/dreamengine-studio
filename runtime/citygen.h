@@ -711,21 +711,7 @@ static void ms_build(void) {
     for (int fi = 0; fi < fc_n; fi++) ms_fill_face(fi);
 }
 
-static void ar_graph_ensure(void) {
-    ar_ensure();                                         // arterials current for this seed+knobs
-    if (g_valid) return;
-    ar_graph();
-    ar_faces();
-    ms_build();
-    g_valid = 1;
-}
-
-// ── the QUERY SEAM (rung 5.5b) — the twin of worldnet's wn_road_at, over the
-// generated city. On_road when within a class half-width of any street. This is
-// what the spine / sloop will call to DRIVE the generated city (screen == query:
-// the same segments ar_draw/ms_draw render). Brute-force over the current cached
-// city (a city is bounded → thousands of segments); a caller wanting per-frame
-// speed builds a grid index over these same segments (the rung-5.5c concern).
+// ── street half-widths + the point→segment distance the query AND the lots share
 #define CG_ART_HW   12.0f     // arterial carriageway half-width (m)
 #define CG_MINOR_HW  5.0f     // minor-street half-width (m)
 typedef struct { int on_road; float dist; int minor; } CityHit;
@@ -738,6 +724,59 @@ static float cg_seg_d2(float px, float py, float ax, float ay, float bx, float b
     return (px - qx) * (px - qx) + (py - qy) * (py - qy);
 }
 
+// ── Rung 7: BUILDINGS — one terrace box lining each minor-street frontage (a
+// Dutch-style block face), set back off the carriageway and kept clear of the
+// arterials. Oriented boxes in metres, cached with the city; the caller (sloop)
+// maps them to world-px and emits them as solid OB_HOUSE obstacles.
+#define CGB_MAX    4000
+#define CGB_DEPTH  14.0f      // building depth (m)
+#define CGB_SET     3.0f      // setback from the carriageway edge (m)
+static float cgb_mx[CGB_MAX], cgb_my[CGB_MAX], cgb_w[CGB_MAX], cgb_h[CGB_MAX], cgb_ang[CGB_MAX];
+static int   cgb_n;
+
+static void cg_lots(void) {
+    cgb_n = 0;
+    float off = CG_MINOR_HW + CGB_SET + CGB_DEPTH * 0.5f;
+    float clr2 = (CG_ART_HW + 4.0f) * (CG_ART_HW + 4.0f);
+    for (int e = 0; e < me_n && cgb_n < CGB_MAX; e++) {
+        float ax = msx[mea[e]], ay = msy[mea[e]], bx = msx[meb[e]], by = msy[meb[e]];
+        float dx = bx - ax, dy = by - ay, len = fsqrt(dx * dx + dy * dy);
+        if (len < 26.0f) continue;                       // stubs too short to line
+        float px = -dy / len, py = dx / len;             // perpendicular to the street
+        float mx = (ax + bx) * 0.5f, my = (ay + by) * 0.5f;
+        float blen = len * 0.8f; if (blen > 45.0f) blen = 45.0f;   // cap so alleys read between blocks
+        float ang = atan2f(dy, dx) * 57.29578f;
+        for (int s = -1; s <= 1 && cgb_n < CGB_MAX; s += 2) {      // one terrace each side
+            float cx = mx + px * off * s, cy = my + py * off * s;
+            if (height_at(cx, cy) < 0.0f) continue;      // water
+            float dmin = 1e18f;                          // keep off the arterials (the driven roads)
+            for (int l = 0; l < ar_nl; l++)
+                for (int i = 0; i + 1 < ar_np[l]; i++) {
+                    float d = cg_seg_d2(cx, cy, ar_px[l][i], ar_py[l][i], ar_px[l][i + 1], ar_py[l][i + 1]);
+                    if (d < dmin) dmin = d;
+                }
+            if (dmin < clr2) continue;
+            cgb_mx[cgb_n] = cx; cgb_my[cgb_n] = cy;
+            cgb_w[cgb_n] = blen; cgb_h[cgb_n] = CGB_DEPTH; cgb_ang[cgb_n] = ang;
+            cgb_n++;
+        }
+    }
+}
+
+static void ar_graph_ensure(void) {
+    ar_ensure();                                         // arterials current for this seed+knobs
+    if (g_valid) return;
+    ar_graph();
+    ar_faces();
+    ms_build();
+    g_valid = 1;                                         // set BEFORE cg_lots (it reads the built city)
+    cg_lots();
+}
+
+// ── the QUERY SEAM (rung 5.5b) — the twin of worldnet's wn_road_at, over the
+// generated city. On_road when within a class half-width of any street; the same
+// segments ar_draw/ms_draw render (screen == query). Brute-force over the current
+// cached city (a city is bounded → thousands of segments).
 static CityHit citygen_road_at(float x, float y) {
     ar_graph_ensure();
     float bestA = 1e18f, bestM = 1e18f;

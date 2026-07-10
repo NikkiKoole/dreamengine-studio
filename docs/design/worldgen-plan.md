@@ -239,8 +239,15 @@ missing capability" is the problem statement) and refines the Phase-2 frontier o
 - [ ] **Rung 6 — junction emission (meets roadkit Phase 5 / Track-B B4).** Every graph node emits
   `(legs, bearings, classes, grade)` — grade-separated where a motorway crosses (ramps only, the
   continuity tenet) — feeding roadkit's dispatcher.
-- [ ] **Rung 7 — content (= Track-A A2).** Zones/blocks/lots on the clean graph from `roadnet`'s
-  recipes (*reference, not a port*); buildings collidable in sloop; screen == collision.
+- [~] **Rung 7 — content (= Track-A A2).** **Buildings SHIPPED 2026-07-10.** `citygen.h`'s `cg_lots()`
+  lines every minor-street frontage with a solid terrace box (set back off the carriageway, kept clear
+  of the arterials, capped ~45 m so alleys read), cached with the city (~1282 for the test city).
+  sloop's `gen_chunk` emits them in M-mode as the **same `OB_HOUSE` obstacles as real OSM Delft** —
+  so they stream, collide and demolish through the proven path (clip `sloop/07-citygen-buildings`:
+  the supercar tearing through the built city); `spec.js sloop` stays 25/0, deterministic. *Still
+  open:* land-use **zones** (`RoadHit.zone`) driving building kind/height, and the finer
+  blocks/lots/courtyards from `roadnet`'s recipes (*reference, not a port*) — the terraces are one box
+  per frontage for now, not a per-lot subdivision.
 
 ## Beyond roads — seas, lakes, rivers, rails (the networks generalization)
 

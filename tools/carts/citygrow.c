@@ -304,6 +304,10 @@ static void ar_dist_draw(void) {
 // dead-end vs superblock). This is the "procedural grid dies" view.
 static void ms_draw(void) {
     ar_graph_ensure();
+    for (int b = 0; b < cgb_n; b++) {           // rung 7: the buildings lining the streets (dark blocks)
+        int cx = sxp(cgb_mx[b]), cy = syp(cgb_my[b]);
+        rectfill_rot(cx, cy, (int)(cgb_w[b] * P), (int)(cgb_h[b] * P), cgb_ang[b], CLR_DARK_GREY);
+    }
     static const int pcol[MP_N + 1] = { CLR_WHITE, CLR_YELLOW, CLR_ORANGE, CLR_PINK, CLR_RED };
     for (int e = 0; e < me_n; e++) {
         int a = mea[e], b = meb[e];

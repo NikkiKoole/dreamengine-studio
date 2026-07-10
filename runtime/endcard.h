@@ -37,15 +37,16 @@ typedef struct {
     bool settled;      // true once the pop has landed — gate your text on this
 } EndCard;
 
-// the dim alone, reusable for lose-tints etc: an eased fade to 65% dark, with a
-// brief ordered-dither dissolve riding the transition (gone once it settles)
+// The dim alone (reusable for death-tints etc): an ordered-Bayer dissolve that
+// eases in and STAYS at ~10/16 black coverage — the Genesis/SNES pause-curtain.
+// Deliberately NOT fade(): fade() is a window-space pass drawn over EVERYTHING
+// at present time, so it dims the card + its text along with the world, and it
+// never shows in --dump frames / gifs / baked thumbnails. This dissolve lives
+// in the canvas: the world recedes, the card stays bright, captures are honest.
 static void endcard_dim(float t) {
     float p = ease_out(clamp(t / 0.6f, 0, 1));
-    fade(p * 0.65f);
-    // Bayer dissolve grain only WHILE the curtain moves — peaks mid-fade, then clears
     static const int bayer[16] = { 0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5 };
-    float g = p < 0.5f ? p * 2.0f : (1.0f - p) * 2.0f;   // triangle: 0 → 1 → 0
-    int level = (int)(g * 6.0f + 0.5f);
+    int level = (int)(p * 10.0f + 0.5f);             // settles at 10/16 covered
     if (level > 0) {
         int pat = 0;
         for (int c = 0; c < 16; c++) if (bayer[c] >= level) pat |= (1 << (15 - c));

@@ -188,8 +188,19 @@ across many carts — handle those **once, systemically**, then sweep:
 - [ ] **Adventure-game z-ordering.** Sort actors by y so the character draws in front of/behind props
   — monkey-island, leisure-suit-larry, zak-mckracken, escape-the-cave (the recurring "z layering" +
   walk-behind requests).
-- [ ] **A nicer shared end-state.** The "fade to black / fade to half" at win/lose recurs and reads as
-  unfinished — define one good shared end-screen treatment and apply it.
+- [~] **A nicer shared end-state.** The "fade to black / fade to half" at win/lose recurs and reads as
+  unfinished — define one good shared end-screen treatment and apply it. **Treatment shipped
+  (2026-07-10): `runtime/endcard.h`** — an eased ordered-dither curtain (in-canvas, deliberately NOT
+  `fade()`: that window-space pass dims the card + text along with the world and never shows in
+  dumps/gifs/baked thumbnails) + a drop-shadowed double-bordered card that pops in (`ease_back`) +
+  a `.settled` flag the cart gates its own words on. **Converted (5):** larry, monkey, zak, civ,
+  jumpstar. **Remaining candidates** (same flat `fade(0.5ish)` end screen, found by sweep —
+  `grep -ln "fade(0\.5\|fade(clamp" tools/carts/*.c`): advancewars, battleship, bejeweled, boggle,
+  boulderdash, doom, finalfight, heroes (battle-over + game-over), hotline (its `panel()` end/pause
+  chrome), incmachine, marble, monstermix, outrun, qbert, rivercity, sandburrow, solitaire, turfwar.
+  Each needs a per-end-state timer (`t += dt()`) if it doesn't have one. NOT candidates: wintergames
+  (fade = its event-shell scene *transition*, by design), rivercity's intro fade, monkey's mid-duel
+  falter flash — transient tints, not end curtains.
 - [ ] **Text-overflow sweep.** Many carts overflow / want a smaller font (civ-tiny, puyo, dr-mario,
   connect-4, monkey-island, larry, football-manager, sokoban, papers-please, xcom, composer…).
 - [~] **Control-hint overflow (ui-audit, ~46 carts).** A fleet `ui-audit` sweep found that nearly

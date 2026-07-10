@@ -85,4 +85,82 @@ static float rk_cross_hw(float centreW, int lanesPer, float laneW, float bikeW, 
     return centreW + lanesPer*laneW + bikeW + parkW;
 }
 
+// ── the JUNCTION FIELD (B3) — the N-arm-native road surface as ONE float predicate ──
+// A junction's asphalt = the union of arm capsules (a ray HW-wide out each arm from the hub) ∪ the
+// curb-return fillets between adjacent arms ∪ an optional circulatory disc (roundabout). Snap-free
+// floats → symmetric at any angle, N arms with no 90°/collinear assumption. This is streetlab's
+// DE_FIELD_ROADS renderer, promoted to the shared home: SPACE-AGNOSTIC (px/py in whatever units cx/cy/
+// HW are), so streetlab scans it in SCREEN pixels and citydrive can evaluate it in GROUND METRES and
+// project. The caller owns the scan + how it paints; roadkit owns the geometry predicate.
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#define RK_MAXARM 8            // arms per junction (≥ streetlab NLEG 6, ≥ citydrive MAXARM 8)
+#define RK_FR_NP  12           // fillet polygon verts (apex K + 11 arc samples)
+typedef struct {
+    float cx, cy, HW2, rad2, disc2;                 // hub, carriageway HW², fillet-cutoff², disc² (0=none)
+    int   n; float dx[RK_MAXARM], dy[RK_MAXARM];     // arm unit directions
+    int   nfil; float fil[RK_MAXARM][2*RK_FR_NP];    // cached curb-return fillet polygons (float, snap-free)
+} RkField;
+
+static int rk_pip(const float *xy, int n, float px, float py){   // even-odd point-in-polygon (float)
+    int c=0; for (int i=0,j=n-1;i<n;j=i++){
+        float yi=xy[2*i+1], yj=xy[2*j+1];
+        if ((yi>py)!=(yj>py)){
+            float xc=xy[2*i]+(xy[2*j]-xy[2*i])*(py-yi)/(yj-yi);
+            if (px<xc) c^=1;
+        }
+    } return c;
+}
+// the arm-capsule union: rays from the hub (the opposite arm covers behind). Squared distance, no sqrt.
+static int rk_field_arm(const RkField*f, float px, float py){
+    for (int i=0;i<f->n;i++){
+        float t=(px-f->cx)*f->dx[i]+(py-f->cy)*f->dy[i]; if(t<0)t=0;
+        float ex=px-(f->cx+f->dx[i]*t), ey=py-(f->cy+f->dy[i]*t);
+        if (ex*ex+ey*ey <= f->HW2) return 1;
+    }
+    return 0;
+}
+static int rk_field_fillet(const RkField*f, float px, float py){   // inside a curb-return fillet? (near the hub)
+    float hx=px-f->cx, hy=py-f->cy;
+    if (hx*hx+hy*hy > f->rad2) return 0;
+    for (int k=0;k<f->nfil;k++) if (rk_pip(f->fil[k], RK_FR_NP, px, py)) return 1;
+    return 0;
+}
+// asphalt = arm-ray union ∪ curb-return fillets ∪ (roundabout) circulatory disc.
+static int rk_field_road(const RkField*f, float px, float py){
+    if (f->disc2>0){ float hx=px-f->cx, hy=py-f->cy; if (hx*hx+hy*hy <= f->disc2) return 1; }
+    return rk_field_arm(f,px,py) || rk_field_fillet(f,px,py);
+}
+// build the field: arms at bearings, carriageway half-width HW, per-corner radius cornerR[i] (the fillet
+// for the gap between arm i and i+1; a straight-through/reflex gap is skipped regardless), optional
+// circulatory disc (>0 ⇒ roundabout, no corner fillets). curb_return/edge_corner do the fillet geometry.
+static void rk_field_build(RkField*f, float cx, float cy, float HW, const float*brg, int n,
+                           const float*cornerR, float disc){
+    f->cx=cx; f->cy=cy; f->HW2=HW*HW; f->n=n; f->disc2=disc*disc; f->nfil=0;
+    for (int i=0;i<n;i++){ f->dx[i]=rk_ux(brg[i]); f->dy[i]=rk_uy(brg[i]); }
+    float maxR=0;
+    for (int i=0; i<n && disc<=0; i++){                       // roundabout disc replaces the corner fillets
+        float bA=brg[i], bB=brg[(i+1)%n], gap=fmodf(bB-bA+3600,360);
+        if (gap<=0.5f || gap>=179.5f) continue;
+        float R=cornerR[i]; if (R<=0) continue;
+        if (R>maxR) maxR=R;
+        float bm=bA+gap*0.5f, kx,ky; edge_corner(cx,cy,HW, bA,bB,bm, &kx,&ky);
+        CurbReturn c=curb_return(kx,ky, bA,bB, R);
+        float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
+        float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
+        float *xy=f->fil[f->nfil]; int k=0;
+        xy[k++]=kx; xy[k++]=ky;
+        for (int s=0;s<=10;s++){ float a=a0+d*s/10; xy[k++]=c.ox+cosf(a)*R; xy[k++]=c.oy+sinf(a)*R; }
+        f->nfil++;
+    }
+    // fillet-cutoff radius: acute skew corners reach far past a fixed radius — take the furthest vertex.
+    f->rad2 = (HW+maxR)*(HW+maxR);
+    for (int k=0;k<f->nfil;k++) for (int v=0;v<RK_FR_NP;v++){
+        float vx=f->fil[k][2*v]-cx, vy=f->fil[k][2*v+1]-cy, d2=vx*vx+vy*vy;
+        if (d2>f->rad2) f->rad2=d2;
+    }
+    f->rad2 += 4;                                            // small margin
+}
+
 #endif // ROADKIT_H

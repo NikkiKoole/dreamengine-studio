@@ -2,7 +2,7 @@
 
 STATUS: BUILDING (2026-07-01) — Phase 1 (connectivity: one connected asphalt surface + bridges/tunnels)
 **and Phase 2 (cheap street-dressing: light pavement/kerb bands + dashed white centre-line markings, class-based
-widths, + an in-cart junction/node graph)** shipped in `citydrive`. **B2 SHIPPED 2026-07-10: `runtime/roadkit.h` extracted** — the pure junction geometry (curb_return, edge_corner, rk_count_corners, rk_cross_hw) now lives in the shared header; streetlab calls it, spec 104/0 + mirror-diff + road-check all green (see Phasing 3). Next: B3 the field renderer into citydrive + B4 grade dispatch. The decision + plan to extract the shared road-rendering &
+widths, + an in-cart junction/node graph)** shipped in `citydrive`. **B2 + B3a SHIPPED 2026-07-10: `runtime/roadkit.h`** holds the pure junction geometry (curb_return, edge_corner, rk_count_corners, rk_cross_hw) AND the N-arm-native **field renderer core** (`RkField` + rk_field_build/rk_field_road — the space-agnostic arm-union ∪ fillets ∪ disc predicate); streetlab calls both, spec 104/0 + mirror-diff + road-check all green (see Phasing 3–4). citydrive got a `spec()` (11) as the B3 safety net. Next: **B3b** (citydrive evaluates the field in ground metres + projects — curb-return junctions) + B4 grade dispatch. The decision + plan to extract the shared road-rendering &
 junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md))
 so `streetlab` (the spec-locked *source*), `roadlab` (interchange bench) and — **the first render consumer
 — `citydrive`** (the pseudo-3D real-OSM view where the grammar is actually *visible*) all call ONE
@@ -215,12 +215,17 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    green: `spec` 104/0, `mirror-diff` byte-identical to baseline (68=68), `road-check --all` all PASS.**
    The `ux`/`uy` divergence was handled as flagged — roadkit carries streetlab's **snapping** version
    (kept its spec exact); roadlab's non-snapping form reconciles when it adopts roadkit at B4.
-4. **Field renderer into roadkit** *(KEPT ON THE TABLE — the clean successor).* One lateral distance
-   field: asphalt = within half-width of the nearest centerline → connectivity #1, markings #2, and
-   curb-returns all become **thresholds on the field**, replacing the disc-joins + decals with the
-   uniform method. N-arm-native; **citydrive** renders its ground through it (streetlab's
-   `DE_FIELD_ROADS` path is the reference). Per-pixel cost gated on `software-canvas.md` but affordable
-   at citydrive's near field. `road-check` + `mirror-diff` gate it.
+4. **Field renderer into roadkit** *(the N-arm-native successor to the disc-joins + decals).*
+   **B3a CORE SHIPPED 2026-07-10:** the field predicate is now `roadkit.h`'s **`RkField`** —
+   `rk_field_build(cx,cy,HW,brg,n,cornerR[],disc)` + `rk_field_road(f,px,py)` = the arm-capsule union ∪
+   curb-return fillets ∪ circulatory disc, snap-free and **space-agnostic** (px/py in whatever units
+   cx/cy/HW are). streetlab's `fr_render` builds one and scans it in SCREEN pixels (per-corner radius =
+   the free-right slip where it fits, else cornerR); `fr_put` dilates the proud kerb. **Byte-identical:
+   `spec` 104/0, `mirror-diff` 68=68, `road-check --all` all PASS.** *Still open — **B3b**: citydrive
+   evaluates the SAME `RkField` in GROUND METRES over each near-field junction (arms from
+   `build_junctions`) and projects it — curb returns replacing today's disc-joins + straight-across
+   decals. That's the per-pixel-in-perspective render, guarded by citydrive's new `spec` (11) +
+   `road-check`. Per-pixel cost gated on `software-canvas.md` but affordable at the near field.
 5. **Grade dispatch** — `roadlab` calls roadkit; one `roadkit_junction(legs, grade)` routes at-grade vs
    grade-separated. Fed identically from a seed or OSM.
 6. **`sloop` gets it** — the car ∪ the render, via the shared seam. The easy, last step.

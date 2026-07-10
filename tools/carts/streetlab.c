@@ -978,92 +978,42 @@ static void mirror_blit(int cxr,int cyr,int rad){
 // Toggled LIVE by the 'g' key (field_roads) so you can A/B against the old per-arm path in one window;
 // default OFF (shipping path stays mirror_blit) — built -DDE_FIELD_ROADS just flips the DEFAULT on (for
 // the headless gates). The helpers always compile; only the runtime bool decides which path draws.
-static float fr_cx, fr_cy, fr_HW2, fr_rad2, fr_disc2;     // fr_disc2 = circulatory-disc radius² (roundabout; 0 = none)
-static float fr_dx[NLEG], fr_dy[NLEG]; static int fr_n;
-enum { FR_NP = 12 };                                          // fillet polygon verts (apex K + 11 arc samples)
-static float fr_fil[NLEG][2*FR_NP]; static int fr_nfil;       // cached fillet polygons (FLOAT — snap-free ⇒ symmetric)
+// The field predicate (arm union ∪ curb-return fillets ∪ disc) + its build now live in roadkit.h as a
+// space-agnostic RkField (Track-B B3) — so citydrive can evaluate the SAME junction field in ground
+// metres. streetlab keeps the SCREEN scan + the proud-kerb dilation below; frf is the current junction.
+static RkField frf;
 
-static int fr_pip(const float *xy, int n, float px, float py){   // even-odd point-in-polygon (float)
-    int c=0; for (int i=0,j=n-1;i<n;j=i++){
-        float yi=xy[2*i+1], yj=xy[2*j+1];
-        if ((yi>py)!=(yj>py)){
-            float xc=xy[2*i]+(xy[2*j]-xy[2*i])*(py-yi)/(yj-yi);
-            if (px<xc) c^=1;
-        }
-    } return c;
-}
-// the arm-capsule union: rays from the hub (opposite arm covers behind). Squared distance, no sqrt.
-static int fr_arm(float px, float py){
-    for (int i=0;i<fr_n;i++){
-        float t=(px-fr_cx)*fr_dx[i]+(py-fr_cy)*fr_dy[i]; if(t<0)t=0;
-        float ex=px-(fr_cx+fr_dx[i]*t), ey=py-(fr_cy+fr_dy[i]*t);
-        if (ex*ex+ey*ey <= fr_HW2) return 1;
-    }
-    return 0;
-}
-// inside a curb-return fillet? (only tested near the hub, where the fillets live)
-static int fr_fillet(float px, float py){
-    float hx=px-fr_cx, hy=py-fr_cy;
-    if (hx*hx+hy*hy > fr_rad2) return 0;
-    for (int f=0;f<fr_nfil;f++) if (fr_pip(fr_fil[f], FR_NP, px, py)) return 1;
-    return 0;
-}
-// asphalt = arm-ray union ∪ curb-return fillets ∪ (roundabout) circulatory disc.
-static int fr_road(float px,float py){
-    if (fr_disc2>0){ float hx=px-fr_cx, hy=py-fr_cy; if (hx*hx+hy*hy <= fr_disc2) return 1; }   // circulatory disc
-    return fr_arm(px,py) || fr_fillet(px,py);
-}
 // paint a boundary pixel during the proud-kerb dilation: a PINCH (a lone non-road pixel enclosed by road
 // on all 4 sides — the sub-pixel grass cusp where a skewed arm meets the circulatory disc) becomes asphalt,
 // so it can't survive as an interior dark "stray"; every other boundary pixel is the 1px proud kerb.
 static void fr_put(int x,int y){
     float px=x+0.5f, py=y+0.5f;
-    int L=fr_road(px-1,py), R=fr_road(px+1,py), U=fr_road(px,py-1), D=fr_road(px,py+1);
+    int L=rk_field_road(&frf,px-1,py), R=rk_field_road(&frf,px+1,py),
+        U=rk_field_road(&frf,px,py-1), D=rk_field_road(&frf,px,py+1);
     if ((L&&R)||(U&&D)) pset(x,y,CLR_DARK_GREY);   // 1px-wide pinch (road on opposite sides) → fill it; no interior kerb
     else pset(x,y,CLR_BROWNISH_BLACK);             // ordinary boundary → 1px proud kerb
 }
-// FIELD RENDER — the SINGLE SOURCE OF TRUTH for the road surface AND its kerb, both from one snap-free
-// float predicate (arm union ∪ curb-return fillets). Fills the asphalt itself (so it can't disagree with
-// the kerb — the per-arm polyfill is skipped on this path) and draws the kerb PROUD (1px OUTSIDE the
-// asphalt, like the old casing convention ⇒ A/B aligns) by dilating: for each road pixel, paint any
-// non-road 4-neighbour as kerb. Uniform 1px at any angle, symmetric by construction (float, no ri snap).
+// FIELD RENDER — the road surface + kerb from ONE snap-free float predicate, now shared via roadkit's
+// RkField (arm union ∪ curb-return fillets ∪ disc). Build the field (per-corner radius = the free-right
+// slip radius where it fits, else cornerR), then scan the screen: fill each road pixel as asphalt and
+// dilate the kerb PROUD (1px outside) so the A/B against the old casing path aligns.
 static void fr_render(float cx,float cy,float HW,const float*brg,int n,float disc){
-    fr_cx=cx; fr_cy=cy; fr_HW2=HW*HW; fr_n=n; fr_disc2=disc*disc;
-    for (int i=0;i<n;i++){ fr_dx[i]=ux(brg[i]); fr_dy[i]=uy(brg[i]); }
-    fr_nfil=0;
-    for (int i=0; i<n && disc<=0; i++){                       // ROUNDABOUT: the disc replaces the corner fillets — skip them
+    float R[NLEG];                                           // per-corner fillet radius (free-right → frR)
+    for (int i=0;i<n;i++){
         float bA=brg[i], bB=brg[(i+1)%n], gap=fmodf(bB-bA+3600,360);
-        if (gap<=0.5f || gap>=179.5f) continue;
-        float R = (freeRight && fr_fits(gap)) ? frR : cornerR;   // free-right: a GENEROUS rounded corner (the right-turn slip)
-        float bm=bA+gap*0.5f, kx,ky; edge_corner(cx,cy,HW, bA,bB,bm, &kx,&ky);
-        CurbReturn c=curb_return(kx,ky, bA,bB, R);
-        float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
-        float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
-        float *xy=fr_fil[fr_nfil]; int k=0;
-        xy[k++]=kx; xy[k++]=ky;
-        for (int s=0;s<=10;s++){ float a=a0+d*s/10; xy[k++]=c.ox+cosf(a)*R; xy[k++]=c.oy+sinf(a)*R; }
-        fr_nfil++;
+        R[i] = (gap>0.5f && gap<179.5f && freeRight && fr_fits(gap)) ? frR : cornerR;
     }
-    // pip cutoff = the ACTUAL fillet extent (acute skew corners reach (HW+R)/tan(half) from the hub —
-    // far past a fixed radius, which clipped them ⇒ sharp corners). Take the furthest fillet vertex.
-    fr_rad2 = (HW+cornerR)*(HW+cornerR);
-    for (int f=0;f<fr_nfil;f++) for (int v=0;v<FR_NP;v++){
-        float vx=fr_fil[f][2*v]-cx, vy=fr_fil[f][2*v+1]-cy, d2=vx*vx+vy*vy;
-        if (d2>fr_rad2) fr_rad2=d2;
-    }
-    fr_rad2 += 4;                                             // small margin
-    int y0=0, y1=SCREEN_H-TOOLBAR;                            // fill from the top edge (the N arm runs up behind the title, like the per-arm bands) down to the toolbar
+    rk_field_build(&frf, cx,cy,HW, brg,n, R, disc);
+    int y0=0, y1=SCREEN_H-TOOLBAR;                            // top edge (the N arm runs up behind the title) → toolbar
     for (int y=y0;y<y1;y++) for (int x=0;x<SCREEN_W;x++){
         float px=x+0.5f, py=y+0.5f;
-        if (!fr_road(px,py)) continue;
+        if (!rk_field_road(&frf,px,py)) continue;
         pset(x,y,CLR_DARK_GREY);                              // asphalt (the field fills it ⇒ kerb can't disagree)
-        // proud kerb: paint the non-road neighbours — but NOT across a play-area border (a road running
-        // off-screen there is a legit exit, not an edge to kerb). pset clips, but the border guard keeps
-        // the mouth open so the arm meets the screen edge cleanly.
-        if (x>0          && !fr_road(px-1,py)) fr_put(x-1,y);
-        if (x<SCREEN_W-1 && !fr_road(px+1,py)) fr_put(x+1,y);
-        if (y>y0         && !fr_road(px,py-1)) fr_put(x,y-1);
-        if (y<y1-1       && !fr_road(px,py+1)) fr_put(x,y+1);
+        // proud kerb: paint the non-road neighbours (pset clips at the screen border → mouth stays open)
+        if (x>0          && !rk_field_road(&frf,px-1,py)) fr_put(x-1,y);
+        if (x<SCREEN_W-1 && !rk_field_road(&frf,px+1,py)) fr_put(x+1,y);
+        if (y>y0         && !rk_field_road(&frf,px,py-1)) fr_put(x,y-1);
+        if (y<y1-1       && !rk_field_road(&frf,px,py+1)) fr_put(x,y+1);
     }
 }
 

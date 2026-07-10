@@ -23,6 +23,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "endcard.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -73,6 +74,7 @@ static int phase;
 static int placing;        // index of ship currently being placed (setup)
 static int ghostHoriz;     // current rotate state for ghost
 static int playerWon;
+static float end_t;        // seconds since the game-over card came up
 static int wins, losses;
 
 // turn pacing
@@ -147,6 +149,7 @@ static void random_fleet(unsigned char cell[N][N], signed char own[N][N],
 
 static void new_game(void) {
     phase = PH_SETUP;
+    end_t = 0;
     placing = 0;
     ghostHoriz = 1;
     turn = 0;
@@ -314,6 +317,7 @@ static void player_fire(int x, int y) {
 
 void update(void) {
     if (phase == PH_OVER) {
+        end_t += dt();
         if (mouse_pressed(MOUSE_LEFT) || keyp('Z') || keyp(KEY_ENTER)) new_game();
         return;
     }
@@ -479,11 +483,14 @@ void draw(void) {
         print_centered(banner, SCREEN_W/2, SCREEN_H - 23, CLR_LIGHT_PEACH);
     }
 
-    // --- game over ---
+    // --- game over --- the shared end-screen treatment (endcard.h)
     if (phase == PH_OVER) {
-        fade(0.55f);
-        print_centered(playerWon ? "VICTORY!" : "DEFEAT", SCREEN_W/2, SCREEN_H/2 - 16, playerWon ? CLR_YELLOW : CLR_RED);
-        print_centered(banner, SCREEN_W/2, SCREEN_H/2 - 2, CLR_WHITE);
-        print_centered("CLICK OR Z TO PLAY AGAIN", SCREEN_W/2, SCREEN_H/2 + 16, CLR_LIGHT_GREY);
+        EndCard c = endcard(end_t, 220, 52, SCREEN_H/2 - 26, CLR_DARK_BLUE,
+                            playerWon ? CLR_YELLOW : CLR_RED, CLR_TRUE_BLUE);
+        if (c.settled) {
+            print_centered(playerWon ? "VICTORY!" : "DEFEAT", SCREEN_W/2, c.y + 10, playerWon ? CLR_YELLOW : CLR_RED);
+            print_centered(banner, SCREEN_W/2, c.y + 24, CLR_WHITE);
+            if (blink(18)) print_centered("CLICK OR Z TO PLAY AGAIN", SCREEN_W/2, c.y + 40, CLR_LIGHT_GREY);
+        }
     }
 }

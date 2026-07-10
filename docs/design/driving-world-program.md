@@ -267,7 +267,8 @@ by numbers from day one.)*
   in GROUND METRES per near-field junction (arms from `build_junctions`) and **projects its curb-return
   fillets** — rounded curb corners in the drivable pseudo-3D view (toggle `J`, default off; verified
   over Manhattan's 301-junction grid; `spec` 11/0). Both consumers gate-locked. *Follow-on polish:
-  suppress the round-joint disc at near junctions so the curb return fully replaces the blob.*
+  disc-join suppression DONE (2026-07-10) — the curb return now replaces the blob; a per-pixel
+  field-fill for exact asphalt at wild skews stays open.*
 - [ ] **B4 · roadkit Phase 5 — grade dispatch** — one `roadkit_junction(legs, grade)` routing
   at-grade → streetlab grammar, grade-separated → roadlab's `make_junction`, keyed identically from
   a seed or OSM (`bridge`/`layer`/`*_link` + shared-node topology). **This is the junction layer A3

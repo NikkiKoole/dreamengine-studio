@@ -230,8 +230,11 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    frame in the near field). **Toggle `J`, default OFF** (the disc-join look still ships; on = the
    geometry-first junction grammar in the drivable view) — the same default-off-first discipline
    streetlab used for `DE_FIELD_ROADS`. `spec` 11/0 (the render doesn't touch the graph). *Follow-on
-   polish:* suppress the round-joint disc at near junctions so the curb return fully replaces the blob
-   (today it layers over it), + a per-pixel field-fill for exact N-arm asphalt at wild skews.
+   polish:* **disc-join suppression DONE 2026-07-10** — at a curbed near junction (`on_curb_junction`,
+   ~3 m of the node) `paint_way` skips the round-joint disc, so the arm quads + the curb-return fillets
+   form the corner instead of a blob poking past the curb (the node stays covered by the overlapping arm
+   quads; verified gap-free on the Manhattan grid). *Still open:* a per-pixel field-fill for exact N-arm
+   asphalt at wild skews.
 5. **Grade dispatch** — `roadlab` calls roadkit; one `roadkit_junction(legs, grade)` routes at-grade vs
    grade-separated. Fed identically from a seed or OSM.
 6. **`sloop` gets it** — the car ∪ the render, via the shared seam. The easy, last step.

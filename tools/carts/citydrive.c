@@ -567,6 +567,22 @@ static float road_hw(int w){
     return fmaxf(base * 0.6f, 1.6f);                                      // one-way residential → ~one lane
   return base;
 }
+// B3b polish: at CURB-rendered near junctions we SUPPRESS the round-joint disc, so the curb-return
+// fillets (draw_junction_curbs) FORM the corner instead of a disc blob poking out past them. Away from
+// those junctions the discs still fuse bends + non-curbed nodes as before. Toggled with the curb render.
+static int g_curbs_active;                        // set in draw(): curb render on + LOD
+static float g_cjx[128], g_cjy[128]; static int g_ncj;   // near-field junction nodes getting a curb
+static void collect_curb_junctions(void){
+  g_ncj = 0;
+  for (int i=0;i<njunc && g_ncj<128;i++){
+    float dx=junc[i].x-S.camx, dy=junc[i].y-S.camy;
+    if (dx*dx+dy*dy <= 120.0f*120.0f){ g_cjx[g_ncj]=junc[i].x; g_cjy[g_ncj]=junc[i].y; g_ncj++; }
+  }
+}
+static int on_curb_junction(float x, float y){    // within ~3 m of a curbed node (i.e. AT the junction)
+  for (int i=0;i<g_ncj;i++){ float dx=x-g_cjx[i], dy=y-g_cjy[i]; if (dx*dx+dy*dy < 9.0f) return 1; }
+  return 0;
+}
 // paint one way as quads + round-joint discs (radius rhw, colour col); near-camera segments only (r2 cull).
 static void paint_way(int w, float rhw, int col, float r2){
   int st=rways[w].start, ct=rways[w].count;
@@ -574,7 +590,10 @@ static void paint_way(int w, float rhw, int col, float r2){
     float ax=PX[st+i], ay=PY[st+i], bx=PX[st+i+1], by=PY[st+i+1];
     if (seg_d2(ax,ay,bx,by,S.camx,S.camy) > r2) continue;   // keep any segment passing near (no pop)
     road_seg(ax,ay,bx,by,rhw,col);
-    if (rhw >= 2.0f){ if (i==0) pdisc(ax,ay,rhw,col); pdisc(bx,by,rhw,col); }  // round joints → fuse
+    if (rhw >= 2.0f){                                        // round joints → fuse (skipped at curbed junctions)
+      if (i==0 && !(g_curbs_active && on_curb_junction(ax,ay))) pdisc(ax,ay,rhw,col);
+      if (!(g_curbs_active && on_curb_junction(bx,by)))         pdisc(bx,by,rhw,col);
+    }
   }
 }
 
@@ -957,6 +976,8 @@ void draw(void) {
     // the car). Pavement bands are wide → survive to a lower zoom than the thin centre-line markings.
     float eff = (S.mode==M_PERSP) ? S.zoom*90.0f/fmaxf(S.setback,1.0f) : S.zoom;
     int lod_pavement = eff >= 0.5f, lod_markings = eff >= 1.2f;
+    g_curbs_active = lod_markings && S.show_curbs;      // B3b: suppress disc-joins at the curbed junctions
+    if (g_curbs_active) collect_curb_junctions();
     // canals FIRST — linear WATER. Every road then draws OVER them, so a crossing reads as a (flat) bridge
     // instead of water painted over the road. We don't yet carry OSM bridge/layer, so road-over-water is
     // the sane default; raised decks are the bridge TODO (docs/design/external-data-carts.md · roadkit.md).

@@ -6278,7 +6278,7 @@
   },
   {
     "title": "wavecandy",
-    "description": "A SPAN-style SPECTRUM ANALYZER over the live master mix: scope_read() feeds a 2048-point FFT, drawn as dB-vs-log-frequency with peak hold - watch a saw's harmonic comb, a square's missing even partials, a ladder sweep planing the top off. The frequency-domain twin of the oscilloscope carts. Every frame the cart pulls the newest 2048 post-FX master samples with scope_read(), Hann-windows them, runs an in-cart radix-2 FFT, and plots one-sided magnitude as dB (0..-72) against a log frequency axis (40 Hz..16 kHz) - the exact layout of Voxengo SPAN. Fast-attack/slow-release ballistics keep the curve readable; a yellow peak-hold trace remembers the loudest each column has been; the strongest bin is read out as a frequency + dB cursor. Test sources make the physics visible: a SINE is one spike, a SQUARE has odd harmonics only, a SAW is the full comb, a CHORD is three interleaved combs, NOISE is the flat carpet. Toggle the ladder-filter sweep and watch the comb's top get planed off and pushed back - the same picture SPAN shows a producer EQing a mix. 1..5 pick the source (sine / square / saw / chord / noise) - Q toggles silence, F toggles the filter sweep, P clears peak hold",
+    "description": "A SPAN-style SPECTRUM ANALYZER plus a Wave-Candy-style SPECTROGRAM waterfall over the live master mix: scope_read() feeds a 2048-point FFT, drawn as dB-vs-log-frequency with peak hold, or as scrolling heat-colored trails - watch a saw's harmonic comb, a square's missing even partials, a ladder sweep planing the top off. The frequency-domain twin of the oscilloscope carts, with two views on the same in-cart FFT. Every frame the cart pulls the newest 2048 post-FX master samples with scope_read(), Hann-windows them, runs a radix-2 FFT, and shows the result two ways (M switches). SPECTRUM is the Voxengo SPAN layout: one-sided magnitude as dB (0..-72) against a log frequency axis (40 Hz..16 kHz), fast-attack/slow-release ballistics, a yellow peak-hold trace, and a cursor reading out the strongest partial. SPECTROGRAM is the Wave Candy waterfall: time scrolls left, frequency runs up the vertical axis, loudness is a heat ramp (black-blue-purple-red-yellow-white), so held notes draw horizontal stripes and the filter sweep carves a moving ridge you can read seconds after it happened. Test sources make the physics visible: a SINE is one spike/stripe, a SQUARE has odd harmonics only, a SAW is the full comb, a CHORD is three interleaved combs, NOISE is the flat carpet. Toggle the ladder-filter sweep and watch the comb's top get planed off and pushed back - the same picture SPAN shows a producer EQing a mix. M switches view (spectrum / spectrogram) - 1..5 pick the source (sine / square / saw / chord / noise) - Q toggles silence, F toggles the filter sweep, P clears peak hold + waterfall",
     "file": "wavecandy.cart.png",
     "created": "2026-07-10",
     "kind": [
@@ -6289,7 +6289,7 @@
       "algorithm-visualization",
       "additive-synth"
     ],
-    "homage": "Voxengo SPAN (the spectrum analyzer) + FL Studio Wave Candy (the multi-view visualizer it will grow into)"
+    "homage": "Voxengo SPAN (the spectrum view) + FL Studio Wave Candy (the multi-view visualizer, source of the spectrogram)"
   },
   {
     "title": "wave editor",

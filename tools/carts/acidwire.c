@@ -78,7 +78,7 @@ static Strip STRIP[] = {          // haspat: MASTER is the mixer/FX bus, not a p
 #define STEPS 16
 
 enum { FOLDED, COMPACT, EXPANDED };
-#define FU 22.0f                 // a 44pt finger = 22 logical px at K=2 (constant — the point of the matrix)
+#define FU ((float)finger_px())  // a comfortable finger, from the engine (R3): 44pt in logical px = 22 at the iOS 2× chunk, and it FOLLOWS a changed chunk / HiDPI instead of the old hardcoded 22
 #define NPAT 6                   // patterns per instrument (maker: back to 6 — 2×4/8 made the header too tall)
 #define PATCOLS 6                // ONE row of 6, right-aligned (square cells, spacing kept on the left)
 

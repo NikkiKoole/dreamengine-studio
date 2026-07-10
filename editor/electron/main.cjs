@@ -880,7 +880,14 @@ ipcMain.handle('cart:save-to-source', async (_event, { slug, source, spritesData
     //    rebuilds the sprite sheet from the .cart.js and BLANKS a hand-drawn cart's
     //    sheet when there's no generator (make-cart.js ~line 378).
     const chunkData = { source, sprites: spritesDataUrl, map: mapBase64 }
-    if (settings) chunkData.settings = JSON.stringify(settings)
+    // MERGE the editor's settings OVER the existing de:settings, so any field the
+    // editor doesn't model (e.g. renderEvery — the web present-every-Nth-tick lever)
+    // survives a save-to-source instead of being silently stripped.
+    if (settings) {
+      let prev = {}
+      try { const ex = extractCartChunks(fs.readFileSync(pngPath)); prev = ex.settings ? JSON.parse(ex.settings) : {} } catch {}
+      chunkData.settings = JSON.stringify({ ...prev, ...settings })
+    }
 
     // 2b. GENERATOR carts: diff the editor sheet against the (re-run) generator and
     //     store only the changed slots as a patch beside the .c + mirrored into the

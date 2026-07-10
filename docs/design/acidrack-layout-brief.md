@@ -91,6 +91,42 @@ and no fx page for now; the button stays as a labelled placeholder until the fx 
   patterns plays*. Try it: `node tools/play.js acidwire run` → `m` mutes, `p` cycles the pattern.
   (Decided: **flat 6**, no per-instrument bank for now — banks are a later add if 6 proves tight.)
 
+**Validated on glass — acidwire, iPhone SE portrait (maker, 2026-07-10).** Felt on a real device
+(the tightest matrix shape), so these are decisions, not sketches:
+
+- **Header = `icon · [page] · patterns(6) · [M]`.** Left→right, and the order matters:
+  - **Icon badge, not text.** A ~12px per-machine coloured square replaces the "303 A"/"909"/"808"
+    *text* — a shorter header (more room for the pattern row) AND it dodges the Roland trademark
+    names. Placeholder squares now; real 12×12 icons drop into `wf_stripicon` later. It's also the
+    strip's tap target (open/expand; back-out in focus).
+  - **Mute is the RIGHTMOST control** (easiest thumb) — and it **doubles as the per-instrument
+    LEVEL fader**: **tap = toggle mute, vertical drag = ride volume** (tr808's tap-vs-drag gesture,
+    ~40px = full sweep). Volume shows as a fill behind the "M". One always-visible control = a live
+    channel fader + mute in one; no separate level knob eating header width. **The keeper of the
+    session** — port this to acidrack.
+  - **6 patterns fit and work** on the SE header (fat-finger pads make the ~18px cells usable) —
+    the earlier "flat 6" holds; the count was never the real constraint.
+- **Compact-303 body-paging (N/K/F).** A tiny page button (compact-303 only) cycles the *whole
+  compact body* — **N**otes / **K**nobs / **F**lags(ACC·SLD·TIE·LEN) — each getting the full compact
+  area instead of everything crammed. This is *content* paging, distinct from the parked *knob*-pages
+  above: fit-first everywhere else, page only where the compact body can't hold it all. TIE/LEN are
+  the modern gate additions beyond acidrack's OCT/ACC/SLD (LEN is a toggle placeholder for now).
+- **FOCUS is a first-class 4th state** and its title bar now **matches the strip-header height** (no
+  jump on going fullscreen). Focus stays the roomy "see-everything" view (all 7 knobs, full editor).
+
+**What this told us `disclose.h` should own (R2 boundary).** The clean cut the session drew:
+**`disclose.h` decides WHERE a panel goes and how big; the cart decides WHAT lives inside it.**
+- Into `disclose.h` (generic): shape class (TALL/WIDE/ROOMY from `screen_w/h`+`safe_rect`), the
+  section model (`{id, priority, footprints[folded/compact/expanded] in fu, pinned?}` — acidwire's
+  `strip_h()` per state *becomes* these), the finger-budget promotion pass, shape→mode
+  (grid/accordion/tabs), the folded→compact→expanded→**focus** interaction + tab-chips, and the
+  `DE_TRACE` self-report (R4).
+- Stays in the cart (drawn into the Box disclose hands back): the strip body (knobs/lanes/grids),
+  `wf_mute` (mute+fader), icon badges, pattern selectors, transport, **and the N/K/F content-paging**
+  — paging *inside* a section is cart business; disclose only sets the section's state + box.
+- Cart loop collapses to: declare sections → `disclose_run(sections, safe_area)` → for each returned
+  `(section, state, box)`, `draw_strip(...)` + draw the pinned transport.
+
 ## 3 · Editor swap by budget (expanded state, per shape)
 
 Same pattern data, two editors — the panel-level twin of design-system §8.3's widget swap:

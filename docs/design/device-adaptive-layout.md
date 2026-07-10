@@ -488,7 +488,11 @@ stealing from the homage hardware** — the original solved this screen already.
   interaction, hands the cart `(section, state, Box)` tuples. Plain-C overrides stay
   (`mode = TABS;`) per §Overrides. Under `DE_TRACE` it **self-reports its decision** to the
   `--uiaudit` stream (see the REFINED oracle note in §"Both are CHECKABLE") and enumerates its
-  sections as openable states so the matrix can drive tap-only panels by name.
+  sections as openable states so the matrix can drive tap-only panels by name. **Boundary +
+  move/stay split** (sharpened on glass in acidwire, 2026-07-10): the one-liner is *disclose decides
+  WHERE a panel goes and how big; the cart decides WHAT lives inside it* — content-paging inside a
+  section (e.g. acidwire's N/K/F) stays cart-side. Full split in
+  [`acidrack-layout-brief.md`](acidrack-layout-brief.md) §2 "Validated on glass".
 - **R3 — make the finger unit real.** Engine: `finger_px()` (44pt in current canvas px, from the
   backing scale) + the `device_class()` convenience. `lay.h`/`disclose.h`/carts threshold on
   fingers, **never raw px** — today's px thresholds only work because iOS is SCALE=1, a coincidence

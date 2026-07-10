@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showShare: false, recordPlays: true, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, renderEvery: 1, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showShare: false, recordPlays: true, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
 
 // ── key bindings ──────────────────────────────────────────────
 // Values are raylib (GLFW) keycodes — letters/digits are ASCII, specials match
@@ -80,13 +80,18 @@ function load() {
     mapH:          parseInt(localStorage.getItem('mapH')    || DEFAULTS.mapH),
     cellW:         parseInt(localStorage.getItem('cellW')   || DEFAULTS.cellW),
     cellH:         parseInt(localStorage.getItem('cellH')   || DEFAULTS.cellH),
+    renderEvery:   parseInt(localStorage.getItem('renderEvery') || DEFAULTS.renderEvery),
     touchControls: localStorage.getItem('touchControls') === '1',
     worklet:       localStorage.getItem('worklet') === '1',
     showProfiler:  localStorage.getItem('showProfiler') === '1',
     showPublish:   localStorage.getItem('showPublish') === '1',
     showNetplay:   localStorage.getItem('showNetplay') === '1',
     showShare:     localStorage.getItem('showShare') === '1',
-    hideCartButtons: localStorage.getItem('hideCartButtons') === '1',   // hide save/load/save-to-source (default: shown)
+    // show save/load/save-to-source buttons (default: shown). Checkbox reads
+    // "show" now; migrate the old inverted `hideCartButtons` key for existing users.
+    showCartButtons: localStorage.getItem('showCartButtons') !== null
+      ? localStorage.getItem('showCartButtons') === '1'
+      : localStorage.getItem('hideCartButtons') !== '1',
     recordPlays:   localStorage.getItem('recordPlays') !== '0',   // flight recorder: default ON
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
     backend:       localStorage.getItem('backend')   || DEFAULTS.backend,
@@ -107,7 +112,7 @@ export const settings = load()
 // has none (older carts). Loading a cart should run it at the config it was
 // authored for, not whatever globals the user last tinkered with.
 export function applyCartSettings(obj) {
-  for (const k of ['screenW', 'screenH', 'scale', 'cellW', 'cellH', 'mapW', 'mapH']) {
+  for (const k of ['screenW', 'screenH', 'scale', 'cellW', 'cellH', 'mapW', 'mapH', 'renderEvery']) {
     const v = obj && obj[k] != null ? obj[k] : DEFAULTS[k]
     settings[k] = v
     save(k, v)
@@ -141,6 +146,22 @@ export function buildSettingsPanel(el) {
   ))
   scaleSection.appendChild(note('only changes anything at a NON-INTEGER scale — the web build fit to the browser, fullscreen, a resizable window. At the editor’s integer scale all four look identically crisp. "sharp" keeps pixels crisp but anti-aliases the 1px seam at pixel edges, so fractional scaling neither shimmers (like nearest) nor blurs (like bilinear); "+gamma" blends that seam in linear light so bright edges keep their brightness. Free (one GPU pass). Takes effect on the next ▶ run; native + live, desktop. See the "Pixel-Perfect Scaling" demo cart.'))
   el.appendChild(scaleSection)
+
+  // ── render cadence (present-every-Nth-tick heat lever) ───────
+  const cadenceSection = section('render cadence')
+  cadenceSection.appendChild(select(
+    'present (draw to screen) every…',
+    [
+      { value: '1', label: 'every frame — full rate (default)' },
+      { value: '2', label: 'every 2nd frame — ~½ the presents' },
+      { value: '3', label: 'every 3rd frame — ~⅓ the presents' },
+      { value: '4', label: 'every 4th frame — ~¼ the presents' },
+    ],
+    String(settings.renderEvery),
+    v => { settings.renderEvery = parseInt(v); save('renderEvery', v) },
+  ))
+  cadenceSection.appendChild(note('update() still runs EVERY frame — only the GPU present is throttled, so the sim stays smooth while the screen redraws less often. A heat / battery lever for web + mobile (a mostly-static cart — a radio, a menu — needn’t redraw 60×/sec). Travels with the cart in de:settings; applies on the next ▶ run and the web build (native honors it too). Leave at "every frame" unless a cart runs hot on a phone.'))
+  el.appendChild(cadenceSection)
 
   // ── controls (key bindings) ──────────────────────────────────
   // Click a key, then press the key you want. Stored as raylib keycodes in
@@ -416,16 +437,16 @@ export function buildSettingsPanel(el) {
   // \u2500\u2500 cart panel \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const cartPanelSection = section('cart panel')
   cartPanelSection.appendChild(checkbox(
-    'hide the save / load / save to source buttons',
-    settings.hideCartButtons,
+    'show the save / load / save to source buttons',
+    settings.showCartButtons,
     v => {
-      settings.hideCartButtons = v
-      save('hideCartButtons', v ? '1' : '0')
+      settings.showCartButtons = v
+      save('showCartButtons', v ? '1' : '0')
       const row = document.getElementById('cart-actions')
-      if (row) row.style.display = v ? 'none' : ''
+      if (row) row.style.display = v ? '' : 'none'
     },
   ))
-  cartPanelSection.appendChild(note('the save cart / load cart / save to source buttons at the top of the tutorials panel. Rarely needed day-to-day \u2014 hide them for a cleaner panel; carts still load from the gallery and everything else keeps working.'))
+  cartPanelSection.appendChild(note('the save cart / load cart / save to source buttons at the top of the tutorials panel. Rarely needed day-to-day \u2014 uncheck for a cleaner panel; carts still load from the gallery and everything else keeps working.'))
   el.appendChild(cartPanelSection)
 }
 

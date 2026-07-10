@@ -271,7 +271,7 @@ function titleDef(name) {
 }
 
 function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
-  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, keymap, studioC, resizable } = dims
+  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, renderEvery, keymap, studioC, resizable } = dims
   return [
     `"${CART_SRC}"`,
     `"${studioC}"`,
@@ -287,6 +287,7 @@ function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
     `-DCELL_H=${cellH}`,
     `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
     `-DSCALE_FILTER=${scaleFilter}`,
+    `-DRENDER_EVERY=${renderEvery ?? 1}`,   // present every Nth tick (heat lever); honored on native run + export too, not just web
     ...(resizable ? ['-DDE_RESIZABLE'] : []),   // de:meta resizable → live-reflow window (studio.c owns FLAG_WINDOW_RESIZABLE)
     ...keymapDefs(keymap),
     ...extraDefs,

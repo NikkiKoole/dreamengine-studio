@@ -2909,6 +2909,7 @@ function gatherCartChunks() {
   const cartSettings = {
     screenW: settings.screenW, screenH: settings.screenH, scale: settings.scale,
     cellW: settings.cellW, cellH: settings.cellH, mapW: settings.mapW, mapH: settings.mapH,
+    renderEvery: settings.renderEvery,
   }
   return { source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings }
 }
@@ -3048,7 +3049,7 @@ async function discardSpritePatch() {
 const discardPatchBtn = document.getElementById('discard-patch-btn')
 if (discardPatchBtn) discardPatchBtn.addEventListener('click', discardSpritePatch)
 // hide the whole cart-actions row (save / load / save to source) if opted out in settings
-if (settings.hideCartButtons) {
+if (!settings.showCartButtons) {
   const cartActions = document.getElementById('cart-actions')
   if (cartActions) cartActions.style.display = 'none'
 }

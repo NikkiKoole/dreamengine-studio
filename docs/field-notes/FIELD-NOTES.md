@@ -5,16 +5,17 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*21 journal notes · 3 working docs · regenerate to refresh.*
+*22 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
 Where each numbered note sits on the path from a hunch to something the repo adopted.
 
-### 🔭 Observed (2)
+### 🔭 Observed (3)
 
 - `018` [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) — The acidrack Phase-3 reflow (device-adaptive layout) was committed across three sessions, each
 - `020` [The fit-cart earns it on glass (and knows when to stop)](020-the-fit-cart-earns-it-on-glass.md) — A full day was spent driving the `acidwire` fit-cart (the responsive-layout mock for the acidrack
+- `021` [A doc's STATUS label can't be linted against its body](021-status-labels-cannot-be-linted.md) — A design doc has two truths: the one-line `STATUS:` label at the top (the only
 
 ### 🧪 Working Theory (5)
 
@@ -66,6 +67,7 @@ Numbered notes in order — the spine of the journal.
 - `018` 🔭 [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) *(2026-07-05)*
 - `019` ✅ [Completing the Creative Loop](019-completing-the-creative-loop.md) *(2026-07-09)*
 - `020` 🔭 [The fit-cart earns it on glass (and knows when to stop)](020-the-fit-cart-earns-it-on-glass.md) *(2026-07-10)*
+- `021` 🔭 [A doc's STATUS label can't be linted against its body](021-status-labels-cannot-be-linted.md) *(2026-07-11)*
 
 ## Related-note graph
 
@@ -85,6 +87,7 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `018` **Passing the Gates Felt Like Done** → `015-repositories-can-learn`, `016-knowledge-drift`, `017-context-nudges`
 - `019` **Completing the Creative Loop** → `005-inflection`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`, `100-first-synthesis`
 - `020` **The fit-cart earns it on glass (and knows when to stop)** → `018-passing-the-gates-felt-like-done`, `015-repositories-can-learn`
+- `021` **A doc's STATUS label can't be linted against its body** → `016-knowledge-drift`, `017-context-nudges`, `018-passing-the-gates-felt-like-done`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts

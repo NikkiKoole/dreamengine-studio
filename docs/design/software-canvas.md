@@ -310,8 +310,12 @@ be coalesced.
 >   GPU *better* than the correct center-sampling. And the 2× integer `sspr` can't catch it either:
 >   `floor((i+0.5)/2) == floor(i/2)` for all i, so 2× is byte-identical under both samplers. A parity
 >   oracle measures GPU↔SW *agreement*, which a subtle sampler change can silently *improve*. To lock the
->   SW sampler's own output, a golden byte-check (det-probes, or a SW-vs-committed-golden run) is the right
->   tool — canvas-diff only catches GROSS breakage (wrong sprite / off-by-many) that blows past the budget.
+>   SW sampler's own output, a golden byte-check is the right tool — canvas-diff only catches GROSS breakage
+>   (wrong sprite / off-by-many) that blows past the budget. **That golden now exists:**
+>   `node tools/canvas-diff.js <cart> --golden` renders ONLY the software canvas and pixel-compares each
+>   frame to a committed golden (`tools/canvas-golden/<cart>/`), `--bless` to record. Verified 2026-07-10:
+>   with the truncation bug reinstated the parity run PASSes (48px < 64) while `--golden` FAILs (109px vs
+>   golden) — the golden catches exactly what parity can't.
 >
 > So an all-frames `shasum` A/B is the **wrong oracle** for a line-drawing cart — use a
 > bounded pixel-diff (`magick compare -metric AE`) + an eyeball, and reserve byte-equality for the

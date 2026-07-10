@@ -456,9 +456,11 @@ music cart, **imagine the ideal band from the genre BEFORE reading any existing 
 **Adding a cart** (full walkthrough: [`docs/guides/cart-authoring.md`](docs/guides/cart-authoring.md)):
 
 1. Write `tools/carts/<name>.c`, opening with a `de:meta` block then a docblock (title + prose).
-   The `de:meta` carries the metadata: `title`, `kind[]` (games need `genre`), `teaches` (from the
-   `tools/teaches-vocab.js` vocab), `created` (today's `YYYY-MM-DD`), optional `lineage`/`homage`,
-   and `description` (a string or `{summary,detail,controls}`). Schema:
+   The `de:meta` carries the metadata: `title`, `slug` (**= the `.c` filename stem** — the anchor
+   from a baked `.cart.png` back to its source, for save-back/rebake; `lint-carts.js` enforces the
+   match), `kind[]` (games need `genre`), `teaches` (from the `tools/teaches-vocab.js` vocab),
+   `created` (today's `YYYY-MM-DD`), optional `lineage`/`homage`, and `description` (a string or
+   `{summary,detail,controls}`). Schema:
    [`docs/design/cart-metadata.md`](docs/design/cart-metadata.md).
 2. *(Optional)* `tools/carts/<name>.cart.js` for sprites/map.
 3. `node tools/make-cart.js tools/carts/<name>.c editor/public/carts/<name>.cart.png` (build) —

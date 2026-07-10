@@ -90,7 +90,10 @@ for (const f of carts) {
   if (!hasPng) noPng.push(name)
 
   if (WRITE) {
-    const newSrc = src.replace(META_RE, `$1${newBody}$3`)
+    // Replacement FUNCTION, not a string: newBody is arbitrary cart text and may
+    // contain `$1`/`$&`/`$$` etc., which a replacement STRING would expand (bit
+    // mule.c: "$100" → group-1 + "00"). A function returns its value verbatim.
+    const newSrc = src.replace(META_RE, (_m, p1, _p2, p3) => p1 + newBody + p3)
     fs.writeFileSync(cPath, newSrc)
     if (hasPng && !NO_BAKE) {
       const png = fs.readFileSync(pngPath)

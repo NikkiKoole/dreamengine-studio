@@ -46,6 +46,11 @@ formats. This is the highest-value fix of the three.
 
 ## Gap 1b — the `.cart.png` doesn't know its own source (`de:meta.slug`)
 
+> **SHIPPED 2026-07-10.** `de:meta.slug` is now backfilled across all carts and
+> **required** by `lint-carts.js` (missing or filename-mismatched = fail). The
+> save-back write target (Gap 1) can now read `tools/carts/<slug>.c` instead of
+> guessing. The rest of this section is the original design record.
+
 **The bite.** Gap 1 lets you save edits back into a `.cart.png` — but a gallery
 cart's *real* source of truth is `tools/carts/<name>.c` (what `make-cart.js`
 bakes from), and the editor can only write the `.png`. To ever write code back
@@ -331,7 +336,7 @@ stays out of scope (not feasible, not needed).
 
 | # | Fix | Size | Risk |
 |---|---|---|---|
-| 0 | `de:meta.slug` field (self-describing PNG → source; foundation for save-back) | S | low |
+| 0 | ✅ `de:meta.slug` field (self-describing PNG → source; foundation for save-back) — **shipped 2026-07-10** | S | low |
 | 1 | Save-in-place + Cmd-S (gallery carts excluded) | S | low |
 | 2 | Full-description detail view in gallery | S | none |
 | 3 | Sprite ownership marker (option B) | S–M | low |

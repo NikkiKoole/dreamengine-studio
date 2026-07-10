@@ -16,7 +16,7 @@
   "todo": [
     "Slice 4 - per-part LENGTH / polymeter: give each part its own last-step (e.g. hat loops every 16, bass every 12) so they drift against each other. One number per part, pure emergent groove - the authentic EMX per-part last-step.",
     "Slice 5 - PATTERN SLOTS (A/B/C/D) + chaining: a few patterns you flip between live (and chain into a song) - real arrangement / 'more than one bar'. The EMX pattern is the loop unit; the song is chained patterns.",
-    "Slice 6 - a tempo-synced DELAY you can MOTION-RECORD (the dub 'throw' that smears the whole groove into the distance) + per-part FX sends. The engine already has echo/reverb; the win is making the send knob motion-able.",
+    "Slice 6 - a tempo-synced DELAY you can MOTION-RECORD (the dub 'throw' that smears the whole groove into the distance) + per-part FX sends. PARTLY DONE (2026-07-10): the per-part motion-able SEND knobs (DELAY + VERB) shipped on the MIX page. STILL WANTED: a tempo-synced global delay TIME (currently the echo bus runs at its default time; sync it to bpm, e.g. dotted-8th) so the throw lands in the groove.",
     "ACCENT part / per-step accent lane - a shared accent row that boosts velocity on chosen steps for groove dynamics across the whole kit.",
     "ROLL / ratchet - hold a step to get step-repeats/rolls; pairs with SWING for feel.",
     "Per-LANE SMOOTH/TRIG (currently one global toggle), per-lane CLEAR (currently clears the whole selected part), and motion UNDO. Natural add: long-press a knob to clear just its lane.",
@@ -25,7 +25,7 @@
     "Variable pattern LENGTH + resolution (16/32/triplet beats) with paging through >16 steps - the EMX 'beat + length', beyond the single 16-step bar.",
     "Portrait / device-adaptive phone layout (lay.h + docs/guides/responsive-instrument-ui.md) - it's currently landscape 320x200, but a phone is the target device for the grab-and-wiggle gesture.",
     "SAVE / RECALL patterns (persistence via save_bytes) - the EMX stores its patterns; motionbox forgets everything on quit. Serialize each part's trig[] + lanes + base + the mutes/tempo/swing/drive, load on init. The biggest hole: it's what makes Slice 5's pattern slots actually meaningful rather than ephemeral.",
-    "Per-part LEVEL + PAN - the EMX has a per-part level fader and pan (both motion-able); right now there's no way to BALANCE the kit or use stereo at all. instrument_pan exists; PAN is great motion-fodder (auto-panned hats). Fits scarcity - two more per-part params the knob row can remap to.",
+    "MIX PAGE (per-part output strip) - DONE (2026-07-10): a 4th knob page PG_MIX = LEVEL/PAN/DELAY/VERB, uniform across all parts, all true-bypass at their defaults (unity/centre/dry/dry, except LEAD DELAY 0.22 = its init echo tail) and all motion-recordable (level swells, auto-panned hats, delay throws, reverb blooms). apply_part_mix set-and-hold per-slot: instrument_level/pan/echo/reverb. This lands the old 'Per-part LEVEL + PAN' item outright AND the motion-able per-part SENDS half of Slice 6. NB: LEVEL needed a NEW engine primitive - instrument_level(slot, gain) - because the per-slot mixer family (drive/echo/reverb/pan) had no output-gain leg; added it (ADR-worthy: float-precise, read live at mix like tune_mul, 1.0 = byte-identical bypass; verified all-parts-0 = silence).",
     "REAL-TIME recording - the EMX's other input method beyond step-toggle: tap the ribbon in time and it captures + quantizes the hits to the nearest step. A whole authentic workflow that's absent; pairs with the existing motion REC (play a groove live, then wiggle the knobs over it).",
     "OSC PAGE REDESIGN - DONE (2026-07-10): the page is now Plaits/Mutable 'MODEL + 3 context-macros'. MODEL (a curated list: plain waves SIN/SAW/SQR/NOI where the macros are inert, then the modeled engines FM/PD/PLUCK/MALLET/MEMBRANE/REED/BRASS/EPIANO) + HARM/TIMB/MORPH (instrument_harmonics/timbre/morph), each meaning something different per model. apply_part_osc re-issues instrument() on a MODEL swap (RECIPE now carries the per-part attack, since the ATK knob is gone) and re-asserts the macros on the new engine. The macros ride the motion lanes for free (arm REC + sweep TIMB = timbre-as-motion) - no LFO wiring needed since motion here is lane-based. DECISION: dropped per-part TUNE (transpose) and PWM to fit MODEL+3 in the 4-knob row - TUNE defaulted to centre (no-op) so nothing broke; if it's missed in play-testing, fold it onto the TONE page (swap ACC) rather than adding a 4th page/5th knob. The chord idea stays separate (chord() is a trigger, not a model).",
     "Deeper voice knobs still wanting SPACE (all 3 pages full at 4 knobs each - needs a 4th page or a repurpose): a multimode filter select (LP/HP/BP/BP+), an LFO SHAPE knob (lfo_shape gives tri/square/S&H/random; currently sine), and a filter-EG ATTACK (currently fixed 3ms - the OSC ATK is the AMP attack, a different envelope).",
@@ -93,16 +93,16 @@ de:meta */
 #define STEPS   16
 #define NK      4     // knobs per row
 #define NPARTS  4
-#define NPAGES  3     // knob-row PAGES: the SECOND remap axis (TONE / MOD / OSC) — scarcity, one level deeper
+#define NPAGES  4     // knob-row PAGES: the SECOND remap axis (TONE / MOD / OSC / MIX) — scarcity, one level deeper
 
 // instrument slots + part identity
 enum { KICK, HAT, BASS, LEAD };
 enum { SL_KICK = 5, SL_HAT, SL_BASS, SL_LEAD };
-enum { PG_TONE, PG_MOD, PG_OSC };                       // the knob-row pages
+enum { PG_TONE, PG_MOD, PG_OSC, PG_MIX };               // the knob-row pages
 static const int  SLOT [NPARTS] = { SL_KICK, SL_HAT, SL_BASS, SL_LEAD };
 static const char *PNAME[NPARTS] = { "KICK", "HAT", "BASS", "LEAD" };
 static const int  PCOL [NPARTS] = { CLR_RED, CLR_YELLOW, CLR_BLUE, CLR_GREEN };
-static const char *PGNAME[NPAGES] = { "TONE", "MOD", "OSC" };
+static const char *PGNAME[NPAGES] = { "TONE", "MOD", "OSC", "MIX" };
 static int  curPage = PG_TONE;
 
 // the OSC page: pick the oscillator MODEL + the 3 Plaits macros (all set-and-hold, no firing-path
@@ -133,6 +133,7 @@ static const char *KLABEL[NPARTS][NK] = {
     { "CUTOFF", "RES", "DECAY", "ACC" },   // LEAD  TONE
 };
 static const char *MODLABEL[NK] = { "RATE", "DEPTH", "DEST", "EG>CUT" };   // the MOD page (all parts)
+static const char *MIXLABEL[NK] = { "LEVEL", "PAN", "DELAY", "VERB" };     // the MIX page: per-part output strip (all parts)
 static const char *RATEDIV[5] = { "1/2", "1/4", "1/8", "1/16", "1/32" };   // RATE knob → the shown division
 static const char *DESTNM [4] = { "VIB", "WAH", "TREM", "PAN" };           // DEST knob → the shown target
 static const int   LFO_DESTS[4] = { LFO_PITCH, LFO_CUTOFF, LFO_VOLUME, LFO_PAN };  // MOD DEST knob → dest
@@ -165,11 +166,13 @@ static const char *PRESET[NPARTS] = {
 // (LFO off) so nothing moves until dialed; LEAD keeps its pluck (EG>CUT 0.5). OSC = {MODEL,HARM,
 // TIMB,MORPH} with MODEL defaulted to each part's plain-wave voice and the macros at 0.5 (inert on
 // a plain wave), so the defaults are silent — pick a modeled engine and the macros come alive.
+// MIX = {LEVEL,PAN,DELAY,VERB} = unity/centre/dry/dry — a true-bypass output strip (nothing until
+// dialed), except LEAD's DELAY 0.22 to keep its init echo tail. All four are motion-fodder.
 static const float KBASE[NPARTS][NPAGES][NK] = {
-    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.04f, 0.50f, 0.50f, 0.50f } },   // KICK (MODEL SIN)
-    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.29f, 0.50f, 0.50f, 0.50f } },   // HAT  (MODEL NOI)
-    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.35f }, { 0.12f, 0.50f, 0.50f, 0.50f } },   // BASS (MODEL SAW; EG>CUT 0.35 = acid pluck)
-    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.50f }, { 0.12f, 0.50f, 0.50f, 0.50f } },   // LEAD (MODEL SAW; EG>CUT 0.5 = pluck)
+    { { 0.45f, 0.35f, 0.30f, 0.70f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.04f, 0.50f, 0.50f, 0.50f }, { 1.00f, 0.50f, 0.00f, 0.00f } },   // KICK (MODEL SIN)
+    { { 0.60f, 0.25f, 0.20f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.00f }, { 0.29f, 0.50f, 0.50f, 0.50f }, { 1.00f, 0.50f, 0.00f, 0.00f } },   // HAT  (MODEL NOI)
+    { { 0.55f, 0.30f, 0.45f, 0.60f }, { 0.50f, 0.00f, 0.00f, 0.35f }, { 0.12f, 0.50f, 0.50f, 0.50f }, { 1.00f, 0.50f, 0.00f, 0.00f } },   // BASS (MODEL SAW; EG>CUT 0.35 = acid pluck)
+    { { 0.65f, 0.25f, 0.50f, 0.55f }, { 0.50f, 0.00f, 0.00f, 0.50f }, { 0.12f, 0.50f, 0.50f, 0.50f }, { 1.00f, 0.50f, 0.22f, 0.00f } },   // LEAD (MODEL SAW; EG>CUT 0.5 = pluck; DELAY 0.22 = dreamy tail)
 };
 
 static bool  smooth = true;   // SMOOTH (lerp between steps) vs TRIG (hold per step)
@@ -320,6 +323,23 @@ static void apply_part_osc(int pi) {
     if (morph != lastMorph[pi]) { instrument_morph    (slot, morph); lastMorph[pi] = morph; }
 }
 
+// the MIX page → the per-part output strip (LEVEL / PAN / DELAY / VERB), all SET-AND-HOLD per-slot
+// bus params, reconfigured only on change. LEVEL is instrument_level (float-precise output gain, not
+// the coarse hit-vol). All four ride the motion lanes for free (level swells, auto-pan, delay throws).
+static float lastLvl[NPARTS], lastPan[NPARTS], lastDly[NPARTS], lastVrb[NPARTS];
+static void apply_part_mix(int pi) {
+    Part *P = &parts[pi];
+    int   slot = SLOT[pi];
+    float lvl =  cur_value(&P->k[PG_MIX][0]);                  // output level 0..1 (1 = unity)
+    float pan = (cur_value(&P->k[PG_MIX][1]) - 0.5f) * 2.0f;   // -1..+1
+    float dly =  cur_value(&P->k[PG_MIX][2]);                  // echo send
+    float vrb =  cur_value(&P->k[PG_MIX][3]);                  // reverb send
+    if (lvl != lastLvl[pi]) { instrument_level (slot, lvl); lastLvl[pi] = lvl; }
+    if (pan != lastPan[pi]) { instrument_pan   (slot, pan); lastPan[pi] = pan; }
+    if (dly != lastDly[pi]) { instrument_echo  (slot, dly); lastDly[pi] = dly; }
+    if (vrb != lastVrb[pi]) { instrument_reverb(slot, vrb); lastVrb[pi] = vrb; }
+}
+
 void init() {
     // static instrument recipes — the per-hit apply only nudges filter/drive/note/vol/dur
     instrument(SL_KICK, INSTR_SINE, 0, 280, 0, 60);
@@ -349,6 +369,7 @@ void init() {
         lastEg[p] = lastRate[p] = lastDepth[p] = -1.0f;   // sentinels → apply_part_mod fires once
         lastDec[p] = lastDest[p] = -1;
         lastWave[p] = -1; lastHarm[p] = lastTimb[p] = lastMorph[p] = -999.0f;   // apply_part_osc fires once
+        lastLvl[p] = lastPan[p] = lastDly[p] = lastVrb[p] = -999.0f;            // apply_part_mix fires once
     }
     PTR_CLEAR(ptr);
 }
@@ -371,7 +392,7 @@ void update() {
     }
 
     // MOD + OSC pages → each part's LFO/EG + oscillator (set-and-hold; motion rides it via the lanes)
-    for (int p = 0; p < NPARTS; p++) { apply_part_mod(p); apply_part_osc(p); }
+    for (int p = 0; p < NPARTS; p++) { apply_part_mod(p); apply_part_osc(p); apply_part_mix(p); }
 
     // ── tempo ──
     if (btnp(1, BTN_LEFT))  tempo = max(80,  tempo - 4);
@@ -476,9 +497,11 @@ void draw() {
             lbl = (i == 0) ? str("RATE %s", RATEDIV[(int)(P->live * 4.999f)])   // tempo division
                 : (i == 2) ? str("DEST %s", DESTNM [(int)(P->live * 3.999f)])   // vibrato/wah/trem/pan
                 :            MODLABEL[i];
-        else /* PG_OSC */
+        else if (curPage == PG_OSC)
             lbl = (i == 0) ? str("MODEL %s", MODELNM[(int)(P->live * (NMODEL - 0.001f))])   // engine
                 :            OSCLABEL[i];
+        else /* PG_MIX */
+            lbl = MIXLABEL[i];
 
         ui_knob(&P->live, kx[i], KY, lbl);
 

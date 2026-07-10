@@ -136,6 +136,25 @@ Build the arrangements as a **mock cart first** (the `rackfit` / `acidfit` linea
 
 **Produce** — a `<cart>fit.c` (or the extended `acidfit.c`) that renders each §4 arrangement.
 
+> **How to actually run this step — lessons from the `acidwire` pass (field note
+> [020](../field-notes/020-the-fit-cart-earns-it-on-glass.md), 2026-07-10).** The fit-cart is an
+> *interactive, on-device sketch*, not a picture:
+> - **Wire the controls to dummy state — no dead pixels.** A *drawn* knob/step lies about
+>   finger-ergonomics; you can't tell if it's grabbable until you can grab it. Use the real `ui.h`
+>   widgets + tap handlers against throwaway values (no sound). The knob-that-turns *is* the point.
+> - **Decide on glass; distrust the arithmetic.** Width math will say a control is sub-finger when the
+>   fat-finger hit pads make it fine (or vice-versa). Build→deploy→feel→tweak in tiny reversible steps;
+>   commits are checkpoints of what survived the thumb, on the **tightest shape first** (iPhone SE).
+> - **Place by the slack the shape gives you, and put it where it's used.** Don't solve every shape at
+>   once — landscape has width (controls in the header), portrait-fullscreen has height (a sub-row). And
+>   a control lives where you *edit* (expanded/focus), not in every state.
+> - **Park ideas with the WHY.** "No, because it costs a row here" is reusable (it may fit elsewhere —
+>   a parked tab-strip became a zero-cost header cycle button). A bare "no" isn't.
+> - **Stop when the questions turn into instrument questions.** The fit-cart proves a *mechanism* fits
+>   (a compact strip, a page button, a fader); it can't tell you *which* params/pages you need — that's
+>   a play-the-real-engine call. When the open questions are content, not layout, the mock is done →
+>   graduate to the real cart (step 5 onward / the R5 port).
+
 ## 5 · Sweep the device matrix — defects AND judgment
 
 Two different checks; you need both (018 #2: the defect oracle is structurally blind to *absence*).

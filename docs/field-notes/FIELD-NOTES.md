@@ -5,15 +5,16 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*20 journal notes · 3 working docs · regenerate to refresh.*
+*21 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
 Where each numbered note sits on the path from a hunch to something the repo adopted.
 
-### 🔭 Observed (1)
+### 🔭 Observed (2)
 
 - `018` [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) — The acidrack Phase-3 reflow (device-adaptive layout) was committed across three sessions, each
+- `020` [The fit-cart earns it on glass (and knows when to stop)](020-the-fit-cart-earns-it-on-glass.md) — A full day was spent driving the `acidwire` fit-cart (the responsive-layout mock for the acidrack
 
 ### 🧪 Working Theory (5)
 
@@ -53,17 +54,18 @@ Numbered notes in order — the spine of the journal.
 - `007` ✅ [The Evolution of Documentation](007-the-evolution-of-documentation.md) *(2026-06-26)*
 - `008` ✅ [The Identity of DreamEngine](008-the-identity-of-dreamengine.md) *(2026-06-26)*
 - `009` ✅ [The Negative Space of DreamEngine](009-the-negative-space-of-dreamengine.md) *(2026-06-26)*
-- `100` ✅ [First Synthesis: The Knowledge Loop](100-first-synthesis.md) *(2026-06-26)*
 - `003` 🧪 [curation](003-curation.md) *(2026-06-30)*
 - `011` 🧪 [Tool Discovery and Documentation](011-tool-discovery.md) *(undated)*
 - `012` ✅ [Self-Describing Artifacts](012-self-describing-artifacts.md) *(undated)*
 - `013` ✅ [Generated Cart Index](013-generated-cart-index.md) *(undated)*
+- `100` ✅ [First Synthesis: The Knowledge Loop](100-first-synthesis.md) *(2026-06-26)*
 - `014` ✅ [Outside-Agent Brainstorms as a Knowledge Source](014-outside-agent-brainstorms-as-a-knowledge-source.md) *(2026-06-29)*
 - `015` ✅ [Repositories Can Learn](015-repositories-can-learn.md) *(2026-07-01)*
 - `016` ✅ [Knowledge Drift](016-knowledge-drift.md) *(2026-07-02)*
 - `017` ✅ [Context Nudges](017-context-nudges.md) *(2026-07-02)*
 - `018` 🔭 [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) *(2026-07-05)*
 - `019` ✅ [Completing the Creative Loop](019-completing-the-creative-loop.md) *(2026-07-09)*
+- `020` 🔭 [The fit-cart earns it on glass (and knows when to stop)](020-the-fit-cart-earns-it-on-glass.md) *(2026-07-10)*
 
 ## Related-note graph
 
@@ -82,6 +84,7 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `017` **Context Nudges** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `016-knowledge-drift`
 - `018` **Passing the Gates Felt Like Done** → `015-repositories-can-learn`, `016-knowledge-drift`, `017-context-nudges`
 - `019` **Completing the Creative Loop** → `005-inflection`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`, `100-first-synthesis`
+- `020` **The fit-cart earns it on glass (and knows when to stop)** → `018-passing-the-gates-felt-like-done`, `015-repositories-can-learn`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts

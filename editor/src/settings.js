@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showShare: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, showNetplay: false, showShare: false, recordPlays: true, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
 
 // ── key bindings ──────────────────────────────────────────────
 // Values are raylib (GLFW) keycodes — letters/digits are ASCII, specials match
@@ -86,6 +86,7 @@ function load() {
     showPublish:   localStorage.getItem('showPublish') === '1',
     showNetplay:   localStorage.getItem('showNetplay') === '1',
     showShare:     localStorage.getItem('showShare') === '1',
+    recordPlays:   localStorage.getItem('recordPlays') !== '0',   // flight recorder: default ON
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
     backend:       localStorage.getItem('backend')   || DEFAULTS.backend,
     buildMode:     localStorage.getItem('buildMode') || DEFAULTS.buildMode,
@@ -356,6 +357,12 @@ export function buildSettingsPanel(el) {
     },
   ))
   profSection.appendChild(note('runs the cart for a few seconds, samples it with macOS `sample`, and lists which functions burned the most CPU — straight into the build log. desktop app only. (to profile a cart you’re already playing, use the “Debug” menu in the macOS menu bar / ⌘⇧P — always available.)'))
+  profSection.appendChild(checkbox(
+    'record every play (flight recorder)',
+    settings.recordPlays,
+    v => { settings.recordPlays = v; save('recordPlays', v ? '1' : '0') },
+  ))
+  profSection.appendChild(note('every ▶ Run is recorded deterministically to a rolling scratch ring (build/.rec/, thrown away automatically). “Keep take” in the Debug menu / ⌘⇧K promotes the current session to tools/clips for a clip or an exact bug repro. Makes runs deterministic (fixed timestep + seed); disable for wall-clock-sensitive carts. desktop app only.'))
   el.appendChild(profSection)
 
   // (recording is triggered from the Promote tab's ● record a take — no toolbar toggle.)

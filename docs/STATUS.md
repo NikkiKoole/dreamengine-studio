@@ -1389,6 +1389,20 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     Connect product/price reconciliation (ADR-0026 store pipeline). Per-cart maps + save dirs also
     still deferred (same pattern as sheets).
 
+50. **✓ v1 SHIPPED 2026-07-10 — the flight recorder: always-on deterministic session capture.**
+    Every native ▶ Run now records its inputs to a rolling per-cart scratch ring
+    (`build/.rec/<slug>/`, gitignored, last 10 sessions, auto-evicted) — cheap because the recorder
+    (`harness_input`) is delta-encoded (nanoseconds/frame; the per-frame `fflush` relaxed to every 30).
+    "Keep take" (Debug menu / global **⌘⇧K**, twin of the attach-profiler's ⌘⇧P on the same handle
+    table) promotes the current session into `tools/clips/<slug>/NN-take.rec` for a clip or an exact
+    bug repro. Enabling mechanism: the recorder writes a `# seed <n>` header and `load_replay` reads
+    it back (`runtime/studio.c`), so a replay self-seeds to the same world with zero extra args
+    (explicit `--seed` still wins; old headerless `.rec` unaffected). Runs become `--det` (fixed
+    timestep + seed) — a settings toggle ("record every play", default on) disables it for
+    wall-clock-sensitive carts; net games + the live backend are skipped. Dodges the mid-play
+    savestate problem: "record from here" is a `make-gif --start` trim, not a state snapshot. Design:
+    [`design/flight-recorder.md`](design/flight-recorder.md).
+
 ---
 
 ## Decided-against / deferred ✗

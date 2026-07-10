@@ -1,0 +1,109 @@
+# The flight recorder — always-on deterministic session capture
+
+STATUS: BUILDING / v1 SHIPPED 2026-07-10. Every native ▶ Run records its inputs deterministically
+to a rolling scratch ring; you "keep a take" (promote it to `tools/clips/`) only when you care. The
+payoff is two-for-one: an effortless clip source AND an `rr`-style exact repro for any bug you hit.
+
+Companion reading: [`input-recording-looper.md`](input-recording-looper.md) (the *music* looper and
+gameplay ghosts — a different recording level; §"one idea is two"), [`debug-harness.md`](../guides/debug-harness.md)
+(the `--record`/`--replay` harness this rides on), [`song-codec.md`](song-codec.md) (the seed-in-a-file
+idea; shares the mechanism), and the take→clip pipeline in `tools/make-gif.js`.
+
+## The problem
+
+Recording a play was a deliberate act: press ▶ record, perform in one take from boot, parked on
+window-close (`studio:record`, `editor/electron/main.cjs`). So the *interesting* moment — the bug
+you didn't expect, the run you didn't plan to keep — is already gone. You can only capture what you
+decided to capture before it happened.
+
+## The model — always record, keep almost nothing
+
+Three homes, one flow:
+
+```
+  every ▶ Run                    "keep take" (⌘⇧K)              consumers
+  ───────────                    ─────────────────              ─────────
+  build/.rec/<slug>/<sess>.rec   tools/clips/<slug>/NN-take.rec  make-gif · reel · spec · repro
+  (gitignored scratch RING,      (committed, self-contained     (deterministic replay:
+   last 10 per cart, auto-evict)  via its `# seed` header)       same take → same world)
+```
+
+- **Always-on**: every native Run launches `--det --record <ring> --seed <random>`. The scratch ring
+  keeps the last `RING_KEEP` (10) sessions per cart and evicts the oldest — we throw away almost
+  everything.
+- **Keep-to-commit**: the Debug menu's *Keep take* / global **⌘⇧K** copies the current session's ring
+  file into `tools/clips/<slug>/NN-take.rec` — the same home authored takes use, feeding the whole
+  fan-out (replay · clip · reel · attract · spec seed).
+- **"Record from the moment I'm in" is a trim, not a savestate.** Because we record from a
+  deterministic boot, the interesting in-point is just `make-gif --start <n>` at clip time. We never
+  snapshot mid-play state (see Boundaries).
+
+## Why it's cheap (measured)
+
+The recorder (`harness_input`, `runtime/studio.c`) is **delta-encoded** — a line only when an input
+*changes* (`<frame> k|m|b|w …`). So:
+
+- **CPU**: a handful of int compares + an occasional `fprintf`. Nanoseconds/frame; never near a hot
+  function. The old per-frame `fflush` is relaxed to every ~30 frames (a live tail / mid-play keep
+  still sees a ≤0.5s-fresh file, without a syscall per frame).
+- **Storage**: worst case (constant mouse drag) ≈ 1 KB/s ≈ ~3.5 MB/hour; button-driven play is a tiny
+  fraction (idle frames write nothing), and it's repetitive text that gzips ~10×. The ring's
+  keep-last-10 bound makes it a non-issue.
+
+## The determinism contract (the enabling mechanism)
+
+A `.rec` is **inputs only, replayed from a deterministic boot**. `--det` fixes both the clock
+(`clk()`→`det_clock`) AND the per-frame `dt` (`frame_dt = DET_DT`) and seeds the RNG
+(`SetRandomSeed(seed); srand(seed)`). So a same-build replay of the input tape reconstructs the world
+exactly — for input-driven, dt-integrated, and `rnd()`-using carts alike.
+
+The one missing piece was the **seed**: the default was 1 and it was never written down, so an
+always-random session couldn't be replayed. Fix (`runtime/studio.c`): the recorder writes a
+`# seed <n>` header line first; `load_replay` reads it back and applies it before `SetRandomSeed`, so
+**any** replay path (play.js, make-gif, editor) reconstructs the same world with zero extra args. An
+explicit `--seed` on the CLI still wins. The header is inert to every other consumer (`load_replay`
+skips any non-`<int> <char> <int> <int>` line; `make-gif` only reads `# frames/fps/scale/crf`), so
+old headerless `.rec` files replay unchanged.
+
+**Honest caveats (documented, not solved):**
+- A cart that reads wall-clock (`GetTime()`) or unseeded `rand()` directly bypasses determinism and
+  won't replay faithfully. Most carts use the engine's `now()`/`dt()`/`rnd()`/`noise()` and are fine
+  (`noise()` is a pure coord hash — unseeded and already deterministic).
+- Replay is faithful on the **same machine + same build**. Cross-*architecture* float drift is not
+  guaranteed — that's the `tools/det-probes/` bit-identical story, out of scope here.
+- Making every Run `--det` is a behaviour change (game-time vs wall-time under stutter). For a
+  fantasy console at a steady 60fps it's near-invisible and arguably more correct; a settings toggle
+  ("record every play") disables it for wall-clock-sensitive carts. Net games skip it (netplay owns
+  its own `--det` seed via the handshake). The live/libtcc backend is not recorded in v1.
+
+## The debugging payoff
+
+This is `rr`-style record-and-replay for the console, at near-zero runtime cost *because the sim is
+already deterministic-capable*. Hit a glitch → the ring already holds the exact session → replay it
+headless for a bit-identical repro (`node tools/play.js <cart> replay <ring>.rec`), then keep it as a
+regression seed. **Every close logs where the session landed** (`↩ session recorded → build/.rec/…`,
+with a 📂 reveal-in-Finder button + the ready-to-paste replay command), so a repro is always findable
+even when you didn't think to keep it. Bridging a kept `.rec` into an automatic `spec()` regression is a noted future
+consumer (see [`spec-harness.md`](spec-harness.md) — today `spec()` is hand-authored, not `.rec`-fed).
+
+## Boundaries (what this is NOT)
+
+- **Not a savestate.** `de_state()` has no serialize, and cart state is scattered across statics — a
+  general mid-play snapshot is the emulator-savestate problem. We dodge it entirely via the trim
+  model above. No `de_state` snapshot is taken.
+- **Not the music live-looper or gameplay ghosts.** Those record at a different level (audio events /
+  a second body) and stay in [`input-recording-looper.md`](input-recording-looper.md). This is the
+  *harness* recorder — whole-session, file-based, dev-facing, engine-owned only as a debug seam
+  (ADR-0006).
+
+## Where the code lives
+
+- `runtime/studio.c` — `# seed` header write on `--record` open; `load_replay` reads it back;
+  per-frame `fflush` relaxed to every 30 frames.
+- `editor/electron/main.cjs` — `studio:run` records every native run (`--det --seed <rand> --record
+  <ring>`); the `build/.rec/<slug>/` ring + `pruneRing`; `keepTake`/`keepTakeFromMenu`;
+  `studio:record-keep` IPC; Debug-menu *Keep take* + global `⌘⇧K` (twin of the attach-profiler's
+  `⌘⇧P` — same handle table).
+- `editor/src/settings.js` — the "record every play" toggle (default on).
+- Consumers unchanged: `tools/make-gif.js` / `tools/play.js` replay the kept `.rec` and self-seed
+  from its header; `--start` trims the boot to the in-point.

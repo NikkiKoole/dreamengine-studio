@@ -1798,7 +1798,7 @@ static void harness_input(int fno) {
         }
         float wm = inp_mouse_wheel();                    // wheel is transient — log the frames it moves
         if (wm != 0.0f) fprintf(rec_file, "%d w %d 0\n", fno, (int)wm);
-        fflush(rec_file);                                // per-frame flush so a live tail sees it
+        if (fno % 30 == 0) fflush(rec_file);             // periodic flush: a live tail / mid-play "keep take" sees a ~0.5s-fresh file, without a syscall every frame (always-on recording)
     }
 }
 
@@ -2523,11 +2523,15 @@ static int ev_cmp(const void *a, const void *b) {
 //   <frame> m <x> <y>              mouse move (canvas space)
 //   <frame> b <button 0|1|2> <down>   mouse button (L/R/M)
 //   <frame> w <delta> 0            mouse wheel (+up / -down), transient on that frame
+static long replay_hdr_seed = -1;   // a `# seed <n>` header line in the .rec, if present (-1 = none)
 static void load_replay(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) { fprintf(stderr, "harness: cannot open replay %s\n", path); return; }
+    replay_hdr_seed = -1;
     char line[128];
     while (fgets(line, sizeof line, f)) {
+        long hs;
+        if (sscanf(line, "# seed %ld", &hs) == 1) { replay_hdr_seed = hs; continue; }  // self-seeding: the recorder logged the world seed here
         int frame, x, y; char tag;
         if (sscanf(line, "%d %c %d %d", &frame, &tag, &x, &y) != 4) continue;
         if      (tag == 'k') ev_push(frame, 0, x, y);
@@ -2878,6 +2882,7 @@ int main(int argc, char **argv) {
     int         screenshot_frames_done = 0;
     int         hide_window            = 0;
     unsigned    seed                   = 1;
+    int         seed_explicit          = 0;   // --seed given on the CLI → overrides a .rec's `# seed` header
     const char *rec_path = NULL, *replay_path = NULL, *script_path = NULL, *trace_path = NULL;
     const char *wav_path = NULL;
 #ifdef DE_TCC
@@ -2888,7 +2893,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--title")  == 0 && i + 1 < argc) window_title = argv[++i];
         else if (strcmp(argv[i], "--det")    == 0) det_mode = true;
         else if (strcmp(argv[i], "--headless") == 0) hide_window = 1;
-        else if (strcmp(argv[i], "--seed")   == 0 && i + 1 < argc) seed = (unsigned)atoi(argv[++i]);
+        else if (strcmp(argv[i], "--seed")   == 0 && i + 1 < argc) { seed = (unsigned)atoi(argv[++i]); seed_explicit = 1; }
         else if (strcmp(argv[i], "--record") == 0 && i + 1 < argc) rec_path = argv[++i];
         else if (strcmp(argv[i], "--replay") == 0 && i + 1 < argc) replay_path = argv[++i];
         else if (strcmp(argv[i], "--script") == 0 && i + 1 < argc) script_path = argv[++i];
@@ -2924,7 +2929,11 @@ int main(int argc, char **argv) {
 #endif
     }
     // replay/script drive input deterministically; both imply --det
-    if (replay_path) { load_replay(replay_path); inject_input = true; det_mode = true; }
+    if (replay_path) { load_replay(replay_path); inject_input = true; det_mode = true;
+                       // self-seed from the .rec's `# seed` header so a replay reconstructs the same
+                       // world with zero extra args (an explicit --seed still wins). Applied before
+                       // SetRandomSeed(seed) below.
+                       if (replay_hdr_seed >= 0 && !seed_explicit) seed = (unsigned)replay_hdr_seed; }
     if (script_path) { load_script(script_path); inject_input = true; det_mode = true; }
 #ifdef DE_NET_BUILD
 #ifdef DE_NET_LOBBY_DEFAULT
@@ -2947,7 +2956,8 @@ int main(int argc, char **argv) {
 #ifdef DE_SPEC
     if (spec_mode) { inject_input = true; det_mode = true; hide_window = 1; }   // headless, deterministic
 #endif
-    if (rec_path)    rec_file   = fopen(rec_path,  "w");
+    if (rec_path) { rec_file = fopen(rec_path, "w");
+                    if (rec_file) fprintf(rec_file, "# seed %u\n", seed); }   // self-seeding header — load_replay reads it back (skipped by every other .rec consumer)
     if (trace_path)  trace_file = fopen(trace_path, "w");
     if (uiaudit_path) uiaudit_file = fopen(uiaudit_path, "w");
     if (screenshot_mode) hide_window = 1;

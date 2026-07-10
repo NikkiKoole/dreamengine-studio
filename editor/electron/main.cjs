@@ -410,16 +410,57 @@ function killLiveHost() {
 // cross-cart actions have one place to look. We deliberately DON'T kill a
 // previous cart on a new Run: several carts running at once is supported (the OS
 // schedules + mixes them for free; play.js netdemo relies on it).
-const nativeCarts = new Map()   // pid -> { proc, name, kind, startedAt }
-function trackNative(proc, name, kind) {
+const nativeCarts = new Map()   // pid -> { proc, name, kind, startedAt, recPath, slug }
+function trackNative(proc, name, kind, meta) {
   if (!proc || !proc.pid) return proc
-  nativeCarts.set(proc.pid, { proc, name: name || 'dreamengine', kind, startedAt: Date.now() })
+  nativeCarts.set(proc.pid, { proc, name: name || 'dreamengine', kind, startedAt: Date.now(),
+                              recPath: meta?.recPath || null, slug: meta?.slug || null })
   refreshDebugMenu(); updateCartShortcut()
   proc.on('exit', () => { nativeCarts.delete(proc.pid); refreshDebugMenu(); updateCartShortcut() })
   return proc
 }
 function runningCarts() {   // most-recently-started first
   return [...nativeCarts.values()].sort((a, b) => b.startedAt - a.startedAt)
+}
+
+// ── flight recorder: always-on deterministic session capture ────────────────
+// Every native Run records to a per-cart RING (build/.rec/<slug>/, gitignored), kept cheap by
+// delta-encoded input logging. We throw away almost all of it (keep the last RING_KEEP) and
+// "keep a take" only when we care → promote into tools/clips/<slug>/. Because the run is --det
+// with a logged seed, any moment replays exactly (bug repro / clip). Design: docs/design/flight-recorder.md
+const RING_KEEP = 10
+// canonical cart id (the .cart.png / tools/carts/<slug>.c / tools/clips/<slug> stem), NOT the
+// display title — "Squishy Lines" must land in .../squishy/, not .../squishy-lines/.
+function cartSlug(cfg) {
+  return (cfg?.cartFile || cfg?.cartName || 'scratch').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'scratch'
+}
+function ringDir(slug) { return path.join(BUILD_DIR, '.rec', slug) }
+function sessionStamp() { return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}` }
+function pruneRing(slug) {                                    // keep the newest RING_KEEP, evict the rest
+  try {
+    const dir = ringDir(slug)
+    const files = fs.readdirSync(dir).filter(f => f.endsWith('.rec'))
+      .map(f => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t)
+    for (const e of files.slice(RING_KEEP)) { try { fs.unlinkSync(path.join(dir, e.f)) } catch {} }
+  } catch {}
+}
+// promote a ring take into its committed home tools/clips/<slug>/NN-take.rec. Self-contained: the
+// engine already wrote a `# seed` header, so the copy replays into the exact same world.
+function keepTake(ringFile, slug, send) {
+  const ROOT = path.join(__dirname, '../..')
+  try {
+    if (!ringFile || !fs.existsSync(ringFile) || fs.statSync(ringFile).size === 0)
+      return (send && send('cart:log', '\n(no take to keep — nothing recorded this session yet)\n'), { ok: false })
+    const dir = path.join(ROOT, 'tools/clips', slug)
+    fs.mkdirSync(dir, { recursive: true })
+    const nums = fs.readdirSync(dir).map(f => { const m = f.match(/^(\d+)-/); return m ? +m[1] : 0 })
+    const nn = String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0')
+    const dest = path.join(dir, `${nn}-take.rec`)
+    fs.copyFileSync(ringFile, dest)
+    const rel = path.relative(ROOT, dest)
+    if (send) send('cart:log', `\n✓ kept take → ${rel}\n  replay:  node tools/play.js ${slug} replay ${rel}\n  clip:    node tools/make-gif.js ${slug} --recipe ${nn}-take\n`)
+    return { ok: true, rel, dest, slug, label: `${nn}-take` }
+  } catch (e) { if (send) send('cart:log', `\n✗ keep take failed: ${e.message}\n`); return { ok: false, error: String(e.message || e) } }
 }
 function buildTccHost(dims) {
   return new Promise(resolve => {
@@ -725,31 +766,43 @@ function buildAppMenu(cartName) {
   // Debug menu — the one place for cross-cart dev actions. Always present in the
   // editor (it's unobtrusive up here); absent entirely from any deployed/exported
   // cart, which is the standalone C binary with no Electron menu. Lists each
-  // RUNNING cart so you pick which one to attach to. The ⌘⇧P hotkey lives on the
-  // global shortcut (updateCartShortcut) so it fires while the CART window is
+  // RUNNING cart with its two actions: attach-profile (⌘⇧P) and keep-take (⌘⇧K,
+  // promote the flight-recorder session to tools/clips). The hotkeys live on the
+  // global shortcut (updateCartShortcut) so they fire while the CART window is
   // focused too — menu items are click-only to avoid a double-bind on the accel.
   {
     const carts = runningCarts()
-    const items = carts.length
-      ? carts.map(c => ({ label: `Profile “${c.name}”  (attach, ⌘⇧P)`, click: () => profileAttachFromMenu(c.proc.pid) }))
-      : [{ label: 'Profile running cart  (attach)  — press ▶ Run first', enabled: false }]
+    let items
+    if (!carts.length) {
+      items = [{ label: 'Run a cart first  (▶) — then profile / keep its take here', enabled: false }]
+    } else {
+      items = []
+      carts.forEach((c, i) => {
+        if (i) items.push({ type: 'separator' })
+        items.push({ label: `Profile “${c.name}”  (attach, ⌘⇧P)`, click: () => profileAttachFromMenu(c.proc.pid) })
+        items.push({ label: `Keep take of “${c.name}”  (⌘⇧K)`, enabled: !!c.recPath, click: () => keepTakeFromMenu(c.proc.pid) })
+      })
+    }
     template.push({ label: 'Debug', submenu: items })
   }
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 function refreshDebugMenu() { buildAppMenu(_menuCartName) }
 
-// The ⌘⇧P hotkey is a GLOBAL shortcut (not just a menu accelerator) so it works
-// while the cart window — not the editor — is focused. Registered only while a
-// cart is actually running + the Debug menu is on, released otherwise, so it
-// never permanently claims the combo system-wide.
+// The ⌘⇧P (attach-profile) and ⌘⇧K (keep take) hotkeys are GLOBAL shortcuts (not just menu
+// accelerators) so they work while the cart window — not the editor — is focused. Registered only
+// while a cart is running, released otherwise, so they never permanently claim the combos.
 let cartShortcutOn = false
 function updateCartShortcut() {
   const want = nativeCarts.size > 0
   if (want && !cartShortcutOn) {
-    try { cartShortcutOn = globalShortcut.register('CommandOrControl+Shift+P', () => profileAttachFromMenu(null)) } catch {}
+    try {
+      globalShortcut.register('CommandOrControl+Shift+P', () => profileAttachFromMenu(null))
+      globalShortcut.register('CommandOrControl+Shift+K', () => keepTakeFromMenu(null))
+      cartShortcutOn = true
+    } catch {}
   } else if (!want && cartShortcutOn) {
-    try { globalShortcut.unregister('CommandOrControl+Shift+P') } catch {}
+    try { globalShortcut.unregister('CommandOrControl+Shift+P'); globalShortcut.unregister('CommandOrControl+Shift+K') } catch {}
     cartShortcutOn = false
   }
 }
@@ -875,10 +928,39 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
       const cartTitle = cfg?.cartName || 'dreamengine'
       const netFlags  = netArgs(cfg)
-      const proc = trackNative(spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'run')
+      // Flight recorder: record every native Run deterministically to the ring so any moment is
+      // replayable (bug repro / clip). Skipped for net games (net owns its own --det seed via the
+      // handshake) and when disabled in settings. Random per-session seed, logged into the .rec
+      // header by the engine so a replay self-seeds. Design: docs/design/flight-recorder.md
+      const slug = cartSlug(cfg)
+      const isNet = !!(cfg?.net && cfg.net.mode)
+      let recPath = null, recFlags = []
+      if (cfg?.recordPlays !== false && !isNet) {
+        try {
+          fs.mkdirSync(ringDir(slug), { recursive: true })
+          recPath = path.join(ringDir(slug), `${sessionStamp()}.rec`)
+          const seed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0
+          recFlags = ['--det', '--seed', String(seed), '--record', recPath]
+        } catch { recPath = null; recFlags = [] }
+      }
+      const proc = trackNative(spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags, ...recFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'run', { recPath, slug })
       proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))   // raylib trace (warnings only) + stray printf + net: HOSTING line
       proc.stderr.on('data', chunk => send('cart:log', chunk.toString()))   // printh() output
-      proc.on('exit', (code, signal) => send('cart:exit', { code, signal }))
+      proc.on('exit', (code, signal) => {
+        if (recPath) {
+          pruneRing(slug)
+          // always tell the log where this session's recording landed — so any close leaves a
+          // findable, replayable repro even if you don't explicitly keep it (⌘⇧K). The `build/`
+          // path gets a 📂 reveal-in-Finder button automatically (rlogAppend).
+          try {
+            if (fs.existsSync(recPath) && fs.statSync(recPath).size > 0) {
+              const rel = path.relative(path.join(__dirname, '../..'), recPath)
+              send('cart:log', `\n↩ session recorded → ${rel}\n  keep it: Debug ▸ Keep take (⌘⇧K)   ·   replay: node tools/play.js ${slug} replay ${rel}\n`)
+            }
+          } catch {}
+        }
+        send('cart:exit', { code, signal })
+      })
       proc.on('error', () => {})
 
       // also cross-compile for Windows in the background (console build for testing)
@@ -1323,6 +1405,17 @@ async function profileAttachFromMenu(pid) {
   const result = await runProfileAttach(pid, {})
   if (!win.isDestroyed()) win.webContents.send('profile:attached', result)
 }
+
+// Keep (promote) the flight-recorder session of a running cart into tools/clips. pid null → the
+// most-recently-started cart. Driven by the Debug menu / global ⌘⇧K; logs the replay + clip commands.
+function keepTakeFromMenu(pid) {
+  const target = pid ? nativeCarts.get(pid) : runningCarts()[0]
+  const win = BrowserWindow.getAllWindows()[0]
+  const send = (ch, p) => { if (win && !win.isDestroyed()) win.webContents.send(ch, p) }
+  if (!target || !target.recPath) return send('cart:log', '\n(no running cart with a recording to keep — is recording enabled?)\n')
+  keepTake(target.recPath, target.slug || cartSlug({ cartName: target.name }), send)
+}
+ipcMain.handle('studio:record-keep', (_e, pid) => { keepTakeFromMenu(pid); return { ok: true } })
 
 // ── web preview server ────────────────────────────────────────
 const WEB_PORT = 8765

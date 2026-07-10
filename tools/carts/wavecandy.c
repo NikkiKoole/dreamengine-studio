@@ -53,7 +53,7 @@ de:meta */
 #define PX0 26
 #define PX1 312
 #define PY0 18
-#define PY1 158
+#define PY1 152
 #define PW  (PX1 - PX0)
 #define PH  (PY1 - PY0)
 #define F_LO   40.0f
@@ -67,6 +67,13 @@ static float hold_db[PW];               // peak-hold trace
 
 static const char *SRC_NAME[5]   = { "SINE", "SQUARE", "SAW", "CHORD", "NOISE" };
 static const char *VIEW_NAME[5]  = { "spectrum", "spectrogram", "scope", "meters", "vectorscope" };
+static const char *VIEW_CAP[5]   = {         // one plain-language line per view (<=56 chars: FONT_SMALL is 5 px/char)
+    "HOW LOUD EACH FREQUENCY IS - LOW NOTES LEFT, HISS RIGHT",
+    "FREQUENCY OVER TIME - HOT IS LOUD, NEWEST AT THE RIGHT",
+    "THE RAW WAVEFORM - AIR PRESSURE, A FEW CYCLES FROZEN",
+    "LOUDNESS - PEAK CATCHES SPIKES, RMS IS THE AVERAGE",
+    "STEREO WIDTH - MONO IS A LINE, WIDE SOUND OPENS UP",
+};
 static const char *WIDTH_NAME[3] = { "MONO", "AUTOPAN", "CHORUS" };
 static int   view     = 0;
 static int   width_fx = 0;              // 0 dry mono · 1 autopan · 2 chorus
@@ -402,18 +409,23 @@ void draw(void) {
     }
     rect(PX0, PY0, PW + 1, PH + 1, CLR_DARK_GREY);
 
+    // what this view shows, in one plain line
+    font(FONT_SMALL);
+    print(VIEW_CAP[view], PX0, 163, CLR_LIGHT_GREY);
+    font(FONT_NORMAL);
+
     // cursor readout: the strongest partial on screen
     int best = 1;
     for (int b = 2; b < FFT_N / 2; b++) if (mag[b] > mag[best]) best = b;
     char info[64];
     if (to_db(mag[best]) > DB_FLOOR + 1.0f) {
         sprintf(info, "peak %d hz  %.1f db", (int)(best * BIN_HZ + 0.5f), to_db(mag[best]));
-        print(info, PX0, 168, CLR_LIGHT_GREY);
+        print(info, PX0, 171, CLR_LIGHT_GREY);
     }
     sprintf(info, "%s", muted ? "MUTED" : SRC_NAME[source]);
     if (width_fx) sprintf(info + strlen(info), " +%s", WIDTH_NAME[width_fx]);
     if (sweep)    sprintf(info + strlen(info), "  sweep %d hz", cutoff);
-    print(info, PX0, 178, CLR_PEACH);
+    print(info, PX0, 181, CLR_PEACH);
     font(FONT_SMALL);
     print("M VIEW  1-5 SOURCE  W WIDTH  F SWEEP  Q MUTE  P CLEAR", PX0, 190, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);

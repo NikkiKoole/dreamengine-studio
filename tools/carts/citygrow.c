@@ -30,6 +30,7 @@ de:meta */
 #include <stdio.h>
 #include <math.h>       // powf — the contrast gamma
 #include "citygen.h"   // the extracted city grammar (rungs 2-5) — worldgen-plan rung 5.5
+#include "roadkit.h"   // B4: the interchange grammar — render grade-2 junctions as real ramps
 
 // ============================================================================
 // CITY GROW — the worldgen rung-2..5 BENCH. This file is where the generation
@@ -74,6 +75,7 @@ static int   show_heat = 1, show_extent = 1, show_dots = 1, show_bound = 0;
 static int   show_grid = 0, show_hud = 1;
 static int   show_dist = 0;                // rung 4: district faces overlay (K)
 static int   show_junc = 0;                // rung 6: junction descriptors overlay (J)
+static int   ixc_i = 0;                     // B4: which grade-2 interchange the I-key last hopped to
 static int   use_field = 1;           // 1 = rung-2 field settlements · 0 = old pure-hash (the A/B)
 
 static void view_metrics(void) {
@@ -320,6 +322,35 @@ static void ms_draw(void) {
 // ── Rung 6 (J): the emitted JUNCTION descriptors — every arterial node with its arms drawn by TIER
 // (highway = white, arterial = grey), and the node dot GREEN at-grade / RED grade-separated (a highway
 // flying over). This is the (legs, bearings, class, grade) B4's roadkit dispatcher routes.
+// B4: render ONE grade-2 node as a real INTERCHANGE through roadkit's grammar — build a Port pair per
+// arm (inbound/outbound, drive-on-right), let rk_make_junction emit the connection table, then draw each
+// ramp by its primitive (loop = red, flyover = orange, direct/through = grey). Metres in, screen line out.
+static void cg_draw_interchange(CgJunc *j) {
+    if (j->narm < 3 || j->narm > 4) return;               // roadlab's ramp families are 3-leg (T) / 4-leg
+    Port ports[16]; unsigned char pres[8];
+    const float LL = 65.0f, LW = 4.0f;                    // ramp reach / lane offset (metres)
+    for (int L = 0; L < j->narm; L++) {
+        float b = j->brg[L], ax = cos_deg(b), ay = sin_deg(b), rx = -ay, ry = ax;
+        float tx = j->x + ax * LL, ty = j->y + ay * LL;   // arm tip; ports one lane either side of it
+        ports[L*2]     = (Port){ tx - rx*(LW*0.5f), ty - ry*(LW*0.5f), b + 180.0f, "" };   // inbound
+        ports[L*2 + 1] = (Port){ tx + rx*(LW*0.5f), ty + ry*(LW*0.5f), b,          "" };   // outbound
+        pres[L] = 1;
+    }
+    Junction jn;
+    rk_make_junction(j->narm, j->narm == 4 ? JT_CLOVERLEAF : JT_TRUMPET, 1, pres, ports, &jn);
+    for (int c = 0; c < jn.nConns; c++) {
+        Connection *cn = &jn.conns[c];
+        Port a = ports[cn->inPort], b = ports[cn->outPort];
+        float xs[160], ys[160]; int n;
+        if      (cn->prim == RP_LOOP)    n = loop_spline(a, b, 32.0f, xs, ys);
+        else if (cn->prim == RP_FLYOVER) n = scurve_spline(a, b, xs, ys);
+        else                             n = arc_spline(a, b, 22.0f, xs, ys);   // DIRECT / THROUGH
+        int col = cn->prim == RP_FLYOVER ? CLR_ORANGE : cn->prim == RP_LOOP ? CLR_RED : CLR_LIGHT_GREY;
+        for (int i = 0; i + 1 < n; i++)
+            line(sxp(xs[i]), syp(ys[i]), sxp(xs[i+1]), syp(ys[i+1]), col);
+    }
+}
+
 static void cg_junc_draw(void) {
     ar_graph_ensure();
     for (int i = 0; i < cgj_n; i++) {
@@ -330,6 +361,7 @@ static void cg_junc_draw(void) {
             int ex = sxp(j->x + cosf(b) * 120.0f), ey = syp(j->y + sinf(b) * 120.0f);
             line(cx, cy, ex, ey, j->cls[a] == CG_HWY ? CLR_WHITE : CLR_LIGHT_GREY);
         }
+        if (j->grade == 2) cg_draw_interchange(j);          // B4: the real ramp geometry at interchanges
         int gc = j->grade == 2 ? CLR_RED : j->grade == 1 ? CLR_ORANGE : CLR_GREEN;   // interchange / overpass / at-grade
         circfill(cx, cy, j->grade == 2 ? 4 : j->grade == 1 ? 3 : 2, gc);
     }
@@ -468,6 +500,18 @@ void update(void) {
     if (keyp('G')) show_grid   = !show_grid;
     if (keyp('K')) show_dist   = (show_dist + 1) % 4;  // rung 4: off→faces→minors→both
     if (keyp('J')) show_junc   = !show_junc;           // rung 6: junction descriptors
+    if (keyp('I') && ar_on) {                          // B4: hop the camera onto the next grade-2 INTERCHANGE
+        ar_graph_ensure();                             // (the 6 needles — zoom in to read the roadkit ramps)
+        for (int t = 1; t <= cgj_n; t++) {
+            int k = (ixc_i + t) % cgj_n;
+            if (cgj[k].grade == 2) {
+                show_junc = 1; zoom = ZMAX; view_metrics();
+                camX = cgj[k].x - SCREEN_W * 0.5f / (TILE * zoom);
+                camY = cgj[k].y - SCREEN_H * 0.5f / (TILE * zoom);
+                ixc_i = k; break;
+            }
+        }
+    }
     if (keyp('H')) show_hud    = !show_hud;
     if (keyp('M')) mode = 0;
 

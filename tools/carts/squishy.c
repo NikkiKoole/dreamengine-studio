@@ -12,8 +12,8 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation. It also takes BEVEL for a raised glossy edge; boil wobbles the wet body but the runs stay put — they're 'dried', computed from the stable path), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at. The nib is a FAMILY of four sharing one renderer that reads an angle recipe: NIB (fixed angle), BRUSHPEN (angle PLUS a speed swell — swells slow, thins fast), REED (a dry pen whose angle chatters per point, seeded so it's a stable texture that still boils), and TWIST (the angle winds along the stroke); the rim/fill features all take the true nib-ribbon shape), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light is a GLOBAL 'sun' set from an on-screen SUN popover (drag the dial to aim it, tap one of four colours warm peach → golden → neutral → cool moon, toggle auto-spin) or from the keyboard (, and . rotate, / recolours, \\ auto-rotates); every beveled stroke (and the oil-paint rim) relights together, so you sweep and recolour the sun across the whole drawing; BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. A stroke can instead carry a GRADIENT FILL (the G-key popover): its body dithers from the pen colour to a second colour across the stroke, with an ANGLE and a SPREAD knob — a small spread keeps solid ends with a narrow blend band (aaaaa→bfy→zzzzz), spread 1 is an even ramp end-to-end (abc…xyz); it's the dpaint dithered-gradient scoped to a brushstroke, and every solid-body brush takes it — the stamp brushes, the wet-paint body (whose drips run in the from-colour), the oil body (the knife streaks rake over the ramp — paint dragged through two wet colours), and the nib family, where the ramp fills the TRUE nib-ribbon shape, not a round silhouette. Any stroke can also cast a DROP SHADOW — the whole silhouette re-rendered dark and offset AWAY from the sun, so it reads as floating above the paper; it's the SAME sun as the bevel, so spinning the sun swings every shadow and every bevel rim together (toggle it in the SUN popover). WIDTH is live on the MOUSE WHEEL: scroll to set the brush size, or scroll mid-stroke to taper/swell the line — it's captured per point, so the change stays where you made it (real pressure, not a uniform rescale). The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
-    "controls": "Two-row top panel (ink-on-paper). ROW 1 (brush + effects): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/brushpen/reed/twist/oil), a thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, and a SUN button (opens a light-dial + colour + spin popover + a DROP-SHADOW toggle). ROW 2 (colour + fill): the 7-colour palette, the dither-pattern strip, a GRADIENT button (a ramp glyph — opens the gradient popover: on/off + far colour + spread + angle; the G key does the same), and a SELECT (marquee) toggle. Active swatches/toggles wear an accent tab. Drag to draw; the MOUSE WHEEL sets the width live (scroll mid-stroke to taper/swell it — per-point pressure). Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width/shadow-distance sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, G gradient popover, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun), / cycles the sun's colour, \\ auto-rotates the sun."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation. It also takes BEVEL for a raised glossy edge; boil wobbles the wet body but the runs stay put — they're 'dried', computed from the stable path), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at. The nib is a FAMILY of four sharing one renderer that reads an angle recipe: NIB (fixed angle), BRUSHPEN (angle PLUS a speed swell — swells slow, thins fast), REED (a dry pen whose angle chatters per point, seeded so it's a stable texture that still boils), and TWIST (the angle winds along the stroke); the rim/fill features all take the true nib-ribbon shape), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light is a GLOBAL 'sun' set from an on-screen SUN popover (drag the dial to aim it, tap one of four colours warm peach → golden → neutral → cool moon, toggle auto-spin) or from the keyboard (, and . rotate, / recolours, \\ auto-rotates); every beveled stroke (and the oil-paint rim) relights together, so you sweep and recolour the sun across the whole drawing; BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. A stroke can instead carry a GRADIENT FILL (the G-key popover): its body dithers from the pen colour to a second colour across the stroke, with an ANGLE and a SPREAD knob — a small spread keeps solid ends with a narrow blend band (aaaaa→bfy→zzzzz), spread 1 is an even ramp end-to-end (abc…xyz); it's the dpaint dithered-gradient scoped to a brushstroke, and every solid-body brush takes it — the stamp brushes, the wet-paint body (whose drips run in the from-colour), the oil body (the knife streaks rake over the ramp — paint dragged through two wet colours), and the nib family, where the ramp fills the TRUE nib-ribbon shape, not a round silhouette. Any stroke can be a CLOSED SHAPE (the F key or the row-2 blob toggle): the path closes back to its start and the interior scanline-fills EVEN-ODD — the VECTOR fill, still pure f(stroke, seed), so a filled blob inherits everything per-stroke with zero new feature code: the outline rims it (bubble letters), bevel domes it under the sun, dither and gradient shade it (the ramp runs across the WHOLE shape, interior included), boil makes the blob breathe, the drop shadow casts its filled silhouette, and closed wet paint drips from the blob's true bottom edge. A closed stroke never end-tapers (no pinch at the seam) and the boundary brush wraps the closing edge, whatever the brush — the fill is a property of the PATH; the brush is just the boundary treatment. Like bevel/boil it is per-stroke and select-editable, so any existing stroke can be closed (or re-opened) after the fact. Any stroke can also cast a DROP SHADOW — the whole silhouette re-rendered dark and offset AWAY from the sun, so it reads as floating above the paper; it's the SAME sun as the bevel, so spinning the sun swings every shadow and every bevel rim together (toggle it in the SUN popover). WIDTH is live on the MOUSE WHEEL: scroll to set the brush size, or scroll mid-stroke to taper/swell the line — it's captured per point, so the change stays where you made it (real pressure, not a uniform rescale). The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A raster flood-fill (waiting on the layer-buffer refactor) + the pixelsnap animated-icon export come later.",
+    "controls": "Two-row top panel (ink-on-paper). ROW 1 (brush + effects): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/brushpen/reed/twist/oil), a thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, and a SUN button (opens a light-dial + colour + spin popover + a DROP-SHADOW toggle). ROW 2 (colour + fill): the 7-colour palette, the dither-pattern strip, a GRADIENT button (a ramp glyph — opens the gradient popover: on/off + far colour + spread + angle; the G key does the same), a SELECT (marquee) toggle, and a CLOSE toggle (a filled-blob glyph; the F key too) — mark the stroke a CLOSED SHAPE whose interior fills (the vector fill). Active swatches/toggles wear an accent tab. Drag to draw; the MOUSE WHEEL sets the width live (scroll mid-stroke to taper/swell it — per-point pressure). Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width/shadow-distance sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, F closed shape (fills; on a selection it closes/opens that stroke), S select, U undo, C clear, G gradient popover, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun), / cycles the sun's colour, \\ auto-rotates the sun."
   },
   "todo": [
     "Polish the tool-icon glyphs — ink/chalk still read a bit muddy at 16px, and the nib-family marks (brushpen comma / reed zigzag / twist coil) are small (sprite-draw.js in squishy.cart.js).",
@@ -186,6 +186,7 @@ typedef struct {
     int      grad_color;    // the gradient's far colour (the "to"; `color` is the "from")
     float    grad_angle;    // gradient ramp direction (deg)
     float    grad_spread;   // blend-band width 0..1 (1 = even ramp across the whole stroke; small = solid ends, narrow blend)
+    int      closed;        // closed shape? the path closes back to its start and the interior scanline-fills (the VECTOR fill)
     int      n;
     Sample   pts[MAX_SAMPLES];
 } Stroke;
@@ -207,6 +208,7 @@ static int      grad = 0;            // gradient-fill DEFAULT for new strokes (o
 static int      gradsel = 2;         // gradient far-colour DEFAULT (index into COLORS; 2 = red)
 static float    grad_angle = 0.0f;   // gradient ramp-angle DEFAULT (deg)
 static float    grad_spread = GRAD_SPREAD_DEF;  // gradient spread DEFAULT (0..1)
+static int      closefill = 0;       // closed-shape DEFAULT for new strokes (the vector fill; F key + a row-2 toggle)
 static float    bevel_angle = 225.0f;// GLOBAL bevel light direction (deg, the "sun"); , / . rotate it.
                                      // Shared by every beveled stroke so rotating it relights the scene.
 static int      light_sel = 0;       // GLOBAL sun COLOUR (index into LIGHTS); / cycles it (warm..cool)
@@ -246,9 +248,10 @@ static float sample_width(const Stroke *s, int i, unsigned fseed) {
     int n = s->n;
     // taper a FIXED number of samples (b.taper) at each end — distance from the
     // nearer endpoint, NOT a fraction of length, so the start stays put as the
-    // line grows. (A single-point dab keeps full width.)
+    // line grows. (A single-point dab keeps full width; a CLOSED shape has no
+    // ends, so it never tapers — a taper would pinch the loop at its seam.)
     float taper = 1.0f;
-    if (n > 1) {
+    if (n > 1 && !s->closed) {
         float ts = fminf((float)i, (float)(n - 1 - i)) / b.taper;
         if (ts > 1) ts = 1; if (ts < 0) ts = 0;
         taper = ts * ts * (3 - 2 * ts);                       // smoothstep the ends
@@ -293,9 +296,62 @@ static void boil_pt(const Stroke *s, int i, float *x, float *y, const Boil *b) {
     }
 }
 
+// ── the closed-shape VECTOR fill ──────────────────────────────────────────
+// A stroke marked `closed` is a polygon: its path plus a closing edge back to
+// the start. The interior scanline-fills EVEN-ODD (a figure-eight fills its
+// lobes alternately, deterministically), then the normal boundary pass runs
+// over it — so a filled shape inherits outline/bevel/dither/gradient/boil/
+// shadow/select with no new feature code. Still pure f(stroke, seed): the
+// BOILED points are used, so the fill wobbles/breathes with its boundary.
+#define FILL_MAX_X 64   // max even-odd edge crossings on one scanline (32 spans)
+
+// even-odd crossings of scanline y against the closed boiled path, offset by
+// (ox,oy). Returns the count; xs[] comes back sorted. Pure — the spec pins it.
+static int fill_spans(const Stroke *s, const Boil *b, float ox, float oy, float y, float *xs) {
+    int cnt = 0;
+    for (int i = 0; i < s->n; i++) {
+        int j = (i + 1) % s->n;                       // the closing edge is i = n-1 → 0
+        float ax = s->pts[i].x + ox, ay = s->pts[i].y + oy;
+        float bx = s->pts[j].x + ox, by = s->pts[j].y + oy;
+        boil_pt(s, i, &ax, &ay, b); boil_pt(s, j, &bx, &by, b);
+        if ((ay <= y) == (by <= y)) continue;          // half-open rule: a vertex ON the line counts once
+        float t = (y - ay) / (by - ay);
+        if (cnt < FILL_MAX_X) xs[cnt++] = ax + (bx - ax) * t;
+    }
+    for (int i = 1; i < cnt; i++) {                    // insertion sort — cnt is tiny
+        float v = xs[i]; int j = i - 1;
+        while (j >= 0 && xs[j] > v) { xs[j + 1] = xs[j]; j--; }
+        xs[j + 1] = v;
+    }
+    return cnt;
+}
+
+// paint the closed shape's interior in a flat colour (rectfill ⇒ an active fillp
+// dithers it like any body fill). (ox,oy) offsets the whole fill — the shadow pass.
+static void fill_pass(const Stroke *s, const Boil *b, float ox, float oy, int color) {
+    if (s->n < 3) return;
+    float miny = 1e9f, maxy = -1e9f;
+    for (int i = 0; i < s->n; i++) {
+        float x = s->pts[i].x + ox, y = s->pts[i].y + oy; boil_pt(s, i, &x, &y, b);
+        if (y < miny) miny = y; if (y > maxy) maxy = y;
+    }
+    int y0 = (int)miny; if (y0 < 0) y0 = 0;
+    int y1 = (int)maxy; if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
+    float xs[FILL_MAX_X];
+    for (int y = y0; y <= y1; y++) {
+        int cnt = fill_spans(s, b, ox, oy, y + 0.5f, xs);   // sample at the row centre
+        for (int k = 0; k + 1 < cnt; k += 2) {
+            int xa = (int)ceilf(xs[k]), xb = (int)floorf(xs[k + 1]);
+            if (xb >= xa) rectfill(xa, y, xb - xa + 1, 1, color);
+        }
+    }
+}
+
 // render a stroke as a chain of overlapping round stamps, offset by (ox,oy) in
 // `color`. (ox,oy) is the bevel rim offset; `grow` widens every stamp (for the
-// outline silhouette pass); the boil wobble comes in via `b`.
+// outline silhouette pass); the boil wobble comes in via `b`. A CLOSED stroke
+// gets one extra segment back to its start, so ink/outline/bevel/shadow all
+// wrap the closing edge too.
 static void render_stroke(const Stroke *s, float ox, float oy, int color, const Boil *b, float grow) {
     if (s->n == 0) return;
     int chalk = BRUSHES[s->tool].kind == K_CHALK;   // dry, broken: drop ~40% of stamps
@@ -304,11 +360,13 @@ static void render_stroke(const Stroke *s, float ox, float oy, int color, const 
         stamp(x + ox, y + oy, sample_width(s, 0, b->fseed) + grow, color);
         return;
     }
-    for (int i = 0; i < s->n - 1; i++) {
-        float x0 = s->pts[i].x,   y0 = s->pts[i].y;
-        float x1 = s->pts[i+1].x, y1 = s->pts[i+1].y;
-        boil_pt(s, i, &x0, &y0, b); boil_pt(s, i + 1, &x1, &y1, b);
-        float w0 = sample_width(s, i, b->fseed) + grow, w1 = sample_width(s, i + 1, b->fseed) + grow;
+    int segs = (s->closed && s->n > 2) ? s->n : s->n - 1;
+    for (int i = 0; i < segs; i++) {
+        int j = (i + 1) % s->n;
+        float x0 = s->pts[i].x, y0 = s->pts[i].y;
+        float x1 = s->pts[j].x, y1 = s->pts[j].y;
+        boil_pt(s, i, &x0, &y0, b); boil_pt(s, j, &x1, &y1, b);
+        float w0 = sample_width(s, i, b->fseed) + grow, w1 = sample_width(s, j, b->fseed) + grow;
         float dx = x1 - x0, dy = y1 - y0;
         float seg = sqrtf(dx * dx + dy * dy);
         int steps = (int)(seg / STAMP_SPACING);
@@ -340,14 +398,16 @@ static void render_spray(const Stroke *s, const Boil *b) {
 // to the stroke), each nudged a little so they're not mechanically parallel.
 static void render_bristle(const Stroke *s, const Boil *b) {
     if (s->n < 2) return;
-    for (int i = 0; i < s->n - 1; i++) {
-        float x0 = s->pts[i].x, y0 = s->pts[i].y, x1 = s->pts[i+1].x, y1 = s->pts[i+1].y;
-        boil_pt(s, i, &x0, &y0, b); boil_pt(s, i + 1, &x1, &y1, b);
+    int segs = (s->closed && s->n > 2) ? s->n : s->n - 1;   // closed: the hairs rake round the loop
+    for (int i = 0; i < segs; i++) {
+        int j = (i + 1) % s->n;
+        float x0 = s->pts[i].x, y0 = s->pts[i].y, x1 = s->pts[j].x, y1 = s->pts[j].y;
+        boil_pt(s, i, &x0, &y0, b); boil_pt(s, j, &x1, &y1, b);
         float dx = x1 - x0, dy = y1 - y0;
         float len = sqrtf(dx * dx + dy * dy);
         if (len < 0.01f) continue;
         float px = -dy / len, py = dx / len;     // perpendicular unit
-        float w = (sample_width(s, i, b->fseed) + sample_width(s, i + 1, b->fseed)) * 0.5f;
+        float w = (sample_width(s, i, b->fseed) + sample_width(s, j, b->fseed)) * 0.5f;
         for (int h = 0; h < BRISTLE_HAIRS; h++) {
             unsigned hh = hashu(s->seed ^ (unsigned)(h * 2654435761u));
             float j = ((hh & 0xFFFF) / 65535.0f - 0.5f) * 0.35f;
@@ -387,6 +447,7 @@ static void render_sketch(const Stroke *s, const Boil *b) {
 static void shadow_pass(const Stroke *s, const Boil *b) {
     if (s->shadow <= 0) return;
     float ox = -cos_deg(bevel_angle) * s->shadow, oy = -sin_deg(bevel_angle) * s->shadow;
+    if (s->closed) fill_pass(s, b, ox, oy, SHADOW);   // a closed blob shadows as its FILLED silhouette
     render_stroke(s, ox, oy, SHADOW, b, 0);
 }
 
@@ -433,6 +494,7 @@ static void emit_drip(int x, int yedge, int thk, int y1, const Stroke *s) {
 }
 
 static void render_gradient(const Stroke *s, const Boil *b);   // fwd: drip's body can be a gradient too
+static void cov_poly(const Stroke *s, const Boil *b, int x0, int x1, int y0, int y1);   // fwd: a closed drip's interior is wet too
 
 // PAINT: a wide wet body, then runs that drip DOWN from every exposed bottom edge.
 // Rasterise the body into drip_cov, then per column find each paint→paper transition
@@ -445,6 +507,7 @@ static void render_drip(const Stroke *s, const Boil *b) {
     if (s->grad) render_gradient(s, b);       // gradient wet paint (fills the body, then drips run in `color`)
     else {
         if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);   // dpaint-style dither fills the wet body
+        if (s->closed) fill_pass(s, b, 0, 0, s->color);       // a closed wet shape fills solid…
         render_stroke(s, 0, 0, s->color, b, 0);   // the wet body (same stamp chain as the fat brushes)
         if (s->pattern) fillp_reset();
     }
@@ -480,6 +543,8 @@ static void render_drip(const Stroke *s, const Boil *b) {
             for (int y = ya; y <= yb; y++) drip_cov[y][x] = 1;
         }
     }
+    if (s->closed) cov_poly(s, &still, x0, x1, y0, y1);   // …and its interior counts as wet paint, so
+                                                          // drips fall from the blob's true bottom edge
 
     // per column: every paint→paper transition is a band bottom that can drip
     for (int x = x0; x <= x1; x += DRIP_STEP) {
@@ -514,6 +579,20 @@ static void cov_seg(float ax, float ay, float bx, float by, int x0, int x1, int 
         float u = (float)k / steps;
         int x = (int)(ax + dx * u + .5f), y = (int)(ay + dy * u + .5f);
         if (x >= x0 && x <= x1 && y >= y0 && y <= y1) drip_cov[y][x] = 1;
+    }
+}
+
+// mark the closed path's interior into drip_cov (the gradient's coverage twin of fill_pass)
+static void cov_poly(const Stroke *s, const Boil *b, int x0, int x1, int y0, int y1) {
+    if (s->n < 3) return;
+    float xs[FILL_MAX_X];
+    for (int y = y0; y <= y1; y++) {
+        int cnt = fill_spans(s, b, 0, 0, y + 0.5f, xs);
+        for (int k = 0; k + 1 < cnt; k += 2) {
+            int xa = (int)ceilf(xs[k]), xb = (int)floorf(xs[k + 1]);
+            if (xa < x0) xa = x0; if (xb > x1) xb = x1;
+            for (int x = xa; x <= xb; x++) drip_cov[y][x] = 1;
+        }
     }
 }
 
@@ -579,14 +658,17 @@ static void render_gradient(const Stroke *s, const Boil *b) {
     if (s->n == 1) {
         float cx = s->pts[0].x, cy = s->pts[0].y; boil_pt(s, 0, &cx, &cy, b);
         cov_disk(cx, cy, sample_width(s, 0, b->fseed) * 0.5f, x0, x1, y0, y1);
-    } else for (int i = 0; i < s->n - 1; i++) {   // step ALONG each segment (dense) so coverage is continuous
-        float ax = s->pts[i].x, ay = s->pts[i].y, bx = s->pts[i+1].x, by = s->pts[i+1].y;
-        boil_pt(s, i, &ax, &ay, b); boil_pt(s, i + 1, &bx, &by, b);
-        float w0 = sample_width(s, i, b->fseed) * 0.5f, w1 = sample_width(s, i + 1, b->fseed) * 0.5f;
+    } else { int segs = (s->closed && s->n > 2) ? s->n : s->n - 1;   // closed: cover the closing edge too
+      for (int i = 0; i < segs; i++) {          // step ALONG each segment (dense) so coverage is continuous
+        int j = (i + 1) % s->n;
+        float ax = s->pts[i].x, ay = s->pts[i].y, bx = s->pts[j].x, by = s->pts[j].y;
+        boil_pt(s, i, &ax, &ay, b); boil_pt(s, j, &bx, &by, b);
+        float w0 = sample_width(s, i, b->fseed) * 0.5f, w1 = sample_width(s, j, b->fseed) * 0.5f;
         float ddx = bx - ax, ddy = by - ay, seg = sqrtf(ddx * ddx + ddy * ddy);
         int steps = (int)(seg / STAMP_SPACING); if (steps < 1) steps = 1;
         for (int k = 0; k <= steps; k++) { float u = (float)k / steps; cov_disk(ax + ddx * u, ay + ddy * u, w0 + (w1 - w0) * u, x0, x1, y0, y1); }
-    }
+    } }
+    if (s->closed) cov_poly(s, b, x0, x1, y0, y1);   // the interior joins the ramp — one gradient across the whole shape
     grad_ramp_pass(s, x0, x1, y0, y1, pmin, pmax);
 }
 
@@ -638,6 +720,7 @@ static void render_gradient_nib(const Stroke *s, const Boil *b) {
 
     for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) drip_cov[y][x] = 0;
     float pax = 0, pay = 0, pbx = 0, pby = 0;   // previous sample's ribbon corners
+    float fax = 0, fay = 0, fbx = 0, fby = 0;   // the FIRST sample's corners (for the closing quad)
     for (int i = 0; i < s->n; i++) {
         float x = s->pts[i].x, y = s->pts[i].y; boil_pt(s, i, &x, &y, b);
         float nx, ny; nib_edge(s, i, 0, &nx, &ny);
@@ -648,9 +731,16 @@ static void render_gradient_nib(const Stroke *s, const Boil *b) {
             cov_tri(pax, pay, bx, by, pbx, pby, x0, x1, y0, y1);
             cov_seg(pax, pay, ax, ay, x0, x1, y0, y1);   // quad side edges — keep thin sections continuous
             cov_seg(pbx, pby, bx, by, x0, x1, y0, y1);
-        }
+        } else { fax = ax; fay = ay; fbx = bx; fby = by; }
         pax = ax; pay = ay; pbx = bx; pby = by;
     }
+    if (s->closed && s->n > 2) {                    // the closing quad back to the start
+        cov_tri(pax, pay, fax, fay, fbx, fby, x0, x1, y0, y1);
+        cov_tri(pax, pay, fbx, fby, pbx, pby, x0, x1, y0, y1);
+        cov_seg(pax, pay, fax, fay, x0, x1, y0, y1);
+        cov_seg(pbx, pby, fbx, fby, x0, x1, y0, y1);
+    }
+    if (s->closed) cov_poly(s, b, x0, x1, y0, y1);  // the interior joins the ramp — one gradient across the whole shape
     grad_ramp_pass(s, x0, x1, y0, y1, pmin, pmax);
 }
 
@@ -669,10 +759,12 @@ static void render_nib_ex(const Stroke *s, const Boil *b, float grow, float ox, 
         line((int)(x-nx0+.5f),(int)(y-ny0+.5f),(int)(x+nx0+.5f),(int)(y+ny0+.5f), color);
         return;
     }
-    for (int i = 0; i < s->n - 1; i++) {
-        float x0=s->pts[i].x+ox, y0=s->pts[i].y+oy, x1=s->pts[i+1].x+ox, y1=s->pts[i+1].y+oy;
-        boil_pt(s,i,&x0,&y0,b); boil_pt(s,i+1,&x1,&y1,b);
-        nib_edge(s, i, grow, &nx0, &ny0); nib_edge(s, i+1, grow, &nx1, &ny1);   // per-point: angle/width can vary along the stroke
+    int segs = (s->closed && s->n > 2) ? s->n : s->n - 1;    // closed: the ribbon wraps back to its start
+    for (int i = 0; i < segs; i++) {
+        int j = (i + 1) % s->n;
+        float x0=s->pts[i].x+ox, y0=s->pts[i].y+oy, x1=s->pts[j].x+ox, y1=s->pts[j].y+oy;
+        boil_pt(s,i,&x0,&y0,b); boil_pt(s,j,&x1,&y1,b);
+        nib_edge(s, i, grow, &nx0, &ny0); nib_edge(s, j, grow, &nx1, &ny1);   // per-point: angle/width can vary along the stroke
         int ax=(int)(x0+nx0+.5f), ay=(int)(y0+ny0+.5f), bx=(int)(x0-nx0+.5f), by=(int)(y0-ny0+.5f);
         int cx=(int)(x1+nx1+.5f), cy=(int)(y1+ny1+.5f), dx=(int)(x1-nx1+.5f), dy=(int)(y1-ny1+.5f);
         trifill(ax, ay, cx, cy, dx, dy, color);                // the nib-wide ribbon quad, as two tris
@@ -693,15 +785,20 @@ static void render_impasto(const Stroke *s, const Boil *b) {
     render_stroke(s, -hx, -hy, SHADOW, b, 0);                     // raised rim follows the global sun:
     render_stroke(s,  hx,  hy, LIGHTS[light_sel], b, 0);          // hilite toward the light, shadow away
     if (s->grad) render_gradient(s, b);                           // two-colour paint dragged wet-in-wet;
-    else render_stroke(s, 0, 0, s->color, b, 0);                  // …the knife streaks rake over the ramp
+    else {                                                        // …the knife streaks rake over the ramp
+        if (s->closed) fill_pass(s, b, 0, 0, s->color);           // a closed slab of paint fills solid
+        render_stroke(s, 0, 0, s->color, b, 0);
+    }
     if (s->n < 2) return;
-    for (int i = 0; i < s->n - 1; i++) {                       // raked knife streaks over the body
-        float x0=s->pts[i].x,y0=s->pts[i].y,x1=s->pts[i+1].x,y1=s->pts[i+1].y;
-        boil_pt(s,i,&x0,&y0,b); boil_pt(s,i+1,&x1,&y1,b);
+    int segs = (s->closed && s->n > 2) ? s->n : s->n - 1;      // closed: the knife drags round the loop
+    for (int i = 0; i < segs; i++) {                           // raked knife streaks over the body
+        int j = (i + 1) % s->n;
+        float x0=s->pts[i].x,y0=s->pts[i].y,x1=s->pts[j].x,y1=s->pts[j].y;
+        boil_pt(s,i,&x0,&y0,b); boil_pt(s,j,&x1,&y1,b);
         float dx=x1-x0, dy=y1-y0, len=sqrtf(dx*dx+dy*dy);
         if (len < 0.01f) continue;
         float px=-dy/len, py=dx/len;                           // perpendicular unit
-        float w=(sample_width(s,i,b->fseed)+sample_width(s,i+1,b->fseed))*0.5f;
+        float w=(sample_width(s,i,b->fseed)+sample_width(s,j,b->fseed))*0.5f;
         for (int k = 0; k < IMPASTO_STREAKS; k++) {
             unsigned hh = hashu(s->seed ^ (unsigned)(k * 2654435761u));
             float j = ((hh & 0xFFFF) / 65535.0f - 0.5f) * 0.3f;
@@ -728,8 +825,11 @@ static void draw_one(const Stroke *s, const Boil *b) {
     // shadow / bevel all take the true NIB shape (not a round silhouette). Order matches
     // the stamp path: shadow (back) → outline → bevel → dithered body.
     if (k == K_NIB) {
-        if (s->shadow > 0)
-            render_nib_ex(s, b, 0, -cos_deg(bevel_angle)*s->shadow, -sin_deg(bevel_angle)*s->shadow, SHADOW);
+        if (s->shadow > 0) {
+            float sx = -cos_deg(bevel_angle)*s->shadow, sy = -sin_deg(bevel_angle)*s->shadow;
+            if (s->closed) fill_pass(s, b, sx, sy, SHADOW);   // a closed ribbon shadows filled
+            render_nib_ex(s, b, 0, sx, sy, SHADOW);
+        }
         if (s->outline > 0)
             render_nib_ex(s, b, s->outline, 0, 0, s->outline_color);
         if (s->bevel > 0) {
@@ -739,10 +839,15 @@ static void draw_one(const Stroke *s, const Boil *b) {
         }
         if (s->grad) { render_gradient_nib(s, b); return; }   // gradient FILL takes the true ribbon shape
         if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);
+        if (s->closed) fill_pass(s, b, 0, 0, s->color);       // interior first, the ribbon boundary over it
         render_nib_ex(s, b, 0, 0, 0, s->color);
         if (s->pattern) fillp_reset();
         return;
     }
+    // the airy brushes take the vector fill too — a flat interior under their texture
+    // (the fill is a property of the PATH; the brush is just the boundary treatment)
+    if (s->closed && (k == K_SKETCH || k == K_SPRAY || k == K_BRISTLE))
+        fill_pass(s, b, 0, 0, s->color);
     switch (k) {
         case K_SKETCH:  render_sketch(s, b);  return;
         case K_SPRAY:   render_spray(s, b);   return;
@@ -756,6 +861,7 @@ static void draw_one(const Stroke *s, const Boil *b) {
     bevel_pass(s, b);     // per-stroke SIZE, GLOBAL sun angle+colour
     if (s->grad) { render_gradient(s, b); return; }       // gradient FILL replaces the flat/patterned body
     if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);   // dpaint-style dither fills the body only
+    if (s->closed) fill_pass(s, b, 0, 0, s->color);       // the vector fill: interior first, boundary ink over it
     render_stroke(s, 0, 0, s->color, b, 0);
     if (s->pattern) fillp_reset();
 }
@@ -809,8 +915,10 @@ static int pick_stroke(float px, float py) {
         float pad = st->thick * BRUSHES[st->tool].maxw * 0.5f + 6.0f;
         float mind = 1e9f;
         if (st->n == 1) { float dx = px - st->pts[0].x, dy = py - st->pts[0].y; mind = dx * dx + dy * dy; }
-        for (int i = 0; i < st->n - 1; i++) {
-            float d = seg_dist2(px, py, st->pts[i].x, st->pts[i].y, st->pts[i+1].x, st->pts[i+1].y);
+        int segs = (st->closed && st->n > 2) ? st->n : st->n - 1;   // closed: the closing edge picks too
+        for (int i = 0; i < segs; i++) {
+            int j = (i + 1) % st->n;
+            float d = seg_dist2(px, py, st->pts[i].x, st->pts[i].y, st->pts[j].x, st->pts[j].y);
             if (d < mind) mind = d;
         }
         if (mind < pad * pad && mind < bestd) { bestd = mind; best = s; }
@@ -950,6 +1058,15 @@ static void draw_panel(void) {
     dashed_rect(156, ROW2_Y + 3, 12, 10, selmode ? ACCENT : PAPER);
     if (selmode) rectfill(154, r2tab, 18, 2, ACCENT);
 
+    // ---- CLOSE toggle (the F key too): mark the stroke a CLOSED SHAPE — the path closes back
+    // to its start and the interior scanline-fills (the vector fill). Glyph: a filled blob.
+    int cls_on = sel ? sel->closed : closefill;
+    if (ui_button(178, ROW2_Y, 18, 16, 0)) { if (sel) sel->closed = !sel->closed; else closefill = !closefill; }
+    fillp(PATTERNS[3], PAPER); circfill(187, ROW2_Y + 8, 5, INK); fillp_reset();
+    circ(187, ROW2_Y + 8, 5, INK);
+    rect(178, ROW2_Y, 18, 16, INK);
+    if (cls_on) rectfill(178, r2tab, 18, 2, ACCENT);
+
     // contextual property strip: bevel SIZE + boil + OUTLINE width sliders + z-order, for the selection
     if (editing) {
         rectfill(0, PANEL_H, SCREEN_W, PROP_H, PAPER);
@@ -1059,7 +1176,7 @@ static void draw_panel(void) {
 // feature is a silent no-op for that brush (that's the bug class that hid drip×dither and
 // nib×outline). Rows use TOOL_DISP order; cols are none/bevel/outline/shadow/dither/boil.
 static int matrix_mode = 0;
-enum { MC_NONE, MC_BEVEL, MC_OUTLINE, MC_SHADOW, MC_PATTERN, MC_GRAD, MC_BOIL, MC_COLS };
+enum { MC_NONE, MC_BEVEL, MC_OUTLINE, MC_SHADOW, MC_PATTERN, MC_GRAD, MC_BOIL, MC_CLOSE, MC_COLS };
 #define MTX_LW 40   // left label column width
 #define MTX_HH 12   // top header row height
 
@@ -1069,12 +1186,13 @@ static void matrix_stroke(Stroke *st, int tool, int cx, int cy, int cw, int ch) 
     st->bevel = 0; st->boil = 0; st->boil_style = BOIL_WOBBLE; st->thick = 1.0f;
     st->nib_angle = NIB_ANGLE_DEF; st->outline = 0; st->outline_color = INK; st->shadow = 0;
     st->grad = 0; st->grad_color = CLR_RED; st->grad_angle = 0; st->grad_spread = GRAD_SPREAD_DEF;
+    st->closed = 0;
     st->seed = 0x51A5u ^ (unsigned)(tool * 2654435761u);
     int n = 10; st->n = n;
     for (int i = 0; i < n; i++) {
         float t = i / (float)(n - 1);
         st->pts[i].x = cx + 9 + t * (cw - 18);
-        st->pts[i].y = cy + ch - 6 - t * (ch - 12);
+        st->pts[i].y = cy + ch - 6 - t * (ch - 12) - sin_deg(t * 180.0f) * 7.0f;   // a BOW, so CLOSE encloses real area
         st->pts[i].speed = 0.0f;   // standstill → widest the brush gets
         st->pts[i].thick = 1.0f;
     }
@@ -1083,7 +1201,7 @@ static void matrix_stroke(Stroke *st, int tool, int cx, int cy, int cw, int ch) 
 static void draw_matrix(void) {
     cls(PAPER);
     int cw = (SCREEN_W - MTX_LW) / MC_COLS, ch = (SCREEN_H - MTX_HH) / NTOOLS;
-    static const char *fname[MC_COLS] = { "none", "bevl", "outl", "shdw", "dith", "grad", "boil" };
+    static const char *fname[MC_COLS] = { "none", "bevl", "outl", "shdw", "dith", "grad", "boil", "clos" };
     font(FONT_TINY);
     for (int c = 0; c < MC_COLS; c++) print(fname[c], MTX_LW + c * cw + 2, 3, INK);
     for (int bi = 0; bi < NTOOLS; bi++) {
@@ -1097,9 +1215,10 @@ static void draw_matrix(void) {
             if      (c == MC_BEVEL)   ms.bevel = 2.0f;
             else if (c == MC_OUTLINE) ms.outline = OUTLINE_PX;
             else if (c == MC_SHADOW)  ms.shadow = 3.0f;
-            else if (c == MC_PATTERN) ms.pattern = NPATTERNS / 2;
+            else if (c == MC_PATTERN) ms.pattern = 1;   // the SPARSEST ink pattern — max pixel diff, so even the thin brushes clear the applied threshold
             else if (c == MC_GRAD)  { ms.grad = 1; ms.grad_color = CLR_RED; ms.grad_spread = 0.6f; }
             else if (c == MC_BOIL)  { ms.boil = 1.0f; vseed = VARIANT[1]; }   // a jittered variant so it differs from still
+            else if (c == MC_CLOSE) ms.closed = 1;   // the vector fill (the path bows, so closing encloses area)
             clip(x + 1, y + 1, cw - 2, ch - 2);   // keep each cell's rim/shadow from spilling into its neighbour
             Boil b = boil_for(&ms, vseed);
             draw_one(&ms, &b);
@@ -1171,6 +1290,8 @@ void update(void) {
         if (keyp('C')) { nstrokes = 0; selected = -1; }
         if ((keyp('[') || keyp(']')) && selected >= 0 && selected < nstrokes)
             strokes[selected].nib_angle += keyp(']') ? 15.0f : -15.0f;   // rotate the picked nib
+        if (keyp('F') && selected >= 0 && selected < nstrokes)
+            strokes[selected].closed = !strokes[selected].closed;        // close/open the picked stroke
         if (keyp(',') || keyp('.')) bevel_angle += keyp('.') ? 15.0f : -15.0f;   // rotate the bevel sun
         if (keyp('/')) light_sel = (light_sel + 1) % NLIGHTS;                    // cycle the sun colour
         return;
@@ -1204,6 +1325,7 @@ void update(void) {
         cur.grad_color = COLORS[gradsel];
         cur.grad_angle = grad_angle;
         cur.grad_spread = grad_spread;
+        cur.closed = closefill;                   // capture the closed-shape default (the vector fill)
         seedctr = seedctr * 1103515245u + 12345u;
         cur.seed = seedctr;
         lastsx = mx; lastsy = my;
@@ -1227,6 +1349,7 @@ void update(void) {
     if (keyp('C')) { nstrokes = 0; selected = -1; }
     if (keyp('B')) bevel = !bevel;
     if (keyp('O')) boil = !boil;
+    if (keyp('F')) closefill = !closefill;   // F toggles the closed-shape (vector fill) default
     if (keyp('[') || keyp(']')) nib_angle += keyp(']') ? 15.0f : -15.0f;   // rotate the nib default
     if (keyp(',') || keyp('.')) bevel_angle += keyp('.') ? 15.0f : -15.0f; // rotate the bevel "sun"
     if (keyp('/')) light_sel = (light_sel + 1) % NLIGHTS;                  // cycle the sun colour
@@ -1438,6 +1561,22 @@ void spec(void) {
       expect(drip_cov[58][100] == 0, "cov_tri leaves the outside unmarked");
       cov_disk(44, 44, 10.0f, 46, 120, 46, 120);                        // disk centre OUTSIDE the clip box
       expect(drip_cov[44][44] == 0 && drip_cov[46][46] == 1, "coverage clips to the caller's bbox"); }
+
+    // ── the closed-shape vector fill: fill_spans is pure — a square, even-odd, and no taper ──
+    { Boil still = { 0, BOIL_WOBBLE, 0, 0, 0, 0 }; float xs[FILL_MAX_X];
+      sp_fill(&sp_a, T_INK, 0xC105u, 4, 0); sp_a.closed = 1;
+      sp_a.pts[0] = (Sample){ 100, 100, 0, 1 }; sp_a.pts[1] = (Sample){ 140, 100, 0, 1 };
+      sp_a.pts[2] = (Sample){ 140, 140, 0, 1 }; sp_a.pts[3] = (Sample){ 100, 140, 0, 1 };
+      int cnt = fill_spans(&sp_a, &still, 0, 0, 120.5f, xs);
+      expect_eq(cnt, 2, "a closed square crosses a mid scanline twice");
+      expect(spec_close(xs[0], 100, 0.01f) && spec_close(xs[1], 140, 0.01f), "the span covers the square's interior");
+      expect_eq(fill_spans(&sp_a, &still, 0, 0, 90.0f, xs), 0, "a scanline above the shape has no spans");
+      cnt = fill_spans(&sp_a, &still, 5, 0, 120.5f, xs);
+      expect(cnt == 2 && spec_close(xs[0], 105, 0.01f), "the (ox,oy) offset shifts the spans (the shadow pass)");
+      expect(sample_width(&sp_a, 0, 0) > 1.0f, "a closed stroke never tapers (no pinch at the seam)");
+      sp_a.pts[1] = (Sample){ 140, 140, 0, 1 };   // swap two corners -> a bowtie (self-intersecting)
+      sp_a.pts[2] = (Sample){ 140, 100, 0, 1 };
+      expect_eq(fill_spans(&sp_a, &still, 0, 0, 120.5f, xs), 4, "a bowtie fills even-odd: 4 crossings, 2 lobes, empty waist"); }
 
     // ── pick / z-order / undo — the select tool's state seams ──
     sp_fill(&strokes[0], T_INK,    0x1111u, 20, 0);                     // path around (60..117, 90..128)

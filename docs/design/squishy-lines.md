@@ -6,9 +6,10 @@ a **tool dropdown**, a thickness slider, the **bevel** emboss, the **boil** livi
 **7-colour pen** (incl. CMY), **dithered strokes** (Bayer density ramp via `fillp`), and **per-stroke bevel/boil**
 (select-tool stage 1) + the full **select tool** (stages 2–3: pick a stroke, edit its properties
 non-destructively via the bar + a bevel-size/boil-intensity strip) (`tools/carts/squishy.c`). The
-cart is now a tiny vector editor. What's left is the **v2 icon-pipeline slice** (plan below):
-**save/load** (stroke files — nothing persists today), **closed-shape fill** (the *vector* fill;
-raster flood-fill + the persistent-layer refactor come later), the **`squishy-export` tool** + a
+cart is now a tiny vector editor, and the **closed-shape (vector) fill shipped 2026-07-10** — a
+CLOSE toggle scanline-fills a stroke's interior even-odd, inheriting every per-stroke feature.
+What's left of the **v2 icon-pipeline slice** (plan below): **save/load** (stroke files — nothing
+persists today; raster flood-fill + the persistent-layer refactor come later), the **`squishy-export` tool** + a
 live snapped preview — then stamps / trace underlay / stabilizer as the delight pass, plus the
 boil-cache perf pass (the `spec()` shipped 2026-07-10 — 40 assertions, `node tools/spec.js squishy`).
 v1 plan + progress below.
@@ -487,16 +488,22 @@ icon pipeline; stamps, the live preview, and the trace underlay make it delightf
   `tools/clips/` input-track idea applied to art. Deterministic, re-renderable at any size / palette
   / sun angle forever; the AI route's one frozen frame vs *this*. Version the blob (a magic +
   version int up front) so the `Stroke` struct can grow without orphaning old saves.
-- [ ] **Closed-shape fill (the vector fill — do this BEFORE flood-fill).** The icon is mostly
-  filled blobs (body, knobs, letters). A CLOSE toggle on a stroke marks it a **closed polygon**:
-  the renderer closes the path and scanline-fills the interior (even-odd over the polyline), then
-  runs the normal stroke pass over the boundary. Stays pure `f(stroke, seed)` — so with **zero new
-  feature code** a filled shape inherits outline (the black rim), bevel (domes under the sun),
-  dither + gradient (the shading), boil (the whole blob breathes), drop shadow, select-edit,
-  z-order. That composition is the whole argument for the vector route; raster flood-fill still
-  arrives later with the layer-buffer refactor (which has three customers — see parking lot) but is
-  no longer on the icon's critical path. Add a `close` column to `SQUISHY_MATRIX` /
-  `squishy-features.js` so the fill is guarded per brush like every other rim/fill feature.
+- [x] **Closed-shape fill (the vector fill — do this BEFORE flood-fill).** *(shipped 2026-07-10)*
+  The icon is mostly filled blobs (body, knobs, letters). A CLOSE toggle (row 2, a filled-blob
+  glyph; the `F` key; select-editable like bevel/boil) marks a stroke a **closed polygon**: the
+  renderer closes the path and scanline-fills the interior (even-odd over the polyline —
+  `fill_spans()`/`fill_pass()`, spec-pinned incl. the bowtie case), then runs the normal stroke
+  pass over the boundary — every segment-walking renderer wraps the closing edge (`segs`/modulo),
+  and a closed stroke never end-tapers (no pinch at the seam). Stayed pure `f(stroke, seed)` and
+  the inheritance landed as argued, with **almost zero new feature code**: outline rims it, bevel
+  domes it, dither fills via the same `fillp`, the gradient ramp runs across the WHOLE shape
+  (interior joins the coverage via `cov_poly()`), boil breathes the blob, the drop shadow casts
+  the **filled** silhouette, closed wet paint drips from the blob's true bottom edge, and the airy
+  brushes (sketch/spray/bristle) fill flat under their texture — the fill is a property of the
+  path, the brush is just the boundary treatment. Raster flood-fill still arrives later with the
+  layer-buffer refactor (three customers — see parking lot) but is off the icon's critical path.
+  Guarded: the `close` column in `SQUISHY_MATRIX` / `squishy-features.js` (all 14 brushes expected
+  to apply it) + 6 new `spec()` assertions.
 - [ ] **`squishy-export` — the one-command icon mint.** The existing pipeline sentence ("draw big →
   boil N frames → `pixelsnap` each → sprite strip") as an actual tool: load a saved stroke file,
   render N boil frames headless (the `play.js --dump` / `screenshot_request` machinery exists),

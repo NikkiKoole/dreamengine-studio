@@ -8,7 +8,9 @@
 > feature that fixes both. Nothing here is built yet; what ships lands in
 > [`STATUS.md`](../STATUS.md), not here. See also [`held-notes.md`](held-notes.md),
 > [`touch-notes.md`](touch-notes.md), [`ui-widgets-notes.md`](ui-widgets-notes.md),
-> and [`cart-library-direction.md`](cart-library-direction.md).
+> and [`cart-library-direction.md`](cart-library-direction.md). **MIDI *out* (carts as
+> controllers/sequencers — the 303's pattern driving Ableton) is the output-direction
+> sibling, tracked separately in [`midi-out.md`](midi-out.md).**
 
 ---
 

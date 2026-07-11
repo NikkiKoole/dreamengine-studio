@@ -16,7 +16,6 @@
   "homage": "OutRun (1986)",
   "description": "A sun-drenched pseudo-3D arcade racer with BRANCHING roads. Blast down a curving, hilly highway faked from projected triangles, weave through traffic (each car packed with little passengers), and beat each checkpoint before the clock runs out. The twist: at every checkpoint the road SPLITS into two diverging ribbons with a grass island between them — steer onto the left or right fork to choose your next biome, and the scenery ahead recolours to the road you're leaning toward. Five biomes (coast, desert, city, forest, alpine) share one procedural road via pal() recolour; the stages are a binary TREE generated on the fly, so no two runs take the same path. Clip a car and you spin out for a time-costing tumble; off-road bogs you down in a cloud of dust. Engine pitch tracks your speed, tyres screech through hard corners, speed-lines streak past flat out. Reach the goal stage to win. Z / Up: gas — X / Down: brake — Left/Right: steer (and pick a fork).",
   "todo": [
-    "Bug: trees and cars flicker.",
     "Use real polygons for the car drawing; dislike the various resolutions.",
     "The crash roll feels weird — find something better.",
     "Add a visible guy and girl in the car; make it look like a pico32 Testarossa."
@@ -480,8 +479,9 @@ void draw() {
         seg_drawn[n] = false;
         if (!bvalid[n]) continue;
         int y1 = by[n], y2 = by[n + 1];
-        if (y1 <= y2 || y2 >= maxy) continue;
-        seg_drawn[n] = true;
+        if (y2 >= maxy) continue;       // hidden behind a nearer hill — occluded
+        seg_drawn[n] = true;            // visible: props/cars here draw even if the
+        if (y1 <= y2) continue;         // slice is 0px tall (else they'd blink at the horizon)
 
         int  gseg = base_i + n;
         int  b    = biomeb[n];
@@ -528,9 +528,20 @@ void draw() {
         maxy = y2;
     }
 
+    // Sprites cap: draw only up to the first hill crest that occludes the road.
+    // Past a crest the far-side segments bob in and out of view every frame, so a
+    // tree or car sitting there would BLINK. Instead we hide everything beyond the
+    // crest and let it rise into view as we crest — OutRun-style pop-over, no flicker.
+    int vis_far = DRAW_DIST;
+    bool on_road = false;
+    for (int n = 1; n < DRAW_DIST; n++) {
+        if (seg_drawn[n])            on_road = true;   // the near road has started
+        else if (on_road && bvalid[n]) { vis_far = n; break; }  // first crest occlusion
+    }
+
     // ---- roadside props, far → near ----
     colorkey(0);
-    for (int n = DRAW_DIST - 1; n >= 1; n--) {
+    for (int n = vis_far - 1; n >= 1; n--) {
         if (!seg_drawn[n]) continue;
         int   gseg = base_i + n;
         int   h = (gseg * 131 + 7) & 255;
@@ -553,11 +564,11 @@ void draw() {
     }
 
     // ---- traffic, far → near ----
-    for (int pass = DRAW_DIST - 1; pass >= 1; pass--) {
+    for (int pass = vis_far - 1; pass >= 1; pass--) {
         for (int c = 0; c < MAX_CARS; c++) {
             float ahead = cars[c].z - position;
             int n = (int)(ahead / SEGL);
-            if (n != pass || n < 1 || n >= DRAW_DIST || !seg_drawn[n]) continue;
+            if (n != pass || n < 1 || n >= vis_far || !seg_drawn[n]) continue;
             float sc = bscale[n];
             const VKind *vk = &VKINDS[cars[c].kind];
             int cx = bx[n] + (int)(sc * cars[c].off * ROAD_W * (SCREEN_W / 2));

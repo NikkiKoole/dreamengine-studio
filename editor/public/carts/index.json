@@ -1549,6 +1549,17 @@
     "teaches": []
   },
   {
+    "title": "distortion lab",
+    "description": "A distortion PLAYGROUND, Rung 0: one drive stage on an auto-riffing acid line, with a live transfer curve AND a real oscilloscope of the post-FX output side by side. The seed of a growable 'destruction unit' (design/distortion-lab.md) — a single [DRIVE] block today, room in the chain for more stages later. instrument_drive_mode() picks the waveshaper (SOFT tanh tube / HARD clip fuzz / FOLD sine wavefolder / ASYM even-harmonic tube) and instrument_drive() is the amount. LEFT panel = a representative TRANSFER CURVE (input->output; the identity diagonal is ghosted so you see the bend), redrawn as you turn drive up. RIGHT panel = a real OSCILLOSCOPE via scope_read() — the actual post-FX mix, zero-crossing-frozen so it holds still. The drone runs a resonant saw so the grit has a peak to scream into. Cart-land only, no engine changes (scope_read exposes the output). LEFT/RIGHT pick the drive mode (or tap the [DRIVE] block) - UP/DOWN ride the drive amount (or drag the amount bar) - Z pluck the note now",
+    "file": "distlab.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
+  },
+  {
     "title": "DJ Filter",
     "description": "The legendary one-knob mixer filter (Allen & Heath XONE:92, Pioneer DJM) and, at the screaming end, a Sherman Filterbank - the showcase cart for the master filter() bus, where the EFFECT IS THE INSTRUMENT. A bright four-on-the-floor house loop (detuned-saw arp + lush pad + rolling sub, cribbed from groovebox) plays itself so both hands are free to RIDE the filter, exactly like spacecho rides the echo. THE control is one BIPOLAR knob, center = OPEN (bypass): turn LEFT and a lowpass closes 18kHz->150Hz into a muffled thump; turn RIGHT and a highpass opens 20Hz->6kHz into a thin telephone. The RES knob cranks the resonant peak into acid-scream territory. A live filter-RESPONSE CURVE up top is the centerpiece - watch the slope tilt and the peak rise as you sweep, with the cutoff marker sliding along the log-frequency axis and a FULLNESS bar that dims as the mix gets dark. The BUILD button is the money shot: a breakdown into an 8-bar filter-sweep riser with rising resonance and a clap roll, then the DROP snaps wide open with a bang - the genre's signature gesture, the reason the filter exists. Controls: drag the big FILTER knob (or LEFT/RIGHT arrows) and the RES knob (or UP/DOWN); BUILD button or X triggers the riser; BYPASS button or Z A/Bs the filter off vs on.",
     "file": "djfilter.cart.png",
@@ -2454,6 +2465,20 @@
       "additive-synth",
       "chord-voicing"
     ]
+  },
+  {
+    "title": "glyph puppet",
+    "description": "Puppets built from a tiny shared bank of 6x6 glyphs — animated by swapping shapes and nudging cells in whole pixels, never by baking frames. A dude, a dog and a bird share one bank, and events throw glyph confetti (hearts/rings/crosses). The bet: you don't need frames, you need TWO channels. A figure is a loose bag of 6x6 monochrome glyph cells, and it comes alive from (1) SWAPPING which glyph sits in a cell — legs A<->B for a walk, mouth open on a hit, wings up for a flap — and (2) NUDGING cells off their slot. The model is honest lo-fi: everything lives on a small LOGICAL pixel grid, a part lands on any WHOLE logical pixel (free of the 6-cell grid, but never a fractional x=8.5), and the grid is scaled up uniformly afterwards. Motion stays RIGID — idle bob and beat-bounce are one shared offset added to every cell, so connected parts never drift apart; parts move relative to each other ONLY for a deliberate articulation. Nothing is FFT-driven: an internal metronome fires kick/snare events (or SPACE/S by hand) and everything reacts. The payoff is the SHARED BANK: press V to cycle a DUDE, a DOG and a BIRD that reuse the exact same glyphs — the dog's body and the bird's body are the dude's TORSO, the dog's four legs are the LEGS pair placed twice (out of phase for a trot), the bird's two wings and the dog's tail are ARM glyphs; each animal added just ONE new shape (its head). Grow the bank by a glyph, get a whole new cast member. Events also throw PARTICLES — the same 6x6 glyphs as confetti: a white RING pops on every kick, a red HEART on every snare, a yellow CROSS on the off-beat, each rising in clean whole-pixel steps then vanishing. The GRID-SNAP toggle (G) is the A/B for channel 2: snap ON locks every cell on its slot so only glyph-swaps animate (stiff clockwork); snap OFF lets the whole-pixel nudges through and the same shapes breathe. The raw bank is drawn along the bottom so you can see it's shapes, not frames. SPACE or click = a KICK pulse (ring pop). S = a SNARE (dude ta-da / dog bark / bird chirp, + a heart). V = cycle cast (DUDE -> DOG -> BIRD). G = toggle GRID-SNAP (channel-2 life on/off). A = toggle the auto-metronome. LEFT/RIGHT = tempo.",
+    "file": "glyphpup.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [
+      "motion-sequencing"
+    ],
+    "lineage": "A fresh experiment out of fmbox's LCD dancer: instead of baking animation FRAMES, a figure is a loose CLUSTER of tiny 6x6 monochrome glyph cells, and it comes alive from cheap channels — glyph SWAP + a whole-pixel NUDGE (+ a proposed squash/stretch SCALE). The bank grows one shape at a time; motion is code, never frames. Design: docs/design/glyph-puppet.md."
   },
   {
     "title": "Gnome Hide & Eek",

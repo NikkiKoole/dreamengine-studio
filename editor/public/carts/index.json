@@ -51,6 +51,17 @@
     "lineage": "the mouse counterpart of 04-buttons (keyboard input)"
   },
   {
+    "title": "4c. touch & tap",
+    "description": "Read a touchscreen. touch_count() says how many fingers are down, touch_x(i)/touch_y(i) find each one, and tap(x,y,w,h) tests whether a finger is inside a box. A phone reports MANY fingers at once; a mouse is just one. Touch the target to light it up and hear it ring.",
+    "file": "04c-touch.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [],
+    "lineage": "the touchscreen counterpart of 04b-mouse (the pointer)"
+  },
+  {
     "title": "5. draw your character",
     "description": "Open the sprites tab, draw a 16×16 character in slot 1, then see it move.",
     "file": "05-sprite.cart.png",
@@ -280,6 +291,16 @@
     "teaches": []
   },
   {
+    "title": "22b. the effects chain",
+    "description": "A note repeats every half-second; flip ECHO, REVERB and CRUSH on and off with keys 1/2/3 to hear the shared effects bus colour the SAME sound.",
+    "file": "22b-fxchain.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": []
+  },
+  {
     "title": "23. variables, conditionals, loops",
     "description": "The C basics every tutorial has used silently since cart 3, taught explicitly: int/float/bool, if/else, for/while. left/right change page; up/down adjust each page's live value; Z toggles rain on page 2",
     "file": "23-basics.cart.png",
@@ -326,6 +347,84 @@
     "lineage": "the on-ramp teaching-gaps.md flagged as missing: cube3d/solid3d/textured3d demo the full 3D pipeline but nothing teaches its moving parts one at a time on the smallest possible shape (a single quad, not a solid) -- including the affine warp + subdivision fix textured3d otherwise introduces alone."
   },
   {
+    "title": "27. what is collision?",
+    "description": "The one big idea: collision is just asking 'are these two boxes in the same place right now?' every single frame.",
+    "file": "27-collide-intro.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [
+      "collision-detection"
+    ]
+  },
+  {
+    "title": "28. is a point in a box?",
+    "description": "point_in_box() — the tiny test every button uses to know your cursor is over it.",
+    "file": "28-point-rect.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [
+      "collision-detection"
+    ]
+  },
+  {
+    "title": "29. box vs box (AABB)",
+    "description": "AABB collision — push one box into another and watch the exact overlap rectangle appear.",
+    "file": "29-box-box.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [
+      "collision-detection"
+    ]
+  },
+  {
+    "title": "30. circles & distance",
+    "description": "Move one circle into another and watch them touch — collision is just: is the gap smaller than the two radii added up?",
+    "file": "30-circle-dist.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": []
+  },
+  {
+    "title": "31. hitting the edges",
+    "description": "Three ways to handle a mover that reaches the screen edge: clamp, bounce, or wrap.",
+    "file": "31-screen-edges.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": []
+  },
+  {
+    "title": "32. tilemap collision",
+    "description": "Walk a dot through a brick maze — the walls are just tiles in the map, and the map stops you.",
+    "file": "32-tilemap-collide.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [
+      "tilemap-collision"
+    ]
+  },
+  {
+    "title": "33. reading pixels",
+    "description": "Collision by colour — read the pixel under your dot with pget() and get hit by any shape for free.",
+    "file": "33-pixel-collide.cart.png",
+    "created": "2026-07-11",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": []
+  },
+  {
     "title": "acidfit",
     "description": "The stress test for device-adaptive-layout.md: a FAITHFUL layout mock of the real acidrack (two TB-303s at 7 knobs each, a 909 with 11 voices, an 808 with 9, a 16-step lane, a master strip) - NO audio, NO DSP, just the widgets - laid out against a fake device to answer 'does a genuinely dense, multi-section panel stay legible on a phone?'. It prototypes the PROGRESSIVE-DISCLOSURE rule the plan needs: each section carries a priority + a minimum finger-footprint, and one pass per frame inlines sections by priority until the finger-budget runs out - the overflow collapses into TAB CHIPS you tap to open as an overlay. Same code: iPad inlines all five sections; iPhone shows the sequencer + as many as fit and defers the rest to tabs. Two layers on show - GEOMETRY (lay_split/grid/wrap/at) decides where a shown panel goes; BEHAVIOUR (the budget pass) decides WHETHER it's shown inline or behind a toggle. Presets auto-cycle (iPhone/iPad x portrait/landscape); keys 1-4 lock, 'o' opens the first deferred tab, 'c' closes. When it graduates the fake device + finger become the real viewport + backing scale.",
     "file": "acidfit.cart.png",
@@ -338,7 +437,7 @@
   },
   {
     "title": "acid rack",
-    "description": "Two 303s, the full 909, the full 16-voice 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV. The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (all 11 voices, the real 909 roster — ordered for acid: kick/hats/clap/snare up top, rim + ride/crash next, the fill toms at the bottom — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the COMPLETE tr808 (all 16 voices: boom kick, snare, 3 toms + 3 congas on the shared bridged-T circuit, rim/clave, clap, maracas, cowbell, cymbal, open/closed hats — ordered for acid: the always-on kick/hats/clap/snare up top, cowbell + accents next, the fill voices at the bottom; the old 9-voice curation was based on a slot budget that never really applied — the engine has 48 slots, not 32), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves. SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · 303 flag rows toggle per step: OCT (tap-cycles up→down→off), ACC, SLD, and TIE (holds the previous note through the step — sustain a slide can't give) · LEN strip under the flags sets each line's length 1-16 (short = polymeter drift; red divider = loop end) · 303 P1/P2 button flips the knob page (P2 = DEEP: ADEC separate-accent-decay / SLDT slide-time / ATK soft-attack / TRK filter-tracking / SUB sub-osc, + the accent-SWEEP mode button + STD = reset this 303's Devil Fish knobs to stock) · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · drum grids: per-voice TUNE/DEC/CHAR mini-knobs beside the rows (drag up=coarse right=fine, rclick=reset) · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)",
+    "description": "Two 303s, the full 909, the full 16-voice 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV. The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (all 11 voices, the real 909 roster — ordered for acid: kick/hats/clap/snare up top, rim + ride/crash next, the fill toms at the bottom — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the COMPLETE tr808 (all 16 voices: boom kick, snare, 3 toms + 3 congas on the shared bridged-T circuit, rim/clave, clap, maracas, cowbell, cymbal, open/closed hats — ordered for acid: the always-on kick/hats/clap/snare up top, cowbell + accents next, the fill voices at the bottom; the old 9-voice curation was based on a slot budget that never really applied — the engine has 48 slots, not 32), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves. SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · 303 flag rows toggle per step: OCT (tap-cycles up→down→off), ACC, SLD, and TIE (holds the previous note through the step — sustain a slide can't give) · LEN strip under the flags sets each line's length 1-16 (short = polymeter drift; red divider = loop end) · 303 P1/P2 button flips the knob page (P2 = DEEP: ADEC separate-accent-decay / SLDT slide-time / ATK soft-attack / TRK filter-tracking / SUB sub-osc, + the accent-SWEEP mode button + STD = reset this 303's Devil Fish knobs to stock) · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · drum grids: per-voice TUNE/DEC/CHAR mini-knobs beside the rows (drag up=coarse right=fine, rclick=reset) · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern, and FLT = the LIVE DJ FILTER (bipolar: center open, drag DOWN = lowpass muffle, UP = highpass thin — the breakdown/drop knob) · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)",
     "file": "acidrack.cart.png",
     "created": "2026-07-02",
     "kind": [
@@ -1550,7 +1649,7 @@
   },
   {
     "title": "distortion lab",
-    "description": "A distortion PLAYGROUND, Rung 0: one drive stage on an auto-riffing acid line, with a live transfer curve AND a real oscilloscope of the post-FX output side by side. The seed of a growable 'destruction unit' (design/distortion-lab.md) — a single [DRIVE] block today, room in the chain for more stages later. instrument_drive_mode() picks the waveshaper (SOFT tanh tube / HARD clip fuzz / FOLD sine wavefolder / ASYM even-harmonic tube) and instrument_drive() is the amount. LEFT panel = a representative TRANSFER CURVE (input->output; the identity diagonal is ghosted so you see the bend), redrawn as you turn drive up. RIGHT panel = a real OSCILLOSCOPE via scope_read() — the actual post-FX mix, zero-crossing-frozen so it holds still. The drone runs a resonant saw so the grit has a peak to scream into. Cart-land only, no engine changes (scope_read exposes the output). LEFT/RIGHT pick the drive mode (or tap the [DRIVE] block) - UP/DOWN ride the drive amount (or drag the amount bar) - Z pluck the note now",
+    "description": "A distortion PLAYGROUND: a real master insert CHAIN — PRE-EQ -> DRIVE A -> DRIVE B -> CRUSH -> TAPE -> POST-EQ — on an auto-sliding acid drone, with a live transfer curve AND a real oscilloscope of the post-FX output. Rung 3 of a growable 'destruction unit' (design/distortion-lab.md): the tone stack + a two-stage waveshaper CASCADE + bitcrush + tape saturation, all stacked. The go-nuts rung. The chain IS fx_order(0, {FX_EQ, FX_DRIVE, FX_INST(FX_DRIVE,1), FX_CRUSH, FX_TAPE, FX_INST(FX_EQ,1)}) — pre-EQ, two drive_insert waveshaper stages, crush() (bit+rate reduction), tape() (wow/flutter/sat), post-EQ. A flat param cursor walks all 16 params: LEFT/RIGHT moves it, UP/DOWN adjusts (or cycles a drive mode); tap a chain block to jump. TRANSFER = the COMPOSED drive-cascade curve (B over A; crush/tape are texture, not a static curve); OUTPUT = a real scope_read() of the post-FX mix. The drone is one held note slid along a riff. Cart-land only — no engine changes. LEFT/RIGHT move the param cursor across the chain - UP/DOWN adjust the cursored param (on a DRIVE stage: cycle the waveshaper / ride the amount) - tap a chain block to jump the cursor there - drag the sliders/bars on touch - X (or tap the OUTPUT panel) toggles its view: WAVEFORM oscilloscope <-> SPECTRUM (an in-cart FFT — SEE the harmonics the distortion adds)",
     "file": "distlab.cart.png",
     "created": "2026-07-11",
     "kind": [
@@ -5633,7 +5732,7 @@
   },
   {
     "title": "Summer Games",
-    "description": "Button-mash track and field in the Track & Field arcade lineage: pick an event off a sunlit stadium menu, then hammer two keys to build raw speed and nail one clutch press. TWO events on a shared event-shell — 100M SPRINT (mash Z/X to sprint, then dip at the tape with a timed LEAN) and LONG JUMP (mash the runway, then stab JUMP at the best takeoff angle on a sweeping needle — overrun the foul board and it's a SCRATCH). A scoreboard panel tracks your personal best per event, saved between runs, with crowd-roar swells, footfall ticks pitched to your speed, dust off the feet, screen shake and a fanfare on a new record. Menu: Up/Down choose, Z start. In an event: alternate Z and X to run, press UP to lean/jump, X or ESC backs out.",
+    "description": "Button-mash track and field in the Track & Field arcade lineage: pick an event off a sunlit stadium menu, then hammer two keys to build raw speed and nail one clutch press. TWO events on a shared event-shell — 100M SPRINT (mash Z/X to sprint, then dip at the tape with a timed LEAN) and LONG JUMP (mash the runway, then stab JUMP at the best takeoff angle on a sweeping needle — overrun the foul board and it's a SCRATCH). A scoreboard panel tracks your personal best per event, saved between runs, with crowd-roar swells, footfall ticks pitched to your speed, dust off the feet, screen shake and a fanfare on a new record. Menu: Up/Down choose, Z start. In an event: alternate Z and X to run, press UP to lean/jump, ESC backs out.",
     "file": "summergames.cart.png",
     "created": "2026-06-01",
     "kind": [

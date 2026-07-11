@@ -25,12 +25,15 @@ cd ios
 ./build.sh                     # generate project → build → boot simulator → install → launch
 ```
 
-That builds the app and launches it on the **iPhone 15** simulator. You'll see the lo-fi canvas
-(pink ball), hear the arpeggio, and see the green VU + store-gate dot. Variations:
+That builds the app and launches it on the **first available iPhone simulator** (auto-picked —
+installed sim profiles differ per machine, so nothing is hardcoded; the script prints which one).
+You'll see the lo-fi canvas (pink ball), hear the arpeggio, and see the green VU + store-gate dot.
+Variations:
 
 ```bash
 SHOT=snap.png ./build.sh                        # also save a screenshot to snap.png
-DEVICE="iPhone SE (3rd generation)" ./build.sh   # use a different simulator
+DEVICE="iPhone 17 Pro" ./build.sh               # a specific iPhone (name or UDID)
+DEVICE="iPad Pro 13-inch (M5)" ./build.sh       # or an iPad — eyeball the device-adaptive layouts
 xcrun simctl list devices available              # see all installed simulators
 ```
 
@@ -41,13 +44,14 @@ open -a Simulator                                # bring it to the front (also �
 
 **Stop the sound / app** (the arpeggio loops forever by design):
 ```bash
-xcrun simctl terminate "iPhone 15" com.tinyjam.hello   # quit the app, keep the sim up
-xcrun simctl shutdown "iPhone 15"                       # shut the whole simulator down
+xcrun simctl terminate booted com.tinyjam.hello   # quit the app, keep the sim up
+xcrun simctl shutdown booted                       # shut the whole simulator down
 ```
+(`booted` = whichever sim `./build.sh` just launched — no need to know its name.)
 
 **Take a screenshot anytime** (the app keeps running):
 ```bash
-xcrun simctl io "iPhone 15" screenshot shot.png
+xcrun simctl io booted screenshot shot.png
 ```
 
 ## Run on a real iPhone
@@ -69,10 +73,13 @@ config via the StoreKitTest framework):
 ```bash
 cd ios
 xcodebuild test -project TinyjamHello.xcodeproj -scheme TinyjamHello \
-  -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' \
+  -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   CODE_SIGNING_ALLOWED=NO
 ```
 Expect `Test Suite 'StoreTests' passed` (buys a rack → entitlement unlocks; master pass unlocks all).
+(Any installed sim works — swap the `name=` for one from `xcrun simctl list devices available`, or
+use `-destination 'id=<UDID>'`. The AUv3 host test is the same command with
+`-only-testing:TinyjamHelloTests/AUHostTests`.)
 
 ## Files
 

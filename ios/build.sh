@@ -3,15 +3,26 @@
 # signing, no Apple-account interaction (simulator only). Proven in spike 0.
 #
 #   ./build.sh                                  # generate, build, boot, launch
-#   DEVICE="iPhone SE (3rd generation)" ./build.sh
+#   DEVICE="iPhone 17 Pro" ./build.sh           # a specific iPhone sim (name or UDID)
+#   DEVICE="iPad Pro 13-inch (M5)" ./build.sh   # or an iPad — eyeball device-adaptive layouts
 #   SHOT=snap.png ./build.sh                    # also screenshot to snap.png
+#
+# With no DEVICE set it auto-picks the first AVAILABLE iPhone simulator — installed sim
+# profiles differ per machine (e.g. no "iPhone 15" after an Xcode update), so a hardcoded
+# name breaks portably; auto-select doesn't. DEVICE= always wins for a deliberate choice.
 #
 # Requires: active full Xcode (xcode-select -p must point at Xcode.app, NOT the
 # Command Line Tools) + xcodegen (brew install xcodegen).
 set -euo pipefail
 cd "$(dirname "$0")"
 
-DEVICE="${DEVICE:-iPhone 15}"
+# DEVICE unset → auto-select the first available iPhone simulator, by UDID (unambiguous:
+# names repeat across runtimes). Override with DEVICE="<name or UDID>" for a specific sim/iPad.
+if [ -z "${DEVICE:-}" ]; then
+  DEVICE="$(xcrun simctl list devices available | grep iPhone | head -1 | grep -oE '[0-9A-F-]{36}')"
+  [ -z "$DEVICE" ] && { echo "✗ no available iPhone simulator found — install one in Xcode, or set DEVICE=…"; exit 1; }
+  echo "▸ auto-selected iPhone simulator: $DEVICE"
+fi
 SHOT="${SHOT:-}"
 SCHEME="TinyjamHello"
 BUNDLE_ID="com.tinyjam.hello"

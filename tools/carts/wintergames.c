@@ -13,10 +13,7 @@
   "lineage": "Epyx Winter Games homage; the primary teaching artifact is the reusable event-shell pattern (table of fn-pointer structs + shared chrome + fade transitions) explicitly designed to be lifted into summergames/calgames.",
   "genre": "sports",
   "homage": "Winter Games (1985)",
-  "description": "An Epyx-style winter meet built on a clean, reusable event shell — pick your nation, then work down a scoreboard of skill events one at a time, with bests saved between runs. SKI JUMP is two-phase: ride the in-run and stab Z to fire the takeoff on a sweeping power meter, then balance your lean in the air (Up=back, Down=forward) — keep the form gauge centered for distance, over-rotate and you tumble down the slope. SPEED SKATING is an alternating-key rhythm: tap Z, X, Z, X in a steady cadence to push each skate while holding your lane around the ice oval — mash one key and you stumble, hit the rail and you bleed speed. Snow drifts on a noise wind, a synth whoosh rides the launch, skate strides click on the beat, and a medal ceremony crowns your total. Controls: Title — Left/Right pick nation, Z start; Scoreboard — Up/Down choose, Z enter, X title; Ski Jump — Z run then Z takeoff, Up/Down lean; Speed Skating — alternate Z/X, Up/Down hold lane; Z returns to the scoreboard after each event.",
-  "todo": [
-    "Input bug: keys get crossed — Z is needed to go back but doesn't trigger it."
-  ]
+  "description": "An Epyx-style winter meet built on a clean, reusable event shell — pick your nation, then work down a scoreboard of skill events one at a time, with bests saved between runs. SKI JUMP is two-phase: ride the in-run and stab Z to fire the takeoff on a sweeping power meter, then balance your lean in the air (Up=back, Down=forward) — keep the form gauge centered for distance, over-rotate and you tumble down the slope. SPEED SKATING is an alternating-key rhythm: tap Z, X, Z, X in a steady cadence to push each skate while holding your lane around the ice oval — mash one key and you stumble, hit the rail and you bleed speed. Snow drifts on a noise wind, a synth whoosh rides the launch, skate strides click on the beat, and a medal ceremony crowns your total. Controls: Title — Left/Right pick nation, Z start; Scoreboard — Up/Down choose, Z enter, X title; Ski Jump — Z run then Z takeoff, Up/Down lean; Speed Skating — alternate Z/X, Up/Down hold lane; Z returns to the scoreboard after each event."
 }
 de:meta */
 #include "studio.h"
@@ -580,7 +577,10 @@ void update(void) {
         if (btnp(0, BTN_B)) go_to(S_TITLE);
     } else if (screen == S_EVENT) {
         events[curEvent].update();
-        if (ev_done) finish_event();
+        // guard: once the return-to-board transition is armed, don't re-arm it every
+        // frame — go_to() resets fadeT, so an unguarded call pins the fade open forever
+        // and the "Z = scoreboard" press never actually lands you back on the board.
+        if (ev_done && pendingScreen < 0) finish_event();
         if (keyp(KEY_ESCAPE)) go_to(S_BOARD);
     } else { // S_CEREMONY
         if (btnp(0, BTN_A) || btnp(0, BTN_B)) go_to(S_BOARD);

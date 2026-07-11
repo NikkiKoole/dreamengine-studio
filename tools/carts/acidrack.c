@@ -184,15 +184,16 @@ typedef struct {
     bool  prev_slide;
     int   hsub;             // sub-osc held handle (-1 = none)
     int   sweep;            // accent-sweep mode 0=off 1=slow 2=med 3=fast
+    int   drvmode;          // drive waveshaper: DRIVE_SOFT(0)/HARD/FOLD/ASYM — default SOFT = stock
 } M303;
 // DEEP-page defaults chosen to be NO-OPS out of the box: ADEC = that machine's DEC
 // (accent decays like a normal note until moved), SLDT≈60ms, ATK≈2ms (the stock
 // values), TRK/SUB = 0 (off). So adding the page changes nothing until you turn a knob.
 static M303 m[2] = {
     { SLOT_A, "303-A", { 0.45f, 0.70f, 0.60f, 0.40f, 0.60f, 0.35f, 0.33f,
-                         0.40f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SAW,    -1, false, -1, 0 },
+                         0.40f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SAW,    -1, false, -1, 0, DRIVE_SOFT },
     { SLOT_B, "303-B", { 0.38f, 0.75f, 0.55f, 0.45f, 0.60f, 0.45f, 0.33f,
-                         0.45f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SQUARE, -1, false, -1, 0 },
+                         0.45f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SQUARE, -1, false, -1, 0, DRIVE_SOFT },
 };
 static int sub_slot(M303 *s) { return s->slot == SLOT_A ? SLOT_SUB_A : SLOT_SUB_B; }
 
@@ -218,6 +219,7 @@ static void define_303(M303 *s) {
     instrument_duty(s->slot, 0.48f);
     instrument_filter(s->slot, FILTER_DIODE, cut_hz(s), res_q(s));
     instrument_drive(s->slot, s->knob[K_DRV]);
+    instrument_drive_mode(s->slot, s->drvmode);            // the waveshaper flavour (SOFT/HARD/FOLD/ASYM)
     instrument(sub_slot(s), INSTR_TRI, atk_ms(s), 60, 6, 25);
 }
 static void knob_changed_303(M303 *s, int k) {
@@ -773,7 +775,7 @@ static void ride_pcf(void) {
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D000Bu   // v11: per-303 REVERB send (rvsend[2]) — SaveBlob grew, old saves ignored
+#define SAVE_MAGIC 0xAC1D000Cu   // v12: per-303 drive MODE (drvmode[2]) — SaveBlob grew, old saves ignored
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
@@ -782,7 +784,7 @@ typedef struct {
     unsigned cur_seed;
     float    knob[2][NK], mcut, mres, fxk[NFX], send[4], rvsend[2], dist9, dist8;
     float    kt9[N909], kd9[N909], kc9[N909], kt8[N808], kd8[N808], kc8[N808];
-    int      wave[2], sweep[2];
+    int      wave[2], sweep[2], drvmode[2];
     bool     songmode, mute[NSTRIP];
 } SaveBlob;
 static int  save_cooldown = 0;         // >0 → a save is pending
@@ -799,7 +801,7 @@ static void save_song(void) {
     memcpy(sb.send, send, sizeof send); memcpy(sb.rvsend, rvsend, sizeof rvsend); sb.dist9 = dist9; sb.dist8 = dist8;
     memcpy(sb.kt9, kt9, sizeof kt9); memcpy(sb.kd9, kd9, sizeof kd9); memcpy(sb.kc9, kc9, sizeof kc9);
     memcpy(sb.kt8, kt8, sizeof kt8); memcpy(sb.kd8, kd8, sizeof kd8); memcpy(sb.kc8, kc8, sizeof kc8);
-    for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; sb.sweep[i] = m[i].sweep; }
+    for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; sb.sweep[i] = m[i].sweep; sb.drvmode[i] = m[i].drvmode; }
     sb.songmode = songmode;
     memcpy(sb.mute, mute, sizeof mute);
     save_bytes(&sb, sizeof sb);
@@ -817,7 +819,7 @@ static bool load_song(void) {
     memcpy(send, sb.send, sizeof send); memcpy(rvsend, sb.rvsend, sizeof rvsend); dist9 = sb.dist9; dist8 = sb.dist8;
     memcpy(kt9, sb.kt9, sizeof kt9); memcpy(kd9, sb.kd9, sizeof kd9); memcpy(kc9, sb.kc9, sizeof kc9);
     memcpy(kt8, sb.kt8, sizeof kt8); memcpy(kd8, sb.kd8, sizeof kd8); memcpy(kc8, sb.kc8, sizeof kc8);
-    for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; m[i].sweep = sb.sweep[i]; }
+    for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; m[i].sweep = sb.sweep[i]; m[i].drvmode = sb.drvmode[i]; }
     songmode = sb.songmode;
     memcpy(mute, sb.mute, sizeof sb.mute);
     return true;
@@ -1621,10 +1623,18 @@ static void draw_303_fx(int i, int y0) {
     if (ui_knob(&s->knob[K_DRV], 26, y0 + 12, "DIST")) { knob_changed_303(s, K_DRV); mark_dirty(); }
     if (ui_knob(&send[i], 64, y0 + 12, "SEND")) mark_dirty();
     if (ui_knob(&rvsend[i], 102, y0 + 12, "VERB")) mark_dirty();
+    // drive waveshaper mode — cycles SOFT→HARD→FOLD→ASYM (mirrors the SAW/SQR toggle)
+    static const char *DRVMODE[4] = { "SOFT", "HARD", "FOLD", "ASYM" };
+    if (ui_button(140, y0 + 10, 46, 20, DRVMODE[s->drvmode & 3])) {
+        s->drvmode = (s->drvmode + 1) & 3;
+        instrument_drive_mode(s->slot, s->drvmode);
+        if (s->h >= 0) note_drive_mode(s->h, s->drvmode);
+        mark_dirty();
+    }
     font(FONT_SMALL);
-    print("DIST = drive · SEND = delay · VERB = reverb hall", 12, y0 + 40, CLR_DARK_GREY);
-    print("VERB blooms this 303 into a warm room (sub stays dry)", 12, y0 + 50, CLR_DARK_GREY);
-    print("delay TIME/FB live on the MASTER strip", 12, y0 + 60, CLR_DARK_GREY);
+    print("DIST = drive amount · the button = waveshaper flavour", 12, y0 + 40, CLR_DARK_GREY);
+    print("SOFT tube · HARD fuzz · FOLD glassy metal · ASYM fat", 12, y0 + 50, CLR_DARK_GREY);
+    print("SEND = delay · VERB = reverb hall (sub stays dry)", 12, y0 + 60, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 static void draw_909_fx(int y0) {

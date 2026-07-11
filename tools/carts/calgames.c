@@ -17,9 +17,7 @@
   "homage": "California Games (1987)",
   "description": "Carve a neon half-pipe under a banded synthwave sunset in this Epyx-style vert event. Your skater swings wall to wall as a pendulum: tap PUMP at the bottom of the ramp (on the beat for extra pop) to build speed, fire off the lip into the air, then throw kickflips, 360s, methods, indys and ollies for points that only bank if you stick the landing upright over the wall — over-rotate and you BAIL with a screen-shaking slam. A filtered synth bass, euclidean hats and a pentatonic arp react to your airtime over a 60-second high-score chase with a saved best. Controls: Down/Z = pump at the bottom; in the air Z = kickflip, X = 360, Left/Right = method/indy grab, Up = ollie/straighten; Z or X to start and restart.",
   "todo": [
-    "Bug: the guy leaves a trail.",
-    "Unclear how to steer (is it Z?); the mouse sends him flying; he's rotated the wrong way — currently unplayable.",
-    "If steering works, add a touch of verlet to make it look nicer."
+    "Add a touch of verlet to the skater body to make it look nicer."
   ]
 }
 de:meta */
@@ -102,7 +100,9 @@ static float surf_y(float uu) {
 }
 // wall angle (how steep the ramp leans) at position u, in degrees, signed
 static float surf_lean(float uu) {
-    return uu * WALL_DEG;                        // 0 flat, +-WALL_DEG at the lips
+    // 0 flat at the bottom, tilting the skater to stand PERPENDICULAR to the wall
+    // (head leans toward the center of the pipe) as u -> +-1
+    return -uu * WALL_DEG;
 }
 
 static void reset_run(void) {
@@ -128,9 +128,13 @@ void init(void) {
     bpm(118);
 }
 
+// a fresh tap this frame — edge-triggered (see tap_edge, set once per frame in update)
+// so a held mouse/finger pumps ONCE, not every frame (a held mouse used to launch him)
+static bool tap_edge;
+
 static bool pump_pressed(void) {
     return btnp(0, BTN_DOWN) || btnp(0, BTN_A) || btnp(1, BTN_DOWN) || btnp(1, BTN_A)
-        || touch_count() > 0;
+        || tap_edge;
 }
 
 static void start_pop(int val, float y, int col) { pop_val = val; pop_y = y; pop_t = 1.0f; pop_col = col; }
@@ -190,6 +194,12 @@ static void land_clean(void) {
 void update(void) {
     float d = dt();
 
+    // edge-detect a touch/mouse tap once per frame (a HELD press must not repeat-fire)
+    static int prev_touch = 0;
+    int tc = touch_count();
+    tap_edge = (tc > 0 && prev_touch == 0);
+    prev_touch = tc;
+
     // particles + popup always tick
     for (int i = 0; i < 80; i++) if (parts[i].life > 0) {
         parts[i].x += parts[i].vx; parts[i].y += parts[i].vy; parts[i].vy += 0.12f;
@@ -214,12 +224,12 @@ void update(void) {
         // idle swing behind the title
         du += -sgn((int)(u * 1000)) * 1.6f * d;
         u += du * d; lean = surf_lean(u);
-        if (btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(1, BTN_A) || keyp(KEY_SPACE) || touch_count() > 0)
+        if (btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(1, BTN_A) || keyp(KEY_SPACE) || tap_edge)
             reset_run();
         return;
     }
     if (state == ST_OVER) {
-        if (btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(1, BTN_A) || keyp(KEY_SPACE) || touch_count() > 0)
+        if (btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(1, BTN_A) || keyp(KEY_SPACE) || tap_edge)
             reset_run();
         return;
     }
@@ -440,6 +450,8 @@ void draw(void) {
         return;
     }
 
+    cls(CLR_DARKER_PURPLE);   // repaint every frame — the sky+ramp don't cover the far
+                              // edges, so without this the skater ghosts a trail there
     draw_sky();
     draw_ramp();
     draw_particles();
@@ -459,6 +471,10 @@ void draw(void) {
     // PLAY + OVER both show the live world
     draw_world_skater();
     draw_hud();
+
+    // steering hint for the first few seconds of a run (so a stranger knows the key)
+    if (state == ST_PLAY && runtime > 54.0f && !airborne)
+        print_centered("Z or DOWN = PUMP at the bottom", SCREEN_W/2, 192, CLR_LIGHT_GREY);
 
     if (pop_t > 0 && pop_val > 0)
         print_centered(str("+%d", pop_val), SCREEN_W/2, (int)pop_y, pop_col);

@@ -1,8 +1,9 @@
 # The distortion lab — a "destruction unit" playground
 
-Status: **BUILDING (2026-07-11).** Rungs 0–1 shipped in the **`distlab`** cart: a master insert
-CHAIN (PRE-EQ → DRIVE → POST-EQ) on a held acid drone, with a live transfer curve + a `scope_read`
-oscilloscope + a flat param-cursor UI across the chain. Rungs 2–5 open. A cart that
+Status: **BUILDING (2026-07-11).** Rungs 0–2 shipped in the **`distlab`** cart: a master insert
+CHAIN (PRE-EQ → DRIVE A → DRIVE B → POST-EQ) on a held acid drone, with a live transfer curve (the
+composed cascade shape) + a `scope_read` oscilloscope + a flat param-cursor UI across the chain.
+Rungs 3–5 open. A cart that
 goes *beyond* the four built-in drive modes into modern "super distortion plugin" territory
 (stacking, tone-stacking, combos). The plan is **start simple, grow** — the increment ladder below is
 the proposed order, not a spec. Born from the acidrack chat where the 303 got a drive-mode selector
@@ -55,8 +56,11 @@ Each rung is playable/committable on its own; stop wherever it stops being fun.
   per-instrument to the master bus (the chain row now literally maps to `fx_order` — the architecture
   rungs 2–4 build on). A flat param cursor walks all 8 params; tapping a block jumps to it. Pre-EQ
   picks what gets distorted, post-EQ tames the fizz. A/B-verified the EQ alters the spectrum.
-- **Rung 2 — cascade.** A SECOND drive stage (`drive_insert_inst`) so you can stack waveshapers
-  (fold → hard, soft → asym). "Overdrive into the amp."
+- **Rung 2 — cascade. ✅ SHIPPED (2026-07-11).** A SECOND drive stage via `drive_insert_inst(1, …)`
+  + `FX_INST(FX_DRIVE, 1)` in the chain → PRE-EQ → DRIVE A → DRIVE B → POST-EQ. Each stage has its
+  own mode + amount; the transfer curve draws the COMPOSED shape (B∘A). Stack waveshapers (soft →
+  fold, fold → hard) — "overdrive into the amp." A/B-verified B stacks on A. (`shape()` bypasses at
+  amt 0 so a dormant stage = identity in the composed curve.)
 - **Rung 3 — destruction combos.** Fold `crush` + `tape` into the chain → grit + lo-fi + saturation
   stacked. The "go nuts" rung.
 - **Rung 4 — reorderable chain.** Make the stages a `pedalboard`-style drag-to-reorder chain so

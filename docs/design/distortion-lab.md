@@ -1,9 +1,9 @@
 # The distortion lab — a "destruction unit" playground
 
-Status: **BUILDING (2026-07-11).** Rungs 0–2 shipped in the **`distlab`** cart: a master insert
-CHAIN (PRE-EQ → DRIVE A → DRIVE B → POST-EQ) on a held acid drone, with a live transfer curve (the
-composed cascade shape) + a `scope_read` oscilloscope + a flat param-cursor UI across the chain.
-Rungs 3–5 open. A cart that
+Status: **BUILDING (2026-07-11).** Rungs 0–3 shipped in the **`distlab`** cart: a master insert
+CHAIN (PRE-EQ → DRIVE A → DRIVE B → CRUSH → TAPE → POST-EQ) on a held acid drone, with a live
+transfer curve (the composed cascade shape) + a `scope_read` oscilloscope + a flat param-cursor UI
+across the whole 16-param chain. Rungs 4–5 open. A cart that
 goes *beyond* the four built-in drive modes into modern "super distortion plugin" territory
 (stacking, tone-stacking, combos). The plan is **start simple, grow** — the increment ladder below is
 the proposed order, not a spec. Born from the acidrack chat where the 303 got a drive-mode selector
@@ -61,8 +61,11 @@ Each rung is playable/committable on its own; stop wherever it stops being fun.
   own mode + amount; the transfer curve draws the COMPOSED shape (B∘A). Stack waveshapers (soft →
   fold, fold → hard) — "overdrive into the amp." A/B-verified B stacks on A. (`shape()` bypasses at
   amt 0 so a dormant stage = identity in the composed curve.)
-- **Rung 3 — destruction combos.** Fold `crush` + `tape` into the chain → grit + lo-fi + saturation
-  stacked. The "go nuts" rung.
+- **Rung 3 — destruction combos. ✅ SHIPPED (2026-07-11).** `crush()` (bits 1..16 / rate 1..64 /
+  mix) + `tape()` (wow/flutter/sat) folded into the chain as their own stages via `FX_CRUSH` +
+  `FX_TAPE` → PRE-EQ → A → B → CRUSH → TAPE → POST-EQ. The chain row went to 6 compact FONT_SMALL
+  blocks; crush/tape got left-anchored slider edit panels. A/B-verified the combo adds density
+  (RMS −7.3 → −4.3 dB). The go-nuts rung.
 - **Rung 4 — reorderable chain.** Make the stages a `pedalboard`-style drag-to-reorder chain so
   order-dependence is audible (drive→eq→crush vs crush→eq→drive). `fx_order` already models this.
 - **Rung 5 — live spectrum.** A spectrum/FFT strip alongside the transfer curve, to *watch* the

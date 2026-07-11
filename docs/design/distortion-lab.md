@@ -1,7 +1,8 @@
 # The distortion lab — a "destruction unit" playground
 
-Status: **BUILDING (2026-07-11).** Rung 0 shipped — the **`distlab`** cart (one drive stage on a
-held acid drone + a live transfer curve + a `scope_read` oscilloscope). Rungs 1–5 open. A cart that
+Status: **BUILDING (2026-07-11).** Rungs 0–1 shipped in the **`distlab`** cart: a master insert
+CHAIN (PRE-EQ → DRIVE → POST-EQ) on a held acid drone, with a live transfer curve + a `scope_read`
+oscilloscope + a flat param-cursor UI across the chain. Rungs 2–5 open. A cart that
 goes *beyond* the four built-in drive modes into modern "super distortion plugin" territory
 (stacking, tone-stacking, combos). The plan is **start simple, grow** — the increment ladder below is
 the proposed order, not a spec. Born from the acidrack chat where the 303 got a drive-mode selector
@@ -48,8 +49,12 @@ Each rung is playable/committable on its own; stop wherever it stops being fun.
   A live **transfer curve** (input→output, identity ghosted) AND a real **`scope_read` oscilloscope**
   of the post-FX output sit side by side. The chain row shows one `[DRIVE]` block + ghosted `+` slots
   to signal growth. Verified: compiles, fx-frame clean, scope populates from real output.
-- **Rung 1 — the tone stack.** Add EQ *before* and *after* the clipper (`eq()` pre + post). This is
-  the single biggest character upgrade — pre-EQ picks what gets distorted, post-EQ tames the fizz.
+- **Rung 1 — the tone stack. ✅ SHIPPED (2026-07-11).** EQ *before* and *after* the clipper as a real
+  master insert chain: `fx_order(0, {FX_EQ, FX_DRIVE, FX_INST(FX_EQ, 1)})`, with `eq()` = pre
+  (instance 0), `drive_insert()` = the dirt, `eq_inst(1, …)` = post. The drive moved from
+  per-instrument to the master bus (the chain row now literally maps to `fx_order` — the architecture
+  rungs 2–4 build on). A flat param cursor walks all 8 params; tapping a block jumps to it. Pre-EQ
+  picks what gets distorted, post-EQ tames the fizz. A/B-verified the EQ alters the spectrum.
 - **Rung 2 — cascade.** A SECOND drive stage (`drive_insert_inst`) so you can stack waveshapers
   (fold → hard, soft → asym). "Overdrive into the amp."
 - **Rung 3 — destruction combos.** Fold `crush` + `tape` into the chain → grit + lo-fi + saturation

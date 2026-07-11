@@ -1,10 +1,11 @@
 # The distortion lab — a "destruction unit" playground
 
-Status: **EXPLORING / IDEA (2026-07-11).** A scratchpad for a new cart that goes *beyond* the four
-built-in drive modes into modern "super distortion plugin" territory (stacking, tone-stacking,
-combos). Nothing built yet. The plan is **start simple, grow** — the increment ladder below is the
-proposed order, not a spec. Born from the acidrack chat where the 303 got a drive-mode selector and
-the maker wanted to experiment further.
+Status: **BUILDING (2026-07-11).** Rung 0 shipped — the **`distlab`** cart (one drive stage on a
+held acid drone + a live transfer curve + a `scope_read` oscilloscope). Rungs 1–5 open. A cart that
+goes *beyond* the four built-in drive modes into modern "super distortion plugin" territory
+(stacking, tone-stacking, combos). The plan is **start simple, grow** — the increment ladder below is
+the proposed order, not a spec. Born from the acidrack chat where the 303 got a drive-mode selector
+and the maker wanted to experiment further.
 
 ## Why — and what we already have
 
@@ -41,9 +42,12 @@ So the lab's job is the ground **none of those cover**: stacking, tone-stacking,
 
 Each rung is playable/committable on its own; stop wherever it stops being fun.
 
-- **Rung 0 — one stage, interactive.** A through-voice + ONE drive stage: mode button (SOFT/HARD/
-  FOLD/ASYM) + amount knob + a live **transfer-curve** drawing (input→output shape) so you *see* the
-  fold/clip/asym. Essentially `drivemodes` but interactive and the seed of the chain.
+- **Rung 0 — one stage, interactive. ✅ SHIPPED (`distlab`, 2026-07-11).** A held acid drone (one
+  `note_on` voice slid along a riff with `note_pitch`, so it's continuous) through ONE drive stage:
+  LEFT/RIGHT (or tap the `[DRIVE]` block) picks the mode, UP/DOWN (or drag the bar) rides the amount.
+  A live **transfer curve** (input→output, identity ghosted) AND a real **`scope_read` oscilloscope**
+  of the post-FX output sit side by side. The chain row shows one `[DRIVE]` block + ghosted `+` slots
+  to signal growth. Verified: compiles, fx-frame clean, scope populates from real output.
 - **Rung 1 — the tone stack.** Add EQ *before* and *after* the clipper (`eq()` pre + post). This is
   the single biggest character upgrade — pre-EQ picks what gets distorted, post-EQ tames the fizz.
 - **Rung 2 — cascade.** A SECOND drive stage (`drive_insert_inst`) so you can stack waveshapers

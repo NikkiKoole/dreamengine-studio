@@ -91,7 +91,8 @@ xcrun simctl install "$DEVICE" "$APP_BUNDLE"
 xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
 
 if [ -n "$SHOT" ]; then
-  sleep 2
+  sleep 5   # a COLD boot+install+launch needs a beat before the software canvas draws
+            # its first frame — 2s caught a blank white screen on a freshly-booted sim.
   xcrun simctl io "$DEVICE" screenshot "$SHOT"
   echo "▸ screenshot → $SHOT"
 fi

@@ -28,6 +28,7 @@ left here — that rule is what keeps this doc from regrowing).
 | genre racks / generate-play-export / song.h | [`tinyjam-racks.md`](tinyjam-racks.md) |
 | selling any of this (market, MIDI/AUv3, latency, trademark) | [`product-notes.md`](product-notes.md) — sketch-first decision + the parked builder items |
 | timing jitter / drift (esp. web "drunk" playback) | [`audio-timing.md`](audio-timing.md) — frame-quantized triggers vs schedule-ahead; the web unclamped-`dt` hitch (latency is product-notes) |
+| debugging a voice that stops (a solo "cut off", stolen/reused voices) | [`audio-voice-debugging.md`](audio-voice-debugging.md) — stem/solo render + voice-allocation trace (READY TO BUILD) |
 | the game/audio **thread model**, backends, the AudioWorklet migration | [`audio-threading.md`](audio-threading.md) — the lock-free queue, per-platform audio thread, runtime backend pick, staged build plan |
 | holding + driving notes live (the shipped spec) | [`held-notes.md`](held-notes.md) |
 | placing sound in the WORLD (pan/distance/Doppler, positional audio) | [`spatial.md`](spatial.md) — v1 per-voice + v2 emitter buses SHIPPED; v3 acoustic zones (inside/outside/occlusion) PROPOSED |

@@ -14,10 +14,7 @@
   ],
   "lineage": "Directly ports the falling-sand automaton from sand.c and embeds it as live terrain in a Boulderdash-style dig-and-collect game.",
   "genre": "arcade",
-  "description": "A whole cave of live falling-sand: dig tunnels and the sand above pours down to refill them — grab every gem and reach the exit before a collapsing column buries you. A/D or arrows walk + dig sideways, W/up climb + dig up, S/down dig straight down, Z/X/R restart.",
-  "todo": [
-    "Bug: the character sometimes suddenly pops back on top of the sand."
-  ]
+  "description": "A whole cave of live falling-sand: dig tunnels and the sand above pours down to refill them — grab every gem and reach the exit before a collapsing column buries you. A/D or arrows walk + dig sideways, W/up climb + dig up, S/down dig straight down, Z/X/R restart."
 }
 de:meta */
 #include "studio.h"
@@ -255,10 +252,12 @@ void update(void) {
     if (!box_hits_solid(bx, by + 1)) {
         py += 0.5f;
     } else {
-        // settle onto the surface (snap up out of any cell he sank into)
-        int snap = by;
-        while (snap > 0 && box_hits_solid(bx, snap)) snap--;
-        py = snap;
+        // lift out of a cell or two he rounded/sank into — but NEVER climb past
+        // sand packed over his head. A miner walled in on all sides is BURIED
+        // (the bury meter's job); teleporting him up to the surface was the pop.
+        int snap = by, lift = 0;
+        while (snap > 0 && lift < 2 && box_hits_solid(bx, snap)) { snap--; lift++; }
+        if (!box_hits_solid(bx, snap)) py = snap;   // clean footing found nearby
     }
 
     // clamp inside the rock border
@@ -286,6 +285,11 @@ void update(void) {
         dead = true; death_msg = "BURIED ALIVE";
         shake(6); note(33, INSTR_SAW, 6); note(28, INSTR_SAW, 6);
     }
+
+#ifdef DE_TRACE
+    watch("py", "%.2f", py);
+    watch("packed", "%d", packed);
+#endif
 
     // ── the falling-sand world ticks at a steady cadence (reads as a cascade) ──
     settle_acc += dt();

@@ -17,10 +17,7 @@
   "lineage": "Extends the repo's raycaster base (DDA per-column wall strips) with a z-buffer for billboard-sprite occlusion — the classical Doom renderer trick; fixed authored level rather than procedural.",
   "genre": "shooter",
   "homage": "Doom (1993)",
-  "description": "A Doom-style first-person shooter on the raycaster — stalk a base of corridors blasting charging imps and shooting gunners, drawn as distance-scaled billboard sprites that hide behind walls via a depth buffer. Two weapons (pistol / shotgun), pickups, a red keycard that unlocks the exit, muzzle-flash room lighting and gore. WASD/arrows move + turn, Q/E strafe, Z fire, X (or 1/2) switch weapon, SPACE open doors / hit the exit switch.",
-  "todo": [
-    "Bug: looks like you can only shoot once."
-  ]
+  "description": "A Doom-style first-person shooter on the raycaster — stalk a base of corridors blasting charging imps and shooting gunners, drawn as distance-scaled billboard sprites that hide behind walls via a depth buffer. Two weapons (pistol / shotgun), pickups, a red keycard that unlocks the exit, muzzle-flash room lighting and gore. WASD/arrows move + turn, Q/E strafe, Z fire, X (or 1/2) switch weapon, SPACE open doors / hit the exit switch."
 }
 de:meta */
 #include "studio.h"
@@ -350,6 +347,7 @@ void update(void) {
         }
 
     // timers + a driving metal/ambient bed
+    if (fire_cd > 0)      fire_cd      -= dt();      // weapon cooldown — lets you fire again
     if (flash_muzzle > 0) flash_muzzle -= dt();
     if (flash_dmg > 0)    flash_dmg    -= dt();
     if (msg_t > 0)        msg_t        -= dt();

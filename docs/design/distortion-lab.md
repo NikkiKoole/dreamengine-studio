@@ -55,6 +55,22 @@ Each rung is playable/committable on its own; stop wherever it stops being fun.
 - **Rung 5 — live spectrum.** A spectrum/FFT strip alongside the transfer curve, to *watch* the
   harmonics bloom. (Nice-to-have; the transfer curve alone teaches most of it.)
 
+## Cart-land vs engine — the whole initial lab is CART-LAND (verified 2026-07-11)
+
+The entire ladder (rungs 0–5) needs **no engine changes** — every piece is an existing studio.h API:
+
+- Rungs 0–4 use `instrument_drive`/`_mode`, `drive_insert`/`_inst`, `eq`, `crush`, `tape`, `fx_order`.
+- **Rung 5 (spectrum) is cart-land too** thanks to **`scope_read(dst, n)`** — it copies the latest
+  N samples of the *actual post-FX output mix* (−1..1) into a cart buffer, zero cost until first
+  called (`scope_read2` for stereo/vectorscope). Hand-roll a small FFT on that buffer. A live
+  *waveform* scope is nearly free — `scope_read` IS the oscilloscope feed.
+- **Transfer curve (rung 0):** the drive shaper math is NOT exposed the way `lfo_value()` is, so to
+  draw the exact curve the cart re-implements the 4 formulas (tanh / hard-clip / sin-fold / asym —
+  trivial), OR just shows the real output waveform via `scope_read` (truthful, no re-implementation).
+
+So: **build the whole playground in cart-land first**, ship + experiment, and touch `sound.h` ONLY
+if we later reach for the three gaps below. No hot-file risk until then.
+
 ## Engine gaps (NOT cart work — note as engine todos if we want them)
 
 The genuinely-modern tricks the engine can't do yet — flag, don't fake:

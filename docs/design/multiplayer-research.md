@@ -384,7 +384,7 @@ imposes.
 | **2. Join codes, everywhere** | libdatachannel (native) + datachannel-wasm (web); tiny signaling server (~100-line Node/Worker) minting 4-letter codes; free TURN fallback (Cloudflare/Metered). Native↔browser cross-play. | ~2–3 weeks | medium — ICE edge cases, TURN config, build integration |
 | **2b. (fallback/shortcut)** | WebSocket *input relay* server (Tsoding topology, lockstep payload). If stage 2 stalls, this gets internet play working everywhere — incl. iPad Safari — for ~3 days' work, at +1 hop latency. | days | low |
 | **3. iPad** | Test the stage-2 wasm player in Safari on iPad; fix touch input → `btn()` mapping (on-screen buttons). | days | Safari quirks (unverified territory) |
-| **4. (someday) Rollback** | GGPO-style, enabled by the flat `de_state()` block (save = memcpy). Only if input delay ever actually bothers anyone. | weeks | high; probably never needed |
+| **4. (someday) Rollback** | GGPO-style, enabled by the flat `de_state()` block (save = memcpy). Only if input delay ever actually bothers anyone. Delay-based vs rollback is an OPEN, deferrable call — both keep carts netcode-unaware; see [§"The two routes to smooth"](#the-two-routes-to-smooth--delay-based-step-5-vs-rollback--and-why-the-call-can-wait). | weeks | high; probably never needed |
 
 **Main risks, honestly:** (1) cross-compiler float determinism — mitigated by
 stage 0 being *first*; (2) NAT traversal failures for ~10–20% of peer pairs
@@ -740,6 +740,85 @@ safer.
 **Ballpark: ~1.5–2 weeks part-time** for browser↔browser; steps 5–7 are optional
 polish/reach.
 
+### The two routes to smooth — delay-based (step 5) vs rollback — and why the call can wait
+
+> **Status: OPEN decision (2026-07-11), deliberately deferred.** Both routes fix
+> the felt latency; the maker hasn't picked one and doesn't have to yet — the
+> reason *why* it can wait is the whole point of this subsection.
+
+Once the fixed 10-frame cushion feels blunt, there are two industry-standard ways
+to make netplay feel smooth. They are the two established families of real-time
+netcode; we already sit in the first one.
+
+- **Delay-based lockstep + timesync (= step 5, our current architecture).** The
+  game *waits* until it has both players' inputs for a frame, so it's always
+  correct. Latency is *felt* as input delay. Step 5 sands that off two ways:
+  **(a) adaptive `NET_DELAY`** sizes the wait to the measured link (the
+  `net_stat_rtt_ms` probe already ships) instead of a blunt worst-case constant,
+  and **(b) re-centering** (GGPO calls it *timesync*) keeps the shared cushion
+  balanced so one peer doesn't end up pinned at buffer 0 stuttering — the fed peer
+  gives a frame back. This is the classic RTS / pre-rollback fighting-game model.
+  **Cost: low, ~1–2 days, all inside `net.h`.**
+
+- **Rollback (= the "someday" §7 row).** The local input applies *instantly* — no
+  wait. The engine **predicts** the remote input (usually "same as last frame"),
+  simulates ahead, and if the real input arrives and disagrees, it **rolls back**:
+  restores the saved state and re-simulates the few intervening frames in one tick
+  so everything snaps to correct. Most frames the guess is right and nobody
+  notices; a mispredict shows as a small twitch on the remote object. This is what
+  GGPO / modern fighting games (SF6, Strive) use. It hides latency far better than
+  any amount of delay tuning. **Cost: high — but structurally cheap *here* because
+  save = `memcpy` of the flat `de_state()` block, and determinism is already
+  required.** See "what rollback additionally demands" below.
+
+  **The prediction is generic, NOT per-cart.** The thing that sounds
+  game-specific — "guess the opponent's move" — isn't. GGPO-style rollback predicts
+  *inputs*, not game state, with one dumb universal rule: **"assume the remote
+  player holds the same button as last frame."** That's true most frames for *any*
+  game (nobody changes direction every 16 ms), so a single heuristic below the
+  `btn()` seam serves every cart. The *re-simulation* is just the cart's own
+  ordinary `update()`, re-invoked by the engine with corrected inputs — the cart
+  writes no prediction code and no netcode, and doesn't know it's being re-run.
+  (This is the input-prediction school; contrast client-server + client-side
+  *state* prediction — Quake/Source — which extrapolates entity positions and does
+  get game-specific. Rollback dodges that by re-deriving state from the
+  deterministic sim.)
+
+**The key invariant — either route keeps carts unaware of the netcode.** This is
+why the decision is deferrable and not a fork that blocks anyone. Multiplayer lives
+*entirely* below the `inp_*`/`btn()` seam and the `de_state()` block (§6, "keep
+carts network-unaware"; §"the input seam already exists"). A cart reads
+`btn(player, …)` and keeps its state in `de_state()` — it never learns whether the
+input it got was local, lockstep-buffered, or a rollback prediction. So:
+
+- **The choice is engine-internal.** No cart changes either way; we could ship
+  delay-based (step 5) now and swap in rollback later with *zero* cart edits.
+- **Delay-based is the safe default**, and rollback is a strict *addition* on top
+  of the same seam, not a rewrite — which is exactly why "decide later" costs
+  nothing.
+
+**What rollback additionally demands (the fine print that makes delay-based the
+safe default).** "Unaware" is fully true for delay-based; for rollback the cart's
+*code* is still unchanged for the common case, but the engine enforces a soft
+contract the cart must honor:
+
+1. **All mutable game state must live in the `de_state()` block** — a file-scope
+   `static` outside it wouldn't be saved/restored, so the replay would diverge.
+   (Most carts already do this; the starter cart's `STATE`/`S` sugar is exactly
+   this block.)
+2. **`update()` must be safe to run several times per displayed frame.** `draw()`
+   is fine (called once, on the final reconciled frame), but side effects fired
+   from `update()` — a paddle-bounce `sfx`, a `save()` — would double-trigger
+   during re-simulation. The engine gates these with an "in rollback, suppress
+   side effects" flag; the cart just needs its side effects to sit in `update()`
+   where the engine can see them, not smuggled elsewhere.
+
+For pong both are trivially satisfied (state = two paddles + a ball; the only side
+effect is a bounce blip). So pong is simultaneously the cart most *helped* by
+rollback (fast, latency-sensitive, no wind-up to hide lag behind) and the *cheapest*
+to convert — which is why, if rollback ever gets built, pong is the natural first
+rollback cart, and why until then step 5 is the right proportionate choice.
+
 ### Field evidence — native LAN session, 2026-07-09
 
 First real two-machine play-test of the native path: Mac (editor host, P0) ↔ Windows
@@ -774,6 +853,30 @@ Findings — all on the **shared lockstep core**, so they apply to the WebRTC pa
   every log line** (correlate a freeze with a concurrent `ping` by time of day — the
   §wifi-burst verdict below no longer has to be inferred from a separate-time ping).
   Formats: [`../guides/debug-harness.md`](../guides/debug-harness.md) §"Netplay diagnostics".
+
+**Would rollback rescue this session? Half of it — and that's the useful split.**
+The two failures answer to rollback very differently (analysis, not yet a measured
+rollback test — rollback isn't built; see [§"The two routes to smooth"](#the-two-routes-to-smooth--delay-based-step-5-vs-rollback--and-why-the-call-can-wait)):
+
+- **Failure 1 (the 62% micro-stutter): rollback kills it outright.** There is no
+  shared cushion to starve, so "buffer 0" stops being a failure mode — all 2190
+  stalled frames vanish. But **step 5's re-center half fixes the same thing** for
+  ~1–2 days and no rollback, so rollback is *sufficient*, not *necessary*, here.
+- **Failure 2 (the 1–2 s congestion freezes): rollback does NOT rescue it.** A
+  60–120-frame gap is 1–2 s of predicting "remote holds the same button" — over
+  that long the guess is wildly wrong (the opponent moved), so reconciliation on
+  the delayed burst is a violent multi-second snap (ball teleports, paddle jumps,
+  a point may score-then-unscore). Real rollback (GGPO) therefore **caps** its
+  prediction window (~7–9 frames) and **stalls past it anyway** — so a sane
+  rollback *also* freezes here, just softer (local input stays live for ~8 frames,
+  then it waits). This is the doc's "un-bufferable, environmental ceiling both
+  transports share," restated: it's a physics limit of the link, not a netcode
+  choice.
+
+Net effect: rollback would turn this session from *"62% stuttery + a hard freeze
+every 18 s"* into *"buttery-smooth for ~18 s at a stretch, then still a ~1–2 s
+disruption."* A real win — but earned entirely on failure 1; the congestion freeze
+needs a quieter channel/network, not better netcode.
 
 ### The wifi-burst question — how to find the cause
 

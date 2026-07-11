@@ -1,6 +1,6 @@
 # Teaching gaps — what the API offers but nothing teaches
 
-STATUS: READY — audit of under-taught API areas + a prioritized tutorial attack list; 04b-mouse, camera, music-sequencing, and 3D shipped; effects/touch next.
+STATUS: BUILDING — audit of under-taught API areas + a prioritized tutorial attack list; 04b-mouse, camera, music-sequencing, 3D, and (2026-07-11) touch + audio-effects-chain shipped; collision track (27–33) shipped. Type-1 on-ramp holes now all closed.
 
 > **Exploratory snapshot (2026-06-22).** A "what's under-taught?" pass over the library,
 > cross-referencing the API surface against what tutorials + tagged carts actually cover.
@@ -28,10 +28,10 @@ The on-ramp holes: heavily used across the library, but **no tutorial explains t
 
 | Capability | Carts using it | Tutorials | Note |
 |---|---|---|---|
-| **Mouse input** (`mouse_*`) | 124 (32%) | **0** | `04-buttons` is keyboard-only; a third of carts use the mouse with no lesson |
+| **Mouse input** (`mouse_*`) | 124 (32%) | ~~0~~ **1** | `04b-mouse` now teaches `mouse_x`/`mouse_y`/click directly |
 | **Camera / viewport** (`camera`/`follow`/`clip`) | 66 (17%) | ~~0~~ **1** | `10-world` only used the `follow()` wrapper; `10b-camera` now teaches `camera()`/`clip()` directly |
-| **Audio effects chain** (`echo`/`reverb`/`chorus`/`tape`/`wah`/`crush`/`eq`…) | 58 (15%) | **0** | `20–22` teach *voices*; the whole effects bus has no on-ramp |
-| **Touch input** (`touch_*`/`tap`) | 64 (16%) | **0** | mobile is a stated project goal, yet no touch/tap tutorial |
+| **Audio effects chain** (`echo`/`reverb`/`chorus`/`tape`/`wah`/`crush`/`eq`…) | 58 (15%) | ~~0~~ **1** | `22b-fxchain` (2026-07-11) toggles echo/reverb/crush on one note — teaches the bus + the set-and-hold rule |
+| **Touch input** (`touch_*`/`tap`) | 64 (16%) | ~~0~~ **1** | `04c-touch` (2026-07-11) teaches `touch_count`/`touch_x`/`touch_y`/`tap`, sibling of `04b-mouse` |
 
 ## Gap type 2 — whole subsystem, no entry point
 

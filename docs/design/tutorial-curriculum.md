@@ -1,6 +1,6 @@
 # Tutorial curriculum — extending the on-ramp (25+)
 
-STATUS: DESIGNED (plan 2026-06-03) — the adapted lesson list for the next tutorial wave; pairs with [teaching-gaps.md](teaching-gaps.md)'s measured evidence.
+STATUS: BUILDING (plan 2026-06-03; Track A shipped 2026-07-01, Track B shipped 2026-07-11) — the adapted lesson list for the next tutorial wave; pairs with [teaching-gaps.md](teaching-gaps.md)'s measured evidence. Done: Track A (23/24/25), Track B collision (27–33), plus #40 flappy + #47 text-fx. Open: Track C capstones (#41–46), Track D #48.
 
 > **Exploratory.** A plan (2026-06-03) for the next wave of tutorial carts, sourced from
 > studying the [Nerdy Teachers PICO-8 course](https://nerdyteachers.com/PICO-8/). Companion
@@ -83,15 +83,19 @@ Coding" roadmap (conditionals → inputs → tables → loops), retargeted to C.
 
 ### Track B — Collision *(adapted from their 8-part track — our biggest acknowledged gap)*
 
+✅ **SHIPPED 2026-07-11** — the whole track, renumbered **27–33** (contiguous after `26-first3d`,
+since Track A landed compressed as 23/24/25 and freed 27–32). Each teaches one concept, reacts
+with colour + sound on the key event, and clears `ui-audit` (no off-screen text).
+
 | # | cart | teaches |
 |---|---|---|
-| 33 | what is collision? | overlap as a yes/no question; the bounding-box idea |
-| 34 | point in rect | is a dot / the cursor inside a box |
-| 35 | box vs box (AABB) | two rectangles touch — teach the `boxes_touch` helper |
-| 36 | circles & distance | point/circle and circle/circle via distance |
-| 37 | screen edges | clamp vs bounce vs wrap at the boundary |
-| 38 | tilemap collision | reading map flags: "what tile am I on", walls you can't pass |
-| 39 | reading pixels | color/pixel-level collision off the canvas |
+| 27 | ✅ `27-collide-intro` — what is collision? | overlap as a per-frame yes/no question; `boxes_touch` + edge-trigger |
+| 28 | ✅ `28-point-rect` — is a point in a box? | `point_in_box` as the click/hover primitive (mouse + arrows) |
+| 29 | ✅ `29-box-box` — box vs box (AABB) | `boxes_touch`; draws the live intersection rectangle |
+| 30 | ✅ `30-circle-dist` — circles & distance | `distance` / `circles_touch` / `near`; gap vs summed radii |
+| 31 | ✅ `31-screen-edges` — hitting the edges | clamp vs bounce vs wrap, toggled live |
+| 32 | ✅ `32-tilemap-collide` — tilemap collision | `touching_map` / `tile_at`; test-move per axis to slide along walls |
+| 33 | ✅ `33-pixel-collide` — reading pixels | `pget` colour collision (+ `enable_pget`); collision follows any drawn shape |
 
 ### Track C — Build a whole game *(the capstones — `cart-library-direction.md`'s #1)*
 
@@ -118,7 +122,7 @@ Modeled on their Bitesize set, scaled to teachable size.
 ## Sequencing note
 
 A beginner's natural path becomes: **1–10** (primitives → first game → world) → **23-basics /
-24-building-blocks / 25-patterns** (understand the code they've been copying) → **33–39**
+24-building-blocks / 25-patterns** (understand the code they've been copying) → **27–33**
 (collision) → **40–46** (ship whole games) → **11–22 + 47–48** (juice/effects/polish, dip in
 as desired). The capstones (Track C) are the payoff and the most shareable; Track A is the
 foundation that makes the rest *stick* instead of being copied.
@@ -131,8 +135,10 @@ magnitude; trim Track D or fold a couple of Track C games if it runs long.
 ~~Suggested first build: #40 flappy.~~ **#40 flappy SHIPPED 2026-06-07** (the arc proven).
 ~~Next suggested build: Track A.~~ **Track A SHIPPED 2026-07-01** (`23-basics`,
 `24-building-blocks`, `25-patterns` — the foundation that makes the copied code in every
-other cart *stick*). Next suggested build: **Track B** (#33–39 — collision), the biggest
-acknowledged gap still fully open.
+other cart *stick*). ~~Next suggested build: Track B (#33–39 — collision).~~ **Track B SHIPPED
+2026-07-11** as `27-collide-intro` … `33-pixel-collide` (renumbered 27–33). Next suggested
+build: **Track C** (#40–46 — whole games; flappy already proved the arc), the payoff + most
+shareable.
 
 ## Addendum (2026-06-04) — movement-paradigm clusters
 

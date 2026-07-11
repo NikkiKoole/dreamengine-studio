@@ -1,9 +1,11 @@
 # The distortion lab — a "destruction unit" playground
 
-Status: **BUILDING (2026-07-11).** Rungs 0–3 shipped in the **`distlab`** cart: a master insert
-CHAIN (PRE-EQ → DRIVE A → DRIVE B → CRUSH → TAPE → POST-EQ) on a held acid drone, with a live
-transfer curve (the composed cascade shape) + a `scope_read` oscilloscope + a flat param-cursor UI
-across the whole 16-param chain. Rungs 4–5 open. A cart that
+Status: **BUILDING (2026-07-11).** The **`distlab`** cart is a playable master insert CHAIN
+(PRE-EQ → DRIVE A → DRIVE B → CRUSH → TAPE → POST-EQ) on a held acid drone, with a live transfer
+curve (the composed cascade shape), a flat param-cursor UI across the whole 16-param chain, and an
+OUTPUT panel that toggles WAVEFORM ↔ SPECTRUM (an in-cart FFT). Rungs 0–3 + the spectrum view (Rung
+5) shipped. **Rung 4 (reorderable chain) is PARKED — maker called the cart good enough (2026-07-11).**
+The only remaining ideas are the engine gaps below (multiband / drawable curves / rectifier). A cart that
 goes *beyond* the four built-in drive modes into modern "super distortion plugin" territory
 (stacking, tone-stacking, combos). The plan is **start simple, grow** — the increment ladder below is
 the proposed order, not a spec. Born from the acidrack chat where the 303 got a drive-mode selector
@@ -66,10 +68,14 @@ Each rung is playable/committable on its own; stop wherever it stops being fun.
   `FX_TAPE` → PRE-EQ → A → B → CRUSH → TAPE → POST-EQ. The chain row went to 6 compact FONT_SMALL
   blocks; crush/tape got left-anchored slider edit panels. A/B-verified the combo adds density
   (RMS −7.3 → −4.3 dB). The go-nuts rung.
-- **Rung 4 — reorderable chain.** Make the stages a `pedalboard`-style drag-to-reorder chain so
-  order-dependence is audible (drive→eq→crush vs crush→eq→drive). `fx_order` already models this.
-- **Rung 5 — live spectrum.** A spectrum/FFT strip alongside the transfer curve, to *watch* the
-  harmonics bloom. (Nice-to-have; the transfer curve alone teaches most of it.)
+- **Rung 4 — reorderable chain. ⏸ PARKED (2026-07-11, "good enough").** Would make the stages a
+  `pedalboard`-style drag-to-reorder chain so order-dependence is audible (drive→eq→crush vs
+  crush→eq→drive). `fx_order` already models it, so it's a UI-only add if ever revisited.
+- **Rung 5 — live spectrum. ✅ SHIPPED (2026-07-11), as a VIEW not a strip.** The OUTPUT panel
+  toggles WAVEFORM ↔ SPECTRUM (X / tap). An in-cart 2048-pt radix-2 FFT (ported from `wavecandy`;
+  the engine has no spectral API) over `scope_read`, drawn log-freq (40 Hz–16 kHz) × dB (0..−72) —
+  so you SEE the harmonics each waveshaper/stage generates. Done the cheap way the maker suggested
+  ("just show more views") rather than as a separate build.
 
 ## Cart-land vs engine — the whole initial lab is CART-LAND (verified 2026-07-11)
 

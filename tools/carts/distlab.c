@@ -12,7 +12,7 @@
   "description": {
     "summary": "A distortion PLAYGROUND: a real master insert CHAIN — PRE-EQ -> DRIVE A -> DRIVE B -> CRUSH -> TAPE -> POST-EQ — on an auto-sliding acid drone, with a live transfer curve AND a real oscilloscope of the post-FX output. Rung 3 of a growable 'destruction unit' (design/distortion-lab.md): the tone stack + a two-stage waveshaper CASCADE + bitcrush + tape saturation, all stacked. The go-nuts rung.",
     "detail": "The chain IS fx_order(0, {FX_EQ, FX_DRIVE, FX_INST(FX_DRIVE,1), FX_CRUSH, FX_TAPE, FX_INST(FX_EQ,1)}) — pre-EQ, two drive_insert waveshaper stages, crush() (bit+rate reduction), tape() (wow/flutter/sat), post-EQ. A flat param cursor walks all 16 params: LEFT/RIGHT moves it, UP/DOWN adjusts (or cycles a drive mode); tap a chain block to jump. TRANSFER = the COMPOSED drive-cascade curve (B over A; crush/tape are texture, not a static curve); OUTPUT = a real scope_read() of the post-FX mix. The drone is one held note slid along a riff. Cart-land only — no engine changes.",
-    "controls": "LEFT/RIGHT move the param cursor across the chain - UP/DOWN adjust the cursored param (on a DRIVE stage: cycle the waveshaper / ride the amount) - tap a chain block to jump the cursor there - drag the sliders/bars on touch"
+    "controls": "LEFT/RIGHT move the param cursor across the chain - UP/DOWN adjust the cursored param (on a DRIVE stage: cycle the waveshaper / ride the amount) - tap a chain block to jump the cursor there - drag the sliders/bars on touch - X (or tap the OUTPUT panel) toggles its view: WAVEFORM oscilloscope <-> SPECTRUM (an in-cart FFT — SEE the harmonics the distortion adds)"
   }
 }
 de:meta */
@@ -26,6 +26,11 @@ de:meta */
 
 #define I_LEAD 0
 #define NSCOPE 256
+#define FFT_N   2048              // scope_read's max window — the OUTPUT panel's SPECTRUM view
+#define BIN_HZ  (44100.0f / FFT_N)
+#define F_LO    40.0f
+#define F_HI    16000.0f
+#define DB_FLOOR -72.0f
 
 enum { ST_PRE, ST_DRVA, ST_DRVB, ST_CRUSH, ST_TAPE, ST_POST, NSTAGE };
 enum { P_PRE_LO, P_PRE_MID, P_PRE_HI,
@@ -50,6 +55,8 @@ static float postq[3] = { 0, 0, 0 };      // post-EQ LO/MID/HI dB
 static float crush_p[3] = { 8, 4, 0.35f };  // bits 1..16, rate 1..64, mix 0..1
 static float tape_p[3]  = { 0.3f, 0.15f, 0.35f };  // wow, flutter, saturation 0..1
 static int   h = -1;                      // the held drone voice (continuous → the scope always has signal)
+static int   outview = 0;                 // OUTPUT panel: 0 = WAVEFORM scope, 1 = SPECTRUM (FFT)
+static float smp[FFT_N], fre[FFT_N], fim[FFT_N], hann[FFT_N], mag[FFT_N / 2];
 
 static int   param_stage(int p) {
     return p <= P_PRE_HI ? ST_PRE : p <= P_DA_AMT ? ST_DRVA : p <= P_DB_AMT ? ST_DRVB
@@ -70,6 +77,44 @@ static float shape(float x, int m, float a) {
     }
 }
 
+// ── the SPECTRUM view: an in-cart 2048-pt radix-2 FFT of the post-FX output
+// (the engine has no spectral API), ported from wavecandy. Fed by scope_read.
+static void fft(float *re, float *im, int n) {
+    for (int i = 1, j = 0; i < n; i++) {
+        int bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) { float t; t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (int len = 2; len <= n; len <<= 1) {
+        float ang = -6.2831853f / (float)len, wr = cosf(ang), wi = sinf(ang);
+        for (int i = 0; i < n; i += len) {
+            float cr = 1.0f, ci = 0.0f;
+            for (int k = 0; k < len / 2; k++) {
+                float vr = re[i+k+len/2]*cr - im[i+k+len/2]*ci;
+                float vi = re[i+k+len/2]*ci + im[i+k+len/2]*cr;
+                re[i+k+len/2] = re[i+k] - vr;  im[i+k+len/2] = im[i+k] - vi;
+                re[i+k] += vr;                 im[i+k] += vi;
+                float t = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = t;
+            }
+        }
+    }
+}
+static float to_db(float m) { float db = 20.0f * log10f(m + 1e-9f); return db < DB_FLOOR ? DB_FLOOR : db > 0.0f ? 0.0f : db; }
+static float mag_at(float hz) {
+    float p = hz / BIN_HZ; int i = (int)p;
+    if (i < 1) i = 1;
+    if (i >= FFT_N/2 - 1) return mag[FFT_N/2 - 1];
+    return mag[i] + (mag[i+1] - mag[i]) * (p - (float)i);
+}
+static void compute_fft(void) {
+    scope_read(smp, FFT_N);
+    for (int i = 0; i < FFT_N; i++) { fre[i] = smp[i] * hann[i]; fim[i] = 0.0f; }
+    fft(fre, fim, FFT_N);
+    for (int i = 0; i < FFT_N / 2; i++)                 // ×4/N: one-sided ×2, Hann coherent gain ×2
+        mag[i] = sqrtf(fre[i]*fre[i] + fim[i]*fim[i]) * (4.0f / (float)FFT_N);
+}
+
 // ── set-and-hold: re-apply an insert ONLY on change (never per frame) ──
 static void apply_pre(void)     { eq(preq[0], preq[1], preq[2]); }
 static void apply_post(void)    { eq_inst(1, postq[0], postq[1], postq[2]); }
@@ -88,6 +133,7 @@ void init(void) {
     apply_pre(); apply_drive(0); apply_drive(1); apply_crush(); apply_tape(); apply_post();
     h = note_on(48, I_LEAD, 6);
     note_glide(h, 55);
+    for (int i = 0; i < FFT_N; i++) hann[i] = 0.5f - 0.5f * cosf(6.2831853f * (float)i / (float)(FFT_N - 1));
     bpm(128);
 }
 
@@ -141,6 +187,9 @@ void update(void) {
     static const int FIRST[NSTAGE] = { P_PRE_LO, P_DA_MODE, P_DB_MODE, P_CR_BITS, P_TP_WOW, P_POST_LO };
     for (int s = 0; s < NSTAGE; s++)
         if (tapp(BLK_X[s], CH_Y, BLK_W, CH_H)) cur = FIRST[s];
+
+    // X (or tap the OUTPUT panel) cycles its view: WAVEFORM ↔ SPECTRUM
+    if (btnp(0, BTN_B) || tapp(170, 46, 140, 92)) outview ^= 1;
 
     // touch: drag the selected stage's controls
     int st = param_stage(cur);
@@ -205,6 +254,21 @@ static void draw_scope(int bx, int by, int bw, int bh) {
     print("OUTPUT", bx + 3, by + 2, CLR_LIGHT_GREY);
 }
 
+// SPECTRUM: log-frequency (40 Hz..16 kHz) × dB (0..-72) of the post-FX output —
+// SEE the harmonics each waveshaper/stage adds (SAW comb, FOLD's metallic partials…).
+static void draw_spectrum(int bx, int by, int bw, int bh) {
+    rectfill(bx, by, bw, bh, CLR_BLACK);
+    rect(bx, by, bw, bh, CLR_DARK_PURPLE);
+    int base = by + bh - 2;
+    for (int px = 0; px < bw; px++) {
+        float hz = F_LO * powf(F_HI / F_LO, px / (float)(bw - 1));
+        int hgt = (int)((to_db(mag_at(hz)) - DB_FLOOR) / (-DB_FLOOR) * (bh - 6));
+        if (hgt < 0) hgt = 0;
+        if (hgt) line(bx + px, base, bx + px, base - hgt, CLR_GREEN);
+    }
+    print("SPECTRUM", bx + 3, by + 2, CLR_LIGHT_GREY);
+}
+
 static void draw_block(int s, const char *label, int active) {
     rectfill(BLK_X[s], CH_Y, BLK_W, CH_H, active ? CLR_ORANGE : CLR_INDIGO);
     rect(BLK_X[s], CH_Y, BLK_W, CH_H, active ? CLR_WHITE : CLR_DARK_PURPLE);
@@ -263,7 +327,8 @@ void draw(void) {
     font(FONT_NORMAL);
 
     draw_curve(10, 46, 140, 92);
-    draw_scope(170, 46, 140, 92);
+    if (outview) { compute_fft(); draw_spectrum(170, 46, 140, 92); }
+    else         draw_scope(170, 46, 140, 92);
 
     char v[12];
     if (st == ST_DRVA || st == ST_DRVB) {
@@ -284,5 +349,5 @@ void draw(void) {
         for (int b = 0; b < 3; b++) draw_eq_slider(BAND[b], q[b], EQ_ROW0 + b * EQ_ROWH, cur == base + b);
     }
 
-    print_centered("\x1b \x1a cursor   up/down adjust   tap a block", SCREEN_W / 2, 193, CLR_LIGHT_GREY);
+    print_centered("\x1b \x1a cursor   up/down adjust   X: scope/spectrum", SCREEN_W / 2, 193, CLR_LIGHT_GREY);
 }

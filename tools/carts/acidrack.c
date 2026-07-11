@@ -692,6 +692,7 @@ static float fxk[NFX] = { 0.50f, 0.35f, 0.30f, 0.40f, 0.35f };
 static int mst_cols(void)     { int avail = W() - 84; return avail >= NFX * 26 ? NFX : (NFX + 1) / 2; }
 static int mst_lane_y(int y0) { int rows = (NFX + mst_cols() - 1) / mst_cols(); return y0 + 12 + (rows - 1) * 22 + 24; }
 static float send[4] = { 0.17f, 0.17f, 0.00f, 0.00f };   // per-machine delay send (A, B, 909, 808)
+static float rvsend[2] = { 0.00f, 0.00f };               // per-303 REVERB send into the shared hall (0 = dry); the octave-down sub stays dry
 static float dist9 = 0.0f, dist8 = 0.0f;                 // per-drum-machine drive
 static bool  pcf_on = false;           // is the master filter currently engaged
 
@@ -703,7 +704,7 @@ static const int SLOTS808[14] = { SL8_BD, SL8_SDB, SL8_SDN, SL8_TOM, SL8_TOMN,
 
 // re-apply set-and-hold effects ONLY when a value moved (groovebox idiom)
 static void apply_fx(void) {
-    static float aTime = -1, aFb = -1, aGlue = -1, aS[4] = { -1, -1, -1, -1 }, aD9 = -1, aD8 = -1;
+    static float aTime = -1, aFb = -1, aGlue = -1, aS[4] = { -1, -1, -1, -1 }, aD9 = -1, aD8 = -1, aR[2] = { -1, -1 };
     static int   aTempo = -1;
     // THE delay unit — the shared echo SEND bus (one unit, per-device routing,
     // like the hardware). fb capped ≤0.72: near-unity + heavy sends made a
@@ -721,6 +722,12 @@ static void apply_fx(void) {
     if (send[1] != aS[1]) { instrument_echo(SLOT_B, send[1] * 0.6f); aS[1] = send[1]; }
     if (send[2] != aS[2]) { for (int i = 0; i < 13; i++) instrument_echo(SLOTS909[i], send[2] * 0.6f); aS[2] = send[2]; }
     if (send[3] != aS[3]) { for (int i = 0; i < 14; i++) instrument_echo(SLOTS808[i], send[3] * 0.6f); aS[3] = send[3]; }
+    // per-303 REVERB send into the shared hall (tank 0). reverb is a SEND, not
+    // an insert — no aux bus, no Increment G. The hall is configured once in
+    // init(); only the sub voice (SLOT_SUB_*) is deliberately never sent (low
+    // octave-down content in a reverb = mud, same reason drum kicks stay dry).
+    if (rvsend[0] != aR[0]) { instrument_reverb(SLOT_A, rvsend[0]); aR[0] = rvsend[0]; }
+    if (rvsend[1] != aR[1]) { instrument_reverb(SLOT_B, rvsend[1]); aR[1] = rvsend[1]; }
     // per-drum-machine DIST — per-voice saturation layered over the baked
     // kick drives (909 BD 0.35, 808 BD 0.28), no bus involved at all
     if (dist9 != aD9) {
@@ -766,14 +773,14 @@ static void ride_pcf(void) {
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D000Au   // v10: 303 octave-DOWN + TIE + per-line LENGTH (vanilla tb303 parity) — Line struct grew, old saves ignored
+#define SAVE_MAGIC 0xAC1D000Bu   // v11: per-303 REVERB send (rvsend[2]) — SaveBlob grew, old saves ignored
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
     unsigned char chain[CHAINN];
     int      chainN, tempo, editBank, swing;
     unsigned cur_seed;
-    float    knob[2][NK], mcut, mres, fxk[NFX], send[4], dist9, dist8;
+    float    knob[2][NK], mcut, mres, fxk[NFX], send[4], rvsend[2], dist9, dist8;
     float    kt9[N909], kd9[N909], kc9[N909], kt8[N808], kd8[N808], kc8[N808];
     int      wave[2], sweep[2];
     bool     songmode, mute[NSTRIP];
@@ -789,7 +796,7 @@ static void save_song(void) {
     sb.cur_seed = cur_seed;
     sb.mcut = mcut; sb.mres = mres;
     memcpy(sb.fxk, fxk, sizeof fxk);
-    memcpy(sb.send, send, sizeof send); sb.dist9 = dist9; sb.dist8 = dist8;
+    memcpy(sb.send, send, sizeof send); memcpy(sb.rvsend, rvsend, sizeof rvsend); sb.dist9 = dist9; sb.dist8 = dist8;
     memcpy(sb.kt9, kt9, sizeof kt9); memcpy(sb.kd9, kd9, sizeof kd9); memcpy(sb.kc9, kc9, sizeof kc9);
     memcpy(sb.kt8, kt8, sizeof kt8); memcpy(sb.kd8, kd8, sizeof kd8); memcpy(sb.kc8, kc8, sizeof kc8);
     for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; sb.sweep[i] = m[i].sweep; }
@@ -807,7 +814,7 @@ static bool load_song(void) {
     swingf = (swing - 50) / 16.0f;
     mcut = sb.mcut; mres = sb.mres;
     memcpy(fxk, sb.fxk, sizeof fxk);
-    memcpy(send, sb.send, sizeof send); dist9 = sb.dist9; dist8 = sb.dist8;
+    memcpy(send, sb.send, sizeof send); memcpy(rvsend, sb.rvsend, sizeof rvsend); dist9 = sb.dist9; dist8 = sb.dist8;
     memcpy(kt9, sb.kt9, sizeof kt9); memcpy(kd9, sb.kd9, sizeof kd9); memcpy(kc9, sb.kc9, sizeof kc9);
     memcpy(kt8, sb.kt8, sizeof kt8); memcpy(kd8, sb.kd8, sizeof kd8); memcpy(kc8, sb.kc8, sizeof kc8);
     for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; m[i].sweep = sb.sweep[i]; }
@@ -831,6 +838,10 @@ void init(void) {
     // dist + delay are per-device (apply_fx configures the delay UNIT + sends)
     static const int kinds[1] = { FX_FILTER };
     fx_order(0, kinds, 1);
+    // the shared reverb hall (tank 0 = master send) — a warm room the 303s
+    // bloom into via their VERB send. Configured once (set-and-hold); the
+    // send defaults to 0 so the stock sound is unchanged until you turn it up.
+    reverb(0.62f, 0.42f);
     apply_fx();
 }
 
@@ -1609,9 +1620,10 @@ static void draw_303_fx(int i, int y0) {
     rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     if (ui_knob(&s->knob[K_DRV], 26, y0 + 12, "DIST")) { knob_changed_303(s, K_DRV); mark_dirty(); }
     if (ui_knob(&send[i], 64, y0 + 12, "SEND")) mark_dirty();
+    if (ui_knob(&rvsend[i], 102, y0 + 12, "VERB")) mark_dirty();
     font(FONT_SMALL);
-    print("DIST = this box's drive (same as DRV on the seq view)", 12, y0 + 40, CLR_DARK_GREY);
-    print("SEND = its level into the shared delay unit", 12, y0 + 50, CLR_DARK_GREY);
+    print("DIST = drive · SEND = delay · VERB = reverb hall", 12, y0 + 40, CLR_DARK_GREY);
+    print("VERB blooms this 303 into a warm room (sub stays dry)", 12, y0 + 50, CLR_DARK_GREY);
     print("delay TIME/FB live on the MASTER strip", 12, y0 + 60, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

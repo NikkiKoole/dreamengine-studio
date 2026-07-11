@@ -14,7 +14,6 @@
   "lineage": "Classic Tamagotchi virtual-pet loop with a multi-stat degradation sim; the novel angle is the real-time 'while you were away' catch-up that fast-forwards neglect from epoch() delta on load.",
   "description": "A real-time virtual pet, the slow ambient opposite of everything else here. Your blob gets hungry, bored, tired and dirty on its own, poops, can fall sick if neglected, and grows from egg to elder as it ages. Feed/play/wash/sleep/medicine to keep it happy. Saved with save()/load(), so it is still here — same age, same stats — next time you open the cart. Left/Right pick an action, Z to do it.",
   "todo": [
-    "Bug: the outline doesn't align with the shape.",
     "Needs mouse/touch support."
   ]
 }
@@ -199,6 +198,13 @@ static void mouth(int cx, int my, int w, int up, int c) {
     }
 }
 
+// half-width of the egg body at row `dy` (relative to centre) — the SAME curve
+// the fill and the outline trace, so they can't drift apart.
+static int egg_hw(int dy, int s) {
+    float f = 1.0f - (float)(dy * dy) / ((float)(s + 2) * (s + 2));
+    return (int)((s - 2) * (f < 0 ? 0 : f) + 2);
+}
+
 static void draw_pet(int cx, int cy, int stage, int expr) {
     int bob = (int)(sin_deg(now() * 90) * 2);
     if (expr == E_SLEEP) bob = (int)(sin_deg(now() * 40) * 1);
@@ -213,12 +219,17 @@ static void draw_pet(int cx, int cy, int stage, int expr) {
     }
     if (stage == 0) {                                       // egg
         int s = 15;
-        for (int dy = -s - 2; dy <= s; dy++) {
-            float f = 1.0f - (float)(dy * dy) / ((s + 2) * (s + 2));
-            int hw = (int)((s - 2) * (f < 0 ? 0 : f) + 2);
-            line(cx - hw, cy + dy, cx + hw, cy + dy, CLR_LIGHT_PEACH);
+        for (int dy = -s - 2; dy <= s; dy++)                // peach fill
+            line(cx - egg_hw(dy, s), cy + dy, cx + egg_hw(dy, s), cy + dy, CLR_LIGHT_PEACH);
+        for (int dy = -s - 2; dy <= s; dy++) {              // pink outline hugging that same edge
+            int hw = egg_hw(dy, s);
+            int up = dy > -s - 2 ? egg_hw(dy - 1, s) : -1;  // row above (empty past the ends)
+            int dn = dy <  s     ? egg_hw(dy + 1, s) : -1;  // row below
+            for (int dx = 0; dx <= hw; dx++)
+                if (dx == hw || dx > up || dx > dn) {       // side edge, or a top/bottom cap
+                    pset(cx - dx, cy + dy, CLR_PINK); pset(cx + dx, cy + dy, CLR_PINK);
+                }
         }
-        circ(cx, cy - 1, s, CLR_PINK);
         pset(cx - 5, cy, CLR_DARK_PURPLE); pset(cx + 6, cy - 4, CLR_DARK_PURPLE);
         return;
     }

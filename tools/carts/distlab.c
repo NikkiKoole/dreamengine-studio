@@ -10,15 +10,15 @@
   ],
   "teaches": [],
   "description": {
-    "summary": "A distortion PLAYGROUND: a real master insert CHAIN — PRE-EQ -> DRIVE -> POST-EQ — on an auto-sliding acid drone, with a live transfer curve AND a real oscilloscope of the post-FX output. Rung 1 of a growable 'destruction unit' (design/distortion-lab.md): the tone stack (EQ before AND after the clipper) now wraps the drive stage, with room in the chain for more.",
-    "detail": "The chain IS fx_order(0, {FX_EQ, FX_DRIVE, FX_INST(FX_EQ,1)}) — pre-EQ (instance 0) shapes what gets distorted, drive_insert() is the dirt (SOFT/HARD/FOLD/ASYM), post-EQ (instance 1) tames the fizz. A flat param cursor walks the whole chain: LEFT/RIGHT moves it, UP/DOWN adjusts (or cycles the drive mode); the stage holding the cursor highlights. TRANSFER = the drive stage's input->output curve (identity ghosted); OUTPUT = a real scope_read() of the post-FX mix, zero-crossing-frozen. The drone is one held note slid along a riff (note_pitch) so the sound is continuous. Cart-land only — no engine changes.",
-    "controls": "LEFT/RIGHT move the param cursor across the chain - UP/DOWN adjust the cursored param (on DRIVE: cycle the waveshaper / ride the amount) - tap a chain block to jump the cursor there - drag the sliders/bars on touch"
+    "summary": "A distortion PLAYGROUND: a real master insert CHAIN — PRE-EQ -> DRIVE A -> DRIVE B -> POST-EQ — on an auto-sliding acid drone, with a live transfer curve AND a real oscilloscope of the post-FX output. Rung 2 of a growable 'destruction unit' (design/distortion-lab.md): the tone stack (EQ around the dirt) PLUS a CASCADE of two waveshaper stages (fold into hard, soft into fold...) — the trick that makes big distortion plugins sound big.",
+    "detail": "The chain IS fx_order(0, {FX_EQ, FX_DRIVE, FX_INST(FX_DRIVE,1), FX_INST(FX_EQ,1)}) — pre-EQ shapes what distorts, TWO drive_insert stages stack (each its own SOFT/HARD/FOLD/ASYM + amount), post-EQ tames the fizz. A flat param cursor walks the whole chain: LEFT/RIGHT moves it, UP/DOWN adjusts (or cycles a drive mode); the stage holding the cursor highlights. TRANSFER = the COMPOSED cascade curve (stage B applied over stage A; identity ghosted); OUTPUT = a real scope_read() of the post-FX mix. The drone is one held note slid along a riff (note_pitch) so the sound is continuous. Cart-land only — no engine changes.",
+    "controls": "LEFT/RIGHT move the param cursor across the chain - UP/DOWN adjust the cursored param (on a DRIVE stage: cycle the waveshaper / ride the amount) - tap a chain block to jump the cursor there - drag the sliders/bars on touch"
   }
 }
 de:meta */
-// distortion lab (Rung 1) — a PRE-EQ -> DRIVE -> POST-EQ master insert chain
-// on a held acid drone, + a transfer curve + a live scope.
-// The tone stack: EQ before the clipper picks what distorts, EQ after tames it.
+// distortion lab (Rung 2) — a PRE-EQ -> DRIVE A -> DRIVE B -> POST-EQ master
+// insert chain on a held acid drone, + a composed transfer curve + a live scope.
+// The cascade: stack two waveshapers (fold into hard...) the way big plugins do.
 // Growable seed; see docs/design/distortion-lab.md.
 //   ← → : move cursor    ↑ ↓ : adjust    tap a block to jump    drag sliders
 #include "studio.h"
@@ -28,8 +28,11 @@ de:meta */
 #define I_LEAD 0
 #define NSCOPE 256
 
-enum { ST_PRE, ST_DRIVE, ST_POST, NSTAGE };
-enum { P_PRE_LO, P_PRE_MID, P_PRE_HI, P_DRV_MODE, P_DRV_AMT, P_POST_LO, P_POST_MID, P_POST_HI, NPARAM };
+enum { ST_PRE, ST_DRVA, ST_DRVB, ST_POST, NSTAGE };
+enum { P_PRE_LO, P_PRE_MID, P_PRE_HI,
+       P_DA_MODE, P_DA_AMT,
+       P_DB_MODE, P_DB_AMT,
+       P_POST_LO, P_POST_MID, P_POST_HI, NPARAM };
 
 static const char *MODE_NAME[4] = { "SOFT", "HARD", "FOLD", "ASYM" };
 static const char *MODE_DESC[4] = { "tanh \x1a warm tube overdrive",
@@ -38,19 +41,21 @@ static const char *MODE_DESC[4] = { "tanh \x1a warm tube overdrive",
                                     "asymmetric \x1a fat even harmonics" };
 static const char *BAND[3] = { "LO", "MID", "HI" };
 
-static int   cur  = P_DRV_MODE;   // the flat param cursor across the whole chain
-static int   mode = 2;            // start on FOLD — the fun one
-static float amt  = 0.55f;
-static float preq[3]  = { 0, 0, 0 };   // pre-EQ  LO/MID/HI dB (-12..12)
-static float postq[3] = { 0, 0, 0 };   // post-EQ LO/MID/HI dB
-static int   h = -1;              // the held drone voice (continuous → the scope always has signal)
+static int   cur     = P_DA_MODE;         // the flat param cursor across the whole chain
+static int   modeD[2]= { 0, 2 };          // stage A = SOFT, stage B = FOLD (a soft overdrive INTO a wavefolder)
+static float amtD[2] = { 0.5f, 0.45f };
+static float preq[3] = { 0, 0, 0 };       // pre-EQ  LO/MID/HI dB (-12..12)
+static float postq[3]= { 0, 0, 0 };       // post-EQ LO/MID/HI dB
+static int   h = -1;                      // the held drone voice (continuous → the scope always has signal)
 
-static int   param_stage(int p) { return p <= P_PRE_HI ? ST_PRE : p <= P_DRV_AMT ? ST_DRIVE : ST_POST; }
+static int   param_stage(int p) { return p <= P_PRE_HI ? ST_PRE : p <= P_DA_AMT ? ST_DRVA : p <= P_DB_AMT ? ST_DRVB : ST_POST; }
 static float clampdb(float v)    { return v < -12 ? -12 : v > 12 ? 12 : v; }
 
 // the SAME waveshaper family the engine uses, re-implemented for the transfer
-// curve (representative — the scope is the truthful readout). g = pre-gain.
+// curve (representative — the scope is the truthful readout). amt 0 = clean
+// bypass, matching drive_insert(), so composing a bypassed stage = identity.
 static float shape(float x, int m, float a) {
+    if (a < 0.001f) return x;
     float g = 1.0f + a * 4.0f, v = x * g;
     switch (m) {
         case 0:  return tanhf(v);
@@ -61,18 +66,19 @@ static float shape(float x, int m, float a) {
 }
 
 // ── set-and-hold: re-apply an insert ONLY on change (never per frame) ──
-static void apply_pre(void)   { eq(preq[0], preq[1], preq[2]); }
-static void apply_post(void)  { eq_inst(1, postq[0], postq[1], postq[2]); }
-static void apply_drive(void) { drive_insert(amt, mode, 1.0f); }
-static void set_mode(int m)   { mode = m & 3; apply_drive(); }
-static void set_amt(float a)  { amt = a < 0 ? 0 : a > 1 ? 1 : a; apply_drive(); }
+static void apply_pre(void)     { eq(preq[0], preq[1], preq[2]); }
+static void apply_post(void)    { eq_inst(1, postq[0], postq[1], postq[2]); }
+static void apply_drive(int s)  { if (s == 0) drive_insert(amtD[0], modeD[0], 1.0f);
+                                  else        drive_insert_inst(1, amtD[1], modeD[1], 1.0f); }
+static void set_mode(int s, int m) { modeD[s] = m & 3; apply_drive(s); }
+static void set_amt(int s, float a){ amtD[s] = a < 0 ? 0 : a > 1 ? 1 : a; apply_drive(s); }
 
 void init(void) {
     instrument(I_LEAD, INSTR_SAW, 4, 220, 6, 300);
     instrument_filter(I_LEAD, FILTER_DIODE, 1200, 11);   // a resonant acid peak to drive INTO
-    static const int chain[3] = { FX_EQ, FX_DRIVE, FX_INST(FX_EQ, 1) };  // PRE-EQ → DRIVE → POST-EQ
-    fx_order(0, chain, 3);
-    apply_pre(); apply_drive(); apply_post();
+    static const int chain[4] = { FX_EQ, FX_DRIVE, FX_INST(FX_DRIVE, 1), FX_INST(FX_EQ, 1) };
+    fx_order(0, chain, 4);                               // PRE-EQ → DRIVE A → DRIVE B → POST-EQ
+    apply_pre(); apply_drive(0); apply_drive(1); apply_post();
     h = note_on(48, I_LEAD, 6);                          // one held drone…
     note_glide(h, 55);                                   // …that SLIDES between riff notes (303-style)
     bpm(128);
@@ -81,8 +87,8 @@ void init(void) {
 // ── layout constants (draw + update share them) ──
 #define CH_Y   24
 #define CH_H   16
-static const int BLK_X[NSTAGE] = { 10, 96, 214 };
-static const int BLK_W[NSTAGE] = { 78, 108, 96 };
+static const int BLK_X[NSTAGE] = { 8, 60, 162, 264 };
+static const int BLK_W[NSTAGE] = { 42, 92, 92, 44 };
 #define EQ_ROW0 150
 #define EQ_ROWH 13
 #define EQ_BX   44
@@ -91,12 +97,15 @@ static const int BLK_W[NSTAGE] = { 78, 108, 96 };
 #define AMT_Y   176
 #define AMT_W   190
 
+static int drive_of(int stage) { return stage == ST_DRVA ? 0 : 1; }
+
 static void adjust(int dir) {   // dir = +1 (up) / -1 (down)
     switch (cur) {
         case P_PRE_LO:  preq[0]  = clampdb(preq[0]  + dir * 0.5f); apply_pre();  break;
         case P_PRE_MID: preq[1]  = clampdb(preq[1]  + dir * 0.5f); apply_pre();  break;
         case P_PRE_HI:  preq[2]  = clampdb(preq[2]  + dir * 0.5f); apply_pre();  break;
-        case P_DRV_AMT: set_amt(amt + dir * 0.02f);                              break;
+        case P_DA_AMT:  set_amt(0, amtD[0] + dir * 0.02f);                       break;
+        case P_DB_AMT:  set_amt(1, amtD[1] + dir * 0.02f);                       break;
         case P_POST_LO: postq[0] = clampdb(postq[0] + dir * 0.5f); apply_post(); break;
         case P_POST_MID:postq[1] = clampdb(postq[1] + dir * 0.5f); apply_post(); break;
         case P_POST_HI: postq[2] = clampdb(postq[2] + dir * 0.5f); apply_post(); break;
@@ -106,24 +115,26 @@ static void adjust(int dir) {   // dir = +1 (up) / -1 (down)
 void update(void) {
     if (btnp(0, BTN_LEFT))  cur = (cur + NPARAM - 1) % NPARAM;
     if (btnp(0, BTN_RIGHT)) cur = (cur + 1) % NPARAM;
-    if (cur == P_DRV_MODE) {                    // the mode STEPS, one per press
-        if (btnp(0, BTN_UP))   set_mode(mode + 1);
-        if (btnp(0, BTN_DOWN)) set_mode(mode + 3);
-    } else {                                    // everything else ramps while held
+    if (cur == P_DA_MODE || cur == P_DB_MODE) {   // the mode STEPS, one per press
+        int s = cur == P_DA_MODE ? 0 : 1;
+        if (btnp(0, BTN_UP))   set_mode(s, modeD[s] + 1);
+        if (btnp(0, BTN_DOWN)) set_mode(s, modeD[s] + 3);
+    } else {                                      // everything else ramps while held
         if (btn(0, BTN_UP))   adjust(+1);
         if (btn(0, BTN_DOWN)) adjust(-1);
     }
 
     // tap a chain block → jump the cursor to that stage's first param
-    static const int FIRST[NSTAGE] = { P_PRE_LO, P_DRV_MODE, P_POST_LO };
+    static const int FIRST[NSTAGE] = { P_PRE_LO, P_DA_MODE, P_DB_MODE, P_POST_LO };
     for (int s = 0; s < NSTAGE; s++)
         if (tapp(BLK_X[s], CH_Y, BLK_W[s], CH_H)) cur = FIRST[s];
 
     // touch: drag the selected stage's controls
     int st = param_stage(cur);
-    if (st == ST_DRIVE) {
-        if (tapp(10, EQ_ROW0, 120, EQ_ROWH)) set_mode(mode + 1);   // tap the mode row cycles
-        if (tap(AMT_X - 4, AMT_Y - 6, AMT_W + 8, 16)) set_amt((mouse_x() - AMT_X) / (float)AMT_W);
+    if (st == ST_DRVA || st == ST_DRVB) {
+        int s = drive_of(st);
+        if (tapp(10, EQ_ROW0, 120, EQ_ROWH)) set_mode(s, modeD[s] + 1);          // tap the mode row cycles
+        if (tap(AMT_X - 4, AMT_Y - 6, AMT_W + 8, 16)) set_amt(s, (mouse_x() - AMT_X) / (float)AMT_W);
     } else {
         float *q = st == ST_PRE ? preq : postq;
         for (int b = 0; b < 3; b++)
@@ -149,8 +160,9 @@ static void draw_curve(int bx, int by, int bw, int bh) {
         float x = (px / (float)bw) * 2.0f - 1.0f;
         pset(bx + px, my - (int)(x * lim), CLR_DARK_GREY);
     }
-    for (int px = 0; px < bw; px++) {                    // the drive stage's transfer curve
-        float x = (px / (float)bw) * 2.0f - 1.0f, v = shape(x, mode, amt);
+    for (int px = 0; px < bw; px++) {                    // the COMPOSED cascade curve (B over A)
+        float x = (px / (float)bw) * 2.0f - 1.0f;
+        float v = shape(shape(x, modeD[0], amtD[0]), modeD[1], amtD[1]);
         if (v > 1) v = 1; if (v < -1) v = -1;
         pset(bx + px, my - (int)(v * lim), CLR_ORANGE);
     }
@@ -182,8 +194,8 @@ static void draw_scope(int bx, int by, int bw, int bh) {
 static void draw_block(int s, const char *label, int active) {
     rectfill(BLK_X[s], CH_Y, BLK_W[s], CH_H, active ? CLR_ORANGE : CLR_INDIGO);
     rect(BLK_X[s], CH_Y, BLK_W[s], CH_H, active ? CLR_WHITE : CLR_DARK_PURPLE);
-    print(label, BLK_X[s] + 6, CH_Y + 5, active ? CLR_BLACK : CLR_WHITE);
-    if (s < NSTAGE - 1) print("\x1a", BLK_X[s] + BLK_W[s] + 2, CH_Y + 5, CLR_DARK_GREY);
+    print(label, BLK_X[s] + 5, CH_Y + 5, active ? CLR_BLACK : CLR_WHITE);
+    if (s < NSTAGE - 1) print("\x1a", BLK_X[s] + BLK_W[s] + 1, CH_Y + 5, CLR_DARK_GREY);
 }
 
 static void draw_eq_slider(const char *lab, float v, int y, int hot) {
@@ -198,31 +210,39 @@ static void draw_eq_slider(const char *lab, float v, int y, int hot) {
     print(b, EQ_BX + EQ_BW + 6, y, CLR_WHITE);
 }
 
+static void draw_drive_edit(int s) {
+    int mp = s == 0 ? P_DA_MODE : P_DB_MODE, ap = s == 0 ? P_DA_AMT : P_DB_AMT;
+    print(s == 0 ? "DRIVE A" : "DRIVE B", 12, EQ_ROW0 - 12, CLR_MEDIUM_GREY);
+    print(MODE_NAME[modeD[s]], 12, EQ_ROW0, cur == mp ? CLR_WHITE : CLR_LIGHT_GREY);
+    print(MODE_DESC[modeD[s]], 62, EQ_ROW0, CLR_YELLOW);
+    print("drive", 12, AMT_Y, cur == ap ? CLR_WHITE : CLR_LIGHT_GREY);
+    rect(AMT_X, AMT_Y, AMT_W, 8, cur == ap ? CLR_WHITE : CLR_DARK_PURPLE);
+    rectfill(AMT_X + 1, AMT_Y + 1, (int)((AMT_W - 2) * amtD[s]), 6, CLR_ORANGE);
+    char buf[12]; snprintf(buf, sizeof buf, "%d%%", (int)(amtD[s] * 100 + 0.5f));
+    print(buf, AMT_X + AMT_W + 6, AMT_Y, CLR_WHITE);
+}
+
 void draw(void) {
     cls(CLR_DARK_BLUE);
     print("DISTORTION LAB", 10, 8, CLR_WHITE);
     font(FONT_SMALL);
-    print("tone stack: EQ -> drive -> EQ", 150, 11, CLR_MEDIUM_GREY);
+    print("cascade: EQ -> A -> B -> EQ", 154, 11, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
     int st = param_stage(cur);
-    char blk[24]; snprintf(blk, sizeof blk, "DRIVE:%s", MODE_NAME[mode]);
-    draw_block(ST_PRE,   "PRE-EQ",  st == ST_PRE);
-    draw_block(ST_DRIVE, blk,       st == ST_DRIVE);
-    draw_block(ST_POST,  "POST-EQ", st == ST_POST);
+    char la[16], lb[16];
+    snprintf(la, sizeof la, "A:%s", MODE_NAME[modeD[0]]);
+    snprintf(lb, sizeof lb, "B:%s", MODE_NAME[modeD[1]]);
+    draw_block(ST_PRE,  "PRE",  st == ST_PRE);
+    draw_block(ST_DRVA, la,     st == ST_DRVA);
+    draw_block(ST_DRVB, lb,     st == ST_DRVB);
+    draw_block(ST_POST, "POST", st == ST_POST);
 
     draw_curve(10, 46, 140, 92);
     draw_scope(170, 46, 140, 92);
 
-    // the edit panel — the stage holding the cursor
-    if (st == ST_DRIVE) {
-        print(MODE_NAME[mode], 12, EQ_ROW0, cur == P_DRV_MODE ? CLR_WHITE : CLR_LIGHT_GREY);
-        print(MODE_DESC[mode], 60, EQ_ROW0, CLR_YELLOW);
-        print("drive", 12, AMT_Y, cur == P_DRV_AMT ? CLR_WHITE : CLR_LIGHT_GREY);
-        rect(AMT_X, AMT_Y, AMT_W, 8, cur == P_DRV_AMT ? CLR_WHITE : CLR_DARK_PURPLE);
-        rectfill(AMT_X + 1, AMT_Y + 1, (int)((AMT_W - 2) * amt), 6, CLR_ORANGE);
-        char buf[12]; snprintf(buf, sizeof buf, "%d%%", (int)(amt * 100 + 0.5f));
-        print(buf, AMT_X + AMT_W + 6, AMT_Y, CLR_WHITE);
+    if (st == ST_DRVA || st == ST_DRVB) {
+        draw_drive_edit(drive_of(st));
     } else {
         float *q = st == ST_PRE ? preq : postq;
         int base = st == ST_PRE ? P_PRE_LO : P_POST_LO;

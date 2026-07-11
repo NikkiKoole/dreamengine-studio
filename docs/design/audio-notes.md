@@ -2166,3 +2166,16 @@ no-op for every valid cutoff (all cart cutoffs sit in ~10–10800 Hz), so it's a
 not a tone change. Found via acidrack playtest: filter-*tracking* on an **octave-down** note
 computed a negative cutoff (`cut_hz + trk·(midi−BASE)·k`, `midi < BASE`) → dead silence. Rule:
 any new per-voice cutoff math must stay positive and sub-Nyquist; the engine now backstops it.
+
+> **Publish gotcha — the clamp is a byte-level no-op, so DON'T read "no change" as "it didn't
+> work."** Because the guard only bites at out-of-range cutoffs (which were already broken), a
+> `-Os` recompile of any cart whose cutoffs are all valid emits **byte-identical wasm** to the
+> pre-change build. So after this engine edit, force-rebuilding the gallery leaves *most* carts
+> unchanged in `site/` git — that's the guard doing nothing on healthy audio, exactly as intended,
+> **not** a stale/failed build. (Verified this way: the rebuilt wasm matching the committed wasm
+> IS the no-op proof.) Corollary for any future `sound.h` safety net: expect the same — assert
+> correctness by *reproducing the crash it prevents*, not by a diff of the published output.
+> Also seen during that deploy: `build-site` parallelizes emcc across a full `publish-all`, and
+> ~6% (29/482) transient-**OOM'd** under the memory pressure; each rebuilds fine in isolation.
+> If a batch shows scattered `emcc… FAILED` with no error text, it's contention — re-`--force`
+> the failed set individually (or in a small serial group), don't hunt for a per-cart bug.

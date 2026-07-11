@@ -18,7 +18,6 @@
   "todo": [
     "UI labels overlap all over the place.",
     "Needs a start panel.",
-    "Bug: blocks that touch the ground overlap and then jump back.",
     "ui-audit: \"connect 4+ to pop\", \"chains = big score\" and \"press Z to start\" overlap the SCORE / 0 readouts."
   ]
 }
@@ -285,6 +284,10 @@ static void update_fall() {
 
     // gravity: fractional fall, soft-drop on Down
     bool soft = btn(0, BTN_DOWN);
+    // already resting on the floor/stack? lock NOW. otherwise pfall keeps
+    // climbing toward 1.0 while at rest, drawing the pair sinking into the
+    // cell below (~half a second) before it snaps back up. (landing overlap)
+    if (!pair_fits(pcx, (int)pcy + 1, orient)) { pfall = 0; lock_pair(); return; }
     float rate = soft ? 9.0f : 1.6f;          // cells per second
     pfall += rate * dt();
     while (pfall >= 1.0f) {

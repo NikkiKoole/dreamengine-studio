@@ -1,6 +1,6 @@
 # Tutorial curriculum — extending the on-ramp (25+)
 
-STATUS: BUILDING (plan 2026-06-03; Track A shipped 2026-07-01, Track B shipped 2026-07-11) — the adapted lesson list for the next tutorial wave; pairs with [teaching-gaps.md](teaching-gaps.md)'s measured evidence. Done: Track A (23/24/25), Track B collision (27–33), plus #40 flappy + #47 text-fx. Open: Track C capstones (#41–46), Track D #48.
+STATUS: BUILDING (plan 2026-06-03; Track A shipped 2026-07-01, Track B shipped 2026-07-11) — the adapted lesson list for the next tutorial wave; pairs with [teaching-gaps.md](teaching-gaps.md)'s measured evidence. Done: Track A (23/24/25), Track B collision (27–33), plus #40 flappy + #47 text-fx. Track C capstones essentially covered by the existing shelf (pong/snake/breakout/catchstar/platform-*) — don't re-clone. Open: only Track D #48 (advanced movement) + an optional `fishy`.
 
 > **Exploratory.** A plan (2026-06-03) for the next wave of tutorial carts, sourced from
 > studying the [Nerdy Teachers PICO-8 course](https://nerdyteachers.com/PICO-8/). Companion
@@ -99,18 +99,27 @@ with colour + sound on the key event, and clears `ui-audit` (no off-screen text)
 
 ### Track C — Build a whole game *(the capstones — `cart-library-direction.md`'s #1)*
 
-Each is a *complete* game with title → play → game-over, the arc nothing currently teaches.
-Modeled on their Bitesize set, scaled to teachable size.
+✅ **ESSENTIALLY COVERED (audited 2026-07-11) — do NOT re-clone.** The goal here was a *complete*
+title → play → game-over arc a beginner can read end to end. `flappy` shipped as the numbered
+proof of that arc, `19-breakout` is already IN the numbered on-ramp, and the rest exist as full
+standalone carts on the shelf. Re-building "tutorial versions" of games we already have is exactly
+what [`cart-library-direction.md`](cart-library-direction.md) warns against ("stop cloning games,
+fill the cliff") — and with Track B done the cliff is filled. Point learners at these sources
+instead:
 
-| # | cart | teaches | source echo |
+| # | cart | teaches | status |
 |---|---|---|---|
-| 40 | ✅ **flappy (one-button)** | **SHIPPED 2026-06-07** as `flappy`: full attract→play→dead→game-over state machine, `save_int` hi-score + medal, programmatic sprite-draw bird (one `bird()` fn → flap cycle), sspr_ex tilt+squash, feather particles, flash/shake/hit-stop, parallax. One-button via `tapp(0,0,W,H)`+btnp+key → phone-playable. | *quickest high-value win* |
-| 41 | pong | ball physics, two paddles, 2-player input | Nerdy Pong |
-| 42 | catcher / fruit drop | spawn waves, lives, "miss = lose" | Fruit Drop |
-| 43 | breakout | brick array + rect collision (pays off Track B) | — |
-| 44 | fishy | eat smaller / flee bigger; relative size & growth | Fishy |
-| 45 | snake | grid movement, a growing tail array | Cells |
-| 46 | tiny platformer | gravity, coyote time, tilemap collision | — |
+| 40 | ✅ **flappy (one-button)** | **SHIPPED 2026-06-07** as `flappy`: full attract→play→dead→game-over state machine, `save_int` hi-score + medal, programmatic sprite-draw bird (one `bird()` fn → flap cycle), sspr_ex tilt+squash, feather particles, flash/shake/hit-stop, parallax. One-button via `tapp(0,0,W,H)`+btnp+key → phone-playable. | ✅ the numbered capstone proof |
+| 41 | pong | ball physics, two paddles, 2-player input | ✅ exists — `pong.c` (2-player, first-to-7) |
+| 42 | catcher / fruit drop | spawn waves, lives, "miss = lose" | ✅ exists — `08-catchstar` (numbered) |
+| 43 | breakout | brick array + rect collision (pays off Track B) | ✅ exists — `19-breakout` (numbered) |
+| 44 | fishy | eat smaller / flee bigger; relative size & growth | ⬜ not built — the one genuine gap, if any |
+| 45 | snake | grid movement, a growing tail array | ✅ exists — `snake.c` |
+| 46 | tiny platformer | gravity, coyote time, tilemap collision | ✅ covered — the `platform-*` cluster (rects/tiles/rails/loop/paint) |
+
+Only `fishy` (relative-size predator/prey) is genuinely absent — and it's a *nice-to-have*, not a
+cliff. Build it only if the "eat smaller, flee bigger" mechanic is wanted for its own sake, not to
+tick this table.
 
 ### Track D — Presentation polish *(the few mechanics we lack)*
 
@@ -136,9 +145,10 @@ magnitude; trim Track D or fold a couple of Track C games if it runs long.
 ~~Next suggested build: Track A.~~ **Track A SHIPPED 2026-07-01** (`23-basics`,
 `24-building-blocks`, `25-patterns` — the foundation that makes the copied code in every
 other cart *stick*). ~~Next suggested build: Track B (#33–39 — collision).~~ **Track B SHIPPED
-2026-07-11** as `27-collide-intro` … `33-pixel-collide` (renumbered 27–33). Next suggested
-build: **Track C** (#40–46 — whole games; flappy already proved the arc), the payoff + most
-shareable.
+2026-07-11** as `27-collide-intro` … `33-pixel-collide` (renumbered 27–33). Track C (whole games)
+is essentially already on the shelf (see the audit note above) — don't re-clone it. The tutorial
+on-ramp is now substantially complete; remaining loose ends are Track D #48 (advanced movement)
+and an optional `fishy`.
 
 ## Addendum (2026-06-04) — movement-paradigm clusters
 

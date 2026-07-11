@@ -13,10 +13,7 @@
   "lineage": "Direct tribute to Activision Pitfall! (1982); replaces the original LFSR world generator with a deterministic hash-per-screen (shash), adds a pendulum-style vine swing computed from a sine of elapsed time rather than real pendulum physics.",
   "genre": "platformer",
   "homage": "Pitfall! (1982)",
-  "description": "A tribute to Pitfall! (1982). Run through a procedurally generated jungle, jumping rolling logs and open holes, swinging across tar pits on a vine, and grabbing gold before the 2-minute clock runs out — with three lives. LEFT/RIGHT run (walk off a screen edge to reach the next screen), A jumps; in mid-air over a tar pit, A grabs the vine and A again lets go, so time your swing. Each screen is built from its number, so the jungle is the same every visit, just like the original.",
-  "todo": [
-    "Bug: can't get off the rope."
-  ]
+  "description": "A tribute to Pitfall! (1982). Run through a procedurally generated jungle, jumping rolling logs and open holes, swinging across tar pits on a vine, and grabbing gold before the 2-minute clock runs out — with three lives. LEFT/RIGHT run (walk off a screen edge to reach the next screen), A jumps; in mid-air over a tar pit, A grabs the vine and A again lets go, so time your swing. Each screen is built from its number, so the jungle is the same every visit, just like the original."
 }
 de:meta */
 #include "studio.h"
@@ -58,6 +55,7 @@ static int   score, lives;
 static float start_t;
 static int   state;                // 0 play, 1 gameover
 static int   hurt_cd;              // log-stumble cooldown
+static int   vine_cd;              // re-grab lockout after letting go
 static float tipx, tipy, ptipx, ptipy;   // vine tip + previous (for release velocity)
 static bool  ready = false;
 
@@ -84,7 +82,7 @@ static void enter_screen(void) {
 
 static void respawn(void) {
     hx = 14; hy = GROUND_Y; hvx = hvy = 0;
-    jumping = on_vine = false; face = 1;
+    jumping = on_vine = false; face = 1; vine_cd = 0;
     enter_screen();
 }
 
@@ -115,6 +113,7 @@ void update(void) {
 
     if (TIME_TOTAL - (now() - start_t) <= 0) { state = 1; return; }
     if (hurt_cd > 0) hurt_cd--;
+    if (vine_cd > 0) vine_cd--;
 
     // ── vine swing ──
     float ang = VAMP * sin_deg((now() - start_t) * 150.0f);
@@ -125,7 +124,7 @@ void update(void) {
     if (on_vine) {
         hx = tipx; hy = tipy + 18;
         if (btnp(0, BTN_A)) {                 // let go — keep the vine's momentum
-            on_vine = false; jumping = true;
+            on_vine = false; jumping = true; vine_cd = 20;
             hvx = (tipx - ptipx) * 1.4f; hvy = (tipy - ptipy) * 1.4f;
         }
         return;
@@ -141,7 +140,7 @@ void update(void) {
         if (btn(0, BTN_LEFT))  hx -= 0.6f;    // a little air control
         if (btn(0, BTN_RIGHT)) hx += 0.6f;
         // grab the vine on a screen with a tar pit
-        if (kind == K_VINE && distance((int)hx, (int)hy - 14, (int)tipx, (int)tipy) < 16) {
+        if (kind == K_VINE && vine_cd == 0 && distance((int)hx, (int)hy - 14, (int)tipx, (int)tipy) < 16) {
             on_vine = true; jumping = false; note(72, INSTR_SINE, 3); return;
         }
         if (hy >= GROUND_Y) {                 // landing

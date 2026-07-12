@@ -1,6 +1,6 @@
 # Learn You a dreamengine for Great Good!
 
-STATUS: building (2026-07-12) — 13 of 15 chapters drafted (through the shooter payoff); voice + pipeline settled. Pick up any time.
+STATUS: shipped (2026-07-12) — all 15 planned chapters drafted (draw → ship-it). Content-complete; bench chapters optional. Pick up any time.
 
 An illustrated, chatty field guide to the `studio.h` API, in the voice (and spirit) of
 *Learn You a Haskell for Great Good!* — the beginner kept as a delighted critic (per
@@ -114,6 +114,10 @@ artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 12. **Remembering Things** — `save_int`/`load_int` + a title→play→over state machine (`states` GIF)
 13. **A Proper Little Game** — the second payoff: a self-playing shooter that is chapters 7-12
     stacked (arrays + `overlap` + `shake` + `note`); a webm you can HEAR (`shooter`)
+14. **Make It Work on a Phone** — `touch_layout()` (a mocked on-screen stick + A/B), `safe_rect`,
+    `finger_px`; "design for the thumb" (`phone` GIF)
+15. **Ship It** — the finale: bake to web, a link to a friend; the greeter returns to wave goodbye
+    (bookend). Ends on "go do a great good" + "— fin —" (`ship` GIF, `farewell` creature)
 
 ## Roadmap — chapters 8–15 (planned, locked 2026-07-12)
 
@@ -127,10 +131,11 @@ back to Ch.1's greeter). Each still needs its own mood creature.
 11. ✓ SHIPPED — **Worlds Bigger Than the Screen** (`camera()` scrolling + minimap)
 12. ✓ SHIPPED — **Remembering Things** (`save_int`/`load_int` + title→play→over states)
 13. ✓ SHIPPED — **A Proper Little Game** (self-playing shooter, webm with audio)
-14. **Make It Work on a Phone** — touch controls (`touch_layout`/`touch_controls`), `safe_rect`,
-    `finger_px`. Illus: the game with on-screen stick + buttons.
-15. **Ship It** — bake to web / share (`publish`, the web build); the finale, get it in front of a
-    friend. Illus: a "your friend is playing it" browser frame. Creature = a waving farewell (greeter callback).
+14. ✓ SHIPPED — **Make It Work on a Phone** (`touch_layout` mock + `safe_rect`/`finger_px`)
+15. ✓ SHIPPED — **Ship It** (bake-to-web finale; greeter-callback farewell + "— fin —")
+
+Note: the engine hides on-screen touch controls on desktop/headless, so Ch.14's `phone` cart
+MOCKS them (draws its own stick + A/B) to illustrate what `touch_layout()` paints on a device.
 
 Bench / possible swaps: audio **effects** (`crush`/`reverb`, a sequel to Ch.7), **mouse & pointer**,
 a **menus & UI** chapter (`lay.h`/`ui.h`), or a cheeky **"Here Be Dragons"** 3D (`tritex`) /

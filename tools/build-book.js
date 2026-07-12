@@ -47,6 +47,8 @@ const ILLUS = {
   world:   { kind: 'gif', frames: 160, fps: 20 },
   states:  { kind: 'gif', frames: 170, fps: 20 },
   shooter: { kind: 'video', frames: 180, fps: 30 },   // a webm — pew + boom
+  phone:   { kind: 'gif', frames: 96,  fps: 20 },
+  ship:    { kind: 'gif', frames: 90,  fps: 20 },
   // mood creatures — one per chapter, drawn by the console like everything else
   greeter:  { kind: 'still' },
   leaper:   { kind: 'still' },
@@ -61,6 +63,8 @@ const ILLUS = {
   scout:    { kind: 'still' },
   keeper:   { kind: 'still' },
   ace:      { kind: 'still' },
+  gamer:    { kind: 'still' },
+  farewell: { kind: 'still' },
 };
 
 function render(id, spec) {
@@ -231,6 +235,8 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   <a href="#ch11"><span class="num">11</span><span>Worlds Bigger Than the Screen</span></a>
   <a href="#ch12"><span class="num">12</span><span>Remembering Things</span></a>
   <a href="#ch13"><span class="num">13</span><span>A Proper Little Game</span></a>
+  <a href="#ch14"><span class="num">14</span><span>Make It Work on a Phone</span></a>
+  <a href="#ch15"><span class="num">15</span><span>Ship It</span></a>
 </nav>
 
 <main class="wrap">
@@ -602,6 +608,41 @@ sprites: {
     '<p>Notice it plays itself, same as the catch game &mdash; here the &ldquo;AI&rdquo; is one line: slide the ship toward the nearest enemy&rsquo;s x. That&rsquo;s not really intelligence, it&rsquo;s Chapter 4&rsquo;s &ldquo;ease toward a target&rdquo; pointed at a bad guy. Half of what looks like game AI is exactly this: move toward (or away from) a number. Start there.</p>')}
 
   <p>You can make things now &mdash; real ones. There are only two pages left, and neither is about the game itself. They&rsquo;re about the two best moments in making anything: putting it in your pocket, and handing it to a friend.</p>
+
+
+  ${chapHead('ch14', '14', 'in your pocket', 'Make It Work on a Phone')}
+  ${creature('gamer', 'A green blob happily playing its own game on a phone')}
+
+  <p>Here is a small miracle: the game you just made already runs on a phone. The touchscreen, though, has no buttons &mdash; so the engine offers to paint some <em>onto</em> the screen for you. One line, and a thumb-stick and a couple of buttons appear, wired to the very same <code>btn</code> and <code>stick</code> calls you already use:</p>
+
+  <pre><span class="k">void</span> <span class="f">init</span>(<span class="k">void</span>) {
+    <span class="f">touch_layout</span>(<span class="s">TOUCH_DPAD8</span>, <span class="n">2</span>);   <span class="c">// an 8-way pad + 2 buttons, drawn for you</span>
+}</pre>
+
+  ${screen('phone', 'A game with an on-screen thumb-stick and A/B buttons; the hero moves and jumps',
+    '<b>a stick and two buttons, painted on the glass.</b><br>they drive the same btn()/stick() your keyboard did &mdash; you change nothing else.')}
+
+  <p>That&rsquo;s genuinely most of it. The engine even keeps the controls clear of the notch and the home-bar for you (<code>safe_rect</code>), and sizes them to a real thumb (<code>finger_px</code>) &mdash; because a button sized in raw pixels is a coin-flip on a phone. The lovely part is that your <em>game</em> didn&rsquo;t change at all. It still just asks &ldquo;is left held?&rdquo; It neither knows nor cares that &ldquo;held&rdquo; now means a thumb on glass.</p>
+
+  ${aside('', 'Design for the thumb',
+    '<p>Two humane touches turn a technically-playable phone game into a nice one: put the important stuff where thumbs <em>aren&rsquo;t</em> (the bottom corners are covered by hands), and make touch targets generous &mdash; the same forgiveness you gave hitboxes in Chapter 8, now for fingers. When in doubt, bigger.</p>')}
+
+
+  ${chapHead('ch15', '15', 'the send-off', 'Ship It')}
+  ${creature('farewell', 'The Chapter-1 greeter blob, back to wave goodbye, a heart drifting up')}
+
+  <p>A game nobody plays is a diary. The last, best step &mdash; the one that turns a project into a <em>thing</em> &mdash; is to hand it to someone. And you don&rsquo;t need an app store or a publisher or anyone&rsquo;s permission: dreamengine can bake your cart into a web page, a single link you can text to a friend. They tap it; it just&hellip; plays.</p>
+
+  ${screen('ship', 'The game running inside a browser window, captioned "your friend is playing it"',
+    '<b>your cart, baked to a web page, on someone else&rsquo;s screen.</b><br>no store, no install &mdash; a link. that&rsquo;s the whole distance from your machine to theirs.')}
+
+  <p>And that&rsquo;s the book. Look back at what those six little words became: a sun, then a game you could poke, then worlds and crowds and juice and a shooter that sings and a thing your friend can play from a link. None of it was hard. It was small ideas, stacked patiently, each one leaning on the last &mdash; which is, it turns out, the only way anything big has ever been made.</p>
+
+  <p>The gremlin met you on the first page not knowing a single function. You&rsquo;re leaving able to build and <em>ship</em> a game. Same tiny machine, same thirty-two crayons &mdash; the only thing that changed is you.</p>
+
+  <p>So: go do a great good. Make the silly thing. Share the rough thing. The window is 320&times;200, the crayons are cheap, and the whole point was never the manual &mdash; it was the little world only you were going to make. We can&rsquo;t wait to play it.</p>
+
+  <p style="text-align:center;font-family:var(--comic);color:var(--yellow);font-size:20px;margin-top:1.6em">&mdash; fin &mdash;</p>
 
 </main>
 

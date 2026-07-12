@@ -106,6 +106,25 @@ static int  net_me        = 0;       // my player index: 0 = host, 1 = joiner
 static bool net_peer_bye  = false;
 static unsigned net_seed_v = 1;      // host: seed to send; joiner: seed received
 
+// handshake packet builders / decoder — shared by both transports (web DataChannel
+// AND native UDP). Byte-identical to the copies they replace; each returns the
+// packet length so callers keep their `sizeof` idiom. `static inline` = no
+// unused-symbol warning in a build that uses only one transport.
+static inline int net_hello_pkt(uint8_t *out) {          // joiner → host "I'm here"
+    out[0] = 'D'; out[1] = 'N'; out[2] = NET_PKT_HELLO;
+    return 3;
+}
+static inline int net_welcome_pkt(uint8_t *out, unsigned seed) {  // host → joiner + u32 seed (LE)
+    out[0] = 'D'; out[1] = 'N'; out[2] = NET_PKT_WELCOME;
+    out[3] = (uint8_t)seed;         out[4] = (uint8_t)(seed >> 8);
+    out[5] = (uint8_t)(seed >> 16); out[6] = (uint8_t)(seed >> 24);
+    return 7;
+}
+static inline unsigned net_seed_decode(const uint8_t *buf) {      // read the u32 LE seed from a WELCOME body
+    return (unsigned)buf[3] | (unsigned)buf[4] << 8
+         | (unsigned)buf[5] << 16 | (unsigned)buf[6] << 24;
+}
+
 static uint8_t net_ring_bits[2][NET_RING];    // [player][frame % NET_RING] input byte
 static int     net_ring_frame[2][NET_RING];   // which frame the slot holds (-1 = empty)
 static uint8_t net_bits[2];                   // resolved lockstep inputs for the current frame
@@ -513,7 +532,7 @@ static int net_web_poll(unsigned *seed) {
         net_is_host = (net_me == 0);
         snprintf(net_web_status, sizeof net_web_status, "connected - starting...");
         if (!net_is_host) {
-            uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
+            uint8_t hello[3]; net_hello_pkt(hello);
             de_rtc_send_js(hello, sizeof hello);
         }
         net_web_stage = 2;
@@ -528,9 +547,7 @@ static int net_web_poll(unsigned *seed) {
             case NET_PKT_HELLO:                      // host: the joiner asked → hand it the seed
                 if (net_is_host) {
                     if (!net_active) net_seed_v = (unsigned)emscripten_get_now() ^ 0x9e3779b9u;
-                    uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
-                                     (uint8_t)net_seed_v, (uint8_t)(net_seed_v >> 8),
-                                     (uint8_t)(net_seed_v >> 16), (uint8_t)(net_seed_v >> 24) };
+                    uint8_t w[7]; net_welcome_pkt(w, net_seed_v);
                     de_rtc_send_js(w, sizeof w);
                     if (!net_active) { net_core_reset(); net_active = true; }
                     net_web_stage = 3;
@@ -538,8 +555,7 @@ static int net_web_poll(unsigned *seed) {
                 break;
             case NET_PKT_WELCOME:                    // joiner: adopt the host's seed
                 if (!net_is_host && n >= 7) {
-                    net_seed_v = (unsigned)buf[3] | (unsigned)buf[4] << 8
-                               | (unsigned)buf[5] << 16 | (unsigned)buf[6] << 24;
+                    net_seed_v = net_seed_decode(buf);
                     net_core_reset();
                     net_active = true;
                     net_web_stage = 3;
@@ -551,7 +567,7 @@ static int net_web_poll(unsigned *seed) {
     // joiner: re-HELLO ~4×/s until WELCOME (the unreliable channel can drop either
     // packet; the host re-answers each HELLO here and, once in-game, in net_rtc_pump)
     if (net_web_stage == 2 && !net_is_host && (++net_web_ticks % 15) == 0) {
-        uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
+        uint8_t hello[3]; net_hello_pkt(hello);
         de_rtc_send_js(hello, sizeof hello);
     }
     return 0;
@@ -571,9 +587,7 @@ static void net_rtc_pump(void) {
         else if (buf[2] == NET_PKT_PONG)            net_pong_pkt(buf, n);
         else if (buf[2] == NET_PKT_BYE)             net_peer_bye = true;
         else if (buf[2] == NET_PKT_HELLO && net_is_host) {   // late joiner re-asking → re-answer WELCOME
-            uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
-                             (uint8_t)net_seed_v, (uint8_t)(net_seed_v >> 8),
-                             (uint8_t)(net_seed_v >> 16), (uint8_t)(net_seed_v >> 24) };
+            uint8_t w[7]; net_welcome_pkt(w, net_seed_v);
             de_rtc_send_js(w, sizeof w);
         }
     }
@@ -658,16 +672,13 @@ static void net_pump(void) {
             case NET_PKT_HELLO:                    // host: learn the peer, answer (idempotent —
                 if (net_is_host) {                 // a lost WELCOME just gets re-asked)
                     net_peer = from; net_peer_set = true;
-                    uint8_t w[7] = { 'D', 'N', NET_PKT_WELCOME,
-                                     (uint8_t)net_seed_v, (uint8_t)(net_seed_v >> 8),
-                                     (uint8_t)(net_seed_v >> 16), (uint8_t)(net_seed_v >> 24) };
+                    uint8_t w[7]; net_welcome_pkt(w, net_seed_v);
                     net_sendto(w, sizeof w);
                 }
                 break;
             case NET_PKT_WELCOME:
                 if (!net_is_host && n >= 7) {
-                    net_seed_v = (unsigned)buf[3] | (unsigned)buf[4] << 8
-                               | (unsigned)buf[5] << 16 | (unsigned)buf[6] << 24;
+                    net_seed_v = net_seed_decode(buf);
                     net_got_welcome = true;
                 }
                 break;
@@ -862,7 +873,7 @@ static void net_handshake(unsigned *seed) {
         net_peer_set = true;
         printf("net: joining %s:%d ...\n", net_join_ip, net_port);
         fflush(stdout);
-        uint8_t hello[3] = { 'D', 'N', NET_PKT_HELLO };
+        uint8_t hello[3]; net_hello_pkt(hello);
         int waited_ms = 0;
         while (!net_got_welcome) {
             net_sendto(hello, sizeof hello);

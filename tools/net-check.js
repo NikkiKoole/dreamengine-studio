@@ -50,11 +50,12 @@ function checkEcho() {
                       { cwd: ROOT, encoding: 'utf8', timeout: 120000 })
   if (r.status !== 0) { verdict(false, `echo run exited ${r.status}\n${(r.stderr || '').trim()}`); return }
   const lines = fs.readFileSync(trace, 'utf8').trim().split('\n').map(l => JSON.parse(l))
-  const bad = lines.filter(l => l.w.p1y !== l.w.p2y)
-  const moved = lines.some(l => l.w.p1y !== lines[0].w.p1y)
-  verdict(moved, `P1 moved under the script (${lines.length} frames)`)
-  verdict(bad.length === 0, bad.length === 0
-    ? `P2 mirrors P1 on all ${lines.length} frames (p2y == p1y)`
+  const rows = lines.filter(l => l.w && l.w.p1y !== undefined)  // frames carrying the p1y/p2y watch (some emit no w block)
+  const bad = rows.filter(l => l.w.p1y !== l.w.p2y)
+  const moved = rows.some(l => l.w.p1y !== rows[0].w.p1y)
+  verdict(rows.length > 0 && moved, `P1 moved under the script (${rows.length} traced frames)`)
+  verdict(rows.length > 0 && bad.length === 0, bad.length === 0
+    ? `P2 mirrors P1 on all ${rows.length} traced frames (p2y == p1y)`
     : `P2 diverged on ${bad.length} frames — first at f=${bad[0].f}: p1y=${bad[0].w.p1y} p2y=${bad[0].w.p2y}`)
 }
 

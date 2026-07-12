@@ -164,6 +164,8 @@ static void cart_reload_if_changed(void) {
 // default to a MIRROR of 0-31, so every existing cart renders byte-identically
 // (color % 64 lands on the copy; pget/shader nearest-match scan low-first).
 // Only palette_hex() writes the upper half today. The named CLR_* stay 0-31.
+// Power of two so color-index masking is `& (PALETTE_SIZE-1)` — same as `% PALETTE_SIZE`
+// for valid colors, but a NEGATIVE color wraps to a safe index instead of reading before palette[].
 #define PALETTE_SIZE 64
 #define SPRITE_SIZE  16
 #define SPRITE_COUNT 64   // 8×8 grid of 16×16 sprites = 128×128 sheet
@@ -930,13 +932,17 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
             if (clip_cx + clip_cw < xmax) xmax = clip_cx + clip_cw;
             if (clip_cy + clip_ch < ymax) ymax = clip_cy + clip_ch;
         }
-        int i0 = xmin - ox; if (i0 < 0) i0 = 0;
-        int i1 = xmax - ox; if (i1 > dw) i1 = dw;
-        int j0 = ymin - oy; if (j0 < 0) j0 = 0;
-        int j1 = ymax - oy; if (j1 > dh) j1 = dh;
+        int srcw = spritesheet_img.width, srch = spritesheet_img.height;
+        // clamp against BOTH the dest window AND the source sheet — dw==sw/dh==sh here, so source
+        // col/row = sx+i / sy+j. The slow path gets this bounds-clamp for free via img_texel(); the
+        // fast path must too, or an out-of-range spr()/sspr/map tile reads past spritesheet_img.
+        // No-op for in-bounds sprites (srcw-sx >= dw etc.), so the hotspot stays byte-identical.
+        int i0 = xmin - ox; if (i0 < 0) i0 = 0; if (i0 < -sx) i0 = -sx;
+        int i1 = xmax - ox; if (i1 > dw) i1 = dw; if (i1 > srcw - sx) i1 = srcw - sx;
+        int j0 = ymin - oy; if (j0 < 0) j0 = 0; if (j0 < -sy) j0 = -sy;
+        int j1 = ymax - oy; if (j1 > dh) j1 = dh; if (j1 > srch - sy) j1 = srch - sy;
         if (i0 >= i1 || j0 >= j1) return;
         const uint32_t *src = (const uint32_t *)spritesheet_img.data;
-        int srcw = spritesheet_img.width;
         bool keyon = sw_colorkey_on;
         uint32_t key = (uint32_t)sw_colorkey_rgb.r | ((uint32_t)sw_colorkey_rgb.g << 8) | ((uint32_t)sw_colorkey_rgb.b << 16);
         for (int j = j0; j < j1; j++) {
@@ -3595,7 +3601,7 @@ void mouse_show(void) { ShowCursor(); }
 static int last_cls_color = 0;   // remembered so smooth_zoom's offscreen clears to the same bg
 void cls(int color) {
     PROF("cls");
-    last_cls_color = color % PALETTE_SIZE;
+    last_cls_color = color & (PALETTE_SIZE - 1);
     if (sw_canvas_active) {
         uint32_t p = sw_pack(palette[last_cls_color]);
         for (int i = 0; i < fb_w * fb_h; i++) sw_dst[i] = p;
@@ -3984,7 +3990,7 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
     float px0 = dx + ox, py0 = dy + oy;                       // pivot (world)
     bool recolor = use_pal && pal_active;
     bool oncanvas = sw_canvas_active;                          // hoist: plot straight to cbuf vs the pset dispatch
-    DeColor tint = fonttint >= 0 ? palette[fonttint % PALETTE_SIZE] : (DeColor){0,0,0,0};
+    DeColor tint = fonttint >= 0 ? palette[fonttint & (PALETTE_SIZE - 1)] : (DeColor){0,0,0,0};
     // screen bbox = the 4 dest corners rotated forward about the pivot
     float cxx[4] = { dx - px0, dx + dw - px0, dx + dw - px0, dx - px0 };
     float cyy[4] = { dy - py0, dy - py0, dy + dh - py0, dy + dh - py0 };
@@ -4108,9 +4114,9 @@ int text_width(const char *t) {
 
 int print(const char *text, int x, int y, int color) {
     PROF("print");
-    if (sw_canvas_active) { sw_print(text, x, y, palette[color % PALETTE_SIZE]); return x + text_width(text); }
+    if (sw_canvas_active) { sw_print(text, x, y, palette[color & (PALETTE_SIZE - 1)]); return x + text_width(text); }
     DrawTextEx(cur_font(), text, (Vector2){ (float)x, (float)y },
-               cur_font_size(), 0, palette[color % PALETTE_SIZE]);
+               cur_font_size(), 0, palette[color & (PALETTE_SIZE - 1)]);
     int w = text_width(text);
     UIAUDIT('t', x, y, w, (int)cur_font_size(), text);
     return x + w;
@@ -4119,7 +4125,7 @@ int print(const char *text, int x, int y, int color) {
 
 int print_outline(const char *text, int x, int y, int color, int outline_color) {
     PROF("print_outline");
-    DeColor oc = palette[outline_color % PALETTE_SIZE];
+    DeColor oc = palette[outline_color & (PALETTE_SIZE - 1)];
     float sz = cur_font_size();
     Font  f  = cur_font();
     static const int offsets[8][2] = {{-1,-1},{0,-1},{1,-1},{-1,0},{1,0},{-1,1},{0,1},{1,1}};
@@ -4162,11 +4168,11 @@ int print_rot(const char *text, int x, int y, float deg, int color, int pivot) {
     if (deg != 0.0f && (sw_canvas_active || cpu_raster_enabled)) {   // SW rotated text + A/B reference
         de_cpu_print_rot(text, x, y, deg, 1, color, pivot); return x + text_width(text);
     }
-    if (sw_canvas_active) return sw_print(text, x, y, palette[color % PALETTE_SIZE]);   // deg==0 on canvas
+    if (sw_canvas_active) return sw_print(text, x, y, palette[color & (PALETTE_SIZE - 1)]);   // deg==0 on canvas
     Vector2 org = { 0, 0 };
     if (pivot) { org.x = text_width(text) / 2.0f; org.y = cur_font_size() / 2.0f; }
     DrawTextPro(cur_font(), text, (Vector2){ (float)x, (float)y }, org,
-                deg, cur_font_size(), 0, palette[color % PALETTE_SIZE]);
+                deg, cur_font_size(), 0, palette[color & (PALETTE_SIZE - 1)]);
     return x + text_width(text);
 }
 
@@ -4176,12 +4182,12 @@ int print_rot_scaled(const char *text, int x, int y, float deg, int scale, int c
     if ((deg != 0.0f || scale != 1) && (sw_canvas_active || cpu_raster_enabled)) {   // SW rotated/scaled + A/B reference
         de_cpu_print_rot(text, x, y, deg, scale, color, pivot); return x + text_width(text) * scale;
     }
-    if (sw_canvas_active) return sw_print(text, x, y, palette[color % PALETTE_SIZE]);   // deg==0 & scale==1 on canvas
+    if (sw_canvas_active) return sw_print(text, x, y, palette[color & (PALETTE_SIZE - 1)]);   // deg==0 & scale==1 on canvas
     float sz = cur_font_size() * scale;        // DrawTextPro scales by fontSize; POINT filter keeps it crisp
     Vector2 org = { 0, 0 };
     if (pivot) { org.x = (text_width(text) * scale) / 2.0f; org.y = sz / 2.0f; }
     DrawTextPro(cur_font(), text, (Vector2){ (float)x, (float)y }, org,
-                deg, sz, 0, palette[color % PALETTE_SIZE]);
+                deg, sz, 0, palette[color & (PALETTE_SIZE - 1)]);
     return x + text_width(text) * scale;
 }
 
@@ -4192,7 +4198,7 @@ void rect(int x, int y, int w, int h, int color) {
         for (int yy = y + 1; yy < y + h - 1; yy++) { plot_pat(x, yy, color); plot_pat(x + w - 1, yy, color); }
         UIAUDIT('R', x, y, w, h, NULL); return;
     }
-    DeColor c = palette[color % PALETTE_SIZE];
+    DeColor c = palette[color & (PALETTE_SIZE - 1)];
     int rx = x, ry = y;
     // 1px DrawRectangle slices — no line caps, exact pixel coverage
     DrawRectangle(rx,     ry,     w,   1,   c);  // top
@@ -4206,11 +4212,11 @@ void rectfill(int x, int y, int w, int h, int color) {
     PROF("rectfill");
     if (sw_canvas_active) {
         if (fp_on) { for (int yy = y; yy < y + h; yy++) for (int xx = x; xx < x + w; xx++) plot_pat(xx, yy, color); }  // dither: per-pixel
-        else sw_fillrect(x, y, w, h, palette[color % PALETTE_SIZE]);   // solid: fast cbuf row memset
+        else sw_fillrect(x, y, w, h, palette[color & (PALETTE_SIZE - 1)]);   // solid: fast cbuf row memset
         UIAUDIT('f', x, y, w, h, NULL); return;
     }
     if (fp_on) { rectfill_pat(x, y, w, h, fp_global, fp_hole, color); UIAUDIT('f', x, y, w, h, NULL); return; }   // 1-bits = holes, 0-bits = color
-    DrawRectangle(x, y, w, h, palette[color % PALETTE_SIZE]);
+    DrawRectangle(x, y, w, h, palette[color & (PALETTE_SIZE - 1)]);
     UIAUDIT('f', x, y, w, h, NULL);
 }
 
@@ -4254,7 +4260,7 @@ void rectfill_rot(int cx, int cy, int w, int h, float deg, int color) {
     PROF("rectfill_rot");
     if (sw_canvas_active || cpu_raster_enabled) { de_cpu_rectfill_rot(cx, cy, w, h, deg, color); return; }   // SW: inverse-map (no GPU fallback); also the A/B reference path
     DrawRectanglePro((Rectangle){ (float)cx, (float)cy, (float)w, (float)h },
-                     (Vector2){ w * 0.5f, h * 0.5f }, deg, palette[color % PALETTE_SIZE]);
+                     (Vector2){ w * 0.5f, h * 0.5f }, deg, palette[color & (PALETTE_SIZE - 1)]);
 }
 
 void bar(int x, int y, int w, int h, float pct, int fill, int bg) {
@@ -4283,8 +4289,8 @@ static Texture2D fp_texture(int pat, int c1, int c0) {
     DeColor px[16];
     for (int i = 0; i < 16; i++) {
         int on = (pat >> (15 - i)) & 1;                       // bit 15 = top-left, row-major
-        px[i] = on ? (c1 < 0 ? (DeColor){ 0, 0, 0, 0 } : palette[c1 % PALETTE_SIZE])
-                   : (c0 < 0 ? (DeColor){ 0, 0, 0, 0 } : palette[c0 % PALETTE_SIZE]);
+        px[i] = on ? (c1 < 0 ? (DeColor){ 0, 0, 0, 0 } : palette[c1 & (PALETTE_SIZE - 1)])
+                   : (c0 < 0 ? (DeColor){ 0, 0, 0, 0 } : palette[c0 & (PALETTE_SIZE - 1)]);
     }
     Image img = { px, 4, 4, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 };
     Texture2D t = LoadTextureFromImage(img);
@@ -4409,7 +4415,7 @@ void circfill(int cx, int cy, int r, int color) {
     if (r >= 1 && cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
         poly_clamp_scan(&x0, &y0, &x1, &y1);            // skip off-screen rows/cols (the poly-path win)
-        DeColor col = palette[color % PALETTE_SIZE];
+        DeColor col = palette[color & (PALETTE_SIZE - 1)];
         float r2 = (float)r * r;
         for (int y = y0; y <= y1; y++) {
             float dy = y + 0.5f - cy;
@@ -4598,9 +4604,9 @@ static void de_cpu_line(int x0, int y0, int x1, int y1, int c) {
 
 void line(int x1, int y1, int x2, int y2, int color) {
     PROF("line");
-    if (sw_canvas_active) { sw_sline(x1, y1, x2, y2, palette[color % PALETTE_SIZE]); return; }
+    if (sw_canvas_active) { sw_sline(x1, y1, x2, y2, palette[color & (PALETTE_SIZE - 1)]); return; }
     if (cpu_raster_enabled) { de_cpu_line(x1, y1, x2, y2, color); return; }   // DE_CPU_RASTER: CPU line off-canvas too
-    DrawLine(x1, y1, x2, y2, palette[color % PALETTE_SIZE]);
+    DrawLine(x1, y1, x2, y2, palette[color & (PALETTE_SIZE - 1)]);
 }
 
 static int bez_steps(float len) {
@@ -4643,7 +4649,7 @@ static inline void px_emit(int x, int y, DeColor c) {
 
 void pset(int x, int y, int color) {
     PROF("pset");
-    DeColor c = palette[color % PALETTE_SIZE];
+    DeColor c = palette[color & (PALETTE_SIZE - 1)];
     if (sw_canvas_active) { sw_pset(x, y, c); return; }
     if (pset_batch) px_emit(x, y, c);
     else            DrawPixel(x, y, c);
@@ -5172,7 +5178,7 @@ static void poly_fill_cov(const int *xy, int n, int color) {
         return;
     }
     bool fast = (cam.rotation == 0.0f) && (cam.zoom == 1.0f) && !fp_on;
-    DeColor col = palette[color % PALETTE_SIZE];
+    DeColor col = palette[color & (PALETTE_SIZE - 1)];
     float cross[MAXCROSS];
     for (int y = y0; y <= y1; y++) {
         float yc = y + 0.5f;
@@ -5451,7 +5457,7 @@ int tile_at(int px, int py) {
 }
 
 bool touching_color(int x, int y, int w, int h, int color) {
-    int target = color % PALETTE_SIZE;
+    int target = color & (PALETTE_SIZE - 1);
     for (int py = y; py < y + h; py++)
         for (int px = x; px < x + w; px++)
             if (pget(px, py) == target) return true;
@@ -5537,8 +5543,11 @@ int load(int slot) {
 static unsigned char *de_state_mem = NULL;
 static int            de_state_cap = 0;
 void *de_state(int bytes) {
+    if (bytes <= 0) return de_state_mem;   // bogus size (negative casts to a huge size_t) → no grow
     if (bytes > de_state_cap) {
-        de_state_mem = realloc(de_state_mem, (size_t)bytes);
+        unsigned char *grown = realloc(de_state_mem, (size_t)bytes);
+        if (!grown) return de_state_mem;   // OOM: keep the old block (don't leak it or memset NULL)
+        de_state_mem = grown;
         memset(de_state_mem + de_state_cap, 0, (size_t)(bytes - de_state_cap));
         de_state_cap = bytes;
     }
@@ -5576,6 +5585,7 @@ void save_bytes(const void *data, int len) {
     if (f) { fwrite(data, 1, len, f); fclose(f); }
 }
 int load_bytes(void *out, int max) {
+    if (max <= 0) return 0;   // symmetric with save_bytes; a negative max casts to a huge fread → buffer overrun
     FILE *f = fopen(save_path("cart.blob"), "rb");
     if (!f) return 0;
     int n = (int)fread(out, 1, max, f);
@@ -5714,11 +5724,11 @@ int print_scaled(const char *t, int x, int y, int color, int scale) {
     if (scale < 1) scale = 1;
     if (sw_canvas_active || cpu_raster_enabled) {   // SW/CPU scaled-glyph blit (deg 0) — else GPU text is lost on the canvas
         if (scale != 1) { de_cpu_print_rot(t, x, y, 0.0f, scale, color, 0); return x + text_width(t) * scale; }
-        return sw_print(t, x, y, palette[color % PALETTE_SIZE]);
+        return sw_print(t, x, y, palette[color & (PALETTE_SIZE - 1)]);
     }
     float sz = cur_font_size() * scale;
     DrawTextEx(cur_font(), t, (Vector2){ (float)x, (float)y },
-               sz, 0, palette[color % PALETTE_SIZE]);
+               sz, 0, palette[color & (PALETTE_SIZE - 1)]);
     return x + (int)MeasureTextEx(cur_font(), t, sz, 0).x;
 }
 
@@ -5730,7 +5740,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
     if (cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - rx, y0 = cy - ry, x1 = cx + rx, y1 = cy + ry;
         poly_clamp_scan(&x0, &y0, &x1, &y1);
-        DeColor col = palette[color % PALETTE_SIZE];
+        DeColor col = palette[color & (PALETTE_SIZE - 1)];
         for (int y = y0; y <= y1; y++) {
             float dyn = (y + 0.5f - cy) / (float)ry;
             float t = 1.0f - dyn * dyn;

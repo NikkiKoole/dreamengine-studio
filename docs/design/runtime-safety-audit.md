@@ -31,7 +31,9 @@
 
 ## 🔴 High — reachable memory-safety
 
-- [ ] **1. `sw_blit` fast path reads the sprite atlas out of bounds.** `runtime/studio.c`
+- [x] **1. `sw_blit` fast path reads the sprite atlas out of bounds.** ✅ 2026-07-12 — source rect
+  now clamped against sheet dims in the fast path; `canvas-diff drawall` byte-identical (in-bounds
+  no-op), studio.c compiles clean. `runtime/studio.c`
   (`sw_blit`, fast path ~`942-951`). The unscaled/axis-aligned fast path clamps only the
   *destination* (against clip + screen); the source read `srow[i] = src[(sy+j)*srcw + sx + i]`
   has **no bounds check against the sheet dims**. The slow path directly below gets this for free
@@ -89,15 +91,14 @@
 
 ## 🟡 Low — latent / caller-controlled / benign
 
-- [ ] **6. Negative color → negative palette index** (OOB **read**, benign wrong color, UB). Pervasive:
-  `palette[color % PALETTE_SIZE]` at `studio.c:~4111, ~4646, ~4195, ~4209, ~4412, ~5175`, … A negative
-  `color` yields a negative C modulo. **Fix once:** a floored-mod or `& (PALETTE_SIZE-1)` helper used
-  at every site. **Gate:** `canvas-diff.js drawall` (positive colors unchanged).
-- [ ] **7. `de_state()` unchecked `realloc` + `int` size.** `studio.c:~5541`. NULL-deref in the
-  immediate `memset` + old-block leak on OOM; negative/huge `bytes` casts to a giant `size_t`.
-- [ ] **8. `load_bytes()` no `max` guard.** `studio.c:~5581`. `save_bytes` guards `len<=0`; `load_bytes`
-  doesn't — a negative `max` → `fread` with `SIZE_MAX` nmemb reads the whole blob → overflow. Add the
-  symmetric guard.
+- [x] **6. Negative color → negative palette index** (OOB **read**, benign wrong color, UB). ✅
+  2026-07-12 — all 24 `% PALETTE_SIZE` sites in studio.c changed to `& (PALETTE_SIZE-1)` (64 is a power
+  of two → identical for valid colors, negatives wrap to a safe index); note added at the define.
+  `canvas-diff drawall` byte-identical.
+- [x] **7. `de_state()` unchecked `realloc` + `int` size.** ✅ 2026-07-12 — `bytes <= 0` early-out;
+  `realloc` into a temp and keep the old block on OOM (no NULL `memset`, no leak).
+- [x] **8. `load_bytes()` no `max` guard.** ✅ 2026-07-12 — added `if (max <= 0) return 0;`, symmetric
+  with `save_bytes`.
 - [ ] **9. `roadkit.h` missing capacity guards** (latent — masked by caller clamps today; relevant to
   the WIP B4 interchange work). `rk_make_junction` `conns[16]` overflows at ≥6 legs (`~361`);
   `rk_field_build` no clamp on `n>8` into `RK_MAXARM=8` arrays (`~138`); the spline emitters

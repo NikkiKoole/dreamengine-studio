@@ -1,6 +1,15 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: BUILDING** (2026-07-09; last landed 2026-07-10) — 25/33 items done, 8 left. A punch-list of *quality-only*
+> **STATUS: WINDING DOWN** (2026-07-09; last landed 2026-07-10; bookkeeping reconciled 2026-07-12) —
+> **30/33 closed, 3 open.** The bare "8 left" the checkbox count used to show was misleading. Of the 30
+> closed: **25 landed** as behaviour-preserving refactors; **3 were assessed and deliberately left as-is**
+> (❌ won't-do — a per-pixel indirect call or a float-rounding byte-mismatch would make them a perf/correctness
+> regression, not a win; see their ⚠ notes); **2 landed their doable part** and parked a byte-unsafe or
+> trace-only tail (bucket ②). The **3 genuinely-open** items — `net.h` packet helpers, `ui_button_core()`,
+> `radio.h` redundancy — are low-risk header dedup, each gated by `ui-audit` + `build-all`. (Checkbox
+> semantics after this pass: `[x]` = *closed* — landed, won't-do, or doable-part-done — not necessarily a
+> refactor shipped; the per-item note says which.)
+> A punch-list of *quality-only*
 > cleanups in the engine core (`runtime/studio.c`, `runtime/sound.h`) and the
 > library headers. Every item is a **behaviour-preserving** extraction or rename —
 > no feature work, no bug fixes. Found by a three-way read-only review; none of it
@@ -92,30 +101,30 @@ The same 3–4-line idioms are hand-inlined dozens of times. One helper collapse
 Two full implementations kept in sync by hand. Touch the software rasterizer —
 run `canvas-diff` (and `mirror-diff` where symmetry applies) before/after.
 
-- [ ] **`sw_sline`/`sw_plot_minor` (`775`/`768`) vs `de_cpu_line`/`de_cpu_plot_minor`
+- [x] **`sw_sline`/`sw_plot_minor` (`775`/`768`) vs `de_cpu_line`/`de_cpu_plot_minor`
   (`4349`/`4342`)** are verbatim copies of the same reflection-symmetric DDA, differing
   *only* by `sw_pset` vs `pset` (~30 lines; comment at `4335` admits it).
   Parameterize one over a plot callback (or `#define`-templated body).
-  **⚠ Assessed 2026-07-10: leave as-is.** The only difference is *which plot fn is called
+  **❌ WON'T-DO (assessed 2026-07-10): leave as-is.** The only difference is *which plot fn is called
   per pixel*, in a per-pixel rasterizer hot path. A plot **callback** is an un-inlinable
   indirect call per pixel → real perf regression on the line path. A `#define`-templated
   body is byte-identical + perf-neutral but is macro soup for ~30 lines of stable code —
   not worth it. Honest duplication wins here.
-- [ ] **`circfill` (`4164`) should delegate to `ovalfill` (`5496`)** — a circle is
+- [x] **`circfill` (`4164`) should delegate to `ovalfill` (`5496`)** — a circle is
   `rx==ry`, and `circfill_pat` (`4109`) already delegates to `ovalfill_pat`. ~25 lines
   vanish. (`disc_inside` at `4124` is likewise `ellipse_inside` with `rx==ry`.)
-  **⚠ Assessed 2026-07-09: NOT byte-safe — leave as-is.** `disc_inside` is *exact*
+  **❌ WON'T-DO (assessed 2026-07-09): NOT byte-safe — leave as-is.** `disc_inside` is *exact*
   (`dx = int+0.5` is a half-integer, so `dx²+dy² ≤ r²` never rounds), but
   `ellipse_inside` divides first (`dx/r`) then squares — which rounds — so a boundary
   pixel can flip. Delegating would shift a few edge pixels on some circles, and also
   change negative-radius behaviour (circfill draws nothing; ovalfill abs's it) and drop
   the `UIAUDIT('c')` marker. The math is equal; the floats aren't.
-- [ ] **`outline_ring(bbox, inside_predicate, color)`** — the "pixel is inside AND a
+- [x] **`outline_ring(bbox, inside_predicate, color)`** — the "pixel is inside AND a
   4-neighbour is outside" test is copy-pasted **6×**: `circ` (`4143`), `oval`
   (`5524`), `rrect` (`5104`), `poly_stroke_cov` (`4990`), `sector_draw` stroke
   (`4260`), `thick_draw` stroke (`5076`). One helper over a function pointer / macro
   collapses all six.
-  **⚠ Assessed 2026-07-10: leave as-is.** Same hot-path tension as the line twin, worse:
+  **❌ WON'T-DO (assessed 2026-07-10): leave as-is.** Same hot-path tension as the line twin, worse:
   the inside-predicate is called **5× per pixel** across an O(r²) bbox, so a
   function-pointer helper would likely make outlines *slower*. The maker already parked
   the O(perimeter) span rewrite of these as low-leverage (see the `circ` comment +
@@ -168,14 +177,14 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   `ks_seed_bore(v, len, scale)` clamps to `[4, KS_MAX-1]`, seeds, returns the clamped
   len — used by reed/pipe/brass. **Bowed is NOT folded in** (dual delay line + pizz/arco
   branch — structurally different, not "only the noise scale").
-- [ ] **Modulated-delay skeleton (chorus/flanger/tape).** Each re-writes phase
+- [x] **Modulated-delay skeleton (chorus/flanger/tape).** Each re-writes phase
   advance, triangle LFO, delay-in-samples clamp, `moddel_hermite` read (the shared
   read at `sound.h:624`), and the `wet/dry` blend by hand (chorus `720`, flanger
   `758`, …). The blend line `dry*(1-mix)+wet*mix` recurs in nearly every `*_process`
   (e.g. `1266`) — a one-liner helper. **Partial: the blend one-liner is done** —
   `mix_wet(dry, wet, mix)` collapses the 9 blend sites. The full phase/LFO/clamp/read
   *skeleton* is left: chorus/flanger/tape differ in buffer length, stereo taps and mod
-  depth, so a mechanical unify is not byte-safe — deferred (bucket ②).
+  depth, so a mechanical unify is not byte-safe — **skeleton parked (bucket ②); item closed on the blend win.**
 - [x] **Master/instrument FX setter pairs.** ~10 near-identical `SR_X`/`SR_INSTR_X`
   copy-paste arms in `sound_fire_req` (dispatch guarded at `sound.h:1883–1906`), plus
   a copy-pasted "auto-place kind in `insert_order`" scan (`5156–5157`, `5189–5190`).
@@ -223,7 +232,7 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
 
 ## Group F — smaller drift-risk items
 
-- [ ] **`studio.c` shared bodies:** `pget` (`4433`) / `pget_rgb` (`4455`) share the
+- [x] **`studio.c` shared bodies:** `pget` (`4433`) / `pget_rgb` (`4455`) share the
   world→snapshot-texel guard machinery; the palette-index match loop is duplicated in
   `pget` and `sget` (`4466`) → `palette_index_of(DeColor)`; `harness_inspect`
   state-request (`1931`+) re-implements `harness_trace`'s watch-serialization
@@ -235,8 +244,8 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   `de_load_map()` (de_init + main — note it lives BEFORE the `#ifdef DE_NO_RAYLIB` guard so
   both entry points see it), and `sprf` now builds src/dst only on the GPU branch (dead on
   the sw path). Byte-identical (build-all 479/479; canvas-diff drawall unchanged, boom
-  sprites 0px). **Left:** `harness_inspect`→`write_state_json()` — trace-only (`-DDE_TRACE`),
-  parked in the bucket-② set with a `play.js --trace` gate.
+  sprites 0px). **Left (parked):** `harness_inspect`→`write_state_json()` — trace-only (`-DDE_TRACE`),
+  parked in the bucket-② set with a `play.js --trace` gate. **Item closed on the 4/5 that landed.**
 - [x] **Dead `PAUSE_KEY` guard** — redefined at `studio.c:3280–3281` but already
   defined at `455–456`, so the second `#ifndef` is always skipped. Delete.
 - [ ] **`net.h` packet helpers** — WELCOME/HELLO builder + seed LE encode/decode

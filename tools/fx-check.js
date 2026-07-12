@@ -114,6 +114,7 @@ function fxWindows(traceFile) {
   let cur = null, lastFrame = 0
   for (const ln of lines) {
     let row; try { row = JSON.parse(ln) } catch { continue }
+    if (row.vev !== undefined) continue   // skip voice-trace events (-DDE_TRACE): they share the trace JSONL but carry no gate/fx window info
     const w = row.w || {}
     const gate = +w.gate, fx = +w.fx, f = row.f
     lastFrame = f

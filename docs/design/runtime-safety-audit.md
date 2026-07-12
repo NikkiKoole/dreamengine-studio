@@ -67,7 +67,11 @@
   in the `SR_FX_ORDER` decode; correct the `FX_INST` macro doc + the public setter docs to the true
   range (0..1). **Gate:** `soundcheck` (silence) + `fx-check.js` (in-range renders unchanged).
 
-- [ ] **3. Netplay: unbounded frame index → OOB write + session-kill.** `runtime/net.h`
+- [x] **3. Netplay: unbounded frame index → OOB write + session-kill.** ✅ 2026-07-12 — `net_store`
+  now rejects `frame < 0` (overflow) and `frame > net_frame + NET_RING` (poison); `net_input_pkt`
+  bounds `f0` to the same window (so the `f0+i` loop can't overflow) and decodes with `(unsigned)`
+  casts (kills the signed-shift UB). Gate: `net-check` PASS (echo + netdemo + relay). **Original ↓**
+  `runtime/net.h`
   (`net_input_pkt` `~215-225`, `net_store` `~188`). `f0` is read from an **untrusted** packet and
   guarded only `>= 0`, never bounded against `NET_RING`/`net_frame`, then used as `frame % NET_RING`
   with a **signed** `frame`. A crafted/corrupt datagram where `f0 + i` overflows → negative index →

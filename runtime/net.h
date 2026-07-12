@@ -185,6 +185,11 @@ static void net_transport_send(const void *buf, int len);
 static void net_transport_pump(void);
 
 static void net_store(int player, int frame, uint8_t bits) {
+    // `frame` reaches here (via net_input_pkt) from an UNTRUSTED packet. Reject a negative
+    // (overflowed) frame — it would index before the array — and an absurdly-future one, which
+    // would poison the slot so the "never regress" rule below then blocks the peer's REAL input
+    // forever (a one-packet lockstep stall). net_have() never queries past net_frame + NET_RING.
+    if (frame < 0 || frame > net_frame + NET_RING) return;
     int s = frame % NET_RING;
     if (net_ring_frame[player][s] < frame) {  // never regress a slot (stale resends)
         net_ring_frame[player][s] = frame;
@@ -212,9 +217,11 @@ static int net_peer_buffer_depth(void) {
 // parse one NET_PKT_INPUT payload (already magic-checked, n >= 8) and store the
 // carried frames as the PEER's inputs — shared by every transport's receive path.
 static void net_input_pkt(const uint8_t *b, int n) {
-    int f0  = b[3] | b[4] << 8 | b[5] << 16 | b[6] << 24;
+    int f0  = (int)((uint32_t)b[3] | (uint32_t)b[4] << 8 | (uint32_t)b[5] << 16 | (uint32_t)b[6] << 24);  // (unsigned) shift: b[6]<<24 into the sign bit is UB otherwise (the seed decoders already cast)
     int cnt = b[7];
-    if (f0 >= 0 && 8 + cnt <= n) {
+    // bound f0 to a sane window so the f0+i loop below can't overflow (signed-overflow UB) and
+    // can't feed net_store a wild index; net_store guards again as defense-in-depth.
+    if (f0 >= 0 && f0 <= net_frame + NET_RING && 8 + cnt <= n) {
         double now = net_now_ms();
         if (net_stat_rx_last_ms > 0) {   // inter-arrival gap: how long were we deaf before this packet
             int gap = (int)(now - net_stat_rx_last_ms);

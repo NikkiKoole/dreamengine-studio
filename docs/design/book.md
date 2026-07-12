@@ -1,6 +1,6 @@
 # Learn You a dreamengine for Great Good!
 
-STATUS: building (2026-07-12) — 10 of 15 chapters drafted (through "Juice"); voice + pipeline settled. Pick up any time.
+STATUS: building (2026-07-12) — 13 of 15 chapters drafted (through the shooter payoff); voice + pipeline settled. Pick up any time.
 
 An illustrated, chatty field guide to the `studio.h` API, in the voice (and spirit) of
 *Learn You a Haskell for Great Good!* — the beginner kept as a delighted critic (per
@@ -110,6 +110,10 @@ artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 9. **A Cast of Thousands** — arrays + one `for` loop for the whole cast; ties back to `overlap()` (`swarm` GIF)
 10. **Juice: Making It Feel Good** — feedback tied to events: `shake()` + squash/flash timers + a
     particle burst; the "a little goes a long way" restraint (`juice` GIF)
+11. **Worlds Bigger Than the Screen** — `camera()` scrolling + a minimap; `map()` mentioned (`world` GIF)
+12. **Remembering Things** — `save_int`/`load_int` + a title→play→over state machine (`states` GIF)
+13. **A Proper Little Game** — the second payoff: a self-playing shooter that is chapters 7-12
+    stacked (arrays + `overlap` + `shake` + `note`); a webm you can HEAR (`shooter`)
 
 ## Roadmap — chapters 8–15 (planned, locked 2026-07-12)
 
@@ -120,12 +124,9 @@ back to Ch.1's greeter). Each still needs its own mood creature.
  8. ✓ SHIPPED — **Do Two Things Touch?** (collision)
  9. ✓ SHIPPED — **A Cast of Thousands** (arrays + loop)
 10. ✓ SHIPPED — **Juice: Making It Feel Good** (game feel; used the built-in `shake()`)
-11. **Worlds Bigger Than the Screen** — tilemaps (`map()`) + `camera()` scrolling. Illus: a tile
-    level with the camera panning to follow.
-12. **Remembering Things** — `save_int`/`load_int` (a high score that survives) + a title→play→over
-    state machine. Illus: a "BEST: 12" that persists between runs.
-13. **A Proper Little Game** — *second payoff*: a tiny platformer/shooter tying sprites + collision
-    + camera + juice + sound. Illus: it plays itself (attract mode).
+11. ✓ SHIPPED — **Worlds Bigger Than the Screen** (`camera()` scrolling + minimap)
+12. ✓ SHIPPED — **Remembering Things** (`save_int`/`load_int` + title→play→over states)
+13. ✓ SHIPPED — **A Proper Little Game** (self-playing shooter, webm with audio)
 14. **Make It Work on a Phone** — touch controls (`touch_layout`/`touch_controls`), `safe_rect`,
     `finger_px`. Illus: the game with on-screen stick + buttons.
 15. **Ship It** — bake to web / share (`publish`, the web build); the finale, get it in front of a

@@ -44,6 +44,9 @@ const ILLUS = {
   collide: { kind: 'gif', frames: 120, fps: 20 },
   swarm:   { kind: 'gif', frames: 90,  fps: 20 },
   juice:   { kind: 'gif', frames: 96,  fps: 20 },
+  world:   { kind: 'gif', frames: 160, fps: 20 },
+  states:  { kind: 'gif', frames: 170, fps: 20 },
+  shooter: { kind: 'video', frames: 180, fps: 30 },   // a webm — pew + boom
   // mood creatures — one per chapter, drawn by the console like everything else
   greeter:  { kind: 'still' },
   leaper:   { kind: 'still' },
@@ -55,6 +58,9 @@ const ILLUS = {
   bumper:   { kind: 'still' },
   crowd:    { kind: 'still' },
   spark:    { kind: 'still' },
+  scout:    { kind: 'still' },
+  keeper:   { kind: 'still' },
+  ace:      { kind: 'still' },
 };
 
 function render(id, spec) {
@@ -222,6 +228,9 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   <a href="#ch8"><span class="num">8</span><span>Do Two Things Touch?</span></a>
   <a href="#ch9"><span class="num">9</span><span>A Cast of Thousands</span></a>
   <a href="#ch10"><span class="num">10</span><span>Juice: Making It Feel Good</span></a>
+  <a href="#ch11"><span class="num">11</span><span>Worlds Bigger Than the Screen</span></a>
+  <a href="#ch12"><span class="num">12</span><span>Remembering Things</span></a>
+  <a href="#ch13"><span class="num">13</span><span>A Proper Little Game</span></a>
 </nav>
 
 <main class="wrap">
@@ -522,6 +531,77 @@ sprites: {
     '<p>The temptation, once you can shake and flash and spray sparks, is to do it constantly. Don&rsquo;t. If <em>everything</em> shakes, nothing lands. Keep the effects short (a few frames), and tie each one to a real event &mdash; a hit, a pickup, a jump. If you removed an effect and the action didn&rsquo;t feel any less clear, it was noise. Cut it.</p>')}
 
   <p>Your worlds can move, hold a crowd, and hit like they mean it now. There&rsquo;s just one wall left: everything still has to fit inside one little 320&times;200 window. Next, we knock that wall down.</p>
+
+
+  ${chapHead('ch11', '11', 'a bigger world', 'Worlds Bigger Than the Screen')}
+  ${creature('scout', 'A green blob with binoculars, spying a world off in the distance')}
+
+  <p>The screen is small, but your world doesn&rsquo;t have to be. The trick is to stop thinking of the screen as <em>the world</em> and start thinking of it as a <strong>window</strong> that slides around over a much bigger one. You move the window with a single call: <code>camera</code>.</p>
+
+  ${screen('world', 'A side-scrolling world twice as wide as the screen; the camera follows a walking hero, a minimap shows the viewport',
+    '<b>the world is 640 wide; the window is 320.</b><br>the camera slides to follow the hero; the yellow bar up top is the slice you can actually see.')}
+
+  <pre><span class="k">void</span> <span class="f">draw</span>(<span class="k">void</span>) {
+    <span class="k">int</span> camx = hero_x - <span class="s">SCREEN_W</span> / <span class="n">2</span>;   <span class="c">// centre the window on the hero</span>
+    <span class="f">camera</span>(camx, <span class="n">0</span>);                <span class="c">// shift EVERYTHING drawn after this by -camx</span>
+
+    <span class="f">rectfill</span>(<span class="n">0</span>, <span class="n">150</span>, <span class="n">640</span>, <span class="n">60</span>, <span class="s">CLR_DARK_GREEN</span>);  <span class="c">// draw the whole wide world…</span>
+    <span class="c">// …houses, trees, the hero — all at their real world positions</span>
+
+    <span class="f">camera</span>(<span class="n">0</span>, <span class="n">0</span>);                   <span class="c">// reset, so the score/HUD stays put on screen</span>
+}</pre>
+
+  <p>That&rsquo;s the whole idea. You draw everything at its true position in the big world, and <code>camera</code> quietly slides all of it so the part you care about lands in the window. Flip it back to <code>camera(0, 0)</code> before you draw the score, or your HUD will go scrolling off with the scenery. For worlds made of <em>tiles</em> &mdash; a proper level, laid out on a grid &mdash; there&rsquo;s a matching <code>map</code> call that paints a whole chunk at once, and it respects the camera too.</p>
+
+  ${aside('', 'Draw the world, not the screen',
+    '<p>The freeing little shift here: once the camera exists, you stop doing screen arithmetic in your head. The hero is at world-x 500; a coin is at world-x 512; you draw them <em>there</em>, and let the camera worry about where &ldquo;there&rdquo; currently falls on the glass. Your game logic gets to live in the world, not the window.</p>')}
+
+
+  ${chapHead('ch12', '12', 'memory', 'Remembering Things')}
+  ${creature('keeper', 'A proud green blob beside a treasure chest with a saved number floating out')}
+
+  <p>Everything the machine knows vanishes the instant the window closes &mdash; every variable, every score, gone. Usually that&rsquo;s fine. But some things should outlive the run: the high score, which level you reached, whether the player has seen the intro. For those, two little functions reach past the end of the program:</p>
+
+  <pre><span class="f">save_int</span>(<span class="s">"hiscore"</span>, <span class="n">500</span>);            <span class="c">// tuck a number away under a name</span>
+<span class="k">int</span> best = <span class="f">load_int</span>(<span class="s">"hiscore"</span>, <span class="n">0</span>);   <span class="c">// get it back next time (0 if never saved)</span></pre>
+
+  <p>That&rsquo;s the entire idea of saving: a named cubbyhole that survives closing the game. And it pairs with the other thing this chapter is quietly about &mdash; that a game is really just a few <strong>screens</strong> it flips between. A title, the game itself, a game-over. Here&rsquo;s one flipping through all three on its own, remembering its best:</p>
+
+  ${screen('states', 'A title / playing / game-over screen cycling, with a persistent best score',
+    '<b>title → playing → game over → title.</b><br>the "best" survives because it was saved; beat it and NEW BEST lights up.')}
+
+  <p>You track which screen you&rsquo;re on with a single variable &mdash; call it <code>state</code> &mdash; and <code>draw</code> just asks &ldquo;which screen am I? draw that one.&rdquo; Press start on the title and <code>state</code> becomes <em>playing</em>; die and it becomes <em>game over</em>; and at that moment you compare your score to the saved best and, if you beat it, <code>save_int</code> the new one. Every arcade machine you&rsquo;ve ever fed a coin is, underneath, this little three-way switch and one saved number.</p>
+
+  ${aside('warn', 'Saves are per cart',
+    '<p>Your saved numbers live in a folder named after your cart, so one game can never clobber another&rsquo;s high score. Handy &mdash; but it means if you rename your cart, it &ldquo;forgets&rdquo; everything, because it&rsquo;s now looking in a differently-named cubbyhole. Not a bug; just the filing system being honest.</p>')}
+
+  <p>Look how far we&rsquo;ve come: you can draw, move, collide, juice, scroll a world, and remember a score. That is, no kidding, a whole game&rsquo;s worth of engine. Time to build a proper one.</p>
+
+
+  ${chapHead('ch13', '13', 'the second payoff', 'A Proper Little Game')}
+  ${creature('ace', 'A green blob grinning in the cockpit of its own little rocket')}
+
+  <p>Chapter 5 was your first game. This is your first <em>real</em> one &mdash; a little shooter &mdash; and the wonderful thing is that we can build the whole thing out of chapters you&rsquo;ve already read, with no new ideas at all. Turn your sound on and watch it play itself:</p>
+
+  ${screen('shooter', 'A self-playing space shooter: a ship tracking and firing at descending invaders, with sound',
+    '<b>the ship hunts the nearest invader and fires; hits explode.</b><br>every piece of this is a chapter you already know.')}
+
+  <p>Take it apart and there&rsquo;s nothing in the box you haven&rsquo;t seen:</p>
+
+  <pre><span class="c">// bullets and enemies are just arrays of things ......... chapter 9</span>
+<span class="k">for</span> (b in bullets) <span class="k">for</span> (e in enemies)
+    <span class="k">if</span> (<span class="f">overlap</span>(b, e)) {          <span class="c">// does it touch? ................ chapter 8</span>
+        <span class="f">shake</span>(<span class="n">3</span>); <span class="f">spawn_dust</span>(e.x, e.y);  <span class="c">// juice on the kill ......... chapter 10</span>
+        <span class="f">hit</span>(<span class="n">38</span>, <span class="s">INSTR_NOISE</span>, <span class="n">5</span>, <span class="n">130</span>); <span class="c">// an explosion sound ..... chapter 7</span>
+        score++;                     <span class="c">// and a number we could save . chapter 12</span>
+    }</pre>
+
+  <p>That&rsquo;s the secret the whole book has been sneaking up on: a big game isn&rsquo;t a big idea, it&rsquo;s a <em>pile</em> of small ones you already own, leaning on each other. Draw a thing, move it with the clock, ask if it touched another thing, make the answer feel good, keep score. The shooter is maybe forty lines longer than the catch game &mdash; and it is a whole different, richer toy. That&rsquo;s the leverage you&rsquo;ve been building this entire time.</p>
+
+  ${aside('', 'The self-playing trick, again',
+    '<p>Notice it plays itself, same as the catch game &mdash; here the &ldquo;AI&rdquo; is one line: slide the ship toward the nearest enemy&rsquo;s x. That&rsquo;s not really intelligence, it&rsquo;s Chapter 4&rsquo;s &ldquo;ease toward a target&rdquo; pointed at a bad guy. Half of what looks like game AI is exactly this: move toward (or away from) a number. Start there.</p>')}
+
+  <p>You can make things now &mdash; real ones. There are only two pages left, and neither is about the game itself. They&rsquo;re about the two best moments in making anything: putting it in your pocket, and handing it to a friend.</p>
 
 </main>
 

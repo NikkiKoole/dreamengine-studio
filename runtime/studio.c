@@ -1908,6 +1908,12 @@ static void json_str(FILE *f, const char *s) {
 
 // one JSONL line per frame: the auto fields plus every watch() value set this
 // frame (age 0 — age_watches() runs after us). Reading a session = reading this.
+// ⚠ MIXED STREAM: this file is NOT one line-kind. The per-frame "w" rows below are
+// interleaved with OTHER line kinds (the DE_TRACE "vev" voice events at the bottom;
+// future kinds too). Any JSONL consumer that segments per-frame/gate windows MUST skip
+// the non-frame kinds (they carry no "w"/gate → they silently truncate a window): see
+// `if (row.vev !== undefined) continue` in fx/tune/level/dc/soak-check.js. Adding a new
+// line kind here = add its skip to those parsers (it already bit fx-check once).
 static void harness_trace(int fno) {
     if (!trace_file) return;
     fprintf(trace_file, "{\"f\":%d,\"t\":%.4f,\"beat\":%d,\"bpos\":%.4f,",
@@ -1933,6 +1939,9 @@ static void harness_trace(int fno) {
     // voice-allocation trace (docs/design/audio-voice-debugging.md): drain the audio thread's
     // event ring into its own JSONL lines, tagged with this frame. Silent for carts that make
     // no sound. `node tools/voice-trace.js <trace>` reads these.
+    // ⚠ These "vev" lines share the trace file with the per-frame "w" rows above — every
+    // window-segmenting parser must SKIP them (they have no gate → they'd close a window early).
+    // Guarded in fx/tune/level/dc/soak-check.js via `if (row.vev !== undefined) continue`.
     {
         static const char *SVE_NAME[] = { "on", "off", "reuse", "steal", "choke" };
         while (sve_r != sve_w) {

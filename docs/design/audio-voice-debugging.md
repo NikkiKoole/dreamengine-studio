@@ -127,9 +127,18 @@ actual fix is a separate sitting.)
   `studio.h` entry, no four-places dance) — debug instrumentation like `play.js`'s flags.
 - Engine (`sound.h`) changes, made under the hot-shared-file rules
   ([`../../CLAUDE.md`](../../CLAUDE.md)): targeted edits, compile-gated with `soundcheck`.
-  The default path is byte-identical (verified: a deterministic render matches with and
-  without the trace hooks; `level-check`/`fx-check` drift is pre-existing stale-baseline,
-  not from here — the change can't move a float sum).
+  The default **audio** path is byte-identical (verified: a deterministic render matches with
+  and without the trace hooks — the change can't move a float sum).
+- **⚠️ Correction (2026-07-12): this commit DID cause phantom `fx-check` "drift" — not in the
+  audio, in the *analysis*.** The `{"vev":…}` lines share the `--trace` JSONL that the audio
+  gates parse for their per-effect/per-note windows; a `vev` line has no `gate`, so it tripped
+  each parser's window-close branch and truncated windows → 28 effects flagged "WORSE than
+  baseline" while the WAV was untouched (`git bisect` pinned it here; an earlier note in this
+  doc wrongly blamed a "stale baseline"). Fixed by teaching every window parser to skip `vev`
+  rows (`if (row.vev !== undefined) continue` in `fx/tune/level/dc/soak-check.js`); the golden
+  baseline was confirmed valid, NOT re-blessed. **Lesson: "byte-transparent audio" ≠
+  "trace-transparent" — a new trace line kind is a breaking change to every trace consumer.**
+  See [`../guides/debug-harness.md`](../guides/debug-harness.md) "MIXED stream" warning.
 
 ## Related
 

@@ -200,6 +200,7 @@ function noteWindows(traceFile) {
   let cur = null, lastFrame = 0
   for (const ln of lines) {
     let row; try { row = JSON.parse(ln) } catch { continue }
+    if (row.vev !== undefined) continue   // skip voice-trace events (-DDE_TRACE): they share the trace JSONL but carry no gate/window info (would close a note window early)
     const w = row.w || {}
     const gate = +w.gate, eng = +w.eng, emidi = +w.emidi, f = row.f
     lastFrame = f

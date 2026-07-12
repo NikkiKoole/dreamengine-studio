@@ -68,6 +68,15 @@ engine as `--script`, so they behave identically.
 "bpos":fraction,"w":{…}}` — plus every `watch()` value the cart set that frame, in
 `w`. Reading a session is reading this file.
 
+> **⚠️ The trace is a MIXED stream, not one line-kind.** Interleaved with the per-frame
+> `w` rows are OTHER line kinds — today the `-DDE_TRACE` voice events
+> `{"vev":"steal","f":…,"slot":…}` (see [audio-voice-debugging](../design/audio-voice-debugging.md)),
+> and more may be added. **Any tool that segments per-frame or per-gate windows must skip the
+> non-frame kinds** — they carry no `w`/`gate`, so a `vev` line landing mid-window silently
+> *closes the window early*. The guard is one line: `if (row.vev !== undefined) continue`, in
+> `fx/tune/level/dc/soak-check.js`. This bit `fx-check` once (28 phantom "drift" effects, WAV
+> unchanged); adding a new line kind in `harness_trace()` means adding its skip to those parsers.
+
 To make a cart's internals legible, wrap `watch()` calls in `#ifdef DE_TRACE`:
 
 ```c

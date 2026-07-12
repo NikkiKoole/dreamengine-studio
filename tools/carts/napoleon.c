@@ -14,10 +14,7 @@
   ],
   "lineage": "Artist station for the Napoleon Dynamite (2004) soundtrack; first radio cart to use five hard-switching song archetypes (each fixing its own voice/groove/form) and the first to drive INSTR_VOICE as a sung vibrato croon rather than a robotic vocoder lead.",
   "homage": "Napoleon Dynamite (2004) - soundtrack & John Swihart score",
-  "description": "An ARTIST station for the musical world of Napoleon Dynamite (2004) - not one texture re-keyed, but the dial playing five recognizably DIFFERENT songs of theirs, the deliberate genre-clash that IS the film's soundtrack. Each SPACE rolls one of five SONG ARCHETYPES (stolen-playbook chord brain), and each fixes its own lead voice, groove, tempo and form; the seed only varies key/patterns within it. DANCE - Napoleon's class-president dance ('Canned Heat'): ~124bpm acid-funk, four-on-the-floor, popping slap bass + auto-wah clav 16ths, real horn-section stabs, falsetto 'ooh'. SERENADE - Kip's wedding song to LaFawnduh ('Always & Forever'): ~68bpm quiet-storm soul, a SUNG falsetto croon over lush Rhodes + string pad, finger-snaps. SWIHART - John Swihart's deadpan score (the film's actual identity): ~96bpm stiff straight-8s, a cheap detuned toy-organ melody doubled by muted pizzicato guitar + glockenspiel. FOREVER - anthemic 80s synth-pop ('Forever Young'): ~108bpm half-time, fat saw pad, bright arp, big gated snare. FRIENDS - gentle fingerpicked folk ('We're Going to Be Friends'): ~88bpm nylon arpeggios + a single sung voice. The first radio voice to SING on INSTR_VOICE (AIR voices the engine as a vocoder; this one croons). Play along on the jam ribbon (the song's scale, the chord tones lit) - its voice and behavior change per archetype. SPACE next, R replay, [ ] history, LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, H help.",
-  "todo": [
-    "Bug: the solo part gets cut off by another instrument."
-  ]
+  "description": "An ARTIST station for the musical world of Napoleon Dynamite (2004) - not one texture re-keyed, but the dial playing five recognizably DIFFERENT songs of theirs, the deliberate genre-clash that IS the film's soundtrack. Each SPACE rolls one of five SONG ARCHETYPES (stolen-playbook chord brain), and each fixes its own lead voice, groove, tempo and form; the seed only varies key/patterns within it. DANCE - Napoleon's class-president dance ('Canned Heat'): ~124bpm acid-funk, four-on-the-floor, popping slap bass + auto-wah clav 16ths, real horn-section stabs, falsetto 'ooh'. SERENADE - Kip's wedding song to LaFawnduh ('Always & Forever'): ~68bpm quiet-storm soul, a SUNG falsetto croon over lush Rhodes + string pad, finger-snaps. SWIHART - John Swihart's deadpan score (the film's actual identity): ~96bpm stiff straight-8s, a cheap detuned toy-organ melody doubled by muted pizzicato guitar + glockenspiel. FOREVER - anthemic 80s synth-pop ('Forever Young'): ~108bpm half-time, fat saw pad, bright arp, big gated snare. FRIENDS - gentle fingerpicked folk ('We're Going to Be Friends'): ~88bpm nylon arpeggios + a single sung voice. The first radio voice to SING on INSTR_VOICE (AIR voices the engine as a vocoder; this one croons). Play along on the jam ribbon (the song's scale, the chord tones lit) - its voice and behavior change per archetype. SPACE next, R replay, [ ] history, LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, H help."
 }
 de:meta */
 #include "studio.h"
@@ -444,6 +441,23 @@ static void voice_for_arch(int arch) {
         instrument_filter(I_HAT, FILTER_HIGH, 4800, 1);
         break;
     }
+
+    // ── mix: feature each archetype's SOLO/lead, duck the bed under it. THE "solo gets
+    // cut off by another instrument" fix — the voice-trace proved it's never voice-cut
+    // (0 steal/reuse/choke), just masked & sitting ~16 dB down. instrument_level persists
+    // across the instrument() redefinitions above and is re-applied every song change
+    // (set-and-hold, never per-frame); EVERY slot is set each song so a prior archetype's
+    // duck can't carry over. The featured voice stays at 1.0. Slots I_BASS..I_VOX are
+    // contiguous (5..14), so this table is column = slot.
+    //                    BASS  COMP  LEAD   GTR   AUX  KICK  SNAR   HAT  PERC   VOX
+    static const float MIX[NARCH][10] = {
+        { 0.85f,0.70f,1.00f,1.00f,1.00f,0.90f,0.75f,0.60f,0.70f,1.00f }, // DANCE    brass+ooh over funk clav
+        { 0.80f,0.60f,1.00f,1.00f,0.50f,0.90f,0.80f,0.70f,0.80f,1.00f }, // SERENADE croon over rhodes+string pad
+        { 0.85f,0.80f,1.00f,0.80f,0.60f,0.85f,0.80f,0.60f,0.80f,1.00f }, // SWIHART  organ lead (COMP/GTR double it — keep up)
+        { 0.80f,0.60f,1.00f,1.00f,0.60f,0.90f,0.70f,0.65f,0.80f,1.00f }, // FOREVER  synth lead over saw pad + arp
+        { 0.80f,1.00f,1.00f,1.00f,0.80f,0.90f,0.85f,0.80f,0.85f,1.00f }, // FRIENDS  nylon guitar IS the star (GTR full)
+    };
+    for (int s = 0; s < 10; s++) instrument_level(I_BASS + s, MIX[arch][s]);
 }
 
 // ── song generation ──────────────────────────────────────────────────────────
@@ -573,14 +587,14 @@ static void play_step(long abs, double pos) {
         if (lvl >= 2 && (step == 0 || (step == 6 && chance(60)) || (step == 10 && chance(40)))) {
             lead_voices(c, 64, 84);
             for (int k = 0; k < 3; k++)
-                schedule_hit(dly + 2, cv[k], I_LEAD, 4, (int)(stepMs * (step == 0 ? 2.2 : 1.1)));
+                schedule_hit(dly + 2, cv[k], I_LEAD, 5, (int)(stepMs * (step == 0 ? 2.2 : 1.1)));
             vu += 2.4f;
         }
         // VOX: falsetto "ooh" on chord changes (lvl 3)
         if (lvl >= 3 && step == 0 && (bar % 2 == 0) && chance(70)) {
             int n = (root_pc(c) + 12 * 6) + QT[c.q][2] % 12;   // a high chord-tone "ooh"
             while (n < 74) n += 12; while (n > 86) n -= 12;
-            schedule_hit(dly + 8, n, I_VOX, 3, (int)(stepMs * 6));
+            schedule_hit(dly + 8, n, I_VOX, 4, (int)(stepMs * 6));
             vu += 1.6f;
         }
         break;
@@ -611,7 +625,7 @@ static void play_step(long abs, double pos) {
                 if (cellOn[i] == s32 && chance(88)) {
                     int gap = (i + 1 < cellN) ? cellOn[i + 1] - s32 : 32 - s32;
                     int dur = (int)(gap * stepMs * 0.9); if (dur > 2600) dur = 2600;
-                    schedule_hit(dly + 10 + rnd(8), pick_mel(c, lo, hi), I_VOX, 4, dur);
+                    schedule_hit(dly + 10 + rnd(8), pick_mel(c, lo, hi), I_VOX, 6, dur);
                     vu += 1.8f;
                 }
         }
@@ -637,7 +651,7 @@ static void play_step(long abs, double pos) {
                     int gap = (i + 1 < cellN) ? cellOn[i + 1] - s32 : 32 - s32;
                     int dur = (int)(gap * stepMs * 0.92); if (dur > 1400) dur = 1400;
                     int n = pick_mel(c, lo, hi);
-                    schedule_hit(dly + rnd(4), n, I_LEAD, 4, dur);
+                    schedule_hit(dly + rnd(4), n, I_LEAD, 6, dur);
                     schedule_hit(dly + rnd(4), n, I_COMP, 3, dur);          // detune twin
                     if (lvl >= 2) schedule_hit(dly + 2 + rnd(4), n, I_GTR, 3, (int)(stepMs * 1.5)); // pizz
                     vu += 2.0f;
@@ -678,7 +692,7 @@ static void play_step(long abs, double pos) {
                 if (cellOn[i] == s32 && chance(85)) {
                     int gap = (i + 1 < cellN) ? cellOn[i + 1] - s32 : 32 - s32;
                     int dur = (int)(gap * stepMs * 0.9); if (dur > 1600) dur = 1600;
-                    schedule_hit(dly + 8 + rnd(6), pick_mel(c, lo, hi), I_LEAD, 4, dur);
+                    schedule_hit(dly + 8 + rnd(6), pick_mel(c, lo, hi), I_LEAD, 6, dur);
                     vu += 1.7f;
                 }
         }
@@ -710,7 +724,7 @@ static void play_step(long abs, double pos) {
                 if (cellOn[i] == s32 && chance(82)) {
                     int gap = (i + 1 < cellN) ? cellOn[i + 1] - s32 : 32 - s32;
                     int dur = (int)(gap * stepMs * 0.85); if (dur > 1800) dur = 1800;
-                    schedule_hit(dly + 10, pick_mel(c, lo, hi), I_VOX, 3, dur);
+                    schedule_hit(dly + 10, pick_mel(c, lo, hi), I_VOX, 5, dur);
                     vu += 1.4f;
                 }
         }

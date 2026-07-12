@@ -46,7 +46,11 @@
   identical — in-bounds sprites unaffected) + a probe cart drawing an out-of-range index without
   crashing.
 
-- [ ] **2. Effect-instance index OOB on the audio thread.** `runtime/sound.h`. The per-instance
+- [x] **2. Effect-instance index OOB on the audio thread.** ✅ 2026-07-12 — `if (i<0||i>=*_INST)
+  return;` added to `fx_set_tape/crush/drive/filter` (mirroring `fx_set_eq`); the `SR_FX_ORDER`
+  decode clamps `inst` to `[0, TAPE_INST)`; `FX_INST` macro doc corrected to "0..1". Gates:
+  `soundcheck` silent, `tune-check` PASS, `fx-check` output **byte-identical** to HEAD (no-op for
+  valid instances). **Original ↓** The per-instance
   effect arrays have instance dimension **2** (`TAPE_INST`/`CRUSH_INST`/`FILT_INST`/`DRIVE_INST`,
   `~859+`), but:
   - the setters `fx_set_tape` (`~917`), `fx_set_crush` (`~948`), `fx_set_filter` (`~1118`),

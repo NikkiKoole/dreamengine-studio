@@ -915,6 +915,7 @@ static void fx_set_flanger(int b, float rate, float depth, float fb, float mix) 
     flg_used[b] = true;
 }
 static void fx_set_tape(int b, int i, float wow, float flut, float sat) {
+    if (i < 0 || i >= TAPE_INST) return;   // guard the instance index (mirrors fx_set_eq) — OOB write else
     wow = clamp01(wow);
     flut = clamp01(flut);
     sat = clamp01(sat);
@@ -946,6 +947,7 @@ static void crush_process(int b, int i, float *mixL, float *mixR) {
     *mixR = mix_wet(dryR, crush_holdR[b][i], mix);
 }
 static void fx_set_crush(int b, int i, float bits, float rate, float mix) {
+    if (i < 0 || i >= CRUSH_INST) return;   // guard the instance index (mirrors fx_set_eq) — OOB write else
     bits = clampf(1.0f, 16.0f, bits);
     rate = clampf(1.0f, 64.0f, rate);
     mix = clamp01(mix);
@@ -997,6 +999,7 @@ static void drive_process(int b, int i, float *mixL, float *mixR) {
     *mixR = mix_wet(*mixR, yR, mix);
 }
 static void fx_set_drive(int b, int i, float amt, int mode, float mix) {
+    if (i < 0 || i >= DRIVE_INST) return;   // guard the instance index (mirrors fx_set_eq) — OOB write else
     amt = clamp01(amt);
     if (mode < 0) mode = 0; if (mode > 3) mode = 3;
     mix = clamp01(mix);
@@ -1116,6 +1119,7 @@ static void filter_process(int b, int i, float *mixL, float *mixR) {
           : (m == FILTER_NOTCH) ? in - k * v1 : v2;
 }
 static void fx_set_filter(int b, int i, int mode, float cutoff, float res) {
+    if (i < 0 || i >= FILT_INST) return;   // guard the instance index (mirrors fx_set_eq) — OOB write else (incl. the OFF branch)
     if (mode == FILTER_OFF) { filt_used[b][i] = false; return; }   // OFF = bypass → byte-identical
     res = clamp01(res);
     filt_mode[b][i] = mode; filt_cut[b][i] = cutoff; filt_res[b][i] = res;
@@ -5485,6 +5489,10 @@ static void sound_fire_req(SoundReq r) {
         for (int s = 0; s < n; s++) {
             int byte = (w[s >> 2] >> (8 * (s & 3))) & 0xFF;
             int kind = byte & 31, inst = (byte >> 5) & 7;   // FX_INST(kind, inst) = kind | inst<<5
+            // the 3-bit nibble carries 0..7, but every per-instance effect array is size 2
+            // (TAPE/CRUSH/FILT/DRIVE_INST) and apply_insert indexes *_used[b][inst] for whichever
+            // kind lands here — so an inst >= 2 would read OOB every sample. Clamp to the shared cap.
+            if (inst < 0) inst = 0; if (inst >= TAPE_INST) inst = TAPE_INST - 1;
             insert_order[bus][s] = (kind < N_INSERTS) ? kind : FX_TREM;
             insert_inst[bus][s]  = inst;   // 0 unless the cart tagged the kind with FX_INST(kind, n)
         }

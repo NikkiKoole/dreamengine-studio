@@ -674,7 +674,7 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_DRIVE    15  // mix-bus saturation INSERT — drive the summed mix (via drive_insert(); place in fx_order(0,…)). Kinds 16..31 are free (fx_order packs 5 bits of kind per slot)
 #define FX_SHALLOW  16  // shallow-water INSERT — a filtered-random short delay + Low Pass Gate (via shallow(); place in fx_order). First kind past the old 16-kind ceiling
 #define FX_GATE     17  // noise-gate INSERT — clamps the signal shut below a threshold (via gate()). Put AFTER FX_REVERB in fx_order for gated reverb
-#define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..7.
+#define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..1 (two per effect).
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 16 slots
 
 // fx_mod()/fx_lfo() targets — the curated, sweep-safe params (the API can only name these, so it can't

@@ -597,15 +597,21 @@ static int ui_knob(float *v, int x, int y, const char *label) {
     return *v != old;
 }
 
-// momentary button; returns 1 the frame it activates (contact lifted inside,
-// or A while focused). Pressed visual while a contact holds it.
-// Identity is the RECT, not the label — labels may be dynamic (str(),
-// toggle text); whatever is drawn at the pressed rect is what you pressed.
-static int ui_button(int x, int y, int w, int h, const char *label) {
-    void *wid = (void *)(uintptr_t)(0x10000001u + x * 131071 + y * 257 + w * 31 + h);
+// widget identity from its RECT (labels can be dynamic; the rect is stable).
+// `seed` separates widget *kinds* that might share a rect (button vs spr-button).
+static void *ui_wid_hash(unsigned seed, int x, int y, int w, int h) {
+    return (void *)(uintptr_t)(seed + x * 131071 + y * 257 + w * 31 + h);
+}
+
+// shared button input core: register the rect, resolve capture → press/activate,
+// and focus/A. Returns 1 the frame it activates (contact lifted inside, or A while
+// focused); writes the draw-state flags (any pointer may be NULL). ui_button and
+// ui_spr_button_styled run this — only the drawn face after it differs.
+static int ui_button_core(void *wid, int x, int y, int w, int h,
+                          int *focused, int *pressed, int *hot) {
     int fi = ui_reg(wid, x, y, w, h, 1);
-    int focused = ui_focus_on && fi >= 0 && fi == ui_focus_i;
-    int activated = 0, pressed = 0;
+    int foc = ui_focus_on && fi >= 0 && fi == ui_focus_i;
+    int activated = 0, prs = 0;
 
     UiCap *c = ui_cap_for(wid);
     if (c) {
@@ -613,12 +619,25 @@ static int ui_button(int x, int y, int w, int h, const char *label) {
             activated = ui_in(c->rx, c->ry, x - UI_HIT_PAD, y - UI_HIT_PAD,
                               w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
         else
-            pressed = ui_in(c->cx, c->cy, x - UI_HIT_PAD, y - UI_HIT_PAD,
-                            w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
+            prs = ui_in(c->cx, c->cy, x - UI_HIT_PAD, y - UI_HIT_PAD,
+                        w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
     }
-    if (focused && ui_activate) { activated = 1; pressed = 1; }
+    if (foc && ui_activate) { activated = 1; prs = 1; }
 
-    int hot = c != 0 || ui_hover(x, y, w, h);
+    if (focused) *focused = foc;
+    if (pressed) *pressed = prs;
+    if (hot)     *hot = c != 0 || ui_hover(x, y, w, h);
+    return activated;
+}
+
+// momentary button; returns 1 the frame it activates (contact lifted inside,
+// or A while focused). Pressed visual while a contact holds it.
+// Identity is the RECT, not the label — labels may be dynamic (str(),
+// toggle text); whatever is drawn at the pressed rect is what you pressed.
+static int ui_button(int x, int y, int w, int h, const char *label) {
+    void *wid = ui_wid_hash(0x10000001u, x, y, w, h);
+    int focused = 0, pressed = 0, hot = 0;
+    int activated = ui_button_core(wid, x, y, w, h, &focused, &pressed, &hot);
     rectfill(x, y, w, h, pressed ? UI_COL_FILL_HOT : UI_COL_BG);
     rect(x, y, w, h, hot ? UI_COL_TEXT_HOT : UI_COL_FRAME);
     if (label) print(label, x + (w - text_width(label)) / 2 + (pressed ? 1 : 0),
@@ -641,23 +660,9 @@ typedef struct { int bg, bg_sel, frame, frame_hot, frame_sel, halo_sel; } UiSprS
 // Returns 1 the frame it's activated (tap/click/focused-A). Set colorkey() for the sprite's
 // transparency as usual; pal() before the call to recolour the glyph itself per state.
 static int ui_spr_button_styled(int slot, int x, int y, int w, int h, int selected, UiSprStyle st) {
-    void *wid = (void *)(uintptr_t)(0x10000002u + x * 131071 + y * 257 + w * 31 + h + slot * 7);
-    int fi = ui_reg(wid, x, y, w, h, 1);
-    int focused = ui_focus_on && fi >= 0 && fi == ui_focus_i;
-    int activated = 0, pressed = 0;
-
-    UiCap *c = ui_cap_for(wid);
-    if (c) {
-        if (c->released)
-            activated = ui_in(c->rx, c->ry, x - UI_HIT_PAD, y - UI_HIT_PAD,
-                              w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
-        else
-            pressed = ui_in(c->cx, c->cy, x - UI_HIT_PAD, y - UI_HIT_PAD,
-                            w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
-    }
-    if (focused && ui_activate) { activated = 1; pressed = 1; }
-
-    int hot = c != 0 || ui_hover(x, y, w, h);
+    void *wid = ui_wid_hash(0x10000002u + slot * 7, x, y, w, h);
+    int focused = 0, pressed = 0, hot = 0;
+    int activated = ui_button_core(wid, x, y, w, h, &focused, &pressed, &hot);
     int bg = (selected && st.bg_sel >= 0) ? st.bg_sel : st.bg;
     if (bg >= 0) rectfill(x, y, w, h, bg);
     spr(slot, x + (w - 16) / 2, y + (h - 16) / 2);   // 16 = sprite slot size (spr is 16×16)

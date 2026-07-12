@@ -107,11 +107,35 @@ artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 7. **Making A Racket** — `note(midi, instr, vol)`, pentatonic sequencer, `instrument()` setup
    (`song`, a webm you can HEAR). Currently the finale ("go do a great good").
 
+## Roadmap — chapters 8–15 (planned, locked 2026-07-12)
+
+The arc keeps earning harder ideas, drops a **second bigger payoff** at 13, lets titles get
+more literal as they get meatier, and **bookends** the book (15's farewell creature calls
+back to Ch.1's greeter). Each still needs its own mood creature.
+
+ 8. **Do Two Things Touch?** — AABB collision, the true/false question every game asks (catch
+    hand-waved it; do it properly). Illus: two boxes sliding through each other, flashing on overlap.
+ 9. **A Cast of Thousands** — arrays/structs of entities + looping over them; one thing → many.
+    Illus: a swarm of bouncing dots / starfield.
+10. **Juice: Making It Feel Good** — game feel: shake, hit-flash, squash & stretch, particles
+    (lean on `docs/guides/game-feel.md` + `juice.c`). Illus: dull hit vs juicy hit, side by side.
+11. **Worlds Bigger Than the Screen** — tilemaps (`map()`) + `camera()` scrolling. Illus: a tile
+    level with the camera panning to follow.
+12. **Remembering Things** — `save_int`/`load_int` (a high score that survives) + a title→play→over
+    state machine. Illus: a "BEST: 12" that persists between runs.
+13. **A Proper Little Game** — *second payoff*: a tiny platformer/shooter tying sprites + collision
+    + camera + juice + sound. Illus: it plays itself (attract mode).
+14. **Make It Work on a Phone** — touch controls (`touch_layout`/`touch_controls`), `safe_rect`,
+    `finger_px`. Illus: the game with on-screen stick + buttons.
+15. **Ship It** — bake to web / share (`publish`, the web build); the finale, get it in front of a
+    friend. Illus: a "your friend is playing it" browser frame. Creature = a waving farewell (greeter callback).
+
+Bench / possible swaps: audio **effects** (`crush`/`reverb`, a sequel to Ch.7), **mouse & pointer**,
+a **menus & UI** chapter (`lay.h`/`ui.h`), or a cheeky **"Here Be Dragons"** 3D (`tritex`) /
+multiplayer teaser as a "there's a whole other book after this" wink.
+
 ## TODO / ideas (pick up when we feel like)
 
-- More chapters could follow the same shape: **tilemaps** (`map()` + a level), **saving**
-  (`save`/`load`), or a **share it** chapter (bake to web). Each new chapter wants its own
-  mood creature; a sound chapter proved the webm-with-audio path works.
 - Decide whether to add a `--check` staleness gate + repo-doctor hook once the content
   stabilises (skipped for now so it doesn't nag while WIP).
 - Consider a light "paper" theme toggle (currently a committed single dark-screen world).

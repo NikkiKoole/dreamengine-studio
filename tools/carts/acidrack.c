@@ -18,6 +18,7 @@
   "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. All four increments of docs/design/rebirth-classic.md — the tinyjam-racks pilot: generate, play, export.",
   "homage": "Propellerhead ReBirth RB-338 (1997)",
   "todo": [
+    "BUGFIX (2026-07-12): dragging a knob and releasing OVER a tab/header sometimes selected that tab. Caught with a recorded repro (play.js replay of build/.rec): the drag-release itself is correctly guarded (the finger is ui-owned, so the raw tap loop skips it — verified at the release frame), but the mouse delivered a SECOND button-down ~2 frames (33ms) after the release at the same spot — switch chatter / drag-release bounce, far below any intentional double-click — and that fresh press landed as a raw tab tap. Fix: a tap_settle debounce (6 frames ≈ 100ms) armed whenever a ui.h-owned finger LIFTS; `tap` is forced false during the window, so a post-drag bounce can't trigger any discrete tap (tabs/headers/chain/etc). Deliberate clicks (which never follow a drag that fast) are unaffected — verified the recorded repro now keeps exp fixed AND a plain tab click still switches. General pattern for any raw-tap surface sharing the tree with ui.h widgets.",
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
     "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing. NOT greenfield — GRAFT IT FROM tb303.c, the standalone acid cart, which already ships a working 303 SWING knob (shuffles the off-16ths on its 303); tb303's own de:meta flags porting its sequencer (ties/octave-down/length/swing) into acidrack's embedded 303 lanes. Same pattern as probability = graft from tr808/tr909. Mind acidrack's scheduling caveat (a held/slid 303 voice can't be scheduled ahead the way the drums are) and that acidrack's drums use 909-style EVEN-16th shuffle vs tb303's off-16th — reconcile which the 303 should follow.",
@@ -29,9 +30,9 @@
     "more pattern memory (minor) — x0xb0x carried 128 patterns vs the 303's handful; acidrack has 4 banks A-D. If song-building starves for raw material, add user-savable pattern slots. Low priority: the song chain already reuses A-D across 64 bars.",
     "drum step PROBABILITY — the biggest modern-drum-machine feature acidrack lacks (Elektron → Behringer RD-8/RD-9 all added it): each active drum step gets a % chance to fire, so hats/fills breathe and the loop never repeats identically. THE house/techno move for a living pattern out of a static grid. Cheap: a per-cell 0-100 (or 4-5 buckets) rolled against a per-step RNG at trigger time. Highest bang-for-buck here. Pairs with per-track length below. NOT greenfield — GRAFT IT FROM tr808.c / tr909.c, which SHIPPED exactly this and are the closest reference (same editable-grid family as acidrack, not the pocketbox sequencer model): `gprob[NV][STEPS]` per-cell % + `snap_prob()` to the RD-8/RD-9 buckets (100/75/50/25), driven by an AXIS-LOCKED gesture — a VERTICAL drag on a cell rides its fire-chance while a horizontal drag still paints on/off (one gesture, axis decided at first move); a sub-100 cell draws as a shorter bar in its full-height socket. tr909.c also proved the STROKE FAMILY worth grafting alongside it — flam/drag/ratchet per cell (right-click cycles on desktop; a STROKE header toggle arms tap-to-cycle on touch) — the humanize trick that pairs naturally with probability. Older/secondary references only: pocketbox.c's Elektron trigger conditions (CONDS[]/cond_ok(), incl. 50% + X:Y loop conditions) and turing.c's pure per-step flip-probability engine (flip_prob()).",
     "per-track step LENGTH / polymeter (RD-9 'Poly') — let each drum voice run a length other than 16 (e.g. a 15-step hat against a 16-step kick) so lanes drift in and out of phase — long-form techno evolution from one loop. acidrack is locked to STEPS=16 per voice today; needs a per-voice len + its own wrap counter off the shared transport. Watch the interaction with shuffle and the 16-tick mini-pattern header rendering.",
-    "sidechain PUMP — duck the non-drum buses (the two 303s + returns) to the kick for the classic house/techno breathing. acidrack has the master GLU glue-comp but no kick-triggered duck; a single per-machine (or master) PUMP amount knob keyed off the 909/808 kick step is the gesture. Set-and-hold envelope, re-armed on each kick hit; mind the fx-frame rule (configure on change, not every frame).",
+    "SHIPPED (2026-07-12): sidechain PUMP — a master-strip PUMP knob ducks the WHOLE mix to the kick for the classic house/techno breathing. BOTH drum-machine kicks drive sidechain trigger key 0 (sidechain_key(SL9_BD/SL8_BD,0,1) once in init — so a bar carried by either machine's kick still pumps); the knob rides sidechain(0,0,amount,1,140) in apply_fx (set-and-hold, on-change). amount is 1:1 with the knob → at 0.7 the mix ducks to gain 0.3 (~-10dB) at the kick transient, releasing over ~140ms. KEY CONSTRAINT (groovebox proved it): PUMP and GLU are the SAME engine gain stage (both write sc[0]), so they're MUTUALLY EXCLUSIVE — apply_fx arbitrates, a live PUMP takes the comp over and GLU runs it otherwise (PUMP wins when both up). Default 0 = byte-identical stock (glue still owns sc[0]). SAVE_MAGIC v14 (fxk[] grew +DRV+PUMP). STILL the deeper want: a 303-ONLY duck (duck the non-drum buses, keep the kick punching) needs the 303s on their own victim bus — the per-machine effects-bus Increment G, still open. The master pump shipped here is the genuine genre sound (the kick ducking itself is standard EDM) and needs no bus work. TUNABLE: amount range + the 140ms release are first-pass; a tempo-synced release is a later nicety.",
     "motion / parameter-LOCK lanes (TR-8S motion · Elektron p-locks) — the deep one: automate any per-voice knob (TUNE/DEC/CHAR, 303 CUT/RES) per-step or by recording knob moves, played back as a delta over the base value. acidrack ALREADY has the concept via the per-bank PCF lane — this generalizes it to per-voice lanes (draw a lane like PCF, or 'Swedish method': hold a step + turn a knob to imprint). Biggest build; do probability + polymeter first. References: pocketbox.c already has literal PER-STEP p-locks (SP_LK1..SP_LK4 lock pages + the Step struct); motionbox.c is the continuous MOTION-RECORD flavor (record knob moves, played back as a delta) — the TR-8S sibling.",
-    "MASTER-STRIP LIVE PERFORMANCE FX (house/techno live-set moves) — the current MASTER strip is all PROGRAMMED (delay TIME/FB, GLU glue-comp, PCF drawn-per-bank filter lane) with no hands-on momentary FX; a live set lives on the stuff you grab mid-bar to build tension and drop it. In rough value order: (1) LIVE DJ FILTER — a bipolar HP<->LP sweep knob on the master, center=bypass, left=highpass (strip lows for a breakdown), right=lowpass (muffle into a drop). This is THE most-used live knob in the genre and acidrack lacks it — the PCF is programmed, not performed. filter() is ride-live-safe (excluded from the fx-frame lint). Compose it with the existing PCF lane (both touch the master lowpass — decide whether the live knob offsets or overrides the drawn lane). Highest bang-for-buck. (2) BEAT-REPEAT / STUTTER / gate-retrigger (momentary) — hold a pad to loop the last 1/16 or 1/8 of the master out, or gate it rhythmically; the build/drop electrifier, pairs with the filter sweep. If built on crush/tape it's set-and-hold — arm/disarm on the button EDGE, don't reconfigure per frame (fx-frame rule). (3) MASTER DRIVE / saturation lift — GLU tames the drop, a drive knob LIFTS it (motionbox's 'Valve' over the summed bus); cheap, the push-into-the-red move. (4) TAPE-STOP / brake (momentary) — varispeed the master toward zero while held, snap back on release; varispeed is ride-live-safe. (5) DELAY THROW (momentary) — on top of the existing shared delay + per-device sends, a live throw: momentarily crank FB toward self-oscillation + slam the send, pull back. (6) REVERB (palette-widener, not a performance knob) — delay is the only shared space today; a reverb hall opens up breakdowns. IMPORTANT: reverb is a SEND, not an insert, so it is NOT blocked on the effects-bus Increment G (confirmed still open 2026-07-11) and needs NO per-machine bus work — that whole single-bus-per-voice wall only bites INSERT fx (crush/filter/comp grouped over a machine). Per-slot reverb already ships: reverb(size,damping) configures the one shared hall + instrument_reverb(slot,send) sends any slot's wet copy in (dry stays full-volume; grabs no aux bus). A 303 is ONE slot (SLOT_A=5/SLOT_B=6; the octave-down sub SLOT_SUB_A=34 is a separate slot you'd keep DRY, same logic as keeping the kick out of the verb), so 'a wet 303 line in space' = literally `instrument_reverb(SLOT_A, send_knob)` today, cost = the already-allocated shared tank. Do it per-instrument via sends (a SEND knob on each machine's [fx] view alongside the existing delay SEND — kick/low toms at 0, snare/clap/303s to taste), NOT as a master insert. A momentary reverb THROW can layer on top like the delay throw. WORKED REFERENCE: the reverbspace cart is the shipped showcase for exactly this — two independent tanks ringing at once (reverb_bus(tank,size,damp) to carve each space + instrument_reverb_bus(slot,tank,mix) to send a slot in), so acidrack could run the two 303s in one warm room and a drum splash in a tighter plate. Copy the tunings from docs/guides/effects-recipes.md (tight bright room reverb_bus(1,0.34,0.15) send 0.6-0.8; vast dark plate reverb_bus(2,0.95,0.55) send 0.8; reverb_bus_fx(2,FX_CRUSH,..) for a crushed lo-fi tail). Only 2 tanks beyond the master send (SOUND_REVERB_TANKS=3) so budget the spaces. Top two = LIVE FILTER + BEAT-REPEAT: what your hands are on the last 4 bars before every drop. From the chat exploring house-liveset master knobs (2026-07-11). PARTIALLY SHIPPED (2026-07-11): the (6) REVERB first step landed — each 303's [fx] view got a VERB send knob (rvsend[2]) into a shared warm hall (reverb(0.62,0.42) configured once in init; instrument_reverb(SLOT_A/B) gated in apply_fx; the octave-down sub stays dry; default 0 = stock unchanged; SAVE_MAGIC v11). A/B verified the tail blooms. SHIPPED (2026-07-12): the (6) 2nd-tank DRUM REVERB — the 909 kit blooms into its own TIGHT BRIGHT PLATE on tank 1 (reverb_bus(1, 0.34, 0.15) configured once in init; SOUND_REVERB_TANKS=3 so tanks 1-2 are free beyond tank 0's master hall). One VERB knob on the 909 [fx] view (d9rv) rides a CURATED send: every 909 slot EXCEPT the kick (SL9_BD + its click SL9_BDC), applied in apply_fx on-change (instrument_reverb_bus) — a single kit-wide send can't exclude the kick, so the mud-the-floor problem is solved by hard-excluding it in the slot loop, not by per-voice UI. Default 0 = stock. SAVE_MAGIC v13 (SaveBlob +d9rv). VERIFICATION GOTCHA worth remembering: A/B-ing a send via its INITIALIZER default is defeated by load_song() — the cart autosaves to build/saves/<cart>/cart.blob and reloads it at boot, clobbering the initializer; clear that dir (or set the value AFTER load / from update) or every data-only A/B reads a false ZERO. With a clean save dir the 909 plate A/Bs at ~48k differing samples. STILL OPEN on (6): 808 drum reverb (tank 2 is still free — same curated-send pattern), and the momentary reverb THROW. SHIPPED (2026-07-11): (1) LIVE DJ FILTER — a 6th master knob 'FLT', bipolar (0.5 = open/bypass), djfilter's exact map (drag DOWN = lowpass closing 18k→150, UP = highpass opening 20→6k), sharing the existing F_RES knob for resonance. It's a live perf control so it's NOT saved (always starts open; sweeping never spams autosave, no SAVE_MAGIC bump). Composed with the PCF lane onto the ONE master filter(): live centered → the lane rides as before; live LP + lane both lowpasses → the MORE CLOSED cutoff wins (hand + drawn ramp cooperate); live HP takes over (can't be HP and LP at once). ride_pcf() now folds both in and gates filter() on-change. A/B verified: LP drops mix brightness 0.007→0.000 (lows kept), HP raises it 0.007→3.079 (lows stripped), center byte-identical to before. Items (2)-(5) still open (BEAT-REPEAT explored + declined 2026-07-11; DRIVE, TAPE-STOP, DELAY THROW remain)."
+    "MASTER-STRIP LIVE PERFORMANCE FX (house/techno live-set moves) — the current MASTER strip is all PROGRAMMED (delay TIME/FB, GLU glue-comp, PCF drawn-per-bank filter lane) with no hands-on momentary FX; a live set lives on the stuff you grab mid-bar to build tension and drop it. In rough value order: (1) LIVE DJ FILTER — a bipolar HP<->LP sweep knob on the master, center=bypass, left=highpass (strip lows for a breakdown), right=lowpass (muffle into a drop). This is THE most-used live knob in the genre and acidrack lacks it — the PCF is programmed, not performed. filter() is ride-live-safe (excluded from the fx-frame lint). Compose it with the existing PCF lane (both touch the master lowpass — decide whether the live knob offsets or overrides the drawn lane). Highest bang-for-buck. (2) BEAT-REPEAT / STUTTER / gate-retrigger (momentary) — hold a pad to loop the last 1/16 or 1/8 of the master out, or gate it rhythmically; the build/drop electrifier, pairs with the filter sweep. If built on crush/tape it's set-and-hold — arm/disarm on the button EDGE, don't reconfigure per frame (fx-frame rule). (3) MASTER DRIVE / saturation lift — GLU tames the drop, a drive knob LIFTS it (motionbox's 'Valve' over the summed bus); cheap, the push-into-the-red move. (4) TAPE-STOP / brake (momentary) — varispeed the master toward zero while held, snap back on release; varispeed is ride-live-safe. (5) DELAY THROW (momentary) — on top of the existing shared delay + per-device sends, a live throw: momentarily crank FB toward self-oscillation + slam the send, pull back. (6) REVERB (palette-widener, not a performance knob) — delay is the only shared space today; a reverb hall opens up breakdowns. IMPORTANT: reverb is a SEND, not an insert, so it is NOT blocked on the effects-bus Increment G (confirmed still open 2026-07-11) and needs NO per-machine bus work — that whole single-bus-per-voice wall only bites INSERT fx (crush/filter/comp grouped over a machine). Per-slot reverb already ships: reverb(size,damping) configures the one shared hall + instrument_reverb(slot,send) sends any slot's wet copy in (dry stays full-volume; grabs no aux bus). A 303 is ONE slot (SLOT_A=5/SLOT_B=6; the octave-down sub SLOT_SUB_A=34 is a separate slot you'd keep DRY, same logic as keeping the kick out of the verb), so 'a wet 303 line in space' = literally `instrument_reverb(SLOT_A, send_knob)` today, cost = the already-allocated shared tank. Do it per-instrument via sends (a SEND knob on each machine's [fx] view alongside the existing delay SEND — kick/low toms at 0, snare/clap/303s to taste), NOT as a master insert. A momentary reverb THROW can layer on top like the delay throw. WORKED REFERENCE: the reverbspace cart is the shipped showcase for exactly this — two independent tanks ringing at once (reverb_bus(tank,size,damp) to carve each space + instrument_reverb_bus(slot,tank,mix) to send a slot in), so acidrack could run the two 303s in one warm room and a drum splash in a tighter plate. Copy the tunings from docs/guides/effects-recipes.md (tight bright room reverb_bus(1,0.34,0.15) send 0.6-0.8; vast dark plate reverb_bus(2,0.95,0.55) send 0.8; reverb_bus_fx(2,FX_CRUSH,..) for a crushed lo-fi tail). Only 2 tanks beyond the master send (SOUND_REVERB_TANKS=3) so budget the spaces. Top two = LIVE FILTER + BEAT-REPEAT: what your hands are on the last 4 bars before every drop. From the chat exploring house-liveset master knobs (2026-07-11). PARTIALLY SHIPPED (2026-07-11): the (6) REVERB first step landed — each 303's [fx] view got a VERB send knob (rvsend[2]) into a shared warm hall (reverb(0.62,0.42) configured once in init; instrument_reverb(SLOT_A/B) gated in apply_fx; the octave-down sub stays dry; default 0 = stock unchanged; SAVE_MAGIC v11). A/B verified the tail blooms. SHIPPED (2026-07-12): the (6) 2nd-tank DRUM REVERB — the 909 kit blooms into its own TIGHT BRIGHT PLATE on tank 1 (reverb_bus(1, 0.34, 0.15) configured once in init; SOUND_REVERB_TANKS=3 so tanks 1-2 are free beyond tank 0's master hall). One VERB knob on the 909 [fx] view (d9rv) rides a CURATED send: every 909 slot EXCEPT the kick (SL9_BD + its click SL9_BDC), applied in apply_fx on-change (instrument_reverb_bus) — a single kit-wide send can't exclude the kick, so the mud-the-floor problem is solved by hard-excluding it in the slot loop, not by per-voice UI. Default 0 = stock. SAVE_MAGIC v13 (SaveBlob +d9rv). VERIFICATION GOTCHA worth remembering: A/B-ing a send via its INITIALIZER default is defeated by load_song() — the cart autosaves to build/saves/<cart>/cart.blob and reloads it at boot, clobbering the initializer; clear that dir (or set the value AFTER load / from update) or every data-only A/B reads a false ZERO. With a clean save dir the 909 plate A/Bs at ~48k differing samples. STILL OPEN on (6): 808 drum reverb (tank 2 is still free — same curated-send pattern), and the momentary reverb THROW. SHIPPED (2026-07-11): (1) LIVE DJ FILTER — a 6th master knob 'FLT', bipolar (0.5 = open/bypass), djfilter's exact map (drag DOWN = lowpass closing 18k→150, UP = highpass opening 20→6k), sharing the existing F_RES knob for resonance. It's a live perf control so it's NOT saved (always starts open; sweeping never spams autosave, no SAVE_MAGIC bump). Composed with the PCF lane onto the ONE master filter(): live centered → the lane rides as before; live LP + lane both lowpasses → the MORE CLOSED cutoff wins (hand + drawn ramp cooperate); live HP takes over (can't be HP and LP at once). ride_pcf() now folds both in and gates filter() on-change. A/B verified: LP drops mix brightness 0.007→0.000 (lows kept), HP raises it 0.007→3.079 (lows stripped), center byte-identical to before. SHIPPED (2026-07-12): (3) MASTER DRIVE — a DRV master-strip knob = mix-bus saturation via drive_insert (an FX_DRIVE insert, added to fx_order BEFORE the PCF/DJ filter so the FLT sweep shapes the driven signal). One knob feeds both drive amount and wet mix (DRIVE_SOFT); mix 0 = byte-identical bypass so DRV=0 is stock, and it A/Bs as a real lift (RMS -19.3->-7.5 dBFS at 0.7, the push-into-the-red). Saved (SAVE_MAGIC v14, alongside PUMP). Items (2),(4),(5) still open (BEAT-REPEAT explored + declined 2026-07-11; TAPE-STOP, DELAY THROW remain)."
   ],
   "description": {
     "summary": "Two 303s, the full 909, the full 16-voice 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV.",
@@ -685,9 +686,13 @@ static int  drum_rh_of(int mach, int nv) {
 // the delay unit's TIME/FB, the GLUE comp, and the PCF + its lane. True
 // per-device PCF/comp needs machine/group buses — banked as Increment G in
 // effects-bus-architecture.md (maker thinking on it, 2026-07-02).
-enum { F_TIME, F_FB, F_GLU, F_PCF, F_RES, NFX };   // the MASTER strip's knobs
-static const char *FXNAME[NFX] = { "TIME", "FB", "GLU", "PCF", "RES" };
-static float fxk[NFX] = { 0.50f, 0.35f, 0.30f, 0.40f, 0.35f };
+enum { F_TIME, F_FB, F_GLU, F_PCF, F_RES, F_DRV, F_PUMP, NFX };   // the MASTER strip's knobs
+static const char *FXNAME[NFX] = { "TIME", "FB", "GLU", "PCF", "RES", "DRV", "PUMP" };
+static float fxk[NFX] = { 0.50f, 0.35f, 0.30f, 0.40f, 0.35f, 0.00f, 0.00f };
+// DRV = mix-bus SATURATION (drive_insert, an FX_DRIVE insert): a lift/glue at
+// low settings, a push-into-the-red wall high. PUMP = SIDECHAIN duck of the
+// whole master to the kick (both 909+808 BDs drive it) — the house breathing.
+// Both default 0 = byte-identical stock; both saved (unlike the live FLT).
 // the LIVE DJ FILTER — the one hands-on master knob (the rest are programmed).
 // Bipolar: 0.5 = OPEN (bypass); turn LEFT and a lowpass closes 18k→150Hz into a
 // breakdown thump, RIGHT and a highpass opens 20Hz→6k into a thin telephone —
@@ -715,7 +720,7 @@ static const int SLOTS808[14] = { SL8_BD, SL8_SDB, SL8_SDN, SL8_TOM, SL8_TOMN,
 
 // re-apply set-and-hold effects ONLY when a value moved (groovebox idiom)
 static void apply_fx(void) {
-    static float aTime = -1, aFb = -1, aGlue = -1, aS[4] = { -1, -1, -1, -1 }, aD9 = -1, aD8 = -1, aR[2] = { -1, -1 }, aD9rv = -1;
+    static float aTime = -1, aFb = -1, aGlue = -1, aS[4] = { -1, -1, -1, -1 }, aD9 = -1, aD8 = -1, aR[2] = { -1, -1 }, aD9rv = -1, aDrv = -1, aPump = -1;
     static int   aTempo = -1;
     // THE delay unit — the shared echo SEND bus (one unit, per-device routing,
     // like the hardware). fb capped ≤0.72: near-unity + heavy sends made a
@@ -766,13 +771,30 @@ static void apply_fx(void) {
         }
         aD9rv = d9rv;
     }
-    // GLUE — master (needs a bus; Increment G would make it per-device).
-    // knob maxes at HEAVY GLUE, never a mute (amount 1.0 could duck the mix
-    // to silence under a sustained loud tail — measured 2026-07-02)
+    // MASTER DRIVE — mix-bus saturation (the motionbox 'Valve' over the summed
+    // bus), an FX_DRIVE insert in fx_order (set in init, BEFORE the filter so
+    // the DJ FLT sweep carves the driven signal). One knob feeds both amount
+    // and wet mix; mix 0 = byte-identical, so DRV=0 is stock.
+    if (fxk[F_DRV] != aDrv) {
+        drive_insert(fxk[F_DRV], DRIVE_SOFT, fxk[F_DRV]);
+        aDrv = fxk[F_DRV];
+    }
+    // MASTER COMPRESSOR (sc[0]) — PUMP and GLU are the SAME engine gain stage,
+    // so they're MUTUALLY EXCLUSIVE (groovebox proved this: sidechain() and
+    // glue() both write sc[0]). A live PUMP (kick-keyed via sidechain_key in
+    // init) takes the comp over; otherwise the trigger-less GLU runs it. PUMP
+    // wins when both are up. Fast attack grabs the kick transient, ~140ms
+    // release breathes back before the next 8th; GLU is the slower glue comp.
+    // GLU knob maxes at HEAVY glue, never a mute (amount 1.0 could duck a loud
+    // sustained tail to silence — measured 2026-07-02). amount 0 = dormant.
     float glu = mute[STRIP_MST] ? 0.0f : fxk[F_GLU];
-    if (glu != aGlue) {
-        glue(0, glu < 0.02f ? 0.0f : glu * 0.55f, 8, 150);
-        aGlue = glu;
+    bool  pumping = fxk[F_PUMP] > 0.02f;
+    int   mode = pumping ? 1 : 0;                       // 1 = pump, 0 = glue
+    float arg  = pumping ? fxk[F_PUMP] : glu;
+    if (mode != (int)aPump || arg != aGlue) {           // re-apply only on a real change
+        if (pumping) sidechain(0, 0, fxk[F_PUMP], 1, 140);
+        else         glue(0, glu < 0.02f ? 0.0f : glu * 0.55f, 8, 150);
+        aPump = mode; aGlue = arg;
     }
 }
 
@@ -825,7 +847,7 @@ static void ride_pcf(void) {
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D000Du   // v13: 909 VERB send (d9rv) into tank 1 plate — SaveBlob grew, old saves ignored
+#define SAVE_MAGIC 0xAC1D000Eu   // v14: master DRV (mix-bus sat) + PUMP (kick sidechain) knobs — fxk[] grew, old saves ignored
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
@@ -886,10 +908,15 @@ void init(void) {
     define_808();
     bpm(tempo);
     // master insert chain — fx_order REPLACES the chain, so every pedal the
-    // rack uses must be listed. Only the PCF filter lives on master now;
-    // dist + delay are per-device (apply_fx configures the delay UNIT + sends)
-    static const int kinds[1] = { FX_FILTER };
-    fx_order(0, kinds, 1);
+    // rack uses must be listed. DRV (mix-bus saturation) sits BEFORE the PCF/
+    // DJ filter so the FLT sweep shapes the driven signal; dist + delay are
+    // per-device (apply_fx configures the delay UNIT + sends)
+    static const int kinds[2] = { FX_DRIVE, FX_FILTER };
+    fx_order(0, kinds, 2);
+    // route both drum-machine kicks into sidechain key 0 — the PUMP trigger.
+    // This only TAPS their level into the key; the kicks still play normally.
+    sidechain_key(SL9_BD, 0, 1.0f);
+    sidechain_key(SL8_BD, 0, 1.0f);
     // the shared reverb hall (tank 0 = master send) — a warm room the 303s
     // bloom into via their VERB send. Configured once (set-and-hold); the
     // send defaults to 0 so the stock sound is unchanged until you turn it up.
@@ -1166,6 +1193,14 @@ static void copy_scope(Pattern *dst, const Pattern *src) {
 #define NFING 12
 static int  own_ids[NFING], own_n = 0;
 static int  seen_ids[NFING], seen_n = 0;
+// debounce discrete taps for a few frames after a ui.h widget (knob/button) drag
+// LIFTS. A recorded repro showed the real bug: a knob drag released OVER a tab is
+// correctly guarded (the finger is ui-owned), but the mouse then delivered a
+// second button-DOWN ~2 frames (33ms) later at the same spot — switch chatter /
+// drag-release bounce, far faster than any intentional click — and that fresh
+// press selected the tab. Suppressing taps briefly after an owned lift kills it
+// without touching deliberate clicks (which never follow a drag that fast).
+static int  tap_settle = 0;
 static bool is_owned(int id)  { for (int i = 0; i < own_n; i++)  if (own_ids[i]  == id) return true; return false; }
 static bool was_seen(int id)  { for (int i = 0; i < seen_n; i++) if (seen_ids[i] == id) return true; return false; }
 static void own_add(int id)   { if (!is_owned(id) && own_n < NFING) own_ids[own_n++] = id; }
@@ -1203,16 +1238,19 @@ void update(void) {
     // frame after the press — geometry covers the press frame (no ui widget
     // sits on a raw surface). Every unowned finger paints independently.
     for (int i = 0; i < touch_count(); i++) if (ui_captured(touch_id(i))) own_add(touch_id(i));
+    if (tap_settle > 0) tap_settle--;
     for (int i = 0; i < touch_ended_count(); i++) {
-        own_drop(touch_ended_id(i)); seen_drop(touch_ended_id(i));
-        if (touch_ended_id(i) == kdrag_id) kdrag_id = -1;
+        int eid = touch_ended_id(i);
+        if (is_owned(eid)) tap_settle = 6;   // a ui.h widget drag just lifted → debounce chatter (~100ms)
+        own_drop(eid); seen_drop(eid);
+        if (eid == kdrag_id) kdrag_id = -1;
     }
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i);
         if (is_owned(id)) continue;            // finger belongs to a knob/button
         int px = touch_x(i), py = touch_y(i);
-        bool tap = !was_seen(id);              // first frame of this finger
+        bool tap = !was_seen(id) && tap_settle == 0;   // first frame of this finger, and not a post-drag bounce
         seen_add(id);
         Pattern *P = &bank[editBank];
 

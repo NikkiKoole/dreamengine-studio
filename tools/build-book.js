@@ -38,6 +38,13 @@ const ILLUS = {
   bounce:  { kind: 'gif', frames: 96,  fps: 20 },
   scene:   { kind: 'still' },
   wave:    { kind: 'gif', frames: 120, fps: 20 },
+  catch:   { kind: 'gif', frames: 150, fps: 20 },
+  // mood creatures — one per chapter, drawn by the console like everything else
+  greeter:  { kind: 'still' },
+  leaper:   { kind: 'still' },
+  juggler:  { kind: 'still' },
+  dreamer:  { kind: 'still' },
+  champion: { kind: 'still' },
 };
 
 function render(id, spec) {
@@ -83,6 +90,14 @@ const chapHead = (id, no, kicker, title) => `
     <h2 class="chap-title">${title}</h2>
   </div>`;
 
+// a mood creature — decorative, uncaptioned, no CRT bezel (this is atmosphere, not
+// an honest-output "screen"). Still drawn by the console, of course.
+const creature = (id, alt) => `
+  <div class="creature"><img src="${SRC[id]}" alt="${alt}"></div>`;
+
+// a real, verbatim compiler error, shown the way it actually appears
+const term = (body) => `<pre class="term">${body}</pre>`;
+
 const html = `<title>Learn You a dreamengine for Great Good!</title>
 <style>
   :root{
@@ -123,8 +138,13 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   .chap-title{font-family:var(--comic);font-size:clamp(27px,5vw,38px);line-height:1.1;
     text-wrap:balance;margin:.35em 0 0;color:var(--green);}
   p{margin:0 0 1.15em;}
-  #ch1 + p::first-letter{font-family:var(--comic);font-size:3.2em;line-height:.8;
+  p.lead::first-letter{font-family:var(--comic);font-size:3.2em;line-height:.8;
     float:left;padding:6px 12px 0 0;color:var(--yellow);}
+  .creature{display:flex;justify-content:center;margin:.4em 0 1.4em;}
+  .creature img{width:230px;max-width:70%;image-rendering:pixelated;border-radius:12px;
+    border:1px solid var(--line);box-shadow:0 10px 26px -14px #000;}
+  pre.term{border-left:3px solid var(--red);color:var(--ink-soft);white-space:pre;}
+  pre.term .e{color:var(--red);} pre.term .p{color:var(--green);}
   strong{color:var(--yellow);font-weight:700;}
   em{color:var(--ink);font-style:italic;}
   code{font-family:var(--mono);font-size:.84em;background:var(--panel);border:1px solid var(--line);
@@ -173,13 +193,15 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   <a href="#ch2"><span class="num">2</span><span>Keeping The Sun On The Screen</span></a>
   <a href="#ch3"><span class="num">3</span><span>A Small Cast Of Shapes</span></a>
   <a href="#ch4"><span class="num">4</span><span>A World That Moves On Its Own</span></a>
+  <a href="#ch5"><span class="num">5</span><span>Your First Actual Game</span></a>
 </nav>
 
 <main class="wrap">
 
   ${chapHead('ch1', '1', 'the one job', 'So, You Want To Make A Little World')}
+  ${creature('greeter', 'A little green blob waving hello')}
 
-  <p>Hello! Come in, sit down, mind the pixels &mdash; they get everywhere. You&rsquo;re here because you want to make a game, and everybody told you that means C, and C means pointers, and pointers mean crying. Forget all that for now. In here we have exactly <strong>one job</strong>: fill a tiny screen &mdash; 320 by 200, smaller than a postage stamp with delusions of grandeur &mdash; with coloured dots, sixty times a second. That&rsquo;s a game. That&rsquo;s the whole racket.</p>
+  <p class="lead">Hello! Come in, sit down, mind the pixels &mdash; they get everywhere. You&rsquo;re here because you want to make a game, and everybody told you that means C, and C means pointers, and pointers mean crying. Forget all that for now. In here we have exactly <strong>one job</strong>: fill a tiny screen &mdash; 320 by 200, smaller than a postage stamp with delusions of grandeur &mdash; with coloured dots, sixty times a second. That&rsquo;s a game. That&rsquo;s the whole racket.</p>
 
   <h3>The one function you cannot escape</h3>
   <p>You fill the screen by writing a function called <code>draw</code>. The console calls it for you, over and over, forever, until someone closes the window or the heat death of the universe, whichever comes first. Here is a complete, real, honest-to-goodness dreamengine program:</p>
@@ -212,6 +234,13 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   ${aside('warn', 'Here be a small dragon',
     '<p>The greys in this box are spelled the British way: <code>CLR_DARK_GREY</code>, with an <em>E</em>. Type <code>GRAY</code> and the compiler will look at you like you&rsquo;ve tracked mud through its house. Everyone does this once. Now you&rsquo;ve done it here, for free.</p>')}
 
+  <h3>What the machine says when you get it wrong</h3>
+  <p>Let&rsquo;s actually make that mistake on purpose, because you <em>will</em> make it by accident, and the first time the compiler shouts at you it&rsquo;s good to know it&rsquo;s only shouting one small, specific thing. Type <code>cls(CLR_GRAY)</code>, hit run, and here is the entire tantrum, word for word:</p>
+
+  ${term('<span class="e">error:</span> use of undeclared identifier <span class="p">\'CLR_GRAY\'</span>\n    cls(CLR_GRAY);\n        ^~~~~~~~')}
+
+  <p>That&rsquo;s it. That&rsquo;s the whole scary red wall of text everyone dreads. Read it plainly: <em>&ldquo;you used a name, <code>CLR_GRAY</code>, that I&rsquo;ve never heard of&rdquo;</em> (because it&rsquo;s spelled <code>GREY</code>). The little <code>^~~~~</code> is the machine politely pointing its finger at the <em>exact</em> spot it got confused. A compiler error is almost never a disaster &mdash; it&rsquo;s a colleague telling you which word it choked on. Fix that word, run again.</p>
+
   <h3>A painting that flinches when you poke it</h3>
   <p>A sun just sitting there is a <em>painting</em>, not a game. A game is a painting that flinches when you poke it. So let&rsquo;s give ourselves something to poke with, and let the sun slide when we press a button:</p>
 
@@ -233,6 +262,7 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
 
 
   ${chapHead('ch2', '2', 'motion & edges', 'Keeping The Sun On The Screen')}
+  ${creature('leaper', 'The blob leaping across a gap at the edge of the world')}
 
   <p>We left our sun able to walk. There is a problem with letting things walk: they walk <em>off</em>. Hold <em>right</em> long enough and the sun strolls clean past the edge of the world and is never seen again.</p>
 
@@ -264,6 +294,7 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
 
 
   ${chapHead('ch3', '3', 'the drawing kit', 'A Small Cast Of Shapes')}
+  ${creature('juggler', 'The blob juggling a triangle, a square and a circle')}
 
   <p>So far our whole cast has been one circle in a hat. Time to meet the rest of the troupe. The console gives you a little kit of shapes, and &mdash; this is the important part &mdash; <em>a picture is just those shapes, stacked</em>. No art program, no imported files. Here is a whole scene, and every single thing in it is one plain shape call:</p>
 
@@ -287,6 +318,7 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
 
 
   ${chapHead('ch4', '4', 'time', 'A World That Moves On Its Own')}
+  ${creature('dreamer', 'The blob dozing, swaying on a gentle sine wave under a moon')}
 
   <p>Every moving thing so far has needed a finger on a button. But the machine has its own quiet heartbeat, ticking whether anyone is watching or not. It&rsquo;s called <code>frame</code>, and it just counts: 1, 2, 3&hellip; sixty times a second, forever. Feed that ever-climbing number into a <em>wave</em> &mdash; <code>sin_deg</code>, sine measured in friendly degrees &mdash; and the whole thing rocks gently along on its own:</p>
 
@@ -304,7 +336,40 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   ${aside('', 'Degrees, not the other thing',
     '<p>We used <code>sin_deg</code>, which thinks in <em>degrees</em> &mdash; 0 to 360, the way a protractor does. There&rsquo;s a version that thinks in radians too, but it involves &pi; and a small amount of weeping. Start with degrees. Your future self, drawing a clock face at 90&deg; and having it Just Work, will thank you.</p>')}
 
-  <p>And that&rsquo;s four chapters. You can fill the screen, poke it, keep things inside it, build a whole scene from shapes, and set that scene quietly breathing &mdash; all from <code>draw</code>, <code>update</code>, and a fistful of honest little functions. Everything after this is just <em>more</em>: more shapes, more sound, more worlds. Same three ideas underneath. Same tiny, patient machine.</p>
+  <p>You now have four ideas: fill the screen, poke it, keep things inside it, and let them move on their own. That&rsquo;s&hellip; actually a whole game, if you stack them. Shall we? Let&rsquo;s go get our great good.</p>
+
+
+  ${chapHead('ch5', '5', 'the payoff', 'Your First Actual Game')}
+  ${creature('champion', 'The blob holding up a basket with a caught cherry, confetti everywhere')}
+
+  <p>Here it is &mdash; a real, whole, playable game, and there is not one single new idea in it. It&rsquo;s just the four things you already know, holding hands. A basket you slide left and right; cherries that fall; catch them, score goes up. Watch (this one is playing itself &mdash; the console driving its own basket, because we asked it to):</p>
+
+  ${screen('catch', 'A basket catching falling cherries, score counting up',
+    '<b>caught: a real game.</b><br>cls + shapes + btn + clamping + falling &mdash; chapters one through four, at once.')}
+
+  <p>Look at what&rsquo;s actually in there. The basket <strong>clamps</strong> to the screen (Chapter 2). The cherry <strong>falls</strong> a little further each frame (Chapter 4). Everything is drawn from <strong>shapes</strong> (Chapter 3) onto a screen we <strong>clear</strong> every frame (Chapter 1). The only genuinely new line is the one question a game asks over and over: <em>did the thing that&rsquo;s falling land where the thing I&rsquo;m holding is?</em></p>
+
+  <pre><span class="k">void</span> <span class="f">update</span>(<span class="k">void</span>) {
+    <span class="k">if</span> (<span class="f">btn</span>(<span class="n">0</span>, <span class="s">BTN_LEFT</span>))       bx -= <span class="n">4</span>;   <span class="c">// slide the basket…</span>
+    <span class="k">else if</span> (<span class="f">btn</span>(<span class="n">0</span>, <span class="s">BTN_RIGHT</span>)) bx += <span class="n">4</span>;
+    <span class="k">else</span>                          bx += (fx - bx) * <span class="n">0.1</span>; <span class="c">// …or let it play itself</span>
+
+    <span class="k">if</span> (bx &lt; half)              bx = half;                <span class="c">// clamp — chapter 2</span>
+    <span class="k">if</span> (bx &gt; <span class="s">SCREEN_W</span> - half)  bx = <span class="s">SCREEN_W</span> - half;
+
+    fy += fvy;                                    <span class="c">// the cherry falls — chapter 4</span>
+    <span class="k">if</span> (fy &gt;= basket_y) {                          <span class="c">// it reached the basket line</span>
+        <span class="k">if</span> (fx &gt; bx - half &amp;&amp; fx &lt; bx + half) score++;  <span class="c">// THE question</span>
+        <span class="f">spawn</span>();                                  <span class="c">// send down a fresh one</span>
+    }
+}</pre>
+
+  ${aside('', 'The oldest trick in the arcade',
+    '<p>See that <code>else</code> &mdash; the basket easing toward the cherry when nobody&rsquo;s pressing anything? That&rsquo;s <em>attract mode</em>, the demo that plays on its own in every arcade cabinet to lure you over.</p><p>You got it for free: it&rsquo;s just Chapter 4&rsquo;s &ldquo;move on its own&rdquo; pointed at the cherry instead of a sine wave. Old ideas wearing new hats. It&rsquo;s hats all the way down.</p>')}
+
+  <p>And that&rsquo;s the trick nobody tells you: there is no secret fifth thing. Pong, Mario, a flight simulator, whatever galaxy you&rsquo;re dreaming of &mdash; it is all this. Fill a screen, poke it, keep it in bounds, let it move, and ask small true/false questions sixty times a second. You have, right now, everything you need to make something nobody has ever played before.</p>
+
+  <p>So go do a great good. The machine is patient, the crayons are cheap, and the gremlin believes in you.</p>
 
 </main>
 

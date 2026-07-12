@@ -1,6 +1,6 @@
 # Learn You a dreamengine for Great Good!
 
-STATUS: building (2026-07-12) — 4 chapters drafted; voice + pipeline settled. Pick up any time.
+STATUS: building (2026-07-12) — 5 chapters drafted (incl. a whole playable game); voice + pipeline settled. Pick up any time.
 
 An illustrated, chatty field guide to the `studio.h` API, in the voice (and spirit) of
 *Learn You a Haskell for Great Good!* — the beginner kept as a delighted critic (per
@@ -11,6 +11,24 @@ gremlin narrator who explains the scary bits.
 hand-drawn diagrams, no mockups. Each picture is a tiny cart the engine actually renders,
 so the book can never quietly drift from the thing it teaches. Stills are baked with
 `play.js --dump`, moving ones with `make-gif --format gif`.
+
+Two kinds of illustration, deliberately distinct: **honest "screens"** (the CRT-bezel
+figures — actual program output, always captioned, the honesty pitch) and **mood
+"creatures"** (a per-chapter blob mascot, no bezel, uncaptioned — atmosphere, the LYAH
+whimsy). Both are console-drawn; only the screens carry a teaching caption.
+
+## Voice notes (guardrails)
+
+- Warm, silly, self-implicating ("who stole my roof — it was me too"). The gremlin admits
+  its own mistakes; errors are demystified, not dreaded (Ch.1 quotes a real compiler error).
+- **Don't over-do the "type this / hit ▶ / watch" call-to-action** (owner's note) — the
+  honest-output screenshots already imply "this is real, go try it." Use it sparingly, not
+  every example.
+- Captions on the honest screens do real work (e.g. *"the output of the four lines above —
+  nothing else"*) — keep them; that's the pitch. (LYAH leaves its art uncaptioned; we don't,
+  for the screens.)
+- Puns escalate/relax with difficulty (LYAH's trick): playful chapter titles, literal when
+  the content gets heavy.
 
 ## Where things live
 
@@ -36,6 +54,10 @@ so the book can never quietly drift from the thing it teaches. Stills are baked 
    `{ kind: 'gif', frames, fps }`), and write the prose + `screen('<name>', …)` call.
 3. `node tools/build-book.js` — renders assets + rewrites the page. Look at it.
 
+Each chapter also gets a mood creature (see `greeter`/`leaper`/`juggler`/`dreamer`/`champion`)
+placed with the `creature('<id>', alt)` builder right after its `chapHead(...)`. New chapter →
+draw a new blob (copy an existing creature cart's body recipe, swap the pose/prop).
+
 Gotcha baked into the generator: a `book/<name>` cart makes the harness write build
 artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 `build/.gif/book/` (otherwise the linker fails with `open() failed … build/book/<name>-dbg`).
@@ -46,11 +68,13 @@ artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 2. **Keeping The Sun On The Screen** — clamping to `SCREEN_W`, the off-by-one dragon, then a `fade()` comet-trail bounce (GIF)
 3. **A Small Cast Of Shapes** — `rectfill`/`trifill`/`ovalfill`/`line`/`print`, painter's order
 4. **A World That Moves On Its Own** — `frame()` through `sin_deg` so the world breathes (GIF)
+5. **Your First Actual Game** — the payoff: a whole playable catch game (`catch`, GIF, plays
+   itself in attract mode) that is *only* chapters 1–4 stacked; nothing new but the collision question
 
 ## TODO / ideas (pick up when we feel like)
 
-- More chapters: **sprites** (`spr` + the sprite editor), **sound** (a first `hit()`/note),
-  a **first tiny complete game** that ties it together (the "great good" payoff).
+- More chapters: **sprites** (`spr` + the sprite editor), **sound** (a first `hit()`/note).
+  Each new chapter wants its own mood creature.
 - Decide whether to add a `--check` staleness gate + repo-doctor hook once the content
   stabilises (skipped for now so it doesn't nag while WIP).
 - Consider a light "paper" theme toggle (currently a committed single dark-screen world).

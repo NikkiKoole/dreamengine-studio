@@ -239,18 +239,47 @@ function compileBeats(text, cliBpm) {
 // path would otherwise land under build/build/.
 const tracePath = path.resolve(opt('--trace', path.join(mk.BUILD_DIR, `${name}.trace.jsonl`)))
 const runArgs = []
+let saveDirRel = `saves/${name}`   // per-cart live saves; a replay with a start-state sidecar overrides this
 if (mode === 'record') {
   if (!modeFile) { console.error('record needs an output file'); process.exit(1) }
-  runArgs.push('--record', path.resolve(modeFile))
+  const recAbs = path.resolve(modeFile)
+  runArgs.push('--record', recAbs)
   // Record deterministically so replay can reconstruct the SAME world. A .rec
   // stores only inputs, not the RNG stream — replay implies --det (seeded RNG +
   // fixed timestep), so a live (unseeded, wall-clock) recording replays into a
   // DIFFERENT world and diverges (bit flank: won live, died on replay). --seed
   // passes through below and must match the replay's seed (both default 1).
   runArgs.push('--det')
+  // But the seed doesn't cover a SAVE-BOOTING cart's state (acidrack loads its blob at boot).
+  // Snapshot the start-state beside the .rec (<stem>.save/) so the take is self-contained; skipped
+  // when the save-dir is empty/absent (most carts never save). Replay restores it into an isolated dir.
+  try {
+    const src = path.join(mk.BUILD_DIR, 'saves', name)
+    const files = fs.existsSync(src) ? fs.readdirSync(src).filter(f => !f.startsWith('.')) : []
+    if (files.length) {
+      const dest = recAbs.replace(/\.rec$/, '.save')
+      fs.rmSync(dest, { recursive: true, force: true }); fs.mkdirSync(dest, { recursive: true })
+      for (const f of files) fs.copyFileSync(path.join(src, f), path.join(dest, f))
+      console.log(`start-state snapshot → ${path.relative(process.cwd(), dest)} (self-contained take)`)
+    }
+  } catch {}
 } else if (mode === 'replay') {
   if (!modeFile) { console.error('replay needs a .rec file'); process.exit(1) }
-  runArgs.push('--replay', path.resolve(modeFile))
+  const repAbs = path.resolve(modeFile)
+  runArgs.push('--replay', repAbs)
+  // If the take carries a start-state sidecar, boot from it in a THROWAWAY save-dir so the replay
+  // reproduces the recorded run AND never clobbers the live build/saves/<name>/ (it used to).
+  try {
+    const sidecar = repAbs.replace(/\.(rec|script)$/, '.save')
+    if (fs.existsSync(sidecar)) {
+      const rel = path.join('.replay', name)
+      const iso = path.join(mk.BUILD_DIR, rel)
+      fs.rmSync(iso, { recursive: true, force: true }); fs.mkdirSync(iso, { recursive: true })
+      for (const f of fs.readdirSync(sidecar)) fs.copyFileSync(path.join(sidecar, f), path.join(iso, f))
+      saveDirRel = rel
+      console.log(`replay start-state ← ${path.relative(process.cwd(), sidecar)} (isolated save-dir; live saves untouched)`)
+    }
+  } catch {}
 } else if (mode === 'beats') {
   if (!modeFile) { console.error('beats needs a .beats file'); process.exit(1) }
   const compiled = compileBeats(fs.readFileSync(modeFile, 'utf8'), +opt('--bpm', 120))
@@ -266,7 +295,7 @@ if (mode === 'record') {
 }
 
 runArgs.push('--trace', tracePath)
-runArgs.push('--save-dir', `saves/${name}`)   // per-cart saves, like the editor (relative to cwd=build/)
+runArgs.push('--save-dir', saveDirRel)   // per-cart saves, like the editor (relative to cwd=build/); replay w/ sidecar → isolated
 if (hasFlag('--headless'))     runArgs.push('--headless')
 if (opt('--frames', null))     runArgs.push('--frames', opt('--frames'))
 if (opt('--seed', null))       runArgs.push('--seed', opt('--seed'))
@@ -282,6 +311,7 @@ if (resizeSpec) {                                 // --resize "WxH,WxH,…": swe
 }
 if (hasFlag('--net-echo'))     runArgs.push('--net-echo')   // lockstep vs the loopback fake peer (P2 mirrors P1; implies --det)
 if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // deterministic audio render → WAV
+if (opt('--solo-slot', null))  runArgs.push('--solo-slot', opt('--solo-slot'))   // stem render: mute all but these instrument slot(s), e.g. 6 or 5,6 (docs/design/audio-voice-debugging.md)
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 
 if (hasFlag('--show-size')) process.env.DE_SHOW_SIZE = '1'   // live WxH overlay, top-left (resizable carts only)

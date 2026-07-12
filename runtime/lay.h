@@ -92,6 +92,7 @@ static inline Box lay_cell(Box c, int dir, int n, int i, float gap) {
 // repeat(cols,1fr)). The hand-picked-topology twin of wrap() — a drum machine
 // wants a clean 4-wide pad grid, not "as many as happen to fit".
 static inline Box lay_grid(Box c, int cols, int n, int i, float gap) {
+    if (n < 1) return box(c.x, c.y, 0, 0);   // empty list: rows would be 0 → ch = h/rows is inf/NaN geometry
     if (cols < 1) cols = 1;
     int rows = (n + cols - 1) / cols;
     float cw = (c.w - gap * (cols - 1)) / cols;
@@ -108,6 +109,7 @@ static inline int lay_wrap_cols(Box c, int n, float minItem, float gap) {
     if (cols < 1) cols = 1; if (cols > n) cols = n; return cols;
 }
 static inline Box lay_wrap(Box c, int n, int i, float minItem, float gap) {
+    if (n < 1) return box(c.x, c.y, 0, 0);   // empty list: cols would clamp to 0 → (n+cols-1)/cols is int div-by-zero (SIGFPE)
     int cols = lay_wrap_cols(c, n, minItem, gap);
     int rows = (n + cols - 1) / cols;
     float cw = (c.w - gap * (cols - 1)) / cols, ch = (c.h - gap * (rows - 1)) / rows;
@@ -117,6 +119,7 @@ static inline Box lay_wrap(Box c, int n, int i, float minItem, float gap) {
 // aspect(): fit a `ratio` (w/h) box inside the container, centered — CSS
 // aspect-ratio + object-fit:contain. The viewport/preview that letterboxes itself.
 static inline Box lay_aspect(Box c, float ratio) {
+    if (ratio <= 0) return box(c.x, c.y, c.w, c.h);   // degenerate ratio: w/ratio is inf/NaN → return the container unletterboxed
     float w = c.w, h = w / ratio;
     if (h > c.h) { h = c.h; w = h * ratio; }
     return box(c.x + (c.w - w) / 2, c.y + (c.h - h) / 2, w, h);

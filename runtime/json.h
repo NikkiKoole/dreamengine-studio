@@ -266,23 +266,29 @@ static void json_str(char *out, int max, const char *js, const jsmntok_t *t) {
     out[n] = '\0';
 }
 
+// Deeper than any real data file, shallower than a C-stack blowout: jsmn's tokenizer is
+// iterative (survives any nesting), but this walk recurses one frame per level, so a crafted
+// deeply-nested file (e.g. OSM data — json.h ingests untrusted input) would overflow the stack.
+#define JSON_MAX_DEPTH 512
 // Number of tokens spanned by tokens[i] INCLUDING itself + all descendants. Lets you
 // step over a value (object/array/scalar) without parent links.
-static int json_span(const jsmntok_t *tokens, int i) {
+static int json_span_d(const jsmntok_t *tokens, int i, int depth) {
+    if (depth > JSON_MAX_DEPTH) return 1;   // refuse to recurse further on hostile/corrupt nesting — treat as a leaf
     int j, n;
     switch (tokens[i].type) {
     case JSMN_OBJECT:
         n = 1;
-        for (j = 0; j < tokens[i].size; j++) { n += 1; n += json_span(tokens, i + n); }
+        for (j = 0; j < tokens[i].size; j++) { n += 1; n += json_span_d(tokens, i + n, depth + 1); }
         return n;
     case JSMN_ARRAY:
         n = 1;
-        for (j = 0; j < tokens[i].size; j++) n += json_span(tokens, i + n);
+        for (j = 0; j < tokens[i].size; j++) n += json_span_d(tokens, i + n, depth + 1);
         return n;
     default:   // JSMN_STRING / JSMN_PRIMITIVE
         return 1;
     }
 }
+static int json_span(const jsmntok_t *tokens, int i) { return json_span_d(tokens, i, 0); }
 
 // Index of the VALUE token for `key` inside the object token at index `obj`, or -1.
 static int json_get(const char *js, const jsmntok_t *tokens, int obj, const char *key) {

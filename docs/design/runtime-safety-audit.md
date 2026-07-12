@@ -84,13 +84,18 @@
 
 ## 🟠 Medium — crash from reasonable input
 
-- [ ] **4. `json.h` unbounded recursion → stack overflow.** `runtime/json.h` (`json_span` `~271`,
+- [x] **4. `json.h` unbounded recursion → stack overflow.** ✅ 2026-07-12 — recursion moved into
+  `json_span_d(tokens, i, depth)` with a `JSON_MAX_DEPTH 512` cap (treats deeper nesting as a leaf);
+  `json_span` kept as a depth-0 wrapper so callers are unchanged. Identical for real input; `build-all`
+  493/493. **Original ↓** `runtime/json.h` (`json_span` `~271`,
   `json_get` `~288`). jsmn's tokenizer is iterative (survives nesting), but the walk helpers recurse
   one C stack frame per nesting level. A deeply-nested external data file (`[[[[…]]]]`) crashes them —
   and json.h ingests **untrusted OSM data** (roadview). **Fix:** cap recursion depth (return -1 / stop
   past a limit) or walk iteratively. **Gate:** a probe parsing a deep-nested file returns cleanly.
 
-- [ ] **5. `lay_wrap` integer div-by-zero (SIGFPE).** `runtime/lay.h:~112`. `lay_wrap(c, n=0, …)` →
+- [x] **5. `lay_wrap` integer div-by-zero (SIGFPE).** ✅ 2026-07-12 — `lay_wrap` early-outs
+  `if (n < 1)`; `lay_grid` (n==0 inf/NaN) and `lay_aspect` (ratio≤0 inf/NaN) guarded too (the lay
+  parts of #11). `build-all` 493/493. **Original ↓** `runtime/lay.h:~112`. `lay_wrap(c, n=0, …)` →
   `lay_wrap_cols` clamps `cols → 0` (its `if (cols > n) cols = n`), then `rows = (n+cols-1)/cols` =
   `-1/0` → hard crash. Reachable by laying out a **dynamically-empty list**. (`lay_grid`/`lay_aspect`
   produce inf/NaN geometry on degenerate input — no crash, lower priority.) **Fix:** early-out

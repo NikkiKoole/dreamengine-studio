@@ -32,6 +32,30 @@ teaching caption.
 - Puns escalate/relax with difficulty (LYAH's trick): playful chapter titles, literal when
   the content gets heavy.
 
+## What we took from the source (LYAH)
+
+Studied the *Learn You a Haskell* community edition
+([learnyouahaskell.github.io/chapters.html](https://learnyouahaskell.github.io/chapters.html))
+to calibrate voice and structure. The devices that make it feel like LYAH, and how we handled each:
+
+| LYAH device | What it is | Us |
+|---|---|---|
+| **Punny headings on a difficulty dial** | "Baby's first functions", "Only folds and horses"; headings go *literal* as content gets heavier | Playful chapter titles; `h3`s in-voice — **borrowed** |
+| **The REPL as co-teacher** | "open GHCi, type `2 + 15`, get `17`. Pretty cool, huh? Yeah, I know it's not, bear with me" — a cascade of trivial runnable examples | Our ▶-run is the REPL, but owner's note: **don't over-lean on "hit run and watch"** — see Voice notes |
+| **Errors shown then translated** | pastes `5 + "llama"`, the real error, "llama is not a number" | **borrowed** — Ch.1 quotes the real `CLR_GRAY` error and translates it |
+| **A vulnerable narrator** | "I failed to learn Haskell approximately 2 times" | **borrowed** — the gremlin admits its own mistakes |
+| **Whimsical creature art** | bird/egg/lazy-boat/"list monster" — decorative, uncaptioned, mood not diagram | **borrowed as "creatures"** — but console-drawn, one per chapter |
+| **Uncaptioned images** | art carries no caption | **declined for the "screens"** — our captions ("the output of the four lines above — nothing else") *are* the honesty pitch; creatures stay uncaptioned |
+| **Mid-book real-program payoff** | ch.10 "Functionally Solving Problems" (RPN calc, Heathrow→London) solves a whole thing before the hard abstractions | **borrowed** — Ch.5's catch game; a milestone, not the finale |
+
+Our own twist LYAH couldn't have: **every illustration is honest engine output** (see the rule
+up top) — for a *visual* console that beats decorative art, because the pictures can't lie.
+
+Structural arc, for reference: LYAH runs foundations → practical techniques → the type system →
+the scary abstractions (functors/monads) → specialised. It *earns* the hard stuff late and rewards
+you with a real program in the middle. Our spine so far: draw → bounds → shapes → time → **game
+payoff** → sprites → sound; the payoff sits mid-book on purpose.
+
 ## Where things live
 
 - `tools/carts/book/<name>.c` — the illustration carts (a dedicated folder, deliberately

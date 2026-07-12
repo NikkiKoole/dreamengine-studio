@@ -496,6 +496,16 @@ function showBandBriefs() {
   docsContent.scrollTop = 0
 }
 
+// — the generated field guide (docs/learn-you-a-dreamengine.html) in an iframe —
+// the "Learn You a Haskell"-style API book; every illustration is real console output.
+function showBook() {
+  currentDocPath = 'book'
+  setActiveNav('book')
+  docsContent.classList.remove('docs-engine'); docsContent.classList.add('docs-history')
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/learn-you-a-dreamengine.html" title="learn you a dreamengine" onload="this.classList.add('loaded')"></iframe>`
+  docsContent.scrollTop = 0
+}
+
 // the history iframe asks us to open a docs/ markdown file, or load a cart, when
 // something inside it is clicked
 window.addEventListener('message', (e) => {
@@ -653,6 +663,7 @@ async function buildDocsSidebar() {
   docsNav.appendChild(docNavItem('★ todo', 'designboard', () => showDesignBoard()))
   docsNav.appendChild(docNavItem('★ reflections', 'reflections', () => showReflections()))
   docsNav.appendChild(docNavItem('★ briefs', 'bandbriefs', () => showBandBriefs()))
+  docsNav.appendChild(docNavItem('★ book', 'book', () => showBook()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land

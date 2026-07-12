@@ -117,6 +117,7 @@ static float op_union(float a, float b)        { return fmin2(a, b); }
 static float op_sub(float a, float b)          { return fmax2(a, -b); }         // carve b out of a
 // smooth minimum (IQ polynomial): blends two surfaces into a gooey metaball merge. k = blend radius.
 static float op_smin(float a, float b, float k) {
+    if (k <= 0.0f) return a < b ? a : b;   // zero blend radius → plain min (avoid /0 → NaN)
     float h = sat(0.5f + 0.5f * (b - a) / k);
     return mix(b, a, h) - k * h * (1.0f - h);
 }

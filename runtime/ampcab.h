@@ -34,6 +34,7 @@ static const AmpVoicing AMP_VC[AMPCAB_N] = {
 // SET-AND-HOLD is the caller's job — call this only when something CHANGED, never every frame
 // (reconfiguring eq/glue per frame churns the audio thread → stutter).
 static void ampcab_apply(int slot, int v, float gain01, float eqLo, float eqMid, float eqHi, float sag01) {
+    if (v < 0 || v >= AMPCAB_N) v = 0;   // clamp voicing index into the AMP_VC[] table
     const AmpVoicing *a = &AMP_VC[v];
     instrument_drive_mode(slot, a->mode);
     instrument_timbre(slot, a->timbre);

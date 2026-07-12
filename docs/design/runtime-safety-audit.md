@@ -1,11 +1,14 @@
 # Runtime safety audit — correctness & memory-safety bugs
 
-> **STATUS: BUILDING** (2026-07-12) — a correctness/memory-safety sweep of all hand-written
-> runtime C/H, the **bug-hunting complement** to [`engine-simplification.md`](engine-simplification.md)
-> (which was quality-only — "no bug fixes"). Found by a 7-way read-only fan-out (one auditor per
-> subsystem), every finding then re-verified against source. **3 high, 2 medium, a tail of low/latent.**
-> Vendored/generated files (`stb_image.h`, `fonts_baked.h`, `*_data.h`, `raylib-web/`, `libtcc/`) were
-> out of scope. Working the list top-down; each item names the gate that proves the fix.
+> **STATUS: BUILDING — 11/12 landed** (2026-07-12) — a correctness/memory-safety sweep of all
+> hand-written runtime C/H, the **bug-hunting complement** to
+> [`engine-simplification.md`](engine-simplification.md) (which was quality-only — "no bug fixes").
+> Found by a 7-way read-only fan-out (one auditor per subsystem), every finding then re-verified
+> against source. **3 high, 2 medium, a tail of low/latent — all fixed and gate-green**, except: #12
+> (benign non-atomic diagnostic reads) is a deliberate note-only, and the spline-buffer sub-part of #9
+> is parked (needs a signature change; callers over-allocate today). Vendored/generated files
+> (`stb_image.h`, `fonts_baked.h`, `*_data.h`, `raylib-web/`, `libtcc/`) were out of scope; each item
+> names the gate that proved the fix.
 
 ---
 
@@ -112,19 +115,18 @@
   `realloc` into a temp and keep the old block on OOM (no NULL `memset`, no leak).
 - [x] **8. `load_bytes()` no `max` guard.** ✅ 2026-07-12 — added `if (max <= 0) return 0;`, symmetric
   with `save_bytes`.
-- [ ] **9. `roadkit.h` missing capacity guards** (latent — masked by caller clamps today; relevant to
-  the WIP B4 interchange work). `rk_make_junction` `conns[16]` overflows at ≥6 legs (`~361`);
-  `rk_field_build` no clamp on `n>8` into `RK_MAXARM=8` arrays (`~138`); the spline emitters
-  (`arc/clothoid/loop/scurve_spline`, `~182+`) have no buffer-size contract (clothoid can emit ~54
-  points). **Fix:** `if (out->nConns >= 16) break;`, clamp `n` to `RK_MAXARM`, document/param the
-  spline max point counts.
-- [ ] **10. `radio.h` robustness** (cart-misuse). Empty-chair div-by-zero in `rad_band_input`
-  (`% ncand` when `ncand==0`); `rad_chair` has no `RAD_MAXCHAIR` (6) guard → a 7th chair OOB-writes
-  the fixed array. Add both guards.
-- [ ] **11. Misc caller-controlled div-by-zero / OOB / NULL.** `shadermath.h` `op_smin(k=0)` → NaN;
-  `radio.h` `rad_srnd(n=0)`; `ampcab.h` `ampcab_apply` unbounded voicing index; `raylib_compat.c`
-  `MeasureTextEx` NULL-deref on an unloaded font; `lay_grid`/`lay_aspect` inf/NaN geometry. All need
-  a degenerate-input floor; none currently reachable via a documented path.
+- [x] **9. `roadkit.h` missing capacity guards** (latent). ✅ 2026-07-12 (mostly) — `rk_make_junction`
+  now `if (out->nConns >= 16) break;` before each write; `rk_field_build` clamps `n` to `[0,RK_MAXARM]`.
+  ⚠ **spline-buffer contract left as a note:** the emitters (`arc/clothoid/loop/scurve_spline`) take a
+  `float*` with no capacity arg — adding one is a signature change to callers, which over-allocate today
+  (`xs[160]`/`xs[128]`); revisit if the WIP B4 interchange work adds a tighter-buffer caller. `build-all`
+  493/493.
+- [x] **10. `radio.h` robustness** ✅ 2026-07-12 — `rad_chair` guards `b->n >= RAD_MAXCHAIR`;
+  `rad_band_input` guards `ncand > 0` before `% ncand`.
+- [x] **11. Misc caller-controlled div-by-zero / OOB / NULL.** ✅ 2026-07-12 — `shadermath.h`
+  `op_smin(k<=0)` → plain min; `radio.h` `rad_srnd(n<=0)` → 0; `ampcab.h` `ampcab_apply` clamps `v` to
+  `[0,AMPCAB_N)`; `raylib_compat.c` `MeasureTextEx` returns `{0,0}` on an unloaded font; `lay_grid`/
+  `lay_aspect` guarded (with #5). Gates: `build-all` 493/493 + no-Raylib build (raylib_compat.c).
 - [ ] **12. `sound.h` benign non-atomic cross-thread reads.** `sound_bpm` (`~2297`) and `ctx_overflow`
   (`~1927`) are written on the audio thread and read on the main thread without synchronization —
   worst case one frame of stale value, never a crash. Note only; not worth churn.

@@ -137,6 +137,7 @@ static int rk_field_road(const RkField*f, float px, float py){
 // circulatory disc (>0 ⇒ roundabout, no corner fillets). curb_return/edge_corner do the fillet geometry.
 static void rk_field_build(RkField*f, float cx, float cy, float HW, const float*brg, int n,
                            const float*cornerR, float disc){
+    if (n < 0) n = 0; if (n > RK_MAXARM) n = RK_MAXARM;   // clamp: f->dx[i]/dy[i] are RK_MAXARM-sized (arms>8 would OOB the struct)
     f->cx=cx; f->cy=cy; f->HW2=HW*HW; f->n=n; f->disc2=disc*disc; f->nfil=0;
     for (int i=0;i<n;i++){ f->dx[i]=rk_ux(brg[i]); f->dy[i]=rk_uy(brg[i]); }
     float maxR=0;
@@ -370,6 +371,7 @@ static int rk_make_junction(int nleg, JuncType type, int lanes, const unsigned c
         RampPrim prim = (t==T_THROUGH)?p.through : (t==T_RIGHT)?p.right : p.left;
         if (type==JT_TRUMPET && t==T_LEFT) prim = (leftSeen++ == 0) ? RP_LOOP : RP_FLYOVER;
         float r = (prim==RP_LOOP)?(lanes*4.f>12.f?lanes*4.f:12.f):0.f;
+        if (out->nConns >= 16) break;   // conns[16] is fixed; nleg>=6 emits >16 movements → stack corruption else
         out->conns[out->nConns++] = (Connection){ rk_leg_in(o), rk_leg_out(d), prim, {{-1,-1},{-2,-2}}, lanes, r, 0 };
     }
     return out->nConns;

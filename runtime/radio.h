@@ -66,7 +66,7 @@ static unsigned rad_srnd_u(RadioSeed *r) {
     r->rngState ^= r->rngState << 5;
     return r->rngState;
 }
-static int rad_srnd(RadioSeed *r, int n) { return (int)(rad_srnd_u(r) % (unsigned)n); }
+static int rad_srnd(RadioSeed *r, int n) { return n > 0 ? (int)(rad_srnd_u(r) % (unsigned)n) : 0; }   // n<=0 → 0 (avoid %0 / huge unsigned modulus)
 
 // start a composition: seed 0 derives a fresh one (engine rnd ×2 + frame hash — the
 // exact expression every station shipped with; changing it orphans noted seeds)
@@ -521,6 +521,7 @@ typedef struct {
 // register a chair (pass NULL for unused candidate slots); returns its index
 static int rad_chair(RadBand *b, const char *name,
                      const char *c0, const char *c1, const char *c2, const char *c3) {
+    if (b->n >= RAD_MAXCHAIR) return RAD_MAXCHAIR - 1;   // full: don't write past c[RAD_MAXCHAIR] (OOB)
     RadChair *ch = &b->c[b->n];
     const char *cs[RAD_MAXCAND] = { c0, c1, c2, c3 };
     ch->name = name; ch->sel = 0; ch->ncand = 0;
@@ -549,7 +550,7 @@ static int rad_band_input(RadBand *b, bool *showHelp) {
             if (mx >= 48 && mx <= 272 && my >= ry - 3 && my < ry + 10) hit = i;
         }
     }
-    if (hit >= 0) b->c[hit].sel = (b->c[hit].sel + 1) % b->c[hit].ncand;
+    if (hit >= 0 && b->c[hit].ncand > 0) b->c[hit].sel = (b->c[hit].sel + 1) % b->c[hit].ncand;   // guard empty chair (div-by-zero)
     return hit;
 }
 

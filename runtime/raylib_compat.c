@@ -157,6 +157,7 @@ Texture2D LoadTextureFromImage(Image image) { Texture2D r = {0}; return r; }
 // real: text_width()/centering/clip layout depend on this. Mirrors sw_print's
 // advance (advanceX, or recs.width when 0) so measured width == drawn width.
 Vector2 MeasureTextEx(Font font, const char *text, float fontSize, float spacing) {
+    if (!font.glyphs || !font.recs || font.glyphCount <= 0) return (Vector2){0, 0};   // unloaded font → don't deref NULL glyph/rec arrays
     float scale = (font.baseSize > 0) ? fontSize / (float)font.baseSize : 1.0f;
     float w = 0, maxw = 0; int lines = 1;
     for (int i = 0; text[i]; ) {

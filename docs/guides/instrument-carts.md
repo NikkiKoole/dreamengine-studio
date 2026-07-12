@@ -316,6 +316,10 @@ overlay to swap a chair's instrument mid-song. Candidate swaps:
 5. **Follow the standard cart-add flow** (build → bake screenshot → register in
    `index.json` with `kind:["instrument"]` (+ `"toy"` for stations) → `lint-carts.js`):
    [`cart-authoring.md`](cart-authoring.md).
+5b. **A voice drops out or a lead "gets cut off by another instrument"?** `node
+   tools/voice-trace.js <trace>` reads the voice events (on/off/reuse/steal/choke) — real
+   voice loss vs. not — and `play.js … --solo-slot <n>` renders one instrument slot alone
+   (masked-and-quiet vs. actually stopped). [`../design/audio-voice-debugging.md`](../design/audio-voice-debugging.md).
 6. **Add a row to the right table in this doc** so the shelf stays complete.
 7. **Keep the recipe docs current** (a rule — they only stay useful if maintained; run
    `node tools/lint-docs.js` after):

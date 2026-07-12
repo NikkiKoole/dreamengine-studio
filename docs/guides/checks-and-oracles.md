@@ -54,6 +54,7 @@ This page is only the routing layer.
 | engine math / optimizer | **`web-audio-check.js`** (wasm-vs-native parity) |
 | want a WAV A/B vs navkit | **`wav-analyze.js`** + **`wav-correlate/-envelope/-modrate.js`**, **`harmonic-spec.js`** |
 | an effect wired into `update()`/`draw()` | **`lint-fx-frame.js --quiet`** (catches set-and-hold effects rebuilt every frame) |
+| a voice/solo **drops out or is "cut off by another instrument"** | **`voice-trace.js <trace>`** (reads a `--trace` run's on/off/reuse/steal/choke — is it real voice loss, and by whom?) + **`play.js … --solo-slot <n>`** (stem render — or is it just masked/quiet?). Design: [`../design/audio-voice-debugging.md`](../design/audio-voice-debugging.md) |
 
 ## Cart logic, registration, docs
 

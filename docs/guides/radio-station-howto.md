@@ -125,6 +125,10 @@ Then prove the brains actually fire (don't trust a clean compile):
 - **Trace:** `node tools/play.js <name> script /dev/null --headless --frames 16000 --seed 7
   --trace /tmp/t.jsonl` then `jq` the `.w` watch fields for every section/mode/groove/form.
 - **Audio:** `--wav /tmp/a.wav --det` → `node tools/wav-analyze.js` (peak < 0 dBFS, 0 clipped).
+- **A part drops out / a "solo gets cut off"?** `node tools/voice-trace.js /tmp/t.jsonl` reads
+  the voice events (on/off/reuse/steal/choke) — is it real voice loss? And `--solo-slot <n>`
+  renders that instrument slot alone — or is it just masked/quiet in the mix? See
+  [`../design/audio-voice-debugging.md`](../design/audio-voice-debugging.md).
 - Full how-to: [`debug-harness.md`](debug-harness.md). Build pipeline + the rebake trap:
   [`cart-authoring.md`](cart-authoring.md).
 

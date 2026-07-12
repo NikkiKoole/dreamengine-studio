@@ -402,6 +402,34 @@ static float scope2_bufL[SCOPE_LEN], scope2_bufR[SCOPE_LEN];
 static int   scope2_w    = 0;
 static bool  scope2_ever = false;
 
+// ── voice debugging (docs/design/audio-voice-debugging.md) — DE_TRACE-only ───────────
+// Two harness tools for "a voice got cut off by another instrument". The whole block is
+// #ifdef'd out of a normal build, so it's not merely byte-identical — it's absent.
+#ifdef DE_TRACE
+// (1) voice-allocation TRACE: the audio thread records every voice lifecycle event into
+// a lock-free ring (SPSC: audio writes, game thread drains each frame into the --trace
+// JSONL — see harness_trace() in studio.c). `slot`/`midi`/`voice` describe the note; for
+// reuse/steal/choke, `victim` is the instrument slot that was cut (or the handle slot for
+// reuse/off). If the ring overflows (>SVE_RING events between frame drains) the oldest are
+// lost — 512 is far above any real music cart's per-frame churn.
+enum { SVE_ON = 0, SVE_OFF, SVE_REUSE, SVE_STEAL, SVE_CHOKE };
+typedef struct { int type, slot, midi, voice, victim; } SoundVoiceEvent;
+#define SVE_RING 512
+static SoundVoiceEvent sve_ring[SVE_RING];
+static volatile unsigned sve_w = 0;   // audio-thread write cursor (monotonic)
+static unsigned          sve_r = 0;   // game-thread read cursor
+static void sve_push(int type, int slot, int midi, int voice, int victim) {
+    unsigned w = sve_w;
+    sve_ring[w & (SVE_RING - 1)] = (SoundVoiceEvent){ type, slot, midi, voice, victim };
+    sve_w = w + 1;   // publish the event only after its fields are stored
+}
+// (2) SOLO mask: mute every voice whose instr_slot isn't in the mask, at the bus sum. The
+// voice still runs and still records its real last_out, so voice allocation/steal is
+// UNCHANGED — only the audible output is a stem. Set by --solo-slot; 0/inactive = no-op.
+static int      sound_solo_active = 0;
+static uint64_t sound_solo_mask   = 0;
+#endif
+
 // write a 16-bit PCM mono 44.1kHz WAV
 static int sound_wav_write(const char *path, const float *buf, int n) {
     FILE *w = fopen(path, "wb");
@@ -4539,7 +4567,11 @@ static int sound_find_voice(void) {
     }
     if (vi < 0) vi = 0;   // everything is a held note — fall back to voice 0
 done:
-    if (voices[vi].active) { steal_tailL += voices[vi].last_outL; steal_tailR += voices[vi].last_outR; }   // pay the cut into the declick tail
+    if (voices[vi].active) { steal_tailL += voices[vi].last_outL; steal_tailR += voices[vi].last_outR;   // pay the cut into the declick tail
+#ifdef DE_TRACE
+        sve_push(SVE_STEAL, voices[vi].instr_slot, 0, vi, voices[vi].instr_slot);   // an active voice was stolen (polyphony ran out)
+#endif
+    }
     sound_unclaim_held(vi);
     return vi;
 }
@@ -4848,6 +4880,9 @@ static void sound_choke_group(int instr_slot) {
         if (voices[i].active && !voices[i].choke_fade && ((cmask >> voices[i].instr_slot) & 1)) {
             if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
             voices[i].choke_fade = CHOKE_FADE_LEN;   // ramp out over ~3ms (applied in the voice loop) → no cliff
+#ifdef DE_TRACE
+            sve_push(SVE_CHOKE, voices[i].instr_slot, 0, i, instr_slot);   // slot i cut by a new note on `instr_slot`'s choke group
+#endif
         }
     }
 }
@@ -4876,24 +4911,41 @@ static void sound_fire_req(SoundReq r) {
     case SR_NOTE: {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
         sound_choke_group(r.b);
-        sound_setup_note(&voices[sound_find_voice()], r.a, r.b, r.c, gate);
+        int vi = sound_find_voice();
+#ifdef DE_TRACE
+        sve_push(SVE_ON, r.b, r.a, vi, -1);   // fire-and-forget note() — victim -1 (no handle)
+#endif
+        sound_setup_note(&voices[vi], r.a, r.b, r.c, gate);
     } break;
     case SR_NOTE_ON: {    // held / sustained — e0 = handle slot, e1 = generation
         int slot = r.e0, gen = r.e1;
         if (slot >= 0 && slot < SOUND_VOICES) {
             sound_choke_group(r.b);
-            if (held_voice[slot] >= 0) sound_begin_release(&voices[held_voice[slot]]);  // slot reused → fade the old one
+            if (held_voice[slot] >= 0) {
+#ifdef DE_TRACE
+                sve_push(SVE_REUSE, voices[held_voice[slot]].instr_slot, 0, held_voice[slot], slot);   // handle slot reused → the old held voice is released
+#endif
+                sound_begin_release(&voices[held_voice[slot]]);  // slot reused → fade the old one
+            }
             int vi = sound_find_voice();
             sound_setup_note(&voices[vi], r.a, r.b, r.c, SOUND_HELD_GATE);
             voices[vi].held = true;
             voices[vi].owner_slot = slot;
             voices[vi].owner_gen  = gen;
             held_voice[slot] = vi;
+#ifdef DE_TRACE
+            sve_push(SVE_ON, r.b, r.a, vi, slot);   // held note_on — victim = handle slot
+#endif
         }
     } break;
     case SR_NOTE_OFF: {
         Voice *v = sound_held_voice(r.e0, r.e1);
-        if (v) { sound_begin_release(v); held_voice[r.e0] = -1; }
+        if (v) {
+#ifdef DE_TRACE
+            sve_push(SVE_OFF, v->instr_slot, 0, (int)(v - voices), r.e0);   // clean release (not a cut) — victim = handle slot
+#endif
+            sound_begin_release(v); held_voice[r.e0] = -1;
+        }
     } break;
     case SR_NOTE_PITCH: {   // a = midi * 256 (fixed-point float)
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -5905,6 +5957,12 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             }
             float cL = contrib * pL, cR = contrib * pR;
             v->last_outL = cL; v->last_outR = cR;   // panned contributions feed the steal declick
+#ifdef DE_TRACE
+            // --solo-slot stem: mute voices outside the solo mask AFTER last_out is recorded,
+            // so steal/allocation see the true output — only the audible stem changes. contrib=0
+            // also silences this voice's echo/reverb/sidechain sends below.
+            if (sound_solo_active && !((sound_solo_mask >> (v->instr_slot & 63)) & 1ull)) { cL = cR = contrib = 0.0f; }
+#endif
             busL[v->bus] += cL; busR[v->bus] += cR;   // route into this voice's insert bus (0 = master)
             if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in   += contrib * v->eko;   // echo send   — MONO, pre-pan
             if (v->sfx_idx < 0 && v->rvb > 0.0005f) {                                // reverb send — MONO, pre-pan

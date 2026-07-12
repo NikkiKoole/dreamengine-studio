@@ -163,7 +163,7 @@ Makefile   `make` kills stale processes + starts editor (targets: make / start /
 tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read the file header for
            the full contract:
              make-cart.js    build/bake .cart.png from tools/carts/<name>.c; also a lib for play.js
-             play.js         debug harness driver (record/replay/script + trace + --wav)
+             play.js         debug harness driver (record/replay/script + trace + --wav + --solo-slot stem)
              make-gif.js     capture an animated clip of a cart (webm/webp/gif/mp4/apng + audio)
              compose-clips.js stitch baked clips into one reel (ffmpeg xfade) from a .reel manifest
              build-app-reel.js  APP TRAILER: apps/<name>/app.json carts[] → bake a clip per rack (skips racks with
@@ -252,6 +252,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              Design: docs/design/demand-generation.md (lever #3 "showing up in the tribe")
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
+             voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
+                             victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
+                             cut off by another instrument". Design: docs/design/audio-voice-debugging.md
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B
                              analysis (sample correlation / amp+brightness envelope / LFO rate+depth /
                              harmonic series) — for A/B-ing a render against navkit

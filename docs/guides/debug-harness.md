@@ -484,6 +484,13 @@ measurement (identical = never starved; different = voices were being stolen).
 > To toggle an effect without input, drive both with a script and change only the cart, or
 > park the difference in the input track — never mix `run` with `script`.
 
+**Debugging a voice that stops** ("the solo got cut off by another instrument"): every
+`--trace` run now records voice-allocation events (`on`/`off`/`reuse`/`steal`/`choke`,
+naming the victim) — read them with `node tools/voice-trace.js <trace>`. And `--solo-slot
+<n[,n…]>` renders a **stem** (only that instrument slot audible) so you can tell a real
+cut from perceptual masking. Both are harness-only; see
+[`../design/audio-voice-debugging.md`](../design/audio-voice-debugging.md).
+
 **Stereo / panning / effects-bus work — `--stereo`.** The default report downmixes
 L+R→mono, so it's *blind to the stereo field*. `--stereo` reads the channels
 separately and reports per-channel peak/RMS, **balance** (R−L dB), inter-channel

@@ -1923,6 +1923,21 @@ static void harness_trace(int fno) {
         json_str(trace_file, watches[i].value);
     }
     fputs("}}\n", trace_file);
+#ifdef DE_TRACE
+    // voice-allocation trace (docs/design/audio-voice-debugging.md): drain the audio thread's
+    // event ring into its own JSONL lines, tagged with this frame. Silent for carts that make
+    // no sound. `node tools/voice-trace.js <trace>` reads these.
+    {
+        static const char *SVE_NAME[] = { "on", "off", "reuse", "steal", "choke" };
+        while (sve_r != sve_w) {
+            SoundVoiceEvent e = sve_ring[sve_r & (SVE_RING - 1)];
+            sve_r++;
+            fprintf(trace_file, "{\"vev\":\"%s\",\"f\":%d,\"slot\":%d,\"midi\":%d,\"voice\":%d,\"victim\":%d}\n",
+                    (e.type >= 0 && e.type <= SVE_CHOKE) ? SVE_NAME[e.type] : "?",
+                    fno, e.slot, e.midi, e.voice, e.victim);
+        }
+    }
+#endif
     fflush(trace_file);
 }
 
@@ -3018,6 +3033,14 @@ int main(int argc, char **argv) {
         }
         else if (strcmp(argv[i], "--save-dir") == 0 && i + 1 < argc) save_dir_set(argv[++i]);
         else if (strcmp(argv[i], "--wav")    == 0 && i + 1 < argc) wav_path = argv[++i];
+#ifdef DE_TRACE
+        else if (strcmp(argv[i], "--solo-slot") == 0 && i + 1 < argc) {   // stem render: hear only these instrument slot(s). "6" or "5,6"
+            const char *p = argv[++i];
+            sound_solo_active = 1;
+            while (p && *p) { int s = atoi(p); if (s >= 0 && s < 64) sound_solo_mask |= (1ull << s);
+                              const char *c = strchr(p, ','); p = c ? c + 1 : NULL; }
+        }
+#endif
         else if (strcmp(argv[i], "--data")   == 0 && i + 1 < argc) de_data_path_v = argv[++i];  // EXPERIMENTAL (see de_data_path_v)
 #ifdef DE_NET_BUILD
         else if (strcmp(argv[i], "--net-host") == 0) { net_is_host = true; net_requested = true; }

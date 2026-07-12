@@ -39,12 +39,16 @@ const ILLUS = {
   scene:   { kind: 'still' },
   wave:    { kind: 'gif', frames: 120, fps: 20 },
   catch:   { kind: 'gif', frames: 150, fps: 20 },
+  sprites: { kind: 'gif', frames: 120, fps: 20 },
+  song:    { kind: 'video', frames: 144, fps: 30 },   // a webm — it has SOUND
   // mood creatures — one per chapter, drawn by the console like everything else
   greeter:  { kind: 'still' },
   leaper:   { kind: 'still' },
   juggler:  { kind: 'still' },
   dreamer:  { kind: 'still' },
   champion: { kind: 'still' },
+  painter:  { kind: 'still' },
+  crooner:  { kind: 'still' },
 };
 
 function render(id, spec) {
@@ -55,6 +59,12 @@ function render(id, spec) {
     run('make-gif.js', [`book/${id}`, '--format', 'gif',
       '--frames', String(spec.frames), '--fps', String(spec.fps), '--out', out]);
     return `book-assets/${id}.gif`;
+  }
+  if (spec.kind === 'video') {                    // webm carries the cart's real audio
+    const out = path.join(ASSETS, `${id}.webm`);
+    run('make-gif.js', [`book/${id}`, '--format', 'webm',
+      '--frames', String(spec.frames), '--fps', String(spec.fps), '--out', out]);
+    return `book-assets/${id}.webm`;
   }
   const dir = path.join(TMP, id);
   fs.mkdirSync(dir, { recursive: true });
@@ -71,11 +81,17 @@ for (const [id, spec] of Object.entries(ILLUS)) {
 }
 
 // ── little HTML builders ──────────────────────────────────────────────────
-const screen = (id, alt, cap) => `
+const screen = (id, alt, cap) => {
+  const src = SRC[id];
+  const media = src.endsWith('.webm')
+    ? `<video src="${src}" controls loop playsinline preload="metadata" aria-label="${alt}"></video>`
+    : `<img src="${src}" alt="${alt}">`;
+  return `
   <figure class="screen">
-    <div class="bezel"><div class="glass"><img src="${SRC[id]}" alt="${alt}"></div></div>
+    <div class="bezel"><div class="glass">${media}</div></div>
     <figcaption>${cap}</figcaption>
   </figure>`;
+};
 
 const aside = (cls, lead, body) => `
   <aside class="${cls}">
@@ -157,7 +173,8 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
     font-family:var(--mono);font-size:9px;letter-spacing:.3em;color:#6a7088;text-transform:uppercase;}
   .glass{position:relative;border-radius:6px;overflow:hidden;background:#000;
     box-shadow:inset 0 0 60px rgba(0,0,0,.6);aspect-ratio:320/200;}
-  .glass img{width:100%;height:100%;display:block;image-rendering:pixelated;}
+  .glass img,.glass video{width:100%;height:100%;display:block;image-rendering:pixelated;}
+  .glass video{object-fit:fill;background:#000;}
   figcaption{font-family:var(--mono);font-size:13px;color:var(--ink-faint);text-align:center;
     margin-top:12px;line-height:1.5;}
   figcaption b{color:var(--ink-soft);font-weight:400;}
@@ -194,6 +211,8 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   <a href="#ch3"><span class="num">3</span><span>A Small Cast Of Shapes</span></a>
   <a href="#ch4"><span class="num">4</span><span>A World That Moves On Its Own</span></a>
   <a href="#ch5"><span class="num">5</span><span>Your First Actual Game</span></a>
+  <a href="#ch6"><span class="num">6</span><span>Drawing With Pictures, Not Just Shapes</span></a>
+  <a href="#ch7"><span class="num">7</span><span>Making A Racket</span></a>
 </nav>
 
 <main class="wrap">
@@ -369,15 +388,65 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
 
   <p>And that&rsquo;s the trick nobody tells you: there is no secret fifth thing. Pong, Mario, a flight simulator, whatever galaxy you&rsquo;re dreaming of &mdash; it is all this. Fill a screen, poke it, keep it in bounds, let it move, and ask small true/false questions sixty times a second. You have, right now, everything you need to make something nobody has ever played before.</p>
 
-  <p>So go do a great good. The machine is patient, the crayons are cheap, and the gremlin believes in you.</p>
+  <p>That&rsquo;s the whole engine, honestly. What&rsquo;s left is toys &mdash; nicer ways to say the same things. There are a couple still in the box; let&rsquo;s open one.</p>
+
+
+  ${chapHead('ch6', '6', 'pictures with names', 'Drawing With Pictures, Not Just Shapes')}
+  ${creature('painter', 'A little green blob painting a tiny pixel picture on a canvas')}
+
+  <p>Circles and rectangles are grand, but sooner or later you want a proper little <em>guy</em> &mdash; a hero, a coin, a heart &mdash; without stacking fifteen shape calls every frame. So you draw the picture <strong>once</strong>, the console remembers it, and from then on you stamp it with a single call. These remembered pictures are called <strong>sprites</strong>, and each one gets a <em>number</em>.</p>
+
+  ${screen('sprites', 'A numbered sprite sheet on top; below, a hero walking past coins and bushes',
+    '<b>top: five sprites, each with a number. bottom: a scene made of those numbers.</b><br>the hero is really just sprite 0 and sprite 1, swapped fast.')}
+
+  <p>You draw the pictures in a little side file, one per numbered slot &mdash; here, code that paints a 16&times;16 coin into slot 2:</p>
+
+  <pre><span class="c">// sprites.cart.js — drawn once, remembered forever</span>
+sprites: {
+  <span class="n">2</span>: <span class="f">coin</span>(),   <span class="c">// a yellow disc with a shine → slot 2</span>
+}</pre>
+
+  <p>And then, in the game itself, you stamp any sprite by its number with <code>spr</code> &mdash; same old tune, <em>which picture, where</em>:</p>
+
+  <pre><span class="f">spr</span>(<span class="n">2</span>, <span class="n">108</span>, <span class="n">92</span>);   <span class="c">// draw sprite 2 (the coin) at (108, 92)</span>
+<span class="f">spr</span>(<span class="n">4</span>, <span class="n">34</span>, <span class="n">138</span>);   <span class="c">// draw sprite 4 (a bush)</span></pre>
+
+  <p>The best part is what animation costs: <em>nothing new</em>. Draw the hero mid-stride in slot 0 and mid-stride-the-other-way in slot 1, then let Chapter 4&rsquo;s clock pick between them &mdash; <code>spr(frame()/6 % 2, x, y)</code> &mdash; and he walks. Two pictures, swapped fast, is the oldest cartoon trick there is.</p>
+
+  ${aside('warn', 'What&rsquo;s the see-through bit?',
+    '<p>Sprites are little squares, but your hero isn&rsquo;t square &mdash; so which pixels are <em>him</em> and which are empty air? You pick: <code>colorkey(0)</code> tells the console &ldquo;colour 0 means transparent, draw straight through it.&rdquo; Forget that line and your hero struts around inside an ugly black box. (It happens to everyone. Once.)</p>')}
+
+  <p>Your worlds can move now, and be built from little guys. But they&rsquo;re still <em>silent films</em>. One toy left in the box &mdash; and this is the only page in the book you don&rsquo;t just look at. You listen to it.</p>
+
+
+  ${chapHead('ch7', '7', 'sound', 'Making A Racket')}
+  ${creature('crooner', 'A little green blob singing into a microphone, notes rising')}
+
+  <p>Everything so far has been a mime. Let&rsquo;s give the machine a voice. There is one honest little function for it &mdash; <code>note</code> &mdash; and it asks almost the same three-word question everything else does: <em>which pitch, which instrument, how loud.</em></p>
+
+  <pre><span class="f">note</span>(<span class="n">60</span>, <span class="s">INSTR_PLUCK</span>, <span class="n">5</span>);   <span class="c">// middle C, on a plucked string, medium loud</span></pre>
+
+  <p>The pitch is a <strong>MIDI number</strong> &mdash; 60 is middle C, 62 the D above it, and so on up the piano. The instrument is the <em>voice</em> doing the singing (a pluck, a piano, a bowed cello&hellip;), and the last number, 0 to 7, is just how hard you hit it. Play one note a frame apart from the next and you have a melody. Here&rsquo;s a tiny sixteen-step sequencer doing exactly that &mdash; <strong>press play, and turn your sound on:</strong></p>
+
+  ${screen('song', 'A colourful 16-step piano-roll sequencer, a playhead sweeping across, with audio',
+    '<b>this one makes actual sound.</b><br>each bar is a note; the playhead sweeps; the lit block is the note you&rsquo;re hearing right now.')}
+
+  <p>That&rsquo;s Chapter 4 again, wearing headphones: a clock (<code>frame()</code>) marches a playhead across sixteen steps, and each step it lands on fires one <code>note</code>. The tune is built entirely from a five-note scale (a <em>pentatonic</em>, the black keys on a piano), which has a lovely property &mdash; there is no combination of those notes that sounds actually wrong. Pick from them at random and you get something pleasant. It&rsquo;s cheating, and it&rsquo;s allowed.</p>
+
+  ${aside('', 'Set it up once, then just play',
+    '<p>A plain beep needs no setup, but a <em>nice</em> voice does &mdash; one line, once, at the start: <code>instrument(5, INSTR_PLUCK, &hellip;)</code> teaches slot 5 how to sound. After that you just <code>note(&hellip;, 5, &hellip;)</code> forever. Same shape as sprites: define the thing once, then refer to it by number.</p>')}
+
+  <p>And that really is the whole box. Shapes to draw with, sprites to draw <em>fast</em>, a clock to move it all, buttons to poke it, a loop to hold it together, and now a voice. Everything else in the manual is a fancier way to say one of these six things.</p>
+
+  <p>So go do a great good. The machine is patient, the crayons are cheap, the racket is cheerful, and the gremlin believes in you.</p>
 
 </main>
 
 <footer>
-  <b>Every picture on this page is real console output.</b><br>
-  The stills were baked with <code>play.js</code>; the moving ones with <code>make-gif</code> &mdash;
-  each from a tiny cart in <code>tools/carts/book/</code>, rebuilt by <code>tools/build-book.js</code>.
-  The book is illustrated by the very machine it teaches.
+  <b>Every picture on this page is real console output</b> &mdash; and the sequencer is real console <em>sound</em>.<br>
+  Stills baked with <code>play.js</code>, the moving ones with <code>make-gif</code> (the sound chapter is a
+  webm carrying the cart&rsquo;s own audio) &mdash; each from a tiny cart in <code>tools/carts/book/</code>,
+  rebuilt by <code>tools/build-book.js</code>. The book is illustrated by the very machine it teaches.
 </footer>
 `;
 

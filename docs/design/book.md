@@ -1,6 +1,6 @@
 # Learn You a dreamengine for Great Good!
 
-STATUS: building (2026-07-12) — 5 chapters drafted (incl. a whole playable game); voice + pipeline settled. Pick up any time.
+STATUS: building (2026-07-12) — 7 chapters drafted (incl. a playable game + a sound chapter you can actually hear); voice + pipeline settled. Pick up any time.
 
 An illustrated, chatty field guide to the `studio.h` API, in the voice (and spirit) of
 *Learn You a Haskell for Great Good!* — the beginner kept as a delighted critic (per
@@ -12,10 +12,12 @@ hand-drawn diagrams, no mockups. Each picture is a tiny cart the engine actually
 so the book can never quietly drift from the thing it teaches. Stills are baked with
 `play.js --dump`, moving ones with `make-gif --format gif`.
 
-Two kinds of illustration, deliberately distinct: **honest "screens"** (the CRT-bezel
-figures — actual program output, always captioned, the honesty pitch) and **mood
-"creatures"** (a per-chapter blob mascot, no bezel, uncaptioned — atmosphere, the LYAH
-whimsy). Both are console-drawn; only the screens carry a teaching caption.
+Kinds of illustration, deliberately distinct: **honest "screens"** (the CRT-bezel
+figures — actual program output, captioned, the honesty pitch; stills or GIFs, and for
+the sound chapter a **webm `<video>` that carries the cart's real audio** — press play,
+hear the engine) and **mood "creatures"** (a per-chapter blob mascot, no bezel,
+uncaptioned — atmosphere, the LYAH whimsy). All console-drawn; only the screens carry a
+teaching caption.
 
 ## Voice notes (guardrails)
 
@@ -50,9 +52,15 @@ whimsy). Both are console-drawn; only the screens carry a teaching caption.
 1. Write `tools/carts/book/<name>.c` — a normal cart (`#include "studio.h"`, `draw()`,
    optional `update()`/`init()`). For an animated illustration, make it self-animate off
    `frame()` and aim for a clean loop (e.g. `wave` loops every 120 frames).
-2. Add an entry to `ILLUS` in `tools/build-book.js` (`{ kind: 'still' }` or
-   `{ kind: 'gif', frames, fps }`), and write the prose + `screen('<name>', …)` call.
+2. Add an entry to `ILLUS` in `tools/build-book.js` — `{ kind: 'still' }`,
+   `{ kind: 'gif', frames, fps }`, or `{ kind: 'video', frames, fps }` (a webm that
+   carries the cart's audio; `screen()` auto-emits `<video controls>` for it). Then write
+   the prose + `screen('<name>', …)` call.
 3. `node tools/build-book.js` — renders assets + rewrites the page. Look at it.
+
+Sprites: a cart that uses `spr()` needs a `tools/carts/book/<name>.cart.js` sidecar
+(sprite-draw.js generators, keyed by slot) — see `sprites.cart.js`. Preview sprites alone
+with `node tools/sprite-preview.js book/<name>`.
 
 Each chapter also gets a mood creature (see `greeter`/`leaper`/`juggler`/`dreamer`/`champion`)
 placed with the `creature('<id>', alt)` builder right after its `chapHead(...)`. New chapter →
@@ -70,11 +78,16 @@ artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 4. **A World That Moves On Its Own** — `frame()` through `sin_deg` so the world breathes (GIF)
 5. **Your First Actual Game** — the payoff: a whole playable catch game (`catch`, GIF, plays
    itself in attract mode) that is *only* chapters 1–4 stacked; nothing new but the collision question
+6. **Drawing With Pictures, Not Just Shapes** — `spr` + the numbered sheet, two-frame walk
+   animation, `colorkey` (`sprites` GIF; sprites in `sprites.cart.js`)
+7. **Making A Racket** — `note(midi, instr, vol)`, pentatonic sequencer, `instrument()` setup
+   (`song`, a webm you can HEAR). Currently the finale ("go do a great good").
 
 ## TODO / ideas (pick up when we feel like)
 
-- More chapters: **sprites** (`spr` + the sprite editor), **sound** (a first `hit()`/note).
-  Each new chapter wants its own mood creature.
+- More chapters could follow the same shape: **tilemaps** (`map()` + a level), **saving**
+  (`save`/`load`), or a **share it** chapter (bake to web). Each new chapter wants its own
+  mood creature; a sound chapter proved the webm-with-audio path works.
 - Decide whether to add a `--check` staleness gate + repo-doctor hook once the content
   stabilises (skipped for now so it doesn't nag while WIP).
 - Consider a light "paper" theme toggle (currently a committed single dark-screen world).

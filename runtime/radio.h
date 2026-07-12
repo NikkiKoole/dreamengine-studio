@@ -30,7 +30,10 @@
 
 // ── small shared bits ─────────────────────────────────────────────────────
 
-static int rad_iabs(int v) { return v < 0 ? -v : v; }
+// int abs — kept as a thin alias over studio.h abs() because ~6 station carts
+// call rad_iabs directly; delegating drops the duplicated ternary without a
+// churn of cart edits.
+static int rad_iabs(int v) { return abs(v); }
 
 static const char *RAD_PCNAME[12] =
     { "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B" };
@@ -115,7 +118,7 @@ static void rad_lead_to(int rootpc, const int *iv, int *v, int n,
             for (int j = 0; j < 3; j++) {
                 if (used[j]) continue;
                 int dd = ((pcs[j] - v[vi]) % 12 + 18) % 12 - 6;
-                if (rad_iabs(dd) < bestD) { bestD = rad_iabs(dd); bestJ = j; bestC = v[vi] + dd; }
+                if (abs(dd) < bestD) { bestD = abs(dd); bestJ = j; bestC = v[vi] + dd; }
             }
             used[bestJ] = true;
             v[vi] = bestC;
@@ -332,15 +335,6 @@ static void rad_dial(float freq, int accent) {
     rad_tuner_button(accent);
 }
 
-// a labelled rotary knob, t = 0..1 — the READOUT form (vu/drift meters)
-static void rad_knob(int x, int y, int r, float t, const char *label, int col) {
-    circfill(x, y, r, CLR_DARK_GREY);
-    circ(x, y, r, CLR_BLACK);
-    float a = (-0.75f + t * 1.5f) * 3.14159f;
-    line(x, y, x + (int)(sinf(a) * (r - 2)), y - (int)(cosf(a) * (r - 2)), col);
-    print(label, x - text_width(label) / 2, y + r + 3, CLR_LIGHT_GREY);
-}
-
 // ── draggable CONTROL knobs (mouse + touch, built on ui.h) ─────────────────
 // rad_knob above is a meter; these are live controls. They reuse ui.h's
 // per-finger capture (so two knobs turn at once) but render with the rad_knob
@@ -359,6 +353,11 @@ static void rad_knob_face(int x, int y, int r, float t,
     float a = (-0.75f + t * 1.5f) * 3.14159f;
     line(x, y, x + (int)(sinf(a) * (r - 2)), y - (int)(cosf(a) * (r - 2)), col);
     print(label, x - text_width(label) / 2, y + r + 3, CLR_LIGHT_GREY);
+}
+
+// the READOUT form (vu/drift meters): the same knob face, drawn never-hot.
+static void rad_knob(int x, int y, int r, float t, const char *label, int col) {
+    rad_knob_face(x, y, r, t, label, col, false);
 }
 
 // shared capture: id = the bound value's address; updates *t (0..1) from the
@@ -471,11 +470,6 @@ static void rad_band_button(int accent) {
     circ(RAD_BAND_BTN_X, RAD_BTN_Y, 6, CLR_BLACK);
     print("B", 29, 169, accent);
 }
-// footer retired — the ? and B buttons replace the one-line hint, freeing the
-// bottom strip for the ribbon. Kept as a no-op so existing calls compile during
-// the per-cart cleanup; remove the calls and this symbol once they're all gone.
-static void rad_footer(const char *hint) { (void)hint; }
-
 // the help panel scaffold: key/desc rows + accent note lines at the bottom
 static void rad_help_panel(const char *title, const char *(*rows)[2], int nrows,
                            const char **notes, int nnotes, int accent) {

@@ -1,14 +1,16 @@
 # Engine simplification backlog — duplication, missing helpers, naming
 
-> **STATUS: WINDING DOWN** (2026-07-09; last landed 2026-07-10; bookkeeping reconciled 2026-07-12) —
-> **30/33 closed, 3 open.** The bare "8 left" the checkbox count used to show was misleading. Of the 30
-> closed: **25 landed** as behaviour-preserving refactors; **3 were assessed and deliberately left as-is**
-> (❌ won't-do — a per-pixel indirect call or a float-rounding byte-mismatch would make them a perf/correctness
-> regression, not a win; see their ⚠ notes); **2 landed their doable part** and parked a byte-unsafe or
-> trace-only tail (bucket ②). The **3 genuinely-open** items — `net.h` packet helpers, `ui_button_core()`,
-> `radio.h` redundancy — are low-risk header dedup, each gated by `ui-audit` + `build-all`. (Checkbox
-> semantics after this pass: `[x]` = *closed* — landed, won't-do, or doable-part-done — not necessarily a
-> refactor shipped; the per-item note says which.)
+> **STATUS: DONE** (2026-07-09; last landed 2026-07-12) —
+> **33/33 closed, 0 open.** The bare "8 left" the checkbox count used to show was misleading. Of the 33
+> closed: **28 landed** as behaviour-preserving refactors (incl. the final three header-dedups — `net.h`
+> packet helpers, `ui_button_core()`/`ui_wid_hash()`, `radio.h` `rad_knob`/`rad_iabs`/`rad_footer` — landed
+> 2026-07-12, each gated by `build-all` + `ui-audit`/`net-check`); **3 were assessed and deliberately left
+> as-is** (❌ won't-do — a per-pixel indirect call or a float-rounding byte-mismatch would make them a
+> perf/correctness regression, not a win; see their ⚠ notes); **2 landed their doable part** and parked a
+> byte-unsafe or trace-only tail (bucket ②). Several sub-items inside the header-dedups were themselves
+> left-as-is for byte-safety (noted per item: solo.h/radio.h button focus semantics, typed knob wrappers,
+> lay_clamp include-safety). (Checkbox semantics: `[x]` = *closed* — landed, won't-do, or doable-part-done —
+> not necessarily a refactor shipped; the per-item note says which.)
 > A punch-list of *quality-only*
 > cleanups in the engine core (`runtime/studio.c`, `runtime/sound.h`) and the
 > library headers. Every item is a **behaviour-preserving** extraction or rename —
@@ -248,22 +250,29 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   parked in the bucket-② set with a `play.js --trace` gate. **Item closed on the 4/5 that landed.**
 - [x] **Dead `PAUSE_KEY` guard** — redefined at `studio.c:3280–3281` but already
   defined at `455–456`, so the second `#ifndef` is always skipped. Delete.
-- [ ] **`net.h` packet helpers** — WELCOME/HELLO builder + seed LE encode/decode
-  pasted ~4× (seed LE encode/decode at `463–464`, `472–473`, `504–505`; constants
-  `NET_PKT_HELLO`/`NET_PKT_WELCOME` at `86–87`). Add `net_welcome_pkt()` /
-  `net_seed_decode()` + a `NET_HELLO` constant.
-- [ ] **`ui_button_core()`** — `ui_button` (`ui.h:604–628`) and
-  `ui_spr_button_styled` (`643–667`) copy-paste the whole capture/press/activate/focus
-  machinery (`610–621` ≈ `650–660`); `solo.h:253–302` (4 buttons) and `radio.h` then
-  reimplement it a 3rd/4th time. Also the widget-id hash magic
-  (`(void*)(uintptr_t)(0x10000001u + x*131071 + …)`) is pasted at `ui.h:605`/`644` →
-  `ui_wid_hash(seed, x,y,w,h)`.
-- [ ] **`radio.h` redundancy** — `rad_knob` (`327`) is `rad_knob_face(…, hot=false)`;
-  `rad_knob_drag` (`357–372`) re-derives `ui_knob`'s drag physics (`ui.h:578–586`);
-  `rad_iabs` (`33`) duplicates `studio.h abs`, `lay_clamp` (`lay.h:43`) duplicates
-  `clamp`; `rad_footer` (`465–468`) is a documented no-op to remove once callers are
-  gone; `rad_knob_int`/`rad_knob_sel`/`rad_knob_float` (`375–424`) are three wrappers
-  that differ only in the value↔t map.
+- [x] **`net.h` packet helpers** — WELCOME/HELLO builder + seed LE encode/decode
+  pasted ~4× (constants `NET_PKT_HELLO`/`NET_PKT_WELCOME` at `86–87`).
+  **Done 2026-07-12:** `net_hello_pkt()` (3×), `net_welcome_pkt()` (seed-LE builder, 3×),
+  `net_seed_decode()` (2×) as `static inline` in the transport-agnostic core, shared by
+  the web DataChannel + native UDP paths. Byte-identical (inline = no unused-symbol
+  warning when one transport is built). Also fixed `net-check.js` crashing on trace
+  frames with no `w` block so the gate runs; net-check PASS (echo + netdemo + relay).
+- [x] **`ui_button_core()`** — `ui_button` (`ui.h`) and `ui_spr_button_styled`
+  copy-paste the whole capture/press/activate/focus machinery, differing only by the
+  widget-id seed. **Done 2026-07-12:** `ui_button_core(wid,x,y,w,h,&focused,&pressed,&hot)`
+  + `ui_wid_hash(seed,x,y,w,h)`; each button computes its seed and draws its own face.
+  Byte-identical (the seed hash commutes); build-all 493/493. **Left as-is (byte-safety):**
+  `solo.h`/`radio.h` use a distinct NON-focusable in-place button pattern (`ui_reg(…,0)`,
+  `&static_id` identity, immediate side-effects) — folding them onto the core would add
+  focus/A-activate + reorder focus nav, a behaviour change, not a pure refactor.
+- [x] **`radio.h` redundancy** — **Done 2026-07-12:** `rad_knob` (readout meter) now
+  delegates to `rad_knob_face(…, hot=false)` (byte-identical); `rad_iabs` kept as a thin
+  alias over `abs()` (delegates — ~6 station carts call it, so a full removal is pure cart
+  churn); dead `rad_footer` (zero callers) removed. build-all 493/493. **Left as-is:**
+  `rad_knob_drag` vs `ui_knob` (ui_knob is a focusable monolith — unifying changes focus/nav
+  semantics); `rad_knob_int`/`_sel`/`_float` (typed int/int/float wrappers — unifying needs
+  macro/void* soup); `lay_clamp` in `lay.h` (lay.h does NOT include studio.h, so `clamp`
+  isn't guaranteed available — delegating would add an unsafe dependency).
 - [x] **`radio.h` coord `#define`s** — panel/button coordinates are duplicated between
   draw and hit-test (`?`-button `288,172,81` at `289` + `453`; B-button `32,172,81` at
   `534` + `460`; panel `44,40,232,122` in both help + band panels). **The clickable

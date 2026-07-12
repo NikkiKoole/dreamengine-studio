@@ -20,7 +20,7 @@
   "todo": [
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
-    "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing",
+    "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing. NOT greenfield — GRAFT IT FROM tb303.c, the standalone acid cart, which already ships a working 303 SWING knob (shuffles the off-16ths on its 303); tb303's own de:meta flags porting its sequencer (ties/octave-down/length/swing) into acidrack's embedded 303 lanes. Same pattern as probability = graft from tr808/tr909. Mind acidrack's scheduling caveat (a held/slid 303 voice can't be scheduled ahead the way the drums are) and that acidrack's drums use 909-style EVEN-16th shuffle vs tb303's off-16th — reconcile which the 303 should follow.",
     "device-adaptive redesign (Phase 3 — design/device-adaptive-layout.md): reflow the machine-strip accordion per device — iPad more strips inline, phone-portrait accordion, phone-landscape tabs (accordion degenerates on a short screen). The disclosure model already exists in-cart; graft the arrangements from acidfit.c. Build resizable: RESIZABLE=1 CART=acidrack ./ios/build.sh",
     "compact drum view — the authentic Roland x0x model: instead of a full N-voice matrix, show ONE big editable 16-step lane for the selected voice + an instrument-select knob/buttons to switch which voice the 16 cells map to (that's exactly how the real 808/909 solved the panel-space problem — never a grid). Pairs well with a thin per-voice density overview (each voice one row of filled/empty dots, tap to promote to the big lane). The 808's 16 voices make this most valuable there; would also make phone-portrait trivially fit. Alt/bolder mode discussed: Euclidean per-voice (hits, rotation) knobs — a whole acid beat in ~5 voices × 2 knobs, no step-drawing. See the chat where the full-16 expansion landed.",
     "SHIPPED (2026-07-11): 303 DEEP-page — the Devil Fish / TD-3-MO depth mods, each a true engine port (sources: firstpr.com.au/rwi/dfish, Robin Whittle's manual). The P1/P2 button on each 303 seq panel flips the knob row between the classic 7 and the DEEP 5: ADEC (separate accent-decay — the signature two-decay; accented steps get their own ENV_CUTOFF decay time), SLDT (variable slide time 20-300ms, was fixed 60), ATK (soft attack 0.5-30ms = the amp-env attack, rounds the click), TRK (filter tracking — higher notes open the cutoff), SUB (an octave-down INSTR_TRI sub voice on slots 34/35, gated/slid in lockstep — off = no voice spent). Plus the accent-SWEEP mode button (off/slow/med/fast onset) and a cutoff-range bump to ~5kHz. All DEEP defaults are no-ops (ADEC=DEC, SLDT≈60ms, ATK≈2ms, TRK/SUB/SWEEP off) so the stock sound is unchanged until you turn a knob. SAVE_MAGIC bumped to v8. Deliberately SKIPPED (still true): the clones' MIDI/USB/CV-gate/patch-point/PC-editor + self-resonance/filter-FM (hardware wiring, moot in one cart); env-mod-to-3x (SQL already does it) and overdrive (DRV, though ours is post-filter vs the Devil Fish pre-filter overdrive + post-VCA Muffler — a future 'Muffler' distortion could revisit that). FOLLOW-UP TUNING (2026-07-11): ATK now ALSO rounds the filter onset (0 at stock → ~28ms) and TRK steepened (170 Hz/semitone) so both bite harder; note that full-mix WAV correlation understates per-knob impact because the 303 sits under the 909+808 drums (measure the 303 in isolation).",
@@ -31,12 +31,12 @@
     "per-track step LENGTH / polymeter (RD-9 'Poly') — let each drum voice run a length other than 16 (e.g. a 15-step hat against a 16-step kick) so lanes drift in and out of phase — long-form techno evolution from one loop. acidrack is locked to STEPS=16 per voice today; needs a per-voice len + its own wrap counter off the shared transport. Watch the interaction with shuffle and the 16-tick mini-pattern header rendering.",
     "sidechain PUMP — duck the non-drum buses (the two 303s + returns) to the kick for the classic house/techno breathing. acidrack has the master GLU glue-comp but no kick-triggered duck; a single per-machine (or master) PUMP amount knob keyed off the 909/808 kick step is the gesture. Set-and-hold envelope, re-armed on each kick hit; mind the fx-frame rule (configure on change, not every frame).",
     "motion / parameter-LOCK lanes (TR-8S motion · Elektron p-locks) — the deep one: automate any per-voice knob (TUNE/DEC/CHAR, 303 CUT/RES) per-step or by recording knob moves, played back as a delta over the base value. acidrack ALREADY has the concept via the per-bank PCF lane — this generalizes it to per-voice lanes (draw a lane like PCF, or 'Swedish method': hold a step + turn a knob to imprint). Biggest build; do probability + polymeter first. References: pocketbox.c already has literal PER-STEP p-locks (SP_LK1..SP_LK4 lock pages + the Step struct); motionbox.c is the continuous MOTION-RECORD flavor (record knob moves, played back as a delta) — the TR-8S sibling.",
-    "MASTER-STRIP LIVE PERFORMANCE FX (house/techno live-set moves) — the current MASTER strip is all PROGRAMMED (delay TIME/FB, GLU glue-comp, PCF drawn-per-bank filter lane) with no hands-on momentary FX; a live set lives on the stuff you grab mid-bar to build tension and drop it. In rough value order: (1) LIVE DJ FILTER — a bipolar HP<->LP sweep knob on the master, center=bypass, left=highpass (strip lows for a breakdown), right=lowpass (muffle into a drop). This is THE most-used live knob in the genre and acidrack lacks it — the PCF is programmed, not performed. filter() is ride-live-safe (excluded from the fx-frame lint). Compose it with the existing PCF lane (both touch the master lowpass — decide whether the live knob offsets or overrides the drawn lane). Highest bang-for-buck. (2) BEAT-REPEAT / STUTTER / gate-retrigger (momentary) — hold a pad to loop the last 1/16 or 1/8 of the master out, or gate it rhythmically; the build/drop electrifier, pairs with the filter sweep. If built on crush/tape it's set-and-hold — arm/disarm on the button EDGE, don't reconfigure per frame (fx-frame rule). (3) MASTER DRIVE / saturation lift — GLU tames the drop, a drive knob LIFTS it (motionbox's 'Valve' over the summed bus); cheap, the push-into-the-red move. (4) TAPE-STOP / brake (momentary) — varispeed the master toward zero while held, snap back on release; varispeed is ride-live-safe. (5) DELAY THROW (momentary) — on top of the existing shared delay + per-device sends, a live throw: momentarily crank FB toward self-oscillation + slam the send, pull back. (6) REVERB (palette-widener, not a performance knob) — delay is the only shared space today; a reverb hall opens up breakdowns. IMPORTANT: reverb is a SEND, not an insert, so it is NOT blocked on the effects-bus Increment G (confirmed still open 2026-07-11) and needs NO per-machine bus work — that whole single-bus-per-voice wall only bites INSERT fx (crush/filter/comp grouped over a machine). Per-slot reverb already ships: reverb(size,damping) configures the one shared hall + instrument_reverb(slot,send) sends any slot's wet copy in (dry stays full-volume; grabs no aux bus). A 303 is ONE slot (SLOT_A=5/SLOT_B=6; the octave-down sub SLOT_SUB_A=34 is a separate slot you'd keep DRY, same logic as keeping the kick out of the verb), so 'a wet 303 line in space' = literally `instrument_reverb(SLOT_A, send_knob)` today, cost = the already-allocated shared tank. Do it per-instrument via sends (a SEND knob on each machine's [fx] view alongside the existing delay SEND — kick/low toms at 0, snare/clap/303s to taste), NOT as a master insert. A momentary reverb THROW can layer on top like the delay throw. WORKED REFERENCE: the reverbspace cart is the shipped showcase for exactly this — two independent tanks ringing at once (reverb_bus(tank,size,damp) to carve each space + instrument_reverb_bus(slot,tank,mix) to send a slot in), so acidrack could run the two 303s in one warm room and a drum splash in a tighter plate. Copy the tunings from docs/guides/effects-recipes.md (tight bright room reverb_bus(1,0.34,0.15) send 0.6-0.8; vast dark plate reverb_bus(2,0.95,0.55) send 0.8; reverb_bus_fx(2,FX_CRUSH,..) for a crushed lo-fi tail). Only 2 tanks beyond the master send (SOUND_REVERB_TANKS=3) so budget the spaces. Top two = LIVE FILTER + BEAT-REPEAT: what your hands are on the last 4 bars before every drop. From the chat exploring house-liveset master knobs (2026-07-11). PARTIALLY SHIPPED (2026-07-11): the (6) REVERB first step landed — each 303's [fx] view got a VERB send knob (rvsend[2]) into a shared warm hall (reverb(0.62,0.42) configured once in init; instrument_reverb(SLOT_A/B) gated in apply_fx; the octave-down sub stays dry; default 0 = stock unchanged; SAVE_MAGIC v11). A/B verified the tail blooms. STILL OPEN on (6): drum reverb sends (per-voice routing exists but deferred — kick-mud + UI toggle cost; leave to a later pass), a 2nd dedicated tank (reverb_bus) for a separate drum space, and the momentary reverb THROW. Items (1)-(5) all still open."
+    "MASTER-STRIP LIVE PERFORMANCE FX (house/techno live-set moves) — the current MASTER strip is all PROGRAMMED (delay TIME/FB, GLU glue-comp, PCF drawn-per-bank filter lane) with no hands-on momentary FX; a live set lives on the stuff you grab mid-bar to build tension and drop it. In rough value order: (1) LIVE DJ FILTER — a bipolar HP<->LP sweep knob on the master, center=bypass, left=highpass (strip lows for a breakdown), right=lowpass (muffle into a drop). This is THE most-used live knob in the genre and acidrack lacks it — the PCF is programmed, not performed. filter() is ride-live-safe (excluded from the fx-frame lint). Compose it with the existing PCF lane (both touch the master lowpass — decide whether the live knob offsets or overrides the drawn lane). Highest bang-for-buck. (2) BEAT-REPEAT / STUTTER / gate-retrigger (momentary) — hold a pad to loop the last 1/16 or 1/8 of the master out, or gate it rhythmically; the build/drop electrifier, pairs with the filter sweep. If built on crush/tape it's set-and-hold — arm/disarm on the button EDGE, don't reconfigure per frame (fx-frame rule). (3) MASTER DRIVE / saturation lift — GLU tames the drop, a drive knob LIFTS it (motionbox's 'Valve' over the summed bus); cheap, the push-into-the-red move. (4) TAPE-STOP / brake (momentary) — varispeed the master toward zero while held, snap back on release; varispeed is ride-live-safe. (5) DELAY THROW (momentary) — on top of the existing shared delay + per-device sends, a live throw: momentarily crank FB toward self-oscillation + slam the send, pull back. (6) REVERB (palette-widener, not a performance knob) — delay is the only shared space today; a reverb hall opens up breakdowns. IMPORTANT: reverb is a SEND, not an insert, so it is NOT blocked on the effects-bus Increment G (confirmed still open 2026-07-11) and needs NO per-machine bus work — that whole single-bus-per-voice wall only bites INSERT fx (crush/filter/comp grouped over a machine). Per-slot reverb already ships: reverb(size,damping) configures the one shared hall + instrument_reverb(slot,send) sends any slot's wet copy in (dry stays full-volume; grabs no aux bus). A 303 is ONE slot (SLOT_A=5/SLOT_B=6; the octave-down sub SLOT_SUB_A=34 is a separate slot you'd keep DRY, same logic as keeping the kick out of the verb), so 'a wet 303 line in space' = literally `instrument_reverb(SLOT_A, send_knob)` today, cost = the already-allocated shared tank. Do it per-instrument via sends (a SEND knob on each machine's [fx] view alongside the existing delay SEND — kick/low toms at 0, snare/clap/303s to taste), NOT as a master insert. A momentary reverb THROW can layer on top like the delay throw. WORKED REFERENCE: the reverbspace cart is the shipped showcase for exactly this — two independent tanks ringing at once (reverb_bus(tank,size,damp) to carve each space + instrument_reverb_bus(slot,tank,mix) to send a slot in), so acidrack could run the two 303s in one warm room and a drum splash in a tighter plate. Copy the tunings from docs/guides/effects-recipes.md (tight bright room reverb_bus(1,0.34,0.15) send 0.6-0.8; vast dark plate reverb_bus(2,0.95,0.55) send 0.8; reverb_bus_fx(2,FX_CRUSH,..) for a crushed lo-fi tail). Only 2 tanks beyond the master send (SOUND_REVERB_TANKS=3) so budget the spaces. Top two = LIVE FILTER + BEAT-REPEAT: what your hands are on the last 4 bars before every drop. From the chat exploring house-liveset master knobs (2026-07-11). PARTIALLY SHIPPED (2026-07-11): the (6) REVERB first step landed — each 303's [fx] view got a VERB send knob (rvsend[2]) into a shared warm hall (reverb(0.62,0.42) configured once in init; instrument_reverb(SLOT_A/B) gated in apply_fx; the octave-down sub stays dry; default 0 = stock unchanged; SAVE_MAGIC v11). A/B verified the tail blooms. SHIPPED (2026-07-12): the (6) 2nd-tank DRUM REVERB — the 909 kit blooms into its own TIGHT BRIGHT PLATE on tank 1 (reverb_bus(1, 0.34, 0.15) configured once in init; SOUND_REVERB_TANKS=3 so tanks 1-2 are free beyond tank 0's master hall). One VERB knob on the 909 [fx] view (d9rv) rides a CURATED send: every 909 slot EXCEPT the kick (SL9_BD + its click SL9_BDC), applied in apply_fx on-change (instrument_reverb_bus) — a single kit-wide send can't exclude the kick, so the mud-the-floor problem is solved by hard-excluding it in the slot loop, not by per-voice UI. Default 0 = stock. SAVE_MAGIC v13 (SaveBlob +d9rv). VERIFICATION GOTCHA worth remembering: A/B-ing a send via its INITIALIZER default is defeated by load_song() — the cart autosaves to build/saves/<cart>/cart.blob and reloads it at boot, clobbering the initializer; clear that dir (or set the value AFTER load / from update) or every data-only A/B reads a false ZERO. With a clean save dir the 909 plate A/Bs at ~48k differing samples. STILL OPEN on (6): 808 drum reverb (tank 2 is still free — same curated-send pattern), and the momentary reverb THROW. SHIPPED (2026-07-11): (1) LIVE DJ FILTER — a 6th master knob 'FLT', bipolar (0.5 = open/bypass), djfilter's exact map (drag DOWN = lowpass closing 18k→150, UP = highpass opening 20→6k), sharing the existing F_RES knob for resonance. It's a live perf control so it's NOT saved (always starts open; sweeping never spams autosave, no SAVE_MAGIC bump). Composed with the PCF lane onto the ONE master filter(): live centered → the lane rides as before; live LP + lane both lowpasses → the MORE CLOSED cutoff wins (hand + drawn ramp cooperate); live HP takes over (can't be HP and LP at once). ride_pcf() now folds both in and gates filter() on-change. A/B verified: LP drops mix brightness 0.007→0.000 (lows kept), HP raises it 0.007→3.079 (lows stripped), center byte-identical to before. Items (2)-(5) still open (BEAT-REPEAT explored + declined 2026-07-11; DRIVE, TAPE-STOP, DELAY THROW remain)."
   ],
   "description": {
     "summary": "Two 303s, the full 909, the full 16-voice 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV.",
     "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (all 11 voices, the real 909 roster — ordered for acid: kick/hats/clap/snare up top, rim + ride/crash next, the fill toms at the bottom — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the COMPLETE tr808 (all 16 voices: boom kick, snare, 3 toms + 3 congas on the shared bridged-T circuit, rim/clave, clap, maracas, cowbell, cymbal, open/closed hats — ordered for acid: the always-on kick/hats/clap/snare up top, cowbell + accents next, the fill voices at the bottom; the old 9-voice curation was based on a slot budget that never really applied — the engine has 48 slots, not 32), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · 303 flag rows toggle per step: OCT (tap-cycles up→down→off), ACC, SLD, and TIE (holds the previous note through the step — sustain a slide can't give) · LEN strip under the flags sets each line's length 1-16 (short = polymeter drift; red divider = loop end) · 303 P1/P2 button flips the knob page (P2 = DEEP: ADEC separate-accent-decay / SLDT slide-time / ATK soft-attack / TRK filter-tracking / SUB sub-osc, + the accent-SWEEP mode button + STD = reset this 303's Devil Fish knobs to stock) · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · drum grids: per-voice TUNE/DEC/CHAR mini-knobs beside the rows (drag up=coarse right=fine, rclick=reset) · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · 303 flag rows toggle per step: OCT (tap-cycles up→down→off), ACC, SLD, and TIE (holds the previous note through the step — sustain a slide can't give) · LEN strip under the flags sets each line's length 1-16 (short = polymeter drift; red divider = loop end) · 303 P1/P2 button flips the knob page (P2 = DEEP: ADEC separate-accent-decay / SLDT slide-time / ATK soft-attack / TRK filter-tracking / SUB sub-osc, + the accent-SWEEP mode button + STD = reset this 303's Devil Fish knobs to stock) · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · drum grids: per-voice TUNE/DEC/CHAR mini-knobs beside the rows (drag up=coarse right=fine, rclick=reset) · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern, and FLT = the LIVE DJ FILTER (bipolar: center open, drag DOWN = lowpass muffle, UP = highpass thin — the breakdown/drop knob) · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
   }
 }
 de:meta */
@@ -688,14 +688,23 @@ static int  drum_rh_of(int mach, int nv) {
 enum { F_TIME, F_FB, F_GLU, F_PCF, F_RES, NFX };   // the MASTER strip's knobs
 static const char *FXNAME[NFX] = { "TIME", "FB", "GLU", "PCF", "RES" };
 static float fxk[NFX] = { 0.50f, 0.35f, 0.30f, 0.40f, 0.35f };
+// the LIVE DJ FILTER — the one hands-on master knob (the rest are programmed).
+// Bipolar: 0.5 = OPEN (bypass); turn LEFT and a lowpass closes 18k→150Hz into a
+// breakdown thump, RIGHT and a highpass opens 20Hz→6k into a thin telephone —
+// the most-used knob in house/techno (djfilter is the showcase cart). It rides
+// the SAME master filter() as the PCF lane and shares the RES knob; NOT saved
+// (a live perf control — always starts open, and sweeping it never spams save).
+static float djf = 0.5f;
+#define NMK (NFX + 1)   // master knobs incl. the live FLT (index NFX, unsaved)
 // master knobs live in the LEFT column (the song code owns the right); wrap them
 // to a 2nd row when that column is too narrow — mirrors the 303's knob wrap.
 // mst_lane_y() drops the PCF lane below the knob block; draw + update share it.
-static int mst_cols(void)     { int avail = W() - 84; return avail >= NFX * 26 ? NFX : (NFX + 1) / 2; }
-static int mst_lane_y(int y0) { int rows = (NFX + mst_cols() - 1) / mst_cols(); return y0 + 12 + (rows - 1) * 22 + 24; }
+static int mst_cols(void)     { int avail = W() - 84; return avail >= NMK * 26 ? NMK : (NMK + 1) / 2; }
+static int mst_lane_y(int y0) { int rows = (NMK + mst_cols() - 1) / mst_cols(); return y0 + 12 + (rows - 1) * 22 + 24; }
 static float send[4] = { 0.17f, 0.17f, 0.00f, 0.00f };   // per-machine delay send (A, B, 909, 808)
 static float rvsend[2] = { 0.00f, 0.00f };               // per-303 REVERB send into the shared hall (0 = dry); the octave-down sub stays dry
 static float dist9 = 0.0f, dist8 = 0.0f;                 // per-drum-machine drive
+static float d9rv = 0.0f;                                // 909 VERB send into tank 1 (a tight plate); kick stays dry. 0 = stock
 static bool  pcf_on = false;           // is the master filter currently engaged
 
 static const int SLOTS909[13] = { SL9_BD, SL9_BDC, SL9_SDB, SL9_SDN, SL9_TOM, SL9_TOMC,
@@ -706,7 +715,7 @@ static const int SLOTS808[14] = { SL8_BD, SL8_SDB, SL8_SDN, SL8_TOM, SL8_TOMN,
 
 // re-apply set-and-hold effects ONLY when a value moved (groovebox idiom)
 static void apply_fx(void) {
-    static float aTime = -1, aFb = -1, aGlue = -1, aS[4] = { -1, -1, -1, -1 }, aD9 = -1, aD8 = -1, aR[2] = { -1, -1 };
+    static float aTime = -1, aFb = -1, aGlue = -1, aS[4] = { -1, -1, -1, -1 }, aD9 = -1, aD8 = -1, aR[2] = { -1, -1 }, aD9rv = -1;
     static int   aTempo = -1;
     // THE delay unit — the shared echo SEND bus (one unit, per-device routing,
     // like the hardware). fb capped ≤0.72: near-unity + heavy sends made a
@@ -746,6 +755,17 @@ static void apply_fx(void) {
         }
         aD8 = dist8;
     }
+    // 909 VERB send into tank 1's plate. ONE knob feeds the whole kit EXCEPT
+    // the kick (SL9_BD + its click) — a kit-wide send would drown the floor in
+    // the room, so the kick is hard-excluded (the reason a single send works
+    // for a 303 but not a drum machine). 0 = dry / stock.
+    if (d9rv != aD9rv) {
+        for (int i = 0; i < 13; i++) {
+            int s = SLOTS909[i];
+            instrument_reverb_bus(s, 1, (s == SL9_BD || s == SL9_BDC) ? 0.0f : d9rv);
+        }
+        aD9rv = d9rv;
+    }
     // GLUE — master (needs a bus; Increment G would make it per-device).
     // knob maxes at HEAVY GLUE, never a mute (amount 1.0 could duck the mix
     // to silence under a sustained loud tail — measured 2026-07-02)
@@ -759,30 +779,60 @@ static void apply_fx(void) {
 // the PCF — master filter() ridden from the playing bank's lane (ride-safe;
 // only the OFF↔ON mode flip is gated). Per-device PCF waits on Increment G.
 static void ride_pcf(void) {
-    float depth = mute[STRIP_MST] ? 0.0f : fxk[F_PCF];
-    if (depth < 0.02f) {
-        if (pcf_on) { filter(FILTER_OFF, 0.0f, 0.0f); pcf_on = false; }
-        return;
+    static int aMode = -2; static float aCut = -1, aQ = -1;
+    bool muted = mute[STRIP_MST];
+    float res = 0.15f + 0.75f * fxk[F_RES];   // shared master-filter resonance
+
+    // the PCF LANE's lowpass target (-1 = lane disengaged). Anchored OPEN, depth
+    // pulls DOWN: at low depth the filter hovers near transparent and the lane
+    // barely tugs it; at full depth a low lane level reaches ~250Hz. (The first
+    // mapping anchored at 250Hz and opened upward — engaging the knob was an
+    // instant muffle cliff, maker-reported.)
+    float pcfcut = -1.0f;
+    float depth = muted ? 0.0f : fxk[F_PCF];
+    if (depth >= 0.02f) {
+        int lvl = bank[playBank].pcf[playhead];
+        pcfcut = 9000.0f / powf(2.0f, (1.0f - lvl / 7.0f) * depth * 5.2f);
     }
-    // anchored OPEN, depth pulls DOWN: at low depth the filter hovers near
-    // transparent and the lane barely tugs it; at full depth a low lane
-    // level reaches ~250Hz. (The first mapping anchored at 250Hz and opened
-    // upward — engaging the knob was an instant muffle cliff, maker-reported)
-    int lvl = bank[playBank].pcf[playhead];
-    float cut = 9000.0f / powf(2.0f, (1.0f - lvl / 7.0f) * depth * 5.2f);
-    filter(FILTER_LOW, cut, 0.15f + 0.75f * fxk[F_RES]);
-    pcf_on = true;
+
+    // the LIVE DJ knob (bipolar, djfilter's map). Off-center past a small detent
+    // it engages; centered = bypass so the lane rides untouched.
+    int   mode = FILTER_OFF; float cut = 1000.0f;
+    float k = muted ? 0.5f : djf;
+    if (fabsf(k - 0.5f) >= 0.02f) {
+        if (k < 0.5f) { float t = (0.5f - k) * 2.0f;   // LP closing 18k → 150
+            mode = FILTER_LOW;  cut = 18000.0f * powf(150.0f / 18000.0f, t); }
+        else          { float t = (k - 0.5f) * 2.0f;   // HP opening 20 → 6k
+            mode = FILTER_HIGH; cut = 20.0f * powf(6000.0f / 20.0f, t); }
+    }
+
+    // COMPOSE the two onto the one master filter(): live knob centered → the
+    // lane wins; live LP + lane both lowpasses → the MORE CLOSED cutoff wins
+    // (your hand and the drawn ramp cooperate); live HP takes over (can't be
+    // HP and LP at once — grabbing the highpass is a manual override).
+    if (mode == FILTER_OFF) {
+        if (pcfcut > 0.0f) { mode = FILTER_LOW; cut = pcfcut; }
+    } else if (mode == FILTER_LOW && pcfcut > 0.0f && pcfcut < cut) {
+        cut = pcfcut;
+    }
+
+    pcf_on = (mode != FILTER_OFF);
+    // filter() is ride-safe (cheap every frame) but we still gate on-change.
+    if (mode != aMode || fabsf(cut - aCut) > 0.5f || fabsf(res - aQ) > 0.001f) {
+        filter(mode, cut, res);
+        aMode = mode; aCut = cut; aQ = res;
+    }
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D000Cu   // v12: per-303 drive MODE (drvmode[2]) — SaveBlob grew, old saves ignored
+#define SAVE_MAGIC 0xAC1D000Du   // v13: 909 VERB send (d9rv) into tank 1 plate — SaveBlob grew, old saves ignored
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
     unsigned char chain[CHAINN];
     int      chainN, tempo, editBank, swing;
     unsigned cur_seed;
-    float    knob[2][NK], mcut, mres, fxk[NFX], send[4], rvsend[2], dist9, dist8;
+    float    knob[2][NK], mcut, mres, fxk[NFX], send[4], rvsend[2], dist9, dist8, d9rv;
     float    kt9[N909], kd9[N909], kc9[N909], kt8[N808], kd8[N808], kc8[N808];
     int      wave[2], sweep[2], drvmode[2];
     bool     songmode, mute[NSTRIP];
@@ -798,7 +848,7 @@ static void save_song(void) {
     sb.cur_seed = cur_seed;
     sb.mcut = mcut; sb.mres = mres;
     memcpy(sb.fxk, fxk, sizeof fxk);
-    memcpy(sb.send, send, sizeof send); memcpy(sb.rvsend, rvsend, sizeof rvsend); sb.dist9 = dist9; sb.dist8 = dist8;
+    memcpy(sb.send, send, sizeof send); memcpy(sb.rvsend, rvsend, sizeof rvsend); sb.dist9 = dist9; sb.dist8 = dist8; sb.d9rv = d9rv;
     memcpy(sb.kt9, kt9, sizeof kt9); memcpy(sb.kd9, kd9, sizeof kd9); memcpy(sb.kc9, kc9, sizeof kc9);
     memcpy(sb.kt8, kt8, sizeof kt8); memcpy(sb.kd8, kd8, sizeof kd8); memcpy(sb.kc8, kc8, sizeof kc8);
     for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; sb.sweep[i] = m[i].sweep; sb.drvmode[i] = m[i].drvmode; }
@@ -816,7 +866,7 @@ static bool load_song(void) {
     swingf = (swing - 50) / 16.0f;
     mcut = sb.mcut; mres = sb.mres;
     memcpy(fxk, sb.fxk, sizeof fxk);
-    memcpy(send, sb.send, sizeof send); memcpy(rvsend, sb.rvsend, sizeof rvsend); dist9 = sb.dist9; dist8 = sb.dist8;
+    memcpy(send, sb.send, sizeof send); memcpy(rvsend, sb.rvsend, sizeof rvsend); dist9 = sb.dist9; dist8 = sb.dist8; d9rv = sb.d9rv;
     memcpy(kt9, sb.kt9, sizeof kt9); memcpy(kd9, sb.kd9, sizeof kd9); memcpy(kc9, sb.kc9, sizeof kc9);
     memcpy(kt8, sb.kt8, sizeof kt8); memcpy(kd8, sb.kd8, sizeof kd8); memcpy(kc8, sb.kc8, sizeof kc8);
     for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; m[i].sweep = sb.sweep[i]; m[i].drvmode = sb.drvmode[i]; }
@@ -844,6 +894,11 @@ void init(void) {
     // bloom into via their VERB send. Configured once (set-and-hold); the
     // send defaults to 0 so the stock sound is unchanged until you turn it up.
     reverb(0.62f, 0.42f);
+    // tank 1 = a separate, TIGHTER + BRIGHTER PLATE for the 909 drums, so the
+    // snare/clap/hats/metal bloom in their own short space without sharing the
+    // 303s' warm hall. The 909 VERB send (d9rv) feeds it; the kick is kept dry
+    // (excluded in apply_fx), so pushing the knob never muds the floor.
+    reverb_bus(1, 0.34f, 0.15f);
     apply_fx();
 }
 
@@ -1641,6 +1696,7 @@ static void draw_909_fx(int y0) {
     rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
     if (ui_knob(&dist9, 26, y0 + 16, "DIST")) mark_dirty();
     if (ui_knob(&send[2], 64, y0 + 16, "SEND")) mark_dirty();
+    if (ui_knob(&d9rv, 102, y0 + 16, "VERB")) mark_dirty();   // 909 → tank 1 plate (kick stays dry)
     // the metal-filter XY pad (X = five metal highpass cutoffs, Y = resonance)
     int padx = mpad_x(), pady = y0 + 30;
     rectfill(padx, pady, 60, 40, CLR_DARKER_GREY);
@@ -1650,7 +1706,7 @@ static void draw_909_fx(int y0) {
     if (ui_slider(&swingf, W() - 66, y0 + 44, 56, "SHUF")) { swing = 50 + (int)(swingf * 16.0f); mark_dirty(); }
     font(FONT_SMALL);
     print("METAL", padx + 18, pady + 42, CLR_MEDIUM_GREY);
-    print("DIST rides every 909 voice; SEND feeds the delay", 12, y0 + 84, CLR_DARK_GREY);
+    print("DIST=drive  SEND=delay  VERB=909 plate (kick dry)", 12, y0 + 84, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 static void draw_808_fx(int y0) {
@@ -1676,10 +1732,11 @@ static void draw_master_panel(int y0) {
     // knob row: TIME/FB (the shared delay unit) · GLU · PCF/RES
     int avail = W() - 84, cols = mst_cols(), kp = avail / cols;   // wraps to 2 rows when narrow
     font(FONT_TINY);
-    for (int k = 0; k < NFX; k++) {
+    for (int k = 0; k < NMK; k++) {
         int cx = 22 + (k % cols) * kp, cy = y0 + 12 + (k / cols) * 22;
-        if (ui_knob(&fxk[k], cx, cy, "")) mark_dirty();
-        print_rot(FXNAME[k], cx - 12, cy, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
+        bool live = k >= NFX;                              // the FLT knob is the live one
+        if (ui_knob(live ? &djf : &fxk[k], cx, cy, "")) { if (!live) mark_dirty(); }  // FLT is unsaved
+        print_rot(live ? "FLT" : FXNAME[k], cx - 12, cy, 270.0f, live ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY, 1);
     }
     font(FONT_NORMAL);
     // the PCF lane — bar-graph levels, one per step, per BANK (it's part of

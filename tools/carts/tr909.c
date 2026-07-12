@@ -15,7 +15,7 @@
   ],
   "lineage": "Roland TR-909 (1983), completing the cr78/tr808/tb303 family; hybrid kit where analog voices are subtractive but the ROM-sample hats/cymbals are stood in by an FM voice on the 3.5 inharmonic detent through a closing highpass, plus a flam/drag/ratchet stroke family and period-correct shuffle.",
   "homage": "Roland TR-909 Rhythm Composer (1983)",
-  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. And a modern-clone touch the 1983 panel never had: TRIG PROBABILITY (the RD-9 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. The stroke family is touch-reachable too: tap the header STROKE button (or S) to arm it, then tapping a cell cycles flam/drag/ratchet instead of toggling (right-click still cycles on desktop). 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag a cell vertically for its fire-chance, drag knobs Y=coarse X=fine."
+  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. And a modern-clone touch the 1983 panel never had: TRIG PROBABILITY (the RD-9 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. The stroke family is touch-reachable too: tap the header STROKE button (or S) to arm it, then tapping a cell cycles flam/drag/ratchet instead of toggling (right-click still cycles on desktop). 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag a cell vertically for its fire-chance, drag knobs Y=coarse X=fine. And the RD-9 'Poly' move — the POLY toggle (button or L): tap a step and that voice's loop ENDS there (1..16), so a 15-step hat drifts against the 16-step kick off the one shared counter — polymeter, evolving textures from a single loop. Each voice runs its own step (its own drifting playhead); swing and the accent row stay locked to the physical bar. 16 = full, the non-drifting default."
 }
 de:meta */
 #include "studio.h"
@@ -181,6 +181,14 @@ static int  nextz_x = -1;      // the preset '>' tap zone, recorded by draw() ('
 static unsigned char gstroke[NV][STEPS];  // ST_* per cell (only meaningful when grid on)
 static unsigned char gprob[NV][STEPS];    // per-cell % chance to fire (100 = always; the RD-9 trig-prob)
 static bool gacc[STEPS];       // live accent row
+// per-voice pattern LENGTH (RD-9 'Poly'): each voice can run a loop shorter than
+// 16, so it DRIFTS against the others off the shared continuous 16th counter —
+// polymeter. 16 = full (no drift, the default). Playback always honours it; the
+// POLY toggle only reveals the editing + dead-zone chrome. phv[] is each voice's
+// OWN current step (s16 % vlen) — the drifting per-voice playhead.
+static unsigned char vlen[NV]; // 1..16 (16 = full)
+static int  phv[NV];           // per-voice sounding step (polymeter playhead)
+static bool poly_mode;         // POLY toggle: a grid tap sets that voice's LENGTH
 static bool paint_val;         // what a click-drag writes (set on press)
 static int  paint_stroke;      // the ST_* a right-drag paints (set on press)
 // per-cell left-drag, axis-locked at press: horizontal paints on/off, vertical
@@ -276,6 +284,7 @@ static void load_preset(void) {
         }
     for (int s = 0; s < STEPS; s++)
         gacc[s] = p->accent && p->accent[s] == 'x';
+    for (int v = 0; v < NV; v++) vlen[v] = STEPS;   // presets play full-length; POLY drifts them
     tempo = p->tempo;
     swing = p->swing ? p->swing : 50;
     bpm(tempo);
@@ -495,6 +504,7 @@ void update(void) {
     if (keyp('Z') || tapp(196, 7, 22, 12)) { swing -= 2; if (swing < 50) swing = 50; }                      // SHF halves
     if (keyp('X') || tapp(218, 7, 24, 12)) { swing += 2; if (swing > 66) swing = 66; }
     if (keyp('S') || tapp(190, 23, 52, 13)) stroke_mode = !stroke_mode;   // STROKE mode: taps cycle flam/drag/ratchet
+    if (keyp('L') || tapp(14, 150, 48, 13)) poly_mode = !poly_mode;       // POLY mode: taps set per-voice LENGTH
 
     // knob hover + drag (Y=coarse, X=fine, same as modrack)
     int mx = mouse_x(), my = mouse_y();
@@ -539,7 +549,9 @@ void update(void) {
     bool on_knob = hover_v >= 0 || drag_v >= 0;
     int mc, mr = grid_row(mx, my, &mc);
     if (mouse_pressed(MOUSE_LEFT) && !on_knob) {
-        if (mr >= 0 && stroke_mode) {                    // STROKE mode: a tap cycles the stroke family
+        if (mr >= 0 && poly_mode) {                      // POLY mode: a tap sets this voice's loop LENGTH
+            vlen[mr] = (unsigned char)(mc + 1);          // click column s → loop ends after it (1..16)
+        } else if (mr >= 0 && stroke_mode) {             // STROKE mode: a tap cycles the stroke family
             if (!grid[mr][mc]) { grid[mr][mc] = true; gstroke[mr][mc] = ST_FLAM; }   // off → join at FLAM
             else gstroke[mr][mc] = (unsigned char)((gstroke[mr][mc] + 1) % NSTROKE);
         } else if (mr >= 0) {
@@ -581,9 +593,9 @@ void update(void) {
 
     // RIGHT button cycles a cell through the stroke family (an off cell
     // joins at FLAM); right-drag paints the stroke the press landed on.
-    if (mouse_pressed(MOUSE_RIGHT) && mr >= 0)
+    if (mouse_pressed(MOUSE_RIGHT) && mr >= 0 && !poly_mode)
         paint_stroke = grid[mr][mc] ? (gstroke[mr][mc] + 1) % NSTROKE : ST_FLAM;
-    if (mouse_down(MOUSE_RIGHT) && mr >= 0) {
+    if (mouse_down(MOUSE_RIGHT) && mr >= 0 && !poly_mode) {
         grid[mr][mc]    = true;
         gstroke[mr][mc] = (unsigned char)paint_stroke;
     }
@@ -595,27 +607,32 @@ void update(void) {
     if (s16 != last16) {
         bool first = (last16 < 0);
         last16  = s16;
-        playhead = s16 & 15;
+        playhead = s16 & 15;                              // GLOBAL bar position (accent strip / backdrop)
+        for (int v = 0; v < NV; v++) phv[v] = s16 % vlen[v];   // each voice's OWN step (polymeter drift)
 
         for (int v = 0; v < NV; v++)
-            if (grid[v][playhead]) flash[v] = 5;
+            if (grid[v][phv[v]]) flash[v] = 5;
 
         float f = beat_pos() * 4.0f; f -= (int)f;
         int step_ms = 15000 / tempo;
         int delay   = (int)((1.0f - f) * step_ms);
         int nx      = (s16 + 1) & 15;
-        // 909 shuffle: the EVEN 16ths drag (the 808 cart swings 8ths —
-        // an anachronism there; here it's the real 1983 panel knob)
+        // swing + accent live on the GLOBAL grid — they're a feel on physical
+        // time slots, not on a voice's drifted position. Only the pattern
+        // LOOKUP goes per-voice (nxv), so a short voice reads its own step but
+        // still gets the bar's shuffle and downbeat accents.
         if (nx & 1) delay += (swing - 50) * 2 * step_ms / 100;
         int boost   = gacc[nx] ? 2 : 0;
-        for (int v = 0; v < NV; v++)
-            if (grid[v][nx] && (gprob[v][nx] >= 100 || rnd(100) < gprob[v][nx]))
-                fire_stroke(v, gstroke[v][nx], boost, delay, step_ms);   // trig-prob roll
+        for (int v = 0; v < NV; v++) {
+            int nxv = (s16 + 1) % vlen[v];                // this voice's own next step
+            if (grid[v][nxv] && (gprob[v][nxv] >= 100 || rnd(100) < gprob[v][nxv]))
+                fire_stroke(v, gstroke[v][nxv], boost, delay, step_ms);   // trig-prob roll
+        }
 
-        if (first) {   // fresh start: also sound the step we're already on
+        if (first) {   // fresh start: also sound the step each voice is already on
             int b0 = gacc[playhead] ? 2 : 0;
             for (int v = 0; v < NV; v++)
-                if (grid[v][playhead] && (gprob[v][playhead] >= 100 || rnd(100) < gprob[v][playhead]))
+                if (grid[v][phv[v]] && (gprob[v][phv[v]] >= 100 || rnd(100) < gprob[v][phv[v]]))
                     fire(v, b0, 0);
         }
     }
@@ -669,10 +686,12 @@ void draw(void) {
             draw_knob(K2X, y, kcolor[v], (drag_v==v&&drag_k==2) ? CLR_YELLOW : base_col);
         for (int s = 0; s < STEPS; s++) {
             int x = GX + s * SX;
+            bool dead = s >= vlen[v];   // beyond this voice's loop length — never fires (polymeter)
             // 909 step buttons: uniform grey keys, orange when lit, the
             // first step of each quarter gets a white tick (beat marker)
             if (grid[v][s]) {
-                int c = (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : CLR_ORANGE;
+                int c = dead ? CLR_DARK_GREY
+                      : (flash[v] > 0 && s == phv[v] && running) ? CLR_WHITE : CLR_ORANGE;
                 // trig-prob: a less-than-certain hit is a SHORTER bar, drained
                 // from the top (its full-height socket stays outlined below).
                 int bh = 2 + gprob[v][s] * 5 / 100;   // 25%→3px .. 100%→7px
@@ -696,7 +715,20 @@ void draw(void) {
                     rectfill(x, by, SX - 4, bh, c);
                 }
             } else
-                rect(x, y, SX - 4, 7, (s & 3) == 0 ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
+                rect(x, y, SX - 4, 7, dead ? CLR_BROWNISH_BLACK
+                                     : (s & 3) == 0 ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
+        }
+        // per-voice playhead: a bright under-tick at this voice's OWN step, so
+        // you can watch the heads drift apart even on rests. POLY-mode only —
+        // otherwise it's just noise under the shared column.
+        if (running && poly_mode) rectfill(GX + phv[v] * SX, y + 7, SX - 4, 1, CLR_YELLOW);
+        // POLY chrome: the red loop-end divider + a length readout in the margin
+        if (poly_mode) {
+            if (vlen[v] < STEPS) line(GX + vlen[v] * SX - 2, y - 1, GX + vlen[v] * SX - 2, y + 7, CLR_RED);
+            sprintf(buf, "%2d", vlen[v]);
+            font(FONT_SMALL);
+            print(buf, GX + STEPS * SX + 1, y, CLR_DARK_RED);
+            font(FONT_NORMAL);
         }
         if (flash[v] > 0) flash[v]--;
     }
@@ -736,7 +768,17 @@ void draw(void) {
     print("RES^", PADX - 22, PADY, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
+    // POLY toggle (bottom-left) — when lit, a grid tap sets that voice's loop LENGTH
+    rectfill(14, 150, 48, 13, poly_mode ? CLR_DARK_RED : CLR_DARKER_GREY);
+    rect(14, 150, 48, 13, poly_mode ? CLR_ORANGE : CLR_DARK_GREY);
+    print("POLY", 24, 153, poly_mode ? CLR_WHITE : CLR_MEDIUM_GREY);
+    if (poly_mode) {
+        font(FONT_SMALL);
+        print("tap a step = that voice's loop end", 66, 153, CLR_DARK_RED);
+        font(FONT_NORMAL);
+    }
+
     font(FONT_SMALL);
-    print("<> PRESET  ^v BPM  Z/X SHFL   V-drag=PROB   STROKE btn: tap=flam", 14, 189, CLR_DARK_GREY);
+    print("<>PRESET  ^vBPM  Z/X SHFL   Vdrag=PROB   STROKE:tap=flam   POLY:tap=length", 14, 189, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

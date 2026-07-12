@@ -1,6 +1,6 @@
 # Learn You a dreamengine for Great Good!
 
-STATUS: building (2026-07-12) — 7 chapters drafted (incl. a playable game + a sound chapter you can actually hear); voice + pipeline settled. Pick up any time.
+STATUS: building (2026-07-12) — 10 of 15 chapters drafted (through "Juice"); voice + pipeline settled. Pick up any time.
 
 An illustrated, chatty field guide to the `studio.h` API, in the voice (and spirit) of
 *Learn You a Haskell for Great Good!* — the beginner kept as a delighted critic (per
@@ -105,7 +105,11 @@ artifacts to `build/book/…`, so `build-book.js` pre-creates `build/book/` and
 6. **Drawing With Pictures, Not Just Shapes** — `spr` + the numbered sheet, two-frame walk
    animation, `colorkey` (`sprites` GIF; sprites in `sprites.cart.js`)
 7. **Making A Racket** — `note(midi, instr, vol)`, pentatonic sequencer, `instrument()` setup
-   (`song`, a webm you can HEAR). Currently the finale ("go do a great good").
+   (`song`, a webm you can HEAR). Ends Part I — hinges into "Part II: saying the six words well".
+8. **Do Two Things Touch?** — AABB collision, the `overlap()` test, the hitbox "honest lie" (`collide` GIF)
+9. **A Cast of Thousands** — arrays + one `for` loop for the whole cast; ties back to `overlap()` (`swarm` GIF)
+10. **Juice: Making It Feel Good** — feedback tied to events: `shake()` + squash/flash timers + a
+    particle burst; the "a little goes a long way" restraint (`juice` GIF)
 
 ## Roadmap — chapters 8–15 (planned, locked 2026-07-12)
 
@@ -113,12 +117,9 @@ The arc keeps earning harder ideas, drops a **second bigger payoff** at 13, lets
 more literal as they get meatier, and **bookends** the book (15's farewell creature calls
 back to Ch.1's greeter). Each still needs its own mood creature.
 
- 8. **Do Two Things Touch?** — AABB collision, the true/false question every game asks (catch
-    hand-waved it; do it properly). Illus: two boxes sliding through each other, flashing on overlap.
- 9. **A Cast of Thousands** — arrays/structs of entities + looping over them; one thing → many.
-    Illus: a swarm of bouncing dots / starfield.
-10. **Juice: Making It Feel Good** — game feel: shake, hit-flash, squash & stretch, particles
-    (lean on `docs/guides/game-feel.md` + `juice.c`). Illus: dull hit vs juicy hit, side by side.
+ 8. ✓ SHIPPED — **Do Two Things Touch?** (collision)
+ 9. ✓ SHIPPED — **A Cast of Thousands** (arrays + loop)
+10. ✓ SHIPPED — **Juice: Making It Feel Good** (game feel; used the built-in `shake()`)
 11. **Worlds Bigger Than the Screen** — tilemaps (`map()`) + `camera()` scrolling. Illus: a tile
     level with the camera panning to follow.
 12. **Remembering Things** — `save_int`/`load_int` (a high score that survives) + a title→play→over

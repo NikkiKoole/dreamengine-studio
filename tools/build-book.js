@@ -41,6 +41,9 @@ const ILLUS = {
   catch:   { kind: 'gif', frames: 150, fps: 20 },
   sprites: { kind: 'gif', frames: 120, fps: 20 },
   song:    { kind: 'video', frames: 144, fps: 30 },   // a webm — it has SOUND
+  collide: { kind: 'gif', frames: 120, fps: 20 },
+  swarm:   { kind: 'gif', frames: 90,  fps: 20 },
+  juice:   { kind: 'gif', frames: 96,  fps: 20 },
   // mood creatures — one per chapter, drawn by the console like everything else
   greeter:  { kind: 'still' },
   leaper:   { kind: 'still' },
@@ -49,6 +52,9 @@ const ILLUS = {
   champion: { kind: 'still' },
   painter:  { kind: 'still' },
   crooner:  { kind: 'still' },
+  bumper:   { kind: 'still' },
+  crowd:    { kind: 'still' },
+  spark:    { kind: 'still' },
 };
 
 function render(id, spec) {
@@ -213,6 +219,9 @@ const html = `<title>Learn You a dreamengine for Great Good!</title>
   <a href="#ch5"><span class="num">5</span><span>Your First Actual Game</span></a>
   <a href="#ch6"><span class="num">6</span><span>Drawing With Pictures, Not Just Shapes</span></a>
   <a href="#ch7"><span class="num">7</span><span>Making A Racket</span></a>
+  <a href="#ch8"><span class="num">8</span><span>Do Two Things Touch?</span></a>
+  <a href="#ch9"><span class="num">9</span><span>A Cast of Thousands</span></a>
+  <a href="#ch10"><span class="num">10</span><span>Juice: Making It Feel Good</span></a>
 </nav>
 
 <main class="wrap">
@@ -436,9 +445,83 @@ sprites: {
   ${aside('', 'Set it up once, then just play',
     '<p>A plain beep needs no setup, but a <em>nice</em> voice does &mdash; one line, once, at the start: <code>instrument(5, INSTR_PLUCK, &hellip;)</code> teaches slot 5 how to sound. After that you just <code>note(&hellip;, 5, &hellip;)</code> forever. Same shape as sprites: define the thing once, then refer to it by number.</p>')}
 
-  <p>And that really is the whole box. Shapes to draw with, sprites to draw <em>fast</em>, a clock to move it all, buttons to poke it, a loop to hold it together, and now a voice. Everything else in the manual is a fancier way to say one of these six things.</p>
+  <p>And that really is the whole box. Shapes to draw with, sprites to draw <em>fast</em>, a clock to move it all, buttons to poke it, a loop to hold it together, and now a voice. Those are the six words. You could stop here and make things &mdash; people have made wonderful things with less.</p>
 
-  <p>So go do a great good. The machine is patient, the crayons are cheap, the racket is cheerful, and the gremlin believes in you.</p>
+  <p>But knowing the six words isn&rsquo;t the same as writing poetry with them. The rest of this book isn&rsquo;t new vocabulary &mdash; it&rsquo;s learning to say those words <em>well</em>: how things touch, how to have a hundred of them, how to make a hit <em>feel</em> like a hit, how to build a world bigger than the window, and finally how to hand the whole thing to a friend. Turn the page.</p>
+
+
+  ${chapHead('ch8', '8', 'collision', 'Do Two Things Touch?')}
+  ${creature('bumper', 'A dizzy green blob that has walked straight into a wall, stars spinning')}
+
+  <p>Back in Chapter 5 the basket caught a cherry, and we waved our hands at <em>how</em> &mdash; &ldquo;if the cherry is near the basket.&rdquo; That hand-wave has a name. It&rsquo;s the single most-asked question in all of games: <em>are these two things touching?</em> A bullet and an alien. A foot and a floor. A hero and a coin. Learn to answer it once and you can build almost anything.</p>
+
+  <p>The trick is to stop thinking about your hero&rsquo;s lovely round shape and pretend, just for the maths, that everything is a plain rectangle. Two rectangles overlap when &mdash; and only when &mdash; <strong>all four</strong> of these are true at once:</p>
+
+  ${screen('collide', 'One box sweeping through another; they turn red and show a yellow overlap patch when touching',
+    '<b>the blue box sweeps through the grey one.</b><br>overlapping → both red, and the shared patch (the actual overlap) glows yellow.')}
+
+  <pre><span class="k">bool</span> <span class="f">overlap</span>(<span class="k">int</span> ax, <span class="k">int</span> ay, <span class="k">int</span> aw, <span class="k">int</span> ah,
+             <span class="k">int</span> bx, <span class="k">int</span> by, <span class="k">int</span> bw, <span class="k">int</span> bh) {
+    <span class="k">return</span> ax     &lt; bx + bw   <span class="c">// A's left  is left of B's right, AND</span>
+        &amp;&amp; ax + aw &gt; bx        <span class="c">// A's right is right of B's left, AND</span>
+        &amp;&amp; ay     &lt; by + bh   <span class="c">// A's top   is above B's bottom, AND</span>
+        &amp;&amp; ay + ah &gt; by;       <span class="c">// A's bottom is below B's top.</span>
+}</pre>
+
+  <p>Read it as four little &ldquo;are we past each other yet?&rdquo; checks &mdash; two for the left/right, two for the up/down. If even one is false, there&rsquo;s a gap on that side and they can&rsquo;t be touching. All four true, and they&rsquo;re overlapping. That&rsquo;s the whole thing. Every &ldquo;did I get hit?&rdquo; in every game you&rsquo;ve played is, underneath, these four lines.</p>
+
+  ${aside('warn', 'The honest little lie',
+    '<p>Your hero isn&rsquo;t a rectangle, so treating him as one is <em>cheating</em> &mdash; a corner of his invisible box can &ldquo;touch&rdquo; a spike his art clearly missed. Everyone cheats anyway. It&rsquo;s called a <em>hitbox</em>, and the trick is to draw it a little <em>smaller</em> than the sprite: players forgive a near-miss that should&rsquo;ve hit, but they curse a hit that looks like a miss. Generosity, quietly encoded.</p>')}
+
+  <p>One box against one box is easy. But a real game has a hero and <em>forty</em> coins, or a ship and a swarm of bullets. For that, we need a way to hold many things at once &mdash; which is the next page.</p>
+
+
+  ${chapHead('ch9', '9', 'many things', 'A Cast of Thousands')}
+  ${creature('crowd', 'One big green blob surrounded by a crowd of tiny ones')}
+
+  <p>Every star of the show so far has been a soloist &mdash; one sun, one basket, one ball. But games are crowds: forty coins, a hundred bullets, a sky full of stars. You do <em>not</em> write a hundred variables called <code>coin1</code>, <code>coin2</code>, <code>coin37</code> and weep. You write one <strong>array</strong> &mdash; a numbered row of boxes, all the same kind &mdash; and let a <code>for</code> loop do the same thing to every box in it.</p>
+
+  ${screen('swarm', 'Sixty-four coloured dots bouncing around the screen',
+    '<b>sixty-four dots, each with its own position and speed.</b><br>not sixty-four blocks of code &mdash; one loop, run sixty-four times.')}
+
+  <pre><span class="k">float</span> x[<span class="n">64</span>], y[<span class="n">64</span>], vx[<span class="n">64</span>], vy[<span class="n">64</span>];   <span class="c">// 64 of every number</span>
+
+<span class="k">void</span> <span class="f">update</span>(<span class="k">void</span>) {
+    <span class="k">for</span> (<span class="k">int</span> i = <span class="n">0</span>; i &lt; <span class="n">64</span>; i++) {        <span class="c">// the whole cast, one loop</span>
+        x[i] += vx[i];                     <span class="c">// move dot #i (chapter 4, ×64)</span>
+        y[i] += vy[i];
+    }
+}</pre>
+
+  <p>The <code>[64]</code> makes sixty-four of something; the <code>[i]</code> means &ldquo;the i-th one.&rdquo; The loop counts <code>i</code> from 0 to 63 and does the exact same handful of lines to each. Want a thousand instead of sixty-four? Change one number. The loop never notices. <em>This</em> is the leap from a toy to a game: not harder code, just the same code aimed at a list.</p>
+
+  ${aside('', 'Everything is secretly this',
+    '<p>Bullets, enemies, coins, raindrops, particles &mdash; all of it is an array of things and a loop. And it plugs straight into the last chapter: to see which coins the hero grabbed, loop over all of them and run <code>overlap(hero, coin[i])</code> on each. Many-things plus does-it-touch is <em>most</em> of what a game engine even does.</p>')}
+
+
+  ${chapHead('ch10', '10', 'game feel', 'Juice: Making It Feel Good')}
+  ${creature('spark', 'A green blob leaping with joy, sparkles all around')}
+
+  <p>Here is the difference between a program that works and a game that feels <em>alive</em>, and it has almost nothing to do with the rules. Watch this ball land &mdash; then imagine it just&hellip; stopping, politely, with no fuss:</p>
+
+  ${screen('juice', 'A ball bouncing; each landing squashes it, flashes a ring, kicks the screen, and flings dust',
+    '<b>the same bounce as chapter 2 &mdash; but every landing means it.</b><br>squash + flash + a screen kick + a puff of dust, all fired by one event.')}
+
+  <p>That&rsquo;s called <strong>juice</strong>, and the whole art of it is one rule: <em>every bit of feedback is tied to a specific event.</em> The event here is the landing, and the instant it happens we fire off four little things at once:</p>
+
+  <pre><span class="k">if</span> (landed) {
+    <span class="f">shake</span>(<span class="n">4</span>);        <span class="c">// kick the whole screen — a built-in, decays on its own</span>
+    squash = <span class="n">6</span>;      <span class="c">// draw the ball squished for 6 frames</span>
+    flash  = <span class="n">5</span>;      <span class="c">// a white ring, expanding for 5 frames</span>
+    <span class="f">spawn_dust</span>();   <span class="c">// a little burst of particles (chapter 9's array-of-things!)</span>
+}</pre>
+
+  <p>None of that is new. <code>shake</code> is a gift the engine hands you. <code>squash</code> and <code>flash</code> are just little countdown timers &mdash; Chapter 4&rsquo;s clock, in miniature. The dust is Chapter 9&rsquo;s array-of-things, spat out in a fan. Juice isn&rsquo;t a new skill; it&rsquo;s the tricks you already have, all aimed at a single moment so the player <em>feels</em> it in their gut instead of reading it off the screen.</p>
+
+  ${aside('warn', 'A little goes a long way',
+    '<p>The temptation, once you can shake and flash and spray sparks, is to do it constantly. Don&rsquo;t. If <em>everything</em> shakes, nothing lands. Keep the effects short (a few frames), and tie each one to a real event &mdash; a hit, a pickup, a jump. If you removed an effect and the action didn&rsquo;t feel any less clear, it was noise. Cut it.</p>')}
+
+  <p>Your worlds can move, hold a crowd, and hit like they mean it now. There&rsquo;s just one wall left: everything still has to fit inside one little 320&times;200 window. Next, we knock that wall down.</p>
 
 </main>
 

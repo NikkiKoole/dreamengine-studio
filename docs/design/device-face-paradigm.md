@@ -7,7 +7,10 @@ chordblossom (§1c), more-note-bass (§1d) + pocketbox (§1e) worked through on 
 transferred, and the corrections along the way (a hero surface filed as a strip; a flat grid blessed as "show
 everything") hardened the §2 rules and produced the reading guardrail (§2b, the pointers that keep the next
 reader off the wrong route). pocketbox is also the worked case of the paradigm *fixing* a hardware clone's UX
-pain (14-page paramscroll, no knobs, invisible holds) without touching its sequencer brain.
+pain (14-page paramscroll, no knobs, invisible holds) without touching its sequencer brain. The OP-1 *device*
+analysis (§1f) then stretched the model further — the screen's *character/soul*, and the split into **two body-
+plans** (grid vs keybed) under one grammar — producing the [tombola](tombola.md) cart design and the
+*omit-unneeded-zones* rule (§2).
 
 > **Why this doc exists.** We kept re-solving "how do I fit a big instrument on a phone?" per-cart
 > (the [acidrack accordion](acidrack-layout-brief.md), the [epiano keybed brief](epiano-layout-brief.md)).
@@ -316,7 +319,9 @@ has:
 | (the OP-1's cousin: chord toy) | Omnichord | **already built** — `chordblossom` (§1c) |
 
 So the OP-1 doesn't become one cart; it becomes a *reading list* of faces, most of which the repo can
-already point at — the tombola being the one genuinely-missing honest core.
+already point at — the tombola being the one genuinely-missing honest core. *(This table is the device-level
+view; the cart-level reuse detail — why the tombola won, and which carts to copy — lives in
+[`tombola.md`](tombola.md)'s "scope discipline" + "prior art". Keep the two in sync.)*
 
 ## 2 · The principles that make it work
 
@@ -359,6 +364,16 @@ already point at — the tombola being the one genuinely-missing honest core.
   again — fewer visible controls is the feature). A physics/rotational instrument that has no steps to
   toggle has **no zone 4 at all** — don't add a row of buttons to fill a slot. The [tombola](tombola.md) is
   the worked case: a drum of falling note-balls, so the mode-switched step row simply isn't there.
+- **One grammar, two body-plans — subtract from whichever fits.** The reason "omit unneeded zones" isn't
+  chaos is that the omissions fall along a seam: the shelf splits into two families that share the *same*
+  spine + encoders + screen + keybed, and differ in one zone.
+  - **The x0x step-grid family** — acidface, pocketbox — **keeps zone 4** (the 16-step row is the heart).
+  - **The knobs + keybed family** — OP-1, tombola, electribe, epiano — **drops zone 4** and plays through
+    the encoders + keybed instead.
+  A stranger recognizes the *grammar* (knobs on top, a screen in the middle, play at the bottom), not a fixed
+  silhouette — which is what lets a whole suite of carts read as one family while each carries only the zones
+  it needs. It also reconciles the two poles the doc keeps citing: the pocketbox/acidface grid faces and the
+  OP-1/tombola keybed faces are the *same skeleton*, two body-plans. (This is the seam §1f's Stretch 3 names.)
 - **Continuous vs contextual is the split that never moves.** Zone 2 (ride-live params) is always present;
   everything else is disclosed. Deciding which params are "always live" is the one real taste call per cart.
 - **Depth decides surface-vs-display — not size.** A **binary** lane (a drum hit, on/off) stays on the

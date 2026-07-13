@@ -110,7 +110,8 @@ feature (Hick's Law), not a gap.
 
 A faithful *whole* OP-1 (synth + sampler + tape + sequencer + mixer) breaks "one cart = one honest
 core" and is far too big. The whole pocket-studio is a **Tiny-Jam-style multi-rack app**, later — not
-this cart. Slices considered, and why the tombola won:
+this cart. Slices considered, and why the tombola won (the device-level version of this table — OP-1
+module → repo status — is in [`device-face-paradigm.md`](device-face-paradigm.md) §1f; keep the two in sync):
 
 | slice | verdict |
 |---|---|

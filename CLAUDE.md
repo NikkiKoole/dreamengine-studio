@@ -276,8 +276,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
                              cut off by another instrument". Design: docs/design/audio-voice-debugging.md
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B
-                             analysis (sample correlation / amp+brightness envelope / LFO rate+depth /
-                             harmonic series) — for A/B-ing a render against navkit
+                             analysis (sample correlation / amp+brightness+spectral-centroid envelope,
+                             `--from/--to` region / LFO rate+depth / harmonic series) — for A/B-ing a
+                             render against navkit (or before/after an fx like crush/filter/EQ)
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)

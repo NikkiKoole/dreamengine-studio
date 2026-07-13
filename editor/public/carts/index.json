@@ -3034,7 +3034,7 @@
   },
   {
     "title": "Jelly",
-    "description": "Three wobbly jellies flop to the floor and squish under their own weight, then spring back — each a soft-body blob (a ring of verlet points around a hub, runtime/physics.h) wearing a texture fanned out with tritex, so the printed face (or checkerboard) deforms as the blob does. Grab any jelly and fling it; watch it splat and re-round. R resets. The checker one makes the squish obvious; the faces make it cute.",
+    "description": "Three wobbly jellies flop to the floor and squish, then spring back round — each a pressurized soft-body blob (a verlet rim ring that preserves its area, runtime/physics.h) wearing a texture fanned out with tritex, so the printed face (or checkerboard) deforms as the blob does. Grab any jelly and pull it into a blobby mess; let go and the pressure re-rounds it. R resets. The checker one makes the squish obvious; the faces make it cute.",
     "file": "jelly.cart.png",
     "created": "2026-07-13",
     "kind": [
@@ -3046,7 +3046,7 @@
       "soft-body",
       "procedural-mesh"
     ],
-    "lineage": "Soft-body twin of the `tentacle` skinning spike: where tentacle skins a verlet CHAIN, jelly skins a verlet RING+HUB (the physics.c soft-body blob) with a radial tritex fan — the hub maps to the texture centre, each rim point to a point on a circle, so the texture squishes with the blob. Composes runtime/physics.h + tritex, no new engine code."
+    "lineage": "Soft-body twin of the `tentacle` skinning spike: where tentacle skins a verlet CHAIN, jelly skins a PRESSURIZED verlet ring with a radial tritex fan. The ring holds its shape by gas pressure (area preservation) — not rigid spokes, which let a distance-only blob fold and never reform — so you can squash it flat and it re-rounds. Composes runtime/physics.h + tritex, no new engine code."
   },
   {
     "title": "jingle radio",

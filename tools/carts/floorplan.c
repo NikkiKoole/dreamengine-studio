@@ -9,7 +9,7 @@
     "toy"
   ],
   "teaches": [],
-  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched (or type an id). Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
   "todo": [
     "object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid boxes — read each item's height/z and skip collision below a threshold.",
     "true 32-bit RGB: fall back to engine RGB instead of quantising sprites/textures to the 32-palette — natural furniture + rich floor textures.",
@@ -23,6 +23,7 @@ de:meta */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <dirent.h>
 
 // floorplan — ONE cart, MANY floorplans. The runtime-loaded twin of floorwalker:
 // the level (walls, doorways, room floors, furniture sprites) is NOT baked into the
@@ -103,6 +104,21 @@ static int   loaded_ok = 0, tried = 0, truncated = 0;
 static struct { float x, y, aim; } pl;
 static bool use_sprites = true;   // T toggles sprites vs placeholder boxes
 static bool outline_on = true;    // O toggles the render-time furniture outline
+
+// ---- start-screen plan picker (stage 1 of the loader; docs/design/external-data-carts.md → "Loader") ----
+// Lists the plans already fetched into the data folder; pick one or type an id. TAB summons it while
+// walking; ESC backs out. Fetching a NEW id (the --serve bridge) is stage 2 — not built yet.
+#define MAXPLANS  256
+#define PICK_Y0   34              // y of the first list row
+#define PICK_RH   11              // row height
+#define C_SEL     CLR_DARK_BLUE   // selected-row highlight bar
+typedef struct { char file[64]; char name[48]; } PlanEntry;   // file = filename stem, name = plan's "name"
+static PlanEntry plans[MAXPLANS]; static int n_plans = 0;
+static int  sel = 0, scroll = 0;      // highlighted row / first visible row
+static bool picking = false;          // showing the picker instead of the plan
+static char plans_dir[256] = "";      // folder scanned for *.json
+static char idbuf[16] = "";           // id typed into the entry field
+static char pickmsg[128] = "";        // transient status under the entry field
 
 #define PLAYER_R 4.0f
 #define CAM_ZOOM 1.0f
@@ -252,6 +268,145 @@ static void load_data(void) {
     load_from(path ? path : DATA_DIR "/demo.json");
     if (!loaded_ok && !path)
         snprintf(err, sizeof err, "no data -- run: node data-tools/fmltools/floorplanner.js -pid=<id>  (then drop the .json here)");
+}
+
+// ---- plan picker ----
+// The folder to scan: the dirname of the launch --data file (so --play's folder is listed),
+// else DATA_DIR. cwd is build/, so DATA_DIR == <project>/data/floorplan.
+static void resolve_plans_dir(void) {
+    const char *dp = de_data_path();
+    if (dp && *dp) {
+        strncpy(plans_dir, dp, sizeof plans_dir - 1);
+        plans_dir[sizeof plans_dir - 1] = 0;
+        char *slash = strrchr(plans_dir, '/');
+        if (slash && slash != plans_dir) *slash = 0; else strcpy(plans_dir, DATA_DIR);
+    } else {
+        strcpy(plans_dir, DATA_DIR);
+    }
+}
+// pull "name":"..." from the first bytes of a plan file (cheap — no full JSON parse; name is key 1)
+static void peek_name(const char *path, char *out, int cap) {
+    out[0] = 0;
+    FILE *f = fopen(path, "rb");
+    if (!f) return;
+    char head[512]; size_t got = fread(head, 1, sizeof head - 1, f); head[got] = 0; fclose(f);
+    char *k = strstr(head, "\"name\"");
+    if (!k) return;
+    k = strchr(k + 6, '"'); if (!k) return;              // opening quote of the value
+    k++; char *end = strchr(k, '"'); if (!end) return;
+    int n = (int)(end - k); if (n > cap - 1) n = cap - 1;
+    memcpy(out, k, n); out[n] = 0;
+}
+static int plan_cmp(const void *a, const void *b) {
+    return strcmp(((const PlanEntry *)a)->file, ((const PlanEntry *)b)->file);
+}
+static void scan_plans(void) {
+    n_plans = 0;
+    DIR *d = opendir(plans_dir);
+    if (!d) return;
+    struct dirent *e;
+    while ((e = readdir(d)) && n_plans < MAXPLANS) {
+        const char *nm = e->d_name;
+        int L = (int)strlen(nm);
+        if (L < 6 || strcmp(nm + L - 5, ".json")) continue;      // *.json only
+        PlanEntry *p = &plans[n_plans];
+        int stem = L - 5; if (stem > (int)sizeof p->file - 1) stem = (int)sizeof p->file - 1;
+        memcpy(p->file, nm, stem); p->file[stem] = 0;
+        char path[400]; snprintf(path, sizeof path, "%s/%s", plans_dir, nm);
+        peek_name(path, p->name, sizeof p->name);
+        n_plans++;
+    }
+    closedir(d);
+    qsort(plans, n_plans, sizeof plans[0], plan_cmp);
+}
+static void open_picker(void) {
+    resolve_plans_dir();
+    scan_plans();
+    picking = true; idbuf[0] = 0; pickmsg[0] = 0;
+    if (sel >= n_plans) sel = n_plans ? n_plans - 1 : 0;
+}
+static void load_plan(int i) {
+    if (i < 0 || i >= n_plans) return;
+    char path[400]; snprintf(path, sizeof path, "%s/%s.json", plans_dir, plans[i].file);
+    load_from(path);
+    if (loaded_ok) picking = false;
+    else snprintf(pickmsg, sizeof pickmsg, "%s", err[0] ? err : "load failed");
+}
+// load by the typed id — stage 1: local files only. Stage 2's --serve bridge fetches unknown ids.
+static void load_id(void) {
+    for (int i = 0; i < n_plans; i++)
+        if (!strcmp(plans[i].file, idbuf)) { load_plan(i); return; }
+    snprintf(pickmsg, sizeof pickmsg, "%s not fetched -- run: floorplanner.js %s --play", idbuf, idbuf);
+}
+static void boot_once(void) {
+    if (tried) return;
+    tried = 1;
+    load_data();
+    if (!loaded_ok) open_picker();   // no --data given → offer the picker instead of the bare error
+}
+static void update_picker(void) {
+    int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
+    if ((keyp(KEY_DOWN) || keyp('S')) && n_plans) sel = (sel + 1) % n_plans;
+    if ((keyp(KEY_UP)   || keyp('W')) && n_plans) sel = (sel + n_plans - 1) % n_plans;
+
+    const char *t = text_input();               // accept typed digits into the id field
+    for (const char *p = t; *p; p++)
+        if (*p >= '0' && *p <= '9' && (int)strlen(idbuf) < (int)sizeof idbuf - 1) {
+            char c[2] = { *p, 0 }; strcat(idbuf, c); pickmsg[0] = 0;
+        }
+    if (keyp(KEY_BACKSPACE) && idbuf[0]) { idbuf[strlen(idbuf) - 1] = 0; pickmsg[0] = 0; }
+    if (idbuf[0])                               // a typed id that matches a local plan highlights it
+        for (int i = 0; i < n_plans; i++)
+            if (!strcmp(plans[i].file, idbuf)) { sel = i; break; }
+
+    // keep the selection on screen
+    if (sel < scroll) scroll = sel;
+    if (sel >= scroll + maxrows) scroll = sel - maxrows + 1;
+    if (scroll < 0) scroll = 0;
+
+    if (mouse_pressed(0)) {                      // single click on a row = select + load
+        int my = mouse_y();
+        if (my >= PICK_Y0) {
+            int row = scroll + (my - PICK_Y0) / PICK_RH;
+            if (row >= 0 && row < n_plans) { sel = row; load_plan(row); }
+        }
+    }
+    if (keyp(KEY_ENTER)) { if (idbuf[0]) load_id(); else load_plan(sel); }
+    if (keyp(KEY_ESCAPE) && loaded_ok) picking = false;   // back out only if a plan is loaded
+}
+static void draw_picker(void) {
+    camera(0, 0);
+    cls(C_BG);
+    print("FLOORPLAN", 8, 6, CLR_LIGHT_GREY);
+    font(FONT_SMALL);
+    print("[up/down] pick   [enter] load   type an id   drag a .json in", 8, 17, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+
+    int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
+    if (n_plans == 0) {
+        font(FONT_SMALL);
+        print("no plans in this folder yet -- fetch one:", 8, PICK_Y0, CLR_ORANGE);
+        print("node data-tools/fmltools/floorplanner.js <id> --play", 8, PICK_Y0 + 11, CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
+    } else {
+        for (int i = scroll; i < n_plans && i < scroll + maxrows; i++) {
+            int ry = PICK_Y0 + (i - scroll) * PICK_RH;
+            bool on = (i == sel);
+            if (on) rectfill(4, ry - 1, SCREEN_W - 8, PICK_RH, C_SEL);
+            print(plans[i].file, 8, ry + 1, on ? CLR_WHITE : CLR_LIGHT_GREY);
+            if (plans[i].name[0]) {
+                font(FONT_SMALL);
+                print(plans[i].name, 104, ry + 2, on ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY);
+                font(FONT_NORMAL);
+            }
+        }
+        if (scroll + maxrows < n_plans) {
+            font(FONT_SMALL); print("...more", 8, PICK_Y0 + maxrows * PICK_RH, CLR_DARK_GREY); font(FONT_NORMAL);
+        }
+    }
+    if (pickmsg[0]) { font(FONT_SMALL); print(pickmsg, 8, SCREEN_H - 22, CLR_ORANGE); font(FONT_NORMAL); }
+    char entry[64]; snprintf(entry, sizeof entry, "id: %s_", idbuf);
+    print(entry, 8, SCREEN_H - 12, CLR_WHITE);
 }
 
 // ---- geometry helpers (identical to floorwalker) ----
@@ -414,9 +569,11 @@ void init(void) {
 }
 
 void update(void) {
-    if (!tried) { tried = 1; load_data(); }
+    boot_once();
     const char *dropped = de_dropped_file();   // drag a .json onto the window to swap plans
-    if (dropped) load_from(dropped);
+    if (dropped) { load_from(dropped); if (loaded_ok) picking = false; }
+    if (keyp(KEY_TAB)) { if (!picking) open_picker(); else if (loaded_ok) picking = false; }
+    if (picking) { update_picker(); return; }  // the picker eats input while it's open
     if (!loaded_ok) return;
 
     float d = dt();
@@ -437,9 +594,11 @@ void update(void) {
 }
 
 void draw(void) {
-    if (!tried) { tried = 1; load_data(); }
+    boot_once();
     camera(0, 0);
     cls(C_BG);
+
+    if (picking) { draw_picker(); return; }
 
     if (!loaded_ok) {
         print_centered("FLOORPLAN", SCREEN_W / 2, SCREEN_H / 2 - 12, CLR_LIGHT_GREY);
@@ -483,7 +642,7 @@ void draw(void) {
     // HUD
     camera(0, 0);
     char buf[96];
-    snprintf(buf, sizeof buf, "%s  furn:%d  [T] %s%s", dname[0] ? dname : "FLOORPLAN", n_furn,
+    snprintf(buf, sizeof buf, "%s  furn:%d  [T] %s  [TAB] plans%s", dname[0] ? dname : "FLOORPLAN", n_furn,
              use_sprites ? "sprites" : "boxes", truncated ? "  (truncated)" : "");
     print(buf, 4, 4, CLR_WHITE);
 }

@@ -9,15 +9,18 @@
 // embed -> build -> register -> thumbnail). The result is a baked cart in exactly the
 // floorwalker/seinelaan style — only the data differs per project.
 //
-// AUTH (two ways, token preferred):
-//   1. auth_token (JWT, ~2 weeks) — the editor's `?auth_token=...`. Longest-lived, no
-//      cookie. Grab it from any authed editor request and:
+// AUTH — three sources, first one found wins. Easiest: paste your credential ONCE into a
+// gitignored file and every `<id> --play` after that just works (no re-exporting per shell):
+//   0. data-tools/fmltools/.token  — paste a JWT (starts `eyJ...`) OR a cookie
+//      (`fp_site_session=...`) into this one file. Refresh it when a fetch 401/403s.
+//        echo 'eyJhbGciOi...' > data-tools/fmltools/.token
+//   1. FP_AUTH_TOKEN env — the editor's `?auth_token=...` JWT (~2 weeks). Overrides the file.
 //        export FP_AUTH_TOKEN='eyJhbGciOi...'
-//   2. session cookie (`fp_site_session`, ~12h) — devtools -> Application -> Cookies ->
-//      floorplanner.com, while logged in:
-//        export FP_SESSION='fp_site_session=...'      # full pair, or just the value
+//   2. FP_SESSION env — session cookie (`fp_site_session`, ~12h) from devtools -> Application
+//      -> Cookies -> floorplanner.com, while logged in (full pair, or just the value).
+//        export FP_SESSION='fp_site_session=...'
 //
-// On a 401/403 the token/cookie has expired — refresh it and re-export.
+// On a 401/403 the token/cookie has expired — refresh it (re-paste .token or re-export).
 //
 // Flags:  -pid=N | --pid N | <N>   (required, the project id)
 //         --name <cart>   cart id (default: fp<pid>); reused name regenerates in place
@@ -59,14 +62,30 @@ if (!opt.pid) {
 
 // ---- auth ----
 // Prefer the long-lived JWT (query param); fall back to the session cookie (header).
+// Sources, first hit wins: FP_AUTH_TOKEN env, FP_SESSION env, then the gitignored
+// data-tools/fmltools/.token file (paste a JWT or a cookie into it once — see the header).
+const TOKEN_FILE = path.join(__dirname, '.token');
+// Turn a raw credential string into a cred object: a cookie if it names one, else a JWT.
+function credFrom(s) {
+  s = s.trim();
+  if (!s) return null;
+  if (/(^|[;\s])fp_[a-z_]+=/i.test(s)) return { kind: 'cookie', cookie: s };  // full cookie pair(s)
+  if (s.startsWith('ey')) return { kind: 'token', token: s };                 // JWT (base64 "{...")
+  return { kind: 'cookie', cookie: 'fp_site_session=' + s };                  // bare cookie value
+}
 function auth() {
   const tok = (process.env.FP_AUTH_TOKEN || '').trim();
   if (tok) return { kind: 'token', token: tok };
-  let c = (process.env.FP_SESSION || process.env.FP_COOKIE || '').trim();
-  if (c) return { kind: 'cookie', cookie: c.includes('=') ? c : 'fp_site_session=' + c };
-  console.error('floorplanner: no credentials. Set one of:');
-  console.error("  export FP_AUTH_TOKEN='eyJhbGciOi...'        # JWT from an authed editor request (~2 weeks)");
-  console.error("  export FP_SESSION='fp_site_session=...'     # session cookie from devtools (~12h)");
+  const c = (process.env.FP_SESSION || process.env.FP_COOKIE || '').trim();
+  if (c) return { ...credFrom(c), from: 'env' };
+  if (fs.existsSync(TOKEN_FILE)) {
+    const cred = credFrom(fs.readFileSync(TOKEN_FILE, 'utf8'));
+    if (cred) { console.log(`▸ auth      ${path.relative(ROOT, TOKEN_FILE)} (${cred.kind})`); return { ...cred, from: 'file' }; }
+  }
+  console.error('floorplanner: no credentials. Do ONE of:');
+  console.error("  echo 'eyJhbGciOi...' > data-tools/fmltools/.token   # paste a JWT (or a fp_site_session=... cookie) once — persists");
+  console.error("  export FP_AUTH_TOKEN='eyJhbGciOi...'                 # JWT from an authed editor request (~2 weeks)");
+  console.error("  export FP_SESSION='fp_site_session=...'              # session cookie from devtools (~12h)");
   process.exit(1);
 }
 
@@ -83,7 +102,8 @@ function fetchFml(pid, cred) {
       res.on('end', () => {
         const body = Buffer.concat(bufs);
         if (res.statusCode === 403 || res.statusCode === 401) {
-          return reject(new Error(`auth ${res.statusCode} — your ${cred.kind === 'token' ? 'FP_AUTH_TOKEN' : 'FP_SESSION cookie'} is missing/expired. Refresh it and re-export.`));
+          const fix = cred.from === 'file' ? 're-paste data-tools/fmltools/.token' : `refresh ${cred.kind === 'token' ? '$FP_AUTH_TOKEN' : '$FP_SESSION'} and re-export`;
+          return reject(new Error(`auth ${res.statusCode} — your ${cred.kind} is missing/expired. ${fix}.`));
         }
         if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode} fetching project ${pid}`));
         // download_json.fml returns JSON despite the text/xml content-type

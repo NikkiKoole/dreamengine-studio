@@ -12,6 +12,8 @@ data/
 
 # fetched Floorplanner plans (floorplanner.js)
 data-tools/fmltools/cache/
+# pasted Floorplanner credential (floorplanner.js reads it so `<id> --play` just works)
+data-tools/fmltools/.token
 
 # intermediate iconset (make-mac-icon.js output; the committed artifact is mac-app.icns)
 tools/assets/mac-app.iconset/

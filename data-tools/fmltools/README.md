@@ -8,8 +8,10 @@ renders.
 ## One command: a project id → playable (the easy path)
 
 ```bash
-export FP_AUTH_TOKEN='eyJ...'        # JWT from an authed editor request (~2 weeks). Or:
-# export FP_SESSION='fp_site_session=...'   # session cookie from devtools (~12h)
+# Auth ONCE — paste a JWT (or a fp_site_session=... cookie) into a gitignored file, and every
+# `<id> --play` afterwards just works (no re-exporting per shell). Refresh it when a fetch 403s.
+echo 'eyJ...' > data-tools/fmltools/.token
+# (env vars still work + override the file: export FP_AUTH_TOKEN='eyJ...'  or  FP_SESSION='fp_site_session=...')
 
 node data-tools/fmltools/floorplanner.js -pid=187256440 --play
 #   -> fetches the .fml, emits data/floorplan/187256440.json, and LAUNCHES the cart on it.

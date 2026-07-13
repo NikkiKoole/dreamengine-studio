@@ -167,6 +167,7 @@ bool key(int k);                     // true while key k is held. letters/digits
 bool keyp(int k);                    // true only on the frame key k was pressed
 bool keyr(int k);                    // true only on the frame key k was released
 const char *text_input(void);        // characters typed this frame (for name entry / word games); "" if none
+const char *paste(void);             // clipboard text on the frame Ctrl/Cmd+V is pressed, else "" — append it to your text_input() buffer
 
 // graphics
 void cls(int color);

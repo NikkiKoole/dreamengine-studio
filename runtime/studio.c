@@ -270,6 +270,7 @@ static float           shake_amt  = 0.0f;            // shake() — pixels, self
 static float           frame_dt   = 0.0f;            // dt()    — seconds since last frame
 static double          last_time  = 0.0;
 static char            text_buf[32] = {0};           // text_input() — chars typed this frame
+static char            paste_buf[256] = {0};          // paste() — clipboard text on the Ctrl/Cmd+V frame
 static bool            fp_on      = false;            // fillp() global pattern active?
 static int             fp_global  = 0;                // current fillp() pattern
 static int             fp_hole    = -1;               // fillp() 1-bit color (-1 = transparent)
@@ -2471,6 +2472,15 @@ static void loop_step(void) {
         }
     // characters typed this frame for text_input()
     { int n = 0, ch; while ((ch = GetCharPressed()) != 0 && n < 31) text_buf[n++] = (char)ch; text_buf[n] = 0; }
+    // clipboard text this frame for paste() — only on the Ctrl/Cmd+V chord (empty otherwise)
+    paste_buf[0] = 0;
+#ifndef DE_NO_RAYLIB
+    if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
+         IsKeyDown(KEY_LEFT_SUPER)   || IsKeyDown(KEY_RIGHT_SUPER)) && IsKeyPressed(KEY_V)) {
+        const char *cb = GetClipboardText();
+        if (cb) snprintf(paste_buf, sizeof paste_buf, "%s", cb);
+    }
+#endif
     // EXPERIMENTAL: capture a file dropped onto the window (valid this frame only)
     de_drop_valid = 0;
     if (IsFileDropped()) {
@@ -5680,6 +5690,7 @@ float dt(void) { return frame_dt; }
 int   fps(void) { return GetFPS(); }
 
 const char *text_input(void) { return text_buf; }
+const char *paste(void) { return paste_buf; }
 bool key(int k)  { key_claim(k); return inp_down(k); }
 bool keyp(int k) { key_claim(k); return inp_pressed(k); }
 bool keyr(int k) { key_claim(k); return inp_released(k); }

@@ -56,6 +56,7 @@ export const studioDocs = {
   keyp:           { sig: 'bool keyp(int k)',                                            doc: "True only on the frame the key was pressed (edge-triggered). key('A') or KEY_ENTER." },
   keyr:           { sig: 'bool keyr(int k)',                                            doc: "True only on the frame the key was released (the falling edge). Pair with keyp() for hold gestures — note_on() on keyp, note_off() on keyr for hold-to-sustain." },
   text_input:     { sig: 'const char *text_input()',                                   doc: 'The characters typed this frame, as a string (empty if none). For name entry, chat, word games.\nstrcat your buffer with it; handle KEY_BACKSPACE yourself.' },
+  paste:          { sig: 'const char *paste()',                                         doc: 'The clipboard text on the frame Ctrl+V (or Cmd+V on Mac) is pressed, else "". The paste companion to text_input() — append it to the same buffer for a text field that also accepts paste.\nExample: for (const char *p = paste(); *p; p++) if (isdigit(*p)) strncat(id, p, 1);' },
   KEY_SPACE:      { sig: '#define KEY_SPACE 32',     doc: 'Spacebar — pass to key() / keyp().' },
   KEY_ENTER:      { sig: '#define KEY_ENTER 257',    doc: 'Enter / Return — pass to key() / keyp().' },
   KEY_BACKSPACE:  { sig: '#define KEY_BACKSPACE 259',doc: 'Backspace — pass to key() / keyp(). Use to delete a character during text entry.' },

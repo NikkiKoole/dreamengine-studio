@@ -5899,6 +5899,21 @@
     "lineage": "Implements nadako's roguelike energy-scheduler (next-event-time priority queue); the timeline ribbon at the top is the explicit teaching artifact, showing the scheduling order rewrite live as you change speed."
   },
   {
+    "title": "Tentacle",
+    "description": "Four scaly tentacles sway in the current — each a chain of verlet bones (runtime/physics.h) wearing a skin of affine textured triangles (tritex) stretched between the bones, so the texture bends and shears with the motion. Grab any tentacle and fling it; it whips and settles back into the drift. R resets. The point of the spike: physics points make the skeleton, tritex makes the deformable skin — that's all skinning is.",
+    "file": "tentacle.cart.png",
+    "created": "2026-07-13",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "verlet-integration",
+      "procedural-mesh"
+    ],
+    "lineage": "Spike for the bone-driven textured-mesh (skinning) capability: composes the shared runtime/physics.h verlet toolkit (the BONES) with the engine's tritex() affine textured triangle (the SKIN) — the 'bodies ARE bones' pattern the deform/puppet experiments kept reaching for, at its smallest. No new engine code."
+  },
+  {
     "title": "tetris",
     "description": "The falling-block classic. All 7 tetrominoes with rotation (and wall kicks so they pivot off walls), a ghost piece showing where they'll land, a next-piece preview, soft drop and instant hard drop. Complete a horizontal line to clear it — four at once is a Tetris. Gravity speeds up every 10 lines, scoring rewards multi-line clears, best score saved. Left/Right move, Down soft-drop, Up hard-drop, Z/X rotate.",
     "file": "tetris.cart.png",

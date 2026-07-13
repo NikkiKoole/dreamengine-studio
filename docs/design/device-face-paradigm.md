@@ -268,6 +268,56 @@ hold-a-step p-lock gesture** §5 listed as open (that item is now done), and its
 case yet for extracting zone 4 into a shared library. The buttons-only charm is worth *keeping* if you love it
 — but that's a *look* you can keep while still fixing the paging and the hidden holds.
 
+## 1f · the OP-1 — the multi-tool that stretches the paradigm (device analysis; cart = tombola)
+
+The others above read a *cart* onto the face. This one reads a *device* — Teenage Engineering's OP-1
+— because it's the paradigm's hardest and most instructive case, and because a cart is coming from it
+([`tombola.md`](tombola.md)). It stretches the model in three ways worth a paradigm-sharpener's
+attention. (§3 already lists TE as *discipline, not layout*; this is the fuller "what the OP-1 *is*.")
+
+**What the OP-1 is.** A pocket all-in-one: a handful of **synth engines**, a **drum sampler**, a
+**4-track tape**, several **sequencers** (endless / pattern / *tombola* / finger), and a **mixer** —
+all driven through **one tiny animated colour screen**, **four colour-coded encoders**, a 2-octave
+**keyboard**, and a row of **mode buttons**. No step grid, no touchscreen, tiny keys.
+
+**Stretch 1 — zone 2 taken to its limit: four encoders, everything.** The OP-1 is the purest
+statement the paradigm has of "continuous vs contextual": the *entire* device is played through
+**four knobs whose meaning shifts by mode** (each engine remaps them; each mode relabels them). It's
+zone 2 as the whole control surface, and the p-lock idea is native (select a thing → the four edit
+*it*). Lesson for the paradigm: the ride-live set can be *tiny and fixed* (four) if it's ruthlessly
+contextual — the discipline TE names as Hick + Fitts.
+
+**Stretch 2 — the screen carries CHARACTER, not just state.** Every OP-1 engine has its own little
+*cartoon* (the dr-wave face, the string/cluster animations); the tape is a scrolling reel; the
+tombola is a tumbling drum. The screen isn't only "editor + toolbox" (§2) — it's where the
+instrument's **personality** lives. This sharpens the hero-surface rule: zone 3 can be *read*,
+*operated*, *performed on* — **and it can have a soul.** That soul is the delightful-to-a-stranger
+half of the [ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) bar no oracle checks, and
+on the OP-1 it's the whole selling point. A paradigm that only optimises legibility misses it.
+
+**Stretch 3 — a weak zone 4, which is why "omit unneeded zones" is a rule.** The OP-1 is the
+**knobs-on-top + keybed-on-bottom** family (electribe / Circuit / Deluge — §3), *not* the x0x
+step-grid family (acidface / pocketbox). It has no 16-step row; its "grid" is the keyboard doubling as
+drum pads plus the mode buttons. So an OP-1 face **drops zone 4** — the case that motivated the §2
+"the five zones are a template, not a checklist" principle. Not every face is grid-shaped.
+
+**The device → a FAMILY of faces (the one-core meeting point with the north star).** The OP-1 is many
+instruments, so a faithful *whole-OP-1* face breaks "one cart = one honest core"
+([`second-north-star.md`](second-north-star.md)) and is far too big. The resolution the paradigm and
+the north star agree on: **a multi-tool device becomes a family of one-core faces, not one face** — and
+the whole pocket-studio is a multi-rack *app*, later, not a cart. Sliced against what the repo already
+has:
+
+| OP-1 module | as a cart | status in the repo |
+|---|---|---|
+| **tombola** (physics sequencer) | [`tombola.md`](tombola.md) | **the gap to build** — reuse `pinball` (ball physics) + `circlemachine` (rotating-note/scale wiring) |
+| **tape** 4-track | live looper | **already built** — `loopstation` ("the first cart that records itself"); tape *effects* = `varispeed`/`wowflutter`/`spacecho`/`tapeloop`/`delia` |
+| **character synth** (animated per-engine screen) | a synth face | broadly covered by the synth shelf (epiano, the `INSTR_*` showcases); only the *animated-character screen* is novel |
+| (the OP-1's cousin: chord toy) | Omnichord | **already built** — `chordblossom` (§1c) |
+
+So the OP-1 doesn't become one cart; it becomes a *reading list* of faces, most of which the repo can
+already point at — the tombola being the one genuinely-missing honest core.
+
 ## 2 · The principles that make it work
 
 - **Disclosure by MODE, not by panel size.** The accordion promotes panels folded→compact→expanded to fit
@@ -304,6 +354,11 @@ case yet for extracting zone 4 into a shared library. The buttons-only charm is 
 - **The mode-switched grid scales the instrument's size.** A 4-voice kit fits a lane strip; a 16-voice kit
   does not — but one row that is *voices in one mode, steps in another* fits any kit. So "support a bigger
   kit" and "the row does double duty" are the **same decision**.
+- **The five zones are a template, not a checklist — omit what you don't need.** A face fills the slots
+  its instrument actually needs and *drops the rest*; an empty zone is subtraction, not a gap (Hick's Law
+  again — fewer visible controls is the feature). A physics/rotational instrument that has no steps to
+  toggle has **no zone 4 at all** — don't add a row of buttons to fill a slot. The [tombola](tombola.md) is
+  the worked case: a drum of falling note-balls, so the mode-switched step row simply isn't there.
 - **Continuous vs contextual is the split that never moves.** Zone 2 (ride-live params) is always present;
   everything else is disclosed. Deciding which params are "always live" is the one real taste call per cart.
 - **Depth decides surface-vs-display — not size.** A **binary** lane (a drum hit, on/off) stays on the

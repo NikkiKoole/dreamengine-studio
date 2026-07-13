@@ -1,9 +1,11 @@
 # Physics — design exploration (a tiny in-engine physics layer?)
 
-> **Status: brainstorm / scratchpad, nothing decided.** Sparked by the ragdoll cart
-> (`tools/carts/ragdoll.c`) feeling good and prompting the question: should dreamengine
-> roll a tiny physics layer into the runtime — "a bit like a simple Box2D"? Captured here
-> to think about and point back to later.
+> **Status: BUILDING — Layer 0 (`runtime/physics.h`) SHIPPED 2026-07-13; Layer 1 (the
+> managed-world / rigid-body seam) still a sketch, nothing decided.** Began as a brainstorm
+> sparked by the ragdoll cart (`tools/carts/ragdoll.c`) feeling good and prompting the
+> question: should dreamengine roll a tiny physics layer into the runtime — "a bit like a
+> simple Box2D"? The verlet toolkit half is now real (used by `verlet`/`ragdoll`/`linerider`/
+> `coaster`/`tombola`); the deeper rigid-body route is still just the sketch below.
 
 ---
 

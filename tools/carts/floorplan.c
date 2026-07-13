@@ -128,6 +128,7 @@ static char idbuf[16] = "";           // id typed into the entry field
 static char pickmsg[128] = "";        // transient status under the entry field
 static bool  fetching = false;        // waiting on `floorplanner.js --serve` for a typed id
 static float fetch_t  = 0.0f;         // seconds since the fetch request (spinner + timeout)
+static bool  serve_missing = false;   // request not consumed within ~2s → no --serve watcher running
 
 #define PLAYER_R 4.0f
 #define CAM_ZOOM 1.0f
@@ -346,7 +347,7 @@ static void request_fetch(const char *id) {
     FILE *f = fopen(REQ_FILE, "w");
     if (!f) { snprintf(pickmsg, sizeof pickmsg, "cannot write fetch request"); return; }
     fputs(id, f); fclose(f);
-    fetching = true; fetch_t = 0.0f;
+    fetching = true; fetch_t = 0.0f; serve_missing = false;
 }
 // load by the typed id: a local plan loads instantly; an unknown id goes to the --serve bridge
 static void load_id(void) {
@@ -377,10 +378,13 @@ static void poll_fetch(void) {
         return;
     }
     char *ep = read_signal(ERR_FILE);
-    if (ep && *ep) { remove(ERR_FILE); fetching = false; snprintf(pickmsg, sizeof pickmsg, "fetch failed: %s", ep); return; }
+    if (ep && *ep) { remove(ERR_FILE); fetching = false; serve_missing = false; snprintf(pickmsg, sizeof pickmsg, "fetch failed: %s", ep); return; }
     fetch_t += dt();
-    if (fetch_t > 90.0f) { fetching = false; remove(REQ_FILE);
-        snprintf(pickmsg, sizeof pickmsg, "no response -- is 'floorplanner.js --serve' running?"); }
+    // a running --serve consumes the request in <0.5s; still present after 2s ⇒ none is running.
+    // Keep waiting (fetching stays true) — if you start --serve now, the request is still there and loads.
+    if (fetch_t > 2.0f) { char *rq = read_signal(REQ_FILE); serve_missing = (rq && *rq); }
+    if (fetch_t > 120.0f) { fetching = false; serve_missing = false; remove(REQ_FILE);
+        snprintf(pickmsg, sizeof pickmsg, "fetch timed out"); }
 }
 static void boot_once(void) {
     if (tried) return;
@@ -397,7 +401,7 @@ static void id_append(const char *src) {
 }
 static void update_picker(void) {
     if (fetching) {   // waiting on the --serve bridge — freeze input except ESC to cancel
-        if (keyp(KEY_ESCAPE)) { fetching = false; remove(REQ_FILE); pickmsg[0] = 0; }
+        if (keyp(KEY_ESCAPE)) { fetching = false; serve_missing = false; remove(REQ_FILE); pickmsg[0] = 0; }
         return;
     }
     int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
@@ -461,10 +465,13 @@ static void draw_picker(void) {
     }
     if (fetching) {
         font(FONT_SMALL);
-        const char *sp = "|/-\\";
-        char s[96]; snprintf(s, sizeof s, "fetching %s ... %c   (needs: floorplanner.js --serve)",
-                             idbuf, sp[((int)(fetch_t * 8)) & 3]);
-        print(s, 8, SCREEN_H - 22, CLR_YELLOW);
+        if (serve_missing) {
+            print("no --serve watcher -- run:  floorplanner.js --serve   (then it loads)", 8, SCREEN_H - 22, CLR_ORANGE);
+        } else {
+            const char *sp = "|/-\\";
+            char s[96]; snprintf(s, sizeof s, "fetching %s ... %c", idbuf, sp[((int)(fetch_t * 8)) & 3]);
+            print(s, 8, SCREEN_H - 22, CLR_YELLOW);
+        }
         font(FONT_NORMAL);
     } else if (pickmsg[0]) {
         font(FONT_SMALL); print(pickmsg, 8, SCREEN_H - 22, CLR_ORANGE); font(FONT_NORMAL);

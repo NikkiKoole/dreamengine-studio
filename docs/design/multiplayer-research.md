@@ -878,6 +878,48 @@ every 18 s"* into *"buttery-smooth for ~18 s at a stretch, then still a ~1–2 s
 disruption."* A real win — but earned entirely on failure 1; the congestion freeze
 needs a quieter channel/network, not better netcode.
 
+### Field evidence — native LAN session, 2026-07-13 (clean host → the stalls are joiner-side)
+
+Second two-machine session, same shape (Mac editor host P0 ↔ Windows `.exe` joiner
+P1, pong, office wifi "Floorplanner"), captured with the full 2026-07-10 wire
+instruments (RTT probe + rx-gap + wall-clock log stamps) **plus** a router `ping`
+running on the host for the whole match. This time the data localises the freeze —
+and it **refutes the 2026-07-09 "shared-AP congestion on the host" inference**:
+
+| Host STALL (wall-clock) | Frame | Stall | Peer RTT | rx_gap | Host→router ping at that moment |
+|---|---|---|---|---|---|
+| 11:06:58.314 | 1655 | 750 ms | 17 ms | 1164 ms | **1.3–1.8 ms (clean)** |
+| 11:07:18.692 | 2808 | 888 ms | 1422 ms | 1455 ms | **1.5–1.6 ms (clean)** |
+
+- **The host AP is clean.** Router ping held ~1.5 ms across the whole 3-min capture
+  (one 137 ms blip, at startup). So the host↔AP hop was *not* congested during either
+  stall — the opposite of what 07-09 inferred (that session pinged at a *separate* time
+  with no game running; this one correlates by wall-clock, which is the stronger read).
+- **Neither machine is CPU-bound.** Both `perf.json`: `workMsAvg` 0.36 ms, `workMsMax`
+  2.6 ms (host) / 4.8 ms (joiner) of the 16.67 ms budget. The joiner wasn't late
+  *computing* frames, so a slow-machine send delay is out.
+- **Big `rx_gap` (1.1–1.5 s of silence) ⇒ a genuine wire outage, not our cushion.**
+  Cushion-starvation (the step-5 bug) shows a *small* rx_gap (packets keep arriving);
+  these are the reverse. Step 5 would not have helped — a 1.4 s gap is un-bufferable.
+- **Verdict, per the checklist decision tree** (clean concurrent ping + big rx_gap ⇒
+  peer↔peer path, look at the joiner): with the host AP clean, both CPUs idle, and peer
+  RTT spiking to 1422 ms, the delay lives on the **joiner's (Windows) wireless path** —
+  its uplink or contention on the joiner's side of the AP. **Environmental, on the
+  joiner's end; not the netcode, not the host.** ("Felt much better, no big stalls" on a
+  later run fits — intermittent joiner-side spikes.)
+
+**So the "shared-AP airtime congestion" ceiling below is real but not always the host's
+AP — it can sit on *either* peer's wireless hop.** The zero-code A/B is therefore
+per-peer: whichever side's router ping stays clean while it stalls, wire the *other* peer
+to ethernet. Here that means the Windows joiner (still pending).
+
+Also cleared this session: the blocking barrier used to **freeze the whole window** for
+up to `NET_TIMEOUT_MS` (10 s) during any stall — ESC / the close box did nothing until
+timeout. Fixed 2026-07-13 (`net_barrier_poll_quit` hook — studio.c pumps
+`PollInputEvents()`+`WindowShouldClose()` during the spin, quits cleanly with a BYE so the
+peer drops to solo). Verified live: the window rode through the 750–888 ms stalls above
+responsive, no misfire.
+
 ### The wifi-burst question — how to find the cause
 
 The ~18 s / 1–2 s freezes are the part no netcode can hide, so they're worth
@@ -888,7 +930,10 @@ radio/channel* event, not congestion or a slow machine.
 
 **Measured verdict (2026-07-09, office wifi "Floorplanner"): shared-AP airtime
 congestion — NOT a radio scan, NOT our code.** The initial guess was a periodic
-off-channel roaming scan, but the tests below refuted it:
+off-channel roaming scan, but the tests below refuted it: _(refined 2026-07-13 —
+see the field-evidence entry above: with a wall-clock-correlated router ping the
+host AP read clean during the stalls, relocating the congestion to the **joiner's**
+wireless hop. The ceiling is real; it just isn't always the host's AP.)_
 
 - **The host's link is pristine**, so roaming/scan is off the table: 5 GHz **channel 100
   (40 MHz)**, **−39 dBm / −95 dBm** (SNR 56 dB — excellent), 360 Mbps 802.11ac. A radio

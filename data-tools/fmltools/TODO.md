@@ -31,11 +31,15 @@ Status of the Floorplanner-`.fml` → top-down cart pipeline and the carts built
       the player. The `.fml` items carry a 3D height / `z` — read it and SKIP collision for low/flat
       items (below a height threshold, or tagged floor-level). This is the proper version of the
       "don't drop big flat items" call: keep them, draw them, but walk over them.
-- [ ] **Better colour — true 32-bit RGB fallback.** Sprites + floor textures currently quantise to
-      the 32-colour palette → grey materials go flat, busy furniture goes rainbow. The engine
-      supports 32-bit colour, so explore storing/drawing furniture renders and floor textures in
-      true RGB (a real-colour `pset`/image-blit path) instead of palette indices. Biggest single
-      lever on "it looks muddy". (Check what true-colour draw studio.h already exposes.)
+- [x] **Furniture in true 32-bit RGB (2026-07-13)** — `fml-assets.js --rgb` keeps 24-bit colour
+      (posterize + saturate for a graphic "pop"), `fml-sprites.js --json` emits it with an `rgb` flag,
+      and `floorplan.c` blits furniture via `pset_rgb`. Fixes the bluish tint (greys were forced onto
+      pico32's slate/indigo). `floorplanner.js` bakes `--rgb` by default now. Floor textures still
+      palette (below) — the remaining half.
+- [ ] **Better colour — true 32-bit RGB for FLOOR TEXTURES.** Floor textures (`fml-textures.js` →
+      `surfaces[].tex`/`tpool`) still quantise to the 32 palette → grey/low-contrast materials go
+      flat. Mirror the furniture path: bake textures in 24-bit and tile them with `pset_rgb` (flat
+      surfaces via `rectfill_rgb`). The furniture half already proved the approach (`--rgb` above).
 - [ ] **Z-ordering (`z` + `z_height`).** Draw order is a fixed paint sequence (areas → surfaces →
       furniture → walls → doors → player) and furniture is drawn in array order. Sort draws by base
       `z` + object height so taller things layer over shorter, surfaces/rugs sit under furniture,

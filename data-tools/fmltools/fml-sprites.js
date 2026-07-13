@@ -31,15 +31,18 @@ const manifest = JSON.parse(fs.readFileSync(opt.manifest, 'utf8'));
 if (opt.json) {
   const dpath = path.resolve(opt.json);
   const data = JSON.parse(fs.readFileSync(dpath, 'utf8'));
+  const rgb = !!manifest.rgb;   // 24-bit sprites (px = 0xRRGGBB, -1 transparent) vs palette (px = idx, 255 transparent)
+  data.rgb = rgb ? 1 : 0;       // the cart reads this to pick pset_rgb vs pset for furniture
   let withSprite = 0, px = 0;
   data.sprites = (data.refs || []).map((refid) => {
     const it = manifest.items[refid];
     if (!it || it.error || !it.w) return { w: 0, h: 0, px: [] };
-    withSprite++; px += it.idx.length;
-    return { w: it.w, h: it.h, px: it.idx.map(v => (v < 0 || v > 31 ? 255 : v)) };
+    const src = rgb ? it.rgb : it.idx;
+    withSprite++; px += src.length;
+    return { w: it.w, h: it.h, px: rgb ? src.slice() : src.map(v => (v < 0 || v > 31 ? 255 : v)) };
   });
   fs.writeFileSync(dpath, JSON.stringify(data));
-  console.log(`fml-sprites: ${withSprite}/${(data.refs || []).length} refids have sprites, ${px} px (${(px / 1024).toFixed(0)}KB)\n  -> wrote ${opt.json}`);
+  console.log(`fml-sprites: ${withSprite}/${(data.refs || []).length} refids have sprites, ${px} px (${(px / 1024).toFixed(0)}KB, ${rgb ? '24-bit RGB' : 'palette'})\n  -> wrote ${opt.json}`);
   process.exit(0);
 }
 const cartPath = path.resolve(opt.out);

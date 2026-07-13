@@ -10,7 +10,10 @@
 //   --palette <path>  palette JSON ({"palette":[...]} or a bare array of hex / [r,g,b]).
 //                     default editor/public/palettes/pico32.json
 //   --outline[=N]     add a 1px silhouette outline; N = palette index (default = darkest)
-//   --posterize <n>   quantize each RGB channel to n levels BEFORE palette match (default off)
+//   --posterize <n>   quantize each RGB channel to n levels (posterized "pop"; default off)
+//   --rgb             keep 24-bit colour instead of quantising to the palette — the cart blits
+//                     these via pset_rgb (true colour). Pair with --saturate/--posterize for pop.
+//                     manifest gains rgb:true + items[].rgb (0xRRGGBB, -1 = transparent).
 //   --out <dir>       output dir (default build/.fml-assets)
 //   --limit <n>       only bake the first n refids (handy while iterating)
 //
@@ -27,7 +30,8 @@ const RENDER_BASE = 'https://fp-media-img-cdn.floorplanner.com/cdb/renders';
 // ---------- args ----------
 const argv = process.argv.slice(2);
 const opt = { in: null, refids: null, max: 24, palette: 'editor/public/palettes/pico32.json',
-              outline: false, outlineIdx: null, posterize: 0, saturate: 1, out: 'build/.fml-assets', limit: 0 };
+              outline: false, outlineIdx: null, posterize: 0, saturate: 1, out: 'build/.fml-assets', limit: 0, rgb: false };
+const OUTLINE_RGB = 0x1a1712;   // near-black furniture outline for --rgb sprites
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--refids') opt.refids = argv[++i].split(',').map(s => s.trim()).filter(Boolean);
@@ -37,6 +41,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--saturate') opt.saturate = parseFloat(argv[++i]);
   else if (a === '--out') opt.out = argv[++i];
   else if (a === '--limit') opt.limit = parseInt(argv[++i], 10);
+  else if (a === '--rgb') opt.rgb = true;   // keep 24-bit colour (pset_rgb path) instead of quantising to the palette
   else if (a === '--outline' || a === '-o') opt.outline = true;
   else if (a.startsWith('--outline=')) { opt.outline = true; opt.outlineIdx = parseInt(a.slice(10), 10); }
   else if (!a.startsWith('-')) opt.in = a;
@@ -186,8 +191,27 @@ function quantize(img, palette) {
   return idx;
 }
 
+// pack an image to 24-bit colour: 0xRRGGBB per opaque pixel, -1 = transparent (alpha < 128).
+// This is the --rgb path — furniture keeps its real colour (blitted via pset_rgb) instead of
+// collapsing onto the ~grey/blue neutrals the 32-palette forces low-saturation renders into.
+function toRGB(img) {
+  const out = new Int32Array(img.w * img.h);
+  for (let i = 0; i < img.w * img.h; i++)
+    out[i] = img.rgba[i * 4 + 3] < 128 ? -1
+           : (img.rgba[i * 4] << 16) | (img.rgba[i * 4 + 1] << 8) | img.rgba[i * 4 + 2];
+  return out;
+}
+function rgbToRGBA(rgb, w, h) {
+  const rgba = new Uint8Array(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    if (rgb[i] < 0) continue;
+    rgba[i * 4] = (rgb[i] >> 16) & 255; rgba[i * 4 + 1] = (rgb[i] >> 8) & 255; rgba[i * 4 + 2] = rgb[i] & 255; rgba[i * 4 + 3] = 255;
+  }
+  return rgba;
+}
+
 function addOutline(idx, w, h, colorIdx) {
-  const out = Int16Array.from(idx);
+  const out = idx.slice();   // same typed-array kind (Int16 palette idx / Int32 rgb) — keeps 24-bit values intact
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     if (idx[y * w + x] !== -1) continue;
     let near = false;
@@ -265,8 +289,9 @@ function buildPreview(sprites, palette) {
     const cx = (k % cols) * cell + pad, cy = ((k / cols) | 0) * cell + pad;
     const ox = cx + ((opt.max - s.w) * scale >> 1), oy = cy + ((opt.max - s.h) * scale >> 1);
     for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
-      const id = s.idx[y * s.w + x]; if (id < 0) continue;
-      const c = palette[id];
+      let c;
+      if (s.rgb) { const v = s.rgb[y * s.w + x]; if (v < 0) continue; c = [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+      else { const id = s.idx[y * s.w + x]; if (id < 0) continue; c = palette[id]; }
       for (let py = 0; py < scale; py++) for (let px = 0; px < scale; px++) {
         const X = ox + x * scale + px, Y = oy + y * scale + py;
         if (X < 0 || X >= W || Y < 0 || Y >= H) continue;
@@ -287,9 +312,9 @@ function buildPreview(sprites, palette) {
 
   let refids = opt.refids || refidsFromFml(opt.in);
   if (opt.limit) refids = refids.slice(0, opt.limit);
-  console.log(`baking ${refids.length} refids  (max ${opt.max}px, palette ${path.basename(opt.palette)}${opt.outline ? `, outline=${outlineIdx}` : ''}${opt.posterize ? `, posterize ${opt.posterize}` : ''})`);
+  console.log(`baking ${refids.length} refids  (max ${opt.max}px, ${opt.rgb ? '24-bit RGB' : `palette ${path.basename(opt.palette)}`}${opt.outline ? `, outline` : ''}${opt.posterize ? `, posterize ${opt.posterize}` : ''}${opt.saturate !== 1 ? `, saturate ${opt.saturate}` : ''})`);
 
-  const manifest = { palette: opt.palette, palette_rgb: palette, max: opt.max, items: {} };
+  const manifest = { palette: opt.palette, palette_rgb: palette, max: opt.max, rgb: opt.rgb, items: {} };
   const sprites = [];
   let ok = 0, fail = 0;
   const CONC = 4;
@@ -304,11 +329,19 @@ function buildPreview(sprites, palette) {
         img = downscale(img, opt.max);
         img = saturate(img, opt.saturate);
         img = posterize(img, opt.posterize);
-        let idx = quantize(img, palette);
-        if (opt.outline) idx = addOutline(idx, img.w, img.h, outlineIdx);
-        fs.writeFileSync(path.join(opt.out, refid + '.png'), encodePNG(img.w, img.h, idxToRGBA(idx, img.w, img.h, palette)));
-        manifest.items[refid] = { w: img.w, h: img.h, idx: Array.from(idx) };
-        sprites.push({ refid, w: img.w, h: img.h, idx });
+        if (opt.rgb) {
+          let rgb = toRGB(img);
+          if (opt.outline) rgb = addOutline(rgb, img.w, img.h, OUTLINE_RGB);
+          fs.writeFileSync(path.join(opt.out, refid + '.png'), encodePNG(img.w, img.h, rgbToRGBA(rgb, img.w, img.h)));
+          manifest.items[refid] = { w: img.w, h: img.h, rgb: Array.from(rgb) };
+          sprites.push({ refid, w: img.w, h: img.h, rgb });
+        } else {
+          let idx = quantize(img, palette);
+          if (opt.outline) idx = addOutline(idx, img.w, img.h, outlineIdx);
+          fs.writeFileSync(path.join(opt.out, refid + '.png'), encodePNG(img.w, img.h, idxToRGBA(idx, img.w, img.h, palette)));
+          manifest.items[refid] = { w: img.w, h: img.h, idx: Array.from(idx) };
+          sprites.push({ refid, w: img.w, h: img.h, idx });
+        }
         ok++; process.stdout.write('.');
       } catch (e) { fail++; process.stdout.write('!'); manifest.items[refid] = { error: e.message }; }
     }

@@ -316,7 +316,8 @@ Schema (floorplan-specific; engine-pixel coords, palette colour indices):
   "doors":[cx,cy,w,rot, ...], "furn":[cx,cy,w,h,rot,ref, ...],
   "areas":[{"c":colorIdx, "poly":[x,y,...]}, ...],                 // c = real floor colour (quantised)
   "surfaces":[{"c":colorIdx, "tex":idx, "tile":px, "poly":[...]}, ...],  // floor coverings; tex<0 = flat
-  "sprites":[{"w","h","px":[idx, 255=transparent]}, ...],         // furn.ref indexes sprites[]
+  "rgb": 0|1,                                                     // 1 = furniture sprites are 24-bit (px = 0xRRGGBB, -1 transparent)
+  "sprites":[{"w","h","px":[idx, 255=transparent]}, ...],         // furn.ref indexes sprites[]; px = 0xRRGGBB when rgb:1
   "textures":[{"w","h","px":[idx, ...]}, ...] }                   // surfaces[].tex indexes textures[]
 ```
 

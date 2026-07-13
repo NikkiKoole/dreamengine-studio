@@ -153,8 +153,10 @@ function buildDynamic(pid, name, fml, floor, scale, maxfurn) {
   const node = (script, a) => execFileSync('node', [path.join(__dirname, script), ...a], { cwd: ROOT, stdio: 'inherit' });
   console.log(`▸ geometry  -> ${dataRel}`);
   node('fml2cart.js', [fml, '--json', data, '--floor', floor, '--scale', scale, '--maxfurn', maxfurn]);
-  console.log(`▸ bake art  furniture renders -> ${assets}`);
-  node('fml-assets.js', [fml, '--out', assets, '--max', '24', '--saturate', '1.4']);
+  console.log(`▸ bake art  furniture renders (24-bit, posterized pop) -> ${assets}`);
+  // --rgb keeps true colour (blitted via pset_rgb) instead of the muddy 32-palette quantise;
+  // saturate + posterize give it a punchy, graphic "pop". fml-sprites auto-detects the rgb manifest.
+  node('fml-assets.js', [fml, '--out', assets, '--max', '24', '--rgb', '--saturate', '1.6', '--posterize', '5']);
   console.log(`▸ sprites   -> ${dataRel}`);
   node('fml-sprites.js', ['--json', data, '--manifest', path.join(assets, 'manifest.json')]);
   console.log(`▸ textures  resolve rs-#### floor materials -> ${dataRel}`);

@@ -21,7 +21,7 @@
     "BUGFIX (2026-07-12): dragging a knob and releasing OVER a tab/header sometimes selected that tab. Caught with a recorded repro (play.js replay of build/.rec): the drag-release itself is correctly guarded (the finger is ui-owned, so the raw tap loop skips it — verified at the release frame), but the mouse delivered a SECOND button-down ~2 frames (33ms) after the release at the same spot — switch chatter / drag-release bounce, far below any intentional double-click — and that fresh press landed as a raw tab tap. Fix: a tap_settle debounce (6 frames ≈ 100ms) armed whenever a ui.h-owned finger LIFTS; `tap` is forced false during the window, so a post-drag bounce can't trigger any discrete tap (tabs/headers/chain/etc). Deliberate clicks (which never follow a drag that fast) are unaffected — verified the recorded repro now keeps exp fixed AND a plain tab click still switches. General pattern for any raw-tap surface sharing the tree with ui.h widgets.",
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
-    "SHIPPED (2026-07-13): 303 lines now SWING, locked to the drums. Design call: swing is a MASTER/transport property, so the 303 FOLLOWS the existing master SHUF rather than getting its own knob — one groove, no clash (that was the whole worry). The scheduling caveat (a held/slid 303 voice can't be scheduled AHEAD + delayed the way the drums are) is sidestepped by dragging the FLIP itself instead of the note: a separate SWUNG 16th clock (last_sw16) advances the 303 late on odd 16ths — it holds the prior step until pos-into-the-16th >= swf, where swf=(swing-50)*2/100 is the SAME fraction the drums drag (transport tick, 'even 16ths drag'). Keyed off the BAR grid (raw16&1), NOT each line's polymeter step, so both 303s + drums share ONE groove. step_303/gate_303 are timing-agnostic (fire off the flags, slides mutate the held handle inline) so nothing about slide/tie/octave/length breaks. At swing=50 swf=0 → sw16==s16 → byte-identical old on-grid behaviour (no knob, no SAVE bump). VERIFIED via --trace: at swing=66 odd-16th 303 flips shift ~0.32 of a 16th later than even ones (== the drum drag) while swing=50 shows no even/odd shift; sound gate clean, no NaN. CONTROL HOME (2026-07-13): the SHUF slider stays on the 909 fx view — briefly moved it to a master SWG knob (swing is global now), but the maker preferred it back on the 909 (Roland put it there; it reads fine). Left ON 909 by preference — don't re-move it to master without asking. Z/X remain the shortcut. FUTURE NICETY (deliberately skipped): a per-303 swing OFFSET (± trim vs master) for the deliberate straight-303-over-swung-drums tension trick — add only if wanted; the shared groove is the foundation.",
+    "SHIPPED (2026-07-13): per-machine SWING, PARAMETRIZED. WHO grooves is a single const seam — swing_on[NSTRIP], right below the STRIP enum: flip a flag (edit + rebake, or just ask). CURRENT DEFAULT: 909 only — 808 and BOTH 303s play straight (the maker is still dialing this in, expect it to change). Mechanism behind the seam: on odd 16ths the drums DRAG their scheduled hit (delay += swing_off, applied per-machine to 909/808); a 303, only if its flag is on, drags its step FLIP instead (it can't be scheduled ahead — slide/tie hold the voice) via a swung 16th clock that holds the prior step until pos-into-the-16th >= swf=(swing-50)*2/100 (the SAME fraction the drums drag), keyed off the BAR grid so a swinging 303 locks to swinging drums. Each 303 picks raw vs swung independently (last_st303[2]); a flag OFF → that voice uses raw16==s16 → identical to pre-swing on-grid stepping. step_303/gate_303 are timing-agnostic (fire off the flags, slides mutate the held handle inline) so slide/tie/octave/length are untouched. No SAVE bump (swing_on is code config; the swing VALUE is still SHUF/Z-X, saved). VERIFIED via --trace when a 303's flag is ON: swing=66 shifts its odd-16th flips ~0.32 of a 16th later (== the drum drag); swing=50 or flag OFF → no shift; sound gate clean, no NaN. CONTROL HOME: the SHUF slider lives on the 909 fx view (Roland put it there; reads fine) — briefly tried a master SWG knob, maker preferred 909, don't re-move without asking. Z/X remain the shortcut. FOLLOW-UPS if wanted: (a) live per-machine swing toggle BUTTONS so who-swings is tweakable without a rebake; (b) a per-303 swing OFFSET (± trim vs master) for the straight-over-swung tension trick.",
     "device-adaptive redesign (Phase 3 — design/device-adaptive-layout.md): reflow the machine-strip accordion per device — iPad more strips inline, phone-portrait accordion, phone-landscape tabs (accordion degenerates on a short screen). The disclosure model already exists in-cart; graft the arrangements from acidfit.c. Build resizable: RESIZABLE=1 CART=acidrack ./ios/build.sh",
     "compact drum view — the authentic Roland x0x model: instead of a full N-voice matrix, show ONE big editable 16-step lane for the selected voice + an instrument-select knob/buttons to switch which voice the 16 cells map to (that's exactly how the real 808/909 solved the panel-space problem — never a grid). Pairs well with a thin per-voice density overview (each voice one row of filled/empty dots, tap to promote to the big lane). The 808's 16 voices make this most valuable there; would also make phone-portrait trivially fit. Alt/bolder mode discussed: Euclidean per-voice (hits, rotation) knobs — a whole acid beat in ~5 voices × 2 knobs, no step-drawing. See the chat where the full-16 expansion landed.",
     "SHIPPED (2026-07-11): 303 DEEP-page — the Devil Fish / TD-3-MO depth mods, each a true engine port (sources: firstpr.com.au/rwi/dfish, Robin Whittle's manual). The P1/P2 button on each 303 seq panel flips the knob row between the classic 7 and the DEEP 5: ADEC (separate accent-decay — the signature two-decay; accented steps get their own ENV_CUTOFF decay time), SLDT (variable slide time 20-300ms, was fixed 60), ATK (soft attack 0.5-30ms = the amp-env attack, rounds the click), TRK (filter tracking — higher notes open the cutoff), SUB (an octave-down INSTR_TRI sub voice on slots 34/35, gated/slid in lockstep — off = no voice spent). Plus the accent-SWEEP mode button (off/slow/med/fast onset) and a cutoff-range bump to ~5kHz. All DEEP defaults are no-ops (ADEC=DEC, SLDT≈60ms, ATK≈2ms, TRK/SUB/SWEEP off) so the stock sound is unchanged until you turn a knob. SAVE_MAGIC bumped to v8. Deliberately SKIPPED (still true): the clones' MIDI/USB/CV-gate/patch-point/PC-editor + self-resonance/filter-FM (hardware wiring, moot in one cart); env-mod-to-3x (SQL already does it) and overdrive (DRV, though ours is post-filter vs the Devil Fish pre-filter overdrive + post-VCA Muffler — a future 'Muffler' distortion could revisit that). FOLLOW-UP TUNING (2026-07-11): ATK now ALSO rounds the filter onset (0 at stock → ~28ms) and TRK steepened (170 Hz/semitone) so both bite harder; note that full-mix WAV correlation understates per-knob impact because the 303 sits under the 909+808 drums (measure the 303 in isolation).",
@@ -157,10 +157,10 @@ static int  editBank = 0;              // which bank A-D the panels edit
 static int  playBank = 0;              // which bank is sounding this bar
 static int  barpos = 0;                // position in the chain
 static int  last16 = -1, playhead = 0;
-static int  last_sw16 = -1;            // the 303s' SWUNG 16th clock (flips late on odd steps so they groove WITH the drums; see the tick)
+static int  last_st303[2] = { -1, -1 }; // each 303's OWN 16th clock (raw or swung per swing_on[] — see the tick)
 static int  lpos[2] = { 0, 0 };        // each 303 line's OWN sounding step (per-line LENGTH → polymeter drift)
 static int  swing = 50;                // master shuffle 50..66 — 909-style, even 16ths drag
-static float swingf = 0.0f;            // the SHUF slider's 0..1 view of it
+static float swingf = 0.0f;            // the SHUF slider's 0..1 view of it (swing_on[] below the STRIP enum decides WHO follows it)
 
 // ── the machines ──────────────────────────────────────────────────────────
 // K_CUT..K_SQL = the classic 303 knobs (page 0). K_ADEC..K_SUB = the Devil Fish /
@@ -582,6 +582,20 @@ static void fire808(int v, int boost, int delay) {
 
 // ── the accordion ─────────────────────────────────────────────────────────
 enum { STRIP_A, STRIP_B, STRIP_909, STRIP_808, STRIP_MST, NSTRIP };
+// ── THE SWING SEAM ───────────────────────────────────────────────────────────
+// Which machines follow the master SHUF. ONE place to retune who grooves — flip a
+// flag (edit + rebake; or just ask, it's a one-line change). Drums drag their
+// SCHEDULED hit; 303s drag their step FLIP (both in the transport tick, keyed off
+// swing_on[]). Per-machine on purpose — this WILL get tweaked while playing.
+// For now: 909 only (808 + both 303s straight). Live toggle buttons = an easy
+// follow-up if you'd rather A/B without a rebake.
+static const bool swing_on[NSTRIP] = {
+    [STRIP_A]   = false,   // 303-A  — straight
+    [STRIP_B]   = false,   // 303-B  — straight
+    [STRIP_909] = true,    // 909    — swings  ◄ the only one, for now
+    [STRIP_808] = false,   // 808    — straight
+    [STRIP_MST] = false,   // (unused)
+};
 static const char *SNAME[NSTRIP] = { "303-A", "303-B", "909", "808", "MASTER" };
 static int  expanded = STRIP_A;
 static bool mute[NSTRIP];
@@ -1102,7 +1116,7 @@ static void export_wav(void) {
     fclose(f);
     export_flash = 240;
     // start the song from the top so the capture gets the whole arrangement
-    barpos = 0; last16 = -1; last_sw16 = -1; running = true;
+    barpos = 0; last16 = -1; last_st303[0] = last_st303[1] = -1; running = true;
 }
 
 // ── pattern ops (CPY/CLR/RND) — scope is WHAT YOU'RE LOOKING AT: a machine
@@ -1214,7 +1228,7 @@ static void stop_all(void) { off_303(&m[0]); off_303(&m[1]); }
 
 void update(void) {
     // keys
-    if (keyp(KEY_SPACE)) { running = !running; last16 = -1; last_sw16 = -1; if (!running) stop_all(); }
+    if (keyp(KEY_SPACE)) { running = !running; last16 = -1; last_st303[0] = last_st303[1] = -1; if (!running) stop_all(); }
     if (keyp(KEY_UP))    { tempo += 2; if (tempo > 200) tempo = 200; bpm(tempo); mark_dirty(); }
     if (keyp(KEY_DOWN))  { tempo -= 2; if (tempo < 60)  tempo = 60;  bpm(tempo); mark_dirty(); }
     if (keyp(KEY_LEFT))  { editBank = (editBank + NBANK - 1) % NBANK; }
@@ -1483,20 +1497,22 @@ void update(void) {
         int step_ms = 15000 / tempo;
         int delay   = (int)((1.0f - f) * step_ms);
         int nx      = (s16 + 1) & 15;
-        if (nx & 1) delay += (swing - 50) * 2 * step_ms / 100;   // even 16ths drag
+        int swing_off = (nx & 1) ? (swing - 50) * 2 * step_ms / 100 : 0;   // odd-16th shuffle drag (applied per swing_on[])
         // the next step's bank: at a bar seam, peek the chain
         Pattern *N = P;
         if (nx == 0 && songmode && chainN > 0) N = &bank[chain[barpos % chainN]];
         else if (nx == 0 && !songmode) N = &bank[editBank];
         if (!mute[STRIP_909]) {
+            int d9 = delay + (swing_on[STRIP_909] ? swing_off : 0);   // 909 swings per the seam
             int boost = (N->acc909 >> nx) & 1 ? 2 : 0;
             for (int v = 0; v < N909; v++)
-                if (N->d909[v] & (1 << nx)) fire_stroke909(v, N->st909[v][nx], boost, delay, step_ms);
+                if (N->d909[v] & (1 << nx)) fire_stroke909(v, N->st909[v][nx], boost, d9, step_ms);
         }
         if (!mute[STRIP_808]) {
+            int d8 = delay + (swing_on[STRIP_808] ? swing_off : 0);   // 808 swings per the seam
             int boost = (N->acc808 >> nx) & 1 ? 2 : 0;
             for (int v = 0; v < N808; v++)
-                if (N->d808[v] & (1 << nx)) fire808(v, boost, delay);
+                if (N->d808[v] & (1 << nx)) fire808(v, boost, d8);
         }
         if (first_flip) {   // fresh start: also sound the step we're already on
             int b9 = (P->acc909 >> st) & 1 ? 2 : 0, b8 = (P->acc808 >> st) & 1 ? 2 : 0;
@@ -1507,27 +1523,29 @@ void update(void) {
         }
     }
 
-    // ── 303 stepping — SWUNG to lock with the drums ──────────────────────────
-    // The 303 fires ON its flip (slide/tie hold the voice, so it can't be
-    // scheduled ahead + delayed the way the drums are). So we drag the FLIP
-    // itself: on odd 16ths the 303 doesn't advance until the swung onset —
-    // the SAME fraction the drums drag (see "even 16ths drag" above), keyed off
-    // the BAR grid (raw16&1), NOT each line's polymeter step, so both 303s and
-    // the drums share ONE groove. At swing=50, swf=0 → old on-grid behaviour.
+    // ── 303 stepping — per-line clock, swung ONLY if swing_on[] says so ───────
+    // The 303 fires ON its flip (slide/tie hold the voice → it can't be scheduled
+    // ahead + delayed like the drums). So when a 303 swings we drag its FLIP: on
+    // odd 16ths it holds the prior step until the swung onset — the SAME fraction
+    // the drums drag (swf), keyed off the BAR grid (raw16&1), NOT the line's
+    // polymeter step, so a swinging 303 locks to the swinging drums. Each 303
+    // picks raw or swung independently via swing_on[] — so the default (909 only)
+    // leaves both 303s dead straight, identical to pre-swing on-grid stepping.
     Pattern *P303 = &bank[playBank];
-    float pos16 = beat() * 4.0f + beat_pos() * 4.0f;   // continuous 16th position (its int part == s16)
+    float pos16 = beat() * 4.0f + beat_pos() * 4.0f;   // continuous 16th position (int part == s16)
     float swf   = (swing - 50) * 2 / 100.0f;            // swing as a fraction of a 16th (0 .. 0.32)
     int   raw16 = (int)pos16;
     int   sw16  = ((raw16 & 1) && pos16 - raw16 < swf) ? raw16 - 1 : raw16;  // odd step waits for its swung onset
-    if (sw16 != last_sw16) {
-        last_sw16 = sw16;
-        lpos[0] = sw16 % lnlen(&P303->ln[0]);           // each line's OWN step (short len → polymeter drift)
-        lpos[1] = sw16 % lnlen(&P303->ln[1]);
-        if (!mute[STRIP_A]) step_303(&m[0], &P303->ln[0], lpos[0]); else off_303(&m[0]);
-        if (!mute[STRIP_B]) step_303(&m[1], &P303->ln[1], lpos[1]); else off_303(&m[1]);
-    } else {
-        gate_303(&m[0], &P303->ln[0], lpos[0]);         // staccato release mid-step
-        gate_303(&m[1], &P303->ln[1], lpos[1]);
+    for (int i = 0; i < 2; i++) {
+        int strip = i ? STRIP_B : STRIP_A;
+        int eff   = swing_on[strip] ? sw16 : raw16;     // this 303's clock: swung or straight
+        if (eff != last_st303[i]) {
+            last_st303[i] = eff;
+            lpos[i] = eff % lnlen(&P303->ln[i]);        // the line's OWN step (short len → polymeter drift)
+            if (!mute[strip]) step_303(&m[i], &P303->ln[i], lpos[i]); else off_303(&m[i]);
+        } else {
+            gate_303(&m[i], &P303->ln[i], lpos[i]);     // staccato release mid-step
+        }
     }
 }
 
@@ -1878,7 +1896,7 @@ void draw(void) {
     bool tworow = W() < 300;
     rectfill(0, 0, W(), tb_h(), CLR_BLACK);
     if (ui_button(4, 2 + sT, 36, 18, running ? "STOP" : "RUN")) {
-        running = !running; last16 = -1; last_sw16 = -1; if (!running) stop_all();
+        running = !running; last16 = -1; last_st303[0] = last_st303[1] = -1; if (!running) stop_all();
     }
     char buf[24];
     snprintf(buf, sizeof buf, "%d", tempo);

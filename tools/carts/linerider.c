@@ -17,6 +17,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "physics.h"   // shared verlet toolkit (Layer 0) — rod_solve/integrate delegate to it
 
 // LINE RIDER — draw a track, watch Bosh slide.
 // Left drag: draw line   Right click: erase   Space: play/pause   R: reset / clear
@@ -35,7 +36,7 @@ static int  nseg;
 //  2: butt        3: chest
 //  4: hand (grips front of sled)
 #define NP 5
-typedef struct { float x,y, px,py; } Vp;
+typedef PhysPt Vp;   // physics.h point (adds w=inverse-mass, r=radius; the rider uses w=1, r=0)
 static Vp   vp[NP];
 
 // --- rods (rigid constraints between points) ---
@@ -54,16 +55,8 @@ static int   pan_mx, pan_my;     // middle-drag: last mouse position
 
 // ---- helpers ----
 
-static void rod_solve(int i) {
-    float dx = vp[rod[i].b].x - vp[rod[i].a].x;
-    float dy = vp[rod[i].b].y - vp[rod[i].a].y;
-    float d2 = dx*dx + dy*dy;
-    if (d2 < 1e-6f) return;
-    float d  = fsqrt(d2);
-    float f  = (d - rod[i].len) * 0.5f / d;
-    vp[rod[i].a].x += dx*f;  vp[rod[i].a].y += dy*f;
-    vp[rod[i].b].x -= dx*f;  vp[rod[i].b].y -= dy*f;
-}
+// rigid distance rod — now shared: physics.h phys_link (equal-mass split == the old 0.5 rod_solve).
+static void rod_solve(int i) { phys_link(&vp[rod[i].a], &vp[rod[i].b], rod[i].len); }
 
 // Resolve point against all lines; fric = friction coefficient (0-1 keeps velocity).
 // Two-sided: uses the previous-frame signed distance to decide which side to push
@@ -109,11 +102,11 @@ static void collide(Vp *p, float fric) {
 
 static void rider_reset(void) {
     float x = spx, y = spy;
-    vp[0] = (Vp){x-10, y,    x-10, y   };   // sled back
-    vp[1] = (Vp){x+10, y,    x+10, y   };   // sled front
-    vp[2] = (Vp){x,    y-11, x,    y-11};   // butt
-    vp[3] = (Vp){x-2,  y-24, x-2,  y-24};  // chest
-    vp[4] = (Vp){x+10, y-15, x+10, y-15};  // hand
+    vp[0] = (Vp){x-10, y,    x-10, y,    1,0};   // sled back  (w=1 movable, r=0)
+    vp[1] = (Vp){x+10, y,    x+10, y,    1,0};   // sled front
+    vp[2] = (Vp){x,    y-11, x,    y-11, 1,0};   // butt
+    vp[3] = (Vp){x-2,  y-24, x-2,  y-24, 1,0};  // chest
+    vp[4] = (Vp){x+10, y-15, x+10, y-15, 1,0};  // hand
 
     rod[0] = (Rod){0,1, 20.0f};    // sled beam
     rod[1] = (Rod){0,2, 15.5f};    // back  → butt
@@ -129,15 +122,8 @@ static void rider_reset(void) {
 static void phys_step(void) {
     if (crashed) return;
 
-    // integrate with air drag
-    for (int i = 0; i < NP; i++) {
-        float vx = (vp[i].x - vp[i].px) * 0.996f;
-        float vy = (vp[i].y - vp[i].py) * 0.996f;
-        vp[i].px = vp[i].x;
-        vp[i].py = vp[i].y;
-        vp[i].x += vx;
-        vp[i].y += vy + GRAV;
-    }
+    // integrate with air drag — shared: physics.h phys_integrate (identical math)
+    for (int i = 0; i < NP; i++) phys_integrate(&vp[i], 0.0f, GRAV, 0.996f);
 
     // 8 iterations: constraints then collision each round (stable at realistic speeds)
     for (int iter = 0; iter < 8; iter++) {

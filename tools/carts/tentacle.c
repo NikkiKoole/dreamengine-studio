@@ -91,19 +91,27 @@ void draw(void) {
     for (int t = 0; t < NT; t++) {
         float u0 = skin[t] * 16.0f;
         float uL = u0 + 0.5f, uR = u0 + 15.5f, vT = 0.5f, vB = 15.5f;  // inset 0.5 so we never sample the neighbour tile
-        for (int b = 0; b < NB - 1; b++) {
-            PhysPt *A = &bone[t][b], *B = &bone[t][b + 1];
-            float dx = B->x - A->x, dy = B->y - A->y;
-            float d = vlen(dx, dy); if (d < 0.001f) d = 0.001f;
-            float px = -dy / d, py = dx / d;                 // unit perpendicular to the bone
-            float wA = (BASE_W + (TIP_W - BASE_W) * b       / (float)(NB - 1)) * 0.5f;
-            float wB = (BASE_W + (TIP_W - BASE_W) * (b + 1) / (float)(NB - 1)) * 0.5f;
-            int alx = (int)(A->x - px * wA), aly = (int)(A->y - py * wA);   // the four ribbon corners
-            int arx = (int)(A->x + px * wA), ary = (int)(A->y + py * wA);
-            int blx = (int)(B->x - px * wB), bly = (int)(B->y - py * wB);
-            int brx = (int)(B->x + px * wB), bry = (int)(B->y + py * wB);
-            tritex(alx, aly, uL, vT,  arx, ary, uR, vT,  brx, bry, uR, vB);   // quad = 2 textured triangles
-            tritex(alx, aly, uL, vT,  brx, bry, uR, vB,  blx, bly, uL, vB);
+
+        // Ribbon corners are computed PER BONE (not per segment) using a shared normal
+        // at each joint — the average of the two adjacent bone directions. Because
+        // consecutive segments then reuse the very same corner points, they meet on one
+        // edge with no gap: the seams at bends disappear, without any weighted skinning.
+        float lx[NB], ly[NB], rx[NB], ry[NB];
+        for (int b = 0; b < NB; b++) {
+            float tx = 0, ty = 0;                            // tangent = sum of adjacent unit dirs
+            if (b > 0)    { float dx = bone[t][b].x - bone[t][b-1].x, dy = bone[t][b].y - bone[t][b-1].y;
+                            float d = vlen(dx, dy); if (d > 0.001f) { tx += dx/d; ty += dy/d; } }
+            if (b < NB-1) { float dx = bone[t][b+1].x - bone[t][b].x, dy = bone[t][b+1].y - bone[t][b].y;
+                            float d = vlen(dx, dy); if (d > 0.001f) { tx += dx/d; ty += dy/d; } }
+            float tl = vlen(tx, ty); if (tl < 0.001f) { tx = 0; ty = 1; tl = 1; }
+            float nx = -ty/tl, ny = tx/tl;                   // unit normal = perpendicular of the tangent
+            float w = (BASE_W + (TIP_W - BASE_W) * b / (float)(NB - 1)) * 0.5f;
+            lx[b] = bone[t][b].x - nx*w;  ly[b] = bone[t][b].y - ny*w;
+            rx[b] = bone[t][b].x + nx*w;  ry[b] = bone[t][b].y + ny*w;
+        }
+        for (int b = 0; b < NB - 1; b++) {                   // shared corners → seamless quads
+            tritex((int)lx[b],(int)ly[b], uL,vT,  (int)rx[b],  (int)ry[b],   uR,vT,  (int)rx[b+1],(int)ry[b+1], uR,vB);
+            tritex((int)lx[b],(int)ly[b], uL,vT,  (int)rx[b+1],(int)ry[b+1], uR,vB,  (int)lx[b+1],(int)ly[b+1], uL,vB);
         }
         PhysPt *tip = &bone[t][NB - 1];
         circfill((int)tip->x, (int)tip->y, (int)TIP_W, tipcol[t]);            // rounded cap

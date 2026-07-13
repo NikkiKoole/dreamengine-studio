@@ -17,6 +17,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "physics.h"   // shared verlet toolkit (Layer 0) — the riders' arms use PhysPt/phys_* (AoS, the house convention)
 #include "ui.h"
 #include <stdio.h>
 
@@ -104,7 +105,7 @@ static int  n_bodies = 10;
 
 // a rider's arm: 3 verlet points — [0] shoulder (pinned to the cart each frame),
 // [1] elbow, [2] hand (free). px/py current, ox/oy previous (velocity = the diff).
-typedef struct { float px[3], py[3], ox[3], oy[3]; } VArm;
+typedef struct { PhysPt pt[3]; } VArm;   // AoS (house convention): [0] shoulder (pinned, w=0), [1] elbow, [2] hand
 typedef struct {
     VArm  arm[2];               // two arms, offset fore/aft so both show in profile
     float tension;              // 0 = loose flailer .. 1 = tense clutcher (personality)
@@ -384,25 +385,16 @@ static void apply_offset(Body *b) {
 // the hand toward a target: on the hoist everyone throws their arms UP (raised by
 // 1-tension), elsewhere tense riders pull their arms in (loose ones just flail).
 static void arm_step(VArm *a, float sx, float sy, float tx, float ty, float muscle) {
-    a->px[0] = a->ox[0] = sx; a->py[0] = a->oy[0] = sy;     // pin shoulder
-    for (int i = 1; i <= 2; i++) {                          // verlet the free points
-        float vx = (a->px[i] - a->ox[i]) * ARM_DAMP;
-        float vy = (a->py[i] - a->oy[i]) * ARM_DAMP;
-        a->ox[i] = a->px[i]; a->oy[i] = a->py[i];
-        a->px[i] += vx; a->py[i] += vy + ARM_GRAV;
-    }
-    a->px[2] += (tx - a->px[2]) * muscle;                   // muscle pulls the hand
-    a->py[2] += (ty - a->py[2]) * muscle;
+    // inverse masses (set every frame so a newly-spawned rider's zero-init arm never freezes):
+    a->pt[0].w = 0; a->pt[1].w = a->pt[2].w = 1;            // shoulder pinned, elbow + hand free
+    a->pt[0].x = a->pt[0].px = sx; a->pt[0].y = a->pt[0].py = sy;   // pin shoulder to the cart
+    for (int i = 1; i <= 2; i++)                            // verlet the free points (shared toolkit)
+        phys_integrate(&a->pt[i], 0.0f, ARM_GRAV, ARM_DAMP);
+    a->pt[2].x += (tx - a->pt[2].x) * muscle;              // muscle pulls the hand
+    a->pt[2].y += (ty - a->pt[2].y) * muscle;
     for (int it = 0; it < 4; it++) {                        // relax segment lengths
-        float dx = a->px[1] - a->px[0], dy = a->py[1] - a->py[0];
-        float d = fsqrt(dx * dx + dy * dy); if (d < 0.001f) d = 0.001f;
-        float k = (ARM_UP - d) / d;                         // shoulder pinned → move elbow
-        a->px[1] += dx * k; a->py[1] += dy * k;
-        dx = a->px[2] - a->px[1]; dy = a->py[2] - a->py[1];
-        d = fsqrt(dx * dx + dy * dy); if (d < 0.001f) d = 0.001f;
-        k = (ARM_LO - d) / d * 0.5f;
-        a->px[1] -= dx * k; a->py[1] -= dy * k;
-        a->px[2] += dx * k; a->py[2] += dy * k;
+        phys_link(&a->pt[0], &a->pt[1], ARM_UP);           // shoulder pinned (w=0) → moves elbow only
+        phys_link(&a->pt[1], &a->pt[2], ARM_LO);           // elbow↔hand, 50/50 split
     }
 }
 
@@ -420,9 +412,9 @@ static void step_arms(Body *b, int ci) {
             float shy = cy + b->uy * fa + ny * BODY_H;
             VArm *A = &r->arm[arm];
             if (!riders_primed) {                           // snap to a raised pose
-                A->px[0] = A->ox[0] = shx;            A->py[0] = A->oy[0] = shy;
-                A->px[1] = A->ox[1] = shx + nx * ARM_UP;          A->py[1] = A->oy[1] = shy + ny * ARM_UP;
-                A->px[2] = A->ox[2] = shx + nx * (ARM_UP + ARM_LO); A->py[2] = A->oy[2] = shy + ny * (ARM_UP + ARM_LO);
+                A->pt[0].x = A->pt[0].px = shx;                      A->pt[0].y = A->pt[0].py = shy;
+                A->pt[1].x = A->pt[1].px = shx + nx * ARM_UP;        A->pt[1].y = A->pt[1].py = shy + ny * ARM_UP;
+                A->pt[2].x = A->pt[2].px = shx + nx*(ARM_UP+ARM_LO); A->pt[2].y = A->pt[2].py = shy + ny*(ARM_UP+ARM_LO);
             }
             // arms always WANT their personal pose — bold riders point straight up,
             // timid ones (high tension) blend toward the chest. The muscle is modest,
@@ -1066,8 +1058,8 @@ static void draw_riders(Body *b, int ci) {
         circfill((int)(cx + nx * (top + 1.4f)), (int)(cy + ny * (top + 1.4f)), 1, CLR_PEACH);
         for (int arm = 0; arm < 2; arm++) {                   // shoulder→elbow→hand
             VArm *A = &r->arm[arm];
-            line((int)A->px[0], (int)A->py[0], (int)A->px[1], (int)A->py[1], CLR_DARK_PEACH);
-            line((int)A->px[1], (int)A->py[1], (int)A->px[2], (int)A->py[2], CLR_DARK_PEACH);
+            line((int)A->pt[0].x, (int)A->pt[0].y, (int)A->pt[1].x, (int)A->pt[1].y, CLR_DARK_PEACH);
+            line((int)A->pt[1].x, (int)A->pt[1].y, (int)A->pt[2].x, (int)A->pt[2].y, CLR_DARK_PEACH);
         }
     }
 }

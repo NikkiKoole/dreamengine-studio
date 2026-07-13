@@ -58,6 +58,12 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   [`design/demand-discovery.md`](design/demand-discovery.md#where-the-findings-live-and-grow).
 > - Hot files: `tools/reddit-gaps.js`, `tools/reddit-gaps-subs.txt`. Drip stop/start/fire-once
 >   commands are in that doc's "Continuous fetching — the drip" section.
+> - **First build-output of the thread → the tombola cart** ([`design/tombola.md`](design/tombola.md)):
+>   the demand's one genuinely-missing on-grain gap (tape=already `loopstation`, chord-toy=already
+>   `chordblossom`), designed as a physics sequencer on the [device-face paradigm](design/device-face-paradigm.md)
+>   (§1f = the fuller OP-1 device analysis for the paradigm-sharpening pass). **Not built.** When
+>   building: reuse the new `runtime/physics.h` (verlet balls) + `circlemachine` (note wiring) — the
+>   tombola only adds a rotating drum + trigger-line — resume at [`design/tombola.md`](design/tombola.md#prior-art-in-the-repo--reuse-and-whats-already-covered).
 
 > **▶ ACTIVE THREAD (2026-07-10) — editor↔cart workflow: CODE round-trip + the PIXEL side (Option D) SHIPPED.**
 > Closing the gaps that bite when you hand-edit a cart in the editor instead of going through

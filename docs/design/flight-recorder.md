@@ -86,6 +86,31 @@ old headerless `.rec` files replay unchanged.
   `#ifndef PLATFORM_WEB`); and a double-clicked **Mac `.app` / `.exe`** is launched with no
   `--record` flag, so `rec_file` stays `NULL` and the record branch never fires.
 
+## The start-state sidecar — the one input the seed doesn't cover
+
+The determinism contract above assumes the world is reconstructed from **boot + inputs + seed**. That
+holds for every cart *except one that boots from its own save* — a cart calling `load_int()`/`load_bytes()`
+in `init` (e.g. `acidrack`, which `load_song()`s the whole arrangement from `build/saves/<slug>/cart.blob`)
+starts from a state that is neither the input tape nor the seed, but **whatever blob was on disk at record
+time**. Autosave then keeps overwriting that blob, so the recorded run drifts out from under its own `.rec`:
+input-only, the take can't reproduce it (this bit `acidrack` — a session blasted to silence couldn't be
+restored or replayed because the start-state was already gone). Two hazards, one root cause.
+
+Fix: when a run records, snapshot the cart's save-dir **beside the `.rec`** as `<stem>.save/` — the exact
+state the cart will `load` at boot. This is deliberately **not** the general savestate (see Boundaries):
+it captures only what the cart *already serializes to disk itself*, not the scattered `de_state()` statics.
+
+- **Gated on actually saving.** Snapshot only when the save-dir is non-empty at record start. The vast
+  majority of carts never call `save()` → **zero** snapshots. This is an `acidrack`-shaped feature.
+- **Bound to the ring, so it never sprawls.** The sidecar is pruned by the same `pruneRing` sweep that
+  evicts its `.rec` — **≤ `RING_KEEP` (10) per cart**, KB-sized (`acidrack`'s whole song = ~1.8 KB), all
+  under gitignored `build/.rec/`. A kept take carries its `.save/` into `tools/clips/<slug>/` so the
+  committed take stays self-contained; that is the only start-state that ever reaches git.
+- **Replay is isolated, so it stops clobbering live saves.** Replaying a take with a sidecar seeds a
+  throwaway `build/.replay/<slug>/` from it and points `--save-dir` there — so replay boots from the
+  recorded start-state AND the replayed run's autosaves never touch the live `build/saves/<slug>/`
+  (previously they did, silently corrupting the state you were trying to preserve).
+
 ## The debugging payoff
 
 This is `rr`-style record-and-replay for the console, at near-zero runtime cost *because the sim is
@@ -130,7 +155,9 @@ nightly/occasional run, like `build-all` itself.
 
 - **Not a savestate.** `de_state()` has no serialize, and cart state is scattered across statics — a
   general mid-play snapshot is the emulator-savestate problem. We dodge it entirely via the trim
-  model above. No `de_state` snapshot is taken.
+  model above. No `de_state` snapshot is taken. The one narrow exception is the **start-state sidecar**
+  above: it snapshots only the cart's own on-disk save-dir (what it already serialized via `save*()`),
+  purely so a *save-booting* cart's `.rec` boots from the right state — not a general mid-play capture.
 - **Not the music live-looper or gameplay ghosts.** Those record at a different level (audio events /
   a second body) and stay in [`input-recording-looper.md`](input-recording-looper.md). This is the
   *harness* recorder — whole-session, file-based, dev-facing, engine-owned only as a debug seam
@@ -143,7 +170,10 @@ nightly/occasional run, like `build-all` itself.
 - `editor/electron/main.cjs` — `studio:run` records every native run (`--det --seed <rand> --record
   <ring>`); the `build/.rec/<slug>/` ring + `pruneRing`; `keepTake`/`keepTakeFromMenu`;
   `studio:record-keep` IPC; Debug-menu *Keep take* + global `⌘⇧K` (twin of the attach-profiler's
-  `⌘⇧P` — same handle table).
+  `⌘⇧P` — same handle table). Start-state sidecar: `snapshotSaveForRec` (on record/run),
+  `recSaveSidecar`, `replaySaveDirArgs` (isolate replay), `pruneRing` evicts the `.save/` with its `.rec`.
+- `tools/play.js` — the CLI mirror: `record` writes the `<stem>.save/` sidecar; `replay` restores it
+  into an isolated `build/.replay/<name>/` save-dir so live saves are untouched.
 - `editor/src/settings.js` — the "record every play" toggle (default on).
 - Consumers unchanged: `tools/make-gif.js` / `tools/play.js` replay the kept `.rec` and self-seed
   from its header; `--start` trims the boot to the in-point.

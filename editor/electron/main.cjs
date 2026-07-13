@@ -216,10 +216,45 @@ function keymapDefs(keymap) {
 // cart.sav / cart.kv / cart.blob aren't shared by every cart that runs from
 // build/. Unsaved scratch code shares the 'scratch' folder. Shared by all
 // three spawn paths (run / profile / live host).
-function saveDirArgs(cfg) {
-  const slug = (cfg?.cartName || 'scratch').toLowerCase()
+function saveSlug(cfg) {
+  return (cfg?.cartName || 'scratch').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'scratch'
-  return ['--save-dir', `saves/${slug}`]
+}
+function saveDirArgs(cfg) { return ['--save-dir', `saves/${saveSlug(cfg)}`] }
+function saveDirPath(cfg) { return path.join(BUILD_DIR, 'saves', saveSlug(cfg)) }
+
+// A cart that persists (save()/save_bytes → build/saves/<slug>/) LOADS that state at boot, so a
+// recording of it is only reproducible from the SAME start-state. We snapshot the save-dir beside
+// the .rec (<stem>.save/) so the take is self-contained. Skipped when the save-dir is empty/absent
+// (most carts never save → zero snapshots). Kept tiny and pruned WITH its .rec (see pruneRing).
+function recSaveSidecar(recPath) { return recPath.replace(/\.rec$/, '.save') }
+function snapshotSaveForRec(recPath, cfg) {
+  try {
+    const src = saveDirPath(cfg)
+    if (!fs.existsSync(src)) return
+    const files = fs.readdirSync(src).filter(f => !f.startsWith('.'))
+    if (!files.length) return
+    const dest = recSaveSidecar(recPath)
+    fs.rmSync(dest, { recursive: true, force: true })
+    fs.mkdirSync(dest, { recursive: true })
+    for (const f of files) { try { fs.copyFileSync(path.join(src, f), path.join(dest, f)) } catch {} }
+  } catch {}
+}
+// Prepare the --save-dir for a REPLAY of `takePath`. If the take has a start-state sidecar
+// (<stem>.save/), seed a THROWAWAY save-dir from it and point the cart there — so the replay (a)
+// boots from the exact recorded start-state and (b) never clobbers the live build/saves/<slug>/.
+// No sidecar → the normal live save-dir (a save-less cart is deterministic from its seed anyway).
+function replaySaveDirArgs(takePath, cfg) {
+  try {
+    const sidecar = String(takePath || '').replace(/\.(rec|script)$/, '.save')
+    if (!sidecar.endsWith('.save') || !fs.existsSync(sidecar)) return saveDirArgs(cfg)
+    const rel = path.join('.replay', saveSlug(cfg))
+    const iso = path.join(BUILD_DIR, rel)
+    fs.rmSync(iso, { recursive: true, force: true })
+    fs.mkdirSync(iso, { recursive: true })
+    for (const f of fs.readdirSync(sidecar)) { try { fs.copyFileSync(path.join(sidecar, f), path.join(iso, f)) } catch {} }
+    return ['--save-dir', rel]
+  } catch { return saveDirArgs(cfg) }
 }
 
 // Lockstep netplay flags for a run (rung 2 — docs/design/multiplayer-research.md).
@@ -442,7 +477,10 @@ function pruneRing(slug) {                                    // keep the newest
     const dir = ringDir(slug)
     const files = fs.readdirSync(dir).filter(f => f.endsWith('.rec'))
       .map(f => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t)
-    for (const e of files.slice(RING_KEEP)) { try { fs.unlinkSync(path.join(dir, e.f)) } catch {} }
+    for (const e of files.slice(RING_KEEP)) {
+      try { fs.unlinkSync(path.join(dir, e.f)) } catch {}
+      try { fs.rmSync(path.join(dir, e.f.replace(/\.rec$/, '.save')), { recursive: true, force: true }) } catch {}  // its start-state snapshot goes too
+    }
   } catch {}
 }
 // promote a ring take into its committed home tools/clips/<slug>/NN-take.rec. Self-contained: the
@@ -458,6 +496,13 @@ function keepTake(ringFile, slug, send) {
     const nn = String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0')
     const dest = path.join(dir, `${nn}-take.rec`)
     fs.copyFileSync(ringFile, dest)
+    // carry the start-state snapshot alongside, so a save-booting cart's take replays exactly
+    const startSave = recSaveSidecar(ringFile)
+    if (fs.existsSync(startSave)) {
+      const saveDest = recSaveSidecar(dest)
+      fs.mkdirSync(saveDest, { recursive: true })
+      for (const f of fs.readdirSync(startSave)) { try { fs.copyFileSync(path.join(startSave, f), path.join(saveDest, f)) } catch {} }
+    }
     const rel = path.relative(ROOT, dest)
     if (send) send('cart:log', `\n✓ kept take → ${rel}\n  replay:  node tools/play.js ${slug} replay ${rel}\n  clip:    node tools/make-gif.js ${slug} --recipe ${nn}-take\n`)
     return { ok: true, rel, dest, slug, label: `${nn}-take` }
@@ -1050,6 +1095,7 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
           recPath = path.join(ringDir(slug), `${sessionStamp()}.rec`)
           const seed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0
           recFlags = ['--det', '--seed', String(seed), '--record', recPath]
+          snapshotSaveForRec(recPath, cfg)   // capture the state the cart will load at boot (save-booting carts only)
         } catch { recPath = null; recFlags = [] }
       }
       const proc = trackNative(spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags, ...recFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'run', { recPath, slug })
@@ -1106,6 +1152,7 @@ ipcMain.handle('studio:record', async (_event, code, cfg) => {
   const recTmp = path.join(BUILD_DIR, '.rec', 'take.rec')
   fs.mkdirSync(path.dirname(recTmp), { recursive: true })
   try { if (fs.existsSync(recTmp)) fs.unlinkSync(recTmp) } catch {}   // start clean so an empty take is detectable
+  snapshotSaveForRec(recTmp, cfg)   // save-booting cart → capture its start-state beside the take
   return new Promise(resolve => {
     exec(cmd, (err, _stdout, stderr) => {
       const warnings = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
@@ -1131,6 +1178,12 @@ ipcMain.handle('studio:record', async (_event, code, cfg) => {
           const nn = String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0')
           const dest = path.join(dir, `${nn}-take.rec`)
           fs.copyFileSync(recTmp, dest)
+          const startSave = recSaveSidecar(recTmp)
+          if (fs.existsSync(startSave)) {
+            const saveDest = recSaveSidecar(dest)
+            fs.mkdirSync(saveDest, { recursive: true })
+            for (const f of fs.readdirSync(startSave)) { try { fs.copyFileSync(path.join(startSave, f), path.join(saveDest, f)) } catch {} }
+          }
           const rel = path.relative(ROOT, dest)
           send('cart:log', `\n✓ recorded take → ${rel}\n  replay:  node tools/play.js ${slug} replay ${rel}\n  clip:    node tools/make-gif.js ${slug} --recipe ${nn}-take\n`)   // persistent in the log panel
           send('cart:recorded', { ok: true, rel, abs: dest, slug, label: `${nn}-take` })
@@ -1161,7 +1214,7 @@ ipcMain.handle('studio:replay', async (_event, code, cfg, takePath) => {
       if (err) return resolve({ ok: false, cmd, output: warnings })
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-      const proc = trackNative(spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, flag, abs, ...saveDirArgs(cfg)],
+      const proc = trackNative(spawn(CART_BIN, ['--title', `${cfg?.cartName || 'dreamengine'} (▶ replaying)`, flag, abs, ...replaySaveDirArgs(abs, cfg)],
         { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) }), cfg?.cartName, 'replay')
       proc.stdout.on('data', c => send('cart:log', c.toString()))
       proc.stderr.on('data', c => send('cart:log', c.toString()))

@@ -33,7 +33,8 @@ de:meta */
 #define R0       15.0f
 #define GRAV     0.34f
 #define DAMP     0.99f
-#define ITERS    8
+#define ITERS    3          // constraint/collision passes per substep
+#define SUBSTEPS 4          // split each frame → a fast blob can't tunnel through another
 #define PRESSURE 0.18f
 #define FLOORY   (SCREEN_H - 8)
 #define SHAPE_CIRCLE 0
@@ -155,29 +156,31 @@ void update(void) {
 
     if (keyp('R')) init();
 
-    for (int i = 0; i < NB; i++)
-        for (int k = 0; k < NR; k++) phys_integrate(&blob[i].rim[k], 0.0f, GRAV, DAMP);
+    for (int s = 0; s < SUBSTEPS; s++) {                  // substeps: small moves → no tunneling
+        for (int i = 0; i < NB; i++)
+            for (int k = 0; k < NR; k++) phys_integrate(&blob[i].rim[k], 0.0f, GRAV / SUBSTEPS, DAMP);
 
-    for (int it = 0; it < ITERS; it++) {
-        for (int i = 0; i < NB; i++) {                    // each blob's own shape: edges + pressure
-            Blob *b = &blob[i];
-            for (int k = 0; k < NR; k++) phys_link(&b->rim[k], &b->rim[(k + 1) % NR], b->edgeRest[k]);
-            float corr = PRESSURE * (b->restArea - poly_area(b)) / b->restArea;
-            for (int k = 0; k < NR; k++) {
-                if (b->rim[k].w == 0) continue;
-                int kp = (k + NR - 1) % NR, kn = (k + 1) % NR;
-                b->rim[k].x += 0.5f * (b->rim[kn].y - b->rim[kp].y) * corr;
-                b->rim[k].y += 0.5f * (b->rim[kp].x - b->rim[kn].x) * corr;
+        for (int it = 0; it < ITERS; it++) {
+            for (int i = 0; i < NB; i++) {                // each blob's own shape: edges + pressure
+                Blob *b = &blob[i];
+                for (int k = 0; k < NR; k++) phys_link(&b->rim[k], &b->rim[(k + 1) % NR], b->edgeRest[k]);
+                float corr = PRESSURE * (b->restArea - poly_area(b)) / b->restArea;
+                for (int k = 0; k < NR; k++) {
+                    if (b->rim[k].w == 0) continue;
+                    int kp = (k + NR - 1) % NR, kn = (k + 1) % NR;
+                    b->rim[k].x += 0.5f * (b->rim[kn].y - b->rim[kp].y) * corr;
+                    b->rim[k].y += 0.5f * (b->rim[kp].x - b->rim[kn].x) * corr;
+                }
             }
+            for (int i = 0; i < NB; i++) set_hub(&blob[i]);   // centroid current before SAT uses it
+            for (int i = 0; i < NB; i++)                      // BLOB vs BLOB (SAT point-vs-polygon)
+                for (int j = 0; j < NB; j++) {
+                    if (i == j) continue;
+                    for (int p = 0; p < NR; p++) blob_vs_point(&blob[i].rim[p], &blob[j]);
+                }
+            for (int i = 0; i < NB; i++)                      // walls + floor last
+                for (int k = 0; k < NR; k++) phys_bounds(&blob[i].rim[k], 0, 0, SCREEN_W, FLOORY, 0.4f, 0.6f);
         }
-        for (int i = 0; i < NB; i++) set_hub(&blob[i]);   // centroid current before SAT uses it
-        for (int i = 0; i < NB; i++)                      // BLOB vs BLOB (SAT point-vs-polygon)
-            for (int j = 0; j < NB; j++) {
-                if (i == j) continue;
-                for (int p = 0; p < NR; p++) blob_vs_point(&blob[i].rim[p], &blob[j]);
-            }
-        for (int i = 0; i < NB; i++)                      // walls + floor last
-            for (int k = 0; k < NR; k++) phys_bounds(&blob[i].rim[k], 0, 0, SCREEN_W, FLOORY, 0.4f, 0.6f);
     }
     for (int i = 0; i < NB; i++) set_hub(&blob[i]);
     pmx = mx; pmy = my;

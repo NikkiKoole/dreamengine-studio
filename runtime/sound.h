@@ -6565,6 +6565,15 @@ int record_grab(int sample_slot, float seconds) {
         float ax = x < 0.0f ? -x : x;
         if (ax > peak) peak = ax;
     }
+    // trim leading + trailing silence so the sample STARTS at the first audible sample (a take
+    // begins with dead air between REC and the first note — else slice 0 is silence and "keys don't work").
+    float thr = 0.02f * peak; if (thr < 0.004f) thr = 0.004f;
+    int lead = 0;    while (lead < want && (buf[lead] < 0 ? -buf[lead] : buf[lead]) < thr) lead++;
+    int tail = want; while (tail > lead && (buf[tail - 1] < 0 ? -buf[tail - 1] : buf[tail - 1]) < thr) tail--;
+    if (lead > 0 && tail - lead >= 64) {               // shift the audible span to the front (keep >=64 samples)
+        for (int i = 0; i < tail - lead; i++) buf[i] = buf[lead + i];
+        want = tail - lead;
+    }
     if (peak > 0.0001f) {                              // peak-normalize to ~0.95 so playback is as loud as the source
         float g = 0.95f / peak;
         for (int i = 0; i < want; i++) buf[i] *= g;
@@ -6612,6 +6621,20 @@ int record_peaks(float seconds, float *lo, float *hi, int n) {
         lo[x] = mn; hi[x] = mx;
     }
     return want;
+}
+
+// Current playback position (0..1 of the buffer) of the INSTR_SAMPLE voice on instrument `slot`,
+// or -1 if none is playing — for drawing a live playhead over the waveform. Racy read (visual only).
+float instrument_playhead(int slot) {
+    for (int i = 0; i < SOUND_VOICES; i++) {
+        Voice *v = &voices[i];
+        if (v->active && v->smp_on && v->wave == INSTR_SAMPLE && v->instr_slot == slot
+            && v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS) {
+            SoundSample *s = &sound_samples[v->smp_idx];
+            if (s->loaded && s->len > 1) return (float)(v->smp_pos / (double)(s->len - 1));
+        }
+    }
+    return -1.0f;
 }
 
 void instrument_sample(int slot, int sample_slot, int root_midi) {

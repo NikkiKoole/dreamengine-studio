@@ -363,11 +363,12 @@ void instrument_duty(int slot, float duty);               // pulse width 0.0..1.
 void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. voices inherit at note-on. sweep live with note_pan or LFO_PAN
 void instrument_level(int slot, float gain);              // per-slot output LEVEL 0..1 — 1 = unity (default, byte-identical), 0.5 ≈ half, 0 = silent. balance a multi-part mix; ride it live like drive/echo. the level leg of the per-slot mixer (drive/echo/reverb/pan)
 void record_arm(void);                                    // PCM SAMPLER: begin the always-on rolling capture of the master output (idempotent; off + byte-identical until called). Call once, then record_grab() any time to snapshot recent audio
-int  record_grab(int sample_slot, float seconds);         // snapshot the last `seconds` of captured audio into PCM sample slot 0..7; returns samples grabbed (0 = not armed / nothing yet). Pair with instrument_sample() + INSTR_SAMPLE to play it back
+int  record_grab(int sample_slot, float seconds);         // snapshot the last `seconds` of captured audio into PCM sample slot 0..7; peak-normalized + leading/trailing SILENCE TRIMMED (starts at the first audible sample). Returns samples grabbed after trim (0 = not armed / nothing yet). Pair with instrument_sample() + INSTR_SAMPLE
 void instrument_sample(int slot, int sample_slot, int root_midi); // bind an INSTR_SAMPLE instrument slot to a recorded buffer; root_midi = the note that plays it at original speed (e.g. 60 = C4). Higher notes play faster/up in pitch
 void instrument_sample_region(int slot, float start, float end); // set the CHOP: play the bound buffer only from start..end (fractions 0..1; default 0,1 = whole). Move the marks live to carve a single slice
 int  sample_peaks(int slot, float *lo, float *hi, int n);       // waveform readout: downsample PCM slot 0..7 to n columns of min/max (-1..1) into lo[]/hi[] for drawing. Returns buffer length (0 = empty). Draw-time
 int  record_peaks(float seconds, float *lo, float *hi, int n);  // LIVE waveform of the capture ring while recording (before a grab): downsample the last `seconds` captured into n min/max columns. Returns samples covered. Draw the take "filling in" as a waveform
+float instrument_playhead(int slot);                            // current playback position 0..1 of the INSTR_SAMPLE voice on `slot` (-1 if none playing) — draw a live playhead over the waveform
 
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned

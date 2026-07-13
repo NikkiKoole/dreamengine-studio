@@ -13,8 +13,8 @@
     "soft-body",
     "procedural-mesh"
   ],
-  "lineage": "Soft-body twin of the `tentacle` skinning spike: where tentacle skins a verlet CHAIN, jelly skins a PRESSURIZED verlet ring with a radial tritex fan. The ring holds its shape by gas pressure (area preservation) — not rigid spokes, which let a distance-only blob fold and never reform — so you can squash it flat and it re-rounds. Composes runtime/physics.h + tritex, no new engine code.",
-  "description": "Three wobbly jellies flop to the floor and squish, then spring back round — each a pressurized soft-body blob (a verlet rim ring that preserves its area, runtime/physics.h) wearing a texture fanned out with tritex, so the printed face (or checkerboard) deforms as the blob does. Grab any jelly and pull it into a blobby mess; let go and the pressure re-rounds it. R resets. The checker one makes the squish obvious; the faces make it cute."
+  "lineage": "Soft-body twin of the `tentacle` skinning spike: where tentacle skins a verlet CHAIN, jelly skins a PRESSURIZED verlet ring with a radial tritex fan. The ring holds its shape by gas pressure (area preservation) — not rigid spokes, which let a distance-only blob fold and never reform — so you can squash it flat and it re-rounds. Blobs collide rim-point vs rim-edge (the physics.c box-stacking trick) so a heap of them stacks. Composes runtime/physics.h + tritex, no new engine code.",
+  "description": "Four wobbly jellies flop down and stack in a squishy pile — each a pressurized soft-body blob (a verlet rim ring that preserves its area, runtime/physics.h) that collides with the others and wears a texture fanned out with tritex, so the printed face (or checkerboard) deforms as the blob squashes against its neighbours. Grab any jelly to pull it out of the heap and drop it back on top; let go and the pressure re-rounds it. R resets. The checker one makes the squish obvious; the faces make it cute."
 }
 de:meta */
 #include "studio.h"
@@ -26,7 +26,7 @@ de:meta */
 // a distance-only ring folds into a shape that still satisfies every length and never
 // re-rounds. The hub is just the render centroid for the radial tritex skin fan.
 
-#define NB       3          // blobs
+#define NB       4          // blobs
 #define NR       14         // rim points per blob
 #define R0       16.0f      // rest radius
 #define GRAV     0.34f
@@ -79,9 +79,10 @@ static void spawn(int i, float cx, float cy, int s) {
 
 void init(void) {
     rimRest = 2.0f * R0 * sin_deg(180.0f / NR);      // chord between adjacent rim points
-    spawn(0,  70, 60, 0);
-    spawn(1, 160, 40, 1);
-    spawn(2, 250, 66, 2);
+    spawn(0, 150,  24, 0);                            // a loose column → they fall and stack
+    spawn(1, 168,  66, 1);
+    spawn(2, 150, 108, 2);
+    spawn(3, 168, 150, 0);
     restArea = poly_area(&blob[0]);                  // all blobs spawn identical → one rest area
     grabBl = grabK = -1;
 }
@@ -103,23 +104,32 @@ void update(void) {
 
     if (keyp('R')) init();
 
-    for (int i = 0; i < NB; i++) {
-        Blob *b = &blob[i];
-        for (int k = 0; k < NR; k++) phys_integrate(&b->rim[k], 0.0f, GRAV, DAMP);
-        for (int it = 0; it < ITERS; it++) {
-            for (int k = 0; k < NR; k++) phys_link(&b->rim[k], &b->rim[(k + 1) % NR], rimRest);  // perimeter
-            // PRESSURE: nudge each rim vertex along the gradient of area to restore restArea.
-            float corr = PRESSURE * (restArea - poly_area(b)) / restArea;
+    for (int i = 0; i < NB; i++)                          // integrate every rim point
+        for (int k = 0; k < NR; k++) phys_integrate(&blob[i].rim[k], 0.0f, GRAV, DAMP);
+
+    for (int it = 0; it < ITERS; it++) {
+        for (int i = 0; i < NB; i++) {                    // each blob's own shape: perimeter + pressure
+            Blob *b = &blob[i];
+            for (int k = 0; k < NR; k++) phys_link(&b->rim[k], &b->rim[(k + 1) % NR], rimRest);
+            float corr = PRESSURE * (restArea - poly_area(b)) / restArea;   // restore area → re-round
             for (int k = 0; k < NR; k++) {
-                if (b->rim[k].w == 0) continue;      // don't fight a grabbed/pinned point
+                if (b->rim[k].w == 0) continue;           // don't fight a grabbed/pinned point
                 int kp = (k + NR - 1) % NR, kn = (k + 1) % NR;
                 b->rim[k].x += 0.5f * (b->rim[kn].y - b->rim[kp].y) * corr;   // +gradient of signed area
                 b->rim[k].y += 0.5f * (b->rim[kp].x - b->rim[kn].x) * corr;
             }
-            for (int k = 0; k < NR; k++) phys_bounds(&b->rim[k], 0, 0, SCREEN_W, FLOORY, 0.4f, 0.9f);
         }
-        set_hub(b);
+        for (int i = 0; i < NB; i++)                       // BLOB vs BLOB — each rim point vs the other
+            for (int j = 0; j < NB; j++) {                 // blob's rim edges (solid faces → they stack)
+                if (i == j) continue;
+                for (int p = 0; p < NR; p++)
+                    for (int e = 0; e < NR; e++)
+                        phys_collide_seg(&blob[i].rim[p], &blob[j].rim[e], &blob[j].rim[(e + 1) % NR]);
+            }
+        for (int i = 0; i < NB; i++)                       // walls + floor last
+            for (int k = 0; k < NR; k++) phys_bounds(&blob[i].rim[k], 0, 0, SCREEN_W, FLOORY, 0.4f, 0.9f);
     }
+    for (int i = 0; i < NB; i++) set_hub(&blob[i]);
     pmx = mx; pmy = my;
 }
 
@@ -141,5 +151,5 @@ void draw(void) {
     }
 
     font(FONT_SMALL);
-    print("pressurized soft-body (physics.h) + radial tritex skin  —  grab & squish · R reset", 4, 4, CLR_LIGHT_GREY);
+    print("pressurized soft-bodies that collide + stack (physics.h + tritex)  —  grab · stack · R reset", 4, 4, CLR_LIGHT_GREY);
 }

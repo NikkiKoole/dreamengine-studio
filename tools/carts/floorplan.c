@@ -12,7 +12,7 @@
   "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched; type/paste an id and (with floorplanner.js --serve running) it fetches on the fly. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes, G ghosts through walls (glows on contact).",
   "todo": [
     "object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid boxes — read each item's height/z and skip collision below a threshold.",
-    "true 32-bit RGB: fall back to engine RGB instead of quantising sprites/textures to the 32-palette — natural furniture + rich floor textures.",
+    "true 32-bit RGB for FLOOR TEXTURES: furniture sprites now blit in 24-bit via pset_rgb (floorplanner.js bakes --rgb, posterize+saturate for pop); extend the same true-colour path to floor textures (surfs/tpool still palette-quantised).",
     "z-ordering: sort draws by (z + z_height) so taller objects layer over shorter and the player occludes / is occluded correctly (vs the current fixed paint order)."
   ]
 }
@@ -87,7 +87,9 @@ static AreaP areas[MAXAREA];  static int n_areas;
 static float apts[MAXAPT];    static int n_apts;     // count of floats (pairs)
 static Furn  furn[MAXFURN];   static int n_furn;
 static Spr   sprs[MAXSPR];    static int n_spr;   // 'spr' is a studio.h built-in — don't shadow it
-static unsigned char pool[MAXPOOL]; static int n_pool;
+static unsigned char pool[MAXPOOL]; static int n_pool;   // palette-mode furniture pixels (0..31, 255=transparent)
+static int   rgbpool[MAXPOOL]; static int n_rgbpool;     // 24-bit-mode furniture pixels (0xRRGGBB, -1=transparent)
+static int   rgb_mode = 0;                               // data file's "rgb" flag: furniture is true-colour (pset_rgb)
 
 // floor coverings: polygons tiled with a real Roomstyler material texture (or a flat colour)
 static struct { int tex, c, tile, off, n; } surfs[MAXAREA]; static int n_surfs;
@@ -144,7 +146,7 @@ static bool  serve_missing = false;   // request not consumed within ~2s → no 
 // ---- load ----
 static void reset_pools(void) {
     n_walls = n_windows = n_doors = n_areas = n_apts = n_furn = n_spr = n_pool = 0;
-    n_surfs = n_spts = n_texs = n_tpool = 0;
+    n_surfs = n_spts = n_texs = n_tpool = 0; n_rgbpool = 0; rgb_mode = 0;
     loaded_ok = truncated = 0; dname[0] = 0; err[0] = 0;
 }
 
@@ -172,6 +174,8 @@ static void load_from(const char *path) {
     if (si >= 0 && tok[si].type == JSMN_ARRAY && tok[si].size >= 2) {
         spawn_x = (float)json_num(js, &tok[si + 1]); spawn_y = (float)json_num(js, &tok[si + 2]);
     }
+    int rmi = json_get(js, tok, 0, "rgb");   // 24-bit furniture (px = 0xRRGGBB) vs palette (px = idx)
+    rgb_mode = (rmi >= 0 && (int)json_num(js, &tok[rmi]) != 0);
 
     n_walls   = load_flat(js, tok, 0, "walls",   (float *)walls,   MAXSEG  * 5, 5);
     n_windows = load_flat(js, tok, 0, "windows", (float *)windows, MAXSEG  * 5, 5);
@@ -247,6 +251,7 @@ static void load_from(const char *path) {
                     tpool[n_tpool++] = (unsigned char)json_num(js, &tok[pxi + 1 + k]);
             texs[n_texs].w = (short)w; texs[n_texs].h = (short)h; texs[n_texs].off = off;
             n_texs++;
+            fi += json_span(tok, fi);   // advance to the next texture object (else all surfaces read texture 0)
         }
     }
 
@@ -258,12 +263,18 @@ static void load_from(const char *path) {
             int swi = json_get(js, tok, fi, "w"), shi = json_get(js, tok, fi, "h"), pxi = json_get(js, tok, fi, "px");
             int w = (swi >= 0) ? (int)json_num(js, &tok[swi]) : 0;
             int h = (shi >= 0) ? (int)json_num(js, &tok[shi]) : 0;
-            int off = n_pool;
-            if (w > 0 && h > 0 && pxi >= 0 && tok[pxi].type == JSMN_ARRAY)
-                for (int k = 0; k < tok[pxi].size && n_pool < MAXPOOL; k++)
-                    pool[n_pool++] = (unsigned char)json_num(js, &tok[pxi + 1 + k]);
+            int off = rgb_mode ? n_rgbpool : n_pool;
+            if (w > 0 && h > 0 && pxi >= 0 && tok[pxi].type == JSMN_ARRAY) {
+                if (rgb_mode)
+                    for (int k = 0; k < tok[pxi].size && n_rgbpool < MAXPOOL; k++)
+                        rgbpool[n_rgbpool++] = (int)json_num(js, &tok[pxi + 1 + k]);   // 0xRRGGBB / -1
+                else
+                    for (int k = 0; k < tok[pxi].size && n_pool < MAXPOOL; k++)
+                        pool[n_pool++] = (unsigned char)json_num(js, &tok[pxi + 1 + k]);
+            }
             sprs[n_spr].w = (short)w; sprs[n_spr].h = (short)h; sprs[n_spr].off = off;
             n_spr++;
+            fi += json_span(tok, fi);   // advance to the next sprite object (else every item reads sprite 0)
         }
     }
 
@@ -588,15 +599,20 @@ static void draw_furn(const Furn *f) {
     for (int k = 0; k < 4; k++)
         line((int)cx[k], (int)cy[k], (int)cx[(k + 1) % 4], (int)cy[(k + 1) % 4], C_FURN_O);
 }
-static unsigned char spr_at(const Furn *f, Spr s, float c, float sn, int dx, int dy) {
+// sample the furniture sprite at local offset (dx,dy): -1 = transparent, else a palette index
+// (palette mode) or a 0xRRGGBB colour (rgb mode). One sampler feeds both blit + outline.
+static int spr_sample(const Furn *f, Spr s, float c, float sn, int dx, int dy) {
     float lx =  dx * c + dy * sn;
     float ly = -dx * sn + dy * c;
     float hw = f->w * 0.5f, hh = f->h * 0.5f;
-    if (lx < -hw || lx >= hw || ly < -hh || ly >= hh) return 255;
+    if (lx < -hw || lx >= hw || ly < -hh || ly >= hh) return -1;
     int u = (int)((lx + hw) / f->w * s.w);
     int v = (int)((ly + hh) / f->h * s.h);
-    if (u < 0 || u >= s.w || v < 0 || v >= s.h) return 255;
-    return pool[s.off + v * s.w + u];
+    if (u < 0 || u >= s.w || v < 0 || v >= s.h) return -1;
+    int o = s.off + v * s.w + u;
+    if (rgb_mode) return rgbpool[o];                 // -1 already means transparent
+    unsigned char p = pool[o];
+    return p == 255 ? -1 : (int)p;
 }
 static bool blit_spr(const Furn *f) {
     if (f->ref < 0 || f->ref >= n_spr || sprs[f->ref].w == 0) return false;
@@ -608,13 +624,14 @@ static bool blit_spr(const Furn *f) {
     int cx = (int)f->cx, cy = (int)f->cy;
     if (outline_on)
         for (int dy = -ey; dy <= ey; dy++) for (int dx = -ex; dx <= ex; dx++)
-            if (spr_at(f, s, c, sn, dx, dy) == 255 &&
-                (spr_at(f, s, c, sn, dx - 1, dy) != 255 || spr_at(f, s, c, sn, dx + 1, dy) != 255 ||
-                 spr_at(f, s, c, sn, dx, dy - 1) != 255 || spr_at(f, s, c, sn, dx, dy + 1) != 255))
+            if (spr_sample(f, s, c, sn, dx, dy) < 0 &&
+                (spr_sample(f, s, c, sn, dx - 1, dy) >= 0 || spr_sample(f, s, c, sn, dx + 1, dy) >= 0 ||
+                 spr_sample(f, s, c, sn, dx, dy - 1) >= 0 || spr_sample(f, s, c, sn, dx, dy + 1) >= 0))
                 pset(cx + dx, cy + dy, C_FURN_O);
     for (int dy = -ey; dy <= ey; dy++) for (int dx = -ex; dx <= ex; dx++) {
-        unsigned char idx = spr_at(f, s, c, sn, dx, dy);
-        if (idx != 255) pset(cx + dx, cy + dy, idx);
+        int v = spr_sample(f, s, c, sn, dx, dy);
+        if (v < 0) continue;
+        if (rgb_mode) pset_rgb(cx + dx, cy + dy, v); else pset(cx + dx, cy + dy, v);
     }
     return true;
 }

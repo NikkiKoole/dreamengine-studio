@@ -9,7 +9,7 @@
     "toy"
   ],
   "teaches": [],
-  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched (or type an id). Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched (or type an id). Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes, G ghosts through walls (glows on contact).",
   "todo": [
     "object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid boxes — read each item's height/z and skip collision below a threshold.",
     "true 32-bit RGB: fall back to engine RGB instead of quantising sprites/textures to the 32-palette — natural furniture + rich floor textures.",
@@ -104,6 +104,8 @@ static int   loaded_ok = 0, tried = 0, truncated = 0;
 static struct { float x, y, aim; } pl;
 static bool use_sprites = true;   // T toggles sprites vs placeholder boxes
 static bool outline_on = true;    // O toggles the render-time furniture outline
+static bool noclip = true;        // G toggles: ghost (walk through walls) vs solid collision
+static bool colliding = false;    // player is currently overlapping a wall/furniture (ghost glow)
 
 // ---- start-screen plan picker (stage 1 of the loader; docs/design/external-data-carts.md → "Loader") ----
 // Lists the plans already fetched into the data folder; pick one or type an id. TAB summons it while
@@ -344,16 +346,20 @@ static void boot_once(void) {
     load_data();
     if (!loaded_ok) open_picker();   // no --data given → offer the picker instead of the bare error
 }
+// append only the digits of src to the id field (so a typed id or a pasted id/URL both work)
+static void id_append(const char *src) {
+    for (const char *p = src; *p; p++)
+        if (*p >= '0' && *p <= '9' && (int)strlen(idbuf) < (int)sizeof idbuf - 1) {
+            char c[2] = { *p, 0 }; strcat(idbuf, c); pickmsg[0] = 0;
+        }
+}
 static void update_picker(void) {
     int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
     if ((keyp(KEY_DOWN) || keyp('S')) && n_plans) sel = (sel + 1) % n_plans;
     if ((keyp(KEY_UP)   || keyp('W')) && n_plans) sel = (sel + n_plans - 1) % n_plans;
 
-    const char *t = text_input();               // accept typed digits into the id field
-    for (const char *p = t; *p; p++)
-        if (*p >= '0' && *p <= '9' && (int)strlen(idbuf) < (int)sizeof idbuf - 1) {
-            char c[2] = { *p, 0 }; strcat(idbuf, c); pickmsg[0] = 0;
-        }
+    id_append(text_input());                    // typed digits into the id field
+    id_append(paste());                         // Ctrl/Cmd+V — paste an id (keeps only the digits)
     if (keyp(KEY_BACKSPACE) && idbuf[0]) { idbuf[strlen(idbuf) - 1] = 0; pickmsg[0] = 0; }
     if (idbuf[0])                               // a typed id that matches a local plan highlights it
         for (int i = 0; i < n_plans; i++)
@@ -582,9 +588,13 @@ void update(void) {
     if (mvx || mvy) {
         float a = angle_to(0, 0, mvx * 100, mvy * 100);
         float step = 70.0f * d;
-        move_axis(pl.x + dx(step, a), pl.y + dy(step, a));
+        float nx = pl.x + dx(step, a), ny = pl.y + dy(step, a);
+        if (noclip) { pl.x = nx; pl.y = ny; }   // ghost: walk through walls
+        else move_axis(nx, ny);
         pl.aim = a;
     }
+    colliding = !passable(pl.x, pl.y);           // overlapping a wall/furniture? (drives the ghost glow)
+    if (keyp('G')) noclip = !noclip;
     if (keyp('T')) use_sprites = !use_sprites;
     if (keyp('O')) outline_on = !outline_on;
     int cx = cam_axis(pl.x, world_w, SCREEN_W);
@@ -636,13 +646,17 @@ void draw(void) {
         if (o->cx < vx0 || o->cx > vx1 || o->cy < vy0 || o->cy > vy1) continue;
         draw_door(o);
     }
+    if (noclip && colliding) {   // light up while passing through a wall
+        circ((int)pl.x, (int)pl.y, (int)PLAYER_R + 2, CLR_YELLOW);
+        circ((int)pl.x, (int)pl.y, (int)PLAYER_R + 4, CLR_YELLOW);
+    }
     circfill((int)pl.x, (int)pl.y, (int)PLAYER_R, C_PLAYER);
     line((int)pl.x, (int)pl.y, (int)(pl.x + dx(7, pl.aim)), (int)(pl.y + dy(7, pl.aim)), CLR_WHITE);
 
     // HUD
     camera(0, 0);
-    char buf[96];
-    snprintf(buf, sizeof buf, "%s  furn:%d  [T] %s  [TAB] plans%s", dname[0] ? dname : "FLOORPLAN", n_furn,
-             use_sprites ? "sprites" : "boxes", truncated ? "  (truncated)" : "");
+    char buf[160];
+    snprintf(buf, sizeof buf, "%s  furn:%d  [T] %s  [G] %s  [TAB] plans%s", dname[0] ? dname : "FLOORPLAN", n_furn,
+             use_sprites ? "sprites" : "boxes", noclip ? "ghost" : "solid", truncated ? "  (truncated)" : "");
     print(buf, 4, 4, CLR_WHITE);
 }

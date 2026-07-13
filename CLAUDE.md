@@ -152,6 +152,10 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          Rotterdam; citygen_road_at() = the drive seam. citygrow = tuning bench/home;
                          SLOOP DRIVES IT (press M — a bounded generated city, grip on/off street).
                          Open: reconciling its world model with worldnet.h so N-spine + M-city are one
+             physics.h   tiny shared VERLET toolkit — PhysPt + phys_integrate/link/collide/bounds/aim
+                         (ropes/cloth/ragdolls/blobs/pseudo-solids). Cart owns its arrays+step loop; NOT
+                         a rigid-body engine (that's the Layer-1 seam parked in design/physics-notes.md).
+                         verlet=demo, physics=inline teacher; used by ragdoll/linerider/tombola
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

@@ -117,7 +117,7 @@ with the oldest cache, and fetches just that one. Successive runs round-robin th
 accumulate caches — no burst, self-healing (a sub that fails stays "stalest" and is retried next
 run). Keep the list to **music subs**: the wish-patterns + taxonomy are music-tuned.
 
-A macOS **LaunchAgent** runs the drip every 6 h (≈ a full 7-sub rotation every ~2 days):
+A macOS **LaunchAgent** runs the drip every 6 h (a full rotation every couple of days):
 - `tools/reddit-gaps-drip.sh` — the runner (resolves node under launchd's bare env, `cd`s in).
 - `~/Library/LaunchAgents/com.dreamengine.reddit-gaps-drip.plist` — the schedule (machine-local,
   NOT in the repo; `StartInterval 21600`, `RunAtLoad` off so the first fetch waits out the budget).

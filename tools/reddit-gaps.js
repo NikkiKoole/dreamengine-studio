@@ -466,6 +466,11 @@ async function drip(argv) {
 
   const data = await scan(pick, { limit: 25, delay, extraQueries: [], raw: false });
   data.sub = pick;
+  // Always persist (even an empty snapshot) so this sub's cache mtime advances — otherwise a sub
+  // that never returns data (dead name, or a persistent throttle) would stay "stalest" forever and
+  // starve the rotation. A real-but-throttled sub keeps its prior threads (scan seeds from cache);
+  // it just gets retried on its next turn, not immediately.
+  saveCache(pick, data);
   const wishes = mine(data.entries).length;
   const stamp = new Date().toISOString();
   console.log(`[reddit-gaps drip ${stamp}] r/${pick}: ${data.okFeeds} feeds ok, ${data.entries.length} threads, ${wishes} wishes cached`);

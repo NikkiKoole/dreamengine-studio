@@ -1,0 +1,6 @@
+# pianoroll — plays the seeded two-bar phrase, then drags the ruler to scrub
+# back into the middle (you hear it from there, no replay-from-top).
+# frames 300
+# fps 30
+tap 5 SPACE
+drag 180 40 15 215 130 15

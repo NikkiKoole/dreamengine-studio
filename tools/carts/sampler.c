@@ -15,7 +15,7 @@
   "lineage": "The cart on the REAL PCM sampler (engine: record_arm/record_grab capture ring + INSTR_SAMPLE + instrument_sample_region + sample_peaks/record_peaks, mic-and-sampling.md). Records the console's OWN output; slices it at the note-on times captured while playing (keybed_on_note - exact, since we played it in), editable by hand, with a signal detector as fallback for un-played audio; plays two ways — KEYS (one slice chromatically across the keybed) or KIT (each slice on its own pad at original pitch). Ported in spirit from navkit's DAW sampler.",
   "description": {
     "summary": "Record what you play, then chop it and play it back — two ways. Hit REC and play (pick a synth: SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS). STOP auto-slices the recording on its transients into chops, drawn as markers you can drag/add/remove. Then flip between KEYS (the keybed pitches ONE selected slice) and KIT (each slice is a pad, fired at original pitch). The source is the console's own sound, no mic.",
-    "detail": "The two sampler paradigms behind one toggle. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play (keybed_on_note) — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). The grab is peak-normalized + silence-trimmed. Drag a marker to move it, drag onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. KEYS mode: the keybed plays the SELECTED slice pitched (C4 = original) — the melodic sampler. KIT mode: the bottom becomes a PAD GRID, one pad per slice on the same A/S/D.. letters, fired at original pitch — the SP-404/break-chopper. One-shot forward playback (loop/reverse next).",
+    "detail": "The two sampler paradigms behind one toggle. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play (keybed_on_note) — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). The grab is peak-normalized + silence-trimmed. Drag a marker to move it, drag onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. KEYS mode: the keybed plays the SELECTED slice pitched (C4 = original) — the melodic sampler. KIT mode: the bottom becomes a PAD GRID, one pad per slice on the same A/S/D.. letters, fired at original pitch — the SP-404/break-chopper. A MODE button (or V) cycles the playback: NORMAL (one-shot fwd), REVERSE (one-shot back), LOOP (wraps — sustains while held), PINGPONG (bounces while held) — the last two turn a chop into a pad/texture. A white playhead tracks each sounding voice.",
     "controls": "REC/STOP (or R) — record a take (auto silence-trimmed). On the waveform: drag markers to move, drag onto a neighbour to delete, click a slice to select it. Buttons: KEYS|KIT toggle (or M), AUTO (re-slice on transients), SPLIT (halve the selected slice), ENGINE (source synth), RE-REC. KEYS mode: A S D F... play the selected slice pitched. KIT mode: the SAME letters (A=pad1, S=pad2...) fire the slices at original pitch; or click a pad."
   }
 }
@@ -81,9 +81,16 @@ static int   on_n = 0;             // how many — we KNOW when notes fired (we 
 // keybed fires this on every fresh note-on; log the moment while recording (the honest slice boundaries)
 static void rec_note_cb(int midi, int vel) { (void)midi; (void)vel; if (state == ST_REC && on_n < MAXSLICE + 1) on_t[on_n++] = now() - rec_t0; }
 
+static int smode = SAMPLE_NORMAL;                         // playback mode (NORMAL/REV/LOOP/PONG)
+static const char *SMODE_NM[] = { "NORMAL", "REVERSE", "LOOP", "PINGPONG" };
+
 static int nsl(void) { return nb - 1; }
 static void apply_src(void) { const Voice *v = &SRC[eng]; instrument(SYN, v->instr, v->a, v->d, v->s, v->r); }
 static void point_keybed(int slot) { keybed_config(slot, 4, 14); keybed_layout(0, BY, SCREEN_W, SCREEN_H - BY); }
+static void apply_mode(void) {                            // push the playback mode to every sample voice
+    instrument_sample_mode(KEYS_S, smode);
+    for (int i = 0; i < nsl(); i++) instrument_sample_mode(KIT0 + i, smode);
+}
 
 static void rebind(void) {   // (re)configure every slice's voice + the KEYS voice's region
     int n = nsl();
@@ -95,6 +102,7 @@ static void rebind(void) {   // (re)configure every slice's voice + the KEYS voi
     if (sel < 0) sel = 0; if (sel >= n) sel = n - 1;
     instrument_sample(KEYS_S, SND, ROOT);                 // BIND the KEYS voice to the buffer (not just its region — else it's silent)
     instrument_sample_region(KEYS_S, bnd[sel], bnd[sel + 1]);
+    apply_mode();                                         // re-slicing keeps the chosen mode
 }
 
 static void detect_slices(void) {   // transient auto-slice: an attack is a sharp RISE in energy (positive
@@ -173,14 +181,19 @@ static void edit_markers(void) {
         }
     }
     if (grabbed >= 0) {
-        float f = (mx - PX) / (float)PW; if (f < 0) f = 0; if (f > 1) f = 1;
+        float f = (mx - PX) / (float)PW;               // clamp between neighbours so markers never cross
+        float lo = bnd[grabbed - 1] + 0.005f, hi = bnd[grabbed + 1] - 0.005f;
+        if (f < lo) f = lo; if (f > hi) f = hi;
         bnd[grabbed] = f;
-        if (!mouse_down(0)) {                          // release: sort, drop a marker dragged onto a neighbour
-            for (int i = 1; i < nb - 1; i++)           // bubble sort (tiny)
-                for (int j = 1; j < nb - 1 - 1; j++)
-                    if (bnd[j] > bnd[j + 1]) { float t = bnd[j]; bnd[j] = bnd[j + 1]; bnd[j + 1] = t; }
+        // LIVE: update the two slices touching this marker (+ KEYS if it's the selected one) every frame,
+        // so a sounding voice (esp. LOOP/PINGPONG) follows the drag in real time.
+        int a = grabbed - 1, b = grabbed;
+        if (a >= 0 && a < nsl())     instrument_sample_region(KIT0 + a, bnd[a], bnd[a + 1]);
+        if (b >= 0 && b < nsl())     instrument_sample_region(KIT0 + b, bnd[b], bnd[b + 1]);
+        if (sel == a || sel == b)    instrument_sample_region(KEYS_S, bnd[sel], bnd[sel + 1]);
+        if (!mouse_down(0)) {                          // release: delete a marker dragged hard against a neighbour
             for (int i = 1; i < nb - 1; i++)
-                if (bnd[i + 1] - bnd[i] < 0.02f || bnd[i] - bnd[i - 1] < 0.02f) {   // too close → delete i
+                if (bnd[i + 1] - bnd[i] < 0.02f || bnd[i] - bnd[i - 1] < 0.02f) {
                     for (int j = i; j < nb - 1; j++) bnd[j] = bnd[j + 1];
                     nb--; i--;
                 }
@@ -221,6 +234,7 @@ void update(void) {
     } else { // ST_EDIT
         if (keyp('R')) { state = ST_PLAY; apply_src(); point_keybed(SYN); return; }
         if (keyp('M')) { mode ^= 1; if (mode == MODE_KEYS) point_keybed(KEYS_S); }   // KEYS<->KIT
+        if (keyp('V')) { smode = (smode + 1) % 4; apply_mode(); }                    // cycle playback mode
         edit_markers();
         if (mode == MODE_KEYS) {
             keybed_update();
@@ -311,12 +325,13 @@ void draw(void) {
         if (ui_button(70,  y, 62, 18, mode == MODE_KEYS ? "KEYS" : "KIT")) {
             mode ^= 1; if (mode == MODE_KEYS) point_keybed(KEYS_S);
         }
-        if (ui_button(136, y, 50, 18, "AUTO"))  { build_slices(); rebind(); }
-        if (ui_button(190, y, 50, 18, "SPLIT") && nb <= MAXSLICE) {   // halve the selected slice
+        if (ui_button(136, y, 46, 18, "AUTO"))  { build_slices(); rebind(); }
+        if (ui_button(184, y, 46, 18, "SPLIT") && nb <= MAXSLICE) {   // halve the selected slice
             float m = (bnd[sel] + bnd[sel + 1]) * 0.5f;
             for (int j = nb; j > sel + 1; j--) bnd[j] = bnd[j - 1];
             bnd[sel + 1] = m; nb++; rebind();
         }
+        if (ui_button(232, y, 84, 18, SMODE_NM[smode])) { smode = (smode + 1) % 4; apply_mode(); }   // playback mode
     } else {
         if (ui_button(4, y, 90, 18, state == ST_REC ? "STOP" : "REC")) {
             if (state == ST_PLAY) { state = ST_REC; rec_t0 = now(); on_n = 0; } else stop_take();

@@ -112,6 +112,7 @@ typedef struct {
     int   smp_idx;                  // INSTR_SAMPLE: which sound_samples[] slot to play; -1 = none (default). Set by instrument_sample()
     float smp_root;                 // INSTR_SAMPLE: the buffer's root freq (Hz) — the pitch at playback speed 1.0
     float smp_start, smp_end;       // INSTR_SAMPLE: the CHOP — play from start..end as fractions 0..1 (default 0,1 = whole). instrument_sample_region()
+    int   smp_mode;                 // INSTR_SAMPLE playback: SAMPLE_NORMAL(0)/REVERSE/LOOP/PINGPONG. instrument_sample_mode()
 } Instrument;
 
 #define SOUND_LFOS 3
@@ -361,6 +362,8 @@ typedef struct {
     int    smp_idx;                     // sound_samples[] slot snapshot from the instrument; -1 = none/silent
     float  smp_root;                    // root freq (Hz) snapshot — the pitch at playback speed 1.0
     float  smp_start_f, smp_end_f;      // chop bounds snapshot (fractions 0..1); play smp_start_f*len .. smp_end_f*len
+    int    smp_mode;                    // SAMPLE_NORMAL/REVERSE/LOOP/PINGPONG snapshot
+    float  smp_dir;                     // playback direction for PINGPONG: +1 forward / -1 back
     double smp_pos;                     // fractional read position into the buffer (double: no drift over long buffers)
     bool   smp_on;                      // note-on init guard (engine id hit without a start → silent)
 } Voice;
@@ -1927,6 +1930,7 @@ typedef enum {
     SR_INSTR_LEVEL         = 122,  // a=slot, b=level*1000 — per-slot output level/gain (instrument_level), read LIVE at mix like tune_mul
     SR_INSTR_SAMPLE        = 123,  // a=slot, b=sample slot, c=root freq(Hz)*1000 — bind an INSTR_SAMPLE slot to a recorded PCM buffer (instrument_sample); mic-and-sampling.md piece 2
     SR_INSTR_SAMPLE_REGION = 124,  // a=slot, b=start*1e6, c=end*1e6 — the CHOP: play the buffer from start..end (fractions 0..1); instrument_sample_region()
+    SR_INSTR_SAMPLE_MODE   = 125,  // a=slot, b=mode — INSTR_SAMPLE playback mode (normal/reverse/loop/pingpong); instrument_sample_mode()
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2009,7 +2013,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
         case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
         case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY:
-        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL: case SR_INSTR_SAMPLE: case SR_INSTR_SAMPLE_REGION:
+        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL: case SR_INSTR_SAMPLE: case SR_INSTR_SAMPLE_REGION: case SR_INSTR_SAMPLE_MODE:
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
             return CTXK_KA;
@@ -4410,10 +4414,10 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     return res;
 }
 
-// INSTR_SAMPLE (mic-and-sampling.md): play a recorded PCM buffer at pitch. speed = (played
-// freq)/root — press the root note → original speed; an octave up → 2×. One-shot forward playback
-// with linear interpolation over the CHOP region [smp_start_f, smp_end_f]. Silent past the region
-// end (the amp envelope keeps the held voice alive; a re-press re-triggers from the region start).
+// INSTR_SAMPLE (mic-and-sampling.md): play a recorded PCM buffer at pitch over the CHOP region
+// [smp_start_f, smp_end_f]. speed = (played freq)/root. Four modes (smp_mode): NORMAL one-shot
+// forward, REVERSE one-shot backward, LOOP forward wrapping (sustains while held), PINGPONG
+// bouncing. Linear interpolation. One-shot modes go silent past the end (the amp env still gates).
 static inline float sound_sample_sample(Voice *v, float pitch_mul) {
     if (!v->smp_on || v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS) return 0.0f;
     SoundSample *s = &sound_samples[v->smp_idx];
@@ -4421,15 +4425,39 @@ static inline float sound_sample_sample(Voice *v, float pitch_mul) {
     float root = v->smp_root < 1.0f ? 1.0f : v->smp_root;
     float f = v->freq * pitch_mul; if (f < 1.0f) f = 1.0f;
     double speed = (double)(f / root);
-    float endf = (v->smp_end_f > 0.0f && v->smp_end_f <= 1.0f) ? v->smp_end_f : 1.0f;
-    double endpos = (double)endf * (double)(s->len - 1);      // chop end (fraction → sample index)
+    // region read LIVE from the instrument bank (like tune_mul/level) so dragging the chop moves a
+    // sounding voice's bounds in real time — a live loop scrubber. Falls back to the voice snapshot.
+    float startf = v->smp_start_f, endf = v->smp_end_f;
+    if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS) {
+        startf = instr_bank[v->instr_slot].smp_start;
+        endf   = instr_bank[v->instr_slot].smp_end;
+    }
+    if (!(endf > 0.0f && endf <= 1.0f)) endf = 1.0f;
+    double lo = (double)startf * (double)(s->len - 1);              // region bounds (samples)
+    double hi = (double)endf * (double)(s->len - 1);
+    if (hi > (double)(s->len - 1)) hi = (double)(s->len - 1);
+    if (hi - lo < 1.0) return 0.0f;
     double pos = v->smp_pos;
-    if (pos >= endpos || pos >= (double)(s->len - 1)) return 0.0f;   // stop at the chop end
-    int   i0 = (int)pos;
+    if (v->smp_mode == SAMPLE_NORMAL   && pos >= hi) return 0.0f;    // one-shot done
+    if (v->smp_mode == SAMPLE_REVERSE  && pos <= lo) return 0.0f;
+    if (pos < lo) pos = lo; if (pos > hi) pos = hi;
+    int   i0 = (int)pos; if (i0 > s->len - 2) i0 = s->len - 2;
     float fr = (float)(pos - (double)i0);
-    float a = s->data[i0], b = s->data[i0 + 1];
-    v->smp_pos = pos + speed;
-    return a + (b - a) * fr;                                 // linear interpolation
+    float out = s->data[i0] + (s->data[i0 + 1] - s->data[i0]) * fr;  // linear interpolation
+    // advance per mode
+    if (v->smp_mode == SAMPLE_REVERSE) {
+        v->smp_pos = pos - speed;
+    } else if (v->smp_mode == SAMPLE_LOOP) {
+        pos += speed; if (pos >= hi) pos = lo + (pos - hi); v->smp_pos = pos;   // wrap to region start
+    } else if (v->smp_mode == SAMPLE_PINGPONG) {
+        pos += v->smp_dir * speed;
+        if (pos >= hi) { pos = hi - (pos - hi); v->smp_dir = -1.0f; }           // bounce off each end
+        else if (pos <= lo) { pos = lo + (lo - pos); v->smp_dir = 1.0f; }
+        v->smp_pos = pos;
+    } else {
+        v->smp_pos = pos + speed;                                    // NORMAL
+    }
+    return out;
 }
 
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
@@ -4844,6 +4872,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->smp_idx     = ins->smp_idx;                     // INSTR_SAMPLE: which recorded buffer + its root freq
     v->smp_root    = ins->smp_root;
     v->smp_start_f = ins->smp_start;                   // chop bounds (fractions) — resolved to sample indices in the start hook / render
+    v->smp_mode    = ins->smp_mode;
     v->smp_end_f   = ins->smp_end;
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
@@ -4884,10 +4913,13 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_PIANO)  sound_piano_start(v);    // hammer-strike + arm dispersion + soundboard
     else if (v->wave == INSTR_BOWED)  sound_bowed_start(v);    // size + split the string at the bow, seed it
     else if (v->wave == INSTR_BRASS)  sound_brass_start(v);    // size + seed the bore, clear the lip biquad
-    else if (v->wave == INSTR_SAMPLE) {                        // seek to the chop start, arm PCM playback
+    else if (v->wave == INSTR_SAMPLE) {                        // seek to the chop start/end, arm PCM playback
         int slen = (v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS && sound_samples[v->smp_idx].loaded)
                  ? sound_samples[v->smp_idx].len : 0;
-        v->smp_pos = (double)v->smp_start_f * (double)(slen > 1 ? slen - 1 : 0);
+        float endf = (v->smp_end_f > 0.0f && v->smp_end_f <= 1.0f) ? v->smp_end_f : 1.0f;
+        int last = slen > 1 ? slen - 1 : 0;
+        v->smp_pos = (double)(v->smp_mode == SAMPLE_REVERSE ? endf : v->smp_start_f) * (double)last;   // reverse starts at the end
+        v->smp_dir = 1.0f;
         v->smp_on = true;
     }
     v->step_samples     = 0;
@@ -5090,6 +5122,7 @@ static void sound_fire_req(SoundReq r) {
         ins->r_samp  = r.e2;
         ins->smp_idx = -1;    // INSTR_SAMPLE binding is set separately via instrument_sample() (called AFTER this)
         ins->smp_start = 0.0f; ins->smp_end = 1.0f;   // default chop = whole buffer
+        ins->smp_mode = 0;    // SAMPLE_NORMAL
         // duty is left untouched — set independently via instrument_duty()
     } break;
     case SR_INSTR_DUTY: {
@@ -5657,6 +5690,11 @@ static void sound_fire_req(SoundReq r) {
         if (en < 0.0f) en = 0.0f; if (en > 1.0f) en = 1.0f;
         instr_bank[slot].smp_start = st;
         instr_bank[slot].smp_end   = en;
+    } break;
+    case SR_INSTR_SAMPLE_MODE: {  // a=slot, b=mode (SAMPLE_NORMAL/REVERSE/LOOP/PINGPONG)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        instr_bank[slot].smp_mode = r.b;
     } break;
     case SR_NOTE_PAN: {     // a=pan*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -6648,6 +6686,12 @@ void instrument_sample_region(int slot, float start, float end) {
     if (start < 0.0f) start = 0.0f; if (start > 1.0f) start = 1.0f;
     if (end   < 0.0f) end   = 0.0f; if (end   > 1.0f) end   = 1.0f;
     sound_push_ctrl(SR_INSTR_SAMPLE_REGION, slot, (int)(start * 1000000.0f), (int)(end * 1000000.0f), 0, 0, 0);
+}
+
+void instrument_sample_mode(int slot, int mode) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (mode < 0 || mode > SAMPLE_PINGPONG) mode = SAMPLE_NORMAL;
+    sound_push_ctrl(SR_INSTR_SAMPLE_MODE, slot, mode, 0, 0, 0, 0);
 }
 
 // ── spatial audio (spatial.md): a listener + positioned sources → automatic pan/distance/Doppler ──

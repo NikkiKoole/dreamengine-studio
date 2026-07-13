@@ -374,6 +374,14 @@ view; the cart-level reuse detail — why the tombola won, and which carts to co
   silhouette — which is what lets a whole suite of carts read as one family while each carries only the zones
   it needs. It also reconciles the two poles the doc keeps citing: the pocketbox/acidface grid faces and the
   OP-1/tombola keybed faces are the *same skeleton*, two body-plans. (This is the seam §1f's Stretch 3 names.)
+- **The performance surface can toggle between two note-entry grammars.** Zone 5 isn't limited to one way
+  to play — an instrument can carry *both* a chromatic keybed **and** an isomorphic scale-grid under a single
+  spine toggle, sharing the same sound engine above it (zones 1–3 don't change; only zone 5 flips). It's the
+  §3 "two paradigms coexist" idea (pitched step-write vs drum grid) applied to the INPUT surface instead of
+  the editor: two note-entry grammars, one flip. And it pairs with the body-plan rule above — a keybed-family
+  face drops zone 4, and the *freed* band is exactly where the alternate surface's own controls (scale/key
+  pickers) go when you flip to it. Worked case: the epiano + scalegrid merge, KEYS ↔ HEX —
+  [`scale-grid.md`](scale-grid.md) §5.
 - **Continuous vs contextual is the split that never moves.** Zone 2 (ride-live params) is always present;
   everything else is disclosed. Deciding which params are "always live" is the one real taste call per cart.
 - **Depth decides surface-vs-display — not size.** A **binary** lane (a drum hit, on/off) stays on the
@@ -482,6 +490,10 @@ both; the flow/mode decides which editor the display + grid present.
   one shared strip, invisible holds) are the exact ones the face exists to fix — grow the OLED to a real
   display, add comfort knobs, turn the holds into visible flows, all over the *same* sequencer brain. It also
   proves the true hold-step p-lock gesture already ships (see §5).
+- **epiano + scalegrid** (future) — a **keybed-family** face where the sound is epiano's electromechanical
+  machines and zone 5 **toggles between a piano keybed and scalegrid's isomorphic hex pads** (KEYS ↔ HEX). It
+  motivated the "performance surface can toggle between two grammars" rule (§2) and shows the freed zone-4 band
+  re-used for the grid's own chips. Full two-state design + both ASCII faces: [`scale-grid.md`](scale-grid.md) §5.
 - **Relation to acidrack/epiano** — the [acidrack brief](acidrack-layout-brief.md) accordion and this face
   are two answers to the same problem; §2's phone→tablet principle says the face is the phone answer and the
   accordion/grid is the tablet answer, unified by the nav spine. The [epiano brief](epiano-layout-brief.md)

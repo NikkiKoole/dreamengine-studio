@@ -101,6 +101,62 @@ classic chromatic piano keybed that scales with device width + the reflowing ped
 scale-grid as an *optional* alternate editor — the piano is the soul, the grid is a bonus. The
 showcase now proves the grid is worth wiring in. Neither blocks the other.
 
+### The merged face — a KEYS ↔ HEX toggle (the device-face design)
+
+The concrete shape of "both, eventually": one [device-face](device-face-paradigm.md) cart — the warm
+epiano machines (Rhodes / Wurli / Clav + their pedals) as the SOUND, with a **toggle in the nav spine
+that flips the performance surface between the piano keybed and this grid.** Same instrument, two ways
+to play it: real keys when you know them, no-wrong-notes hexes when you don't — dead-on for the "for
+someone who knows nothing" demand. It's a **keybed-family** face (no step sequencer → zone 4 dropped),
+and the *freed* zone-4 band is exactly where the grid's chips go when you flip to HEX.
+
+**KEYS mode — the electromechanical piano:**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ ▶  RHODES · WURLI · CLAV     [ KEYS | hex ]   C maj  -1oct │ ① SPINE — machine · KEYS↔HEX toggle · key/scale
+├──────────────────────────────────────────────────────────┤
+│  (BARK) (BRITE) (PHASE) (VOL)                              │ ② FOUR ENCODERS — knob 3 = active machine's pedal
+├──────┬─────────────────────────────────────┬─────────────┤
+│PEDALS│    ~ the Rhodes tines glinting ~     │ SCOPE       │ ③ DISPLAY flows: PEDALS (stompboxes, tap + knobs
+│ TONE │     VIBE ◉   DYNO ○   PHASE ◉        │ HELP        │   inside) · TONE · SCOPE — the screen's soul
+├──────┴─────────────────────────────────────┴─────────────┤
+│              (zone 4 — none: keybed family, no steps)      │ ④ DROPPED
+├──────────────────────────────────────────────────────────┤
+│    W E     T Y U                                           │ ⑤ PERFORMANCE = the PIANO KEYBED
+│  A S D F G H J K         slide = glissando                 │    (epiano's chromatic slide-across manual)
+└──────────────────────────────────────────────────────────┘
+```
+
+**HEX mode — the same sound, flipped to the scale-grid:**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ ▶  RHODES · WURLI · CLAV     [ keys | HEX ]   C maj  -1oct │ ① SPINE — unchanged; toggle now on HEX
+├──────────────────────────────────────────────────────────┤
+│  (BARK) (BRITE) (PHASE) (VOL)                              │ ② same encoders — the SOUND is identical
+├──────┬─────────────────────────────────────┬─────────────┤
+│PEDALS│    ~ animated machine screen ~       │ SCOPE       │ ③ same display + flows
+├──────┴─────────────────────────────────────┴─────────────┤
+│  SCALE: maj   KEY: C   ROW: OCT   PAD: M                   │ ④ the FREED band hosts the grid's chips (HEX only)
+├──────────────────────────────────────────────────────────┤
+│    ⬡ ⬡ ⬡ ⬡ ⬡ ⬡ ⬡                                          │ ⑤ PERFORMANCE = the HEX SCALE-GRID
+│   ⬡ ⬡ ⬡ ⬡ ⬡ ⬡ ⬡    isomorphic · roots orange · no wrong  │    (Tonnetz packing; slide to glide a run)
+│    ⬡ ⬡ ⬡ ⬡ ⬡ ⬡ ⬡    notes                                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+- **Sound is shared, input toggles.** Zones 1–3 don't change between modes — same machine, encoders,
+  pedals, screen. Only zone 5 flips, and the KEYS↔HEX toggle is a persistent selector in the spine.
+- **The freed zone 4 earns its keep.** A keybed-family face drops zone 4 — but HEX mode borrows that
+  freed band for SCALE / KEY / ROW / PAD (the grid's selectors). KEYS mode leaves it empty. The
+  alternate surface brings its own controls into the slot its body-plan freed up.
+- **This is the editor-swap seam (§3), made a live toggle.** §3 wants epiano to compose `grid.h` as an
+  optional alternate editor; this face is what that looks like to a *player* — not a settings choice
+  but a first-class flip on the instrument. (So it needs the `grid.h` extraction first — the §3 open step.)
+- The general rule this merge motivated: **the performance surface itself can be mode-toggled between two
+  note-entry grammars** — folded into [`device-face-paradigm.md`](device-face-paradigm.md) §2.
+
 Related: [`epiano-layout-brief.md`](epiano-layout-brief.md) (the piano half) ·
 [`acidrack-ui-research.md`](acidrack-ui-research.md) (touch/density numbers) ·
 [`../guides/responsive-instrument-ui.md`](../guides/responsive-instrument-ui.md) (the playbook) ·

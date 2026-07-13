@@ -895,6 +895,13 @@ static void net_handshake(unsigned *seed) {
     net_active = true;
 }
 
+// Escape hatch for the blocking barrier: studio.c installs a poll that keeps the
+// OS window responsive and returns true if the user asked to quit (ESC / close
+// box) WHILE we're stalled waiting for the peer. Without it (headless/netdemo)
+// the barrier just spins to the timeout, as before. Native-only — the web tick
+// never blocks here (it declines the tick and returns to the browser).
+static bool (*net_barrier_poll_quit)(void) = NULL;
+
 // the per-frame lockstep barrier — called from loop_step() right before the
 // btn_curr edge snapshot. The blocking native wrapper around net_frame_try_sync:
 // spins the transport until the peer's byte arrives (echo resolves on the first
@@ -904,6 +911,10 @@ static void net_frame_sync(void) {
     int f = net_frame, spins = 0;
     while (!net_frame_try_sync()) {
         if (net_peer_bye) break;
+        if (net_barrier_poll_quit && net_barrier_poll_quit()) {  // ESC / close box during a stall
+            net_shutdown();   // best-effort BYE so the peer drops to solo, not its own 10 s hang
+            exit(0);
+        }
         NET_SLEEP_MS(1);
         if (++spins == 2000) { printf("net: waiting for peer (frame %d)...\n", f); fflush(stdout); }
         if (spins >= NET_TIMEOUT_MS) {

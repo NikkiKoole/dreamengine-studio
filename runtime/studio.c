@@ -688,6 +688,15 @@ static float inp_mouse_wheel(void) { return GetMouseWheelMove(); }
 #define DE_NET_BUILD 1
 #endif
 #include "net.h"
+// Installed as net_barrier_poll_quit while a net game is live (see main()): keeps
+// the OS window responsive during the blocking barrier so ESC / the close box
+// still quit instead of a frozen wait. Native net build only.
+#if defined(DE_NET_BUILD)
+static bool studio_net_barrier_poll(void) {
+    PollInputEvents();          // register the ESC exit key + close-box event
+    return WindowShouldClose(); // reads that flag — true on ESC or close box
+}
+#endif
 #endif
 
 // ------------------------------------------------------------
@@ -3298,6 +3307,16 @@ int main(int argc, char **argv) {
 #endif
 
     last_time = GetTime();   // seed dt()
+
+#if defined(DE_NET_BUILD)
+    // Keep the window responsive during a net-barrier stall: without this the
+    // blocking spin in net_frame_sync freezes the window for up to NET_TIMEOUT_MS
+    // (10 s) whenever the wire stalls or the peer quits, so ESC / the close box do
+    // nothing. PollInputEvents registers the ESC exit key; WindowShouldClose reads
+    // that + the close box. Safe for lockstep — the frame's input was already
+    // sampled before the spin, so this can't perturb the deterministic stream.
+    if (net_active) net_barrier_poll_quit = studio_net_barrier_poll;
+#endif
 
 #ifdef PLATFORM_WEB
     emscripten_set_main_loop(loop_step, 0, 1);

@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "physics.h"   // shared verlet toolkit (Layer 0) — steppt/solvesk/angsp now delegate to it
 
 // RAGDOLL — verlet physics stick figures that struggle to stay upright.
 // Mouse: drag to grab+throw characters or balls. Right-click: drop new ball. R: reset.
@@ -42,7 +43,7 @@ de:meta */
 #define SND_TICK   9   // band-passed noise tap — ball whacks a body
 #define SND_DRAG  10   // soft pad re-triggered while dragging — lowpass opens as you lift
 
-typedef struct { float x, y, px, py; } Pt;
+typedef PhysPt Pt;   // physics.h point (adds w=inverse-mass, r=radius; ragdoll uses w=1, r=0)
 typedef struct { int a, b; float r;   } Sk;
 typedef struct { Pt p[N_PTS]; int col; } Rag;
 typedef struct { float x, y, px, py, r; } Bl;
@@ -74,7 +75,7 @@ static float vl(float x, float y) { return fsqrt(x*x + y*y); }
 static void sprag(int i, float cx, float cy) {
     Rag *r = &rags[i];
     float y = cy;   // foot baseline — pass GY to stand on the ground, or my to drop from the sky
-#define PT(n,ox,oy) r->p[n]=(Pt){cx+(ox),y-(oy),cx+(ox),y-(oy)}
+#define PT(n,ox,oy) r->p[n]=(Pt){cx+(ox),y-(oy),cx+(ox),y-(oy),1.0f,0.0f}  // w=1 (movable), r=0
     PT(10,-3, 0); PT(11, 3, 0);   // feet
     PT( 8,-3, 8); PT( 9, 3, 8);   // knees
     PT( 3, 0,16);                  // hip
@@ -168,37 +169,13 @@ void init(void) {
     reset_scene();
 }
 
-static void steppt(Pt *p) {
-    float vx = (p->x - p->px) * 0.99f;
-    float vy = (p->y - p->py) * 0.99f;
-    p->px = p->x; p->py = p->y;
-    p->x += vx;
-    p->y += vy + 0.38f;  // gravity: pixels/frame²
-}
-
-// Angular spring: keeps bone a→b near target direction (tx,ty).
-// cross = sin(angle error). Only applied when within 90° of target (dot > 0) —
-// past 90° the cross-product direction inverts and would push the wrong way.
-static void angsp(Pt *a, Pt *b, float tx, float ty, float str) {
-    float dx = b->x - a->x, dy = b->y - a->y;
-    float d = vl(dx, dy);
-    if (d < 0.001f) return;
-    float cx = dx/d, cy = dy/d;
-    if (cx*tx + cy*ty <= 0.0f) return;  // >90° error: skip, let position springs handle
-    float cross = cx*ty - cy*tx;
-    b->x += -cy * cross * str;  b->y +=  cx * cross * str;
-    a->x -= -cy * cross * str;  a->y -=  cx * cross * str;
-}
-
-static void solvesk(Pt *pts, const Sk *sk) {
-    Pt *a = &pts[sk->a], *b = &pts[sk->b];
-    float dx = b->x - a->x, dy = b->y - a->y;
-    float d = vl(dx, dy);
-    if (d < 0.001f) return;
-    float f = (d - sk->r) / (d * 2.0f);
-    a->x += dx*f; a->y += dy*f;
-    b->x -= dx*f; b->y -= dy*f;
-}
+// These three were hand-rolled verlet math; they now DELEGATE to runtime/physics.h — the
+// bodies are identical (for equal mass, phys_link == the old 50/50 solvesk split, and
+// phys_integrate == the old steppt). Kept as thin named wrappers so the call sites below,
+// and the standing/angular-spring poses, read exactly as before.
+static void steppt(Pt *p)                                       { phys_integrate(p, 0.0f, 0.38f, 0.99f); }
+static void angsp(Pt *a, Pt *b, float tx, float ty, float str)  { phys_aim(a, b, tx, ty, str); }
+static void solvesk(Pt *pts, const Sk *sk)                      { phys_link(&pts[sk->a], &pts[sk->b], sk->r); }
 
 static void clpt(Pt *p) {
     if (p->y > GY)         { p->y = GY;         p->py = p->y + (p->py - p->y) * 0.35f; }

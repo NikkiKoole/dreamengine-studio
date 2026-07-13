@@ -3,6 +3,11 @@
 STATUS: EXPLORING (2026-07-13) — reverse-engineered from Pure Acid (JimAudio) with the maker, prototyped
 live in [`acidface`](../../tools/carts/acidface.c). A general UI template, NOT an acidrack task; this doc
 crystallizes the pattern so it can be reused across instrument carts (chordblossom, epiano, the radios…).
+chordblossom (§1c), more-note-bass (§1d) + pocketbox (§1e) worked through on paper (2026-07-13) — all three
+transferred, and the corrections along the way (a hero surface filed as a strip; a flat grid blessed as "show
+everything") hardened the §2 rules and produced the reading guardrail (§2b, the pointers that keep the next
+reader off the wrong route). pocketbox is also the worked case of the paradigm *fixing* a hardware clone's UX
+pain (14-page paramscroll, no knobs, invisible holds) without touching its sequencer brain.
 
 > **Why this doc exists.** We kept re-solving "how do I fit a big instrument on a phone?" per-cart
 > (the [acidrack accordion](acidrack-layout-brief.md), the [epiano keybed brief](epiano-layout-brief.md)).
@@ -89,31 +94,31 @@ acid-box labels:
 └───────────────────────────────────────────────────┘
 ```
 
-**Three independent mode drivers** repaint different surfaces — this is the "shallow surface, deep by
-context" idea in the concrete:
+**Four independent mode drivers** — named for the control that triggers each — repaint different
+surfaces; this is the "shallow surface, deep by context" idea in the concrete:
 
-**A · a soft-key repaints the DISPLAY only** (row + keybed untouched):
+**FLOW** (a soft-key) **· repaints the DISPLAY only** (row + keybed untouched):
 
 | flow | the display shows |
 |---|---|
-| **SEQ** | the editor for the active lane (see B) |
+| **SEQ** | the editor for the active lane (see LANE) |
 | **PAT** | pattern picker — 6 slots |
 | **SONG** | an 8-slot pattern chain |
 | **MIX** | 4 faders (MST/OSC/DRM/ACD) |
 | **FX** | 3 knobs (DLY/FB/RVB) *inside* the screen |
 | **SCOPE** | animated waveform (reacts to tempo + last note) |
 
-**B · a lane chip re-purposes the STEP ROW and the SEQ display together:**
+**LANE** (a lane chip) **· re-purposes the STEP ROW and the SEQ display together:**
 
 | lane | ⑤ step row | ③ SEQ display | ⑥ keybed |
 |---|---|---|---|
 | **NOTE** | **step-select** (tap = pick step; lit = has note) | touchable piano-roll + `ACC SLD TIE` (sel step) · `CLR RND` (pattern) | sets the selected step's pitch, then advances |
 | **BD/SD/CH/OH** | **drum cells** (tap = toggle hit) | whole-kit overview (4×16) + `CLR RND` | auditions only |
 
-**C · SHIFT hijacks the STEP ROW** into pattern-select (buttons 1–6 pick the pattern; transport shows
+**SHIFT · hijacks the STEP ROW** into pattern-select (buttons 1–6 pick the pattern; transport shows
 `PAT-SEL`). Plus **play** lights the running step across the row and in the display.
 
-**D · LOCK retargets the KNOBS** (parameter locks, NOTE lane). The `LOK` button in the SEQ edit strip
+**LOCK · retargets the KNOBS** (parameter locks, NOTE lane). The `LOK` button in the SEQ edit strip
 arms it: the 6 knobs frame amber and edit the **selected step** instead of the patch — turning one stamps
 a per-step value (that knob gets an amber ring; the step gets an amber pip; transport shows `LOCK Snn`).
 So even zone 2 does double duty. *(Prototyped as a latch — press `LOK`/`k`; true two-finger hold-a-step-
@@ -124,6 +129,145 @@ SHIFT hijacks the row; LOCK retargets the knobs.** Four surfaces, each doing sev
 *(Still §5-open: the row is a small lane-strip kit not the two-mode 16-voice row, and there's no
 face-level tab in ① — the flow soft-keys are the within-face level.)*
 
+**Persistence map — the skeleton vs. the surfaces.** Sort every element by what a mode does to it:
+
+- **● Always consistent** (never moves, never changes job) — the mode *selectors*: `▶` play · `◀ ▶`
+  pattern · `LOOP` (①), the 6 soft-keys (③), the lane chips (④).
+- **◆ Fixed in place, JOB changes by mode** — the *editing surfaces*: the **knobs** (LOCK → patch ↔
+  selected step), the **16-step row** (lane + SHIFT → steps / drum cells / pattern-select), the
+  **keybed** (lane → pitch-entry ↔ audition).
+- **○ Fully repaints** — content, not a control: the **display** (soft-key + lane) and the spine's
+  **status readout** (mirrors lane / LOCK / SHIFT).
+
+The rule this states as *layout*: **the mode selectors are the persistent skeleton; the editing surfaces
+shift meaning.** You never lose your navigation — only the thing under your fingers changes job. That is
+the "shallow surface, deep by context" principle turned into a placement law, and the checklist for
+laying out the next face: keep the selectors fixed, let the surfaces be contextual.
+
+## 1c · chordblossom, annotated (the paradigm's second face — and its stress test)
+
+Worked through on paper with the maker (2026-07-13). chordblossom is the harder case: it's an **Omnichord**,
+so it has *two* bottom surfaces where acidface has one keybed — a keybed that **picks the root** and a strum
+plate that **performs the chord**. Deciding where each goes is what taught §2's two newest rules. The face,
+portrait:
+
+```
+┌──────────────────────────────────────────────────────┐
+│ ▶   CHORD  PROG  DRUMS  MIX      C MAJ7        96 BPM  │ ① NAV SPINE — transport · face tabs · readout
+├──────────────────────────────────────────────────────┤
+│  (SOUND)(FX)(BASS)(KEY)(LEAD)(VOL)                     │ ② KNOBS — always-live (dissolves the old MIX tab)
+├──────┬──────────────────────────────────┬─────────────┤
+│ STRUM│  ▌ ▌ ▌ ▌ ▌ ▌ ▌ ▌ ▌ ▌  ~ strum ~   │ CLR RND     │ ③ DISPLAY = the SONIC-STRINGS plate at full
+│ PROG │  (the voiced chord, as strings)   │             │    height — a surface you PERFORM on; soft-keys
+│ DRUMS│  (PROG → chain · DRUMS → grid)     │             │    swap what the screen plays/edits
+├──────┴──────────────────────────────────┴─────────────┤
+│ [dim][min][MAJ][sus] │ [6][m7][maj7][9]                │ ④ CHORD-BUTTON ROW — QUALITY ↔ PROG (mode-switched)
+├──────────────────────────────────────────────────────┤
+│ A  S  D  F  G  H  J   (root picker, + black keys)      │ ⑤ KEYBED — picks the ROOT (a selector)
+└──────────────────────────────────────────────────────┘
+```
+
+**The pivotal call — the strum plate is a DISPLAY, not a zone-5 strip.** The first sketch filed it under the
+keybed as a thin performance strip; that was backwards, because the strum *is* the whole point of the
+instrument. It already **renders the voiced chord** (the colored strings are `strNote[]`) and is
+**touchable** — the exact definition of the context display — so it earns zone 3's full height. The keybed,
+which only **picks the root**, is a *selector* and stays in zone 5. (See §2: "the hero surface owns the
+display" + "selector vs performer".)
+
+**The mode drivers** (acidface's FLOW/LANE/LOCK, in chord terms):
+
+| driver | what it does |
+|---|---|
+| **FLOW** (soft-key) | reskins the display: **STRUM** (play the chord on the strings) · **PROG** (edit the progression chain, `REC PLAY CLEAR` in-screen) · **DRUMS** (6×16 grid + presets) · **MIX/FX** (overflow knobs) · **SCOPE** |
+| **GRID MODE** | re-purposes the chord row: **QUALITY** (set the current chord's dim/min/MAJ/sus + 6/m7/maj7/9) ↔ **PROG** (8 progression slots; tap = stamp the current chord) |
+| **LOCK** | retargets the knobs: hold a PROG slot → zone 2 edits *that chord's* voicing, so a progression carries per-chord inversions (Elektron p-locks, but *musical* here) |
+
+The old three tabs (CHORD / MIX / RHYTHM) dissolve: MIX → zone 2 + a flow, RHYTHM → the DRUMS/PROG flows.
+Everything is one mode-tap away, never a tab away — which is the whole point of the face over the tab-stack.
+
+## 1d · more-note-bass, annotated (depth goes in the display — a wrong route, corrected)
+
+Worked through with the maker (2026-07-13). A tiny groovebox — KICK + SNARE over a five-row pentatonic bass
+lane — and the face's first *cautionary* example, because the first reading took the **wrong route** and the
+maker corrected it. The trap: the existing cart shows all seven lanes flat at once (it predates the face), so
+the first instinct was to bless that as a rule ("small pattern → merge the display and the grid, show
+everything"). That is precisely the show-everything anti-pattern §0 exists to kill. The right route keeps the
+surface shallow and moves the *depth* into the flow-switched display:
+
+```
+┌──────────────────────────────────────────────────────┐
+│ ▶  MORE NOTE BASS        C min-pent       112 BPM SW18 │ ① NAV SPINE — transport · key · tempo
+├──────────────────────────────────────────────────────┤
+│  (TEMPO)(SWING)(VOL)                                   │ ② KNOBS — only what you RIDE live
+├──────┬──────────────────────────────────┬─────────────┤
+│ BASS │  A# ·  ·  G ·  ·  · F ·  ·  ·  ·  │ SUB         │ ③ DISPLAY, flow-switched:
+│ SOUND│  ·  · D# ·  ·  ·  ·  ·  · C ·  ·  │ CLR         │   BASS  = draw the actual bass notes (a
+│ DRUM │  (the bassline, as a piano-roll)  │             │           piano-roll — the pitched depth)
+├──────┴──────────────────────────────────┴─────────────┤   SOUND = the four XY pads (set-and-leave)
+│ KICK  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪   SNARE ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪         │ ④ STEP ROW — the on/off drum lanes;
+│  (in BASS flow this row = 16 bass step-selects)        │    mode-switches to bass step-select
+├──────────────────────────────────────────────────────┤
+│ A W S E D F T G Y H U J    transpose root · Z/X octave │ ⑤ KEYBED — sets the step's pitch / transposes
+└──────────────────────────────────────────────────────┘
+```
+
+The **SOUND** flow just repaints the display with the pads (big + rectangular — the cart's own todo):
+
+    [KICK  boom×kick]   [BASS  cut×res]
+    [SNARE tone×snap]   [FLNG  spd×amt]
+
+This is **acidface's NOTE lane, 1:1**: the bass is monophonic-per-column, so the step row picks the step, the
+display shows the pitched pattern, and the keybed sets the selected step's pitch (and transposes the root — a
+*selector*, §2). The maker rederived the paradigm's existing pattern from scratch — which is the proof it's
+the right route. Two rules fell out of the correction (both in §2): **depth decides surface-vs-display** (the
+on/off drums stay on the surface; the pitched bass + the sound pads go in the display) and **usage, not
+widget type, picks the zone** (the XY pads are set-and-leave sound design → a display flow, NOT zone 2).
+
+## 1e · pocketbox, treated (the paradigm applied to a hardware clone's pain)
+
+pocketbox (see [`pocketbox.md`](pocketbox.md)) is a full 8-track tracker — p-locks, trigger conditions,
+polymeter, song parts — modelled faithfully on the Wee Noise Makers PGB-1: a 128×64 "OLED", NO knobs, one
+touch strip, everything driven by 16 step keys + hold-combos. It's the completest device-face in the repo, and
+the clearest case of the paradigm *solving* a cart's problems — because every pain it has is inherited from
+copying a tiny-screened, knobless hardware box onto a phone that has neither limit. The brain is great; the
+*face* is cramped. The fixes, one per pain:
+
+| pocketbox's pain (inherited from the hardware) | the paradigm's fix |
+|---|---|
+| Set one track's sound = arrow through **14 pages** (ENGINE, P1–P4, VOL, PAN, BUS, OCT, SHUF, 3×LFO, DRAW), one param visible at a time | grow the OLED into a full display that shows the **whole param set at once**, touchable; the pages become soft-key **flows** you tap, not arrows you scroll (disclosure by *flow*, not by *paging*) |
+| **No knobs** — ride everything through one shared strip, filter-only, FX-hold-only | zone 2 = a few **comfort knobs** for the params you ride; the strip stays for sweeps |
+| Modes are **invisible hold-combos** (hold EDIT = keyboard, PLAY+key = mute, FX+key = live FX) you must memorize | make them **visible**: mute/solo → a MIX flow, the keyboard → a real keybed, FX → a flow — nothing behind a hold |
+| The **p-lock hold works** (hold step + strip) but you can barely see the step on the tiny OLED | hold a step → the big display shows **that step's p-locks**, knobs retarget to it (the LOCK rule); pocketbox already has the gesture, the paradigm gives it a screen worth looking at |
+| **Solo missing**, mute is a hold-combo, no meters (its own todos) | a **MIX flow** with visible per-track mute/solo + level meters |
+| **ROLL code can't be typed in** — you can share a groove code but not enter one (todo) | a **SEED flow** — a touch field to type/paste a code, in the display (the display is the toolbox) |
+
+The touch-native face — same brain, rebuilt surface:
+
+```
+┌────────────────────────────────────────────────────────┐
+│ ▶  TRACK STEP PATT SONG      BASS   124 BPM       ROLL  │ ① transport · mode tabs · track · bpm
+├────────────────────────────────────────────────────────┤
+│  (CUTOFF)(RES)(VOL)(PAN)      ~~~~ strip ~~~~            │ ② comfort knobs you RIDE + the strip
+├──────┬───────────────────────────────────────┬─────────┤
+│ SOUND│  ENGINE BASS    P1[====] P2[==]         │ MIX     │ ③ the whole track's params AT ONCE
+│ STEP │  P3[===] P4[=====]   OCT -1  LFO ~~~~    │ FX      │    (was 14 arrowed pages), touchable.
+│ SONG │  ── hold a step → this shows THAT       │ WAVE    │    soft-keys pick the flow: MIX = meters
+│      │     step's p-locks; knobs retarget ──   │ SEED    │    + mute/solo · SEED = paste a code
+├──────┴───────────────────────────────────────┴─────────┤
+│ [1][2][3][4][5][6][7][8]                                │ ④ the 16 STEP KEYS, mode-switched
+│ [9][10][11][12][13][14][15][16]                         │    exactly as today (track/step/patt/part)
+├────────────────────────────────────────────────────────┤
+│ A W S E D F T G Y H U J    (keybed — was hold-EDIT)     │ ⑤ a real keybed, foldable on a phone
+└────────────────────────────────────────────────────────┘
+```
+
+**Nothing in the sequencer brain changes** — the 8 tracks, engines, p-locks, conditions, polymeter and song
+parts all stay. The paradigm only rebuilds the face: grow the screen, add a few knobs, and turn the invisible
+holds into things you can see and touch. It also settles two open threads: pocketbox already ships the **true
+hold-a-step p-lock gesture** §5 listed as open (that item is now done), and its 8-track scale is the strongest
+case yet for extracting zone 4 into a shared library. The buttons-only charm is worth *keeping* if you love it
+— but that's a *look* you can keep while still fixing the paging and the hidden holds.
+
 ## 2 · The principles that make it work
 
 - **Disclosure by MODE, not by panel size.** The accordion promotes panels folded→compact→expanded to fit
@@ -133,11 +277,49 @@ face-level tab in ① — the flow soft-keys are the within-face level.)*
   copy, flag-a-step) live *in* the display next to what they act on — not as chrome around it. On hardware
   those ops must be physical buttons because the glass can't be touched; we don't have that constraint, so
   we don't inherit those buttons.
+- **Hardware charm is a look you can keep; its limits are not one you have to inherit.** A phone screen is
+  genuinely small — so it's daft to spend it *also* emulating a device's constraints: one-param-at-a-time
+  paging, no knobs, modes hidden behind hold-combos. Those were forced on the hardware by physical knobs and a
+  glass you can't touch — you have neither problem, so don't paint yourself into a corner you were never in.
+  But the *vibe* is the whole point: the buttons-only feel, the little-OLED look, the pocket-device intimacy
+  are why people love these boxes — keep them. The move is to separate the two — **the aesthetic is a gift, the
+  limitations are baggage** — and take only the gift. pocketbox (§1e) is the worked case: keep the PGB-1 charm,
+  drop the 14-page paramscroll.
+- **The hero surface owns the display — and zone 3 can be PLAYED, not just read.** Every instrument has one
+  gesture that *is* the point of it (acidface: writing the pattern; chordblossom: the strum). That surface
+  earns the display's whole real estate. The trap is filing the play-gesture reflexively into zone 5 (the
+  keybed slot) and cramming the most important thing into a sliver — chordblossom's first sketch put its
+  strum plate in a 44px strip under the keybed, exactly backwards. The display is defined by two things — it
+  *renders the current flow's live state* **and** it's *touchable* — and nothing says you only tap *ops* on
+  it: the sonic-strings plate draws the voiced chord as strings you strum, so it renders live state × is
+  touchable → it's a display you **perform on**, not a keybed. Perform and edit then become two flows of one
+  screen (STRUM plays the chord; PROG edits the chain).
+- **Selector vs performer — not every "second performance surface" is one.** When a face seems to need two
+  play surfaces in zone 5, check whether one is actually a *selector*. chordblossom's keybed **picks the
+  root** (a selector → keep it in zone 5, or promote it to a grid mode in zone 4); the strum plate
+  **articulates the chord** (the performer → the display). Sorting the two dissolves the "zone 5 is
+  overloaded" problem: only true performers compete for play space, and the hero one belongs in zone 3. The
+  general test — *does it CHOOSE what will sound, or does it MAKE the sound?* Choosers are selectors; makers
+  are performers.
 - **The mode-switched grid scales the instrument's size.** A 4-voice kit fits a lane strip; a 16-voice kit
   does not — but one row that is *voices in one mode, steps in another* fits any kit. So "support a bigger
   kit" and "the row does double duty" are the **same decision**.
 - **Continuous vs contextual is the split that never moves.** Zone 2 (ride-live params) is always present;
   everything else is disclosed. Deciding which params are "always live" is the one real taste call per cart.
+- **Depth decides surface-vs-display — not size.** A **binary** lane (a drum hit, on/off) stays on the
+  shallow surface as a step row (zone 4); you want the pulse visible. A lane with **per-step depth** — pitch,
+  or a continuous value — moves *into* the flow-switched display as a proper editor (a piano-roll; an XY-pad
+  panel). more-note-bass (§1d) is the worked case: KICK/SNARE stay on the surface, the pitched bass becomes a
+  display piano-roll. The tempting shortcut — "the pattern is small, so just show every lane at once" — is the
+  show-everything instinct the face is built to resist (§0); keep the surface shallow and put depth in the
+  display, *even when it would fit*.
+- **Usage, not widget type, picks the zone.** A knob or an XY-pad is not zone-2 material *because* it's a knob
+  or a pad. The signal is whether you **ride it live** (→ zone 2) or **set it and leave** (→ a display flow,
+  the toolbox-in-the-screen). more-note-bass's four XY pads are set-and-leave sound design, so they live in a
+  SOUND *flow*, not on the always-live top row — only tempo/swing/volume are actually ridden. This sharpens
+  "continuous vs contextual" above: the split is read off the *gesture*, not off the control's shape. (The
+  near-miss that named it: the XY-pads were first filed into zone 2 for being continuous — the maker moved
+  them into the screen.)
 - **Parameter locks — the knobs edit the SELECTED step, not just the patch** (Elektron's key idea). Hold a
   step in zone 4, and zone 2's knobs stamp that step's own value (pitch, accent, filter…); release, and
   they're global again. This is what lets a face stay *shallow* (few knobs, few modes) yet reach
@@ -162,6 +344,31 @@ face-level tab in ① — the flow soft-keys are the within-face level.)*
   there's room. *(Caveat: every Pure Acid shot we have is iPad; its actual iPhone collapse is inferred, not
   confirmed — a claim to verify if a phone screenshot ever turns up. Landscape phone stays tight; the open
   refinement is flanking the display with the knobs to use the width — see §5.)*
+
+## 2b · Reading a cart onto the face — the guardrail (don't take the wrong route)
+
+Twice now the first sketch took a wrong turn and the maker corrected it — chordblossom's strum plate filed as
+a zone-5 strip (§1c), more-note-bass's flat grid blessed as "show everything" (§1d). Both share one root
+mistake: **reading an existing cart's PRE-FACE layout as if it were the design.** An old cart shows things
+flat because it never had the face; copying that flatness reinvents the anti-pattern the face exists to kill.
+So don't start from the cart's current screen — start from these questions, *in order*. Each is a §2 rule
+turned into a check, and each catches one of the wrong routes we actually took:
+
+1. **What is the ONE hero gesture?** — the thing the instrument is *for* (the strum; the pattern). It owns
+   the **display**, not a strip. If you've put it in a sliver, stop. (§2 *hero-surface*)
+2. **For each surface: does it CHOOSE a sound, or MAKE one?** — choosers are **selectors** (a keybed picking
+   a root → zone 5, or a grid mode); makers are **performers** (→ the display). Don't stack two "performers"
+   in zone 5 before checking that one isn't really a selector. (§2 *selector-vs-performer*)
+3. **For each lane: binary, or per-step DEPTH?** — on/off → the shallow surface (zone 4 step row);
+   pitch/continuous → *into* the display as a real editor. (§2 *depth-decides*)
+4. **For each control: do I RIDE it, or SET-and-leave it?** — ride → zone 2; set-and-leave → a display flow.
+   Never "it's a knob, so zone 2." (§2 *usage-not-type*)
+5. **Smell test.** If your face shows *more at once* than acidface or chordblossom do, you've probably kept
+   the pre-face flatness. Suspect it and push depth back into the display — fewer visible things is the
+   feature (Hick's Law), not a compromise.
+
+The meta-rule under all five: **the face's job is to MOVE depth off the surface and into the display — so when
+in doubt, disclose.** The wrong route is always the one that leaves everything showing at once.
 
 ## 3 · Hardware lineage (where the shape comes from)
 
@@ -190,9 +397,21 @@ both; the flow/mode decides which editor the display + grid present.
   with SHIFT → pattern-select; zone 5 = the keybed. Built on [`acidwire`](../../tools/carts/acidwire.c)'s
   device-honest scaffolding (real finger units, shape flipper, safe-area skin) per
   [`interactive-wireframes.md`](../guides/interactive-wireframes.md).
-- **chordblossom** (candidate second example) — the same five zones: zone 2 = per-part voicing/tone params;
-  zone 3 flows = chord-grid / progression / voicing view; zone 4 = chord slots ↔ progression steps
-  (mode-switched); zone 5 = its MIDI keybed. Proving it transfers here is the paradigm's real test.
+- **chordblossom** — the paradigm's proven second face; **fully annotated in §1c.** The short version:
+  zone 2 = the promoted voicing/tone knobs; zone 3 = the **strum plate itself** (the hero surface,
+  played-upon); zone 4 = the chord-quality row ↔ progression slots; zone 5 = the keybed root-*selector*.
+  It transferred, and its Omnichord two-surface shape is what taught §2's *hero-surface-owns-the-display*
+  and *selector-vs-performer* rules.
+- **more-note-bass** — the paradigm's third face and its *cautionary* one; **annotated in §1d.** A groovebox
+  where the on/off drums stay on the surface (zone 4) but the pitched bass + the sound pads move into the
+  flow-switched display (a BASS piano-roll + a SOUND pad panel), keybed = transpose. It re-derives acidface's
+  NOTE lane, and its two wrong-then-right readings produced §2's *depth-decides* + *usage-not-type* rules and
+  the §2b reading guardrail.
+- **pocketbox** — the paradigm *treating a hardware clone's pain*; **worked out in §1e.** A full 8-track
+  tracker faithful to the PGB-1 (128×64 OLED, no knobs, hold-combos), so its problems (14-page paramscroll,
+  one shared strip, invisible holds) are the exact ones the face exists to fix — grow the OLED to a real
+  display, add comfort knobs, turn the holds into visible flows, all over the *same* sequencer brain. It also
+  proves the true hold-step p-lock gesture already ships (see §5).
 - **Relation to acidrack/epiano** — the [acidrack brief](acidrack-layout-brief.md) accordion and this face
   are two answers to the same problem; §2's phone→tablet principle says the face is the phone answer and the
   accordion/grid is the tablet answer, unified by the nav spine. The [epiano brief](epiano-layout-brief.md)
@@ -202,6 +421,9 @@ both; the flow/mode decides which editor the display + grid present.
 
 - **Zone 4, the two-mode row** — build TRIGGER↔STEP-EDIT so the kit can be any size (the maker wants a
   bigger drum kit). This is the concrete next build in acidface.
+- **Build chordblossom as a face** (§1c is the paper design) — the concrete next build after acidface's
+  two-mode row. It's the first face to exercise the *display-as-performance-surface* rule (the strum plate),
+  which acidface never does, so it's the real proof that zone 3 can be *played*.
 - **Landscape** — flank the display with the knobs (use the width) instead of just shrinking every band;
   decide against Pure Acid's landscape once we have its shots.
 - **The nav spine as the real backbone** — a top `view-tab` strip (BASS/DRUM/MIX) that **focuses** a face
@@ -211,8 +433,9 @@ both; the flow/mode decides which editor the display + grid present.
   *face-level* strip, and it's what lets several faces live in one app.
 - ~~**Parameter locks (hold-step → knobs edit that step)**~~ — **PROTOTYPED in acidface (2026-07-13)** as a
   LOCK latch (`LOK`/`k`): the 6 knobs retarget to the selected step, turning one stamps a per-step value.
-  Proves the zone-2↔4 contextual link. *Remaining:* true two-finger hold (multitouch) as the on-device
-  gesture, and actually *using* the locked values (acidface is silent — they're stored + shown, not sounded).
+  Proves the zone-2↔4 contextual link. **The true hold-a-step gesture already SHIPS in pocketbox** (hold a
+  step key + strip edits that step — §1e), so that half is done; *remaining in acidface:* port the real hold
+  (multitouch) and actually *use* the locked values (acidface is silent — they're stored + shown, not sounded).
 - **Conditional trigs — depth without clutter, and it's emergent.** Per-step conditions (probability,
   every-Nth-loop, fill) turn a static pattern into one that varies from simple rules — the maker's
   prefer-emergent-behaviour grain. A candidate flow the display hosts, not new chrome.

@@ -306,3 +306,13 @@ called per frame.
 - **Co-op jam** — the two-hand grammar (one player on steps, one riding FX/strip) is the
   lockstep-netplay spark from [`tinyjam-racks.md`](tinyjam-racks.md) §Spark wearing hardware
   clothes. Parked, but the input design shouldn't preclude it.
+
+## Related
+
+- [`device-face-paradigm.md`](device-face-paradigm.md) §1e works pocketbox as its **hardware-faithful**
+  case: the completest device-face in the repo, and the worked example of the paradigm *fixing* a hardware
+  clone's UX pain (the 14-page paramscroll, no knobs, the invisible hold-combos — exactly the "illegible
+  modal grammar" the first-play verdict above named) **without touching the sequencer brain**. The rule it
+  taught: *hardware charm is a look you can keep; its limits are not one you have to inherit.* pocketbox also
+  ships the paradigm's true hold-a-step parameter-lock gesture (hold a step key + strip), which that doc's §5
+  had listed as open.

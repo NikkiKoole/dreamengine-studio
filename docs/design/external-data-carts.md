@@ -320,11 +320,20 @@ Schema (floorplan-specific; engine-pixel coords, palette colour indices):
   "textures":[{"w","h","px":[idx, ...]}, ...] }                   // surfaces[].tex indexes textures[]
 ```
 
-### Loader — planned (an in-cart id picker via `floorplanner.js --serve`)
+### Loader — SHIPPED (an in-cart id picker + `floorplanner.js --serve` fetch-bridge)
 
-**Status: planned, not built (parked 2026-07-13).** Goal: a little window when the cart starts
-where you pick a plan you've already fetched *or* type a new id — instead of running a CLI command
-and dragging a `.json` in. The `.token` groundwork below is the prerequisite and is **done**.
+**Status: shipped 2026-07-13** (both stages). A start screen when the cart boots (or on TAB) lists the
+plans you've already fetched and lets you pick one, drag a `.json`, or **type/paste an id**. Typing an
+id you don't have locally writes `build/.fp-request`; **`floorplanner.js --serve`**, run alongside the
+editor, watches that file, fetches+builds the plan, and hands the path back via `build/.fp-ready` — the
+cart polls it and loads the plan (spinner while it works; ~90s timeout with a "is --serve running?"
+hint if not). So: type an id → it fetches → the plan appears, no CLI round-trip.
+
+Implementation: picker + signal-file handling in `tools/carts/floorplan.c` (dir scan via `<dirent.h>`,
+digits via `keyp()` so it's script-testable, paste via the new `studio.h` `paste()`); the `--serve`
+loop + reusable `ensureFml`/`buildDynamic` in `data-tools/fmltools/floorplanner.js`. Signal files live
+in `build/` (cart cwd), `.fp-ready` written atomically. The cart CANNOT fetch itself (no HTTPS — see
+the rejected alternative below); `--serve` is the node side doing the network + bake.
 
 **Prerequisite — done (2026-07-13): paste-once auth.** `floorplanner.js` now reads the credential
 from a gitignored `data-tools/fmltools/.token` file (a JWT or an `fp_site_session=…` cookie;

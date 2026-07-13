@@ -27,18 +27,25 @@
 //         --floor i  --scale cm/px  --maxfurn cm     (passed through to make-floor.sh)
 //         --fetch-only    just download the .fml (skip the build) -> prints the path
 //         --force         re-download even if cached
+//         --play          after building, launch the floorplan cart on this project
+//
+// --serve (no pid): the fetch-bridge for the cart's id picker. Watches build/.fp-request for an id
+//   the cart writes (Enter an unknown id in its picker), fetches+builds it, and hands the path back
+//   via build/.fp-ready. Run it alongside the editor so typing an id in the cart just loads it:
+//     node data-tools/fmltools/floorplanner.js --serve          # watch (pairs with the editor-run cart)
+//     node data-tools/fmltools/floorplanner.js --serve --play   # also launch the cart itself
 
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');  // data-tools/fmltools/ → repo root
 const CACHE = path.join(__dirname, 'cache');
 
 // ---- args ----
 const argv = process.argv.slice(2);
-const opt = { pid: null, name: null, floor: null, scale: null, maxfurn: null, fetchOnly: false, force: false, baked: false, play: false };
+const opt = { pid: null, name: null, floor: null, scale: null, maxfurn: null, fetchOnly: false, force: false, baked: false, play: false, serve: false };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   let m;
@@ -52,11 +59,13 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--force') opt.force = true;
   else if (a === '--baked') opt.baked = true;   // old path: bake a per-project cart (make-floor.sh) instead of a runtime data file
   else if (a === '--play' || a === '--run') opt.play = true;   // after building, launch the cart on this project
+  else if (a === '--serve') opt.serve = true;   // watch build/.fp-request for ids the cart writes → fetch → build/.fp-ready (the picker fetch-bridge)
   else if (/^\d+$/.test(a) && !opt.pid) opt.pid = a;
   else { console.error('floorplanner: unknown arg', a); process.exit(1); }
 }
-if (!opt.pid) {
-  console.error('usage: node data-tools/fmltools/floorplanner.js -pid=<projectid> [--name <id>] [--floor i] [--scale cm/px] [--maxfurn cm] [--baked] [--fetch-only] [--force]');
+if (!opt.pid && !opt.serve) {
+  console.error('usage: node data-tools/fmltools/floorplanner.js -pid=<projectid> [--name <id>] [--floor i] [--scale cm/px] [--maxfurn cm] [--baked] [--fetch-only] [--force] [--play]');
+  console.error('   or: node data-tools/fmltools/floorplanner.js --serve [--play]   # fetch-bridge for the cart\'s id picker (run alongside the editor)');
   process.exit(1);
 }
 
@@ -115,16 +124,14 @@ function fetchFml(pid, cred) {
   });
 }
 
-(async () => {
-  const cred = auth();
+// ---- reusable pipeline (shared by the one-shot flow and --serve) ----
+// fetch the .fml into cache if missing (or force); returns its path. throws on auth/HTTP error.
+async function ensureFml(pid, cred, force) {
   fs.mkdirSync(CACHE, { recursive: true });
-  const fml = path.join(CACHE, `${opt.pid}.fml`);
-
-  if (opt.force || !fs.existsSync(fml)) {
-    process.stdout.write(`▸ fetch     project ${opt.pid} (${cred.kind}) … `);
-    let txt;
-    try { txt = await fetchFml(opt.pid, cred); }
-    catch (e) { console.error('\nfloorplanner:', e.message); process.exit(1); }
+  const fml = path.join(CACHE, `${pid}.fml`);
+  if (force || !fs.existsSync(fml)) {
+    process.stdout.write(`▸ fetch     project ${pid} (${cred.kind}) … `);
+    const txt = await fetchFml(pid, cred);
     fs.writeFileSync(fml, txt);
     const j = JSON.parse(txt);
     const d = ((j.floors || [])[0]?.designs || [])[0] || {};
@@ -132,14 +139,74 @@ function fetchFml(pid, cred) {
   } else {
     console.log(`▸ cached    ${path.relative(ROOT, fml)}  (use --force to refetch)`);
   }
+  return fml;
+}
+// run the dynamic pipeline (geometry + furniture sprites + floor textures) → returns the data path.
+// maxfurn 0 = never drop by size (real floor coverings are surfaces[]/rs-####, not items[]); a 280
+// cap dropped normal sofas/beds. --saturate 1.4 (not 2.2/posterize) keeps natural furniture tones.
+function buildDynamic(pid, name, fml, floor, scale, maxfurn) {
+  const dataDir = path.join(ROOT, 'data', 'floorplan');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const dataRel = path.join('data', 'floorplan', `${name}.json`);
+  const data = path.join(ROOT, dataRel);
+  const assets = `build/.fml-assets-${name}`;
+  const node = (script, a) => execFileSync('node', [path.join(__dirname, script), ...a], { cwd: ROOT, stdio: 'inherit' });
+  console.log(`▸ geometry  -> ${dataRel}`);
+  node('fml2cart.js', [fml, '--json', data, '--floor', floor, '--scale', scale, '--maxfurn', maxfurn]);
+  console.log(`▸ bake art  furniture renders -> ${assets}`);
+  node('fml-assets.js', [fml, '--out', assets, '--max', '24', '--saturate', '1.4']);
+  console.log(`▸ sprites   -> ${dataRel}`);
+  node('fml-sprites.js', ['--json', data, '--manifest', path.join(assets, 'manifest.json')]);
+  console.log(`▸ textures  resolve rs-#### floor materials -> ${dataRel}`);
+  node('fml-textures.js', ['--json', data, '--out', `build/.fml-textures-${name}`]);
+  return data;
+}
 
+// --serve — the fetch-bridge for the floorplan cart's id picker. Watches build/.fp-request for an
+// id the cart writes (Enter an unknown id in the picker), fetches+builds it, then hands the data
+// path back via build/.fp-ready (or a one-line message via build/.fp-error). Run it alongside the
+// editor; the cart polls these files and loads the plan when it appears. One relay serves any run.
+// Design: docs/design/external-data-carts.md → "Loader".
+async function serve(cred) {
+  const BUILD = path.join(ROOT, 'build');
+  fs.mkdirSync(BUILD, { recursive: true });
+  const REQ = path.join(BUILD, '.fp-request'), READY = path.join(BUILD, '.fp-ready'), ERR = path.join(BUILD, '.fp-error');
+  for (const f of [REQ, READY, ERR]) { try { fs.unlinkSync(f); } catch {} }   // clear stale signals
+  if (opt.play) { console.log('▸ launch   floorplan cart…'); spawn('node', ['tools/play.js', 'floorplan', 'run'], { cwd: ROOT, stdio: 'inherit' }); }
+  console.log(`▸ serve     watching build/.fp-request (auth ${cred.kind}) — type an id in the cart's picker. Ctrl-C to stop.`);
+  let busy = false;
+  setInterval(async () => {
+    if (busy || !fs.existsSync(REQ)) return;
+    let id;
+    try { id = fs.readFileSync(REQ, 'utf8').trim(); fs.unlinkSync(REQ); } catch { return; }
+    if (!/^\d+$/.test(id)) { fs.writeFileSync(ERR, `bad id "${id}"`); return; }
+    busy = true;
+    console.log(`\n▸ request   ${id}`);
+    try {
+      const fml = await ensureFml(id, cred, false);
+      const data = buildDynamic(id, String(id), fml, '0', '8', '0');
+      fs.writeFileSync(READY + '.tmp', data); fs.renameSync(READY + '.tmp', READY);   // atomic — no half-read path
+      console.log(`✓ ready     ${path.relative(ROOT, data)}  — loading in the cart`);
+    } catch (e) {
+      const msg = ((e && e.message) ? e.message : String(e)).split('\n')[0].slice(0, 120);
+      fs.writeFileSync(ERR, msg);
+      console.error(`✗ ${id}: ${msg}`);
+    }
+    busy = false;
+  }, 400);
+}
+
+(async () => {
+  const cred = auth();
+  if (opt.serve) return serve(cred);
+
+  let fml;
+  try { fml = await ensureFml(opt.pid, cred, opt.force); }
+  catch (e) { console.error('\nfloorplanner:', e.message); process.exit(1); }
   if (opt.fetchOnly) { console.log(fml); return; }
 
   const name = opt.name || String(opt.pid);
-  // maxfurn 0 = never drop by size (real floor coverings are surfaces[]/rs-####, not items[]).
-  // 280 was dropping normal sofas/beds, leaving only tiny decor. Pass --maxfurn N to re-enable a cap.
   const floor = opt.floor ?? '0', scale = opt.scale ?? '8', maxfurn = opt.maxfurn ?? '0';
-  const node = (script, a) => execFileSync('node', [path.join(__dirname, script), ...a], { cwd: ROOT, stdio: 'inherit' });
 
   if (opt.baked) {
     // OPTION A — bake a self-contained per-project cart (the make-floor.sh pipeline).
@@ -150,23 +217,8 @@ function fetchFml(pid, cred) {
   }
 
   // OPTION B (default) — emit a runtime data file for the shared `floorplan` cart.
-  const dataDir = path.join(ROOT, 'data', 'floorplan');
-  fs.mkdirSync(dataDir, { recursive: true });
-  const dataRel = path.join('data', 'floorplan', `${name}.json`);
-  const data = path.join(ROOT, dataRel);
-  const assets = `build/.fml-assets-${name}`;
-
-  console.log(`▸ geometry  -> ${dataRel}`);
-  node('fml2cart.js', [fml, '--json', data, '--floor', floor, '--scale', scale, '--maxfurn', maxfurn]);
-  console.log(`▸ bake art  furniture renders -> ${assets}`);
-  // gentler than the baked carts (was 2.2/posterize 5): small footprints + heavy saturation turned
-  // furniture into rainbow confetti that all read alike. 1.4 keeps natural tones, no posterize.
-  node('fml-assets.js', [fml, '--out', assets, '--max', '24', '--saturate', '1.4']);
-  console.log(`▸ sprites   -> ${dataRel}`);
-  node('fml-sprites.js', ['--json', data, '--manifest', path.join(assets, 'manifest.json')]);
-  console.log(`▸ textures  resolve rs-#### floor materials -> ${dataRel}`);
-  node('fml-textures.js', ['--json', data, '--out', `build/.fml-textures-${name}`]);
-
+  const data = buildDynamic(opt.pid, name, fml, floor, scale, maxfurn);
+  const dataRel = path.relative(ROOT, data);
   const sz = (fs.statSync(data).size / 1024).toFixed(0);
   // the cart runs with cwd=build/, so DE_DATA must be absolute (a relative path would miss)
   console.log(`\n✓ done.  ${dataRel} (${sz}KB)`);

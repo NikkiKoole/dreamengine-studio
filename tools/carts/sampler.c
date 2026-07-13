@@ -14,14 +14,15 @@
   ],
   "lineage": "The cart on the REAL PCM sampler (engine: record_arm/record_grab capture ring + INSTR_SAMPLE + instrument_sample_region + sample_peaks/record_peaks, mic-and-sampling.md). Records the console's OWN output; slices it at the note-on times captured while playing (keybed_on_note - exact, since we played it in), editable by hand, with a signal detector as fallback for un-played audio; plays two ways — KEYS (one slice chromatically across the keybed) or KIT (each slice on its own pad at original pitch). Ported in spirit from navkit's DAW sampler.",
   "description": {
-    "summary": "Record what you play, then chop it and play it back — two ways. Hit REC and play (pick a synth: SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS). STOP auto-slices the recording on its transients into chops, drawn as markers you can drag/add/remove. Then flip between KEYS (the keybed pitches ONE selected slice) and KIT (each slice is a pad, fired at original pitch). The source is the console's own sound, no mic.",
-    "detail": "The two sampler paradigms behind one toggle. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play (keybed_on_note) — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). The grab is peak-normalized + silence-trimmed. Drag a marker to move it, drag onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. KEYS mode: the keybed plays the SELECTED slice pitched (C4 = original) — the melodic sampler. KIT mode: the bottom becomes a PAD GRID, one pad per slice on the same A/S/D.. letters, fired at original pitch — the SP-404/break-chopper. A MODE button (or V) cycles the playback: NORMAL (one-shot fwd), REVERSE (one-shot back), LOOP (wraps — sustains while held), PINGPONG (bounces while held) — the last two turn a chop into a pad/texture. A white playhead tracks each sounding voice.",
-    "controls": "REC/STOP (or R) — record a take (auto silence-trimmed). On the waveform: drag markers to move, drag onto a neighbour to delete, click a slice to select it. Buttons: KEYS|KIT toggle (or M), AUTO (re-slice on transients), SPLIT (halve the selected slice), ENGINE (source synth), RE-REC. KEYS mode: A S D F... play the selected slice pitched. KIT mode: the SAME letters (A=pad1, S=pad2...) fire the slices at original pitch; or click a pad."
+    "summary": "Record what you play, then chop it and play it back — two ways. Hit REC and play a synth (SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS) or a DRUM KIT (ELECTRO/ACOUSTIC) — the ENGINE button picks the source. STOP auto-slices the recording at the moments you triggered notes into chops, drawn as markers you can drag/add/remove. Then flip between KEYS (the keybed pitches ONE selected slice) and KIT (each slice is a pad, fired at original pitch). The source is the console's own sound, no mic.",
+    "detail": "The two sampler paradigms behind one toggle. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, drag onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. KEYS mode: the keybed plays the SELECTED slice pitched (C4 = original) — the melodic sampler. KIT mode: the bottom becomes a PAD GRID, one pad per slice on the same A/S/D.. letters, fired at original pitch — the SP-404/break-chopper. A MODE button (or V) cycles the playback: NORMAL (one-shot fwd), REVERSE (one-shot back), LOOP (wraps — sustains while held), PINGPONG (bounces while held) — the last two turn a chop into a pad/texture. A white playhead tracks each sounding voice.",
+    "controls": "REC/STOP (or R) — record a take (auto silence-trimmed). ENGINE button (or [ / ]) picks the source: a synth (keybed) or a DRUM KIT (pads). On the waveform: drag markers to move, drag onto a neighbour to delete, click a slice to select it. Buttons: KEYS|KIT toggle (or M), AUTO (re-slice), SPLIT (halve the selected slice), MODE (playback fwd/rev/loop/pingpong), RE-REC. Drum source: A S D F.. hit the pads (or touch). EDIT/KEYS: A S D.. play the selected slice pitched. EDIT/KIT: the SAME letters fire the chops at original pitch; or click a pad."
   }
 }
 de:meta */
 #include "studio.h"
 #include "keybed.h"
+#include "drumkit.h"
 #include "ui.h"
 #include <stdio.h>
 
@@ -33,6 +34,7 @@ de:meta */
 #define SYN    5          // source synth (feeds the capture ring)
 #define KEYS_S 6          // chromatic sampler voice (KEYS mode)
 #define KIT0   8          // KIT pads use slots KIT0..KIT0+nsl-1
+#define DKIT   20         // drum-kit source (drumkit.h) uses slots DKIT..DKIT+DK_N-1
 #define SND    0          // PCM sample slot
 #define ROOT   60         // C4 = original speed
 #define MAXSLICE 12
@@ -58,6 +60,16 @@ static const Voice SRC[] = {
     { INSTR_BRASS,  "BRASS", 30,  0, 6, 220 },
 };
 #define NSRC ((int)(sizeof SRC / sizeof *SRC))
+
+// A DRUM KIT is a source too — but it plays a MAP (one sound per pad), not a chromatic
+// synth, so it can't just be another Voice. Sources 0..NSRC-1 are the synths (KEYS-style
+// keybed); NSRC..NSRC+NKIT-1 are the drum kits (a pad grid). drumkit.h owns the sound.
+static const DrumKitDef *const DKITS[] = { &DK_ELECTRO, &DK_ACOUSTIC };
+#define NKIT ((int)(sizeof DKITS / sizeof *DKITS))
+#define NALL     (NSRC + NKIT)
+#define IS_DRUMS(e) ((e) >= NSRC)
+#define KIT_OF(e)   (DKITS[(e) - NSRC])
+static const char *src_name(int e) { return IS_DRUMS(e) ? KIT_OF(e)->name : SRC[e].name; }
 
 // pads reuse the KEYBED's own play letters (white row L->R, then a few more) so the same
 // fingers that pitch a slice in KEYS mode fire the pads in KIT mode.
@@ -85,7 +97,10 @@ static int smode = SAMPLE_NORMAL;                         // playback mode (NORM
 static const char *SMODE_NM[] = { "NORMAL", "REVERSE", "LOOP", "PINGPONG" };
 
 static int nsl(void) { return nb - 1; }
-static void apply_src(void) { const Voice *v = &SRC[eng]; instrument(SYN, v->instr, v->a, v->d, v->s, v->r); }
+static void apply_src(void) {
+    if (IS_DRUMS(eng)) dk_use(KIT_OF(eng), DKIT);          // voice the kit's slots
+    else { const Voice *v = &SRC[eng]; instrument(SYN, v->instr, v->a, v->d, v->s, v->r); }
+}
 static void point_keybed(int slot) { keybed_config(slot, 4, 14); keybed_layout(0, BY, SCREEN_W, SCREEN_H - BY); }
 static void apply_mode(void) {                            // push the playback mode to every sample voice
     instrument_sample_mode(KEYS_S, smode);
@@ -210,8 +225,7 @@ static void pad_rect(int i, int n, int *x, int *y, int *w, int *h) {
     *w = gw / cols - 3; *h = gh / rows - 3;
     *x = gx + c * (gw / cols); *y = gy + rr * (gh / rows);
 }
-static int pad_at(int x, int y) {   // which pad contains (x,y), or -1
-    int n = nsl();
+static int pad_at(int x, int y, int n) {   // which of n pads contains (x,y), or -1
     for (int i = 0; i < n; i++) { int px, py, pw, ph; pad_rect(i, n, &px, &py, &pw, &ph);
         if (x >= px && x <= px + pw && y >= py && y <= py + ph) return i; }
     return -1;
@@ -222,14 +236,52 @@ static void fire_pad(int i) {
     hit(ROOT, KIT0 + i, 6, ms); sel = i;
 }
 
+// ── the DRUM-KIT source play-surface (PLAY/REC when the source is a kit) ──
+// A pad per role on the A S D.. letters + multitouch. A hit ALSO logs its moment into
+// on_t[] so STOP slices the take exactly where you struck (same honest boundaries the
+// keybed gives synth takes) — dk_fire feeds the capture ring like any other voice.
+static float drum_flash[DK_N];
+static void drum_hit(int role) {
+    if (role < 0 || role >= DK_N) return;
+    dk_fire(role, 0, 6);
+    drum_flash[role] = 1.0f;
+    if (state == ST_REC && on_n < MAXSLICE + 1) on_t[on_n++] = now() - rec_t0;
+}
+static void drum_pads_update(void) {
+    static int prev[16], pn = 0;
+    int cur[16], cn = 0;
+    for (int t = 0; t < touch_count() && cn < 16; t++) {
+        int id = touch_id(t); cur[cn++] = id;
+        int seen = 0; for (int k = 0; k < pn; k++) if (prev[k] == id) seen = 1;
+        if (!seen) drum_hit(pad_at(touch_x(t), touch_y(t), DK_N));   // newly-down finger
+    }
+    pn = cn; for (int k = 0; k < cn; k++) prev[k] = cur[k];
+    for (int i = 0; i < DK_N; i++) { char k = pad_key(i); if (k && keyp(k)) drum_hit(i); }
+}
+static void drum_pads_draw(void) {
+    for (int i = 0; i < DK_N; i++) {
+        int px, py, pw, ph; pad_rect(i, DK_N, &px, &py, &pw, &ph);
+        float f = drum_flash[i]; if (f > 0) drum_flash[i] = f - 0.12f;
+        int base = (i == DK_KICK || i == DK_SNARE) ? CLR_DARK_GREEN : CLR_DARKER_GREY;
+        rectfill(px, py, pw, ph, f > 0.05f ? CLR_LIME_GREEN : base);
+        rect(px, py, pw, ph, CLR_MEDIUM_GREY);
+        char k = pad_key(i), t[2] = { k, 0 };
+        print(t, px + pw / 2 - text_width(t) / 2, py + 4, CLR_WHITE);
+        font(FONT_SMALL);                                   // the role labels are wide — shrink to fit the pad
+        const char *nm = dk_role_name(i);
+        print(nm, px + pw / 2 - text_width(nm) / 2, py + ph - 8, f > 0.05f ? CLR_WHITE : CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
+    }
+}
+
 void update(void) {
-    if (keyp('[') || keyp(']')) { eng = (eng + (keyp(']') ? 1 : NSRC - 1)) % NSRC; if (state != ST_EDIT) apply_src(); }
+    if (keyp('[') || keyp(']')) { eng = (eng + (keyp(']') ? 1 : NALL - 1)) % NALL; if (state != ST_EDIT) apply_src(); }
 
     if (state == ST_PLAY) {
-        keybed_update();
+        if (IS_DRUMS(eng)) drum_pads_update(); else keybed_update();
         if (keyp('R')) { state = ST_REC; rec_t0 = now(); on_n = 0; }
     } else if (state == ST_REC) {
-        keybed_update();
+        if (IS_DRUMS(eng)) drum_pads_update(); else keybed_update();
         if (keyp('R') || now() - rec_t0 >= MAXREC) stop_take();
     } else { // ST_EDIT
         if (keyp('R')) { state = ST_PLAY; apply_src(); point_keybed(SYN); return; }
@@ -244,7 +296,7 @@ void update(void) {
             for (int t = 0; t < touch_count() && cn < 16; t++) {
                 int id = touch_id(t); cur[cn++] = id;
                 int seen = 0; for (int k = 0; k < pn; k++) if (prev[k] == id) seen = 1;
-                if (!seen) fire_pad(pad_at(touch_x(t), touch_y(t)));   // newly-down finger → its pad
+                if (!seen) fire_pad(pad_at(touch_x(t), touch_y(t), nsl()));   // newly-down finger → its pad
             }
             pn = cn; for (int k = 0; k < cn; k++) prev[k] = cur[k];
             int n = nsl();                                            // + the ASDF letters (keyboard polyphony)
@@ -310,7 +362,7 @@ void draw(void) {
     const char *sn = state == ST_PLAY ? "PLAY" : state == ST_REC ? "REC" : (mode == MODE_KEYS ? "EDIT/KEYS" : "EDIT/KIT");
     print(sn, SCREEN_W - text_width(sn) - 4, 2, state == ST_REC ? CLR_RED : state == ST_EDIT ? CLR_LIME_GREEN : CLR_MEDIUM_GREY);
 
-    if (state == ST_PLAY)      snprintf(buf, sizeof buf, "%s: press REC and play", SRC[eng].name);
+    if (state == ST_PLAY)      snprintf(buf, sizeof buf, "%s: press REC and %s", src_name(eng), IS_DRUMS(eng) ? "hit the pads" : "play");
     else if (state == ST_REC)  snprintf(buf, sizeof buf, "recording... %.1fs  (STOP to keep)", now() - rec_t0);
     else                       snprintf(buf, sizeof buf, "%d chops  drag/split markers  %s", nsl(),
                                         mode == MODE_KEYS ? "keys pitch slice" : "A S D.. fire pads");
@@ -336,11 +388,12 @@ void draw(void) {
         if (ui_button(4, y, 90, 18, state == ST_REC ? "STOP" : "REC")) {
             if (state == ST_PLAY) { state = ST_REC; rec_t0 = now(); on_n = 0; } else stop_take();
         }
-        if (ui_button(SCREEN_W - 66, y, 62, 18, SRC[eng].name)) { eng = (eng + 1) % NSRC; apply_src(); }
+        if (ui_button(SCREEN_W - 66, y, 62, 18, src_name(eng))) { eng = (eng + 1) % NALL; apply_src(); }
     }
     ui_end();
 
-    // bottom play surface
+    // bottom play surface: chop pads (EDIT/KIT), the drum kit's own pads (PLAY/REC on a
+    // drum source), or the keybed (everything else).
     if (state == ST_EDIT && mode == MODE_KIT) {
         int n = nsl();
         for (int i = 0; i < n; i++) {
@@ -352,6 +405,8 @@ void draw(void) {
             char sn2[3]; snprintf(sn2, sizeof sn2, "%d", i + 1);   // small slice # in the corner
             print(sn2, px + 2, py + 2, CLR_MEDIUM_GREY);
         }
+    } else if (state != ST_EDIT && IS_DRUMS(eng)) {
+        drum_pads_draw();
     } else {
         keybed_draw();
     }

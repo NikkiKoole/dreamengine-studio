@@ -27,12 +27,37 @@ not a design-from-scratch.
   (REC live-scope + CHOP waveform/handles screenshots; playback RMS up ~4× after normalization).
   Gates green: soundcheck (900f), build-all (497/497), web-audio-check parity.
 
-**Next (piece 2, from navkit's `sampler.h`):** loop / ping-pong / loop-points, reverse, multi-slice
-→ per-pad mapping, then the SP-1200 grit mode. Touch-drag for the chop handles (currently mouse).
-Still open: the **doctrine call** (an ADR — does a sampler whose source is the console's OWN
-synthesis clear STATUS #21's "analog-circuit machines only" line? the argument is yes: it's an
-honest closed loop, not a caricature of a famous PCM box), and the determinism write-up
-(capture-then-freeze made rigorous for `.rec`/`spec()`).
+**Shipped (2026-07-13) — piece 2:** playback modes (NORMAL / REVERSE / LOOP / PINGPONG,
+`instrument_sample_mode`), multi-slice → per-pad KIT mapping, and live chop editing (drag / add /
+remove / split markers). The one-cart PCM sampler now makes and plays chops end-to-end.
+
+**Shipped (2026-07-13) — a way to sample DRUMS ([`drumkit.h`](../../runtime/drumkit.h)):** the engine
+has no `INSTR_KIT`, so there was no drum source to record into a take. `drumkit.h` is a shared
+cart-land header (decision-0006 lane) that owns the drum-kit *skeleton* — a role vocabulary
+(KICK/SNARE/HAT/OPEN/CLAP/TOM_LO/TOM_HI/CRASH), a fixed slot layout, and `dk_fire(role, midi, vel)`
+with pitch as a first-class param — while each kit's `build()` callback owns the *sound* (so an 808
+kick and a 909 kick stay two different voices; nothing is flattened). Ships two built-in kits
+(ELECTRO, ACOUSTIC). The sampler adds them as selectable **sources**: pick a kit, the keybed becomes
+a drum PAD GRID, you play a beat, and each hit is logged as a chop boundary (same honest note-on
+slicing synth takes get). Verified: recorded an ELECTRO beat → sliced into 7 chops, playable
+KEYS/KIT; build-all 497/497.
+
+> **Retrofit candidates for `drumkit.h`** (share the trigger, keep their own sound — do this only
+> after the header proves itself; retrofitting shipped carts to a v1 abstraction is how you break
+> them): the drum carts (`tr808`/`tr909`/`drummachine`/`fingerdrums`), and carts that want a rhythm
+> bed beside their melodic core — the radio stations, `notebass`/`onenotebass`, `omnichord`,
+> `chordblossom`.
+
+**Next (piece 3):** the SP-1200 grit mode (12-bit / rate-reduced chops — `crush()` exists), and
+**persistence** — `save_bytes()` of the grabbed PCM + chop boundaries, the bridge that lets a
+*song/sequencer* cart load a sampled kit and arrange it (the "make a song with flute + epiano +
+chops" surface; likely finishing `pocketbox`'s sampler tracks now that `INSTR_SAMPLE` exists). Also:
+touch-drag for the chop handles (currently mouse), a real choke group for the kit (blocked on a
+per-slot note-off — the engine's one-shot notes can't cut each other, tr808's documented
+infidelity), the **doctrine call** (an ADR — does a sampler whose source is the console's OWN
+synthesis clear STATUS #21's "analog-circuit machines only" line? the argument is yes: an honest
+closed loop, not a caricature of a famous PCM box), and the determinism write-up (capture-then-freeze
+made rigorous for `.rec`/`spec()`).
 
 ## Why this doc exists
 

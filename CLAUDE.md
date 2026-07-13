@@ -156,6 +156,11 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          (ropes/cloth/ragdolls/blobs/pseudo-solids). Cart owns its arrays+step loop; NOT
                          a rigid-body engine (that's the Layer-1 seam parked in design/physics-notes.md).
                          verlet=demo, physics=inline teacher; used by ragdoll/linerider/tombola
+             drumkit.h   shared PLAYABLE drum kit (the engine has no INSTR_KIT): a role vocab
+                         (KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH) + fixed slot layout + dk_fire(role,midi,vel)
+                         with pitch as a param. Header owns the trigger SKELETON; each kit's build()
+                         owns the SOUND (808≠909 stays). Built-in DK_ELECTRO/DK_ACOUSTIC; sampler uses it
+                         to sample drums. A kit is a pad MAP, NOT keybed.h (which pitches one voice).
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

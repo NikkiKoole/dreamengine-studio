@@ -129,11 +129,14 @@ missing core of the three, and that we have parts to build it from:
   scale-lock + synth wiring, ready to borrow. *But it's a fixed-position step sequencer, not physics*
   — no gravity, no emergence-from-collision. The tombola's honest core (notes from *real falling-ball
   collisions*) is what it doesn't have, and that's the whole point.
-- **`pinball`** — a hand-built physical table: gravity, a steel ball reflecting off **line-segment
-  walls**, `verlet-integration`. The ball physics + wall-bounce math the tombola needs, already
-  written. (`marble` also has verlet, but it's a game with no audio.)
-- So the tombola = **`pinball`'s ball-in-a-bounded-shape physics** driving **`circlemachine`'s
-  scale-quantised note/synth wiring** — "copy the closest relative" per
+- **`runtime/physics.h`** (shipped in parallel, 2026-07-13) — the shared **verlet** toolkit (points
+  with inverse-mass + collision radius, links, integrate/relax); its demo `verlet.c` is literally *"a
+  pile of bouncy balls."* This is the tombola's ball engine — **build the balls on `physics.h`, don't
+  copy `pinball`'s inline math.** The tombola only adds a rotating container + the trigger-line hit
+  test on top. (`pinball` stays a useful *wall-bounce* reference; `marble` also has verlet but no audio.)
+- **`circlemachine`** gives the other half: the **scale-quantised note/synth wiring** to fire when a
+  ball crosses the line. So the tombola = **`physics.h` balls** in a rotating drum driving
+  **`circlemachine`'s note wiring** — "copy the closest relative" per
   [`../guides/instrument-carts.md`](../guides/instrument-carts.md), not a from-scratch build.
 
 Already-served OP-1 cousins (don't rebuild): **`loopstation`** = the tape looper; **`chordblossom`** =

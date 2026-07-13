@@ -29,10 +29,31 @@ function checkerDisc(a, b) {
   return flat(g)
 }
 
+// full-tile textures for the ROUNDED-RECT blobs (they sample nearly the whole tile)
+function checkerFull(a, b) {
+  const g = blank(16, 16, a)
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++)
+      if (((x >> 2) + (y >> 2)) & 1) pixel(g, x, y, b)
+  return flat(g)
+}
+
+function faceSquare(body, cheek) {
+  const g = blank(16, 16, body)
+  pixel(g, 2, 9, cheek); pixel(g, 13, 9, cheek)
+  circlefill(g, 5, 6, 2, 7); circlefill(g, 11, 6, 2, 7)
+  pixel(g, 5, 6, 5); pixel(g, 11, 6, 5)
+  pixel(g, 5, 11, 5); pixel(g, 6, 12, 5); pixel(g, 7, 12, 5)
+  pixel(g, 8, 12, 5); pixel(g, 9, 12, 5); pixel(g, 10, 11, 5)
+  return flat(g)
+}
+
 module.exports = {
   sprites: {
-    0: face(11, 14),        // green body, pink blush
-    1: face(14, 8),         // pink body, red blush
+    0: face(11, 14),        // green disc face  (circle blobs)
+    1: face(14, 8),         // pink disc face
     2: checkerDisc(7, 12),  // white / blue checker disc
+    3: checkerFull(7, 8),   // white / red checker  (rounded-rect blobs)
+    4: faceSquare(10, 8),   // yellow square face
   },
 }

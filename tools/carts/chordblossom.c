@@ -14,9 +14,9 @@
   "homage": "Telepathic Instruments Orchid (ORC-1, 2026) — the chord-generating synth co-founded by Tame Impala's Kevin Parker; itself in the Suzuki Omnichord / '80s home-keyboard lineage.",
   "lineage": "Truthful homage to the Telepathic Instruments Orchid: you play CHORDS, not notes. A one-octave keybed picks the root, four TYPE buttons + four combinable MODIFIER buttons build the quality, and the signature VOICING dial cascades the chord one note at a time through inversions and octave-spreads across the keyboard. The real Orchid is a deliberately minimal SONGWRITING idea-machine + 3-part MIDI brain (it sends chords / lead / bass on separate MIDI channels), with ~50 curated non-editable presets across three engines (virtual-analog / FM / reed-EP), a separate sub-bass engine with Follow/Solo, TWO voicing dials (lead AND bass), and a Key mode for diatonic auto-harmony — its depth is the chord-logic + gorgeous sounds, not synthesis or long sequencing (reviewers dispute the drum machine/looper). Distinct from the repo's existing Suzuki-Omnichord tribute (omnichord/Strumharpy): keybed-root + type/modifier logic + the voicing cascade are the Orchid's own thing.",
   "description": {
-    "summary": "A chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. Three synth engines (subtractive / FM / reed EP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a strummable sonic-strings plate, a drum machine and a real-time chord looper.",
-    "detail": "Three tabs across the top bar (or TAB): CHORD, MIX, RHYTHM. CHORD is the instrument: the keybed at the bottom (tap or the GarageBand keys A S D F G H J for the white roots, W E T Y U for the blacks) sets the ROOT and fires the chord. The upper button row picks ONE chord TYPE (dim / min / maj / sus4); the lower row toggles MODIFIERS that stack freely (6th, m7, maj7, 9th). The VOICING strip (arrow keys or drag) is the star: each step shifts the whole chord up or down by one chord-tone, so it cascades through every inversion and octave spread — turn it while a chord rings and hear it re-voice live, exactly the Orchid's patent-pending trick. A rainbow SONIC STRINGS plate above the keybed is always strummable (mouse or multi-finger) as a harp glissando over the current chord. MIX is the Orchid's nine-knob top row (Sound=engine, Perform=mode, FX, Key/transpose, Bass, Loop mix, BPM, Options=strum tightness, Volume). RHYTHM is a 16-step drum machine (kick/snare/hat/ohat/clap + a BASS row that follows the chord root, six preset grooves) plus a real-time CHORD LOOPER: arm REC and every chord you play is captured to a 4-bar loop that plays back so you can jam over yourself. SPACE = transport play/stop.",
-    "controls": "keybed roots: A S D F G H J (white C-B) + W E T Y U (black); Z/X = octave down/up; TYPE: tap or 1-4; MODIFIERS: tap or 5-8 (combinable); LEAD VOICING: LEFT/RIGHT arrows or drag the strip; BASS VOICING walk: UP/DOWN arrows (steps the following bass through the chord tones); strum the rainbow plate with mouse/fingers; TAB = switch tab; SPACE = drum transport play/stop. MIX tab: turn the nine knobs. RHYTHM tab: tap the grid, 1-6 = preset grooves, REC/PLAY/CLEAR the looper."
+    "summary": "A chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. A six-model synth shelf (reed EP / subtractive / FM / pluck / mallet / guitar) with an independent model pick for the CHORD voice (PNO) and the strummable SONIC STRINGS (HRP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a drum machine and a real-time chord looper.",
+    "detail": "Three tabs across the top bar (or TAB): CHORD, MIX, RHYTHM. CHORD is the instrument: the keybed at the bottom (tap or the GarageBand keys A S D F G H J for the white roots, W E T Y U for the blacks) sets the ROOT and fires the chord. The upper button row picks ONE chord TYPE (dim / min / maj / sus4); the lower row toggles MODIFIERS that stack freely (6th, m7, maj7, 9th). The VOICING strip (arrow keys or drag) is the star: each step shifts the whole chord up or down by one chord-tone, so it cascades through every inversion and octave spread — turn it while a chord rings and hear it re-voice live, exactly the Orchid's patent-pending trick. A rainbow SONIC STRINGS plate above the keybed is always strummable (mouse or multi-finger) as a harp glissando over the current chord. Two selectors in the top row set which synth model voices each part — tap PNO to cycle the chord (piano) model and HRP to cycle the strings model, both drawing from the same six-model shelf. MIX is the Orchid's nine-knob top row (Sound=engine, Perform=mode, FX, Key/transpose, Bass, Loop mix, BPM, Options=strum tightness, Volume). RHYTHM is a 16-step drum machine (kick/snare/hat/ohat/clap + a BASS row that follows the chord root, six preset grooves) plus a real-time CHORD LOOPER: arm REC and every chord you play is captured to a 4-bar loop that plays back so you can jam over yourself. SPACE = transport play/stop.",
+    "controls": "keybed roots: A S D F G H J (white C-B) + W E T Y U (black), or play a USB MIDI keyboard (a note picks the root + fires the chord); Z/X = octave down/up; TYPE: tap or 1-4; MODIFIERS: tap or 5-8 (combinable); tap PNO / HRP (top row) to cycle the chord-voice / strings model; LEAD VOICING: LEFT/RIGHT arrows or drag the strip; BASS VOICING walk: UP/DOWN arrows (steps the following bass through the chord tones); strum the rainbow plate with mouse/fingers; TAB = switch tab; SPACE = drum transport play/stop. MIX tab: turn the nine knobs. RHYTHM tab: tap the grid, 1-6 = preset grooves, REC/PLAY/CLEAR the looper."
   },
   "todo": [
     "Use BEAUTIFUL instrument presets, not the bare defaults — voice the three engines from the curated recipes (docs/guides/instrument-recipes.md + instrument-presets.md) so SUB/FM/EP each sound gorgeous, instead of raw INSTR_SAW/FM/EPIANO with basic envelopes.",
@@ -75,12 +75,19 @@ static const int   MODIV [NMOD] = { 9, 10, 11, 14 };        // 6th, m7, maj7, 9t
 static const char *MODNAME[NMOD] = { "6", "m7", "maj7", "9" };
 
 // three synth engines, the Orchid's three models.
-#define NENG 3
-// NOTE: play the chord through the SL_CHORD *slot* (configured by applyEngine),
+#define NENG 6            // the curated MODEL shelf — both the PIANO and the HARP part pick one
+// NOTE: play through the SL_CHORD / SL_HARP *slots* (configured by applyEngine),
 // never a raw INSTR_ id — INSTR_FM/EPIANO are 18/20, which collide with the
 // 5..31 user-slot range, so note(midi, INSTR_EPIANO,..) means "slot 20" = silent.
-static const char *ENGNAME[NENG]  = { "SUBTRACT", "FM", "REED EP" };
-static const char *ENGSHORT[NENG] = { "SUB", "FM", "EP" };
+typedef struct { int instr; const char *name; const char *shortName; int a, d, s, r; int cut, res; } Model;
+static const Model MODEL[NENG] = {
+    { INSTR_EPIANO, "REED EP",  "EP",  1, 300, 3, 320, 3200, 2 },  // warm Rhodes — the default piano
+    { INSTR_SAW,    "SUBTRACT", "SUB", 4, 220, 5, 320, 2400, 4 },  // analog pad
+    { INSTR_FM,     "FM",       "FM",  2, 240, 4, 300, 4000, 2 },  // DX keys / bells
+    { INSTR_PLUCK,  "PLUCK",    "PLK", 1, 260, 0, 300, 3600, 3 },  // koto / harp string
+    { INSTR_MALLET, "MALLET",   "MLT", 1, 320, 0, 340, 4200, 1 },  // marimba / celesta bell
+    { INSTR_GUITAR, "GUITAR",   "GTR", 1, 300, 0, 300, 3000, 3 },  // nylon guitar / harp
+};
 
 // five performance modes.
 #define PM_PLAIN   0
@@ -139,7 +146,8 @@ static int  voicing  = 0;                 // the cascade offset (signature dial)
 static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), whole chord
 static bool retrig   = false;             // RETRIG toggle: re-play the chord on every param change?
 static int  bassVoi  = 0;                 // BASS voicing walk: 0=root, 1=3rd, 2=5th, then up an octave… (the Orchid's bass dial)
-static int  engine   = 2;                 // start on reed EP (warm)
+static int  engine   = 0;                 // PIANO model — index into MODEL[]; start on reed EP (warm)
+static int  harpModel = 3;                // HARP (sonic-strings) model — index into MODEL[]; start on PLUCK
 static int  perfMode = PM_STRUM;
 static int  transpose = 0;                // MIX "Key" knob, -12..+12 semis
 static bool armed    = false;             // a chord has been triggered at least once
@@ -156,7 +164,7 @@ static float litT[40];
 static int strId[NFINGER], strLast[NFINGER];
 
 // mix knobs (0..1 floats behind ui_knob)
-static float kSound = 0.85f, kPerform = 0.2f, kFX = 0.35f, kKey = 0.5f;   // kSound 0.85 -> engine 2 (EP), matching the default
+static float kSound = 0.08f, kPerform = 0.2f, kFX = 0.35f, kKey = 0.5f;   // kSound 0.08 -> piano model 0 (EP), matching the default
 static float kBass = 0.7f, kLoop = 0.7f, kBPM = 0.25f, kOptions = 0.3f, kVolume = 0.75f;
 
 // derived / applied
@@ -328,16 +336,21 @@ static void loadPreset(int p) {
 }
 
 // ── engine + fx config (set-and-hold) ───────────────────────
-static int appEngine = -1;
+static int appEngine = -1, appHarp = -1;
 static void applyEngine(void) {
-    if (engine == appEngine) return;
-    appEngine = engine;
-    switch (engine) {
-        case 0: instrument(SL_CHORD, INSTR_SAW,    4, 220, 5, 320); instrument_filter(SL_CHORD, FILTER_LOW, 2400, 4); break;
-        case 1: instrument(SL_CHORD, INSTR_FM,     2, 240, 4, 300); instrument_filter(SL_CHORD, FILTER_LOW, 4000, 2); break;
-        case 2: instrument(SL_CHORD, INSTR_EPIANO, 1, 300, 3, 320); instrument_filter(SL_CHORD, FILTER_LOW, 3200, 2); break;
+    if (engine != appEngine) {                       // the PIANO voice — played with hit(), so the model's own sustain stands
+        appEngine = engine;
+        const Model *m = &MODEL[engine];
+        instrument(SL_CHORD, m->instr, m->a, m->d, m->s, m->r);
+        instrument_filter(SL_CHORD, FILTER_LOW, m->cut, m->res);
+        appRev = appCho = -1;   // re-send fx onto the fresh slot next frame
     }
-    appRev = appCho = -1;   // re-send fx onto the fresh slot next frame
+    if (harpModel != appHarp) {                      // the HARP voice — SAME shelf, but forced plucky (sustain 0) so a strum always decays, never drones
+        appHarp = harpModel;
+        const Model *m = &MODEL[harpModel];
+        instrument(SL_HARP, m->instr, 1, 200, 0, 280);
+        instrument_filter(SL_HARP, FILTER_LOW, m->cut, m->res);
+    }
 }
 static void applyFX(void) {
     if (kFX != appRev) { instrument_reverb(SL_CHORD, kFX * 0.8f); appRev = kFX; }
@@ -349,8 +362,6 @@ static void applyFX(void) {
 }
 
 void init(void) {
-    instrument(SL_HARP, INSTR_TRI, 1, 180, 1, 280);      // sonic strings: soft plucked bell
-    instrument_filter(SL_HARP, FILTER_LOW, 2200, 4);
     instrument(SL_BASS, INSTR_SAW, 6, 240, 4, 220);      // dedicated sub-bass — own engine, Moog ladder (à la more-note-bass)
     instrument_filter(SL_BASS, FILTER_LADDER, 420, 4);
     reverb(0.6f, 0.4f);
@@ -366,6 +377,14 @@ static void update_chord(void) {
     // keybed roots (QWERTY) — set root, keep the current type
     for (int i = 0; i < 7; i++) if (keyp(WROOT[i])) cb_trigger(WPC[i], chType);
     for (int i = 0; i < 5; i++) if (keyp(BROOT[i])) cb_trigger(BPC[i], chType);
+
+    // MIDI keyboard — a note-on picks the chord ROOT (by pitch class) and fires
+    // the current chord, exactly like tapping the keybed (the Orchid plays a
+    // whole chord from one key). Octave is the cart's own Z/X shift, so we
+    // fold every MIDI octave onto the one-octave root picker.
+    int mnote, mvel, mev;
+    while ((mev = midi_get(&mnote, &mvel)) != 0)
+        if (mev > 0) cb_trigger(mnote % 12, chType);
 
     // Z / X shift the whole keybed an octave down / up
     if (keyp('Z')) { octave = max(-2, octave - 1); cb_param(); }
@@ -401,9 +420,9 @@ static void update_chord(void) {
     if (btnp(0, BTN_UP))   { bassVoi = min(14, bassVoi + 1); cb_bass(); }
     if (btnp(0, BTN_DOWN)) { bassVoi = max(0,  bassVoi - 1); cb_bass(); }
 
-    // engine + perform quick-selectors (small tiles, right of the readout)
-    for (int e = 0; e < NENG; e++)
-        if (tapp(220 + e * 33, 16, 31, 12)) { engine = e; }
+    // PIANO + HARP model selectors — tap to cycle through the MODEL[] shelf
+    if (tapp(166, 15, 72, 13)) { engine    = (engine    + 1) % NENG; kSound = (engine + 0.5f) / NENG; }
+    if (tapp(242, 15, 72, 13)) { harpModel = (harpModel + 1) % NENG; }
     if (tapp(6,   138, 90,  12)) perfMode = (perfMode + 1) % NPERF;   // cycle perform mode
     if (tapp(100, 138, 100, 12)) retrig   = !retrig;                  // RETRIG toggle
 
@@ -566,14 +585,14 @@ static void drawKeybed(void) {
 }
 
 static void drawChordTab(void) {
-    // readout + engine tiles
+    // readout + PIANO/HARP model selectors (tap to cycle the MODEL[] shelf)
     print(chordLabel(), 8, 16, CLR_WHITE);
-    for (int e = 0; e < NENG; e++) {
-        int bx = 220 + e * 33; bool on = (engine == e);
-        rectfill(bx, 16, 31, 12, on ? CLR_BLUE : CLR_DARKER_GREY);
-        rect(bx, 16, 31, 12, on ? CLR_WHITE : CLR_DARK_GREY);
-        print(ENGSHORT[e], bx + (31 - text_width(ENGSHORT[e])) / 2, 18, on ? CLR_WHITE : CLR_LIGHT_GREY);
-    }
+    if (midi_present()) print("MIDI", 162 - text_width("MIDI"), 16, CLR_GREEN);   // a note-on picks the root + fires the chord
+
+    rectfill(166, 15, 72, 13, CLR_DARKER_BLUE);   rect(166, 15, 72, 13, CLR_INDIGO);
+    print(str("PNO %s", MODEL[engine].shortName),    170, 17, CLR_LIGHT_PEACH);
+    rectfill(242, 15, 72, 13, CLR_DARKER_PURPLE); rect(242, 15, 72, 13, CLR_MAUVE);
+    print(str("HRP %s", MODEL[harpModel].shortName), 246, 17, CLR_LIGHT_PEACH);
 
     // TYPE row
     for (int t = 0; t < 4; t++) {
@@ -634,7 +653,7 @@ static void knob(float *v, int x, int y, const char *label, const char *val) {
 static void drawMixTab(void) {
     print("MIX - the nine-knob top row", 8, 18, CLR_LIGHT_PEACH);
     int cx[3] = { 58, 160, 262 }, cy[3] = { 54, 108, 162 };
-    knob(&kSound,   cx[0], cy[0], "SOUND",   ENGNAME[engine]);
+    knob(&kSound,   cx[0], cy[0], "SOUND",   MODEL[engine].name);
     knob(&kPerform, cx[1], cy[0], "PERFORM", PMNAME[perfMode]);
     knob(&kFX,      cx[2], cy[0], "FX",      str("%d%%", (int)(kFX * 100)));
     knob(&kKey,     cx[0], cy[1], "KEY",     str("%+d", transpose));

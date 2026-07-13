@@ -13,7 +13,7 @@
   "description": {
     "summary": "A single-machine FULL-FACE wireframe (the 'Acid Pure' idiom, on Elektron x Roland x0x bones): one acid box given the whole phone screen — 6 knobs, a context DISPLAY flanked by 6 soft-keys, a lane strip, the 16-STEP BUTTON ROW (double-duty: step-select for the note lane, drum cells for a drum voice), and a keybed. The counter-proposal to acidwire's collapsing multi-machine rack: don't fold the band, show ONE machine as real hardware and switch fast.",
     "detail": "A design-play wireframe, born from a maker sketch (2026-07-13) after seeing the 'Acid Pure' app. Hardware lineage: the screen-flanked-by-soft-keys is Elektron (Digitakt/Rytm); the 16-step button row + acid voice are Roland x0x (TB-303/TR-808/909). Where acidwire (its lineage) fits acidrack's 4-5 machines onto a phone by an accordion (fold/compact/expand), this asks the opposite: give ONE machine the entire screen as a purpose-built hardware face. The 6 orange SOFT-KEYS flanking the display swap the flow (SEQ step/kit inspector / PAT / SONG / MIX / FX / SCOPE). The LANE STRIP (NOTE + BD/SD/CH/OH drum voices) picks what the 16-STEP ROW edits — the maker's key idea: those buttons do DOUBLE DUTY. NOTE lane = each button selects that step and the KEYBED sets its pitch (303 step-entry); a DRUM lane = each button toggles that voice's hit (a drum cell, 808/909 style). SHIFT flips the whole row to pattern-select. The SEQ display pairs with the row: NOTE shows the selected step's pitch + ACC/SLD/TIE toggles, a drum lane shows the whole-kit overview. Same device-honest scaffolding as acidwire: fixed 940x700 window, de_resize() reshapes the CANVAS to each device's logical @K=2 size (letterboxed), so a 44pt finger is a constant ~22 logical px and finger-comfort is HONEST across the device matrix. It's a feel-it-on-glass toy, not a spec — play it, then decide if the full-face model beats the accordion for a phone.",
-    "controls": "TAP/CLICK: a SOFT-KEY (orange, flanking the screen) picks the display flow - a KNOB drag-turns - a LANE chip (NOTE/BD/SD/CH/OH) picks what the 16-step row edits - a STEP BUTTON: in NOTE lane SELECTS the step (then a KEYBED key sets its pitch + advances), in a drum lane TOGGLES that voice's hit - CLR/RND (lane strip) wipe/re-roll the active lane's pattern - ACC/SLD/TIE (in the SEQ display) flag the selected note step - < > (transport) step the pattern - ▶ plays (animates the playhead across the row). KEYS: ]/->/space/` next device shape - [/<- prev - 1-9 jump - l cycle lane - w SHIFT (row -> pattern-select) - , . pattern prev/next - s safe-area skin - g 1-finger grid - h hide the label."
+    "controls": "TAP/CLICK: a SOFT-KEY (orange, flanking the screen) picks the display flow - a KNOB drag-turns - a LANE chip (NOTE/BD/SD/CH/OH) picks what the 16-step row edits - a STEP BUTTON: in NOTE lane SELECTS the step (then a KEYBED key sets its pitch + advances), in a drum lane TOGGLES that voice's hit - CLR/RND (lane strip) wipe/re-roll the active lane's pattern - ACC/SLD/TIE (in the SEQ display) flag the selected note step - LOK (in the SEQ display, NOTE lane) arms PARAMETER LOCK: the 6 top knobs turn amber and edit the SELECTED step instead of the patch (turning one stamps a per-step value; locked steps get an amber pip) - CLR/RND ops live in the display - < > (transport) step the pattern - ▶ plays (animates the playhead across the row). KEYS: ]/->/space/` next device shape - [/<- prev - 1-9 jump - l cycle lane - w SHIFT (row -> pattern-select) - k LOCK - , . pattern prev/next - s safe-area skin - g 1-finger grid - h hide the label."
   }
 }
 de:meta */
@@ -78,6 +78,11 @@ static int chain[8];                     // SONG: a chain of pattern indices
 static float mixlv[4] = { 0.85f, 0.7f, 0.75f, 0.6f };   // MIX faders: MASTER / OSC / DRUM / ACID
 static float fxk[3];                     // FX knobs: DLY / FB / RVB
 static int shift = 0;                    // SHIFT: flips the 16-step row to PATTERN-SELECT (x0x mode)
+// PARAMETER LOCKS (Elektron's idea, device-face-paradigm §2): in LOCK mode the 6 knobs stop editing
+// the global patch and edit the SELECTED step instead — turning one "stamps" a per-step value.
+static float plk[NPAT][STEPS][6];            // per-step LOCKED knob values (NOTE lane)
+static unsigned char plkon[NPAT][STEPS][6];  // which of the 6 knobs are locked on which step
+static int locking = 0;                       // LOCK mode on? (knobs edit selstep, not the patch)
 
 static float phase = 0;                  // transport playhead phase (advances when playing)
 static int   playing = 0, lastnote = -1; // lastnote = the last key tapped (for the display header)
@@ -150,6 +155,14 @@ static int opbtn(Box b, const char *lbl) {
     print_centered(lbl, (int)(b.x + b.w / 2), (int)(b.y + (b.h - 5) / 2), CLR_LIGHT_PEACH);
     return clicked(b);
 }
+// an int toggle button (for LOCK) — lit amber when on
+static void togbtn(Box b, const char *lbl, int *v) {
+    boxfill(b, *v ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK);
+    boxrect(b, *v ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    font(FONT_TINY);
+    print_centered(lbl, (int)(b.x + b.w / 2), (int)(b.y + (b.h - 5) / 2), *v ? CLR_BLACK : CLR_LIGHT_GREY);
+    if (clicked(b)) *v = !*v;
+}
 // SEQ flow = the interactive EDITOR inside the display (Pure Acid's pink screen: the pattern lives
 // here and is edited here; the ops live here too). NOTE lane: a touchable piano-roll + a step edit
 // strip (ACC/SLD/TIE for the selected step, CLR/RND for the pattern). DRUM lane: the whole-kit
@@ -175,14 +188,17 @@ static void screen_seq(Box s) {
                 if (sld[patn][i]) boxfill(box(c.x, c.y + c.h - 2, c.w, 1), CLR_ORANGE);
                 if (tie[patn][i]) pset((int)(c.x + c.w / 2), (int)(c.y + 1), CLR_PINK);
             }
-            if (i == selstep) boxrect(c, CLR_WHITE);
+            int haslock = 0; for (int k = 0; k < 6; k++) haslock |= plkon[patn][i][k];
+            if (haslock) boxfill(box(c.x + c.w - 3, c.y + 1, 2, 2), CLR_DARK_ORANGE);   // p-lock pip
+            if (i == selstep) boxrect(c, locking ? CLR_DARK_ORANGE : CLR_WHITE);
             if (clicked(c)) selstep = i;
         }
-        // step edit strip: ACC · SLD · TIE (selected step) | CLR · RND (pattern)
-        Box f0 = lay_inset(lay_grid(edit, 5, 5, 0, 2), 1), f1 = lay_inset(lay_grid(edit, 5, 5, 1, 2), 1),
-            f2 = lay_inset(lay_grid(edit, 5, 5, 2, 2), 1), c0 = lay_inset(lay_grid(edit, 5, 5, 3, 2), 1),
-            r0 = lay_inset(lay_grid(edit, 5, 5, 4, 2), 1);
+        // step edit strip: ACC · SLD · TIE (selected step) | LOCK | CLR · RND
+        Box f0 = lay_inset(lay_grid(edit, 6, 6, 0, 2), 1), f1 = lay_inset(lay_grid(edit, 6, 6, 1, 2), 1),
+            f2 = lay_inset(lay_grid(edit, 6, 6, 2, 2), 1), lk = lay_inset(lay_grid(edit, 6, 6, 3, 2), 1),
+            c0 = lay_inset(lay_grid(edit, 6, 6, 4, 2), 1), r0 = lay_inset(lay_grid(edit, 6, 6, 5, 2), 1);
         flagbtn(f0, "ACC", &acc[patn][selstep]); flagbtn(f1, "SLD", &sld[patn][selstep]); flagbtn(f2, "TIE", &tie[patn][selstep]);
+        togbtn(lk, "LOK", &locking);
         if (opbtn(c0, "CLR")) lane_clear();
         if (opbtn(r0, "RND")) lane_rand();
     } else {
@@ -427,9 +443,11 @@ void update(void) {
     if (keyp('S')) safehint = !safehint;
     if (keyp('G')) fingergrid = !fingergrid;
     if (keyp('W')) shift = !shift;                         // SHIFT: step row → pattern-select
+    if (keyp('K')) locking = !locking;                     // LOCK: knobs edit the selected step
     if (keyp(',')) patn = (patn + NPAT - 1) % NPAT;        // pattern prev / next
     if (keyp('.')) patn = (patn + 1) % NPAT;
     if (keyp('L')) lane = (lane + 1) % NLANE;              // cycle the active lane
+    if (lane != LN_NOTE) locking = 0;                      // p-locks are a NOTE-lane feature
     if (playing) phase += 0.08f;   // playhead advance (constant; a tempo knob can drive this later)
 #ifndef DE_RESIZABLE
     if (cur != applied) { de_resize(DEV[cur].w, DEV[cur].h); applied = cur; }
@@ -451,6 +469,7 @@ void draw(void) {
     m_press = mouse_pressed(0); m_x = mouse_x(); m_y = mouse_y();
     cls(CLR_MEDIUM_GREEN);   // the green device body (the sketch)
     seed(); ui_begin();
+    int lockmode = locking && lane == LN_NOTE;   // knobs edit the selected step, not the patch
 
     Box full = box(0, 0, W, H);
     Box safe = lay_pad(full, insT, 0, insB, 0);
@@ -478,8 +497,10 @@ void draw(void) {
     print_centered(">", (int)(nextb.x + nextb.w / 2), (int)(nextb.y + (nextb.h - 5) / 2), CLR_LIGHT_PEACH);
     if (clicked(prevb)) patn = (patn + NPAT - 1) % NPAT;
     if (clicked(nextb)) patn = (patn + 1) % NPAT;
-    print(str("%s %c  %s%s", LANE[lane], 'A' + patn, shift ? "PAT-SEL " : "", playing ? "" : ""),
-          (int)(nextb.x + nb + 5), (int)(transport.y + (transport.h - 5) / 2), shift ? CLR_ORANGE : CLR_LIGHT_PEACH);
+    print(str("%s %c  %s%s", LANE[lane], 'A' + patn, shift ? "PAT-SEL " : "",
+              lockmode ? str("LOCK S%02d", selstep + 1) : ""),
+          (int)(nextb.x + nb + 5), (int)(transport.y + (transport.h - 5) / 2),
+          (shift || lockmode) ? CLR_ORANGE : CLR_LIGHT_PEACH);
     print_right("LOOP", (int)(transport.x + transport.w - 3), (int)(transport.y + (transport.h - 6) / 2), CLR_LIGHT_GREY);
 
     Box body = lay_pad(afterTr, 2, 2, 2, 2);
@@ -501,12 +522,23 @@ void draw(void) {
     Box lanestrip = lay_split(afterStep, EDGE_BOTTOM, laneH, &afterLane);
     Box screenband = lay_pad(afterLane, 2, 0, 3, 0);
 
-    // 6 knobs across the top
+    // 6 knobs across the top. In LOCK mode (NOTE lane) they retarget to the SELECTED step's locked
+    // values (parameter locks) — turning one stamps a per-step value; else they edit the global patch.
     float kgap = lay_clamp(FU * 0.1f, 1, 3);
     for (int i = 0; i < 6; i++) {
         Box c = lay_grid(knobrow, 6, 6, i, kgap);
-        if (c.w > 4 && c.h > 6) ui_knob(&kv[i], (int)(c.x + c.w / 2), (int)(c.y + c.h / 2), KNOB[i]);
+        if (!(c.w > 4 && c.h > 6)) continue;
+        int cx = (int)(c.x + c.w / 2), cy = (int)(c.y + c.h / 2);
+        if (lockmode) {
+            float *pv = &plk[patn][selstep][i];
+            if (!plkon[patn][selstep][i]) *pv = kv[i];              // mirror the patch until locked
+            if (ui_knob(pv, cx, cy, KNOB[i])) plkon[patn][selstep][i] = 1;
+            if (plkon[patn][selstep][i]) boxrect(lay_inset(c, 1), CLR_DARK_ORANGE);   // amber = locked here
+        } else {
+            ui_knob(&kv[i], cx, cy, KNOB[i]);
+        }
     }
+    if (lockmode) boxrect(knobrow, CLR_DARK_ORANGE);   // amber frame = the knobs edit a step, not the patch
 
     // the screen flanked by 3 soft-keys each side
     float skw = lay_clamp(FU * 1.5f, 22, 48);

@@ -2623,6 +2623,21 @@
     "homage": "Gorillas (QBasic, 1991)"
   },
   {
+    "title": "grainchop",
+    "description": "Play a synth on the keybed, FREEZE the last few seconds of what you played into the granular buffer, then CHOP it: 8 slice pads jump to points in your own frozen sound and the keys re-pitch it. A fantasy-console stand-in for a sampler — no PCM, no mic; it grabs the console's OWN synthesis and lets you play with the recording. The sampler workflow, faked with a granular cloud so it needs ZERO new engine work. LIVE: the keybed feeds grains() the whole time (dry synth + a trailing cloud). Hit FREEZE and the buffer stops capturing and loops forever — now you're playing with the recording. The 8 SLICE pads scrub the read POSITION to eight points across the frozen buffer (tap = jump to that slice); , and . transpose the cloud a semitone; REV plays the grains backwards. SIZE / DENS / FB shape the cloud (grain length, density, self-feedback). ENGINE cycles the voice under the keybed (SAW / FM / PLUCK / EPIANO / MALLET / PIANO / ORGAN / BRASS) so you can chop many different sounds. It is granular, not clean slices — that difference is exactly the question the spike answers. Keybed: A-K white keys, W-E-T-Y-U-O-P black, Z/X octave down/up (+ mouse/touch/MIDI). SPACE or F = FREEZE toggle. 1-8 or the pads = jump to a slice. , . = pitch down/up. R or the REV button = reverse. [ ] or the ENGINE button = cycle the voice. SIZE/DENS/FB knobs shape the cloud.",
+    "file": "grainchop.cart.png",
+    "created": "2026-07-13",
+    "kind": [
+      "instrument",
+      "probe"
+    ],
+    "teaches": [
+      "granular-synth",
+      "gesture-loop"
+    ],
+    "lineage": "A zero-engine-work SPIKE toward the PCM-sampler question (docs/design/mic-and-sampling.md): does 'chop what I just played' feel good? Built on grains()/grains_freeze()/grains_pitch() (grains.c is the showcase) + keybed.h (the shared polyphonic keybed epiano/moog/touchpiano carry) + an engine-select bank borrowed from motionbox's OSC page. Proves the FEEL of freeze-and-chop before committing to a real INSTR_SAMPLE voice + a mix-capture path."
+  },
+  {
     "title": "grain clouds",
     "description": "The showcase for grains() - a GRANULAR DELAY ported from navkit. It captures the live signal into a buffer, then sprays scattered, overlapping windowed GRAINS of the recent past back out as an evolving cloud (a Cosmos-style ambient texture). A soft pad chord feeds the cloud the whole time; the headline move is FREEZE (F or SPACE) - stop capturing and loop what's there forever, so you play a chord, freeze it into an infinite shimmering pad, then solo OVER your own frozen self. Six sliders ride the cloud live: SIZE (grain length), DENSITY (grains/sec, sparse to dense wash), POSITION (deep past to live edge), SCATTER (the random-spread 'evolving' knob), FEEDBACK (self-feeding cloud), MIX. Each dot on screen is a grain reading the buffer; the green bar is the capture head, which halts when frozen. Press 1..4 for chords (Cmaj7/Am7/Fmaj7/G), H for help. Built on grains() / grains_freeze() - reorderable as FX_GRAINS in the pedalboard. Part of the effects-bus / pedalboard family.",
     "file": "grains.cart.png",
@@ -5146,6 +5161,20 @@
     ],
     "lineage": "rogue.c's FOV + turn loop fused with the logic cart's signal sim (a MechUpdateSignals subset) — mechanisms as diegetic dungeon locks; grown into a procedural circuit-roguelike with five rune-gate types (AND/OR/XOR/NOT/CLOCK) and chasing wraiths.",
     "genre": "puzzle"
+  },
+  {
+    "title": "sampler",
+    "description": "A real sampler with a clean record flow. Press REC and play the keys — you watch the live waveform go in. Press STOP and the recording appears as a waveform with two draggable handles: slide them to carve a single CHOP. Then the keys play just that slice back, pitched. The source is the console's own sound, never a mic. Proves the engine feature end to end with a legible UI. PLAY: the keybed drives a synth (cycle with ENGINE) whose output feeds an always-on capture ring (record_arm); the top panel is a live oscilloscope of what's being recorded. REC starts a timed take; STOP calls record_grab() (peak-normalized so playback is as loud as the source) and switches to CHOP. CHOP: the captured buffer is drawn via sample_peaks(); drag the START and END handles to isolate a slice (instrument_sample_region, live), and the keys play that slice — C4 at original speed, higher notes faster/up. RE-REC goes back. One-shot forward playback for now; loop/reverse come next. REC / STOP button (or R) — record a take of what you play. Drag the two handles on the waveform to set the chop (desktop: mouse). Keybed A-K etc plays the synth while recording, the chop after. [ ] or ENGINE cycles the source synth. RE-REC records again.",
+    "file": "sampler.cart.png",
+    "created": "2026-07-13",
+    "kind": [
+      "instrument",
+      "probe"
+    ],
+    "teaches": [
+      "gesture-loop"
+    ],
+    "lineage": "The first cart on the REAL PCM sampler (engine piece 1 + INSTR_SAMPLE + a movable chop, mic-and-sampling.md): record_arm() opens an always-on rolling capture of the console's OWN output, record_grab() freezes it into a PCM slot (peak-normalized), sample_peaks() draws the waveform, and instrument_sample_region() carves a single slice you play back chromatically on keybed.h. Ported from navkit's DAW sampler (rolling-capture buffer + sample-playback voice). Replaces the grainchop granular spike."
   },
   {
     "title": "falling sand",

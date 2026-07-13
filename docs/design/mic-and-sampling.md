@@ -1,6 +1,38 @@
 # Mic input & fantasy-console sampling — the spectrum
 
-STATUS: EXPLORING — a brainstorm sketch (2026-07-05), deliberately NOT committed to build. The owner's framing: "not against sampling per se, *if* we can make it fantasy-console-like — but I don't really want to go there yet."
+STATUS: BUILDING (2026-07-13) — the owner greenlit the **real PCM sampler** after the granular
+freeze-and-chop spike (`grainchop`) felt "all over the place." Original framing (2026-07-05): "not
+against sampling per se, *if* we can make it fantasy-console-like — but I don't really want to go
+there yet." What tipped it: the **internal-synthesis source** angle (below) clears both things this
+doc was wary of — no mic (no permission, no live dependency) and replay-deterministic, because the
+captured audio derives from the deterministic event stream. And navkit already has the whole thing
+built (`soundsystem/engines/sampler.h` + the DAW demo's rolling-capture buffer), so this is a *port*,
+not a design-from-scratch.
+
+**Shipped (2026-07-13) — engine piece 1 + `INSTR_SAMPLE` + a movable chop:**
+- `record_arm()` — an always-on rolling capture ring of the master mix (8s, `rec_arm`-gated so it's
+  byte-identical / zero-cost until a cart records — existing carts + `--det` untouched).
+- `record_grab(sample_slot, seconds)` — snapshot the last N seconds into a PCM sample slot,
+  **peak-normalized to ~0.95** so playback is as loud as the source (fixed the first-cut softness).
+- `INSTR_SAMPLE` + `instrument_sample(slot, sample_slot, root_midi)` — a one-shot forward
+  sample-playback voice (linear interp, `speed = played_freq / root_freq`), playable chromatically
+  on `keybed.h`.
+- `instrument_sample_region(slot, start, end)` — the **CHOP**: play only `[start,end]` of the buffer
+  (fractions 0..1), moved live; `sample_peaks(slot, lo, hi, n)` — a min/max waveform readout of a
+  grabbed buffer; `record_peaks(seconds, lo, hi, n)` — the LIVE twin that reads the capture ring so
+  the take draws itself in as a waveform *while* recording (matching the chop look, not a scope).
+- Cart: [`sampler`](../../tools/carts/sampler.c) — clean record flow: **REC** a take (live
+  oscilloscope of what's going in) → **STOP** → the recording is drawn as a waveform with two
+  draggable handles → carve a **CHOP** → the keys play that slice back, pitched. Verified end-to-end
+  (REC live-scope + CHOP waveform/handles screenshots; playback RMS up ~4× after normalization).
+  Gates green: soundcheck (900f), build-all (497/497), web-audio-check parity.
+
+**Next (piece 2, from navkit's `sampler.h`):** loop / ping-pong / loop-points, reverse, multi-slice
+→ per-pad mapping, then the SP-1200 grit mode. Touch-drag for the chop handles (currently mouse).
+Still open: the **doctrine call** (an ADR — does a sampler whose source is the console's OWN
+synthesis clear STATUS #21's "analog-circuit machines only" line? the argument is yes: it's an
+honest closed loop, not a caricature of a famous PCM box), and the determinism write-up
+(capture-then-freeze made rigorous for `.rec`/`spec()`).
 
 ## Why this doc exists
 

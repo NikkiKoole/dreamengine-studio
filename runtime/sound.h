@@ -109,6 +109,9 @@ typedef struct {
     int   uni_voices;               // UNISON stack: 1 = off (default), 2..7 = N detuned wavetable copies summed (instrument_unison)
     float uni_detune;               // unison spread in semitones (edge voices at ±this); read LIVE per sample like tune_mul. default 0
     uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
+    int   smp_idx;                  // INSTR_SAMPLE: which sound_samples[] slot to play; -1 = none (default). Set by instrument_sample()
+    float smp_root;                 // INSTR_SAMPLE: the buffer's root freq (Hz) — the pitch at playback speed 1.0
+    float smp_start, smp_end;       // INSTR_SAMPLE: the CHOP — play from start..end as fractions 0..1 (default 0,1 = whole). instrument_sample_region()
 } Instrument;
 
 #define SOUND_LFOS 3
@@ -353,6 +356,13 @@ typedef struct {
     float  br_vib_ph, br_drift_ph, br_drift, br_noise_lp;  // humanized lip-vibrato + breath turbulence/drift
     int    br_attack;                   // speak-transient samples remaining (the "tah" onset)
     bool   br_on;                       // note-on init guard (engine id hit without a note-on → silent)
+    // sample-playback state (INSTR_SAMPLE, mic-and-sampling.md piece 2): read sound_samples[smp_idx].data
+    // at a fractional position; speed = (played freq)/smp_root. Minimal one-shot forward playback.
+    int    smp_idx;                     // sound_samples[] slot snapshot from the instrument; -1 = none/silent
+    float  smp_root;                    // root freq (Hz) snapshot — the pitch at playback speed 1.0
+    float  smp_start_f, smp_end_f;      // chop bounds snapshot (fractions 0..1); play smp_start_f*len .. smp_end_f*len
+    double smp_pos;                     // fractional read position into the buffer (double: no drift over long buffers)
+    bool   smp_on;                      // note-on init guard (engine id hit without a start → silent)
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -401,6 +411,24 @@ static bool  scope_ever = false;
 static float scope2_bufL[SCOPE_LEN], scope2_bufR[SCOPE_LEN];
 static int   scope2_w    = 0;
 static bool  scope2_ever = false;
+
+// ── PCM sampler (mic-and-sampling.md) ────────────────────────────────────────
+// Piece 1: a rolling capture ring of the final mono mix, armed by record_arm().
+// Zero-cost / byte-identical until armed (rec_arm gate, like the scope tap), so
+// existing carts + the --det gates are untouched. The ring is malloc'd on arm.
+// The main thread snapshots the last N seconds into a sample slot via record_grab().
+// Piece 2: SOUND_SAMPLE_SLOTS PCM buffers an INSTR_SAMPLE voice plays back at pitch.
+#ifndef SOUND_SAMPLE_SLOTS
+#define SOUND_SAMPLE_SLOTS 8
+#endif
+#define SOUND_REC_SECONDS  8
+#define SOUND_REC_LEN      (SOUND_SAMPLE_RATE * SOUND_REC_SECONDS)
+typedef struct { float *data; int len; bool loaded; } SoundSample;  // data = malloc'd mono PCM -1..1
+static SoundSample   sound_samples[SOUND_SAMPLE_SLOTS];
+static float        *rec_ring  = NULL;     // malloc'd on arm; NULL = unused (byte-identical)
+static volatile int  rec_w     = 0;        // audio-thread write cursor into rec_ring
+static volatile long rec_total = 0;        // monotonic samples written (for "last N" math)
+static volatile bool rec_arm   = false;    // armed by record_arm() — the write gate
 
 // ── voice debugging (docs/design/audio-voice-debugging.md) — DE_TRACE-only ───────────
 // Two harness tools for "a voice got cut off by another instrument". The whole block is
@@ -1897,6 +1925,8 @@ typedef enum {
     SR_INSTR_UNISON        = 120,  // a=slot, b=voices, c=detune*1000 — configure the unison stack (instrument_unison)
     SR_INSTR_UNISON_DETUNE = 121,  // a=slot, b=detune*1000 — ride the unison spread alone (instrument_unison_detune), read LIVE like tune
     SR_INSTR_LEVEL         = 122,  // a=slot, b=level*1000 — per-slot output level/gain (instrument_level), read LIVE at mix like tune_mul
+    SR_INSTR_SAMPLE        = 123,  // a=slot, b=sample slot, c=root freq(Hz)*1000 — bind an INSTR_SAMPLE slot to a recorded PCM buffer (instrument_sample); mic-and-sampling.md piece 2
+    SR_INSTR_SAMPLE_REGION = 124,  // a=slot, b=start*1e6, c=end*1e6 — the CHOP: play the buffer from start..end (fractions 0..1); instrument_sample_region()
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1979,7 +2009,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
         case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
         case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY:
-        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL:
+        case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL: case SR_INSTR_SAMPLE: case SR_INSTR_SAMPLE_REGION:
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
             return CTXK_KA;
@@ -4380,6 +4410,28 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     return res;
 }
 
+// INSTR_SAMPLE (mic-and-sampling.md): play a recorded PCM buffer at pitch. speed = (played
+// freq)/root — press the root note → original speed; an octave up → 2×. One-shot forward playback
+// with linear interpolation over the CHOP region [smp_start_f, smp_end_f]. Silent past the region
+// end (the amp envelope keeps the held voice alive; a re-press re-triggers from the region start).
+static inline float sound_sample_sample(Voice *v, float pitch_mul) {
+    if (!v->smp_on || v->smp_idx < 0 || v->smp_idx >= SOUND_SAMPLE_SLOTS) return 0.0f;
+    SoundSample *s = &sound_samples[v->smp_idx];
+    if (!s->loaded || !s->data || s->len < 2) return 0.0f;
+    float root = v->smp_root < 1.0f ? 1.0f : v->smp_root;
+    float f = v->freq * pitch_mul; if (f < 1.0f) f = 1.0f;
+    double speed = (double)(f / root);
+    float endf = (v->smp_end_f > 0.0f && v->smp_end_f <= 1.0f) ? v->smp_end_f : 1.0f;
+    double endpos = (double)endf * (double)(s->len - 1);      // chop end (fraction → sample index)
+    double pos = v->smp_pos;
+    if (pos >= endpos || pos >= (double)(s->len - 1)) return 0.0f;   // stop at the chop end
+    int   i0 = (int)pos;
+    float fr = (float)(pos - (double)i0);
+    float a = s->data[i0], b = s->data[i0 + 1];
+    v->smp_pos = pos + speed;
+    return a + (b - a) * fr;                                 // linear interpolation
+}
+
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     switch (v->wave) {                                       // dense engine ids → jump table (was 13 sequential compares)
         case INSTR_MALLET:   return sound_mallet_sample(v, pitch_mul);
@@ -4395,6 +4447,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
         case INSTR_PIANO:    return sound_piano_sample(v, pitch_mul);
         case INSTR_BOWED:    return sound_bowed_sample(v, pitch_mul);
         case INSTR_BRASS:    return sound_brass_sample(v, pitch_mul);
+        case INSTR_SAMPLE:   return sound_sample_sample(v, pitch_mul);
     }
     // fall-through: the modal Karplus-Strong string — any engine id not handled above.
     int alloc = v->ks_len;
@@ -4788,6 +4841,10 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->eng_p[1] = ins->eng_p[1];
     v->eng_p[2] = ins->eng_p[2];
     v->eng_p[3] = ins->eng_p[3];
+    v->smp_idx     = ins->smp_idx;                     // INSTR_SAMPLE: which recorded buffer + its root freq
+    v->smp_root    = ins->smp_root;
+    v->smp_start_f = ins->smp_start;                   // chop bounds (fractions) — resolved to sample indices in the start hook / render
+    v->smp_end_f   = ins->smp_end;
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
     v->rvb  = v->rvb_target  = ins->reverb;
@@ -4813,6 +4870,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->pn_on  = false;
     v->bw_on  = false;
     v->br_on  = false;
+    v->smp_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -4826,6 +4884,12 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_PIANO)  sound_piano_start(v);    // hammer-strike + arm dispersion + soundboard
     else if (v->wave == INSTR_BOWED)  sound_bowed_start(v);    // size + split the string at the bow, seed it
     else if (v->wave == INSTR_BRASS)  sound_brass_start(v);    // size + seed the bore, clear the lip biquad
+    else if (v->wave == INSTR_SAMPLE) {                        // seek to the chop start, arm PCM playback
+        int slen = (v->smp_idx >= 0 && v->smp_idx < SOUND_SAMPLE_SLOTS && sound_samples[v->smp_idx].loaded)
+                 ? sound_samples[v->smp_idx].len : 0;
+        v->smp_pos = (double)v->smp_start_f * (double)(slen > 1 ? slen - 1 : 0);
+        v->smp_on = true;
+    }
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
@@ -5024,6 +5088,8 @@ static void sound_fire_req(SoundReq r) {
         ins->a_samp  = r.e0;
         ins->d_samp  = r.e1;
         ins->r_samp  = r.e2;
+        ins->smp_idx = -1;    // INSTR_SAMPLE binding is set separately via instrument_sample() (called AFTER this)
+        ins->smp_start = 0.0f; ins->smp_end = 1.0f;   // default chop = whole buffer
         // duty is left untouched — set independently via instrument_duty()
     } break;
     case SR_INSTR_DUTY: {
@@ -5576,6 +5642,22 @@ static void sound_fire_req(SoundReq r) {
         if (x < 0.0f) x = 0.0f;
         instr_bank[slot].level = x;
     } break;
+    case SR_INSTR_SAMPLE: {  // a=slot, b=sample slot, c=root freq(Hz)*1000 — bind INSTR_SAMPLE to a recorded buffer
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        instr_bank[slot].smp_idx  = r.b;
+        instr_bank[slot].smp_root = r.c / 1000.0f;
+        if (instr_bank[slot].smp_root < 1.0f) instr_bank[slot].smp_root = 1.0f;
+    } break;
+    case SR_INSTR_SAMPLE_REGION: {  // a=slot, b=start*1e6, c=end*1e6 — the chop bounds (fractions 0..1)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float st = r.b / 1000000.0f, en = r.c / 1000000.0f;
+        if (st < 0.0f) st = 0.0f; if (st > 1.0f) st = 1.0f;
+        if (en < 0.0f) en = 0.0f; if (en > 1.0f) en = 1.0f;
+        instr_bank[slot].smp_start = st;
+        instr_bank[slot].smp_end   = en;
+    } break;
     case SR_NOTE_PAN: {     // a=pan*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
@@ -6121,6 +6203,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             scope2_bufR[scope2_w] = mixR;
             scope2_w = (scope2_w + 1) & (SCOPE_LEN - 1);
         }
+        if (rec_arm && rec_ring) {                     // PCM capture ring (record_grab) — MONO downmix
+            rec_ring[rec_w] = (mixL + mixR) * 0.5f;
+            rec_w = (rec_w + 1) % SOUND_REC_LEN;
+            rec_total++;
+        }
     }
 }
 
@@ -6441,6 +6528,103 @@ void instrument_level(int slot, float gain) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (gain < 0.0f) gain = 0.0f;
     sound_push_ctrl(SR_INSTR_LEVEL, slot, (int)(gain * 1000.0f), 0, 0, 0, 0);
+}
+
+// ── PCM sampler (mic-and-sampling.md) ────────────────────────────────────────
+// record_arm(): begin the always-on rolling capture of the master mix (idempotent). Off (and
+// byte-identical) until called. record_grab(): snapshot the last `seconds` of that capture into
+// sound_samples[sample_slot] as a PCM buffer; returns the sample count grabbed (0 = not armed / no
+// audio yet). instrument_sample(): bind an INSTR_SAMPLE instrument slot to a recorded buffer, with
+// root_midi = the note that plays it at original speed. Runs main-thread; the grab is a racy
+// snapshot of the audio-thread ring (benign, like scope_read).
+void record_arm(void) {
+    if (!rec_ring) {
+        rec_ring = (float *)calloc((size_t)SOUND_REC_LEN, sizeof(float));
+        if (!rec_ring) return;
+        rec_w = 0; rec_total = 0;
+    }
+    rec_arm = true;
+}
+
+int record_grab(int sample_slot, float seconds) {
+    if (sample_slot < 0 || sample_slot >= SOUND_SAMPLE_SLOTS) return 0;
+    if (!rec_arm || !rec_ring) return 0;
+    int want = (int)(seconds * SOUND_SAMPLE_RATE);
+    if (want > SOUND_REC_LEN) want = SOUND_REC_LEN;
+    long avail = rec_total; if (avail > SOUND_REC_LEN) avail = SOUND_REC_LEN;
+    if (want > (int)avail) want = (int)avail;
+    if (want < 1) return 0;
+    float *buf = (float *)malloc((size_t)want * sizeof(float));
+    if (!buf) return 0;
+    int w = rec_w;                                     // snapshot the write head (audio thread may advance — benign)
+    int start = ((w - want) % SOUND_REC_LEN + SOUND_REC_LEN) % SOUND_REC_LEN;
+    float peak = 0.0f;
+    for (int i = 0; i < want; i++) {
+        float x = rec_ring[(start + i) % SOUND_REC_LEN];
+        buf[i] = x;
+        float ax = x < 0.0f ? -x : x;
+        if (ax > peak) peak = ax;
+    }
+    if (peak > 0.0001f) {                              // peak-normalize to ~0.95 so playback is as loud as the source
+        float g = 0.95f / peak;
+        for (int i = 0; i < want; i++) buf[i] *= g;
+    }
+    SoundSample *s = &sound_samples[sample_slot];
+    if (s->data) free(s->data);                        // replace any prior recording in this slot
+    s->data = buf; s->len = want; s->loaded = true;
+    return want;
+}
+
+// Downsample sample slot `slot` to `n` columns of min/max amplitude for drawing a waveform overview
+// (main-thread / draw-time; lo[x]/hi[x] each hold n floats, -1..1). Returns the buffer length (0 = empty).
+int sample_peaks(int slot, float *lo, float *hi, int n) {
+    if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS || n < 1 || !lo || !hi) return 0;
+    SoundSample *s = &sound_samples[slot];
+    if (!s->loaded || !s->data || s->len < 1) return 0;
+    for (int x = 0; x < n; x++) {
+        int a = (int)((long)x * s->len / n), b = (int)((long)(x + 1) * s->len / n);
+        if (b <= a) b = a + 1; if (b > s->len) b = s->len;
+        float mn = 1.0f, mx = -1.0f;
+        for (int i = a; i < b; i++) { float v = s->data[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        lo[x] = mn; hi[x] = mx;
+    }
+    return s->len;
+}
+
+// Live waveform readout of the capture ring WHILE recording (before a grab): downsample the last
+// `seconds` of what's been captured into `n` min/max columns (lo[]/hi[], -1..1). Returns the sample
+// count covered (0 = not armed / nothing yet). Lets a cart draw the recording "filling in" as a
+// waveform, matching the sample_peaks look. Draw-time; racy snapshot of the ring (benign).
+int record_peaks(float seconds, float *lo, float *hi, int n) {
+    if (!rec_arm || !rec_ring || n < 1 || !lo || !hi) return 0;
+    int want = (int)(seconds * SOUND_SAMPLE_RATE);
+    if (want > SOUND_REC_LEN) want = SOUND_REC_LEN;
+    long avail = rec_total; if (avail > SOUND_REC_LEN) avail = SOUND_REC_LEN;
+    if (want > (int)avail) want = (int)avail;
+    if (want < 1) return 0;
+    int w = rec_w;
+    int start = ((w - want) % SOUND_REC_LEN + SOUND_REC_LEN) % SOUND_REC_LEN;
+    for (int x = 0; x < n; x++) {
+        int a = (int)((long)x * want / n), b = (int)((long)(x + 1) * want / n);
+        if (b <= a) b = a + 1; if (b > want) b = want;
+        float mn = 1.0f, mx = -1.0f;
+        for (int i = a; i < b; i++) { float v = rec_ring[(start + i) % SOUND_REC_LEN]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        lo[x] = mn; hi[x] = mx;
+    }
+    return want;
+}
+
+void instrument_sample(int slot, int sample_slot, int root_midi) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    float root = sound_midi_to_freq(root_midi);
+    sound_push_ctrl(SR_INSTR_SAMPLE, slot, sample_slot, (int)(root * 1000.0f), 0, 0, 0);
+}
+
+void instrument_sample_region(int slot, float start, float end) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (start < 0.0f) start = 0.0f; if (start > 1.0f) start = 1.0f;
+    if (end   < 0.0f) end   = 0.0f; if (end   > 1.0f) end   = 1.0f;
+    sound_push_ctrl(SR_INSTR_SAMPLE_REGION, slot, (int)(start * 1000000.0f), (int)(end * 1000000.0f), 0, 0, 0);
 }
 
 // ── spatial audio (spatial.md): a listener + positioned sources → automatic pan/distance/Doppler ──

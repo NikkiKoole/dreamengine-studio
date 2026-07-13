@@ -113,10 +113,16 @@ context" idea in the concrete:
 **C · SHIFT hijacks the STEP ROW** into pattern-select (buttons 1–6 pick the pattern; transport shows
 `PAT-SEL`). Plus **play** lights the running step across the row and in the display.
 
+**D · LOCK retargets the KNOBS** (parameter locks, NOTE lane). The `LOK` button in the SEQ edit strip
+arms it: the 6 knobs frame amber and edit the **selected step** instead of the patch — turning one stamps
+a per-step value (that knob gets an amber ring; the step gets an amber pip; transport shows `LOCK Snn`).
+So even zone 2 does double duty. *(Prototyped as a latch — press `LOK`/`k`; true two-finger hold-a-step-
+while-turning is the device refinement.)*
+
 One line: **the soft-keys reskin the screen; the lane chips re-purpose the row + SEQ screen together;
-SHIFT temporarily hijacks the row.** Three surfaces, each doing several jobs by mode. *(What's NOT here
-yet is exactly §5: the knobs aren't contextual, the row is a small lane-strip kit not the two-mode
-16-voice row, and there's no face-level tab in ① — the flow soft-keys are the within-face level.)*
+SHIFT hijacks the row; LOCK retargets the knobs.** Four surfaces, each doing several jobs by mode.
+*(Still §5-open: the row is a small lane-strip kit not the two-mode 16-voice row, and there's no
+face-level tab in ① — the flow soft-keys are the within-face level.)*
 
 ## 2 · The principles that make it work
 
@@ -203,9 +209,10 @@ both; the flow/mode decides which editor the display + grid present.
   just highlights. Decide per zone which surfaces are **persistent** (e.g. the drum pad row stays under the
   thumb) vs. folded. acidface already has the *flow-level* tabs (the soft-keys); this is the missing
   *face-level* strip, and it's what lets several faces live in one app.
-- **Parameter locks (hold-step → knobs edit that step)** — the highest-leverage borrow; prototype it in
-  acidface so per-step accent/slide/pitch come from the knobs, not dedicated buttons. Proves the zone-2↔4
-  contextual link.
+- ~~**Parameter locks (hold-step → knobs edit that step)**~~ — **PROTOTYPED in acidface (2026-07-13)** as a
+  LOCK latch (`LOK`/`k`): the 6 knobs retarget to the selected step, turning one stamps a per-step value.
+  Proves the zone-2↔4 contextual link. *Remaining:* true two-finger hold (multitouch) as the on-device
+  gesture, and actually *using* the locked values (acidface is silent — they're stored + shown, not sounded).
 - **Conditional trigs — depth without clutter, and it's emergent.** Per-step conditions (probability,
   every-Nth-loop, fill) turn a static pattern into one that varies from simple rules — the maker's
   prefer-emergent-behaviour grain. A candidate flow the display hosts, not new chrome.

@@ -63,7 +63,7 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   `chordblossom`), designed as a physics sequencer on the [device-face paradigm](design/device-face-paradigm.md)
 >   (§1f = the fuller OP-1 device analysis for the paradigm-sharpening pass). **Not built.** When
 >   building: reuse the new `runtime/physics.h` (verlet balls) + `circlemachine` (note wiring) — the
->   tombola only adds a rotating drum + trigger-line — resume at [`design/tombola.md`](design/tombola.md#prior-art-in-the-repo--reuse-and-whats-already-covered).
+>   tombola only adds a rotating drum + trigger-line — resume at [`design/tombola.md`](design/tombola.md#prior-art-in-the-repo-reuse-and-what-s-already-covered).
 
 > **▶ ACTIVE THREAD (2026-07-10) — editor↔cart workflow: CODE round-trip + the PIXEL side (Option D) SHIPPED.**
 > Closing the gaps that bite when you hand-edit a cart in the editor instead of going through

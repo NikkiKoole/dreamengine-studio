@@ -320,6 +320,60 @@ Schema (floorplan-specific; engine-pixel coords, palette colour indices):
   "textures":[{"w","h","px":[idx, ...]}, ...] }                   // surfaces[].tex indexes textures[]
 ```
 
+### Loader — planned (an in-cart id picker via `floorplanner.js --serve`)
+
+**Status: planned, not built (parked 2026-07-13).** Goal: a little window when the cart starts
+where you pick a plan you've already fetched *or* type a new id — instead of running a CLI command
+and dragging a `.json` in. The `.token` groundwork below is the prerequisite and is **done**.
+
+**Prerequisite — done (2026-07-13): paste-once auth.** `floorplanner.js` now reads the credential
+from a gitignored `data-tools/fmltools/.token` file (a JWT or an `fp_site_session=…` cookie;
+auto-detected), in addition to `$FP_AUTH_TOKEN` / `$FP_SESSION` (env still overrides). Paste a token
+once → `<id> --play` just works every shell until it expires. So "load any old id" is already a
+one-liner; the loader below is the GUI in front of it.
+
+**The decided route: JS, not cart-side HTTPS.** The cart genuinely can't do the *whole* fetch, and
+even if it could it shouldn't — see the rejected alternative at the end. So node keeps doing the
+network + bake; the cart just picks + loads. Two patterns already in the repo are the model:
+- **`net-relay.js --serve`** — "cart + helper in one process": one launch command runs the cart *and*
+  a node helper alongside it. Copy this shape.
+- **The live-inspection request-file trick** (`build/.bake/screenshot_request` — the cart writes a
+  request file, an external process fulfils it). Same idea, used here for "please fetch this id".
+
+**Design (two pieces):**
+
+1. **Cart start screen** (`tools/carts/floorplan.c`). Shown on boot when nothing is loaded (today it's
+   the bare "drag a .json" screen), and summonable with a key.
+   - **Pick a saved plan.** Scan the plans folder and list them. Runtime facts confirmed: no
+     dir-listing API in `studio.h`, so use `<dirent.h>` (`opendir`/`readdir` — fine in the native
+     build; not wasm, which is dev-only anyway). The folder = the dirname of `de_data_path()` if set,
+     else `../data/floorplan` (cart runs with `cwd=build/`). Arrow/click to select, Enter → existing
+     `load_from()`. Pure in-cart, zero new processes — **build this first** for instant value.
+   - **Type an id.** `text_input()` returns typed chars (digits) — that's the entry field. (True
+     clipboard *paste* isn't exposed by `studio.h`; typing a short id is enough.) On Enter, if the
+     plan is already local → load it; if not → write the id to a request file (below).
+   - Drag-drop and `$DE_DATA` keep working as the "jump straight in" paths.
+
+2. **`floorplanner.js --serve`** (mirrors `net-relay.js --serve`). Launches the floorplan cart, then
+   watches `build/.fp-request`. On a new id: run the existing fetch+build pipeline
+   (`fml2cart`/`fml-assets`/`fml-sprites`/`fml-textures`), write `data/floorplan/<id>.json`, then
+   signal the cart (drop a "ready" marker file / touch the json) so it auto-loads — same window, the
+   plan just appears. Net effect: type an id → it fetches → the real plan shows up, one launch
+   command, nothing to babysit. **Build second, on top of the picker.**
+
+**No editor changes** — this lives entirely in cart-land + the CLI, per the owner's constraint.
+
+**Rejected alternative — cart does its own HTTPS.** Theoretically possible (the cart is a native
+process; `net.h` already opens UDP sockets, so only TLS is missing, and `popen("curl …")` closes that
+in ~1 line on native). But it's a bad trade: downloading the `.fml` is the easy ~10%. The other ~90%
+doesn't want to live in the cart — (1) the cart parses the *processed* JSON, not raw `.fml`, so
+fetching in-cart means porting `fml2cart.js`'s `.fml` parser to C; (2) furniture sprites need
+`fml-assets.js` (many CDN image fetches + downscale/quantise); (3) floor textures need
+`fml-textures.js` (a second API + `sips`). So cart-HTTPS would remove the one part that was never the
+problem and force re-implementing the parts that are. (Aside: on the *web* build the browser's `fetch`
+makes HTTPS easy — an odd inversion — but that forks the fetch path. A geometry-only "quick peek"
+mode, curl the `.fml` + draw bare boxes, is a possible fun spike but still needs the C `.fml` parser.)
+
 ### Floor finishes — how the cart colours/textures floors
 
 The `.fml` carries floor finishes in two places, both now used:

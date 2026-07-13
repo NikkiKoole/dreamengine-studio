@@ -62,3 +62,7 @@ Status of the Floorplanner-`.fml` → top-down cart pipeline and the carts built
       a goal, weapons (reuse `hotline.c` AI/combat over this geometry).
 - [ ] **Look knobs** — settle defaults for `--saturate` / `--posterize`; consider a custom furniture palette.
 - [ ] **Perf** — render-time outline is ~5× the blit; fine with culling, but watch it on dense floors.
+- [ ] **In-cart loader** (planned, parked 2026-07-13) — a start screen to pick an already-fetched plan
+      or type a new id, via a `floorplanner.js --serve` fetch-bridge (JS route, no cart-side HTTPS).
+      `.token` paste-once auth is the prerequisite and is DONE. Full plan + the rejected cart-HTTPS
+      alternative: `docs/design/external-data-carts.md` → "Loader — planned".

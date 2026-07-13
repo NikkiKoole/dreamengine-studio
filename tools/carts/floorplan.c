@@ -9,7 +9,7 @@
     "toy"
   ],
   "teaches": [],
-  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched (or type an id). Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes, G ghosts through walls (glows on contact).",
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched; type/paste an id and (with floorplanner.js --serve running) it fetches on the fly. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes, G ghosts through walls (glows on contact).",
   "todo": [
     "object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid boxes — read each item's height/z and skip collision below a threshold.",
     "true 32-bit RGB: fall back to engine RGB instead of quantising sprites/textures to the 32-palette — natural furniture + rich floor textures.",
@@ -114,6 +114,11 @@ static bool colliding = false;    // player is currently overlapping a wall/furn
 #define PICK_Y0   34              // y of the first list row
 #define PICK_RH   11              // row height
 #define C_SEL     CLR_DARK_BLUE   // selected-row highlight bar
+// fetch-bridge signal files (cwd is build/): typing an unknown id asks `floorplanner.js --serve`
+// to fetch it. cart writes REQ_FILE; --serve answers with READY_FILE (json path) or ERR_FILE.
+#define REQ_FILE   ".fp-request"
+#define READY_FILE ".fp-ready"
+#define ERR_FILE   ".fp-error"
 typedef struct { char file[64]; char name[48]; } PlanEntry;   // file = filename stem, name = plan's "name"
 static PlanEntry plans[MAXPLANS]; static int n_plans = 0;
 static int  sel = 0, scroll = 0;      // highlighted row / first visible row
@@ -121,6 +126,8 @@ static bool picking = false;          // showing the picker instead of the plan
 static char plans_dir[256] = "";      // folder scanned for *.json
 static char idbuf[16] = "";           // id typed into the entry field
 static char pickmsg[128] = "";        // transient status under the entry field
+static bool  fetching = false;        // waiting on `floorplanner.js --serve` for a typed id
+static float fetch_t  = 0.0f;         // seconds since the fetch request (spinner + timeout)
 
 #define PLAYER_R 4.0f
 #define CAM_ZOOM 1.0f
@@ -334,11 +341,46 @@ static void load_plan(int i) {
     if (loaded_ok) picking = false;
     else snprintf(pickmsg, sizeof pickmsg, "%s", err[0] ? err : "load failed");
 }
-// load by the typed id — stage 1: local files only. Stage 2's --serve bridge fetches unknown ids.
+// ask the --serve bridge to fetch an id we don't have locally (writes REQ_FILE; poll_fetch waits)
+static void request_fetch(const char *id) {
+    FILE *f = fopen(REQ_FILE, "w");
+    if (!f) { snprintf(pickmsg, sizeof pickmsg, "cannot write fetch request"); return; }
+    fputs(id, f); fclose(f);
+    fetching = true; fetch_t = 0.0f;
+}
+// load by the typed id: a local plan loads instantly; an unknown id goes to the --serve bridge
 static void load_id(void) {
     for (int i = 0; i < n_plans; i++)
         if (!strcmp(plans[i].file, idbuf)) { load_plan(i); return; }
-    snprintf(pickmsg, sizeof pickmsg, "%s not fetched -- run: floorplanner.js %s --play", idbuf, idbuf);
+    request_fetch(idbuf);
+}
+// read a small signal file (trimmed), or NULL if absent
+static char *read_signal(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    static char sigbuf[512];
+    size_t n = fread(sigbuf, 1, sizeof sigbuf - 1, f); fclose(f);
+    sigbuf[n] = 0;
+    while (n && (sigbuf[n - 1] == '\n' || sigbuf[n - 1] == '\r' || sigbuf[n - 1] == ' ')) sigbuf[--n] = 0;
+    return sigbuf;
+}
+// while a fetch is in flight, watch for the bridge's answer (or time out if --serve isn't running)
+static void poll_fetch(void) {
+    if (!fetching) return;
+    char *rp = read_signal(READY_FILE);
+    if (rp && *rp) {
+        remove(READY_FILE); remove(ERR_FILE);
+        fetching = false;
+        load_from(rp);
+        if (loaded_ok) { picking = false; idbuf[0] = 0; }
+        else snprintf(pickmsg, sizeof pickmsg, "fetched but load failed: %s", err);
+        return;
+    }
+    char *ep = read_signal(ERR_FILE);
+    if (ep && *ep) { remove(ERR_FILE); fetching = false; snprintf(pickmsg, sizeof pickmsg, "fetch failed: %s", ep); return; }
+    fetch_t += dt();
+    if (fetch_t > 90.0f) { fetching = false; remove(REQ_FILE);
+        snprintf(pickmsg, sizeof pickmsg, "no response -- is 'floorplanner.js --serve' running?"); }
 }
 static void boot_once(void) {
     if (tried) return;
@@ -354,11 +396,18 @@ static void id_append(const char *src) {
         }
 }
 static void update_picker(void) {
+    if (fetching) {   // waiting on the --serve bridge — freeze input except ESC to cancel
+        if (keyp(KEY_ESCAPE)) { fetching = false; remove(REQ_FILE); pickmsg[0] = 0; }
+        return;
+    }
     int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
     if ((keyp(KEY_DOWN) || keyp('S')) && n_plans) sel = (sel + 1) % n_plans;
     if ((keyp(KEY_UP)   || keyp('W')) && n_plans) sel = (sel + n_plans - 1) % n_plans;
 
-    id_append(text_input());                    // typed digits into the id field
+    for (int dgt = 0; dgt <= 9; dgt++)          // typed digits into the id field
+        if (keyp('0' + dgt) && (int)strlen(idbuf) < (int)sizeof idbuf - 1) {
+            char c[2] = { (char)('0' + dgt), 0 }; strcat(idbuf, c); pickmsg[0] = 0;
+        }
     id_append(paste());                         // Ctrl/Cmd+V — paste an id (keeps only the digits)
     if (keyp(KEY_BACKSPACE) && idbuf[0]) { idbuf[strlen(idbuf) - 1] = 0; pickmsg[0] = 0; }
     if (idbuf[0])                               // a typed id that matches a local plan highlights it
@@ -410,7 +459,16 @@ static void draw_picker(void) {
             font(FONT_SMALL); print("...more", 8, PICK_Y0 + maxrows * PICK_RH, CLR_DARK_GREY); font(FONT_NORMAL);
         }
     }
-    if (pickmsg[0]) { font(FONT_SMALL); print(pickmsg, 8, SCREEN_H - 22, CLR_ORANGE); font(FONT_NORMAL); }
+    if (fetching) {
+        font(FONT_SMALL);
+        const char *sp = "|/-\\";
+        char s[96]; snprintf(s, sizeof s, "fetching %s ... %c   (needs: floorplanner.js --serve)",
+                             idbuf, sp[((int)(fetch_t * 8)) & 3]);
+        print(s, 8, SCREEN_H - 22, CLR_YELLOW);
+        font(FONT_NORMAL);
+    } else if (pickmsg[0]) {
+        font(FONT_SMALL); print(pickmsg, 8, SCREEN_H - 22, CLR_ORANGE); font(FONT_NORMAL);
+    }
     char entry[64]; snprintf(entry, sizeof entry, "id: %s_", idbuf);
     print(entry, 8, SCREEN_H - 12, CLR_WHITE);
 }
@@ -576,6 +634,7 @@ void init(void) {
 
 void update(void) {
     boot_once();
+    poll_fetch();                              // resolve an in-flight --serve fetch, if any
     const char *dropped = de_dropped_file();   // drag a .json onto the window to swap plans
     if (dropped) { load_from(dropped); if (loaded_ok) picking = false; }
     if (keyp(KEY_TAB)) { if (!picking) open_picker(); else if (loaded_ok) picking = false; }

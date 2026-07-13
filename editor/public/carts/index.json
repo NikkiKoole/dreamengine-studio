@@ -425,6 +425,18 @@
     "teaches": []
   },
   {
+    "title": "acidface",
+    "description": "A single-machine FULL-FACE wireframe (the 'Acid Pure' idiom, on Elektron x Roland x0x bones): one acid box given the whole phone screen — 6 knobs, a context DISPLAY flanked by 6 soft-keys, a lane strip, the 16-STEP BUTTON ROW (double-duty: step-select for the note lane, drum cells for a drum voice), and a keybed. The counter-proposal to acidwire's collapsing multi-machine rack: don't fold the band, show ONE machine as real hardware and switch fast. A design-play wireframe, born from a maker sketch (2026-07-13) after seeing the 'Acid Pure' app. Hardware lineage: the screen-flanked-by-soft-keys is Elektron (Digitakt/Rytm); the 16-step button row + acid voice are Roland x0x (TB-303/TR-808/909). Where acidwire (its lineage) fits acidrack's 4-5 machines onto a phone by an accordion (fold/compact/expand), this asks the opposite: give ONE machine the entire screen as a purpose-built hardware face. The 6 orange SOFT-KEYS flanking the display swap the flow (SEQ step/kit inspector / PAT / SONG / MIX / FX / SCOPE). The LANE STRIP (NOTE + BD/SD/CH/OH drum voices) picks what the 16-STEP ROW edits — the maker's key idea: those buttons do DOUBLE DUTY. NOTE lane = each button selects that step and the KEYBED sets its pitch (303 step-entry); a DRUM lane = each button toggles that voice's hit (a drum cell, 808/909 style). SHIFT flips the whole row to pattern-select. The SEQ display pairs with the row: NOTE shows the selected step's pitch + ACC/SLD/TIE toggles, a drum lane shows the whole-kit overview. Same device-honest scaffolding as acidwire: fixed 940x700 window, de_resize() reshapes the CANVAS to each device's logical @K=2 size (letterboxed), so a 44pt finger is a constant ~22 logical px and finger-comfort is HONEST across the device matrix. It's a feel-it-on-glass toy, not a spec — play it, then decide if the full-face model beats the accordion for a phone. TAP/CLICK: a SOFT-KEY (orange, flanking the screen) picks the display flow - a KNOB drag-turns - a LANE chip (NOTE/BD/SD/CH/OH) picks what the 16-step row edits - a STEP BUTTON: in NOTE lane SELECTS the step (then a KEYBED key sets its pitch + advances), in a drum lane TOGGLES that voice's hit - CLR/RND (lane strip) wipe/re-roll the active lane's pattern - ACC/SLD/TIE (in the SEQ display) flag the selected note step - LOK (in the SEQ display, NOTE lane) arms PARAMETER LOCK: the 6 top knobs turn amber and edit the SELECTED step instead of the patch (turning one stamps a per-step value; locked steps get an amber pip) - CLR/RND ops live in the display - < > (transport) step the pattern - ▶ plays (animates the playhead across the row). KEYS: ]/->/space/` next device shape - [/<- prev - 1-9 jump - l cycle lane - w SHIFT (row -> pattern-select) - k LOCK - , . pattern prev/next - s safe-area skin - g 1-finger grid - h hide the label.",
+    "file": "acidface.cart.png",
+    "created": "2026-07-13",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [],
+    "lineage": "acidwire"
+  },
+  {
     "title": "acidfit",
     "description": "The stress test for device-adaptive-layout.md: a FAITHFUL layout mock of the real acidrack (two TB-303s at 7 knobs each, a 909 with 11 voices, an 808 with 9, a 16-step lane, a master strip) - NO audio, NO DSP, just the widgets - laid out against a fake device to answer 'does a genuinely dense, multi-section panel stay legible on a phone?'. It prototypes the PROGRESSIVE-DISCLOSURE rule the plan needs: each section carries a priority + a minimum finger-footprint, and one pass per frame inlines sections by priority until the finger-budget runs out - the overflow collapses into TAB CHIPS you tap to open as an overlay. Same code: iPad inlines all five sections; iPhone shows the sequencer + as many as fit and defers the rest to tabs. Two layers on show - GEOMETRY (lay_split/grid/wrap/at) decides where a shown panel goes; BEHAVIOUR (the budget pass) decides WHETHER it's shown inline or behind a toggle. Presets auto-cycle (iPhone/iPad x portrait/landscape); keys 1-4 lock, 'o' opens the first deferred tab, 'c' closes. When it graduates the fake device + finger become the real viewport + backing scale.",
     "file": "acidfit.cart.png",
@@ -6334,6 +6346,21 @@
       "instrument"
     ],
     "teaches": []
+  },
+  {
+    "title": "Verlet toolkit demo",
+    "description": "A rope, a pile of bouncy balls, and a wobbly blob — all driven by runtime/physics.h (the shared verlet toolkit), not by inline math. Drag any point to grab and throw it; Z drops a ball; R resets. Same feel as the Physics playground, a fraction of the code, because the point/stick/collision verbs live in the header now.",
+    "file": "verlet.cart.png",
+    "created": "2026-07-13",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "verlet-integration",
+      "soft-body"
+    ],
+    "lineage": "Twin of the `physics` playground, but built on the shared runtime/physics.h toolkit instead of an inline engine — the proof that the extracted primitives (phys_integrate/phys_link/phys_collide/phys_bounds/phys_grab) reproduce the hand-rolled verlet loop. Where `physics` teaches the engine inline, this one shows the library in use."
   },
   {
     "title": "voice stress",

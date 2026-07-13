@@ -204,3 +204,51 @@ grabbing both expressed as inverse-mass `w = 0`) held up across rope, cloth, sof
 pseudo-solids without churn. That's the signal to consider promoting it to option #2/#3 —
 *if* a second cart wants the same code. Still no reason to bake an opaque `world_step()`
 into the runtime.
+
+---
+
+## Update (2026-07-13): the trigger fired — ~10 carts want the same code
+
+> Still a scratchpad, but the "if a second cart wants it" condition above is now
+> emphatically met, so we're acting on it (option #3, the readable `physics.h` mini-lib).
+
+The condition for promoting #1 → #3 was *"if a second cart wants the same code."* A grep says
+it isn't a second cart — it's about **ten**, each hand-rolling its own `{x,y,px,py}` point +
+integrate + distance-constraint with **zero sharing** (`cart-dupes.js` territory):
+`ragdoll`, `linerider`, `coaster`, `growballs`, `inkrunner`, `lotfill`, `calgames`, `acidrack`,
+`marble`, `orbit` — plus `physics` itself. (Honest split: some are true constraint solvers —
+ragdoll/linerider/coaster/growballs — some just integrate — marble/orbit. Not ten identical
+copies, but the reusable *core* is written over and over.)
+
+### The shape we settled on — two layers, seam only in Layer 1
+
+- **Layer 0 — transparent primitives (this is what we're building now).** A `PhysPt
+  {x,y,px,py,w,r}` the cart still *owns*, plus the proven verbs lifted near-verbatim from
+  `physics.c`: `integrate → phys_integrate`, `relax_stick → phys_link`, a springy
+  `phys_spring`, `collide → phys_collide`, `collide_seg → phys_collide_seg`, `clamp_bounds →
+  phys_bounds`, plus ragdoll's angular spring `angsp → phys_aim` and grab/throw helpers. The
+  cart keeps its own arrays and its own loop; it just stops copy-pasting the math. Stays plain
+  Verlet forever — reads end-to-end, code-first intact. The biggest-win-now dedup.
+- **Layer 1 — a managed world (sketch only, NOT built).** The `pt()/stick()/world_step()`
+  fantasy API above, but with *opaque* body handles + *model-neutral* observables
+  (pos/vel/angle — never `px/py`). Built *on* Layer 0 today via a "verlet" backend, leaving
+  room for a "rigid"/Box2D backend later that bypasses Layer 0 entirely. **The seam lives at
+  Layer 1's backend interface — Layer 0 is never replaced.** This is how the "deeper route"
+  (proper rigid bodies, à la the [dreamengine ⇄ playtime thought
+  experiment](dreamengine-playtime-convergence.md)) stays *open* without committing to it now.
+
+Three escalating ways to consume, pick per cart: raw `PhysPt` + helpers (toys, transparent) →
+Layer 1 / verlet backend (managed, portable API) → Layer 1 / rigid backend (real Box2D, same
+API, flip a flag). **Honest caveat:** the Layer-1 seam preserves the *API* across a backend
+swap, not the *feel* — Verlet is soft/jittery, Box2D is stiff with real resting contact.
+
+Struct composition keeps carts with extra per-point data clean: either a parallel array
+(`physics.c` keeps colours in `pcol[]`) or embed `PhysPt` as the first member
+(`struct { PhysPt p; int col; }` → pass `&thing.p`).
+
+**Compatibility check (why the extraction is safe):** for equal masses (`w=1`), `phys_link`
+reduces *exactly* to ragdoll's `solvesk` (both split the correction 50/50: `dx*(d-rest)/(2d)`),
+and `phys_integrate(p,0,g,damp)` is byte-identical to `steppt`. So the verb-swaps in the
+uniform-mass carts are behaviour-preserving by construction — the migration risk is only in
+carts whose *bounds* convention differs from `physics.c`'s `clamp_bounds` (e.g. ragdoll's
+softer `clpt`), which keep their bespoke bounds inline.

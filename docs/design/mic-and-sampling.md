@@ -48,16 +48,29 @@ KEYS/KIT; build-all 497/497.
 > bed beside their melodic core — the radio stations, `notebass`/`onenotebass`, `omnichord`,
 > `chordblossom`.
 
-**Next (piece 3):** the SP-1200 grit mode (12-bit / rate-reduced chops — `crush()` exists), and
-**persistence** — `save_bytes()` of the grabbed PCM + chop boundaries, the bridge that lets a
-*song/sequencer* cart load a sampled kit and arrange it (the "make a song with flute + epiano +
-chops" surface; likely finishing `pocketbox`'s sampler tracks now that `INSTR_SAMPLE` exists). Also:
-touch-drag for the chop handles (currently mouse), a real choke group for the kit (blocked on a
-per-slot note-off — the engine's one-shot notes can't cut each other, tr808's documented
-infidelity), the **doctrine call** (an ADR — does a sampler whose source is the console's OWN
-synthesis clear STATUS #21's "analog-circuit machines only" line? the argument is yes: an honest
-closed loop, not a caricature of a famous PCM box), and the determinism write-up (capture-then-freeze
-made rigorous for `.rec`/`spec()`).
+**Shipped (2026-07-13) — piece 3, the SONG arrangement (in-cart):** sample → chop → *arrange*. A
+new SONG mode: **+ADD** banks the selected chop into a **fixed 16-pad bank** (the hard limit —
+SP-404-style constraint-as-character), a **16-step grid** loops the banked pads off the tempo clock
+with a sweeping playhead, and a **seconds-used readout** shows the sample budget — *shown but not yet
+capped* (the owner chose fixed-pad-count first; the seconds cap is a later one-line change once the
+number feels right). Each take grabs into its OWN sample buffer (up to `MAXBUF`=8), so chops from
+different takes — a flute part, an epiano part, drums — coexist in one song (verified end-to-end: a
+SAW chop + a drum chop banked from two takes, sequenced together, non-silent). It lives inside the
+sampler for now to prove the UX against real chops; lifting it into its own `songbox` cart later is
+easy once persistence exists — guessing the arrangement UX in the abstract is not. Nothing persists
+across a reload yet.
+
+**Next (piece 4):** the SP-1200 grit mode (12-bit / rate-reduced chops — `crush()` exists; crushing
+a *sampled buffer* is the whole SP aesthetic, and it's why sampling our own drums isn't redundant —
+the value is the mangling, not the capture), and **persistence** — `save_bytes()` of the grabbed PCM
++ chop boundaries + the song grid, so a session survives a reload and a song can be lifted into its
+own cart. Also: an optional **seconds CAP** (flip the readout into a real budget), touch-drag for the
+chop handles (currently mouse), a real choke group for the kit (blocked on a per-slot note-off — the
+engine's one-shot notes can't cut each other, tr808's documented infidelity), the **doctrine call**
+(an ADR — does a sampler whose source is the console's OWN synthesis clear STATUS #21's
+"analog-circuit machines only" line? the argument is yes: an honest closed loop, not a caricature of
+a famous PCM box), and the determinism write-up (capture-then-freeze made rigorous for
+`.rec`/`spec()`).
 
 ## Why this doc exists
 

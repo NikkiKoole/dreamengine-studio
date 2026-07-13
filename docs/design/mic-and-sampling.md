@@ -61,12 +61,16 @@ easy once persistence exists — guessing the arrangement UX in the abstract is 
 across a reload yet.
 
 **Shipped (2026-07-13) — the GRIT mode:** a whole-machine lo-fi character (SP-1200 lineage) — a GRIT
-button in the SONG view cycles CLEAN → 12BIT → 8BIT → CRUSH, applied via `instrument_crush` to every
-chop-playback voice (KEYS, KIT pads, SONG pads). The capture stays CLEAN; grit is on *playback*, so a
-chop can be re-gritted after the fact — which is the whole reason sampling our own drums isn't
-redundant (the value is the mangling, not the capture). Set-and-hold (applied on change / on voice
-rebind + commit, never per-frame — `lint-fx-frame` clean). Verified: same drum performance rendered
-CLEAN vs CRUSH diverges only in the grit-on playback region (deterministic prefix identical).
+button in the SONG view cycles CLEAN → 12BIT → 8BIT → CRUSH. It's the **master `crush()`**, gated by
+state: ON while auditioning/arranging (EDIT/SONG), OFF while recording the source (PLAY/REC) — so the
+CAPTURE stays clean and grit is a *playback* mangle you can dial in after the fact (the reason
+sampling our own drums isn't redundant — the value is the mangling, not the capture). Not per-slot
+`instrument_crush`: there are only 7 aux FX buses (`SOUND_FX_BUSES`), far fewer than the chop voices,
+so per-slot crush silently drops (the first cut of this shipped as a no-op — caught by adding a
+spectral-centroid readout to `wav-envelope`, see below). Set-and-hold (applied on grit toggle / state
+change, never per-frame — `lint-fx-frame` clean). Verified with the new centroid: the SONG-playback
+region drops CLEAN 14.8 kHz → CRUSH 4.1 kHz, while a take recorded *with grit set* still captures
+clean (15.9 kHz) — the state gate holds.
 
 **Next (piece 5):** **persistence** — `save_bytes()` of the grabbed PCM
 + chop boundaries + the song grid, so a session survives a reload and a song can be lifted into its

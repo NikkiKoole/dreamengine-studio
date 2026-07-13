@@ -117,8 +117,8 @@ static const char *SMODE_SH[] = { "NORM",   "REV",     "LOOP", "PONG" };      //
 // after the fact (the whole reason to sample your own sound). SET-AND-HOLD — apply only on change.
 static int grit = 0;
 static const char  *GRIT_NM[] = { "CLEAN", "12BIT", "8BIT", "CRUSH" };
-static const float  GRIT_B[]  = {  16.0f,   12.0f,   8.0f,   5.0f  };   // bit depth (16 ≈ clean)
-static const float  GRIT_R[]  = {   1.0f,    2.0f,   4.0f,  10.0f  };   // sample-rate reduction
+static const float  GRIT_B[]  = {  16.0f,   12.0f,   8.0f,   4.0f  };   // bit depth (16 ≈ clean)
+static const float  GRIT_R[]  = {   1.0f,    2.0f,   4.0f,   8.0f  };   // sample-rate reduction (higher = darker/aliased)
 
 static int   cur_buf = 0, take_ct = 0;    // current take's sample buffer; takes recorded (rotates the buffer)
 
@@ -141,11 +141,14 @@ static void apply_mode(void) {                            // push the playback m
     instrument_sample_mode(KEYS_S, smode);
     for (int i = 0; i < nsl(); i++) instrument_sample_mode(KIT0 + i, smode);
 }
-static void crush_voice(int slot) { instrument_crush(slot, GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0.0f); }
-static void apply_grit(void) {                            // (re)crush every chop-playback voice — on CHANGE only
-    crush_voice(KEYS_S);
-    for (int i = 0; i < nsl(); i++)   crush_voice(KIT0 + i);
-    for (int p = 0; p < song_n; p++)  crush_voice(SONG_V0 + p);
+// Grit is the MASTER crush (SP-1200 = the whole output is lo-fi), gated by state so the CAPTURE
+// stays clean: ON while auditioning/arranging (EDIT/SONG), OFF while recording the source
+// (PLAY/REC) — else record_grab would bake the crush into the buffer. Master bus, not per-slot:
+// there are only 7 aux buses (SOUND_FX_BUSES) — far fewer than our chop voices — so per-slot crush
+// silently drops. SET-AND-HOLD: apply_grit() fires only on a grit toggle or a state change.
+static void apply_grit(void) {
+    int on = (state == ST_EDIT || state == ST_SONG) && grit > 0;
+    crush(GRIT_B[grit], GRIT_R[grit], on ? 1.0f : 0.0f);
 }
 
 static void rebind(void) {   // (re)configure every slice's voice + the KEYS voice's region
@@ -159,7 +162,6 @@ static void rebind(void) {   // (re)configure every slice's voice + the KEYS voi
     instrument_sample(KEYS_S, cur_buf, ROOT);             // BIND the KEYS voice to the buffer (not just its region — else it's silent)
     instrument_sample_region(KEYS_S, bnd[sel], bnd[sel + 1]);
     apply_mode();                                         // re-slicing keeps the chosen mode
-    apply_grit();                                         // ...and the chosen grit (instrument() reset the voices)
 }
 
 static void detect_slices(void) {   // transient auto-slice: an attack is a sharp RISE in energy (positive
@@ -329,7 +331,6 @@ static void commit_chop(void) {                  // add the SELECTED chop of the
     if (song_n >= SONGPADS || rec_len <= 0) return;
     song[song_n] = (Chop){ cur_buf, bnd[sel], bnd[sel + 1], (bnd[sel + 1] - bnd[sel]) * rec_secs };
     song_bind(song_n);
-    crush_voice(SONG_V0 + song_n);                   // inherit the current grit
     song_n++;
 }
 static int song_rowh(void) { int n = song_n < 1 ? 1 : song_n, h = SG_H / n; if (h > 20) h = 20; return h < 7 ? 7 : h; }
@@ -398,6 +399,8 @@ static void song_draw(void) {
 }
 
 void update(void) {
+    static int prev_state = -1;                  // grit follows state (crush on in EDIT/SONG, off in PLAY/REC)
+    if (state != prev_state) { prev_state = state; apply_grit(); }
     if (state == ST_SONG) { song_update(); return; }
     if (keyp('[') || keyp(']')) { eng = (eng + (keyp(']') ? 1 : NALL - 1)) % NALL; if (state != ST_EDIT) apply_src(); }
 

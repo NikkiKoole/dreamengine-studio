@@ -3034,7 +3034,7 @@
   },
   {
     "title": "Jelly",
-    "description": "Four wobbly jellies flop down and stack in a squishy pile — each a pressurized soft-body blob (a verlet rim ring that preserves its area, runtime/physics.h) that collides with the others and wears a texture fanned out with tritex, so the printed face (or checkerboard) deforms as the blob squashes against its neighbours. Grab any jelly to pull it out of the heap and drop it back on top; let go and the pressure re-rounds it. R resets. The checker one makes the squish obvious; the faces make it cute.",
+    "description": "A heap of wobbly jellies — round ones and rounded-rectangle ones — flop down and stack, squashing against each other and springing back. Each is a pressurized soft-body (a verlet rim ring that preserves its area, runtime/physics.h) wearing a texture fanned out with tritex, so the printed face or checkerboard deforms as the blob does. They collide as solid bodies (SAT), so one can rest on another instead of sinking through. Grab any jelly to pull it out of the pile and drop it back on top; let go and pressure re-rounds it. R resets.",
     "file": "jelly.cart.png",
     "created": "2026-07-13",
     "kind": [
@@ -3046,7 +3046,7 @@
       "soft-body",
       "procedural-mesh"
     ],
-    "lineage": "Soft-body twin of the `tentacle` skinning spike: where tentacle skins a verlet CHAIN, jelly skins a PRESSURIZED verlet ring with a radial tritex fan. The ring holds its shape by gas pressure (area preservation) — not rigid spokes, which let a distance-only blob fold and never reform — so you can squash it flat and it re-rounds. Blobs collide rim-point vs rim-edge (the physics.c box-stacking trick) so a heap of them stacks. Composes runtime/physics.h + tritex, no new engine code."
+    "lineage": "Soft-body twin of the `tentacle` skinning spike: skins a PRESSURIZED verlet ring with a radial tritex fan. Two rest shapes — a circle and a rounded rectangle (superellipse) — both held by gas pressure (area preservation) + per-edge rim links, so they squash and re-round. Blobs collide via SAT point-vs-polygon (max signed distance), which ejects even a deeply-penetrated point — the fix for blobs sinking into each other. Composes runtime/physics.h + tritex, no new engine code."
   },
   {
     "title": "jingle radio",
@@ -4414,6 +4414,22 @@
       "analog-voice-modeling"
     ],
     "lineage": "INSTR_PIANO showcase and tuning rig; ported from navkit's StifKarp engine. Novel: exposes the dispersion allpass chain that adds inharmonicity (stretched upper partials) to Karplus-Strong, with six presets spanning grand piano through celesta as acceptance tests."
+  },
+  {
+    "title": "piano roll",
+    "description": "A scrubbable piano roll: play notes in on the keybed, or draw & reshape them with the mouse. Time runs left–right, pitch runs bottom–up. Notes live in BEATS, so tempo and scrubbing are free. Playback is stateless: every frame each note asks 'should I be sounding at the playhead right now?' — so you can drag the playhead anywhere on the ruler and instantly hear the composition at that point, no need to replay from the top. Three ways in, one note list: RECORD live off the keybed, CLICK an empty cell to place, or DRAG a note's body (move) / edges (retime) to reshape it. keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · drag the top RULER: scrub (you hear it) · left-click empty: place note (drag out to size) · drag note body: move · drag note edge: resize · right-click: delete · wheel / ↑↓: scroll pitch · ←→: scroll time · [ ]: tempo · X: clear all",
+    "file": "pianoroll.cart.png",
+    "created": "2026-07-13",
+    "kind": [
+      "instrument",
+      "toy"
+    ],
+    "teaches": [
+      "sequencing",
+      "mouse-editing",
+      "timing"
+    ],
+    "lineage": "sampler"
   },
   {
     "title": "pinball",

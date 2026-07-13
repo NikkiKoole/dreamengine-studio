@@ -278,9 +278,18 @@ static void cb_play(void) {
         case PM_SLOP:
             for (int k = 0; k < nVoiced; k++) schedule_hit(k * strumMs + cb_rand(18), voiced[k], in, masterV, 900);
             break;
-        case PM_HARP:
-            for (int k = 0; k < nStr; k++) schedule_hit(k * 12, strNote[k], SL_HARP, 4, 260);
+        case PM_HARP: {
+            // a graceful upward gliss, not a machine-gun burst: the OPTIONS knob
+            // rolls it (strumMs 8..60 -> ~30..82ms/string, always airier than a
+            // strum), with a gentle taper so the low strings ring and the upper
+            // ones stay light — like a real harp sweep.
+            int harpMs = strumMs + 22;
+            for (int k = 0; k < nStr; k++) {
+                int v = mid(1, 5 - k / 12, 5);
+                schedule_hit(k * harpMs, strNote[k], SL_HARP, v, 260);
+            }
             break;
+        }
         case PM_ARP:
         case PM_PATTERN:
             arpIdx = 0;      // beat-clock driven in update(); just (re)arm here
@@ -423,7 +432,7 @@ static void update_chord(void) {
     // PIANO + HARP model selectors — tap to cycle through the MODEL[] shelf
     if (tapp(166, 15, 72, 13)) { engine    = (engine    + 1) % NENG; kSound = (engine + 0.5f) / NENG; }
     if (tapp(242, 15, 72, 13)) { harpModel = (harpModel + 1) % NENG; }
-    if (tapp(6,   138, 90,  12)) perfMode = (perfMode + 1) % NPERF;   // cycle perform mode
+    if (tapp(6,   138, 90,  12)) { perfMode = (perfMode + 1) % NPERF; kPerform = (perfMode + 0.5f) / NPERF; }  // cycle perform mode (keep the MIX PERFORM knob in sync so it doesn't reset on tab-in)
     if (tapp(100, 138, 100, 12)) retrig   = !retrig;                  // RETRIG toggle
 
     // sonic-strings plate — every finger strums its own glissando

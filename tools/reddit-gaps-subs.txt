@@ -1,0 +1,13 @@
+# reddit-gaps drip rotation — one subreddit per line (# = comment).
+# `node tools/reddit-gaps.js --drip` fetches whichever of these has the STALEST cache,
+# so a cron/launchd drip round-robins the list without ever bursting Reddit's rate limit.
+# Add a sub = add a line. Keep these MUSIC subs: the tool's wish-patterns + topic taxonomy
+# are music-tuned (game/procgen subs need a game-tuned config first — see demand-discovery.md).
+
+ipadmusic
+synthesizers
+iosmusic
+pocketoperators
+AudioProductionDeals
+WeAreTheMusicMakers
+edmproduction

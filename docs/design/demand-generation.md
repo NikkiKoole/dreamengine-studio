@@ -40,6 +40,13 @@ The ordering is the point: we spent a week polishing #6 (cheap, worth it, done),
 downloads come from #1–#4, which are mostly **execution** (make clips, show up) plus a little
 tooling the repo has scoped but not built.
 
+**A rung *below* #1: knowing what to build.** Lever #1 assumes you've already made the delightful
+thing. [`demand-discovery.md`](demand-discovery.md) (`tools/reddit-gaps.js`) is the tool that feeds
+it — it mines a tribe's public RSS for what people keep asking for and nobody's built, cross-
+referenced against what a humble cart could ship, so a new module starts from real unmet demand
+rather than a guess. It's the *discovery* sibling of this doc's capture (`aso-*`) and generation
+(`leads.js`) tools.
+
 ## The honest ceiling
 
 No tool "grabs the world" for a solo dev with a niche music toy. But the

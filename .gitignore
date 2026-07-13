@@ -34,3 +34,6 @@ site/
 
 # App Store Connect API keys — never commit
 *.p8
+
+# demand-discovery scraped-RSS cache (reddit-gaps.js) — don't retain scraped data in the repo
+tools/reddit-gaps-cache/

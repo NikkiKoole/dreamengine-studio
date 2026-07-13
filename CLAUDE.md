@@ -250,6 +250,17 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              (`draft` — no invented prose, per store-agents' rule), and tracks outreach (`track add`).
                              Ledger: tools/leads-ledger.json (committed, hand-editable; seeded from tinyjam-marketing §3.9).
                              Design: docs/design/demand-generation.md (lever #3 "showing up in the tribe")
+             reddit-gaps.js  demand DISCOVERY (what to BUILD next; the third demand tool after aso-* capture +
+                             leads.js generation): mine a tribe's public RSS (listing + `search.rss` wish-probes —
+                             the API is approval-gated + broken, RSS is the open front door) → wish-mine (regex
+                             patterns) → cluster by topic → cross-reference the cart shelf → rank GAPS (high
+                             demand × low coverage × on-grain). No score in RSS → ranks by CLUSTER SIZE. No
+                             auth/deps; polite+cached; `--check` self-test; `--drip` = fetch the stalest sub
+                             (for a cron/launchd drip); `--ingest <file>` = paste-bridge for browser-saved RSS.
+                             Design: docs/design/demand-discovery.md
+             reddit-gaps-drip.sh  the scheduled-drip RUNNER for reddit-gaps (loaded by the macOS LaunchAgent
+                             com.dreamengine.reddit-gaps-drip): resolves node under launchd's bare env + fires
+                             `reddit-gaps.js --drip` (stalest sub in reddit-gaps-subs.txt) every 6h. `zsh tools/reddit-gaps-drip.sh` to fire once
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the

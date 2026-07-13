@@ -159,7 +159,7 @@ editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.s
            viewer, outline.js, sprite-editor.js, map-editor.js, studioDocs.js = single source for
            API docs, settings.js, theme.js), public/ (fonts, dos_8x8.png, palettes/pico32.json),
            vite.config.js (serveDocs plugin → Docs tab + engine-source viewer), index.html
-Makefile   `make` kills stale processes + starts editor (targets: make / start / install / help)
+Makefile   `make` kills stale processes + starts editor, +floorplan `--serve` fetch-bridge if a token is set (targets: make / start / serve / install / help)
 tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read the file header for
            the full contract:
              make-cart.js    build/bake .cart.png from tools/carts/<name>.c; also a lib for play.js

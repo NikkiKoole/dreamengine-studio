@@ -60,9 +60,15 @@ sampler for now to prove the UX against real chops; lifting it into its own `son
 easy once persistence exists — guessing the arrangement UX in the abstract is not. Nothing persists
 across a reload yet.
 
-**Next (piece 4):** the SP-1200 grit mode (12-bit / rate-reduced chops — `crush()` exists; crushing
-a *sampled buffer* is the whole SP aesthetic, and it's why sampling our own drums isn't redundant —
-the value is the mangling, not the capture), and **persistence** — `save_bytes()` of the grabbed PCM
+**Shipped (2026-07-13) — the GRIT mode:** a whole-machine lo-fi character (SP-1200 lineage) — a GRIT
+button in the SONG view cycles CLEAN → 12BIT → 8BIT → CRUSH, applied via `instrument_crush` to every
+chop-playback voice (KEYS, KIT pads, SONG pads). The capture stays CLEAN; grit is on *playback*, so a
+chop can be re-gritted after the fact — which is the whole reason sampling our own drums isn't
+redundant (the value is the mangling, not the capture). Set-and-hold (applied on change / on voice
+rebind + commit, never per-frame — `lint-fx-frame` clean). Verified: same drum performance rendered
+CLEAN vs CRUSH diverges only in the grit-on playback region (deterministic prefix identical).
+
+**Next (piece 5):** **persistence** — `save_bytes()` of the grabbed PCM
 + chop boundaries + the song grid, so a session survives a reload and a song can be lifted into its
 own cart. Also: an optional **seconds CAP** (flip the readout into a real budget), touch-drag for the
 chop handles (currently mouse), a real choke group for the kit (blocked on a per-slot note-off — the

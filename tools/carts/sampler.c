@@ -15,8 +15,8 @@
   "lineage": "The cart on the REAL PCM sampler (engine: record_arm/record_grab capture ring + INSTR_SAMPLE + instrument_sample_region + sample_peaks/record_peaks, mic-and-sampling.md). Records the console's OWN output; slices it at the note-on times captured while playing (keybed_on_note - exact, since we played it in), editable by hand, with a signal detector as fallback for un-played audio; plays two ways — KEYS (one slice chromatically across the keybed) or KIT (each slice on its own pad at original pitch). Ported in spirit from navkit's DAW sampler.",
   "description": {
     "summary": "Record what you play, chop it, and build a SONG out of the chops. Hit REC and play a synth (SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS) or a DRUM KIT (ELECTRO/ACOUSTIC) — the ENGINE button picks the source. STOP auto-slices the recording at the moments you triggered notes. Audition the chops, +ADD the ones you like to a 16-pad bank, then ARRANGE them on a 16-step grid that loops — record more takes (a flute part, an epiano part, drums) and they all pool into one song. The source is the console's own sound, no mic.",
-    "detail": "A full loop: sample → chop → arrange. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. Two play modes: KEYS pitches the SELECTED slice across the keybed (the melodic sampler); KIT is a pad per slice at original pitch (the SP-404 break-chopper). MODE (or V) cycles NORMAL/REVERSE/LOOP/PINGPONG. ARRANGE opens the SONG: +ADD banks the selected chop into a fixed 16-pad bank; each take grabs into its OWN sample buffer (up to 8) so chops from different takes coexist; a 16-step grid loops them off the tempo clock with a sweeping playhead. A seconds-used readout shows the sample budget (shown, not yet capped — SP-404 style). Nothing persists across a reload yet.",
-    "controls": "REC/STOP (or R) — record a take. ENGINE (or [ / ]) picks the source: a synth (keybed) or a DRUM KIT (pads). Drum source: A S D F.. hit the pads (or touch). EDIT: click a slice to select+hear it; drag markers to move, onto a neighbour to delete; KEYS|KIT (M), AUTO (re-slice), SPLIT, MODE (fwd/rev/loop/pingpong), +ADD (bank the selected chop), ARRANGE (open the song), RE-REC. EDIT/KEYS: A S D.. play the selected slice pitched; EDIT/KIT: the letters fire the chops. SONG: tap grid cells to program the loop; PLAY/STOP, -/+ tempo, + TAKE (record another), EDIT (back to the take), CLEAR."
+    "detail": "A full loop: sample → chop → arrange. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. Two play modes: KEYS pitches the SELECTED slice across the keybed (the melodic sampler); KIT is a pad per slice at original pitch (the SP-404 break-chopper). MODE (or V) cycles NORMAL/REVERSE/LOOP/PINGPONG. ARRANGE opens the SONG: +ADD banks the selected chop into a fixed 16-pad bank; each take grabs into its OWN sample buffer (up to 8) so chops from different takes coexist; a 16-step grid loops them off the tempo clock with a sweeping playhead. A seconds-used readout shows the sample budget (shown, not yet capped — SP-404 style). A GRIT button crushes the whole song lo-fi — CLEAN/12BIT/8BIT/CRUSH (SP-1200 bit+rate reduction applied to every chop voice; the capture stays clean, so you re-grit on playback). Nothing persists across a reload yet.",
+    "controls": "REC/STOP (or R) — record a take. ENGINE (or [ / ]) picks the source: a synth (keybed) or a DRUM KIT (pads). Drum source: A S D F.. hit the pads (or touch). EDIT: click a slice to select+hear it; drag markers to move, onto a neighbour to delete; KEYS|KIT (M), AUTO (re-slice), SPLIT, MODE (fwd/rev/loop/pingpong), +ADD (bank the selected chop), ARRANGE (open the song), RE-REC. EDIT/KEYS: A S D.. play the selected slice pitched; EDIT/KIT: the letters fire the chops. SONG: tap grid cells to program the loop; PLAY/STOP, -/+ tempo, + TAKE (record another), GRIT (CLEAN/12BIT/8BIT/CRUSH lo-fi), EDIT (back to the take), CLEAR."
   }
 }
 de:meta */
@@ -112,6 +112,14 @@ static int smode = SAMPLE_NORMAL;                         // playback mode (NORM
 static const char *SMODE_NM[] = { "NORMAL", "REVERSE", "LOOP", "PINGPONG" };
 static const char *SMODE_SH[] = { "NORM",   "REV",     "LOOP", "PONG" };      // short (button)
 
+// GRIT — a whole-machine lo-fi character (SP-1200 lineage): bit + sample-rate crush on every
+// chop-playback voice. Capture stays clean; you crush on PLAYBACK, so a chop can be re-gritted
+// after the fact (the whole reason to sample your own sound). SET-AND-HOLD — apply only on change.
+static int grit = 0;
+static const char  *GRIT_NM[] = { "CLEAN", "12BIT", "8BIT", "CRUSH" };
+static const float  GRIT_B[]  = {  16.0f,   12.0f,   8.0f,   5.0f  };   // bit depth (16 ≈ clean)
+static const float  GRIT_R[]  = {   1.0f,    2.0f,   4.0f,  10.0f  };   // sample-rate reduction
+
 static int   cur_buf = 0, take_ct = 0;    // current take's sample buffer; takes recorded (rotates the buffer)
 
 // ── the SONG: a bank of committed chops + a step grid ──
@@ -133,6 +141,12 @@ static void apply_mode(void) {                            // push the playback m
     instrument_sample_mode(KEYS_S, smode);
     for (int i = 0; i < nsl(); i++) instrument_sample_mode(KIT0 + i, smode);
 }
+static void crush_voice(int slot) { instrument_crush(slot, GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0.0f); }
+static void apply_grit(void) {                            // (re)crush every chop-playback voice — on CHANGE only
+    crush_voice(KEYS_S);
+    for (int i = 0; i < nsl(); i++)   crush_voice(KIT0 + i);
+    for (int p = 0; p < song_n; p++)  crush_voice(SONG_V0 + p);
+}
 
 static void rebind(void) {   // (re)configure every slice's voice + the KEYS voice's region
     int n = nsl();
@@ -145,6 +159,7 @@ static void rebind(void) {   // (re)configure every slice's voice + the KEYS voi
     instrument_sample(KEYS_S, cur_buf, ROOT);             // BIND the KEYS voice to the buffer (not just its region — else it's silent)
     instrument_sample_region(KEYS_S, bnd[sel], bnd[sel + 1]);
     apply_mode();                                         // re-slicing keeps the chosen mode
+    apply_grit();                                         // ...and the chosen grit (instrument() reset the voices)
 }
 
 static void detect_slices(void) {   // transient auto-slice: an attack is a sharp RISE in energy (positive
@@ -314,6 +329,7 @@ static void commit_chop(void) {                  // add the SELECTED chop of the
     if (song_n >= SONGPADS || rec_len <= 0) return;
     song[song_n] = (Chop){ cur_buf, bnd[sel], bnd[sel + 1], (bnd[sel + 1] - bnd[sel]) * rec_secs };
     song_bind(song_n);
+    crush_voice(SONG_V0 + song_n);                   // inherit the current grit
     song_n++;
 }
 static int song_rowh(void) { int n = song_n < 1 ? 1 : song_n, h = SG_H / n; if (h > 20) h = 20; return h < 7 ? 7 : h; }
@@ -349,8 +365,8 @@ static void song_draw(void) {
     cls(CLR_BLACK);
     char b[64];
     print("SONG", 4, 2, CLR_WHITE);
-    snprintf(b, sizeof b, "%.1fs  %d/%d pads  %dbpm", song_secs(), song_n, SONGPADS, song_bpm);
-    print(b, SCREEN_W - text_width(b) - 4, 2, CLR_LIGHT_GREY);   // the seconds budget (shown, not yet capped)
+    snprintf(b, sizeof b, "%.1fs  %d/%d pads  %dbpm  %s", song_secs(), song_n, SONGPADS, song_bpm, GRIT_NM[grit]);
+    print(b, SCREEN_W - text_width(b) - 4, 2, CLR_LIGHT_GREY);   // seconds budget (shown, not capped) + grit
 
     int rh = song_rowh(), x0 = SG_X + SG_LBL, cw = (SG_W - SG_LBL) / SONGSTEPS;
     if (song_n == 0) print("add chops in EDIT (+ADD), then arrange them here", 4, SG_Y + 20, CLR_MEDIUM_GREY);
@@ -373,7 +389,8 @@ static void song_draw(void) {
     if (ui_button(4,   y, 50, 18, song_play ? "STOP" : "PLAY")) song_play ^= 1;
     if (ui_button(58,  y, 22, 18, "-") && song_bpm > 60)  song_bpm -= 5;
     if (ui_button(82,  y, 22, 18, "+") && song_bpm < 240) song_bpm += 5;
-    if (ui_button(108, y, 62, 18, "+ TAKE")) { state = ST_PLAY; apply_src(); point_keybed(SYN); }
+    if (ui_button(108, y, 54, 18, "+ TAKE")) { state = ST_PLAY; apply_src(); point_keybed(SYN); }
+    if (ui_button(166, y, 50, 18, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); }   // whole-song lo-fi
     if (rec_len > 0 && ui_button(SCREEN_W - 96, y, 44, 18, "EDIT")) state = ST_EDIT;
     if (ui_button(SCREEN_W - 48, y, 44, 18, "CLEAR"))
         for (int p = 0; p < SONGPADS; p++) for (int s = 0; s < SONGSTEPS; s++) song_seq[p][s] = 0;
@@ -472,8 +489,8 @@ void draw(void) {
 
     if (state == ST_PLAY)      snprintf(buf, sizeof buf, "%s: press REC and %s", src_name(eng), IS_DRUMS(eng) ? "hit the pads" : "play");
     else if (state == ST_REC)  snprintf(buf, sizeof buf, "recording... %.1fs  (STOP to keep)", now() - rec_t0);
-    else                       snprintf(buf, sizeof buf, "%d chops · %s · %s · %d in song", nsl(), SMODE_NM[smode],
-                                        mode == MODE_KEYS ? "keys pitch" : "A S D.. pads", song_n);
+    else                       snprintf(buf, sizeof buf, "%d chops · %s · %d song · %s", nsl(), SMODE_NM[smode],
+                                        song_n, GRIT_NM[grit]);
     print(buf, 4, 13, state == ST_REC ? CLR_RED : CLR_LIGHT_GREY);
 
     draw_panel();

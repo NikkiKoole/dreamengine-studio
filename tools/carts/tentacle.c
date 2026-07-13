@@ -13,7 +13,7 @@
     "procedural-mesh"
   ],
   "lineage": "Spike for the bone-driven textured-mesh (skinning) capability: composes the shared runtime/physics.h verlet toolkit (the BONES) with the engine's tritex() affine textured triangle (the SKIN) — the 'bodies ARE bones' pattern the deform/puppet experiments kept reaching for, at its smallest. No new engine code.",
-  "description": "Four scaly tentacles sway in the current — each a chain of verlet bones (runtime/physics.h) wearing a skin of affine textured triangles (tritex) stretched between the bones, so the texture bends and shears with the motion. Grab any tentacle and fling it; it whips and settles back into the drift. R resets. The point of the spike: physics points make the skeleton, tritex makes the deformable skin — that's all skinning is."
+  "description": "Five tentacles sway in the current, each in a different skin — scales, candy stripes, a checkerboard — so you can watch the affine texture warp as they bend. Each is a chain of verlet bones (runtime/physics.h) wearing textured triangles (tritex) stretched between the bones; the skin bends and shears with the motion. Grab any tentacle and fling it; it whips and settles back into the drift. R resets. The point of the spike: physics points make the skeleton, tritex makes the deformable skin — that's all skinning is."
 }
 de:meta */
 #include "studio.h"
@@ -24,7 +24,7 @@ de:meta */
 // Move the bones (gravity, a swaying current, your finger) and the skin deforms with
 // them. Mouse: grab+fling a tentacle. R: reset.
 
-#define NT      4          // tentacles
+#define NT      5          // tentacles (one per skin)
 #define NB      9          // bones per tentacle
 #define REST   12.0f       // bone spacing (also the segment length)
 #define BASE_W 13.0f       // ribbon width at the anchored base
@@ -43,8 +43,8 @@ static float  gw, pmx, pmy;
 static float vlen(float x, float y) { return fsqrt(x * x + y * y); }
 
 static void reset_scene(void) {
-    static const int SKINS[] = { 0, 1, 2, 0 };
-    static const int TIPS[]  = { 11, 14, 12, 11 };
+    static const int SKINS[] = { 0, 1, 2, 3, 4 };        // scales ×3, vstripes, checker
+    static const int TIPS[]  = { 11, 14, 12, 8, 6 };     // matching cap colours
     for (int t = 0; t < NT; t++) {
         float bx = SCREEN_W * (t + 0.5f) / NT;              // spread across the top
         for (int b = 0; b < NB; b++)

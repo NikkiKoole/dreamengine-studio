@@ -21,10 +21,30 @@ function scales(base, scale, hi) {
   return flat(g)                                 // builder wants a flat 256-array, not the 2D grid
 }
 
+// candy VERTICAL STRIPES (4px) — the stripes run down the tentacle and shear as it twists
+function vstripes(a, b) {
+  const g = blank(16, 16, a)
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++)
+      if ((x >> 2) & 1) pixel(g, x, y, b)
+  return flat(g)
+}
+
+// CHECKERBOARD (4px cells) — the clearest read of the affine texture warp as it bends
+function checker(a, b) {
+  const g = blank(16, 16, a)
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++)
+      if (((x >> 2) + (y >> 2)) & 1) pixel(g, x, y, b)
+  return flat(g)
+}
+
 module.exports = {
   sprites: {
     0: scales(3, 11, 10),   // sea-green  (dark-green base, green scale, yellow glint)
     1: scales(2, 14, 15),   // magenta    (dark-purple base, pink scale, peach glint)
     2: scales(1, 12, 6),    // deep-blue  (dark-blue base, blue scale, light-grey glint)
+    3: vstripes(7, 8),      // white / red candy stripes
+    4: checker(7, 5),       // white / dark-grey checkerboard
   },
 }

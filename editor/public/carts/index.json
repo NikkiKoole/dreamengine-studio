@@ -5900,7 +5900,7 @@
   },
   {
     "title": "Tentacle",
-    "description": "Four scaly tentacles sway in the current — each a chain of verlet bones (runtime/physics.h) wearing a skin of affine textured triangles (tritex) stretched between the bones, so the texture bends and shears with the motion. Grab any tentacle and fling it; it whips and settles back into the drift. R resets. The point of the spike: physics points make the skeleton, tritex makes the deformable skin — that's all skinning is.",
+    "description": "Five tentacles sway in the current, each in a different skin — scales, candy stripes, a checkerboard — so you can watch the affine texture warp as they bend. Each is a chain of verlet bones (runtime/physics.h) wearing textured triangles (tritex) stretched between the bones; the skin bends and shears with the motion. Grab any tentacle and fling it; it whips and settles back into the drift. R resets. The point of the spike: physics points make the skeleton, tritex makes the deformable skin — that's all skinning is.",
     "file": "tentacle.cart.png",
     "created": "2026-07-13",
     "kind": [

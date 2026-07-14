@@ -15,7 +15,14 @@
     "summary": "A functioning TB-303 acid machine on the device-face skeleton, at half resolution (160x100 x4) in the candy-toy skin — the first machine of a candy acid rack. The acid VOICE is the shared runtime/acid303.h, not a private copy.",
     "detail": "Increment 1 of a candy acidrack, built to device-face-paradigm.md's acidface sketch (five zones) at 160x100. The sound is runtime/acid303.h (the extracted TB-303 voice shared with tb303/acidrack — FILTER_DIODE held voice, non-retriggering slide, accent kick, two-decay, soft attack, tracking, sub-osc), so it can't drift from the others. (1) nav: play/stop, NEW line, bpm, heart. (2) always-live knobs CUT/RES/ENV/DEC/ACC bound straight to the shared voice params. (3) display: the piano-roll of the 16-step line with a running playhead, flanked by soft-keys. (4) the 16-step row: tap toggles a step (accent shows orange). (5) a one-octave keybed: tap a key to set the last-touched step's pitch and audition it. Press NEW for a fresh minor-pentatonic acid walk.",
     "controls": "PLAY runs it. Turn CUT/RES/ENV/DEC/ACC (drag or wheel) — CUT+RES live is the acid squelch. Tap step cells to toggle notes. Tap a keybed key to set the last step's pitch + hear it. NEW = a fresh random line."
-  }
+  },
+  "todo": [
+    "SOUL: the display is a functional piano-roll but has no MASCOT — the slime creature that made the tinyface/facemock mockups sing. Put a mascot bopping to the beat on the screen (the paradigm's 'the screen carries character' §1f); make the piano-roll a FLOW you tap to instead of the default.",
+    "wire the soft-keys (SEQ/PAT/FX/SCP) — they're decorative; make them switch display flows (mascot / roll / mix / scope), or trim to the ones that do something.",
+    "make it a RACK: tab in a DRUM face (drumkit.h) + optional 2nd bass, nav tabs = real FACES you focus between (paradigm-correct: nav=faces, soft-keys=flows), all sharing acid303.h/drumkit.h + one transport.",
+    "editable accent/slide: the step row only toggles on/off; NEW randomizes acc/slide but you can't set them per-step (lane-strip or long-press).",
+    "optional DEEP page exposing acid303.h's Devil Fish knobs (SLDT/ADEC/ATK/TRK/SUB) — the depth is in the voice, just not surfaced here."
+  ]
 }
 de:meta */
 #include "studio.h"

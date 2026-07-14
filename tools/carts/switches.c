@@ -38,23 +38,29 @@ static void plabel(const char *s, int cx, int y, int col) {
     print(s, cx - text_width(s) / 2, y, col);
 }
 
-// a beveled pushbutton cap. pressed shifts down + darkens; `face` is the cap
-// colour (caller picks it per state); `glow` adds a soft lit halo; `lab` = label colour.
+// the Win95 double-bevel chisel: highlight on TOP+LEFT, shadow on BOTTOM+RIGHT,
+// two tones deep, black on the outer bottom-right. Draw highlight first so the
+// shadow wraps the shared corners (the recognizable look). tl/br = the two edge
+// colours (outer, inner); inverting them sinks the control.
+static void chisel(int x, int y, int w, int h, int tl_out, int tl_in, int br_in, int br_out) {
+    line(x, y, x + w - 1, y, tl_out); line(x, y, x, y + h - 1, tl_out);              // outer TL
+    line(x, y + h - 1, x + w - 1, y + h - 1, br_out); line(x + w - 1, y, x + w - 1, y + h - 1, br_out); // outer BR
+    line(x + 1, y + 1, x + w - 2, y + 1, tl_in); line(x + 1, y + 1, x + 1, y + h - 2, tl_in);           // inner TL
+    line(x + 1, y + h - 2, x + w - 2, y + h - 2, br_in); line(x + w - 2, y + 1, x + w - 2, y + h - 2, br_in); // inner BR
+}
+
+// a Win95-style pushbutton. RAISED normally, SUNKEN (inverted bevel + content
+// nudged down-right) when pressed/engaged; `face` is the cap colour (caller picks
+// it per state); `glow` adds a soft lit halo for LED-style buttons; `lab` = label.
 static void draw_btn(int x, int y, int w, int h, const char *label,
                      int pressed, int face, int lab, int hot, int glow) {
-    blend(BLEND_AVG);
-    rrectfill(x + 1, y + 3, w, h, 3, CLR_BLACK);               // drop shadow
-    if (glow) rrectfill(x - 2, y - 2, w + 4, h + 4, 5, face);  // lit halo
-    blend_reset();
-    int dy = pressed ? 2 : 0;
-    rrectfill(x, y + dy, w, h, 3, pressed ? CLR_BROWNISH_BLACK : face);
-    line(x + 3, y + dy + 1, x + w - 4, y + dy + 1,             // top sheen
-         pressed ? CLR_DARKER_GREY : CLR_WHITE);
-    blend(BLEND_AVG);
-    line(x + 3, y + dy + h - 1, x + w - 4, y + dy + h - 1, CLR_BLACK);   // bottom shade
-    blend_reset();
-    rrect(x, y + dy, w, h, 3, hot ? CLR_WHITE : CLR_BLACK);
-    print(label, x + (w - text_width(label)) / 2, y + dy + (h - 6) / 2, lab);
+    if (glow) { blend(BLEND_AVG); rectfill(x - 2, y - 2, w + 4, h + 4, face); blend_reset(); }
+    rectfill(x, y, w, h, face);                                // square face
+    if (pressed) chisel(x, y, w, h, CLR_BLACK, CLR_MEDIUM_GREY, CLR_LIGHT_GREY, CLR_WHITE);  // sunken
+    else         chisel(x, y, w, h, CLR_WHITE, CLR_LIGHT_GREY, CLR_MEDIUM_GREY, CLR_BLACK);  // raised
+    if (hot && !pressed) rect(x + 2, y + 2, w - 4, h - 4, CLR_LIGHT_YELLOW);  // hover cue (mouse)
+    int o = pressed ? 1 : 0;                                   // content nudges into the press
+    print(label, x + (w - text_width(label)) / 2 + o, y + (h - 6) / 2 + o, lab);
 }
 
 // input for a button-shaped control: register + resolve press/activate/hot.
@@ -142,10 +148,10 @@ void draw(void) {
         int pr = 0, hot = 0; btn_input(0x51u, col[0], y1, bw, bh, &pr, &hot);
         draw_btn(col[0], y1, bw, bh, "PUSH", pr, pr ? CLR_LIGHT_YELLOW : CLR_DARK_GREY,
                  pr ? CLR_BLACK : CLR_LIGHT_GREY, hot, pr);
-        // LATCH — flips a sticky state
+        // LATCH — flips a sticky state; ENGAGED = sunken (the Win95 toggle look)
         int pr2 = 0, hot2 = 0; if (btn_input(0x52u, col[1], y1, bw, bh, &pr2, &hot2)) latch_on = !latch_on;
-        draw_btn(col[1], y1, bw, bh, latch_on ? "ON" : "OFF", pr2, latch_on ? CLR_GREEN : CLR_DARK_GREY,
-                 latch_on ? CLR_BLACK : CLR_LIGHT_GREY, hot2, latch_on);
+        draw_btn(col[1], y1, bw, bh, latch_on ? "ON" : "OFF", pr2 || latch_on,
+                 latch_on ? CLR_GREEN : CLR_DARK_GREY, latch_on ? CLR_BLACK : CLR_LIGHT_GREY, hot2, 0);
         // ILLUM — a lit latching button
         int pr3 = 0, hot3 = 0; if (btn_input(0x53u, col[2], y1, bw, bh, &pr3, &hot3)) illum_on = !illum_on;
         draw_btn(col[2], y1, bw, bh, "LAMP", pr3, illum_on ? CLR_TRUE_BLUE : CLR_DARK_BLUE,
@@ -180,9 +186,9 @@ void draw(void) {
         for (int i = 0; i < 4; i++) {
             int pr = 0, hot = 0;
             if (btn_input(0x60u + i, col[i], y2b, bw, bh, &pr, &hot)) radio_sel = i;
-            int on = radio_sel == i;
-            draw_btn(col[i], y2b, bw, bh, wn[i], pr, on ? CLR_LIME_GREEN : CLR_DARK_GREEN,
-                     on ? CLR_BLACK : CLR_LIGHT_GREY, hot, on);
+            int on = radio_sel == i;                             // selected = sunken (Win95 toggle)
+            draw_btn(col[i], y2b, bw, bh, wn[i], pr || on, on ? CLR_LIME_GREEN : CLR_DARK_GREEN,
+                     on ? CLR_BLACK : CLR_LIGHT_GREY, hot, 0);
         }
     }
 

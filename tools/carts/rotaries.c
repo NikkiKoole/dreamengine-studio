@@ -80,8 +80,8 @@ static void rot_body(int cx, int cy, int r, int face, int hi, int lo, int hot) {
     circfill(cx, cy, r + 3, CLR_BROWNISH_BLACK);     // hole punched in the faceplate
     rot_shadow(cx, cy, r);
     circfill(cx, cy, r, face);                       // flat cap face
-    ring(cx, cy, r - 1 - t, r - 1, 205, 335, hi);    // top sheen — just inside the rim
-    ring(cx, cy, r - 1 - t, r - 1,  25, 155, lo);    // bottom shade — same band, opposite side
+    ring(cx, cy, r - 1 - t, r - 1, 165, 285, hi);    // top-LEFT sheen (one light source, top-left)
+    ring(cx, cy, r - 1 - t, r - 1, -15, 105, lo);    // bottom-RIGHT shade — 180° opposite
     arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_BLACK);   // rim (arc family → aligns)
 }
 
@@ -161,19 +161,19 @@ static void draw_styled(int cx, int cy, int r, float v, int cap, int groove, int
             line(cx + (int)dx(r * 0.66f, a + 18), cy + (int)dy(r * 0.66f, a + 18),
                  cx + (int)dx(r - 1, a + 18),     cy + (int)dy(r - 1, a + 18), CLR_DARK_GREY);
         }
-    arc(cx, cy, r, 205, 335, CLR_DARK_GREY);              // skirt sheen / shade
-    arc(cx, cy, r,  25, 155, CLR_BLACK);
+    arc(cx, cy, r, 165, 285, CLR_DARK_GREY);              // skirt sheen / shade (top-left light)
+    arc(cx, cy, r, -15, 105, CLR_BLACK);
     arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_BLACK);  // rim
     int cr = (int)(r * 0.58f);                            // the inner cap
     if (style == 2) {                                     // brushed-metal cap
         circfill(cx, cy, cr, CLR_MEDIUM_GREY);
-        ring(cx, cy, cr - 2, cr - 1, 205, 335, CLR_WHITE);
-        ring(cx, cy, cr - 2, cr - 1,  25, 155, CLR_DARK_GREY);
+        ring(cx, cy, cr - 2, cr - 1, 165, 285, CLR_WHITE);
+        ring(cx, cy, cr - 2, cr - 1, -15, 105, CLR_DARK_GREY);
         arc(cx, cy, cr, 0, 360, CLR_BROWNISH_BLACK);
     } else {                                              // coloured cap
         circfill(cx, cy, cr, cap);
-        ring(cx, cy, cr - 2, cr - 1, 205, 335, CLR_WHITE);
-        ring(cx, cy, cr - 2, cr - 1,  25, 155, CLR_BROWNISH_BLACK);
+        ring(cx, cy, cr - 2, cr - 1, 165, 285, CLR_WHITE);
+        ring(cx, cy, cr - 2, cr - 1, -15, 105, CLR_BROWNISH_BLACK);
         arc(cx, cy, cr, 0, 360, CLR_BLACK);
     }
     float ang = A0 + v * SW;                              // indicator groove: cap → rim

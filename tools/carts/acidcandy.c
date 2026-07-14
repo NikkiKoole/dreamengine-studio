@@ -200,6 +200,14 @@ static void gen_drums9(void) {
 // ── candy widgets ──────────────────────────────────────────────────────────
 static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_width(s) / 2, y, col); }
 
+// TAP-SETTLE: after a drag widget (knob / bar / lane) lifts, a mouse can deliver a
+// spurious second button-down a few frames later at the drifted position — a "bounce"
+// that lands as a stray tap (muted a cartridge in a playtest). Ignore nav taps for a
+// short window after any drag was held. (acidrack's fix, ported.)
+#define TAP_SETTLE 12   // ~200ms; the observed bounce lagged the release by 8 frames
+static int g_drag_frame = -100;             // last frame a drag widget was captured (ui_frame_ct clock)
+static int tap_settled(void) { return ui_frame_ct - g_drag_frame >= TAP_SETTLE; }
+
 // per-knob interaction memory (for double-tap-to-reset), keyed by the value pointer
 static struct { void *v; float gval, gt, ltt; } kmeta[8];
 static int kmeta_i(void *v) {
@@ -215,6 +223,7 @@ static int kmeta_i(void *v) {
 static void knob(float *v, int cx, int cy, int r, const char *label, float def) {
     ui_reg(v, cx - r, cy - r, 2 * r + 1, 2 * r + 1, 0);
     UiCap *c = ui_cap_for(v);
+    if (c) g_drag_frame = ui_frame_ct;                     // a knob is being dragged → arm the tap-settle
     int mi = kmeta_i(v), fine = 0, held = c != 0;
     if (ui_grabbed(v)) { kmeta[mi].gval = *v; kmeta[mi].gt = now(); }
     if (c) {
@@ -276,8 +285,10 @@ static void cartridge(int m) {
     int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
     void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);
     void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);
-    if (ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf)) face = m;
-    if (ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm)) mac[m].mute = !mac[m].mute;
+    int af = ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf);
+    int am = ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm);
+    if (af && tap_settled()) face = m;                                // ignore a drag-release bounce
+    if (am && tap_settled()) mac[m].mute = !mac[m].mute;
 
     rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
     if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
@@ -294,7 +305,7 @@ static void navspine(void) {
     // transport (shared)
     int px = 5, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
-    if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; }
+    if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot) && tap_settled()) { playing = !playing; laststep = -1; }
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
     rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
     if (playing) { rectfill(px + 4, py + 3, 2, 4, CLR_WHITE); rectfill(px + 8, py + 3, 2, 4, CLR_WHITE); }
@@ -368,6 +379,7 @@ static void draw_303(int i) {
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
             ui_reg(w, bx, by, bw, bh, 0);
             UiCap *c = ui_cap_for(w);
+            if (c) g_drag_frame = ui_frame_ct;
             if (flagmode) {                              // FLAG mode: tap or DRAG paints the armed flag
                 if (c) {                                 // the captured bar tracks the finger across the row
                     if (ui_grabbed(w)) paint_val = (armed == FL_LEN) ? 0 : !flag_get(i, s, armed);
@@ -600,6 +612,7 @@ static void draw_mst(void) {
             ui_reg(w, cx, ly, lw, lh, 0);
             UiCap *c = ui_cap_for(w);
             if (c) {                                         // the captured cell tracks the finger → draw the curve
+                g_drag_frame = ui_frame_ct;
                 int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
                 int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
                 mpcf[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);

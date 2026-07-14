@@ -13,7 +13,7 @@
     "collision-detection"
   ],
   "lineage": "The rigid-body counterpart to the verlet toolkit (runtime/physics.h): the first cart on the vendored pure-C Box2D v3 (runtime/box2d/). Deliberately does the things verlet is bad at — crisp rotation, stable resting contact, friction — so it reads as the honest A/B against the jelly/waterjar particle carts. See docs/design/box2d-integration.md.",
-  "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend."
+  "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Or grab the wrecking ball hanging from the crane and swing it through the wall. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend."
 }
 de:meta */
 #include "studio.h"
@@ -49,6 +49,10 @@ enum { T_GROUND = 1, T_CRATE = 2, T_BALL = 3, T_WALL = 4 };
 #define SL_WOOD  8             // INSTR_MEMBRANE — ball thud + crate clack (pitch tells them apart)
 #define SL_TWANG 9             // INSTR_PLUCK — the slingshot release twang
 
+#define NLINK    8             // wrecking-ball chain segments
+#define WBALL_R  0.5f          // wrecking ball radius (m)
+#define AX       3.2f          // crane anchor x (m); anchor y sits near the ceiling
+
 static b2WorldId world;
 static b2BodyId  crate[NCRATE];
 static b2Vec2    crate0[NCRATE];   // start pose, for the TOPPLED test
@@ -64,6 +68,8 @@ static b2JointId mjoint;           // the mouse joint while M_DRAG
 static b2BodyId  ground_body;      // static anchor for the mouse joint
 static float     ex_x, ex_y;       // last explosion centre (screen px) — visual juice
 static int       ex_age = -1;      // frames since the blast; -1 = none
+static b2BodyId  link[NLINK];      // wrecking-ball chain links
+static b2BodyId  wball;            // the wrecking ball (grabbable, swings on the chain)
 
 static b2BodyId make_crate(float x, float y) {
     b2BodyDef bd = b2DefaultBodyDef();
@@ -140,6 +146,54 @@ static void build_stack(void) {
     ncrate = k;
 }
 
+// a wrecking ball on a rigid-link chain, hung from a fixed anchor near the ceiling.
+// The links are "rope" (maskBits 0 — they hang by joints and never snag); only the
+// heavy ball collides. Grab the ball (the drag gesture) and swing it into the wall.
+static void build_crane(void) {
+    float TOP = SCREEN_H / PPM, ay = TOP - 0.2f, seg = 0.4f;
+
+    b2BodyDef ad = b2DefaultBodyDef();          // static anchor (no shape needed)
+    ad.position = (b2Vec2){AX, ay};
+    b2BodyId anchor = b2CreateBody(world, &ad);
+
+    b2ShapeDef lsd = b2DefaultShapeDef();
+    lsd.density = 1.0f;
+    lsd.filter.maskBits = 0;                     // rope: collides with nothing, just hangs
+    b2Circle lc = {{0.0f, 0.0f}, 0.07f};
+
+    b2BodyId prev = anchor;
+    float py = ay;
+    for (int i = 0; i < NLINK; i++) {
+        py -= seg;
+        b2BodyDef bd = b2DefaultBodyDef();
+        bd.type = b2_dynamicBody;
+        bd.position = (b2Vec2){AX, py};
+        b2BodyId l = b2CreateBody(world, &bd);
+        b2CreateCircleShape(l, &lsd, &lc);
+        b2DistanceJointDef jd = b2DefaultDistanceJointDef();
+        jd.bodyIdA = prev; jd.bodyIdB = l; jd.length = seg;   // rigid rod (enableSpring false)
+        b2CreateDistanceJoint(world, &jd);
+        link[i] = l;
+        prev = l;
+    }
+
+    b2BodyDef wd3 = b2DefaultBodyDef();          // the heavy ball
+    wd3.type = b2_dynamicBody;
+    wd3.position = (b2Vec2){AX, py - seg};
+    wd3.userData = (void*)(intptr_t)T_BALL;      // hits crates -> deep thud sound
+    wball = b2CreateBody(world, &wd3);
+    b2Circle wc = {{0.0f, 0.0f}, WBALL_R};
+    b2ShapeDef wsd2 = b2DefaultShapeDef();
+    wsd2.density = 8.0f;                          // very heavy — plows through the wall
+    wsd2.material.friction = 0.5f;
+    wsd2.material.restitution = 0.1f;
+    wsd2.enableHitEvents = true;
+    b2CreateCircleShape(wball, &wsd2, &wc);
+    b2DistanceJointDef jd = b2DefaultDistanceJointDef();
+    jd.bodyIdA = prev; jd.bodyIdB = wball; jd.length = seg + WBALL_R;
+    b2CreateDistanceJoint(world, &jd);
+}
+
 static void reset_world(void) {
     if (built) b2DestroyWorld(world);           // frees every body it owns
     b2WorldDef wd = b2DefaultWorldDef();
@@ -186,6 +240,7 @@ static void reset_world(void) {
     b2CreateSegmentShape(walls, &wsd, &ceil);
 
     build_stack();
+    build_crane();
 }
 
 // aim vector -> clamped launch velocity (pull the pouch BACK from the launcher)
@@ -223,6 +278,11 @@ static void impact_sound(int ta, int tb, float speed) {
 
 // topmost body under a world point (balls first, then crates) — for the drag gesture
 static bool body_at(float wx, float wy, b2BodyId *out) {
+    {                                            // the wrecking ball first — it's the big grabbable
+        b2Vec2 p = b2Body_GetPosition(wball);
+        float dx = wx - p.x, dy = wy - p.y, rr = WBALL_R + 0.06f;
+        if (dx*dx + dy*dy <= rr*rr) { *out = wball; return true; }
+    }
     for (int i = nball - 1; i >= 0; i--) {
         b2Vec2 p = b2Body_GetPosition(ball[i]);
         float dx = wx - p.x, dy = wy - p.y, rr = ballr[i] + 0.06f;
@@ -345,6 +405,24 @@ static void draw_aim(void) {
     }
 }
 
+static void draw_crane(void) {
+    float TOP = SCREEN_H / PPM;
+    int px = SX(AX), py = SY(TOP - 0.2f);
+    rectfill(px - 4, py - 2, 8, 4, CLR_DARK_GREY);          // ceiling bracket
+    for (int i = 0; i < NLINK; i++) {                        // the chain
+        b2Vec2 p = b2Body_GetPosition(link[i]);
+        int lx = SX(p.x), ly = SY(p.y);
+        line(px, py, lx, ly, CLR_LIGHT_GREY);
+        px = lx; py = ly;
+    }
+    b2Vec2 w = b2Body_GetPosition(wball);                    // the ball
+    int wx = SX(w.x), wy = SY(w.y), wr = (int)(WBALL_R*PPM);
+    line(px, py, wx, wy, CLR_LIGHT_GREY);
+    circfill(wx, wy, wr, CLR_DARKER_GREY);
+    circ(wx, wy, wr, CLR_LIGHT_GREY);
+    circfill(wx - wr/3, wy - wr/3, wr/4, CLR_MEDIUM_GREY);   // highlight
+}
+
 void draw(void) {
     if (!built) { cls(CLR_DARK_BLUE); return; }
     cls(CLR_DARK_BLUE);
@@ -364,6 +442,7 @@ void draw(void) {
         circfill(SX(p.x), SY(p.y), r, CLR_DARK_GREY);
         circ(SX(p.x), SY(p.y), r, CLR_LIGHT_GREY);
     }
+    draw_crane();
     draw_launcher();
     if (mmode == M_AIM) draw_aim();
 

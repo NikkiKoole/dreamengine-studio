@@ -45,8 +45,8 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 
 #define MAXP     2800          // reservoir cap. Past this the column gets so tall its bottom
                                // out-pressures the affordable solve and starts to churn/foam.
-#define FILL_N   1600          // how many particles to pour in at reset (see fill_jar). ~half-fills
-                               // the jar. (SPACE can pour past it — see the pour in update.)
+#define FILL_N   900           // how many particles to pour in at reset (see fill_jar). A shallow
+                               // starting pool with lots of headroom to slosh. (SPACE pours more.)
 #define MAXN     48            // neighbours cached per particle per frame (grid-hashed)
 #define H        6.0f          // smoothing radius: particles interact within this. BIGGER particles
                                // (bigger H + spacing) carry more inertia and hold together, so a wave

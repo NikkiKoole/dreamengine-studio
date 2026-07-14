@@ -2749,6 +2749,18 @@
     "lineage": "Spiritual successor to drummachine.c; extends it from a pure percussion grid to a melodic house box and shifts the showcase from serial insert effects (pedalboard) to summed-bus effects — sidechain pump, glue compression, master reverb insert."
   },
   {
+    "title": "groove face",
+    "description": "The first real DEVICE FACE built from the control vocabulary: a playable drum-machine laid onto the five-zone skeleton — transport+VU spine, always-live knobs, a flow-switched display, a 16-step grid, and drum pads — cycling all three skins (TACTILE / FLAT / PURE). Proves the toolkit in situ (device-face-paradigm.md x control-vocabulary.md). Zone 1 NAV SPINE: play/stop, pattern name, a 7-seg BPM, a VU that bumps on every hit. Zone 2 KNOBS: TUNE + LEVEL retarget to the SELECTED track (parameter-lock idea), SWING + REVERB are global (reverb applied set-and-hold, only on change). Zone 3 DISPLAY: soft-keys pick the flow — GRID (the whole 4x16 pattern with a running playhead + the selected row lit) or MIX (a fader per track). Zone 4 STEP GRID: the 16 cells for the selected track; tap to toggle, the playhead runs. Zone 5 PADS: KICK/SNARE/HAT/CLAP — tap to play live AND select the track (retargeting zones 2+4), and each pad's corner LED lights when the SEQUENCER fires it (external vs finger). Real sound via drumkit.h (DK_ELECTRO). One instrument, one honest core. Press PLAY (spine) to run the sequencer. Tap a PAD to play that drum and select its track; the knobs + step row then edit THAT track. Tap step cells to write the pattern. Turn TUNE/LEVEL for the selected track, SWING/REVERB globally. Tap GRID/MIX to switch the display flow. SKIN button (top-right) or B cycles the three looks.",
+    "file": "grooveface.cart.png",
+    "created": "2026-07-14",
+    "orientation": "portrait",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": []
+  },
+  {
     "title": "grow balls",
     "description": "A silly pogo-platformer. You're a little naked cartoon guy with visible balls — eat the fruit and veg scattered through the world and your balls GROW. Tiny balls only manage a small hop, but once they get big enough they turn into a spring: land and you POGO, and the bigger your balls, the higher you bounce. Steer in the air to land on the next platform (and the next snack), keep growing, and pogo a tower of one-way platforms all the way to the MOON. Arrows/WASD move, Z or Up to jump / super-bounce (tap on landing), hold Down to rest on a platform, R to restart.",
     "file": "growballs.cart.png",
@@ -5493,6 +5505,23 @@
       "audio-occlusion"
     ],
     "lineage": "Probe cart distilled from rogue.c's per-tile FOV ray; novel in placing both Bresenham single-ray LOS and recursive octant shadowcasting side-by-side on the same occluder grid as candidates for a future los.h/fov.h header."
+  },
+  {
+    "title": "Silverball",
+    "description": "A mini pinball table where the flippers are real Box2D v3 revolute joints — a motor drives each one against an angle limit, so they snap up and fling the ball with genuine physics, not a scripted animation. Pop bumpers kick the ball and ring (louder the harder you hit), and the drain between the flippers is a real sensor. LEFT/Z = left flipper, RIGHT/X = right flipper, SPACE = serve the next ball. You get 3 balls; rack up points off the bumpers. The motored-joint sibling to the hand-built pinball cart, on the engine's pure-C Box2D backend.",
+    "file": "silverball.cart.png",
+    "created": "2026-07-14",
+    "orientation": "portrait",
+    "kind": [
+      "game",
+      "tech-demo"
+    ],
+    "teaches": [
+      "rigid-body",
+      "collision-detection"
+    ],
+    "lineage": "The third Box2D v3 cart (runtime/box2d/) — the MOTORED-JOINT showcase, distinct from the hand-rolled `pinball` table. Real revolute joints with a motor + angle limits ARE the flippers (a snap you can feel), b2 sensors are the drain + score lanes, and contact events ring the bumpers scaled by impact. Backlog: docs/design/box2d-cart-ideas.md.",
+    "genre": "arcade"
   },
   {
     "title": "lil life (the sims)",

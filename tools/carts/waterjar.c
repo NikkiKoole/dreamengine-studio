@@ -24,6 +24,12 @@ de:meta */
 #include "studio.h"
 #include "physics.h"   // the fluid rides the shared verlet toolkit (Layer 0) — PhysPt + integrate/bounds
 
+#ifdef DE_TRACE
+#include <time.h>       // per-phase profiling only — compiled out of real (editor/web) builds
+static double _us(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e6 + t.tv_nsec * 1e-3; }
+static double g_draw_us = 0.0;   // last frame's draw() time — reported by update()'s watch
+#endif
+
 // WATER JAR — a 2D Position-Based Fluid (PBD/SPH) on physics.h.
 //   integrate : particles fall under gravity (verlet, via phys_integrate)
 //   neighbours: a uniform-grid spatial hash (cell ≈ smoothing radius H) → O(n), not O(n²)
@@ -212,6 +218,7 @@ void update(void) {
 
 #ifdef DE_TRACE
     float _maxdp = 0.0f;
+    double _ta = _us(), _tb, _tc, _td, _te;
 #endif
     // gravity in the jar's frame: tilt rotates it so water pools to the low corner
     float gx = GRAV * sin_deg(tilt), gy = GRAV * cos_deg(tilt);
@@ -222,9 +229,15 @@ void update(void) {
         float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py, sp = vlen(vx, vy);
         if (sp > VMAX) { float s = VMAX / sp; P[i].px = P[i].x - vx * s; P[i].py = P[i].y - vy * s; }
     }
+#ifdef DE_TRACE
+    _tb = _us();
+#endif
 
     // 2) neighbours from the predicted positions (once per frame)
     build_grid(); build_neighbours();
+#ifdef DE_TRACE
+    _tc = _us();
+#endif
 
     // 3) density constraint — the incompressibility solve
     for (int it = 0; it < ITERS; it++) {
@@ -267,6 +280,9 @@ void update(void) {
         // 3c) walls — keep every particle inside the jar
         for (int i = 0; i < N; i++) phys_bounds(&P[i], JX0, JY0, JX1, JY1, 0.2f, 0.92f);
     }
+#ifdef DE_TRACE
+    _td = _us();
+#endif
 
     // 4) XSPH viscosity — nudge each particle's velocity toward its neighbours' average
     for (int i = 0; i < N; i++) { vlx[i] = P[i].x - P[i].px; vly[i] = P[i].y - P[i].py; }
@@ -290,6 +306,7 @@ void update(void) {
     }
 
 #ifdef DE_TRACE
+    _te = _us();
     float mxsp = 0.0f, sumrho = 0.0f;
     for (int i = 0; i < N; i++) {
         float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py); if (sp > mxsp) mxsp = sp;
@@ -300,6 +317,11 @@ void update(void) {
     watch("maxspd", "%.3f", mxsp);
     watch("avgrho", "%.3f", N ? (sumrho / N) / rho0 : 0.0f);   // → 1.0 when incompressible
     watch("maxdp", "%.3f", _maxdp);
+    watch("us_integ", "%.1f", _tb - _ta);   // phase timings (µs) — where update() spends its frame
+    watch("us_nbr",   "%.1f", _tc - _tb);   // grid + neighbour-list build
+    watch("us_solve", "%.1f", _td - _tc);   // the density/incompressibility solve (ITERS passes)
+    watch("us_visc",  "%.1f", _te - _td);   // XSPH viscosity + velocity limiter
+    watch("us_draw",  "%.1f", g_draw_us);    // draw() — 820 rotated circfills + walls/text (prev frame)
 #endif
 }
 
@@ -313,6 +335,9 @@ static int speed_colour(float sp) {
 }
 
 void draw(void) {
+#ifdef DE_TRACE
+    double _d0 = _us();
+#endif
     cls(CLR_BROWNISH_BLACK);
 
     float cx = (JX0 + JX1) * 0.5f, cy = (JY0 + JY1) * 0.5f;
@@ -339,4 +364,7 @@ void draw(void) {
     font(FONT_SMALL);
     print("water jar - a code-first PBD fluid (physics.h)", 4, 4, CLR_LIGHT_GREY);
     print("< > tilt   drag stir   SPACE pour   R reset", 4, SCREEN_H - 9, CLR_DARK_GREY);
+#ifdef DE_TRACE
+    g_draw_us = _us() - _d0;
+#endif
 }

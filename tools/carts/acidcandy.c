@@ -370,9 +370,15 @@ static void draw_303(int i) {
             if (on[i][s] && !dead) {
                 int idx = penta_idx(pit[i][s]), fh = bh * (idx + 1) / NPENTA;
                 rrectfill(bx, by + bh - fh, bw, fh, 1, acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN);
-                if (sld[i][s])     rectfill(bx + bw - 2, by + bh - fh, 2, 2, CLR_LIGHT_YELLOW);   // slide
-                if (oct[i][s] > 0) rectfill(bx + 1, by + 1, bw - 2, 1, CLR_LIGHT_YELLOW);          // OCT+
-                if (oct[i][s] < 0) rectfill(bx + 1, by + bh - 2, bw - 2, 1, CLR_TRUE_BLUE);        // OCT-
+                if (sld[i][s]) {                                    // slide → bright top cap + a GLIDE LINE to the next note
+                    rectfill(bx, by + bh - fh, bw, 1, CLR_WHITE);
+                    int ns = (s + 1) % plen[i];
+                    int nidx = tie[i][ns] ? idx : penta_idx(pit[i][ns]);
+                    int ntop = (on[i][ns] || tie[i][ns]) ? by + bh - bh * (nidx + 1) / NPENTA : by + bh - fh;
+                    line(bx + bw - 1, by + bh - fh, bx + bw + 1, ntop, CLR_WHITE);
+                }
+                if (oct[i][s] > 0) rectfill(bx + 1, by + 1, bw - 2, 2, CLR_LIGHT_YELLOW);           // OCT+
+                if (oct[i][s] < 0) rectfill(bx + 1, by + bh - 3, bw - 2, 2, CLR_TRUE_BLUE);         // OCT-
             }
             if (tie[i][s] && !on[i][s] && !dead) rectfill(bx, by + bh / 2, bw, 2, CLR_TRUE_BLUE);  // TIE = hold prev
             if (!dead && s == plen[i] - 1 && plen[i] < STEPS) rectfill(bx + bw, by, 1, bh, CLR_RED);  // loop end

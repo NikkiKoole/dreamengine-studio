@@ -26,7 +26,19 @@ core: **a note fires because a ball physically BOUNCES off the wall** (a Box2D c
 above a speed threshold, velocity-scaled so a harder bounce is louder). That keeps "every note-on is
 a real collision, nothing sequenced," and it stays alive continuously as the drum stirs the pile.
 (The line-crossing variant is worth revisiting if a future container shape actually cascades balls
-over the centre.) **Deferred to the cart's own punch-list** (`node tools/cart-todos.js tombola`):
+over the centre.)
+
+**Getting a loop, not a wash (the second pass).** With a smooth drum the balls just pooled at the
+bottom and bounced randomly — a rain-stick texture, no repeating phrase. Fix: the drum now carries a
+**paddle-wheel** (fins reaching inward from the rim). A fin sweeping the bottom scoops the pile,
+lifts balls up the rising side, and spills them near the top, so each ball tumbles and rings **once
+per turn** — and because the rotation is steady, that's periodic: the turn becomes the loop's *bar*
+(SPIN sets its length). Fewer, bigger balls (4 seeded) so each hit reads. This is the difference
+between "watch balls jitter" and "it's playing a pattern" — still fully emergent, the physics does
+it. Open feel-tuning (the maker is the taste oracle here, no gate): default spin speed, paddle
+count/length, ball count, and whether a still-tighter loop wants pegs or a shaped scoop.
+
+**Deferred to the cart's own punch-list** (`node tools/cart-todos.js tombola`):
 BUILD's ghost-trajectory arcs, flick-to-remove, ball-selected → the four encoders edit that ball,
 and the `spec()` that asserts note-on ↔ hit event.
 

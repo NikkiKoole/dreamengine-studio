@@ -159,7 +159,10 @@ Four more caches filled after the initial batch (`synthrecipes`, `Sampling`, `We
   "suggest chords for your melody", "songwriting app like this". On-grain, humble, twice-proven.
 - **Candidate cart — synced-groove-across-phones (distinctive):** "several phones, one synced
   click/groove", uniquely buildable on our shipped WebRTC P2P layer (rung 5b). The one idea that
-  ties demand discovery to the multiplayer work — a demand-meets-capability match.
+  ties demand discovery to the multiplayer work — a demand-meets-capability match. **Design already
+  exists:** it's the Ableton-Link case of the shared-clock primitive in
+  [`cart-os.md`](../design/cart-os.md) ("Across devices — the Ableton Link case"), transported over
+  [`multiplayer-research.md`](../design/multiplayer-research.md)'s P2P layer instead of a local file.
 - **Boundary recorded:** mic recording / vocal-overdub / hum-to-MIDI are **out** — real demand, off
   our grain. Useful as an explicit "we don't do this" for store copy and roadmap.
 - **Rotation health:** `iosmusic` → `iosmusicproduction` fix shipped; `synthrecipes` / `DrumMachines`
@@ -186,3 +189,5 @@ Four more caches filled after the initial batch (`synthrecipes`, `Sampling`, `We
 - [023 — demand discovery: r/synthesizers confirms the thesis](023-demand-discovery-synthesizers.md)
 - [009 — the negative space of DreamEngine](009-the-negative-space-of-dreamengine.md)
 - [008 — the identity of DreamEngine](008-the-identity-of-dreamengine.md)
+- [cart-os.md — the shared-clock primitive + the Ableton Link across-devices case](../design/cart-os.md)
+- [multiplayer-research.md — the P2P transport it would ride](../design/multiplayer-research.md)

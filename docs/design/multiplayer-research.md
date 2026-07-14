@@ -1010,6 +1010,25 @@ required for same-wifi. Verify each step with `tools/net-check.js`.
 
 ---
 
+## Beyond games — a non-lockstep use of the transport: cross-device musical sync
+
+Everything above is **lockstep game input** — every peer runs one deterministic core and the wire
+carries button presses. But the shipped P2P transport (rung 5b) has a second, non-game use that
+the demand work surfaced: **syncing a musical clock across devices** (the Ableton-Link problem).
+[Field-note 024](../field-notes/024-demand-discovery-four-tribes.md) mined *"get several phones to
+all play the same click at once"* as a recurring wish, and it's the one demand cluster that
+intersects this layer.
+
+It is **not** lockstep: nothing needs frame-perfect determinism, and there's no shared game state —
+each phone makes its own sound. The wire carries a tiny `{bpm, t0, playing}` triple (change-only,
+not a per-frame pulse), everyone derives `beat = (now - t0)*bpm/60` off their own clock, no master.
+The design lives in [`cart-os.md`](cart-os.md) → *"Across devices — the Ableton Link case"*; the
+hard part it inherits is real clock-drift + one-way delay offsetting `t0` (Link's job), which the
+lockstep path never has to solve because it counts frames, not wall-clock time. Parked as a
+candidate cart, not a rung — but a reason the transport earns its keep beyond netplay.
+
+---
+
 ## Sources
 
 Fact-checked (3-vote adversarial verification) unless marked otherwise.

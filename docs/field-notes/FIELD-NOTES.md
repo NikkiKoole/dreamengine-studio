@@ -96,7 +96,7 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `021` **A doc's STATUS label can't be linted against its body** → `016-knowledge-drift`, `017-context-nudges`, `018-passing-the-gates-felt-like-done`
 - `022` **Demand discovery: r/ipadmusic wants a vibe, not a feature** → `008`, `009`, `014`
 - `023` **Demand discovery: r/synthesizers confirms the "cheap playful toy + homage" thesis** → `022`, `008`, `014`
-- `024` **Demand discovery: four more tribes hold the thesis, surface a chop-to-pads gap + a vocal-overdub boundary** → `022`, `023`, `009`, `008`
+- `024` **Demand discovery: four more tribes hold the thesis, surface a chop-to-pads gap + a vocal-overdub boundary** → `022`, `023`, `009`, `008`, `cart-os.md`, `multiplayer-research.md`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts

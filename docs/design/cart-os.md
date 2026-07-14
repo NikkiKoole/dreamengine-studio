@@ -135,6 +135,46 @@ live file. With a corpus of musical carts already here (radio stations, keybeds,
 pulls the *most exciting* musical use case down from Tier 3 to roughly **Tier 1.5**, correcting
 the tier map below, which files all live concurrent carts under the hard tier.
 
+### Across devices — the Ableton Link case (where the plumbing stops being free)
+
+Everything above assumes carts on **one machine**, and that's what makes it cheap: the OS mixes
+the audio streams for free, and the shared clock is a local file every process reads off the same
+wall clock, so "drift" is negligible. Now ask the demand-driven question — **can separate
+*devices* (phones on a wifi) play in time?** ([field-note 024](../field-notes/024-demand-discovery-four-tribes.md)
+mined this as a recurring wish: *"get several phones to all play the same click at once."*) Both
+freebies vanish: there's no shared audio device (fine — each phone plays its own out) and **no
+shared wall clock** (not fine — each device's clock drifts, and the transport is now a jittery
+network, not a file read).
+
+That regime has a name: **Ableton Link** — LAN, peer-to-peer, no master, agreeing on tempo *and*
+beat-phase with per-device latency/drift compensation. So "carts in sync across phones" is
+literally **re-deriving Link's network layer on top of our shipped WebRTC transport**
+(multiplayer rung 5b — [`multiplayer-research.md`](multiplayer-research.md)). What it would mean,
+concretely:
+
+- **Transport:** broadcast the same `{bpm, t0, playing}` triple over the WebRTC DataChannel instead
+  of writing it to a file. It changes only on play/stop/tempo, so it's tiny and **jitter-tolerant
+  by design** — you replicate *state*, not a 60 Hz pulse, so a dropped/late packet costs nothing
+  (the receiver keeps deriving off the last-known triple). This is the same insight that makes the
+  single-machine version a file and not a stream, paying off harder over a lossy link.
+- **No-master still holds** — the clock is *data* (the triple), now replicated over the wire; a
+  transport peer writes it, everyone else derives `beat = (now − t0)·bpm/60` off their **own**
+  clock. Same decoupling as the N=1 case; nothing emits clock.
+- **The hard part becomes real** — this is where the doc's own "Link's actually-hard part"
+  (drift/phase compensation) stops being hypothetical. On one machine it's free; across physical
+  devices you get real clock-domain drift plus a one-way network delay that offsets `t0`. The naive
+  first cut (derive locally, re-agree `t0` periodically) gives **loose jam sync** — the same
+  "re-aligns each pulse, texture-not-bug" tolerance the single-machine caveat already accepts, just
+  with bigger error bars. Tight sync would need round-trip delay estimation to correct `t0` (what
+  Link does); worth measuring the naive version first.
+
+**Why this is suddenly worth a line and not just a daydream:** all three pieces are now in hand —
+the **demand** is proven (024), the **transport** is shipped (WebRTC P2P), and the **clock design**
+already lives in this doc. And it lands dead-centre on the note-024 thesis: a humble *"several
+phones, one groove"* toy is the **beginner-simple, zero-setup version of Ableton Link** — Link for
+people who'd never open a DAW. Still exploration, not a plan; but it's the cheapest bridge from a
+mined wish to a shippable cart the demand work has surfaced.
+
 ### So the Workbench and our own terminal…
 
 …stay in this doc as the **someday-maybe cosmetic skin we'd genuinely like** — not as the

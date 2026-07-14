@@ -261,6 +261,46 @@ is (the cap position IS the value; it can be in only one place). Almost every su
 **modulation halo**, **ghost-default + tap-to-teleport + double-tap-reset**, and **value-reactive glow**.
 The halo alone justifies the idea.
 
+## 10 · The skin system (and the external-stylesheet horizon)
+
+A control has a **skin** — the visual language it's drawn in — separate from its *identity* (what value
+model it is) and its *behaviour* (how it reads input). The study carts prototype three:
+
+- **TACTILE** — beveled chrome: sockets, top-left lighting, the Win95 chisel. Reads as hardware. This
+  is really authored for a big screen and shrunk; lush but heavy on a 320×200 panel.
+- **FLAT** — PICO-flat: the same geometry with the lighting removed (flat faces, 1px borders). The
+  humble-lo-fi middle.
+- **PURE** — the **native 320×200 register**: hairline (1px) frames, thin dials, `fillp` dither fills,
+  compact, dense, high-info — the C64-OS / tracker / VSTSID look, authored *for* the low resolution
+  rather than scaled down to it. Often the most honest fit for a dream­engine cart.
+
+Prototyped in [`rotaries`](../../tools/carts/rotaries.c) as an enum (`SK_TACTILE/FLAT/PURE`) cycled by
+the SKIN button (or `B`); rolling to `switches` + `indicators` next. Skin gates *only* the drawing —
+identity, value rings, textures and LED glows are constant across skins, so no information is lost, only
+the register changes.
+
+**The external-stylesheet horizon (design-for, don't-build-yet).** Scattered `if (skin==…)` branches are
+the prototype, not the destination. The target is a **`Skin` as a data record** — a stylesheet-in-a-struct
+the widgets *read* instead of branch on:
+
+```c
+typedef struct {
+    int  border;     // BORDER_NONE / FLAT / BEVEL / CHISEL
+    int  fill;       // FILL_SOLID / DITHER / GRADIENT
+    int  hairline;   // 1 = 1px frames, tight metrics
+    int  knob_r, corner_r;                 // metrics
+    int  role[UI_ROLE_N];                  // palette by semantic role (design-system.md §7)
+} Skin;
+```
+
+Then the three skins are three `Skin` literals, and — the horizon — that record could later be **loaded
+from a file** (a real stylesheet), the same way [`lay.h`](../../runtime/lay.h) / `disclose.h` made
+*layout* data-driven and reflowable. This is the seam to design toward: keep style in the `Skin` record,
+keep the widgets reading roles/metrics from it, and an external sheet becomes a parser + a struct-fill,
+not a rewrite. Related: [`design-system.md`](design-system.md) §7 (the semantic colour roles a `Skin`
+would key on) and the device-adaptive layout work (`lay.h`/`disclose.h`) — style is to those widgets
+what layout is to the box tree. Not building the loader now; building the *shape* that admits one.
+
 ## Related
 
 [`device-face-paradigm.md`](device-face-paradigm.md) (the layout — which control goes in which zone;

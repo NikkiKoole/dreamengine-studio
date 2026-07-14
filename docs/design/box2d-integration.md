@@ -1,7 +1,7 @@
 # Box2D v3 integration — the rigid-body experiment
 
-> **Status: PREPARED (2026-07-14) — vendored + four-target compile gate PASSED; no cart
-> written yet.** This is the "does rigid-body physics earn a place in dreamengine" experiment
+> **Status: SHIPPED (2026-07-14) — vendored + four-target compile gate PASSED; two carts live
+> (`tumble` = destruction, `buggy` = a hill-climb vehicle).** This is the "does rigid-body physics earn a place in dreamengine" experiment
 > from [physics-notes.md](physics-notes.md)'s rigid-vs-particles fork. The library is in and
 > proven portable; the open question is whether a cart built on it *feels* worth the dependency
 > (vs the code-first `physics.h` verlet path we already ship).

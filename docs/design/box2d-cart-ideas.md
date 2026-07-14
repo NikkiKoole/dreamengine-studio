@@ -3,7 +3,7 @@
 > **Status: EXPLORING / backlog (2026-07-14).** `tumble` (the first Box2D v3 cart) covers the
 > "stuff colliding and getting dragged" half of the engine. These are candidate carts for the
 > *other* half — mostly the joint + query features — so the shelf ends up mapping all of Box2D.
-> First build: the **hill-climb buggy** (started 2026-07-14). Backend + integration:
+> First build: the **hill-climb buggy** — SHIPPED 2026-07-14 (`buggy`). Backend + integration:
 > [box2d-integration.md](box2d-integration.md); the why-a-lib-here fork: [physics-notes.md](physics-notes.md).
 
 ## What `tumble` already shows
@@ -26,7 +26,7 @@ ball), CCD **bullets**, and hand-rolled fragmentation. That's the collision + gr
 
 ## The pitches
 
-1. **Hill-climb buggy** ⭐ *(building)*. Chassis + two wheels on **wheel joints** — Box2D's built-in
+1. **Hill-climb buggy** ⭐ *(shipped — `buggy`)*. Chassis + two wheels on **wheel joints** — Box2D's built-in
    *spring suspension + motor torque*, the marquee vehicle feature — driving over procedural
    **`b2Chain`** terrain (smooth ground, no ghost bumps between segments). Gas/brake/lean, climb
    hills, don't land on your roof, reach the flag. Maximally different from `tumble` (locomotion vs

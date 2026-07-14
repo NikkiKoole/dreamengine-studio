@@ -61,11 +61,19 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 #define DAMP     0.94f         // velocity retention — water keeps its momentum
 #define ITERS    6             // density-solve passes per frame (more = stiffer/less squishy)
 #define VISC     0.18f         // XSPH viscosity strength (0 = spray, high = honey)
-#define VMAX     4.0f          // clamp per-frame speed so a bad frame can't explode the sim
+#define VMAX     4.5f          // clamp per-frame speed so a bad frame can't explode the sim.
+                               // Generous enough for a fast wall-climbing wave, but not so high the
+                               // crest atomizes into loose spray; MAX_DP still stops corner pinches.
 #define MAX_DP   1.2f          // cap one particle's per-iteration density correction — a corner
                                // pinch otherwise shoves a lone particle 8-12px in a single pass,
                                // which reads as a droplet shot out of the pool. The bulk's real
                                // corrections are sub-pixel, so this only clips the pathological one.
+#define CMIN     (-0.85f)      // how much COHESION (max tensile C) — see the solve. 0 = none (sprays
+                               // apart), more negative = stickier (folds). Speed-GATED so it only
+                               // acts on fast-moving water; a resting pool stays no-tensile (calm).
+#define COH_LO   2.0f          // speed (px/frame) below which cohesion is off — set ABOVE any rest
+                               // jitter so a settling pool never self-feeds cohesion into a boil
+#define COH_HI   4.0f          // speed at which cohesion reaches full CMIN (a fast wave crest)
 #define EPS      0.0008f       // constraint relaxation (stabilises lambda where gradients vanish)
 #define SCORR_K  0.0f          // artificial pressure: fights particle clumping (surface tension-ish)
 #define SCORR_N  4
@@ -101,11 +109,12 @@ static float pmx, pmy;         // previous mouse (sim space) for stir velocity
 static bool  panel_drag = false;   // a drag that STARTED on the slider panel — don't also stir
 
 // --- live tweakables (onscreen sliders) ------------------------------------
-// The sliders store 0..1; these map to the real ranges the sim reads each frame. Seeded so the
-// defaults reproduce the tuned GRAV/VISC/DAMP constants (grav 0.14, visc 0.18, damp 0.94).
+// The sliders store 0..1; these map to the real ranges the sim reads each frame. Defaults tuned
+// LIVELY — low viscosity + high damping (momentum retention) so a hard tilt throws a wave that
+// climbs the wall and folds over, instead of a sluggish gel-slosh. (grav 0.14, visc ~0.08, damp ~0.99)
 static float ui_grav = 0.40f;  // → gravity   0 .. 0.35   (moon ↔ heavy)
-static float ui_visc = 0.30f;  // → viscosity 0 .. 0.60   (spray ↔ honey)
-static float ui_damp = 0.62f;  // → damping   0.85 .. 0.995 (draggy ↔ bouncy)
+static float ui_visc = 0.17f;  // → viscosity 0 .. 0.60   (spray ↔ honey)
+static float ui_damp = 0.80f;  // → damping   0.85 .. 0.995 (draggy ↔ bouncy)
 static float grav_v(void) { return ui_grav * 0.35f; }
 static float visc_v(void) { return 0.60f * ui_visc; }
 static float damp_v(void) { return 0.85f + ui_damp * 0.145f; }
@@ -253,9 +262,13 @@ static void physics_step(float gx, float gy) {
         for (int i = 0; i < N; i++) {
             float rho = density_at(i);
             float C = rho / rho0 - 1.0f;
-            if (C < 0.0f) C = 0.0f;   // no tensile stress: only relieve OVER-packing, never pull
-                                      // under-dense water together — cohesion is what made a jar of
-                                      // water boil (surface particles yanked in, bulk pushed out, forever)
+            // SPEED-GATED cohesion: a moving wave is sticky (its crest holds together and folds
+            // instead of atomizing into spray), but a resting pool is not (tensile pull at rest is
+            // exactly what boils). So scale the tensile floor CMIN by how fast this particle moves —
+            // 0 cohesion when slow (calm), full CMIN when fast (folding wave). Best of both.
+            float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py;
+            float coh = CMIN * clamp((vlen(vx, vy) - COH_LO) / (COH_HI - COH_LO), 0.0f, 1.0f);
+            if (C < coh) C = coh;
             float gxi = 0.0f, gyi = 0.0f, sumk = 0.0f;   // grad wrt i, and sum |grad wrt j|²
             for (int k = 0; k < nbrN[i]; k++) {
                 int j = nbr[i * MAXN + k];

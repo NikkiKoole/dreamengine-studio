@@ -150,7 +150,7 @@ static void chip(int x, int y, const char *s, int sel2) {
 // right LED taps to MUTE the machine (from any face). Two non-overlapping
 // sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
 static void cartridge(int m) {
-    int x = 19 + m * 25, y = 4, foc = (m == face), live = !mac[m].mute;  // pitch 25, dropped 1px
+    int x = 19 + m * 25, y = 3, foc = (m == face), live = !mac[m].mute;  // pitch 25; y3 = same row as play/home
     int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
     void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);
     void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);
@@ -170,7 +170,7 @@ static void cartridge(int m) {
 
 static void navspine(void) {
     // transport (shared)
-    int px = 3, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;
+    int px = 2, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play hugs the left
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
     if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; }
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
@@ -180,7 +180,7 @@ static void navspine(void) {
     for (int m = 0; m < M_N; m++) cartridge(m);
 
     // HOME (meta) — reserved space only; the app shell owns the real leave-cart gesture
-    int hx = 145, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;
+    int hx = 146, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home hugs the right
     void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
     ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);            // registered but unwired
     rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
@@ -300,7 +300,7 @@ void update(void) {
 void draw(void) {
     cls(CLR_DARK_PURPLE);
     rrectfill(0, 0, 160, 100, 7, CLR_INDIGO);
-    rrectfill(3, 1, 154, 98, 5, CLR_LIGHT_PEACH);                     // 1px purple bezel top & bottom
+    rrectfill(3, 2, 154, 96, 5, CLR_LIGHT_PEACH);                     // 2px purple bezel top & bottom
     blend(BLEND_AVG); line(7, 2, 152, 2, CLR_WHITE); blend_reset();
     ui_begin();
     font(FONT_SMALL);

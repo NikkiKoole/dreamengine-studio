@@ -79,8 +79,10 @@ Each effect tied to a specific event; if removing it wouldn't make the action le
 - [`tinyface`](../../tools/carts/tinyface.c) — the distilled 160×100 toy (mascot as hero). **The look to match.**
 - [`facefull`](../../tools/carts/facefull.c) — the whole five-zone paradigm at 160×100, candy.
 - [`facemock`](../../tools/carts/facemock.c) — the 320×400 "big toy" (fuller, less iconic — kept for contrast).
-- [`acidcandy`](../../tools/carts/acidcandy.c) — the first FUNCTIONAL candy face (a TB-303 on `acid303.h`);
-  its `de:meta.todo[]` carries the open work (headline: **it still has no mascot** — the soul gap).
+- [`acidcandy`](../../tools/carts/acidcandy.c) — the FUNCTIONAL candy RACK: five focusable machine faces
+  (2×303 on `acid303.h`, 808 on `tr808.h`, 909 on `tr909.h`, a MST master) on one transport, with note-bar
+  drawing, a flag palette, and a drawable PCF — packaging `acidrack`'s guts as the device-face paradigm.
+  Still **no mascot** (the soul gap, deferred); the rest of the open work is in its `de:meta.todo[]`.
 
 ## Related
 

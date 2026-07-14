@@ -169,6 +169,12 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          vanilla voicing (cut_top 6.0 + slapback), else Devil Fish wide — BOTH from one header,
                          chosen by data. Used by tb303 + acidrack (both byte-identical A/B, 1.00000) + acidcandy.
                          NOT drumkit.h (that's the pad MAP, this pitches one voice).
+             tr808.h     the shared TR-808 VOICE BANK (the acid303.h move, for drums — a faithful machine, not
+                         the generic drumkit.h): tr808_build(base) = the 14-slot bank from the reverse-engineered
+                         circuit values; tr808_fire(base,role,boost,delay,kt,kd,kc) = the layered trigger + tune/
+                         decay/colour knob maths. TR_* 16-voice roster; cart owns the knob arrays. tr808 + acidcandy.
+             tr909.h     the shared TR-909 VOICE BANK: tr909_build + tr909_metal (metal-highpass XY) + tr909_fire
+                         + tr909_fire_stroke (flam/drag/ratchet). TR9_* 11-voice roster. tr909 + acidcandy.
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

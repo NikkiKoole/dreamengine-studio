@@ -155,7 +155,7 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              physics.h   tiny shared VERLET toolkit — PhysPt + phys_integrate/link/collide/bounds/aim
                          (ropes/cloth/ragdolls/blobs/pseudo-solids). Cart owns its arrays+step loop; NOT
                          a rigid-body engine (that's the Layer-1 seam parked in design/physics-notes.md).
-                         verlet=demo, physics=inline teacher; used by ragdoll/linerider/coaster/jelly/sloop/tentacle
+                         verlet=demo, physics=inline teacher; used by ragdoll/linerider/coaster/jelly/sloop/tentacle/waterjar (PBD fluid)
              drumkit.h   shared PLAYABLE drum kit (the engine has no INSTR_KIT): a role vocab
                          (KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH) + fixed slot layout + dk_fire(role,midi,vel)
                          with pitch as a param. Header owns the trigger SKELETON; each kit's build()

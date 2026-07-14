@@ -6546,6 +6546,22 @@
     "lineage": "Companion to voxab (continuous-lever probe); novel in being a full phoneme keyboard that covers all 10 table vowels via the diphthong path and all 22 consonants including the navkit table-completion additions, with loop/coda/VC mode articulation."
   },
   {
+    "title": "Water Jar",
+    "description": "A jar of water you can tip, slosh, and stir. Hundreds of particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool. Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance. Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets",
+    "file": "waterjar.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "verlet-integration",
+      "particle-system",
+      "fluid-sim"
+    ],
+    "lineage": "The PBD/SPH fluid the physics-notes 'Fluids — a third world' section calls for: a code-first Position-Based Fluid (Macklin & Müller / Ten Minute Physics) on runtime/physics.h, deliberately NOT LiquidFun (C++, dead). Same points-and-constraints shape as jelly.c — swaps the blob's edge-links for a per-particle DENSITY constraint (incompressibility) + XSPH viscosity, with a uniform-grid spatial hash so a few hundred particles stay 60fps. No new engine code."
+  },
+  {
     "title": "wavecandy",
     "description": "A Wave-Candy-style AUDIO VISUALIZER with five views on the live master mix: a SPAN-style spectrum analyzer, a heat-colored spectrogram waterfall, an oscilloscope, peak/RMS meters with a clip lamp, and a stereo vectorscope (goniometer) - fed by scope_read()/scope_read2() and one in-cart 2048-point FFT. The audio-visualizer cart: five views (M cycles) over the REAL post-FX master mix. Every frame it pulls the newest 2048 samples with scope_read(), Hann-windows them, and runs an in-cart radix-2 FFT. SPECTRUM is the Voxengo SPAN layout: one-sided magnitude as dB (0..-72) against a log frequency axis (40 Hz..16 kHz), fast-attack/slow-release ballistics, a yellow peak-hold trace, and a cursor reading out the strongest partial. SPECTROGRAM is the Wave Candy waterfall: time scrolls left, frequency runs up the vertical axis, loudness is a heat ramp (black-blue-purple-red-yellow-white), so held notes draw horizontal stripes and the filter sweep carves a moving ridge you can read seconds after it happened. SCOPE draws the waveform itself, frozen at a rising zero crossing, with a labelled power-of-2 auto-zoom. METERS shows peak + RMS bars with meter ballistics, a white peak-hold tick, a latching CLIP lamp, and the crest factor (peak minus RMS - watch it collapse from a spiky saw to steady noise). VECTORSCOPE is the goniometer on the raw L/R pair via scope_read2(): mid (L+R) vertical against side (L-R) horizontal plus a correlation readout - a mono mix is a vertical line, W's autopan tilts it side to side, W's chorus opens it into a cloud (the stereo tap was added to the engine FOR this view). Test sources make the physics visible: a SINE is one spike/stripe, a SQUARE has odd harmonics only, a SAW is the full comb, a CHORD is three interleaved combs, NOISE is the flat carpet. M cycles views (spectrum / spectrogram / scope / meters / vectorscope) - 1..5 pick the source (sine / square / saw / chord / noise) - W cycles stereo width (mono / autopan / chorus), F toggles the filter sweep, Q toggles silence, P clears peak holds + waterfall + clip lamp",
     "file": "wavecandy.cart.png",

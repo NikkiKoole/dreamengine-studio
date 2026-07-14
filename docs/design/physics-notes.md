@@ -5,7 +5,7 @@
 > sparked by the ragdoll cart (`tools/carts/ragdoll.c`) feeling good and prompting the
 > question: should dreamengine roll a tiny physics layer into the runtime — "a bit like a
 > simple Box2D"? The verlet toolkit half is now real (used by `verlet`/`ragdoll`/`linerider`/
-> `coaster`/`jelly`/`sloop`/`tentacle`); the deeper rigid-body route is still just the sketch below.
+> `coaster`/`jelly`/`sloop`/`tentacle`/`waterjar`); the deeper rigid-body route is still just the sketch below.
 
 ---
 
@@ -95,6 +95,14 @@ whole Box2D experiment). Fluids are the case *for* a cart (hand-rolling is squar
 PBD family we own, and the only lib on offer is a dead C++ fork). So a **PBD-fluid demo cart**
 is a candidate next to — or before — the Box2D rigid-body experiment, and it stays entirely
 code-first with zero new dependency.
+
+**Shipped: `waterjar`** — this is now real. A Position-Based Fluid (Macklin & Müller) on
+`physics.h`: `phys_integrate` for the gravity predict + `phys_bounds` for the walls, and the
+cart adds the fluid-specific parts — a uniform-grid spatial hash for O(n) neighbours, a
+per-particle density constraint (incompressibility → a flat resting surface, avg density holds
+at ~1.0 rest), XSPH viscosity, and a velocity limiter so a corner pinch can't spark. ~820
+particles at ~0.9ms/frame. Tip the jar and it pours to the low corner; drag to stir. Zero new
+engine code — exactly the "fluids are a cart, not a lib" bet, proven.
 
 ---
 
@@ -260,7 +268,7 @@ marble/orbit.)
 > matches *pointer* coords (`touch_x`/`touch_y`) and pixel vars, not just verlet
 > previous-position. `acidrack` is a 303 rack, `lotfill` a noise-terrain demo; neither does
 > physics. The real backlog is the eight above. **Migrated so far:** `ragdoll`, `linerider`,
-> `coaster` (from the list) + `jelly`/`sloop`/`tentacle`/`verlet` (newer). **Still hand-rolling:**
+> `coaster` (from the list) + `jelly`/`sloop`/`tentacle`/`verlet`/`waterjar` (newer). **Still hand-rolling:**
 > `growballs`, `inkrunner`, `calgames`, `marble`, `orbit`.
 
 ### The shape we settled on — two layers, seam only in Layer 1

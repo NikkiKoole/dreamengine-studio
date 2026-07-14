@@ -9,14 +9,14 @@
   "teaches": ["gesture-loop"],
   "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained.",
   "description": {
-    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Give any chop its own REVERSE or SPEED (.25–2x, varispeed so pitch couples) — tap a pad to select it, set its property, then perform: you design the kit chop-by-chop and live-play it. Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop.",
-    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. The break plays MONOPHONICALLY through one SELF-CHOKED voice: firing any pad (or the next slice in PLAY) instantly silences the chop that's still ringing — the MPC mute-group feel — so stutters/rolls stay clean and the reconstruction never smears. Each slice sets that voice's [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice — the last one tapped is SELECTED. Each pad carries its OWN reverse + speed: hit REV or SPD to set the selected chop's property (speed = varispeed .25–2x, pitch couples — no time-stretch, which is the point), tap again to hear it. So you DESIGN the kit chop-by-chop (reverse this one, drop that one an octave) then PERFORM — auto-play and hand-play both use the assigned properties. This is the set-then-play split: per-pad properties are assigned (you can't tune a pad while playing it), GRIT is the one global ride-live effect. PLAY steps through the slices in order at the derived tempo, looping. GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
-    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / Q W E R / A S D F / Z X C V) to fire that slice — the last tapped is SELECTED. REV / SPD — set the SELECTED pad's reverse / speed (.25/.5/1/1.5/2x, varispeed), then tap it to hear it: design each chop, then perform. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi (global). Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
+    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Give any chop its own REVERSE or SPEED (.25–2x, varispeed so pitch couples) — tap a pad to select it, set its property, then perform: you design the kit chop-by-chop and live-play it. Add GRIT for the SP-1200 crunch, and ride the DJ FILTER (CUT + RES knobs, LP/HP) live — the punch-in sweep. With no loop file it synthesises a break so there's always something to chop.",
+    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. The break plays MONOPHONICALLY through one SELF-CHOKED voice: firing any pad (or the next slice in PLAY) instantly silences the chop that's still ringing — the MPC mute-group feel — so stutters/rolls stay clean and the reconstruction never smears. Each slice sets that voice's [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice — the last one tapped is SELECTED. Each pad carries its OWN reverse + speed: hit REV or SPD to set the selected chop's property (speed = varispeed .25–2x, pitch couples — no time-stretch, which is the point), tap again to hear it. So you DESIGN the kit chop-by-chop (reverse this one, drop that one an octave) then PERFORM — auto-play and hand-play both use the assigned properties. This is the set-then-play split: per-pad properties are assigned (you can't tune a pad while playing it), while the GLOBAL effects are ridden live — GRIT (CLEAN/12BIT/8BIT/CRUSH) and the DJ FILTER (CUT + RES knobs + LP/HP mode, a sweepable state-variable filter over the whole mix; drag it down for the breakdown thump, open for the drop — best ridden while auto-play runs and your hands are free). PLAY steps through the slices in order at the derived tempo, looping. GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
+    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / Q W E R / A S D F / Z X C V) to fire that slice — the last tapped is SELECTED. REV / SPD — set the SELECTED pad's reverse / speed (.25/.5/1/1.5/2x, varispeed), then tap it to hear it: design each chop, then perform. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi (global). FILTER — drag the CUT + RES knobs, cycle OFF/LP/HP: the DJ punch-in sweep over the whole mix, ridden live. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
   },
   "todo": [
     "RELEASE GATE: the amen fixture is a copyrighted dev placeholder — before publishing, ship no bundled audio (loops are user-supplied) or swap to a CC0 loop. See data-tools/breaks/README.md.",
     "onset-snap the tempo grid to the actual transients (currently pure even division).",
-    "punch-in FX tier (global, ride-live over the loop): a filter sweep, an echo throw, a stutter/loop-hold — the SP-404 performance half.",
+    "more punch-in FX (global, ride-live): an echo throw + a stutter/loop-hold — the DJ FILTER sweep is done.",
     "runtime user import on device (file picker → sample_load) — the eventual product surface.",
     "free slice→pad assignment + reorder; persist the designed kit (per-pad rev/speed) via save_bytes, like the sampler."
   ]
@@ -68,11 +68,18 @@ static const char *SPEED_NM[] = { ".25x", ".5x", "1x", "1.5x", "2x" };
 static char pad_rev[MAXSLICE];            // per-pad reverse
 static char pad_speed[MAXSLICE];          // per-pad speed index into SPEEDS (init to SPD1X)
 
+// global DJ FILTER — the one ride-live punch-in FX (filter() is cheap to sweep every frame).
+static float f_cut = 1.0f;                // knob 0..1 → 20Hz..18kHz (1 = wide open)
+static float f_res = 0.0f;                // knob 0..1 → resonance
+static int   f_mode = 0;                  // 0=OFF 1=LP 2=HP
+static const int   FMODE[]    = { FILTER_OFF, FILTER_LOW, FILTER_HIGH };
+static const char *FMODE_NM[] = { "OFF", "LP", "HP" };
+
 #define PX 6
 #define PY 24
 #define PW (SCREEN_W - 12)
 #define PH 46
-#define GY 96                       // pad grid top
+#define GY 124                      // pad grid top (leaves a filter-knob row under the buttons)
 
 static float derived_bpm(void) { return loop_secs > 0.0f ? 60.0f * ndiv / loop_secs : 120.0f; }
 
@@ -84,6 +91,10 @@ static void setup_voice(void) {     // one mono INSTR_SAMPLE voice, self-choked 
 }
 
 static void apply_grit(void) { crush(GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0.0f); }
+static void apply_filter(void) {                          // rideable — safe to call every frame
+    float hz = 20.0f * powf(900.0f, f_cut);               // 20 Hz .. ~18 kHz, log sweep
+    filter(FMODE[f_mode], hz, f_res);
+}
 
 static void fire_slice(int i, int select) {
     if (i < 0 || i >= ndiv) return;
@@ -220,7 +231,13 @@ void draw(void) {
     if (ui_button(212, PY + PH + 3, 52, 16, SPEED_NM[(int)pad_speed[sel]])) {
         pad_speed[sel] = (pad_speed[sel] + 1) % NSPEED; fire_slice(sel, 1);
     }
+    // global DJ FILTER — ride CUT + RES live (the SP/DJ punch-in sweep), a mode toggle
+    ui_knob(&f_cut, 20, 106, "CUT");
+    ui_knob(&f_res, 62, 106, "RES");
+    if (ui_button(84, 98, 40, 16, FMODE_NM[f_mode])) f_mode = (f_mode + 1) % 3;
+    print("FILTER", 130, 100, f_mode ? CLR_LIME_GREEN : CLR_DARK_GREY);
     ui_end();
+    apply_filter();                                       // rideable, every frame
 
     // pad grid
     for (int i = 0; i < ndiv; i++) {

@@ -17,7 +17,7 @@
   "description": {
     "summary": "A jar of water you can tip, slosh, and stir. A few thousand particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool.",
     "detail": "Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance.",
-    "controls": "Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets · the grav/visc/damp sliders retune the fluid live (moon gravity, honey, bounce)"
+    "controls": "Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · V toggles the render — a smooth dithered 'liquid' surface (metaball) vs the raw particles · R resets · the grav/visc/damp sliders retune the fluid live (moon gravity, honey, bounce)"
   }
 }
 de:meta */
@@ -92,12 +92,22 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 #define GH ((SCREEN_H / HCELL) + 2)
 #define NCELLS (GW * GH)
 
+// --- liquid (metaball) render: a screen-space DENSITY FIELD, thresholded + dithered ---
+#define GCELL   3              // field cell size in screen px (finer = smoother surface, more cost)
+#define GCW     ((SCREEN_W / GCELL) + 2)
+#define GCH     ((SCREEN_H / GCELL) + 2)
+#define FINF    9.0f           // splat influence radius (px): how far each particle spreads into field
+#define FEDGE   0.45f          // faint dithered HALO starts here (soft anti-aliased edge)
+#define FTHRESH 1.30f          // the SURFACE: field ≥ this is solid liquid
+#define FSTEP   0.80f          // field per shading band (thin/bright skin → thick/dark body)
+
 static PhysPt P[MAXP];
 static int    N = 0;
 
 static float lam[MAXP], dpx[MAXP], dpy[MAXP], vlx[MAXP], vly[MAXP];
 static int   nbr[MAXP * MAXN], nbrN[MAXP];
 static int   cellHead[NCELLS], cnext[MAXP];
+static float field[GCW * GCH];   // liquid-render density field (screen space, rebuilt each draw)
 
 static float KP, KS, WDQ;      // kernel normalisers + poly6(dq) for the s_corr denominator
 static float rho0 = 0.0f;      // rest density — calibrated once from the initial packing
@@ -105,7 +115,7 @@ static float rho0 = 0.0f;      // rest density — calibrated once from the init
 static float tilt = 0.0f;      // jar tilt in degrees (rotates gravity)
 static float pmx, pmy;         // previous mouse (sim space) for stir velocity
 static bool  panel_drag = false;   // a drag that STARTED on the slider panel — don't also stir
-static bool  liquid = false;   // render mode: false = particles, true = merged liquid blob (V toggles)
+static bool  liquid = true;    // render mode: true = merged liquid metaball (default), false = raw particles (V toggles)
 
 // --- live tweakables (onscreen sliders) ------------------------------------
 // The sliders store 0..1; these map to the real ranges the sim reads each frame. Defaults tuned
@@ -440,14 +450,39 @@ void draw(void) {
 
     // water — two render modes (V toggles):
     if (liquid) {
-        // LIQUID: draw each particle as a fat flat blob so they MERGE into one silhouette instead
-        // of reading as dots. Two passes give it a skin: a big dark body (whose union is the shape,
-        // leaving a darker rim at the edge) then a brighter core (whose union fills the interior).
-        for (int i = 0; i < N; i++)
-            circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 6, CLR_TRUE_BLUE);  // body + rim
-        for (int i = 0; i < N; i++)
-            circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 4, CLR_BLUE);        // bright fill
-        for (int i = 0; i < N; i++) {               // foam: keep white flecks on fast crests
+        // LIQUID (metaball): splat every particle into a screen-space DENSITY FIELD, then draw the
+        // field thresholded — one connected surface, not dots. The field value = local thickness, so
+        // shade by it (thin edges = bright skin, thick core = dark body) and dither the bands +
+        // the rim so it reads as translucent, wet, anti-aliased water in the lo-fi register.
+        for (int c = 0; c < GCW * GCH; c++) field[c] = 0.0f;
+        float inf2 = FINF * FINF;
+        int cr = (int)(FINF / GCELL) + 1;
+        for (int i = 0; i < N; i++) {
+            float sx = ROTX(P[i].x, P[i].y), sy = ROTY(P[i].x, P[i].y);
+            int gx = (int)(sx / GCELL), gy = (int)(sy / GCELL);
+            for (int oy = -cr; oy <= cr; oy++)
+                for (int ox = -cr; ox <= cr; ox++) {
+                    int ax = gx + ox, ay = gy + oy;
+                    if (ax < 0 || ay < 0 || ax >= GCW || ay >= GCH) continue;
+                    float px = ax * GCELL + GCELL * 0.5f, py = ay * GCELL + GCELL * 0.5f;
+                    float dx = px - sx, dy = py - sy, d2 = dx * dx + dy * dy;
+                    if (d2 < inf2) { float w = 1.0f - d2 / inf2; field[ay * GCW + ax] += w * w; }
+                }
+        }
+        for (int ay = 0; ay < GCH; ay++)
+            for (int ax = 0; ax < GCW; ax++) {
+                float f = field[ay * GCW + ax];
+                if (f < FEDGE) continue;
+                int col;
+                if      (f < FTHRESH)             { col = CLR_TRUE_BLUE; fillp(FILL_CHECKER, CLR_BROWNISH_BLACK); } // soft rim halo
+                else if (f < FTHRESH + FSTEP)     { col = CLR_BLUE;      fillp(FILL_CHECKER, CLR_TRUE_BLUE); }     // bright thin skin
+                else if (f < FTHRESH + 2 * FSTEP) { col = CLR_TRUE_BLUE; fillp_reset(); }                         // mid
+                else if (f < FTHRESH + 3 * FSTEP) { col = CLR_TRUE_BLUE; fillp(FILL_CHECKER, CLR_DARK_BLUE); }    // deepening
+                else                              { col = CLR_DARK_BLUE; fillp_reset(); }                         // thick dark core
+                circfill(ax * GCELL + GCELL / 2, ay * GCELL + GCELL / 2, GCELL - 1, col);
+            }
+        fillp_reset();
+        for (int i = 0; i < N; i++) {               // foam: white flecks on fast crests, on top
             float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
             if (sp > VMAX * 0.55f) circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 1, CLR_WHITE);
         }

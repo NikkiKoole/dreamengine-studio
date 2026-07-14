@@ -12,14 +12,25 @@
   "description": {
     "summary": "The SHOW family from the control vocabulary — output-only indicators in beveled lo-fi: status LEDs (off/dim/on/blink + colours + a chase), stereo VU bargraphs with peak-hold, 7-segment numeric readouts, and an LCD scope with phosphor glow. All driven by one animated signal so they're alive.",
     "detail": "The fourth control-vocabulary study cart. These controls take no input — they DISPLAY — so every one is driven by a shared bouncing signal (a couple of LFOs) to show how it reads a value. Row 1 LEDS: a single lamp in each light state (off/dim/on/blink), the colour vocabulary (red/amber/green/blue/bi-colour), and a chasing activity row. Row 2 METERS: a stereo VU pair (segmented green->amber->red) with decaying PEAK-HOLD caps, plus a horizontal LED bar. Row 3 READOUTS + SCREEN: 7-segment displays (a fixed BPM, a live counter) on a recessed dark inset, beside a bezelled LCD SCOPE — dark phosphor field, scanlines, a bright green trace with a dim glow (the zone-3 'soul' surface). Recessed housings + top-left light, per the pinned lighting rule.",
-    "controls": "The one control is the BEVEL toggle (tap it, top-right, or press B) — flat vs tactile lighting (glints/sheens/bezel), the ui_skin prototype. Everything else is output: watch the meters bounce, the peak caps hang and fall, the counter tick, the scope scroll."
+    "controls": "The one control is the SKIN cycle (tap it, top-right, or press B) — TACTILE (lit chrome) / FLAT (PICO-flat) / PURE (native hairline frames), the ui_skin prototype. Everything else is output: watch the meters bounce, the peak caps hang and fall, the counter tick, the scope scroll."
   }
 }
 de:meta */
 #include "studio.h"
 #include "ui.h"
 
-static int bevel = 1;   // tactile lighting (glints/sheens/bezel) on/off — the ui_skin prototype
+// SKIN axis (the ui_skin prototype) — see control-vocabulary.md §10.
+// TACTILE = lit chrome; FLAT = PICO-flat; PURE = native (hairline frames, no fills).
+enum { SK_TACTILE, SK_FLAT, SK_PURE };
+static int skin = SK_TACTILE;
+static const char *SKIN_NAME[3] = { "SKIN:TACTILE", "SKIN:FLAT", "SKIN:PURE" };
+#define bevel (skin == SK_TACTILE)
+
+// a panel/housing: filled (chrome) or a hairline frame (PURE)
+static void panel(int x, int y, int w, int h) {
+    if (skin == SK_PURE) rect(x, y, w, h, CLR_MEDIUM_GREY);
+    else                 rrectfill(x, y, w, h, 4, CLR_DARK_BROWN);
+}
 
 // INDICATORS — the SHOW family (control-vocabulary.md §3 ▦): output-only
 // readouts. LEDs, VU bargraphs, 7-segment numbers, an LCD scope. They take no
@@ -30,6 +41,11 @@ static float absf(float v) { return v < 0 ? -v : v; }
 
 // ── a status LED: a recessed lamp that glows when lit (top-left glint) ───────
 static void led(int cx, int cy, int r, int on, int col) {
+    if (skin == SK_PURE) {                                // native: filled dot on / hairline ring off
+        if (on) circfill(cx, cy, r, col);
+        arc(cx, cy, r, 0, 360, on ? col : CLR_MEDIUM_GREY);
+        return;
+    }
     circfill(cx, cy, r + 1, CLR_BROWNISH_BLACK);          // recessed bezel hole
     if (on) {                                             // soft colour halo
         blend(BLEND_AVG);
@@ -44,7 +60,8 @@ static void led(int cx, int cy, int r, int on, int col) {
 // ── a segmented VU meter: level fills bottom->top, green->amber->red, + peak ─
 static void vu_meter(int x, int y, int w, int h, float level, float peak) {
     int n = 12, gap = 1, sh = (h - (n - 1) * gap) / n;    // segment height
-    rrectfill(x - 2, y - 2, w + 4, h + 4, 2, CLR_BROWNISH_BLACK);   // recessed housing
+    if (skin == SK_PURE) rect(x - 2, y - 2, w + 4, h + 4, CLR_MEDIUM_GREY);         // hairline housing
+    else                 rrectfill(x - 2, y - 2, w + 4, h + 4, 2, CLR_BROWNISH_BLACK);
     for (int i = 0; i < n; i++) {
         float frac = (i + 1) / (float)n;
         int sy = y + h - (i + 1) * sh - i * gap;
@@ -87,7 +104,8 @@ static void seg7_num(int x, int y, int dw, int dh, int value, int digits, int on
 
 // ── the LCD scope: bezel + dark phosphor + scanlines + a bright green trace ─
 static void scope(int x, int y, int w, int h, float t) {
-    rrectfill(x - 3, y - 3, w + 6, h + 6, 3, CLR_DARK_GREY);        // bezel
+    if (skin == SK_PURE) rect(x - 3, y - 3, w + 6, h + 6, CLR_MEDIUM_GREY);   // hairline bezel
+    else                 rrectfill(x - 3, y - 3, w + 6, h + 6, 3, CLR_DARK_GREY);
     if (bevel) {
         line(x - 3, y - 3, x + w + 2, y - 3, CLR_LIGHT_GREY);       // bezel top-left sheen
         line(x - 3, y - 3, x - 3, y + h + 2, CLR_LIGHT_GREY);
@@ -128,7 +146,7 @@ void draw(void) {
 
     print("INDICATORS", 6, 4, CLR_WHITE);
     font(FONT_SMALL);
-    if (ui_button(SCREEN_W - 64, 3, 60, 11, bevel ? "BEVEL:ON" : "BEVEL:OFF") || keyp('B')) bevel = !bevel;
+    if (ui_button(SCREEN_W - 74, 3, 70, 11, SKIN_NAME[skin]) || keyp('B')) skin = (skin + 1) % 3;
 
     float t = now();
     // one shared signal driving everything
@@ -139,7 +157,7 @@ void draw(void) {
 
     // ── ROW 1 — LEDs: states, colours, a chase ─────────────────────────────
     print("1 LEDS  off / dim / on / blink   -   colours   -   activity chase", 6, 20, CLR_DARK_GREY);
-    rrectfill(4, 28, 312, 46, 4, CLR_DARK_BROWN);
+    panel(4, 28, 312, 46);
     int blink = ((int)(t * 3)) & 1;
     {
         // the four states (all red)
@@ -166,7 +184,7 @@ void draw(void) {
 
     // ── ROW 2 — meters: stereo VU + peak-hold, a horizontal bar ────────────
     print("2 METERS  stereo VU with peak-hold   -   horizontal LED bar", 6, 82, CLR_DARK_GREY);
-    rrectfill(4, 90, 312, 82, 4, CLR_DARK_BROWN);
+    panel(4, 90, 312, 82);
     {
         vu_meter(24, 100, 14, 62, lvlL, peakL);
         vu_meter(44, 100, 14, 62, lvlR, peakR);
@@ -174,7 +192,7 @@ void draw(void) {
 
         // horizontal LED bar (16 cells)
         int bx = 90, by = 120, bw = 210, n = 16, cw = bw / n;
-        rrectfill(bx - 2, by - 2, bw + 4, 16, 2, CLR_BROWNISH_BLACK);
+        if (skin == SK_PURE) rect(bx - 2, by - 2, bw + 4, 16, CLR_MEDIUM_GREY); else rrectfill(bx - 2, by - 2, bw + 4, 16, 2, CLR_BROWNISH_BLACK);
         float bl = 0.5f + 0.5f * sin_deg(t * 45);
         for (int i = 0; i < n; i++) {
             float frac = (i + 1) / (float)n;
@@ -188,10 +206,10 @@ void draw(void) {
 
     // ── ROW 3 — readouts + the LCD scope ───────────────────────────────────
     print("3 READOUTS + SCREEN  7-segment displays   -   LCD scope (phosphor)", 6, 180, CLR_DARK_GREY);
-    rrectfill(4, 188, 312, 78, 4, CLR_DARK_BROWN);
+    panel(4, 188, 312, 78);
     {
         // 7-seg on a recessed dark inset
-        rrectfill(14, 198, 96, 58, 3, CLR_BROWNISH_BLACK);
+        if (skin == SK_PURE) rect(14, 198, 96, 58, CLR_MEDIUM_GREY); else rrectfill(14, 198, 96, 58, 3, CLR_BROWNISH_BLACK);
         // off-segments are near-invisible (a hair above the inset) so digits stay legible —
         // DARK_RED as a ghost was too close to lit RED and every digit read as "8".
         seg7_num(22, 206, 14, 26, 120, 3, CLR_RED, CLR_DARK_BROWN);         // BPM (fixed)

@@ -26,14 +26,22 @@ de:meta */
 // ui_button_core, so every control is mouse + touch + focus at once.
 
 // ── shared chrome ────────────────────────────────────────────────────────
-static int bevel = 1;   // Win95 chisel on/off — the ui_skin prototype
+// SKIN axis (the ui_skin prototype) — see control-vocabulary.md §10.
+// TACTILE = Win95 chisel; FLAT = PICO-flat; PURE = native (hairline + C64 inverted-selection).
+enum { SK_TACTILE, SK_FLAT, SK_PURE };
+static int skin = SK_TACTILE;
+static const char *SKIN_NAME[3] = { "SKIN:TACTILE", "SKIN:FLAT", "SKIN:PURE" };
+#define bevel (skin == SK_TACTILE)
 
 static void faceplate(int x, int y, int w, int h) {
+    if (skin == SK_PURE) { rect(x, y, w, h, CLR_MEDIUM_GREY); return; }   // hairline window frame
     rrectfill(x, y, w, h, 4, CLR_DARK_BROWN);
-    line(x + 3, y + 1, x + w - 4, y + 1, CLR_BROWN);           // top sheen
-    blend(BLEND_AVG);
-    line(x + 3, y + h - 1, x + w - 4, y + h - 1, CLR_BLACK);   // bottom shade
-    blend_reset();
+    if (skin == SK_TACTILE) {
+        line(x + 3, y + 1, x + w - 4, y + 1, CLR_BROWN);           // top sheen
+        blend(BLEND_AVG);
+        line(x + 3, y + h - 1, x + w - 4, y + h - 1, CLR_BLACK);   // bottom shade
+        blend_reset();
+    }
 }
 
 static void plabel(const char *s, int cx, int y, int col) {
@@ -56,6 +64,14 @@ static void chisel(int x, int y, int w, int h, int tl_out, int tl_in, int br_in,
 // it per state); `glow` adds a soft lit halo for LED-style buttons; `lab` = label.
 static void draw_btn(int x, int y, int w, int h, const char *label,
                      int pressed, int face, int lab, int hot, int glow) {
+    if (skin == SK_PURE) {                                     // native: C64 inverted-selection
+        int filled = pressed || glow;                          // engaged/lit = filled block
+        rectfill(x, y, w, h, filled ? face : CLR_BROWNISH_BLACK);
+        rect(x, y, w, h, hot ? CLR_WHITE : CLR_MEDIUM_GREY);   // hairline frame
+        print(label, x + (w - text_width(label)) / 2, y + (h - 6) / 2,
+              filled ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);   // inverted label when filled
+        return;
+    }
     if (glow) { blend(BLEND_AVG); rectfill(x - 2, y - 2, w + 4, h + 4, face); blend_reset(); }
     rectfill(x, y, w, h, face);                                // square face
     if (!bevel) rect(x, y, w, h, CLR_BLACK);                   // flat: a plain 1px border
@@ -75,6 +91,14 @@ static int btn_input(unsigned seed, int x, int y, int w, int h, int *pr, int *ho
 
 // a bat toggle: a base + a lever that LEANS to position `pos` of `n` (a selector).
 static void bat_toggle(int cx, int cy, int pos, int n, int hot) {
+    if (skin == SK_PURE) {                                     // native: hairline base + lever
+        rect(cx - 12, cy - 2, 24, 16, hot ? CLR_WHITE : CLR_MEDIUM_GREY);
+        float a = 270 + (pos - (n - 1) / 2.0f) * 42;
+        int px = cx, py = cy + 8;
+        line(px, py, px + (int)dx(13, a), py + (int)dy(13, a), CLR_LIGHT_GREY);
+        arc(px + (int)dx(13, a), py + (int)dy(13, a), 3, 0, 360, CLR_WHITE);
+        return;
+    }
     rrectfill(cx - 12, cy - 2, 24, 16, 3, CLR_DARKER_GREY);    // base plate
     rrect(cx - 12, cy - 2, 24, 16, 3, hot ? CLR_WHITE : CLR_BLACK);
     blend(BLEND_AVG);
@@ -92,6 +116,12 @@ static void bat_toggle(int cx, int cy, int pos, int n, int hot) {
 
 // a slide switch: a recessed track with a nub sitting at stop `pos` of `n`.
 static void slide_switch(int x, int y, int w, int pos, int n, int hot) {
+    if (skin == SK_PURE) {                                     // native: hairline track + nub outline
+        rect(x, y, w, 12, hot ? CLR_WHITE : CLR_MEDIUM_GREY);
+        int pseg = w / n, pnx = x + pseg * pos;
+        rectfill(pnx + 2, y + 2, pseg - 4, 8, CLR_LIGHT_GREY);
+        return;
+    }
     rrectfill(x, y, w, 12, 3, CLR_BROWNISH_BLACK);             // recessed track
     rrect(x, y, w, 12, 3, hot ? CLR_WHITE : CLR_DARKER_GREY);
     int seg = w / n, nx = x + seg * pos;
@@ -104,6 +134,14 @@ static void slide_switch(int x, int y, int w, int pos, int n, int hot) {
 
 // a rocker see-saw: two halves, the active one raised + lit, the other pressed in.
 static void rocker(int x, int y, int w, int h, int on, int hot) {
+    if (skin == SK_PURE) {                                     // native: hairline + inverted active half
+        int pm = y + h / 2;
+        rectfill(x + 1, on ? y + 1 : pm, w - 2, h / 2 - 1, on ? CLR_GREEN : CLR_MEDIUM_GREY);
+        rect(x, y, w, h, hot ? CLR_WHITE : CLR_MEDIUM_GREY);
+        print("I", x + w / 2 - 1, y + 3, on ? CLR_BROWNISH_BLACK : CLR_DARK_GREY);
+        print("O", x + w / 2 - 1, pm + 2, on ? CLR_DARK_GREY : CLR_LIGHT_GREY);
+        return;
+    }
     rrectfill(x, y, w, h, 3, CLR_DARKER_GREY);
     rrect(x, y, w, h, 3, hot ? CLR_WHITE : CLR_BLACK);
     int mid = y + h / 2;
@@ -137,7 +175,7 @@ void draw(void) {
 
     print("SWITCHES", 6, 4, CLR_WHITE);
     font(FONT_SMALL);
-    if (ui_button(SCREEN_W - 64, 3, 60, 11, bevel ? "BEVEL:ON" : "BEVEL:OFF") || keyp('B')) bevel = !bevel;
+    if (ui_button(SCREEN_W - 74, 3, 70, 11, SKIN_NAME[skin]) || keyp('B')) skin = (skin + 1) % 3;
 
     int col[4] = { 12, 88, 164, 240 }, bw = 64, bh = 24;
     int blink = ((int)(now() * 2)) & 1;                        // 2 Hz pending flash

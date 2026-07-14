@@ -65,6 +65,14 @@ static const int PENTA[6] = { 0, 3, 5, 7, 10, 12 };        // semitones above ba
 #define NPENTA 6
 static int penta_idx(int semi) { for (int k = 0; k < NPENTA; k++) if (PENTA[k] == semi) return k; return 0; }
 static int bar_gy[STEPS], bar_moved[STEPS], bar_on0[STEPS]; // per-bar drag trackers (tap vs drag)
+// per-step DEPTH (the 303 flags) + polymeter
+static int  tie[2][STEPS], oct[2][STEPS];   // TIE = hold prev note; OCT = octave -1/0/+1
+static int  plen[2] = { STEPS, STEPS };     // per-line LENGTH (short = polymeter drift)
+static int  lpos[2] = { 0, 0 };             // per-line playhead
+static int  flagmode = 0;                    // step row is painting a flag (vs pitch/on-off)
+enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_LEN, FL_N };
+static int  armed = FL_ACC;                  // which flag a bar-tap paints
+static const char *FLNAME[FL_N] = { "ACC", "SLD", "TIE", "OCT+", "OCT-", "LEN" };
 
 // the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart).
 // The 808 kit lives at slots TR808_BASE(9)..22; the 909 kit sits above it at 23+.
@@ -127,7 +135,10 @@ static void gen_line(int i) {
         pit[i][s] = prev = p;
         acc[i][s] = rnd_between(0, 99) < 30;
         sld[i][s] = rnd_between(0, 99) < 22;
+        oct[i][s] = rnd_between(0, 99) < 10 ? 1 : 0;
+        tie[i][s] = (!on[i][s] && rnd_between(0, 99) < 15) ? 1 : 0;
     }
+    plen[i] = STEPS;
 }
 
 static void gen_drums(void) {
@@ -274,21 +285,28 @@ static void draw_303(int i) {
     knob(&a->p[ACID_ENV], 76, 26, 6, "ENV", 0.55f); knob(&a->p[ACID_DEC], 104, 26, 6, "DEC", 0.45f);
     knob(&a->p[ACID_ACC], 132, 26, 6, "ACC", 0.55f);
 
-    // ③ display — the piano-roll + playhead, flanked by (still-decorative) soft-keys
-    chip(6, 38, "SEQ", 1); chip(6, 47, "PAT", 0);
+    // ③ display — soft-keys pick what the screen does: SEQ = the roll (+ NEW),
+    // FLAG = the per-step flag palette (arm one, then paint it on the bars below).
+    if (cbtn(0x08u, 6, 38, 16, 8, "SEQ",  !flagmode)) flagmode = 0;
+    if (cbtn(0x09u, 6, 47, 16, 8, "FLAG",  flagmode)) flagmode = 1;
     chip(138, 38, "FX", 0); chip(138, 47, "SCP", 0);
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    font(FONT_TINY); print("132", 29, 40, CLR_MEDIUM_GREEN);          // bpm lives in the screen
-    if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_line(i);           // ...and so does NEW
-    for (int s = 0; s < STEPS; s++) {
-        int cx = 29 + s * 6;
-        if (s == step && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 18, CLR_MEDIUM_GREEN); blend_reset(); }
-        if (!on[i][s]) continue;
-        int y = 56 - pit[i][s];
-        rectfill(cx, y, 4, 3, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
-        if (sld[i][s]) line(cx + 4, y + 1, cx + 6, y + 1, CLR_MEDIUM_GREEN);
+    if (flagmode) {
+        for (int f = 0; f < FL_N; f++)                                // the 6-flag palette IN the screen
+            if (cbtn(0x0Au + f, 30 + (f % 3) * 34, 40 + (f / 3) * 9, 32, 8, FLNAME[f], armed == f)) armed = f;
+    } else {
+        font(FONT_TINY); print("132", 29, 40, CLR_MEDIUM_GREEN);      // bpm lives in the screen
+        if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_line(i);       // ...and so does NEW
+        for (int s = 0; s < plen[i]; s++) {
+            int cx = 29 + s * 6;
+            if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 18, CLR_MEDIUM_GREEN); blend_reset(); }
+            if (!on[i][s]) continue;
+            int y = 56 - pit[i][s] - oct[i][s] * 6; if (y < 40) y = 40; if (y > 56) y = 56;
+            rectfill(cx, y, 4, 3, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+            if (sld[i][s]) line(cx + 4, y + 1, cx + 6, y + 1, CLR_MEDIUM_GREEN);
+        }
     }
 
     static int use_bars = 1;   // 1 = the drag-to-pitch NOTE BARS; 0 = the old step row + keybed
@@ -297,33 +315,51 @@ static void draw_303(int i) {
         // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
         int by = 63, bh = 30;
         for (int s = 0; s < STEPS; s++) {
-            int bx = 6 + s * 9, bw = 8;
+            int bx = 6 + s * 9, bw = 8, dead = (s >= plen[i]);
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
             ui_reg(w, bx, by, bw, bh, 0);
             UiCap *c = ui_cap_for(w);
-            if (ui_grabbed(w)) { bar_gy[s] = c ? c->cy : by; bar_moved[s] = 0; bar_on0[s] = on[i][s]; }
-            if (c) {
-                int py = c->released ? c->ry : c->cy, d = py - bar_gy[s]; if (d < 0) d = -d;
-                if (d > 3) {                                 // a drag → set the pitch (snap to scale)
-                    bar_moved[s] = 1; sel[i] = s;
-                    float frac = clamp((by + bh - 1 - py) / (float)(bh - 1), 0, 1);
-                    pit[i][s] = PENTA[(int)(frac * (NPENTA - 1) + 0.5f)];
-                    on[i][s] = 1;
+            if (flagmode) {                              // FLAG mode: a tap paints the armed flag
+                if (ui_released(w)) {
+                    sel[i] = s;
+                    switch (armed) {
+                    case FL_ACC:  acc[i][s] ^= 1; break;
+                    case FL_SLD:  sld[i][s] ^= 1; break;
+                    case FL_TIE:  tie[i][s] ^= 1; break;
+                    case FL_OCTU: oct[i][s] = oct[i][s] == 1 ? 0 : 1; break;
+                    case FL_OCTD: oct[i][s] = oct[i][s] == -1 ? 0 : -1; break;
+                    case FL_LEN:  plen[i] = s + 1; break;
+                    }
+                }
+            } else {                                     // NORMAL: tap = on/off, drag up/down = pitch
+                if (ui_grabbed(w)) { bar_gy[s] = c ? c->cy : by; bar_moved[s] = 0; bar_on0[s] = on[i][s]; }
+                if (c) {
+                    int py = c->released ? c->ry : c->cy, d = py - bar_gy[s]; if (d < 0) d = -d;
+                    if (d > 3) {
+                        bar_moved[s] = 1; sel[i] = s;
+                        float frac = clamp((by + bh - 1 - py) / (float)(bh - 1), 0, 1);
+                        pit[i][s] = PENTA[(int)(frac * (NPENTA - 1) + 0.5f)];
+                        on[i][s] = 1;
+                    }
+                }
+                if (ui_released(w)) {
+                    if (!bar_moved[s]) { on[i][s] = !bar_on0[s]; sel[i] = s; if (on[i][s]) mbop = 1; }
+                    else acid_note(a, a->base + pit[i][s] + oct[i][s] * 12, acc[i][s], 0);
                 }
             }
-            if (ui_released(w)) {
-                if (!bar_moved[s]) { on[i][s] = !bar_on0[s]; sel[i] = s; if (on[i][s]) mbop = 1; }   // a tap → toggle
-                else acid_note(a, a->base + pit[i][s], acc[i][s], 0);                                // a drag → audition
-            }
-            int here = (s == step && playing);
-            rrectfill(bx, by, bw, bh, 1, CLR_DARK_BROWN);
+            int here = (s == lpos[i] && playing);
+            rrectfill(bx, by, bw, bh, 1, dead ? CLR_DARKER_PURPLE : CLR_DARK_BROWN);
             if (here) { blend(BLEND_AVG); rrectfill(bx, by, bw, bh, 1, CLR_MEDIUM_GREEN); blend_reset(); }
-            if (on[i][s]) {
+            if (on[i][s] && !dead) {
                 int idx = penta_idx(pit[i][s]), fh = bh * (idx + 1) / NPENTA;
                 rrectfill(bx, by + bh - fh, bw, fh, 1, acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN);
-                if (sld[i][s]) rectfill(bx + bw - 1, by + bh - fh, 2, 2, CLR_LIGHT_YELLOW);   // slide mark
+                if (sld[i][s])     rectfill(bx + bw - 2, by + bh - fh, 2, 2, CLR_LIGHT_YELLOW);   // slide
+                if (oct[i][s] > 0) rectfill(bx + 1, by + 1, bw - 2, 1, CLR_LIGHT_YELLOW);          // OCT+
+                if (oct[i][s] < 0) rectfill(bx + 1, by + bh - 2, bw - 2, 1, CLR_TRUE_BLUE);        // OCT-
             }
-            rrect(bx, by, bw, bh, 1, (here || s == sel[i]) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+            if (tie[i][s] && !on[i][s] && !dead) rectfill(bx, by + bh / 2, bw, 2, CLR_TRUE_BLUE);  // TIE = hold prev
+            if (!dead && s == plen[i] - 1 && plen[i] < STEPS) rectfill(bx + bw, by, 1, bh, CLR_RED);  // loop end
+            rrect(bx, by, bw, bh, 1, (here || (!flagmode && s == sel[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
         }
     } else {
         // ④ step row — tap toggles
@@ -543,19 +579,26 @@ void update(void) {
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     if (playing) {
         float stepf = now() * (132 / 60.0f * 4);                       // 16th notes at 132 bpm
-        step = ((int)stepf) % STEPS;
-        float frac = stepf - (int)stepf;
-        if (step != laststep) {
-            laststep = step;
-            for (int i = 0; i < 2; i++) {
-                if (!mac[i].mute && on[i][step]) { acid_note(&ac[i], ac[i].base + pit[i][step], acc[i][step], sld[i][step]); mbop = 1; }
+        int   ctr = (int)stepf;                                        // free-running counter (polymeter)
+        step = ctr % STEPS;                                            // drums + shared display base
+        float frac = stepf - ctr;
+        if (ctr != laststep) {
+            laststep = ctr;
+            for (int i = 0; i < 2; i++) {                              // each 303 line at its OWN length
+                int ls = ctr % plen[i]; lpos[i] = ls;
+                if (mac[i].mute) { acid_off(&ac[i]); continue; }
+                if (on[i][ls]) { acid_note(&ac[i], ac[i].base + pit[i][ls] + oct[i][ls] * 12, acc[i][ls], sld[i][ls]); mbop = 1; }
+                else if (tie[i][ls]) acid_tie(&ac[i], sld[i][ls]);     // hold the previous note through
                 else acid_off(&ac[i]);
             }
             for (int v = 0; v < TR_NV; v++)                       // the 808 line, same transport
                 if (dgrid[v][step] && !mac[M_808].mute) tr808_fire(TR808_BASE, v, 0, 0, dtune, ddecay, dcolor);
             for (int v = 0; v < TR9_NV; v++)                      // the 909 line
                 if (d9grid[v][step] && !mac[M_909].mute) tr909_fire(D909_BASE, v, 0, 0, d9tune, d9decay, d9color);
-        } else for (int i = 0; i < 2; i++) acid_gate(&ac[i], frac, 0.0f, 0);   // staccato release
+        } else for (int i = 0; i < 2; i++) {
+            int nx = (ctr + 1) % plen[i];
+            acid_gate(&ac[i], frac, 0.0f, tie[i][nx]);                 // don't cut into a tie
+        }
     } else for (int i = 0; i < 2; i++) acid_off(&ac[i]);
 #ifdef DE_TRACE
     watch("face", "%d", face); watch("step", "%d", step); watch("cut", "%d", acid_cut_hz(&ac[0]));

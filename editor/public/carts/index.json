@@ -1026,6 +1026,21 @@
     "homage": "Bubble Bobble (1986)"
   },
   {
+    "title": "Buggy",
+    "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). RIGHT = gas, LEFT = reverse/brake; in the air the same keys spin the car so you can land wheels-down (do a backflip if you're feeling brave). The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble.",
+    "file": "buggy.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "teaches": [
+      "rigid-body",
+      "collision-detection"
+    ],
+    "lineage": "The second Box2D v3 cart (runtime/box2d/), the vehicle counterpart to tumble's destruction: shows the joints-and-terrain half of the engine — WHEEL joints (built-in spring suspension + a driven motor) on a car rolling over a b2Chain (smooth one-sided procedural terrain, no ghost bumps). Backlog: docs/design/box2d-cart-ideas.md; backend: docs/design/box2d-integration.md."
+  },
+  {
     "title": "bunnymark",
     "description": "The classic sprite-throughput benchmark. Hold A (or the mouse / a finger) and bunnies pour out of the corner, bounce off a gravity floor and the walls, and never stop while a live counter climbs and the FPS readout holds at 60 — until the machine runs out of blit budget and the whole swarm slides into slow-motion. The number it sags at IS the benchmark, and a \"60fps held @ N\" line keeps the session's high score. Every bunny is one sspr() of a 32×32 sprite — a hand bunny posterised into the pico32 palette and tinted five ways via palette-index ramps (NOT pal()-recoloured: pal() flushes the GPU sprite batch per call and runs a per-pixel recolor on the software canvas, so baking the tint into the sheet keeps the loop a pure blit), making it a clean test of the sprite-blit path — exactly the workload the render-backend toggle swaps: open settings → rendering and flip between hardware (GPU immediate-mode) and software (CPU canvas) to watch the held-bunny count move between the two engines. Physics is a fixed per-frame step on purpose, so the slowdown shows as honest slow-motion instead of teleporting. HOLD A/mouse/touch to pour, B to reset.",
     "file": "bunnymark.cart.png",
@@ -2939,6 +2954,17 @@
     "lineage": "Homage to The Incredible Machine (1993); everything reduces to line-segment reflections so one pinball-style reflect routine drives all collisions, with seesaws getting torque and angular velocity on top.",
     "genre": "puzzle",
     "homage": "The Incredible Machine (1993)"
+  },
+  {
+    "title": "indicators",
+    "description": "The SHOW family from the control vocabulary — output-only indicators in beveled lo-fi: status LEDs (off/dim/on/blink + colours + a chase), stereo VU bargraphs with peak-hold, 7-segment numeric readouts, and an LCD scope with phosphor glow. All driven by one animated signal so they're alive. The fourth control-vocabulary study cart. These controls take no input — they DISPLAY — so every one is driven by a shared bouncing signal (a couple of LFOs) to show how it reads a value. Row 1 LEDS: a single lamp in each light state (off/dim/on/blink), the colour vocabulary (red/amber/green/blue/bi-colour), and a chasing activity row. Row 2 METERS: a stereo VU pair (segmented green->amber->red) with decaying PEAK-HOLD caps, plus a horizontal LED bar. Row 3 READOUTS + SCREEN: 7-segment displays (a fixed BPM, a live counter) on a recessed dark inset, beside a bezelled LCD SCOPE — dark phosphor field, scanlines, a bright green trace with a dim glow (the zone-3 'soul' surface). Recessed housings + top-left light, per the pinned lighting rule. None — indicators are output. Everything animates from the internal signal; watch the meters bounce, the peak caps hang and fall, the counter tick, and the scope scroll.",
+    "file": "indicators.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": []
   },
   {
     "title": "Infiniminer",
@@ -5879,6 +5905,7 @@
     "description": "The press + flip families from the control vocabulary, in beveled lo-fi: momentary and latching buttons, the illuminated light vocabulary (off/dim/lit/blink), a radio group, and the flip family — bat toggles, a slide switch, a rocker. The second study cart for docs/design/control-vocabulary.md (the sibling of rotaries). Row 1 PUSH: MOMENTARY (on only while held), LATCH (a press flips a sticky state), ILLUM (a lit latching button), BLINK (the pending/recording state). Row 2 LIGHT STATES + RADIO: the one light vocabulary every illuminated control shares — OFF / DIM (armed) / LIT (active) / BLINK (pending) — plus a mutually-exclusive RADIO group (one lit). Row 3 SWITCHES (flip): a 2-position and a 3-position BAT toggle whose lever leans, a SLIDE switch whose nub sits at a labelled stop, and a ROCKER see-saw. Buttons are beveled caps that depress + darken on press; input rides ui.h's ui_button_core so every one is mouse + touch + focus at once. Tap/click any button. MOMENTARY lights only while held. LATCH/ILLUM toggle and stay. Tap a RADIO button to select it (only one lit). Tap a BAT toggle or SLIDE to step it to the next position; tap the ROCKER to flip it.",
     "file": "switches.cart.png",
     "created": "2026-07-14",
+    "orientation": "square",
     "kind": [
       "tech-demo",
       "probe"

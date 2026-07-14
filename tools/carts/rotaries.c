@@ -30,6 +30,8 @@ de:meta */
 #define SW 240.0f      // dial sweep; leaves a 120° dead-zone at the bottom
 #define R  15          // main knob radius
 #define RR 13          // ring-encoder body radius (leaves room for the halo)
+#define DIAL_TH 2       // PURE value-dial thickness in px (tune me: 1 = hairline, 2 = bolder)
+#define OUTLINE_TH 1    // PURE outline thickness for rims + window frames (1 or 2px)
 
 enum { RING_DOT, RING_FILL, RING_BIPOLAR, RING_SPREAD, RING_PULSE };
 
@@ -70,9 +72,17 @@ static void rot_shadow(int cx, int cy, int r) {
     blend_reset();
 }
 
+// th-px circle outline / rect frame (PURE outlines, parameterized)
+static void thick_circ(int cx, int cy, int r, int th, int col) {
+    for (int i = 0; i < th; i++) arc(cx, cy, r - i, 0, 360, col);
+}
+static void thick_rect(int x, int y, int w, int h, int th, int col) {
+    for (int i = 0; i < th; i++) rect(x + i, y + i, w - 2 * i, h - 2 * i, col);
+}
+
 // a slightly-raised faceplate the controls are set INTO (so the sockets read as holes)
 static void faceplate(int x, int y, int w, int h) {
-    if (skin == SK_PURE) { rect(x, y, w, h, CLR_MEDIUM_GREY); return; }   // hairline window frame
+    if (skin == SK_PURE) { thick_rect(x, y, w, h, OUTLINE_TH, CLR_MEDIUM_GREY); return; }  // window frame
     rrectfill(x, y, w, h, 4, CLR_DARK_BROWN);
     if (skin == SK_TACTILE) {
         line(x + 3, y + 1, x + w - 4, y + 1, CLR_BROWN);          // top sheen
@@ -90,7 +100,7 @@ static void faceplate(int x, int y, int w, int h) {
 static void rot_body(int cx, int cy, int r, int face, int hi, int lo, int hot) {
     if (skin == SK_PURE) {                           // native: a hairline disc, no chrome
         circfill(cx, cy, r, CLR_BROWNISH_BLACK);
-        arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_LIGHT_GREY);
+        thick_circ(cx, cy, r, OUTLINE_TH, hot ? CLR_WHITE : CLR_LIGHT_GREY);
         return;
     }
     int t = r >= 16 ? 2 : 1;                         // bevel thickness scales with size
@@ -123,14 +133,15 @@ static void rot_pointer(int cx, int cy, int r, float ang, int col) {
 
 // the value halo (control-vocabulary.md §4) around a ring-encoder
 static void rot_ring(int cx, int cy, int r, int mode, float v, int col) {
-    if (skin == SK_PURE) {                                      // native: thin 1px halo
+    if (skin == SK_PURE) {                                      // native: thin halo (DIAL_TH px)
         float av = A0 + v * SW, mid = A0 + SW / 2.0f;
-        arc(cx, cy, r + 2, A0, A0 + SW, CLR_DARKER_GREY);       // track
-        if (mode == RING_DOT)          arc(cx, cy, r + 2, av - 5, av + 5, col);
-        else if (mode == RING_FILL)    arc(cx, cy, r + 2, A0, av, col);
-        else if (mode == RING_BIPOLAR) { if (av >= mid) arc(cx, cy, r + 2, mid, av, col); else arc(cx, cy, r + 2, av, mid, col); }
-        else if (mode == RING_SPREAD)  { float hw = v * (SW / 2.0f); arc(cx, cy, r + 2, mid - hw, mid + hw, col); }
-        else                           arc(cx, cy, r + 2, A0, av, col);
+        int pri = r + 2, pro = r + 2 + DIAL_TH;
+        ring(cx, cy, pri, pro, A0, A0 + SW, CLR_DARKER_GREY);   // track
+        if (mode == RING_DOT)          ring(cx, cy, pri, pro, av - 5, av + 5, col);
+        else if (mode == RING_FILL)    ring(cx, cy, pri, pro, A0, av, col);
+        else if (mode == RING_BIPOLAR) { if (av >= mid) ring(cx, cy, pri, pro, mid, av, col); else ring(cx, cy, pri, pro, av, mid, col); }
+        else if (mode == RING_SPREAD)  { float hw = v * (SW / 2.0f); ring(cx, cy, pri, pro, mid - hw, mid + hw, col); }
+        else                           ring(cx, cy, pri, pro, A0, av, col);
         return;
     }
     int ri = r + 4, ro = r + 6;
@@ -158,9 +169,10 @@ static void rot_ring(int cx, int cy, int r, int mode, float v, int col) {
 // a complete bounded pot at any radius: value ring + beveled body + pointer + min/max ticks.
 // One routine, so the size row is literally the same pot drawn at r = 6 … 22.
 static void draw_pot(int cx, int cy, int r, float v, int hot) {
-    if (skin == SK_PURE) {                                       // native: thin 1px dial
-        arc(cx, cy, r + 2, A0, A0 + SW, CLR_DARKER_GREY);        // track
-        arc(cx, cy, r + 2, A0, A0 + v * SW, CLR_LIME_GREEN);     // value
+    if (skin == SK_PURE) {                                       // native: thin dial (DIAL_TH px)
+        int pri = r + 1, pro = r + 1 + DIAL_TH;
+        ring(cx, cy, pri, pro, A0, A0 + SW, CLR_DARKER_GREY);     // track
+        ring(cx, cy, pri, pro, A0, A0 + v * SW, CLR_LIME_GREEN);  // value
         rot_body(cx, cy, r, 0, 0, 0, hot);
         rot_pointer(cx, cy, r, A0 + v * SW, CLR_WHITE);
         return;
@@ -183,9 +195,9 @@ static void draw_pot(int cx, int cy, int r, float v, int hot) {
 static void draw_styled(int cx, int cy, int r, float v, int cap, int groove, int style, int hot) {
     if (skin == SK_PURE) {                                // native: hairline body + cap outline
         circfill(cx, cy, r, CLR_BROWNISH_BLACK);
-        arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_LIGHT_GREY);
+        thick_circ(cx, cy, r, OUTLINE_TH, hot ? CLR_WHITE : CLR_LIGHT_GREY);
         int pcr = (int)(r * 0.58f);
-        arc(cx, cy, pcr, 0, 360, style == 2 ? CLR_MEDIUM_GREY : cap);
+        thick_circ(cx, cy, pcr, OUTLINE_TH, style == 2 ? CLR_MEDIUM_GREY : cap);
         float pa = A0 + v * SW;
         line(cx + (int)dx(pcr * 0.35f, pa), cy + (int)dy(pcr * 0.35f, pa),
              cx + (int)dx(r - 2, pa), cy + (int)dy(r - 2, pa), groove);

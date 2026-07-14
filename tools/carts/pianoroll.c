@@ -9,7 +9,7 @@
   "description": {
     "summary": "A scrubbable piano roll: play notes in on the keybed, draw & reshape them with the mouse, set velocity, lock to a scale, and save your song.",
     "detail": "Time runs left–right, pitch runs bottom–up. Notes live in BEATS, so tempo and scrubbing are free. Playback is stateless: every frame each note asks 'should I be sounding at the playhead right now?' — so you can drag the playhead anywhere on the ruler and instantly hear the composition at that point, no need to replay from the top. Two mouse TOOLS (toggle with B, or the DRAW/SEL chip): in DRAW, click empty to place a note and drag to size it; in SELECT, drag empty to marquee many notes, then move/duplicate/delete them together. In both, a note's body moves and its edges retime; right-click deletes one. Record live off the keybed too. The bottom panel flips between the KEYBED and a VELOCITY lane. SCALE-lock snaps every pitch into key. Your song auto-saves and reloads.",
-    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · HUD: DUP · VEL/KEYS panel · SCL scale-lock (+root/type) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
+    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · , / . : undo / redo (or the < > buttons) · HUD: DUP · VEL/KEYS panel · SCL scale-lock (+root/type) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
   }
 }
 de:meta */
@@ -29,6 +29,7 @@ de:meta */
 
 #include <stdio.h>     // snprintf — HUD/label text
 #include <stdlib.h>    // abs — marquee bounds
+#include <string.h>    // memmove/memcpy — undo stacks
 #include "studio.h"
 #include "keybed.h"
 
@@ -61,6 +62,10 @@ typedef struct {
     float   ostart;            // originals snapshotted at drag-start (for group move)
     int8_t  opitch;
 } Note;
+
+// compact note for save files AND undo snapshots (only the musical fields)
+typedef struct { int8_t pitch; float start, len; uint8_t vel; } SNote;
+typedef struct { int n; SNote notes[MAXNOTES]; } Snap;
 
 static Note  note_[MAXNOTES];
 static int   n_notes;
@@ -152,10 +157,53 @@ static void all_notes_off(void){
 static void clear_sel(void){ for (int i = 0; i < n_notes; i++) note_[i].sel = 0; }
 static int  count_sel(void){ int c = 0; for (int i = 0; i < n_notes; i++) c += note_[i].sel; return c; }
 
+// --- undo / redo: snapshots of the note list --------------------------------
+#define UNDO_MAX 32
+static Snap ustack[UNDO_MAX]; static int u_len;
+static Snap rstack[UNDO_MAX]; static int r_len;
+
+static void snap_take(Snap *s){
+    s->n = n_notes;
+    for (int i = 0; i < n_notes; i++){
+        s->notes[i].pitch = note_[i].pitch; s->notes[i].start = note_[i].start;
+        s->notes[i].len   = note_[i].len;   s->notes[i].vel   = note_[i].vel;
+    }
+}
+static bool snap_diff(const Snap *s){          // does the live state differ from snapshot s?
+    if (s->n != n_notes) return true;
+    for (int i = 0; i < n_notes; i++)
+        if (s->notes[i].pitch != note_[i].pitch || s->notes[i].start != note_[i].start ||
+            s->notes[i].len   != note_[i].len   || s->notes[i].vel   != note_[i].vel) return true;
+    return false;
+}
+static void snap_apply(const Snap *s){
+    for (int i = 0; i < n_notes; i++) if (note_[i].h >= 0){ note_off(note_[i].h); note_[i].h = -1; }
+    n_notes = s->n;
+    for (int i = 0; i < n_notes; i++){
+        note_[i].pitch = s->notes[i].pitch; note_[i].start = s->notes[i].start;
+        note_[i].len   = s->notes[i].len;   note_[i].vel   = s->notes[i].vel;
+        note_[i].rec = 0; note_[i].sel = 0; note_[i].h = -1;
+    }
+    for (int m = 0; m < 128; m++) rec_map[m] = -1;
+}
+static void stack_push(Snap *st, int *len, const Snap *s){
+    if (*len == UNDO_MAX){ memmove(st, st + 1, (UNDO_MAX - 1) * sizeof *st); (*len)--; }
+    st[(*len)++] = *s;
+}
+// record an undo point from the CURRENT state, before a discrete mutation (kills redo)
+static void mark(void){ Snap s; snap_take(&s); stack_push(ustack, &u_len, &s); r_len = 0; }
+// commit an already-captured pre-gesture snapshot, only if the gesture changed anything
+static void commit(const Snap *pre){ if (snap_diff(pre)){ stack_push(ustack, &u_len, pre); r_len = 0; } }
+static void do_undo(void){ if (!u_len) return; Snap cur; snap_take(&cur); stack_push(rstack, &r_len, &cur); snap_apply(&ustack[--u_len]); }
+static void do_redo(void){ if (!r_len) return; Snap cur; snap_take(&cur); stack_push(ustack, &u_len, &cur); snap_apply(&rstack[--r_len]); }
+
+static Snap pregest; static bool gest_open;   // pre-gesture snapshot + "a mouse edit is underway"
+
 // --- live recording ---------------------------------------------------------
 static void rec_on(int midi, int vel){
     if (!(playing && armed) || n_notes >= MAXNOTES) return;
     if (midi < 0 || midi > 127) return;
+    mark();                            // each recorded note is its own undo step
     midi = scale_snap(midi);
     Note *nt = &note_[n_notes];
     nt->pitch = (int8_t)midi;
@@ -235,7 +283,6 @@ static void dup_selected(void){
 }
 
 // --- persistence ------------------------------------------------------------
-typedef struct { int8_t pitch; float start, len; uint8_t vel; } SNote;
 typedef struct {
     uint32_t magic; int ver;
     int n, tempo, root, sidx; uint8_t lock; float snap;
@@ -273,10 +320,11 @@ static bool load_song(void){
 
 // --- toolbar buttons --------------------------------------------------------
 // one table so draw + hit-test never drift. {x, w, label}
-enum { B_PLAY, B_REC, B_DUP, B_DEL, B_VEL, B_SCL, B_ROOT, B_TYPE, B_SAVE, B_LOAD, B_SNAP, B_TOOL, B_N };
+enum { B_PLAY, B_REC, B_DUP, B_DEL, B_VEL, B_SCL, B_ROOT, B_TYPE, B_SAVE, B_LOAD, B_SNAP, B_UNDO, B_REDO, B_TOOL, B_N };
 static const struct { int x, w; } BTN[B_N] = {
     {  2, 22 }, { 26, 16 }, { 44, 16 }, { 62, 16 }, { 80, 22 }, { 104, 16 },
-    { 122, 12 }, { 136, 20 }, { 158, 22 }, { 182, 22 }, { 206, 22 }, { 286, 32 },
+    { 122, 12 }, { 136, 20 }, { 158, 22 }, { 182, 22 }, { 206, 22 },
+    { 246, 14 }, { 262, 14 }, { 286, 32 },
 };
 static bool btn_click(int b){
     int mx = mouse_x(), my = mouse_y();
@@ -316,21 +364,25 @@ void update(void){
     if (keyp(' ')){ playing = !playing; if (!playing) all_notes_off(); }
     if (keyp('R')) armed = !armed;
     if (keyp('B')) tool = !tool;             // toggle DRAW <-> SELECT (Ableton's draw-mode key)
-    if (keyp(KEY_BACKSPACE)) del_selected();
+    if (keyp(',')) do_undo();                // ',' / '.' = the < > keys (off the keybed's letters)
+    if (keyp('.')) do_redo();
+    if (keyp(KEY_BACKSPACE) && count_sel()){ mark(); del_selected(); }
     if (keyp('[')){ tempo -= 5; if (tempo < 40) tempo = 40; bpm(tempo); }
     if (keyp(']')){ tempo += 5; if (tempo > 240) tempo = 240; bpm(tempo); }
 
     // --- toolbar ---
     if (btn_click(B_PLAY)){ playing = !playing; if (!playing) all_notes_off(); }
     if (btn_click(B_REC))  armed = !armed;
-    if (btn_click(B_DUP))  dup_selected();
-    if (btn_click(B_DEL))  del_selected();
+    if (btn_click(B_DUP) && count_sel()){ mark(); dup_selected(); }
+    if (btn_click(B_DEL) && count_sel()){ mark(); del_selected(); }
     if (btn_click(B_VEL))  velmode = !velmode;
     if (btn_click(B_SCL))  scalelock = !scalelock;
     if (btn_click(B_ROOT)) scale_root = (scale_root + 1) % 12;
     if (btn_click(B_TYPE)) scale_idx  = (scale_idx + 1) % NSCALE;
     if (btn_click(B_SAVE)) save_song();
-    if (btn_click(B_LOAD)) load_song();
+    if (btn_click(B_LOAD)){ Snap pre; snap_take(&pre); if (load_song()) commit(&pre); }
+    if (btn_click(B_UNDO)) do_undo();
+    if (btn_click(B_REDO)) do_redo();
     if (btn_click(B_SNAP)){                 // cycle 1/4 -> 1/8 -> 1/16 -> 1/32
         snap = (snap <= 0.125f) ? 1.0f : snap * 0.5f;
     }
@@ -374,6 +426,9 @@ void update(void){
     if (!mouse_down(MOUSE_MIDDLE)) panning = false;
 
     // --- begin an interaction ---
+    if (mouse_pressed(MOUSE_LEFT) && (in_roll || in_vel)){   // a note edit may start — snapshot to undo on release
+        snap_take(&pregest); gest_open = true;
+    }
     if (mouse_pressed(MOUSE_LEFT)){
         if (in_ruler){
             drag = DRAG_SCRUB;
@@ -403,7 +458,7 @@ void update(void){
     }
     if (mouse_pressed(MOUSE_RIGHT) && in_roll){   // right-click deletes one note
         int i = hit_note(mx, my, 0);
-        if (i >= 0) del_note(i);
+        if (i >= 0){ mark(); del_note(i); }
     }
 
     // --- continue an interaction ---
@@ -461,6 +516,7 @@ void update(void){
                 }
             }
         }
+        if (gest_open){ commit(&pregest); gest_open = false; }   // undo point iff the edit changed notes
         drag = DRAG_NONE;
     }
     if (!mouse_down(MOUSE_LEFT)) drag = DRAG_NONE;
@@ -489,6 +545,8 @@ void update(void){
     watch("nnotes",  "%d", n_notes);
     watch("nsel",    "%d", count_sel());
     watch("tool",    "%d", tool);
+    watch("ulen",    "%d", u_len);
+    watch("rlen",    "%d", r_len);
     watch("velmode", "%d", velmode);
     watch("lock",    "%d", scalelock);
     { int snd = 0; for (int i = 0; i < n_notes; i++) if (note_[i].h >= 0) snd++;
@@ -611,6 +669,8 @@ static void draw_hud(void){
     hud_btn(B_SNAP, sn, false, 0);
     char s[8]; snprintf(s, sizeof s, "%d", tempo);
     print(s, BTN[B_SNAP].x + BTN[B_SNAP].w + 3, 2, CLR_MEDIUM_GREY);
+    hud_btn(B_UNDO, "<", u_len > 0, CLR_INDIGO);   // lit when there's something to undo/redo
+    hud_btn(B_REDO, ">", r_len > 0, CLR_INDIGO);
     hud_btn(B_TOOL, tool == TOOL_DRAW ? "DRAW" : "SEL", true, CLR_INDIGO);   // always lit = current mode
     font(FONT_NORMAL);
 }

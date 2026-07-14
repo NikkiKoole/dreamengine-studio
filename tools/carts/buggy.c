@@ -30,8 +30,8 @@ de:meta */
 #define SX(wx)  ((int)(((wx) - camx) * PPM + SCREEN_W * 0.5f))
 #define SY(wy)  ((int)(SCREEN_H * 0.5f - ((wy) - camy) * PPM))
 
-#define TN      200            // terrain points
-#define TSTEP   2.0f           // metres between terrain points
+#define TN      400            // terrain points
+#define TSTEP   1.0f           // metres between terrain points (fine = smooth ride at speed)
 #define CHW     1.05f          // chassis half-width (wide wheelbase = stable, resists wheelie flips)
 #define CHH     0.22f          // chassis half-height (low)
 #define WHEELR  0.42f          // wheel radius
@@ -57,7 +57,7 @@ static void      engine_build(void);   // defined below, called from reset_world
 
 static float terrain_h(float x) {                 // the surface height used to build the chain
     float h = 4.0f;
-    float amp = 0.35f + x * 0.009f;               // hills grow with distance (gently)
+    float amp = 0.35f + x * 0.006f;               // hills grow with distance (gently)
     h += sinf(x * 0.22f) * amp + sinf(x * 0.57f + 1.3f) * amp * 0.45f;
     return h;
 }
@@ -80,7 +80,7 @@ static void reset_world(void) {
 
     for (int i = 0; i < TN; i++) {                // procedural terrain, flat launch pad up front
         float x = i * TSTEP;
-        terr[i] = (b2Vec2){x, i < 4 ? 4.0f : terrain_h(x)};
+        terr[i] = (b2Vec2){x, x < 8.0f ? 4.0f : terrain_h(x)};
     }
     b2BodyDef gd = b2DefaultBodyDef();
     gd.userData = (void*)(intptr_t)T_GROUND;

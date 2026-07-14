@@ -6638,6 +6638,36 @@ int sample_peaks(int slot, float *lo, float *hi, int n) {
     return s->len;
 }
 
+// Read a sample slot's RAW PCM out (mono, -1..1) into out[] (up to `max` floats). Returns the
+// count copied (0 = empty slot). The twin of sample_peaks() but full-resolution — for SAVING a
+// recorded buffer (persistence) or exporting it. Main-thread; racy vs the audio thread like
+// sample_peaks (benign snapshot).
+int sample_read(int slot, float *out, int max) {
+    if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS || !out || max < 1) return 0;
+    SoundSample *s = &sound_samples[slot];
+    if (!s->loaded || !s->data || s->len < 1) return 0;
+    int n = s->len < max ? s->len : max;
+    for (int i = 0; i < n; i++) out[i] = s->data[i];
+    return n;
+}
+
+// Load RAW PCM (mono, -1..1, `n` samples) INTO a sample slot — the inverse of sample_read(), so a
+// saved buffer can be restored without re-recording it (persistence; loading a WAV). Replaces any
+// prior buffer in the slot. No normalization/trim (unlike record_grab — the data is taken as-is).
+// Then instrument_sample()/instrument_sample_region() play it like a grabbed take.
+void sample_load(int slot, const float *data, int n) {
+    if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS || !data || n < 1) return;
+    if (n > SOUND_REC_LEN) n = SOUND_REC_LEN;              // clamp to the capture-ring ceiling
+    float *buf = (float *)malloc((size_t)n * sizeof(float));
+    if (!buf) return;
+    for (int i = 0; i < n; i++) buf[i] = data[i];
+    SoundSample *s = &sound_samples[slot];
+    s->loaded = false;                                     // brief: audio thread reads len 0 during the swap
+    float *old = s->data;
+    s->data = buf; s->len = n; s->loaded = true;
+    if (old) free(old);                                    // same benign swap race record_grab already accepts
+}
+
 // Live waveform readout of the capture ring WHILE recording (before a grab): downsample the last
 // `seconds` of what's been captured into `n` min/max columns (lo[]/hi[], -1..1). Returns the sample
 // count covered (0 = not armed / nothing yet). Lets a cart draw the recording "filling in" as a

@@ -41,6 +41,7 @@ static float push_v = 0.6f;  static int push_on = 1;   // push-encoder + its LED
 static float dual_o = 0.7f, dual_i = 0.3f;             // concentric outer/inner
 static float ring_v[5] = { 0.30f, 0.65f, 0.30f, 0.5f, 0.8f };  // the 5 ring modes
 static float size_v[5] = { 0.4f, 0.55f, 0.35f, 0.7f, 0.5f };   // the size range
+static float sty_v[3]  = { 0.4f, 0.55f, 0.6f };                // the collet styles
 
 // ── LIVE section (the software layer — behaviours hardware can't do) ─────────
 static float halo_base = 0.45f;                 // MOD HALO: the base value your hand sets
@@ -92,11 +93,13 @@ static void rot_knurl(int cx, int cy, int r, int col, float spin) {
              cx + (int)dx(r - 1, a + spin), cy + (int)dy(r - 1, a + spin), col);
 }
 
-// the pointer a BOUNDED control earns (its angle is real)
+// the pointer a BOUNDED control earns (its angle is real). It's a groove near the
+// RIM, not a spoke from the hub — real knobs mark the edge, not the centre.
 static void rot_pointer(int cx, int cy, int r, float ang, int col) {
-    int ex = cx + (int)dx(r - 2, ang), ey = cy + (int)dy(r - 2, ang);
-    line(cx, cy, ex, ey, col);
-    circfill(ex, ey, 1, col);
+    int inner = r > 7 ? (int)(r * 0.45f) : 0;
+    line(cx + (int)dx(inner, ang), cy + (int)dy(inner, ang),
+         cx + (int)dx(r - 2, ang), cy + (int)dy(r - 2, ang), col);
+    circfill(cx + (int)dx(r - 2, ang), cy + (int)dy(r - 2, ang), 1, col);
 }
 
 // the value halo (control-vocabulary.md §4) around a ring-encoder
@@ -136,6 +139,46 @@ static void draw_pot(int cx, int cy, int r, float v, int hot) {
     }
     rot_body(cx, cy, r, CLR_INDIGO, CLR_MAUVE, CLR_DARKER_PURPLE, hot);
     rot_pointer(cx, cy, r, A0 + v * SW, CLR_WHITE);
+}
+
+// a two-part collet knob: a black skirt (smooth / ridged / scalloped) + an inner
+// cap (coloured, or brushed metal). style 0 = smooth coloured cap, 1 = ridged skirt,
+// 2 = scalloped skirt + metal cap. `groove` = the indicator-groove colour.
+static void draw_styled(int cx, int cy, int r, float v, int cap, int groove, int style, int hot) {
+    circfill(cx, cy, r + 3, CLR_BROWNISH_BLACK);          // socket
+    rot_shadow(cx, cy, r);
+    circfill(cx, cy, r, CLR_BROWNISH_BLACK);              // black skirt
+    if (style == 1)                                       // fine dense ridges (fluted)
+        for (float a = 0; a < 360; a += 12) {
+            int c = ((int)(a / 12)) & 1 ? CLR_DARK_GREY : CLR_DARKER_GREY;
+            line(cx + (int)dx(r * 0.62f, a), cy + (int)dy(r * 0.62f, a),
+                 cx + (int)dx(r - 1, a),     cy + (int)dy(r - 1, a), c);
+        }
+    else if (style == 2)                                  // fewer deep scallop notches
+        for (float a = 0; a < 360; a += 36) {
+            line(cx + (int)dx(r * 0.66f, a),      cy + (int)dy(r * 0.66f, a),
+                 cx + (int)dx(r - 1, a),          cy + (int)dy(r - 1, a), CLR_BLACK);
+            line(cx + (int)dx(r * 0.66f, a + 18), cy + (int)dy(r * 0.66f, a + 18),
+                 cx + (int)dx(r - 1, a + 18),     cy + (int)dy(r - 1, a + 18), CLR_DARK_GREY);
+        }
+    arc(cx, cy, r, 205, 335, CLR_DARK_GREY);              // skirt sheen / shade
+    arc(cx, cy, r,  25, 155, CLR_BLACK);
+    arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_BLACK);  // rim
+    int cr = (int)(r * 0.58f);                            // the inner cap
+    if (style == 2) {                                     // brushed-metal cap
+        circfill(cx, cy, cr, CLR_MEDIUM_GREY);
+        ring(cx, cy, cr - 2, cr - 1, 205, 335, CLR_WHITE);
+        ring(cx, cy, cr - 2, cr - 1,  25, 155, CLR_DARK_GREY);
+        arc(cx, cy, cr, 0, 360, CLR_BROWNISH_BLACK);
+    } else {                                              // coloured cap
+        circfill(cx, cy, cr, cap);
+        ring(cx, cy, cr - 2, cr - 1, 205, 335, CLR_WHITE);
+        ring(cx, cy, cr - 2, cr - 1,  25, 155, CLR_BROWNISH_BLACK);
+        arc(cx, cy, cr, 0, 360, CLR_BLACK);
+    }
+    float ang = A0 + v * SW;                              // indicator groove: cap → rim
+    line(cx + (int)dx(cr * 0.35f, ang), cy + (int)dy(cr * 0.35f, ang),
+         cx + (int)dx(r - 2, ang),      cy + (int)dy(r - 2, ang), groove);
 }
 
 static void led(int x, int y, int on, int col) {
@@ -375,6 +418,8 @@ void draw(void) {
         }
         jog_pos += jog_vel; jog_ang += jog_vel * 40;
         hot = hot || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
+        if (mouse_wheel() != 0 && ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1))
+            jog_pos += mouse_wheel();                                 // wheel steps the list too
         int idx = (((int)floorf(jog_pos) % NLIB) + NLIB) % NLIB;
 
         rot_body(cx, cy, r, CLR_DARK_GREY, CLR_LIGHT_GREY, CLR_BROWNISH_BLACK, hot);
@@ -395,6 +440,25 @@ void draw(void) {
                           print(">", lx + 4, yy, CLR_WHITE); }
             print(LIB[li], lx + 12, yy, k == 0 ? CLR_WHITE : CLR_DARK_GREY);
         }
+    }
+
+    // ── ROW 5 — collet STYLES: same value model, different dress ───────────
+    print("5 STYLES  ridged skirt / scalloped + metal cap / coloured cap", 6, 452, CLR_DARK_GREY);
+    faceplate(4, 460, 312, 86);
+    {
+        int cy = 500, r = 22;
+        int scol[3] = { 64, 160, 256 };
+        int h0 = rot_drag(&sty_v[0], scol[0], cy, r, &sty_v[0], 1);
+        draw_styled(scol[0], cy, r, sty_v[0], CLR_GREEN, CLR_WHITE, 1, h0);   // ridged
+        plabel("RIDGED", scol[0], cy + r + 6, CLR_LIGHT_GREY);
+
+        int h1 = rot_drag(&sty_v[1], scol[1], cy, r, &sty_v[1], 1);
+        draw_styled(scol[1], cy, r, sty_v[1], 0, CLR_WHITE, 2, h1);           // scalloped + metal
+        plabel("SCALLOP", scol[1], cy + r + 6, CLR_LIGHT_GREY);
+
+        int h2 = rot_drag(&sty_v[2], scol[2], cy, r, &sty_v[2], 1);
+        draw_styled(scol[2], cy, r, sty_v[2], CLR_RED, CLR_BLACK, 0, h2);     // coloured cap, black line
+        plabel("CAP", scol[2], cy + r + 6, CLR_LIGHT_GREY);
     }
 
     font(FONT_NORMAL);

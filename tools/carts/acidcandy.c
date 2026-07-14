@@ -59,6 +59,12 @@ static int face = M_303A;
 static Acid ac[2];
 static int  on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
 static int  sel[2] = { 0, 0 };
+// the note-bar editor: pitch snaps to a minor-pentatonic scale (always musical).
+// (named PENTA, not SCALE — SCALE is the engine's -D scale-factor flag.)
+static const int PENTA[6] = { 0, 3, 5, 7, 10, 12 };        // semitones above base
+#define NPENTA 6
+static int penta_idx(int semi) { for (int k = 0; k < NPENTA; k++) if (PENTA[k] == semi) return k; return 0; }
+static int bar_gy[STEPS], bar_moved[STEPS], bar_on0[STEPS]; // per-bar drag trackers (tap vs drag)
 
 // the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart).
 // The 808 kit lives at slots TR808_BASE(9)..22; the 909 kit sits above it at 23+.
@@ -285,40 +291,75 @@ static void draw_303(int i) {
         if (sld[i][s]) line(cx + 4, y + 1, cx + 6, y + 1, CLR_MEDIUM_GREEN);
     }
 
-    // ④ step row — tap toggles
-    for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, pr = 0, hot = 0, foc = 0;
-        void *wid = ui_wid_hash(0x30u + s, x, 64, 8, 9);
-        if (ui_button_core(wid, x, 64, 8, 9, &foc, &pr, &hot)) { on[i][s] = !on[i][s]; sel[i] = s; if (on[i][s]) mbop = 1; }
-        int fc = on[i][s] ? (acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN) : CLR_DARK_BROWN;
-        if (s == step && playing) fc = CLR_WHITE;
-        rrectfill(x, 64, 8, 9, 1, fc);
-        if (s == sel[i]) rrect(x - 1, 63, 10, 11, 1, CLR_LIGHT_YELLOW);
-        rrect(x, 64, 8, 9, 1, CLR_BROWNISH_BLACK);
-    }
-
-    // ⑤ keybed — tap a key to set the selected step's pitch + audition it
-    int kb = 6, ky = 77, kh = 16;
-    static const int isblack[12] = { 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0 };
-    int wi = 0;
-    for (int n = 0; n < 12; n++) if (!isblack[n]) {
-        int x = kb + wi * 21; wi++;
-        int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50u + n, x, ky, 20, kh);
-        if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
-        int lit = pit[i][sel[i]] == n && on[i][sel[i]];
-        rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
-        rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
-    }
-    wi = 0;
-    for (int n = 0; n < 12; n++) {
-        if (isblack[n]) {
-            int x = kb + wi * 21 - 6;
-            int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60u + n, x, ky, 12, 9);
-            if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
+    static int use_bars = 1;   // 1 = the drag-to-pitch NOTE BARS; 0 = the old step row + keybed
+    if (use_bars) {
+        // ④⑤ the 16 NOTE BARS — tap = note on/off · drag up/down = pitch (scale-snapped).
+        // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
+        int by = 63, bh = 30;
+        for (int s = 0; s < STEPS; s++) {
+            int bx = 6 + s * 9, bw = 8;
+            void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
+            ui_reg(w, bx, by, bw, bh, 0);
+            UiCap *c = ui_cap_for(w);
+            if (ui_grabbed(w)) { bar_gy[s] = c ? c->cy : by; bar_moved[s] = 0; bar_on0[s] = on[i][s]; }
+            if (c) {
+                int py = c->released ? c->ry : c->cy, d = py - bar_gy[s]; if (d < 0) d = -d;
+                if (d > 3) {                                 // a drag → set the pitch (snap to scale)
+                    bar_moved[s] = 1; sel[i] = s;
+                    float frac = clamp((by + bh - 1 - py) / (float)(bh - 1), 0, 1);
+                    pit[i][s] = PENTA[(int)(frac * (NPENTA - 1) + 0.5f)];
+                    on[i][s] = 1;
+                }
+            }
+            if (ui_released(w)) {
+                if (!bar_moved[s]) { on[i][s] = !bar_on0[s]; sel[i] = s; if (on[i][s]) mbop = 1; }   // a tap → toggle
+                else acid_note(a, a->base + pit[i][s], acc[i][s], 0);                                // a drag → audition
+            }
+            int here = (s == step && playing);
+            rrectfill(bx, by, bw, bh, 1, CLR_DARK_BROWN);
+            if (here) { blend(BLEND_AVG); rrectfill(bx, by, bw, bh, 1, CLR_MEDIUM_GREEN); blend_reset(); }
+            if (on[i][s]) {
+                int idx = penta_idx(pit[i][s]), fh = bh * (idx + 1) / NPENTA;
+                rrectfill(bx, by + bh - fh, bw, fh, 1, acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN);
+                if (sld[i][s]) rectfill(bx + bw - 1, by + bh - fh, 2, 2, CLR_LIGHT_YELLOW);   // slide mark
+            }
+            rrect(bx, by, bw, bh, 1, (here || s == sel[i]) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        }
+    } else {
+        // ④ step row — tap toggles
+        for (int s = 0; s < STEPS; s++) {
+            int x = 6 + s * 9, pr = 0, hot = 0, foc = 0;
+            void *wid = ui_wid_hash(0x30u + s, x, 64, 8, 9);
+            if (ui_button_core(wid, x, 64, 8, 9, &foc, &pr, &hot)) { on[i][s] = !on[i][s]; sel[i] = s; if (on[i][s]) mbop = 1; }
+            int fc = on[i][s] ? (acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN) : CLR_DARK_BROWN;
+            if (s == step && playing) fc = CLR_WHITE;
+            rrectfill(x, 64, 8, 9, 1, fc);
+            if (s == sel[i]) rrect(x - 1, 63, 10, 11, 1, CLR_LIGHT_YELLOW);
+            rrect(x, 64, 8, 9, 1, CLR_BROWNISH_BLACK);
+        }
+        // ⑤ keybed — tap a key to set the selected step's pitch + audition it
+        int kb = 6, ky = 77, kh = 16;
+        static const int isblack[12] = { 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0 };
+        int wi = 0;
+        for (int n = 0; n < 12; n++) if (!isblack[n]) {
+            int x = kb + wi * 21; wi++;
+            int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50u + n, x, ky, 20, kh);
+            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
             int lit = pit[i][sel[i]] == n && on[i][sel[i]];
-            rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
-            rrect(x, ky, 12, 9, 1, CLR_BLACK);
-        } else wi++;
+            rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
+            rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
+        }
+        wi = 0;
+        for (int n = 0; n < 12; n++) {
+            if (isblack[n]) {
+                int x = kb + wi * 21 - 6;
+                int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60u + n, x, ky, 12, 9);
+                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
+                int lit = pit[i][sel[i]] == n && on[i][sel[i]];
+                rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
+                rrect(x, ky, 12, 9, 1, CLR_BLACK);
+            } else wi++;
+        }
     }
 }
 

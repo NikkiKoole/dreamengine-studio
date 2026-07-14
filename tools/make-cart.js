@@ -271,10 +271,25 @@ function extractCartChunks(pngBuf) {
 }
 
 // ── exports (so tools/play.js can reuse the build machinery) ──
+// Box2D opt-in. A cart that #includes "box2d/box2d.h" links the vendored pure-C
+// Box2D v3 (runtime/box2d/), built on demand into build/box2d/mac/libbox2d.a. Carts
+// that don't include it pay nothing — box2d stays out of the default ~450-cart build.
+// Returns the extra clang args (include path + static lib), or [] if not requested.
+// See docs/design/box2d-integration.md.
+function box2dArgs(source) {
+  if (!source || !/box2d\/box2d\.h/.test(source)) return []
+  const lib = path.join(BUILD_DIR, 'box2d', 'mac', 'libbox2d.a')
+  if (!fs.existsSync(lib)) {
+    process.stdout.write('(building box2d) ')
+    require('child_process').execSync(`"${path.join(ROOT_DIR, 'tools', 'build-box2d.sh')}" --mac`, { stdio: 'pipe' })
+  }
+  return [`-I"${path.join(RUNTIME_DIR, 'box2d', 'include')}"`, `"${lib}"`]
+}
+
 module.exports = {
   ROOT_DIR, BUILD_DIR, RUNTIME_DIR, RAYLIB, CART_BIN,
   buildSpriteSheet, buildMap, makeBlankSpritePng, makePlaceholderPng,
-  loadConfig, extractCartChunks, embedCartChunks,
+  loadConfig, extractCartChunks, embedCartChunks, box2dArgs,
   // primitives reused by tools/sprite-preview.js (shared palette + encoder)
   makePng, parseSprite, PAL32, DEFAULT_CHAR_MAP,
   // Gap-2 sprite-patch machinery (make-cart is the bake-side consumer)
@@ -377,6 +392,7 @@ if (args[0] === '--update') {
     `-DSCREEN_W=${SW}`, `-DSCREEN_H=${SH}`, '-DSCALE=1',
     `-DMAP_W=${MW}`, `-DMAP_H=${MH}`, `-DCELL_W=${CW}`, `-DCELL_H=${CH}`,
     '-DTOUCH_CONTROLS_DEFAULT=0', '-Os', '-fno-delete-null-pointer-checks',
+    ...box2dArgs(chunks.source),
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
     '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',

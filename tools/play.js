@@ -135,6 +135,7 @@ const clangArgs = [
   // dev pass-through: DE_DEFINES=FOO,BAR=1 → -DFOO -DBAR=1 (e.g. DE_DEFINES=DE_FIELD_ROADS)
   ...(process.env.DE_DEFINES ? process.env.DE_DEFINES.split(',').filter(Boolean).map(d => '-D' + d) : []),
   ...(wantResizable && !alreadyDef ? ['-DDE_RESIZABLE'] : []),   // resizable cart / --resize sweep → live-reflow build
+  ...mk.box2dArgs(fs.readFileSync(path.join(mk.BUILD_DIR, 'cart.c'), 'utf8')),   // opt-in: cart #includes box2d/box2d.h
   `"${mk.RAYLIB}/lib/libraylib.a"`,
   '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
   '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',

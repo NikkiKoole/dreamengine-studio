@@ -1,2 +1,3 @@
 -I../../runtime
+-I../../runtime/box2d/include
 -std=c11

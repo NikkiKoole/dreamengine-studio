@@ -73,9 +73,9 @@ static b2JointId make_flipper(float px, float py, float pivotEndX, float lo, flo
     bd.userData = (void*)(intptr_t)T_FLIP;
     bd.enableSleep = false;                        // stay awake — a sleeping flipper ignores SetMotorSpeed
     b2BodyId f = b2CreateBody(world, &bd);
-    b2Polygon box = b2MakeBox(FLIPHL, 0.11f);
+    b2Polygon box = b2MakeRoundedBox(FLIPHL - 0.10f, 0.02f, 0.10f);   // rounded ends: no sharp lip to trap the ball
     b2ShapeDef sd = b2DefaultShapeDef();
-    sd.density = 8.0f; sd.material.friction = 0.4f; sd.material.restitution = 0.2f;
+    sd.density = 8.0f; sd.material.friction = 0.12f; sd.material.restitution = 0.2f;   // low friction: ball rolls off, doesn't grip
     b2CreatePolygonShape(f, &sd, &box);
 
     b2RevoluteJointDef jd = b2DefaultRevoluteJointDef();
@@ -126,13 +126,13 @@ static void reset_world(void) {
     wall(cab, 1.0f, 1.5f, 1.0f, H - 0.5f);              // left
     wall(cab, W - 1.0f, 1.5f, W - 1.0f, H - 0.5f);      // right
     wall(cab, 1.0f, H - 0.5f, W - 1.0f, H - 0.5f);      // top
-    wall(cab, 1.0f, 4.2f, 3.5f, 2.5f);                  // lower-left funnel — ends AT the flipper pivot (no pocket)
-    wall(cab, W - 1.0f, 4.2f, W - 3.5f, 2.5f);          // lower-right funnel
+    wall(cab, 1.0f, 4.6f, 3.9f, 2.7f);                  // funnel ends OVER the sloped flipper (past the pivot -> no rest shelf)
+    wall(cab, W - 1.0f, 4.6f, W - 3.9f, 2.7f);
 
     // drain sensor across the bottom-centre gap
     b2ShapeDef dsd = b2DefaultShapeDef();
     dsd.isSensor = true; dsd.enableSensorEvents = true;
-    b2Polygon dpoly = b2MakeOffsetBox(2.0f, 0.4f, (b2Vec2){6.0f, 0.6f}, b2MakeRot(0));
+    b2Polygon dpoly = b2MakeOffsetBox(3.2f, 0.4f, (b2Vec2){6.0f, 0.6f}, b2MakeRot(0));  // wide: catches outlanes too
     drainShape = b2CreatePolygonShape(cab, &dsd, &dpoly);
 
     // bumpers
@@ -152,8 +152,8 @@ static void reset_world(void) {
     }
 
     // flippers — left pivot on its left end, right pivot on its right end
-    jL = make_flipper(3.5f, 2.5f, -FLIPHL, -0.42f, 0.42f, -0.42f, -16.0f, 30.0f);
-    jR = make_flipper(W - 3.5f, 2.5f, FLIPHL, -0.42f, 0.42f, 0.42f, 16.0f, -30.0f);
+    jL = make_flipper(3.5f, 2.6f, -FLIPHL, -0.52f, 0.38f, -0.52f, -16.0f, 30.0f);
+    jR = make_flipper(W - 3.5f, 2.6f, FLIPHL, -0.38f, 0.52f, 0.52f, 16.0f, -30.0f);
     restL = -16.0f; flipL = 30.0f; restR = 16.0f; flipR = -30.0f;
 }
 
@@ -228,8 +228,8 @@ void draw(void) {
     line(SX(1), SY(1.5f), SX(1), SY(15.5f), CLR_INDIGO);
     line(SX(11), SY(1.5f), SX(11), SY(15.5f), CLR_INDIGO);
     line(SX(1), SY(15.5f), SX(11), SY(15.5f), CLR_INDIGO);
-    line(SX(1), SY(4.2f), SX(3.5f), SY(2.5f), CLR_INDIGO);
-    line(SX(11), SY(4.2f), SX(8.5f), SY(2.5f), CLR_INDIGO);
+    line(SX(1), SY(4.6f), SX(3.9f), SY(2.7f), CLR_INDIGO);
+    line(SX(11), SY(4.6f), SX(8.1f), SY(2.7f), CLR_INDIGO);
 
     for (int i = 0; i < NBUMP; i++) {              // bumpers
         circfill(SX(bump[i].x), SY(bump[i].y), (int)(0.55f*PPM), CLR_ORANGE);

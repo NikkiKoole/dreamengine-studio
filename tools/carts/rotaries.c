@@ -137,7 +137,7 @@ static void draw_pot(int cx, int cy, int r, float v, int hot) {
         line(cx + (int)dx(ro + 1, a), cy + (int)dy(ro + 1, a),
              cx + (int)dx(ro + 3, a), cy + (int)dy(ro + 3, a), CLR_LIGHT_GREY);
     }
-    rot_body(cx, cy, r, CLR_INDIGO, CLR_MAUVE, CLR_DARKER_PURPLE, hot);
+    rot_body(cx, cy, r, CLR_INDIGO, CLR_PINK, CLR_DARKER_PURPLE, hot);   // PINK is lighter than INDIGO; MAUVE isn't
     rot_pointer(cx, cy, r, A0 + v * SW, CLR_WHITE);
 }
 
@@ -397,7 +397,7 @@ void draw(void) {
         line(cx + (int)dx(r + 3, ga), cy + (int)dy(r + 3, ga),
              cx + (int)dx(r + 6, ga), cy + (int)dy(r + 6, ga), CLR_MEDIUM_GREY);
         ring(cx, cy, r + 3, r + 5, A0, A0 + ghost_v * SW, CLR_MAUVE);
-        rot_body(cx, cy, r, CLR_DARK_PURPLE, CLR_MAUVE, CLR_BROWNISH_BLACK, hot);
+        rot_body(cx, cy, r, CLR_DARK_PURPLE, CLR_PINK, CLR_BROWNISH_BLACK, hot);
         rot_pointer(cx, cy, r, A0 + ghost_v * SW, CLR_WHITE);
         plabel("GHOST", cx, cy + r + 6, CLR_LIGHT_GREY);
         plabel("tap = reset", cx, cy + r + 13, CLR_DARK_GREY);

@@ -150,19 +150,19 @@ static void chip(int x, int y, const char *s, int sel2) {
 // right LED taps to MUTE the machine (from any face). Two non-overlapping
 // sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
 static void cartridge(int m) {
-    int x = 19 + m * 27, foc = (m == face), live = !mac[m].mute;
+    int x = 19 + m * 25, y = 4, foc = (m == face), live = !mac[m].mute;  // pitch 25, dropped 1px
     int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
-    void *wf = ui_wid_hash(0x70u + m, x, 3, 18, 10);
-    void *wm = ui_wid_hash(0x80u + m, x + 18, 3, 8, 10);
-    if (ui_button_core(wf, x, 3, 18, 10, &fof, &prf, &hotf)) face = m;
-    if (ui_button_core(wm, x + 18, 3, 8, 10, &fom, &prm, &hotm)) mac[m].mute = !mac[m].mute;
+    void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);
+    void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);
+    if (ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf)) face = m;
+    if (ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm)) mac[m].mute = !mac[m].mute;
 
-    rrectfill(x, 3, 26, 10, 2, foc ? mac[m].col : mac[m].lo);
-    if (foc) { blend(BLEND_AVG); line(x + 2, 4, x + 21, 4, CLR_WHITE); blend_reset(); }   // top sheen
-    rrect(x, 3, 26, 10, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
+    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
+    rrect(x, y, 24, 10, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_TINY);
-    print(mac[m].name, x + (18 - text_width(mac[m].name)) / 2, 5, foc ? CLR_BROWNISH_BLACK : mac[m].col);
-    int lx = x + 22, ly = 8;                                          // mute LED
+    print(mac[m].name, x + (16 - text_width(mac[m].name)) / 2, y + 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    int lx = x + 20, ly = y + 5;                                      // mute LED
     circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
     circ(lx, ly, 2, CLR_BROWNISH_BLACK);
     if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);         // muted = red slash
@@ -178,6 +178,16 @@ static void navspine(void) {
     if (playing) { rectfill(px + 4, py + 3, 2, 4, CLR_WHITE); rectfill(px + 8, py + 3, 2, 4, CLR_WHITE); }
     else trifill(px + 5, py + 3, px + 5, py + 7, px + 10, py + 5, CLR_WHITE);
     for (int m = 0; m < M_N; m++) cartridge(m);
+
+    // HOME (meta) — reserved space only; the app shell owns the real leave-cart gesture
+    int hx = 145, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;
+    void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
+    ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);            // registered but unwired
+    rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
+    rrect(hx, hy, hw, hh, 2, hhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    int cxh = hx + hw / 2;                                            // little house glyph
+    trifill(cxh - 3, hy + 5, cxh + 3, hy + 5, cxh, hy + 2, CLR_LIGHT_PEACH);
+    rectfill(cxh - 2, hy + 5, 5, 3, CLR_LIGHT_PEACH);
 }
 
 // ── a 303 face (zones 2–5) ───────────────────────────────────────────────────
@@ -290,8 +300,8 @@ void update(void) {
 void draw(void) {
     cls(CLR_DARK_PURPLE);
     rrectfill(0, 0, 160, 100, 7, CLR_INDIGO);
-    rrectfill(3, 3, 154, 94, 5, CLR_LIGHT_PEACH);
-    blend(BLEND_AVG); line(7, 4, 152, 4, CLR_WHITE); blend_reset();
+    rrectfill(3, 1, 154, 98, 5, CLR_LIGHT_PEACH);                     // 1px purple bezel top & bottom
+    blend(BLEND_AVG); line(7, 2, 152, 2, CLR_WHITE); blend_reset();
     ui_begin();
     font(FONT_SMALL);
 

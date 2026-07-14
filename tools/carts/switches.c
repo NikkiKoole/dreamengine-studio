@@ -110,6 +110,8 @@ static void rocker(int x, int y, int w, int h, int on, int hot) {
 static int latch_on = 0, illum_on = 1, rec_on = 1;
 static int radio_sel = 1;
 static int bat2 = 1, bat3 = 1, slide_p = 0, rock_on = 1;
+static int step[8] = { 1, 0, 0, 1, 0, 1, 0, 0 };       // COMPACT: a finger-sized step row
+static int cbat = 1, crock = 1;
 
 void init(void) { bpm(120); }
 
@@ -209,6 +211,35 @@ void draw(void) {
         if (btn_input(0x74u, col[3] + 16, y3 - 10, 32, 28, &pr4, &hot4)) rock_on = !rock_on;
         rocker(col[3] + 20, y3 - 8, 24, 26, rock_on, hot4);
         plabel("ROCKER", col[3] + 32, y3 + 22, CLR_LIGHT_GREY);
+    }
+
+    // ── ROW 4 — COMPACT: everything shrunk to a finger minimum ─────────────
+    int fp = finger_px(), s = fp < 16 ? 16 : (fp > 26 ? 26 : fp);   // finger target, clamped for layout
+    print(str("4 COMPACT  sized to finger_px()=%d - hit area still auto-pads to %d", fp, UI_MIN_TARGET),
+          6, 270, CLR_DARK_GREY);
+    faceplate(4, 278, 312, 52);
+    int sy = 290;
+    {
+        // a mini STEP ROW — the zone-4 use case: 8 finger-sized toggles
+        for (int i = 0; i < 8; i++) {
+            int x = 10 + i * (s + 3), pr = 0, hot = 0;
+            if (btn_input(0x80u + i, x, sy, s, s, &pr, &hot)) step[i] = !step[i];
+            draw_btn(x, sy, s, s, "", pr, step[i] ? CLR_LIME_GREEN : CLR_DARK_GREY,
+                     CLR_BLACK, hot, step[i]);
+        }
+        plabel("STEP ROW", 10 + 4 * (s + 3) - 2, sy + s + 3, CLR_LIGHT_GREY);
+
+        // the flip family shrinks too — a compact bat + rocker
+        int rx = 10 + 8 * (s + 3) + 20;
+        int pr = 0, hot = 0;
+        if (btn_input(0x88u, rx - 12, sy, 26, s + 2, &pr, &hot)) cbat = !cbat;
+        bat_toggle(rx, sy + 6, cbat, 2, hot);
+        plabel("BAT", rx, sy + s + 3, CLR_LIGHT_GREY);
+
+        int cx2 = rx + 42, pr2 = 0, hot2 = 0;
+        if (btn_input(0x89u, cx2 - 2, sy - 2, s + 4, s + 4, &pr2, &hot2)) crock = !crock;
+        rocker(cx2, sy, s, s, crock, hot2);
+        plabel("ROCK", cx2 + s / 2, sy + s + 3, CLR_LIGHT_GREY);
     }
 
     font(FONT_NORMAL);

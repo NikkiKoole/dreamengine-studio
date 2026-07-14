@@ -302,13 +302,27 @@ static void draw_303(int i) {
     } else {
         font(FONT_TINY); print("132", 29, 40, CLR_MEDIUM_GREEN);      // bpm lives in the screen
         if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_line(i);       // ...and so does NEW
+        int heldy = -1;                                              // y of the sounding note (for ties + slide origin)
         for (int s = 0; s < plen[i]; s++) {
             int cx = 29 + s * 6;
             if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 18, CLR_MEDIUM_GREEN); blend_reset(); }
-            if (!on[i][s]) continue;
-            int y = 56 - pit[i][s] - oct[i][s] * 6; if (y < 40) y = 40; if (y > 56) y = 56;
-            rectfill(cx, y, 4, 3, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
-            if (sld[i][s]) line(cx + 4, y + 1, cx + 6, y + 1, CLR_MEDIUM_GREEN);
+            int y = 56 - pit[i][s] - oct[i][s] * 6; if (y < 41) y = 41; if (y > 56) y = 56;
+            if (on[i][s]) {
+                rectfill(cx, y, 4, 2, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);   // the note
+                if (oct[i][s] > 0) pset(cx + 2, y - 2, CLR_LIGHT_YELLOW);               // octave-up tick
+                if (oct[i][s] < 0) pset(cx + 2, y + 3, CLR_TRUE_BLUE);                  // octave-down tick
+                if (sld[i][s]) {                                                        // slide → a glide LINE to the next note
+                    int ns = (s + 1) % plen[i];
+                    if (on[i][ns] || tie[i][ns]) {
+                        int ny = tie[i][ns] ? y : 56 - pit[i][ns] - oct[i][ns] * 6;
+                        if (ny < 41) ny = 41; if (ny > 56) ny = 56;
+                        line(cx + 3, y + 1, cx + 6, ny + 1, CLR_MEDIUM_GREEN);
+                    }
+                }
+                heldy = y;
+            } else if (tie[i][s] && heldy >= 0) {
+                rectfill(cx, heldy, 5, 2, CLR_MEDIUM_GREEN);                            // tie → the held note carries on
+            } else heldy = -1;                                                          // a rest breaks the hold
         }
     }
 

@@ -15,7 +15,7 @@
   "lineage": "The cart on the REAL PCM sampler (engine: record_arm/record_grab capture ring + INSTR_SAMPLE + instrument_sample_region + sample_peaks/record_peaks, mic-and-sampling.md). Records the console's OWN output; slices it at the note-on times captured while playing (keybed_on_note - exact, since we played it in), editable by hand, with a signal detector as fallback for un-played audio; plays two ways — KEYS (one slice chromatically across the keybed) or KIT (each slice on its own pad at original pitch). Ported in spirit from navkit's DAW sampler.",
   "description": {
     "summary": "Record what you play, chop it, and build a SONG out of the chops. Hit REC and play a synth (SAW/FM/PLUCK/EPIANO/FLUTE/REED/BRASS) or a DRUM KIT (ELECTRO/ACOUSTIC) — the ENGINE button picks the source. STOP auto-slices the recording at the moments you triggered notes. Audition the chops, +ADD the ones you like to a 16-pad bank, then ARRANGE them on a 16-step grid that loops — record more takes (a flute part, an epiano part, drums) and they all pool into one song. The source is the console's own sound, no mic.",
-    "detail": "A full loop: sample → chop → arrange. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. Two play modes: KEYS pitches the SELECTED slice across the keybed (the melodic sampler); KIT is a pad per slice at original pitch (the SP-404 break-chopper). MODE (or V) cycles NORMAL/REVERSE/LOOP/PINGPONG. ARRANGE opens the SONG: +ADD banks the selected chop into a fixed 16-pad bank; each take grabs into its OWN sample buffer (up to 8) so chops from different takes coexist; a 16-step grid loops them off the tempo clock with a sweeping playhead. A seconds-used readout shows the sample budget (shown, not yet capped — SP-404 style). A GRIT button crushes the whole song lo-fi — CLEAN/12BIT/8BIT/CRUSH (SP-1200 bit+rate reduction applied to every chop voice; the capture stays clean, so you re-grit on playback). Nothing persists across a reload yet.",
+    "detail": "A full loop: sample → chop → arrange. REC captures the master output into a ring (record_arm) AND logs every note-on time as you play — so STOP slices EXACTLY where you triggered notes (no fragile transient-guessing; a signal detector is only the fallback for audio we didn't play in, e.g. a future loaded WAV). Synth sources play the chromatic keybed; a DRUM KIT source (drumkit.h — a shared kit of KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH voices) swaps the keybed for a PAD GRID, so you play a beat on the pads and each hit becomes a chop — the engine has no drum instrument, so this is how you sample drums. The grab is peak-normalized + silence-trimmed. Drag a marker to move it, onto a neighbour to delete, SPLIT halves the selected slice, AUTO re-slices; click a slice to select AND hear it. Two play modes: KEYS pitches the SELECTED slice across the keybed (the melodic sampler); KIT is a pad per slice at original pitch (the SP-404 break-chopper). MODE (or V) cycles NORMAL/REVERSE/LOOP/PINGPONG. ARRANGE opens the SONG: +ADD banks the selected chop into a fixed 16-pad bank; each take grabs into its OWN sample buffer (up to 8) so chops from different takes coexist; a 16-step grid loops them off the tempo clock with a sweeping playhead. A seconds-used readout shows the sample budget (shown, not yet capped — SP-404 style). A GRIT button crushes the whole song lo-fi — CLEAN/12BIT/8BIT/CRUSH (SP-1200 bit+rate reduction applied to every chop voice; the capture stays clean, so you re-grit on playback). The whole arrangement PERSISTS — the chops' PCM + grid + tempo + grit are auto-saved and restored on the next launch (a SONG button on the record screen jumps straight to your saved song).",
     "controls": "REC/STOP (or R) — record a take. ENGINE (or [ / ]) picks the source: a synth (keybed) or a DRUM KIT (pads). Drum source: A S D F.. hit the pads (or touch). EDIT: click a slice to select+hear it; drag markers to move, onto a neighbour to delete; KEYS|KIT (M), AUTO (re-slice), SPLIT, MODE (fwd/rev/loop/pingpong), +ADD (bank the selected chop), ARRANGE (open the song), RE-REC. EDIT/KEYS: A S D.. play the selected slice pitched; EDIT/KIT: the letters fire the chops. SONG: tap grid cells to program the loop; PLAY/STOP, -/+ tempo, + TAKE (record another), GRIT (CLEAN/12BIT/8BIT/CRUSH lo-fi), EDIT (back to the take), CLEAR."
   }
 }
@@ -25,6 +25,8 @@ de:meta */
 #include "drumkit.h"
 #include "ui.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // ── SAMPLER ──────────────────────────────────────────────────────────────────
 // Record the console's own output, transient-slice it into chops, and play them
@@ -130,6 +132,7 @@ static char  song_seq[SONGPADS][SONGSTEPS];                 // the step grid
 static int   song_bpm = 100, song_step = 0, song_last16 = -1;
 static int   song_play = 0;
 static float song_flash[SONGPADS];
+static int   song_dirty = 0;                                // a mutation happened → save on the next frame
 
 static int nsl(void) { return nb - 1; }
 static void apply_src(void) {
@@ -332,6 +335,74 @@ static void commit_chop(void) {                  // add the SELECTED chop of the
     song[song_n] = (Chop){ cur_buf, bnd[sel], bnd[sel + 1], (bnd[sel + 1] - bnd[sel]) * rec_secs };
     song_bind(song_n);
     song_n++;
+    song_dirty = 1;
+}
+
+// ── persistence (mic-and-sampling.md piece 5): the arrangement survives a reload ──
+// Save the referenced take BUFFERS (sample_read) + the chop table + grid + tempo + grit; restore
+// them at init with sample_load — no re-recording. Auto-saved on leaving the SONG + on commit.
+#define SMP_SCRATCH (8 * 44100 + 64)                   // max samples in a take buffer (≥ the 8s ring)
+#define SMP_MAGIC   0x53414d33                         // 'SAM3' — bump if the layout changes
+#define SMP_MAXBLOB (5 * 4 + SONGPADS * SONGSTEPS + SONGPADS * 16 + MAXBUF * (8 + SMP_SCRATCH * 4))
+static float smp_scratch[SMP_SCRATCH];
+
+static void song_save(void) {
+    if (song_n <= 0) return;
+    int blen[MAXBUF]; for (int b = 0; b < MAXBUF; b++) blen[b] = -1;    // -1 = not referenced
+    int nbuf = 0; long pcm = 0;
+    for (int i = 0; i < song_n; i++) { int b = song[i].buf;
+        if (b >= 0 && b < MAXBUF && blen[b] < 0) {
+            int n = sample_read(b, smp_scratch, SMP_SCRATCH);
+            if (n > 0) { blen[b] = n; nbuf++; pcm += n; } else blen[b] = 0;
+        } }
+    long size = 5 * 4 + SONGPADS * SONGSTEPS + (long)song_n * 16 + (long)nbuf * 8 + pcm * 4;
+    unsigned char *blob = (unsigned char *)malloc((size_t)size);
+    if (!blob) return;
+    unsigned char *p = blob;
+    #define PUTI(v) do { int _v = (v); memcpy(p, &_v, 4); p += 4; } while (0)
+    #define PUTF(v) do { float _v = (v); memcpy(p, &_v, 4); p += 4; } while (0)
+    PUTI(SMP_MAGIC); PUTI(song_n); PUTI(song_bpm); PUTI(grit); PUTI(nbuf);
+    memcpy(p, song_seq, SONGPADS * SONGSTEPS); p += SONGPADS * SONGSTEPS;
+    for (int i = 0; i < song_n; i++) { PUTI(song[i].buf); PUTF(song[i].start); PUTF(song[i].end); PUTF(song[i].secs); }
+    for (int b = 0; b < MAXBUF; b++) if (blen[b] > 0) { PUTI(b); PUTI(blen[b]); sample_read(b, (float *)p, blen[b]); p += (long)blen[b] * 4; }
+    #undef PUTI
+    #undef PUTF
+    save_bytes(blob, (int)size);
+    free(blob);
+}
+
+static void song_load(void) {
+    unsigned char *blob = (unsigned char *)malloc(SMP_MAXBLOB);
+    if (!blob) return;
+    int total = load_bytes(blob, SMP_MAXBLOB);
+    unsigned char *p = blob, *e = blob + total;
+    #define GETI(dst) do { if (p + 4 > e) goto done; memcpy(&dst, p, 4); p += 4; } while (0)
+    #define GETF(dst) do { if (p + 4 > e) goto done; memcpy(&dst, p, 4); p += 4; } while (0)
+    if (total < 20) goto done;
+    int magic, sn, nbuf; GETI(magic); if (magic != SMP_MAGIC) goto done;
+    GETI(sn); GETI(song_bpm); GETI(grit); GETI(nbuf);
+    if (sn < 0) sn = 0; if (sn > SONGPADS) sn = SONGPADS;
+    if (song_bpm < 60) song_bpm = 60; if (song_bpm > 240) song_bpm = 240;
+    if (grit < 0 || grit > 3) grit = 0;
+    if (nbuf < 0) nbuf = 0; if (nbuf > MAXBUF) nbuf = MAXBUF;
+    if (p + SONGPADS * SONGSTEPS > e) goto done;
+    memcpy(song_seq, p, SONGPADS * SONGSTEPS); p += SONGPADS * SONGSTEPS;
+    song_n = sn;
+    for (int i = 0; i < song_n; i++) { GETI(song[i].buf); GETF(song[i].start); GETF(song[i].end); GETF(song[i].secs); }
+    int maxbuf = 0;
+    for (int j = 0; j < nbuf; j++) {
+        int slot, len; GETI(slot); GETI(len);
+        if (len < 0) len = 0; if (len > SMP_SCRATCH) len = SMP_SCRATCH;
+        if (p + (long)len * 4 > e) goto done;
+        if (slot >= 0 && slot < MAXBUF && len > 0) { sample_load(slot, (float *)p, len); if (slot + 1 > maxbuf) maxbuf = slot + 1; }
+        p += (long)len * 4;
+    }
+    for (int i = 0; i < song_n; i++) if (song[i].buf >= 0 && song[i].buf < MAXBUF) song_bind(i);
+    take_ct = maxbuf; cur_buf = maxbuf % MAXBUF;   // new takes land past the restored buffers
+done:
+    #undef GETI
+    #undef GETF
+    free(blob);
 }
 static int song_rowh(void) { int n = song_n < 1 ? 1 : song_n, h = SG_H / n; if (h > 20) h = 20; return h < 7 ? 7 : h; }
 static int song_cell_at(int x, int y, int *pp, int *ps) {   // (x,y) → pad p, step s (1 = hit)
@@ -358,7 +429,7 @@ static void song_update(void) {
     for (int t = 0; t < touch_count() && cn < 16; t++) {
         int id = touch_id(t); cur[cn++] = id;
         int seen = 0; for (int k = 0; k < pn; k++) if (prev[k] == id) seen = 1;
-        int p, s; if (!seen && song_cell_at(touch_x(t), touch_y(t), &p, &s)) song_seq[p][s] ^= 1;
+        int p, s; if (!seen && song_cell_at(touch_x(t), touch_y(t), &p, &s)) { song_seq[p][s] ^= 1; song_dirty = 1; }
     }
     pn = cn; for (int k = 0; k < cn; k++) prev[k] = cur[k];
 }
@@ -388,19 +459,25 @@ static void song_draw(void) {
     ui_begin();
     int y = SCREEN_H - 20;
     if (ui_button(4,   y, 50, 18, song_play ? "STOP" : "PLAY")) song_play ^= 1;
-    if (ui_button(58,  y, 22, 18, "-") && song_bpm > 60)  song_bpm -= 5;
-    if (ui_button(82,  y, 22, 18, "+") && song_bpm < 240) song_bpm += 5;
+    if (ui_button(58,  y, 22, 18, "-") && song_bpm > 60)  { song_bpm -= 5; song_dirty = 1; }
+    if (ui_button(82,  y, 22, 18, "+") && song_bpm < 240) { song_bpm += 5; song_dirty = 1; }
     if (ui_button(108, y, 54, 18, "+ TAKE")) { state = ST_PLAY; apply_src(); point_keybed(SYN); }
-    if (ui_button(166, y, 50, 18, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); }   // whole-song lo-fi
+    if (ui_button(166, y, 50, 18, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); song_dirty = 1; }   // whole-song lo-fi
     if (rec_len > 0 && ui_button(SCREEN_W - 96, y, 44, 18, "EDIT")) state = ST_EDIT;
-    if (ui_button(SCREEN_W - 48, y, 44, 18, "CLEAR"))
+    if (ui_button(SCREEN_W - 48, y, 44, 18, "CLEAR")) {
         for (int p = 0; p < SONGPADS; p++) for (int s = 0; s < SONGSTEPS; s++) song_seq[p][s] = 0;
+        song_dirty = 1;
+    }
     ui_end();
 }
 
 void update(void) {
+    if (song_dirty) { song_dirty = 0; song_save(); }         // persist the arrangement after any change
     static int prev_state = -1;                  // grit follows state (crush on in EDIT/SONG, off in PLAY/REC)
     if (state != prev_state) { prev_state = state; apply_grit(); }
+#ifdef DE_TRACE
+    watch("state", "%d", state); watch("song_n", "%d", song_n); watch("grit", "%d", grit);
+#endif
     if (state == ST_SONG) { song_update(); return; }
     if (keyp('[') || keyp(']')) { eng = (eng + (keyp(']') ? 1 : NALL - 1)) % NALL; if (state != ST_EDIT) apply_src(); }
 
@@ -518,6 +595,7 @@ void draw(void) {
         if (ui_button(4, y, 90, 18, state == ST_REC ? "STOP" : "REC")) {
             if (state == ST_PLAY) { state = ST_REC; rec_t0 = now(); on_n = 0; } else stop_take();
         }
+        if (state == ST_PLAY && song_n > 0 && ui_button(100, y, 62, 18, "SONG")) state = ST_SONG;   // jump to a (restored) song
         if (ui_button(SCREEN_W - 66, y, 62, 18, src_name(eng))) { eng = (eng + 1) % NALL; apply_src(); }
     }
     ui_end();
@@ -549,4 +627,5 @@ void init(void) {
     keybed_on_note(rec_note_cb);   // log note-on moments while recording → exact slice boundaries
     bnd[0] = 0.0f; bnd[1] = 1.0f; nb = 2;
     point_keybed(SYN);
+    song_load();                   // restore a saved arrangement (chops + grid + tempo + grit)
 }

@@ -72,15 +72,27 @@ change, never per-frame — `lint-fx-frame` clean). Verified with the new centro
 region drops CLEAN 14.8 kHz → CRUSH 4.1 kHz, while a take recorded *with grit set* still captures
 clean (15.9 kHz) — the state gate holds.
 
-**Next (piece 5):** **persistence** — `save_bytes()` of the grabbed PCM
-+ chop boundaries + the song grid, so a session survives a reload and a song can be lifted into its
-own cart. Also: an optional **seconds CAP** (flip the readout into a real budget), touch-drag for the
-chop handles (currently mouse), a real choke group for the kit (blocked on a per-slot note-off — the
-engine's one-shot notes can't cut each other, tr808's documented infidelity), the **doctrine call**
-(an ADR — does a sampler whose source is the console's OWN synthesis clear STATUS #21's
-"analog-circuit machines only" line? the argument is yes: an honest closed loop, not a caricature of
-a famous PCM box), and the determinism write-up (capture-then-freeze made rigorous for
-`.rec`/`spec()`).
+**Shipped (2026-07-14) — piece 5, PERSISTENCE:** the arrangement survives a reload. Needed two new
+engine primitives (the sample-I/O the engine lacked — only `record_grab` could fill a slot, and
+`sample_peaks` only read a downsampled view): **`sample_read(slot, out, max)`** (raw PCM out) and
+**`sample_load(slot, data, n)`** (raw PCM in — the inverse, so a saved buffer restores without
+re-recording; also unlocks the future WAV-load path). The sampler serializes the committed chops'
+referenced take BUFFERS + the chop table + grid + tempo + grit through `save_bytes` (auto-saved on
+any change via a dirty flag; ~230 KB for a 3-chop song), and `song_load()` at init restores it —
+`sample_load` back into the slots, rebind the voices, done. A SONG button on the record screen jumps
+straight to a restored song. Chose PCM over event-replay because the engine has no offline render
+(replaying events would mean re-recording in real time at load) and PCM is immune to source drift +
+handles future WAVs. Verified: build a 3-chop CRUSH song, relaunch cold → `song_n=3, grit=3`
+restored, plays.
+
+**Next (piece 6):** an optional **seconds CAP** (flip the readout into a real budget), touch-drag for
+the chop handles (currently mouse), a real choke group for the kit (blocked on a per-slot note-off —
+the engine's one-shot notes can't cut each other, tr808's documented infidelity), lifting the SONG
+into its own `songbox` cart (persistence is the bridge — now built), embeddable lo-fi songs in the
+cart PNG (the save is disk-only today), the **doctrine call** (an ADR — does a sampler whose source
+is the console's OWN synthesis clear STATUS #21's "analog-circuit machines only" line? the argument
+is yes: an honest closed loop, not a caricature of a famous PCM box), and the determinism write-up
+(capture-then-freeze made rigorous for `.rec`/`spec()`).
 
 ## Why this doc exists
 

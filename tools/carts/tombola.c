@@ -51,9 +51,12 @@ de:meta */
 
 #define R       5.0f                       // drum radius (metres)
 #define NHEX    6                          // hexagon walls
-#define BALLR   0.42f                      // note-ball radius (metres)
+#define NPAD    6                          // inward PADDLES — scoop balls up, drop them once per turn
+#define PADLEN  1.9f                       // paddle length (metres, reaching in from the wall)
+#define BALLR   0.52f                      // note-ball radius (metres) — big enough that each hit reads
 #define MAXBALLS 32
 #define NSEL    8                          // pitch-selector strip width (degrees)
+#define TAU     6.2831853f
 
 // audio slot + the one voice
 #define SL_VOICE 6
@@ -158,8 +161,8 @@ static void build_world(void) {
     dd.userData = (void*)(intptr_t)WALL_TAG;
     drum = b2CreateBody(world, &dd);
     for (int i = 0; i < NHEX; i++) {
-        float a0 = (float)i / NHEX * 6.2831853f;
-        float a1 = (float)(i + 1) / NHEX * 6.2831853f;
+        float a0 = (float)i / NHEX * TAU;
+        float a1 = (float)(i + 1) / NHEX * TAU;
         b2Segment s = {{cosf(a0) * R, sinf(a0) * R}, {cosf(a1) * R, sinf(a1) * R}};
         b2ShapeDef sd = b2DefaultShapeDef();
         sd.material.friction = 0.7f;               // grip so the wall CARRIES balls round
@@ -167,15 +170,29 @@ static void build_world(void) {
         sd.enableHitEvents = true;                 // the wall a ball rings against
         b2CreateSegmentShape(drum, &sd, &s);
     }
+    // the paddle-wheel: fins reaching inward from the rim. As the drum turns, a fin
+    // sweeping the bottom SCOOPS the pile, carries balls up the rising side, and
+    // spills them near the top — so each ball tumbles and rings once per turn. The
+    // steady rotation makes that periodic: a loop, not a wash.
+    for (int i = 0; i < NPAD; i++) {
+        float a = ((float)i + 0.5f) / NPAD * TAU;      // mid-face, between the vertices
+        b2Segment s = {{cosf(a) * R, sinf(a) * R},
+                       {cosf(a) * (R - PADLEN), sinf(a) * (R - PADLEN)}};
+        b2ShapeDef sd = b2DefaultShapeDef();
+        sd.material.friction = 0.8f;
+        sd.material.restitution = 0.15f;
+        sd.enableHitEvents = true;
+        b2CreateSegmentShape(drum, &sd, &s);
+    }
 }
 
 static void seed(void) {
     build_world();
-    int seedDeg[6] = { 0, 2, 4, 1, 5, 3 };
-    for (int i = 0; i < 6; i++) {
-        float a = (float)i / 6 * 6.2831853f;
-        spawn_ball(cosf(a) * R * 0.5f, sinf(a) * R * 0.5f + 1.0f, seedDeg[i]);
-    }
+    // a few balls, dropped near the bottom so the paddles pick them straight up —
+    // spread the pitches so the emergent loop has a shape, not one note
+    int seedDeg[4] = { 0, 2, 4, 5 };
+    for (int i = 0; i < 4; i++)
+        spawn_ball((i - 1.5f) * 1.1f, -1.0f, seedDeg[i]);
 }
 
 void update(void) {
@@ -192,8 +209,9 @@ void update(void) {
     // GRAV rides live
     b2World_SetGravity(world, (b2Vec2){0, -(4.0f + k_grav * 18.0f)});
 
-    // SPIN: the drum's angular velocity (0 in BUILD — frozen for placing balls)
-    float w = mode_build ? 0.0f : -(0.15f + k_spin * 2.0f);   // clockwise
+    // SPIN: the drum's angular velocity (0 in BUILD — frozen for placing balls).
+    // ~0.5..4.7 rad/s -> a turn every ~12s..1.3s; the turn IS the loop's bar.
+    float w = mode_build ? 0.0f : -(0.5f + k_spin * 4.2f);    // clockwise
     b2Body_SetAngularVelocity(drum, w);
 
     // drop a ball where you tap inside the drum (region-gated, so it never
@@ -235,18 +253,30 @@ void update(void) {
 }
 
 // ── drawing ──
+// transform a drum-local point (metres) to screen, through the drum's live rotation
+static void drum_pt(b2Transform t, float lx, float ly, int *sx, int *sy) {
+    float wx = t.p.x + (t.q.c * lx - t.q.s * ly);
+    float wy = t.p.y + (t.q.s * lx + t.q.c * ly);
+    *sx = SX(wx); *sy = SY(wy);
+}
+
 static void draw_drum(void) {
     b2Transform t = b2Body_GetTransform(drum);
     int px[NHEX], py[NHEX];
     for (int i = 0; i < NHEX; i++) {
-        float a = (float)i / NHEX * 6.2831853f;
-        float lx = cosf(a) * R, ly = sinf(a) * R;
-        float wx = t.p.x + (t.q.c * lx - t.q.s * ly);
-        float wy = t.p.y + (t.q.s * lx + t.q.c * ly);
-        px[i] = SX(wx); py[i] = SY(wy);
+        float a = (float)i / NHEX * TAU;
+        drum_pt(t, cosf(a) * R, sinf(a) * R, &px[i], &py[i]);
     }
     for (int i = 0; i < NHEX; i++)
         line(px[i], py[i], px[(i + 1) % NHEX], py[(i + 1) % NHEX], CLR_INDIGO);
+    // the paddles
+    for (int i = 0; i < NPAD; i++) {
+        float a = ((float)i + 0.5f) / NPAD * TAU;
+        int ox, oy, ix, iy;
+        drum_pt(t, cosf(a) * R, sinf(a) * R, &ox, &oy);
+        drum_pt(t, cosf(a) * (R - PADLEN), sinf(a) * (R - PADLEN), &ix, &iy);
+        line(ox, oy, ix, iy, CLR_BLUE);
+    }
 }
 
 void draw(void) {

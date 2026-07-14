@@ -6306,6 +6306,21 @@
     "teaches": []
   },
   {
+    "title": "Tumble",
+    "description": "A slingshot and a stack of crates. Drag to pull the pouch back, release to fling a heavy ball, and knock the pyramid down. Every crate is a real Box2D v3 rigid body — it rotates as it topples, rests solidly on the crate below (stable stacking, the thing a verlet blob can't do), and slides on friction. TOPPLED counts how many you've knocked over; R rebuilds the stack. First cart on the engine's new pure-C Box2D backend.",
+    "file": "tumble.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "teaches": [
+      "rigid-body",
+      "collision-detection"
+    ],
+    "lineage": "The rigid-body counterpart to the verlet toolkit (runtime/physics.h): the first cart on the vendored pure-C Box2D v3 (runtime/box2d/). Deliberately does the things verlet is bad at — crisp rotation, stable resting contact, friction — so it reads as the honest A/B against the jelly/waterjar particle carts. See docs/design/box2d-integration.md."
+  },
+  {
     "title": "turf war",
     "description": "Top-down gang-turf takeover: lead your green crew block by block, out-number the rivals holding a district and the whole zone flips to your color with a wash and a chime. Three AI gangs expand into neutral blocks and counter-attack your borders — capture is paper.io/splatoon \"presence\" applied to a city grid, the crew is the crowd.c pal()-recolor trick (one sprite, four gang colors via a magic shirt index), and a 92 BPM boom-bap bed (filtered bass + euclid hats) rolls under brawl dust, screen shake, a pulsing share-bar and a district mini-map. Own 8 of 12 districts to win; lose your last block and you're wiped out. WASD lead your crew (they follow and break off to brawl), Z for a gang-up melee burst, Z to run it back.",
     "file": "turfwar.cart.png",

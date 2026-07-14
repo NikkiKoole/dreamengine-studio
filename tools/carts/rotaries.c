@@ -12,7 +12,7 @@
   "description": {
     "summary": "The turning family from the control vocabulary, in beveled lo-fi: value models (pot / endless encoder / selector / push / dual), a trim-to-jumbo size range, all five LED-ring modes, and a LIVE layer of software-only knob tricks.",
     "detail": "The workshop cart for docs/design/control-vocabulary.md — one set of knob renderers (rot_body/rot_ring/rot_pointer/rot_knurl/draw_pot) exercised four ways so the look never drifts. Row 1 VALUE MODELS: POT (bounded — pointer + min/max dial), ENC (endless — bare knurled cap, NO pointer, value in a full-circle ring because the cap angle is a lie; the grip spins with the turn), SEL (discrete — snaps between 5 detents), PUSH (turn + tap-to-toggle a centre LED), DUAL (two pots on one shaft). Row 2 SIZE RANGE: the same pot at r=6..22, proving the 1-2px bevel scales. Row 3 LED-RING MODES: DOT/FILL/BIPOLAR/SPREAD/PULSE. Row 4 LIVE — what a physical knob can't do: MOD HALO (cap = your base, a live mark shows the LFO-modulated value — the value in two places at once), GLOW (value-reactive colour cold->hot), GHOST (a remembered default, tap to snap home), JOG (a weighted finger-dimple spinner with momentum + acceleration you flick to fly through a library list). Every cap is an extruded body in a recessed socket with a drop shadow + concentric sheen/shade — the icon's tactility as pixel-honest bevels.",
-    "controls": "Drag any rotary vertically to turn it (every finger is its own pointer — turn two at once). Mouse wheel fine-tunes the hovered one. Tap PUSH to toggle its LED, tap GHOST to snap it home. DUAL: drag the ring for outer, the centre for inner. JOG: flick it and let go — it coasts through the list, faster spin = bigger jumps. Tap BEVEL (top-right) or press B to toggle the tactile lighting — flat vs beveled (the ui_skin prototype)."
+    "controls": "Drag any rotary vertically to turn it (every finger is its own pointer — turn two at once). Mouse wheel fine-tunes the hovered one. Tap PUSH to toggle its LED, tap GHOST to snap it home. DUAL: drag the ring for outer, the centre for inner. JOG: flick it and let go — it coasts through the list, faster spin = bigger jumps. Tap the SKIN button (top-right) or press B to cycle the three skins — TACTILE (beveled chrome) / FLAT (PICO-flat) / PURE (the native 320x200 register: hairline + compact). The ui_skin prototype."
   }
 }
 de:meta */
@@ -42,7 +42,15 @@ static float dual_o = 0.7f, dual_i = 0.3f;             // concentric outer/inner
 static float ring_v[5] = { 0.30f, 0.65f, 0.30f, 0.5f, 0.8f };  // the 5 ring modes
 static float size_v[5] = { 0.4f, 0.55f, 0.35f, 0.7f, 0.5f };   // the size range
 static float sty_v[3]  = { 0.4f, 0.55f, 0.6f };                // the collet styles
-static int   bevel = 1;                                        // tactile lighting on/off (the ui_skin prototype)
+// SKIN axis — the ui_skin prototype. TACTILE = beveled chrome; FLAT = PICO-flat
+// (same geometry, no lighting); PURE = the native 320x200 register (hairline +
+// dither + compact, the C64-OS look). Future: these become a Skin struct (a
+// stylesheet-in-a-record) so a sheet could be loaded externally — see
+// control-vocabulary.md §"skin system". For now, an enum.
+enum { SK_TACTILE, SK_FLAT, SK_PURE };
+static int skin = SK_TACTILE;
+static const char *SKIN_NAME[3] = { "SKIN:TACTILE", "SKIN:FLAT", "SKIN:PURE" };
+#define bevel (skin == SK_TACTILE)   // existing tactile-lighting checks keep working
 
 // ── LIVE section (the software layer — behaviours hardware can't do) ─────────
 static float halo_base = 0.45f;                 // MOD HALO: the base value your hand sets
@@ -64,11 +72,14 @@ static void rot_shadow(int cx, int cy, int r) {
 
 // a slightly-raised faceplate the controls are set INTO (so the sockets read as holes)
 static void faceplate(int x, int y, int w, int h) {
+    if (skin == SK_PURE) { rect(x, y, w, h, CLR_MEDIUM_GREY); return; }   // hairline window frame
     rrectfill(x, y, w, h, 4, CLR_DARK_BROWN);
-    line(x + 3, y + 1, x + w - 4, y + 1, CLR_BROWN);          // top sheen
-    blend(BLEND_AVG);
-    line(x + 3, y + h - 1, x + w - 4, y + h - 1, CLR_BLACK);  // bottom shade
-    blend_reset();
+    if (skin == SK_TACTILE) {
+        line(x + 3, y + 1, x + w - 4, y + 1, CLR_BROWN);          // top sheen
+        blend(BLEND_AVG);
+        line(x + 3, y + h - 1, x + w - 4, y + h - 1, CLR_BLACK);  // bottom shade
+        blend_reset();
+    }
 }
 
 // face = cap colour, hi = top sheen, lo = bottom shade. Edge-lit bevel.
@@ -77,6 +88,11 @@ static void faceplate(int x, int y, int w, int h) {
 // (studio.c:4508 "draw the fill, then arc() on top, no gap"). Never mix circ()
 // (a different rim rule) or an offset centre — that's what made them drift.
 static void rot_body(int cx, int cy, int r, int face, int hi, int lo, int hot) {
+    if (skin == SK_PURE) {                           // native: a hairline disc, no chrome
+        circfill(cx, cy, r, CLR_BROWNISH_BLACK);
+        arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_LIGHT_GREY);
+        return;
+    }
     int t = r >= 16 ? 2 : 1;                         // bevel thickness scales with size
     circfill(cx, cy, r + 3, CLR_BROWNISH_BLACK);     // hole punched in the faceplate
     if (bevel) rot_shadow(cx, cy, r);
@@ -107,6 +123,16 @@ static void rot_pointer(int cx, int cy, int r, float ang, int col) {
 
 // the value halo (control-vocabulary.md §4) around a ring-encoder
 static void rot_ring(int cx, int cy, int r, int mode, float v, int col) {
+    if (skin == SK_PURE) {                                      // native: thin 1px halo
+        float av = A0 + v * SW, mid = A0 + SW / 2.0f;
+        arc(cx, cy, r + 2, A0, A0 + SW, CLR_DARKER_GREY);       // track
+        if (mode == RING_DOT)          arc(cx, cy, r + 2, av - 5, av + 5, col);
+        else if (mode == RING_FILL)    arc(cx, cy, r + 2, A0, av, col);
+        else if (mode == RING_BIPOLAR) { if (av >= mid) arc(cx, cy, r + 2, mid, av, col); else arc(cx, cy, r + 2, av, mid, col); }
+        else if (mode == RING_SPREAD)  { float hw = v * (SW / 2.0f); arc(cx, cy, r + 2, mid - hw, mid + hw, col); }
+        else                           arc(cx, cy, r + 2, A0, av, col);
+        return;
+    }
     int ri = r + 4, ro = r + 6;
     ring(cx, cy, ri, ro, A0, A0 + SW, CLR_DARKER_GREY);     // track
     float av = A0 + v * SW, mid = A0 + SW / 2.0f;
@@ -132,6 +158,13 @@ static void rot_ring(int cx, int cy, int r, int mode, float v, int col) {
 // a complete bounded pot at any radius: value ring + beveled body + pointer + min/max ticks.
 // One routine, so the size row is literally the same pot drawn at r = 6 … 22.
 static void draw_pot(int cx, int cy, int r, float v, int hot) {
+    if (skin == SK_PURE) {                                       // native: thin 1px dial
+        arc(cx, cy, r + 2, A0, A0 + SW, CLR_DARKER_GREY);        // track
+        arc(cx, cy, r + 2, A0, A0 + v * SW, CLR_LIME_GREEN);     // value
+        rot_body(cx, cy, r, 0, 0, 0, hot);
+        rot_pointer(cx, cy, r, A0 + v * SW, CLR_WHITE);
+        return;
+    }
     int ri = r + 3, ro = r + 5;
     ring(cx, cy, ri, ro, A0, A0 + v * SW, CLR_INDIGO);            // fill
     ring(cx, cy, ri, ro, A0 + v * SW, A0 + SW, CLR_DARKER_GREY);  // track
@@ -148,6 +181,16 @@ static void draw_pot(int cx, int cy, int r, float v, int hot) {
 // cap (coloured, or brushed metal). style 0 = smooth coloured cap, 1 = ridged skirt,
 // 2 = scalloped skirt + metal cap. `groove` = the indicator-groove colour.
 static void draw_styled(int cx, int cy, int r, float v, int cap, int groove, int style, int hot) {
+    if (skin == SK_PURE) {                                // native: hairline body + cap outline
+        circfill(cx, cy, r, CLR_BROWNISH_BLACK);
+        arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_LIGHT_GREY);
+        int pcr = (int)(r * 0.58f);
+        arc(cx, cy, pcr, 0, 360, style == 2 ? CLR_MEDIUM_GREY : cap);
+        float pa = A0 + v * SW;
+        line(cx + (int)dx(pcr * 0.35f, pa), cy + (int)dy(pcr * 0.35f, pa),
+             cx + (int)dx(r - 2, pa), cy + (int)dy(r - 2, pa), groove);
+        return;
+    }
     circfill(cx, cy, r + 3, CLR_BROWNISH_BLACK);          // socket
     if (bevel) rot_shadow(cx, cy, r);
     circfill(cx, cy, r, CLR_BROWNISH_BLACK);              // black skirt
@@ -222,7 +265,7 @@ void draw(void) {
 
     print("ROTARIES", 6, 3, CLR_WHITE);
     font(FONT_SMALL);
-    if (ui_button(SCREEN_W - 64, 3, 60, 11, bevel ? "BEVEL:ON" : "BEVEL:OFF") || keyp('B')) bevel = !bevel;
+    if (ui_button(SCREEN_W - 74, 3, 70, 11, SKIN_NAME[skin]) || keyp('B')) skin = (skin + 1) % 3;
 
     int col[5] = { 32, 96, 160, 224, 288 };       // 5 column centres
     int r1 = 64, r2 = 152, r3 = 244;                // three row centres

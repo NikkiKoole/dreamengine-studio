@@ -20,6 +20,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "tr808.h"   // the shared TR-808 voice bank (SOUND); this cart owns pattern + UI
 #include <stdio.h>
 #include <math.h>
 
@@ -206,23 +207,7 @@ static void draw_knob(int x, int y, float val, int col) {
          cy + (int)(sinf(a) * 2.5f + 0.5f), col);
 }
 
-// apply tune knob: ±12 semitones offset
-static int k_midi(int v, int base) {
-    return base + (int)((ktune[v] - 0.5f) * 24.0f + 0.5f);
-}
-
-// apply decay knob: powf scale centred on 1.0 at val=0.5 (range 0.25× to 4×)
-static int k_dur(int v, int base) {
-    float s = powf(4.0f, (kdecay[v] - 0.5f) * 2.0f);
-    int d = (int)(base * s + 0.5f);
-    return d < 5 ? 5 : d;
-}
-
-// crossfade a vol level using kcolor[v]: lo at kcolor=0, hi at kcolor=1, clamped 0..7
-static int k_cv(int v, int lo, int hi) {
-    int val = (int)(lo + (hi - lo) * kcolor[v] + 0.5f);
-    return val < 0 ? 0 : val > 7 ? 7 : val;
-}
+// (the tune/decay/colour knob maths + the voice trigger moved to tr808.h)
 
 // snap a 0..1 drag to the four RD-8-style trig-prob buckets (100/75/50/25)
 static unsigned char snap_prob(float f) {
@@ -277,129 +262,15 @@ static void load_preset(void) {
     }
 }
 
-static int vv(int base, int boost) {
-    int v = base + boost;
-    return v < 0 ? 0 : (v > 7 ? 7 : v);
-}
-
-// fire one voice `delay` ms from now. Layered hits follow the schematic:
-// metal voices = members of the six-oscillator bank (MIDI 79=800Hz, 73=540,
-// 72=522.7, 66=369.6, 63=304.4, 56=205.3), snare = 180+330Hz modes + noise.
+// fire one voice `delay` ms from now — the SOUND (voice bank + layered trigger)
+// lives in tr808.h now; this cart owns the pattern, the per-voice knobs and the
+// trigger timing. V_* and TR_* share the same index order, so v maps 1:1.
 static void fire(int v, int boost, int delay) {
-    switch (v) {
-    case V_BD:  // ~50Hz bridged-T with the decay-knob boom
-        schedule_hit(delay, k_midi(v, 31), SL_BD, vv(6, boost), k_dur(v, 500));
-        break;
-    case V_SD: {  // 180Hz + 330Hz modes; SNPY knob fades body↔noise
-        int body = k_cv(v, 8, 0), snpy = k_cv(v, 0, 8);
-        schedule_hit(delay, k_midi(v, 54), SL_SDB, vv(body, boost), k_dur(v, 110));
-        schedule_hit(delay, k_midi(v, 64), SL_SDB, vv(body, boost), k_dur(v, 110));
-        schedule_hit(delay, k_midi(v, 60), SL_SDN, vv(snpy, boost), k_dur(v, 140));
-        break;
-    }
-    case V_LT: case V_MT: case V_HT: {  // sine drop + THUD knob controls noise thud level
-        int m = v == V_LT ? 40 : v == V_MT ? 45 : 52;
-        schedule_hit(delay, k_midi(v, m),  SL_TOM,  vv(4, boost), k_dur(v, 280));
-        schedule_hit(delay, k_midi(v, 60), SL_TOMN, vv(k_cv(v, 0, 5), boost), k_dur(v, 30));
-        break;
-    }
-    case V_LC: case V_MC: case V_HC: {  // same circuit, cleaner + shorter
-        int m = v == V_LC ? 52 : v == V_MC ? 57 : 63;
-        schedule_hit(delay, k_midi(v, m), SL_CON, vv(4, boost), k_dur(v, 160));
-        break;
-    }
-    case V_RS:  // dual bridged-T: 1667Hz (midi 92) + 455Hz (midi 70)
-        schedule_hit(delay, k_midi(v, 92), SL_RS, vv(4, boost), k_dur(v, 50));
-        schedule_hit(delay, k_midi(v, 70), SL_RS, vv(3, boost), k_dur(v, 50));
-        break;
-    case V_CLV: // the rimshot circuit retuned to 2500Hz = midi 99 exactly
-        schedule_hit(delay, k_midi(v, 99), SL_CLV, vv(4, boost), k_dur(v, 45));
-        break;
-    case V_CP:  // three retriggers ~10ms apart + a soft room tail
-        schedule_hit(delay,      k_midi(v, 60), SL_CP, vv(4, boost), 12);
-        schedule_hit(delay + 10, k_midi(v, 60), SL_CP, vv(4, boost), 12);
-        schedule_hit(delay + 20, k_midi(v, 60), SL_CP, vv(4, boost), 12);
-        schedule_hit(delay + 28, k_midi(v, 60), SL_CP, vv(3, boost), k_dur(v, 140));
-        break;
-    case V_MA:  schedule_hit(delay, k_midi(v, 90), SL_MAR, vv(3, boost), k_dur(v, 30)); break;
-    case V_CB:  // bank osc 1+2; TONE fades 540Hz↔800Hz emphasis
-        schedule_hit(delay, k_midi(v, 73), SL_CB, vv(k_cv(v, 7, 0), boost), k_dur(v, 220));
-        schedule_hit(delay, k_midi(v, 79), SL_CB, vv(k_cv(v, 0, 7), boost), k_dur(v, 220));
-        break;
-    case V_CY:  // three bank members; TONE fades warm↔bright
-        schedule_hit(delay, k_midi(v, 79), SL_CYT, vv(k_cv(v, 0, 6), boost), k_dur(v, 900));
-        schedule_hit(delay, k_midi(v, 72), SL_CYT, vv(2, boost), k_dur(v, 900));
-        schedule_hit(delay, k_midi(v, 66), SL_CYT, vv(k_cv(v, 5, 0), boost), k_dur(v, 900));
-        break;
-    case V_OH:  // two bank members; RING fades warm↔bright
-        schedule_hit(delay, k_midi(v, 79), SL_HATO, vv(k_cv(v, 0, 6), boost), k_dur(v, 360));
-        schedule_hit(delay, k_midi(v, 72), SL_HATO, vv(k_cv(v, 5, 0), boost), k_dur(v, 360));
-        break;
-    case V_CH:  // same two, ~50ms
-        schedule_hit(delay, k_midi(v, 79), SL_HATC, vv(3, boost), k_dur(v, 50));
-        schedule_hit(delay, k_midi(v, 72), SL_HATC, vv(2, boost), k_dur(v, 50));
-        break;
-    }
+    tr808_fire(SL_BD, v, boost, delay, ktune, kdecay, kcolor);
 }
 
 void init(void) {
-    // kick — the boom: low sine, lowpassed, +26st pitch drop over 50ms.
-    // instrument_drive() runs the sub a little hot — the Miami-bass / trap
-    // saturated 808 that's been half of hip-hop's low end since day one
-    // (gentler than the 909's: the 808 booms, it doesn't punch).
-    instrument(SL_BD, INSTR_SINE, 0, 480, 0, 60);
-    instrument_filter(SL_BD, FILTER_LOW, 250, 3);
-    instrument_env(SL_BD, 0, ENV_PITCH, 0, 50, 26.0f);
-    instrument_drive(SL_BD, 0.28f);
-
-    // snare body (fired twice: 180Hz + 330Hz modes)
-    instrument(SL_SDB, INSTR_SINE, 0, 100, 0, 30);
-    instrument_filter(SL_SDB, FILTER_LOW, 1200, 1);
-    instrument_env(SL_SDB, 0, ENV_PITCH, 0, 20, 3.0f);
-    // snare "snappy" — highpassed noise
-    instrument(SL_SDN, INSTR_NOISE, 0, 130, 0, 40);
-    instrument_filter(SL_SDN, FILTER_HIGH, 1800, 2);
-
-    // toms — sine with a pitch drop + a separate low noise thud
-    instrument(SL_TOM, INSTR_SINE, 0, 260, 0, 50);
-    instrument_env(SL_TOM, 0, ENV_PITCH, 0, 80, 6.0f);
-    instrument(SL_TOMN, INSTR_NOISE, 0, 28, 0, 12);
-    instrument_filter(SL_TOMN, FILTER_BAND, 900, 2);
-
-    // congas — the tom circuit without the noise, shorter
-    instrument(SL_CON, INSTR_SINE, 0, 150, 0, 30);
-    instrument_env(SL_CON, 0, ENV_PITCH, 0, 25, 4.0f);
-
-    // rimshot — both bridged-T modes through a highpass (keeps 455 AND 1667)
-    instrument(SL_RS, INSTR_TRI, 0, 45, 0, 15);
-    instrument_filter(SL_RS, FILTER_HIGH, 500, 3);
-
-    // claves — single 2500Hz ping
-    instrument(SL_CLV, INSTR_TRI, 0, 40, 0, 14);
-    instrument_filter(SL_CLV, FILTER_LOW, 4000, 5);
-
-    // handclap — bandpassed noise; the retriggers in fire() make the clap
-    instrument(SL_CP, INSTR_NOISE, 0, 110, 0, 50);
-    instrument_filter(SL_CP, FILTER_BAND, 1100, 5);
-
-    // maracas
-    instrument(SL_MAR, INSTR_NOISE, 0, 24, 0, 10);
-    instrument_filter(SL_MAR, FILTER_HIGH, 6500, 2);
-
-    // cowbell — square pair through the classic ~2.6kHz bandpass
-    instrument(SL_CB, INSTR_SQUARE, 0, 250, 0, 60);
-    instrument_filter(SL_CB, FILTER_BAND, 2640, 5);
-
-    // cymbal — bank squares through the 3440Hz region, very long ring
-    instrument(SL_CYT, INSTR_SQUARE, 0, 850, 0, 200);
-    instrument_filter(SL_CYT, FILTER_HIGH, 3440, 3);
-
-    // hats — bank squares through ~7kHz highpass; open vs closed = decay
-    instrument(SL_HATO, INSTR_SQUARE, 0, 340, 0, 90);
-    instrument_filter(SL_HATO, FILTER_HIGH, 7000, 3);
-    instrument(SL_HATC, INSTR_SQUARE, 0, 42, 0, 16);
-    instrument_filter(SL_HATC, FILTER_HIGH, 7000, 3);
-    instrument_choke(SL_HATC, SL_HATO);  // closed hat chokes the open hat
+    tr808_build(SL_BD);   // the 14-slot 808 voice bank — the SOUND, now in tr808.h
 
     for (int v = 0; v < NV; v++) { ktune[v] = 0.5f; kdecay[v] = 0.5f; kcolor[v] = 0.5f; }
     load_preset();

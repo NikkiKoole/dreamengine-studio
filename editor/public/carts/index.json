@@ -996,6 +996,20 @@
     "lineage": "Port of the STK BrassInstrument physical model (bore delay line + lip-valve biquad resonator); novel additions are the live-draggable trombone slide (continuous glissando via note_pitch) and the per-voice output-lane mute/wah (note_cutoff + note_res, per decision 0017)."
   },
   {
+    "title": "breakchop",
+    "description": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop. Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. Each slice binds an INSTR_SAMPLE voice over its [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice at original pitch — the chop performance. PLAY steps through the slices in order at the derived tempo, looping, which reconstructs the original loop (if it sounds seamless, the cut is correct). GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead. SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / q w e r / a s d f / z x c v) to fire that slice. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js.",
+    "file": "breakchop.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "instrument",
+      "probe"
+    ],
+    "teaches": [
+      "gesture-loop"
+    ],
+    "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained."
+  },
+  {
     "title": "bubble bobble",
     "description": "A tribute to Bubble Bobble. You are Bub, the bubble dragon: run and jump across the platforms, press B to blow a bubble that drifts up and traps a monster, then jump into the trapped monster to POP it into fruit — grab the fruit for points. Clear every monster to advance to the next, tougher wave. Don’t touch a free monster or you lose one of your three lives. LEFT/RIGHT run, A jumps, B blows a bubble.",
     "file": "bubblebobble.cart.png",

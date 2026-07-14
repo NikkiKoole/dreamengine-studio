@@ -1,0 +1,229 @@
+/* de:meta
+{
+  "slug": "breakchop",
+  "title": "breakchop",
+  "status": "active",
+  "created": "2026-07-14",
+  "kind": ["instrument", "probe"],
+  "genre": null,
+  "teaches": ["gesture-loop"],
+  "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained.",
+  "description": {
+    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop.",
+    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. Each slice binds an INSTR_SAMPLE voice over its [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice at original pitch — the chop performance. PLAY steps through the slices in order at the derived tempo, looping, which reconstructs the original loop (if it sounds seamless, the cut is correct). GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
+    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / q w e r / a s d f / z x c v) to fire that slice. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
+  },
+  "todo": [
+    "RELEASE GATE: the amen fixture is a copyrighted dev placeholder — before publishing, ship no bundled audio (loops are user-supplied) or swap to a CC0 loop. See data-tools/breaks/README.md.",
+    "onset-snap the tempo grid to the actual transients (currently pure even division).",
+    "runtime user import on device (file picker → sample_load) — the eventual product surface.",
+    "free slice→pad assignment + reorder; persist the kit (save_bytes, like the sampler)."
+  ]
+}
+de:meta */
+#include "studio.h"
+#include "ui.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+// ── BREAKCHOP ────────────────────────────────────────────────────────────────
+// Load a drum LOOP, slice it into an even tempo grid across a pad grid, play/perform
+// the slices. External loop (data-tools/breaks) or a synthesised fallback. See de:meta.
+
+#define LOOP_SLOT 0                 // the PCM sample buffer
+#define V0        8                 // slice voices: instrument slots 8..8+MAXSLICE-1
+#define ROOT      60                // C4 = original speed
+#define MAXSLICE  32
+#define DEFAULT_LOOP "../data-tools/breaks/cache/amen.f32"   // cwd is build/ → the gitignored cache
+
+static int   loaded    = 0;
+static int   is_synth  = 0;         // true = the fallback break (no file found)
+static int   loop_len  = 0;         // samples
+static float loop_secs = 0.0f;
+static int   ndiv      = 16;        // slice count
+static int   sel       = 0;
+static int   playing   = 0;
+static int   last_beat = -1, cur_step = 0;
+static int   grit      = 0;
+static float pad_flash[MAXSLICE];
+static float wf_lo[240], wf_hi[240];
+
+static const int   DIVS[]   = { 8, 16, 32 };
+static const char *GRIT_NM[] = { "CLEAN", "12BIT", "8BIT", "CRUSH" };
+static const float GRIT_B[]  = { 16, 12, 8, 4 };
+static const float GRIT_R[]  = { 1, 2, 4, 8 };
+static const char  PADKEYS[] = "1234qwerasdfzxcv";   // 16 keys; more slices are click/touch only
+
+#define PX 6
+#define PY 24
+#define PW (SCREEN_W - 12)
+#define PH 46
+#define GY 96                       // pad grid top
+
+static float derived_bpm(void) { return loop_secs > 0.0f ? 60.0f * ndiv / loop_secs : 120.0f; }
+
+static void bind_slices(void) {     // one INSTR_SAMPLE voice per slice over its region
+    if (ndiv > MAXSLICE) ndiv = MAXSLICE;
+    for (int i = 0; i < ndiv; i++) {
+        instrument(V0 + i, INSTR_SAMPLE, 1, 0, 7, 150);
+        instrument_sample(V0 + i, LOOP_SLOT, ROOT);
+        instrument_sample_region(V0 + i, (float)i / ndiv, (float)(i + 1) / ndiv);
+    }
+    if (sel >= ndiv) sel = ndiv - 1;
+    if (loaded) sample_peaks(LOOP_SLOT, wf_lo, wf_hi, PW < 240 ? PW : 240);
+}
+
+static void apply_grit(void) { crush(GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0.0f); }
+
+static void fire_slice(int i, int select) {
+    if (i < 0 || i >= ndiv) return;
+    int ms = (int)(loop_secs / ndiv * 1000.0f); if (ms < 30) ms = 30;
+    hit(ROOT, V0 + i, 6, ms);
+    pad_flash[i] = 1.0f;
+    if (select) sel = i;
+}
+
+// synthesise a short kick/snare/hat break so the cart is self-contained when no loop file
+// exists (console-generated → on-doctrine). Deterministic: a fixed LCG for the noise.
+static void synth_fallback(void) {
+    int sr = 44100; float secs = 2.0f; int n = (int)(sr * secs);
+    float *buf = (float *)calloc((size_t)n, sizeof(float));
+    if (!buf) return;
+    unsigned int rng = 0x1234567u;
+    int beats = 8;
+    for (int b = 0; b < beats; b++) {
+        int at = (int)((float)b / beats * n);
+        if (b % 2 == 0)                             // kick on 1 & 3 (of each 4) — low sine thump
+            for (int i = 0; at + i < n && i < sr * 0.16f; i++) {
+                float t = (float)i / sr; buf[at + i] += sinf(2.0f * 3.14159f * 62.0f * t) * expf(-t * 18.0f) * 0.9f;
+            }
+        if (b % 4 == 2)                             // snare on 2 & 4 — noise burst
+            for (int i = 0; at + i < n && i < sr * 0.13f; i++) {
+                rng = rng * 1664525u + 1013904223u; float nz = (float)(rng >> 9) / 8388608.0f - 1.0f;
+                float t = (float)i / sr; buf[at + i] += nz * expf(-t * 28.0f) * 0.6f;
+            }
+        for (int i = 0; at + i < n && i < sr * 0.03f; i++) {   // hat every beat — short bright noise
+            rng = rng * 1664525u + 1013904223u; float nz = (float)(rng >> 9) / 8388608.0f - 1.0f;
+            float t = (float)i / sr; buf[at + i] += nz * expf(-t * 120.0f) * 0.3f;
+        }
+    }
+    float pk = 0.0f; for (int i = 0; i < n; i++) { float a = fabsf(buf[i]); if (a > pk) pk = a; }
+    if (pk > 0.001f) { float g = 0.95f / pk; for (int i = 0; i < n; i++) buf[i] *= g; }
+    sample_load(LOOP_SLOT, buf, n);
+    free(buf);
+    loop_len = n; loop_secs = secs; loaded = 1; is_synth = 1; ndiv = 8;
+}
+
+static void load_loop(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) { synth_fallback(); bind_slices(); return; }
+    fseek(f, 0, SEEK_END); long bytes = ftell(f); fseek(f, 0, SEEK_SET);
+    long n = bytes / 4;
+    if (n < 64) { fclose(f); synth_fallback(); bind_slices(); return; }
+    float *buf = (float *)malloc((size_t)n * sizeof(float));
+    if (!buf) { fclose(f); synth_fallback(); bind_slices(); return; }
+    size_t got = fread(buf, sizeof(float), (size_t)n, f);
+    fclose(f);
+    if ((long)got < 64) { free(buf); synth_fallback(); bind_slices(); return; }
+    sample_load(LOOP_SLOT, buf, (int)got);
+    free(buf);
+    loop_len = (int)got; loop_secs = loop_len / 44100.0f; loaded = 1; is_synth = 0;
+    bind_slices();
+}
+
+// pad grid: cols 4 (≤16 slices) or 8 (32); fills GY..bottom
+static void pad_rect(int i, int *x, int *y, int *w, int *h) {
+    int cols = ndiv <= 16 ? 4 : 8, rows = (ndiv + cols - 1) / cols;
+    int gx = 4, gw = SCREEN_W - 8, gh = SCREEN_H - GY - 2;
+    int c = i % cols, r = i / cols;
+    *w = gw / cols - 3; *h = gh / rows - 3;
+    *x = gx + c * (gw / cols); *y = GY + r * (gh / rows);
+}
+static int pad_at(int px, int py) {
+    for (int i = 0; i < ndiv; i++) { int x, y, w, h; pad_rect(i, &x, &y, &w, &h);
+        if (px >= x && px <= x + w && py >= y && py <= y + h) return i; }
+    return -1;
+}
+
+void update(void) {
+    bpm((int)(derived_bpm() + 0.5f));
+
+    if (playing && loaded) {                    // auto-run: one slice per beat, looping → reconstructs the loop
+        int b = beat();
+        if (b != last_beat) { last_beat = b; cur_step = ((b % ndiv) + ndiv) % ndiv; fire_slice(cur_step, 0); }
+    }
+
+    if (keyp(' ')) { playing = !playing; last_beat = -1; }
+
+    // pads — multitouch: a fresh finger on a pad fires its slice
+    static int prev[16], pn = 0; int cur[16], cn = 0;
+    for (int t = 0; t < touch_count() && cn < 16; t++) {
+        int id = touch_id(t); cur[cn++] = id;
+        int seen = 0; for (int k = 0; k < pn; k++) if (prev[k] == id) seen = 1;
+        if (!seen) { int p = pad_at(touch_x(t), touch_y(t)); if (p >= 0) fire_slice(p, 1); }
+    }
+    pn = cn; for (int k = 0; k < cn; k++) prev[k] = cur[k];
+    for (int i = 0; i < ndiv && i < (int)sizeof(PADKEYS) - 1; i++)
+        if (keyp(PADKEYS[i])) fire_slice(i, 1);
+}
+
+void draw(void) {
+    cls(CLR_BLACK);
+    char buf[96];
+    print("BREAKCHOP", 4, 2, CLR_WHITE);
+    if (!loaded) { print("no loop loaded", 4, 14, CLR_RED); return; }
+    snprintf(buf, sizeof buf, "%d slices  %.0f bpm  %s%s", ndiv, derived_bpm(), GRIT_NM[grit],
+             is_synth ? "  SYNTH" : "");
+    print(buf, 4, 13, CLR_LIGHT_GREY);
+
+    // waveform + slice markers + playhead
+    int cols = PW < 240 ? PW : 240;
+    rectfill(PX, PY, PW, PH, CLR_DARKER_GREY);
+    int mid = PY + PH / 2, half = PH / 2 - 1;
+    for (int x = 0; x < cols; x++) {
+        int sx = PX + x * PW / cols;
+        int si = x * ndiv / cols;                    // which slice this column falls in
+        int c = (si == sel) ? CLR_LIME_GREEN : ((si & 1) ? CLR_MEDIUM_GREEN : CLR_BLUE_GREEN);
+        line(sx, mid - (int)(wf_hi[x] * half), sx, mid - (int)(wf_lo[x] * half), c);
+    }
+    for (int i = 1; i < ndiv; i++) {                 // slice boundaries
+        int bx = PX + (int)((float)i / ndiv * PW);
+        line(bx, PY, bx, PY + PH - 1, CLR_YELLOW);
+    }
+    for (int i = 0; i < ndiv; i++) {                 // live playheads
+        float p = instrument_playhead(V0 + i);
+        if (p >= 0.0f) { int hx = PX + (int)(((float)i + p) / ndiv * PW);
+            line(hx, PY, hx, PY + PH - 1, CLR_WHITE); }
+    }
+    rect(PX, PY, PW, PH, CLR_MEDIUM_GREY);
+
+    // controls
+    ui_begin();
+    if (ui_button(4,  PY + PH + 3, 56, 16, playing ? "STOP" : "PLAY")) { playing = !playing; last_beat = -1; }
+    if (ui_button(64, PY + PH + 3, 46, 16, "DIV")) {
+        int k = 0; for (int j = 0; j < 3; j++) if (DIVS[j] == ndiv) k = j;
+        ndiv = DIVS[(k + 1) % 3]; bind_slices();
+    }
+    if (ui_button(114, PY + PH + 3, 56, 16, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); }
+    ui_end();
+
+    // pad grid
+    for (int i = 0; i < ndiv; i++) {
+        int x, y, w, h; pad_rect(i, &x, &y, &w, &h);
+        float f = pad_flash[i]; if (f > 0) pad_flash[i] = f - 0.12f;
+        int base = (i == cur_step && playing) ? CLR_DARK_GREEN : (i == sel ? CLR_DARK_GREEN : CLR_DARKER_GREY);
+        rectfill(x, y, w, h, f > 0.05f ? CLR_LIME_GREEN : base);
+        rect(x, y, w, h, CLR_MEDIUM_GREY);
+        if (i < (int)sizeof(PADKEYS) - 1) {
+            char t[2] = { PADKEYS[i], 0 };
+            print(t, x + w / 2 - text_width(t) / 2, y + h / 2 - 3, CLR_WHITE);
+        }
+    }
+}
+
+void init(void) {
+    const char *p = de_data_path();
+    load_loop(p ? p : DEFAULT_LOOP);
+    apply_grit();
+}

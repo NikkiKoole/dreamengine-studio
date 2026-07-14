@@ -85,6 +85,22 @@ straight to a restored song. Chose PCM over event-replay because the engine has 
 handles future WAVs. Verified: build a 3-chop CRUSH song, relaunch cold → `song_n=3, grit=3`
 restored, plays.
 
+**Shipped (2026-07-14) — a SIBLING cart, [`breakchop`](../../tools/carts/breakchop.c) (the MPC/SP-404
+break-chopper):** surfaced repeatedly by the demand tool (r/iosmusicproduction). A distinct honest core
+from the sampler — *chop a LOOP into a tempo-locked pad kit and rearrange it* (source = an external
+loop; slicing = even tempo-grid), vs the sampler's *sample your OWN output* — so it earned its own cart
+rather than sprawling the sampler, reusing `INSTR_SAMPLE` + chop playback + `crush`. The loop comes from
+[`data-tools/breaks`](../../data-tools/breaks) (fetch-and-freeze, the audio sibling of `roadview`),
+loaded at runtime via the new `sample_load`; a **console-synthesised break** is the fallback so the cart
+is self-contained. Slices into 8/16/32 even divisions (tempo DERIVED from loop length — no metadata),
+lays them on a pad grid, PLAY reconstructs the loop (the correctness proof — verified: source amen
+centroid 4318 Hz vs reconstruction 4057 Hz). The **eventual product surface** is *runtime* user-import
+on device (file picker → `sample_load`) — capture-then-freeze keeps it deterministic; a separate piece.
+The amen fixture is a **copyrighted dev placeholder** — gitignored, never baked in, swap to CC0 before
+release (its `de:meta` todo carries the gate). This is also the [device-face
+paradigm](device-face-paradigm.md §2)'s "workstation, not instrument" cousin — a *pipeline* cart, sibling
+to the sampler.
+
 **Next (piece 6):** an optional **seconds CAP** (flip the readout into a real budget), touch-drag for
 the chop handles (currently mouse), a real choke group for the kit (blocked on a per-slot note-off —
 the engine's one-shot notes can't cut each other, tr808's documented infidelity), lifting the SONG

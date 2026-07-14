@@ -67,7 +67,8 @@ static int  sel[2] = { 0, 0 };
 static const int PENTA[6] = { 0, 3, 5, 7, 10, 12 };        // semitones above base
 #define NPENTA 6
 static int penta_idx(int semi) { for (int k = 0; k < NPENTA; k++) if (PENTA[k] == semi) return k; return 0; }
-static int bar_gy[STEPS], bar_moved[STEPS], bar_on0[STEPS]; // per-bar drag trackers (tap vs drag)
+// SEQ note-bar paint drag: grab pos + axis-lock (0=undecided 1=pitch 2=on/off) + values
+static int drag_gx, drag_gy, drag_axis, drag_paint, drag_on0;
 // per-step DEPTH (the 303 flags) + polymeter
 static int  tie[2][STEPS], oct[2][STEPS];   // TIE = hold prev note; OCT = octave -1/0/+1
 static int  plen[2] = { STEPS, STEPS };     // per-line LENGTH (short = polymeter drift)
@@ -389,21 +390,23 @@ static void draw_303(int i) {
                     if (armed == FL_LEN) plen[i] = cell + 1;         // drag to set the loop length
                     else flag_set(i, cell, armed, paint_val);        // paint the same value across the drag
                 }
-            } else {                                     // NORMAL: tap = on/off, drag up/down = pitch
-                if (ui_grabbed(w)) { bar_gy[s] = c ? c->cy : by; bar_moved[s] = 0; bar_on0[s] = on[i][s]; }
-                if (c) {
-                    int py = c->released ? c->ry : c->cy, d = py - bar_gy[s]; if (d < 0) d = -d;
-                    if (d > 3) {
-                        bar_moved[s] = 1; sel[i] = s;
-                        float frac = clamp((by + bh - 1 - py) / (float)(bh - 1), 0, 1);
-                        pit[i][s] = PENTA[(int)(frac * (NPENTA - 1) + 0.5f)];
-                        on[i][s] = 1;
+            } else if (c) {                              // NORMAL (SEQ): tap toggles; DRAG draws the melody
+                if (ui_grabbed(w)) { drag_gx = c->cx; drag_gy = c->cy; drag_axis = 0; drag_on0 = on[i][s]; sel[i] = s; }
+                int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
+                int adx = px - drag_gx; if (adx < 0) adx = -adx;
+                int ady = py - drag_gy; if (ady < 0) ady = -ady;
+                if (!drag_axis && (adx > 4 || ady > 4)) drag_axis = 1;   // moved past the deadzone → drawing
+                if (drag_axis) {                                     // free draw: height = pitch, bottom = rest
+                    int cell = (px - 6) / 9; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
+                    sel[i] = cell;
+                    if (py >= by + bh - 4) on[i][cell] = 0;          // bottom band → note OFF (pitch kept)
+                    else {
+                        float frac = clamp((by + bh - 4 - py) / (float)(bh - 5), 0, 1);
+                        pit[i][cell] = PENTA[(int)(frac * (NPENTA - 1) + 0.5f)];
+                        on[i][cell] = 1;
                     }
                 }
-                if (ui_released(w)) {
-                    if (!bar_moved[s]) { on[i][s] = !bar_on0[s]; sel[i] = s; if (on[i][s]) mbop = 1; }
-                    else acid_note(a, a->base + pit[i][s] + oct[i][s] * 12, acc[i][s], 0);
-                }
+                if (ui_released(w) && !drag_axis) { on[i][s] = !drag_on0; sel[i] = s; if (on[i][s]) mbop = 1; }
             }
             int here = (s == lpos[i] && playing);
             rrectfill(bx, by, bw, bh, 1, dead ? CLR_DARKER_PURPLE : CLR_DARK_BROWN);

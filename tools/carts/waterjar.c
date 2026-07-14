@@ -482,6 +482,20 @@ void draw(void) {
                 circfill(ax * GCELL + GCELL / 2, ay * GCELL + GCELL / 2, GCELL - 1, col);
             }
         fillp_reset();
+        // crisp WATERLINE highlight (a touch of option C): the top-facing surface as a bright
+        // meniscus. Per field column, take the topmost cell that crosses the surface threshold and
+        // connect them — a clean glossy line over the dithered body. Big vertical jumps break the
+        // line (separate blobs / the plunge down a side wall) so it doesn't draw spurious streaks.
+        int px = -1, py = 0; bool have = false;
+        for (int ax = 0; ax < GCW; ax++) {
+            int surf = -1;
+            for (int ay = 0; ay < GCH; ay++) if (field[ay * GCW + ax] >= FTHRESH) { surf = ay; break; }
+            if (surf < 0) { have = false; continue; }
+            int sx = ax * GCELL + GCELL / 2, sy = surf * GCELL + GCELL / 2;
+            if (have && (sy - py < 10 && py - sy < 10)) line(px, py, sx, sy, CLR_WHITE);
+            else                                        pset(sx, sy, CLR_WHITE);
+            px = sx; py = sy; have = true;
+        }
         for (int i = 0; i < N; i++) {               // foam: white flecks on fast crests, on top
             float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
             if (sp > VMAX * 0.55f) circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 1, CLR_WHITE);

@@ -12,15 +12,16 @@
   "genre": null,
   "teaches": [],
   "description": {
-    "summary": "A functioning TB-303 acid machine on the device-face skeleton, at half resolution (160x100 x4) in the candy-toy skin — the first machine of a candy acid rack. The acid VOICE is the shared runtime/acid303.h, not a private copy.",
-    "detail": "Increment 1 of a candy acidrack, built to device-face-paradigm.md's acidface sketch (five zones) at 160x100. The sound is runtime/acid303.h (the extracted TB-303 voice shared with tb303/acidrack — FILTER_DIODE held voice, non-retriggering slide, accent kick, two-decay, soft attack, tracking, sub-osc), so it can't drift from the others. (1) nav: play/stop, NEW line, bpm, heart. (2) always-live knobs CUT/RES/ENV/DEC/ACC bound straight to the shared voice params. (3) display: the piano-roll of the 16-step line with a running playhead, flanked by soft-keys. (4) the 16-step row: tap toggles a step (accent shows orange). (5) a one-octave keybed: tap a key to set the last-touched step's pitch and audition it. Press NEW for a fresh minor-pentatonic acid walk.",
-    "controls": "PLAY runs it. Turn CUT/RES/ENV/DEC/ACC (drag or wheel) — CUT+RES live is the acid squelch. Tap step cells to toggle notes. Tap a keybed key to set the last step's pitch + hear it. NEW = a fresh random line."
+    "summary": "A candy-toy acid RACK on the device-face skeleton at half resolution (160x100 x4): a colour-cartridge nav strip you focus machines through, all on one transport. Two live TB-303 lines share the extracted runtime/acid303.h voice; drum + master faces are stubbed in.",
+    "detail": "The nav backbone is a strip of candy 'cartridges' — 303a / 303b / 808 / 909 / MST — each a compound control: tap the body to FOCUS that machine's face, tap its corner LED to MUTE it from anywhere (nav=faces, per the device-face paradigm). One shared transport clocks every machine. 303a + 303b are full TB-303 faces on the shared runtime/acid303.h voice (303b sits an octave up = the bass+acid-lead duo): (2) always-live gear-drag knobs CUT/RES/ENV/DEC/ACC, (3) an LCD piano-roll of the 16-step line with NEW living in the screen, (4) the 16-step row, (5) a one-octave keybed. 808/909 (drumkit.h) + MST (mixer) are styled placeholders pending their faces. Knobs: vertical drag = value, pull sideways for a fine gear, double-tap resets.",
+    "controls": "Tap a cartridge to focus its machine; tap the cartridge LED to mute/unmute. PLAY runs the shared transport. On a 303 face: turn CUT/RES/ENV/DEC/ACC (drag vertical, pull sideways for fine, double-tap resets), tap step cells to toggle notes, tap a keybed key to set the last step's pitch, NEW = a fresh line."
   },
   "todo": [
-    "SOUL: the display is a functional piano-roll but has no MASCOT — the slime creature that made the tinyface/facemock mockups sing. Put a mascot bopping to the beat on the screen (the paradigm's 'the screen carries character' §1f); make the piano-roll a FLOW you tap to instead of the default.",
+    "SOUL: the LCD is a functional piano-roll but has no MASCOT — the slime creature that made the tinyface/facemock mockups sing. Put a mascot bopping to the beat on the screen (the paradigm's 'the screen carries character' §1f); make the piano-roll a FLOW you tap to instead of the default.",
     "wire the soft-keys (SEQ/PAT/FX/SCP) — they're decorative; make them switch display flows (mascot / roll / mix / scope), or trim to the ones that do something.",
-    "make it a RACK: tab in a DRUM face (drumkit.h) + optional 2nd bass, nav tabs = real FACES you focus between (paradigm-correct: nav=faces, soft-keys=flows), all sharing acid303.h/drumkit.h + one transport.",
+    "build the DRUM faces (808/909 via drumkit.h) + the MST mixer face — currently styled placeholders behind their cartridges.",
     "editable accent/slide: the step row only toggles on/off; NEW randomizes acc/slide but you can't set them per-step (lane-strip or long-press).",
+    "graduate the gear-drag knob (vertical=value, sideways=fine gear, double-tap=reset) into ui.h's ui_knob so every cart gets it.",
     "optional DEEP page exposing acid303.h's Devil Fish knobs (SLDT/ADEC/ATK/TRK/SUB) — the depth is in the voice, just not surfaced here."
   ]
 }
@@ -29,31 +30,48 @@ de:meta */
 #include "ui.h"
 #include "acid303.h"
 
-// ACID CANDY — a functioning TB-303 on the device-face skeleton, 160x100, candy
-// skin. The acid VOICE is the shared runtime/acid303.h; this cart is the FACE.
+// ACID CANDY — a candy-toy acid RACK on the device-face skeleton, 160x100. The
+// nav spine is a strip of colour CARTRIDGES you focus machines through (nav=faces);
+// the acid VOICE is the shared runtime/acid303.h. This cart is the FACE + the rack.
 
-#define SLOT 6
 #define STEPS 16
 // knob-feel tunables (dial these while play-testing)
 #define KNOB_SWEEP   24.0f   // canvas px for a full 0..1 on a straight vertical drag (smaller = snappier)
 #define KNOB_GEAR    22.0f   // sideways px per +1x of fine gear
 #define KNOB_GEARMAX 2.0f    // cap so FINE still covers real ground (max sweep = SWEEP*this)
-static Acid  a;                                            // the shared acid voice
-static int   on[STEPS], pit[STEPS], acc[STEPS], sld[STEPS];   // the line (pattern lives in the cart)
-static int   plen = STEPS, sel = 0;
+
+// ── the rack: one cartridge per machine, all on one transport ────────────────
+enum { M_303A, M_303B, M_808, M_909, M_MST, M_N };
+enum { MK_303, MK_DRUM, MK_MST };
+typedef struct { const char *name; int kind; int col, lo; int mute; } Machine;
+static Machine mac[M_N] = {
+    { "303a", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 0 },
+    { "303b", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 0 },
+    { "808",  MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 },
+    { "909",  MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 },
+    { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },
+};
+static int face = M_303A;
+
+// the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
+static Acid ac[2];
+static int  on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
+static int  sel[2] = { 0, 0 };
+
+// transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
 static float mbop = 0;
 
-static void gen_line(void) {
+static void gen_line(int i) {
     static const int pool[8] = { 0, 0, 0, 3, 5, 7, 10, 12 };
     int prev = 0;
     for (int s = 0; s < STEPS; s++) {
-        on[s] = rnd_between(0, 99) < 72;
+        on[i][s] = rnd_between(0, 99) < 72;
         int p = pool[rnd_between(0, 7)];
         if (rnd_between(0, 99) < 35) p = prev;
-        pit[s] = prev = p;
-        acc[s] = rnd_between(0, 99) < 30;
-        sld[s] = rnd_between(0, 99) < 22;
+        pit[i][s] = prev = p;
+        acc[i][s] = rnd_between(0, 99) < 30;
+        sld[i][s] = rnd_between(0, 99) < 22;
     }
 }
 
@@ -68,10 +86,10 @@ static int kmeta_i(void *v) {
     return 0;
 }
 
-// candy rotary — the feel study. VERTICAL drag = value; PULL SIDEWAYS to shift into
-// a finer gear (the further out, the finer) — one gesture gives quick AND precise.
-// DOUBLE-TAP = reset to `def`. While turning, the label shows the live value + a bright
-// value arc rides the rim; the pointer goes amber in fine gear. Wheel = fine (desktop).
+// candy rotary. VERTICAL drag = value; PULL SIDEWAYS to shift into a finer gear
+// (further out = finer) — one gesture gives quick AND precise. DOUBLE-TAP = reset
+// to `def`. While turning, the label shows the live value + a bright value band
+// rides the rim; the pointer goes amber in fine gear. Wheel = fine (desktop).
 static void knob(float *v, int cx, int cy, int r, const char *label, float def) {
     ui_reg(v, cx - r, cy - r, 2 * r + 1, 2 * r + 1, 0);
     UiCap *c = ui_cap_for(v);
@@ -82,14 +100,14 @@ static void knob(float *v, int cx, int cy, int r, const char *label, float def) 
         int py = c->released ? c->ry : c->cy;
         int px = c->released ? c->rx : c->cx;
         int ox = px - cx; if (ox < 0) ox = -ox;                         // horizontal offset from the knob
-        float gear = 1.0f + ox / KNOB_GEAR;                             // 1x over the knob → finer as you pull out
-        if (gear > KNOB_GEARMAX) gear = KNOB_GEARMAX;                   // capped so FINE still covers ground
+        float gear = 1.0f + ox / KNOB_GEAR;                            // 1x over the knob → finer as you pull out
+        if (gear > KNOB_GEARMAX) gear = KNOB_GEARMAX;                  // capped so FINE still covers ground
         fine = gear > 1.5f;
         float sweep = KNOB_SWEEP * gear;
         *v = clamp(c->v0 + (c->by - py) / sweep, 0, 1);
-        c->v0 = *v; c->by = py;                                         // re-anchor each frame → a gear change never JUMPS the value
+        c->v0 = *v; c->by = py;                                        // re-anchor each frame → a gear change never JUMPS the value
     }
-    if (ui_released(v)) {                                               // a tap (barely moved, quick) can reset
+    if (ui_released(v)) {                                              // a tap (barely moved, quick) can reset
         float rt = now(), dv = *v - kmeta[mi].gval; if (dv < 0) dv = -dv;
         if (dv < 0.02f && rt - kmeta[mi].gt < 0.25f) {
             if (rt - kmeta[mi].ltt < 0.35f) { *v = def; kmeta[mi].ltt = -9; }   // double-tap → default
@@ -103,15 +121,16 @@ static void knob(float *v, int cx, int cy, int r, const char *label, float def) 
     ring(cx, cy, r - 2, r - 1, 165, 285, CLR_PINK);
     ring(cx, cy, r - 2, r - 1, -15, 105, CLR_DARKER_PURPLE);
     float ang = 150 + *v * 240;
-    if (held) ring(cx, cy, r - 3, r, 150, ang, CLR_LIGHT_YELLOW);       // FAT value band — fills as you turn
+    if (held) ring(cx, cy, r - 3, r, 150, ang, CLR_LIGHT_YELLOW);      // FAT value band — fills as you turn
     circ(cx, cy, r, held ? CLR_WHITE : hot ? CLR_LIGHT_PEACH : CLR_BROWNISH_BLACK);
     line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang),
-         fine ? CLR_ORANGE : CLR_WHITE);                               // pointer goes amber in fine gear
+         fine ? CLR_ORANGE : CLR_WHITE);                              // pointer goes amber in fine gear
     font(FONT_TINY);
     if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 };
                 plabel(b, cx, cy + r + 1, CLR_DARK_GREEN); }
     else plabel(label, cx, cy + r + 1, CLR_DARK_BROWN);
 }
+
 static int cbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int on2) {
     int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, hh);
     int act = ui_button_core(wid, x, y, w, hh, &foc, &pr, &hot);
@@ -126,30 +145,145 @@ static void chip(int x, int y, const char *s, int sel2) {
     font(FONT_TINY); print(s, x + (16 - text_width(s)) / 2, y + 1, sel2 ? CLR_WHITE : CLR_LIGHT_PEACH);
 }
 
+// ── the cartridge nav strip (zone 1) ─────────────────────────────────────────
+// each cartridge is a COMPOUND control: left body taps to FOCUS the face, the
+// right LED taps to MUTE the machine (from any face). Two non-overlapping
+// sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
+static void cartridge(int m) {
+    int x = 19 + m * 27, foc = (m == face), live = !mac[m].mute;
+    int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
+    void *wf = ui_wid_hash(0x70u + m, x, 3, 18, 10);
+    void *wm = ui_wid_hash(0x80u + m, x + 18, 3, 8, 10);
+    if (ui_button_core(wf, x, 3, 18, 10, &fof, &prf, &hotf)) face = m;
+    if (ui_button_core(wm, x + 18, 3, 8, 10, &fom, &prm, &hotm)) mac[m].mute = !mac[m].mute;
+
+    rrectfill(x, 3, 26, 10, 2, foc ? mac[m].col : mac[m].lo);
+    if (foc) { blend(BLEND_AVG); line(x + 2, 4, x + 21, 4, CLR_WHITE); blend_reset(); }   // top sheen
+    rrect(x, 3, 26, 10, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    font(FONT_TINY);
+    print(mac[m].name, x + (18 - text_width(mac[m].name)) / 2, 5, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    int lx = x + 22, ly = 8;                                          // mute LED
+    circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
+    circ(lx, ly, 2, CLR_BROWNISH_BLACK);
+    if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);         // muted = red slash
+}
+
+static void navspine(void) {
+    // transport (shared)
+    int px = 3, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;
+    void *w = ui_wid_hash(0x01u, px, py, pw, ph);
+    if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; }
+    rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
+    rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    if (playing) { rectfill(px + 4, py + 3, 2, 4, CLR_WHITE); rectfill(px + 8, py + 3, 2, 4, CLR_WHITE); }
+    else trifill(px + 5, py + 3, px + 5, py + 7, px + 10, py + 5, CLR_WHITE);
+    for (int m = 0; m < M_N; m++) cartridge(m);
+}
+
+// ── a 303 face (zones 2–5) ───────────────────────────────────────────────────
+static void draw_303(int i) {
+    Acid *a = &ac[i];
+    // ② always-live gear-drag knobs, bound to the shared voice params
+    knob(&a->p[ACID_CUT], 20, 26, 6, "CUT", 0.55f); knob(&a->p[ACID_RES], 48, 26, 6, "RES", 0.70f);
+    knob(&a->p[ACID_ENV], 76, 26, 6, "ENV", 0.55f); knob(&a->p[ACID_DEC], 104, 26, 6, "DEC", 0.45f);
+    knob(&a->p[ACID_ACC], 132, 26, 6, "ACC", 0.55f);
+
+    // ③ display — the piano-roll + playhead, flanked by (still-decorative) soft-keys
+    chip(6, 38, "SEQ", 1); chip(6, 47, "PAT", 0);
+    chip(138, 38, "FX", 0); chip(138, 47, "SCP", 0);
+    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
+    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    font(FONT_TINY); print("132", 29, 40, CLR_MEDIUM_GREEN);          // bpm lives in the screen
+    if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_line(i);           // ...and so does NEW
+    for (int s = 0; s < STEPS; s++) {
+        int cx = 29 + s * 6;
+        if (s == step && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 18, CLR_MEDIUM_GREEN); blend_reset(); }
+        if (!on[i][s]) continue;
+        int y = 56 - pit[i][s];
+        rectfill(cx, y, 4, 3, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+        if (sld[i][s]) line(cx + 4, y + 1, cx + 6, y + 1, CLR_MEDIUM_GREEN);
+    }
+
+    // ④ step row — tap toggles
+    for (int s = 0; s < STEPS; s++) {
+        int x = 6 + s * 9, pr = 0, hot = 0, foc = 0;
+        void *wid = ui_wid_hash(0x30u + s, x, 64, 8, 9);
+        if (ui_button_core(wid, x, 64, 8, 9, &foc, &pr, &hot)) { on[i][s] = !on[i][s]; sel[i] = s; if (on[i][s]) mbop = 1; }
+        int fc = on[i][s] ? (acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN) : CLR_DARK_BROWN;
+        if (s == step && playing) fc = CLR_WHITE;
+        rrectfill(x, 64, 8, 9, 1, fc);
+        if (s == sel[i]) rrect(x - 1, 63, 10, 11, 1, CLR_LIGHT_YELLOW);
+        rrect(x, 64, 8, 9, 1, CLR_BROWNISH_BLACK);
+    }
+
+    // ⑤ keybed — tap a key to set the selected step's pitch + audition it
+    int kb = 6, ky = 77, kh = 16;
+    static const int isblack[12] = { 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0 };
+    int wi = 0;
+    for (int n = 0; n < 12; n++) if (!isblack[n]) {
+        int x = kb + wi * 21; wi++;
+        int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50u + n, x, ky, 20, kh);
+        if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
+        int lit = pit[i][sel[i]] == n && on[i][sel[i]];
+        rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
+        rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
+    }
+    wi = 0;
+    for (int n = 0; n < 12; n++) {
+        if (isblack[n]) {
+            int x = kb + wi * 21 - 6;
+            int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60u + n, x, ky, 12, 9);
+            if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
+            int lit = pit[i][sel[i]] == n && on[i][sel[i]];
+            rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
+            rrect(x, ky, 12, 9, 1, CLR_BLACK);
+        } else wi++;
+    }
+}
+
+// ── placeholder faces (drum kits + master) — styled, pending their builds ─────
+static void placeholder(int m) {
+    rrectfill(6, 20, 148, 71, 4, CLR_BROWNISH_BLACK);
+    rrectfill(9, 23, 142, 65, 3, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 24; y < 87; y += 2) line(9, y, 150, y, CLR_BROWNISH_BLACK); blend_reset();
+    const char *sub = mac[m].kind == MK_DRUM ? "DRUM FACE" : "MIX / MASTER";
+    font(FONT_NORMAL); plabel(mac[m].name, 80, 42, mac[m].col);
+    font(FONT_SMALL); plabel(sub, 80, 58, CLR_MEDIUM_GREEN);
+    font(FONT_TINY);  plabel("coming soon", 80, 70, CLR_DARK_GREEN);
+}
+
 void init(void) {
     bpm(132);
-    acid_init(&a, SLOT, -1);                               // no sub-osc on the tiny candy
-    a.p[ACID_CUT] = 0.55f; a.p[ACID_RES] = 0.70f; a.p[ACID_ENV] = 0.55f;
-    a.p[ACID_DEC] = 0.45f; a.p[ACID_ACC] = 0.55f;
-    acid_define(&a);
-    gen_line();
+    acid_init(&ac[0], 6, -1);                                          // 303a — the bass line
+    acid_init(&ac[1], 7, -1);                                          // 303b — an octave up = the acid lead
+    ac[1].base = 48;
+    for (int i = 0; i < 2; i++) {
+        ac[i].p[ACID_CUT] = 0.55f; ac[i].p[ACID_RES] = 0.70f; ac[i].p[ACID_ENV] = 0.55f;
+        ac[i].p[ACID_DEC] = 0.45f; ac[i].p[ACID_ACC] = 0.55f;
+        acid_define(&ac[i]);
+        gen_line(i);
+    }
 }
 
 void update(void) {
     if (mbop > 0) mbop -= 0.08f;
-    acid_ride(&a);                                         // ride cutoff/reso/drive live
+    for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     if (playing) {
-        float stepf = now() * (132 / 60.0f * 4);           // 16th notes at 132 bpm
-        step = ((int)stepf) % plen;
+        float stepf = now() * (132 / 60.0f * 4);                       // 16th notes at 132 bpm
+        step = ((int)stepf) % STEPS;
         float frac = stepf - (int)stepf;
         if (step != laststep) {
             laststep = step;
-            if (on[step]) { acid_note(&a, a.base + pit[step], acc[step], sld[step]); mbop = 1; }
-            else          acid_off(&a);
-        } else acid_gate(&a, frac, 0.0f, 0);               // staccato release (straight, no swing)
-    } else acid_off(&a);
+            for (int i = 0; i < 2; i++) {
+                if (!mac[i].mute && on[i][step]) { acid_note(&ac[i], ac[i].base + pit[i][step], acc[i][step], sld[i][step]); mbop = 1; }
+                else acid_off(&ac[i]);
+            }
+        } else for (int i = 0; i < 2; i++) acid_gate(&ac[i], frac, 0.0f, 0);   // staccato release
+    } else for (int i = 0; i < 2; i++) acid_off(&ac[i]);
 #ifdef DE_TRACE
-    watch("step", "%d", step); watch("cut", "%d", acid_cut_hz(&a)); watch("playing", "%d", playing);
+    watch("face", "%d", face); watch("step", "%d", step); watch("cut", "%d", acid_cut_hz(&ac[0]));
+    watch("mute0", "%d", mac[0].mute); watch("mute1", "%d", mac[1].mute);
 #endif
 }
 
@@ -161,69 +295,9 @@ void draw(void) {
     ui_begin();
     font(FONT_SMALL);
 
-    // ① nav spine
-    if (cbtn(0x01, 6, 6, 13, 9, playing ? "STOP" : "PLAY", playing)) { playing = !playing; laststep = -1; }
-    font(FONT_TINY); print("ACID", 22, 7, CLR_RED); print("candy", 22, 12, CLR_DARK_BROWN);
-    print("132bpm", 118, 12, CLR_DARK_GREEN);
-    if (cbtn(0x02, 118, 5, 24, 7, "NEW", 0)) gen_line();
-    trifill(147, 8, 153, 8, 150, 12, CLR_RED); circfill(148, 8, 1, CLR_RED); circfill(152, 8, 1, CLR_RED);   // heart
-
-    // ② always-live knobs — bound straight to the shared voice params
-    knob(&a.p[ACID_CUT], 20, 26, 6, "CUT", 0.55f); knob(&a.p[ACID_RES], 48, 26, 6, "RES", 0.70f); knob(&a.p[ACID_ENV], 76, 26, 6, "ENV", 0.55f);
-    knob(&a.p[ACID_DEC], 104, 26, 6, "DEC", 0.45f); knob(&a.p[ACID_ACC], 132, 26, 6, "ACC", 0.55f);
-
-    // ③ display — the piano-roll of the line + playhead, flanked by soft-keys
-    chip(6, 38, "SEQ", 1); chip(6, 47, "PAT", 0);
-    chip(138, 38, "FX", 0); chip(138, 47, "SCP", 0);
-    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
-    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    for (int s = 0; s < plen; s++) {
-        int cx = 29 + s * 6;
-        if (s == step && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 18, CLR_MEDIUM_GREEN); blend_reset(); }
-        if (!on[s]) continue;
-        int y = 56 - pit[s];
-        rectfill(cx, y, 4, 3, acc[s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
-        if (sld[s]) line(cx + 4, y + 1, cx + 6, y + 1, CLR_MEDIUM_GREEN);
-    }
-
-    // ④ step row — tap toggles
-    for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, pr = 0, hot = 0, foc = 0;
-        void *wid = ui_wid_hash(0x30 + s, x, 64, 8, 9);
-        if (ui_button_core(wid, x, 64, 8, 9, &foc, &pr, &hot)) { on[s] = !on[s]; sel = s; if (on[s]) mbop = 1; }
-        int face = on[s] ? (acc[s] ? CLR_ORANGE : CLR_LIME_GREEN) : CLR_DARK_BROWN;
-        if (s == step && playing) face = CLR_WHITE;
-        rrectfill(x, 64, 8, 9, 1, face);
-        if (s == sel) rrect(x - 1, 63, 10, 11, 1, CLR_LIGHT_YELLOW);
-        rrect(x, 64, 8, 9, 1, CLR_BROWNISH_BLACK);
-    }
-
-    // ⑤ keybed — tap a key to set the selected step's pitch + audition it
-    {
-        int kb = 6, ky = 77, kh = 16;
-        static const int isblack[12] = { 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0 };
-        int wi = 0;
-        for (int n = 0; n < 12; n++) if (!isblack[n]) {
-            int x = kb + wi * 21; wi++;
-            int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50 + n, x, ky, 20, kh);
-            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[sel] = n; on[sel] = 1; mbop = 1; acid_note(&a, a.base + n, 0, 0); }
-            int lit = pit[sel] == n && on[sel];
-            rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
-            rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
-        }
-        wi = 0;
-        for (int n = 0; n < 12; n++) {
-            if (isblack[n]) {
-                int x = kb + wi * 21 - 6;
-                int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60 + n, x, ky, 12, 9);
-                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[sel] = n; on[sel] = 1; mbop = 1; acid_note(&a, a.base + n, 0, 0); }
-                int lit = pit[sel] == n && on[sel];
-                rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
-                rrect(x, ky, 12, 9, 1, CLR_BLACK);
-            } else wi++;
-        }
-    }
+    navspine();
+    if (mac[face].kind == MK_303) draw_303(face);
+    else                          placeholder(face);
 
     font(FONT_NORMAL);
     ui_end();

@@ -9,6 +9,7 @@
 ipadmusic
 iosmusic            # NOTE: near-dead sub — keeps fetching 0 feeds; iosmusicproduction is the live one
 iosmusicproduction
+GarageBand          # beginner iOS music ("why is simple shit so hard in GarageBand?") — thesis-central
 
 # — synth —
 synthesizers
@@ -25,8 +26,13 @@ DrumMachines
 # — hiphop / sampling / beatmaking —
 makinghiphop
 Sampling
+koalasampler        # Koala = the lo-fi sample-chopper favourite — breakchop's tribe
+
+# — theory / chords / ear-training (feeds the chord-toy candidate — note 024) —
+musictheory         # chord/ear-training toy goldmine: "progression suggester", "enter notes → chord"
 
 # — general music-making + the lo-fi music-toy tribe —
 WeAreTheMusicMakers
 pocketoperators
+teenageengineering  # OP-1/OP-Z/PO — cheap-playful-gear thesis (complements pocketoperators)
 chiptunes           # fantasy-console lineage: trackers / LSDj / PICO-8-adjacent lo-fi (chipmusic doesn't exist)

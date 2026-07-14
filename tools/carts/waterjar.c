@@ -388,15 +388,13 @@ void update(void) {
 #endif
 }
 
-// speed → colour ramp: still deep water is dark, only genuinely fast slosh whitens into foam.
-// Deliberately gentle: a full/tall jar has some unavoidable pressure churn at the bottom, and
-// mapping that mild motion to blue (not white) keeps a full jar reading as water, not a boil —
-// the r=2 particles overlap into a sheet, so blue-on-blue jitter barely shows. Real spray (a
-// hard tilt or pour splash) still hits white at the top of the range.
+// speed → colour ramp: still deep water is dark, fast foam goes white. Whitens readily so a
+// slosh reads splashy (moving water lightens, the crest goes to foam) — that liveliness is the
+// point; a too-gentle ramp makes the same motion look like sluggish gel.
 static int speed_colour(float sp) {
-    static const int ramp[] = { CLR_TRUE_BLUE, CLR_BLUE, CLR_BLUE, CLR_BLUE, CLR_LIGHT_GREY, CLR_WHITE };
-    int n = 6;
-    int idx = (int)(sp / (VMAX * 0.9f) * (n - 1));
+    static const int ramp[] = { CLR_TRUE_BLUE, CLR_BLUE, CLR_BLUE, CLR_LIGHT_GREY, CLR_WHITE };
+    int n = 5;
+    int idx = (int)(sp / (VMAX * 0.6f) * (n - 1));
     if (idx < 0) idx = 0; if (idx > n - 1) idx = n - 1;
     return ramp[idx];
 }
@@ -426,7 +424,7 @@ void draw(void) {
     for (int i = 0; i < N; i++) {
         float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
         float rx = ROTX(P[i].x, P[i].y), ry = ROTY(P[i].x, P[i].y);
-        circfill((int)rx, (int)ry, 2, speed_colour(sp));
+        circfill((int)rx, (int)ry, (int)PR, speed_colour(sp));   // draw at the TRUE particle radius
     }
 
     // live tweak panel (screen-fixed — does NOT rotate with the jar): drag to feel the fluid change

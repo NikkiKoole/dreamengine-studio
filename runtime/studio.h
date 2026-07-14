@@ -147,6 +147,7 @@ int   mouse_world_y(void);           // mouse y in world space — undoes the ac
 #define CURSOR_MOVE      3   // four-way move arrows — for dragging / panning
 #define CURSOR_TEXT      4   // I-beam — for text-entry fields
 #define CURSOR_NO        5   // not-allowed — for an illegal action
+#define CURSOR_RESIZE_H  6   // left-right resize arrows — for dragging an edge/endpoint horizontally (timeline, slider)
 void  mouse_cursor(int kind);        // set the pointer shape (CURSOR_*); persists until you change it
 void  mouse_hide(void);              // hide the OS pointer — e.g. to draw your own cursor sprite. scoped to the cart window
 void  mouse_show(void);              // show the OS pointer again
@@ -372,6 +373,8 @@ void instrument_sample(int slot, int sample_slot, int root_midi); // bind an INS
 void instrument_sample_region(int slot, float start, float end); // set the CHOP: play the bound buffer only from start..end (fractions 0..1; default 0,1 = whole). Move the marks live to carve a single slice
 void instrument_sample_mode(int slot, int mode);                 // INSTR_SAMPLE playback: SAMPLE_NORMAL / REVERSE / LOOP / PINGPONG (loop + pingpong sustain while the note is held)
 int  sample_peaks(int slot, float *lo, float *hi, int n);       // waveform readout: downsample PCM slot 0..7 to n columns of min/max (-1..1) into lo[]/hi[] for drawing. Returns buffer length (0 = empty). Draw-time
+int  sample_read(int slot, float *out, int max);               // read a sample slot's RAW PCM (mono, -1..1) into out[] (up to max floats); returns count (0 = empty). For SAVING a recorded buffer — the full-resolution twin of sample_peaks
+void sample_load(int slot, const float *data, int n);          // load RAW PCM (mono, -1..1, n samples) INTO a sample slot — the inverse of sample_read, so a saved buffer restores without re-recording. No normalize/trim. Then instrument_sample() plays it
 int  record_peaks(float seconds, float *lo, float *hi, int n);  // LIVE waveform of the capture ring while recording (before a grab): downsample the last `seconds` captured into n min/max columns. Returns samples covered. Draw the take "filling in" as a waveform
 float instrument_playhead(int slot);                            // current playback position 0..1 of the INSTR_SAMPLE voice on `slot` (-1 if none playing) — draw a live playhead over the waveform
 

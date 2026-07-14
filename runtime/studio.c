@@ -3627,6 +3627,7 @@ void mouse_cursor(int kind) {
         case CURSOR_HAND:      rl = MOUSE_CURSOR_POINTING_HAND; break;
         case CURSOR_CROSSHAIR: rl = MOUSE_CURSOR_CROSSHAIR;     break;
         case CURSOR_MOVE:      rl = MOUSE_CURSOR_RESIZE_ALL;    break;
+        case CURSOR_RESIZE_H:  rl = MOUSE_CURSOR_RESIZE_EW;     break;
         case CURSOR_TEXT:      rl = MOUSE_CURSOR_IBEAM;         break;
         case CURSOR_NO:        rl = MOUSE_CURSOR_NOT_ALLOWED;   break;
         default:               rl = MOUSE_CURSOR_DEFAULT;       break;

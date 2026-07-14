@@ -76,6 +76,7 @@ enum { DRAG_NONE, DRAG_MOVE, DRAG_END, DRAG_START, DRAG_SCRUB };
 static int   drag;
 static int   drag_note;
 static float drag_off;                 // beat offset (cursor - note.start) while moving
+static int   cur_cursor = -1;          // last shape pushed to mouse_cursor() (only set on change)
 
 // --- helpers ----------------------------------------------------------------
 static int   vis_rows(void) { return ROLL_H / ROWH; }
@@ -302,6 +303,19 @@ void update(void){
         }
     } else drag = DRAG_NONE;
 
+    // --- context cursor: the pointer says what a click will DO ---
+    int want = CURSOR_DEFAULT;
+    if (drag == DRAG_MOVE)                            want = CURSOR_MOVE;
+    else if (drag == DRAG_END || drag == DRAG_START ||
+             drag == DRAG_SCRUB)                      want = CURSOR_RESIZE_H;
+    else if (my >= RULER_Y && my < RULER_Y + RULER_H) want = CURSOR_RESIZE_H;   // scrub bar
+    else if (mx >= ROLL_X && my >= ROLL_Y && my < ROLL_Y + ROLL_H){
+        int z, i = hit_note(mx, my, &z);
+        if (i >= 0) want = (z == DRAG_MOVE) ? CURSOR_MOVE : CURSOR_RESIZE_H;     // on a note
+        else        want = CURSOR_CROSSHAIR;                                     // empty = place
+    } else if (my >= SCREEN_H - KB_H)                 want = CURSOR_HAND;        // playable keys
+    if (want != cur_cursor){ mouse_cursor(want); cur_cursor = want; }
+
     audition();
 
 #ifdef DE_TRACE
@@ -394,7 +408,7 @@ static void draw_hud(void){
     // tempo + hint
     char s[16]; snprintf(s, sizeof s, "%d BPM", tempo);
     print(s, 56, 2, CLR_MEDIUM_GREY);
-    print("SPACE play  R rec  drag ruler=scrub", 96, 2, CLR_DARK_GREY);
+    print("SPACE play  R rec  Rclick del  drag ruler=scrub", 96, 2, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 

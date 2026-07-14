@@ -305,6 +305,21 @@ function titleDef(name) {
   return safe ? [`-DDE_WINDOW_TITLE='"${safe}"'`] : []
 }
 
+// Box2D opt-in (native run/export). A cart that #includes "box2d/box2d.h" links the
+// vendored pure-C Box2D v3, built on demand into build/box2d/mac/. Mirrors
+// tools/make-cart.js's box2dArgs. NOTE: NATIVE only — the libtcc LIVE backend can't
+// link a static lib, so box2d carts must run in native mode. docs/design/box2d-integration.md.
+function box2dArgs() {
+  let src = ''
+  try { src = fs.readFileSync(CART_SRC, 'utf8') } catch { return [] }
+  if (!/box2d\/box2d\.h/.test(src)) return []
+  const lib = path.join(BUILD_DIR, 'box2d', 'mac', 'libbox2d.a')
+  if (!fs.existsSync(lib)) {
+    try { execSync(`"${path.join(__dirname, '../../tools/build-box2d.sh')}" --mac`, { stdio: 'pipe' }) } catch {}
+  }
+  return [`-I"${path.join(RUNTIME_DIR, 'box2d', 'include')}"`, `"${lib}"`]
+}
+
 function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
   const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, renderEvery, keymap, studioC, resizable } = dims
   return [
@@ -330,6 +345,7 @@ function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
     // keep beginners' null-pointer mistakes as real crashes (caught by the
     // crash handler in studio.c) instead of letting the optimizer delete them
     '-fno-delete-null-pointer-checks',
+    ...box2dArgs(),
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL',
     '-framework Cocoa',

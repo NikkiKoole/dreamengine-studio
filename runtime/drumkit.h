@@ -24,9 +24,10 @@
 // Built-in kits: DK_ELECTRO (808/SP electronic) and DK_ACOUSTIC (struck bodies). A cart
 // can supply its own DrumKitDef to voice a bespoke kit against the same trigger + roles.
 //
-// NOT owned here (yet): choke groups (a closed hat cutting the ringing open hat). The
-// engine's one-shot notes can't cut each other (tr808's documented infidelity), so it's
-// a known gap, not a bug — addable when the engine grows a per-slot note-off.
+// NOT wired here yet: choke groups (a closed hat cutting the ringing open hat). The engine DOES
+// support it — instrument_choke(a, b): a note on `a` cuts sounding voices on `b` (a ~3ms declick),
+// and tr808/tr909 already use it for the hats. drumkit.h just doesn't declare one yet — a small add
+// (e.g. dk_use() could instrument_choke(base + DK_HHC, base + DK_HHO)).
 
 #ifndef DE_DRUMKIT_H
 #define DE_DRUMKIT_H

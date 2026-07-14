@@ -55,8 +55,8 @@ de:meta */
 //   swing — the 808 never had it either (TR-909 got shuffle in 1983, after
 //     the LM-1 proved it). Z/X = our anachronistic knob, 50..66%.
 //
-// Known infidelity: real 808 closed hats CHOKE the open hat; our one-shot
-// notes can't cut each other, so an open hat rings through a closed hit.
+// Faithful: real 808 closed hats CHOKE the open hat — instrument_choke() (below)
+// makes a closed hit cut the ringing open hat (a ~3ms declick fade, no cliff).
 //
 //   Q W E R T Y U I O P A S D F G H   play each voice by hand
 //   LEFT / RIGHT  preset (or tap the < > arrows on the label)

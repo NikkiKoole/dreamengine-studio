@@ -102,8 +102,8 @@ paradigm](device-face-paradigm.md §2)'s "workstation, not instrument" cousin �
 to the sampler.
 
 **Next (piece 6):** an optional **seconds CAP** (flip the readout into a real budget), touch-drag for
-the chop handles (currently mouse), a real choke group for the kit (blocked on a per-slot note-off —
-the engine's one-shot notes can't cut each other, tr808's documented infidelity), lifting the SONG
+the chop handles (currently mouse), a real choke group for the kit (`drumkit.h` doesn't declare one
+yet — the engine's `instrument_choke` already does it, as tr808/tr909 do for the hats), lifting the SONG
 into its own `songbox` cart (persistence is the bridge — now built), embeddable lo-fi songs in the
 cart PNG (the save is disk-only today), the **doctrine call** (an ADR — does a sampler whose source
 is the console's OWN synthesis clear STATUS #21's "analog-circuit machines only" line? the argument

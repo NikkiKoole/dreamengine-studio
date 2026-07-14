@@ -30,6 +30,7 @@ de:meta */
 #include "ui.h"
 #include "acid303.h"
 #include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
+#include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
 
 // ACID CANDY — a candy-toy acid RACK on the device-face skeleton, 160x100. The
 // nav spine is a strip of colour CARTRIDGES you focus machines through (nav=faces);
@@ -59,10 +60,17 @@ static Acid ac[2];
 static int  on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
 static int  sel[2] = { 0, 0 };
 
-// the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart)
+// the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart).
+// The 808 kit lives at slots TR808_BASE(9)..22; the 909 kit sits above it at 23+.
+#define D909_BASE 23
 static int   dgrid[TR_NV][STEPS];                          // the drum pattern
 static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0.5 = neutral)
 static int   dsel = TR_BD;                                 // selected drum voice
+// the 909 drum face — voices from the shared tr909.h
+static int   d9grid[TR9_NV][STEPS];
+static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
+static int   d9sel = TR9_BD;
+static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
 
 // transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
@@ -91,6 +99,15 @@ static void gen_drums(void) {
         if (rnd_between(0, 99) < 12) dgrid[TR_CP][s] = 1;
         if (rnd_between(0, 99) < 10) dgrid[TR_CB][s] = 1;
     }
+}
+
+static void gen_drums9(void) {
+    for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9grid[v][s] = 0;
+    for (int s = 0; s < STEPS; s += 4) d9grid[TR9_BD][s] = 1;       // house four-on-floor
+    d9grid[TR9_CP][4] = d9grid[TR9_CP][12] = 1;                     // clap backbeat
+    for (int s = 0; s < STEPS; s += 2) d9grid[TR9_CH][s] = 1;       // closed hats
+    for (int s = 2; s < STEPS; s += 4) d9grid[TR9_OH][s] = 1;       // off-beat open hats
+    for (int s = 0; s < STEPS; s++) if (rnd_between(0, 99) < 8) d9grid[TR9_RC][s] = 1;  // ride spice
 }
 
 // ── candy widgets ──────────────────────────────────────────────────────────
@@ -323,6 +340,56 @@ static void draw_808(void) {
     }
 }
 
+// ── the 909 DRUM face — same compact model as the 808, but its OWN identity:
+// AMBER/steel (vs the 808's blue) so you know which drum machine you're on.
+static void draw_909(void) {
+    static const int VL[8] = { TR9_BD, TR9_SD, TR9_CH, TR9_OH, TR9_CP, TR9_LT, TR9_CC, TR9_RC };
+
+    // ② the picked voice's knobs (contextual)
+    font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR909_NAME[d9sel], 6, 24, CLR_ORANGE);
+    knob(&d9tune[d9sel],  52, 27, 6, "TUNE", 0.5f);
+    knob(&d9decay[d9sel], 88, 27, 6, "DEC",  0.5f);
+    knob(&d9color[d9sel], 124, 27, 6, "COL", 0.5f);
+
+    // ③ screen — kit overview + playhead + NEW, amber 909 badge
+    chip(6, 38, "KIT", 1); chip(6, 47, "FX", 0);
+    chip(138, 38, "MAP", 0); chip(138, 47, "SCP", 0);
+    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
+    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    rrectfill(28, 40, 15, 7, 1, CLR_ORANGE); font(FONT_TINY); print("909", 30, 41, CLR_BROWNISH_BLACK);
+    if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_drums9();
+    for (int r = 0; r < 8; r++) {
+        int v = VL[r], gy = 42 + r * 2;
+        for (int s = 0; s < STEPS; s++) {
+            int gx = 48 + s * 5;
+            if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, 16, CLR_MEDIUM_GREEN); blend_reset(); }
+            if (d9grid[v][s]) rectfill(gx, gy, 3, 1, v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+        }
+    }
+
+    // ④ voice picker — amber pads
+    for (int r = 0; r < 8; r++) {
+        int v = VL[r], x = 6 + r * 18, selp = (v == d9sel);
+        int pr = 0, hot = 0, foc = 0; void *wp = ui_wid_hash(0x90u + v, x, 64, 17, 9);
+        if (ui_button_core(wp, x, 64, 17, 9, &foc, &pr, &hot)) { d9sel = v; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); }
+        rrectfill(x, 64, 17, 9, 1, selp ? CLR_ORANGE : CLR_DARK_ORANGE);
+        rrect(x, 64, 17, 9, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        font(FONT_TINY); print(TR909_NAME[v], x + (17 - text_width(TR909_NAME[v])) / 2, 66, selp ? CLR_BROWNISH_BLACK : CLR_LIGHT_YELLOW);
+    }
+
+    // ⑤ the HITS — picked voice's 16 steps at the bottom; amber, white downbeat accents
+    for (int s = 0; s < STEPS; s++) {
+        int x = 6 + s * 9, on2 = d9grid[d9sel][s], here = (s == step && playing);
+        int fc = on2 ? (s % 4 == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE) : CLR_DARKER_PURPLE;
+        if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
+        int pr = 0, hot = 0, foc = 0; void *ws = ui_wid_hash(0xA0u + s, x, 76, 8, 16);
+        if (ui_button_core(ws, x, 76, 8, 16, &foc, &pr, &hot)) d9grid[d9sel][s] = !d9grid[d9sel][s];
+        rrectfill(x, 76, 8, 16, 1, fc);
+        rrect(x, 76, 8, 16, 1, CLR_BROWNISH_BLACK);
+    }
+}
+
 // ── placeholder faces (drum kits + master) — styled, pending their builds ─────
 static void placeholder(int m) {
     rrectfill(6, 20, 148, 71, 4, CLR_BROWNISH_BLACK);
@@ -345,9 +412,13 @@ void init(void) {
         acid_define(&ac[i]);
         gen_line(i);
     }
-    tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9+)
+    tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9..22)
     for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = 0.5f; }
     gen_drums();
+    tr909_build(D909_BASE);                                // the honest 909 kit (slots 23..35)
+    tr909_metal(D909_BASE, m9cut, m9res);
+    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = 0.5f; }
+    gen_drums9();
 }
 
 void update(void) {
@@ -365,6 +436,8 @@ void update(void) {
             }
             for (int v = 0; v < TR_NV; v++)                       // the 808 line, same transport
                 if (dgrid[v][step] && !mac[M_808].mute) tr808_fire(TR808_BASE, v, 0, 0, dtune, ddecay, dcolor);
+            for (int v = 0; v < TR9_NV; v++)                      // the 909 line
+                if (d9grid[v][step] && !mac[M_909].mute) tr909_fire(D909_BASE, v, 0, 0, d9tune, d9decay, d9color);
         } else for (int i = 0; i < 2; i++) acid_gate(&ac[i], frac, 0.0f, 0);   // staccato release
     } else for (int i = 0; i < 2; i++) acid_off(&ac[i]);
 #ifdef DE_TRACE
@@ -384,6 +457,7 @@ void draw(void) {
     navspine();
     if (mac[face].kind == MK_303) draw_303(face);
     else if (face == M_808)       draw_808();
+    else if (face == M_909)       draw_909();
     else                          placeholder(face);
 
     font(FONT_NORMAL);

@@ -26,7 +26,8 @@ The 6 h drip ([demand-discovery.md](../design/demand-discovery.md)) filled five 
 **r/modular** (71), and **r/iosmusicproduction** (114). The last one is a **rotation fix**: the
 list carried `iosmusic`, a near-dead sub that fetches 0 feeds; the live iOS-music-production tribe
 is `iosmusicproduction`, now in rotation (committed `17b422a3`, alongside three on-grain adds:
-`synthrecipes`, `DrumMachines`, `chipmusic`).
+`synthrecipes`, `DrumMachines`, and `chiptunes` — the last replacing `chipmusic`, a dead name that
+does not exist).
 
 Every sub prints "no clean GAP" — expected, and the same taxonomy-masking noted in 022: with ~470
 carts, every *topic* bucket has some matching cart, so the binary flag never fires. The signal is in
@@ -144,7 +145,16 @@ Four more caches filled after the initial batch (`synthrecipes`, `Sampling`, `We
   audience (and now its outreach tribe; see the `sampling-mpc` ledger entry).
 - **r/DrumMachines** came back thin under throttling (25 threads / 3 wishes) and reads as gear-chat,
   not app-demand — closer to `modular` than to a wish-rich tribe. Low signal-per-fetch; sample
-  unreliable. `r/chipmusic` still un-fetched (throttled out this session).
+  unreliable.
+- **r/chiptunes (114 threads, 39 wishes)** — the intended fantasy-console-lineage tribe. (The
+  rotation first listed `chipmusic`, which **does not exist** — every RSS feed 429'd while sibling
+  subs fetched fine; swapped to `chiptunes`.) It *is* a distinct tribe the music-app tribes can't
+  reach — all **trackers + authentic chip hardware** (Schism Tracker, OpenMPT, "MOD Trackers for
+  iOS?", Super Audio Cart, Game Boy refurbs). But it hands us **no humble-toy gap**: the scene skews
+  power-user and authenticity-obsessed (a tracker is the *antithesis* of a cheap playful beginner
+  toy), so its demand is technique-help + real-hardware — the `synthrecipes` learn-by-recreating
+  strand, not a new build. Mild caution: this tribe would judge a lo-fi toy by chiptune-purist
+  standards, off our humble grain.
 
 ---
 
@@ -166,7 +176,8 @@ Four more caches filled after the initial batch (`synthrecipes`, `Sampling`, `We
 - **Boundary recorded:** mic recording / vocal-overdub / hum-to-MIDI are **out** — real demand, off
   our grain. Useful as an explicit "we don't do this" for store copy and roadmap.
 - **Rotation health:** `iosmusic` → `iosmusicproduction` fix shipped; `synthrecipes` / `DrumMachines`
-  / `chipmusic` added and awaiting first drip. Deprioritise `modular` (hardware-heavy) if the
+  / `chiptunes` added + fetched (`chipmusic` was a dead name — swapped). All 14 subs now cached at
+  least once. Deprioritise `modular` + `DrumMachines` (both hardware/gear-chat, low signal) if the
   rotation ever needs trimming.
 
 ---
@@ -175,9 +186,10 @@ Four more caches filled after the initial batch (`synthrecipes`, `Sampling`, `We
 
 - Is chop-to-pads a **new cart** or an extension of the existing `sampler` (add a slice-to-pads mode)?
   Same new-cart-vs-reframe question as 022/023 — but here the answer leans "small new mode", not "copy".
-- Do the **three new on-grain subs** (`synthrecipes`/`DrumMachines`/`chipmusic`) confirm the thesis a
-  seventh–ninth time, or does the chiptune/tracker tribe (`chipmusic`) surface a *fantasy-console-
-  native* cluster the music-app tribes can't? (Fetch pending — first drips not yet run.)
+- ~~Do the three new subs confirm the thesis, or does the chiptune tribe surface a fantasy-console-
+  native cluster?~~ **Answered (fetched this session):** `synthrecipes` = learn-by-recreating (not
+  a gap); `DrumMachines` = thin gear-chat; `chiptunes` = a *genuinely distinct* tracker/chip-hardware
+  tribe, but power-user, not a humble-toy gap. No new build; thesis held.
 - Does the **chop-to-pads** demand hold up in `r/makinghiphop` at full depth, or is it an
   iosmusicproduction-specific artefact?
 

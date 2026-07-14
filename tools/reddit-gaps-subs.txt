@@ -29,4 +29,4 @@ Sampling
 # — general music-making + the lo-fi music-toy tribe —
 WeAreTheMusicMakers
 pocketoperators
-chipmusic           # fantasy-console lineage: trackers / LSDj / PICO-8-adjacent lo-fi
+chiptunes           # fantasy-console lineage: trackers / LSDj / PICO-8-adjacent lo-fi (chipmusic doesn't exist)

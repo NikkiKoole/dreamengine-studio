@@ -6403,6 +6403,22 @@
     "teaches": []
   },
   {
+    "title": "Tombola",
+    "description": "A physics sequencer you drop notes into: balls tumble in a spinning drum and play their note when they cross the centre line — the rhythm is emergent, nothing is sequenced. Tap inside the drum to drop a note-ball; it falls, the slowly rotating hexagon carries it up one side and it tumbles back across the trigger line, sounding its note. Pick the next ball's pitch on the bottom strip (scale-locked, so nothing plays wrong). Ride the four encoders: SPIN (drum speed), GRAV (gravity), TONE (brightness) and GATE (note length). SCALE cycles the key; BUILD freezes the drum so you can place balls precisely; CLR empties it. The pattern falls out of where you put the balls plus the physics — the honest core is that every note-on IS a real ball crossing a sensor. Tap in drum = drop a ball · bottom strip = pick next note · four knobs = SPIN/GRAV/TONE/GATE · SCALE = cycle key · BUILD = freeze/edit · CLR (or C) = clear · R = reseed",
+    "file": "tombola.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "rigid-body",
+      "collision-detection",
+      "generative-sequencer"
+    ],
+    "lineage": "The OP-1 'tombola' module as a dreamengine cart (design/tombola.md). The FOURTH Box2D v3 cart (runtime/box2d/): a slowly rotating hexagonal drum full of note-balls under gravity — a note fires because a ball PHYSICALLY crosses the trigger line, never a hidden step sequencer. Balls on real rigid-body dynamics; the trigger is a b2 sensor; scale-quantised note wiring borrowed from `circlemachine`."
+  },
+  {
     "title": "touchlab",
     "description": "Device test card for the touch API - pick it up the day a real touchscreen is available. Build for web, open the LAN url on the iPad/phone, and run down the 7-point checklist on screen: crosshair accuracy under CSS scaling, ten-finger tracking, touch_id stability while other fingers tap, tapp() single-fire drumming, lift detection (cart-side diff - the data a future touch_ended API would return), iOS audio unlock blips, and whether Safari gestures leak (pinch/double-tap/edge-swipe must not move the page). Verdicts go to docs/design/touch-notes.md section 5. On desktop the mouse is one finger (id -2), enough to smoke-test half the card.",
     "file": "touchlab.cart.png",

@@ -554,4 +554,6 @@ this is the *shape* it produces) · [`acidrack-layout-brief.md`](acidrack-layout
 [`acidrack-ui-research.md`](acidrack-ui-research.md) (the accordion answer + the x0x survey) ·
 [`epiano-layout-brief.md`](epiano-layout-brief.md) · [`interactive-wireframes.md`](../guides/interactive-wireframes.md)
 (how acidface is built) · [`design-system.md`](design-system.md) §6/§8 (roles, widget swap) ·
+[`control-vocabulary.md`](control-vocabulary.md) (the named taxonomy + beveled-lo-fi look for the
+tactile controls each zone is filled from — this doc is the layout, that one is the vocabulary) ·
 [`runtime/lay.h`](../../runtime/lay.h) + [`runtime/ui.h`](../../runtime/ui.h) + `runtime/disclose.h` (the primitives).

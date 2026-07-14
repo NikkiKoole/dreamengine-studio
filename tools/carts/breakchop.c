@@ -9,8 +9,8 @@
   "teaches": ["gesture-loop"],
   "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained.",
   "description": {
-    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop.",
-    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. Each slice binds an INSTR_SAMPLE voice over its [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice at original pitch — the chop performance. PLAY steps through the slices in order at the derived tempo, looping, which reconstructs the original loop (if it sounds seamless, the cut is correct). GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
+    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop.",
+    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. The break plays MONOPHONICALLY through one SELF-CHOKED voice: firing any pad (or the next slice in PLAY) instantly silences the chop that's still ringing — the MPC mute-group feel — so stutters/rolls stay clean and the reconstruction never smears. Each slice sets that voice's [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice at original pitch — the chop performance. PLAY steps through the slices in order at the derived tempo, looping, which reconstructs the original loop (if it sounds seamless, the cut is correct). GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
     "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / q w e r / a s d f / z x c v) to fire that slice. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
   },
   "todo": [
@@ -32,7 +32,9 @@ de:meta */
 // the slices. External loop (data-tools/breaks) or a synthesised fallback. See de:meta.
 
 #define LOOP_SLOT 0                 // the PCM sample buffer
-#define V0        8                 // slice voices: instrument slots 8..8+MAXSLICE-1
+#define VOICE     8                 // ONE mono playback voice — SELF-CHOKED so a new hit silences
+                                    //   the ringing chop (MPC mute-group feel; safe: choke runs before
+                                    //   the fresh voice is allocated). The break plays back monophonically.
 #define ROOT      60                // C4 = original speed
 #define MAXSLICE  32
 #define DEFAULT_LOOP "../data-tools/breaks/cache/amen.f32"   // cwd is build/ → the gitignored cache
@@ -63,14 +65,10 @@ static const char  PADKEYS[] = "1234QWERASDFZXCV";   // 16 keys (keyp wants UPPE
 
 static float derived_bpm(void) { return loop_secs > 0.0f ? 60.0f * ndiv / loop_secs : 120.0f; }
 
-static void bind_slices(void) {     // one INSTR_SAMPLE voice per slice over its region
-    if (ndiv > MAXSLICE) ndiv = MAXSLICE;
-    for (int i = 0; i < ndiv; i++) {
-        instrument(V0 + i, INSTR_SAMPLE, 1, 0, 7, 150);
-        instrument_sample(V0 + i, LOOP_SLOT, ROOT);
-        instrument_sample_region(V0 + i, (float)i / ndiv, (float)(i + 1) / ndiv);
-    }
-    if (sel >= ndiv) sel = ndiv - 1;
+static void setup_voice(void) {     // one mono INSTR_SAMPLE voice, self-choked (region set per hit)
+    instrument(VOICE, INSTR_SAMPLE, 1, 0, 7, 150);
+    instrument_sample(VOICE, LOOP_SLOT, ROOT);
+    instrument_choke(VOICE, VOICE);                       // a new hit cuts the ringing chop → mono
     if (loaded) sample_peaks(LOOP_SLOT, wf_lo, wf_hi, PW < 240 ? PW : 240);
 }
 
@@ -79,7 +77,8 @@ static void apply_grit(void) { crush(GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0
 static void fire_slice(int i, int select) {
     if (i < 0 || i >= ndiv) return;
     int ms = (int)(loop_secs / ndiv * 1000.0f); if (ms < 30) ms = 30;
-    hit(ROOT, V0 + i, 6, ms);
+    instrument_sample_region(VOICE, (float)i / ndiv, (float)(i + 1) / ndiv);   // carve this slice, then fire
+    hit(ROOT, VOICE, 6, ms);                              // self-choke silences whatever was ringing
     pad_flash[i] = 1.0f;
     if (select) sel = i;
 }
@@ -117,19 +116,19 @@ static void synth_fallback(void) {
 
 static void load_loop(const char *path) {
     FILE *f = fopen(path, "rb");
-    if (!f) { synth_fallback(); bind_slices(); return; }
+    if (!f) { synth_fallback(); setup_voice(); return; }
     fseek(f, 0, SEEK_END); long bytes = ftell(f); fseek(f, 0, SEEK_SET);
     long n = bytes / 4;
-    if (n < 64) { fclose(f); synth_fallback(); bind_slices(); return; }
+    if (n < 64) { fclose(f); synth_fallback(); setup_voice(); return; }
     float *buf = (float *)malloc((size_t)n * sizeof(float));
-    if (!buf) { fclose(f); synth_fallback(); bind_slices(); return; }
+    if (!buf) { fclose(f); synth_fallback(); setup_voice(); return; }
     size_t got = fread(buf, sizeof(float), (size_t)n, f);
     fclose(f);
-    if ((long)got < 64) { free(buf); synth_fallback(); bind_slices(); return; }
+    if ((long)got < 64) { free(buf); synth_fallback(); setup_voice(); return; }
     sample_load(LOOP_SLOT, buf, (int)got);
     free(buf);
     loop_len = (int)got; loop_secs = loop_len / 44100.0f; loaded = 1; is_synth = 0;
-    bind_slices();
+    setup_voice();
 }
 
 // pad grid: cols 4 (≤16 slices) or 8 (32); fills GY..bottom
@@ -191,11 +190,8 @@ void draw(void) {
         int bx = PX + (int)((float)i / ndiv * PW);
         line(bx, PY, bx, PY + PH - 1, CLR_YELLOW);
     }
-    for (int i = 0; i < ndiv; i++) {                 // live playheads (instrument_playhead = 0..1 of the WHOLE buffer)
-        float p = instrument_playhead(V0 + i);
-        if (p >= 0.0f) { int hx = PX + (int)(p * PW);
-            line(hx, PY, hx, PY + PH - 1, CLR_WHITE); }
-    }
+    { float p = instrument_playhead(VOICE);          // one mono voice → one playhead (0..1 of the WHOLE buffer)
+      if (p >= 0.0f) { int hx = PX + (int)(p * PW); line(hx, PY, hx, PY + PH - 1, CLR_WHITE); } }
     rect(PX, PY, PW, PH, CLR_MEDIUM_GREY);
 
     // controls
@@ -203,7 +199,7 @@ void draw(void) {
     if (ui_button(4,  PY + PH + 3, 56, 16, playing ? "STOP" : "PLAY")) { playing = !playing; last_beat = -1; }
     if (ui_button(64, PY + PH + 3, 46, 16, "DIV")) {
         int k = 0; for (int j = 0; j < 3; j++) if (DIVS[j] == ndiv) k = j;
-        ndiv = DIVS[(k + 1) % 3]; bind_slices();
+        ndiv = DIVS[(k + 1) % 3]; if (sel >= ndiv) sel = ndiv - 1;
     }
     if (ui_button(114, PY + PH + 3, 56, 16, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); }
     ui_end();

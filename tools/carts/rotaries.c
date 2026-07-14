@@ -252,6 +252,7 @@ void draw(void) {
             enc_v = c->v0 + (c->by - py) / 60.0f;                       // never clamped
         }
         int hot = c != 0 || ui_hover(cx - R, cy - R, 2 * R + 1, 2 * R + 1);
+        if (!c && hot && mouse_wheel() != 0) enc_v += mouse_wheel() * 0.03f;   // wheel spins it too
         ring(cx, cy, R + 4, R + 6, 0, 360, CLR_DARKER_GREY);           // full = no ends
         float da = enc_v * 360;
         ring(cx, cy, R + 4, R + 6, da - 6, da + 6, CLR_LIGHT_PEACH);   // just a dot
@@ -292,6 +293,7 @@ void draw(void) {
             hot = 1;
         }
         hot = hot || ui_hover(cx - R, cy - R, 2 * R + 1, 2 * R + 1);
+        if (!c && hot && mouse_wheel() != 0) push_v = clamp(push_v + mouse_wheel() * 0.03f, 0, 1);
         ring(cx, cy, R + 4, R + 6, A0, A0 + push_v * SW, CLR_TRUE_BLUE);
         rot_body(cx, cy, R, CLR_DARK_BLUE, CLR_BLUE, CLR_DARKER_BLUE, hot);
         rot_pointer(cx, cy, R, A0 + push_v * SW, CLR_WHITE);
@@ -390,6 +392,7 @@ void draw(void) {
             hot = 1;
         }
         hot = hot || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
+        if (!c && hot && mouse_wheel() != 0) ghost_v = clamp(ghost_v + mouse_wheel() * 0.03f, 0, 1);
         float ga = A0 + GHOST_DEF * SW;                               // the ghost default tick
         line(cx + (int)dx(r + 3, ga), cy + (int)dy(r + 3, ga),
              cx + (int)dx(r + 6, ga), cy + (int)dy(r + 6, ga), CLR_MEDIUM_GREY);
@@ -418,8 +421,10 @@ void draw(void) {
         }
         jog_pos += jog_vel; jog_ang += jog_vel * 40;
         hot = hot || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
-        if (mouse_wheel() != 0 && ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1))
-            jog_pos += mouse_wheel();                                 // wheel steps the list too
+        if (mouse_wheel() != 0 && ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1)) {
+            jog_pos += mouse_wheel();                                 // wheel steps the list
+            jog_ang += mouse_wheel() * 40;                            // …and spins the wheel graphic
+        }
         int idx = (((int)floorf(jog_pos) % NLIB) + NLIB) % NLIB;
 
         rot_body(cx, cy, r, CLR_DARK_GREY, CLR_LIGHT_GREY, CLR_BROWNISH_BLACK, hot);

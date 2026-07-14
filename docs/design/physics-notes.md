@@ -63,6 +63,35 @@ of the engine complexity, and it's basically "promote the ragdoll's inner loop i
 shared place." Existing seeds already in the repo: `ragdoll.c`, `rope.c`, `pendulum.c`,
 and the `tritex` work.
 
+### Fluids — a third world, and why the vendor/cart choice *flips*
+
+The obvious off-the-shelf answer for fluids is **LiquidFun** (Google, ~2013): a particle
+system bolted onto Box2D for water, viscous/elastic goo, and soft bodies (it even shipped a
+`liquidfun.js` emscripten port). **Don't reach for it here.** It's a trap for this engine on
+three counts: it's **C++** (built on *old* Box2D 2.x — so it doesn't drop into the C cart-land
+model the way pure-C Box2D **v3** does, and it drags the C++ runtime across all four build
+targets); it's **abandoned** (Google archived it ~a decade ago, pinned to Box2D 2.3 — exactly
+the unmaintained-dependency portability risk the four-target gate exists to avoid); and it's a
+**different lineage** from v3 (v3 has no particle system, LiquidFun rides v2 — you can't get
+modern rigid bodies *and* LiquidFun fluids from one lib).
+
+The reframe: **fluids fit the PBD family we already chose better than rigid bodies do.** A
+particle fluid (PBD / SPH — neighbour density + a pressure constraint) is the *same shape* as
+the jelly blob and cloth already built on `physics.h` — points + constraints, no new machinery
+class. **Ten Minute Physics** (already cited above) covers a PBD fluid directly. So the
+vendor-vs-cart call **inverts by phenomenon**:
+
+| | off-the-shelf lib | hand-rolled |
+|---|---|---|
+| **Rigid bodies** | Box2D v3 — pure C, MIT, alive → *worth vendoring* | hard (SAT, manifolds, stacking) — the reason to vendor |
+| **Fluids** | LiquidFun — C++, dead, old Box2D → **avoid** | PBD/SPH on `physics.h` — on-grain, code-first ✓ |
+
+Rigid bodies are the case *for* a vendored lib (hand-rolling is the genuinely hard part — the
+whole Box2D experiment). Fluids are the case *for* a cart (hand-rolling is squarely inside the
+PBD family we own, and the only lib on offer is a dead C++ fork). So a **PBD-fluid demo cart**
+is a candidate next to — or before — the Box2D rigid-body experiment, and it stays entirely
+code-first with zero new dependency.
+
 ---
 
 ## How hard, exactly? The difficulty ladder

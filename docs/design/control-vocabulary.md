@@ -140,6 +140,27 @@ build target: it's painterly (anti-aliased, airbrushed shadows) which breaks the
 surface" north star and won't animate. We translate its *vibe* — tactility, candy colour, a little
 soul-glyph on things — into **pixel-honest 1–2px bevels** (the DIV / BlitzMax / Win-95 register):
 
+**Lighting — one source, top-left (the Win95 model).** Every control on the panel is lit from the
+**same top-left corner**, exactly like Windows did 30 years ago: **highlight on the top + left, shadow
+on the bottom + right.** This is the single rule that makes a panel of mixed controls read as one lit
+surface instead of a pile of separate widgets — so it is not per-control taste, it's a house constant.
+Concretely:
+- **Round controls** (knobs, ring-encoders): sheen arc centred at **225°** (up-left), shade arc 180°
+  opposite at **45°** (down-right) — *not* pure-top/pure-bottom (270°/90°), which was the first-pass
+  mistake that made knobs and buttons disagree. (0°=right, 90°=down.)
+- **Rectangular controls** (buttons, pads, step cells): the **Win95 double-bevel chisel** — a two-tone
+  edge, highlight (white → light) on top + left, shadow (mid → black) on bottom + right, black on the
+  outermost bottom-right. Draw the highlight first so the shadow wraps the shared corners.
+- **Pressed / engaged INVERTS the bevel** (dark top-left, light bottom-right) and nudges the content
+  1px down-right — the control reads as pushed *into* the same top-left light. A latching toggle stays
+  inverted while engaged (the Win95 sunken-toggle look); an LED-style button stays raised and glows instead.
+- **Verify sheen/shade against palette LUMA, not the colour name.** The bevel assumes
+  `sheen > face > shade` in brightness. `CLR_MAUVE` (#754665, luma ~96) *sounds* like a light purple
+  but is darker than `CLR_INDIGO` (#83769c, ~127) — using it as a highlight drew dark arcs top *and*
+  bottom. pico32 has no lighter purple, so the indigo caps highlight with `CLR_PINK` (~180). When these
+  graduate into `ui.h`, derive hi/lo from the face luma (or keep a vetted per-colour {face,hi,lo} table)
+  rather than hand-picking names.
+
 - **Bevel** — a 1–2px light edge (top-left) + dark edge (bottom-right); press *flips* it and shifts
   the face down 1px.
 - **Socket** — a control sits in a recessed dish: a `fillp`-dithered inner shadow + a `BLEND_AVG`

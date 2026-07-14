@@ -3208,6 +3208,17 @@
     "homage": "Katamari Damacy (2004)"
   },
   {
+    "title": "labels",
+    "description": "A labeling study for the control vocabulary — how to name a knob/button/fader when there's barely room: the five in-game fonts + scaling, text effects (shadow / outline / emboss / inverted chip), a handwritten 'boiling' vibe (FONT_COMIC + per-char jitter), rotated labels for tight vertical columns, and the classic Dymo labelprinter look in both colorways (white-on-dark tape, dark-on-white paper). The controls all use bare print() today; this cart works out the label LANGUAGE that pairs with them. Row 1 FONTS: the same word in TINY (3x5) / SMALL (4x6) / NORMAL (8x8) / THIN (CGA) / COMIC (handwriting), plus print_rot_scaled for 2x/3x. Row 2 EFFECTS: drop-shadow, 4-way outline, an inverted chip (light on a dark pill), and handwritten — FONT_COMIC with a slow per-character jitter so the text gently boils like ink. Row 3 ROTATED: labels turned 90 degrees (reading up + down) for a narrow fader column, and a 45-degree tag — via print_rot. Row 4 LABELPRINTER: embossed Dymo-tape labels (rounded tape + punched hole + a raised-letter emboss) in the two classic colorways. These become the label helpers the device-face carts pull from. None — a showcase. The handwritten line boils over time; everything else is static.",
+    "file": "labels.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "lunar lander",
     "description": "Physics-based lander. Rotate and thrust your way onto the lit green pad slowly enough to survive. Levels get harder — pads get narrower. Left/right to rotate, up or Z to thrust.",
     "file": "lander.cart.png",

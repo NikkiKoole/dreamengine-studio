@@ -42,6 +42,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "acid303.h"     // the shared TB-303 acid VOICE (extracted from this cart)
 #include "ui.h"          // widgets: ui_button/ui_knob — per-finger capture, focus ring
 #include <stdio.h>
 #include <math.h>
@@ -177,144 +178,79 @@ static const int KPAGE1[] = { K_ADEC, K_SLDT, K_ATK, K_TRK, K_SUB };
 #define NKMAX NKP0                         // the roll reserves space for the taller page
 static int kpage[2];                       // per-303 knob page: 0 = classic, 1 = DEEP
 
+// The 303 VOICE is now the shared Acid (runtime/acid303.h). This struct keeps
+// only the cart-side bits (its display name); everything sonic lives in `a`.
+// The cart's K_* enum is index-aligned with acid303.h's ACID_* enum, so
+// m[i].a.p[K_X] == the old m[i].knob[K_X].
 typedef struct {
-    int   slot;
+    Acid        a;          // the shared TB-303 voice: slot/subslot/wave/drvmode/sweep/base/p[]/h/hsub/prev_slide
     const char *name;
-    float knob[NK];         // 0..1 (ui_knob's range)
-    int   wave;             // INSTR_SAW / INSTR_SQUARE
-    int   h;                // held note handle (-1 = none)
-    bool  prev_slide;
-    int   hsub;             // sub-osc held handle (-1 = none)
-    int   sweep;            // accent-sweep mode 0=off 1=slow 2=med 3=fast
-    int   drvmode;          // drive waveshaper: DRIVE_SOFT(0)/HARD/FOLD/ASYM — default SOFT = stock
 } M303;
 // DEEP-page defaults chosen to be NO-OPS out of the box: ADEC = that machine's DEC
 // (accent decays like a normal note until moved), SLDT≈60ms, ATK≈2ms (the stock
 // values), TRK/SUB = 0 (off). So adding the page changes nothing until you turn a knob.
-static M303 m[2] = {
-    { SLOT_A, "303-A", { 0.45f, 0.70f, 0.60f, 0.40f, 0.60f, 0.35f, 0.33f,
-                         0.40f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SAW,    -1, false, -1, 0, DRIVE_SOFT },
-    { SLOT_B, "303-B", { 0.38f, 0.75f, 0.55f, 0.45f, 0.60f, 0.45f, 0.33f,
-                         0.45f, 0.14f, 0.05f, 0.0f, 0.0f }, INSTR_SQUARE, -1, false, -1, 0, DRIVE_SOFT },
+// The per-machine param defaults + slots are applied in init() (acid_init + overrides).
+static M303 m[2] = { { .name = "303-A" }, { .name = "303-B" } };
+static const float M303_DEF[2][NK] = {
+    { 0.45f, 0.70f, 0.60f, 0.40f, 0.60f, 0.35f, 0.33f, 0.40f, 0.14f, 0.05f, 0.0f, 0.0f },   // 303-A
+    { 0.38f, 0.75f, 0.55f, 0.45f, 0.60f, 0.45f, 0.33f, 0.45f, 0.14f, 0.05f, 0.0f, 0.0f },   // 303-B
 };
-static int sub_slot(M303 *s) { return s->slot == SLOT_A ? SLOT_SUB_A : SLOT_SUB_B; }
 
-// knob value mappings — the classic curves are tb303.c's verbatim; the DEEP-page
-// curves are the Devil Fish / TD-3-MO ranges (see the de:meta todo for provenance).
-static int   cut_hz(M303 *s)  { return (int)(60.0f * powf(2.0f, s->knob[K_CUT] * 6.38f)); } // 60..~5100 (Devil Fish doubled the range to 5kHz)
-static int   res_q(M303 *s)   { return (int)(s->knob[K_RES] * 15.0f); }
-static float env_hz(M303 *s)  { return s->knob[K_ENV] * 3000.0f; }
-static int   dec_ms(M303 *s)  { return 30 + (int)(s->knob[K_DEC]  * 500.0f); }
-static int   adec_ms(M303 *s) { return 30 + (int)(s->knob[K_ADEC] * 500.0f); }  // accent's OWN filter-env decay (the two-decay)
-static int   slide_ms(M303 *s){ return 20 + (int)(s->knob[K_SLDT] * 280.0f); }  // portamento 20..300ms (stock ≈60)
-static int   atk_ms(M303 *s)  { return (int)(0.5f + s->knob[K_ATK] * 29.5f); }  // amp attack 0.5..30ms (soft attack)
-static float sub_lvl(M303 *s) { return s->knob[K_SUB]; }                        // 0 = no sub voice at all
-static float acc_mul(M303 *s) { return 1.0f + s->knob[K_ACC] * 1.5f; }
-static float sq_mul(M303 *s)  { return 1.0f + s->knob[K_SQL] * 2.0f; }
-static int   sweep_atk(M303 *s) { static const int A[4] = { 0, 10, 5, 2 }; return A[s->sweep & 3]; } // accent-sweep onset ms
-
-// the 303 voice — tb303.c's recipe verbatim, on the diode ladder. The sub slot
-// (Devil Fish / TD-3-MO depth) is a clean triangle an octave down; it sits UNDER
-// the filtered voice (post-filter weight) and is gated in lockstep in step_303.
-static void define_303(M303 *s) {
-    instrument(s->slot, s->wave, atk_ms(s), 60, 6, 25);    // ATK = soft-attack (the amp-env attack)
-    instrument_duty(s->slot, 0.48f);
-    instrument_filter(s->slot, FILTER_DIODE, cut_hz(s), res_q(s));
-    instrument_drive(s->slot, s->knob[K_DRV]);
-    instrument_drive_mode(s->slot, s->drvmode);            // the waveshaper flavour (SOFT/HARD/FOLD/ASYM)
-    instrument(sub_slot(s), INSTR_TRI, atk_ms(s), 60, 6, 25);
-}
+// voice definition + live knob ride now come from acid303.h (acid_define / acid_ride).
+static void define_303(M303 *s) { acid_define(&s->a); }
 static void knob_changed_303(M303 *s, int k) {
+    // preserve acidrack's exact cadence: ride only on a knob change (never per-frame).
     if (k == K_CUT || k == K_RES) {
-        instrument_filter(s->slot, FILTER_DIODE, cut_hz(s), res_q(s));
-        if (s->h >= 0) { note_cutoff(s->h, cut_hz(s)); note_res(s->h, (float)res_q(s)); }
+        acid_ride(&s->a);                                    // live cut/res on the ring + refresh the filter baseline
     } else if (k == K_DRV) {
-        instrument_drive(s->slot, s->knob[K_DRV]);
-        if (s->h >= 0) note_drive(s->h, s->knob[K_DRV]);
+        instrument_drive(s->a.slot, s->a.p[ACID_DRV]);       // drive baseline for the next note (acid_ride rides the ring only)
+        if (s->a.h >= 0) note_drive(s->a.h, s->a.p[ACID_DRV]);
     } else if (k == K_ATK) {
-        define_303(s);                               // soft attack = amp-env attack; set-and-hold, on change only
-    }                                                // ENV/DEC/ACC/SQL/ADEC/SLDT/TRK/SUB apply at next trigger
+        acid_define(&s->a);                                  // soft attack = amp-env attack; set-and-hold, on change only
+    }                                                        // ENV/DEC/ACC/SQL/ADEC/SLDT/TRK/SUB apply at next trigger
 }
 // STD button on P2: reset the DEEP page to no-ops → sounds exactly like a stock 303
 // with no Devil Fish at all (accent decays like a normal note, stock slide/attack, no
 // tracking/sub/sweep). Classic P1 knobs + the vanilla flag rows are left untouched.
 static void reset_deep(M303 *s) {
-    s->knob[K_ADEC] = s->knob[K_DEC];   // accent decays like a normal note (two-decay off)
-    s->knob[K_SLDT] = 0.14f;            // ≈60ms stock slide
-    s->knob[K_ATK]  = 0.05f;            // ≈2ms stock attack
-    s->knob[K_TRK]  = 0.0f;             // no filter tracking
-    s->knob[K_SUB]  = 0.0f;             // no sub voice
-    s->sweep = 0;                       // accent-sweep off
-    define_303(s);                      // re-apply the stock amp attack
-}
-static void off_303(M303 *s) {
-    if (s->h    >= 0) { note_off(s->h);    s->h    = -1; }
-    if (s->hsub >= 0) { note_off(s->hsub); s->hsub = -1; }
-    s->prev_slide = false;
+    s->a.p[ACID_ADEC] = s->a.p[ACID_DEC];   // accent decays like a normal note (two-decay off)
+    s->a.p[ACID_SLDT] = 0.14f;              // ≈60ms stock slide
+    s->a.p[ACID_ATK]  = 0.05f;              // ≈2ms stock attack
+    s->a.p[ACID_TRK]  = 0.0f;               // no filter tracking
+    s->a.p[ACID_SUB]  = 0.0f;               // no sub voice
+    s->a.sweep = 0;                         // accent-sweep off
+    acid_define(&s->a);                     // re-apply the stock amp attack
 }
 
 static int lnlen(const Line *ln) { return ln->len ? ln->len : STEPS; }   // per-line LENGTH (0 = full 16)
 
-// step trigger — the authentic circuit, from tb303.c: a slid step does NOT
-// retrigger (glide carries the pitch, the filter env keeps decaying); accent
-// is louder AND a harder env kick; non-slid gates drop at ~70% of the step.
-// DEEP page adds: separate ACCENT DECAY, variable SLIDE TIME, FILTER TRACKING,
-// the accent-SWEEP onset, and the octave-down SUB voice (all no-ops at default).
-// `st` is the line's OWN step (s16 % lnlen) — a short line drifts against the bar.
+// step trigger — reads the Line bitmask to build the note, then delegates the
+// whole voice circuit (slide/glide, two-decay, soft attack, tracking, sub-osc)
+// to acid303.h. `st` is the line's OWN step (s16 % lnlen) — a short line drifts.
 static void step_303(M303 *s, Line *ln, int st) {
     int b = 1 << st;
     if (ln->on & b) {
-        int  midi = BASE + ln->pitch[st] + ((ln->oct & b) ? 12 : (ln->octd & b) ? -12 : 0);
-        int  vol  = (ln->acc & b) ? 7 : 5;
-        bool acc  = (ln->acc & b) != 0;
-        if (s->h >= 0 && s->prev_slide) {
-            int g = slide_ms(s);                     // variable SLIDE TIME (was fixed 60)
-            note_glide(s->h, g);
-            note_pitch(s->h, (float)midi);
-            note_vol(s->h, vol);                     // env does NOT refire — authentic
-            if (s->hsub >= 0) { note_glide(s->hsub, g); note_pitch(s->hsub, (float)midi - 12); }
-        } else {
-            if (s->h    >= 0) note_off(s->h);
-            if (s->hsub >= 0) { note_off(s->hsub); s->hsub = -1; }
-            float e    = env_hz(s) * sq_mul(s) * (acc ? acc_mul(s) : 1.0f);
-            int   dec  = acc ? adec_ms(s) : dec_ms(s);         // separate ACCENT DECAY (the two-decay)
-            int   soft = atk_ms(s) - 2; if (soft < 0) soft = 0;// SOFT ATTACK also rounds the FILTER onset (0 at stock, ~28ms wide open)
-            int   atk  = acc ? sweep_atk(s) : 0;               // accent-SWEEP onset (0 = off/instant)
-            if (soft > atk) atk = soft;                        // whichever rounds more wins
-            if (s->knob[K_TRK] > 0.001f) {                     // FILTER TRACKING: higher notes open the cutoff
-                int cut = cut_hz(s) + (int)(s->knob[K_TRK] * (midi - BASE) * 170.0f);
-                if (cut < 30) cut = 30;                        // musical floor (engine ladder_core now also guards, but keep the tracked cutoff sane)
-                instrument_filter(s->slot, FILTER_DIODE, cut, res_q(s));
-            }
-            instrument_env(s->slot, 0, ENV_CUTOFF, atk, dec, e);
-            s->h = note_on(midi, s->slot, vol);
-            note_glide(s->h, 0);
-            float sl = sub_lvl(s);                             // SUB-OSC: an octave down, only when dialed in
-            if (sl > 0.001f) {
-                s->hsub = note_on(midi - 12, sub_slot(s), 0);
-                note_vol(s->hsub, vol * sl);                    // SUB level 0..1 (note_vol takes fractions)
-                note_glide(s->hsub, 0);
-            }
-        }
-        s->prev_slide = (ln->sld & b) != 0;
+        int midi   = BASE + ln->pitch[st] + ((ln->oct & b) ? 12 : (ln->octd & b) ? -12 : 0);
+        int accent = (ln->acc & b) != 0;
+        int slide  = (ln->sld & b) != 0;
+        acid_note(&s->a, midi, accent, slide);
     } else if (ln->tie & b) {
         // TIE: hold the previous note through this step (sustain, no retrigger,
         // no gate). A SLD flag on a tie step glides the held note into the NEXT.
-        s->prev_slide = (ln->sld & b) != 0;
+        acid_tie(&s->a, (ln->sld & b) != 0);
     } else {
-        off_303(s);
+        acid_off(&s->a);
     }
 }
 static void gate_303(M303 *s, Line *ln, int st) {   // staccato release mid-step
-    if (ln->tie & (1 << ((st + 1) % lnlen(ln)))) return;  // next step ties → let it ring on (sustain)
-    int b = 1 << st;
-    if (s->h >= 0 && (ln->on & b) && !(ln->sld & b)) {
-        float f = beat_pos() * 4.0f; f -= (int)f;
-        if (f > 0.7f) {
-            note_off(s->h); s->h = -1;
-            if (s->hsub >= 0) { note_off(s->hsub); s->hsub = -1; }
-        }
-    }
+    // acidrack's guards (preserved): only staccato a STRUCK, NON-slid step — a tie
+    // (on bit clear) or a slide (glides into the next) must ring on. acid_gate then
+    // owns the threshold + the cut. swing_onset = 0 → the old flat `frac > 0.7`.
+    int bb = 1 << st;
+    if (!((ln->on & bb) && !(ln->sld & bb))) return;
+    int   next_ties = (ln->tie & (1 << ((st + 1) % lnlen(ln)))) != 0;
+    float frac = beat_pos() * 4.0f; frac -= (int)frac;
+    acid_gate(&s->a, frac, 0.0f, next_ties);
 }
 
 // ── the drum machines — tr909.c / tr808.c recipes verbatim ───────────────
@@ -888,7 +824,7 @@ static void save_song(void) {
     memcpy(sb.send, send, sizeof send); memcpy(sb.rvsend, rvsend, sizeof rvsend); sb.dist9 = dist9; sb.dist8 = dist8; sb.d9rv = d9rv;
     memcpy(sb.kt9, kt9, sizeof kt9); memcpy(sb.kd9, kd9, sizeof kd9); memcpy(sb.kc9, kc9, sizeof kc9);
     memcpy(sb.kt8, kt8, sizeof kt8); memcpy(sb.kd8, kd8, sizeof kd8); memcpy(sb.kc8, kc8, sizeof kc8);
-    for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; sb.sweep[i] = m[i].sweep; sb.drvmode[i] = m[i].drvmode; }
+    for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].a.p, sizeof m[i].a.p); sb.wave[i] = m[i].a.wave; sb.sweep[i] = m[i].a.sweep; sb.drvmode[i] = m[i].a.drvmode; }
     sb.songmode = songmode;
     memcpy(sb.mute, mute, sizeof mute);
     save_bytes(&sb, sizeof sb);
@@ -906,7 +842,7 @@ static bool load_song(void) {
     memcpy(send, sb.send, sizeof send); memcpy(rvsend, sb.rvsend, sizeof rvsend); dist9 = sb.dist9; dist8 = sb.dist8; d9rv = sb.d9rv;
     memcpy(kt9, sb.kt9, sizeof kt9); memcpy(kd9, sb.kd9, sizeof kd9); memcpy(kc9, sb.kc9, sizeof kc9);
     memcpy(kt8, sb.kt8, sizeof kt8); memcpy(kd8, sb.kd8, sizeof kd8); memcpy(kc8, sb.kc8, sizeof kc8);
-    for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; m[i].sweep = sb.sweep[i]; m[i].drvmode = sb.drvmode[i]; }
+    for (int i = 0; i < 2; i++) { memcpy(m[i].a.p, sb.knob[i], sizeof m[i].a.p); m[i].a.wave = sb.wave[i]; m[i].a.sweep = sb.sweep[i]; m[i].a.drvmode = sb.drvmode[i]; }
     songmode = sb.songmode;
     memcpy(mute, sb.mute, sizeof sb.mute);
     return true;
@@ -916,6 +852,20 @@ static bool load_song(void) {
 void init(void) {
     for (int v = 0; v < N909; v++) kt9[v] = kd9[v] = kc9[v] = 0.5f;
     for (int v = 0; v < N808; v++) kt8[v] = kd8[v] = kc8[v] = 0.5f;
+    // set up the two shared 303 voices with acidrack's stock defaults. acid_init
+    // seeds slot/subslot + the header's own default params + a 0.10 echo send; we
+    // ZERO both sends (acidrack manages per-machine echo/reverb sends itself in
+    // apply_fx — the voice must NOT also bake one) and stamp our per-machine wave
+    // + params + base. Must run BEFORE load_song/gen_song (they write a.p / a.wave).
+    acid_init(&m[0].a, SLOT_A, SLOT_SUB_A);
+    acid_init(&m[1].a, SLOT_B, SLOT_SUB_B);
+    for (int i = 0; i < 2; i++) {
+        m[i].a.echo_send = 0.0f; m[i].a.rev_send = 0.0f;
+        m[i].a.base = BASE;
+        for (int k = 0; k < NK; k++) m[i].a.p[k] = M303_DEF[i][k];
+    }
+    m[0].a.wave = INSTR_SAW;
+    m[1].a.wave = INSTR_SQUARE;
     if (!load_song()) gen_song(DEFAULT_SEED);   // first boot: a generated song
     define_303(&m[0]);
     define_303(&m[1]);
@@ -1060,8 +1010,8 @@ static void gen_song(unsigned seed) {
     memset(bank, 0, sizeof bank);
     // 1. global choices (fixed draw order — changing it orphans noted codes)
     tempo = 124 + rad_srnd(&rs, 17);
-    m[0].wave = schance(70) ? INSTR_SAW : INSTR_SQUARE;
-    m[1].wave = schance(45) ? INSTR_SAW : INSTR_SQUARE;
+    m[0].a.wave = schance(70) ? INSTR_SAW : INSTR_SQUARE;
+    m[1].a.wave = schance(45) ? INSTR_SAW : INSTR_SQUARE;
     swing = schance(25) ? 54 : 50;
     swingf = (swing - 50) / 16.0f;
     // 2. the two master lines: A carries the song, B answers sparser
@@ -1224,7 +1174,7 @@ static void own_drop(int id)  { for (int i = 0; i < own_n; i++)  if (own_ids[i] 
 static void seen_drop(int id) { for (int i = 0; i < seen_n; i++) if (seen_ids[i] == id) { seen_ids[i] = seen_ids[--seen_n]; return; } }
 
 // ── update ────────────────────────────────────────────────────────────────
-static void stop_all(void) { off_303(&m[0]); off_303(&m[1]); }
+static void stop_all(void) { acid_off(&m[0].a); acid_off(&m[1].a); }
 
 void update(void) {
     // keys
@@ -1542,7 +1492,7 @@ void update(void) {
         if (eff != last_st303[i]) {
             last_st303[i] = eff;
             lpos[i] = eff % lnlen(&P303->ln[i]);        // the line's OWN step (short len → polymeter drift)
-            if (!mute[strip]) step_303(&m[i], &P303->ln[i], lpos[i]); else off_303(&m[i]);
+            if (!mute[strip]) step_303(&m[i], &P303->ln[i], lpos[i]); else acid_off(&m[i].a);
         } else {
             gate_303(&m[i], &P303->ln[i], lpos[i]);     // staccato release mid-step
         }
@@ -1584,7 +1534,7 @@ static void draw_header(int i, int y) {
     if      (i == STRIP_909) { for (int d = 0; d < N909; d++) if (flash909[d] > 0) lit = true; }
     else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (flash808[d] > 0) lit = true; }
     else if (i == STRIP_MST) lit = pcf_on || fxk[F_GLU] > 0.02f;
-    else lit = (m[i].h >= 0);
+    else lit = (m[i].a.h >= 0);
     circfill(led_x, y + h / 2, 2, lit && !mute[i] ? CLR_GREEN : CLR_DARKER_GREY);
 
     // fx/seq toggle — OPEN machine strip only, tucked before the mini-pattern
@@ -1663,20 +1613,20 @@ static void draw_303_panel(int i, int y0) {
     for (int j = 0; j < npg; j++) {
         int k = pg[j];
         int cx = 26 + (j % cols) * kp, cy = y0 + 12 + (j / cols) * 22;
-        if (ui_knob(&s->knob[k], cx, cy, "")) { knob_changed_303(s, k); mark_dirty(); }
+        if (ui_knob(&s->a.p[k], cx, cy, "")) { knob_changed_303(s, k); mark_dirty(); }
         print_rot(KNAME[k], cx - 12, cy, 270.0f, CLR_MEDIUM_GREY, 1);   // vertical tiny label, left of the knob
     }
     font(FONT_NORMAL);
     // top-right controls (above the roll): [wave] [page]  + [STD reset][accent-sweep] on P2
-    if (ui_button(W() - 32, y0 + 4, 28, 16, s->wave == INSTR_SAW ? "SAW" : "SQR")) {
-        s->wave = (s->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
+    if (ui_button(W() - 32, y0 + 4, 28, 16, s->a.wave == INSTR_SAW ? "SAW" : "SQR")) {
+        s->a.wave = (s->a.wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
         define_303(s); mark_dirty();
     }
     if (ui_button(W() - 60, y0 + 4, 24, 16, kpage[i] ? "P2" : "P1")) { kpage[i] = !kpage[i]; mark_dirty(); }
     if (kpage[i]) {
         if (ui_button(W() - 86, y0 + 4, 24, 16, "STD")) { reset_deep(s); mark_dirty(); }   // reset DEEP → stock 303 (no Devil Fish)
         static const char *SWL[4] = { "SW:off", "SW:slo", "SW:med", "SW:fst" };            // accent-sweep onset (Devil Fish: 3 speeds + off)
-        if (ui_button(W() - 134, y0 + 4, 44, 16, SWL[s->sweep & 3])) { s->sweep = (s->sweep + 1) & 3; mark_dirty(); }
+        if (ui_button(W() - 134, y0 + 4, 44, 16, SWL[s->a.sweep & 3])) { s->a.sweep = (s->a.sweep + 1) & 3; mark_dirty(); }
     }
 }
 
@@ -1747,15 +1697,15 @@ static void draw_909_panel(int y0) {
 static void draw_303_fx(int i, int y0) {
     M303 *s = &m[i];
     rectfill(2, y0, W() - 4, panel_h() - 2, CLR_BLACK);
-    if (ui_knob(&s->knob[K_DRV], 26, y0 + 12, "DIST")) { knob_changed_303(s, K_DRV); mark_dirty(); }
+    if (ui_knob(&s->a.p[K_DRV], 26, y0 + 12, "DIST")) { knob_changed_303(s, K_DRV); mark_dirty(); }
     if (ui_knob(&send[i], 64, y0 + 12, "SEND")) mark_dirty();
     if (ui_knob(&rvsend[i], 102, y0 + 12, "VERB")) mark_dirty();
     // drive waveshaper mode — cycles SOFT→HARD→FOLD→ASYM (mirrors the SAW/SQR toggle)
     static const char *DRVMODE[4] = { "SOFT", "HARD", "FOLD", "ASYM" };
-    if (ui_button(140, y0 + 10, 46, 20, DRVMODE[s->drvmode & 3])) {
-        s->drvmode = (s->drvmode + 1) & 3;
-        instrument_drive_mode(s->slot, s->drvmode);
-        if (s->h >= 0) note_drive_mode(s->h, s->drvmode);
+    if (ui_button(140, y0 + 10, 46, 20, DRVMODE[s->a.drvmode & 3])) {
+        s->a.drvmode = (s->a.drvmode + 1) & 3;
+        instrument_drive_mode(s->a.slot, s->a.drvmode);
+        if (s->a.h >= 0) note_drive_mode(s->a.h, s->a.drvmode);
         mark_dirty();
     }
     font(FONT_SMALL);

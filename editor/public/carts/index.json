@@ -2180,6 +2180,17 @@
     "lineage": "The portrait sibling of crowd.c / deeper's gene-rolled bodies, aimed at the face: a role-biased gene roll (skin/hair/facial-hair/accessory-bitmask) drawn entirely from primitives, wired into a Leisure-Suit-Larry-style talking conversation box (dialogue.c's primitive face) but with the PERSON procedurally generated instead of scripted — the reusable NPC-portrait system for the GTA-style city."
   },
   {
+    "title": "faders",
+    "description": "The linear-control family from the control vocabulary, across three skins: a bank of vertical mixer faders (each with an LED reading its level), a horizontal fader, a centre-detented crossfader, a spring-return touch ribbon, and an XY pad. The sixth control-vocabulary study cart, the linear twin of rotaries. Row 1 FADERS: six vertical mixer faders — a recessed groove, a chunky grip cap, a coloured level fill, and an LED above that goes green->amber->red with the value (the icon's fader detail). Row 2 HORIZONTAL + CROSSFADER: a plain horizontal fader (fills from the left, unipolar) beside a crossfader (centre-detented, fills OUT from the middle, bipolar). Row 3 RIBBON + XY: a touch ribbon (absolute finger position, springs back to centre on release) and an XY pad (two values at once, a dot you drag on a crosshair field). Every finger is its own pointer (ui.h capture); wheel fine-tunes a hovered fader. Three skins: TACTILE (beveled caps, recessed grooves), FLAT, PURE (hairline tracks + a filled level bar, the native register). SKIN button or B. Drag any fader/cap; tap the track to jump there (absolute). Two fingers = two faders. Wheel fine-tunes the hovered one. The ribbon springs back to centre when you let go. Drag the XY dot. SKIN button (top-right) or B cycles TACTILE / FLAT / PURE.",
+    "file": "faders.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "Lil Farm",
     "description": "A pocket Harvest-Moon day loop on one screen: walk your little plot, swap between hoe, seed pouch and watering can, and work the soil — till grass into furrows, plant a seed, splash it wet. Watered crops climb a growth stage every morning you sleep, ripening into bobbing red harvests you scoop into your bag, haul to the sell bin for gold, and spend on fresh seeds at the shop. An energy bar drains with every swing and a sun arcs across a sky that warms from peach dawn to dusk purple; sleep in the bed to bank your growth and roll to the next day, or run the clock out and pass out cold. WASD/arrows walk, 1/2/3 pick hoe/seed/can, Z use tool or interact (bed sleep, bin sell, shop buy), X sleep-or-sell, C buy a seed.",
     "file": "farm.cart.png",

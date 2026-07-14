@@ -72,9 +72,44 @@ static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
 static int   d9sel = TR9_BD;
 static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
 
+// the MST master/mix face
+static float mglu = 0.30f, mflt = 0.5f, mfres = 0.35f, mfb = 0.35f, mpump = 0.0f;
+static int   mdiv = 2;                                      // delay div: 0=1/16 1=1/8 2=dotted 3=1/4
+static float msend[4] = { 0.10f, 0.10f, 0.0f, 0.0f };      // per-machine delay send: 303a 303b 808 909
+
 // transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
 static float mbop = 0;
+
+// re-apply the master effects, set-and-hold — reconfigure ONLY on change (the
+// fx-frame rule); the live FLT is ride-safe so it runs every frame. Voicings
+// copied from acidrack's apply_fx so the master matches the mature rack.
+static void apply_fx(void) {
+    static float aFb = -1, aS[4] = { -1, -1, -1, -1 }, aComp = -1;
+    static int   aDiv = -1, aMode = -2;
+    if (mfb != aFb || mdiv != aDiv) {                       // the shared delay unit
+        static const float DIV[4] = { 0.25f, 0.5f, 0.75f, 1.0f };   // 1/16 · 1/8 · dotted · 1/4
+        echo((int)(60000.0f / 132 * DIV[mdiv]), mfb * 0.72f, 0.45f);
+        aFb = mfb; aDiv = mdiv;
+    }
+    if (msend[0] != aS[0]) { instrument_echo(6, msend[0] * 0.6f); aS[0] = msend[0]; }   // 303a = slot 6
+    if (msend[1] != aS[1]) { instrument_echo(7, msend[1] * 0.6f); aS[1] = msend[1]; }   // 303b = slot 7
+    if (msend[2] != aS[2]) { for (int i = 0; i < TR808_NSLOT; i++) instrument_echo(TR808_BASE + i, msend[2] * 0.6f); aS[2] = msend[2]; }
+    if (msend[3] != aS[3]) { for (int i = 0; i < TR909_NSLOT; i++) instrument_echo(D909_BASE + i, msend[3] * 0.6f); aS[3] = msend[3]; }
+    // live DJ filter — bipolar: 0.5 open, LEFT closes a lowpass, RIGHT opens a highpass
+    float res = 0.15f + 0.75f * mfres;
+    if      (mflt < 0.48f) filter(FILTER_LOW,  18000.0f * powf(150.0f / 18000.0f, (0.48f - mflt) / 0.48f), res);
+    else if (mflt > 0.52f) filter(FILTER_HIGH, 20.0f    * powf(6000.0f / 20.0f,   (mflt - 0.52f) / 0.48f), res);
+    else                   filter(FILTER_OFF, 1000.0f, 0.0f);
+    // GLU / PUMP share the master gain stage → mutually exclusive (PUMP wins)
+    int   pumping = mpump > 0.02f, mode = pumping ? 1 : 0;
+    float arg = pumping ? mpump : mglu;
+    if (mode != aMode || arg != aComp) {
+        if (pumping) sidechain(0, 0, mpump, 1, 140);
+        else         glue(0, mglu < 0.02f ? 0.0f : mglu * 0.55f, 8, 150);
+        aMode = mode; aComp = arg;
+    }
+}
 
 static void gen_line(int i) {
     static const int pool[8] = { 0, 0, 0, 3, 5, 7, 10, 12 };
@@ -390,15 +425,52 @@ static void draw_909(void) {
     }
 }
 
-// ── placeholder faces (drum kits + master) — styled, pending their builds ─────
-static void placeholder(int m) {
-    rrectfill(6, 20, 148, 71, 4, CLR_BROWNISH_BLACK);
-    rrectfill(9, 23, 142, 65, 3, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 24; y < 87; y += 2) line(9, y, 150, y, CLR_BROWNISH_BLACK); blend_reset();
-    const char *sub = mac[m].kind == MK_DRUM ? "DRUM FACE" : "MIX / MASTER";
-    font(FONT_NORMAL); plabel(mac[m].name, 80, 42, mac[m].col);
-    font(FONT_SMALL); plabel(sub, 80, 58, CLR_MEDIUM_GREEN);
-    font(FONT_TINY);  plabel("coming soon", 80, 70, CLR_DARK_GREEN);
+// ── the MST master / mixer face — its own shape (not a voice): master FX +
+// a per-machine mix overview + the shared delay. Green identity.
+static int machine_active(int m) {
+    if (!playing) return 0;
+    if (m == M_303A) return on[0][step];
+    if (m == M_303B) return on[1][step];
+    if (m == M_808) { for (int v = 0; v < TR_NV; v++)  if (dgrid[v][step])  return 1; return 0; }
+    if (m == M_909) { for (int v = 0; v < TR9_NV; v++) if (d9grid[v][step]) return 1; return 0; }
+    return 0;
+}
+static void draw_mst(void) {
+    static const char *MLAB[4] = { "303a", "303b", "808", "909" };
+    static const char *DL[4]   = { "1/16", "1/8", "DOT", "1/4" };
+
+    // ② master live knobs
+    knob(&mglu,  20, 27, 6, "GLU",  0.30f);
+    knob(&mflt,  48, 27, 6, "FLT",  0.50f);
+    knob(&mfres, 76, 27, 6, "RES",  0.35f);
+    knob(&mfb,  104, 27, 6, "FB",   0.35f);
+    knob(&mpump, 132, 27, 6, "PUMP", 0.0f);
+
+    // ③ MIX screen — the four machine channels: name · activity meter · mute
+    chip(6, 38, "MIX", 1); chip(6, 47, "DLY", 0); chip(138, 38, "SNG", 0); chip(138, 47, "SCP", 0);
+    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
+    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    font(FONT_TINY);
+    for (int m = 0; m < 4; m++) {
+        int y = 41 + m * 4, muted = mac[m].mute, act = machine_active(m);
+        print(MLAB[m], 30, y, muted ? CLR_DARKER_GREY : mac[m].col);
+        int bw = muted ? 3 : act ? 78 : 30;
+        rectfill(52, y, bw, 2, muted ? CLR_DARKER_GREY : act ? CLR_LIME_GREEN : mac[m].col);
+        if (muted) print("M", 124, y, CLR_RED);
+    }
+
+    // ④ delay TIME selector
+    print("DELAY", 6, 66, CLR_DARK_BROWN);
+    for (int i = 0; i < 4; i++)
+        if (cbtn(0x04u + i, 34 + i * 24, 64, 22, 9, DL[i], mdiv == i)) mdiv = i;
+
+    // ⑤ per-machine delay SEND
+    print("SEND", 6, 79, CLR_DARK_BROWN);
+    knob(&msend[0], 36, 84, 5, MLAB[0], 0.10f);
+    knob(&msend[1], 72, 84, 5, MLAB[1], 0.10f);
+    knob(&msend[2], 108, 84, 5, MLAB[2], 0.0f);
+    knob(&msend[3], 144, 84, 5, MLAB[3], 0.0f);
 }
 
 void init(void) {
@@ -419,10 +491,14 @@ void init(void) {
     tr909_metal(D909_BASE, m9cut, m9res);
     for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = 0.5f; }
     gen_drums9();
+    sidechain_key(TR808_BASE + TRS_BD, 0, 1);              // both kicks drive the PUMP
+    sidechain_key(D909_BASE + TR9S_BD, 0, 1);
+    apply_fx();                                            // engage the default master glue
 }
 
 void update(void) {
     if (mbop > 0) mbop -= 0.08f;
+    apply_fx();                                                        // master FX (glue/filter/delay/pump)
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     if (playing) {
         float stepf = now() * (132 / 60.0f * 4);                       // 16th notes at 132 bpm
@@ -458,7 +534,7 @@ void draw(void) {
     if (mac[face].kind == MK_303) draw_303(face);
     else if (face == M_808)       draw_808();
     else if (face == M_909)       draw_909();
-    else                          placeholder(face);
+    else                          draw_mst();   // M_MST
 
     font(FONT_NORMAL);
     ui_end();

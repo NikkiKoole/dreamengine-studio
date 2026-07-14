@@ -559,13 +559,15 @@ static void draw_roll(void){
     int rows = vis_rows();
     for (int r = 0; r < rows; r++){
         int m = view_lo + r, y = y_of_pitch(m);
-        int bg;
-        if (scalelock) bg = in_scale(m) ? CLR_DARKER_GREY : CLR_BLACK;      // in-key lanes lifted
-        else           bg = is_black(m) ? CLR_BLACK : CLR_DARKER_GREY;      // piano striping
-        rectfill(ROLL_X, y, ROLL_W, ROWH, bg);
         int pc = (((m - scale_root) % 12) + 12) % 12;
-        bool rootrow = scalelock ? (pc == 0) : (m % 12 == 0);
-        if (rootrow) line(ROLL_X, y + ROWH - 1, SCREEN_W, y + ROWH - 1, CLR_DARK_GREY);
+        int bg;
+        if (scalelock)                                                     // off-key lanes vanish into black;
+            bg = !in_scale(m) ? CLR_BLACK                                   // root lane lit brighter to orient
+               : (pc == 0 ? CLR_MEDIUM_GREY : CLR_DARK_GREY);
+        else bg = is_black(m) ? CLR_BLACK : CLR_DARKER_GREY;               // normal piano striping
+        rectfill(ROLL_X, y, ROLL_W, ROWH, bg);
+        if (!scalelock && m % 12 == 0)                                      // C line (only in chromatic mode)
+            line(ROLL_X, y + ROWH - 1, SCREEN_W, y + ROWH - 1, CLR_DARK_GREY);
     }
     for (float b = ceilf(view_b0); b < view_b0 + vis_beats(); b += 1){
         int x = x_of_beat(b);
@@ -605,7 +607,7 @@ static void draw_piano_col(void){
         bool held = keybed_held(m);
         int col;
         if (held)           col = CLR_YELLOW;
-        else if (scalelock) col = in_scale(m) ? CLR_LIGHT_GREY : CLR_DARK_GREY;
+        else if (scalelock) col = in_scale(m) ? CLR_LIGHT_GREY : CLR_BLACK;    // off-key keys hidden
         else                col = is_black(m) ? CLR_DARK_GREY : CLR_LIGHT_GREY;
         rectfill(0, y, PIANO_W - 1, ROWH, col);
         if (m % 12 == 0){

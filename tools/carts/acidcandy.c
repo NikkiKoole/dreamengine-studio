@@ -113,6 +113,8 @@ static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filt
 static float mglu = 0.30f, mflt = 0.5f, mfres = 0.35f, mfb = 0.35f, mpump = 0.0f;
 static int   mdiv = 2;                                      // delay div: 0=1/16 1=1/8 2=dotted 3=1/4
 static float msend[4] = { 0.10f, 0.10f, 0.0f, 0.0f };      // per-machine delay send: 303a 303b 808 909
+static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
+static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = the PCF lane
 
 // transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
@@ -133,11 +135,21 @@ static void apply_fx(void) {
     if (msend[1] != aS[1]) { instrument_echo(7, msend[1] * 0.6f); aS[1] = msend[1]; }   // 303b = slot 7
     if (msend[2] != aS[2]) { for (int i = 0; i < TR808_NSLOT; i++) instrument_echo(TR808_BASE + i, msend[2] * 0.6f); aS[2] = msend[2]; }
     if (msend[3] != aS[3]) { for (int i = 0; i < TR909_NSLOT; i++) instrument_echo(D909_BASE + i, msend[3] * 0.6f); aS[3] = msend[3]; }
-    // live DJ filter — bipolar: 0.5 open, LEFT closes a lowpass, RIGHT opens a highpass
+    // master FILTER — the live DJ filter (FLT, bipolar) composed with the drawn PCF
+    // lane (a lowpass automated per step). A live HP takes over; otherwise the MORE
+    // CLOSED lowpass (hand vs drawn) wins. filter() is ride-safe (every frame).
     float res = 0.15f + 0.75f * mfres;
-    if      (mflt < 0.48f) filter(FILTER_LOW,  18000.0f * powf(150.0f / 18000.0f, (0.48f - mflt) / 0.48f), res);
-    else if (mflt > 0.52f) filter(FILTER_HIGH, 20.0f    * powf(6000.0f / 20.0f,   (mflt - 0.52f) / 0.48f), res);
-    else                   filter(FILTER_OFF, 1000.0f, 0.0f);
+    if (mflt > 0.52f) {
+        filter(FILTER_HIGH, 20.0f * powf(6000.0f / 20.0f, (mflt - 0.52f) / 0.48f), res);
+    } else {
+        float cut = 1e9f;                                   // 1e9 = "open" (no lowpass)
+        if (mflt < 0.48f) cut = 18000.0f * powf(150.0f / 18000.0f, (0.48f - mflt) / 0.48f);   // FLT lowpass
+        int pcf_active = 0;
+        for (int s = 0; s < STEPS; s++) if (mpcf[s] < 7) { pcf_active = 1; break; }
+        if (pcf_active) { float pc = 250.0f * powf(2.0f, mpcf[step] / 7.0f * 5.2f); if (pc < cut) cut = pc; }
+        if (cut < 1e9f) filter(FILTER_LOW, cut, res);
+        else            filter(FILTER_OFF, 1000.0f, 0.0f);
+    }
     // GLU / PUMP share the master gain stage → mutually exclusive (PUMP wins)
     int   pumping = mpump > 0.02f, mode = pumping ? 1 : 0;
     float arg = pumping ? mpump : mglu;
@@ -563,18 +575,39 @@ static void draw_mst(void) {
     knob(&mfb,  104, 27, 6, "FB",   0.35f);
     knob(&mpump, 132, 27, 6, "PUMP", 0.0f);
 
-    // ③ MIX screen — the four machine channels: name · activity meter · mute
-    chip(6, 38, "MIX", 1); chip(6, 47, "DLY", 0); chip(138, 38, "SNG", 0); chip(138, 47, "SCP", 0);
+    // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
+    if (cbtn(0x20u, 6, 38, 16, 8, "MIX", !mstflow)) mstflow = 0;
+    if (cbtn(0x21u, 6, 47, 16, 8, "PCF",  mstflow)) mstflow = 1;
+    chip(138, 38, "SNG", 0); chip(138, 47, "SCP", 0);
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
     font(FONT_TINY);
-    for (int m = 0; m < 4; m++) {
-        int y = 41 + m * 4, muted = mac[m].mute, act = machine_active(m);
-        print(MLAB[m], 30, y, muted ? CLR_DARKER_GREY : mac[m].col);
-        int bw = muted ? 3 : act ? 78 : 30;
-        rectfill(52, y, bw, 2, muted ? CLR_DARKER_GREY : act ? CLR_LIME_GREEN : mac[m].col);
-        if (muted) print("M", 124, y, CLR_RED);
+    if (mstflow == 0) {
+        for (int m = 0; m < 4; m++) {                        // the four channel meters
+            int y = 41 + m * 4, muted = mac[m].mute, act = machine_active(m);
+            print(MLAB[m], 30, y, muted ? CLR_DARKER_GREY : mac[m].col);
+            int bw = muted ? 3 : act ? 78 : 30;
+            rectfill(52, y, bw, 2, muted ? CLR_DARKER_GREY : act ? CLR_LIME_GREEN : mac[m].col);
+            if (muted) print("M", 124, y, CLR_RED);
+        }
+    } else {
+        // PCF — a DRAWABLE filter lane: drag to shape the master cutoff across the 16 steps
+        int lx0 = 30, lw = 6, ly = 40, lh = 17;
+        for (int s = 0; s < STEPS; s++) {
+            int cx = lx0 + s * lw;
+            void *w = ui_wid_hash(0xC0u + s, cx, ly, lw, lh);
+            ui_reg(w, cx, ly, lw, lh, 0);
+            UiCap *c = ui_cap_for(w);
+            if (c) {                                         // the captured cell tracks the finger → draw the curve
+                int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
+                int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
+                mpcf[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
+            }
+            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw - 1, lh, CLR_MEDIUM_GREEN); blend_reset(); }
+            int fh = lh * mpcf[s] / 7;
+            rectfill(cx, ly + lh - fh, lw - 1, fh, mpcf[s] < 7 ? CLR_LIME_GREEN : CLR_DARK_GREEN);
+        }
     }
 
     // ④ delay TIME selector
@@ -608,6 +641,7 @@ void init(void) {
     tr909_metal(D909_BASE, m9cut, m9res);
     for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = 0.5f; }
     gen_drums9();
+    for (int s = 0; s < STEPS; s++) mpcf[s] = 7;           // PCF lane starts fully open (no effect)
     sidechain_key(TR808_BASE + TRS_BD, 0, 1);              // both kicks drive the PUMP
     sidechain_key(D909_BASE + TR9S_BD, 0, 1);
     apply_fx();                                            // engage the default master glue

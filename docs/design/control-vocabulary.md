@@ -60,7 +60,7 @@ Two orthogonal flavours cut across the continuous ones:
 | **LED-ring encoder** | relative + a ring readout | MIDI Fighter Twister, NI Maschine, Novation | a **halo of light IS the value** (§4) — the premium one |
 | **Push-encoder** | turn **and** click | synth data wheels, car dials | turn = value, push = enter/toggle — "a knob that's also a button" |
 | **Rotary selector / switch** | discrete, N labelled | guitar pickup selector, osc-range switch | detented, labels around it, snaps between positions |
-| **Jog wheel / data wheel** | relative, free-spin, weighted | Pioneer CDJ, tape scrub | a big thumb wheel — scrub / nudge |
+| **Jog / spinner wheel** (browse/data wheel) | relative, unbounded, **weighted** | Pioneer CDJ, DJ browse, tape scrub, steering-wheel spinner | bigger; often a **finger dimple** you spin repeatedly; **momentum + acceleration** (fast spin = big jumps) to fly through a long list |
 | **Motorized** (behaviour, not a type) | recalls on preset change | SSL faders | *animates to* the value on load — a gift we get for free |
 
 ### ⇅ SLIDE — the linear family
@@ -153,6 +153,27 @@ lighting), `ovalfill`, `fillp` (dither shadows), `BLEND_AVG`/`BLEND_SUB` (soft/c
 engine primitive is needed — this is composition and taste. Palette is the pico32 32-colour set
 (British greys: `CLR_*_GREY`, never `GRAY`; lavender = `CLR_INDIGO`).
 
+**Pixel-alignment discipline (the recurring bevel trap — learned building `rotaries`).** `circ`/
+`circfill` and `arc`/`arcfill`/`ring` all rasterize off the *identical* pixel-centre metric
+(`x + 0.5 − cx`, `d² ≤ r²` — see `studio.c` `disc_inside` / `sector_inside`), so a fill and a stroke
+line up **pixel-exact** — but only under two rules, and breaking either makes the rim, the fill and the
+sheen "drift" by a pixel:
+
+1. **Stay concentric.** Every piece that touches an edge shares one centre `(cx,cy)`. Do NOT offset a
+   face circle to fake a dome — the offset piece no longer sits under the rim. (Want a dome? use a soft
+   highlight blob kept fully *inside* `r−3`, so it never reaches the rim and its offset can't mismatch.)
+2. **One stroke family.** Don't rim with `circ` (its rim = "an inside pixel with an outside neighbour")
+   and then sheen with `arc` (an annulus band) — two different definitions of "the 1px ring." Pick the
+   arc/ring family for every stroke: flat `circfill` face → `ring` sheen one pixel inside the rim →
+   `arc` rim on top. The engine documents the blessed pattern at `studio.c:4508` — *"draw the fill,
+   then arc() on top, no gap."* The result is edge-lit (bright top rim, dark bottom rim), which reads
+   as a beveled cap without any offset.
+
+**Moving parts move.** A control's *texture* rotates/slides with the control, not just its indicator:
+an endless encoder's knurl grip must spin with the turn (it's the ONLY turn feedback — there's no
+pointer), a fader cap's grip line rides with the cap. Cheap, and it's half of what makes a control feel
+physical.
+
 ## 7 · Naming (what we call things in code)
 
 Lead with the value model, not the shape, so the name says what it *does*:
@@ -181,6 +202,43 @@ device-face zones that pull from it:
 4. **`faders`** — vertical + horizontal + crossfader + ribbon (+ maybe XY). → zones 2 & 3.
 5. **`indicators`** — LED · VU bargraph · 7-seg readout · the LCD/screen bezel. → zones 1 & 3.
 6. **`keys`** (later) — the keybed. → zone 5.
+
+## 9 · Beyond hardware — the live/software layer (parked)
+
+The whole [device-face thesis](device-face-paradigm.md) is *"the aesthetic is a gift, the limitations
+are baggage — take only the gift."* §1–8 above take the **look** (bevel, socket, knurl). This section
+parks the other half: the **behaviours** a software rotary can have that a physical one can't. They're
+parked because [`rotaries`](../../tools/carts/rotaries.c) is a *look/anatomy* study (static forms), and
+these are about **behaviour over time** — they want a live modulation source + interaction to show off.
+Home = a future **`liveknobs`** behaviour study (not yet built).
+
+**The unlock:** a physical knob *fuses* two things — where your hand set it, and what the value actually
+is (the cap position IS the value; it can be in only one place). Almost every superpower comes from
+**separating those two.**
+
+- **① See what hardware must hide (the value has its own life)**
+  - **Modulation halo** — the killer one. The cap shows your *base* setting; a second live mark sweeps
+    the ring showing the *actual modulated* value as an LFO/envelope moves it. You watch the filter
+    breathe while the knob sits still — impossible for a physical cap, and pure emergent-behaviour grain.
+  - **Ghost default** — a faint tick at the default/preset, always visible, so "home" is never lost.
+  - **Automation trail** — the ring remembers where it's been; recorded automation drawn on it.
+- **② Move in ways a shaft can't** — **teleport** (tap the ring → jump; a pot must sweep) · **double-tap →
+  snap to default** · **momentum** (flick an endless spinner, it coasts and settles — see the jog-wheel
+  entry in §3) · **spring-return OR hold, same widget** (pitch-bend springs, cutoff holds) · **remappable
+  travel** (log/coarse/wrapping, changeable live).
+- **③ One knob, many jobs** — **contextual retarget** (the same knob edits the patch / a held step / a mod
+  depth, the ring re-skinning to say which — the device-face p-lock, generalized; hardware needs a shift +
+  memory, ours *shows* the mode) · **gang/macro** (one knob drives several with locked offsets).
+- **④ Show what it DOES, not a number** — **value-reactive skin** (colour cold→hot, glow with the audio it
+  controls, pulse at an extreme) · **the ring IS the parameter's curve** (a cutoff knob's halo previews the
+  filter response; an attack knob's ring is the envelope) · **self-labeling** (name always; exact value +
+  unit only while touched — no silkscreen budget).
+- **⑤ Safety hardware can't give** — grab to preview, commit on release, drag off to abandon; per-control
+  undo. `ui.h` already surfaces `ui_grabbed`/`ui_released` — the hook points exist.
+
+**Shortlist to build first** (most "impossible in hardware" × most useful for our instruments): the
+**modulation halo**, **ghost-default + tap-to-teleport + double-tap-reset**, and **value-reactive glow**.
+The halo alone justifies the idea.
 
 ## Related
 

@@ -20,6 +20,7 @@ de:meta */
 #include "box2d/box2d.h"      // opt-in: links runtime/box2d (built on demand by make-cart/play)
 #include <math.h>
 #include <stdio.h>
+#include <stdint.h>
 
 // TUMBLE — a rigid-body slingshot on real Box2D v3.
 //   Box2D is METRES, y-UP, gravity -y; studio.h is PIXELS, y-DOWN. SX/SY/WX/WY
@@ -43,6 +44,11 @@ de:meta */
 #define POWER   3.0f           // pull-back -> launch speed
 #define MAXV    34.0f          // launch speed clamp (m/s) — headroom for a big wind-up
 
+// body userData tags, so a hit event can tell what struck what
+enum { T_GROUND = 1, T_CRATE = 2, T_BALL = 3 };
+#define SL_WOOD  8             // INSTR_MEMBRANE — ball thud + crate clack (pitch tells them apart)
+#define SL_TWANG 9             // INSTR_PLUCK — the slingshot release twang
+
 static b2WorldId world;
 static b2BodyId  crate[NCRATE];
 static b2Vec2    crate0[NCRATE];   // start pose, for the TOPPLED test
@@ -55,12 +61,14 @@ static b2BodyId make_crate(float x, float y) {
     b2BodyDef bd = b2DefaultBodyDef();
     bd.type = b2_dynamicBody;
     bd.position = (b2Vec2){x, y};
+    bd.userData = (void*)(intptr_t)T_CRATE;
     b2BodyId id = b2CreateBody(world, &bd);
     b2Polygon box = b2MakeBox(CH, CH);                  // sharp: collision hull == the drawn quad (no skin-radius aura)
     b2ShapeDef sd = b2DefaultShapeDef();
     sd.density = 1.0f;
     sd.material.friction = 0.6f;
     sd.material.restitution = 0.0f;
+    sd.enableHitEvents = true;                          // -> impact sounds
     b2CreatePolygonShape(id, &sd, &box);
     return id;
 }
@@ -75,12 +83,14 @@ static void spawn_ball(float x, float y, float vx, float vy) {
     bd.type = b2_dynamicBody;
     bd.position = (b2Vec2){x, y};
     bd.linearVelocity = (b2Vec2){vx, vy};
+    bd.userData = (void*)(intptr_t)T_BALL;
     b2BodyId id = b2CreateBody(world, &bd);
     b2Circle c = {{0.0f, 0.0f}, BR};
     b2ShapeDef sd = b2DefaultShapeDef();
     sd.density = 5.0f;                           // heavy — it bowls crates over
     sd.material.friction = 0.4f;
     sd.material.restitution = 0.15f;
+    sd.enableHitEvents = true;                   // -> impact sounds
     b2CreateCircleShape(id, &sd, &c);
     ball[nball++] = id;
 }
@@ -110,11 +120,22 @@ static void reset_world(void) {
     nball = 0;
     aiming = false;
 
+    b2World_SetHitEventThreshold(world, 1.5f);  // only real impacts sound; settling ticks stay quiet
+
+    static int audio_ready = 0;                 // one-time SFX slot setup
+    if (!audio_ready) {
+        instrument(SL_WOOD,  INSTR_MEMBRANE, 1, 0, 7, 200);   // struck drumhead -> thud/clack
+        instrument(SL_TWANG, INSTR_PLUCK,    1, 0, 5, 160);   // rubber-band twang
+        audio_ready = 1;
+    }
+
     b2BodyDef gd = b2DefaultBodyDef();          // static floor
+    gd.userData = (void*)(intptr_t)T_GROUND;
     b2BodyId ground = b2CreateBody(world, &gd);
     b2Segment floor = {{0.0f, FLOORY}, {SCREEN_W / PPM, FLOORY}};
     b2ShapeDef sd = b2DefaultShapeDef();
     sd.material.friction = 0.8f;
+    sd.enableHitEvents = true;
     b2CreateSegmentShape(ground, &sd, &floor);
 
     build_stack();
@@ -139,6 +160,18 @@ static int count_toppled(void) {
     return n;
 }
 
+// map a hit event to a sound; volume scales with the impact speed (vol is 0..7)
+static void impact_sound(int ta, int tb, float speed) {
+    int vol = 2 + (int)(speed * 0.35f);
+    if (vol > 7) vol = 7;
+    if (ta == T_GROUND || tb == T_GROUND)                     // grass: soft dull rustle
+        hit(28 + rnd(4), INSTR_NOISE, vol > 5 ? 5 : vol, 45);
+    else if (ta == T_BALL || tb == T_BALL)                    // ball impact: deep thud
+        hit(36 + rnd(3), SL_WOOD, vol, 90);
+    else                                                      // crate vs crate: woody clack
+        hit(55 + rnd(4), SL_WOOD, vol, 45);
+}
+
 void update(void) {
     if (!built) reset_world();
     if (keyp('R')) reset_world();
@@ -147,11 +180,24 @@ void update(void) {
     if (mouse_pressed(MOUSE_LEFT))  aiming = true;
     if (aiming && mouse_released(MOUSE_LEFT)) {
         b2Vec2 v = launch_vel(mx, my);
+        float sp = sqrtf(v.x*v.x + v.y*v.y);
+        int vol = 3 + (int)(sp * 0.14f); if (vol > 7) vol = 7;
+        hit(55 + rnd(5), SL_TWANG, vol, 170);   // the release twang
         spawn_ball(LX, LY, v.x, v.y);
         aiming = false;
     }
 
     b2World_Step(world, 1.0f/60.0f, 4);
+
+    b2ContactEvents ev = b2World_GetContactEvents(world);   // impact sounds (capped per frame)
+    for (int i = 0, played = 0; i < ev.hitCount && played < 4; i++) {
+        b2ContactHitEvent *h = &ev.hitEvents[i];
+        if (h->approachSpeed < 1.5f) continue;
+        int ta = (int)(intptr_t)b2Body_GetUserData(b2Shape_GetBody(h->shapeIdA));
+        int tb = (int)(intptr_t)b2Body_GetUserData(b2Shape_GetBody(h->shapeIdB));
+        impact_sound(ta, tb, h->approachSpeed);
+        played++;
+    }
 
     for (int i = 0; i < nball; ) {              // cull balls that leave the arena
         b2Vec2 p = b2Body_GetPosition(ball[i]);

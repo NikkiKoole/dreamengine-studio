@@ -109,10 +109,42 @@ modular / iosmusicproduction. Representative threads:
 | r/makinghiphop | ● (beginner) | | | ● | **vocal-overdub (loud)** |
 | r/iosmusicproduction | | | | **● (loud)** | MIDI routing |
 | r/modular | | ● (aggressive osc) | | | CV / eurorack utility |
+| r/WeAreTheMusicMakers | ● (beginner) | | **● (loudest, 31)** | | vocal-overdub / BPM / multi-person DAW |
+| r/synthrecipes | | ● (recreate-a-sound) | | | — (recipes, not app-gaps) |
+| r/Sampling | | | | ● | — |
 
 **Standing thesis (unchanged, now durable):** the opening for a lo-fi console is not a *feature* —
 it's a **cheap, playful, beginner lo-fi instrument toy in classic-gear clothes.** New this batch: a
 **buildable specific** (chop-to-pads) and a **firm boundary** (vocal-overdub / mic capture).
+
+### Addendum — the later-rotation tribes (same session, 2026-07-14)
+
+Four more caches filled after the initial batch (`synthrecipes`, `Sampling`, `WeAreTheMusicMakers`,
+`DrumMachines`). Two produced new signal; two were confirmation/noise:
+
+- **r/WeAreTheMusicMakers (230 threads, 164 wishes — the richest tribe yet)** hardened the thesis and
+  surfaced two things worth carrying forward:
+  1. **The chord-play toy is now the best-evidenced next build.** Chords/theory was the *loudest*
+     topic here (demand 31), and the raw asks are almost a spec — a chord *toy*, on-grain, wanted
+     across ipadmusic (022) + here:
+     [generate chord sounds](https://www.reddit.com/r/WeAreTheMusicMakers/comments/76ykqe/looking_for_an_app_to_generate_chord_sounds/) ·
+     [suggest chords for your melody](https://www.reddit.com/r/WeAreTheMusicMakers/comments/76xo17/looking_for_an_app_that_suggests_chords_for_your/) ·
+     ["Does a songwriting app like this exist?"](https://www.reddit.com/r/WeAreTheMusicMakers/comments/if23q3/does_a_songwriting_app_like_this_exist/).
+     If there's a second build after `breakchop`, the data points here.
+  2. **A NEW distinctive idea — synced click / groove across several phones.** The only wish cluster
+     that intersects our shipped **WebRTC multiplayer** (rung 5b):
+     ["get several phones to all play the same click at once"](https://www.reddit.com/r/WeAreTheMusicMakers/comments/302ib8/is_there_an_app_that_can_get_several_phones_to/) ·
+     ["MIDI Note/Rhythm Trainer for multiple musicians at once (Yousician for bands)"](https://www.reddit.com/r/WeAreTheMusicMakers/comments/e1hbml/midi_noterhythm_trainer_for_multiple_musicians_at/).
+     A "several phones, one synced groove" toy is humble, on-grain, and uniquely buildable *because*
+     we already own the P2P net layer — a demand-meets-capability match no other tribe produced.
+- **r/synthrecipes (105 threads)** is a *"how do I get this sound?"* tribe, not an *"is there an app?"*
+  tribe (its app-probe returned 0). It doesn't add a gap — it thickens 023's **learn-by-recreating**
+  strand (carts as playable patch lessons / the lineage angle), and maps to `instrument-recipes.md`.
+- **r/Sampling (70 threads)** echoes the chop-to-pads demand — a second data point for `breakchop`'s
+  audience (and now its outreach tribe; see the `sampling-mpc` ledger entry).
+- **r/DrumMachines** came back thin under throttling (25 threads / 3 wishes) and reads as gear-chat,
+  not app-demand — closer to `modular` than to a wish-rich tribe. Low signal-per-fetch; sample
+  unreliable. `r/chipmusic` still un-fetched (throttled out this session).
 
 ---
 
@@ -121,6 +153,13 @@ it's a **cheap, playful, beginner lo-fi instrument toy in classic-gear clothes.*
 - **Candidate cart (weigh, not committed):** a one-sample **chop-to-pads** toy — slice a loaded
   sample across a pad grid, tempo-synced, playable. Reuses `drumkit.h` (pad map) + the sampler; the
   new bit is the slice-and-assign step. Most concrete on-grain gap the tool has produced.
+  **→ Built (2026-07-14) as `breakchop`** (see finding 2's note).
+- **Candidate cart — chord toy (best-evidenced next build):** a chord-pad / progression play toy.
+  Loudest topic across ipadmusic (022) + WeAreTheMusicMakers (demand 31). "Generate chord sounds",
+  "suggest chords for your melody", "songwriting app like this". On-grain, humble, twice-proven.
+- **Candidate cart — synced-groove-across-phones (distinctive):** "several phones, one synced
+  click/groove", uniquely buildable on our shipped WebRTC P2P layer (rung 5b). The one idea that
+  ties demand discovery to the multiplayer work — a demand-meets-capability match.
 - **Boundary recorded:** mic recording / vocal-overdub / hum-to-MIDI are **out** — real demand, off
   our grain. Useful as an explicit "we don't do this" for store copy and roadmap.
 - **Rotation health:** `iosmusic` → `iosmusicproduction` fix shipped; `synthrecipes` / `DrumMachines`

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "respond",
+  "collection": ["responsive"],
   "title": "respond",
   "status": "active",
   "created": "2026-06-11",

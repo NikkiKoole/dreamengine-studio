@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "braindance",
+  "collection": ["radio"],
   "title": "braindance fm",
   "status": "active",
   "created": "2026-06-11",

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "yacht",
+  "collection": ["radio"],
   "title": "yacht radio",
   "status": "active",
   "created": "2026-06-05",

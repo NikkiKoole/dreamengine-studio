@@ -60,6 +60,7 @@ is greppable in source (`grep -l adsr-envelope tools/carts/*.c`).
 | `genre` | yes | required when `kind` includes `game` (`GENRES`) |
 | `homage` | yes | optional |
 | `teaches[]` | yes | controlled vocab (`tools/teaches-vocab.js`) |
+| `collection[]` | yes (when non-empty) | **optional** — the cross-cutting, **doc-anchored** research threads this cart belongs to (the "road stuff", "radio stations", "tinyjam" families). Controlled vocab in [`tools/collections-vocab.js`](../../tools/collections-vocab.js); every slug points at a design/guide doc (its "read more" home). Orthogonal to `kind`/`genre`. See below. |
 | `lineage` | yes | one-liner |
 | `description` | yes (flattened) | **string OR parts** — see below |
 | `file` | yes | **derived**, not stored: `<stem>.cart.png` from the `.c` filename |
@@ -80,6 +81,30 @@ gallery is unchanged. The day the gallery learns to render sections, it reads th
 the man-page grows *in place*, no migration. Splitting a blob into parts is *editorial*, so it's
 **opt-in, done when a cart is touched** (same promotion spirit as the rest of the repo). We never
 hand-edit 414 descriptions.
+
+### `collection[]`: doc-anchored cross-cutting threads
+
+The shipped half of [`003-curation`](../field-notes/003-curation.md)'s "curated collections" (its
+`replaces`/`successor`/`related` *relationship* fields are still open). A **collection** is a
+research thread that cuts *across* `kind`/`genre` — a road cart is `kind:tech-demo, genre:racing`,
+a tinyjam rack is an `instrument`, yet both belong to a project/experiment *family*. That family is
+the axis you browse by ("show me the road stuff / the radio stations"), and it is always a
+**sprawling experiment that owns a doc** — so every collection is **anchored to a doc** (its
+"read more" home).
+
+- Vocabulary + anchors live ONCE in [`tools/collections-vocab.js`](../../tools/collections-vocab.js)
+  as `{ slug, title, doc, blurb }` — mirroring `teaches-vocab.js`. Adding a collection is a
+  deliberate edit there; an off-list slug is a hard `lint-carts.js` error, and a vocab entry whose
+  `doc` is missing is *also* a hard error (a dead anchor can't ship).
+- A cart declares membership in its own `collection[]` (a cart can be in several).
+  `build-cart-index.js` emits it **only when non-empty** (no gallery churn for the untagged).
+- Views over it: [`tools/collections.js`](../../tools/collections.js) (the roll-up —
+  `node tools/collections.js [slug]`), and `build-context.js` surfaces a cart's collections + their
+  docs when you go cold on it. Follow-ons (not built): an editor gallery filter, a generated
+  `docs/collections.html` ★ page, and a "carts in this collection" block injected into each anchor doc.
+- Seed vocab: `road`, `tinyjam`, `radio`, `responsive`, `physics`, `device-face` (the threads that
+  already own a doc). Membership is authored by reading candidates, not blind grep — structural
+  signals (an `#include`, `resizable:true`) are the starting point, not the whole answer.
 
 ## Ordering — array order is deprecated
 
@@ -119,6 +144,9 @@ its own system anyway. So:
 - **Data-I/O registry** from `inputs`/`outputs` — once carts declare what data they read/write
   (`de_data_path()` / save blobs / `.rvb` etc.), this becomes a generated map of which cart consumes
   or produces which data shape.
-- **Curated collections** (`003-curation`) from `status` + `kind` + relationships.
+- **Curated collections** (`003-curation`) — **partly shipped**: the doc-anchored `collection[]`
+  field (see [`collection[]`](#collection-doc-anchored-cross-cutting-threads) above) groups carts by
+  thread; still open is 003's *relationship* half (`replaces`/`successor`/`related`) and the richer
+  generated views (an editor filter, a `docs/collections.html` page).
 
 All are *additional* generated views; none require touching the carts again.

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "napoleon",
+  "collection": ["radio"],
   "title": "napoleon radio",
   "status": "active",
   "created": "2026-06-11",

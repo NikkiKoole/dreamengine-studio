@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "dub",
+  "collection": ["radio"],
   "title": "dub radio",
   "status": "active",
   "created": "2026-06-05",

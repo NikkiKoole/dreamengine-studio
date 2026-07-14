@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "procplaces",
+  "collection": ["road"],
   "title": "Procedural Places",
   "status": "active",
   "created": "2026-06-09",

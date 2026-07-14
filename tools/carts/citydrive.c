@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "citydrive",
+  "collection": ["road"],
   "title": "citydrive",
   "status": "active",
   "created": "2026-06-30",

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "motorik",
+  "collection": ["radio"],
   "title": "motorik radio",
   "status": "active",
   "created": "2026-06-08",

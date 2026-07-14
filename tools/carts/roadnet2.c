@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "roadnet2",
+  "collection": ["road"],
   "title": "roadnet 2",
   "status": "active",
   "created": "2026-06-15",

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "afrobeat",
+  "collection": ["radio"],
   "title": "afrobeat fm",
   "status": "active",
   "created": "2026-06-10",

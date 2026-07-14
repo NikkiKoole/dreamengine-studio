@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "roadview",
+  "collection": ["road"],
   "title": "roadview",
   "status": "active",
   "created": "2026-06-25",

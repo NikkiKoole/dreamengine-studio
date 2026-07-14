@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "grooveface",
+  "collection": ["device-face"],
   "title": "groove face",
   "status": "active",
   "created": "2026-07-14",

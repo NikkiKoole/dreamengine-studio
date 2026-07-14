@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "verlet",
+  "collection": ["physics"],
   "title": "Verlet toolkit demo",
   "status": "active",
   "created": "2026-07-13",

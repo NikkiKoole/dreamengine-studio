@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "coaster",
+  "collection": ["physics"],
   "title": "coaster & slide",
   "status": "active",
   "created": "2026-06-08",

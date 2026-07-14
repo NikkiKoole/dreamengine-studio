@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "satie",
+  "collection": ["radio"],
   "title": "satie radio",
   "status": "active",
   "created": "2026-06-05",

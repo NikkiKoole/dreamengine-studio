@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "lofi",
+  "collection": ["radio"],
   "title": "lofi fm",
   "status": "active",
   "created": "2026-06-22",

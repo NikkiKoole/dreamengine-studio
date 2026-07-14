@@ -44,6 +44,7 @@ const ROOT = path.resolve(__dirname, "..");
 const SRC_DIR = path.join(ROOT, "tools/carts");
 const CARTS_DIR = path.join(ROOT, "editor/public/carts");
 const { readMeta, flattenDesc } = require("./build-cart-index.js");
+const { COLLECTIONS } = require("./collections-vocab.js");
 
 // ---- args ----
 const args = process.argv.slice(2);
@@ -120,6 +121,14 @@ out.push(bold(`cart: ${meta.title || name}`) +
   (meta.status ? `   ${dim("[" + meta.status + "]")}` : "") +
   (meta.created ? `   ${dim(meta.created)}` : ""));
 if (teaches) out.push(dim(`teaches: ${teaches}`));
+// collections — the cross-cutting doc-anchored threads this cart belongs to; each links its
+// "read more" doc (tools/collections-vocab.js), so a cold reader lands on the sprawling experiment.
+if (Array.isArray(meta.collection) && meta.collection.length) {
+  for (const slug of meta.collection) {
+    const c = COLLECTIONS.find((x) => x.slug === slug);
+    out.push(dim(`collection: ${slug}${c ? `  ↳ ${c.doc}` : ""}`));
+  }
+}
 
 const desc = meta.description;
 out.push(head("WHAT IT IS"));

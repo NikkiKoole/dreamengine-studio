@@ -300,6 +300,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
                              index.json in sync; owns the tag vocabulary. Also the SOURCE hazards
                              (promoted gotchas): watch() 2nd-arg-must-be-format-string + built-in shadowing
+             collections-vocab.js  the CONTROLLED, DOC-ANCHORED vocab for cart collection[] — the
+                             cross-cutting research THREADS ({slug,title,doc,blurb}, like teaches-vocab.js).
+                             A collection = a sprawling experiment that owns a doc; every slug MUST point at
+                             one (lint-carts asserts it exists). Field/design: design/cart-metadata.md, 003-curation
+             collections.js  the roll-up view over cart collection[] (node tools/collections.js [slug] /
+                             --counts / --json): "show me the road stuff / the radio stations", each with its doc
              backfill-slug.js  add the canonical `slug` (=filename stem) to every cart's de:meta + re-embed
                              de:source — the .cart.png→.c provenance anchor (design/editor-cart-workflow.md
                              Gap 1b); dry-run by default, `--write` to apply (449 carts pending)

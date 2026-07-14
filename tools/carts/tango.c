@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "tango",
+  "collection": ["radio"],
   "title": "tango radio",
   "status": "active",
   "created": "2026-06-05",

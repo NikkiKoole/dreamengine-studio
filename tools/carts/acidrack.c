@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "acidrack",
+  "collection": ["tinyjam", "responsive"],
   "title": "acid rack",
   "status": "active",
   "created": "2026-07-02",

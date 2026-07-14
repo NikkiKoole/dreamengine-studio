@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "tinyjam-menu",
+  "collection": ["tinyjam", "responsive"],
   "title": "tinyjam menu",
   "status": "active",
   "created": "2026-07-03",

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "vapor",
+  "collection": ["radio"],
   "title": "vapor fm",
   "status": "active",
   "created": "2026-06-22",

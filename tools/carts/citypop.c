@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "citypop",
+  "collection": ["radio"],
   "title": "city pop radio",
   "status": "active",
   "created": "2026-06-05",

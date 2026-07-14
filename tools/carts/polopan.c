@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "polopan",
+  "collection": ["radio"],
   "title": "polo & pan radio",
   "status": "active",
   "created": "2026-06-10",

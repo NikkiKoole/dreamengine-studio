@@ -117,3 +117,16 @@ The need for curation naturally follows from the current size of the project.
 ## Outcome (2026-06-30)
 
 The lifecycle-status + curation-over-classification direction shipped at the metadata layer: `tools/lint-carts.js` defines and validates the exact vocabulary this note proposed (`active/showcase/retired/archive/hidden`) and `docs/design/cart-metadata.md` documents it; 418 carts now carry a `status`, and the "derive views from one source of truth" philosophy is realized broadly (generated `index.json`, compendium, design-board, reflections). Still open: the curation payoff — `replaces`/`successor` relationship fields and the generated curated collections (Showcase, Best-of, Related) — so this stays a working theory.
+
+**Update (2026-07-14) — the *collections* half shipped.** The "curated collections" idea is now a
+first-class, **doc-anchored** per-cart field: `collection[]` in each cart's de:meta, with the
+vocabulary + doc anchors owned by [`tools/collections-vocab.js`](../../tools/collections-vocab.js)
+(schema: [`cart-metadata.md`](../design/cart-metadata.md#collection-doc-anchored-cross-cutting-threads)).
+Every collection slug points at a design/guide doc — these threads are always "a sprawling
+experiment that has a doc," so the collection *is* the browsable face of that doc. Seeded with
+`road / tinyjam / radio / responsive / physics / device-face` (62 carts tagged); `lint-carts.js`
+hard-validates slugs + asserts each anchor doc exists; [`tools/collections.js`](../../tools/collections.js)
+is the roll-up view and `build-context.js` shows a cart's threads when you go cold on it. **Still
+open** (the *other* half of this note): the cart-to-cart *relationship* fields
+(`replaces`/`successor`/`related`) and the richer generated views (an editor gallery filter, a
+`docs/collections.html` ★ page).

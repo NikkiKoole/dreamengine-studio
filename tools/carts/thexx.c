@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "thexx",
+  "collection": ["radio"],
   "title": "the xx fm",
   "status": "active",
   "created": "2026-06-22",

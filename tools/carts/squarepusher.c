@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "squarepusher",
+  "collection": ["radio"],
   "title": "squarepusher fm",
   "status": "active",
   "created": "2026-06-22",

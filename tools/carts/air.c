@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "air",
+  "collection": ["radio"],
   "title": "air fm",
   "status": "active",
   "created": "2026-06-10",

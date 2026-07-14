@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "jelly",
+  "collection": ["physics"],
   "title": "Jelly",
   "status": "active",
   "created": "2026-07-13",

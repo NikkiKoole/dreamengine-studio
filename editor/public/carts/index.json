@@ -434,7 +434,9 @@
       "generative"
     ],
     "teaches": [],
-    "genre": "music"
+    "collection": [
+      "device-face"
+    ]
   },
   {
     "title": "acidface",
@@ -446,6 +448,9 @@
       "toy"
     ],
     "teaches": [],
+    "collection": [
+      "device-face"
+    ],
     "lineage": "acidwire"
   },
   {
@@ -474,6 +479,10 @@
       "drum-synthesis",
       "generative-melody"
     ],
+    "collection": [
+      "tinyjam",
+      "responsive"
+    ],
     "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. All four increments of docs/design/rebirth-classic.md — the tinyjam-racks pilot: generate, play, export.",
     "homage": "Propellerhead ReBirth RB-338 (1997)"
   },
@@ -486,7 +495,10 @@
       "tech-demo",
       "toy"
     ],
-    "teaches": []
+    "teaches": [],
+    "collection": [
+      "tinyjam"
+    ]
   },
   {
     "title": "acoustics probe",
@@ -516,6 +528,9 @@
     "teaches": [
       "generative-melody",
       "chord-voicing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Eighteenth radio station; first to leave the major/minor world by encoding Ethiopian qñit pentatonics as data tables fed into the shared improv.h improviser — scale-as-identity replaces chord progressions entirely.",
     "homage": "Mulatu Astatke / Swinging Addis (ethio-jazz)"
@@ -570,6 +585,9 @@
       "chord-voicing",
       "swing-timing"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Built intent-first from the Fela Kuti / Tony Allen playbook; first radio station to use INSTR_GUITAR and INSTR_BRASS, and the first to wire euclidean polyrhythm (gankogui 7-in-16, cross-conga 5-in-16) against a generative modal vamp with terraced song form.",
     "homage": "Fela Kuti & Africa 70 / Tony Allen (Afrobeat)"
   },
@@ -585,6 +603,9 @@
     "teaches": [
       "generative-melody",
       "chord-voicing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Extends the radio.h station chassis into an artist-station with five song archetypes, each a cited AIR track; novel in using per-archetype template progressions that seed melodic cells, groove, and lead voice together.",
     "homage": "AIR (Moon Safari)"
@@ -617,6 +638,9 @@
     "teaches": [
       "generative-melody",
       "chord-voicing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Night sibling of bossa radio (bossa.c), same seed contract and radio.h chassis; novel in using held note_on voices with note_glide portamento and per-note LFOs instead of plucked events, and replacing cadence-driven harmony with a weighted modal degree walk."
   },
@@ -940,6 +964,9 @@
       "step-sequencer",
       "schedule-driven-agents"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Extends the radio.h station chassis with a full jazz-harmony engine: Markov chord walks over harmonic functions, rootless 3-voice voice-leading, and a schedule_hit() step sequencer — the worked example for docs/guides/game-music.md."
   },
   {
@@ -988,6 +1015,9 @@
       "euclidean-rhythm",
       "analog-voice-modeling",
       "swing-timing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Sibling of bossa/ambient/jangle radio stations; novel in its rhythm-as-grammar brain (anchors hold, everything else re-rolls per bar via a volatility knob) and ratchet sub-hits, making it the first station where rhythm rather than harmony is the generative axis.",
     "homage": "Aphex Twin (drill'n'bass / braindance)"
@@ -1137,6 +1167,9 @@
       "chord-voicing",
       "analog-voice-modeling"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Homage to Wendy Carlos's Switched-On Bach; first dreamengine station built on Fux species counterpoint (no chord-progression table) — the contrary-motion rules and canon knob are what's novel over every prior radio station.",
     "homage": "Wendy Carlos / Switched-On Bach (Moog counterpoint)"
   },
@@ -1259,6 +1292,9 @@
       "isometric-projection",
       "camera-follow"
     ],
+    "collection": [
+      "road"
+    ],
     "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city."
   },
   {
@@ -1273,6 +1309,9 @@
     "teaches": [
       "noise-terrain",
       "road-network"
+    ],
+    "collection": [
+      "road"
     ],
     "lineage": "The worldgen-plan rung 2-5 BENCH (docs/design/worldgen-plan.md §Where the code lives): the settlement/street generation grammar grown in its own knobbed sandbox, over the same worldnet.h spine roadnet2 and sloop share, then extracted (citygen.h) once calibrated. Rung 2 first: the population-density field."
   },
@@ -1305,6 +1344,9 @@
       "chord-voicing",
       "step-sequencer",
       "swing-timing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Sixth radio-family station built on radio.h/solo.h chassis; novel: genre encoded as a named chord-template vocabulary (Royal Road, JTTOU, descent), truck-driver modulation, and session-tight ±2ms humanization as an explicit anti-groove design.",
     "homage": "Tatsuro Yamashita / Mariya Takeuchi (city pop)"
@@ -1389,6 +1431,9 @@
       "verlet-integration",
       "spring-damper"
     ],
+    "collection": [
+      "physics"
+    ],
     "lineage": "Direct port of an old LOVE2D toy ('achtbaan'); same gravity-along-tangent physics core serves both coaster (closed loop) and slide (open flume) modes."
   },
   {
@@ -1404,6 +1449,9 @@
       "generative-melody",
       "chord-voicing",
       "swing-timing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Fourteenth radio station; Vince Guaraldi / Oscar Peterson piano-trio homage, cousin of bossa.c. Novel: the walking bass generator (chord-tone on 1, scale motion through the bar, chromatic approach into beat 4) and the bass-takes-a-solo arc via improv.h.",
     "homage": "Vince Guaraldi / Oscar Peterson (piano trio)"
@@ -1913,6 +1961,9 @@
       "schedule-driven-agents",
       "swing-timing"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Seventh radio station; King Tubby / Augustus Pablo homage. Novel: echo as scheduled future notes (not an FX bus), and a per-phrase performance-level mixing desk that re-rolls arrangements from engine RNG so the same seed mixes itself differently every listen.",
     "homage": "King Tubby / Augustus Pablo (dub)"
   },
@@ -2085,6 +2136,9 @@
     "teaches": [
       "generative-melody"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "A direct algorithmic recreation of Brian Eno's Ambient 1: Music for Airports (1978), using mutually-coprime loop lengths to produce emergent phase drift — the first radio station with no chord progression and the first to use INSTR_PIANO and a sustained INSTR_VOICE choir.",
     "homage": "Brian Eno - Ambient 1: Music for Airports (1978)"
   },
@@ -2173,6 +2227,9 @@
       "generative-melody",
       "chord-voicing",
       "fm-synth"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Martin Denny / Les Baxter exotica homage; first radio station born on the radio.h scaffold rather than copied from dub.c, and the first to combine all three modeled engines (MALLET, PLUCK, FM) in one band.",
     "homage": "Martin Denny / Les Baxter (exotica)"
@@ -2450,6 +2507,9 @@
       "fm-synth",
       "drum-synthesis"
     ],
+    "collection": [
+      "tinyjam"
+    ],
     "lineage": "The Elektron Model:Cycles reimagined — an all-FM percussion groovebox. Chassis from drummachine.c (grid + beat() playhead + pointer paint); voices are six INSTR_FM machines instead of the analog kit. Adds the thing no cart has: per-step PARAMETER LOCKS. Design: docs/design/fmbox-blind-brief.md."
   },
   {
@@ -2587,6 +2647,9 @@
     "teaches": [
       "generative-melody",
       "schedule-driven-agents"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Radio station #19; the first station to leave 12-TET — introduces three new station-design patterns (tuning-as-data via a cent table, colotomic gong-cycle form, and kotekan interlocking voices) that have no precedent in earlier stations.",
     "homage": "Javanese / Balinese gamelan"
@@ -2791,7 +2854,10 @@
       "instrument",
       "tech-demo"
     ],
-    "teaches": []
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
   },
   {
     "title": "grow balls",
@@ -2968,6 +3034,9 @@
       "chord-voicing",
       "schedule-driven-agents"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Tenth radio station and pilot migration to the radio.h chassis; novel in making the filter ride the compositional form (arrangement-level cutoff/res curves swept live on held string voices), the sidechain pump as a continuous filter gesture rather than an FX engine, and THE VOID silent beat as a structural device.",
     "homage": "Daft Punk / Stardust (French house)"
   },
@@ -3108,6 +3177,9 @@
       "step-sequencer",
       "swing-timing"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Recombines ymo's arp brain, house's 808 pump, and citypop's gear-change into a minor-key Italo disco station — no new engine tricks, pure assembly of existing radio.h machinery with new harmonic-minor chord templates.",
     "homage": "Gazebo / Den Harrow (Italo disco)"
   },
@@ -3124,6 +3196,9 @@
       "chord-voicing",
       "generative-melody",
       "swing-timing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Third chord-brain example for game-music.md after bossa (Markov) and ambient (modal drift); the novel contribution is the VAMP form — 2-4 chords looped all song with arrangement layers (intro/groove/solo/outro) as the structural motion instead of harmonic change.",
     "homage": "Mac DeMarco - One Wayne G"
@@ -3142,6 +3217,9 @@
       "soft-body",
       "procedural-mesh"
     ],
+    "collection": [
+      "physics"
+    ],
     "lineage": "Soft-body twin of the `tentacle` skinning spike: skins a PRESSURIZED verlet ring with a radial tritex fan. Two rest shapes — a circle and a rounded rectangle (superellipse) — both held by gas pressure (area preservation) + per-edge rim links, so they squash and re-round. Blobs collide via SAT point-vs-polygon (max signed distance), which ejects even a deeply-penetrated point — the fix for blobs sinking into each other. Composes runtime/physics.h + tritex, no new engine code."
   },
   {
@@ -3156,6 +3234,9 @@
     "teaches": [
       "chord-voicing",
       "generative-melody"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Sibling of jangle.c but composed from Mac DeMarco's actual harmonic devices (bVII, bIII, ii-V cells, chromatic bass descents, melodic accommodation over borrowed chords) rather than a dumb vamp loop — the first radio station whose song generation is grounded in a cited theory source.",
     "homage": "Mac DeMarco (Reverb Machine chord theory)"
@@ -3351,6 +3432,9 @@
       "verlet-integration",
       "spring-damper"
     ],
+    "collection": [
+      "physics"
+    ],
     "lineage": "Homage to Line Rider (2006); novel: a 5-point Verlet ragdoll with rigid rod constraints slides over user-drawn line segments using signed-distance side-tracking for two-sided collision.",
     "genre": "sandbox"
   },
@@ -3383,6 +3467,9 @@
     "teaches": [
       "chord-voicing",
       "swing-timing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack.",
     "homage": "Lo-fi hip-hop (Nujabes / J Dilla)"
@@ -3469,6 +3556,9 @@
       "chord-voicing",
       "swing-timing",
       "drum-synthesis"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "A Tribe Called Quest / Low End Theory homage; introduces chord brain #5 (modal-mixture maj7/maj9 pool with crate-digger loop rotation so the tonic drifts), a three-tier groove pocket (tight/swung/drunk ms offsets), and Q-Tip layered snare hits (noise crack + sine thump fired as one).",
     "homage": "A Tribe Called Quest - The Low End Theory"
@@ -3577,6 +3667,9 @@
       "chord-voicing",
       "swing-timing",
       "analog-voice-modeling"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Extends the dreamengine radio station pattern with its first INSTR_BOWED violin section and a fully modeled sesquialtera (6/8 vs 3/4 hemiola) groove engine; the functional harmony and call-and-response copla/respuesta form go further than any prior station.",
     "homage": "Mariachi / son jalisciense"
@@ -3906,6 +3999,9 @@
       "generative-melody",
       "schedule-driven-agents"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Sixteenth radio station built on radio.h + improv.h, proving a 'process form' (no sections, one continuous 0..1 progress value) inspired by Neu! and Stereolab — first station to use INSTR_ORGAN and the first with a single-event key-modulation story beat.",
     "homage": "Neu! / Stereolab (krautrock / motorik)"
   },
@@ -3990,6 +4086,9 @@
     "teaches": [
       "chord-voicing",
       "generative-melody"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Artist station for the Napoleon Dynamite (2004) soundtrack; first radio cart to use five hard-switching song archetypes (each fixing its own voice/groove/form) and the first to drive INSTR_VOICE as a sung vibrato croon rather than a robotic vocoder lead.",
     "homage": "Napoleon Dynamite (2004) - soundtrack & John Swihart score"
@@ -4123,7 +4222,10 @@
       "toy",
       "tech-demo"
     ],
-    "teaches": []
+    "teaches": [],
+    "collection": [
+      "responsive"
+    ]
   },
   {
     "title": "operation wolf",
@@ -4665,6 +4767,9 @@
       "generative-sequencer",
       "fm-synth"
     ],
+    "collection": [
+      "radio"
+    ],
     "homage": "Plaid (Andy Turner & Ed Handley) - warm melodic Warp IDM"
   },
   {
@@ -4679,6 +4784,9 @@
     "teaches": [
       "generative-melody",
       "analog-voice-modeling"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Homage to Mort Garson's Plantasia (1976); introduces melody brain #3 — a seeded theme-and-variation generator with an A-A′-B-A songform and key lift — and models the Moog signal chain (INSTR_SAW → FILTER_LADDER + ENV_CUTOFF wow + DRIVE) four ways across the band.",
     "homage": "Mort Garson - Mother Earth's Plantasia (1976)"
@@ -4798,6 +4906,9 @@
       "drum-synthesis",
       "swing-timing"
     ],
+    "collection": [
+      "tinyjam"
+    ],
     "homage": "Wee Noise Makers PGB-1 (Fabien Chouteau's open-source Ada groovebox) — the buttons-only grammar reimagined: 16 step keys, 4 modes, hold-combos, one touch strip, an honest 128x64 'OLED'."
   },
   {
@@ -4846,6 +4957,9 @@
       "chord-voicing",
       "generative-melody",
       "schedule-driven-agents"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Tenth radio station, building on the radio.h chassis established in jingle.c and lowend.c; novel in the five named song archetypes (stolen-playbook chord brain #4) that each fix groove, tempo and lead voice so the seed varies within a recognizable artist identity rather than across a single texture.",
     "homage": "Polo & Pan (Caravelle / Cyclorama)"
@@ -4915,6 +5029,9 @@
     ],
     "teaches": [
       "noise-terrain"
+    ],
+    "collection": [
+      "road"
     ],
     "lineage": "Original testbed for pluggable world generators; the roads-and-cities generator applies a SimCity-2000-style dual noise field (land-use × intensity) to a nested road lattice, while the terrain generator is a straight fbm elevation showcase."
   },
@@ -4991,6 +5108,9 @@
     "teaches": [
       "verlet-integration",
       "spring-damper"
+    ],
+    "collection": [
+      "physics"
     ],
     "lineage": "Classic Verlet stick-figure demo; novel: angular spring (cross-product torque) layered on top of distance constraints for autonomous stand-up recovery, making posture an emergent property rather than a keyframed animation."
   },
@@ -5074,7 +5194,10 @@
       "tech-demo",
       "toy"
     ],
-    "teaches": []
+    "teaches": [],
+    "collection": [
+      "responsive"
+    ]
   },
   {
     "title": "reverb spaces",
@@ -5131,6 +5254,9 @@
       "chord-voicing",
       "swing-timing"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Extends the radio.h station family (first station to use wave_set + improv.h) — novel in that its improviser builds phrase-arc solos with tension/release rather than repeating a fixed cell.",
     "homage": "The Doors (modal psych-rock)"
   },
@@ -5144,6 +5270,9 @@
     ],
     "teaches": [
       "procedural-mesh"
+    ],
+    "collection": [
+      "road"
     ],
     "lineage": "Successor to `rampkit` (which proved the port-to-ramp abstraction on Beziers); roadlab replaces free Beziers with arc-spline reference lines (LINE→ARC→LINE, the OpenDRIVE model) so that offset lane polygons nest concentrically without a solver."
   },
@@ -5160,6 +5289,9 @@
       "noise-terrain",
       "procedural-mesh"
     ],
+    "collection": [
+      "road"
+    ],
     "lineage": "Extends worldgen.c's infinite deterministic heightmap (itself a gtascii port) with a node-lattice Catmull-Rom spline road network; the seam-true pure-function-of-cell-coords crack that solves the 'wall' in procgen-places.md."
   },
   {
@@ -5175,6 +5307,9 @@
       "noise-terrain",
       "generative-melody"
     ],
+    "collection": [
+      "road"
+    ],
     "lineage": "A graph-first rebuild of roadnet (v1), keeping its Catmull-Rom node-lattice spline highways verbatim but replacing the dual field+graph street representation with a single edge-graph — cleaner foundation for the collector/access/building fill-in to come."
   },
   {
@@ -5188,6 +5323,9 @@
     ],
     "teaches": [
       "road-network"
+    ],
+    "collection": [
+      "road"
     ],
     "lineage": "Sibling of roadnet but DATA-DRIVEN rather than generative: instead of synthesising a network it loads a real OpenStreetMap export at runtime (de_data_path()/de_dropped_file() + runtime/json.h), then classes and draws the real ways. First cart to read an external data blob at runtime instead of baking geometry into source (cf. data-tools/fmltools/floorwalker)."
   },
@@ -5377,6 +5515,9 @@
     "teaches": [
       "generative-melody",
       "chord-voicing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Ninth in the dreamengine radio family; extends the radio.h chassis with a new 3/4 time signature, solo-instrument density curve, and the alternating-pair chord brain modeled on Gymnopedie No.1's maj7 pendulum.",
     "homage": "Erik Satie (gymnopedies / gnossiennes)"
@@ -5621,6 +5762,9 @@
       "spring-damper",
       "noise-terrain"
     ],
+    "collection": [
+      "road"
+    ],
     "lineage": "Inspired by Cataclysm: DDA's vehicle system; sibling to orbit (same integrator) and coaster (same physics honesty); extends worldgen's infinite chunk-streamed city as its drive world.",
     "genre": "sandbox"
   },
@@ -5857,6 +6001,9 @@
       "fm-synth",
       "swing-timing"
     ],
+    "collection": [
+      "radio"
+    ],
     "homage": "Squarepusher (Tom Jenkinson) - bass-virtuoso drill'n'bass"
   },
   {
@@ -5916,6 +6063,9 @@
     "teaches": [
       "road-network",
       "at-grade-junction"
+    ],
+    "collection": [
+      "road"
     ],
     "lineage": "The at-grade sibling of roadlab, one tier down: roadlab draws grade-separated interchange ramps, streetlab draws the streets that cross AT GRADE — curb returns built as tangent-arc fillets (an arc tangent to both kerb lines), a leg-based junction layout that re-solves under skew and the T for free, left-turn bays with channelizing median islands, a pedestrian layer (sidewalks + crosswalks), a mini-roundabout (traversable island + give-way entries), and a typed cross-section (median / bike / parking lane types, the whole junction re-solving as the carriageway widens) — all from the one angle-agnostic leg model. Plus a network view (the street web in five canonical patterns — incl. the Stage-2 fused-grid superblock — with the full SNDi metrics: degree, dead-ends, node-mix, sinuosity, and circuity). First cart to carry a spec() (pins the curb-return tangency, topology counts, network graph + roundabout geometry)."
   },
@@ -6037,6 +6187,9 @@
       "schedule-driven-agents",
       "swing-timing"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Station 15, descended from the radio.h chassis family (bossa/citypop/house lineage); the novel brain is a per-frame rubato conductor that drives bpm() live — the first station where tempo itself is a seeded, phrase-shaped voice.",
     "homage": "Juan D'Arienzo / Osvaldo Pugliese / Anibal Troilo (Golden Age tango)"
   },
@@ -6100,6 +6253,9 @@
     "teaches": [
       "verlet-integration",
       "procedural-mesh"
+    ],
+    "collection": [
+      "physics"
     ],
     "lineage": "Spike for the bone-driven textured-mesh (skinning) capability: composes the shared runtime/physics.h verlet toolkit (the BONES) with the engine's tritex() affine textured triangle (the SKIN) — the 'bodies ARE bones' pattern the deform/puppet experiments kept reaching for, at its smallest. No new engine code."
   },
@@ -6173,6 +6329,9 @@
       "generative-melody",
       "chord-voicing"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "An artist-station (stolen-playbook archetypes, kin to air/wba); novel in the two-voice CALL-AND-RESPONSE brain (two INSTR_VOICE singers trading phrases, unison on the chorus) and space-as-structure. The dark/intimate twin of wba.",
     "homage": "The xx"
   },
@@ -6210,6 +6369,10 @@
       "tech-demo"
     ],
     "teaches": [],
+    "collection": [
+      "tinyjam",
+      "responsive"
+    ],
     "lineage": "The umbrella-app launcher — build-ladder rung 3 of docs/design/share-panel.md. Inside a bundle (tools/build-app.js compiles it with -DAPP_BUNDLE) the roster comes from a generated app_roster.h fed by each rack's own de:meta, and picking an entry calls the dispatcher shim's app_launch(); standalone it carries a demo roster so the menu stays a runnable, bakeable cart on its own."
   },
   {
@@ -6223,6 +6386,9 @@
     ],
     "teaches": [
       "software-rasterizer"
+    ],
+    "collection": [
+      "tinyjam"
     ]
   },
   {
@@ -6593,6 +6759,9 @@
       "chord-voicing",
       "generative-melody"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "The first EFFECTS-FORWARD station - the FX chain (reverb+chorus+tape+echo+crush) IS the genre, applied to a generative lounge loop; novel in riding varispeed live as the slowed-tape WOBBLE. A slow metered/beatless cousin of citypop/ambient.",
     "homage": "Vaporwave (Macintosh Plus / Floral Shoppe, mallsoft)"
   },
@@ -6618,6 +6787,9 @@
     "teaches": [
       "verlet-integration",
       "soft-body"
+    ],
+    "collection": [
+      "physics"
     ],
     "lineage": "Twin of the `physics` playground, but built on the shared runtime/physics.h toolkit instead of an inline engine — the proof that the extracted primitives (phys_integrate/phys_link/phys_collide/phys_bounds/phys_grab) reproduce the hand-rolled verlet loop. Where `physics` teaches the engine inline, this one shows the library in use."
   },
@@ -6729,6 +6901,9 @@
       "particle-system",
       "fluid-sim"
     ],
+    "collection": [
+      "physics"
+    ],
     "lineage": "The PBD/SPH fluid the physics-notes 'Fluids — a third world' section calls for: a code-first Position-Based Fluid (Macklin & Müller / Ten Minute Physics) on runtime/physics.h, deliberately NOT LiquidFun (C++, dead). Same points-and-constraints shape as jelly.c — swaps the blob's edge-links for a per-particle DENSITY constraint (incompressibility) + XSPH viscosity, with a uniform-grid spatial hash so a few hundred particles stay 60fps. No new engine code."
   },
   {
@@ -6773,6 +6948,9 @@
     "teaches": [
       "generative-melody",
       "chord-voicing"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "An artist-station (stolen-playbook archetypes, kin to air); the first station to use the ampcab.h guitar amp/cab bundle and a clean-guitar pedalboard (slapback + small room + chorus), and a negative-space guitar-bass duet arrangement.",
     "homage": "The Whitest Boy Alive (Erlend Oye)"
@@ -6959,6 +7137,9 @@
       "swing-timing",
       "generative-melody"
     ],
+    "collection": [
+      "radio"
+    ],
     "lineage": "Built on the radio.h scaffold (sibling of citypop.c), specializing in the Steely Dan/AOR idiom with a named-chord vocabulary (the mu chord), the Purdie shuffle groove engine, and CR-78 drum circuits borrowed from cr78.c.",
     "homage": "Steely Dan / Hall & Oates (yacht rock)"
   },
@@ -6977,6 +7158,10 @@
       "swing-timing",
       "step-sequencer"
     ],
+    "collection": [
+      "tinyjam",
+      "radio"
+    ],
     "lineage": "The yacht radio (yacht.c) turned inside-out — the first CHORD-FIRST tinyjam rack (docs/design/yacht-rack.md) and the first radio-to-rack seed handoff: its generator is yacht's new_song ported verbatim (same srnd draw sequence, so an 8-hex code from the radio dial reproduces the exact song here, opened up). Chart+interpreters model: the chord row / form row / drum skeleton / sax cell are editable truth; bass runs, comp anticipation, ghosts and swing stay session players behind feel knobs. Accordion shell from acidrack.c.",
     "homage": "Steely Dan / Hall & Oates (yacht rock); the LA session desk"
   },
@@ -6993,6 +7178,9 @@
       "generative-melody",
       "chord-voicing",
       "step-sequencer"
+    ],
+    "collection": [
+      "radio"
     ],
     "lineage": "Eighth radio.h station; lifts drum voice circuits verbatim from cr78.c and adds a Hosono melodic bassline generator and Sakamoto harmony templates.",
     "homage": "Yellow Magic Orchestra (techno-kayo)"

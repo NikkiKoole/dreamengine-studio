@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "fmbox",
+  "collection": ["tinyjam"],
   "title": "fm box",
   "status": "active",
   "created": "2026-07-10",

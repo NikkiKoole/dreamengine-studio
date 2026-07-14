@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "linerider",
+  "collection": ["physics"],
   "title": "line rider",
   "status": "active",
   "created": "2026-06-04",

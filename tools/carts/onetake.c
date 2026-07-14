@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "onetake",
+  "collection": ["responsive"],
   "title": "onetake",
   "kind": ["toy", "tech-demo"],
   "teaches": [],

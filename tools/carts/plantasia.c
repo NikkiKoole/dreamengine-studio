@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "plantasia",
+  "collection": ["radio"],
   "title": "plantasia radio",
   "status": "active",
   "created": "2026-06-22",

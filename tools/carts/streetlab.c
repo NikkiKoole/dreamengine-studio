@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "streetlab",
+  "collection": ["road"],
   "title": "streetlab",
   "status": "active",
   "created": "2026-06-22",

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "sloop",
+  "collection": ["road"],
   "title": "sloop",
   "status": "active",
   "created": "2026-06-09",

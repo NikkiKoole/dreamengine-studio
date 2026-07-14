@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "acidface",
+  "collection": ["device-face"],
   "title": "acidface",
   "status": "active",
   "created": "2026-07-13",

@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "acidwire",
+  "collection": ["tinyjam"],
   "title": "acidwire",
   "status": "active",
   "created": "2026-07-07",

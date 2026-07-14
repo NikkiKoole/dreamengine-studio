@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "mariachi",
+  "collection": ["radio"],
   "title": "mariachi fm",
   "status": "active",
   "created": "2026-06-10",

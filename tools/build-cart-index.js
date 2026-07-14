@@ -25,6 +25,7 @@
 //     "genre": null,                       // omitted from index.json when null/absent
 //     "homage": null,
 //     "teaches": ["dithering-gradient"],
+//     "collection": ["road"],              // doc-anchored threads (collections-vocab.js); omitted when empty
 //     "lineage": "…",                      // omitted when absent
 //     "description": "…"  OR  { "summary":"…", "detail":"…", "controls":"…" }
 //   }
@@ -90,6 +91,7 @@ function toEntry(meta, name) {
   if (ori) e.orientation = ori;
   e.kind = meta.kind;
   e.teaches = meta.teaches || [];
+  if (Array.isArray(meta.collection) && meta.collection.length) e.collection = meta.collection;
   if (meta.lineage != null) e.lineage = meta.lineage;
   if (meta.genre != null) e.genre = meta.genre;
   if (meta.homage != null) e.homage = meta.homage;

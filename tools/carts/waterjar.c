@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "waterjar",
+  "collection": ["physics"],
   "title": "Water Jar",
   "status": "active",
   "created": "2026-07-14",

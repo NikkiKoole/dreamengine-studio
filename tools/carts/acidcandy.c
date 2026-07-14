@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "acidcandy",
+  "collection": ["device-face"],
   "title": "acid candy (160x100)",
   "status": "active",
   "created": "2026-07-14",
@@ -8,7 +9,7 @@
     "instrument",
     "generative"
   ],
-  "genre": "music",
+  "genre": null,
   "teaches": [],
   "description": {
     "summary": "A functioning TB-303 acid machine on the device-face skeleton, at half resolution (160x100 x4) in the candy-toy skin — the first machine of a candy acid rack. The acid VOICE is the shared runtime/acid303.h, not a private copy.",

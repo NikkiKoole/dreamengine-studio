@@ -69,6 +69,11 @@ const STATUSES = ["active", "showcase", "retired", "archive", "hidden", "wip"];
 // so adding one is a deliberate edit to tools/teaches-vocab.js. lineage is free prose.
 const TEACHES = new Set(require("./teaches-vocab.js").TEACHES_VOCAB);
 
+// collection[] is a CONTROLLED, DOC-ANCHORED vocabulary (docs/field-notes/003-curation.md):
+// each slug names a cross-cutting research thread and points at a doc. Off-list slug = hard error;
+// a vocab entry whose doc is missing = hard error (checked once, below the cart loop).
+const { COLLECTIONS, COLLECTION_SLUGS } = require("./collections-vocab.js");
+
 const ROOT = path.join(__dirname, "..");
 const CARTS_DIR = path.join(ROOT, "editor", "public", "carts");
 
@@ -221,6 +226,16 @@ for (const f of fs.readdirSync(CARTS).sort()) {
     errors.push(`${at}: homage must be a non-empty string`);
   if ("lineage" in m && typeof m.lineage !== "string") errors.push(`${at}: lineage must be a string`);
 
+  // collection[] — optional; cross-cutting doc-anchored threads (003-curation). Controlled vocab:
+  // every entry must be a known slug from tools/collections-vocab.js (off-list = deliberate add there).
+  if ("collection" in m) {
+    if (!Array.isArray(m.collection) || m.collection.length === 0)
+      errors.push(`${at}: collection must be a non-empty string[] (omit the field if none)`);
+    else for (const c of m.collection)
+      if (!COLLECTION_SLUGS.has(c))
+        errors.push(`${at}: collection '${c}' not in the vocabulary — reuse one, or add it deliberately to tools/collections-vocab.js (from: ${[...COLLECTION_SLUGS].join(", ")})`);
+  }
+
   // resizable — optional opt-in (device-adaptive-layout.md Phase 1b). true → the editor ▶-run,
   // build-app and the CLI compile the cart with -DDE_RESIZABLE (a live-reflowing window; read
   // screen_w()/screen_h(), lay out with lay.h). Omit or false = fixed canvas (every existing cart).
@@ -252,6 +267,11 @@ for (const f of fs.readdirSync(CARTS).sort()) {
   if (!fs.existsSync(path.join(CARTS_DIR, png)))
     errors.push(`${at}: has de:meta but no baked ${png} — run: node tools/make-cart.js ${path.relative(ROOT, path.join(CARTS, f))} ${path.relative(ROOT, path.join(CARTS_DIR, png))}`);
 }
+
+// every collection's anchor doc must exist — a dead "read more" home is a hard error
+for (const c of COLLECTIONS)
+  if (!fs.existsSync(path.join(ROOT, c.doc)))
+    errors.push(`collections-vocab.js: collection '${c.slug}' points at a missing doc '${c.doc}'`);
 
 // a .cart.png with no de:meta cart can never be (re)generated into the index
 for (const f of fs.readdirSync(CARTS_DIR))

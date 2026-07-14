@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "yachtrack",
+  "collection": ["tinyjam", "radio"],
   "title": "session desk",
   "status": "active",
   "created": "2026-07-02",

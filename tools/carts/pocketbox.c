@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "pocketbox",
+  "collection": ["tinyjam"],
   "title": "pocket groove box",
   "status": "active",
   "created": "2026-07-02",

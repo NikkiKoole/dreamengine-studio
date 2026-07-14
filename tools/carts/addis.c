@@ -1,6 +1,7 @@
 /* de:meta
 {
   "slug": "addis",
+  "collection": ["radio"],
   "title": "addis radio",
   "status": "active",
   "created": "2026-06-08",

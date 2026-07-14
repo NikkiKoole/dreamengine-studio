@@ -316,6 +316,10 @@ not a rewrite. Related: [`design-system.md`](design-system.md) §7 (the semantic
 would key on) and the device-adaptive layout work (`lay.h`/`disclose.h`) — style is to those widgets
 what layout is to the box tree. Not building the loader now; building the *shape* that admits one.
 
+A worked example of a theme *on top of* the skins: [`candy-style.md`](candy-style.md) — the warm candy-toy
+device-face look (a `Skin` instance's warm palette **plus** the two things a skin doesn't cover: an on-screen
+mascot and juice). It's what a stylesheet-plus-character looks like in practice.
+
 ## Related
 
 [`device-face-paradigm.md`](device-face-paradigm.md) (the layout — which control goes in which zone;

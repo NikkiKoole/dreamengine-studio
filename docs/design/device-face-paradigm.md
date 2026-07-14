@@ -556,4 +556,6 @@ this is the *shape* it produces) · [`acidrack-layout-brief.md`](acidrack-layout
 (how acidface is built) · [`design-system.md`](design-system.md) §6/§8 (roles, widget swap) ·
 [`control-vocabulary.md`](control-vocabulary.md) (the named taxonomy + beveled-lo-fi look for the
 tactile controls each zone is filled from — this doc is the layout, that one is the vocabulary) ·
+[`candy-style.md`](candy-style.md) (the warm candy-toy VISUAL style for these faces — palette + a screen
+mascot + juice, targeting 160×100; the delight half of the bar) ·
 [`runtime/lay.h`](../../runtime/lay.h) + [`runtime/ui.h`](../../runtime/ui.h) + `runtime/disclose.h` (the primitives).

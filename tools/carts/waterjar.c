@@ -17,12 +17,13 @@
   "description": {
     "summary": "A jar of water you can tip, slosh, and stir. A few thousand particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool.",
     "detail": "Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance.",
-    "controls": "Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets"
+    "controls": "Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets · the grav/visc/damp sliders retune the fluid live (moon gravity, honey, bounce)"
   }
 }
 de:meta */
 #include "studio.h"
 #include "physics.h"   // the fluid rides the shared verlet toolkit (Layer 0) — PhysPt + integrate/bounds
+#include "ui.h"        // onscreen sliders to tweak the fluid live (cart-land widgets)
 #include <stdlib.h>    // qsort — for the one-time rest-density calibration in init()
 
 #ifdef DE_TRACE
@@ -72,6 +73,12 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 #define JX1 276
 #define JY1 190
 
+// onscreen slider panel (top-left air space) — 3 rows at 12px pitch
+#define PANEL_X 8
+#define PANEL_Y 22
+#define PANEL_W 90
+#define PANEL_H 42
+
 #define GW ((SCREEN_W / HCELL) + 2)
 #define GH ((SCREEN_H / HCELL) + 2)
 #define NCELLS (GW * GH)
@@ -88,6 +95,20 @@ static float rho0 = 0.0f;      // rest density — calibrated once from the init
 
 static float tilt = 0.0f;      // jar tilt in degrees (rotates gravity)
 static float pmx, pmy;         // previous mouse (sim space) for stir velocity
+static bool  panel_drag = false;   // a drag that STARTED on the slider panel — don't also stir
+
+// --- live tweakables (onscreen sliders) ------------------------------------
+// The sliders store 0..1; these map to the real ranges the sim reads each frame. Seeded so the
+// defaults reproduce the tuned GRAV/VISC/DAMP constants (grav 0.14, visc 0.18, damp 0.94).
+static float ui_grav = 0.40f;  // → gravity   0 .. 0.35   (moon ↔ heavy)
+static float ui_visc = 0.30f;  // → viscosity 0 .. 0.60   (spray ↔ honey)
+static float ui_damp = 0.62f;  // → damping   0.85 .. 0.995 (draggy ↔ bouncy)
+static float grav_v(void) { return ui_grav * 0.35f; }
+static float visc_v(void) { return 0.60f * ui_visc; }
+static float damp_v(void) { return 0.85f + ui_damp * 0.145f; }
+static bool  in_panel(int mx, int my) {
+    return mx >= PANEL_X - 3 && mx <= PANEL_X + PANEL_W + 3 && my >= PANEL_Y - 3 && my <= PANEL_Y + PANEL_H;
+}
 
 static float vlen(float x, float y) { return fsqrt(x * x + y * y); }
 
@@ -213,8 +234,9 @@ static float g_maxdp = 0.0f;   // largest per-iteration correction this step (di
 // Factored out so init() can run it to SETTLE the water before play (and to calibrate rho0).
 static void physics_step(float gx, float gy) {
     // 1) integrate (predict) + clamp runaway speed
+    float damp = damp_v();
     for (int i = 0; i < N; i++) {
-        phys_integrate(&P[i], gx, gy, DAMP);
+        phys_integrate(&P[i], gx, gy, damp);
         float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py, sp = vlen(vx, vy);
         if (sp > VMAX) { float s = VMAX / sp; P[i].px = P[i].x - vx * s; P[i].py = P[i].y - vy * s; }
     }
@@ -268,6 +290,7 @@ static void physics_step(float gx, float gy) {
     }
 
     // 4) XSPH viscosity — nudge each particle's velocity toward its neighbours' average
+    float visc = visc_v();
     for (int i = 0; i < N; i++) { vlx[i] = P[i].x - P[i].px; vly[i] = P[i].y - P[i].py; }
     for (int i = 0; i < N; i++) {
         float ax = 0.0f, ay = 0.0f;
@@ -277,7 +300,7 @@ static void physics_step(float gx, float gy) {
             float w = poly6(dx * dx + dy * dy) / rho0;
             ax += (vlx[j] - vlx[i]) * w; ay += (vly[j] - vly[i]) * w;
         }
-        P[i].px -= VISC * ax; P[i].py -= VISC * ay;   // velocity change → move prev-pos the other way
+        P[i].px -= visc * ax; P[i].py -= visc * ay;   // velocity change → move prev-pos the other way
     }
 
     // 5) velocity limiter — a corner pinch can eject one particle at a huge speed; cap it so
@@ -313,9 +336,14 @@ void update(void) {
         for (int k = -2; k <= 2; k++) add_pt(cx + k * 3.0f, JY0 + 4.0f, 0.0f, 1.2f);
     }
 
+    // a drag that begins on the slider panel adjusts a slider — it must NOT also stir the water.
+    // Latch it on press and hold until release, so the whole drag is exempt (even if it wanders).
+    if (mouse_pressed(MOUSE_LEFT)) panel_drag = in_panel(mouse_x(), mouse_y());
+    if (!mouse_down(MOUSE_LEFT))   panel_drag = false;
+
     // mouse stir — push particles near the cursor along the drag direction
     float smx, smy; screen_to_sim((float)mouse_x(), (float)mouse_y(), &smx, &smy);
-    if (mouse_down(MOUSE_LEFT)) {
+    if (mouse_down(MOUSE_LEFT) && !panel_drag) {
         float dvx = (smx - pmx), dvy = (smy - pmy);
         float mv = vlen(dvx, dvy);
         if (mv > 0.5f) {
@@ -333,7 +361,8 @@ void update(void) {
     double _ta = _us();
 #endif
     // gravity in the jar's frame: tilt rotates it so water pools to the low corner
-    float gx = GRAV * sin_deg(tilt), gy = GRAV * cos_deg(tilt);
+    float g = grav_v();
+    float gx = g * sin_deg(tilt), gy = g * cos_deg(tilt);
     physics_step(gx, gy);
 
 #ifdef DE_TRACE
@@ -369,6 +398,7 @@ void draw(void) {
     double _d0 = _us();
 #endif
     cls(CLR_BROWNISH_BLACK);
+    ui_begin();
 
     float cx = (JX0 + JX1) * 0.5f, cy = (JY0 + JY1) * 0.5f;
     float ct = cos_deg(tilt), st = sin_deg(tilt);
@@ -390,6 +420,13 @@ void draw(void) {
         float rx = ROTX(P[i].x, P[i].y), ry = ROTY(P[i].x, P[i].y);
         circfill((int)rx, (int)ry, 1, speed_colour(sp));
     }
+
+    // live tweak panel (screen-fixed — does NOT rotate with the jar): drag to feel the fluid change
+    font(FONT_SMALL);
+    ui_slider(&ui_grav, PANEL_X, PANEL_Y,      PANEL_W, "grav");
+    ui_slider(&ui_visc, PANEL_X, PANEL_Y + 12, PANEL_W, "visc");
+    ui_slider(&ui_damp, PANEL_X, PANEL_Y + 24, PANEL_W, "damp");
+    ui_end();
 
     font(FONT_SMALL);
     print("water jar - a code-first PBD fluid (physics.h)", 4, 4, CLR_LIGHT_GREY);

@@ -6573,7 +6573,7 @@
   },
   {
     "title": "Water Jar",
-    "description": "A jar of water you can tip, slosh, and stir. A few thousand particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool. Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance. Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets",
+    "description": "A jar of water you can tip, slosh, and stir. A few thousand particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool. Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance. Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets · the grav/visc/damp sliders retune the fluid live (moon gravity, honey, bounce)",
     "file": "waterjar.cart.png",
     "created": "2026-07-14",
     "kind": [

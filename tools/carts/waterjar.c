@@ -43,20 +43,17 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 // The jar tilts by rotating GRAVITY in the jar's frame; the whole scene is drawn rotated back
 // so it reads as tipping a real jar. Nothing here is engine code — just the physics.h verbs.
 
-#define MAXP     4600          // reservoir cap. Past this the column gets so tall its bottom
-                               // out-pressures the affordable solve and starts to churn/foam;
-                               // 4600 (~70% full) is the most that still reads as calm water.
-#define FILL_N   3200          // how many particles to pour in at reset (see fill_jar). ~half-fills
-                               // the jar and stays calm; a much taller column out-pressures the
-                               // solve and starts to churn, so this is the sweet spot for H=4.
-                               // (SPACE can pour past it, filling the jar — see the pour in update.)
+#define MAXP     2800          // reservoir cap. Past this the column gets so tall its bottom
+                               // out-pressures the affordable solve and starts to churn/foam.
+#define FILL_N   1600          // how many particles to pour in at reset (see fill_jar). ~half-fills
+                               // the jar. (SPACE can pour past it — see the pour in update.)
 #define MAXN     48            // neighbours cached per particle per frame (grid-hashed)
-#define H        4.0f          // smoothing radius: particles interact within this. SCALED WITH the
-                               // spacing → each particle keeps ~the same neighbour count, so solve
-                               // cost stays ~linear in N (shrinking H is what lets us 4× the count).
+#define H        6.0f          // smoothing radius: particles interact within this. BIGGER particles
+                               // (bigger H + spacing) carry more inertia and hold together, so a wave
+                               // crest CURLS instead of atomizing into spray — the tradeoff for count.
 #define H2       (H * H)
-#define HCELL    4             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
-#define PR       1.0f          // particle collision radius (for the walls)
+#define HCELL    6             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
+#define PR       2.0f          // particle collision radius (also the drawn size — bigger = curls)
 #define GRAV     0.14f         // gravity per frame (sim units)
 #define DAMP     0.94f         // velocity retention — water keeps its momentum
 #define ITERS    6             // density-solve passes per frame (more = stiffer/less squishy)
@@ -350,7 +347,7 @@ void update(void) {
     // can fill the jar right up (up to MAXP). ~16/frame ≈ 950/s; the jar brims in a few seconds.
     if (key(KEY_SPACE)) {
         float cx = (JX0 + JX1) * 0.5f;
-        for (int k = -7; k <= 7 && N < MAXP; k++) add_pt(cx + k * 2.6f, JY0 + 4.0f, 0.0f, 1.4f);
+        for (int k = -5; k <= 5 && N < MAXP; k++) add_pt(cx + k * 4.0f, JY0 + 4.0f, 0.0f, 1.4f);
     }
 
     // a drag that begins on the slider panel adjusts a slider — it must NOT also stir the water.

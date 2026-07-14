@@ -561,7 +561,9 @@ de:meta */
 Required fields: `title`, `created` (today's `YYYY-MM-DD`), a non-empty `kind[]` (`tutorial`,
 `game`, `tech-demo`, `instrument`, `toy`, `tool`, `probe`, `generative`), `teaches[]` (use `[]` if
 nothing distinctive), and `description`. `genre` is required when `kind` includes `game`. Optional:
-`status`, `lineage`, `homage`. `description` may be a string or `{summary, detail, controls}`. The
-vocabulary + rules live in `tools/lint-carts.js`.
+`status`, `lineage`, `homage`, and `collection[]` (the doc-anchored cross-cutting threads this cart
+belongs to — `road`/`radio`/`tinyjam`/… from [`tools/collections-vocab.js`](../../tools/collections-vocab.js);
+browse with `node tools/collections.js`). `description` may be a string or `{summary, detail,
+controls}`. The vocabulary + rules live in `tools/lint-carts.js`.
 
 The tutorials panel picks it up automatically on next reload — no code changes needed.

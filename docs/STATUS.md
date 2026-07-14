@@ -1444,6 +1444,17 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     wall-clock-sensitive carts; net games + the live backend are skipped. Dodges the mid-play
     savestate problem: "record from here" is a `make-gif --start` trim, not a state snapshot. Design:
     [`design/flight-recorder.md`](design/flight-recorder.md).
+51. **✓ SHIPPED 2026-07-14 — cart COLLECTIONS: doc-anchored cross-cutting threads.** The shipped half
+    of field note [`003-curation`](field-notes/003-curation.md)'s "curated collections": a controlled,
+    doc-anchored `collection[]` de:meta field groups carts by research THREAD across `kind`/`genre`
+    (the browsable "show me the road stuff / the radio stations" axis). Vocab + anchors in
+    [`tools/collections-vocab.js`](../tools/collections-vocab.js) (`{slug,title,doc,blurb}`; every slug
+    MUST point at a doc — `lint-carts.js` asserts it exists); `build-cart-index.js` emits it;
+    [`tools/collections.js`](../tools/collections.js) is the roll-up view; `build-context.js` surfaces a
+    cart's threads. Seeded + 62 carts tagged: radio(35), road(9), tinyjam(7), physics(7), responsive(4),
+    device-face(3). Schema: [`design/cart-metadata.md`](design/cart-metadata.md#collection-doc-anchored-cross-cutting-threads).
+    **Still open** (003's OTHER half): the cart-to-cart *relationship* fields (`replaces`/`successor`/`related`),
+    an editor gallery filter, and a generated `docs/collections.html` ★ page.
 
 ---
 

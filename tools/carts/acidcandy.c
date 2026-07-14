@@ -45,8 +45,8 @@ enum { M_303A, M_303B, M_808, M_909, M_MST, M_N };
 enum { MK_303, MK_DRUM, MK_MST };
 typedef struct { const char *name; int kind; int col, lo; int mute; } Machine;
 static Machine mac[M_N] = {
-    { "303a", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 0 },
-    { "303b", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 0 },
+    { "303", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 0 },   // pink 303 (bass)
+    { "303", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 0 },   // orange 303 (lead) — told apart by colour
     { "808",  MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 },
     { "909",  MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 },
     { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },
@@ -170,7 +170,7 @@ static void cartridge(int m) {
 
 static void navspine(void) {
     // transport (shared)
-    int px = 5, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
+    int px = 6, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
     if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; }
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
@@ -180,7 +180,7 @@ static void navspine(void) {
     for (int m = 0; m < M_N; m++) cartridge(m);
 
     // HOME (meta) — reserved space only; the app shell owns the real leave-cart gesture
-    int hx = 143, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home, in from the right bezel
+    int hx = 142, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home, in from the right bezel
     void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
     ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);            // registered but unwired
     rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);

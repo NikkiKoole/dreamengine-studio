@@ -210,6 +210,15 @@ Lead with the value model, not the shape, so the name says what it *does*:
 
 (These are the *intended* code names; nothing is in `ui.h` yet — graduation is deferred per §STATUS.)
 
+**Labeling is part of the vocabulary** (how you NAME a control when there's no room), studied in
+[`labels`](../../tools/carts/labels.c): the five fonts + `print_rot_scaled`, text effects (drop-shadow,
+4-way outline, an inverted chip/pill, a handwritten `FONT_COMIC` boil), **rotated labels** for tight
+vertical columns (`print_rot` — a 90° label beside a fader), and the **Dymo labelprinter** look —
+embossed rounded tape + a punched hole, in both classic colorways (white-on-dark tape, dark-on-white
+paper). Ships reusable `label_*` helpers (`label_shadow`/`label_outline`/`label_chip`/`label_hand`/
+`label_tape`) the control carts pull from. A tiny code-drawn glyph still beats a word where one fits
+([`design-system.md`](design-system.md) §"minimal and beautiful"); labels are for when it doesn't.
+
 ## 8 · The study carts (a few, grouped by family)
 
 Grouped by family so each cart is a rich study, not a single widget — and each family maps to the

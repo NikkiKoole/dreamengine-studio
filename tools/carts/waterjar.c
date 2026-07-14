@@ -43,17 +43,18 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 // The jar tilts by rotating GRAVITY in the jar's frame; the whole scene is drawn rotated back
 // so it reads as tipping a real jar. Nothing here is engine code — just the physics.h verbs.
 
-#define MAXP     2800          // reservoir cap. Past this the column gets so tall its bottom
+#define MAXP     1600          // reservoir cap. Past this the column gets so tall its bottom
                                // out-pressures the affordable solve and starts to churn/foam.
-#define FILL_N   900           // how many particles to pour in at reset (see fill_jar). A shallow
-                               // starting pool with lots of headroom to slosh. (SPACE pours more.)
+#define FILL_N   950           // how many particles to pour in at reset (see fill_jar). Enough of a
+                               // BODY of water to throw a rolling wave (a thin film just skids); still
+                               // leaves headroom above for the crest to break. (SPACE pours more.)
 #define MAXN     48            // neighbours cached per particle per frame (grid-hashed)
-#define H        6.0f          // smoothing radius: particles interact within this. BIGGER particles
-                               // (bigger H + spacing) carry more inertia and hold together, so a wave
-                               // crest CURLS instead of atomizing into spray — the tradeoff for count.
+#define H        8.0f          // smoothing radius: particles interact within this. BIG heavy blobs
+                               // (bigger H + spacing) carry lots of inertia and hold together, so a
+                               // wave crest CURLS/breaks instead of atomizing — the tradeoff for count.
 #define H2       (H * H)
-#define HCELL    6             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
-#define PR       2.0f          // particle collision radius (also the drawn size — bigger = curls)
+#define HCELL    8             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
+#define PR       3.0f          // particle collision radius (also the drawn size — bigger = curls)
 #define GRAV     0.14f         // gravity per frame (sim units)
 #define DAMP     0.94f         // velocity retention — water keeps its momentum
 #define ITERS    6             // density-solve passes per frame (more = stiffer/less squishy)
@@ -335,11 +336,16 @@ static void screen_to_sim(float sx, float sy, float *ox, float *oy) {
 
 void update(void) {
     // --- input: tilt the jar (rotate gravity), ease back to level when let go ---
+    // Snappy + wide on purpose: a slow tilt just lets the water follow gravity flat (no wave).
+    // A fast swing to a steep angle throws the water across so its crest climbs the far wall
+    // and CURLS. Tap A/D back and forth to slosh; the faster you reverse, the bigger the wave.
     float t = 0.0f;
     if (key(KEY_LEFT)  || key('A')) t -= 1.0f;
     if (key(KEY_RIGHT) || key('D')) t += 1.0f;
-    if (t != 0.0f) tilt = clamp(tilt + t * 1.6f, -45.0f, 45.0f);
-    else           tilt *= 0.94f;            // spring back to level
+    if (t != 0.0f) tilt = clamp(tilt + t * 3.5f, -52.0f, 52.0f);   // fast swing; ~50° sloshes the
+                                                                   // surface across (steeper just
+                                                                   // dumps the water into a corner)
+    else           tilt *= 0.90f;            // spring back to level a touch quicker
 
     if (keyp('R')) init();
 
@@ -347,7 +353,7 @@ void update(void) {
     // can fill the jar right up (up to MAXP). ~16/frame ≈ 950/s; the jar brims in a few seconds.
     if (key(KEY_SPACE)) {
         float cx = (JX0 + JX1) * 0.5f;
-        for (int k = -5; k <= 5 && N < MAXP; k++) add_pt(cx + k * 4.0f, JY0 + 4.0f, 0.0f, 1.4f);
+        for (int k = -4; k <= 4 && N < MAXP; k++) add_pt(cx + k * 5.5f, JY0 + 5.0f, 0.0f, 1.4f);
     }
 
     // a drag that begins on the slider panel adjusts a slider — it must NOT also stir the water.

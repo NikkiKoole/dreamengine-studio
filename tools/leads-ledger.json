@@ -326,6 +326,56 @@
       "domain": "music"
     },
     {
+      "id": "sampling-mpc",
+      "label": "Sampling / MPC / chop-and-flip beatmakers",
+      "tags": [
+        "mpc",
+        "akai",
+        "sp-404",
+        "sp-1200",
+        "sampler",
+        "sample chop",
+        "chop",
+        "flip",
+        "amen",
+        "breaks",
+        "boom bap",
+        "beatmaking"
+      ],
+      "hook": "Throw in your own loop — it chops on the grid, and you re-play the break by hand across the pads (mute-group tight).",
+      "venues": [
+        {
+          "name": "r/makinghiphop",
+          "url": "https://www.reddit.com/r/makinghiphop/",
+          "kind": "reddit",
+          "etiquette": "gift-first; the Weekly Feedback / Marketplace threads are the sanctioned self-promo lanes",
+          "domain": "music"
+        },
+        {
+          "name": "r/Sampling",
+          "url": "https://www.reddit.com/r/Sampling/",
+          "kind": "reddit",
+          "etiquette": "the chop-and-flip crowd; show it cutting a real break, gift-first",
+          "domain": "music"
+        },
+        {
+          "name": "r/mpcusers",
+          "url": "https://www.reddit.com/r/mpcusers/",
+          "kind": "reddit",
+          "etiquette": "Akai MPC hardware tribe; lead with the pad-grid + mute-group feel, gift-first",
+          "domain": "music"
+        },
+        {
+          "name": "MPC-Forums",
+          "url": "https://www.mpc-forums.com/",
+          "kind": "forum",
+          "etiquette": "long-running MPC community; show the workflow, gift-first",
+          "domain": "music"
+        }
+      ],
+      "domain": "music"
+    },
+    {
       "id": "dungeonsynth",
       "label": "Dungeon-synth scene",
       "tags": [

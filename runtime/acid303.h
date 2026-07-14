@@ -41,7 +41,9 @@ typedef struct {
     int   drvmode;                // waveshaper: DRIVE_SOFT / HARD / FOLD / ASYM
     int   sweep;                  // accent-sweep onset mode 0=off 1=slow 2=med 3=fast
     int   base;                   // midi note the pattern's pitch 0 maps to (303 default 36)
-    float echo_send, rev_send;    // per-voice send levels (0 = dry). tb303 baked 0.10 slapback.
+    float cut_top;                // cutoff range: CUT knob spans this many octaves above 60Hz.
+                                  // 6.38 = Devil Fish wide (~5100Hz, the default); 6.0 = vanilla (~3840Hz).
+    float echo_send, rev_send;    // per-voice sends (0 = dry). echo_send = tb303's slapback (an OPTION, 0.10 stock).
     float p[ACID_NPARAM];         // params, 0..1 — index by ACID_CUT .. ACID_SUB
     int   h, hsub;                // held handles (-1 = none)
     int   prev_slide;             // did the step we just played arm a slide into the next?
@@ -49,7 +51,7 @@ typedef struct {
 } Acid;
 
 // ── param → engine-unit mappings (acidrack's superset curves) ────────────────
-static int   acid_cut_hz(Acid *a)   { return (int)(60.0f * powf(2.0f, a->p[ACID_CUT] * 6.38f)); } // 60..~5100 (Devil Fish range)
+static int   acid_cut_hz(Acid *a)   { return (int)(60.0f * powf(2.0f, a->p[ACID_CUT] * a->cut_top)); } // range set by cut_top (6.38 DF / 6.0 vanilla)
 static int   acid_res_q(Acid *a)    { return (int)(a->p[ACID_RES] * 15.0f); }                     // 0..15 Q
 static float acid_env_hz(Acid *a)   { return a->p[ACID_ENV] * 3000.0f; }                          // filter-env depth Hz
 static int   acid_dec_ms(Acid *a)   { return 30 + (int)(a->p[ACID_DEC]  * 500.0f); }              // 30..530 ms
@@ -79,9 +81,26 @@ static void acid_init(Acid *a, int slot, int subslot) {
         { 0.45f, 0.70f, 0.60f, 0.40f, 0.60f, 0.35f, 0.33f, 0.40f, 0.14f, 0.05f, 0.0f, 0.0f };
     a->slot = slot; a->subslot = subslot; a->wave = INSTR_SAW;
     a->drvmode = DRIVE_SOFT; a->sweep = 0; a->base = 36;
-    a->echo_send = 0.10f; a->rev_send = 0.0f;     // tb303's subtle slapback, dry reverb
+    a->cut_top = 6.38f;                            // Devil Fish wide range by default
+    a->echo_send = 0.10f; a->rev_send = 0.0f;      // tb303's subtle slapback, dry reverb
     a->h = a->hsub = -1; a->prev_slide = 0;
     for (int i = 0; i < ACID_NPARAM; i++) a->p[i] = def[i];
+    acid_define(a);
+}
+
+// voice it as a STOCK (vanilla, pre-Devil-Fish) TB-303: the extended params park at
+// their stock values (they collapse to vanilla behaviour), the narrower cutoff range,
+// and the subtle slapback echo. The depth is still all there — dial the params up for
+// Devil Fish. This is "both voicings, one header, chosen by data." Call after acid_init.
+static void acid_stock(Acid *a) {
+    a->cut_top       = 6.0f;                        // vanilla ceiling ~3840 Hz
+    a->p[ACID_SLDT]  = 0.14f;                       // ~60 ms fixed-feel slide
+    a->p[ACID_ADEC]  = a->p[ACID_DEC];              // accent decays like a normal note (two-decay off)
+    a->p[ACID_ATK]   = 0.05f;                       // ~2 ms attack
+    a->p[ACID_TRK]   = 0.0f;                        // no filter tracking
+    a->p[ACID_SUB]   = 0.0f;                        // no sub-osc
+    a->sweep         = 0;                           // accent-sweep off
+    a->echo_send     = 0.10f;                       // the classic slapback
     acid_define(a);
 }
 

@@ -92,10 +92,16 @@ static void acid_init(Acid *a, int slot, int subslot) {
 // their stock values (they collapse to vanilla behaviour), the narrower cutoff range,
 // and the subtle slapback echo. The depth is still all there — dial the params up for
 // Devil Fish. This is "both voicings, one header, chosen by data." Call after acid_init.
+//
+// GOTCHA — the two-decay: this sets ADEC = DEC ONCE. If your cart moves DEC at runtime
+// (a knob) and you want to STAY vanilla (accent decays like a normal note), you must
+// re-sync `a.p[ACID_ADEC] = a.p[ACID_DEC]` every frame — otherwise ADEC stays frozen at
+// the init DEC and the accent decay silently diverges as you turn DEC. (tb303 does this
+// in its update() sync; acidrack intentionally lets ADEC be its own knob = two-decay on.)
 static void acid_stock(Acid *a) {
     a->cut_top       = 6.0f;                        // vanilla ceiling ~3840 Hz
     a->p[ACID_SLDT]  = 0.143f;                      // exactly 60 ms slide (vanilla's fixed glide)
-    a->p[ACID_ADEC]  = a->p[ACID_DEC];              // accent decays like a normal note (two-decay off)
+    a->p[ACID_ADEC]  = a->p[ACID_DEC];              // accent decays like a normal note (two-decay off — see GOTCHA above)
     a->p[ACID_ATK]   = 0.051f;                      // exactly 2 ms attack (matches vanilla's define)
     a->p[ACID_TRK]   = 0.0f;                        // no filter tracking
     a->p[ACID_SUB]   = 0.0f;                        // no sub-osc

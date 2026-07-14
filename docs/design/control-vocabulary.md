@@ -213,16 +213,22 @@ Lead with the value model, not the shape, so the name says what it *does*:
 ## 8 · The study carts (a few, grouped by family)
 
 Grouped by family so each cart is a rich study, not a single widget — and each family maps to the
-device-face zones that pull from it:
+device-face zones that pull from it. **Five built (2026-07-14), each cycling all three skins** (§10);
+`keys` is the one still open:
 
-1. **`rotaries`** (build first) — the whole turning family: pot (pointer) · endless encoder (no
-   pointer) · **LED-ring encoder in all 5 ring modes** · push-encoder · concentric · rotary selector.
-   Exercises the entire value-model spine and debuts the ring/light system. → zone 2.
-2. **`switches`** — momentary · toggle · illuminated states · radio group · bat toggle · slide switch. → zones 1 & 4.
-3. **`pads`** — velocity/RGB pads (candy, icon-style) · step-cell LEDs (off/on/playing/accent). → zones 4 & 5.
-4. **`faders`** — vertical + horizontal + crossfader + ribbon (+ maybe XY). → zones 2 & 3.
-5. **`indicators`** — LED · VU bargraph · 7-seg readout · the LCD/screen bezel. → zones 1 & 3.
-6. **`keys`** (later) — the keybed. → zone 5.
+1. **`rotaries`** ✅ — the whole turning family: pot (pointer) · endless encoder (no pointer) ·
+   **LED-ring encoder in all 5 ring modes** · push-encoder · concentric · rotary selector · a SIZE row
+   (r 6→22) · a STYLES row (ridged/scalloped/coloured-cap collet knobs) · a LIVE row (mod halo / glow /
+   ghost / jog wheel). Exercises the value-model spine + the ring/light system. → zone 2.
+2. **`switches`** ✅ — momentary · latching · illuminated states (off/dim/lit/blink) · radio group ·
+   bat toggle (2 & 3 pos) · slide · rocker · a COMPACT `finger_px()` row. → zones 1 & 4.
+3. **`pads`** ✅ — candy velocity pads (flash + fade envelope) · drum pads with the EXTERNAL-trigger
+   corner LED (clock-fired vs finger-tapped) · a playhead clock. → zones 4 & 5.
+4. **`faders`** ✅ — a vertical mixer bank (LED-per-fader) · horizontal · centre-detented crossfader ·
+   spring-return ribbon · XY pad. → zones 2 & 3.
+5. **`indicators`** ✅ — status LEDs (states/colours/chase) · stereo VU + peak-hold · 7-seg readouts ·
+   an LCD scope with phosphor + scanlines. → zones 1 & 3.
+6. **`keys`** (open) — the keybed. → zone 5.
 
 ## 9 · Beyond hardware — the live/software layer (parked)
 

@@ -10,7 +10,9 @@ reader off the wrong route). pocketbox is also the worked case of the paradigm *
 pain (14-page paramscroll, no knobs, invisible holds) without touching its sequencer brain. The OP-1 *device*
 analysis (§1f) then stretched the model further — the screen's *character/soul*, and the split into **two body-
 plans** (grid vs keybed) under one grammar — producing the [tombola](tombola.md) cart design and the
-*omit-unneeded-zones* rule (§2).
+*omit-unneeded-zones* rule (§2). The `sampler` (2026-07-14) is the first **declined** case — evaluated and
+turned down as a *workstation, not an instrument* — which produced the **fit test** for when NOT to reach for
+a face at all (§2 *instrument-or-workstation* + the §2b gate-0 check).
 
 > **Why this doc exists.** We kept re-solving "how do I fit a big instrument on a phone?" per-cart
 > (the [acidrack accordion](acidrack-layout-brief.md), the [epiano keybed brief](epiano-layout-brief.md)).
@@ -422,6 +424,19 @@ view; the cart-level reuse detail — why the tombola won, and which carts to co
   there's room. *(Caveat: every Pure Acid shot we have is iPad; its actual iPhone collapse is inferred, not
   confirmed — a claim to verify if a phone screenshot ever turns up. Landscape phone stays tight; the open
   refinement is flanking the display with the knobs to use the width — see §5.)*
+- **Instrument or workstation? — the fit test (when NOT to reach for this).** The whole shape rests on
+  three assumptions; when a cart misses them, a face is the wrong answer. **(a)** a few params you *ride
+  live* (zone 2) — an **empty zone 2** is the first warning; **(b)** *one hero gesture* the instrument is
+  *for* — **plural, equal heroes** means it isn't an instrument; **(c)** you *perform AND edit at once*, so
+  **losing context hurts**. A cart that instead moves through **sequential stages** — record → chop →
+  arrange — is a **workstation** (the MPC / SP-404 lineage), and its state machine is an *honest* reflection
+  of the workflow, not a tab-stack to dissolve. Worked **declined** case (2026-07-14): [`sampler`](../../tools/carts/sampler.c)
+  was evaluated for a reshape and turned down — zone 2 had nothing to ride, its "hero" was three equal acts,
+  and its concerns are staged not simultaneous; forcing five zones only produced a vestigial zone and a REC
+  button pretending to be transport. The tell that saved it: **if zone 2 comes up empty AND you can't name
+  one hero, stop — you have a workstation, and this isn't its shape.** (Workstations deserve their own shape
+  — pads/timeline persistent, a mode-driven display, record/resample an ever-present verb — but it's a
+  different paradigm; don't bend this one to cover it.)
 
 ## 2b · Reading a cart onto the face — the guardrail (don't take the wrong route)
 
@@ -432,6 +447,11 @@ flat because it never had the face; copying that flatness reinvents the anti-pat
 So don't start from the cart's current screen — start from these questions, *in order*. Each is a §2 rule
 turned into a check, and each catches one of the wrong routes we actually took:
 
+0. **Is it a face at ALL — an instrument or a workstation?** Before mapping zones, run the fit test (§2
+   *instrument-or-workstation*): no ride-live knobs **and** no single hero **and** sequential stages = a
+   workstation, and the face isn't its shape. `sampler` failed here (2026-07-14) — caught before a sketch,
+   not after. The four questions below catch *layout* wrong-routes; this one catches the *whole-paradigm*
+   wrong-route, so it comes first.
 1. **What is the ONE hero gesture?** — the thing the instrument is *for* (the strum; the pattern). It owns
    the **display**, not a strip. If you've put it in a sliver, stop. (§2 *hero-surface*)
 2. **For each surface: does it CHOOSE a sound, or MAKE one?** — choosers are **selectors** (a keybed picking

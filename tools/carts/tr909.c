@@ -19,6 +19,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "tr909.h"   // the shared TR-909 voice bank (SOUND); this cart owns pattern + UI
 #include <stdio.h>
 #include <math.h>
 
@@ -218,15 +219,7 @@ static bool  pad_drag = false;
 // re-aim the highpass on all five metal slots from the pad. X scales each
 // slot's base cutoff ×0.3..×1.7, Y is shared resonance 0..12 (the SVF peak
 // at the cutoff is what gives the clang body and ring back).
-static void apply_metal_filter(void) {
-    float m = 0.3f + 1.4f * mcut;
-    int   r = (int)(mres * 12.0f + 0.5f);
-    instrument_filter(SL_HHC, FILTER_HIGH, (int)(8500 * m), r);
-    instrument_filter(SL_HHO, FILTER_HIGH, (int)(8000 * m), r);
-    instrument_filter(SL_CC,  FILTER_HIGH, (int)(4500 * m), r);
-    instrument_filter(SL_CCN, FILTER_HIGH, (int)(5200 * m), r);
-    instrument_filter(SL_RC,  FILTER_HIGH, (int)(5000 * m), r);
-}
+static void apply_metal_filter(void) { tr909_metal(SL_BD, mcut, mres); }   // SOUND in tr909.h
 
 // knob column labels — k=0,1 are the same for every voice; k=2 is per-voice
 static const char *KLABEL[2] = { "TUNE", "DECAY" };
@@ -249,23 +242,7 @@ static void draw_knob(int x, int y, float val, int col) {
          cy + (int)(sinf(a) * 2.5f + 0.5f), col);
 }
 
-// apply tune knob: ±12 semitones offset
-static int k_midi(int v, int base) {
-    return base + (int)((ktune[v] - 0.5f) * 24.0f + 0.5f);
-}
-
-// apply decay knob: powf scale centred on 1.0 at val=0.5 (range 0.25× to 4×)
-static int k_dur(int v, int base) {
-    float s = powf(4.0f, (kdecay[v] - 0.5f) * 2.0f);
-    int d = (int)(base * s + 0.5f);
-    return d < 5 ? 5 : d;
-}
-
-// crossfade a vol level using kcolor[v]: lo at kcolor=0, hi at kcolor=1, clamped 0..7
-static int k_cv(int v, int lo, int hi) {
-    int val = (int)(lo + (hi - lo) * kcolor[v] + 0.5f);
-    return val < 0 ? 0 : val > 7 ? 7 : val;
-}
+// (the tune/decay/colour knob maths + the voice trigger + strokes moved to tr909.h)
 
 // snap a 0..1 drag to the four RD-9-style trig-prob buckets (100/75/50/25)
 static unsigned char snap_prob(float f) {
@@ -327,152 +304,19 @@ static void load_preset(void) {
     }
 }
 
-static int vv(int base, int boost) {
-    int v = base + boost;
-    return v < 0 ? 0 : (v > 7 ? 7 : v);
-}
-
-// fire one voice `delay` ms from now. Analog voices follow the schematic
-// (shared architecture with tr808.c, 909 component values); hats/cymbals
-// are the FM-clang ROM stand-ins described in the header.
+// fire one voice / a stroked step — the SOUND (bank + trigger + flam/drag/ratchet)
+// lives in tr909.h now; this cart owns the pattern, per-voice knobs and timing.
+// V_*/ST_* share the index order of TR9_*/TR9_ST_*, so they map 1:1.
 static void fire(int v, int boost, int delay) {
-    switch (v) {
-    case V_BD:  // the house kick: fast sweep body + ATTK click layer
-        schedule_hit(delay, k_midi(v, 32), SL_BD, vv(6, boost), k_dur(v, 320));
-        schedule_hit(delay, 60, SL_BDC, vv(k_cv(v, 0, 6), boost), 10);
-        break;
-    case V_SD: {  // 185Hz + 330Hz modes; SNPY fades body↔noise
-        int body = k_cv(v, 8, 1), snpy = k_cv(v, 1, 8);
-        schedule_hit(delay, k_midi(v, 54), SL_SDB, vv(body, boost), k_dur(v, 95));
-        schedule_hit(delay, k_midi(v, 64), SL_SDB, vv(body - 1, boost), k_dur(v, 95));
-        schedule_hit(delay, k_midi(v, 60), SL_SDN, vv(snpy, boost), k_dur(v, 180));
-        break;
-    }
-    case V_LT: case V_MT: case V_HT: {  // sine drop + CLIK attack noise
-        int m = v == V_LT ? 42 : v == V_MT ? 47 : 54;
-        schedule_hit(delay, k_midi(v, m),  SL_TOM,  vv(5, boost), k_dur(v, 240));
-        schedule_hit(delay, 70, SL_TOMC, vv(k_cv(v, 0, 5), boost), 14);
-        break;
-    }
-    case V_RS:  // woody dual ping, lower + shorter than the 808's
-        schedule_hit(delay, k_midi(v, 76), SL_RS, vv(5, boost), k_dur(v, 30));
-        schedule_hit(delay, k_midi(v, 64), SL_RS, vv(3, boost), k_dur(v, 30));
-        break;
-    case V_CP:  // three retriggers ~9ms apart + a soft room tail
-        schedule_hit(delay,      k_midi(v, 60), SL_CP, vv(5, boost), 11);
-        schedule_hit(delay + 9,  k_midi(v, 60), SL_CP, vv(5, boost), 11);
-        schedule_hit(delay + 18, k_midi(v, 60), SL_CP, vv(5, boost), 11);
-        schedule_hit(delay + 26, k_midi(v, 60), SL_CP, vv(3, boost), k_dur(v, 130));
-        break;
-    case V_CH:  // FM clang through the closing highpass (ROM stand-in)
-        schedule_hit(delay, k_midi(v, 97), SL_HHC, vv(4, boost), k_dur(v, 40));
-        break;
-    case V_OH:  // same metal, long burst; choked by a closed hit
-        schedule_hit(delay, k_midi(v, 97), SL_HHO, vv(4, boost), k_dur(v, 400));
-        break;
-    case V_CC:  // TONE fades FM clang ↔ noise wash
-        schedule_hit(delay, k_midi(v, 84), SL_CC,  vv(k_cv(v, 6, 1), boost), k_dur(v, 1100));
-        schedule_hit(delay, k_midi(v, 60), SL_CCN, vv(k_cv(v, 1, 6), boost), k_dur(v, 1300));
-        break;
-    case V_RC:  // cleaner FM ping — bell + a quieter edge a fifth up
-        schedule_hit(delay, k_midi(v, 76), SL_RC, vv(4, boost), k_dur(v, 600));
-        schedule_hit(delay, k_midi(v, 83), SL_RC, vv(2, boost), k_dur(v, 600));
-        break;
-    }
+    tr909_fire(SL_BD, v, boost, delay, ktune, kdecay, kcolor);
 }
-
-// fire a step with its stroke. Flam/drag lead the main hit with 1/2 quiet
-// grace notes; a ratchet replaces it with four even hits across the step.
 static void fire_stroke(int v, int st, int boost, int delay, int step_ms) {
-    int g;
-    switch (st) {
-    case ST_DRAG:
-        g = delay - 2 * FLAM_MS; fire(v, boost - 4, g < 0 ? 0 : g);
-        /* fall through — a drag is a flam with one more grace */
-    case ST_FLAM:
-        g = delay - FLAM_MS;     fire(v, boost - 3, g < 0 ? 0 : g);
-        fire(v, boost, delay);
-        break;
-    case ST_RATCHET:
-        // repeats DECAY in level (real rolls do), which also stops four equal
-        // bright hat transients from stacking into an audible pop
-        for (int k = 0; k < 4; k++)
-            fire(v, boost - k, delay + k * step_ms / 4);
-        break;
-    default:
-        fire(v, boost, delay);
-    }
+    tr909_fire_stroke(SL_BD, v, st, boost, delay, step_ms, ktune, kdecay, kcolor);
 }
 
 void init(void) {
-    // kick — sine body, lowpassed, +30st sweep over 35ms (faster + bigger
-    // than the 808's 26/50: punch, not boom)
-    instrument(SL_BD, INSTR_SINE, 0, 300, 0, 50);
-    instrument_filter(SL_BD, FILTER_LOW, 380, 2);
-    instrument_env(SL_BD, 0, ENV_PITCH, 0, 35, 30.0f);
-    // the warehouse kick: every classic 909 record runs the kick hot into the
-    // desk — tanh on the sine body adds the odd harmonics that read as WEIGHT.
-    // (Baked, not accent-linked: per-hit instrument_drive() would mis-apply to
-    // delayed flam/shuffle hits — they snapshot the slot at fire time.)
-    instrument_drive(SL_BD, 0.35f);
-    // kick click — the ATTACK knob layer: a 10ms highpassed noise tick
-    instrument(SL_BDC, INSTR_NOISE, 0, 9, 0, 4);
-    instrument_filter(SL_BDC, FILTER_HIGH, 2500, 2);
-
-    // snare body (fired twice: 185Hz + 330Hz modes), quick settle sweep
-    instrument(SL_SDB, INSTR_SINE, 0, 90, 0, 25);
-    instrument_filter(SL_SDB, FILTER_LOW, 1400, 1);
-    instrument_env(SL_SDB, 0, ENV_PITCH, 0, 15, 4.0f);
-    // snare noise — brighter + longer than the 808's snappy
-    instrument(SL_SDN, INSTR_NOISE, 0, 170, 0, 50);
-    instrument_filter(SL_SDN, FILTER_HIGH, 1400, 2);
-
-    // toms — sine with a pitch drop + a short noise click at the attack
-    instrument(SL_TOM, INSTR_SINE, 0, 220, 0, 45);
-    instrument_env(SL_TOM, 0, ENV_PITCH, 0, 60, 7.0f);
-    instrument(SL_TOMC, INSTR_NOISE, 0, 12, 0, 5);
-    instrument_filter(SL_TOMC, FILTER_BAND, 2000, 3);
-
-    // rimshot — short woody dual ping through a low highpass
-    instrument(SL_RS, INSTR_TRI, 0, 28, 0, 10);
-    instrument_filter(SL_RS, FILTER_HIGH, 400, 3);
-
-    // handclap — bandpassed noise; the retriggers in fire() make the clap
-    instrument(SL_CP, INSTR_NOISE, 0, 100, 0, 45);
-    instrument_filter(SL_CP, FILTER_BAND, 1200, 5);
-
-    // ── the ROM-sample stand-ins ─────────────────────────────────────────
-    // hats: INSTR_FM on the 3.5 detent (harmonics 0.55 → inharmonic clang),
-    // feedback high (morph) = chaotic metal, then a highpass whose cutoff
-    // STARTS 5kHz LOW and rises back (negative ENV_CUTOFF) — the sampled
-    // hat's fast-closing sizzle. Closed chokes open, like the hardware.
-    instrument(SL_HHC, INSTR_FM, 0, 40, 0, 16);
-    instrument_harmonics(SL_HHC, 0.55f);
-    instrument_timbre(SL_HHC, 0.90f);
-    instrument_morph(SL_HHC, 0.85f);
-    instrument_env(SL_HHC, 0, ENV_CUTOFF, 0, 28, -5000.0f);
-
-    instrument(SL_HHO, INSTR_FM, 0, 380, 0, 110);
-    instrument_harmonics(SL_HHO, 0.55f);
-    instrument_timbre(SL_HHO, 0.90f);
-    instrument_morph(SL_HHO, 0.85f);
-    instrument_env(SL_HHO, 0, ENV_CUTOFF, 0, 220, -4500.0f);
-    instrument_choke(SL_HHC, SL_HHO);   // closed hat chokes the open hat
-
-    // crash — FM clang + a separate long noise wash (TONE knob crossfades)
-    instrument(SL_CC, INSTR_FM, 0, 1000, 0, 280);
-    instrument_harmonics(SL_CC, 0.55f);
-    instrument_timbre(SL_CC, 1.00f);
-    instrument_morph(SL_CC, 0.90f);
-    instrument(SL_CCN, INSTR_NOISE, 0, 1200, 0, 320);
-
-    // ride — same metal, less feedback = a cleaner ringing ping
-    instrument(SL_RC, INSTR_FM, 0, 550, 0, 160);
-    instrument_harmonics(SL_RC, 0.55f);
-    instrument_timbre(SL_RC, 0.72f);
-    instrument_morph(SL_RC, 0.58f);
-
-    apply_metal_filter();   // the XY pad owns all five metal highpasses
+    tr909_build(SL_BD);              // the 13-slot 909 voice bank — the SOUND, now in tr909.h
+    apply_metal_filter();            // aim the metal highpasses from the XY pad (mcut/mres)
 
     for (int v = 0; v < NV; v++) { ktune[v] = 0.5f; kdecay[v] = 0.5f; kcolor[v] = 0.5f; }
     load_preset();

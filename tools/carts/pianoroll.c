@@ -7,9 +7,9 @@
   "created": "2026-07-13",
   "lineage": "sampler",
   "description": {
-    "summary": "A scrubbable piano roll: play notes in on the keybed, draw & reshape them with the mouse, set velocity, lock to a scale, and save your song.",
+    "summary": "A scrubbable 4-track piano roll (bass/lead/pad/piano): play notes in on the keybed, draw & reshape them with the mouse, set velocity, lock to a scale, and save your song.",
     "detail": "Time runs left–right, pitch runs bottom–up. Notes live in BEATS, so tempo and scrubbing are free. Playback is stateless: every frame each note asks 'should I be sounding at the playhead right now?' — so you can drag the playhead anywhere on the ruler and instantly hear the composition at that point, no need to replay from the top. Two mouse TOOLS (toggle with B, or the DRAW/SEL chip): in DRAW, click empty to place a note and drag to size it; in SELECT, drag empty to marquee many notes, then move/duplicate/delete them together. In both, a note's body moves and its edges retime; right-click deletes one. Record live off the keybed too. The bottom panel flips between the KEYBED and a VELOCITY lane. SCALE-lock snaps every pitch into key. Your song auto-saves and reloads.",
-    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · , / . : undo / redo (or the < > buttons) · HUD: DUP · VEL/KEYS panel · SCL scale-lock: roll collapses to in-key lanes AND the bottom keybed becomes a uniform scale strip (SCL off = full chromatic keybed) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
+    "controls": "1-4 or the tabs: pick track (BASS/LEAD/PAD/PNO) — new notes + keybed use it, other tracks ghost · keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · , / . : undo / redo (or the < > buttons) · HUD: DUP · VEL/KEYS panel · SCL scale-lock: roll collapses to in-key lanes AND the bottom keybed becomes a uniform scale strip (SCL off = full chromatic keybed) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
   }
 }
 de:meta */
@@ -33,13 +33,25 @@ de:meta */
 #include "studio.h"
 #include "keybed.h"
 
-#define SYN       5            // instrument slot the keybed + playback both use
 #define MAXNOTES  512
 #define SONG_LEN  16.0f        // song length in beats (4 bars of 4/4)
 
+// --- tracks: four instruments, one per lane ---------------------------------
+#define NTRACK    4
+#define TRK_SLOT0 5            // instruments live in slots 5..8 (one per track)
+static const char *TRK_NAME[NTRACK] = { "BASS", "LEAD", "PAD", "PNO" };
+static const int   TRK_COL[NTRACK]  = { CLR_RED,   CLR_GREEN,      CLR_BLUE,      CLR_INDIGO };
+static const int   TRK_DIM[NTRACK]  = { CLR_BROWN, CLR_DARK_GREEN, CLR_DARK_BLUE, CLR_DARK_PURPLE };
+static int  active_track = 1;                       // the editable track (LEAD by default)
+static int  trk_slot(int t){ return TRK_SLOT0 + t; }
+#define TAB_W  46
+#define TAB_X(i) (2 + (i) * 48)                      // track-tab layout (shared: draw + hit-test)
+
 // --- layout -----------------------------------------------------------------
 #define HUD_H     10           // toolbar row
-#define RULER_Y   HUD_H
+#define TRACK_H   9            // track-tab row
+#define TRACK_Y   HUD_H
+#define RULER_Y   (HUD_H + TRACK_H)
 #define RULER_H   12
 #define ROLL_Y    (RULER_Y + RULER_H)
 #define KB_H      50           // bottom panel: keybed manual OR velocity lane
@@ -56,6 +68,7 @@ typedef struct {
     int8_t  pitch;             // MIDI 0..127
     float   start, len;        // in beats
     uint8_t vel;               // 1..7
+    uint8_t track;             // 0..NTRACK-1 (which instrument)
     uint8_t rec;               // 1 while being recorded live (keybed owns the sound then)
     uint8_t sel;               // 1 if in the current selection
     int     h;                 // live voice handle during playback/scrub, -1 = silent
@@ -64,7 +77,7 @@ typedef struct {
 } Note;
 
 // compact note for save files AND undo snapshots (only the musical fields)
-typedef struct { int8_t pitch; float start, len; uint8_t vel; } SNote;
+typedef struct { int8_t pitch; float start, len; uint8_t vel, track; } SNote;
 typedef struct { int n; SNote notes[MAXNOTES]; } Snap;
 
 static Note  note_[MAXNOTES];
@@ -167,13 +180,15 @@ static void snap_take(Snap *s){
     for (int i = 0; i < n_notes; i++){
         s->notes[i].pitch = note_[i].pitch; s->notes[i].start = note_[i].start;
         s->notes[i].len   = note_[i].len;   s->notes[i].vel   = note_[i].vel;
+        s->notes[i].track = note_[i].track;
     }
 }
 static bool snap_diff(const Snap *s){          // does the live state differ from snapshot s?
     if (s->n != n_notes) return true;
     for (int i = 0; i < n_notes; i++)
         if (s->notes[i].pitch != note_[i].pitch || s->notes[i].start != note_[i].start ||
-            s->notes[i].len   != note_[i].len   || s->notes[i].vel   != note_[i].vel) return true;
+            s->notes[i].len   != note_[i].len   || s->notes[i].vel   != note_[i].vel ||
+            s->notes[i].track != note_[i].track) return true;
     return false;
 }
 static void snap_apply(const Snap *s){
@@ -182,6 +197,7 @@ static void snap_apply(const Snap *s){
     for (int i = 0; i < n_notes; i++){
         note_[i].pitch = s->notes[i].pitch; note_[i].start = s->notes[i].start;
         note_[i].len   = s->notes[i].len;   note_[i].vel   = s->notes[i].vel;
+        note_[i].track = s->notes[i].track;
         note_[i].rec = 0; note_[i].sel = 0; note_[i].h = -1;
     }
     for (int m = 0; m < 128; m++) rec_map[m] = -1;
@@ -210,6 +226,7 @@ static void record_on(int midi, int vel){
     nt->start = playhead;
     nt->len   = snap;
     nt->vel   = (uint8_t)vel_vol(vel > 7 ? vel * 7 / 127 : vel);
+    nt->track = (uint8_t)active_track;
     nt->rec   = 1; nt->sel = 0; nt->h = -1;
     rec_map[midi] = n_notes++;
 }
@@ -239,7 +256,7 @@ static int sk_key_at(int px){ int k = px * sk_nkeys() / SCREEN_W; return (k < 0 
 static void sk_press(int k){
     if (k < 0 || k >= sk_nkeys() || sk_h[k] >= 0) return;
     int midi = sk_midi(k);
-    sk_h[k] = note_on(midi, SYN, 5);
+    sk_h[k] = note_on(midi, trk_slot(active_track), 5);
     record_on(midi, 5);                        // already in-key — no snap needed
 }
 static void sk_release(int k){
@@ -260,6 +277,13 @@ static void kill_live(void){
     for (int k = 0; k < SK_MAXKEYS; k++){ if (sk_h[k] >= 0) note_off(sk_h[k]); sk_h[k] = -1; sk_q[k] = false; }
     for (int f = 0; f < 8; f++){ sk_fid[f] = -1; sk_fk[f] = -1; }
     keybed_all_off();
+}
+// switch which track is editable; the keybed follows it (plays that instrument)
+static void set_track(int t){
+    if (t < 0 || t >= NTRACK || t == active_track) return;
+    kill_live();
+    active_track = t;
+    keybed_config(trk_slot(t), 4, 14);
 }
 
 static void scalekb_update(void){
@@ -305,7 +329,7 @@ static void audition(void){
         Note *nt = &note_[i];
         bool on = audible && !nt->rec &&
                   playhead >= nt->start && playhead < nt->start + nt->len;
-        if (on && nt->h < 0)  nt->h = note_on(nt->pitch, SYN, vel_vol(nt->vel));
+        if (on && nt->h < 0)  nt->h = note_on(nt->pitch, trk_slot(nt->track), vel_vol(nt->vel));
         else if (!on && nt->h >= 0){ note_off(nt->h); nt->h = -1; }
     }
 }
@@ -314,6 +338,7 @@ static void audition(void){
 static int hit_note(int px, int py, int *zone){
     for (int i = n_notes - 1; i >= 0; i--){
         Note *nt = &note_[i];
+        if (nt->track != active_track) continue;      // only the active track is editable
         int y = y_of_pitch(nt->pitch);
         if (py < y || py >= y + ROWH) continue;
         int x0 = x_of_beat(nt->start), x1 = x_of_beat(nt->start + nt->len);
@@ -370,19 +395,20 @@ typedef struct {
 #define SAVE_MAGIC 0x50524C4Cu   // 'PRLL'
 
 static void save_song(void){
-    SaveBlob b; b.magic = SAVE_MAGIC; b.ver = 1;
+    SaveBlob b; b.magic = SAVE_MAGIC; b.ver = 2;
     b.n = n_notes; b.tempo = tempo; b.root = scale_root; b.sidx = scale_idx;
     b.lock = scalelock; b.snap = snap;
     for (int i = 0; i < n_notes; i++){
         b.notes[i].pitch = note_[i].pitch; b.notes[i].start = note_[i].start;
         b.notes[i].len = note_[i].len;     b.notes[i].vel   = note_[i].vel;
+        b.notes[i].track = note_[i].track;
     }
     save_bytes(&b, sizeof b);
 }
 static bool load_song(void){
     SaveBlob b;
     int got = load_bytes(&b, sizeof b);
-    if (got < (int)sizeof b || b.magic != SAVE_MAGIC || b.ver != 1) return false;
+    if (got < (int)sizeof b || b.magic != SAVE_MAGIC || b.ver != 2) return false;
     if (b.n < 0 || b.n > MAXNOTES) return false;
     all_notes_off();
     n_notes = b.n; tempo = b.tempo; scale_root = b.root % 12; scale_idx = b.sidx % NSCALE;
@@ -391,6 +417,7 @@ static bool load_song(void){
     for (int i = 0; i < n_notes; i++){
         note_[i].pitch = b.notes[i].pitch; note_[i].start = b.notes[i].start;
         note_[i].len = b.notes[i].len; note_[i].vel = b.notes[i].vel;
+        note_[i].track = b.notes[i].track % NTRACK;
         note_[i].rec = 0; note_[i].sel = 0; note_[i].h = -1;
     }
     for (int m = 0; m < 128; m++) rec_map[m] = -1;
@@ -410,6 +437,11 @@ static bool btn_click(int b){
     return mouse_pressed(MOUSE_LEFT) &&
            mx >= BTN[b].x && mx < BTN[b].x + BTN[b].w && my >= 1 && my < HUD_H - 1;
 }
+static bool tab_click(int i){
+    int mx = mouse_x(), my = mouse_y();
+    return mouse_pressed(MOUSE_LEFT) &&
+           mx >= TAB_X(i) && mx < TAB_X(i) + TAB_W && my >= TRACK_Y && my < TRACK_Y + TRACK_H;
+}
 
 static void seed_demo(void){
     static const struct { int p; float s, l; } demo[] = {
@@ -419,15 +451,18 @@ static void seed_demo(void){
     };
     for (int i = 0; i < (int)(sizeof demo / sizeof demo[0]); i++){
         note_[n_notes] = (Note){ .pitch=(int8_t)demo[i].p, .start=demo[i].s,
-                                 .len=demo[i].l, .vel=5, .h=-1 };
+                                 .len=demo[i].l, .vel=5, .track=1, .h=-1 };   // demo lives on LEAD
         n_notes++;
     }
 }
 
 void init(void){
     bpm(tempo);
-    instrument(SYN, INSTR_SAW, 6, 90, 5, 160);
-    keybed_config(SYN, 4, 14);
+    instrument(trk_slot(0), INSTR_TRI,   4, 140, 4, 120);   // BASS  — rounded, low
+    instrument(trk_slot(1), INSTR_SAW,   6,  90, 5, 160);   // LEAD  — the bright saw
+    instrument(trk_slot(2), INSTR_SINE, 300,  0, 7, 500);   // PAD   — soft, sustained
+    instrument(trk_slot(3), INSTR_PLUCK, 2, 220, 2, 300);   // PNO   — plucked string
+    keybed_config(trk_slot(active_track), 4, 14);
     keybed_layout(0, KB_Y, SCREEN_W, KB_H);
     keybed_on_note(rec_on);
     keybed_on_off(rec_off);
@@ -449,6 +484,7 @@ void update(void){
     if (keyp('B')) tool = !tool;             // toggle DRAW <-> SELECT (Ableton's draw-mode key)
     if (keyp(',')) do_undo();                // ',' / '.' = the < > keys (off the keybed's letters)
     if (keyp('.')) do_redo();
+    for (int i = 0; i < NTRACK; i++){ if (keyp('1' + i)) set_track(i); if (tab_click(i)) set_track(i); }
     if (keyp(KEY_BACKSPACE) && count_sel()){ mark(); del_selected(); }
     if (keyp('[')){ tempo -= 5; if (tempo < 40) tempo = 40; bpm(tempo); }
     if (keyp(']')){ tempo += 5; if (tempo > 240) tempo = 240; bpm(tempo); }
@@ -532,7 +568,7 @@ void update(void){
                 clear_sel();
                 int p = scale_snap(pitch_of_y(my));
                 note_[n_notes] = (Note){ .pitch=(int8_t)p, .start=snapf(beat_of_x(mx)),
-                                         .len=snap, .vel=5, .sel=1, .h=-1 };
+                                         .len=snap, .vel=5, .track=(uint8_t)active_track, .sel=1, .h=-1 };
                 drag = DRAG_END; drag_note = n_notes++;
             } else {                             // SELECT: press starts a marquee; a TAP (no move) deselects
                 drag = DRAG_MARQUEE; mq_x0 = mx; mq_y0 = my; mq_moved = false;
@@ -593,6 +629,7 @@ void update(void){
                 int y0 = my < mq_y0 ? my : mq_y0, y1 = my > mq_y0 ? my : mq_y0;
                 clear_sel();
                 for (int i = 0; i < n_notes; i++){
+                    if (note_[i].track != active_track) continue;   // marquee only grabs the active track
                     int nx0 = x_of_beat(note_[i].start), nx1 = x_of_beat(note_[i].start + note_[i].len);
                     int ny  = y_of_pitch(note_[i].pitch);
                     if (nx1 >= x0 && nx0 <= x1 && ny + ROWH >= y0 && ny <= y1) note_[i].sel = 1;
@@ -630,6 +667,7 @@ void update(void){
     watch("tool",    "%d", tool);
     watch("ulen",    "%d", u_len);
     watch("rlen",    "%d", r_len);
+    watch("trk",     "%d", active_track);
     watch("velmode", "%d", velmode);
     watch("lock",    "%d", scalelock);
     { int snd = 0; for (int i = 0; i < n_notes; i++) if (note_[i].h >= 0) snd++;
@@ -656,20 +694,22 @@ static void draw_roll(void){
         int x = x_of_beat(b);
         line(x, ROLL_Y, x, ROLL_Y + ROLL_H, ((int)b % 4 == 0) ? CLR_MEDIUM_GREY : CLR_DARK_GREY);
     }
+    // two passes: ghost (inactive-track) notes first, the editable track on top
+    for (int pass = 0; pass < 2; pass++)
     for (int i = 0; i < n_notes; i++){
         Note *nt = &note_[i];
+        bool active = (nt->track == active_track);
+        if (active != (pass == 1)) continue;   // pass 0 = ghosts, pass 1 = active track
         int y = y_of_pitch(nt->pitch);
         if (y + ROWH <= ROLL_Y || y >= ROLL_Y + ROLL_H) continue;
         int x0 = x_of_beat(nt->start), x1 = x_of_beat(nt->start + nt->len);
         if (x1 < ROLL_X || x0 > SCREEN_W) continue;
         if (x0 < ROLL_X) x0 = ROLL_X;
         int w = x1 - x0; if (w < 2) w = 2;
-        int fill = nt->rec ? CLR_RED
-                 : nt->h >= 0 ? CLR_YELLOW
-                 : nt->sel ? CLR_ORANGE
-                 : (nt->vel >= 4 ? CLR_GREEN : CLR_DARK_GREEN);   // brighter = louder
+        int fill = (nt->rec || nt->h >= 0) ? CLR_YELLOW               // recording / firing now (any track)
+                 : active ? TRK_COL[nt->track] : TRK_DIM[nt->track];  // track colour; dim = ghost
         rectfill(x0, y, w, ROWH, fill);
-        rect(x0, y, w, ROWH, nt->sel ? CLR_WHITE : CLR_DARK_GREEN);
+        if (active) rect(x0, y, w, ROWH, nt->sel ? CLR_WHITE : CLR_BLACK);
     }
     if (playhead >= view_b0 && playhead <= view_b0 + vis_beats()){
         int px = x_of_beat(playhead);
@@ -760,12 +800,26 @@ static void draw_hud(void){
     font(FONT_NORMAL);
 }
 
+static void draw_tracks(void){
+    rectfill(0, TRACK_Y, SCREEN_W, TRACK_H, CLR_BLACK);
+    font(FONT_SMALL);
+    for (int t = 0; t < NTRACK; t++){
+        bool on = (t == active_track);
+        int x = TAB_X(t);
+        rectfill(x, TRACK_Y + 1, TAB_W, TRACK_H - 2, on ? TRK_COL[t] : TRK_DIM[t]);
+        if (on) rect(x, TRACK_Y + 1, TAB_W, TRACK_H - 2, CLR_WHITE);
+        print(TRK_NAME[t], x + 3, TRACK_Y + 2, on ? CLR_BLACK : CLR_LIGHT_GREY);
+    }
+    font(FONT_NORMAL);
+}
+
 void draw(void){
     cls(CLR_BLACK);
     draw_roll();
     draw_piano_col();
     draw_ruler();
     draw_hud();
+    draw_tracks();
     if (velmode)        draw_vel_lane();
     else if (scalelock) scalekb_draw();
     else                keybed_draw();

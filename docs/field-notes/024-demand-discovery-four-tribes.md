@@ -45,6 +45,7 @@ reading the raw wishes. Three findings:
    across a pad grid and trigger it, tempo-locked.* This is app-shaped **and** humble — the most
    buildable on-grain gap surfaced so far. We're partway there (`sampler` + the new `drumkit.h`
    sampling drums), but "one sample → pads, tempo-synced" as a playable toy is not yet a cart.
+   > **Built (2026-07-14):** shipped as the **`breakchop`** cart — the MPC/SP-404 break-chopper (loop → pad grid, tempo-locked, per-pad reverse/speed + punch-in FX).
 
 3. **A repeated OFF-grain boundary worth recording: vocal-overdub.** In r/makinghiphop the single
    most-repeated ask (5+ threads) is *"play a beat and record my voice over it at the same time."*

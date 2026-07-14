@@ -270,37 +270,56 @@ static void draw_303(int i) {
     }
 }
 
-// ── the 808 DRUM face — its OWN identity (not a 303 clone): a blue x0x grid.
-// No keybed (nothing to pitch); the hero is the voice×step grid in the iconic
-// 808 quarter colours. The blue header makes it unmistakable mid-jam.
+// ── the 808 DRUM face — the device-face paradigm (NOT a full grid): the bottom
+// is the work surface (voice picker + the 16 HITS of the picked voice); the screen
+// stays free for the kit overview + tweaks. Its identity: a blue 808 badge, blue
+// voice pads, and the hits in the iconic 808 red·orange·yellow·white quarters.
 static void draw_808(void) {
-    static const int VL[8]   = { TR_BD, TR_SD, TR_LT, TR_CP, TR_CH, TR_OH, TR_CB, TR_CY };
-    static const int QCLR[4] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_WHITE };  // the 808 step-colour signature
+    static const int VL[8]   = { TR_BD, TR_SD, TR_LT, TR_CP, TR_CH, TR_OH, TR_CB, TR_CY };  // core 8 (‹more› = later)
+    static const int QCLR[4] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_WHITE };
 
-    // identity header — BLUE, so you always know you're on the 808
-    rrectfill(4, 15, 152, 10, 2, CLR_DARK_BLUE);
-    rrectfill(4, 15, 24, 10, 2, CLR_TRUE_BLUE);
-    font(FONT_SMALL); print("808", 8, 17, CLR_WHITE);
-    font(FONT_TINY);  print("DRUM MACHINE", 32, 18, CLR_BLUE);
-    if (cbtn(0x02u, 134, 16, 20, 8, "NEW", 0)) gen_drums();
+    // ② the PICKED voice's knobs (contextual — repaint on pick)
+    font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR808_NAME[dsel], 6, 24, CLR_TRUE_BLUE);
+    knob(&dtune[dsel],  52, 27, 6, "TUNE", 0.5f);
+    knob(&ddecay[dsel], 88, 27, 6, "DEC",  0.5f);
+    knob(&dcolor[dsel], 124, 27, 6, "COL", 0.5f);
 
-    // the grid — voice rows (select + audition) × 16 steps
-    for (int r = 0; r < 8; r++) {
-        int v = VL[r], ry = 27 + r * 8, selp = (v == dsel);
-        int pr = 0, hot = 0, foc = 0; void *wp = ui_wid_hash(0x90u + v, 4, ry, 30, 7);
-        if (ui_button_core(wp, 4, ry, 30, 7, &foc, &pr, &hot)) { dsel = v; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); }
-        rrectfill(4, ry, 30, 7, 1, selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
-        rrect(4, ry, 30, 7, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        font(FONT_TINY); print(TR808_NAME[v], 6, ry + 1, selp ? CLR_WHITE : CLR_BLUE);
+    // ③ screen — whole-kit overview (readout) + playhead + NEW, soft-keys flank
+    chip(6, 38, "KIT", 1); chip(6, 47, "FX", 0);
+    chip(138, 38, "MAP", 0); chip(138, 47, "SCP", 0);
+    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
+    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    rrectfill(28, 40, 15, 7, 1, CLR_TRUE_BLUE); font(FONT_TINY); print("808", 30, 41, CLR_WHITE);   // identity badge
+    if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_drums();
+    for (int r = 0; r < 8; r++) {                          // kit minimap
+        int v = VL[r], gy = 42 + r * 2;
         for (int s = 0; s < STEPS; s++) {
-            int x = 37 + s * 7, here = (s == step && playing), on2 = dgrid[v][s];
-            int fc = on2 ? QCLR[s / 4] : CLR_DARKER_PURPLE;
-            if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
-            int pr2 = 0, hot2 = 0, foc2 = 0; void *ws = ui_wid_hash(0x100u + v * 16 + s, x, ry, 6, 7);
-            if (ui_button_core(ws, x, ry, 6, 7, &foc2, &pr2, &hot2)) dgrid[v][s] = !dgrid[v][s];
-            rrectfill(x, ry, 6, 7, 1, fc);
-            rrect(x, ry, 6, 7, 1, CLR_BROWNISH_BLACK);
+            int gx = 48 + s * 5;
+            if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, 16, CLR_MEDIUM_GREEN); blend_reset(); }
+            if (dgrid[v][s]) rectfill(gx, gy, 3, 1, v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
         }
+    }
+
+    // ④ VOICE PICKER — one row of pads (selectors), just above the hits
+    for (int r = 0; r < 8; r++) {
+        int v = VL[r], x = 6 + r * 18, selp = (v == dsel);
+        int pr = 0, hot = 0, foc = 0; void *wp = ui_wid_hash(0x90u + v, x, 64, 17, 9);
+        if (ui_button_core(wp, x, 64, 17, 9, &foc, &pr, &hot)) { dsel = v; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); }
+        rrectfill(x, 64, 17, 9, 1, selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
+        rrect(x, 64, 17, 9, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        font(FONT_TINY); print(TR808_NAME[v], x + (17 - text_width(TR808_NAME[v])) / 2, 66, selp ? CLR_WHITE : CLR_BLUE);
+    }
+
+    // ⑤ the HITS — the picked voice's 16 steps, on the BOTTOM (thumb surface)
+    for (int s = 0; s < STEPS; s++) {
+        int x = 6 + s * 9, on2 = dgrid[dsel][s], here = (s == step && playing);
+        int fc = on2 ? QCLR[s / 4] : CLR_DARKER_PURPLE;
+        if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
+        int pr = 0, hot = 0, foc = 0; void *ws = ui_wid_hash(0xA0u + s, x, 76, 8, 16);
+        if (ui_button_core(ws, x, 76, 8, 16, &foc, &pr, &hot)) dgrid[dsel][s] = !dgrid[dsel][s];
+        rrectfill(x, 76, 8, 16, 1, fc);
+        rrect(x, 76, 8, 16, 1, CLR_BROWNISH_BLACK);
     }
 }
 

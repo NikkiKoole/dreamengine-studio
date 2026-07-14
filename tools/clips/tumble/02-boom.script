@@ -1,0 +1,4 @@
+# tumble: fire a ball into the block, then SPACE to detonate it into shrapnel
+press 10 2 165
+release 45 2 165
+tap 95 SPACE

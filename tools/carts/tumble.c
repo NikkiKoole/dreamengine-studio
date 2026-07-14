@@ -13,7 +13,7 @@
     "collision-detection"
   ],
   "lineage": "The rigid-body counterpart to the verlet toolkit (runtime/physics.h): the first cart on the vendored pure-C Box2D v3 (runtime/box2d/). Deliberately does the things verlet is bad at — crisp rotation, stable resting contact, friction — so it reads as the honest A/B against the jelly/waterjar particle carts. See docs/design/box2d-integration.md.",
-  "description": "A slingshot and a stack of crates. Drag to pull the pouch back, release to fling a heavy ball, and knock the pyramid down. Every crate is a real Box2D v3 rigid body — it rotates as it topples, rests solidly on the crate below (stable stacking, the thing a verlet blob can't do), and slides on friction. TOPPLED counts how many you've knocked over; R rebuilds the stack. First cart on the engine's new pure-C Box2D backend."
+  "description": "A slingshot and a huge wall of crates. Drag the pouch back, release to fling a heavy ball into the block, and press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend."
 }
 de:meta */
 #include "studio.h"
@@ -53,10 +53,13 @@ static b2WorldId world;
 static b2BodyId  crate[NCRATE];
 static b2Vec2    crate0[NCRATE];   // start pose, for the TOPPLED test
 static b2BodyId  ball[NBALL];
+static float     ballr[NBALL];     // per-ball radius (fragments are smaller than the shot)
 static int       nball  = 0;
 static int       ncrate = 0;       // how many crates build_stack actually placed
 static bool      aiming = false;
 static int       built  = 0;
+static float     ex_x, ex_y;       // last explosion centre (screen px) — visual juice
+static int       ex_age = -1;      // frames since the blast; -1 = none
 
 static b2BodyId make_crate(float x, float y) {
     b2BodyDef bd = b2DefaultBodyDef();
@@ -74,23 +77,45 @@ static b2BodyId make_crate(float x, float y) {
     return id;
 }
 
-static void spawn_ball(float x, float y, float vx, float vy) {
+static void spawn_ball(float x, float y, float vx, float vy, float r) {
     if (nball >= NBALL) return;                 // cap reached — keep every existing ball, just stop adding
     b2BodyDef bd = b2DefaultBodyDef();
     bd.type = b2_dynamicBody;
     bd.position = (b2Vec2){x, y};
     bd.linearVelocity = (b2Vec2){vx, vy};
     bd.userData = (void*)(intptr_t)T_BALL;
-    bd.isBullet = true;                          // CCD — a fast ball can't tunnel the thin walls
+    bd.isBullet = true;                          // CCD — a fast ball/fragment can't tunnel the thin walls or crates
     b2BodyId id = b2CreateBody(world, &bd);
-    b2Circle c = {{0.0f, 0.0f}, BR};
+    b2Circle c = {{0.0f, 0.0f}, r};
     b2ShapeDef sd = b2DefaultShapeDef();
-    sd.density = 5.0f;                           // heavy — it bowls crates over
+    sd.density = 5.0f;                           // heavy — it bowls crates over (small r -> light, fast shrapnel)
     sd.material.friction = 0.4f;
     sd.material.restitution = 0.15f;
     sd.enableHitEvents = true;                   // -> impact sounds
     b2CreateCircleShape(id, &sd, &c);
+    ballr[nball] = r;
     ball[nball++] = id;
+}
+
+// split a ball into a burst of smaller balls flung radially outward — real shrapnel does the damage
+static void explode_ball(int idx) {
+    b2Vec2 p  = b2Body_GetPosition(ball[idx]);
+    b2Vec2 v  = b2Body_GetLinearVelocity(ball[idx]);
+    float  pr = ballr[idx];
+    b2DestroyBody(ball[idx]);                    // the parent is consumed
+    for (int j = idx + 1; j < nball; j++) { ball[j-1] = ball[j]; ballr[j-1] = ballr[j]; }
+    nball--;
+
+    float fr = pr * 0.45f; if (fr < 0.09f) fr = 0.09f;   // fragment radius (min floor)
+    int N = 14;
+    for (int i = 0; i < N; i++) {
+        float a  = (float)i / N * 6.2832f + rnd(30) * 0.01f;
+        float dx = cosf(a), dy = sinf(a), sp = 12.0f + rnd(6);
+        spawn_ball(p.x + dx*(pr+fr), p.y + dy*(pr+fr),    // start on a ring so they don't overlap
+                   dx*sp + v.x*0.3f, dy*sp + v.y*0.3f, fr);
+    }
+    shake(4.0f);
+    ex_x = SX(p.x); ex_y = SY(p.y); ex_age = 0;
 }
 
 static void build_stack(void) {
@@ -119,6 +144,7 @@ static void reset_world(void) {
     built = 1;
     nball = 0;
     aiming = false;
+    ex_age = -1;
 
     b2World_SetHitEventThreshold(world, 1.5f);  // only real impacts sound; settling ticks stay quiet
 
@@ -193,6 +219,7 @@ static void impact_sound(int ta, int tb, float speed) {
 void update(void) {
     if (!built) reset_world();
     if (keyp('R')) reset_world();
+    if (ex_age >= 0 && ++ex_age > 10) ex_age = -1;   // age the blast flash
 
     int mx = mouse_x(), my = mouse_y();
     if (mouse_pressed(MOUSE_LEFT))  aiming = true;
@@ -201,8 +228,12 @@ void update(void) {
         float sp = sqrtf(v.x*v.x + v.y*v.y);
         int vol = 3 + (int)(sp * 0.14f); if (vol > 7) vol = 7;
         hit(55 + rnd(5), SL_TWANG, vol, 170);   // the release twang
-        spawn_ball(LX, LY, v.x, v.y);
+        spawn_ball(LX, LY, v.x, v.y, BR);
         aiming = false;
+    }
+    if (keyp(KEY_SPACE) && nball > 0) {          // detonate the last ball into shrapnel
+        hit(30, INSTR_NOISE, 6, 120);            // boom
+        explode_ball(nball - 1);
     }
 
     b2World_Step(world, 1.0f/60.0f, 4);
@@ -281,14 +312,22 @@ void draw(void) {
     for (int i = 0; i < ncrate; i++) draw_crate(crate[i]);
     for (int i = 0; i < nball; i++) {
         b2Vec2 p = b2Body_GetPosition(ball[i]);
-        circfill(SX(p.x), SY(p.y), (int)(BR*PPM), CLR_DARK_GREY);
-        circ(SX(p.x), SY(p.y), (int)(BR*PPM), CLR_LIGHT_GREY);
+        int r = (int)(ballr[i]*PPM); if (r < 1) r = 1;
+        circfill(SX(p.x), SY(p.y), r, CLR_DARK_GREY);
+        circ(SX(p.x), SY(p.y), r, CLR_LIGHT_GREY);
     }
     draw_launcher();
     if (aiming) draw_aim();
 
+    if (ex_age >= 0) {                                       // blast: expanding ring + bright core, cooling
+        int r = 4 + ex_age * 6;
+        int col = ex_age < 2 ? CLR_WHITE : ex_age < 4 ? CLR_YELLOW : ex_age < 7 ? CLR_ORANGE : CLR_RED;
+        circ((int)ex_x, (int)ex_y, r, col);
+        if (ex_age < 3) circfill((int)ex_x, (int)ex_y, 7 - ex_age*2, CLR_WHITE);
+    }
+
     char buf[32];
     snprintf(buf, sizeof buf, "TOPPLED %d/%d  BALLS %d", count_toppled(), ncrate, nball);
     print(buf, 4, 4, CLR_WHITE);
-    print("DRAG AIM  R RESET", 4, SCREEN_H - 10, CLR_LIGHT_GREY);
+    print("DRAG AIM  SPACE BOOM  R RESET", 4, SCREEN_H - 10, CLR_LIGHT_GREY);
 }

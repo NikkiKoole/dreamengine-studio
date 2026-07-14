@@ -1,0 +1,6 @@
+# silverball: serve and flip
+tap 10 SPACE
+down 90 Z
+down 90 X
+up 130 Z
+up 130 X

@@ -5,7 +5,7 @@
 > sparked by the ragdoll cart (`tools/carts/ragdoll.c`) feeling good and prompting the
 > question: should dreamengine roll a tiny physics layer into the runtime — "a bit like a
 > simple Box2D"? The verlet toolkit half is now real (used by `verlet`/`ragdoll`/`linerider`/
-> `coaster`/`tombola`); the deeper rigid-body route is still just the sketch below.
+> `coaster`/`jelly`/`sloop`/`tentacle`); the deeper rigid-body route is still just the sketch below.
 
 ---
 
@@ -209,18 +209,26 @@ into the runtime.
 
 ---
 
-## Update (2026-07-13): the trigger fired — ~10 carts want the same code
+## Update (2026-07-13): the trigger fired — enough carts want the same code
 
 > Still a scratchpad, but the "if a second cart wants it" condition above is now
 > emphatically met, so we're acting on it (option #3, the readable `physics.h` mini-lib).
 
-The condition for promoting #1 → #3 was *"if a second cart wants the same code."* A grep says
-it isn't a second cart — it's about **ten**, each hand-rolling its own `{x,y,px,py}` point +
-integrate + distance-constraint with **zero sharing** (`cart-dupes.js` territory):
-`ragdoll`, `linerider`, `coaster`, `growballs`, `inkrunner`, `lotfill`, `calgames`, `acidrack`,
-`marble`, `orbit` — plus `physics` itself. (Honest split: some are true constraint solvers —
-ragdoll/linerider/coaster/growballs — some just integrate — marble/orbit. Not ten identical
-copies, but the reusable *core* is written over and over.)
+The condition for promoting #1 → #3 was *"if a second cart wants the same code."* It's not a
+second cart — a handful each hand-roll their own `{x,y,px,py}` point + integrate +
+distance-constraint with **zero sharing** (`cart-dupes.js` territory), confirmed against each
+cart's `verlet-integration`/`spring-damper` meta tag: `ragdoll`, `linerider`, `coaster`,
+`growballs`, `inkrunner`, `calgames`, `marble`, `orbit` — plus `physics` itself. (Honest split:
+some are true constraint solvers — ragdoll/linerider/coaster/growballs — some just integrate —
+marble/orbit.)
+
+> **Correction (2026-07-14):** an earlier draft of this list said "~ten" and included `acidrack`
+> and `lotfill`. Both were false positives — the first pass grepped for `px`/`py`, which also
+> matches *pointer* coords (`touch_x`/`touch_y`) and pixel vars, not just verlet
+> previous-position. `acidrack` is a 303 rack, `lotfill` a noise-terrain demo; neither does
+> physics. The real backlog is the eight above. **Migrated so far:** `ragdoll`, `linerider`,
+> `coaster` (from the list) + `jelly`/`sloop`/`tentacle`/`verlet` (newer). **Still hand-rolling:**
+> `growballs`, `inkrunner`, `calgames`, `marble`, `orbit`.
 
 ### The shape we settled on — two layers, seam only in Layer 1
 

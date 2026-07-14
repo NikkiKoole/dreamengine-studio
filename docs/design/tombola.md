@@ -1,12 +1,34 @@
 # tombola — the OP-1 slice: a physics sequencer you drop notes into
 
-STATUS: EXPLORING (2026-07-13) — brainstormed with the maker. The concrete cart chosen from the
-"cheap-OP-1 / just-noodle" demand gap (demand-discovery [note 022](../field-notes/022-demand-discovery-ipadmusic.md)
+STATUS: BUILDING (2026-07-14) — the physics blocker cleared and a **first cut shipped**
+(`tools/carts/tombola.c`, on Box2D v3). Brainstormed with the maker (2026-07-13) as the concrete
+cart chosen from the "cheap-OP-1 / just-noodle" demand gap
+(demand-discovery [note 022](../field-notes/022-demand-discovery-ipadmusic.md)
 + [023](../field-notes/023-demand-discovery-synthesizers.md)), laid onto the
 [device-face paradigm](device-face-paradigm.md) and grounded in the
-[second north star](second-north-star.md). Not built — this is the paper design + the case for it.
-Working name **tombola** (the OP-1's own name for the module; a generic raffle-drum word — final
-name open).
+[second north star](second-north-star.md). This doc is the design + the case; the "Built (v1)"
+section below records what shipped and the one mechanic that changed under playtest. Working name
+**tombola** (the OP-1's own name for the module; a generic raffle-drum word — final name open).
+
+## Built (v1) — 2026-07-14
+
+`tombola.c` ships the honest core: a **kinematic hexagonal drum** turns slowly; **note-balls**
+(dynamic Box2D bodies) tumble inside under gravity; the device-face is exactly the layout below
+(nav spine · four encoders SPIN/GRAV/TONE/GATE · the drum as the touchable hero · no step grid ·
+a scale-locked pitch-selector strip). Tap in the drum to drop a ball; balls are colour-coded by
+scale degree.
+
+**The one mechanic that changed:** the paper design fires a note when a ball *crosses a trigger
+line*. Built that first (a thin horizontal b2 sensor at the drum's middle) and it went **silent
+after ~1s** — a slowly rotating hexagon doesn't lift balls back over the centre; they just pool at
+the bottom, so the line only fired once. Switched to the more faithful reading of the *same* honest
+core: **a note fires because a ball physically BOUNCES off the wall** (a Box2D contact *hit* event
+above a speed threshold, velocity-scaled so a harder bounce is louder). That keeps "every note-on is
+a real collision, nothing sequenced," and it stays alive continuously as the drum stirs the pile.
+(The line-crossing variant is worth revisiting if a future container shape actually cascades balls
+over the centre.) **Deferred to the cart's own punch-list** (`node tools/cart-todos.js tombola`):
+BUILD's ghost-trajectory arcs, flick-to-remove, ball-selected → the four encoders edit that ball,
+and the `spec()` that asserts note-on ↔ hit event.
 
 ## Why this cart (the demand)
 
@@ -129,13 +151,24 @@ missing core of the three, and that we have parts to build it from:
   scale-lock + synth wiring, ready to borrow. *But it's a fixed-position step sequencer, not physics*
   — no gravity, no emergence-from-collision. The tombola's honest core (notes from *real falling-ball
   collisions*) is what it doesn't have, and that's the whole point.
-- **`runtime/physics.h`** (shipped in parallel, 2026-07-13) — the shared **verlet** toolkit (points
-  with inverse-mass + collision radius, links, integrate/relax); its demo `verlet.c` is literally *"a
-  pile of bouncy balls."* This is the tombola's ball engine — **build the balls on `physics.h`, don't
-  copy `pinball`'s inline math.** The tombola only adds a rotating container + the trigger-line hit
-  test on top. (`pinball` stays a useful *wall-bounce* reference; `marble` also has verlet but no audio.)
+- **The ball engine — now two options, both shipped.** When this doc was written only verlet
+  existed; **Box2D v3 landed 2026-07-14** ([box2d-integration.md](box2d-integration.md), SHIPPED) and
+  is the better fit for *this* cart. Weigh them:
+  - **Box2D v3 (recommended).** A slowly rotating container full of balls that collide and bounce
+    characterfully is *exactly* rigid-body's sweet spot — the one case [physics-notes.md](physics-notes.md)
+    says hand-rolling is genuinely hard (stable contacts, friction, tunnelling). The drum is a **motored
+    revolute joint** — the very showcase `silverball` (pinball on Box2D v3) already proves out — and the
+    trigger fires off real `b2Contact`/sensor events, so the honest-core `spec()` (note-on ↔ collision)
+    reads straight from the solver. Cost: box2d is opt-in, so the cart wires its own build path (mirror
+    `tools/build-nr.sh` / add the `--box2d` flag — see box2d-integration §"Wiring a cart").
+  - **verlet (`physics.h`, 2026-07-13).** The code-first path (points + inverse-mass + collision
+    radius + relax); demo `verlet.c` is literally *"a pile of bouncy balls,"* and `pinball`/`marble` are
+    wall-bounce references. Lighter, no extra dependency, "read every line" — but ball-on-ball stacking
+    and a spinning wall are the exact things verlet does *least* stably, so the drum feel is the risk.
+  - **Verdict:** lead with **Box2D v3** for the tumbling-drum feel; keep verlet as the fallback if the
+    dependency/build-path cost isn't worth it. Either way, **don't copy `pinball`'s inline math.**
 - **`circlemachine`** gives the other half: the **scale-quantised note/synth wiring** to fire when a
-  ball crosses the line. So the tombola = **`physics.h` balls** in a rotating drum driving
+  ball crosses the line. So the tombola = **balls in a rotating drum** (Box2D v3, per above) driving
   **`circlemachine`'s note wiring** — "copy the closest relative" per
   [`../guides/instrument-carts.md`](../guides/instrument-carts.md), not a from-scratch build.
 

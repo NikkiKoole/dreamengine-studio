@@ -76,6 +76,26 @@ static int  flagmode = 0;                    // step row is painting a flag (vs 
 enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_LEN, FL_N };
 static int  armed = FL_ACC;                  // which flag a bar-tap paints
 static const char *FLNAME[FL_N] = { "ACC", "SLD", "TIE", "OCT+", "OCT-", "LEN" };
+static int  paint_val = 0;                    // what a FLAG paint-drag writes (decided on the first cell)
+static int flag_get(int i, int s, int f) {
+    switch (f) {
+    case FL_ACC:  return acc[i][s];
+    case FL_SLD:  return sld[i][s];
+    case FL_TIE:  return tie[i][s];
+    case FL_OCTU: return oct[i][s] == 1;
+    case FL_OCTD: return oct[i][s] == -1;
+    }
+    return 0;
+}
+static void flag_set(int i, int s, int f, int v) {
+    switch (f) {
+    case FL_ACC:  acc[i][s] = v; break;
+    case FL_SLD:  sld[i][s] = v; break;
+    case FL_TIE:  tie[i][s] = v; break;
+    case FL_OCTU: oct[i][s] = v ? 1 : (oct[i][s] == 1 ? 0 : oct[i][s]); break;   // paint clears only its own dir
+    case FL_OCTD: oct[i][s] = v ? -1 : (oct[i][s] == -1 ? 0 : oct[i][s]); break;
+    }
+}
 
 // the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart).
 // The 808 kit lives at slots TR808_BASE(9)..22; the 909 kit sits above it at 23+.
@@ -336,17 +356,14 @@ static void draw_303(int i) {
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
             ui_reg(w, bx, by, bw, bh, 0);
             UiCap *c = ui_cap_for(w);
-            if (flagmode) {                              // FLAG mode: a tap paints the armed flag
-                if (ui_released(w)) {
-                    sel[i] = s;
-                    switch (armed) {
-                    case FL_ACC:  acc[i][s] ^= 1; break;
-                    case FL_SLD:  sld[i][s] ^= 1; break;
-                    case FL_TIE:  tie[i][s] ^= 1; break;
-                    case FL_OCTU: oct[i][s] = oct[i][s] == 1 ? 0 : 1; break;
-                    case FL_OCTD: oct[i][s] = oct[i][s] == -1 ? 0 : -1; break;
-                    case FL_LEN:  plen[i] = s + 1; break;
-                    }
+            if (flagmode) {                              // FLAG mode: tap or DRAG paints the armed flag
+                if (c) {                                 // the captured bar tracks the finger across the row
+                    if (ui_grabbed(w)) paint_val = (armed == FL_LEN) ? 0 : !flag_get(i, s, armed);
+                    int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
+                    if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
+                    sel[i] = cell;
+                    if (armed == FL_LEN) plen[i] = cell + 1;         // drag to set the loop length
+                    else flag_set(i, cell, armed, paint_val);        // paint the same value across the drag
                 }
             } else {                                     // NORMAL: tap = on/off, drag up/down = pitch
                 if (ui_grabbed(w)) { bar_gy[s] = c ? c->cy : by; bar_moved[s] = 0; bar_on0[s] = on[i][s]; }

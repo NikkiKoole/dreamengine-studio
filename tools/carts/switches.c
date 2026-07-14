@@ -12,7 +12,7 @@
   "description": {
     "summary": "The press + flip families from the control vocabulary, in beveled lo-fi: momentary and latching buttons, the illuminated light vocabulary (off/dim/lit/blink), a radio group, and the flip family — bat toggles, a slide switch, a rocker.",
     "detail": "The second study cart for docs/design/control-vocabulary.md (the sibling of rotaries). Row 1 PUSH: MOMENTARY (on only while held), LATCH (a press flips a sticky state), ILLUM (a lit latching button), BLINK (the pending/recording state). Row 2 LIGHT STATES + RADIO: the one light vocabulary every illuminated control shares — OFF / DIM (armed) / LIT (active) / BLINK (pending) — plus a mutually-exclusive RADIO group (one lit). Row 3 SWITCHES (flip): a 2-position and a 3-position BAT toggle whose lever leans, a SLIDE switch whose nub sits at a labelled stop, and a ROCKER see-saw. Buttons are beveled caps that depress + darken on press; input rides ui.h's ui_button_core so every one is mouse + touch + focus at once.",
-    "controls": "Tap/click any button. MOMENTARY lights only while held. LATCH/ILLUM toggle and stay. Tap a RADIO button to select it (only one lit). Tap a BAT toggle or SLIDE to step it to the next position; tap the ROCKER to flip it."
+    "controls": "Tap/click any button. MOMENTARY lights only while held. LATCH/ILLUM toggle and stay. Tap a RADIO button to select it (only one lit). Tap a BAT toggle or SLIDE to step it to the next position; tap the ROCKER to flip it. Tap BEVEL (top-right) or press B to toggle the Win95 chisel — flat vs beveled (the ui_skin prototype)."
   }
 }
 de:meta */
@@ -26,6 +26,8 @@ de:meta */
 // ui_button_core, so every control is mouse + touch + focus at once.
 
 // ── shared chrome ────────────────────────────────────────────────────────
+static int bevel = 1;   // Win95 chisel on/off — the ui_skin prototype
+
 static void faceplate(int x, int y, int w, int h) {
     rrectfill(x, y, w, h, 4, CLR_DARK_BROWN);
     line(x + 3, y + 1, x + w - 4, y + 1, CLR_BROWN);           // top sheen
@@ -56,8 +58,9 @@ static void draw_btn(int x, int y, int w, int h, const char *label,
                      int pressed, int face, int lab, int hot, int glow) {
     if (glow) { blend(BLEND_AVG); rectfill(x - 2, y - 2, w + 4, h + 4, face); blend_reset(); }
     rectfill(x, y, w, h, face);                                // square face
-    if (pressed) chisel(x, y, w, h, CLR_BLACK, CLR_MEDIUM_GREY, CLR_LIGHT_GREY, CLR_WHITE);  // sunken
-    else         chisel(x, y, w, h, CLR_WHITE, CLR_LIGHT_GREY, CLR_MEDIUM_GREY, CLR_BLACK);  // raised
+    if (!bevel) rect(x, y, w, h, CLR_BLACK);                   // flat: a plain 1px border
+    else if (pressed) chisel(x, y, w, h, CLR_BLACK, CLR_MEDIUM_GREY, CLR_LIGHT_GREY, CLR_WHITE);  // sunken
+    else              chisel(x, y, w, h, CLR_WHITE, CLR_LIGHT_GREY, CLR_MEDIUM_GREY, CLR_BLACK);  // raised
     if (hot && !pressed) rect(x + 2, y + 2, w - 4, h - 4, CLR_LIGHT_YELLOW);  // hover cue (mouse)
     int o = pressed ? 1 : 0;                                   // content nudges into the press
     print(label, x + (w - text_width(label)) / 2 + o, y + (h - 6) / 2 + o, lab);
@@ -134,7 +137,7 @@ void draw(void) {
 
     print("SWITCHES", 6, 4, CLR_WHITE);
     font(FONT_SMALL);
-    print_right("press + flip families - beveled lo-fi", 314, 6, CLR_MAUVE);
+    if (ui_button(SCREEN_W - 64, 3, 60, 11, bevel ? "BEVEL:ON" : "BEVEL:OFF") || keyp('B')) bevel = !bevel;
 
     int col[4] = { 12, 88, 164, 240 }, bw = 64, bh = 24;
     int blink = ((int)(now() * 2)) & 1;                        // 2 Hz pending flash

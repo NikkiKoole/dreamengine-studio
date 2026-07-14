@@ -12,11 +12,14 @@
   "description": {
     "summary": "The SHOW family from the control vocabulary — output-only indicators in beveled lo-fi: status LEDs (off/dim/on/blink + colours + a chase), stereo VU bargraphs with peak-hold, 7-segment numeric readouts, and an LCD scope with phosphor glow. All driven by one animated signal so they're alive.",
     "detail": "The fourth control-vocabulary study cart. These controls take no input — they DISPLAY — so every one is driven by a shared bouncing signal (a couple of LFOs) to show how it reads a value. Row 1 LEDS: a single lamp in each light state (off/dim/on/blink), the colour vocabulary (red/amber/green/blue/bi-colour), and a chasing activity row. Row 2 METERS: a stereo VU pair (segmented green->amber->red) with decaying PEAK-HOLD caps, plus a horizontal LED bar. Row 3 READOUTS + SCREEN: 7-segment displays (a fixed BPM, a live counter) on a recessed dark inset, beside a bezelled LCD SCOPE — dark phosphor field, scanlines, a bright green trace with a dim glow (the zone-3 'soul' surface). Recessed housings + top-left light, per the pinned lighting rule.",
-    "controls": "None — indicators are output. Everything animates from the internal signal; watch the meters bounce, the peak caps hang and fall, the counter tick, and the scope scroll."
+    "controls": "The one control is the BEVEL toggle (tap it, top-right, or press B) — flat vs tactile lighting (glints/sheens/bezel), the ui_skin prototype. Everything else is output: watch the meters bounce, the peak caps hang and fall, the counter tick, the scope scroll."
   }
 }
 de:meta */
 #include "studio.h"
+#include "ui.h"
+
+static int bevel = 1;   // tactile lighting (glints/sheens/bezel) on/off — the ui_skin prototype
 
 // INDICATORS — the SHOW family (control-vocabulary.md §3 ▦): output-only
 // readouts. LEDs, VU bargraphs, 7-segment numbers, an LCD scope. They take no
@@ -35,7 +38,7 @@ static void led(int cx, int cy, int r, int on, int col) {
     }
     circfill(cx, cy, r, on ? col : CLR_DARKER_GREY);      // lamp
     arc(cx, cy, r, 0, 360, CLR_BLACK);                    // rim
-    if (on) pset(cx - (r > 3 ? 1 : 0), cy - (r > 3 ? 1 : 0), CLR_WHITE);  // top-left glint
+    if (on && bevel) pset(cx - (r > 3 ? 1 : 0), cy - (r > 3 ? 1 : 0), CLR_WHITE);  // top-left glint
 }
 
 // ── a segmented VU meter: level fills bottom->top, green->amber->red, + peak ─
@@ -50,10 +53,10 @@ static void vu_meter(int x, int y, int w, int h, float level, float peak) {
         int isPeak = (int)(peak * n) == i;
         if (lit || isPeak) {
             rectfill(x, sy, w, sh, isPeak && !lit ? CLR_WHITE : col);
-            line(x, sy, x + w - 1, sy, CLR_WHITE);        // top-left sheen on the lit segment
+            if (bevel) line(x, sy, x + w - 1, sy, CLR_WHITE);   // top sheen on the lit segment
         } else {
             rectfill(x, sy, w, sh, CLR_DARKER_GREY);      // unlit
-            blend(BLEND_AVG); line(x, sy + sh - 1, x + w - 1, sy + sh - 1, CLR_BLACK); blend_reset();
+            if (bevel) { blend(BLEND_AVG); line(x, sy + sh - 1, x + w - 1, sy + sh - 1, CLR_BLACK); blend_reset(); }
         }
     }
 }
@@ -85,10 +88,12 @@ static void seg7_num(int x, int y, int dw, int dh, int value, int digits, int on
 // ── the LCD scope: bezel + dark phosphor + scanlines + a bright green trace ─
 static void scope(int x, int y, int w, int h, float t) {
     rrectfill(x - 3, y - 3, w + 6, h + 6, 3, CLR_DARK_GREY);        // bezel
-    line(x - 3, y - 3, x + w + 2, y - 3, CLR_LIGHT_GREY);           // bezel top-left sheen
-    line(x - 3, y - 3, x - 3, y + h + 2, CLR_LIGHT_GREY);
-    line(x - 3, y + h + 2, x + w + 2, y + h + 2, CLR_BLACK);        // bezel bottom-right shade
-    line(x + w + 2, y - 3, x + w + 2, y + h + 2, CLR_BLACK);
+    if (bevel) {
+        line(x - 3, y - 3, x + w + 2, y - 3, CLR_LIGHT_GREY);       // bezel top-left sheen
+        line(x - 3, y - 3, x - 3, y + h + 2, CLR_LIGHT_GREY);
+        line(x - 3, y + h + 2, x + w + 2, y + h + 2, CLR_BLACK);    // bezel bottom-right shade
+        line(x + w + 2, y - 3, x + w + 2, y + h + 2, CLR_BLACK);
+    }
     rectfill(x, y, w, h, CLR_BROWNISH_BLACK);                       // phosphor field (near-black)
     blend(BLEND_AVG);
     line(x, y + h / 2, x + w - 1, y + h / 2, CLR_DARK_GREEN);       // graticule centre lines
@@ -119,10 +124,11 @@ void update(void) {
 
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
+    ui_begin();
 
     print("INDICATORS", 6, 4, CLR_WHITE);
     font(FONT_SMALL);
-    print_right("the SHOW family - output only", 314, 6, CLR_MAUVE);
+    if (ui_button(SCREEN_W - 64, 3, 60, 11, bevel ? "BEVEL:ON" : "BEVEL:OFF") || keyp('B')) bevel = !bevel;
 
     float t = now();
     // one shared signal driving everything
@@ -175,7 +181,7 @@ void draw(void) {
             int col = frac > 0.85f ? CLR_RED : frac > 0.6f ? CLR_YELLOW : CLR_GREEN;
             int lit = bl >= i / (float)n;
             rectfill(bx + i * cw, by, cw - 1, 12, lit ? col : CLR_DARKER_GREY);
-            if (lit) line(bx + i * cw, by, bx + i * cw + cw - 2, by, CLR_WHITE);
+            if (lit && bevel) line(bx + i * cw, by, bx + i * cw + cw - 2, by, CLR_WHITE);
         }
         print("SIGNAL", bx, by + 18, CLR_DARK_GREY);
     }
@@ -199,4 +205,5 @@ void draw(void) {
     }
 
     font(FONT_NORMAL);
+    ui_end();
 }

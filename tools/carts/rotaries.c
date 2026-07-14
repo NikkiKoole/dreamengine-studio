@@ -12,7 +12,7 @@
   "description": {
     "summary": "The turning family from the control vocabulary, in beveled lo-fi: value models (pot / endless encoder / selector / push / dual), a trim-to-jumbo size range, all five LED-ring modes, and a LIVE layer of software-only knob tricks.",
     "detail": "The workshop cart for docs/design/control-vocabulary.md — one set of knob renderers (rot_body/rot_ring/rot_pointer/rot_knurl/draw_pot) exercised four ways so the look never drifts. Row 1 VALUE MODELS: POT (bounded — pointer + min/max dial), ENC (endless — bare knurled cap, NO pointer, value in a full-circle ring because the cap angle is a lie; the grip spins with the turn), SEL (discrete — snaps between 5 detents), PUSH (turn + tap-to-toggle a centre LED), DUAL (two pots on one shaft). Row 2 SIZE RANGE: the same pot at r=6..22, proving the 1-2px bevel scales. Row 3 LED-RING MODES: DOT/FILL/BIPOLAR/SPREAD/PULSE. Row 4 LIVE — what a physical knob can't do: MOD HALO (cap = your base, a live mark shows the LFO-modulated value — the value in two places at once), GLOW (value-reactive colour cold->hot), GHOST (a remembered default, tap to snap home), JOG (a weighted finger-dimple spinner with momentum + acceleration you flick to fly through a library list). Every cap is an extruded body in a recessed socket with a drop shadow + concentric sheen/shade — the icon's tactility as pixel-honest bevels.",
-    "controls": "Drag any rotary vertically to turn it (every finger is its own pointer — turn two at once). Mouse wheel fine-tunes the hovered one. Tap PUSH to toggle its LED, tap GHOST to snap it home. DUAL: drag the ring for outer, the centre for inner. JOG: flick it and let go — it coasts through the list, faster spin = bigger jumps."
+    "controls": "Drag any rotary vertically to turn it (every finger is its own pointer — turn two at once). Mouse wheel fine-tunes the hovered one. Tap PUSH to toggle its LED, tap GHOST to snap it home. DUAL: drag the ring for outer, the centre for inner. JOG: flick it and let go — it coasts through the list, faster spin = bigger jumps. Tap BEVEL (top-right) or press B to toggle the tactile lighting — flat vs beveled (the ui_skin prototype)."
   }
 }
 de:meta */
@@ -42,6 +42,7 @@ static float dual_o = 0.7f, dual_i = 0.3f;             // concentric outer/inner
 static float ring_v[5] = { 0.30f, 0.65f, 0.30f, 0.5f, 0.8f };  // the 5 ring modes
 static float size_v[5] = { 0.4f, 0.55f, 0.35f, 0.7f, 0.5f };   // the size range
 static float sty_v[3]  = { 0.4f, 0.55f, 0.6f };                // the collet styles
+static int   bevel = 1;                                        // tactile lighting on/off (the ui_skin prototype)
 
 // ── LIVE section (the software layer — behaviours hardware can't do) ─────────
 static float halo_base = 0.45f;                 // MOD HALO: the base value your hand sets
@@ -78,10 +79,12 @@ static void faceplate(int x, int y, int w, int h) {
 static void rot_body(int cx, int cy, int r, int face, int hi, int lo, int hot) {
     int t = r >= 16 ? 2 : 1;                         // bevel thickness scales with size
     circfill(cx, cy, r + 3, CLR_BROWNISH_BLACK);     // hole punched in the faceplate
-    rot_shadow(cx, cy, r);
+    if (bevel) rot_shadow(cx, cy, r);
     circfill(cx, cy, r, face);                       // flat cap face
-    ring(cx, cy, r - 1 - t, r - 1, 165, 285, hi);    // top-LEFT sheen (one light source, top-left)
-    ring(cx, cy, r - 1 - t, r - 1, -15, 105, lo);    // bottom-RIGHT shade — 180° opposite
+    if (bevel) {
+        ring(cx, cy, r - 1 - t, r - 1, 165, 285, hi);    // top-LEFT sheen (one light source, top-left)
+        ring(cx, cy, r - 1 - t, r - 1, -15, 105, lo);    // bottom-RIGHT shade — 180° opposite
+    }
     arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_BLACK);   // rim (arc family → aligns)
 }
 
@@ -146,7 +149,7 @@ static void draw_pot(int cx, int cy, int r, float v, int hot) {
 // 2 = scalloped skirt + metal cap. `groove` = the indicator-groove colour.
 static void draw_styled(int cx, int cy, int r, float v, int cap, int groove, int style, int hot) {
     circfill(cx, cy, r + 3, CLR_BROWNISH_BLACK);          // socket
-    rot_shadow(cx, cy, r);
+    if (bevel) rot_shadow(cx, cy, r);
     circfill(cx, cy, r, CLR_BROWNISH_BLACK);              // black skirt
     if (style == 1)                                       // fine dense ridges (fluted)
         for (float a = 0; a < 360; a += 12) {
@@ -161,21 +164,18 @@ static void draw_styled(int cx, int cy, int r, float v, int cap, int groove, int
             line(cx + (int)dx(r * 0.66f, a + 18), cy + (int)dy(r * 0.66f, a + 18),
                  cx + (int)dx(r - 1, a + 18),     cy + (int)dy(r - 1, a + 18), CLR_DARK_GREY);
         }
-    arc(cx, cy, r, 165, 285, CLR_DARK_GREY);              // skirt sheen / shade (top-left light)
-    arc(cx, cy, r, -15, 105, CLR_BLACK);
+    if (bevel) {
+        arc(cx, cy, r, 165, 285, CLR_DARK_GREY);          // skirt sheen / shade (top-left light)
+        arc(cx, cy, r, -15, 105, CLR_BLACK);
+    }
     arc(cx, cy, r, 0, 360, hot ? CLR_WHITE : CLR_BLACK);  // rim
     int cr = (int)(r * 0.58f);                            // the inner cap
-    if (style == 2) {                                     // brushed-metal cap
-        circfill(cx, cy, cr, CLR_MEDIUM_GREY);
+    circfill(cx, cy, cr, style == 2 ? CLR_MEDIUM_GREY : cap);
+    if (bevel) {
         ring(cx, cy, cr - 2, cr - 1, 165, 285, CLR_WHITE);
-        ring(cx, cy, cr - 2, cr - 1, -15, 105, CLR_DARK_GREY);
-        arc(cx, cy, cr, 0, 360, CLR_BROWNISH_BLACK);
-    } else {                                              // coloured cap
-        circfill(cx, cy, cr, cap);
-        ring(cx, cy, cr - 2, cr - 1, 165, 285, CLR_WHITE);
-        ring(cx, cy, cr - 2, cr - 1, -15, 105, CLR_BROWNISH_BLACK);
-        arc(cx, cy, cr, 0, 360, CLR_BLACK);
+        ring(cx, cy, cr - 2, cr - 1, -15, 105, style == 2 ? CLR_DARK_GREY : CLR_BROWNISH_BLACK);
     }
+    arc(cx, cy, cr, 0, 360, style == 2 ? CLR_BROWNISH_BLACK : CLR_BLACK);
     float ang = A0 + v * SW;                              // indicator groove: cap → rim
     line(cx + (int)dx(cr * 0.35f, ang), cy + (int)dy(cr * 0.35f, ang),
          cx + (int)dx(r - 2, ang),      cy + (int)dy(r - 2, ang), groove);
@@ -222,7 +222,7 @@ void draw(void) {
 
     print("ROTARIES", 6, 3, CLR_WHITE);
     font(FONT_SMALL);
-    print_right("the turning family - beveled lo-fi", 314, 5, CLR_MAUVE);
+    if (ui_button(SCREEN_W - 64, 3, 60, 11, bevel ? "BEVEL:ON" : "BEVEL:OFF") || keyp('B')) bevel = !bevel;
 
     int col[5] = { 32, 96, 160, 224, 288 };       // 5 column centres
     int r1 = 64, r2 = 152, r3 = 244;                // three row centres

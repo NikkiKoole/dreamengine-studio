@@ -94,9 +94,9 @@ static void acid_init(Acid *a, int slot, int subslot) {
 // Devil Fish. This is "both voicings, one header, chosen by data." Call after acid_init.
 static void acid_stock(Acid *a) {
     a->cut_top       = 6.0f;                        // vanilla ceiling ~3840 Hz
-    a->p[ACID_SLDT]  = 0.14f;                       // ~60 ms fixed-feel slide
+    a->p[ACID_SLDT]  = 0.143f;                      // exactly 60 ms slide (vanilla's fixed glide)
     a->p[ACID_ADEC]  = a->p[ACID_DEC];              // accent decays like a normal note (two-decay off)
-    a->p[ACID_ATK]   = 0.05f;                       // ~2 ms attack
+    a->p[ACID_ATK]   = 0.051f;                      // exactly 2 ms attack (matches vanilla's define)
     a->p[ACID_TRK]   = 0.0f;                        // no filter tracking
     a->p[ACID_SUB]   = 0.0f;                        // no sub-osc
     a->sweep         = 0;                           // accent-sweep off

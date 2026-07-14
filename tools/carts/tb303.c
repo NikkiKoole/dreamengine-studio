@@ -26,6 +26,7 @@
 }
 de:meta */
 #include "studio.h"
+#include "acid303.h"     // the shared TB-303 acid VOICE (voiced VANILLA via acid_stock)
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include <stdio.h>
 #include <math.h>
@@ -126,8 +127,7 @@ static const Pat PRESET[] = {
 static int   pre = 0, tempo = 130;
 static bool  running = true;
 static int   last16 = -1, playhead = 0;
-static int   h = -1;          // the one voice
-static bool  prev_slide;      // did the step we just played carry a slide?
+static Acid  a;               // the one voice — the shared acid core (vanilla)
 static int   wave = INSTR_SAW;
 static bool  show_help;
 
@@ -137,26 +137,13 @@ enum { PTR_IDLE, PTR_KNOB, PTR_SLIDER, PTR_ROLL };
 typedef struct { int id, mode, k, lastY; } Ptr;   // id MUST be first (pointer.h)
 static Ptr ptr[PTR_MAX];      // .id == PTR_NONE → slot free
 
-// the lowpass circuit — one place to swap for the filter-fidelity A/B
-// (docs/design/rebirth-classic.md §3: FILTER_LOW vs FILTER_LADDER vs FILTER_STEINER)
-#define ACID_FILTER FILTER_DIODE
+// The VOICE now lives in acid303.h (Acid a): cutoff/reso/env/dec/acc/drive/squelch
+// mappings, the FILTER_DIODE definition, the slide/accent/two-decay trigger, the
+// live cutoff/reso/drive ride, and the baked slapback echo send. tb303's int knobs
+// (0..100) sync into a.p[] (float 0..1) at the top of update() — every shared curve
+// is exactly equal (header_float = knob/100), voiced VANILLA by acid_stock().
 
-// ── knob value mappings ──────────────────────────────────────────────────
-static int cut_hz(void)  { return (int)(60.0f * powf(2.0f, knob[K_CUT] * 0.06f)); } // 60..3840
-static int res_q(void)   { return knob[K_RES] * 15 / 100; }
-static int env_hz(void)  { return knob[K_ENV] * 30; }                // 0..3000
-static int dec_ms(void)  { return 30 + knob[K_DEC] * 5; }            // 30..530
-static float acc_mul(void) { return 1.0f + knob[K_ACC] * 0.015f; }   // 1..2.5
-static float drv_x(void)   { return knob[K_DRV] / 100.0f; }          // 0..1
-static float sq_mul(void)  { return 1.0f + knob[K_SQ] * 0.02f; }     // 1..3 (the SQL knob)
-
-static void define_voice(void) {
-    instrument(SLOT, wave, 2, 60, 6, 25);
-    instrument_duty(SLOT, 0.48f);
-    instrument_filter(SLOT, ACID_FILTER, cut_hz(), res_q());
-    instrument_drive(SLOT, drv_x());
-    instrument_echo(SLOT, 0.10f);   // the delay pedal every acid set ran into — subtle slapback
-}
+// the SQL knob is the ex-squelch (env-sweep depth) — see K_SQ
 
 static void sync_echo(void) { echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f); }   // dotted-8th
 
@@ -200,11 +187,13 @@ static void load_preset(void) {
     }
 }
 
-static void all_off(void) { if (h >= 0) { note_off(h); h = -1; } prev_slide = false; }
-
 void init(void) {
     PTR_CLEAR(ptr);
-    define_voice();
+    acid_init(&a, SLOT, -1);   // voice slot 9, no sub-osc
+    acid_stock(&a);            // vanilla (pre-Devil-Fish) voicing: 6.0 cut range, no two-decay/track/sub
+    a.wave = wave;             // saw by default
+    a.base = BASE;             // 36 — the roll's bottom row
+    acid_define(&a);           // apply wave/base before the first note
     load_preset();
 }
 
@@ -224,22 +213,30 @@ static const int KYA[NK] = { 38, 38, 38, 38, 38, 38, 38, 92 };      // per-knob 
 #define KY 38
 #define KR 11
 
-static void knob_changed(int k) {
-    if (k == K_CUT || k == K_RES) {           // live acid: ringing voice follows
-        instrument_filter(SLOT, ACID_FILTER, cut_hz(), res_q());
-        if (h >= 0) { note_cutoff(h, cut_hz()); note_res(h, res_q()); }
-    }
-    if (k == K_DRV) {                         // drive too — the squelch screams INTO it
-        instrument_drive(SLOT, drv_x());
-        if (h >= 0) note_drive(h, drv_x());
-    }
-    // ENV / DEC / ACC apply at the next trigger
-}
+// CUT/RES/DRV live-apply is now handled by the per-frame sync + acid_ride(&a) at the
+// top of update() (guarded so the instrument filter only reconfigures on change).
+// ENV / DEC / ACC / SQL still take effect at the next trigger. So this hook is a no-op.
+static void knob_changed(int k) { (void)k; }
 
 void update(void) {
-    if (keyp(KEY_SPACE)) { running = !running; last16 = -1; if (!running) all_off(); }
-    if (keyp(KEY_LEFT))  { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; all_off(); }
-    if (keyp(KEY_RIGHT)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; all_off(); }
+    // sync the int knobs (0..100) → the shared Acid params (float 0..1). Every shared
+    // curve is exactly equal (header_float = knob/100). Map by NAME — tb303's knob enum
+    // order differs from the header's ACID_* order. SLDT/ATK/TRK/SUB stay at acid_stock's
+    // vanilla values; K_SWING is tb303's own clock swing (the header has no swing).
+    a.p[ACID_CUT] = knob[K_CUT] / 100.0f;
+    a.p[ACID_RES] = knob[K_RES] / 100.0f;
+    a.p[ACID_ENV] = knob[K_ENV] / 100.0f;
+    a.p[ACID_DEC] = knob[K_DEC] / 100.0f;
+    a.p[ACID_ACC] = knob[K_ACC] / 100.0f;
+    a.p[ACID_DRV] = knob[K_DRV] / 100.0f;
+    a.p[ACID_SQL] = knob[K_SQ]  / 100.0f;
+    a.p[ACID_ADEC] = a.p[ACID_DEC];   // vanilla has no two-decay — accent decays like a normal
+                                      // note. DEC moves at runtime, so re-sync it every frame.
+    acid_ride(&a);                    // ride CUT/RES/DRV live on the ringing voice (guarded)
+
+    if (keyp(KEY_SPACE)) { running = !running; last16 = -1; if (!running) acid_off(&a); }
+    if (keyp(KEY_LEFT))  { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; acid_off(&a); }
+    if (keyp(KEY_RIGHT)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; acid_off(&a); }
     if (keyp(KEY_UP))   { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
     if (keyp(KEY_DOWN)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
     if (keyp('N')) { gen_random(); }
@@ -263,12 +260,12 @@ void update(void) {
 
     // ── tappable header: < name > pattern, BPM halves tempo, > run/stop ──
     if (!grabbed) {
-        if (tapp(146, 0, 18, 22)) { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; all_off(); }
-        if (tapp(214, 0, 18, 22)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; all_off(); }
+        if (tapp(146, 0, 18, 22)) { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; acid_off(&a); }
+        if (tapp(214, 0, 18, 22)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; acid_off(&a); }
         if (tapp(166, 0, 46, 22) && !PRESET[pre].nt[0]) gen_random();   // tap RANDOM's name = reroll
         if (tapp(226, 0, 30, 22)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
         if (tapp(256, 0, 28, 22)) { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
-        if (tapp(286, 0, 18, 22)) { running = !running; last16 = -1; if (!running) all_off(); }
+        if (tapp(286, 0, 18, 22)) { running = !running; last16 = -1; if (!running) acid_off(&a); }
     }
 
     // ── touch: every finger is its own pointer — a knob, the slider, the
@@ -288,7 +285,8 @@ void update(void) {
             if (p->mode != PTR_IDLE) continue;
             if (tx >= 270 && tx < 306 && ty >= 30 && ty < 48) {        // wave switch
                 wave = (wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
-                define_voice();
+                a.wave = wave;
+                acid_define(&a);
                 continue;
             }
             if (tx >= RX && tx < RX + STEPS * RSX && ty >= 182 && ty < 195) {   // LENGTH strip (grid-aligned)
@@ -363,32 +361,22 @@ clock:
         last16  = trig;
         playhead = s;
         if (tie[s]) {
-            prev_slide = sld[s];                       // hold: no retrigger. SLD on a tie step
+            acid_tie(&a, sld[s]);                      // hold: no retrigger. SLD on a tie step
                                                        // arms a glide OUT of the held note into
                                                        // the next — long tied notes that slide.
         } else if (on[s]) {
             int midi = BASE + pitches[s] + oct[s] * 12;
-            int vol  = acc[s] ? 7 : 5;
-            if (h >= 0 && prev_slide) {
-                note_glide(h, 60);                     // the slide
-                note_pitch(h, (float)midi);
-                note_vol(h, vol);                      // env does NOT refire — authentic
-            } else {
-                if (h >= 0) note_off(h);
-                float e = env_hz() * sq_mul() * (acc[s] ? acc_mul() : 1.0f);
-                instrument_env(SLOT, 0, ENV_CUTOFF, 0, dec_ms(), e);
-                h = note_on(midi, SLOT, vol);
-                note_glide(h, 0);
-            }
-            prev_slide = sld[s];
+            acid_note(&a, midi, acc[s], sld[s]);       // slide / accent / retrigger — the voice decides
         } else {
-            all_off();                                 // rest releases the gate
+            acid_off(&a);                              // rest releases the gate
         }
-    } else if (h >= 0 && on[s] && !sld[s] && !tie[(s + 1) % plen]) {
+    } else if (on[s] && !sld[s]) {
         // staccato gate: release ~70% through the step — UNLESS the next step
-        // ties (then the note sustains into it). Account for the swung onset.
+        // ties (then the note sustains into it). Account for the swung onset
+        // (tb303 IS swing-aware; pass the real onset). acid_gate skips when the
+        // ringing voice is gone or the next step ties.
         float onset = (trig & 1) ? sw : 0.0f;
-        if (frac > onset + 0.7f * (1.0f - onset)) { note_off(h); h = -1; }
+        acid_gate(&a, frac, onset, tie[(s + 1) % plen]);
     }
 }
 

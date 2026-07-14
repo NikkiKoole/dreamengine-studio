@@ -29,6 +29,7 @@ de:meta */
 #include "studio.h"
 #include "ui.h"
 #include "acid303.h"
+#include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
 
 // ACID CANDY — a candy-toy acid RACK on the device-face skeleton, 160x100. The
 // nav spine is a strip of colour CARTRIDGES you focus machines through (nav=faces);
@@ -58,6 +59,11 @@ static Acid ac[2];
 static int  on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
 static int  sel[2] = { 0, 0 };
 
+// the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart)
+static int   dgrid[TR_NV][STEPS];                          // the drum pattern
+static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0.5 = neutral)
+static int   dsel = TR_BD;                                 // selected drum voice
+
 // transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
 static float mbop = 0;
@@ -72,6 +78,18 @@ static void gen_line(int i) {
         pit[i][s] = prev = p;
         acc[i][s] = rnd_between(0, 99) < 30;
         sld[i][s] = rnd_between(0, 99) < 22;
+    }
+}
+
+static void gen_drums(void) {
+    for (int v = 0; v < TR_NV; v++) for (int s = 0; s < STEPS; s++) dgrid[v][s] = 0;
+    for (int s = 0; s < STEPS; s += 4) dgrid[TR_BD][s] = 1;         // kick on the floor
+    dgrid[TR_SD][4] = dgrid[TR_SD][12] = 1;                         // snare backbeat
+    for (int s = 0; s < STEPS; s += 2) dgrid[TR_CH][s] = 1;         // 8th closed hats
+    dgrid[TR_OH][2] = dgrid[TR_OH][10] = 1;                         // off-beat open hat
+    for (int s = 0; s < STEPS; s++) {                              // a little spice
+        if (rnd_between(0, 99) < 12) dgrid[TR_CP][s] = 1;
+        if (rnd_between(0, 99) < 10) dgrid[TR_CB][s] = 1;
     }
 }
 
@@ -252,6 +270,40 @@ static void draw_303(int i) {
     }
 }
 
+// ── the 808 DRUM face — its OWN identity (not a 303 clone): a blue x0x grid.
+// No keybed (nothing to pitch); the hero is the voice×step grid in the iconic
+// 808 quarter colours. The blue header makes it unmistakable mid-jam.
+static void draw_808(void) {
+    static const int VL[8]   = { TR_BD, TR_SD, TR_LT, TR_CP, TR_CH, TR_OH, TR_CB, TR_CY };
+    static const int QCLR[4] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_WHITE };  // the 808 step-colour signature
+
+    // identity header — BLUE, so you always know you're on the 808
+    rrectfill(4, 15, 152, 10, 2, CLR_DARK_BLUE);
+    rrectfill(4, 15, 24, 10, 2, CLR_TRUE_BLUE);
+    font(FONT_SMALL); print("808", 8, 17, CLR_WHITE);
+    font(FONT_TINY);  print("DRUM MACHINE", 32, 18, CLR_BLUE);
+    if (cbtn(0x02u, 134, 16, 20, 8, "NEW", 0)) gen_drums();
+
+    // the grid — voice rows (select + audition) × 16 steps
+    for (int r = 0; r < 8; r++) {
+        int v = VL[r], ry = 27 + r * 8, selp = (v == dsel);
+        int pr = 0, hot = 0, foc = 0; void *wp = ui_wid_hash(0x90u + v, 4, ry, 30, 7);
+        if (ui_button_core(wp, 4, ry, 30, 7, &foc, &pr, &hot)) { dsel = v; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); }
+        rrectfill(4, ry, 30, 7, 1, selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
+        rrect(4, ry, 30, 7, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        font(FONT_TINY); print(TR808_NAME[v], 6, ry + 1, selp ? CLR_WHITE : CLR_BLUE);
+        for (int s = 0; s < STEPS; s++) {
+            int x = 37 + s * 7, here = (s == step && playing), on2 = dgrid[v][s];
+            int fc = on2 ? QCLR[s / 4] : CLR_DARKER_PURPLE;
+            if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
+            int pr2 = 0, hot2 = 0, foc2 = 0; void *ws = ui_wid_hash(0x100u + v * 16 + s, x, ry, 6, 7);
+            if (ui_button_core(ws, x, ry, 6, 7, &foc2, &pr2, &hot2)) dgrid[v][s] = !dgrid[v][s];
+            rrectfill(x, ry, 6, 7, 1, fc);
+            rrect(x, ry, 6, 7, 1, CLR_BROWNISH_BLACK);
+        }
+    }
+}
+
 // ── placeholder faces (drum kits + master) — styled, pending their builds ─────
 static void placeholder(int m) {
     rrectfill(6, 20, 148, 71, 4, CLR_BROWNISH_BLACK);
@@ -274,6 +326,9 @@ void init(void) {
         acid_define(&ac[i]);
         gen_line(i);
     }
+    tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9+)
+    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = 0.5f; }
+    gen_drums();
 }
 
 void update(void) {
@@ -289,6 +344,8 @@ void update(void) {
                 if (!mac[i].mute && on[i][step]) { acid_note(&ac[i], ac[i].base + pit[i][step], acc[i][step], sld[i][step]); mbop = 1; }
                 else acid_off(&ac[i]);
             }
+            for (int v = 0; v < TR_NV; v++)                       // the 808 line, same transport
+                if (dgrid[v][step] && !mac[M_808].mute) tr808_fire(TR808_BASE, v, 0, 0, dtune, ddecay, dcolor);
         } else for (int i = 0; i < 2; i++) acid_gate(&ac[i], frac, 0.0f, 0);   // staccato release
     } else for (int i = 0; i < 2; i++) acid_off(&ac[i]);
 #ifdef DE_TRACE
@@ -307,6 +364,7 @@ void draw(void) {
 
     navspine();
     if (mac[face].kind == MK_303) draw_303(face);
+    else if (face == M_808)       draw_808();
     else                          placeholder(face);
 
     font(FONT_NORMAL);

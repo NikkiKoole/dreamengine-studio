@@ -99,10 +99,15 @@ code-first with zero new dependency.
 **Shipped: `waterjar`** — this is now real. A Position-Based Fluid (Macklin & Müller) on
 `physics.h`: `phys_integrate` for the gravity predict + `phys_bounds` for the walls, and the
 cart adds the fluid-specific parts — a uniform-grid spatial hash for O(n) neighbours, a
-per-particle density constraint (incompressibility → a flat resting surface, avg density holds
-at ~1.0 rest), XSPH viscosity, and a velocity limiter so a corner pinch can't spark. ~820
-particles at ~0.9ms/frame. Tip the jar and it pours to the low corner; drag to stir. Zero new
-engine code — exactly the "fluids are a cart, not a lib" bet, proven.
+per-particle density constraint (incompressibility → a flat resting surface), a **no-tensile
+clamp** (only relieve over-packing, never pull under-dense water together) and a one-time
+**settle-and-calibrate** of the rest density (median of the settled pack) so the bulk sits at
+C≈0 and rests calm instead of boiling, XSPH viscosity, and a velocity limiter so a corner pinch
+can't spark. ~3200 particles at ~4ms/frame (spatial hash keeps neighbour-finding linear; the
+smoothing radius scales with the spacing so more/smaller particles stay affordable). Tip the jar
+and it pours to the low corner; drag to stir. Zero new engine code — the "fluids are a cart, not
+a lib" bet, proven. Two tuning lessons live in the cart header: shrink H *with* the spacing, and
+a single rest-density number must match the *settled* pack, not the initial grid.
 
 ---
 

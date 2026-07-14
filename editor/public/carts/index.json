@@ -5165,6 +5165,17 @@
     ]
   },
   {
+    "title": "rotaries",
+    "description": "The turning family from the control vocabulary, in beveled lo-fi: a bounded pot, an endless encoder, a discrete selector, a push-encoder, a concentric dual, and LED-ring encoders in all five ring modes. A study cart for docs/design/control-vocabulary.md — the beveled-lo-fi LOOK for every rotary the device-face paradigm reuses. Row 1 is the VALUE-MODEL spine: POT (absolute+bounded — has a pointer + a min/max dial, hard stops), ENC (relative+unbounded — a bare knurled cap with NO pointer, its value living in a full-circle ring, because the cap angle is a lie), SEL (discrete — snaps between 5 detents), PUSH (turn + tap-to-toggle a centre LED), DUAL (two pots on one shaft). Row 2 is the same ring-encoder body carrying the five LED-ring modes: DOT, FILL, BIPOLAR (centre-out), SPREAD (a width), PULSE (a breathing glow). Every body is an extruded cap in a recessed socket with a soft drop shadow, a top-left sheen and a bottom-right shade — the icon's tactility translated to 1-2px pixel-honest bevels. Drag any rotary vertically to turn it (every finger is its own pointer — turn two at once). Mouse wheel fine-tunes the hovered one. Tap PUSH to toggle its LED. The concentric DUAL: drag the ring for the outer, the centre for the inner.",
+    "file": "rotaries.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "rotstress — rotated-sprite stress test",
     "description": "A deliberate worst case for the software canvas rotated-sampling path: a storm of spinning sprites plus big rotated scaled blits and a textured quad, all opaque, so the per-pixel inverse-map + texel gather dominate. Built to be profiled — crank the sprite count with UP/DOWN to push past the frame budget and see where the time goes.",
     "file": "rotstress.cart.png",
@@ -6562,7 +6573,7 @@
   },
   {
     "title": "Water Jar",
-    "description": "A jar of water you can tip, slosh, and stir. Hundreds of particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool. Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance. Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets",
+    "description": "A jar of water you can tip, slosh, and stir. A few thousand particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool. Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance. Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets",
     "file": "waterjar.cart.png",
     "created": "2026-07-14",
     "kind": [

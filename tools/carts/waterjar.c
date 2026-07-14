@@ -15,7 +15,7 @@
   ],
   "lineage": "The PBD/SPH fluid the physics-notes 'Fluids — a third world' section calls for: a code-first Position-Based Fluid (Macklin & Müller / Ten Minute Physics) on runtime/physics.h, deliberately NOT LiquidFun (C++, dead). Same points-and-constraints shape as jelly.c — swaps the blob's edge-links for a per-particle DENSITY constraint (incompressibility) + XSPH viscosity, with a uniform-grid spatial hash so a few hundred particles stay 60fps. No new engine code.",
   "description": {
-    "summary": "A jar of water you can tip, slosh, and stir. Hundreds of particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool.",
+    "summary": "A jar of water you can tip, slosh, and stir. A few thousand particles hold together as an incompressible fluid — tilt the jar and it pours to the low corner, settling to a flat surface; drag to stir a whirlpool.",
     "detail": "Position-Based Fluids: each frame the particles fall under gravity, then a density constraint solved over grid-hashed neighbours pushes overpacked water apart until it reads as incompressible (a flat resting surface, not a heap of balls). A dash of XSPH viscosity smooths the slosh. Colour tracks speed — deep still water is dark, fast foam goes white — so the motion reads at a glance.",
     "controls": "Left/Right (or A/D) tilt the jar · drag the mouse to stir · SPACE pours more water · R resets"
   }
@@ -23,6 +23,7 @@
 de:meta */
 #include "studio.h"
 #include "physics.h"   // the fluid rides the shared verlet toolkit (Layer 0) — PhysPt + integrate/bounds
+#include <stdlib.h>    // qsort — for the one-time rest-density calibration in init()
 
 #ifdef DE_TRACE
 #include <time.h>       // per-phase profiling only — compiled out of real (editor/web) builds
@@ -41,23 +42,28 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 // The jar tilts by rotating GRAVITY in the jar's frame; the whole scene is drawn rotated back
 // so it reads as tipping a real jar. Nothing here is engine code — just the physics.h verbs.
 
-#define MAXP     1200
+#define MAXP     5000
+#define FILL_N   3200          // how many particles to pour in at reset (see fill_jar). ~half-fills
+                               // the jar and stays calm; a much taller column out-pressures the
+                               // solve and starts to churn, so this is the sweet spot for H=4.
 #define MAXN     48            // neighbours cached per particle per frame (grid-hashed)
-#define H        7.0f          // smoothing radius: particles interact within this
+#define H        4.0f          // smoothing radius: particles interact within this. SCALED WITH the
+                               // spacing → each particle keeps ~the same neighbour count, so solve
+                               // cost stays ~linear in N (shrinking H is what lets us 4× the count).
 #define H2       (H * H)
-#define HCELL    7             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
-#define PR       2.0f          // particle collision radius (for the walls)
+#define HCELL    4             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
+#define PR       1.0f          // particle collision radius (for the walls)
 #define GRAV     0.14f         // gravity per frame (sim units)
-#define DAMP     0.99f         // velocity retention — water keeps its momentum
-#define ITERS    4             // density-solve passes per frame (more = stiffer/less squishy)
-#define VISC     0.10f         // XSPH viscosity strength (0 = spray, high = honey)
+#define DAMP     0.94f         // velocity retention — water keeps its momentum
+#define ITERS    6             // density-solve passes per frame (more = stiffer/less squishy)
+#define VISC     0.18f         // XSPH viscosity strength (0 = spray, high = honey)
 #define VMAX     4.0f          // clamp per-frame speed so a bad frame can't explode the sim
 #define MAX_DP   1.2f          // cap one particle's per-iteration density correction — a corner
                                // pinch otherwise shoves a lone particle 8-12px in a single pass,
                                // which reads as a droplet shot out of the pool. The bulk's real
                                // corrections are sub-pixel, so this only clips the pathological one.
 #define EPS      0.0008f       // constraint relaxation (stabilises lambda where gradients vanish)
-#define SCORR_K  0.00015f      // artificial pressure: fights particle clumping (surface tension-ish)
+#define SCORR_K  0.0f          // artificial pressure: fights particle clumping (surface tension-ish)
 #define SCORR_N  4
 
 // jar interior, in sim (untilted) space
@@ -149,10 +155,9 @@ static void add_pt(float x, float y, float vx, float vy) {
 static void fill_jar(void) {
     N = 0;
     float s = 0.62f * H;                     // initial spacing — a bit under H → well-packed
-    // fill the lower ~65% of the jar so it reads as a real pool with headroom to slosh
-    float top = JY1 - (JY1 - JY0) * 0.65f;
-    for (float y = JY1 - PR - 1; y > top && N < 820; y -= s)
-        for (float x = JX0 + PR + 1; x < JX1 - PR - 1 && N < 820; x += s)
+    // fill from the floor up until we've placed FILL_N particles (leaves headroom to slosh)
+    for (float y = JY1 - PR - 1; y > JY0 + PR && N < FILL_N; y -= s)
+        for (float x = JX0 + PR + 1; x < JX1 - PR - 1 && N < FILL_N; x += s)
             add_pt(x, y, 0, 0);
 }
 
@@ -165,6 +170,21 @@ static void calibrate_rho0(void) {
     rho0 = mx > 0.0001f ? mx : poly6(0.0f);
 }
 
+static void physics_step(float gx, float gy);   // defined below; init() settles with it
+
+static int rho_cmp(const void *a, const void *b) {
+    float x = *(const float *)a, y = *(const float *)b; return (x > y) - (x < y);
+}
+// the MEDIAN neighbour density right now (reuses lam[] as scratch). This is the true rest
+// density of a SETTLED pack — the max-of-initial-grid estimate is too low, which leaves the
+// whole bulk over-packed (C>0 every frame) and the fluid churns/boils instead of resting.
+static float rho_median(void) {
+    build_grid(); build_neighbours();
+    for (int i = 0; i < N; i++) lam[i] = density_at(i);
+    qsort(lam, N, sizeof(float), rho_cmp);
+    return lam[N / 2];
+}
+
 void init(void) {
     float h5 = H * H * H * H * H, h8 = h5 * H * H * H;
     KP  = 4.0f  / (3.14159265f * h8);
@@ -172,8 +192,100 @@ void init(void) {
     WDQ = poly6((0.2f * H) * (0.2f * H));
     tilt = 0.0f;
     fill_jar();
+    // Calibrate the rest density to the SETTLED state: seed from the initial packing, let the
+    // water fall + relax under level gravity, then adopt its median density and repeat. After a
+    // couple of rounds rho0 matches how the pack actually rests, so the bulk sits at C≈0 (calm),
+    // not perpetually over-packed (boiling). One-time cost at load; the sim then starts settled.
     calibrate_rho0();
+    for (int round = 0; round < 3; round++) {
+        for (int s = 0; s < 55; s++) physics_step(0.0f, GRAV);
+        rho0 = rho_median();
+    }
+    for (int i = 0; i < N; i++) phys_place(&P[i], P[i].x, P[i].y);   // start from rest
     pmx = pmy = 0.0f;
+}
+
+#ifdef DE_TRACE
+static float g_maxdp = 0.0f;   // largest per-iteration correction this step (diagnostic)
+#endif
+
+// ONE physics step under a gravity vector (gx,gy). Predict → density solve → viscosity → clamp.
+// Factored out so init() can run it to SETTLE the water before play (and to calibrate rho0).
+static void physics_step(float gx, float gy) {
+    // 1) integrate (predict) + clamp runaway speed
+    for (int i = 0; i < N; i++) {
+        phys_integrate(&P[i], gx, gy, DAMP);
+        float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py, sp = vlen(vx, vy);
+        if (sp > VMAX) { float s = VMAX / sp; P[i].px = P[i].x - vx * s; P[i].py = P[i].y - vy * s; }
+    }
+
+    // 2) neighbours from the predicted positions (once per step)
+    build_grid(); build_neighbours();
+
+    // 3) density constraint — the incompressibility solve
+    for (int it = 0; it < ITERS; it++) {
+        // 3a) per particle: density → constraint C = rho/rho0 - 1 → lambda
+        for (int i = 0; i < N; i++) {
+            float rho = density_at(i);
+            float C = rho / rho0 - 1.0f;
+            if (C < 0.0f) C = 0.0f;   // no tensile stress: only relieve OVER-packing, never pull
+                                      // under-dense water together — cohesion is what made a jar of
+                                      // water boil (surface particles yanked in, bulk pushed out, forever)
+            float gxi = 0.0f, gyi = 0.0f, sumk = 0.0f;   // grad wrt i, and sum |grad wrt j|²
+            for (int k = 0; k < nbrN[i]; k++) {
+                int j = nbr[i * MAXN + k];
+                float dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, r = vlen(dx, dy);
+                float gc = spiky_gcoef(r);
+                float gjx = gc * dx / rho0, gjy = gc * dy / rho0;   // grad of C_i wrt p_j = -grad wrt p_i term
+                gxi += gjx; gyi += gjy;
+                sumk += gjx * gjx + gjy * gjy;
+            }
+            float sumGrad2 = gxi * gxi + gyi * gyi + sumk;
+            lam[i] = -C / (sumGrad2 + EPS);
+        }
+        // 3b) per particle: position correction from its own + neighbours' lambdas (+ anti-clump)
+        for (int i = 0; i < N; i++) {
+            float cx = 0.0f, cy = 0.0f;
+            for (int k = 0; k < nbrN[i]; k++) {
+                int j = nbr[i * MAXN + k];
+                float dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, r = vlen(dx, dy);
+                float gc = spiky_gcoef(r);
+                float w = poly6(r * r) / WDQ;                       // s_corr: (W(r)/W(dq))^n
+                float sc = -SCORR_K * w * w * w * w;                // n = 4
+                float coef = (lam[i] + lam[j] + sc) / rho0;
+                cx += coef * gc * dx; cy += coef * gc * dy;
+            }
+            float m = vlen(cx, cy);
+            if (m > MAX_DP) { float s = MAX_DP / m; cx *= s; cy *= s; }   // clip the pinch spike
+            dpx[i] = cx; dpy[i] = cy;
+        }
+#ifdef DE_TRACE
+        for (int i = 0; i < N; i++) { float m = vlen(dpx[i], dpy[i]); if (m > g_maxdp) g_maxdp = m; }
+#endif
+        for (int i = 0; i < N; i++) { P[i].x += dpx[i]; P[i].y += dpy[i]; }
+        // 3c) walls — keep every particle inside the jar
+        for (int i = 0; i < N; i++) phys_bounds(&P[i], JX0, JY0, JX1, JY1, 0.2f, 0.92f);
+    }
+
+    // 4) XSPH viscosity — nudge each particle's velocity toward its neighbours' average
+    for (int i = 0; i < N; i++) { vlx[i] = P[i].x - P[i].px; vly[i] = P[i].y - P[i].py; }
+    for (int i = 0; i < N; i++) {
+        float ax = 0.0f, ay = 0.0f;
+        for (int k = 0; k < nbrN[i]; k++) {
+            int j = nbr[i * MAXN + k];
+            float dx = P[i].x - P[j].x, dy = P[i].y - P[j].y;
+            float w = poly6(dx * dx + dy * dy) / rho0;
+            ax += (vlx[j] - vlx[i]) * w; ay += (vly[j] - vly[i]) * w;
+        }
+        P[i].px -= VISC * ax; P[i].py -= VISC * ay;   // velocity change → move prev-pos the other way
+    }
+
+    // 5) velocity limiter — a corner pinch can eject one particle at a huge speed; cap it so
+    //    a single spike can't spark across the jar or feed back into the next step.
+    for (int i = 0; i < N; i++) {
+        float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py, sp = vlen(vx, vy);
+        if (sp > VMAX) { float s = VMAX / sp; P[i].px = P[i].x - vx * s; P[i].py = P[i].y - vy * s; }
+    }
 }
 
 // screen (tilted) → sim (untilted) space, about the jar centre
@@ -217,111 +329,29 @@ void update(void) {
     pmx = smx; pmy = smy;
 
 #ifdef DE_TRACE
-    float _maxdp = 0.0f;
-    double _ta = _us(), _tb, _tc, _td, _te;
+    g_maxdp = 0.0f;
+    double _ta = _us();
 #endif
     // gravity in the jar's frame: tilt rotates it so water pools to the low corner
     float gx = GRAV * sin_deg(tilt), gy = GRAV * cos_deg(tilt);
-
-    // 1) integrate (predict) + clamp runaway speed
-    for (int i = 0; i < N; i++) {
-        phys_integrate(&P[i], gx, gy, DAMP);
-        float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py, sp = vlen(vx, vy);
-        if (sp > VMAX) { float s = VMAX / sp; P[i].px = P[i].x - vx * s; P[i].py = P[i].y - vy * s; }
-    }
-#ifdef DE_TRACE
-    _tb = _us();
-#endif
-
-    // 2) neighbours from the predicted positions (once per frame)
-    build_grid(); build_neighbours();
-#ifdef DE_TRACE
-    _tc = _us();
-#endif
-
-    // 3) density constraint — the incompressibility solve
-    for (int it = 0; it < ITERS; it++) {
-        // 3a) per particle: density → constraint C = rho/rho0 - 1 → lambda
-        for (int i = 0; i < N; i++) {
-            float rho = density_at(i);
-            float C = rho / rho0 - 1.0f;
-            float gxi = 0.0f, gyi = 0.0f, sumk = 0.0f;   // grad wrt i, and sum |grad wrt j|²
-            for (int k = 0; k < nbrN[i]; k++) {
-                int j = nbr[i * MAXN + k];
-                float dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, r = vlen(dx, dy);
-                float gc = spiky_gcoef(r);
-                float gjx = gc * dx / rho0, gjy = gc * dy / rho0;   // grad of C_i wrt p_j = -grad wrt p_i term
-                gxi += gjx; gyi += gjy;
-                sumk += gjx * gjx + gjy * gjy;
-            }
-            float sumGrad2 = gxi * gxi + gyi * gyi + sumk;
-            lam[i] = -C / (sumGrad2 + EPS);
-        }
-        // 3b) per particle: position correction from its own + neighbours' lambdas (+ anti-clump)
-        for (int i = 0; i < N; i++) {
-            float cx = 0.0f, cy = 0.0f;
-            for (int k = 0; k < nbrN[i]; k++) {
-                int j = nbr[i * MAXN + k];
-                float dx = P[i].x - P[j].x, dy = P[i].y - P[j].y, r = vlen(dx, dy);
-                float gc = spiky_gcoef(r);
-                float w = poly6(r * r) / WDQ;                       // s_corr: (W(r)/W(dq))^n
-                float sc = -SCORR_K * w * w * w * w;                // n = 4
-                float coef = (lam[i] + lam[j] + sc) / rho0;
-                cx += coef * gc * dx; cy += coef * gc * dy;
-            }
-            float m = vlen(cx, cy);
-            if (m > MAX_DP) { float s = MAX_DP / m; cx *= s; cy *= s; }   // clip the pinch spike
-            dpx[i] = cx; dpy[i] = cy;
-        }
-#ifdef DE_TRACE
-        for (int i = 0; i < N; i++) { float m = vlen(dpx[i], dpy[i]); if (m > _maxdp) _maxdp = m; }
-#endif
-        for (int i = 0; i < N; i++) { P[i].x += dpx[i]; P[i].y += dpy[i]; }
-        // 3c) walls — keep every particle inside the jar
-        for (int i = 0; i < N; i++) phys_bounds(&P[i], JX0, JY0, JX1, JY1, 0.2f, 0.92f);
-    }
-#ifdef DE_TRACE
-    _td = _us();
-#endif
-
-    // 4) XSPH viscosity — nudge each particle's velocity toward its neighbours' average
-    for (int i = 0; i < N; i++) { vlx[i] = P[i].x - P[i].px; vly[i] = P[i].y - P[i].py; }
-    for (int i = 0; i < N; i++) {
-        float ax = 0.0f, ay = 0.0f;
-        for (int k = 0; k < nbrN[i]; k++) {
-            int j = nbr[i * MAXN + k];
-            float dx = P[i].x - P[j].x, dy = P[i].y - P[j].y;
-            float w = poly6(dx * dx + dy * dy) / rho0;
-            ax += (vlx[j] - vlx[i]) * w; ay += (vly[j] - vly[i]) * w;
-        }
-        // apply as a velocity change → move prev-position the other way (verlet)
-        P[i].px -= VISC * ax; P[i].py -= VISC * ay;
-    }
-
-    // 5) velocity limiter — a corner pinch can eject one particle at a huge speed; cap it so
-    //    a single spike can't spark across the jar or feed back into the next frame.
-    for (int i = 0; i < N; i++) {
-        float vx = P[i].x - P[i].px, vy = P[i].y - P[i].py, sp = vlen(vx, vy);
-        if (sp > VMAX) { float s = VMAX / sp; P[i].px = P[i].x - vx * s; P[i].py = P[i].y - vy * s; }
-    }
+    physics_step(gx, gy);
 
 #ifdef DE_TRACE
-    _te = _us();
-    float mxsp = 0.0f, sumrho = 0.0f;
+    double _te = _us();
+    float mxsp = 0.0f, sumrho = 0.0f, sumsp = 0.0f;
     for (int i = 0; i < N; i++) {
         float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py); if (sp > mxsp) mxsp = sp;
+        sumsp += sp;
         sumrho += density_at(i);
     }
     watch("N", "%d", N);
     watch("tilt", "%.1f", tilt);
     watch("maxspd", "%.3f", mxsp);
+    watch("avgspd", "%.3f", N ? sumsp / N : 0.0f);   // bulk motion — should be ~0 at rest
     watch("avgrho", "%.3f", N ? (sumrho / N) / rho0 : 0.0f);   // → 1.0 when incompressible
-    watch("maxdp", "%.3f", _maxdp);
-    watch("us_integ", "%.1f", _tb - _ta);   // phase timings (µs) — where update() spends its frame
-    watch("us_nbr",   "%.1f", _tc - _tb);   // grid + neighbour-list build
-    watch("us_solve", "%.1f", _td - _tc);   // the density/incompressibility solve (ITERS passes)
-    watch("us_visc",  "%.1f", _te - _td);   // XSPH viscosity + velocity limiter
-    watch("us_draw",  "%.1f", g_draw_us);    // draw() — 820 rotated circfills + walls/text (prev frame)
+    watch("maxdp", "%.3f", g_maxdp);
+    watch("us_phys", "%.1f", _te - _ta);     // the whole physics_step (integrate+solve+viscosity)
+    watch("us_draw", "%.1f", g_draw_us);     // draw() — N rotated circfills + walls/text (prev frame)
 #endif
 }
 
@@ -358,7 +388,7 @@ void draw(void) {
     for (int i = 0; i < N; i++) {
         float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
         float rx = ROTX(P[i].x, P[i].y), ry = ROTY(P[i].x, P[i].y);
-        circfill((int)rx, (int)ry, 2, speed_colour(sp));
+        circfill((int)rx, (int)ry, 1, speed_colour(sp));
     }
 
     font(FONT_SMALL);

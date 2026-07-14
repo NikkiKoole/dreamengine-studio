@@ -3073,6 +3073,11 @@ window.addEventListener('keydown', e => {
     e.preventDefault()
     saveCart(e.shiftKey)
   }
+  // F5 → run the cart (skip if a compile is already in flight)
+  if (e.key === 'F5') {
+    e.preventDefault()
+    if (!runBtn.disabled) runCart(null)
+  }
   // Cmd/Ctrl+F → find-in-docs, but only while the Docs tab is showing
   if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F') && helpPanel.classList.contains('active')) {
     e.preventDefault()

@@ -6319,7 +6319,7 @@
   },
   {
     "title": "Tumble",
-    "description": "A slingshot and a huge wall of crates. Drag the pouch back, release to fling a heavy ball into the block, and press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend.",
+    "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend.",
     "file": "tumble.cart.png",
     "created": "2026-07-14",
     "kind": [

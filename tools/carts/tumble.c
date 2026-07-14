@@ -13,7 +13,7 @@
     "collision-detection"
   ],
   "lineage": "The rigid-body counterpart to the verlet toolkit (runtime/physics.h): the first cart on the vendored pure-C Box2D v3 (runtime/box2d/). Deliberately does the things verlet is bad at — crisp rotation, stable resting contact, friction — so it reads as the honest A/B against the jelly/waterjar particle carts. See docs/design/box2d-integration.md.",
-  "description": "A slingshot and a huge wall of crates. Drag the pouch back, release to fling a heavy ball into the block, and press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend."
+  "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend."
 }
 de:meta */
 #include "studio.h"
@@ -56,8 +56,12 @@ static b2BodyId  ball[NBALL];
 static float     ballr[NBALL];     // per-ball radius (fragments are smaller than the shot)
 static int       nball  = 0;
 static int       ncrate = 0;       // how many crates build_stack actually placed
-static bool      aiming = false;
 static int       built  = 0;
+
+enum { M_NONE, M_AIM, M_DRAG };    // what the left button is doing
+static int       mmode = M_NONE;
+static b2JointId mjoint;           // the mouse joint while M_DRAG
+static b2BodyId  ground_body;      // static anchor for the mouse joint
 static float     ex_x, ex_y;       // last explosion centre (screen px) — visual juice
 static int       ex_age = -1;      // frames since the blast; -1 = none
 
@@ -143,7 +147,7 @@ static void reset_world(void) {
     world = b2CreateWorld(&wd);
     built = 1;
     nball = 0;
-    aiming = false;
+    mmode = M_NONE;                             // any in-progress grab is gone with the world
     ex_age = -1;
 
     b2World_SetHitEventThreshold(world, 1.5f);  // only real impacts sound; settling ticks stay quiet
@@ -160,6 +164,7 @@ static void reset_world(void) {
     b2BodyDef gd = b2DefaultBodyDef();          // static floor (grass)
     gd.userData = (void*)(intptr_t)T_GROUND;
     b2BodyId ground = b2CreateBody(world, &gd);
+    ground_body = ground;                       // reused as the mouse-joint anchor
     b2Segment floor = {{0.0f, FLOORY}, {W, FLOORY}};
     b2ShapeDef sd = b2DefaultShapeDef();
     sd.material.friction = 0.8f;
@@ -216,22 +221,65 @@ static void impact_sound(int ta, int tb, float speed) {
         hit(55 + rnd(4), SL_WOOD, vol, 45);
 }
 
+// topmost body under a world point (balls first, then crates) — for the drag gesture
+static bool body_at(float wx, float wy, b2BodyId *out) {
+    for (int i = nball - 1; i >= 0; i--) {
+        b2Vec2 p = b2Body_GetPosition(ball[i]);
+        float dx = wx - p.x, dy = wy - p.y, rr = ballr[i] + 0.06f;
+        if (dx*dx + dy*dy <= rr*rr) { *out = ball[i]; return true; }
+    }
+    for (int i = 0; i < ncrate; i++) {
+        b2Vec2 p = b2Body_GetPosition(crate[i]);
+        b2Rot  r = b2Body_GetRotation(crate[i]);
+        float dx = wx - p.x, dy = wy - p.y;
+        float lx = r.c*dx + r.s*dy, ly = -r.s*dx + r.c*dy;   // into the crate's local frame
+        if (fabsf(lx) <= CH + 0.06f && fabsf(ly) <= CH + 0.06f) { *out = crate[i]; return true; }
+    }
+    return false;
+}
+
 void update(void) {
     if (!built) reset_world();
     if (keyp('R')) reset_world();
     if (ex_age >= 0 && ++ex_age > 10) ex_age = -1;   // age the blast flash
 
     int mx = mouse_x(), my = mouse_y();
-    if (mouse_pressed(MOUSE_LEFT))  aiming = true;
-    if (aiming && mouse_released(MOUSE_LEFT)) {
-        b2Vec2 v = launch_vel(mx, my);
-        float sp = sqrtf(v.x*v.x + v.y*v.y);
-        int vol = 3 + (int)(sp * 0.14f); if (vol > 7) vol = 7;
-        hit(55 + rnd(5), SL_TWANG, vol, 170);   // the release twang
-        spawn_ball(LX, LY, v.x, v.y, BR);
-        aiming = false;
+    float mwx = WX(mx), mwy = WY(my);
+
+    if (mouse_pressed(MOUSE_LEFT)) {
+        float gx = mwx - LX, gy = mwy - LY;
+        b2BodyId pick;
+        if (gx*gx + gy*gy < 0.9f*0.9f) {                    // grabbed the slingshot pouch -> load a shot
+            mmode = M_AIM;
+        } else if (body_at(mwx, mwy, &pick)) {              // grabbed any body -> drag it with a mouse joint
+            b2MouseJointDef d = b2DefaultMouseJointDef();
+            d.bodyIdA = ground_body;
+            d.bodyIdB = pick;
+            d.target = (b2Vec2){mwx, mwy};
+            d.hertz = 6.0f; d.dampingRatio = 0.7f;
+            d.maxForce = 900.0f * b2Body_GetMass(pick);     // scale with mass so it can drag heavy bodies
+            mjoint = b2CreateMouseJoint(world, &d);
+            b2Body_SetAwake(pick, true);
+            mmode = M_DRAG;
+        }
     }
-    if (keyp(KEY_SPACE) && nball > 0) {          // detonate the last ball into shrapnel
+    if (mmode == M_DRAG && mouse_down(MOUSE_LEFT))
+        b2MouseJoint_SetTarget(mjoint, (b2Vec2){mwx, mwy});
+
+    if (mouse_released(MOUSE_LEFT)) {
+        if (mmode == M_AIM) {                               // fly a ball off the slingshot
+            b2Vec2 v = launch_vel(mx, my);
+            float sp = sqrtf(v.x*v.x + v.y*v.y);
+            int vol = 3 + (int)(sp * 0.14f); if (vol > 7) vol = 7;
+            hit(55 + rnd(5), SL_TWANG, vol, 170);           // the release twang
+            spawn_ball(LX, LY, v.x, v.y, BR);
+        } else if (mmode == M_DRAG) {
+            b2DestroyJoint(mjoint);
+        }
+        mmode = M_NONE;
+    }
+
+    if (keyp(KEY_SPACE) && nball > 0 && mmode != M_DRAG) {  // detonate the last ball into shrapnel
         hit(30, INSTR_NOISE, 6, 120);            // boom
         explode_ball(nball - 1);
     }
@@ -317,7 +365,7 @@ void draw(void) {
         circ(SX(p.x), SY(p.y), r, CLR_LIGHT_GREY);
     }
     draw_launcher();
-    if (aiming) draw_aim();
+    if (mmode == M_AIM) draw_aim();
 
     if (ex_age >= 0) {                                       // blast: expanding ring + bright core, cooling
         int r = 4 + ex_age * 6;
@@ -329,5 +377,5 @@ void draw(void) {
     char buf[32];
     snprintf(buf, sizeof buf, "TOPPLED %d/%d  BALLS %d", count_toppled(), ncrate, nball);
     print(buf, 4, 4, CLR_WHITE);
-    print("DRAG AIM  SPACE BOOM  R RESET", 4, SCREEN_H - 10, CLR_LIGHT_GREY);
+    print("POUCH=SHOOT  GRAB=DRAG  SPACE BOOM  R", 4, SCREEN_H - 10, CLR_LIGHT_GREY);
 }

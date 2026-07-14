@@ -13,7 +13,7 @@
     "collision-detection"
   ],
   "lineage": "The second Box2D v3 cart (runtime/box2d/), the vehicle counterpart to tumble's destruction: shows the joints-and-terrain half of the engine — WHEEL joints (built-in spring suspension + a driven motor) on a car rolling over a b2Chain (smooth one-sided procedural terrain, no ghost bumps). Backlog: docs/design/box2d-cart-ideas.md; backend: docs/design/box2d-integration.md.",
-  "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). A revving engine (a held voice whose firing rate + snarl pitch up with your wheel speed, ported from enginelab) drones and climbs as you accelerate. RIGHT = gas, LEFT = reverse/brake; in the air the same keys spin the car so you can land wheels-down (do a backflip if you're feeling brave). The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble."
+  "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). A revving engine (a held voice whose firing rate + snarl pitch up with your wheel speed, ported from enginelab) drones and climbs as you accelerate. RIGHT = gas, LEFT = reverse/brake; catch air off the crests and the buggy coasts through the jump on real ballistics. The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble."
 }
 de:meta */
 #include "studio.h"
@@ -37,7 +37,6 @@ de:meta */
 #define WHEELR  0.42f          // wheel radius
 #define DRIVE   20.0f          // motor speed (rad/s) — top wheel spin
 #define TORQUE  20.0f          // maxMotorTorque per wheel — punchy climbing power
-#define LEAN    9.0f           // air-control torque
 #define STAB    70.0f          // ground stability: auto-counter an excessive pitch so power climbs, not loops
 #define GOAL    80.0f          // flag distance (m from the start)
 #define SLOT_ENG 8             // engine-sound instrument slot
@@ -175,11 +174,10 @@ void update(void) {
     b2Vec2 wf = b2Body_GetPosition(wheelF), wb = b2Body_GetPosition(wheelB);
     bool grounded = (wf.y - WHEELR < surface_at(wf.x) + 0.35f) ||
                     (wb.y - WHEELR < surface_at(wb.x) + 0.35f);
-    if (!grounded) {
-        if (gas) b2Body_ApplyAngularImpulse(chassis, +LEAN, true);   // spin back (backflip / land it)
-        if (rev) b2Body_ApplyAngularImpulse(chassis, -LEAN, true);   // spin forward
-    } else {
-        float ang = b2Rot_GetAngle(b2Body_GetRotation(chassis));     // keep it from looping under power
+    // airborne: NOTHING touches the body — the wheels just spin, the chassis coasts (honest ballistics).
+    // on the ground: a gentle anti-loop assist so the power climbs instead of wheelie-flipping.
+    if (grounded) {
+        float ang = b2Rot_GetAngle(b2Body_GetRotation(chassis));
         if (ang >  0.35f) b2Body_ApplyTorque(chassis, -STAB * (ang - 0.35f), true);
         if (ang < -0.35f) b2Body_ApplyTorque(chassis, -STAB * (ang + 0.35f), true);
     }

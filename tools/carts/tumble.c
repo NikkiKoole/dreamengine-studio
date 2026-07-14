@@ -56,7 +56,7 @@ static b2BodyId make_crate(float x, float y) {
     bd.type = b2_dynamicBody;
     bd.position = (b2Vec2){x, y};
     b2BodyId id = b2CreateBody(world, &bd);
-    b2Polygon box = b2MakeRoundedBox(CH, CH, 0.04f);   // tiny round -> nicer contacts
+    b2Polygon box = b2MakeBox(CH, CH);                  // sharp: collision hull == the drawn quad (no skin-radius aura)
     b2ShapeDef sd = b2DefaultShapeDef();
     sd.density = 1.0f;
     sd.material.friction = 0.6f;

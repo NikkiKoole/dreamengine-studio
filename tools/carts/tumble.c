@@ -37,11 +37,11 @@ de:meta */
 #define NBALL   14
 #define CH      0.28f          // crate half-extent (m)  -> ~13px box
 #define BR      0.34f          // ball radius (m)        -> ~8px
-#define LX      1.7f           // slingshot launcher (m)
-#define LY      1.9f
+#define LX      4.0f           // slingshot launcher (m) — set right so there's room to pull back
+#define LY      2.2f
 #define FLOORY  0.70f          // floor height (m)
 #define POWER   3.0f           // pull-back -> launch speed
-#define MAXV    26.0f          // launch speed clamp (m/s)
+#define MAXV    34.0f          // launch speed clamp (m/s) — headroom for a big wind-up
 
 static b2WorldId world;
 static b2BodyId  crate[NCRATE];
@@ -87,7 +87,7 @@ static void spawn_ball(float x, float y, float vx, float vy) {
 
 static void build_stack(void) {
     // pyramid: rows of 4,3,2,1 from the floor up, centred right of the arena
-    float cx = 6.8f, step = 2.0f*CH + 0.02f, y0 = FLOORY + CH;
+    float cx = 9.8f, step = 2.0f*CH + 0.02f, y0 = FLOORY + CH;
     int k = 0;
     for (int row = 0; row < 4 && k < NCRATE; row++) {
         int n = 4 - row;

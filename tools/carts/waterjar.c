@@ -105,6 +105,7 @@ static float rho0 = 0.0f;      // rest density — calibrated once from the init
 static float tilt = 0.0f;      // jar tilt in degrees (rotates gravity)
 static float pmx, pmy;         // previous mouse (sim space) for stir velocity
 static bool  panel_drag = false;   // a drag that STARTED on the slider panel — don't also stir
+static bool  liquid = false;   // render mode: false = particles, true = merged liquid blob (V toggles)
 
 // --- live tweakables (onscreen sliders) ------------------------------------
 // The sliders store 0..1; these map to the real ranges the sim reads each frame. Defaults tuned
@@ -348,6 +349,7 @@ void update(void) {
     else           tilt *= 0.90f;            // spring back to level a touch quicker
 
     if (keyp('R')) init();
+    if (keyp('V')) liquid = !liquid;         // toggle particles ↔ merged liquid blob
 
     // pour a fat stream from the top-centre while SPACE is held — a wide row each frame, so you
     // can fill the jar right up (up to MAXP). ~16/frame ≈ 950/s; the jar brims in a few seconds.
@@ -436,11 +438,25 @@ void draw(void) {
     line((int)c3x, (int)c3y, (int)c2x, (int)c2y, CLR_DARK_GREY);   // bottom
     line((int)c2x, (int)c2y, (int)c1x, (int)c1y, CLR_DARK_GREY);   // right
 
-    // water: each particle a small circle, coloured by speed → the motion reads
-    for (int i = 0; i < N; i++) {
-        float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
-        float rx = ROTX(P[i].x, P[i].y), ry = ROTY(P[i].x, P[i].y);
-        circfill((int)rx, (int)ry, (int)PR, speed_colour(sp));   // draw at the TRUE particle radius
+    // water — two render modes (V toggles):
+    if (liquid) {
+        // LIQUID: draw each particle as a fat flat blob so they MERGE into one silhouette instead
+        // of reading as dots. Two passes give it a skin: a big dark body (whose union is the shape,
+        // leaving a darker rim at the edge) then a brighter core (whose union fills the interior).
+        for (int i = 0; i < N; i++)
+            circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 6, CLR_TRUE_BLUE);  // body + rim
+        for (int i = 0; i < N; i++)
+            circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 4, CLR_BLUE);        // bright fill
+        for (int i = 0; i < N; i++) {               // foam: keep white flecks on fast crests
+            float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
+            if (sp > VMAX * 0.55f) circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), 1, CLR_WHITE);
+        }
+    } else {
+        // PARTICLES: each a small circle at its true radius, coloured by speed → the motion reads
+        for (int i = 0; i < N; i++) {
+            float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
+            circfill((int)ROTX(P[i].x, P[i].y), (int)ROTY(P[i].x, P[i].y), (int)PR, speed_colour(sp));
+        }
     }
 
     // live tweak panel (screen-fixed — does NOT rotate with the jar): drag to feel the fluid change
@@ -452,7 +468,7 @@ void draw(void) {
 
     font(FONT_SMALL);
     print("water jar - a code-first PBD fluid (physics.h)", 4, 4, CLR_LIGHT_GREY);
-    print("< > tilt   drag stir   SPACE pour   R reset", 4, SCREEN_H - 9, CLR_DARK_GREY);
+    print("< > tilt   drag stir   SPACE pour   V liquid   R reset", 4, SCREEN_H - 9, CLR_DARK_GREY);
 #ifdef DE_TRACE
     g_draw_us = _us() - _d0;
 #endif

@@ -45,7 +45,7 @@ de:meta */
 #define MAXV    34.0f          // launch speed clamp (m/s) — headroom for a big wind-up
 
 // body userData tags, so a hit event can tell what struck what
-enum { T_GROUND = 1, T_CRATE = 2, T_BALL = 3 };
+enum { T_GROUND = 1, T_CRATE = 2, T_BALL = 3, T_WALL = 4 };
 #define SL_WOOD  8             // INSTR_MEMBRANE — ball thud + crate clack (pitch tells them apart)
 #define SL_TWANG 9             // INSTR_PLUCK — the slingshot release twang
 
@@ -129,14 +129,30 @@ static void reset_world(void) {
         audio_ready = 1;
     }
 
-    b2BodyDef gd = b2DefaultBodyDef();          // static floor
+    float W = SCREEN_W / PPM, TOP = SCREEN_H / PPM;
+
+    b2BodyDef gd = b2DefaultBodyDef();          // static floor (grass)
     gd.userData = (void*)(intptr_t)T_GROUND;
     b2BodyId ground = b2CreateBody(world, &gd);
-    b2Segment floor = {{0.0f, FLOORY}, {SCREEN_W / PPM, FLOORY}};
+    b2Segment floor = {{0.0f, FLOORY}, {W, FLOORY}};
     b2ShapeDef sd = b2DefaultShapeDef();
     sd.material.friction = 0.8f;
     sd.enableHitEvents = true;
     b2CreateSegmentShape(ground, &sd, &floor);
+
+    b2BodyDef wd2 = b2DefaultBodyDef();          // bouncy left/right/top walls
+    wd2.userData = (void*)(intptr_t)T_WALL;
+    b2BodyId walls = b2CreateBody(world, &wd2);
+    b2ShapeDef wsd = b2DefaultShapeDef();
+    wsd.material.restitution = 0.5f;             // lively bounce (mixed max with the ball's 0.15)
+    wsd.material.friction = 0.3f;
+    wsd.enableHitEvents = true;
+    b2Segment left  = {{0.0f, FLOORY}, {0.0f, TOP}};
+    b2Segment right = {{W,    FLOORY}, {W,    TOP}};
+    b2Segment ceil  = {{0.0f, TOP},    {W,    TOP}};
+    b2CreateSegmentShape(walls, &wsd, &left);
+    b2CreateSegmentShape(walls, &wsd, &right);
+    b2CreateSegmentShape(walls, &wsd, &ceil);
 
     build_stack();
 }
@@ -166,6 +182,8 @@ static void impact_sound(int ta, int tb, float speed) {
     if (vol > 7) vol = 7;
     if (ta == T_GROUND || tb == T_GROUND)                     // grass: soft dull rustle
         hit(28 + rnd(4), INSTR_NOISE, vol > 5 ? 5 : vol, 45);
+    else if (ta == T_WALL || tb == T_WALL)                    // wall bounce: light woody tik
+        hit(66 + rnd(4), SL_WOOD, vol > 4 ? 4 : vol, 35);
     else if (ta == T_BALL || tb == T_BALL)                    // ball impact: deep thud
         hit(36 + rnd(3), SL_WOOD, vol, 90);
     else                                                      // crate vs crate: woody clack
@@ -263,6 +281,10 @@ void draw(void) {
     int fy = SY(FLOORY);
     rectfill(0, fy, SCREEN_W, SCREEN_H - fy, CLR_DARK_GREEN);
     line(0, fy, SCREEN_W, fy, CLR_GREEN);
+
+    line(0, 0, 0, fy, CLR_DARK_GREY);                       // arena walls the ball bounces off
+    line(SCREEN_W - 1, 0, SCREEN_W - 1, fy, CLR_DARK_GREY);
+    line(0, 0, SCREEN_W, 0, CLR_DARK_GREY);
 
     for (int i = 0; i < NCRATE; i++) draw_crate(crate[i]);
     for (int i = 0; i < nball; i++) {

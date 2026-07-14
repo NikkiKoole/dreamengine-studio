@@ -9,15 +9,16 @@
   "teaches": ["gesture-loop"],
   "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained.",
   "description": {
-    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop.",
-    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. The break plays MONOPHONICALLY through one SELF-CHOKED voice: firing any pad (or the next slice in PLAY) instantly silences the chop that's still ringing — the MPC mute-group feel — so stutters/rolls stay clean and the reconstruction never smears. Each slice sets that voice's [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice at original pitch — the chop performance. PLAY steps through the slices in order at the derived tempo, looping, which reconstructs the original loop (if it sounds seamless, the cut is correct). GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
-    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / q w e r / a s d f / z x c v) to fire that slice. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
+    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Give any chop its own REVERSE or SPEED (.25–2x, varispeed so pitch couples) — tap a pad to select it, set its property, then perform: you design the kit chop-by-chop and live-play it. Add GRIT for the SP-1200 crunch. With no loop file it synthesises a break so there's always something to chop.",
+    "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. The break plays MONOPHONICALLY through one SELF-CHOKED voice: firing any pad (or the next slice in PLAY) instantly silences the chop that's still ringing — the MPC mute-group feel — so stutters/rolls stay clean and the reconstruction never smears. Each slice sets that voice's [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice — the last one tapped is SELECTED. Each pad carries its OWN reverse + speed: hit REV or SPD to set the selected chop's property (speed = varispeed .25–2x, pitch couples — no time-stretch, which is the point), tap again to hear it. So you DESIGN the kit chop-by-chop (reverse this one, drop that one an octave) then PERFORM — auto-play and hand-play both use the assigned properties. This is the set-then-play split: per-pad properties are assigned (you can't tune a pad while playing it), GRIT is the one global ride-live effect. PLAY steps through the slices in order at the derived tempo, looping. GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
+    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / Q W E R / A S D F / Z X C V) to fire that slice — the last tapped is SELECTED. REV / SPD — set the SELECTED pad's reverse / speed (.25/.5/1/1.5/2x, varispeed), then tap it to hear it: design each chop, then perform. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi (global). Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
   },
   "todo": [
     "RELEASE GATE: the amen fixture is a copyrighted dev placeholder — before publishing, ship no bundled audio (loops are user-supplied) or swap to a CC0 loop. See data-tools/breaks/README.md.",
     "onset-snap the tempo grid to the actual transients (currently pure even division).",
+    "punch-in FX tier (global, ride-live over the loop): a filter sweep, an echo throw, a stutter/loop-hold — the SP-404 performance half.",
     "runtime user import on device (file picker → sample_load) — the eventual product surface.",
-    "free slice→pad assignment + reorder; persist the kit (save_bytes, like the sampler)."
+    "free slice→pad assignment + reorder; persist the designed kit (per-pad rev/speed) via save_bytes, like the sampler."
   ]
 }
 de:meta */
@@ -57,6 +58,16 @@ static const float GRIT_B[]  = { 16, 12, 8, 4 };
 static const float GRIT_R[]  = { 1, 2, 4, 8 };
 static const char  PADKEYS[] = "1234QWERASDFZXCV";   // 16 keys (keyp wants UPPERCASE letters); >16 = click/touch
 
+// per-pad PROPERTIES (set on the selected pad, then perform — the MPC way). speed is varispeed:
+// pitch couples (no time-stretch), so .5x = an octave down. SEMI = round(12·log2(speed)).
+static const float SPEEDS[]   = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f };
+static const int   SEMI[]     = { -24, -12, 0, 7, 12 };
+static const char *SPEED_NM[] = { ".25x", ".5x", "1x", "1.5x", "2x" };
+#define NSPEED 5
+#define SPD1X  2                          // index of 1.0x (the default)
+static char pad_rev[MAXSLICE];            // per-pad reverse
+static char pad_speed[MAXSLICE];          // per-pad speed index into SPEEDS (init to SPD1X)
+
 #define PX 6
 #define PY 24
 #define PW (SCREEN_W - 12)
@@ -76,9 +87,11 @@ static void apply_grit(void) { crush(GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0
 
 static void fire_slice(int i, int select) {
     if (i < 0 || i >= ndiv) return;
-    int ms = (int)(loop_secs / ndiv * 1000.0f); if (ms < 30) ms = 30;
-    instrument_sample_region(VOICE, (float)i / ndiv, (float)(i + 1) / ndiv);   // carve this slice, then fire
-    hit(ROOT, VOICE, 6, ms);                              // self-choke silences whatever was ringing
+    float sp = SPEEDS[(int)pad_speed[i]];
+    int ms = (int)(loop_secs / ndiv / sp * 1000.0f); if (ms < 30) ms = 30;      // slower pad → longer gate
+    instrument_sample_region(VOICE, (float)i / ndiv, (float)(i + 1) / ndiv);    // carve this slice
+    instrument_sample_mode(VOICE, pad_rev[i] ? SAMPLE_REVERSE : SAMPLE_NORMAL); // per-pad reverse
+    hit(ROOT + SEMI[(int)pad_speed[i]], VOICE, 6, ms);   // per-pad speed = transpose; self-choke cuts the ringing chop
     pad_flash[i] = 1.0f;
     if (select) sel = i;
 }
@@ -172,8 +185,8 @@ void draw(void) {
     char buf[96];
     print("BREAKCHOP", 4, 2, CLR_WHITE);
     if (!loaded) { print("no loop loaded", 4, 14, CLR_RED); return; }
-    snprintf(buf, sizeof buf, "%d slices  %.0f bpm  %s%s", ndiv, derived_bpm(), GRIT_NM[grit],
-             is_synth ? "  SYNTH" : "");
+    snprintf(buf, sizeof buf, "%d slices  %.0f bpm  %s%s   pad%d: %s%s", ndiv, derived_bpm(), GRIT_NM[grit],
+             is_synth ? " SYNTH" : "", sel + 1, SPEED_NM[(int)pad_speed[sel]], pad_rev[sel] ? " REV" : "");
     print(buf, 4, 13, CLR_LIGHT_GREY);
 
     // waveform + slice markers + playhead
@@ -201,7 +214,12 @@ void draw(void) {
         int k = 0; for (int j = 0; j < 3; j++) if (DIVS[j] == ndiv) k = j;
         ndiv = DIVS[(k + 1) % 3]; if (sel >= ndiv) sel = ndiv - 1;
     }
-    if (ui_button(114, PY + PH + 3, 56, 16, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); }
+    if (ui_button(114, PY + PH + 3, 50, 16, GRIT_NM[grit])) { grit = (grit + 1) % 4; apply_grit(); }
+    // REV + SPD act on the SELECTED (last-tapped) pad, and re-fire it so you hear the change
+    if (ui_button(168, PY + PH + 3, 40, 16, pad_rev[sel] ? "REV*" : "REV")) { pad_rev[sel] ^= 1; fire_slice(sel, 1); }
+    if (ui_button(212, PY + PH + 3, 52, 16, SPEED_NM[(int)pad_speed[sel]])) {
+        pad_speed[sel] = (pad_speed[sel] + 1) % NSPEED; fire_slice(sel, 1);
+    }
     ui_end();
 
     // pad grid
@@ -215,10 +233,18 @@ void draw(void) {
             char t[2] = { PADKEYS[i], 0 };
             print(t, x + w / 2 - text_width(t) / 2, y + h / 2 - 3, CLR_WHITE);
         }
+        if (pad_rev[i] || pad_speed[i] != SPD1X) {       // per-pad property tag (small, bottom of pad)
+            char tag[10]; snprintf(tag, sizeof tag, "%s%s", pad_rev[i] ? "<" : "",
+                                   pad_speed[i] != SPD1X ? SPEED_NM[(int)pad_speed[i]] : "");
+            font(FONT_SMALL);
+            print(tag, x + w / 2 - text_width(tag) / 2, y + h - 8, CLR_YELLOW);
+            font(FONT_NORMAL);
+        }
     }
 }
 
 void init(void) {
+    for (int i = 0; i < MAXSLICE; i++) pad_speed[i] = SPD1X;   // default every pad to 1x (0 would be .25x)
     const char *p = de_data_path();
     load_loop(p ? p : DEFAULT_LOOP);
     apply_grit();

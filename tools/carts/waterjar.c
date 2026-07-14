@@ -46,6 +46,10 @@ de:meta */
 #define ITERS    4             // density-solve passes per frame (more = stiffer/less squishy)
 #define VISC     0.10f         // XSPH viscosity strength (0 = spray, high = honey)
 #define VMAX     4.0f          // clamp per-frame speed so a bad frame can't explode the sim
+#define MAX_DP   1.2f          // cap one particle's per-iteration density correction — a corner
+                               // pinch otherwise shoves a lone particle 8-12px in a single pass,
+                               // which reads as a droplet shot out of the pool. The bulk's real
+                               // corrections are sub-pixel, so this only clips the pathological one.
 #define EPS      0.0008f       // constraint relaxation (stabilises lambda where gradients vanish)
 #define SCORR_K  0.00015f      // artificial pressure: fights particle clumping (surface tension-ish)
 #define SCORR_N  4
@@ -206,6 +210,9 @@ void update(void) {
     }
     pmx = smx; pmy = smy;
 
+#ifdef DE_TRACE
+    float _maxdp = 0.0f;
+#endif
     // gravity in the jar's frame: tilt rotates it so water pools to the low corner
     float gx = GRAV * sin_deg(tilt), gy = GRAV * cos_deg(tilt);
 
@@ -249,8 +256,13 @@ void update(void) {
                 float coef = (lam[i] + lam[j] + sc) / rho0;
                 cx += coef * gc * dx; cy += coef * gc * dy;
             }
+            float m = vlen(cx, cy);
+            if (m > MAX_DP) { float s = MAX_DP / m; cx *= s; cy *= s; }   // clip the pinch spike
             dpx[i] = cx; dpy[i] = cy;
         }
+#ifdef DE_TRACE
+        for (int i = 0; i < N; i++) { float m = vlen(dpx[i], dpy[i]); if (m > _maxdp) _maxdp = m; }
+#endif
         for (int i = 0; i < N; i++) { P[i].x += dpx[i]; P[i].y += dpy[i]; }
         // 3c) walls — keep every particle inside the jar
         for (int i = 0; i < N; i++) phys_bounds(&P[i], JX0, JY0, JX1, JY1, 0.2f, 0.92f);
@@ -287,6 +299,7 @@ void update(void) {
     watch("tilt", "%.1f", tilt);
     watch("maxspd", "%.3f", mxsp);
     watch("avgrho", "%.3f", N ? (sumrho / N) / rho0 : 0.0f);   // → 1.0 when incompressible
+    watch("maxdp", "%.3f", _maxdp);
 #endif
 }
 

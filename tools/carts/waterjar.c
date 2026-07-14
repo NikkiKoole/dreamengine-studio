@@ -49,12 +49,12 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
                                // BODY of water to throw a rolling wave (a thin film just skids); still
                                // leaves headroom above for the crest to break. (SPACE pours more.)
 #define MAXN     48            // neighbours cached per particle per frame (grid-hashed)
-#define H        8.0f          // smoothing radius: particles interact within this. BIG heavy blobs
+#define H        7.0f          // smoothing radius: particles interact within this. Big heavy blobs
                                // (bigger H + spacing) carry lots of inertia and hold together, so a
                                // wave crest CURLS/breaks instead of atomizing — the tradeoff for count.
 #define H2       (H * H)
-#define HCELL    8             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
-#define PR       3.0f          // particle collision radius (also the drawn size — bigger = curls)
+#define HCELL    7             // spatial-hash cell size (int, ≈ H) → 3×3 cells cover radius H
+#define PR       2.5f          // particle collision radius (also the drawn size — bigger = curls)
 #define GRAV     0.14f         // gravity per frame (sim units)
 #define DAMP     0.94f         // velocity retention — water keeps its momentum
 #define ITERS    6             // density-solve passes per frame (more = stiffer/less squishy)

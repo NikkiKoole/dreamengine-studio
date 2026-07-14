@@ -161,6 +161,12 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          with pitch as a param. Header owns the trigger SKELETON; each kit's build()
                          owns the SOUND (808≠909 stays). Built-in DK_ELECTRO/DK_ACOUSTIC; sampler uses it
                          to sample drums. A kit is a pad MAP, NOT keybed.h (which pitches one voice).
+             acid303.h   the shared TB-303 acid VOICE (extracted because tb303/acidrack had drifted their
+                         own copies): an Acid struct + acid_note/acid_ride/acid_gate/acid_off/acid_tie — a
+                         FILTER_DIODE held voice with non-retriggering slide, accent kick, two-decay, soft
+                         attack, filter tracking + octave-down sub-osc (acidrack's superset). Params floats
+                         0..1 (ACID_* enum). Cart owns the PATTERN, header owns the SOUND. acidcandy uses it;
+                         tb303/acidrack migration pending. NOT drumkit.h (that's the pad MAP, this pitches one voice).
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

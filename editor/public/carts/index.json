@@ -425,6 +425,18 @@
     "teaches": []
   },
   {
+    "title": "acid candy (160x100)",
+    "description": "A functioning TB-303 acid machine on the device-face skeleton, at half resolution (160x100 x4) in the candy-toy skin — the first machine of a candy acid rack. The acid VOICE is the shared runtime/acid303.h, not a private copy. Increment 1 of a candy acidrack, built to device-face-paradigm.md's acidface sketch (five zones) at 160x100. The sound is runtime/acid303.h (the extracted TB-303 voice shared with tb303/acidrack — FILTER_DIODE held voice, non-retriggering slide, accent kick, two-decay, soft attack, tracking, sub-osc), so it can't drift from the others. (1) nav: play/stop, NEW line, bpm, heart. (2) always-live knobs CUT/RES/ENV/DEC/ACC bound straight to the shared voice params. (3) display: the piano-roll of the 16-step line with a running playhead, flanked by soft-keys. (4) the 16-step row: tap toggles a step (accent shows orange). (5) a one-octave keybed: tap a key to set the last-touched step's pitch and audition it. Press NEW for a fresh minor-pentatonic acid walk. PLAY runs it. Turn CUT/RES/ENV/DEC/ACC (drag or wheel) — CUT+RES live is the acid squelch. Tap step cells to toggle notes. Tap a keybed key to set the last step's pitch + hear it. NEW = a fresh random line.",
+    "file": "acidcandy.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "instrument",
+      "generative"
+    ],
+    "teaches": [],
+    "genre": "music"
+  },
+  {
     "title": "acidface",
     "description": "A single-machine FULL-FACE wireframe (the 'Acid Pure' idiom, on Elektron x Roland x0x bones): one acid box given the whole phone screen — 6 knobs, a context DISPLAY flanked by 6 soft-keys, a lane strip, the 16-STEP BUTTON ROW (double-duty: step-select for the note lane, drum cells for a drum voice), and a keybed. The counter-proposal to acidwire's collapsing multi-machine rack: don't fold the band, show ONE machine as real hardware and switch fast. A design-play wireframe, born from a maker sketch (2026-07-13) after seeing the 'Acid Pure' app. Hardware lineage: the screen-flanked-by-soft-keys is Elektron (Digitakt/Rytm); the 16-step button row + acid voice are Roland x0x (TB-303/TR-808/909). Where acidwire (its lineage) fits acidrack's 4-5 machines onto a phone by an accordion (fold/compact/expand), this asks the opposite: give ONE machine the entire screen as a purpose-built hardware face. The 6 orange SOFT-KEYS flanking the display swap the flow (SEQ step/kit inspector / PAT / SONG / MIX / FX / SCOPE). The LANE STRIP (NOTE + BD/SD/CH/OH drum voices) picks what the 16-STEP ROW edits — the maker's key idea: those buttons do DOUBLE DUTY. NOTE lane = each button selects that step and the KEYBED sets its pitch (303 step-entry); a DRUM lane = each button toggles that voice's hit (a drum cell, 808/909 style). SHIFT flips the whole row to pattern-select. The SEQ display pairs with the row: NOTE shows the selected step's pitch + ACC/SLD/TIE toggles, a drum lane shows the whole-kit overview. Same device-honest scaffolding as acidwire: fixed 940x700 window, de_resize() reshapes the CANVAS to each device's logical @K=2 size (letterboxed), so a 44pt finger is a constant ~22 logical px and finger-comfort is HONEST across the device matrix. It's a feel-it-on-glass toy, not a spec — play it, then decide if the full-face model beats the accordion for a phone. TAP/CLICK: a SOFT-KEY (orange, flanking the screen) picks the display flow - a KNOB drag-turns - a LANE chip (NOTE/BD/SD/CH/OH) picks what the 16-step row edits - a STEP BUTTON: in NOTE lane SELECTS the step (then a KEYBED key sets its pitch + advances), in a drum lane TOGGLES that voice's hit - CLR/RND (lane strip) wipe/re-roll the active lane's pattern - ACC/SLD/TIE (in the SEQ display) flag the selected note step - LOK (in the SEQ display, NOTE lane) arms PARAMETER LOCK: the 6 top knobs turn amber and edit the SELECTED step instead of the patch (turning one stamps a per-step value; locked steps get an amber pip) - CLR/RND ops live in the display - < > (transport) step the pattern - ▶ plays (animates the playhead across the row). KEYS: ]/->/space/` next device shape - [/<- prev - 1-9 jump - l cycle lane - w SHIFT (row -> pattern-select) - k LOCK - , . pattern prev/next - s safe-area skin - g 1-finger grid - h hide the label.",
     "file": "acidface.cart.png",
@@ -2166,6 +2178,16 @@
     "homage": "Martin Denny / Les Baxter (exotica)"
   },
   {
+    "title": "face mock — full paradigm (160x100)",
+    "description": "A VIBE MOCKUP at 160x100 x4 that fits the WHOLE device-face paradigm (all five zones) in the candy-toy finish: (1) nav spine — play + view tabs + pattern + bpm, (2) always-live knobs, (3) the context display with flanking soft-keys where the slime MASCOT lives (the soul) beside a mini pattern, (4) the 16-step mode-switched grid with a running playhead, (5) the drum pads. Tests whether the full skeleton survives the harsh half-resolution. Draw-only + now() life (playhead + mascot bop). Mockups-first for vibe work.",
+    "file": "facefull.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "facegen",
     "description": "The NPC-portrait SYSTEM for the GTA-style world (sits beside streetlab, sloop, flank, worldgen, lotfill, interiors): roll a person off the corner and they fill the screen and say their piece in a comic conversation box. Seventeen ARCHETYPES — made men, gangsters, corner boys, dealers, pimps, working girls, fiends, civilians, beggars, working-class laborers (hard hat), drunks (flushed), senior citizens (bespectacled, wrinkled), ballers (headband), businessmen (suit), baristas, historians and teenagers — every face built ONLY from primitives (ovalfill/trifill/line, no sprite art) and every one different, drawn in a Hotline-Miami-inspired inked style — heavy black outlines, hard planar light/shadow shading under a GTA-style warm upper-left key, sunken intense eyes with glowing irises, a protruding outlined nose and gritted-teeth grimaces — with subtle per-face ASYMMETRY (jaw, eyes, brows, nose nudged off-centre so no face is mirror-perfect). There is no portrait 'engine': a person is just a bag of GENES rolled by rnd() — skin tone (a six-step pale-to-very-dark ramp, each a 3-tone highlight/base/shadow), face shape (round / long / square / heavy / slim / gaunt), nose (button / straight / wide / Roman / pointy), hair (high-top fade, cornrows, afro, slicked-back, durag, bun, bob...), facial hair (stubble/'stache/goatee/full beard), a 'wrinkly' trait (forehead furrows, crow's feet, nasolabial folds on weathered/older faces), and a bitmask of 1990s accessories: gold rope chains, black shades, hoop & stud earrings, bandanas, durags, snapbacks, fur hats, lit cigarettes with rising smoke, gold teeth and grills, cheek scars, sweat beads, beauty marks, and FACE TATTOOS that are real TYPOGRAPHY — rotated gang lettering ('MONEY'/'RIP'/'213') in the bitmap fonts, CP437 symbol glyphs (♠♣♥♦☼♫ arrows), and tiny ascii-art motifs, with an 'excessive' fully-inked variant. Each ROLE biases the roll so a mobster reads mobster (slicked hair, suit + tie, cigar) and a corner boy reads corner boy (hoodie, cap, wary eyes); women get a 'babe' trait some of the time — slim soft face, big doe eyes with mascara lashes, thin arched brows, fuller glossed lips, rosy cheeks and a Monroe mole — but NOT all do, the rest are plainer or older/greying. A role-appropriate procedural NAME ('Frankie \"Big Tony\" Moretti', 'Lil' D-Loc', 'Bambi') and a fitting BARK are drawn with a typewriter + per-letter tick, the mouth flapping while it talks, blinks, an idle hard-stare squint, an idle head-bob, a framed 100px mini-avatar of the same face, and a role-tinted mood backdrop (warm restaurant / night street / pink neon / grim alley). The whole Npc struct + roll_npc() + draw_portrait() lift straight into the game. SPACE/click = new person, Z = same person another line, 1-8 = force a role, X = tick on/off.",
     "file": "facegen.cart.png",
@@ -2178,6 +2200,17 @@
       "gene-based-procgen"
     ],
     "lineage": "The portrait sibling of crowd.c / deeper's gene-rolled bodies, aimed at the face: a role-biased gene roll (skin/hair/facial-hair/accessory-bitmask) drawn entirely from primitives, wired into a Leisure-Suit-Larry-style talking conversation box (dialogue.c's primitive face) but with the PERSON procedurally generated instead of scripted — the reusable NPC-portrait system for the GTA-style city."
+  },
+  {
+    "title": "face mock (candy)",
+    "description": "A VIBE MOCKUP (not functional) for the device-face look — chasing the TinyJam icon come to life: cream chassis in a purple shell, a green LCD with a little slime MASCOT that bops (the soul), candy pads, a pulsing heart, sparkles, chunky purple knobs, a fader with an amber LED, a speaker grille. Draw-only + a touch of now() life so we can tweak the candy-toy finish cheaply before porting it into grooveface. Mockups-first for vibe work.",
+    "file": "facemock.cart.png",
+    "created": "2026-07-14",
+    "orientation": "portrait",
+    "kind": [
+      "probe"
+    ],
+    "teaches": []
   },
   {
     "title": "faders",
@@ -6157,6 +6190,16 @@
     ],
     "lineage": "Asteroids movement distilled to a pure teaching cart; steer.c is its direct sequel (the car model, partial coupling).",
     "genre": "space"
+  },
+  {
+    "title": "tiny face (160x100)",
+    "description": "A VIBE MOCKUP at HALF resolution — 160x100 scaled 4x — to test whether a tighter canvas strengthens the candy-toy device face by forcing the iconic essence. The slime mascot is the hero on a little green screen (the soul); a couple of chunky knobs, a fader with an amber LED, and a row of candy pads round it out. Every pixel earns its place. Draw-only + a touch of now() life. Mockups-first for vibe work; designed FOR the small canvas, not scaled down to it.",
+    "file": "tinyface.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "probe"
+    ],
+    "teaches": []
   },
   {
     "title": "tinyjam menu",

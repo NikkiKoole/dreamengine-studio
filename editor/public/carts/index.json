@@ -1027,7 +1027,7 @@
   },
   {
     "title": "Buggy",
-    "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). RIGHT = gas, LEFT = reverse/brake; in the air the same keys spin the car so you can land wheels-down (do a backflip if you're feeling brave). The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble.",
+    "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). A revving engine (a held voice whose firing rate + snarl pitch up with your wheel speed, ported from enginelab) drones and climbs as you accelerate. RIGHT = gas, LEFT = reverse/brake; in the air the same keys spin the car so you can land wheels-down (do a backflip if you're feeling brave). The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble.",
     "file": "buggy.cart.png",
     "created": "2026-07-14",
     "kind": [

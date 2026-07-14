@@ -13,7 +13,7 @@
     "collision-detection"
   ],
   "lineage": "The second Box2D v3 cart (runtime/box2d/), the vehicle counterpart to tumble's destruction: shows the joints-and-terrain half of the engine — WHEEL joints (built-in spring suspension + a driven motor) on a car rolling over a b2Chain (smooth one-sided procedural terrain, no ghost bumps). Backlog: docs/design/box2d-cart-ideas.md; backend: docs/design/box2d-integration.md.",
-  "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). RIGHT = gas, LEFT = reverse/brake; in the air the same keys spin the car so you can land wheels-down (do a backflip if you're feeling brave). The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble."
+  "description": "A hill-climb buggy. Drive a little car over rolling procedural hills that get bumpier the further you go, and reach the flag without landing on your roof. The wheels ride on real Box2D v3 WHEEL joints — spring suspension that soaks up the bumps plus a motor you drive — and the ground is a b2Chain (smooth, one-sided terrain). A revving engine (a held voice whose firing rate + snarl pitch up with your wheel speed, ported from enginelab) drones and climbs as you accelerate. RIGHT = gas, LEFT = reverse/brake; in the air the same keys spin the car so you can land wheels-down (do a backflip if you're feeling brave). The camera follows; R restarts. Second cart on the engine's pure-C Box2D backend, the vehicle twin of tumble."
 }
 de:meta */
 #include "studio.h"
@@ -35,10 +35,12 @@ de:meta */
 #define CHW     1.05f          // chassis half-width (wide wheelbase = stable, resists wheelie flips)
 #define CHH     0.22f          // chassis half-height (low)
 #define WHEELR  0.42f          // wheel radius
-#define DRIVE   13.0f          // motor speed (rad/s) — gentle enough that tyres grip, not spin out
-#define TORQUE  12.0f          // maxMotorTorque per wheel (enough to climb, not enough to backflip)
+#define DRIVE   20.0f          // motor speed (rad/s) — top wheel spin
+#define TORQUE  20.0f          // maxMotorTorque per wheel — punchy climbing power
 #define LEAN    9.0f           // air-control torque
+#define STAB    70.0f          // ground stability: auto-counter an excessive pitch so power climbs, not loops
 #define GOAL    80.0f          // flag distance (m from the start)
+#define SLOT_ENG 8             // engine-sound instrument slot
 
 enum { T_GROUND = 1, T_CAR = 2 };
 
@@ -49,6 +51,9 @@ static b2Vec2    terr[TN];
 static float     camx, camy;
 static int       built = 0, won = 0;
 static float     start_x, flag_x;
+static int       vEng = -1;        // held engine voice
+static float     throttle_s = 0;   // ramped throttle (0..1)
+static void      engine_build(void);   // defined below, called from reset_world
 
 static float terrain_h(float x) {                 // the surface height used to build the chain
     float h = 4.0f;
@@ -130,6 +135,31 @@ static void reset_world(void) {
         *wj[i] = b2CreateWheelJoint(world, &jd);
     }
     camx = start_x; camy = sy;
+    if (vEng < 0) engine_build();                 // build the held engine voice once
+}
+
+// engine sound (compact port of enginelab's gas engine): one held SAW voice pitched at
+// the firing rate, brightening + snarling with revs, with a tremolo AT the firing rate = the chug.
+static void engine_build(void) {
+    instrument(SLOT_ENG, INSTR_SAW, 30, 0, 7, 220);
+    instrument_filter(SLOT_ENG, FILTER_LOW, 400, 6);
+    instrument_drive_mode(SLOT_ENG, DRIVE_ASYM);
+    vEng = note_on(40, SLOT_ENG, 0);
+    note_glide(vEng, 60);
+}
+
+static void engine_sound(float rpm, float thr) {
+    if (vEng < 0) return;
+    float r = rpm < 0 ? 0 : rpm > 1 ? 1 : rpm;
+    float chug = 18.0f + 92.0f * r;                        // firing Hz: idle 18 -> redline 110
+    float bmidi = 12.0f * log2f(chug / 440.0f) + 69.0f;    // body pitch tracks the firing rate
+    int bvol = (int)(3.0f + r * 3.0f + thr * 1.2f); if (bvol > 7) bvol = 7;
+    int bcut = 400 + (int)((r * 0.7f + thr * 0.3f) * 2400);
+    note_pitch (vEng, bmidi);
+    note_vol   (vEng, bvol);
+    note_cutoff(vEng, bcut);
+    note_drive (vEng, 0.1f + (r * 0.5f + thr * 0.5f) * 0.4f);   // saturation snarl climbs with load
+    note_lfo   (vEng, 0, LFO_VOLUME, chug, 0.5f);              // the chug that speeds up with revs
 }
 
 void update(void) {
@@ -148,9 +178,18 @@ void update(void) {
     if (!grounded) {
         if (gas) b2Body_ApplyAngularImpulse(chassis, +LEAN, true);   // spin back (backflip / land it)
         if (rev) b2Body_ApplyAngularImpulse(chassis, -LEAN, true);   // spin forward
+    } else {
+        float ang = b2Rot_GetAngle(b2Body_GetRotation(chassis));     // keep it from looping under power
+        if (ang >  0.35f) b2Body_ApplyTorque(chassis, -STAB * (ang - 0.35f), true);
+        if (ang < -0.35f) b2Body_ApplyTorque(chassis, -STAB * (ang + 0.35f), true);
     }
 
     b2World_Step(world, 1.0f/60.0f, 4);
+
+    float rpm = fabsf(b2Body_GetAngularVelocity(wheelB)) / DRIVE;   // revs from wheel spin
+    float thr_target = (gas || rev) ? 1.0f : 0.0f;
+    throttle_s += (thr_target - throttle_s) * 0.15f;
+    engine_sound(rpm, throttle_s);
 
     b2Vec2 p = b2Body_GetPosition(chassis);       // follow-camera (lerp + a little look-ahead)
     b2Vec2 v = b2Body_GetLinearVelocity(chassis);

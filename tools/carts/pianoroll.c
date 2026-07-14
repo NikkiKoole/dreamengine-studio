@@ -9,7 +9,7 @@
   "description": {
     "summary": "A scrubbable piano roll: play notes in on the keybed, draw & reshape them with the mouse, set velocity, lock to a scale, and save your song.",
     "detail": "Time runs left–right, pitch runs bottom–up. Notes live in BEATS, so tempo and scrubbing are free. Playback is stateless: every frame each note asks 'should I be sounding at the playhead right now?' — so you can drag the playhead anywhere on the ruler and instantly hear the composition at that point, no need to replay from the top. Two mouse TOOLS (toggle with B, or the DRAW/SEL chip): in DRAW, click empty to place a note and drag to size it; in SELECT, drag empty to marquee many notes, then move/duplicate/delete them together. In both, a note's body moves and its edges retime; right-click deletes one. Record live off the keybed too. The bottom panel flips between the KEYBED and a VELOCITY lane. SCALE-lock snaps every pitch into key. Your song auto-saves and reloads.",
-    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · , / . : undo / redo (or the < > buttons) · HUD: DUP · VEL/KEYS panel · SCL scale-lock (+root/type) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
+    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · , / . : undo / redo (or the < > buttons) · HUD: DUP · VEL/KEYS panel · SCL scale-lock: roll collapses to in-key lanes AND the bottom keybed becomes a uniform scale strip (SCL off = full chromatic keybed) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
   }
 }
 de:meta */
@@ -199,12 +199,12 @@ static void do_redo(void){ if (!r_len) return; Snap cur; snap_take(&cur); stack_
 
 static Snap pregest; static bool gest_open;   // pre-gesture snapshot + "a mouse edit is underway"
 
-// --- live recording ---------------------------------------------------------
-static void rec_on(int midi, int vel){
+// --- live recording (shared by both keybeds) --------------------------------
+// log a note at the playhead. No sound — whoever pressed the key owns the voice.
+static void record_on(int midi, int vel){
     if (!(playing && armed) || n_notes >= MAXNOTES) return;
     if (midi < 0 || midi > 127) return;
     mark();                            // each recorded note is its own undo step
-    midi = scale_snap(midi);
     Note *nt = &note_[n_notes];
     nt->pitch = (int8_t)midi;
     nt->start = playhead;
@@ -213,10 +213,89 @@ static void rec_on(int midi, int vel){
     nt->rec   = 1; nt->sel = 0; nt->h = -1;
     rec_map[midi] = n_notes++;
 }
+static void rec_on(int midi, int vel){ record_on(scale_snap(midi), vel); }  // chromatic keybed callback
 static void rec_off(int midi){
     if (midi < 0 || midi > 127) return;
     int i = rec_map[midi];
     if (i >= 0){ note_[i].rec = 0; rec_map[midi] = -1; }
+}
+
+// --- scale keybed: a uniform strip of ONLY the in-key notes (shown when SCL on) ---
+// no black/white split — every key is a scale degree, so you can't play a wrong
+// note. Toggling SCL off brings the full chromatic keybed back. Reads the same
+// touch/mouse/QWERTY sources keybed.h does, so it's mouse-and-touch for free.
+#define SK_MAXKEYS 15                          // 2 octaves + 1 of a 7-note scale
+#define SK_BASE    48                          // low end of the strip (C3, before + root)
+static const char *SK_ROW = "ASDFGHJKL";       // QWERTY home row -> the first keys
+static int  sk_h[SK_MAXKEYS];                  // live voice handle per key (-1 silent)
+static bool sk_q[SK_MAXKEYS];                  // key held by QWERTY
+static int  sk_fid[8], sk_fk[8];               // touch/mouse fingers: id + the key each holds
+
+static int sk_nkeys(void){ return 2 * SCALES[scale_idx].n + 1; }
+static int sk_midi(int k){ int n = SCALES[scale_idx].n;
+    return SK_BASE + scale_root + (k / n) * 12 + SCALES[scale_idx].deg[k % n]; }
+static int sk_key_at(int px){ int k = px * sk_nkeys() / SCREEN_W; return (k < 0 || k >= sk_nkeys()) ? -1 : k; }
+
+static void sk_press(int k){
+    if (k < 0 || k >= sk_nkeys() || sk_h[k] >= 0) return;
+    int midi = sk_midi(k);
+    sk_h[k] = note_on(midi, SYN, 5);
+    record_on(midi, 5);                        // already in-key — no snap needed
+}
+static void sk_release(int k){
+    if (k < 0 || k >= sk_nkeys() || sk_h[k] < 0) return;
+    note_off(sk_h[k]); sk_h[k] = -1;
+    rec_off(sk_midi(k));
+}
+static void sk_reset(void){
+    for (int k = 0; k < SK_MAXKEYS; k++){ sk_h[k] = -1; sk_q[k] = false; }
+    for (int f = 0; f < 8; f++){ sk_fid[f] = -1; sk_fk[f] = -1; }
+}
+static bool sk_sounding(int midi){             // for the pitch-column highlight
+    for (int k = 0; k < sk_nkeys(); k++) if (sk_h[k] >= 0 && sk_midi(k) == midi) return true;
+    return false;
+}
+// silence every live keybed voice — call when swapping panel mode / scale
+static void kill_live(void){
+    for (int k = 0; k < SK_MAXKEYS; k++){ if (sk_h[k] >= 0) note_off(sk_h[k]); sk_h[k] = -1; sk_q[k] = false; }
+    for (int f = 0; f < 8; f++){ sk_fid[f] = -1; sk_fk[f] = -1; }
+    keybed_all_off();
+}
+
+static void scalekb_update(void){
+    int nk = sk_nkeys();
+    for (int i = 0; SK_ROW[i] && i < nk; i++){         // QWERTY
+        if (keyp(SK_ROW[i]) && !sk_q[i]){ sk_q[i] = true;  sk_press(i); }
+        if (keyr(SK_ROW[i]) &&  sk_q[i]){ sk_q[i] = false; sk_release(i); }
+    }
+    for (int i = 0; i < touch_count(); i++){           // touch / mouse (+ glissando on drag)
+        int id = touch_id(i);
+        int k  = touch_y(i) >= KB_Y ? sk_key_at(touch_x(i)) : -1;
+        int f = -1; for (int j = 0; j < 8; j++) if (sk_fid[j] == id){ f = j; break; }
+        if (f >= 0){
+            if (k != sk_fk[f]){ sk_release(sk_fk[f]); if (k >= 0) sk_press(k); sk_fk[f] = k; }
+        } else if (k >= 0){
+            for (int j = 0; j < 8; j++) if (sk_fid[j] < 0){ sk_fid[j] = id; sk_fk[j] = k; sk_press(k); break; }
+        }
+    }
+    for (int i = 0; i < touch_ended_count(); i++){     // lifted fingers
+        int id = touch_ended_id(i);
+        for (int j = 0; j < 8; j++) if (sk_fid[j] == id){ sk_release(sk_fk[j]); sk_fid[j] = -1; sk_fk[j] = -1; break; }
+    }
+}
+
+static void scalekb_draw(void){
+    int nk = sk_nkeys();
+    for (int k = 0; k < nk; k++){
+        int x = k * SCREEN_W / nk, w = (k + 1) * SCREEN_W / nk - x;
+        int midi = sk_midi(k), pc = (((midi - scale_root) % 12) + 12) % 12;
+        int col = sk_h[k] >= 0 ? CLR_YELLOW : (pc == 0 ? CLR_ORANGE : CLR_INDIGO);   // held / root / in-key
+        rectfill(x, KB_Y, w, KB_H, col);
+        rect(x, KB_Y, w, KB_H, CLR_BLACK);
+        font(FONT_TINY);
+        print(NOTE_NAME[midi % 12], x + 2, SCREEN_H - 7, CLR_BLACK);
+        font(FONT_NORMAL);
+    }
 }
 
 // --- stateless playback ------------------------------------------------------
@@ -354,11 +433,15 @@ void init(void){
     keybed_on_off(rec_off);
     for (int m = 0; m < 128; m++) rec_map[m] = -1;
     drag = DRAG_NONE;
+    sk_reset();
     if (!load_song()) seed_demo();          // your song persists; else the demo phrase
 }
 
 void update(void){
-    if (!velmode) keybed_update();          // keybed owns the bottom panel unless VEL lane is up
+    // bottom panel input: VEL lane (mouse, handled below) · scale strip (SCL on) · chromatic keybed
+    if (velmode)         {}
+    else if (scalelock)  scalekb_update();
+    else                 keybed_update();
 
     // --- keys (all off the keybed's A–L / W E / T Y U / O P / Z X set) ---
     if (keyp(' ')){ playing = !playing; if (!playing) all_notes_off(); }
@@ -375,10 +458,10 @@ void update(void){
     if (btn_click(B_REC))  armed = !armed;
     if (btn_click(B_DUP) && count_sel()){ mark(); dup_selected(); }
     if (btn_click(B_DEL) && count_sel()){ mark(); del_selected(); }
-    if (btn_click(B_VEL))  velmode = !velmode;
-    if (btn_click(B_SCL))  scalelock = !scalelock;
-    if (btn_click(B_ROOT)) scale_root = (scale_root + 1) % 12;
-    if (btn_click(B_TYPE)) scale_idx  = (scale_idx + 1) % NSCALE;
+    if (btn_click(B_VEL)){ velmode = !velmode; kill_live(); }
+    if (btn_click(B_SCL)){ scalelock = !scalelock; kill_live(); }   // SCL also swaps chroma keybed <-> scale strip
+    if (btn_click(B_ROOT)){ scale_root = (scale_root + 1) % 12; kill_live(); }
+    if (btn_click(B_TYPE)){ scale_idx  = (scale_idx + 1) % NSCALE; kill_live(); }
     if (btn_click(B_SAVE)) save_song();
     if (btn_click(B_LOAD)){ Snap pre; snap_take(&pre); if (load_song()) commit(&pre); }
     if (btn_click(B_UNDO)) do_undo();
@@ -604,7 +687,7 @@ static void draw_piano_col(void){
     int rows = vis_rows();
     for (int r = 0; r < rows; r++){
         int m = view_lo + r, y = y_of_pitch(m);
-        bool held = keybed_held(m);
+        bool held = keybed_held(m) || sk_sounding(m);
         int col;
         if (held)           col = CLR_YELLOW;
         else if (scalelock) col = in_scale(m) ? CLR_LIGHT_GREY : CLR_BLACK;    // off-key keys hidden
@@ -683,6 +766,7 @@ void draw(void){
     draw_piano_col();
     draw_ruler();
     draw_hud();
-    if (velmode) draw_vel_lane();
-    else         keybed_draw();
+    if (velmode)        draw_vel_lane();
+    else if (scalelock) scalekb_draw();
+    else                keybed_draw();
 }

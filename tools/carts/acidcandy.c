@@ -34,6 +34,10 @@ de:meta */
 
 #define SLOT 6
 #define STEPS 16
+// knob-feel tunables (dial these while play-testing)
+#define KNOB_SWEEP   24.0f   // canvas px for a full 0..1 on a straight vertical drag (smaller = snappier)
+#define KNOB_GEAR    22.0f   // sideways px per +1x of fine gear
+#define KNOB_GEARMAX 2.0f    // cap so FINE still covers real ground (max sweep = SWEEP*this)
 static Acid  a;                                            // the shared acid voice
 static int   on[STEPS], pit[STEPS], acc[STEPS], sld[STEPS];   // the line (pattern lives in the cart)
 static int   plen = STEPS, sel = 0;
@@ -55,20 +59,58 @@ static void gen_line(void) {
 
 // ── candy widgets ──────────────────────────────────────────────────────────
 static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_width(s) / 2, y, col); }
-static void knob(float *v, int cx, int cy, int r, const char *label) {
+
+// per-knob interaction memory (for double-tap-to-reset), keyed by the value pointer
+static struct { void *v; float gval, gt, ltt; } kmeta[8];
+static int kmeta_i(void *v) {
+    for (int i = 0; i < 8; i++) if (kmeta[i].v == v) return i;
+    for (int i = 0; i < 8; i++) if (!kmeta[i].v) { kmeta[i].v = v; kmeta[i].ltt = -9; return i; }
+    return 0;
+}
+
+// candy rotary — the feel study. VERTICAL drag = value; PULL SIDEWAYS to shift into
+// a finer gear (the further out, the finer) — one gesture gives quick AND precise.
+// DOUBLE-TAP = reset to `def`. While turning, the label shows the live value + a bright
+// value arc rides the rim; the pointer goes amber in fine gear. Wheel = fine (desktop).
+static void knob(float *v, int cx, int cy, int r, const char *label, float def) {
     ui_reg(v, cx - r, cy - r, 2 * r + 1, 2 * r + 1, 0);
     UiCap *c = ui_cap_for(v);
-    if (c) { if (!c->has_v0) { c->has_v0 = 1; c->v0 = *v; c->by = c->cy; }
-             int py = c->released ? c->ry : c->cy; *v = clamp(c->v0 + (c->by - py) / 60.0f, 0, 1); }
-    int hot = c != 0 || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
+    int mi = kmeta_i(v), fine = 0, held = c != 0;
+    if (ui_grabbed(v)) { kmeta[mi].gval = *v; kmeta[mi].gt = now(); }
+    if (c) {
+        if (!c->has_v0) { c->has_v0 = 1; c->v0 = *v; c->by = c->cy; }   // (re)snap on grab / lens-cross
+        int py = c->released ? c->ry : c->cy;
+        int px = c->released ? c->rx : c->cx;
+        int ox = px - cx; if (ox < 0) ox = -ox;                         // horizontal offset from the knob
+        float gear = 1.0f + ox / KNOB_GEAR;                             // 1x over the knob → finer as you pull out
+        if (gear > KNOB_GEARMAX) gear = KNOB_GEARMAX;                   // capped so FINE still covers ground
+        fine = gear > 1.5f;
+        float sweep = KNOB_SWEEP * gear;
+        *v = clamp(c->v0 + (c->by - py) / sweep, 0, 1);
+        c->v0 = *v; c->by = py;                                         // re-anchor each frame → a gear change never JUMPS the value
+    }
+    if (ui_released(v)) {                                               // a tap (barely moved, quick) can reset
+        float rt = now(), dv = *v - kmeta[mi].gval; if (dv < 0) dv = -dv;
+        if (dv < 0.02f && rt - kmeta[mi].gt < 0.25f) {
+            if (rt - kmeta[mi].ltt < 0.35f) { *v = def; kmeta[mi].ltt = -9; }   // double-tap → default
+            else kmeta[mi].ltt = rt;
+        }
+    }
+    int hot = held || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
     if (!c && hot && mouse_wheel() != 0) *v = clamp(*v + mouse_wheel() * 0.04f, 0, 1);
+    if (held) { blend(BLEND_AVG); circfill(cx, cy, r + 1, CLR_WHITE); blend_reset(); }   // grab-glow halo
     circfill(cx, cy, r, CLR_INDIGO);
     ring(cx, cy, r - 2, r - 1, 165, 285, CLR_PINK);
     ring(cx, cy, r - 2, r - 1, -15, 105, CLR_DARKER_PURPLE);
-    circ(cx, cy, r, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
     float ang = 150 + *v * 240;
-    line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), CLR_WHITE);
-    font(FONT_TINY); plabel(label, cx, cy + r + 1, CLR_DARK_BROWN);
+    if (held) ring(cx, cy, r - 3, r, 150, ang, CLR_LIGHT_YELLOW);       // FAT value band — fills as you turn
+    circ(cx, cy, r, held ? CLR_WHITE : hot ? CLR_LIGHT_PEACH : CLR_BROWNISH_BLACK);
+    line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang),
+         fine ? CLR_ORANGE : CLR_WHITE);                               // pointer goes amber in fine gear
+    font(FONT_TINY);
+    if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 };
+                plabel(b, cx, cy + r + 1, CLR_DARK_GREEN); }
+    else plabel(label, cx, cy + r + 1, CLR_DARK_BROWN);
 }
 static int cbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int on2) {
     int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, hh);
@@ -127,8 +169,8 @@ void draw(void) {
     trifill(147, 8, 153, 8, 150, 12, CLR_RED); circfill(148, 8, 1, CLR_RED); circfill(152, 8, 1, CLR_RED);   // heart
 
     // ② always-live knobs — bound straight to the shared voice params
-    knob(&a.p[ACID_CUT], 20, 26, 6, "CUT"); knob(&a.p[ACID_RES], 48, 26, 6, "RES"); knob(&a.p[ACID_ENV], 76, 26, 6, "ENV");
-    knob(&a.p[ACID_DEC], 104, 26, 6, "DEC"); knob(&a.p[ACID_ACC], 132, 26, 6, "ACC");
+    knob(&a.p[ACID_CUT], 20, 26, 6, "CUT", 0.55f); knob(&a.p[ACID_RES], 48, 26, 6, "RES", 0.70f); knob(&a.p[ACID_ENV], 76, 26, 6, "ENV", 0.55f);
+    knob(&a.p[ACID_DEC], 104, 26, 6, "DEC", 0.45f); knob(&a.p[ACID_ACC], 132, 26, 6, "ACC", 0.55f);
 
     // ③ display — the piano-roll of the line + playhead, flanked by soft-keys
     chip(6, 38, "SEQ", 1); chip(6, 47, "PAT", 0);

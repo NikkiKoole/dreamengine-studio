@@ -8,8 +8,8 @@
   "lineage": "sampler",
   "description": {
     "summary": "A scrubbable piano roll: play notes in on the keybed, draw & reshape them with the mouse, set velocity, lock to a scale, and save your song.",
-    "detail": "Time runs left–right, pitch runs bottom–up. Notes live in BEATS, so tempo and scrubbing are free. Playback is stateless: every frame each note asks 'should I be sounding at the playhead right now?' — so you can drag the playhead anywhere on the ruler and instantly hear the composition at that point, no need to replay from the top. Three ways in, one note list: RECORD live off the keybed, TAP an empty cell to place, or DRAG a note's body (move) / edges (retime) to reshape it. DRAG empty space to marquee-select many notes, then move/duplicate/delete them together. The bottom panel flips between the KEYBED and a VELOCITY lane. SCALE-lock snaps every pitch into key. Your song auto-saves and reloads.",
-    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · tap empty: place · drag empty: marquee-select · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · HUD buttons: DUP duplicate · VEL/KEYS panel · SCL scale-lock (+root/type) · SAVE / LOAD · snap & tempo · drag the RULER: scrub (audible)"
+    "detail": "Time runs left–right, pitch runs bottom–up. Notes live in BEATS, so tempo and scrubbing are free. Playback is stateless: every frame each note asks 'should I be sounding at the playhead right now?' — so you can drag the playhead anywhere on the ruler and instantly hear the composition at that point, no need to replay from the top. Two mouse TOOLS (toggle with B, or the DRAW/SEL chip): in DRAW, click empty to place a note and drag to size it; in SELECT, drag empty to marquee many notes, then move/duplicate/delete them together. In both, a note's body moves and its edges retime; right-click deletes one. Record live off the keybed too. The bottom panel flips between the KEYBED and a VELOCITY lane. SCALE-lock snaps every pitch into key. Your song auto-saves and reloads.",
+    "controls": "keybed / QWERTY: play notes · SPACE: play/stop · R: arm record · B: DRAW/SELECT tool · DRAW: click empty=place, drag=size · SELECT: drag empty=marquee · drag body: move (all selected) · drag edge: resize · right-click: delete one · BACKSPACE: delete selected · HUD: DUP · VEL/KEYS panel · SCL scale-lock (+root/type) · SAVE / LOAD · snap & tempo · MIDDLE-drag: pan the view around · wheel/↑↓: pitch · ←→: time · drag RULER: scrub (audible)"
   }
 }
 de:meta */
@@ -91,6 +91,9 @@ static bool scalelock;
 static int  scale_root;                // pitch class 0..11
 static int  scale_idx;                 // index into SCALES
 
+enum { TOOL_DRAW, TOOL_SELECT };       // DRAW: empty = place/size a note · SELECT: empty = marquee
+static int   tool = TOOL_DRAW;
+
 enum { DRAG_NONE, DRAG_MOVE, DRAG_END, DRAG_START, DRAG_SCRUB, DRAG_MARQUEE, DRAG_VEL };
 static int   drag;
 static int   drag_note;
@@ -98,6 +101,9 @@ static float drag_off;                 // beat offset (cursor - grabbed note.sta
 static int   mq_x0, mq_y0;             // marquee anchor (px)
 static bool  mq_moved;                 // did the press turn into a real drag?
 static int   cur_cursor = -1;
+static bool  panning;                  // middle-drag: grab & pan the view
+static int   pan_mx, pan_my, pan_lo;   // anchors captured at pan-start
+static float pan_b0;
 
 // --- helpers ----------------------------------------------------------------
 static int   vis_rows(void) { return ROLL_H / ROWH; }
@@ -116,6 +122,14 @@ static int   y_of_pitch(int m){ return ROLL_Y + ROLL_H - (m - view_lo + 1) * ROW
 static int   pitch_of_y(int py){ return view_lo + (ROLL_Y + ROLL_H - 1 - py) / ROWH; }
 
 static int vel_vol(int v){ return v < 1 ? 1 : v > 7 ? 7 : v; }
+
+static float max_b0(void){ float m = SONG_LEN - vis_beats(); return m < 0 ? 0 : m; }
+static void  clamp_view(void){
+    if (view_lo < 12) view_lo = 12;
+    if (view_lo > 108 - vis_rows()) view_lo = 108 - vis_rows();
+    if (view_b0 < 0) view_b0 = 0;
+    if (view_b0 > max_b0()) view_b0 = max_b0();
+}
 
 static bool in_scale(int midi){
     int pc = (((midi - scale_root) % 12) + 12) % 12;
@@ -259,10 +273,10 @@ static bool load_song(void){
 
 // --- toolbar buttons --------------------------------------------------------
 // one table so draw + hit-test never drift. {x, w, label}
-enum { B_PLAY, B_REC, B_DUP, B_DEL, B_VEL, B_SCL, B_ROOT, B_TYPE, B_SAVE, B_LOAD, B_SNAP, B_N };
+enum { B_PLAY, B_REC, B_DUP, B_DEL, B_VEL, B_SCL, B_ROOT, B_TYPE, B_SAVE, B_LOAD, B_SNAP, B_TOOL, B_N };
 static const struct { int x, w; } BTN[B_N] = {
     {  2, 22 }, { 26, 16 }, { 44, 16 }, { 62, 16 }, { 80, 22 }, { 104, 16 },
-    { 122, 12 }, { 136, 20 }, { 158, 22 }, { 182, 22 }, { 206, 22 },
+    { 122, 12 }, { 136, 20 }, { 158, 22 }, { 182, 22 }, { 206, 22 }, { 286, 32 },
 };
 static bool btn_click(int b){
     int mx = mouse_x(), my = mouse_y();
@@ -301,6 +315,7 @@ void update(void){
     // --- keys (all off the keybed's A–L / W E / T Y U / O P / Z X set) ---
     if (keyp(' ')){ playing = !playing; if (!playing) all_notes_off(); }
     if (keyp('R')) armed = !armed;
+    if (keyp('B')) tool = !tool;             // toggle DRAW <-> SELECT (Ableton's draw-mode key)
     if (keyp(KEY_BACKSPACE)) del_selected();
     if (keyp('[')){ tempo -= 5; if (tempo < 40) tempo = 40; bpm(tempo); }
     if (keyp(']')){ tempo += 5; if (tempo > 240) tempo = 240; bpm(tempo); }
@@ -319,6 +334,7 @@ void update(void){
     if (btn_click(B_SNAP)){                 // cycle 1/4 -> 1/8 -> 1/16 -> 1/32
         snap = (snap <= 0.125f) ? 1.0f : snap * 0.5f;
     }
+    if (btn_click(B_TOOL)) tool = !tool;
 
     // --- scroll ---
     float w = mouse_wheel();
@@ -327,11 +343,7 @@ void update(void){
     if (keyp(KEY_DOWN))  view_lo--;
     if (keyp(KEY_LEFT))  view_b0 -= 1;
     if (keyp(KEY_RIGHT)) view_b0 += 1;
-    if (view_lo < 12) view_lo = 12;
-    if (view_lo > 108 - vis_rows()) view_lo = 108 - vis_rows();
-    if (view_b0 < 0) view_b0 = 0;
-    float maxb0 = SONG_LEN - vis_beats(); if (maxb0 < 0) maxb0 = 0;
-    if (view_b0 > maxb0) view_b0 = maxb0;
+    clamp_view();
 
     // --- advance the playhead ---
     if (playing){
@@ -343,8 +355,7 @@ void update(void){
             if (len > nt->len) nt->len = len;
         }
         if (playhead < view_b0 || playhead > view_b0 + vis_beats() - 0.5f){
-            view_b0 = playhead - 1; if (view_b0 < 0) view_b0 = 0;
-            if (view_b0 > maxb0) view_b0 = maxb0;
+            view_b0 = playhead - 1; clamp_view();
         }
     }
 
@@ -352,6 +363,15 @@ void update(void){
     bool in_roll  = mx >= ROLL_X && my >= ROLL_Y && my < ROLL_Y + ROLL_H;
     bool in_ruler = my >= RULER_Y && my < RULER_Y + RULER_H;
     bool in_vel   = velmode && my >= KB_Y;
+
+    // --- middle-drag: grab & pan the view around (works in any tool) ---
+    if (mouse_pressed(MOUSE_MIDDLE)){ panning = true; pan_mx = mx; pan_my = my; pan_b0 = view_b0; pan_lo = view_lo; }
+    if (panning && mouse_down(MOUSE_MIDDLE)){
+        view_b0 = pan_b0 - (mx - pan_mx) / PXB;      // drag right -> reveal earlier bars (grab-style)
+        view_lo = pan_lo + (my - pan_my) / ROWH;     // drag down  -> reveal higher notes
+        clamp_view();
+    }
+    if (!mouse_down(MOUSE_MIDDLE)) panning = false;
 
     // --- begin an interaction ---
     if (mouse_pressed(MOUSE_LEFT)){
@@ -370,7 +390,13 @@ void update(void){
                 } else {                                                 // edge resize = just this note
                     drag = zone; drag_note = i;
                 }
-            } else {                             // empty: press starts a marquee; a TAP (no move) places
+            } else if (tool == TOOL_DRAW && n_notes < MAXNOTES){   // DRAW: place a note, drag to size it
+                clear_sel();
+                int p = scale_snap(pitch_of_y(my));
+                note_[n_notes] = (Note){ .pitch=(int8_t)p, .start=snapf(beat_of_x(mx)),
+                                         .len=snap, .vel=5, .sel=1, .h=-1 };
+                drag = DRAG_END; drag_note = n_notes++;
+            } else {                             // SELECT: press starts a marquee; a TAP (no move) deselects
                 drag = DRAG_MARQUEE; mq_x0 = mx; mq_y0 = my; mq_moved = false;
             }
         }
@@ -422,12 +448,8 @@ void update(void){
     // --- release: finalize marquee (select) or a tap (place) ---
     if (mouse_released(MOUSE_LEFT)){
         if (drag == DRAG_MARQUEE){
-            if (!mq_moved && n_notes < MAXNOTES){          // a tap = place a note
+            if (!mq_moved){                                // a tap in empty (SELECT mode) = deselect
                 clear_sel();
-                int p = scale_snap(pitch_of_y(mq_y0));
-                note_[n_notes] = (Note){ .pitch=(int8_t)p, .start=snapf(beat_of_x(mq_x0)),
-                                         .len=snap, .vel=5, .sel=1, .h=-1 };
-                n_notes++;
             } else {                                       // a drag = marquee-select
                 int x0 = mx < mq_x0 ? mx : mq_x0, x1 = mx > mq_x0 ? mx : mq_x0;
                 int y0 = my < mq_y0 ? my : mq_y0, y1 = my > mq_y0 ? my : mq_y0;
@@ -445,14 +467,16 @@ void update(void){
 
     // --- context cursor ---
     int want = CURSOR_DEFAULT;
-    if (drag == DRAG_MOVE)                                     want = CURSOR_MOVE;
+    if (panning)                                              want = CURSOR_MOVE;
+    else if (drag == DRAG_MOVE)                               want = CURSOR_MOVE;
     else if (drag == DRAG_END || drag == DRAG_START || drag == DRAG_SCRUB) want = CURSOR_RESIZE_H;
     else if (in_ruler)                                        want = CURSOR_RESIZE_H;
     else if (in_vel)                                          want = CURSOR_RESIZE_H;
     else if (in_roll){
         int z, i = hit_note(mx, my, &z);
-        if (i >= 0) want = (z == DRAG_MOVE) ? CURSOR_MOVE : CURSOR_RESIZE_H;
-        else        want = CURSOR_CROSSHAIR;
+        if (i >= 0)               want = (z == DRAG_MOVE) ? CURSOR_MOVE : CURSOR_RESIZE_H;
+        else if (tool == TOOL_DRAW) want = CURSOR_CROSSHAIR;   // empty + draw = place
+        else                        want = CURSOR_DEFAULT;     // empty + select = marquee
     } else if (!velmode && my >= KB_Y)                        want = CURSOR_HAND;
     if (want != cur_cursor){ mouse_cursor(want); cur_cursor = want; }
 
@@ -464,6 +488,7 @@ void update(void){
     watch("phead",   "%.2f", playhead);
     watch("nnotes",  "%d", n_notes);
     watch("nsel",    "%d", count_sel());
+    watch("tool",    "%d", tool);
     watch("velmode", "%d", velmode);
     watch("lock",    "%d", scalelock);
     { int snd = 0; for (int i = 0; i < n_notes; i++) if (note_[i].h >= 0) snd++;
@@ -586,6 +611,7 @@ static void draw_hud(void){
     hud_btn(B_SNAP, sn, false, 0);
     char s[8]; snprintf(s, sizeof s, "%d", tempo);
     print(s, BTN[B_SNAP].x + BTN[B_SNAP].w + 3, 2, CLR_MEDIUM_GREY);
+    hud_btn(B_TOOL, tool == TOOL_DRAW ? "DRAW" : "SEL", true, CLR_INDIGO);   // always lit = current mode
     font(FONT_NORMAL);
 }
 

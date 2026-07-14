@@ -43,10 +43,13 @@ static double g_draw_us = 0.0;   // last frame's draw() time — reported by upd
 // The jar tilts by rotating GRAVITY in the jar's frame; the whole scene is drawn rotated back
 // so it reads as tipping a real jar. Nothing here is engine code — just the physics.h verbs.
 
-#define MAXP     5000
+#define MAXP     4600          // reservoir cap. Past this the column gets so tall its bottom
+                               // out-pressures the affordable solve and starts to churn/foam;
+                               // 4600 (~70% full) is the most that still reads as calm water.
 #define FILL_N   3200          // how many particles to pour in at reset (see fill_jar). ~half-fills
                                // the jar and stays calm; a much taller column out-pressures the
                                // solve and starts to churn, so this is the sweet spot for H=4.
+                               // (SPACE can pour past it, filling the jar — see the pour in update.)
 #define MAXN     48            // neighbours cached per particle per frame (grid-hashed)
 #define H        4.0f          // smoothing radius: particles interact within this. SCALED WITH the
                                // spacing → each particle keeps ~the same neighbour count, so solve
@@ -330,10 +333,11 @@ void update(void) {
 
     if (keyp('R')) init();
 
-    // pour a little stream from the top-centre while SPACE is held
-    if (key(KEY_SPACE) && N < MAXP - 6) {
+    // pour a fat stream from the top-centre while SPACE is held — a wide row each frame, so you
+    // can fill the jar right up (up to MAXP). ~16/frame ≈ 950/s; the jar brims in a few seconds.
+    if (key(KEY_SPACE)) {
         float cx = (JX0 + JX1) * 0.5f;
-        for (int k = -2; k <= 2; k++) add_pt(cx + k * 3.0f, JY0 + 4.0f, 0.0f, 1.2f);
+        for (int k = -7; k <= 7 && N < MAXP; k++) add_pt(cx + k * 2.6f, JY0 + 4.0f, 0.0f, 1.4f);
     }
 
     // a drag that begins on the slider panel adjusts a slider — it must NOT also stir the water.
@@ -384,11 +388,15 @@ void update(void) {
 #endif
 }
 
-// speed → colour ramp: still deep water is dark, fast foam goes white
+// speed → colour ramp: still deep water is dark, only genuinely fast slosh whitens into foam.
+// Deliberately gentle: a full/tall jar has some unavoidable pressure churn at the bottom, and
+// mapping that mild motion to blue (not white) keeps a full jar reading as water, not a boil —
+// the r=2 particles overlap into a sheet, so blue-on-blue jitter barely shows. Real spray (a
+// hard tilt or pour splash) still hits white at the top of the range.
 static int speed_colour(float sp) {
-    static const int ramp[] = { CLR_TRUE_BLUE, CLR_BLUE, CLR_BLUE, CLR_LIGHT_GREY, CLR_WHITE };
-    int n = 5;
-    int idx = (int)(sp / (VMAX * 0.6f) * (n - 1));
+    static const int ramp[] = { CLR_TRUE_BLUE, CLR_BLUE, CLR_BLUE, CLR_BLUE, CLR_LIGHT_GREY, CLR_WHITE };
+    int n = 6;
+    int idx = (int)(sp / (VMAX * 0.9f) * (n - 1));
     if (idx < 0) idx = 0; if (idx > n - 1) idx = n - 1;
     return ramp[idx];
 }
@@ -418,7 +426,7 @@ void draw(void) {
     for (int i = 0; i < N; i++) {
         float sp = vlen(P[i].x - P[i].px, P[i].y - P[i].py);
         float rx = ROTX(P[i].x, P[i].y), ry = ROTY(P[i].x, P[i].y);
-        circfill((int)rx, (int)ry, 1, speed_colour(sp));
+        circfill((int)rx, (int)ry, 2, speed_colour(sp));
     }
 
     // live tweak panel (screen-fixed — does NOT rotate with the jar): drag to feel the fluid change

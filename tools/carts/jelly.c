@@ -32,7 +32,7 @@ de:meta */
 #define NR       14
 #define R0       15.0f
 #define GRAV     0.34f
-#define DAMP     0.99f
+#define DAMP     0.93f       // velocity retention: lower = calmer, less erratic jiggle
 #define ITERS    3          // constraint/collision passes per substep
 #define SUBSTEPS 4          // split each frame → a fast blob can't tunnel through another
 #define PRESSURE 0.18f

@@ -34,10 +34,10 @@ de:meta */
 #define WX(sx)  ((sx) / PPM)
 #define WY(sy)  ((SCREEN_H - (sy)) / PPM)
 
-#define NCRATE  10
-#define NBALL   14
-#define CH      0.28f          // crate half-extent (m)  -> ~13px box
-#define BR      0.34f          // ball radius (m)        -> ~8px
+#define NCRATE  512            // stress test: a big block of crates (build_stack fills what fits)
+#define NBALL   300            // every ball you fire stays — no recycling, no culling
+#define CH      0.20f          // crate half-extent (m)  -> ~10px box (small, so hundreds fit)
+#define BR      0.34f          // ball radius (m)        -> a wrecking ball vs the little crates
 #define LX      4.0f           // slingshot launcher (m) — set right so there's room to pull back
 #define LY      2.2f
 #define FLOORY  0.70f          // floor height (m)
@@ -54,6 +54,7 @@ static b2BodyId  crate[NCRATE];
 static b2Vec2    crate0[NCRATE];   // start pose, for the TOPPLED test
 static b2BodyId  ball[NBALL];
 static int       nball  = 0;
+static int       ncrate = 0;       // how many crates build_stack actually placed
 static bool      aiming = false;
 static int       built  = 0;
 
@@ -74,16 +75,13 @@ static b2BodyId make_crate(float x, float y) {
 }
 
 static void spawn_ball(float x, float y, float vx, float vy) {
-    if (nball >= NBALL) {                       // recycle the oldest
-        b2DestroyBody(ball[0]);
-        for (int i = 1; i < nball; i++) ball[i-1] = ball[i];
-        nball--;
-    }
+    if (nball >= NBALL) return;                 // cap reached — keep every existing ball, just stop adding
     b2BodyDef bd = b2DefaultBodyDef();
     bd.type = b2_dynamicBody;
     bd.position = (b2Vec2){x, y};
     bd.linearVelocity = (b2Vec2){vx, vy};
     bd.userData = (void*)(intptr_t)T_BALL;
+    bd.isBullet = true;                          // CCD — a fast ball can't tunnel the thin walls
     b2BodyId id = b2CreateBody(world, &bd);
     b2Circle c = {{0.0f, 0.0f}, BR};
     b2ShapeDef sd = b2DefaultShapeDef();
@@ -96,19 +94,21 @@ static void spawn_ball(float x, float y, float vx, float vy) {
 }
 
 static void build_stack(void) {
-    // pyramid: rows of 4,3,2,1 from the floor up, centred right of the arena
-    float cx = 9.8f, step = 2.0f*CH + 0.02f, y0 = FLOORY + CH;
+    // a big block of crates filling the arena right of the slingshot — the stress test
+    float W = SCREEN_W / PPM, TOP = SCREEN_H / PPM;
+    float step = 2.0f*CH + 0.01f, bx0 = 5.6f;   // bx0 = left edge, clear of the launcher (LX=4)
+    int cols = (int)((W - 0.1f - bx0) / step);
+    int rows = (int)((TOP - 0.1f - (FLOORY + CH)) / step);
     int k = 0;
-    for (int row = 0; row < 4 && k < NCRATE; row++) {
-        int n = 4 - row;
-        float left = cx - (n*step)/2.0f + CH;
-        for (int i = 0; i < n && k < NCRATE; i++) {
-            float x = left + i*step, y = y0 + row*step;
+    for (int row = 0; row < rows && k < NCRATE; row++) {
+        for (int i = 0; i < cols && k < NCRATE; i++) {
+            float x = bx0 + CH + i*step, y = FLOORY + CH + row*step;
             crate[k]  = make_crate(x, y);
             crate0[k] = (b2Vec2){x, y};
             k++;
         }
     }
+    ncrate = k;
 }
 
 static void reset_world(void) {
@@ -167,7 +167,7 @@ static b2Vec2 launch_vel(int mx, int my) {
 
 static int count_toppled(void) {
     int n = 0;
-    for (int i = 0; i < NCRATE; i++) {
+    for (int i = 0; i < ncrate; i++) {
         b2Vec2 p = b2Body_GetPosition(crate[i]);
         b2Rot  r = b2Body_GetRotation(crate[i]);
         float dx = p.x - crate0[i].x, dy = p.y - crate0[i].y;
@@ -216,15 +216,7 @@ void update(void) {
         impact_sound(ta, tb, h->approachSpeed);
         played++;
     }
-
-    for (int i = 0; i < nball; ) {              // cull balls that leave the arena
-        b2Vec2 p = b2Body_GetPosition(ball[i]);
-        if (p.y < -1.0f || p.x < -2.0f || p.x > SCREEN_W/PPM + 2.0f) {
-            b2DestroyBody(ball[i]);
-            for (int j = i+1; j < nball; j++) ball[j-1] = ball[j];
-            nball--;
-        } else i++;
-    }
+    // no culling — the bouncy walls contain every ball, and we keep them all
 
 #ifdef DE_TRACE
     watch("toppled", "%d", count_toppled());
@@ -286,7 +278,7 @@ void draw(void) {
     line(SCREEN_W - 1, 0, SCREEN_W - 1, fy, CLR_DARK_GREY);
     line(0, 0, SCREEN_W, 0, CLR_DARK_GREY);
 
-    for (int i = 0; i < NCRATE; i++) draw_crate(crate[i]);
+    for (int i = 0; i < ncrate; i++) draw_crate(crate[i]);
     for (int i = 0; i < nball; i++) {
         b2Vec2 p = b2Body_GetPosition(ball[i]);
         circfill(SX(p.x), SY(p.y), (int)(BR*PPM), CLR_DARK_GREY);
@@ -296,7 +288,7 @@ void draw(void) {
     if (aiming) draw_aim();
 
     char buf[32];
-    snprintf(buf, sizeof buf, "TOPPLED %d/%d", count_toppled(), NCRATE);
+    snprintf(buf, sizeof buf, "TOPPLED %d/%d  BALLS %d", count_toppled(), ncrate, nball);
     print(buf, 4, 4, CLR_WHITE);
     print("DRAG AIM  R RESET", 4, SCREEN_H - 10, CLR_LIGHT_GREY);
 }

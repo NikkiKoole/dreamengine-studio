@@ -165,8 +165,10 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          own copies): an Acid struct + acid_note/acid_ride/acid_gate/acid_off/acid_tie — a
                          FILTER_DIODE held voice with non-retriggering slide, accent kick, two-decay, soft
                          attack, filter tracking + octave-down sub-osc (acidrack's superset). Params floats
-                         0..1 (ACID_* enum). Cart owns the PATTERN, header owns the SOUND. acidcandy uses it;
-                         tb303/acidrack migration pending. NOT drumkit.h (that's the pad MAP, this pitches one voice).
+                         0..1 (ACID_* enum). Cart owns the PATTERN, header owns the SOUND. acid_stock() =
+                         vanilla voicing (cut_top 6.0 + slapback), else Devil Fish wide — BOTH from one header,
+                         chosen by data. Used by tb303 + acidrack (both byte-identical A/B, 1.00000) + acidcandy.
+                         NOT drumkit.h (that's the pad MAP, this pitches one voice).
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

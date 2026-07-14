@@ -37,7 +37,7 @@ de:meta */
 #define WHEELR  0.42f          // wheel radius
 #define DRIVE   20.0f          // motor speed (rad/s) — top wheel spin
 #define TORQUE  20.0f          // maxMotorTorque per wheel — punchy climbing power
-#define STAB    70.0f          // ground stability: auto-counter an excessive pitch so power climbs, not loops
+#define STAB    140.0f         // ground stability: auto-counter an excessive pitch so power climbs / brakes flat, not loops
 #define GOAL    80.0f          // flag distance (m from the start)
 #define SLOT_ENG 8             // engine-sound instrument slot
 
@@ -167,7 +167,12 @@ void update(void) {
 
     bool gas = key(KEY_RIGHT) || key('D');
     bool rev = key(KEY_LEFT)  || key('A');
-    float drive = gas ? -DRIVE : rev ? +DRIVE : 0.0f;   // - = wheels roll the car right
+    float vx = b2Body_GetLinearVelocity(chassis).x;
+    // LEFT brakes (holds the wheels at 0) while still rolling forward, then spins into reverse once
+    // slowed — slamming straight to full reverse spun a huge braking torque that nose-dived the car.
+    float drive = gas ? -DRIVE
+                : rev ? (vx > 1.5f ? 0.0f : +DRIVE)
+                : 0.0f;
     b2WheelJoint_SetMotorSpeed(wjF, drive);
     b2WheelJoint_SetMotorSpeed(wjB, drive);
     // air control ONLY when airborne — on the ground the gas just drives (no flip-happy wheelies)

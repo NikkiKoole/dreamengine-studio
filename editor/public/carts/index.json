@@ -5875,6 +5875,17 @@
     "genre": "sandbox"
   },
   {
+    "title": "switches",
+    "description": "The press + flip families from the control vocabulary, in beveled lo-fi: momentary and latching buttons, the illuminated light vocabulary (off/dim/lit/blink), a radio group, and the flip family — bat toggles, a slide switch, a rocker. The second study cart for docs/design/control-vocabulary.md (the sibling of rotaries). Row 1 PUSH: MOMENTARY (on only while held), LATCH (a press flips a sticky state), ILLUM (a lit latching button), BLINK (the pending/recording state). Row 2 LIGHT STATES + RADIO: the one light vocabulary every illuminated control shares — OFF / DIM (armed) / LIT (active) / BLINK (pending) — plus a mutually-exclusive RADIO group (one lit). Row 3 SWITCHES (flip): a 2-position and a 3-position BAT toggle whose lever leans, a SLIDE switch whose nub sits at a labelled stop, and a ROCKER see-saw. Buttons are beveled caps that depress + darken on press; input rides ui.h's ui_button_core so every one is mouse + touch + focus at once. Tap/click any button. MOMENTARY lights only while held. LATCH/ILLUM toggle and stay. Tap a RADIO button to select it (only one lit). Tap a BAT toggle or SLIDE to step it to the next position; tap the ROCKER to flip it.",
+    "file": "switches.cart.png",
+    "created": "2026-07-14",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "tabla",
     "description": "INSTR_MEMBRANE showcase - the seventh modeled ENGINE: a struck drumhead. Six decaying sine modes at a circular membrane's vibration ratios plus a slap contact click, buffer-free. One id covers tabla / conga / bongo / djembe / tom - hand percussion the analog 808/909 recipes structurally can't reach, because it's REAL membrane modes plus a pitch bend, not one sine plus a pitch envelope. The three engine macros: instrument_harmonics = head character (0 = tuned harmonic tabla, pitched and longer-ringing; 1 = inharmonic djembe/conga thud), instrument_timbre = strike position (0 = center thump; 1 = edge ring plus slap click - open/slap/mute in one knob, navkit's live circular-membrane weighting), instrument_morph = pitch bend (0 = flat; up = the membrane chirp / tabla bayan gliss - pitch starts raised off the strike and settles, bending all six modes together). A struck engine self-decays, so it has no ADSR (unlike fm/pd, which hold); the cart's fourth slider is instead a cart-side RING control (mute to open) - the hit() gate length, a tight palm-damped thwack to a stroke left to ring out, which is how hand percussion is actually played. The drumhead on the left shows the syahi tuning patch on the tabla side, a marker for where timbre strikes (center to edge), and ripples on every hit; the panel prints the exact instrument() call to copy into your cart. Five presets (1 tabla, 2 conga, 3 bongo, 4 djembe, 5 tom). A S D F G H J K strike a tuned low ladder, Z/X tune, 1..5 kits, drag a slider (or LEFT/RIGHT + UP/DOWN), SPACE roll, M autoplay groove on/off. Multitouch: drum with several fingers, sweep the pads for a roll.",
     "file": "tabla.cart.png",
@@ -6319,7 +6330,7 @@
   },
   {
     "title": "Tumble",
-    "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend.",
+    "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Or grab the wrecking ball hanging from the crane and swing it through the wall. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend.",
     "file": "tumble.cart.png",
     "created": "2026-07-14",
     "kind": [

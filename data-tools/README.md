@@ -22,3 +22,8 @@ are resolved relative to the working directory).
   set) and emit the shared "vector features" `JSON`/`.rvb` that the **roadview** cart loads at
   runtime — swap cities by swapping files, no cart regeneration. Design + schema:
   [`../docs/design/external-data-carts.md`](../docs/design/external-data-carts.md).
+- **`breaks/`** — `breaks.js`: ingest *any* drum loop (URL or file) → a frozen mono float32 PCM
+  artifact the **break-chopper** cart (WIP) loads at runtime via `sample_load()`, auto-slices, and
+  lays across a pad grid. Source-agnostic ("throw in your own loop"); artifacts are gitignored.
+  The amen fixture is a **copyrighted dev placeholder** — see `breaks/README.md` → the release gate.
+  Capture-then-freeze: [`../docs/design/mic-and-sampling.md`](../docs/design/mic-and-sampling.md).

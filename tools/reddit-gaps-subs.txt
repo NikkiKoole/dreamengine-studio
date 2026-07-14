@@ -7,15 +7,20 @@
 
 # — the APP-gap subs (iOS/iPad music apps — richest "is there an app that…" signal) —
 ipadmusic
-iosmusic
+iosmusic            # NOTE: near-dead sub — keeps fetching 0 feeds; iosmusicproduction is the live one
+iosmusicproduction
 
 # — synth —
 synthesizers
 modular
+synthrecipes        # "how do I make [this sound]?" — the wish-pattern, maps to instrument-recipes.md
 
 # — edm / electronic production —
 edmproduction
 musicproduction
+
+# — drum machines / grooveboxes (maps to drumkit.h + groovebox) —
+DrumMachines
 
 # — hiphop / sampling / beatmaking —
 makinghiphop
@@ -24,3 +29,4 @@ Sampling
 # — general music-making + the lo-fi music-toy tribe —
 WeAreTheMusicMakers
 pocketoperators
+chipmusic           # fantasy-console lineage: trackers / LSDj / PICO-8-adjacent lo-fi

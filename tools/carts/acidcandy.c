@@ -170,7 +170,7 @@ static void cartridge(int m) {
 
 static void navspine(void) {
     // transport (shared)
-    int px = 2, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play hugs the left
+    int px = 3, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, 1px in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
     if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; }
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
@@ -180,7 +180,7 @@ static void navspine(void) {
     for (int m = 0; m < M_N; m++) cartridge(m);
 
     // HOME (meta) — reserved space only; the app shell owns the real leave-cart gesture
-    int hx = 146, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home hugs the right
+    int hx = 145, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home, 1px in from the right bezel
     void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
     ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);            // registered but unwired
     rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);

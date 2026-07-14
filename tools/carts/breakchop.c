@@ -53,7 +53,7 @@ static const int   DIVS[]   = { 8, 16, 32 };
 static const char *GRIT_NM[] = { "CLEAN", "12BIT", "8BIT", "CRUSH" };
 static const float GRIT_B[]  = { 16, 12, 8, 4 };
 static const float GRIT_R[]  = { 1, 2, 4, 8 };
-static const char  PADKEYS[] = "1234qwerasdfzxcv";   // 16 keys; more slices are click/touch only
+static const char  PADKEYS[] = "1234QWERASDFZXCV";   // 16 keys (keyp wants UPPERCASE letters); >16 = click/touch
 
 #define PX 6
 #define PY 24
@@ -191,9 +191,9 @@ void draw(void) {
         int bx = PX + (int)((float)i / ndiv * PW);
         line(bx, PY, bx, PY + PH - 1, CLR_YELLOW);
     }
-    for (int i = 0; i < ndiv; i++) {                 // live playheads
+    for (int i = 0; i < ndiv; i++) {                 // live playheads (instrument_playhead = 0..1 of the WHOLE buffer)
         float p = instrument_playhead(V0 + i);
-        if (p >= 0.0f) { int hx = PX + (int)(((float)i + p) / ndiv * PW);
+        if (p >= 0.0f) { int hx = PX + (int)(p * PW);
             line(hx, PY, hx, PY + PH - 1, CLR_WHITE); }
     }
     rect(PX, PY, PW, PH, CLR_MEDIUM_GREY);

@@ -112,6 +112,7 @@ const TOPICS = [
   { id: "chords",     label: "Chords / theory",        grain: "core", keys: ["chord", "scale", "music theory", "progression", "harmon", "voicing", "arpeggi"] },
   { id: "tape",       label: "Tape / lo-fi",           grain: "core", keys: ["tape", "lofi", "lo-fi", "cassette", "vinyl", "wobble", "saturat", "warble"] },
   { id: "effects",    label: "Effects / FX",           grain: "core", keys: ["reverb", "delay", " fx", " effect", "distortion", "granular", "vocoder", "filter "] },
+  { id: "sfx",        label: "SFX / sound design",     grain: "core", keys: ["sfxr", "bfxr", "jsfxr", "sound effect", "sound design", "game sound", "8-bit sound", "8bit sound", "chiptune sfx", "retro sound", "laser sound", "coin sound", "power-up", "powerup", "blip"] },
   { id: "midi",       label: "MIDI routing / control", grain: "edge", keys: [" midi", "transpose", "cc ", "controller", "routing", "midi fx", " aum", "au host"] },
   { id: "vocal",      label: "Vocals",                 grain: "edge", keys: ["vocal", "autotune", "harmoniz", "singing", " voice "] },
   { id: "hardware",   label: "Hardware companion",     grain: "edge", keys: ["beatstep", "arturia", "launchpad", "hardware", "geoshred", "op-1", "op-z", "external", "eurorack"] },

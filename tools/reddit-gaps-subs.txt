@@ -7,7 +7,7 @@
 
 # — the APP-gap subs (iOS/iPad music apps — richest "is there an app that…" signal) —
 ipadmusic
-iosmusic            # NOTE: near-dead sub — keeps fetching 0 feeds; iosmusicproduction is the live one
+# iosmusic          # PRUNED 2026-07-15: near-dead, fetched 0 feeds every rotation (wasted slot); iosmusicproduction is the live one
 iosmusicproduction
 GarageBand          # beginner iOS music ("why is simple shit so hard in GarageBand?") — thesis-central
 

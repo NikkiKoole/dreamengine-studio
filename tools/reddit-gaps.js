@@ -114,6 +114,7 @@ const TOPICS = [
   { id: "effects",    label: "Effects / FX",           grain: "core", keys: ["reverb", "delay", " fx", " effect", "distortion", "granular", "vocoder", "filter "] },
   { id: "sfx",        label: "SFX / sound design",     grain: "core", keys: ["sfxr", "bfxr", "jsfxr", "sound effect", "sound design", "game sound", "8-bit sound", "8bit sound", "chiptune sfx", "retro sound", "laser sound", "coin sound", "power-up", "powerup", "blip"] },
   { id: "soundtoy",   label: "Sound toy / game-instrument", grain: "core", keys: ["sound toy", "music toy", "musical toy", "toy synth", "theremin", "sketchpad", "music game", "rhythm game", "noodle", "playful instrument", "generative toy"] },
+  { id: "groovebox",  label: "Groovebox / all-in-one", grain: "core", keys: ["groovebox", "groove box", "all-in-one", "all in one", "digitakt", "digitone", "model:samples", "model:cycles", "mc-707", "mc707", "mc-101", "circuit tracks", "polyend", "op-z", "deluge", "elektron", "akai force", "sp-404", "sp404", "maschine", "octatrack"] },
   { id: "midi",       label: "MIDI routing / control", grain: "edge", keys: [" midi", "transpose", "cc ", "controller", "routing", "midi fx", " aum", "au host"] },
   { id: "vocal",      label: "Vocals",                 grain: "edge", keys: ["vocal", "autotune", "harmoniz", "singing", " voice "] },
   { id: "hardware",   label: "Hardware companion",     grain: "edge", keys: ["beatstep", "arturia", "launchpad", "hardware", "geoshred", "op-1", "op-z", "external", "eurorack"] },

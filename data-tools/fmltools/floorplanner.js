@@ -34,6 +34,12 @@
 //   via build/.fp-ready. Run it alongside the editor so typing an id in the cart just loads it:
 //     node data-tools/fmltools/floorplanner.js --serve          # watch (pairs with the editor-run cart)
 //     node data-tools/fmltools/floorplanner.js --serve --play   # also launch the cart itself
+//
+// --search (no pid): browse the TOKEN-FREE public plan feed (newest first) — the discovery half. No
+//   auth needed. Prints id · floors · name · thumbnail; pick an id and fetch it with --pid (that
+//   download still needs a token). --count N pages past the first 50; --json for machine output.
+//     node data-tools/fmltools/floorplanner.js --search --count 100
+//     node data-tools/fmltools/floorplanner.js --search --json
 
 const fs = require('fs');
 const path = require('path');
@@ -45,7 +51,7 @@ const CACHE = path.join(__dirname, 'cache');
 
 // ---- args ----
 const argv = process.argv.slice(2);
-const opt = { pid: null, name: null, floor: null, scale: null, maxfurn: null, fetchOnly: false, force: false, baked: false, play: false, serve: false };
+const opt = { pid: null, name: null, floor: null, scale: null, maxfurn: null, fetchOnly: false, force: false, baked: false, play: false, serve: false, search: false, count: null, json: false };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   let m;
@@ -60,12 +66,16 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--baked') opt.baked = true;   // old path: bake a per-project cart (make-floor.sh) instead of a runtime data file
   else if (a === '--play' || a === '--run') opt.play = true;   // after building, launch the cart on this project
   else if (a === '--serve') opt.serve = true;   // watch build/.fp-request for ids the cart writes → fetch → build/.fp-ready (the picker fetch-bridge)
+  else if (a === '--search' || a === '--browse') opt.search = true;   // token-free: list PUBLIC plans from the search feed (no --pid)
+  else if (a === '--count') opt.count = argv[++i];   // how many public plans to list (paged; default 50 = one page)
+  else if (a === '--json') opt.json = true;          // --search: emit the results as JSON instead of a table
   else if (/^\d+$/.test(a) && !opt.pid) opt.pid = a;
   else { console.error('floorplanner: unknown arg', a); process.exit(1); }
 }
-if (!opt.pid && !opt.serve) {
+if (!opt.pid && !opt.serve && !opt.search) {
   console.error('usage: node data-tools/fmltools/floorplanner.js -pid=<projectid> [--name <id>] [--floor i] [--scale cm/px] [--maxfurn cm] [--baked] [--fetch-only] [--force] [--play]');
   console.error('   or: node data-tools/fmltools/floorplanner.js --serve [--play]   # fetch-bridge for the cart\'s id picker (run alongside the editor)');
+  console.error('   or: node data-tools/fmltools/floorplanner.js --search [--count N] [--json]   # list PUBLIC plans (token-free) — pick an id to fetch');
   process.exit(1);
 }
 
@@ -124,6 +134,61 @@ function fetchFml(pid, cred) {
   });
 }
 
+// ---- search (token-free) ----
+// GET a URL and JSON.parse the body. No auth — the search feed is public.
+function httpGetJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'dreamengine-fmltools' }, timeout: 30000 }, (res) => {
+      const bufs = [];
+      res.on('data', (d) => bufs.push(d));
+      res.on('end', () => {
+        if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode} on ${url}`));
+        try { resolve(JSON.parse(Buffer.concat(bufs).toString('utf8'))); }
+        catch { reject(new Error('response was not JSON')); }
+      });
+    }).on('error', reject).on('timeout', function () { this.destroy(); reject(new Error('timeout')); });
+  });
+}
+
+// Fetch `count` PUBLIC plans from the token-free search feed (newest first). The feed pages via a
+// `search_after: [ts_ms, tiebreak]` cursor; loop pages until we've collected enough. No auth needed.
+// Shared by the CLI (--search) and the --serve bridge (the cart's B/browse request).
+async function fetchPublicList(count) {
+  const want = Math.max(1, parseInt(count || '50', 10) || 50);
+  const base = 'https://floorplanner.com/api/v2/projects/search.json?all=true';
+  const out = [];
+  let after = null;
+  while (out.length < want) {
+    const url = after ? `${base}&search_after=${encodeURIComponent(JSON.stringify(after))}` : base;
+    const page = await httpGetJson(url);
+    const rows = page.results || [];
+    if (!rows.length) break;
+    out.push(...rows);
+    after = page.search_after;
+    if (!after) break;
+  }
+  return out.slice(0, want).map((r) => ({
+    id: r.id, name: r.name || '(untitled)', floors: r.floor_count, url: r.project_url, thumbnail: r.thumbnail,
+  }));
+}
+
+// --search — the DISCOVERY half: browse the public feed at the CLI. Fetching a listed id into a
+// playable plan still needs a token (ensureFml), so the flow is: browse → `--pid <id>` (or type/pick
+// it in the cart's picker). Inside the cart, B (browse) requests this same list via the --serve bridge.
+async function search(count, asJson) {
+  let list;
+  try { list = await fetchPublicList(count); }
+  catch (e) { console.error('floorplanner: search failed —', e.message); process.exit(1); }
+  if (asJson) { console.log(JSON.stringify(list, null, 2)); return; }
+  console.log(`▸ public plans  (token-free feed — newest first, showing ${list.length})\n`);
+  for (const p of list) {
+    const nm = p.name.length > 46 ? p.name.slice(0, 45) + '…' : p.name;
+    console.log(`  ${String(p.id).padEnd(11)} ${(p.floors + 'fl').padStart(4)}  ${nm.padEnd(47)} ${p.thumbnail || ''}`);
+  }
+  console.log(`\n  fetch one:  node data-tools/fmltools/floorplanner.js --pid <id> --play`);
+  console.log(`  or type its id in the cart's TAB picker (with --serve running).`);
+}
+
 // ---- reusable pipeline (shared by the one-shot flow and --serve) ----
 // fetch the .fml into cache if missing (or force); returns its path. throws on auth/HTTP error.
 async function ensureFml(pid, cred, force) {
@@ -166,18 +231,35 @@ function buildDynamic(pid, name, fml, floor, scale, maxfurn) {
 
 // --serve — the fetch-bridge for the floorplan cart's id picker. Watches build/.fp-request for an
 // id the cart writes (Enter an unknown id in the picker), fetches+builds it, then hands the data
-// path back via build/.fp-ready (or a one-line message via build/.fp-error). Run it alongside the
-// editor; the cart polls these files and loads the plan when it appears. One relay serves any run.
-// Design: docs/design/external-data-carts.md → "Loader".
+// path back via build/.fp-ready (or a one-line message via build/.fp-error). It ALSO answers the
+// cart's B/browse request (build/.fp-search-request) with a token-free page of public plans written
+// to build/.fp-search-ready (one `id\tfloors\tname` line each). Run it alongside the editor; the cart
+// polls these files. One relay serves any run. Design: docs/design/external-data-carts.md → "Loader".
 async function serve(cred) {
   const BUILD = path.join(ROOT, 'build');
   fs.mkdirSync(BUILD, { recursive: true });
   const REQ = path.join(BUILD, '.fp-request'), READY = path.join(BUILD, '.fp-ready'), ERR = path.join(BUILD, '.fp-error');
-  for (const f of [REQ, READY, ERR]) { try { fs.unlinkSync(f); } catch {} }   // clear stale signals
+  const SREQ = path.join(BUILD, '.fp-search-request'), SREADY = path.join(BUILD, '.fp-search-ready'), SERR = path.join(BUILD, '.fp-search-error');
+  for (const f of [REQ, READY, ERR, SREQ, SREADY, SERR]) { try { fs.unlinkSync(f); } catch {} }   // clear stale signals
   if (opt.play) { console.log('▸ launch   floorplan cart…'); spawn('node', ['tools/play.js', 'floorplan', 'run'], { cwd: ROOT, stdio: 'inherit' }); }
-  console.log(`▸ serve     watching build/.fp-request (auth ${cred.kind}) — type an id in the cart's picker. Ctrl-C to stop.`);
-  let busy = false;
+  console.log(`▸ serve     watching build/.fp-request + .fp-search-request (auth ${cred.kind}) — type/browse an id in the cart's picker. Ctrl-C to stop.`);
+  let busy = false, searchBusy = false;
   setInterval(async () => {
+    // browse (token-free) — the cart's B writes .fp-search-request; answer with a page of public plans.
+    if (!searchBusy && fs.existsSync(SREQ)) {
+      searchBusy = true;
+      let n = '60';
+      try { const s = fs.readFileSync(SREQ, 'utf8').trim(); if (/^\d+$/.test(s)) n = s; fs.unlinkSync(SREQ); } catch {}
+      try {
+        const list = await fetchPublicList(n);
+        const lines = list.map((p) => `${p.id}\t${p.floors}\t${(p.name || '').replace(/[\t\r\n]/g, ' ')}`).join('\n');
+        fs.writeFileSync(SREADY + '.tmp', lines); fs.renameSync(SREADY + '.tmp', SREADY);   // atomic
+        console.log(`\n▸ browse    served ${list.length} public plans`);
+      } catch (e) {
+        fs.writeFileSync(SERR, ((e && e.message) ? e.message : String(e)).split('\n')[0].slice(0, 120));
+      }
+      searchBusy = false;
+    }
     if (busy || !fs.existsSync(REQ)) return;
     let id;
     try { id = fs.readFileSync(REQ, 'utf8').trim(); fs.unlinkSync(REQ); } catch { return; }
@@ -199,6 +281,8 @@ async function serve(cred) {
 }
 
 (async () => {
+  if (opt.search) return search(opt.count, opt.json);   // token-free — no auth() needed
+
   const cred = auth();
   if (opt.serve) return serve(cred);
 

@@ -9,7 +9,7 @@
     "toy"
   ],
   "teaches": [],
-  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched; type/paste an id and (with floorplanner.js --serve running) it fetches on the fly. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes, G ghosts through walls (glows on contact).",
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Press TAB for a start-screen picker of the plans you've already fetched; type/paste an id and (with floorplanner.js --serve running) it fetches on the fly, or press B to BROWSE the token-free public feed and pick a real plan to fetch. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes, G ghosts through walls (glows on contact).",
   "todo": [
     "object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid boxes — read each item's height/z and skip collision below a threshold.",
     "true 32-bit RGB for FLOOR TEXTURES: furniture sprites now blit in 24-bit via pset_rgb (floorplanner.js bakes --rgb, posterize+saturate for pop); extend the same true-colour path to floor textures (surfs/tpool still palette-quantised).",
@@ -111,7 +111,8 @@ static bool colliding = false;    // player is currently overlapping a wall/furn
 
 // ---- start-screen plan picker (stage 1 of the loader; docs/design/external-data-carts.md → "Loader") ----
 // Lists the plans already fetched into the data folder; pick one or type an id. TAB summons it while
-// walking; ESC backs out. Fetching a NEW id (the --serve bridge) is stage 2 — not built yet.
+// walking; ESC backs out. Stage 2: type an unknown id → the --serve bridge fetches+builds it. Stage 3:
+// B browses the token-free PUBLIC feed (the bridge answers with a page of real plans) → Enter fetches one.
 #define MAXPLANS  256
 #define PICK_Y0   34              // y of the first list row
 #define PICK_RH   11              // row height
@@ -121,16 +122,25 @@ static bool colliding = false;    // player is currently overlapping a wall/furn
 #define REQ_FILE   ".fp-request"
 #define READY_FILE ".fp-ready"
 #define ERR_FILE   ".fp-error"
+// browse-bridge signal files: B in the picker asks `--serve` for a page of PUBLIC plans (token-free).
+#define SEARCH_REQ   ".fp-search-request"
+#define SEARCH_READY ".fp-search-ready"
+#define SEARCH_ERR   ".fp-search-error"
 typedef struct { char file[64]; char name[48]; } PlanEntry;   // file = filename stem, name = plan's "name"
 static PlanEntry plans[MAXPLANS]; static int n_plans = 0;
+static short b_floors[MAXPLANS];      // floor count per row (browse mode only)
 static int  sel = 0, scroll = 0;      // highlighted row / first visible row
 static bool picking = false;          // showing the picker instead of the plan
+static bool browsing = false;         // the list holds PUBLIC plans from the feed (B) vs local *.json
 static char plans_dir[256] = "";      // folder scanned for *.json
 static char idbuf[16] = "";           // id typed into the entry field
 static char pickmsg[128] = "";        // transient status under the entry field
 static bool  fetching = false;        // waiting on `floorplanner.js --serve` for a typed id
 static float fetch_t  = 0.0f;         // seconds since the fetch request (spinner + timeout)
 static bool  serve_missing = false;   // request not consumed within ~2s → no --serve watcher running
+static bool  searching = false;       // waiting on the --serve bridge for the public-plan list (B)
+static float search_t = 0.0f;         // seconds since the browse request (spinner + timeout)
+static bool  search_missing = false;  // browse request not consumed within ~2s → no --serve watcher
 
 #define PLAYER_R 4.0f
 #define CAM_ZOOM 1.0f
@@ -343,7 +353,7 @@ static void scan_plans(void) {
 static void open_picker(void) {
     resolve_plans_dir();
     scan_plans();
-    picking = true; idbuf[0] = 0; pickmsg[0] = 0;
+    picking = true; browsing = false; idbuf[0] = 0; pickmsg[0] = 0;
     if (sel >= n_plans) sel = n_plans ? n_plans - 1 : 0;
 }
 static void load_plan(int i) {
@@ -397,6 +407,57 @@ static void poll_fetch(void) {
     if (fetch_t > 120.0f) { fetching = false; serve_missing = false; remove(REQ_FILE);
         snprintf(pickmsg, sizeof pickmsg, "fetch timed out"); }
 }
+// ---- browse the PUBLIC plan feed (token-free, via the --serve bridge) ----
+// parse the bridge's answer into plans[] — one `id\tfloors\tname` line per public plan.
+static void load_browse(const char *txt) {
+    n_plans = 0; sel = 0; scroll = 0;
+    const char *p = txt;
+    while (*p && n_plans < MAXPLANS) {
+        PlanEntry *e = &plans[n_plans];
+        int fi = 0;                                              // id (digits) up to the first tab
+        while (*p && *p != '\t' && *p != '\n' && fi < (int)sizeof e->file - 1) e->file[fi++] = *p++;
+        e->file[fi] = 0;
+        int floors = 0;
+        if (*p == '\t') { p++; while (*p >= '0' && *p <= '9') floors = floors * 10 + (*p++ - '0'); }
+        b_floors[n_plans] = (short)floors;
+        int ni = 0;                                              // name up to the newline
+        if (*p == '\t') { p++; while (*p && *p != '\n' && ni < (int)sizeof e->name - 1) e->name[ni++] = *p++; }
+        e->name[ni] = 0;
+        while (*p && *p != '\n') p++;                            // skip any truncated tail
+        if (*p == '\n') p++;
+        if (e->file[0]) n_plans++;
+    }
+    browsing = true;
+}
+// ask the --serve bridge for a page of public plans (writes SEARCH_REQ; poll_search waits)
+static void request_search(void) {
+    FILE *f = fopen(SEARCH_REQ, "w");
+    if (!f) { snprintf(pickmsg, sizeof pickmsg, "cannot write browse request"); return; }
+    fputs("60", f); fclose(f);
+    searching = true; search_t = 0.0f; search_missing = false; pickmsg[0] = 0;
+}
+// while a browse is in flight, watch for the bridge's list (or time out if --serve isn't running)
+static void poll_search(void) {
+    if (!searching) return;
+    long len; char *txt = json_slurp(SEARCH_READY, &len);        // whole file (the list is multi-KB)
+    if (txt) {
+        remove(SEARCH_READY); remove(SEARCH_ERR);
+        searching = false; search_missing = false;
+        load_browse(txt); free(txt);
+        if (!n_plans) snprintf(pickmsg, sizeof pickmsg, "no public plans returned");
+        return;
+    }
+    char *ep = read_signal(SEARCH_ERR);
+    if (ep && *ep) { remove(SEARCH_ERR); searching = false; search_missing = false; snprintf(pickmsg, sizeof pickmsg, "browse failed: %s", ep); return; }
+    search_t += dt();
+    if (search_t > 2.0f) { char *rq = read_signal(SEARCH_REQ); search_missing = (rq && *rq); }
+    if (search_t > 30.0f) { searching = false; search_missing = false; remove(SEARCH_REQ);
+        snprintf(pickmsg, sizeof pickmsg, "browse timed out"); }
+}
+// leave browse mode and return to the local *.json list
+static void close_browse(void) {
+    browsing = false; scan_plans(); sel = 0; scroll = 0; idbuf[0] = 0; pickmsg[0] = 0;
+}
 static void boot_once(void) {
     if (tried) return;
     tried = 1;
@@ -415,6 +476,11 @@ static void update_picker(void) {
         if (keyp(KEY_ESCAPE)) { fetching = false; serve_missing = false; remove(REQ_FILE); pickmsg[0] = 0; }
         return;
     }
+    if (searching) {  // waiting on the browse list — freeze except ESC to cancel
+        if (keyp(KEY_ESCAPE)) { searching = false; search_missing = false; remove(SEARCH_REQ); pickmsg[0] = 0; }
+        return;
+    }
+    if (keyp('B')) { if (browsing) close_browse(); else request_search(); return; }   // B toggles browse
     int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
     if ((keyp(KEY_DOWN) || keyp('S')) && n_plans) sel = (sel + 1) % n_plans;
     if ((keyp(KEY_UP)   || keyp('W')) && n_plans) sel = (sel + n_plans - 1) % n_plans;
@@ -434,29 +500,43 @@ static void update_picker(void) {
     if (sel >= scroll + maxrows) scroll = sel - maxrows + 1;
     if (scroll < 0) scroll = 0;
 
-    if (mouse_pressed(0)) {                      // single click on a row = select + load
+    if (mouse_pressed(0)) {                      // single click on a row = select + load (or fetch, in browse)
         int my = mouse_y();
         if (my >= PICK_Y0) {
             int row = scroll + (my - PICK_Y0) / PICK_RH;
-            if (row >= 0 && row < n_plans) { sel = row; load_plan(row); }
+            if (row >= 0 && row < n_plans) { sel = row; if (browsing) request_fetch(plans[row].file); else load_plan(row); }
         }
     }
-    if (keyp(KEY_ENTER)) { if (idbuf[0]) load_id(); else load_plan(sel); }
-    if (keyp(KEY_ESCAPE) && loaded_ok) picking = false;   // back out only if a plan is loaded
+    if (keyp(KEY_ENTER)) {
+        if (browsing) { if (n_plans) request_fetch(plans[sel].file); }   // fetch the highlighted public plan
+        else if (idbuf[0]) load_id();
+        else load_plan(sel);
+    }
+    if (keyp(KEY_ESCAPE)) {
+        if (browsing) close_browse();                     // ESC leaves browse → local list
+        else if (loaded_ok) picking = false;              // back out only if a plan is loaded
+    }
 }
 static void draw_picker(void) {
     camera(0, 0);
     cls(C_BG);
-    print("FLOORPLAN", 8, 6, CLR_LIGHT_GREY);
+    print(browsing ? "BROWSE PUBLIC" : "FLOORPLAN", 8, 6, CLR_LIGHT_GREY);
     font(FONT_SMALL);
-    print("[up/down] pick   [enter] load   type an id   drag a .json in", 8, 17, CLR_DARK_GREY);
+    if (browsing)
+        print("[up/down] pick   [enter] fetch   [B/esc] back to local", 8, 17, CLR_DARK_GREY);
+    else
+        print("[up/down] pick  [enter] load  [B] browse public  type an id  drag a .json", 8, 17, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
     int maxrows = (SCREEN_H - PICK_Y0 - 20) / PICK_RH; if (maxrows < 1) maxrows = 1;
     if (n_plans == 0) {
         font(FONT_SMALL);
-        print("no plans in this folder yet -- fetch one:", 8, PICK_Y0, CLR_ORANGE);
-        print("node data-tools/fmltools/floorplanner.js <id> --play", 8, PICK_Y0 + 11, CLR_MEDIUM_GREY);
+        if (browsing) {
+            print("no public plans -- press [B] or [esc] to go back", 8, PICK_Y0, CLR_ORANGE);
+        } else {
+            print("no plans in this folder yet -- press [B] to browse public, or fetch one:", 8, PICK_Y0, CLR_ORANGE);
+            print("node data-tools/fmltools/floorplanner.js <id> --play", 8, PICK_Y0 + 11, CLR_MEDIUM_GREY);
+        }
         font(FONT_NORMAL);
     } else {
         for (int i = scroll; i < n_plans && i < scroll + maxrows; i++) {
@@ -464,7 +544,13 @@ static void draw_picker(void) {
             bool on = (i == sel);
             if (on) rectfill(4, ry - 1, SCREEN_W - 8, PICK_RH, C_SEL);
             print(plans[i].file, 8, ry + 1, on ? CLR_WHITE : CLR_LIGHT_GREY);
-            if (plans[i].name[0]) {
+            if (browsing) {
+                font(FONT_SMALL);
+                char fl[8]; snprintf(fl, sizeof fl, "%dfl", b_floors[i]);
+                print(fl, 84, ry + 2, on ? CLR_LIGHT_GREY : CLR_DARK_GREY);
+                if (plans[i].name[0]) print(plans[i].name, 104, ry + 2, on ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY);
+                font(FONT_NORMAL);
+            } else if (plans[i].name[0]) {
                 font(FONT_SMALL);
                 print(plans[i].name, 104, ry + 2, on ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY);
                 font(FONT_NORMAL);
@@ -474,7 +560,17 @@ static void draw_picker(void) {
             font(FONT_SMALL); print("...more", 8, PICK_Y0 + maxrows * PICK_RH, CLR_DARK_GREY); font(FONT_NORMAL);
         }
     }
-    if (fetching) {
+    if (searching) {
+        font(FONT_SMALL);
+        if (search_missing) {
+            print("no --serve watcher -- run:  floorplanner.js --serve   (then press B)", 8, SCREEN_H - 22, CLR_ORANGE);
+        } else {
+            const char *sp = "|/-\\";
+            char s[64]; snprintf(s, sizeof s, "browsing public plans ... %c", sp[((int)(search_t * 8)) & 3]);
+            print(s, 8, SCREEN_H - 22, CLR_YELLOW);
+        }
+        font(FONT_NORMAL);
+    } else if (fetching) {
         font(FONT_SMALL);
         if (serve_missing) {
             print("no --serve watcher -- run:  floorplanner.js --serve   (then it loads)", 8, SCREEN_H - 22, CLR_ORANGE);
@@ -659,6 +755,7 @@ void init(void) {
 void update(void) {
     boot_once();
     poll_fetch();                              // resolve an in-flight --serve fetch, if any
+    poll_search();                             // resolve an in-flight browse (B), if any
     const char *dropped = de_dropped_file();   // drag a .json onto the window to swap plans
     if (dropped) { load_from(dropped); if (loaded_ok) picking = false; }
     if (keyp(KEY_TAB)) { if (!picking) open_picker(); else if (loaded_ok) picking = false; }

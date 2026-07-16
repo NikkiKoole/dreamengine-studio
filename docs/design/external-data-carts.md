@@ -330,11 +330,20 @@ editor, watches that file, fetches+builds the plan, and hands the path back via 
 cart polls it and loads the plan (spinner while it works; ~90s timeout with a "is --serve running?"
 hint if not). So: type an id → it fetches → the plan appears, no CLI round-trip.
 
+**Browse (2026-07-16): B lists the token-free PUBLIC feed in-cart.** You no longer need to *know* an
+id. Press **B** in the picker → the cart writes `build/.fp-search-request`; `--serve` answers by hitting
+the token-free `projects/search.json?all=true` feed (no auth — `fetchPublicList()`) and writing a page
+of real plans (`id\tfloors\tname` per line) to `build/.fp-search-ready`. The cart shows them as a
+selectable list (id · floors · name); **Enter** on a row runs the same stage-2 fetch (that download
+still needs the `.token`); **B**/ESC returns to the local list. So: one token unlocks the whole public
+catalog, and discovery happens inside the cart. CLI twin: `floorplanner.js --search [--count N] [--json]`.
+
 Implementation: picker + signal-file handling in `tools/carts/floorplan.c` (dir scan via `<dirent.h>`,
-digits via `keyp()` so it's script-testable, paste via the new `studio.h` `paste()`); the `--serve`
-loop + reusable `ensureFml`/`buildDynamic` in `data-tools/fmltools/floorplanner.js`. Signal files live
-in `build/` (cart cwd), `.fp-ready` written atomically. The cart CANNOT fetch itself (no HTTPS — see
-the rejected alternative below); `--serve` is the node side doing the network + bake.
+digits via `keyp()` so it's script-testable, paste via the new `studio.h` `paste()`; browse list parsed
+from the ready file via `json_slurp`); the `--serve` loop + reusable `ensureFml`/`buildDynamic`/
+`fetchPublicList` in `data-tools/fmltools/floorplanner.js`. Signal files live in `build/` (cart cwd),
+`.fp-ready`/`.fp-search-ready` written atomically. The cart CANNOT fetch itself (no HTTPS — see the
+rejected alternative below); `--serve` is the node side doing the network + bake.
 
 **Prerequisite — done (2026-07-13): paste-once auth.** `floorplanner.js` now reads the credential
 from a gitignored `data-tools/fmltools/.token` file (a JWT or an `fp_site_session=…` cookie;

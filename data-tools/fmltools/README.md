@@ -56,6 +56,10 @@ node tools/play.js floorwalker run
   `cache/<id>.fml`, then drives the pipeline. Default = **dynamic** (emit `data/floorplan/<id>.json`
   for the shared `floorplan` cart); `--baked` = per-project cart via `make-floor.sh`. Flags:
   `--name --floor --scale --maxfurn --fetch-only --force --baked`.
+  **`--search`** (no pid, **token-free**) browses the public plan feed
+  (`projects/search.json?all=true`, newest first) — prints id · floors · name · thumbnail so you can
+  pick an id to fetch (that download still needs a token). `--count N` pages past the first 50;
+  `--json` for machine output. One token then unlocks the whole public catalog.
 - **fml2cart.js** — parses walls (door openings become walkable gaps, windows stay
   solid), room polygons (each a distinct colour, see `AREA_COLORS`), furniture and
   door/window openings as oriented sprites. Units are centimetres; `--scale` is

@@ -13,17 +13,18 @@
   "teaches": [],
   "description": {
     "summary": "A candy-toy acid RACK on the device-face skeleton at 160x100 x4: a colour-cartridge nav strip of five FOCUSABLE machines — 303a / 303b / 808 / 909 / MST — all on one transport, packaging acidrack's guts as the device-face paradigm instead of an accordion. Every voice is honest, shared from runtime/ headers so it can't drift.",
-    "detail": "Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: gear-drag knobs CUT/RES/ENV/DEC/ACC with a DF soft-key that flips the row to a DEEP page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking) and an FX soft-key that opens the per-machine FX panel (DRV drive / SEND delay / VERB reverb — the SAME three-knob row on every machine so they align); an LCD roll + NEW; the 16 NOTE-BARS (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical); and a FLAG soft-key that opens a 6-button palette in the screen (ACC/SLD/TIE/OCT+/OCT-/LEN) you arm then paint on the bars — per-step depth + per-line LENGTH (polymeter). Drum faces (808 blue, 909 amber): contextual TUNE/DEC/COL for the picked voice (or an FX panel — DIST/SEND/VERB, aligned with the 303s), an LCD kit overview, a voice picker, and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP, a 4-channel mix overview, delay TIME + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. (The old step-row + keybed is kept behind use_bars = 0.)",
-    "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the DF soft-key flips to the DEEP page (SUB/ADEC/SLDT/TRK); the FX soft-key opens the per-machine FX panel (DRV/SEND/VERB); on the note-bars tap = note on/off, drag up/down = pitch; SEQ/FLAG soft-keys switch the screen between the roll and the flag palette (arm ACC/SLD/TIE/OCT+/OCT-/LEN, then tap bars); NEW = a fresh line. 808/909: tap a voice to pick+audition, tap a bottom cell to place a hit or DRAG across the row to paint a fill (the first cell decides on/off), turn TUNE/DEC/COL for the picked voice, the FX soft-key opens DIST/SEND/VERB, NEW = a fresh beat. MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, pick a delay TIME + per-machine SEND."
+    "detail": "Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has three soft-keys like the drums — SEQ (the LCD roll + NEW), FLAG (a 6-button palette ACC/SLD/TIE/OCT+/OCT-/LEN you arm then paint on the bars — per-step depth + per-line LENGTH/polymeter), and FX (DRV/SEND/VERB as LCD-native green knobs). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX + a machine-global SWING (SWG/DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. The green SCREEN is the voice inspector: three soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE/DEC/COL as LCD-native green knobs) / KIT (the kit minimap) / FLAG (a depth palette) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke). A voice picker, and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP, a 4-channel mix overview, delay TIME + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.)",
+    "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-/LEN, then tap bars) and the FX knobs (DRV/SEND/VERB); on the note-bars tap = note on/off, drag up/down = pitch; NEW = a fresh line. 808/909: SWG/DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE/DEC/COL knobs); VCE/KIT/FLAG soft-keys switch the screen between the voice knobs, the minimap, and the depth palette. Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, arm ACC/PROB (909 also STRK) then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet). NEW (in KIT) = a fresh beat. MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, pick a delay TIME + per-machine SEND."
   },
   "todo": [
     "808/909 completeness: only 8 of the 808's 16 (and 8 of the 909's 11) voices are reachable in the picker — add a 'more' page + turn the LCD kit-minimap into a full all-voice density grid so every voice is seen AND reachable.",
-    "drum DEPTH: the drum hits are on/off only — add per-step ACCENT + trig PROBABILITY (RD-8/9; graft gprob/snap_prob from tr808.c/tr909.c) and the 909 STROKE family (flam/drag/ratchet — tr909.h already has tr909_fire_stroke) + the 909 METAL-filter XY.",
+    "drum DEPTH: SHIPPED (2026-07-16) a KIT/FLAG soft-key pair on both drum faces (the 303's SEQ/FLAG idiom) — FLAG fills the LCD with a depth palette (ACC/PROB, 909 also STRK) you arm then paint on the cells: per-voice-per-step ACCENT (fires boost +2, red marker in the gap above the cell), trig PROBABILITY (vertical-slide → snap_prob 100/75/50/25, shorter bar = lower chance, rnd()-gated in update()), and 909 STROKE (cycle none→flam→drag→ratchet via tr909_fire_stroke, blue pips). The 909 metal XY (m9cut/m9res, tr909_metal) is now a live XY pad in the 909 FX panel. NEW resets a voice's depth too. Still open: per-step accent SWEEP + a clearer stroke glyph than pips.",
     "ARRANGEMENT (the last big acidrack gap): pattern BANKS A-D + a SONG chain + the 8-hex GEN song-code + WAV export.",
-    "SWING (per-machine shuffle) + SAVE/LOAD (autosave patterns/knobs) — acidrack has both.",
-    "waveshape flip: add a way to toggle each 303's oscillator wave (SAW <-> SQUARE, the a.wave field) — and maybe the drvmode waveshaper (SOFT/HARD/FOLD/ASYM). A small chip on the DEEP page or beside the DF toggle; acid_define() must be re-called on change (wave/drvmode bake into the instrument).",
+    "SWING: per-machine shuffle SHIPPED (2026-07-16) — a SWG lcdknob in each drum KIT screen delays odd 16ths via the fire delay param (0 = straight). SAVE/LOAD (autosave patterns/knobs) still open — acidrack has it.",
+    "drum-machine ergonomics (owner-requested, parked 2026-07-16): (1) a quick CLEAR button beside NEW that empties the current pattern (NEW regenerates; CLEAR blanks); (2) LIVE RECORD — while the loop plays, a mode where tapping a voice pad punches its hit onto the CURRENT step (step/overdub record), instead of only auditioning.",
+    "waveshape flip: SHIPPED (2026-07-16) a SAW/SQR WAVE toggle in the 5th knob slot of the 303 DEEP page (flips a.wave + re-calls acid_define). Still open: the drvmode waveshaper (SOFT/HARD/FOLD/ASYM) could get the same treatment.",
     "303 DEEP knobs: SHIPPED (2026-07-15) a DF soft-key flips the zone-2 row between vanilla (CUT/RES/ENV/DEC/ACC) and a DEEP page (SUB/ADEC/SLDT/TRK) — the headline Devil Fish knobs, per-303, sub-osc wired on slots 36/37 (34/35 belong to the 909's 13-slot bank). DRV moved to the FX panel (aligns with the drums). Still not surfaced: ATK (soft attack) + SQL (env-sweep) + the accent-SWEEP mode; a fuller flow could page those too.",
-    "wire the still-decorative soft-keys: SHIPPED (2026-07-15) the per-machine FX panel — the FX soft-key on every 303/808/909 opens an aligned DRV/DIST + SEND (shared delay) + VERB (reverb) row (draw_fxrow); reverb is real (303s → warm hall tank 0, 909 → tight plate tank 1, 808 → room tank 2, kicks kept dry) + per-machine drum drive. STILL decorative: 303 SCP, drum MAP/SCP, MST SNG/SCP; the 909 FX could also host the METAL XY + a per-machine SWING.",
+    "wire the still-decorative soft-keys: SHIPPED (2026-07-15) the per-machine FX panel — the FX soft-key on every 303/808/909 opens an aligned DRV/DIST + SEND (shared delay) + VERB (reverb) row (draw_fxrow); reverb is real (303s → warm hall tank 0, 909 → tight plate tank 1, 808 → room tank 2, kicks kept dry) + per-machine drum drive. STILL decorative: 303 SCP, drum SCP, MST SNG/SCP. (Drum MAP is gone — that left slot is now the FLAG depth-palette toggle; the 909 METAL XY shipped into its FX panel 2026-07-16.) A per-machine SWING could live on a drum soft-key next.",
     "SOUL: the LCD screens have no MASCOT yet (the slime from tinyface/facemock, candy-style §3) — a FACE flow could give a bopping/reacting creature its own screen. Deferred for now.",
     "graduate the gear-drag knob (vertical=value, sideways=fine gear, double-tap=reset) into ui.h's ui_knob so every cart gets it.",
     "note-bars: a CHROMATIC toggle (out-of-key acid) + let a drag PAINT across several bars; MST could grow per-machine level faders."
@@ -74,11 +75,17 @@ static int drag_gx, drag_gy, drag_axis, drag_paint, drag_on0;
 static int  tie[2][STEPS], oct[2][STEPS];   // TIE = hold prev note; OCT = octave -1/0/+1
 static int  plen[2] = { STEPS, STEPS };     // per-line LENGTH (short = polymeter drift)
 static int  lpos[2] = { 0, 0 };             // per-line playhead
-static int  flagmode = 0;                    // step row is painting a flag (vs pitch/on-off)
+enum { PS_SEQ, PS_FLAG, PS_FX };             // 303 LCD content: the roll / the flag palette / the FX knobs
+static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
 static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
 enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_LEN, FL_N };
 static int  armed = FL_ACC;                  // which flag a bar-tap paints
 static const char *FLNAME[FL_N] = { "ACC", "SLD", "TIE", "OCT+", "OCT-", "LEN" };
+enum { DD_ACC, DD_PROB, DD_STRK, DD_N };     // drum-depth flags (STRK = 909-only), painted like the 303's flags
+static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK" };
+enum { DS_VCE, DS_KIT, DS_FLAG };             // drum LCD content: the picked voice's knobs / kit minimap / depth palette
+static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
+static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
 static int  paint_val = 0;                    // what a FLAG paint-drag writes (decided on the first cell)
 static int flag_get(int i, int s, int f) {
     switch (f) {
@@ -113,6 +120,10 @@ static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
 static int   d9sel = TR9_BD;
 static float d9trig[TR9_NV];
 static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
+// drum DEPTH — per-voice-per-step, painted in FLAG mode (mirrors the 303 flags)
+static int   dacc[TR_NV][STEPS],  dprob[TR_NV][STEPS];                             // 808: accent flag + trig-prob %
+static int   d9acc[TR9_NV][STEPS], d9prob[TR9_NV][STEPS], d9strk[TR9_NV][STEPS];   // 909: + stroke type (TR9_ST_*)
+static float swing8 = 0, swing9 = 0;                       // per-machine shuffle: odd 16ths fire late (0 = straight)
 
 // the MST master/mix face
 static float mglu = 0.30f, mflt = 0.5f, mfres = 0.35f, mfb = 0.35f, mpump = 0.0f;
@@ -120,7 +131,6 @@ static int   mdiv = 2;                                      // delay div: 0=1/16
 static float msend[4] = { 0.10f, 0.10f, 0.0f, 0.0f };      // per-machine delay send: 303a 303b 808 909
 static float fxverb[4] = { 0, 0, 0, 0 };                   // per-machine reverb send: 303a/b → warm hall (tank 0), 808 → tank 2, 909 → tank 1
 static float dist8 = 0, dist9 = 0;                          // per-machine drum drive — ADDS on top of the kit's baked kick drive
-static int   fxview[4];                                     // per-machine FX panel open? (index 0=303a 1=303b 2=808 3=909)
 static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB fader (1 = unity/stock); 4 = MST (master wire TODO)
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = the PCF lane
@@ -204,7 +214,7 @@ static void gen_line(int i) {
 }
 
 static void gen_drums(void) {
-    for (int v = 0; v < TR_NV; v++) for (int s = 0; s < STEPS; s++) dgrid[v][s] = 0;
+    for (int v = 0; v < TR_NV; v++) for (int s = 0; s < STEPS; s++) { dgrid[v][s] = 0; dacc[v][s] = 0; dprob[v][s] = 100; }
     for (int s = 0; s < STEPS; s += 4) dgrid[TR_BD][s] = 1;         // kick on the floor
     dgrid[TR_SD][4] = dgrid[TR_SD][12] = 1;                         // snare backbeat
     for (int s = 0; s < STEPS; s += 2) dgrid[TR_CH][s] = 1;         // 8th closed hats
@@ -216,13 +226,16 @@ static void gen_drums(void) {
 }
 
 static void gen_drums9(void) {
-    for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9grid[v][s] = 0;
+    for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) { d9grid[v][s] = 0; d9acc[v][s] = 0; d9prob[v][s] = 100; d9strk[v][s] = 0; }
     for (int s = 0; s < STEPS; s += 4) d9grid[TR9_BD][s] = 1;       // house four-on-floor
     d9grid[TR9_CP][4] = d9grid[TR9_CP][12] = 1;                     // clap backbeat
     for (int s = 0; s < STEPS; s += 2) d9grid[TR9_CH][s] = 1;       // closed hats
     for (int s = 2; s < STEPS; s += 4) d9grid[TR9_OH][s] = 1;       // off-beat open hats
     for (int s = 0; s < STEPS; s++) if (rnd_between(0, 99) < 8) d9grid[TR9_RC][s] = 1;  // ride spice
 }
+
+// snap a 0..1 vertical drag to the four RD-8-style trig-prob buckets (grafted from tr808.c)
+static int snap_prob(float f) { return f >= 0.875f ? 100 : f >= 0.625f ? 75 : f >= 0.375f ? 50 : 25; }
 
 // ── candy widgets ──────────────────────────────────────────────────────────
 static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_width(s) / 2, y, col); }
@@ -249,7 +262,7 @@ static int kmeta_i(void *v) {
 // (further out = finer) — one gesture gives quick AND precise. DOUBLE-TAP = reset
 // to `def`. While turning, the label shows the live value + a bright value band
 // rides the rim; the pointer goes amber in fine gear. Wheel = fine (desktop).
-static void knob(float *v, int cx, int cy, int r, const char *label, float def) {
+static void _knobx(float *v, int cx, int cy, int r, const char *label, float def, int lcd) {
     ui_reg(v, cx - r, cy - r, 2 * r + 1, 2 * r + 1, 0);
     UiCap *c = ui_cap_for(v);
     if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; }   // a knob is being dragged → arm the tap-settle
@@ -276,20 +289,31 @@ static void knob(float *v, int cx, int cy, int r, const char *label, float def) 
     }
     int hot = held || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
     if (!c && hot && mouse_wheel() != 0) *v = clamp(*v + mouse_wheel() * 0.04f, 0, 1);
+    float ang = 150 + *v * 240;
+    font(FONT_TINY);
+    if (lcd) {                                                        // LCD-native: pure green outline, drawn ON the glass
+        circ(cx, cy, r, (held || hot) ? CLR_LIME_GREEN : CLR_MEDIUM_GREEN);
+        ring(cx, cy, r - 3, r - 1, 150, ang, CLR_LIME_GREEN);         // value arc (always shown, not just while held)
+        line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), CLR_LIME_GREEN);
+        if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 };
+                    plabel(b, cx, cy + r + 1, CLR_LIME_GREEN); }
+        else plabel(label, cx, cy + r + 1, CLR_MEDIUM_GREEN);
+        return;
+    }
     if (held) { blend(BLEND_AVG); circfill(cx, cy, r + 1, CLR_WHITE); blend_reset(); }   // grab-glow halo
     circfill(cx, cy, r, CLR_INDIGO);
     ring(cx, cy, r - 2, r - 1, 165, 285, CLR_PINK);
     ring(cx, cy, r - 2, r - 1, -15, 105, CLR_DARKER_PURPLE);
-    float ang = 150 + *v * 240;
     if (held) ring(cx, cy, r - 3, r, 150, ang, CLR_LIGHT_YELLOW);      // FAT value band — fills as you turn
     circ(cx, cy, r, held ? CLR_WHITE : hot ? CLR_LIGHT_PEACH : CLR_BROWNISH_BLACK);
     line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang),
          fine ? CLR_ORANGE : CLR_WHITE);                              // pointer goes amber in fine gear
-    font(FONT_TINY);
     if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 };
                 plabel(b, cx, cy + r + 1, CLR_DARK_GREEN); }
     else plabel(label, cx, cy + r + 1, CLR_DARK_BROWN);
 }
+static void knob(float *v, int cx, int cy, int r, const char *label, float def)    { _knobx(v, cx, cy, r, label, def, 0); }
+static void lcdknob(float *v, int cx, int cy, int r, const char *label, float def) { _knobx(v, cx, cy, r, label, def, 1); }
 
 static int cbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int on2) {
     int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, hh);
@@ -303,6 +327,17 @@ static int cbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int o
 static void chip(int x, int y, const char *s, int sel2) {
     rrectfill(x, y, 16, 8, 2, sel2 ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
     font(FONT_TINY); print(s, x + (16 - text_width(s)) / 2, y + 1, sel2 ? CLR_WHITE : CLR_LIGHT_PEACH);
+}
+// LCD-native button — a pure green OUTLINE on the glass; active = filled green (inverted).
+// For soft-keys/palettes that live INSIDE the screen, so they read as part of the readout.
+static int lcdbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int on2) {
+    int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, hh);
+    int act = ui_button_core(wid, x, y, w, hh, &foc, &pr, &hot);
+    int down = pr || on2;
+    if (down) rrectfill(x, y, w, hh, 2, CLR_MEDIUM_GREEN);
+    rrect(x, y, w, hh, 2, (hot || down) ? CLR_LIME_GREEN : CLR_MEDIUM_GREEN);
+    font(FONT_TINY); print(s, x + (w - text_width(s)) / 2, y + 1, down ? CLR_DARK_GREEN : CLR_LIME_GREEN);
+    return act;
 }
 
 // ── the cartridge nav strip (zone 1) ─────────────────────────────────────────
@@ -370,36 +405,54 @@ static void draw_fxrow(int m) {
 // ── a 303 face (zones 2–5) ───────────────────────────────────────────────────
 static void draw_303(int i) {
     Acid *a = &ac[i];
-    // ② gear-drag knob row. FX button → the per-machine FX panel (DRV/SEND/VERB,
-    // aligned with the drums). Else the DF button flips the row between the vanilla
-    // 303 and the DEEP page (Devil Fish depth; drive now lives on the FX panel).
-    if (cbtn(0x06u, 138, 38, 16, 8, "FX", fxview[i])) fxview[i] = !fxview[i];
-    if (cbtn(0x07u, 138, 29, 16, 8, "DF", kpage[i]))  kpage[i]  = !kpage[i];
-    if (fxview[i]) {
-        draw_fxrow(i);
-    } else if (!kpage[i]) {                                                // page 0 — vanilla
+    // ② the gear-drag knob row — ALWAYS the acid knobs. The inline DF switch (right end
+    // of the row, tinted the machine colour — NOT a bezel side-button) flips the row
+    // between the vanilla 303 and the DEEP page (Devil Fish). FX moved into the screen.
+    if (!kpage[i]) {                                                       // page 0 — vanilla
         knob(&a->p[ACID_CUT], 20, 22, 6, "CUT", 0.55f); knob(&a->p[ACID_RES], 48, 22, 6, "RES", 0.70f);
         knob(&a->p[ACID_ENV], 76, 22, 6, "ENV", 0.55f); knob(&a->p[ACID_DEC], 104, 22, 6, "DEC", 0.45f);
         knob(&a->p[ACID_ACC], 132, 22, 6, "ACC", 0.55f);
-    } else {                                                              // page 1 — DEEP: the headline Devil Fish knobs
+    } else {                                                              // page 1 — DEEP: Devil Fish knobs + WAVE
         knob(&a->p[ACID_SUB],  20, 22, 6, "SUB",  0.0f);  knob(&a->p[ACID_ADEC], 48, 22, 6, "ADEC", 0.40f);
         knob(&a->p[ACID_SLDT], 76, 22, 6, "SLDT", 0.14f); knob(&a->p[ACID_TRK], 104, 22, 6, "TRK",  0.0f);
+        int wx = 125, wy = 16, ww = 15, wh = 12, wp = 0, whot = 0, wf = 0;  // WAVE: SAW <-> SQUARE (bakes in → re-define)
+        void *wv = ui_wid_hash(0x1Au, wx, wy, ww, wh);
+        if (ui_button_core(wv, wx, wy, ww, wh, &wf, &wp, &whot)) { a->wave = (a->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW; acid_define(a); }
+        rrectfill(wx, wy, ww, wh, 2, CLR_INDIGO);
+        rrect(wx, wy, ww, wh, 2, whot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        font(FONT_TINY); plabel(a->wave == INSTR_SQUARE ? "SQR" : "SAW", wx + ww / 2, wy + 3, CLR_LIGHT_YELLOW);
+        plabel("WAVE", wx + ww / 2, wy + wh, CLR_DARK_BROWN);
+    }
+    {   // the DF page switch — inline at the row's right end, machine-tinted, with an LED.
+        int bx = 142, by = 16, bw = 14, bh = 12, dp = 0, dhot = 0, df = 0;
+        void *wd = ui_wid_hash(0x07u, bx, by, bw, bh);
+        if (ui_button_core(wd, bx, by, bw, bh, &df, &dp, &dhot)) kpage[i] = !kpage[i];
+        rrectfill(bx, by, bw, bh, 2, kpage[i] ? mac[i].col : CLR_DARK_PURPLE);
+        rrect(bx, by, bw, bh, 2, (dhot || kpage[i]) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        font(FONT_TINY); plabel("DF", bx + bw / 2, by + 2, kpage[i] ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH);
+        circfill(bx + bw / 2, by + 9, 1, kpage[i] ? CLR_LIME_GREEN : CLR_DARKER_PURPLE);
     }
 
-    // ③ display — soft-keys pick what the screen does: SEQ = the roll (+ NEW),
-    // FLAG = the per-step flag palette (arm one, then paint it on the bars below).
-    if (cbtn(0x08u, 6, 38, 16, 8, "SEQ",  !flagmode)) flagmode = 0;
-    if (cbtn(0x09u, 6, 47, 16, 8, "FLAG",  flagmode)) flagmode = 1;
-    chip(138, 47, "SCP", 0);   // (FX + DF buttons are drawn with the knob row above)
+    // ③ display — three soft-keys pick the LCD content: SEQ = the roll (+NEW), FLAG =
+    // the flag palette, FX = the DRV/SEND/VERB knobs (LCD-native green, like the drums).
+    if (cbtn(0x08u, 6, 37, 16, 7, "SEQ",  pscreen[i] == PS_SEQ))  pscreen[i] = PS_SEQ;
+    if (cbtn(0x09u, 6, 45, 16, 7, "FLAG", pscreen[i] == PS_FLAG)) pscreen[i] = PS_FLAG;
+    if (cbtn(0x06u, 6, 53, 16, 7, "FX",   pscreen[i] == PS_FX))   pscreen[i] = PS_FX;
+    chip(138, 47, "SCP", 0);
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    if (flagmode) {
+    if (pscreen[i] == PS_FLAG) {
         for (int f = 0; f < FL_N; f++)                                // the 6-flag palette IN the screen
-            if (cbtn(0x0Au + f, 30 + (f % 3) * 34, 40 + (f / 3) * 9, 32, 8, FLNAME[f], armed == f)) armed = f;
+            if (lcdbtn(0x0Au + f, 30 + (f % 3) * 34, 40 + (f / 3) * 9, 32, 8, FLNAME[f], armed == f)) armed = f;
+    } else if (pscreen[i] == PS_FX) {                                 // the FX knobs, LCD-native
+        font(FONT_TINY); plabel("FX", 80, 40, CLR_LIME_GREEN);
+        lcdknob(&a->p[ACID_DRV], 46, 49, 5, "DRV",  0.35f);
+        lcdknob(&msend[i],       80, 49, 5, "SEND", 0.10f);
+        lcdknob(&fxverb[i],      114, 49, 5, "VERB", 0.0f);
     } else {
         font(FONT_TINY); print("132", 29, 40, CLR_MEDIUM_GREEN);      // bpm lives in the screen
-        if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_line(i);       // ...and so does NEW
+        if (lcdbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_line(i);     // ...and so does NEW
         int heldy = -1;                                              // y of the sounding note (for ties + slide origin)
         for (int s = 0; s < plen[i]; s++) {
             int cx = 29 + s * 6;
@@ -435,7 +488,7 @@ static void draw_303(int i) {
             ui_reg(w, bx, by, bw, bh, 0);
             UiCap *c = ui_cap_for(w);
             if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; }
-            if (flagmode) {                              // FLAG mode: tap or DRAG paints the armed flag
+            if (pscreen[i] == PS_FLAG) {                 // FLAG mode: tap or DRAG paints the armed flag
                 if (c) {                                 // the captured bar tracks the finger across the row
                     if (ui_grabbed(w)) paint_val = (armed == FL_LEN) ? 0 : !flag_get(i, s, armed);
                     int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
@@ -480,7 +533,7 @@ static void draw_303(int i) {
             }
             if (tie[i][s] && !on[i][s] && !dead) rectfill(bx, by + bh / 2, bw, 2, CLR_TRUE_BLUE);  // TIE = hold prev
             if (!dead && s == plen[i] - 1 && plen[i] < STEPS) rectfill(bx + bw, by, 1, bh, CLR_RED);  // loop end
-            rrect(bx, by, bw, bh, 1, (here || (!flagmode && s == sel[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+            rrect(bx, by, bw, bh, 1, (here || (pscreen[i] != PS_FLAG && s == sel[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
         }
     } else {
         // ④ step row — tap toggles
@@ -528,39 +581,48 @@ static void draw_808(void) {
     static const int VL[8]   = { TR_BD, TR_SD, TR_LT, TR_CP, TR_CH, TR_OH, TR_CB, TR_CY };  // core 8 (‹more› = later)
     static const int QCLR[4] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_WHITE };
 
-    // ② the PICKED voice's knobs (contextual — repaint on pick), or the FX panel
-    if (fxview[2]) {
-        draw_fxrow(2);                                     // DIST · SEND · VERB (aligned with the 303s)
-    } else {
-        font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR808_NAME[dsel], 6, 24, CLR_TRUE_BLUE);
-        knob(&dtune[dsel],  52, 22, 6, "TUNE", 0.5f);
-        knob(&ddecay[dsel], 88, 22, 6, "DEC",  0.5f);
-        knob(&dcolor[dsel], 124, 22, 6, "COL", 0.5f);
-    }
+    // ② TOP ZONE (always): the machine FX row + the machine-global SWING. No toggle —
+    // per-voice tone lives in the screen now (tap a voice), FX/swing stay at hand up top.
+    draw_fxrow(2);                                         // DIST · SEND · VERB (aligned with the 303s)
+    knob(&swing8, 14, 22, 6, "SWG", 0.0f);                 // machine-global shuffle, left gutter
 
-    // ③ screen — whole-kit overview (readout) + playhead + NEW, soft-keys flank
-    chip(6, 38, "KIT", !fxview[2]);
-    if (cbtn(0x22u, 6, 47, 16, 8, "FX", fxview[2])) fxview[2] = !fxview[2];
-    chip(138, 38, "MAP", 0); chip(138, 47, "SCP", 0);
+    // ③ screen — three soft-keys pick the LCD content: VCE = the picked voice's knobs
+    // (also auto-selected when you tap a voice pad); KIT = the kit minimap; FLAG = the
+    // depth palette. All three visible so the screen modes read as one consistent set.
+    if (darmed > DD_PROB) darmed = DD_PROB;                 // STRK is 909-only — clamp on the 808 face
+    if (cbtn(0x1Fu, 6, 37, 16, 7, "VCE",  dscreen == DS_VCE))  dscreen = DS_VCE;
+    if (cbtn(0x20u, 6, 45, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;
+    if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
+    chip(138, 47, "SCP", 0);
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    rrectfill(28, 40, 15, 7, 1, CLR_TRUE_BLUE); font(FONT_TINY); print("808", 30, 41, CLR_WHITE);   // identity badge
-    if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_drums();
-    for (int r = 0; r < 8; r++) {                          // kit minimap
-        int v = VL[r], gy = 42 + r * 2;
-        for (int s = 0; s < STEPS; s++) {
-            int gx = 48 + s * 5;
-            if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, 16, CLR_MEDIUM_GREEN); blend_reset(); }
-            if (dgrid[v][s]) rectfill(gx, gy, 3, 1, v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+    if (dscreen == DS_FLAG) {
+        for (int f = 0; f < 2; f++)                         // the 808 depth palette (ACC/PROB) in the screen
+            if (lcdbtn(0x24u + f, 30 + f * 40, 44, 36, 9, DDNAME[f], darmed == f)) darmed = f;
+    } else if (dscreen == DS_KIT) {
+        rrectfill(28, 40, 15, 7, 1, CLR_TRUE_BLUE); font(FONT_TINY); print("808", 30, 41, CLR_WHITE);   // identity badge
+        if (lcdbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_drums();
+        for (int r = 0; r < 8; r++) {                       // kit minimap
+            int v = VL[r], gy = 42 + r * 2;
+            for (int s = 0; s < STEPS; s++) {
+                int gx = 48 + s * 5;
+                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, 16, CLR_MEDIUM_GREEN); blend_reset(); }
+                if (dgrid[v][s]) rectfill(gx, gy, 3, 1, v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+            }
         }
+    } else {                                                // DS_VCE — the picked voice's tone knobs, LCD-native
+        font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
+        lcdknob(&dtune[dsel],  46, 49, 5, "TUNE", 0.5f);
+        lcdknob(&ddecay[dsel], 80, 49, 5, "DEC",  0.5f);
+        lcdknob(&dcolor[dsel], 114, 49, 5, "COL",  0.5f);
     }
 
     // ④ VOICE PICKER — one row of pads (selectors), just above the hits
     for (int r = 0; r < 8; r++) {
         int v = VL[r], x = 6 + r * 18, selp = (v == dsel);
         int pr = 0, hot = 0, foc = 0; void *wp = ui_wid_hash(0x90u + v, x, 64, 17, 9);
-        if (ui_button_core(wp, x, 64, 17, 9, &foc, &pr, &hot)) { dsel = v; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
+        if (ui_button_core(wp, x, 64, 17, 9, &foc, &pr, &hot)) { dsel = v; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }   // pick+audition only; the screen mode stays put (VCE/KIT/FLAG are the soft-keys)
         rrectfill(x, 64, 17, 9, 1, selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
         if (dtrig[v] > 0) { blend(BLEND_AVG); rrectfill(x, 64, 17, 9, 1, CLR_WHITE); blend_reset(); }   // flash when the voice triggers
         rrect(x, 64, 17, 9, 1, (selp || hot || dtrig[v] > 0) ? CLR_WHITE : CLR_BROWNISH_BLACK);
@@ -568,22 +630,36 @@ static void draw_808(void) {
     }
 
     // ⑤ the HITS — the picked voice's 16 steps, on the BOTTOM (thumb surface).
-    // tap = toggle one · DRAG across = PAINT the same on/off (decided on the first cell) — draw a fill in one stroke
+    // KIT: tap = toggle · DRAG across = paint on/off (first cell decides). FLAG: paint
+    // the armed flag — ACC toggles accent (bright cap); PROB vertical-slides the trig
+    // chance (short bar = <100%, the tr808 gesture, gated to this mode).
     for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, on2 = dgrid[dsel][s], here = (s == step && playing);
-        int fc = on2 ? QCLR[s / 4] : CLR_DARKER_PURPLE;
-        if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
+        int x = 6 + s * 9, here = (s == step && playing);
         void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
         ui_reg(ws, x, 81, 8, 16, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
             g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-            if (ui_grabbed(ws)) { paint_val = !dgrid[dsel][s]; if (paint_val) { tr808_fire(TR808_BASE, dsel, 1, 0, dtune, ddecay, dcolor); dtrig[dsel] = 1; mbop = 1; } }
             int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-            dgrid[dsel][cell] = paint_val;
+            if (dscreen != DS_FLAG) {                        // VCE/KIT — paint on/off across the drag
+                if (ui_grabbed(ws)) { paint_val = !dgrid[dsel][s]; if (paint_val) { tr808_fire(TR808_BASE, dsel, 1, 0, dtune, ddecay, dcolor); dtrig[dsel] = 1; mbop = 1; } }
+                dgrid[dsel][cell] = paint_val;
+            } else if (darmed == DD_ACC) {                   // FLAG/ACC — toggle accent, paint across
+                if (ui_grabbed(ws)) { paint_val = !dacc[dsel][s]; if (paint_val) dgrid[dsel][s] = 1; }
+                dacc[dsel][cell] = paint_val; if (paint_val) dgrid[dsel][cell] = 1;
+            } else {                                         // FLAG/PROB — vertical slide on the pressed cell
+                float f = clamp((94 - c->cy) / 13.0f, 0, 1);
+                dprob[dsel][s] = snap_prob(f); dgrid[dsel][s] = 1;
+            }
         }
-        rrectfill(x, 81, 8, 16, 1, fc);
+        int on2 = dgrid[dsel][s];
+        rrectfill(x, 81, 8, 16, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
+        if (on2) {
+            int pr = dprob[dsel][s] > 0 ? dprob[dsel][s] : 100, fh = 16 * pr / 100; if (fh < 3) fh = 3;
+            rrectfill(x, 81 + 16 - fh, 8, fh, 1, here ? CLR_WHITE : QCLR[s / 4]);
+            if (dacc[dsel][s]) rectfill(x + 1, 78, 6, 2, CLR_RED);   // accent marker in the gap above the cell
+        }
         rrect(x, 81, 8, 16, 1, CLR_BROWNISH_BLACK);
     }
 }
@@ -593,39 +669,58 @@ static void draw_808(void) {
 static void draw_909(void) {
     static const int VL[8] = { TR9_BD, TR9_SD, TR9_CH, TR9_OH, TR9_CP, TR9_LT, TR9_CC, TR9_RC };
 
-    // ② the picked voice's knobs (contextual), or the FX panel
-    if (fxview[3]) {
-        draw_fxrow(3);                                     // DIST · SEND · VERB (aligned with the 303s)
-    } else {
-        font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR909_NAME[d9sel], 6, 24, CLR_ORANGE);
-        knob(&d9tune[d9sel],  52, 22, 6, "TUNE", 0.5f);
-        knob(&d9decay[d9sel], 88, 22, 6, "DEC",  0.5f);
-        knob(&d9color[d9sel], 124, 22, 6, "COL", 0.5f);
+    // ② TOP ZONE (always): FX row + machine-global SWING + the 909 METAL XY (right gutter).
+    draw_fxrow(3);                                         // DIST · SEND · VERB (aligned with the 303s)
+    knob(&swing9, 14, 22, 6, "SWG", 0.0f);                 // machine-global shuffle, left gutter
+    {   // 909 METAL-filter XY — the shared highpass on the metal voices (hats/cymbal/cowbell).
+        int px0 = 134, py0 = 15, pw = 18, ph = 15;         // right gutter. Drag: X = cut, Y = res.
+        void *wp = ui_wid_hash(0xC0u, px0, py0, pw, ph);
+        ui_reg(wp, px0, py0, pw, ph, 0);
+        UiCap *c = ui_cap_for(wp);
+        if (c) {
+            g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
+            float nx = clamp((c->cx - px0) / (float)pw, 0, 1), ny = clamp((py0 + ph - c->cy) / (float)ph, 0, 1);
+            if (nx != m9cut || ny != m9res) { m9cut = nx; m9res = ny; tr909_metal(D909_BASE, m9cut, m9res); }
+        }
+        rrectfill(px0, py0, pw, ph, 1, CLR_BROWNISH_BLACK);
+        pset(px0 + (int)(m9cut * (pw - 1)), py0 + ph - 1 - (int)(m9res * (ph - 1)), CLR_LIGHT_YELLOW);
+        font(FONT_TINY); plabel("MTL", px0 + pw / 2, py0 + ph, CLR_ORANGE);
     }
 
-    // ③ screen — kit overview + playhead + NEW, amber 909 badge
-    chip(6, 38, "KIT", !fxview[3]);
-    if (cbtn(0x23u, 6, 47, 16, 8, "FX", fxview[3])) fxview[3] = !fxview[3];
-    chip(138, 38, "MAP", 0); chip(138, 47, "SCP", 0);
+    // ③ screen — VCE / KIT / FLAG soft-keys (VCE also auto-selected on a voice-pad tap).
+    if (cbtn(0x1Fu, 6, 37, 16, 7, "VCE",  dscreen == DS_VCE))  dscreen = DS_VCE;
+    if (cbtn(0x20u, 6, 45, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;
+    if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
+    chip(138, 47, "SCP", 0);
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    rrectfill(28, 40, 15, 7, 1, CLR_ORANGE); font(FONT_TINY); print("909", 30, 41, CLR_BROWNISH_BLACK);
-    if (cbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_drums9();
-    for (int r = 0; r < 8; r++) {
-        int v = VL[r], gy = 42 + r * 2;
-        for (int s = 0; s < STEPS; s++) {
-            int gx = 48 + s * 5;
-            if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, 16, CLR_MEDIUM_GREEN); blend_reset(); }
-            if (d9grid[v][s]) rectfill(gx, gy, 3, 1, v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+    if (dscreen == DS_FLAG) {
+        for (int f = 0; f < DD_N; f++)                      // the 909 depth palette (ACC/PROB/STRK)
+            if (lcdbtn(0x24u + f, 30 + f * 34, 44, 32, 9, DDNAME[f], darmed == f)) darmed = f;
+    } else if (dscreen == DS_KIT) {
+        rrectfill(28, 40, 15, 7, 1, CLR_ORANGE); font(FONT_TINY); print("909", 30, 41, CLR_BROWNISH_BLACK);
+        if (lcdbtn(0x02u, 113, 39, 18, 7, "NEW", 0)) gen_drums9();
+        for (int r = 0; r < 8; r++) {
+            int v = VL[r], gy = 42 + r * 2;
+            for (int s = 0; s < STEPS; s++) {
+                int gx = 48 + s * 5;
+                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, 16, CLR_MEDIUM_GREEN); blend_reset(); }
+                if (d9grid[v][s]) rectfill(gx, gy, 3, 1, v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+            }
         }
+    } else {                                                // DS_VCE — the picked voice's tone knobs, LCD-native
+        font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
+        lcdknob(&d9tune[d9sel],  46, 49, 5, "TUNE", 0.5f);
+        lcdknob(&d9decay[d9sel], 80, 49, 5, "DEC",  0.5f);
+        lcdknob(&d9color[d9sel], 114, 49, 5, "COL",  0.5f);
     }
 
     // ④ voice picker — amber pads
     for (int r = 0; r < 8; r++) {
         int v = VL[r], x = 6 + r * 18, selp = (v == d9sel);
         int pr = 0, hot = 0, foc = 0; void *wp = ui_wid_hash(0x90u + v, x, 64, 17, 9);
-        if (ui_button_core(wp, x, 64, 17, 9, &foc, &pr, &hot)) { d9sel = v; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
+        if (ui_button_core(wp, x, 64, 17, 9, &foc, &pr, &hot)) { d9sel = v; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }   // pick+audition only; screen mode stays put
         rrectfill(x, 64, 17, 9, 1, selp ? CLR_ORANGE : CLR_DARK_ORANGE);
         if (d9trig[v] > 0) { blend(BLEND_AVG); rrectfill(x, 64, 17, 9, 1, CLR_WHITE); blend_reset(); }   // flash when the voice triggers
         rrect(x, 64, 17, 9, 1, (selp || hot || d9trig[v] > 0) ? CLR_WHITE : CLR_BROWNISH_BLACK);
@@ -633,22 +728,39 @@ static void draw_909(void) {
     }
 
     // ⑤ the HITS — picked voice's 16 steps at the bottom; amber, white downbeat accents.
-    // tap = toggle one · DRAG across = PAINT the same on/off (decided on the first cell)
+    // KIT: paint on/off. FLAG: ACC toggles accent · PROB vertical-slides the chance
+    // (short bar) · STRK cycles none→flam→drag→ratchet (cyan pips mark the type).
     for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, on2 = d9grid[d9sel][s], here = (s == step && playing);
-        int fc = on2 ? (s % 4 == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE) : CLR_DARKER_PURPLE;
-        if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
+        int x = 6 + s * 9, here = (s == step && playing);
         void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
         ui_reg(ws, x, 81, 8, 16, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
             g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-            if (ui_grabbed(ws)) { paint_val = !d9grid[d9sel][s]; if (paint_val) { tr909_fire(D909_BASE, d9sel, 1, 0, d9tune, d9decay, d9color); d9trig[d9sel] = 1; mbop = 1; } }
             int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-            d9grid[d9sel][cell] = paint_val;
+            if (dscreen != DS_FLAG) {                        // VCE/KIT — paint on/off
+                if (ui_grabbed(ws)) { paint_val = !d9grid[d9sel][s]; if (paint_val) { tr909_fire(D909_BASE, d9sel, 1, 0, d9tune, d9decay, d9color); d9trig[d9sel] = 1; mbop = 1; } }
+                d9grid[d9sel][cell] = paint_val;
+            } else if (darmed == DD_ACC) {                   // FLAG/ACC — toggle accent
+                if (ui_grabbed(ws)) { paint_val = !d9acc[d9sel][s]; if (paint_val) d9grid[d9sel][s] = 1; }
+                d9acc[d9sel][cell] = paint_val; if (paint_val) d9grid[d9sel][cell] = 1;
+            } else if (darmed == DD_PROB) {                  // FLAG/PROB — vertical slide
+                float f = clamp((94 - c->cy) / 13.0f, 0, 1);
+                d9prob[d9sel][s] = snap_prob(f); d9grid[d9sel][s] = 1;
+            } else {                                         // FLAG/STRK — cycle the stroke, paint across
+                if (ui_grabbed(ws)) { paint_val = (d9strk[d9sel][s] + 1) % TR9_NSTROKE; d9grid[d9sel][s] = 1; }
+                d9strk[d9sel][cell] = paint_val; if (paint_val) d9grid[d9sel][cell] = 1;
+            }
         }
-        rrectfill(x, 81, 8, 16, 1, fc);
+        int on2 = d9grid[d9sel][s];
+        rrectfill(x, 81, 8, 16, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
+        if (on2) {
+            int pr = d9prob[d9sel][s] > 0 ? d9prob[d9sel][s] : 100, fh = 16 * pr / 100; if (fh < 3) fh = 3;
+            rrectfill(x, 81 + 16 - fh, 8, fh, 1, here ? CLR_WHITE : (s % 4 == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE));
+            if (d9acc[d9sel][s]) rectfill(x + 1, 78, 6, 2, CLR_RED);                                          // accent marker in the gap above
+            for (int k = 0; k < d9strk[d9sel][s]; k++) pset(x + 2 + k * 2, 83, CLR_TRUE_BLUE);                // stroke pips
+        }
         rrect(x, 81, 8, 16, 1, CLR_BROWNISH_BLACK);
     }
 }
@@ -749,10 +861,12 @@ void init(void) {
     }
     tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9..22)
     for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = 0.5f; }
+    for (int v = 0; v < TR_NV; v++)  for (int s = 0; s < STEPS; s++) dprob[v][s]  = 100;   // every hit certain until loosened
     gen_drums();
     tr909_build(D909_BASE);                                // the honest 909 kit (slots 23..35)
     tr909_metal(D909_BASE, m9cut, m9res);
     for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = 0.5f; }
+    for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9prob[v][s] = 100;
     gen_drums9();
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
     reverb_bus(1, 0.34f, 0.15f);                           // 909 → its own tight bright PLATE (tank 1)
@@ -783,10 +897,18 @@ void update(void) {
                 else if (tie[i][ls]) acid_tie(&ac[i], sld[i][ls]);     // hold the previous note through
                 else acid_off(&ac[i]);
             }
+            int sw8 = (step & 1) ? (int)(swing8 * 55) : 0;        // swing: odd 16ths fire late (fire's delay param)
+            int sw9 = (step & 1) ? (int)(swing9 * 55) : 0;
             for (int v = 0; v < TR_NV; v++)                       // the 808 line, same transport
-                if (dgrid[v][step] && !mac[M_808].mute) { tr808_fire(TR808_BASE, v, 0, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
+                if (dgrid[v][step] && !mac[M_808].mute && (dprob[v][step] >= 100 || rnd(100) < dprob[v][step]))
+                    { tr808_fire(TR808_BASE, v, dacc[v][step] ? 2 : 0, sw8, dtune, ddecay, dcolor); dtrig[v] = 1; }
             for (int v = 0; v < TR9_NV; v++)                      // the 909 line
-                if (d9grid[v][step] && !mac[M_909].mute) { tr909_fire(D909_BASE, v, 0, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
+                if (d9grid[v][step] && !mac[M_909].mute && (d9prob[v][step] >= 100 || rnd(100) < d9prob[v][step])) {
+                    int bo = d9acc[v][step] ? 2 : 0, st = d9strk[v][step];
+                    if (st) tr909_fire_stroke(D909_BASE, v, st, bo, sw9, 113, d9tune, d9decay, d9color);   // 113ms ≈ one 16th @132
+                    else    tr909_fire(D909_BASE, v, bo, sw9, d9tune, d9decay, d9color);
+                    d9trig[v] = 1;
+                }
         } else for (int i = 0; i < 2; i++) {
             int nx = (ctr + 1) % plen[i];
             acid_gate(&ac[i], frac, 0.0f, tie[i][nx]);                 // don't cut into a tie

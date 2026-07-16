@@ -166,14 +166,26 @@ loop, extended to Android.
   Reopening audio on rotation churns the stream (we saw 4 stop/starts in 4s, incl. one from the
   activity self-recreating at startup) and **breaks the emulator's fragile audio route**. On a real
   device audio survives rotation natively; the only legitimate reopen trigger is a real disconnect.
-- **The Apple-Silicon emulator's audio-to-host output is UNRELIABLE — don't debug audio on it.** Same
-  clean build played sound on one cold boot and was silent on several others, while the engine
-  generated identical samples every time (measured 0.3–0.8 peak via a temporary RMS probe in the audio
-  callback). It's a known-flaky emulator subsystem, not the port. Also: capturing the host output to
-  verify objectively (via a BlackHole loopback + ffmpeg) is walled off by macOS Microphone TCC
-  permission (the terminal/`claude` process lacks it, and granting needs an app restart). **Reliable
-  audio validation = a physical device** (or the desktop `build-nr.sh` WAV render, which shares the
-  same `de_audio_render` mixer). Render + touch, by contrast, are solid on the emulator.
+- **The Apple-Silicon emulator's audio-to-host output is UNRELIABLE — ROOT-CAUSED 2026-07-16.** Same
+  clean build played on one cold boot, silent on others, while the engine generated identical samples
+  every time (0.3–0.8 peak via a temporary RMS probe). Cause: **third-party virtual audio devices
+  (BlackHole, Soundflower, Loopback, eqMac, Multi-Output devices) conflict with the emulator grabbing
+  the host audio route at launch** (widely reported; e.g. eqMac2 #41). This box has BlackHole + a
+  Multi-Output device. **The working recipe on the emulator:**
+  1. **Device nudge after launch** — flip the macOS default output to another device and back
+     (`SwitchAudioSource -s <other>; SwitchAudioSource -s <speakers>`); forces macOS to re-hand the
+     route to the emulator. Fixes the startup silence.
+  2. **Lock orientation** (`android:screenOrientation="landscape"`) — rotation makes the emulator
+     re-drop the route, and the *app can't nudge the host's audio device itself*. Locking sidesteps it,
+     and it's the right product default for these fixed-size landscape carts anyway.
+  3. **Deep audio buffer** — `setFramesPerDataCallback(512)` + `setBufferCapacityInFrames(8192)` +
+     buffer size 8× burst kills the underrun crackle (the emulator's jittery scheduler). ~20ms latency;
+     tune down on device.
+  None of this exists on a real device (audio survives rotation, no route-grab conflict). Capturing the
+  host output to verify objectively (BlackHole loopback + ffmpeg) is walled off by macOS Microphone TCC
+  permission (the `claude`/terminal process lacks it; granting needs an app restart). **Reliable audio
+  validation = a physical device** (or the desktop `build-nr.sh` WAV render — same `de_audio_render`
+  mixer). Render + touch are rock-solid on the emulator.
 - **Play's `.aab` + signing:** Play requires an App Bundle and **Play App Signing** (Google holds
   the app key; you upload with an upload key). The push tool must target the **Google Play Developer
   Publishing API** (the `asc-push.js` twin) — release tracks (internal → closed → production),

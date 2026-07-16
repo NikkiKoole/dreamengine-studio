@@ -79,13 +79,18 @@ static void audio_start(void) {
     AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
     AAudioStreamBuilder_setDataCallback(b, audio_cb, NULL);
     AAudioStreamBuilder_setErrorCallback(b, audio_error_cb, NULL);
+    // Headroom for a jittery scheduler (the emulator especially). A fixed 512-frame callback
+    // (~11.6ms) keeps de_audio_render chunks steady; a large capacity lets the buffer sit deep
+    // enough not to under-run (crackle). ~23ms latency — fine for this, tune down on device.
+    AAudioStreamBuilder_setFramesPerDataCallback(b, 512);
+    AAudioStreamBuilder_setBufferCapacityInFrames(b, 8192);
     aaudio_result_t r = AAudioStreamBuilder_openStream(b, &g_audio);
     AAudioStreamBuilder_delete(b);
     if (r != AAUDIO_OK || !g_audio) { LOGE("AAudio open failed: %d", r); g_audio = NULL; return; }
     // Grow the buffer to several bursts so a jittery scheduler (esp. the emulator, and a
     // busy render frame) doesn't under-run -> crackle. Latency cost is small; tune on device.
     int32_t burst = AAudioStream_getFramesPerBurst(g_audio);
-    if (burst > 0) AAudioStream_setBufferSizeInFrames(g_audio, burst * 4);
+    if (burst > 0) AAudioStream_setBufferSizeInFrames(g_audio, burst * 8);
     AAudioStream_requestStart(g_audio);
     LOGI("AAudio started: %d Hz, %d ch",
          AAudioStream_getSampleRate(g_audio), AAudioStream_getChannelCount(g_audio));

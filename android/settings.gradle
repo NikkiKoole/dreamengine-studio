@@ -1,0 +1,18 @@
+// dreamengine Android host — the Gradle settings (twin of ios/project.yml's role).
+// See docs/design/android-plan.md.
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "dreamengine"
+include ':app'

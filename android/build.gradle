@@ -1,0 +1,4 @@
+// Root build script. AGP pinned to 8.7.3 (Gradle wrapper 8.9 — see gradle/wrapper).
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

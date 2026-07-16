@@ -1,10 +1,12 @@
 # Android build plan — the spike ladder + the host shell
 
-STATUS: BUILDING (2026-07-16) — spike 0 ✅ **done**: the real engine cross-compiles with the NDK
-and RENDERS + runs its mixer on an arm64 emulator, frameworkless (`-DDE_NO_RAYLIB`), pixel-perfect.
-The path is de-risked; what remains is the **host shell + Gradle packaging** (spikes 1+), not engine
-surgery. This doc is the execution companion — the Android twin of [`ios-plan.md`](ios-plan.md). It
-owns the *how-do-we-build-it* ladder; the strategy lives in the shared docs:
+STATUS: BUILDING (2026-07-16) — spikes 0–3 ✅ **done**: the real engine cross-compiles with the NDK
+and a `NativeActivity` host (in `android/`) renders it **pixel-perfect** on an arm64 emulator, with
+AAudio pulling the mixer and touch driving the cart — all frameworkless (`-DDE_NO_RAYLIB`), zero
+engine surgery. `android/build.sh` is the one-command loop (`CART=<name> ./build.sh`). What remains
+is save (4), Gradle-signed packaging → `.aab` (5), Play Billing (6), and the multi-cart app (7).
+This doc is the execution companion — the Android twin of [`ios-plan.md`](ios-plan.md). It owns the
+*how-do-we-build-it* ladder; the strategy lives in the shared docs:
 
 - **What & why we ship** → [`../decisions/0023-ship-carts-as-apps-not-the-editor.md`](../decisions/0023-ship-carts-as-apps-not-the-editor.md):
   finished apps (a cart, or a curated collection), precompiled on a dev box; never the editor. Same on Android.
@@ -55,12 +57,14 @@ Android doesn't want them.
 The engine path is settled; the **host stack** is the real decision. Recommendation, each choice
 mapped to its iOS twin:
 
-- **Shell: NDK + `GameActivity`** (`androidx.games.activity`). Google's blessed C game entry —
-  native surface + input + lifecycle with minimal Java, the closest match to the "pure-C engine,
-  thin shell" ethos. The conventional alternative (a Kotlin `Activity` + `GLSurfaceView` + a JNI
-  bridge) is more marshalling boilerplate for the same result. **Note:** there is *always* a JVM
-  side on Android because Play Billing is a Java library — so unlike iOS's "mostly Swift, could be
-  mostly C," Android keeps a small Kotlin surface (lifecycle + billing) no matter what.
+- **Shell: NDK + `NativeActivity` (spike 1+), `GameActivity` migration later.** The spike shipped on
+  **NativeActivity + `native_app_glue`** — pure C, the glue is bundled in the NDK
+  (`$NDK/sources/android/native_app_glue`), zero androidx/AAR/Kotlin, `android:hasCode="false"`. That
+  was the fastest kill of the render/audio/touch unknowns (spikes 1–3 done in one sitting). **Migrate to
+  `GameActivity`** (`androidx.games.activity`) when billing/text-input land — it needs a Kotlin Activity
+  subclass + the AAR anyway, and there is *always* a JVM side on Android because Play Billing is a Java
+  library. So the endpoint keeps a small Kotlin surface (lifecycle + billing); the spike just didn't need
+  it yet.
 - **Render: GLES2 texture-quad.** Upload the RGBA framebuffer as a texture each frame, draw one
   fullscreen quad, flip + nearest-filter in the shader → free GPU integer-upscale of the ~320×200
   canvas, crisp chunky pixels. (A pure `ANativeWindow_lock` + `memcpy` software blit is even simpler
@@ -114,9 +118,9 @@ a real signed upload.
 | # | Spike | Proves | Needs | Status |
 |---|---|---|---|---|
 | 0 | NDK cross-compile `build-nr.sh`'s source list → a `.so` per ABI, run headless (or via `headless-nr.c`) on an emulator | the toolchain: engine builds + runs with the Android clang | emu | ✅ **DONE (2026-07-16)** — the real engine (`studio.c`+`raylib_compat.c`+`sound.h`+omnichord, `-DDE_NO_RAYLIB`) cross-compiles clean with NDK r28c clang to a valid `ELF … ARM aarch64 … interpreter /system/bin/linker64` binary, zero warnings, and **RUNS on an arm64 emulator**: `adb push` + `headless-nr-arm64 90 nr.ppm nr.wav` → omnichord renders **pixel-perfect** (320×200 PPM, full UI) + the mixer produces 132300 stereo samples (silent with no touch input, correct — omnichord plays only when strummed). No external asset files needed (fonts/sprites are baked under `DE_NO_RAYLIB`). Proof frame: `build/android/out/nr.png`. |
-| 1 | GameActivity + GLES2 quad shows `de_framebuffer()` on screen, driven by the choreographer/vsync loop | render path + loop inversion (Android owns the loop) | emu | — |
-| 2 | AAudio callback pulls `de_audio_render()` — a cart's sound plays | the audio path | emu | — |
-| 3 | `MotionEvent` → `de_touch_*` — touch drives the cart | input | device | — |
+| 1 | NativeActivity + GLES2 quad shows `de_framebuffer()` on screen, driven by the native_app_glue loop | render path + loop inversion (Android owns the loop) | emu | ✅ **DONE (2026-07-16)** — omnichord renders **pixel-perfect, upright, letterboxed** on the arm64 emulator (`build/android/out/omnichord-final.png`). Scaffold lives in `android/` (`build.sh` = the one-command loop). Went NativeActivity (pure C, glue bundled in NDK), not GameActivity — see note below. |
+| 2 | AAudio callback pulls `de_audio_render()` — a cart's sound plays | the audio path | emu | ✅ **DONE (2026-07-16)** — AAudio stream (44100/stereo/float, low-latency) pulls `de_audio_render` on its callback thread; logged `AAudio started: 44100 Hz, 2 ch`. (Emulator ran `-no-audio`; wired + opening cleanly — real device confirms loudness later.) |
+| 3 | `MotionEvent` → `de_touch_*` — touch drives the cart | input | emu | ✅ **DONE (2026-07-16)** — an injected `adb input tap` flows through `de_touch_*`; omnichord responded (header → "C m7", the m7 modifier + Cm/C7 lit). Multi-pointer handled via pointer-id iteration. |
 | 4 | `save.c` round-trips a blob to internal storage (host provides the path) | the save layer | emu | — |
 | 5 | `android/build.sh` builds a signed **debug** `.aab`/`.apk`, `adb install`s + launches; screenshot | packaging + the one-command agentic loop | device | — |
 | 6 | Play Billing → the `Store_*` gate: buy a rack → entitlement unlocks (license testing, no real charge) | the IAP model on Play | Play acct | — |
@@ -142,8 +146,15 @@ loop, extended to Android.
   The Play BillingClient runs its listeners on a background thread too — so the JNI bridge the C gate
   reads every frame **must be a lock-guarded snapshot or a primitive**, never a live shared JVM
   object read across the fence.
-- **Bottom-up framebuffer** — `sw_cbuf` is bottom-up; the GLES quad flips in the shader (`v` texcoord
-  or the projection), the same flip `CanvasView` does on the CPU.
+- **Bottom-up framebuffer — do NOT flip in the GLES path (hit 2026-07-16).** `sw_cbuf` is bottom-up,
+  but GLES texel (0,0) already maps to uv (0,0), so a straight quad (uv = aUV, no `1.0 - v`) shows the
+  image upright. Adding the "obvious" flip renders it upside-down. (iOS flips because it builds a
+  top-down array via a mirrored `CGContext` — a different path; don't copy that flip into the shader.)
+- **Never point the build at the shared `build/cart.c` (hit 2026-07-16).** A sibling process (the
+  editor, another agent) overwrote `build/cart.c` between `play.js` and the CMake build → the APK shipped
+  the *wrong cart* (voxroll instead of omnichord). Fix, mirroring `ios/gen/app`: `android/build.sh`
+  regenerates and **immediately** copies `cart.c`+`sprites_data.h`+`map_data.h` into a private
+  `app/src/main/cpp/gen/` (gitignored); CMake reads `DE_GEN`, never `build/`.
 - **`SCALE=1` on the device build** so touches map 1:1 to framebuffer px (iOS learned this in Phase 2);
   the chunky-pixel look comes from a `pixelChunk`-style logical-px divisor in the host, not from SCALE.
 - **AAudio buffer sizing / underruns** — request a small burst-aligned buffer and handle

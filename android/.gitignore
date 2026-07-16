@@ -1,0 +1,10 @@
+# Gradle / AGP build outputs + machine-specific config (never committed).
+.gradle/
+build/
+app/build/
+app/.cxx/
+.cxx/
+app/src/main/cpp/gen/
+local.properties
+*.iml
+.idea/

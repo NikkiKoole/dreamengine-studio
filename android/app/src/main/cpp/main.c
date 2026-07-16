@@ -1,0 +1,300 @@
+// main.c — the dreamengine Android host shell (spike 1).
+//
+// NativeActivity + native_app_glue own the app; this file:
+//   - stands up EGL/GLES2 and blits de_framebuffer() as one flipped fullscreen quad
+//     (aspect-fit letterbox),
+//   - pulls de_audio_render() from an AAudio callback,
+//   - maps touch events (through the letterbox) to de_touch_*.
+// The engine itself is the real studio.c + sound.h + a cart, built -DDE_NO_RAYLIB.
+// Twin of ios/Sources/{CanvasView,AudioEngine}.swift. See docs/design/android-plan.md.
+
+#include <android_native_app_glue.h>
+#include <android/log.h>
+#include <android/input.h>
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
+#include <aaudio/AAudio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <string.h>
+#include "engine.h"
+
+#define TAG "dreamengine"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+// ---- GLES state ----
+static EGLDisplay g_dpy = EGL_NO_DISPLAY;
+static EGLSurface g_sfc = EGL_NO_SURFACE;
+static EGLContext g_ctx = EGL_NO_CONTEXT;
+static GLuint g_tex = 0, g_prog = 0;
+static GLint  g_aPos = -1, g_aUV = -1, g_uTex = -1;
+static int    g_view_w = 0, g_view_h = 0;     // full surface size (px)
+static int    g_sw = 0, g_sh = 0;             // engine framebuffer size
+static int    g_ready = 0;
+
+// letterbox rect in surface px (recomputed each frame; touch maps through it)
+static int    g_dx = 0, g_dy = 0, g_dw = 0, g_dh = 0;
+
+// ---- timing ----
+static double now_seconds(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
+static double g_t0 = 0.0;
+
+// ---- audio ----
+static AAudioStream *g_audio = NULL;
+
+static aaudio_data_callback_result_t audio_cb(
+        AAudioStream *s, void *ud, void *audioData, int32_t numFrames) {
+    (void)s; (void)ud;
+    // de_audio_render fills STEREO INTERLEAVED floats for `numFrames` frames.
+    de_audio_render((float *)audioData, numFrames);
+    return AAUDIO_CALLBACK_RESULT_CONTINUE;
+}
+
+static void audio_start(void) {
+    AAudioStreamBuilder *b = NULL;
+    if (AAudio_createStreamBuilder(&b) != AAUDIO_OK) { LOGE("AAudio builder failed"); return; }
+    AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
+    AAudioStreamBuilder_setChannelCount(b, 2);
+    AAudioStreamBuilder_setSampleRate(b, 44100);
+    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+    AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
+    AAudioStreamBuilder_setDataCallback(b, audio_cb, NULL);
+    aaudio_result_t r = AAudioStreamBuilder_openStream(b, &g_audio);
+    AAudioStreamBuilder_delete(b);
+    if (r != AAUDIO_OK || !g_audio) { LOGE("AAudio open failed: %d", r); g_audio = NULL; return; }
+    AAudioStream_requestStart(g_audio);
+    LOGI("AAudio started: %d Hz, %d ch",
+         AAudioStream_getSampleRate(g_audio), AAudioStream_getChannelCount(g_audio));
+}
+
+static void audio_stop(void) {
+    if (!g_audio) return;
+    AAudioStream_requestStop(g_audio);
+    AAudioStream_close(g_audio);
+    g_audio = NULL;
+}
+
+// ---- GLES helpers ----
+static GLuint compile_shader(GLenum type, const char *src) {
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, &src, NULL);
+    glCompileShader(s);
+    GLint ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if (!ok) { char log[512]; glGetShaderInfoLog(s, sizeof log, NULL, log); LOGE("shader: %s", log); }
+    return s;
+}
+
+static const char *VS =
+    // sw_cbuf is BOTTOM-UP and GLES texel (0,0) is uv (0,0) -> no Y flip needed:
+    // screen bottom-left (NDC -1,-1 / uv 0,0) samples the image's bottom-left texel.
+    "attribute vec2 aPos; attribute vec2 aUV; varying vec2 vUV;\n"
+    "void main(){ vUV = aUV; gl_Position = vec4(aPos, 0.0, 1.0); }\n";
+static const char *FS =
+    "precision mediump float; varying vec2 vUV; uniform sampler2D uTex;\n"
+    "void main(){ gl_FragColor = texture2D(uTex, vUV); }\n";
+
+static void gl_setup(void) {
+    g_prog = glCreateProgram();
+    GLuint vs = compile_shader(GL_VERTEX_SHADER, VS);
+    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, FS);
+    glAttachShader(g_prog, vs);
+    glAttachShader(g_prog, fs);
+    glLinkProgram(g_prog);
+    g_aPos = glGetAttribLocation(g_prog, "aPos");
+    g_aUV  = glGetAttribLocation(g_prog, "aUV");
+    g_uTex = glGetUniformLocation(g_prog, "uTex");
+
+    glGenTextures(1, &g_tex);
+    glBindTexture(GL_TEXTURE_2D, g_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);   // chunky lo-fi
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // allocate storage once at the framebuffer size (RGBA8888 = bytes R,G,B,A)
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g_sw, g_sh, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+}
+
+static int egl_init(struct android_app *app) {
+    g_dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    eglInitialize(g_dpy, NULL, NULL);
+
+    const EGLint cfg_attr[] = {
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_BLUE_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_RED_SIZE, 8, EGL_ALPHA_SIZE, 8,
+        EGL_NONE
+    };
+    EGLConfig cfg; EGLint n = 0;
+    eglChooseConfig(g_dpy, cfg_attr, &cfg, 1, &n);
+    if (n < 1) { LOGE("no EGL config"); return 0; }
+
+    g_sfc = eglCreateWindowSurface(g_dpy, cfg, app->window, NULL);
+    const EGLint ctx_attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+    g_ctx = eglCreateContext(g_dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
+    if (!eglMakeCurrent(g_dpy, g_sfc, g_sfc, g_ctx)) { LOGE("eglMakeCurrent failed"); return 0; }
+
+    eglQuerySurface(g_dpy, g_sfc, EGL_WIDTH,  &g_view_w);
+    eglQuerySurface(g_dpy, g_sfc, EGL_HEIGHT, &g_view_h);
+    gl_setup();
+    LOGI("EGL up: surface %dx%d, framebuffer %dx%d", g_view_w, g_view_h, g_sw, g_sh);
+    return 1;
+}
+
+static void egl_teardown(void) {
+    if (g_dpy != EGL_NO_DISPLAY) {
+        eglMakeCurrent(g_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (g_ctx != EGL_NO_CONTEXT) eglDestroyContext(g_dpy, g_ctx);
+        if (g_sfc != EGL_NO_SURFACE) eglDestroySurface(g_dpy, g_sfc);
+        eglTerminate(g_dpy);
+    }
+    g_dpy = EGL_NO_DISPLAY; g_sfc = EGL_NO_SURFACE; g_ctx = EGL_NO_CONTEXT;
+    g_tex = 0; g_prog = 0; g_ready = 0;
+}
+
+static void compute_letterbox(void) {
+    float sa = (float)g_sw / (float)g_sh;
+    float va = (float)g_view_w / (float)g_view_h;
+    if (va > sa) { g_dh = g_view_h; g_dw = (int)(g_dh * sa); }
+    else         { g_dw = g_view_w; g_dh = (int)(g_dw / sa); }
+    g_dx = (g_view_w - g_dw) / 2;
+    g_dy = (g_view_h - g_dh) / 2;
+}
+
+static void draw_frame(void) {
+    if (!g_ready) return;
+    de_frame(now_seconds() - g_t0);            // engine draws into sw_cbuf
+
+    const uint32_t *fb = de_framebuffer();
+    glBindTexture(GL_TEXTURE_2D, g_tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_sw, g_sh, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+
+    // black letterbox bars, then the aspect-fit quad
+    glViewport(0, 0, g_view_w, g_view_h);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    compute_letterbox();
+    glViewport(g_dx, g_dy, g_dw, g_dh);
+
+    glUseProgram(g_prog);
+    // fullscreen quad (pos in NDC, uv 0..1); Y flip happens in the vertex shader
+    const GLfloat verts[] = {
+        //  x     y     u    v
+        -1.f, -1.f,  0.f, 0.f,
+         1.f, -1.f,  1.f, 0.f,
+        -1.f,  1.f,  0.f, 1.f,
+         1.f,  1.f,  1.f, 1.f,
+    };
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_tex);
+    glUniform1i(g_uTex, 0);
+    glEnableVertexAttribArray(g_aPos);
+    glVertexAttribPointer(g_aPos, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), verts);
+    glEnableVertexAttribArray(g_aUV);
+    glVertexAttribPointer(g_aUV, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), verts + 2);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    eglSwapBuffers(g_dpy, g_sfc);
+}
+
+// ---- input: motion -> de_touch_* (mapped through the letterbox to framebuffer px) ----
+static void map_touch(float px, float py, float *fx, float *fy) {
+    float x = (px - g_dx) / (float)g_dw * (float)g_sw;
+    float y = (py - g_dy) / (float)g_dh * (float)g_sh;   // top-down, matches de_touch
+    if (x < 0) x = 0; if (x > g_sw - 1) x = g_sw - 1;
+    if (y < 0) y = 0; if (y > g_sh - 1) y = g_sh - 1;
+    *fx = x; *fy = y;
+}
+
+static int32_t handle_input(struct android_app *app, AInputEvent *ev) {
+    (void)app;
+    if (AInputEvent_getType(ev) != AINPUT_EVENT_TYPE_MOTION) return 0;
+
+    int32_t action = AMotionEvent_getAction(ev);
+    int32_t flag   = action & AMOTION_EVENT_ACTION_MASK;
+    int32_t idx    = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
+                        >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+    float fx, fy;
+
+    switch (flag) {
+        case AMOTION_EVENT_ACTION_DOWN:
+        case AMOTION_EVENT_ACTION_POINTER_DOWN: {
+            int id = AMotionEvent_getPointerId(ev, idx);
+            map_touch(AMotionEvent_getX(ev, idx), AMotionEvent_getY(ev, idx), &fx, &fy);
+            de_touch_begin(id, fx, fy);
+            break;
+        }
+        case AMOTION_EVENT_ACTION_MOVE: {
+            size_t n = AMotionEvent_getPointerCount(ev);
+            for (size_t i = 0; i < n; i++) {
+                int id = AMotionEvent_getPointerId(ev, i);
+                map_touch(AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i), &fx, &fy);
+                de_touch_moved(id, fx, fy);
+            }
+            break;
+        }
+        case AMOTION_EVENT_ACTION_UP:
+        case AMOTION_EVENT_ACTION_POINTER_UP:
+        case AMOTION_EVENT_ACTION_CANCEL: {
+            int id = AMotionEvent_getPointerId(ev, idx);
+            map_touch(AMotionEvent_getX(ev, idx), AMotionEvent_getY(ev, idx), &fx, &fy);
+            de_touch_ended(id, fx, fy);
+            break;
+        }
+        default: return 0;
+    }
+    return 1;
+}
+
+// ---- lifecycle ----
+static void handle_cmd(struct android_app *app, int32_t cmd) {
+    switch (cmd) {
+        case APP_CMD_INIT_WINDOW:
+            if (app->window) {
+                if (egl_init(app)) { g_ready = 1; g_t0 = now_seconds(); }
+            }
+            break;
+        case APP_CMD_TERM_WINDOW:
+            egl_teardown();
+            break;
+        case APP_CMD_WINDOW_RESIZED:
+        case APP_CMD_CONFIG_CHANGED:
+            if (g_dpy != EGL_NO_DISPLAY && g_sfc != EGL_NO_SURFACE) {
+                eglQuerySurface(g_dpy, g_sfc, EGL_WIDTH,  &g_view_w);
+                eglQuerySurface(g_dpy, g_sfc, EGL_HEIGHT, &g_view_h);
+            }
+            break;
+        default: break;
+    }
+}
+
+void android_main(struct android_app *app) {
+    app->onAppCmd     = handle_cmd;
+    app->onInputEvent = handle_input;
+
+    de_init(DE_RENDERER_SOFTWARE);
+    g_sw = de_screen_w();
+    g_sh = de_screen_h();
+    LOGI("engine init: framebuffer %dx%d", g_sw, g_sh);
+
+    audio_start();
+
+    while (!app->destroyRequested) {
+        int events;
+        struct android_poll_source *src;
+        // don't block while we have a window to animate; block (-1) when we don't
+        while (ALooper_pollOnce(g_ready ? 0 : -1, NULL, &events, (void **)&src) >= 0) {
+            if (src) src->process(app, src);
+            if (app->destroyRequested) { audio_stop(); egl_teardown(); return; }
+        }
+        draw_frame();
+    }
+    audio_stop();
+    egl_teardown();
+}

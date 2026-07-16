@@ -23,6 +23,9 @@ void            de_resize(int w, int h);
 int             de_is_resizable(void);
 void            de_set_safe_area(int left, int top, int right, int bottom);
 void            de_set_backing_scale(float k);
+// Persistence root — a writable app-private dir (Android internalDataPath). Call BEFORE de_init()
+// so a cart's init() can load_int(). Unset it defaults to "." (cwd, not writable on Android).
+void            de_set_save_dir(const char *dir);
 void            de_audio_render(float *out, int frames);
 
 void de_touch_begin(int id, float x, float y);

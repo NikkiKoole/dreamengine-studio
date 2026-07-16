@@ -15,6 +15,7 @@
 #include <GLES2/gl2.h>
 #include <aaudio/AAudio.h>
 #include <time.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "engine.h"
@@ -305,6 +306,18 @@ static void handle_cmd(struct android_app *app, int32_t cmd) {
 void android_main(struct android_app *app) {
     app->onAppCmd     = handle_cmd;
     app->onInputEvent = handle_input;
+
+    // Persistence: point saves at this app's private internal dir (survives restart, wiped on
+    // uninstall). MUST precede de_init — the cart's init() may load_int(). internalDataPath can be
+    // NULL very early on some devices; if so we skip it and saves no-op (same as desktop with cwd).
+    if (app->activity && app->activity->internalDataPath) {
+        char sdir[1024];
+        snprintf(sdir, sizeof sdir, "%s/saves", app->activity->internalDataPath);
+        de_set_save_dir(sdir);
+        LOGI("save dir: %s", sdir);
+    } else {
+        LOGE("no internalDataPath — saves disabled this run");
+    }
 
     de_init(DE_RENDERER_SOFTWARE);
     g_sw = de_screen_w();

@@ -82,6 +82,11 @@ void de_set_safe_area(int left, int top, int right, int bottom);
 // Backing scale — points per logical canvas px (iOS pixelChunk, e.g. 2). Feeds finger_px() so a
 // finger control is sized physically, not by a raw-px coincidence. Host reports it; default 2.
 void de_set_backing_scale(float k);
+// Persistence root — the host's writable app-private dir (Android internalDataPath, iOS Documents).
+// save()/save_int()/save_bytes() write under here; call BEFORE de_init() so a cart's init() can
+// load_int(). Twin of the desktop --save-dir flag; unset it defaults to "." (the cwd), where a
+// sandboxed OS can't write, so saves silently no-op.
+void de_set_save_dir(const char *dir);
 
 // ============================================================================
 // (2) AUDIO — pulled by the host's audio backend (CoreAudio on iOS, Raylib's

@@ -1,10 +1,12 @@
 # Android build plan — the spike ladder + the host shell
 
-STATUS: BUILDING (2026-07-16) — spikes 0–3 ✅ **done**: the real engine cross-compiles with the NDK
-and a `NativeActivity` host (in `android/`) renders it **pixel-perfect** on an arm64 emulator, with
+STATUS: BUILDING (2026-07-16) — spikes 0–4 ✅ **done**: the real engine cross-compiles with the NDK
+and a `NativeActivity` host (in `android/`) renders it **pixel-perfect** on an emulator (arm64 + x86_64), with
 AAudio pulling the mixer and touch driving the cart — all frameworkless (`-DDE_NO_RAYLIB`), zero
-engine surgery. `android/build.sh` is the one-command loop (`CART=<name> ./build.sh`). What remains
-is save (4), Gradle-signed packaging → `.aab` (5), Play Billing (6), and the multi-cart app (7).
+engine surgery. `android/build.sh` is the one-command loop (`CART=<name> ./build.sh`). Persistence
+works: the host sets `de_set_save_dir(internalDataPath/saves)` before `de_init`, and `save_int()`
+round-trips across relaunches (verified boot #1→#2→#3, `cart.kv` in the app-private dir). What remains
+is Gradle-signed packaging → `.aab` (5), Play Billing (6), and the multi-cart app (7).
 This doc is the execution companion — the Android twin of [`ios-plan.md`](ios-plan.md). It owns the
 *how-do-we-build-it* ladder; the strategy lives in the shared docs:
 
@@ -146,7 +148,7 @@ a real signed upload.
 | 1 | NativeActivity + GLES2 quad shows `de_framebuffer()` on screen, driven by the native_app_glue loop | render path + loop inversion (Android owns the loop) | emu | ✅ **DONE (2026-07-16)** — omnichord renders **pixel-perfect, upright, letterboxed** on the arm64 emulator (`build/android/out/omnichord-final.png`). Scaffold lives in `android/` (`build.sh` = the one-command loop). Went NativeActivity (pure C, glue bundled in NDK), not GameActivity — see note below. |
 | 2 | AAudio callback pulls `de_audio_render()` — a cart's sound plays | the audio path | emu | ✅ **DONE (2026-07-16)** — AAudio stream (44100/stereo/float, low-latency) pulls `de_audio_render` on its callback thread; logged `AAudio started: 44100 Hz, 2 ch`. (Emulator ran `-no-audio`; wired + opening cleanly — real device confirms loudness later.) |
 | 3 | `MotionEvent` → `de_touch_*` — touch drives the cart | input | emu | ✅ **DONE (2026-07-16)** — an injected `adb input tap` flows through `de_touch_*`; omnichord responded (header → "C m7", the m7 modifier + Cm/C7 lit). Multi-pointer handled via pointer-id iteration. |
-| 4 | `save.c` round-trips a blob to internal storage (host provides the path) | the save layer | emu | — |
+| 4 | `save_int()`/`save()` round-trip to internal storage (host sets the path via `de_set_save_dir`) | the save layer | emu | ✅ **DONE (2026-07-16)** — new `de_set_save_dir(dir)` seam (`platform.h` + both hosts' `engine.h`); `android_main` calls it with `internalDataPath/saves` before `de_init`. Verified on the x86_64 emulator: a probe cart bumped a saved counter across force-stop relaunches (boot #1→#2→#3), `cart.kv` written under `/data/user/0/<pkg>/files/saves`. iOS host wiring still TBD (seam declared for parity). |
 | 5 | `android/build.sh` builds a signed **debug** `.aab`/`.apk`, `adb install`s + launches; screenshot | packaging + the one-command agentic loop | device | — |
 | 6 | Play Billing → the `Store_*` gate: buy a rack → entitlement unlocks (license testing, no real charge) | the IAP model on Play | Play acct | — |
 | 7 | a MULTI-CART app (`apps/<name>/app.json`) → Android app via a `build-app.js --android` staging path | the umbrella app on a phone | device | — |

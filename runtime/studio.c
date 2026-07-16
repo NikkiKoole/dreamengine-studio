@@ -2896,6 +2896,10 @@ void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home
     safe_r = r < 0 ? 0 : r; safe_b = b < 0 ? 0 : b;
 }
 void de_set_backing_scale(float k) { de_backing = (k > 0.1f) ? k : 2.0f; }   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
+// Host points persistence at a writable app dir (Android internalDataPath, iOS Documents). Call
+// BEFORE de_init so the cart's init() can load_int(). Twin of the desktop --save-dir flag; if the
+// host never sets it, save_dir stays "." (the cwd) and saves silently no-op on a sandboxed OS.
+void de_set_save_dir(const char *dir) { if (dir && *dir) save_dir_set(dir); }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

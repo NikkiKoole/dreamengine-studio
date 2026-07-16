@@ -358,10 +358,10 @@ static void navspine(void) {
 // m: 0=303a 1=303b 2=808 3=909. SEND rides the shared delay (same value as MST); VERB
 // = reverb send; the drive is the 303 voice DRV (rides live) or the drum kit DIST.
 static void draw_fxrow(int m) {
-    if (m < 2) knob(&ac[m].p[ACID_DRV], 40, 26, 6, "DRV",  0.35f);   // 303 voice drive
-    else       knob(m == 2 ? &dist8 : &dist9, 40, 26, 6, "DIST", 0.0f);
-    knob(&msend[m],  80, 26, 6, "SEND", m < 2 ? 0.10f : 0.0f);       // → the shared delay
-    knob(&fxverb[m], 120, 26, 6, "VERB", 0.0f);                     // → the reverb
+    if (m < 2) knob(&ac[m].p[ACID_DRV], 40, 22, 6, "DRV",  0.35f);   // 303 voice drive
+    else       knob(m == 2 ? &dist8 : &dist9, 40, 22, 6, "DIST", 0.0f);
+    knob(&msend[m],  80, 22, 6, "SEND", m < 2 ? 0.10f : 0.0f);       // → the shared delay
+    knob(&fxverb[m], 120, 22, 6, "VERB", 0.0f);                     // → the reverb
 }
 
 // ── a 303 face (zones 2–5) ───────────────────────────────────────────────────
@@ -375,12 +375,12 @@ static void draw_303(int i) {
     if (fxview[i]) {
         draw_fxrow(i);
     } else if (!kpage[i]) {                                                // page 0 — vanilla
-        knob(&a->p[ACID_CUT], 20, 26, 6, "CUT", 0.55f); knob(&a->p[ACID_RES], 48, 26, 6, "RES", 0.70f);
-        knob(&a->p[ACID_ENV], 76, 26, 6, "ENV", 0.55f); knob(&a->p[ACID_DEC], 104, 26, 6, "DEC", 0.45f);
-        knob(&a->p[ACID_ACC], 132, 26, 6, "ACC", 0.55f);
+        knob(&a->p[ACID_CUT], 20, 22, 6, "CUT", 0.55f); knob(&a->p[ACID_RES], 48, 22, 6, "RES", 0.70f);
+        knob(&a->p[ACID_ENV], 76, 22, 6, "ENV", 0.55f); knob(&a->p[ACID_DEC], 104, 22, 6, "DEC", 0.45f);
+        knob(&a->p[ACID_ACC], 132, 22, 6, "ACC", 0.55f);
     } else {                                                              // page 1 — DEEP: the headline Devil Fish knobs
-        knob(&a->p[ACID_SUB],  20, 26, 6, "SUB",  0.0f);  knob(&a->p[ACID_ADEC], 48, 26, 6, "ADEC", 0.40f);
-        knob(&a->p[ACID_SLDT], 76, 26, 6, "SLDT", 0.14f); knob(&a->p[ACID_TRK], 104, 26, 6, "TRK",  0.0f);
+        knob(&a->p[ACID_SUB],  20, 22, 6, "SUB",  0.0f);  knob(&a->p[ACID_ADEC], 48, 22, 6, "ADEC", 0.40f);
+        knob(&a->p[ACID_SLDT], 76, 22, 6, "SLDT", 0.14f); knob(&a->p[ACID_TRK], 104, 22, 6, "TRK",  0.0f);
     }
 
     // ③ display — soft-keys pick what the screen does: SEQ = the roll (+ NEW),
@@ -530,9 +530,9 @@ static void draw_808(void) {
         draw_fxrow(2);                                     // DIST · SEND · VERB (aligned with the 303s)
     } else {
         font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR808_NAME[dsel], 6, 24, CLR_TRUE_BLUE);
-        knob(&dtune[dsel],  52, 27, 6, "TUNE", 0.5f);
-        knob(&ddecay[dsel], 88, 27, 6, "DEC",  0.5f);
-        knob(&dcolor[dsel], 124, 27, 6, "COL", 0.5f);
+        knob(&dtune[dsel],  52, 23, 6, "TUNE", 0.5f);
+        knob(&ddecay[dsel], 88, 23, 6, "DEC",  0.5f);
+        knob(&dcolor[dsel], 124, 23, 6, "COL", 0.5f);
     }
 
     // ③ screen — whole-kit overview (readout) + playhead + NEW, soft-keys flank
@@ -595,9 +595,9 @@ static void draw_909(void) {
         draw_fxrow(3);                                     // DIST · SEND · VERB (aligned with the 303s)
     } else {
         font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR909_NAME[d9sel], 6, 24, CLR_ORANGE);
-        knob(&d9tune[d9sel],  52, 27, 6, "TUNE", 0.5f);
-        knob(&d9decay[d9sel], 88, 27, 6, "DEC",  0.5f);
-        knob(&d9color[d9sel], 124, 27, 6, "COL", 0.5f);
+        knob(&d9tune[d9sel],  52, 23, 6, "TUNE", 0.5f);
+        knob(&d9decay[d9sel], 88, 23, 6, "DEC",  0.5f);
+        knob(&d9color[d9sel], 124, 23, 6, "COL", 0.5f);
     }
 
     // ③ screen — kit overview + playhead + NEW, amber 909 badge
@@ -665,11 +665,11 @@ static void draw_mst(void) {
     static const char *DL[4]   = { "1/16", "1/8", "DOT", "1/4" };
 
     // ② master live knobs
-    knob(&mglu,  20, 27, 6, "GLU",  0.30f);
-    knob(&mflt,  48, 27, 6, "FLT",  0.50f);
-    knob(&mfres, 76, 27, 6, "RES",  0.35f);
-    knob(&mfb,  104, 27, 6, "FB",   0.35f);
-    knob(&mpump, 132, 27, 6, "PUMP", 0.0f);
+    knob(&mglu,  20, 23, 6, "GLU",  0.30f);
+    knob(&mflt,  48, 23, 6, "FLT",  0.50f);
+    knob(&mfres, 76, 23, 6, "RES",  0.35f);
+    knob(&mfb,  104, 23, 6, "FB",   0.35f);
+    knob(&mpump, 132, 23, 6, "PUMP", 0.0f);
 
     // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
     if (cbtn(0x20u, 6, 38, 16, 8, "MIX", !mstflow)) mstflow = 0;

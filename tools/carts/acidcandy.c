@@ -332,9 +332,9 @@ static void cartridge(int m) {
 }
 
 static void navspine(void) {
-    int nc = mac[face].col;                   // the top of the panel takes the FOCUSED voice's colour — an at-a-glance cue
-    rrectfill(3, 2, 154, 10, 5, nc);          // …matching the panel's own rounded top corners (same x/w/radius)…
-    rectfill(3, 7, 154, 5, nc);               // …with a straight (flat) bottom edge
+    int nc = mac[face].lo;                     // the top of the panel takes the FOCUSED voice's DARKER (nav-body) colour — an at-a-glance cue
+    rrectfill(3, 2, 154, 10, 5, nc);           // …matching the panel's own rounded top corners (same x/w/radius)…
+    rectfill(3, 7, 153, 5, nc);                // …with a flat bottom (153 not 154 → its right edge matches the rrectfill above; rrectfill renders 1px narrower)
     // transport (shared)
     int px = 5, py = 0, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);

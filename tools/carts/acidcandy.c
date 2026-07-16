@@ -530,9 +530,9 @@ static void draw_808(void) {
         draw_fxrow(2);                                     // DIST · SEND · VERB (aligned with the 303s)
     } else {
         font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR808_NAME[dsel], 6, 24, CLR_TRUE_BLUE);
-        knob(&dtune[dsel],  52, 23, 6, "TUNE", 0.5f);
-        knob(&ddecay[dsel], 88, 23, 6, "DEC",  0.5f);
-        knob(&dcolor[dsel], 124, 23, 6, "COL", 0.5f);
+        knob(&dtune[dsel],  52, 22, 6, "TUNE", 0.5f);
+        knob(&ddecay[dsel], 88, 22, 6, "DEC",  0.5f);
+        knob(&dcolor[dsel], 124, 22, 6, "COL", 0.5f);
     }
 
     // ③ screen — whole-kit overview (readout) + playhead + NEW, soft-keys flank
@@ -595,9 +595,9 @@ static void draw_909(void) {
         draw_fxrow(3);                                     // DIST · SEND · VERB (aligned with the 303s)
     } else {
         font(FONT_TINY); print("VOICE", 6, 18, CLR_DARK_BROWN); print(TR909_NAME[d9sel], 6, 24, CLR_ORANGE);
-        knob(&d9tune[d9sel],  52, 23, 6, "TUNE", 0.5f);
-        knob(&d9decay[d9sel], 88, 23, 6, "DEC",  0.5f);
-        knob(&d9color[d9sel], 124, 23, 6, "COL", 0.5f);
+        knob(&d9tune[d9sel],  52, 22, 6, "TUNE", 0.5f);
+        knob(&d9decay[d9sel], 88, 22, 6, "DEC",  0.5f);
+        knob(&d9color[d9sel], 124, 22, 6, "COL", 0.5f);
     }
 
     // ③ screen — kit overview + playhead + NEW, amber 909 badge
@@ -665,11 +665,11 @@ static void draw_mst(void) {
     static const char *DL[4]   = { "1/16", "1/8", "DOT", "1/4" };
 
     // ② master live knobs
-    knob(&mglu,  20, 23, 6, "GLU",  0.30f);
-    knob(&mflt,  48, 23, 6, "FLT",  0.50f);
-    knob(&mfres, 76, 23, 6, "RES",  0.35f);
-    knob(&mfb,  104, 23, 6, "FB",   0.35f);
-    knob(&mpump, 132, 23, 6, "PUMP", 0.0f);
+    knob(&mglu,  20, 22, 6, "GLU",  0.30f);
+    knob(&mflt,  48, 22, 6, "FLT",  0.50f);
+    knob(&mfres, 76, 22, 6, "RES",  0.35f);
+    knob(&mfb,  104, 22, 6, "FB",   0.35f);
+    knob(&mpump, 132, 22, 6, "PUMP", 0.0f);
 
     // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
     if (cbtn(0x20u, 6, 38, 16, 8, "MIX", !mstflow)) mstflow = 0;

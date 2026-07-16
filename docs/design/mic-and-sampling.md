@@ -219,3 +219,43 @@ iOS builds feel alive) → **the 12-bit `crush()` preset** (free character, no s
 **Tier 3** (the pure fantasy-console sampler) → only then the Tier 4 / SP-404 conversation.
 Nothing here is scheduled; this doc exists so the thinking isn't lost and so the sampler
 doctrine has a written "unless it looks like *this*" clause.
+
+## Demand check + the live-throughput dimension (2026-07-16)
+
+The [`reddit-gaps`](demand-discovery.md) drip keeps surfacing audio-input demand across every
+music tribe it rotates through (r/synthesizers, r/ipadmusic, r/edmproduction, r/modular,
+r/musicproduction). It's the one recurring cluster of on-grain wishes that the current shelf
+**structurally cannot** answer — every music-cart run comes back "no gap, well-served," and the
+genuinely-blocked wishes almost all trace back to "the engine has no ear." Two example shapes seen
+repeatedly: *"convert humming into MIDI"* (r/musicproduction, twice) and the whole live-guitar-fx
+cluster (*"live loop guitar", "live granular fx", "app like the Hologram Microcosm", polyphonic
+live pitch-shift*). So the case for the seam isn't a hunch — it's the standing demand signal.
+
+But "audio input unblocks a lot" splits into **two problems that are not the same**, and this doc so
+far only frames one of them:
+
+1. **Capture-then-freeze** (everything above — Tiers 1–4). The mic is an *acquisition device*; the
+   captured audio is frozen into a cart-owned artifact and replay stays deterministic. Hum-to-MIDI is
+   basically Tier 1 (`mic_pitch()` → notes); harvest-a-timbre is Tier 2. **This half is already
+   designed** — it just isn't scheduled.
+
+2. **Live throughput — the PEDAL / stompbox** (the most-demanded shape, *not* covered above). Play a
+   signal *through* a self-contained effect and hear the result **now**: a fuzz, a granular cloud, a
+   looper you overdub into. This is the opposite of capture-then-freeze — a live pedal *is* the live
+   runtime dependency the doctrine forbids, so it can't be frozen into an artifact. It forces a
+   **doctrine call**: either the harness records the live input as an input track (the Tier-1 "live by
+   nature" exception, generalized) and accepts PCM in the `.rec`, or pedal carts are declared
+   *live-only, no deterministic replay* — a real carve-out from the `.rec`/`spec()` guarantee.
+
+**The cost, either way.** Audio input is a substantial multi-platform lift, not an API afternoon:
+each backend needs its own mic plumbing + permission flow — Raylib (mac), WASM (`getUserMedia`), iOS
+(mic-permission prompt), and the `DE_NO_RAYLIB` software engine. And the pedal use-case lives or dies
+on **round-trip latency** — a laggy pedal is unusable, so problem #2 is a real-time-audio engineering
+commitment, well above problem #1's tracker/analyzer work.
+
+**Net:** the demand data makes audio input the most compelling *engine* frontier the discovery tool
+has pointed at — but it opens **one on-grain slice at real cost**, not "a lot for free." The
+sampling/analysis slice (Tiers 1–2) is the cheap, on-doctrine, already-designed entry; the pedal
+slice is genuinely new work gated behind a determinism decision *and* a latency bar. What it does
+**not** unblock is the biggest *raw* demand numbers (DAW / MIDI-routing / notation) — those stay
+off-grain with or without a mic.

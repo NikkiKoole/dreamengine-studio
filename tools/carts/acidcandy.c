@@ -121,6 +121,7 @@ static float msend[4] = { 0.10f, 0.10f, 0.0f, 0.0f };      // per-machine delay 
 static float fxverb[4] = { 0, 0, 0, 0 };                   // per-machine reverb send: 303a/b → warm hall (tank 0), 808 → tank 2, 909 → tank 1
 static float dist8 = 0, dist9 = 0;                          // per-machine drum drive — ADDS on top of the kit's baked kick drive
 static int   fxview[4];                                     // per-machine FX panel open? (index 0=303a 1=303b 2=808 3=909)
+static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB fader (1 = unity/stock); 4 = MST (master wire TODO)
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = the PCF lane
 
@@ -177,6 +178,13 @@ static void apply_fx(void) {
     static float aD8 = -1, aD9 = -1;
     if (dist8 != aD8) { for (int i = 0; i < TR808_NSLOT; i++) { float b = (i == TRS_BD) ? 0.28f : 0.0f; instrument_drive(TR808_BASE + i, b + dist8 * (0.85f - b)); } aD8 = dist8; }
     if (dist9 != aD9) { for (int i = 0; i < TR909_NSLOT; i++) { float b = (i == TR9S_BD) ? 0.35f : 0.0f; instrument_drive(D909_BASE + i, b + dist9 * (0.85f - b)); } aD9 = dist9; }
+    // per-machine LEVEL — the tab fader (instrument_level, 1 = unity/stock). 303 = its
+    // voice slot + octave-down sub; drums = every kit slot. MST (level[4]) waits on a master vol.
+    static float aLv[4] = { -1, -1, -1, -1 };
+    if (level[0] != aLv[0]) { instrument_level(6, level[0]); instrument_level(36, level[0]); aLv[0] = level[0]; }
+    if (level[1] != aLv[1]) { instrument_level(7, level[1]); instrument_level(37, level[1]); aLv[1] = level[1]; }
+    if (level[2] != aLv[2]) { for (int i = 0; i < TR808_NSLOT; i++) instrument_level(TR808_BASE + i, level[2]); aLv[2] = level[2]; }
+    if (level[3] != aLv[3]) { for (int i = 0; i < TR909_NSLOT; i++) instrument_level(D909_BASE + i, level[3]); aLv[3] = level[3]; }
 }
 
 static void gen_line(int i) {
@@ -225,6 +233,8 @@ static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_w
 // short window after any drag was held. (acidrack's fix, ported.)
 #define TAP_SETTLE 12   // ~200ms; the observed bounce lagged the release by 8 frames
 static int g_drag_frame = -100;             // last frame a drag widget was captured (ui_frame_ct clock)
+static int g_drag_y = 100;                   // ...and WHERE it was (canvas y) — a drag released below the
+                                             // tab row (y>=14) can't bounce onto a tab, so it needn't block one
 static int tap_settled(void) { return ui_frame_ct - g_drag_frame >= TAP_SETTLE; }
 
 // per-knob interaction memory (for double-tap-to-reset), keyed by the value pointer
@@ -242,7 +252,7 @@ static int kmeta_i(void *v) {
 static void knob(float *v, int cx, int cy, int r, const char *label, float def) {
     ui_reg(v, cx - r, cy - r, 2 * r + 1, 2 * r + 1, 0);
     UiCap *c = ui_cap_for(v);
-    if (c) g_drag_frame = ui_frame_ct;                     // a knob is being dragged → arm the tap-settle
+    if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; }   // a knob is being dragged → arm the tap-settle
     int mi = kmeta_i(v), fine = 0, held = c != 0;
     if (ui_grabbed(v)) { kmeta[mi].gval = *v; kmeta[mi].gt = now(); }
     if (c) {
@@ -299,25 +309,50 @@ static void chip(int x, int y, const char *s, int sel2) {
 // each cartridge is a COMPOUND control: left body taps to FOCUS the face, the
 // right LED taps to MUTE the machine (from any face). Two non-overlapping
 // sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
+static float lvg[M_N], lvgt[M_N];      // slider grab value + time (tap-vs-drag: a tap = mute)
+static int   lvmv[M_N] = { -100, -100, -100, -100, -100 };   // frame of the last drag/toggle — a bounce right after it is ignored
 static void cartridge(int m) {
-    int x = 19 + m * 25, y = 3, foc = (m == face), live = !mac[m].mute;  // pitch 25; y3 = same row as play/home
-    int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
-    void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);
-    void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);
-    int af = ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf);
-    int am = ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm);
-    if (af && tap_settled()) face = m;                                // ignore a drag-release bounce
-    if (am && tap_settled()) mac[m].mute = !mac[m].mute;
-
+    int x = 19 + m * 25, y = 3, foc = (m == face), live = !mac[m].mute;  // pitch 25; y3 = a small top safe margin off the device edge
+    // --- the TAB: tap = focus. Drag-free, so it never fights the iOS top-edge pull. ---
+    int prf = 0, hotf = 0, fof = 0;
+    void *wf = ui_wid_hash(0x70u + m, x, y, 24, 10);
+    int af = ui_button_core(wf, x, y, 24, 10, &fof, &prf, &hotf);
+    if (af && (g_drag_y >= 14 || tap_settled())) face = m;           // only a drag ending IN the tab row can bounce a tab
     rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
-    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
+    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 21, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
     rrect(x, y, 24, 10, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_TINY);
-    print(mac[m].name, x + (16 - text_width(mac[m].name)) / 2, y + 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
-    int lx = x + 20, ly = y + 5;                                      // mute LED
-    circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
-    circ(lx, ly, 2, CLR_BROWNISH_BLACK);
-    if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);         // muted = red slash
+    print(mac[m].name, x + (24 - text_width(mac[m].name)) / 2, y + 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+
+    // --- BELOW the tab: a little HORIZONTAL level slider that doubles as the mute
+    //     (acidwire's tap-vs-drag, turned sideways). TAP = mute · HORIZONTAL DRAG =
+    //     level. Down here the drag never triggers the phone's top-edge gesture, and
+    //     mute gets its own target instead of a sliver crammed beside the name. ---
+    int sx = x, sy = 14, sw = 24, sh = 6;   // cluster sits 3px down with the tabs, filling the old gap above the knobs
+    ui_reg(&level[m], sx, sy, sw, sh, 0);
+    UiCap *c = ui_cap_for(&level[m]);
+    int held = c != 0;
+    if (c) {
+        g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
+        if (!c->has_v0) { c->has_v0 = 1; c->v0 = level[m]; c->by = c->cx; }   // by = the x-anchor (horizontal)
+        int px = c->released ? c->rx : c->cx;
+        level[m] = clamp(c->v0 + (px - c->by) / 40.0f, 0, 1);        // relative → unlimited travel
+        c->v0 = level[m]; c->by = px;
+    }
+    if (ui_grabbed(&level[m])) { lvg[m] = level[m]; lvgt[m] = now(); }
+    if (ui_released(&level[m])) {
+        float dv = level[m] - lvg[m]; if (dv < 0) dv = -dv;
+        if (dv >= 0.03f) lvmv[m] = ui_frame_ct;                      // that was a level DRAG (a bounce may follow)
+        else if (now() - lvgt[m] < 0.3f && ui_frame_ct - lvmv[m] >= TAP_SETTLE) {   // a real, quick TAP = mute
+            level[m] = lvg[m]; mac[m].mute = !mac[m].mute; lvmv[m] = ui_frame_ct;   // (and block ITS bounce too)
+        }
+    }
+    // draw the slider: a left-to-right fill = level; red-tinted when muted
+    rrectfill(sx, sy, sw, sh, 1, CLR_BROWNISH_BLACK);
+    int fw = (int)(level[m] * (sw - 2) + 0.5f);
+    if (fw > 0) rrectfill(sx + 1, sy + 1, fw, sh - 2, 1, live ? mac[m].col : CLR_DARK_GREY);
+    if (!live) { blend(BLEND_AVG); rrectfill(sx + 1, sy + 1, sw - 2, sh - 2, 1, CLR_RED); blend_reset(); }   // muted tint
+    rrect(sx, sy, sw, sh, 1, !live ? CLR_RED : (held ? CLR_WHITE : CLR_BROWNISH_BLACK));
 }
 
 static void navspine(void) {
@@ -414,13 +449,13 @@ static void draw_303(int i) {
     if (use_bars) {
         // ④⑤ the 16 NOTE BARS — tap = note on/off · drag up/down = pitch (scale-snapped).
         // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
-        int by = 63, bh = 30;
+        int by = 67, bh = 30;
         for (int s = 0; s < STEPS; s++) {
             int bx = 6 + s * 9, bw = 8, dead = (s >= plen[i]);
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
             ui_reg(w, bx, by, bw, bh, 0);
             UiCap *c = ui_cap_for(w);
-            if (c) g_drag_frame = ui_frame_ct;
+            if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; }
             if (flagmode) {                              // FLAG mode: tap or DRAG paints the armed flag
                 if (c) {                                 // the captured bar tracks the finger across the row
                     if (ui_grabbed(w)) paint_val = (armed == FL_LEN) ? 0 : !flag_get(i, s, armed);
@@ -559,18 +594,18 @@ static void draw_808(void) {
         int x = 6 + s * 9, on2 = dgrid[dsel][s], here = (s == step && playing);
         int fc = on2 ? QCLR[s / 4] : CLR_DARKER_PURPLE;
         if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
-        void *ws = ui_wid_hash(0xA0u + s, x, 76, 8, 16);
-        ui_reg(ws, x, 76, 8, 16, 0);
+        void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
+        ui_reg(ws, x, 81, 8, 16, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
-            g_drag_frame = ui_frame_ct;
+            g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
             if (ui_grabbed(ws)) { paint_val = !dgrid[dsel][s]; if (paint_val) { tr808_fire(TR808_BASE, dsel, 1, 0, dtune, ddecay, dcolor); dtrig[dsel] = 1; mbop = 1; } }
             int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
             dgrid[dsel][cell] = paint_val;
         }
-        rrectfill(x, 76, 8, 16, 1, fc);
-        rrect(x, 76, 8, 16, 1, CLR_BROWNISH_BLACK);
+        rrectfill(x, 81, 8, 16, 1, fc);
+        rrect(x, 81, 8, 16, 1, CLR_BROWNISH_BLACK);
     }
 }
 
@@ -624,18 +659,18 @@ static void draw_909(void) {
         int x = 6 + s * 9, on2 = d9grid[d9sel][s], here = (s == step && playing);
         int fc = on2 ? (s % 4 == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE) : CLR_DARKER_PURPLE;
         if (here) fc = on2 ? CLR_WHITE : CLR_DARKER_GREY;
-        void *ws = ui_wid_hash(0xA0u + s, x, 76, 8, 16);
-        ui_reg(ws, x, 76, 8, 16, 0);
+        void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
+        ui_reg(ws, x, 81, 8, 16, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
-            g_drag_frame = ui_frame_ct;
+            g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
             if (ui_grabbed(ws)) { paint_val = !d9grid[d9sel][s]; if (paint_val) { tr909_fire(D909_BASE, d9sel, 1, 0, d9tune, d9decay, d9color); d9trig[d9sel] = 1; mbop = 1; } }
             int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
             d9grid[d9sel][cell] = paint_val;
         }
-        rrectfill(x, 76, 8, 16, 1, fc);
-        rrect(x, 76, 8, 16, 1, CLR_BROWNISH_BLACK);
+        rrectfill(x, 81, 8, 16, 1, fc);
+        rrect(x, 81, 8, 16, 1, CLR_BROWNISH_BLACK);
     }
 }
 
@@ -685,7 +720,7 @@ static void draw_mst(void) {
             ui_reg(w, cx, ly, lw, lh, 0);
             UiCap *c = ui_cap_for(w);
             if (c) {                                         // the captured cell tracks the finger → draw the curve
-                g_drag_frame = ui_frame_ct;
+                g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
                 int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
                 int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
                 mpcf[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);

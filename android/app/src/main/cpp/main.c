@@ -46,6 +46,16 @@ static double g_t0 = 0.0;
 
 // ---- audio ----
 static AAudioStream *g_audio = NULL;
+static volatile int  g_audio_reopen = 0;   // set by the error callback when the route changes
+
+// Called on a SEPARATE (non-audio) thread when the stream is DISCONNECTED — a real route
+// change (headphones in/out, device switch), NOT rotation. AAudio requires you reopen from
+// another thread, so just flag it; the main loop does the reopen. This is the correct place
+// to recover audio — decoupled from the window/orientation lifecycle.
+static void audio_error_cb(AAudioStream *s, void *ud, aaudio_result_t err) {
+    (void)s; (void)ud;
+    if (err == AAUDIO_ERROR_DISCONNECTED) g_audio_reopen = 1;
+}
 
 static aaudio_data_callback_result_t audio_cb(
         AAudioStream *s, void *ud, void *audioData, int32_t numFrames) {
@@ -61,12 +71,21 @@ static void audio_start(void) {
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
     AAudioStreamBuilder_setChannelCount(b, 2);
     AAudioStreamBuilder_setSampleRate(b, 44100);
-    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+    // NOTE: LOW_LATENCY (MMAP/exclusive fast path) is SILENT on the macOS emulator's audio
+    // HAL — the callback still fires but samples never reach the host speakers. PERFORMANCE_MODE_NONE
+    // forces the legacy AudioFlinger mixer path, which routes correctly on the emulator AND real
+    // devices. Revisit low-latency once we're testing on hardware.
+    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_NONE);
     AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
     AAudioStreamBuilder_setDataCallback(b, audio_cb, NULL);
+    AAudioStreamBuilder_setErrorCallback(b, audio_error_cb, NULL);
     aaudio_result_t r = AAudioStreamBuilder_openStream(b, &g_audio);
     AAudioStreamBuilder_delete(b);
     if (r != AAUDIO_OK || !g_audio) { LOGE("AAudio open failed: %d", r); g_audio = NULL; return; }
+    // Grow the buffer to several bursts so a jittery scheduler (esp. the emulator, and a
+    // busy render frame) doesn't under-run -> crackle. Latency cost is small; tune on device.
+    int32_t burst = AAudioStream_getFramesPerBurst(g_audio);
+    if (burst > 0) AAudioStream_setBufferSizeInFrames(g_audio, burst * 4);
     AAudioStream_requestStart(g_audio);
     LOGI("AAudio started: %d Hz, %d ch",
          AAudioStream_getSampleRate(g_audio), AAudioStream_getChannelCount(g_audio));
@@ -138,6 +157,7 @@ static int egl_init(struct android_app *app) {
     const EGLint ctx_attr[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
     g_ctx = eglCreateContext(g_dpy, cfg, EGL_NO_CONTEXT, ctx_attr);
     if (!eglMakeCurrent(g_dpy, g_sfc, g_sfc, g_ctx)) { LOGE("eglMakeCurrent failed"); return 0; }
+    eglSwapInterval(g_dpy, 1);   // vsync — throttle the render loop instead of busy-spinning the CPU
 
     eglQuerySurface(g_dpy, g_sfc, EGL_WIDTH,  &g_view_w);
     eglQuerySurface(g_dpy, g_sfc, EGL_HEIGHT, &g_view_h);
@@ -255,10 +275,13 @@ static int32_t handle_input(struct android_app *app, AInputEvent *ev) {
 // ---- lifecycle ----
 static void handle_cmd(struct android_app *app, int32_t cmd) {
     switch (cmd) {
+        // The RENDER SURFACE (EGL) follows the window/orientation lifecycle. Audio does NOT —
+        // it starts once (android_main) and plays straight through rotation, recovered only via
+        // audio_error_cb on a GENUINE route change (headphones, device switch). Do not reopen on
+        // rotation: on a real device it's unnecessary, and the churn breaks the emulator's fragile
+        // audio route. The emulator's rotation-silence is a known emulator limitation, not ours.
         case APP_CMD_INIT_WINDOW:
-            if (app->window) {
-                if (egl_init(app)) { g_ready = 1; g_t0 = now_seconds(); }
-            }
+            if (app->window && egl_init(app)) { g_ready = 1; g_t0 = now_seconds(); }
             break;
         case APP_CMD_TERM_WINDOW:
             egl_teardown();
@@ -283,7 +306,7 @@ void android_main(struct android_app *app) {
     g_sh = de_screen_h();
     LOGI("engine init: framebuffer %dx%d", g_sw, g_sh);
 
-    audio_start();
+    audio_start();               // once — independent of the window; survives rotation
 
     while (!app->destroyRequested) {
         int events;
@@ -292,6 +315,11 @@ void android_main(struct android_app *app) {
         while (ALooper_pollOnce(g_ready ? 0 : -1, NULL, &events, (void **)&src) >= 0) {
             if (src) src->process(app, src);
             if (app->destroyRequested) { audio_stop(); egl_teardown(); return; }
+        }
+        if (g_audio_reopen) {    // a real route change disconnected the stream — reopen it
+            g_audio_reopen = 0;
+            audio_stop();
+            audio_start();
         }
         draw_frame();
     }

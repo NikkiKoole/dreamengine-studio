@@ -157,9 +157,23 @@ loop, extended to Android.
   `app/src/main/cpp/gen/` (gitignored); CMake reads `DE_GEN`, never `build/`.
 - **`SCALE=1` on the device build** so touches map 1:1 to framebuffer px (iOS learned this in Phase 2);
   the chunky-pixel look comes from a `pixelChunk`-style logical-px divisor in the host, not from SCALE.
-- **AAudio buffer sizing / underruns** — request a small burst-aligned buffer and handle
-  `AAudioStream_requestStart` restarts on device disconnect; verify against the iOS peak-level
-  numbers so parity is measurable.
+- **AAudio buffer sizing / underruns** — set the buffer to ~4× the burst (`AAudioStream_setFramesPerBurst`
+  × 4) so scheduler jitter doesn't crackle; recover a genuinely disconnected stream via the
+  **error callback** (`setErrorCallback` → flag → reopen on the main thread), NOT by polling.
+- **Audio is DECOUPLED from the window/orientation lifecycle (hit hard 2026-07-16).** Start the
+  AAudio stream ONCE (in `android_main`) and leave it running through rotation. Do NOT stop/restart
+  it on `TERM_WINDOW`/`INIT_WINDOW`/`CONFIG_CHANGED` — only the EGL render surface follows the window.
+  Reopening audio on rotation churns the stream (we saw 4 stop/starts in 4s, incl. one from the
+  activity self-recreating at startup) and **breaks the emulator's fragile audio route**. On a real
+  device audio survives rotation natively; the only legitimate reopen trigger is a real disconnect.
+- **The Apple-Silicon emulator's audio-to-host output is UNRELIABLE — don't debug audio on it.** Same
+  clean build played sound on one cold boot and was silent on several others, while the engine
+  generated identical samples every time (measured 0.3–0.8 peak via a temporary RMS probe in the audio
+  callback). It's a known-flaky emulator subsystem, not the port. Also: capturing the host output to
+  verify objectively (via a BlackHole loopback + ffmpeg) is walled off by macOS Microphone TCC
+  permission (the terminal/`claude` process lacks it, and granting needs an app restart). **Reliable
+  audio validation = a physical device** (or the desktop `build-nr.sh` WAV render, which shares the
+  same `de_audio_render` mixer). Render + touch, by contrast, are solid on the emulator.
 - **Play's `.aab` + signing:** Play requires an App Bundle and **Play App Signing** (Google holds
   the app key; you upload with an upload key). The push tool must target the **Google Play Developer
   Publishing API** (the `asc-push.js` twin) — release tracks (internal → closed → production),

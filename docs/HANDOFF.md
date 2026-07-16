@@ -59,6 +59,25 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > Hot files: `android/app/src/main/cpp/main.c` (the NativeActivity shell), `android/build.sh`,
 > `docs/design/android-plan.md`.
 
+> **▶ ACTIVE THREAD (2026-07-16) — the audio-input frontier (can the engine HEAR?).**
+> The reddit-gaps drip kept surfacing the SAME blocked on-grain wishes across every music tribe
+> (hum→MIDI, pedals, live looping, "isolate the acapella") — they all resolve to one missing
+> capability: the engine has no ear. SHIPPED this session: a **standalone Tier-1 spike**
+> (`tools/mic-spike/`, `zsh tools/mic-spike/run.sh`) using **miniaudio** (the lib raylib already
+> links — the cross-platform path: mac CoreAudio now, WASM `getUserMedia` / iOS AVAudioSession later).
+> Pipeline PROVEN on this Mac: capture device enumerates, callback delivers frames steadily, computing
+> a live `mic_level()` VU + a `mic_pitch()` zero-crossing estimate. Surfaced the **macOS TCC gotcha** —
+> a process without Microphone permission sees ONLY virtual devices (BlackHole); physical mics are
+> hidden from enumeration. So the last mile needs a **permission-granted run from the owner's own shell**
+> (`! zsh tools/mic-spike/run.sh` → Allow → hum) to confirm live signal.
+> Also filed the STEM-SEPARATION verdict (hard NO — neural, ~500MB, off-grain).
+> **Resume-at: [`design/mic-and-sampling.md` → the four Tier ladder](design/mic-and-sampling.md#the-spectrum--four-tiers-cheapest-and-most-on-doctrine-first)** —
+> NEXT = the owner's permission-granted spike run, then Tier 1 as the real engine seam (a small
+> `mic_level()`/`mic_pitch()` surface in `sound.h`/`studio.h` behind a permission prompt, driving
+> existing voices: hum→`heldnotes` theremin, beatbox→`tr808`). Keep it capture-then-freeze for anything
+> that STORES; the live-throughput/pedal case stays PARKED (forces a `.rec` determinism call + a latency bar).
+> Hot files (when it goes into the engine): `runtime/sound.h`, `runtime/studio.c`, `runtime/studio.h`.
+
 > **▶ ACTIVE THREAD (2026-07-15) — the candy acid RACK (`acidcandy`).**
 > `acidcandy` (160×100 ×4) packages `acidrack`'s guts as the **device-face paradigm** instead of the
 > accordion: a colour-**cartridge** nav strip of five FOCUSABLE machines on ONE transport — **2×303**

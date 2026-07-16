@@ -9,6 +9,14 @@ captured audio derives from the deterministic event stream. And navkit already h
 built (`soundsystem/engines/sampler.h` + the DAW demo's rolling-capture buffer), so this is a *port*,
 not a design-from-scratch.
 
+> **UPDATE (2026-07-16) — the MIC side (not the internal-synthesis sampler) is now warming up.** The
+> reddit-gaps drip keeps surfacing the same blocked on-grain wishes (hum→MIDI, pedals, live looping)
+> that all need real audio input. A standalone **Tier-1 spike** landed to prove the engine can hear
+> before touching the hot files — [`tools/mic-spike/`](../../tools/mic-spike/) (miniaudio capture →
+> `mic_level()`/`mic_pitch()`; pipeline proven on Mac, awaiting a permission-granted run). See
+> §"Demand check + the live-throughput dimension" + the stem-separation verdict below. **Tier 1 is
+> the recommended engine entry point.**
+
 **Shipped (2026-07-13) — engine piece 1 + `INSTR_SAMPLE` + a movable chop:**
 - `record_arm()` — an always-on rolling capture ring of the master mix (8s, `rec_arm`-gated so it's
   byte-identical / zero-cost until a cart records — existing carts + `--det` untouched).

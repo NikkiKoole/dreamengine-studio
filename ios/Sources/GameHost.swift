@@ -1,4 +1,3 @@
-import SwiftUI
 import UIKit
 
 // A real UIViewController hosting the engine's CanvasView. Three things UIKit only exposes at the
@@ -51,9 +50,4 @@ final class GameViewController: UIViewController {
             view.window?.windowScene?.requestGeometryUpdate(.iOS(interfaceOrientations: AppDelegate.orientationLock))
         }
     }
-}
-
-struct GameHost: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> GameViewController { GameViewController() }
-    func updateUIViewController(_ vc: GameViewController, context: Context) {}
 }

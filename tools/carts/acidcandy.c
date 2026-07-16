@@ -234,7 +234,7 @@ static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_w
 #define TAP_SETTLE 12   // ~200ms; the observed bounce lagged the release by 8 frames
 static int g_drag_frame = -100;             // last frame a drag widget was captured (ui_frame_ct clock)
 static int g_drag_y = 100;                   // ...and WHERE it was (canvas y) — a drag released below the
-                                             // tab row (y>=14) can't bounce onto a tab, so it needn't block one
+                                             // tab row (y>=11) can't bounce onto a tab, so it needn't block one
 static int tap_settled(void) { return ui_frame_ct - g_drag_frame >= TAP_SETTLE; }
 
 // per-knob interaction memory (for double-tap-to-reset), keyed by the value pointer
@@ -311,14 +311,14 @@ static void chip(int x, int y, const char *s, int sel2) {
 // sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
 // (Per-machine LEVEL lives on the MST mixer, not here — keeps the tabs compact.)
 static void cartridge(int m) {
-    int x = 19 + m * 25, y = 3, foc = (m == face), live = !mac[m].mute;  // y3 = a small top safe margin off the device edge
+    int x = 19 + m * 25, y = 0, foc = (m == face), live = !mac[m].mute;  // y0 = tabs poke out the panel top (iOS edge gestures are deferred at the VC now)
     int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
     void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);              // FOCUS = the name body
     void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);          // MUTE = the LED pad (its hit-pad falls into the free space below the tabs)
     int af = ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf);
     int am = ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm);
-    if (af && (g_drag_y >= 14 || tap_settled())) face = m;                 // ignore a drag-release bounce
-    if (am && (g_drag_y >= 14 || tap_settled())) mac[m].mute = !mac[m].mute;
+    if (af && (g_drag_y >= 11 || tap_settled())) face = m;                 // ignore a drag-release bounce
+    if (am && (g_drag_y >= 11 || tap_settled())) mac[m].mute = !mac[m].mute;
 
     rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
     if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
@@ -333,7 +333,7 @@ static void cartridge(int m) {
 
 static void navspine(void) {
     // transport (shared)
-    int px = 5, py = 3, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
+    int px = 5, py = 0, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
     if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot) && tap_settled()) { playing = !playing; laststep = -1; }
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
@@ -343,7 +343,7 @@ static void navspine(void) {
     for (int m = 0; m < M_N; m++) cartridge(m);
 
     // HOME (meta) — reserved space only; the app shell owns the real leave-cart gesture
-    int hx = 143, hy = 3, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home, in from the right bezel
+    int hx = 143, hy = 0, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home, in from the right bezel
     void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
     ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);            // registered but unwired
     rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);

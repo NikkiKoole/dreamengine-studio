@@ -2235,6 +2235,18 @@
     "homage": "Martin Denny / Les Baxter (exotica)"
   },
   {
+    "title": "extrude text",
+    "description": "A Hotline-Miami block-letter title lab: the same word drawn N times, each copy stepped along an offset vector so the hard-edged copies fill in and the type reads as a solid extruded block. One toggle switches the face between the bitmap font (print_scaled, zero assets) and a baked TTF display face (Bungee, sspr) — the extrude, the orbiting spin, and the per-layer colour STEP work in both. The whole trick is one loop: draw the word N times back-to-front, each copy at (x+i*dx, y+i*dy), then the bright face last on top. Solid hard-edged copies fill the gaps, so the letters gain physical thickness — the between-level GET READY / PUSH START look. Two renderers behind one set of knobs: BITMAP mode loops print_scaled() (no assets, any string); TTF mode sspr()s a flat single-ink silhouette baked from Bungee (extrudetext.cart.js, tools/font-bake.js) and pal()-recolours it. Shared experiments: SPIN — a timer orbits the offset vector so the light source appears to move and the extrude sweeps around; COLOURSTEP — each layer takes the next colour down a curated ramp (pink->purple->black etc) so the block reads lit-to-shadow instead of one flat dark. Everything is a live knob. M toggle bitmap/TTF face · UP/DOWN depth · LEFT/RIGHT offset length · Z spin on/off · hold [ ] spin speed (past 0 = reverse) · X cycle word · C cycle colour ramp",
+    "file": "extrudetext.cart.png",
+    "created": "2026-07-16",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [],
+    "genre": "lab"
+  },
+  {
     "title": "face mock — full paradigm (160x100)",
     "description": "A VIBE MOCKUP at 160x100 x4 that fits the WHOLE device-face paradigm (all five zones) in the candy-toy finish: (1) nav spine — play + view tabs + pattern + bpm, (2) always-live knobs, (3) the context display with flanking soft-keys where the slime MASCOT lives (the soul) beside a mini pattern, (4) the 16-step mode-switched grid with a running playhead, (5) the drum pads. Tests whether the full skeleton survives the harsh half-resolution. Draw-only + now() life (playhead + mascot bop). Mockups-first for vibe work.",
     "file": "facefull.cart.png",
@@ -6689,6 +6701,20 @@
     "homage": "Music Thing Modular Turing Machine"
   },
   {
+    "title": "tweenlab",
+    "description": "A GreenSock (GSAP) playground: the ease-curve wall, a scrubbable timeline, staggered grids, and repeat/yoyo — the whole tween vocabulary made visible and playable. Four rooms of GSAP in C. (1) EASE WALL - sixteen easing curves drawn as graphs with a dot riding each one in a loop, so you feel back-out's overshoot vs elastic's wobble vs bounce - including GSAP's EasePack/Custom specials: rough (jagged flicker), slowmo (linear hang-time middle) and wiggle (damped oscillation). (2) TIMELINE - a logo animates in a sequence (slide in on back.out, pop in on elastic.out, spin on cubic.io, glow) laid out on a scrubbable track with overlapping position offsets, exactly like a gsap.timeline(); SPACE plays/pauses, V reverses, Y toggles TimelineMax yoyo (ping-pong at the ends), -/= set timeScale, arrows scrub, R restarts. Each segment start is a LABEL: the HUD shows the currentLabel, a callback fires (a blip + ring pop) as the playhead crosses one - either direction - CLICKING a label tick does a tweenTo() (glides the playhead there and stops); DRAGGING from one label to another does a tweenFromTo() (jumps to the first, glides to the second, stops). (3) STAGGER - a grid reveals with staggered delays; O cycles the stagger origin (start / center / edges / random). (4) REPEAT - three lanes contrasting repeat, yoyo, and repeatDelay. This is a toy for LOOKING at motion, the way GSAP's ease visualizer is. 1-4 pick a room. EASE WALL: 16 curves incl. GSAP's specials (rough/slowmo/wiggle); watch the dots ride them. TIMELINE: SPACE play/pause, V reverse, -/= timeScale (0.25x..4x), LEFT/RIGHT scrub, R restart - each segment start is a LABEL that fires a callback blip+ring as the playhead crosses it. STAGGER: O cycles origin, R replays. H toggles help.",
+    "file": "tweenlab.cart.png",
+    "created": "2026-07-16",
+    "kind": [
+      "toy"
+    ],
+    "teaches": [
+      "algorithm-visualization",
+      "motion-sequencing"
+    ],
+    "lineage": "A homage to GreenSock/GSAP's tween + timeline + ease-visualizer, rebuilt in C. The engine ships only lerp + four eases (ease_in/out/in_out/back); this cart grows the whole GSAP ease family (sine/quad/cubic/expo/circ/back/elastic/bounce/steps) plus the ideas that make GSAP feel alive: a sequenced TIMELINE with overlapping position offsets (incl. the TimelineMax extras: timeline-level yoyo, currentLabel, tweenTo), motion paths, split-text, gsap.utils, staggered reveals, and repeat/yoyo/repeatDelay. Carries a spec() (52 assertions) pinning the ease endpoints/overshoot/quantization, gsap.utils, the Catmull-Rom motion path, seg_p clamping, and the timeline advance + yoyo bounce."
+  },
+  {
     "title": "21. type & save",
     "description": "Keyboard + persistence: text_input() reads typed characters, keyp(KEY_BACKSPACE/KEY_ENTER) handles special keys, and save_bytes()/load_bytes() remember a whole struct between runs — type your name, press ENTER, reopen the cart and it greets you. Also shows text_width() for centering and blink() for the cursor.",
     "file": "typesave.cart.png",
@@ -6902,6 +6928,21 @@
       "analog-voice-modeling"
     ],
     "lineage": "Companion to voxab (continuous-lever probe); novel in being a full phoneme keyboard that covers all 10 table vowels via the diphthong path and all 22 consonants including the navkit table-completion additions, with loop/coda/VC mode articulation."
+  },
+  {
+    "title": "Voxroll",
+    "description": "A Melodyne-style vocal piano roll: draw sung vowel-blobs, drag them for pitch, tug the ✱ tab to shift formant WITHOUT moving pitch, set each note's vowel & vibrato. Touching notes glide. One voice (INSTR_VOICE). Time runs left–right, pitch bottom–up. The white line IS the sung pitch — it glides smoothly through notes that touch (legato) and breaks across gaps (loose). Draw a blob in empty space; drag its body to move pitch/time, its edges to retime. Select a blob and the bottom panel sculpts it: VOWEL chips (oo/oh/ah/eh/ee), a VIB (vibrato) slider, and FORMANT — the Melodyne signature — set either with the slider or by dragging the ✱ tab above the blob, which shifts the vocal-tract SIZE (giant→child) while the PITCH stays put. Playback is stateless/scrubbable: drag the ruler and hear the melody at any point. Auto-saves. SPACE play/stop · drag RULER: scrub (audible) · click empty: draw a blob (drag to size) · drag blob body: pitch+time · drag blob edge: resize · click blob: select · drag ✱ tab (above selected): formant, pitch stays · bottom panel: VOWEL chips / VIB slider / FORMANT slider · right-click or BACKSPACE: delete · , / . : undo/redo · SAVE / LOAD · wheel / ↑↓: scroll pitch · ←→: scroll time · MIDDLE-drag: pan",
+    "file": "voxroll.cart.png",
+    "created": "2026-07-16",
+    "kind": [
+      "instrument",
+      "toy"
+    ],
+    "teaches": [
+      "note-editing",
+      "analog-voice-modeling"
+    ],
+    "lineage": "pianoroll (the note-editing model) + vox4 (the INSTR_VOICE formant voice) — a Melodyne-style vocal roll where each note is a sung vowel-BLOB you sculpt."
   },
   {
     "title": "Water Jar",

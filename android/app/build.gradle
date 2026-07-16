@@ -17,7 +17,8 @@ android {
         versionCode 1
         versionName '0.1'
 
-        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }   // 64- + 32-bit ARM = essentially every real phone
+        // 64- + 32-bit ARM = essentially every real phone; x86_64 = the Intel-Mac emulator image.
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
 
         externalNativeBuild {
             cmake {

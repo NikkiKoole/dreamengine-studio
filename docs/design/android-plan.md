@@ -104,6 +104,31 @@ Also installed: `emulator` + `system-images;android-35;google_apis;arm64-v8a` + 
 `emulator -avd de_test -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &`, wait for
 `sys.boot_completed`, then `adb`. (A plugged-in USB device with developer mode works too, no download.)
 
+### Second machine — Intel Mac (set up 2026-07-16)
+
+The engine builds on both dev machines. The paths above are **Apple Silicon**; an Intel Mac's
+Homebrew prefix is `/usr/local`, so `JAVA_HOME`/`ANDROID_HOME` differ. Two portability fixes make
+one checkout work on both:
+
+- **`android/build.sh` auto-detects the prefix** — no longer hardcoded. It honours an explicit
+  `JAVA_HOME`/`ANDROID_HOME`, then `HOMEBREW_PREFIX`, then `brew --prefix`, then falls back to
+  whichever of `/opt/homebrew` `/usr/local` actually has `openjdk@17`. This also survives the
+  Electron editor's minimal GUI env (where `brew` may not be on `PATH`).
+- **`app/build.gradle` adds the `x86_64` ABI** alongside `arm64-v8a`/`armeabi-v7a`, so a debug APK
+  runs on the Intel-Mac emulator image (arm64 emulator images are unaccelerated on Intel).
+
+Intel install (same `sdkmanager` recipe, `/usr/local` prefix) — plus the **x86_64** system image
+instead of arm64, and an AVD named **`de_test_x86`**:
+```sh
+export JAVA_HOME=/usr/local/opt/openjdk@17
+export ANDROID_HOME=/usr/local/share/android-commandlinetools
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+sdkmanager "system-images;android-35;google_apis;x86_64"
+echo no | avdmanager create avd -n de_test_x86 -k "system-images;android-35;google_apis;x86_64" -d pixel_6
+emulator -avd de_test_x86 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &
+```
+On Intel the NDK prebuilt (`.../prebuilt/darwin-x86_64/...`) runs **natively** (no Rosetta).
+
 **Still needed for the host shell (spike 1+):** the Gradle/AGP layer isn't set up yet — a
 `build.gradle`/AGP + a `GameActivity` template + the GLES2/AAudio JNI shell. That's the next build,
 not a download.

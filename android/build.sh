@@ -16,8 +16,20 @@ cd "$(dirname "$0")"                     # android/
 REPO="$(cd .. && pwd)"
 
 CART="${CART:-omnichord}"
-export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
-export ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
+
+# Homebrew's prefix differs by machine: Apple Silicon = /opt/homebrew, Intel = /usr/local.
+# So JAVA_HOME/ANDROID_HOME can't be hardcoded — this works on both, and when launched from the
+# Electron editor (whose GUI env often has no `brew` on PATH). Order: explicit env override →
+# HOMEBREW_PREFIX (set by a configured brew shell) → `brew --prefix` if on PATH → detect which
+# known prefix actually has the JDK → default to Apple Silicon.
+BREW_PREFIX="${HOMEBREW_PREFIX:-}"
+[ -z "$BREW_PREFIX" ] && command -v brew >/dev/null 2>&1 && BREW_PREFIX="$(brew --prefix)"
+if [ -z "$BREW_PREFIX" ]; then
+  for p in /opt/homebrew /usr/local; do [ -d "$p/opt/openjdk@17" ] && BREW_PREFIX="$p" && break; done
+fi
+BREW_PREFIX="${BREW_PREFIX:-/opt/homebrew}"
+export JAVA_HOME="${JAVA_HOME:-$BREW_PREFIX/opt/openjdk@17}"
+export ANDROID_HOME="${ANDROID_HOME:-$BREW_PREFIX/share/android-commandlinetools}"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
 GEN="app/src/main/cpp/gen"

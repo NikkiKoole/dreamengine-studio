@@ -259,3 +259,21 @@ sampling/analysis slice (Tiers 1–2) is the cheap, on-doctrine, already-designe
 slice is genuinely new work gated behind a determinism decision *and* a latency bar. What it does
 **not** unblock is the biggest *raw* demand numbers (DAW / MIDI-routing / notation) — those stay
 off-grain with or without a mic.
+
+### Stem separation — asked for, but a hard NO at quality (2026-07-16)
+
+Surfaces repeatedly in the sampling/hiphop tribes (*"isolate the acapella from a track"*,
+r/makinghiphop). Verdict: **we do not build this.** The quality people mean (clean vocal/drum/bass
+isolation from any mix) is **neural** — Spleeter (~tens of MB), Demucs htdemucs_ft (~300 MB of
+weights) *plus* an ONNX/PyTorch runtime. Call it ~500 MB and a model dependency: the antithesis of a
+humble lo-fi C cart. **No 500 MB carts here.** We would also lose the comparison every time.
+
+The only buildable tier is classic no-model DSP — **karaoke center-cancel** (subtract L−R to null a
+center-panned vocal) and **HPSS** (median-filter a spectrogram → rough harmonic/percussive split).
+Both are tiny and deterministic, but they are *effects that occasionally sound like separation*, not
+separation — a world below Demucs. Two gates even for that: it needs the **audio-input seam** above
+(a track to load — though it's capture-then-freeze compatible, so unlike the pedal it doesn't break
+`.rec`), and HPSS needs a **runtime STFT `sound.h` doesn't have** (we have offline analysis *tools*
+like `harmonic-spec.js`, not an in-cart FFT). So: not the thing the wish asks for; at most a
+deliberately-crude lo-fi *splitter toy* (constraint-as-character, like the SP-1200's bit-crush is a
+feature) far down the road, gated behind audio input. Filed, not scheduled.

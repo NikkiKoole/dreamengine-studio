@@ -13,7 +13,9 @@ not a design-from-scratch.
 > reddit-gaps drip keeps surfacing the same blocked on-grain wishes (hum→MIDI, pedals, live looping)
 > that all need real audio input. A standalone **Tier-1 spike** landed to prove the engine can hear
 > before touching the hot files — [`tools/mic-spike/`](../../tools/mic-spike/) (miniaudio capture →
-> `mic_level()`/`mic_pitch()`; pipeline proven on Mac, awaiting a permission-granted run). See
+> `mic_level()`/`mic_pitch()`; **CONFIRMED LIVE on Mac 2026-07-16** — an HP webcam mic hit peak
+> −17 dBFS, `mic_level()` tracks voice cleanly, `mic_pitch()` responds but the crude zero-crossing
+> estimator reads octave-low/jittery so a real hum→pitch surface wants autocorrelation/FFT). See
 > §"Demand check + the live-throughput dimension" + the stem-separation verdict below. **Tier 1 is
 > the recommended engine entry point.**
 

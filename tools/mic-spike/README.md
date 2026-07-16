@@ -31,5 +31,14 @@ from your own shell (in Claude Code: `! zsh tools/mic-spike/run.sh`), click **Al
 the meter moves and the pitch locks to a note. That permission model is itself a finding for the
 real engine seam (every backend needs its own permission flow).
 
-STATUS: SPIKE (2026-07-16) — pipeline proven (device opens, callback delivers frames steadily);
-awaiting a permission-granted run to confirm live signal. Not wired into the engine.
+STATUS: SPIKE (2026-07-16) — **CONFIRMED LIVE.** A permission-granted run on the Mac mini (through
+an HP 430/435 FHD Webcam mic — the mini has no built-in mic) hit peak −17.2 dBFS: `mic_level()`
+tracks voice cleanly VU-wise; `mic_pitch()` responds but reads octave-low and jittery (the crude
+zero-crossing estimator counts harmonic/noise crossings — a real hum→pitch surface would need
+autocorrelation/FFT, not this). Tier-1 proven feasible on this desktop. Not wired into the engine.
+
+Gotcha that ate an afternoon here: the webcam was behind a **USB-C hub that wasn't enumerating** —
+no device showed on the bus at all (`ioreg -rc IOUSBHostDevice`), so miniaudio saw only BlackHole
+and the meter sat at −99 dB. It was NOT the mic permission (that grant was already in place); it was
+the hub. Plugging the webcam straight into a USB-A port brought it onto the bus and the signal
+appeared. When a run shows only virtual devices, check the USB bus BEFORE chasing TCC.

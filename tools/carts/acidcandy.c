@@ -309,50 +309,26 @@ static void chip(int x, int y, const char *s, int sel2) {
 // each cartridge is a COMPOUND control: left body taps to FOCUS the face, the
 // right LED taps to MUTE the machine (from any face). Two non-overlapping
 // sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
-static float lvg[M_N], lvgt[M_N];      // slider grab value + time (tap-vs-drag: a tap = mute)
-static int   lvmv[M_N] = { -100, -100, -100, -100, -100 };   // frame of the last drag/toggle — a bounce right after it is ignored
+// (Per-machine LEVEL lives on the MST mixer, not here — keeps the tabs compact.)
 static void cartridge(int m) {
-    int x = 19 + m * 25, y = 3, foc = (m == face), live = !mac[m].mute;  // pitch 25; y3 = a small top safe margin off the device edge
-    // --- the TAB: tap = focus. Drag-free, so it never fights the iOS top-edge pull. ---
-    int prf = 0, hotf = 0, fof = 0;
-    void *wf = ui_wid_hash(0x70u + m, x, y, 24, 10);
-    int af = ui_button_core(wf, x, y, 24, 10, &fof, &prf, &hotf);
-    if (af && (g_drag_y >= 14 || tap_settled())) face = m;           // only a drag ending IN the tab row can bounce a tab
+    int x = 19 + m * 25, y = 3, foc = (m == face), live = !mac[m].mute;  // y3 = a small top safe margin off the device edge
+    int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
+    void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);              // FOCUS = the name body
+    void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);          // MUTE = the LED pad (its hit-pad falls into the free space below the tabs)
+    int af = ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf);
+    int am = ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm);
+    if (af && (g_drag_y >= 14 || tap_settled())) face = m;                 // ignore a drag-release bounce
+    if (am && (g_drag_y >= 14 || tap_settled())) mac[m].mute = !mac[m].mute;
+
     rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
-    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 21, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
+    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
     rrect(x, y, 24, 10, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_TINY);
-    print(mac[m].name, x + (24 - text_width(mac[m].name)) / 2, y + 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
-
-    // --- BELOW the tab: a little HORIZONTAL level slider that doubles as the mute
-    //     (acidwire's tap-vs-drag, turned sideways). TAP = mute · HORIZONTAL DRAG =
-    //     level. Down here the drag never triggers the phone's top-edge gesture, and
-    //     mute gets its own target instead of a sliver crammed beside the name. ---
-    int sx = x, sy = 14, sw = 24, sh = 6;   // cluster sits 3px down with the tabs, filling the old gap above the knobs
-    ui_reg(&level[m], sx, sy, sw, sh, 0);
-    UiCap *c = ui_cap_for(&level[m]);
-    int held = c != 0;
-    if (c) {
-        g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-        if (!c->has_v0) { c->has_v0 = 1; c->v0 = level[m]; c->by = c->cx; }   // by = the x-anchor (horizontal)
-        int px = c->released ? c->rx : c->cx;
-        level[m] = clamp(c->v0 + (px - c->by) / 40.0f, 0, 1);        // relative → unlimited travel
-        c->v0 = level[m]; c->by = px;
-    }
-    if (ui_grabbed(&level[m])) { lvg[m] = level[m]; lvgt[m] = now(); }
-    if (ui_released(&level[m])) {
-        float dv = level[m] - lvg[m]; if (dv < 0) dv = -dv;
-        if (dv >= 0.03f) lvmv[m] = ui_frame_ct;                      // that was a level DRAG (a bounce may follow)
-        else if (now() - lvgt[m] < 0.3f && ui_frame_ct - lvmv[m] >= TAP_SETTLE) {   // a real, quick TAP = mute
-            level[m] = lvg[m]; mac[m].mute = !mac[m].mute; lvmv[m] = ui_frame_ct;   // (and block ITS bounce too)
-        }
-    }
-    // draw the slider: a left-to-right fill = level; red-tinted when muted
-    rrectfill(sx, sy, sw, sh, 1, CLR_BROWNISH_BLACK);
-    int fw = (int)(level[m] * (sw - 2) + 0.5f);
-    if (fw > 0) rrectfill(sx + 1, sy + 1, fw, sh - 2, 1, live ? mac[m].col : CLR_DARK_GREY);
-    if (!live) { blend(BLEND_AVG); rrectfill(sx + 1, sy + 1, sw - 2, sh - 2, 1, CLR_RED); blend_reset(); }   // muted tint
-    rrect(sx, sy, sw, sh, 1, !live ? CLR_RED : (held ? CLR_WHITE : CLR_BROWNISH_BLACK));
+    print(mac[m].name, x + (16 - text_width(mac[m].name)) / 2, y + 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    int lx = x + 20, ly = y + 5;                                  // mute LED
+    circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
+    circ(lx, ly, 2, (hotm && live) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);     // muted = red slash
 }
 
 static void navspine(void) {
@@ -704,12 +680,25 @@ static void draw_mst(void) {
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
     font(FONT_TINY);
     if (mstflow == 0) {
-        for (int m = 0; m < 4; m++) {                        // the four channel meters
-            int y = 41 + m * 4, muted = mac[m].mute, act = machine_active(m);
-            print(MLAB[m], 30, y, muted ? CLR_DARKER_GREY : mac[m].col);
-            int bw = muted ? 3 : act ? 78 : 30;
-            rectfill(52, y, bw, 2, muted ? CLR_DARKER_GREY : act ? CLR_LIME_GREEN : mac[m].col);
-            if (muted) print("M", 124, y, CLR_RED);
+        // MIX — the 4 channel LEVEL faders (drag up/down). Fill = level; bright green when the
+        // channel fires, dim grey when muted (mute lives on the tabs). This is the ONE place the
+        // per-machine levels live now — the instrument faces stay uncluttered.
+        for (int m = 0; m < 4; m++) {
+            int cw = 26, cx = 29 + m * cw, fy = 40, fh = 17, fw = cw - 6;
+            int muted = mac[m].mute, act = machine_active(m);
+            void *w = ui_wid_hash(0xD0u + m, cx, fy, fw, fh);
+            ui_reg(w, cx, fy, fw, fh, 0);
+            UiCap *c = ui_cap_for(w);
+            if (c) {
+                g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
+                int fyv = c->released ? c->ry : c->cy;
+                level[m] = clamp((fy + fh - 1 - fyv) / (float)(fh - 1), 0, 1);
+            }
+            int lv = (int)(level[m] * (fh - 2) + 0.5f);
+            rectfill(cx, fy, fw, fh, CLR_BROWNISH_BLACK);                         // track
+            int col = muted ? CLR_DARKER_GREY : act ? CLR_LIME_GREEN : mac[m].col;
+            if (lv > 0) rectfill(cx + 1, fy + fh - 1 - lv, fw - 2, lv, col);      // fill up from the bottom
+            print(MLAB[m], cx + (fw - text_width(MLAB[m])) / 2, fy + fh - 6, CLR_LIGHT_YELLOW);
         }
     } else {
         // PCF — a DRAWABLE filter lane: drag to shape the master cutoff across the 16 steps

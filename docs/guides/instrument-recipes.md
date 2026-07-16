@@ -344,6 +344,7 @@ cart" for those. The named layouts:
 | voice/creat | voxlab.c | vowel0.3 size0.06 breath0.28 openq0.16 tilt0.55 vib0.05 | Tiny, breathy, roughened — experimental sonics, exaggerated tilt. |
 | voice/sing | voxlab.c | vowel0.55 size0.42 breath0.12 openq0.58 tilt0.22 vib0.62/0.66 | Full vibrato-rich singing voice, strong vibrato amount + rate. |
 | voice/formant | vox.c (voice) | A45 D60 S7 R200 · vib 5.5Hz · voice_consonant/coda | Interactive formant synth — VOWEL/SIZE/EFFORT axes, CV/VC onset/coda timing, pentatonic jam pad. |
+| voice/melodyne | voxroll.c (melodyne roll) | A40 D80 S7 R220 · MONOPHONIC 1 voice · `note_pitch` drives the drawn contour · `note_glide` 45ms legato · `note_lfo` vib 5.5Hz · per-note VOWEL (harmonics) + SIZE (timbre) | Melodyne-style vocal piano roll — draggable vowel-blobs, FORMANT (size) decoupled from pitch via the ✱ tab, connect-on-touch glide (touching notes slide, gaps break + re-attack). |
 
 > **Cross-ref:** no radio station uses `INSTR_VOICE` yet. The voice carts (voxlab, vox, say,
 > voxab, voxpad) are the engine's reference + audition rigs; `voice/formant` (vox.c) is the

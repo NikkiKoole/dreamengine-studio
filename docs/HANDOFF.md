@@ -489,6 +489,16 @@ elsewhere — trust those homes, not a handoff file:
 - **`trifill()` winding order** — Raylib's `DrawTriangle` needs counter-clockwise winding
   in Y-down screen coords. In Y-down space, cross product > 0 means clockwise visually
   (opposite of math convention), so swap when `cross > 0`.
+- **`rrectfill()` renders 1px NARROWER on the right (and bottom) than `rectfill()`** — for the
+  same `x`/`w`, `rectfill`'s rightmost column is `x+w-1` but `rrectfill`'s straight edge lands at
+  `x+w-2`. Present on BOTH the desktop GPU bake and the device SW path (so it's consistent, not a
+  backend quirk). Consequences: (a) a `rectfill` and an `rrectfill` given the same `x`/`w` do **not**
+  share a right edge — the `rectfill` overhangs 1px (bit `acidcandy`'s top voice-band: rounded-top
+  `rrectfill` + flat-bottom `rectfill` jogged; fixed by drawing the `rectfill` at `w-1`); (b) a
+  full-canvas `rrectfill` frame leaves a 1px sliver of the `cls` colour at the far right/bottom, so
+  a full-bleed panel looks ~1px off-center. Not root-caused in the engine — a fix in the `rrectfill`
+  rasterizer would shift *every* cart by 1px (+ break golden-image tests), so it's left as a known
+  trait: when a `rectfill` must align to an `rrectfill`, give it `w-1`. Found in acidcandy 2026-07-16.
 - **`init()` fires after window + sprites are fully loaded** — safe to call `colorkey()`,
   `mset()`, etc. It does NOT run during `--screenshot` mode's 3-frame early exit, but
   that's fine since screenshot mode still calls it once before the loop.

@@ -331,7 +331,20 @@ static void cartridge(int m) {
     if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);     // muted = red slash
 }
 
+// dpaint-style ordered-dither vertical gradient: `col` at the top row, dithering down over
+// `h` rows into whatever's already drawn there (the salmon panel). Only the coloured pixels
+// are set, so it fades INTO the background. Used to tint the top edge with the focused voice.
+static void dither_grad(int x0, int y0, int w, int h, int col) {
+    static const int B[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
+    for (int r = 0; r < h; r++) {
+        float cov = 1.0f - (r + 0.5f) / h;                      // ~1 at the top row → ~0 at the bottom
+        for (int x = 0; x < w; x++)
+            if (cov > (B[r & 3][x & 3] + 0.5f) / 16.0f) pset(x0 + x, y0 + r, col);
+    }
+}
+
 static void navspine(void) {
+    dither_grad(8, 2, 144, 16, mac[face].col);   // top edge glows the FOCUSED voice's colour → salmon (inset past the panel's rounded corners)
     // transport (shared)
     int px = 5, py = 0, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);

@@ -353,6 +353,7 @@ function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
     '-framework CoreVideo',
     '-framework CoreFoundation',
     '-framework CoreMIDI',
+    '-framework AudioToolbox',   // mic_desktop.h AudioQueue capture (Tier-1 mic input)
     '-Wl,-dead_strip',
     `-o "${out}"`,
   ]
@@ -417,6 +418,7 @@ function macTccHostArgs(dims) {
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
     '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
+    '-framework AudioToolbox',   // mic_desktop.h AudioQueue capture (Tier-1 mic input)
     '-lm', '-ldl', '-lpthread',
     `-o "${TCC_HOST_BIN}"`,
   ]

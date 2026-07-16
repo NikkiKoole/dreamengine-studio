@@ -3808,6 +3808,19 @@
     "homage": "Taipan! (1982)"
   },
   {
+    "title": "mic test",
+    "description": "The engine can HEAR you. Enable the mic and it draws your loudness as a VU meter and your pitch as a musical note — the Tier-1 'mic as a controller' surface. Proves the microphone-input seam end to end: mic_start() asks the host to open its capture device (popping the OS permission prompt the first time), then mic_level() (RMS loudness) drives a VU bar with peak-hold and mic_pitch() (a crude zero-crossing estimate) reads out as Hz + nearest note. Loudness is solid; pitch is honestly labelled as octave-noisy on a voice. CLICK or SPACE to enable/disable the microphone. Then hum, talk, or clap.",
+    "file": "mictest.cart.png",
+    "created": "2026-07-16",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "audio-input"
+    ],
+    "lineage": "The first cart to HEAR — the Tier-1 proof for the audio-input frontier (docs/design/mic-and-sampling.md). Reads the engine's new mic_level()/mic_pitch() surface (runtime/mic.h) fed by the host's capture device."
+  },
+  {
     "title": "Minesweeper",
     "description": "The desktop classic, rebuilt from scratch on the fantasy console. A 16x14 field of beveled tiles hides 30 mines; left-click reveals, and uncovering an empty cell triggers a satisfying flood-fill cascade that opens its whole region in one click. Numbers 1-8 glow in the canonical colors to count adjacent mines; right-click plants a flag. The first click is always safe — mines are seeded only after you commit. A live mine counter and a running timer flank a smiley face that grins, dies, or beams depending on your fate; clearing the board logs your best time. Tap a mine and the whole field detonates with a screen-shaking boom. Left-click reveals, right-click flags, click the face or press R for a new game.",
     "file": "minesweeper.cart.png",

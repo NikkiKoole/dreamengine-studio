@@ -396,6 +396,7 @@ if (args[0] === '--update') {
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
     '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
+    '-framework AudioToolbox',   // mic_desktop.h AudioQueue capture (runtime/mic.h Tier-1 input)
     `-Wl,-dead_strip`, `-o "${BAKE_BIN}"`,
   ].join(' ')
 

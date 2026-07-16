@@ -378,6 +378,14 @@ void sample_load(int slot, const float *data, int n);          // load RAW PCM (
 int  record_peaks(float seconds, float *lo, float *hi, int n);  // LIVE waveform of the capture ring while recording (before a grab): downsample the last `seconds` captured into n min/max columns. Returns samples covered. Draw the take "filling in" as a waveform
 float instrument_playhead(int slot);                            // current playback position 0..1 of the INSTR_SAMPLE voice on `slot` (-1 if none playing) — draw a live playhead over the waveform
 
+// microphone INPUT — let a cart HEAR (Tier-1: the mic as a controller, not a recorder). Dormant until
+// mic_start(): nothing captures and no permission prompt fires until a cart asks. See docs/design/mic-and-sampling.md
+void mic_start(void);                                     // ask the host to open the microphone (pops the OS permission prompt the first time). Call it once, e.g. on a button press — do not spam it
+void mic_stop(void);                                      // release the microphone — the host closes its capture device (mic_level/mic_pitch go quiet)
+int  mic_active(void);                                    // 1 once capture is live AND permission was granted, else 0 — poll it after mic_start() to know the mic is really open
+float mic_level(void);                                    // current input loudness 0..1 (RMS) — the beatbox / envelope-follower input. 0 until mic_active(). Solid + responsive
+float mic_pitch(void);                                    // rough pitch of the input in Hz (0 = no clear pitch) — the hum-to-theremin input. CRUDE: reads octave-low + jittery on a voice (a controller axis, not a tuner)
+
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned
 #define PAN_POWER   1   // constant-power — center is -3dB; equal perceived loudness right across the sweep (smoother, more pronounced motion)

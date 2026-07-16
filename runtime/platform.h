@@ -110,6 +110,19 @@ void de_touch_ended(int id, float x, float y);
 // Keys have no touch equivalent; a host with a real/on-screen keyboard feeds them here (down=1/0).
 void de_key_event(int key, int down);
 
+// ============================================================================
+// (4) AUDIO INPUT — the mirror of (2), inverted. The engine NEVER opens a capture
+//     device; each host owns its mic (CoreAudio/AudioQueue desktop, AVAudioSession
+//     iOS, getUserMedia web), runs the platform's permission prompt, and PUSHES
+//     captured MONO frames in from its capture callback. The engine only ANALYZES
+//     them (mic_level()/mic_pitch(), see mic.h). Lazy: a host opens/closes its
+//     device based on de_mic_wanted(), so nothing captures — and no permission
+//     prompt fires — until a cart calls mic_start().
+// ============================================================================
+void de_audio_input(const float *mono, int n, int sample_rate);  // host → engine: captured frames
+int  de_mic_wanted(void);        // engine → host: does the running cart want the mic on?
+void de_mic_set_active(int on);  // host → engine: capture is live + permission granted (drives mic_active())
+
 #ifdef __cplusplus
 }
 #endif

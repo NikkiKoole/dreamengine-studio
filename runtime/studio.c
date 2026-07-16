@@ -2815,6 +2815,23 @@ static void de_load_map(void) {
     else                                  memset(map_data, 0, sizeof map_data);
 }
 
+// ── microphone INPUT (mic.h analysis core + platform.h §4 seam) ──────────────
+// Build-agnostic: compiled into BOTH the raylib and DE_NO_RAYLIB hosts. The cart
+// API just reads/writes mic.h's published state; the device lives in each host.
+#include "mic.h"
+void  mic_start(void)  { mic_g_wanted = 1; }                 // ask host to open the mic (permission prompt)
+void  mic_stop(void)   { mic_g_wanted = 0; }                 // ask host to release it
+int   mic_active(void) { return mic_g_active; }              // capture live + permission granted?
+float mic_level(void)  { return mic_g_rms; }                 // 0..1 RMS loudness
+float mic_pitch(void)  { return mic_g_pitch; }               // Hz, 0 = no clear pitch
+// platform seam — hosts (studio.c raylib loop, iOS/web) call these:
+void de_audio_input(const float *mono, int n, int sr) { mic_input_push(mono, n, sr); }   // push captured frames
+int  de_mic_wanted(void) { return mic_g_wanted; }            // engine → host: is the mic wanted?
+void de_mic_set_active(int on) {                             // host → engine: capture is live
+    mic_g_active = on ? 1 : 0;
+    if (!on) { mic_g_rms = 0.0f; mic_g_pitch = 0.0f; }       // release → readings go quiet
+}
+
 #ifdef DE_NO_RAYLIB
 // ============================================================================
 // DE_NO_RAYLIB entry points (platform.h) — the host (iOS CADisplayLink, a headless
@@ -2902,6 +2919,8 @@ void de_set_backing_scale(float k) { de_backing = (k > 0.1f) ? k : 2.0f; }   // 
 void de_set_save_dir(const char *dir) { if (dir && *dir) save_dir_set(dir); }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
+
+#include "mic_desktop.h"   // the raylib desktop host's AudioQueue mic capture (polled in the main loop)
 
 // Canvas-only resize on desktop (the DE_NO_RAYLIB branch above defines these for the iOS host):
 // sets the ACTIVE canvas to w×h and lets the fixed window LETTERBOX it (present = gr_place). No
@@ -3346,6 +3365,7 @@ int main(int argc, char **argv) {
     }
 #endif
     while (!WindowShouldClose()) {
+        mic_desktop_poll();        // open/close the mic to match the cart's mic_start()/mic_stop()
         loop_step();
         de_reveal_window_once();   // first frame presented — reveal (see the hide at InitWindow)
         if (screenshot_mode && ++screenshot_frames_done >= 3) break;

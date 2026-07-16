@@ -19,6 +19,28 @@ not a design-from-scratch.
 > §"Demand check + the live-throughput dimension" + the stem-separation verdict below. **Tier 1 is
 > the recommended engine entry point.**
 
+**Shipped (2026-07-16) — the Tier-1 ENGINE SEAM (desktop backend + demo).** The spike graduated into
+the engine, built on the [`platform.h`](../../runtime/platform.h) host seam so it reaches all devices
+without the raylib/miniaudio symbol clash the spike would have hit. Key decision: the engine core is
+**device-free** — the mic is the mirror of the audio-OUTPUT seam, *inverted*. Output is PULLED from the
+engine (`de_audio_render`); input is PUSHED into it (`de_audio_input`, platform.h §4). Each host owns its
+own capture device + permission flow; the engine only ANALYZES the frames it is fed. So no capture library
+lives in the engine (crucially, no second copy of the miniaudio raylib already bundles → no duplicate
+symbols, no ABI version-coupling).
+- **Analysis core:** [`runtime/mic.h`](../../runtime/mic.h) — pure, device-free: accumulates pushed frames
+  into a window → RMS (`mic_level`) + a zero-crossing pitch (`mic_pitch`).
+- **Cart API** (studio.h + studio.c, docs + shell): `mic_start()` / `mic_stop()` / `mic_active()` /
+  `mic_level()` / `mic_pitch()`. Dormant + byte-identical until a cart calls `mic_start()` (which is what
+  pops the OS permission prompt). New `teaches` tag `audio-input`.
+- **Desktop host** (the one backend done + tested): [`runtime/mic_desktop.h`](../../runtime/mic_desktop.h)
+  — a CoreAudio `AudioQueue` capture polled in studio.c's raylib loop (`-framework AudioToolbox` added to
+  the desktop build commands). Apple-only; non-Apple desktop is a no-op (shipping targets are iOS + web).
+- **Demo:** [`mictest`](../../tools/carts/mictest.c) — VU meter + pitch note. Gates green: build-all
+  (517/517 non-box2d), soundcheck (sound.h untouched), DE_NO_RAYLIB compiles, no-crash scripted `mic_start`.
+- **Still to wire (the other hosts, same seam):** WEB (`getUserMedia` → the existing audio worklet) and
+  iOS (`AVAudioSession` input node + `NSMicrophoneUsageDescription`) both push into `de_audio_input`.
+  Until then those platforms compile and run but `mic_active()` stays 0.
+
 **Shipped (2026-07-13) — engine piece 1 + `INSTR_SAMPLE` + a movable chop:**
 - `record_arm()` — an always-on rolling capture ring of the master mix (8s, `rec_arm`-gated so it's
   byte-identical / zero-cost until a cart records — existing carts + `--det` untouched).

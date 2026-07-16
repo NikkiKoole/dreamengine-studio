@@ -359,6 +359,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              brief (docs/design/*-blind-brief.md) paired with the radio cart it became; --check gates staleness
              build-field-notes.js  GENERATE docs/field-notes/FIELD-NOTES.md — navigable index of the research
                              journal (lifecycle board / timeline / related-note graph / conformance); --check gates staleness
+             build-book.js   generate docs/learn-you-a-dreamengine.html — the illustrated "Learn You a Haskell"-style
+                             field guide to the studio.h API; every illustration is REAL harness output (carts in
+                             tools/carts/book/, stills via play.js --dump / anims via make-gif) so it can't drift
              build-all.js    compile-check every cart vs current studio.h (catches API rot)
              build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
              build-box2d.sh  build the vendored Box2D v3 (runtime/box2d/) into build/box2d/<target>/libbox2d.a per platform (--mac/--win/--wasm/--ios, --check runs a drop-box smoke test). Pure-C rigid-body lib for the physics experiment; opt-in, not in the default cart build. See docs/design/box2d-integration.md

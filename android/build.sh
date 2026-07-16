@@ -20,19 +20,30 @@ export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
-echo "==> regenerating cart '$CART' and staging into gen/"
-( cd "$REPO" && node tools/play.js "$CART" run --headless --frames 1 >/dev/null 2>&1 || true )
 GEN="app/src/main/cpp/gen"
 mkdir -p "$GEN"
+
+if [ "${EDITOR:-}" = "1" ]; then
+  # EDITOR mode: the Electron editor already wrote build/{cart.c,sprites_data.h,map_data.h} from
+  # the LIVE buffer (main.cjs prepareCart) and passes dims via DE_* env — don't regenerate from a
+  # committed cart. Mirrors ios/build.sh's editor path. build.sh's caller sets CART for the label.
+  echo "==> EDITOR build: staging the live buffer from build/ into gen/"
+  SW="${DE_SCREEN_W:-320}"; SH="${DE_SCREEN_H:-200}"
+  CW="${DE_CELL_W:-16}";    CH="${DE_CELL_H:-16}"
+  MW="${DE_MAP_W:-128}";    MH="${DE_MAP_H:-64}"
+else
+  echo "==> regenerating cart '$CART' and staging into gen/"
+  ( cd "$REPO" && node tools/play.js "$CART" run --headless --frames 1 >/dev/null 2>&1 || true )
+  # cart dims (same source as tools/build-nr.sh)
+  dim() { node -e "const m=require('$REPO/tools/make-cart.js');const c=m.loadConfig('$REPO/tools/carts/$CART.c');process.stdout.write(String(c.$1??$2))"; }
+  SW=$(dim screenW 320); SH=$(dim screenH 200)
+  CW=$(dim cellW 16);   CH=$(dim cellH 16)
+  MW=$(dim mapW 128);   MH=$(dim mapH 64)
+fi
+
 cp "$REPO/build/cart.c"          "$GEN/cart.c"
 cp "$REPO/build/sprites_data.h"  "$GEN/sprites_data.h"
 cp "$REPO/build/map_data.h"      "$GEN/map_data.h"
-
-# cart dims (same source as tools/build-nr.sh)
-dim() { node -e "const m=require('$REPO/tools/make-cart.js');const c=m.loadConfig('$REPO/tools/carts/$CART.c');process.stdout.write(String(c.$1??$2))"; }
-SW=$(dim screenW 320); SH=$(dim screenH 200)
-CW=$(dim cellW 16);   CH=$(dim cellH 16)
-MW=$(dim mapW 128);   MH=$(dim mapH 64)
 echo "    $CART: ${SW}x${SH}, cell ${CW}x${CH}, map ${MW}x${MH}"
 
 # rewrite the DE_* dims in gradle.properties in place

@@ -1460,6 +1460,60 @@ ipcMain.handle('studio:deploy-ios', async (_event, code, cfg) => {
   })
 })
 
+// EXPORT A SIDELOADABLE ANDROID .apk (send-to-a-friend). No Play account, no phone, no signing
+// setup: a debug-signed .apk (arm64 + arm32) that installs on any phone via "allow unknown apps".
+// Builds the LIVE buffer through android/build.sh in EDITOR mode (skips play.js; uses the
+// build/{cart.c,…} prepareCart just wrote + DE_* dims), then copies the .apk to a chosen path +
+// reveals it. Design: docs/design/android-plan.md.
+ipcMain.handle('studio:export-android', async (_event, code, cfg) => {
+  const wc  = _event.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  const androidDir = path.join(__dirname, '../../android')
+  if (!fs.existsSync(path.join(androidDir, 'build.sh'))) return { ok: false, output: 'android/build.sh not found' }
+
+  const dims = prepareCart(code, cfg)   // writes build/{cart.c,sprites_data.h,map_data.h} from the live buffer
+  const slug = (cfg?.cartName || 'cart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cart'
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Export Android .apk',
+    defaultPath: `${slug}-debug.apk`,
+    filters: [{ name: 'Android package', extensions: ['apk'] }],
+  })
+  if (canceled || !filePath) return { ok: false, output: 'export cancelled' }
+  const out = filePath.endsWith('.apk') ? filePath : `${filePath}.apk`
+
+  log(`\n── exporting ${path.basename(out)} for Android (sideloadable debug .apk, arm64 + arm32; first build is slow) ──\n`)
+  const env = {
+    ...process.env,
+    EDITOR: '1',
+    NO_RUN: '1',
+    CART:        cfg?.cartName || 'editor',
+    DE_SCREEN_W: String(dims.screenW), DE_SCREEN_H: String(dims.screenH),
+    DE_MAP_W:    String(dims.mapW),    DE_MAP_H:    String(dims.mapH),
+    DE_CELL_W:   String(dims.cellW),   DE_CELL_H:   String(dims.cellH),
+  }
+  return new Promise(resolve => {
+    const proc = spawn('bash', ['build.sh'], { cwd: androidDir, env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let tail = '', lastAt = Date.now()
+    const cap = (c) => { const s = c.toString(); tail = (tail + s).slice(-1200); lastAt = Date.now(); log(s) }
+    // gradle runs quiet (-q) — emit a dot during idle stretches so it reads as working, not hung.
+    const hb = setInterval(() => { if (Date.now() - lastAt > 4000) { lastAt = Date.now(); log('·') } }, 4000)
+    proc.stdout.on('data', cap)
+    proc.stderr.on('data', cap)
+    proc.on('exit', (codeN) => {
+      clearInterval(hb)
+      if (codeN !== 0) return resolve({ ok: false, output: tail.trim() || `android build.sh exited ${codeN}` })
+      const apk = path.join(androidDir, 'app/build/outputs/apk/debug/app-debug.apk')
+      try {
+        fs.copyFileSync(apk, out)
+        try { shell.showItemInFolder(out) } catch {}
+        log(`\n✓ exported ${out}\n  send it over — on Android: allow "install unknown apps", tap the .apk, open.\n`)
+        resolve({ ok: true, out })
+      } catch (e) { resolve({ ok: false, output: `built the app but couldn't copy the .apk: ${e}` }) }
+    })
+    proc.on('error', (e) => { clearInterval(hb); resolve({ ok: false, output: String(e) }) })
+  })
+})
+
 // LIVE auto-reload: while a live host is up, the editor calls this on a debounce as you
 // type. It just rewrites cart.c — the host's file-watch recompiles + hot-reloads it (a
 // bad edit keeps the last good cart running). No sprite re-export, no host rebuild.

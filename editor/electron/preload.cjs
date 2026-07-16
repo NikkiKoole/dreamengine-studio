@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('studio', {
   exportWin:    (code, cfg) => ipcRenderer.invoke('studio:export-win', code, cfg),
   exportMac:    (code, cfg) => ipcRenderer.invoke('studio:export-mac', code, cfg),
   deployIos:    (code, cfg) => ipcRenderer.invoke('studio:deploy-ios', code, cfg),
+  exportAndroid:(code, cfg) => ipcRenderer.invoke('studio:export-android', code, cfg),
   publish:      (code, cfg) => ipcRenderer.invoke('studio:publish', code, cfg),
   openExternal: (url)       => ipcRenderer.invoke('studio:open-external', url),
   openPath:     (p)         => ipcRenderer.invoke('studio:open-path', p),

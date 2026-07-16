@@ -131,6 +131,17 @@ a real signed upload.
 a dispatcher + per-cart wrappers into `ios/gen/app`; `--android` stages the same into the generated
 Gradle project and lets NDK compile).
 
+## Editor export button (shipped 2026-07-16)
+
+The editor's **⇪ share** popover ("Give it to someone") now has a **🤖 export .apk** action next to
+🍎 export mac / 🖥 export .exe / 📱 to iPhone. It builds the **live buffer** into a sideloadable
+debug `.apk` (arm64 + arm32) — no Play account, no device, no signing setup — and reveals it in
+Finder to send to anyone; they enable "install unknown apps" and tap it. Wiring mirrors the Windows
+export path exactly: `shell.js` (`export-android-btn`) → `preload.cjs` (`exportAndroid`) →
+`main.cjs` (`studio:export-android`: `prepareCart` → save dialog → `android/build.sh` in **EDITOR
+mode** → copy + reveal). `build.sh EDITOR=1` skips `play.js` and builds `build/{cart.c,…}` (what
+`prepareCart` wrote) with dims from `DE_*` env. (Share popover is opt-in: settings → show share.)
+
 ## The reusable loop (what "add an app" becomes)
 
 Like `ios/`, `android/` is a toolkit, not a per-app project: a committed Gradle template +

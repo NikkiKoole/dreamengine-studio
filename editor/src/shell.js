@@ -3222,6 +3222,29 @@ deployIosBtn?.addEventListener('click', async () => {
   else showLog(result)
 })
 
+// ── export a sideloadable Android .apk (send-to-a-friend) ──────
+const exportAndroidBtn = document.getElementById('export-android-btn')
+
+exportAndroidBtn?.addEventListener('click', async () => {
+  if (!window.studio?.exportAndroid) { showToast('export requires the desktop app (npm start)', 3000); return }
+  const tilemapCanvas = document.querySelector('#tilemap-canvas')
+  if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+  await window.studio.saveMap(getMapBytes())
+
+  const stopDots = busyDots(exportAndroidBtn, 'building .apk', '\u{1F916} export .apk')
+  exportAndroidBtn.disabled = true
+  rlogClear()   // open the runtime log panel for build output
+
+  const code = view.state.doc.toString()
+  const result = await window.studio.exportAndroid(code, { ...settings, cartName: currentCartName })
+
+  stopDots()
+  exportAndroidBtn.disabled = false
+
+  if (result.ok) showToast('✓ .apk exported — revealed in Finder', 5000)
+  else showLog(result)
+})
+
 // busy-dots: "⌛ label", "⌛ label.", "⌛ label.." … while a slow build runs.
 // returns a stop() that restores the button's resting text.
 function busyDots(btn, label, resting) {

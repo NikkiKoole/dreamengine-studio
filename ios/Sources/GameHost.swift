@@ -22,8 +22,19 @@ final class GameViewController: UIViewController {
 
     override func loadView() {
         view = canvas
-        let w = Int(de_screen_w()), h = Int(de_screen_h())
-        AppDelegate.orientationLock = (w > h) ? .landscape : (h > w ? .portrait : .all)
+        // Derive the orientation policy from the cart itself:
+        //   • a RESIZABLE cart (respond/rackfit/acidfit — reflows via de_resize on rotate) is meant to
+        //     RESPOND, so leave it free to rotate.
+        //   • a FIXED cart can't reflow, so lock it to the aspect of its canvas (landscape cart →
+        //     landscape) — else it looks wrong rotated.
+        // An explicit per-cart override (a manifest orientation field) would slot in here when a cart
+        // needs to contradict this default — see docs/design/device-adaptive-layout.md.
+        if de_is_resizable() != 0 {
+            AppDelegate.orientationLock = .all
+        } else {
+            let w = Int(de_screen_w()), h = Int(de_screen_h())
+            AppDelegate.orientationLock = (w > h) ? .landscape : (h > w ? .portrait : .all)
+        }
     }
 
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { [.top, .bottom] }

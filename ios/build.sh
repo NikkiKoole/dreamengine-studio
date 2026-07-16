@@ -55,9 +55,16 @@ if [ -n "${APP:-}" ]; then
   [ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
 else
   stage_cart "$CART" app
-  # RESIZABLE=1: build the cart with -DDE_RESIZABLE so it reflows to the device viewport
-  # (CanvasView calls de_resize). $(inherited) keeps project.yml's SCREEN_W/H/SCALE/etc.
-  [ -n "${RESIZABLE:-}" ] && DEFS="\$(inherited) DE_RESIZABLE=1"
+  # DERIVE the cart's screen/cell/map dims from its de:settings so the build matches WITHOUT
+  # hand-passing DE_* (mirrors the APP path's gen/app.dims). Explicit DE_* env still wins; a cart
+  # with no settings chunk → cart-info exits 3, we keep project.yml's 320×200 default.
+  if [ -z "${DE_SCREEN_W:-}" ]; then
+    D="$( cd .. && node tools/cart-info.js "$CART" --dims 2>/dev/null || true )"
+    [ -n "$D" ] && { set -a; eval "$D"; set +a; }
+  fi
+  DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=${DE_SCREEN_W:-320} SCREEN_H=${DE_SCREEN_H:-200} SCALE=1 MAP_W=${DE_MAP_W:-128} MAP_H=${DE_MAP_H:-64} CELL_W=${DE_CELL_W:-16} CELL_H=${DE_CELL_H:-16}"
+  # RESIZABLE=1: build the cart with -DDE_RESIZABLE so it reflows to the device viewport.
+  [ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
 fi
 stage_cart "$AU_CART" au
 

@@ -53,6 +53,13 @@ elif [ -n "${EDITOR:-}" ]; then
 else
   echo "▸ staging carts (gen/app=$CART, gen/au=$AU_CART)…"
   stage_cart "$CART" app
+  # DERIVE the cart's screen/cell/map dims from its de:settings so the -D override below matches
+  # WITHOUT hand-passing DE_* (mirrors the APP path's gen/app.dims). Explicit DE_* env still wins;
+  # a cart with no settings chunk → cart-info exits 3, we keep the 320×200 default.
+  if [ -z "${DE_SCREEN_W:-}" ]; then
+    D="$( cd .. && node tools/cart-info.js "$CART" --dims 2>/dev/null || true )"
+    [ -n "$D" ] && { set -a; eval "$D"; set +a; }
+  fi
 fi
 stage_cart "$AU_CART" au
 

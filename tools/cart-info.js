@@ -27,6 +27,10 @@
 //   --source   also dump the embedded de:source to stdout (to eyeball what the
 //              editor loads vs the .c on disk).
 //   --quiet    print nothing; exit 1 iff de:source has drifted (CI / pre-commit).
+//   --dims     print shell-sourceable DE_* dims from de:settings (screen/cell/map) and
+//              exit; exit 3 if the cart has no settings chunk. The iOS build (ios/build.sh,
+//              ios/device.sh) sources this so a single cart builds at its own size without
+//              hand-passing DE_SCREEN_W etc.
 //
 // ── the .cart.png embed format (the "extraction trick", documented) ──────────
 // A .cart.png is a normal PNG (the visible image is the thumbnail) carrying
@@ -48,6 +52,7 @@ const INDEX = path.join(CARTS_DIR, "index.json");
 const args = process.argv.slice(2);
 const QUIET = args.includes("--quiet");
 const DUMP_SOURCE = args.includes("--source");
+const DIMS = args.includes("--dims");
 const nameArg = args.find(a => !a.startsWith("--"));
 
 if (!nameArg) {
@@ -98,6 +103,20 @@ if (QUIET) process.exit(drifted ? 1 : 0);
 
 if (DUMP_SOURCE) {
   process.stdout.write(embSource ?? "(no de:source chunk)\n");
+  process.exit(0);
+}
+
+// --dims: shell-sourceable DE_* dims from de:settings, so a build can derive a cart's
+// screen/cell/map size instead of hand-passing it (the iOS single-cart build sources this).
+// Exit 3 (not 2) when there's no settings chunk → the caller can keep its own defaults.
+if (DIMS) {
+  let s = null;
+  try { s = chunks.settings ? JSON.parse(chunks.settings) : null; } catch (e) {}
+  if (!s || !s.screenW || !s.screenH) process.exit(3);
+  process.stdout.write(
+    `DE_SCREEN_W=${s.screenW}\nDE_SCREEN_H=${s.screenH}\n` +
+    `DE_MAP_W=${s.mapW || 128}\nDE_MAP_H=${s.mapH || 64}\n` +
+    `DE_CELL_W=${s.cellW || 16}\nDE_CELL_H=${s.cellH || 16}\n`);
   process.exit(0);
 }
 

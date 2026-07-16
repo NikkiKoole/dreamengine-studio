@@ -13,13 +13,13 @@
   "teaches": [],
   "description": {
     "summary": "A candy-toy acid RACK on the device-face skeleton at 160x100 x4: a colour-cartridge nav strip of five FOCUSABLE machines — 303a / 303b / 808 / 909 / MST — all on one transport, packaging acidrack's guts as the device-face paradigm instead of an accordion. Every voice is honest, shared from runtime/ headers so it can't drift.",
-    "detail": "Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has four soft-keys like the drums — SEQ (the LCD roll), FLAG (a 6-button palette ACC/SLD/TIE/OCT+/OCT-/LEN you arm then paint on the bars — per-step depth + per-line LENGTH/polymeter), FX (DRV/SEND/VERB as LCD-native green knobs), and GEN (a CLEAR + MIN/MID/BUSY generate menu). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX + a machine-global SWING (SWG/DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. The green SCREEN is the voice inspector: four soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE + DEC as LCD-native green knobs, plus a voice-specific CHARACTER knob only where the machine has one — SNPY/THUD/TONE/RING on the 808, ATTK/SNPY/CLIK/TONE on the 909, faithful to tr808/tr909; voices without one show just the two) / KIT (the kit minimap) / FLAG (a depth palette) / GEN (a CLEAR + MIN/MID/BUSY generate menu) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke) / TUNE (a per-step p-lock: a BIPOLAR tune OFFSET from the voice knob — centre = follow the voice, slide up/down = ±12 semitones, so the voice TUNE knob transposes the whole melodic contour; the cell lane becomes a bipolar bar-from-centre lens while armed). PROB and TUNE DRAW ACROSS — drag over the row and each cell takes the finger's height, so a whole probability ramp or melodic fill sweeps out in one gesture (the PCF-lane / note-bar feel). A single-row voice picker holding the FULL roster (16 tiny 2-char pads on the 808, 11 on the 909, acidrack's acid order — full name in the VCE header), doubling as a per-voice MUTE grid under a MUT soft-key (muted = dimmed + red slash, silenced but kept in the pattern), and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP, a 4-channel mix overview, delay TIME + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.)",
-    "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-/LEN, then tap bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: SWG/DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, arm ACC/PROB/TUNE (909 also STRK) then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUNE vertical-slide = per-step pitch offset around the voice tune — melodic fills). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, pick a delay TIME + per-machine SEND."
+    "detail": "Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has four soft-keys like the drums — SEQ (the LCD roll), FLAG (a 6-button palette ACC/SLD/TIE/OCT+/OCT-/LEN you arm then paint on the bars — per-step depth + per-line LENGTH/polymeter), FX (DRV/SEND/VERB as LCD-native green knobs), and GEN (a CLEAR + MIN/MID/BUSY generate menu). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX + a machine-global SWING (SWG/DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. The green SCREEN is the voice inspector: four soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE + DEC as LCD-native green knobs, plus a voice-specific CHARACTER knob only where the machine has one — SNPY/THUD/TONE/RING on the 808, ATTK/SNPY/CLIK/TONE on the 909, faithful to tr808/tr909; voices without one show just the two) / KIT (the kit minimap) / FLAG (a depth palette) / GEN (a CLEAR + MIN/MID/BUSY generate menu) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke) / and the per-step p-LOCKS TUN / DEC / <character> (each its own button — the palette is two rows: ACC/PROB(/STRK) on top, the p-locks below; the character button appears only on voices that have one, e.g. SNPY). Arming a p-lock turns the cell lane into a BIPOLAR bar-from-centre lens editing that knob's per-step OFFSET (centre = follow the voice knob, up/down = ± its range); all three offsets play at once, each riding its voice knob so the knobs still transpose the whole contour. PROB and the p-locks DRAW ACROSS — drag over the row and each cell takes the finger's height, so a whole probability ramp or melodic/decay/timbre contour sweeps out in one gesture (the PCF-lane / note-bar feel). A single-row voice picker holding the FULL roster (16 tiny 2-char pads on the 808, 11 on the 909, acidrack's acid order — full name in the VCE header), doubling as a per-voice MUTE grid under a MUT soft-key (muted = dimmed + red slash, silenced but kept in the pattern), and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP, a 4-channel mix overview, delay TIME + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.)",
+    "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-/LEN, then tap bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: SWG/DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, pick a delay TIME + per-machine SEND."
   },
   "todo": [
     "808/909 completeness: SHIPPED (2026-07-16) — EVERY voice is a pad in ONE picker row (no pages): 808 = 16 tiny 2-char pads, 909 = 11 wider ones, in acidrack's ACID ORDER (kick/hats/clap/snare first, fills last). The full name shows in the VCE screen header on select. The KIT minimap is a full-roster density grid (all 16/11 voices as 1px rows). Pads DOUBLE-DUTY: a MUT soft-key flips a tap between SELECT+audition and per-voice MUTE (dmute/d9mute — dimmed + red slash, silenced in playback + dimmed in the minimap), on top of the machine mute. A muted pad still GHOST-PULSES (light-grey flash) on its would-be triggers — dtrig is set on the would-trigger, the fire() is what's gated by mute — so you can see the silenced pattern playing and time an unmute.",
     "drum DEPTH: SHIPPED (2026-07-16) a KIT/FLAG soft-key pair on both drum faces (the 303's SEQ/FLAG idiom) — FLAG fills the LCD with a depth palette (ACC/PROB, 909 also STRK) you arm then paint on the cells: per-voice-per-step ACCENT (fires boost +2, red marker in the gap above the cell), trig PROBABILITY (vertical-slide → snap_prob 100/75/50/25, shorter bar = lower chance, rnd()-gated in update()), and 909 STROKE (cycle none→flam→drag→ratchet via tr909_fire_stroke, blue pips). The 909 metal XY (m9cut/m9res, tr909_metal) is now a live XY pad in the 909 FX panel. NEW resets a voice's depth too. Still open: per-step accent SWEEP + a clearer stroke glyph than pips.",
-    "p-LOCKS: TUNE SHIPPED (2026-07-16) — a TUNE flag in the drum FLAG palette; arming it turns the cell lane into a BIPOLAR per-step tune-offset lens (centre = follow the voice knob, slide up/down = ±12 semitones via dtoff/d9toff, applied by swapping the voice's tune around each fire). The voice TUNE knob transposes the whole contour (offset, not absolute). Melodic tom/kick fills. FOLLOW-UPS: (1) extend the p-lock to DEC and the character knob (a LOCK+param-picker, or per-param flags — the params are all honest per the tr808/tr909 audibility check); (2) a way to UNLOCK a step back to 0 (currently only NEW/GEN clears); (3) p-locks for the 303 knobs (CUT/RES) the same way.",
+    "p-LOCKS: SHIPPED (2026-07-16) — a LOCK flag in the drum FLAG palette. Arming it makes the cell lane a BIPOLAR per-step OFFSET lens (centre = follow the voice knob, up/down slide, drawn across); the offsets live in doff/d9off[LK_TUNE|LK_DEC|LK_CHAR] and are applied by swapping the voice's TUNE/DEC/CHAR knobs around each fire, so the voice knobs still transpose the whole contour. Each is its OWN button — the FLAG palette is now two rows (ACC/PROB(/STRK) on top, TUN/DEC/<char> below; the character button only shows on voices that have one). All three offsets play at once. FOLLOW-UPS: (1) a way to UNLOCK a step back to 0 (currently only NEW/GEN clears — maybe a plain tap zeroes it); (2) the same p-lock lens for the 303 knobs (CUT/RES).",
     "ARRANGEMENT (the last big acidrack gap): pattern BANKS A-D + a SONG chain + the 8-hex GEN song-code + WAV export.",
     "SWING: per-machine shuffle SHIPPED (2026-07-16) — a SWG lcdknob in each drum KIT screen delays odd 16ths via the fire delay param (0 = straight). SAVE/LOAD (autosave patterns/knobs) still open — acidrack has it.",
     "drum-machine ergonomics: (1) CLEAR — SHIPPED (2026-07-16) as part of a GEN flow. Every instrument has a GEN soft-key (right margin, replacing the decorative SCP) that fills the LCD with a CLEAR + MIN/MID/BUSY menu — CLEAR empties the pattern, the three densities regenerate it (MID = the old NEW recipe). Replaces the single NEW button. (2) LIVE RECORD — still open: while the loop plays, a mode where tapping a voice pad punches its hit onto the CURRENT step (step/overdub record), instead of only auditioning.",
@@ -82,10 +82,10 @@ static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 
 enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_LEN, FL_N };
 static int  armed = FL_ACC;                  // which flag a bar-tap paints
 static const char *FLNAME[FL_N] = { "ACC", "SLD", "TIE", "OCT+", "OCT-", "LEN" };
-enum { DD_ACC, DD_PROB, DD_STRK, DD_TUNE, DD_N };   // drum-depth flags (STRK = 909-only; TUNE = per-step p-lock)
-static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUNE" };
-static const int   FL8[] = { DD_ACC, DD_PROB, DD_TUNE };            // the 808 flag palette (no STRK)
-static const int   FL9[] = { DD_ACC, DD_PROB, DD_STRK, DD_TUNE };   // the 909 flag palette
+enum { LK_TUNE, LK_DEC, LK_CHAR, LK_N };            // p-lock params (doff[] index)
+// drum-depth flags. STRK = 909-only; TUN/DEC/CHAR = the per-step p-locks and map 1:1 to LK_* (DD_TUN+lp).
+enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_N };
+static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR" };
 enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN };     // drum LCD content: voice knobs / kit minimap / depth palette / generate menu
 static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
 static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
@@ -136,7 +136,7 @@ static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filt
 // drum DEPTH — per-voice-per-step, painted in FLAG mode (mirrors the 303 flags)
 static int   dacc[TR_NV][STEPS],  dprob[TR_NV][STEPS];                             // 808: accent flag + trig-prob %
 static int   d9acc[TR9_NV][STEPS], d9prob[TR9_NV][STEPS], d9strk[TR9_NV][STEPS];   // 909: + stroke type (TR9_ST_*)
-static float dtoff[TR_NV][STEPS], d9toff[TR9_NV][STEPS];                           // per-step TUNE p-lock OFFSET from the voice knob: -1..+1 → ±12 semitones (0 = follow the voice)
+static float doff[LK_N][TR_NV][STEPS], d9off[LK_N][TR9_NV][STEPS];                 // per-step p-lock OFFSETs (TUNE/DEC/CHAR) from the voice knobs: -1..+1 (0 = follow the voice)
 static float swing8 = 0, swing9 = 0;                       // per-machine shuffle: odd 16ths fire late (0 = straight)
 
 // the MST master/mix face
@@ -234,7 +234,7 @@ static void gen_line(int i, int d) {
 
 // generate the 808 beat at density d: 0=clear · 1=minimal · 2=classic · 3=busy
 static void gen_drums(int d) {
-    for (int v = 0; v < TR_NV; v++) for (int s = 0; s < STEPS; s++) { dgrid[v][s] = 0; dacc[v][s] = 0; dprob[v][s] = 100; dtoff[v][s] = 0; }
+    for (int v = 0; v < TR_NV; v++) for (int s = 0; s < STEPS; s++) { dgrid[v][s] = 0; dacc[v][s] = 0; dprob[v][s] = 100; for (int p = 0; p < LK_N; p++) doff[p][v][s] = 0; }
     if (d == 0) return;                                            // CLEAR = empty
     for (int s = 0; s < STEPS; s += 4) dgrid[TR_BD][s] = 1;        // kick four-on-floor (the pulse, always)
     dgrid[TR_OH][2] = dgrid[TR_OH][10] = 1;                        // off-beat open hat
@@ -252,7 +252,7 @@ static void gen_drums(int d) {
 
 // generate the 909 beat at density d: 0=clear · 1=minimal · 2=classic · 3=busy
 static void gen_drums9(int d) {
-    for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) { d9grid[v][s] = 0; d9acc[v][s] = 0; d9prob[v][s] = 100; d9strk[v][s] = 0; d9toff[v][s] = 0; }
+    for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) { d9grid[v][s] = 0; d9acc[v][s] = 0; d9prob[v][s] = 100; d9strk[v][s] = 0; for (int p = 0; p < LK_N; p++) d9off[p][v][s] = 0; }
     if (d == 0) return;                                            // CLEAR = empty
     for (int s = 0; s < STEPS; s += 4) d9grid[TR9_BD][s] = 1;      // house four-on-floor
     d9grid[TR9_OH][2] = d9grid[TR9_OH][10] = 1;                    // off-beat open hats
@@ -653,10 +653,13 @@ static void draw_808(void) {
     if (dscreen == DS_GEN) {
         draw_gen(2);
     } else if (dscreen == DS_FLAG) {
-        for (int f = 0; f < 3; f++) {                       // the 808 depth palette (ACC/PROB/TUNE)
-            int fl = FL8[f];
-            if (lcdbtn(0x24u + fl, 30 + f * 34, 44, 32, 9, DDNAME[fl], darmed == fl)) darmed = fl;
-        }
+        if (darmed == DD_CHAR && !CH8[dsel]) darmed = DD_TUN;   // this voice has no character knob
+        // row 1 — the depth flags; row 2 — the per-step p-locks (TUN/DEC/character)
+        if (lcdbtn(0x24u + DD_ACC,  30, 40, 32, 8, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
+        if (lcdbtn(0x24u + DD_PROB, 64, 40, 32, 8, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
+        if (lcdbtn(0x24u + DD_TUN,  30, 49, 32, 8, "TUN",  darmed == DD_TUN))  darmed = DD_TUN;
+        if (lcdbtn(0x24u + DD_DEC,  64, 49, 32, 8, "DEC",  darmed == DD_DEC))  darmed = DD_DEC;
+        if (CH8[dsel] && lcdbtn(0x24u + DD_CHAR, 98, 49, 32, 8, CH8[dsel], darmed == DD_CHAR)) darmed = DD_CHAR;
     } else if (dscreen == DS_KIT) {
         rrectfill(28, 40, 15, 7, 1, CLR_TRUE_BLUE); font(FONT_TINY); print("808", 30, 41, CLR_WHITE);   // identity badge
         for (int r = 0; r < TR_NV; r++) {                   // full-roster density grid — every voice SEEN
@@ -718,15 +721,16 @@ static void draw_808(void) {
             } else if (darmed == DD_PROB) {                  // FLAG/PROB — vertical slide, DRAWN across the row (finger height = chance)
                 float f = clamp((94 - c->cy) / 13.0f, 0, 1);
                 dprob[dsel][cell] = snap_prob(f); dgrid[dsel][cell] = 1;
-            } else {                                         // FLAG/TUNE — bipolar p-lock offset, drawn across (centre = follow the voice)
-                dtoff[dsel][cell] = clamp((89 - c->cy) / 8.0f, -1, 1); dgrid[dsel][cell] = 1;
+            } else {                                         // FLAG/TUN|DEC|CHAR — bipolar p-lock offset, drawn across
+                doff[darmed - DD_TUN][dsel][cell] = clamp((89 - c->cy) / 8.0f, -1, 1); dgrid[dsel][cell] = 1;
             }
         }
-        int on2 = dgrid[dsel][s], tunelens = (dscreen == DS_FLAG && darmed == DD_TUNE);
+        int on2 = dgrid[dsel][s], locklens = (dscreen == DS_FLAG && darmed >= DD_TUN);
+        int lp = locklens ? darmed - DD_TUN : 0;
         rrectfill(x, 81, 8, 16, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
-        if (on2 && tunelens) {                               // TUNE lens — bipolar bar from centre (up = higher, down = lower)
-            int cy = 89, op = (int)(dtoff[dsel][s] * 7 + (dtoff[dsel][s] >= 0 ? 0.5f : -0.5f));
-            line(x, cy, x + 7, cy, CLR_DARKER_GREY);         // centre = the voice's tune
+        if (on2 && locklens) {                               // LOCK lens — bipolar bar from centre (up = more, down = less)
+            int cy = 89, op = (int)(doff[lp][dsel][s] * 7 + (doff[lp][dsel][s] >= 0 ? 0.5f : -0.5f));
+            line(x, cy, x + 7, cy, CLR_DARKER_GREY);         // centre = the voice's knob
             int col = here ? CLR_WHITE : op ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN;
             if (op > 0)      rrectfill(x, cy - op, 8, op, 1, col);
             else if (op < 0) rrectfill(x, cy + 1, 8, -op, 1, col);
@@ -776,10 +780,14 @@ static void draw_909(void) {
     if (dscreen == DS_GEN) {
         draw_gen(3);
     } else if (dscreen == DS_FLAG) {
-        for (int f = 0; f < 4; f++) {                       // the 909 depth palette (ACC/PROB/STRK/TUNE)
-            int fl = FL9[f];
-            if (lcdbtn(0x24u + fl, 30 + f * 25, 44, 23, 9, DDNAME[fl], darmed == fl)) darmed = fl;
-        }
+        if (darmed == DD_CHAR && !CH9[d9sel]) darmed = DD_TUN;   // this voice has no character knob
+        // row 1 — the depth flags (incl. STRK); row 2 — the per-step p-locks
+        if (lcdbtn(0x24u + DD_ACC,  30, 40, 32, 8, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
+        if (lcdbtn(0x24u + DD_PROB, 64, 40, 32, 8, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
+        if (lcdbtn(0x24u + DD_STRK, 98, 40, 32, 8, "STRK", darmed == DD_STRK)) darmed = DD_STRK;
+        if (lcdbtn(0x24u + DD_TUN,  30, 49, 32, 8, "TUN",  darmed == DD_TUN))  darmed = DD_TUN;
+        if (lcdbtn(0x24u + DD_DEC,  64, 49, 32, 8, "DEC",  darmed == DD_DEC))  darmed = DD_DEC;
+        if (CH9[d9sel] && lcdbtn(0x24u + DD_CHAR, 98, 49, 32, 8, CH9[d9sel], darmed == DD_CHAR)) darmed = DD_CHAR;
     } else if (dscreen == DS_KIT) {
         rrectfill(28, 40, 15, 7, 1, CLR_ORANGE); font(FONT_TINY); print("909", 30, 41, CLR_BROWNISH_BLACK);
         for (int r = 0; r < TR9_NV; r++) {                  // full-roster density grid — every voice SEEN
@@ -843,14 +851,15 @@ static void draw_909(void) {
             } else if (darmed == DD_STRK) {                  // FLAG/STRK — cycle the stroke, paint across
                 if (ui_grabbed(ws)) { paint_val = (d9strk[d9sel][s] + 1) % TR9_NSTROKE; d9grid[d9sel][s] = 1; }
                 d9strk[d9sel][cell] = paint_val; if (paint_val) d9grid[d9sel][cell] = 1;
-            } else {                                         // FLAG/TUNE — bipolar p-lock offset, drawn across (centre = follow the voice)
-                d9toff[d9sel][cell] = clamp((89 - c->cy) / 8.0f, -1, 1); d9grid[d9sel][cell] = 1;
+            } else {                                         // FLAG/TUN|DEC|CHAR — bipolar p-lock offset, drawn across
+                d9off[darmed - DD_TUN][d9sel][cell] = clamp((89 - c->cy) / 8.0f, -1, 1); d9grid[d9sel][cell] = 1;
             }
         }
-        int on2 = d9grid[d9sel][s], tunelens = (dscreen == DS_FLAG && darmed == DD_TUNE);
+        int on2 = d9grid[d9sel][s], locklens = (dscreen == DS_FLAG && darmed >= DD_TUN);
+        int lp = locklens ? darmed - DD_TUN : 0;
         rrectfill(x, 81, 8, 16, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
-        if (on2 && tunelens) {                               // TUNE lens — bipolar bar from centre
-            int cy = 89, op = (int)(d9toff[d9sel][s] * 7 + (d9toff[d9sel][s] >= 0 ? 0.5f : -0.5f));
+        if (on2 && locklens) {                               // LOCK lens — bipolar bar from centre
+            int cy = 89, op = (int)(d9off[lp][d9sel][s] * 7 + (d9off[lp][d9sel][s] >= 0 ? 0.5f : -0.5f));
             line(x, cy, x + 7, cy, CLR_DARKER_GREY);
             int col = here ? CLR_WHITE : op ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN;
             if (op > 0)      rrectfill(x, cy - op, 8, op, 1, col);
@@ -1004,9 +1013,12 @@ void update(void) {
                 if (!dgrid[v][step] || (dprob[v][step] < 100 && rnd(100) >= dprob[v][step])) continue;
                 dtrig[v] = 1;                                     // would-trigger → the pad pulses even while muted
                 if (!mac[M_808].mute && !dmute[v]) {              // ...but only SOUND if not muted
-                    float sv = dtune[v]; dtune[v] = clamp(sv + dtoff[v][step] * 0.5f, 0, 1);   // per-step TUNE p-lock (±12st)
+                    float st0 = dtune[v], sd0 = ddecay[v], sc0 = dcolor[v];    // per-step p-locks (TUNE/DEC/CHAR offsets)
+                    dtune[v]  = clamp(st0 + doff[LK_TUNE][v][step] * 0.5f, 0, 1);
+                    ddecay[v] = clamp(sd0 + doff[LK_DEC][v][step]  * 0.5f, 0, 1);
+                    dcolor[v] = clamp(sc0 + doff[LK_CHAR][v][step] * 0.5f, 0, 1);
                     tr808_fire(TR808_BASE, v, dacc[v][step] ? 2 : 0, sw8, dtune, ddecay, dcolor);
-                    dtune[v] = sv;
+                    dtune[v] = st0; ddecay[v] = sd0; dcolor[v] = sc0;
                 }
             }
             for (int v = 0; v < TR9_NV; v++) {                    // the 909 line
@@ -1014,10 +1026,13 @@ void update(void) {
                 d9trig[v] = 1;
                 if (!mac[M_909].mute && !d9mute[v]) {
                     int bo = d9acc[v][step] ? 2 : 0, st = d9strk[v][step];
-                    float sv = d9tune[v]; d9tune[v] = clamp(sv + d9toff[v][step] * 0.5f, 0, 1);   // per-step TUNE p-lock
+                    float st0 = d9tune[v], sd0 = d9decay[v], sc0 = d9color[v];   // per-step p-locks
+                    d9tune[v]  = clamp(st0 + d9off[LK_TUNE][v][step] * 0.5f, 0, 1);
+                    d9decay[v] = clamp(sd0 + d9off[LK_DEC][v][step]  * 0.5f, 0, 1);
+                    d9color[v] = clamp(sc0 + d9off[LK_CHAR][v][step] * 0.5f, 0, 1);
                     if (st) tr909_fire_stroke(D909_BASE, v, st, bo, sw9, 113, d9tune, d9decay, d9color);   // 113ms ≈ one 16th @132
                     else    tr909_fire(D909_BASE, v, bo, sw9, d9tune, d9decay, d9color);
-                    d9tune[v] = sv;
+                    d9tune[v] = st0; d9decay[v] = sd0; d9color[v] = sc0;
                 }
             }
         } else for (int i = 0; i < 2; i++) {

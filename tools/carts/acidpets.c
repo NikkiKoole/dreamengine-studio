@@ -197,6 +197,23 @@ static void pet_mouth(float cx,float cy,float w,float curve,float open,int color
     poly[n].x=x+bo(sd,i+20,0x53,boil); poly[n].y=yc+openH*(1-u*u)+bo(sd,i+20,0x54,boil); n++; }
   fill_poly(poly,n,0,0,sd,0,color);
 }
+// colored CHEEK (boiled blush oval, like the 808 cat) + EYEBROW (boiled line above eye)
+static void pet_cheek(float cx,float cy,float rx,float ry,int color,float boil){
+  if (rx<0.6f) return;
+  unsigned sd=(unsigned)((int)cx*23 + (int)cy*11 + 5);
+  P o[12]; mkoval(o,cx,cy,rx,ry,12); fill_poly(o,12,0,0,sd,boil,color);
+}
+static void pet_brow(float cx,float cy,float w,float ang,int innerdir,int color,float boil){
+  unsigned sd=(unsigned)((int)cx*31 + (int)cy*7 + innerdir + 2);
+  float bix=cx+innerdir*w*0.5f, box=cx-innerdir*w*0.5f, ba=ang*w*0.35f;
+  float ix=bix+bo(sd,0,0x61,boil), iy=cy+ba+bo(sd,0,0x62,boil);
+  float ox=box+bo(sd,1,0x63,boil), oy=cy-ba*0.7f+bo(sd,1,0x64,boil);
+  line((int)ix,(int)iy,(int)ox,(int)oy,color); line((int)ix,(int)iy+1,(int)ox,(int)oy+1,color);
+}
+static void pet_brows(float cx,float cy,float gap,float w,float raise,float ang,int color,float boil){
+  pet_brow(cx-gap,cy-raise,w,ang,+1,color,boil);
+  pet_brow(cx+gap,cy-raise,w,ang,-1,color,boil);
+}
 static void pet_eyes(float cx,float cy,float gap,float ew,float eh,int color,float boil,Eye e){
   peteye(cx-gap,cy,ew,eh,color,boil,&e);
   peteye(cx+gap,cy,ew,eh,color,boil,&e);
@@ -290,7 +307,13 @@ static void draw_smiley(int m, float cx, float cy, float s){
             .pupil=0.5f, .gx=clamp((pt->pit01-pt->pcur)*3,-1,1), .gy=-(pt->pcur-0.5f)*1.2f,
             .lid=0, .browY=0.5f, .browA=0, .glint=1 };
   e.open *= fmaxf(0.0f, 1.0f - pt->blink*9.0f);   // blink = a transition
-  pet_eyes(cx+lean, cy-R*0.18f, R*0.42f, fmaxf(1.0f,1.1f*s), fmaxf(1.0f,1.3f*s), CLR_BLACK, 0.6f, e);
+  float exg=R*0.42f, ecy=cy-R*0.18f;
+  // acid-house blush cheeks (raver glow, pulse a touch with energy)
+  pet_cheek(cx+lean-exg*1.3f, cy+R*0.2f, (1.6f+pt->energy*1.2f)*s, 1.3f*s, CLR_PINK, 0.6f);
+  pet_cheek(cx+lean+exg*1.3f, cy+R*0.2f, (1.6f+pt->energy*1.2f)*s, 1.3f*s, CLR_PINK, 0.6f);
+  pet_eyes(cx+lean, ecy, exg, fmaxf(1.0f,1.1f*s), fmaxf(1.0f,1.3f*s), CLR_BLACK, 0.6f, e);
+  // brows — hop up on an accent (surprise/emphasis)
+  pet_brows(cx+lean, ecy-1.6f*s-pt->acc*2.5f*s, exg, 3.0f*s, 0, -0.2f, CLR_BLACK, 0.6f);
 
   // grin — smiles more with energy, opens to an O on an accent
   pet_mouth(cx+lean, cy+R*0.34f, R*0.9f, 0.5f+pt->energy*0.5f, pt->acc*0.7f, CLR_BLACK, 0.6f);
@@ -327,16 +350,19 @@ static void draw808(float cx, float cy, float s){
   // body
   P bd[20]; mkoval(bd,cx,cy,rx,ry,20); blob(bd,20,800,jit,1.4f*s,body,CLR_BLACK);
 
-  // cheeks — SNAP sets base puff, PERC pulses them
+  // cheeks (the cat blush) — SNAP sets base puff, PERC pulses them
   float cr=(1.4f+snap*1.6f+pt->perc*1.8f)*s;
-  circfill((int)(cx-rx*0.55f),(int)(cy+ry*0.15f),(int)cr,CLR_DARK_PEACH);
-  circfill((int)(cx+rx*0.55f),(int)(cy+ry*0.15f),(int)cr,CLR_DARK_PEACH);
+  pet_cheek(cx-rx*0.55f, cy+ry*0.15f, cr, cr*0.85f, CLR_DARK_PEACH, 0.5f);
+  pet_cheek(cx+rx*0.55f, cy+ry*0.15f, cr, cr*0.85f, CLR_DARK_PEACH, 0.5f);
 
   // eyes — sleepy & content; SNARE crack clamps them shut, cowbell pops them wide
   Eye e = { .open=0.55f, .squint=0.0f, .gy=0.1f, .glint=1 };
   if (pt->perc>0.3f) e.open=0.95f;                     // cowbell/perc → wide-awake
   e.open *= fmaxf(0.0f, 1.0f - fmaxf(pt->blink, pt->snare>0.35f?pt->snare:0)*9.0f);  // snare/blink clamp (transition)
-  pet_eyes(cx, cy-ry*0.22f, rx*0.4f, fmaxf(1.0f,1.2f*s), fmaxf(1.0f,1.3f*s), CLR_BLACK, 0.6f, e);
+  float ecy=cy-ry*0.22f, exg=rx*0.4f;
+  pet_eyes(cx, ecy, exg, fmaxf(1.0f,1.2f*s), fmaxf(1.0f,1.3f*s), CLR_BLACK, 0.6f, e);
+  // sleepy brows — sit low, lift a bit when perc pops the eyes wide
+  pet_brows(cx, ecy-1.4f*s-pt->perc*2.0f*s, exg, 3.2f*s, 0, -0.15f, CLR_BLACK, 0.6f);
   // mouth — content, opens to an O on the kick
   pet_mouth(cx, cy+ry*0.42f, rx*0.7f, 0.4f, pt->kick*0.7f, CLR_DARK_BROWN, 0.6f);
 }
@@ -374,7 +400,10 @@ static void draw909(float cx, float cy, float s){
   Eye e = { .open=0.95f, .squint=0,
             .gx=sinf(now()*4)*0.5f*pt->energy, .gy=sinf(now()*3+1)*0.3f*pt->energy, .glint=1 };
   e.open *= fmaxf(0.0f, 1.0f - fmaxf(pt->blink, pt->snare>0.4f?pt->snare:0)*9.0f);   // snare/blink (transition)
-  pet_eyes(cx, cy-ry*0.35f, rx*0.42f, er, er, ec, 0.6f, e);
+  float ecy=cy-ry*0.35f, exg=rx*0.42f;
+  pet_eyes(cx, ecy, exg, er, er, ec, 0.6f, e);
+  // aggressive chrome brows (angry angle, harder with DRIVE/energy) — no cheeks (it's a bug)
+  pet_brows(cx, ecy-er-1.0f*s, exg, 3.0f*s, 0, 0.5f+pt->energy*0.4f, CLR_DARK_GREY, 0.8f);
 }
 
 // MST = the beating HEART the mix lives in. PUMP ducks it on the kick (sidechain
@@ -408,6 +437,9 @@ static void drawmst(float cx, float cy, float s){
   float sq=1-fminf(1,fabsf(flt-0.5f)*2);            // 1 = wide open, 0 = squint
   Eye e = { .open=(0.5f+0.5f*sq)*(1-0.5f*pump*pt->kick), .squint=(1-sq)*0.7f, .glint=1 };
   e.open *= fmaxf(0.0f, 1.0f - pt->blink*9.0f);
+  // blush cheeks (cute heart, glow with mix energy)
+  pet_cheek(cx-3.6f*s, cy+1.5f*s, (1.3f+pt->energy*1.0f)*s, 1.1f*s, CLR_MAUVE, 0.6f);
+  pet_cheek(cx+3.6f*s, cy+1.5f*s, (1.3f+pt->energy*1.0f)*s, 1.1f*s, CLR_MAUVE, 0.6f);
   pet_eyes(cx, cy-1*s, 2.6f*s, fmaxf(1.1f,1.3f*s), fmaxf(1.1f,1.4f*s), CLR_BLACK, 0.6f, e);
   // a tiny content smile on the heart
   pet_mouth(cx, cy+3.5f*s, 6*s, 0.6f, 0, CLR_DARK_RED, 0.6f);

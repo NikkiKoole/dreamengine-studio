@@ -51,6 +51,7 @@ seconds of mic, freeze it to a PCM buffer, then chop/pitch/loop it like any samp
 | [`breakchop`](../../tools/carts/breakchop.c) | Beatbox → onset-sliced pad kit | capture-then-freeze |
 | [`humseq`](../../tools/carts/humseq.c) | **hum→MIDI** — hum a melody; a hysteresis note-tracker freezes it to a scale-locked loop played on any `INSTR_*` (vein 2) | capture-then-freeze |
 | [`singsynth`](../../tools/carts/singsynth.c) | **Voice sampler** — hold a vowel, loop it into a keybed instrument you play polyphonically, SK-1-style (vein 3) | capture-then-freeze |
+| [`hardtune`](../../tools/carts/hardtune.c) | **Robot auto-tune** — a saw carrier locked to `snap_scale(mic_pitch)`, vocoded by the live mic; RETUNE slider = hard T-Pain robot ↔ natural glide (vein 3, flavour A) | audio-thread ring (live mic) |
 
 The engine seam (host owns the device behind `platform.h`; engine analyses + exposes the API)
 is live on **desktop + web**; the vocoder ring runs on the audio thread. Full ship log:
@@ -87,15 +88,35 @@ ADR-0032). Then: live fuzz/granular/delay/reverb pedals off the same ring. *Prer
 Detail: [`vocoder.md`](vocoder.md) §"the pedal tier" + [`sound-next-steps.md`](sound-next-steps.md).
 
 **★ 2 — Auto-tune / pitch-correction.** Two very different builds hide under one name:
-- *Robot auto-tune (the T-Pain flavour) — cheap, do-able now.* Drive `vocoder_mic` with a carrier
-  pitched to your **snapped** `mic_pitch` → your vowels, pitch-corrected, gloriously robotic. Reuses
-  the vocoder we already ship; live-only per ADR-0032.
-- *Transparent auto-tune (your natural voice, just corrected) — the big swing.* Needs
-  formant-preserving pitch-shift on real PCM (PSOLA / phase-vocoder); the engine has no such
-  primitive yet (`varispeed` shifts pitch + formant together). **NB:** [`voxroll`](../../tools/carts/voxroll.c)
-  is a Melodyne-style vocal roll that *does* decouple formant from pitch — but on the **synthesised**
-  `INSTR_VOICE`, not on a real recording. So it's the Melodyne-UX reference, not a shortcut to
-  correcting the live mic. *Prereq: robot = done; transparent = a real DSP spike.*
+- *Robot auto-tune (the T-Pain flavour) — **SHIPPED** as [`hardtune`](../../tools/carts/hardtune.c).*
+  A single saw carrier locked to `snap_scale(mic_pitch)`, vocoded by the live mic → your melody,
+  corrected to a scale, in the vocoder's robotic timbre; a RETUNE slider runs from instant-snap
+  (hard robot) to a slow glide (natural). Reuses `vocoder`/`vocoder_mic` + humseq's scale-snap;
+  live-only per ADR-0032. This is the *whole* cheap flavour — done.
+- *Transparent auto-tune (your natural voice, just corrected) — the big swing, UNBUILT.* Keeps your
+  real timbre and only nudges the pitch (the modern-pop vocal). What it entails — a genuine DSP spike,
+  not a cart afternoon:
+  1. **A new engine primitive: formant-preserving pitch-shift on the mic PCM.** The engine has none
+     (`varispeed` moves pitch + formant together → chipmunk). It reads the live `sound_extin` ring
+     (Increment-2 infra, already built) and writes shifted samples into the mix, allocation-free on
+     the audio thread.
+  2. **Algorithm — two families.** *(a) TD-PSOLA* (time-domain, pitch-synchronous overlap-add):
+     cheapest for a monophonic voice, needs pitch epochs (we have `mic_pitch`/YIN → glottal marks);
+     shift by re-spacing grains at the target period while keeping grain length so formants stay put.
+     *(b) Phase vocoder* (STFT + phase re-alignment + separate spectral-envelope re-apply): more
+     general, heavier, needs an FFT on the audio thread. PSOLA is the recommended first cut (voice is
+     monophonic + we already track pitch).
+  3. **Correction logic** on top: target = `snap_scale`; expose retune-speed + a correction *amount*
+     (partial vs full), like `hardtune`'s slider but shifting the real voice instead of a carrier.
+  4. **Latency + realtime budget** — the shifter runs every audio block; profile it (`profile-fleet`)
+     and keep it under the block deadline. A capture-then-freeze variant (correct a *recording*
+     offline) would sidestep the realtime + determinism issues and could be the safer first spike.
+  5. **Acceptance** — an A/B WAV oracle: feed a known off-pitch tone, assert the output lands on the
+     scale note (`tune-check`/`harmonic-spec` style) with the formant centroid unmoved (`wav-envelope`
+     spectral centroid, the trick that caught the sampler's crush no-op).
+  **NB:** [`voxroll`](../../tools/carts/voxroll.c) decouples formant from pitch too — but on the
+  *synthesised* `INSTR_VOICE`, not a real recording, so it's the Melodyne-UX reference, not a shortcut.
+  *Prereq: a formant-preserving pitch-shift primitive (new); the mic ring (done).*
 
 **3 — Beatbox → live drum trigger.** `breakchop` records-then-chops; the *controller* version
 classifies onsets by spectral tilt (kick/snare/hat) and fires [`drumkit.h`](../../runtime/drumkit.h)

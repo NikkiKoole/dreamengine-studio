@@ -81,7 +81,8 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   more capture-then-freeze instruments: **`humseq`** (vein 2, hum→MIDI — a hysteresis note-tracker freezes
 >   a hummed melody to a scale-locked loop on any INSTR) and **`singsynth`** (vein 3, voice sampler — hold a
 >   vowel, loop it into a keybed instrument SK-1-style, draggable loop region). Both use the `ui.h` button bar
->   + `keybed.h`. (Gotcha banked: `rect`/`rectfill` are `(x,y,w,h)`, not corners.)
+>   + `keybed.h`. (Gotcha banked: `rect`/`rectfill` are `(x,y,w,h)`, not corners.) Then **`hardtune`** (vein 3
+>   flavour A, robot auto-tune) — a saw carrier locked to `snap_scale(mic_pitch)`, vocoded live, RETUNE slider.
 > - **THE VOCODER** (`379fef80` Phase 1 + `46b45c35` Phase 2) — a master-stage 12-band carrier×modulator
 >   filterbank in `sound.h` (`vocoder`/`vocoder_send`), fed live by the mic through a **lock-free
 >   audio-thread PCM ring** (`sound_extin_*` + `vocoder_mic`). `vocode` = deterministic synth-modulator
@@ -90,10 +91,11 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   (live-mic-through = live-only; capture-then-freeze stays deterministic). All gates green; desktop +
 >   web live-verified by the maker.
 > **Resume-at: [`design/audio-input-frontier.md`](design/audio-input-frontier.md) — the ranked map (veins 2–3
-> shipped; NEXT = AUTO-TUNE, then the pedal tier + [vocoder v2](design/vocoder.md)).** Auto-tune has two builds:
-> *robot/T-Pain* (cheap — pitch a `vocoder_mic` carrier from the snapped `mic_pitch`) and *transparent* (the big
-> swing — formant-preserving PCM pitch-shift, no engine primitive yet; `voxroll` is the Melodyne-UX ref but
-> synth-`INSTR_VOICE` only, not a real-mic corrector). The `sound_extin`
+> shipped incl. robot auto-tune `hardtune`; NEXT = the pedal tier / TRANSPARENT auto-tune + [vocoder v2](design/vocoder.md)).**
+> Robot/T-Pain auto-tune is DONE (`hardtune`: a `vocoder_mic` carrier pitched from snapped `mic_pitch`). The
+> remaining swing is *transparent* auto-tune — formant-preserving PCM pitch-shift (TD-PSOLA first cut), a new
+> engine primitive on the `sound_extin` ring; the frontier doc §"auto-tune" has the 5-step entails. (`voxroll`
+> decouples formant/pitch but only on synth `INSTR_VOICE`, not a real-mic corrector.) The `sound_extin`
 > mic ring is the foundation for the whole **live-throughput / PEDAL tier** (fuzz, live granular,
 > looper) — the vocoder was just its first customer. Vocoder v2 open items: **sibilance** noise-substitution
 > band (unvoiced consonants don't carry through a tonal carrier — the biggest intelligibility win),

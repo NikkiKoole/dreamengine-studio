@@ -492,6 +492,7 @@ export const studioDocs = {
   rnd:                { sig: 'int rnd(int n)',                                              doc: 'Random integer in [0, n). rnd(6) returns 0–5.' },
   rnd_between:        { sig: 'int rnd_between(int lo, int hi)',                           doc: 'Random integer in [lo, hi). rnd_between(3, 8) returns 3–7.' },
   rnd_float:          { sig: 'float rnd_float()',                                         doc: 'Random float 0..1.' },
+  rnd_seed:           { sig: 'void rnd_seed(int n)',                                      doc: 'Reseed the rnd()/rnd_between()/rnd_float() stream so procedural generation is REPRODUCIBLE.\nCall once with a fixed n right before generating a boot pattern — same n gives the same result every run, on every build.\nrnd_seed(1); gen_pattern();' },
   rnd_float_between:  { sig: 'float rnd_float_between(float lo, float hi)',               doc: 'Random float in [lo, hi).' },
   now:                { sig: 'float now()',                                                doc: 'Seconds since startup. Use for animations and oscillators.' },
   epoch:              { sig: 'int epoch()',                                                doc: 'Real-world clock: Unix time in whole seconds. Unlike now(), it keeps counting while the cart is closed.\nSave it with save(), then on the next run compare to tell how long the player was away:\nint away = epoch() - load(0);  // seconds since last visit' },

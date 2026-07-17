@@ -777,6 +777,7 @@ int   degree(int scale, int octave, int n);                  // MIDI note for th
 int   rnd(int n);                              // random int in [0, n); rnd(6) → 0..5
 int   rnd_between(int lo, int hi);             // random int in [lo, hi); rnd_between(3, 8) → 3..7
 float rnd_float(void);                         // random float 0..1
+void  rnd_seed(int n);                         // reseed the rnd()/rnd_between()/rnd_float() stream — for a REPRODUCIBLE procedural default (call it once with a fixed n right before generating a boot pattern, so it's the same every run). rnd_seed(1); then gen your pattern.
 float rnd_float_between(float lo, float hi);   // random float in [lo, hi)
 float now(void);           // seconds since startup
 float dt(void);            // seconds since the last frame (already clamped for hitches). multiply movement/decay by this for framerate-independent speed

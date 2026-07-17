@@ -1154,6 +1154,9 @@ void init(void) {
     acid_init(&ac[0], 6, 36);                                          // 303a — the bass line (+ octave-down sub on slot 36)
     acid_init(&ac[1], 7, 37);                                          // 303b — an octave up = the acid lead (+ sub on 37)
     ac[1].base = 48;
+    rnd_seed(1);   // PIN the boot pattern: seed the gen stream to a fixed value so the default
+                   // beat/lines are REPRODUCIBLE (same every run/build), not "whatever the ambient
+                   // RNG happened to be". The GEN soft-key re-gens WITHOUT reseeding → stays varied.
     for (int i = 0; i < 2; i++) {
         ac[i].p[ACID_CUT] = 0.55f; ac[i].p[ACID_RES] = 0.70f; ac[i].p[ACID_ENV] = 0.55f;
         ac[i].p[ACID_DEC] = 0.45f; ac[i].p[ACID_ACC] = 0.55f;

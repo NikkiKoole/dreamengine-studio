@@ -5043,6 +5043,11 @@ int rnd(int n) {
     return GetRandomValue(0, n - 1);
 }
 
+void rnd_seed(int n) {                 // reseed the shared rnd stream (reproducible procedural generation)
+    SetRandomSeed((unsigned)n);
+    srand((unsigned)n);
+}
+
 float now(void) {
     return (float)clk();
 }

@@ -431,20 +431,39 @@ static void apply_flavor(int fl) {
 // the flavored accompaniment (data-driven): the flavor's comp onsets, STRUMMED (voices
 // staggered, not a block stab), + its bass onsets. Called each new 16th while a chord is
 // armed; s32 = position in the 2-bar (32-step) cycle. bossa = João clave + surdo, etc.
-static void flavor_accomp(int s32) {
+static void flavor_accomp(int s16) {
     const Flavor *F = &FLAVORS[flavor];
+    int  s32  = s16 % 32;                        // position in the 2-bar comp cycle
+    int  step = s16 % 16;                        // position in the current bar
+    int  pib  = (s16 / 16) % 4;                  // bar within the 4-bar PHRASE (0..3)
+    bool fill = (pib == 3);                      // the turnaround / fill bar
+    int  swell = fill ? 1 : (pib == 0 ? -1 : 0); // breathe: ease in at the top, lift on the fill
+
+    // COMP — the flavor's clave, strummed; with a little human variation off the downbeat
     for (int i = 0; F->comp[i] >= 0; i++)
-        if (F->comp[i] == s32) {                          // comp: strum the voiced chord
-            int vol = (s32 % 16 == 0) ? masterV : mid(1, masterV - 1, 7);
+        if (F->comp[i] == s32) {
+            if (s32 % 16 != 0 && cb_rand(100) < 15) break;   // occasionally drop an off-beat hit
+            int vol = mid(1, ((s32 % 16 == 0) ? masterV : masterV - 1) + swell, 7);
             for (int k = 0; k < nVoiced; k++)
                 schedule_hit(k * strumMs / 2 + cb_rand(4), voiced[k], SL_CHORD, vol, 380);
             break;
         }
-    for (int i = 0; F->bassOn[i] >= 0; i++)
-        if (F->bassOn[i] == s32) {                        // bass: surdo/walk pulse (stronger on the beat)
-            cb_bass_at((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1);
-            break;
-        }
+    // TURNAROUND — extra comp pushes (anticipations) in the fill bar's back half
+    if (fill && (step == 10 || step == 14) && nVoiced) {
+        int vol = mid(1, masterV - 1, 7);
+        for (int k = 0; k < nVoiced; k++) schedule_hit(k * strumMs / 2, voiced[k], SL_CHORD, vol, 220);
+    }
+
+    // BASS — surdo/walk; the fill bar gets a busier pickup into the next downbeat
+    if (fill && step >= 12) {
+        if (step == 12 || step == 14) cb_bass_at(160, -1);
+    } else {
+        for (int i = 0; F->bassOn[i] >= 0; i++)
+            if (F->bassOn[i] == s32) { cb_bass_at((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1); break; }
+    }
+
+    // a soft open-hat lift on the turnaround — the phrase taking a breath
+    if (fill && step == 14) hit(84, INSTR_NOISE, mid(1, masterV - 1, 7), 120);
 }
 
 // ── engine + fx config (set-and-hold) ───────────────────────
@@ -640,7 +659,7 @@ void update(void) {
     // arp / pattern run off the beat clock whenever a chord is armed
     if (armed && newStep) {
         if (FLAVORS[flavor].comp) {
-            flavor_accomp(sixteenth % 32);                // data-driven comp strum + bass
+            flavor_accomp(sixteenth);                     // data-driven comp + bass, phrase-aware (breathes)
         } else {
             int st = sixteenth % STEPS;
             if (perfMode == PM_ARP && nVoiced > 0)

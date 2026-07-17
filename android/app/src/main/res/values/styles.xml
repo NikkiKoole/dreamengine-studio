@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Base theme: fullscreen, no title bar. Nav-bar hiding (immersive-sticky) is applied in
+     code (android_immersive() in cpp/main.c) because it must be RE-applied on every focus
+     gain — a theme can't do that. The display-cutout override lives in values-v27/. -->
+<resources>
+    <style name="Immersive" parent="@android:style/Theme.NoTitleBar.Fullscreen" />
+</resources>

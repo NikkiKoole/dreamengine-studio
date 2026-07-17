@@ -179,6 +179,20 @@ loop, extended to Android.
 
 ## Anticipated gotchas (from the iOS scars + Android specifics)
 
+- **Immersive mode must be RE-APPLIED on focus gain — not set once (hit 2026-07-17).** The
+  `Theme.NoTitleBar.Fullscreen` manifest theme only drops the STATUS bar; on gesture-nav phones the
+  NAVIGATION bar stays and an edge-swipe pulls the system bars back mid-game ("cruft"). This is the
+  Android twin of iOS's `preferredScreenEdgesDeferringSystemGestures` + `prefersHomeIndicatorAutoHidden`
+  (`ios/Sources/GameHost.swift`). Fix (`cpp/main.c` `android_immersive()`): hide the bars via
+  **`WindowInsetsController`** (API 30+; `targetSdk 35` IGNORES the legacy `setSystemUiVisibility` flags,
+  which remain only as the API 26-29 fallback) with `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`, re-applied
+  on **`APP_CMD_GAINED_FOCUS`** and after rotation (Android clears immersive on every focus change).
+  Cutout draw-in (landscape notch) is the declarative half: `res/values-v27/styles.xml`
+  `windowLayoutInDisplayCutoutMode=shortEdges` + the `AWINDOW_FLAG_LAYOUT_NO_LIMITS` baseline. All the
+  JNI is exception-guarded (a wrong-thread throw from the native-thread call degrades to a no-op, never a
+  crash) — **so it can't regress the app, but the nav-bar hide still needs on-device confirmation**; if
+  it proves flaky from the glue thread, that's the concrete nudge toward the GameActivity/Java-Activity
+  migration ("The fork"), which owns `onWindowFocusChanged` on the real UI thread.
 - **The entitlement-read heap race applies verbatim.** iOS hit nano-zone heap corruption because a
   background StoreKit `Task` mutated a `Set` the C loop read every frame (`ios/README.md` gotcha #1).
   The Play BillingClient runs its listeners on a background thread too — so the JNI bridge the C gate

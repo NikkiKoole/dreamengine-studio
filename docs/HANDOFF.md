@@ -53,6 +53,13 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > Emulator audio was flaky (a virtual-audio-device route conflict — BlackHole / Multi-Output device);
 > the working recipe is **device-nudge-after-launch + landscape lock + a deep AAudio buffer**, all only
 > needed on the emulator (real hardware is clean; audio survives rotation natively there).
+> **Immersive fullscreen added 2026-07-17 (compiles, APK builds; NEEDS ON-DEVICE CHECK).** The
+> Fullscreen theme only hid the status bar → the nav bar + edge-swipe system bars showed mid-game.
+> `android_immersive()` in `cpp/main.c` now hides the bars via `WindowInsetsController` (API 30+;
+> targetSdk 35 ignores the old flags) + `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`, RE-applied on
+> `APP_CMD_GAINED_FOCUS`/rotation (the missing piece), + cutout draw-in via `res/values-v27/styles.xml`.
+> The Android twin of iOS's edge-gesture deferral. JNI is exception-guarded (can't crash); verify the
+> nav bar truly stays hidden on a real phone — see the immersive gotcha in `design/android-plan.md`.
 > **Resume-at: [`design/android-plan.md` → the spike ladder](design/android-plan.md#the-spike-ladder)** —
 > NEXT = spike 4 (save → internal storage) → 5 (signed `.aab` for Play) → 6 (Play Billing via the
 > existing `Store_*` gate; needs a Play Console account) → 7 (`build-app.js --android` multi-cart app).

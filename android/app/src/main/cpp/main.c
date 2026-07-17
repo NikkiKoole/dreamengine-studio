@@ -11,6 +11,7 @@
 #include <android_native_app_glue.h>
 #include <android/log.h>
 #include <android/input.h>
+#include <android/window.h>          // AWINDOW_FLAG_* for ANativeActivity_setWindowFlags
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <aaudio/AAudio.h>
@@ -184,6 +185,78 @@ static void mic_poll(struct android_app *app) {
     int want = de_mic_wanted();
     if (want && !g_mic_running) { if (mic_permission(app)) mic_open(); }
     else if (!want && g_mic_running) { g_mic_asked = 0; mic_close(); }
+}
+
+// ---- immersive fullscreen (hide status + navigation bars; draw under the cutout) ----
+// The manifest's Fullscreen theme only drops the STATUS bar. On gesture-nav phones the
+// NAVIGATION bar stays, and an edge-swipe pulls the system bars back in — the "cruft" seen
+// mid-game. Android CLEARS immersive whenever the window regains focus, so this must be
+// re-applied on APP_CMD_GAINED_FOCUS (and after a rotation), not just once at startup.
+// targetSdk 35 ignores the legacy setSystemUiVisibility flags, so we prefer
+// WindowInsetsController (API 30+) and fall back to setSystemUiVisibility for API 26-29.
+// Twin of the iOS edge-gesture deferral (ios/…UIKit-lifecycle root). All JNI is
+// exception-guarded: a wrong-thread throw degrades to a no-op, never a crash.
+static void android_immersive(struct android_app *app) {
+    if (!app || !app->activity || !app->activity->vm) return;
+
+    // thread-safe baseline (glue marshals to the UI thread): fullscreen + edge-to-edge layout
+    ANativeActivity_setWindowFlags(app->activity,
+        AWINDOW_FLAG_FULLSCREEN | AWINDOW_FLAG_LAYOUT_NO_LIMITS, 0);
+
+    JavaVM *vm = app->activity->vm;
+    JNIEnv *env = NULL;
+    if ((*vm)->AttachCurrentThread(vm, &env, NULL) != JNI_OK || !env) return;
+    jobject activity = app->activity->clazz;
+    jclass  acls     = (*env)->GetObjectClass(env, activity);
+
+    int sdk = 26;                                   // Build.VERSION.SDK_INT
+    jclass vcls = (*env)->FindClass(env, "android/os/Build$VERSION");
+    if (vcls) {
+        jfieldID fid = (*env)->GetStaticFieldID(env, vcls, "SDK_INT", "I");
+        if (fid) sdk = (*env)->GetStaticIntField(env, vcls, fid);
+    }
+
+    jmethodID getWindow = (*env)->GetMethodID(env, acls, "getWindow", "()Landroid/view/Window;");
+    jobject window = getWindow ? (*env)->CallObjectMethod(env, activity, getWindow) : NULL;
+    jclass  wcls   = window ? (*env)->GetObjectClass(env, window) : NULL;
+
+    if (window && wcls && sdk >= 30) {
+        // window.setDecorFitsSystemWindows(false) → content draws edge-to-edge
+        jmethodID setDecor = (*env)->GetMethodID(env, wcls, "setDecorFitsSystemWindows", "(Z)V");
+        if (setDecor) (*env)->CallVoidMethod(env, window, setDecor, JNI_FALSE);
+        // WindowInsetsController c = window.getInsetsController();
+        jmethodID getCtl = (*env)->GetMethodID(env, wcls, "getInsetsController",
+                                               "()Landroid/view/WindowInsetsController;");
+        jobject ctl = getCtl ? (*env)->CallObjectMethod(env, window, getCtl) : NULL;
+        if (ctl) {
+            jclass ccls = (*env)->GetObjectClass(env, ctl);
+            int bars = 0;                            // WindowInsets.Type.systemBars()
+            jclass tcls = (*env)->FindClass(env, "android/view/WindowInsets$Type");
+            if (tcls) {
+                jmethodID sysBars = (*env)->GetStaticMethodID(env, tcls, "systemBars", "()I");
+                if (sysBars) bars = (*env)->CallStaticIntMethod(env, tcls, sysBars);
+            }
+            jmethodID hide = (*env)->GetMethodID(env, ccls, "hide", "(I)V");
+            if (hide && bars) (*env)->CallVoidMethod(env, ctl, hide, bars);
+            // setSystemBarsBehavior(BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE = 2): a swipe shows
+            // the bars transiently, then they auto-hide — so nav never sticks around mid-game
+            jmethodID setBehav = (*env)->GetMethodID(env, ccls, "setSystemBarsBehavior", "(I)V");
+            if (setBehav) (*env)->CallVoidMethod(env, ctl, setBehav, 2);
+        }
+    } else if (window && wcls) {
+        // API 26-29: window.getDecorView().setSystemUiVisibility(immersive-sticky flags)
+        jmethodID getDecor = (*env)->GetMethodID(env, wcls, "getDecorView", "()Landroid/view/View;");
+        jobject decor = getDecor ? (*env)->CallObjectMethod(env, window, getDecor) : NULL;
+        if (decor) {
+            jclass dcls = (*env)->GetObjectClass(env, decor);
+            jmethodID setVis = (*env)->GetMethodID(env, dcls, "setSystemUiVisibility", "(I)V");
+            // LAYOUT_STABLE|LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN|HIDE_NAVIGATION|FULLSCREEN|IMMERSIVE_STICKY
+            if (setVis) (*env)->CallVoidMethod(env, decor, setVis, 0x100|0x200|0x400|0x2|0x4|0x1000);
+        }
+    }
+
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);   // e.g. wrong-thread → no-op
+    (*vm)->DetachCurrentThread(vm);
 }
 
 // ---- GLES helpers ----
@@ -370,9 +443,16 @@ static void handle_cmd(struct android_app *app, int32_t cmd) {
         // audio route. The emulator's rotation-silence is a known emulator limitation, not ours.
         case APP_CMD_INIT_WINDOW:
             if (app->window && egl_init(app)) { g_ready = 1; g_t0 = now_seconds(); }
+            android_immersive(app);          // hide the system bars for this window
             break;
         case APP_CMD_TERM_WINDOW:
             egl_teardown();
+            break;
+        // Android drops immersive mode on every focus regain and after a rotation — re-assert it
+        // or the nav bar creeps back the moment the player interacts. This is the piece that was
+        // missing: fullscreen was set once at startup and never restored.
+        case APP_CMD_GAINED_FOCUS:
+            android_immersive(app);
             break;
         case APP_CMD_WINDOW_RESIZED:
         case APP_CMD_CONFIG_CHANGED:
@@ -380,6 +460,7 @@ static void handle_cmd(struct android_app *app, int32_t cmd) {
                 eglQuerySurface(g_dpy, g_sfc, EGL_WIDTH,  &g_view_w);
                 eglQuerySurface(g_dpy, g_sfc, EGL_HEIGHT, &g_view_h);
             }
+            android_immersive(app);          // rotation can reset the bars — re-hide
             break;
         default: break;
     }

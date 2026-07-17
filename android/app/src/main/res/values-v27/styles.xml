@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 27+ : let the cart draw INTO the display cutout (the landscape camera notch) instead
+     of being letterboxed away from it. Pairs with the LAYOUT_NO_LIMITS flag set in code. -->
+<resources>
+    <style name="Immersive" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

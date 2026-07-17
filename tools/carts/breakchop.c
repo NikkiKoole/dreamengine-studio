@@ -6,16 +6,16 @@
   "created": "2026-07-14",
   "kind": ["instrument", "probe"],
   "genre": null,
-  "teaches": ["gesture-loop"],
+  "teaches": ["gesture-loop", "audio-input"],
   "lineage": "The MPC/SP-404 break-chopper: load a drum LOOP and slice it across a pad grid to re-play and rearrange. Sibling of the `sampler` cart (shares INSTR_SAMPLE + chop playback + master crush), but the source is an EXTERNAL loop loaded at runtime (data-tools/breaks/breaks.js → sample_load), not the console's own output — and the slicing is TEMPO-LOCKED (even divisions), not transient/note-on. The whole point is 'throw in your own loop and it's cut correctly'. Falls back to a console-synthesised break so it's self-contained.",
   "description": {
-    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. It loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Give any chop its own REVERSE or SPEED (.25–2x, varispeed so pitch couples) — tap a pad to select it, set its property, then perform: you design the kit chop-by-chop and live-play it. Add GRIT for the SP-1200 crunch, then ride the punch-in FX live: the DJ FILTER (CUT + RES knobs, LP/HP), an ECHO throw (dub delay whose tail rings out), and STUTTER (roll the chops). With no loop file it synthesises a break so there's always something to chop.",
+    "summary": "Chop a drum loop across a pad grid, tempo-locked — the MPC move. Hit REC to BEATBOX a loop with your mouth: it records a few seconds of mic and auto-chops your take at the hits (energy onsets) straight onto the pads. Or it loads a loop (the amen, via data-tools/breaks) and slices it into even divisions (8/16/32); each slice lands on a pad you can play by hand or auto-run in order at the loop's own tempo (which reconstructs the break — the proof the cut is right). It plays MONO — a new hit silences the ringing chop (the MPC mute-group feel), so stutters stay clean. Give any chop its own REVERSE or SPEED (.25–2x, varispeed so pitch couples) — tap a pad to select it, set its property, then perform: you design the kit chop-by-chop and live-play it. Add GRIT for the SP-1200 crunch, then ride the punch-in FX live: the DJ FILTER (CUT + RES knobs, LP/HP), an ECHO throw (dub delay whose tail rings out), and STUTTER (roll the chops). With no loop file it synthesises a break so there's always something to chop.",
     "detail": "Bring-your-own-loop auto-chopper. At startup it loads a mono PCM loop via de_data_path() (--data / $DE_DATA) or the default data-tools/breaks/cache/amen.f32; if none is found it synthesises a short kick/snare/hat break so the cart is never empty. The loop is sliced into N EVEN divisions (DIV cycles 8/16/32) — tempo-locked by construction: a clean N-beat loop cuts exactly on the grid, and the tempo is DERIVED from the loop length (60·N/seconds), no metadata needed. The break plays MONOPHONICALLY through one SELF-CHOKED voice: firing any pad (or the next slice in PLAY) instantly silences the chop that's still ringing — the MPC mute-group feel — so stutters/rolls stay clean and the reconstruction never smears. Each slice sets that voice's [i/N, (i+1)/N] region and lands on a pad. TAP a pad (touch/mouse) or press its key to fire that slice — the last one tapped is SELECTED. Each pad carries its OWN reverse + speed: hit REV or SPD to set the selected chop's property (speed = varispeed .25–2x, pitch couples — no time-stretch, which is the point), tap again to hear it. So you DESIGN the kit chop-by-chop (reverse this one, drop that one an octave) then PERFORM — auto-play and hand-play both use the assigned properties. This is the set-then-play split: per-pad properties are assigned (you can't tune a pad while playing it), while the GLOBAL effects are ridden live — the SP-404 punch-in half: GRIT (CLEAN/12BIT/8BIT/CRUSH), the DJ FILTER (CUT + RES knobs + LP/HP, drag it down for the breakdown thump / open for the drop), an ECHO throw (a tempo-synced dotted-8th dub delay — toggle it on for a moment and the tail rings out after), and STUTTER (pads fire as a looped roll — a bounce-roll if the pad is reversed). Best ridden while auto-play runs and your hands are free. PLAY steps through the slices in order at the derived tempo, looping. GRIT crushes the whole output CLEAN/12BIT/8BIT/CRUSH (SP-1200). The waveform shows the slice markers + a live playhead.",
-    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / Q W E R / A S D F / Z X C V) to fire that slice — the last tapped is SELECTED. REV / SPD — set the SELECTED pad's reverse / speed (.25/.5/1/1.5/2x, varispeed), then tap it to hear it: design each chop, then perform. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi (global). FILTER — drag the CUT + RES knobs, cycle OFF/LP/HP: the DJ punch-in sweep. ECHO — throw a dub delay (dotted-8th; tail rings after). STUT — stutter: pads loop their slice as a roll. All global, ridden live. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js."
+    "controls": "SPACE (or PLAY) — auto-run the slices in order at tempo (loops). Pads: tap/click a pad or press its key (1 2 3 4 / Q W E R / A S D F / Z X C V) to fire that slice — the last tapped is SELECTED. REV / SPD — set the SELECTED pad's reverse / speed (.25/.5/1/1.5/2x, varispeed), then tap it to hear it: design each chop, then perform. DIV — cycle 8/16/32 slices. GRIT — CLEAN/12BIT/8BIT/CRUSH lo-fi (global). FILTER — drag the CUT + RES knobs, cycle OFF/LP/HP: the DJ punch-in sweep. ECHO — throw a dub delay (dotted-8th; tail rings after). STUT — stutter: pads loop their slice as a roll. All global, ridden live. Drop your own loop with --data <loop.f32> (mono float32) or $DE_DATA; make one with data-tools/breaks/breaks.js. REC — beatbox into the mic for ~4s (allow the permission prompt); it captures your take and auto-chops it at the hits onto the pads (mic recording; capture-then-freeze)."
   },
   "todo": [
     "RELEASE GATE: the amen fixture is a copyrighted dev placeholder — before publishing, ship no bundled audio (loops are user-supplied) or swap to a CC0 loop. See data-tools/breaks/README.md.",
-    "onset-snap the tempo grid to the actual transients (currently pure even division).",
+    "onset-chop now exists for MIC takes (energy-onset boundaries → uneven slices); extend it to loaded loop FILES too (they're still pure even division).",
     "punch-in FX done (filter/echo/stutter); a true hold-to-roll (finger-down length) would need note_on/off held-pad tracking.",
     "runtime user import on device (file picker → sample_load) — the eventual product surface.",
     "free slice→pad assignment + reorder; persist the designed kit (per-pad rev/speed) via save_bytes, like the sampler."
@@ -51,6 +51,11 @@ static int   last_beat = -1, cur_step = 0;
 static int   grit      = 0;
 static float pad_flash[MAXSLICE];
 static float wf_lo[240], wf_hi[240];
+static float slice_bound[MAXSLICE + 1];   // slice boundaries as fractions 0..1 (ndiv+1 entries) —
+                                          //   even divisions OR onset positions from a beatboxed take
+static int   rec_state = 0;               // 0 idle · 1 arming (waiting for the mic) · 2 recording
+static int   is_mic    = 0;               // true = the loop was beatboxed in through the mic
+#define REC_SECONDS 4.0f
 
 static const int   DIVS[]   = { 8, 16, 32 };
 static const char *GRIT_NM[] = { "CLEAN", "12BIT", "8BIT", "CRUSH" };
@@ -87,6 +92,16 @@ static int stut_on = 0;                   // STUTTER: pads fire as a looped roll
 
 static float derived_bpm(void) { return loop_secs > 0.0f ? 60.0f * ndiv / loop_secs : 120.0f; }
 
+static void rebuild_even(void) {              // fill slice_bound with even divisions (the default grid)
+    if (ndiv < 1) ndiv = 1; if (ndiv > MAXSLICE) ndiv = MAXSLICE;
+    for (int i = 0; i <= ndiv; i++) slice_bound[i] = (float)i / ndiv;
+    is_mic = 0;
+}
+static int slice_of(float frac) {             // which slice a 0..1 position falls in (bounds may be uneven)
+    int i = 0; while (i < ndiv - 1 && frac >= slice_bound[i + 1]) i++;
+    return i;
+}
+
 static void setup_voice(void) {     // one mono INSTR_SAMPLE voice, self-choked (region set per hit)
     instrument(VOICE, INSTR_SAMPLE, 1, 0, 7, 150);
     instrument_sample(VOICE, LOOP_SLOT, ROOT);
@@ -103,7 +118,8 @@ static void apply_filter(void) {                          // rideable — safe t
 static void fire_slice(int i, int select) {
     if (i < 0 || i >= ndiv) return;
     float sp = SPEEDS[(int)pad_speed[i]];
-    float slice_ms = loop_secs / ndiv / sp * 1000.0f;     // slower pad → longer slice
+    float frac = slice_bound[i + 1] - slice_bound[i];     // this slice's share of the buffer (uneven OK)
+    float slice_ms = loop_secs * frac / sp * 1000.0f;     // slower pad → longer slice
     int mode = pad_rev[i] ? SAMPLE_REVERSE : SAMPLE_NORMAL;
     int ms = (int)slice_ms;
     if (stut_on) {                                        // STUTTER: loop the slice as a roll (bounce if reversed)
@@ -111,7 +127,7 @@ static void fire_slice(int i, int select) {
         ms = (int)(slice_ms * STUT_REPEATS);
     }
     if (ms < 30) ms = 30;
-    instrument_sample_region(VOICE, (float)i / ndiv, (float)(i + 1) / ndiv);    // carve this slice
+    instrument_sample_region(VOICE, slice_bound[i], slice_bound[i + 1]);        // carve this slice
     instrument_sample_mode(VOICE, mode);                 // reverse / loop-roll
     hit(ROOT + SEMI[(int)pad_speed[i]], VOICE, 6, ms);   // per-pad speed = transpose; self-choke cuts the ringing chop
     pad_flash[i] = 1.0f;
@@ -146,7 +162,7 @@ static void synth_fallback(void) {
     if (pk > 0.001f) { float g = 0.95f / pk; for (int i = 0; i < n; i++) buf[i] *= g; }
     sample_load(LOOP_SLOT, buf, n);
     free(buf);
-    loop_len = n; loop_secs = secs; loaded = 1; is_synth = 1; ndiv = 8;
+    loop_len = n; loop_secs = secs; loaded = 1; is_synth = 1; ndiv = 8; rebuild_even();
 }
 
 static void load_loop(const char *path) {
@@ -163,7 +179,59 @@ static void load_loop(const char *path) {
     sample_load(LOOP_SLOT, buf, (int)got);
     free(buf);
     loop_len = (int)got; loop_secs = loop_len / 44100.0f; loaded = 1; is_synth = 0;
+    ndiv = 16; rebuild_even();
     setup_voice();
+}
+
+// AUTO-CHOP a beatboxed take: place slice boundaries at the ENERGY ONSETS (the mouth-drum hits),
+// not on an even grid. Simple, robust: an RMS envelope per 10ms hop, then a boundary wherever the
+// energy jumps up past a floor with a minimum gap between hits (so one hit ≠ several slices).
+static void detect_onsets(const float *buf, int n) {
+    int hop = 441;                                  // 10 ms @ 44.1k
+    int nh = n / hop; if (nh > 4096) nh = 4096;
+    if (nh < 4) { ndiv = 8; rebuild_even(); return; }
+    static float env[4096];
+    float emax = 1e-9f;
+    for (int k = 0; k < nh; k++) {
+        double s = 0; const float *p = buf + (size_t)k * hop;
+        for (int j = 0; j < hop; j++) s += (double)p[j] * p[j];
+        env[k] = (float)sqrt(s / hop);
+        if (env[k] > emax) emax = env[k];
+    }
+    float floor_e = emax * 0.16f;                   // ignore hits quieter than this
+    float rise_e  = emax * 0.06f;                   // required energy jump to count as an onset
+    int   mingap  = 6;                              // ≥60 ms between onsets (one hit → one slice)
+    int   cnt = 0, last = -mingap;
+    slice_bound[cnt++] = 0.0f;                      // the take always starts on a boundary
+    for (int k = 1; k < nh && cnt < MAXSLICE; k++) {
+        if (env[k] > floor_e && env[k] - env[k - 1] > rise_e && (k - last) >= mingap) {
+            float frac = (float)((size_t)k * hop) / (float)n;
+            if (frac > 0.02f && frac < 0.98f) { slice_bound[cnt++] = frac; last = k; }
+        }
+    }
+    slice_bound[cnt] = 1.0f;
+    ndiv = cnt;                                     // cnt boundaries before the trailing 1.0 ⇒ cnt slices
+    if (ndiv < 2) { ndiv = 8; rebuild_even(); }     // no clear hits → fall back to an even grid
+    else is_mic = 1;
+}
+
+// finish a mic take: grab the captured PCM, normalize, load it as the loop, and auto-chop it.
+static void finish_rec(void) {
+    int max = 44100 * 8;
+    float *buf = (float *)malloc((size_t)max * sizeof(float));
+    if (!buf) { rec_state = 0; return; }
+    int n = mic_record_read(buf, max);
+    if (n < 2048) { free(buf); rec_state = 0; return; }   // too short — keep whatever was loaded
+    float pk = 0.0f; for (int i = 0; i < n; i++) { float a = fabsf(buf[i]); if (a > pk) pk = a; }
+    if (pk > 0.001f) { float g = 0.95f / pk; for (int i = 0; i < n; i++) buf[i] *= g; }
+    sample_load(LOOP_SLOT, buf, n);
+    loop_len = n; loop_secs = n / 44100.0f; loaded = 1; is_synth = 0;   // playback is at the engine rate
+    detect_onsets(buf, n);
+    free(buf);
+    if (sel >= ndiv) sel = ndiv - 1;
+    for (int i = 0; i < MAXSLICE; i++) { pad_rev[i] = 0; pad_speed[i] = SPD1X; }  // fresh kit
+    setup_voice();
+    mic_stop();                                     // capture-then-freeze: release the mic after the take
 }
 
 // pad grid: cols 4 (≤16 slices) or 8 (32); fills GY..bottom
@@ -182,6 +250,11 @@ static int pad_at(int px, int py) {
 
 void update(void) {
     bpm((int)(derived_bpm() + 0.5f));
+
+    // mic RECORD (beatbox → auto-chop): arm once the mic is live, then finish when the take completes
+    if (rec_state == 1 && mic_active())   { mic_record(REC_SECONDS); rec_state = 2; }
+    if (rec_state == 2 && !mic_recording()) finish_rec();     // grab + normalize + load + onset-chop; rec_state → 0
+    if (rec_state != 0) return;                               // no pads / auto-play while arming or recording
 
     if (playing && loaded) {                    // auto-run: one slice per beat, looping → reconstructs the loop
         int b = beat();
@@ -208,7 +281,7 @@ void draw(void) {
     print("BREAKCHOP", 4, 2, CLR_WHITE);
     if (!loaded) { print("no loop loaded", 4, 14, CLR_RED); return; }
     snprintf(buf, sizeof buf, "%d slices  %.0f bpm  %s%s   pad%d: %s%s", ndiv, derived_bpm(), GRIT_NM[grit],
-             is_synth ? " SYNTH" : "", sel + 1, SPEED_NM[(int)pad_speed[sel]], pad_rev[sel] ? " REV" : "");
+             is_mic ? " MIC" : is_synth ? " SYNTH" : "", sel + 1, SPEED_NM[(int)pad_speed[sel]], pad_rev[sel] ? " REV" : "");
     print(buf, 4, 13, CLR_LIGHT_GREY);
 
     // waveform + slice markers + playhead
@@ -217,17 +290,34 @@ void draw(void) {
     int mid = PY + PH / 2, half = PH / 2 - 1;
     for (int x = 0; x < cols; x++) {
         int sx = PX + x * PW / cols;
-        int si = x * ndiv / cols;                    // which slice this column falls in
+        int si = slice_of((float)x / cols);          // which slice this column falls in (uneven OK)
         int c = (si == sel) ? CLR_LIME_GREEN : ((si & 1) ? CLR_MEDIUM_GREEN : CLR_BLUE_GREEN);
         line(sx, mid - (int)(wf_hi[x] * half), sx, mid - (int)(wf_lo[x] * half), c);
     }
-    for (int i = 1; i < ndiv; i++) {                 // slice boundaries
-        int bx = PX + (int)((float)i / ndiv * PW);
+    for (int i = 1; i < ndiv; i++) {                 // slice boundaries (even OR onset positions)
+        int bx = PX + (int)(slice_bound[i] * PW);
         line(bx, PY, bx, PY + PH - 1, CLR_YELLOW);
     }
     { float p = instrument_playhead(VOICE);          // one mono voice → one playhead (0..1 of the WHOLE buffer)
       if (p >= 0.0f) { int hx = PX + (int)(p * PW); line(hx, PY, hx, PY + PH - 1, CLR_WHITE); } }
     rect(PX, PY, PW, PH, CLR_MEDIUM_GREY);
+
+    // mic RECORD overlay — draw over the waveform while arming / capturing a beatbox take
+    if (rec_state != 0) {
+        rectfill(PX + 1, PY + 1, PW - 2, PH - 2, CLR_DARKER_GREY);
+        if (rec_state == 1) {
+            print("ARMING MIC... allow the prompt", PX + 8, PY + PH / 2 - 3, CLR_YELLOW);
+        } else {
+            float p = mic_record_progress();
+            print("REC", PX + 6, PY + 4, CLR_RED);
+            char c[28]; snprintf(c, sizeof c, "beatbox!  %.1fs", REC_SECONDS * (1.0f - p));
+            print(c, PX + PW / 2 - 40, PY + 6, CLR_WHITE);
+            int lv = (int)(mic_level() * (PW - 12) * 3.0f); if (lv > PW - 12) lv = PW - 12;
+            rectfill(PX + 6, PY + PH / 2 - 4, lv, 7, CLR_GREEN);                 // live input level
+            rect(PX + 6, PY + PH - 12, PW - 12, 6, CLR_MEDIUM_GREY);
+            rectfill(PX + 6, PY + PH - 12, (int)(p * (PW - 12)), 6, CLR_RED);    // capture progress
+        }
+    }
 
     // controls
     ui_begin();
@@ -252,6 +342,7 @@ void draw(void) {
         instrument_echo(VOICE, echo_on ? 0.4f : 0.0f);                             // send on/off (tail rings after)
     }
     if (ui_button(172, 98, 46, 16, stut_on ? "STUT*" : "STUT")) stut_on = !stut_on;
+    if (ui_button(222, 98, 50, 16, "REC")) { playing = 0; rec_state = 1; mic_start(); }  // beatbox → auto-chop
     ui_end();
     apply_filter();                                       // rideable, every frame
 

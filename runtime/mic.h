@@ -41,6 +41,16 @@ static volatile int   mic_g_active = 0;      // host reports capture is live + p
 static float mic_acc[MIC_WIN];
 static int   mic_acc_n = 0;
 
+// ── mic RECORD buffer (capture-then-freeze) ──────────────────────────────────
+// While armed (mic_rec_cap > 0) the push copies raw mic frames here so a cart can grab a few
+// seconds of input (a beatboxed loop, a sung phrase), then sample_load() it. The cart reads it
+// out only AFTER recording finishes (mic_recording() == 0), so the audio thread is the sole writer.
+#define MIC_REC_MAX (44100 * 8)      // up to 8 seconds of mono capture (~1.4 MB .bss)
+static float          mic_rec[MIC_REC_MAX];
+static volatile int   mic_rec_cap = 0;   // target sample count (0 = idle / not armed)
+static volatile int   mic_rec_n   = 0;   // samples captured so far
+static volatile int   mic_rec_sr  = 44100;
+
 // ── pitch via YIN (de Cheveigné & Kawahara 2002) ─────────────────────────────
 // Autocorrelation-family, but with the cumulative-mean-normalized difference that makes YIN
 // ROBUST for voice — it rejects the octave errors a raw zero-crossing (or plain autocorrelation)
@@ -88,6 +98,13 @@ static float mic_pitch_yin(const float *x, int n, int sr) {
 // mics are usually 48k, the engine mixes at 44.1k).
 static inline void mic_input_push(const float *s, int n, int sr) {
     if (!s || n <= 0 || sr <= 0) return;
+    mic_rec_sr = sr;
+    if (mic_rec_cap > 0 && mic_rec_n < mic_rec_cap) {   // recording: append raw frames
+        int room = mic_rec_cap - mic_rec_n;
+        int take = n < room ? n : room;
+        for (int i = 0; i < take; i++) mic_rec[mic_rec_n + i] = s[i];
+        mic_rec_n += take;
+    }
     for (int i = 0; i < n; i++) {
         mic_acc[mic_acc_n++] = s[i];
         if (mic_acc_n >= MIC_WIN) {

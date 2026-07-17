@@ -385,6 +385,13 @@ void mic_stop(void);                                      // release the microph
 int  mic_active(void);                                    // 1 once capture is live AND permission was granted, else 0 — poll it after mic_start() to know the mic is really open
 float mic_level(void);                                    // current input loudness 0..1 (RMS) — the beatbox / envelope-follower input. 0 until mic_active(). Solid + responsive
 float mic_pitch(void);                                    // pitch of the input in Hz (0 = no clear pitch) — the hum-to-theremin input. YIN detector: tracks a hummed voice cleanly + octave-safe; reports 0 rather than guess when unvoiced. ~21 readings/sec (a melody/controller axis, not a sample-accurate tuner)
+// mic RECORD — capture a few seconds of mic input, then read it out into a sample slot (sample_load) to
+// chop/play it (capture-then-freeze). Needs mic_start() + permission first; read only after it finishes.
+void  mic_record(float seconds);                          // arm a capture of the mic input (up to 8s). Resets any prior take
+int   mic_recording(void);                                // 1 while still capturing, 0 when the take is done (or none armed)
+float mic_record_progress(void);                          // capture fill 0..1 — for a REC progress bar
+int   mic_record_rate(void);                              // sample rate of the captured audio (pass to sample_load's caller; = engine rate on desktop)
+int   mic_record_read(float *out, int max);               // copy the captured PCM (mono, -1..1) into out[] (up to max); returns count. Then sample_load() it
 
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned

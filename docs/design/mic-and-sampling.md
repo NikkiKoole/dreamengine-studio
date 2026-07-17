@@ -71,6 +71,16 @@ thread (search range ~63–1378 Hz). Confirmed live by the maker — "much bette
   vibrato'd, reverberant sine follows your pitch (light glide now that YIN is reliable) + volume, with
   a TAB pentatonic snap.
 
+**Shipped (2026-07-17) — mic PCM RECORD + beatbox auto-chop (capture-then-freeze in the engine).** The
+mic seam only analyzed frames; added a record buffer to [`mic.h`](../../runtime/mic.h) + the API
+`mic_record(seconds)` / `mic_recording()` / `mic_record_progress()` / `mic_record_read(out,max)` /
+`mic_record_rate()`: a cart captures a few seconds of mic, then `sample_load()`s it — the capture-then-freeze
+model this doc describes, now a real engine capability. First use: [`breakchop`](../../tools/carts/breakchop.c)
+gained a **REC** source — beatbox a loop with your mouth, and it auto-chops the take at the energy ONSETS
+(uneven slices, generalizing breakchop off its even-division grid — closes its onset-chop todo for mic takes)
+onto the pads. Rate caveat: capture is at the device rate; on desktop that's the engine's 44100 so playback
+is true-pitch; a device at another rate plays slightly speed-shifted until a resample lands.
+
 - **Follow-ups:** the iOS session/engine-restart dance may want on-device tuning; more mic instruments
   (beatbox-triggered drums off `mic_level` onsets); YIN runs on the capture thread — fine on desktop, worth
   a glance on the weakest mobile targets.

@@ -2843,6 +2843,25 @@ static float de_mic_web_scratch[4096];
 DE_WEB_EXPORT float *de_mic_scratch(void) { return de_mic_web_scratch; }
 DE_WEB_EXPORT int    de_mic_scratch_cap(void) { return (int)(sizeof de_mic_web_scratch / sizeof(float)); }
 
+// mic RECORD — capture a few seconds of the mic input into a buffer, then read it out to
+// sample_load() (capture-then-freeze). Needs the mic open (mic_start) + permission. Read only
+// after mic_recording() returns 0.
+void mic_record(float seconds) {                             // arm a capture (up to 8s)
+    int sr = mic_rec_sr > 0 ? mic_rec_sr : 44100;
+    int cap = (int)(seconds * sr);
+    if (cap < 1) cap = 1; if (cap > MIC_REC_MAX) cap = MIC_REC_MAX;
+    mic_rec_n = 0; mic_rec_cap = cap;                        // (order: n first, then cap arms it)
+}
+int   mic_recording(void)       { return (mic_rec_cap > 0 && mic_rec_n < mic_rec_cap) ? 1 : 0; }
+float mic_record_progress(void) { return mic_rec_cap > 0 ? (float)mic_rec_n / (float)mic_rec_cap : 0.0f; }
+int   mic_record_rate(void)     { return mic_rec_sr; }
+int   mic_record_read(float *out, int max) {                // copy captured PCM; returns sample count
+    if (!out || max <= 0) return 0;
+    int n = mic_rec_n; if (n > max) n = max;
+    for (int i = 0; i < n; i++) out[i] = mic_rec[i];
+    return n;
+}
+
 #ifdef DE_NO_RAYLIB
 // ============================================================================
 // DE_NO_RAYLIB entry points (platform.h) — the host (iOS CADisplayLink, a headless

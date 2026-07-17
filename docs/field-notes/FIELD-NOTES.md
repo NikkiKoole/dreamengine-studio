@@ -5,13 +5,13 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*25 journal notes · 3 working docs · regenerate to refresh.*
+*26 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
 Where each numbered note sits on the path from a hunch to something the repo adopted.
 
-### 🔭 Observed (6)
+### 🔭 Observed (7)
 
 - `018` [Passing the Gates Felt Like Done](018-passing-the-gates-felt-like-done.md) — The acidrack Phase-3 reflow (device-adaptive layout) was committed across three sessions, each
 - `020` [The fit-cart earns it on glass (and knows when to stop)](020-the-fit-cart-earns-it-on-glass.md) — A full day was spent driving the `acidwire` fit-cart (the responsive-layout mock for the acidrack
@@ -19,6 +19,7 @@ Where each numbered note sits on the path from a hunch to something the repo ado
 - `022` [Demand discovery: r/ipadmusic wants a vibe, not a feature](022-demand-discovery-ipadmusic.md) — The first run of the new demand-discovery tool (`tools/reddit-gaps.js`, method:
 - `023` [Demand discovery: r/synthesizers confirms the "cheap playful toy + homage" thesis](023-demand-discovery-synthesizers.md) — Second tribe mined with `tools/reddit-gaps.js` (method:
 - `024` [Demand discovery: four more tribes hold the thesis, surface a chop-to-pads gap + a vocal-overdub boundary](024-demand-discovery-four-tribes.md) — The 6 h drip ([demand-discovery.md](../design/demand-discovery.md)) filled five more caches:
+- `025` [Demand discovery, the supply side: the thesis is validated AND crowded](025-demand-discovery-supply-side-showcase.md) — `reddit-gaps.js` (022–024) mined tribes for what they **ask for**. It has a blind spot: the
 
 ### 🧪 Working Theory (5)
 
@@ -74,6 +75,7 @@ Numbered notes in order — the spine of the journal.
 - `022` 🔭 [Demand discovery: r/ipadmusic wants a vibe, not a feature](022-demand-discovery-ipadmusic.md) *(2026-07-13)*
 - `023` 🔭 [Demand discovery: r/synthesizers confirms the "cheap playful toy + homage" thesis](023-demand-discovery-synthesizers.md) *(2026-07-13)*
 - `024` 🔭 [Demand discovery: four more tribes hold the thesis, surface a chop-to-pads gap + a vocal-overdub boundary](024-demand-discovery-four-tribes.md) *(2026-07-14)*
+- `025` 🔭 [Demand discovery, the supply side: the thesis is validated AND crowded](025-demand-discovery-supply-side-showcase.md) *(2026-07-17)*
 
 ## Related-note graph
 
@@ -97,6 +99,7 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `022` **Demand discovery: r/ipadmusic wants a vibe, not a feature** → `008`, `009`, `014`
 - `023` **Demand discovery: r/synthesizers confirms the "cheap playful toy + homage" thesis** → `022`, `008`, `014`
 - `024` **Demand discovery: four more tribes hold the thesis, surface a chop-to-pads gap + a vocal-overdub boundary** → `022`, `023`, `009`, `008`, `cart-os.md`, `multiplayer-research.md`
+- `025` **Demand discovery, the supply side: the thesis is validated AND crowded** → `022`, `023`, `024`, `008`, `009`, `demand-discovery.md`, `demand-generation.md`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts

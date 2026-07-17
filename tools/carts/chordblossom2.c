@@ -14,7 +14,7 @@
   "homage": "Telepathic Instruments Orchid (ORC-1, 2026) — the chord-generating synth co-founded by Tame Impala's Kevin Parker; itself in the Suzuki Omnichord / '80s home-keyboard lineage.",
   "lineage": "A FORK of chordblossom adding genre FLAVORS (docs/design/bossa-rack.md — generalizing flavors to chordblossom): the same play-chords-with-your-hands instrument, but a selectable FLAVOR sets a backing-band personality (comp rhythm + voicing + timbre + groove) so it plays a genre. NEUTRAL = vanilla chordblossom; BOSSA = clave comp + rootless 3-7-9 voicing + nylon + the bossa groove — the band follows your hands. Truthful homage to the Telepathic Instruments Orchid: you play CHORDS, not notes. A one-octave keybed picks the root, four TYPE buttons + four combinable MODIFIER buttons build the quality, and the signature VOICING dial cascades the chord one note at a time through inversions and octave-spreads across the keyboard. The real Orchid is a deliberately minimal SONGWRITING idea-machine + 3-part MIDI brain (it sends chords / lead / bass on separate MIDI channels), with ~50 curated non-editable presets across three engines (virtual-analog / FM / reed-EP), a separate sub-bass engine with Follow/Solo, TWO voicing dials (lead AND bass), and a Key mode for diatonic auto-harmony — its depth is the chord-logic + gorgeous sounds, not synthesis or long sequencing (reviewers dispute the drum machine/looper). Distinct from the repo's existing Suzuki-Omnichord tribute (omnichord/Strumharpy): keybed-root + type/modifier logic + the voicing cascade are the Orchid's own thing.",
   "description": {
-    "summary": "EXPERIMENT (fork of chordblossom): a genre-FLAVOR system — pick a flavor (NEUTRAL / BOSSA, V key or the chip) and a backing band follows your hands (comp rhythm + voicing + timbre + groove). Underneath, a chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. A six-model synth shelf (reed EP / subtractive / FM / pluck / mallet / guitar) with an independent model pick for the CHORD voice (PNO) and the strummable SONIC STRINGS (HRP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a drum machine and a real-time chord looper.",
+    "summary": "EXPERIMENT (fork of chordblossom): a genre-FLAVOR system — pick a flavor (NEUTRAL / BOSSA / YACHT / CITYPOP; V key or the chip) and a backing band follows your hands (auto-colour + comp rhythm + voicing + timbre + groove — all a data row in the Flavor table). Underneath, a chord-generating synth after the Telepathic Instruments Orchid — pick a root on the one-octave keybed, stack chord TYPE + MODIFIER buttons, and turn the VOICING dial to cascade the chord through inversions and octave-spreads. A six-model synth shelf (reed EP / subtractive / FM / pluck / mallet / guitar) with an independent model pick for the CHORD voice (PNO) and the strummable SONIC STRINGS (HRP), a following sub-bass, reverb+chorus, five performance modes (strum/harp/arp/pattern/slop), a drum machine and a real-time chord looper.",
     "detail": "Three tabs across the top bar (or TAB): CHORD, MIX, RHYTHM. CHORD is the instrument: the keybed at the bottom (tap or the GarageBand keys A S D F G H J for the white roots, W E T Y U for the blacks) sets the ROOT and fires the chord. The upper button row picks ONE chord TYPE (dim / min / maj / sus4); the lower row toggles MODIFIERS that stack freely (6th, m7, maj7, 9th). The VOICING strip (arrow keys or drag) is the star: each step shifts the whole chord up or down by one chord-tone, so it cascades through every inversion and octave spread — turn it while a chord rings and hear it re-voice live, exactly the Orchid's patent-pending trick. A rainbow SONIC STRINGS plate above the keybed is always strummable (mouse or multi-finger) as a harp glissando over the current chord. Two selectors in the top row set which synth model voices each part — tap PNO to cycle the chord (piano) model and HRP to cycle the strings model, both drawing from the same six-model shelf. MIX is the Orchid's nine-knob top row (Sound=engine, Perform=mode, FX, Key/transpose, Bass, Loop mix, BPM, Options=strum tightness, Volume). RHYTHM is a 16-step drum machine (kick/snare/hat/ohat/clap + a BASS row that follows the chord root, six preset grooves) plus a real-time CHORD LOOPER: arm REC and every chord you play is captured to a 4-bar loop that plays back so you can jam over yourself. SPACE = transport play/stop.",
     "controls": "keybed roots: A S D F G H J (white C-B) + W E T Y U (black), or play a USB MIDI keyboard (a note picks the root + fires the chord); Z/X = octave down/up; TYPE: tap or 1-4; MODIFIERS: tap or 5-8 (combinable); tap PNO / HRP (top row) to cycle the chord-voice / strings model; LEAD VOICING: LEFT/RIGHT arrows or drag the strip; BASS VOICING walk: UP/DOWN arrows (steps the following bass through the chord tones); strum the rainbow plate with mouse/fingers; TAB = switch tab; SPACE = drum transport play/stop. MIX tab: turn the nine knobs. RHYTHM tab: tap the grid, 1-6 = preset grooves, REC/PLAY/CLEAR the looper."
   },
@@ -142,23 +142,35 @@ static const char *PATTERN[NPRESET][ROWS] = {
 // instrument: comp rhythm + voicing + timbre + groove. NEUTRAL = vanilla
 // chordblossom; BOSSA = clave comp + rootless 3-7-9 + nylon + the bossa groove
 // (the band follows your hands). docs/design/bossa-rack.md.
+// comp + bass onset patterns over a 2-bar (32 sixteenth) cycle, -1 terminated.
+static const int CMP_BOSSA[] = { 0, 6, 12, 20, 26, -1 };              // the João clave
+static const int BAS_BOSSA[] = { 0, 8, 16, 24, -1 };                  // surdo
+static const int CMP_YACHT[] = { 0, 6, 10, 16, 22, 26, -1 };          // laid-back EP with anticipations
+static const int BAS_YACHT[] = { 0, 8, 14, 16, 24, 30, -1 };          // fingered electric, a little walk
+static const int CMP_CITY[]  = { 0, 6, 10, 14, 16, 22, 26, 30, -1 };  // bright 16-beat cutting
+static const int BAS_CITY[]  = { 0, 6, 8, 14, 16, 22, 24, 30, -1 };   // slap / octave pops
+
 typedef struct {
     const char *name;
-    int  perfMode;         // performance mode the flavor plays in
-    int  rootless;         // 1 = drop the root from the voiced chord (the bass owns it)
-    int  autoColor;        // 1 = auto-extend every chord to its 7th + 9th (the jazz colour)
+    const int  *comp;      // comp onsets over 32 steps (NULL = use the generic perfMode path)
+    const int  *bassOn;    // bass onsets over 32 steps
+    int  perfMode;         // performance mode (NEUTRAL; flavored carts use comp/bassOn)
+    int  rootless;         // drop the root from the voiced chord (the bass owns it)
+    int  colorMode;        // 0 none · 1 bossa(7+9) · 2 yacht(6+9) · 3 citypop(7+9+13)
     int  eng;              // chord MODEL index (timbre)
     int  drumPreset;       // backing groove
     int  tempo;
-    int  strumMs;          // feel
+    int  strumMs;          // feel (strum spread)
     bool autoRun;          // start the groove so the band plays under you
 } Flavor;
-#define NFLAV 2
-enum { FL_NEUTRAL, FL_BOSSA };
+#define NFLAV 4
+enum { FL_NEUTRAL, FL_BOSSA, FL_YACHT, FL_CITY };
 static const Flavor FLAVORS[NFLAV] = {
-    //  name       perf         rootless autoColor eng drum tempo strum autorun
-    { "NEUTRAL", PM_STRUM,   0, 0, 0, 0,  96, 22, false },
-    { "BOSSA",   PM_PATTERN, 1, 1, 5, 1, 128, 12, true  },
+    //  name       comp        bassOn      perf        rl col eng drum tempo strum autorun
+    { "NEUTRAL",   NULL,       NULL,       PM_STRUM,   0, 0, 0, 0,  96, 22, false },
+    { "BOSSA",     CMP_BOSSA,  BAS_BOSSA,  PM_PATTERN, 1, 1, 5, 1, 128, 12, true  },
+    { "YACHT",     CMP_YACHT,  BAS_YACHT,  PM_PATTERN, 1, 2, 0, 3,  92, 18, true  },
+    { "CITYPOP",   CMP_CITY,   BAS_CITY,   PM_PATTERN, 1, 3, 0, 4, 112,  8, true  },
 };
 
 // ── state ───────────────────────────────────────────────────
@@ -231,9 +243,10 @@ static int cb_pcs(int *out) {
     bool seen[12] = { false };
     for (int i = 0; i < 3; i++)    seen[TRIAD[chType][i] % 12] = true;
     for (int m = 0; m < NMOD; m++) if (modOn[m]) seen[MODIV[m] % 12] = true;
-    if (FLAVORS[flavor].autoColor) {                 // the jazz colour: 7th + 9th on every chord
-        seen[(chType == TY_MAJ) ? 11 : 10] = true;   // maj7 over a major triad, else b7
-        seen[2] = true;                              // the 9th (14 % 12)
+    switch (FLAVORS[flavor].colorMode) {             // the flavor's harmonic colour
+        case 1: seen[(chType==TY_MAJ)?11:10]=true; seen[2]=true; break;               // bossa: 7th + 9th
+        case 2: seen[9]=true; seen[2]=true; break;                                    // yacht: 6th + 9th (add6/9, mu)
+        case 3: seen[(chType==TY_MAJ)?11:10]=true; seen[2]=true; seen[9]=true; break; // citypop: 7 + 9 + 13(6), lush
     }
     int n = 0;
     for (int p = 0; p < 12; p++) if (seen[p]) out[n++] = p;
@@ -393,21 +406,23 @@ static void apply_flavor(int fl) {
     cb_build();
 }
 
-// the real bossa accompaniment (from bossa.c): the 2-bar João clave, STRUMMED (the
-// 3 voices ~8ms apart, not a block stab), + a surdo bass pulse. Called each new
-// 16th while a chord is armed; s32 = position in the 2-bar (32-step) pattern.
-static const int CLAVE32[] = { 0, 6, 12, 20, 26, -1 };   // João comp positions over 2 bars
-static void bossa_accomp(int s32) {
-    for (int i = 0; CLAVE32[i] >= 0; i++)
-        if (CLAVE32[i] == s32) {                          // guitar comps the clave
-            int vol = (s32 == 0) ? masterV : mid(1, masterV - 1, 7);
+// the flavored accompaniment (data-driven): the flavor's comp onsets, STRUMMED (voices
+// staggered, not a block stab), + its bass onsets. Called each new 16th while a chord is
+// armed; s32 = position in the 2-bar (32-step) cycle. bossa = João clave + surdo, etc.
+static void flavor_accomp(int s32) {
+    const Flavor *F = &FLAVORS[flavor];
+    for (int i = 0; F->comp[i] >= 0; i++)
+        if (F->comp[i] == s32) {                          // comp: strum the voiced chord
+            int vol = (s32 % 16 == 0) ? masterV : mid(1, masterV - 1, 7);
             for (int k = 0; k < nVoiced; k++)
                 schedule_hit(k * strumMs / 2 + cb_rand(4), voiced[k], SL_CHORD, vol, 380);
             break;
         }
-    // surdo: low pulse on 1, softer on the "and of 2" — the bossa heartbeat
-    if      (s32 == 0 || s32 == 16) cb_bass_at(300,  0);
-    else if (s32 == 8 || s32 == 24) cb_bass_at(240, -1);
+    for (int i = 0; F->bassOn[i] >= 0; i++)
+        if (F->bassOn[i] == s32) {                        // bass: surdo/walk pulse (stronger on the beat)
+            cb_bass_at((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1);
+            break;
+        }
 }
 
 // ── engine + fx config (set-and-hold) ───────────────────────
@@ -573,7 +588,7 @@ void update(void) {
     if (playing && newStep) {
         cur_step = sixteenth % STEPS;
         for (int r = 0; r < ROWS; r++) {
-            if (flavor == FL_BOSSA && r == 5) continue;   // bossa owns the bass (surdo, below)
+            if (FLAVORS[flavor].comp && r == 5) continue; // flavored carts own the bass (below)
             if (grid[r][cur_step]) { play_row(r); flash[r] = frame(); }
         }
     } else if (!playing) {
@@ -582,8 +597,8 @@ void update(void) {
 
     // arp / pattern run off the beat clock whenever a chord is armed
     if (armed && newStep) {
-        if (flavor == FL_BOSSA) {
-            bossa_accomp(sixteenth % 32);                 // the real 2-bar clave strum + surdo
+        if (FLAVORS[flavor].comp) {
+            flavor_accomp(sixteenth % 32);                // data-driven comp strum + bass
         } else {
             int st = sixteenth % STEPS;
             if (perfMode == PM_ARP && nVoiced > 0)

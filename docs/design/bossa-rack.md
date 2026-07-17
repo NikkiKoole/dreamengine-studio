@@ -8,6 +8,20 @@ functions, and it already ships a chord-locked solo strip you jam over. The rack
 piece: a **playable/editable chord chart** (the yachtrack "make the chart playable" gap), plus a
 melody-cell disclosure layer, arrangement, and export.
 
+> **★ BUILD FINDING (2026-07-17) — the winning direction is FLAVORS on chordblossom, NOT a radio
+> turned inside-out.** We built the radio-rack first (`bossabloom` — the plan below) and the maker's
+> play-test verdict was that it *"feels too much like just the radio + a tiny bit of UI"*: the band
+> still composes and you only nudge a chord. The fix that landed (*"sounds right!"*) was the opposite
+> shape — **`chordblossom2`**: an instrument you PLAY with your hands, wearing a genre **FLAVOR** (a
+> backing band that follows the chords you play). A flavor = **auto-color** (extend every chord to
+> its 7th/9th) + **comp rhythm** (a strummed 2-bar clave) + **rootless voicing** (3-5-7-9) + **timbre**
+> (nylon) + **groove**. BOSSA shipped and sounds bossa; **YACHT / CITY POP are just more `Flavor`
+> rows.** Happy accident: chordblossom's `PM_PATTERN` was already a comp engine, so a flavor is mostly
+> *data*. **This supersedes the radio-rack design below** — kept for its still-valid analysis of the
+> bloom band, the chord-vocab, and the "generation-first vs. play-first" fork that produced this
+> finding. See [`genre-box-rosters.md`](genre-box-rosters.md) for the flavor generalization; the live
+> cart is `tools/carts/chordblossom2.c`.
+
 > **The thesis.** The earlier racks bracketed the design space and left a hole in the middle:
 > [`acidrack`](rebirth-classic.md) is **cells all the way down** (great, but acid has no moving
 > harmony); [`yachtrack`](yacht-rack.md) is a **chart + feel knobs** (musically honest, but the

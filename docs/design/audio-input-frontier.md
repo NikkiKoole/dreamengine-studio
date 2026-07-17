@@ -3,8 +3,9 @@
 STATUS: ★ MAP (2026-07-17) — the audio-input *capability* SHIPPED (the mic seam on all
 platforms + the live vocoder). This doc is the roll-up above [`mic-and-sampling.md`](mic-and-sampling.md)
 (the sampler doctrine + four-tier spectrum) and [`vocoder.md`](vocoder.md) (the DSP): what
-the ear actually **opened**, and the frontier it points at (the pedal tier, hum→MIDI, beatbox
-trigger, vocoder v2, on-glass). Detail lives in those two docs + [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md);
+the ear actually **opened**, and the frontier it points at (the pedal tier, auto-tune, beatbox
+trigger, vocoder v2, on-glass — veins 2–3 hum→MIDI + voice-sampler now shipped). Detail lives in
+those two docs + [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md);
 this page is the strategic picture and the ranked "what follows".
 
 ---
@@ -48,6 +49,8 @@ seconds of mic, freeze it to a PCM buffer, then chop/pitch/loop it like any samp
 | [`vocode`](../../tools/carts/vocode.c) | The 12-band vocoder DSP, with two *synth* sources so it's fully deterministic (the DSP's own acceptance test) | audio-thread ring (send) |
 | [`voxbox`](../../tools/carts/voxbox.c) | The **real** vocoder — sing/talk and a saw chord speaks your vowels + rhythm ("sounds like Stevie Wonder") | audio-thread ring (live mic) |
 | [`breakchop`](../../tools/carts/breakchop.c) | Beatbox → onset-sliced pad kit | capture-then-freeze |
+| [`humseq`](../../tools/carts/humseq.c) | **hum→MIDI** — hum a melody; a hysteresis note-tracker freezes it to a scale-locked loop played on any `INSTR_*` (vein 2) | capture-then-freeze |
+| [`singsynth`](../../tools/carts/singsynth.c) | **Voice sampler** — hold a vowel, loop it into a keybed instrument you play polyphonically, SK-1-style (vein 3) | capture-then-freeze |
 
 The engine seam (host owns the device behind `platform.h`; engine analyses + exposes the API)
 is live on **desktop + web**; the vocoder ring runs on the audio thread. Full ship log:
@@ -71,6 +74,11 @@ The practical rule for anything below: if you want it to replay/save, freeze fir
 
 ## What it opens NEXT — the frontier, ranked by juice-per-effort
 
+*Shipped since this doc was written:* **hum→MIDI** ([`humseq`](../../tools/carts/humseq.c) — hum → a
+scale-locked note loop on any instrument, vein 2) and the **voice sampler**
+([`singsynth`](../../tools/carts/singsynth.c) — hold a vowel, play your own voice polyphonically,
+vein 3). Both capture-then-freeze (deterministic). What's left:
+
 **★ 1 — The pedal tier (a live looper first).** The biggest unlock, and the hard part is already
 built: the `sound_extin_*` ring means live mic can now be routed through *any* effect. A **live
 looper** (record → overdub → stacked layers) is the single loudest unmet wish the demand tool
@@ -78,12 +86,16 @@ keeps surfacing, it's a self-contained honest core, and it fits the doctrine cle
 ADR-0032). Then: live fuzz/granular/delay/reverb pedals off the same ring. *Prereq: done (the ring).*
 Detail: [`vocoder.md`](vocoder.md) §"the pedal tier" + [`sound-next-steps.md`](sound-next-steps.md).
 
-**★ 2 — Voice-as-sequencer (hum→MIDI).** `mic_pitch()` is now a real melody axis. The move:
-hum a line → quantize to scale + grid (capture-then-freeze, so it stays deterministic) → it drives
-*any* `INSTR_*`. "Sing your bassline, hear it on the 303." `humtheremin` plays pitch *live*; this
-*freezes* it into a note track. The more novel, more "only-here" idea. *Prereq: the pitch axis
-(done); a quantize/grid step (new, cart-land).* Overlaps [`midi-out.md`](midi-out.md) (carts as
-sequencers) and Tier-1 of [`mic-and-sampling.md`](mic-and-sampling.md).
+**★ 2 — Auto-tune / pitch-correction.** Two very different builds hide under one name:
+- *Robot auto-tune (the T-Pain flavour) — cheap, do-able now.* Drive `vocoder_mic` with a carrier
+  pitched to your **snapped** `mic_pitch` → your vowels, pitch-corrected, gloriously robotic. Reuses
+  the vocoder we already ship; live-only per ADR-0032.
+- *Transparent auto-tune (your natural voice, just corrected) — the big swing.* Needs
+  formant-preserving pitch-shift on real PCM (PSOLA / phase-vocoder); the engine has no such
+  primitive yet (`varispeed` shifts pitch + formant together). **NB:** [`voxroll`](../../tools/carts/voxroll.c)
+  is a Melodyne-style vocal roll that *does* decouple formant from pitch — but on the **synthesised**
+  `INSTR_VOICE`, not on a real recording. So it's the Melodyne-UX reference, not a shortcut to
+  correcting the live mic. *Prereq: robot = done; transparent = a real DSP spike.*
 
 **3 — Beatbox → live drum trigger.** `breakchop` records-then-chops; the *controller* version
 classifies onsets by spectral tilt (kick/snare/hat) and fires [`drumkit.h`](../../runtime/drumkit.h)
@@ -113,5 +125,6 @@ honest core.
 - [`mic-and-sampling.md`](mic-and-sampling.md) — the sampler doctrine, the four-tier spectrum, the capture-then-freeze rule (this map's deterministic half)
 - [`vocoder.md`](vocoder.md) — the vocoder DSP + the pedal-tier infrastructure notes (this map's live half)
 - [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md) — live-mic-through is live-only; capture-then-freeze stays deterministic
+- [`voxroll`](../../tools/carts/voxroll.c) — a Melodyne-style vocal piano roll (formant decoupled from pitch) on the **synthesised** `INSTR_VOICE`; the Melodyne-UX reference for the auto-tune work (not a real-mic corrector)
 - [`sound-next-steps.md`](sound-next-steps.md) — where the pedal/side-chain work sits in the audio backlog
 - [`midi-out.md`](midi-out.md) — carts as sequencers (the hum→MIDI cousin)

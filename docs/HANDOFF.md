@@ -77,7 +77,11 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > - **YIN pitch** (`2d552d25`) — `pitchscope` diagnosed the zero-crossing estimate octave-jumping; replaced
 >   it with a YIN detector (octave-safe). `mic_pitch()` is now a real melody/controller axis.
 > - **Carts**: `mictest`, `pitchscope`, `humtheremin` (hum→theremin), `voxbox`; `breakchop` gained mic
->   **beatbox auto-chop** (record → onset-slice onto pads) via `mic_record` (capture-then-freeze).
+>   **beatbox auto-chop** (record → onset-slice onto pads) via `mic_record` (capture-then-freeze). Then two
+>   more capture-then-freeze instruments: **`humseq`** (vein 2, hum→MIDI — a hysteresis note-tracker freezes
+>   a hummed melody to a scale-locked loop on any INSTR) and **`singsynth`** (vein 3, voice sampler — hold a
+>   vowel, loop it into a keybed instrument SK-1-style, draggable loop region). Both use the `ui.h` button bar
+>   + `keybed.h`. (Gotcha banked: `rect`/`rectfill` are `(x,y,w,h)`, not corners.)
 > - **THE VOCODER** (`379fef80` Phase 1 + `46b45c35` Phase 2) — a master-stage 12-band carrier×modulator
 >   filterbank in `sound.h` (`vocoder`/`vocoder_send`), fed live by the mic through a **lock-free
 >   audio-thread PCM ring** (`sound_extin_*` + `vocoder_mic`). `vocode` = deterministic synth-modulator
@@ -85,8 +89,12 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   Stevie Wonder"). Determinism carve-out: [ADR-0032](decisions/0032-live-mic-effects-are-live-only.md)
 >   (live-mic-through = live-only; capture-then-freeze stays deterministic). All gates green; desktop +
 >   web live-verified by the maker.
-> **Resume-at: [`design/vocoder.md` → v2 quality](design/vocoder.md) + the pedal tier.** The `sound_extin`
-> mic ring is now the foundation for the whole **live-throughput / PEDAL tier** (fuzz, live granular,
+> **Resume-at: [`design/audio-input-frontier.md`](design/audio-input-frontier.md) — the ranked map (veins 2–3
+> shipped; NEXT = AUTO-TUNE, then the pedal tier + [vocoder v2](design/vocoder.md)).** Auto-tune has two builds:
+> *robot/T-Pain* (cheap — pitch a `vocoder_mic` carrier from the snapped `mic_pitch`) and *transparent* (the big
+> swing — formant-preserving PCM pitch-shift, no engine primitive yet; `voxroll` is the Melodyne-UX ref but
+> synth-`INSTR_VOICE` only, not a real-mic corrector). The `sound_extin`
+> mic ring is the foundation for the whole **live-throughput / PEDAL tier** (fuzz, live granular,
 > looper) — the vocoder was just its first customer. Vocoder v2 open items: **sibilance** noise-substitution
 > band (unvoiced consonants don't carry through a tonal carrier — the biggest intelligibility win),
 > **mic-rate resample** (non-44.1k device mics drift the ring), **on-device latency tuning** (iOS/Android).

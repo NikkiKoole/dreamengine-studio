@@ -185,14 +185,17 @@ static void peteye(float cx,float cy,float ew,float eh,int color,float boil,cons
   P o[12]; mkoval(o,px,py,ew,oh,12); fill_poly(o,12,0,0,sd,boil,color);
   if (e->glint && ew>2.5f) pset((int)(px-ew*0.35f),(int)(py-oh*0.35f),CLR_WHITE);
 }
-// simple MOUTH: a boiled curve (curve>0 smile), or a filled oval when OPEN
+// simple MOUTH — ONE shape (no curve↔open pop): a lens between an upper & lower lip,
+// both following the smile curve; a min thickness = a line when closed, OPEN spreads it.
 static void pet_mouth(float cx,float cy,float w,float curve,float open,int color,float boil){
   unsigned sd=(unsigned)((int)cx*57 + (int)cy*13 + 9);
-  if (open>0.12f){ P o[14]; mkoval(o,cx,cy,w*0.5f,fmaxf(1.5f,w*0.5f*open),14); fill_poly(o,14,0,0,sd,boil,color); return; }
-  float amp=curve*w*0.30f, pxp=0,pyp=0;
-  for(int i=0;i<=10;i++){ float u=(float)i/10*2-1;
-    float x=cx+u*w*0.5f+bo(sd,i,0x51,boil), y=cy+amp*(1-u*u)+bo(sd,i,0x52,boil);
-    if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,color); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,color);} pxp=x;pyp=y; }
+  float amp=curve*w*0.30f, openH=fmaxf(0.7f, open*w*0.42f);
+  P poly[24]; int n=0;
+  for(int i=0;i<=11;i++){ float u=(float)i/11*2-1; float x=cx+u*w*0.5f, yc=cy+amp*(1-u*u);
+    poly[n].x=x+bo(sd,i,0x51,boil); poly[n].y=yc-openH*(1-u*u)+bo(sd,i,0x52,boil); n++; }
+  for(int i=11;i>=0;i--){ float u=(float)i/11*2-1; float x=cx+u*w*0.5f, yc=cy+amp*(1-u*u);
+    poly[n].x=x+bo(sd,i+20,0x53,boil); poly[n].y=yc+openH*(1-u*u)+bo(sd,i+20,0x54,boil); n++; }
+  fill_poly(poly,n,0,0,sd,0,color);
 }
 static void pet_eyes(float cx,float cy,float gap,float ew,float eh,int color,float boil,Eye e){
   peteye(cx-gap,cy,ew,eh,color,boil,&e);

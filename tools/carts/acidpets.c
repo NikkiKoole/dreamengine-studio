@@ -166,6 +166,45 @@ static void blob(const P *p, int n, unsigned seed, float jit, float bevel, int b
 // ── the creatures ─────────────────────────────────────────────────────────────
 // Each reads pet[m] + kv[m][*]. cx,cy = centre; s = scale (px per design-unit).
 
+// ── expressive EYES (the peteyes emotion machine, ported) ────────────────────
+// Emotion levers, all driven from each pet's live state. `lid` = the body colour
+// (lids paint over the sclera). Degrades to plain dots at shelf size.
+typedef struct { float open, squint, pupil, gx, gy, lid, browY, browA; int glint; } Eye;
+
+static void equad(float ax,float ay,float bx,float by,float cx,float cy,float dx,float dy,int col){
+  trifill((int)ax,(int)ay,(int)bx,(int)by,(int)cx,(int)cy,col);
+  trifill((int)ax,(int)ay,(int)cx,(int)cy,(int)dx,(int)dy,col);
+}
+static void peteye(float cx,float cy,float ew,float eh,int innerdir,int sclera,int lidc,const Eye*e){
+  float top=cy-eh, bot=cy+eh, inX=cx+innerdir*ew, outX=cx-innerdir*ew;
+  if (e->squint>0.55f && e->open<0.7f){                 // happy ∩ laughing arc
+    float aH=eh*0.95f*e->squint, pxp=0,pyp=0;
+    for(int i=0;i<=10;i++){ float u=(float)i/10*2-1, x=cx+u*ew, y=cy-aH*(1-u*u)+eh*0.35f;
+      if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,CLR_BLACK); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,CLR_BLACK);} pxp=x;pyp=y; }
+  } else {
+    ovalfill((int)cx,(int)cy,(int)fmaxf(1,ew),(int)fmaxf(1,eh),sclera);
+    oval((int)cx,(int)cy,(int)fmaxf(1,ew),(int)fmaxf(1,eh),CLR_BLACK);
+    float px=cx+e->gx*ew*0.45f, py=cy+e->gy*eh*0.45f, pr=fminf(ew,eh)*(0.3f+e->pupil*0.5f);
+    circfill((int)px,(int)py,(int)fmaxf(1,pr),CLR_BLACK);
+    if(e->glint) pset((int)(px-pr*0.4f),(int)(py-pr*0.4f),CLR_WHITE);
+    float baseY=top+(1.0f-e->open)*2.0f*eh, tilt=e->lid*eh*0.8f;   // top lid + tilt
+    equad(inX,top-4,outX,top-4,outX,baseY-tilt,inX,baseY+tilt,lidc);
+    line((int)inX,(int)(baseY+tilt),(int)outX,(int)(baseY-tilt),CLR_BLACK);
+    float bY=bot - e->squint*1.4f*eh;                              // bottom lid (squint)
+    equad(cx-ew,bot+4,cx+ew,bot+4,cx+ew,bY,cx-ew,bY,lidc);
+    if(e->squint>0.05f) line((int)(cx-ew),(int)bY,(int)(cx+ew),(int)bY,CLR_BLACK);
+  }
+  if (eh>2.2f){                                          // brow (skip when tiny)
+    float by0=top-2 - e->browY*3, ba=e->browA*eh*0.6f;
+    float bix=cx+innerdir*ew*1.05f, box=cx-innerdir*ew*1.05f;
+    line((int)bix,(int)(by0+ba),(int)box,(int)(by0-ba*0.7f),CLR_BLACK);
+  }
+}
+static void pet_eyes(float cx,float cy,float gap,float ew,float eh,int sclera,int lidc,Eye e){
+  peteye(cx-gap,cy,ew,eh,+1,sclera,lidc,&e);
+  peteye(cx+gap,cy,ew,eh,-1,sclera,lidc,&e);
+}
+
 // 303 has TWO faces: the vanilla acid-house SMILEY (draw_smiley), and — when Devil
 // Fish is armed — it morphs into the feral FISH (draw_fish, below). The fish is the
 // reward for going feral; the pun (Devil *Fish*) lands. Dispatch is at draw303().
@@ -257,16 +296,12 @@ static void draw_smiley(int m, float cx, float cy, float s){
   P fc[18]; mkoval(fc,cx+lean,cy,R*sx,R*sy,18);
   blob(fc,18,m*100+1,jit,1.4f*s,MCOL[m],CLR_BLACK);
 
-  // eyes — tall ovals; CUT opens them; blink; pupils drift with the slide
-  float eo=0.4f+0.7f*cut, ex=R*0.42f, ey=cy-R*0.18f;
-  if (pt->blink>0){
-    line((int)(cx+lean-ex-2*s),(int)ey,(int)(cx+lean-ex+2*s),(int)ey,CLR_BLACK);
-    line((int)(cx+lean+ex-2*s),(int)ey,(int)(cx+lean+ex+2*s),(int)ey,CLR_BLACK);
-  } else {
-    float pdx=(pt->pit01-pt->pcur)*4*s;
-    P le[10]; mkoval(le,cx+lean-ex+pdx,ey,fmaxf(1,1.3f*s),fmaxf(1.5f,2.3f*s*eo),10); fill_poly(le,10,0,0,m*100+4,jit*0.4f,CLR_BLACK);
-    P re[10]; mkoval(re,cx+lean+ex+pdx,ey,fmaxf(1,1.3f*s),fmaxf(1.5f,2.3f*s*eo),10); fill_poly(re,10,0,0,m*100+6,jit*0.4f,CLR_BLACK);
-  }
+  // eyes — CUT opens them, energetic line laughs (squint), gaze drifts with the slide/pitch
+  Eye e = { .open=0.5f+0.45f*cut, .squint = pt->energy>0.55f?0.65f:pt->acc*0.4f,
+            .pupil=0.5f, .gx=clamp((pt->pit01-pt->pcur)*3,-1,1), .gy=-(pt->pcur-0.5f)*1.2f,
+            .lid=0, .browY=0.5f, .browA=0, .glint=1 };
+  if (pt->blink>0) e.open=0;
+  pet_eyes(cx+lean, cy-R*0.15f, R*0.42f, fmaxf(1.4f,1.4f*s), fmaxf(1.6f,2.0f*s), CLR_WHITE, MCOL[m], e);
 
   // grin — deepens on a note, opens to an O on an accent
   smile(cx+lean, cy+R*0.30f, R*1.15f, (1.4f+pt->hit*1.6f)*s, pt->acc>0.4f, CLR_BLACK);
@@ -308,15 +343,11 @@ static void draw808(float cx, float cy, float s){
   circfill((int)(cx-rx*0.55f),(int)(cy+ry*0.15f),(int)cr,CLR_DARK_PEACH);
   circfill((int)(cx+rx*0.55f),(int)(cy+ry*0.15f),(int)cr,CLR_DARK_PEACH);
 
-  // eyes — sleepy; clamp shut on the SNARE crack, blink at random
-  float ey=cy-ry*0.2f, ex=rx*0.4f;
-  if (pt->blink>0 || pt->snare>0.35f){
-    line((int)(cx-ex-2*s),(int)ey,(int)(cx-ex+2*s),(int)ey,CLR_BLACK);
-    line((int)(cx+ex-2*s),(int)ey,(int)(cx+ex+2*s),(int)ey,CLR_BLACK);
-  } else {
-    circfill((int)(cx-ex),(int)ey,(int)fmaxf(1,1.4f*s),CLR_BLACK);
-    circfill((int)(cx+ex),(int)ey,(int)fmaxf(1,1.4f*s),CLR_BLACK);
-  }
+  // eyes — sleepy & content; SNARE crack clamps them shut, cowbell pops them wide
+  Eye e = { .open=0.5f, .squint=0.45f, .pupil=0.55f, .gy=0.1f, .browY=0.5f, .glint=1 };
+  if (pt->perc>0.3f) { e.open=0.95f; e.squint=0; }   // cowbell/perc → surprised-awake
+  if (pt->blink>0 || pt->snare>0.35f) e.open=0;
+  pet_eyes(cx, cy-ry*0.2f, rx*0.4f, fmaxf(1.4f,1.5f*s), fmaxf(1.4f,1.6f*s), CLR_WHITE, body, e);
   // mouth — content smile, opens to an O on the kick
   if (pt->kick>0.3f){ P o[10]; mkoval(o,cx,cy+ry*0.4f,2.5f*s,2.5f*s*pt->kick,10); fill_poly(o,10,0,0,809,jit,CLR_DARK_BROWN); }
   else { for(int i=-3;i<=3;i++){ int xx=(int)(cx+i*s); line(xx,(int)(cy+ry*0.42f+abs(i)*0.3f*s),xx+1,(int)(cy+ry*0.42f+abs(i)*0.3f*s),CLR_DARK_BROWN); } }
@@ -349,15 +380,14 @@ static void draw909(float cx, float cy, float s){
   line((int)(cx+tilt*ry),(int)(cy-ry*0.7f),(int)cx,(int)(cy+ry*0.8f),CLR_DARK_GREY);
   line((int)(cx-rx*0.4f),(int)(cy-ry*0.4f),(int)(cx-rx*0.15f),(int)(cy-ry*0.1f),CLR_LIGHT_GREY);
 
-  // two BIG friendly eyes carry the read at any size — brighten with METAL/energy,
-  // grow rounder with DECAY (boomier kit = wider-awake, never angry)
+  // two BIG amber eyes — alert & darty; brighten with METAL/energy, blink on the SNARE
   int ec = (metl>0.5f||pt->energy>0.4f) ? CLR_YELLOW : CLR_ORANGE;
-  float ex=rx*0.42f, ey=cy-ry*0.35f, er=fmaxf(1.6f, (1.8f+dec*0.6f)*s*base);
-  circfill((int)(cx-ex),(int)ey,(int)er,ec); circfill((int)(cx+ex),(int)ey,(int)er,ec);
-  float pr=fmaxf(1,er*0.5f);
-  circfill((int)(cx-ex),(int)ey,(int)pr,CLR_BLACK); circfill((int)(cx+ex),(int)ey,(int)pr,CLR_BLACK);
-  // a white glint keeps it cute
-  pset((int)(cx-ex-pr*0.4f),(int)(ey-pr*0.4f),CLR_WHITE); pset((int)(cx+ex-pr*0.4f),(int)(ey-pr*0.4f),CLR_WHITE);
+  float er=fmaxf(1.6f, (1.8f+dec*0.6f)*s*base);
+  Eye e = { .open=0.95f, .squint=0, .pupil=0.35f,
+            .gx=sinf(now()*4)*0.5f*pt->energy, .gy=sinf(now()*3+1)*0.3f*pt->energy,
+            .lid=0, .browY=0.6f, .browA=0, .glint=1 };
+  if (pt->blink>0 || pt->snare>0.4f) e.open=0;
+  pet_eyes(cx, cy-ry*0.35f, rx*0.42f, er, er, ec, CLR_MEDIUM_GREY, e);
 }
 
 // MST = the beating HEART the mix lives in. PUMP ducks it on the kick (sidechain
@@ -387,12 +417,12 @@ static void drawmst(float cx, float cy, float s){
   line((int)(cx-aw-3*s),(int)(cy-2*s),(int)(cx-aw),(int)(cy+3*s),CLR_MAUVE);
   line((int)(cx+aw+3*s),(int)(cy-2*s),(int)(cx+aw),(int)(cy+3*s),CLR_MAUVE);
 
-  // eyes — squint as the DJ filter closes (FLT far from centre)
+  // eyes — squint as the DJ filter closes (FLT off centre); the kick makes it clench
   float sq=1-fminf(1,fabsf(flt-0.5f)*2);            // 1 = wide open, 0 = squint
-  float ey=cy-1*s, ex=2.6f*s;
-  if (sq>0.3f){ circfill((int)(cx-ex),(int)ey,(int)fmaxf(1,1.3f*s),CLR_WHITE); circfill((int)(cx+ex),(int)ey,(int)fmaxf(1,1.3f*s),CLR_WHITE);
-    circfill((int)(cx-ex),(int)ey,1,CLR_BLACK); circfill((int)(cx+ex),(int)ey,1,CLR_BLACK); }
-  else { line((int)(cx-ex-2*s),(int)ey,(int)(cx-ex+2*s),(int)ey,CLR_BLACK); line((int)(cx+ex-2*s),(int)ey,(int)(cx+ex+2*s),(int)ey,CLR_BLACK); }
+  Eye e = { .open=0.45f+0.5f*sq - 0.4f*pump*pt->kick, .squint=(1-sq)*0.7f,
+            .pupil=0.5f, .browY=0.5f, .glint=1 };
+  if (pt->blink>0) e.open=0;
+  pet_eyes(cx, cy-1*s, 2.6f*s, fmaxf(1.3f,1.4f*s), fmaxf(1.3f,1.5f*s), CLR_WHITE, body, e);
 }
 
 // approximate full design-unit HEIGHT of each creature (fin/ears/antennae included),

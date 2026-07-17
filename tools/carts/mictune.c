@@ -23,9 +23,9 @@ de:meta */
 
 #define SR      44100
 #define NLEN    88200            // 2.0 s
-#define ROOT    0                // key = C
-#define SCALE   SCALE_MINOR
-#define AMOUNT  1.0f             // full correction (0 = off; ride it for gentler)
+#define ROOT     0               // key = C
+#define AT_SCALE SCALE_MINOR     // (NB: don't name this SCALE — that's the -DSCALE window-scale compile flag)
+#define AMOUNT   1.0f            // full correction (0 = off; ride it for gentler)
 
 static float raw[NLEN];          // the wobbly 'ah'
 static float tunedview[NLEN];    // a copy of the tuned slot, for the waveform display
@@ -70,7 +70,7 @@ void init(void) {
     synth_wobbly(raw, NLEN);
     sample_load(0, raw, NLEN);                        // RAW (untouched)
     sample_load(1, raw, NLEN);                        // TUNED slot — start from raw, then correct
-    sample_autotune(1, ROOT, SCALE, AMOUNT);          // ← the engine primitive does all the work
+    sample_autotune(1, ROOT, AT_SCALE, AMOUNT);          // ← the engine primitive does all the work
     tunedN = sample_read(1, tunedview, NLEN);         // pull it back for the waveform display
     for (int s = 0; s < 2; s++) { instrument(10 + s, INSTR_SAMPLE, 2, 0, 7, 40); instrument_sample(10 + s, s, 57); }
     instrument(12, INSTR_SAMPLE, 2, 0, 7, 40);        // live raw
@@ -91,7 +91,7 @@ void update(void) {
         int ln = mic_record_read(lr, NLEN);
         if (ln > 2048) {
             sample_load(2, lr, ln); sample_load(3, lr, ln);
-            sample_autotune(3, ROOT, SCALE, AMOUNT);
+            sample_autotune(3, ROOT, AT_SCALE, AMOUNT);
             instrument_sample(12, 2, 57); instrument_sample(13, 3, 57);
         }
         live_state = 3;

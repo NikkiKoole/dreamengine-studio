@@ -129,6 +129,7 @@ static int   dgrid[TR_NV][STEPS];                          // the drum pattern
 static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0.5 = neutral)
 static float dvol[TR_NV];                                  // per-voice LEVEL (0.5 = unity); rides the per-hit velocity — line-scope base the VOL lane offsets around
 static float dpan[TR_NV];                                  // per-voice PAN (0.5 = centre); applied via tr808_pan() around each fire (voice snapshots slot pan at note-on)
+static float dpanlast[TR_NV];                              // last PAN pushed per voice — instrument_pan is a QUEUED set-and-hold ctrl, so only re-push on CHANGE (else the fire loop floods the control queue → clicks)
 // SEAM: toms/congas share a slot → they pan as a GROUP (hardware-honest). Independent
 // tom/conga pan = splitting the 14-slot bank into per-voice slots (device-face §2c). Deferred.
 static int   dsel = TR_BD;                                 // selected drum voice
@@ -138,6 +139,7 @@ static int   d9grid[TR9_NV][STEPS];
 static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
 static float d9vol[TR9_NV];                                // per-voice LEVEL (0.5 = unity) — see dvol
 static float d9pan[TR9_NV];                                // per-voice PAN (0.5 = centre) — see dpan
+static float d9panlast[TR9_NV];                            // last PAN pushed per voice — see dpanlast
 static int   d9sel = TR9_BD;
 static float d9trig[TR9_NV];
 static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
@@ -1023,12 +1025,12 @@ void init(void) {
         gen_line(i, 2);
     }
     tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9..22)
-    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = dvol[v] = 0.5f; }
+    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = dvol[v] = dpan[v] = 0.5f; dpanlast[v] = -9; }  // 0.5 = neutral (pan centre); -9 = force first pan push
     for (int v = 0; v < TR_NV; v++)  for (int s = 0; s < STEPS; s++) dprob[v][s]  = 100;   // every hit certain until loosened
     gen_drums(2);
     tr909_build(D909_BASE);                                // the honest 909 kit (slots 23..35)
     tr909_metal(D909_BASE, m9cut, m9res);
-    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = 0.5f; }
+    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = d9pan[v] = 0.5f; d9panlast[v] = -9; }  // 0.5 = neutral; -9 = force first pan push
     for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9prob[v][s] = 100;
     gen_drums9(2);
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
@@ -1072,7 +1074,7 @@ void update(void) {
                         float eff = clamp(*L[p].knob + L[p].off[step] * 0.5f, 0, 1);
                         if (L[p].sink == SK_ARG) { sv[p] = *L[p].knob; *L[p].knob = eff; }                        // ride the fire array
                         else if (L[p].sink == SK_VEL) bo += (int)((eff - 0.5f) * 8 + (eff >= 0.5f ? 0.5f : -0.5f)); // VOL → ±4 velocity (0.5 = unity)
-                        else if (L[p].sink == SK_PAN) tr808_pan(TR808_BASE, v, (eff - 0.5f) * 2);                  // PAN → -1..+1 (centre = 0.5)
+                        else if (L[p].sink == SK_PAN && eff != dpanlast[v]) { tr808_pan(TR808_BASE, v, (eff - 0.5f) * 2); dpanlast[v] = eff; }  // PAN → -1..+1; push only on CHANGE (queued set-and-hold)
                     }
                     tr808_fire(TR808_BASE, v, bo, sw8, dtune, ddecay, dcolor);
                     for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
@@ -1088,7 +1090,7 @@ void update(void) {
                         float eff = clamp(*L[p].knob + L[p].off[step] * 0.5f, 0, 1);
                         if (L[p].sink == SK_ARG) { sv[p] = *L[p].knob; *L[p].knob = eff; }
                         else if (L[p].sink == SK_VEL) bo += (int)((eff - 0.5f) * 8 + (eff >= 0.5f ? 0.5f : -0.5f)); // VOL → ±4 velocity
-                        else if (L[p].sink == SK_PAN) tr909_pan(D909_BASE, v, (eff - 0.5f) * 2);                   // PAN → -1..+1 (centre = 0.5)
+                        else if (L[p].sink == SK_PAN && eff != d9panlast[v]) { tr909_pan(D909_BASE, v, (eff - 0.5f) * 2); d9panlast[v] = eff; }  // PAN → -1..+1; push only on CHANGE
                     }
                     if (st) tr909_fire_stroke(D909_BASE, v, st, bo, sw9, 113, d9tune, d9decay, d9color);   // 113ms ≈ one 16th @132
                     else    tr909_fire(D909_BASE, v, bo, sw9, d9tune, d9decay, d9color);

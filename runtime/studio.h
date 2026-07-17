@@ -684,6 +684,9 @@ void filter_inst(int instance, int mode, float cutoff_hz, float resonance);  // 
 void sidechain(int victim_bus, int key, float amount, int attack_ms, int release_ms);  // duck victim_bus (0 = master) by up to amount 0..1 on every hit in trigger `key` (0..3). amount 0 = off. attack ~1ms, release ~80–250ms = the pump
 void sidechain_key(int slot, int key, float send);   // route a slot into trigger key 0..3 — its level drives any sidechain() keyed there (kick → key 0). send 0..1 (0 = not a trigger)
 void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off
+// VOCODER (docs/design/vocoder.md) — a synth "speaks" in another sound's voice. The CARRIER is the master mix; the MODULATOR is whatever slot(s) you vocoder_send(). 12-band cross-synthesis. mix 0 = off (byte-identical)
+void vocoder(float mix);                              // turn the master vocoder on: carrier (the mix) wears the modulator's spectral envelope. mix 0..1 wet, 0 = off. Play a rich carrier (saw chord) + vocoder_send a modulator (a voice/INSTR_VOICE line)
+void vocoder_send(int slot, float amount);            // route instrument `slot` into the vocoder MODULATOR (0..1). SEND-ONLY: the slot's own dry is muted, it only shapes the carrier. 0 = not a modulator
 
 // insert-chain ORDER — the inserts above run in a fixed default order; fx_order() rearranges them
 // per bus (e.g. bitcrush BEFORE vs AFTER eq — audibly different). These are the insert kinds, in

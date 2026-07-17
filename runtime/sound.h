@@ -101,6 +101,7 @@ typedef struct {
     int   rvb_tank;                 // which reverb tank the send feeds: -1 = the master send (default), 1.. = a reverb_bus() send-bus
     int   sc_key;                   // sidechain trigger key this slot feeds (0..3), via sidechain_key()
     float sc_send;                  // how much this slot drives that key 0..1; 0 = not a trigger (default)
+    float voc_send;                 // how much this slot feeds the vocoder MODULATOR 0..1; >0 = send-only (dry muted). vocoder_send()
     int   fx_bus;                   // insert bus for chorus/flanger: 0 = master (default), 1.. = a private aux bus (instrument_chorus/flanger)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float level;                    // per-slot output level (instrument_level); read LIVE at mix. 1.0 = unity/byte-identical bypass, <1 trims — the mixer leg drive/echo/reverb/pan already had
@@ -175,6 +176,7 @@ typedef struct {
     int    rvb_bus;                // reverb SEND target bus: 0 = the master parallel send (legacy), 1.. = a reverb_bus() send-bus
     int    sc_key;                 // sidechain trigger key (0..3), snapshot of the instrument at note-on
     float  sc_send;                // how much this voice drives that key 0..1 (0 = not a trigger)
+    float  voc_send;               // how much this voice feeds the vocoder modulator (0 = not a modulator; >0 = send-only)
     float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
@@ -1462,6 +1464,49 @@ static float sc_apply(int b, float curL, float curR) {
     float e = s->env > 1.0f ? 1.0f : s->env;
     return 1.0f - s->amount * e;
 }
+
+// ── VOCODER (docs/design/vocoder.md) — master-stage N-band carrier×modulator cross-synthesis.
+// Carrier = the master mix; modulator = voc_mod (an sc_key-style per-sample send fed by the
+// vocoder_send() slots, send-only). Dormant (voc_on=false) until vocoder() → byte-identical. MONO
+// (a vocoder's output is mono), blended into the master by voc_mix. Both signals go through the SAME
+// N log-spaced SVF bandpasses; each modulator band's envelope multiplies the matching carrier band.
+#define VOC_BANDS 12
+static bool   voc_on   = false;
+static float  voc_mix  = 0.0f;                 // 0..1 wet blend into the master
+static float  voc_mod  = 0.0f;                 // this sample's summed modulator send (reset each sample, like sc_key_lvl)
+static float  voc_f[VOC_BANDS];                // per-band SVF coeff f = 2·sin(π·fc/sr)
+static float  voc_q1   = 0.2f;                 // 1/Q shared across bands (Q≈5 → bands overlap slightly)
+static float  voc_mk   = 1.2f;                 // makeup gain (tuned by render: keeps the 12-band sum off the master limiter)
+static float  voc_c_lp[VOC_BANDS], voc_c_bp[VOC_BANDS];   // carrier SVF states (Chamberlin)
+static float  voc_m_lp[VOC_BANDS], voc_m_bp[VOC_BANDS];   // modulator SVF states
+static float  voc_env[VOC_BANDS];              // per-band modulator envelope follower
+
+static void voc_config(void) {                 // log-spaced band centers 180..7000 Hz (constant; recompute is harmless)
+    float lo = 180.0f, hi = 7000.0f;
+    for (int k = 0; k < VOC_BANDS; k++) {
+        float fc = lo * powf(hi / lo, (float)k / (float)(VOC_BANDS - 1));
+        float f  = 2.0f * sinf(SOUND_PI * fc / (float)SOUND_SAMPLE_RATE);
+        voc_f[k] = f > 0.99f ? 0.99f : f;      // SVF stability clamp (top band ≈0.96 at 44.1k)
+    }
+}
+static inline float voc_svf(float in, float f, float *lp, float *bp) {   // one Chamberlin SVF → bandpass out
+    *lp += f * *bp;
+    float hp = in - *lp - voc_q1 * *bp;
+    *bp += f * hp;
+    return *bp;
+}
+static float voc_process(float c, float m) {   // carrier c wearing modulator m's spectral envelope → mono wet
+    float out = 0.0f;
+    for (int k = 0; k < VOC_BANDS; k++) {
+        float cb = voc_svf(c, voc_f[k], &voc_c_lp[k], &voc_c_bp[k]);
+        float mb = voc_svf(m, voc_f[k], &voc_m_lp[k], &voc_m_bp[k]);
+        float a  = mb < 0.0f ? -mb : mb;                                  // rectify the modulator band
+        voc_env[k] += (a > voc_env[k] ? 0.006f : 0.0012f) * (a - voc_env[k]);   // ~4ms attack / ~19ms release
+        out += cb * voc_env[k];
+    }
+    return out * voc_mk;
+}
+
 static float leslie_pre(float s, float drive) {   // tube pre-amp: Padé tanh (navkit, no libm call)
     if (drive <= 0.001f) return s;
     s *= 1.0f + drive * 5.0f;
@@ -1931,6 +1976,8 @@ typedef enum {
     SR_INSTR_SAMPLE        = 123,  // a=slot, b=sample slot, c=root freq(Hz)*1000 — bind an INSTR_SAMPLE slot to a recorded PCM buffer (instrument_sample); mic-and-sampling.md piece 2
     SR_INSTR_SAMPLE_REGION = 124,  // a=slot, b=start*1e6, c=end*1e6 — the CHOP: play the buffer from start..end (fractions 0..1); instrument_sample_region()
     SR_INSTR_SAMPLE_MODE   = 125,  // a=slot, b=mode — INSTR_SAMPLE playback mode (normal/reverse/loop/pingpong); instrument_sample_mode()
+    SR_VOCODER      = 126,  // a=mix*1000 — the master-stage N-band vocoder (carrier = master mix, modulator = voc_mod). vocoder(); docs/design/vocoder.md
+    SR_VOCODER_SEND = 127,  // a=slot, b=amount*1000 — route a slot into the vocoder MODULATOR (send-only: its dry is muted). vocoder_send()
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2000,7 +2047,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_SHALLOW: case SR_AMP_NOISE: case SR_GATE: case SR_SHIMMER: case SR_LISTENER:
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
-        case SR_BPM:
+        case SR_BPM: case SR_VOCODER:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -2012,7 +2059,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_REVERB_BUS: case SR_INSTR_FORMANT: case SR_INSTR_AUTOPAN: case SR_INSTR_RINGMOD:
         case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
         case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
-        case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY:
+        case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY: case SR_VOCODER_SEND:
         case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL: case SR_INSTR_SAMPLE: case SR_INSTR_SAMPLE_REGION: case SR_INSTR_SAMPLE_MODE:
         case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
@@ -4889,6 +4936,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->rvb_bus = (ins->rvb_tank >= 1) ? tank_bus[ins->rvb_tank] : 0;   // resolve tank → its send-bus now (0 = master send)
     v->sc_key  = ins->sc_key;   // sidechain trigger routing (sidechain_key); snapshot at note-on like the sends
     v->sc_send = ins->sc_send;
+    v->voc_send = ins->voc_send;
     v->bus  = ins->fx_bus;
     v->pan  = v->pan_target  = ins->pan;
     v->last_outL = v->last_outR = 0.0f;
@@ -5657,6 +5705,16 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].sc_key  = key;
         instr_bank[slot].sc_send = send;
     } break;
+    case SR_VOCODER: {       // a=mix*1000 — master-stage vocoder on/off + wet blend
+        float mix = r.a / 1000.0f; mix = clamp01(mix);
+        voc_mix = mix;
+        voc_on  = mix > 0.0005f;
+        if (voc_on) voc_config();
+    } break;
+    case SR_VOCODER_SEND: {  // a=slot, b=amount*1000 — route a slot into the vocoder modulator (send-only)
+        int slot = r.a; if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        instr_bank[slot].voc_send = clamp01(r.b / 1000.0f);
+    } break;
     case SR_GLUE: {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
         float amount = r.b / 1000.0f; amount = clamp01(amount);
@@ -5867,6 +5925,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         float echo_in   = 0.0f; // this sample's summed sends into the echo bus   (MONO — centered in v1)
         float reverb_in = 0.0f; // this sample's summed sends into the reverb bus (MONO — centered in v1)
         for (int sk = 0; sk < N_SC_KEYS; sk++) sc_key_lvl[sk] = 0.0f;   // sidechain trigger sums, refilled below
+        voc_mod = 0.0f;                                                // vocoder modulator send, refilled below
         fxmod_tick();   // ride sweep-safe effect params from CV / engine LFOs (fx_mod/fx_lfo) — no-op until first use
 
         for (int di = 0; di < delayed_count; ) {
@@ -6100,7 +6159,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // also silences this voice's echo/reverb/sidechain sends below.
             if (sound_solo_active && !((sound_solo_mask >> (v->instr_slot & 63)) & 1ull)) { cL = cR = contrib = 0.0f; }
 #endif
-            busL[v->bus] += cL; busR[v->bus] += cR;   // route into this voice's insert bus (0 = master)
+            if (v->voc_send > 0.0005f) voc_mod += contrib * v->voc_send;  // vocoder MODULATOR (send-only: not added to the dry mix)
+            else { busL[v->bus] += cL; busR[v->bus] += cR; }             // route into this voice's insert bus (0 = master)
             if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in   += contrib * v->eko;   // echo send   — MONO, pre-pan
             if (v->sfx_idx < 0 && v->rvb > 0.0005f) {                                // reverb send — MONO, pre-pan
                 if (v->rvb_bus == 0) reverb_in += contrib * v->rvb;                  // tank 0 = master parallel send (legacy, unchanged)
@@ -6157,6 +6217,15 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         if (steal_tailR > -1e-5f && steal_tailR < 1e-5f) steal_tailR = 0.0f;
 
         float mixL = busL[0], mixR = busR[0];   // master bus → the send-returns + master inserts + clip below
+
+        // ── VOCODER (docs/design/vocoder.md): the dry master mix is the CARRIER, voc_mod the MODULATOR
+        // (send-only, so it's not in mixL/R). Cross-synthesize → mono wet, blended by voc_mix. Placed
+        // BEFORE the send returns so the carrier is the dry synth, not the echo/reverb tail. Dormant → skipped.
+        if (voc_on) {
+            float wet = voc_process((mixL + mixR) * 0.5f, voc_mod);
+            mixL = mixL * (1.0f - voc_mix) + wet * voc_mix;
+            mixR = mixR * (1.0f - voc_mix) + wet * voc_mix;
+        }
 
         // ════ MASTER FX SECTION (instrument-engines §8.10) ════════════════════════════════════
         // The summed dry mix (mixL/mixR + steal tail) above is bus 0's input. Two ordered stages:
@@ -7036,6 +7105,12 @@ void sidechain(int victim_bus, int key, float amount, int attack_ms, int release
 void sidechain_key(int slot, int key, float send) {
     sound_push_ctrl(SR_SIDECHAIN_KEY, slot, key, (int)(send * 1000.0f), 0, 0, 0);
 }
+void vocoder(float mix) {   // master-stage vocoder: carrier = the mix, modulator = the vocoder_send slots
+    sound_push_ctrl(SR_VOCODER, (int)(mix * 1000.0f), 0, 0, 0, 0, 0);
+}
+void vocoder_send(int slot, float amount) {   // route a slot into the vocoder MODULATOR (send-only)
+    sound_push_ctrl(SR_VOCODER_SEND, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
+}
 void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);
 }
@@ -7466,6 +7541,7 @@ static void sound_reset_state(void) {
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
         instr_bank[i].sc_send    = 0.0f;
+        instr_bank[i].voc_send   = 0.0f;
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
         instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (instrument_mode) — off until set
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (instrument_mode) — off until set

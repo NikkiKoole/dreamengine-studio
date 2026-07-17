@@ -63,7 +63,7 @@ const CATEGORIES = {
       'analog-voice-modeling', 'swing-timing', 'sonification', 'audio-occlusion', 'positional-audio',
       'wavetable-drawing', 'self-oscillation', 'generative-sequencer', 'polymeter', 'lowpass-gate', 'wavefolder',
       'west-coast-synthesis', 'shift-register', 'scale-quantize', 'per-instrument-fx-bus',
-      'gesture-loop', 'song-arrangement', 'motion-sequencing', 'note-editing', 'audio-input',
+      'gesture-loop', 'song-arrangement', 'motion-sequencing', 'note-editing', 'audio-input', 'vocoder',
     ],
   },
 };

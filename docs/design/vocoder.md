@@ -1,9 +1,11 @@
 # The N-band vocoder — real carrier × modulator cross-synthesis
 
-STATUS: READY TO BUILD (2026-07-17) — scoped, not started. The DSP is an assembly of rostered
-primitives (SVF bandpass + envelope follower); the genuinely-NEW work is (a) getting the mic PCM onto
-the **audio thread** per-sample and (b) a **determinism doctrine call**. Prereq landed: the Tier-1 mic
-seam ([`mic-and-sampling.md`](mic-and-sampling.md)). Feel already proven cart-side by
+STATUS: BUILDING (2026-07-17) — **Phase 1 SHIPPED**: the master-stage 12-band vocoder is live in
+`sound.h` (`vocoder()` / `vocoder_send()`) with the [`vocode`](../../tools/carts/vocode.c) showcase (a
+saw chord vocoded by an `INSTR_VOICE` phrase — deterministic, **no mic**). Gates green: soundcheck,
+tune-check, dc-check, build-all, wasm-parity; render peak −1.9 dBFS, no clipping, DC-clean. **Next:
+Phase 2** = the mic PCM audio-thread ring (swap the modulator source to the live mic — also unlocks the
+pedal tier) + the determinism ADR. Feel already proven cart-side by
 [`voxbox`](../../tools/carts/voxbox.c) (the talkbox-lite).
 
 ## Why this doc exists
@@ -159,7 +161,7 @@ buses:**
 
 ## Build increments
 
-1. **Filterbank DSP at the master stage, modulator SEND, NO mic** — per the implementation note above:
+1. ✅ **SHIPPED (2026-07-17) — filterbank DSP at the master stage, modulator SEND, NO mic** — per the implementation note above:
    `voc_mod[]` accumulator + `vocoder_send(slot, amount)` (carrier = master mix, modulator = a synth
    slot, e.g. an `INSTR_VOICE` phrase). Fully deterministic → soundcheck/`spec` testable. Proves the
    bank + followers + reconstruction in isolation, zero mic risk. Showcase: a saw chord vocoded by an

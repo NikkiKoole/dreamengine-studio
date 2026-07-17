@@ -6910,16 +6910,31 @@ static float am_period_est(void) {    // period (samples) from a short autocorre
 static float autotune_mic_process(float x) {
     am_inbuf[am_w & AM_MASK] = x; am_w++;
 
-    if (--am_pd <= 0) {                                        // refresh the source period (~every 23ms)
-        am_pd = 1024; am_T = am_period_est();
+    if (--am_pd <= 0) {                                        // refresh the source period (~every 12ms), SMOOTHED
+        am_pd = 512; float e = am_period_est();
+        am_T += 0.25f * (e - am_T);                            // smoothing → no stepped grain spacing (a pulse source)
         if (am_T < 80.0f) am_T = 80.0f; if (am_T > 500.0f) am_T = 500.0f;   // clamp (grain must fit in AM_LAT)
     }
-    // analysis epochs: when the write cursor reaches the next expected epoch, snap it to the local peak
+    // analysis epochs: place the next glottal mark. Not the raw peak (jitters period-to-period → pulsing)
+    // but the position that best CORRELATES with the previous epoch (WSOLA-style phase-lock) so consecutive
+    // grains overlap-add COHERENTLY — the fix for the "pulsey" amplitude ripple.
     if (am_w >= am_ea) {
-        long lo = am_ea - (long)(0.25f * am_T), hi = am_ea + (long)(0.25f * am_T);
-        if (hi >= am_w) hi = am_w - 1; if (lo < 0) lo = 0;
-        long pk = lo; float pv = -1e30f;
-        for (long i = lo; i <= hi; i++) { float v = am_inbuf[i & AM_MASK]; if (v > pv) { pv = v; pk = i; } }
+        int cw = (int)(0.45f * am_T);                          // correlation half-window
+        long c0 = am_ea, lo = c0 - (long)(0.25f * am_T), hi = c0 + (long)(0.25f * am_T);
+        if (lo < 1) lo = 1; if (hi > am_w - 1 - cw) hi = am_w - 1 - cw;
+        long pk = c0;
+        if (hi < lo) { pk = c0; }
+        else if (am_epi == 0) {                                // first epoch: seed on the local peak
+            float pv = -1e30f;
+            for (long i = lo; i <= hi; i++) { float v = am_inbuf[i & AM_MASK]; if (v > pv) { pv = v; pk = i; } }
+        } else {                                               // lock to the previous epoch's waveform
+            long prev = am_eps[(am_epi - 1) & 7]; float bestc = -1e30f;
+            for (long p = lo; p <= hi; p++) {
+                float s = 0;
+                for (int j = -cw; j <= cw; j += 2) s += am_inbuf[(p + j) & AM_MASK] * am_inbuf[(prev + j) & AM_MASK];
+                if (s > bestc) { bestc = s; pk = p; }
+            }
+        }
         am_eps[am_epi & 7] = pk; am_epi++;
         am_ea = pk + (long)am_T;
     }

@@ -7,10 +7,11 @@ established it: v1 (known-f0 formant preservation) and v2 (detector-derived epoc
 on a wobbly source); the DSP now lives in the engine and [`mictune`](../../tools/carts/mictune.c) just
 calls it. Gate committed: [`tools/formant-check.js`](../../tools/formant-check.js) (f0 + formant-peak
 oracle). Flavour B of the audio-input frontier's auto-tune split; robot flavour already shipped
-([`hardtune`](../../tools/carts/hardtune.c)). **Open tail:** (1) the live real-voice confirmation —
-`mictune`'s R key runs the same call on a `mic_record` take, but a human still has to hear it on a
-real voice (the source in the gate is synthetic); (2) a per-frame key/root API + the live real-time
-path off the `sound_extin` ring (ADR-0032). Rolls up from
+([`hardtune`](../../tools/carts/hardtune.c)). **Real-voice check: PASSED** (2026-07-18) — the maker
+sang into `mictune` and confirmed the tuned playback holds up ("sounds pretty good"): pitch corrected,
+voice kept. So the offline feature is *done*. **Open tail (the live frontier):** the real-time path —
+sing and hear yourself corrected *now*, PSOLA on the audio thread reading the `sound_extin` ring
+(live-only, ADR-0032) — plus a per-frame key/root API. Rolls up from
 [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put

@@ -1507,6 +1507,38 @@ static float voc_process(float c, float m) {   // carrier c wearing modulator m'
     return out * voc_mk;
 }
 
+// ── external audio INPUT ring (docs/design/vocoder.md Phase 2; also the live-throughput/pedal tier) ──
+// The mic host writes captured MONO samples here from its CAPTURE thread (sound_extin_write, via
+// mic_input_push); the mixer reads one per OUTPUT sample from the audio thread (sound_extin_read).
+// Lock-free SPSC — same discipline as the req queue: ONLY the producer touches extin_w, ONLY the
+// consumer touches extin_r. Dormant (extin_on=0) until a live effect turns it on. ~46ms max depth.
+// NOTE: raw 1:1 — assumes the mic rate == the engine rate (true on desktop AudioQueue @44100; a
+// resample for 48k device mics is a Phase-2 follow-up, drift shows as occasional dropped samples).
+#define SOUND_EXTIN_LEN 2048
+static float      sound_extin[SOUND_EXTIN_LEN];
+static atomic_int extin_w = 0;              // producer index (capture thread)
+static atomic_int extin_r = 0;              // consumer index (audio thread)
+static int        extin_on = 0;             // a live effect wants the mic feed (set by vocoder_mic)
+static float      voc_mic_amt = 0.0f;       // vocoder: how much the LIVE mic drives the modulator (0 = off)
+
+static void sound_extin_write(float s) {    // capture thread — drop on a full ring (only the reader frees space)
+    int w    = atomic_load_explicit(&extin_w, memory_order_relaxed);
+    int next = (w + 1) % SOUND_EXTIN_LEN;
+    if (next == atomic_load_explicit(&extin_r, memory_order_acquire)) return;   // full → drop
+    sound_extin[w] = s;
+    atomic_store_explicit(&extin_w, next, memory_order_release);
+}
+static float sound_extin_read(void) {       // audio thread — 0 on underrun (empty)
+    int r = atomic_load_explicit(&extin_r, memory_order_relaxed);
+    if (r == atomic_load_explicit(&extin_w, memory_order_acquire)) return 0.0f;
+    float s = sound_extin[r];
+    atomic_store_explicit(&extin_r, (r + 1) % SOUND_EXTIN_LEN, memory_order_release);
+    return s;
+}
+static void sound_extin_reset(void) {       // consumer-side: align reader to writer to drop stale latency on start
+    atomic_store_explicit(&extin_r, atomic_load_explicit(&extin_w, memory_order_relaxed), memory_order_release);
+}
+
 static float leslie_pre(float s, float drive) {   // tube pre-amp: Padé tanh (navkit, no libm call)
     if (drive <= 0.001f) return s;
     s *= 1.0f + drive * 5.0f;
@@ -1978,6 +2010,7 @@ typedef enum {
     SR_INSTR_SAMPLE_MODE   = 125,  // a=slot, b=mode — INSTR_SAMPLE playback mode (normal/reverse/loop/pingpong); instrument_sample_mode()
     SR_VOCODER      = 126,  // a=mix*1000 — the master-stage N-band vocoder (carrier = master mix, modulator = voc_mod). vocoder(); docs/design/vocoder.md
     SR_VOCODER_SEND = 127,  // a=slot, b=amount*1000 — route a slot into the vocoder MODULATOR (send-only: its dry is muted). vocoder_send()
+    SR_VOCODER_MIC  = 128,  // a=amount*1000 — route the LIVE mic into the vocoder modulator (Phase 2). vocoder_mic()
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2047,7 +2080,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_SHALLOW: case SR_AMP_NOISE: case SR_GATE: case SR_SHIMMER: case SR_LISTENER:
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
-        case SR_BPM: case SR_VOCODER:
+        case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5715,6 +5748,13 @@ static void sound_fire_req(SoundReq r) {
         int slot = r.a; if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         instr_bank[slot].voc_send = clamp01(r.b / 1000.0f);
     } break;
+    case SR_VOCODER_MIC: {   // a=amount*1000 — route the LIVE mic into the vocoder modulator
+        float amt = clamp01(r.a / 1000.0f);
+        int on = amt > 0.0005f;
+        if (on && !extin_on) sound_extin_reset();   // starting: drop stale latency
+        voc_mic_amt = amt;
+        extin_on = on;
+    } break;
     case SR_GLUE: {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
         float amount = r.b / 1000.0f; amount = clamp01(amount);
@@ -6222,6 +6262,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // (send-only, so it's not in mixL/R). Cross-synthesize → mono wet, blended by voc_mix. Placed
         // BEFORE the send returns so the carrier is the dry synth, not the echo/reverb tail. Dormant → skipped.
         if (voc_on) {
+            if (voc_mic_amt > 0.0f) voc_mod += sound_extin_read() * voc_mic_amt;  // Phase 2: the LIVE mic drives the modulator
             float wet = voc_process((mixL + mixR) * 0.5f, voc_mod);
             mixL = mixL * (1.0f - voc_mix) + wet * voc_mix;
             mixR = mixR * (1.0f - voc_mix) + wet * voc_mix;
@@ -7110,6 +7151,9 @@ void vocoder(float mix) {   // master-stage vocoder: carrier = the mix, modulato
 }
 void vocoder_send(int slot, float amount) {   // route a slot into the vocoder MODULATOR (send-only)
     sound_push_ctrl(SR_VOCODER_SEND, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
+}
+void vocoder_mic(float amount) {   // route the LIVE mic into the vocoder modulator (needs mic_start + permission)
+    sound_push_ctrl(SR_VOCODER_MIC, (int)(amount * 1000.0f), 0, 0, 0, 0, 0);
 }
 void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);

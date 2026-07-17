@@ -1,12 +1,14 @@
 # The N-band vocoder — real carrier × modulator cross-synthesis
 
-STATUS: BUILDING (2026-07-17) — **Phase 1 SHIPPED**: the master-stage 12-band vocoder is live in
-`sound.h` (`vocoder()` / `vocoder_send()`) with the [`vocode`](../../tools/carts/vocode.c) showcase (a
-saw chord vocoded by an `INSTR_VOICE` phrase — deterministic, **no mic**). Gates green: soundcheck,
-tune-check, dc-check, build-all, wasm-parity; render peak −1.9 dBFS, no clipping, DC-clean. **Next:
-Phase 2** = the mic PCM audio-thread ring (swap the modulator source to the live mic — also unlocks the
-pedal tier) + the determinism ADR. Feel already proven cart-side by
-[`voxbox`](../../tools/carts/voxbox.c) (the talkbox-lite).
+STATUS: BUILDING (2026-07-17) — **Phases 1 + 2 SHIPPED**. Phase 1: the master-stage 12-band vocoder
+(`vocoder()` / `vocoder_send()`) + the deterministic [`vocode`](../../tools/carts/vocode.c) showcase
+(saw chord × `INSTR_VOICE` phrase). Phase 2: the **live mic** modulator — a lock-free SPSC
+audio-thread ring (`sound_extin_*`, which also opens the live-throughput/pedal tier) + `vocoder_mic()`;
+[`voxbox`](../../tools/carts/voxbox.c) upgraded from talkbox-lite to the REAL vocoder (sing → the chord
+speaks your words). Determinism carve-out written: [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md)
+(live-mic-through = live-only). Gates green: soundcheck, build-all, wasm-parity, no-crash live path.
+**Remaining (v2 quality):** unvoiced/sibilance noise band; mic-rate resample (non-44.1k device mics);
+latency tuning on device; more bands.
 
 ## Why this doc exists
 
@@ -166,8 +168,9 @@ buses:**
    slot, e.g. an `INSTR_VOICE` phrase). Fully deterministic → soundcheck/`spec` testable. Proves the
    bank + followers + reconstruction in isolation, zero mic risk. Showcase: a saw chord vocoded by an
    `INSTR_VOICE` phrase. (Two-bus routing waits on `instrument_bus`; master-only is the cheap v1.)
-2. **Mic PCM ring** — the audio-thread mic path (§infra 1). Swap the modulator bus for the live mic.
-   Measure latency on desktop; add the iOS/Android duplex path.
+2. ✅ **SHIPPED (2026-07-17) — Mic PCM ring** — `sound_extin_*` (a lock-free SPSC ring in sound.h; mic
+   host writes from the capture thread, mixer reads per output sample) + `vocoder_mic()`. voxbox is the
+   showcase. Desktop 1:1 (44.1k). Still to do: non-44.1k mic resample, on-device latency tuning, duplex.
 3. **Capture-then-freeze mode** (`vocoder_source`) — vocode a `mic_record()` take (deterministic;
    `voxbox`/breakchop synergy).
 4. **Quality** — unvoiced/sibilance noise-substitution band, N tuning, per-band gate, formant-shift knob.

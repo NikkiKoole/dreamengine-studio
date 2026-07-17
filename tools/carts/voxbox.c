@@ -5,13 +5,13 @@
   "status": "active",
   "created": "2026-07-17",
   "kind": ["instrument"],
-  "teaches": ["audio-input"],
-  "lineage": "The first cart where the mic MODULATES a synth — the payoff of the Tier-1 mic seam meeting the parked vocoder/talkbox family (docs/design/audio-notes.md §13, effects-recipes.md). A held saw chord (the carrier) is driven by your voice (the modulator): its VOLUME follows your loudness (mic_level) so the chord speaks your rhythm, and its VOWEL follows your pitch (mic_pitch) through the shipped formant filter. Sibling of `vowel` (the same formant chord drone, but played with a knob instead of your mouth).",
-  "homage": "The vocoder / talkbox (Alvin Lucier, Kraftwerk, Daft Punk, Frampton) — a synth that speaks in your voice.",
+  "teaches": ["audio-input", "vocoder"],
+  "lineage": "The REAL vocoder cart — a synth chord that speaks in your voice. Upgraded from the talkbox-lite first cut (mic_level gate + formant knob) to the engine's actual 12-band vocoder (vocoder() + vocoder_mic()) once Phase 2 landed the live-mic audio-thread ring (docs/design/vocoder.md). Carrier = a held saw chord; modulator = the LIVE mic. Sibling of `vocode` (same vocoder, modulated by a synth phrase instead of your voice) and `vowel` (the single-input formant knob).",
+  "homage": "The vocoder / talkbox (Kraftwerk, Wendy Carlos, Daft Punk, Frampton) — a synth that speaks.",
   "description": {
-    "summary": "Talk or beatbox and a synth chord speaks in your rhythm — the vocoder move. Your loudness gates a held saw chord (so it pulses with your speech) and your pitch sweeps its vowel through the formant filter, for the robot-choir / talkbox sound.",
-    "detail": "Carrier x modulator, the fantasy-console way: the CARRIER is a held formant-filtered saw chord; the MODULATOR is your mic. mic_level() rides the chord's volume (fast attack / slow release) so the chord only sounds while you talk — it takes on your speech RHYTHM, the recognizable vocoder pulse. mic_pitch() (YIN) sweeps the formant VOWEL, so the chord's colour moves as your voice does. HONEST SCOPE: this is the talkbox-LITE / 1-band version — it transfers your envelope + pitch, not your actual vowels. A true vocoder splits your voice into many frequency bands and imposes each band's envelope on the carrier; that needs per-band mic analysis in the engine (see audio-notes §13). This proves the routing + feel with zero engine work.",
-    "controls": "CLICK or SPACE: enable/disable the mic (allow the prompt). C: cycle the chord. Then talk, sing, or beatbox into it."
+    "summary": "Sing or talk and a synth chord speaks in YOUR voice — the real vocoder. A held saw chord is the carrier; your live mic is the modulator, run through the engine's 12-band vocoder, so the chord takes on your actual vowels and rhythm. Silent until you make a sound.",
+    "detail": "Carrier × modulator, for real: a held INSTR_SAW chord is the CARRIER (rich + broadband so every band has energy); the LIVE MIC is the MODULATOR, fed to the vocoder through the Phase-2 audio-thread ring (vocoder_mic). The 12-band filterbank imposes your voice's spectral envelope on the chord — its vowels AND rhythm come through, so the chord literally speaks/sings your words. Hold a chord and talk. LIVE by nature (the mic drives the sound in real time), so a voxbox performance does NOT replay deterministically — decision 0032. C cycles the chord under your voice.",
+    "controls": "CLICK or SPACE: enable/disable the mic (allow the prompt). C: cycle the carrier chord. Then sing, talk, or beatbox — the chord speaks it."
   }
 }
 de:meta */
@@ -19,13 +19,12 @@ de:meta */
 #include <math.h>
 #include <stdio.h>
 
-// VOXBOX — mic-as-modulator talkbox-lite. A held saw chord (carrier) through the formant filter,
-// driven by the mic: loudness (mic_level) gates the chord volume (speech rhythm = the vocoder pulse),
-// pitch (mic_pitch) sweeps the vowel. NOT a true N-band vocoder (that needs per-band mic analysis) —
-// it transfers your envelope + pitch, not your vowels. The payoff of the Tier-1 mic seam.
+// VOXBOX — the real vocoder: a held saw chord (carrier) spoken by the LIVE mic (modulator) through
+// the engine's 12-band vocoder (vocoder + vocoder_mic, Phase 2). The chord is silent until your voice
+// drives it. Upgraded from the talkbox-lite first cut now that the mic-audio-thread ring exists.
 
 #define PAD 5
-static int   carrier[4];                                // held carrier notes (gated by the mic)
+static int   carrier[4];
 static const int CHORDS[][4] = {
     { 48, 52, 55, 60 },   // Cmaj    C3 E3 G3 C4
     { 48, 51, 55, 58 },   // Cm7     C3 Eb3 G3 Bb3
@@ -34,22 +33,12 @@ static const int CHORDS[][4] = {
 };
 static const char *CHORD_NM[] = { "Cmaj", "Cm7", "Am", "Dmaj" };
 static int   chord_sel = 0;
-static const char *VNAME[5] = { "OO", "OH", "AH", "EH", "EE" };
-
-static float env = 0.0f;                                 // smoothed loudness → chord volume (0..7)
-static float vw  = 0.4f;                                 // smoothed vowel position (0..1)
-
-static float lastv = -1.0f;
-static void apply_vowel(void) {                          // change-guarded (set-and-hold coeff update, like `vowel`)
-    if (fabsf(vw - lastv) < 0.008f) return;
-    instrument_formant(PAD, vw, 0.8f, 0.9f);
-    lastv = vw;
-}
+static int   voc_live  = 0;      // vocoder currently engaged (mic open)
+static float env       = 0.0f;   // smoothed mic input loudness (mouth viz only)
 
 void init(void) {
-    instrument(PAD, INSTR_SAW, 6, 120, 7, 220);          // held drone: quick attack, full sustain — lots of harmonics for the formants
-    for (int i = 0; i < 4; i++) carrier[i] = note_on(CHORDS[chord_sel][i], PAD, 0);  // start silent; the mic gates them up
-    instrument_formant(PAD, vw, 0.8f, 0.9f);             // per-slot vowel filter: the carrier "sings"
+    instrument(PAD, INSTR_SAW, 8, 150, 7, 220);          // rich, broadband carrier — held
+    for (int i = 0; i < 4; i++) carrier[i] = note_on(CHORDS[chord_sel][i], PAD, 0);  // silent until the mic opens
 }
 
 void update(void) {
@@ -61,31 +50,25 @@ void update(void) {
         for (int i = 0; i < 4; i++) note_pitch(carrier[i], (float)CHORDS[chord_sel][i]);
     }
 
-    if (!mic_active()) {                                 // idle: fade the chord out
-        env += (0.0f - env) * 0.1f;
-        for (int i = 0; i < 4; i++) note_vol(carrier[i], env);
-        return;
+    int active = mic_active();
+    if (active && !voc_live) {                           // mic opened → carrier up + real vocoder on
+        for (int i = 0; i < 4; i++) note_vol(carrier[i], 6.0f);
+        vocoder(0.97f);                                  // the chord (master mix) wears the mic's spectrum
+        vocoder_mic(1.0f);                               // the LIVE mic is the modulator
+        voc_live = 1;
+    } else if (!active && voc_live) {                    // mic closed → silence + vocoder off
+        for (int i = 0; i < 4; i++) note_vol(carrier[i], 0.0f);
+        vocoder(0.0f);
+        vocoder_mic(0.0f);
+        voc_live = 0;
     }
-
-    float lvl = mic_level();
-    float tgt = lvl * 26.0f; if (tgt > 7.0f) tgt = 7.0f;
-    env += (tgt - env) * (tgt > env ? 0.5f : 0.12f);     // fast attack / slow release → the speech-rhythm gate
-
-    float hz = mic_pitch();
-    if (hz > 0.0f) {                                     // pitch → vowel brightness (a crude spectral proxy — honest fake)
-        float t = log2f(hz / 90.0f) / 2.2f;             // ~90..410 Hz → 0..1
-        if (t < 0) t = 0; if (t > 1) t = 1;
-        vw += (t - vw) * 0.15f;
-    }
-    apply_vowel();
-
-    for (int i = 0; i < 4; i++) note_vol(carrier[i], env); // the whole chord speaks your rhythm
+    float lvl = active ? mic_level() : 0.0f;
+    env += (lvl - env) * (lvl > env ? 0.4f : 0.12f);     // for the mouth viz
 }
 
-// a mouth that OPENS with loudness and WIDENS with the vowel (OO round → EE wide) — pure feedback
-static void draw_mouth(int cx, int cy, float open, float vowel, int col) {
-    int hw = 12 + (int)(vowel * 22.0f);                  // wider for brighter vowels
-    int hh = 1  + (int)(open * 24.0f);                   // opens with loudness
+// a mouth that OPENS with your voice's loudness — pure feedback
+static void draw_mouth(int cx, int cy, float open, int col) {
+    int hw = 26, hh = 1 + (int)(open * 26.0f);
     for (int x = -hw; x <= hw; x++) {
         float t = (float)x / hw;
         int h = (int)(hh * sqrtf(1.0f - t * t));
@@ -100,33 +83,25 @@ void draw(void) {
     if (!mic_active()) {
         font(FONT_COMIC); print("voxbox", SCREEN_W/2 - 34, 40, CLR_INDIGO); font(FONT_NORMAL);
         print("click / space to start", SCREEN_W/2 - 84, SCREEN_H/2 + 6, CLR_INDIGO);
-        print("then talk or beatbox", SCREEN_W/2 - 76, SCREEN_H/2 + 20, CLR_MEDIUM_GREY);
+        print("then sing or talk", SCREEN_W/2 - 64, SCREEN_H/2 + 20, CLR_MEDIUM_GREY);
         print("the chord speaks in your voice", SCREEN_W/2 - 88, SCREEN_H/2 + 36, CLR_DARK_GREY);
         return;
     }
 
-    float open = env / 7.0f;
+    float open = env * 3.0f; if (open > 1.0f) open = 1.0f;
     int mcol = open < 0.15f ? CLR_DARK_BLUE : open < 0.5f ? CLR_INDIGO : open < 0.8f ? CLR_BLUE : CLR_WHITE;
-    draw_mouth(SCREEN_W/2, SCREEN_H/2 - 6, open, vw, mcol);
+    draw_mouth(SCREEN_W/2, SCREEN_H/2 - 4, open, mcol);
 
-    // chord bars pulsing with the gate
+    // carrier chord bars pulsing with your voice
     for (int i = 0; i < 4; i++) {
-        int bw = 26, bx = SCREEN_W/2 - 2*bw - 6 + i * (bw + 4), by = SCREEN_H - 40;
+        int bw = 26, bx = SCREEN_W/2 - 2*bw - 6 + i * (bw + 4), by = SCREEN_H - 42;
         int h = 2 + (int)(open * 30.0f);
         rectfill(bx, by - h, bw, h, open > 0.1f ? CLR_BLUE : CLR_DARK_BLUE);
         rect(bx, by - 32, bw, 32, CLR_DARKER_GREY);
     }
 
-    // vowel ruler OO..EE with a marker
-    int rx = SCREEN_W/2 - 60, ry = 20, rw = 120;
-    line(rx, ry, rx + rw, ry, CLR_DARK_GREY);
-    for (int i = 0; i < 5; i++) print(VNAME[i], rx + i * rw/4 - 5, ry - 10, CLR_MEDIUM_GREY);
-    int mx = rx + (int)(vw * rw);
-    rectfill(mx - 1, ry - 2, 3, 5, CLR_YELLOW);
-
-    // readouts
-    char buf[48]; float hz = mic_pitch();
-    snprintf(buf, sizeof buf, "%s   vowel %s   %d Hz", CHORD_NM[chord_sel], VNAME[(int)(vw*4+0.5f)], (int)(hz+0.5f));
+    print("sing / talk — the chord speaks", SCREEN_W/2 - 92, 22, CLR_MEDIUM_GREY);
+    char buf[40];
+    snprintf(buf, sizeof buf, "REAL VOCODER   %s   C: chord", CHORD_NM[chord_sel]);
     print(buf, 4, SCREEN_H - 12, CLR_MEDIUM_GREY);
-    print("C: chord   space: mic", SCREEN_W - 130, 4, CLR_MEDIUM_GREY);
 }

@@ -687,6 +687,7 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 // VOCODER (docs/design/vocoder.md) — a synth "speaks" in another sound's voice. The CARRIER is the master mix; the MODULATOR is whatever slot(s) you vocoder_send(). 12-band cross-synthesis. mix 0 = off (byte-identical)
 void vocoder(float mix);                              // turn the master vocoder on: carrier (the mix) wears the modulator's spectral envelope. mix 0..1 wet, 0 = off. Play a rich carrier (saw chord) + vocoder_send a modulator (a voice/INSTR_VOICE line)
 void vocoder_send(int slot, float amount);            // route instrument `slot` into the vocoder MODULATOR (0..1). SEND-ONLY: the slot's own dry is muted, it only shapes the carrier. 0 = not a modulator
+void vocoder_mic(float amount);                       // route the LIVE MIC into the vocoder modulator (0..1) — sing/talk and the carrier chord speaks in your voice. Needs mic_start() + permission. 0 = off. LIVE (breaks .rec replay — decision 0032)
 
 // insert-chain ORDER — the inserts above run in a fixed default order; fx_order() rearranges them
 // per bus (e.g. bitcrush BEFORE vs AFTER eq — audibly different). These are the insert kinds, in

@@ -105,6 +105,7 @@ static inline void mic_input_push(const float *s, int n, int sr) {
         for (int i = 0; i < take; i++) mic_rec[mic_rec_n + i] = s[i];
         mic_rec_n += take;
     }
+    if (extin_on) for (int i = 0; i < n; i++) sound_extin_write(s[i]);   // Phase 2: feed the live vocoder/pedal ring (sound.h)
     for (int i = 0; i < n; i++) {
         mic_acc[mic_acc_n++] = s[i];
         if (mic_acc_n >= MIC_WIN) {

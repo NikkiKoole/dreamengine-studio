@@ -202,63 +202,34 @@ static int mkoval(P *o, float cx, float cy, float rx, float ry, int n){
   for (int i=0;i<n;i++){ float a=(float)i/n*TAU; o[i].x=cx+cosf(a)*rx; o[i].y=cy+sinf(a)*ry; }
   return n;
 }
-static void blob(const P *p, int n, unsigned seed, float jit, float bevel, int body, int edge){
-  float bev=bevel; if (bev>2.5f) bev=2.5f;
-  if (bev>0){ fill_poly(p,n,-SUNX*bev,-SUNY*bev,seed,jit,CLR_BLACK);
-              fill_poly(p,n, SUNX*bev, SUNY*bev,seed,jit,CLR_WHITE); }
-  fill_poly(p,n,0,0,seed,jit,body);
-  if (edge>=0) stroke_poly(p,n,seed,jit,1.5f,edge);
-}
-
-// ── EYES — each eye is a first-class SQUISHY Shape (boiled sclera + candy bevel +
-// boiled lids), with its OWN w/h/squash/boil/bevel (absolute, not derived from the
-// head or spacing) plus the emotion levers. ──────────────────────────────────────
+// ── EYES — just PUPILS (dot/pip). No sclera, no lids, no brows. A filled boiled dot
+// with its OWN w/h/squash; expression comes from size, gaze offset, a blink, and a
+// happy ∩ arc. Simple = right for the lo-fi candy toy. ────────────────────────────
 typedef struct { float open, squint, pupil, gx, gy, lid, browY, browA; int glint; } Eye;
 
-// a boiled lid cover: fill the quad in lidc, with an ink under-copy shifted `crease`
-// px so a wobbly ink crease peeks along the visible edge.
-static void lid_quad(P *q, unsigned sd, float boil, int lidc, float crease){
-  fill_poly(q,4,0,crease,sd,boil,CLR_BLACK);
-  fill_poly(q,4,0,0,sd,boil,lidc);
-}
-static void peteye(float cx,float cy,float ew,float eh,float esq,int innerdir,
-                   int sclera,int lidc,float boil,float bevel,const Eye*e){
-  float rw=ew*(1+0.6f*esq), rh=eh*(1-0.6f*esq); if(rw<1.5f)rw=1.5f; if(rh<1.5f)rh=1.5f;
-  float top=cy-rh, bot=cy+rh, inX=cx+innerdir*rw, outX=cx-innerdir*rw;
-  unsigned sd=(unsigned)((int)cx*131 + (int)cy*17 + innerdir*7 + 3);
-
-  if (e->squint>0.55f && e->open<0.7f){                 // happy ∩ laughing arc (boiled)
-    float aH=rh*0.95f*e->squint, pxp=0,pyp=0;
-    for(int i=0;i<=10;i++){ float u=(float)i/10*2-1;
-      float x=cx+u*rw+bo(sd,i,0x31,boil), y=cy-aH*(1-u*u)+rh*0.35f+bo(sd,i,0x32,boil);
-      if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,CLR_BLACK); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,CLR_BLACK);} pxp=x;pyp=y; }
-  } else {
-    // sclera = a boiled + beveled white blob (the squishy look)
-    P o[20]; mkoval(o,cx,cy,rw,rh,20); blob(o,20,sd,boil,bevel,sclera,CLR_BLACK);
-    // pupil (boiled little dark blob) + glint
-    float px=cx+e->gx*rw*0.45f, py=cy+e->gy*rh*0.45f, pr=fminf(rw,rh)*(0.3f+e->pupil*0.5f);
-    { P pp[12]; mkoval(pp,px,py,pr,pr,12); fill_poly(pp,12,0,0,sd+9,boil*0.5f,CLR_BLACK); }
-    if(e->glint) pset((int)(px-pr*0.4f),(int)(py-pr*0.4f),CLR_WHITE);
-    // TOP lid — open + tilt (angry/sad), boiled cover
-    float baseY=top+(1.0f-e->open)*2.0f*rh, tilt=e->lid*rh*0.8f;
-    P tl[4]={{outX,top-6},{inX,top-6},{inX,baseY+tilt},{outX,baseY-tilt}};
-    lid_quad(tl,sd+1,boil,lidc,2);
-    // BOTTOM lid — squint
-    if (e->squint>0.05f){ float bY=bot-e->squint*1.4f*rh;
-      P bl[4]={{cx-rw,bot+6},{cx+rw,bot+6},{cx+rw,bY},{cx-rw,bY}}; lid_quad(bl,sd+2,boil,lidc,-2); }
+static void peteye(float cx,float cy,float ew,float eh,float esq,int color,float boil,const Eye*e){
+  float rw=ew*(1+0.6f*esq), rh=eh*(1-0.6f*esq); if(rw<1)rw=1; if(rh<1)rh=1;
+  unsigned sd=(unsigned)((int)cx*131 + (int)cy*17 + 3);
+  if (e->open<0.18f){                          // blink → a short flat line
+    float w=fmaxf(2,rw);
+    line((int)(cx-w),(int)cy,(int)(cx+w),(int)cy,color);
+    line((int)(cx-w),(int)cy+1,(int)(cx+w),(int)cy+1,color);
+    return;
   }
-  if (rh>2.5f){                                          // boiled brow
-    float by0=top-2 - e->browY*3, ba=e->browA*rh*0.6f;
-    float bix=cx+innerdir*rw*1.05f, box=cx-innerdir*rw*1.05f;
-    float j1=bo(sd,3,0x41,boil), j2=bo(sd,4,0x42,boil);
-    line((int)bix,(int)(by0+ba+j1),(int)box,(int)(by0-ba*0.7f+j2),CLR_BLACK);
-    line((int)bix,(int)(by0+ba+j1)+1,(int)box,(int)(by0-ba*0.7f+j2)+1,CLR_BLACK);
+  if (e->squint>0.6f){                         // happy ∩ arc (peak up)
+    float aH=rh*1.3f, pxp=0,pyp=0;
+    for(int i=0;i<=8;i++){ float u=(float)i/8*2-1; float x=cx+u*rw, y=cy-aH*(1-u*u)+rh*0.4f;
+      if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,color); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,color);} pxp=x;pyp=y; }
+    return;
   }
+  // the pupil: a filled boiled dot, nudged by gaze
+  float px=cx+e->gx*rw*0.6f, py=cy+e->gy*rh*0.6f;
+  P o[12]; mkoval(o,px,py,rw,rh,12); fill_poly(o,12,0,0,sd,boil,color);
+  if (e->glint && rw>2.5f) pset((int)(px-rw*0.35f),(int)(py-rh*0.35f),CLR_WHITE);
 }
-static void pet_eyes(float cx,float cy,float gap,float ew,float eh,float esq,
-                     int sclera,int lidc,float boil,float bevel,Eye e){
-  peteye(cx-gap,cy,ew,eh,esq,+1,sclera,lidc,boil,bevel,&e);
-  peteye(cx+gap,cy,ew,eh,esq,-1,sclera,lidc,boil,bevel,&e);
+static void pet_eyes(float cx,float cy,float gap,float ew,float eh,float esq,int color,float boil,Eye e){
+  peteye(cx-gap,cy,ew,eh,esq,color,boil,&e);
+  peteye(cx+gap,cy,ew,eh,esq,color,boil,&e);
 }
 
 static const int PAL[] = { CLR_LIME_GREEN, CLR_YELLOW, CLR_ORANGE, CLR_PINK, CLR_RED,
@@ -282,7 +253,7 @@ static int gcol_i = 5;   // gradient far colour index into PAL (5 = TRUE_BLUE)
 // eye machine: emotion levers + identity dials (see peteyes). U flips the slider panel.
 static float se_open=0.8f, se_squint=0, se_pupil=0.5f, se_gx=0.5f, se_gy=0.5f,
              se_lid=0.5f, se_browy=0.5f, se_browa=0.5f,
-             se_gap=0.42f, se_ew=0.5f, se_eh=0.5f, se_esq=0.5f;  // eye geometry (own merits)
+             se_gap=0.5f, se_ew=0.35f, se_eh=0.4f, se_esq=0.5f;  // pupil geometry (own merits)
 static int eyes_on=1, panel=0;   // panel: 0 = shape dials, 1 = eye dials
 
 // boil ticking — advances the wobble frame on a beat (the "boil on the BPM" feel)
@@ -333,14 +304,10 @@ void draw(void){
     ui_slider(&se_eh,     sx, sy+1*sp, sw, "EYE H");
     ui_slider(&se_esq,    sx, sy+2*sp, sw, "EYE SQUASH");
     ui_slider(&se_gap,    sx, sy+3*sp, sw, "SPACING");
-    ui_slider(&se_open,   sx, sy+4*sp, sw, "OPEN");
-    ui_slider(&se_squint, sx, sy+5*sp, sw, "SQUINT");
-    ui_slider(&se_pupil,  sx, sy+6*sp, sw, "PUPIL");
-    ui_slider(&se_gx,     sx, sy+7*sp, sw, "GAZE X");
-    ui_slider(&se_gy,     sx, sy+8*sp, sw, "GAZE Y");
-    ui_slider(&se_lid,    sx, sy+9*sp, sw, "LID TILT");
-    ui_slider(&se_browy,  sx, sy+10*sp,sw, "BROW Y");
-    ui_slider(&se_browa,  sx, sy+11*sp,sw, "BROW ANG");
+    ui_slider(&se_open,   sx, sy+4*sp, sw, "OPEN/BLINK");
+    ui_slider(&se_squint, sx, sy+5*sp, sw, "HAPPY ARC");
+    ui_slider(&se_gx,     sx, sy+6*sp, sw, "GAZE X");
+    ui_slider(&se_gy,     sx, sy+7*sp, sw, "GAZE Y");
   }
   // map sliders → hero (always, so both persist while the other panel shows)
   hero.w=6+sl_w*154; hero.h=6+sl_h*154; hero.squash=sl_sq*2-1;
@@ -377,11 +344,11 @@ void draw(void){
     Eye e = { se_open, se_squint, se_pupil, se_gx*2-1, se_gy*2-1,
               se_lid*2-1, se_browy, se_browa*2-1, 1 };
     float gap  = 2 + se_gap*55;     // spacing, px from centre — ABSOLUTE (own merit)
-    float eew  = 3 + se_ew*24;      // eye width, px — not derived from the head
-    float eeh  = 3 + se_eh*24;      // eye height, px
-    float eesq = se_esq*2-1;        // eye squash
+    float eew  = 2 + se_ew*16;      // pupil width, px — not derived from the head
+    float eeh  = 2 + se_eh*16;      // pupil height, px
+    float eesq = se_esq*2-1;        // pupil squash
     pet_eyes(hero.x, hero.y - hero.h*0.12f, gap, eew, eeh, eesq,
-             CLR_WHITE, hero.fill, hero.boil, hero.bevel, e);   // eyes use the body's squishy boil/bevel
+             CLR_BLACK, hero.boil, e);   // simple ink pupils, boiled to match the body
   }
 
   // ── readout ──

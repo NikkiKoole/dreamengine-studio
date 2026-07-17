@@ -210,22 +210,22 @@ typedef struct { float open, squint, pupil, gx, gy, lid, browY, browA; int glint
 static void peteye(float cx,float cy,float ew,float eh,float esq,int color,float boil,const Eye*e){
   float rw=ew*(1+0.6f*esq), rh=eh*(1-0.6f*esq); if(rw<1)rw=1; if(rh<1)rh=1;
   unsigned sd=(unsigned)((int)cx*131 + (int)cy*17 + 3);
-  if (e->open<0.18f){                          // blink → a short flat line
-    float w=fmaxf(2,rw);
-    line((int)(cx-w),(int)cy,(int)(cx+w),(int)cy,color);
-    line((int)(cx-w),(int)cy+1,(int)(cx+w),(int)cy+1,color);
-    return;
-  }
   if (e->squint>0.6f){                         // happy ∩ arc (peak up)
     float aH=rh*1.3f, pxp=0,pyp=0;
     for(int i=0;i<=8;i++){ float u=(float)i/8*2-1; float x=cx+u*rw, y=cy-aH*(1-u*u)+rh*0.4f;
       if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,color); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,color);} pxp=x;pyp=y; }
     return;
   }
-  // the pupil: a filled boiled dot, nudged by gaze
-  float px=cx+e->gx*rw*0.6f, py=cy+e->gy*rh*0.6f;
-  P o[12]; mkoval(o,px,py,rw,rh,12); fill_poly(o,12,0,0,sd,boil,color);
-  if (e->glint && rw>2.5f) pset((int)(px-rw*0.35f),(int)(py-rh*0.35f),CLR_WHITE);
+  // the pupil: a filled boiled dot, nudged by gaze. OPEN scales its HEIGHT, so a
+  // dropping OPEN squashes the dot smoothly down to a line — the blink is a transition.
+  float px=cx+e->gx*rw*0.6f, py=cy+e->gy*rh*0.6f, oh=rh*e->open;
+  if (oh < 0.8f){                              // (nearly) closed → a flat line
+    float w=fmaxf(2,rw);
+    line((int)(px-w),(int)py,(int)(px+w),(int)py,color); line((int)(px-w),(int)py+1,(int)(px+w),(int)py+1,color);
+    return;
+  }
+  P o[12]; mkoval(o,px,py,rw,oh,12); fill_poly(o,12,0,0,sd,boil,color);
+  if (e->glint && rw>2.5f) pset((int)(px-rw*0.35f),(int)(py-oh*0.35f),CLR_WHITE);
 }
 static void pet_eyes(float cx,float cy,float gap,float ew,float eh,float esq,int color,float boil,Eye e){
   peteye(cx-gap,cy,ew,eh,esq,color,boil,&e);
@@ -255,6 +255,8 @@ static float se_open=0.8f, se_squint=0, se_pupil=0.5f, se_gx=0.5f, se_gy=0.5f,
              se_lid=0.5f, se_browy=0.5f, se_browa=0.5f,
              se_gap=0.5f, se_ew=0.35f, se_eh=0.4f, se_esq=0.5f;  // pupil geometry (own merits)
 static int eyes_on=1, panel=0;   // panel: 0 = shape dials, 1 = eye dials
+static float blinkt=0;           // auto-blink timer (a smooth transition, not a snap)
+#define BLINK_DUR 0.16f
 
 // boil ticking — advances the wobble frame on a beat (the "boil on the BPM" feel)
 static float clk = 0;
@@ -275,6 +277,9 @@ void update(void){
   if (keyp(KEY_SPACE)) boil_on=!boil_on;
   if (keyp('Y')) eyes_on=!eyes_on;      // show/hide the eyes
   if (keyp('U')) panel=!panel;          // flip slider column: shape <-> eyes
+  if (keyp('B')) blinkt=BLINK_DUR;      // manual blink
+  if (blinkt>0) blinkt-=dt();
+  if (blinkt<=0 && rnd(150)==0) blinkt=BLINK_DUR;   // idle auto-blink
   float d=dt();
   if (key(',')) hero.rot -= 90*d;
   if (key('.')) hero.rot += 90*d;
@@ -341,14 +346,18 @@ void draw(void){
   // ── eyes on the hero — the shape becomes a face (lids painted in the body colour,
   //     eye size/spacing scaled to the shape so it stays a character at any size) ──
   if (eyes_on){
-    Eye e = { se_open, se_squint, se_pupil, se_gx*2-1, se_gy*2-1,
+    float bopen = 1.0f;                        // blink transition (1 → 0 → 1)
+    if (blinkt>0){ float x=blinkt/BLINK_DUR; bopen=fabsf(x*2-1); }
+    Eye e = { se_open*bopen, se_squint, se_pupil, se_gx*2-1, se_gy*2-1,
               se_lid*2-1, se_browy, se_browa*2-1, 1 };
-    float gap  = 2 + se_gap*55;     // spacing, px from centre — ABSOLUTE (own merit)
-    float eew  = 2 + se_ew*16;      // pupil width, px — not derived from the head
-    float eeh  = 2 + se_eh*16;      // pupil height, px
-    float eesq = se_esq*2-1;        // pupil squash
-    pet_eyes(hero.x, hero.y - hero.h*0.12f, gap, eew, eeh, eesq,
-             CLR_BLACK, hero.boil, e);   // simple ink pupils, boiled to match the body
+    // POSITION tracks the head (so eyes stay in the face as it resizes/squashes)…
+    float ehw = hero.w*0.5f*(1+0.8f*hero.squash);   // effective head half-width
+    float ehh = hero.h*0.5f*(1-0.8f*hero.squash);   // …half-height
+    float gap = ehw*(0.15f + se_gap*0.55f);
+    float cyv = hero.y - ehh*0.22f;
+    // …but SIZE stays absolute (doesn't grow with the head)
+    float eew = 2 + se_ew*16, eeh = 2 + se_eh*16, eesq = se_esq*2-1;
+    pet_eyes(hero.x, cyv, gap, eew, eeh, eesq, CLR_BLACK, hero.boil, e);
   }
 
   // ── readout ──
@@ -362,7 +371,7 @@ void draw(void){
   // near/far colour swatches for the gradient
   print("grad",250,168,hero.grad?CLR_WHITE:CLR_DARK_GREY);
   rectfill(272,168,7,7,hero.fill); rectfill(281,168,7,7,hero.gcol);
-  print("keys: 1-5 kind  [] sides  ,. rot  C fill  E edge  G grad  V far  Y eyes  U panel",6,190,CLR_DARK_GREY);
+  print("keys: 1-5 kind  [] sides  ,. rot  C fill  E edge  G grad  Y eyes  U panel  B blink",6,190,CLR_DARK_GREY);
 
   ui_end();
 }

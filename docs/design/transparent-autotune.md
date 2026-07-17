@@ -1,14 +1,15 @@
 # Transparent auto-tune — correct the pitch, keep the voice
 
-STATUS: BUILDING (2026-07-17) — **the offline PSOLA spike PASSED**: formant-preserving pitch-shift is
-proven ([`mictune`](../../tools/carts/mictune.c) + the WAV oracle, numbers below). Flavour B of the
-audio-input frontier's auto-tune split; the robot flavour already shipped
-([`hardtune`](../../tools/carts/hardtune.c)). This doc scoped the *big swing* — pitch-correction that
-keeps your **real timbre** — and picked the safe first cut: correct a *recorded* take offline
-(deterministic, oracle-gateable) before touching the live mic. Rolls up from
+STATUS: BUILDING (2026-07-17) — **both offline spikes PASSED**: formant-preserving pitch-shift works
+(v1, known f0) AND full pitch-CORRECTION survives the real-world path (v2 — detector-derived epochs,
+a wobbly/breathy off-pitch source, correct-to-scale). All in [`mictune`](../../tools/carts/mictune.c)
++ the WAV oracle (numbers below). Flavour B of the audio-input frontier's auto-tune split; the robot
+flavour already shipped ([`hardtune`](../../tools/carts/hardtune.c)). Rolls up from
 [`audio-input-frontier.md`](audio-input-frontier.md) §2; depends on the mic seam + capture-then-freeze
-plumbing, both shipped. **Next:** promote the cart-C prototype to an engine primitive + real-mic
-epoch detection (YIN), then the live path off the `sound_extin` ring.
+plumbing, both shipped. **Next:** the live real-voice test (the `mic_record` path is built into
+`mictune`, press R — but is unverified until a human runs it on device/desktop), then promote the
+cart-C prototype to an engine `sample_pitch_correct` primitive + wire the live path off the
+`sound_extin` ring.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 
@@ -31,6 +32,27 @@ formant preservation. One implementation gotcha the spike caught: **keep the per
 everywhere** — an `(int)T` in the epoch-index math drifts the grains off the glottal pulses over ~165
 periods and smears the result (centroid 1935→1820 Hz once fixed). PSOLA is the right algorithm for our
 monophonic voice; no need to escalate to the phase vocoder.
+
+### v2 (2026-07-17) — the real-world path also holds
+
+v1 used a *known* f0 (the easy case). v2 takes on the actual risk that guards an engine primitive:
+**epochs from a detector, not told** (autocorrelation pitch track + peak-refined glottal marks), a
+**hard, voice-like source** (5.5 Hz vibrato + slow drift + breath noise, sitting ~35 cents *sharp* of
+a scale note), and real **pitch-CORRECTION** (time-varying PSOLA re-spacing each frame's grains at the
+`snap_scale(detected f0)` period). Oracle over the whole take (f0 sampled at 8 sub-windows for a
+stability/wobble number):
+
+| | f0 (mean) | wobble (range) | F1 | F2 | F3 |
+|---|---|---|---|---|---|
+| RAW (wobbly, sharp) | 118.9 Hz | **2.9 Hz** | 711 | 1184 | 2476 |
+| **TUNED** | **116.5 Hz** (= A#2) | **0.3 Hz** | 711 | 1152 | 2466 |
+
+Three wins at once, from a detector-driven pipeline: the pitch **snapped** onto the scale note
+(118.9→116.5 Hz, exactly A#2), it **de-wobbled** (2.9→0.3 Hz, ~10× steadier — flat and in-tune), and
+the **formants held** (F1 identical, F2/F3 within 3 % — the vowel/identity survives). That is
+transparent auto-tune working end to end, offline. The one thing the oracle can't cover is a **real
+human voice** (the source is synthetic): `mictune`'s R key runs the identical pipeline on a live
+`mic_record` take — the confirmation a person has to hear, and the gate before engine promotion.
 
 ---
 

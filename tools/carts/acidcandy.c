@@ -106,9 +106,10 @@ static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR", 
 enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX, DS_PAT };     // drum LCD: tone / kit / flags / generate / MIX (level·pan·fine) / PAT (A-D banks)
 static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
 static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
-static int  recmode = 0;                      // REC arm (drum faces): while PLAYING, a voice-pad hit punches onto the CURRENT step (multitouch finger-drum). Off = normal.
-#define LONGPRESS 18                          // frames a voice pad held → toggle MUTE (long-press, ~0.3s) — replaces the old MUT mode
-static int  holdf[TR_NV] = { 0 }, hold9f[TR9_NV] = { 0 };   // per-pad hold-frame counters (long-press-to-mute)
+// The two voice-pad ARM modes (drum faces), mutually exclusive — small toggles by the voices.
+// Off (neither) = a pad tap SELECTs (silent while playing / auditions when stopped).
+static int  recmode = 0;                      // REC arm: while PLAYING, a pad hit punches onto the CURRENT step (multitouch finger-drum)
+static int  mutemode = 0;                     // MUT arm: a pad tap INSTANTLY toggles that voice's mute — live-precise (no long-press wait)
 static int  dmute[TR_NV]  = { 0 };            // per-808-voice mute (in addition to the machine mute); toggled by LONG-PRESSING a voice pad
 static int  d9mute[TR9_NV] = { 0 };           // per-909-voice mute
 // 2-char pad abbreviations (indexed by voice enum) — so all 16/11 fit one picker row
@@ -769,6 +770,23 @@ static void draw_303(int i) {
 // is the work surface (voice picker + the 16 HITS of the picked voice); the screen
 // stays free for the kit overview + tweaks. Its identity: a blue 808 badge, blue
 // voice pads, and the hits in the iconic 808 red·orange·yellow·white quarters.
+// REC + MUT arm toggles (drum faces) — two small toggles in the right margin, by the voice
+// picker; MUTUALLY EXCLUSIVE. REC (top ●): while playing, pad hits punch the current step
+// (multitouch finger-drum). MUT (bottom, red slash when armed): a pad tap INSTANTLY mutes/
+// unmutes that voice — live-precise, no hold. Off (neither) = a pad tap SELECTs.
+static void draw_arms(void) {
+    int rx = 150, pr, hot, foc;
+    void *wr = ui_wid_hash(0x0Bu, rx, 64, 7, 4); pr = hot = foc = 0;
+    if (ui_button_core(wr, rx, 64, 7, 4, &foc, &pr, &hot) && tap_settled()) { recmode = !recmode; if (recmode) mutemode = 0; }
+    rrectfill(rx, 64, 7, 4, 1, CLR_BROWNISH_BLACK); circfill(rx + 3, 66, 1, recmode ? CLR_RED : CLR_DARKER_GREY);
+    rrect(rx, 64, 7, 4, 1, (recmode || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    void *wm = ui_wid_hash(0x0Cu, rx, 69, 7, 4); pr = hot = foc = 0;
+    if (ui_button_core(wm, rx, 69, 7, 4, &foc, &pr, &hot) && tap_settled()) { mutemode = !mutemode; if (mutemode) recmode = 0; }
+    rrectfill(rx, 69, 7, 4, 1, CLR_BROWNISH_BLACK);
+    if (mutemode) line(rx + 1, 72, rx + 5, 69, CLR_RED); else circfill(rx + 3, 71, 1, CLR_DARKER_GREY);
+    rrect(rx, 69, 7, 4, 1, (mutemode || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+}
+
 static void draw_808(void) {
     // acid order (from acidrack): always-on kick/hats/clap/snare, then cowbell + rim/clave,
     // then the fill voices (maracas/cymbal/toms/congas) — page 1 is a whole beat on its own.
@@ -841,14 +859,12 @@ static void draw_808(void) {
         void *wp = ui_wid_hash(0x90u + v, x, 64, 8, 9); ui_reg(wp, x, 64, 8, 9, 0);
         UiCap *c = ui_cap_for(wp); int hot = (c != 0);
         if (c) {
-            if (recmode && playing) {                            // REC — punch this voice onto the CURRENT step (multitouch)
+            if (recmode && playing) {                            // REC — punch onto the CURRENT step (multitouch)
                 if (ui_grabbed(wp)) { dgrid[v][step] = 1; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
-            } else {
-                if (ui_grabbed(wp)) holdf[v] = 0;
-                if (++holdf[v] == LONGPRESS) dmute[v] = !dmute[v];   // long-press → toggle MUTE (once)
-                if (c->released && holdf[v] < LONGPRESS) {           // short tap → SELECT (+ audition only when STOPPED)
-                    dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
-                }
+            } else if (mutemode) {                               // MUT — INSTANT mute toggle on tap (live-precise)
+                if (ui_grabbed(wp)) dmute[v] = !dmute[v];
+            } else if (c->released) {                            // SELECT (+ audition only when STOPPED)
+                dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
             }
         }
         rrectfill(x, 64, 8, 9, 1, mtd ? CLR_DARKER_PURPLE : selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
@@ -857,13 +873,7 @@ static void draw_808(void) {
         if (mtd) line(x + 1, 65, x + 6, 71, CLR_RED);        // muted = red slash (like the cartridge LED)
         font(FONT_TINY); print(AB8[v], x + (8 - text_width(AB8[v])) / 2, 66, mtd ? CLR_DARKER_GREY : selp ? CLR_WHITE : CLR_BLUE);
     }
-    {   // REC arm — a record ● in the right margin, right by the voices (multitouch finger-drum onto the current step)
-        int rx = 150, ry = 64, rw = 7, rh = 9, pr = 0, hot = 0, foc = 0; void *wr = ui_wid_hash(0x0Bu, rx, ry, rw, rh);
-        if (ui_button_core(wr, rx, ry, rw, rh, &foc, &pr, &hot) && tap_settled()) recmode = !recmode;
-        rrectfill(rx, ry, rw, rh, 1, CLR_BROWNISH_BLACK);
-        circfill(rx + rw / 2, ry + rh / 2, 2, recmode ? CLR_RED : CLR_DARKER_GREY);
-        rrect(rx, ry, rw, rh, 1, (recmode || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-    }
+    draw_arms();   // REC + MUT arm toggles in the right margin, by the voices
 
     // ⑤ the HITS — the picked voice's 16 steps, on the BOTTOM (thumb surface).
     // KIT: tap = toggle · DRAG across = paint on/off (first cell decides). FLAG: paint
@@ -994,12 +1004,10 @@ static void draw_909(void) {
         if (c) {
             if (recmode && playing) {                            // REC — punch onto the CURRENT step (multitouch)
                 if (ui_grabbed(wp)) { d9grid[v][step] = 1; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
-            } else {
-                if (ui_grabbed(wp)) hold9f[v] = 0;
-                if (++hold9f[v] == LONGPRESS) d9mute[v] = !d9mute[v];   // long-press → toggle MUTE (once)
-                if (c->released && hold9f[v] < LONGPRESS) {            // short tap → SELECT (+ audition only when STOPPED)
-                    d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
-                }
+            } else if (mutemode) {                               // MUT — INSTANT mute toggle on tap (live-precise)
+                if (ui_grabbed(wp)) d9mute[v] = !d9mute[v];
+            } else if (c->released) {                            // SELECT (+ audition only when STOPPED)
+                d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
             }
         }
         rrectfill(x, 64, 12, 9, 1, mtd ? CLR_DARKER_PURPLE : selp ? CLR_ORANGE : CLR_DARK_ORANGE);
@@ -1008,13 +1016,7 @@ static void draw_909(void) {
         if (mtd) line(x + 2, 65, x + 9, 71, CLR_RED);        // muted = red slash
         font(FONT_TINY); print(AB9[v], x + (12 - text_width(AB9[v])) / 2, 66, mtd ? CLR_DARKER_GREY : selp ? CLR_BROWNISH_BLACK : CLR_LIGHT_YELLOW);
     }
-    {   // REC arm — a record ● in the right margin, by the voices (multitouch finger-drum onto the current step)
-        int rx = 150, ry = 64, rw = 7, rh = 9, pr = 0, hot = 0, foc = 0; void *wr = ui_wid_hash(0x0Bu, rx, ry, rw, rh);
-        if (ui_button_core(wr, rx, ry, rw, rh, &foc, &pr, &hot) && tap_settled()) recmode = !recmode;
-        rrectfill(rx, ry, rw, rh, 1, CLR_BROWNISH_BLACK);
-        circfill(rx + rw / 2, ry + rh / 2, 2, recmode ? CLR_RED : CLR_DARKER_GREY);
-        rrect(rx, ry, rw, rh, 1, (recmode || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-    }
+    draw_arms();   // REC + MUT arm toggles in the right margin, by the voices
 
     // ⑤ the HITS — picked voice's 16 steps at the bottom; amber, white downbeat accents.
     // KIT: paint on/off. FLAG: ACC toggles accent · PROB vertical-slides the chance
@@ -1174,6 +1176,7 @@ void init(void) {
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
     reverb_bus(1, 0.34f, 0.15f);                           // 909 → its own tight bright PLATE (tank 1)
     reverb_bus(2, 0.45f, 0.30f);                           // 808 → its own room (tank 2)
+    pan_law(mlaw ? PAN_POWER : PAN_LINEAR);                // master pan law (MST LIN/PWR toggle); default LINEAR = engine default
     // pattern slots are zero-filled = empty, but two fields must NOT be 0 or a fresh slot is UNPLAYABLE:
     // 303 plen 0 → ctr%0 (playhead UB); drum prob 0 → every hit 0% trig. Seed them empty-but-PLAYABLE.
     for (int i = 0; i < 2; i++) for (int s = 0; s < NPAT; s++) pat303[i][s].plen = STEPS;

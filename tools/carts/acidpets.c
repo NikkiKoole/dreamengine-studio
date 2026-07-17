@@ -349,15 +349,15 @@ static void draw909(float cx, float cy, float s){
   line((int)(cx+tilt*ry),(int)(cy-ry*0.7f),(int)cx,(int)(cy+ry*0.8f),CLR_DARK_GREY);
   line((int)(cx-rx*0.4f),(int)(cy-ry*0.4f),(int)(cx-rx*0.15f),(int)(cy-ry*0.1f),CLR_LIGHT_GREY);
 
-  // two BIG eyes carry the read at any size — brighten with METAL/energy
+  // two BIG friendly eyes carry the read at any size — brighten with METAL/energy,
+  // grow rounder with DECAY (boomier kit = wider-awake, never angry)
   int ec = (metl>0.5f||pt->energy>0.4f) ? CLR_YELLOW : CLR_ORANGE;
-  float ex=rx*0.42f, ey=cy-ry*0.35f, er=fmaxf(1.6f, 2.0f*s*base);
+  float ex=rx*0.42f, ey=cy-ry*0.35f, er=fmaxf(1.6f, (1.8f+dec*0.6f)*s*base);
   circfill((int)(cx-ex),(int)ey,(int)er,ec); circfill((int)(cx+ex),(int)ey,(int)er,ec);
-  circfill((int)(cx-ex),(int)ey,(int)fmaxf(1,er*0.45f),CLR_BLACK);
-  circfill((int)(cx+ex),(int)ey,(int)fmaxf(1,er*0.45f),CLR_BLACK);
-  // DECAY hint: a heavier brow when decays are long (angrier, boomier kit)
-  if (dec>0.6f){ line((int)(cx-ex-er),(int)(ey-er),(int)(cx-ex+er),(int)(ey-er*0.6f),CLR_BLACK);
-                 line((int)(cx+ex+er),(int)(ey-er),(int)(cx+ex-er),(int)(ey-er*0.6f),CLR_BLACK); }
+  float pr=fmaxf(1,er*0.5f);
+  circfill((int)(cx-ex),(int)ey,(int)pr,CLR_BLACK); circfill((int)(cx+ex),(int)ey,(int)pr,CLR_BLACK);
+  // a white glint keeps it cute
+  pset((int)(cx-ex-pr*0.4f),(int)(ey-pr*0.4f),CLR_WHITE); pset((int)(cx+ex-pr*0.4f),(int)(ey-pr*0.4f),CLR_WHITE);
 }
 
 // MST = the beating HEART the mix lives in. PUMP ducks it on the kick (sidechain

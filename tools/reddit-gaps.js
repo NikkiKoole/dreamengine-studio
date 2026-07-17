@@ -34,6 +34,10 @@
 //     --queries "a,b,c"    extra search-phrase feeds on top of the built-ins
 //     --raw                also dump every mined wish thread (title + link + matched types)
 //     --json               machine-readable payload (no ANSI); implies no table
+//   node tools/reddit-gaps.js --showcase [sub]       the SUPPLY-side twin of the wish miner: what the
+//     tribe BUILT & UPVOTED that overlaps our grain (revealed preference / prior art), not what they
+//     asked for. Reads caches only (no fetch); bare = across every cache. --limit n / --json. The
+//     wish miner is demand-blind to build announcements (the r/pico8 groovebox that prompted this).
 //   node tools/reddit-gaps.js <subreddit> --ingest <file|dir>   PASTE-BRIDGE: when Reddit throttles
 //     our script, fetch the RSS in a browser (a human clicking one URL isn't rate-limited like a
 //     hammering script), save the feeds, and merge them into the cache — same engine, no fetch.
@@ -125,6 +129,14 @@ const TOPICS = [
 ];
 const GRAIN_W = { core: 1, edge: 0.5, off: 0.15 };
 const GAP_MIN = 2; // a topic needs >= this many distinct threads to count as real demand
+
+// The demand-miner's BLIND SPOT (found 2026-07-17 via r/pico8's "303/808/poly-synth groovebox"
+// showcase — dead on-grain, upvoted into top-month+hot, but INVISIBLE to the wish patterns because
+// it's a build announcement, not an ask). A post the tribe UPVOTED that matches our grain is
+// REVEALED PREFERENCE — "someone built this and it landed" — a signal wishes can't carry. We have
+// no scores in RSS, but PRESENCE in a popularity listing feed IS the upvote proxy. Weight by which:
+// survived a year > a month > merely hot-right-now. "new" is recency, not popularity, so it's 0.
+const POP_FEEDS = { "top-year": 3, "top-month": 2, "hot": 1 };
 
 // ── RSS/Atom parsing (regex — Reddit's Atom is regular; no xml dep) ─────────
 function decodeHtml(s) {
@@ -366,6 +378,73 @@ function buildReport(scanData, corpus) {
     topics: rows, uncategorized: other.length, wishList: wishes };
 }
 
+// ── showcase pass: celebrated on-grain posts (revealed preference / prior art) ──
+// The demand-miner asks "what did the tribe ASK FOR?"; this asks "what did they BUILD & UPVOTE?".
+// Reuses the same TOPICS taxonomy + the per-entry `feeds` array already in every cache — no fetch.
+function grainOf(ids) {
+  let best = null;
+  for (const id of ids) {
+    const t = TOPICS.find((x) => x.id === id);
+    if (t && (!best || GRAIN_W[t.grain] > GRAIN_W[best.grain])) best = t;
+  }
+  return best; // null if only "other"
+}
+function showcasesIn(entries) {
+  const out = [];
+  for (const e of entries) {
+    const feeds = e.feeds || [];
+    const pop = feeds.reduce((s, f) => s + (POP_FEEDS[f] || 0), 0);
+    if (pop === 0) continue; // not in a popularity feed → no revealed signal
+    const ids = topicsFor(`${e.title} ${e.content}`).filter((x) => x !== "other");
+    const best = grainOf(ids);
+    if (!best || best.grain === "off") continue; // off-grain celebration isn't ours
+    const cls = classify(e);
+    out.push({
+      title: e.title, link: e.link, feeds, pop, grain: best.grain, topic: best.label,
+      topics: ids.map((id) => (TOPICS.find((t) => t.id === id) || {}).label).filter(Boolean),
+      kind: cls.score > 0 ? "ask" : "show", // an ask that ALSO trended vs a pure build announcement
+      score: pop * GRAIN_W[best.grain],
+    });
+  }
+  return out.sort((a, b) => b.score - a.score || b.pop - a.pop);
+}
+function allCacheSubs() {
+  try { return fs.readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")); }
+  catch { return []; }
+}
+function popBadge(feeds) {
+  const b = [];
+  if (feeds.includes("top-year")) b.push("★year");
+  if (feeds.includes("top-month")) b.push("month");
+  if (feeds.includes("hot")) b.push("hot");
+  return b.join("+") || "—";
+}
+function runShowcase(subArg, opts) {
+  const subs = subArg ? [subArg] : allCacheSubs();
+  if (!subs.length) die("showcase: no caches found — run a drip first.");
+  let rows = [];
+  for (const s of subs) {
+    const data = loadCache(s);
+    if (!data || !data.entries) continue;
+    for (const r of showcasesIn(data.entries)) rows.push({ ...r, sub: s });
+  }
+  rows.sort((a, b) => b.score - a.score || b.pop - a.pop);
+  if (opts.json) { console.log(JSON.stringify({ subs, count: rows.length, rows }, null, 2)); return; }
+  console.log("");
+  console.log(bold(`  SHOWCASE PASS`) + dim(`  · ${subs.length} cache(s) · ${rows.length} celebrated on-grain post(s)`));
+  console.log(dim("  what the tribe UPVOTED that overlaps our grain — revealed preference / prior art, not wishes."));
+  console.log(dim("  score = popularity weight (★year 3 / month 2 / hot 1) × grain.  [show]=a build  [ask]=a question that trended\n"));
+  const N = opts.limit || 40;
+  for (const r of rows.slice(0, N)) {
+    const tag = r.kind === "show" ? green("[show]") : yellow("[ask] ");
+    console.log("  " + tag + " " + bold(r.topic.padEnd(22)) + dim("r/" + r.sub));
+    console.log("    " + r.title.slice(0, 92));
+    console.log("    " + dim("(" + popBadge(r.feeds) + ")  " + r.link));
+  }
+  if (rows.length > N) console.log(dim(`\n  … ${rows.length - N} more (raise with --limit).`));
+  console.log("");
+}
+
 // ── printing ──────────────────────────────────────────────────────────────────
 const ICON = { "GAP": "★", "weak gap": "◦", "covered (hot)": "●", "covered": "·", "off-grain": " ", "no signal": " " };
 function paint(v, s) {
@@ -419,8 +498,9 @@ function selfCheck() {
     { id: "c", title: "Why isn't there a simple tape lo-fi cassette wobble app?", content: "nothing does this", link: "y", feeds: ["q:why isn't there"] },
     { id: "d", title: "Looking for an app for lo-fi cassette tape saturation", content: "", link: "v", feeds: ["q:looking for an app"] },
     { id: "e", title: "Looking for an app like a step sequencer but simpler", content: "", link: "z", feeds: ["q:looking for an app"] },
-    { id: "f", title: "Is there a sheet music notation app with staff view?", content: "", link: "n", feeds: ["q:is there an app"] },
+    { id: "f", title: "Is there a sheet music notation app with staff view?", content: "", link: "n", feeds: ["q:is there an app", "top-year"] },
     { id: "g", title: "just chatting about my favourite synth today", content: "no ask here", link: "u", feeds: ["hot"] }, // not a wish
+    { id: "h", title: "P8-38P - a 303, 808 and poly-synth groovebox", content: "", link: "gb", feeds: ["top-month", "hot", "new"] }, // showcase: a build the tribe upvoted, invisible to wish patterns
   ];
   const corpus = [
     { title: "acidrack", text: "acid synth 303 subtractive-synth step-sequencer" },
@@ -440,6 +520,14 @@ function selfCheck() {
   if (!seq || seq.coverage < 1) problems.push(`sequencer should be covered (acidrack), got coverage ${seq && seq.coverage}`);
   const notation = r.topics.find((t) => t.id === "notation");
   if (!notation || notation.verdict !== "off-grain") problems.push(`notation should be off-grain, got ${notation && notation.verdict}`);
+
+  // showcase pass: catch the celebrated on-grain build the wish miner is blind to
+  const shows = showcasesIn(FIXTURE);
+  const gb = shows.find((s) => s.title.includes("P8-38P"));
+  if (!gb || gb.kind !== "show") problems.push(`showcase should flag the groovebox build as [show], got ${gb && gb.kind}`);
+  if (shows.some((s) => /sheet music|notation/i.test(s.title))) problems.push("showcase should exclude off-grain notation even when it trends");
+  const chat = shows.find((s) => s.title.includes("chatting"));
+  if (gb && chat && !(gb.score > chat.score)) problems.push("groovebox (top-month+hot) should outrank hot-only chatter");
 
   if (problems.length) { console.error("FAIL reddit-gaps self-test:\n  - " + problems.join("\n  - ")); process.exit(1); }
   console.log("reddit-gaps self-test PASS (mine + cluster + cross-reference on fixture)");
@@ -485,6 +573,11 @@ async function main() {
   if (argv.includes("--check")) return selfCheck();
   if (argv.includes("--drip")) return drip(argv);
   const flag = (name, def) => { const i = argv.indexOf(name); return i >= 0 && argv[i + 1] ? argv[i + 1] : def; };
+  if (argv.includes("--showcase")) {
+    const VF = new Set(["--limit"]);
+    const subArg = argv.find((a, idx) => !a.startsWith("--") && !VF.has(argv[idx - 1]));
+    return runShowcase(subArg, { limit: parseInt(flag("--limit", "40"), 10), json: argv.includes("--json") });
+  }
   const has = (name) => argv.includes(name);
   const VALUE_FLAGS = new Set(["--limit", "--delay", "--queries", "--ingest"]);
   const sub = argv.find((a) => !a.startsWith("--") && !VALUE_FLAGS.has(argv[argv.indexOf(a) - 1]));
@@ -492,6 +585,7 @@ async function main() {
   if (!sub || has("--help") || has("-h")) {
     console.log("usage: node tools/reddit-gaps.js <subreddit> [--refresh] [--limit n] [--delay ms] [--queries \"a,b\"] [--raw] [--json]");
     console.log("       node tools/reddit-gaps.js <subreddit> --ingest <file|dir>   (parse browser-saved RSS instead of fetching)");
+    console.log("       node tools/reddit-gaps.js --showcase [sub]                  (celebrated on-grain posts; no sub = all caches)");
     console.log("       node tools/reddit-gaps.js --drip [subs.txt]                 (fetch the stalest sub — for a cron drip)");
     console.log("       node tools/reddit-gaps.js --check");
     console.log("\nMine a tribe's public RSS for unmet demand, cross-referenced against our cart shelf.");

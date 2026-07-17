@@ -69,6 +69,46 @@ Everything is deterministic: no model tokens, no auth, no deps. It **prepares th
 human/agent reads the ranked gaps and decides (the store-agents "scripts prepare → human decides"
 rule). The taxonomy and patterns are editable constants at the top of the tool — retune per tribe.
 
+## The blind spot → the showcase pass (added 2026-07-17)
+
+The wish-mine step above is **demand-only**: a thread scores only if it matches an *ask* pattern
+("is there an app…", "wish there was…"). **Build announcements score 0 and drop out** — the miner
+literally cannot see "someone made this." That's a hole, because on an *on-grain* tribe a post the
+crowd **upvoted** is *revealed preference* — a signal wishes can't carry.
+
+Found the hard way: r/pico8's **"P8-38P — a 303, 808 and poly-synth groovebox"** (dead on-grain,
+basically `acidcandy`) sat in the cache, upvoted into `top-month`+`hot`, and never surfaced. The
+maker spotted it manually; the tool was blind to it.
+
+The fix is the **supply-side twin** of the wish miner — `--showcase` — reusing what's already cached:
+
+```
+for each cached entry:  pop = Σ POP_FEEDS[feed]   (top-year 3 · top-month 2 · hot 1; "new" = 0)
+                        keep if pop>0 AND it matches an on-grain TOPIC
+                        tag [show] (a build) vs [ask] (a question that trended)
+                        score = pop × grain
+```
+
+We have **no upvote count** in RSS — but *presence in a popularity listing feed IS the upvote
+proxy* (that's what those feeds are). No fetch: it re-reads the `feeds` array every cache already
+records. `node tools/reddit-gaps.js --showcase` (bare = across every cache) → ranked prior-art.
+
+**What the first full sweep showed (22 caches, 708 on-grain celebrated posts):** the tribes are
+*flooded* with exactly-our-grain toy builds that **land** — e.g. *"I built a $30 groovebox that
+samples itself — 3 acid synths + 808/909"* (r/synthesizers, top-month+hot), *"Always wanted an OP-1,
+so I built my own tape 4-track for the phone"* (top-year), *"I made a free chiptune tracker you can
+use in the browser"*, *"I made a game where you can practice matching synth sounds"*, and r/musictheory
+literally debating *"Should we just outright ban 'I built an App' posts?"* (top-year). This **reframes
+the gap reports' recurring "no clean GAP, tribe well-served" verdict**: the tribe is well-served
+*because indie builders ship these toys constantly and the crowd rewards them.* So the thesis (cheap
+playful lo-fi music toys) is **validated and crowded** — the edge is differentiation (the honest-C
+fantasy-console angle), and the winning distribution is a **free web/iOS toy dropped straight in the
+tribe**, which is what nearly every landed showcase is. Worth its own field note when acted on.
+
+Caveat: it inherits the taxonomy's coarseness (single-keyword match tags a gear-jam video as
+"Synths"), and RSS gives no score, so `hot`-only posts are the weakest tier. Read `[show]` rows,
+skim for *"I made / built / released"* language, and treat it as a lead list, not a verdict.
+
 ## Usage
 
 ```bash
@@ -76,6 +116,8 @@ node tools/reddit-gaps.js ipadmusic            # full run → ranked gap report 
 node tools/reddit-gaps.js ipadmusic --refresh --delay 4000   # re-fetch, wider spacing if throttled
 node tools/reddit-gaps.js ipadmusic --raw      # also dump every mined wish thread
 node tools/reddit-gaps.js ipadmusic --json     # machine-readable (editor glance / piping)
+node tools/reddit-gaps.js --showcase           # SUPPLY side: celebrated on-grain builds, all caches
+node tools/reddit-gaps.js --showcase pico8     # …one sub · --limit n · --json
 node tools/reddit-gaps.js --check              # offline self-test on a fixture (CI gate)
 ```
 

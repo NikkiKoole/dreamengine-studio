@@ -30,7 +30,8 @@
     "wire the still-decorative soft-keys: SHIPPED (2026-07-15) the per-machine FX panel — the FX soft-key on every 303/808/909 opens an aligned DRV/DIST + SEND (shared delay) + VERB (reverb) row (draw_fxrow); reverb is real (303s → warm hall tank 0, 909 → tight plate tank 1, 808 → room tank 2, kicks kept dry) + per-machine drum drive. every soft-key is now live: the 303/drum SCP slots → GEN (2026-07-16); MST SCP → the LIN/PWR pan-LAW toggle; MST SNG removed (SONG layer deferred); the 909 METAL XY shipped into its FX panel; MUT/REC are arm-toggles by the voices.",
     "SOUL: the LCD screens have no MASCOT yet (the slime from tinyface/facemock, candy-style §3) — a FACE flow could give a bopping/reacting creature its own screen. Deferred for now.",
     "graduate the gear-drag knob (vertical=value, sideways=fine gear, double-tap=reset) into ui.h's ui_knob so every cart gets it.",
-    "note-bars: a CHROMATIC toggle (out-of-key acid) + let a drag PAINT across several bars; MST could grow per-machine level faders."
+    "note-bars: a CHROMATIC toggle (out-of-key acid) + let a drag PAINT across several bars; MST could grow per-machine level faders.",
+    "DRUM-FACE middle-panel cleanup — 808 ONLY so far (SHIPPED 2026-07-18): split the controls into TOOL vs VIEW. The pad TOOL (what a voice-pad tap does — VCE select+audition→shows TONE / MUT mute / REC punch) is now a LIGHT vertical 3-position selector in the freed RIGHT column: single letters V/M/R, only the ACTIVE zone tinted (blue/orange/red) + a thin frame, replacing the cryptic tiny REC/MUT margin toggles (draw_arms). The side soft-keys are now PURE VIEWS — KIT/FLAG/MIX (left) + GEN/PAT (right); VCE is no longer a soft-key (the VCE tool snaps the screen to DS_VCE/TONE). Picker + hits shifted FLUSH-LEFT (x1, was x6) to free that column. Went through mockups: tried left/right button columns, a GEN/PAT under-picker spill, a tall right slab (too heavy), a horizontal gap strip, rotated labels (too cramped) → landed on the light V/M/R column. OPEN: (1) MIRROR onto the 909 (draw_909 still has the OLD VCE/KIT/FLAG + GEN/MIX/PAT columns + draw_arms; once done, draw_arms can be deleted) — keep its STRK flag + metal-XY; (2) V/M/R is compact but cryptic to a newcomer — maybe a caption on the active zone or a first-run hint."
   ]
 }
 de:meta */
@@ -849,12 +850,14 @@ static void draw_808(void) {
     // shown by default), KIT = the kit minimap, FLAG = the depth palette, GEN (right) =
     // the CLEAR + randomize menu.
     if (darmed == DD_STRK) darmed = DD_ACC;                 // STRK is 909-only — reset if it was armed on the 909
-    if (cbtn(0x1Fu, 6, 37, 16, 7, "VCE",  dscreen == DS_VCE))  dscreen = DS_VCE;
-    if (cbtn(0x20u, 6, 45, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;
-    if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
-    if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
-    if (cbtn(0x33u, 138, 47, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
-    if (cbtn(0x36u, 138, 56, 16, 7, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D pattern banks (MUT + REC are the arm-toggles by the voices)
+    // the side columns are now ALL the SCREEN VIEW (what the LCD shows): the pad TOOL
+    // (VCE/MUT/REC) moved to a 3-position selector by the cells (⑤), so the 5 views fit
+    // the 6 column slots with room to spare — no more GEN/PAT spill.
+    if (cbtn(0x20u,   6, 37, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;    // LEFT col
+    if (cbtn(0x21u,   6, 45, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
+    if (cbtn(0x33u,   6, 53, 16, 7, "MIX",  dscreen == DS_MIX))  dscreen = DS_MIX;   // per-voice level·pan·fine
+    if (cbtn(0x31u, 138, 38, 16, 7, "GEN",  dscreen == DS_GEN))  dscreen = DS_GEN;   // RIGHT col (tone = DS_VCE, reached via the VCE tool selector)
+    if (cbtn(0x36u, 138, 47, 16, 7, "PAT",  dscreen == DS_PAT))  dscreen = DS_PAT;   // A-D pattern banks
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -901,7 +904,7 @@ static void draw_808(void) {
     // ④ VOICE PICKER — ALL 16 voices in one row (acid order, 2-char pads). A tap SELECTs
     // + auditions; in MUT mode it toggles that voice's mute (dimmed + red slash = muted).
     for (int r = 0; r < TR_NV; r++) {
-        int v = VL[r], x = 6 + r * 9, selp = (v == dsel), mtd = dmute[v];
+        int v = VL[r], x = 1 + r * 9, selp = (v == dsel), mtd = dmute[v];   // flush-left (x1) → free the right margin
         void *wp = ui_wid_hash(0x90u + v, x, 64, 8, 9); ui_reg(wp, x, 64, 8, 9, 0);
         UiCap *c = ui_cap_for(wp); int hot = (c != 0);
         if (c) {
@@ -919,20 +922,38 @@ static void draw_808(void) {
         if (mtd) line(x + 1, 65, x + 6, 71, CLR_RED);        // muted = red slash (like the cartridge LED)
         font(FONT_TINY); print(AB8[v], x + (8 - text_width(AB8[v])) / 2, 66, mtd ? CLR_DARKER_GREY : selp ? CLR_WHITE : CLR_BLUE);
     }
-    draw_arms();   // REC + MUT arm toggles in the right margin, by the voices
+    // ④a the TOOL — a slim vertical 3-position selector in the freed right column: single
+    // letters V / M / R = the pad-tap mode. You're ALWAYS in one: VCE select+audition (shows
+    // TONE), MUT mute, REC punch step. Light: only the active zone is a tinted pill.
+    {
+        static const char *TL[3] = { "V", "M", "R" };   // VCE / MUT / REC
+        static const int   TC[3] = { CLR_TRUE_BLUE, CLR_ORANGE, CLR_RED };
+        int sx = 145, sw = 11, sy = 64, seg = 11, cur = recmode ? 2 : mutemode ? 1 : 0;
+        for (int i = 0; i < 3; i++) {
+            int y = sy + i * seg, pr = 0, hot = 0, foc = 0;
+            void *w = ui_wid_hash(0xE0u + i, sx, y, sw, seg);
+            if (ui_button_core(w, sx, y, sw, seg, &foc, &pr, &hot) && !drag_bounce(y, seg)) {
+                recmode = (i == 2); mutemode = (i == 1); if (i == 0) dscreen = DS_VCE;   // VCE also snaps the screen to TONE
+            }
+            int on = (cur == i);
+            if (on) rrectfill(sx, y, sw, seg, 2, TC[i]);                          // only the active zone is tinted
+            font(FONT_SMALL); plabel(TL[i], sx + sw / 2, y + seg / 2 - 3, on ? CLR_WHITE : hot ? CLR_LIGHT_PEACH : CLR_MEDIUM_GREY);
+        }
+        rrect(sx, sy, sw, seg * 3, 3, CLR_BROWNISH_BLACK);                        // one thin frame so it reads as a single control
+    }
 
     // ⑤ the HITS — the picked voice's 16 steps, on the BOTTOM (thumb surface).
     // KIT: tap = toggle · DRAG across = paint on/off (first cell decides). FLAG: paint
     // the armed flag — ACC toggles accent (bright cap); PROB vertical-slides the trig
     // chance (short bar = <100%, the tr808 gesture, gated to this mode).
     for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, here = (s == step && playing);
+        int x = 1 + s * 9, here = (s == step && playing);
         void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
         ui_reg(ws, x, 81, 8, 16, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
             g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-            int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
+            int fx = c->released ? c->rx : c->cx, cell = (fx - 1) / 9;
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
             if (dscreen != DS_FLAG) {                        // VCE/KIT — paint on/off across the drag
                 if (ui_grabbed(ws)) { paint_val = !dgrid[dsel][s]; if (paint_val) { tr808_fire(TR808_BASE, dsel, 1, 0, dtune, ddecay, dcolor); dtrig[dsel] = 1; mbop = 1; } }

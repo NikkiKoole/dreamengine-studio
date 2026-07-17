@@ -28,6 +28,14 @@ void            de_set_backing_scale(float k);
 void            de_set_save_dir(const char *dir);
 void            de_audio_render(float *out, int frames);
 
+// AUDIO INPUT (platform.h §4) — the mirror of de_audio_render, inverted. The host owns the
+// capture device + permission and PUSHES captured MONO frames in; the engine only analyzes them
+// (mic_level/mic_pitch). de_mic_wanted() tells the host when a cart asked for the mic (mic_start())
+// so it opens capture + prompts for RECORD_AUDIO lazily; de_mic_set_active reports capture is live.
+void de_audio_input(const float *mono, int n, int sample_rate);
+int  de_mic_wanted(void);
+void de_mic_set_active(int on);
+
 void de_touch_begin(int id, float x, float y);
 void de_touch_moved(int id, float x, float y);
 void de_touch_ended(int id, float x, float y);

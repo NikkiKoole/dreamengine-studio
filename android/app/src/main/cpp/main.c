@@ -14,6 +14,7 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <aaudio/AAudio.h>
+#include <jni.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,6 +103,87 @@ static void audio_stop(void) {
     AAudioStream_requestStop(g_audio);
     AAudioStream_close(g_audio);
     g_audio = NULL;
+}
+
+// ---- microphone INPUT (mic-and-sampling.md Tier-1) — de_audio_input push ----
+// The mirror of audio output: a second AAudio stream in the INPUT direction pushes captured
+// mono frames into the engine (which only analyzes them → mic_level/mic_pitch). Opened LAZILY
+// so a cart that never calls mic_start() never records and never prompts for RECORD_AUDIO.
+static AAudioStream *g_mic = NULL;
+static int           g_mic_running = 0;
+static int           g_mic_asked   = 0;   // RECORD_AUDIO requested once (the prompt is async)
+
+// Runtime permission (API 23+). Pure NativeActivity has no Java Activity to receive
+// onRequestPermissionsResult, so we fire the request once and POLL checkSelfPermission. Returns 1
+// once RECORD_AUDIO is granted, 0 while pending/denied. Defensive: any JNI miss just returns 0.
+static int mic_permission(struct android_app *app) {
+    if (!app->activity || !app->activity->vm) return 0;
+    JavaVM *vm = app->activity->vm;
+    JNIEnv *env = NULL;
+    if ((*vm)->AttachCurrentThread(vm, &env, NULL) != JNI_OK || !env) return 0;
+    jobject activity = app->activity->clazz;
+    jclass  cls = (*env)->GetObjectClass(env, activity);
+    int result = 0;
+    jmethodID check = (*env)->GetMethodID(env, cls, "checkSelfPermission", "(Ljava/lang/String;)I");
+    if (check) {
+        jstring perm = (*env)->NewStringUTF(env, "android.permission.RECORD_AUDIO");
+        jint granted = (*env)->CallIntMethod(env, activity, check, perm);   // 0 == PERMISSION_GRANTED
+        if (granted == 0) result = 1;
+        else if (!g_mic_asked) {                                            // fire the prompt ONCE
+            g_mic_asked = 1;
+            jmethodID req = (*env)->GetMethodID(env, cls, "requestPermissions", "([Ljava/lang/String;I)V");
+            jclass strCls = (*env)->FindClass(env, "java/lang/String");
+            if (req && strCls) {
+                jobjectArray arr = (*env)->NewObjectArray(env, 1, strCls, perm);
+                (*env)->CallVoidMethod(env, activity, req, arr, 1);
+            }
+        }
+        (*env)->DeleteLocalRef(env, perm);
+    }
+    (*vm)->DetachCurrentThread(vm);
+    return result;
+}
+
+static aaudio_data_callback_result_t mic_cb(
+        AAudioStream *s, void *ud, void *audioData, int32_t numFrames) {
+    (void)ud;
+    de_audio_input((const float *)audioData, numFrames, AAudioStream_getSampleRate(s));   // mono float in
+    return AAUDIO_CALLBACK_RESULT_CONTINUE;
+}
+
+static void mic_open(void) {
+    AAudioStreamBuilder *b = NULL;
+    if (AAudio_createStreamBuilder(&b) != AAUDIO_OK) { LOGE("AAudio mic builder failed"); return; }
+    AAudioStreamBuilder_setDirection(b, AAUDIO_DIRECTION_INPUT);
+    AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_FLOAT);
+    AAudioStreamBuilder_setChannelCount(b, 1);                 // mono take
+    AAudioStreamBuilder_setSampleRate(b, 44100);
+    AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_NONE);
+    AAudioStreamBuilder_setSharingMode(b, AAUDIO_SHARING_MODE_SHARED);
+    AAudioStreamBuilder_setDataCallback(b, mic_cb, NULL);
+    AAudioStreamBuilder_setFramesPerDataCallback(b, 512);
+    aaudio_result_t r = AAudioStreamBuilder_openStream(b, &g_mic);
+    AAudioStreamBuilder_delete(b);
+    if (r != AAUDIO_OK || !g_mic) { LOGE("AAudio mic open failed: %d", r); g_mic = NULL; return; }
+    AAudioStream_requestStart(g_mic);
+    g_mic_running = 1;
+    de_mic_set_active(1);
+    LOGI("AAudio mic started: %d Hz", AAudioStream_getSampleRate(g_mic));
+}
+
+static void mic_close(void) {
+    if (g_mic) { AAudioStream_requestStop(g_mic); AAudioStream_close(g_mic); g_mic = NULL; }
+    g_mic_running = 0;
+    de_mic_set_active(0);
+}
+
+// Polled once per frame: open/close capture to match the cart's mic_start()/mic_stop()
+// (de_mic_wanted). Opens only after RECORD_AUDIO is granted; the grant is async so this keeps
+// re-checking until it lands, then opens on the next poll.
+static void mic_poll(struct android_app *app) {
+    int want = de_mic_wanted();
+    if (want && !g_mic_running) { if (mic_permission(app)) mic_open(); }
+    else if (!want && g_mic_running) { g_mic_asked = 0; mic_close(); }
 }
 
 // ---- GLES helpers ----
@@ -332,15 +414,17 @@ void android_main(struct android_app *app) {
         // don't block while we have a window to animate; block (-1) when we don't
         while (ALooper_pollOnce(g_ready ? 0 : -1, NULL, &events, (void **)&src) >= 0) {
             if (src) src->process(app, src);
-            if (app->destroyRequested) { audio_stop(); egl_teardown(); return; }
+            if (app->destroyRequested) { mic_close(); audio_stop(); egl_teardown(); return; }
         }
         if (g_audio_reopen) {    // a real route change disconnected the stream — reopen it
             g_audio_reopen = 0;
             audio_stop();
             audio_start();
         }
+        mic_poll(app);           // open/close the mic to match the cart's mic_start()/mic_stop()
         draw_frame();
     }
+    mic_close();
     audio_stop();
     egl_teardown();
 }

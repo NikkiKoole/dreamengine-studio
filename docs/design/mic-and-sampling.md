@@ -40,7 +40,13 @@ symbols, no ABI version-coupling).
 - **Desktop LIVE-confirmed (2026-07-16):** the maker ran `mictest` with a webcam mic — VU meter moved,
   pitch note appeared. The whole seam (host push → engine analysis → cart API) validated end to end.
 
-**Shipped (2026-07-17) — the other two hosts, same seam (all shipping devices now covered):**
+**Shipped (2026-07-17) — the other three hosts, same seam (every shipping platform now covered):**
+- **Android** — [`android/app/src/main/cpp/main.c`](../../android/app/src/main/cpp/main.c) opens a second
+  AAudio stream in the INPUT direction (mono float, lazy on `de_mic_wanted`) pushing to `de_audio_input`;
+  `engine.h` carries the seam decls; `RECORD_AUDIO` added to the manifest and requested at runtime via
+  JNI (pure NativeActivity has no Java Activity, so it fires `requestPermissions` once and polls
+  `checkSelfPermission`). C VERIFIED: compiles clean against the NDK (minSdk 26). Live mic + the JNI
+  permission prompt need an on-device APK run (editor Android export → sideload).
 - **WEB** — `getUserMedia` → a `ScriptProcessor` on a separate `AudioContext` (zero-gain sink so the
   mic is never echoed to output) → `de_audio_input`, in both web shells
   ([`web_shell.html`](../../runtime/web_shell.html) + `web_shell_worklet.html`). Opens lazily on

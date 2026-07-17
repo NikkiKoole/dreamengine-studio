@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- mic input (mic-and-sampling.md Tier-1): only carts that call mic_start() ever trigger the
+         runtime prompt (requested via JNI from main.c). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <!-- NativeActivity host: no Java Activity subclass; the native lib libcart.so owns everything.
          GameActivity (androidx) is the migration target once billing/text-input land — see
          docs/design/android-plan.md "The fork". -->

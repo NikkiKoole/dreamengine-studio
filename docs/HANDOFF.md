@@ -59,24 +59,27 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > Hot files: `android/app/src/main/cpp/main.c` (the NativeActivity shell), `android/build.sh`,
 > `docs/design/android-plan.md`.
 
-> **▶ ACTIVE THREAD (2026-07-16) — the audio-input frontier (can the engine HEAR?).**
+> **▶ ACTIVE THREAD (2026-07-17) — the audio-input frontier (the engine HEARS).**
 > The reddit-gaps drip kept surfacing the SAME blocked on-grain wishes across every music tribe
 > (hum→MIDI, pedals, live looping, "isolate the acapella") — they all resolve to one missing
-> capability: the engine has no ear. SHIPPED this session: a **standalone Tier-1 spike**
-> (`tools/mic-spike/`, `zsh tools/mic-spike/run.sh`) using **miniaudio** (the lib raylib already
-> links — the cross-platform path: mac CoreAudio now, WASM `getUserMedia` / iOS AVAudioSession later).
-> Pipeline PROVEN on this Mac: capture device enumerates, callback delivers frames steadily, computing
-> a live `mic_level()` VU + a `mic_pitch()` zero-crossing estimate. Surfaced the **macOS TCC gotcha** —
-> a process without Microphone permission sees ONLY virtual devices (BlackHole); physical mics are
-> hidden from enumeration. So the last mile needs a **permission-granted run from the owner's own shell**
-> (`! zsh tools/mic-spike/run.sh` → Allow → hum) to confirm live signal.
-> Also filed the STEM-SEPARATION verdict (hard NO — neural, ~500MB, off-grain).
+> capability: the engine had no ear. The drip *discovered* this feature. In one arc from spike to
+> ship: a **standalone Tier-1 spike** (`tools/mic-spike/`) using **miniaudio** proved the pipeline,
+> then the owner's permission-granted run **CONFIRMED LIVE** (`779f1b44` — webcam mic, −17 dBFS),
+> then the **Tier-1 seam landed in the real engine** (`1cfe46aa`: `mic_start/mic_stop/mic_active/`
+> `mic_level/mic_pitch` in `studio.h`/`studio.c`/`sound.h`, dormant until `mic_start()` pops the OS
+> permission prompt — nothing captures before a cart asks) with a desktop backend + the `mictest`
+> cart, and finally got **wired onto every host** — WEB (`getUserMedia`) + iOS (AVAudioSession)
+> `2689ed68`, then ANDROID `bc5599d2` = "truly all devices". API is honest about its limits:
+> `mic_level()` is solid + responsive; `mic_pitch()` is CRUDE (reads octave-low + jittery — a
+> controller axis, not a tuner). Filed the STEM-SEPARATION verdict earlier (hard NO — neural,
+> ~500MB, off-grain), and the macOS TCC gotcha (a process without Mic permission sees ONLY virtual
+> devices — physical mics hidden from enumeration).
 > **Resume-at: [`design/mic-and-sampling.md` → the four Tier ladder](design/mic-and-sampling.md#the-spectrum--four-tiers-cheapest-and-most-on-doctrine-first)** —
-> NEXT = the owner's permission-granted spike run, then Tier 1 as the real engine seam (a small
-> `mic_level()`/`mic_pitch()` surface in `sound.h`/`studio.h` behind a permission prompt, driving
-> existing voices: hum→`heldnotes` theremin, beatbox→`tr808`). Keep it capture-then-freeze for anything
-> that STORES; the live-throughput/pedal case stays PARKED (forces a `.rec` determinism call + a latency bar).
-> Hot files (when it goes into the engine): `runtime/sound.h`, `runtime/studio.c`, `runtime/studio.h`.
+> the seam exists on all hosts; NEXT = **drive existing voices from it in a real cart** (hum→`heldnotes`
+> theremin, beatbox→`tr808`) beyond the `mictest` VU/pitch readout, behind a permission button. Keep
+> it capture-then-freeze for anything that STORES; the live-throughput/pedal case stays PARKED (forces
+> a `.rec` determinism call + a latency bar).
+> Hot files: `runtime/studio.h`/`studio.c`/`sound.h` (the seam), `tools/carts/mictest.c` (the reference cart).
 
 > **▶ ACTIVE THREAD (2026-07-15) — the candy acid RACK (`acidcandy`).**
 > `acidcandy` (160×100 ×4) packages `acidrack`'s guts as the **device-face paradigm** instead of the

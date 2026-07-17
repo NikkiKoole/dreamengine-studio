@@ -1143,6 +1143,11 @@ void init(void) {
     reverb_bus(1, 0.34f, 0.15f);                           // 909 → its own tight bright PLATE (tank 1)
     reverb_bus(2, 0.45f, 0.30f);                           // 808 → its own room (tank 2)
     pan_law(mlaw ? PAN_POWER : PAN_LINEAR);                // master pan law (MST LIN/PWR toggle); default LINEAR = engine default
+    // pattern slots are zero-filled = empty, but two fields must NOT be 0 or a fresh slot is UNPLAYABLE:
+    // 303 plen 0 → ctr%0 (playhead UB); drum prob 0 → every hit 0% trig. Seed them empty-but-PLAYABLE.
+    for (int i = 0; i < 2; i++) for (int s = 0; s < NPAT; s++) pat303[i][s].plen = STEPS;
+    for (int s = 0; s < NPAT; s++) for (int v = 0; v < TR_NV;  v++) for (int k = 0; k < STEPS; k++) pat808[s].prob[v][k] = 100;
+    for (int s = 0; s < NPAT; s++) for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++) pat909[s].prob[v][k] = 100;
     for (int s = 0; s < STEPS; s++) mpcf[s] = 7;           // PCF lane starts fully open (no effect)
     sidechain_key(TR808_BASE + TRS_BD, 0, 1);              // both kicks drive the PUMP
     sidechain_key(D909_BASE + TR9S_BD, 0, 1);

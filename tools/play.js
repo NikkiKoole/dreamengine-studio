@@ -33,7 +33,14 @@
 //                      frames (reflow settles), dump ONE PNG cropped to the active region per
 //                      size (resize_NN_WxH.png). Implies -DDE_RESIZABLE; auto-dumps to
 //                      build/.resize/<cart> if no --dump. The "resize → look → resize → look" test.
-//   --headless         hidden window (for batch replay/script runs)
+//   --headless         hidden window (for batch replay/script runs). A run that is
+//                      deterministic + headless + bounded (replay/script/--det with
+//                      --headless --frames N) auto-runs FLAT-OUT, not at 60 fps — the
+//                      runtime's "det-turbo" (uncap + skip the unseen present + in-loop
+//                      synth). Frame-indexed, so the trace is byte-identical to a capped
+//                      run; ~40x for light carts, ~4x for draw-bound UI carts. See
+//                      docs/guides/debug-harness.md → the det-turbo note. (Don't use
+//                      DE_AUDIO=off to go faster — it just spams queue-overflow warnings.)
 //   --seed <n>         RNG seed for deterministic runs (default 1)
 //   --wav <file>       render the audio to a WAV (deterministic: same script +
 //                      seed + frames = identical bytes; analyze with

@@ -34,10 +34,10 @@ The compiled cart binary accepts:
 | `--script FILE` | drive input from a hand-authored frame script (implies `--det`) |
 | `--trace FILE` | one JSONL line of state per frame (see "Telemetry" below) |
 | `--uiaudit FILE` | one JSONL line of every draw call's bounding box per frame (+ each `ui.h` widget rect). Powers `tools/ui-audit.js` — see "UI audit" below |
-| `--frames N` | stop after N frames (use for batch/headless runs) |
+| `--frames N` | stop after N frames (use for batch/headless runs). Deterministic + `--headless` + `--frames` auto-engages **det-turbo** (runs flat-out, not 60 fps — see the det-turbo note below) |
 | `--dump DIR` | export a screenshot filmstrip |
 | `--dump-every N` | … every Nth frame (default 1 with `--dump`) |
-| `--headless` | hidden window (for batch replay/script) |
+| `--headless` | hidden window (for batch replay/script). With `--det`+`--frames` → **det-turbo** (flat-out replay, see note below) |
 | `--save-dir DIR` | where `cart.sav`/`cart.kv`/`cart.blob` live (default: cwd). The editor and `play.js` pass `saves/<cart>` automatically, so every cart gets its own save folder under `build/saves/` — harness runs can't clobber (or inherit) another cart's hiscores |
 | `--net-host` / `--net-join IP` / `--net-port N` | lockstep netplay, rungs 1–2 (`runtime/net.h` — [`../design/multiplayer-research.md`](../design/multiplayer-research.md)): two native builds play the same 2-player cart over UDP (localhost or LAN by IP). Implies `--det`; the host's seed rides the handshake. Host = player 0, joiner = player 1 — carts stay network-unaware (`btn(player,…)` means "which machine"). `--net-host` prints its LAN IP for the joiner to type. v1 syncs `btn()` only. Drive both sides at once with `play.js <name> netdemo` (below), or from the editor via the **🌐 multiplayer button** next to ▶ (host / join-by-IP) |
 | `--net-echo` | lockstep with a **loopback fake peer** (rung 5a step 1): no sockets — P2 mirrors P1 through the real ring/barrier/`btn(1)` path (implies `--det`). The cheapest remote-input-injection oracle: script P1, assert in the trace that P2 tracks it (pong: `p1y`==`p2y` every frame). The same code compiles into web builds; `-DDE_NET_ECHO_DEFAULT` boots a web cart straight into it |

@@ -15,8 +15,8 @@
   "homage": "Roland TB-303 x jazz double bass",
   "description": {
     "summary": "A 303-style bass-line sequencer done as a REAL pluck: draw a 16-step walking line on chunky note-bars, then sculpt dynamics (VEL) and note-length/tie (LEN) on a drawable lane, plus per-step SLIDE / OCTAVE. SLIDE slurs one note into the next on the upright's own pizz voice.",
-    "detail": "The tb303 workflow in the upright's skin. 16 chunky NOTE-BARS — bar HEIGHT = pitch, scale-locked to E minor pentatonic (2 octaves) so any line walks. Tap a bar to toggle it, drag up/down for pitch, drag sideways to draw the whole line; a bar dragged to the floor is a rest. Directly beneath is ONE drawable lane with a VEL | LEN tab: VEL = per-step velocity (dynamics — a loud step reads as an accent, a near-silent one as a ghost; drives the pluck attack via note_on vol); LEN = per-step note length (staccato when short, legato near full, and TIE at the very top — the note detaches from the mono voice and rings on while the next note plucks). Below the lane, thin per-step toggle rows: SLD (glide into the next note — a same-voice slur via note_glide, both directions) and OCT (tap-cycle +1 / -1 / off). The voice is the upright's INSTR_BOWED pizz; length gates the note off partway through its step. Knobs: GLIDE (slur time), TEMPO, TONE (pickup darkness), RING (how long a pluck rings). PLAY runs the loop; RND rolls a fresh line; CLR wipes it. While stopped, drawing a note auditions it.",
-    "controls": "Tap a note-bar = on/off; drag up/down = pitch; drag to the floor = rest; drag sideways = draw the line. The lane's VEL/LEN tab picks what you draw: VEL = dynamics (higher = louder/accent, low = ghost), LEN = note length (short = staccato, full = legato, top = TIE/ring-on). Rows: tap SLD to flip glide, tap OCT to cycle +1 / -1 / off. PLAY / SPACE = run the loop. GLIDE / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe."
+    "detail": "The tb303 workflow in the upright's skin. 16 chunky NOTE-BARS — bar HEIGHT = pitch, scale-locked to E minor pentatonic (2 octaves) so any line walks. Tap a bar to toggle it, drag up/down for pitch, drag sideways to draw the whole line; a bar dragged to the floor is a rest. Directly beneath is ONE drawable lane with a VEL | LEN tab: VEL = per-step velocity (dynamics — a loud step reads as an accent, a near-silent one as a ghost; drives the pluck attack via note_on vol); LEN = per-step note length (staccato when short, legato near full, and TIE at the very top — the note detaches from the mono voice and rings on while the next note plucks). Below the lane, thin per-step toggle rows: SLD (glide into the next note — a same-voice slur via note_glide, both directions) and OCT (tap-cycle +1 / -1 / off). The voice is the upright's INSTR_BOWED pizz; length gates the note off partway through its step. Knobs: GLIDE (slur time), SWING (shuffle — delays the odd 16ths for a long-short pocket), TEMPO, TONE (pickup darkness), RING (how long a pluck rings). PLAY runs the loop; RND rolls a fresh line; CLR wipes it. While stopped, drawing a note auditions it.",
+    "controls": "Tap a note-bar = on/off; drag up/down = pitch; drag to the floor = rest; drag sideways = draw the line. The lane's VEL/LEN tab picks what you draw: VEL = dynamics (higher = louder/accent, low = ghost), LEN = note length (short = staccato, full = legato, top = TIE/ring-on). Rows: tap SLD to flip glide, tap OCT to cycle +1 / -1 / off. PLAY / SPACE = run the loop. GLIDE / SWING / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe."
   }
 }
 de:meta */
@@ -56,7 +56,7 @@ static float p_vel[NBAR];         // per-step velocity 0..1 (dynamics)
 static float p_len[NBAR];         // per-step length 0..1 (staccato→legato; >= TIE_LEN = tie)
 
 // ── knobs / transport ──
-static float k_glide = 0.35f, k_tone = 0.55f, k_ring = 0.45f, k_tempo = 0.33f;
+static float k_glide = 0.35f, k_tone = 0.55f, k_ring = 0.45f, k_tempo = 0.33f, k_swing = 0.0f;
 static int   playing = 0, cur_step = 0, last_16 = -1;
 
 // ── edit state ──
@@ -145,12 +145,15 @@ void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; if (playing) last_16 = -1; else silence(); }
 
     if (playing) {
-        float pos = beat() * 4 + beat_pos() * 4.0f;   // continuous 16th position
-        int   sx  = (int)pos;
-        if (sx != last_16) { last_16 = sx; cur_step = sx % NBAR; fire_step(cur_step); }
-        else if (voice >= 0 && !p_sld[cur_step]) {     // LEN gate: damp partway through (staccato), unless sliding
-            float frac = pos - (int)pos;               // 0..1 within this 16th
-            if (p_len[cur_step] < TIE_LEN && frac >= p_len[cur_step]) { note_off(voice); voice = -1; }
+        float p4   = beat_pos() * 4.0f;
+        int   raw  = beat() * 4 + (int)p4;
+        float frac = p4 - (int)p4;                     // 0..1 within the raw 16th
+        float sw   = k_swing * 0.6f;                   // shuffle: delay odd 16ths up to 0.6 of a step
+        int   trig = ((raw & 1) && frac < sw) ? raw - 1 : raw;   // hold the prior even step through the swing gap
+        if (trig != last_16) { last_16 = trig; cur_step = trig % NBAR; fire_step(cur_step); }
+        else if (voice >= 0 && !p_sld[cur_step] && p_len[cur_step] < TIE_LEN && trig == raw) {
+            float onset = (raw & 1) ? sw : 0.0f;       // this note's (swung) onset within its slot
+            if ((frac - onset) >= p_len[cur_step] * (1.0f - onset)) { note_off(voice); voice = -1; }   // LEN gate
         }
     }
 
@@ -337,13 +340,14 @@ void draw(void) {
     // ── bottom strip: knobs (GLIDE leads) + hint ──
     rectfill(0, OCTY + ROWH + 3, SCREEN_W, SCREEN_H - (OCTY + ROWH + 3), CLR_DARK_BROWN);
     int ky = 150;
-    wknob(0x70u, &k_glide, 34,  ky, 9, "GLIDE", 1);
-    wknob(0x71u, &k_tempo, 90,  ky, 6, "TEMPO", 0);
+    wknob(0x70u, &k_glide, 28,  ky, 8, "GLIDE", 1);
+    wknob(0x74u, &k_swing, 68,  ky, 6, "SWING", 0);
+    wknob(0x71u, &k_tempo, 106, ky, 6, "TEMPO", 0);
     wknob(0x72u, &k_tone,  144, ky, 6, "TONE",  0);
-    wknob(0x73u, &k_ring,  196, ky, 6, "RING",  0);
+    wknob(0x73u, &k_ring,  182, ky, 6, "RING",  0);
     font(FONT_SMALL);
-    print(lane_mode == 0 ? "lane: VEL = dynamics" : "lane: LEN = length/tie", 232, ky - 8, CLR_DARK_PEACH);
-    print("drag bar = pitch", 232, ky + 2, CLR_DARK_PEACH);
+    print(lane_mode == 0 ? "lane: VEL=dynamics" : "lane: LEN=length/tie", 214, ky - 8, CLR_DARK_PEACH);
+    print("drag bar = pitch", 214, ky + 2, CLR_DARK_PEACH);
     font(FONT_NORMAL);
 
     // apply tone/ring only on change (set-and-hold)

@@ -5706,7 +5706,7 @@
   },
   {
     "title": "shape size probe",
-    "description": "Throwaway QA probe: draws every fill primitive alone (one per frame) and measures its rendered bounding box via pget, so we can check each shape ends up the width/height we expect. Emits actual vs expected extents on the trace.",
+    "description": "A renderer size test bench, not a game. It cycles through every fill primitive (rect/rrect/circ/oval/tri/quad/poly/ngon/star/arc/ring, plus outlines), draws each one white, measures its actual bounding box with pget, and prints the measured width x height next to the size we expect. Corner shapes (rect/rrect) must be EXACT; center-radius shapes (circle/oval/ngon/star) report their 2r extent + a left/right/top/bottom symmetry read; vertex shapes (tri/quad/poly) show how the top-left fill rule trims the far edge. Under -DDE_TRACE it emits per-shape extents on the trace for tools/play.js to gate.",
     "file": "shapesize.cart.png",
     "created": "2026-07-17",
     "kind": [
@@ -5714,7 +5714,8 @@
     ],
     "teaches": [
       "algorithm-visualization"
-    ]
+    ],
+    "lineage": "Size/extent twin of raster_test: where raster_test checks each fill's outline lands on its own boundary, this measures each shape's absolute rendered bounding box (via pget) against the width/height we expect, catching off-by-one edge bugs like the 2026-07 rrectfill 1px-short fix."
   },
   {
     "title": "shimmer",

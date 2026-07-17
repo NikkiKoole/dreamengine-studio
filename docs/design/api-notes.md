@@ -36,6 +36,31 @@ turtle/pen ([0008](../decisions/0008-cut-turtle-graphics-api.md)) — and **what
 missing** vs. the proposals below: events (§11), Strudel extras (§13), Dilla groove
 timing (§14), gamepad (§15), `voices_active()` (§16).
 
+### Rasterization conventions — how shapes SIZE (the two edge gotchas)
+
+Three fill families size differently. Verified end-to-end by the `shapesize` cart (the
+extent oracle — twin of `raster_test`, which checks outline-vs-fill *adjacency*; this one
+measures each shape's absolute bounding box with `pget` against what we expect):
+`node tools/play.js shapesize script /dev/null --headless --frames 240 --trace out.jsonl`.
+
+- **Corner-anchored (`rect`/`rectfill`/`rrect`/`rrectfill`) — EXACT and inclusive.**
+  `w×h` pixels spanning `[x .. x+w-1] × [y .. y+h-1]`; outline and fill agree at every
+  radius. (This is now true after the 2026-07-17 fix of a stray `-1` in `rrect_inside`
+  that made rounded rects 1px short on the right+bottom — see `docs/HANDOFF.md`. If a
+  future edit reintroduces it, `shapesize` catches it: the rect/rrect rows must read
+  "EXACT".)
+- **Gotcha 1 — center-radius (`circ`/`circfill`/`oval`/`ovalfill`/`ngon`/`star`/`arc`/`ring`)
+  are `2r` wide, not `2r+1`, and biased ½px toward top-left.** `disc_inside` samples pixel
+  centres (`+0.5`) against an *integer* centre, so `circfill(cx,cy,r)` spans `cx-r .. cx+r-1`
+  (extends `r` left/up but only `r-1` right/down). It's a *coherent* convention — `circ`,
+  `circfill`, `arcfill(…,0,360)` and `ring(…,0,360)` all agree — just not symmetric. Don't
+  assume a circle's diameter is `2r+1` or that it's perfectly centred.
+- **Gotcha 2 — vertex fills (`trifill`/`quadfill`/`polyfill`) exclude their far/bottom edge.**
+  A filled polygon comes out up to 1px *inside* the min/max of its vertices (a sharp tip
+  loses ~2px), because of the standard **top-left / half-open fill rule** — which is what
+  stops two triangles sharing an edge from double-drawing it. Intentional, not a bug: just
+  don't expect `trifill` to be inclusive the way `rectfill` is.
+
 ---
 
 ## The classics, briefly

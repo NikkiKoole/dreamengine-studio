@@ -10,9 +10,9 @@ oracle). Flavour B of the audio-input frontier's auto-tune split; robot flavour 
 ([`hardtune`](../../tools/carts/hardtune.c)). **Real-voice check: PASSED** (2026-07-18) — the maker
 sang into `mictune` and confirmed the tuned playback holds up ("sounds pretty good"): pitch corrected,
 voice kept. So the offline feature is *done*. **Open tail (the live frontier):** the real-time path —
-sing and hear yourself corrected *now*, PSOLA on the audio thread reading the `sound_extin` ring
-(live-only, ADR-0032) — plus a per-frame key/root API. Rolls up from
-[`audio-input-frontier.md`](audio-input-frontier.md) §2.
+sing and hear yourself corrected *now*, streaming PSOLA on the audio thread reading the `sound_extin`
+ring (live-only, ADR-0032) — plus a per-frame key/root API. **Now DESIGNED** (§"The live real-time
+path"); spike next. Rolls up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 
@@ -218,6 +218,70 @@ void sample_autotune(int slot, int scale, float amount, float speed);   // wraps
 void autotune_mic(int scale, float amount, float speed);
 ```
 Dormant/byte-identical discipline as ever; add per the "Adding a new API function" rule.
+
+---
+
+## The live real-time path (the next build) — DESIGN (2026-07-18)
+
+The offline primitive is done + confirmed. The frontier is **sing and hear yourself corrected *now***.
+This is a genuinely separate, harder build — the offline version mallocs freely and takes as long as
+it likes; the live one must run **on the audio thread, allocation-free, per output sample, under the
+block deadline**, and the whole experience lives or dies on **latency**. Scoped here before any code.
+
+### What already exists (the infra is mostly built)
+- **The mic on the audio thread** — the `sound_extin` SPSC ring (2048 samples ≈ 46 ms), the vocoder's
+  Phase-2 work. `sound_extin_read()` gives one mic sample per output sample; `extin_on` gates it;
+  `sound_extin_reset()` drops stale latency on start. A live autotune stage reads it exactly like
+  `vocoder_mic` does (the master-stage seam ~`sound.h` L6264).
+- **The correction target** — `snap_scale` / `sound_scale_table` + the `at_*` helpers from
+  `sample_autotune`. The *target*-picking math ports as-is.
+- **A coarse pitch** — game-thread `mic_pitch()` (YIN, ~21/sec). Fine for the *target* (it snaps to a
+  note and moves slowly); **not** enough for sample-accurate epochs (see the crux).
+
+### The algorithm: streaming TD-PSOLA
+The offline PSOLA had the whole buffer; the live one is a **sliding** version — the classic two-pointer
+pitch-synchronous overlap-add:
+- Keep an **input ring** of the last few periods of mic (the `sound_extin` ring already is one, or a
+  small copy for random-access windowing).
+- An **analysis pointer** `ta` walks the input at the *source* period `T` and snaps to the local
+  glottal peak (the epoch).
+- A **synthesis pointer** `ts` emits a Hann grain (length ~2·T) copied from the input around the
+  nearest analysis epoch, advancing by the **target** period `T' = SR/snap(f0)` and overlap-adding
+  into the output. `T/T'` carries the pitch shift; grain content unchanged → **formants preserved**,
+  same trick as offline. Fixed, bounded work per sample; a couple of small static grain buffers, no
+  malloc.
+
+### The crux — real-time epoch tracking (this is the spike's risk)
+Offline, epochs came from a full-buffer pitch track. Live, we must find glottal pulses *as samples
+arrive*, cheaply. Options, cheapest first:
+1. **Running period + peak-snap.** Maintain `T` from a short autocorrelation refreshed every ~256
+   samples on the audio thread (bounded cost); place the next epoch ~`T` ahead, snapped to the local
+   waveform peak. Likely good enough for a monophonic voice — the recommended first cut.
+2. **Feed the target from `mic_pitch()`** (game thread) to avoid audio-thread pitch cost, but keep the
+   *epoch* peak-snap local. Splits the concern: slow target from the game thread, sample-accurate
+   marks on the audio thread.
+3. If both gargle → the phase-vocoder fallback (STFT), heavier, an FFT on the audio thread.
+
+### Latency budget — the whole game
+Inherent: ~1 grain half-length of lookahead (≈ one period, ~9 ms at 110 Hz) + the `sound_extin` ring
+depth (a few buffers, ~20–40 ms on desktop's separate in/out clocks). Target **< ~40 ms** to feel
+live; measure on device. iOS/Android duplex (one clock) is tighter and the real home — desktop is
+where we get the algorithm right. **Acceptance is not the offline WAV oracle** (there's no frozen
+output): it's (a) a **loopback latency measurement** (click in → corrected click out, count samples),
+(b) `formant-check` on a *recording of the live output* to confirm formants still hold, and (c) the
+honest one — **does it feel responsive and sound good sung live** (the maker's ears, like this pass).
+
+### API
+`autotune_mic(int root, int scale, float amount)` — mirror `vocoder_mic()`: turn on a master-stage
+stage that reads the mic ring, corrects, and monitors the corrected voice into the mix. Dormant until
+called (byte-identical). Live-only, [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md).
+
+### The first spike
+A `livetune` cart: `mic_start()` + `autotune_mic(0, SCALE_MINOR, 1.0)`, sing and hear it corrected,
+with an on-screen latency readout + the pitch ribbon. Build the streaming PSOLA behind option 1;
+if latency or gargle is bad, that's the finding — retreat to 2, then the phase vocoder. Same
+build-it-behind-a-spike discipline as the offline rounds, but the deliverable is a *feel* test, not
+an oracle number.
 
 ## See also
 

@@ -11,19 +11,19 @@
     "step-sequencer",
     "waveguide-synth"
   ],
-  "lineage": "The TB-303 step-sequencer workflow (tb303.c: draw a line, then per-step flag rows) driving the upright bass (INSTR_BOWED pizz) instead of a synth voice — a 303 done as a real pluck instrument, with a drawable velocity lane for dynamics.",
+  "lineage": "The TB-303 step-sequencer workflow (tb303.c: draw a line, then per-step lanes/rows) driving the upright bass (INSTR_BOWED pizz) instead of a synth voice — a 303 done as a real pluck instrument, with drawable VEL/LEN lanes for dynamics + articulation.",
   "homage": "Roland TB-303 x jazz double bass",
   "description": {
-    "summary": "A 303-style bass-line sequencer done as a REAL pluck: draw a 16-step walking line on chunky note-bars, sculpt the dynamics on a drawable VELOCITY lane, and flip per-step SLIDE / OCTAVE / TIE rows. SLIDE slurs one note into the next on the upright's own pizz voice.",
-    "detail": "The tb303 workflow in the upright's skin. 16 chunky NOTE-BARS — bar HEIGHT = pitch, scale-locked to E minor pentatonic (2 octaves) so any line walks. Tap a bar to toggle it, drag up/down for pitch, drag sideways to draw the whole line; a bar dragged to the floor is a rest. Directly beneath is a drawable VEL lane — drag across it to sculpt per-step velocity (the dynamics that make a walking line breathe; a loud step reads as an accent, a near-silent one as a ghost). Below that, thin per-step toggle rows: SLD (glide into the next note — a same-voice slur, both directions), OCT (tap-cycle +1 / -1 / off), TIE (let this note ring on — it detaches from the mono voice and decays on its own while the next note plucks). The voice is the upright's INSTR_BOWED pizz; velocity drives the pluck's attack (note_on vol), slide is real portamento (note_glide + note_pitch). Knobs: GLIDE (slur time), TEMPO, TONE (pickup darkness), RING (how long a pluck rings). PLAY runs the loop; RND rolls a fresh line; CLR wipes it. While stopped, drawing a note auditions it.",
-    "controls": "Tap a note-bar = on/off; drag up/down = pitch; drag to the floor = rest; drag sideways = draw the line. VEL lane: drag across to draw the per-step dynamics (higher = louder / accented, low = ghost). Rows under it are per-step toggles: tap SLD/TIE to flip, tap OCT to cycle +1 / -1 / off. PLAY / SPACE = run the loop. GLIDE / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe."
+    "summary": "A 303-style bass-line sequencer done as a REAL pluck: draw a 16-step walking line on chunky note-bars, then sculpt dynamics (VEL) and note-length/tie (LEN) on a drawable lane, plus per-step SLIDE / OCTAVE. SLIDE slurs one note into the next on the upright's own pizz voice.",
+    "detail": "The tb303 workflow in the upright's skin. 16 chunky NOTE-BARS — bar HEIGHT = pitch, scale-locked to E minor pentatonic (2 octaves) so any line walks. Tap a bar to toggle it, drag up/down for pitch, drag sideways to draw the whole line; a bar dragged to the floor is a rest. Directly beneath is ONE drawable lane with a VEL | LEN tab: VEL = per-step velocity (dynamics — a loud step reads as an accent, a near-silent one as a ghost; drives the pluck attack via note_on vol); LEN = per-step note length (staccato when short, legato near full, and TIE at the very top — the note detaches from the mono voice and rings on while the next note plucks). Below the lane, thin per-step toggle rows: SLD (glide into the next note — a same-voice slur via note_glide, both directions) and OCT (tap-cycle +1 / -1 / off). The voice is the upright's INSTR_BOWED pizz; length gates the note off partway through its step. Knobs: GLIDE (slur time), TEMPO, TONE (pickup darkness), RING (how long a pluck rings). PLAY runs the loop; RND rolls a fresh line; CLR wipes it. While stopped, drawing a note auditions it.",
+    "controls": "Tap a note-bar = on/off; drag up/down = pitch; drag to the floor = rest; drag sideways = draw the line. The lane's VEL/LEN tab picks what you draw: VEL = dynamics (higher = louder/accent, low = ghost), LEN = note length (short = staccato, full = legato, top = TIE/ring-on). Rows: tap SLD to flip glide, tap OCT to cycle +1 / -1 / off. PLAY / SPACE = run the loop. GLIDE / TEMPO / TONE / RING knobs. RND = random line, CLR = wipe."
   }
 }
 de:meta */
 
 // Walking Bass — the TB-303 sequencer workflow driving the upright's INSTR_BOWED
-// pizz voice. Pitch on the note-bars, dynamics on a drawable velocity lane, and
-// per-step SLD/OCT/TIE rows. The slur is real portamento (note_glide + note_pitch).
+// pizz voice. Pitch on the note-bars; a tabbed VEL|LEN lane for dynamics + note
+// length (tie = max length); SLD/OCT rows. The slur is real portamento.
 
 #include "studio.h"
 #include "ui.h"
@@ -33,33 +33,34 @@ de:meta */
 #define NBAR   16
 #define NDEG   10                 // scale degrees (E min-pent over ~2 octaves)
 #define BASE_MIDI 28              // E1
+#define TIE_LEN 0.95f             // LEN at/above this = TIE (ring on, detached)
 
-#define BX0    28                 // first bar left (room for row labels at the margin)
+#define BX0    28                 // first bar/cell left (row labels + lane tabs at the margin)
 #define BGAP   17                 // bar/cell stride
 #define BW     14                 // bar/cell width
-#define BY     26                 // bar top
+#define BY     24                 // bar top
 #define BH     48                 // bar height
 
-#define VELY   78                 // velocity lane (drawable) — right under the bars
-#define VELH   15
+#define LANEY  76                 // the tabbed VEL|LEN lane
+#define LANEH  16
 #define ROWH   7                  // thin binary rows below
-#define SLDY   97
-#define OCTY   106
-#define TIEY   115
+#define SLDY   95
+#define OCTY   104
 
 static const int   PENT[NDEG] = { 0, 3, 5, 7, 10, 12, 15, 17, 19, 22 };   // semitones above E
 static const char *SLAB[NDEG] = { "E","G","A","B","D","E","G","A","B","D" };
 
 // ── the pattern ──
-static int   p_on[NBAR], p_deg[NBAR], p_sld[NBAR], p_tie[NBAR], p_oct[NBAR];
-static float p_vel[NBAR];         // per-step velocity 0..1 (dynamics; high = accent, low = ghost)
+static int   p_on[NBAR], p_deg[NBAR], p_sld[NBAR], p_oct[NBAR];
+static float p_vel[NBAR];         // per-step velocity 0..1 (dynamics)
+static float p_len[NBAR];         // per-step length 0..1 (staccato→legato; >= TIE_LEN = tie)
 
 // ── knobs / transport ──
 static float k_glide = 0.35f, k_tone = 0.55f, k_ring = 0.45f, k_tempo = 0.33f;
 static int   playing = 0, cur_step = 0, last_16 = -1;
 
 // ── edit state ──
-static int sel = 0;
+static int sel = 0, lane_mode = 0;   // lane_mode: 0 = VEL, 1 = LEN
 static int drag_gx, drag_gy, drag_axis, drag_on0;
 static int aud_cell = -1, aud_deg = -1;
 
@@ -73,6 +74,7 @@ static int tone_hz(void) { return 500 + (int)(k_tone * 2200); }   // 500..2700 H
 static int ring_ms(void) { return 90  + (int)(k_ring * 700); }    // 90..790 ms
 static int glide_ms(void){ return 30  + (int)(k_glide * 220); }   // 30..250 ms slur
 static int vel_vol(float v){ int nv = (int)(1 + v * 6 + 0.5f); return nv < 1 ? 1 : nv > 7 ? 7 : nv; }   // 0..1 → 1..7
+static int is_tie(int s){ return p_len[s] >= TIE_LEN; }
 
 static float midi_of(int s) { return BASE_MIDI + PENT[p_deg[s]] + p_oct[s] * 12; }
 
@@ -94,10 +96,10 @@ static void gen_random(void) {              // a rollable walking line
         p_on[s]  = rnd_between(0, 100) < 82;
         p_deg[s] = rnd_between(0, NDEG);
         p_sld[s] = rnd_between(0, 100) < 24;
-        p_tie[s] = rnd_between(0, 100) < 12;
         p_oct[s] = rnd_between(0, 100) < 12 ? (rnd_between(0, 2) ? 1 : -1) : 0;
         p_vel[s] = (s % 4 == 0 ? 0.85f : 0.55f) + rnd_between(0, 25) / 100.0f;   // beats louder
         if (p_vel[s] > 1) p_vel[s] = 1;
+        p_len[s] = rnd_between(0, 100) < 15 ? 1.0f : 0.45f + rnd_between(0, 45) / 100.0f;   // mostly detached, some ties
     }
 }
 
@@ -105,9 +107,9 @@ void init(void) {
     static const int   don[NBAR] = { 1,0,1,1, 1,1,0,1, 1,1,1,1, 1,0,1,1 };
     static const int   dde[NBAR] = { 0,0,2,4, 1,1,1,3, 0,2,5,3, 7,7,4,2 };
     static const int   dsl[NBAR] = { 0,0,1,0, 0,1,0,0, 0,1,0,0, 1,0,1,0 };
-    static const int   dti[NBAR] = { 1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0 };
     static const float dvl[NBAR] = { .95f,.5f,.6f,.65f, .85f,.6f,.5f,.6f, .95f,.6f,.65f,.6f, .85f,.8f,.6f,.65f };
-    for (int s = 0; s < NBAR; s++) { p_on[s]=don[s]; p_deg[s]=dde[s]; p_sld[s]=dsl[s]; p_tie[s]=dti[s]; p_oct[s]=0; p_vel[s]=dvl[s]; }
+    static const float dln[NBAR] = { 1.0f,.5f,.6f,.6f,  .7f,.6f,.5f,.6f,  1.0f,.6f,.6f,.6f,  .7f,.8f,.6f,.6f };   // ties at 0 & 8
+    for (int s = 0; s < NBAR; s++) { p_on[s]=don[s]; p_deg[s]=dde[s]; p_sld[s]=dsl[s]; p_oct[s]=0; p_vel[s]=dvl[s]; p_len[s]=dln[s]; }
     setup_pizz();
     reverb(0.30f, 0.55f);                    // a small warm room
     instrument_reverb(BASS, 0.16f);
@@ -133,7 +135,7 @@ static void fire_step(int s) {
         float m = midi_of(s);
         if (p_on[prev] && p_sld[prev] && voice >= 0) slur(m);              // legato slur, same voice
         else pluck(m, p_vel[s]);                                           // fresh pluck at this velocity
-        if (p_tie[s]) voice = -1;                                          // TIE: let it ring on untracked
+        if (is_tie(s)) voice = -1;                                         // TIE (max LEN): let it ring on untracked
     } else if (voice >= 0) { note_off(voice); voice = -1; }                // rest damps
 }
 
@@ -143,8 +145,13 @@ void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; if (playing) last_16 = -1; else silence(); }
 
     if (playing) {
-        int sx = (int)(beat() * 4 + beat_pos() * 4.0f);
+        float pos = beat() * 4 + beat_pos() * 4.0f;   // continuous 16th position
+        int   sx  = (int)pos;
         if (sx != last_16) { last_16 = sx; cur_step = sx % NBAR; fire_step(cur_step); }
+        else if (voice >= 0 && !p_sld[cur_step]) {     // LEN gate: damp partway through (staccato), unless sliding
+            float frac = pos - (int)pos;               // 0..1 within this 16th
+            if (p_len[cur_step] < TIE_LEN && frac >= p_len[cur_step]) { note_off(voice); voice = -1; }
+        }
     }
 
 #ifdef DE_TRACE
@@ -246,53 +253,59 @@ void draw(void) {
     }
     // TIE tails: a dotted line from the note top extending right — it rings on
     for (int s = 0; s < NBAR; s++) {
-        if (!p_on[s] || !p_tie[s]) continue;
+        if (!p_on[s] || !is_tie(s)) continue;
         int top = bar_top(p_deg[s]), x0 = BX0 + s * BGAP + BW;
         for (int tx = x0; tx < x0 + BGAP + BW/2 && tx < BX0 + NBAR * BGAP; tx += 3) { pset(tx, top, CLR_PEACH); pset(tx, top + 1, CLR_PEACH); }
     }
 
-    // ── VELOCITY lane (drawable): drag across to sculpt per-step dynamics ──
+    // ── the tabbed VEL | LEN lane (drawable): drag across to sculpt the contour ──
+    if (wbtn(0xE1u, 1, LANEY,          24, LANEH/2, "VEL", lane_mode == 0)) lane_mode = 0;
+    if (wbtn(0xE2u, 1, LANEY + LANEH/2, 24, LANEH - LANEH/2, "LEN", lane_mode == 1)) lane_mode = 1;
     {
-        void *w = ui_wid_hash(0xE0u, BX0, VELY, NBAR * BGAP, VELH);
-        ui_reg(w, BX0, VELY, NBAR * BGAP, VELH, 0);
+        float *lane = lane_mode == 0 ? p_vel : p_len;
+        void *w = ui_wid_hash(0xE0u, BX0, LANEY, NBAR * BGAP, LANEH);
+        ui_reg(w, BX0, LANEY, NBAR * BGAP, LANEH, 0);
         UiCap *c = ui_cap_for(w);
         if (c) {
             int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
             int col = (px - BX0) / BGAP; if (col < 0) col = 0; if (col >= NBAR) col = NBAR - 1;
-            p_vel[col] = clamp((VELY + VELH - py) / (float)VELH, 0.05f, 1.0f);
+            lane[col] = clamp((LANEY + LANEH - py) / (float)LANEH, 0.0f, 1.0f);
+            if (lane_mode == 0 && lane[col] < 0.05f) lane[col] = 0.05f;   // VEL never fully silent
             sel = col;
-            if (!playing && col != aud_cell) { aud_cell = col; aud_deg = -1; if (p_on[col]) pluck(midi_of(col), p_vel[col]); }
+            if (lane_mode == 0 && !playing && col != aud_cell) { aud_cell = col; aud_deg = -1; if (p_on[col]) pluck(midi_of(col), p_vel[col]); }
         }
-        font(FONT_SMALL); print("VEL", 2, VELY + VELH/2 - 3, CLR_DARK_PEACH); font(FONT_NORMAL);
         for (int s = 0; s < NBAR; s++) {
-            int x = BX0 + s * BGAP, h = (int)(p_vel[s] * VELH + 0.5f); if (h < 1) h = 1;
-            rectfill(x, VELY, BW, VELH, CLR_BROWNISH_BLACK);
-            int col = !p_on[s] ? CLR_DARK_BROWN : p_vel[s] > 0.8f ? CLR_ORANGE : p_vel[s] > 0.45f ? CLR_PEACH : CLR_DARK_PEACH;
-            rectfill(x, VELY + VELH - h, BW, h, col);
+            int x = BX0 + s * BGAP, h = (int)(lane[s] * LANEH + 0.5f); if (h < 1) h = 1;
+            rectfill(x, LANEY, BW, LANEH, CLR_BROWNISH_BLACK);
+            int col;
+            if (lane_mode == 0)                                   // VEL: dynamics (orange loud → dim soft)
+                col = !p_on[s] ? CLR_DARK_BROWN : p_vel[s] > 0.8f ? CLR_ORANGE : p_vel[s] > 0.45f ? CLR_PEACH : CLR_DARK_PEACH;
+            else                                                  // LEN: length (blue-green; ties bright)
+                col = !p_on[s] ? CLR_DARK_BROWN : is_tie(s) ? CLR_LIGHT_YELLOW : CLR_BLUE_GREEN;
+            rectfill(x, LANEY + LANEH - h, BW, h, col);
         }
     }
 
-    // ── thin per-step binary rows: SLD · OCT · TIE ──
-    static const int   RYA[3]  = { SLDY, OCTY, TIEY };
-    static const char *RLB[3]  = { "SLD", "OCT", "TIE" };
+    // ── thin per-step binary rows: SLD · OCT ──
+    static const int   RYA[2]  = { SLDY, OCTY };
+    static const char *RLB[2]  = { "SLD", "OCT" };
     font(FONT_SMALL);
-    for (int r = 0; r < 3; r++) print(RLB[r], 2, RYA[r] + 1, CLR_DARK_PEACH);
+    for (int r = 0; r < 2; r++) print(RLB[r], 2, RYA[r] + 1, CLR_DARK_PEACH);
     font(FONT_NORMAL);
-    for (int r = 0; r < 3; r++) {
+    for (int r = 0; r < 2; r++) {
         void *w = ui_wid_hash(0xD0u + r, BX0, RYA[r], NBAR * BGAP, ROWH);   // one widget per row
         ui_reg(w, BX0, RYA[r], NBAR * BGAP, ROWH, 0);
         UiCap *c = ui_cap_for(w);
         if (c && ui_grabbed(w)) {                             // press toggles the cell under the finger
             int col = (c->cx - BX0) / BGAP; if (col < 0) col = 0; if (col >= NBAR) col = NBAR - 1;
             sel = col;
-            if      (r == 0) p_sld[col] = !p_sld[col];
-            else if (r == 1) p_oct[col] = p_oct[col] == 0 ? 1 : p_oct[col] == 1 ? -1 : 0;   // +1 → -1 → off
-            else             p_tie[col] = !p_tie[col];
+            if (r == 0) p_sld[col] = !p_sld[col];
+            else        p_oct[col] = p_oct[col] == 0 ? 1 : p_oct[col] == 1 ? -1 : 0;   // +1 → -1 → off
         }
         for (int s = 0; s < NBAR; s++) {
             int x = BX0 + s * BGAP;
-            int set = r == 0 ? p_sld[s] : r == 1 ? p_oct[s] != 0 : p_tie[s];
-            int col = r == 0 ? CLR_LIME_GREEN : r == 1 ? (p_oct[s] > 0 ? CLR_TRUE_BLUE : CLR_INDIGO) : CLR_LIGHT_YELLOW;
+            int set = r == 0 ? p_sld[s] : p_oct[s] != 0;
+            int col = r == 0 ? CLR_LIME_GREEN : (p_oct[s] > 0 ? CLR_TRUE_BLUE : CLR_INDIGO);
             if (set) rectfill(x, RYA[r], BW, ROWH, col);
             else     rect(x, RYA[r], BW, ROWH, s == sel ? CLR_DARK_PEACH : CLR_BROWNISH_BLACK);
         }
@@ -319,18 +332,18 @@ void draw(void) {
 
     if (wbtn(0x62u, 260, 4, 26, 14, "RND", 0)) gen_random();
     if (wbtn(0x63u, 290, 4, 26, 14, "CLR", 0))
-        for (int s = 0; s < NBAR; s++) { p_on[s]=p_sld[s]=p_tie[s]=p_oct[s]=0; p_vel[s]=0.65f; }
+        for (int s = 0; s < NBAR; s++) { p_on[s]=p_sld[s]=p_oct[s]=0; p_vel[s]=0.65f; p_len[s]=0.6f; }
 
     // ── bottom strip: knobs (GLIDE leads) + hint ──
-    rectfill(0, TIEY + ROWH + 3, SCREEN_W, SCREEN_H - (TIEY + ROWH + 3), CLR_DARK_BROWN);
+    rectfill(0, OCTY + ROWH + 3, SCREEN_W, SCREEN_H - (OCTY + ROWH + 3), CLR_DARK_BROWN);
     int ky = 150;
     wknob(0x70u, &k_glide, 34,  ky, 9, "GLIDE", 1);
     wknob(0x71u, &k_tempo, 90,  ky, 6, "TEMPO", 0);
     wknob(0x72u, &k_tone,  144, ky, 6, "TONE",  0);
     wknob(0x73u, &k_ring,  196, ky, 6, "RING",  0);
     font(FONT_SMALL);
-    print("drag bar=pitch",   232, ky - 8, CLR_DARK_PEACH);
-    print("VEL lane=dynamics", 232, ky + 2, CLR_DARK_PEACH);
+    print(lane_mode == 0 ? "lane: VEL = dynamics" : "lane: LEN = length/tie", 232, ky - 8, CLR_DARK_PEACH);
+    print("drag bar = pitch", 232, ky + 2, CLR_DARK_PEACH);
     font(FONT_NORMAL);
 
     // apply tone/ring only on change (set-and-hold)

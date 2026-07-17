@@ -4445,7 +4445,7 @@ static bool ellipse_inside(int x, int y, int cx, int cy, int rx, int ry) {
 // the nearest corner centre (circfill convention), so fill/outline/dither agree.
 static bool rrect_inside(int px, int py, int x, int y, int w, int h, int r) {
     float cx = px + 0.5f, cy = py + 0.5f;
-    float l = x + r, t = y + r, rt = x + w - 1 - r, b = y + h - 1 - r;
+    float l = x + r, t = y + r, rt = x + w - r, b = y + h - r;  // inscribe in [x,x+w]×[y,y+h] so straight edges coincide with rect() (was x+w-1-r → 1px short on right+bottom)
     float dx = cx < l ? l - cx : (cx > rt ? cx - rt : 0.0f);
     float dy = cy < t ? t - cy : (cy > b ? cy - b : 0.0f);
     return dx*dx + dy*dy <= (float)r * r;

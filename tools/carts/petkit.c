@@ -61,16 +61,20 @@ static void fill_poly(const P *p, int n, float ox, float oy, unsigned seed, floa
 }
 // 4x4 ordered (Bayer) matrix for the gradient FILL (from squishy)
 static const int GBAYER[4][4] = { {0,8,2,10},{12,4,14,6},{3,11,1,9},{15,7,13,5} };
-// GRADIENT fill (dpaint-style): dither from c0 at point A → c1 at point B. t is the
-// pixel's position along the A→B line (0 at A, 1 at B, solid past each end). Drag A/B
-// apart for a wide ramp, close for a sharp band — the "from here to there" line IS the band.
+// GRADIENT fill (PROCEDURAL, dpaint-style): dither c0 → c1 across the shape along
+// `ang`. The blend is centred at `center` (0..1 along the axis — slide it to move the
+// transition "from here to there") with width `band` (small = sharp split, 1 = full
+// ramp). All scalars, so it hooks to state exactly like boil/bevel — no drawing.
 static void fill_poly_grad(const P *p, int n, unsigned seed, float jit,
-                           int c0, int c1, float ax, float ay, float bx, float by){
+                           int c0, int c1, float ang, float center, float band){
   P q[MAXP]; if (n>MAXP) n=MAXP;
-  float miny=1e9f, maxy=-1e9f;
+  float miny=1e9f, maxy=-1e9f, ca=cosf(ang*DEG), sa=sinf(ang*DEG), pmin=1e9f, pmax=-1e9f;
   for (int i=0;i<n;i++){ q[i].x=p[i].x+bo(seed,i,0x11,jit); q[i].y=p[i].y+bo(seed,i,0x22,jit);
-    if (q[i].y<miny) miny=q[i].y; if (q[i].y>maxy) maxy=q[i].y; }
-  float dx=bx-ax, dy=by-ay, len2=dx*dx+dy*dy; if (len2<1) len2=1;
+    if (q[i].y<miny) miny=q[i].y; if (q[i].y>maxy) maxy=q[i].y;
+    float pr=q[i].x*ca+q[i].y*sa; if (pr<pmin) pmin=pr; if (pr>pmax) pmax=pr; }
+  if (pmax-pmin<0.001f) pmax=pmin+1;
+  float bw=band; if (bw<0.02f) bw=0.02f;
+  float lo=center-bw*0.5f, inv=1.0f/(pmax-pmin);
   int y0=(int)miny, y1=(int)maxy; if (y0<0) y0=0; if (y1>SCREEN_H-1) y1=SCREEN_H-1;
   for (int y=y0;y<=y1;y++){
     float yc=y+0.5f, xs[MAXP]; int cnt=0;
@@ -81,7 +85,7 @@ static void fill_poly_grad(const P *p, int n, unsigned seed, float jit,
     for (int k=0;k+1<cnt;k+=2){ int xa=(int)ceilf(xs[k]), xb=(int)floorf(xs[k+1]);
       if (xa<0) xa=0; if (xb>SCREEN_W-1) xb=SCREEN_W-1;
       for (int x=xa;x<=xb;x++){
-        float t=((x-ax)*dx+(y-ay)*dy)/len2; if (t<0) t=0; if (t>1) t=1;
+        float t=((x*ca+y*sa)-pmin)*inv; t=(t-lo)/bw; if (t<0) t=0; if (t>1) t=1;
         float thr=(GBAYER[y&3][x&3]+0.5f)/16.0f;
         pset(x,y, t>thr ? c1 : c0);
       } }
@@ -130,8 +134,9 @@ typedef struct {
   float squash;    // -1 = squash (wide+short) .. +1 = stretch (tall+thin), 0 = neutral
   int   grad;      // GRADIENT fill on? (dither fill → gcol across the shape)
   int   gcol;      // gradient far colour (fill is the near colour)
-  float gx0,gy0;   // gradient line START (near colour) — screen space, drag to aim
-  float gx1,gy1;   // gradient line END (far colour)
+  float gangle;    // gradient direction, degrees (PROCEDURAL — no drawing, hookable to state)
+  float gcenter;   // where the blend midpoint sits along the axis, 0..1 ("from…to")
+  float gband;     // blend width, 0..1 (small = sharp two-colour split, 1 = full ramp)
 } Shape;
 
 // dpaint-style DENSITY ramp (from squishy): 0 = solid, then ~12/25/50/75/87% ink.
@@ -183,7 +188,7 @@ static void shape_draw(const Shape *s){
     fill_poly(pts,n, SUNX*bev, SUNY*bev,s->seed,s->boil,CLR_WHITE);
   }
   if (s->grad){                                                     // 3. body fill
-    fill_poly_grad(pts,n,s->seed,s->boil,s->fill,s->gcol,s->gx0,s->gy0,s->gx1,s->gy1);
+    fill_poly_grad(pts,n,s->seed,s->boil,s->fill,s->gcol,s->gangle,s->gcenter,s->gband);
   } else {
     if (s->dither) fillp(PATTERNS[s->dither], s->dcol);
     fill_poly(pts,n,0,0,s->seed,s->boil,s->fill);
@@ -203,13 +208,13 @@ static int edge_i = 0;    // -1 = no edge, else index into EDGEPAL
 
 // ── the editable hero shape ──────────────────────────────────────────────────
 //                       kind      x   y   w   h  sd rot round fill            edge               boil bevel ew  dith dcol             seed     squash
-static Shape hero = { SH_CIRCLE, 200,100, 70, 70, 6, 0, 0.4f, CLR_LIME_GREEN, CLR_BROWNISH_BLACK, 1.0f,1.4f, 2.0f, 0, CLR_DARK_PURPLE, 0x1234u, 0.0f, 0, CLR_TRUE_BLUE, 165,100, 235,100 };
+static Shape hero = { SH_CIRCLE, 200,100, 70, 70, 6, 0, 0.4f, CLR_LIME_GREEN, CLR_BROWNISH_BLACK, 1.0f,1.4f, 2.0f, 0, CLR_DARK_PURPLE, 0x1234u, 0.0f, 0, CLR_TRUE_BLUE, 0.0f, 0.5f, 1.0f };
 
 // slider-backed 0..1 values, mapped into `hero` each frame (see draw())
 static float sl_w=0.42f, sl_h=0.42f, sl_sq=0.5f, sl_boil=0.25f,
-             sl_bevel=0.35f, sl_thick=0.25f, sl_round=0.4f, sl_dith=0.0f;
+             sl_bevel=0.35f, sl_thick=0.25f, sl_round=0.4f, sl_dith=0.0f,
+             sl_gang=0.0f, sl_goff=0.5f, sl_gband=1.0f;
 static int gcol_i = 5;   // gradient far colour index into PAL (5 = TRUE_BLUE)
-static int grad_drag = 0;  // dragging the gradient A→B line on the hero?
 
 // boil ticking — advances the wobble frame on a beat (the "boil on the BPM" feel)
 static float clk = 0;
@@ -231,42 +236,36 @@ void update(void){
   float d=dt();
   if (key(',')) hero.rot -= 90*d;
   if (key('.')) hero.rot += 90*d;
-
-  // gradient: drag a line across the hero to aim near→far (dpaint-style)
-  if (hero.grad){
-    int mx=mouse_x(), my=mouse_y();
-    if (mouse_pressed(0) && mx>=92 && mx<316 && my>=48 && my<152){
-      hero.gx0=mx; hero.gy0=my; hero.gx1=mx; hero.gy1=my; grad_drag=1;
-    }
-    if (grad_drag && mouse_down(0)){ hero.gx1=mouse_x(); hero.gy1=mouse_y(); }
-    if (!mouse_down(0)) grad_drag=0;
-  }
 }
 
 void draw(void){
   cls(CLR_DARKER_BLUE);
   ui_begin();
 
-  // ── tiny slider column (the continuous look dials) ──
-  int sx=4, sw=52, sy=46;
-  ui_slider(&sl_w,     sx, sy+0*11, sw, "W");
-  ui_slider(&sl_h,     sx, sy+1*11, sw, "H");
-  ui_slider(&sl_sq,    sx, sy+2*11, sw, "SQUASH");
-  ui_slider(&sl_boil,  sx, sy+3*11, sw, "BOIL");
-  ui_slider(&sl_bevel, sx, sy+4*11, sw, "BEVEL");
-  ui_slider(&sl_thick, sx, sy+5*11, sw, "THICK");
-  ui_slider(&sl_round, sx, sy+6*11, sw, "ROUND");
-  ui_slider(&sl_dith,  sx, sy+7*11, sw, "DITHER");
+  // ── tiny slider column (the continuous look dials — all procedural, all hookable) ──
+  int sx=4, sw=52, sy=44, sp=10;
+  ui_slider(&sl_w,     sx, sy+0*sp, sw, "W");
+  ui_slider(&sl_h,     sx, sy+1*sp, sw, "H");
+  ui_slider(&sl_sq,    sx, sy+2*sp, sw, "SQUASH");
+  ui_slider(&sl_boil,  sx, sy+3*sp, sw, "BOIL");
+  ui_slider(&sl_bevel, sx, sy+4*sp, sw, "BEVEL");
+  ui_slider(&sl_thick, sx, sy+5*sp, sw, "THICK");
+  ui_slider(&sl_round, sx, sy+6*sp, sw, "ROUND");
+  ui_slider(&sl_dith,  sx, sy+7*sp, sw, "DITHER");
+  ui_slider(&sl_gang,  sx, sy+8*sp, sw, "G.ANGLE");
+  ui_slider(&sl_goff,  sx, sy+9*sp, sw, "G.OFFSET");
+  ui_slider(&sl_gband, sx, sy+10*sp,sw, "G.BAND");
   // map sliders → hero
   hero.w=6+sl_w*154; hero.h=6+sl_h*154; hero.squash=sl_sq*2-1;
   hero.boil=sl_boil*4; hero.bevel=sl_bevel*4; hero.ew=sl_thick*8;
   hero.round=sl_round; hero.dither=(int)(sl_dith*(NPAT-0.001f));
+  hero.gangle=sl_gang*360; hero.gcenter=sl_goff; hero.gband=sl_gband;
 
   // ── reference row: all five kinds at a fixed size, boiling ──
   int refy=20;
   for (int k=0;k<SH_N;k++){
     int cx=32+k*58;
-    Shape r = { k, cx, refy, 30, 24, 6, 0, 0.5f, PAL[(k+1)%NPAL], CLR_BROWNISH_BLACK, 0.6f, 1.2f, 1.5f, 0, CLR_DARK_PURPLE, (unsigned)(k*97+7), 0.0f, 0, CLR_TRUE_BLUE, 0,0, 0,0 };
+    Shape r = { k, cx, refy, 30, 24, 6, 0, 0.5f, PAL[(k+1)%NPAL], CLR_BROWNISH_BLACK, 0.6f, 1.2f, 1.5f, 0, CLR_DARK_PURPLE, (unsigned)(k*97+7), 0.0f, 0, CLR_TRUE_BLUE, 0.0f, 0.5f, 1.0f };
     shape_draw(&r);
     print(SKIND[k], cx-14, refy+18, CLR_MEDIUM_GREY);
   }
@@ -277,12 +276,12 @@ void draw(void){
   rrectfill(92,48,224,104,6,CLR_INDIGO);
   shape_draw(&hero);
 
-  // gradient aim-line + endpoints (near colour at A, far colour at B)
+  // gradient direction indicator: a small procedural arrow (near dot → far dot)
   if (hero.grad){
-    line((int)hero.gx0,(int)hero.gy0,(int)hero.gx1,(int)hero.gy1,CLR_WHITE);
-    circfill((int)hero.gx0,(int)hero.gy0,2,hero.fill); circ((int)hero.gx0,(int)hero.gy0,2,CLR_WHITE);
-    circfill((int)hero.gx1,(int)hero.gy1,2,hero.gcol); circ((int)hero.gx1,(int)hero.gy1,2,CLR_WHITE);
-    print("drag on shape: aim near->far",96,52,CLR_LIGHT_GREY);
+    float ca=cosf(hero.gangle*DEG), sa=sinf(hero.gangle*DEG);
+    int ax=(int)(hero.x-ca*22), ay=(int)(hero.y-sa*22), bx=(int)(hero.x+ca*22), by=(int)(hero.y+sa*22);
+    line(ax,ay,bx,by,CLR_WHITE);
+    circfill(ax,ay,2,hero.fill); circfill(bx,by,2,hero.gcol); circ(bx,by,2,CLR_WHITE);
   }
 
   // ── readout ──
@@ -296,7 +295,7 @@ void draw(void){
   // near/far colour swatches for the gradient
   print("grad",250,168,hero.grad?CLR_WHITE:CLR_DARK_GREY);
   rectfill(272,168,7,7,hero.fill); rectfill(281,168,7,7,hero.gcol);
-  print("keys: 1-5 kind  [] sides  ,. rot  C near  E edge  G grad  V far  (drag=aim)",6,190,CLR_DARK_GREY);
+  print("keys: 1-5 kind  [] sides  ,. rot  C near  E edge  G grad  V far  (gradient = sliders)",6,190,CLR_DARK_GREY);
 
   ui_end();
 }

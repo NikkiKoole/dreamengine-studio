@@ -66,27 +66,33 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > Hot files: `android/app/src/main/cpp/main.c` (the NativeActivity shell), `android/build.sh`,
 > `docs/design/android-plan.md`.
 
-> **▶ ACTIVE THREAD (2026-07-17) — the audio-input frontier (the engine HEARS).**
-> The reddit-gaps drip kept surfacing the SAME blocked on-grain wishes across every music tribe
-> (hum→MIDI, pedals, live looping, "isolate the acapella") — they all resolve to one missing
-> capability: the engine had no ear. The drip *discovered* this feature. In one arc from spike to
-> ship: a **standalone Tier-1 spike** (`tools/mic-spike/`) using **miniaudio** proved the pipeline,
-> then the owner's permission-granted run **CONFIRMED LIVE** (`779f1b44` — webcam mic, −17 dBFS),
-> then the **Tier-1 seam landed in the real engine** (`1cfe46aa`: `mic_start/mic_stop/mic_active/`
-> `mic_level/mic_pitch` in `studio.h`/`studio.c`/`sound.h`, dormant until `mic_start()` pops the OS
-> permission prompt — nothing captures before a cart asks) with a desktop backend + the `mictest`
-> cart, and finally got **wired onto every host** — WEB (`getUserMedia`) + iOS (AVAudioSession)
-> `2689ed68`, then ANDROID `bc5599d2` = "truly all devices". API is honest about its limits:
-> `mic_level()` is solid + responsive; `mic_pitch()` is CRUDE (reads octave-low + jittery — a
-> controller axis, not a tuner). Filed the STEM-SEPARATION verdict earlier (hard NO — neural,
-> ~500MB, off-grain), and the macOS TCC gotcha (a process without Mic permission sees ONLY virtual
-> devices — physical mics hidden from enumeration).
-> **Resume-at: [`design/mic-and-sampling.md` → the four Tier ladder](design/mic-and-sampling.md#the-spectrum--four-tiers-cheapest-and-most-on-doctrine-first)** —
-> the seam exists on all hosts; NEXT = **drive existing voices from it in a real cart** (hum→`heldnotes`
-> theremin, beatbox→`tr808`) beyond the `mictest` VU/pitch readout, behind a permission button. Keep
-> it capture-then-freeze for anything that STORES; the live-throughput/pedal case stays PARKED (forces
-> a `.rec` determinism call + a latency bar).
-> Hot files: `runtime/studio.h`/`studio.c`/`sound.h` (the seam), `tools/carts/mictest.c` (the reference cart).
+> **▶ ACTIVE THREAD (2026-07-17) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
+> The reddit-gaps drip kept surfacing the SAME blocked wishes (hum→MIDI, pedals, live looping) — all
+> one missing capability: the engine had no ear. Now it does, on every platform, and it vocodes. The
+> arc, spike → ship → instruments → vocoder:
+> - **The mic seam, all four platforms** — a device-free `platform.h` contract (host owns the device +
+>   permission, pushes frames via `de_audio_input`; engine only analyzes): desktop CoreAudio
+>   (`1cfe46aa`), WEB `getUserMedia` + iOS `AVAudioSession` (`2689ed68`), ANDROID `AAudio`+JNI
+>   (`bc5599d2`). `mic_start/stop/active` + `mic_level` (RMS) + `mic_pitch` + `mic_record`.
+> - **YIN pitch** (`2d552d25`) — `pitchscope` diagnosed the zero-crossing estimate octave-jumping; replaced
+>   it with a YIN detector (octave-safe). `mic_pitch()` is now a real melody/controller axis.
+> - **Carts**: `mictest`, `pitchscope`, `humtheremin` (hum→theremin), `voxbox`; `breakchop` gained mic
+>   **beatbox auto-chop** (record → onset-slice onto pads) via `mic_record` (capture-then-freeze).
+> - **THE VOCODER** (`379fef80` Phase 1 + `46b45c35` Phase 2) — a master-stage 12-band carrier×modulator
+>   filterbank in `sound.h` (`vocoder`/`vocoder_send`), fed live by the mic through a **lock-free
+>   audio-thread PCM ring** (`sound_extin_*` + `vocoder_mic`). `vocode` = deterministic synth-modulator
+>   showcase; `voxbox` upgraded to the REAL vocoder (sing → a chord speaks your words; "sounds like
+>   Stevie Wonder"). Determinism carve-out: [ADR-0032](decisions/0032-live-mic-effects-are-live-only.md)
+>   (live-mic-through = live-only; capture-then-freeze stays deterministic). All gates green; desktop +
+>   web live-verified by the maker.
+> **Resume-at: [`design/vocoder.md` → v2 quality](design/vocoder.md) + the pedal tier.** The `sound_extin`
+> mic ring is now the foundation for the whole **live-throughput / PEDAL tier** (fuzz, live granular,
+> looper) — the vocoder was just its first customer. Vocoder v2 open items: **sibilance** noise-substitution
+> band (unvoiced consonants don't carry through a tonal carrier — the biggest intelligibility win),
+> **mic-rate resample** (non-44.1k device mics drift the ring), **on-device latency tuning** (iOS/Android).
+> Hot files: `runtime/sound.h` (vocoder + extin ring), `runtime/mic.h` (analysis + record + ring write),
+> `runtime/studio.h`/`.c` (the seam), the per-host capture (`mic_desktop.h`, `ios/Sources/AudioEngine.swift`,
+> `android/…/main.c`). Reference carts: `vocode` (deterministic), `voxbox` (live).
 
 > **▶ ACTIVE THREAD (2026-07-15) — the candy acid RACK (`acidcandy`).**
 > `acidcandy` (160×100 ×4) packages `acidrack`'s guts as the **device-face paradigm** instead of the

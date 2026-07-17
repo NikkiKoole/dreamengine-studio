@@ -191,6 +191,7 @@ static float dist8 = 0, dist9 = 0;                          // per-machine drum 
 static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB fader (1 = unity/stock); 4 = MST (master wire TODO)
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = the PCF lane
+static int   mlaw = 0;                                       // master pan LAW: 0 = PAN_LINEAR (centre-full, mono-safe) · 1 = PAN_POWER (equal-loudness — pan reads as DIRECTION, not volume). MST LIN/PWR toggle
 
 // transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
@@ -954,7 +955,10 @@ static void draw_mst(void) {
     // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
     if (cbtn(0x20u, 6, 38, 16, 8, "MIX", !mstflow)) mstflow = 0;
     if (cbtn(0x21u, 6, 47, 16, 8, "PCF",  mstflow)) mstflow = 1;
-    chip(138, 38, "SNG", 0); chip(138, 47, "SCP", 0);
+    chip(138, 38, "SNG", 0);                                                   // (still decorative)
+    // pan LAW toggle (was the decorative SCP): LIN = centre-full/mono-safe · PWR = equal-loudness,
+    // pronounced L/R. Set-and-hold → pan_law() fires only on this tap, never per-frame.
+    if (cbtn(0x22u, 138, 47, 16, 8, mlaw ? "PWR" : "LIN", mlaw)) { mlaw = !mlaw; pan_law(mlaw ? PAN_POWER : PAN_LINEAR); }
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -1036,6 +1040,7 @@ void init(void) {
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
     reverb_bus(1, 0.34f, 0.15f);                           // 909 → its own tight bright PLATE (tank 1)
     reverb_bus(2, 0.45f, 0.30f);                           // 808 → its own room (tank 2)
+    pan_law(mlaw ? PAN_POWER : PAN_LINEAR);                // master pan law (MST LIN/PWR toggle); default LINEAR = engine default
     for (int s = 0; s < STEPS; s++) mpcf[s] = 7;           // PCF lane starts fully open (no effect)
     sidechain_key(TR808_BASE + TRS_BD, 0, 1);              // both kicks drive the PUMP
     sidechain_key(D909_BASE + TR9S_BD, 0, 1);

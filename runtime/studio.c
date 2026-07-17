@@ -2121,6 +2121,44 @@ static void harness_inspect(int fno) {
 static FILE *wav_out     = NULL;
 static int   wav_samples = 0;
 
+// ── DE_MIC_WAV: feed a WAV file as the MICROPHONE (headless testing of mic carts) ────────────
+// Set DE_MIC_WAV=<path> (16-bit PCM WAV) and the harness feeds it via de_audio_input() one frame's
+// worth of samples per frame, right before the synchronous --wav audio render — so a real recorded
+// voice can exercise the live mic path (autotune_mic / vocoder_mic) deterministically, no real mic.
+void de_audio_input(const float *mono, int n, int sr);   // defined below (platform.h seam) — forward-declared here
+void de_mic_set_active(int on);
+static float *micwav = NULL; static long micwav_n = 0, micwav_pos = 0; static int micwav_sr = SOUND_SAMPLE_RATE;
+static int  micwav_active(void) { return micwav != NULL; }
+static void micwav_load(void) {
+    const char *p = getenv("DE_MIC_WAV"); if (!p || !*p) return;
+    FILE *f = fopen(p, "rb"); if (!f) { fprintf(stderr, "harness: DE_MIC_WAV cannot open %s\n", p); return; }
+    char id[4]; unsigned int sz; int ch = 1, sr = SOUND_SAMPLE_RATE, bits = 16; long dsz = 0;
+    fseek(f, 12, SEEK_SET);   // skip RIFF/size/WAVE
+    while (fread(id, 1, 4, f) == 4 && fread(&sz, 4, 1, f) == 1) {
+        if (!memcmp(id, "fmt ", 4)) {
+            unsigned char fb[16]; fread(fb, 1, 16, f);
+            ch = fb[2] | (fb[3] << 8); sr = fb[4] | (fb[5] << 8) | (fb[6] << 16) | (fb[7] << 24); bits = fb[14] | (fb[15] << 8);
+            if (sz > 16) fseek(f, sz - 16, SEEK_CUR);
+        } else if (!memcmp(id, "data", 4)) { dsz = sz; break; }
+        else fseek(f, sz + (sz & 1), SEEK_CUR);
+    }
+    if (bits != 16 || dsz <= 0) { fclose(f); fprintf(stderr, "harness: DE_MIC_WAV needs 16-bit PCM\n"); return; }
+    long frames = dsz / (2 * ch);
+    short *raw = (short *)malloc((size_t)dsz); if (!raw) { fclose(f); return; }
+    fread(raw, 1, (size_t)dsz, f); fclose(f);
+    micwav = (float *)malloc(sizeof(float) * (size_t)frames); micwav_n = frames; micwav_sr = sr;
+    for (long i = 0; i < frames; i++) micwav[i] = (ch == 1) ? raw[i] / 32768.0f : (raw[i * 2] + raw[i * 2 + 1]) / 65536.0f;
+    free(raw);
+    de_mic_set_active(1);   // pretend the mic is open + granted
+    fprintf(stderr, "harness: DE_MIC_WAV loaded %ld samples @ %dHz from %s\n", frames, sr, p);
+}
+static void micwav_pump(int n) {   // feed n mic samples this frame (loops silence past the end)
+    if (!micwav) return;
+    static float chunk[2048]; if (n > 2048) n = 2048;
+    for (int i = 0; i < n; i++) { chunk[i] = micwav_pos < micwav_n ? micwav[micwav_pos] : 0.0f; micwav_pos++; }
+    de_audio_input(chunk, n, micwav_sr);
+}
+
 static void wav_stream_open(const char *path) {
     wav_out = fopen(path, "wb");
     if (!wav_out) { fprintf(stderr, "harness: cannot open --wav %s\n", path); return; }
@@ -2624,6 +2662,7 @@ static void loop_step(void) {
     harness_resize_capture(fno);           // --resize sweep: one labeled PNG per settled size
 #ifndef DE_RELEASE
     harness_inspect(fno);                  // on-demand screenshot + state (trigger-file)
+    micwav_pump(735);                      // DE_MIC_WAV: feed this frame's mic samples BEFORE the render
     wav_stream_pump();                     // --wav: render this frame's 735 samples
     if (det_turbo && !wav_out && sound_synth_mode) {   // turbo (no --wav): drain the synth's 735 samples/frame so the
         float scratch[735 * 2]; sound_callback(scratch, 735);   // request queue stays empty — deterministic, discard the audio
@@ -3083,6 +3122,7 @@ int main(int argc, char **argv) {
     if (env_is("DE_SOFTWARE_CANVAS","on"))     { sw_canvas_enabled = true; sw_canvas_active = true; }  // Phase 0 probe
     if (env_is("DE_CPU_RASTER",     "on"))     cpu_raster_enabled = true;   // line()/rectfill_rot → CPU everywhere
     if (env_is("DE_AUDIO",          "off"))    audio_off          = true;   // skip all audio
+    micwav_load();                             // DE_MIC_WAV=<file> → feed a WAV as the mic (headless mic-cart testing)
     { const char *ss = getenv("DE_SHOW_SIZE");          // DE_SHOW_SIZE=1 → live WxH overlay (resizable carts)
       if (ss && ss[0] && strcmp(ss, "0") != 0) size_overlay_on = true; }    // kept: "set & not 0", not an ==match
 #ifndef DE_WINDOW_TITLE            // exports bake the cart name in (a double-clicked app gets no argv)
@@ -3410,7 +3450,7 @@ int main(int argc, char **argv) {
     }
 #endif
     while (!WindowShouldClose()) {
-        mic_desktop_poll();        // open/close the mic to match the cart's mic_start()/mic_stop()
+        if (!micwav_active()) mic_desktop_poll();   // open/close the mic to match mic_start()/mic_stop() (skipped when a WAV is injected)
         loop_step();
         de_reveal_window_once();   // first frame presented — reveal (see the hide at InitWindow)
         if (screenshot_mode && ++screenshot_frames_done >= 3) break;

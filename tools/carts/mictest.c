@@ -13,7 +13,7 @@
   "lineage": "The first cart to HEAR — the Tier-1 proof for the audio-input frontier (docs/design/mic-and-sampling.md). Reads the engine's new mic_level()/mic_pitch() surface (runtime/mic.h) fed by the host's capture device.",
   "description": {
     "summary": "The engine can HEAR you. Enable the mic and it draws your loudness as a VU meter and your pitch as a musical note — the Tier-1 'mic as a controller' surface.",
-    "detail": "Proves the microphone-input seam end to end: mic_start() asks the host to open its capture device (popping the OS permission prompt the first time), then mic_level() (RMS loudness) drives a VU bar with peak-hold and mic_pitch() (a crude zero-crossing estimate) reads out as Hz + nearest note. Loudness is solid; pitch is honestly labelled as octave-noisy on a voice.",
+    "detail": "Proves the microphone-input seam end to end: mic_start() asks the host to open its capture device (popping the OS permission prompt the first time), then mic_level() (RMS loudness) drives a VU bar with peak-hold and mic_pitch() (a YIN detector) reads out as Hz + nearest note. Loudness is solid; pitch tracks a hummed voice cleanly and is octave-safe.",
     "controls": "CLICK or SPACE to enable/disable the microphone. Then hum, talk, or clap."
   }
 }

@@ -93,27 +93,14 @@ Detail: [`vocoder.md`](vocoder.md) §"the pedal tier" + [`sound-next-steps.md`](
   corrected to a scale, in the vocoder's robotic timbre; a RETUNE slider runs from instant-snap
   (hard robot) to a slow glide (natural). Reuses `vocoder`/`vocoder_mic` + humseq's scale-snap;
   live-only per ADR-0032. This is the *whole* cheap flavour — done.
-- *Transparent auto-tune (your natural voice, just corrected) — the big swing, UNBUILT.* Keeps your
-  real timbre and only nudges the pitch (the modern-pop vocal). What it entails — a genuine DSP spike,
-  not a cart afternoon:
-  1. **A new engine primitive: formant-preserving pitch-shift on the mic PCM.** The engine has none
-     (`varispeed` moves pitch + formant together → chipmunk). It reads the live `sound_extin` ring
-     (Increment-2 infra, already built) and writes shifted samples into the mix, allocation-free on
-     the audio thread.
-  2. **Algorithm — two families.** *(a) TD-PSOLA* (time-domain, pitch-synchronous overlap-add):
-     cheapest for a monophonic voice, needs pitch epochs (we have `mic_pitch`/YIN → glottal marks);
-     shift by re-spacing grains at the target period while keeping grain length so formants stay put.
-     *(b) Phase vocoder* (STFT + phase re-alignment + separate spectral-envelope re-apply): more
-     general, heavier, needs an FFT on the audio thread. PSOLA is the recommended first cut (voice is
-     monophonic + we already track pitch).
-  3. **Correction logic** on top: target = `snap_scale`; expose retune-speed + a correction *amount*
-     (partial vs full), like `hardtune`'s slider but shifting the real voice instead of a carrier.
-  4. **Latency + realtime budget** — the shifter runs every audio block; profile it (`profile-fleet`)
-     and keep it under the block deadline. A capture-then-freeze variant (correct a *recording*
-     offline) would sidestep the realtime + determinism issues and could be the safer first spike.
-  5. **Acceptance** — an A/B WAV oracle: feed a known off-pitch tone, assert the output lands on the
-     scale note (`tune-check`/`harmonic-spec` style) with the formant centroid unmoved (`wav-envelope`
-     spectral centroid, the trick that caught the sampler's crush no-op).
+- *Transparent auto-tune (your natural voice, just corrected) — the big swing, UNBUILT — now SPECED.*
+  Keeps your real timbre and only nudges the pitch (the modern-pop vocal). It needs the one primitive
+  the engine lacks — a **formant-preserving pitch-shift** (every shifter we have — `varispeed`, the
+  granular cloud, `octaveup` — moves formants *with* pitch → chipmunk). The plan is scoped in its own
+  doc: **[`transparent-autotune.md`](transparent-autotune.md)** — TD-PSOLA, built **offline /
+  capture-then-freeze FIRST** (deterministic, so a WAV oracle can *prove* the formants stay put), the
+  live audio-thread version a follow-on off the `sound_extin` ring. Next up is that offline spike (a
+  `mictune` cart + the primitive + the pitch-lands-on-scale-AND-centroid-unmoved gate).
   **NB:** [`voxroll`](../../tools/carts/voxroll.c) decouples formant from pitch too — but on the
   *synthesised* `INSTR_VOICE`, not a real recording, so it's the Melodyne-UX reference, not a shortcut.
   *Prereq: a formant-preserving pitch-shift primitive (new); the mic ring (done).*

@@ -66,7 +66,7 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > Hot files: `android/app/src/main/cpp/main.c` (the NativeActivity shell), `android/build.sh`,
 > `docs/design/android-plan.md`.
 
-> **▶ ACTIVE THREAD (2026-07-17) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
+> **▶ ACTIVE THREAD (2026-07-18) — the audio-input frontier (the engine HEARS *and SPEAKS*).**
 > The reddit-gaps drip kept surfacing the SAME blocked wishes (hum→MIDI, pedals, live looping) — all
 > one missing capability: the engine had no ear. Now it does, on every platform, and it vocodes. The
 > arc, spike → ship → instruments → vocoder:
@@ -90,19 +90,34 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   Stevie Wonder"). Determinism carve-out: [ADR-0032](decisions/0032-live-mic-effects-are-live-only.md)
 >   (live-mic-through = live-only; capture-then-freeze stays deterministic). All gates green; desktop +
 >   web live-verified by the maker.
-> **Resume-at: [`design/audio-input-frontier.md`](design/audio-input-frontier.md) — the ranked map (veins 2–3
-> shipped incl. robot auto-tune `hardtune`; NEXT = the pedal tier / TRANSPARENT auto-tune + [vocoder v2](design/vocoder.md)).**
-> Robot/T-Pain auto-tune is DONE (`hardtune`: a `vocoder_mic` carrier pitched from snapped `mic_pitch`). The
-> remaining swing is *transparent* auto-tune — formant-preserving PCM pitch-shift (TD-PSOLA first cut), a new
-> engine primitive on the `sound_extin` ring; the frontier doc §"auto-tune" has the 5-step entails. (`voxroll`
-> decouples formant/pitch but only on synth `INSTR_VOICE`, not a real-mic corrector.) The `sound_extin`
-> mic ring is the foundation for the whole **live-throughput / PEDAL tier** (fuzz, live granular,
-> looper) — the vocoder was just its first customer. Vocoder v2 open items: **sibilance** noise-substitution
-> band (unvoiced consonants don't carry through a tonal carrier — the biggest intelligibility win),
-> **mic-rate resample** (non-44.1k device mics drift the ring), **on-device latency tuning** (iOS/Android).
-> Hot files: `runtime/sound.h` (vocoder + extin ring), `runtime/mic.h` (analysis + record + ring write),
-> `runtime/studio.h`/`.c` (the seam), the per-host capture (`mic_desktop.h`, `ios/Sources/AudioEngine.swift`,
-> `android/…/main.c`). Reference carts: `vocode` (deterministic), `voxbox` (live).
+> - **VOCODER v2 — the unvoiced/sibilance band** (`e7d782fe`): `vocoder_unvoiced(amount)` — a source-agnostic
+>   detector (top-band energy fraction) swaps the top bands' excitation from the tonal carrier to band-limited
+>   noise, so consonants (s/t/sh/f) cut through instead of turning to mush. `vocode` A/Bs it deterministically
+>   (consonant windows: brightness ~0.03→0.2, centroid ~3.8→5.3 kHz, no peak rise); `voxbox` rides it live.
+> - **TRANSPARENT auto-tune — OFFLINE primitive SHIPPED + real-voice CONFIRMED** (`b5b26cf6`): `sample_autotune(slot,
+>   root, scale, amount)` — formant-preserving pitch correction (whole-buffer TD-PSOLA) on a
+>   recorded take, a game-thread sibling of `sample_read/load`. Proven in two offline spikes (v1 known-f0 formant
+>   hold, v2 detector-epoch correct-to-scale), byte-faithful cart-C→engine, gated by **`tools/formant-check.js`**
+>   (f0 + formant-peak oracle). Showcase = **`mictune`** (rebuilt as a clean app: sing → in-tune, R tunes your
+>   voice; the old test-bench version was "confusing"). Maker sang in → "sounds pretty good". *Done.*
+> - **LIVE real-time auto-tune — SPIKE BUILT + PARKED** (`d067f257` + phase-lock fix): `autotune_mic(root, scale,
+>   amount)` — streaming two-pointer TD-PSOLA on the audio thread off the `sound_extin` ring, monitored into the
+>   mix; cart **`livetune`**. Formants preserved + amplitude smooth (phase-lock epochs killed an initial "pulse"),
+>   but **audible pitch WARBLE remains**. Diagnosed against a real vocal via the new **`DE_MIC_WAV` harness**
+>   (`8c138015` — feed a WAV as the mic headlessly, `tools/testdata/vocal-8s.wav`): a fundamental-band jitter
+>   metric shows octave-continuity / retune-glide / hysteresis all MEASURE as no help → the warble is the streaming
+>   pitch/epoch **resolution**, needs a YIN-grade real-time tracker or the phase vocoder (a dedicated effort, not
+>   spike tweaks). See `design/transparent-autotune.md` §"live real-time path" for the full write-up.
+> **Resume-at: [`design/audio-input-frontier.md`](design/audio-input-frontier.md) — the ranked map.** Auto-tune
+> arc is COMPLETE for the offline feature; the LIVE path is feasible-and-parked (warble). Open frontier, ranked:
+> (1) the **pedal tier / live looper** (the `sound_extin` ring is the built foundation — the loudest unmet wish);
+> (2) **vocoder v2 tail** — mic-rate resample (non-44.1k device mics drift the ring) + on-device latency tuning;
+> (3) **beatbox→live drum trigger**; (4) **live-autotune warble** if revisited (real-time YIN / phase vocoder).
+> `voxroll` decouples formant/pitch but only on synth `INSTR_VOICE`, not a real-mic corrector.
+> Hot files: `runtime/sound.h` (vocoder + extin ring + `sample_autotune`/`autotune_mic`), `runtime/mic.h`
+> (analysis + record + ring write), `runtime/studio.h`/`.c` (the seam + `DE_MIC_WAV`), the per-host capture
+> (`mic_desktop.h`, `ios/Sources/AudioEngine.swift`, `android/…/main.c`). Reference carts: `vocode`/`voxbox`
+> (vocoder), `mictune` (offline auto-tune), `livetune` (live spike). Test harness: `DE_MIC_WAV=<wav>` + `tools/testdata/`.
 
 > **▶ ACTIVE THREAD (2026-07-15) — the candy acid RACK (`acidcandy`).**
 > `acidcandy` (160×100 ×4) packages `acidrack`'s guts as the **device-face paradigm** instead of the

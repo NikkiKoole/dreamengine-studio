@@ -243,10 +243,15 @@ static int cb_pcs(int *out) {
     bool seen[12] = { false };
     for (int i = 0; i < 3; i++)    seen[TRIAD[chType][i] % 12] = true;
     for (int m = 0; m < NMOD; m++) if (modOn[m]) seen[MODIV[m] % 12] = true;
-    switch (FLAVORS[flavor].colorMode) {             // the flavor's harmonic colour
-        case 1: seen[(chType==TY_MAJ)?11:10]=true; seen[2]=true; break;               // bossa: 7th + 9th
-        case 2: seen[9]=true; seen[2]=true; break;                                    // yacht: 6th + 9th (add6/9, mu)
-        case 3: seen[(chType==TY_MAJ)?11:10]=true; seen[2]=true; seen[9]=true; break; // citypop: 7 + 9 + 13(6), lush
+    // the flavor's harmonic COLOUR — but an explicit 7th (m7 / maj7) WINS, so you can
+    // play a true dominant V7 (maj + m7) or a m7b5 (dim + m7) inside a coloured flavor.
+    int cm = FLAVORS[flavor].colorMode;
+    if (cm) {
+        bool has7 = modOn[1] || modOn[2];            // did the player already pick a 7th?
+        if ((cm == 1 || cm == 3) && !has7)           // bossa/citypop default diatonic 7th
+            seen[(chType == TY_MAJ) ? 11 : 10] = true;
+        seen[2] = true;                              // the 9th (all coloured flavors)
+        if (cm == 2 || cm == 3) seen[9] = true;      // the 6th/13th (yacht 6/9 · citypop lush 13)
     }
     int n = 0;
     for (int p = 0; p < 12; p++) if (seen[p]) out[n++] = p;

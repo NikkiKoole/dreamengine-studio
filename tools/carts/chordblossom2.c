@@ -643,7 +643,7 @@ static void update_chord(void) {
         if (keyMode) groove = (groove + 1) % 3;                       // flavor: sparse / normal / busy GROOVE
         else { perfMode = (perfMode + 1) % NPERF; kPerform = (perfMode + 0.5f) / NPERF; }   // chromatic: perform mode
     }
-    if (tapp(100, 138, 100, 12)) retrig   = !retrig;                  // RETRIG toggle
+    if (tapp(100, 138, 100, 12)) { if (keyMode) { armed = false; note_off_all(); } else retrig = !retrig; }  // key: REST (hush) · chromatic: RETRIG
     if (tapp(206, 138, 58,  12)) { if (!keyMode) keyMode = 1; else keyRoot = (keyRoot + 1) % 12; }  // KEY chip
 
     // sonic-strings plate — every finger strums its own glissando
@@ -702,10 +702,11 @@ void update(void) {
     if (tapp(96,  1, 40, 12)) tab = TAB_CHORD;
     if (tapp(140, 1, 34, 12)) tab = TAB_MIX;
     if (tapp(178, 1, 50, 12)) tab = TAB_RHYTHM;
-    if (tapp(232, 1, 40, 12)) playing = !playing;
+    if (tapp(232, 1, 40, 12)) { playing = !playing; if (!playing) note_off_all(); }
     if (keyp(KEY_TAB))   tab = (tab + 1) % 3;
-    if (keyp(KEY_SPACE)) playing = !playing;
+    if (keyp(KEY_SPACE)) { playing = !playing; if (!playing) note_off_all(); }
     if (keyp('V'))       apply_flavor(flavor + 1);   // cycle the genre flavor (the fork)
+    if (keyp('R'))       { armed = false; note_off_all(); }   // REST — hush the chord (the groove keeps going)
 
     // 16th-note tick drives the drums, the arp/pattern, and the looper
     int sixteenth = beat() * 4 + (int)(beat_pos() * 4.0f);
@@ -723,7 +724,7 @@ void update(void) {
     }
 
     // arp / pattern run off the beat clock whenever a chord is armed
-    if (armed && newStep) {
+    if (playing && armed && newStep) {                    // gate on transport too, so STOP/REST silences the band
         if (FLAVORS[flavor].comp) {
             flavor_accomp(sixteenth);                     // data-driven comp + bass, phrase-aware (breathes)
         } else {
@@ -755,6 +756,8 @@ void update(void) {
 
 #ifdef DE_TRACE
     watch("flavor",  "%d", flavor);
+    watch("armed",   "%d", armed);
+    watch("play",    "%d", playing);
     watch("tempo",   "%d", tempo);
     watch("root",    "%d", root);
     watch("voicing", "%d", voicing);
@@ -902,9 +905,15 @@ static void drawChordTab(void) {
     rect(6, 138, 90, 12, CLR_MAUVE);
     static const char *GRV[3] = { "sparse", "normal", "busy" };
     print(keyMode ? GRV[groove] : PMNAME[perfMode], 10, 140, CLR_LIGHT_GREY);
-    rectfill(100, 138, 100, 12, retrig ? CLR_GREEN : CLR_DARKER_PURPLE);
-    rect(100, 138, 100, 12, retrig ? CLR_WHITE : CLR_MAUVE);
-    print(str("RETRIG %s", retrig ? "ON" : "OFF"), 104, 140, retrig ? CLR_BLACK : CLR_LIGHT_GREY);
+    if (keyMode) {
+        rectfill(100, 138, 100, 12, CLR_DARKER_PURPLE);
+        rect(100, 138, 100, 12, CLR_MAUVE);
+        print("REST (R)", 104, 140, CLR_LIGHT_GREY);         // hush the chord; the groove keeps going
+    } else {
+        rectfill(100, 138, 100, 12, retrig ? CLR_GREEN : CLR_DARKER_PURPLE);
+        rect(100, 138, 100, 12, retrig ? CLR_WHITE : CLR_MAUVE);
+        print(str("RETRIG %s", retrig ? "ON" : "OFF"), 104, 140, retrig ? CLR_BLACK : CLR_LIGHT_GREY);
+    }
     rectfill(206, 138, 58, 12, keyMode ? CLR_INDIGO : CLR_DARKER_PURPLE);
     rect(206, 138, 58, 12, keyMode ? CLR_WHITE : CLR_MAUVE);
     print(str("KEY %s", NOTE[keyRoot]), 210, 140, keyMode ? CLR_LIGHT_PEACH : CLR_LIGHT_GREY);

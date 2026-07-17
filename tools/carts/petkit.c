@@ -227,6 +227,19 @@ static void peteye(float cx,float cy,float ew,float eh,float esq,int color,float
   P o[12]; mkoval(o,px,py,rw,oh,12); fill_poly(o,12,0,0,sd,boil,color);
   if (e->glint && rw>2.5f) pset((int)(px-rw*0.35f),(int)(py-oh*0.35f),CLR_WHITE);
 }
+// simple MOUTH — same story as the eyes: a boiled curve (curve>0 smile / <0 frown),
+// or a filled boiled oval when OPEN (gasp/talk). Own width + own boil, absolute size.
+static void pet_mouth(float cx,float cy,float w,float curve,float open,int color,float boil){
+  unsigned sd=(unsigned)((int)cx*57 + (int)cy*13 + 9);
+  if (open>0.12f){                              // open mouth: a filled boiled oval
+    P o[14]; mkoval(o,cx,cy,w*0.5f,fmaxf(1.5f,w*0.5f*open),14); fill_poly(o,14,0,0,sd,boil,color);
+    return;
+  }
+  float amp=curve*w*0.30f, pxp=0,pyp=0;         // smile = middle drops, corners up
+  for(int i=0;i<=10;i++){ float u=(float)i/10*2-1;
+    float x=cx+u*w*0.5f+bo(sd,i,0x51,boil), y=cy + amp*(1-u*u) + bo(sd,i,0x52,boil);
+    if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,color); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,color);} pxp=x;pyp=y; }
+}
 static void pet_eyes(float cx,float cy,float gap,float ew,float eh,float esq,int color,float boil,Eye e){
   peteye(cx-gap,cy,ew,eh,esq,color,boil,&e);
   peteye(cx+gap,cy,ew,eh,esq,color,boil,&e);
@@ -253,7 +266,8 @@ static int gcol_i = 5;   // gradient far colour index into PAL (5 = TRUE_BLUE)
 // eye machine: emotion levers + identity dials (see peteyes). U flips the slider panel.
 static float se_open=0.8f, se_squint=0, se_pupil=0.5f, se_gx=0.5f, se_gy=0.5f,
              se_lid=0.5f, se_browy=0.5f, se_browa=0.5f,
-             se_gap=0.5f, se_ew=0.35f, se_eh=0.4f, se_esq=0.5f;  // pupil geometry (own merits)
+             se_gap=0.5f, se_ew=0.35f, se_eh=0.4f, se_esq=0.5f, se_eboil=0.4f;  // pupil geometry + OWN boil
+static float sm_w=0.5f, sm_curve=0.7f, sm_open=0.0f;   // mouth: width, curve(smile), open
 static int eyes_on=1, panel=0;   // panel: 0 = shape dials, 1 = eye dials
 static float blinkt=0;           // auto-blink timer (a smooth transition, not a snap)
 #define BLINK_DUR 0.16f
@@ -291,7 +305,7 @@ void draw(void){
 
   // ── tiny slider column — flip between SHAPE dials and EYE dials with U ──
   int sx=4, sw=52, sy=44, sp=10;
-  print(panel?"EYES  (U:shape)":"SHAPE (U:eyes)", sx, 34, CLR_MEDIUM_GREY);
+  print(panel?"FACE  (U:shape)":"SHAPE (U:face)", sx, 34, CLR_MEDIUM_GREY);
   if (!panel){
     ui_slider(&sl_w,     sx, sy+0*sp, sw, "W");
     ui_slider(&sl_h,     sx, sy+1*sp, sw, "H");
@@ -313,6 +327,10 @@ void draw(void){
     ui_slider(&se_squint, sx, sy+5*sp, sw, "HAPPY ARC");
     ui_slider(&se_gx,     sx, sy+6*sp, sw, "GAZE X");
     ui_slider(&se_gy,     sx, sy+7*sp, sw, "GAZE Y");
+    ui_slider(&se_eboil,  sx, sy+8*sp, sw, "EYE BOIL");
+    ui_slider(&sm_w,      sx, sy+9*sp, sw, "MOUTH W");
+    ui_slider(&sm_curve,  sx, sy+10*sp,sw, "MOUTH CURVE");
+    ui_slider(&sm_open,   sx, sy+11*sp,sw, "MOUTH OPEN");
   }
   // map sliders → hero (always, so both persist while the other panel shows)
   hero.w=6+sl_w*154; hero.h=6+sl_h*154; hero.squash=sl_sq*2-1;
@@ -355,9 +373,12 @@ void draw(void){
     float ehh = hero.h*0.5f*(1-0.8f*hero.squash);   // …half-height
     float gap = ehw*(0.15f + se_gap*0.55f);
     float cyv = hero.y - ehh*0.22f;
-    // …but SIZE stays absolute (doesn't grow with the head)
+    // …but SIZE stays absolute (doesn't grow with the head). Eyes keep their OWN boil.
     float eew = 2 + se_ew*16, eeh = 2 + se_eh*16, eesq = se_esq*2-1;
-    pet_eyes(hero.x, cyv, gap, eew, eeh, eesq, CLR_BLACK, hero.boil, e);
+    pet_eyes(hero.x, cyv, gap, eew, eeh, eesq, CLR_BLACK, se_eboil*2, e);
+    // mouth — position tracks the head, width absolute, its own boil
+    float mw = 6 + sm_w*40, myv = hero.y + ehh*0.35f;
+    pet_mouth(hero.x, myv, mw, sm_curve*2-1, sm_open, CLR_BLACK, se_eboil*2);
   }
 
   // ── readout ──

@@ -674,7 +674,7 @@ static void draw_303(int i) {
     if (use_bars) {
         // ④⑤ the 16 NOTE BARS — tap = note on/off · drag up/down = pitch (scale-snapped).
         // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
-        int by = 67, bh = 30;
+        int by = 67, bh = 27;   // ~3px shorter than the panel floor → a clean strip below for the loop-length handle
         for (int s = 0; s < STEPS; s++) {
             int bx = 6 + s * 9, bw = 8, dead = (s >= plen[i]);
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
@@ -727,20 +727,22 @@ static void draw_303(int i) {
             if (!dead && s == plen[i] - 1 && plen[i] < STEPS) rectfill(bx + bw, by, 1, bh, CLR_RED);  // loop end
             rrect(bx, by, bw, bh, 1, (here || (pscreen[i] != PS_FLAG && s == sel[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
         }
-        {   // LOOP-END handle — a length lane just above the bars; drag the ▼ marker (it rides the
-            // loop boundary) to set THIS line's loop LENGTH / polymeter. Was the FL_LEN flag.
-            // Fixed-rect widget (stable capture) so the marker can move under the finger.
-            int ly = 61;
-            void *wl = ui_wid_hash(0x2Au, 6, ly - 1, 144, 7); ui_reg(wl, 6, ly - 1, 144, 7, 0);
+        {   // LOOP-END handle — a little grab RECT in the strip just BELOW the cells, sitting at the
+            // loop boundary (the end of the length). Drag it to set THIS line's loop LENGTH /
+            // polymeter. Fixed-rect hit-lane (stable capture) so the rect can ride under the finger.
+            // Was the FL_LEN flag.
+            int ly = by + bh;                                                  // the clean strip below the bars
+            void *wl = ui_wid_hash(0x2Au, 6, ly, 144, 100 - ly); ui_reg(wl, 6, ly, 144, 100 - ly, 0);
             UiCap *lc = ui_cap_for(wl);
             if (lc) { g_drag_frame = ui_frame_ct; g_drag_y = lc->cy;
                 int fx = lc->released ? lc->rx : lc->cx, n = (fx - 6) / 9 + 1;
                 if (n < 1) n = 1; if (n > STEPS) n = STEPS; plen[i] = n;
             }
             int bxr = 6 + plen[i] * 9, th = (lc != 0);
-            line(6, ly + 3, 6 + STEPS * 9 - 1, ly + 3, CLR_DARKER_PURPLE);     // the full-length track
-            line(6, ly + 3, bxr - 1, ly + 3, CLR_MEDIUM_GREEN);                // active length
-            trifill(bxr - 3, ly, bxr + 3, ly, bxr, ly + 4, th ? CLR_WHITE : CLR_LIGHT_YELLOW);   // ▼ grab marker at the loop end
+            line(6, ly + 1, 6 + STEPS * 9 - 1, ly + 1, CLR_DARKER_PURPLE);     // full-length track (faint)
+            line(6, ly + 1, bxr - 1, ly + 1, CLR_MEDIUM_GREEN);                // active length
+            rrectfill(bxr - 5, ly, 9, 5, 1, th ? CLR_WHITE : CLR_LIGHT_YELLOW);  // the grab rect, at the loop end
+            rrect(bxr - 5, ly, 9, 5, 1, CLR_BROWNISH_BLACK);
         }
     } else {
         // ④ step row — tap toggles

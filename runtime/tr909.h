@@ -210,4 +210,22 @@ static void tr909_fire_stroke(int base, int v, int st, int boost, int delay, int
     }
 }
 
+// set voice v's stereo PAN (-1 L .. 0 centre .. +1 R) across all its output slots. Toms
+// (LT/MT/HT) share one slot → they pan as a GROUP (see tr808_pan). SEAM: independent tom
+// pan = splitting the bank.
+static void tr909_pan(int base, int v, float pan) {
+    switch (v) {
+    case TR9_BD: instrument_pan(base + TR9S_BD,  pan); instrument_pan(base + TR9S_BDC, pan); break;
+    case TR9_SD: instrument_pan(base + TR9S_SDB, pan); instrument_pan(base + TR9S_SDN, pan); break;
+    case TR9_LT: case TR9_MT: case TR9_HT:
+                 instrument_pan(base + TR9S_TOM, pan); instrument_pan(base + TR9S_TOMC, pan); break;
+    case TR9_RS: instrument_pan(base + TR9S_RS,  pan); break;
+    case TR9_CP: instrument_pan(base + TR9S_CP,  pan); break;
+    case TR9_CH: instrument_pan(base + TR9S_HHC, pan); break;
+    case TR9_OH: instrument_pan(base + TR9S_HHO, pan); break;
+    case TR9_CC: instrument_pan(base + TR9S_CC,  pan); instrument_pan(base + TR9S_CCN, pan); break;
+    case TR9_RC: instrument_pan(base + TR9S_RC,  pan); break;
+    }
+}
+
 #endif // TR909_H

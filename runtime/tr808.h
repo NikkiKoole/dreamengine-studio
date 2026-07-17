@@ -190,4 +190,27 @@ static void tr808_fire(int base, int v, int boost, int delay,
     #undef VV
 }
 
+// set voice v's stereo PAN (-1 L .. 0 centre .. +1 R) by panning EVERY output slot it
+// fires. Toms (LT/MT/HT) and congas (LC/MC/HC) each share one slot, so those voices pan
+// as a GROUP — hardware-honest (the real 808's tom/conga voice circuit is shared). SEAM:
+// independent tom/conga pan would need the 14-slot bank split into per-voice slots.
+static void tr808_pan(int base, int v, float pan) {
+    switch (v) {
+    case TR_BD:  instrument_pan(base + TRS_BD,  pan); break;
+    case TR_SD:  instrument_pan(base + TRS_SDB, pan); instrument_pan(base + TRS_SDN,  pan); break;
+    case TR_LT: case TR_MT: case TR_HT:
+                 instrument_pan(base + TRS_TOM, pan); instrument_pan(base + TRS_TOMN, pan); break;
+    case TR_LC: case TR_MC: case TR_HC:
+                 instrument_pan(base + TRS_CON, pan); break;
+    case TR_RS:  instrument_pan(base + TRS_RS,  pan); break;
+    case TR_CLV: instrument_pan(base + TRS_CLV, pan); break;
+    case TR_CP:  instrument_pan(base + TRS_CP,  pan); break;
+    case TR_MA:  instrument_pan(base + TRS_MAR, pan); break;
+    case TR_CB:  instrument_pan(base + TRS_CB,  pan); break;
+    case TR_CY:  instrument_pan(base + TRS_CYT, pan); break;
+    case TR_OH:  instrument_pan(base + TRS_HATO, pan); break;
+    case TR_CH:  instrument_pan(base + TRS_HATC, pan); break;
+    }
+}
+
 #endif // TR808_H

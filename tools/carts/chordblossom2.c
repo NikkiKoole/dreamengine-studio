@@ -75,6 +75,12 @@ static const char *TYNAME[4] = { "dim", "min", "MAJ", "sus4" };
 static const int   MODIV [NMOD] = { 9, 10, 11, 14 };        // 6th, m7, maj7, 9th
 static const char *MODNAME[NMOD] = { "6", "m7", "maj7", "9" };
 
+// diatonic KEY mode — the 7 white keys become the in-key chords (major-key harmony,
+// SHARED across flavors; the flavor's colour/voicing/rhythm is what makes them differ).
+static const int DEG_OFF [7] = { 0, 2, 4, 5, 7, 9, 11 };    // scale-degree semitone offsets
+static const int DEG_TYPE[7] = { TY_MAJ, TY_MIN, TY_MIN, TY_MAJ, TY_MAJ, TY_MIN, TY_DIM };
+static const int DEG_MOD [7] = { 2, 1, 1, 2, 1, 1, 1 };     // 7th: maj7(I,IV) · m7(ii,iii,V=dom,vi,vii=m7b5)
+
 // three synth engines, the Orchid's three models.
 #define NENG 6            // the curated MODEL shelf — both the PIANO and the HARP part pick one
 // NOTE: play through the SL_CHORD / SL_HARP *slots* (configured by applyEngine),
@@ -189,6 +195,8 @@ static int  transpose = 0;                // MIX "Key" knob, -12..+12 semis
 static bool armed    = false;             // a chord has been triggered at least once
 static int  flavor   = FL_NEUTRAL;        // the active genre flavor (the fork)
 static int  rootless = 0;                 // flavor: drop the root from the voiced chord
+static int  keyRoot  = 0;                 // KEY mode: the scale root (0..11)
+static int  keyMode  = 0;                 // KEY mode: white keys play the diatonic in-key chords
 
 // the built voiced chord (absolute MIDI notes, ascending)
 static int  voiced[12], nVoiced = 0;
@@ -362,6 +370,14 @@ static void cb_trigger(int newRoot, int newType) {
     cb_play();
 }
 
+// KEY mode: play the diatonic chord for white-key degree d (0..6) in the current key —
+// set the degree's type + its diatonic 7th, then fire. The flavor's colour adds the rest.
+static void play_degree(int d) {
+    for (int m = 0; m < NMOD; m++) modOn[m] = false;
+    modOn[DEG_MOD[d]] = true;
+    cb_trigger((keyRoot + DEG_OFF[d]) % 12, DEG_TYPE[d]);
+}
+
 // a chord PARAMETER changed (type / modifier / voicing / octave): always
 // re-voice the plate + arm the next hit SILENTLY. If RETRIG is on, also re-play
 // the chord now (the "hear every tweak" behaviour).
@@ -408,6 +424,7 @@ static void apply_flavor(int fl) {
     strumMs  = F->strumMs;
     loadPreset(F->drumPreset);
     if (F->autoRun) playing = true;
+    keyMode = (flavor != FL_NEUTRAL);   // flavors default to diatonic KEY mode; NEUTRAL stays chromatic
     cb_build();
 }
 
@@ -469,9 +486,28 @@ void init(void) {
 
 // ── input: the CHORD tab ────────────────────────────────────
 static void update_chord(void) {
-    // keybed roots (QWERTY) — set root, keep the current type
-    for (int i = 0; i < 7; i++) if (keyp(WROOT[i])) cb_trigger(WPC[i], chType);
+    // keybed roots (QWERTY) — in KEY mode a white key plays the diatonic chord of that
+    // degree; otherwise a chromatic root (keeping the current type). Black keys stay
+    // chromatic "off-road" roots either way.
+    for (int i = 0; i < 7; i++) if (keyp(WROOT[i])) { if (keyMode) play_degree(i); else cb_trigger(WPC[i], chType); }
     for (int i = 0; i < 5; i++) if (keyp(BROOT[i])) cb_trigger(BPC[i], chType);
+
+    // on-screen keybed taps (touch / mouse) — check black keys first so their zone wins
+    {
+        int ww = SCREEN_W / 7, ky = 156, kh = SCREEN_H - 156;
+        static const int BXk[5] = { 0, 1, 3, 4, 5 };
+        bool blackHit = false;
+        for (int b = 0; b < 5; b++) { int x = (BXk[b] + 1) * ww - ww / 4;
+            if (tapp(x, ky, ww / 2, kh * 3 / 5)) { cb_trigger(BPC[b], chType); blackHit = true; } }
+        if (!blackHit)
+            for (int i = 0; i < 7; i++)
+                if (tapp(i * ww, ky, ww - 1, kh)) { if (keyMode) play_degree(i); else cb_trigger(WPC[i], chType); }
+    }
+
+    // KEY mode: K toggles it; , / . shift the scale root
+    if (keyp('K'))  keyMode = !keyMode;
+    if (keyp(',')) keyRoot = (keyRoot + 11) % 12;
+    if (keyp('.')) keyRoot = (keyRoot + 1)  % 12;
 
     // MIDI keyboard — a note-on picks the chord ROOT (by pitch class) and fires
     // the current chord, exactly like tapping the keybed (the Orchid plays a
@@ -522,6 +558,7 @@ static void update_chord(void) {
     if (tapp(242, 15, 72, 13)) { harpModel = (harpModel + 1) % NENG; }
     if (tapp(6,   138, 90,  12)) { perfMode = (perfMode + 1) % NPERF; kPerform = (perfMode + 0.5f) / NPERF; }  // cycle perform mode (keep the MIX PERFORM knob in sync so it doesn't reset on tab-in)
     if (tapp(100, 138, 100, 12)) retrig   = !retrig;                  // RETRIG toggle
+    if (tapp(206, 138, 58,  12)) { if (!keyMode) keyMode = 1; else keyRoot = (keyRoot + 1) % 12; }  // KEY chip
 
     // sonic-strings plate — every finger strums its own glissando
     for (int i = 0; i < touch_count(); i++) {
@@ -677,7 +714,13 @@ static void drawKeybed(void) {
         bool sel = (root == WPC[i]);
         rectfill(x, y, ww - 1, h - 1, sel ? CLR_ORANGE : CLR_WHITE);
         rect(x, y, ww - 1, h - 1, CLR_DARK_GREY);
-        print(str("%c", WROOT[i]), x + ww / 2 - 3, y + h - 9, sel ? CLR_WHITE : CLR_MEDIUM_GREY);
+        if (keyMode) {                                   // show the diatonic chord name per key
+            int rp = (keyRoot + DEG_OFF[i]) % 12;
+            const char *q = (i == 0 || i == 3) ? "maj7" : (i == 4) ? "7" : (i == 6) ? "m7b5" : "m7";
+            const char *l = str("%s%s", NOTE[rp], q);
+            font(FONT_SMALL); print(l, x + (ww - text_width(l)) / 2, y + h - 9, CLR_DARK_GREY); font(FONT_NORMAL);
+        } else
+            print(str("%c", WROOT[i]), x + ww / 2 - 3, y + h - 9, sel ? CLR_WHITE : CLR_MEDIUM_GREY);
     }
     static const int BX[5] = { 0, 1, 3, 4, 5 };          // black keys sit right of white 0,1,3,4,5
     for (int b = 0; b < 5; b++) {
@@ -751,7 +794,10 @@ static void drawChordTab(void) {
     rectfill(100, 138, 100, 12, retrig ? CLR_GREEN : CLR_DARKER_PURPLE);
     rect(100, 138, 100, 12, retrig ? CLR_WHITE : CLR_MAUVE);
     print(str("RETRIG %s", retrig ? "ON" : "OFF"), 104, 140, retrig ? CLR_BLACK : CLR_LIGHT_GREY);
-    print(str("OCT %+d  Z/X", octave), 208, 140, CLR_DARK_GREY);
+    rectfill(206, 138, 58, 12, keyMode ? CLR_INDIGO : CLR_DARKER_PURPLE);
+    rect(206, 138, 58, 12, keyMode ? CLR_WHITE : CLR_MAUVE);
+    print(str("KEY %s", NOTE[keyRoot]), 210, 140, keyMode ? CLR_LIGHT_PEACH : CLR_LIGHT_GREY);
+    print(str("OCT%+d", octave), 268, 140, CLR_DARK_GREY);
     drawKeybed();
 }
 

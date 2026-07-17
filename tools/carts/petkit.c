@@ -197,6 +197,43 @@ static void shape_draw(const Shape *s){
 }
 
 // ── colour cycle (candy palette + "none" for the edge) ───────────────────────
+// ── EYES (the peteyes emotion machine) — a shape composes into a face ──────────
+typedef struct { float open, squint, pupil, gx, gy, lid, browY, browA; int glint; } Eye;
+static void equad(float ax,float ay,float bx,float by,float cx,float cy,float dx,float dy,int col){
+  trifill((int)ax,(int)ay,(int)bx,(int)by,(int)cx,(int)cy,col);
+  trifill((int)ax,(int)ay,(int)cx,(int)cy,(int)dx,(int)dy,col);
+}
+static void peteye(float cx,float cy,float ew,float eh,int innerdir,int sclera,int lidc,const Eye*e){
+  float top=cy-eh, bot=cy+eh, inX=cx+innerdir*ew, outX=cx-innerdir*ew;
+  if (e->squint>0.55f && e->open<0.7f){                 // happy ∩ laughing arc
+    float aH=eh*0.95f*e->squint, pxp=0,pyp=0;
+    for(int i=0;i<=10;i++){ float u=(float)i/10*2-1, x=cx+u*ew, y=cy-aH*(1-u*u)+eh*0.35f;
+      if(i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,CLR_BLACK); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,CLR_BLACK);} pxp=x;pyp=y; }
+  } else {
+    ovalfill((int)cx,(int)cy,(int)fmaxf(1,ew),(int)fmaxf(1,eh),sclera);
+    oval((int)cx,(int)cy,(int)fmaxf(1,ew),(int)fmaxf(1,eh),CLR_BLACK);
+    float px=cx+e->gx*ew*0.45f, py=cy+e->gy*eh*0.45f, pr=fminf(ew,eh)*(0.3f+e->pupil*0.5f);
+    circfill((int)px,(int)py,(int)fmaxf(1,pr),CLR_BLACK);
+    if(e->glint) pset((int)(px-pr*0.4f),(int)(py-pr*0.4f),CLR_WHITE);
+    float baseY=top+(1.0f-e->open)*2.0f*eh, tilt=e->lid*eh*0.8f;
+    equad(inX,top-4,outX,top-4,outX,baseY-tilt,inX,baseY+tilt,lidc);
+    line((int)inX,(int)(baseY+tilt),(int)outX,(int)(baseY-tilt),CLR_BLACK);
+    float bY=bot - e->squint*1.4f*eh;
+    equad(cx-ew,bot+4,cx+ew,bot+4,cx+ew,bY,cx-ew,bY,lidc);
+    if(e->squint>0.05f) line((int)(cx-ew),(int)bY,(int)(cx+ew),(int)bY,CLR_BLACK);
+  }
+  if (eh>2.2f){
+    float by0=top-2 - e->browY*3, ba=e->browA*eh*0.6f;
+    float bix=cx+innerdir*ew*1.05f, box=cx-innerdir*ew*1.05f;
+    line((int)bix,(int)(by0+ba),(int)box,(int)(by0-ba*0.7f),CLR_BLACK);
+    line((int)bix,(int)(by0+ba)+1,(int)box,(int)(by0-ba*0.7f)+1,CLR_BLACK);
+  }
+}
+static void pet_eyes(float cx,float cy,float gap,float ew,float eh,int sclera,int lidc,Eye e){
+  peteye(cx-gap,cy,ew,eh,+1,sclera,lidc,&e);
+  peteye(cx+gap,cy,ew,eh,-1,sclera,lidc,&e);
+}
+
 static const int PAL[] = { CLR_LIME_GREEN, CLR_YELLOW, CLR_ORANGE, CLR_PINK, CLR_RED,
   CLR_TRUE_BLUE, CLR_MAUVE, CLR_INDIGO, CLR_WHITE, CLR_LIGHT_GREY, CLR_DARK_PURPLE };
 #define NPAL ((int)(sizeof(PAL)/sizeof(PAL[0])))
@@ -215,6 +252,10 @@ static float sl_w=0.42f, sl_h=0.42f, sl_sq=0.5f, sl_boil=0.25f,
              sl_bevel=0.35f, sl_thick=0.25f, sl_round=0.4f, sl_dith=0.0f,
              sl_gang=0.0f, sl_goff=0.5f, sl_gband=1.0f;
 static int gcol_i = 5;   // gradient far colour index into PAL (5 = TRUE_BLUE)
+// eye machine: emotion levers + identity dials (see peteyes). U flips the slider panel.
+static float se_open=0.8f, se_squint=0, se_pupil=0.5f, se_gx=0.5f, se_gy=0.5f,
+             se_lid=0.5f, se_browy=0.5f, se_browa=0.5f, se_gap=0.42f, se_ew=0.5f, se_eh=0.5f;
+static int eyes_on=1, panel=0;   // panel: 0 = shape dials, 1 = eye dials
 
 // boil ticking — advances the wobble frame on a beat (the "boil on the BPM" feel)
 static float clk = 0;
@@ -233,6 +274,8 @@ void update(void){
   if (keyp('G')) { hero.grad = !hero.grad; }
   if (keyp('V')) { gcol_i=(gcol_i+1)%NPAL; hero.gcol=PAL[gcol_i]; }
   if (keyp(KEY_SPACE)) boil_on=!boil_on;
+  if (keyp('Y')) eyes_on=!eyes_on;      // show/hide the eyes
+  if (keyp('U')) panel=!panel;          // flip slider column: shape <-> eyes
   float d=dt();
   if (key(',')) hero.rot -= 90*d;
   if (key('.')) hero.rot += 90*d;
@@ -242,20 +285,35 @@ void draw(void){
   cls(CLR_DARKER_BLUE);
   ui_begin();
 
-  // ── tiny slider column (the continuous look dials — all procedural, all hookable) ──
+  // ── tiny slider column — flip between SHAPE dials and EYE dials with U ──
   int sx=4, sw=52, sy=44, sp=10;
-  ui_slider(&sl_w,     sx, sy+0*sp, sw, "W");
-  ui_slider(&sl_h,     sx, sy+1*sp, sw, "H");
-  ui_slider(&sl_sq,    sx, sy+2*sp, sw, "SQUASH");
-  ui_slider(&sl_boil,  sx, sy+3*sp, sw, "BOIL");
-  ui_slider(&sl_bevel, sx, sy+4*sp, sw, "BEVEL");
-  ui_slider(&sl_thick, sx, sy+5*sp, sw, "THICK");
-  ui_slider(&sl_round, sx, sy+6*sp, sw, "ROUND");
-  ui_slider(&sl_dith,  sx, sy+7*sp, sw, "DITHER");
-  ui_slider(&sl_gang,  sx, sy+8*sp, sw, "G.ANGLE");
-  ui_slider(&sl_goff,  sx, sy+9*sp, sw, "G.OFFSET");
-  ui_slider(&sl_gband, sx, sy+10*sp,sw, "G.BAND");
-  // map sliders → hero
+  print(panel?"EYES  (U:shape)":"SHAPE (U:eyes)", sx, 34, CLR_MEDIUM_GREY);
+  if (!panel){
+    ui_slider(&sl_w,     sx, sy+0*sp, sw, "W");
+    ui_slider(&sl_h,     sx, sy+1*sp, sw, "H");
+    ui_slider(&sl_sq,    sx, sy+2*sp, sw, "SQUASH");
+    ui_slider(&sl_boil,  sx, sy+3*sp, sw, "BOIL");
+    ui_slider(&sl_bevel, sx, sy+4*sp, sw, "BEVEL");
+    ui_slider(&sl_thick, sx, sy+5*sp, sw, "THICK");
+    ui_slider(&sl_round, sx, sy+6*sp, sw, "ROUND");
+    ui_slider(&sl_dith,  sx, sy+7*sp, sw, "DITHER");
+    ui_slider(&sl_gang,  sx, sy+8*sp, sw, "G.ANGLE");
+    ui_slider(&sl_goff,  sx, sy+9*sp, sw, "G.OFFSET");
+    ui_slider(&sl_gband, sx, sy+10*sp,sw, "G.BAND");
+  } else {
+    ui_slider(&se_open,   sx, sy+0*sp, sw, "OPEN");
+    ui_slider(&se_squint, sx, sy+1*sp, sw, "SQUINT");
+    ui_slider(&se_pupil,  sx, sy+2*sp, sw, "PUPIL");
+    ui_slider(&se_gx,     sx, sy+3*sp, sw, "GAZE X");
+    ui_slider(&se_gy,     sx, sy+4*sp, sw, "GAZE Y");
+    ui_slider(&se_lid,    sx, sy+5*sp, sw, "LID TILT");
+    ui_slider(&se_browy,  sx, sy+6*sp, sw, "BROW Y");
+    ui_slider(&se_browa,  sx, sy+7*sp, sw, "BROW ANG");
+    ui_slider(&se_gap,    sx, sy+8*sp, sw, "SPACING");
+    ui_slider(&se_ew,     sx, sy+9*sp, sw, "EYE W");
+    ui_slider(&se_eh,     sx, sy+10*sp,sw, "EYE H");
+  }
+  // map sliders → hero (always, so both persist while the other panel shows)
   hero.w=6+sl_w*154; hero.h=6+sl_h*154; hero.squash=sl_sq*2-1;
   hero.boil=sl_boil*4; hero.bevel=sl_bevel*4; hero.ew=sl_thick*8;
   hero.round=sl_round; hero.dither=(int)(sl_dith*(NPAT-0.001f));
@@ -284,6 +342,17 @@ void draw(void){
     circfill(ax,ay,2,hero.fill); circfill(bx,by,2,hero.gcol); circ(bx,by,2,CLR_WHITE);
   }
 
+  // ── eyes on the hero — the shape becomes a face (lids painted in the body colour,
+  //     eye size/spacing scaled to the shape so it stays a character at any size) ──
+  if (eyes_on){
+    Eye e = { se_open, se_squint, se_pupil, se_gx*2-1, se_gy*2-1,
+              se_lid*2-1, se_browy, se_browa*2-1, 1 };
+    float gap = hero.w*(0.10f+se_gap*0.32f);
+    float eew = fmaxf(2, hero.w*(0.05f+se_ew*0.16f));
+    float eeh = fmaxf(2, hero.h*(0.05f+se_eh*0.16f));
+    pet_eyes(hero.x, hero.y - hero.h*0.14f, gap, eew, eeh, CLR_WHITE, hero.fill, e);
+  }
+
   // ── readout ──
   char buf[64];
   snprintf(buf,sizeof buf,"kind %-6s  w %3d  h %3d  sides %d  rot %3d",
@@ -295,7 +364,7 @@ void draw(void){
   // near/far colour swatches for the gradient
   print("grad",250,168,hero.grad?CLR_WHITE:CLR_DARK_GREY);
   rectfill(272,168,7,7,hero.fill); rectfill(281,168,7,7,hero.gcol);
-  print("keys: 1-5 kind  [] sides  ,. rot  C near  E edge  G grad  V far  (gradient = sliders)",6,190,CLR_DARK_GREY);
+  print("keys: 1-5 kind  [] sides  ,. rot  C fill  E edge  G grad  V far  Y eyes  U panel",6,190,CLR_DARK_GREY);
 
   ui_end();
 }

@@ -739,10 +739,9 @@ static void draw_303(int i) {
                 if (n < 1) n = 1; if (n > STEPS) n = STEPS; plen[i] = n;
             }
             int bxr = 6 + plen[i] * 9, th = (lc != 0);
-            line(6, ly + 1, 6 + STEPS * 9 - 1, ly + 1, CLR_DARKER_PURPLE);     // full-length track (faint)
-            line(6, ly + 1, bxr - 1, ly + 1, CLR_MEDIUM_GREEN);                // active length
-            rrectfill(bxr - 5, ly, 9, 5, 1, th ? CLR_WHITE : CLR_LIGHT_YELLOW);  // the grab rect, at the loop end
-            rrect(bxr - 5, ly, 9, 5, 1, CLR_BROWNISH_BLACK);
+            line(6, ly + 1, bxr - 2, ly + 1, CLR_MEDIUM_GREEN);                // active-length track, into the handle
+            rrectfill(bxr - 2, ly, 4, 4, 1, th ? CLR_WHITE : CLR_LIGHT_YELLOW);  // tiny grab rect — flush at the last active cell's bottom-right, at the loop end
+            rrect(bxr - 2, ly, 4, 4, 1, CLR_BROWNISH_BLACK);
         }
     } else {
         // ④ step row — tap toggles

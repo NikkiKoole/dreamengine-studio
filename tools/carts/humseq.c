@@ -20,6 +20,7 @@ de:meta */
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "ui.h"
 
 // HUM SEQUENCER — hum->MIDI, the capture-then-freeze sibling of humtheremin.
 // Pitch front-end (hz->MIDI, pentatonic snap, octave-glitch guard) is lifted from humtheremin;
@@ -40,6 +41,7 @@ de:meta */
 #define CONFIRM   3                // frames a new pitch must hold before it becomes a new note
 #define GAP       6                // unvoiced frames we ride through (breaths) before ending a note
 #define MAXNOTES  96
+#define BAR_H     20               // top control-bar height (the buttons live here)
 
 enum { ST_OFF, ST_WAIT, ST_REC, ST_PLAY };
 
@@ -96,7 +98,7 @@ static float snap_scale(float midi) {                 // nearest note whose pitc
 static int pitch_y(float midi) {
     float f = (midi - MIDI_LO) / (MIDI_HI - MIDI_LO);
     if (f < 0) f = 0; if (f > 1) f = 1;
-    return (int)((1.0f - f) * (SCREEN_H - 22)) + 12;   // high pitch = high on screen
+    return BAR_H + 2 + (int)((1.0f - f) * (SCREEN_H - BAR_H - 12));   // high pitch = high on screen
 }
 static int frame_x(int f) { return f * SCREEN_W / CAP; }
 
@@ -175,29 +177,31 @@ static void start_record(void) {
     state = ST_REC;
 }
 
+static int pending_rec = 0;                        // waiting on mic permission, then auto-record
+static void rec_pressed(void) {                    // the single REC button's action
+    if (state == ST_REC) return;
+    if (!mic_active()) { mic_start(); pending_rec = 1; if (state == ST_OFF) state = ST_WAIT; }
+    else start_record();
+}
+static void requantize(void) { if (state == ST_PLAY) { build_notes(); kill_voice(); } }
+
 void init(void) {
     bpm(120);                                  // a tempo for the grid + a future portapop handoff
     for (int i = 0; i < CAP; i++) cap_raw[i] = -1.0f;
 }
 
 void update(void) {
-    // instrument cycle (any state)
+    // keyboard shortcuts (the on-screen buttons in draw() are the primary controls)
+    if (keyp(KEY_SPACE)) rec_pressed();
+    if (keyp('R') && state == ST_PLAY) start_record();
     if (keyp('[')) instr_i = (instr_i + 4) % 5;
     if (keyp(']')) instr_i = (instr_i + 1) % 5;
-
-    if (keyp(KEY_SPACE) || mouse_pressed(MOUSE_LEFT)) {
-        if      (state == ST_OFF)  { mic_start(); state = ST_WAIT; }
-        else if (state == ST_WAIT) { if (mic_active()) start_record(); }
-        else if (state == ST_PLAY) { start_record(); }
-        // during REC, SPACE is ignored (the window runs its full length)
-    }
-    if (keyp('R') && state == ST_PLAY) start_record();
-
-    // TAB (timing) and S (scale) both re-quantize the SAME capture — no re-record
     int requant = 0;
     if (keyp(KEY_TAB) && (state == ST_PLAY || state == ST_REC)) { grid = !grid; requant = 1; }
     if (keyp('S')     && (state == ST_PLAY || state == ST_REC)) { scale_i = (scale_i + 1) % NSCALES; requant = 1; }
-    if (requant && state == ST_PLAY) { build_notes(); kill_voice(); }
+    if (requant) requantize();
+
+    if (pending_rec && mic_active()) { pending_rec = 0; start_record(); }
 
     if (state == ST_REC) {
         float lvl = mic_level(), hz = mic_pitch();
@@ -237,7 +241,7 @@ static void draw_roll_bg(void) {
     // vertical grid steps (GRID mode)
     if (grid) for (int s = 0; s <= STEPS; s++) {
         int x = s * SCREEN_W / STEPS;
-        for (int y = 12; y < SCREEN_H - 10; y += 5) pset(x, y, CLR_DARK_BLUE);
+        for (int y = BAR_H + 2; y < SCREEN_H - 8; y += 5) pset(x, y, CLR_DARK_BLUE);
     }
 }
 
@@ -252,63 +256,63 @@ static void draw_contour_ghost(int upto) {         // the raw hum as a faint rib
     }
 }
 
+// the top control bar — tappable SCALE / TIMING / VOICE (left) + REC (right). SCALE and TIMING
+// re-quantize the same capture live; VOICE just re-voices playback.
+static void draw_bar(void) {
+    if (ui_button(4,   2, 52, 15, SCALES[scale_i].name))   { scale_i = (scale_i + 1) % NSCALES; requantize(); }
+    if (ui_button(58,  2, 44, 15, grid ? "GRID" : "FREE")) { grid = !grid; requantize(); }
+    if (ui_button(104, 2, 56, 15, INAMES[instr_i]))        { instr_i = (instr_i + 1) % 5; }
+
+    int bx = SCREEN_W - 64, by = 2, bw = 60, bh = 15;
+    if (state == ST_REC) {                                 // a progress bar in the REC button's place
+        rect(bx, by, bw, bh, CLR_RED);
+        rectfill(bx + 1, by + 1, (int)(mic_record_progress() * (bw - 2)), bh - 2, CLR_RED);
+        print("REC", bx + bw / 2 - 12, by + 5, CLR_WHITE);
+    } else if (ui_button(bx, by, bw, bh, mic_active() ? "\x07 REC" : "ENABLE")) {
+        rec_pressed();
+    }
+}
+
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();
+    draw_bar();
 
     if (state == ST_OFF) {
-        font(FONT_COMIC); print("hum sequencer", SCREEN_W/2 - 74, SCREEN_H/2 - 34, CLR_ORANGE); font(FONT_NORMAL);
-        print("hum a melody, hear it play back", SCREEN_W/2 - 92, SCREEN_H/2, CLR_INDIGO);
-        print("SPACE / click to enable the mic", SCREEN_W/2 - 96, SCREEN_H/2 + 16, CLR_MEDIUM_GREY);
-        return;
+        font(FONT_COMIC); print("hum sequencer", SCREEN_W/2 - 74, SCREEN_H/2 - 20, CLR_ORANGE); font(FONT_NORMAL);
+        print("hum a melody, hear it play back", SCREEN_W/2 - 92, SCREEN_H/2 + 6, CLR_INDIGO);
+        print("tap ENABLE, then REC, then hum", SCREEN_W/2 - 92, SCREEN_H/2 + 22, CLR_MEDIUM_GREY);
+        ui_end(); return;
     }
 
     draw_roll_bg();
 
     if (state == ST_WAIT) {
         draw_contour_ghost(CAP);
-        print("HUM SEQUENCER", 6, 4, CLR_ORANGE);
-        font(FONT_COMIC); print("SPACE to record", SCREEN_W/2 - 78, SCREEN_H/2 - 8, CLR_WHITE); font(FONT_NORMAL);
-        print("a 4-second window — then hum a short melody", SCREEN_W/2 - 132, SCREEN_H/2 + 12, CLR_MEDIUM_GREY);
-        return;
+        font(FONT_COMIC); print("tap REC + hum", SCREEN_W/2 - 66, SCREEN_H/2 - 8, CLR_WHITE); font(FONT_NORMAL);
+        print("a 4-second window", SCREEN_W/2 - 52, SCREEN_H/2 + 12, CLR_MEDIUM_GREY);
+        ui_end(); return;
     }
 
     if (state == ST_REC) {
         draw_contour_ghost(cap_pos);
-        // live head + current pitch orb
         int hx = frame_x(cap_pos);
-        line(hx, 12, hx, SCREEN_H - 10, CLR_RED);
-        if (cap_pos > 0 && cap_raw[cap_pos - 1] >= 0) {
-            int oy = pitch_y(cap_raw[cap_pos - 1]);
-            circfill(hx, oy, 3, CLR_WHITE);
-        }
-        // REC badge + progress
-        circfill(12, 8, 3, CLR_RED);
-        print("REC", 20, 4, CLR_RED);
-        int secs_left = (CAP - cap_pos + FPS - 1) / FPS;
-        char b[16]; snprintf(b, sizeof b, "%ds", secs_left);
-        print(b, SCREEN_W - 24, 4, CLR_LIGHT_GREY);
-        rectfill(0, SCREEN_H - 4, frame_x(cap_pos), SCREEN_H - 1, CLR_RED);
-        return;
+        line(hx, BAR_H + 2, hx, SCREEN_H - 8, CLR_RED);
+        if (cap_pos > 0 && cap_raw[cap_pos - 1] >= 0) circfill(hx, pitch_y(cap_raw[cap_pos - 1]), 3, CLR_WHITE);
+        print("hum a melody...", 6, SCREEN_H - 12, CLR_RED);
+        ui_end(); return;
     }
 
     // ST_PLAY — the frozen note track, looping
     draw_contour_ghost(CAP);
     for (int i = 0; i < n_notes; i++) {
-        int x0 = frame_x(notes[i].start);
-        int x1 = frame_x(notes[i].start + notes[i].len);
-        int y  = pitch_y((float)notes[i].midi);
-        int on = (i == cur_note);
-        rectfill(x0, y - 2, x1 - 1, y + 2, on ? CLR_WHITE : CLR_ORANGE);
-        rect(x0, y - 2, x1 - 1, y + 2, on ? CLR_YELLOW : CLR_DARK_GREY);
+        int x0 = frame_x(notes[i].start), x1 = frame_x(notes[i].start + notes[i].len);
+        int y = pitch_y((float)notes[i].midi), on = (i == cur_note), w = x1 - x0;
+        if (w < 1) w = 1;
+        rectfill(x0, y - 2, w, 5, on ? CLR_WHITE : CLR_ORANGE);
+        rect(x0, y - 2, w, 5, on ? CLR_YELLOW : CLR_DARK_GREY);
     }
-    // playhead
-    int px = frame_x(ph);
-    line(px, 12, px, SCREEN_H - 10, CLR_GREEN);
-
-    // HUD — top: title · scale · timing · voice
-    print("HUM SEQUENCER", 6, 4, CLR_ORANGE);
-    char tb[40]; snprintf(tb, sizeof tb, "%s  %s  %s", SCALES[scale_i].name, grid ? "GRID" : "FREE", INAMES[instr_i]);
-    print(tb, SCREEN_W - (int)(strlen(tb) * 8) - 6, 4, CLR_LIGHT_GREY);
-    if (n_notes == 0) print("no clear pitch caught — R to try again", 6, SCREEN_H - 12, CLR_MEDIUM_GREY);
-    else              print("R rec  S scale  TAB timing  [ ] voice", 6, SCREEN_H - 12, CLR_MEDIUM_GREY);
+    line(frame_x(ph), BAR_H + 2, frame_x(ph), SCREEN_H - 8, CLR_GREEN);
+    if (n_notes == 0) print("no clear pitch — tap REC and hum again", 6, SCREEN_H - 12, CLR_MEDIUM_GREY);
+    ui_end();
 }

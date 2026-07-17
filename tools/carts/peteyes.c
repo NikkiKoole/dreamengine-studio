@@ -42,45 +42,46 @@ static void quad(float ax,float ay,float bx,float by,float cx,float cy,float dx,
   trifill((int)ax,(int)ay,(int)cx,(int)cy,(int)dx,(int)dy,col);
 }
 
-// draw ONE eye. innerdir = +1 if the nose is to the RIGHT (left eye), -1 if to the left.
-static void draw_eye(float cx, float cy, float er, int innerdir, const Eye *e){
-  float top=cy-er, bot=cy+er;
-  float inX=cx+innerdir*er, outX=cx-innerdir*er;   // inner/outer corners
+// draw ONE eye at half-width ew, half-height eh (so the eye can be tall/wide/beady/big
+// — IDENTITY, separate from the emotion levers). innerdir = +1 if the nose is to the RIGHT.
+static void draw_eye(float cx, float cy, float ew, float eh, int innerdir, const Eye *e){
+  float top=cy-eh, bot=cy+eh;
+  float inX=cx+innerdir*ew, outX=cx-innerdir*ew;   // inner/outer corners
 
   // HAPPY closed eye: a thick ∩ arc (peak up, ends down) — reads as laughing, unlike
   // a flat squint-slit which reads sleepy. Triggered by a high squint + low openness.
   int happy = (e->squint>0.55f && e->open<0.7f);
   if (happy){
-    float aH=er*0.95f*e->squint;
+    float aH=eh*0.95f*e->squint;
     float pxp=0,pyp=0;
-    for (int i=0;i<=12;i++){ float u=(float)i/12*2-1; float x=cx+u*er, y=cy - aH*(1-u*u) + er*0.35f;
+    for (int i=0;i<=12;i++){ float u=(float)i/12*2-1; float x=cx+u*ew, y=cy - aH*(1-u*u) + eh*0.35f;
       if (i>0){ line((int)pxp,(int)pyp,(int)x,(int)y,INK); line((int)pxp,(int)pyp+1,(int)x,(int)y+1,INK); }
       pxp=x; pyp=y; }
   } else {
     // sclera + a soft outline
-    ovalfill((int)cx,(int)cy,(int)er,(int)er,CLR_WHITE);
-    circ((int)cx,(int)cy,(int)er,INK);
+    ovalfill((int)cx,(int)cy,(int)ew,(int)eh,CLR_WHITE);
+    oval((int)cx,(int)cy,(int)ew,(int)eh,INK);
     // pupil (drawn UNDER the lids, so a blink/squint covers it)
-    float px=cx+e->gx*er*0.45f, py=cy+e->gy*er*0.45f, pr=er*(0.22f+e->pupil*0.4f);
+    float px=cx+e->gx*ew*0.45f, py=cy+e->gy*eh*0.45f, pr=fminf(ew,eh)*(0.28f+e->pupil*0.5f);
     circfill((int)px,(int)py,(int)fmaxf(1,pr),INK);
     if (e->glint) circfill((int)(px-pr*0.35f),(int)(py-pr*0.35f),(int)fmaxf(1,pr*0.3f),CLR_WHITE);
     // TOP lid — covers from above down to a tilted line (open + lid tilt). Painted in
     // FACE colour so anything past the eye just repaints the head (no clipping needed).
-    float baseY=top + (1.0f-e->open)*2.0f*er;
-    float tilt=e->lid*er*0.8f;                        // + = inner lower = angry
+    float baseY=top + (1.0f-e->open)*2.0f*eh;
+    float tilt=e->lid*eh*0.8f;                        // + = inner lower = angry
     float inY=baseY+tilt, outY=baseY-tilt;
     quad(inX,top-6, outX,top-6, outX,outY, inX,inY, FACE);
     line((int)inX,(int)inY,(int)outX,(int)outY,INK);  // lid crease
     // BOTTOM lid — straight raise on squint (skeptical / half-lidded)
-    float bY=bot - e->squint*1.4f*er;
-    quad(cx-er,bot+6, cx+er,bot+6, cx+er,bY, cx-er,bY, FACE);
-    if (e->squint>0.05f) line((int)(cx-er),(int)bY,(int)(cx+er),(int)bY,INK);
+    float bY=bot - e->squint*1.4f*eh;
+    quad(cx-ew,bot+6, cx+ew,bot+6, cx+ew,bY, cx-ew,bY, FACE);
+    if (e->squint>0.05f) line((int)(cx-ew),(int)bY,(int)(cx+ew),(int)bY,INK);
   }
 
   // BROW — raise (browY) + angle (browA), mirrored so "inner" is consistent
   float by0=top-4 - e->browY*5;
-  float ba=e->browA*er*0.6f;                         // + = inner down = angry
-  float bix=cx+innerdir*er*1.05f, box=cx-innerdir*er*1.05f;
+  float ba=e->browA*eh*0.6f;                          // + = inner down = angry
+  float bix=cx+innerdir*ew*1.05f, box=cx-innerdir*ew*1.05f;
   float biy=by0+ba, boy=by0-ba*0.7f;
   line((int)bix,(int)biy,(int)box,(int)boy,INK);
   line((int)bix,(int)biy+1,(int)box,(int)boy+1,INK);   // 2px thick
@@ -104,6 +105,8 @@ static const char *PNAME[] = { "neutral","happy","angry","sad","surprised","slee
 // slider-backed values (0..1; the bipolar ones map to -1..1)
 static float sl_open=0.85f, sl_squint=0, sl_pupil=0.5f, sl_gx=0.5f, sl_gy=0.5f,
              sl_lid=0.5f, sl_browy=0.55f, sl_browa=0.5f;
+// identity (who the character is — not touched by emotion presets)
+static float sl_gap=0.42f, sl_ew=0.55f, sl_eh=0.55f;
 static int glint=1, preset=0;
 
 static void load_preset(int i){
@@ -127,8 +130,8 @@ void draw(void){
   cls(CLR_DARKER_BLUE);
   ui_begin();
 
-  // slider column (all procedural, all hookable)
-  int sx=4, sw=54, sy=20, sp=11;
+  // slider column — EMOTION levers (how it feels) + IDENTITY dials (who it is)
+  int sx=4, sw=54, sy=16, sp=11;
   ui_slider(&sl_open,   sx, sy+0*sp, sw, "OPEN");
   ui_slider(&sl_squint, sx, sy+1*sp, sw, "SQUINT");
   ui_slider(&sl_pupil,  sx, sy+2*sp, sw, "PUPIL");
@@ -137,17 +140,20 @@ void draw(void){
   ui_slider(&sl_lid,    sx, sy+5*sp, sw, "LID TILT");
   ui_slider(&sl_browy,  sx, sy+6*sp, sw, "BROW Y");
   ui_slider(&sl_browa,  sx, sy+7*sp, sw, "BROW ANG");
+  ui_slider(&sl_gap,    sx, sy+8*sp, sw, "SPACING");
+  ui_slider(&sl_ew,     sx, sy+9*sp, sw, "EYE W");
+  ui_slider(&sl_eh,     sx, sy+10*sp,sw, "EYE H");
 
   Eye e = { sl_open, sl_squint, sl_pupil, sl_gx*2-1, sl_gy*2-1,
             sl_lid*2-1, sl_browy, sl_browa*2-1, glint };
   if (blinkt>0) e.open=0;   // blinkt overrides openness
 
-  // the face (a Mr-Men head) + two eyes
+  // the face (a Mr-Men head) + two eyes. spacing / eye w / eye h = character IDENTITY.
   int fx=200, fy=90, fr=58;
   circfill(fx,fy,fr,FACE); circ(fx,fy,fr,INK);
-  float er=18, gap=27;
-  draw_eye(fx-gap, fy-4, er, +1, &e);   // left eye  (nose to its right)
-  draw_eye(fx+gap, fy-4, er, -1, &e);   // right eye (nose to its left)
+  float gap=10+sl_gap*40, ew=7+sl_ew*20, eh=7+sl_eh*20;
+  draw_eye(fx-gap, fy-4, ew, eh, +1, &e);   // left eye  (nose to its right)
+  draw_eye(fx+gap, fy-4, ew, eh, -1, &e);   // right eye (nose to its left)
 
   // preset row
   print("presets (1-8):",96,182,CLR_MEDIUM_GREY);

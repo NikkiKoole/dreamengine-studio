@@ -14,7 +14,7 @@
   "homage": "The theremin (Leon Theremin, 1928) — the ethereal, hands-free, continuously-pitched voice of Clara Rockmore and a thousand sci-fi soundtracks.",
   "description": {
     "summary": "Hum into the mic and a glowing theremin voice follows your pitch and volume. A continuous, hands-free synth you play with your voice — your hum's contour scrolls by as a ribbon of light.",
-    "detail": "Reads the Tier-1 mic surface: mic_pitch() drives a sine voice's pitch (heavily smoothed into a singing glide, with vibrato + a long reverb tail) and mic_level() rides its volume, so louder humming = louder, and silence fades it out. Because the pitch estimate is crude, TAB snaps to a forgiving pentatonic scale so any hum sounds musical; GLIDE mode is the raw continuous theremin swoop.",
+    "detail": "Reads the Tier-1 mic surface: mic_pitch() (YIN, octave-safe) drives a sine voice's pitch (a light singing glide, with vibrato + a long reverb tail) and mic_level() rides its volume, so louder humming = louder, and silence fades it out. TAB snaps to a forgiving pentatonic scale so any hum lands on notes; GLIDE mode is the raw continuous theremin swoop.",
     "controls": "CLICK or SPACE: enable/disable the mic. TAB: toggle GLIDE (continuous) vs SCALE (snap to pentatonic). Then just hum."
   }
 }
@@ -25,14 +25,14 @@ de:meta */
 
 // HUM THEREMIN — the first instrument you play with your voice, on the Tier-1 mic seam.
 // mic_pitch() -> a smoothed, vibrato'd, reverberant sine voice's PITCH; mic_level() -> its VOLUME.
-// The pitch estimate is crude (octave-noisy zero-crossing), so we smooth it HARD into a singing
-// glide and offer a pentatonic SNAP so a stranger's hum sounds musical from the first breath.
+// mic_pitch() is YIN-based (octave-safe), so a LIGHT glide is all it takes for a singing theremin
+// swoop; a pentatonic SNAP (TAB) lets a stranger's hum land on notes and sound musical instantly.
 
 #define MIDI_LO   45.0f          // lowest note shown/played (~A2)
 #define MIDI_HI   84.0f          // highest (~C6) — the pitch axis spans this range
 #define GATE      0.012f         // below this loudness we treat it as silence (breaths between hums)
-#define SMOOTH    0.12f          // pitch glide (lower = smoother/laggier — tames the noisy estimate)
-#define MAXSTEP   2.0f           // max semitones the pitch may move per frame (kills octave jumps)
+#define SMOOTH    0.30f          // pitch glide toward the target (YIN is reliable, so this can be snappy)
+#define MAXSTEP   6.0f           // max semitones/frame — a gentle de-glitch, rarely hit now YIN is octave-safe
 #define VOLSCALE  26.0f          // mic_level (~0..0.27) -> note vol 0..7
 
 static const char *NOTES[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};

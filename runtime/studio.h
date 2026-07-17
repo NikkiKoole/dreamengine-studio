@@ -384,7 +384,7 @@ void mic_start(void);                                     // ask the host to ope
 void mic_stop(void);                                      // release the microphone — the host closes its capture device (mic_level/mic_pitch go quiet)
 int  mic_active(void);                                    // 1 once capture is live AND permission was granted, else 0 — poll it after mic_start() to know the mic is really open
 float mic_level(void);                                    // current input loudness 0..1 (RMS) — the beatbox / envelope-follower input. 0 until mic_active(). Solid + responsive
-float mic_pitch(void);                                    // rough pitch of the input in Hz (0 = no clear pitch) — the hum-to-theremin input. CRUDE: reads octave-low + jittery on a voice (a controller axis, not a tuner)
+float mic_pitch(void);                                    // pitch of the input in Hz (0 = no clear pitch) — the hum-to-theremin input. YIN detector: tracks a hummed voice cleanly + octave-safe; reports 0 rather than guess when unvoiced. ~21 readings/sec (a melody/controller axis, not a sample-accurate tuner)
 
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned

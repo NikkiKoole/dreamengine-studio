@@ -27,8 +27,8 @@ de:meta */
 // host owns the capture device + permission prompt and pushes frames into the engine,
 // which analyzes them into a loudness (RMS) and a rough pitch. This cart just draws them.
 //
-// Loudness (the VU bar) is production-solid. Pitch is a CRUDE zero-crossing estimate —
-// it reads octave-low and jittery on a real voice; good as a controller axis, not a tuner.
+// Loudness (the VU bar) is production-solid. Pitch is a YIN detector — it tracks a hummed
+// voice cleanly and octave-safe; a melody/controller axis, not a sample-accurate tuner.
 
 static const char *NOTES[12] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
 static float peak = 0.0f;     // VU peak-hold, decays

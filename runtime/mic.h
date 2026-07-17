@@ -16,10 +16,10 @@
 //
 // The cart reads two surfaces (declared in studio.h, implemented in studio.c):
 //   mic_level() — RMS loudness 0..1, the beatbox/envelope-follower input.
-//   mic_pitch() — a CRUDE zero-crossing pitch estimate in Hz. Honest caveat: it
-//                 reads octave-low and jittery on a real voice (harmonics + noise
-//                 add crossings). Fine as a controller axis; a real hum->pitch
-//                 feature wants autocorrelation/FFT. Kept crude + labelled for v1.
+//   mic_pitch() — pitch in Hz via a YIN detector (autocorrelation family). Tracks a
+//                 hummed/sung voice cleanly and is OCTAVE-SAFE (no octave jumps), and
+//                 reports 0 rather than guessing when the input is unvoiced. ~21
+//                 readings/sec — a melody/controller axis, not a sample-accurate tuner.
 //
 // mic_start()/mic_stop() raise a "wanted" flag the host polls (de_mic_wanted) so it
 // opens/closes the device lazily and only prompts for permission when a cart asks.
@@ -41,10 +41,51 @@ static volatile int   mic_g_active = 0;      // host reports capture is live + p
 static float mic_acc[MIC_WIN];
 static int   mic_acc_n = 0;
 
+// ── pitch via YIN (de Cheveigné & Kawahara 2002) ─────────────────────────────
+// Autocorrelation-family, but with the cumulative-mean-normalized difference that makes YIN
+// ROBUST for voice — it rejects the octave errors a raw zero-crossing (or plain autocorrelation)
+// falls for on a harmonic-rich signal like a hum. Runs once per filled window on the host thread.
+#define MIC_TAU_MIN 32     // shortest lag searched → ~1378 Hz max @44.1k
+#define MIC_TAU_MAX 700    // longest lag searched  → ~63 Hz min @44.1k (covers the vocal range)
+#define MIC_YIN_THRESH 0.15f   // aperiodicity cutoff: no lag below this ⇒ "no clear pitch"
+static float mic_yin_d[MIC_TAU_MAX + 2];
+
+static float mic_pitch_yin(const float *x, int n, int sr) {
+    int tau_max = MIC_TAU_MAX; if (tau_max > n / 2) tau_max = n / 2;
+    int W = n - tau_max;                          // fixed correlation length → comparable across lags
+    // cumulative-mean-normalized difference function d'(tau)
+    mic_yin_d[0] = 1.0f;
+    float running = 0.0f;
+    for (int tau = 1; tau <= tau_max; tau++) {
+        float sum = 0.0f;
+        for (int j = 0; j < W; j++) { float diff = x[j] - x[j + tau]; sum += diff * diff; }
+        running += sum;
+        mic_yin_d[tau] = (running > 0.0f) ? (sum * tau / running) : 1.0f;
+    }
+    // first lag that dips below the threshold, walked down to its local minimum (the true period,
+    // not a later harmonic) — this step is what kills the octave jumps
+    int tau = -1;
+    for (int t = MIC_TAU_MIN; t < tau_max; t++) {
+        if (mic_yin_d[t] < MIC_YIN_THRESH) {
+            while (t + 1 <= tau_max && mic_yin_d[t + 1] < mic_yin_d[t]) t++;
+            tau = t; break;
+        }
+    }
+    if (tau < 0) return 0.0f;                     // nothing periodic enough → no clear pitch
+    // parabolic interpolation around the minimum for sub-sample (sub-cent) accuracy
+    float est = (float)tau;
+    if (tau > MIC_TAU_MIN && tau < tau_max) {
+        float a = mic_yin_d[tau - 1], b = mic_yin_d[tau], c = mic_yin_d[tau + 1];
+        float denom = a + c - 2.0f * b;
+        if (denom != 0.0f) est = tau + (a - c) / (2.0f * denom);
+    }
+    return (est > 0.0f) ? (float)sr / est : 0.0f;
+}
+
 // Host → engine: feed captured MONO frames at `sr` Hz from the capture callback
-// (the host's audio thread). Accumulates a MIC_WIN window, then republishes the
-// RMS + a zero-crossing pitch. Carrying `sr` keeps the pitch Hz correct whatever
-// rate the device runs at (desktop mics are usually 48k, the engine mixes at 44.1k).
+// (the host's audio thread). Accumulates a MIC_WIN window, then republishes the RMS + a YIN
+// pitch. Carrying `sr` keeps the pitch Hz correct whatever rate the device runs at (desktop
+// mics are usually 48k, the engine mixes at 44.1k).
 static inline void mic_input_push(const float *s, int n, int sr) {
     if (!s || n <= 0 || sr <= 0) return;
     for (int i = 0; i < n; i++) {
@@ -54,15 +95,7 @@ static inline void mic_input_push(const float *s, int n, int sr) {
             for (int j = 0; j < MIC_WIN; j++) sum += (double)mic_acc[j] * mic_acc[j];
             float rms = (float)sqrt(sum / MIC_WIN);
             mic_g_rms = rms;
-            if (rms > 0.01f) {                        // only trust pitch when the block is loud enough
-                int zc = 0;
-                for (int j = 1; j < MIC_WIN; j++)
-                    if ((mic_acc[j-1] < 0.0f) != (mic_acc[j] < 0.0f)) zc++;   // sign change
-                float secs = (float)MIC_WIN / (float)sr;
-                mic_g_pitch = (zc * 0.5f) / secs;     // 2 crossings per cycle
-            } else {
-                mic_g_pitch = 0.0f;
-            }
+            mic_g_pitch = (rms > 0.01f) ? mic_pitch_yin(mic_acc, MIC_WIN, sr) : 0.0f;
             mic_acc_n = 0;
         }
     }

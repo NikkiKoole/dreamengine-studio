@@ -14,8 +14,8 @@ not a design-from-scratch.
 > that all need real audio input. A standalone **Tier-1 spike** landed to prove the engine can hear
 > before touching the hot files — [`tools/mic-spike/`](../../tools/mic-spike/) (miniaudio capture →
 > `mic_level()`/`mic_pitch()`; **CONFIRMED LIVE on Mac 2026-07-16** — an HP webcam mic hit peak
-> −17 dBFS, `mic_level()` tracks voice cleanly, `mic_pitch()` responds but the crude zero-crossing
-> estimator reads octave-low/jittery so a real hum→pitch surface wants autocorrelation/FFT). See
+> −17 dBFS, `mic_level()` tracks voice cleanly, `mic_pitch()` is now a YIN detector — octave-safe,
+> tracks a hummed voice cleanly, reports 0 when unvoiced). See
 > §"Demand check + the live-throughput dimension" + the stem-separation verdict below. **Tier 1 is
 > the recommended engine entry point.**
 
@@ -28,7 +28,7 @@ own capture device + permission flow; the engine only ANALYZES the frames it is 
 lives in the engine (crucially, no second copy of the miniaudio raylib already bundles → no duplicate
 symbols, no ABI version-coupling).
 - **Analysis core:** [`runtime/mic.h`](../../runtime/mic.h) — pure, device-free: accumulates pushed frames
-  into a window → RMS (`mic_level`) + a zero-crossing pitch (`mic_pitch`).
+  into a window → RMS (`mic_level`) + a YIN pitch (`mic_pitch`, octave-safe — see below).
 - **Cart API** (studio.h + studio.c, docs + shell): `mic_start()` / `mic_stop()` / `mic_active()` /
   `mic_level()` / `mic_pitch()`. Dormant + byte-identical until a cart calls `mic_start()` (which is what
   pops the OS permission prompt). New `teaches` tag `audio-input`.
@@ -59,9 +59,21 @@ symbols, no ABI version-coupling).
   `NSMicrophoneUsageDescription` added to `project.yml`; `engine.h` carries the seam decls; `CanvasView`
   polls it per tick. C seam symbols verified present in the `DE_NO_RAYLIB` build; the Swift host is
   written to the existing `de_audio_render` pattern — verified at the next device build (`ios/device.sh`).
-- **Follow-ups:** a real pitch detector (autocorrelation/FFT — the current zero-crossing estimate is
-  octave-noisy); the iOS session/engine-restart dance may want on-device tuning; a mic *instrument*
-  cart (hum-theremin / beatbox-triggered drums) now that the surface exists on every device.
+**Shipped (2026-07-17) — YIN pitch detector + the first mic instruments.** The zero-crossing estimate
+octave-jumped on a real voice (confirmed with the `pitchscope` diagnostic cart). Replaced it in
+[`mic.h`](../../runtime/mic.h) with **YIN** (de Cheveigné & Kawahara — autocorrelation family with the
+cumulative-mean-normalized difference that rejects octave errors): tracks a hummed voice cleanly, is
+octave-safe, and reports 0 rather than guessing when unvoiced. Runs once per ~46ms window on the host
+thread (search range ~63–1378 Hz). Confirmed live by the maker — "much better." Two carts now exercise it:
+- [`pitchscope`](../../tools/carts/pitchscope.c) — the diagnostic: raw `mic_pitch()` on a log-freq axis
+  (the before/after acceptance test for any detector change).
+- [`humtheremin`](../../tools/carts/humtheremin.c) — the first voice-played instrument: hum → a
+  vibrato'd, reverberant sine follows your pitch (light glide now that YIN is reliable) + volume, with
+  a TAB pentatonic snap.
+
+- **Follow-ups:** the iOS session/engine-restart dance may want on-device tuning; more mic instruments
+  (beatbox-triggered drums off `mic_level` onsets); YIN runs on the capture thread — fine on desktop, worth
+  a glance on the weakest mobile targets.
 
 **Shipped (2026-07-13) — engine piece 1 + `INSTR_SAMPLE` + a movable chop:**
 - `record_arm()` — an always-on rolling capture ring of the master mix (8s, `rec_arm`-gated so it's

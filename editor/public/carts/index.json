@@ -3054,7 +3054,7 @@
   },
   {
     "title": "hum theremin",
-    "description": "Hum into the mic and a glowing theremin voice follows your pitch and volume. A continuous, hands-free synth you play with your voice — your hum's contour scrolls by as a ribbon of light. Reads the Tier-1 mic surface: mic_pitch() drives a sine voice's pitch (heavily smoothed into a singing glide, with vibrato + a long reverb tail) and mic_level() rides its volume, so louder humming = louder, and silence fades it out. Because the pitch estimate is crude, TAB snaps to a forgiving pentatonic scale so any hum sounds musical; GLIDE mode is the raw continuous theremin swoop. CLICK or SPACE: enable/disable the mic. TAB: toggle GLIDE (continuous) vs SCALE (snap to pentatonic). Then just hum.",
+    "description": "Hum into the mic and a glowing theremin voice follows your pitch and volume. A continuous, hands-free synth you play with your voice — your hum's contour scrolls by as a ribbon of light. Reads the Tier-1 mic surface: mic_pitch() (YIN, octave-safe) drives a sine voice's pitch (a light singing glide, with vibrato + a long reverb tail) and mic_level() rides its volume, so louder humming = louder, and silence fades it out. TAB snaps to a forgiving pentatonic scale so any hum lands on notes; GLIDE mode is the raw continuous theremin swoop. CLICK or SPACE: enable/disable the mic. TAB: toggle GLIDE (continuous) vs SCALE (snap to pentatonic). Then just hum.",
     "file": "humtheremin.cart.png",
     "created": "2026-07-17",
     "kind": [
@@ -4748,6 +4748,19 @@
     "lineage": "Sibling of filterenv — the same mod-envelope system pointed at pitch instead of cutoff; together they form a matched pair of envelope-target demos."
   },
   {
+    "title": "pitch scope",
+    "description": "A scrolling graph of the RAW microphone pitch on a musical (log-frequency) axis, with note reference lines. Hum and slide your voice up and down — a good detector draws a smooth diagonal; a bad one jumps around. No smoothing, no scale-snap — it shows mic_pitch() exactly as the engine reports it, so you can judge the detector honestly: does it track a glide, lag, drop out, or octave-jump? Note lines (C2..C6, A440) are drawn for reference and the live reading is shown as Hz + nearest note + a dB level meter. CLICK or SPACE: enable/disable the mic. Then hum and slide your pitch up and down.",
+    "file": "pitchscope.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "audio-input"
+    ],
+    "lineage": "A diagnostic for the Tier-1 mic pitch surface (docs/design/mic-and-sampling.md): plot RAW mic_pitch() over time on a log-frequency axis so you can SEE how well (or badly) the estimator follows a voice sliding up and down. The acceptance test for any pitch-detector improvement."
+  },
+  {
     "title": "jungle run",
     "description": "A tribute to Pitfall! (1982). Run through a procedurally generated jungle, jumping rolling logs and open holes, swinging across tar pits on a vine, and grabbing gold before the 2-minute clock runs out — with three lives. LEFT/RIGHT run (walk off a screen edge to reach the next screen), A jumps; in mid-air over a tar pit, A grabs the vine and A again lets go, so time your swing. Each screen is built from its number, so the jungle is the same every visit, just like the original.",
     "file": "pitfall.cart.png",
@@ -5690,6 +5703,18 @@
       "tech-demo"
     ],
     "teaches": []
+  },
+  {
+    "title": "shape size probe",
+    "description": "Throwaway QA probe: draws every fill primitive alone (one per frame) and measures its rendered bounding box via pget, so we can check each shape ends up the width/height we expect. Emits actual vs expected extents on the trace.",
+    "file": "shapesize.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ]
   },
   {
     "title": "shimmer",

@@ -121,6 +121,19 @@ filter closes off-centre · GLU → **arms hug** inward · FB → **echo rings**
 - **Graduation path** — if it earns its keep, this becomes a FACE soft-key flow in acidcandy (a pet per
   focused machine, or the shelf woven into the nav cartridges). Kept as a separate mockup cart until then.
 
+## The building blocks (prototyped as separate labs)
+
+- [`petkit`](../../tools/carts/petkit.c) — the **Shape atom**: one parametric primitive (circle/oval/rect/rrect/poly)
+  with every look as a scalar dial — w/h, squash-stretch, boil, bevel, thick squishy outline, dpaint dither, a
+  two-colour gradient (angle/offset/band), fill + edge colours. A Mr-Men body is one of these; personality is
+  its dials driven by state. All procedural — nothing is drawn by hand.
+- [`peteyes`](../../tools/carts/peteyes.c) — the **eye emotion machine**: a face + two eyes on scalar levers
+  (openness, squint, lid-tilt = angry/sad, pupil size, gaze X/Y, brow raise + angle, glint). Eyes + brows carry
+  most of a character's feeling; happy is an ∩ laughing arc, not a slit. 8 emotion presets prove the range.
+
+Both are pure scalar params, so a character = a few Shapes + a pair of eyes with their dials **hooked to the
+machine's state** (a note-envelope → squash, a filter → gradient offset, the mix mood → the eye levers).
+
 ## See also
 
 - [device-face-paradigm.md](device-face-paradigm.md) — the UI shape acidcandy (and the pet shelf) sits on.

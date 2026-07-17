@@ -3053,6 +3053,20 @@
     "homage": "Daft Punk / Stardust (French house)"
   },
   {
+    "title": "hum theremin",
+    "description": "Hum into the mic and a glowing theremin voice follows your pitch and volume. A continuous, hands-free synth you play with your voice — your hum's contour scrolls by as a ribbon of light. Reads the Tier-1 mic surface: mic_pitch() drives a sine voice's pitch (heavily smoothed into a singing glide, with vibrato + a long reverb tail) and mic_level() rides its volume, so louder humming = louder, and silence fades it out. Because the pitch estimate is crude, TAB snaps to a forgiving pentatonic scale so any hum sounds musical; GLIDE mode is the raw continuous theremin swoop. CLICK or SPACE: enable/disable the mic. TAB: toggle GLIDE (continuous) vs SCALE (snap to pentatonic). Then just hum.",
+    "file": "humtheremin.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "audio-input"
+    ],
+    "lineage": "The first instrument you play with your VOICE — the payoff of the Tier-1 mic seam (docs/design/mic-and-sampling.md). Hum and a glowing synth voice follows your pitch (mic_pitch) and your loudness (mic_level), like Leon Theremin's 1920s instrument but conducted by a hum instead of a hand in the air.",
+    "homage": "The theremin (Leon Theremin, 1928) — the ethereal, hands-free, continuously-pitched voice of Clara Rockmore and a thousand sci-fi soundtracks."
+  },
+  {
     "title": "hurdy-gurdy",
     "description": "The cranked drone-fiddle, built on the HELD NOTE api around a mechanic nothing else uses: the crank IS the sound. HOLD the mouse and CIRCLE it around the wheel — TWO expressive axes from one gesture: how FAST your hand travels = loudness, how WIDE you circle = brightness (note_vol + note_cutoff across all three voices). Drone voices (tonic + fifth) only sing while the wheel turns. Press a tangent key (A S D F G H J K) to stop the melody string at a pitch (note_pitch), highest key wins; keys 1-5 switch the scale (major/minor/penta/p-min/blues). The 'chien': a sharp FLICK of the crank snaps the buzzing dog bridge for a percussive accent — toggle it with B. Watch the CRANK and TONE meters and the coloured contact ring.",
     "file": "hurdygurdy.cart.png",

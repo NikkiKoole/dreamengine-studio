@@ -207,6 +207,52 @@
       }, { passive: true, capture: true });
       window.addEventListener('mousedown', function (e) { cornerTap(e.clientX, e.clientY); }, true);
     })();
+
+    // microphone INPUT (mic-and-sampling.md Tier-1) — getUserMedia → de_audio_input, on a SEPARATE
+    // AudioContext from the game's audio worklet. Opens lazily on de_mic_wanted(); zero-gain sink so
+    // the mic is never echoed to output. Same glue as the plain shell (web_shell.html).
+    Module.onRuntimeInitialized = (function (prev) { return function () {
+      if (prev) prev();
+      var C = function (fn, ret, sig, args) { try { return Module.ccall(fn, ret, sig, args); } catch (e) { return 0; } };
+      var ctx = null, srcNode = null, proc = null, sink = null, stream = null, opening = false, running = false;
+      function push(chunk, sr) {
+        var ptr = C('de_mic_scratch', 'number', [], []);
+        var cap = C('de_mic_scratch_cap', 'number', [], []);
+        var n = Math.min(chunk.length, cap);
+        Module.HEAPF32.set(chunk.subarray(0, n), ptr >> 2);
+        C('de_audio_input', null, ['number', 'number', 'number'], [ptr, n, sr | 0]);
+      }
+      function open() {
+        if (opening || running || !navigator.mediaDevices) return;
+        opening = true;
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(function (s) {
+          opening = false;
+          if (!C('de_mic_wanted', 'number', [], [])) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
+          stream = s;
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+          srcNode = ctx.createMediaStreamSource(s);
+          proc = ctx.createScriptProcessor(2048, 1, 1);
+          proc.onaudioprocess = function (e) { push(e.inputBuffer.getChannelData(0), ctx.sampleRate); };
+          sink = ctx.createGain(); sink.gain.value = 0;
+          srcNode.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
+          running = true;
+          C('de_mic_set_active', null, ['number'], [1]);
+        }).catch(function () { opening = false; });
+      }
+      function close() {
+        if (!running) return;
+        try { proc.disconnect(); srcNode.disconnect(); sink.disconnect(); } catch (e) {}
+        if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+        if (ctx) ctx.close();
+        ctx = srcNode = proc = sink = stream = null; running = false;
+        C('de_mic_set_active', null, ['number'], [0]);
+      }
+      setInterval(function () {
+        var w = C('de_mic_wanted', 'number', [], []);
+        if (w && !running && !opening) open();
+        else if (!w && running) close();
+      }, 100);
+    }; })(Module.onRuntimeInitialized);
   </script>
   <script>
     // THE CHOOSER: load the AudioWorklet build when the page is cross-origin isolated

@@ -49,6 +49,9 @@ targets:
         # no in-app encryption beyond OS-provided → auto-answers the ASC export-compliance
         # question, so TestFlight builds go straight to "Ready to Test" after processing
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        # microphone permission prompt copy (mic-and-sampling.md Tier-1) — required or the app
+        # crashes the first time a cart calls mic_start(). Only carts that opt in ever trigger it.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lets carts that listen — like instruments you play by humming or clapping — hear your microphone."
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
         # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)

@@ -2819,18 +2819,29 @@ static void de_load_map(void) {
 // Build-agnostic: compiled into BOTH the raylib and DE_NO_RAYLIB hosts. The cart
 // API just reads/writes mic.h's published state; the device lives in each host.
 #include "mic.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#define DE_WEB_EXPORT EMSCRIPTEN_KEEPALIVE   // keep the seam callable from the web shell's JS (ccall)
+#else
+#define DE_WEB_EXPORT
+#endif
 void  mic_start(void)  { mic_g_wanted = 1; }                 // ask host to open the mic (permission prompt)
 void  mic_stop(void)   { mic_g_wanted = 0; }                 // ask host to release it
 int   mic_active(void) { return mic_g_active; }              // capture live + permission granted?
 float mic_level(void)  { return mic_g_rms; }                 // 0..1 RMS loudness
 float mic_pitch(void)  { return mic_g_pitch; }               // Hz, 0 = no clear pitch
 // platform seam — hosts (studio.c raylib loop, iOS/web) call these:
-void de_audio_input(const float *mono, int n, int sr) { mic_input_push(mono, n, sr); }   // push captured frames
-int  de_mic_wanted(void) { return mic_g_wanted; }            // engine → host: is the mic wanted?
-void de_mic_set_active(int on) {                             // host → engine: capture is live
+DE_WEB_EXPORT void de_audio_input(const float *mono, int n, int sr) { mic_input_push(mono, n, sr); }   // push captured frames
+DE_WEB_EXPORT int  de_mic_wanted(void) { return mic_g_wanted; }            // engine → host: is the mic wanted?
+DE_WEB_EXPORT void de_mic_set_active(int on) {                            // host → engine: capture is live
     mic_g_active = on ? 1 : 0;
     if (!on) { mic_g_rms = 0.0f; mic_g_pitch = 0.0f; }       // release → readings go quiet
 }
+// web only: a fixed scratch buffer the JS mic tap writes samples into (malloc-free) — JS gets the
+// pointer once, fills HEAPF32 there each callback, then calls de_audio_input(that ptr, n, sr).
+static float de_mic_web_scratch[4096];
+DE_WEB_EXPORT float *de_mic_scratch(void) { return de_mic_web_scratch; }
+DE_WEB_EXPORT int    de_mic_scratch_cap(void) { return (int)(sizeof de_mic_web_scratch / sizeof(float)); }
 
 #ifdef DE_NO_RAYLIB
 // ============================================================================

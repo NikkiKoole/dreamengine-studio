@@ -37,9 +37,25 @@ symbols, no ABI version-coupling).
   the desktop build commands). Apple-only; non-Apple desktop is a no-op (shipping targets are iOS + web).
 - **Demo:** [`mictest`](../../tools/carts/mictest.c) — VU meter + pitch note. Gates green: build-all
   (517/517 non-box2d), soundcheck (sound.h untouched), DE_NO_RAYLIB compiles, no-crash scripted `mic_start`.
-- **Still to wire (the other hosts, same seam):** WEB (`getUserMedia` → the existing audio worklet) and
-  iOS (`AVAudioSession` input node + `NSMicrophoneUsageDescription`) both push into `de_audio_input`.
-  Until then those platforms compile and run but `mic_active()` stays 0.
+- **Desktop LIVE-confirmed (2026-07-16):** the maker ran `mictest` with a webcam mic — VU meter moved,
+  pitch note appeared. The whole seam (host push → engine analysis → cart API) validated end to end.
+
+**Shipped (2026-07-17) — the other two hosts, same seam (all shipping devices now covered):**
+- **WEB** — `getUserMedia` → a `ScriptProcessor` on a separate `AudioContext` (zero-gain sink so the
+  mic is never echoed to output) → `de_audio_input`, in both web shells
+  ([`web_shell.html`](../../runtime/web_shell.html) + `web_shell_worklet.html`). Opens lazily on
+  `de_mic_wanted()`. The seam is exported to JS via `EMSCRIPTEN_KEEPALIVE` + a malloc-free scratch
+  buffer (`de_mic_scratch`). BUILD-VERIFIED (emcc compiles, both shells carry the glue, exports present);
+  live mic needs a browser served over https/localhost (getUserMedia gate).
+- **iOS** — [`AudioEngine.swift`](../../ios/Sources/AudioEngine.swift) installs an `inputNode` tap
+  (lazy on `de_mic_wanted`, permission-gated via `requestRecordPermission`, session switched to
+  `.playAndRecord`/`.defaultToSpeaker` only while listening) pushing to `de_audio_input`;
+  `NSMicrophoneUsageDescription` added to `project.yml`; `engine.h` carries the seam decls; `CanvasView`
+  polls it per tick. C seam symbols verified present in the `DE_NO_RAYLIB` build; the Swift host is
+  written to the existing `de_audio_render` pattern — verified at the next device build (`ios/device.sh`).
+- **Follow-ups:** a real pitch detector (autocorrelation/FFT — the current zero-crossing estimate is
+  octave-noisy); the iOS session/engine-restart dance may want on-device tuning; a mic *instrument*
+  cart (hum-theremin / beatbox-triggered drums) now that the surface exists on every device.
 
 **Shipped (2026-07-13) — engine piece 1 + `INSTR_SAMPLE` + a movable chop:**
 - `record_arm()` — an always-on rolling capture ring of the master mix (8s, `rec_arm`-gated so it's

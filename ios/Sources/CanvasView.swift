@@ -88,6 +88,7 @@ final class CanvasView: UIView {
     }
 
     @objc private func tick() {
+        AudioEngine.shared.pollMic()   // open/close the mic to match the cart's mic_start()/mic_stop()
         syncSize()
         let t0 = CACurrentMediaTime()
         de_frame(t0 - start)

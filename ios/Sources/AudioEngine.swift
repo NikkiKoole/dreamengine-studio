@@ -12,6 +12,70 @@ final class AudioEngine {
     private var started = false
     private var scratch = [Float](repeating: 0, count: 8192 * 2)   // interleaved L,R,L,R…
 
+    // ── microphone INPUT (mic-and-sampling.md Tier-1) ────────────────────────
+    // The engine's mic host: capture is opened LAZILY, only when a cart calls mic_start()
+    // (de_mic_wanted() flips to 1), so a cart that never listens never prompts for permission
+    // and never switches the audio session to record. pollMic() is the iOS twin of the desktop
+    // mic_desktop_poll(); CanvasView calls it once per display-link tick.
+    private var micRunning = false
+    private var micRequesting = false
+
+    func pollMic() {
+        let want = de_mic_wanted() != 0
+        if      want && !micRunning && !micRequesting { requestAndStartMic() }
+        else if !want && micRunning                   { stopMic() }
+    }
+
+    private func requestAndStartMic() {
+        micRequesting = true
+        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.micRequesting = false
+                guard granted, de_mic_wanted() != 0 else { return }   // denied, or cart bailed while prompting
+                self.installMicTap()
+            }
+        }
+    }
+
+    private func installMicTap() {
+        guard !micRunning else { return }
+        // The input node needs a record-capable session. Switch to playAndRecord (keeping output on
+        // the main speaker) around an engine stop/start so the input route is picked up cleanly.
+        let session = AVAudioSession.sharedInstance()
+        engine.stop()
+        do {
+            try session.setCategory(.playAndRecord, mode: .default,
+                                    options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true)
+        } catch { NSLog("[tinyjam] mic session failed: %@", error.localizedDescription); try? engine.start(); return }
+
+        let input = engine.inputNode
+        let fmt = input.inputFormat(forBus: 0)
+        guard fmt.channelCount > 0, fmt.sampleRate > 0 else {
+            NSLog("[tinyjam] no mic input channels"); try? engine.start(); return
+        }
+        let sr = Int32(fmt.sampleRate)
+        input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { buffer, _ in
+            guard let ch = buffer.floatChannelData else { return }
+            de_audio_input(ch[0], Int32(buffer.frameLength), sr)   // channel 0 = the mono take
+        }
+        do { try engine.start() } catch { NSLog("[tinyjam] engine restart failed: %@", error.localizedDescription); return }
+        micRunning = true
+        de_mic_set_active(1)
+        NSLog("[tinyjam] mic tap installed @ %.0f Hz", fmt.sampleRate)
+    }
+
+    private func stopMic() {
+        engine.inputNode.removeTap(onBus: 0)
+        micRunning = false
+        de_mic_set_active(0)
+        // revert to playback-only so iOS drops the mic-in-use indicator
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .default)
+        try? session.setActive(true)
+    }
+
     func start() {
         guard !started else { return }
         let sr = 44100.0

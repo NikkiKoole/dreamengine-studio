@@ -81,6 +81,19 @@ static const int DEG_OFF [7] = { 0, 2, 4, 5, 7, 9, 11 };    // scale-degree semi
 static const int DEG_TYPE[7] = { TY_MAJ, TY_MIN, TY_MIN, TY_MAJ, TY_MAJ, TY_MIN, TY_DIM };
 static const int DEG_MOD [7] = { 2, 1, 1, 2, 1, 1, 1 };     // 7th: maj7(I,IV) · m7(ii,iii,V=dom,vi,vii=m7b5)
 
+// the SPICE STRIP — the genre's out-of-key chords, each a KEY you press (one model, no
+// arming). {semitone offset from the key root, triad type, 7th modifier idx}.
+typedef struct { int off, ty, sev; } Spice;
+#define NSPICE 6
+static const Spice SPICE[NSPICE] = {
+    { 9, TY_MAJ, 1 },   // V7/ii   (A7 in C) — secondary dominant
+    { 2, TY_MAJ, 1 },   // V7/V    (D7)
+    { 4, TY_MAJ, 1 },   // V7/vi   (E7)
+    { 1, TY_MAJ, 1 },   // subV    (Db7)  — tritone sub of V
+    {10, TY_MAJ, 1 },   // bVII    (Bb7)  — backdoor
+    { 5, TY_MIN, 1 },   // ivm     (Fm7)  — IV -> IVm
+};
+
 // three synth engines, the Orchid's three models.
 #define NENG 6            // the curated MODEL shelf — both the PIANO and the HARP part pick one
 // NOTE: play through the SL_CHORD / SL_HARP *slots* (configured by applyEngine),
@@ -162,7 +175,7 @@ typedef struct {
     const int  *bassOn;    // bass onsets over 32 steps
     int  perfMode;         // performance mode (NEUTRAL; flavored carts use comp/bassOn)
     int  rootless;         // drop the root from the voiced chord (the bass owns it)
-    int  colorMode;        // 0 none · 1 bossa(7+9) · 2 yacht(6+9) · 3 citypop(7+9+13)
+    int  rich;             // default RICHNESS for this flavor (0 simple .. 3 lush)
     int  eng;              // chord MODEL index (timbre)
     int  drumPreset;       // backing groove
     int  tempo;
@@ -172,10 +185,10 @@ typedef struct {
 #define NFLAV 4
 enum { FL_NEUTRAL, FL_BOSSA, FL_YACHT, FL_CITY };
 static const Flavor FLAVORS[NFLAV] = {
-    //  name       comp        bassOn      perf        rl col eng drum tempo strum autorun
+    //  name       comp        bassOn      perf        rl rich eng drum tempo strum autorun
     { "NEUTRAL",   NULL,       NULL,       PM_STRUM,   0, 0, 0, 0,  96, 22, false },
-    { "BOSSA",     CMP_BOSSA,  BAS_BOSSA,  PM_PATTERN, 1, 1, 5, 1, 128, 12, true  },
-    { "YACHT",     CMP_YACHT,  BAS_YACHT,  PM_PATTERN, 1, 2, 0, 3,  92, 18, true  },
+    { "BOSSA",     CMP_BOSSA,  BAS_BOSSA,  PM_PATTERN, 1, 2, 5, 1, 128, 12, true  },
+    { "YACHT",     CMP_YACHT,  BAS_YACHT,  PM_PATTERN, 1, 3, 0, 3,  92, 18, true  },
     { "CITYPOP",   CMP_CITY,   BAS_CITY,   PM_PATTERN, 1, 3, 0, 4, 112,  8, true  },
 };
 
@@ -197,6 +210,7 @@ static int  flavor   = FL_NEUTRAL;        // the active genre flavor (the fork)
 static int  rootless = 0;                 // flavor: drop the root from the voiced chord
 static int  keyRoot  = 0;                 // KEY mode: the scale root (0..11)
 static int  keyMode  = 0;                 // KEY mode: white keys play the diatonic in-key chords
+static int  richness = 0;                 // sound: 0 simple(triad) · 1 +7th · 2 +9th · 3 lush(+13/6)
 
 // the built voiced chord (absolute MIDI notes, ascending)
 static int  voiced[12], nVoiced = 0;
@@ -251,16 +265,9 @@ static int cb_pcs(int *out) {
     bool seen[12] = { false };
     for (int i = 0; i < 3; i++)    seen[TRIAD[chType][i] % 12] = true;
     for (int m = 0; m < NMOD; m++) if (modOn[m]) seen[MODIV[m] % 12] = true;
-    // the flavor's harmonic COLOUR — but an explicit 7th (m7 / maj7) WINS, so you can
-    // play a true dominant V7 (maj + m7) or a m7b5 (dim + m7) inside a coloured flavor.
-    int cm = FLAVORS[flavor].colorMode;
-    if (cm) {
-        bool has7 = modOn[1] || modOn[2];            // did the player already pick a 7th?
-        if ((cm == 1 || cm == 3) && !has7)           // bossa/citypop default diatonic 7th
-            seen[(chType == TY_MAJ) ? 11 : 10] = true;
-        seen[2] = true;                              // the 9th (all coloured flavors)
-        if (cm == 2 || cm == 3) seen[9] = true;      // the 6th/13th (yacht 6/9 · citypop lush 13)
-    }
+    // RICHNESS adds colour on top of the chord's own 7th (set in modOn): 2 = +9th, 3 = +13/6
+    if (richness >= 2) seen[2] = true;               // the 9th
+    if (richness >= 3) seen[9] = true;               // the 6th / 13th (lush)
     int n = 0;
     for (int p = 0; p < 12; p++) if (seen[p]) out[n++] = p;
     return n;
@@ -372,10 +379,24 @@ static void cb_trigger(int newRoot, int newType) {
 
 // KEY mode: play the diatonic chord for white-key degree d (0..6) in the current key —
 // set the degree's type + its diatonic 7th, then fire. The flavor's colour adds the rest.
-static void play_degree(int d) {
+// the display name for a chord (root pc + triad type + 7th) — used by the keybed + spice strip
+static const char *chord_name(int r, int ty, int sev) {
+    const char *q = (ty == TY_MIN) ? (sev == 1 ? "m7" : "m")
+                  : (ty == TY_DIM) ? "m7b5"
+                  : (ty == TY_SUS) ? "sus"
+                  : (sev == 2)     ? "maj7"
+                  : (sev == 1)     ? "7" : "";
+    return str("%s%s", NOTE[r], q);
+}
+// play an explicit chord: its 7th (unless RICHNESS is "simple") — 9th/13th are added in cb_pcs
+static void play_key_chord(int r, int ty, int sev) {
     for (int m = 0; m < NMOD; m++) modOn[m] = false;
-    modOn[DEG_MOD[d]] = true;
-    cb_trigger((keyRoot + DEG_OFF[d]) % 12, DEG_TYPE[d]);
+    if (sev >= 0 && richness >= 1) modOn[sev] = true;
+    cb_trigger(r, ty);
+}
+// KEY mode: play the diatonic chord for white-key degree d in the current key
+static void play_degree(int d) {
+    play_key_chord((keyRoot + DEG_OFF[d]) % 12, DEG_TYPE[d], DEG_MOD[d]);
 }
 
 // a chord PARAMETER changed (type / modifier / voicing / octave): always
@@ -420,6 +441,7 @@ static void apply_flavor(int fl) {
     perfMode = F->perfMode; kPerform = (perfMode + 0.5f) / NPERF;
     engine   = F->eng;      kSound   = (engine + 0.5f) / NENG;
     rootless = F->rootless;
+    richness = F->rich;
     tempo    = F->tempo;
     strumMs  = F->strumMs;
     loadPreset(F->drumPreset);
@@ -545,17 +567,21 @@ static void update_chord(void) {
     // (default) that is SILENT — you hear a chord only when you play a root or
     // strum. With RETRIG ON, every tweak also re-plays the chord.
 
-    // TYPE via number keys 1-4
-    for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_param(); }
-    // MODIFIERS via 5-8 (toggle, combinable)
-    for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_param(); }
-
-    // TYPE buttons (top row)
-    for (int t = 0; t < 4; t++)
-        if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param(); }
-    // MODIFIER buttons (lower row) — combinable
-    for (int m = 0; m < NMOD; m++)
-        if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param(); }
+    if (keyMode) {
+        // KEY mode — two clear zones, one behavior each:
+        // SPICE STRIP (row 1): each is a chord you PRESS (like a key), no arming.
+        for (int i = 0; i < NSPICE; i++)
+            if (tapp(6 + i * 51, 32, 48, 14) || keyp('1' + i))
+                play_key_chord((keyRoot + SPICE[i].off) % 12, SPICE[i].ty, SPICE[i].sev);
+        // RICHNESS (row 2): one radio-select — simple / 7th / 9th / lush
+        for (int r = 0; r < 4; r++) if (tapp(6 + r * 78, 50, 72, 14) || keyp('5' + r)) { richness = r; cb_param(); }  // rebuild → plate strings update live
+    } else {
+        // chromatic mode — the original chord builders
+        for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_param(); }
+        for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_param(); }
+        for (int t = 0; t < 4; t++) if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param(); }
+        for (int m = 0; m < NMOD; m++) if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param(); }
+    }
 
     // LEAD VOICING strip — LEFT/RIGHT or drag on the strip
     if (btnp(0, BTN_LEFT))  { voicing--; cb_param(); }
@@ -765,19 +791,42 @@ static void drawChordTab(void) {
     rectfill(242, 15, 72, 13, CLR_DARKER_PURPLE); rect(242, 15, 72, 13, CLR_MAUVE);
     print(str("HRP %s", MODEL[harpModel].shortName), 246, 17, CLR_LIGHT_PEACH);
 
-    // TYPE row
-    for (int t = 0; t < 4; t++) {
-        int bx = 6 + t * 78; bool on = (chType == t);
-        rectfill(bx, 32, 72, 14, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
-        rect(bx, 32, 72, 14, on ? CLR_WHITE : CLR_MAUVE);
-        print(TYNAME[t], bx + (72 - text_width(TYNAME[t])) / 2, 35, on ? CLR_BLACK : CLR_LIGHT_GREY);
-    }
-    // MODIFIER row
-    for (int m = 0; m < NMOD; m++) {
-        int bx = 6 + m * 78; bool on = modOn[m];
-        rectfill(bx, 50, 72, 14, on ? CLR_GREEN : CLR_DARKER_PURPLE);
-        rect(bx, 50, 72, 14, on ? CLR_WHITE : CLR_MAUVE);
-        print(MODNAME[m], bx + (72 - text_width(MODNAME[m])) / 2, 53, on ? CLR_BLACK : CLR_LIGHT_GREY);
+    // top two rows: chord builders (chromatic) OR the SPICE + EXTENSION layer (KEY mode).
+    // In KEY mode each button's look tells its kind (topbtn): arm / push / toggle.
+    if (keyMode) {
+        // SPICE STRIP (row 1): the genre's extra chords, each a key (press to play);
+        // a chip lights when it's the chord currently sounding.
+        print("SPICE", 6, 24, CLR_MEDIUM_GREY);
+        for (int i = 0; i < NSPICE; i++) {
+            int bx = 6 + i * 51, rp = (keyRoot + SPICE[i].off) % 12;
+            bool on = (root == rp && chType == SPICE[i].ty);
+            rectfill(bx, 32, 48, 14, on ? CLR_TRUE_BLUE : CLR_DARKER_BLUE);
+            rect(bx, 32, 48, 14, on ? CLR_WHITE : CLR_INDIGO);
+            const char *l = chord_name(rp, SPICE[i].ty, SPICE[i].sev);
+            print(l, bx + (48 - text_width(l)) / 2, 35, on ? CLR_WHITE : CLR_LIGHT_PEACH);
+        }
+        // RICHNESS (row 2): one radio-select — how jazzy the chords sound
+        static const char *RICH[4] = { "simple", "7th", "9th", "lush" };
+        print("SOUND", 6, 46, CLR_MEDIUM_GREY);
+        for (int r = 0; r < 4; r++) {
+            int bx = 6 + r * 78; bool on = (richness == r);
+            rectfill(bx, 50, 72, 14, on ? CLR_GREEN : CLR_DARKER_PURPLE);
+            rect(bx, 50, 72, 14, on ? CLR_WHITE : CLR_MAUVE);
+            print(RICH[r], bx + (72 - text_width(RICH[r])) / 2, 53, on ? CLR_BLACK : CLR_LIGHT_GREY);
+        }
+    } else {
+        for (int t = 0; t < 4; t++) {
+            int bx = 6 + t * 78; bool on = (chType == t);
+            rectfill(bx, 32, 72, 14, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
+            rect(bx, 32, 72, 14, on ? CLR_WHITE : CLR_MAUVE);
+            print(TYNAME[t], bx + (72 - text_width(TYNAME[t])) / 2, 35, on ? CLR_BLACK : CLR_LIGHT_GREY);
+        }
+        for (int m = 0; m < NMOD; m++) {
+            int bx = 6 + m * 78; bool on = modOn[m];
+            rectfill(bx, 50, 72, 14, on ? CLR_GREEN : CLR_DARKER_PURPLE);
+            rect(bx, 50, 72, 14, on ? CLR_WHITE : CLR_MAUVE);
+            print(MODNAME[m], bx + (72 - text_width(MODNAME[m])) / 2, 53, on ? CLR_BLACK : CLR_LIGHT_GREY);
+        }
     }
 
     // VOICING strip (the signature) — a slider with the offset marked

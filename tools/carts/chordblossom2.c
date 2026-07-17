@@ -211,6 +211,7 @@ static int  rootless = 0;                 // flavor: drop the root from the voic
 static int  keyRoot  = 0;                 // KEY mode: the scale root (0..11)
 static int  keyMode  = 0;                 // KEY mode: white keys play the diatonic in-key chords
 static int  richness = 0;                 // sound: 0 simple(triad) · 1 +7th · 2 +9th · 3 lush(+13/6)
+static int  groove   = 1;                 // performance density: 0 sparse · 1 normal · 2 busy (flavor-aware)
 
 // the built voiced chord (absolute MIDI notes, ascending)
 static int  voiced[12], nVoiced = 0;
@@ -442,6 +443,7 @@ static void apply_flavor(int fl) {
     engine   = F->eng;      kSound   = (engine + 0.5f) / NENG;
     rootless = F->rootless;
     richness = F->rich;
+    groove   = 1;                        // start each flavor at its normal density
     tempo    = F->tempo;
     strumMs  = F->strumMs;
     loadPreset(F->drumPreset);
@@ -461,27 +463,33 @@ static void flavor_accomp(int s16) {
     bool fill = (pib == 3);                      // the turnaround / fill bar
     int  swell = fill ? 1 : (pib == 0 ? -1 : 0); // breathe: ease in at the top, lift on the fill
 
-    // COMP — the flavor's clave, strummed; with a little human variation off the downbeat
+    // COMP — the flavor's clave, strummed; GROOVE sets density (sparse drops hits · busy adds)
     for (int i = 0; F->comp[i] >= 0; i++)
         if (F->comp[i] == s32) {
-            if (s32 % 16 != 0 && cb_rand(100) < 15) break;   // occasionally drop an off-beat hit
+            if (groove == 0 && (i & 1)) break;                            // sparse: drop odd-index hits
+            if (groove == 1 && s32 % 16 != 0 && cb_rand(100) < 15) break; // normal: a little human drop
             int vol = mid(1, ((s32 % 16 == 0) ? masterV : masterV - 1) + swell, 7);
             for (int k = 0; k < nVoiced; k++)
                 schedule_hit(k * strumMs / 2 + cb_rand(4), voiced[k], SL_CHORD, vol, 380);
             break;
         }
-    // TURNAROUND — extra comp pushes (anticipations) in the fill bar's back half
-    if (fill && (step == 10 || step == 14) && nVoiced) {
+    // extra anticipation pushes — on the turnaround bar always, and every bar when BUSY
+    if ((fill || groove == 2) && (step == 10 || step == 14) && nVoiced) {
         int vol = mid(1, masterV - 1, 7);
         for (int k = 0; k < nVoiced; k++) schedule_hit(k * strumMs / 2, voiced[k], SL_CHORD, vol, 220);
     }
 
-    // BASS — surdo/walk; the fill bar gets a busier pickup into the next downbeat
+    // BASS — surdo/walk; the fill bar gets a busier pickup; GROOVE sets density
     if (fill && step >= 12) {
         if (step == 12 || step == 14) cb_bass_at(160, -1);
     } else {
         for (int i = 0; F->bassOn[i] >= 0; i++)
-            if (F->bassOn[i] == s32) { cb_bass_at((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1); break; }
+            if (F->bassOn[i] == s32) {
+                if (groove == 0 && s32 % 16 != 0) break;                  // sparse: bass only on the "1"
+                cb_bass_at((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1);
+                break;
+            }
+        if (groove == 2 && (step == 6 || step == 14)) cb_bass_at(180, -1);  // busy: extra offbeat bass
     }
 
     // a soft open-hat lift on the turnaround — the phrase taking a breath
@@ -601,7 +609,10 @@ static void update_chord(void) {
     // PIANO + HARP model selectors — tap to cycle through the MODEL[] shelf
     if (tapp(166, 15, 72, 13)) { engine    = (engine    + 1) % NENG; kSound = (engine + 0.5f) / NENG; }
     if (tapp(242, 15, 72, 13)) { harpModel = (harpModel + 1) % NENG; }
-    if (tapp(6,   138, 90,  12)) { perfMode = (perfMode + 1) % NPERF; kPerform = (perfMode + 0.5f) / NPERF; }  // cycle perform mode (keep the MIX PERFORM knob in sync so it doesn't reset on tab-in)
+    if (tapp(6,   138, 90,  12)) {
+        if (keyMode) groove = (groove + 1) % 3;                       // flavor: sparse / normal / busy GROOVE
+        else { perfMode = (perfMode + 1) % NPERF; kPerform = (perfMode + 0.5f) / NPERF; }   // chromatic: perform mode
+    }
     if (tapp(100, 138, 100, 12)) retrig   = !retrig;                  // RETRIG toggle
     if (tapp(206, 138, 58,  12)) { if (!keyMode) keyMode = 1; else keyRoot = (keyRoot + 1) % 12; }  // KEY chip
 
@@ -858,7 +869,8 @@ static void drawChordTab(void) {
     // control strip: perform-mode cycle · RETRIG toggle · octave (Z/X)
     rectfill(6, 138, 90, 12, CLR_DARKER_PURPLE);
     rect(6, 138, 90, 12, CLR_MAUVE);
-    print(PMNAME[perfMode], 10, 140, CLR_LIGHT_GREY);
+    static const char *GRV[3] = { "sparse", "normal", "busy" };
+    print(keyMode ? GRV[groove] : PMNAME[perfMode], 10, 140, CLR_LIGHT_GREY);
     rectfill(100, 138, 100, 12, retrig ? CLR_GREEN : CLR_DARKER_PURPLE);
     rect(100, 138, 100, 12, retrig ? CLR_WHITE : CLR_MAUVE);
     print(str("RETRIG %s", retrig ? "ON" : "OFF"), 104, 140, retrig ? CLR_BLACK : CLR_LIGHT_GREY);

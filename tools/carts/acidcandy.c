@@ -66,11 +66,23 @@ static int face = M_303A;
 static Acid ac[2];
 static int  on[2][STEPS], pit[2][STEPS], acc[2][STEPS], sld[2][STEPS];
 static int  sel[2] = { 0, 0 };
-// the note-bar editor: pitch snaps to a minor-pentatonic scale (always musical).
-// (named PENTA, not SCALE — SCALE is the engine's -D scale-factor flag.)
-static const int PENTA[6] = { 0, 3, 5, 7, 10, 12 };        // semitones above base
-#define NPENTA 6
-static int penta_idx(int semi) { for (int k = 0; k < NPENTA; k++) if (PENTA[k] == semi) return k; return 0; }
+// the note-bar editor snaps pitch to a chosen KEY (root + scale, set on the MST face) so it
+// stays musical. DEFAULT = minor pentatonic at root 0 → byte-identical to the original snap.
+// (avoid the name SCALE — that's the engine's -D pixel-scale flag.)
+typedef struct { const char *name; int n; int deg[13]; } KeyScale;   // deg[] = semitones above root, ending on the octave
+static const KeyScale SCALES[] = {
+    { "m.PENT", 6,  { 0, 3, 5, 7, 10, 12 } },                  // minor pentatonic — DEFAULT (index 0 = the original PENTA)
+    { "M.PENT", 6,  { 0, 2, 4, 7, 9, 12 } },                   // major pentatonic
+    { "MINOR",  8,  { 0, 2, 3, 5, 7, 8, 10, 12 } },            // natural minor
+    { "DORIAN", 8,  { 0, 2, 3, 5, 7, 9, 10, 12 } },            // minor with a raised 6th
+    { "MAJOR",  8,  { 0, 2, 4, 5, 7, 9, 11, 12 } },            // ionian
+    { "CHROM",  13, { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 } },  // out-of-key acid
+};
+#define NSCALE (int)(sizeof(SCALES) / sizeof(SCALES[0]))
+static int mroot = 0;                                                          // rack KEY root, 0..11 semitones (0 = original); added to every 303 note
+static int mscale = 0;                                         // index into SCALES (0 = minor pentatonic = original)
+static const char *NOTE[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+static int scale_idx(int semi) { const KeyScale *S = &SCALES[mscale]; for (int k = 0; k < S->n; k++) if (S->deg[k] == semi) return k; return 0; }
 // SEQ note-bar paint drag: grab pos + axis-lock (0=undecided 1=pitch 2=on/off) + values
 static int drag_gx, drag_gy, drag_axis, drag_paint, drag_on0;
 // per-step DEPTH (the 303 flags) + polymeter
@@ -615,7 +627,7 @@ static void draw_303(int i) {
                     if (py >= by + bh - 4) on[i][cell] = 0;          // bottom band → note OFF (pitch kept)
                     else {
                         float frac = clamp((by + bh - 4 - py) / (float)(bh - 5), 0, 1);
-                        pit[i][cell] = PENTA[(int)(frac * (NPENTA - 1) + 0.5f)];
+                        pit[i][cell] = SCALES[mscale].deg[(int)(frac * (SCALES[mscale].n - 1) + 0.5f)];
                         on[i][cell] = 1;
                     }
                 }
@@ -625,13 +637,13 @@ static void draw_303(int i) {
             rrectfill(bx, by, bw, bh, 1, dead ? CLR_DARKER_PURPLE : CLR_DARK_BROWN);
             if (here) { blend(BLEND_AVG); rrectfill(bx, by, bw, bh, 1, CLR_MEDIUM_GREEN); blend_reset(); }
             if (on[i][s] && !dead) {
-                int idx = penta_idx(pit[i][s]), fh = bh * (idx + 1) / NPENTA;
+                int idx = scale_idx(pit[i][s]), fh = bh * (idx + 1) / SCALES[mscale].n;
                 rrectfill(bx, by + bh - fh, bw, fh, 1, acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN);
                 if (sld[i][s]) {                                    // slide → bright top cap + a GLIDE LINE to the next note
                     rectfill(bx, by + bh - fh, bw, 1, CLR_WHITE);
                     int ns = (s + 1) % plen[i];
-                    int nidx = tie[i][ns] ? idx : penta_idx(pit[i][ns]);
-                    int ntop = (on[i][ns] || tie[i][ns]) ? by + bh - bh * (nidx + 1) / NPENTA : by + bh - fh;
+                    int nidx = tie[i][ns] ? idx : scale_idx(pit[i][ns]);
+                    int ntop = (on[i][ns] || tie[i][ns]) ? by + bh - bh * (nidx + 1) / SCALES[mscale].n : by + bh - fh;
                     line(bx + bw - 1, by + bh - fh, bx + bw + 1, ntop, CLR_WHITE);
                 }
                 if (oct[i][s] > 0) rectfill(bx + 1, by + 1, bw - 2, 2, CLR_LIGHT_YELLOW);           // OCT+
@@ -660,7 +672,7 @@ static void draw_303(int i) {
         for (int n = 0; n < 12; n++) if (!isblack[n]) {
             int x = kb + wi * 21; wi++;
             int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x50u + n, x, ky, 20, kh);
-            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
+            if (ui_button_core(wid, x, ky, 20, kh, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot + n, 0, 0); }
             int lit = pit[i][sel[i]] == n && on[i][sel[i]];
             rrectfill(x, ky, 20, kh, 2, lit ? CLR_LIGHT_YELLOW : CLR_LIGHT_PEACH);
             rrect(x, ky, 20, kh, 2, CLR_BROWNISH_BLACK);
@@ -670,7 +682,7 @@ static void draw_303(int i) {
             if (isblack[n]) {
                 int x = kb + wi * 21 - 6;
                 int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(0x60u + n, x, ky, 12, 9);
-                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + n, 0, 0); }
+                if (ui_button_core(wid, x, ky, 12, 9, &foc, &pr, &hot)) { pit[i][sel[i]] = n; on[i][sel[i]] = 1; mbop = 1; acid_note(a, a->base + mroot + n, 0, 0); }
                 int lit = pit[i][sel[i]] == n && on[i][sel[i]];
                 rrectfill(x, ky, 12, 9, 1, lit ? CLR_LIGHT_YELLOW : CLR_BROWNISH_BLACK);
                 rrect(x, ky, 12, 9, 1, CLR_BLACK);
@@ -954,8 +966,9 @@ static void draw_mst(void) {
     knob(&mpump, 132, 22, 6, "PUMP", 0.0f);
 
     // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
-    if (cbtn(0x20u, 6, 38, 16, 8, "MIX", !mstflow)) mstflow = 0;
-    if (cbtn(0x21u, 6, 47, 16, 8, "PCF",  mstflow)) mstflow = 1;
+    if (cbtn(0x20u, 6, 38, 16, 8, "MIX", mstflow == 0)) mstflow = 0;
+    if (cbtn(0x21u, 6, 47, 16, 8, "PCF", mstflow == 1)) mstflow = 1;
+    if (cbtn(0x23u, 6, 56, 16, 8, "KEY", mstflow == 2)) mstflow = 2;   // root + scale for the 303s
     chip(138, 38, "SNG", 0);                                                   // (still decorative)
     // pan LAW toggle (was the decorative SCP): LIN = centre-full/mono-safe · PWR = equal-loudness,
     // pronounced L/R. Set-and-hold → pan_law() fires only on this tap, never per-frame.
@@ -985,7 +998,7 @@ static void draw_mst(void) {
             if (lv > 0) rectfill(cx + 1, fy + fh - 1 - lv, fw - 2, lv, col);      // fill up from the bottom
             print(MLAB[m], cx + (fw - text_width(MLAB[m])) / 2, fy + fh - 6, CLR_LIGHT_YELLOW);
         }
-    } else {
+    } else if (mstflow == 1) {
         // PCF — a DRAWABLE filter lane: drag to shape the master cutoff across the 16 steps
         int lx0 = 30, lw = 6, ly = 40, lh = 17;
         for (int s = 0; s < STEPS; s++) {
@@ -1003,6 +1016,18 @@ static void draw_mst(void) {
             int fh = lh * mpcf[s] / 7;
             rectfill(cx, ly + lh - fh, lw - 1, fh, mpcf[s] < 7 ? CLR_LIME_GREEN : CLR_DARK_GREEN);
         }
+    } else {                                                // mstflow == 2 — KEY: the 303s' root + scale
+        for (int k = 0; k < 12; k++) {                      // root = a 12-note chromatic strip, piano-coloured
+            int sharp = (k == 1 || k == 3 || k == 6 || k == 8 || k == 10), px = 29 + k * 8, pw = 7;
+            int pr = 0, hot = 0, foc = 0; void *w = ui_wid_hash(0x50u + k, px, 40, pw, 8);
+            if (ui_button_core(w, px, 40, pw, 8, &foc, &pr, &hot)) mroot = k;
+            int lit = (mroot == k);
+            rrectfill(px, 40, pw, 8, 1, lit ? CLR_LIME_GREEN : sharp ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
+            rrect(px, 40, pw, 8, 1, (lit || hot) ? CLR_WHITE : CLR_DARK_GREEN);
+            if (!sharp) { font(FONT_TINY); plabel(NOTE[k], px + pw / 2, 41, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN); }
+        }
+        if (lcdbtn(0x60u, 29, 50, 46, 8, SCALES[mscale].name, 0)) mscale = (mscale + 1) % NSCALE;   // tap = next scale
+        font(FONT_TINY); plabel("KEY", 90, 51, CLR_DARK_BROWN); plabel(NOTE[mroot], 112, 51, CLR_LIME_GREEN);
     }
 
     // ④ delay TIME selector
@@ -1064,7 +1089,7 @@ void update(void) {
             for (int i = 0; i < 2; i++) {                              // each 303 line at its OWN length
                 int ls = ctr % plen[i]; lpos[i] = ls;
                 if (mac[i].mute) { acid_off(&ac[i]); continue; }
-                if (on[i][ls]) { acid_note(&ac[i], ac[i].base + pit[i][ls] + oct[i][ls] * 12, acc[i][ls], sld[i][ls]); mbop = 1; }
+                if (on[i][ls]) { acid_note(&ac[i], ac[i].base + mroot + pit[i][ls] + oct[i][ls] * 12, acc[i][ls], sld[i][ls]); mbop = 1; }
                 else if (tie[i][ls]) acid_tie(&ac[i], sld[i][ls]);     // hold the previous note through
                 else acid_off(&ac[i]);
             }

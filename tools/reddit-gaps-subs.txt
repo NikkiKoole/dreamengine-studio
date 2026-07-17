@@ -36,3 +36,10 @@ WeAreTheMusicMakers
 pocketoperators
 teenageengineering  # OP-1/OP-Z/PO — cheap-playful-gear thesis (complements pocketoperators)
 chiptunes           # fantasy-console lineage: trackers / LSDj / PICO-8-adjacent lo-fi (chipmusic doesn't exist)
+
+# — fantasy-console tribes (on-grain: OUR tribe) — probe: is SOUND depth a pull, or is the
+#   4-channel limit a beloved constraint? First crippled pico8 run (2026-07-17) read thin/
+#   learn-the-tool, NOT unmet-capability — collect a full drip cache before concluding.
+#   Read RAW wishes, not the verdict table: music taxonomy parks game-design chatter as noise.
+pico8
+Tic_80              # TIC-80 — same lineage/audio limits as pico8

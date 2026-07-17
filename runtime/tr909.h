@@ -228,4 +228,20 @@ static void tr909_pan(int base, int v, float pan) {
     }
 }
 
+// FINE-tune voice v by `semis` (fractional semitones, live) across its slots — see tr808_tune.
+static void tr909_tune(int base, int v, float semis) {
+    switch (v) {
+    case TR9_BD: instrument_tune(base + TR9S_BD,  semis); instrument_tune(base + TR9S_BDC, semis); break;
+    case TR9_SD: instrument_tune(base + TR9S_SDB, semis); instrument_tune(base + TR9S_SDN, semis); break;
+    case TR9_LT: case TR9_MT: case TR9_HT:
+                 instrument_tune(base + TR9S_TOM, semis); instrument_tune(base + TR9S_TOMC, semis); break;
+    case TR9_RS: instrument_tune(base + TR9S_RS,  semis); break;
+    case TR9_CP: instrument_tune(base + TR9S_CP,  semis); break;
+    case TR9_CH: instrument_tune(base + TR9S_HHC, semis); break;
+    case TR9_OH: instrument_tune(base + TR9S_HHO, semis); break;
+    case TR9_CC: instrument_tune(base + TR9S_CC,  semis); instrument_tune(base + TR9S_CCN, semis); break;
+    case TR9_RC: instrument_tune(base + TR9S_RC,  semis); break;
+    }
+}
+
 #endif // TR909_H

@@ -213,4 +213,26 @@ static void tr808_pan(int base, int v, float pan) {
     }
 }
 
+// FINE-tune voice v by `semis` (fractional semitones, live) across its output slots — the
+// microtune trim that lets two kicks be nulled against each other. Same slot map as tr808_pan;
+// toms/congas share a slot so they fine-tune as a GROUP.
+static void tr808_tune(int base, int v, float semis) {
+    switch (v) {
+    case TR_BD:  instrument_tune(base + TRS_BD,  semis); break;
+    case TR_SD:  instrument_tune(base + TRS_SDB, semis); instrument_tune(base + TRS_SDN,  semis); break;
+    case TR_LT: case TR_MT: case TR_HT:
+                 instrument_tune(base + TRS_TOM, semis); instrument_tune(base + TRS_TOMN, semis); break;
+    case TR_LC: case TR_MC: case TR_HC:
+                 instrument_tune(base + TRS_CON, semis); break;
+    case TR_RS:  instrument_tune(base + TRS_RS,  semis); break;
+    case TR_CLV: instrument_tune(base + TRS_CLV, semis); break;
+    case TR_CP:  instrument_tune(base + TRS_CP,  semis); break;
+    case TR_MA:  instrument_tune(base + TRS_MAR, semis); break;
+    case TR_CB:  instrument_tune(base + TRS_CB,  semis); break;
+    case TR_CY:  instrument_tune(base + TRS_CYT, semis); break;
+    case TR_OH:  instrument_tune(base + TRS_HATO, semis); break;
+    case TR_CH:  instrument_tune(base + TRS_HATC, semis); break;
+    }
+}
+
 #endif // TR808_H

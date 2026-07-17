@@ -101,7 +101,7 @@ enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane p
 // optional CHAR would otherwise land on the wrong slot). DD_* stays PARALLEL to LK_*.
 enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_VOL, DD_PAN, DD_N };
 static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR", "VOL", "PAN" };
-enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN };     // drum LCD content: voice knobs / kit minimap / depth palette / generate menu
+enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX };     // drum LCD content: tone knobs / kit minimap / depth palette / generate menu / MIX (level·pan·fine)
 static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
 static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
 static int  mutemode = 0;                     // voice-picker tap: 0 = SELECT+audition, 1 = toggle per-voice MUTE
@@ -143,6 +143,8 @@ static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0
 static float dvol[TR_NV];                                  // per-voice LEVEL (0.5 = unity); rides the per-hit velocity — line-scope base the VOL lane offsets around
 static float dpan[TR_NV];                                  // per-voice PAN (0.5 = centre); applied via tr808_pan() around each fire (voice snapshots slot pan at note-on)
 static float dpanlast[TR_NV];                              // last PAN pushed per voice — instrument_pan is a QUEUED set-and-hold ctrl, so only re-push on CHANGE (else the fire loop floods the control queue → clicks)
+static float dfine[TR_NV];                                 // per-voice FINE tune (0.5 = 0; ±0.5 semitone = ±50 cents) — the MICROTUNE trim (null a kick beat); the coarse TUNE knob keeps its semitone steps
+static float dtunefine[TR_NV];                             // last FINE detune pushed via instrument_tune — push on CHANGE only (it's a queued set-and-hold ctrl)
 // SEAM: toms/congas share a slot → they pan as a GROUP (hardware-honest). Independent
 // tom/conga pan = splitting the 14-slot bank into per-voice slots (device-face §2c). Deferred.
 static int   dsel = TR_BD;                                 // selected drum voice
@@ -153,6 +155,8 @@ static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
 static float d9vol[TR9_NV];                                // per-voice LEVEL (0.5 = unity) — see dvol
 static float d9pan[TR9_NV];                                // per-voice PAN (0.5 = centre) — see dpan
 static float d9panlast[TR9_NV];                            // last PAN pushed per voice — see dpanlast
+static float d9fine[TR9_NV];                               // per-voice FINE tune — see dfine
+static float d9tunefine[TR9_NV];                           // last FINE detune pushed per voice — see dtunefine
 static int   d9sel = TR9_BD;
 static float d9trig[TR9_NV];
 static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
@@ -716,6 +720,7 @@ static void draw_808(void) {
     if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
     if (cbtn(0x32u, 138, 47, 16, 7, "MUT", mutemode)) mutemode = !mutemode;   // pad tap → mute voices
+    if (cbtn(0x33u, 138, 56, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -741,14 +746,17 @@ static void draw_808(void) {
                 if (dgrid[v][s]) rectfill(gx, gy, 3, 1, dmute[v] ? CLR_DARKER_GREY : v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
             }
         }
-    } else {                                                // DS_VCE — the picked voice's tone knobs, LCD-native
+    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE-tune (line-scope mixer)
         font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
-        float *kv[5]; const char *kl[5]; int nk = 0;        // TUNE / DEC / [char] / VOL / PAN — even-spaced
+        lcdknob(&dvol[dsel],   46, 49, 5, "VOL",  0.5f);
+        lcdknob(&dpan[dsel],   80, 49, 5, "PAN",  0.5f);
+        lcdknob(&dfine[dsel], 114, 49, 5, "FINE", 0.5f);    // ±50 cents — null a kick beat; TUNE keeps its semitone steps
+    } else {                                                // DS_VCE — the voice's TONE knobs, LCD-native
+        font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
+        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced (VOL/PAN/FINE now live in MIX)
         kv[nk] = &dtune[dsel];  kl[nk++] = "TUNE";
         kv[nk] = &ddecay[dsel]; kl[nk++] = "DEC";
         if (CH8[dsel]) { kv[nk] = &dcolor[dsel]; kl[nk++] = CH8[dsel]; }
-        kv[nk] = &dvol[dsel];   kl[nk++] = "VOL";
-        kv[nk] = &dpan[dsel];   kl[nk++] = "PAN";
         for (int i = 0; i < nk; i++) lcdknob(kv[i], 27 + 106 * (2 * i + 1) / (2 * nk), 49, 5, kl[i], 0.5f);
     }
 
@@ -843,6 +851,7 @@ static void draw_909(void) {
     if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
     if (cbtn(0x32u, 138, 47, 16, 7, "MUT", mutemode)) mutemode = !mutemode;   // pad tap → mute voices
+    if (cbtn(0x33u, 138, 56, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -869,14 +878,17 @@ static void draw_909(void) {
                 if (d9grid[v][s]) rectfill(gx, gy, 3, 1, d9mute[v] ? CLR_DARKER_GREY : v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
             }
         }
-    } else {                                                // DS_VCE — the picked voice's tone knobs, LCD-native
+    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE-tune
         font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
-        float *kv[5]; const char *kl[5]; int nk = 0;        // TUNE / DEC / [char] / VOL / PAN — even-spaced
+        lcdknob(&d9vol[d9sel],   46, 49, 5, "VOL",  0.5f);
+        lcdknob(&d9pan[d9sel],   80, 49, 5, "PAN",  0.5f);
+        lcdknob(&d9fine[d9sel], 114, 49, 5, "FINE", 0.5f);
+    } else {                                                // DS_VCE — the voice's TONE knobs, LCD-native
+        font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
+        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced (VOL/PAN/FINE now live in MIX)
         kv[nk] = &d9tune[d9sel];  kl[nk++] = "TUNE";
         kv[nk] = &d9decay[d9sel]; kl[nk++] = "DEC";
         if (CH9[d9sel]) { kv[nk] = &d9color[d9sel]; kl[nk++] = CH9[d9sel]; }
-        kv[nk] = &d9vol[d9sel];   kl[nk++] = "VOL";
-        kv[nk] = &d9pan[d9sel];   kl[nk++] = "PAN";
         for (int i = 0; i < nk; i++) lcdknob(kv[i], 27 + 106 * (2 * i + 1) / (2 * nk), 49, 5, kl[i], 0.5f);
     }
 
@@ -1055,12 +1067,12 @@ void init(void) {
         gen_line(i, 2);
     }
     tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9..22)
-    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = dvol[v] = dpan[v] = 0.5f; dpanlast[v] = -9; }  // 0.5 = neutral (pan centre); -9 = force first pan push
+    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = dvol[v] = dpan[v] = dfine[v] = 0.5f; dpanlast[v] = dtunefine[v] = -9; }  // 0.5 = neutral; -9 = force first push
     for (int v = 0; v < TR_NV; v++)  for (int s = 0; s < STEPS; s++) dprob[v][s]  = 100;   // every hit certain until loosened
     gen_drums(2);
     tr909_build(D909_BASE);                                // the honest 909 kit (slots 23..35)
     tr909_metal(D909_BASE, m9cut, m9res);
-    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = d9pan[v] = 0.5f; d9panlast[v] = -9; }  // 0.5 = neutral; -9 = force first pan push
+    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = d9pan[v] = d9fine[v] = 0.5f; d9panlast[v] = d9tunefine[v] = -9; }  // 0.5 = neutral; -9 = force first push
     for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9prob[v][s] = 100;
     gen_drums9(2);
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
@@ -1079,6 +1091,10 @@ void update(void) {
     for (int v = 0; v < TR9_NV; v++) if (d9trig[v] > 0) d9trig[v] -= 0.14f;
     apply_fx();                                                        // master FX (glue/filter/delay/pump)
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
+    // FINE tune: a separate per-voice cents trim (MIX screen) applied via instrument_tune on CHANGE
+    // only — the coarse TUNE knob keeps its musical semitone steps; FINE (±0.5 semitone) nulls a beat.
+    for (int v = 0; v < TR_NV;  v++) { float fn = dfine[v]  - 0.5f; if (fn != dtunefine[v])  { tr808_tune(TR808_BASE, v, fn); dtunefine[v]  = fn; } }
+    for (int v = 0; v < TR9_NV; v++) { float fn = d9fine[v] - 0.5f; if (fn != d9tunefine[v]) { tr909_tune(D909_BASE, v, fn); d9tunefine[v] = fn; } }
     if (playing) {
         float stepf = now() * (132 / 60.0f * 4);                       // 16th notes at 132 bpm
         int   ctr = (int)stepf;                                        // free-running counter (polymeter)

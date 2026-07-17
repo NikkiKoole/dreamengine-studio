@@ -9,10 +9,12 @@ calls it. Gate committed: [`tools/formant-check.js`](../../tools/formant-check.j
 oracle). Flavour B of the audio-input frontier's auto-tune split; robot flavour already shipped
 ([`hardtune`](../../tools/carts/hardtune.c)). **Real-voice check: PASSED** (2026-07-18) — the maker
 sang into `mictune` and confirmed the tuned playback holds up ("sounds pretty good"): pitch corrected,
-voice kept. So the offline feature is *done*. **Open tail (the live frontier):** the real-time path —
-sing and hear yourself corrected *now*, streaming PSOLA on the audio thread reading the `sound_extin`
-ring (live-only, ADR-0032) — plus a per-frame key/root API. **Now DESIGNED** (§"The live real-time
-path"); spike next. Rolls up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
+voice kept. So the offline feature is *done*. **Live real-time path: SPIKE BUILT** (2026-07-18) —
+`autotune_mic(root, scale, amount)` (streaming TD-PSOLA on the audio thread, reading the `sound_extin`
+ring) + the [`livetune`](../../tools/carts/livetune.c) cart. Compiles + gates green (soundcheck,
+level-check byte-identical off, build-all); **awaiting the FEEL test** — latency + streaming quality
+can only be judged by singing into it live (no oracle for a live output). Live-only (ADR-0032). Rolls
+up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 

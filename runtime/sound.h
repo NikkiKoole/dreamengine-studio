@@ -1571,6 +1571,27 @@ static void sound_extin_reset(void) {       // consumer-side: align reader to wr
     atomic_store_explicit(&extin_r, atomic_load_explicit(&extin_w, memory_order_relaxed), memory_order_release);
 }
 
+// ── LIVE AUTO-TUNE (docs/design/transparent-autotune.md §"the live real-time path") — streaming
+// formant-preserving pitch correction on the AUDIO THREAD: reads the mic ring, runs a two-pointer
+// TD-PSOLA (analysis pointer at the source period, synthesis pointer at the SNAPPED target period,
+// grain content kept → formants preserved), and monitors the corrected voice into the mix. Dormant
+// (am_on=0) → byte-identical. LIVE-ONLY (ADR-0032). SPIKE — quality/latency is the whole question.
+// State here (so the mixer sees am_on/am_amt); the per-sample process is defined after the at_* helpers.
+#define AM_RING 8192
+#define AM_MASK (AM_RING - 1)
+#define AM_LAT  1200                  // fixed output latency (samples ~27ms) — must exceed 2×grain-half
+static float am_inbuf[AM_RING];       // mic history ring
+static float am_outbuf[AM_RING];      // overlap-add output accumulator
+static float am_nrm[AM_RING];         // per-sample window-sum normalizer
+static long  am_w = 0;                // monotonic write cursor (read trails by AM_LAT)
+static float am_T = 300.0f;           // running source period estimate (samples)
+static long  am_ea = 0, am_ts = 0;    // next analysis / synthesis epoch positions
+static long  am_eps[8];               // ring of recent analysis-epoch positions
+static int   am_epi = 0, am_pd = 0;   // epoch-ring index, period-refresh countdown
+static float am_amt = 0.0f;           // correction strength 0..1 (0 = off, byte-identical)
+static int   am_on = 0, am_root = 0, am_scale = 1;
+static float autotune_mic_process(float x);   // defined below, after the at_* helpers (uses at_snap)
+
 static float leslie_pre(float s, float drive) {   // tube pre-amp: Padé tanh (navkit, no libm call)
     if (drive <= 0.001f) return s;
     s *= 1.0f + drive * 5.0f;
@@ -2044,6 +2065,7 @@ typedef enum {
     SR_VOCODER_SEND = 127,  // a=slot, b=amount*1000 — route a slot into the vocoder MODULATOR (send-only: its dry is muted). vocoder_send()
     SR_VOCODER_MIC  = 128,  // a=amount*1000 — route the LIVE mic into the vocoder modulator (Phase 2). vocoder_mic()
     SR_VOCODER_UNVOICED = 129,  // a=amount*1000 — v2: how much to noise-substitute the top bands for unvoiced consonants. vocoder_unvoiced()
+    SR_AUTOTUNE_MIC = 130,  // a=amount*1000, b=root(0..11), c=scale — LIVE streaming auto-tune of the mic (transparent-autotune.md §live). autotune_mic()
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2113,7 +2135,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_SHALLOW: case SR_AMP_NOISE: case SR_GATE: case SR_SHIMMER: case SR_LISTENER:
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
-        case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED:
+        case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5791,6 +5813,18 @@ static void sound_fire_req(SoundReq r) {
     case SR_VOCODER_UNVOICED: {  // a=amount*1000 — v2: noise-substitute the top bands for unvoiced consonants
         voc_uv_amt = clamp01(r.a / 1000.0f);
     } break;
+    case SR_AUTOTUNE_MIC: {  // a=amount*1000, b=root, c=scale — LIVE streaming mic auto-tune
+        float amt = clamp01(r.a / 1000.0f);
+        int on = amt > 0.001f;
+        if (on && !extin_on) {   // starting: reset the mic ring + the streaming PSOLA state
+            sound_extin_reset();
+            am_w = 0; am_ea = 0; am_ts = 0; am_epi = 0; am_pd = 0; am_T = 300.0f;
+            for (int i = 0; i < 8; i++) am_eps[i] = 0;
+            for (int i = 0; i < AM_RING; i++) { am_inbuf[i] = 0; am_outbuf[i] = 0; am_nrm[i] = 0; }
+        }
+        am_amt = amt; am_root = r.b; am_scale = r.c;
+        am_on = on; extin_on = on;
+    } break;
     case SR_GLUE: {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
         float amount = r.b / 1000.0f; amount = clamp01(amount);
@@ -6302,6 +6336,13 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float wet = voc_process((mixL + mixR) * 0.5f, voc_mod);
             mixL = mixL * (1.0f - voc_mix) + wet * voc_mix;
             mixR = mixR * (1.0f - voc_mix) + wet * voc_mix;
+        }
+
+        // ── LIVE AUTO-TUNE (transparent-autotune.md §live): stream the mic through the corrector and
+        // MONITOR the corrected voice into the mix (you hear your pitch snapped in real time). Dormant → skipped.
+        if (am_on) {
+            float cv = autotune_mic_process(sound_extin_read());
+            mixL += cv; mixR += cv;
         }
 
         // ════ MASTER FX SECTION (instrument-engines §8.10) ════════════════════════════════════
@@ -6851,6 +6892,61 @@ static float at_corr(const float *x, int base, int n, int lag) {   // normalized
     for (int i = 0; i < AT_ACW && base + i + lag < n; i++) { float a = x[base + i], b = x[base + i + lag]; s += a * b; e0 += a * a; e1 += b * b; }
     return s / (sqrtf(e0 * e1) + 1e-9f);
 }
+
+// ── LIVE AUTO-TUNE per-sample process (audio thread) — streaming TD-PSOLA on the mic ring ──
+#define AM_ACW 512                    // autocorrelation window for the live period estimate
+static float am_period_est(void) {    // period (samples) from a short autocorrelation of recent mic
+    long base = am_w - AM_ACW; if (base < 0) return am_T;
+    int lo = SOUND_SAMPLE_RATE / 440, hi = SOUND_SAMPLE_RATE / 80;   // 80..440 Hz
+    float best = 0; int bl = (int)am_T;
+    for (int lag = lo; lag <= hi; lag++) {
+        float s = 0, e0 = 0, e1 = 0;
+        for (int i = 0; i < AM_ACW; i++) { float a = am_inbuf[(base + i) & AM_MASK], b = am_inbuf[(base + i + lag) & AM_MASK]; s += a * b; e0 += a * a; e1 += b * b; }
+        float c = s / (sqrtf(e0 * e1) + 1e-9f);
+        if (c > best) { best = c; bl = lag; }
+    }
+    return best > 0.3f ? (float)bl : am_T;   // hold last period when unvoiced (no confident pitch)
+}
+static float autotune_mic_process(float x) {
+    am_inbuf[am_w & AM_MASK] = x; am_w++;
+
+    if (--am_pd <= 0) {                                        // refresh the source period (~every 23ms)
+        am_pd = 1024; am_T = am_period_est();
+        if (am_T < 80.0f) am_T = 80.0f; if (am_T > 500.0f) am_T = 500.0f;   // clamp (grain must fit in AM_LAT)
+    }
+    // analysis epochs: when the write cursor reaches the next expected epoch, snap it to the local peak
+    if (am_w >= am_ea) {
+        long lo = am_ea - (long)(0.25f * am_T), hi = am_ea + (long)(0.25f * am_T);
+        if (hi >= am_w) hi = am_w - 1; if (lo < 0) lo = 0;
+        long pk = lo; float pv = -1e30f;
+        for (long i = lo; i <= hi; i++) { float v = am_inbuf[i & AM_MASK]; if (v > pv) { pv = v; pk = i; } }
+        am_eps[am_epi & 7] = pk; am_epi++;
+        am_ea = pk + (long)am_T;
+    }
+    // synthesis epochs: emit Hann grains at the SNAPPED target period, sourced from the nearest epoch
+    int T = (int)am_T; if (T < 60) T = 60; if (T > 500) T = 500;
+    while (am_ts < am_w - (long)T) {
+        long a = am_eps[0], bd = 1L << 60;                    // nearest recorded analysis epoch to am_ts
+        for (int k = 0; k < 8; k++) { long d = am_ts - am_eps[k]; if (d < 0) d = -d; if (d < bd) { bd = d; a = am_eps[k]; } }
+        if (a > am_w - T) a = am_w - T;
+        for (int j = -T; j <= T; j++) {
+            long di = am_ts + j; if (di < am_w - AM_LAT || di < 0) continue;   // don't touch already-output past
+            float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)T));
+            am_outbuf[di & AM_MASK] += w * am_inbuf[(a + j) & AM_MASK];
+            am_nrm[di & AM_MASK]    += w;
+        }
+        float f0 = (float)SOUND_SAMPLE_RATE / am_T, dm = at_hz2midi(f0);
+        float tm = dm + am_amt * (at_snap(dm, am_root, am_scale) - dm);   // blend detected→snapped by amount
+        long Tt = (long)((float)SOUND_SAMPLE_RATE / at_midi2hz(tm)); if (Tt < 40) Tt = 40;
+        am_ts += Tt;
+    }
+    // read out the sample AM_LAT behind the write cursor, then clear its slot
+    long rd = am_w - AM_LAT; if (rd < 0) return 0.0f;
+    long ri = rd & AM_MASK;
+    float y = am_nrm[ri] > 1e-6f ? am_outbuf[ri] / am_nrm[ri] : 0.0f;
+    am_outbuf[ri] = 0.0f; am_nrm[ri] = 0.0f;
+    return y;
+}
 void sample_autotune(int slot, int root, int scale, float amount) {
     if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS) return;
     SoundSample *s = &sound_samples[slot];
@@ -7293,6 +7389,9 @@ void vocoder_mic(float amount) {   // route the LIVE mic into the vocoder modula
 }
 void vocoder_unvoiced(float amount) {   // v2: fill the top bands with noise for unvoiced consonants (s/sh/f/t)
     sound_push_ctrl(SR_VOCODER_UNVOICED, (int)(amount * 1000.0f), 0, 0, 0, 0, 0);
+}
+void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
+    sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);
 }
 void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);

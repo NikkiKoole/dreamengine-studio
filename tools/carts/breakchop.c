@@ -253,7 +253,7 @@ void update(void) {
 
     // mic RECORD (beatbox → auto-chop): arm once the mic is live, then finish when the take completes
     if (rec_state == 1 && mic_active())   { mic_record(REC_SECONDS); rec_state = 2; }
-    if (rec_state == 2 && !mic_recording()) finish_rec();     // grab + normalize + load + onset-chop; rec_state → 0
+    if (rec_state == 2 && !mic_recording()) { finish_rec(); rec_state = 0; }   // grab + chop, then LEAVE the REC screen
     if (rec_state != 0) return;                               // no pads / auto-play while arming or recording
 
     if (playing && loaded) {                    // auto-run: one slice per beat, looping → reconstructs the loop
@@ -342,7 +342,10 @@ void draw(void) {
         instrument_echo(VOICE, echo_on ? 0.4f : 0.0f);                             // send on/off (tail rings after)
     }
     if (ui_button(172, 98, 46, 16, stut_on ? "STUT*" : "STUT")) stut_on = !stut_on;
-    if (ui_button(222, 98, 50, 16, "REC")) { playing = 0; rec_state = 1; mic_start(); }  // beatbox → auto-chop
+    if (ui_button(222, 98, 50, 16, rec_state ? "STOP" : "REC")) {   // beatbox → auto-chop; STOP cancels a stuck take
+        if (rec_state) { rec_state = 0; mic_stop(); }
+        else { playing = 0; rec_state = 1; mic_start(); }
+    }
     ui_end();
     apply_filter();                                       // rideable, every frame
 

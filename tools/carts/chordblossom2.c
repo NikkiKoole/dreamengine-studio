@@ -144,9 +144,9 @@ static const char *PATTERN[NPRESET][ROWS] = {
 // (the band follows your hands). docs/design/bossa-rack.md.
 typedef struct {
     const char *name;
-    const char *comp;      // PM_PATTERN comp rhythm (16 steps), NULL = keep PAT_RHYTHM
     int  perfMode;         // performance mode the flavor plays in
     int  rootless;         // 1 = drop the root from the voiced chord (the bass owns it)
+    int  autoColor;        // 1 = auto-extend every chord to its 7th + 9th (the jazz colour)
     int  eng;              // chord MODEL index (timbre)
     int  drumPreset;       // backing groove
     int  tempo;
@@ -156,8 +156,9 @@ typedef struct {
 #define NFLAV 2
 enum { FL_NEUTRAL, FL_BOSSA };
 static const Flavor FLAVORS[NFLAV] = {
-    { "NEUTRAL", NULL,               PM_STRUM,   0, 0, 0,  96, 22, false },
-    { "BOSSA",   "x..x..x...x..x..", PM_PATTERN, 1, 5, 1, 128, 16, true  },
+    //  name       perf         rootless autoColor eng drum tempo strum autorun
+    { "NEUTRAL", PM_STRUM,   0, 0, 0, 0,  96, 22, false },
+    { "BOSSA",   PM_PATTERN, 1, 1, 5, 1, 128, 12, true  },
 };
 
 // ── state ───────────────────────────────────────────────────
@@ -230,6 +231,10 @@ static int cb_pcs(int *out) {
     bool seen[12] = { false };
     for (int i = 0; i < 3; i++)    seen[TRIAD[chType][i] % 12] = true;
     for (int m = 0; m < NMOD; m++) if (modOn[m]) seen[MODIV[m] % 12] = true;
+    if (FLAVORS[flavor].autoColor) {                 // the jazz colour: 7th + 9th on every chord
+        seen[(chType == TY_MAJ) ? 11 : 10] = true;   // maj7 over a major triad, else b7
+        seen[2] = true;                              // the 9th (14 % 12)
+    }
     int n = 0;
     for (int p = 0; p < 12; p++) if (seen[p]) out[n++] = p;
     return n;
@@ -386,6 +391,23 @@ static void apply_flavor(int fl) {
     loadPreset(F->drumPreset);
     if (F->autoRun) playing = true;
     cb_build();
+}
+
+// the real bossa accompaniment (from bossa.c): the 2-bar João clave, STRUMMED (the
+// 3 voices ~8ms apart, not a block stab), + a surdo bass pulse. Called each new
+// 16th while a chord is armed; s32 = position in the 2-bar (32-step) pattern.
+static const int CLAVE32[] = { 0, 6, 12, 20, 26, -1 };   // João comp positions over 2 bars
+static void bossa_accomp(int s32) {
+    for (int i = 0; CLAVE32[i] >= 0; i++)
+        if (CLAVE32[i] == s32) {                          // guitar comps the clave
+            int vol = (s32 == 0) ? masterV : mid(1, masterV - 1, 7);
+            for (int k = 0; k < nVoiced; k++)
+                schedule_hit(k * strumMs / 2 + cb_rand(4), voiced[k], SL_CHORD, vol, 380);
+            break;
+        }
+    // surdo: low pulse on 1, softer on the "and of 2" — the bossa heartbeat
+    if      (s32 == 0 || s32 == 16) cb_bass_at(300,  0);
+    else if (s32 == 8 || s32 == 24) cb_bass_at(240, -1);
 }
 
 // ── engine + fx config (set-and-hold) ───────────────────────
@@ -550,20 +572,25 @@ void update(void) {
 
     if (playing && newStep) {
         cur_step = sixteenth % STEPS;
-        for (int r = 0; r < ROWS; r++)
+        for (int r = 0; r < ROWS; r++) {
+            if (flavor == FL_BOSSA && r == 5) continue;   // bossa owns the bass (surdo, below)
             if (grid[r][cur_step]) { play_row(r); flash[r] = frame(); }
+        }
     } else if (!playing) {
         cur_step = 0;
     }
 
     // arp / pattern run off the beat clock whenever a chord is armed
     if (armed && newStep) {
-        int st = sixteenth % STEPS;
-        const char *comp = FLAVORS[flavor].comp ? FLAVORS[flavor].comp : PAT_RHYTHM;
-        if (perfMode == PM_ARP && nVoiced > 0)
-            hit(voiced[arpIdx++ % nVoiced], SL_CHORD, masterV, 130);
-        else if (perfMode == PM_PATTERN && comp[st] == 'x')
-            for (int k = 0; k < nVoiced; k++) schedule_hit(0, voiced[k], SL_CHORD, masterV, 150);
+        if (flavor == FL_BOSSA) {
+            bossa_accomp(sixteenth % 32);                 // the real 2-bar clave strum + surdo
+        } else {
+            int st = sixteenth % STEPS;
+            if (perfMode == PM_ARP && nVoiced > 0)
+                hit(voiced[arpIdx++ % nVoiced], SL_CHORD, masterV, 130);
+            else if (perfMode == PM_PATTERN && PAT_RHYTHM[st] == 'x')
+                for (int k = 0; k < nVoiced; k++) schedule_hit(0, voiced[k], SL_CHORD, masterV, 150);
+        }
     }
 
     // chord looper playback

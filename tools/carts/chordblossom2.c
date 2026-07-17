@@ -213,6 +213,18 @@ static int  keyMode  = 0;                 // KEY mode: white keys play the diato
 static int  richness = 0;                 // sound: 0 simple(triad) · 1 +7th · 2 +9th · 3 lush(+13/6)
 static int  groove   = 1;                 // performance density: 0 sparse · 1 normal · 2 busy (flavor-aware)
 
+// ── the tiny per-part PEDALBOARD (per-slot FX, set-and-hold) ─────────────────
+enum { PD_REVERB, PD_DELAY, PD_CHORUS, PD_DRIVE };
+typedef struct { const char *lbl; int slot, kind; bool on; float amt, applied; } Pedal;
+static Pedal pedals[] = {
+    { "RVB", SL_HARP, PD_REVERB, false, 0.40f, -1 },   // HARP row
+    { "DLY", SL_HARP, PD_DELAY,  false, 0.30f, -1 },
+    { "CHO", SL_HARP, PD_CHORUS, false, 0.50f, -1 },
+    { "DRV", SL_BASS, PD_DRIVE,  false, 0.35f, -1 },   // BASS row
+    { "CHO", SL_BASS, PD_CHORUS, false, 0.40f, -1 },
+};
+#define NPED 5
+
 // the built voiced chord (absolute MIDI notes, ascending)
 static int  voiced[12], nVoiced = 0;
 static int  heldH[12],  nHeld   = 0;      // live handles for PLAY (held-pad) mode
@@ -227,6 +239,7 @@ static int strId[NFINGER], strLast[NFINGER];
 // mix knobs (0..1 floats behind ui_knob)
 static float kSound = 0.08f, kPerform = 0.2f, kFX = 0.35f, kKey = 0.5f;   // kSound 0.08 -> piano model 0 (EP), matching the default
 static float kBass = 0.7f, kLoop = 0.7f, kBPM = 0.25f, kOptions = 0.3f, kVolume = 0.75f;
+static float appliedBPM = 0.25f;          // the kBPM value last turned into tempo (change-detect, so the FX tab never clobbers the flavor's tempo)
 
 // derived / applied
 static int   tempo    = 96;
@@ -445,6 +458,7 @@ static void apply_flavor(int fl) {
     richness = F->rich;
     groove   = 1;                        // start each flavor at its normal density
     tempo    = F->tempo;
+    kBPM = appliedBPM = (F->tempo - 60) / 140.0f;   // sync the BPM knob to the flavor's tempo
     strumMs  = F->strumMs;
     loadPreset(F->drumPreset);
     if (F->autoRun) playing = true;
@@ -521,11 +535,27 @@ static void applyFX(void) {
         appCho = kFX;
     }
 }
+// pedalboard FX — SET-AND-HOLD: reconfigure a slot only when its pedal value CHANGES
+static void apply_pedals(void) {
+    for (int i = 0; i < NPED; i++) {
+        Pedal *p = &pedals[i];
+        float v = p->on ? p->amt : 0.0f;
+        if (v == p->applied) continue;
+        p->applied = v;
+        switch (p->kind) {
+            case PD_REVERB: instrument_reverb(p->slot, v); break;
+            case PD_DELAY:  instrument_echo(p->slot, v); break;
+            case PD_CHORUS: instrument_chorus(p->slot, 0.4f, 0.3f, v); break;
+            case PD_DRIVE:  instrument_drive(p->slot, v); break;
+        }
+    }
+}
 
 void init(void) {
     instrument(SL_BASS, INSTR_SAW, 6, 240, 4, 220);      // dedicated sub-bass — own engine, Moog ladder (à la more-note-bass)
     instrument_filter(SL_BASS, FILTER_LADDER, 420, 4);
     reverb(0.6f, 0.4f);
+    echo(300, 0.4f, 0.5f);                               // the delay bus (for the harp DLY pedal)
     for (int k = 0; k < NFINGER; k++) strId[k] = NOFINGER;
     for (int k = 0; k < 40; k++) litT[k] = -999;
     applyEngine();
@@ -637,15 +667,14 @@ static void update_chord(void) {
 
 // ── input: the MIX tab (nine knobs) ─────────────────────────
 static void update_mix(void) {
-    // knobs are read/drawn in draw_mix via ui_knob; here we just derive from them
-    engine    = mid(0, (int)(kSound   * NENG),  NENG  - 1);
-    perfMode  = mid(0, (int)(kPerform * NPERF), NPERF - 1);
-    transpose = (int)((kKey - 0.5f) * 24.0f);
-    tempo     = 60 + (int)(kBPM * 140.0f);
-    masterV   = mid(1, (int)(kVolume * 7) + 1, 7);
-    strumMs   = 8 + (int)(kOptions * 52.0f);
-    drumMix   = kLoop;
-    cb_build();                          // reflect transpose on the plate immediately (silent)
+    // pedal footswitches — tap to toggle (rects match stomp() in drawMixTab)
+    for (int i = 0; i < 3; i++) if (tapp(8 + i * 102 + 8, 28 + 38, 80, 12)) pedals[i].on   = !pedals[i].on;
+    for (int i = 0; i < 2; i++) if (tapp(8 + i * 102 + 8, 86 + 38, 80, 12)) pedals[3+i].on = !pedals[3+i].on;
+    // the remaining essential knobs (the rest moved to the CHORD face). BPM only applies when
+    // the knob actually MOVES — otherwise visiting this tab would overwrite the flavor's tempo.
+    if (kBPM != appliedBPM) { tempo = 60 + (int)(kBPM * 140.0f); appliedBPM = kBPM; }
+    masterV = mid(1, (int)(kVolume * 7) + 1, 7);
+    drumMix = kLoop;
 }
 
 // ── input: the RHYTHM tab (drums + looper) ──────────────────
@@ -718,6 +747,7 @@ void update(void) {
 
     applyEngine();
     applyFX();
+    apply_pedals();
 
     if      (tab == TAB_CHORD)  update_chord();
     else if (tab == TAB_MIX)    update_mix();
@@ -725,6 +755,7 @@ void update(void) {
 
 #ifdef DE_TRACE
     watch("flavor",  "%d", flavor);
+    watch("tempo",   "%d", tempo);
     watch("root",    "%d", root);
     watch("voicing", "%d", voicing);
     watch("octave",  "%d", octave);
@@ -746,7 +777,7 @@ static void drawTab(int bx, int bw, const char *label, bool active) {
 static void drawTopBar(void) {
     print("BLOSSOM", 6, 4, CLR_LIGHT_PEACH);
     drawTab(96,  40, "CHORD",  tab == TAB_CHORD);
-    drawTab(140, 34, "MIX",    tab == TAB_MIX);
+    drawTab(140, 34, "FX",     tab == TAB_MIX);
     drawTab(178, 50, "RHYTHM", tab == TAB_RHYTHM);
     drawTab(232, 40, playing ? "STOP" : "PLAY", playing);
     print_right(str("%d BPM", tempo), SCREEN_W - 4, 4, CLR_DARK_GREY);
@@ -885,18 +916,29 @@ static void knob(float *v, int x, int y, const char *label, const char *val) {
     ui_knob(v, x, y, label);                                        // label sits at y+13
     if (val) print(val, x - text_width(val) / 2, y + 23, CLR_LIGHT_PEACH);
 }
+// a tiny stompbox: body + label + amount knob + footswitch (lit when on)
+static void stomp(Pedal *p, int x, int y) {
+    rrectfill(x, y, 96, 54, 4, p->on ? CLR_DARK_GREEN : CLR_DARKER_PURPLE);
+    rrect(x, y, 96, 54, 4, p->on ? CLR_LIME_GREEN : CLR_MAUVE);
+    print(p->lbl, x + 8, y + 5, p->on ? CLR_WHITE : CLR_LIGHT_GREY);
+    ui_knob(&p->amt, x + 74, y + 20, "");                      // amount (drag)
+    rrectfill(x + 8, y + 38, 80, 12, 2, p->on ? CLR_DARK_RED : CLR_DARKER_PURPLE);
+    rrect(x + 8, y + 38, 80, 12, 2, CLR_MAUVE);
+    circfill(x + 16, y + 44, 3, p->on ? CLR_RED : CLR_DARKER_GREY);
+    print(p->on ? "ON" : "off", x + 26, y + 40, p->on ? CLR_LIGHT_PEACH : CLR_MEDIUM_GREY);
+}
 static void drawMixTab(void) {
-    print("MIX - the nine-knob top row", 8, 18, CLR_LIGHT_PEACH);
-    int cx[3] = { 58, 160, 262 }, cy[3] = { 54, 108, 162 };
-    knob(&kSound,   cx[0], cy[0], "SOUND",   MODEL[engine].name);
-    knob(&kPerform, cx[1], cy[0], "PERFORM", PMNAME[perfMode]);
-    knob(&kFX,      cx[2], cy[0], "FX",      str("%d%%", (int)(kFX * 100)));
-    knob(&kKey,     cx[0], cy[1], "KEY",     str("%+d", transpose));
-    knob(&kBass,    cx[1], cy[1], "BASS",    str("%d%%", (int)(kBass * 100)));
-    knob(&kLoop,    cx[2], cy[1], "LOOP",    str("%d%%", (int)(kLoop * 100)));
-    knob(&kBPM,     cx[0], cy[2], "BPM",     str("%d", tempo));
-    knob(&kOptions, cx[1], cy[2], "OPTIONS", str("%d", (int)(kOptions * 100)));
-    knob(&kVolume,  cx[2], cy[2], "VOLUME",  str("%d/7", masterV));
+    print("HARP", 8, 20, CLR_MEDIUM_GREY);
+    for (int i = 0; i < 3; i++) stomp(&pedals[i], 8 + i * 102, 28);
+    print("BASS", 8, 80, CLR_MEDIUM_GREY);
+    for (int i = 0; i < 2; i++) stomp(&pedals[3 + i], 8 + i * 102, 86);
+    print("RHYTHM  soon", 220, 96, CLR_DARK_GREY);
+    // the essential knobs (the rest moved to the CHORD face)
+    int ky = 156;
+    knob(&kVolume, 44,  ky, "VOL",   str("%d/7", masterV));
+    knob(&kBPM,    130, ky, "BPM",   str("%d", tempo));
+    knob(&kLoop,   216, ky, "DRUMS", str("%d%%", (int)(kLoop * 100)));
+    knob(&kBass,   288, ky, "BASS",  str("%d%%", (int)(kBass * 100)));
 }
 
 static void drawRhythmTab(void) {

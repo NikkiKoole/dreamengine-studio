@@ -27,7 +27,7 @@
     "drum-machine ergonomics: (1) CLEAR — SHIPPED (2026-07-16) as part of a GEN flow. Every instrument has a GEN soft-key (right margin, replacing the decorative SCP) that fills the LCD with a CLEAR + MIN/MID/BUSY menu — CLEAR empties the pattern, the three densities regenerate it (MID = the old NEW recipe). Replaces the single NEW button. (2) LIVE RECORD — still open: while the loop plays, a mode where tapping a voice pad punches its hit onto the CURRENT step (step/overdub record), instead of only auditioning.",
     "waveshape flip: SHIPPED (2026-07-16) a SAW/SQR WAVE toggle in the 5th knob slot of the 303 DEEP page (flips a.wave + re-calls acid_define). Still open: the drvmode waveshaper (SOFT/HARD/FOLD/ASYM) could get the same treatment.",
     "303 DEEP knobs: SHIPPED (2026-07-15) a DF soft-key flips the zone-2 row between vanilla (CUT/RES/ENV/DEC/ACC) and a DEEP page (SUB/ADEC/SLDT/TRK) — the headline Devil Fish knobs, per-303, sub-osc wired on slots 36/37 (34/35 belong to the 909's 13-slot bank). DRV moved to the FX panel (aligns with the drums). Still not surfaced: ATK (soft attack) + SQL (env-sweep) + the accent-SWEEP mode; a fuller flow could page those too.",
-    "wire the still-decorative soft-keys: SHIPPED (2026-07-15) the per-machine FX panel — the FX soft-key on every 303/808/909 opens an aligned DRV/DIST + SEND (shared delay) + VERB (reverb) row (draw_fxrow); reverb is real (303s → warm hall tank 0, 909 → tight plate tank 1, 808 → room tank 2, kicks kept dry) + per-machine drum drive. STILL decorative: MST SNG/SCP only. (Drum MAP → the FLAG toggle; the 303/drum SCP slots → the GEN soft-key 2026-07-16; the 909 METAL XY shipped into its FX panel.) So every 303/808/909 soft-key is now live.",
+    "wire the still-decorative soft-keys: SHIPPED (2026-07-15) the per-machine FX panel — the FX soft-key on every 303/808/909 opens an aligned DRV/DIST + SEND (shared delay) + VERB (reverb) row (draw_fxrow); reverb is real (303s → warm hall tank 0, 909 → tight plate tank 1, 808 → room tank 2, kicks kept dry) + per-machine drum drive. every soft-key is now live: the 303/drum SCP slots → GEN (2026-07-16); MST SCP → the LIN/PWR pan-LAW toggle; MST SNG removed (SONG layer deferred); the 909 METAL XY shipped into its FX panel; MUT/REC are arm-toggles by the voices.",
     "SOUL: the LCD screens have no MASCOT yet (the slime from tinyface/facemock, candy-style §3) — a FACE flow could give a bopping/reacting creature its own screen. Deferred for now.",
     "graduate the gear-drag knob (vertical=value, sideways=fine gear, double-tap=reset) into ui.h's ui_knob so every cart gets it.",
     "note-bars: a CHROMATIC toggle (out-of-key acid) + let a drag PAINT across several bars; MST could grow per-machine level faders."
@@ -823,7 +823,7 @@ static void draw_808(void) {
     if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
     if (cbtn(0x33u, 138, 47, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
-    if (cbtn(0x36u, 138, 56, 16, 7, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D banks (MUTE is now long-press a pad; REC arm sits by the voices)
+    if (cbtn(0x36u, 138, 56, 16, 7, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D pattern banks (MUT + REC are the arm-toggles by the voices)
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -965,7 +965,7 @@ static void draw_909(void) {
     if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
     if (cbtn(0x33u, 138, 47, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
-    if (cbtn(0x36u, 138, 56, 16, 7, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D banks (MUTE is now long-press a pad; REC arm sits by the voices)
+    if (cbtn(0x36u, 138, 56, 16, 7, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D pattern banks (MUT + REC are the arm-toggles by the voices)
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -1105,9 +1105,9 @@ static void draw_mst(void) {
     // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
     if (cbtn(0x20u, 6, 38, 16, 8, "MIX", !mstflow)) mstflow = 0;
     if (cbtn(0x21u, 6, 47, 16, 8, "PCF",  mstflow)) mstflow = 1;   // (KEY moved to the 303 faces — per-line root/scale/octave)
-    chip(138, 38, "SNG", 0);                                                   // (still decorative)
-    // pan LAW toggle (was the decorative SCP): LIN = centre-full/mono-safe · PWR = equal-loudness,
-    // pronounced L/R. Set-and-hold → pan_law() fires only on this tap, never per-frame.
+    // pan LAW toggle (SNG chip removed — SONG layer is deferred): LIN = centre-full/mono-safe ·
+    // PWR = equal-loudness, pronounced L/R. Set-and-hold → pan_law() fires only on tap, never per-frame.
+    if (cbtn(0x22u, 138, 38, 16, 8, mlaw ? "PWR" : "LIN", mlaw)) { mlaw = !mlaw; pan_law(mlaw ? PAN_POWER : PAN_LINEAR); }
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();

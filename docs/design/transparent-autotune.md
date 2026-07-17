@@ -11,9 +11,16 @@ oracle). Flavour B of the audio-input frontier's auto-tune split; robot flavour 
 sang into `mictune` and confirmed the tuned playback holds up ("sounds pretty good"): pitch corrected,
 voice kept. So the offline feature is *done*. **Live real-time path: SPIKE BUILT** (2026-07-18) —
 `autotune_mic(root, scale, amount)` (streaming TD-PSOLA on the audio thread, reading the `sound_extin`
-ring) + the [`livetune`](../../tools/carts/livetune.c) cart. Compiles + gates green (soundcheck,
-level-check byte-identical off, build-all); **awaiting the FEEL test** — latency + streaming quality
-can only be judged by singing into it live (no oracle for a live output). Live-only (ADR-0032). Rolls
+ring) + the [`livetune`](../../tools/carts/livetune.c) cart. **Feel test (2026-07-18):** structurally
+it works — formants preserved, amplitude smooth (the phase-lock fix tamed an initial "pulse") — **but
+there's audible pitch WARBLE**. Diagnosed against a real vocal via the new `DE_MIC_WAV` harness (feed a
+WAV as the mic, `tools/testdata/`): a constrained fundamental-band jitter metric reads ~2.6 Hz on a
+held note (input ~1.6 Hz). Quick principled tweaks each MEASURED as no help — octave-continuity, a
+retune-speed glide, note-hysteresis — so the warble is the streaming pitch/epoch **resolution** itself,
+not a boundary/octave bug. Clean live correction needs a dedicated pass (a YIN-grade real-time pitch
+tracker / sub-sample epochs, or the phase-vocoder route), not spike tweaks. Also: the headless render
+is synchronous, so it may not fully reproduce the editor's real-time-audio timing warble.
+**Live path = feasible + parked** (the offline feature stands on its own). Live-only (ADR-0032). Rolls
 up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put

@@ -130,12 +130,40 @@ void vocoder_bands(int n);                   // 4..16 bands (lo-fi ↔ intelligi
 Dormant + byte-identical until `vocoder(..., >0)` (the effects-family discipline). Set-and-hold except
 `mix` (rideable). Add per the "Adding a new API function" rule (studio.h/.c + studioDocs.js + shell.js).
 
+## Implementation note (2026-07-17) — the real Phase-1 first step, from reading the seam
+
+Read the master/bus code before building; three findings sharpen the plan:
+
+- **The seam already exists, marked.** `sound.h` ~L6170 (master FX section) literally says *"Side-chain
+  seam (future vocoder / sidechain-comp): a control input would tap a source bus's level HERE, before
+  the insert chain — not built."* That's where the vocoder stage goes.
+- **`sc_key_lvl[N_SC_KEYS]` is the exact precedent** — a per-sample accumulator (reset each sample
+  ~L5869, fed by each voice's pre-pan contribution ~L6109, consumed ~L6146). The vocoder's modulator
+  input is the same shape, but it must keep the **signal** (to bandpass), not just the |level|.
+- **Hidden prereq: there is NO per-slot bus routing yet.** L6172: *"Per-slot AUX routing
+  (`instrument_bus`) is the deferred next increment; v1 is master-only."* Slots only reach an aux bus as
+  a side effect of a per-instrument insert (`instrument_chorus` grabs a private bus). So "carrier bus ×
+  modulator bus" can't be expressed cleanly today.
+
+**So the cheapest real Phase 1 is a master-stage vocoder with an sc_key-style modulator SEND, not two
+buses:**
+- **1a — modulator send.** Add `voc_mod[]` (a per-sample MONO accumulator, twin of `sc_key_lvl` but
+  storing the signal). A slot feeds it via a new `vocoder_send(slot, amount)` (mirror `sidechain_key`).
+- **1b — the master stage.** At L6170: **carrier = the master mix** (everything else), **modulator =
+  `voc_mod`**; run the N-band cross-synthesis and blend by `mix`.
+- **Open design Q — send-only modulator.** To hear ONLY the vocoded output, the modulator slot's *dry*
+  must be excluded from the master (a send-only flag, like an echo-only routing). Simplest v1: accept
+  hearing the dry modulator too (still a valid, testable vocoder), add send-only muting as a follow-up.
+- This keeps Phase 1 to a **master-only** feature (no `instrument_bus` dependency); the two-bus version
+  becomes a nicety once per-slot routing lands.
+
 ## Build increments
 
-1. **Filterbank DSP, two internal buses, NO mic** — cross-synthesize one bus (carrier) with another bus
-   (a synth "modulator", e.g. a spoken-ish `INSTR_VOICE` line). Fully deterministic → soundcheck/`spec`
-   testable. Proves the bank + followers + reconstruction in isolation, zero mic risk. Showcase: a saw
-   chord vocoded by an `INSTR_VOICE` phrase.
+1. **Filterbank DSP at the master stage, modulator SEND, NO mic** — per the implementation note above:
+   `voc_mod[]` accumulator + `vocoder_send(slot, amount)` (carrier = master mix, modulator = a synth
+   slot, e.g. an `INSTR_VOICE` phrase). Fully deterministic → soundcheck/`spec` testable. Proves the
+   bank + followers + reconstruction in isolation, zero mic risk. Showcase: a saw chord vocoded by an
+   `INSTR_VOICE` phrase. (Two-bus routing waits on `instrument_bus`; master-only is the cheap v1.)
 2. **Mic PCM ring** — the audio-thread mic path (§infra 1). Swap the modulator bus for the live mic.
    Measure latency on desktop; add the iOS/Android duplex path.
 3. **Capture-then-freeze mode** (`vocoder_source`) — vocode a `mic_record()` take (deterministic;

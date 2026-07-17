@@ -390,8 +390,8 @@ static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_w
 // short window after any drag was held. (acidrack's fix, ported.)
 #define TAP_SETTLE 12   // ~200ms; the observed bounce lagged the release by 8 frames
 static int g_drag_frame = -100;             // last frame a drag widget was captured (ui_frame_ct clock)
-static int g_drag_y = 100;                   // ...and WHERE it was (canvas y) — a drag released below the
-                                             // tab row (y>=11) can't bounce onto a tab, so it needn't block one
+static int g_drag_y = 100;                   // ...and WHERE it was (canvas y) — a bounce lands near here,
+                                             // so a nav tap only blocks when THIS was near the tab band (drag_bounce)
 static int tap_settled(void) { return ui_frame_ct - g_drag_frame >= TAP_SETTLE; }
 
 // A bounce lands near the last drag-release Y. So a momentary button should
@@ -399,11 +399,40 @@ static int tap_settled(void) { return ui_frame_ct - g_drag_frame >= TAP_SETTLE; 
 // ended near THIS button's rect — otherwise a knob-drag (y~22) would wrongly
 // block a soft-key (y~40) two zones away. drag_bounce() is that per-rect test;
 // the DF/WAVE row-1 buttons (same row as the knobs) are the ones it actually
-// saves. (The nav tabs keep their own y<11 guard above — don't touch it.)
+// saves. The NAV TABS use it too (against the y=0..10 band): the top knob row
+// sits at y~16..28, close enough that a knob-release bounce can slip into a
+// tab's hit-padded region (the old crude `g_drag_y >= 11` guard let it through).
 #define BOUNCE_MARGIN 6
 static int drag_bounce(int y, int h) {
     if (tap_settled()) return 0;
     return g_drag_y >= y - BOUNCE_MARGIN && g_drag_y <= y + h + BOUNCE_MARGIN;
+}
+
+// nav_clean() — the guard for the tab-band buttons (PLAY / focus / mute). A knob
+// release bounce isn't always a quick tap: a trackpad can re-report the finger as a
+// FRESH contact that GRABS a tab and then DWELLS many frames before lifting — so by
+// the time it activates, tap_settled() has already closed again and drag_bounce()
+// wrongly says "fine" (this is why the y-threshold AND the plain drag_bounce guard
+// both leaked). Fix: judge the bounce at GRAB, not at release. When a nav widget
+// grabs a contact inside the settle window near the tab band, POISON that contact;
+// honour the poison whenever it activates, however long it held. Call once per nav
+// widget EVERY frame (not short-circuited behind `activated`) so the grab is seen.
+//   CASCADE: the phantoms come in a CHAIN — bounce → bounce → bounce, each ~8-15
+//   frames apart. A window anchored only to the KNOB release lets the 2nd/3rd one
+//   through (it's now >TAP_SETTLE past the knob). So while a poisoned bounce is held,
+//   RE-ARM the settle clock: the quiet window restarts on every bounce and only
+//   reopens once the finger truly settles (TAP_SETTLE frames with no new bounce).
+static void *nav_poison[6]; static int nav_poison_n;
+static int nav_clean(void *wid) {
+    int poisoned = 0;
+    for (int i = 0; i < nav_poison_n; i++) if (nav_poison[i] == wid) { poisoned = 1; break; }
+    if (ui_grabbed(wid) && !poisoned && drag_bounce(0, 10))    // grabbed mid-settle, near the tabs → a bounce
+        { if (nav_poison_n < 6) nav_poison[nav_poison_n++] = wid; poisoned = 1; }
+    if (poisoned && ui_cap_for(wid)) g_drag_frame = ui_frame_ct;   // keep the clock armed while held → covers the CHAIN
+    if (ui_released(wid))                                      // contact lifted → was it poisoned?
+        for (int i = 0; i < nav_poison_n; i++) if (nav_poison[i] == wid)
+            { nav_poison[i] = nav_poison[--nav_poison_n]; return 0; }
+    return 1;
 }
 
 // per-knob interaction memory (for double-tap-to-reset), keyed by the value pointer
@@ -508,8 +537,9 @@ static void cartridge(int m) {
     void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);          // MUTE = the LED pad (its hit-pad falls into the free space below the tabs)
     int af = ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf);
     int am = ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm);
-    if (af && (g_drag_y >= 11 || tap_settled())) face = m;                 // ignore a drag-release bounce
-    if (am && (g_drag_y >= 11 || tap_settled())) mac[m].mute = !mac[m].mute;
+    int cleanf = nav_clean(wf), cleanm = nav_clean(wm);     // latch bounce-poison at GRAB (call every frame, not behind af/am)
+    if (af && cleanf) face = m;                              // ignore a top-knob drag-release bounce onto the tab band
+    if (am && cleanm) mac[m].mute = !mac[m].mute;
 
     rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
     if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
@@ -529,7 +559,8 @@ static void navspine(void) {
     // transport (shared)
     int px = 5, py = 0, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
-    if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot) && tap_settled()) { playing = !playing; laststep = -1; }
+    int actp = ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot), cleanp = nav_clean(w);
+    if (actp && cleanp) { playing = !playing; laststep = -1; }
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
     rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
     if (playing) { rectfill(px + 4, py + 3, 2, 4, CLR_WHITE); rectfill(px + 8, py + 3, 2, 4, CLR_WHITE); }

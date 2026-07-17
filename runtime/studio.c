@@ -593,6 +593,7 @@ static FILE   *trace_file     = NULL;    // --trace: one JSONL line of watch() s
 static int     dump_every     = 0;       // --dump-every: 0 = off, else export every Nth frame
 static char    dump_dir[256]  = {0};     // --dump: directory for filmstrip PNGs
 static int     max_frames     = 0;       // --frames: stop after N frames (0 = run until close)
+static bool    det_turbo      = false;   // deterministic bounded headless run → uncap FPS + skip the (unseen) window present
 // --resize "WxH,WxH,…": a scripted canvas-size SWEEP for testing device-adaptive layouts
 // (device-adaptive-layout.md). Each size is held RESIZE_HOLD frames (so the reflow + a little
 // animation settle), then one PNG cropped to the ACTIVE region is dumped, named by size — a
@@ -2577,7 +2578,8 @@ static void loop_step(void) {
         sox = ((rand() % 201) - 100) / 100.0f * shake_amt * SCALE;
         soy = ((rand() % 201) - 100) / 100.0f * shake_amt * SCALE;
     }
-    if (!skip_render) {
+    if (!skip_render && !det_turbo) {   // det_turbo: the window is hidden AND never read back — skip the blit+swap
+                                        // (the throttle on macOS), the cart already rendered into `canvas` above
     BeginDrawing();
         ClearBackground(BLACK);   // letterbox bars when the window is larger than the game rect (no-op at default size — the blit covers everything)
         bool present_sharp = scale_shader_ok && (SCALE_FILTER >= 2);
@@ -2623,6 +2625,9 @@ static void loop_step(void) {
 #ifndef DE_RELEASE
     harness_inspect(fno);                  // on-demand screenshot + state (trigger-file)
     wav_stream_pump();                     // --wav: render this frame's 735 samples
+    if (det_turbo && !wav_out && sound_synth_mode) {   // turbo (no --wav): drain the synth's 735 samples/frame so the
+        float scratch[735 * 2]; sound_callback(scratch, 735);   // request queue stays empty — deterministic, discard the audio
+    }
 #endif
 #endif
     if (det_mode) det_clock += DET_DT;     // advance the synthetic clock for now()/timer() (web too: netplay)
@@ -3255,15 +3260,25 @@ int main(int argc, char **argv) {
     // netplay QoL: both windows land on one screen side by side — host left, joiner right
     if (net_active && !hide_window) SetWindowPosition(net_is_host ? 60 : 80 + win_w, 120);
 #endif
+    // A deterministic + bounded + headless run (replay/script/--det with --headless
+    // --frames) is FRAME-INDEXED: clk() reads the synthetic det_clock and frame_dt is
+    // pinned to DET_DT, so wall-clock pace can't change a single traced value. Uncap the
+    // loop there (below) + skip the unseen present — an 18k-frame replay finishes in
+    // seconds instead of at 60 fps realtime. Interactive/non-deterministic runs keep the
+    // 60 fps cap. Set here (before audio init) so the synth pump can key off it.
+    det_turbo = det_mode && hide_window && max_frames > 0;
 #ifndef PLATFORM_WEB
     if (wav_path) { sound_synth_mode = true; wav_stream_open(wav_path); audio_off = false; }  // --wav needs the synth
+    if (det_turbo && !audio_off) sound_synth_mode = true;   // turbo: pump the synth IN-LOOP (like --wav, minus the file) so an
+                                                       // uncapped loop can't outrun the realtime device and overflow the request queue
+                                                       // (skip when DE_AUDIO=off — no sound_init, so the in-loop sound_callback must not run)
     if (!audio_off) {                                   // DE_AUDIO=off skips audio entirely
         InitAudioDevice();
         sound_init();
         midi_input_init();   // CoreMIDI keyboard input (no-op if no device / non-macOS)
     }
 #endif
-    SetTargetFPS(60);
+    SetTargetFPS(det_turbo ? 0 : 60);   // raylib: target < 1 → no frame wait (the present is also skipped below)
 
     de_ensure_fb(de_sw, de_sh);   // heap framebuffer sized to the (possibly window-seeded) canvas; == SCREEN_W/H for a fixed cart
     load_palette();

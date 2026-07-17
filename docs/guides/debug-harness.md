@@ -60,6 +60,21 @@ engine as `--script`, so they behave identically.
 > reproducible (their world is gone) — re-record. If you record with a non-default
 > `--seed`, replay with the **same** `--seed`.
 
+> **Headless replays run FLAT-OUT, not at 60 fps ("det-turbo").** A run that is
+> deterministic **and** hidden **and** bounded (`replay`/`script`/`--det` + `--headless`
+> + `--frames N`) is fully *frame-indexed* — `clk()` is a synthetic frame clock and
+> `frame_dt` is pinned to `1/60`, so wall-clock pace can't change one traced value.
+> `runtime/studio.c` detects this (`det_turbo`) and (1) uncaps the loop (`SetTargetFPS(0)`),
+> (2) skips the never-seen window blit+swap (the macOS throttle), and (3) pumps the synth
+> **in-loop** like `--wav` (device stream off) so an uncapped loop can't outrun the realtime
+> audio device and overflow the request queue. Result: light carts replay ~40× realtime; a
+> heavy immediate-mode UI cart (e.g. `acidcandy`) is *draw-bound* at ~4× because `draw()`
+> can't be skipped — it's where `ui_end()` routes input and `watch()` runs. The trace's
+> `w:` (cart-logic) lines are byte-identical to a capped run; audio is deterministic too.
+> Visible runs (editor ▶) and non-deterministic runs keep the 60 fps cap. Don't reach for
+> `DE_AUDIO=off` to go faster — it still *enqueues* sound with no drain, so it just spams
+> queue-overflow warnings (logic stays correct).
+
 ---
 
 ## Telemetry: the `DE_TRACE` convention

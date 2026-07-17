@@ -93,15 +93,21 @@ void update(void) {
         note_reverb(voice, 0.55f);                    // send to the hall
     }
 
+    static float pending = -999.0f;   // a big-jump candidate awaiting confirmation
     float lvl = mic_level();
     float hz  = mic_pitch();
     int   voiced = lvl > GATE;
 
-    // PITCH — only trust a fresh estimate when it's loud + in the hum range; else hold the last one
+    // PITCH — only trust a fresh estimate when it's loud + in the hum range; else hold the last one.
+    // A continuous move is trusted instantly (slides); a BIG jump must repeat one window before we
+    // follow it, so a lone subharmonic glitch (YIN's occasional octave-down blip) is held through
+    // instead of dipping the note. Real octave leaps just take ~one extra window (~46ms) to register.
     if (voiced && hz > 70.0f && hz < 1100.0f) {
         float target = 69.0f + 12.0f * log2f(hz / 440.0f);
         if (target < MIDI_LO) target = MIDI_LO; if (target > MIDI_HI) target = MIDI_HI;
-        last_hz_midi = target;
+        if      (fabsf(target - last_hz_midi) <= 7.0f) { last_hz_midi = target; pending = -999.0f; }
+        else if (fabsf(target - pending)      <= 1.5f) { last_hz_midi = target; pending = -999.0f; }
+        else                                             pending = target;   // suspect — wait for a repeat
     }
     float step = (last_hz_midi - cur) * SMOOTH;        // heavy glide toward the target
     if (step >  MAXSTEP) step =  MAXSTEP;              // clamp per-frame jump (octave-error guard)
@@ -111,10 +117,11 @@ void update(void) {
     float play = scale_mode ? snap_penta(cur) : cur;
     note_pitch(voice, play);
 
-    // VOLUME — mic loudness rides the note volume; silence fades it out
+    // VOLUME — mic loudness rides the note volume; silence fades it out. Faster attack than
+    // release, so a brief loudness dip (a vibrato trough, a between-word breath) doesn't cut the note.
     float tvol = voiced ? lvl * VOLSCALE : 0.0f;
     if (tvol > 7.0f) tvol = 7.0f;
-    vol += (tvol - vol) * 0.25f;                       // smooth so it doesn't chatter
+    vol += (tvol - vol) * (tvol > vol ? 0.35f : 0.10f);
     note_vol(voice, vol);
 
     // record the ribbon (store the PLAYED pitch so scale-snap shows as steps)

@@ -82,10 +82,12 @@ static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 
 enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_LEN, FL_N };
 static int  armed = FL_ACC;                  // which flag a bar-tap paints
 static const char *FLNAME[FL_N] = { "ACC", "SLD", "TIE", "OCT+", "OCT-", "LEN" };
-enum { LK_TUNE, LK_DEC, LK_CHAR, LK_N };            // p-lock params (doff[] index)
-// drum-depth flags. STRK = 909-only; TUN/DEC/CHAR = the per-step p-locks and map 1:1 to LK_* (DD_TUN+lp).
-enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_N };
-static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR" };
+enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_N };    // continuous-lane params (doff[] index). VOL = per-step level (velocity)
+// drum-depth flags. STRK = 909-only. The continuous lanes (TUN/DEC/CHAR/VOL) map to LK_* by
+// darmed = DD_TUN + lane.lk (a STABLE id, NOT the button's row position — a lane after the
+// optional CHAR would otherwise land on the wrong slot). DD_* stays PARALLEL to LK_*.
+enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_VOL, DD_N };
+static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR", "VOL" };
 enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN };     // drum LCD content: voice knobs / kit minimap / depth palette / generate menu
 static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
 static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
@@ -125,11 +127,17 @@ static void flag_set(int i, int s, int f, int v) {
 #define D909_BASE 23
 static int   dgrid[TR_NV][STEPS];                          // the drum pattern
 static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0.5 = neutral)
+static float dvol[TR_NV];                                  // per-voice LEVEL (0.5 = unity); rides the per-hit velocity — line-scope base the VOL lane offsets around
+// SEAM (pan): a per-voice PAN would be a sibling of dvol here (dpan[TR_NV], 0.5 = centre) +
+// a per-slot tr808_pan(base,v,pan) helper in tr808.h (pans EVERY slot a voice fires; toms/
+// congas share a slot → they'd pan as a GROUP — hardware-honest) + an SK_PAN lane below.
+// Deferred: promoting toms/congas to independent pan = splitting the 14-slot bank (device-face §2c).
 static int   dsel = TR_BD;                                 // selected drum voice
 static float dtrig[TR_NV];                                 // per-voice flash: 1 on fire, decays (picker pad lights up)
 // the 909 drum face — voices from the shared tr909.h
 static int   d9grid[TR9_NV][STEPS];
 static float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV];
+static float d9vol[TR9_NV];                                // per-voice LEVEL (0.5 = unity) — see dvol
 static int   d9sel = TR9_BD;
 static float d9trig[TR9_NV];
 static float m9cut = 0.40f, m9res = 0.33f;                 // the 909 metal-filter XY
@@ -147,17 +155,25 @@ static float swing8 = 0, swing9 = 0;                       // per-machine shuffl
 // drum_lanes() is the ONE list the FLAG palette + the fire both read: adding a lane =
 // a row here (+ its knob array; + an engine param to make it SOUND). The paint + lens
 // are already lane-index-generic, so they need no change. Order matches LK_* / DD_TUN+i.
-typedef struct { const char *name; float *knob; float *off; } Lane;
+// A lane's `sink` = WHERE its computed value goes at fire-time:
+//   SK_ARG = mutate the voice's TUNE/DEC/COLOR array (passed to *_fire) — the p-locks.
+//   SK_VEL = fold into the per-hit velocity (`boost` int) — truly per-voice, no engine change.
+//   SK_PAN = (SEAM, not yet wired) call tr808_pan/tr909_pan around the fire; per-voice, but
+//            toms/congas would group (shared slot). Add it here as one row + the header helper.
+enum { SK_ARG, SK_VEL, SK_PAN };
+typedef struct { const char *name; float *knob; float *off; int lk; int sink; } Lane;
 static int drum_lanes(int m, int v, Lane L[LK_N]) {
     int n = 0;
     if (m == M_808) {
-        L[n++] = (Lane){ "TUN", &dtune[v],  doff[LK_TUNE][v] };
-        L[n++] = (Lane){ "DEC", &ddecay[v], doff[LK_DEC][v]  };
-        if (CH8[v]) L[n++] = (Lane){ CH8[v], &dcolor[v], doff[LK_CHAR][v] };
+        L[n++] = (Lane){ "TUN", &dtune[v],  doff[LK_TUNE][v], LK_TUNE, SK_ARG };
+        L[n++] = (Lane){ "DEC", &ddecay[v], doff[LK_DEC][v],  LK_DEC,  SK_ARG };
+        if (CH8[v]) L[n++] = (Lane){ CH8[v], &dcolor[v], doff[LK_CHAR][v], LK_CHAR, SK_ARG };
+        L[n++] = (Lane){ "VOL", &dvol[v],   doff[LK_VOL][v],  LK_VOL,  SK_VEL };
     } else {
-        L[n++] = (Lane){ "TUN", &d9tune[v],  d9off[LK_TUNE][v] };
-        L[n++] = (Lane){ "DEC", &d9decay[v], d9off[LK_DEC][v]  };
-        if (CH9[v]) L[n++] = (Lane){ CH9[v], &d9color[v], d9off[LK_CHAR][v] };
+        L[n++] = (Lane){ "TUN", &d9tune[v],  d9off[LK_TUNE][v], LK_TUNE, SK_ARG };
+        L[n++] = (Lane){ "DEC", &d9decay[v], d9off[LK_DEC][v],  LK_DEC,  SK_ARG };
+        if (CH9[v]) L[n++] = (Lane){ CH9[v], &d9color[v], d9off[LK_CHAR][v], LK_CHAR, SK_ARG };
+        L[n++] = (Lane){ "VOL", &d9vol[v],   d9off[LK_VOL][v],  LK_VOL,  SK_VEL };
     }
     return n;
 }
@@ -692,9 +708,11 @@ static void draw_808(void) {
         // row 1 — the depth flags; row 2 — the per-step p-locks (TUN/DEC/character)
         if (lcdbtn(0x24u + DD_ACC,  30, 40, 32, 8, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
         if (lcdbtn(0x24u + DD_PROB, 64, 40, 32, 8, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
-        Lane L[LK_N]; int nl = drum_lanes(M_808, dsel, L);      // row 2 = the continuous lanes (data-driven)
-        for (int li = 0; li < nl; li++)
-            if (lcdbtn(0x24u + DD_TUN + li, 30 + li * 34, 49, 32, 8, L[li].name, darmed == DD_TUN + li)) darmed = DD_TUN + li;
+        Lane L[LK_N]; int nl = drum_lanes(M_808, dsel, L);      // row 2 = the continuous lanes (data-driven, id-stable)
+        for (int li = 0; li < nl; li++) {
+            int dd = DD_TUN + L[li].lk;                          // STABLE id (not row position) — safe past the optional CHAR
+            if (lcdbtn(0x24u + dd, 28 + li * 26, 49, 24, 8, L[li].name, darmed == dd)) darmed = dd;
+        }
     } else if (dscreen == DS_KIT) {
         rrectfill(28, 40, 15, 7, 1, CLR_TRUE_BLUE); font(FONT_TINY); print("808", 30, 41, CLR_WHITE);   // identity badge
         for (int r = 0; r < TR_NV; r++) {                   // full-roster density grid — every voice SEEN
@@ -708,13 +726,15 @@ static void draw_808(void) {
     } else {                                                // DS_VCE — the picked voice's tone knobs, LCD-native
         font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
         const char *ch = CH8[dsel];                         // this voice's character knob (NULL = none)
-        if (ch) {                                           // TUNE / DEC / <char>
+        if (ch) {                                           // TUNE / DEC / <char> / VOL
+            lcdknob(&dtune[dsel],  30, 49, 5, "TUNE", 0.5f);
+            lcdknob(&ddecay[dsel], 56, 49, 5, "DEC",  0.5f);
+            lcdknob(&dcolor[dsel], 82, 49, 5, ch,     0.5f);
+            lcdknob(&dvol[dsel],  108, 49, 5, "VOL",  0.5f);
+        } else {                                            // TUNE / DEC / VOL (no character knob on this voice)
             lcdknob(&dtune[dsel],  46, 49, 5, "TUNE", 0.5f);
             lcdknob(&ddecay[dsel], 80, 49, 5, "DEC",  0.5f);
-            lcdknob(&dcolor[dsel], 114, 49, 5, ch,    0.5f);
-        } else {                                            // TUNE / DEC only (no character knob on this voice)
-            lcdknob(&dtune[dsel],  60, 49, 5, "TUNE", 0.5f);
-            lcdknob(&ddecay[dsel], 100, 49, 5, "DEC", 0.5f);
+            lcdknob(&dvol[dsel],  114, 49, 5, "VOL",  0.5f);
         }
     }
 
@@ -820,9 +840,11 @@ static void draw_909(void) {
         if (lcdbtn(0x24u + DD_ACC,  30, 40, 32, 8, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
         if (lcdbtn(0x24u + DD_PROB, 64, 40, 32, 8, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
         if (lcdbtn(0x24u + DD_STRK, 98, 40, 32, 8, "STRK", darmed == DD_STRK)) darmed = DD_STRK;
-        Lane L[LK_N]; int nl = drum_lanes(M_909, d9sel, L);     // row 2 = the continuous lanes (data-driven)
-        for (int li = 0; li < nl; li++)
-            if (lcdbtn(0x24u + DD_TUN + li, 30 + li * 34, 49, 32, 8, L[li].name, darmed == DD_TUN + li)) darmed = DD_TUN + li;
+        Lane L[LK_N]; int nl = drum_lanes(M_909, d9sel, L);     // row 2 = the continuous lanes (data-driven, id-stable)
+        for (int li = 0; li < nl; li++) {
+            int dd = DD_TUN + L[li].lk;                          // STABLE id (not row position) — safe past the optional CHAR
+            if (lcdbtn(0x24u + dd, 28 + li * 26, 49, 24, 8, L[li].name, darmed == dd)) darmed = dd;
+        }
     } else if (dscreen == DS_KIT) {
         rrectfill(28, 40, 15, 7, 1, CLR_ORANGE); font(FONT_TINY); print("909", 30, 41, CLR_BROWNISH_BLACK);
         for (int r = 0; r < TR9_NV; r++) {                  // full-roster density grid — every voice SEEN
@@ -836,13 +858,15 @@ static void draw_909(void) {
     } else {                                                // DS_VCE — the picked voice's tone knobs, LCD-native
         font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
         const char *ch = CH9[d9sel];                        // this voice's character knob (NULL = none)
-        if (ch) {                                           // TUNE / DEC / <char>
+        if (ch) {                                           // TUNE / DEC / <char> / VOL
+            lcdknob(&d9tune[d9sel],  30, 49, 5, "TUNE", 0.5f);
+            lcdknob(&d9decay[d9sel], 56, 49, 5, "DEC",  0.5f);
+            lcdknob(&d9color[d9sel], 82, 49, 5, ch,     0.5f);
+            lcdknob(&d9vol[d9sel],  108, 49, 5, "VOL",  0.5f);
+        } else {                                            // TUNE / DEC / VOL
             lcdknob(&d9tune[d9sel],  46, 49, 5, "TUNE", 0.5f);
             lcdknob(&d9decay[d9sel], 80, 49, 5, "DEC",  0.5f);
-            lcdknob(&d9color[d9sel], 114, 49, 5, ch,    0.5f);
-        } else {                                            // TUNE / DEC only
-            lcdknob(&d9tune[d9sel],  60, 49, 5, "TUNE", 0.5f);
-            lcdknob(&d9decay[d9sel], 100, 49, 5, "DEC", 0.5f);
+            lcdknob(&d9vol[d9sel],  114, 49, 5, "VOL",  0.5f);
         }
     }
 
@@ -1005,12 +1029,12 @@ void init(void) {
         gen_line(i, 2);
     }
     tr808_build(TR808_BASE);                               // the shared, honest 808 kit (slots 9..22)
-    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = 0.5f; }
+    for (int v = 0; v < TR_NV; v++) { dtune[v] = ddecay[v] = dcolor[v] = dvol[v] = 0.5f; }
     for (int v = 0; v < TR_NV; v++)  for (int s = 0; s < STEPS; s++) dprob[v][s]  = 100;   // every hit certain until loosened
     gen_drums(2);
     tr909_build(D909_BASE);                                // the honest 909 kit (slots 23..35)
     tr909_metal(D909_BASE, m9cut, m9res);
-    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = 0.5f; }
+    for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = 0.5f; }
     for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9prob[v][s] = 100;
     gen_drums9(2);
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
@@ -1048,10 +1072,15 @@ void update(void) {
                 if (!dgrid[v][step] || (dprob[v][step] < 100 && rnd(100) >= dprob[v][step])) continue;
                 dtrig[v] = 1;                                     // would-trigger → the pad pulses even while muted
                 if (!mac[M_808].mute && !dmute[v]) {              // ...but only SOUND if not muted
-                    Lane L[LK_N]; int nl = drum_lanes(M_808, v, L); float sv[LK_N];   // per-step lane offsets, around each voice knob
-                    for (int p = 0; p < nl; p++) { sv[p] = *L[p].knob; *L[p].knob = clamp(sv[p] + L[p].off[step] * 0.5f, 0, 1); }
-                    tr808_fire(TR808_BASE, v, dacc[v][step] ? 2 : 0, sw8, dtune, ddecay, dcolor);
-                    for (int p = 0; p < nl; p++) *L[p].knob = sv[p];
+                    int bo = dacc[v][step] ? 2 : 0;                                     // accent → +2 velocity
+                    Lane L[LK_N]; int nl = drum_lanes(M_808, v, L); float sv[LK_N];      // per-step lane offsets, around each voice knob
+                    for (int p = 0; p < nl; p++) {
+                        float eff = clamp(*L[p].knob + L[p].off[step] * 0.5f, 0, 1);
+                        if (L[p].sink == SK_ARG) { sv[p] = *L[p].knob; *L[p].knob = eff; }                        // ride the fire array
+                        else if (L[p].sink == SK_VEL) bo += (int)((eff - 0.5f) * 8 + (eff >= 0.5f ? 0.5f : -0.5f)); // VOL → ±4 velocity (0.5 = unity)
+                    }
+                    tr808_fire(TR808_BASE, v, bo, sw8, dtune, ddecay, dcolor);
+                    for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
             }
             for (int v = 0; v < TR9_NV; v++) {                    // the 909 line
@@ -1059,11 +1088,15 @@ void update(void) {
                 d9trig[v] = 1;
                 if (!mac[M_909].mute && !d9mute[v]) {
                     int bo = d9acc[v][step] ? 2 : 0, st = d9strk[v][step];
-                    Lane L[LK_N]; int nl = drum_lanes(M_909, v, L); float sv[LK_N];   // per-step lane offsets, around each voice knob
-                    for (int p = 0; p < nl; p++) { sv[p] = *L[p].knob; *L[p].knob = clamp(sv[p] + L[p].off[step] * 0.5f, 0, 1); }
+                    Lane L[LK_N]; int nl = drum_lanes(M_909, v, L); float sv[LK_N];      // per-step lane offsets, around each voice knob
+                    for (int p = 0; p < nl; p++) {
+                        float eff = clamp(*L[p].knob + L[p].off[step] * 0.5f, 0, 1);
+                        if (L[p].sink == SK_ARG) { sv[p] = *L[p].knob; *L[p].knob = eff; }
+                        else if (L[p].sink == SK_VEL) bo += (int)((eff - 0.5f) * 8 + (eff >= 0.5f ? 0.5f : -0.5f)); // VOL → ±4 velocity
+                    }
                     if (st) tr909_fire_stroke(D909_BASE, v, st, bo, sw9, 113, d9tune, d9decay, d9color);   // 113ms ≈ one 16th @132
                     else    tr909_fire(D909_BASE, v, bo, sw9, d9tune, d9decay, d9color);
-                    for (int p = 0; p < nl; p++) *L[p].knob = sv[p];
+                    for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
             }
         } else for (int i = 0; i < 2; i++) {

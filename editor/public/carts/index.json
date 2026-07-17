@@ -426,7 +426,7 @@
   },
   {
     "title": "acid candy (160x100)",
-    "description": "A candy-toy acid RACK on the device-face skeleton at 160x100 x4: a colour-cartridge nav strip of five FOCUSABLE machines — 303a / 303b / 808 / 909 / MST — all on one transport, packaging acidrack's guts as the device-face paradigm instead of an accordion. Every voice is honest, shared from runtime/ headers so it can't drift. Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has four soft-keys like the drums — SEQ (the LCD roll), FLAG (a 6-button palette ACC/SLD/TIE/OCT+/OCT-/LEN you arm then paint on the bars — per-step depth + per-line LENGTH/polymeter), FX (DRV/SEND/VERB as LCD-native green knobs), and GEN (a CLEAR + MIN/MID/BUSY generate menu). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX + a machine-global SWING (SWG/DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. The green SCREEN is the voice inspector: four soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE + DEC as LCD-native green knobs, plus a voice-specific CHARACTER knob only where the machine has one — SNPY/THUD/TONE/RING on the 808, ATTK/SNPY/CLIK/TONE on the 909, faithful to tr808/tr909; voices without one show just the two) / KIT (the kit minimap) / FLAG (a depth palette) / GEN (a CLEAR + MIN/MID/BUSY generate menu) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke) / and the per-step p-LOCKS TUN / DEC / <character> (each its own button — the palette is two rows: ACC/PROB(/STRK) on top, the p-locks below; the character button appears only on voices that have one, e.g. SNPY). Arming a p-lock turns the cell lane into a BIPOLAR bar-from-centre lens editing that knob's per-step OFFSET (centre = follow the voice knob, up/down = ± its range); all three offsets play at once, each riding its voice knob so the knobs still transpose the whole contour. PROB and the p-locks DRAW ACROSS — drag over the row and each cell takes the finger's height, so a whole probability ramp or melodic/decay/timbre contour sweeps out in one gesture (the PCF-lane / note-bar feel). A single-row voice picker holding the FULL roster (16 tiny 2-char pads on the 808, 11 on the 909, acidrack's acid order — full name in the VCE header), doubling as a per-voice MUTE grid under a MUT soft-key (muted = dimmed + red slash, silenced but kept in the pattern), and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP, a 4-channel mix overview, delay TIME + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.) Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-/LEN, then tap bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: SWG/DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, pick a delay TIME + per-machine SEND.",
+    "description": "A candy-toy acid RACK on the device-face skeleton at 160x100 x4: a colour-cartridge nav strip of five FOCUSABLE machines — 303a / 303b / 808 / 909 / MST — all on one transport, packaging acidrack's guts as the device-face paradigm instead of an accordion. Every voice is honest, shared from runtime/ headers so it can't drift. Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has four soft-keys like the drums — SEQ (the LCD roll), FLAG (a 5-button palette ACC/SLD/TIE/OCT+/OCT- you arm then paint on the bars — per-step depth; loop LENGTH/polymeter is now a ▼ marker you DRAG in a lane above the note-bars, not a flag), FX (DRV/SEND/VERB as LCD-native green knobs), and GEN (a CLEAR + MIN/MID/BUSY generate menu). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX + a machine-global SWING (SWG/DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. The green SCREEN is the voice inspector: four soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE + DEC as LCD-native green knobs, plus a voice-specific CHARACTER knob only where the machine has one — SNPY/THUD/TONE/RING on the 808, ATTK/SNPY/CLIK/TONE on the 909, faithful to tr808/tr909; voices without one show just the two) / KIT (the kit minimap) / FLAG (a depth palette) / GEN (a CLEAR + MIN/MID/BUSY generate menu) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke) / and the per-step p-LOCKS TUN / DEC / <character> (each its own button — the palette is two rows: ACC/PROB(/STRK) on top, the p-locks below; the character button appears only on voices that have one, e.g. SNPY). Arming a p-lock turns the cell lane into a BIPOLAR bar-from-centre lens editing that knob's per-step OFFSET (centre = follow the voice knob, up/down = ± its range); all three offsets play at once, each riding its voice knob so the knobs still transpose the whole contour. PROB and the p-locks DRAW ACROSS — drag over the row and each cell takes the finger's height, so a whole probability ramp or melodic/decay/timbre contour sweeps out in one gesture (the PCF-lane / note-bar feel). A single-row voice picker holding the FULL roster (16 tiny 2-char pads on the 808, 11 on the 909, acidrack's acid order — full name in the VCE header), doubling as a per-voice MUTE grid under a MUT soft-key (muted = dimmed + red slash, silenced but kept in the pattern), and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP, a 4-channel mix overview, delay TIME + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.) Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: SWG/DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, pick a delay TIME + per-machine SEND.",
     "file": "acidcandy.cart.png",
     "created": "2026-07-14",
     "kind": [
@@ -463,6 +463,20 @@
       "toy"
     ],
     "teaches": []
+  },
+  {
+    "title": "acid pets (mockup)",
+    "description": "A DRAW-ONLY vibe mockup for acidcandy: five little creatures — one per machine (303a eel / 303b tadpole / 808 puffer / 909 bug / MST heart) — that are a LIVE READOUT of a faked acid rack. The nav strip is a PET SHELF (five tiny critters, always visible) with a big VIVARIUM below showing the focused pet in detail. Every knob, note, accent, slide, mute, Devil-Fish flip and the sidechain PUMP maps to something visible on the animal. Rendered in the squishy-lines house look: hand-drawn boiled outlines (the wobble frame advances on the BPM) + a beveled candy rim. No audio — this is for iterating the LOOK before it touches the real cart.",
+    "file": "acidpets.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument",
+      "generative"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
   },
   {
     "title": "acid rack",
@@ -968,6 +982,40 @@
       "radio"
     ],
     "lineage": "Extends the radio.h station chassis with a full jazz-harmony engine: Markov chord walks over harmonic functions, rootless 3-voice voice-leading, and a schedule_hit() step sequencer — the worked example for docs/guides/game-music.md."
+  },
+  {
+    "title": "bossa bloom",
+    "description": "Play the changes, the band follows. A bossa chord-bloom rack on the candy device-face: tap a bar to select it, tap a chord from the diatonic FUNCTION palette (tonic=gold, subdominant=green, dominant=orange) to place it — the guitar re-voices, the bass re-walks, and the melody re-pitches around your chord, live and in idiom. GEN rolls a fresh idiomatic AABA; jam the flute over your own changes on the chord-locked solo strip. The bossa band engine (jazz-function Markov harmony, rootless 3-voice voice-leading via rad_lead_to, the surdo bass with chromatic approach, the One-Note-Samba melody cell re-pitched per chord) is copied verbatim from bossa.c so it can't drift; the rack only makes prog[16] editable and wraps it in the candy device-face. Functions-only palette (extensible via the CHORDVOX table). MEL/MIX/SONG faces are stubs for now (build-order items 4-5). SPACE play/stop · G generate a fresh chart · tap a chart bar to select+audition · tap a palette chord to place it (auditions) · tap VOICE/FEEL to cycle · UP/DOWN tempo · tap the tabs (or 1-4) · drag the solo strip to jam.",
+    "file": "bossabloom.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument",
+      "toy"
+    ],
+    "teaches": [
+      "chord-voicing",
+      "generative-melody",
+      "schedule-driven-agents"
+    ],
+    "collection": [
+      "radio",
+      "device-face"
+    ],
+    "lineage": "The first CHORD-BLOOM rack (docs/design/bossa-rack.md): the bossa radio turned inside-out into an instrument — you PLAY the chord chart, the band (bass/guitar-voicing/melody, all copied verbatim from bossa.c) blooms it live, and the chord-locked solo strip is the jam. The candy device-face skin from bossaface.c."
+  },
+  {
+    "title": "bossa face (160x100)",
+    "description": "A VIBE MOCKUP (not functional) for the bossa chord-bloom rack's face — the candy device-face grammar with a BOSSA personality: a teak+sand shell instead of the acid purple, a little sabia BIRD on a wire (the bird of bossa) bopping to the clave on the green LCD, a playable AABA chord chart, warm teak knobs (VOICING/FEEL), the diatonic chord palette coloured by harmonic FUNCTION (tonic=gold, subdominant=palm-green, dominant=sunset-orange), and the chord-locked solo strip. Draw-only + now() life. Mockups-first for vibe work; designed FOR the small canvas.",
+    "file": "bossaface.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "probe"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ],
+    "lineage": "The vibe mockup for the bossa RACK (docs/design/bossa-rack.md §2b skin) — a WARM bossa take on the candy device-face (candy-style.md / device-face-paradigm.md), the sibling of facemock/tinyface/acidcandy but teak+sand instead of purple+lime, and a sabia bird (the bird of bossa nova) as the mascot instead of the acid slime."
   },
   {
     "title": "Boulder Dash",
@@ -2963,6 +3011,21 @@
     "genre": "word"
   },
   {
+    "title": "hardtune",
+    "description": "Sing and hear yourself auto-tuned. Your voice is snapped to the nearest note of a scale and resynthesized robotic; a RETUNE slider takes it from hard T-Pain robot to a smooth, natural correction. Robot auto-tune. The mic's spectral envelope (your vowels + words) is imposed by the 12-band vocoder onto a single saw CARRIER whose pitch is locked to snap_scale(mic_pitch) — so your melody comes out corrected to the chosen scale, in the vocoder's robotic timbre. The RETUNE slider is the retune-speed control: at max the carrier snaps instantly between scale notes (the hard T-Pain/Cher robot jump), lower down it glides toward each target (natural pitch-correction). S cycles the scale (major/minor pentatonic, major, natural minor, chromatic). A live pitch scope draws your RAW pitch against the scale grid with the CORRECTED pitch snapping onto the lines, so you see the tuning happen. LIVE by nature (the mic drives it in real time) — a hardtune take does not replay deterministically (ADR-0032). MIC button: enable/disable the mic. RETUNE slider: hard robot (right) ↔ natural glide (left). S or the SCALE button: cycle the scale. Then just sing.",
+    "file": "hardtune.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "audio-input",
+      "vocoder"
+    ],
+    "lineage": "Robot auto-tune (the T-Pain flavour), vein-3 sibling of the audio-input frontier (docs/design/audio-input-frontier.md). Built on voxbox's chassis (vocoder + vocoder_mic + a saw carrier) but the carrier is a SINGLE voice whose pitch is locked to snap_scale(mic_pitch) — so instead of your vowels on a chord, you hear your melody CORRECTED to the nearest scale note. The RETUNE slider is Antares' famous retune-speed knob: instant = hard robot, slow = natural correction. NOT voxroll (a Melodyne-style EDITOR of synthesised INSTR_VOICE) and NOT transparent auto-tune (that keeps your natural timbre and needs formant-preserving PCM pitch-shift — the frontier doc's flavour B, unbuilt).",
+    "homage": "Auto-Tune as an instrument — Cher's 'Believe' (1998) and T-Pain: the retune knob cranked to instant until pitch jumps become the sound."
+  },
+  {
     "title": "held notes",
     "description": "A theremin built on the new HELD NOTE api. Press and HOLD anywhere on the pad — one sustained voice starts (note_on) and rings until you release (note_off). While you hold, the mouse drives it live: X slides the pitch (note_pitch), Y sweeps the filter cutoff (note_cutoff). This is the opposite of fire-and-forget note(): a voice you keep talking to. The building block behind engine revs, sirens, charging lasers, and real hold-to-sustain keyboards.",
     "file": "heldnotes.cart.png",
@@ -3052,6 +3115,21 @@
     ],
     "lineage": "Tenth radio station and pilot migration to the radio.h chassis; novel in making the filter ride the compositional form (arrangement-level cutoff/res curves swept live on held string voices), the sidechain pump as a continuous filter gesture rather than an FX engine, and THE VOID silent beat as a structural device.",
     "homage": "Daft Punk / Stardust (French house)"
+  },
+  {
+    "title": "hum sequencer",
+    "description": "Hum a melody and hear it played back on a synth — a voice-driven step sequencer. Your hum is captured, snapped to a scale, and looped as a clean piano-roll of notes you can re-voice on any instrument. hum->MIDI, capture-then-freeze. SPACE opens the mic, SPACE again records a 4-second window while your pitch (mic_pitch, YIN) draws a live ribbon; when the window fills, the contour is SEGMENTED by a hysteresis note-tracker — it commits to a note and only switches when your pitch moves clearly past it and holds, so a wobbling/gliding hum reads as clean notes instead of chatter; breaths become rests. Each note is snapped to the chosen SCALE (S cycles major/minor pentatonic, major, natural minor, or CHROMATIC = nearest semitone, the most faithful) so a stranger's hum lands musical. The frozen track then LOOPS: a playhead sweeps the roll and fires the notes on the chosen instrument. TAB toggles FREE timing (keep the hum's own rhythm) vs GRID (snap note edges to a 16-step grid). Both S and TAB re-quantize the SAME capture live — no re-record. [ / ] cycle the voice (pluck / sine / epiano / saw / square). R re-records. Determinism boundary: the ACT of humming is live input (like portapop recording control events), but the captured note track is plain data — it loops and would save/replay deterministically. SPACE: enable mic, then start a 4s recording. R: re-record. S: cycle scale (incl. chromatic). TAB: FREE vs GRID timing. [ / ]: cycle the playback instrument. Then just hum a short melody.",
+    "file": "humseq.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "audio-input",
+      "step-sequencer"
+    ],
+    "lineage": "hum->MIDI: the voice-as-sequencer sibling of `humtheremin`. Where the theremin plays your pitch LIVE and continuous, humseq CAPTURES a hummed melody, freezes it, quantizes it to notes on a scale (and optionally a grid), and LOOPS it back on any instrument. The first cart to turn a voice into a playable, deterministic note track — the standalone proof of the hum->MIDI frontier (docs/design/audio-input-frontier.md) before it drops into portapop as 'sing a part'.",
+    "homage": "Every 'sing your melody and hear it as an instrument' toy — Sonic Pi's live loops, the Jam Origin MIDI Guitar, a beatboxer looping into a pedal — but the input is a hum and the output is a scale-locked piano roll."
   },
   {
     "title": "hum theremin",
@@ -3824,7 +3902,7 @@
   },
   {
     "title": "mic test",
-    "description": "The engine can HEAR you. Enable the mic and it draws your loudness as a VU meter and your pitch as a musical note — the Tier-1 'mic as a controller' surface. Proves the microphone-input seam end to end: mic_start() asks the host to open its capture device (popping the OS permission prompt the first time), then mic_level() (RMS loudness) drives a VU bar with peak-hold and mic_pitch() (a crude zero-crossing estimate) reads out as Hz + nearest note. Loudness is solid; pitch is honestly labelled as octave-noisy on a voice. CLICK or SPACE to enable/disable the microphone. Then hum, talk, or clap.",
+    "description": "The engine can HEAR you. Enable the mic and it draws your loudness as a VU meter and your pitch as a musical note — the Tier-1 'mic as a controller' surface. Proves the microphone-input seam end to end: mic_start() asks the host to open its capture device (popping the OS permission prompt the first time), then mic_level() (RMS loudness) drives a VU bar with peak-hold and mic_pitch() (a YIN detector) reads out as Hz + nearest note. Loudness is solid; pitch tracks a hummed voice cleanly and is octave-safe. CLICK or SPACE to enable/disable the microphone. Then hum, talk, or clap.",
     "file": "mictest.cart.png",
     "created": "2026-07-16",
     "kind": [
@@ -4644,6 +4722,32 @@
       "state-machine"
     ],
     "lineage": "Classic Tamagotchi virtual-pet loop with a multi-stat degradation sim; the novel angle is the real-time 'while you were away' catch-up that fast-forwards neglect from epoch() delta on load."
+  },
+  {
+    "title": "peteyes (eye emotion machine)",
+    "description": "The second acid-pets building block (docs/design/acid-pets.md): a pair of EYES on a face, wired to the full cartoon-eye emotion machine — openness, squint (lower-lid raise), lid tilt (inner-down=angry / inner-up=sad), pupil size, gaze X/Y, and brows (raise + angle) + a glint. All scalar params (hookable to state like the petkit shape dials, procedural, no drawing). Tune with the slider column; number keys jump to emotion PRESETS (neutral/happy/angry/sad/surprised/sleepy/skeptical/dead) so you can see the machine express. Eyes + brows do most of a character's feeling; this gets them right before composing the whole pet.",
+    "file": "peteyes.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "tool"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
+  },
+  {
+    "title": "petkit (shape lab)",
+    "description": "The foundation for the acid-pets mascots (docs/design/acid-pets.md): ONE parametric, reactive SHAPE primitive — circle / oval / rect / rounded-rect / polygon — where every property is a dial: position, width, height, rotation, polygon sides, corner round, fill colour, edge colour, BOIL (hand-drawn wobble that ticks on a beat) and BEVEL (candy rim). A Mr-Men character is just a shape whose look reads its state; get the atom right here, then compose. A reference row shows all five kinds; the big hero shape below is fully tweakable by key so we can confirm each property behaves before building creatures from it.",
+    "file": "petkit.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "tool"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
   },
   {
     "title": "Physics playground",
@@ -5782,6 +5886,20 @@
     "homage": "The Sims (2000)"
   },
   {
+    "title": "sing synth",
+    "description": "Say a vowel and play your own voice as a synth. Tap REC and hold an 'aaah'; the engine loops it into a keyboard instrument you play polyphonically — capture four different vowels and switch between them. Voice sampler. Tap the REC button (it opens the mic the first time) and hold a steady vowel; ~1.2s is captured, normalized, loaded into a sample slot, and a held LOOP is set over the sustained middle (instrument_sample + SAMPLE_LOOP) so the note rings your actual voice — formants, texture and all — for as long as you hold a key. The loop region defaults to the middle but you DRAG its two green markers on the waveform to pick exactly which slice of your recording sustains (the sounding note re-loops live as you drag). The keybed (keybed.h: touch + mouse + QWERTY A-K + MIDI) plays it across two octaves, polyphonically: press a chord and it's three of your own vowels in harmony. The note you sang plays at original pitch; higher keys pitch it up. The four slot buttons pick the voice to play AND the next capture target, so you can bank an 'aaah', an 'eee', an 'ooo' and switch. The buffer is plain PCM DATA (deterministic, saveable), the clean side of the doctrine — only the act of singing is live. Not the vocoder (voxbox) or a pitch-follower (humtheremin): this freezes your VOICE into a playable, loopable instrument. REC button: open the mic (first tap), then hold a vowel to capture the current slot. Drag the two GREEN markers on the waveform to set the loop start/end. Slot buttons 1-4: pick the voice to play + capture into. A-K / click / touch / MIDI: play the keybed. Z/X: octave down/up.",
+    "file": "singsynth.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "audio-input"
+    ],
+    "lineage": "Voice->instrument, vein 3 of the audio-input frontier (docs/design/audio-input-frontier.md): the Casio SK-1 sampling keyboard, honestly. Hold a vowel, the engine records it and LOOPS the sustained middle (INSTR_SAMPLE + SAMPLE_LOOP) so keybed.h plays YOUR voice across the whole keyboard, polyphonically. (First cut tried a single wave_set() cycle — too little data to carry a voice; it just sounded like a buzzy sine. Looping real PCM keeps your formants + texture, the sampling doc's Tier-4.) Sibling of humtheremin/humseq (which read your PITCH); this keeps your TIMBRE. Capture-then-freeze, so the buffer is deterministic data — unlike the live voxbox/vocoder.",
+    "homage": "The Casio SK-1 (1985) — the toy sampling keyboard a generation played their own 'aaah' on, pitched across the keys."
+  },
+  {
     "title": "skewlab",
     "description": "SKEWLAB - clean 1px road edges at any SKEW or CURVE; a petri dish for streetlab's skewed-junction kerb issues (missing outline, stray black pixels at the crossing, doubled edges) and the fix. Models a road as a UNION of capsule segments - two long crossing arms (skew) or many short chords along a fake-Perlin sine centreline (curve). Two draw methods: PER-PIECE casing (what streetlab does - each segment lays a 1px-proud kerb then asphalt, so at any overlap one piece's casing strands inside another's asphalt, giving interior strays + missing edges, worse with skew and far worse on a curve where every joint overlaps); and UNION 1px outline (the fix - fill the whole union once, then one coverage border = an asphalt pixel with a grass 4-neighbour, the same rule circ/poly already use). The union outline is generator-agnostic: it traces the boundary of whatever is filled, so straight, skew and curved/Perlin roads all render as one clean 1px kerb. Readouts: interior strays (0 for the union method) and sampled edge thickness (1px). Controls: Z method, C skew/curve, left/right angle or amplitude, up/down width, R reset.",
     "file": "skewlab.cart.png",
@@ -6890,6 +7008,20 @@
     "lineage": "Twin of the `physics` playground, but built on the shared runtime/physics.h toolkit instead of an inline engine — the proof that the extracted primitives (phys_integrate/phys_link/phys_collide/phys_bounds/phys_grab) reproduce the hand-rolled verlet loop. Where `physics` teaches the engine inline, this one shows the library in use."
   },
   {
+    "title": "vocode",
+    "description": "A saw chord that SPEAKS a synth phrase — the vocoder, now with CONSONANTS. A held chord (carrier) is shaped by a looping modulator of vowels (a voice) + consonants (noise 's'/'t' bursts), so it pulses in the phrase's rhythm and speaks its vowels AND crisp consonants. Z: A/B the vocoder; X: A/B the v2 unvoiced band and hear the consonants appear. The showcase + acceptance test for the master-stage vocoder (vocoder() / vocoder_send()) AND its v2 unvoiced band (vocoder_unvoiced()). Carrier = the master mix (a held INSTR_SAW chord — rich, broadband). Modulator = two send-only slots: an INSTR_VOICE looping VOWELS + an INSTR_NOISE firing CONSONANT bursts (the 's'/'t' onsets). The 12-band bank imposes the modulator's spectral envelope on the chord. v2: when the modulator is broadband hiss (a consonant) the top bands swap to NOISE instead of the tonal carrier, so 's'/'t' cut through crisply instead of turning to mush. Fully DETERMINISTIC (all synth sources, no mic) → doubles as the DSP acceptance test. Z bypasses (mix 0); X toggles the unvoiced band; [/] ride the wet mix. Z: A/B the vocoder (on/off). X: A/B the v2 unvoiced/consonant band. [ / ]: wet mix down/up. It plays itself — the phrase loops.",
+    "file": "vocode.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "vocoder"
+    ],
+    "lineage": "Phase-1 showcase for the engine's new master-stage VOCODER (docs/design/vocoder.md): carrier×modulator cross-synthesis, proven with two SYNTH sources so it's fully deterministic (no mic yet). A held saw chord is the CARRIER; an INSTR_VOICE phrase is the MODULATOR (vocoder_send, send-only) — the chord takes on the phrase's rhythm + spectral shape. The mic becomes the modulator in Phase 2 (the live voxbox → real vocoder)."
+  },
+  {
     "title": "voice stress",
     "description": "Hold up to SOUND_VOICES (32) of the hungriest engines at once and watch/listen for crackle. Crackle is a real-time audio-thread underrun, so the honest test is to RUN THIS AND LISTEN; the on-screen fps + voice count + a constant-speed sweep reveal CPU starvation too. UP/DOWN sets the held-voice count (starts MAXED — it's a stress test), [ / ] cycle the engine (the self-oscillating BOWED/BRASS/REED/PIPE waveguides are the true worst case — full delay-line DSP every sample, per voice), R retriggers. Built to verify the 16->32 voice bump: on a dev Mac the full 32-voice BOWED wall costs ~10% of one core.",
     "file": "voicestress.cart.png",
@@ -6957,6 +7089,21 @@
       "analog-voice-modeling"
     ],
     "lineage": "A/B comparator tool for the INSTR_VOICE formant engine — adds instant A/B flip, solo parameter sweep, and auto-retrig on top of the voxlab explorer to isolate subtle lever contributions (buzz, creak, nasality, measured-BW)."
+  },
+  {
+    "title": "voxbox",
+    "description": "Sing or talk and a synth chord speaks in YOUR voice — the real vocoder. A held saw chord is the carrier; your live mic is the modulator, run through the engine's 12-band vocoder, so the chord takes on your actual vowels and rhythm. Silent until you make a sound. Carrier × modulator, for real: a held INSTR_SAW chord is the CARRIER (rich + broadband so every band has energy); the LIVE MIC is the MODULATOR, fed to the vocoder through the Phase-2 audio-thread ring (vocoder_mic). The 12-band filterbank imposes your voice's spectral envelope on the chord — its vowels AND rhythm come through, so the chord literally speaks/sings your words. Hold a chord and talk. v2: the UNVOICED band (vocoder_unvoiced) makes your consonants — s/t/sh — come through as noise instead of tonal mush; V toggles it. LIVE by nature (the mic drives the sound in real time), so a voxbox performance does NOT replay deterministically — decision 0032. C cycles the chord under your voice. CLICK or SPACE: enable/disable the mic (allow the prompt). C: cycle the carrier chord. V: A/B the v2 unvoiced band (your consonants — s/t/sh — cutting through vs going to mush). Then sing, talk, or beatbox — the chord speaks it.",
+    "file": "voxbox.cart.png",
+    "created": "2026-07-17",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "audio-input",
+      "vocoder"
+    ],
+    "lineage": "The REAL vocoder cart — a synth chord that speaks in your voice. Upgraded from the talkbox-lite first cut (mic_level gate + formant knob) to the engine's actual 12-band vocoder (vocoder() + vocoder_mic()) once Phase 2 landed the live-mic audio-thread ring (docs/design/vocoder.md). Carrier = a held saw chord; modulator = the LIVE mic. Sibling of `vocode` (same vocoder, modulated by a synth phrase instead of your voice) and `vowel` (the single-input formant knob).",
+    "homage": "The vocoder / talkbox (Kraftwerk, Wendy Carlos, Daft Punk, Frampton) — a synth that speaks."
   },
   {
     "title": "voxlab",

@@ -1480,6 +1480,20 @@ static float  voc_mk   = 1.2f;                 // makeup gain (tuned by render: 
 static float  voc_c_lp[VOC_BANDS], voc_c_bp[VOC_BANDS];   // carrier SVF states (Chamberlin)
 static float  voc_m_lp[VOC_BANDS], voc_m_bp[VOC_BANDS];   // modulator SVF states
 static float  voc_env[VOC_BANDS];              // per-band modulator envelope follower
+// v2 quality — UNVOICED/sibilance noise band (docs/design/vocoder.md §"known hard bits"). Consonants
+// (s, sh, f, t) are broadband noise, not pitched — a tonal carrier can't render them, so speech goes
+// mushy. Fix: when the modulator's energy piles into the TOP bands with nothing below (an "s"), swap
+// those bands' excitation from the carrier to band-limited WHITE NOISE. Dormant (voc_uv_amt=0) →
+// byte-identical to the v1 bank. Source-agnostic: the detector reads the band envelopes, so it works
+// for a synth modulator (deterministic) AND the live mic — no mic_pitch() dependency.
+#define VOC_UV_BANDS  4                         // the top bands that get noise-substituted (~2.5..7 kHz)
+#define VOC_UV_LO     0.34f                     // energy-fraction below this = voiced (top-4-of-12 flat point ≈0.33)
+#define VOC_UV_HI     0.60f                     // energy-fraction above this = fully unvoiced (sibilant tilt)
+static float  voc_uv_amt = 0.0f;               // vocoder_unvoiced() control 0..1 — how much noise to substitute (0 = off)
+static float  voc_uv     = 0.0f;               // smoothed unvoiced detector 0..1 (fraction of energy in the top bands)
+static int    voc_nz     = 0x1a2b3c4d;         // deterministic white-noise LCG state for the unvoiced excitation
+static float  voc_nk     = 2.6f;               // noise makeup — a band-limited white draw is quieter than the carrier band
+static float  voc_n_lp[VOC_BANDS], voc_n_bp[VOC_BANDS];   // noise-excitation SVF states (only the top bands used)
 
 static void voc_config(void) {                 // log-spaced band centers 180..7000 Hz (constant; recompute is harmless)
     float lo = 180.0f, hi = 7000.0f;
@@ -1496,13 +1510,31 @@ static inline float voc_svf(float in, float f, float *lp, float *bp) {   // one 
     return *bp;
 }
 static float voc_process(float c, float m) {   // carrier c wearing modulator m's spectral envelope → mono wet
+    // Unvoiced detector (v2): fraction of last-sample band energy sitting in the TOP bands. A vowel
+    // packs its energy into the low formant bands → low fraction; an "s" is almost all top → high.
+    // Read BEFORE the loop updates voc_env, so it's a 1-sample-lagged read of the smoothed envelopes.
+    float uvw = 0.0f;
+    if (voc_uv_amt > 0.0005f) {
+        float hi = 0.0f, tot = 1e-6f;
+        for (int k = 0; k < VOC_BANDS; k++) { tot += voc_env[k]; if (k >= VOC_BANDS - VOC_UV_BANDS) hi += voc_env[k]; }
+        float d = (hi / tot - VOC_UV_LO) / (VOC_UV_HI - VOC_UV_LO);
+        d = d < 0.0f ? 0.0f : (d > 1.0f ? 1.0f : d);
+        voc_uv += 0.02f * (d - voc_uv);                                   // ~a few ms smoothing — no per-sample chatter
+        uvw = voc_uv * voc_uv_amt;
+    } else { voc_uv = 0.0f; }
+    float noise = uvw > 0.0f ? white8(&voc_nz) : 0.0f;                    // one white draw/sample only while substituting
     float out = 0.0f;
     for (int k = 0; k < VOC_BANDS; k++) {
         float cb = voc_svf(c, voc_f[k], &voc_c_lp[k], &voc_c_bp[k]);
         float mb = voc_svf(m, voc_f[k], &voc_m_lp[k], &voc_m_bp[k]);
         float a  = mb < 0.0f ? -mb : mb;                                  // rectify the modulator band
         voc_env[k] += (a > voc_env[k] ? 0.006f : 0.0012f) * (a - voc_env[k]);   // ~4ms attack / ~19ms release
-        out += cb * voc_env[k];
+        float exc = cb;
+        if (uvw > 0.0f && k >= VOC_BANDS - VOC_UV_BANDS) {                // top bands, unvoiced: carrier → band-limited noise
+            float nb = voc_svf(noise, voc_f[k], &voc_n_lp[k], &voc_n_bp[k]);
+            exc = cb * (1.0f - uvw) + nb * (uvw * voc_nk);
+        }
+        out += exc * voc_env[k];
     }
     return out * voc_mk;
 }
@@ -2011,6 +2043,7 @@ typedef enum {
     SR_VOCODER      = 126,  // a=mix*1000 — the master-stage N-band vocoder (carrier = master mix, modulator = voc_mod). vocoder(); docs/design/vocoder.md
     SR_VOCODER_SEND = 127,  // a=slot, b=amount*1000 — route a slot into the vocoder MODULATOR (send-only: its dry is muted). vocoder_send()
     SR_VOCODER_MIC  = 128,  // a=amount*1000 — route the LIVE mic into the vocoder modulator (Phase 2). vocoder_mic()
+    SR_VOCODER_UNVOICED = 129,  // a=amount*1000 — v2: how much to noise-substitute the top bands for unvoiced consonants. vocoder_unvoiced()
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2080,7 +2113,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_SHALLOW: case SR_AMP_NOISE: case SR_GATE: case SR_SHIMMER: case SR_LISTENER:
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
-        case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC:
+        case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5755,6 +5788,9 @@ static void sound_fire_req(SoundReq r) {
         voc_mic_amt = amt;
         extin_on = on;
     } break;
+    case SR_VOCODER_UNVOICED: {  // a=amount*1000 — v2: noise-substitute the top bands for unvoiced consonants
+        voc_uv_amt = clamp01(r.a / 1000.0f);
+    } break;
     case SR_GLUE: {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
         int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
         float amount = r.b / 1000.0f; amount = clamp01(amount);
@@ -7154,6 +7190,9 @@ void vocoder_send(int slot, float amount) {   // route a slot into the vocoder M
 }
 void vocoder_mic(float amount) {   // route the LIVE mic into the vocoder modulator (needs mic_start + permission)
     sound_push_ctrl(SR_VOCODER_MIC, (int)(amount * 1000.0f), 0, 0, 0, 0, 0);
+}
+void vocoder_unvoiced(float amount) {   // v2: fill the top bands with noise for unvoiced consonants (s/sh/f/t)
+    sound_push_ctrl(SR_VOCODER_UNVOICED, (int)(amount * 1000.0f), 0, 0, 0, 0, 0);
 }
 void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);

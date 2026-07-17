@@ -7,8 +7,10 @@ audio-thread ring (`sound_extin_*`, which also opens the live-throughput/pedal t
 [`voxbox`](../../tools/carts/voxbox.c) upgraded from talkbox-lite to the REAL vocoder (sing → the chord
 speaks your words). Determinism carve-out written: [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md)
 (live-mic-through = live-only). Gates green: soundcheck, build-all, wasm-parity, no-crash live path.
-**Remaining (v2 quality):** unvoiced/sibilance noise band; mic-rate resample (non-44.1k device mics);
-latency tuning on device; more bands.
+Phase 3 (v2 quality): the **unvoiced/sibilance noise band** SHIPPED (2026-07-17) — `vocoder_unvoiced()`;
+consonants (s/t/sh/f) now cut through instead of turning to tonal mush ([`vocode`](../../tools/carts/vocode.c)
+A/Bs it deterministically, [`voxbox`](../../tools/carts/voxbox.c) rides it on the live mic).
+**Remaining (v2 quality):** mic-rate resample (non-44.1k device mics); latency tuning on device; more bands.
 
 ## Why this doc exists
 
@@ -173,7 +175,13 @@ buses:**
    showcase. Desktop 1:1 (44.1k). Still to do: non-44.1k mic resample, on-device latency tuning, duplex.
 3. **Capture-then-freeze mode** (`vocoder_source`) — vocode a `mic_record()` take (deterministic;
    `voxbox`/breakchop synergy).
-4. **Quality** — unvoiced/sibilance noise-substitution band, N tuning, per-band gate, formant-shift knob.
+4. **Quality** — ✅ **unvoiced/sibilance noise-substitution band SHIPPED (2026-07-17)**: `vocoder_unvoiced(amount)`.
+   A source-agnostic detector (fraction of modulator energy in the top `VOC_UV_BANDS` bands — no `mic_pitch()`
+   dependency, so it works for a synth modulator OR the live mic) crossfades the top bands' excitation from the
+   tonal carrier to band-limited white noise when the voice goes broadband (an "s"). Dormant (`voc_uv_amt=0`) →
+   byte-identical to the v1 bank. Acceptance: [`vocode`](../../tools/carts/vocode.c) renders a vowel+consonant
+   phrase deterministically; the consonant windows jump from brightness ~0.03 / centroid ~3.8kHz (off) to ~0.2 /
+   ~5.3kHz (on), with no peak increase (`wav-envelope`). Still open: N tuning, per-band gate, formant-shift knob.
 
 ## Prereqs, links, and the 0015 stance
 

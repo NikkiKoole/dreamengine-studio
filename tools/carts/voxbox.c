@@ -10,8 +10,8 @@
   "homage": "The vocoder / talkbox (Kraftwerk, Wendy Carlos, Daft Punk, Frampton) — a synth that speaks.",
   "description": {
     "summary": "Sing or talk and a synth chord speaks in YOUR voice — the real vocoder. A held saw chord is the carrier; your live mic is the modulator, run through the engine's 12-band vocoder, so the chord takes on your actual vowels and rhythm. Silent until you make a sound.",
-    "detail": "Carrier × modulator, for real: a held INSTR_SAW chord is the CARRIER (rich + broadband so every band has energy); the LIVE MIC is the MODULATOR, fed to the vocoder through the Phase-2 audio-thread ring (vocoder_mic). The 12-band filterbank imposes your voice's spectral envelope on the chord — its vowels AND rhythm come through, so the chord literally speaks/sings your words. Hold a chord and talk. LIVE by nature (the mic drives the sound in real time), so a voxbox performance does NOT replay deterministically — decision 0032. C cycles the chord under your voice.",
-    "controls": "CLICK or SPACE: enable/disable the mic (allow the prompt). C: cycle the carrier chord. Then sing, talk, or beatbox — the chord speaks it."
+    "detail": "Carrier × modulator, for real: a held INSTR_SAW chord is the CARRIER (rich + broadband so every band has energy); the LIVE MIC is the MODULATOR, fed to the vocoder through the Phase-2 audio-thread ring (vocoder_mic). The 12-band filterbank imposes your voice's spectral envelope on the chord — its vowels AND rhythm come through, so the chord literally speaks/sings your words. Hold a chord and talk. v2: the UNVOICED band (vocoder_unvoiced) makes your consonants — s/t/sh — come through as noise instead of tonal mush; V toggles it. LIVE by nature (the mic drives the sound in real time), so a voxbox performance does NOT replay deterministically — decision 0032. C cycles the chord under your voice.",
+    "controls": "CLICK or SPACE: enable/disable the mic (allow the prompt). C: cycle the carrier chord. V: A/B the v2 unvoiced band (your consonants — s/t/sh — cutting through vs going to mush). Then sing, talk, or beatbox — the chord speaks it."
   }
 }
 de:meta */
@@ -34,6 +34,7 @@ static const int CHORDS[][4] = {
 static const char *CHORD_NM[] = { "Cmaj", "Cm7", "Am", "Dmaj" };
 static int   chord_sel = 0;
 static int   voc_live  = 0;      // vocoder currently engaged (mic open)
+static int   uv        = 1;      // v2: unvoiced band on? (your consonants — s/t/sh — cut through)
 static float env       = 0.0f;   // smoothed mic input loudness (mouth viz only)
 
 void init(void) {
@@ -49,17 +50,20 @@ void update(void) {
         chord_sel = (chord_sel + 1) % 4;
         for (int i = 0; i < 4; i++) note_pitch(carrier[i], (float)CHORDS[chord_sel][i]);
     }
+    if (keyp('V')) { uv = !uv; vocoder_unvoiced(uv ? 0.85f : 0.0f); }   // A/B your consonants (v2)
 
     int active = mic_active();
     if (active && !voc_live) {                           // mic opened → carrier up + real vocoder on
         for (int i = 0; i < 4; i++) note_vol(carrier[i], 6.0f);
         vocoder(0.97f);                                  // the chord (master mix) wears the mic's spectrum
         vocoder_mic(1.0f);                               // the LIVE mic is the modulator
+        vocoder_unvoiced(uv ? 0.85f : 0.0f);             // v2: your s/t/sh come through as noise, not mush
         voc_live = 1;
     } else if (!active && voc_live) {                    // mic closed → silence + vocoder off
         for (int i = 0; i < 4; i++) note_vol(carrier[i], 0.0f);
         vocoder(0.0f);
         vocoder_mic(0.0f);
+        vocoder_unvoiced(0.0f);
         voc_live = 0;
     }
     float lvl = active ? mic_level() : 0.0f;
@@ -101,7 +105,8 @@ void draw(void) {
     }
 
     print("sing / talk — the chord speaks", SCREEN_W/2 - 92, 22, CLR_MEDIUM_GREY);
-    char buf[40];
-    snprintf(buf, sizeof buf, "REAL VOCODER   %s   C: chord", CHORD_NM[chord_sel]);
+    print(uv ? "consonants: ON" : "consonants: off", SCREEN_W/2 - 44, 34, uv ? CLR_GREEN : CLR_DARK_GREY);
+    char buf[52];
+    snprintf(buf, sizeof buf, "REAL VOCODER   %s   C: chord   V: consonants", CHORD_NM[chord_sel]);
     print(buf, 4, SCREEN_H - 12, CLR_MEDIUM_GREY);
 }

@@ -688,6 +688,7 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 void vocoder(float mix);                              // turn the master vocoder on: carrier (the mix) wears the modulator's spectral envelope. mix 0..1 wet, 0 = off. Play a rich carrier (saw chord) + vocoder_send a modulator (a voice/INSTR_VOICE line)
 void vocoder_send(int slot, float amount);            // route instrument `slot` into the vocoder MODULATOR (0..1). SEND-ONLY: the slot's own dry is muted, it only shapes the carrier. 0 = not a modulator
 void vocoder_mic(float amount);                       // route the LIVE MIC into the vocoder modulator (0..1) — sing/talk and the carrier chord speaks in your voice. Needs mic_start() + permission. 0 = off. LIVE (breaks .rec replay — decision 0032)
+void vocoder_unvoiced(float amount);                  // v2 QUALITY: make consonants (s/sh/f/t) come through, not just vowels — when the voice goes to broadband hiss the top bands swap to noise instead of the tonal carrier. 0..1 (0 = off). Ride it live
 
 // insert-chain ORDER — the inserts above run in a fixed default order; fx_order() rearranges them
 // per bus (e.g. bitcrush BEFORE vs AFTER eq — audibly different). These are the insert kinds, in

@@ -123,9 +123,11 @@ classifies onsets by spectral tilt (kick/snare/hat) and fires [`drumkit.h`](../.
 pads in real time. Tier-1 in [`mic-and-sampling.md`](mic-and-sampling.md) specs exactly this.
 *Prereq: onset detection + a cheap classifier (new).*
 
-**4 — Vocoder v2 quality.** Add the unvoiced/sibilance noise band (so consonants — "s", "t" —
-come through, not just vowels) + mic-rate resample for non-44.1k phone mics. Turns `voxbox` from
-"vowels" into a proper vocoder. Scoped in [`vocoder.md`](vocoder.md) §"v2 quality".
+**4 — Vocoder v2 quality.** The **unvoiced/sibilance noise band SHIPPED** (2026-07-17) —
+`vocoder_unvoiced()`: consonants ("s", "t", "sh", "f") now come through as noise instead of tonal
+mush, turning `voxbox` from "vowels" into a proper vocoder (press V to A/B it; [`vocode`](../../tools/carts/vocode.c)
+A/Bs it deterministically). *Remaining:* mic-rate resample for non-44.1k phone mics, per-band gate,
+more bands. Scoped in [`vocoder.md`](vocoder.md) §"v2 quality".
 
 **5 — Make it real on glass.** Everything above runs on desktop + web; iOS/Android need the
 on-device permission-prompt run (the backends are written to the `platform.h` contract; they need

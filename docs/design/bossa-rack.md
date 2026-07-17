@@ -104,6 +104,30 @@ example for. The five zones:
 5. **THE PERFORMANCE SURFACE = the chord-locked solo strip** — *already built* (`bossa.c:539`). Jam
    the flute over your own changes; the band lays out. Vertical = breath dynamics.
 
+### Does it all fit? The face map (feasibility, 2026-07-17)
+
+Yes — and it's *lighter* than [`acidcandy`](../../tools/carts/acidcandy.c), which already fits five
+machines at 160×100. The reason: in the bloom model most instruments need **no UI of their own** —
+guitar, bass and melody all bloom from the chord, so you drive six instruments through *one* chord
+surface instead of a sequencer grid each. The parts distribute across the four tabs (the paradigm's
+"scale by faces, not cramming"):
+
+| Face (tab) | Holds | Instruments / controls it drives |
+|---|---|---|
+| **CHORD** | the chord chart + the function palette + the chord-locked solo strip + VOICE/FEEL/TEMPO | **guitar, bass, melody** (all bloom) + you jam the **solo flute** |
+| **MEL** | the melody-cell editor (rhythm lane + pitch pins) | the **flute** topline (the disclosure layer) |
+| **MIX** | ~6 compact channel strips (level / mute / voice-flavour) | guitar (TRI↔PLUCK chair), bass, flute, shaker, rim/clave (3-2↔2-3), solo — acidcandy's MST already shows a 4-channel mix at this size |
+| **SONG** | AABA arrangement + seed / GEN + WAV / song-code export | the whole-song layer |
+
+Every instrument and its right UI has a home; the depth is one tab-tap away (disclosure by mode, not
+amputation). The **one tight screen is CHORD** — the mockup ([`bossaface`](../../tools/carts/bossaface.c))
+crams chart + palette + solo + knobs + mascot and it's dense. Standard device-face discipline
+relieves it: the **palette appears only when a slot is selected** (frees a row), the **mascot shrinks
+to a corner pet** once the chart is hero, and chart + solo needn't both be full-width at once. The
+escape hatch is the paradigm's own: on a **tablet, show more faces at once** (CHORD + MIX side by
+side) rather than rearranging — so the phone tab-between is the *tight* case and it already fits at
+acidcandy's density.
+
 ### The live-jam looper (chordblossom's killer, and the jam-first path)
 
 Arm **REC** and play chords on the palette/keybed in real time → each chord is captured into the

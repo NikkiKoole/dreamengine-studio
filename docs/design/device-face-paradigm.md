@@ -12,7 +12,10 @@ analysis (§1f) then stretched the model further — the screen's *character/sou
 plans** (grid vs keybed) under one grammar — producing the [tombola](tombola.md) cart design and the
 *omit-unneeded-zones* rule (§2). The `sampler` (2026-07-14) is the first **declined** case — evaluated and
 turned down as a *workstation, not an instrument* — which produced the **fit test** for when NOT to reach for
-a face at all (§2 *instrument-or-workstation* + the §2b gate-0 check).
+a face at all (§2 *instrument-or-workstation* + the §2b gate-0 check). [`acidcandy`](../../tools/carts/acidcandy.c)
+(2026-07-17) then added the **scope ladder** (§2c) — where a *maturing* face files each new feature (per-step
+lanes, scales, pattern banks) so piling on stays honest — plus the touch-native split of the button row into
+**lenses / verbs / held-modes / selects** (soft-keys are a hardware workaround touch doesn't inherit).
 
 > **Why this doc exists.** We kept re-solving "how do I fit a big instrument on a phone?" per-cart
 > (the [acidrack accordion](acidrack-layout-brief.md), the [epiano keybed brief](epiano-layout-brief.md)).
@@ -437,6 +440,72 @@ view; the cart-level reuse detail — why the tombola won, and which carts to co
   one hero, stop — you have a workstation, and this isn't its shape.** (Workstations deserve their own shape
   — pads/timeline persistent, a mode-driven display, record/resample an ever-present verb — but it's a
   different paradigm; don't bend this one to cover it.)
+
+## 2c · The scope ladder — where a NEW feature goes (the pile-safely rule)
+
+The §2 principles map a cart onto the face *once*. This is the rule for after: a face that ships keeps
+**growing** — acidcandy started with a step grid, then grew per-step accent, then probability, then flam,
+then p-locks, and the maker is already reaching for pan, volume, scales, pattern banks. The trap is treating
+each new thing as a peer of the last and reaching for *"another soft-key / another flag"* every time — the
+button row flattens into a guess-what-this-does grid, and the flag palette overflows. They are **not peers.**
+Each new feature acts at a different **scope**, and the scope is its home:
+
+```
+rack        ─ tempo · master FX · key+scale          one for the whole box
+ machine    ─ per-instrument FX · swing
+  pattern   ─ the 16-step snapshot as a slot          banks A–D · the song chain
+   line/voice ─ scale? · LENGTH · the tone knobs · mute
+    step    ─ accent · prob · flam · tune · dec · pan · vol   the per-step lanes
+```
+
+**The rule: before you build a feature, ask what scope it acts on — that scope is its home, and the home
+decides the UI class.** Step → a lane in the per-step editor (this is where "flags" grow). Line/voice → a
+per-voice setting. Pattern → a **select** strip one level up (§1b sibling of the voice picker), never a flag.
+Rack → up by tempo. Answer that one question and a new feature has an obvious, consistent home — you never
+again have to decide "is this another soft-key?" Three things this surfaced, worth keeping:
+
+- **The per-step "flags" are converging into automation lanes — so generate them, don't hand-place them.**
+  The palette secretly holds *two* kinds: a few **quantized** flags (accent on/off, flam-cycle, probability
+  snapped to 4 steps) and a growing pile of **continuous lanes** you paint a contour across (tune, decay,
+  and now pan, volume — a bar-from-centre lens riding the voice's knob). Every continuous voice param *is* a
+  potential lane. So the flag palette wants to be **derived from the voice's automatable params**, not a
+  hand-placed enum — then pan, volume, and every future knob are one list entry, not another block of
+  literal-`x/y` buttons overflowing the LCD. **Generalize the thing you're about to pile onto; defer
+  redesigning what the pile doesn't touch** (the outer tab layout can wait — it's cosmetic and reversible;
+  the lane system is load-bearing because it's what the next five features land on).
+
+- **A scope mismatch is now a *nameable* smell.** acidcandy's 303 `LENGTH` (per-*line* polymeter) sits inside
+  the per-*step* FLAG palette — armed-and-painted like an accent when it governs the whole row. The ladder
+  flags it instantly: LENGTH is line-scope, so it belongs with the line's settings, not among the step lanes.
+  (Fix pending — but the point is the ladder *catches* it, where before it just felt vaguely muddy.)
+
+- **Global key+scale buys emergent musicality.** Scale is a rack-scope setting (if two melodic voices snap to
+  different scales they clash), and promoting the note-bars' pentatonic snap to a *chosen* global key+scale
+  means every generated line on every machine stays in key for free — a lot of soul for one tiny selector.
+
+### The button row's four jobs — lenses vs verbs (the touch-native soft-key)
+
+The scope ladder says *where data lives*; this says *how the buttons that reach it should read.* Elektron's
+soft-keys are **one** physical thing — a dumb key the screen relabels per page — because hardware forces the
+indirection (you can't touch the tiny parameter, so a fixed key stands in for it). Touch removes that
+constraint entirely (the §2 *"hardware limits are baggage"* rule): the button and the thing it controls are
+the same pixels. So on a face, the "soft-key row" is really **four different jobs wearing one uniform**, and
+legibility comes from making the classes *look* different, not from reading their labels:
+
+| class | what a tap does | behaviour | shape |
+|---|---|---|---|
+| **Lens** | pick which view of the *same* thing fills the display | exactly one lit, persistent — you *dwell* | a connected segmented strip |
+| **Verb** | do a thing and return (CLEAR, generate) | flashes, never latches | a pill, set apart from the lenses |
+| **Held mode** | retarget *another* surface while engaged (MUTE repaints what a pad-tap means) | latches down, tints its target | a toggle that visibly stays pressed |
+| **Select** | choose what you're working ON (which voice, which pattern bank) | the persistent skeleton (§1b ●) | the nav/picker rows |
+
+This refines §1b's persistence map: that map sorts elements by *what a mode does to them*; this sorts the
+*selectors themselves* by what tapping one **means**. acidcandy's current row (`SEQ/FLAG/FX/GEN` + `MUT`, all
+identical `cbtn` bezel keys, one of them secretly a verb and one a held mode) is the readability tax the split
+pays off — the fix is **one visual class per job**, so a stranger knows a button's kind before reading it.
+(Consequence for acidcandy specifically: the honest lens set collapses to ~**TONE / FLAGS** on every face —
+the 16-step grid is *always* the pattern, so the display is only ever an *inspector* over it — with the KIT
+minimap demoted to always-on chrome and GEN/CLEAR/MUT pulled out as verbs/modes.)
 
 ## 2b · Reading a cart onto the face — the guardrail (don't take the wrong route)
 

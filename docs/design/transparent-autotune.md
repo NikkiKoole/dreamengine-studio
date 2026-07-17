@@ -1,12 +1,36 @@
 # Transparent auto-tune — correct the pitch, keep the voice
 
-STATUS: READY (design, 2026-07-17) — the plan for the **offline PSOLA spike** (flavour B of the
-audio-input frontier's auto-tune split). The robot flavour already shipped
-([`hardtune`](../../tools/carts/hardtune.c)); this doc scopes the *big swing* — pitch-correction that
-keeps your **real timbre** — and picks the safe first cut: correct a *recorded* take offline
-(deterministic, oracle-gateable) before anything touches the live mic. Nothing built yet. Rolls up
-from [`audio-input-frontier.md`](audio-input-frontier.md) §2 and depends on the mic seam +
-capture-then-freeze plumbing, both shipped.
+STATUS: BUILDING (2026-07-17) — **the offline PSOLA spike PASSED**: formant-preserving pitch-shift is
+proven ([`mictune`](../../tools/carts/mictune.c) + the WAV oracle, numbers below). Flavour B of the
+audio-input frontier's auto-tune split; the robot flavour already shipped
+([`hardtune`](../../tools/carts/hardtune.c)). This doc scoped the *big swing* — pitch-correction that
+keeps your **real timbre** — and picked the safe first cut: correct a *recorded* take offline
+(deterministic, oracle-gateable) before touching the live mic. Rolls up from
+[`audio-input-frontier.md`](audio-input-frontier.md) §2; depends on the mic seam + capture-then-freeze
+plumbing, both shipped. **Next:** promote the cart-C prototype to an engine primitive + real-mic
+epoch detection (YIN), then the live path off the `sound_extin` ring.
+
+## Spike result (2026-07-17) — PROVEN, formants stay put
+
+The make-or-break question — *can TD-PSOLA move the pitch while the formants (spectral envelope) stay
+still?* — is **yes.** Method (deliberately confound-free): synthesize an "ah" (sawtooth ×
+fixed 3-formant bank) at a **known** f0=110 Hz so epochs are exact, shift it **+5 semitones**
+(ratio 1.335) two ways — PSOLA vs a naive linear resample (the chipmunk control) — and measure f0 +
+formant peaks with an FFT oracle (autocorrelation f0 + Welch-averaged, smoothed spectral envelope):
+
+| | pitch f0 | F1 | F2 | F3 |
+|---|---|---|---|---|
+| RAW | 110 Hz | 668 | 1109 | 2530 |
+| **PSOLA** | **147 Hz** ✓ | 700 | 1141 | 2476 |
+| NAIVE resample | 147 Hz | 947 | — | — |
+
+Both hit the target pitch exactly (110·1.335 ≈ 147). But at that same pitch, **PSOLA held every
+formant within ±5 % of RAW** (F1 668→700, F2 1109→1141, F3 2530→2476 — the vowel stays "ah"), while
+the **naive resample scaled F1 up 42 %** (668→947 — a different, chipmunked vowel). That gap *is* the
+formant preservation. One implementation gotcha the spike caught: **keep the period a `float`
+everywhere** — an `(int)T` in the epoch-index math drifts the grains off the glottal pulses over ~165
+periods and smears the result (centroid 1935→1820 Hz once fixed). PSOLA is the right algorithm for our
+monophonic voice; no need to escalate to the phase vocoder.
 
 ---
 

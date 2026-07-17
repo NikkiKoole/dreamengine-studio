@@ -296,6 +296,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)
+             formant-check.js  the VOICE oracle: f0 (autocorrelation, mean + WOBBLE) + F1/F2/F3 formant
+                             peaks (Welch-smoothed spectral envelope) of a WAV region — the pitch-moved-AND-
+                             formants-held gate for sample_autotune / any pitch-shift (design/transparent-autotune.md)
              sprite-draw.js  reusable 2D pixel-canvas API for programmatic .cart.js sprites
              sprite-preview.js  render a .cart.js's sprites to one labelled PNG (no compile/run) — the tight loop for code-drawn sprites
              pixelsnap.js    clean up "AI pixel art": snap soft/off-grid pixels onto a real grid + posterize

@@ -93,14 +93,15 @@ Detail: [`vocoder.md`](vocoder.md) §"the pedal tier" + [`sound-next-steps.md`](
   corrected to a scale, in the vocoder's robotic timbre; a RETUNE slider runs from instant-snap
   (hard robot) to a slow glide (natural). Reuses `vocoder`/`vocoder_mic` + humseq's scale-snap;
   live-only per ADR-0032. This is the *whole* cheap flavour — done.
-- *Transparent auto-tune (your natural voice, just corrected) — the big swing, UNBUILT — now SPECED.*
-  Keeps your real timbre and only nudges the pitch (the modern-pop vocal). It needs the one primitive
-  the engine lacks — a **formant-preserving pitch-shift** (every shifter we have — `varispeed`, the
-  granular cloud, `octaveup` — moves formants *with* pitch → chipmunk). The plan is scoped in its own
-  doc: **[`transparent-autotune.md`](transparent-autotune.md)** — TD-PSOLA, built **offline /
-  capture-then-freeze FIRST** (deterministic, so a WAV oracle can *prove* the formants stay put), the
-  live audio-thread version a follow-on off the `sound_extin` ring. Next up is that offline spike (a
-  `mictune` cart + the primitive + the pitch-lands-on-scale-AND-centroid-unmoved gate).
+- *Transparent auto-tune (your natural voice, just corrected) — the offline primitive SHIPPED.*
+  Keeps your real timbre and only nudges the pitch (the modern-pop vocal). The one primitive the
+  engine lacked — a **formant-preserving pitch-shift** (every other shifter — `varispeed`, the
+  granular cloud, `octaveup` — moves formants *with* pitch → chipmunk) — is now
+  `sample_autotune(slot, root, scale, amount)`: TD-PSOLA, built **offline / capture-then-freeze**
+  (deterministic; gated by [`formant-check.js`](../../tools/formant-check.js) — proved pitch snaps to
+  scale + de-wobbles while formants hold ±5%). Showcase [`mictune`](../../tools/carts/mictune.c) (press
+  R to tune your own voice). Scoped + logged in **[`transparent-autotune.md`](transparent-autotune.md)**.
+  *Open tail:* the live real-time path off the `sound_extin` ring + a per-frame key API.
   **NB:** [`voxroll`](../../tools/carts/voxroll.c) decouples formant from pitch too — but on the
   *synthesised* `INSTR_VOICE`, not a real recording, so it's the Melodyne-UX reference, not a shortcut.
   *Prereq: a formant-preserving pitch-shift primitive (new); the mic ring (done).*

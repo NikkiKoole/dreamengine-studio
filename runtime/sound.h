@@ -6823,6 +6823,106 @@ void sample_load(int slot, const float *data, int n) {
     if (old) free(old);                                    // same benign swap race record_grab already accepts
 }
 
+// ── AUTO-TUNE — offline formant-preserving pitch correction (docs/design/transparent-autotune.md) ──
+// Correct a recorded take in `slot` onto (root pitch-class 0..11, SCALE_*): track pitch by
+// autocorrelation, place glottal epochs, and re-space them with a time-varying TD-PSOLA at the SNAPPED
+// target period — so the pitch snaps onto the scale AND de-wobbles, while each grain keeps its formant
+// ringing (the vowel/timbre survives; NOT the chipmunk a naive resample gives). amount 0..1 blends
+// raw→snapped (0 = no-op). GAME-THREAD + OFFLINE like sample_read/sample_load — heavy DSP, call it once
+// after loading a take, never on the audio thread. Deterministic (capture-then-freeze); a live version
+// would ride the sound_extin ring (ADR-0032). Proven in the `mictune` cart spike.
+#define AT_HOP 256                                          // pitch-track hop
+#define AT_ACW 1024                                         // autocorrelation window
+static float at_hz2midi(float hz) { return hz > 0.0f ? 69.0f + 12.0f * 1.442695f * logf(hz / 440.0f) : 0.0f; }
+static float at_midi2hz(float m)  { return 440.0f * powf(2.0f, (m - 69.0f) / 12.0f); }
+static float at_snap(float midi, int root, int scale) {     // nearest note in (root, scale) across octaves
+    const uint8_t *deg; int len = sound_scale_table(scale, &deg);
+    float best = midi, bd = 1e9f;
+    for (int oct = 0; oct <= 10; oct++)
+        for (int i = 0; i < len; i++) {
+            float cand = 12.0f * (float)oct + (float)root + (float)deg[i];
+            float d = midi - cand; if (d < 0) d = -d;
+            if (d < bd) { bd = d; best = cand; }
+        }
+    return best;
+}
+static float at_corr(const float *x, int base, int n, int lag) {   // normalized autocorrelation at one lag
+    float s = 0, e0 = 0, e1 = 0;
+    for (int i = 0; i < AT_ACW && base + i + lag < n; i++) { float a = x[base + i], b = x[base + i + lag]; s += a * b; e0 += a * a; e1 += b * b; }
+    return s / (sqrtf(e0 * e1) + 1e-9f);
+}
+void sample_autotune(int slot, int root, int scale, float amount) {
+    if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS) return;
+    SoundSample *s = &sound_samples[slot];
+    if (!s->loaded || !s->data || s->len < AT_ACW * 2) return;
+    if (amount <= 0.001f) return;                           // no-op → leave the slot untouched
+    if (amount > 1.0f) amount = 1.0f;
+    int n = s->len, nHop = (n - AT_ACW) / AT_HOP; if (nHop < 1) nHop = 1;
+    int maxEp = n / (SOUND_SAMPLE_RATE / 400) + 8;
+    float *in = (float *)malloc((size_t)n * sizeof(float));
+    float *out = (float *)malloc((size_t)n * sizeof(float));
+    float *norm = (float *)malloc((size_t)n * sizeof(float));
+    float *f0 = (float *)malloc((size_t)(nHop + 4) * sizeof(float));
+    int   *ep = (int *)malloc((size_t)maxEp * sizeof(int));
+    if (!in || !out || !norm || !f0 || !ep) { free(in); free(out); free(norm); free(f0); free(ep); return; }
+    for (int i = 0; i < n; i++) in[i] = s->data[i];
+
+    // 1. pitch track — autocorrelation f0 per hop (0 = unvoiced)
+    int lo = SOUND_SAMPLE_RATE / 400, hi = SOUND_SAMPLE_RATE / 70;
+    for (int h = 0; h < nHop; h++) {
+        int base = h * AT_HOP; float best = 0; int bl = lo;
+        for (int lag = lo; lag <= hi; lag++) { float c = at_corr(in, base, n, lag); if (c > best) { best = c; bl = lag; } }
+        if (best < 0.35f) { f0[h] = 0.0f; continue; }
+        float cm = at_corr(in, base, n, bl - 1), c0 = at_corr(in, base, n, bl), cp = at_corr(in, base, n, bl + 1);
+        float den = cm - 2 * c0 + cp, d = den != 0.0f ? 0.5f * (cm - cp) / den : 0.0f;
+        f0[h] = (float)SOUND_SAMPLE_RATE / (bl + d);
+    }
+    #define AT_F0(pos) (f0[(pos) / AT_HOP < 0 ? 0 : ((pos) / AT_HOP >= nHop ? nHop - 1 : (pos) / AT_HOP)])
+
+    // 2. epoch marking — step by the local period, refine to the local peak (glottal mark)
+    int nEp = 0, pos = AT_ACW / 2;
+    while (pos < n - 1 && nEp < maxEp) {
+        ep[nEp++] = pos;
+        float f = AT_F0(pos); if (f < 60.0f) f = 110.0f;
+        int T = (int)((float)SOUND_SAMPLE_RATE / f), a = pos + (int)(0.72f * T), b = pos + (int)(1.28f * T);
+        if (b >= n) break;
+        int pk = a; float pv = -1e9f;
+        for (int i = a; i <= b; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
+        pos = pk;
+    }
+
+    // 3. time-varying TD-PSOLA → out (grain from the nearest analysis epoch, placed at the target period)
+    for (int i = 0; i < n; i++) { out[i] = 0.0f; norm[i] = 0.0f; }
+    if (nEp >= 3) {
+        int ai = 0;
+        for (float op = (float)ep[0]; op < n; ) {
+            while (ai + 1 < nEp && ep[ai + 1] <= (int)op) ai++;
+            int a = ep[ai];
+            if (ai + 1 < nEp && (int)op - ep[ai] > ep[ai + 1] - (int)op) a = ep[ai + 1];
+            int T = (ai + 1 < nEp) ? (ep[ai + 1] - ep[ai]) : (int)((float)SOUND_SAMPLE_RATE / 110.0f);
+            if (T < 20) T = 20; if (T > 900) T = 900;
+            int center = (int)(op + 0.5f);
+            for (int j = -T; j <= T; j++) {
+                int si = a + j, di = center + j;
+                if (si < 0 || si >= n || di < 0 || di >= n) continue;
+                float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)T));
+                out[di] += w * in[si]; norm[di] += w;
+            }
+            float f = AT_F0(center); if (f < 60.0f) f = 110.0f;
+            float dm = at_hz2midi(f);
+            float tm = dm + amount * (at_snap(dm, root, scale) - dm);   // blend raw→snapped by amount
+            op += (float)SOUND_SAMPLE_RATE / at_midi2hz(tm);            // output epoch spacing = target period
+        }
+        for (int i = 0; i < n; i++) if (norm[i] > 1e-6f) out[i] /= norm[i];
+    } else {
+        for (int i = 0; i < n; i++) out[i] = in[i];        // too few epochs (unpitched/short) → pass through
+    }
+    #undef AT_F0
+
+    sample_load(slot, out, n);                             // write the corrected take back (its own malloc + swap)
+    free(in); free(out); free(norm); free(f0); free(ep);
+}
+
 // Live waveform readout of the capture ring WHILE recording (before a grab): downsample the last
 // `seconds` of what's been captured into `n` min/max columns (lo[]/hi[], -1..1). Returns the sample
 // count covered (0 = not armed / nothing yet). Lets a cart draw the recording "filling in" as a

@@ -1,15 +1,17 @@
 # Transparent auto-tune — correct the pitch, keep the voice
 
-STATUS: BUILDING (2026-07-17) — **both offline spikes PASSED**: formant-preserving pitch-shift works
-(v1, known f0) AND full pitch-CORRECTION survives the real-world path (v2 — detector-derived epochs,
-a wobbly/breathy off-pitch source, correct-to-scale). All in [`mictune`](../../tools/carts/mictune.c)
-+ the WAV oracle (numbers below). Flavour B of the audio-input frontier's auto-tune split; the robot
-flavour already shipped ([`hardtune`](../../tools/carts/hardtune.c)). Rolls up from
-[`audio-input-frontier.md`](audio-input-frontier.md) §2; depends on the mic seam + capture-then-freeze
-plumbing, both shipped. **Next:** the live real-voice test (the `mic_record` path is built into
-`mictune`, press R — but is unverified until a human runs it on device/desktop), then promote the
-cart-C prototype to an engine `sample_pitch_correct` primitive + wire the live path off the
-`sound_extin` ring.
+STATUS: SHIPPED (2026-07-17) — the **offline engine primitive is in**: `sample_autotune(slot, root,
+scale, amount)` (`sound.h`) — formant-preserving pitch correction, ported from the proven spike and
+byte-faithful to it (the engine render matches the cart-C numbers exactly). Two offline spikes
+established it: v1 (known-f0 formant preservation) and v2 (detector-derived epochs + correct-to-scale
+on a wobbly source); the DSP now lives in the engine and [`mictune`](../../tools/carts/mictune.c) just
+calls it. Gate committed: [`tools/formant-check.js`](../../tools/formant-check.js) (f0 + formant-peak
+oracle). Flavour B of the audio-input frontier's auto-tune split; robot flavour already shipped
+([`hardtune`](../../tools/carts/hardtune.c)). **Open tail:** (1) the live real-voice confirmation —
+`mictune`'s R key runs the same call on a `mic_record` take, but a human still has to hear it on a
+real voice (the source in the gate is synthetic); (2) a per-frame key/root API + the live real-time
+path off the `sound_extin` ring (ADR-0032). Rolls up from
+[`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 

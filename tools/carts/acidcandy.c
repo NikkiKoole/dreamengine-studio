@@ -91,7 +91,7 @@ static int drag_gx, drag_gy, drag_axis, drag_paint, drag_on0;
 static int  tie[2][STEPS], oct[2][STEPS];   // TIE = hold prev note; OCT = octave -1/0/+1
 static int  plen[2] = { STEPS, STEPS };     // per-line LENGTH (short = polymeter drift)
 static int  lpos[2] = { 0, 0 };             // per-line playhead
-enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY };     // 303 LCD content: the roll / flag palette / FX knobs / generate menu / KEY (this line's root·scale·octave)
+enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT };     // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks)
 static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
 static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
 enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_LEN, FL_N };
@@ -103,7 +103,7 @@ enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane p
 // optional CHAR would otherwise land on the wrong slot). DD_* stays PARALLEL to LK_*.
 enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_VOL, DD_PAN, DD_N };
 static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR", "VOL", "PAN" };
-enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX };     // drum LCD content: tone knobs / kit minimap / depth palette / generate menu / MIX (level·pan·fine)
+enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX, DS_PAT };     // drum LCD: tone / kit / flags / generate / MIX (level·pan·fine) / PAT (A-D banks)
 static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
 static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
 static int  mutemode = 0;                     // voice-picker tap: 0 = SELECT+audition, 1 = toggle per-voice MUTE
@@ -211,6 +211,51 @@ static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB f
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = the PCF lane
 static int   mlaw = 0;                                       // master pan LAW: 0 = PAN_LINEAR (centre-full, mono-safe) · 1 = PAN_POWER (equal-loudness — pan reads as DIRECTION, not volume). MST LIN/PWR toggle
+
+// ── PATTERN BANKS (ARRANGEMENT) ──────────────────────────────────────────────
+// PER-MACHINE A/B/C/D slots. A pattern stores only the SEQUENCE (steps + per-step
+// flags/lanes + length), NOT the sound (knobs/key/tuning/FX stay global — you sculpt the
+// timbre once and switch which pattern plays it). Live edits happen on the live arrays;
+// switching SAVES the live arrays into the old slot and LOADS the new one (copy-on-switch,
+// so the draw/fire code stays unchanged). curpat[machine] = 0 holds today's default beat.
+#define NPAT 4
+typedef struct { int on[STEPS], pit[STEPS], acc[STEPS], sld[STEPS], tie[STEPS], oct[STEPS], plen; } P303;
+typedef struct { int grid[TR_NV][STEPS], acc[TR_NV][STEPS], prob[TR_NV][STEPS]; float off[LK_N][TR_NV][STEPS]; } P808;
+typedef struct { int grid[TR9_NV][STEPS], acc[TR9_NV][STEPS], prob[TR9_NV][STEPS], strk[TR9_NV][STEPS]; float off[LK_N][TR9_NV][STEPS]; } P909;
+static P303 pat303[2][NPAT];        // [line][slot]
+static P808 pat808[NPAT];
+static P909 pat909[NPAT];
+static int  curpat[M_N] = { 0, 0, 0, 0, 0 };   // current slot per machine (303a/303b/808/909/-); MST unused
+
+static void pat_io_303(int i, int s, int save) { P303 *p = &pat303[i][s];   // save!=0 : live→slot ; else slot→live
+    for (int k = 0; k < STEPS; k++) {
+        int *L[6] = { on[i], pit[i], acc[i], sld[i], tie[i], oct[i] };
+        int *P[6] = { p->on, p->pit, p->acc, p->sld, p->tie, p->oct };
+        for (int a = 0; a < 6; a++) { if (save) P[a][k] = L[a][k]; else L[a][k] = P[a][k]; }
+    }
+    if (save) p->plen = plen[i]; else plen[i] = p->plen;
+}
+static void pat_io_808(int s, int save) { P808 *p = &pat808[s];
+    for (int v = 0; v < TR_NV; v++) for (int k = 0; k < STEPS; k++)
+        if (save) { p->grid[v][k] = dgrid[v][k]; p->acc[v][k] = dacc[v][k]; p->prob[v][k] = dprob[v][k]; }
+        else      { dgrid[v][k] = p->grid[v][k]; dacc[v][k] = p->acc[v][k]; dprob[v][k] = p->prob[v][k]; }
+    for (int a = 0; a < LK_N; a++) for (int v = 0; v < TR_NV; v++) for (int k = 0; k < STEPS; k++)
+        { if (save) p->off[a][v][k] = doff[a][v][k]; else doff[a][v][k] = p->off[a][v][k]; }
+}
+static void pat_io_909(int s, int save) { P909 *p = &pat909[s];
+    for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++)
+        if (save) { p->grid[v][k] = d9grid[v][k]; p->acc[v][k] = d9acc[v][k]; p->prob[v][k] = d9prob[v][k]; p->strk[v][k] = d9strk[v][k]; }
+        else      { d9grid[v][k] = p->grid[v][k]; d9acc[v][k] = p->acc[v][k]; d9prob[v][k] = p->prob[v][k]; d9strk[v][k] = p->strk[v][k]; }
+    for (int a = 0; a < LK_N; a++) for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++)
+        { if (save) p->off[a][v][k] = d9off[a][v][k]; else d9off[a][v][k] = p->off[a][v][k]; }
+}
+// switch machine m to slot `s`: save the live sequence into the old slot, load the new.
+static void pat_switch(int m, int s) {
+    if (s == curpat[m]) return;
+    if (m == M_303A || m == M_303B) { int i = m; pat_io_303(i, curpat[m], 1); curpat[m] = s; pat_io_303(i, s, 0); }
+    else if (m == M_808) { pat_io_808(curpat[m], 1); curpat[m] = s; pat_io_808(s, 0); }
+    else if (m == M_909) { pat_io_909(curpat[m], 1); curpat[m] = s; pat_io_909(s, 0); }
+}
 
 // transport (shared across the rack)
 static int   playing = 1, step = 0, laststep = -1;
@@ -563,6 +608,7 @@ static void draw_303(int i) {
     if (cbtn(0x06u, 6, 53, 16, 7, "FX",   pscreen[i] == PS_FX))   pscreen[i] = PS_FX;
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", pscreen[i] == PS_GEN)) pscreen[i] = PS_GEN;
     if (cbtn(0x34u, 138, 47, 16, 7, "KEY", pscreen[i] == PS_KEY)) pscreen[i] = PS_KEY;   // this line's root / scale / octave
+    if (cbtn(0x35u, 138, 56, 16, 7, "PAT", pscreen[i] == PS_PAT)) pscreen[i] = PS_PAT;   // A-D pattern banks (this line)
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -591,6 +637,10 @@ static void draw_303(int i) {
         if (lcdbtn(0x79u, 92, 50, 9, 8, "-", 0) && loct[i] > -2) loct[i]--;
         { char ob[4]; ob[0] = loct[i] > 0 ? '+' : loct[i] < 0 ? '-' : ' '; ob[1] = '0' + (loct[i] < 0 ? -loct[i] : loct[i]); ob[2] = 0; plabel(ob, 108, 51, CLR_LIME_GREEN); }
         if (lcdbtn(0x7Au, 114, 50, 9, 8, "+", 0) && loct[i] < 2) loct[i]++;
+    } else if (pscreen[i] == PS_PAT) {                                // PAT — A-D pattern banks for THIS 303 line
+        static const char *AD[NPAT] = { "A", "B", "C", "D" };
+        for (int k = 0; k < NPAT; k++)
+            if (lcdbtn(0x3Bu + k, 30 + k * 25, 42, 22, 14, AD[k], curpat[i] == k)) pat_switch(i, k);
     } else {
         font(FONT_TINY); print("132", 29, 40, CLR_MEDIUM_GREEN);      // bpm lives in the screen
         int heldy = -1;                                              // y of the sounding note (for ties + slide origin)
@@ -736,9 +786,10 @@ static void draw_808(void) {
     if (cbtn(0x1Fu, 6, 37, 16, 7, "VCE",  dscreen == DS_VCE))  dscreen = DS_VCE;
     if (cbtn(0x20u, 6, 45, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;
     if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
-    if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
-    if (cbtn(0x32u, 138, 47, 16, 7, "MUT", mutemode)) mutemode = !mutemode;   // pad tap → mute voices
-    if (cbtn(0x33u, 138, 56, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
+    if (cbtn(0x31u, 138, 38, 16, 6, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;   // right col shrunk to h6 so 4 fit above the picker
+    if (cbtn(0x32u, 138, 44, 16, 6, "MUT", mutemode)) mutemode = !mutemode;   // pad tap → mute voices
+    if (cbtn(0x33u, 138, 50, 16, 6, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
+    if (cbtn(0x36u, 138, 56, 16, 6, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D pattern banks (this machine)
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -769,6 +820,10 @@ static void draw_808(void) {
         lcdknob(&dvol[dsel],   46, 49, 5, "VOL",  0.5f);
         lcdknob(&dpan[dsel],   80, 49, 5, "PAN",  0.5f);
         lcdknob(&dfine[dsel], 114, 49, 5, "FINE", 0.5f);    // ±50 cents — null a kick beat; TUNE keeps its semitone steps
+    } else if (dscreen == DS_PAT) {                         // PAT — A-D pattern banks for the 808
+        static const char *AD[NPAT] = { "A", "B", "C", "D" };
+        for (int k = 0; k < NPAT; k++)
+            if (lcdbtn(0x3Fu + k, 30 + k * 25, 42, 22, 14, AD[k], curpat[M_808] == k)) pat_switch(M_808, k);
     } else {                                                // DS_VCE — the voice's TONE knobs, LCD-native
         font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
         float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced (VOL/PAN/FINE now live in MIX)
@@ -867,9 +922,10 @@ static void draw_909(void) {
     if (cbtn(0x1Fu, 6, 37, 16, 7, "VCE",  dscreen == DS_VCE))  dscreen = DS_VCE;
     if (cbtn(0x20u, 6, 45, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;
     if (cbtn(0x21u, 6, 53, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
-    if (cbtn(0x31u, 138, 38, 16, 7, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
-    if (cbtn(0x32u, 138, 47, 16, 7, "MUT", mutemode)) mutemode = !mutemode;   // pad tap → mute voices
-    if (cbtn(0x33u, 138, 56, 16, 7, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
+    if (cbtn(0x31u, 138, 38, 16, 6, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;   // right col shrunk to h6 so 4 fit above the picker
+    if (cbtn(0x32u, 138, 44, 16, 6, "MUT", mutemode)) mutemode = !mutemode;   // pad tap → mute voices
+    if (cbtn(0x33u, 138, 50, 16, 6, "MIX", dscreen == DS_MIX)) dscreen = DS_MIX;   // per-voice level·pan·fine
+    if (cbtn(0x36u, 138, 56, 16, 6, "PAT", dscreen == DS_PAT)) dscreen = DS_PAT;   // A-D pattern banks (this machine)
     rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
     rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
@@ -901,6 +957,10 @@ static void draw_909(void) {
         lcdknob(&d9vol[d9sel],   46, 49, 5, "VOL",  0.5f);
         lcdknob(&d9pan[d9sel],   80, 49, 5, "PAN",  0.5f);
         lcdknob(&d9fine[d9sel], 114, 49, 5, "FINE", 0.5f);
+    } else if (dscreen == DS_PAT) {                         // PAT — A-D pattern banks for the 909
+        static const char *AD[NPAT] = { "A", "B", "C", "D" };
+        for (int k = 0; k < NPAT; k++)
+            if (lcdbtn(0x43u + k, 30 + k * 25, 42, 22, 14, AD[k], curpat[M_909] == k)) pat_switch(M_909, k);
     } else {                                                // DS_VCE — the voice's TONE knobs, LCD-native
         font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
         float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced (VOL/PAN/FINE now live in MIX)
@@ -1079,7 +1139,6 @@ void init(void) {
     tr909_metal(D909_BASE, m9cut, m9res);
     for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = d9pan[v] = d9fine[v] = 0.5f; d9panlast[v] = d9tunefine[v] = -9; }  // 0.5 = neutral; -9 = force first push
     for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9prob[v][s] = 100;
-    gen_drums9(2);
     reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
     reverb_bus(1, 0.34f, 0.15f);                           // 909 → its own tight bright PLATE (tank 1)
     reverb_bus(2, 0.45f, 0.30f);                           // 808 → its own room (tank 2)

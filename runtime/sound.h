@@ -4457,6 +4457,15 @@ static inline float sound_sample_sample(Voice *v, float pitch_mul) {
     } else {
         v->smp_pos = pos + speed;                                    // NORMAL
     }
+    // declick: brief linear fade at the region EDGES so a ONE-SHOT chop that starts or ends
+    // mid-waveform doesn't step to/from zero — the click you get hammering pad chops (the chop end
+    // is rarely on a zero crossing). ~1ms, short enough not to dull the transient. LOOP/PINGPONG
+    // skip it: they sustain, and a per-loop edge dip would pulse.
+    if (v->smp_mode == SAMPLE_NORMAL || v->smp_mode == SAMPLE_REVERSE) {
+        const double SMP_DECLICK = 48.0;                            // ~1.1 ms @ 44.1k
+        double d = (pos - lo) < (hi - pos) ? (pos - lo) : (hi - pos);
+        if (d < SMP_DECLICK) out *= (float)(d / SMP_DECLICK);
+    }
     return out;
 }
 

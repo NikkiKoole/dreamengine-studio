@@ -77,7 +77,9 @@ static char pad_speed[MAXSLICE];          // per-pad speed index into SPEEDS (in
 static float f_cut = 1.0f;                // knob 0..1 → 20Hz..18kHz (1 = wide open)
 static float f_res = 0.0f;                // knob 0..1 → resonance
 static int   f_mode = 0;                  // 0=OFF 1=LP 2=HP
-static const int   FMODE[]    = { FILTER_OFF, FILTER_LOW, FILTER_HIGH };
+// per-VOICE character filters (creamier than the master SVF filter()): the Moog ladder for the LP
+// sweep (loses bass + self-oscillates as RES climbs — the juicy DJ-filter squelch), Steiner HP for HP.
+static const int   FMODE[]    = { FILTER_OFF, FILTER_LADDER, FILTER_STEINER_HP };
 static const char *FMODE_NM[] = { "OFF", "LP", "HP" };
 
 static int echo_on = 0;                   // echo THROW: VOICE feeds the shared echo bus (tail rings after)
@@ -103,16 +105,21 @@ static int slice_of(float frac) {             // which slice a 0..1 position fal
 }
 
 static void setup_voice(void) {     // one mono INSTR_SAMPLE voice, self-choked (region set per hit)
-    instrument(VOICE, INSTR_SAMPLE, 1, 0, 7, 150);
+    instrument(VOICE, INSTR_SAMPLE, 3, 0, 7, 150);   // 3ms attack = a declick ramp (a chop starts mid-waveform → an instant onset clicks); still punchy
     instrument_sample(VOICE, LOOP_SLOT, ROOT);
     instrument_choke(VOICE, VOICE);                       // a new hit cuts the ringing chop → mono
     if (loaded) sample_peaks(LOOP_SLOT, wf_lo, wf_hi, PW < 240 ? PW : 240);
 }
 
 static void apply_grit(void) { crush(GRIT_B[grit], GRIT_R[grit], grit ? 1.0f : 0.0f); }
-static void apply_filter(void) {                          // rideable — safe to call every frame
-    float hz = 20.0f * powf(900.0f, f_cut);               // 20 Hz .. ~18 kHz, log sweep
-    filter(FMODE[f_mode], hz, f_res);
+static void apply_filter(void) {                          // per-VOICE ladder/steiner (change-guarded, like acid303)
+    static int l_mode = -2, l_hz = -1, l_res = -1;        // instrument_filter is set-and-hold — only re-apply on change
+    int  mode = FMODE[f_mode];
+    int  hz   = (int)(20.0f * powf(900.0f, f_cut));       // 20 Hz .. ~18 kHz, log sweep
+    int  res  = (int)(f_res * 15.0f + 0.5f);              // knob 0..1 → 0..15 Q (the ladder's whistly peak)
+    if (mode == l_mode && hz == l_hz && res == l_res) return;
+    l_mode = mode; l_hz = hz; l_res = res;
+    instrument_filter(VOICE, mode, hz, mode == FILTER_OFF ? 0 : res);   // filters the one chop voice = the whole sound
 }
 
 static void fire_slice(int i, int select) {

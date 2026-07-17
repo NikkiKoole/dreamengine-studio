@@ -245,6 +245,24 @@ static void pet_eyes(float cx,float cy,float gap,float ew,float eh,float esq,int
   peteye(cx-gap,cy,ew,eh,esq,color,boil,&e);
   peteye(cx+gap,cy,ew,eh,esq,color,boil,&e);
 }
+// colored CHEEK — a boiled blush oval (like the 808 cat). rx/ry own size, own boil.
+static void pet_cheek(float cx,float cy,float rx,float ry,int color,float boil){
+  if (rx<0.6f) return;
+  unsigned sd=(unsigned)((int)cx*23 + (int)cy*11 + 5);
+  P o[12]; mkoval(o,cx,cy,rx,ry,12); fill_poly(o,12,0,0,sd,boil,color);
+}
+// EYEBROW — a boiled thick line above an eye. ang>0 = inner-down (angry), <0 = inner-up (sad).
+static void pet_brow(float cx,float cy,float w,float ang,int innerdir,int color,float boil){
+  unsigned sd=(unsigned)((int)cx*31 + (int)cy*7 + innerdir + 2);
+  float bix=cx+innerdir*w*0.5f, box=cx-innerdir*w*0.5f, ba=ang*w*0.35f;
+  float ix=bix+bo(sd,0,0x61,boil), iy=cy+ba+bo(sd,0,0x62,boil);
+  float ox=box+bo(sd,1,0x63,boil), oy=cy-ba*0.7f+bo(sd,1,0x64,boil);
+  line((int)ix,(int)iy,(int)ox,(int)oy,color); line((int)ix,(int)iy+1,(int)ox,(int)oy+1,color);
+}
+static void pet_brows(float cx,float cy,float gap,float w,float raise,float ang,int color,float boil){
+  pet_brow(cx-gap,cy-raise,w,ang,+1,color,boil);
+  pet_brow(cx+gap,cy-raise,w,ang,-1,color,boil);
+}
 
 static const int PAL[] = { CLR_LIME_GREEN, CLR_YELLOW, CLR_ORANGE, CLR_PINK, CLR_RED,
   CLR_TRUE_BLUE, CLR_MAUVE, CLR_INDIGO, CLR_WHITE, CLR_LIGHT_GREY, CLR_DARK_PURPLE };
@@ -269,6 +287,11 @@ static float se_open=0.8f, se_squint=0, se_pupil=0.5f, se_gx=0.5f, se_gy=0.5f,
              se_lid=0.5f, se_browy=0.5f, se_browa=0.5f,
              se_gap=0.5f, se_ew=0.35f, se_eh=0.4f, se_esq=0.5f, se_eboil=0.4f;  // pupil geometry + OWN boil
 static float sm_w=0.5f, sm_curve=0.7f, sm_open=0.0f;   // mouth: width, curve(smile), open
+static float sb_raise=0.5f, sb_ang=0.5f, sb_w=0.0f;    // brows: raise, angle, width (0 = off)
+static float sc_size=0.0f, sc_spread=0.5f, sc_y=0.5f;  // cheeks: size (0 = off), spread, vertical
+static const int CHEEKPAL[] = { CLR_DARK_PEACH, CLR_PINK, CLR_RED, CLR_MAUVE, CLR_ORANGE };
+#define NCHEEK ((int)(sizeof(CHEEKPAL)/sizeof(CHEEKPAL[0])))
+static int cc_i = 0;                                    // cheek colour index (H cycles)
 static int eyes_on=1, panel=0;   // panel: 0 = shape dials, 1 = eye dials
 static float blinkt=0;           // auto-blink timer (a smooth transition, not a snap)
 #define BLINK_DUR 0.16f
@@ -290,8 +313,9 @@ void update(void){
   if (keyp('G')) { hero.grad = !hero.grad; }
   if (keyp('V')) { gcol_i=(gcol_i+1)%NPAL; hero.gcol=PAL[gcol_i]; }
   if (keyp(KEY_SPACE)) boil_on=!boil_on;
-  if (keyp('Y')) eyes_on=!eyes_on;      // show/hide the eyes
-  if (keyp('U')) panel=!panel;          // flip slider column: shape <-> eyes
+  if (keyp('Y')) eyes_on=!eyes_on;      // show/hide the face
+  if (keyp('U')) panel=(panel+1)%3;     // cycle slider column: shape / eyes+brows / mouth+cheeks
+  if (keyp('H')) cc_i=(cc_i+1)%NCHEEK;  // cheek colour
   if (keyp('B')) blinkt=BLINK_DUR;      // manual blink
   if (blinkt>0) blinkt-=dt();
   if (blinkt<=0 && rnd(150)==0) blinkt=BLINK_DUR;   // idle auto-blink
@@ -304,10 +328,11 @@ void draw(void){
   cls(CLR_DARKER_BLUE);
   ui_begin();
 
-  // ── tiny slider column — flip between SHAPE dials and EYE dials with U ──
+  // ── tiny slider column — U cycles SHAPE / EYES+BROWS / MOUTH+CHEEKS ──
   int sx=4, sw=52, sy=44, sp=10;
-  print(panel?"FACE  (U:shape)":"SHAPE (U:face)", sx, 34, CLR_MEDIUM_GREY);
-  if (!panel){
+  const char *pn = panel==0?"SHAPE (U:eyes)" : panel==1?"EYES+BROW (U:mouth)" : "MOUTH+CHEEK (U:shape)";
+  print(pn, sx, 34, CLR_MEDIUM_GREY);
+  if (panel==0){
     ui_slider(&sl_w,     sx, sy+0*sp, sw, "W");
     ui_slider(&sl_h,     sx, sy+1*sp, sw, "H");
     ui_slider(&sl_sq,    sx, sy+2*sp, sw, "SQUASH");
@@ -319,7 +344,7 @@ void draw(void){
     ui_slider(&sl_gang,  sx, sy+8*sp, sw, "G.ANGLE");
     ui_slider(&sl_goff,  sx, sy+9*sp, sw, "G.OFFSET");
     ui_slider(&sl_gband, sx, sy+10*sp,sw, "G.BAND");
-  } else {
+  } else if (panel==1){
     ui_slider(&se_ew,     sx, sy+0*sp, sw, "EYE W");
     ui_slider(&se_eh,     sx, sy+1*sp, sw, "EYE H");
     ui_slider(&se_esq,    sx, sy+2*sp, sw, "EYE SQUASH");
@@ -329,9 +354,17 @@ void draw(void){
     ui_slider(&se_gx,     sx, sy+6*sp, sw, "GAZE X");
     ui_slider(&se_gy,     sx, sy+7*sp, sw, "GAZE Y");
     ui_slider(&se_eboil,  sx, sy+8*sp, sw, "EYE BOIL");
-    ui_slider(&sm_w,      sx, sy+9*sp, sw, "MOUTH W");
-    ui_slider(&sm_curve,  sx, sy+10*sp,sw, "MOUTH CURVE");
-    ui_slider(&sm_open,   sx, sy+11*sp,sw, "MOUTH OPEN");
+    ui_slider(&sb_raise,  sx, sy+9*sp, sw, "BROW RAISE");
+    ui_slider(&sb_ang,    sx, sy+10*sp,sw, "BROW ANGLE");
+    ui_slider(&sb_w,      sx, sy+11*sp,sw, "BROW W (0=off)");
+  } else {
+    ui_slider(&sm_w,      sx, sy+0*sp, sw, "MOUTH W");
+    ui_slider(&sm_curve,  sx, sy+1*sp, sw, "MOUTH CURVE");
+    ui_slider(&sm_open,   sx, sy+2*sp, sw, "MOUTH OPEN");
+    ui_slider(&sc_size,   sx, sy+3*sp, sw, "CHEEK SZ (0=off)");
+    ui_slider(&sc_spread, sx, sy+4*sp, sw, "CHEEK SPREAD");
+    ui_slider(&sc_y,      sx, sy+5*sp, sw, "CHEEK Y");
+    print("H = cheek colour", sx, sy+7*sp, CLR_MEDIUM_GREY);
   }
   // map sliders → hero (always, so both persist while the other panel shows)
   hero.w=6+sl_w*154; hero.h=6+sl_h*154; hero.squash=sl_sq*2-1;
@@ -376,7 +409,18 @@ void draw(void){
     float cyv = hero.y - ehh*0.22f;
     // …but SIZE stays absolute (doesn't grow with the head). Eyes keep their OWN boil.
     float eew = 2 + se_ew*16, eeh = 2 + se_eh*16, eesq = se_esq*2-1;
+    // cheeks (behind the eyes) — colour blush, own size, spread/position track the head
+    if (sc_size>0.02f){
+      float chr=sc_size*11, chx=ehw*(0.30f+sc_spread*0.45f), chy=hero.y+ehh*(sc_y*0.7f-0.1f);
+      pet_cheek(hero.x-chx, chy, chr, chr*0.8f, CHEEKPAL[cc_i], se_eboil*1.2f);
+      pet_cheek(hero.x+chx, chy, chr, chr*0.8f, CHEEKPAL[cc_i], se_eboil*1.2f);
+    }
     pet_eyes(hero.x, cyv, gap, eew, eeh, eesq, CLR_BLACK, se_eboil*2, e);
+    // brows (above the eyes) — raise/angle; width 0 = off
+    if (sb_w>0.02f){
+      float bcy = cyv - eeh - 2, bw = 4 + sb_w*16;
+      pet_brows(hero.x, bcy, gap, bw, sb_raise*8, sb_ang*2-1, CLR_BLACK, se_eboil*2);
+    }
     // mouth — position tracks the head, width absolute, its own boil
     float mw = 6 + sm_w*40, myv = hero.y + ehh*0.35f;
     pet_mouth(hero.x, myv, mw, sm_curve*2-1, sm_open, CLR_BLACK, se_eboil*2);

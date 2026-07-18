@@ -3,6 +3,15 @@
 # Uses ios-deploy (classic protocol) because devicectl/CoreDevice doesn't enroll older
 # devices (e.g. iOS 15) without a GUI "prepare" step; ios-deploy just works over USB.
 #
+# EXPECTED, HARMLESS: on a new Xcode (26+) ios-deploy prints
+#   "Unable to locate DeviceSupport directory with suffix 'Symbols' … logging output will
+#    not be shown!"
+# ios-deploy is abandonware (1.12.2, 2022 = the last release) and predates Xcode 26's
+# DeviceSupport/Symbols layout, so it can't find the symbols dir. It does NOT block install
+# or launch — and we launch with --justlaunch (no log streaming), so the missing symbols
+# cost nothing here. Don't chase it. If you ever need device LOGS, skip ios-deploy for that:
+# Console.app (filter by app name) or Xcode → Devices & Simulators → View Device Logs.
+#
 #   ./device.sh                       # build signed → install → launch on the device
 #   TEAM=XXXXXXXXXX ./device.sh        # override the signing team
 #

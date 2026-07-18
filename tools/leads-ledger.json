@@ -253,6 +253,18 @@
           "url": "https://www.reddit.com/r/edmproduction/",
           "kind": "reddit",
           "etiquette": "self-promo heavily restricted — gift-first only"
+        },
+        {
+          "name": "Acid Techno Discord",
+          "url": "https://discord.me/acidtechno",
+          "kind": "discord",
+          "etiquette": "track/clip-sharing acid community — gift-first, share a squelch clip not a pitch"
+        },
+        {
+          "name": "r/tech_house Discord",
+          "url": "https://discord.me/rtechhouse",
+          "kind": "discord",
+          "etiquette": "has producer + self-promo channels — post in the sanctioned lane, gift-first"
         }
       ],
       "domain": "music"
@@ -1013,6 +1025,50 @@
         }
       ],
       "domain": "music"
+    },
+    {
+      "id": "pocket-toy",
+      "label": "Cute pocket music toys (Pocket Operators · TE · playful gear)",
+      "tags": [
+        "pocket operator",
+        "teenage engineering",
+        "po-33",
+        "po-20",
+        "po-32",
+        "volca",
+        "cute toy",
+        "candy-toy",
+        "pocket toy",
+        "iphone toy"
+      ],
+      "hook": "A cute pocket machine you actually want to hold — playful first, deep underneath.",
+      "venues": [
+        {
+          "name": "OP Forums — Pocket Operators",
+          "url": "https://op-forums.com/c/pocket-operators/21",
+          "kind": "forum",
+          "etiquette": "TE/pocket-operator fans; a cute pocket toy is dead-on — show, do not sell"
+        },
+        {
+          "name": "Teenage Engineering Pocket Operator sharing group (Facebook)",
+          "url": "https://www.facebook.com/groups/673790453135468/",
+          "kind": "facebook",
+          "etiquette": "active sharing community; gift-first, lead with a fun clip"
+        },
+        {
+          "name": "r/pocketoperators",
+          "url": "https://www.reddit.com/r/pocketoperators/",
+          "kind": "reddit",
+          "etiquette": "the cute-gear tribe that gets it; playful clip + playable link, gift-first"
+        },
+        {
+          "name": "r/teenageengineering",
+          "url": "https://www.reddit.com/r/teenageengineering/",
+          "kind": "reddit",
+          "etiquette": "cheap-playful-gear thesis; gift-first"
+        }
+      ],
+      "domain": "music"
     }
   ],
   "crosscutting": [
@@ -1078,6 +1134,41 @@
       "kind": "reddit",
       "etiquette": "gift-first; a clip travels",
       "domain": "game"
+    },
+    {
+      "name": "r/InternetIsBeautiful",
+      "url": "https://www.reddit.com/r/InternetIsBeautiful/",
+      "kind": "reddit",
+      "etiquette": "the home for a delightful interactive WEB toy — post the browser build, no install; gift-first, it must actually delight",
+      "domain": "any"
+    },
+    {
+      "name": "Show HN (Hacker News)",
+      "url": "https://news.ycombinator.com/showhn.html",
+      "kind": "web",
+      "etiquette": "\"Show HN: a pocket acid machine in your browser\" — a playable link + honest one-liner; be ready to reply in comments",
+      "domain": "any"
+    },
+    {
+      "name": "Product Hunt",
+      "url": "https://www.producthunt.com/",
+      "kind": "web",
+      "etiquette": "a cute launchable toy fits the daily-launch format; line up a few friends for day-one",
+      "domain": "any"
+    },
+    {
+      "name": "Audiocrawl (web-audio showcase + newsletter)",
+      "url": "https://audiocrawl.co/",
+      "kind": "web",
+      "etiquette": "curated web-audio showcase; submit the browser build",
+      "domain": "any"
+    },
+    {
+      "name": "MATRIXSYNTH (iOS synth blog)",
+      "url": "https://www.matrixsynth.com/search/label/iOS",
+      "kind": "web",
+      "etiquette": "long-running blog covering new iOS synth apps; tip them at release with a clip + link",
+      "domain": "music"
     }
   ],
   "outreach": []

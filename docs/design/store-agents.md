@@ -33,6 +33,9 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 - **The strategy reframe:** [`demand-generation.md`](demand-generation.md) — demand *capture* (ASO,
   the tail) vs *generation* (video/tribe/word-of-mouth, the wave); the lever hierarchy; grab a
   **tribe**, not the world. (All of this ASO doc is the *capture* layer.)
+- **The launch *timing*:** [`launch-sequence.md`](launch-sequence.md) — build → publish → broadcast
+  (Show HN / r/InternetIsBeautiful with the wasm demo + "Get on iPhone"), and why the gift-first
+  tribe ask must land BEFORE the app is live (the "what can I improve?" / "it's on the Store" clash).
 - **The trailer builder** ([`trailer-builder.md`](trailer-builder.md)): backbone `build-app-reel.js`
   (manifest `carts[]` → clip per rack → one reel; Tiny Jam is a 3-rack reel — acidrack got a clip)
   **+ editor v1 (A):** the Apps-card 🎞 **trailer** section — click-to-edit timeline (library,

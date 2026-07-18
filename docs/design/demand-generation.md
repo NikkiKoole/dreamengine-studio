@@ -93,6 +93,7 @@ great" layer, staged:
   [`trailer-builder.md`](trailer-builder.md) §"Text cards + overlays". Beat-sync is stage 3.
 
 ## See also
+- [`launch-sequence.md`](launch-sequence.md) — the *timing* companion: build → publish → broadcast, and why the gift-first tribe ask must come BEFORE the app is live (this doc ranks the levers; that one orders them in time)
 - [`sharing-channels.md`](sharing-channels.md) — the channel map (A web · B App Store · C files)
 - [`store-agents.md`](store-agents.md) — the store/ASO judgment layer (all of lever #5–#6)
 - [`../marketing/tinyjam/tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) — the full tribe-by-tribe go-to-market

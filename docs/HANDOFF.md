@@ -159,7 +159,7 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > (`mic_desktop.h`, `ios/Sources/AudioEngine.swift`, `android/…/main.c`). Reference carts: `vocode`/`voxbox`
 > (vocoder), `mictune` (offline auto-tune), `livetune` (live spike). Test harness: `DE_MIC_WAV=<wav>` + `tools/testdata/`.
 
-> **▶ ACTIVE THREAD (2026-07-18) — the candy acid RACK (`acidcandy`).**
+> **▶ ACTIVE THREAD (2026-07-19) — the candy acid RACK (`acidcandy`).**
 > `acidcandy` (160×100 ×4) packages `acidrack`'s guts as the **device-face paradigm** instead of the
 > accordion: a colour-**cartridge** nav strip of five FOCUSABLE machines on ONE transport — **2×303**
 > (`acid303.h`; 303b an octave up = the bass+lead duo), the full **808** (`tr808.h`) and **909**
@@ -176,20 +176,38 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > **LENGTH/polymeter** into playback; the roll draws every flag (glide lines / tie bars / oct ticks); the
 > **MST** face (GLU/FLT/RES/FB/PUMP + delay TIME + per-machine SEND, default glue tames the mix) with a
 > **drawable PCF** lane.
-> **LATEST (2026-07-18) — drum-face middle-panel cleanup, 808 ONLY:** the drum controls are now split
-> **TOOL vs VIEW**. The pad TOOL (what a voice-pad tap does — VCE select+audition→TONE / MUT / REC) is a
-> **light vertical `V`/`M`/`R` selector** in a freed RIGHT column (only the active zone tinted blue/orange/red
-> + a thin frame), replacing the cryptic tiny REC/MUT margin toggles; the side soft-keys are now pure VIEWS
-> (KIT/FLAG/MIX left · GEN/PAT right — VCE dropped, the tool snaps the screen to TONE); the picker + hits
-> shifted **flush-left** (x1) to free that column. **The 909 STILL HAS THE OLD LAYOUT** (`draw_909` + the
-> shared `draw_arms` toggles) — **mirroring it is the top open item** (once done, `draw_arms` can be deleted;
-> keep the 909's STRK flag + metal-XY). Since 07-15 the drum FEATURE set also shipped (voice completeness,
-> depth = accent/prob/909 STROKE + metal-XY, p-locks, per-voice VOL/PAN lanes, MIX+FINE, per-303 KEY, A–D
-> banks, swing). Also this session: a full det-turbo speedup for headless replays ([`debug-harness.md`](guides/debug-harness.md)).
+> **LATEST (2026-07-19) — a LIVE-SET + MST-layout push (all shipped + committed):**
+> the 808/909 TOOL-vs-VIEW cleanup + `draw_arms` deletion is long done (both drum faces, the far-right
+> stacked-word tool selector). This session added, in order:
+> — **master SWING** (one rack-wide `g_swing`, ReBirth model — drums AND both 303s lock; drums drag the
+>   odd-16th fire, a 303 delays its step FLIP, same `sw=g_swing*0.60` fraction) + **master TEMPO** (`g_bpm`);
+> — **queued bar-quantized bank switch** (tap a bank = arm + blink, lands on the next bar downbeat);
+> — **303 PERF lenses** (a PERF soft-key: HALF/2X speed · ACC accent-all · STAC/GLIDE slide-flip),
+>   **non-destructive read-lenses**, each **TAP = latch (persists across faces) / HOLD = momentary** (`lcdlatch`);
+> — **FLAG-screen NOTE-on** (FL_NOTE, the default armed flag — add notes without leaving for SEQ);
+> — **SLIDE-GATE BUGFIX**: acidcandy's staccato `acid_gate` was cutting slid/tied steps at 70% → **manual
+>   slides never actually glided**; fixed to tb303's `on && !slide` rule (proven: manual all-SLD == a pure
+>   glide, 1.00000; no-slide patterns byte-identical). tb303/acidrack were always fine — this was acidcandy-only;
+> — **LCD grown to h30 on ALL FOUR faces** (one consistent size; contains the soft-keys; 1px gap to the content
+>   below); **MST redesign** — SWG + TEMPO are a matching **gutter knob pair** (right of the LCD; `gknob` shows
+>   the real value), **DELAY division buttons moved UNDER the LCD**, SEND knobs pulled in to free the corner;
+> — **three drawable master lanes** on the MST screen (MIX/PCF/CRU/GAT): **PCF** filter/tone (green) +
+>   **CRUSH** bitcrush/texture (orange) + **GATE** chop/rhythm (pink), each `m*[16]` applied set-and-hold on step change;
+> — **a DUB pad** in the freed MST corner — a momentary XY (X = delay time, Y = feedback) that throws the delay
+>   while held, snaps back on release.
+> **▶ TOP OPEN — needs an EAR CHECK (not code), the reason we stopped:**
+> **(1) the DUB pad** — `echo()` is NOT ride-safe, so a time-sweep RE-TIMES the delay per step; a fast sweep may
+> STEP/click instead of gliding. Listen: hold DUB + sweep X with feedback up. If it clicks → quantize `et` to
+> fewer steps, or find a ride-safe delay-time path. **(2) the GATE lane** — the maker's verdict was *"none is a
+> clear win"*: `gate()` is a THRESHOLD/dynamics gate, not a pure per-step volume chop, so the cut is
+> level-dependent (mushy). The real fix for a clean trance-gate = wire a **master VOLUME** the GATE lane can
+> ride (the long-standing `level[]` master-vol TODO). CRUSH is the keeper of the two new lanes.
 > **Resume at the cart's live punch-list — the `de:meta.todo[]` in
-> [`tools/carts/acidcandy.c`](../tools/carts/acidcandy.c)** (`node tools/cart-todos.js acidcandy`); the NEWEST
-> entry is the 808 cleanup + the 909-mirror TODO. Still open beyond the 909 mirror: V/M/R legibility (caption/
-> hint), the **mascot/soul** (deferred — [`candy-style.md`](design/candy-style.md) §3), SAVE/LOAD + the SONG layer.
+> [`tools/carts/acidcandy.c`](../tools/carts/acidcandy.c)** (`node tools/cart-todos.js acidcandy`); the newest
+> entries (DUB / GATE / CRUSH / PERF / LCD-GROW) carry the mechanism + every caveat above. Other OPEN there:
+> PERF follow-ups (the 2X **funny-accent-order**, octave-shove + reverse lenses, a drums PERF layer), the
+> **REC/mode hint-outlines** teaching idea, the **mascot/soul** (deferred), SAVE/LOAD + the SONG layer.
+> (PARKED: mute scenes — redundant with the mute LEDs; the LCD-toast feedback idea — maker didn't like it.)
 > Hot files: `tools/carts/acidcandy.c`, `runtime/tr808.h`, `runtime/tr909.h`, `runtime/acid303.h`. Design:
 > [`device-face-paradigm.md`](design/device-face-paradigm.md) · [`candy-style.md`](design/candy-style.md) ·
 > [`control-vocabulary.md`](design/control-vocabulary.md). Cousin lane: the acidrack redesign (R5,

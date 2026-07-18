@@ -1334,7 +1334,7 @@ static void draw_mst(void) {
     {   char b[4]; int bi = (int)g_bpm, ni = 0;
         if (bi >= 100) b[ni++] = '0' + bi / 100;
         b[ni++] = '0' + (bi / 10) % 10; b[ni++] = '0' + bi % 10; b[ni] = 0;
-        gknob(&bpm01, 147, 58, 5, b);
+        gknob(&bpm01, 147, 62, 5, b);   // nudged down for a bit more space under SWG
     }
     g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);
 

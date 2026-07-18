@@ -13,7 +13,7 @@
   "teaches": [],
   "description": {
     "summary": "A candy-toy acid RACK on the device-face skeleton at 160x100 x4: a colour-cartridge nav strip of five FOCUSABLE machines — 303a / 303b / 808 / 909 / MST — all on one transport, packaging acidrack's guts as the device-face paradigm instead of an accordion. Every voice is honest, shared from runtime/ headers so it can't drift.",
-    "detail": "Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has four soft-keys like the drums — SEQ (the LCD roll), FLAG (a 5-button palette ACC/SLD/TIE/OCT+/OCT- you arm then paint on the bars — per-step depth; loop LENGTH/polymeter is now a ▼ marker you DRAG in a lane above the note-bars, not a flag), FX (DRV/SEND/VERB as LCD-native green knobs), and GEN (a CLEAR + MIN/MID/BUSY generate menu). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX (DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. (SWING is one master SWG on the MST face, ReBirth-style — it shuffles the whole rack, drums AND both 303s, so they lock.) The green SCREEN is the voice inspector: four soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE + DEC as LCD-native green knobs, plus a voice-specific CHARACTER knob only where the machine has one — SNPY/THUD/TONE/RING on the 808, ATTK/SNPY/CLIK/TONE on the 909, faithful to tr808/tr909; voices without one show just the two) / KIT (the kit minimap) / FLAG (a depth palette) / GEN (a CLEAR + MIN/MID/BUSY generate menu) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke) / and the per-step p-LOCKS TUN / DEC / <character> (each its own button — the palette is two rows: ACC/PROB(/STRK) on top, the p-locks below; the character button appears only on voices that have one, e.g. SNPY). Arming a p-lock turns the cell lane into a BIPOLAR bar-from-centre lens editing that knob's per-step OFFSET (centre = follow the voice knob, up/down = ± its range); all three offsets play at once, each riding its voice knob so the knobs still transpose the whole contour. PROB and the p-locks DRAW ACROSS — drag over the row and each cell takes the finger's height, so a whole probability ramp or melodic/decay/timbre contour sweeps out in one gesture (the PCF-lane / note-bar feel). A single-row voice picker holding the FULL roster (16 tiny 2-char pads on the 808, 11 on the 909, acidrack's acid order — full name in the VCE header), doubling as a per-voice MUTE grid under a MUT soft-key (muted = dimmed + red slash, silenced but kept in the pattern), and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP + SWG (the ONE rack-wide swing, ReBirth's model), a 4-channel mix overview, delay TIME + a draggable master TEMPO (BPM readout, drives the step clock + the tempo-synced delay) + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.)",
+    "detail": "Nav = faces (tap a cartridge body to FOCUS, tap its LED to MUTE from anywhere). Sound: two TB-303 lines on the shared runtime/acid303.h (303b an octave up = the bass+acid-lead duo), the full TR-808 on the extracted runtime/tr808.h and the TR-909 on runtime/tr909.h (both byte-honest to the tr808/tr909 carts). Each 303 face: the top gear-drag knob row is always the acid knobs — vanilla CUT/RES/ENV/DEC/ACC, or (via an inline DF switch at the row's right end, tinted the machine colour) a DEEP Devil Fish page (SUB octave-down sub / ADEC two-decay / SLDT slide time / TRK filter tracking + a SAW/SQR WAVE toggle that re-defines the oscillator). The green screen has soft-keys like the drums — SEQ (the LCD roll), FLAG (a palette NOTE/ACC/SLD/TIE/OCT+/OCT- you arm then paint on the bars — NOTE toggles the note itself so you add notes WITHOUT leaving for SEQ; loop LENGTH/polymeter is now a ▼ marker you DRAG in a lane above the note-bars, not a flag), FX (DRV/SEND/VERB as LCD-native green knobs), PERF (5 MOMENTARY live-play lenses — HALF/2X speed, ACC accent-everything, STAC/GLIDE slide-flip — non-destructive: hold to apply, release = back to normal), and GEN (a CLEAR + MIN/MID/BUSY generate menu). The 16 NOTE-BARS below (tap = on/off, drag up/down = pitch, snapped to a minor-pentatonic so it stays musical). Drum faces (808 blue, 909 amber): the TOP row is always the machine FX (DIST/SEND/VERB, the 909 also a METAL XY pad for the metal-voice highpass, tr909_metal) — no FX toggle. (SWING is one master SWG on the MST face, ReBirth-style — it shuffles the whole rack, drums AND both 303s, so they lock.) The green SCREEN is the voice inspector: four soft-keys pick its content (the mode is sticky — a voice-pad tap only re-picks the voice, so you can paint flags across the whole kit without re-selecting) — VCE (the default: the picked voice's TUNE + DEC as LCD-native green knobs, plus a voice-specific CHARACTER knob only where the machine has one — SNPY/THUD/TONE/RING on the 808, ATTK/SNPY/CLIK/TONE on the 909, faithful to tr808/tr909; voices without one show just the two) / KIT (the kit minimap) / FLAG (a depth palette) / GEN (a CLEAR + MIN/MID/BUSY generate menu) you arm then paint on the cells: ACC (per-step accent, a red marker + louder hit) / PROB (vertical-slide a cell for its trig-chance, 100/75/50/25 = a shorter bar, the RD-8 move) / STRK (909 only — cycle none→flam→drag→ratchet, blue pips, via tr909_fire_stroke) / and the per-step p-LOCKS TUN / DEC / <character> (each its own button — the palette is two rows: ACC/PROB(/STRK) on top, the p-locks below; the character button appears only on voices that have one, e.g. SNPY). Arming a p-lock turns the cell lane into a BIPOLAR bar-from-centre lens editing that knob's per-step OFFSET (centre = follow the voice knob, up/down = ± its range); all three offsets play at once, each riding its voice knob so the knobs still transpose the whole contour. PROB and the p-locks DRAW ACROSS — drag over the row and each cell takes the finger's height, so a whole probability ramp or melodic/decay/timbre contour sweeps out in one gesture (the PCF-lane / note-bar feel). A single-row voice picker holding the FULL roster (16 tiny 2-char pads on the 808, 11 on the 909, acidrack's acid order — full name in the VCE header), doubling as a per-voice MUTE grid under a MUT soft-key (muted = dimmed + red slash, silenced but kept in the pattern), and the 16 hits on the bottom in the iconic 808 quarter-colours. FX routing: a shared tempo-synced delay + per-machine reverb (303s → a warm hall, 808/909 → their own plates with the kick kept dry) + per-machine drive. MST: master GLU/FLT/RES/FB/PUMP + SWG (the ONE rack-wide swing, ReBirth's model), a 4-channel mix overview, delay TIME + a draggable master TEMPO (BPM readout, drives the step clock + the tempo-synced delay) + per-machine SEND. Knob feel: vertical = value, pull sideways for a fine gear, double-tap resets. Widgets that live INSIDE the LCD (the flag/depth palettes, NEW, the drum VCE voice knobs, the 303 FX knobs) use LCD-native variants — lcdbtn (pure green outline, filled when armed) + lcdknob (green outline + value arc) — so they read as part of the readout, not the candy chassis. (The old step-row + keybed is kept behind use_bars = 0.)",
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, SWG is the one rack-wide swing (drums + both 303s), pick a delay TIME, DRAG the BPM readout (right of the delay row) to set the master tempo, + per-machine SEND."
   },
   "todo": [
@@ -25,6 +25,9 @@
     "ARRANGEMENT: pattern BANKS SHIPPED (2026-07-17) — per-machine A/B/C/D via a PAT soft-key (303 right col; drums shrank the right col h7->h6 so GEN/MUT/MIX/PAT stack 4-high). A slot stores the SEQUENCE only (steps + flags/lanes + length), sound stays global; copy-on-switch (pat_switch). Empty slots seeded plen=STEPS/prob=100 so a fresh slot is playable. LIVE-SET (2026-07-18): bank switches are now BAR-QUANTIZED while playing — a bank tap ARMS the slot (pat_queue → armpat[machine]), the pad BLINKS on the 16th, and the switch LANDS on the next bar downbeat (step==0 in update(), before the 303/drum blocks read their arrays so the new pattern plays from step 0) — so the whole rack changes pattern in time (arm several machines, they flip together on the downbeat). Re-tap the current/armed slot = cancel; STOPPED = instant switch (no bar to wait for); stop drops pending arms. First live-set feature (queued banks = perform the arrangement by hand, the lightweight stand-in for the deferred SONG layer). Mute SCENES are the planned companion (parked for now). STILL OPEN, DEFERRED: the SONG/PROJECT layer (the maker's '6 songs in master' — 6 whole-rack snapshots + save). DEFERRED ON PURPOSE until the synths/feature-set STABILISE — persisting state that's still churning = a save format that rots every time a knob/lane/mode is added. When it's time: consolidate the ~40 scattered globals into ONE state struct FIRST, then save = a trivial versioned dump (save_bytes) instead of a hand-maintained 40-field blob. Also open: a SONG CHAIN (arrange banks over time) + WAV export.",
     "SWING: MASTER shuffle SHIPPED (2026-07-18) — the per-machine swing8/swing9 knobs are GONE; ONE g_swing (rack-scope) is now the SWG knob on the MST face (right of PUMP), ReBirth's model — one shuffle for the whole rack. Resolves BOTH old opens: (1) the 303s NOW swing too, so bass/lead lock into the drum shuffle; (2) it's tempo-scaled. Mechanism (the acidrack/tb303 split): drums CAN be scheduled ahead so they DRAG the odd-16th fire onset in ms (swms = sw*(15000/bpm), tempo-scaled); a 303's held voice CAN'T (slide/tie hold the handle), so it delays its step FLIP instead — laststep303 + ctr303 = ((ctr&1) && frac<sw) ? ctr-1 : ctr, and acid_gate gets the swung onset. BOTH use the SAME fraction sw = g_swing*0.60 (0..0.6 of a 16th) so they lock. g_swing 0 → ctr303==ctr → dead straight (default). SAVE/LOAD (autosave patterns/knobs) still open — acidrack has it.",
     "TEMPO: master BPM SHIPPED (2026-07-18) — was hardcoded 132 in THREE places (init bpm(), the step clock, the tempo-synced delay in apply_fx) + a 113ms stroke. Now ONE g_bpm (rack-scope) drives all of them, a draggable BPM readout on the MST face (right of the delay row, 60-200). Phase-accumulated (g_phase) so a live tempo change moves the RATE, never JUMPS the counter; the delay re-times on change (set-and-hold); the 303 screen shows the live value. OPEN: a tap-to-type / +/- for exact BPM; tempo-scale the swing + PCF stroke feel.",
+    "PERF lenses: PROTOTYPE (2026-07-18) — a 2nd live-set feature, per-303. A new PERF soft-key (left col, recompacted to SEQ/FLAG/FX/PERF at h6) fills the LCD with 5 MOMENTARY buttons (lcdhold — held, not tap): HALF / 2X (speed), ACC (accent every note, the 909 move), STAC / GLIDE (slide-flip). All are NON-DESTRUCTIVE lenses over the READ path (pattern arrays untouched → release = back to normal), set fresh each frame from the held buttons (draw clears pf_* for both lines first; only the FOCUSED line's buttons are on screen). Speed = a per-line phase multiplier (g_phase*spd), clean 2:1 so it stays phase-locked to the drums; laststep303 became [2] (each line its own swung, speed-lensed counter). GLIDE skips the staccato acid_gate so notes sustain; STAC forces slide=0; ACC ORs accent in. OPEN: (1) LATCH (tap-to-hold-on across faces) so 303a keeps doubling while you work 303b — momentary only touches the focused line; (2) the 'funny accent order' for 2X (a cross-rhythm accent overlay so a doubled line isn't a flat repeat); (3) octave-shove + reverse lenses; (4) same layer for the drums (whole-rack total-accent).",
+    "SLIDE-GATE BUGFIX (2026-07-18, found via the GLIDE-lens question): the 303 staccato acid_gate was called UNCONDITIONALLY between flips — it cut the held voice at 70% of EVERY step, sparing only a cut-into-a-tie (next_ties). So a slid step got cut before it could glide → the next step retriggered FRESH instead of sliding: acidcandy's manual slides NEVER actually glided (and tie steps got chopped at 70% too). tb303 had it right all along (`else if (on[s] && !sld[s])`); acidcandy dropped that guard. FIX: gate only a fresh, NON-slid note — `if (on[i][ls] && !slide)` (slide = pf_stac ? 0 : sld[ls]; STAC still forces staccato). PROVEN by WAV correlate: manual all-SLD now == a pure glide (1.00000), and a no-slide/no-tie pattern is byte-identical before/after (1.00000) so only slid/tied steps change. acidrack is on its own step_303/gate_303 path and was never affected. NB: this changes how existing SLID/TIED committed patterns sound (they now glide/hold instead of chop) — the correct 303 behaviour.",
+    "FLAG note-on: SHIPPED (2026-07-18) — added FL_NOTE as the FIRST entry in the 303 flag palette (NOTE/ACC/SLD/TIE/OCT+/OCT-) and made it the DEFAULT armed flag. Arming NOTE makes a bar tap/drag toggle the note itself (flag_get/set → on[i][s]), so you add notes right on the FLAG screen instead of maneuvring to SEQ and back — the maker's repeated ask. Pitch still lives in SEQ (drag) — NOTE keeps the bar's existing pitch. paint-across works (grab an off bar → paints on, grab an on bar → erases).",
     "drum-machine ergonomics: (1) CLEAR — SHIPPED (2026-07-16) as part of a GEN flow. Every instrument has a GEN soft-key (right margin, replacing the decorative SCP) that fills the LCD with a CLEAR + MIN/MID/BUSY menu — CLEAR empties the pattern, the three densities regenerate it (MID = the old NEW recipe). Replaces the single NEW button. (2) LIVE RECORD — still open: while the loop plays, a mode where tapping a voice pad punches its hit onto the CURRENT step (step/overdub record), instead of only auditioning.",
     "waveshape flip: SHIPPED (2026-07-16) a SAW/SQR WAVE toggle in the 5th knob slot of the 303 DEEP page (flips a.wave + re-calls acid_define). Still open: the drvmode waveshaper (SOFT/HARD/FOLD/ASYM) could get the same treatment.",
     "303 DEEP knobs: SHIPPED (2026-07-15) a DF soft-key flips the zone-2 row between vanilla (CUT/RES/ENV/DEC/ACC) and a DEEP page (SUB/ADEC/SLDT/TRK) — the headline Devil Fish knobs, per-303, sub-osc wired on slots 36/37 (34/35 belong to the 909's 13-slot bank). DRV moved to the FX panel (aligns with the drums). Still not surfaced: ATK (soft attack) + SQL (env-sweep) + the accent-SWEEP mode; a fuller flow could page those too.",
@@ -93,12 +96,12 @@ static int drag_gx, drag_gy, drag_axis, drag_paint, drag_on0;
 static int  tie[2][STEPS], oct[2][STEPS];   // TIE = hold prev note; OCT = octave -1/0/+1
 static int  plen[2] = { STEPS, STEPS };     // per-line LENGTH (short = polymeter drift)
 static int  lpos[2] = { 0, 0 };             // per-line playhead
-enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT };     // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks)
+enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT, PS_PERF };  // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks) / PERF (live play lenses)
 static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
 static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
-enum { FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
-static int  armed = FL_ACC;                  // which flag a bar-tap paints
-static const char *FLNAME[FL_N] = { "ACC", "SLD", "TIE", "OCT+", "OCT-" };
+enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
+static int  armed = FL_NOTE;                 // which flag a bar-tap paints (default NOTE = add notes right from the FLAG screen)
+static const char *FLNAME[FL_N] = { "NOTE", "ACC", "SLD", "TIE", "OCT+", "OCT-" };
 enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane params (doff[] index). VOL = per-step level (velocity); PAN = per-step stereo
 // drum-depth flags. STRK = 909-only. The continuous lanes (TUN/DEC/CHAR/VOL) map to LK_* by
 // darmed = DD_TUN + lane.lk (a STABLE id, NOT the button's row position — a lane after the
@@ -123,6 +126,7 @@ static const char *CH9[TR9_NV] = { "ATTK","SNPY","CLIK","CLIK","CLIK",0,0,0,0,"T
 static int  paint_val = 0;                    // what a FLAG paint-drag writes (decided on the first cell)
 static int flag_get(int i, int s, int f) {
     switch (f) {
+    case FL_NOTE: return on[i][s];
     case FL_ACC:  return acc[i][s];
     case FL_SLD:  return sld[i][s];
     case FL_TIE:  return tie[i][s];
@@ -133,6 +137,7 @@ static int flag_get(int i, int s, int f) {
 }
 static void flag_set(int i, int s, int f, int v) {
     switch (f) {
+    case FL_NOTE: on[i][s] = v; break;
     case FL_ACC:  acc[i][s] = v; break;
     case FL_SLD:  sld[i][s] = v; break;
     case FL_TIE:  tie[i][s] = v; break;
@@ -262,11 +267,20 @@ static void pat_switch(int m, int s) {
 }
 
 // transport (shared across the rack)
-static int   playing = 1, step = 0, laststep = -1, laststep303 = -1;   // laststep303 = the 303 lines' OWN (swung) step trigger
+static int   playing = 1, step = 0, laststep = -1, laststep303[2] = { -1, -1 };   // laststep303[i] = each 303 line's OWN (swung, PERF-speed-lensed) step trigger
 static float mbop = 0;
 static float g_bpm = 132;                                   // master TEMPO (rack-scope, MST face); drives the step clock + the tempo-synced delay
 static float g_phase = 0, g_last_t = 0;                     // accumulated 16th-note phase, so a live bpm change changes the RATE, never JUMPS the counter
 static float g_swing = 0;                                   // master SWING (rack-scope, MST face) — one global shuffle for ALL machines (ReBirth's model); 0 = straight, delays the odd 16ths by up to 0.6 of a step
+
+// PERF lenses — MOMENTARY, NON-DESTRUCTIVE performance transforms over the 303 read path
+// (per line). The pattern arrays are untouched; the transport just READS them through
+// whichever lens is held, so releasing the button = instantly back to normal. Set fresh
+// each frame from the held PERF buttons (draw), read in the step clock (update); only the
+// FOCUSED line's buttons are on screen, so an unfocused line always plays straight.
+static int pf_half[2], pf_dbl[2];    // speed lens: half-time / double-time (clean 2:1 → stays phase-locked to the drums)
+static int pf_acc[2];                // total-accent: every fired note gets the accent (the 909 "accent everything" move)
+static int pf_stac[2], pf_glide[2];  // slide lens: STAC forces all slides OFF (plucky), GLIDE forces them ALL on (a smooth river)
 
 // LIVE bank switching: a bank tap is QUANTIZED to the bar when the transport runs —
 // it ARMS the slot (blinks) and the switch LANDS on the next bar downbeat (update()),
@@ -547,6 +561,16 @@ static int pat_pad(unsigned id, int x, int y, int w, int h, const char *lab, int
     if (lcdbtn(id, x, y, w, h, lab, hi)) { pat_queue(m, k); return 1; }
     return 0;
 }
+// lcdhold — the MOMENTARY twin of lcdbtn: returns whether a contact HOLDS it this frame
+// (not tap-on-release), and lights while held. For the PERF play lenses (hold = apply).
+static int lcdhold(unsigned seed, int x, int y, int w, int hh, const char *s) {
+    int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, hh);
+    ui_button_core(wid, x, y, w, hh, &foc, &pr, &hot);
+    if (pr) rrectfill(x, y, w, hh, 2, CLR_MEDIUM_GREEN);
+    rrect(x, y, w, hh, 2, (hot || pr) ? CLR_LIME_GREEN : CLR_MEDIUM_GREEN);
+    font(FONT_TINY); print(s, x + (w - text_width(s)) / 2, y + 1, pr ? CLR_DARK_GREEN : CLR_LIME_GREEN);
+    return pr;
+}
 
 // ── the cartridge nav strip (zone 1) ─────────────────────────────────────────
 // each cartridge is a COMPOUND control: left body taps to FOCUS the face, the
@@ -583,7 +607,7 @@ static void navspine(void) {
     int px = 5, py = 0, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
     void *w = ui_wid_hash(0x01u, px, py, pw, ph);
     int actp = ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot), cleanp = nav_clean(w);
-    if (actp && cleanp) { playing = !playing; laststep = -1; laststep303 = -1;
+    if (actp && cleanp) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
                           for (int m = 0; m < M_N; m++) armpat[m] = -1; }   // stop → drop any pending queued switches
     rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
     rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
@@ -661,9 +685,10 @@ static void draw_303(int i) {
 
     // ③ display — soft-keys pick the LCD content: SEQ = the roll, FLAG = the flag
     // palette, FX = the DRV/SEND/VERB knobs, GEN (right) = the CLEAR + randomize menu.
-    if (cbtn(0x08u, 6, 37, 16, 7, "SEQ",  pscreen[i] == PS_SEQ))  pscreen[i] = PS_SEQ;
-    if (cbtn(0x09u, 6, 45, 16, 7, "FLAG", pscreen[i] == PS_FLAG)) pscreen[i] = PS_FLAG;
-    if (cbtn(0x06u, 6, 53, 16, 7, "FX",   pscreen[i] == PS_FX))   pscreen[i] = PS_FX;
+    if (cbtn(0x08u, 6, 37, 16, 6, "SEQ",  pscreen[i] == PS_SEQ))  pscreen[i] = PS_SEQ;
+    if (cbtn(0x09u, 6, 44, 16, 6, "FLAG", pscreen[i] == PS_FLAG)) pscreen[i] = PS_FLAG;
+    if (cbtn(0x06u, 6, 51, 16, 6, "FX",   pscreen[i] == PS_FX))   pscreen[i] = PS_FX;
+    if (cbtn(0x37u, 6, 58, 16, 6, "PERF", pscreen[i] == PS_PERF)) pscreen[i] = PS_PERF;   // live play lenses (hold-to-apply)
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", pscreen[i] == PS_GEN)) pscreen[i] = PS_GEN;
     if (cbtn(0x34u, 138, 47, 16, 7, "KEY", pscreen[i] == PS_KEY)) pscreen[i] = PS_KEY;   // this line's root / scale / octave
     if (cbtn(0x35u, 138, 56, 16, 7, "PAT", pscreen[i] == PS_PAT)) pscreen[i] = PS_PAT;   // A-D pattern banks (this line)
@@ -699,6 +724,12 @@ static void draw_303(int i) {
         static const char *AD[NPAT] = { "A", "B", "C", "D" };
         for (int k = 0; k < NPAT; k++)
             pat_pad(0x3Bu + k, 30 + k * 25, 42, 22, 14, AD[k], i, k);
+    } else if (pscreen[i] == PS_PERF) {                              // PERF — momentary play LENSES (HOLD a button; release = normal)
+        pf_half[i]  = lcdhold(0x7Bu, 30, 40, 24, 8, "HALF");        // ½-time (spreads out, 2 bars/loop)
+        pf_dbl[i]   = lcdhold(0x7Cu, 56, 40, 22, 8, "2X");          // 2×-time (doubles up, phase-locked)
+        pf_acc[i]   = lcdhold(0x7Du, 80, 40, 26, 8, "ACC");         // accent EVERY note (the 909 move)
+        pf_stac[i]  = lcdhold(0x7Eu, 30, 50, 34, 8, "STAC");        // drop all slides → plucky
+        pf_glide[i] = lcdhold(0x7Fu, 66, 50, 40, 8, "GLIDE");       // force all slides → a smooth river
     } else {
         { int bi = (int)(g_bpm + 0.5f); char nb[4]; int ni = 0;       // live BPM readout (set on the MST face)
           if (bi >= 100) nb[ni++] = '0' + bi / 100;
@@ -1355,22 +1386,34 @@ void update(void) {
         //    trick); the drums CAN schedule ahead, so they DRAG the onset in ms.
         float sw = g_swing * 0.60f;                                    // 0..0.6 of a 16th
 
-        // 303 lines — swung FLIP: on odd 16ths hold the prior even step until the
-        // swung onset (frac >= sw), then flip. Straight (g_swing 0) → ctr303 == ctr.
-        int ctr303 = ((ctr & 1) && frac < sw) ? ctr - 1 : ctr;
-        if (ctr303 != laststep303) {
-            laststep303 = ctr303;
-            for (int i = 0; i < 2; i++) {                              // each 303 line at its OWN length
-                int ls = ctr303 % plen[i]; lpos[i] = ls;
+        // 303 lines — each on its OWN swung, PERF-speed-lensed clock. A held speed lens
+        // scales this line's phase (×2 / ×0.5); clean 2:1 ratios stay phase-locked to the
+        // drums. Swung FLIP: on odd 16ths hold the prior even step until the swung onset
+        // (lf >= sw). The other lenses (total-accent, slide-flip) override the READ, so the
+        // stored pattern is untouched — release the button and it's back to normal.
+        for (int i = 0; i < 2; i++) {
+            float spd = pf_dbl[i] ? 2.0f : pf_half[i] ? 0.5f : 1.0f;   // PERF speed lens
+            float lp  = g_phase * spd;                                 // this line's own phase
+            int   lc  = (int)lp; float lf = lp - lc;
+            int   lcs = ((lc & 1) && lf < sw) ? lc - 1 : lc;          // swung per-line counter
+            if (lcs != laststep303[i]) {
+                laststep303[i] = lcs;
+                int ls = lcs % plen[i]; lpos[i] = ls;
                 if (mac[i].mute) { acid_off(&ac[i]); continue; }
-                if (on[i][ls]) { acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12, acc[i][ls], sld[i][ls]); mbop = 1; }
-                else if (tie[i][ls]) acid_tie(&ac[i], sld[i][ls]);     // hold the previous note through
+                int accent = acc[i][ls] || pf_acc[i];                          // total-accent lens
+                int slide  = pf_stac[i] ? 0 : pf_glide[i] ? 1 : sld[i][ls];    // slide-flip lens
+                if (on[i][ls]) { acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12, accent, slide); mbop = 1; }
+                else if (tie[i][ls]) acid_tie(&ac[i], slide);         // hold the previous note through
                 else acid_off(&ac[i]);
+            } else if (!pf_glide[i]) {                                // staccato gate between flips (GLIDE lens sustains → skip entirely)
+                int ls = lcs % plen[i];
+                int slide = pf_stac[i] ? 0 : sld[i][ls];             // STAC forces staccato; else a slid step glides OUT
+                if (on[i][ls] && !slide) {                           // gate ONLY a fresh, NON-slid note (tb303's rule): a slid
+                    float onset = (lcs & 1) ? sw : 0.0f;             // step must ring on to glide, and a tie/rest holds — cutting
+                    int nx = (lcs + 1) % plen[i];                    // them at 70% was the bug (manual slides never actually glided)
+                    acid_gate(&ac[i], lf, onset, tie[i][nx]);       // (next_ties still spares the cut into a tie)
+                }
             }
-        } else for (int i = 0; i < 2; i++) {                          // staccato gate between flips — swing-aware onset
-            float onset = (ctr303 & 1) ? sw : 0.0f;                   // odd step's note started late; measure the 70% gate from there
-            int nx = (ctr303 + 1) % plen[i];
-            acid_gate(&ac[i], frac, onset, tie[i][nx]);               // don't cut into a tie
         }
 
         // drums — fire at the flip, DRAG the odd 16ths via the fire() ms delay
@@ -1420,6 +1463,9 @@ void update(void) {
 }
 
 void draw(void) {
+    // PERF lenses are MOMENTARY — clear both lines each frame; only the focused line's
+    // held PERF buttons (draw_303) re-arm them. An unfocused/unheld line plays straight.
+    for (int i = 0; i < 2; i++) { pf_half[i] = pf_dbl[i] = pf_acc[i] = pf_stac[i] = pf_glide[i] = 0; }
     cls(CLR_DARK_PURPLE);
     rrectfill(0, 0, 160, 100, 7, CLR_INDIGO);
     rrectfill(3, 2, 154, 96, 5, CLR_LIGHT_PEACH);                     // 2px purple bezel top & bottom

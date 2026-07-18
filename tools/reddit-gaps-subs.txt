@@ -16,9 +16,11 @@ synthesizers
 modular
 synthrecipes        # "how do I make [this sound]?" — the wish-pattern, maps to instrument-recipes.md
 sounddesign         # on-grain synth/FX tribe — "how do I make [sound]" + "is there a tool that…"
-audioprogramming    # PROBE (2026-07-18): a maker/DSP-dev tribe, not consumer-demand — wishes may skew
-#   "how do I implement a reverb / which FFT lib" (technical, not "I wish an app existed"). Watching one
-#   rotation: if the raw wishes read all-DSP-implementation, prune it + add to leads.js as a VENUE instead.
+# audioprogramming  # PROBED + PRUNED 2026-07-18: a maker/DSP-dev tribe, NOT consumer-demand. One full
+#   rotation (47 threads, 9 wishes) read entirely "how do I become an audio programmer / career advice /
+#   feedback on my JUCE plugin / autotune VST" — and ALL nine "is there an app…" queries returned 0. No
+#   build-this gap will ever surface here. Better as a leads.js VENUE (show the ENGINE to fellow makers),
+#   not a demand-discovery sub. Left off the rotation.
 
 # — edm / electronic production —
 edmproduction

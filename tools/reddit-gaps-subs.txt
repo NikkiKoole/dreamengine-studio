@@ -11,10 +11,14 @@ ipadmusic
 iosmusicproduction
 GarageBand          # beginner iOS music ("why is simple shit so hard in GarageBand?") — thesis-central
 
-# — synth —
+# — synth / sound design —
 synthesizers
 modular
 synthrecipes        # "how do I make [this sound]?" — the wish-pattern, maps to instrument-recipes.md
+sounddesign         # on-grain synth/FX tribe — "how do I make [sound]" + "is there a tool that…"
+audioprogramming    # PROBE (2026-07-18): a maker/DSP-dev tribe, not consumer-demand — wishes may skew
+#   "how do I implement a reverb / which FFT lib" (technical, not "I wish an app existed"). Watching one
+#   rotation: if the raw wishes read all-DSP-implementation, prune it + add to leads.js as a VENUE instead.
 
 # — edm / electronic production —
 edmproduction

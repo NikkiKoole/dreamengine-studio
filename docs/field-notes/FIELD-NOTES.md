@@ -5,7 +5,7 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*27 journal notes · 3 working docs · regenerate to refresh.*
+*28 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
@@ -47,6 +47,10 @@ Where each numbered note sits on the path from a hunch to something the repo ado
 - `019` [Completing the Creative Loop](019-completing-the-creative-loop.md) — DreamEngine began as a system for making things.
 - `100` [First Synthesis: The Knowledge Loop](100-first-synthesis.md) — After reviewing the first series of field notes, a recurring pattern appears to connect nearly every aspect of DreamEngine.
 
+### · Unmarked (1)
+
+- `027` [027 · Demand discovery — r/sounddesign (+ the r/audioprogramming prune) → the "match-the-patch" candidate](027-demand-discovery-sounddesign-matchpatch.md) — Two subs added to `tools/reddit-gaps-subs.txt`:
+
 ## Timeline
 
 Numbered notes in order — the spine of the journal.
@@ -78,6 +82,7 @@ Numbered notes in order — the spine of the journal.
 - `024` 🔭 [Demand discovery: four more tribes hold the thesis, surface a chop-to-pads gap + a vocal-overdub boundary](024-demand-discovery-four-tribes.md) *(2026-07-14)*
 - `025` 🔭 [Demand discovery, the supply side: the thesis is validated AND crowded](025-demand-discovery-supply-side-showcase.md) *(2026-07-17)*
 - `026` 🔭 [Demand discovery: what 1,411 wishes across 24 tribes actually ask for](026-demand-discovery-cross-tribe.md) *(2026-07-18)*
+- `027` · [027 · Demand discovery — r/sounddesign (+ the r/audioprogramming prune) → the "match-the-patch" candidate](027-demand-discovery-sounddesign-matchpatch.md) *(2026-07-18)*
 
 ## Related-note graph
 
@@ -135,3 +140,4 @@ gentle nudge **when next touched** — never a rewrite (append-only).
 - `011` [Tool Discovery and Documentation](011-tool-discovery.md) — missing: date
 - `012` [Self-Describing Artifacts](012-self-describing-artifacts.md) — missing: date
 - `013` [Generated Cart Index](013-generated-cart-index.md) — missing: date
+- `027` [027 · Demand discovery — r/sounddesign (+ the r/audioprogramming prune) → the "match-the-patch" candidate](027-demand-discovery-sounddesign-matchpatch.md) — missing: status

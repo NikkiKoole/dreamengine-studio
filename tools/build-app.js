@@ -481,6 +481,7 @@ try {
     path.join(mk.RAYLIB, 'lib/libraylib.a'),
     '-framework', 'OpenGL', '-framework', 'Cocoa', '-framework', 'IOKit',
     '-framework', 'CoreVideo', '-framework', 'CoreFoundation', '-framework', 'CoreMIDI',
+    '-framework', 'AudioToolbox',   // mic_desktop.h AudioQueue capture (Tier-1 mic input) — matches make-cart.js / main.cjs
     '-Wl,-dead_strip', '-o', out])
 } catch (e) {
   const err = (e.stderr || '').toString().split('\n')

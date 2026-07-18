@@ -17,6 +17,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND."
   },
   "todo": [
+    "GATE lane: SHIPPED (2026-07-18) — a 3rd drawable master lane on the MST screen (MIX/PCF/CRU/GAT, soft-keys shrunk to h7 so 4 fit), the RHYTHM twin: PCF=tone, CRUSH=texture, GATE=chop. mgate[16] 0..7/step (7=open, drawn DOWN = the step cuts); apply_fx rides the master gate((1-o)*0.85 threshold, 2ms atk, 45ms rel) on STEP CHANGE (set-and-hold, guarded by aGate). Pink bars (0xA0u hashes). Verified audible: open-vs-full-gate WAV correlate 0.78, no NaN. CAVEAT (worth a play-test): gate() is a THRESHOLD/dynamics gate, not a pure per-step volume chop — the cut depends on the signal level, so it reads more as a rhythmic dynamics-gate than a clean trance-gate. If a cleaner chop is wanted, the real fix is a master VOLUME the lane can ride (the level[] master-vol TODO) — revisit if the feel is off.",
     "CRUSH lane: SHIPPED (2026-07-18) — a 2nd drawable master-automation lane on the MST screen, the PCF's TEXTURE twin (PCF = tone/filter; CRUSH = bit-depth grit). A 3rd MST soft-key (MIX/PCF/CRU) draws mcrush[16] (0..7/step, 0 = clean); apply_fx rides the whole-mix crush(16-c*13 bits, 1+c*24 rate, c mix) on STEP CHANGE only (crush() is NOT ride-safe → set-and-hold, guarded by aCrush; fx-frame lint passes). Drawn in ORANGE bars (vs PCF's green) so the two lanes read distinct; empty step = a floor tick. Same draw code + widget pattern as PCF (0xE0u hashes). Verified audible: clean-vs-full-crush WAV correlate 0.79 (same notes, degraded texture), no NaN. The engine already had crush/gate/tape/eq/chorus/reverb/grains as global master fx, so more lanes (e.g. a GATE rhythm lane) are cheap follow-ons if wanted.",
     "LCD GROW: SHIPPED (2026-07-18) — the green LCD glass on ALL FOUR faces (303/808/909/MST) is now h30 (y37-66), one consistent size; it CONTAINS the soft-key columns (PERF/PAT/GEN/KEY used to poke below) and leaves a 1px gap above the content below (drum voice pads at y68; 303 note-bars nudged 67→68, bh 27→26 so the loop handle stays at y94). MST caught up (2026-07-18): the master TEMPO moved to a compact KNOB in the LCD's right gutter (gknob — shows the real VALUE label, not knob()'s 0-99; bpm01 maps 0..1 → 60..200, rounded to int so no per-frame fx re-apply), which freed the full-width y64 row so the LCD could grow. DELAY stayed as its 4 small division buttons (maker preferred buttons to a knob) — now tucked UNDER the grown LCD in the y67-78 band (set mdiv directly, label = the division). The 303 SEQ roll fills the taller glass (baseline 56→61, taller playhead) and the MST MIX faders/PCF lane grew to fh22. Also: accented notes in the 303 roll get an ORANGE CAP in the space ABOVE the note (the 'accents use space above' ask) — matches how the drum faces mark accents above the cell.",
     "OPEN — REC / mode HINT OUTLINES: when you engage a mode (the drum REC pad-tool, or arm a FLAG), draw an OUTLINE around the buttons/cells you then need to press — spatial 'what do I do now' guidance. (Sibling idea, a transient LCD TOAST that NAMES the action, was prototyped 2026-07-18 and PARKED — maker didn't like it; don't rebuild without asking.)",
@@ -225,7 +226,8 @@ static float dist8 = 0, dist9 = 0;                          // per-machine drum 
 static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB fader (1 = unity/stock); 4 = MST (master wire TODO)
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
-static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = the PCF lane, 2 = the CRUSH lane
+static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
+static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane
 
 // ── PATTERN BANKS (ARRANGEMENT) ──────────────────────────────────────────────
 // PER-MACHINE A/B/C/D slots. A pattern stores only the SEQUENCE (steps + per-step
@@ -345,6 +347,15 @@ static void apply_fx(void) {
         float c = mcrush[step] / 7.0f;
         crush(16.0f - c * 13.0f, 1.0f + c * 24.0f, c);
         aCrush = mcrush[step];
+    }
+    // master GATE lane — the drawn per-step chop (PCF's RHYTHM twin). 7 = open (threshold 0 =
+    // bypass); drawing DOWN raises the gate threshold → the step cuts (snappy release = a stutter).
+    // set-and-hold on step change (gate() is not ride-safe).
+    static int aGate = -1;
+    if (mgate[step] != aGate) {
+        float thr = (1.0f - mgate[step] / 7.0f) * 0.85f;
+        gate(thr, 2, 45);
+        aGate = mgate[step];
     }
     // GLU / PUMP share the master gain stage → mutually exclusive (PUMP wins)
     int   pumping = mpump > 0.02f, mode = pumping ? 1 : 0;
@@ -1286,10 +1297,11 @@ static void draw_mst(void) {
     knob(&mfb,    111, 24, 6, "FB",   0.35f);
     knob(&mpump,  142, 24, 6, "PUMP", 0.0f);
 
-    // ③ screen — soft-keys pick MIX (channel meters) or PCF (the drawable filter lane)
-    if (cbtn(0x20u, 6, 38, 16, 8, "MIX", mstflow == 0)) mstflow = 0;
-    if (cbtn(0x21u, 6, 47, 16, 8, "PCF", mstflow == 1)) mstflow = 1;   // drawable master filter lane
-    if (cbtn(0x22u, 6, 56, 16, 8, "CRU", mstflow == 2)) mstflow = 2;   // drawable master bitcrush lane (PCF's texture twin)
+    // ③ screen — soft-keys: MIX meters + three drawable master-automation lanes (h7 so all 4 fit)
+    if (cbtn(0x20u, 6, 38, 16, 7, "MIX", mstflow == 0)) mstflow = 0;
+    if (cbtn(0x21u, 6, 45, 16, 7, "PCF", mstflow == 1)) mstflow = 1;   // drawable master FILTER lane (tone)
+    if (cbtn(0x22u, 6, 52, 16, 7, "CRU", mstflow == 2)) mstflow = 2;   // drawable master BITCRUSH lane (texture)
+    if (cbtn(0x23u, 6, 59, 16, 7, "GAT", mstflow == 3)) mstflow = 3;   // drawable master GATE lane (rhythm/chop)
     // (the LIN/PWR pan-LAW chip was an A/B experiment — stereo works, so it's gone.)
     // DELAY + TEMPO moved to knobs in the right gutter (below), which freed the bottom row so
     // the LCD grows to h30 — the same size as the 303/808/909 faces.
@@ -1356,6 +1368,25 @@ static void draw_mst(void) {
             if (fh > 0) rectfill(cx, ly + lh - fh, lw - 1, fh, CLR_ORANGE);
             else        pset(cx, ly + lh - 1, CLR_DARK_BROWN);   // a floor tick so empty steps read as "clean", not missing
         }
+    } else if (mstflow == 3) {
+        // GATE — a DRAWABLE chop lane (PCF's rhythm twin): tall = open, drawn DOWN = the step
+        // cuts. Pink bars, so all three lanes read distinct (PCF green · CRUSH orange · GATE pink).
+        int lx0 = 30, lw = 6, ly = 40, lh = 22;
+        for (int s = 0; s < STEPS; s++) {
+            int cx = lx0 + s * lw;
+            void *w = ui_wid_hash(0xA0u + s, cx, ly, lw, lh);
+            ui_reg(w, cx, ly, lw, lh, 0);
+            UiCap *c = ui_cap_for(w);
+            if (c) {                                         // captured cell tracks the finger → draw the pattern
+                g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
+                int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
+                int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
+                mgate[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
+            }
+            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw - 1, lh, CLR_MEDIUM_GREEN); blend_reset(); }
+            int fh = lh * mgate[s] / 7;
+            rectfill(cx, ly + lh - fh, lw - 1, fh, mgate[s] < 7 ? CLR_PINK : CLR_DARK_BROWN);
+        }
     }
 
     // ④ SWING (top) + TEMPO (bottom) — a matching pair of gutter knobs, same size, to the right
@@ -1417,6 +1448,7 @@ void init(void) {
     for (int s = 0; s < NPAT; s++) for (int v = 0; v < TR9_NV; v++) for (int k = 0; k < STEPS; k++) pat909[s].prob[v][k] = 100;
     for (int s = 0; s < STEPS; s++) mpcf[s] = 7;           // PCF lane starts fully open (no effect)
     for (int s = 0; s < STEPS; s++) mcrush[s] = 0;         // CRUSH lane starts clean (no effect)
+    for (int s = 0; s < STEPS; s++) mgate[s]  = 7;         // GATE lane starts fully open (no effect)
     sidechain_key(TR808_BASE + TRS_BD, 0, 1);              // both kicks drive the PUMP
     sidechain_key(D909_BASE + TR9S_BD, 0, 1);
     apply_fx();                                            // engage the default master glue

@@ -68,8 +68,12 @@ targets:
         # device build stays clean (device IAP testing = App Store Connect sandbox, later).
         "OTHER_LDFLAGS[sdk=iphonesimulator*]": [-framework, StoreKitTest]
         "LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]": [$(inherited), $(PLATFORM_DIR)/Developer/Library/Frameworks]
-        # omnichord: 320x200, SCALE=1 so UIKit touches map 1:1 to framebuffer pixels
-        GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCREEN_W=320, SCREEN_H=200, SCALE=1, MAP_W=128, MAP_H=64, CELL_W=16, CELL_H=16]
+        # SCALE=1 so UIKit touches map 1:1 to framebuffer pixels. The CART DIMS
+        # (SCREEN_W/H, MAP_W/H, CELL_W/H) are NOT set here: the build scripts pass them per-cart
+        # on the xcodebuild command line, and studio.h's #ifndef fallbacks (320x200/128x64/16x16)
+        # cover a bare Xcode-GUI build. Keeping them here made $(inherited) re-add the 320x200
+        # base on TOP of the script's override → a "SCREEN_W macro redefined" warning every build.
+        GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
   TinyjamAU:
@@ -90,7 +94,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello.TinyjamAU
         SWIFT_OBJC_BRIDGING_HEADER: AU/AU-Bridging-Header.h
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/au, $(SRCROOT)/Sources]
-        GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCREEN_W=320, SCREEN_H=200, SCALE=1, MAP_W=128, MAP_H=64, CELL_W=16, CELL_H=16]
+        # cart dims come from the build scripts' command-line override (+ studio.h #ifndef
+        # fallbacks for a bare GUI build) — not baked here, so $(inherited) can't re-add a stale
+        # SCREEN_W over the override (the "macro redefined" warning). See the app target above.
+        GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
     info:

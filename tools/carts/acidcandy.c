@@ -1345,11 +1345,11 @@ static void draw_mst(void) {
         if (cbtn(0x04u + i, 30 + i * 24, 68, 22, 9, DL[i], mdiv == i)) mdiv = i;
 
     // ⑤ per-machine delay SEND
-    print("SEND", 6, 79, CLR_DARK_BROWN);
-    knob(&msend[0], 36, 84, 5, MLAB[0], 0.10f);
-    knob(&msend[1], 72, 84, 5, MLAB[1], 0.10f);
-    knob(&msend[2], 108, 84, 5, MLAB[2], 0.0f);
-    knob(&msend[3], 144, 84, 5, MLAB[3], 0.0f);
+    print("SEND", 6, 79, CLR_DARK_BROWN);   // knobs pulled in to align under the DELAY buttons (cx 41/65/89/113) → frees the right corner (x120-156, y79-90)
+    knob(&msend[0],  41, 84, 5, MLAB[0], 0.10f);
+    knob(&msend[1],  65, 84, 5, MLAB[1], 0.10f);
+    knob(&msend[2],  89, 84, 5, MLAB[2], 0.0f);
+    knob(&msend[3], 113, 84, 5, MLAB[3], 0.0f);
 }
 
 void init(void) {

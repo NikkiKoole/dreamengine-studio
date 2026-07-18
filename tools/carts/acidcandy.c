@@ -17,7 +17,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick, SWG is the one rack-wide swing (drums + both 303s), pick a delay TIME, DRAG the BPM readout (right of the delay row) to set the master tempo, + per-machine SEND."
   },
   "todo": [
-    "OPEN — LCD GROW: grow the green LCD glass a few px toward the bottom (more room for content). Per face — mind what sits just below: the 303's loop-length ▼ handle lane (y61-66) + note-bars (y67); check the drum/MST faces don't collide either. Small layout tweak, do it carefully with a before/after look.",
+    "LCD GROW: SHIPPED (2026-07-18) — the green LCD glass on 303/808/909 grew from h24 (y37-60) to h30 (y37-66), a consistent size across all three; it now CONTAINS the soft-key columns (PERF/PAT/GEN/KEY used to poke below) and leaves a 1px gap above the content below (drum voice pads at y68; 303 note-bars nudged 67→68, bh 27→26 so the loop handle stays at y94). MST kept at h24 (its DELAY row is at y64, no room). The 303 SEQ roll now fills the taller glass (baseline 56→61, taller playhead). Also: accented notes in the 303 roll get an ORANGE CAP in the space ABOVE the note (the 'accents use space above' ask) — matches how the drum faces mark accents above the cell.",
     "OPEN — REC / mode HINT OUTLINES: when you engage a mode (the drum REC pad-tool, or arm a FLAG), draw an OUTLINE around the buttons/cells you then need to press — spatial 'what do I do now' guidance. (Sibling idea, a transient LCD TOAST that NAMES the action, was prototyped 2026-07-18 and PARKED — maker didn't like it; don't rebuild without asking.)",
     "PARKED — mute SCENES: deprioritized 2026-07-18. For MACHINE-level muting it's largely redundant with the top-nav mute LEDs (one tap vs a few); the only real gain is one-tap recall of a COMPLEX state incl. per-voice drum mutes. The genuinely-more-than-muting version (mutes + which bank + levels + PERF = a 'verse/chorus/drop') IS the deferred SONG layer — build that, not a mute-only scene. If a cheap live win is wanted instead: a SOLO gesture (hold/latch a cartridge LED to solo, mute the rest) clearly beats the LEDs.",
     "OPEN — PERF lens follow-ups (live-set arc): (1) the 'funny accent order' for 2X — a cross-rhythm accent overlay (e.g. accent every 3rd 16th) so a doubled line isn't a flat repeat; (2) octave-shove + reverse lenses; (3) a PERF layer for the DRUMS too (whole-rack momentary total-accent + fills); (4) minor edge: a momentary HOLD of HALF while 2X is LATCHED still plays 2x (update precedence dbl>half / stac>glide) — momentary doesn't override a conflicting latch. LATCH itself SHIPPED 2026-07-18 (see below).",
@@ -709,9 +709,9 @@ static void draw_303(int i) {
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN", pscreen[i] == PS_GEN)) pscreen[i] = PS_GEN;
     if (cbtn(0x34u, 138, 47, 16, 7, "KEY", pscreen[i] == PS_KEY)) pscreen[i] = PS_KEY;   // this line's root / scale / octave
     if (cbtn(0x35u, 138, 56, 16, 7, "PAT", pscreen[i] == PS_PAT)) pscreen[i] = PS_PAT;   // A-D pattern banks (this line)
-    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
-    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);   // LCD grown to y66 (matches 808/909; 1px gap above the note-bars at y68) + now CONTAINS the soft-keys
+    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
     if (pscreen[i] == PS_FLAG) {
         for (int f = 0; f < FL_N; f++)                                // the 6-flag palette IN the screen
             if (lcdbtn(0x0Au + f, 30 + (f % 3) * 34, 40 + (f / 3) * 9, 32, 8, FLNAME[f], armed == f)) armed = f;
@@ -757,17 +757,18 @@ static void draw_303(int i) {
         int heldy = -1;                                              // y of the sounding note (for ties + slide origin)
         for (int s = 0; s < plen[i]; s++) {
             int cx = 29 + s * 6;
-            if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 18, CLR_MEDIUM_GREEN); blend_reset(); }
-            int y = 56 - pit[i][s] - oct[i][s] * 6; if (y < 41) y = 41; if (y > 56) y = 56;
+            if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 24, CLR_MEDIUM_GREEN); blend_reset(); }
+            int y = 61 - pit[i][s] - oct[i][s] * 6; if (y < 42) y = 42; if (y > 61) y = 61;   // roll fills the taller glass (baseline 61)
             if (on[i][s]) {
+                if (acc[i][s]) rectfill(cx, y - 3, 4, 1, CLR_ORANGE);                   // ACCENT — a bright cap in the space ABOVE the note
                 rectfill(cx, y, 4, 2, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);   // the note
                 if (oct[i][s] > 0) pset(cx + 2, y - 2, CLR_LIGHT_YELLOW);               // octave-up tick
                 if (oct[i][s] < 0) pset(cx + 2, y + 3, CLR_TRUE_BLUE);                  // octave-down tick
                 if (sld[i][s]) {                                                        // slide → a glide LINE to the next note
                     int ns = (s + 1) % plen[i];
                     if (on[i][ns] || tie[i][ns]) {
-                        int ny = tie[i][ns] ? y : 56 - pit[i][ns] - oct[i][ns] * 6;
-                        if (ny < 41) ny = 41; if (ny > 56) ny = 56;
+                        int ny = tie[i][ns] ? y : 61 - pit[i][ns] - oct[i][ns] * 6;
+                        if (ny < 42) ny = 42; if (ny > 61) ny = 61;
                         line(cx + 3, y + 1, cx + 6, ny + 1, CLR_MEDIUM_GREEN);
                     }
                 }
@@ -782,7 +783,7 @@ static void draw_303(int i) {
     if (use_bars) {
         // ④⑤ the 16 NOTE BARS — tap = note on/off · drag up/down = pitch (scale-snapped).
         // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
-        int by = 67, bh = 27;   // ~3px shorter than the panel floor → a clean strip below for the loop-length handle
+        int by = 68, bh = 26;   // 1px gap under the (grown) LCD; loop-length handle strip stays at y94 (by+bh)
         for (int s = 0; s < STEPS; s++) {
             int bx = 6 + s * 9, bw = 8, dead = (s >= plen[i]);
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
@@ -916,9 +917,9 @@ static void draw_808(void) {
     if (cbtn(0x33u,   6, 53, 16, 7, "MIX",  dscreen == DS_MIX))  dscreen = DS_MIX;   // per-voice level·pan·fine
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN",  dscreen == DS_GEN))  dscreen = DS_GEN;   // RIGHT col (tone = DS_VCE, reached via the VCE tool selector)
     if (cbtn(0x36u, 138, 47, 16, 7, "PAT",  dscreen == DS_PAT))  dscreen = DS_PAT;   // A-D pattern banks
-    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
-    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);   // LCD grown to y66 — 1px gap above the voice pads at y68 (matches the 303)
+    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
     if (dscreen == DS_GEN) {
         draw_gen(2);
     } else if (dscreen == DS_FLAG) {
@@ -1080,9 +1081,9 @@ static void draw_909(void) {
     if (cbtn(0x33u,   6, 53, 16, 7, "MIX",  dscreen == DS_MIX))  dscreen = DS_MIX;   // per-voice level·pan·fine
     if (cbtn(0x31u, 138, 38, 16, 7, "GEN",  dscreen == DS_GEN))  dscreen = DS_GEN;   // RIGHT col (tone = DS_VCE, reached via the PICK tool)
     if (cbtn(0x36u, 138, 47, 16, 7, "PAT",  dscreen == DS_PAT))  dscreen = DS_PAT;   // A-D pattern banks
-    rrectfill(24, 37, 112, 24, 3, CLR_BROWNISH_BLACK);
-    rrectfill(27, 39, 106, 20, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 58; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);   // LCD grown to y66 — 1px gap above the voice pads at y68 (matches the 303)
+    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
     if (dscreen == DS_GEN) {
         draw_gen(3);
     } else if (dscreen == DS_FLAG) {

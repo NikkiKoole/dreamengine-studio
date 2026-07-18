@@ -181,5 +181,12 @@ backlinks; the raw scraped threads stay in the gitignored cache, never committed
 new tribe or a later date → write the next note (`023-…`); `tools/build-field-notes.js` re-indexes
 them (timeline + related-note graph) automatically.
 
+The per-tribe notes fold up into a **cross-tribe synthesis** once the drip has enough caches:
+[`field-notes/026-demand-discovery-cross-tribe.md`](../field-notes/026-demand-discovery-cross-tribe.md)
+(2026-07-18) clusters **1,411 wishes across 24 tribes** into a prioritised, Google-validated build
+backlog (ear-training game · chord identify/progression · sampler · simple beatmaker · scale/microtonal
+· idea prompter) plus a **frontier pile** all blocked on live audio-in. Re-run the aggregation and
+write the next synthesis as the caches grow.
+
 Related: [`demand-generation.md`](demand-generation.md) (the lever hierarchy this feeds),
 [`store-agents.md`](store-agents.md) (the capture layer), `tools/leads.js` (the generation twin).

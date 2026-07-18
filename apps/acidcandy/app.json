@@ -1,0 +1,11 @@
+{
+  "name":     "Acid Candy",
+  "bundleId": "com.mipolai.acidcandy",
+  "version":  "0.1",
+  "carts":    ["acidcandy"],
+  "listing": {
+    "title":    "Acid Candy: Pocket 303",
+    "subtitle": "Squelchy bassline, reborn",
+    "keywords": "emulator,house,techno,909,groovebox,deep,drum,machine,synth,sequencer,rave,338,rebirth"
+  }
+}

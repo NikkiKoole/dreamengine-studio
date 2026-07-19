@@ -1672,12 +1672,12 @@ void draw(void) {
     ui_begin();
     font(FONT_SMALL);
 
-    // controls area = panel ∩ safe-area (the whole panel on desktop; inset past the notch on device)
-    int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh);
-    float ax0 = panel.x > sx ? panel.x : sx, ay0 = panel.y > sy ? panel.y : sy;
-    float ax1 = (panel.x + panel.w) < (sx + sw) ? (panel.x + panel.w) : (float)(sx + sw);
-    float ay1 = (panel.y + panel.h) < (sy + sh) ? (panel.y + panel.h) : (float)(sy + sh);
-    Box area = box(ax0, ay0, ax1 - ax0, ay1 - ay0);
+    // Controls area — a slim FIXED inset off the (full-bleed) chassis edge, so the UI fills the screen.
+    // We deliberately do NOT intersect safe_rect() here: the cart drives its own CHUNKY canvas via
+    // de_resize, and the host's safe insets don't rescale to it, so panel∩safe lands as a fat border
+    // (the "sea of salmon"). The chassis bleeds under the notch / home-bar anyway; this keeps the
+    // controls just off the very edge. (If the notch ever clips an edge control, add a per-side nudge.)
+    Box area = lay_inset(panel, 2);
     Box stage;
     Box nav = lay_split(area, EDGE_TOP, area.h * 0.12f, &stage);   // nav strip ≈ design 12/100
     navspine(nav);

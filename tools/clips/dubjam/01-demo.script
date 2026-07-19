@@ -1,0 +1,13 @@
+# dubjam — dub-techno rack demo: grenadier XY sweep, the 808 beat, the MST dub throw.
+# Auto-plays (playing=1). RAW script verbs: verb <frame> ... (NOT "frame N down key").
+# frames 780
+# fps 30
+# crf 28
+# --- GREN: sweep the filterbank (ALPHA = x, BETA = y) over the drone ---
+drag 40 24 90 150 150 66
+drag 155 150 66 250 24 84
+# --- click the DRM cartridge (m=2, centre x=85 y=5) → the p-locked 808 kit ---
+click 300 85 5
+# --- click the MST cartridge (m=3, centre x=112 y=5), then HOLD + drag the DUB THROW pad ---
+click 500 112 5
+drag 540 22 82 760 152 70

@@ -9,14 +9,14 @@
   "genre": null,
   "teaches": [],
   "description": {
-    "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). SUB / MST are OPEN SEAMS (stubs + TODOs).",
+    "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). MST is WIRED — the dub master: the drone + kit routed into the shared echo + reverb buses (kick kept dry), a tempo-synced dub delay (DLY/FBK), reverb (VERB), a ride-safe DJ filter (FILT), and a DUB THROW pad that momentarily overrides the echo time/feedback. SUB is the last OPEN SEAM (stub + TODO).",
     "detail": "Wired: GREN drone (gren_init/gren_update) — INSTR_USER0 trapezoid VCO (set_morph), 3 voices on one root through FILTER_LOW/BAND, note_cutoff/note_res ridden live from the XY pad (ALPHA=x sweeps all filters +-2oct, BETA=y opens the spacing), CMOS reroll() drift on each gate pulse. Transport: SPACE play/stop; a shared beat-clock gate pulses the drone. SEAMS: sub_update()/drm_update()/mst_apply_fx() are stubs — the sub bass, the spacious kit, and the dub delay/reverb master go there. Slots reserved: GREN 5-7, SUB 8, DRM 9-12.",
     "controls": "SPACE = play/stop. Keys 1-4 switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA), drag BASE/SPACE/Q/MORPH knobs. SUB/DRM/MST faces are draw-only for now."
   },
   "todo": [
     "SEAM sub_update(): wire the deep SUB bass — a short-decay INSTR_SINE/SQUARE on slot 8, one note per s_on[] step following the drone root; the note-bars become the pattern.",
-    "SEAM drm_update(): wire the spacious kit — INSTR_SINE kick (slot 9, ENV_PITCH), INSTR_NOISE rim/hat/clap (10-12, band/high filters); drench in the MST delay/reverb (dub techno = the space).",
-    "SEAM mst_apply_fx(): the dub master — tempo-synced echo() + reverb() + a DJ filter(), set-and-hold; the DUB THROW pad rides delay time/feedback momentarily (echo is NOT ride-safe → re-apply on change only).",
+    "P-LOCK paint UI: right now the per-step TUNE/DEC offsets are seeded in drm_init(); add the acidcandy FLAG palette (arm a lane, paint offsets across the grid) so they're editable live.",
+    "MST follow-ups: tempo-sync the delay to a live BPM (currently the fixed BPM define); expose the delay DIVISION as buttons; consider a per-voice reverb send on the kit (rim/hat wetter, kick dry) once the feel is judged.",
     "Make GREN knobs the acidcandy gear-drag (sideways=fine, double-tap=reset) once the feel is proven; expose RND + LAYOUT/GATE as real controls."
   ]
 }
@@ -77,6 +77,11 @@ static float doff[PL_N][4][16];                               // per-step OFFSET
 static int   last_drm_step = -1;
 static int   g_step16 = 0;                                    // shared 16th clock (set in update)
 
+// ── MST (dub master) state ──
+static float k_dly = 0.60f, k_fbk = 0.55f, k_verb = 0.55f, k_filt = 0.50f;   // delay div / feedback / reverb / DJ filter
+static int   dub_held = 0;                                    // the DUB THROW pad is being touched → override echo
+static float dub_x = 0.5f, dub_y = 0.5f;                      // throw pad: X = delay time, Y = feedback
+
 static float frand(void) { rng = rng * 1664525u + 1013904223u; return (rng >> 8) / 16777216.0f; }
 static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_width(s) / 2, y, col); }
 
@@ -115,8 +120,8 @@ static void gren_init(void) {
     for (int i = 0; i < NV; i++) { hv[i] = note_on(BASE_MIDI, SL_F1 + i, 3); note_glide(hv[i], 60); }
 }
 static void gren_update(void) {
-    // XY pad — drag ALPHA / BETA (raw touch/mouse; the pad isn't a ui widget)
-    for (int i = 0; i < touch_count(); i++) {
+    // XY pad — drag ALPHA / BETA (only on the GREN face; the pad isn't a ui widget)
+    if (face == 0) for (int i = 0; i < touch_count(); i++) {
         int tx = touch_x(i), ty = touch_y(i);
         if (tx >= PAD_X && tx < PAD_X + PAD_W && ty >= PAD_Y && ty < PAD_Y + PAD_H) {
             ax = clamp((tx - PAD_X) / (float)PAD_W, 0, 1);
@@ -167,9 +172,41 @@ static void drm_update(void) {
     }
 }
 
-// ── SEAMS — fill these in later ──
+// ── MST (dub master) — WIRED: echo + reverb buses, DJ filter, DUB throw pad ──
+static void mst_init(void) {
+    // route the drone + kit INTO the shared echo/reverb buses — this is what makes it DUB.
+    for (int i = 0; i < NV; i++) { instrument_echo(SL_F1 + i, 0.22f); instrument_reverb(SL_F1 + i, 0.45f); }  // drone: washy
+    for (int i = 0; i < TR808_NSLOT; i++) { instrument_echo(TR808_BASE + i, 0.30f); instrument_reverb(TR808_BASE + i, 0.28f); }  // kit: spacious
+    instrument_echo(TR808_BASE + 0, 0.06f); instrument_reverb(TR808_BASE + 0, 0.05f);   // ...but keep the KICK mostly dry
+}
+static void mst_apply_fx(void) {
+    // DUB THROW pad (MST face only): momentarily override the echo while held
+    dub_held = 0;
+    if (face == 3) for (int i = 0; i < touch_count(); i++) {
+        int tx = touch_x(i), ty = touch_y(i);
+        if (tx >= PAD_X && tx < PAD_X + PAD_W && ty >= PAD_Y && ty < PAD_Y + PAD_H) {
+            dub_held = 1;
+            dub_x = clamp((tx - PAD_X) / (float)PAD_W, 0, 1);
+            dub_y = clamp(1.0f - (ty - PAD_Y) / (float)PAD_H, 0, 1);
+        }
+    }
+    // the shared echo — set-and-hold (echo() is NOT ride-safe → re-apply only on change).
+    static int aEt = -1; static float aEf = -1, aVerb = -1;
+    int   et = dub_held ? (int)(30 + dub_x * 470) : (int)(60000.0f / BPM * (0.25f + k_dly * 0.75f));
+    float ef = dub_held ? (0.55f + dub_y * 0.37f) : (k_fbk * 0.85f);
+    if (et != aEt || ef != aEf) { echo(et, ef, 0.30f); aEt = et; aEf = ef; }   // dark dub tail (low tone)
+    // the shared reverb — set-and-hold
+    float vsize = 0.45f + k_verb * 0.5f;
+    if (vsize != aVerb) { reverb(vsize, 0.6f); aVerb = vsize; }
+    // the master DJ filter — ride-safe (every frame): bipolar around centre
+    float res = 0.3f;
+    if (k_filt > 0.54f)      filter(FILTER_HIGH, 20.0f * powf(6000.0f / 20.0f, (k_filt - 0.54f) / 0.46f), res);
+    else if (k_filt < 0.46f) filter(FILTER_LOW, 18000.0f * powf(200.0f / 18000.0f, (0.46f - k_filt) / 0.46f), res);
+    else                     filter(FILTER_OFF, 1000.0f, 0.0f);
+}
+
+// ── SEAM — fill this in later ──
 static void sub_update(void) { /* TODO: deep sub bass on SL_SUB, one note per s_on[] step */ }
-static void mst_apply_fx(void) { /* TODO: dub master — tempo-synced echo() + reverb() + filter(); DUB throw pad */ }
 
 // ── widgets ──
 static void cknob(float *v, int cx, int cy, int r, const char *label) {   // draggable candy knob
@@ -309,9 +346,8 @@ static void face_drm(int step, int col) {
 }
 static void face_mst(int step) {
     static const char *kn[4] = { "DLY", "FBK", "VERB", "FILT" };
-    static const float kv[4] = { 0.50f, 0.65f, 0.70f, 0.55f };
-    for (int i = 0; i < 4; i++) dknob(20 + i * 26, 23, 8, kn[i], kv[i]);
-    cbtn(126, 20, 30, 10, "1/8 DOT", 0);
+    float *kp[4] = { &k_dly, &k_fbk, &k_verb, &k_filt };
+    for (int i = 0; i < 4; i++) cknob(kp[i], 20 + i * 26, 23, 8, kn[i]);
     glass();
     font(FONT_TINY); print("DUB ECHO", 8, 39, CLR_LIGHT_GREY);
     for (int e = 0; e < 6; e++) {
@@ -319,22 +355,25 @@ static void face_mst(int step) {
         int c = (e == 0) ? CLR_LIME_GREEN : (e < 3) ? CLR_MEDIUM_GREEN : CLR_DARK_GREEN;
         if (eh > 0) rectfill(ex, 62 - eh, 3, eh, c);
     }
+    // the DUB THROW pad — X = delay time, Y = feedback; lit while held
     rrectfill(PAD_X, PAD_Y, PAD_W, PAD_H, 2, CLR_BLACK);
-    rrect(PAD_X, PAD_Y, PAD_W, PAD_H, 2, CLR_MEDIUM_GREY);
-    int dxp = PAD_X + (int)(ax * PAD_W), dyp = PAD_Y + (int)((1 - ay) * PAD_H);
-    circfill(dxp, dyp, 4, CLR_GREEN); circ(dxp, dyp, 4, CLR_WHITE);
-    font(FONT_TINY); print("DUB THROW  time>", PAD_X + 2, PAD_Y + 1, CLR_DARK_GREY);
+    rrect(PAD_X, PAD_Y, PAD_W, PAD_H, 2, dub_held ? CLR_LIME_GREEN : CLR_MEDIUM_GREY);
+    int dxp = PAD_X + (int)(dub_x * PAD_W), dyp = PAD_Y + (int)((1 - dub_y) * PAD_H);
+    circfill(dxp, dyp, 4, dub_held ? CLR_LIME_GREEN : CLR_GREEN); circ(dxp, dyp, 4, CLR_WHITE);
+    font(FONT_TINY); print("DUB THROW  time>", PAD_X + 2, PAD_Y + 1, CLR_DARK_GREY); print("^fbk", PAD_X + PAD_W - 18, PAD_Y + 1, CLR_DARK_GREY);
 }
 
 void init(void) {
     bpm(BPM);
     gren_init();
     drm_init();
+    mst_init();
 }
 
 void update(void) {
     for (int i = 0; i < 4; i++) if (keyp('1' + i)) face = i;
-    if (keyp(KEY_SPACE)) { playing = !playing; last_pulse = -1; last_drm_step = -1; }
+    for (int m = 0; m < 4; m++) if (tapp(19 + m * 27, 0, 25, 10)) face = m;      // tap a cartridge to focus
+    if (keyp(KEY_SPACE) || tapp(5, 0, 14, 10)) { playing = !playing; last_pulse = -1; last_drm_step = -1; }
 
     if (playing) { float sx = beat() * 4 + beat_pos() * 4; g_step16 = ((int)sx) % 16; }  // shared 16th clock
 

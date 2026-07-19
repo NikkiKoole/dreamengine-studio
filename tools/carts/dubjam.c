@@ -80,6 +80,7 @@ static int   g_step16 = 0;                                    // shared 16th clo
 static int   edit_bar = -1, edit_starty = 0, edit_dragging = 0;   // SUB note-bar tap-vs-drag tracking
 static float k_stune = 0.5f, k_sdec = 0.5f, k_sdrive = 0.3f, k_sglide = 0.2f;   // SUB knobs (TUNE/DEC/DRIVE/GLIDE)
 static int   subh = -1;                                           // held sub voice handle
+static float k_dtone = 0.5f, k_ddec = 0.5f, k_dspace = 0.5f, k_ddist = 0.3f;   // DRM knobs (TONE/DEC/SPACE/DIST)
 
 // ── MST (dub master) state ──
 static float k_dly = 0.60f, k_fbk = 0.55f, k_verb = 0.55f, k_filt = 0.50f;   // delay div / feedback / reverb / DJ filter
@@ -168,11 +169,24 @@ static void drm_update(void) {
     for (int fv = 0; fv < 4; fv++) {
         if (!dgrid[fv][s]) continue;
         int role = drole[fv];
-        float sT = ktune[role], sD = kdecay[role];                 // p-lock: swap the voice knob around the fire
-        ktune[role]  = clamp(0.5f + doff[PL_TUNE][fv][s], 0, 1);
-        kdecay[role] = clamp(0.5f + doff[PL_DEC][fv][s],  0, 1);
+        // knob = the BASE; p-lock offset rides on top (TUNE base fixed at neutral, DEC/TONE from the knobs)
+        ktune[role]  = clamp(0.5f    + doff[PL_TUNE][fv][s], 0, 1);
+        kdecay[role] = clamp(k_ddec  + doff[PL_DEC][fv][s],  0, 1);
+        kcolor[role] = clamp(k_dtone, 0, 1);
         tr808_fire(TR808_BASE, role, (fv == 0) ? 1 : 0, 0, ktune, kdecay, kcolor);
-        ktune[role] = sT; kdecay[role] = sD;
+    }
+}
+// DRM SPACE (kit reverb send) + DIST (kit drive) — set-and-hold (only on change)
+static void drm_fx(void) {
+    static float aSp = -2, aDs = -2;
+    if (k_dspace != aSp) {
+        for (int i = 0; i < TR808_NSLOT; i++) instrument_reverb(TR808_BASE + i, k_dspace * 0.6f);
+        instrument_reverb(TR808_BASE + 0, k_dspace * 0.1f);      // keep the KICK tight
+        aSp = k_dspace;
+    }
+    if (k_ddist != aDs) {
+        for (int i = 0; i < TR808_NSLOT; i++) instrument_drive(TR808_BASE + i, k_ddist * 0.7f);
+        aDs = k_ddist;
     }
 }
 
@@ -180,8 +194,8 @@ static void drm_update(void) {
 static void mst_init(void) {
     // route the drone + kit INTO the shared echo/reverb buses — this is what makes it DUB.
     for (int i = 0; i < NV; i++) { instrument_echo(SL_F1 + i, 0.22f); instrument_reverb(SL_F1 + i, 0.45f); }  // drone: washy
-    for (int i = 0; i < TR808_NSLOT; i++) { instrument_echo(TR808_BASE + i, 0.30f); instrument_reverb(TR808_BASE + i, 0.28f); }  // kit: spacious
-    instrument_echo(TR808_BASE + 0, 0.06f); instrument_reverb(TR808_BASE + 0, 0.05f);   // ...but keep the KICK mostly dry
+    for (int i = 0; i < TR808_NSLOT; i++) instrument_echo(TR808_BASE + i, 0.30f);   // kit → dub delay (reverb send is DRM's SPACE knob)
+    instrument_echo(TR808_BASE + 0, 0.06f);                                          // ...but keep the KICK's delay dry
 }
 static void mst_apply_fx(void) {
     // DUB THROW pad (MST face only): momentarily override the echo while held
@@ -256,15 +270,6 @@ static void cknob(float *v, int cx, int cy, int r, const char *label) {   // dra
     if (c) ring(cx, cy, r - 3, r, 150, ang, CLR_LIGHT_YELLOW);
     circ(cx, cy, r, c ? CLR_WHITE : hot ? CLR_LIGHT_PEACH : CLR_BLACK);
     line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), c ? CLR_ORANGE : CLR_WHITE);
-    font(FONT_TINY); plabel(label, cx, cy + r + 1, CLR_LIGHT_GREY);
-}
-static void dknob(int cx, int cy, int r, const char *label, float v) {    // static (mock) knob
-    float ang = 150 + v * 240;
-    circfill(cx, cy, r, CLR_INDIGO);
-    ring(cx, cy, r - 2, r - 1, 165, 285, CLR_LIGHT_GREY);
-    ring(cx, cy, r - 2, r - 1, -15, 105, CLR_DARKER_GREY);
-    circ(cx, cy, r, CLR_BLACK);
-    line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), CLR_WHITE);
     font(FONT_TINY); plabel(label, cx, cy + r + 1, CLR_LIGHT_GREY);
 }
 static void cbtn(int x, int y, int w, int h, const char *s, int on) {
@@ -352,8 +357,8 @@ static void face_sub(int step, int col) {
 }
 static void face_drm(int step, int col) {
     static const char *kn[4] = { "TONE", "DEC", "SPACE", "DIST" };
-    static const float kv[4] = { 0.55f, 0.50f, 0.65f, 0.25f };
-    for (int i = 0; i < 4; i++) dknob(28 + i * 34, 23, 8, kn[i], kv[i]);
+    float *kp[4] = { &k_dtone, &k_ddec, &k_dspace, &k_ddist };
+    for (int i = 0; i < 4; i++) cknob(kp[i], 28 + i * 34, 23, 8, kn[i]);
     glass();
     int gx0 = 30, gy0 = 42, cw = 8, rh = 5;
     { int cx = gx0 + step * cw; blend(BLEND_AVG); rectfill(cx, gy0 - 1, cw, 4 * rh + 1, CLR_MEDIUM_GREY); blend_reset(); }
@@ -436,10 +441,11 @@ void update(void) {
 
     if (playing) { float sx = beat() * 4 + beat_pos() * 4; g_step16 = ((int)sx) % 16; }  // shared 16th clock
 
-    gren_update();     // WIRED — the filterbank drone
-    drm_update();      // WIRED — the TR-808 kit (p-locked)
-    sub_update();      // seam
-    mst_apply_fx();    // seam
+    gren_update();     // the filterbank drone
+    drm_update();      // the TR-808 kit (p-locked)
+    drm_fx();          // kit reverb/drive (SPACE/DIST)
+    sub_update();      // the sub bass
+    mst_apply_fx();    // the dub master
 }
 
 void draw(void) {

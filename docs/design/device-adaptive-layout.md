@@ -75,6 +75,18 @@ desktop, chrome-excluded on device); `respond` lays controls inside it while `cl
 full — verified the title bar clears the iPhone 15 notch. Rotation: `INFOPLIST_KEY_UISupportedInterfaceOrientations*`
 allows landscape, `layoutSubviews`→`de_resize` reflows on rotate (confirmed landscape on the sim).
 
+**Safe-area rescales to a SELF-RESIZING cart's canvas (2026-07-19).** `de_set_safe_area` stores insets
+in *px*, but a cart that drives its **own** canvas via `de_resize` (e.g. the chunky-density reflow in
+[`canvas-density-spectrum.md`](canvas-density-spectrum.md)) changes the canvas *after* the host set them,
+so the raw px are the wrong scale — they came out oversized (a fat all-round "salmon" border), and
+dropping them then let the Dynamic Island clip the edge controls. Fix (engine, shared desktop+iOS):
+`de_set_safe_area` now records the canvas dims at set-time (`safe_ref_w/h`) and `safe_rect()` scales the
+insets by `current / ref` — so the usable rect is correct at whatever size the cart resized to (a slim
+inset only where the notch actually is). Any self-resizing cart gets this for free; sim-verified on
+acidcandy (Tiny Acid Jam). NB the desktop present also aspect-**fills** (cover) for resizable carts so
+there's no black letterbox remainder (`studio.c` gr_place path; the `camera_ex` scale trap still applies —
+reflow, don't scale).
+
 **Start here to resume: §"Phase 3 — revised plan (2026-07-05)"** below. The first acidrack pass
 (commits `839dabed`/`ef2108ae`/`302f3947`) made the cart *reflow* but skipped the model this doc
 specs — hand-rolled px thresholds instead of `lay.h` + finger units, no disclosure pass, and **no

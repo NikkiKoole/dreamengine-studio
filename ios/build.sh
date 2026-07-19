@@ -52,7 +52,7 @@ if [ -n "${APP:-}" ]; then
   # device (CanvasView calls de_resize). NB de_reflow is binary-wide today, so the fixed launcher
   # (tinyjam-menu, drawn in SCREEN_W/H space) then renders top-left in the larger canvas until it's
   # made reflow-aware or de_reflow goes per-cart (device-adaptive-layout.md Phase 3 plumbing).
-  [ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
+  { [ -n "${RESIZABLE:-}" ] || [ -n "${DE_RESIZABLE:-}" ]; } && DEFS="$DEFS DE_RESIZABLE=1"   # env OR app.dims (build-app.js auto)
 else
   stage_cart "$CART" app
   # DERIVE the cart's screen/cell/map dims from its de:settings so the build matches WITHOUT
@@ -64,7 +64,7 @@ else
   fi
   DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=${DE_SCREEN_W:-320} SCREEN_H=${DE_SCREEN_H:-200} SCALE=1 MAP_W=${DE_MAP_W:-128} MAP_H=${DE_MAP_H:-64} CELL_W=${DE_CELL_W:-16} CELL_H=${DE_CELL_H:-16}"
   # RESIZABLE=1: build the cart with -DDE_RESIZABLE so it reflows to the device viewport.
-  [ -n "${RESIZABLE:-}" ] && DEFS="$DEFS DE_RESIZABLE=1"
+  { [ -n "${RESIZABLE:-}" ] || [ -n "${DE_RESIZABLE:-}" ]; } && DEFS="$DEFS DE_RESIZABLE=1"   # env OR app.dims (build-app.js auto)
 fi
 stage_cart "$AU_CART" au
 
@@ -82,11 +82,21 @@ fi
 echo "▸ generating xcodeproj from project.yml…"
 xcodegen generate --spec project.yml >/dev/null
 
+# Orientation lock from the app manifest (DE_ORIENT via gen/app.dims). Overrides project.yml's
+# all-orientations default so a landscape app (e.g. Tiny Acid Jam) can't be held portrait.
+ORIENT_SETTINGS=()
+if [ "${DE_ORIENT:-}" = "landscape" ]; then
+  LO="UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+  ORIENT_SETTINGS+=("INFOPLIST_KEY_UISupportedInterfaceOrientations=$LO")
+  ORIENT_SETTINGS+=("INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad=$LO")
+  echo "▸ orientation: landscape-locked"
+fi
+
 echo "▸ building for simulator (no signing)…"
 xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" \
   -sdk iphonesimulator -configuration Debug \
   ${DEFS:+GCC_PREPROCESSOR_DEFINITIONS="$DEFS"} \
-  -derivedDataPath build CODE_SIGNING_ALLOWED=NO build >/dev/null
+  -derivedDataPath build CODE_SIGNING_ALLOWED=NO ${ORIENT_SETTINGS[@]+"${ORIENT_SETTINGS[@]}"} build >/dev/null
 APP_BUNDLE="build/Build/Products/Debug-iphonesimulator/$SCHEME.app"
 
 echo "▸ booting '$DEVICE'…"

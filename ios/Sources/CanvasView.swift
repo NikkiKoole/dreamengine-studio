@@ -92,6 +92,10 @@ final class CanvasView: UIView {
         syncSize()
         let t0 = CACurrentMediaTime()
         de_frame(t0 - start)
+        // A resizable cart can de_resize the canvas DURING de_frame (e.g. acidcandy's chunky reflow
+        // shrinks 426×196 → 217×100). Re-sync dims + the flip scratch AFTER de_frame, or the blit
+        // below memcpy's the OLD (larger) w×h out of the NEW (smaller) framebuffer → SIGSEGV over-read.
+        syncSize()
         guard let base = de_framebuffer() else { return }
         let t1 = CACurrentMediaTime()
         // flip bottom-up sw_cbuf → top-down (row y ↔ h-1-y)

@@ -451,7 +451,9 @@ ${fs.readFileSync(c.src, 'utf8')}`)
   fs.copyFileSync(path.join(stage, 'sprites_data.h'), path.join(dir, 'sprites_data.h'))
   fs.copyFileSync(path.join(stage, 'map_data.h'), path.join(dir, 'map_data.h'))
   fs.writeFileSync(path.join(ROOT, 'ios/gen/app.dims'),   // outside gen/app so it's not a compiled source
-    `DE_SCREEN_W=${d0.screenW}\nDE_SCREEN_H=${d0.screenH}\nDE_MAP_W=${d0.mapW}\nDE_MAP_H=${d0.mapH}\nDE_CELL_W=${d0.cellW}\nDE_CELL_H=${d0.cellH}\n`)
+    `DE_SCREEN_W=${d0.screenW}\nDE_SCREEN_H=${d0.screenH}\nDE_MAP_W=${d0.mapW}\nDE_MAP_H=${d0.mapH}\nDE_CELL_W=${d0.cellW}\nDE_CELL_H=${d0.cellH}\n`
+    + (appResizable ? 'DE_RESIZABLE=1\n' : '')                    // ios/build.sh → -DDE_RESIZABLE (reflow to fill)
+    + (app.orientation ? `DE_ORIENT=${app.orientation}\n` : ''))  // ios/build.sh → INFOPLIST orientation lock
   // App icon: manifest "icon" (repo-relative PNG — the STORE format: 1024x1024, no alpha) →
   // the single-size asset catalog at ios/gen/Assets.xcassets. project.yml lists that path as an
   // AppIcon source. The catalog (with a DEFAULT icon = ios/default-icon.png) is COMMITTED, so a

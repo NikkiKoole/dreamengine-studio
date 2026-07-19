@@ -355,10 +355,17 @@ int screen_h(void) { return de_sh; }   // active canvas height in px (== SCREEN_
 // them; safe_rect gives the cart the usable sub-rectangle so controls dodge the chrome (draw your
 // background full-bleed to screen_w/h, lay controls inside safe_rect).
 static int safe_l = 0, safe_t = 0, safe_r = 0, safe_b = 0;
+static int safe_ref_w = 0, safe_ref_h = 0;   // the canvas dims WHEN the host set the insets (px)
 void safe_rect(int *x, int *y, int *w, int *h) {   // usable area after the device's safe-area insets
-    int rw = de_sw - safe_l - safe_r, rh = de_sh - safe_t - safe_b;
+    // SCALE the host-reported insets to the CURRENT canvas: a resizable cart may de_resize to its OWN
+    // size AFTER the host set them (e.g. a chunky reflow), so the raw px would be mis-scaled → a fat
+    // spurious border. Scaling by current/ref keeps controls exactly clear of the notch/home at any size.
+    int sl = safe_l, st = safe_t, sr = safe_r, sb = safe_b;
+    if (safe_ref_w > 0 && de_sw != safe_ref_w) { sl = safe_l * de_sw / safe_ref_w; sr = safe_r * de_sw / safe_ref_w; }
+    if (safe_ref_h > 0 && de_sh != safe_ref_h) { st = safe_t * de_sh / safe_ref_h; sb = safe_b * de_sh / safe_ref_h; }
+    int rw = de_sw - sl - sr, rh = de_sh - st - sb;
     if (rw < 1) rw = 1; if (rh < 1) rh = 1;
-    if (x) *x = safe_l; if (y) *y = safe_t; if (w) *w = rw; if (h) *h = rh;
+    if (x) *x = sl; if (y) *y = st; if (w) *w = rw; if (h) *h = rh;
 }
 // physically-sized FINGER UNIT. The host reports the backing scale (points per logical canvas px —
 // iOS's pixelChunk, 2× — via de_set_backing_scale). A comfortable touch target is ~44pt, so a finger
@@ -2998,6 +3005,7 @@ int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
 void de_set_safe_area(int l, int t, int r, int b) {   // host reports notch/home-bar insets (px)
     safe_l = l < 0 ? 0 : l; safe_t = t < 0 ? 0 : t;
     safe_r = r < 0 ? 0 : r; safe_b = b < 0 ? 0 : b;
+    safe_ref_w = de_sw; safe_ref_h = de_sh;   // remember the canvas these px are relative to (safe_rect rescales)
 }
 void de_set_backing_scale(float k) { de_backing = (k > 0.1f) ? k : 2.0f; }   // host reports pt-per-logical-px (iOS pixelChunk); feeds finger_px()
 // Host points persistence at a writable app dir (Android internalDataPath, iOS Documents). Call

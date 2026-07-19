@@ -2,6 +2,7 @@
   "name":     "Tiny Acid Jam",
   "bundleId": "com.mipolai.tinyacidjam",
   "version":  "0.1",
+  "price":    "1.99",
   "carts":    ["acidcandy"],
   "listing": {
     "title":    "Tiny Acid Jam: 303 Groovebox",

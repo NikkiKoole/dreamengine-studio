@@ -137,6 +137,26 @@ the design") with 0029 pointing at it, because the name foregrounds the discipli
 not the number — is the load-bearing idea. It's also the seam to the engine work in
 [`device-adaptive-layout.md`](device-adaptive-layout.md).
 
+### Fixed Canvas has a companion: author reflow-ready — wire the spread in early
+
+The trap Fixed Canvas can *cause* (learned on `acidcandy`, 2026-07-19): designing tight at 160×100 is
+right, but if you author with **raw literal coordinates**, "expand outward" becomes an expensive retrofit
+— a ~1600-line cart where every `x`/`y` is a magic number can't spread without touching all of them.
+Worse, the obvious shortcut (scale the whole render with a camera) **silently breaks touch** — `ui.h`
+hit-tests in raw canvas coords, so scaling desyncs every widget (see the CLAUDE.md gotcha +
+[`device-adaptive-layout.md`](device-adaptive-layout.md)). So the *only* cheap-later path is genuine
+reflow, and genuine reflow is only cheap if the coordinates were **reflow-ready from the start.**
+
+The principle: **design at 160×100, but route coordinates through the spreading mechanism (a design→device
+fit mapper, or [`lay.h`](../../runtime/lay.h)) from day one — not raw literals.** Then the smallest canvas
+still defines the design (Fixed Canvas holds), *and* larger screens spread for near-free (reflow-outward
+holds) instead of forcing a rewrite. Constraint up front, freedom later — same DNA as the rest of the
+language, applied to the *coordinates* themselves. **STATUS: proposed here, being proven on the acidcandy
+responsive pass — the missing half of Fixed Canvas** (the discipline said *where* to design; this says
+*how* to author so the discipline doesn't cost you the reflow). If it holds, the shared mapper is a
+rule-of-three extraction candidate (`respond`/`acidwire`/`acidcandy` each hand-roll it today — see
+*Generalize after repetition* above).
+
 ## Constraints create quality — the shared DNA
 
 Several of these are the same move seen from different angles: *one honest core*, *160×100 first*, *one

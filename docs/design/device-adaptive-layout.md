@@ -94,6 +94,17 @@ finger-unit helper is no longer a deferred nicety — it's step R3 of the revise
   fixed, fill the window with a fractional scale). The maker's call (2026-07-02): reflow wins for a
   sellable app — a scaled poster reads as a port, a reflowed UI reads as an app.
 
+> **GOTCHA — scaling the render with `camera()`/`camera_ex()` is NOT a shortcut to fill; it silently
+> breaks touch.** The tempting hack for a fixed cart is "zoom the whole draw with `camera_ex` + bleed
+> the bg" — DON'T. `ui.h` hit-tests against widget rects in **raw canvas coords** (it reads
+> `mouse_x`/`touch_x`, not the camera-inverse `mouse_world_x` — verified 2026-07-19), so a zoom/scale
+> camera desyncs every `ui_button`/`ui_knob`/pad: taps land in the wrong place, with **no error**. This
+> is a second, concrete reason reflow beats scaling (beyond the "port look" above). The correct fill is
+> always: mark the cart `resizable`, read `screen_w()`/`screen_h()` + `safe_rect()`, and lay widgets out
+> in that live space — canvas == device px means `ui.h` is 1:1 and input just works. (A `camera_ex` with
+> zoom≠1 also forces the cart onto the GPU raster path, `sw_force_gpu` — another reason to avoid it for a
+> whole-UI transform.)
+
 Supersedes the "deferred, no concrete need yet" framing in `responsive-layout.md` §gate and
 [`share-panel.md`](share-panel.md) next-spike #3, and answers [`ios-plan.md`](ios-plan.md) umbrella
 backlog #2 (multi-resolution racks).

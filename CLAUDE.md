@@ -610,6 +610,12 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
 - **A key the cart reads is the cart's key.** `key()/keyp()/keyr()` claim the keycode; the pause
   hotkey skips claimed keys. Just read the keys you need (claims reset on libtcc hot-reload;
   `-DPAUSE_KEY` rebinds).
+- **To make a cart fill a bigger screen, REFLOW — never scale the render with `camera()`/`camera_ex()`.**
+  `ui.h` hit-tests in raw canvas coords (`mouse_x`/`touch_x`), so a zoom/scale camera *silently*
+  desyncs every button/knob/pad — taps land in the wrong place, no error. This is why device-adaptive
+  is reflow-only (the fixed-canvas *scale* path was rejected, [`window-fill-scaling.md`](docs/design/window-fill-scaling.md)):
+  make the cart `resizable`, read `screen_w()`/`screen_h()` + `safe_rect()`, lay out there (canvas ==
+  device px → `ui.h` is 1:1). See [`device-adaptive-layout.md`](docs/design/device-adaptive-layout.md).
 - **Don't name a variable after a built-in.** Cart code shares the `studio.h` namespace. `map` is the
   common trap (clashes with `map()`); use `grid`/`dmap`. Same for `line`/`rect`/`circ`/`print`/`spr`/
   `timer`/`now`. The starter cart also `#define`s `STATE`/`S`/`GameState` (cart-local persistent-state

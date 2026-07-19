@@ -85,6 +85,9 @@ const modeFile = (args[2] && !args[2].startsWith('--')) ? args[2] : null
 
 if (!name || !mode) {
   console.error('usage: node tools/play.js <name> <run|record|replay|beats|script> [file] [options]')
+  console.error('  common options: --frames <n> --trace <f> --dump <dir> --headless --seed <n> --bpm <n> --wav <f>')
+  console.error('  --resize WxH,WxH,…   device-adaptive layout SWEEP (implies -DDE_RESIZABLE; dumps build/.resize/<cart>)')
+  console.error('  (full option list: the header comment at the top of tools/play.js)')
   process.exit(1)
 }
 

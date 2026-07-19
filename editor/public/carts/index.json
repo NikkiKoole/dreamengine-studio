@@ -5500,15 +5500,17 @@
     "lineage": "Sibling to the effects-bus pedalboard family (groovebox/kaoss); novel in routing two instruments into independent reverb tanks simultaneously to demonstrate spatial separation impossible with a single shared reverb."
   },
   {
-    "title": "Ribbon (mockup)",
-    "description": "LOOK mockup for a touchscreen MPE-style expressive pad: a flattened glowing piano surface where each finger is one voice - slide across for pitch, up/down for timbre - trailing a comet ribbon of its glide. Draw-only, no touch or sound wired yet. Vibe study before the functional cart (docs/design/midi-out.md - MPE-as-INPUT via the touchscreen: per-finger note_on + note_pitch/note_cutoff, no MIDI needed). The three 'fingers' here are FAKE - each roams a Lissajous path so you can read the idea: pitch = horizontal position on the flattened keyboard (black/white keywaves, octave separators + labels), timbre = vertical (orb grows + brightens toward the top = filter opening). The trailing ribbon is each voice's recent pitch-glide, sampled statelessly from now(). Nothing is interactive - this is only to steer the look. none - it plays itself (a look mockup)",
+    "title": "Ribbon",
+    "description": "A touchscreen MPE-style expressive pad: each finger is its own acid voice - slide left/right for pitch (snapped to a minor-pentatonic, gliding between notes), up/down for timbre (the TB-303 diode filter opening up). Polyphonic; mouse-playable too. The point (docs/design/midi-out.md - 'MPE as INPUT'): per-note expression with NO MIDI wire, because the cart drives its own voices. Each finger (pointer.h merges the desktop mouse in as one finger) grabs a note_on handle; horizontal drag rides note_pitch (scale-snapped + note_glide, so it always sounds musical and slides like a 303), vertical drag rides note_cutoff/note_res on a FILTER_DIODE saw - open + squelchy up top, dark + closed at the bottom, with a touch of note_drive for the scream near the top. That's exactly MPE's per-note pitch+timbre, addressed by a voice handle instead of a MIDI channel. iOS pressure isn't available from finger touch, so the Y axis carries timbre (the standard proxy). Each voice trails a comet ribbon of its recent glide. touch or click-drag anywhere on the pad = play a voice (up to 10 fingers). Horizontal = pitch, vertical = timbre. Release = note off.",
     "file": "ribbonpad.cart.png",
     "created": "2026-07-19",
     "kind": [
       "toy",
       "instrument"
     ],
-    "teaches": []
+    "teaches": [
+      "subtractive-synth"
+    ]
   },
   {
     "title": "ripple tank",

@@ -61,6 +61,31 @@ sound-source cart to *emit* MIDI. Until the seam exists, this topic will keep su
 phantom `GAP` in every r/ipadmusic drip — that's expected; the answer lives here, not in a new
 cart.
 
+**Corroborated (r/edmproduction, 2026-07-19):** a second tribe's drip ranked MIDI
+routing/control among its loudest topics (demand 20, ours ~18), with the example thread
+*"Is there any app that can turn my ipod touch into a midi controller"* — **model A** almost
+verbatim. So the MIDI-out pull isn't a one-sub artifact; it recurs across music communities.
+
+### MPE as *input* — the on-grain half we CAN ship (and did)
+
+The one part of the "MIDI controller" demand that needs **no MIDI at all** is the *expressive
+surface itself*. MPE (per-note pitch-bend + pressure + timbre) is only a **wire format** for
+carrying per-note expression *between apps*. If a cart drives its **own** voices, there's no wire
+to cross — and the engine already has per-note expression natively: `note_on()` returns a handle,
+and `note_pitch()`/`note_cutoff()`/`note_res()` ride that one voice live. That **is** MPE's data
+model, addressed by a voice handle instead of a channel. The touchscreen supplies the gesture
+(`pointer.h` folds the desktop mouse in as one finger, so it's mouse- *and* multitouch-playable):
+each finger → one handle, horizontal drag → `note_pitch`, vertical drag → `note_cutoff`/`note_res`.
+
+- **Shipped:** [`ribbonpad`](../../tools/carts/ribbonpad.c) ("Ribbon") — a polyphonic MPE-style
+  pad over a `FILTER_DIODE` acid voice, scale-snapped pitch with glide, Y = the filter opening.
+- **The one honest gap:** iOS finger touch exposes **no per-finger force** (iPhone dropped 3D
+  Touch; iPad never had it — only the Pencil). So MPE's *pressure* dimension can't be read; the Y
+  axis carries timbre instead (the standard proxy). Pitch + timbre are real; pressure is faked.
+- **Still a genuine seam (not built):** receiving MPE *from* an external controller (Roli/
+  Linnstrument) *into* a cart — `midi_bend()` is a single global bend, not per-channel, so the
+  input layer is MPE-*unaware*. That, and MIDI-*out*, remain the actual engine work.
+
 ## The 303 is the interesting case — it's *both* a sequencer and a voice
 
 A TB-303 is a step sequencer **and** a synth voice, so there are two different "MIDI out"

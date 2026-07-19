@@ -38,6 +38,25 @@ function cartDates() {
   // added: first time each .cart.png entered the tree; updated: most recent commit touching it
   scan(['log', '--diff-filter=A', '--format=C%cI', '--name-only', '--', 'editor/public/carts/'], 'added')
   scan(['log', '--format=C%cI', '--name-only', '--', 'editor/public/carts/'], 'updated')
+  // touched: working-tree mtime of a cart's tools/carts/<name>.c — but ONLY when that source
+  // has uncommitted changes (git sees it dirty). This is what makes the cart you're actively
+  // hacking on (edited but not yet re-baked/committed) float to the top of "recently updated",
+  // while clean carts keep their commit-based order (so a fresh clone isn't scrambled by
+  // checkout mtimes). Folded into the sort as max(updated, touched) on the client.
+  try {
+    const st = execFileSync('git', ['status', '--porcelain', '--', 'tools/carts/'],
+                            { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+    for (const line of st.split('\n')) {
+      const m = line.match(/tools\/carts\/([^/\s]+)\.c$/)   // top-level carts only (skip book/ etc.)
+      if (!m) continue
+      const f = `${m[1]}.cart.png`
+      try {
+        const mtime = fs.statSync(path.join(REPO, 'tools/carts', `${m[1]}.c`)).mtimeMs
+        if (!dates[f]) dates[f] = {}
+        dates[f].touched = new Date(mtime).toISOString()
+      } catch {}
+    }
+  } catch {}
   cartDatesCache = dates
   cartDatesAt = Date.now()
   return dates

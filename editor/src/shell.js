@@ -1090,15 +1090,22 @@ async function buildTutorialsPanel() {
     return { card, titleEl, descEl, idx, title: title || '', desc: description || '', file,
              name: String(file).replace(/\.cart\.png$/i, ''), kind: kind || [], genre: genre || null,
              orientation: orientation || null,
-             added: d.added || '', updated: d.updated || d.added || '' }
+             added: d.added || '', updated: d.updated || d.added || '', touched: d.touched || '' }
   })
+
+  // "recently updated" key: the later of the last-commit date and the working-tree mtime of a
+  // dirty source (touched, set by vite only when tools/carts/<name>.c has uncommitted changes),
+  // so a cart you're actively editing but haven't re-baked/committed still sorts to the top.
+  // Compare by epoch, not string — %cI (offset like +02:00) and touched (toISOString, Z) mix.
+  const toEpoch = s => (s ? (Date.parse(s) || 0) : 0)
+  const updatedTs = it => Math.max(toEpoch(it.updated), toEpoch(it.touched))
 
   // sort comparators for the no-search branch ('featured' keeps index.json order)
   function sortPool(pool) {
     if (cartSort === 'title') return pool.slice().sort((a, b) => a.title.localeCompare(b.title))
     if (cartSort === 'newest') return pool.slice().sort((a, b) => (b.added || '').localeCompare(a.added || ''))
     if (cartSort === 'oldest') return pool.slice().sort((a, b) => (a.added || '').localeCompare(b.added || ''))
-    if (cartSort === 'updated') return pool.slice().sort((a, b) => (b.updated || '').localeCompare(a.updated || ''))
+    if (cartSort === 'updated') return pool.slice().sort((a, b) => updatedTs(b) - updatedTs(a))
     return pool   // fallback: generated (alphabetical) order
   }
 
@@ -1157,6 +1164,7 @@ async function buildTutorialsPanel() {
       const d = cartDates[it.file] || {}
       it.added = d.added || ''
       it.updated = d.updated || d.added || ''
+      it.touched = d.touched || ''
     })
     applyFilter()
   })()

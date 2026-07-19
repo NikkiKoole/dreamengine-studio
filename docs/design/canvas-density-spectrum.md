@@ -83,6 +83,45 @@ untouched and it only *spreads* off-ratio.
 Nothing stops a cart from using route 2 in one orientation and route 3 in another — it's a per-frame
 choice of the `de_resize` target.
 
+## The second axis — ARRANGEMENT (a breakpoint), orthogonal to density
+
+The density knob changes *how big/crisp* a layout is — it keeps the **same arrangement**. A big screen
+often wants a **different arrangement**: not "the phone face, bigger", but a bespoke layout that *uses*
+the room (acidcandy's four machines in rows at once, instead of one focused face). That's a **second,
+orthogonal axis**, chosen at a breakpoint via `device_class()` (0 TALL / 1 WIDE / 2 ROOMY; the twin of
+`disclose_shape()` → `DISC_TALL/WIDE/ROOMY` in [`disclose.h`](../../runtime/disclose.h)).
+
+| axis | question | lever | acidcandy |
+|---|---|---|---|
+| **density** | how big / crisp? | the `de_resize` canvas size (routes 1–3) | phone: route 2 — scale the face up + spread |
+| **arrangement** | which layout? | a `device_class()` branch in the cart | tablet: a bespoke "all four machines in rows" |
+
+They **compose**: phone-landscape = *route-2 density × one focused face*; tablet = *fine density ×
+show-more arrangement*. The tablet layout is a genuinely **separate draw path** — the device-face
+paradigm's "scale phone→tablet by showing MORE, not rearranging one face" (Pure Acid's iPad shows every
+rack; [`acidwire`](../../tools/carts/acidwire.c)'s ROOMY 2×2 is the built reference). It is **not** free
+like route 2 — it's real layout design (what's compact vs expanded per machine; does the nav *focus*
+one or *highlight* among all).
+
+**So a `responsive.h` helper must stay arrangement-AGNOSTIC** — that's what keeps it tiny and universal.
+It owns axis 1 (hand back the density-right canvas + safe stage) and *reports* axis 2 (the class); the
+**cart owns the branch**:
+
+```c
+Box stage = respond(160, 100);                       // axis 1: the canvas + safe rect
+if (device_class() == 2 /* ROOMY */) draw_all_rows(stage);      // axis 2: the cart's own arrangements
+else                                 draw_focused_face(stage, face);
+```
+
+One tiny include then serves both "just scale my 160×100 up" carts *and* "reorder everything on a
+tablet" carts. The **nav is class-aware too**: on a phone the cartridge strip *focuses* one face; on a
+tablet it can *highlight* while all stay visible ("focus, don't swap" — device-face-paradigm.md §2).
+
+**acidcandy's plan (both, per the maker 2026-07-19):** WIDE / phone = the route-2 scaled-up focused
+face we have; ROOMY / iPad = a **bespoke four-machines-in-rows** arrangement designed *for* the tablet
+(`acidwire` ROOMY is the reference sketch). Two arrangements, one cart, chosen by class — the tablet one
+is deliberate design work, not a knob.
+
 ## Toward a "for everyone" feature
 
 Today each route-2 cart hand-rolls the `de_resize` snippet above. The general version (parked, per the

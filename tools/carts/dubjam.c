@@ -11,7 +11,7 @@
   "description": {
     "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). MST is WIRED — the dub master: the drone + kit routed into the shared echo + reverb buses (kick kept dry), a tempo-synced dub delay (DLY/FBK), reverb (VERB), a ride-safe DJ filter (FILT), and a DUB THROW pad that momentarily overrides the echo time/feedback. SUB is WIRED — a deep round INSTR_SINE sub (slot 8, lowpassed, kept dry) firing one note per s_on[] step on the drone root. All four voices are now live; the p-lock paint-UI is the remaining seam.",
     "detail": "Wired: GREN drone (gren_init/gren_update) — INSTR_USER0 trapezoid VCO (set_morph), 3 voices on one root through FILTER_LOW/BAND, note_cutoff/note_res ridden live from the XY pad (ALPHA=x sweeps all filters +-2oct, BETA=y opens the spacing), CMOS reroll() drift on each gate pulse. Transport: SPACE play/stop; a shared beat-clock gate pulses the drone. SEAMS: sub_update()/drm_update()/mst_apply_fx() are stubs — the sub bass, the spacious kit, and the dub delay/reverb master go there. Slots reserved: GREN 5-7, SUB 8, DRM 9-12.",
-    "controls": "Tap a cartridge to focus a machine; tap the transport (top-left) or SPACE to play/stop; keys 1-4 also switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA) + the BASE/SPACE/Q/MORPH knobs. SUB: TAP a note-bar to toggle it; DRAG a bar up/down to set its pitch. DRM: tap a grid cell to toggle a step; tap a pad to finger-drum. MST: drag DLY/FBK/VERB/FILT + HOLD the DUB THROW pad."
+    "controls": "Tap a cartridge to focus a machine; tap the transport (top-left) or SPACE to play/stop; keys 1-4 also switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA) + the BASE/SPACE/Q/MORPH knobs; tap the ROOT keybed (below the pad) to glide the drone to a new root. SUB: TAP a note-bar to toggle it; DRAG a bar up/down to set its pitch. DRM: tap a grid cell to toggle a step; tap a pad to finger-drum. MST: drag DLY/FBK/VERB/FILT + HOLD the DUB THROW pad."
   },
   "todo": [
     "SEAM sub_update(): wire the deep SUB bass — a short-decay INSTR_SINE/SQUARE on slot 8, one note per s_on[] step following the drone root; the note-bars become the pattern.",
@@ -37,7 +37,11 @@ enum { SL_F1 = 5, SL_F2, SL_F3 };   // GREN filterbank voices (INSTR_USER0)
 #define PAD_X 6
 #define PAD_Y 69
 #define PAD_W 148
-#define PAD_H 28
+#define PAD_H 28          // MST dub-throw pad (full height)
+#define GPAD_H 15         // GREN's XY pad is shorter — the ROOT keybed sits below it
+#define GKB_Y  86
+#define GKB_H  11
+#define NKEYS  8
 
 typedef struct { const char *name; int col, lo; } Machine;
 static Machine mac[4] = {
@@ -58,6 +62,8 @@ static int   ra9 = 0, gate_on = 1, gate_div = 2; // RA-99 vs RA-9; gate pulses p
 static float jbase = 1, jf[NV] = { 1, 1, 1 }, jq[NV] = { 1, 1, 1 };
 static unsigned rng = 0x2468acef;
 static int   last_pulse = -1;
+static int   gren_root = 0;                                  // drone root offset from BASE_MIDI (set by the keybed)
+static const int GSCALE[NKEYS] = { 0, 3, 5, 7, 10, 12, 15, 17 };   // minor-pentatonic root ladder
 
 // EDITABLE patterns (SUB line + DRM kit) — start-states double as the default groove
 static int s_on[16]  = { 1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,1,0 };
@@ -125,13 +131,21 @@ static void gren_init(void) {
     for (int i = 0; i < NV; i++) { hv[i] = note_on(BASE_MIDI, SL_F1 + i, 3); note_glide(hv[i], 60); }
 }
 static void gren_update(void) {
-    // XY pad — drag ALPHA / BETA (only on the GREN face; the pad isn't a ui widget)
-    if (face == 0) for (int i = 0; i < touch_count(); i++) {
-        int tx = touch_x(i), ty = touch_y(i);
-        if (tx >= PAD_X && tx < PAD_X + PAD_W && ty >= PAD_Y && ty < PAD_Y + PAD_H) {
-            ax = clamp((tx - PAD_X) / (float)PAD_W, 0, 1);
-            ay = clamp(1.0f - (ty - PAD_Y) / (float)PAD_H, 0, 1);
+    // XY pad — drag ALPHA / BETA + the ROOT keybed (only on the GREN face)
+    if (face == 0) {
+        for (int i = 0; i < touch_count(); i++) {
+            int tx = touch_x(i), ty = touch_y(i);
+            if (tx >= PAD_X && tx < PAD_X + PAD_W && ty >= PAD_Y && ty < PAD_Y + GPAD_H) {
+                ax = clamp((tx - PAD_X) / (float)PAD_W, 0, 1);
+                ay = clamp(1.0f - (ty - PAD_Y) / (float)GPAD_H, 0, 1);
+            }
         }
+        int kw = PAD_W / NKEYS;
+        for (int k = 0; k < NKEYS; k++)
+            if (tapp(PAD_X + k * kw, GKB_Y, kw - 1, GKB_H)) {          // tap a root → the held drone glides to it
+                gren_root = GSCALE[k];
+                for (int i = 0; i < NV; i++) if (hv[i] >= 0) note_pitch(hv[i], BASE_MIDI + gren_root);
+            }
     }
     static float aMorph = -1;
     if (k_morph != aMorph) { set_morph(); aMorph = k_morph; }
@@ -319,18 +333,26 @@ static void face_gren(void) {
     rect(sx, sy, sw, sh, CLR_MEDIUM_GREY);
     font(FONT_TINY); print("FILTERBANK", sx + 2, sy - 1, CLR_LIGHT_GREY);
 
-    // the XY SWEEP pad — the instrument
-    rrectfill(PAD_X, PAD_Y, PAD_W, PAD_H, 2, CLR_BLACK);
+    // the XY SWEEP pad — the instrument (shorter now; the keybed sits below)
+    rrectfill(PAD_X, PAD_Y, PAD_W, GPAD_H, 2, CLR_BLACK);
     for (int g = 1; g < 4; g++) {
-        line(PAD_X + g * PAD_W / 4, PAD_Y, PAD_X + g * PAD_W / 4, PAD_Y + PAD_H, CLR_DARKER_GREY);
-        line(PAD_X, PAD_Y + g * PAD_H / 4, PAD_X + PAD_W, PAD_Y + g * PAD_H / 4, CLR_DARKER_GREY);
+        line(PAD_X + g * PAD_W / 4, PAD_Y, PAD_X + g * PAD_W / 4, PAD_Y + GPAD_H, CLR_DARKER_GREY);
+        line(PAD_X, PAD_Y + g * GPAD_H / 4, PAD_X + PAD_W, PAD_Y + g * GPAD_H / 4, CLR_DARKER_GREY);
     }
-    rrect(PAD_X, PAD_Y, PAD_W, PAD_H, 2, CLR_MEDIUM_GREY);
-    int dxp = PAD_X + (int)(ax * PAD_W), dyp = PAD_Y + (int)((1 - ay) * PAD_H);
+    rrect(PAD_X, PAD_Y, PAD_W, GPAD_H, 2, CLR_MEDIUM_GREY);
+    int dxp = PAD_X + (int)(ax * PAD_W), dyp = PAD_Y + (int)((1 - ay) * GPAD_H);
     line(PAD_X, dyp, PAD_X + PAD_W, dyp, CLR_DARK_BLUE);
-    line(dxp, PAD_Y, dxp, PAD_Y + PAD_H, CLR_DARK_BLUE);
-    circfill(dxp, dyp, 4, CLR_PINK); circ(dxp, dyp, 4, CLR_WHITE);
-    font(FONT_TINY); print("SWEEP  alpha>", PAD_X + 2, PAD_Y + 1, CLR_DARK_GREY); print("^beta", PAD_X + PAD_W - 22, PAD_Y + 1, CLR_DARK_GREY);
+    line(dxp, PAD_Y, dxp, PAD_Y + GPAD_H, CLR_DARK_BLUE);
+    circfill(dxp, dyp, 3, CLR_PINK); circ(dxp, dyp, 3, CLR_WHITE);
+    font(FONT_TINY); print("SWEEP", PAD_X + 2, PAD_Y + 1, CLR_DARK_GREY);
+    // the ROOT keybed (scale-locked) — tap to glide the drone to a new root
+    int kw = PAD_W / NKEYS;
+    for (int k = 0; k < NKEYS; k++) {
+        int kx = PAD_X + k * kw, cur = (GSCALE[k] == gren_root);
+        rrectfill(kx, GKB_Y, kw - 1, GKB_H, 1, cur ? mac[0].col : CLR_DARK_BLUE);
+        rrect(kx, GKB_Y, kw - 1, GKB_H, 1, CLR_BLACK);
+        if (cur) rectfill(kx + 2, GKB_Y + 2, kw - 5, 2, CLR_WHITE);   // lit marker on the current root
+    }
 }
 
 // ── SUB / DRM / MST faces (mock visuals; audio is a seam) ──

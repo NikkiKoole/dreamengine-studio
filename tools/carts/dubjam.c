@@ -11,7 +11,7 @@
   "description": {
     "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). MST is WIRED — the dub master: the drone + kit routed into the shared echo + reverb buses (kick kept dry), a tempo-synced dub delay (DLY/FBK), reverb (VERB), a ride-safe DJ filter (FILT), and a DUB THROW pad that momentarily overrides the echo time/feedback. SUB is WIRED — a deep round INSTR_SINE sub (slot 8, lowpassed, kept dry) firing one note per s_on[] step on the drone root. All four voices are now live; the p-lock paint-UI is the remaining seam.",
     "detail": "Wired: GREN drone (gren_init/gren_update) — INSTR_USER0 trapezoid VCO (set_morph), 3 voices on one root through FILTER_LOW/BAND, note_cutoff/note_res ridden live from the XY pad (ALPHA=x sweeps all filters +-2oct, BETA=y opens the spacing), CMOS reroll() drift on each gate pulse. Transport: SPACE play/stop; a shared beat-clock gate pulses the drone. SEAMS: sub_update()/drm_update()/mst_apply_fx() are stubs — the sub bass, the spacious kit, and the dub delay/reverb master go there. Slots reserved: GREN 5-7, SUB 8, DRM 9-12.",
-    "controls": "SPACE = play/stop. Keys 1-4 switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA), drag BASE/SPACE/Q/MORPH knobs. SUB/DRM/MST faces are draw-only for now."
+    "controls": "Tap a cartridge to focus a machine; tap the transport (top-left) or SPACE to play/stop; keys 1-4 also switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA) + the BASE/SPACE/Q/MORPH knobs. SUB: tap a note-bar to toggle it (pitch = tap height). DRM: tap a grid cell to toggle a step; tap a pad to finger-drum. MST: drag DLY/FBK/VERB/FILT + HOLD the DUB THROW pad."
   },
   "todo": [
     "SEAM sub_update(): wire the deep SUB bass — a short-decay INSTR_SINE/SQUARE on slot 8, one note per s_on[] step following the drone root; the note-bars become the pattern.",
@@ -59,11 +59,11 @@ static float jbase = 1, jf[NV] = { 1, 1, 1 }, jq[NV] = { 1, 1, 1 };
 static unsigned rng = 0x2468acef;
 static int   last_pulse = -1;
 
-// mock data (SUB line + DRM kit) for the not-yet-wired faces
-static const int s_on[16]  = { 1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,1,0 };
-static const int s_pit[16] = { 0,0,0,0, 0,0,0,5, 0,0,0,0, 3,0,7,0 };
+// EDITABLE patterns (SUB line + DRM kit) — start-states double as the default groove
+static int s_on[16]  = { 1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,1,0 };
+static int s_pit[16] = { 0,0,0,0, 0,0,0,5, 0,0,0,0, 3,0,7,0 };
 static const char *dvn[4] = { "KICK", "RIM", "HAT", "CLAP" };
-static const int dgrid[4][16] = {
+static int dgrid[4][16] = {
     { 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0 },
     { 0,0,0,1, 0,0,1,0, 0,0,0,1, 0,1,0,0 },
     { 0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0 },
@@ -381,10 +381,33 @@ void init(void) {
     mst_init();
 }
 
+// ── pattern editing (tap to edit; gated to the machine's own face) ──
+static void sub_edit(void) {   // tap a bar: toggle on/off; when turning ON, pitch = tap height
+    for (int b = 0; b < 16; b++) {
+        if (!tapp(8 + b * 9, 68, 8, 29)) continue;
+        if (s_on[b]) { s_on[b] = 0; continue; }
+        s_on[b] = 1;
+        for (int i = 0; i < touch_count(); i++) {
+            int tx = touch_x(i); if (tx < 8 + b * 9 || tx >= 8 + b * 9 + 8) continue;
+            int p = (95 - touch_y(i)) / 2; s_pit[b] = p < 0 ? 0 : p > 13 ? 13 : p; break;
+        }
+    }
+}
+static void drm_edit(void) {
+    for (int v = 0; v < 4; v++) {
+        for (int s = 0; s < 16; s++)
+            if (tapp(30 + s * 8, 42 + v * 5, 7, 4)) dgrid[v][s] = !dgrid[v][s];    // toggle a step
+        if (tapp(6 + v * 38, 70, 35, 25))                                          // finger-drum a pad
+            tr808_fire(TR808_BASE, drole[v], 1, 0, ktune, kdecay, kcolor);
+    }
+}
+
 void update(void) {
     for (int i = 0; i < 4; i++) if (keyp('1' + i)) face = i;
     for (int m = 0; m < 4; m++) if (tapp(19 + m * 27, 0, 25, 10)) face = m;      // tap a cartridge to focus
     if (keyp(KEY_SPACE) || tapp(5, 0, 14, 10)) { playing = !playing; last_pulse = -1; last_drm_step = -1; last_sub_step = -1; }
+    if (face == 1) sub_edit();     // tap the note-bars
+    if (face == 2) drm_edit();     // tap the grid / pads
 
     if (playing) { float sx = beat() * 4 + beat_pos() * 4; g_step16 = ((int)sx) % 16; }  // shared 16th clock
 

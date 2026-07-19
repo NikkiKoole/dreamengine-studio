@@ -397,6 +397,19 @@ COWBELL JAM) are grids, not recipes.
 | 808/hat-open | SQUARE | 0/340/0/90 · HP7000/3 (2-osc 79/72Hz) | Bright square hats, ~360ms sustain, warm↔bright knob. |
 | 808/hat-closed | SQUARE | 0/42/0/16 · HP7000/3 (2-osc 79/72Hz) | Tight ~50ms snap, chokes the open hat. |
 
+### morphdrum (morphing — 3 voices, from morphdrum.h)
+
+The CONTINUUM between the fixed 808/909 recipes: each voice is one parametric model, its
+`CHARACTER` knob morphing the 808↔909 *structure* while the rest are absolute knobs whose ranges
+reach past both machines. Design: [`design/morphdrum.md`](../design/morphdrum.md); home cart =
+`morphbox`. NOT `tr808.h`/`tr909.h` (fixed & faithful) and NOT `drumkit.h` (a pad map).
+
+| name | engine | recipe (knob → range) | character |
+|---|---|---|---|
+| morph/kick | SINE + NOISE click + SINE sub | TUNE midi 19–52 · DEC 40–1100 · PUNCH pitch-env 0–48st · SNAP env 8–150ms · CUT LP 55–3900 · DRIVE 0–1 · CLICK 0–7 · SUB 0–7; CHAR → click HP 1500→3200 | 808 boom ↔ 909 punch, then sub-deep / endless / distorted beyond. |
+| morph/snare | SINE body + NOISE | TUNE 46–74 · DEC 30–320 · PUNCH 0–12st · CUT LP 400–6400 · TONE body↔noise · NDEC noise 30–420; CHAR → noise HP 1800→1400 | 808 crisp ↔ 909 fat; TONE rides tom-thud ↔ white-crack. |
+| morph/hat | FM (one metal voice, closed+open) | TUNE 80–110 · DEC closed 10–220 · OPEN 80–800 · CUT HP 3000–12000 · RES 0–12 · TONE=timbre · METL=morph; CHAR → harmonics 0.40→0.70 | One metal source, square-ish tick ↔ full clang; open hat choked by the next closed. |
+
 ### tr909 (machine — 11 voices, from tr909.c)
 
 Mixed: kick/snare/toms are SINE+NOISE, hats/crash/ride are **FM** (`h0.55 t0.90 m0.85` metal

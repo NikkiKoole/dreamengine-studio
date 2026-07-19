@@ -99,7 +99,11 @@ const carts = app.carts.map(c => {
   const src = path.join(ROOT, 'tools/carts', c + '.c')
   if (!fs.existsSync(src)) { console.error(`cart not found: tools/carts/${c}.c`); process.exit(1) }
   const cfg = mk.loadConfig(src)
-  return { name: c, slug: slugOf(c), src, cfg }
+  // resizable lives in the de:meta block (not the .cart.js loadConfig reads) — parse it here so the
+  // app builds with -DDE_RESIZABLE and reflows to fill the device (canvas-density-spectrum.md).
+  let resizable = false
+  try { const m = fs.readFileSync(src, 'utf8').match(/\/\*\s*de:meta\s*\n([\s\S]*?)\nde:meta\s*\*\//); resizable = m ? JSON.parse(m[1]).resizable === true : false } catch {}
+  return { name: c, slug: slugOf(c), src, cfg, resizable }
 })
 const dims = c => ({
   screenW: c.cfg.screenW ?? 320, screenH: c.cfg.screenH ?? 200, scale: c.cfg.scale ?? 4,
@@ -115,6 +119,13 @@ for (const c of carts.slice(1)) {
       process.exit(1)
     }
 }
+
+// device-adaptive: build with -DDE_RESIZABLE when EVERY cart opts in (de:meta.resizable), so the
+// cart reflows to fill the device instead of letterboxing (the black bars). de_reflow is binary-wide
+// and a multi-cart launcher isn't reflow-aware yet, so a mixed/multi app stays fixed for safety.
+const appResizable = carts.length > 0 && carts.every(c => c.resizable)
+if (appResizable) console.log(`resizable: all ${carts.length} cart(s) opt in → -DDE_RESIZABLE (reflows to fill the device)`)
+else if (carts.some(c => c.resizable)) console.log('resizable: NOT all carts opt in → fixed/letterboxed build (make every cart resizable to enable fill)')
 
 // the launcher cart (rung 3): dims-exempt — it draws relative to SCREEN_W/H, so it's
 // compiled at the app's size, whatever its own .cart.js (usually none) would say
@@ -246,6 +257,7 @@ const COMMON = [
   `-DSCREEN_W=${d0.screenW}`, `-DSCREEN_H=${d0.screenH}`, `-DSCALE=${d0.scale}`,
   `-DMAP_W=${d0.mapW}`, `-DMAP_H=${d0.mapH}`, `-DCELL_W=${d0.cellW}`, `-DCELL_H=${d0.cellH}`,
   '-DTOUCH_CONTROLS_DEFAULT=0', '-DSCALE_FILTER=0', '-O2', '-fno-delete-null-pointer-checks',
+  ...(appResizable ? ['-DDE_RESIZABLE'] : []),   // reflow to fill the device (all carts opted in)
 ]
 const clang = (a) => execFileSync('clang', a, { stdio: ['ignore', 'pipe', 'pipe'] })
 // ctx order: the launcher (when present) boots first at ctx 0; racks follow at 1..N

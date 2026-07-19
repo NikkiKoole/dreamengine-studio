@@ -78,6 +78,8 @@ static int   last_drm_step = -1;
 static int   last_sub_step = -1;
 static int   g_step16 = 0;                                    // shared 16th clock (set in update)
 static int   edit_bar = -1, edit_starty = 0, edit_dragging = 0;   // SUB note-bar tap-vs-drag tracking
+static float k_stune = 0.5f, k_sdec = 0.5f, k_sdrive = 0.3f, k_sglide = 0.2f;   // SUB knobs (TUNE/DEC/DRIVE/GLIDE)
+static int   subh = -1;                                           // held sub voice handle
 
 // ── MST (dub master) state ──
 static float k_dly = 0.60f, k_fbk = 0.55f, k_verb = 0.55f, k_filt = 0.50f;   // delay div / feedback / reverb / DJ filter
@@ -207,16 +209,33 @@ static void mst_apply_fx(void) {
     else                     filter(FILTER_OFF, 1000.0f, 0.0f);
 }
 
-// ── SUB — deep round sub bass, WIRED (kept DRY, like the kick) ──
-static void sub_init(void) {
-    instrument(SL_SUB, INSTR_SINE, 2, 220, 0, 80);            // round, plucky sub
-    instrument_filter(SL_SUB, FILTER_LOW, 400, 2);            // roll off any edge → pure low end
+// ── SUB — deep round sub bass, WIRED (held mono voice; kept DRY like the kick) ──
+static void sub_setup(int dec) {                             // (re)configure the slot
+    instrument(SL_SUB, INSTR_SINE, 2, dec, 0, 80);
+    instrument_filter(SL_SUB, FILTER_LOW, 400, 2);           // roll off any edge → pure low end
+    instrument_drive(SL_SUB, k_sdrive * 0.8f);
 }
+static void sub_init(void) { sub_setup(220); }
 static void sub_update(void) {
-    if (!playing || g_step16 == last_sub_step) return;
+    // DEC / DRIVE — set-and-hold (reconfigure only on change)
+    static int aDec = -1; static float aDrv = -1;
+    int dec = 60 + (int)(k_sdec * 440);
+    if (dec != aDec) { sub_setup(dec); aDec = dec; aDrv = k_sdrive; }
+    if (k_sdrive != aDrv) { instrument_drive(SL_SUB, k_sdrive * 0.8f); aDrv = k_sdrive; }
+
+    if (!playing) { if (subh >= 0) { note_off(subh); subh = -1; } return; }
+    if (g_step16 == last_sub_step) return;
     last_sub_step = g_step16;
     int s = g_step16;
-    if (s_on[s]) note(BASE_MIDI + s_pit[s], SL_SUB, 6);       // one round sub per step, on the drone root
+    if (!s_on[s]) { if (subh >= 0) { note_off(subh); subh = -1; } return; }
+    int midi = BASE_MIDI + s_pit[s] + (int)((k_stune - 0.5f) * 24.0f);   // TUNE = ±12 semis
+    int gl = (int)(k_sglide * 120);                                      // GLIDE = 0..120 ms
+    if (subh < 0 || gl < 6) {                                            // retrigger (plucky)
+        if (subh >= 0) note_off(subh);
+        subh = note_on(midi, SL_SUB, 6); note_glide(subh, 0);
+    } else {                                                             // legato slide into the note
+        note_glide(subh, gl); note_pitch(subh, midi); note_vol(subh, 6);
+    }
 }
 
 // ── widgets ──
@@ -312,8 +331,8 @@ static void face_gren(void) {
 // ── SUB / DRM / MST faces (mock visuals; audio is a seam) ──
 static void face_sub(int step, int col) {
     static const char *kn[4] = { "TUNE", "DEC", "DRIVE", "GLIDE" };
-    static const float kv[4] = { 0.45f, 0.60f, 0.40f, 0.30f };
-    for (int i = 0; i < 4; i++) dknob(28 + i * 34, 23, 8, kn[i], kv[i]);
+    float *kp[4] = { &k_stune, &k_sdec, &k_sdrive, &k_sglide };
+    for (int i = 0; i < 4; i++) cknob(kp[i], 28 + i * 34, 23, 8, kn[i]);
     glass();
     font(FONT_TINY); print("SUB", 8, 39, CLR_LIGHT_GREY);
     int base = 63;

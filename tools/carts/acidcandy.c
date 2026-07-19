@@ -583,13 +583,18 @@ static void lcdknob(float *v, int cx, int cy, int r, const char *label, float de
 // (lay.h) absorb the extra space; we never scale the render (that desyncs ui.h).
 #define FU ((float)finger_px())
 // centre a knob in a cell with its label below it; radius from the cell, not a raw px guess.
+// GROW the knob to fill its cell (acidfit's rule: r = min(cell side) × ~0.42, capped generously) so
+// controls spread to use the screen instead of staying design-tiny in a sea of chassis. knob() draws
+// the label just below the dial, so place the centre leaving ~7px under it for the label.
 static void knob_cell(Box c, float *v, const char *lab, float def) {
-    int r = (int)lay_clamp(c.h * 0.32f, 5, 12);
-    knob(v, (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, lab, def);
+    int r = (int)lay_clamp((c.w < c.h ? c.w : c.h) * 0.42f, 5, 30);
+    int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    knob(v, (int)(c.x + c.w / 2), cy, r, lab, def);
 }
 static void lcdknob_cell(Box c, float *v, const char *lab, float def) {
-    int r = (int)lay_clamp(c.h * 0.32f, 4, 11);
-    lcdknob(v, (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, lab, def);
+    int r = (int)lay_clamp((c.w < c.h ? c.w : c.h) * 0.42f, 4, 28);
+    int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    lcdknob(v, (int)(c.x + c.w / 2), cy, r, lab, def);
 }
 
 // gknob — a compact knob that ALWAYS shows a caller-formatted VALUE label (a delay division,
@@ -1355,8 +1360,8 @@ static void draw_mst(Box stage) {
     float H = stage.h, W = stage.w;
     Box body   = lay_inset(stage, 2);
     Box volrow = lay_split(body, EDGE_TOP,    H * 0.07f, &body);   // ①b per-machine vol sliders
-    Box krow   = lay_split(body, EDGE_TOP,    H * 0.20f, &body);   // ② master knobs
-    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.34f, &body);   // ④b delay · ⑤ send · ⑥ dub
+    Box krow   = lay_split(body, EDGE_TOP,    H * 0.27f, &body);   // ② master knobs (taller → knobs grow to fill)
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.30f, &body);   // ④b delay · ⑤ send · ⑥ dub
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys
     Box gutter = lay_split(body, EDGE_RIGHT,  W * 0.10f, &body);   // ④ SWG/TEMPO
     Box lcd    = body;                                             // the hero glass

@@ -3,6 +3,7 @@
   "slug": "acidcandy",
   "collection": ["device-face"],
   "title": "Tiny Acid Jam",
+  "resizable": true,
   "status": "active",
   "created": "2026-07-14",
   "kind": [
@@ -52,6 +53,12 @@ de:meta */
 #include "acid303.h"
 #include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
 #include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
+#include "lay.h"      // responsive containers (device-adaptive-layout.md): the faces reflow to fill
+                      // the live canvas in LANDSCAPE via lay_split/lay_grid + finger_px() (FU) — never
+                      // a camera scale (that desyncs ui.h; see CLAUDE.md). One focused face, spread to fill.
+extern void de_resize(int w, int h);   // engine seam (platform.h): set the active canvas size. We drive
+                                       // it to a CHUNKY ratio-matched canvas (see draw) so the 160×100
+                                       // scales up crisp + the leftover ratio-offset spreads, no bars.
 
 // ACID CANDY — a candy-toy acid RACK on the device-face skeleton, 160x100. The
 // nav spine is a strip of colour CARTRIDGES you focus machines through (nav=faces);
@@ -570,6 +577,21 @@ static void _knobx(float *v, int cx, int cy, int r, const char *label, float def
 static void knob(float *v, int cx, int cy, int r, const char *label, float def)    { _knobx(v, cx, cy, r, label, def, 0); }
 static void lcdknob(float *v, int cx, int cy, int r, const char *label, float def) { _knobx(v, cx, cy, r, label, def, 1); }
 
+// ── responsive placement (device-adaptive) ───────────────────────────────────
+// FU = a comfortable finger, from the engine (44pt in logical px; 22 at iOS 2×). Size
+// finger controls to this so they stay tappable as the canvas grows — the CONTAINERS
+// (lay.h) absorb the extra space; we never scale the render (that desyncs ui.h).
+#define FU ((float)finger_px())
+// centre a knob in a cell with its label below it; radius from the cell, not a raw px guess.
+static void knob_cell(Box c, float *v, const char *lab, float def) {
+    int r = (int)lay_clamp(c.h * 0.32f, 5, 12);
+    knob(v, (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, lab, def);
+}
+static void lcdknob_cell(Box c, float *v, const char *lab, float def) {
+    int r = (int)lay_clamp(c.h * 0.32f, 4, 11);
+    lcdknob(v, (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, lab, def);
+}
+
 // gknob — a compact knob that ALWAYS shows a caller-formatted VALUE label (a delay division,
 // a BPM number), unlike knob() which shows a 0-99 while held. Vertical drag, gentle sweep (the
 // values span a wide range). Used in the MST LCD's right gutter for DELAY + TEMPO.
@@ -646,64 +668,73 @@ static int lcdlatch(unsigned seed, int x, int y, int w, int hh, const char *s, i
 // right LED taps to MUTE the machine (from any face). Two non-overlapping
 // sub-buttons, so ui.h's visual-hit-wins routes touch cleanly.
 // (Per-machine LEVEL lives on the MST mixer, not here — keeps the tabs compact.)
-static void cartridge(int m) {
-    int x = 19 + m * 25, y = 0, foc = (m == face), live = !mac[m].mute;  // y0 = tabs poke out the panel top (iOS edge gestures are deferred at the VC now)
+static void cartridge(Box c, int m) {
+    int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
+    int foc = (m == face), live = !mac[m].mute;
+    int ledW = h;                                                 // reserve a square-ish slot at the right for the LED
+    int bodyW = w - ledW; if (bodyW < 8) bodyW = 8;
     int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
-    void *wf = ui_wid_hash(0x70u + m, x, y, 16, 10);              // FOCUS = the name body
-    void *wm = ui_wid_hash(0x80u + m, x + 16, y, 8, 10);          // MUTE = the LED pad (its hit-pad falls into the free space below the tabs)
-    int af = ui_button_core(wf, x, y, 16, 10, &fof, &prf, &hotf);
-    int am = ui_button_core(wm, x + 16, y, 8, 10, &fom, &prm, &hotm);
-    int cleanf = nav_clean(wf), cleanm = nav_clean(wm);     // latch bounce-poison at GRAB (call every frame, not behind af/am)
-    if (af && cleanf) face = m;                              // ignore a top-knob drag-release bounce onto the tab band
+    void *wf = ui_wid_hash(0x70u + m, x, y, bodyW, h);            // FOCUS = the name body
+    void *wm = ui_wid_hash(0x80u + m, x + bodyW, y, ledW, h);     // MUTE = the LED pad
+    int af = ui_button_core(wf, x, y, bodyW, h, &fof, &prf, &hotf);
+    int am = ui_button_core(wm, x + bodyW, y, ledW, h, &fom, &prm, &hotm);
+    int cleanf = nav_clean(wf), cleanm = nav_clean(wm);          // latch bounce-poison at GRAB (call every frame)
+    if (af && cleanf) face = m;
     if (am && cleanm) mac[m].mute = !mac[m].mute;
 
-    rrectfill(x, y, 24, 10, 2, foc ? mac[m].col : mac[m].lo);
-    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + 19, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
-    rrect(x, y, 24, 10, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    rrectfill(x, y, w, h, 2, foc ? mac[m].col : mac[m].lo);
+    if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + w - 3, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
+    rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_TINY);
-    print(mac[m].name, x + (16 - text_width(mac[m].name)) / 2, y + 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
-    int lx = x + 20, ly = y + 5;                                  // mute LED
+    print(mac[m].name, x + (bodyW - text_width(mac[m].name)) / 2, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    int lx = x + bodyW + ledW / 2, ly = y + h / 2;               // mute LED, centred in its slot
     circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
     circ(lx, ly, 2, (hotm && live) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-    if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);     // muted = red slash
+    if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED);    // muted = red slash
 }
 
-static void navspine(void) {
-    int nc = mac[face].lo;                     // the top of the panel takes the FOCUSED voice's DARKER (nav-body) colour — an at-a-glance cue
-    rrectfill(3, 2, 154, 10, 5, nc);           // …matching the panel's own rounded top corners (same x/w/radius)…
-    rectfill(3, 7, 154, 5, nc);                // …with a flat bottom (same w=154 → right edge matches the rrectfill above)
-    // transport (shared)
-    int px = 5, py = 0, pw = 14, ph = 10, pr = 0, hot = 0, fo = 0;    // play, in from the left bezel
-    void *w = ui_wid_hash(0x01u, px, py, pw, ph);
-    int actp = ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot), cleanp = nav_clean(w);
-    if (actp && cleanp) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
-                          for (int m = 0; m < M_N; m++) armpat[m] = -1; }   // stop → drop any pending queued switches
-    rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
-    rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-    if (playing) { rectfill(px + 4, py + 3, 2, 4, CLR_WHITE); rectfill(px + 8, py + 3, 2, 4, CLR_WHITE); }
-    else trifill(px + 5, py + 3, px + 5, py + 7, px + 10, py + 5, CLR_WHITE);
-    for (int m = 0; m < M_N; m++) cartridge(m);
-
-    // HOME (meta) — reserved space only; the app shell owns the real leave-cart gesture
-    int hx = 143, hy = 0, hw = 12, hh = 10, hpr = 0, hhot = 0, hfo = 0;   // home, in from the right bezel
-    void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
-    ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);            // registered but unwired
-    rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
-    rrect(hx, hy, hw, hh, 2, hhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-    int cxh = hx + hw / 2;                                            // little house glyph
-    trifill(cxh - 3, hy + 5, cxh + 3, hy + 5, cxh, hy + 2, CLR_LIGHT_PEACH);
-    rectfill(cxh - 2, hy + 5, 5, 3, CLR_LIGHT_PEACH);
+static void navspine(Box nav) {
+    int nc = mac[face].lo;                                        // strip takes the FOCUSED voice's darker colour
+    rrectfill((int)nav.x, (int)nav.y, (int)nav.w, (int)nav.h, 3, nc);
+    Box row = lay_inset(nav, 1);
+    // transport (left) + home (right) bracket the cartridge run
+    Box pcell = lay_split(row, EDGE_LEFT,  lay_clamp(FU * 0.8f, 12, 24), &row);
+    Box hcell = lay_split(row, EDGE_RIGHT, lay_clamp(FU * 0.7f, 11, 22), &row);
+    {   // PLAY / STOP
+        int px = (int)pcell.x, py = (int)pcell.y, pw = (int)pcell.w - 1, ph = (int)pcell.h, pr = 0, hot = 0, fo = 0;
+        void *w = ui_wid_hash(0x01u, px, py, pw, ph);
+        int actp = ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot), cleanp = nav_clean(w);
+        if (actp && cleanp) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
+                              for (int m = 0; m < M_N; m++) armpat[m] = -1; }
+        rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
+        rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        int cx = px + pw / 2, cy = py + ph / 2;
+        if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); }
+        else trifill(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, CLR_WHITE);
+    }
+    for (int m = 0; m < M_N; m++) cartridge(lay_grid(row, M_N, M_N, m, 2), m);   // cartridges spread across the width
+    {   // HOME (meta) — reserved; the app shell owns the real leave-cart gesture
+        int hx = (int)hcell.x + 1, hy = (int)hcell.y, hw = (int)hcell.w - 1, hh = (int)hcell.h, hpr = 0, hhot = 0, hfo = 0;
+        void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
+        ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);
+        rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
+        rrect(hx, hy, hw, hh, 2, hhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        int cxh = hx + hw / 2, cyh = hy + hh / 2;                 // little house glyph
+        trifill(cxh - 3, cyh, cxh + 3, cyh, cxh, cyh - 3, CLR_LIGHT_PEACH);
+        rectfill(cxh - 2, cyh, 5, 3, CLR_LIGHT_PEACH);
+    }
 }
 
 // the per-machine FX knob row (shown in zone 2 when a machine's FX panel is open):
 // DRV/DIST · SEND · VERB, in the SAME three spots for every machine so they align.
 // m: 0=303a 1=303b 2=808 3=909. SEND rides the shared delay (same value as MST); VERB
 // = reverb send; the drive is the 303 voice DRV (rides live) or the drum kit DIST.
-static void draw_fxrow(int m) {
-    if (m < 2) knob(&ac[m].p[ACID_DRV], 40, 22, 6, "DRV",  0.35f);   // 303 voice drive
-    else       knob(m == 2 ? &dist8 : &dist9, 40, 22, 6, "DIST", 0.0f);
-    knob(&msend[m],  80, 22, 6, "SEND", m < 2 ? 0.10f : 0.0f);       // → the shared delay
-    knob(&fxverb[m], 120, 22, 6, "VERB", 0.0f);                     // → the reverb
+static void draw_fxrow(Box c, int m) {
+    float *k0     = (m < 2) ? &ac[m].p[ACID_DRV] : (m == 2 ? &dist8 : &dist9);   // 303 voice drive / drum kit DIST
+    const char *l0 = (m < 2) ? "DRV" : "DIST";
+    knob_cell(lay_grid(c, 3, 3, 0, 2), k0,         l0,     (m < 2) ? 0.35f : 0.0f);
+    knob_cell(lay_grid(c, 3, 3, 1, 2), &msend[m],  "SEND", (m < 2) ? 0.10f : 0.0f);   // → the shared delay
+    knob_cell(lay_grid(c, 3, 3, 2, 2), &fxverb[m], "VERB", 0.0f);                     // → the reverb
 }
 
 // the GEN flow — CLEAR + density randomizers, drawn IN the screen (a 2×2 menu).
@@ -722,112 +753,140 @@ static void draw_gen(int m) {
 }
 
 // ── a 303 face (zones 2–5) ───────────────────────────────────────────────────
-static void draw_303(int i) {
+static void draw_303(Box stage, int i) {
     Acid *a = &ac[i];
-    // ② the gear-drag knob row — ALWAYS the acid knobs. The inline DF switch (right end
-    // of the row, tinted the machine colour — NOT a bezel side-button) flips the row
-    // between the vanilla 303 and the DEEP page (Devil Fish). FX moved into the screen.
+    // ── LANDSCAPE reflow: carve the stage into the device-face zones, each filling the width ──
+    // Size bands by the DESIGN's proportions of the (chunky) canvas — NOT finger_px — so it reads
+    // like the 160×100 scaled up; the leftover ratio-offset spreads into the hero + the widths.
+    float H = stage.h, W = stage.w;
+    Box body  = lay_inset(stage, 2);
+    Box krow  = lay_split(body, EDGE_TOP,    H * 0.24f, &body);   // ② acid knob row (design ≈24/100)
+    Box loopS = lay_split(body, EDGE_BOTTOM, H * 0.05f, &body);   // loop-length handle strip
+    Box notes = lay_split(body, EDGE_BOTTOM, H * 0.28f, &body);   // ④⑤ the 16 note bars (design ≈26/100)
+    Box skcL  = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-key columns (design ≈16/160)
+    Box skcR  = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
+    Box lcd   = body;                                             // the hero glass = the remainder (absorbs extra height)
+
+    // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
+    Box krDF = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 14, 26), &krow);
     if (!kpage[i]) {                                                       // page 0 — vanilla
-        knob(&a->p[ACID_CUT], 20, 22, 6, "CUT", 0.55f); knob(&a->p[ACID_RES], 48, 22, 6, "RES", 0.70f);
-        knob(&a->p[ACID_ENV], 76, 22, 6, "ENV", 0.55f); knob(&a->p[ACID_DEC], 104, 22, 6, "DEC", 0.45f);
-        knob(&a->p[ACID_ACC], 132, 22, 6, "ACC", 0.55f);
+        knob_cell(lay_grid(krow, 5, 5, 0, 2), &a->p[ACID_CUT], "CUT", 0.55f);
+        knob_cell(lay_grid(krow, 5, 5, 1, 2), &a->p[ACID_RES], "RES", 0.70f);
+        knob_cell(lay_grid(krow, 5, 5, 2, 2), &a->p[ACID_ENV], "ENV", 0.55f);
+        knob_cell(lay_grid(krow, 5, 5, 3, 2), &a->p[ACID_DEC], "DEC", 0.45f);
+        knob_cell(lay_grid(krow, 5, 5, 4, 2), &a->p[ACID_ACC], "ACC", 0.55f);
     } else {                                                              // page 1 — DEEP: Devil Fish knobs + WAVE
-        knob(&a->p[ACID_SUB],  20, 22, 6, "SUB",  0.0f);  knob(&a->p[ACID_ADEC], 48, 22, 6, "ADEC", 0.40f);
-        knob(&a->p[ACID_SLDT], 76, 22, 6, "SLDT", 0.14f); knob(&a->p[ACID_TRK], 104, 22, 6, "TRK",  0.0f);
-        int wx = 125, wy = 16, ww = 15, wh = 12, wp = 0, whot = 0, wf = 0;  // WAVE: SAW <-> SQUARE (bakes in → re-define)
+        Box krW = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 15, 28), &krow);
+        knob_cell(lay_grid(krow, 4, 4, 0, 2), &a->p[ACID_SUB],  "SUB",  0.0f);
+        knob_cell(lay_grid(krow, 4, 4, 1, 2), &a->p[ACID_ADEC], "ADEC", 0.40f);
+        knob_cell(lay_grid(krow, 4, 4, 2, 2), &a->p[ACID_SLDT], "SLDT", 0.14f);
+        knob_cell(lay_grid(krow, 4, 4, 3, 2), &a->p[ACID_TRK],  "TRK",  0.0f);
+        int wx = (int)krW.x, wy = (int)krW.y + 1, ww = (int)krW.w, wh = (int)krW.h - 6, wp = 0, whot = 0, wf = 0;  // WAVE: SAW<->SQR
         void *wv = ui_wid_hash(0x1Au, wx, wy, ww, wh);
         if (ui_button_core(wv, wx, wy, ww, wh, &wf, &wp, &whot)) { a->wave = (a->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW; acid_define(a); }
         rrectfill(wx, wy, ww, wh, 2, CLR_INDIGO);
         rrect(wx, wy, ww, wh, 2, whot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        font(FONT_TINY); plabel(a->wave == INSTR_SQUARE ? "SQR" : "SAW", wx + ww / 2, wy + 3, CLR_LIGHT_YELLOW);
+        font(FONT_TINY); plabel(a->wave == INSTR_SQUARE ? "SQR" : "SAW", wx + ww / 2, wy + wh / 2 - 2, CLR_LIGHT_YELLOW);
         plabel("WAVE", wx + ww / 2, wy + wh, CLR_DARK_BROWN);
     }
-    {   // the DF page switch — inline at the row's right end, machine-tinted, with an LED.
-        int bx = 142, by = 16, bw = 14, bh = 12, dp = 0, dhot = 0, df = 0;
+    {   // the DF page switch — machine-tinted, with an LED
+        int bx = (int)krDF.x, by = (int)krDF.y + 1, bw = (int)krDF.w - 1, bh = (int)krDF.h - 6, dp = 0, dhot = 0, df = 0;
         void *wd = ui_wid_hash(0x07u, bx, by, bw, bh);
         if (ui_button_core(wd, bx, by, bw, bh, &df, &dp, &dhot)) kpage[i] = !kpage[i];
         rrectfill(bx, by, bw, bh, 2, kpage[i] ? mac[i].col : CLR_DARK_PURPLE);
         rrect(bx, by, bw, bh, 2, (dhot || kpage[i]) ? CLR_WHITE : CLR_BROWNISH_BLACK);
         font(FONT_TINY); plabel("DF", bx + bw / 2, by + 2, kpage[i] ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH);
-        circfill(bx + bw / 2, by + 9, 1, kpage[i] ? CLR_LIME_GREEN : CLR_DARKER_PURPLE);
+        circfill(bx + bw / 2, by + bh - 3, 1, kpage[i] ? CLR_LIME_GREEN : CLR_DARKER_PURPLE);
     }
 
-    // ③ display — soft-keys pick the LCD content: SEQ = the roll, FLAG = the flag
-    // palette, FX = the DRV/SEND/VERB knobs, GEN (right) = the CLEAR + randomize menu.
-    if (cbtn(0x08u, 6, 37, 16, 6, "SEQ",  pscreen[i] == PS_SEQ))  pscreen[i] = PS_SEQ;
-    if (cbtn(0x09u, 6, 44, 16, 6, "FLAG", pscreen[i] == PS_FLAG)) pscreen[i] = PS_FLAG;
-    if (cbtn(0x06u, 6, 51, 16, 6, "FX",   pscreen[i] == PS_FX))   pscreen[i] = PS_FX;
-    if (cbtn(0x37u, 6, 58, 16, 6, "PERF", pscreen[i] == PS_PERF)) pscreen[i] = PS_PERF;   // live play lenses (hold-to-apply)
-    if (cbtn(0x31u, 138, 38, 16, 7, "GEN", pscreen[i] == PS_GEN)) pscreen[i] = PS_GEN;
-    if (cbtn(0x34u, 138, 47, 16, 7, "KEY", pscreen[i] == PS_KEY)) pscreen[i] = PS_KEY;   // this line's root / scale / octave
-    if (cbtn(0x35u, 138, 56, 16, 7, "PAT", pscreen[i] == PS_PAT)) pscreen[i] = PS_PAT;   // A-D pattern banks (this line)
-    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);   // LCD grown to y66 (matches 808/909; 1px gap above the note-bars at y68) + now CONTAINS the soft-keys
-    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    // ③ soft-keys flank the LCD (left: SEQ/FLAG/FX/PERF · right: GEN/KEY/PAT), the glass fills between.
+    { static const char *L[4] = { "SEQ", "FLAG", "FX", "PERF" }; static const int Lm[4] = { PS_SEQ, PS_FLAG, PS_FX, PS_PERF };
+      static const unsigned Ls[4] = { 0x08u, 0x09u, 0x06u, 0x37u };
+      for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
+          if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], pscreen[i] == Lm[k])) pscreen[i] = Lm[k]; } }
+    { static const char *R[3] = { "GEN", "KEY", "PAT" }; static const int Rm[3] = { PS_GEN, PS_KEY, PS_PAT };
+      static const unsigned Rs[3] = { 0x31u, 0x34u, 0x35u };
+      for (int k = 0; k < 3; k++) { Box c = lay_grid(skcR, 1, 3, k, 2);
+          if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], pscreen[i] == Rm[k])) pscreen[i] = Rm[k]; } }
+    rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(lcd, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = (int)glass.y + 1; y < glass.y + glass.h - 1; y += 2) line((int)glass.x, y, (int)(glass.x + glass.w - 1), y, CLR_BROWNISH_BLACK); blend_reset();
+    Box gc = lay_inset(glass, 2);                                   // content area inside the glass
     if (pscreen[i] == PS_FLAG) {
-        for (int f = 0; f < FL_N; f++)                                // the 6-flag palette IN the screen
-            if (lcdbtn(0x0Au + f, 30 + (f % 3) * 34, 40 + (f / 3) * 9, 32, 8, FLNAME[f], armed == f)) armed = f;
+        for (int f = 0; f < FL_N; f++) { Box c = lay_grid(gc, 3, FL_N, f, 2);   // the 6-flag palette
+            if (lcdbtn(0x0Au + f, (int)c.x, (int)c.y, (int)c.w, (int)c.h, FLNAME[f], armed == f)) armed = f; }
     } else if (pscreen[i] == PS_FX) {                                 // the FX knobs, LCD-native
-        font(FONT_TINY); plabel("FX", 80, 40, CLR_LIME_GREEN);
-        lcdknob(&a->p[ACID_DRV], 46, 49, 5, "DRV",  0.35f);
-        lcdknob(&msend[i],       80, 49, 5, "SEND", 0.10f);
-        lcdknob(&fxverb[i],      114, 49, 5, "VERB", 0.0f);
-    } else if (pscreen[i] == PS_GEN) {                                // CLEAR + randomize menu
-        draw_gen(i);
-    } else if (pscreen[i] == PS_KEY) {                                // KEY — THIS line's root (12-note strip) + scale + octave
-        for (int k = 0; k < 12; k++) {                                // root strip, piano-coloured
-            int sharp = (k == 1 || k == 3 || k == 6 || k == 8 || k == 10), px = 29 + k * 8, pw = 7;
-            int pr = 0, hot = 0, foc = 0; void *w = ui_wid_hash(0x70u + k, px, 40, pw, 8);
-            if (ui_button_core(w, px, 40, pw, 8, &foc, &pr, &hot)) mroot[i] = k;
+        lcdknob_cell(lay_grid(gc, 3, 3, 0, 2), &a->p[ACID_DRV], "DRV",  0.35f);
+        lcdknob_cell(lay_grid(gc, 3, 3, 1, 2), &msend[i],       "SEND", 0.10f);
+        lcdknob_cell(lay_grid(gc, 3, 3, 2, 2), &fxverb[i],      "VERB", 0.0f);
+    } else if (pscreen[i] == PS_GEN) {                                // CLEAR + randomize menu (2×2)
+        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+        for (int g = 0; g < 4; g++) { Box c = lay_grid(gc, 2, 4, g, 2);
+            if (lcdbtn(0x40u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) gen_line(i, g); }
+    } else if (pscreen[i] == PS_KEY) {                                // KEY — root (12-note strip) + scale + octave
+        Box krow2; Box ktop = lay_split(gc, EDGE_TOP, gc.h * 0.52f, &krow2);
+        for (int k = 0; k < 12; k++) {
+            int sharp = (k == 1 || k == 3 || k == 6 || k == 8 || k == 10);
+            Box c = lay_grid(ktop, 12, 12, k, 1);
+            int px = (int)c.x, py = (int)c.y, pw = (int)c.w, ph = (int)c.h;
+            int pr = 0, hot = 0, foc = 0; void *w = ui_wid_hash(0x70u + k, px, py, pw, ph);
+            if (ui_button_core(w, px, py, pw, ph, &foc, &pr, &hot)) mroot[i] = k;
             int lit = (mroot[i] == k);
-            rrectfill(px, 40, pw, 8, 1, lit ? CLR_LIME_GREEN : sharp ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
-            rrect(px, 40, pw, 8, 1, (lit || hot) ? CLR_WHITE : CLR_DARK_GREEN);
-            if (!sharp) { font(FONT_TINY); plabel(NOTE[k], px + pw / 2, 41, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN); }
+            rrectfill(px, py, pw, ph, 1, lit ? CLR_LIME_GREEN : sharp ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
+            rrect(px, py, pw, ph, 1, (lit || hot) ? CLR_WHITE : CLR_DARK_GREEN);
+            if (!sharp) { font(FONT_TINY); plabel(NOTE[k], px + pw / 2, py + 1, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN); }
         }
-        if (lcdbtn(0x78u, 29, 50, 40, 8, SCALES[mscale[i]].name, 0)) mscale[i] = (mscale[i] + 1) % NSCALE;   // tap = next scale
-        font(FONT_TINY); plabel("OCT", 82, 50, CLR_DARK_BROWN);       // whole-line octave: - [n] +
-        if (lcdbtn(0x79u, 92, 50, 9, 8, "-", 0) && loct[i] > -2) loct[i]--;
-        { char ob[4]; ob[0] = loct[i] > 0 ? '+' : loct[i] < 0 ? '-' : ' '; ob[1] = '0' + (loct[i] < 0 ? -loct[i] : loct[i]); ob[2] = 0; plabel(ob, 108, 51, CLR_LIME_GREEN); }
-        if (lcdbtn(0x7Au, 114, 50, 9, 8, "+", 0) && loct[i] < 2) loct[i]++;
-    } else if (pscreen[i] == PS_PAT) {                                // PAT — A-D pattern banks for THIS 303 line
+        Box sc = lay_split(krow2, EDGE_LEFT, krow2.w * 0.45f, &krow2);   // scale name (left)
+        if (lcdbtn(0x78u, (int)sc.x, (int)sc.y, (int)sc.w, (int)sc.h, SCALES[mscale[i]].name, 0)) mscale[i] = (mscale[i] + 1) % NSCALE;
+        Box ol = lay_split(krow2, EDGE_LEFT, krow2.w * 0.28f, &krow2);   // "OCT" label
+        font(FONT_TINY); plabel("OCT", (int)(ol.x + ol.w / 2), (int)(ol.y + ol.h / 2 - 2), CLR_DARK_BROWN);
+        Box om = lay_grid(krow2, 3, 3, 0, 1), on2 = lay_grid(krow2, 3, 3, 1, 1), op = lay_grid(krow2, 3, 3, 2, 1);
+        if (lcdbtn(0x79u, (int)om.x, (int)om.y, (int)om.w, (int)om.h, "-", 0) && loct[i] > -2) loct[i]--;
+        { char ob[4]; ob[0] = loct[i] > 0 ? '+' : loct[i] < 0 ? '-' : ' '; ob[1] = '0' + (loct[i] < 0 ? -loct[i] : loct[i]); ob[2] = 0;
+          plabel(ob, (int)(on2.x + on2.w / 2), (int)(on2.y + on2.h / 2 - 2), CLR_LIME_GREEN); }
+        if (lcdbtn(0x7Au, (int)op.x, (int)op.y, (int)op.w, (int)op.h, "+", 0) && loct[i] < 2) loct[i]++;
+    } else if (pscreen[i] == PS_PAT) {                                // PAT — A-D pattern banks
         static const char *AD[NPAT] = { "A", "B", "C", "D" };
-        for (int k = 0; k < NPAT; k++)
-            pat_pad(0x3Bu + k, 30 + k * 25, 42, 22, 14, AD[k], i, k);
-    } else if (pscreen[i] == PS_PERF) {                              // PERF — momentary play LENSES (HOLD a button; release = normal)
-        // TAP = latch (persists across faces) · HOLD = momentary. HALF↔2X and STAC↔GLIDE are
-        // mutually exclusive (tapping one clears its partner). Effective state overrides the latch seed.
-        pf_half[i]  = lcdlatch(0x7Bu, 30, 40, 24, 8, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  &pf_latch[PL_DBL][i]);   // ½-time (spreads out, 2 bars/loop)
-        pf_dbl[i]   = lcdlatch(0x7Cu, 56, 40, 22, 8, "2X",    &pf_latch[PL_DBL][i],   &pf_hold[PL_DBL][i],   &pf_latch[PL_HALF][i]);  // 2×-time (doubles up, phase-locked)
-        pf_acc[i]   = lcdlatch(0x7Du, 80, 40, 26, 8, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);                      // accent EVERY note (the 909 move)
-        pf_stac[i]  = lcdlatch(0x7Eu, 30, 50, 34, 8, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]); // drop all slides → plucky
-        pf_glide[i] = lcdlatch(0x7Fu, 66, 50, 40, 8, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);  // force all slides → a smooth river
-    } else {
-        { int bi = (int)(g_bpm + 0.5f); char nb[4]; int ni = 0;       // live BPM readout (set on the MST face)
+        for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
+            pat_pad(0x3Bu + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], i, k); }
+    } else if (pscreen[i] == PS_PERF) {                              // PERF — play LENSES (TAP=latch / HOLD=momentary)
+        Box prow2; Box ptop = lay_split(gc, EDGE_TOP, gc.h * 0.5f, &prow2);
+        Box h0 = lay_grid(ptop, 3, 3, 0, 2), h1 = lay_grid(ptop, 3, 3, 1, 2), h2 = lay_grid(ptop, 3, 3, 2, 2);
+        Box s0 = lay_grid(prow2, 2, 2, 0, 2), s1 = lay_grid(prow2, 2, 2, 1, 2);
+        pf_half[i]  = lcdlatch(0x7Bu, (int)h0.x, (int)h0.y, (int)h0.w, (int)h0.h, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  &pf_latch[PL_DBL][i]);
+        pf_dbl[i]   = lcdlatch(0x7Cu, (int)h1.x, (int)h1.y, (int)h1.w, (int)h1.h, "2X",    &pf_latch[PL_DBL][i],   &pf_hold[PL_DBL][i],   &pf_latch[PL_HALF][i]);
+        pf_acc[i]   = lcdlatch(0x7Du, (int)h2.x, (int)h2.y, (int)h2.w, (int)h2.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
+        pf_stac[i]  = lcdlatch(0x7Eu, (int)s0.x, (int)s0.y, (int)s0.w, (int)s0.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
+        pf_glide[i] = lcdlatch(0x7Fu, (int)s1.x, (int)s1.y, (int)s1.w, (int)s1.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
+    } else {                                                          // SEQ — the piano-roll readout, FILLS the glass (hero)
+        { int bi = (int)(g_bpm + 0.5f); char nb[4]; int ni = 0;
           if (bi >= 100) nb[ni++] = '0' + bi / 100;
           nb[ni++] = '0' + (bi / 10) % 10; nb[ni++] = '0' + bi % 10; nb[ni] = 0;
-          font(FONT_TINY); print(nb, 29, 40, CLR_MEDIUM_GREEN); }
-        int heldy = -1;                                              // y of the sounding note (for ties + slide origin)
+          font(FONT_TINY); print(nb, (int)gc.x, (int)gc.y, CLR_MEDIUM_GREEN); }
+        float sw = gc.w / (float)plen[i];                            // px per step across the glass
+        int top = (int)gc.y, bot = (int)(gc.y + gc.h), span = bot - top; if (span < 8) span = 8;
+        int heldy = -1;
         for (int s = 0; s < plen[i]; s++) {
-            int cx = 29 + s * 6;
-            if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx - 1, 40, 5, 24, CLR_MEDIUM_GREEN); blend_reset(); }
-            int y = 61 - pit[i][s] - oct[i][s] * 6; if (y < 42) y = 42; if (y > 61) y = 61;   // roll fills the taller glass (baseline 61)
+            int cx = (int)(gc.x + s * sw), pw = (int)sw; if (pw < 2) pw = 2;
+            if (s == lpos[i] && playing) { blend(BLEND_AVG); rectfill(cx, top, pw, span, CLR_MEDIUM_GREEN); blend_reset(); }
+            int pitch = pit[i][s] + oct[i][s] * 6; if (pitch < 0) pitch = 0; if (pitch > 24) pitch = 24;   // ~2 octaves of range
+            int y = bot - 2 - pitch * (span - 3) / 24;
             if (on[i][s]) {
-                if (acc[i][s]) rectfill(cx, y - 3, 4, 1, CLR_ORANGE);                   // ACCENT — a bright cap in the space ABOVE the note
-                rectfill(cx, y, 4, 2, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);   // the note
-                if (oct[i][s] > 0) pset(cx + 2, y - 2, CLR_LIGHT_YELLOW);               // octave-up tick
-                if (oct[i][s] < 0) pset(cx + 2, y + 3, CLR_TRUE_BLUE);                  // octave-down tick
-                if (sld[i][s]) {                                                        // slide → a glide LINE to the next note
+                if (acc[i][s]) rectfill(cx, y - 3, pw - 1, 1, CLR_ORANGE);                   // accent cap above
+                rectfill(cx, y, pw - 1, 2, acc[i][s] ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);   // the note
+                if (sld[i][s]) {
                     int ns = (s + 1) % plen[i];
                     if (on[i][ns] || tie[i][ns]) {
-                        int ny = tie[i][ns] ? y : 61 - pit[i][ns] - oct[i][ns] * 6;
-                        if (ny < 42) ny = 42; if (ny > 61) ny = 61;
-                        line(cx + 3, y + 1, cx + 6, ny + 1, CLR_MEDIUM_GREEN);
+                        int np = tie[i][ns] ? pitch : pit[i][ns] + oct[i][ns] * 6; if (np < 0) np = 0; if (np > 24) np = 24;
+                        int ny = bot - 2 - np * (span - 3) / 24;
+                        line(cx + pw - 1, y + 1, (int)(gc.x + (s + 1) * sw), ny + 1, CLR_MEDIUM_GREEN);
                     }
                 }
                 heldy = y;
             } else if (tie[i][s] && heldy >= 0) {
-                rectfill(cx, heldy, 5, 2, CLR_MEDIUM_GREEN);                            // tie → the held note carries on
-            } else heldy = -1;                                                          // a rest breaks the hold
+                rectfill(cx, heldy, pw, 2, CLR_MEDIUM_GREEN);                            // tie → the held note carries on
+            } else heldy = -1;
         }
     }
 
@@ -835,9 +894,10 @@ static void draw_303(int i) {
     if (use_bars) {
         // ④⑤ the 16 NOTE BARS — tap = note on/off · drag up/down = pitch (scale-snapped).
         // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
-        int by = 68, bh = 26;   // 1px gap under the (grown) LCD; loop-length handle strip stays at y94 (by+bh)
+        int by = (int)notes.y, bh = (int)notes.h;   // the note-bar band, filling the width
+        float stepw = notes.w / (float)STEPS;        // px per step across the band
         for (int s = 0; s < STEPS; s++) {
-            int bx = 6 + s * 9, bw = 8, dead = (s >= plen[i]);
+            int bx = (int)(notes.x + s * stepw), bw = (int)stepw - 1, dead = (s >= plen[i]); if (bw < 3) bw = 3;
             void *w = ui_wid_hash(0xB0u + s, bx, by, bw, bh);
             ui_reg(w, bx, by, bw, bh, 0);
             UiCap *c = ui_cap_for(w);
@@ -845,7 +905,7 @@ static void draw_303(int i) {
             if (pscreen[i] == PS_FLAG) {                 // FLAG mode: tap or DRAG paints the armed flag
                 if (c) {                                 // the captured bar tracks the finger across the row
                     if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);
-                    int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
+                    int fx = c->released ? c->rx : c->cx, cell = (int)((fx - notes.x) / stepw);
                     if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
                     sel[i] = cell;
                     flag_set(i, cell, armed, paint_val);             // paint the same value across the drag
@@ -857,7 +917,7 @@ static void draw_303(int i) {
                 int ady = py - drag_gy; if (ady < 0) ady = -ady;
                 if (!drag_axis && (adx > 4 || ady > 4)) drag_axis = 1;   // moved past the deadzone → drawing
                 if (drag_axis) {                                     // free draw: height = pitch, bottom = rest
-                    int cell = (px - 6) / 9; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
+                    int cell = (int)((px - notes.x) / stepw); if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
                     sel[i] = cell;
                     if (py >= by + bh - 4) on[i][cell] = 0;          // bottom band → note OFF (pitch kept)
                     else {
@@ -892,15 +952,15 @@ static void draw_303(int i) {
             // loop boundary (the end of the length). Drag it to set THIS line's loop LENGTH /
             // polymeter. Fixed-rect hit-lane (stable capture) so the rect can ride under the finger.
             // Was the FL_LEN flag.
-            int ly = by + bh;                                                  // the clean strip below the bars
-            void *wl = ui_wid_hash(0x2Au, 6, ly, 144, 100 - ly); ui_reg(wl, 6, ly, 144, 100 - ly, 0);
+            int ly = by + bh, lw = (int)notes.w, lx = (int)notes.x;            // the clean strip below the bars
+            void *wl = ui_wid_hash(0x2Au, lx, ly, lw, (int)loopS.h + 2); ui_reg(wl, lx, ly, lw, (int)loopS.h + 2, 0);
             UiCap *lc = ui_cap_for(wl);
             if (lc) { g_drag_frame = ui_frame_ct; g_drag_y = lc->cy;
-                int fx = lc->released ? lc->rx : lc->cx, n = (fx - 6) / 9 + 1;
+                int fx = lc->released ? lc->rx : lc->cx, n = (int)((fx - notes.x) / stepw) + 1;
                 if (n < 1) n = 1; if (n > STEPS) n = STEPS; plen[i] = n;
             }
-            int bxr = 6 + plen[i] * 9, th = (lc != 0);
-            line(6, ly + 1, bxr - 2, ly + 1, CLR_MEDIUM_GREEN);                // active-length track, into the handle
+            int bxr = (int)(notes.x + plen[i] * stepw), th = (lc != 0);
+            line(lx, ly + 1, bxr - 2, ly + 1, CLR_MEDIUM_GREEN);                // active-length track, into the handle
             rrectfill(bxr - 2, ly, 4, 4, 1, th ? CLR_WHITE : CLR_LIGHT_YELLOW);  // tiny grab rect — flush at the last active cell's bottom-right, at the loop end
             rrect(bxr - 2, ly, 4, 4, 1, CLR_BROWNISH_BLACK);
         }
@@ -946,129 +1006,130 @@ static void draw_303(int i) {
 // is the work surface (voice picker + the 16 HITS of the picked voice); the screen
 // stays free for the kit overview + tweaks. Its identity: a blue 808 badge, blue
 // voice pads, and the hits in the iconic 808 red·orange·yellow·white quarters.
-static void draw_808(void) {
+static void draw_808(Box stage) {
     // acid order (from acidrack): always-on kick/hats/clap/snare, then cowbell + rim/clave,
     // then the fill voices (maracas/cymbal/toms/congas) — page 1 is a whole beat on its own.
     static const int VL[TR_NV] = { TR_BD, TR_CH, TR_OH, TR_CP, TR_SD, TR_CB, TR_RS, TR_CLV,
                                    TR_MA, TR_CY, TR_LT, TR_MT, TR_HT, TR_LC, TR_MC, TR_HC };
     static const int QCLR[4] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_WHITE };
+    // LANDSCAPE reflow (canvas-density-spectrum.md): design-proportion bands, spread to fill.
+    float H = stage.h, W = stage.w;
+    Box body   = lay_inset(stage, 2);
+    Box krow   = lay_split(body, EDGE_TOP,    H * 0.22f, &body);            // ② FX row
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.36f, &body);            // ④⑤ picker + hits + tool
+    Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);            // ③ soft-key columns
+    Box skcR   = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
+    Box lcd    = body;                                                      // the hero glass
+    Box tool   = lay_split(bottom, EDGE_RIGHT,  W * 0.05f, &bottom);        // ④a pad TOOL (right edge)
+    Box hits   = lay_split(bottom, EDGE_BOTTOM, bottom.h * 0.60f, &bottom); // ⑤ the 16 hits
+    Box pick   = bottom;                                                    // ④ voice picker row
 
-    // ② TOP ZONE (always): the machine FX row. Per-voice tone lives in the screen now
-    // (tap a voice); SWING is now one master control on the MST face (was per-machine here).
-    draw_fxrow(2);                                         // DIST · SEND · VERB (aligned with the 303s)
+    draw_fxrow(krow, 2);                                    // ② DIST · SEND · VERB
 
-    // ③ screen — soft-keys pick the LCD content: VCE = the picked voice's knobs (also
-    // shown by default), KIT = the kit minimap, FLAG = the depth palette, GEN (right) =
-    // the CLEAR + randomize menu.
-    if (darmed == DD_STRK) darmed = DD_ACC;                 // STRK is 909-only — reset if it was armed on the 909
-    // the side columns are now ALL the SCREEN VIEW (what the LCD shows): the pad TOOL
-    // (VCE/MUT/REC) moved to a 3-position selector by the cells (⑤), so the 5 views fit
-    // the 6 column slots with room to spare — no more GEN/PAT spill.
-    if (cbtn(0x20u,   6, 37, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;    // LEFT col
-    if (cbtn(0x21u,   6, 45, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
-    if (cbtn(0x33u,   6, 53, 16, 7, "MIX",  dscreen == DS_MIX))  dscreen = DS_MIX;   // per-voice level·pan·fine
-    if (cbtn(0x31u, 138, 38, 16, 7, "GEN",  dscreen == DS_GEN))  dscreen = DS_GEN;   // RIGHT col (tone = DS_VCE, reached via the VCE tool selector)
-    if (cbtn(0x36u, 138, 47, 16, 7, "PAT",  dscreen == DS_PAT))  dscreen = DS_PAT;   // A-D pattern banks
-    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);   // LCD grown to y66 — 1px gap above the voice pads at y68 (matches the 303)
-    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    if (dscreen == DS_GEN) {
-        draw_gen(2);
+    if (darmed == DD_STRK) darmed = DD_ACC;                 // STRK is 909-only — reset if armed here
+    // ③ soft-keys flank the LCD — left KIT/FLAG/MIX · right GEN/PAT (VCE via the pad TOOL)
+    { static const char *L[3] = { "KIT", "FLAG", "MIX" }; static const int Lm[3] = { DS_KIT, DS_FLAG, DS_MIX };
+      static const unsigned Ls[3] = { 0x20u, 0x21u, 0x33u };
+      for (int k = 0; k < 3; k++) { Box c = lay_grid(skcL, 1, 3, k, 2);
+          if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], dscreen == Lm[k])) dscreen = Lm[k]; } }
+    { static const char *R[2] = { "GEN", "PAT" }; static const int Rm[2] = { DS_GEN, DS_PAT };
+      static const unsigned Rs[2] = { 0x31u, 0x36u };
+      for (int k = 0; k < 2; k++) { Box c = lay_grid(skcR, 1, 2, k, 2);
+          if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], dscreen == Rm[k])) dscreen = Rm[k]; } }
+    rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(lcd, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = (int)glass.y + 1; y < glass.y + glass.h - 1; y += 2) line((int)glass.x, y, (int)(glass.x + glass.w - 1), y, CLR_BROWNISH_BLACK); blend_reset();
+    Box gc = lay_inset(glass, 2);
+    if (dscreen == DS_GEN) {                                // CLEAR + randomize (2×2)
+        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+        for (int g = 0; g < 4; g++) { Box c = lay_grid(gc, 2, 4, g, 2);
+            if (lcdbtn(0x40u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) gen_drums(g); }
     } else if (dscreen == DS_FLAG) {
         if (darmed == DD_CHAR && !CH8[dsel]) darmed = DD_TUN;   // this voice has no character knob
-        // row 1 — the depth flags; row 2 — the per-step p-locks (TUN/DEC/character)
-        if (lcdbtn(0x24u + DD_ACC,  30, 40, 32, 8, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
-        if (lcdbtn(0x24u + DD_PROB, 64, 40, 32, 8, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
-        Lane L[LK_N]; int nl = drum_lanes(M_808, dsel, L);      // row 2 = the continuous lanes (data-driven, id-stable, even-spaced)
-        for (int li = 0; li < nl; li++) {
-            int dd = DD_TUN + L[li].lk;                          // STABLE id (not row position) — safe past the optional CHAR
-            if (lcdbtn(0x24u + dd, 27 + 106 * li / nl, 49, 106 / nl - 2, 8, L[li].name, darmed == dd)) darmed = dd;
-        }
+        Box r2; Box r1 = lay_split(gc, EDGE_TOP, gc.h * 0.5f, &r2);   // row1 = flags · row2 = p-locks
+        Box a0 = lay_grid(r1, 2, 2, 0, 2), a1 = lay_grid(r1, 2, 2, 1, 2);
+        if (lcdbtn(0x24u + DD_ACC,  (int)a0.x, (int)a0.y, (int)a0.w, (int)a0.h, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
+        if (lcdbtn(0x24u + DD_PROB, (int)a1.x, (int)a1.y, (int)a1.w, (int)a1.h, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
+        Lane L[LK_N]; int nl = drum_lanes(M_808, dsel, L);      // the continuous lanes (id-stable)
+        for (int li = 0; li < nl; li++) { int dd = DD_TUN + L[li].lk; Box c = lay_grid(r2, nl, nl, li, 2);
+            if (lcdbtn(0x24u + dd, (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[li].name, darmed == dd)) darmed = dd; }
     } else if (dscreen == DS_KIT) {
-        rrectfill(28, 40, 15, 7, 1, CLR_TRUE_BLUE); font(FONT_TINY); print("808", 30, 41, CLR_WHITE);   // identity badge
-        for (int r = 0; r < TR_NV; r++) {                   // full-roster density grid — every voice SEEN
-            int v = VL[r], gy = 42 + r;
-            for (int s = 0; s < STEPS; s++) {
-                int gx = 48 + s * 5;
-                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, TR_NV, CLR_MEDIUM_GREEN); blend_reset(); }
-                if (dgrid[v][s]) rectfill(gx, gy, 3, 1, dmute[v] ? CLR_DARKER_GREY : v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
-            }
-        }
-    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE-tune (line-scope mixer)
-        font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
-        lcdknob(&dvol[dsel],   46, 49, 5, "VOL",  0.5f);
-        lcdknob(&dpan[dsel],   80, 49, 5, "PAN",  0.5f);
-        lcdknob(&dfine[dsel], 114, 49, 5, "FINE", 0.5f);    // ±50 cents — null a kick beat; TUNE keeps its semitone steps
-    } else if (dscreen == DS_PAT) {                         // PAT — A-D pattern banks for the 808
+        font(FONT_TINY);
+        rrectfill((int)gc.x, (int)gc.y, 15, 7, 1, CLR_TRUE_BLUE); print("808", (int)gc.x + 2, (int)gc.y + 1, CLR_WHITE);   // badge
+        Box grid = lay_pad(gc, 0, 0, 0, 18);               // full-roster density grid, right of the badge
+        float gsw = grid.w / (float)STEPS;
+        for (int r = 0; r < TR_NV; r++) { int v = VL[r], gy = (int)grid.y + r;
+            for (int s = 0; s < STEPS; s++) { int gx = (int)(grid.x + s * gsw);
+                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR_NV, CLR_MEDIUM_GREEN); blend_reset(); }
+                if (dgrid[v][s]) rectfill(gx, gy, (int)gsw - 1 < 2 ? 2 : (int)gsw - 1, 1, dmute[v] ? CLR_DARKER_GREY : v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+            } }
+    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE
+        font(FONT_TINY); plabel(TR808_NAME[dsel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
+        Box mr = lay_pad(gc, 6, 0, 0, 0);
+        lcdknob_cell(lay_grid(mr, 3, 3, 0, 2), &dvol[dsel],  "VOL",  0.5f);
+        lcdknob_cell(lay_grid(mr, 3, 3, 1, 2), &dpan[dsel],  "PAN",  0.5f);
+        lcdknob_cell(lay_grid(mr, 3, 3, 2, 2), &dfine[dsel], "FINE", 0.5f);   // ±50c — null a kick; TUNE keeps semitones
+    } else if (dscreen == DS_PAT) {                         // PAT — A-D banks
         static const char *AD[NPAT] = { "A", "B", "C", "D" };
-        for (int k = 0; k < NPAT; k++)
-            pat_pad(0x3Fu + k, 30 + k * 25, 42, 22, 14, AD[k], M_808, k);
-    } else {                                                // DS_VCE — the voice's TONE knobs, LCD-native
-        font(FONT_TINY); plabel(TR808_NAME[dsel], 80, 40, CLR_LIME_GREEN);
-        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced (VOL/PAN/FINE now live in MIX)
+        for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
+            pat_pad(0x3Fu + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], M_808, k); }
+    } else {                                                // DS_VCE — the voice's TONE knobs
+        font(FONT_TINY); plabel(TR808_NAME[dsel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
+        Box vr = lay_pad(gc, 6, 0, 0, 0);
+        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced
         kv[nk] = &dtune[dsel];  kl[nk++] = "TUNE";
         kv[nk] = &ddecay[dsel]; kl[nk++] = "DEC";
         if (CH8[dsel]) { kv[nk] = &dcolor[dsel]; kl[nk++] = CH8[dsel]; }
-        for (int i = 0; i < nk; i++) lcdknob(kv[i], 27 + 106 * (2 * i + 1) / (2 * nk), 49, 5, kl[i], 0.5f);
+        for (int i = 0; i < nk; i++) lcdknob_cell(lay_grid(vr, nk, nk, i, 2), kv[i], kl[i], 0.5f);
     }
 
-    // ④ VOICE PICKER — ALL 16 voices in one row (acid order, 2-char pads), now CENTRED
-    // (x8) + pulled DOWN by the cells; the TOOL vacated the right margin so the row runs
-    // full-width. A tap SELECTs + auditions; in MUT mode it toggles mute (red slash).
+    // ④ VOICE PICKER — all 16 voices in one row (acid order), spread across the width.
+    float psw = pick.w / (float)TR_NV; int pby = (int)pick.y, pbh = (int)pick.h;
     for (int r = 0; r < TR_NV; r++) {
-        int v = VL[r], x = 6 + r * 9, selp = (v == dsel), mtd = dmute[v];
-        void *wp = ui_wid_hash(0x90u + v, x, 68, 8, 9); ui_reg(wp, x, 68, 8, 9, 0);
+        int v = VL[r], x = (int)(pick.x + r * psw), pw = (int)psw - 1, selp = (v == dsel), mtd = dmute[v]; if (pw < 4) pw = 4;
+        void *wp = ui_wid_hash(0x90u + v, x, pby, pw, pbh); ui_reg(wp, x, pby, pw, pbh, 0);
         UiCap *c = ui_cap_for(wp); int hot = (c != 0);
         if (c) {
-            if (padtool == PT_REC && playing) {                  // REC — punch onto the CURRENT step (multitouch)
-                if (ui_grabbed(wp)) { dgrid[v][step] = 1; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
-            } else if (padtool == PT_MUTE) {                     // MUTE — INSTANT mute toggle on tap (live-precise)
-                if (ui_grabbed(wp)) dmute[v] = !dmute[v];
-            } else if (padtool == PT_PLAY) {                     // PLAY — just fire the voice (finger-drum), no select
-                if (ui_grabbed(wp)) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
-            } else if (c->released) {                            // PICK — SELECT (+ audition only when STOPPED)
-                dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
-            }
+            if (padtool == PT_REC && playing)  { if (ui_grabbed(wp)) { dgrid[v][step] = 1; tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
+            else if (padtool == PT_MUTE)       { if (ui_grabbed(wp)) dmute[v] = !dmute[v]; }
+            else if (padtool == PT_PLAY)       { if (ui_grabbed(wp)) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
+            else if (c->released)              { dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
         }
-        rrectfill(x, 68, 8, 9, 1, mtd ? CLR_DARKER_PURPLE : selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
-        if (dtrig[v] > 0) { blend(BLEND_AVG); rrectfill(x, 68, 8, 9, 1, mtd ? CLR_LIGHT_GREY : CLR_WHITE); blend_reset(); }   // trigger flash (ghost-grey when muted)
-        rrect(x, 68, 8, 9, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        if (mtd) line(x + 1, 69, x + 6, 75, CLR_RED);        // muted = red slash (like the cartridge LED)
-        font(FONT_TINY); print(AB8[v], x + (8 - text_width(AB8[v])) / 2, 70, mtd ? CLR_DARKER_GREY : selp ? CLR_WHITE : CLR_BLUE);
+        rrectfill(x, pby, pw, pbh, 1, mtd ? CLR_DARKER_PURPLE : selp ? CLR_TRUE_BLUE : CLR_DARK_BLUE);
+        if (dtrig[v] > 0) { blend(BLEND_AVG); rrectfill(x, pby, pw, pbh, 1, mtd ? CLR_LIGHT_GREY : CLR_WHITE); blend_reset(); }
+        rrect(x, pby, pw, pbh, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        if (mtd) line(x + 1, pby + 1, x + pw - 1, pby + pbh - 2, CLR_RED);
+        font(FONT_TINY); print(AB8[v], x + (pw - text_width(AB8[v])) / 2, pby + (pbh - 5) / 2, mtd ? CLR_DARKER_GREY : selp ? CLR_WHITE : CLR_BLUE);
     }
-    // ④a the pad TOOL — a tall, narrow selector down the FAR-RIGHT edge, flush against the
-    // pads it retargets (a held-mode belongs adjacent to its target). Tap to cycle
-    // PICK→PLAY→MUTE→REC; the fill colour + the stacked word show which. The corner (below
-    // PAT) is now free for a knob.
+    // ④a the pad TOOL — a tall selector down the far-right edge (spans picker+hits). Tap to cycle
+    // PICK→PLAY→MUTE→REC; fill colour + the stacked word show which.
     {
-        static const char *TL[4] = { "PICK", "PLAY", "MUTE", "REC" };   // the 4-way pad TOOL
-        static const int    TC[4] = { CLR_DARK_BROWN, CLR_MEDIUM_GREEN, CLR_ORANGE, CLR_RED };   // PICK neutral · PLAY green · MUTE orange · REC red
-        int bx = 150, by = 68, bw = 7, bh = 29;
+        static const char *TL[4] = { "PICK", "PLAY", "MUTE", "REC" };
+        static const int    TC[4] = { CLR_DARK_BROWN, CLR_MEDIUM_GREEN, CLR_ORANGE, CLR_RED };
+        int bx = (int)tool.x, by = (int)tool.y, bw = (int)tool.w - 1, bh = (int)tool.h; if (bw < 5) bw = 5;
         int pr = 0, hot = 0, foc = 0;
         void *w = ui_wid_hash(0xE0u, bx, by, bw, bh);
         if (ui_button_core(w, bx, by, bw, bh, &foc, &pr, &hot) && tap_settled()) {
-            padtool = (padtool + 1) % 4; if (padtool == PT_PICK) dscreen = DS_VCE;   // PICK also snaps the screen to TONE
+            padtool = (padtool + 1) % 4; if (padtool == PT_PICK) dscreen = DS_VCE;   // PICK snaps the screen to TONE
         }
         rrectfill(bx, by, bw, bh, 2, TC[padtool]);
         rrect(bx, by, bw, bh, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        const char *wd = TL[padtool]; int nl = 0; while (wd[nl]) nl++;   // stack the word one letter per row
+        const char *wd = TL[padtool]; int nl = 0; while (wd[nl]) nl++;
         font(FONT_TINY);
-        int ch = 6, ty = by + (bh - nl * ch) / 2;                    // 5px glyph + 1px lead, vertically centred
-        for (int i = 0; i < nl; i++) { char s[2] = { wd[i], 0 }; print(s, bx + (bw - text_width(s)) / 2 + 1, ty + i * ch, CLR_WHITE); }
+        int ch = 6, ty = by + (bh - nl * ch) / 2;
+        for (int i = 0; i < nl; i++) { char s[2] = { wd[i], 0 }; print(s, bx + (bw - text_width(s)) / 2, ty + i * ch, CLR_WHITE); }
     }
 
-    // ⑤ the HITS — the picked voice's 16 steps, on the BOTTOM (thumb surface).
-    // KIT: tap = toggle · DRAG across = paint on/off (first cell decides). FLAG: paint
-    // the armed flag — ACC toggles accent (bright cap); PROB vertical-slides the trig
-    // chance (short bar = <100%, the tr808 gesture, gated to this mode).
+    // ⑤ the HITS — the picked voice's 16 steps, on the bottom, spread across the width.
+    int hby = (int)hits.y, hbh = (int)hits.h; float hsw = hits.w / (float)STEPS;
     for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, here = (s == step && playing);
-        void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
-        ui_reg(ws, x, 81, 8, 16, 0);
+        int x = (int)(hits.x + s * hsw), bw = (int)hsw - 1, here = (s == step && playing); if (bw < 4) bw = 4;
+        void *ws = ui_wid_hash(0xA0u + s, x, hby, bw, hbh); ui_reg(ws, x, hby, bw, hbh, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
             g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-            int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
+            int fx = c->released ? c->rx : c->cx, cell = (int)((fx - hits.x) / hsw);
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
             if (dscreen != DS_FLAG) {                        // VCE/KIT — paint on/off across the drag
                 if (ui_grabbed(ws)) { paint_val = !dgrid[dsel][s]; if (paint_val) { tr808_fire(TR808_BASE, dsel, 1, 0, dtune, ddecay, dcolor); dtrig[dsel] = 1; mbop = 1; } }
@@ -1076,45 +1137,55 @@ static void draw_808(void) {
             } else if (darmed == DD_ACC) {                   // FLAG/ACC — toggle accent, paint across
                 if (ui_grabbed(ws)) { paint_val = !dacc[dsel][s]; if (paint_val) dgrid[dsel][s] = 1; }
                 dacc[dsel][cell] = paint_val; if (paint_val) dgrid[dsel][cell] = 1;
-            } else if (darmed == DD_PROB) {                  // FLAG/PROB — vertical slide, DRAWN across the row (finger height = chance)
-                float f = clamp((94 - c->cy) / 13.0f, 0, 1);
+            } else if (darmed == DD_PROB) {                  // FLAG/PROB — vertical slide = chance, drawn across
+                float f = clamp((hby + hbh - 3 - c->cy) / (float)(hbh - 3), 0, 1);
                 dprob[dsel][cell] = snap_prob(f); dgrid[dsel][cell] = 1;
             } else {                                         // FLAG/TUN|DEC|CHAR — bipolar p-lock offset, drawn across
-                doff[darmed - DD_TUN][dsel][cell] = clamp((89 - c->cy) / 8.0f, -1, 1); dgrid[dsel][cell] = 1;
+                doff[darmed - DD_TUN][dsel][cell] = clamp((hby + hbh / 2 - c->cy) / (float)(hbh / 2), -1, 1); dgrid[dsel][cell] = 1;
             }
         }
         int on2 = dgrid[dsel][s], locklens = (dscreen == DS_FLAG && darmed >= DD_TUN);
         int lp = locklens ? darmed - DD_TUN : 0;
-        rrectfill(x, 81, 8, 16, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
-        if (on2 && locklens) {                               // LOCK lens — bipolar bar from centre (up = more, down = less)
-            int cy = 89, op = (int)(doff[lp][dsel][s] * 7 + (doff[lp][dsel][s] >= 0 ? 0.5f : -0.5f));
-            line(x, cy, x + 7, cy, CLR_DARKER_GREY);         // centre = the voice's knob
+        rrectfill(x, hby, bw, hbh, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
+        if (on2 && locklens) {                               // LOCK lens — bipolar bar from centre
+            int cy = hby + hbh / 2, mx = hbh / 2 - 1; if (mx < 1) mx = 1;
+            int op = (int)(doff[lp][dsel][s] * mx + (doff[lp][dsel][s] >= 0 ? 0.5f : -0.5f));
+            line(x, cy, x + bw - 1, cy, CLR_DARKER_GREY);    // centre = the voice's knob
             int col = here ? CLR_WHITE : op ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN;
-            if (op > 0)      rrectfill(x, cy - op, 8, op, 1, col);
-            else if (op < 0) rrectfill(x, cy + 1, 8, -op, 1, col);
-            else             rectfill(x + 2, cy, 4, 1, col);
+            if (op > 0)      rrectfill(x, cy - op, bw, op, 1, col);
+            else if (op < 0) rrectfill(x, cy + 1, bw, -op, 1, col);
+            else             rectfill(x + bw / 3, cy, bw / 3 < 1 ? 1 : bw / 3, 1, col);
         } else if (on2) {
-            int pr = dprob[dsel][s] > 0 ? dprob[dsel][s] : 100, fh = 16 * pr / 100; if (fh < 3) fh = 3;
-            rrectfill(x, 81 + 16 - fh, 8, fh, 1, here ? CLR_WHITE : QCLR[s / 4]);
-            if (dacc[dsel][s]) rectfill(x + 1, 78, 6, 2, CLR_RED);   // accent marker in the gap above the cell
+            int pr = dprob[dsel][s] > 0 ? dprob[dsel][s] : 100, fh = hbh * pr / 100; if (fh < 3) fh = 3;
+            rrectfill(x, hby + hbh - fh, bw, fh, 1, here ? CLR_WHITE : QCLR[s / 4]);
+            if (dacc[dsel][s]) rectfill(x + 1, hby - 3, bw - 2 < 1 ? 1 : bw - 2, 2, CLR_RED);   // accent marker above
         }
-        rrect(x, 81, 8, 16, 1, CLR_BROWNISH_BLACK);
+        rrect(x, hby, bw, hbh, 1, CLR_BROWNISH_BLACK);
     }
 }
 
 // ── the 909 DRUM face — same compact model as the 808, but its OWN identity:
 // AMBER/steel (vs the 808's blue) so you know which drum machine you're on.
-static void draw_909(void) {
+static void draw_909(Box stage) {
     // acid order (from acidrack): kick/hats/clap/snare, then rim + ride/crash, then the fill toms.
     static const int VL[TR9_NV] = { TR9_BD, TR9_CH, TR9_OH, TR9_CP, TR9_SD, TR9_RS, TR9_RC, TR9_CC, TR9_LT, TR9_MT, TR9_HT };
+    // LANDSCAPE reflow (canvas-density-spectrum.md): design-proportion bands, spread to fill (mirrors 808).
+    float H = stage.h, W = stage.w;
+    Box body   = lay_inset(stage, 2);
+    Box krow   = lay_split(body, EDGE_TOP,    H * 0.22f, &body);            // ② FX row + METAL XY
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.36f, &body);            // ④⑤ picker + hits + tool
+    Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);            // ③ soft-key columns
+    Box skcR   = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
+    Box lcd    = body;                                                      // the hero glass
+    Box tool   = lay_split(bottom, EDGE_RIGHT,  W * 0.05f, &bottom);        // ④a pad TOOL
+    Box hits   = lay_split(bottom, EDGE_BOTTOM, bottom.h * 0.60f, &bottom); // ⑤ the 16 hits
+    Box pick   = bottom;                                                    // ④ voice picker
 
-    // ② TOP ZONE (always): FX row + the 909 METAL XY (right gutter). SWING is now one
-    // master control on the MST face (was per-machine here).
-    draw_fxrow(3);                                         // DIST · SEND · VERB (aligned with the 303s)
-    {   // 909 METAL-filter XY — the shared highpass on the metal voices (hats/cymbal/cowbell).
-        int px0 = 134, py0 = 15, pw = 18, ph = 15;         // right gutter. Drag: X = cut, Y = res.
-        void *wp = ui_wid_hash(0xC0u, px0, py0, pw, ph);
-        ui_reg(wp, px0, py0, pw, ph, 0);
+    Box mtl = lay_split(krow, EDGE_RIGHT, W * 0.13f, &krow);   // METAL XY in the top-zone right gutter
+    draw_fxrow(krow, 3);                                        // ② DIST · SEND · VERB
+    {   // 909 METAL-filter XY — the shared highpass on the metal voices (hats/cymbal/cowbell). Drag X=cut Y=res.
+        int px0 = (int)mtl.x, py0 = (int)mtl.y, pw = (int)mtl.w, ph = (int)mtl.h - 5;
+        void *wp = ui_wid_hash(0xC0u, px0, py0, pw, ph); ui_reg(wp, px0, py0, pw, ph, 0);
         UiCap *c = ui_cap_for(wp);
         if (c) {
             g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
@@ -1126,111 +1197,109 @@ static void draw_909(void) {
         font(FONT_TINY); plabel("MTL", px0 + pw / 2, py0 + ph, CLR_ORANGE);
     }
 
-    // ③ screen — soft-keys are PURE VIEWS (mirrors the 808): KIT/FLAG/MIX (left) + GEN/PAT
-    // (right). VCE is no longer a soft-key — the PICK tool snaps the screen to DS_VCE/TONE.
-    if (cbtn(0x20u,   6, 37, 16, 7, "KIT",  dscreen == DS_KIT))  dscreen = DS_KIT;    // LEFT col
-    if (cbtn(0x21u,   6, 45, 16, 7, "FLAG", dscreen == DS_FLAG)) dscreen = DS_FLAG;
-    if (cbtn(0x33u,   6, 53, 16, 7, "MIX",  dscreen == DS_MIX))  dscreen = DS_MIX;   // per-voice level·pan·fine
-    if (cbtn(0x31u, 138, 38, 16, 7, "GEN",  dscreen == DS_GEN))  dscreen = DS_GEN;   // RIGHT col (tone = DS_VCE, reached via the PICK tool)
-    if (cbtn(0x36u, 138, 47, 16, 7, "PAT",  dscreen == DS_PAT))  dscreen = DS_PAT;   // A-D pattern banks
-    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);   // LCD grown to y66 — 1px gap above the voice pads at y68 (matches the 303)
-    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
-    if (dscreen == DS_GEN) {
-        draw_gen(3);
+    // ③ soft-keys flank the LCD — left KIT/FLAG/MIX · right GEN/PAT (VCE via the pad TOOL)
+    { static const char *L[3] = { "KIT", "FLAG", "MIX" }; static const int Lm[3] = { DS_KIT, DS_FLAG, DS_MIX };
+      static const unsigned Ls[3] = { 0x20u, 0x21u, 0x33u };
+      for (int k = 0; k < 3; k++) { Box c = lay_grid(skcL, 1, 3, k, 2);
+          if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], dscreen == Lm[k])) dscreen = Lm[k]; } }
+    { static const char *R[2] = { "GEN", "PAT" }; static const int Rm[2] = { DS_GEN, DS_PAT };
+      static const unsigned Rs[2] = { 0x31u, 0x36u };
+      for (int k = 0; k < 2; k++) { Box c = lay_grid(skcR, 1, 2, k, 2);
+          if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], dscreen == Rm[k])) dscreen = Rm[k]; } }
+    rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(lcd, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = (int)glass.y + 1; y < glass.y + glass.h - 1; y += 2) line((int)glass.x, y, (int)(glass.x + glass.w - 1), y, CLR_BROWNISH_BLACK); blend_reset();
+    Box gc = lay_inset(glass, 2);
+    if (dscreen == DS_GEN) {                                // CLEAR + randomize (2×2)
+        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+        for (int g = 0; g < 4; g++) { Box c = lay_grid(gc, 2, 4, g, 2);
+            if (lcdbtn(0x40u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) gen_drums9(g); }
     } else if (dscreen == DS_FLAG) {
         if (darmed == DD_CHAR && !CH9[d9sel]) darmed = DD_TUN;   // this voice has no character knob
-        // row 1 — the depth flags (incl. STRK); row 2 — the per-step p-locks
-        if (lcdbtn(0x24u + DD_ACC,  30, 40, 32, 8, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
-        if (lcdbtn(0x24u + DD_PROB, 64, 40, 32, 8, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
-        if (lcdbtn(0x24u + DD_STRK, 98, 40, 32, 8, "STRK", darmed == DD_STRK)) darmed = DD_STRK;
-        Lane L[LK_N]; int nl = drum_lanes(M_909, d9sel, L);     // row 2 = the continuous lanes (data-driven, id-stable, even-spaced)
-        for (int li = 0; li < nl; li++) {
-            int dd = DD_TUN + L[li].lk;                          // STABLE id (not row position) — safe past the optional CHAR
-            if (lcdbtn(0x24u + dd, 27 + 106 * li / nl, 49, 106 / nl - 2, 8, L[li].name, darmed == dd)) darmed = dd;
-        }
+        Box r2; Box r1 = lay_split(gc, EDGE_TOP, gc.h * 0.5f, &r2);   // row1 = flags (incl. STRK) · row2 = p-locks
+        Box a0 = lay_grid(r1, 3, 3, 0, 2), a1 = lay_grid(r1, 3, 3, 1, 2), a2 = lay_grid(r1, 3, 3, 2, 2);
+        if (lcdbtn(0x24u + DD_ACC,  (int)a0.x, (int)a0.y, (int)a0.w, (int)a0.h, "ACC",  darmed == DD_ACC))  darmed = DD_ACC;
+        if (lcdbtn(0x24u + DD_PROB, (int)a1.x, (int)a1.y, (int)a1.w, (int)a1.h, "PROB", darmed == DD_PROB)) darmed = DD_PROB;
+        if (lcdbtn(0x24u + DD_STRK, (int)a2.x, (int)a2.y, (int)a2.w, (int)a2.h, "STRK", darmed == DD_STRK)) darmed = DD_STRK;
+        Lane L[LK_N]; int nl = drum_lanes(M_909, d9sel, L);     // the continuous lanes (id-stable)
+        for (int li = 0; li < nl; li++) { int dd = DD_TUN + L[li].lk; Box c = lay_grid(r2, nl, nl, li, 2);
+            if (lcdbtn(0x24u + dd, (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[li].name, darmed == dd)) darmed = dd; }
     } else if (dscreen == DS_KIT) {
-        rrectfill(28, 40, 15, 7, 1, CLR_ORANGE); font(FONT_TINY); print("909", 30, 41, CLR_BROWNISH_BLACK);
-        for (int r = 0; r < TR9_NV; r++) {                  // full-roster density grid — every voice SEEN
-            int v = VL[r], gy = 42 + r;
-            for (int s = 0; s < STEPS; s++) {
-                int gx = 48 + s * 5;
-                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, 42, 4, TR9_NV, CLR_MEDIUM_GREEN); blend_reset(); }
-                if (d9grid[v][s]) rectfill(gx, gy, 3, 1, d9mute[v] ? CLR_DARKER_GREY : v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
-            }
-        }
-    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE-tune
-        font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
-        lcdknob(&d9vol[d9sel],   46, 49, 5, "VOL",  0.5f);
-        lcdknob(&d9pan[d9sel],   80, 49, 5, "PAN",  0.5f);
-        lcdknob(&d9fine[d9sel], 114, 49, 5, "FINE", 0.5f);
-    } else if (dscreen == DS_PAT) {                         // PAT — A-D pattern banks for the 909
+        font(FONT_TINY);
+        rrectfill((int)gc.x, (int)gc.y, 15, 7, 1, CLR_ORANGE); print("909", (int)gc.x + 2, (int)gc.y + 1, CLR_BROWNISH_BLACK);   // badge
+        Box grid = lay_pad(gc, 0, 0, 0, 18);               // full-roster density grid, right of the badge
+        float gsw = grid.w / (float)STEPS;
+        for (int r = 0; r < TR9_NV; r++) { int v = VL[r], gy = (int)grid.y + r;
+            for (int s = 0; s < STEPS; s++) { int gx = (int)(grid.x + s * gsw);
+                if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR9_NV, CLR_MEDIUM_GREEN); blend_reset(); }
+                if (d9grid[v][s]) rectfill(gx, gy, (int)gsw - 1 < 2 ? 2 : (int)gsw - 1, 1, d9mute[v] ? CLR_DARKER_GREY : v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+            } }
+    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE
+        font(FONT_TINY); plabel(TR909_NAME[d9sel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
+        Box mr = lay_pad(gc, 6, 0, 0, 0);
+        lcdknob_cell(lay_grid(mr, 3, 3, 0, 2), &d9vol[d9sel],  "VOL",  0.5f);
+        lcdknob_cell(lay_grid(mr, 3, 3, 1, 2), &d9pan[d9sel],  "PAN",  0.5f);
+        lcdknob_cell(lay_grid(mr, 3, 3, 2, 2), &d9fine[d9sel], "FINE", 0.5f);
+    } else if (dscreen == DS_PAT) {                         // PAT — A-D banks
         static const char *AD[NPAT] = { "A", "B", "C", "D" };
-        for (int k = 0; k < NPAT; k++)
-            pat_pad(0x43u + k, 30 + k * 25, 42, 22, 14, AD[k], M_909, k);
-    } else {                                                // DS_VCE — the voice's TONE knobs, LCD-native
-        font(FONT_TINY); plabel(TR909_NAME[d9sel], 80, 40, CLR_LIME_GREEN);
-        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced (VOL/PAN/FINE now live in MIX)
+        for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
+            pat_pad(0x43u + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], M_909, k); }
+    } else {                                                // DS_VCE — the voice's TONE knobs
+        font(FONT_TINY); plabel(TR909_NAME[d9sel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
+        Box vr = lay_pad(gc, 6, 0, 0, 0);
+        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced
         kv[nk] = &d9tune[d9sel];  kl[nk++] = "TUNE";
         kv[nk] = &d9decay[d9sel]; kl[nk++] = "DEC";
         if (CH9[d9sel]) { kv[nk] = &d9color[d9sel]; kl[nk++] = CH9[d9sel]; }
-        for (int i = 0; i < nk; i++) lcdknob(kv[i], 27 + 106 * (2 * i + 1) / (2 * nk), 49, 5, kl[i], 0.5f);
+        for (int i = 0; i < nk; i++) lcdknob_cell(lay_grid(vr, nk, nk, i, 2), kv[i], kl[i], 0.5f);
     }
 
-    // ④ voice picker — ALL 11 voices in one row (acid order, 2-char amber pads), pulled
-    // DOWN by the cells (mirrors the 808). Tap = SELECT+audition; in MUT mode = toggle that
-    // voice's mute (dimmed + red slash).
+    // ④ voice picker — all 11 voices in one row (acid order, amber pads), spread across the width.
+    float psw = pick.w / (float)TR9_NV; int pby = (int)pick.y, pbh = (int)pick.h;
     for (int r = 0; r < TR9_NV; r++) {
-        int v = VL[r], x = 6 + r * 13, selp = (v == d9sel), mtd = d9mute[v];
-        void *wp = ui_wid_hash(0x90u + v, x, 68, 12, 9); ui_reg(wp, x, 68, 12, 9, 0);
+        int v = VL[r], x = (int)(pick.x + r * psw), pw = (int)psw - 1, selp = (v == d9sel), mtd = d9mute[v]; if (pw < 4) pw = 4;
+        void *wp = ui_wid_hash(0x90u + v, x, pby, pw, pbh); ui_reg(wp, x, pby, pw, pbh, 0);
         UiCap *c = ui_cap_for(wp); int hot = (c != 0);
         if (c) {
-            if (padtool == PT_REC && playing) {                  // REC — punch onto the CURRENT step (multitouch)
-                if (ui_grabbed(wp)) { d9grid[v][step] = 1; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
-            } else if (padtool == PT_MUTE) {                     // MUTE — INSTANT mute toggle on tap (live-precise)
-                if (ui_grabbed(wp)) d9mute[v] = !d9mute[v];
-            } else if (padtool == PT_PLAY) {                     // PLAY — just fire the voice (finger-drum), no select
-                if (ui_grabbed(wp)) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
-            } else if (c->released) {                            // PICK — SELECT (+ audition only when STOPPED)
-                d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
-            }
+            if (padtool == PT_REC && playing)  { if (ui_grabbed(wp)) { d9grid[v][step] = 1; tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
+            else if (padtool == PT_MUTE)       { if (ui_grabbed(wp)) d9mute[v] = !d9mute[v]; }
+            else if (padtool == PT_PLAY)       { if (ui_grabbed(wp)) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
+            else if (c->released)              { d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
         }
-        rrectfill(x, 68, 12, 9, 1, mtd ? CLR_DARKER_PURPLE : selp ? CLR_ORANGE : CLR_DARK_ORANGE);
-        if (d9trig[v] > 0) { blend(BLEND_AVG); rrectfill(x, 68, 12, 9, 1, mtd ? CLR_LIGHT_GREY : CLR_WHITE); blend_reset(); }   // trigger flash (ghost-grey when muted)
-        rrect(x, 68, 12, 9, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        if (mtd) line(x + 2, 69, x + 9, 75, CLR_RED);        // muted = red slash
-        font(FONT_TINY); print(AB9[v], x + (12 - text_width(AB9[v])) / 2, 70, mtd ? CLR_DARKER_GREY : selp ? CLR_BROWNISH_BLACK : CLR_LIGHT_YELLOW);
+        rrectfill(x, pby, pw, pbh, 1, mtd ? CLR_DARKER_PURPLE : selp ? CLR_ORANGE : CLR_DARK_ORANGE);
+        if (d9trig[v] > 0) { blend(BLEND_AVG); rrectfill(x, pby, pw, pbh, 1, mtd ? CLR_LIGHT_GREY : CLR_WHITE); blend_reset(); }
+        rrect(x, pby, pw, pbh, 1, (selp || hot) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        if (mtd) line(x + 1, pby + 1, x + pw - 1, pby + pbh - 2, CLR_RED);
+        font(FONT_TINY); print(AB9[v], x + (pw - text_width(AB9[v])) / 2, pby + (pbh - 5) / 2, mtd ? CLR_DARKER_GREY : selp ? CLR_BROWNISH_BLACK : CLR_LIGHT_YELLOW);
     }
-    // ④a the pad TOOL — the far-right PICK/PLAY/MUTE/REC selector (mirrors the 808), flush
-    // against the pads it retargets. Tap to cycle; fill colour + the stacked word show which.
+    // ④a the pad TOOL — far-right PICK/PLAY/MUTE/REC selector (mirrors the 808)
     {
-        static const char *TL[4] = { "PICK", "PLAY", "MUTE", "REC" };   // the 4-way pad TOOL
-        static const int    TC[4] = { CLR_DARK_BROWN, CLR_MEDIUM_GREEN, CLR_ORANGE, CLR_RED };   // PICK neutral · PLAY green · MUTE orange · REC red
-        int bx = 150, by = 68, bw = 7, bh = 29;
+        static const char *TL[4] = { "PICK", "PLAY", "MUTE", "REC" };
+        static const int    TC[4] = { CLR_DARK_BROWN, CLR_MEDIUM_GREEN, CLR_ORANGE, CLR_RED };
+        int bx = (int)tool.x, by = (int)tool.y, bw = (int)tool.w - 1, bh = (int)tool.h; if (bw < 5) bw = 5;
         int pr = 0, hot = 0, foc = 0;
         void *w = ui_wid_hash(0xE0u, bx, by, bw, bh);
         if (ui_button_core(w, bx, by, bw, bh, &foc, &pr, &hot) && tap_settled()) {
-            padtool = (padtool + 1) % 4; if (padtool == PT_PICK) dscreen = DS_VCE;   // PICK also snaps the screen to TONE
+            padtool = (padtool + 1) % 4; if (padtool == PT_PICK) dscreen = DS_VCE;
         }
         rrectfill(bx, by, bw, bh, 2, TC[padtool]);
         rrect(bx, by, bw, bh, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        const char *wd = TL[padtool]; int nl = 0; while (wd[nl]) nl++;   // stack the word one letter per row
+        const char *wd = TL[padtool]; int nl = 0; while (wd[nl]) nl++;
         font(FONT_TINY);
-        int ch = 6, ty = by + (bh - nl * ch) / 2;                    // 5px glyph + 1px lead, vertically centred
-        for (int i = 0; i < nl; i++) { char s[2] = { wd[i], 0 }; print(s, bx + (bw - text_width(s)) / 2 + 1, ty + i * ch, CLR_WHITE); }
+        int ch = 6, ty = by + (bh - nl * ch) / 2;
+        for (int i = 0; i < nl; i++) { char s[2] = { wd[i], 0 }; print(s, bx + (bw - text_width(s)) / 2, ty + i * ch, CLR_WHITE); }
     }
 
-    // ⑤ the HITS — picked voice's 16 steps at the bottom; amber, white downbeat accents.
-    // KIT: paint on/off. FLAG: ACC toggles accent · PROB vertical-slides the chance
-    // (short bar) · STRK cycles none→flam→drag→ratchet (cyan pips mark the type).
+    // ⑤ the HITS — picked voice's 16 steps, spread across the width; amber, white downbeat accents.
+    int hby = (int)hits.y, hbh = (int)hits.h; float hsw = hits.w / (float)STEPS;
     for (int s = 0; s < STEPS; s++) {
-        int x = 6 + s * 9, here = (s == step && playing);
-        void *ws = ui_wid_hash(0xA0u + s, x, 81, 8, 16);
-        ui_reg(ws, x, 81, 8, 16, 0);
+        int x = (int)(hits.x + s * hsw), bw = (int)hsw - 1, here = (s == step && playing); if (bw < 4) bw = 4;
+        void *ws = ui_wid_hash(0xA0u + s, x, hby, bw, hbh); ui_reg(ws, x, hby, bw, hbh, 0);
         UiCap *c = ui_cap_for(ws);
         if (c) {
             g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-            int fx = c->released ? c->rx : c->cx, cell = (fx - 6) / 9;
+            int fx = c->released ? c->rx : c->cx, cell = (int)((fx - hits.x) / hsw);
             if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
             if (dscreen != DS_FLAG) {                        // VCE/KIT — paint on/off
                 if (ui_grabbed(ws)) { paint_val = !d9grid[d9sel][s]; if (paint_val) { tr909_fire(D909_BASE, d9sel, 1, 0, d9tune, d9decay, d9color); d9trig[d9sel] = 1; mbop = 1; } }
@@ -1238,33 +1307,34 @@ static void draw_909(void) {
             } else if (darmed == DD_ACC) {                   // FLAG/ACC — toggle accent
                 if (ui_grabbed(ws)) { paint_val = !d9acc[d9sel][s]; if (paint_val) d9grid[d9sel][s] = 1; }
                 d9acc[d9sel][cell] = paint_val; if (paint_val) d9grid[d9sel][cell] = 1;
-            } else if (darmed == DD_PROB) {                  // FLAG/PROB — vertical slide, drawn across
-                float f = clamp((94 - c->cy) / 13.0f, 0, 1);
+            } else if (darmed == DD_PROB) {                  // FLAG/PROB — vertical slide = chance, drawn across
+                float f = clamp((hby + hbh - 3 - c->cy) / (float)(hbh - 3), 0, 1);
                 d9prob[d9sel][cell] = snap_prob(f); d9grid[d9sel][cell] = 1;
             } else if (darmed == DD_STRK) {                  // FLAG/STRK — cycle the stroke, paint across
                 if (ui_grabbed(ws)) { paint_val = (d9strk[d9sel][s] + 1) % TR9_NSTROKE; d9grid[d9sel][s] = 1; }
                 d9strk[d9sel][cell] = paint_val; if (paint_val) d9grid[d9sel][cell] = 1;
             } else {                                         // FLAG/TUN|DEC|CHAR — bipolar p-lock offset, drawn across
-                d9off[darmed - DD_TUN][d9sel][cell] = clamp((89 - c->cy) / 8.0f, -1, 1); d9grid[d9sel][cell] = 1;
+                d9off[darmed - DD_TUN][d9sel][cell] = clamp((hby + hbh / 2 - c->cy) / (float)(hbh / 2), -1, 1); d9grid[d9sel][cell] = 1;
             }
         }
         int on2 = d9grid[d9sel][s], locklens = (dscreen == DS_FLAG && darmed >= DD_TUN);
         int lp = locklens ? darmed - DD_TUN : 0;
-        rrectfill(x, 81, 8, 16, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
+        rrectfill(x, hby, bw, hbh, 1, (here && !on2) ? CLR_DARKER_GREY : CLR_DARKER_PURPLE);
         if (on2 && locklens) {                               // LOCK lens — bipolar bar from centre
-            int cy = 89, op = (int)(d9off[lp][d9sel][s] * 7 + (d9off[lp][d9sel][s] >= 0 ? 0.5f : -0.5f));
-            line(x, cy, x + 7, cy, CLR_DARKER_GREY);
+            int cy = hby + hbh / 2, mx = hbh / 2 - 1; if (mx < 1) mx = 1;
+            int op = (int)(d9off[lp][d9sel][s] * mx + (d9off[lp][d9sel][s] >= 0 ? 0.5f : -0.5f));
+            line(x, cy, x + bw - 1, cy, CLR_DARKER_GREY);
             int col = here ? CLR_WHITE : op ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN;
-            if (op > 0)      rrectfill(x, cy - op, 8, op, 1, col);
-            else if (op < 0) rrectfill(x, cy + 1, 8, -op, 1, col);
-            else             rectfill(x + 2, cy, 4, 1, col);
+            if (op > 0)      rrectfill(x, cy - op, bw, op, 1, col);
+            else if (op < 0) rrectfill(x, cy + 1, bw, -op, 1, col);
+            else             rectfill(x + bw / 3, cy, bw / 3 < 1 ? 1 : bw / 3, 1, col);
         } else if (on2) {
-            int pr = d9prob[d9sel][s] > 0 ? d9prob[d9sel][s] : 100, fh = 16 * pr / 100; if (fh < 3) fh = 3;
-            rrectfill(x, 81 + 16 - fh, 8, fh, 1, here ? CLR_WHITE : (s % 4 == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE));
-            if (d9acc[d9sel][s]) rectfill(x + 1, 78, 6, 2, CLR_RED);                                          // accent marker in the gap above
-            for (int k = 0; k < d9strk[d9sel][s]; k++) pset(x + 2 + k * 2, 83, CLR_TRUE_BLUE);                // stroke pips
+            int pr = d9prob[d9sel][s] > 0 ? d9prob[d9sel][s] : 100, fh = hbh * pr / 100; if (fh < 3) fh = 3;
+            rrectfill(x, hby + hbh - fh, bw, fh, 1, here ? CLR_WHITE : (s % 4 == 0 ? CLR_LIGHT_YELLOW : CLR_ORANGE));
+            if (d9acc[d9sel][s]) rectfill(x + 1, hby - 3, bw - 2 < 1 ? 1 : bw - 2, 2, CLR_RED);               // accent marker above
+            for (int k = 0; k < d9strk[d9sel][s]; k++) pset(x + 2 + k * 2, hby + 2, CLR_TRUE_BLUE);           // stroke pips
         }
-        rrect(x, 81, 8, 16, 1, CLR_BROWNISH_BLACK);
+        rrect(x, hby, bw, hbh, 1, CLR_BROWNISH_BLACK);
     }
 }
 
@@ -1278,153 +1348,121 @@ static int machine_active(int m) {
     if (m == M_909) { for (int v = 0; v < TR9_NV; v++) if (d9grid[v][step]) return 1; return 0; }
     return 0;
 }
-static void draw_mst(void) {
+static void draw_mst(Box stage) {
     static const char *MLAB[4] = { "303a", "303b", "808", "909" };
     static const char *DL[4]   = { "1/16", "1/8", "DOT", "1/4" };
+    // LANDSCAPE reflow (canvas-density-spectrum.md): design-proportion bands, spread to fill.
+    float H = stage.h, W = stage.w;
+    Box body   = lay_inset(stage, 2);
+    Box volrow = lay_split(body, EDGE_TOP,    H * 0.07f, &body);   // ①b per-machine vol sliders
+    Box krow   = lay_split(body, EDGE_TOP,    H * 0.20f, &body);   // ② master knobs
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.34f, &body);   // ④b delay · ⑤ send · ⑥ dub
+    Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys
+    Box gutter = lay_split(body, EDGE_RIGHT,  W * 0.10f, &body);   // ④ SWG/TEMPO
+    Box lcd    = body;                                             // the hero glass
 
-    // ①b per-machine VOLUME — tiny sliders right under the nav tabs (MST face only), each
-    // beneath its OWN cartridge so a machine's level sits under its button. Drag L/R; the
-    // fill = level, tinted the machine's colour (grey when the tab is muted).
+    // ①b per-machine VOLUME sliders — drag L/R; fill = level, machine-tinted, grey when muted
     for (int m = 0; m < 4; m++) {
-        int sx = 19 + m * 25, sw = 23;
-        void *w = ui_wid_hash(0xF0u + m, sx, 10, sw, 6); ui_reg(w, sx, 10, sw, 6, 0);
-        UiCap *c = ui_cap_for(w);
-        if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-                 int fxp = c->released ? c->rx : c->cx; level[m] = clamp((fxp - sx) / (float)(sw - 1), 0, 1); }
-        rrectfill(sx, 11, sw, 4, 1, CLR_BROWNISH_BLACK);   // top edge butts the nav panel (ends y11) → touches the tabs
+        Box c = lay_grid(volrow, 4, 4, m, 2);
+        int sx = (int)c.x, sy = (int)c.y, sw = (int)c.w, sh = (int)c.h; if (sh < 3) sh = 3;
+        void *w = ui_wid_hash(0xF0u + m, sx, sy, sw, sh); ui_reg(w, sx, sy, sw, sh, 0);
+        UiCap *cc = ui_cap_for(w);
+        if (cc) { g_drag_frame = ui_frame_ct; g_drag_y = cc->cy;
+                  int fxp = cc->released ? cc->rx : cc->cx; level[m] = clamp((fxp - sx) / (float)(sw - 1), 0, 1); }
+        rrectfill(sx, sy, sw, sh, 1, CLR_BROWNISH_BLACK);
         int lw = (int)(level[m] * (sw - 2) + 0.5f);
-        if (lw > 0) rectfill(sx + 1, 12, lw, 2, mac[m].mute ? CLR_DARKER_GREY : mac[m].col);
+        if (lw > 0) rectfill(sx + 1, sy + 1, lw, sh - 2, mac[m].mute ? CLR_DARKER_GREY : mac[m].col);
     }
 
-    // ② master live knobs (nudged down 2px to clear the volume-slider row above). SWG moved
-    // to the right-gutter pair with TEMPO (below) — these 5 re-spread to fill the row.
-    knob(&mglu,    18, 24, 6, "GLU",  0.30f);
-    knob(&mflt,    49, 24, 6, "FLT",  0.50f);
-    knob(&mfres,   80, 24, 6, "RES",  0.35f);
-    knob(&mfb,    111, 24, 6, "FB",   0.35f);
-    knob(&mpump,  142, 24, 6, "PUMP", 0.0f);
+    // ② master live knobs — GLU/FLT/RES/FB/PUMP, spread across the row
+    knob_cell(lay_grid(krow, 5, 5, 0, 2), &mglu,  "GLU",  0.30f);
+    knob_cell(lay_grid(krow, 5, 5, 1, 2), &mflt,  "FLT",  0.50f);
+    knob_cell(lay_grid(krow, 5, 5, 2, 2), &mfres, "RES",  0.35f);
+    knob_cell(lay_grid(krow, 5, 5, 3, 2), &mfb,   "FB",   0.35f);
+    knob_cell(lay_grid(krow, 5, 5, 4, 2), &mpump, "PUMP", 0.0f);
 
-    // ③ screen — soft-keys: MIX meters + three drawable master-automation lanes (h7 so all 4 fit)
-    if (cbtn(0x20u, 6, 38, 16, 7, "MIX", mstflow == 0)) mstflow = 0;
-    if (cbtn(0x21u, 6, 45, 16, 7, "PCF", mstflow == 1)) mstflow = 1;   // drawable master FILTER lane (tone)
-    if (cbtn(0x22u, 6, 52, 16, 7, "CRU", mstflow == 2)) mstflow = 2;   // drawable master BITCRUSH lane (texture)
-    if (cbtn(0x23u, 6, 59, 16, 7, "GAT", mstflow == 3)) mstflow = 3;   // drawable master GATE lane (rhythm/chop)
-    // (the LIN/PWR pan-LAW chip was an A/B experiment — stereo works, so it's gone.)
-    // DELAY + TEMPO moved to knobs in the right gutter (below), which freed the bottom row so
-    // the LCD grows to h30 — the same size as the 303/808/909 faces.
-    rrectfill(24, 37, 112, 30, 3, CLR_BROWNISH_BLACK);
-    rrectfill(27, 39, 106, 26, 2, CLR_DARK_GREEN);
-    blend(BLEND_AVG); for (int y = 40; y < 64; y += 2) line(27, y, 132, y, CLR_BROWNISH_BLACK); blend_reset();
+    // ③ soft-keys — MIX meters + PCF/CRUSH/GATE drawable master lanes
+    { static const char *L[4] = { "MIX", "PCF", "CRU", "GAT" };
+      for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
+          if (cbtn(0x20u + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == k)) mstflow = k; } }
+    rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(lcd, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    blend(BLEND_AVG); for (int y = (int)glass.y + 1; y < glass.y + glass.h - 1; y += 2) line((int)glass.x, y, (int)(glass.x + glass.w - 1), y, CLR_BROWNISH_BLACK); blend_reset();
+    Box gc = lay_inset(glass, 2);
     font(FONT_TINY);
     if (mstflow == 0) {
         // MIX — the 4 channel LEVEL faders (drag up/down). Fill = level; bright green when the
-        // channel fires, dim grey when muted (mute lives on the tabs). This is the ONE place the
-        // per-machine levels live now — the instrument faces stay uncluttered.
+        // channel fires, dim grey when muted. The ONE place per-machine levels live.
+        float fsw = gc.w / 4.0f; int fy = (int)gc.y, fh = (int)gc.h;
         for (int m = 0; m < 4; m++) {
-            int cw = 26, cx = 29 + m * cw, fy = 40, fh = 22, fw = cw - 6;   // taller: fills the grown glass
+            int cx = (int)(gc.x + m * fsw), fw = (int)fsw - 3; if (fw < 4) fw = 4;
             int muted = mac[m].mute, act = machine_active(m);
-            void *w = ui_wid_hash(0xD0u + m, cx, fy, fw, fh);
-            ui_reg(w, cx, fy, fw, fh, 0);
+            void *w = ui_wid_hash(0xD0u + m, cx, fy, fw, fh); ui_reg(w, cx, fy, fw, fh, 0);
             UiCap *c = ui_cap_for(w);
-            if (c) {
-                g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-                int fyv = c->released ? c->ry : c->cy;
-                level[m] = clamp((fy + fh - 1 - fyv) / (float)(fh - 1), 0, 1);
-            }
+            if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; int fyv = c->released ? c->ry : c->cy; level[m] = clamp((fy + fh - 1 - fyv) / (float)(fh - 1), 0, 1); }
             int lv = (int)(level[m] * (fh - 2) + 0.5f);
-            rectfill(cx, fy, fw, fh, CLR_BROWNISH_BLACK);                         // track
+            rectfill(cx, fy, fw, fh, CLR_BROWNISH_BLACK);
             int col = muted ? CLR_DARKER_GREY : act ? CLR_LIME_GREEN : mac[m].col;
-            if (lv > 0) rectfill(cx + 1, fy + fh - 1 - lv, fw - 2, lv, col);      // fill up from the bottom
+            if (lv > 0) rectfill(cx + 1, fy + fh - 1 - lv, fw - 2, lv, col);
             print(MLAB[m], cx + (fw - text_width(MLAB[m])) / 2, fy + fh - 6, CLR_LIGHT_YELLOW);
         }
-    } else if (mstflow == 1) {
-        // PCF — a DRAWABLE filter lane: drag to shape the master cutoff across the 16 steps
-        int lx0 = 30, lw = 6, ly = 40, lh = 22;   // taller: fills the grown glass
+    } else {
+        // PCF / CRUSH / GATE — a drawable 16-step master lane (mstflow 1/2/3), spread across the glass.
+        // PCF = tone (green), CRUSH = texture (orange), GATE = chop (pink); full bar = no effect.
+        int *lane = (mstflow == 1) ? mpcf : (mstflow == 2) ? mcrush : mgate;
+        unsigned seed = (mstflow == 1) ? 0xC0u : (mstflow == 2) ? 0xE0u : 0xA0u;
+        float lsw = gc.w / (float)STEPS; int ly = (int)gc.y, lh = (int)gc.h;
         for (int s = 0; s < STEPS; s++) {
-            int cx = lx0 + s * lw;
-            void *w = ui_wid_hash(0xC0u + s, cx, ly, lw, lh);
-            ui_reg(w, cx, ly, lw, lh, 0);
+            int cx = (int)(gc.x + s * lsw), lw = (int)lsw - 1; if (lw < 2) lw = 2;
+            void *w = ui_wid_hash(seed + s, cx, ly, lw, lh); ui_reg(w, cx, ly, lw, lh, 0);
             UiCap *c = ui_cap_for(w);
             if (c) {                                         // the captured cell tracks the finger → draw the curve
                 g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
                 int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
-                int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-                mpcf[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
+                int cell = (int)((fx - gc.x) / lsw); if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
+                lane[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
             }
-            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw - 1, lh, CLR_MEDIUM_GREEN); blend_reset(); }
-            int fh = lh * mpcf[s] / 7;
-            rectfill(cx, ly + lh - fh, lw - 1, fh, mpcf[s] < 7 ? CLR_LIME_GREEN : CLR_DARK_GREEN);
-        }
-    } else if (mstflow == 2) {
-        // CRUSH — a DRAWABLE bitcrush lane (PCF's texture twin): draw grit across the 16 steps.
-        // 0 = clean (empty bar); up = crunchier. Orange bars, so it reads distinct from PCF's green.
-        int lx0 = 30, lw = 6, ly = 40, lh = 22;
-        for (int s = 0; s < STEPS; s++) {
-            int cx = lx0 + s * lw;
-            void *w = ui_wid_hash(0xE0u + s, cx, ly, lw, lh);
-            ui_reg(w, cx, ly, lw, lh, 0);
-            UiCap *c = ui_cap_for(w);
-            if (c) {                                         // captured cell tracks the finger → draw the pattern
-                g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-                int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
-                int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-                mcrush[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
+            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw, lh, CLR_MEDIUM_GREEN); blend_reset(); }
+            int fh = lh * lane[s] / 7;
+            if (mstflow == 2) {                              // CRUSH — orange; floor tick when clean
+                if (fh > 0) rectfill(cx, ly + lh - fh, lw, fh, CLR_ORANGE);
+                else        pset(cx, ly + lh - 1, CLR_DARK_BROWN);
+            } else {                                         // PCF green · GATE pink
+                int col = (mstflow == 1) ? (lane[s] < 7 ? CLR_LIME_GREEN : CLR_DARK_GREEN)
+                                         : (lane[s] < 7 ? CLR_PINK : CLR_DARK_BROWN);
+                rectfill(cx, ly + lh - fh, lw, fh, col);
             }
-            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw - 1, lh, CLR_MEDIUM_GREEN); blend_reset(); }
-            int fh = lh * mcrush[s] / 7;
-            if (fh > 0) rectfill(cx, ly + lh - fh, lw - 1, fh, CLR_ORANGE);
-            else        pset(cx, ly + lh - 1, CLR_DARK_BROWN);   // a floor tick so empty steps read as "clean", not missing
-        }
-    } else if (mstflow == 3) {
-        // GATE — a DRAWABLE chop lane (PCF's rhythm twin): tall = open, drawn DOWN = the step
-        // cuts. Pink bars, so all three lanes read distinct (PCF green · CRUSH orange · GATE pink).
-        int lx0 = 30, lw = 6, ly = 40, lh = 22;
-        for (int s = 0; s < STEPS; s++) {
-            int cx = lx0 + s * lw;
-            void *w = ui_wid_hash(0xA0u + s, cx, ly, lw, lh);
-            ui_reg(w, cx, ly, lw, lh, 0);
-            UiCap *c = ui_cap_for(w);
-            if (c) {                                         // captured cell tracks the finger → draw the pattern
-                g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-                int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
-                int cell = (fx - lx0) / lw; if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
-                mgate[cell] = (int)(clamp((ly + lh - 1 - fy) / (float)(lh - 1), 0, 1) * 7 + 0.5f);
-            }
-            if (s == step && playing) { blend(BLEND_AVG); rectfill(cx, ly, lw - 1, lh, CLR_MEDIUM_GREEN); blend_reset(); }
-            int fh = lh * mgate[s] / 7;
-            rectfill(cx, ly + lh - fh, lw - 1, fh, mgate[s] < 7 ? CLR_PINK : CLR_DARK_BROWN);
         }
     }
 
-    // ④ SWING (top) + TEMPO (bottom) — a matching pair of gutter knobs, same size, to the right
-    // of the LCD. SWG = the rack-wide shuffle (moved here from the top row); TEMPO maps 0..1 →
-    // 60..200 (gknob shows the live BPM number). Moving these off the full-width rows grew the LCD.
-    knob(&g_swing, 147, 45, 5, "SWG", 0.0f);
+    // ④ SWG (top) + TEMPO (bottom) — matching gutter knobs to the right of the LCD.
+    knob_cell(lay_grid(gutter, 1, 2, 0, 2), &g_swing, "SWG", 0.0f);
     g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                       // sync tempo from the proxy (rounded → no per-frame fx re-apply)
-    {   char b[4]; int bi = (int)g_bpm, ni = 0;
+    {   Box tc = lay_grid(gutter, 1, 2, 1, 2);
+        char b[4]; int bi = (int)g_bpm, ni = 0;
         if (bi >= 100) b[ni++] = '0' + bi / 100;
         b[ni++] = '0' + (bi / 10) % 10; b[ni++] = '0' + bi % 10; b[ni] = 0;
-        gknob(&bpm01, 147, 62, 5, b);   // nudged down for a bit more space under SWG
+        int r = (int)lay_clamp(tc.h * 0.30f, 4, 10);
+        gknob(&bpm01, (int)(tc.x + tc.w / 2), (int)(tc.y + r + 1), r, b);   // gknob shows the live BPM
     }
     g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);
 
-    // ④b DELAY division — small buttons UNDER the grown LCD (in the band before SEND); the maker
-    // preferred these to a knob. They set mdiv directly (label = the division).
-    font(FONT_TINY); print("DELAY", 6, 70, CLR_DARK_BROWN);
-    for (int i = 0; i < 4; i++)
-        if (cbtn(0x04u + i, 30 + i * 24, 68, 22, 9, DL[i], mdiv == i)) mdiv = i;
-
+    // the bottom band: DELAY buttons (top) · SEND knobs (below) · DUB pad (right corner)
+    Box delrow = lay_split(bottom, EDGE_TOP,    bottom.h * 0.42f, &bottom);
+    Box dub    = lay_split(bottom, EDGE_RIGHT,  W * 0.22f, &bottom);
+    Box sendrow = bottom;
+    // ④b DELAY division buttons (set mdiv directly; label = the division)
+    { Box lbl = lay_split(delrow, EDGE_LEFT, W * 0.11f, &delrow);
+      font(FONT_TINY); plabel("DLY", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
+      for (int i = 0; i < 4; i++) { Box c = lay_grid(delrow, 4, 4, i, 2);
+          if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; } }
     // ⑤ per-machine delay SEND
-    print("SEND", 6, 79, CLR_DARK_BROWN);   // knobs pulled in to align under the DELAY buttons (cx 41/65/89/113) → frees the right corner (x120-156, y79-90)
-    knob(&msend[0],  41, 84, 5, MLAB[0], 0.10f);
-    knob(&msend[1],  65, 84, 5, MLAB[1], 0.10f);
-    knob(&msend[2],  89, 84, 5, MLAB[2], 0.0f);
-    knob(&msend[3], 113, 84, 5, MLAB[3], 0.0f);
-
-    // ⑥ DUB PAD — the free bottom-right corner. HOLD + drag: X = delay TIME (short→long,
-    // pitch-sliding echoes), Y = FEEDBACK (up = runaway). Momentary — overrides the delay
-    // while held (apply_fx), snaps back to the DIVISION buttons + FB knob on release.
-    {   int px = 123, py = 80, pw = 32, ph = 13;
+    { Box lbl = lay_split(sendrow, EDGE_LEFT, W * 0.11f, &sendrow);
+      font(FONT_TINY); plabel("SND", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
+      for (int m = 0; m < 4; m++) knob_cell(lay_grid(sendrow, 4, 4, m, 2), &msend[m], MLAB[m], m < 2 ? 0.10f : 0.0f); }
+    // ⑥ DUB PAD — HOLD + drag: X = delay TIME, Y = FEEDBACK. Momentary (apply_fx overrides while held).
+    {   int px = (int)dub.x + 1, py = (int)dub.y, pw = (int)dub.w - 2, ph = (int)dub.h; if (pw < 6) pw = 6;
         void *w = ui_wid_hash(0x28u, px, py, pw, ph); ui_reg(w, px, py, pw, ph, 0);
         UiCap *c = ui_cap_for(w);
         if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
@@ -1596,19 +1634,50 @@ void draw(void) {
         pf_half[i]  = pf_latch[PL_HALF][i];  pf_dbl[i]   = pf_latch[PL_DBL][i];  pf_acc[i] = pf_latch[PL_ACC][i];
         pf_stac[i]  = pf_latch[PL_STAC][i];  pf_glide[i] = pf_latch[PL_GLIDE][i];
     }
+    // CHUNKY CANVAS (the "scale up the 160×100, then spread the leftover offset" model): match the
+    // DEVICE ratio at the DESIGN's pixel density — keep the fitting axis at the design value (crisp,
+    // chunky, blit-like), extend the other axis just enough to match the screen ratio, and let the
+    // reflow spread the design into that leftover instead of leaving bars. de_resize is cart-drivable
+    // (studio.c). The ratio is invariant under our own resize, so the target is a fixed point (stable).
+    { int cw = screen_w(), ch = screen_h();
+      if (cw > 0 && ch > 0) {
+          float r = (float)cw / (float)ch;
+          int tw, th;
+          if (r >= 1.6f) { th = 100; tw = (int)(100.0f * r + 0.5f); }   // wider than 16:10 → keep height, extend width
+          else           { tw = 160; th = (int)(160.0f / r + 0.5f); }   // taller → keep width, extend height
+          if (tw != cw || th != ch) de_resize(tw, th);                  // request the chunky canvas (no-op once at the fixed point)
+      } }
+
     dub_held = 0;                              // the DUB pad re-asserts it each frame it's held (draw_mst); else the delay is normal
-    cls(CLR_DARK_PURPLE);
-    rrectfill(0, 0, 160, 100, 7, CLR_INDIGO);
-    rrectfill(3, 2, 154, 96, 5, CLR_LIGHT_PEACH);                     // 2px purple bezel top & bottom
-    blend(BLEND_AVG); line(7, 2, 152, 2, CLR_WHITE); blend_reset();
+    cls(CLR_DARK_PURPLE);                       // the candy shell — BLEEDS to every screen edge (fills margins, no black bars)
+
+    // device-adaptive frame: the chassis fills the safe area (notch/home-bar dodged on device,
+    // whole canvas on desktop), then LANDSCAPE reflow — one focused face spread to fill. See
+    // device-adaptive-layout.md; acidwire is the layout reference. (808/909/MST interiors still
+    // author at 160×100 — being reflowed next; the 303 is the first re-landed face.)
+    int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh);
+    Box shell = box(sx, sy, sw, sh);
+    rrectfill((int)shell.x, (int)shell.y, (int)shell.w, (int)shell.h, 7, CLR_INDIGO);
+    Box panel = lay_inset(shell, 3);
+    rrectfill((int)panel.x, (int)panel.y, (int)panel.w, (int)panel.h, 5, CLR_LIGHT_PEACH);
+    blend(BLEND_AVG); line((int)panel.x + 4, (int)panel.y, (int)(panel.x + panel.w - 4), (int)panel.y, CLR_WHITE); blend_reset();
+
     ui_begin();
     font(FONT_SMALL);
 
-    navspine();
-    if (mac[face].kind == MK_303) draw_303(face);
-    else if (face == M_808)       draw_808();
-    else if (face == M_909)       draw_909();
-    else                          draw_mst();   // M_MST
+    Box stage;
+    Box nav = lay_split(panel, EDGE_TOP, panel.h * 0.12f, &stage);   // nav strip ≈ design 12/100
+    navspine(nav);
+    // ARRANGEMENT SEAM (canvas-density-spectrum.md axis 2): today every class draws ONE focused face
+    // (the phone version — scaled + spread by the chunky canvas above; also fine on iPad as a big
+    // focused face). iPad-READY HOOK: when ROOMY, branch here to a future draw_all_rows(stage) that
+    // composes the four machines in rows. Every face already draws into a passed Box, so that tablet
+    // layout is a clean ADD, not a rewrite. (device_class(): 0 TALL · 1 WIDE · 2 ROOMY.)
+    // if (device_class() == 2) { draw_all_rows(stage); return_from_faces; }   // ← iPad ROOMY (design pending)
+    if (mac[face].kind == MK_303) draw_303(stage, face);
+    else if (face == M_808)       draw_808(stage);
+    else if (face == M_909)       draw_909(stage);
+    else                          draw_mst(stage);   // M_MST
 
     font(FONT_NORMAL);
     ui_end();

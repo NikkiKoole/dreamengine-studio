@@ -686,6 +686,20 @@
     "lineage": "Boutique-pedals roadmap; models tube-amp hiss + 50/60 Hz mains hum as an opt-in rig noise floor, paired with a visual 12AX7 tube-amp face."
   },
   {
+    "title": "aqua-puss analog delay",
+    "description": "The Way Huge Aqua-Puss as a playable stompbox — a clean jangly guitar strummed straight through an in-line analog delay. Three knobs, exactly like the real MN3005 pedal: DELAY (20..300ms, the pedal's real short range — slapback at the low end, tight rhythmic echo at the top), FEEDBACK (repeat count; past the RED mark >1.0 the loop self-oscillates into a saturated space-warp howl, not a blow-up — the Aqua-Puss's famous runaway, and a tanh in the feedback loop bounds it like a real BBD), and BLEND (dry/wet mix). What makes it sound analog and not digital: every repeat passes once through a one-pole lowpass INSIDE the feedback loop, and the read tap is fractional + slews — so twist DELAY while a tail rings and the repeats PITCH-BEND like varying tape speed. The Aqua-Puss is famous for BRIGHT, jangly repeats (not the usual dark analog mush), so the loop tone is fixed high. Stomp the FOOTSWITCH (SPACE or tap) to bypass. Keys ZXCVBNM,./ + SDGHJL; play the guitar, R toggles an auto-riff so you hear the repeats immediately, UP/DOWN octave, knobs drag or wheel, H help.",
+    "file": "aquapuss.cart.png",
+    "created": "2026-07-19",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "analog-voice-modeling"
+    ],
+    "lineage": "Sibling of spacecho (RE-201): both play THE tape-delay DSP as the instrument, but this one uses the IN-LINE pedal echo_insert() instead of the echo() send bus — an honest stompbox in the master fx_order chain, not a parallel send.",
+    "homage": "Way Huge Aqua-Puss (MN3005 bucket-brigade analog delay pedal)"
+  },
+  {
     "title": "arcs",
     "description": "A tour of the arc primitives — arc (part of a circle's rim), arcfill (a filled pie wedge / sector), and ring (a thick radial band). Angles are degrees, 0=right and 90=down like dx/dy. Shows a pie chart, an animated radial cooldown that sweeps and counts %, a chomping pacman, a needle gauge, a fillp-dithered half-dome (fills honor the dither pattern), and a little rainbow of concentric rim arcs. No controls — it just animates.",
     "file": "arcs.cart.png",
@@ -1295,6 +1309,20 @@
     ],
     "lineage": "Full legal chess (castling, en passant, promotion) with a depth-3 negamax CPU opponent; no chess cart existed before — the move-gen + make/unmake + alpha-beta loop is the conceptual contribution.",
     "genre": "tabletop"
+  },
+  {
+    "title": "Tiny Chip Jam (mockup)",
+    "description": "WIP chiptune RACK on the acidcandy device-face — a 'Tiny Chip Jam' sibling at 160x100 x4. THREE-PART layout: candy KNOBS on top, a green SCREEN in the middle, a colour PLAY surface below. Five machines (keys 1-5): PU1 is WIRED FOR REAL — a monophonic INSTR_SQUARE pulse voice, retriggered per 16th, with LIVE note_duty and a working ARPEGGIO on the arp steps (draggable DUTY/ATK/DEC/ARP/SWP knobs). PU2/TRI/NSE/MST are still LOOK mockups. PU1 audio: one held voice (note_on handle), retriggered each step; note_duty ridden live from the DUTY knob (maps to pulse width); ARP steps cycle a major chord {0,4,7,12} on the held voice via note_pitch at ARP-knob rate; SWP glides the pitch into the note; ATK/DEC rebuild the square instrument's envelope on change. The bet: a chiptune pulse channel IS a 303 line in UX, so PU1/PU2/TRI share the melodic face; NSE is the drum face; MST is master. Auto-plays on load; SPACE toggles transport. SPACE = play/stop. Keys 1-5 switch face. PU1: drag DUTY (pulse width), ATK/DEC (envelope), ARP (arp speed), SWP (pitch sweep) — vertical drag or wheel. Other faces are draw-only for now.",
+    "file": "chipjam.cart.png",
+    "created": "2026-07-19",
+    "kind": [
+      "instrument",
+      "generative"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
   },
   {
     "title": "Chordblossom",
@@ -2061,6 +2089,20 @@
       "drum-synthesis"
     ],
     "lineage": "Jam station fusing three shipped chassis — euclid rhythm, a turing shift-register melody driving an LPG voice, and a dubsiren — over one clock; novel: the siren's throw rides a MASTER echo so it dubs the whole mix, and one pattern brain drives drums and melody together."
+  },
+  {
+    "title": "Tiny Dub Jam (mockup)",
+    "description": "LOOK MOCKUP (draw-only, no sound yet) for a DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, in a darker/dubbier palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN (the grenadier triple-resonant filterbank drone — the HERO; knobs BASE/SPACE/Q/MORPH, the live filter-response strip on the screen, and a big ALPHA/BETA XY SWEEP pad as the play surface), SUB (deep sub bass), DRM (spacious kick/rim/hat kit), MST (the dub master: delay + feedback + reverb, with a DUB throw pad). Static vibe mockup to iterate the LOOK before the functional cart — the XY dot drifts and the three filter peaks move with it. The rack idea: the grenadier is a SUSTAIN/drone voice, so it floats over a rhythmic foundation (sub + spacious kit) with the MST delay/reverb as a playable instrument (dub techno = the mix is the instrument). The grenadier voice already exists in grenadier.c (three held voices, each through a resonant filter, swept in ALPHA/BETA). Companion band chosen for a drone hero, not more acid. Mockup — keys 1/2/3/4 switch machine face (GREN/SUB/DRM/MST). Nothing wired yet.",
+    "file": "dubjam.cart.png",
+    "created": "2026-07-19",
+    "kind": [
+      "instrument",
+      "generative"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
   },
   {
     "title": "Dub Siren",
@@ -4162,6 +4204,20 @@
       "scale-quantize"
     ],
     "lineage": "A stripped sibling of drummachine and One Note: the same 16-step paintable grid, but the bass lane opens into five scale-locked rows so a monophonic bassline can walk a pentatonic pocket without leaving the on/off sequencer idiom."
+  },
+  {
+    "title": "Morphbox",
+    "description": "A three-voice drum synth where every drum is a MORPH, not a preset: focus KICK, SNARE or HAT and it fills two rows of ~10 knobs — CHARACTER slides the 808↔909 voicing while TUNE/DEC/PUNCH/DRIVE/CUT/SUB… carve the sound well past both machines. A 3-row step grid plays itself; real summed-bus PUMP off the kick. The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick. Tap/drag grid cells to paint steps (each finger paints). Tap a voice NAME to focus it, then drag the top knobs (vertical = value, double-tap = reset). Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right.",
+    "file": "morphbox.cart.png",
+    "created": "2026-07-19",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "step-sequencer"
+    ],
+    "lineage": "The groovebox transport (self-playing grid + summed-bus sidechain pump) crossed with a NEW honest core: runtime/morphdrum.h, where each of three drum voices is ONE parametric synth and the 808/909 are just two points in it — a CHARACTER knob morphs the 808↔909 STRUCTURE while a deep panel of absolute knobs shapes the sound past both machines (electro→rock). Complements acidcandy (which keeps 808/909 as separate faces); this is the continuum, exposed as knobs."
   },
   {
     "title": "motionbox",

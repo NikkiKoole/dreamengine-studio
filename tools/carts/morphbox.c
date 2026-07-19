@@ -30,12 +30,35 @@ de:meta */
 #define ROWS  MD_NV      // 3 voices
 #define STEPS 16
 
-#define GX 20            // grid left edge (name column is 1..GX-2)
-#define GY 61            // grid top
-#define SX 8             // column stride
-#define SY 12            // row stride
-#define CW 7             // cell size
-#define CH 10
+// LAYOUT REFLOWS with the canvas (device-adaptive-layout.md): the cart is `resizable`, so it
+// reads screen_w()/screen_h() and picks a COMPACT layout (≤ ~200px wide → the 160x100 pocket
+// face) or a ROOMY one (→ 320x200, bigger font + breathing room for text). Same structure both
+// ways. All geometry lives in these globals, recomputed each frame by layout() — never fixed
+// #defines, so touch coords (raw canvas px) always match what's drawn (no camera scale — that
+// would desync ui.h; see CLAUDE.md).
+static bool roomy;
+static int  gx, gy, sx, sy, cw, ch;    // grid: left/top, column/row stride, cell w/h
+static int  padx, pady, padw, padh;    // the MORPH PAD rect
+static int  kx[5], ky1, ky2;           // knob columns (4 voice + 1 global) + the two row centres
+static int  hfont;                     // font for header / voice names / pad labels
+
+static void layout(void) {
+    int w = screen_w();
+    roomy = (w >= 240);
+    if (roomy) {                       // 320x200 — roomy, FONT_NORMAL text
+        hfont = FONT_NORMAL;
+        padx = 6; pady = 30; padw = 84; padh = 84;
+        kx[0] = 116; kx[1] = 158; kx[2] = 200; kx[3] = 242; kx[4] = 300;
+        ky1 = 52; ky2 = 98;
+        gx = 40; gy = 128; sx = 17; sy = 22; cw = 15; ch = 20;
+    } else {                           // 160x100 — compact pocket face, FONT_SMALL
+        hfont = FONT_SMALL;
+        padx = 3; pady = 14; padw = 42; padh = 40;
+        kx[0] = 56; kx[1] = 78; kx[2] = 100; kx[3] = 122; kx[4] = 144;
+        ky1 = 21; ky2 = 43;
+        gx = 20; gy = 61; sx = 8; sy = 12; cw = 7; ch = 10;
+    }
+}
 
 static MorphKit kit;
 static bool grid[ROWS][STEPS];
@@ -49,16 +72,6 @@ static const char *PRESET[ROWS] = {
     "....x.......x...",   // SNARE — backbeat
     "..x.x.x.x.x.x.x.",   // HAT — running off-beats
 };
-
-// the MORPH PAD (left): CHAR × TUNE of the focused voice, with the 808/909 landmarks
-#define PADX 3
-#define PADY 14
-#define PADW 42
-#define PADH 40
-// knob columns to the RIGHT of the pad: four voice knobs + one global (col 4)
-static const int KX[5] = { 56, 78, 100, 122, 144 };
-#define KY1 21           // knob row 1 centre
-#define KY2 43           // knob row 2 centre
 
 static int  focus    = 0;        // which voice the top knob rows edit
 static int  cur_step = 0;
@@ -91,14 +104,15 @@ void init(void) {
 }
 
 static int cell_rc(int x, int y, int *r, int *c) {
-    if (x < GX || y < GY) return 0;
-    int cc = (x - GX) / SX, rr = (y - GY) / SY;
+    if (x < gx || y < gy) return 0;
+    int cc = (x - gx) / sx, rr = (y - gy) / sy;
     if (cc < 0 || cc >= STEPS || rr < 0 || rr >= ROWS) return 0;
-    if (x > GX + cc * SX + CW || y > GY + rr * SY + CH) return 0;
+    if (x > gx + cc * sx + cw || y > gy + rr * sy + ch) return 0;
     *r = rr; *c = cc; return 1;
 }
 
 void update(void) {
+    layout();                    // reflow to the current canvas (compact ↔ roomy)
     bpm(g_bpm);
     morph_ride(&kit);            // rebuild only the voices whose knobs moved (set-and-hold)
 #ifdef DE_TRACE
@@ -130,16 +144,16 @@ void update(void) {
     // a mouse click / quick tap has — the old down-frame-only check missed those.
     for (int i = 0; i < touch_count(); i++) {
         int tx = touch_x(i), ty = touch_y(i);
-        if (tx >= 1 && tx < GX - 2 && ty >= GY && ty < GY + ROWS * SY)
-            focus = (ty - GY) / SY;
+        if (tx >= 1 && tx < gx - 2 && ty >= gy && ty < gy + ROWS * sy)
+            focus = (ty - gy) / sy;
     }
 
     // MORPH PAD drag: a finger inside the pad sets the focused voice's CHAR (x) + TUNE (y)
     for (int i = 0; i < touch_count(); i++) {
         int tx = touch_x(i), ty = touch_y(i);
-        if (tx >= PADX && tx < PADX + PADW && ty >= PADY && ty < PADY + PADH) {
-            float cx = (float)(tx - PADX) / (PADW - 1);
-            float cy = (float)(ty - PADY) / (PADH - 1);
+        if (tx >= padx && tx < padx + padw && ty >= pady && ty < pady + padh) {
+            float cx = (float)(tx - padx) / (padw - 1);
+            float cy = (float)(ty - pady) / (padh - 1);
             kit.p[focus][MD_CHAR] = cx < 0 ? 0 : cx > 1 ? 1 : cx;
             kit.p[focus][MD_TUNE] = 1.0f - (cy < 0 ? 0 : cy > 1 ? 1 : cy);
         }
@@ -192,57 +206,66 @@ void update(void) {
 }
 
 void draw(void) {
+    layout();                    // reflow to the current canvas (compact ↔ roomy)
     cls(CLR_DARKER_GREY);
-    font(FONT_SMALL);            // 4x6 — the 160x100 face needs the compact font
     ui_begin();
+    int fh = roomy ? 8 : 6;      // header/name font cell height (FONT_NORMAL vs FONT_SMALL)
 
-    // ── header: focused voice · BPM · PLAY ──
-    print(MD_NAME[focus], 3, 2, LIT[focus]);
+    // ── header: [title ·] focused voice · BPM · PLAY ──
+    font(hfont);
+    int hx = 3;
+    if (roomy) { print("MORPHBOX", hx, 3, CLR_MEDIUM_GREY); hx = 90; }
+    print(MD_NAME[focus], hx, 3, LIT[focus]);
     char bt[16]; snprintf(bt, sizeof bt, "%d BPM", g_bpm);
-    print(bt, 40, 2, CLR_LIGHT_GREY);
-    if (ui_button(SCREEN_W - 34, 0, 32, 9, playing ? "STOP" : "PLAY")) playing = !playing;
+    print(bt, hx + (roomy ? 44 : 28), 3, CLR_LIGHT_GREY);
+    int bw = roomy ? 48 : 32, bhh = roomy ? 13 : 9;
+    if (ui_button(screen_w() - bw - 2, 1, bw, bhh, playing ? "STOP" : "PLAY")) playing = !playing;
 
     // ── the MORPH PAD (left): CHAR × TUNE of the focused voice, 808/909 landmarks ──
     {
-        int x = PADX, y = PADY, w = PADW, h = PADH;
-        float ch = kit.p[focus][MD_CHAR], tu = kit.p[focus][MD_TUNE];
-        int px = x + (int)(ch * (w - 1)), py = y + (int)((1.0f - tu) * (h - 1));
+        int x = padx, y = pady, w = padw, h = padh;
+        float chv = kit.p[focus][MD_CHAR], tu = kit.p[focus][MD_TUNE];
+        int px = x + (int)(chv * (w - 1)), py = y + (int)((1.0f - tu) * (h - 1));
         rectfill(x, y, w, h, CLR_DARKER_GREY);
         rect(x, y, w, h, CLR_MEDIUM_GREY);
         line(x + 1, py, x + w - 2, py, CLR_DARK_GREY);        // crosshair
         line(px, y + 1, px, y + h - 2, CLR_DARK_GREY);
-        print("TUNE", x + 2, y + 1, CLR_MEDIUM_GREY);          // Y axis
-        print("808", x + 2, y + h - 7, CLR_MEDIUM_GREY);       // X axis: char 0 → 808 …
-        print("909", x + w - 14, y + h - 7, CLR_MEDIUM_GREY);  // … char 1 → 909
-        circfill(px, py, 2, LIT[focus]);
-        circ(px, py, 2, CLR_WHITE);
+        font(hfont);
+        print("TUNE", x + 2, y + 1, CLR_MEDIUM_GREY);                          // Y axis
+        print("808",  x + 2, y + h - fh - 1, CLR_MEDIUM_GREY);                 // X: char 0 → 808 …
+        print("909",  x + w - text_width("909") - 2, y + h - fh - 1, CLR_MEDIUM_GREY);  // … char 1 → 909
+        int pr = roomy ? 3 : 2;
+        circfill(px, py, pr, LIT[focus]);
+        circ(px, py, pr, CLR_WHITE);
     }
 
     // ── knob rows to the right: the focused voice's 8 remaining panel knobs + SWG/PUMP ──
+    font(FONT_SMALL);            // knob labels stay compact in both modes (short words)
     const MDKnob *panel = MD_PANEL[focus];   // panel[0]=CHAR, [1]=TUNE live on the pad
-    for (int i = 0; i < 4; i++) ui_knob(&kit.p[focus][panel[2 + i].param], KX[i], KY1, panel[2 + i].label);
-    ui_knob(&k_swing, KX[4], KY1, "SWG");
-    for (int i = 0; i < 4; i++) ui_knob(&kit.p[focus][panel[6 + i].param], KX[i], KY2, panel[6 + i].label);
-    ui_knob(&k_pump,  KX[4], KY2, "PUMP");
+    for (int i = 0; i < 4; i++) ui_knob(&kit.p[focus][panel[2 + i].param], kx[i], ky1, panel[2 + i].label);
+    ui_knob(&k_swing, kx[4], ky1, "SWG");
+    for (int i = 0; i < 4; i++) ui_knob(&kit.p[focus][panel[6 + i].param], kx[i], ky2, panel[6 + i].label);
+    ui_knob(&k_pump,  kx[4], ky2, "PUMP");
 
     // ── the grid: names on the left (tap to focus, handled in update), 16 steps right ──
+    font(hfont);
     for (int r = 0; r < ROWS; r++) {
-        int y = GY + r * SY;
+        int y = gy + r * sy;
         bool foc = (r == focus);
         bool firing = frame() - flash[r] < 4;
-        rectfill(1, y, GX - 3, CH, firing ? LIT[r] : (foc ? CLR_DARK_GREY : CLR_DARKER_GREY));
-        rect(1, y, GX - 3, CH, foc ? LIT[r] : CLR_DARK_GREY);
-        print(MD_NAME[r], 3, y + 3, (firing || foc) ? CLR_WHITE : LIT[r]);
+        rectfill(1, y, gx - 3, ch, firing ? LIT[r] : (foc ? CLR_DARK_GREY : CLR_DARKER_GREY));
+        rect(1, y, gx - 3, ch, foc ? LIT[r] : CLR_DARK_GREY);
+        print(MD_NAME[r], 3, y + (ch - fh) / 2, (firing || foc) ? CLR_WHITE : LIT[r]);
 
         for (int c = 0; c < STEPS; c++) {
-            int x = GX + c * SX;
+            int x = gx + c * sx;
             int bg = (c % 4 == 0) ? CLR_DARK_GREY : CLR_DARKER_GREY;
-            rectfill(x, y, CW, CH, bg);
+            rectfill(x, y, cw, ch, bg);
             if (grid[r][c]) {
-                rectfill(x + 1, y + 1, CW - 2, CH - 2, LIT[r]);
-                if (r == MD_HAT && hopen[c]) rect(x + 2, y + 2, CW - 4, CH - 4, CLR_WHITE);  // open hat = ringed
+                rectfill(x + 1, y + 1, cw - 2, ch - 2, LIT[r]);
+                if (r == MD_HAT && hopen[c]) rect(x + 2, y + 2, cw - 4, ch - 4, CLR_WHITE);  // open hat = ringed
             }
-            if (c == cur_step && playing) rect(x, y, CW, CH, CLR_WHITE);   // playhead
+            if (c == cur_step && playing) rect(x, y, cw, ch, CLR_WHITE);   // playhead
         }
     }
     ui_end();

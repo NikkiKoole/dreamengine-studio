@@ -33,7 +33,10 @@ by data" — applied to drums, with the whole synth exposed as knobs.
 
 ## The cart — `morphbox`
 
-160×100 device-face. Tap a voice name (left of the grid, doubling as the voice selector) to focus it;
+Reflows with the canvas: a **roomy 320×200** by default (FONT_NORMAL, a title, breathing room) and a
+**compact 160×100** pocket face when run smaller — one source, `layout()` reads `screen_w()` and picks
+(same structure both ways; no camera scale, so touch stays 1:1). Tap a voice name (left of the grid,
+doubling as the voice selector) to focus it;
 the two knob rows up top edit that voice's panel. The **MORPH PAD** on the left is the headline: X =
 CHAR with `808`/`909` marked, Y = TUNE, a puck you drag to travel the lineage (and past it) live. A
 self-playing 3-row step grid; SWG shuffles the whole grid; PUMP is a real summed-bus sidechain keyed
@@ -54,7 +57,8 @@ voices share their oscillator structure across the pair outright.
 - Widen any knob ranges that feel cramped once it's been played hard (ear-tuned, not measured).
 - A 4th/5th voice (CLAP, TOM) is a straightforward addition — the earlier 5-voice cut had them; they
   were dropped to give KICK/SNARE/HAT deep panels. Add back as their own parametric models if wanted.
-- True device-fill reflow (the cart is `resizable` but laid out at fixed 160×100 coords today).
+- Reflow shipped as **two discrete modes** (compact 160×100 ↔ roomy 320×200, chosen by `screen_w()`);
+  fully-fluid interpolation between arbitrary sizes is still possible if wanted.
 - A/B the CHAR endpoints against the real `tr808`/`tr909` voices (`wav-correlate`) if byte-closeness
   to the machines is ever wanted at the extremes — the current voicing is tuned by ear for feel, not
   measured against them.

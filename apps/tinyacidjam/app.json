@@ -1,11 +1,11 @@
 {
-  "name":     "Acid Candy",
-  "bundleId": "com.mipolai.acidcandy",
+  "name":     "Tiny Acid Jam",
+  "bundleId": "com.mipolai.tinyacidjam",
   "version":  "0.1",
   "carts":    ["acidcandy"],
   "listing": {
-    "title":    "Acid Candy 303",
-    "subtitle": "House groovebox in your pocket",
+    "title":    "Tiny Acid Jam: 303 Groovebox",
+    "subtitle": "808, 909 & house in your pocket",
     "keywords": "808,909,emulator,techno,bassline,drum,synth,sequencer,rave,rebirth,338,tb303,dance,operator,loop"
   }
 }

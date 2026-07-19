@@ -2,7 +2,7 @@
 {
   "slug": "acidcandy",
   "collection": ["device-face"],
-  "title": "acid candy (160x100)",
+  "title": "Tiny Acid Jam",
   "status": "active",
   "created": "2026-07-14",
   "kind": [

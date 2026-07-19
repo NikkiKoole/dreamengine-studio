@@ -105,6 +105,13 @@ finger-unit helper is no longer a deferred nicety — it's step R3 of the revise
 > zoom≠1 also forces the cart onto the GPU raster path, `sw_force_gpu` — another reason to avoid it for a
 > whole-UI transform.)
 
+> **Scale vs reflow is a DIAL, not a fork** — and the dial is one number, the *density* of the canvas a
+> cart requests via `de_resize`. Ask for the fixed design size → it scales up with bars; ask for the
+> device ratio at the *design's* density → it scales up and spreads the leftover offset (keeps a fixed
+> cart's character, cheap); ask for the device ratio at *fine* K=2 density → this doc's full reflow
+> (re-space by `finger_px`, "show more" on a tablet). Same `lay.h` code throughout. The three settings
+> + when to pick each: [`canvas-density-spectrum.md`](canvas-density-spectrum.md) (prototyped in acidcandy).
+
 Supersedes the "deferred, no concrete need yet" framing in `responsive-layout.md` §gate and
 [`share-panel.md`](share-panel.md) next-spike #3, and answers [`ios-plan.md`](ios-plan.md) umbrella
 backlog #2 (multi-resolution racks).

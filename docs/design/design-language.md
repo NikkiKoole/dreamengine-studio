@@ -155,7 +155,9 @@ language, applied to the *coordinates* themselves. **STATUS: proposed here, bein
 responsive pass — the missing half of Fixed Canvas** (the discipline said *where* to design; this says
 *how* to author so the discipline doesn't cost you the reflow). If it holds, the shared mapper is a
 rule-of-three extraction candidate (`respond`/`acidwire`/`acidcandy` each hand-roll it today — see
-*Generalize after repetition* above).
+*Generalize after repetition* above). **The concrete *how* of expanding outward — the dial from
+"scale it up" to "full reflow", set by one number (the canvas density you request) — is written up in
+[`canvas-density-spectrum.md`](canvas-density-spectrum.md).**
 
 ## Constraints create quality — the shared DNA
 
@@ -186,6 +188,7 @@ feel coherent even as it grows.
 five zones + the §2 principles + §2c scope ladder) · [`candy-style.md`](candy-style.md) (Delight, made
 concrete) · [`design-system.md`](design-system.md) (the VISUAL contract the language is dressed in) ·
 [`device-adaptive-layout.md`](device-adaptive-layout.md) (the engine plan Fixed Canvas rides on) ·
+[`canvas-density-spectrum.md`](canvas-density-spectrum.md) (the scale↔reflow dial — how you expand outward) ·
 [`responsive-instrument-ui.md`](../guides/responsive-instrument-ui.md) ("Discover, don't design", as a
 process) · [ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) (One Honest Core + the
 two-part delight bar) · [ADR-0029](../decisions/0029-320x200-is-the-base-resolution.md) (Fixed Canvas,

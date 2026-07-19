@@ -1,11 +1,12 @@
 # MIDI out — carts as controllers / sequencers
 
-> **STATUS: EXPLORING (idea, 2026-07-11).** Captured from a session sparked by "does MIDI
-> out always make sense — e.g. in the 303?" Nothing built yet; there is **no MIDI-output
-> path in the engine today** (`runtime/midi_input.h` is input-only and its v1 scope note
-> explicitly defers CC/out). Current focus is the **303 (`acidrack`)**; the maker notes
-> many other carts could want this. Sibling of the shipped input layer —
-> [`midi-and-keybed.md`](midi-and-keybed.md). Deeper research deferred.
+> **STATUS: EXPLORING (idea, 2026-07-11; demand-confirmed 2026-07-19).** Captured from a
+> session sparked by "does MIDI out always make sense — e.g. in the 303?" Nothing built yet;
+> there is **no MIDI-output path in the engine today** (`runtime/midi_input.h` is input-only
+> and its v1 scope note explicitly defers CC/out). Current focus is the **303 (`acidrack`)**;
+> the maker notes many other carts could want this. Sibling of the shipped input layer —
+> [`midi-and-keybed.md`](midi-and-keybed.md). Deeper research deferred. A 2026-07-19 r/ipadmusic
+> drip put real numbers behind it — see [Demand evidence](#demand-evidence-from-the-r-ipadmusic-drip).
 
 ---
 
@@ -27,6 +28,38 @@ app or on the desktop?
 
 So MIDI out is a **per-cart** capability, added to the carts that generate — not a global
 engine default.
+
+## Demand evidence from the r-ipadmusic drip
+
+A [`reddit-gaps.js`](demand-discovery.md) drip of **r/ipadmusic** (2026-07-19; two
+runs, the second widened with complaint-shaped probes: 267 threads, 155 wishes) ranked **MIDI
+routing / control** as the tribe's single **loudest topic — demand 70** — while our shelf is
+thinnest there (only ~18 carts touch it). It reads as a `GAP` by raw demand, but reading the
+actual threads splits it cleanly along *this doc's* seam, which is why it isn't one we can ship
+as a cart today:
+
+**On-grain (already possible with MIDI *in* + a voice):** "iPad as a keybed / drum-pad I *play*"
+— a physical keyboard drives a cart's timbre. `keybed.h`, `acidcandy`, `tb303` already do this.
+
+**Off-grain (needs the MIDI-*out* seam this doc proposes — not built):** almost all the loud
+asks. Verbatim from the cache:
+- *Best ipad app as a midi controller* · *Midi controller app that uses TRS midi* · *make an
+  ipad a drum pad for Logic* · *behaves like Novation's Launchpad with Midi Sync* — **model A**
+  (iPad-as-controller-for-a-DAW).
+- *Recommend a MIDI Sequencer to control my hardware synths and drum machines* · *iOS/iPadOS
+  MIDI sequencing app* · *midi layered/zones live performance* — **sequence external gear**.
+- *transpose incoming MIDI before it hits a synth* · *send MIDI CC while playing back audio* ·
+  *MIDI Learn for changing presets* — **routing / transform utilities** (furthest off-grain;
+  these are MIDI-processor apps, not instruments).
+- ***A TB-303 app that can map knobs to MIDI hardware*** — the one thread that lands exactly on
+  this doc's ✅ case (303 sequencer-out alongside the voice + CC from the knobs).
+
+**Reading:** the demand is real and loud, but it is demand for a **capability, not a cart** —
+it validates building the `runtime/midi_output.h` seam below (model A especially), and it does
+**not** contradict the "pure keybed instruments stay input-only" rule: not one wish asked a
+sound-source cart to *emit* MIDI. Until the seam exists, this topic will keep surfacing as a
+phantom `GAP` in every r/ipadmusic drip — that's expected; the answer lives here, not in a new
+cart.
 
 ## The 303 is the interesting case — it's *both* a sequencer and a voice
 

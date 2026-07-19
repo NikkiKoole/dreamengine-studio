@@ -2403,6 +2403,19 @@ static void loop_step(void) {
           pl.game.y = pl.band_h / 2.0f;   // band_h == vertical leftover; center vertically (x already centered)
           pl.mode = PLACE_OVERLAY; pl.band_w = 0; pl.band_h = 0;
       }
+      // RESIZABLE carts FILL the window at a fractional COVER scale (crisp nearest-neighbour, just
+      // non-uniform pixel size) instead of gr_place's integer letterbox — so there's NO black border
+      // at non-multiple window sizes. The cart already reflows its canvas to ~the window ratio, so the
+      // cover crop is ≤ a few px of the full-bleed chassis edge. Input stays correct (same game_rect
+      // transform). Fixed carts are untouched (integer letterbox, byte-identical).
+      if (de_reflow) {
+          float ww = (float)GetScreenWidth(), wh = (float)GetScreenHeight();
+          float s = ww / de_sw, sv = wh / de_sh; if (sv > s) s = sv;   // cover = MAX (fills both axes)
+          pl.game.scale = s;
+          pl.game.x = (ww - de_sw * s) / 2.0f;   // centre the (over-)scaled canvas → symmetric crop
+          pl.game.y = (wh - de_sh * s) / 2.0f;
+          pl.mode = PLACE_OVERLAY; pl.band_x = pl.band_y = 0; pl.band_w = (int)ww; pl.band_h = (int)wh;
+      }
       game_rect = pl.game; layout_touch_controls(pl);
       place_mode = pl.mode; band_x = pl.band_x; band_y = pl.band_y; band_w = pl.band_w; band_h = pl.band_h; }
 #endif

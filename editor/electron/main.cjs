@@ -1852,8 +1852,20 @@ ipcMain.handle('studio:list-apps', async () => {
         // IAP display name + description are their OWN searchable ASO surface (Apple indexes them),
         // so hand back the copy, not just a count. Limits: name 30, desc 45.
         const iapProducts = products.map(p => ({ id: p.id || '', name: p.name || '', desc: p.desc || '', price: p.price || '' }))
+        // manifest "icon" is repo-root-relative (e.g. apps/<name>/icon.png). Inline it as a data URL
+        // so the Apps view shows it whether the editor runs in Electron or the browser tab (no served path).
+        let icon = null
+        if (m.icon) {
+          try {
+            const ip = path.join(__dirname, '../..', m.icon)
+            const ext = path.extname(ip).slice(1).toLowerCase()
+            const mime = ext === 'jpg' ? 'jpeg' : ext
+            if (['png', 'jpeg', 'webp'].includes(mime) && fs.existsSync(ip))
+              icon = `data:image/${mime};base64,${fs.readFileSync(ip).toString('base64')}`
+          } catch {}
+        }
         apps.push({ dir, name: m.name || dir, carts: m.carts || [], launcher: m.launcher || '',
-          iap: products.length, iapProducts, listing: m.listing || null })
+          iap: products.length, iapProducts, listing: m.listing || null, icon })
       } catch {}
     }
     return { ok: true, apps }

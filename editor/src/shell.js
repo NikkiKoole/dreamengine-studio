@@ -2673,7 +2673,8 @@ async function renderAppsList() {
           + `<div class="iap-desc">${escHtml(p.desc)}${cc(p.desc, 45)}</div></div>`).join('')
         + `</div>`
       : ''
-    card.innerHTML = `<div class="app-name"></div><div class="app-meta"></div>
+    const iconHtml = a.icon ? `<img class="app-icon" src="${a.icon}" alt="">` : '<div class="app-icon app-icon-none">📦</div>'
+    card.innerHTML = `<div class="app-head">${iconHtml}<div class="app-headtext"><div class="app-name"></div><div class="app-meta"></div></div></div>
       <div class="app-actions" hidden>
         ${listingHtml}
         ${iapHtml}

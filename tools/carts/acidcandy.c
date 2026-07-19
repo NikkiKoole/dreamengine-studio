@@ -1655,18 +1655,26 @@ void draw(void) {
     // whole canvas on desktop), then LANDSCAPE reflow — one focused face spread to fill. See
     // device-adaptive-layout.md; acidwire is the layout reference. (808/909/MST interiors still
     // author at 160×100 — being reflowed next; the 303 is the first re-landed face.)
-    int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh);
-    Box shell = box(sx, sy, sw, sh);
-    rrectfill((int)shell.x, (int)shell.y, (int)shell.w, (int)shell.h, 7, CLR_INDIGO);
-    Box panel = lay_inset(shell, 3);
+    // The candy CHASSIS bleeds to the FULL screen (under the notch / home-bar) so there are NO
+    // purple or black margins — only the CONTROLS stay inside the safe area (dodge the notch).
+    // On desktop safe_rect == the whole canvas, so this is identical to filling the canvas.
+    Box full = box(0, 0, screen_w(), screen_h());
+    rrectfill((int)full.x, (int)full.y, (int)full.w, (int)full.h, 7, CLR_INDIGO);
+    Box panel = lay_inset(full, 3);
     rrectfill((int)panel.x, (int)panel.y, (int)panel.w, (int)panel.h, 5, CLR_LIGHT_PEACH);
     blend(BLEND_AVG); line((int)panel.x + 4, (int)panel.y, (int)(panel.x + panel.w - 4), (int)panel.y, CLR_WHITE); blend_reset();
 
     ui_begin();
     font(FONT_SMALL);
 
+    // controls area = panel ∩ safe-area (the whole panel on desktop; inset past the notch on device)
+    int sx, sy, sw, sh; safe_rect(&sx, &sy, &sw, &sh);
+    float ax0 = panel.x > sx ? panel.x : sx, ay0 = panel.y > sy ? panel.y : sy;
+    float ax1 = (panel.x + panel.w) < (sx + sw) ? (panel.x + panel.w) : (float)(sx + sw);
+    float ay1 = (panel.y + panel.h) < (sy + sh) ? (panel.y + panel.h) : (float)(sy + sh);
+    Box area = box(ax0, ay0, ax1 - ax0, ay1 - ay0);
     Box stage;
-    Box nav = lay_split(panel, EDGE_TOP, panel.h * 0.12f, &stage);   // nav strip ≈ design 12/100
+    Box nav = lay_split(area, EDGE_TOP, area.h * 0.12f, &stage);   // nav strip ≈ design 12/100
     navspine(nav);
     // ARRANGEMENT SEAM (canvas-density-spectrum.md axis 2): today every class draws ONE focused face
     // (the phone version — scaled + spread by the chunky canvas above; also fine on iPad as a big

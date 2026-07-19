@@ -1688,6 +1688,22 @@ v1, document it on the panel.
     old `mod` exactly. **Showcase: `lfoshapes`** (8 shapes live, on pitch or cutoff — S&H-on-pitch = the
     random-step arp). **Forward-compat:** promoting `shape` into `instrument_lfo`'s signature later is
     additive only (the storage/dispatcher/request are already shape-aware).
+31. **BBD analog voicing (`echo_insert_bbd`)** — the `echo_insert` delay given a real bucket-brigade
+    (MN3005) character. **✓ SHIPPED 2026-07-19.** `echo_insert_bbd(amount)` — `amount` 0..1, `0` = clean
+    digital delay (default, dormant → byte-identical). Two things a clean delay line lacks, both applied
+    INSIDE the loop so ONLY the repeats are coloured (the dry passes untouched): **(a) clock jitter** — a
+    slow wow + faster flutter LFO added to the fractional read tap (`ECHO_BBD_WOW/FLT_RATE/DEPTH`), so the
+    repeats shimmer; **(b) delay-time→darker coupling** — a real BBD's clock slows as delay lengthens, so
+    bandwidth drops. `echo_ins_set_coef()` scales the loop-LP coef by ~`80ms/time` when BBD is on, so short
+    slapback stays bright and a long delay darkens the tail. This is the faithful version of the earlier
+    master-`tape()` spike, which got the wobble+darkening but on a master insert wobbled the DRY too; here
+    the modulation lives on the read tap / loop filter, dry-exact. `SR_ECHO_INS_BBD`=131, full 4-place
+    wiring; `echo_ins_bbd==0` skips the LFO block and `set_coef` returns exactly `sound_echo_coef(tone)` →
+    byte-identical to the shipped `echo_insert`. Verified: soundcheck compile-gate `ok`; level-check /
+    fx-check Δpk Δrms `+0.0` (pedalboard/modrack unchanged); soak-check stable (feedback loop); wasm/native
+    parity holds; and the load-bearing proof — the pre-first-repeat render window (pure dry) is byte-hash
+    IDENTICAL with BBD on vs off, while the repeats window DIFFERS and is measurably darker (centroid 3538
+    vs 3741 Hz @160ms). **Showcase: `aquapuss`** (the Way Huge Aqua-Puss — `B` toggles analog↔clean for the A/B).
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

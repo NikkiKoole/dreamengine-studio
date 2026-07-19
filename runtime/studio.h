@@ -503,6 +503,7 @@ void echo(int time_ms, float feedback, float tone);  // configure the bus: delay
 void instrument_echo(int slot, float send);    // how much this slot feeds the bus 0.0..1.0 — 0 = dry (default), 0.15 = slapback, 0.8 = dub throw
 void note_echo(int handle, float x);           // sweep a held note's echo send live, slewed — throw a single phrase into the tail
 void echo_insert(int time_ms, float feedback, float tone, float mix);  // echo as a dry/wet INSERT on the master bus — a REAL reorderable DELAY pedal (put FX_ECHO in fx_order(0,…) to place it). Unlike echo() (a send), its chain position is audible (delay→drive vs drive→delay). time 1..2000ms, feedback 0..1.1, tone 0..1, mix 0..1 (0 = bypass)
+void echo_insert_bbd(float amount);  // give echo_insert() an ANALOG bucket-brigade voice: the repeats gently wobble (clock wow/flutter) and a longer DELAY makes the tail darker — like a real analog delay pedal. Only the echoes are coloured, never your dry sound. amount 0 = clean (default), 1 = full analog. Call after echo_insert()
 
 // grains — granular delay: captures the live signal then replays scattered overlapping windowed
 // grains of the recent past into an evolving cloud. FREEZE loops what's captured forever (hold a

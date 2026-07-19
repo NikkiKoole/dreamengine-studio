@@ -555,13 +555,32 @@ static float echo_ins_tone_coef   = 0.0f;
 static float echo_ins_lp          = 0.0f;
 static float echo_ins_mix         = 0.0f;
 static bool  echo_ins_used        = false;
+// BBD analog voicing (opt-in via echo_insert_bbd; 0 = off → byte-identical). A real bucket-brigade
+// delay adds clock JITTER (the repeats shimmer) and DARKENS as the delay lengthens (the clock slows,
+// bandwidth drops). Both live INSIDE the loop / on the read tap, so only the REPEATS are coloured —
+// the dry signal passes untouched (unlike a master tape() insert, which wobbles everything).
+static float echo_ins_bbd  = 0.0f;   // amount 0..1 (0 = clean digital delay)
+static float echo_ins_tone = 0.55f;  // raw tone 0..1, kept so the time-darkening can re-derive the loop coef
+static float echo_ins_wph  = 0.0f;   // wow LFO phase
+static float echo_ins_fph  = 0.0f;   // flutter LFO phase
+#define ECHO_BBD_WOW_RATE  0.55f     // Hz — slow drift
+#define ECHO_BBD_WOW_DEPTH 20.0f     // samples (~0.45ms) at full amount
+#define ECHO_BBD_FLT_RATE  6.30f     // Hz — faster flutter
+#define ECHO_BBD_FLT_DEPTH 6.0f      // samples (~0.14ms) at full amount
 static void echo_ins_process(float *mixL, float *mixR) {
     float dstep = (echo_ins_time_target - echo_ins_time) * 0.0003f;   // tape-speed time slew (RE-201 bend)
     if (dstep >  0.5f) dstep =  0.5f;
     if (dstep < -0.5f) dstep = -0.5f;
     echo_ins_time += dstep;
     float rp = (float)echo_ins_widx - echo_ins_time;
-    if (rp < 0.0f) rp += (float)SOUND_ECHO_MAX;
+    if (echo_ins_bbd > 0.0f) {   // BBD clock jitter on the READ tap — only the repeats wobble, dry is untouched
+        echo_ins_wph += ECHO_BBD_WOW_RATE / (float)SOUND_SAMPLE_RATE; if (echo_ins_wph >= 1.0f) echo_ins_wph -= 1.0f;
+        echo_ins_fph += ECHO_BBD_FLT_RATE / (float)SOUND_SAMPLE_RATE; if (echo_ins_fph >= 1.0f) echo_ins_fph -= 1.0f;
+        rp += echo_ins_bbd * (sinf(echo_ins_wph * SOUND_TWO_PI) * ECHO_BBD_WOW_DEPTH
+                            + sinf(echo_ins_fph * SOUND_TWO_PI) * ECHO_BBD_FLT_DEPTH);
+    }
+    if (rp < 0.0f)                  rp += (float)SOUND_ECHO_MAX;
+    if (rp >= (float)SOUND_ECHO_MAX) rp -= (float)SOUND_ECHO_MAX;
     int   r0 = (int)rp, r1 = r0 + 1;
     if (r1 >= SOUND_ECHO_MAX) r1 = 0;
     float fr  = rp - (float)r0;
@@ -584,6 +603,19 @@ static float sound_echo_coef(float t) {
     t = clamp01(t);
     float fc = 300.0f * powf(2.0f, t * 4.5f);
     return 1.0f - expf(-SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE);
+}
+
+// echo INSERT loop coef from the raw tone AND (when BBD on) the delay TIME: a real bucket-brigade's
+// clock slows as the delay lengthens, so longer delay = lower bandwidth = darker tail. Short slapback
+// stays bright. bbd==0 → returns exactly sound_echo_coef(tone), i.e. byte-identical to the clean path.
+static void echo_ins_set_coef(void) {
+    float coef = sound_echo_coef(echo_ins_tone);
+    if (echo_ins_bbd > 0.0f) {
+        float ms   = echo_ins_time_target * 1000.0f / (float)SOUND_SAMPLE_RATE;
+        float dark = 80.0f / ms; if (dark > 1.0f) dark = 1.0f;   // ref ~80ms: below stays bright, above darkens
+        coef *= (1.0f - echo_ins_bbd) + echo_ins_bbd * dark;
+    }
+    echo_ins_tone_coef = coef;
 }
 
 // ── THE reverb bus (audio-notes §17 / instrument-engines §8.10 — the first §8.10 effect) ──
@@ -2066,6 +2098,7 @@ typedef enum {
     SR_VOCODER_MIC  = 128,  // a=amount*1000 — route the LIVE mic into the vocoder modulator (Phase 2). vocoder_mic()
     SR_VOCODER_UNVOICED = 129,  // a=amount*1000 — v2: how much to noise-substitute the top bands for unvoiced consonants. vocoder_unvoiced()
     SR_AUTOTUNE_MIC = 130,  // a=amount*1000, b=root(0..11), c=scale — LIVE streaming auto-tune of the mic (transparent-autotune.md §live). autotune_mic()
+    SR_ECHO_INS_BBD = 131,  // a=amount*1000 — BBD analog voicing on the echo INSERT (echo_insert_bbd): clock wobble on the repeats + longer-delay-darkens
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2136,6 +2169,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
+        case SR_ECHO_INS_BBD:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5557,12 +5591,16 @@ static void sound_fire_req(SoundReq r) {
         if (echo_ins_time_target > (float)(SOUND_ECHO_MAX - 4)) echo_ins_time_target = (float)(SOUND_ECHO_MAX - 4);
         float fb = r.b / 1000.0f; fb = clampf(0.0f, 1.1f, fb);
         echo_ins_fb = fb;
-        echo_ins_tone_coef = sound_echo_coef(r.c / 1000.0f);
+        echo_ins_tone = r.c / 1000.0f; echo_ins_set_coef();   // BBD time-darkening (if on) folds in here; bbd==0 → sound_echo_coef(tone)
         float mix = r.e0 / 1000.0f; mix = clamp01(mix);
         if (!echo_ins_used && mix > 0.0f) echo_ins_time = echo_ins_time_target;   // snap time when first turning ON — no startup pitch-bend
         echo_ins_mix  = mix;
         echo_ins_used = (mix > 0.0f);   // mix 0 = off (dormant → byte-identical), like the other inserts
         // the cart places FX_ECHO in its fx_order(0, …) list to set the delay's position in the master chain
+    } break;
+    case SR_ECHO_INS_BBD: {  // a=amount*1000 — BBD analog voicing on the echo INSERT (wobble + time-darkening, repeats only)
+        echo_ins_bbd = clamp01(r.a / 1000.0f);
+        echo_ins_set_coef();   // re-derive the loop coef — the time-darkening depends on bbd
     } break;
     case SR_DRIVE_INSERT: {  // a=amount*1000, b=mode, c=mix*1000 — mix-bus saturation INSERT (bus 0, instance 0)
         fx_set_drive(0, 0, r.a / 1000.0f, r.b, r.c / 1000.0f);
@@ -7314,6 +7352,9 @@ void note_echo(int handle, float x) {
 
 void echo_insert(int time_ms, float feedback, float tone, float mix) {
     sound_push_ctrl(SR_ECHO_INSERT, time_ms, (int)(feedback * 1000.0f), (int)(tone * 1000.0f), (int)(mix * 1000.0f), 0, 0);
+}
+void echo_insert_bbd(float amount) {   // analog bucket-brigade voicing on the echo INSERT (repeats only)
+    sound_push_ctrl(SR_ECHO_INS_BBD, (int)(clamp01(amount) * 1000.0f), 0, 0, 0, 0, 0);
 }
 
 // ── drive insert: MIX-BUS SATURATION — drive the summed master mix as a reorderable FX_DRIVE pedal ──

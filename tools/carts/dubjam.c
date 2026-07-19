@@ -9,7 +9,7 @@
   "genre": null,
   "teaches": [],
   "description": {
-    "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). MST is WIRED — the dub master: the drone + kit routed into the shared echo + reverb buses (kick kept dry), a tempo-synced dub delay (DLY/FBK), reverb (VERB), a ride-safe DJ filter (FILT), and a DUB THROW pad that momentarily overrides the echo time/feedback. SUB is the last OPEN SEAM (stub + TODO).",
+    "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). MST is WIRED — the dub master: the drone + kit routed into the shared echo + reverb buses (kick kept dry), a tempo-synced dub delay (DLY/FBK), reverb (VERB), a ride-safe DJ filter (FILT), and a DUB THROW pad that momentarily overrides the echo time/feedback. SUB is WIRED — a deep round INSTR_SINE sub (slot 8, lowpassed, kept dry) firing one note per s_on[] step on the drone root. All four voices are now live; the p-lock paint-UI is the remaining seam.",
     "detail": "Wired: GREN drone (gren_init/gren_update) — INSTR_USER0 trapezoid VCO (set_morph), 3 voices on one root through FILTER_LOW/BAND, note_cutoff/note_res ridden live from the XY pad (ALPHA=x sweeps all filters +-2oct, BETA=y opens the spacing), CMOS reroll() drift on each gate pulse. Transport: SPACE play/stop; a shared beat-clock gate pulses the drone. SEAMS: sub_update()/drm_update()/mst_apply_fx() are stubs — the sub bass, the spacious kit, and the dub delay/reverb master go there. Slots reserved: GREN 5-7, SUB 8, DRM 9-12.",
     "controls": "SPACE = play/stop. Keys 1-4 switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA), drag BASE/SPACE/Q/MORPH knobs. SUB/DRM/MST faces are draw-only for now."
   },
@@ -75,6 +75,7 @@ static float ktune[TR_NV], kdecay[TR_NV], kcolor[TR_NV];      // per-voice knobs
 enum { PL_TUNE, PL_DEC, PL_N };                               // p-lock params
 static float doff[PL_N][4][16];                               // per-step OFFSET from the voice knob (0 = follow)
 static int   last_drm_step = -1;
+static int   last_sub_step = -1;
 static int   g_step16 = 0;                                    // shared 16th clock (set in update)
 
 // ── MST (dub master) state ──
@@ -205,8 +206,17 @@ static void mst_apply_fx(void) {
     else                     filter(FILTER_OFF, 1000.0f, 0.0f);
 }
 
-// ── SEAM — fill this in later ──
-static void sub_update(void) { /* TODO: deep sub bass on SL_SUB, one note per s_on[] step */ }
+// ── SUB — deep round sub bass, WIRED (kept DRY, like the kick) ──
+static void sub_init(void) {
+    instrument(SL_SUB, INSTR_SINE, 2, 220, 0, 80);            // round, plucky sub
+    instrument_filter(SL_SUB, FILTER_LOW, 400, 2);            // roll off any edge → pure low end
+}
+static void sub_update(void) {
+    if (!playing || g_step16 == last_sub_step) return;
+    last_sub_step = g_step16;
+    int s = g_step16;
+    if (s_on[s]) note(BASE_MIDI + s_pit[s], SL_SUB, 6);       // one round sub per step, on the drone root
+}
 
 // ── widgets ──
 static void cknob(float *v, int cx, int cy, int r, const char *label) {   // draggable candy knob
@@ -367,13 +377,14 @@ void init(void) {
     bpm(BPM);
     gren_init();
     drm_init();
+    sub_init();
     mst_init();
 }
 
 void update(void) {
     for (int i = 0; i < 4; i++) if (keyp('1' + i)) face = i;
     for (int m = 0; m < 4; m++) if (tapp(19 + m * 27, 0, 25, 10)) face = m;      // tap a cartridge to focus
-    if (keyp(KEY_SPACE) || tapp(5, 0, 14, 10)) { playing = !playing; last_pulse = -1; last_drm_step = -1; }
+    if (keyp(KEY_SPACE) || tapp(5, 0, 14, 10)) { playing = !playing; last_pulse = -1; last_drm_step = -1; last_sub_step = -1; }
 
     if (playing) { float sx = beat() * 4 + beat_pos() * 4; g_step16 = ((int)sx) % 16; }  // shared 16th clock
 

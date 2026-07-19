@@ -11,7 +11,7 @@
   "description": {
     "summary": "WIP DUB-TECHNO / DRONE rack built around the GRENADIER filterbank — a device-face sibling to Tiny Acid Jam at 160x100 x4, darker palette. THREE-PART layout: candy KNOBS on top, a SCREEN in the middle, a PLAY surface below. Four machines (keys 1-4): GREN is WIRED — the grenadier triple-resonant filterbank drone (3 held INSTR_USER0 voices), swept live by a big ALPHA/BETA XY pad, gate-pulsed, with draggable BASE/SPACE/Q/MORPH knobs + the live filter strip. DRM is WIRED — the TR-808 (KICK/RIM/HAT/CLAP = TR_BD/RS/CH/CP) sequenced with per-step P-LOCKS (per-voice TUNE/DEC offsets swapped around each fire, acidcandy's method; a few are seeded). MST is WIRED — the dub master: the drone + kit routed into the shared echo + reverb buses (kick kept dry), a tempo-synced dub delay (DLY/FBK), reverb (VERB), a ride-safe DJ filter (FILT), and a DUB THROW pad that momentarily overrides the echo time/feedback. SUB is WIRED — a deep round INSTR_SINE sub (slot 8, lowpassed, kept dry) firing one note per s_on[] step on the drone root. All four voices are now live; the p-lock paint-UI is the remaining seam.",
     "detail": "Wired: GREN drone (gren_init/gren_update) — INSTR_USER0 trapezoid VCO (set_morph), 3 voices on one root through FILTER_LOW/BAND, note_cutoff/note_res ridden live from the XY pad (ALPHA=x sweeps all filters +-2oct, BETA=y opens the spacing), CMOS reroll() drift on each gate pulse. Transport: SPACE play/stop; a shared beat-clock gate pulses the drone. SEAMS: sub_update()/drm_update()/mst_apply_fx() are stubs — the sub bass, the spacious kit, and the dub delay/reverb master go there. Slots reserved: GREN 5-7, SUB 8, DRM 9-12.",
-    "controls": "Tap a cartridge to focus a machine; tap the transport (top-left) or SPACE to play/stop; keys 1-4 also switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA) + the BASE/SPACE/Q/MORPH knobs. SUB: tap a note-bar to toggle it (pitch = tap height). DRM: tap a grid cell to toggle a step; tap a pad to finger-drum. MST: drag DLY/FBK/VERB/FILT + HOLD the DUB THROW pad."
+    "controls": "Tap a cartridge to focus a machine; tap the transport (top-left) or SPACE to play/stop; keys 1-4 also switch face. GREN: drag the XY SWEEP pad (ALPHA/BETA) + the BASE/SPACE/Q/MORPH knobs. SUB: TAP a note-bar to toggle it; DRAG a bar up/down to set its pitch. DRM: tap a grid cell to toggle a step; tap a pad to finger-drum. MST: drag DLY/FBK/VERB/FILT + HOLD the DUB THROW pad."
   },
   "todo": [
     "SEAM sub_update(): wire the deep SUB bass — a short-decay INSTR_SINE/SQUARE on slot 8, one note per s_on[] step following the drone root; the note-bars become the pattern.",
@@ -77,6 +77,7 @@ static float doff[PL_N][4][16];                               // per-step OFFSET
 static int   last_drm_step = -1;
 static int   last_sub_step = -1;
 static int   g_step16 = 0;                                    // shared 16th clock (set in update)
+static int   edit_bar = -1, edit_starty = 0, edit_dragging = 0;   // SUB note-bar tap-vs-drag tracking
 
 // ── MST (dub master) state ──
 static float k_dly = 0.60f, k_fbk = 0.55f, k_verb = 0.55f, k_filt = 0.50f;   // delay div / feedback / reverb / DJ filter
@@ -382,15 +383,20 @@ void init(void) {
 }
 
 // ── pattern editing (tap to edit; gated to the machine's own face) ──
-static void sub_edit(void) {   // tap a bar: toggle on/off; when turning ON, pitch = tap height
-    for (int b = 0; b < 16; b++) {
-        if (!tapp(8 + b * 9, 68, 8, 29)) continue;
-        if (s_on[b]) { s_on[b] = 0; continue; }
-        s_on[b] = 1;
-        for (int i = 0; i < touch_count(); i++) {
-            int tx = touch_x(i); if (tx < 8 + b * 9 || tx >= 8 + b * 9 + 8) continue;
-            int p = (95 - touch_y(i)) / 2; s_pit[b] = p < 0 ? 0 : p > 13 ? 13 : p; break;
-        }
+// quick TAP toggles a bar; a vertical DRAG repitches it (and forces it on).
+static void sub_edit(void) {
+    int ty = -1;
+    for (int i = 0; i < touch_count(); i++) if (touch_y(i) >= 68) { ty = touch_y(i); break; }
+    int held = (ty >= 0);
+    for (int b = 0; b < 16; b++)                                       // begin: grab the bar
+        if (tapp(8 + b * 9, 68, 8, 29)) { edit_bar = b; edit_starty = ty; edit_dragging = 0; }
+    if (edit_bar >= 0 && held) {                                       // held: past the threshold → it's a repitch drag
+        if (!edit_dragging && (ty - edit_starty > 3 || edit_starty - ty > 3)) edit_dragging = 1;
+        if (edit_dragging) { s_on[edit_bar] = 1; int p = (95 - ty) / 2; s_pit[edit_bar] = p < 0 ? 0 : p > 13 ? 13 : p; }
+    }
+    if (edit_bar >= 0 && !held) {                                      // release: a pure tap → toggle
+        if (!edit_dragging) s_on[edit_bar] = !s_on[edit_bar];
+        edit_bar = -1;
     }
 }
 static void drm_edit(void) {

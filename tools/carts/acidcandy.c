@@ -779,9 +779,9 @@ static void draw_303(Box stage, int i) {
     Box krow  = lay_split(body, EDGE_TOP,    H * 0.24f, &body);   // ② acid knob row (design ≈24/100)
     Box loopS = lay_split(body, EDGE_BOTTOM, H * 0.05f, &body);   // loop-length handle strip
     Box notes = lay_split(body, EDGE_BOTTOM, H * (seq_grid ? 0.12f : 0.28f), &body);   // GRID: thin compact strip (the LCD, = the remainder, grows into the freed space); BARS: tall note bars
-    Box skcL  = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-key columns (design ≈16/160)
-    Box skcR  = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
-    Box lcd   = lay_inset(body, 1);                               // the hero glass = the remainder, 1px in → breathing gap to the flanking soft-keys + the row below
+    Box skcL = {0}, skcR = {0};                                  // ③ soft-key columns — BARS only; GRID moves the mode selector IN-screen (tabs) for a full-width glass
+    if (!seq_grid) { skcL = lay_split(body, EDGE_LEFT, W * 0.11f, &body); skcR = lay_split(body, EDGE_RIGHT, W * 0.11f, &body); }
+    Box lcd   = lay_inset(body, 1);                               // the hero glass = the remainder (full-width in GRID mode, edge-to-edge with the 16-step row)
 
     // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
     Box krDF = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 14, 26), &krow);
@@ -841,7 +841,9 @@ static void draw_303(Box stage, int i) {
         }
     }
 
-    // ③ soft-keys flank the LCD (left: SEQ/FLAG/FX/PERF · right: GEN/KEY/PAT), the glass fills between.
+    // ③ soft-keys flank the LCD (left: SEQ/FLAG/FX/PERF · right: GEN/KEY/PAT) — BARS mode only.
+    // GRID mode draws these as an IN-SCREEN tab row instead (below), so the glass is full-width.
+    if (!seq_grid) {
     { static const char *L[4] = { "SEQ", "FLAG", "FX", "PERF" }; static const int Lm[4] = { PS_SEQ, PS_FLAG, PS_FX, PS_PERF };
       static const unsigned Ls[4] = { 0x08u, 0x09u, 0x06u, 0x37u };
       for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
@@ -850,11 +852,24 @@ static void draw_303(Box stage, int i) {
       static const unsigned Rs[3] = { 0x31u, 0x34u, 0x35u };
       for (int k = 0; k < 3; k++) { Box c = lay_grid(skcR, 1, 3, k, 2);
           if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], pscreen[i] == Rm[k])) pscreen[i] = Rm[k]; } }
+    }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);
     rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
     blend(BLEND_AVG); for (int y = (int)glass.y + 1; y < glass.y + glass.h - 1; y += 2) line((int)glass.x, y, (int)(glass.x + glass.w - 1), y, CLR_BROWNISH_BLACK); blend_reset();
     Box gc = lay_inset(glass, 2);                                   // content area inside the glass
+    if (seq_grid) {   // IN-SCREEN tab menu (acidwide H) → full-width glass, no side columns. 7 mode tabs + BARS/GRID + STEP/KEYS.
+        Box tabs = lay_split(gc, EDGE_TOP, gc.h * 0.20f, &gc);
+        static const char *TL[7] = { "SEQ", "FLAG", "FX", "PERF", "GEN", "KEY", "PAT" };
+        static const int   TM[7] = { PS_SEQ, PS_FLAG, PS_FX, PS_PERF, PS_GEN, PS_KEY, PS_PAT };
+        static const unsigned TH[7] = { 0x08u, 0x09u, 0x06u, 0x37u, 0x31u, 0x34u, 0x35u };   // reuse the soft-key hashes (never coexist)
+        for (int t = 0; t < 7; t++) { Box c = lay_grid(tabs, 9, 9, t, 1);
+            if (lcdbtn(TH[t], (int)c.x, (int)c.y, (int)c.w, (int)c.h, TL[t], pscreen[i] == TM[t])) pscreen[i] = TM[t]; }
+        Box cg = lay_grid(tabs, 9, 9, 7, 1);
+        if (lcdbtn(0x2Du, (int)cg.x, (int)cg.y, (int)cg.w, (int)cg.h, "GRID", 1)) seq_grid = 0;   // lit → tap = back to BARS
+        Box ck = lay_grid(tabs, 9, 9, 8, 1);
+        if (lcdbtn(0x2Eu, (int)ck.x, (int)ck.y, (int)ck.w, (int)ck.h, keys_mode ? "KEYS" : "STEP", keys_mode)) keys_mode = !keys_mode;
+    }
     if (pscreen[i] == PS_FLAG) {
         for (int f = 0; f < FL_N; f++) { Box c = lay_grid(gc, 3, FL_N, f, 2);   // the 6-flag palette
             if (lcdbtn(0x0Au + f, (int)c.x, (int)c.y, (int)c.w, (int)c.h, FLNAME[f], armed == f)) armed = f; }
@@ -905,15 +920,17 @@ static void draw_303(Box stage, int i) {
         pf_stac[i]  = lcdlatch(0x7Eu, (int)s0.x, (int)s0.y, (int)s0.w, (int)s0.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
         pf_glide[i] = lcdlatch(0x7Fu, (int)s1.x, (int)s1.y, (int)s1.w, (int)s1.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
     } else {                                                          // SEQ — piano-roll readout OR editable GRID (seq_grid)
-        Box ghdr = lay_split(gc, EDGE_TOP, gc.h * 0.20f, &gc);        // carve a thin header; gc becomes the roll/grid area
-        { int bi = (int)(g_bpm + 0.5f); char nb[4]; int ni = 0;
+        char nb[4]; { int bi = (int)(g_bpm + 0.5f), ni = 0;
           if (bi >= 100) nb[ni++] = '0' + bi / 100;
-          nb[ni++] = '0' + (bi / 10) % 10; nb[ni++] = '0' + bi % 10; nb[ni] = 0;
-          font(FONT_TINY); print(nb, (int)ghdr.x, (int)ghdr.y, CLR_MEDIUM_GREEN); }
-        { Box tg = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.30f, &ghdr);   // BARS/GRID view-style toggle (Stage 1)
-          if (lcdbtn(0x2Du, (int)tg.x, (int)tg.y, (int)tg.w, (int)tg.h, seq_grid ? "GRID" : "BARS", seq_grid)) seq_grid = !seq_grid; }
-        if (seq_grid) { Box tk = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.34f, &ghdr);   // STEP/KEYS bottom-row mode (Stage 2)
-          if (lcdbtn(0x2Eu, (int)tk.x, (int)tk.y, (int)tk.w, (int)tk.h, keys_mode ? "KEYS" : "STEP", keys_mode)) keys_mode = !keys_mode; }
+          nb[ni++] = '0' + (bi / 10) % 10; nb[ni++] = '0' + bi % 10; nb[ni] = 0; }
+        if (!seq_grid) {                                             // BARS: in-content header (BPM + the BARS→GRID toggle)
+            Box ghdr = lay_split(gc, EDGE_TOP, gc.h * 0.20f, &gc);
+            font(FONT_TINY); print(nb, (int)ghdr.x, (int)ghdr.y, CLR_MEDIUM_GREEN);
+            Box tg = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.30f, &ghdr);
+            if (lcdbtn(0x2Du, (int)tg.x, (int)tg.y, (int)tg.w, (int)tg.h, "BARS", 0)) seq_grid = 1;
+        } else {                                                     // GRID: the tab row above carries the chrome; just a small BPM in the corner
+            font(FONT_TINY); print(nb, (int)gc.x, (int)gc.y, CLR_MEDIUM_GREEN);
+        }
         float sw = gc.w / (float)plen[i];                            // px per step across the glass
         int top = (int)gc.y, bot = (int)(gc.y + gc.h), span = bot - top; if (span < 8) span = 8;
         if (seq_grid) {   // EDITABLE grid: drag on the screen — x = step, y = pitch (scale-snapped); the bottom band = rest → erase

@@ -12,7 +12,7 @@
   ],
   "lineage": "Sibling of spacecho (RE-201): both play THE tape-delay DSP as the instrument, but this one uses the IN-LINE pedal echo_insert() instead of the echo() send bus — an honest stompbox in the master fx_order chain, not a parallel send.",
   "homage": "Way Huge Aqua-Puss (MN3005 bucket-brigade analog delay pedal)",
-  "description": "The Way Huge Aqua-Puss as a playable stompbox — a clean jangly guitar strummed straight through an in-line analog delay. Three knobs, exactly like the real MN3005 pedal: DELAY (20..300ms, the pedal's real short range — slapback at the low end, tight rhythmic echo at the top), FEEDBACK (repeat count; past the RED mark >1.0 the loop self-oscillates into a saturated space-warp howl, not a blow-up — the Aqua-Puss's famous runaway, and a tanh in the feedback loop bounds it like a real BBD), and BLEND (dry/wet mix). What makes it sound analog and not digital: every repeat passes once through a one-pole lowpass INSIDE the feedback loop, and the read tap is fractional + slews — so twist DELAY while a tail rings and the repeats PITCH-BEND like varying tape speed. The Aqua-Puss is famous for BRIGHT, jangly repeats (not the usual dark analog mush), so the base tone sits high. The real analog secret is echo_insert_bbd(): the repeats gently WOBBLE (bucket-brigade clock wow + flutter) and a longer DELAY darkens the tail — colouring ONLY the echoes, never the dry guitar. Press B to A/B that analog voice against a clean digital delay. Stomp the FOOTSWITCH (SPACE or tap) to bypass. Standard GarageBand musical-typing keybed — ASDFGHJKL white keys, WETYUO black — plays the guitar, Z/X shift octave, R toggles an auto-riff so you hear the repeats immediately, knobs drag or wheel, ? for help."
+  "description": "The Way Huge Aqua-Puss as a playable stompbox — a clean jangly guitar strummed straight through an in-line analog delay. Three knobs like the real MN3005 pedal: DELAY (opened up to 8..800ms on an exponential sweep — wider than the real 20..300ms BBD range for play: short = a resonant comb / doubler, the classic Aqua-Puss slap-to-echo window sits mid-throw, long = ambient washes; the BBD time-darkening makes the long end get darker on its own), FEEDBACK (repeat count; past the RED mark >1.0 the loop self-oscillates into a saturated space-warp howl, not a blow-up — the Aqua-Puss's famous runaway, and a tanh in the feedback loop bounds it like a real BBD), and BLEND (dry/wet mix). What makes it sound analog and not digital: every repeat passes once through a one-pole lowpass INSIDE the feedback loop, and the read tap is fractional + slews — so twist DELAY while a tail rings and the repeats PITCH-BEND like varying tape speed. The Aqua-Puss is famous for BRIGHT, jangly repeats (not the usual dark analog mush), so the base tone sits high. The real analog secret is echo_insert_bbd(): the repeats gently WOBBLE (bucket-brigade clock wow + flutter) and a longer DELAY darkens the tail — colouring ONLY the echoes, never the dry guitar. Press B to A/B that analog voice against a clean digital delay. Stomp the FOOTSWITCH (SPACE or tap) to bypass. Standard GarageBand musical-typing keybed — ASDFGHJKL white keys, WETYUO black — plays the guitar, Z/X shift octave, R toggles an auto-riff so you hear the repeats immediately, knobs drag or wheel, ? for help."
 }
 de:meta */
 #include "studio.h"
@@ -25,8 +25,8 @@ de:meta */
 // A bucket-brigade (MN3005 BBD) analog delay guitar pedal. Three knobs: DELAY,
 // FEEDBACK, BLEND. Famous for BRIGHT, jangly repeats (unlike most dark analog
 // delays) and a feedback control that self-oscillates into a "space-and-time
-// warping" howl at extreme settings. Short delay range — 20..300ms — so it
-// lives in slapback / tight-echo territory, not long ambient washes.
+// warping" howl at extreme settings. The real one's delay range is 20..300ms; we
+// open it to 8..800ms (exp) so it reaches from a resonant comb up to ambient washes.
 //
 // Sibling of spacecho.c (the RE-201 tape echo): both PLAY the engine's one
 // tape-delay DSP as the instrument, but where spacecho uses the parallel SEND
@@ -37,7 +37,8 @@ de:meta */
 //
 // How the pedal maps onto the API — and why it sounds analog, not digital:
 //
-//   DELAY    echo_insert() time_ms, 20..300ms (the real pedal's range). The
+//   DELAY    echo_insert() time_ms, 8..800ms exp (wider than the real 20..300ms
+//            MN3005 for play — short = resonant comb, long = ambient). The
 //            read tap is fractional and SLEWS toward its target, so twisting
 //            DELAY while a tail rings PITCH-BENDS the repeats — the BBD clock
 //            speeding up / slowing down, exactly like varying tape speed.
@@ -74,7 +75,7 @@ static const char *KNAME[NK] = { "DELAY", "FEEDBACK", "BLEND" };
 // so repeats overlap and sustain instead of dying, and plenty of wet — the
 // echoes fill the space and carry the flow forward. Pull DELAY down for tight
 // slapback, FEEDBACK up to the red for the self-osc drone.
-static int knob[NK] = { 50, 66, 58 };
+static int knob[NK] = { 65, 66, 58 };   // K_DELAY 65 ≈ 160ms (the wash); exp sweep, so mid-throw
 
 static int   base = 60;            // keyboard octave root (C4 — GarageBand default octave)
 static bool  bypass = false;       // the footswitch
@@ -94,7 +95,12 @@ static float rep_age[NREP];        // 0 = just fired, counts up; <0 = empty slot
 static int   rep_head = 0;
 
 // ── knob value mappings ────────────────────────────────────────────────────
-static int   delay_ms(void)  { return 20 + knob[K_DELAY] * 280 / 100; }   // 20..300ms (the real range)
+// 8..800ms, EXPONENTIAL (800/8 = 100×) so both ends stay playable: short = a
+// resonant comb / doubler, the classic 20..300ms Aqua-Puss window sits mid-sweep,
+// long = ambient echoes. Wider than the real MN3005 (20..300) on purpose — the
+// BBD time-darkening makes the long end get darker on its own, like an overdriven
+// bucket-brigade. Engine allows 1..2000ms (the 2s delay line).
+static int   delay_ms(void)  { return (int)(8.0f * powf(100.0f, knob[K_DELAY] / 100.0f) + 0.5f); }
 static float fb_x(void)      { return knob[K_FB] * 0.011f; }              // 0..1.1 — past 1.0 = self-osc
 static float blend_x(void)   { return knob[K_BLEND] / 100.0f; }
 
@@ -395,7 +401,7 @@ void draw(void) {
         print("AQUA-PUSS CONTROLS", 92, 34, CLR_YELLOW);
         static const char *HL[] = {
             "ASDFGHJKL WHITE KEYS / WETYUO BLACK",
-            "DELAY     20..300MS. SWEEP IT",
+            "DELAY     8..800MS. SWEEP IT",
             "          MID-TAIL: REPEATS BEND",
             "FEEDBACK  REPEAT COUNT. PAST THE",
             "          RED MARK IT SELF-OSC'S",

@@ -13,7 +13,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it, drag a chain pedal by its label sideways to reorder, drag one DOWN out to remove; a scrollbar appears when the chain outgrows the screen. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (Reverb is a send, so its chain position is cosmetic for now - the multiple-reverb-tanks step makes it a true insert.)"
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it, drag a chain pedal by its label sideways to reorder, drag one DOWN out to remove; a scrollbar appears when the chain outgrows the screen. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (Reverb is a send, so its chain position is cosmetic for now - the multiple-reverb-tanks step makes it a true insert.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -92,8 +92,10 @@ static const FxDef CAT[NCAT] = {
     // and configured via eq_inst(1,…), so you can EQ before AND after a dirt stage (e.g. EQ→CRUSH→EQ·2).
     { "EQ2",      CLR_DARKER_BLUE,   CLR_TRUE_BLUE,    FX_EQ,      3, { "LO","MID","HI" },     { 0.50f, 0.50f, 0.50f } },
     // OD is a 2nd mix-bus DRIVE (FX_DRIVE instance 1) — an overdrive/boost pedal IN the chain that
-    // coexists with the amp cabinet's drive (instance 0). DRV amount · MODE (soft/asym/hard/fold) · MIX.
-    { "OD",       CLR_DARK_ORANGE,   CLR_PEACH,        FX_DRIVE,   3, { "DRV","MODE","MIX" },  { 0.50f, 0.10f, 1.00f } },
+    // coexists with the amp cabinet's drive (instance 0). VOICE picks a famous pedal via drive_voice():
+    // RAW (plain asym) / TS (Tube Screamer, mid hump) / RAT (hard clip + filter) / MUFF (fuzz + scoop).
+    // TONE rides that voice's tone. (drive_voice is global, so it clears when OD is off/removed.)
+    { "OD",       CLR_DARK_ORANGE,   CLR_PEACH,        FX_DRIVE,   4, { "DRV","VOICE","TONE","MIX" },  { 0.50f, 0.0f, 0.5f, 1.00f } },
     // SHALLOW is the Fairfield Shallow Water INSERT (FX_SHALLOW=16, the first kind past the old 16-kind
     // ceiling): a filtered-random short delay (warped-water warble) + a Low Pass Gate. RATE/DEPTH/MIX.
     { "SHALLOW",  CLR_DARKER_BLUE,   CLR_BLUE,         FX_SHALLOW, 3, { "RATE","DEP","MIX" },  { 0.30f, 0.60f, 0.50f } },
@@ -336,7 +338,11 @@ static void apply_fx(void) {
             case C_BIT: crush(16.0f - k[0] * 14.0f, 1.0f + k[1] * 15.0f, act ? k[2] : 0.0f); break;
             case C_EQ:  if (act) eq((k[0]-0.5f)*24.0f, (k[1]-0.5f)*24.0f, (k[2]-0.5f)*24.0f); else eq(0.0f, 0.0f, 0.0f); break;
             case C_EQ2: if (act) eq_inst(1, (k[0]-0.5f)*24.0f, (k[1]-0.5f)*24.0f, (k[2]-0.5f)*24.0f); else eq_inst(1, 0.0f, 0.0f, 0.0f); break;
-            case C_OD:  drive_insert_inst(1, act ? k[0] : 0.0f, (int)(k[1]*3.99f), act ? k[2] : 0.0f); break;   // 2nd bus drive (FX_DRIVE inst 1); amt/mix 0 = off
+            case C_OD: {  // 2nd bus drive (FX_DRIVE inst 1). VOICE k[1] → drive_voice: 0 RAW/1 TS/2 RAT/3 MUFF; TONE k[2]
+                int voice = (int)(k[1] * 3.99f);                     // 0..3 == DRIVE_VOICE_NONE/TS/RAT/MUFF
+                drive_voice(act ? voice : DRIVE_VOICE_NONE, k[2]);   // global — cleared when OD off/removed (this case always runs)
+                drive_insert_inst(1, act ? k[0] : 0.0f, DRIVE_ASYM, act ? k[3] : 0.0f);   // MIX = k[3]
+            } break;
             case C_SHW: shallow(0.2f + k[0] * 7.8f, k[1], act ? k[2] : 0.0f); break;   // RATE 0.2..8 Hz, DEP, MIX (off = bypass)
             case C_GATE: gate(act ? k[0] : 0.0f, 1 + (int)(k[1] * 15.0f), 20 + (int)(k[2] * 380.0f)); break;   // THR (off = bypass), ATK 1..16ms, REL 20..400ms
             case C_SHMR: shimmer(k[0], k[1], k[2], act ? k[3] : 0.0f); break;   // master shimmer (output stage): SIZE/DAMP/SHIM, MIX (off = bypass)

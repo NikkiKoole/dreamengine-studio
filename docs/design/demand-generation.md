@@ -1,5 +1,11 @@
 # Demand generation — how downloads actually happen (and why keywords are the tail)
 
+> 🎬 **The video pipeline** — five docs, one topic (this breadcrumb is in all of them, so any one
+> leads to the rest): record & bake a clip → assemble ([`promote-tab.md`](promote-tab.md) ·
+> [`trailer-builder.md`](trailer-builder.md)) → frame for the channel
+> ([`export-ratios.md`](export-ratios.md)) → distribute ([`video-distribution.md`](video-distribution.md)).
+> Strategy: [`demand-generation.md`](demand-generation.md) lever #2.
+
 STATUS: EXPLORING / strategy note (2026-07-03). The honest hierarchy of what drives
 downloads + paid conversions for these apps, and where each thing we've built or planned
 sits in it. A lens *above* the tactical docs — it doesn't replace them, it orders them:

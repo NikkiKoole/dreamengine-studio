@@ -197,6 +197,7 @@ docs/
 │       ├── icons/          app-icon art — tinyjam-icon-illustration.png + tinyjam-icon-pixel.png (sources), plus snapped/ = pixelsnap.js cleanups of the AI pixel icon (grid-snapped, posterized, pico/dither variants)
 │       └── raw/            raw research threads kept verbatim-ish — omnichord-chordesta-thread.md (r/synthesizers) + omnichord-heaven-oh84-thread.md (r/Omnichord)
 ├── guides/            how-to
+│   ├── editor-features.md        ★ the capability INDEX for the EDITOR (Make/Promote/Ship) — "can the editor already do X?", one line per surface (code/sprite/map editors · run modes · Promote tab: record/bake/9:16 ratio-variants/trailer builder/tribes · ⇪ Share popover · Apps ASO lab), each pointing at its design doc. The editor-side twin of CLAUDE.md's tools/ list — check it before rebuilding an editor feature
 │   ├── cart-authoring.md         the make-cart.js / tools/carts toolchain
 │   ├── cart-authoring-prompt.md  reusable AI prompt for designing a new cart
 │   ├── AGENT-MESSAGE.md          parallel-build add-on: paste into each agent session alongside its brief + spec

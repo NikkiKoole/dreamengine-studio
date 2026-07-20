@@ -19,15 +19,20 @@
 //   node tools/youtube-push.js --reel tinyacidjam            # push an app trailer (editor/public/reels/<app>.webm)
 //
 // OUTPUT SHAPE — default is a SHORT (ADR-0033: a Short is just a <=60s, 9:16 upload with
-//   #Shorts). The tool integer-upscales the (landscape) clip and COMPOSITES it centred on a
-//   1080x1920 canvas — it never stretches (same rule as store-shots.js) — and #Shorts is added
-//   to title+description. A clip longer than 60s is REFUSED with a clear message (trim the
-//   recipe first) rather than silently uploaded as a non-Short. --landscape opts into the full
-//   clip as a normal 16:10 video.
+//   #Shorts in title+description). Two ways to fill the vertical frame, best first:
+//     1. FULL-BLEED — if a 9:16 variant already exists (editor/public/clips/<cart>/<label>--720x1280.webm,
+//        baked by the editor's Promote tab "bake at 9:16" picker — a resizable cart REFLOWED to fill,
+//        export-ratios.md), the tool uploads THAT. No bars. This is the authoring surface's job; the
+//        tool just consumes its output.
+//     2. LETTERBOX FALLBACK — no variant? The tool integer-upscales the native clip and COMPOSITES it
+//        centred on a 1080x1920 canvas (never stretches, same rule as store-shots.js), leaving bars.
+//        It says so, and points you at the Promote picker for a full-bleed bake.
+//   A clip longer than 60s is REFUSED (trim first) rather than uploaded as a non-Short. --landscape
+//   opts into the full native 16:10 clip as a normal video (no 60s limit).
 //
-// INPUT — a committed recipe under tools/clips/<cart>/<label>.{script,beats,rec}; the mp4 is
+// INPUT — a committed recipe under tools/clips/<cart>/<label>.{script,beats,rec}; the native mp4 is
 //   baked on demand via make-gif.js --format mp4 (libx264/yuv420p/AAC/+faststart — the format
-//   YouTube ingests cleanest) into editor/public/clips/<cart>/<label>.mp4 if not already there.
+//   YouTube ingests cleanest). All derived mp4s land in build/.yt/ (throwaway), never editor/public/.
 //   --reel <app> pushes a pre-composed app trailer from editor/public/reels/<app>.webm instead
 //   (build it with tools/build-app-reel.js).
 //
@@ -74,7 +79,10 @@ const LOOPBACK_PORT = 8719 // must match a redirect URI registered on the OAuth 
 // YouTube snippet limits (the deterministic half; the agent owns the taste)
 const LIMITS = { title: 100, description: 5000, tagsTotal: 500 }
 const SHORT_MAX_SECONDS = 60
-const SHORT_W = 1080, SHORT_H = 1920 // canonical 9:16 Short canvas
+const SHORT_W = 1080, SHORT_H = 1920 // canonical 9:16 Short canvas (letterbox fallback target)
+const SHORT_VARIANT = '720x1280'     // the editor's shipped FULL-BLEED 9:16 clip variant (export-ratios.md /
+                                     // the Promote "bake at 9:16" picker) — preferred over letterboxing
+const TMP = path.join(ROOT, 'build', '.yt') // derived mp4s (transcodes/composites) — throwaway, not editor/public
 // de:meta kinds that read as "music" -> YouTube category 10 (Music), else 20 (Gaming)
 const MUSIC_KINDS = new Set(['instrument', 'generative', 'sequencer', 'music', 'synth', 'drum-machine'])
 
@@ -161,36 +169,46 @@ function readManifest(app) {
   return JSON.parse(fs.readFileSync(p, 'utf8'))
 }
 
-// ── clip baking (make-gif) + Short compositing (ffmpeg) ────────────────────────────────────────
-// Resolve the mp4 to upload: reel = the pre-composed reel (transcoded to mp4 if it's a webm);
-// cart = bake tools/clips/<cart>/<recipe>.* to editor/public/clips/<cart>/<recipe>.mp4 if missing.
-function resolveClip(meta) {
+// ── clip resolution + baking (make-gif) + Short compositing (ffmpeg) ─────────────────────────────
+// A cart clip already baked at the FULL-BLEED 9:16 shape by the editor — the Promote tab's
+// "bake at 9:16" picker (export-ratios.md Stage 2): editor/public/clips/<cart>/<recipe>--720x1280.webm.
+// Prefer this over letterboxing a landscape clip: a resizable cart reflows to FILL the frame.
+function findShortVariant(cart, recipe) {
+  const v = path.join(ROOT, 'editor', 'public', 'clips', cart, `${recipe}--${SHORT_VARIANT}.webm`)
+  return fs.existsSync(v) ? v : null
+}
+
+// Resolve the LANDSCAPE / native source mp4: reel = the pre-composed reel; cart = the recipe baked
+// at native res. Derived mp4s go to build/.yt/ (throwaway), leaving editor/public/ clean.
+function resolveLandscape(meta) {
+  fs.mkdirSync(TMP, { recursive: true })
   if (opt.reel) {
     const reel = path.join(ROOT, 'editor', 'public', 'reels', `${opt.reel}.webm`)
-    const mp4 = path.join(ROOT, 'editor', 'public', 'reels', `${opt.reel}.mp4`)
-    if (!fs.existsSync(reel) && !fs.existsSync(mp4)) die(`no reel at ${rel(reel)} — build it with tools/build-app-reel.js`)
-    if (!fs.existsSync(mp4)) { if (opt.dryRun) return reel; transcodeToMp4(reel, mp4) }
+    if (!fs.existsSync(reel)) die(`no reel at ${rel(reel)} — build it with tools/build-app-reel.js`)
+    if (opt.dryRun) return reel
+    const mp4 = path.join(TMP, `reel-${opt.reel}.mp4`)
+    transcodeToMp4(reel, mp4)
     return mp4
   }
   if (!opt.recipe) die('a cart upload needs --recipe <label>')
   const RECIPE_EXTS = ['script', 'beats', 'rec']
   const track = RECIPE_EXTS.map(e => path.join(ROOT, 'tools', 'clips', opt.cart, `${opt.recipe}.${e}`)).find(fs.existsSync)
   if (!track) die(`no recipe at tools/clips/${opt.cart}/${opt.recipe}.{${RECIPE_EXTS.join(',')}}`)
-  const mp4 = path.join(ROOT, 'editor', 'public', 'clips', opt.cart, `${opt.recipe}.mp4`)
-  if (!fs.existsSync(mp4)) {
-    if (opt.dryRun) { console.log(`  (dry-run: would bake ${rel(mp4)} from ${rel(track)})`); return track }
-    bakeClip(opt.cart, opt.recipe)
-  }
-  return mp4
-}
-
-function bakeClip(cart, recipe) {
-  const args = [path.join(ROOT, 'tools', 'make-gif.js'), cart, '--recipe', recipe, '--format', 'mp4']
+  if (opt.dryRun) { console.log(`  (dry-run: would bake native mp4 from ${rel(track)})`); return track }
+  const out = path.join(TMP, `${opt.cart}-${opt.recipe}.mp4`)
+  const args = [path.join(ROOT, 'tools', 'make-gif.js'), opt.cart, '--recipe', opt.recipe, '--format', 'mp4', '--out', out]
   if (opt.scale) args.push('--scale', opt.scale)
   if (opt.crf) args.push('--crf', opt.crf)
-  console.log(`  baking mp4: make-gif.js ${cart} --recipe ${recipe} --format mp4`)
+  console.log(`  baking native mp4: make-gif.js ${opt.cart} --recipe ${opt.recipe}`)
   const r = spawnSync('node', args, { stdio: 'inherit' })
-  if (r.status !== 0) die(`make-gif failed for ${cart}/${recipe}`)
+  if (r.status !== 0) die(`make-gif failed for ${opt.cart}/${opt.recipe}`)
+  return out
+}
+
+function guardShortDuration(file) {
+  const dur = probeDuration(file)
+  if (dur != null && dur > SHORT_MAX_SECONDS)
+    die(`clip is ${dur.toFixed(1)}s — a Short must be ≤${SHORT_MAX_SECONDS}s. Trim the recipe, or pass --landscape.`)
 }
 
 function transcodeToMp4(src, dst) {
@@ -204,7 +222,8 @@ function transcodeToMp4(src, dst) {
 function makeShort(landscapeMp4, bg) {
   const [w, h] = probeDims(landscapeMp4)
   const s = Math.max(1, Math.min(Math.floor(SHORT_W / w), Math.floor(SHORT_H / h)))
-  const out = landscapeMp4.replace(/\.mp4$/, '-short.mp4')
+  fs.mkdirSync(TMP, { recursive: true })
+  const out = path.join(TMP, path.basename(landscapeMp4).replace(/\.\w+$/, '') + '-short.mp4')
   const color = bg || '0x0d0d14'
   const vf = `scale=${w * s}:${h * s}:flags=neighbor,pad=${SHORT_W}:${SHORT_H}:(ow-iw)/2:(oh-ih)/2:color=${color}`
   console.log(`  compositing 9:16 Short (${w}x${h} ×${s} → ${SHORT_W}x${SHORT_H})`)
@@ -372,22 +391,30 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   const cfg = loadConfig()
   const meta = collectMeta(cfg.problems.length ? {} : cfg)
 
-  // resolve/bake the clip, then shape it (Short vs landscape) + enforce the <=60s Short rule
-  let file = resolveClip(meta)
-  let shaped = file
-  if (!opt.dryRun) {
-    if (meta.short) {
-      const dur = probeDuration(file)
-      if (dur != null && dur > SHORT_MAX_SECONDS)
-        die(`clip is ${dur.toFixed(1)}s — a Short must be ≤${SHORT_MAX_SECONDS}s. Trim the recipe, or pass --landscape.`)
-      shaped = makeShort(file, cfg.shortBg)
-    }
+  // Pick the source + framing. Short: prefer the editor's FULL-BLEED 9:16 variant (a resizable cart
+  // reflowed to fill the frame); fall back to letterboxing the native clip. Enforce ≤60s on Shorts.
+  let shaped, framing
+  const variant = meta.short && !opt.reel ? findShortVariant(opt.cart, opt.recipe) : null
+  if (meta.short && variant) {
+    framing = 'full-bleed 9:16 (editor variant)'
+    if (opt.dryRun) shaped = variant
+    else { guardShortDuration(variant); shaped = path.join(TMP, `${opt.cart}-${opt.recipe}-9x16.mp4`); fs.mkdirSync(TMP, { recursive: true }); transcodeToMp4(variant, shaped) }
+  } else if (meta.short) {
+    framing = opt.reel ? 'letterbox 9:16 (reel)'
+      : 'letterbox 9:16 — no full-bleed variant; bake one via the Promote tab "bake at 9:16" for a fill'
+    const land = resolveLandscape(meta)
+    if (opt.dryRun) shaped = land
+    else { guardShortDuration(land); shaped = makeShort(land, cfg.shortBg) }
+  } else {
+    framing = 'landscape'
+    shaped = resolveLandscape(meta)
   }
 
   // the plan (always printed)
   console.log(`\n${opt.dryRun ? 'DRY-RUN — would upload' : 'uploading'}:`)
   console.log(`  file         ${rel(shaped)}`)
   console.log(`  shape        ${meta.short ? 'Short (9:16, #Shorts)' : 'landscape'}`)
+  console.log(`  framing      ${framing}`)
   console.log(`  privacy      ${meta.privacy}`)
   console.log(`  title        ${meta.title}`)
   console.log(`  tags         ${meta.tags.join(', ')}`)

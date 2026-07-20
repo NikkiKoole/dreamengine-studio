@@ -1,5 +1,14 @@
 # Video distribution — pushing a clip to YouTube (lever #2's last mile)
 
+> 🎬 **The video pipeline** — five docs, one topic (this breadcrumb is in all of them, so any one
+> leads to the rest): record & bake a clip → assemble ([`promote-tab.md`](promote-tab.md) ·
+> [`trailer-builder.md`](trailer-builder.md)) → frame for the channel
+> ([`export-ratios.md`](export-ratios.md)) → distribute ([`video-distribution.md`](video-distribution.md)).
+> Strategy: [`demand-generation.md`](demand-generation.md) lever #2.
+>
+> **This doc is the UPLOAD step only.** Authoring the clip (record, bake, stitch, reframe to 9:16)
+> is already shipped in the editor's Promote tab / trailer builder — don't rebuild it here.
+
 STATUS: SHIPPED (2026-07-20) — `tools/youtube-push.js` is built and PROVEN live: the OAuth
 sign-in (`--auth` loopback consent) + resumable upload work end to end — the first real push
 (the tinyjam reel → a 9:16 Short, unlisted) succeeded, returning a `youtube.com/shorts/…` URL.
@@ -43,26 +52,34 @@ node tools/youtube-push.js --check                                  # offline: c
 - **Input** — a committed recipe (baked via `make-gif.js` if the clip isn't already in
   `editor/public/clips/<cart>/`), or a baked app reel (`editor/public/reels/<app>.webm`).
 - **Default output shape = a Short.** Per ADR-0033 a Short is just a ≤60s, 9:16 upload with
-  `#Shorts` in title+description. `make-gif.js` has no `--ratio` flag, so **the tool composites
-  the Short itself** (ffmpeg, same "composite don't stretch" rule as `store-shots.js`): it
-  integer-upscales the landscape clip and centres it on a 1080×1920 canvas over a solid bg
-  (`config.shortBg`), leaving crisp pixels and letterbox bars rather than a stretched frame. If
-  the take runs longer than 60s it **refuses with a clear message** (trim first, or
-  `--landscape`) rather than silently uploading a non-Short. `--landscape` opts into the full
-  clip as a normal 16:10 video (no 60s limit).
+  `#Shorts` in title+description. Two ways to fill the vertical frame, best first:
+  1. **Full-bleed (preferred).** If a 9:16 clip variant already exists —
+     `editor/public/clips/<cart>/<label>--720x1280.webm`, baked by the editor's **Promote tab
+     "bake at 9:16"** picker where a *resizable* cart **reflows to fill** the frame
+     ([`export-ratios.md`](export-ratios.md) Stage 2) — the tool uploads **that**. No bars.
+     Framing the cart for vertical is the **authoring surface's** job; this tool just consumes its
+     output.
+  2. **Letterbox fallback.** No variant? The tool integer-upscales the native clip and composites
+     it centred on a 1080×1920 canvas (never stretches, same rule as `store-shots.js`) over a
+     solid bg (`config.shortBg`), leaving crisp pixels + bars. It **says so** and points you at the
+     Promote picker for a full-bleed bake.
+
+  A take longer than 60s is **refused** (trim first, or `--landscape`) rather than uploaded as a
+  non-Short. `--landscape` opts into the full native 16:10 clip (no 60s limit).
 - **Uploads mp4 (h264/AAC)** — the format YouTube ingests cleanest, at a low CRF source so
   YouTube's re-encode has good material (same reasoning as the Reddit bake). `make-gif.js`'s mp4
   path already emits libx264/yuv420p/AAC/`+faststart`, so a cart clip is upload-ready as baked;
   a `.webm` app reel is transcoded to mp4 first.
 
 > **Authoring note — the target is 9:16, and full-bleed beats letterbox.** For YouTube reach the
-> shape that travels is the vertical **9:16 Short**, not the engine's native 16:10. This tool
-> composites a 16:10 clip onto the 9:16 canvas, which is honest but leaves **letterbox bars** top
-> and bottom. A *true* full-bleed Short (fills the whole phone screen) wants the **cart itself
-> laid out vertically** — carts are `resizable` ([device-adaptive-layout](device-adaptive-layout.md)),
-> so a cart *can* reflow to a tall canvas, but designing that stacked layout is a **per-cart
-> authoring job**, not this tool's. So: when a cart is meant to star in Shorts, consider authoring
-> a vertical face for it. Parked as a follow-up; the letterboxed Short is the fine default meanwhile.
+> shape that travels is the vertical **9:16 Short**, not the engine's native 16:10. Full-bleed
+> (fills the whole phone screen) beats letterbox bars — and getting there is **already shipped**,
+> just upstream of this tool: bake a `--720x1280` variant in the editor's **Promote tab** (a
+> `resizable` cart reflows to fill; [`export-ratios.md`](export-ratios.md)). This tool prefers that
+> variant automatically and only letterboxes when none exists. So the workflow is: **author a
+> vertical-friendly cart → bake its 9:16 variant in Promote → `youtube-push` uploads it full-bleed.**
+> (Designing a genuinely vertical *face* for a cart — not just a reflow — is the per-cart polish
+> that makes a Short shine; that part is authoring, not this tool.)
 
 ## Auth — OAuth2, the one difference from asc-push
 

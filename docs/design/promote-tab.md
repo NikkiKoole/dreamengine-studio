@@ -1,5 +1,11 @@
 # The Promote tab — a cart's media bin + mini press-kit, in the editor
 
+> 🎬 **The video pipeline** — five docs, one topic (this breadcrumb is in all of them, so any one
+> leads to the rest): record & bake a clip → assemble ([`promote-tab.md`](promote-tab.md) ·
+> [`trailer-builder.md`](trailer-builder.md)) → frame for the channel
+> ([`export-ratios.md`](export-ratios.md)) → distribute ([`video-distribution.md`](video-distribution.md)).
+> Strategy: [`demand-generation.md`](demand-generation.md) lever #2.
+
 > **NAMING — not App Store "promoted purchases".** This tab is the editor's per-cart media bin
 > (clips / takes / tribes / gallery link). It is **unrelated** to Apple's **promoted purchases**
 > (`asc-push --promote`, an IAP surfaced as a tappable App Store search result —

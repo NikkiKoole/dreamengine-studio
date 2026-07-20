@@ -194,7 +194,10 @@ editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.s
            src/ (shell.js IDE chrome, main.js CodeMirror+cmd-click, navigate.js engine-source
            viewer, outline.js, sprite-editor.js, map-editor.js, studioDocs.js = single source for
            API docs, settings.js, theme.js), public/ (fonts, dos_8x8.png, palettes/pico32.json),
-           vite.config.js (serveDocs plugin → Docs tab + engine-source viewer), index.html
+           vite.config.js (serveDocs plugin → Docs tab + engine-source viewer), index.html.
+           **What the editor can DO** (record/bake clips, 9:16 ratio-variants, the trailer builder,
+           the Apps ASO lab, Share) → the capability index docs/guides/editor-features.md — check it
+           before hand-building an editor feature (the tools/ list below covers CLI tools only)
 Makefile   `make` kills stale processes + starts editor, +floorplan `--serve` fetch-bridge if a token is set (targets: make / start / serve / install / help)
 tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read the file header for
            the full contract:

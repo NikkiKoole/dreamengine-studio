@@ -1,5 +1,11 @@
 # The trailer builder — a humble CapCut over the `.reel`
 
+> 🎬 **The video pipeline** — five docs, one topic (this breadcrumb is in all of them, so any one
+> leads to the rest): record & bake a clip → assemble ([`promote-tab.md`](promote-tab.md) ·
+> [`trailer-builder.md`](trailer-builder.md)) → frame for the channel
+> ([`export-ratios.md`](export-ratios.md)) → distribute ([`video-distribution.md`](video-distribution.md)).
+> Strategy: [`demand-generation.md`](demand-generation.md) lever #2.
+
 STATUS: BUILDING (2026-07-03) — **backbone + editor UI v1 (A) SHIPPED.** Backbone:
 `tools/build-app-reel.js` (proven on Tiny Jam, 3-rack reel). UI: the Apps-card **🎞 trailer** button
 opens a **Trailer section** (Apps tab) — a click-to-edit timeline that loads from the `.reel`, a

@@ -30,6 +30,17 @@
 // ── chord qualities (the shared 5-quality vocab both source carts used) ──────
 enum { HBQ_MAJ7, HBQ_MIN7, HBQ_DOM7, HBQ_M7B5, HBQ_MIN6, HB_NQUAL };
 static const char *hb_qname[HB_NQUAL] = { "maj7", "m7", "7", "m7b5", "m6" };
+// the chord TONES of each quality (root, 3rd, 5th, 7th/6th as semitone
+// intervals) — what a chord IS, for a melody/solo to target. Five carts each
+// hand-rolled this exact table (bossa QTONES, cocktail/squarepusher CT, …);
+// it lives here now. Voicing (which tones to omit/extend) stays rad_lead_to.
+static const int hb_tones[HB_NQUAL][4] = {
+    { 0, 4, 7, 11 },   // maj7
+    { 0, 3, 7, 10 },   // m7
+    { 0, 4, 7, 10 },   // 7
+    { 0, 3, 6, 10 },   // m7b5
+    { 0, 3, 7, 9  },   // m6
+};
 
 // plain-triad classes for hb_chord_fn — a toy speaks triads, the vocab thinks
 // sevenths; a triad matches its seventh family (maj → maj7/dom7, min → m7/m6)
@@ -47,6 +58,15 @@ static const int hb_qual[HB_NFUNC] = { HBQ_MAJ7, HBQ_MIN7, HBQ_MIN7, HBQ_MAJ7,
                                        HBQ_DOM7 };
 static const char *hb_fname[HB_NFUNC] = { "I", "ii", "iii", "IV", "V", "vi",
     "II7", "VI7", "bII7", "iv", "bVII7", "v", "I7" };
+
+// the chord TONES of function f in key keyPc, as pitch classes (0..11) → out[4].
+// The shared version of the `chord_pcs()` helper cocktail/squarepusher hand-roll:
+// root = keyPc + hb_off[f]; tones = hb_tones[hb_qual[f]]. Returns the count (4).
+static int hb_chord_pcs(int keyPc, int f, int *out) {
+    int r = (keyPc + hb_off[f]) % 12;
+    for (int i = 0; i < 4; i++) out[i] = (r + hb_tones[hb_qual[f]][i]) % 12;
+    return 4;
+}
 
 // ── styles: where can each function go? repeats = more likely ────────────────
 // A style is weights over the ONE vocab (the research finding: genres differ by
@@ -240,6 +260,16 @@ static inline void hb_selfcheck(void) {
     // pick is a pure table read (the carts' PRNG stays outside)
     expect_eq(hb_pick(&HB_BOSSA, HB_ii, 0),    HB_V,  "hb pick = table read");
     expect_eq(hb_pick(&HB_COCKTAIL, HB_VI7, 3), HB_ii, "hb cocktail VI7 row -> ii");
+
+    // chord tones: ii in C = Dm7 (D F A C); V = G7 (G B D F) — the shared table
+    { int t[4];
+      hb_chord_pcs(0, HB_ii, t);
+      expect(t[0]==2 && t[1]==5 && t[2]==9 && t[3]==0, "hb chord_pcs: ii in C = Dm7 (D F A C)");
+      hb_chord_pcs(0, HB_V, t);
+      expect(t[0]==7 && t[1]==11 && t[2]==2 && t[3]==5, "hb chord_pcs: V in C = G7 (G B D F)");
+      // spelling round-trips with analysis: each function's tones re-analyze to it
+      expect_eq(hb_chord_fn(0, (0+hb_off[HB_vi])%12, HB_TRIAD_MIN), HB_vi,
+                "hb chord_pcs root matches hb_chord_fn"); }
 }
 #endif // DE_SPEC
 

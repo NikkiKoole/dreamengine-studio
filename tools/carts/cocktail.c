@@ -197,21 +197,10 @@ static int fn_at(long bar)   { return sng.fn[bar < 0 ? 0 : bar % 64]; }
 static int root_pc(int f)    { return (sng.keyPc + F_OFF[f]) % 12; }
 static int qual(int f)       { return F_QUAL[f]; }
 
-// the current chord as four pitch classes (R 3 5 7) — the solo's targets, so
-// its strong notes land on the changes (improv.h chord awareness). These are
-// the full chord tones, not the rootless QV comping voicing above.
-static const int CT[NQ][4] = {
-    { 0, 4, 7, 11 },   // maj7
-    { 0, 3, 7, 10 },   // m7
-    { 0, 4, 7, 10 },   // 7
-    { 0, 3, 6, 10 },   // m7b5
-    { 0, 3, 7, 9  },   // m6
-};
-static int chord_pcs(int f, int *out) {
-    int r = root_pc(f);
-    for (int i = 0; i < 4; i++) out[i] = (r + CT[qual(f)][i]) % 12;
-    return 4;
-}
+// the current chord as four pitch classes (R 3 5 7) — the solo's snap targets.
+// The tone table + this spelling live in harmony.h now (hb_tones/hb_chord_pcs),
+// shared with bossa/squarepusher; this is the thin cart-local alias.
+static int chord_pcs(int f, int *out) { return hb_chord_pcs(sng.keyPc, f, out); }
 
 static void chord_label(char *out, int n, int f) {
     snprintf(out, n, "%s%s", RAD_PCNAME[root_pc(f)], QN[qual(f)]);

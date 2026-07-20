@@ -86,9 +86,8 @@ static const int QVOICE[NQUAL][3] = {
     { 3,  6, 10 },   // m7b5  → b3 b5 b7
     { 3,  9, 14 },   // m6    → b3 6 9
 };
-static const int QTONES[NQUAL][4] = {  // chord tones for the melody to target
-    { 0, 4, 7, 11 }, { 0, 3, 7, 10 }, { 0, 4, 7, 10 }, { 0, 3, 6, 10 }, { 0, 3, 7, 9 },
-};
+// chord tones for the melody to target now live in harmony.h as hb_tones (five
+// carts had each hand-rolled this identical table) — pick_mel reads it directly.
 static const char *PCNAME[12] = { "C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B" };
 
 // ── harmonic functions — the shared harmony brain (harmony.h) ─────────────
@@ -244,7 +243,7 @@ static int pick_mel(int f) {
     int q = F_QUAL[f], rp = root_pc(f);
     int bestM = melPitch, bestScore = -999;
     for (int t = 0; t < 5; t++) {
-        int off = (t < 4) ? QTONES[q][t] : 14;
+        int off = (t < 4) ? hb_tones[q][t] : 14;   // chord tone, then the 9th
         int pc = (rp + off) % 12;
         for (int oct = 6; oct <= 7; oct++) {
             int m = oct * 12 + pc;
@@ -516,10 +515,8 @@ void draw(void) {
     // tones (root/3rd/5th/9th), re-shaped as the ii-V-I changes move under you. Bossa's
     // jazz harmony is too rich for one scale; chord-lock keeps every note consonant over
     // the secondary dominants and tritone subs (J or tap the corner to open)
-    int chord[4]; {
-        int f = sng.prog[bar_to_prog(bar)], q = F_QUAL[f], rp = root_pc(f);
-        for (int k = 0; k < 4; k++) chord[k] = (rp + QTONES[q][k]) % 12;
-    }
+    int chord[4];
+    hb_chord_pcs(sng.keyPc, sng.prog[bar_to_prog(bar)], chord);   // the bar's chord tones
     static const int PENT[5] = { 0, 2, 4, 7, 9 };  // the "sc" toggle's fallback: free pentatonic over the changes
     // vertical = breath dynamics (a flute leans soft→loud)
     SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6, false, true };

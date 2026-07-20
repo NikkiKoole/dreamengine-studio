@@ -501,6 +501,19 @@
     "homage": "Propellerhead ReBirth RB-338 (1997)"
   },
   {
+    "title": "Tiny Acid Jam — wide 303 (mockup)",
+    "description": "Draw-only LAYOUT STUDY: one 303 fully UNHIDDEN on a WIDE screen — everything that pages behind soft-keys on the phone (core knobs CUT/RES/ENV/DEC/ACC + the DF-extras SUB/ADEC/SLDT/TRK + FX DRV/SEND/VERB + DRIFT, and a full piano-roll sequencer with ACC/SLIDE/TIE lanes) shown at ONCE. Two arrangements to compare (keys 1/2): A = control RAIL left + big sequencer screen right; B = full knob ROW on top + one tall screen that absorbs the perform strip. Reflow, not scale. The bet: a phone 303 hides most of itself behind SEQ/FLAG/FX/... soft-keys because it only has height. Give it WIDTH and the whole TB setup fits unhidden — the sequencer stops being a 12px bottom strip and becomes the screen (pitch on Y, 16 steps on X, ACC/SLD/TIE lanes right under it). A puts the panel on a left rail (hardware feel); B keeps the familiar top knob-row and lets one tall screen eat the perform strip. Same pieces, two arrangements — the canvas-density-spectrum 'arrangement axis'. Chunky ~240x100 canvas (reflows to the window width). 1 = arrangement A (rail + screen). 2 = arrangement B (knob-row + tall screen). Draw-only mockup: no audio, fake pattern.",
+    "file": "acidwide.cart.png",
+    "created": "2026-07-20",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face"
+    ]
+  },
+  {
     "title": "acidwire",
     "description": "The device-matrix WIREFRAME tool for the acidrack redesign — CLICKABLE/TAPPABLE (touch+mouse): flip acidrack's four-state layout through every device shape and click the controls (mute, patterns, open a strip, focus, tabs) to study the interaction, not just the pixels. A design tool for the acidrack redesign (device-adaptive-layout.md Phase 3, brief acidrack-layout-brief.md). The window is fixed (940x700); pressing a key calls de_resize() to shrink the CANVAS to the exact logical @ K=2 size of each device in device-matrix.md §2 (iPhone SE ... iPad 13 landscape). The engine letterboxes it, so you watch acidrack reflow at each TRUE shape - no fake nested device rect (the field-018 honesty win: lay.h + screen_w()/screen_h() see the real size, same path production acidrack uses). Because the canvas is already K=2 logical px, a 44pt finger is a constant 22 logical px - so every control's finger-comfort is honest. It draws the three-state strip model (folded/compact/expanded) and the per-shape arrangements from the brief: roomy=all-compact rack, tall=one expanded + compact + folded, short-wide=tabs. It's the vehicle for the brief's open compact-strip taste calls - tweak the compact layout here and eyeball it across all shapes. TAP/CLICK: a strip NAME opens it (compact->expanded->focus) - the M button (un)mutes - a pattern chip selects it - a landscape TAB name opens it + its M mutes without opening - in FOCUS the instrument NAME (‹) is the back button (no X; [M][fx] sit top-right) - the bottom-left label flips to the next device. KEYS mirror it: ]/->/space/` (key left of 1) next shape - [/<- prev - 1-9 jump - w cycle which strip is expanded (also toggles the iPad all-compact rack) - f FOCUS the working strip fullscreen (drum full grid / 303 programmer; f or the X closes) - m (un)mute the working strip - p cycle its pattern (6 per instrument) - s toggle the device SAFE-AREA skin (notch/Dynamic Island/rounded corners/home bar/status bar + the dashed keep-out boundary) - g toggle the 1-FINGER reference grid (44pt cells — anything smaller than a cell is sub-finger) - h hide the label",
     "file": "acidwire.cart.png",

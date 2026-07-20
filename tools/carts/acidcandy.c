@@ -1485,7 +1485,7 @@ static void draw_mst(Box stage) {
     }
 
     // the bottom band: DELAY buttons (top) · SEND knobs (below) — full width now (DUB moved to the right column)
-    Box delrow = lay_split(bottom, EDGE_TOP, bottom.h * 0.48f, &bottom);
+    Box delrow = lay_split(bottom, EDGE_TOP, bottom.h * 0.36f, &bottom);   // shorter → DLY buttons not too tall
     Box sendrow = bottom;
     // ④b DELAY division buttons (set mdiv directly; label = the division)
     { Box lbl = lay_split(delrow, EDGE_LEFT, W * 0.11f, &delrow);
@@ -1495,7 +1495,11 @@ static void draw_mst(Box stage) {
     // ⑤ per-machine delay SEND
     { Box lbl = lay_split(sendrow, EDGE_LEFT, W * 0.11f, &sendrow);
       font(FONT_TINY); plabel("SND", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
-      for (int m = 0; m < 4; m++) knob_cell(lay_grid(sendrow, 4, 4, m, 2), &msend[m], MLAB[m], m < 2 ? 0.10f : 0.0f); }
+      // SND knobs TOP-aligned (not knob_cell) so the dial top always keeps a 1px gap below the DLY
+      // buttons — the short send row would otherwise trip knob_cell's label-fit clamp and push the dial UP.
+      for (int m = 0; m < 4; m++) { Box c = lay_grid(sendrow, 4, 4, m, 2);
+          float rh = c.h * 0.34f, rw = c.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
+          knob(&msend[m], (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, MLAB[m], m < 2 ? 0.10f : 0.0f); } }
 }
 
 void init(void) {

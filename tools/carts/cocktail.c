@@ -197,6 +197,22 @@ static int fn_at(long bar)   { return sng.fn[bar < 0 ? 0 : bar % 64]; }
 static int root_pc(int f)    { return (sng.keyPc + F_OFF[f]) % 12; }
 static int qual(int f)       { return F_QUAL[f]; }
 
+// the current chord as four pitch classes (R 3 5 7) — the solo's targets, so
+// its strong notes land on the changes (improv.h chord awareness). These are
+// the full chord tones, not the rootless QV comping voicing above.
+static const int CT[NQ][4] = {
+    { 0, 4, 7, 11 },   // maj7
+    { 0, 3, 7, 10 },   // m7
+    { 0, 4, 7, 10 },   // 7
+    { 0, 3, 6, 10 },   // m7b5
+    { 0, 3, 7, 9  },   // m6
+};
+static int chord_pcs(int f, int *out) {
+    int r = root_pc(f);
+    for (int i = 0; i < 4; i++) out[i] = (r + CT[qual(f)][i]) % 12;
+    return 4;
+}
+
 static void chord_label(char *out, int n, int f) {
     snprintf(out, n, "%s%s", RAD_PCNAME[root_pc(f)], QN[qual(f)]);
 }
@@ -323,9 +339,11 @@ static void play_step(long abs, double pos) {
             improv_render(&solo, soloBar, JAZZMAJ);
         float arc = improv_arc(&solo, soloBar);
         int cs = (int)(s % 32);
+        int cpc[4]; int ncp = chord_pcs(fn_at(bar), cpc);   // the bar's chord tones
         for (int i = 0; i < solo.n; i++)
             if (solo.onset[i] == cs) {
-                int m   = improv_midi(&solo, i, soloBar, sng.keyPc, JAZZMAJ, sng.blue);
+                int m   = improv_midi_chord(&solo, i, soloBar, sng.keyPc,
+                                            JAZZMAJ, sng.blue, cpc, ncp);
                 int vol = (sect == S_BASS ? 6 : 4) + (arc > 0.6f ? 1 : 0);
                 int gat = (int)(stepMs * (solo.dur[i] > 4 ? solo.dur[i] : 2) * 0.85f);
                 schedule_hit(dly + sw + 10, m, sect == S_BASS ? I_BASS : I_PSOLO,
@@ -564,3 +582,26 @@ void draw(void) {
     rad_band_panel(&band, CLR_PEACH);
     ui_end();
 }
+
+// ── spec — the chord-aware soloist's deterministic oracle (spec-harness.md) ──
+// Solos run on rnd() (performance, never pinned), so we don't assert pitches;
+// we assert the PURE bridge: improv.h's chord-snap math + cocktail's chord-tone
+// feed. improv_selfcheck() is the header's own assertions (the includeable rule).
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    improv_selfcheck();                          // improv.h's chord-snap oracle
+
+    // the feed that makes it chord-aware: the current function -> its four tones
+    sng.keyPc = 0;                               // work in C, no PRNG needed
+    int cpc[4]; int n = chord_pcs(F_ii, cpc);
+    expect_eq(n, 4, "chord_pcs: four tones");
+    expect(cpc[0]==2 && cpc[1]==5 && cpc[2]==9 && cpc[3]==0,
+           "cocktail ii in C = Dm7 (D F A C)");
+    chord_pcs(F_V, cpc);
+    expect(cpc[0]==7 && cpc[1]==11 && cpc[2]==2 && cpc[3]==5,
+           "cocktail V in C = G7 (G B D F)");
+    // end to end: a solo E (64) over the V chord lands on F, the b7 (nearest tone)
+    expect_eq(improv_snap(64, cpc, 4), 65, "E over G7 snaps to F (the 7th)");
+}
+#endif

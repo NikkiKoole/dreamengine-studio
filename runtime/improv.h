@@ -139,4 +139,70 @@ static int improv_midi(Improv *im, int i, long barInSolo, int keyPc,
     return m;
 }
 
+// ── chord awareness (opt-in, PURE — no rnd(), so it can't shift a seed) ───────
+// The improviser walks the KEY's scale; a caller that knows the CURRENT CHORD
+// can pull the notes that MATTER (bar downbeats + the phrase's resolving tone)
+// onto a chord tone, so the solo lands ON the changes instead of noodling the
+// scale — the "chord tone on the strong beat" rule the walking bass already
+// obeys. chordPc = the chord's pitch classes 0..11; nPc its count. Give none
+// (NULL / 0) and every path below reduces byte-for-byte to improv_midi above.
+
+// nearest midi to m whose pitch-class is one of the chord tones (shortest move)
+static int improv_snap(int m, const int *chordPc, int nPc) {
+    if (!chordPc || nPc <= 0) return m;
+    int pc = ((m % 12) + 12) % 12, best = m, bestd = 99;
+    for (int i = 0; i < nPc; i++) {
+        int d  = (chordPc[i] - pc + 18) % 12 - 6;   // signed shortest dist -6..+5
+        int md = d < 0 ? -d : d;
+        if (md < bestd) { bestd = md; best = m + d; }
+    }
+    return best;
+}
+
+// the notes worth landing on a chord tone: each bar's downbeat (step 0 / 16 of
+// the 2-bar window) and the phrase's final, resolving note
+static bool improv_is_target(const Improv *im, int i) {
+    if (i == im->n - 1) return true;
+    return im->onset[i] == 0 || im->onset[i] == 16;
+}
+
+// chord-aware pitch: strong notes snap to a chord tone, the rest walk the scale
+// as before. chordPc == NULL is EXACTLY improv_midi (no behaviour change).
+static int improv_midi_chord(Improv *im, int i, long barInSolo, int keyPc,
+                             const int *mode7, int bluePct,
+                             const int *chordPc, int nPc) {
+    int m = improv_midi(im, i, barInSolo, keyPc, mode7, bluePct);
+    if (chordPc && improv_is_target(im, i)) m = improv_snap(m, chordPc, nPc);
+    return m;
+}
+
+// ── self-check — the spec.h pattern (a shared header can't own spec(), but it
+// can carry its own PURE assertions; a customer's spec() just calls this) ─────
+#ifdef DE_SPEC
+#include "spec.h"
+static inline void improv_selfcheck(void) {
+    // no chord given → identity (the old key-relative path is untouched)
+    expect_eq(improv_snap(60, 0, 0),    60, "improv snap: no chord = identity");
+
+    // Cmaj7 tones {C E G B}: an already-chord-tone stays put; a non-tone moves
+    static const int CMAJ7[4] = { 0, 4, 7, 11 };
+    expect_eq(improv_snap(64, CMAJ7, 4), 64, "improv snap: E over Cmaj7 is a tone, held");
+    expect_eq(improv_snap(62, CMAJ7, 4), 60, "improv snap: D pulls to nearest tone C (tie -> down)");
+    expect_eq(improv_snap(65, CMAJ7, 4), 64, "improv snap: F pulls down to E (the 3rd)");
+
+    // shortest move wraps the octave: C with only B in the chord goes DOWN a
+    // semitone (59), never up eleven
+    static const int BONLY[1] = { 11 };
+    expect_eq(improv_snap(60, BONLY, 1), 59, "improv snap: shortest path, not nearest-up");
+
+    // targets: bar downbeats (0,16) + the last note; the off-beats walk free
+    Improv im; im.n = 4;
+    im.onset[0] = 0; im.onset[1] = 6; im.onset[2] = 16; im.onset[3] = 21;
+    expect(improv_is_target(&im, 0), "improv target: bar-1 downbeat");
+    expect(!improv_is_target(&im, 1), "improv target: an off-beat walks free");
+    expect(improv_is_target(&im, 2), "improv target: bar-2 downbeat");
+    expect(improv_is_target(&im, 3), "improv target: the resolving last note");
+}
+#endif // DE_SPEC
+
 #endif // IMPROV_H

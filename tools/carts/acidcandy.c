@@ -776,7 +776,7 @@ static void draw_303(Box stage, int i) {
     // like the 160×100 scaled up; the leftover ratio-offset spreads into the hero + the widths.
     float H = stage.h, W = stage.w;
     Box body  = lay_inset(stage, 2);
-    Box krow  = lay_split(body, EDGE_TOP,    H * 0.35f, &body);   // ② acid knob row + a nestled always-on FX row below it
+    Box krow  = lay_split(body, EDGE_TOP,    H * 0.24f, &body);   // ② acid knob row (design ≈24/100)
     Box loopS = lay_split(body, EDGE_BOTTOM, H * 0.05f, &body);   // loop-length handle strip
     Box notes = lay_split(body, EDGE_BOTTOM, H * (seq_grid ? 0.12f : 0.28f), &body);   // GRID: thin compact strip (the LCD, = the remainder, grows into the freed space); BARS: tall note bars
     Box skcL = {0}, skcR = {0};                                  // ③ soft-key columns — BARS only; GRID moves the mode selector IN-screen (tabs) for a full-width glass
@@ -786,12 +786,6 @@ static void draw_303(Box stage, int i) {
     // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
     Box krDF = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 14, 26), &krow);
     Box krPAGE = lay_split(krDF, EDGE_BOTTOM, krDF.h * 0.44f, &krDF);      // krDF = top (VOICING switch), krPAGE = bottom (VIEW tab)
-    Box fxr = lay_split(krow, EDGE_BOTTOM, krow.h * 0.42f, &krow);         // always-on FX row (below the acid knobs); krow = the acid row (top)
-    // ALWAYS-ON FX — DRV / SEND / VERB nestled in the valleys below the acid knobs (both pages), so
-    // they're never a tab away (the maker's ask). 3-under-5 → the outer two fall between the acid knobs.
-    knob_cell(lay_grid(fxr, 3, 3, 0, 2), &a->p[ACID_DRV], "DRV",  0.35f);
-    knob_cell(lay_grid(fxr, 3, 3, 1, 2), &msend[i],       "SEND", 0.10f);
-    knob_cell(lay_grid(fxr, 3, 3, 2, 2), &fxverb[i],      "VERB", 0.0f);
     if (!kpage[i]) {                                                       // page 0 — vanilla
         knob_cell(lay_grid(krow, 5, 5, 0, 2), &a->p[ACID_CUT], "CUT", 0.55f);
         knob_cell(lay_grid(krow, 5, 5, 1, 2), &a->p[ACID_RES], "RES", 0.70f);
@@ -879,9 +873,12 @@ static void draw_303(Box stage, int i) {
     if (pscreen[i] == PS_FLAG) {
         for (int f = 0; f < FL_N; f++) { Box c = lay_grid(gc, 3, FL_N, f, 2);   // the 6-flag palette
             if (lcdbtn(0x0Au + f, (int)c.x, (int)c.y, (int)c.w, (int)c.h, FLNAME[f], armed == f)) armed = f; }
-    } else if (pscreen[i] == PS_FX) {                                 // FX character — DRIFT + CLEAN (DRV/SEND/VERB are now the always-on knob row)
+    } else if (pscreen[i] == PS_FX) {                                 // FX + voice character, LCD-native
         Box knobs; Box clean = lay_split(gc, EDGE_BOTTOM, gc.h * 0.28f, &knobs);   // bottom strip = the CLEAN/RAW saw toggle
-        lcdknob_cell(lay_grid(knobs, 3, 3, 1, 2), &a->drift, "DRIFT", 0.5f);       // analog wander amount (rides live via acid_ride), centred
+        lcdknob_cell(lay_grid(knobs, 4, 4, 0, 2), &a->p[ACID_DRV], "DRV",   0.35f);
+        lcdknob_cell(lay_grid(knobs, 4, 4, 1, 2), &msend[i],       "SEND",  0.10f);
+        lcdknob_cell(lay_grid(knobs, 4, 4, 2, 2), &fxverb[i],      "VERB",  0.0f);
+        lcdknob_cell(lay_grid(knobs, 4, 4, 3, 2), &a->drift,       "DRIFT", 0.5f);   // analog wander amount (rides live via acid_ride)
         if (lcdbtn(0x46u, (int)clean.x, (int)clean.y, (int)clean.w, (int)clean.h, a->clean ? "CLEAN SAW" : "RAW SAW", a->clean)) { a->clean = !a->clean; acid_define(a); }   // PolyBLEP band-limit toggle (SAW only)
     } else if (pscreen[i] == PS_GEN) {                                // CLEAR + randomize menu (2×2)
         static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };

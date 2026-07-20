@@ -48,6 +48,7 @@ function build(name, work) {
     `"${mk.RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
     '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
+    '-framework AudioToolbox',   // mic_desktop.h AudioQueue capture (Tier-1 mic input)
     '-Wl,-dead_strip', `-o "${BIN}"`,
   ].join(' ')
   execSync(`clang ${clangArgs}`, { stdio: 'pipe' })

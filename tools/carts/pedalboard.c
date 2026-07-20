@@ -738,7 +738,7 @@ static void draw_chain_pedal(int i, int x) {
             lbl = FN[(int)(sl->k[2] * 3.99f)];
         }
         if (d->kind == -2 && j == 1) lbl = sl->k[1] < 0.5f ? "GER" : "SIL";   // FUZZ MODE: germanium ↔ silicon
-        if (d->kind == FX_DRIVE && j == 1) { static const char *DN[4] = { "SFT","HRD","FLD","ASY" }; lbl = DN[(int)(sl->k[1] * 3.99f)]; }   // OD MODE (DRIVE_SOFT/HARD/FOLD/ASYM)
+        if (d->kind == FX_DRIVE && j == 1) { static const char *DN[4] = { "RAW","TS","RAT","MUF" }; lbl = DN[(int)(sl->k[1] * 3.99f)]; }   // OD VOICE (RAW / Tube Screamer / RAT / Big Muff via drive_voice)
         if (d->kind == FX_GRAINS && j == 3) lbl = sl->k[3] > 0.5f ? "FRZN" : "LIVE";   // GRAINS FRZ: freeze toggle
         font(FONT_TINY);                                          // label tucked beside the knob (the empty column)
         if (j & 1) print_right(lbl, kx - kr - 2, ky - 2, lblcol);   // right-column knob → label on its left

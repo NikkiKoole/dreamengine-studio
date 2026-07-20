@@ -307,6 +307,35 @@ static void draw_F(Box body) {
     stepstrip_compact(strip);
 }
 
+// the 16-column region INSIDE the note-grid glass (after the keyboard ruler) — MUST match
+// notegrid()'s internal gc, so the step strip can be placed on the exact same x-lane → they align.
+static Box grid_lane(Box scr) { return box(scr.x + 12, scr.y + 4, scr.w - 16, scr.h - 8); }
+
+// ── ARRANGEMENT G — F's "unpaged" but ALIGNMENT-PRESERVING: flags/pages in a HORIZONTAL mode-bar
+// (not grid-insetting side rails), so the full-width note-grid + strip stay on one 16-column lane. ──
+static void draw_G(Box body) {
+    float H = body.h;
+    Box strip = lay_split_gap(body, EDGE_BOTTOM, H * 0.12f, 2, &body);        // step strip (per-step → on the lane)
+    Box krow  = lay_split_gap(body, EDGE_TOP,    H * 0.30f, 2, &body);        // 2-row knobs (not per-step → a band)
+    Box bar   = lay_split_gap(body, EDGE_TOP,    H * 0.12f, 2, &body);        // MODE BAR (not per-step → a band)
+    Box grid  = body;                                                         // FULL-WIDTH note-grid
+    // knobs + DF/page nook
+    Box nook = lay_split_gap(krow, EDGE_RIGHT, krow.w * 0.14f, 2, &krow);
+    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, 7, 13, i, 2), KN[i], KV[i]);
+    Box t1 = lay_split_gap(nook, EDGE_TOP, nook.h * 0.5f, 2, &nook);
+    cbtn(t1, "DF", 1); cbtn(nook, "1/2", 0);
+    // MODE BAR: paint-mode flags (left) | PAT banks + tucked pages (right) — horizontal, so the grid keeps full width
+    Box pages = lay_split_gap(bar, EDGE_RIGHT, bar.w * 0.44f, 4, &bar);
+    static const char *FL[6] = { "NOTE", "ACC", "SLD", "TIE", "OC+", "OC-" };
+    for (int i = 0; i < 6; i++) lcdbtn(lay_cell(bar, 0, 6, i, 1), FL[i], i == 0);
+    static const char *PG[7] = { "A", "B", "C", "D", "KEY", "GEN", "PRF" };
+    for (int i = 0; i < 7; i++) { Box b = lay_cell(pages, 0, 7, i, 1); if (i < 4) cbtn(b, PG[i], i == 0); else lcdbtn(b, PG[i], 0); }
+    // full-width grid + strip SHARE the lane → column s (pitch) sits exactly over cell s (on/off)
+    notegrid(grid);
+    Box lane = grid_lane(grid);
+    stepstrip_compact(box(lane.x, strip.y, lane.w, strip.h));
+}
+
 void update(void) {
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
@@ -314,6 +343,7 @@ void update(void) {
     if (keyp('4')) arr = 3;
     if (keyp('5')) arr = 4;
     if (keyp('6')) arr = 5;
+    if (keyp('7')) arr = 6;
     g_step = (int)(now() * 8) % 16;
 }
 
@@ -335,7 +365,7 @@ void draw(void) {
     navstrip(nav);
 
     // little tag so the render is self-labelling
-    static const char *TAG[6] = { "A", "B", "C", "D", "E", "F" };
+    static const char *TAG[7] = { "A", "B", "C", "D", "E", "F", "G" };
     font(FONT_TINY); print(TAG[arr], (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
 
     if (arr == 0)      draw_A(body);
@@ -343,5 +373,6 @@ void draw(void) {
     else if (arr == 2) draw_C(body, 1);
     else if (arr == 3) draw_C(body, 2);
     else if (arr == 4) draw_E(body);
-    else               draw_F(body);
+    else if (arr == 5) draw_F(body);
+    else               draw_G(body);
 }

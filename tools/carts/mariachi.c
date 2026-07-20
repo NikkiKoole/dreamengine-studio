@@ -61,6 +61,7 @@ de:meta */
 
 #include "studio.h"
 #include "radio.h"
+#include "improv.h"  // for improv_snap — the pure chord-tone snap (no improviser used here)
 #include <stdio.h>
 #include <math.h>
 
@@ -271,6 +272,12 @@ static int  sect_of(long bar) {
 
 static int func_of(long bar)  { return sng.prog[(int)(bar % 8)]; }
 static int root_pc(int f)     { return (sng.keyPc + FOFF[sng.key][f]) % 12; }
+// the current triad as pitch classes (root, 3rd, 5th) — the adorno's landing targets
+static int chord_pcs(int f, int *out) {
+    int r = root_pc(f), third = FMAJ[sng.key][f] ? 4 : 3;
+    out[0] = r; out[1] = (r + third) % 12; out[2] = (r + 7) % 12;
+    return 3;
+}
 
 static int level_of(long bar) {
     int s = sect_of(bar);
@@ -432,6 +439,10 @@ static void play_step(long abs, double pos) {
             int base = sng.soloVln ? 67 + sng.keyPc : 60 + sng.keyPc;
             int hi   = sng.soloVln ? 88 : 79;
             int mm   = deg_to_midi(adeg, base, sc);
+            if (step == 0) {                        // land the run on the chord as it turns
+                int cpc[3]; int ncp = chord_pcs(f, cpc);   // the bar's triad
+                mm = improv_snap(mm, cpc, ncp);            // RESOLVE-style: only the downbeat
+            }
             while (mm > hi) mm -= 12;
             schedule_hit(dly + 6 + rnd(4), mm, slot, 4 + (chance(35) ? 1 : 0),
                          (int)(stepMs * 1.6f));
@@ -723,3 +734,24 @@ void draw(void) {
     rad_band_panel(&band, CLR_ORANGE);
     ui_end();
 }
+
+// ── spec — the chord-aware adorno oracle (spec-harness.md) ──────────────────
+// The adorno runs on rnd() (performance, never pinned), so we assert the PURE
+// bridge: improv.h's snap + mariachi's triad feed. improv_selfcheck is the
+// header's own assertions (the includeable-spec rule).
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    improv_selfcheck();                          // improv.h's chord-snap oracle
+
+    sng.keyPc = 0; sng.key = K_MAJOR;            // work in C major
+    int cpc[3]; int n = chord_pcs(FX_I, cpc);    // tonic in C = C E G
+    expect_eq(n, 3, "chord_pcs: a triad = three tones");
+    expect(cpc[0]==0 && cpc[1]==4 && cpc[2]==7, "mariachi I in C = C E G");
+    chord_pcs(FX_V, cpc);                        // dominant in C = G major
+    expect(cpc[0]==7 && cpc[1]==11 && cpc[2]==2, "mariachi V in C = G B D");
+    // an adorno note A (69) landing on the tonic downbeat snaps to G (the 5th, -2)
+    chord_pcs(FX_I, cpc);
+    expect_eq(improv_snap(69, cpc, 3), 67, "A over the I chord lands on G");
+}
+#endif

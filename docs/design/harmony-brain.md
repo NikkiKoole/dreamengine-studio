@@ -208,8 +208,19 @@ call `hb_pick` per step; that's what made the byte-identical proof trivial.
   downbeats + the resolving note, locked-on) vs `IMPROV_SNAP_RESOLVE` (only the phrase's final note —
   downbeats stay loose; the more human feel). Carries `improv_selfcheck()` (DE_SPEC, both scopes).
   `cocktail` is the first customer (its `chord_pcs()` feeds the bar's tones; chose RESOLVE after an
-  A/B). **Open: roll it out** to the other 5 improv stations (`addis`/`afrobeat`/`motorik`/`roadhouse`/
-  `squarepusher`) — each needs a `chord_pcs`-style feed + a scope choice at its solo call site.
+  A/B). **Rolled out** after a per-station scout of the whole 36-station dial:
+  - **Chord-aware now:** `cocktail` (RESOLVE), `squarepusher` (STRONG — fast fusion, a chord per bar),
+    `roadhouse` (RESOLVE — 2-chord modal vamp), `mariachi` (RESOLVE on the adorno's downbeat — the
+    first NON-improv customer: it just calls the pure `improv_snap` on its own scalar flourish, no
+    `Improv` struct).
+  - **Left blind by design:** `addis` (deliberately modal — "the mode IS the colour"); `afrobeat`
+    (skipped — 55% one-chord vamp, snap is a near no-op); `motorik` (an aesthetic call, A/B rendered,
+    pending the maker's ear).
+  - **Already chord-aware, hand-rolled:** the survey found `bossa`/`bossabloom`/`citypop`/`tango`/
+    `plantasia` each independently target chord tones in their bespoke melody code (`QTONES`/`QT`/
+    nearest-chord-tone) — i.e. they reinvented `improv_snap`. A dedupe-onto-the-shared-primitive
+    refactor is possible but low priority (no behaviour change). `solo.h` stations are player-driven
+    (out of scope — that's a scale-locked strip the human plays).
 - **`pocketbox`'s chord track / `chordblossom2` flavors** — adopt the vocab as their chord type.
 - **Suggest UX depth** — reasons are one word; the "explain the pull" layer (e.g. tension arrows
   toward home) is untouched.

@@ -35,9 +35,9 @@
 #include "studio.h"
 #include <math.h>   // powf
 
-// ── voices: three drums (808↔909 via CHAR) + melodic PLUCK + UPRIGHT bass (bowed pizz) ──
-enum { MD_KICK, MD_SNARE, MD_HAT, MD_PLUCK, MD_UPRIGHT, MD_NV };
-static const char *MD_NAME[MD_NV] = { "KICK", "SNAR", "HAT", "PLUK", "UPRT" };
+// ── voices: 3 drums (808↔909 via CHAR) + PLUCK + UPRIGHT bass (bowed pizz) + PAD (saw chord) ──
+enum { MD_KICK, MD_SNARE, MD_HAT, MD_PLUCK, MD_UPRIGHT, MD_PAD, MD_NV };
+static const char *MD_NAME[MD_NV] = { "KICK", "SNAR", "HAT", "PLUK", "UPRT", "PAD" };
 
 // ── the parameter superset (0..1). Each voice reads the subset in MD_PANEL[]. ──
 enum { MD_CHAR, MD_TUNE, MD_DECAY, MD_PUNCH, MD_SNAP, MD_CLICK, MD_DRIVE,
@@ -59,10 +59,12 @@ static const MDKnob MD_PANEL[MD_NV][MD_PANEL_N] = {
       {MD_RES,"RES"},  {MD_DRIVE,"DRV"},{MD_PUNCH,"ATK"}, {MD_SUB,"OCT"},  {MD_LEVEL,"LVL"} },   // PLUCK (melodic)
     { {MD_CHAR,"CHAR"},{MD_TUNE,"TUNE"},{MD_DECAY,"RING"},{MD_TONE,"PRES"},{MD_CUT,"CUT"},
       {MD_RES,"RES"},  {MD_DRIVE,"DRV"},{MD_PUNCH,"ATK"}, {MD_SUB,"OCT"},  {MD_LEVEL,"LVL"} },   // UPRIGHT (bowed pizz)
+    { {MD_CHAR,"CHAR"},{MD_TUNE,"TUNE"},{MD_DECAY,"HOLD"},{MD_TONE,"WIDE"},{MD_ODEC,"REL"},
+      {MD_PUNCH,"SWEL"},{MD_CUT,"RESO"},{MD_DRIVE,"DRV"}, {MD_SUB,"OCT"},  {MD_LEVEL,"LVL"} },   // PAD (chord)
 };
 
-// ── instrument-slot layout: 9 slots (kick 3, snare 2, hat 2, pluck 1, upright 1) ──
-enum { MDS_KICK, MDS_KICKC, MDS_KICKS, MDS_SNB, MDS_SNN, MDS_HC, MDS_HO, MDS_PLK, MDS_UPR, MD_NSLOT };
+// ── instrument-slot layout: 10 slots (kick 3, snare 2, hat 2, pluck 1, upright 1, pad 1) ──
+enum { MDS_KICK, MDS_KICKC, MDS_KICKS, MDS_SNB, MDS_SNN, MDS_HC, MDS_HO, MDS_PLK, MDS_UPR, MDS_PAD, MD_NSLOT };
 
 typedef struct {
     int   base;
@@ -78,6 +80,7 @@ static const float MD_DEF[MD_NV][MD_NPARAM] = {
     {  0.55f,0.53f,0.22f,0.50f,0.50f,0.00f,0.00f,0.45f,0.30f,0.80f,0.50f,0.85f,0.65f },  // HAT
     {  0.40f,0.20f,0.50f,0.10f,0.50f,0.00f,0.10f,0.55f,0.20f,0.40f,0.50f,0.50f,0.72f },  // PLUCK
     {  0.45f,0.18f,0.55f,0.30f,0.50f,0.00f,0.05f,0.45f,0.15f,0.30f,0.50f,0.50f,0.75f },  // UPRIGHT
+    {  0.30f,0.30f,0.60f,0.30f,0.50f,0.00f,0.05f,0.30f,0.20f,0.50f,0.60f,0.50f,0.55f },  // PAD
 };
 
 // ── absolute param → engine-unit mappings ────────────────────────────────────
@@ -85,10 +88,14 @@ static const float MD_DEF[MD_NV][MD_NPARAM] = {
 static int md_lin(float p, int lo, int hi) { int v = lo + (int)(p * (hi - lo) + 0.5f); return v; }
 static int md_exp(float p, float lo, float oct) { return (int)(lo * powf(2.0f, p * oct)); }
 static int md_vol(float p) { int v = (int)(p * 7.0f + 0.5f); return v < 0 ? 0 : v > 7 ? 7 : v; }
-static int md_penta(float t, int base) {          // minor-pentatonic pitch over 3 octaves (the pluck)
+static int md_pnote(int i, int base) {             // pentatonic index → midi (unclamped, wraps octaves)
     static const int deg[5] = { 0, 3, 5, 7, 10 };
-    int i = (int)(t * 15.0f + 0.5f); if (i < 0) i = 0; if (i > 15) i = 15;
+    if (i < 0) i = 0;
     return base + (i / 5) * 12 + deg[i % 5];
+}
+static int md_penta(float t, int base) {           // minor-pentatonic pitch over 3 octaves (a note)
+    int i = (int)(t * 15.0f + 0.5f); if (i > 15) i = 15;
+    return md_pnote(i, base);
 }
 
 // resolved engine values (filled from the knobs; used by BOTH apply + fire so the
@@ -171,6 +178,13 @@ static void md__resolve(const MorphKit *k, int v, MDRes *r) {
         r->drv  = p[MD_DRIVE];
         break;
     }
+    case MD_PAD:  // a lush detuned-saw CHORD pad (the groovebox recipe); breathes under the PUMP
+        r->osc  = INSTR_SAW; r->filt = FILTER_LOW;
+        r->cut  = md_exp(ch, 400, 4.0f);                     // CHAR: warm(dark) → bright, 400..6400
+        r->res  = md_lin(p[MD_CUT], 0, 8);                   // RESO
+        r->dec  = md_lin(p[MD_DECAY], 300, 2500);            // HOLD (note length before release)
+        r->drv  = p[MD_DRIVE];
+        break;
     }
 }
 
@@ -233,6 +247,15 @@ static void morph_apply(MorphKit *k, int v) {
         instrument_reverb(b + MDS_UPR, 0.16f);
         break;
     }
+    case MD_PAD: {
+        int atk = md_lin(k->p[v][MD_PUNCH], 20, 600);        // SWEL: slow attack swell
+        int rel = md_lin(k->p[v][MD_ODEC], 400, 2500);       // REL: long fade
+        instrument(b + MDS_PAD, INSTR_SAW, atk, 900, 7, rel);
+        instrument_filter(b + MDS_PAD, FILTER_LOW, r.cut, r.res);
+        instrument_tune(b + MDS_PAD, k->p[v][MD_TONE] * 0.30f);  // WIDE: unison detune shimmer
+        instrument_drive(b + MDS_PAD, r.drv);
+        break;
+    }
     }
 }
 
@@ -285,6 +308,16 @@ static void morph_fire(MorphKit *k, int v, int boost, int delay) {
     case MD_UPRIGHT:  // the double bass — one pizz note, rings down on its own
         schedule_hit(delay, r.midi, b + MDS_UPR, vol, r.dec);
         break;
+    case MD_PAD: {   // a CHORD — a pentatonic triad (scale-thirds i, i+2, i+4), all in-key
+        const float *p = k->p[v];
+        int oct = (int)((p[MD_SUB] - 0.5f) * 4.0f + (p[MD_SUB] >= 0.5f ? 0.5f : -0.5f));
+        int base = 33 + oct * 12, i = (int)(p[MD_TUNE] * 15.0f + 0.5f);
+        int v2 = vol > 0 ? vol - 1 : 0, v3 = vol > 1 ? vol - 2 : 0;
+        schedule_hit(delay, md_pnote(i,     base), b + MDS_PAD, vol, r.dec);
+        schedule_hit(delay, md_pnote(i + 2, base), b + MDS_PAD, v2,  r.dec);
+        schedule_hit(delay, md_pnote(i + 4, base), b + MDS_PAD, v3,  r.dec);
+        break;
+    }
     }
 }
 

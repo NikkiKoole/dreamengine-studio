@@ -397,7 +397,7 @@ COWBELL JAM) are grids, not recipes.
 | 808/hat-open | SQUARE | 0/340/0/90 · HP7000/3 (2-osc 79/72Hz) | Bright square hats, ~360ms sustain, warm↔bright knob. |
 | 808/hat-closed | SQUARE | 0/42/0/16 · HP7000/3 (2-osc 79/72Hz) | Tight ~50ms snap, chokes the open hat. |
 
-### morphdrum (morphing — 5 voices, from morphdrum.h)
+### morphdrum (morphing — 6 voices, from morphdrum.h)
 
 The CONTINUUM between the fixed 808/909 recipes: each voice is one parametric model, its
 `CHARACTER` knob morphing the 808↔909 *structure* while the rest are absolute knobs whose ranges
@@ -411,6 +411,7 @@ reach past both machines. Design: [`design/morphdrum.md`](../design/morphdrum.md
 | morph/hat | FM (one metal voice, closed+open) | TUNE 80–110 · DEC closed 10–220 · OPEN 80–800 · CUT HP 3000–12000 · RES 0–12 · TONE=timbre · METL=morph; CHAR → harmonics 0.40→0.70 | One metal source, square-ish tick ↔ full clang; open hat choked by the next closed. |
 | morph/pluck | PLUCK (melodic) | TUNE = minor-pentatonic over 3 oct (base 33) · OCT ±2 · DEC 60–1400 (=harmonics ring) · CUT LP 200–6400 · RES 0–10 · ATK 0–25ms · TONE=morph · CHAR → timbre 0.25→0.90 | The bass/lead voice; CHAR = dark round ↔ bright metallic. Pitch snaps to a scale so per-step TUNE p-locks make a musical line. |
 | morph/upright | BOWED pizz (MODE_BOW_PIZZ) | TUNE = pentatonic (base 33) + OCT ±2 · RING 120–1600 · PRES=timbre(pressure) · CUT LP 300–6800 · RES 0–8 · ATK 2–30ms · +0.16 reverb; CHAR → bow position 0.70→0.10 (tasto/dark → ponticello/bright) | The woody double-bass pizz from walkroll/walkbox; rings down on its own. Pentatonic + per-step TUNE p-locks = a walking bass line. |
+| morph/pad | SAW (detuned, chord) | CHAR → cutoff 400–6400 (warm→bright) · TUNE = pentatonic root · HOLD 300–2500 · WIDE = unison detune 0–0.3 · SWEL atk 20–600 · REL 400–2500 · RESO 0–8 · fires a pentatonic TRIAD (i, i+2, i+4) | The groovebox lush pad, as a per-step chord that swells + overlaps; breathes under the kick PUMP. Warm↔bright via CHAR. |
 
 ### tr909 (machine — 11 voices, from tr909.c)
 

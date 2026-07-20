@@ -22,7 +22,7 @@ endless boom, distortion). 808 and 909 become two spots you can dial to, and you
 either. This is the [`acid303.h`](../../runtime/acid303.h) move — "both voicings, one header, chosen
 by data" — applied to drums, with the whole synth exposed as knobs.
 
-## The melodic voices (PLUCK + UPRIGHT)
+## The melodic + pad voices (PLUCK · UPRIGHT · PAD)
 
 The bank isn't only drums: two melodic voices ride the same parametric-voice + p-lock machinery.
 **PLUCK** (`INSTR_PLUCK`) is a bright synth bass/lead; **UPRIGHT** (`INSTR_BOWED` in `MODE_BOW_PIZZ`,
@@ -34,6 +34,15 @@ instance). Their TUNE snaps to a **minor pentatonic** over ~3 octaves (+ an OCT 
 This is where the step-first p-locks pay off most: the same feature that morphs a kick per-hit writes
 a melody on the bass. (The upright is why the standalone `walkroll` piano-roll experiment can stay an
 experiment — the instrument in this box, played with p-locks, covers the same ground.)
+
+A 6th voice is a **PAD** — the lush detuned-saw from `groovebox` (`INSTR_SAW`, slow SWEL attack, long
+REL fade, unison WIDE detune). Unlike the one-shot voices it fires a **CHORD**: a pentatonic triad
+(scale-thirds *i, i+2, i+4*, so always in-key) that swells and overlaps into a wash. It's the one pad
+that earns its place here because the box already has the **PUMP** keyed off the kick — so the pad
+breathes against the four-floor exactly like groovebox's sidechained pad. CHAR morphs warm↔bright
+(filter). A drone/held instrument like the grenadier filterbank would NOT fit (it wants continuous XY
+sweep, not per-step triggers — that lives in `dubjam`); a gated chord-pad is the step-friendly way to
+get "something long underneath."
 
 ## Where it sits on the shelf
 

@@ -38,6 +38,20 @@
 //       draw_keys(f.box[4]);
 //   }
 // The five-zone model + per-step/band vocabulary: design/device-face-paradigm.md.
+//
+// INPUT-COUPLED FACES (the dubjam lesson). If a face hit-tests raw touch in update()
+// (an XY pad, a keybed, note-bar drag, a step grid) rather than through ui.h widgets in
+// draw(), the input needs the SAME rects the draw uses — or taps desync from the visuals
+// on any reflow. Pattern: compute the layout ONCE at the TOP of update() into file statics
+// (a `Face` + your derived interaction rects), and read those statics from BOTH the input
+// handlers and draw():
+//   static Face g_face; static Box z_play, r_pad; /* ... */
+//   static void relayout(void){ face_resize(); Box a=face_area(1);
+//       g_face=face_layout(a,ZONES,NZ,16); z_play=g_face.box[3]; r_pad=lay_inset(z_play,1); }
+//   void update(void){ relayout(); /* hit-test r_pad, face_col(&g_face,z_play,i,..) */ }
+//   void draw(void){ /* draw using the same g_face / z_play / r_pad statics */ }
+// (Faces whose input is entirely ui.h widgets in draw() — e.g. chipjam — can just call
+// face_layout() in draw() and skip this.)
 
 #ifndef FACE_H
 #define FACE_H

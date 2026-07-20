@@ -99,8 +99,25 @@ conversion is `draw()`-only). Two findings worth keeping:
   on the indented sub-box (documented in `face.h` at `face_col`). This is the scaffold-not-straitjacket
   seam working, not a bug — but it's the first thing a converter hits, so it's now called out.
 
-**Still to prove:** 1–2 more faces (a keybed-bodied one, e.g. dubjam, would stress the perform zone) and
-the maker's vibe-check before Layer 4.
+*Proving pass 2 — [`dubjam`](../../tools/carts/dubjam.c) converted (2026-07-20).* The hard case, chosen to
+stress the perform zone: four wired machines (grenadier drone, TR-808, dub master, sub) and — unlike
+chipjam — **input hit-tested in `update()` at fixed coordinates** (XY sweep pad, root keybed, note-bar
+tap/drag, drum grid, dub-throw pad), separate from `draw()`. chipjam converted trivially because all its
+input went through `ui.h` capture inside `draw()`; dubjam's coordinate-coupled input is where a naïve
+reflow breaks — the visuals move but the touch targets don't. **The grammar still fit, with one pattern
+the conversion forced (now the headline caveat in `face.h`):**
+- **Input-coupled faces compute the layout in `update()`, shared with `draw()`.** A `relayout()`
+  (`face_resize` → `face_area` → `face_layout`, stored in file statics + derived interaction rects) runs
+  *first* in `update()`; both the input handlers and `draw()` read those statics, so touch stays glued to
+  the pixels under any reflow. This is the general pattern for any device face whose input isn't pure
+  `ui.h`-in-`draw()`. Verified live: dragging the XY pad moved the filterbank, and a cartridge *tap*
+  (not the key shortcut) switched faces — both through the reflowed rects. Audio DSP was untouched.
+- Reconfirmed the chipjam findings: SUB's screen pitch-view + its note-bars now share the full-width
+  register (aligned), and the DRM grid (after a name gutter) uses the local-`lay_lane` escape hatch.
+
+**Two faces converted, grammar held both times.** Remaining before Layer 4: the maker's vibe-check
+(especially the chipjam soft-key nook — is the full-width-register opinion ever *too* strong?), then
+decide whether to make face.h the default.
 
 **Layer 4 — make it the default (optional, deepest).** A capability so a "device-face" cart gets the
 reflowing canvas + scaffold without opting in each time. Only worth it once Layer 3 proves out across

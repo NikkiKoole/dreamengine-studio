@@ -2282,12 +2282,11 @@ sounds identical. The LFO drift itself is deterministic (counter-seeded); the ch
 Verify resonant voices with **statistical** measures (spectrum / f0-wobble / levels), not waveform
 correlation. Maker confirmed the drift amount "subtle enough" by ear.
 
-**OPEN — a drift "tweak" knob.** Drift is currently a fixed `0.5` baked in `acid_init`. The maker
-flagged wanting a little control for it somewhere. Cleanest surface without churning the `ACID_*`
-enum (the "inserting mid-list cross-wires presets" gotcha — [cart-authoring](../guides/cart-authoring.md)):
-`Acid.drift` is already a per-voice float, so a cart can set it directly. A candy UI home would be
-one MST-global "DRIFT" knob writing `ac[0].drift = ac[1].drift = v` + re-`acid_define`, or a per-303
-knob on the DF/DEEP page. Deferred as a small follow-up, not yet wired.
+**SHIPPED — a drift "tweak" knob (2026-07-20, `5db24ab9`).** `Acid.drift` is now a per-303 **DRIFT knob**
+on acidcandy's FX panel (reachable in both voicings via the FX soft-key). It **rides live** — `acid_ride`
+re-applies the wander LFOs only when `drift` changes (`acid303.h` `acid_set_drift` + `_ld` guard,
+`6c86f3b3`), so turning it is smooth and cheap; constant drift is a no-op (tb303/acidrack byte-identical).
+No `ACID_*` enum churn (it's the struct field).
 
 **#3 (band-limit the saw) — REASSESSED 2026-07-20: KEEP THE RAW SAW. Do not "fix" this.** The maker
 A/B'd a wide-open high saw sweep (raw / no-filter vs the same through a 1500 Hz filter — the raw one
@@ -2310,12 +2309,10 @@ on sight. (Torture-probe that shows/hears it: a raw `INSTR_SAW` glided C3→C9 w
 > CUT + play high to hear it). Unison saws stay raw by design (acid/tb303 are non-unison). acidcandy per-303
 > clean toggle = the pending UI handoff (below).
 >
-> **PENDING — acidcandy per-303 CLEAN toggle (UI only; engine done).** Wire like `classic`/DF (a per-303
-> `Acid` flag + re-`acid_define`), NON-destructive, no `ACID_*` enum churn. State: none new — it's `ac[i].clean`.
-> Toggle: `ac[i].clean = !ac[i].clean; acid_define(&ac[i]);`. Natural home: the **DEEP (DF-extras) page**, next
-> to the existing `WAVE` (SAW/SQR) switch — it's a saw-character control, so it belongs with WAVE, and both are
-> DF-page widgets. Draw a small `RAW`/`CLN` button; lit = clean. (It's independent of `classic` — a vanilla 303
-> can be clean or raw too; only affects the SAW wave.) Point an agent at this section; ~10 min like classic/DF.
+> **SHIPPED — acidcandy per-303 CLEAN toggle (2026-07-20, `5db24ab9`).** A full-width `RAW SAW`/`CLEAN SAW`
+> toggle strip on the FX panel (below the DRV/SEND/VERB/DRIFT knobs) — chosen over the DF-extras page so it's
+> reachable in BOTH voicings (a vanilla 303 can be clean or raw too). Flips `ac[i].clean` + re-`acid_define`;
+> only affects the SAW wave. Verified via scripted taps (RAW SAW → CLEAN SAW).
 
 **SHIPPED — both halves, a per-303 classic⟷Devil-Fish voicing switch (2026-07-20).** UI wired into
 `acidcandy.c` 2026-07-20 (commit 235c78b2) exactly per the READY-TO-APPLY snippet below, with one

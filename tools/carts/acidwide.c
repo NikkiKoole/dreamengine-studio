@@ -68,7 +68,7 @@ static void lcdbtn(Box b, const char *s, int on) {
 }
 
 // ── the big unhidden SCREEN: piano-roll + ACC/SLD/TIE flag lanes ─────────────
-static void sequencer(Box scr) {
+static void screen(Box scr, int with_lanes) {
     rrectfill((int)scr.x, (int)scr.y, (int)scr.w, (int)scr.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(scr, 2);
     rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
@@ -77,9 +77,9 @@ static void sequencer(Box scr) {
     blend_reset();
     Box gc = lay_inset(glass, 2);
 
-    // roll (top ~64%) over three flag lanes (bottom), gapped
-    Box lanes = lay_split_gap(gc, EDGE_BOTTOM, gc.h * 0.34f, 2, &gc);
-    Box roll  = gc;
+    // roll fills the glass; when with_lanes, the bottom third becomes ACC/SLD/TIE lanes
+    Box roll = gc, lanes = gc;
+    if (with_lanes) lanes = lay_split_gap(gc, EDGE_BOTTOM, gc.h * 0.34f, 2, &roll);
     float sw = roll.w / 16.0f;
     int base = (int)(roll.y + roll.h - 3);                    // root sits near the roll floor
     float ppx = (roll.h - 6) / (float)PITCH_MAX;              // px per semitone
@@ -100,7 +100,7 @@ static void sequencer(Box scr) {
     static const char *LN[3] = { "ACC", "SLD", "TIE" };
     const int *LV[3] = { p_acc, p_sld, p_tie };
     const int LC[3] = { CLR_ORANGE, CLR_LIME_GREEN, CLR_LIGHT_YELLOW };
-    for (int r = 0; r < 3; r++) {
+    if (with_lanes) for (int r = 0; r < 3; r++) {
         Box row = lay_cell(lanes, 1, 3, r, 1);
         font(FONT_TINY); print(LN[r], (int)row.x, (int)(row.y + (row.h - 5) / 2), CLR_MEDIUM_GREEN);
         float lsw = (row.w - 16) / 16.0f;
@@ -150,7 +150,7 @@ static void draw_A(Box body) {
     for (int i = 0; i < 13; i++) knob_cell(lay_grid(rail, 3, 15, i, 2), KN[i], KV[i]);   // 3-wide grid (15 cells → last 2 blank)
     switches(swr, 0);
     softkeys(foot, 0);
-    sequencer(scr);
+    screen(scr, 1);
 }
 
 // ── ARRANGEMENT B — full knob ROW on top + one tall screen below ─────────────
@@ -162,12 +162,46 @@ static void draw_B(Box body) {
     Box sw = lay_split_gap(endcol, EDGE_TOP, endcol.h * 0.5f, 2, &endcol);
     switches(sw, 1);
     softkeys(endcol, 1);
-    sequencer(scr);
+    screen(scr, 1);
+}
+
+// the chunky always-there 16-cell STEP strip (pitch bar + accent marker + playhead)
+static void steprow(Box c) {
+    float sw = c.w / 16.0f;
+    int base = (int)(c.y + c.h - 2);
+    float ppx = (c.h - 6) / (float)PITCH_MAX;
+    for (int s = 0; s < 16; s++) {
+        int cx = (int)(c.x + s * sw), cw = (int)sw - 1; if (cw < 3) cw = 3;
+        int hi = (s == g_step);
+        rrectfill(cx, (int)c.y, cw, (int)c.h, 1, (s / 4) % 2 ? CLR_DARK_BROWN : CLR_BROWNISH_BLACK);   // 4-step shading
+        if (p_on[s]) {
+            int h = 3 + (int)(p_pit[s] * ppx), ty = base - h;
+            rrectfill(cx + 1, ty, cw - 2, h, 1, hi ? CLR_WHITE : CLR_PINK);
+            if (p_acc[s]) rectfill(cx + 1, ty - 3, cw - 2, 2, CLR_ORANGE);
+            if (p_sld[s]) pset(cx + cw - 2, base - 1, CLR_LIME_GREEN);
+        }
+        rrect(cx, (int)c.y, cw, (int)c.h, 1, hi ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    }
+}
+
+// ── ARRANGEMENT C — knob row + display screen + a chunky 16-cell strip at the BOTTOM ──
+static void draw_C(Box body) {
+    Box strip = lay_split_gap(body, EDGE_BOTTOM, body.h * 0.28f, 2, &body);   // the 16-cell step strip
+    Box krow  = lay_split_gap(body, EDGE_TOP,    body.h * 0.30f, 2, &body);   // knob row
+    Box scr   = body;                                                         // the display (piano-roll, no lanes — the strip is the step editor)
+    Box endcol = lay_split_gap(krow, EDGE_RIGHT, krow.w * 0.14f, 2, &krow);
+    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, 13, 13, i, 2), KN[i], KV[i]);
+    Box sw = lay_split_gap(endcol, EDGE_TOP, endcol.h * 0.5f, 2, &endcol);
+    switches(sw, 1);
+    softkeys(endcol, 1);
+    screen(scr, 0);
+    steprow(strip);
 }
 
 void update(void) {
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
+    if (keyp('3')) arr = 2;
     g_step = (int)(now() * 8) % 16;
 }
 
@@ -188,9 +222,10 @@ void draw(void) {
     Box nav = lay_split_gap(panel, EDGE_TOP, panel.h * 0.11f, 1, &body);
     navstrip(nav);
 
-    // little A/B tag so the render is self-labelling
-    font(FONT_TINY); print(arr == 0 ? "A" : "B", (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
+    // little A/B/C tag so the render is self-labelling
+    font(FONT_TINY); print(arr == 0 ? "A" : arr == 1 ? "B" : "C", (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
 
-    if (arr == 0) draw_A(body);
-    else          draw_B(body);
+    if (arr == 0)      draw_A(body);
+    else if (arr == 1) draw_B(body);
+    else               draw_C(body);
 }

@@ -245,6 +245,12 @@ static int  mode_of(long bar) {
 }
 static int fn_at(long bar)  { return trk.fn[bar < 0 ? 0 : bar % 40]; }
 static int root_pc(int f)   { return (trk.keyPc + F_OFF[f]) % 12; }
+// this bar's chord as pitch classes (R 3 5 7) — the soloist's snap targets
+static int chord_pcs(int f, int *out) {
+    int r = root_pc(f);
+    for (int i = 0; i < 4; i++) out[i] = (r + CT[F_QUAL[f]][i]) % 12;
+    return 4;
+}
 
 // ── the step player ─────────────────────────────────────────────────────────
 static void play_step(long abs, double pos) {
@@ -302,7 +308,11 @@ static void play_step(long abs, double pos) {
         int cs = (int)(s % 32);
         for (int i = 0; i < solo.n; i++)
             if (solo.onset[i] == cs) {
-                int mm = improv_midi(&solo, i, secBar, trk.keyPc, SOLOSCALE, 18);
+                // STRONG: fast fusion, a new chord every bar — the shred must
+                // land its downbeats AND resolutions on the moving changes
+                int cpc[4]; int ncp = chord_pcs(f, cpc);
+                int mm = improv_midi_chord(&solo, i, secBar, trk.keyPc, SOLOSCALE,
+                                           18, cpc, ncp, IMPROV_SNAP_STRONG);
                 while (mm < 36) mm += 12; while (mm > 60) mm -= 12;
                 bass_hit(dly + 6, mm, arc > 0.6f ? 5 : 3, (int)(stepMs * 1.6f), chance(35));
             }
@@ -538,3 +548,19 @@ void draw(void) {
     rad_band_panel(&band, CLR_BLUE_GREEN);
     ui_end();
 }
+
+// ── spec — the chord-aware soloist oracle (spec-harness.md), like cocktail ──
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    improv_selfcheck();                          // improv.h's chord-snap oracle (both scopes)
+
+    trk.keyPc = 0;                               // work in C
+    int cpc[4]; int n = chord_pcs(F_V, cpc);     // V in C = G7 (G B D F)
+    expect_eq(n, 4, "chord_pcs: four tones");
+    expect(cpc[0]==7 && cpc[1]==11 && cpc[2]==2 && cpc[3]==5,
+           "squarepusher V in C = G7 (G B D F)");
+    // a solo E (64) over G7 snaps to F, the b7 (nearest chord tone, +1)
+    expect_eq(improv_snap(64, cpc, 4), 65, "E over G7 snaps to F");
+}
+#endif

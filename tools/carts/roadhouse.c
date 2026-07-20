@@ -211,6 +211,14 @@ static void fresh_song(double pos) {
 static int sect_of(long bar)  { long x = bar / 8; return (int)(x < 8 ? FORM[x] : S_OUTRO); }
 static Ch  chord_at(long bar) { return VAMP[sng.mode][(bar / 2) % 2]; }   // rock 2 bars each
 static int root_pc(Ch c)      { return (sng.keyPc + c.off) % 12; }
+// the vamp chord as pitch classes (root + the organ's voicing tones) — the
+// soloist's snap targets, so a phrase lands on a note the organ is holding
+static int chord_pcs(Ch c, int *out) {
+    int r = root_pc(c);
+    out[0] = r;
+    for (int i = 0; i < 3; i++) out[i + 1] = (r + QV[c.q][i]) % 12;
+    return 4;
+}
 
 static void chord_label(char *out, int n, Ch c) {
     snprintf(out, n, "%s%s", RAD_PCNAME[root_pc(c)], QN[c.q]);
@@ -300,7 +308,11 @@ static void play_step(long abs, double pos) {
         int cs = (int)(s % 32);
         for (int i = 0; i < solo.n; i++)
             if (solo.onset[i] == cs) {
-                int m   = improv_midi(&solo, i, soloBar, sng.keyPc, MODE[sng.mode], sng.blue);
+                // RESOLVE: keep the psych-rock blue looseness mid-phrase, but
+                // land each phrase's final note on the current vamp chord
+                int cpc[4]; int ncp = chord_pcs(c, cpc);
+                int m   = improv_midi_chord(&solo, i, soloBar, sng.keyPc, MODE[sng.mode],
+                                            sng.blue, cpc, ncp, IMPROV_SNAP_RESOLVE);
                 int vol = 4 + (arc > 0.6f ? 1 : 0);
                 int gat = (int)(stepMs * (solo.dur[i] > 4 ? solo.dur[i] : 2) * 0.9f);
                 if (sect == S_ORGAN)
@@ -571,3 +583,25 @@ void draw(void) {
     rad_band_panel(&band, CLR_ORANGE);
     ui_end();
 }
+
+// ── spec — the chord-aware soloist oracle (spec-harness.md), like cocktail ──
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    improv_selfcheck();                          // improv.h's chord-snap oracle (both scopes)
+
+    sng.keyPc = 0; sng.mode = 1;                 // dorian vamp in C: i(Cm) IV7(F7)
+    Ch c = chord_at(0);                          // bar 0 -> first vamp chord = Cm
+    int cpc[4]; int n = chord_pcs(c, cpc);
+    expect_eq(n, 4, "chord_pcs: four tones");
+    expect(cpc[0]==0 && cpc[1]==3 && cpc[2]==7 && cpc[3]==0,
+           "roadhouse dorian i = Cm tones (C Eb G)");
+    Ch c2 = chord_at(2);                         // bar 2 -> second vamp chord = F7
+    chord_pcs(c2, cpc);
+    expect(cpc[0]==5 && cpc[1]==9 && cpc[2]==3 && cpc[3]==7,
+           "roadhouse dorian IV7 = F7 voicing (F A Eb G)");
+    // a solo D (62) over Cm resolves to Eb, the nearest chord tone (+1)
+    chord_pcs(c, cpc);
+    expect_eq(improv_snap(62, cpc, 4), 63, "D over Cm snaps to Eb (the b3)");
+}
+#endif

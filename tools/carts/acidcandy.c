@@ -776,7 +776,7 @@ static void draw_303(Box stage, int i) {
     Box body  = lay_inset(stage, 2);
     Box krow  = lay_split(body, EDGE_TOP,    H * 0.24f, &body);   // ② acid knob row (design ≈24/100)
     Box loopS = lay_split(body, EDGE_BOTTOM, H * 0.05f, &body);   // loop-length handle strip
-    Box notes = lay_split(body, EDGE_BOTTOM, H * 0.28f, &body);   // ④⑤ the 16 note bars (design ≈26/100)
+    Box notes = lay_split(body, EDGE_BOTTOM, H * (seq_grid ? 0.12f : 0.28f), &body);   // GRID: thin compact strip (the LCD, = the remainder, grows into the freed space); BARS: tall note bars
     Box skcL  = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-key columns (design ≈16/160)
     Box skcR  = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
     Box lcd   = lay_inset(body, 1);                               // the hero glass = the remainder, 1px in → breathing gap to the flanking soft-keys + the row below
@@ -989,9 +989,10 @@ static void draw_303(Box stage, int i) {
             rrectfill(bx, by, bw, bh, 1, dead ? CLR_DARKER_PURPLE : CLR_DARK_BROWN);
             if (here) { blend(BLEND_AVG); rrectfill(bx, by, bw, bh, 1, CLR_MEDIUM_GREEN); blend_reset(); }
             if (on[i][s] && !dead) {
-                int idx = scale_idx(mscale[i], pit[i][s]), fh = bh * (idx + 1) / SCALES[mscale[i]].n;
+                int idx = scale_idx(mscale[i], pit[i][s]);
+                int fh = seq_grid ? bh : bh * (idx + 1) / SCALES[mscale[i]].n;   // GRID: full-cell (pitch lives on the grid) · BARS: pitch-proportional
                 rrectfill(bx, by + bh - fh, bw, fh, 1, acc[i][s] ? CLR_ORANGE : CLR_LIME_GREEN);
-                if (sld[i][s]) {                                    // slide → bright top cap + a GLIDE LINE to the next note
+                if (sld[i][s] && !seq_grid) {                       // slide → bright top cap + a GLIDE LINE to the next note (BARS only; the grid draws its own slide line)
                     rectfill(bx, by + bh - fh, bw, 1, CLR_WHITE);
                     int ns = (s + 1) % plen[i];
                     int nidx = tie[i][ns] ? idx : scale_idx(mscale[i], pit[i][ns]);

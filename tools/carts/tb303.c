@@ -240,6 +240,7 @@ void update(void) {
     if (keyp(KEY_UP))   { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
     if (keyp(KEY_DOWN)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
     if (keyp('N')) { gen_random(); }
+    if (keyp('C')) { a.clean = !a.clean; acid_define(&a); }   // toggle the RAW naive saw vs the PolyBLEP CLEAN saw (open CUT + play high to hear it)
 
     int mx = mouse_x(), my = mouse_y();
 
@@ -409,7 +410,9 @@ void draw(void) {
     // wave switch
     rectfill(270, 30, 36, 18, CLR_BLACK);
     print(wave == INSTR_SAW ? "SAW" : "SQR", 276, 35, CLR_YELLOW);
-    print("WAVE", 270, 52, CLR_BLACK);
+    font(FONT_SMALL);   // saw anti-alias state — 'C' toggles (only affects SAW; a no-op for SQR)
+    print(a.clean ? "CLEAN (C)" : "RAW (C)", 270, 52, a.clean ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    font(FONT_NORMAL);
 
     // roll background — white-key rows lighter, C rows marked
     rectfill(RX - 14, RY - 2, 16 * RSX + 16, 13 * RSY + 4, CLR_BLACK);

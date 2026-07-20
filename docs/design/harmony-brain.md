@@ -1,6 +1,18 @@
 # Harmony brain — a shared, bidirectional next-chord + analysis engine
 
-> **STATUS: EXPLORING (research brief, 2026-07-20).** A research topic, not a build ticket.
+> **STATUS: SHIPPED v1 (2026-07-20, same day as the research — brief → header → toy in one session).**
+> `runtime/harmony.h` exists and is **bidirectional**: the 13-function vocab + `HB_BOSSA`/`HB_COCKTAIL`
+> style tables extracted from bossa/cocktail with **byte-identical pinned-seed WAV A/B proof** (the
+> `radio.h` seed rule held: `cmp == 0` on both carts), plus the two missing directions — `hb_suggest`
+> (ranked options + a one-word reason) and `hb_analyze`/`hb_chord_fn` (key-in roman numerals, `-1` =
+> honest out-of-vocab). The demand-82 toy shipped as **`chordwise`** (analyzer strip + NEXT panel +
+> the vocab palette, QWERTY entry, doo-wop cold-open) carrying the spec() oracle: **24 assertions**
+> incl. the all-keys round-trip (analysis inverts generation exactly). Still open, in "What's still
+> open" below: the chromatic encoding (`V/x`), re-expressing the template stations, chord-aware
+> `improv.h`, the toy's LOOK pass (maker steering), and per-genre weight sets beyond the two lifted
+> tables.
+>
+> *(Original brief, kept for the research record:)* A research topic, not a build ticket.
 > Sparked by a demand-discovery drip (r/musictheory, demand **82** — the loudest single topic
 > across every tribe sampled) whose recurring, specific wish is a *"harmonic progression
 > analyzer / suggestion plugin."* We have lots of carts that *play* chords and one cart that
@@ -174,6 +186,26 @@ A header-only, static, bidirectional `harmony.h` sitting beside `rad_lead_to`, e
 
 Consumers: the radio chord brains (generate), `chordblossom`/flavors (feed voicing), `pocketbox`
 chord track (store), `improv.h` (finally chord-aware), and a **new chord toy** (the demand-82 build).
+
+## What's still open (post-v1, 2026-07-20)
+
+What shipped vs the proposed shape: the vocab, both style tables, `hb_pick`/`hb_suggest`/
+`hb_analyze` + `hb_selfcheck`, and the `chordwise` toy. Deliberately NOT shipped: a monolithic
+`hb_generate` — the carts keep their own walk loops (cadence forcing is *form*, cart-owned) and
+call `hb_pick` per step; that's what made the byte-identical proof trivial.
+
+- **The toy's LOOK** — `chordwise` v1 is a functional layout, baked for the maker's eyeball pass
+  (mockups-first: steer with reference images, then re-skin).
+- **Chromatic encoding (`V/x`, borrowed-degree flags)** — the RQ #1 tail; unresolved by research,
+  a design call for when a progression needs naming beyond the 13 seats.
+- **The template stations** (`citypop`/`house`/`yacht`/`air`/`jingle`/`polopan`) — re-express or
+  validate their hard-coded 4-chord tables against the vocab (per-genre *weight sets*, the research
+  says); would prove "one vocab, many weights" beyond jazz.
+- **Chord-aware `improv.h`** — feed the current function to the soloist (the missing bridge; would
+  make every radio's solos chord-aware at once).
+- **`pocketbox`'s chord track / `chordblossom2` flavors** — adopt the vocab as their chord type.
+- **Suggest UX depth** — reasons are one word; the "explain the pull" layer (e.g. tension arrows
+  toward home) is untouched.
 
 ## Non-goals / constraints
 

@@ -643,7 +643,7 @@ verbatim — extraction is overdue, and the plan is written up below
 
 | # | brain | home | character |
 |---|---|---|---|
-| 1 | functional walk + forced cadences | `bossa.c`, `cocktail.c` (jazz rate, secondary dominants, tritone sub) | pull — always comes home |
+| 1 | functional walk + forced cadences | `bossa.c`, `cocktail.c` (jazz rate, secondary dominants, tritone sub) — the vocab + transition tables GRADUATED to `runtime/harmony.h` (2026-07-20, byte-identical; bidirectional — same table also *suggests* + *analyzes*, see `chordwise` + [harmony-brain.md](../design/harmony-brain.md)) | pull — always comes home |
 | 2 | modal drift | `ambient.c` | float — no cadences, light shifting |
 | 3 | the vamp | `jangle.c`, `roadhouse.c` (2-chord modal) | sit — arrangement is the form |
 | 4 | stolen playbook | `jingle.c`, `citypop.c`, `house.c`, `yacht.c`, `air.c`, `polopan.c` (the artist stations encode cited tracks as per-archetype templates; + the mu chord as a named QUALITY) | sound like *someone* |

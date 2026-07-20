@@ -178,6 +178,10 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          decay/colour knob maths. TR_* 16-voice roster; cart owns the knob arrays. tr808 + acidcandy.
              tr909.h     the shared TR-909 VOICE BANK: tr909_build + tr909_metal (metal-highpass XY) + tr909_fire
                          + tr909_fire_stroke (flam/drag/ratchet). TR9_* 11-voice roster. tr909 + acidcandy.
+             harmony.h   the shared HARMONY BRAIN (bidirectional): 13-function roman-numeral vocab + per-style
+                         Markov tables (HB_BOSSA/HB_COCKTAIL, byte-exact) — hb_pick (generate) + hb_suggest
+                         (ranked next chords + reason) + hb_analyze (key-in numerals, -1 = honest ?). Voicing
+                         stays rad_lead_to. bossa + cocktail + chordwise; design/harmony-brain.md
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

@@ -30,7 +30,7 @@ users" isn't a market; "people who'd tattoo a TB-303 on their arm" is.
 | # | lever | why it matters | where it lives |
 |---|-------|----------------|----------------|
 | 1 | **A clippable, delightful product** | a satisfying 8-sec groove is its own ad; nothing below saves a dull app | the [ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) "delightful to a stranger" bar — the whole engine ethos |
-| 2 | **A shareable video** | the growth engine for a music toy — a loop of a beat coming together travels on Reels/TikTok/Shorts | `make-gif.js` today; the planned 9:16 Game-&-Watch dancer clip (tinyjam-marketing §4.1 "video = the amplifier") |
+| 2 | **A shareable video** | the growth engine for a music toy — a loop of a beat coming together travels on Reels/TikTok/Shorts | `make-gif.js` mints the clip (real audio, crisp integer upscale, 9:16 variant) today; the planned 9:16 Game-&-Watch dancer clip (tinyjam-marketing §4.1 "video = the amplifier"); the **distribution** last mile is [`video-distribution.md`](video-distribution.md) (`youtube-push.js`, [ADR-0033](../decisions/0033-youtube-first-video-distribution.md)) |
 | 3 | **Showing up in the tribe, gift-first** | the tribe trusts a maker who gives before asking (r/edmproduction, KVR, lines, the PO scene; BoBeats/Andrew Huang/Red Means Recording) | tinyjam-marketing §9 (gift-not-ask) + §3.9 channel directory — now tool-backed: **`tools/leads.js`**, the local marketeer (cart→tribe→venues, `discover` new venues, gift-first post scaffold, outreach tracker; ledger = `tools/leads-ledger.json`). Design + resume-at: [`leads-marketeer.md`](leads-marketeer.md) |
 | 4 | **A free playable web demo as funnel** | try-in-browser → buy-on-App-Store; the Minecraft arc | Channel A ([`sharing-channels.md`](sharing-channels.md)) + tinyjam-marketing §9.2, §7.2 per-module pages |
 | 5 | **Store-page conversion** (screenshots, preview video, icon, ratings) | moves the needle *more than keywords* once someone lands | the hero-frame director, [`store-agents.md`](store-agents.md) §1; `store-shots.js` |
@@ -66,6 +66,14 @@ Most of #1–#4 is execution, but one tool would feed the top of the funnel dire
 
 Per-module landing pages (#4, tinyjam-marketing §7.2) are the other unbuilt piece — the
 funnel *destination*, not the 400-cart gallery.
+
+**And the clip's *last mile*.** The social-clip pipeline above *produces* the video; getting it
+*out* is still a hand-upload. [`video-distribution.md`](video-distribution.md) closes that:
+`youtube-push.js` (recipe → clip → uploaded Short, with a URL back), an in-house tool over the
+YouTube Data API v3 modelled on `asc-push.js`. YouTube first because it has the only usable
+official upload API of the short-video venues (TikTok/Reels stay manual); the *why-not-the-others*
+and the in-house-vs-service call are [ADR-0033](../decisions/0033-youtube-first-video-distribution.md).
+Ready to build, not built.
 
 ### App-trailer pipeline — v1 backbone SHIPPED (2026-07-03)
 

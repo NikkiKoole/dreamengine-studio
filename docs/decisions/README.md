@@ -68,6 +68,8 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0029](0029-320x200-is-the-base-resolution.md) | 320×200 is the base resolution — the engine default + DOS/DIV heritage, 16:10 (Mac-native), and the neutral middle between iPad 4:3 and iPhone 19.5:9. Author good at 320×200, then make carts resizable to adapt outward; don't chase a device with a fixed size | accepted |
 | [0030](0030-unison-is-a-primitive.md) | Unison is a primitive (`instrument_unison`), not a per-cart multi-slot hand-roll — promoted on new clean demand; moog/mt70 keep their independent-voice/additive designs | accepted |
 | [0031](0031-blend-tables-before-palette.md) | Blend tables (`blend()`: AVG/ADD/MUL/SUB) ship before the palette decision — safe because tables build from the live `palette[]` at startup, not baked. BOTH renderers landed + verified: software canvas (live dst) + GPU desktop path (shader + per-scope snapshot). Intended snapshot-vs-live divergence keeps blend out of the canvas-diff parity gate | accepted |
+| [0032](0032-live-mic-effects-are-live-only.md) | Live-mic-through effects are live-only — no deterministic replay for a mic-driven signal path | accepted |
+| [0033](0033-youtube-first-video-distribution.md) | Video distribution: YouTube first (only usable upload API of the short-video venues; TikTok/Reels manual), via an in-house `youtube-push.js` over the Data API v3 — modelled on asc-push (ADR-0026), OAuth2 the one difference. Closes lever #2's last mile | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

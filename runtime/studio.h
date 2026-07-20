@@ -484,6 +484,8 @@ void note_aux(int handle, int idx, float value); // per-engine aux channel, LIVE
 #define DRIVE_HARD    1   // hard clip — buzzy, square-edged digital fuzz (the harshest)
 #define DRIVE_FOLD    2   // sine wavefolder — metallic, glassy, ring-mod-ish as you push it
 #define DRIVE_ASYM    3   // asymmetric tube — adds EVEN harmonics (the round, fat, single-ended-amp grit)
+#define DRIVE_VOICE_NONE 0   // drive_voice: plain clip (default) — the raw DRIVE_* shaper, no tone-shaping
+#define DRIVE_VOICE_TS   1   // drive_voice: Ibanez Tube Screamer — clean tight bass + soft-clipped mids + the mid hump
 void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)
 void instrument_unison(int slot, int voices, float detune);  // UNISON: sum `voices` (1..7) detuned copies of the slot's wave = the supersaw wall. detune = spread in semitones (0.1 shimmer .. 0.7 wide). voices applies at the next note; detune rides LIVE. wavetable slots only (saw/square/tri/sine). 1 = off (default)
 void instrument_unison_detune(int slot, float detune);  // ride the unison spread alone, LIVE — 0 = thin single osc, wider = the wall blooms open. the detune-BLOOM gesture. sweep it, or drive it with LFO_DETUNE / ENV_DETUNE
@@ -495,6 +497,7 @@ void note_sync(int handle, float ratio);       // sweep a held note's hard-sync 
 void note_drive_mode(int handle, int mode);    // switch a held note's drive waveshaper live (DRIVE_*) — not slewed, snaps
 void drive_insert(float amount, int mode, float mix);  // MIX-BUS SATURATION: drive the whole summed mix as a reorderable INSERT (put FX_DRIVE in fx_order(0,…)). The bus sibling of instrument_drive — tube/tape glue low, a lo-fi wall cranked, grit on drums too. amount 0..1, mode DRIVE_*, mix 0..1 (0 = bypass → byte-identical)
 void drive_insert_inst(int instance, float amount, int mode, float mix);  // a 2nd mix-bus drive INSTANCE (0..1) — pair with FX_INST(FX_DRIVE, instance) for two bus drives in one chain (e.g. an overdrive pedal INTO the amp's drive)
+void drive_voice(int voice, float tone);  // give the drive INSERT a famous-pedal VOICE: DRIVE_VOICE_TS = the Ibanez Tube Screamer (clean tight bass + soft-clipped mids + the mid hump). tone 0..1 rides the TONE knob (dark→bright). DRIVE_VOICE_NONE (default) = the plain clip, byte-identical. Global; call after drive_insert()
 
 // echo — THE shared echo bus (there is exactly one): each slot chooses how much to send
 // into it. Repeats get darker every pass (tone), and feedback past 1.0 self-oscillates

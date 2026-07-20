@@ -6984,6 +6984,20 @@
     "teaches": []
   },
   {
+    "title": "tube screamer",
+    "description": "The Ibanez Tube Screamer — a clean guitar chugging through the most-copied overdrive on earth. Three knobs, exactly like the real pedal: OVERDRIVE (how hard the mids clip), TONE (dark<->bright), LEVEL (output). What makes it a TS and not a fuzz is the FILTERING, not the clip: the bass BYPASSES the clipper so the low end stays tight (no flub), the highs get rolled off, and clean-lows + soft-clipped-mids + rolled-highs give the famous MID HUMP that cuts through a band. Stomp the FOOTSWITCH (SPACE or tap) to bypass. Press B to A/B the TS voice against a plain clip (same drive, no tone-shaping) — the mid hump appears and disappears. GarageBand keybed (ASDFGHJKL / WETYUO) plays the guitar, Z/X octave, R toggles a chuggy auto-riff so you hear the grind, knobs drag or wheel, ? for help.",
+    "file": "tubescreamer.cart.png",
+    "created": "2026-07-20",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "analog-voice-modeling"
+    ],
+    "lineage": "Third gated famous-hardware voicing (after aquapuss's BBD delay + springtank's spring reverb): the Ibanez Tube Screamer as drive_voice(DRIVE_VOICE_TS) on the drive insert. The clip was always there (DRIVE_ASYM); the TS is the FILTERING around it.",
+    "homage": "Ibanez TS808 Tube Screamer (1979)."
+  },
+  {
     "title": "Tumble",
     "description": "A slingshot and a huge wall of crates. Grab the slingshot pouch and pull it back to fling a heavy ball into the block, or grab any crate (or ball) directly and drag it around with a mouse joint — yank a load-bearing crate out and the pile collapses. Or grab the wrecking ball hanging from the crane and swing it through the wall. Press SPACE to detonate your last ball into a burst of shrapnel that tears through the stack. Hundreds of real Box2D v3 rigid bodies — each crate rotates as it topples, rests solidly on the one below (stable stacking, the thing a verlet blob can't do), and slides on friction; balls ricochet off the bouncy arena walls and never disappear. Impact sounds scale with force (deep thud, woody clack, grass rustle, wall tik). TOPPLED counts the wreckage; R rebuilds. First cart on the engine's new pure-C Box2D backend.",
     "file": "tumble.cart.png",

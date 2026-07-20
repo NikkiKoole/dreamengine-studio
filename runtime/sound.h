@@ -1086,10 +1086,33 @@ static float drive_shape(float s, int mode, float dr) {
             return tanhf(s * g) / tanhf(g);
     }
 }
+
+// ── drive VOICE (drive_voice) — famous-pedal shaping AROUND the clip; gated, byte-identical off ──
+// DRIVE_VOICE_TS = the Ibanez Tube Screamer, whose character is the FILTERING, not the clip: a one-pole
+// split keeps the BASS clean (only mids/highs reach the soft-asym clipper — the tight, no-flub low end),
+// then a post-LP (the TONE knob) tames fizz. Clean lows + rolled highs = the famous mid hump. voice 0
+// (NONE) → the plain drive_shape path, bytes-identical. Global (one voice at a time), like reverb_spring.
+#define TS_SPLIT_COEF 0.045f   // ~300 Hz one-pole split — below it bypasses the clipper (stays clean)
+#define TS_TONE_MIN   0.12f    // TONE post-LP: darkest
+#define TS_TONE_RANGE 0.55f    // ...to brightest
+static int   drvins_voice = 0;    // DRIVE_VOICE_NONE(0) / DRIVE_VOICE_TS(1) — global
+static float drvins_tone  = 0.5f; // TS TONE knob 0..1
+static float drvins_lp1[SOUND_FX_BUSES][DRIVE_INST][2];   // TS pre-split LP (clean bass)
+static float drvins_lp2[SOUND_FX_BUSES][DRIVE_INST][2];   // TS post/tone LP
+static float ts_shape(int b, int i, int ch, float s, float dr) {
+    drvins_lp1[b][i][ch] += (s - drvins_lp1[b][i][ch]) * TS_SPLIT_COEF;   // bass stays clean
+    float bass = drvins_lp1[b][i][ch];
+    float clipped = drive_shape(s - bass, 3, dr);                         // clip ONLY mids/highs (DRIVE_ASYM)
+    float a = TS_TONE_MIN + drvins_tone * TS_TONE_RANGE;
+    drvins_lp2[b][i][ch] += (clipped - drvins_lp2[b][i][ch]) * a;         // post-LP = the TONE knob
+    return bass + drvins_lp2[b][i][ch];                                   // clean lows + shaped mids/highs = the hump
+}
 static void drive_process(int b, int i, float *mixL, float *mixR) {
     float dr = drvins_amt[b][i]; if (dr <= 0.001f) return;
     int mode = drvins_mode[b][i]; float mix = drvins_mix[b][i];
-    float wL = drive_shape(*mixL, mode, dr), wR = drive_shape(*mixR, mode, dr);
+    float wL, wR;
+    if (drvins_voice == 1) { wL = ts_shape(b, i, 0, *mixL, dr); wR = ts_shape(b, i, 1, *mixR, dr); }  // Tube Screamer voice
+    else { wL = drive_shape(*mixL, mode, dr); wR = drive_shape(*mixR, mode, dr); }
     // DC blocker on the wet path (asym is one-sided) — one-pole HP ~7Hz, like the voice path
     float yL = dc_block(&drvins_dcx[b][i][0], &drvins_dcy[b][i][0], wL, 0.999f);
     float yR = dc_block(&drvins_dcx[b][i][1], &drvins_dcy[b][i][1], wR, 0.999f);
@@ -2134,6 +2157,7 @@ typedef enum {
     SR_ECHO_INS_BBD = 131,  // a=amount*1000 — BBD analog voicing on the echo INSERT (echo_insert_bbd): clock wobble on the repeats + longer-delay-darkens
     SR_REVERB_SPRING = 132, // a=amount*1000 — SPRING voicing on the reverb (reverb_spring): dispersion "boing" + mid-band limit
     SR_REVERB_SPRING_TONE = 133, // a=x*1000 — spring dispersion coefficient (reverb_spring_tone): the "boing" character, live
+    SR_DRIVE_VOICE = 134,   // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert (drive_voice)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2204,7 +2228,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
-        case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE:
+        case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5643,6 +5667,10 @@ static void sound_fire_req(SoundReq r) {
     case SR_REVERB_SPRING_TONE: {  // a=x*1000 — dispersion coefficient (the boing character), 0.20..0.90
         rvb_spring_disp = 0.20f + clamp01(r.a / 1000.0f) * 0.70f;
     } break;
+    case SR_DRIVE_VOICE: {  // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert
+        drvins_voice = (r.a == 1) ? 1 : 0;
+        drvins_tone  = clamp01(r.b / 1000.0f);
+    } break;
     case SR_DRIVE_INSERT: {  // a=amount*1000, b=mode, c=mix*1000 — mix-bus saturation INSERT (bus 0, instance 0)
         fx_set_drive(0, 0, r.a / 1000.0f, r.b, r.c / 1000.0f);
     } break;
@@ -7402,6 +7430,9 @@ void reverb_spring(float amount) {     // spring-tank voicing on the reverb: dis
 }
 void reverb_spring_tone(float x) {     // spring dispersion coefficient — the "boing" character (0 = looser, 1 = tighter/twangier)
     sound_push_ctrl(SR_REVERB_SPRING_TONE, (int)(clamp01(x) * 1000.0f), 0, 0, 0, 0, 0);
+}
+void drive_voice(int voice, float tone) {   // famous-pedal shaping on the drive insert (DRIVE_VOICE_TS = Tube Screamer); tone 0..1
+    sound_push_ctrl(SR_DRIVE_VOICE, voice, (int)(clamp01(tone) * 1000.0f), 0, 0, 0, 0);
 }
 
 // ── drive insert: MIX-BUS SATURATION — drive the summed master mix as a reorderable FX_DRIVE pedal ──

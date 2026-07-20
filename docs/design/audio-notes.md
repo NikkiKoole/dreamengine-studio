@@ -1734,6 +1734,18 @@ v1, document it on the panel.
     drenched twang line, DUB long-spring skanks; B = A/B vs clean, BOING dials the character). Tiers of spring
     modeling + why this (allpass cascade) is the standard efficient one: Välimäki *Spring reverberation: a
     physical perspective*; arXiv 1910.10105. Optional future polish: a feedback bounce for repeated boings.
+33. **Drive voice — Tube Screamer (`drive_voice`)** — the drive INSERT given famous-pedal tone-shaping.
+    **✓ SHIPPED 2026-07-20.** `drive_voice(voice, tone)`: `DRIVE_VOICE_NONE`(0, default) = the plain `DRIVE_*`
+    clip (byte-identical); `DRIVE_VOICE_TS`(1) = the Ibanez Tube Screamer. The TS character is the FILTERING,
+    not the clip (which is our existing `DRIVE_ASYM`): a one-pole split keeps the BASS clean (only mids/highs
+    reach the clipper → the tight, no-flub low end), a post-LP is the TONE knob, and clean-lows + clipped-mids
+    + rolled-highs = the famous MID HUMP that cuts through a mix. Per-bus/instance filter state
+    (`drvins_lp1/lp2`) inside `drive_process`; `drvins_voice==0` skips it → byte-identical (level/fx Δpk Δrms
+    +0.0, dc clean, soak stable, wasm parity). `tone` 0..1 rides the post-LP live. `SR_DRIVE_VOICE`=134, full
+    4-place wiring + the `DRIVE_VOICE_*` constants. Measured: TS spectral centroid ~2850 Hz vs plain `DRIVE_ASYM`
+    ~3500 Hz (the hump = rolled highs). Refs: [ElectroSmash Tube Screamer analysis](https://www.electrosmash.com/tube-screamer-analysis);
+    GeoFex TS tech. **Showcase: `tubescreamer`** (OVERDRIVE/TONE/LEVEL + stomp + `B` A/Bs the hump). The
+    `drive_voice` enum opens the door to `DRIVE_VOICE_MUFF`/`RAT` later — the same gated pattern.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

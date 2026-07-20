@@ -585,18 +585,19 @@ static void lcdknob(float *v, int cx, int cy, int r, const char *label, float de
 // (lay.h) absorb the extra space; we never scale the render (that desyncs ui.h).
 #define FU ((float)finger_px())
 // centre a knob in a cell with its label below it; radius from the cell, not a raw px guess.
-// Knob radius scales with the cell WIDTH (grows on wider canvases, like CSS clamp) but is capped by
-// the cell HEIGHT so it never overflows the row — ≈ the original r6 at 160×100, bigger on a phone.
-// knob() draws the label just below the dial, so leave ~7px under the centre for it.
+// Knob radius keyed to the cell HEIGHT (a consistent fraction of the row), not width — so it keeps the
+// SAME breathing room above/below at every size (the band height is ~constant on the chunky canvas, so
+// a width-scaled knob would swell to fill the row and eat the margin). ≈ r6 at 160×100; it grows
+// PHYSICALLY via the blit on bigger screens. Width only caps it so it can't overflow a narrow cell.
 static void knob_cell(Box c, float *v, const char *lab, float def) {
-    float rw = c.w * 0.21f, rh = c.h * 0.42f;
-    int r = (int)lay_clamp(rw < rh ? rw : rh, 5, 16);
+    float rh = c.h * 0.30f, rw = c.w * 0.42f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 5, 12);
     int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
     knob(v, (int)(c.x + c.w / 2), cy, r, lab, def);
 }
 static void lcdknob_cell(Box c, float *v, const char *lab, float def) {
-    float rw = c.w * 0.21f, rh = c.h * 0.42f;
-    int r = (int)lay_clamp(rw < rh ? rw : rh, 4, 15);
+    float rh = c.h * 0.30f, rw = c.w * 0.42f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 12);
     int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
     lcdknob(v, (int)(c.x + c.w / 2), cy, r, lab, def);
 }

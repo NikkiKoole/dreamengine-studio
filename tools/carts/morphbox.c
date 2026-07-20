@@ -12,7 +12,7 @@
   "description": {
     "summary": "A three-voice drum synth where every drum is a MORPH, not a preset: focus KICK, SNARE or HAT and it fills two rows of ~10 knobs — CHARACTER slides the 808↔909 voicing while TUNE/DEC/PUNCH/DRIVE/CUT/SUB… carve the sound well past both machines. A 3-row step grid plays itself; real summed-bus PUMP off the kick.",
     "detail": "The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick. Per-step automation, two idioms (acidcandy's lesson + the Elektron step-first model). A MODE button cycles STEP / PROB / VEL / LOCK. PROB and VEL are CONTOUR LANES — each active step is a pull-down bar you sweep across the row (trig chance, velocity). LOCK is the STEP-FIRST p-lock editor: tap a step to SELECT it (white ring) and the knobs + MORPH pad pin THAT step's params to absolute values — a dot marks a locked knob and a locked step — so every hit can sit at its own point in the 808↔909 space, its own cutoff, decay, drive, sub. No page-per-parameter; the controls you already have become the step's editor. Reflows: roomy 320x200 or the compact 160x100 pocket face.",
-    "controls": "STEP mode: tap/drag cells to paint (hat cells cycle off→closed→open). Tap a voice NAME to focus it, drag the top knobs (vertical = value, double-tap = reset). MODE button (header) cycles STEP/PROB/VEL/LOCK. PROB/VEL: vertical-drag a cell to set its bar, drag across to sweep a contour. LOCK: tap a step to select it, then turn any knob or drag the MORPH pad to pin that param for the step (re-tap to deselect). Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right."
+    "controls": "STEP mode: tap/drag cells to paint (hat cells cycle off→closed→open). Tap a voice NAME to focus it, drag the top knobs (vertical = value, double-tap = reset). MODE button (header) cycles STEP/PROB/VEL/LOCK. PROB/VEL: vertical-drag a cell to set its bar, drag across to sweep a contour. LOCK: tap a step to select it, then turn any knob or drag the MORPH pad to pin that param for the step (re-tap = deselect, double-tap a step = clear its locks). Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right."
   }
 }
 de:meta */
@@ -96,6 +96,7 @@ static float pl[ROWS][STEPS][PL_N];
 static char  lk[ROWS][STEPS][MD_NPARAM];   // is this param locked on this step?
 static float lv[ROWS][STEPS][MD_NPARAM];   // the locked value (0..1)
 static int   sel_r = -1, sel_c = -1;       // the selected step in LOCK mode (-1 = none)
+static int   tap_key = -1, tap_f = -1000;  // last LOCK-tap (r*STEPS+c) + frame, for double-tap-clear
 
 // grid mode: STEP = on/off · PROB/VEL = contour bars · LOCK = step-first p-lock editor
 enum { LN_STEP, LN_PROB, LN_VEL, LN_LOCK, LN_N };
@@ -226,11 +227,20 @@ void update(void) {
         }
         if (!on) continue;                                 // dragged off the grid — hold, do nothing
 
-        if (lane == LN_LOCK) {                             // LOCK: tap SELECTS a step (place if off)
+        if (lane == LN_LOCK) {                             // LOCK: tap SELECTS a step; double-tap CLEARS
             if (fresh) {
-                if (!grid[r][c]) { grid[r][c] = true; hopen[c] = false; }   // place an empty step
-                if (sel_r == r && sel_c == c) { sel_r = sel_c = -1; }        // re-tap = deselect
-                else { sel_r = r; sel_c = c; focus = r; }
+                int key = r * STEPS + c;
+                bool dbl = (key == tap_key) && (frame() - tap_f < 18);
+                tap_key = key; tap_f = frame();
+                if (dbl) {                                 // double-tap → clear this step's p-locks
+                    for (int q = 0; q < MD_NPARAM; q++) lk[r][c][q] = 0;
+                    sel_r = r; sel_c = c; focus = r;       // keep selected so the knobs snap back to voice
+                } else if (sel_r == r && sel_c == c) {
+                    sel_r = sel_c = -1;                     // re-tap = deselect
+                } else {
+                    if (!grid[r][c]) { grid[r][c] = true; hopen[c] = false; }   // place an empty step
+                    sel_r = r; sel_c = c; focus = r;
+                }
                 p->lastR = r; p->lastC = c;
             }
             continue;
@@ -334,6 +344,14 @@ void draw(void) {
     }
     ui_knob(&k_swing, kx[4], ky1, "SWG");
     ui_knob(&k_pump,  kx[4], ky2, "PUMP");
+
+    // LOCK-mode hint (roomy has an empty band above the grid)
+    if (roomy && lane == LN_LOCK) {
+        font(FONT_SMALL);
+        print(sel_r >= 0 ? "LOCK: turn a knob / drag pad to pin - double-tap step to clear"
+                         : "LOCK: tap a step to edit its params",
+              6, gy - 9, CLR_MEDIUM_GREY);
+    }
 
     // ── the grid: names on the left (tap to focus, handled in update), 16 steps right ──
     font(hfont);

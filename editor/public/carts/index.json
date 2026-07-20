@@ -4207,7 +4207,7 @@
   },
   {
     "title": "Morphbox",
-    "description": "A three-voice drum synth where every drum is a MORPH, not a preset: focus KICK, SNARE or HAT and it fills two rows of ~10 knobs — CHARACTER slides the 808↔909 voicing while TUNE/DEC/PUNCH/DRIVE/CUT/SUB… carve the sound well past both machines. A 3-row step grid plays itself; real summed-bus PUMP off the kick. The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick. Per-step P-LOCK LANES (the acidcandy lesson): a LANE button cycles the grid between STEP (on/off) and PROB / VEL / TUNE / DEC / CHAR — each active step becomes an editable bar (PROB/VEL pull down from full; TUNE/DEC/CHAR are bipolar offsets around the voice knob, so e.g. every hit can sit at a different point in the 808↔909 space). Reflows: roomy 320x200 or the compact 160x100 pocket face. Tap/drag grid cells to paint steps (hat cells cycle off→closed→open). Tap a voice NAME to focus it, then drag the top knobs (vertical = value, double-tap = reset). The LANE button (header) cycles STEP/PROB/VEL/TUNE/DEC/CHAR — in a lane, vertical-drag a cell to set its bar, drag across to sweep a contour. Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right.",
+    "description": "A three-voice drum synth where every drum is a MORPH, not a preset: focus KICK, SNARE or HAT and it fills two rows of ~10 knobs — CHARACTER slides the 808↔909 voicing while TUNE/DEC/PUNCH/DRIVE/CUT/SUB… carve the sound well past both machines. A 3-row step grid plays itself; real summed-bus PUMP off the kick. The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick. Per-step automation, two idioms (acidcandy's lesson + the Elektron step-first model). A MODE button cycles STEP / PROB / VEL / LOCK. PROB and VEL are CONTOUR LANES — each active step is a pull-down bar you sweep across the row (trig chance, velocity). LOCK is the STEP-FIRST p-lock editor: tap a step to SELECT it (white ring) and the knobs + MORPH pad pin THAT step's params to absolute values — a dot marks a locked knob and a locked step — so every hit can sit at its own point in the 808↔909 space, its own cutoff, decay, drive, sub. No page-per-parameter; the controls you already have become the step's editor. Reflows: roomy 320x200 or the compact 160x100 pocket face. STEP mode: tap/drag cells to paint (hat cells cycle off→closed→open). Tap a voice NAME to focus it, drag the top knobs (vertical = value, double-tap = reset). MODE button (header) cycles STEP/PROB/VEL/LOCK. PROB/VEL: vertical-drag a cell to set its bar, drag across to sweep a contour. LOCK: tap a step to select it, then turn any knob or drag the MORPH pad to pin that param for the step (re-tap to deselect). Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right.",
     "file": "morphbox.cart.png",
     "created": "2026-07-19",
     "kind": [
@@ -6312,6 +6312,20 @@
     "lineage": "Homage to Nintendo Splatoon (2015); novel use of pget() to read live pixel ink color as a gameplay mechanic (ink type gates movement speed), with an owner grid tracking territory coverage for scoring.",
     "genre": "sandbox",
     "homage": "Splatoon (2015)"
+  },
+  {
+    "title": "spring tank",
+    "description": "A spring reverb you can hear three ways — one cart, three SCENES (1/2/3 or tap the tabs): KICK the tank — two ways to excite the spring and hear its raw boing: SPACE/keys fire a low mechanical THUNK (like knocking the tank), and N (or the NOISE pad) fires a broadband noise burst — SURF (a clean twangy guitar line drenched in spring — the Dick Dale sound), and DUB (deep off-beat organ skanks into a long spring). All three share the engine's reverb with reverb_spring() on: transients disperse (highs chirp ahead → the boing) and the tone narrows to the metallic spring band. Press B to A/B the spring against a clean digital reverb, drag the SPRING amount + SIZE knobs, R toggles the auto phrase (SURF/DUB), ZX octave, GarageBand keybed (ASDFGHJKL / WETYUO) plays into the current scene, ? for help.",
+    "file": "springtank.cart.png",
+    "created": "2026-07-20",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "analog-voice-modeling"
+    ],
+    "lineage": "Showcase + tuning bench for reverb_spring() — the spring-tank voicing on the engine reverb (dispersion 'boing' + mid band-limit). Sibling of aquapuss (the BBD delay voicing): both take a generic effect and add a gated famous-hardware voice.",
+    "homage": "The Accutronics/Fender-style spring reverb tank (surf, dub, drip)."
   },
   {
     "title": "squarepusher fm",

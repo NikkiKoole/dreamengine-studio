@@ -43,13 +43,25 @@ self-playing 3-row step grid; SWG shuffles the whole grid; PUMP is a real summed
 off the kick. Hat cells cycle off → closed → open (ringed) → off, with the open hat choked by the
 next closed one.
 
-**Per-step p-lock lanes** (acidcandy's lesson, adapted): a LANE button cycles the grid between STEP
-(on/off) and PROB / VEL / TUNE / DEC / CHAR. PROB/VEL are unipolar pull-down bars (trig chance,
-velocity); TUNE/DEC/CHAR are bipolar per-step offsets around the voice knob (centre = follow) applied
-by swapping the knob around each fire + re-`morph_apply` — so a per-step CHAR contour walks every hit
-through a different spot in the 808↔909 space. The grid's finger pool uses `pointer.h` (never
-hand-roll it — the negative synthetic-mouse id collides with a `-1` free marker; `lint-carts` guards
-this now).
+**Per-step automation — two idioms** (a MODE button cycles STEP / PROB / VEL / LOCK). The design
+language for this, from hardware grooveboxes, is two *orthogonal* models: **parameter-first**
+(automation lanes — pick a param, draw it across all steps) and **step-first** (Elektron *parameter
+locks* — select a STEP, edit many of its params on the controls you already have). morphbox uses
+both:
+
+- **PROB / VEL = contour lanes** (parameter-first): the two rhythmic step-attributes with no single
+  voice knob, as pull-down bars you sweep across the row. PROB gates the hit (`rnd`), VEL sets its
+  velocity.
+- **LOCK = step-first p-locks**: tap a step to select it and the **knob panel + MORPH pad become
+  that step's editor** — turning a knob pins that param to an absolute value for the step (a dot
+  marks locked knobs + locked steps). At fire time the locked params are swapped in + re-`morph_apply`
+  (they reshape the instrument), fired, then restored. So one hit can sit anywhere in the 808↔909
+  space with its own cutoff/decay/drive/sub. This replaced an earlier page-per-param design — the key
+  insight (from [Elektron p-locks](https://forum.loopypro.com/discussion/26340/parameter-locking-what-is-it-exactly))
+  is that select-a-step reuses the existing controls, so it scales to *every* param with no new pages.
+
+The grid's finger pool uses `pointer.h` (never hand-roll it — the negative synthetic-mouse id
+collides with a `-1` free marker; `lint-carts` guards this now).
 
 Recipe entry (the synthesis params + ranges): [`instrument-recipes.md`](../guides/instrument-recipes.md).
 

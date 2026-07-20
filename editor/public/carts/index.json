@@ -2425,6 +2425,20 @@
     "genre": "lab"
   },
   {
+    "title": "Face GRAMMAR demo (face.h)",
+    "description": "Layer 3 of responsive-first-device-face.md: the same five-zone device face as the deviceface STARTER, but DECLARED through face.h's grammar instead of hand-carved. The whole layout is a 5-row FaceZone[] table; face.h owns the chunky-canvas resize, the safe-area content box, carving the zones, and the shared 16-column register — and ENFORCES the arrangement rules (bands dock top/bottom only, so no side-rail can steal the per-step lane's width; the hero is always the remainder). Where deviceface teaches the mechanism (raw lay.h), this teaches the GRAMMAR. draw() shrinks to: face_resize(); face_area(3); face_layout(area, ZONES, 5, 16); then draw into f.box[0..4]. The per-step SCOPE overlay (hero) and the step grid (a FACE_LANE zone) both place columns through face_col(), so they align by construction. The device_class() hook picks the zone table per breakpoint (TALL/WIDE share the compact table; ROOMY gives the hero more room) — the arrangement axis, one branch. Scaffold not straitjacket: every zone is a plain Box; a bespoke face just doesn't call face_layout(). Silent (teaches the layout). Tap [WAVE]/[SEQ]/[MIX] to page the display. Tap the 16 steps to toggle. Drag the 8 knobs. Tap the pads. Resize / rotate — face.h reflows it, never scales.",
+    "file": "facedemo.cart.png",
+    "created": "2026-07-20",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [],
+    "collection": [
+      "device-face",
+      "responsive"
+    ]
+  },
+  {
     "title": "face mock — full paradigm (160x100)",
     "description": "A VIBE MOCKUP at 160x100 x4 that fits the WHOLE device-face paradigm (all five zones) in the candy-toy finish: (1) nav spine — play + view tabs + pattern + bpm, (2) always-live knobs, (3) the context display with flanking soft-keys where the slime MASCOT lives (the soul) beside a mini pattern, (4) the 16-step mode-switched grid with a running playhead, (5) the drum pads. Tests whether the full skeleton survives the harsh half-resolution. Draw-only + now() life (playhead + mascot bop). Mockups-first for vibe work.",
     "file": "facefull.cart.png",

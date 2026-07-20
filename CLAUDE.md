@@ -127,6 +127,11 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              ui.h        widgets (ui_button/ui_spr_button/ui_slider/ui_knob + Box/cell-sized twins
                          ui_button_cell/ui_knob_cell) — per-finger capture, fat-finger hit pads, focus
                          ring; ui_loupe() magnifier; ui_get_widgets() live rects
+             face.h      the device-face GRAMMAR over lay.h: declare a FaceZone[] (BAND/LANE/HERO) and
+                         face_layout() owns the chunky resize + safe-area box + zone-carving + shared
+                         register, ENFORCING the rules (bands top/bottom only = no side-rail; hero = the
+                         remainder). facedemo = grammar demo; deviceface = the raw-lay.h mechanism. Layer 3
+                         of responsive-first-device-face.md
              gestures.h  per-finger swipes judged at lift + pinch_scale (whole-view zoom)
              pointer.h   multi-finger pointer pool (PTR_CLEAR/ACQUIRE/FIND) — layer below ui.h,
                          for bespoke per-finger targets, not widgets

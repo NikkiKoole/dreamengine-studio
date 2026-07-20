@@ -68,12 +68,21 @@ acidcandy/acidwide already taught — no engine surgery.
   `LayLane` not bare `Lane` — carts already use `Lane` for their own structs (acidcandy). `deviceface`
   now drives both; `ui.h` includes `lay.h` (guarded) so the widgets can take a `Box`.
 
-**Layer 3 — a face *grammar* (the real "opinionated" core; a `face.h` cart-land header).** A small
-declarative scaffold over `lay.h`: declare **zones** (nav · knob-band · screen · step-lane) tagged
-*per-step* (lane-bound) or *band* (horizontal), plus a per-breakpoint arrangement
-(`device_class()` TALL/WIDE/ROOMY), and it reflows + **enforces the principles** — per-step always
-shares the lane, non-per-step never becomes a rail. Prototype it against mockups (the acidwide loop)
-before anything deeper.
+**Layer 3 — a face *grammar* (the real "opinionated" core; a `face.h` cart-land header). FIRST CUT
+SHIPPED 2026-07-20 — prototyped, wants proving across more carts before Layer 4.** A small declarative
+scaffold over `lay.h`: [`runtime/face.h`](../../runtime/face.h). Declare **zones** in a `FaceZone[]`
+table — `FACE_BAND` (docked strip) · `FACE_LANE` (per-step, lane-bound) · `FACE_HERO` (the remainder) —
+and `face_layout()` owns the chunky-canvas resize (`face_resize`), the safe-area content box
+(`face_area`), carving the zones (declaration order reads visually top→bottom), and the shared
+`LayLane` register (`face_col`). It **enforces the principles by construction**: bands take `EDGE_TOP`/
+`EDGE_BOTTOM` *only* — there is no way to express a width-stealing side-rail (the rule that would have
+stopped "F"); the lane always spans the full width; the hero is always the remainder. The
+per-breakpoint arrangement is one branch — pick the `FaceZone[]` table off `device_class()`
+(TALL/WIDE/ROOMY). Worked demo: [`facedemo`](../../tools/carts/facedemo.c) — the same five zones as the
+`deviceface` starter, but the whole layout is a 5-row table and `draw()` is
+`face_resize()`→`face_area()`→`face_layout()`→draw into `f.box[i]`. Scaffold not straitjacket: every
+zone is a plain `Box`, and a bespoke face just doesn't call `face_layout()`. **Still to prove:** run it
+against 2–3 more real faces (the mockup loop) and let the maker vibe-check before Layer 4.
 
 **Layer 4 — make it the default (optional, deepest).** A capability so a "device-face" cart gets the
 reflowing canvas + scaffold without opting in each time. Only worth it once Layer 3 proves out across

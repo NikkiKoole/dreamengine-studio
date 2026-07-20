@@ -168,8 +168,12 @@ structural. It bakes in the four constraints the `acidwide` A–H study surfaced
 per-step-vs-band (knobs/nav are horizontal bands, never a width-stealing side-rail) · paging-is-fine (the
 nav tabs page the display; the step lane is permanent) · widgets-size-to-cell (`knob_cell` derives its
 radius from the cell). It's silent on purpose — it teaches the *layout*; you drop your instrument into the
-marked seams. This is **Layer 1** of [`responsive-first-device-face.md`](responsive-first-device-face.md);
-Layer 2 promotes `knob_cell` → `ui_knob(Box)` and the register → a real `Lane` in `ui.h`/`lay.h`.
+marked seams. This is **Layer 1** of [`responsive-first-device-face.md`](responsive-first-device-face.md).
+Layer 2 graduated its hacks into the headers — `ui_knob_cell`/`ui_button_cell` (`ui.h`) and the
+`LayLane` register (`lay.h`); Layer 3 turned the whole thing declarative in
+[`face.h`](../../runtime/face.h) — declare a `FaceZone[]` and it carves + enforces the arrangement
+(worked demo [`facedemo`](../../tools/carts/facedemo.c)). `deviceface` stays the raw-`lay.h` mechanism
+you can read; `facedemo`/`face.h` is the grammar you build a new face *with*.
 
 ## Constraints create quality — the shared DNA
 

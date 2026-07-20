@@ -563,10 +563,10 @@ static float echo_ins_bbd  = 0.0f;   // amount 0..1 (0 = clean digital delay)
 static float echo_ins_tone = 0.55f;  // raw tone 0..1, kept so the time-darkening can re-derive the loop coef
 static float echo_ins_wph  = 0.0f;   // wow LFO phase
 static float echo_ins_fph  = 0.0f;   // flutter LFO phase
-#define ECHO_BBD_WOW_RATE  0.55f     // Hz — slow drift
-#define ECHO_BBD_WOW_DEPTH 20.0f     // samples (~0.45ms) at full amount
-#define ECHO_BBD_FLT_RATE  6.30f     // Hz — faster flutter
-#define ECHO_BBD_FLT_DEPTH 6.0f      // samples (~0.14ms) at full amount
+#define ECHO_BBD_WOW_RATE  0.55f     // Hz — slow drift; SLOW vs the loop period, so the recirculation
+#define ECHO_BBD_WOW_DEPTH 20.0f     // samples (~0.45ms) — stays coherent and self-osc survives (the audible wobble)
+#define ECHO_BBD_FLT_RATE  6.30f     // Hz — faster flutter. Kept SHALLOW: a big fast read-tap swing decorrelates
+#define ECHO_BBD_FLT_DEPTH 2.0f      // samples (~0.045ms) — the recirculation and KILLS self-oscillation (measured)
 static void echo_ins_process(float *mixL, float *mixR) {
     float dstep = (echo_ins_time_target - echo_ins_time) * 0.0003f;   // tape-speed time slew (RE-201 bend)
     if (dstep >  0.5f) dstep =  0.5f;
@@ -587,7 +587,11 @@ static void echo_ins_process(float *mixL, float *mixR) {
     float tap = echo_ins_buf[r0] + (echo_ins_buf[r1] - echo_ins_buf[r0]) * fr;
     echo_ins_lp += (tap - echo_ins_lp) * echo_ins_tone_coef;          // darker each repeat
     float in = (*mixL + *mixR) * 0.5f;                                // MONO core (v1), like the send + reverb insert
-    echo_ins_buf[echo_ins_widx] = tanhf(in + echo_ins_lp * echo_ins_fb);   // fb >1 self-oscillates into a plateau, not a blowup
+    float fb = echo_ins_fb;
+    if (echo_ins_bbd > 0.0f && fb > 1.0f)                             // BBD self-osc HEADROOM: the in-loop LP eats gain, so a bare
+        fb = 1.0f + (fb - 1.0f) * (1.0f + 4.0f * echo_ins_bbd);       // fb=1.1 barely sustains. Expand the >1 zone (→ ~1.5 at full bbd)
+                                                                      // so "past the red" runs away for real AND re-ignites after a tame
+    echo_ins_buf[echo_ins_widx] = tanhf(in + echo_ins_lp * fb);      // fb >1 self-oscillates into a plateau, not a blowup
     if (++echo_ins_widx >= SOUND_ECHO_MAX) echo_ins_widx = 0;
     *mixL += echo_ins_lp * echo_ins_mix;                             // wet repeats sit on top of the full dry
     *mixR += echo_ins_lp * echo_ins_mix;

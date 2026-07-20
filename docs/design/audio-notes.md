@@ -1704,6 +1704,16 @@ v1, document it on the panel.
     parity holds; and the load-bearing proof — the pre-first-repeat render window (pure dry) is byte-hash
     IDENTICAL with BBD on vs off, while the repeats window DIFFERS and is measurably darker (centroid 3538
     vs 3741 Hz @160ms). **Showcase: `aquapuss`** (the Way Huge Aqua-Puss — `B` toggles analog↔clean for the A/B).
+    **Regeneration tuning (2026-07-20):** first cut damped self-oscillation — pull feedback back to tame a
+    howl, push it past 1.0 again, and it stayed dead instead of re-igniting (the "didn't seem emptied on real
+    hardware" report). Measured two causes: (1) the flutter LFO's read-tap swing was DECORRELATING the
+    recirculation each pass (a fast mod > the loop period smears the comb → no coherent buildup); (2) the
+    in-loop tone LP eats loop gain, so a bare `fb`=1.05 is only marginal sustain. Fix, both gated on `bbd>0`
+    (base echo byte-identical): flutter depth 6→2 samples (the slow wow still carries the audible wobble, but
+    the loop stays coherent enough to oscillate), and a self-osc HEADROOM remap in the write —
+    `fb>1 → 1 + (fb−1)·(1+4·bbd)` (so `fb`=1.1 drives the loop at ~1.5, a real runaway). Verified: with BBD on,
+    pull to 0.5 then push back to just 1.05 now re-ignites and blooms to full (amp 0.06→1.00), peak −7.7 dBFS /
+    0 clipped, soak stable, level-check ✓ (base echo unchanged).
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

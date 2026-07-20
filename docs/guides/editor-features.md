@@ -51,5 +51,6 @@ The per-cart **media bin** — [`../design/promote-tab.md`](../design/promote-ta
 
 ## Beyond the editor (CLI, but part of the same pipeline)
 
+- **`tools/dress-clip.js`** — dress a baked clip into a 9:16 Short with **hand-typed on-screen text** in the letterbox bars (title card / hook / CTA). The "add text" step of record → bake → **dress** → post. Not yet a Promote-tab button (CLI for now). [`../design/export-ratios.md`](../design/export-ratios.md) "Dressed composite".
 - **`tools/youtube-push.js`** — upload a Promote-baked clip (or an app reel) to YouTube as a Short. Consumes the Promote tab's **9:16 variant** for a full-bleed Short. [`../design/video-distribution.md`](../design/video-distribution.md).
 - The full CLI toolbox is indexed in **CLAUDE.md** (the `tools/` list) — this page is its editor-side twin.

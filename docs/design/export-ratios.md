@@ -25,7 +25,15 @@
 > 640×400 centred with bars), never down. **Still open:** the **dressed** composite (bg+caption instead
 > of plain bars) and delivery-exact upscale (a cart whose art is bigger than an integer fit of the frame).
 
-## Dressed composite — direction (2026-07-20, from a mockup session)
+## Dressed composite — SHIPPED as `tools/dress-clip.js` (2026-07-20)
+
+**Built (CLI):** `node tools/dress-clip.js <clip> --title … --sub … --hook … --cta … --footer …`
+takes a baked clip and composites it into a 9:16 Short with your **hand-typed** text in the bars
+(title card + accent rule above, hook/CTA below, framed console in the middle), `--bg`/`--accent`/
+`--ink` colours, `--mp4` or webm out. Verified on the real acidcandy clip. Completes the user story
+**record → bake → dress with text → export** (dress is the CLI step; a Promote-tab button is the
+follow-up). Open follow-ups: the engine BITMAP font (needs a pixel TTF — v1 uses Bungee+Comic Mono),
+wiring it into the Promote bake flow, and `youtube-push --dress`. The direction it grew from:
 
 Turn the letterbox bars from dead space into a **framed treatment** — a title card above the cart,
 a hook/CTA below (the [`store-shots.js`](store-agents.md) "console as a framed
@@ -44,7 +52,6 @@ artifact" look, but for video). Two mockups (`tinyacidjam`, 9:16) compared a bar
   animates / pulses on the beat is the next rung (the `trailer-builder.md` §kinetic-text idea).
 
 Only applies to the **letterbox** path (there ARE bars to dress); the full-bleed reflow has none.
-Not built — resume here.
 
 ## The reframe: this is a *ratio/resolution* axis, not "App Store work"
 

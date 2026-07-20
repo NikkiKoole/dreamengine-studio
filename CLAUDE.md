@@ -204,6 +204,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              make-cart.js    build/bake .cart.png from tools/carts/<name>.c; also a lib for play.js
              play.js         debug harness driver (record/replay/script + trace + --wav + --solo-slot stem)
              make-gif.js     capture an animated clip of a cart (webm/webp/gif/mp4/apng + audio)
+             dress-clip.js   DRESS a clip into a 9:16 Short with hand-typed on-screen text in the letterbox
+                             bars (title card + accent rule / hook / CTA / footer, framed console; --bg/--accent
+                             colours, --mp4|webm). The "add text" step of record→bake→dress→post. Engine bitmap
+                             font + a Promote-tab button = follow-ups. Design: docs/design/export-ratios.md "Dressed composite"
              compose-clips.js stitch baked clips into one reel (ffmpeg xfade) from a .reel manifest
              build-app-reel.js  APP TRAILER: apps/<name>/app.json carts[] → bake a clip per rack (skips racks with
                              no committed clip) → generate tools/reels/<name>.reel → compose-clips → one reel. The

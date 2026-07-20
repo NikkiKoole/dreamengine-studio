@@ -68,14 +68,52 @@ static int hb_chord_pcs(int keyPc, int f, int *out) {
     return 4;
 }
 
+// ── a VOCAB: the tonal SYSTEM a style sits on (major / minor / blues). The major
+// vocab (hb_off/hb_qual/hb_fname) is the frozen default; minor & blues are
+// ADDITIVE parallels so a beginner's tool covers the basics — sad-pop, EDM, rock,
+// lofi (minor) and the 12-bar (blues) — without touching a single pinned seed.
+typedef struct {
+    const int         *off;    // scale-degree offset per function (from the tonic)
+    const int         *qual;   // quality per function (HBQ_*)
+    const char *const *fname;  // roman-numeral name per function
+    int                n;      // how many functions this vocab has
+    const char      *(*reason)(int from, int to);   // the motion explainer
+} HbVocab;
+
+// chord tones of function f (vocab v, key keyPc) as pitch classes → out[4]
+static int hb_vocab_pcs(const HbVocab *v, int keyPc, int f, int *out) {
+    int r = (keyPc + v->off[f]) % 12;
+    for (int i = 0; i < 4; i++) out[i] = (r + hb_tones[v->qual[f]][i]) % 12;
+    return 4;
+}
+
+// ── the MINOR-key vocab — the missing half of tonal music (the sad-pop/EDM/rock/
+// lofi tribe that ASKED for this). Offsets from the MINOR tonic; natural minor
+// plus the harmonic-minor V (both the soft v and the leading-tone V/vii°). Roman
+// numerals follow minor-key convention (III/VI/VII already mean the flat degrees).
+enum { HBm_i, HBm_iio, HBm_III, HBm_iv, HBm_v, HBm_V, HBm_VI, HBm_VII, HBm_viio, HBm_NFUNC };
+static const int hbm_off[HBm_NFUNC]  = { 0, 2, 3, 5, 7, 7, 8, 10, 11 };
+static const int hbm_qual[HBm_NFUNC] = { HBQ_MIN7, HBQ_M7B5, HBQ_MAJ7, HBQ_MIN7,
+                                         HBQ_MIN7, HBQ_DOM7, HBQ_MAJ7, HBQ_MAJ7, HBQ_M7B5 };
+static const char *hbm_fname[HBm_NFUNC] = { "i","ii\xf8","III","iv","v","V","VI","VII","vii\xf8" };
+
+// ── the BLUES vocab — I7 IV7 V7, all dominant (not major-diatonic, not minor).
+// The 12-bar's whole world; the major vocab has no IV7, so blues gets its own.
+enum { HBbl_I, HBbl_IV, HBbl_V, HBbl_NFUNC };
+static const int hbbl_off[HBbl_NFUNC]  = { 0, 5, 7 };
+static const int hbbl_qual[HBbl_NFUNC] = { HBQ_DOM7, HBQ_DOM7, HBQ_DOM7 };
+static const char *hbbl_fname[HBbl_NFUNC] = { "I7", "IV7", "V7" };
+
 // ── styles: where can each function go? repeats = more likely ────────────────
-// A style is weights over the ONE vocab (the research finding: genres differ by
+// A style is weights over ONE vocab (the research finding: genres differ by
 // weights, not grammars). Row length is part of a cart's PRNG contract — never
-// reorder/resize a shipped row (pinned seeds break silently).
+// reorder/resize a shipped row (pinned seeds break silently). A style names its
+// vocab; NULL = the major default, so every pre-existing style stays byte-exact.
 typedef struct {
     const int *const *next;   // per-function candidate list (repeats = weight)
     const int        *n;      // per-function list length (the srnd() argument)
     int               nfunc;  // how much of the vocab this style speaks
+    const HbVocab    *vocab;  // the tonal system (NULL = HB_MAJOR, the frozen default)
 } HbStyle;
 
 // bossa.c's TRANS — the jazz cheat-sheet: ii→V→I, secondary dominants resolve
@@ -166,6 +204,58 @@ static const char *hb_reason(int from, int to) {
     if (to == HB_II7 || to == HB_VI7)                      return "sec dom";
     return "walk";
 }
+// minor-key motion (the loops the tribe hums)
+static const char *hbm_reason(int from, int to) {
+    if (to == HBm_i && (from == HBm_V || from == HBm_v)) return "home";
+    if (to == HBm_i && from == HBm_VII)                  return "rock cadence";
+    if (to == HBm_i && from == HBm_iv)                   return "plagal";
+    if (to == HBm_i && from == HBm_viio)                 return "leading tone";
+    if (to == HBm_V || to == HBm_v)                      return "cadence";
+    if (to == HBm_VII)                                   return "subtonic";
+    if (to == HBm_VI)                                    return "the VI";
+    if (to == HBm_III)                                   return "relative";
+    if (to == HBm_iio)                                   return "pre-V";
+    if (to == HBm_iv)                                    return "minor sub";
+    return "walk";
+}
+// blues motion (the 12-bar's pull)
+static const char *hbbl_reason(int from, int to) {
+    (void)from;
+    if (to == HBbl_I)  return "home";
+    if (to == HBbl_IV) return "the IV";
+    if (to == HBbl_V)  return "turnaround";
+    return "walk";
+}
+// the vocab instances — the major one wraps the frozen arrays; a NULL style vocab
+// resolves to this, so nothing pre-existing changes.
+static const HbVocab HB_MAJOR       = { hb_off,   hb_qual,   hb_fname,   HB_NFUNC,   hb_reason };
+static const HbVocab HB_MINOR       = { hbm_off,  hbm_qual,  hbm_fname,  HBm_NFUNC,  hbm_reason };
+static const HbVocab HB_BLUES_VOCAB = { hbbl_off, hbbl_qual, hbbl_fname, HBbl_NFUNC, hbbl_reason };
+
+// a MINOR-POP / EDM style — the loops the tribe hums: i-VI-III-VII, i-iv-V, the
+// climb i-VI-VII-i. Weighted over the minor vocab; not consumed by any radio.
+static const int HB_M_i[8]    = { HBm_VI, HBm_VI, HBm_VII, HBm_VII, HBm_iv, HBm_III, HBm_v, HBm_V };
+static const int HB_M_iio[4]  = { HBm_V, HBm_V, HBm_v, HBm_i };
+static const int HB_M_III[4]  = { HBm_VII, HBm_VII, HBm_VI, HBm_iv };
+static const int HB_M_iv[5]   = { HBm_V, HBm_V, HBm_i, HBm_i, HBm_iio };
+static const int HB_M_v[4]    = { HBm_i, HBm_i, HBm_VI, HBm_iv };
+static const int HB_M_V[4]    = { HBm_i, HBm_i, HBm_i, HBm_VI };
+static const int HB_M_VI[5]   = { HBm_VII, HBm_VII, HBm_iv, HBm_III, HBm_i };
+static const int HB_M_VII[4]  = { HBm_i, HBm_i, HBm_III, HBm_VI };
+static const int HB_M_viio[2] = { HBm_i, HBm_i };
+static const int *const HB_MINPOP_NEXT[HBm_NFUNC] = { HB_M_i, HB_M_iio, HB_M_III,
+    HB_M_iv, HB_M_v, HB_M_V, HB_M_VI, HB_M_VII, HB_M_viio };
+static const int HB_MINPOP_N[HBm_NFUNC] = { 8, 4, 4, 5, 4, 4, 5, 4, 2 };
+static const HbStyle HB_MINPOP = { HB_MINPOP_NEXT, HB_MINPOP_N, HBm_NFUNC, &HB_MINOR };
+
+// a BLUES style — I7 mostly home or to IV; IV7 back to I (or up to V); V7 the
+// turnaround home (sometimes the quick IV). The 12-bar's tendency, not its bars.
+static const int HB_BL_I[5]  = { HBbl_I, HBbl_I, HBbl_IV, HBbl_IV, HBbl_V };
+static const int HB_BL_IV[4] = { HBbl_I, HBbl_I, HBbl_V, HBbl_IV };
+static const int HB_BL_V[4]  = { HBbl_I, HBbl_I, HBbl_IV, HBbl_V };
+static const int *const HB_BLUES_NEXT[HBbl_NFUNC] = { HB_BL_I, HB_BL_IV, HB_BL_V };
+static const int HB_BLUES_N[HBbl_NFUNC] = { 5, 4, 4 };
+static const HbStyle HB_BLUES = { HB_BLUES_NEXT, HB_BLUES_N, HBbl_NFUNC, &HB_BLUES_VOCAB };
 
 typedef struct { int f, w; const char *why; } HbOpt;   // function, weight, reason
 
@@ -174,6 +264,7 @@ typedef struct { int f, w; const char *why; } HbOpt;   // function, weight, reas
 // spot per the research (93% of real next-chords live in the top 2).
 static int hb_suggest(const HbStyle *st, int from, HbOpt *out, int max) {
     if (from < 0 || from >= st->nfunc || max <= 0) return 0;
+    const HbVocab *v = st->vocab ? st->vocab : &HB_MAJOR;   // NULL = major default
     int w[HB_NFUNC] = { 0 };
     for (int i = 0; i < st->n[from]; i++) w[st->next[from][i]]++;
     int cnt = 0;
@@ -182,7 +273,7 @@ static int hb_suggest(const HbStyle *st, int from, HbOpt *out, int max) {
         for (int f = 0; f < HB_NFUNC; f++)
             if (w[f] > 0 && (best < 0 || w[f] > w[best])) best = f;
         if (best < 0 || cnt >= max) break;
-        out[cnt].f = best; out[cnt].w = w[best]; out[cnt].why = hb_reason(from, best);
+        out[cnt].f = best; out[cnt].w = w[best]; out[cnt].why = v->reason(from, best);
         cnt++; w[best] = 0;
     }
     return cnt;
@@ -270,6 +361,24 @@ static inline void hb_selfcheck(void) {
       // spelling round-trips with analysis: each function's tones re-analyze to it
       expect_eq(hb_chord_fn(0, (0+hb_off[HB_vi])%12, HB_TRIAD_MIN), HB_vi,
                 "hb chord_pcs root matches hb_chord_fn"); }
+
+    // ── the added vocabs (minor + blues) ──
+    { int t[4];
+      // A minor (keyPc 9): i = A C E, VI = F, VII = G — spelled off the minor tonic
+      hb_vocab_pcs(&HB_MINOR, 9, HBm_i, t);
+      expect(t[0]==9 && t[1]==0 && t[2]==4, "hb minor: i in Am = A C E");
+      hb_vocab_pcs(&HB_MINOR, 9, HBm_VII, t);
+      expect(t[0]==7 && t[1]==11 && t[2]==2, "hb minor: VII in Am = G major (G B D)");
+      // blues: IV7 in C = F7
+      hb_vocab_pcs(&HB_BLUES_VOCAB, 0, HBbl_IV, t);
+      expect(t[0]==5 && t[1]==9 && t[2]==0 && t[3]==3, "hb blues: IV7 in C = F7 (F A C Eb)"); }
+    // minor style suggests over the minor vocab, with minor reasons
+    { HbOpt o[4]; int n = hb_suggest(&HB_MINPOP, HBm_i, o, 4);
+      expect(n >= 1 && o[0].f == HBm_VI, "hb minor-pop: i leans VI (the loop)");
+      expect_eq((int)(o[0].why[0]), (int)'t', "hb minor reason table is used ('the VI')"); }
+    // blues style stays in its 3-function world
+    { HbOpt o[4]; int n = hb_suggest(&HB_BLUES, HBbl_I, o, 4);
+      expect(n >= 1 && o[0].f == HBbl_I && o[0].why[0]=='h', "hb blues: I7 -> home, top"); }
 }
 #endif // DE_SPEC
 

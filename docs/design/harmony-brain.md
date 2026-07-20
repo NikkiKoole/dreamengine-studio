@@ -187,6 +187,26 @@ A header-only, static, bidirectional `harmony.h` sitting beside `rad_lead_to`, e
 Consumers: the radio chord brains (generate), `chordblossom`/flavors (feed voicing), `pocketbox`
 chord track (store), `improv.h` (finally chord-aware), and a **new chord toy** (the demand-82 build).
 
+## Genre vocabs — covering the basics (2026-07-20)
+
+The v1 brain was **jazz-in-a-major-key** top to bottom (all-sevenths vocab, ii-V-I motion),
+but the demand it answers came from **r/musictheory, r/WeAreTheMusicMakers, GarageBand
+beginners, r/edmproduction** — a pop/EDM/beginner tribe, much of whose music is in a **minor
+key**. So the vocab is now genre-general, additively (zero touch to the frozen major arrays or
+any pinned seed):
+
+- **`HbVocab`** — a tonal *system* (offsets + qualities + roman names + a motion `reason`). The
+  frozen major arrays are wrapped as **`HB_MAJOR`**; **`HB_MINOR`** (`i ii° III iv v V VI VII
+  vii°` — natural + harmonic minor) and **`HB_BLUES_VOCAB`** (`I7 IV7 V7`, all dominant — the
+  major vocab has no `IV7`) are new parallels.
+- **`HbStyle` gained one `vocab` pointer** — `NULL` means `HB_MAJOR`, so every existing style
+  (BOSSA/COCKTAIL/POP) and its seeds are byte-unchanged. `hb_suggest` reads `vocab->reason`.
+- New styles: **`HB_MINPOP`** (the i-VI-III-VII / i-iv-V loops) and **`HB_BLUES`** (12-bar
+  tendency). `hb_vocab_pcs()` spells any function in any vocab. All spec-covered in `hb_selfcheck`.
+- **Still open:** wiring a MAJOR/MINOR/BLUES mode into `chordwise` (its palette + analysis are
+  currently major-only — analysis in minor is unsolved-ish, generation/suggest are ready);
+  plain-**triad display** (a beginner sees `Am` not `Am7`); more genre tables (folk, rock).
+
 ## What's still open (post-v1, 2026-07-20)
 
 What shipped vs the proposed shape: the vocab, both style tables, `hb_pick`/`hb_suggest`/

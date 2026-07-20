@@ -1718,18 +1718,22 @@ v1, document it on the panel.
     pull to 0.5 then push back to just 1.05 now re-ignites and blooms to full (amp 0.06→1.00), peak −7.7 dBFS /
     0 clipped, soak stable, level-check ✓ (base echo unchanged).
 
-32. **Spring reverb voicing (`reverb_spring`)** — the Schroeder reverb given a spring-tank voice.
-    **SCAFFOLD shipped 2026-07-20 (dispersion tuning WIP — ear pass pending).** `reverb_spring(amount)`,
-    amount 0..1, `0` = clean Schroeder (dormant → byte-identical). Two ingredients, both inside the reverb
-    tank: (a) DISPERSION — a cascade of first-order allpasses (`SPRING_STAGES`=24, `SPRING_DISP`) for the
-    frequency-dependent group delay that makes a transient chirp/"boing"; (b) a mid BAND-LIMIT (~75 Hz HP +
-    ~4 kHz LP) so the tone narrows to the metallic spring band. Applied to the reverb INPUT (`pre`), blended
-    by amount, for ALL tanks (global `rvb_spring`). `SR_REVERB_SPRING`=132, full 4-place wiring; `rvb_spring==0`
-    skips the block → byte-identical (level/fx Δpk Δrms +0.0, soak stable, no clip). **KNOWN:** v1 reads subtle
-    in a level meter (expected — dispersion is a phase/group-delay effect, not a level change); the ear is the
-    judge. Next: a "kick-the-tank" showcase cart + tune the dispersion by ear (likely stretched delay-line
-    allpasses + a feedback bounce for a longer, more audible chirp). Refs: Välimäki *Spring reverberation: a
-    physical perspective*; arXiv 1910.10105.
+32. **Spring reverb voicing (`reverb_spring` + `reverb_spring_tone`)** — the Schroeder reverb given a
+    spring-tank voice. **✓ SHIPPED 2026-07-20.** `reverb_spring(amount)`, amount 0..1, `0` = clean Schroeder
+    (dormant → byte-identical). Two ingredients, both inside the reverb tank: (a) DISPERSION — a cascade of
+    **8 STRETCHED (delay-line) allpasses** (`SPRING_AP_LEN`, mutually-prime ~67..127-sample delays, coef
+    `rvb_spring_disp`) reusing `rvb_allpass()`; this is the standard efficient "dispersive delay line" — its
+    group delay spans ~tens of ms so a transient smears into a long, audible metallic chirp/"boing" (the
+    first-order-allpass scaffold gave too short a window; the ear pass confirmed the stretched form is the
+    real thing). (b) a mid BAND-LIMIT (~75 Hz HP + ~4 kHz LP) so the tone narrows to the metallic spring band.
+    Applied to the reverb INPUT (`pre`), blended by amount, for ALL tanks (global `rvb_spring`).
+    **`reverb_spring_tone(x)`** rides the dispersion coefficient live (0.20..0.90) — the "BOING" character
+    knob (looser↔tighter/twangier). `SR_REVERB_SPRING`=132 / `SR_REVERB_SPRING_TONE`=133, both full 4-place;
+    `rvb_spring==0` skips the block → byte-identical (level/fx Δpk Δrms +0.0, soak stable, dc clean, no clip).
+    **Showcase: `springtank`** (three scenes — KICK a membrane thunk / N a noise burst into the tank, SURF a
+    drenched twang line, DUB long-spring skanks; B = A/B vs clean, BOING dials the character). Tiers of spring
+    modeling + why this (allpass cascade) is the standard efficient one: Välimäki *Spring reverberation: a
+    physical perspective*; arXiv 1910.10105. Optional future polish: a feedback bounce for repeated boings.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

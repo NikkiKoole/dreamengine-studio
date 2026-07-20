@@ -645,16 +645,18 @@ static void echo_ins_set_coef(void) {
 // transient smears into a metallic chirp/"boing". Modeled the classic non-physical way — a cascade
 // of first-order allpasses (frequency-dependent group delay = the chirp) + a mid-band limit (springs
 // pass no real highs or lows). Opt-in via reverb_spring(); 0 = off → byte-identical Schroeder.
-#define SPRING_STAGES  24            // dispersion allpass chain length (the chirp density)
-#define SPRING_DISP    0.62f         // allpass coefficient — dispersion strength
+// Dispersion = a cascade of STRETCHED (delay-line) allpasses — the standard efficient spring model.
+// Each stage carries a modest, mutually-prime delay (no single resonance), so the chain's group delay
+// spans ~tens of ms across frequency → a long, audible chirp/"boing" (vs the tiny window a 1-sample
+// allpass gives). Uses the existing rvb_allpass() Schroeder section.
+#define SPRING_AP_STAGES 8
+#define SPRING_AP_MAX    128         // max per-stage delay (buffer size)
+#define SPRING_DISP    0.62f         // default dispersion coefficient (the "boing" character)
 #define SPRING_HP_COEF 0.010f        // ~75 Hz highpass (drop the lows)
 #define SPRING_LP_COEF 0.42f         // ~4 kHz lowpass (drop the highs → metallic mid focus)
+static const int SPRING_AP_LEN[SPRING_AP_STAGES] = { 89, 113, 67, 97, 127, 71, 107, 83 };
 static float rvb_spring = 0.0f;      // 0..1 spring amount (global; default 0 = off, dormant)
-static float rvb_disperse(float x, float *s, float c) {   // one 1st-order allpass, 1 state (transposed DF-II)
-    float y = c * x + *s;
-    *s = x - c * y;
-    return y;
-}
+static float rvb_spring_disp = SPRING_DISP;   // live dispersion coefficient (reverb_spring_tone) — the "boing" character
 
 // THE reverb tank pool (Increment C — effects-bus-architecture.md §5). Was a single shared
 // reverberator; now SOUND_REVERB_TANKS independent tanks of identical DSP. Tank 0 = the legacy
@@ -671,8 +673,9 @@ typedef struct {
     int   ap_p1, ap_p2;              // allpass positions
     int   pd_p;                      // predelay write position
     float clp1, clp2, clp3, clp4;    // per-comb damping LP states
-    float spring_ap[SPRING_STAGES];  // spring dispersion allpass states (used only when rvb_spring > 0)
-    float spring_hp, spring_lp;      // spring band-limit filter states
+    float spring_ap[SPRING_AP_STAGES][SPRING_AP_MAX];  // stretched-allpass dispersion delay lines (rvb_spring > 0)
+    int   spring_app[SPRING_AP_STAGES];                // their write positions
+    float spring_hp, spring_lp;                        // spring band-limit filter states
     float fb, damp;                  // config from size/damping — set by reverb() (tank 0) / reverb_bus()
     float mix;                       // dry/wet blend at the insert: 1 = wet-replace (a dedicated send-bus), <1 = in-line (reverb_insert)
     bool  used;                      // per-tank dormancy: a dormant tank is skipped (costs zero)
@@ -705,7 +708,8 @@ static float reverb_process(ReverbTank *t, float sample) {
     t->pd_p = (t->pd_p + 1) % REVERB_PREDELAY;
     if (rvb_spring > 0.0f) {                           // SPRING voicing: disperse (the boing) + mid-band-limit
         float d = pre;
-        for (int i = 0; i < SPRING_STAGES; i++) d = rvb_disperse(d, &t->spring_ap[i], SPRING_DISP);
+        for (int i = 0; i < SPRING_AP_STAGES; i++)     // stretched-allpass cascade → the long dispersive chirp
+            d = rvb_allpass(d, t->spring_ap[i], &t->spring_app[i], SPRING_AP_LEN[i], rvb_spring_disp);
         t->spring_hp += (d - t->spring_hp) * SPRING_HP_COEF; d -= t->spring_hp;   // drop the lows
         t->spring_lp += (d - t->spring_lp) * SPRING_LP_COEF; d  = t->spring_lp;   // drop the highs → metallic
         pre += rvb_spring * (d - pre);                                            // blend the sprung input in by amount
@@ -2129,6 +2133,7 @@ typedef enum {
     SR_AUTOTUNE_MIC = 130,  // a=amount*1000, b=root(0..11), c=scale — LIVE streaming auto-tune of the mic (transparent-autotune.md §live). autotune_mic()
     SR_ECHO_INS_BBD = 131,  // a=amount*1000 — BBD analog voicing on the echo INSERT (echo_insert_bbd): clock wobble on the repeats + longer-delay-darkens
     SR_REVERB_SPRING = 132, // a=amount*1000 — SPRING voicing on the reverb (reverb_spring): dispersion "boing" + mid-band limit
+    SR_REVERB_SPRING_TONE = 133, // a=x*1000 — spring dispersion coefficient (reverb_spring_tone): the "boing" character, live
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2199,7 +2204,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
-        case SR_ECHO_INS_BBD: case SR_REVERB_SPRING:
+        case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5635,6 +5640,9 @@ static void sound_fire_req(SoundReq r) {
     case SR_REVERB_SPRING: {  // a=amount*1000 — SPRING voicing on the reverb (dispersion boing + mid-band limit)
         rvb_spring = clamp01(r.a / 1000.0f);
     } break;
+    case SR_REVERB_SPRING_TONE: {  // a=x*1000 — dispersion coefficient (the boing character), 0.20..0.90
+        rvb_spring_disp = 0.20f + clamp01(r.a / 1000.0f) * 0.70f;
+    } break;
     case SR_DRIVE_INSERT: {  // a=amount*1000, b=mode, c=mix*1000 — mix-bus saturation INSERT (bus 0, instance 0)
         fx_set_drive(0, 0, r.a / 1000.0f, r.b, r.c / 1000.0f);
     } break;
@@ -7391,6 +7399,9 @@ void echo_insert_bbd(float amount) {   // analog bucket-brigade voicing on the e
 }
 void reverb_spring(float amount) {     // spring-tank voicing on the reverb: dispersion "boing" + mid-band limit
     sound_push_ctrl(SR_REVERB_SPRING, (int)(clamp01(amount) * 1000.0f), 0, 0, 0, 0, 0);
+}
+void reverb_spring_tone(float x) {     // spring dispersion coefficient — the "boing" character (0 = looser, 1 = tighter/twangier)
+    sound_push_ctrl(SR_REVERB_SPRING_TONE, (int)(clamp01(x) * 1000.0f), 0, 0, 0, 0, 0);
 }
 
 // ── drive insert: MIX-BUS SATURATION — drive the summed master mix as a reorderable FX_DRIVE pedal ──

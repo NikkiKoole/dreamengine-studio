@@ -175,6 +175,19 @@ The third reverb shape: a dry/wet-MIX insert **on the master bus**, so it's a re
 |---|---|---|---|
 | honest pedalboard reverb | `reverb_insert(0.7f, 0.3f, 0.45f)` + `FX_REVERB` in `fx_order(0,…)` | a guitar-pedal reverb whose position matters: before crush = crush the wet tail; after = reverb the crushed guitar | `pedalboard` (REVERB pedal), `groovebox` (SPACE knob — the ORDER toggle IS reverb↔crush on the summed mix), `modrack` (VERB module — on by default for a touch of space; cv inlet swells the mix) |
 
+#### spring-tank voice — `reverb_spring(amount)` · `reverb_spring_tone(x)`
+
+Turns ANY of the reverbs above (send, bus, or insert) into a Fender/surf/dub **spring tank**, not a smooth
+digital hall: transients disperse (highs chirp ahead → the metallic *boing*) and the tone narrows to a mid
+band. `reverb_spring(amount)` 0 = clean digital (byte-identical), 1 = full spring; `reverb_spring_tone(x)`
+rides the "boing" character live (0 looser → 1 tighter/twangier). Global — call once; affects every tank.
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| kick the tank | a broadband transient (noise/membrane) into a spring reverb, high send | the raw dispersive *boing/drip* — knock the tank | `springtank` (KICK scene) |
+| surf drip | `reverb(0.6f, 0.35f)` + `reverb_spring(1.0f)` on a clean twangy guitar | wet, metallic Dick-Dale surf | `springtank` (SURF) |
+| dub spring | long `reverb(0.88f, …)` + `reverb_spring(0.9f)` on off-beat organ stabs | deep, boingy dub skank tail | `springtank` (DUB) |
+
 ### shimmer — `shimmer(size, damp, shimmer_amt, mix)` · `instrument_shimmer(slot, …)`
 
 A **shimmer reverb**: a reverb with an **octave-up pitch-shifter inside its feedback loop**. Each pass,

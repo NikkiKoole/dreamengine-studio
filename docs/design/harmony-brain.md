@@ -7,7 +7,10 @@
 > *generates* progressions — but nothing that **suggests a next chord or analyzes a progression
 > you give it**. The interesting part (the maker's framing): can one "next chord" model both
 > **generalize the radio carts' harmony brains** *and* serve a new interactive chord toy — i.e.
-> graduate harmony to a shared engine the way `acid303.h` / `drumkit.h` did for voices?
+> graduate harmony to a shared engine the way `acid303.h` / `drumkit.h` did for voices? **Deep-research
+> survey done (2026-07-20) — see [Research findings](#research-findings-deep-research-survey-2026-07-20):
+> the evidence backs the simplest model (1st-order Markov over functions + forced cadences), and analysis
+> must take the key as input.**
 
 ## Why this is a real topic (and on-grain)
 
@@ -116,6 +119,47 @@ How do existing tools model this, and what can we steal for a lo-fi version? Hoo
 (commercial suggesters), and the academic lineage (Markov/HMM chord models, functional-harmony
 grammars, Riemannian/neo-Riemannian voice-leading, Krumhansl key-finding). Goal: pick the *simplest*
 model that gives musical suggestions and honest analysis — not the most sophisticated.
+
+## Research findings (deep-research survey, 2026-07-20)
+
+A cited deep-research pass (21 sources, 24 claims adversarially verified) ran the survey above. The
+headline: **the evidence validates bossa's existing approach — simplest wins.** Verdict per operation:
+
+- **GENERATE + SUGGEST → a first-order Markov table over key-relative Roman-numeral functions**
+  (HIGH-confidence, corpus-grounded). Harmonic motion is *highly concentrated*: five roots
+  (I/IV/V/♭VII/vi) = **87% of rock chords**; **93% of chords after Em-in-C go to just Am or F**
+  (de Clercq & Temperley's 100-song rock corpus; Hooktheory's 1,300-song pop corpus — both hand you
+  priors + transition weights to seed the table). **Higher Markov order isn't worth it** — 2nd-order
+  beats 1st by ~0.03; chord LMs gain tenths of a percent 2→5-gram. The one exception is **cadences**,
+  which carry trigram info (pre-tonic V is overwhelmingly preceded by IV) — fixed by a few
+  forced-cadence special cases, *exactly* bossa's forced ii-V-I. Caveat: naive long autoregressive
+  runs compound errors → favor **short, cadence-anchored/reseeded phrases** (bossa's 8-bar sections
+  already do this).
+- **ANALYZE → "closest diatonic function + a borrowed-chord lookup table," operating in a GIVEN key.**
+  The honesty check that reshapes the feature: **full automatic Roman-numeral analysis is UNSOLVED**
+  — SOTA deep systems reach only **43–52%** complete-RN accuracy — so the toy must *take the key as
+  input* (the constrained one-chord-in-a-known-key problem is far easier: chord-quality ~78%,
+  local-key ~81%). For a *fallback* key guess use **Krumhansl-Schmuckler**, and Temperley's
+  simplification — a plain **scalar product** (∑ profile×pitch-class-duration) replaces the
+  correlation for ~the same result, far cheaper. Short context-free segments are unreliable (K-S fell
+  to ~46% on Chopin snippets), so only key-find over a window and always prefer a declared key.
+- **REPRESENTATION + GENRE → key-relative functions; genre = different *weights* over ONE shared
+  vocabulary**, not different grammars (answers RQ #1 + #3). Rock over-weights ♭VII; pop often omits
+  the tonic. One function table, per-genre weight sets. So the cited-track "stolen playbook" stations
+  are weight/where-tonic-sits variations on the same model, not un-modelable one-offs.
+
+**Still genuinely open (the research couldn't settle):**
+- **Chromatic encoding (RQ #1 tail)** — the *minimal* way to carry secondary dominants (`V/x`) and
+  modal interchange in a tiny vocab without exploding the state space. No source prescribed it.
+- **Jazz quantitatively** — the one-model-per-weights finding is measured for pop/rock; jazz's
+  extended/secondary-dominant-heavy language is only asserted-by-disclaimer, not measured.
+- **Suggest UX (RQ #5)** — corpus data (93% → 2 chords) *implies* **~2–4 ranked options** is well
+  motivated, but no source studied option-count/ranking directly. A design call, not a research one.
+
+Source-strength caveat: the "1st-order is enough" evidence leans partly on a weak melody study + an
+audio chord-*recognition* paper (LM auxiliary), so it's directionally strong but not proven for pure
+chord *generation*; the 43–52% RN figures are for the FULL task, a floor-of-difficulty caution, not a
+ceiling on the constrained toy. Full report: workflow run `wf_a3e8a018-597`.
 
 ## Proposed shape (a hypothesis to test, not a spec)
 

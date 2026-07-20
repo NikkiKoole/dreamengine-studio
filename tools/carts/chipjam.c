@@ -240,12 +240,19 @@ static void face_melodic(Box kb, Box scr, Box play, Face *f, int step, int col, 
 
     glass(scr);
     Box si = lay_inset(scr, 3);
-    static const char *sk[6] = { "SEQ", "FLAG", "FX", "GEN", "KEY", "PAT" };
-    Box skrow = lay_split(si, EDGE_TOP, lay_clamp(si.h * 0.24f, 6, 10), &si);
-    softkeys(skrow, sk, 6, 0);
-    // piano-roll — FULL WIDTH, on the shared register
+    // FLANK the screen with soft-keys (paradigm zone 3) — a bounded look, not the full-width
+    // register. This flanks the HERO, not the whole face, so it's allowed; the roll rides a
+    // face_sublane in the middle while the note-bars below stay on the full-width register.
+    static const char *skL[4] = { "SEQ", "FLAG", "FX", "GEN" };
+    static const char *skR[2] = { "KEY", "PAT" };
+    Box colL = lay_split(si, EDGE_LEFT,  lay_clamp(si.w * 0.16f, 16, 30), &si);
+    Box colR = lay_split(si, EDGE_RIGHT, lay_clamp(si.w * 0.14f, 14, 26), &si);
+    for (int i = 0; i < 4; i++) lcdbtn(lay_inset(lay_grid(colL, 1, 4, i, 1), 0), skL[i], i == 0);
+    for (int i = 0; i < 2; i++) lcdbtn(lay_inset(lay_grid(colR, 1, 2, i, 1), 0), skR[i], 0);
+    // piano-roll — a BOUNDED lane in the flanked middle (face_sublane)
+    LayLane roll = face_sublane(si, STEPS);
     for (int s = 0; s < STEPS; s++) {
-        Box c = face_col(f, si, s, 0);
+        Box c = lay_lane_cell(roll, si, s, 0);
         if (s == step) { blend(BLEND_AVG); rectfill((int)c.x, (int)si.y, (int)c.w, (int)si.h, CLR_MEDIUM_GREEN); blend_reset(); }
         if (!p_on[s]) continue;
         int y = roll_y(si, p_pit[s]);
@@ -279,10 +286,9 @@ static void face_drums(Box kb, Box scr, Box play, int step, int col) {
         Box rb = lay_grid(names, 1, 6, v, 1);
         font(FONT_TINY); print(dvn[v], (int)rb.x, (int)(rb.y + rb.h / 2 - 2), CLR_MEDIUM_GREEN);
     }
-    // ESCAPE HATCH (face.h finding): this grid sits AFTER the name gutter, so it can't use
-    // the full-width register (face_col is area-anchored, by design). Drop to lay.h and build
-    // a LOCAL lane on the indented sub-box — still one register for this face's per-step grid.
-    LayLane gl = lay_lane(si, STEPS);
+    // this grid sits AFTER the name gutter, so it uses a BOUNDED lane (face_sublane) on the
+    // indented sub-box rather than the full-width register — the first-class option, not a hack.
+    LayLane gl = face_sublane(si, STEPS);
     for (int s = 0; s < STEPS; s++) {
         Box cs = lay_lane_cell(gl, si, s, 0);
         if (s == step) { blend(BLEND_AVG); rectfill((int)cs.x, (int)si.y, (int)cs.w, (int)si.h, CLR_MEDIUM_GREEN); blend_reset(); }

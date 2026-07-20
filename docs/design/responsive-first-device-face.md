@@ -115,9 +115,19 @@ the conversion forced (now the headline caveat in `face.h`):**
 - Reconfirmed the chipjam findings: SUB's screen pitch-view + its note-bars now share the full-width
   register (aligned), and the DRM grid (after a name gutter) uses the local-`lay_lane` escape hatch.
 
-**Two faces converted, grammar held both times.** Remaining before Layer 4: the maker's vibe-check
-(especially the chipjam soft-key nook — is the full-width-register opinion ever *too* strong?), then
-decide whether to make face.h the default.
+*Refinement — the full-width register was too strong (2026-07-20, with the maker).* The vibe-check
+landed: forcing chipjam's flanking soft-keys into a top nook (to keep the roll full-width) was **not the
+desired look** — flanking the *screen* with chrome is a legitimate, often nicer arrangement. The fix
+sharpened the doctrine: the ban is only on **top-level full-height side-rails** that steal the whole
+*face's* width (the "F" mistake); **flanking the HERO** with soft-keys is a different, allowed thing (it's
+the paradigm's zone 3). Added [`face_sublane(span, cols)`](../../runtime/face.h) — a **bounded** per-step
+lane on a sub-region, a *first-class* alternative to the full-width register (not an escape hatch), for two
+cases: a flanked hero (roll between soft-key columns) and indented content (a grid after a name-gutter).
+chipjam's flanking look is restored on it; the note-bars still ride the full-width register. So the grammar
+now offers **both** — full-width-aligned by default, bounded-and-flanked by choice.
+
+**Two faces converted, grammar held (and got better for the friction).** Remaining before Layer 4: any
+more faces the maker wants through it, then decide whether to make face.h the default.
 
 **Layer 4 — make it the default (optional, deepest).** A capability so a "device-face" cart gets the
 reflowing canvas + scaffold without opting in each time. Only worth it once Layer 3 proves out across

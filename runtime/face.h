@@ -8,9 +8,11 @@
 // "F" face broke the column register with a side-rail). This header lets a cart DECLARE
 // its zones and gets those rules by default:
 //
-//   · per-step zones share ONE full-width column lane (lay.h's LayLane register)
-//   · bands dock TOP/BOTTOM only — a band can NEVER become a width-stealing side-rail
-//     (the single rule that would have stopped the "F" mistake automatically)
+//   · per-step zones share ONE full-width column lane by default (lay.h's LayLane register)
+//   · TOP-LEVEL bands dock TOP/BOTTOM only — a band can NEVER become a full-height
+//     side-rail that steals the whole FACE's width (the rule that stops the "F" mistake).
+//     Flanking the HERO with chrome (soft-keys down the screen sides) is a DIFFERENT thing
+//     and is fine — carve it off the hero and use face_sublane for a bounded roll.
 //   · the HERO is always the remainder (so a taller device's extra height flows into it)
 //   · REFLOW, never camera-scale (touch stays 1:1 — the ui.h desync gotcha)
 //
@@ -139,14 +141,22 @@ static inline Face face_layout(Box area, FaceZone *z, int n, int lane_cols) {
 // face_col — column `i` of the shared register, occupying `band`'s vertical extent. Use it
 // for BOTH a LANE zone AND the hero's per-step overlay, and they line up by construction.
 // The register is anchored to the FULL content width (it takes only the band's y/h, never
-// its x) — that's what guarantees alignment. So per-step content that must be INDENTED
-// (e.g. a drum grid sitting after a left name-gutter) can't use face_col; drop to lay.h and
-// build a LOCAL lane on the sub-box: `LayLane g = lay_lane(sub, cols);
-// lay_lane_cell(g, band, i, gap)`. (Escape hatch — surfaced converting chipjam; scaffold,
-// not straitjacket.)
+// its x) — that's what guarantees alignment. It's the DEFAULT, not the only option.
 static inline Box face_col(Face *f, Box band, int i, float gap) {
     return lay_lane_cell(f->lane, band, i, gap);
 }
+
+// face_sublane — a BOUNDED per-step lane on a sub-region, a first-class alternative to the
+// full-width register (NOT an escape hatch). Two legit reasons the full-width register is
+// the wrong look:
+//   · FLANKED HERO — you want soft-keys down the sides of the screen and the roll between
+//     them (the paradigm's zone 3). Flanking the HERO is fine; the ban is only on top-level
+//     full-height side-rails that steal the whole FACE's width. Carve the flanks off the
+//     hero, then `face_sublane(middle, cols)` for the roll.
+//   · INDENTED content — a drum grid after a left name-gutter.
+// Bind it with lay_lane_cell(sub, band, i, gap). Per-step content on the SAME sublane still
+// aligns; it just won't align with the full-width register (a deliberate look choice).
+static inline LayLane face_sublane(Box span, int cols) { return lay_lane(span, cols); }
 
 // face_zone — find a zone's rect by name (a convenience so draw code doesn't hardcode
 // indices; returns a zero Box if not found). Cheap — a handful of strcmp per frame.

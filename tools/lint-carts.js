@@ -18,7 +18,7 @@
 //   - every de:meta cart has a baked .cart.png; every .cart.png has a de:meta cart
 //   - editor/public/carts/index.json equals a fresh build-cart-index generate
 //
-// SOURCE HAZARDS (2026-07-10) — two CLAUDE.md gotchas promoted from prose-you-must-remember
+// SOURCE HAZARDS (2026-07-10) — CLAUDE.md gotchas promoted from prose-you-must-remember
 // into checks (the lesson→lint loop; see docs/guides/checks-and-oracles.md). Checked on EVERY
 // .c in tools/carts/ (registered or not — harness carts crash too):
 //   - watch()'s 2nd arg must be a string literal (the format). A bare value makes vsnprintf
@@ -30,6 +30,10 @@
 //     doesn't. Struct/union/enum FIELDS are skipped (e->timer can't clash). Pre-lint shadows
 //     are GRANDFATHERED below (renaming means re-embedding those carts — do it when touching
 //     the cart anyway, then delete the entry). Waive deliberately: // lint-shadow-ignore
+//   - a cart tracking fingers via touch_id() must NOT hand-roll its pool with a `-1`/`<0`
+//     free-slot id marker: the editor's synthetic mouse-touch id is NEGATIVE (-2), so it
+//     collides and fingers mis-track (bit morphbox — cells wouldn't toggle/delete). Use
+//     pointer.h (PTR_NONE = -999). Waive: // lint-pool-ignore
 //
 // Growing a vocabulary is fine and expected — add the value here (or in teaches-vocab.js)
 // in the same commit as the first cart that uses it.
@@ -142,6 +146,22 @@ function checkSourceHazards(src, name, errors) {
     const ln = lineOf(m.index);
     if (args.length >= 2 && !/^\s*"/.test(args[1]) && !waived(ln, "lint-watch-ignore"))
       errors.push(`${name}.c:${ln}: watch() 2nd arg must be a format STRING — watch("x","%d",v), never watch("x",v) (SIGSEGV under -DDE_TRACE; // lint-watch-ignore to waive)`);
+  }
+
+  // hand-rolled finger pool with a -1 free-slot marker: a cart that tracks fingers via
+  // touch_id() but hand-rolls the pool (no pointer.h) and uses `.id < 0` / `.id = -1` as
+  // its "free slot" test COLLIDES with the editor's synthetic mouse-touch id, which is
+  // NEGATIVE (-2) — a stored finger reads as free again the next frame, so taps/drags
+  // mis-track (bit morphbox: cells wouldn't reliably toggle/delete). Use pointer.h
+  // (PTR_ACQUIRE/PTR_FIND, free sentinel PTR_NONE = -999, which can't collide).
+  if (/\btouch_id\s*\(/.test(s) && !/#include\s*"pointer\.h"/.test(s)) {
+    const poolRe = /(?:\.|->)\s*id\s*(?:==?\s*-\s*1|<\s*0)/g;
+    let pm;
+    while ((pm = poolRe.exec(s))) {
+      const ln = lineOf(pm.index);
+      if (!waived(ln, "lint-pool-ignore"))
+        errors.push(`${name}.c:${ln}: hand-rolled finger pool uses -1/<0 as the free-slot id — the editor's synthetic mouse-touch id is NEGATIVE, so it collides and fingers mis-track. Use pointer.h (PTR_ACQUIRE/PTR_FIND, PTR_NONE=-999); // lint-pool-ignore to waive`);
+    }
   }
 
   // built-in shadowing: skip struct/union/enum bodies via a brace classifier

@@ -21,6 +21,7 @@
 de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
+#include "harmony.h" // the shared harmony brain — bossa's function vocab + TRANS live there now
 #include "solo.h"    // the jam layer — a scale-locked solo strip over the changes
 #include <stdio.h>
 #include <math.h>
@@ -72,8 +73,10 @@ de:meta */
 #define I_SOLO   10  // the jam-strip lead — a present flute over the changes
 
 // ── chord qualities ───────────────────────────────────────────────────────
-enum { Q_MAJ7, Q_MIN7, Q_DOM7, Q_M7B5, Q_MIN6, NQUAL };
-static const char *QNAME[NQUAL] = { "maj7", "m7", "7", "m7b5", "m6" };
+// qualities + names live in harmony.h (HBQ_*); aliases keep the body unchanged
+enum { Q_MAJ7 = HBQ_MAJ7, Q_MIN7 = HBQ_MIN7, Q_DOM7 = HBQ_DOM7,
+       Q_M7B5 = HBQ_M7B5, Q_MIN6 = HBQ_MIN6, NQUAL = HB_NQUAL };
+#define QNAME hb_qname
 // rootless 3-voice guitar voicings (intervals above chord root) — the bass
 // owns the root, the guitar plays the color: 3rd + 7th + 9th (or 5th/6th)
 static const int QVOICE[NQUAL][3] = {
@@ -88,34 +91,17 @@ static const int QTONES[NQUAL][4] = {  // chord tones for the melody to target
 };
 static const char *PCNAME[12] = { "C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B" };
 
-// ── harmonic functions (scale-degree offset + quality) ────────────────────
-enum { F_I, F_ii, F_iii, F_IV, F_V, F_vi, F_II7, F_VI7, F_bII7, F_iv, F_bVII7, F_v, F_I7, NFUNC };
-static const int F_OFF[NFUNC]  = { 0, 2, 4, 5, 7, 9, 2, 9, 1, 5, 10, 7, 0 };
-static const int F_QUAL[NFUNC] = { Q_MAJ7, Q_MIN7, Q_MIN7, Q_MAJ7, Q_DOM7, Q_MIN7,
-                                   Q_DOM7, Q_DOM7, Q_DOM7, Q_MIN6, Q_DOM7, Q_MIN7, Q_DOM7 };
-
-// weighted transitions: where can each function go? (repeats = more likely)
-// reads like a jazz harmony cheat-sheet: ii→V→I, secondary dominants resolve
-// down a fifth (VI7→ii, II7→V), bII7 is the tritone sub of V, iv/bVII7 is the
-// backdoor cadence, v→I7 is "ii-V of IV" en route to the subdominant.
-#define T(name, ...) static const int name[] = { __VA_ARGS__ };
-T(T_I,     F_vi, F_vi, F_vi, F_II7, F_II7, F_IV, F_IV, F_iii, F_iii, F_VI7, F_VI7, F_v)
-T(T_ii,    F_V, F_V, F_V, F_V, F_V, F_bII7, F_bII7)
-T(T_iii,   F_VI7, F_VI7, F_VI7, F_vi, F_vi, F_ii)
-T(T_IV,    F_iv, F_iv, F_iv, F_ii, F_ii, F_I, F_I, F_bVII7, F_bVII7)
-T(T_V,     F_I, F_I, F_I, F_I, F_I, F_iii, F_vi)
-T(T_vi,    F_ii, F_ii, F_ii, F_ii, F_II7, F_iv)
-T(T_II7,   F_ii, F_ii, F_ii, F_V, F_V)
-T(T_VI7,   F_ii, F_ii, F_ii, F_ii, F_ii)
-T(T_bII7,  F_I, F_I, F_I, F_I, F_I)
-T(T_iv,    F_bVII7, F_bVII7, F_bVII7, F_I, F_I)
-T(T_bVII7, F_I, F_I, F_I, F_I)
-T(T_v,     F_I7, F_I7, F_I7, F_I7)
-T(T_I7,    F_IV, F_IV, F_IV, F_IV)
-#undef T
-static const int *TRANS[NFUNC] = { T_I, T_ii, T_iii, T_IV, T_V, T_vi, T_II7,
-                                   T_VI7, T_bII7, T_iv, T_bVII7, T_v, T_I7 };
-static const int TRANSN[NFUNC] = { 12, 7, 6, 9, 7, 6, 5, 5, 5, 5, 4, 4, 4 };
+// ── harmonic functions — the shared harmony brain (harmony.h) ─────────────
+// the enum + F_OFF/F_QUAL + the weighted TRANS tables moved VERBATIM to
+// harmony.h as the HB_BOSSA style (same order, same row lengths — the srnd
+// call sequence is unchanged, so pinned seeds stay byte-exact). The aliases
+// keep the body textually unchanged.
+enum { F_I = HB_I, F_ii = HB_ii, F_iii = HB_iii, F_IV = HB_IV, F_V = HB_V,
+       F_vi = HB_vi, F_II7 = HB_II7, F_VI7 = HB_VI7, F_bII7 = HB_bII7,
+       F_iv = HB_iv, F_bVII7 = HB_bVII7, F_v = HB_v, F_I7 = HB_I7,
+       NFUNC = HB_NFUNC };
+#define F_OFF  hb_off
+#define F_QUAL hb_qual
 
 // ── comping patterns — 2-bar masks over a 32-step (16th-note) grid ────────
 // the classic bossa clave is  |X..X..X.|..X..X..|  (8th-note positions)
@@ -174,7 +160,7 @@ static int    toneSel    = 0;        // bossa has no tone knob — rad_input get
 static int iabs(int v) { return v < 0 ? -v : v; }
 
 // ── song generation ───────────────────────────────────────────────────────
-static int markov_next(int f) { return TRANS[f][srnd(TRANSN[f])]; }
+static int markov_next(int f) { return hb_pick(&HB_BOSSA, f, srnd(hb_nopts(&HB_BOSSA, f))); }
 
 static void gen_section(int *bars, int startFunc) {
     bars[0] = startFunc;

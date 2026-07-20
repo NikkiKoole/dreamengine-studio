@@ -46,6 +46,7 @@ de:meta */
 
 #include "studio.h"
 #include "radio.h"
+#include "harmony.h" // the shared harmony brain — the function vocab + FNEXT live there now
 #include "improv.h"
 #include <stdio.h>
 #include <math.h>
@@ -63,8 +64,10 @@ de:meta */
 #define SL_KICK 11   // feathered, barely there
 
 // ── harmony — the functional walk, jazz rate (one chord per bar) ──────────
-enum { Q_MAJ7, Q_MIN7, Q_DOM7, Q_M7B5, Q_MIN6, NQ };
-static const char *QN[NQ] = { "maj7", "m7", "7", "m7b5", "m6" };
+// qualities + names live in harmony.h (HBQ_*); aliases keep the body unchanged
+enum { Q_MAJ7 = HBQ_MAJ7, Q_MIN7 = HBQ_MIN7, Q_DOM7 = HBQ_DOM7,
+       Q_M7B5 = HBQ_M7B5, Q_MIN6 = HBQ_MIN6, NQ = HB_NQUAL };
+#define QN hb_qname
 static const int QV[NQ][3] = {
     { 4, 11, 14 },   // maj7 — 3 7 9, rootless (the bass owns the root)
     { 3, 10, 14 },   // m7
@@ -72,24 +75,15 @@ static const int QV[NQ][3] = {
     { 3,  6, 10 },   // m7b5
     { 3,  9, 14 },   // m6
 };
-// functions: scale-degree offset + quality (the bossa tables, one town over)
-enum { F_I, F_ii, F_iii, F_IV, F_V, F_vi, F_II7, F_VI7, F_bII7, F_iv, NF };
-static const int F_OFF[NF]  = { 0, 2, 4, 5, 7, 9, 2, 9, 1, 5 };
-static const int F_QUAL[NF] = { Q_MAJ7, Q_MIN7, Q_MIN7, Q_MAJ7, Q_DOM7,
-                                Q_MIN7, Q_DOM7, Q_DOM7, Q_DOM7, Q_MIN6 };
-// where can each function go? repeats = more likely (the jazz cheat-sheet)
-static const int FNEXT[NF][6] = {
-    { F_vi, F_ii, F_IV, F_iii, F_VI7, F_ii },     // I
-    { F_V, F_V, F_V, F_bII7, F_V, F_iii },        // ii -> V (or the tritone sub)
-    { F_vi, F_VI7, F_ii, F_vi, F_IV, F_vi },      // iii
-    { F_iv, F_ii, F_I, F_V, F_ii, F_iii },        // IV (-> iv = the borrowed dusk)
-    { F_I, F_I, F_I, F_vi, F_iii, F_I },          // V -> home (sometimes deceptive)
-    { F_ii, F_II7, F_ii, F_iv, F_ii, F_VI7 },     // vi
-    { F_V, F_V, F_V, F_ii, F_V, F_V },            // II7 -> V
-    { F_ii, F_ii, F_ii, F_ii, F_ii, F_ii },       // VI7 -> ii
-    { F_I, F_I, F_I, F_I, F_iii, F_I },           // bII7 -> I (the sub resolves)
-    { F_I, F_I, F_bII7, F_I, F_I, F_I },          // iv -> I (backdoor-ish)
-};
+// functions — the shared harmony brain (harmony.h): the enum + F_OFF/F_QUAL +
+// the FNEXT rows moved VERBATIM there as the HB_COCKTAIL style (same order,
+// fixed 6-wide rows — the srnd call sequence is unchanged, pinned seeds stay
+// byte-exact). Aliases keep the body textually unchanged.
+enum { F_I = HB_I, F_ii = HB_ii, F_iii = HB_iii, F_IV = HB_IV, F_V = HB_V,
+       F_vi = HB_vi, F_II7 = HB_II7, F_VI7 = HB_VI7, F_bII7 = HB_bII7,
+       F_iv = HB_iv, NF = 10 };
+#define F_OFF  hb_off
+#define F_QUAL hb_qual
 static const int JAZZMAJ[7] = { 0, 2, 4, 5, 7, 9, 11 };   // the solos' scale
 
 // ── the form — a trio set ─────────────────────────────────────────────────
@@ -163,7 +157,7 @@ static void new_song(double pos, unsigned seed) {
         if (ib == 6)      f = F_ii;
         else if (ib == 7) f = (srnd(100) < 20) ? F_bII7 : F_V;
         else if (ib == 0 && b % 16 == 0) f = F_I;
-        else              f = FNEXT[f][srnd(6)];
+        else              f = hb_pick(&HB_COCKTAIL, f, srnd(hb_nopts(&HB_COCKTAIL, f)));
         sng.fn[b] = f;
     }
 

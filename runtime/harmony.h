@@ -98,6 +98,31 @@ static const int *const HB_COCKTAIL_NEXT[10] = { HB_C_I, HB_C_ii, HB_C_iii,
 static const int HB_COCKTAIL_N[10] = { 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 };
 static const HbStyle HB_COCKTAIL = { HB_COCKTAIL_NEXT, HB_COCKTAIL_N, 10 };
 
+// a POP style — the same 13-function vocab, weighted for the diatonic loops a
+// stranger already hums: the I-V-vi-IV "axis" and the 50s doo-wop (I-vi-IV-V).
+// The point of the research made audible: pop is the SAME grammar as bossa with
+// the weight piled onto the six diatonic seats — the borrowed shelf still
+// resolves home (bVII7/iv->I, the rock cadences) but rarely gets reached. Not
+// consumed by any radio cart, so these rows carry no pinned-seed contract.
+static const int HB_P_I[8]    = { HB_V, HB_V, HB_V, HB_vi, HB_vi, HB_IV, HB_IV, HB_ii };
+static const int HB_P_ii[5]   = { HB_V, HB_V, HB_V, HB_IV, HB_I };
+static const int HB_P_iii[4]  = { HB_vi, HB_vi, HB_IV, HB_ii };
+static const int HB_P_IV[5]   = { HB_I, HB_I, HB_V, HB_V, HB_vi };
+static const int HB_P_V[6]    = { HB_I, HB_I, HB_I, HB_vi, HB_vi, HB_IV };
+static const int HB_P_vi[6]   = { HB_IV, HB_IV, HB_IV, HB_V, HB_ii, HB_I };
+static const int HB_P_II7[2]  = { HB_V, HB_V };
+static const int HB_P_VI7[2]  = { HB_ii, HB_ii };
+static const int HB_P_bII7[1] = { HB_I };
+static const int HB_P_iv[2]   = { HB_I, HB_I };
+static const int HB_P_bVII7[3]= { HB_I, HB_I, HB_I };
+static const int HB_P_v[1]    = { HB_I };
+static const int HB_P_I7[1]   = { HB_IV };
+static const int *const HB_POP_NEXT[HB_NFUNC] = { HB_P_I, HB_P_ii, HB_P_iii,
+    HB_P_IV, HB_P_V, HB_P_vi, HB_P_II7, HB_P_VI7, HB_P_bII7, HB_P_iv,
+    HB_P_bVII7, HB_P_v, HB_P_I7 };
+static const int HB_POP_N[HB_NFUNC] = { 8, 5, 4, 5, 6, 6, 2, 2, 1, 2, 3, 1, 1 };
+static const HbStyle HB_POP = { HB_POP_NEXT, HB_POP_N, HB_NFUNC };
+
 // ── generate: the cart keeps its PRNG stream (pinned seeds stay byte-exact) ──
 static int hb_nopts(const HbStyle *st, int f) { return st->n[f]; }          // pass to your srnd()
 static int hb_pick (const HbStyle *st, int f, int r) { return st->next[f][r]; }
@@ -108,6 +133,7 @@ static const char *hb_reason(int from, int to) {
     if (to == HB_I  && from == HB_V)                       return "home";
     if (to == HB_I  && from == HB_bII7)                    return "sub home";
     if (to == HB_I  && (from == HB_bVII7 || from == HB_iv)) return "backdoor";
+    if (to == HB_I  && from == HB_IV)                      return "plagal";
     if (to == HB_V  && from == HB_ii)                      return "cadence";
     if (to == HB_ii && (from == HB_VI7 || from == HB_II7)) return "5th down";
     if (to == HB_V  && from == HB_II7)                     return "5th down";

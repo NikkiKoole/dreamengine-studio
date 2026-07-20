@@ -14,8 +14,8 @@
   "lineage": "The first consumer of runtime/harmony.h — the shared harmony brain extracted byte-identically from bossa/cocktail's Markov chord engines (design/harmony-brain.md). Built for the loudest demand-discovery gap on record: r/musictheory demand-82, 'a harmonic progression analyzer / suggestion tool'. Analysis is generation inverted: the same function vocab + transition table that composes bossa's changes here names YOUR chords and ranks what could come next.",
   "description": {
     "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). SPACE loops your changes on a soft pluck.",
-    "detail": "The demand-82 toy: a progression analyzer + next-chord suggester on the shared harmony brain (runtime/harmony.h, lifted byte-identically from the bossa/cocktail radio stations). The chord palette shows the 13-function jazz vocabulary spelled in your key: the 6 diatonic seats on the top row, the borrowed/chromatic shelf below (secondary dominants II7/VI7, the tritone sub bII7, the backdoor iv/bVII7, the minor v and I7). Tap chords into an 8-slot strip; every frame the strip is RE-ANALYZED from the raw chords (root + quality), so the roman numerals are honest lookups, not echoes of what you pressed - move the key under a finished progression and Cmaj7 quietly turns from I into IV, and chords outside the vocabulary show ? instead of a guess (full auto analysis is unsolved; this toy stays in a declared key on purpose). The NEXT panel reads the same Markov table that composes bossa's songs FORWARD: ranked candidates with weight pips and a one-word reason each. Two styles (BOSSA = the 13-function jazz table, LOUNGE = cocktail's 10-function trio tuning) re-rank the suggestions. The whole brain is deterministic and carries a spec() (round-trip: every function's spelling re-analyzes to itself in all 12 keys; doo-wop = I vi IV V; ii-V-I; the borrowed shelf).",
-    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the diatonic row, A S D F G H J = the borrowed row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B toggle style (BOSSA/LOUNGE)."
+    "detail": "The demand-82 toy: a progression analyzer + next-chord suggester on the shared harmony brain (runtime/harmony.h, lifted byte-identically from the bossa/cocktail radio stations). The chord palette shows the 13-function jazz vocabulary spelled in your key: the 6 diatonic seats on the top row, the borrowed/chromatic shelf below (secondary dominants II7/VI7, the tritone sub bII7, the backdoor iv/bVII7, the minor v and I7). Tap chords into an 8-slot strip; every frame the strip is RE-ANALYZED from the raw chords (root + quality), so the roman numerals are honest lookups, not echoes of what you pressed - move the key under a finished progression and Cmaj7 quietly turns from I into IV, and chords outside the vocabulary show ? instead of a guess (full auto analysis is unsolved; this toy stays in a declared key on purpose). The NEXT panel reads the same Markov table that composes bossa's songs FORWARD: ranked candidates with weight pips and a one-word reason each. Three styles (BOSSA = the 13-function jazz table, LOUNGE = cocktail's 10-function trio tuning, POP = the same vocab weighted onto the diatonic loops a stranger hums, the I-V-vi-IV axis and 50s doo-wop) re-rank the suggestions - the research made audible: genres differ by WEIGHTS over one vocab, not by grammar. The whole brain is deterministic and carries a spec() (round-trip: every function's spelling re-analyzes to itself in all 12 keys; doo-wop = I vi IV V; ii-V-I; the borrowed shelf).",
+    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the diatonic row, A S D F G H J = the borrowed row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle style (BOSSA/LOUNGE/POP)."
   }
 }
 de:meta */
@@ -55,8 +55,9 @@ static const int QTONES[HB_NQUAL][4] = {
 };
 
 static int keyPc = 0;
-static const HbStyle *STYLES[2]  = { &HB_BOSSA, &HB_COCKTAIL };
-static const char    *STYNAME[2] = { "BOSSA", "LOUNGE" };
+static const HbStyle *STYLES[3]  = { &HB_BOSSA, &HB_COCKTAIL, &HB_POP };
+static const char    *STYNAME[3] = { "BOSSA", "LOUNGE", "POP" };
+#define NSTYLE 3
 static int styleSel = 0;
 
 #define MAXP 8
@@ -124,7 +125,7 @@ void init(void) {
 void update(void) {
     if (keyp(KEY_LEFT))  { keyPc = (keyPc + 11) % 12; rethink(); }
     if (keyp(KEY_RIGHT)) { keyPc = (keyPc + 1)  % 12; rethink(); }
-    if (keyp('B'))       { styleSel ^= 1; resuggest(); }
+    if (keyp('B'))       { styleSel = (styleSel + 1) % NSTYLE; resuggest(); }
     if (keyp('U') || keyp(KEY_BACKSPACE)) { if (plen) { plen--; rethink(); } }
     { static const char R1K[6] = { 'Q','W','E','R','T','Y' };
       static const char R2K[7] = { 'A','S','D','F','G','H','J' };
@@ -156,7 +157,7 @@ void draw(void) {
     rectfill(184, 2, 54, 14, CLR_BROWNISH_BLACK);
     print(buf, 188, 5, CLR_YELLOW);
     if (ui_button(240, 2, 14, 14, ">")) { keyPc = (keyPc + 1) % 12; rethink(); }
-    if (ui_button(260, 2, 54, 14, STYNAME[styleSel])) { styleSel ^= 1; resuggest(); }
+    if (ui_button(260, 2, 54, 14, STYNAME[styleSel])) { styleSel = (styleSel + 1) % NSTYLE; resuggest(); }
 
     // ── the strip: your progression, re-analyzed every frame ──
     for (int i = 0; i < MAXP; i++) {
@@ -254,6 +255,10 @@ void spec(void) {
     styleSel = 1; resuggest();
     keyPc = 0; rethink();                      // back home: last chord = I again
     expect(nsugg >= 1, "lounge suggests from I");
+
+    // POP re-ranks the same table: from I the diatonic pull is V (axis start)
+    styleSel = 2; resuggest();
+    expect(nsugg >= 1 && sugg[0].f == HB_V, "pop from I leans V (the I-V-vi-IV axis)");
     styleSel = 0;
 
     // undo + clear keep the machine consistent

@@ -203,27 +203,9 @@ static void draw_C(Box body, int knobrows) {
 
 // the SCREEN as a note-POSITION editor: a pitch×step matrix (grid lines + notes placed by pitch).
 // This is where you set the note, so the bottom strip needn't carry pitch as tall bars.
-static void notegrid(Box scr) {
-    rrectfill((int)scr.x, (int)scr.y, (int)scr.w, (int)scr.h, 3, CLR_BROWNISH_BLACK);
-    Box glass = lay_inset(scr, 2);
-    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
-    Box inner = lay_inset(glass, 2);
-    Box ruler = lay_split_gap(inner, EDGE_LEFT, 7, 1, &inner);   // left = pitch KEYBOARD (the Y axis, made obvious)
-    Box gc = inner;
-    float sw = gc.w / 16.0f;
-    int base = (int)(gc.y + gc.h - 3);
-    float ppx = (gc.h - 6) / (float)PITCH_MAX;
-    int ph = (int)ppx < 1 ? 1 : (int)ppx;
-
-    // beat-group column shading — every other group of 4 gets a faint band → reads as a step matrix
-    blend(BLEND_AVG);
-    for (int s = 0; s < 16; s++) if ((s / 4) % 2 == 0) rectfill((int)(gc.x + s * sw), (int)gc.y, (int)sw, (int)gc.h, CLR_BROWNISH_BLACK);
-    // octave guide lines + step gridlines
-    for (int p = 0; p <= PITCH_MAX; p += 12) { int y = base - (int)(p * ppx); line((int)gc.x, y, (int)(gc.x + gc.w - 1), y, CLR_MEDIUM_GREEN); }
-    for (int s = 0; s <= 16; s++) { int gx = (int)(gc.x + s * sw); line(gx, (int)gc.y, gx, (int)(gc.y + gc.h - 1), s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_DARK_BROWN); }
-    blend_reset();
-
-    // left keyboard: white/black keys per semitone → the pitch axis reads at a glance
+// the left pitch KEYBOARD (white/black keys per semitone) drawn in the ruler gutter, keyed to gc's scale
+static void pitch_keyboard(Box ruler, Box gc) {
+    int base = (int)(gc.y + gc.h - 3); float ppx = (gc.h - 6) / (float)PITCH_MAX; int ph = (int)ppx < 1 ? 1 : (int)ppx;
     rectfill((int)ruler.x, (int)ruler.y, (int)ruler.w, (int)ruler.h, CLR_BROWNISH_BLACK);
     for (int p = 0; p <= PITCH_MAX; p++) {
         int y = base - (int)(p * ppx), cls = p % 12;
@@ -231,22 +213,39 @@ static void notegrid(Box scr) {
         rectfill((int)ruler.x, y - ph + 1, (int)ruler.w - 1, ph, black ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN);
         if (cls == 0) rectfill((int)ruler.x, y, (int)ruler.w - 1, 1, CLR_LIME_GREEN);   // root-C tick
     }
-
-    // playhead column
+}
+// the note-grid CONTENT (beat shading + gridlines + playhead + note blocks) in a column box gc — no glass/keyboard
+static void notegrid_content(Box gc) {
+    float sw = gc.w / 16.0f;
+    int base = (int)(gc.y + gc.h - 3);
+    float ppx = (gc.h - 6) / (float)PITCH_MAX;
+    blend(BLEND_AVG);
+    for (int s = 0; s < 16; s++) if ((s / 4) % 2 == 0) rectfill((int)(gc.x + s * sw), (int)gc.y, (int)sw, (int)gc.h, CLR_BROWNISH_BLACK);
+    for (int p = 0; p <= PITCH_MAX; p += 12) { int y = base - (int)(p * ppx); line((int)gc.x, y, (int)(gc.x + gc.w - 1), y, CLR_MEDIUM_GREEN); }
+    for (int s = 0; s <= 16; s++) { int gx = (int)(gc.x + s * sw); line(gx, (int)gc.y, gx, (int)(gc.y + gc.h - 1), s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_DARK_BROWN); }
+    blend_reset();
     { int cx = (int)(gc.x + g_step * sw); blend(BLEND_AVG); rectfill(cx, (int)gc.y, (int)sw, (int)gc.h, CLR_MEDIUM_GREEN); blend_reset(); }
-
     for (int s = 0; s < 16; s++) {
         int cx = (int)(gc.x + s * sw), cw = (int)sw - 1; if (cw < 3) cw = 3;
-        if (!p_on[s]) { pset(cx + cw / 2, base, s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_DARK_GREEN); continue; }   // empty step = a faint "tap here" floor dot
+        if (!p_on[s]) { pset(cx + cw / 2, base, s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_DARK_GREEN); continue; }
         int y = base - (int)(p_pit[s] * ppx), playing = (s == g_step);
         int w2 = p_tie[s] ? cw + (int)sw : cw;
-        if (p_sld[s] && s < 15 && p_on[s + 1]) { int ny = base - (int)(p_pit[s + 1] * ppx); line(cx + cw, y, (int)(gc.x + (s + 1) * sw), ny, CLR_LIME_GREEN); }   // slide ramp (under the block)
-        if (playing) { blend(BLEND_AVG); rrectfill(cx, y - 3, w2, 7, 1, CLR_WHITE); blend_reset(); }   // playing-note glow
+        if (p_sld[s] && s < 15 && p_on[s + 1]) { int ny = base - (int)(p_pit[s + 1] * ppx); line(cx + cw, y, (int)(gc.x + (s + 1) * sw), ny, CLR_LIME_GREEN); }
+        if (playing) { blend(BLEND_AVG); rrectfill(cx, y - 3, w2, 7, 1, CLR_WHITE); blend_reset(); }
         int col = playing ? CLR_WHITE : p_acc[s] ? CLR_LIME_GREEN : CLR_LIGHT_YELLOW;
-        rrectfill(cx + 1, y - 1, w2 - 1, 4, 1, col);                        // chunky note block (an object, not a bar)
+        rrectfill(cx + 1, y - 1, w2 - 1, 4, 1, col);
         rrect(cx + 1, y - 1, w2 - 1, 4, 1, CLR_BROWNISH_BLACK);
-        if (p_acc[s]) pset(cx + cw / 2, y - 3, CLR_ORANGE);                 // accent tick above the note
+        if (p_acc[s]) pset(cx + cw / 2, y - 3, CLR_ORANGE);
     }
+}
+static void notegrid(Box scr) {
+    rrectfill((int)scr.x, (int)scr.y, (int)scr.w, (int)scr.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(scr, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    Box inner = lay_inset(glass, 2);
+    Box ruler = lay_split_gap(inner, EDGE_LEFT, 7, 1, &inner);
+    pitch_keyboard(ruler, inner);
+    notegrid_content(inner);
 }
 
 // SHORT compact step strip — on/off + accent only (pitch lives in the note-grid above)
@@ -336,6 +335,41 @@ static void draw_G(Box body) {
     stepstrip_compact(box(lane.x, strip.y, lane.w, strip.h));
 }
 
+// ── ARRANGEMENT H — PAGED screen (one mode at a time via in-screen tabs) + always-on aligned strip.
+// Only the active mode's controls show — no wall of buttons. SEQ is home (the note-grid). ──
+static int h_mode = 0;   // which page the screen shows (0=SEQ)
+static void draw_H(Box body) {
+    static const char *MODE[7] = { "SEQ", "FLAG", "FX", "PERF", "GEN", "KEY", "PAT" };
+    float H = body.h;
+    Box strip = lay_split_gap(body, EDGE_BOTTOM, H * 0.13f, 2, &body);        // always-on step strip (aligned)
+    Box krow  = lay_split_gap(body, EDGE_TOP,    H * 0.30f, 2, &body);        // 2-row knobs + nook
+    Box scr   = body;                                                         // the paged SCREEN (full width)
+    Box nook = lay_split_gap(krow, EDGE_RIGHT, krow.w * 0.14f, 2, &krow);
+    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, 7, 13, i, 2), KN[i], KV[i]);
+    Box t1 = lay_split_gap(nook, EDGE_TOP, nook.h * 0.5f, 2, &nook);
+    cbtn(t1, "DF", 1); cbtn(nook, "1/2", 0);
+
+    // screen chrome + in-screen mode tabs (horizontal → no column inset)
+    rrectfill((int)scr.x, (int)scr.y, (int)scr.w, (int)scr.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(scr, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    Box inner = lay_inset(glass, 2);
+    Box tabs = lay_split_gap(inner, EDGE_TOP, inner.h * 0.24f, 2, &inner);
+    for (int i = 0; i < 7; i++) lcdbtn(lay_cell(tabs, 0, 7, i, 1), MODE[i], i == h_mode);
+
+    Box ruler = lay_split_gap(inner, EDGE_LEFT, 7, 1, &inner);   // keyboard gutter (kept, like E)
+    Box gc = inner;                                             // the 16-column region
+    if (h_mode == 0) {                                          // SEQ — the note-grid, full-width, aligned with the strip
+        pitch_keyboard(ruler, gc);
+        notegrid_content(gc);
+    } else {                                                    // any other page fills the SAME area with its own controls
+        font(FONT_TINY); plabel(MODE[h_mode], (int)(gc.x + gc.w / 2), (int)(gc.y + gc.h / 2 - 2), CLR_MEDIUM_GREEN);
+        plabel("(page content)", (int)(gc.x + gc.w / 2), (int)(gc.y + gc.h / 2 + 5), CLR_DARK_GREEN);
+    }
+    // strip on the SAME column lane as the SEQ grid (gc.x/gc.w) → cell s sits under column s
+    stepstrip_compact(box(gc.x, strip.y, gc.w, strip.h));
+}
+
 void update(void) {
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
@@ -344,6 +378,8 @@ void update(void) {
     if (keyp('5')) arr = 4;
     if (keyp('6')) arr = 5;
     if (keyp('7')) arr = 6;
+    if (keyp('8')) arr = 7;
+    if (arr == 7) { if (keyp('q')) h_mode = (h_mode + 1) % 7; }   // (in H) cycle the screen page to preview paging
     g_step = (int)(now() * 8) % 16;
 }
 
@@ -365,7 +401,7 @@ void draw(void) {
     navstrip(nav);
 
     // little tag so the render is self-labelling
-    static const char *TAG[7] = { "A", "B", "C", "D", "E", "F", "G" };
+    static const char *TAG[8] = { "A", "B", "C", "D", "E", "F", "G", "H" };
     font(FONT_TINY); print(TAG[arr], (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
 
     if (arr == 0)      draw_A(body);
@@ -374,5 +410,6 @@ void draw(void) {
     else if (arr == 3) draw_C(body, 2);
     else if (arr == 4) draw_E(body);
     else if (arr == 5) draw_F(body);
-    else               draw_G(body);
+    else if (arr == 6) draw_G(body);
+    else               draw_H(body);
 }

@@ -2268,3 +2268,23 @@ enum (the "inserting mid-list cross-wires presets" gotcha — [cart-authoring](.
 one MST-global "DRIFT" knob writing `ac[0].drift = ac[1].drift = v` + re-`acid_define`, or a per-303
 knob on the DF/DEEP page. Deferred as a small follow-up, not yet wired. Also still open: **#3**, the
 band-limited saw (reassess only if the aliasing becomes audible on an open-filter lead).
+
+**ENGINE LANDED / UI OPEN — a per-303 classic⟷Devil-Fish voicing switch (2026-07-20).** The maker
+noticed acidcandy's "DF" button is only a *knob-page* flip (`kpage`, shows the DF-extra knobs) — the
+303 is *always* Devil-Fish-voiced; there's no classic-vs-DF *sound* toggle. The engine half is now in
+`acid303.h`: a new **`Acid.classic`** flag (0 = DF default, 1 = vanilla), read **live** by the mapping
+helpers + `acid_note` so `a->p[]` is never touched — the DF knob values (SUB/TRK/ADEC/SLDT) **survive a
+flip**. `classic=1` pins vanilla: 6.0 cutoff range · fixed 60 ms slide · 2 ms attack · two-decay OFF ·
+no filter-track/sub-osc/accent-sweep. It's the data-driven twin of `acid_stock()` (a runtime FLIP, not
+a one-shot destructive re-voice). Every `classic=0` branch is byte-identical to the old expression, so
+`tb303`/`acidrack`/`acidcandy` are unchanged (`build-all` clean); verified with a throwaway flip-probe
+(4 non-destructive flips, no crash/NaN, classic reads ~10% quieter + a different harmonic balance).
+
+The UI wiring is deliberately **not** done — `acidcandy.c` was under active parallel edit. The design
+(maker-agreed): two *orthogonal* controls, **per-303**. (a) The **DF light becomes the VOICING switch**
+(tap = classic⟷DF; write `ac[i].classic` + re-`acid_define(&ac[i])`; the light means "DF sound on", the
+honest meaning). (b) A **separate small page-tab** flips the VIEW (the existing `kpage` role — core-5 ⟷
+DF-extras), and since the classic-5 knobs (CUT/RES/ENV/DEC/ACC) drive **both** voicings, the tab only
+matters in DF mode: **grey/hide the DF-extras page when `classic`** (nothing to edit there). So core-5 is
+always tweakable — you can sit on the classic knobs with DF blazing, which was the maker's explicit ask.
+No `ACID_*` enum churn (it's a struct field). Small once the cart frees up.

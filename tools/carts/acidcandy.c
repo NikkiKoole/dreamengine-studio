@@ -776,7 +776,7 @@ static void draw_303(Box stage, int i) {
     Box notes = lay_split(body, EDGE_BOTTOM, H * 0.28f, &body);   // ④⑤ the 16 note bars (design ≈26/100)
     Box skcL  = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-key columns (design ≈16/160)
     Box skcR  = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
-    Box lcd   = body;                                             // the hero glass = the remainder (absorbs extra height)
+    Box lcd   = lay_inset(body, 1);                               // the hero glass = the remainder, 1px in → breathing gap to the flanking soft-keys + the row below
 
     // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
     Box krDF = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 14, 26), &krow);
@@ -1030,7 +1030,7 @@ static void draw_808(Box stage) {
     Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.36f, &body);            // ④⑤ picker + hits + tool
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);            // ③ soft-key columns
     Box skcR   = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
-    Box lcd    = body;                                                      // the hero glass
+    Box lcd    = lay_inset(body, 1);                                                      // the hero glass
     Box tool   = lay_split(bottom, EDGE_RIGHT,  W * 0.05f, &bottom);        // ④a pad TOOL (right edge)
     Box hits   = lay_split(bottom, EDGE_BOTTOM, bottom.h * 0.60f, &bottom); // ⑤ the 16 hits
     Box pick   = bottom;                                                    // ④ voice picker row
@@ -1187,7 +1187,7 @@ static void draw_909(Box stage) {
     Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.36f, &body);            // ④⑤ picker + hits + tool
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);            // ③ soft-key columns
     Box skcR   = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
-    Box lcd    = body;                                                      // the hero glass
+    Box lcd    = lay_inset(body, 1);                                                      // the hero glass
     Box tool   = lay_split(bottom, EDGE_RIGHT,  W * 0.05f, &bottom);        // ④a pad TOOL
     Box hits   = lay_split(bottom, EDGE_BOTTOM, bottom.h * 0.60f, &bottom); // ⑤ the 16 hits
     Box pick   = bottom;                                                    // ④ voice picker
@@ -1370,7 +1370,7 @@ static void draw_mst(Box stage) {
     Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.30f, &body);   // ④b delay · ⑤ send · ⑥ dub
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys
     Box gutter = lay_split(body, EDGE_RIGHT,  W * 0.10f, &body);   // ④ SWG/TEMPO
-    Box lcd    = body;                                             // the hero glass
+    Box lcd    = lay_inset(body, 1);                                             // the hero glass
 
     // ①b per-machine VOLUME sliders — drag L/R; fill = level, machine-tinted, grey when muted
     for (int m = 0; m < 4; m++) {

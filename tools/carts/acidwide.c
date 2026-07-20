@@ -275,12 +275,45 @@ static void draw_E(Box body) {
     stepstrip_compact(strip);
 }
 
+// the FLAG paint-palette — persistent (you always see what a tap/drag will paint). NOTE is armed.
+static void flagrail(Box c) {
+    static const char *FL[6] = { "NOTE", "ACC", "SLD", "TIE", "OC+", "OC-" };
+    for (int i = 0; i < 6; i++) lcdbtn(lay_cell(c, 1, 6, i, 1), FL[i], i == 0);
+}
+// the RIGHT rail — PAT banks (always visible) over the two genuinely-occasional pages (KEY/GEN) + PERF
+static void sidepages(Box c) {
+    static const char *PT[4] = { "A", "B", "C", "D" };
+    Box pat = lay_split_gap(c, EDGE_TOP, c.h * 0.42f, 2, &c);
+    for (int i = 0; i < 4; i++) cbtn(lay_grid(pat, 2, 4, i, 1), PT[i], i == 0);
+    static const char *PG[3] = { "KEY", "GEN", "PRF" };
+    for (int i = 0; i < 3; i++) lcdbtn(lay_cell(c, 1, 3, i, 1), PG[i], 0);
+}
+
+// ── ARRANGEMENT F — the UNPAGED 303: flag palette · note-grid · PAT/pages rail · compact strip ──
+static void draw_F(Box body) {
+    float H = body.h;
+    Box strip = lay_split_gap(body, EDGE_BOTTOM, H * 0.12f, 2, &body);        // compact step strip
+    Box krow  = lay_split_gap(body, EDGE_TOP,    H * 0.34f, 2, &body);        // 2-row knobs (roomy labels)
+    Box main  = body;
+    Box nook  = lay_split_gap(krow, EDGE_RIGHT, krow.w * 0.14f, 2, &krow);
+    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, 7, 13, i, 2), KN[i], KV[i]);
+    Box t1 = lay_split_gap(nook, EDGE_TOP, nook.h * 0.5f, 2, &nook);
+    cbtn(t1, "DF", 1); cbtn(nook, "1/2", 0);
+    Box frail = lay_split_gap(main, EDGE_LEFT,  main.w * 0.09f, 2, &main);    // paint palette (left)
+    Box srail = lay_split_gap(main, EDGE_RIGHT, main.w * 0.14f, 2, &main);    // PAT + tucked pages (right)
+    flagrail(frail);
+    notegrid(main);
+    sidepages(srail);
+    stepstrip_compact(strip);
+}
+
 void update(void) {
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
     if (keyp('3')) arr = 2;
     if (keyp('4')) arr = 3;
     if (keyp('5')) arr = 4;
+    if (keyp('6')) arr = 5;
     g_step = (int)(now() * 8) % 16;
 }
 
@@ -302,12 +335,13 @@ void draw(void) {
     navstrip(nav);
 
     // little tag so the render is self-labelling
-    static const char *TAG[5] = { "A", "B", "C", "D", "E" };
+    static const char *TAG[6] = { "A", "B", "C", "D", "E", "F" };
     font(FONT_TINY); print(TAG[arr], (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
 
     if (arr == 0)      draw_A(body);
     else if (arr == 1) draw_B(body);
     else if (arr == 2) draw_C(body, 1);
     else if (arr == 3) draw_C(body, 2);
-    else               draw_E(body);
+    else if (arr == 4) draw_E(body);
+    else               draw_F(body);
 }

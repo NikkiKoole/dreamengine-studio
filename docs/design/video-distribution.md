@@ -1,10 +1,11 @@
 # Video distribution — pushing a clip to YouTube (lever #2's last mile)
 
-STATUS: BUILDING (2026-07-20) — `tools/youtube-push.js` is built and verified for every local
-path (`--check`, metadata derivation, `--dry-run`, the bake/transcode → 9:16 composite, the
->60s Short guard, `--landscape`/`--public`); the live OAuth sign-in + resumable upload are
-written but **await the maker's Google Cloud creds** to run. The platform + build-shape
-decision is settled in [ADR-0033](../decisions/0033-youtube-first-video-distribution.md).
+STATUS: SHIPPED (2026-07-20) — `tools/youtube-push.js` is built and PROVEN live: the OAuth
+sign-in (`--auth` loopback consent) + resumable upload work end to end — the first real push
+(the tinyjam reel → a 9:16 Short, unlisted) succeeded, returning a `youtube.com/shorts/…` URL.
+Every local path is verified too (`--check`, metadata derivation, `--dry-run`, the
+bake/transcode → 9:16 composite, the >60s Short guard, `--landscape`/`--public`). The platform
++ build-shape decision is settled in [ADR-0033](../decisions/0033-youtube-first-video-distribution.md).
 
 ## The gap this closes
 
@@ -92,9 +93,9 @@ Own generated audio → **no Content ID / copyright risk**, so uploads are safe 
   the URL. Landscape and 9:16, `--dry-run`, `--check`, creds in `~/.youtube/`. The whole point
   in the smallest form.
 - **v0.2 — Shorts as the default** + `--reel <app>` to push a composed app trailer. The >60s
-  guard + `#Shorts` handling. **BUILT alongside v0.1 (2026-07-20)** — it fell out of the same
-  code, so the shipped tool is v0.1+v0.2. *Remaining before "shipped":* one real upload once the
-  OAuth client exists (`--auth` → a `--dry-run`-verified `--public` push), to prove the live path.
+  guard + `#Shorts` handling. **SHIPPED alongside v0.1 (2026-07-20)** — it fell out of the same
+  code. The live path is proven: the OAuth client is set up (creds in `~/.youtube/`) and the
+  first real upload (tinyjam reel → an unlisted Short) returned a live URL.
 - **v0.3 — scheduled drip.** NOT built. A launchd/cron runner (twin of
   [`reddit-gaps-drip.sh`](demand-discovery.md)) that pushes the newest committed clip on a
   cadence — a steady lever-#2 heartbeat without hand-work.

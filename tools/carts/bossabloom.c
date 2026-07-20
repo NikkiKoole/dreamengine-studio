@@ -25,6 +25,7 @@ de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading)
 #include "solo.h"    // the jam layer — the chord-locked solo strip
+#include "harmony.h" // the shared harmony brain — vocab + the HB_BOSSA walk
 #include "ui.h"      // contacts for the solo strip
 #include <stdio.h>
 #include <string.h>
@@ -42,44 +43,30 @@ de:meta */
 #define I_RIM    9
 #define I_SOLO   10
 
-// ── chord qualities (bossa.c) ───────────────────────────────────────────────
-enum { Q_MAJ7, Q_MIN7, Q_DOM7, Q_M7B5, Q_MIN6, NQUAL };
-static const char *QNAME[NQUAL] = { "maj7", "m7", "7", "m7b5", "m6" };
+// ── chord qualities — the shared harmony brain (harmony.h). bossabloom was a
+// verbatim bossa fork; aliases keep the body unchanged. QVOICE (guitar voicing)
+// stays local; the chord TONES are hb_tones now, the walk is HB_BOSSA.
+enum { Q_MAJ7 = HBQ_MAJ7, Q_MIN7 = HBQ_MIN7, Q_DOM7 = HBQ_DOM7,
+       Q_M7B5 = HBQ_M7B5, Q_MIN6 = HBQ_MIN6, NQUAL = HB_NQUAL };
+#define QNAME hb_qname
 static const int QVOICE[NQUAL][3] = {
     { 4, 11, 14 }, { 3, 10, 14 }, { 4, 10, 14 }, { 3, 6, 10 }, { 3, 9, 14 },
 };
-static const int QTONES[NQUAL][4] = {
-    { 0, 4, 7, 11 }, { 0, 3, 7, 10 }, { 0, 4, 7, 10 }, { 0, 3, 6, 10 }, { 0, 3, 7, 9 },
-};
 static const char *PCNAME[12] = { "C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B" };
 
-// ── harmonic functions (bossa.c) ────────────────────────────────────────────
-enum { F_I, F_ii, F_iii, F_IV, F_V, F_vi, F_II7, F_VI7, F_bII7, F_iv, F_bVII7, F_v, F_I7, NFUNC };
-static const int F_OFF[NFUNC]  = { 0, 2, 4, 5, 7, 9, 2, 9, 1, 5, 10, 7, 0 };
-static const int F_QUAL[NFUNC] = { Q_MAJ7, Q_MIN7, Q_MIN7, Q_MAJ7, Q_DOM7, Q_MIN7,
-                                   Q_DOM7, Q_DOM7, Q_DOM7, Q_MIN6, Q_DOM7, Q_MIN7, Q_DOM7 };
+// ── harmonic functions — harmony.h's frozen 13-function vocab (HB_*). F_OFF/
+// F_QUAL alias hb_off/hb_qual; F_LABEL/F_FAM below stay local (palette colour).
+enum { F_I = HB_I, F_ii = HB_ii, F_iii = HB_iii, F_IV = HB_IV, F_V = HB_V,
+       F_vi = HB_vi, F_II7 = HB_II7, F_VI7 = HB_VI7, F_bII7 = HB_bII7,
+       F_iv = HB_iv, F_bVII7 = HB_bVII7, F_v = HB_v, F_I7 = HB_I7, NFUNC = HB_NFUNC };
+#define F_OFF  hb_off
+#define F_QUAL hb_qual
 // the palette label + a FUNCTION FAMILY for colour (0 tonic · 1 subdominant · 2 dominant)
 static const char *F_LABEL[NFUNC] = { "I","ii","iii","IV","V","vi","II7","VI7","bII7","iv","b7","v","I7" };
 static const int   F_FAM[NFUNC]   = {  0,  1,   0,   1,  2,  0,   2,    2,    2,     1,   2,   1,  2 };
 
-#define T(name, ...) static const int name[] = { __VA_ARGS__ };
-T(T_I,     F_vi, F_vi, F_vi, F_II7, F_II7, F_IV, F_IV, F_iii, F_iii, F_VI7, F_VI7, F_v)
-T(T_ii,    F_V, F_V, F_V, F_V, F_V, F_bII7, F_bII7)
-T(T_iii,   F_VI7, F_VI7, F_VI7, F_vi, F_vi, F_ii)
-T(T_IV,    F_iv, F_iv, F_iv, F_ii, F_ii, F_I, F_I, F_bVII7, F_bVII7)
-T(T_V,     F_I, F_I, F_I, F_I, F_I, F_iii, F_vi)
-T(T_vi,    F_ii, F_ii, F_ii, F_ii, F_II7, F_iv)
-T(T_II7,   F_ii, F_ii, F_ii, F_V, F_V)
-T(T_VI7,   F_ii, F_ii, F_ii, F_ii, F_ii)
-T(T_bII7,  F_I, F_I, F_I, F_I, F_I)
-T(T_iv,    F_bVII7, F_bVII7, F_bVII7, F_I, F_I)
-T(T_bVII7, F_I, F_I, F_I, F_I)
-T(T_v,     F_I7, F_I7, F_I7, F_I7)
-T(T_I7,    F_IV, F_IV, F_IV, F_IV)
-#undef T
-static const int *TRANS[NFUNC] = { T_I, T_ii, T_iii, T_IV, T_V, T_vi, T_II7,
-                                   T_VI7, T_bII7, T_iv, T_bVII7, T_v, T_I7 };
-static const int TRANSN[NFUNC] = { 12, 7, 6, 9, 7, 6, 5, 5, 5, 5, 4, 4, 4 };
+// the weighted walk lives in harmony.h as the HB_BOSSA style — these rows WERE
+// it, byte-for-byte (markov_next reads it, so the srnd sequence is unchanged).
 
 // ── comping (bossa.c) ───────────────────────────────────────────────────────
 static const int COMPS[3][6] = {
@@ -121,7 +108,7 @@ static float  vu        = 0;
 static int iabs(int v) { return v < 0 ? -v : v; }
 
 // ── song generation (bossa.c) ───────────────────────────────────────────────
-static int markov_next(int f) { return TRANS[f][srnd(TRANSN[f])]; }
+static int markov_next(int f) { return hb_pick(&HB_BOSSA, f, srnd(hb_nopts(&HB_BOSSA, f))); }
 static void gen_section(int *bars, int startFunc) {
     bars[0] = startFunc;
     for (int i = 1; i < 6; i++) bars[i] = markov_next(bars[i - 1]);
@@ -179,7 +166,7 @@ static int pick_mel(int f) {
     int q = F_QUAL[f], rp = root_pc(f);
     int bestM = melPitch, bestScore = -999;
     for (int t = 0; t < 5; t++) {
-        int off = (t < 4) ? QTONES[q][t] : 14;
+        int off = (t < 4) ? hb_tones[q][t] : 14;   // chord tone, then the 9th
         int pc = (rp + off) % 12;
         for (int oct = 6; oct <= 7; oct++) {
             int m = oct * 12 + pc;
@@ -417,8 +404,8 @@ static void face_chord(long bar, float t) {
 
     // zone 5: the chord-locked solo strip (only when not editing, to free room)
     if (sel < 0) {
-        int f = sng.prog[bar_to_prog(bar)], q = F_QUAL[f], rp = root_pc(f);
-        int chord[4]; for (int k = 0; k < 4; k++) chord[k] = (rp + QTONES[q][k]) % 12;
+        int f = sng.prog[bar_to_prog(bar)];
+        int chord[4]; hb_chord_pcs(sng.keyPc, f, chord);   // the bar's chord tones
         static const int PENT[5] = { 0, 2, 4, 7, 9 };
         SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6, false, true };
         solo_strip(&jc, 10, 82, 128, 11, CLR_ORANGE);

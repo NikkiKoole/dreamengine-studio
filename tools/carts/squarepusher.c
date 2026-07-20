@@ -46,6 +46,7 @@ de:meta */
 #include "studio.h"
 #include "radio.h"
 #include "improv.h"
+#include "harmony.h" // for hb_tones — the shared chord-tone table (walk stays local, below)
 #include <stdio.h>
 #include <math.h>
 
@@ -72,9 +73,8 @@ static const char *QN[NQ] = { "maj7", "m7", "7", "m7b5", "m6" };
 static const int QV[NQ][3] = {            // rootless comp voicing (3/7/9)
     { 4, 11, 14 }, { 3, 10, 14 }, { 4, 10, 14 }, { 3, 6, 10 }, { 3, 9, 14 },
 };
-static const int CT[NQ][4] = {            // chord tones for the bass walker (root/3/5/7)
-    { 0, 4, 7, 11 }, { 0, 3, 7, 10 }, { 0, 4, 7, 10 }, { 0, 3, 6, 10 }, { 0, 3, 7, 9 },
-};
+// chord tones (root/3/5/7) come from harmony.h's shared hb_tones now — this
+// station's Q_* enum is in HBQ order, so hb_tones[F_QUAL[f]] is the same table.
 enum { F_I, F_ii, F_iii, F_IV, F_V, F_vi, F_II7, F_VI7, F_bII7, F_iv, NF };
 static const int F_OFF[NF]  = { 0, 2, 4, 5, 7, 9, 2, 9, 1, 5 };
 static const int F_QUAL[NF] = { Q_MAJ7, Q_MIN7, Q_MIN7, Q_MAJ7, Q_DOM7,
@@ -167,7 +167,7 @@ static int bass_note(int croot, int q, int lo, int hi, int chromPct) {
     if (chance(20)) bassDir = -bassDir;
     int best = bassWalk, bestScore = -999;
     for (int t = 0; t < 4; t++) {
-        int pc = (croot + CT[q][t]) % 12;
+        int pc = (croot + hb_tones[q][t]) % 12;
         for (int m = lo - (lo % 12) + pc; m <= hi; m += 12) {
             if (m < lo) continue;
             int score = 12 - iabs(m - (bassWalk + bassDir * 2)) + rnd(3);
@@ -248,7 +248,7 @@ static int root_pc(int f)   { return (trk.keyPc + F_OFF[f]) % 12; }
 // this bar's chord as pitch classes (R 3 5 7) — the soloist's snap targets
 static int chord_pcs(int f, int *out) {
     int r = root_pc(f);
-    for (int i = 0; i < 4; i++) out[i] = (r + CT[F_QUAL[f]][i]) % 12;
+    for (int i = 0; i < 4; i++) out[i] = (r + hb_tones[F_QUAL[f]][i]) % 12;
     return 4;
 }
 
@@ -348,7 +348,7 @@ static void play_step(long abs, double pos) {
 
     // ── PAD bed — the tender interlude ──
     if (MD[mode].pad && step == 0 && bar % 2 == 0) {
-        int iv[3] = { 0, CT[q][1], CT[q][2] };
+        int iv[3] = { 0, hb_tones[q][1], hb_tones[q][2] };
         static int gvPad[3]; static bool padI = false;
         rad_lead_to(croot, iv, gvPad, 3, 48, 64, &padI);
         for (int k = 0; k < 3; k++) schedule_hit(dly + k * 9, gvPad[k], I_PAD, 3, (int)(stepMs * 28));

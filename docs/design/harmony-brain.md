@@ -216,11 +216,14 @@ call `hb_pick` per step; that's what made the byte-identical proof trivial.
   - **Left blind by design:** `addis` (deliberately modal — "the mode IS the colour"); `afrobeat`
     (skipped — 55% one-chord vamp, snap is a near no-op); `motorik` (an aesthetic call, A/B rendered,
     pending the maker's ear).
-  - **Already chord-aware, hand-rolled:** the survey found `bossa`/`bossabloom`/`citypop`/`tango`/
-    `plantasia` each independently target chord tones in their bespoke melody code (`QTONES`/`QT`/
-    nearest-chord-tone) — i.e. they reinvented `improv_snap`. A dedupe-onto-the-shared-primitive
-    refactor is possible but low priority (no behaviour change). `solo.h` stations are player-driven
-    (out of scope — that's a scale-locked strip the human plays).
+  - **Already chord-aware, hand-rolled → now deduped:** the survey found `bossa`/`bossabloom`/
+    `citypop`/`tango`/`plantasia` each independently targeting chord tones in bespoke melody code
+    (`QTONES`/`QT`/nearest-chord-tone) — they'd reinvented the same table. The chord-TONE spelling now
+    lives in `harmony.h` as `hb_tones[]` + `hb_chord_pcs()`, and **`bossa`, `cocktail`, `chordwise`,
+    `squarepusher` (tone table only), and `bossabloom` (full walk → `hb_pick`, byte-identical) are
+    migrated onto it** — five hand-rolled copies collapsed to one, zero behaviour change (spec-covered
+    in `hb_selfcheck`). Still hand-rolling: `citypop`/`tango` (own forks); `plantasia` (arp). `solo.h`
+    stations are player-driven (out of scope — a scale-locked strip the human plays).
 - **`pocketbox`'s chord track / `chordblossom2` flavors** — adopt the vocab as their chord type.
 - **Suggest UX depth** — reasons are one word; the "explain the pull" layer (e.g. tension arrows
   toward home) is untouched.

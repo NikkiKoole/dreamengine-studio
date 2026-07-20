@@ -44,15 +44,8 @@ de:meta */
 #define I_BSS 6   // a soft root under it
 
 static const char *NOTE[12] = { "C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B" };
-// chord tones per quality (root + 3rd + 5th + 7th/6th) — SOUND only; the
-// naming/choosing lives in harmony.h (spelling stays the vocab's sevenths)
-static const int QTONES[HB_NQUAL][4] = {
-    { 0, 4, 7, 11 },   // maj7
-    { 0, 3, 7, 10 },   // m7
-    { 0, 4, 7, 10 },   // 7
-    { 0, 3, 6, 10 },   // m7b5
-    { 0, 3, 7, 9  },   // m6
-};
+// chord tones for the tap SOUND come from harmony.h's shared table (hb_tones);
+// naming/choosing lives there too (spelling stays the vocab's sevenths).
 
 static int keyPc = 0;
 static const HbStyle *STYLES[3]  = { &HB_BOSSA, &HB_COCKTAIL, &HB_POP };
@@ -81,7 +74,7 @@ static void chname(char *out, int n, int rootPc, int q) {
 static void sound_chord(int rootPc, int q) {
     int r = 48 + rootPc;
     note(r - 12, I_BSS, 5);
-    for (int i = 0; i < 4; i++) note(r + QTONES[q][i], I_PLK, 5);
+    for (int i = 0; i < 4; i++) note(r + hb_tones[q][i], I_PLK, 5);
 }
 
 static void analyze(void) { hb_analyze(keyPc, prootv, pqual, plen, pfn); }

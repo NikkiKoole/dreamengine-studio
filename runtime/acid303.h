@@ -50,6 +50,8 @@ typedef struct {
                                   // data-driven twin of acid_stock() — a runtime FLIP instead of a one-shot re-voice.
     float drift;                  // analog drift 0..1: slow filtered-random pitch+cutoff wander so the
                                   // voice isn't frozen-perfect (the "digital" tell). 0 = dead-flat/off.
+    int   clean;                  // 0 = RAW naive saw (default — the lo-fi grit the maker likes); 1 = PolyBLEP
+                                  // anti-aliased saw (clean bright lead, no fizz up high). Toggle + re-acid_define.
     float echo_send, rev_send;    // per-voice sends (0 = dry). echo_send = tb303's slapback (an OPTION, 0.10 stock).
     float p[ACID_NPARAM];         // params, 0..1 — index by ACID_CUT .. ACID_SUB
     int   h, hsub;                // held handles (-1 = none)
@@ -77,6 +79,7 @@ static void acid_define(Acid *a) {
     instrument_filter(a->slot, FILTER_DIODE, acid_cut_hz(a), acid_res_q(a));
     instrument_drive(a->slot, a->p[ACID_DRV]);
     instrument_drive_mode(a->slot, a->drvmode);
+    instrument_bandlimit(a->slot, a->clean);       // raw naive saw (default) vs PolyBLEP clean saw (sub is TRI → n/a)
     if (a->echo_send > 0.0f) instrument_echo(a->slot, a->echo_send);
     if (a->rev_send  > 0.0f) instrument_reverb(a->slot, a->rev_send);
     if (a->subslot >= 0)     instrument(a->subslot, INSTR_TRI, acid_atk_ms(a), 60, 6, 25);
@@ -100,6 +103,7 @@ static void acid_init(Acid *a, int slot, int subslot) {
     a->cut_top = 6.38f;                            // Devil Fish wide range by default
     a->drift   = 0.5f;                             // gentle analog drift on by default (set 0 for dead-flat)
     a->classic = 0;                                // Devil Fish voicing by default (set 1 for vanilla pre-DF)
+    a->clean   = 0;                                // RAW saw by default (the grit); set 1 for the PolyBLEP clean saw
     a->echo_send = 0.10f; a->rev_send = 0.0f;      // tb303's subtle slapback, dry reverb
     a->h = a->hsub = -1; a->prev_slide = 0;
     for (int i = 0; i < ACID_NPARAM; i++) a->p[i] = def[i];

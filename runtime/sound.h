@@ -95,6 +95,7 @@ typedef struct {
     float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
     float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
     int   drive_mode;               // waveshaper flavour DRIVE_SOFT(0)/HARD/FOLD/ASYM; 0 = tanh (default — old carts unchanged)
+    int   bandlimit;                // 0 = raw naive saw (default — old carts byte-identical); 1 = PolyBLEP anti-aliased saw
     float sync_ratio;               // oscillator hard sync: slave:master freq ratio (0 = off, default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
     float reverb;                   // reverb send 0..1; 0 = dry (default — old carts unchanged). Target = rvb_tank below
@@ -169,6 +170,7 @@ typedef struct {
     float  uni_norm;               // 1/sqrt(voices) loudness normalize, precomputed at note-on
     float  uni_ph[SOUND_UNISON_MAX - 1];  // phase accumulators for the detuned copies (copy 0 = v->phase, the center)
     int    drv_mode;               // waveshaper flavour (DRIVE_*), copied from the instrument at note-on
+    int    aa;                     // band-limit the saw (PolyBLEP), copied from the instrument at note-on (0 = raw)
     float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
     float  rvb, rvb_target;        // reverb-bus send (current + slew target, same machinery — note_reverb)
@@ -2176,6 +2178,7 @@ typedef enum {
     SR_REVERB_SPRING = 132, // a=amount*1000 — SPRING voicing on the reverb (reverb_spring): dispersion "boing" + mid-band limit
     SR_REVERB_SPRING_TONE = 133, // a=x*1000 — spring dispersion coefficient (reverb_spring_tone): the "boing" character, live
     SR_DRIVE_VOICE = 134,   // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert (drive_voice)
+    SR_INSTR_BANDLIMIT = 135, // a=slot, b=on — PolyBLEP anti-alias the slot's saw (0 = raw naive saw, default)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2253,7 +2256,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_ENV: case SR_INSTR_MACRO: case SR_INSTR_CHOKE: case SR_INSTR_DRIVE:
         case SR_INSTR_ECHO: case SR_INSTR_TUNE: case SR_INSTR_FOLLOW: case SR_INSTR_PAN:
         case SR_INSTR_REVERB: case SR_INSTR_CHORUS: case SR_INSTR_FLANGER: case SR_INSTR_TAPE:
-        case SR_INSTR_WAH: case SR_INSTR_DRIVE_MODE: case SR_INSTR_BITCRUSH: case SR_INSTR_EQ:
+        case SR_INSTR_WAH: case SR_INSTR_DRIVE_MODE: case SR_INSTR_BANDLIMIT: case SR_INSTR_BITCRUSH: case SR_INSTR_EQ:
         case SR_INSTR_WAH_LFO: case SR_INSTR_TREMOLO: case SR_INSTR_PHASER: case SR_INSTR_LESLIE:
         case SR_INSTR_REVERB_BUS: case SR_INSTR_FORMANT: case SR_INSTR_AUTOPAN: case SR_INSTR_RINGMOD:
         case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
@@ -2647,6 +2650,16 @@ static inline float sound_midi_to_freq(int midi) {
 
 static inline float sound_midi_to_freq_f(float midi) {
     return 440.0f * powf(2.0f, (midi - 69.0f) / 12.0f);
+}
+
+// PolyBLEP residual to SUBTRACT from a naive saw at its wrap discontinuity — kills the aliasing
+// without dulling brightness (every harmonic up to Nyquist stays; only the folded-back partials go).
+// t = phase 0..1, dt = phase increment/sample (freq/SR). Opt-in per voice (v->aa); off = raw saw.
+static inline float sound_polyblep(float t, float dt) {
+    if (dt <= 0.0f) return 0.0f;
+    if (t < dt)          { float x = t / dt;          return x + x - x * x - 1.0f; }   // just after the wrap
+    if (t > 1.0f - dt)   { float x = (t - 1.0f) / dt; return x * x + x + x + 1.0f; }    // just before it
+    return 0.0f;
 }
 
 static inline float sound_osc(int wave, float phase, float duty, int *noise_state) {
@@ -5120,6 +5133,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->uni_norm   = (v->uni_voices > 1) ? 1.0f / sqrtf((float)v->uni_voices) : 1.0f;
     for (int u = 0; u < SOUND_UNISON_MAX - 1; u++) v->uni_ph[u] = 0.0f;
     v->drv_mode = ins->drive_mode;
+    v->aa       = ins->bandlimit;
     v->eng_p[0] = ins->eng_p[0];
     v->eng_p[1] = ins->eng_p[1];
     v->eng_p[2] = ins->eng_p[2];
@@ -5497,6 +5511,11 @@ static void sound_fire_req(SoundReq r) {
         int m = r.b;
         if (m < 0 || m > 3) m = 0;
         instr_bank[slot].drive_mode = m;
+    } break;
+    case SR_INSTR_BANDLIMIT: {  // a=slot, b=on (0/1) — PolyBLEP anti-alias the saw
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        instr_bank[slot].bandlimit = r.b ? 1 : 0;
     } break;
     case SR_NOTE_DRIVE_MODE: {   // a=mode (DRIVE_*), e0/e1=handle (live, snaps)
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -6311,6 +6330,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 // master below); ratio 1 = transparent, higher = the bright tearing sweep.
                 float osc_ph = (v->sync_ratio > 0.0f) ? v->sync_ph : v->phase;
                 s = sound_osc(v->wave, osc_ph, duty, &v->noise_state);
+                // opt-in PolyBLEP anti-aliasing (v->aa) for the saw — the clean-vs-raw toggle.
+                // Non-unison path only (acid/tb303 are non-unison; unison saws stay raw by design).
+                if (v->aa && v->wave == INSTR_SAW)
+                    s -= sound_polyblep(osc_ph, v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE);
             }
             // envelope follower: track the PRE-filter amplitude (|s| scaled by velocity) with a
             // fast-attack/slow-release peak detector. Used by next sample's modulation above —
@@ -7414,6 +7437,11 @@ void instrument_drive_mode(int slot, int mode) {
     sound_push_ctrl(SR_INSTR_DRIVE_MODE, slot, mode, 0, 0, 0, 0);
 }
 
+void instrument_bandlimit(int slot, int on) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_BANDLIMIT, slot, on ? 1 : 0, 0, 0, 0, 0);
+}
+
 void note_drive_mode(int handle, int mode) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_DRIVE_MODE, mode, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
@@ -7968,6 +7996,7 @@ static void sound_reset_state(void) {
         instr_bank[i].uni_detune = 0.0f;
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
         instr_bank[i].drive_mode = 0;      // DRIVE_SOFT (tanh) until instrument_drive_mode()
+        instr_bank[i].bandlimit  = 0;      // raw naive saw until instrument_bandlimit() — old carts byte-identical
         instr_bank[i].sync_ratio = 0.0f;   // hard sync off until instrument_sync() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged

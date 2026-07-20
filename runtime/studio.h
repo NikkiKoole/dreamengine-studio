@@ -493,6 +493,7 @@ void instrument_unison(int slot, int voices, float detune);  // UNISON: sum `voi
 void instrument_unison_detune(int slot, float detune);  // ride the unison spread alone, LIVE — 0 = thin single osc, wider = the wall blooms open. the detune-BLOOM gesture. sweep it, or drive it with LFO_DETUNE / ENV_DETUNE
 void instrument_drive(int slot, float x);      // overdrive a slot 0.0..1.0 — 0 = clean (default), 0.3 = warm, 1 = fuzz. loudness stays put; character changes
 void instrument_drive_mode(int slot, int mode); // pick the waveshaper: DRIVE_SOFT (default) / DRIVE_HARD / DRIVE_FOLD / DRIVE_ASYM. amount stays instrument_drive()
+void instrument_bandlimit(int slot, int on);    // 1 = anti-alias this slot's SAW (PolyBLEP — clean bright saw, no digital fizz up high); 0 = raw naive saw (default, the lo-fi grit). Only affects INSTR_SAW
 void note_drive(int handle, float x);          // sweep a held note's drive live, slewed — ride it up mid-phrase for the acid scream
 void instrument_sync(int slot, float ratio);   // oscillator HARD SYNC on a wavetable slot: a slave osc runs at ratio×pitch, reset every cycle. 0 = off (default), 1 = unison, 1.5–4 = the bright tearing sweep. Sweep it for the classic sync lead
 void note_sync(int handle, float ratio);       // sweep a held note's hard-sync ratio live, slewed — the screaming sync sweep under your fingers

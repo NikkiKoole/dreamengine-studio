@@ -168,4 +168,53 @@ static int hb_analyze(int keyPc, const int *rootPc, const int *qual, int n, int 
     return hit;
 }
 
+// ── self-check — the spec.h "specs on an includeable" pattern ────────────────
+// A shared header can't define spec() (one per cart), but it can carry its own
+// assertions: a cart's spec() just calls hb_selfcheck(). Lives only under
+// -DDE_SPEC (the `node tools/spec.js` build); a normal build pays nothing.
+#ifdef DE_SPEC
+#include "spec.h"
+static inline void hb_selfcheck(void) {
+    // (off, quality) is unique across the 13 functions → analysis inverts
+    // generation exactly: every function's own spelling re-analyzes to itself
+    int ok = 1;
+    for (int k = 0; k < 12; k++)
+        for (int f = 0; f < HB_NFUNC; f++)
+            ok &= hb_chord_fn(k, (k + hb_off[f]) % 12, hb_qual[f]) == f;
+    expect(ok, "hb round-trip: function -> chord -> same function, all 12 keys");
+
+    // the doo-wop triads in C: C Am F G -> I vi IV V
+    { int rp[4] = { 0, 9, 5, 7 };
+      int q[4]  = { HB_TRIAD_MAJ, HB_TRIAD_MIN, HB_TRIAD_MAJ, HB_TRIAD_MAJ };
+      int f[4];
+      expect_eq(hb_analyze(0, rp, q, 4, f), 4, "hb doo-wop: all four in vocab");
+      expect(f[0]==HB_I && f[1]==HB_vi && f[2]==HB_IV && f[3]==HB_V,
+             "hb doo-wop = I vi IV V"); }
+
+    // ii-V-I in sevenths: Dm7 G7 Cmaj7
+    { int rp[3] = { 2, 7, 0 }, q[3] = { HBQ_MIN7, HBQ_DOM7, HBQ_MAJ7 }, f[3];
+      hb_analyze(0, rp, q, 3, f);
+      expect(f[0]==HB_ii && f[1]==HB_V && f[2]==HB_I, "hb ii-V-I named"); }
+
+    // the borrowed shelf in C: Db7=tritone sub, Bb7=backdoor, Fm=iv, C7=I7, Gm7=v
+    expect_eq(hb_chord_fn(0, 1,  HBQ_DOM7),    HB_bII7,  "hb Db7 -> bII7");
+    expect_eq(hb_chord_fn(0, 10, HBQ_DOM7),    HB_bVII7, "hb Bb7 -> bVII7");
+    expect_eq(hb_chord_fn(0, 5,  HB_TRIAD_MIN), HB_iv,   "hb Fm -> iv");
+    expect_eq(hb_chord_fn(0, 0,  HBQ_DOM7),    HB_I7,    "hb C7 -> I7");
+    expect_eq(hb_chord_fn(0, 7,  HBQ_MIN7),    HB_v,     "hb Gm7 -> v");
+    // honesty: a chord outside the vocab says so instead of guessing
+    expect_eq(hb_chord_fn(0, 6,  HBQ_MIN7),    -1,       "hb F#m7 in C -> outside vocab");
+
+    // suggest = the table read forward, ranked: bossa's ii goes V (w5) then bII7 (w2)
+    { HbOpt o[4]; int n = hb_suggest(&HB_BOSSA, HB_ii, o, 4);
+      expect_eq(n, 2, "hb bossa ii: two candidates");
+      expect(o[0].f==HB_V    && o[0].w==5, "hb ii -> V first, weight 5");
+      expect(o[1].f==HB_bII7 && o[1].w==2, "hb ii -> bII7 second, weight 2"); }
+
+    // pick is a pure table read (the carts' PRNG stays outside)
+    expect_eq(hb_pick(&HB_BOSSA, HB_ii, 0),    HB_V,  "hb pick = table read");
+    expect_eq(hb_pick(&HB_COCKTAIL, HB_VI7, 3), HB_ii, "hb cocktail VI7 row -> ii");
+}
+#endif // DE_SPEC
+
 #endif // HARMONY_H

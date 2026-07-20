@@ -486,6 +486,8 @@ void note_aux(int handle, int idx, float value); // per-engine aux channel, LIVE
 #define DRIVE_ASYM    3   // asymmetric tube — adds EVEN harmonics (the round, fat, single-ended-amp grit)
 #define DRIVE_VOICE_NONE 0   // drive_voice: plain clip (default) — the raw DRIVE_* shaper, no tone-shaping
 #define DRIVE_VOICE_TS   1   // drive_voice: Ibanez Tube Screamer — clean tight bass + soft-clipped mids + the mid hump
+#define DRIVE_VOICE_RAT  2   // drive_voice: ProCo RAT — full-range HARD clip (aggressive distortion) + a low-pass FILTER
+#define DRIVE_VOICE_MUFF 3   // drive_voice: EHX Big Muff — cascaded clip (fuzz sustain) + a mid SCOOP (the anti-TS)
 void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)
 void instrument_unison(int slot, int voices, float detune);  // UNISON: sum `voices` (1..7) detuned copies of the slot's wave = the supersaw wall. detune = spread in semitones (0.1 shimmer .. 0.7 wide). voices applies at the next note; detune rides LIVE. wavetable slots only (saw/square/tri/sine). 1 = off (default)
 void instrument_unison_detune(int slot, float detune);  // ride the unison spread alone, LIVE — 0 = thin single osc, wider = the wall blooms open. the detune-BLOOM gesture. sweep it, or drive it with LFO_DETUNE / ENV_DETUNE

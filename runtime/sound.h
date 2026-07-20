@@ -1099,19 +1099,37 @@ static int   drvins_voice = 0;    // DRIVE_VOICE_NONE(0) / DRIVE_VOICE_TS(1) —
 static float drvins_tone  = 0.5f; // TS TONE knob 0..1
 static float drvins_lp1[SOUND_FX_BUSES][DRIVE_INST][2];   // TS pre-split LP (clean bass)
 static float drvins_lp2[SOUND_FX_BUSES][DRIVE_INST][2];   // TS post/tone LP
-static float ts_shape(int b, int i, int ch, float s, float dr) {
-    drvins_lp1[b][i][ch] += (s - drvins_lp1[b][i][ch]) * TS_SPLIT_COEF;   // bass stays clean
-    float bass = drvins_lp1[b][i][ch];
-    float clipped = drive_shape(s - bass, 3, dr);                         // clip ONLY mids/highs (DRIVE_ASYM)
-    float a = TS_TONE_MIN + drvins_tone * TS_TONE_RANGE;
-    drvins_lp2[b][i][ch] += (clipped - drvins_lp2[b][i][ch]) * a;         // post-LP = the TONE knob
-    return bass + drvins_lp2[b][i][ch];                                   // clean lows + shaped mids/highs = the hump
+// The famous-pedal voices, each = a clip curve + its own tone-shaping. lp1/lp2 are per-bus/instance/channel
+// one-pole states, reused per voice. Byte-identical off (voice 0 never calls this).
+static float drive_voice_shape(int b, int i, int ch, float s, float dr) {
+    float *lp1 = &drvins_lp1[b][i][ch], *lp2 = &drvins_lp2[b][i][ch];
+    float a = TS_TONE_MIN + drvins_tone * TS_TONE_RANGE;                   // shared TONE post-LP coef
+    if (drvins_voice == 1) {                    // TUBE SCREAMER — clean bass + soft-clipped mids = mid HUMP
+        *lp1 += (s - *lp1) * TS_SPLIT_COEF;                               // bass stays clean/tight
+        float bass = *lp1;
+        float clipped = drive_shape(s - bass, 3, dr);                     // DRIVE_ASYM on mids/highs only
+        *lp2 += (clipped - *lp2) * a;                                     // post-LP = TONE
+        return bass + *lp2;
+    }
+    if (drvins_voice == 2) {                    // RAT — full-range HARD clip (hotter) + a low-pass FILTER
+        float hot = dr + 0.18f; if (hot > 1.0f) hot = 1.0f;
+        float clipped = drive_shape(s, 1, hot);                          // DRIVE_HARD, whole signal
+        *lp2 += (clipped - *lp2) * a;                                    // the FILTER (tone = post-LP)
+        return *lp2;
+    }
+    // DRIVE_VOICE_MUFF (3) — cascaded soft clip (compressed sustain) + a mid SCOOP (the anti-TS)
+    float g = drive_shape(s, 0, dr);
+    g = drive_shape(g * 1.6f, 0, dr);                                     // 2nd stage → the fuzz sustain
+    *lp1 += (g - *lp1) * 0.020f;                                         // ~120 Hz (bass)
+    *lp2 += (g - *lp2) * (0.20f + drvins_tone * 0.45f);                  // upper split (TONE tilts it)
+    float bass = *lp1, treble = g - *lp2, mids = *lp2 - bass;
+    return bass + treble + mids * 0.30f;                                 // mids cut to 30% = the SCOOP
 }
 static void drive_process(int b, int i, float *mixL, float *mixR) {
     float dr = drvins_amt[b][i]; if (dr <= 0.001f) return;
     int mode = drvins_mode[b][i]; float mix = drvins_mix[b][i];
     float wL, wR;
-    if (drvins_voice == 1) { wL = ts_shape(b, i, 0, *mixL, dr); wR = ts_shape(b, i, 1, *mixR, dr); }  // Tube Screamer voice
+    if (drvins_voice != 0) { wL = drive_voice_shape(b, i, 0, *mixL, dr); wR = drive_voice_shape(b, i, 1, *mixR, dr); }  // TS/RAT/MUFF voice
     else { wL = drive_shape(*mixL, mode, dr); wR = drive_shape(*mixR, mode, dr); }
     // DC blocker on the wet path (asym is one-sided) — one-pole HP ~7Hz, like the voice path
     float yL = dc_block(&drvins_dcx[b][i][0], &drvins_dcy[b][i][0], wL, 0.999f);
@@ -5668,7 +5686,7 @@ static void sound_fire_req(SoundReq r) {
         rvb_spring_disp = 0.20f + clamp01(r.a / 1000.0f) * 0.70f;
     } break;
     case SR_DRIVE_VOICE: {  // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert
-        drvins_voice = (r.a == 1) ? 1 : 0;
+        drvins_voice = (r.a >= 0 && r.a <= 3) ? r.a : 0;
         drvins_tone  = clamp01(r.b / 1000.0f);
     } break;
     case SR_DRIVE_INSERT: {  // a=amount*1000, b=mode, c=mix*1000 — mix-bus saturation INSERT (bus 0, instance 0)

@@ -1744,8 +1744,13 @@ v1, document it on the panel.
     +0.0, dc clean, soak stable, wasm parity). `tone` 0..1 rides the post-LP live. `SR_DRIVE_VOICE`=134, full
     4-place wiring + the `DRIVE_VOICE_*` constants. Measured: TS spectral centroid ~2850 Hz vs plain `DRIVE_ASYM`
     ~3500 Hz (the hump = rolled highs). Refs: [ElectroSmash Tube Screamer analysis](https://www.electrosmash.com/tube-screamer-analysis);
-    GeoFex TS tech. **Showcase: `tubescreamer`** (OVERDRIVE/TONE/LEVEL + stomp + `B` A/Bs the hump). The
-    `drive_voice` enum opens the door to `DRIVE_VOICE_MUFF`/`RAT` later — the same gated pattern.
+    GeoFex TS tech. **Showcase: `tubescreamer`** (OVERDRIVE/TONE/LEVEL + stomp + `B` A/Bs the hump).
+    **`DRIVE_VOICE_RAT`(2) + `DRIVE_VOICE_MUFF`(3) added same day** — the dirt spectrum in one enum:
+    RAT = full-range HARD clip (hotter) + a low-pass FILTER (aggressive rock/grunge, ProCo RAT); MUFF =
+    cascaded soft-clip stages (fuzz sustain) + a mid SCOOP (the exact inverse of the TS hump — EHX Big Muff).
+    Each is a clip curve + tone-shaping in the one `drive_voice_shape()` switch, reusing `drvins_lp1/lp2`;
+    all gated (voice 0 → plain clip). Measured distinct + 0-clip: TS centroid ~2880 Hz, RAT ~2670 (darker,
+    mid-forward), MUFF ~4350 (bright fizz). Next: the three as switchable pedals in `pedalboard`.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

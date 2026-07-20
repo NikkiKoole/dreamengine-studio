@@ -319,7 +319,10 @@ glue/cohesion, NOT as a substitute for per-voice tone-shaping (which keeps the p
 > **`drive_voice(voice, tone)` — famous-pedal VOICE on the drive insert.** The drive shapers give you the
 > *clip*; a real overdrive's character is the *filtering around it*. `DRIVE_VOICE_TS` wraps `DRIVE_ASYM` with a
 > pre-split (bass bypasses the clipper = tight lows) + a post-LP TONE control, yielding the mid hump. Global,
-> gated (`DRIVE_VOICE_NONE` default → byte-identical). Room for `DRIVE_VOICE_MUFF`/`RAT` on the same pattern.
+> gated (`DRIVE_VOICE_NONE` default → byte-identical). **Three voices ship:** `DRIVE_VOICE_TS` (mid hump),
+> `DRIVE_VOICE_RAT` (full-range hard clip + low-pass FILTER — aggressive ProCo RAT distortion), and
+> `DRIVE_VOICE_MUFF` (cascaded clip + mid SCOOP — the EHX Big Muff fuzz wall, the anti-TS). `tone` rides
+> each voice's tone control live.
 
 ## bitcrush — `crush(bits, rate, mix)` · `instrument_crush(slot, bits, rate, mix)`
 

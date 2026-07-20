@@ -2287,8 +2287,17 @@ flagged wanting a little control for it somewhere. Cleanest surface without chur
 enum (the "inserting mid-list cross-wires presets" gotcha — [cart-authoring](../guides/cart-authoring.md)):
 `Acid.drift` is already a per-voice float, so a cart can set it directly. A candy UI home would be
 one MST-global "DRIFT" knob writing `ac[0].drift = ac[1].drift = v` + re-`acid_define`, or a per-303
-knob on the DF/DEEP page. Deferred as a small follow-up, not yet wired. Also still open: **#3**, the
-band-limited saw (reassess only if the aliasing becomes audible on an open-filter lead).
+knob on the DF/DEEP page. Deferred as a small follow-up, not yet wired.
+
+**#3 (band-limit the saw) — REASSESSED 2026-07-20: KEEP THE RAW SAW. Do not "fix" this.** The maker
+A/B'd a wide-open high saw sweep (raw / no-filter vs the same through a 1500 Hz filter — the raw one
+dumps **67.9%** of its energy >4 kHz vs the filtered **0.4%**, which is why the aliasing is normally
+inaudible) and **prefers the RAW, aliased character** — brighter + grittier, dead-on for the lo-fi
+surface (VISION). Decision: the naive saw's aliasing is a **feature, not a bug**; do NOT band-limit
+`INSTR_SAW` by default. If a *clean* saw is ever wanted for a specific patch, add band-limiting as an
+**opt-in per-voice flag** (the `classic`/DF pattern — data-driven, default off), never a silent global
+replace. NB for a future agent: "the saw aliases" is a KNOWN, WANTED property here — don't PolyBLEP it
+on sight. (Torture-probe that shows/hears it: a raw `INSTR_SAW` glided C3→C9 with no filter.)
 
 **SHIPPED — both halves, a per-303 classic⟷Devil-Fish voicing switch (2026-07-20).** UI wired into
 `acidcandy.c` 2026-07-20 (commit 235c78b2) exactly per the READY-TO-APPLY snippet below, with one

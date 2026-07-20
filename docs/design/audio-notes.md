@@ -2285,7 +2285,13 @@ one MST-global "DRIFT" knob writing `ac[0].drift = ac[1].drift = v` + re-`acid_d
 knob on the DF/DEEP page. Deferred as a small follow-up, not yet wired. Also still open: **#3**, the
 band-limited saw (reassess only if the aliasing becomes audible on an open-filter lead).
 
-**ENGINE LANDED / UI OPEN — a per-303 classic⟷Devil-Fish voicing switch (2026-07-20).** The maker
+**SHIPPED — both halves, a per-303 classic⟷Devil-Fish voicing switch (2026-07-20).** UI wired into
+`acidcandy.c` 2026-07-20 (commit 235c78b2) exactly per the READY-TO-APPLY snippet below, with one
+change: the VIEW-tab hash seed is **`0x05u`**, not the snippet's `0x0Bu` — `0x0Bu` = `0x0Au + 1`
+collides with the FLAG palette's `0x0Au + f` (FL_N=6, so 0x0A–0x0F are taken). Rects differ so it
+would have worked, but `0x05u` is genuinely free. Both states render clean (CL/DF + greyed VIEW tab);
+non-destructive flip holds by construction (toggles `ac[i].classic` + `kpage[i]`, re-`acid_define`,
+never touches `a->p[]`). The snippet is kept below as the record. The maker
 noticed acidcandy's "DF" button is only a *knob-page* flip (`kpage`, shows the DF-extra knobs) — the
 303 is *always* Devil-Fish-voiced; there's no classic-vs-DF *sound* toggle. The engine half is now in
 `acid303.h`: a new **`Acid.classic`** flag (0 = DF default, 1 = vanilla), read **live** by the mapping

@@ -57,6 +57,7 @@ typedef struct {
     int   h, hsub;                // held handles (-1 = none)
     int   prev_slide;             // did the step we just played arm a slide into the next?
     int   _lc, _lr;               // last cutoff/reso pushed to the instrument (change-guard)
+    float _ld;                    // last drift pushed (change-guard, so DRIFT can ride live)
 } Acid;
 
 // ── param → engine-unit mappings (acidrack's superset curves) ────────────────
@@ -72,6 +73,18 @@ static float acid_acc_mul(Acid *a)  { return 1.0f + a->p[ACID_ACC] * 1.5f; }    
 static float acid_sq_mul(Acid *a)   { return 1.0f + a->p[ACID_SQL] * 2.0f; }                      // env-sweep depth 1..3
 static int   acid_sweep_atk(Acid *a){ static const int A[4] = { 0, 10, 5, 2 }; return A[a->sweep & 3]; }
 
+// analog drift — the missing "living" imperfection. LFO_SHAPE_RANDOM is the engine's slow
+// filtered-random wander; a touch on PITCH (~cents) + CUTOFF (~Hz) so the saw+filter aren't a
+// frozen-perfect digital tone. Slots 0/1 (2 free); different rates so they never lock. Each
+// note-on re-seeds independently, so 303a/303b drift apart. drift=0 → depth 0 → skipped (byte-
+// identical to the old dead-flat voice). Broken out so DRIFT can RIDE (acid_ride re-applies on change).
+static void acid_set_drift(Acid *a) {
+    instrument_lfo(a->slot, 0, LFO_PITCH,  0.13f, 0.05f * a->drift); lfo_shape(a->slot, 0, LFO_SHAPE_RANDOM);
+    instrument_lfo(a->slot, 1, LFO_CUTOFF, 0.19f, 40.0f * a->drift); lfo_shape(a->slot, 1, LFO_SHAPE_RANDOM);
+    if (a->subslot >= 0) { instrument_lfo(a->subslot, 0, LFO_PITCH, 0.11f, 0.06f * a->drift); lfo_shape(a->subslot, 0, LFO_SHAPE_RANDOM); }
+    a->_ld = a->drift;
+}
+
 // ── voice definition (call on init + after ATK / wave / drvmode change) ──────
 static void acid_define(Acid *a) {
     instrument(a->slot, a->wave, acid_atk_ms(a), 60, 6, 25);
@@ -83,14 +96,7 @@ static void acid_define(Acid *a) {
     if (a->echo_send > 0.0f) instrument_echo(a->slot, a->echo_send);
     if (a->rev_send  > 0.0f) instrument_reverb(a->slot, a->rev_send);
     if (a->subslot >= 0)     instrument(a->subslot, INSTR_TRI, acid_atk_ms(a), 60, 6, 25);
-    // analog drift — the missing "living" imperfection. LFO_SHAPE_RANDOM is the engine's slow
-    // filtered-random wander; a touch on PITCH (~cents) + CUTOFF (~Hz) so the saw+filter aren't a
-    // frozen-perfect digital tone. Slots 0/1 (2 free); different rates so they never lock. Each
-    // note-on re-seeds independently, so 303a/303b drift apart. drift=0 → depth 0 → skipped (byte-
-    // identical to the old dead-flat voice), so it's fully A/B-able and opt-out.
-    instrument_lfo(a->slot, 0, LFO_PITCH,  0.13f, 0.05f * a->drift); lfo_shape(a->slot, 0, LFO_SHAPE_RANDOM);
-    instrument_lfo(a->slot, 1, LFO_CUTOFF, 0.19f, 40.0f * a->drift); lfo_shape(a->slot, 1, LFO_SHAPE_RANDOM);
-    if (a->subslot >= 0) { instrument_lfo(a->subslot, 0, LFO_PITCH, 0.11f, 0.06f * a->drift); lfo_shape(a->subslot, 0, LFO_SHAPE_RANDOM); }
+    acid_set_drift(a);                             // the living analog wander (sets a->_ld)
     a->_lc = acid_cut_hz(a); a->_lr = acid_res_q(a);
 }
 
@@ -137,6 +143,7 @@ static void acid_stock(Acid *a) {
 static void acid_ride(Acid *a) {
     int c = acid_cut_hz(a), r = acid_res_q(a);
     if (c != a->_lc || r != a->_lr) { instrument_filter(a->slot, FILTER_DIODE, c, r); a->_lc = c; a->_lr = r; }
+    if (a->drift != a->_ld) acid_set_drift(a);     // DRIFT rides live (re-apply the wander LFOs only on change)
     if (a->h >= 0) { note_cutoff(a->h, c); note_res(a->h, acid_res_f(a)); note_drive(a->h, a->p[ACID_DRV]); }
 }
 

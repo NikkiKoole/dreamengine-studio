@@ -156,6 +156,22 @@ to make face.h the default.
 reflowing canvas + scaffold without opting in each time. Only worth it once Layer 3 proves out across
 several carts — don't pre-build.
 
+### The tablet / iPad-Pro spread (the arrangement axis) — mocked, pending a pick
+
+A much larger screen is a *different* question from reflow: route-2's chunky canvas just blows ONE phone
+face up huge (sparse on a 13"). The good news is face.h needs no engine work for the tablet — `face_layout`
+takes any Box (tile faces) and `face_resize_to` is density-free (ask for a finer canvas), so the whole
+spread is a `device_class()==ROOMY` branch. What's *not* settled is the arrangement, and it's cart-dependent.
+Two candidates are mocked draw-only in [`roomyface`](../../tools/carts/roomyface.c) (keys 1/2), both on the
+same grammar, on an iPad-Pro 4:3 canvas:
+- **B · show more — tile the rack.** Four machine faces at once (2×2), each a compact `face_layout` per
+  `lay_grid` cell. Best for a **multi-machine rack** (acidcandy). The paradigm's "show more, not rearrange".
+- **C · unhide the depth.** One machine using the whole screen, everything that pages behind soft-keys on a
+  phone shown at once (the `acidwide` A–H bet at tablet scale). Best for a **single deep instrument**.
+Recommendation: face.h stays neutral (it already does both); the cart picks B or C in its ROOMY branch.
+**Awaiting the maker's vibe-check** before this becomes a documented pattern and, later, before acidcandy
+(a 4-machine rack → almost certainly B) is converted.
+
 ## The one thing to protect
 
 **Opinionated must stay a scaffold, not a straitjacket.** It has to keep the Fixed-Canvas lo-fi soul

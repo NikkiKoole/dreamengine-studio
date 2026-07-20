@@ -118,6 +118,8 @@ enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT, PS_PERF };  // 303 LCD co
 static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
 static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
 static int  seq_grid = 0;                     // 0 = the tall NOTE BARS (default, old); 1 = the editable wide GRID (drag notes on the SEQ screen). Toggled by the BARS/GRID chip in the SEQ header. STAGE 1 of the acidwide-style layout — keep both while it proves out.
+static int  keys_mode = 0;                    // GRID bottom row: 0 = STEP strip · 1 = KEYS keypad (13 chromatic notes + OCT-/OCT+/SLIDE, 303 step-entry into sel[i]). Stage 2. Toggled by the STEP/KEYS chip.
+static int  key_oct   = 0;                    // KEYS entry octave offset (-1..+2), written into oct[i][sel]
 enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
 static int  armed = FL_NOTE;                 // which flag a bar-tap paints (default NOTE = add notes right from the FLAG screen)
 static const char *FLNAME[FL_N] = { "NOTE", "ACC", "SLD", "TIE", "OCT+", "OCT-" };
@@ -910,6 +912,8 @@ static void draw_303(Box stage, int i) {
           font(FONT_TINY); print(nb, (int)ghdr.x, (int)ghdr.y, CLR_MEDIUM_GREEN); }
         { Box tg = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.30f, &ghdr);   // BARS/GRID view-style toggle (Stage 1)
           if (lcdbtn(0x2Du, (int)tg.x, (int)tg.y, (int)tg.w, (int)tg.h, seq_grid ? "GRID" : "BARS", seq_grid)) seq_grid = !seq_grid; }
+        if (seq_grid) { Box tk = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.34f, &ghdr);   // STEP/KEYS bottom-row mode (Stage 2)
+          if (lcdbtn(0x2Eu, (int)tk.x, (int)tk.y, (int)tk.w, (int)tk.h, keys_mode ? "KEYS" : "STEP", keys_mode)) keys_mode = !keys_mode; }
         float sw = gc.w / (float)plen[i];                            // px per step across the glass
         int top = (int)gc.y, bot = (int)(gc.y + gc.h), span = bot - top; if (span < 8) span = 8;
         if (seq_grid) {   // EDITABLE grid: drag on the screen — x = step, y = pitch (scale-snapped); the bottom band = rest → erase
@@ -948,7 +952,37 @@ static void draw_303(Box stage, int i) {
     }
 
     static int use_bars = 1;   // 1 = the drag-to-pitch NOTE BARS; 0 = the old step row + keybed
-    if (use_bars) {
+    if (seq_grid && keys_mode) {
+        // KEYS — a 13-note chromatic keypad (C..C) + OCT- / OCT+ / SLIDE. 303 STEP-ENTRY: a tap writes
+        // the note into the SELECTED step (sel[i]) and advances the cursor; chromatic, so it escapes the
+        // scale-lock like a real 303. Auditions only WHILE PLAYING (the sequencer gates it on the next
+        // 16th → no hung note); stopped = silent write. SLIDE toggles slide on the step you just entered.
+        static const char *KLAB[16] = { "C","","D","","E","F","","G","","A","","B","C","O-","O+","SL" };
+        static const int   kblack[13] = { 0,1,0,1,0,0,1,0,1,0,1,0,0 };
+        float kw = notes.w / 16.0f;
+        for (int k = 0; k < 16; k++) {
+            int kx = (int)(notes.x + k * kw), kcw = (int)kw - 1; if (kcw < 3) kcw = 3;
+            int ky = (int)notes.y, kh = (int)notes.h;
+            void *w = ui_wid_hash(0xC0u + k, kx, ky, kcw, kh); ui_reg(w, kx, ky, kcw, kh, 0);
+            UiCap *c = ui_cap_for(w); int hot = (c != 0);
+            if (c && ui_grabbed(w)) {                                        // fire once on grab (tap)
+                if (k <= 12) {                                               // note → write sel + advance
+                    pit[i][sel[i]] = k; oct[i][sel[i]] = key_oct; on[i][sel[i]] = 1; mbop = 1;
+                    if (playing) acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + k + key_oct * 12, acc[i][sel[i]], 0);
+                    sel[i] = (sel[i] + 1) % plen[i];
+                } else if (k == 13) { if (key_oct > -1) key_oct--; }
+                else if (k == 14) { if (key_oct <  2) key_oct++; }
+                else { int ls = (sel[i] + plen[i] - 1) % plen[i]; sld[i][ls] = !sld[i][ls]; }   // SLIDE on the last-entered step
+            }
+            int fill = (k <= 12) ? (kblack[k] ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN)
+                     : (k == 15) ? CLR_INDIGO : CLR_DARK_PURPLE;
+            rrectfill(kx, ky, kcw, kh, 1, fill);
+            rrect(kx, ky, kcw, kh, 1, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+            font(FONT_TINY);
+            if (k <= 12) { if (KLAB[k][0]) plabel(KLAB[k], kx + kcw / 2, ky + 1, kblack[k] ? CLR_MEDIUM_GREEN : CLR_LIME_GREEN); }
+            else plabel(KLAB[k], kx + kcw / 2, ky + 1, CLR_LIGHT_PEACH);
+        }
+    } else if (use_bars) {
         // ④⑤ the 16 NOTE BARS — tap = note on/off · drag up/down = pitch (scale-snapped).
         // One chunky surface; bar HEIGHT is the pitch, so you draw + see the melody.
         int by = (int)notes.y, bh = (int)notes.h;   // the note-bar band, filling the width

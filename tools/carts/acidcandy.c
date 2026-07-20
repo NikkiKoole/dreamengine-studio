@@ -854,10 +854,13 @@ static void draw_303(Box stage, int i) {
     if (pscreen[i] == PS_FLAG) {
         for (int f = 0; f < FL_N; f++) { Box c = lay_grid(gc, 3, FL_N, f, 2);   // the 6-flag palette
             if (lcdbtn(0x0Au + f, (int)c.x, (int)c.y, (int)c.w, (int)c.h, FLNAME[f], armed == f)) armed = f; }
-    } else if (pscreen[i] == PS_FX) {                                 // the FX knobs, LCD-native
-        lcdknob_cell(lay_grid(gc, 3, 3, 0, 2), &a->p[ACID_DRV], "DRV",  0.35f);
-        lcdknob_cell(lay_grid(gc, 3, 3, 1, 2), &msend[i],       "SEND", 0.10f);
-        lcdknob_cell(lay_grid(gc, 3, 3, 2, 2), &fxverb[i],      "VERB", 0.0f);
+    } else if (pscreen[i] == PS_FX) {                                 // FX + voice character, LCD-native
+        Box knobs; Box clean = lay_split(gc, EDGE_BOTTOM, gc.h * 0.28f, &knobs);   // bottom strip = the CLEAN/RAW saw toggle
+        lcdknob_cell(lay_grid(knobs, 4, 4, 0, 2), &a->p[ACID_DRV], "DRV",   0.35f);
+        lcdknob_cell(lay_grid(knobs, 4, 4, 1, 2), &msend[i],       "SEND",  0.10f);
+        lcdknob_cell(lay_grid(knobs, 4, 4, 2, 2), &fxverb[i],      "VERB",  0.0f);
+        lcdknob_cell(lay_grid(knobs, 4, 4, 3, 2), &a->drift,       "DRIFT", 0.5f);   // analog wander amount (rides live via acid_ride)
+        if (lcdbtn(0x46u, (int)clean.x, (int)clean.y, (int)clean.w, (int)clean.h, a->clean ? "CLEAN SAW" : "RAW SAW", a->clean)) { a->clean = !a->clean; acid_define(a); }   // PolyBLEP band-limit toggle (SAW only)
     } else if (pscreen[i] == PS_GEN) {                                // CLEAR + randomize menu (2×2)
         static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
         for (int g = 0; g < 4; g++) { Box c = lay_grid(gc, 2, 4, g, 2);

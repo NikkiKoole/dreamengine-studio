@@ -129,6 +129,9 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
              gestures.h  per-finger swipes judged at lift + pinch_scale (whole-view zoom)
              pointer.h   multi-finger pointer pool (PTR_CLEAR/ACQUIRE/FIND) — layer below ui.h,
                          for bespoke per-finger targets, not widgets
+             cursor.h    pixel MOUSE CURSOR in the canvas — cursor_draw(CUR_HAND/GRAB/ARROW/CROSS/MOVE)
+                         + _tint; auto-hides the OS arrow ONLY when a real mouse is seen (no-op on touch),
+                         call LAST in draw(); shows in screenshots/GIFs (the OS cursor never does)
              keybed.h    polyphonic chromatic keybed (touch+mouse+QWERTY+MIDI) — every keybed
                          cart copies it (epiano/moog/touchpiano/mellotron); NOT ribbons/radio strip
              solo.h      scale-locked solo strip the player drives over a radio (pairs radio.h)

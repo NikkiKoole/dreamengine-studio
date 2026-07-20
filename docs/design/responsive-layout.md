@@ -142,8 +142,8 @@ To be explicit: **this is just an experiment.** It's a positioning vocabulary,
 nothing more — proof that a small set of `lay_*` helpers feels right, run against
 a fake screen so it costs nothing and commits to nothing. It is *not* a layout
 engine and it does not pretend to cover everything a responsive UI eventually
-wants. Four known gaps, each its own concern, to add **only if a real cart hits
-them** (don't pre-build them):
+wants. Four concerns, each its own — **one now shipped** (the split-gap), the rest to add
+**only if a real cart hits them** (don't pre-build them):
 
 - **Text reflow.** Today we only do the font-step trick (TINY → SMALL → NORMAL by
   width). Genuine **word-wrap inside a box** — break a string across lines to fit
@@ -167,18 +167,19 @@ them** (don't pre-build them):
   second scalable-knob cart appears. Sizing knobs by cell **width** (× ~0.21, clamp-style) is the pattern
   that gave "small at 160×100, bigger on a phone" from one rule — see [`canvas-density-spectrum.md`](canvas-density-spectrum.md).
 
-- **Gap between a split and its remainder (a `lay_gap` / a `gap` arg on `lay_split`).** `lay_split`
-  hands back **edge-flush** rects: the piece you split off and the remainder share a border. So a
-  *filled* remainder — a hero LCD, a map viewport, anything that "absorbs the leftover" — ends up
-  touching whatever was carved from it, and you re-open breathing room by insetting the remainder by
-  hand. `acidcandy` is the worked case: it insets its LCD 1px on all four faces (`lcd = lay_inset(body,
-  1)`) purely to gap the glass from the flanking soft-key columns (horizontal) and the step/hit row
-  below (vertical) — they were flush before (fixed 2026-07-20). CSS gets this for free from `gap` on
-  the flex container. Two candidate shapes: a `gap` argument on `lay_split` that eats N px *between* the
-  two returned rects (`lay_cell`/`lay_grid`/`lay_wrap` already take one — `lay_split` is the odd one
-  out), and/or a tiny `lay_gap(Box, px)` = symmetric shrink — the honest name for the `lay_inset`-by-N
-  idiom when you mean "pull off my neighbours", not "pad my content". Low-risk, high-frequency; likely
-  the **first** graduation after the four primitives.
+- **✓ SHIPPED (2026-07-20) — gap between a split and its remainder: `lay_split_gap(c, edge, size,
+  gap, rest)`.** `lay_split` hands back **edge-flush** rects: the piece you split off and the
+  remainder share a border. So a *filled* remainder — a hero LCD, a map viewport, anything that
+  "absorbs the leftover" — ends up touching whatever was carved from it, and you re-open breathing
+  room by insetting the remainder by hand. `acidcandy` was the worked case: it insets its LCD 1px on
+  all four faces (`lcd = lay_inset(body, 1)`) purely to gap the glass from the flanking soft-key
+  columns and the row below (fixed 2026-07-20). CSS gets this for free from `gap` on the flex
+  container. `lay_split_gap` is `lay_split` + a gap: the band keeps `size`, the gap comes out of the
+  remainder on the side facing the band (`lay_cell`/`lay_grid`/`lay_wrap` already took a gap — this
+  makes `lay_split` no longer the odd one out). The *symmetric* "pull off ALL neighbours" case is
+  already `lay_inset`, and a single-axis in-cell gap is already `lay_pad` — so no separate `lay_gap`
+  alias was added (it would just duplicate `lay_inset`). First real consumer: whichever cart adopts it
+  next (acidcandy's hand insets can migrate when it's free).
 
 None block the experiment. They're noted here so nobody mistakes "the layout
 math is done" for "responsive UIs are done."

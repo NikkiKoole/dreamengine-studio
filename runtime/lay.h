@@ -79,6 +79,25 @@ static inline Box lay_split(Box c, int edge, float size, Box *rest) {
     return band;
 }
 
+// split_gap(): split() but leave `gap` px of empty space BETWEEN the docked band and
+// the remainder (CSS flex `gap`, for a single fixed-basis dock). split() returns the
+// two pieces FLUSH — so a filled remainder (a hero panel, a viewport) touches whatever
+// was carved off it, and you re-open breathing room by insetting one side afterward.
+// This keeps that gap at the split site. The band keeps `size`; the gap comes out of
+// the remainder, on the side facing the band. (Symmetric "pull off ALL neighbours" is
+// just lay_inset(); a single-axis gap within a cell is lay_pad() — this is the between-
+// two-splits case those can't express in one call.)
+static inline Box lay_split_gap(Box c, int edge, float size, float gap, Box *rest) {
+    Box band = lay_split(c, edge, size, rest);
+    if (rest) switch (edge) {                 // shrink the remainder away from the band
+        case EDGE_TOP:    rest->y += gap; rest->h -= gap; break;
+        case EDGE_BOTTOM:                 rest->h -= gap; break;
+        case EDGE_LEFT:   rest->x += gap; rest->w -= gap; break;
+        case EDGE_RIGHT:                  rest->w -= gap; break;
+    }
+    return band;
+}
+
 // cell(): the i-th of n EQUAL flex children along dir (0=row, 1=column) with a
 // gap (CSS flex:1 + gap). The reflow primitive — same children, flip dir at a
 // breakpoint and they go row↔column.

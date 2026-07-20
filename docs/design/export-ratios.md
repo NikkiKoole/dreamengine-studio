@@ -25,6 +25,27 @@
 > 640×400 centred with bars), never down. **Still open:** the **dressed** composite (bg+caption instead
 > of plain bars) and delivery-exact upscale (a cart whose art is bigger than an integer fit of the frame).
 
+## Dressed composite — direction (2026-07-20, from a mockup session)
+
+Turn the letterbox bars from dead space into a **framed treatment** — a title card above the cart,
+a hook/CTA below (the [`store-shots.js`](store-agents.md) "console as a framed
+artifact" look, but for video). Two mockups (`tinyacidjam`, 9:16) compared a bare **subtitle** vs a
+**grown title-card**; the grown version clearly wins — the bars earn their space. Decisions taken:
+
+- **Text is ARBITRARY / hand-typed**, NOT derived from `de:meta`. The maker types whatever they want
+  per overlay region (title / subtitle / hook / CTA). (Still on-ethos — a human writes the words, no
+  auto-generated prose.) So the core primitive is **dedicated overlay regions that take free text**.
+- **Engine bitmap font**, not a smooth display face (Bungee etc.) — `FONT_BOOT`/`dos_8x8` so the
+  frame reads unmistakably dreamengine (the lo-fi-type edge from [`trailer-builder.md`](trailer-builder.md)
+  §kinetic-text). NB: ffmpeg `drawtext` needs a TTF/OTF, so this wants either a TTF of the ROM font or
+  compositing the text through the engine itself — a real choice to make at build time.
+- **Static first, kinetic later.** A static dressed frame (drawtext on the letterbox path, shareable
+  by [`video-distribution.md`](video-distribution.md)'s `youtube-push` + the bake) is v1; text that
+  animates / pulses on the beat is the next rung (the `trailer-builder.md` §kinetic-text idea).
+
+Only applies to the **letterbox** path (there ARE bars to dress); the full-bleed reflow has none.
+Not built — resume here.
+
 ## The reframe: this is a *ratio/resolution* axis, not "App Store work"
 
 A cart renders at its **native resolution** (say 320×200 — a specific, usually landscape-ish

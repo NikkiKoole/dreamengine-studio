@@ -239,20 +239,17 @@ static void face_melodic(Box kb, Box scr, Box play, Face *f, int step, int col, 
     cbtn(lay_inset(lay_grid(kb, 6, 6, 5, 1), 3), "DF", 0);
 
     glass(scr);
-    Box si = lay_inset(scr, 3);
-    // FLANK the screen with soft-keys (paradigm zone 3) — a bounded look, not the full-width
-    // register. This flanks the HERO, not the whole face, so it's allowed; the roll rides a
-    // face_sublane in the middle while the note-bars below stay on the full-width register.
+    // a screen WITH side-buttons (paradigm zone 3): soft-keys flank the HERO, the roll rides
+    // the bounded middle. One call — pass 0,0 for a fullscreen screen instead (see face.h).
     static const char *skL[4] = { "SEQ", "FLAG", "FX", "GEN" };
     static const char *skR[2] = { "KEY", "PAT" };
-    Box colL = lay_split(si, EDGE_LEFT,  lay_clamp(si.w * 0.16f, 16, 30), &si);
-    Box colR = lay_split(si, EDGE_RIGHT, lay_clamp(si.w * 0.14f, 14, 26), &si);
-    for (int i = 0; i < 4; i++) lcdbtn(lay_inset(lay_grid(colL, 1, 4, i, 1), 0), skL[i], i == 0);
-    for (int i = 0; i < 2; i++) lcdbtn(lay_inset(lay_grid(colR, 1, 2, i, 1), 0), skR[i], 0);
-    // piano-roll — a BOUNDED lane in the flanked middle (face_sublane)
-    LayLane roll = face_sublane(si, STEPS);
+    FaceScreen sc = face_screen(lay_inset(scr, 3), 4, 2, 0.16f, 0.14f, STEPS);
+    for (int i = 0; i < 4; i++) lcdbtn(face_key(sc.left,  4, i), skL[i], i == 0);
+    for (int i = 0; i < 2; i++) lcdbtn(face_key(sc.right, 2, i), skR[i], 0);
+    Box si = sc.screen;
+    // piano-roll — the BOUNDED lane in the flanked middle
     for (int s = 0; s < STEPS; s++) {
-        Box c = lay_lane_cell(roll, si, s, 0);
+        Box c = lay_lane_cell(sc.lane, si, s, 0);
         if (s == step) { blend(BLEND_AVG); rectfill((int)c.x, (int)si.y, (int)c.w, (int)si.h, CLR_MEDIUM_GREEN); blend_reset(); }
         if (!p_on[s]) continue;
         int y = roll_y(si, p_pit[s]);
@@ -280,17 +277,16 @@ static void face_drums(Box kb, Box scr, Box play, int step, int col) {
     for (int i = 0; i < 4; i++) knob_in(lay_grid(kb, 4, 4, i, 1), &kv[i], kn[i], 0);
 
     glass(scr);
-    Box si = lay_inset(scr, 3);
-    Box names = lay_split(si, EDGE_LEFT, lay_clamp(si.w * 0.14f, 14, 26), &si);  // voice-name gutter (not per-step)
+    // same idiom as the melodic face — here the left flank is a voice-name gutter (not buttons),
+    // and the grid rides the bounded middle lane.
+    FaceScreen sc = face_screen(lay_inset(scr, 3), 1, 0, 0.14f, 0, STEPS);
+    Box si = sc.screen;
     for (int v = 0; v < 6; v++) {
-        Box rb = lay_grid(names, 1, 6, v, 1);
+        Box rb = face_key(sc.left, 6, v);
         font(FONT_TINY); print(dvn[v], (int)rb.x, (int)(rb.y + rb.h / 2 - 2), CLR_MEDIUM_GREEN);
     }
-    // this grid sits AFTER the name gutter, so it uses a BOUNDED lane (face_sublane) on the
-    // indented sub-box rather than the full-width register — the first-class option, not a hack.
-    LayLane gl = face_sublane(si, STEPS);
     for (int s = 0; s < STEPS; s++) {
-        Box cs = lay_lane_cell(gl, si, s, 0);
+        Box cs = lay_lane_cell(sc.lane, si, s, 0);
         if (s == step) { blend(BLEND_AVG); rectfill((int)cs.x, (int)si.y, (int)cs.w, (int)si.h, CLR_MEDIUM_GREEN); blend_reset(); }
         for (int v = 0; v < 6; v++) {
             Box cell = lay_grid(si, 1, 6, v, 1);

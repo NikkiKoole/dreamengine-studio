@@ -158,6 +158,29 @@ static inline Box face_col(Face *f, Box band, int i, float gap) {
 // aligns; it just won't align with the full-width register (a deliberate look choice).
 static inline LayLane face_sublane(Box span, int cols) { return lay_lane(span, cols); }
 
+// face_screen — the SCREEN (hero) as one declarative choice: soft-key columns down the
+// sides, OR a fullscreen screen — the same call, a flag apart. Carves optional flank
+// columns off the hero and hands back the middle `screen`, the `left`/`right` flank boxes
+// (draw soft-keys / a name-gutter into them), and a per-step `lane` bounded to the middle.
+//   nL / nR   how many buttons per flank (0 = NO column that side)
+//   fracL/fracR each flank's width as a fraction of the hero
+// Fullscreen screen: face_screen(hero, 0, 0, 0, 0, cols) → `screen` == the whole hero and
+// `lane` spans it full-width (so it lines up with a full-width play lane). Flanked screen:
+// face_screen(hero, 4, 2, .16f, .14f, cols) → `lane` is the narrower middle (a look choice,
+// no longer register-aligned). Place a soft-key with face_key(col, n, i).
+typedef struct { Box screen, left, right; LayLane lane; } FaceScreen;
+static inline FaceScreen face_screen(Box hero, int nL, int nR, float fracL, float fracR, int cols) {
+    FaceScreen s; s.left = s.right = box(0, 0, 0, 0);
+    Box mid = hero;
+    if (nL > 0) s.left  = lay_split(mid, EDGE_LEFT,  hero.w * fracL, &mid);
+    if (nR > 0) s.right = lay_split(mid, EDGE_RIGHT, hero.w * fracR, &mid);
+    s.screen = mid;
+    s.lane = lay_lane(mid, cols);
+    return s;
+}
+// face_key — button/label `i` of `n` stacked down a flank column from face_screen.
+static inline Box face_key(Box col, int n, int i) { return lay_grid(col, 1, n, i, 1); }
+
 // face_zone — find a zone's rect by name (a convenience so draw code doesn't hardcode
 // indices; returns a zero Box if not found). Cheap — a handful of strcmp per frame.
 static inline Box face_zone(Face *f, const char *name, FaceZone *z) {

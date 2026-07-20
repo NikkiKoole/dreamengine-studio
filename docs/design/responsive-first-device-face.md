@@ -126,6 +126,14 @@ cases: a flanked hero (roll between soft-key columns) and indented content (a gr
 chipjam's flanking look is restored on it; the note-bars still ride the full-width register. So the grammar
 now offers **both** — full-width-aligned by default, bounded-and-flanked by choice.
 
+That choice is now **one declarative call**: [`face_screen(hero, nL, nR, fracL, fracR, cols)`](../../runtime/face.h)
+carves optional soft-key columns off the hero and returns the middle `screen` + the `left`/`right` flank
+boxes + a per-step `lane` bounded to the middle. **Side-buttons-or-not and fullscreen-screen are the same
+call, a flag apart**: `face_screen(hero, 0, 0, …)` → a fullscreen screen whose lane spans full width (lines
+up with a full-width play lane); `face_screen(hero, 4, 2, …)` → soft-keys down both sides with a bounded
+middle lane. chipjam drives both shapes (flanked soft-keys on the melodic face, a single name-gutter flank
+on the drums face) through the one idiom.
+
 **Two faces converted, grammar held (and got better for the friction).** Remaining before Layer 4: any
 more faces the maker wants through it, then decide whether to make face.h the default.
 

@@ -43,6 +43,11 @@ typedef struct {
     int   base;                   // midi note the pattern's pitch 0 maps to (303 default 36)
     float cut_top;                // cutoff range: CUT knob spans this many octaves above 60Hz.
                                   // 6.38 = Devil Fish wide (~5100Hz, the default); 6.0 = vanilla (~3840Hz).
+    int   classic;                // 0 = Devil Fish (default); 1 = vanilla pre-DF 303, read LIVE — NON-destructive
+                                  // (p[] untouched, so DF knob values survive a flip; just toggle + re-acid_define).
+                                  // Forces vanilla: 6.0 cutoff range · fixed 60ms slide · 2ms attack · two-decay OFF
+                                  // (accent decays like a normal note) · no filter-track/sub-osc/accent-sweep. The
+                                  // data-driven twin of acid_stock() — a runtime FLIP instead of a one-shot re-voice.
     float drift;                  // analog drift 0..1: slow filtered-random pitch+cutoff wander so the
                                   // voice isn't frozen-perfect (the "digital" tell). 0 = dead-flat/off.
     float echo_send, rev_send;    // per-voice sends (0 = dry). echo_send = tb303's slapback (an OPTION, 0.10 stock).
@@ -53,14 +58,14 @@ typedef struct {
 } Acid;
 
 // ── param → engine-unit mappings (acidrack's superset curves) ────────────────
-static int   acid_cut_hz(Acid *a)   { return (int)(60.0f * powf(2.0f, a->p[ACID_CUT] * a->cut_top)); } // range set by cut_top (6.38 DF / 6.0 vanilla)
+static int   acid_cut_hz(Acid *a)   { float top = a->classic ? 6.0f : a->cut_top; return (int)(60.0f * powf(2.0f, a->p[ACID_CUT] * top)); } // range: classic pins vanilla 6.0, else cut_top (6.38 DF)
 static int   acid_res_q(Acid *a)    { return (int)(a->p[ACID_RES] * 15.0f); }                     // 0..15 Q (int — instrument_filter's baseline)
 static float acid_res_f(Acid *a)    { return a->p[ACID_RES] * 15.0f; }                            // 0..15 CONTINUOUS — the live note_res ride (analog res, no 16-step stepping)
 static float acid_env_hz(Acid *a)   { return a->p[ACID_ENV] * 3000.0f; }                          // filter-env depth Hz
 static int   acid_dec_ms(Acid *a)   { return 30 + (int)(a->p[ACID_DEC]  * 500.0f); }              // 30..530 ms
 static int   acid_adec_ms(Acid *a)  { return 30 + (int)(a->p[ACID_ADEC] * 500.0f); }              // accent's own decay (two-decay)
-static int   acid_slide_ms(Acid *a) { return 20 + (int)(a->p[ACID_SLDT] * 280.0f); }              // portamento 20..300 (stock ~60)
-static int   acid_atk_ms(Acid *a)   { return (int)(0.5f + a->p[ACID_ATK] * 29.5f); }              // amp attack 0.5..30 ms
+static int   acid_slide_ms(Acid *a) { return a->classic ? 60 : 20 + (int)(a->p[ACID_SLDT] * 280.0f); } // portamento 20..300 (classic = vanilla's fixed 60)
+static int   acid_atk_ms(Acid *a)   { return a->classic ? 2 : (int)(0.5f + a->p[ACID_ATK] * 29.5f); } // amp attack 0.5..30 ms (classic = vanilla's 2ms)
 static float acid_acc_mul(Acid *a)  { return 1.0f + a->p[ACID_ACC] * 1.5f; }                      // accent env multiplier 1..2.5
 static float acid_sq_mul(Acid *a)   { return 1.0f + a->p[ACID_SQL] * 2.0f; }                      // env-sweep depth 1..3
 static int   acid_sweep_atk(Acid *a){ static const int A[4] = { 0, 10, 5, 2 }; return A[a->sweep & 3]; }
@@ -94,6 +99,7 @@ static void acid_init(Acid *a, int slot, int subslot) {
     a->drvmode = DRIVE_SOFT; a->sweep = 0; a->base = 36;
     a->cut_top = 6.38f;                            // Devil Fish wide range by default
     a->drift   = 0.5f;                             // gentle analog drift on by default (set 0 for dead-flat)
+    a->classic = 0;                                // Devil Fish voicing by default (set 1 for vanilla pre-DF)
     a->echo_send = 0.10f; a->rev_send = 0.0f;      // tb303's subtle slapback, dry reverb
     a->h = a->hsub = -1; a->prev_slide = 0;
     for (int i = 0; i < ACID_NPARAM; i++) a->p[i] = def[i];
@@ -149,16 +155,16 @@ static void acid_note(Acid *a, int midi, int accent, int slide) {
         if (a->h    >= 0) note_off(a->h);
         if (a->hsub >= 0) { note_off(a->hsub); a->hsub = -1; }
         float e    = acid_env_hz(a) * acid_sq_mul(a) * (accent ? acid_acc_mul(a) : 1.0f);
-        int   dec  = accent ? acid_adec_ms(a) : acid_dec_ms(a);       // two-decay
+        int   dec  = (accent && !a->classic) ? acid_adec_ms(a) : acid_dec_ms(a);  // two-decay (classic: accent decays like a normal note)
         int   soft = acid_atk_ms(a) - 2; if (soft < 0) soft = 0;      // soft attack rounds the filter onset too
-        int   atk  = accent ? acid_sweep_atk(a) : 0;                  // accent-sweep onset
+        int   atk  = (accent && !a->classic) ? acid_sweep_atk(a) : 0; // accent-sweep onset (classic: no sweep)
         if (soft > atk) atk = soft;
         int   cut = acid_cut_hz(a);
-        if (a->p[ACID_TRK] > 0.001f) { cut += (int)(a->p[ACID_TRK] * (midi - a->base) * 170.0f); if (cut < 30) cut = 30; }
+        if (!a->classic && a->p[ACID_TRK] > 0.001f) { cut += (int)(a->p[ACID_TRK] * (midi - a->base) * 170.0f); if (cut < 30) cut = 30; }  // classic: no filter-tracking
         instrument_filter(a->slot, FILTER_DIODE, cut, acid_res_q(a)); a->_lc = cut; a->_lr = acid_res_q(a);
         instrument_env(a->slot, 0, ENV_CUTOFF, atk, dec, (int)e);
         a->h = note_on(midi, a->slot, vol); note_glide(a->h, 0);
-        float sl = a->p[ACID_SUB];                                    // sub-osc, an octave down
+        float sl = a->classic ? 0.0f : a->p[ACID_SUB];                // sub-osc, an octave down (classic: no sub)
         if (a->subslot >= 0 && sl > 0.001f) {
             a->hsub = note_on(midi - 12, a->subslot, 0);
             note_vol(a->hsub, vol * sl); note_glide(a->hsub, 0);

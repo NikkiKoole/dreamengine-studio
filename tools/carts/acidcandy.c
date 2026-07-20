@@ -1365,11 +1365,11 @@ static void draw_mst(Box stage) {
     // LANDSCAPE reflow (canvas-density-spectrum.md): design-proportion bands, spread to fill.
     float H = stage.h, W = stage.w;
     Box body   = lay_inset(stage, 2);
-    Box volrow = lay_split(body, EDGE_TOP,    H * 0.07f, &body);   // ①b per-machine vol sliders
+    Box volrow = lay_split(body, EDGE_TOP,    H * 0.06f, &body);   // ①b per-machine vol sliders
     Box rcol   = lay_split(body, EDGE_RIGHT,  W * 0.13f, &body);   // ④ full-height right column: SWG · TEMPO · DUB
-    Box krow   = lay_split(body, EDGE_TOP,    H * 0.27f, &body);   // ② master knobs (now LEFT of rcol → no PUMP↔SWG clash)
-    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.30f, &body);   // ④b delay · ⑤ send
-    Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys
+    Box krow   = lay_split(body, EDGE_TOP,    H * 0.24f, &body);   // ② master knobs (now LEFT of rcol → no PUMP↔SWG clash)
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.28f, &body);   // ④b delay · ⑤ send
+    Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys (band reclaimed above → tall enough for the labels)
     Box lcd    = lay_inset(body, 1);                               // the hero glass
 
     // ①b per-machine VOLUME sliders — aligned UNDER each machine's nav cartridge tab, so the pink

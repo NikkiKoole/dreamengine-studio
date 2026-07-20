@@ -18,7 +18,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick+audition (the screen mode stays put — VCE by default shows its TUNE + DEC + a voice-specific character knob where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK), the picker shows the whole roster in one row (all 16/11 voices, acid order); the MUT soft-key flips a pad tap from SELECT to per-voice MUTE; VCE/KIT/FLAG/GEN soft-keys switch the screen between the voice knobs, the minimap, the depth palette, and the generate menu (CLEAR / MIN / MID / BUSY). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND; a little DUB pad in the bottom-right corner momentarily throws the delay (HOLD + drag: X = time, Y = feedback)."
   },
   "todo": [
-    "VOICING switch: SHIPPED (2026-07-20) — the 303 knob-row's right end now stacks TWO switches (audio-notes.md §26): TOP = VOICING (classic 'CL' ⟷ Devil Fish 'DF', per-303, LED lit = DF; flips ac[i].classic + re-acid_define, NON-destructive — the DF knob values survive), BOTTOM = the VIEW page-tab (core-5 '1' ⟷ DF-extras '2', greyed + inert while classic since there's nothing to edit there). The old single 'DF' button (a mere kpage flip) is gone. DECIDE (small, OPEN): the classic 303's SAW/SQR switch is arguably core, but WAVE still lives on the DF-extras page → unreachable in classic. Leave it (fine) or hoist WAVE to always-visible if classic waveform-switching is wanted.",
+    "VOICING switch: SHIPPED (2026-07-20) — the 303 knob-row's right end now stacks TWO switches (audio-notes.md §26): TOP = VOICING (classic 'CL' ⟷ Devil Fish 'DF', per-303, LED lit = DF; flips ac[i].classic + re-acid_define, NON-destructive — the DF knob values survive), BOTTOM = DUAL-PURPOSE: in DF it's the VIEW page-tab (core-5 '1' ⟷ DF-extras '2'); in classic it becomes the SAW/SQR WAVE switch. The old single 'DF' button (a mere kpage flip) is gone. WAVE-IN-VANILLA (fixed 2026-07-20): the SAW/SQR switch is a stock-303 CORE control, but it lives on the DF-extras page (unreachable in classic since kpage locks to 0). Since classic has no page to switch, the bottom slot hosts WAVE there instead → reachable in both voicings. (Engine was always fine — classic never gated a->wave.)",
     "303 DRIFT knob (OPEN, 2026-07-19): the 303 voices now carry analog drift (acid303.h Acid.drift, default 0.5 — slow LFO_SHAPE_RANDOM pitch+cutoff wander that killed the 'sounds kinda digital' tell; see audio-notes.md §26). It's a fixed bake right now; maker wants a little tweak somewhere. Cleanest: an MST-global DRIFT knob writing ac[0].drift=ac[1].drift=v then re-acid_define (or a per-303 knob on the DEEP page). Acid.drift is already a per-voice float so no ACID_* enum churn. Small follow-up, not yet wired.",
     "DUB PAD: SHIPPED (2026-07-19) — a little XY pad in the MST's freed bottom-right corner (x123,y80,32x13). HOLD + drag: X = delay TIME (continuous 30-500ms → pitch-sliding echoes), Y = FEEDBACK (up → 0.92, runaway but bounded). MOMENTARY: dub_held (reset each frame in draw(), re-asserted by the pad while touched) makes apply_fx's echo() override the resting DIVISION-buttons + FB-knob time/fb; release snaps back. echo() is NOT ride-safe, so it's set-and-hold — re-applies only when the computed (et,ef) change (unified guard replaced the old mfb/mdiv/bpm one). VERIFIED: fx-frame clean, a held sweep at fb 0.85 = 0 clipped samples + steady RMS, no NaN. OPEN/CAVEAT: because echo() re-times on each step of the sweep (not ride-safe), a fast time-sweep may STEP rather than glide buttery-smooth — needs an ear check; if it clicks, quantize et to fewer steps or find a ride-safe delay-time path.",
     "GATE lane: SHIPPED (2026-07-18) — a 3rd drawable master lane on the MST screen (MIX/PCF/CRU/GAT, soft-keys shrunk to h7 so 4 fit), the RHYTHM twin: PCF=tone, CRUSH=texture, GATE=chop. mgate[16] 0..7/step (7=open, drawn DOWN = the step cuts); apply_fx rides the master gate((1-o)*0.85 threshold, 2ms atk, 45ms rel) on STEP CHANGE (set-and-hold, guarded by aGate). Pink bars (0xA0u hashes). Verified audible: open-vs-full-gate WAV correlate 0.78, no NaN. CAVEAT (worth a play-test): gate() is a THRESHOLD/dynamics gate, not a pure per-step volume chop — the cut depends on the signal level, so it reads more as a rhythmic dynamics-gate than a clean trance-gate. If a cleaner chop is wanted, the real fix is a master VOLUME the lane can ride (the level[] master-vol TODO) — revisit if the feel is off.",
@@ -816,16 +816,25 @@ static void draw_303(Box stage, int i) {
         font(FONT_TINY); plabel(dfon ? "DF" : "CL", bx + bw / 2, by + 2, dfon ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH);
         circfill(bx + bw / 2, by + bh - 3, 1, dfon ? CLR_LIME_GREEN : CLR_DARKER_PURPLE);
     }
-    {   // BOTTOM = VIEW page-tab: core-5 ⟷ DF-extras. Only meaningful in DF; greyed + inert in classic.
+    {   // BOTTOM slot — DUAL PURPOSE. DF: the VIEW page-tab (core-5 ⟷ DF-extras). CLASSIC: the SAW/SQR
+        // WAVE switch. WAVE is a stock-303 CORE control, so it must be reachable in vanilla — but its
+        // usual home is the DF-extras page, which is unreachable in classic (kpage locked to 0). In
+        // classic there's no page to switch, so this slot is free to host WAVE instead.
         int bx = (int)krPAGE.x, by = (int)krPAGE.y, bw = (int)krPAGE.w - 1, bh = (int)krPAGE.h - 1, pp = 0, phot = 0, pf = 0;
-        int avail = !a->classic;                                          // nothing to view when classic
-        void *wp2 = ui_wid_hash(0x05u, bx, by, bw, bh);                   // 0x05 = free (spec's 0x0B collides with FLAG's 0x0Au+f, FL_N=6)
-        if (avail && ui_button_core(wp2, bx, by, bw, bh, &pf, &pp, &phot)) kpage[i] = !kpage[i];
-        int lit = avail && kpage[i];
-        rrectfill(bx, by, bw, bh, 2, lit ? mac[i].col : CLR_DARK_PURPLE);
-        rrect(bx, by, bw, bh, 2, (avail && (phot || kpage[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        font(FONT_TINY); plabel(kpage[i] ? "2" : "1", bx + bw / 2, by + 1,
-                                avail ? (lit ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH) : CLR_DARKER_PURPLE);
+        if (a->classic) {                                                 // WAVE toggle (SAW ⟷ SQR) — same as the DEEP-page one
+            void *ww2 = ui_wid_hash(0x1Au, bx, by, bw, bh);               // WAVE hash (distinct rect; never coexists with the DEEP-page WAVE)
+            if (ui_button_core(ww2, bx, by, bw, bh, &pf, &pp, &phot)) { a->wave = (a->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW; acid_define(a); }
+            rrectfill(bx, by, bw, bh, 2, CLR_INDIGO);
+            rrect(bx, by, bw, bh, 2, phot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+            font(FONT_TINY); plabel(a->wave == INSTR_SQUARE ? "SQR" : "SAW", bx + bw / 2, by + 1, CLR_LIGHT_YELLOW);
+        } else {                                                          // VIEW page-tab (core-5 ⟷ DF-extras)
+            void *wp2 = ui_wid_hash(0x05u, bx, by, bw, bh);
+            if (ui_button_core(wp2, bx, by, bw, bh, &pf, &pp, &phot)) kpage[i] = !kpage[i];
+            int lit = kpage[i];
+            rrectfill(bx, by, bw, bh, 2, lit ? mac[i].col : CLR_DARK_PURPLE);
+            rrect(bx, by, bw, bh, 2, (phot || kpage[i]) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+            font(FONT_TINY); plabel(kpage[i] ? "2" : "1", bx + bw / 2, by + 1, lit ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH);
+        }
     }
 
     // ③ soft-keys flank the LCD (left: SEQ/FLAG/FX/PERF · right: GEN/KEY/PAT), the glass fills between.

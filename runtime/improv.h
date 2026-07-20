@@ -159,20 +159,28 @@ static int improv_snap(int m, const int *chordPc, int nPc) {
     return best;
 }
 
-// the notes worth landing on a chord tone: each bar's downbeat (step 0 / 16 of
-// the 2-bar window) and the phrase's final, resolving note
-static bool improv_is_target(const Improv *im, int i) {
+// how much of the solo lands on the chord — the per-station taste knob:
+//   STRONG  = each bar's downbeat (step 0/16) AND the resolving note (locked-on,
+//             most "correct" — good for a busy bop line)
+//   RESOLVE = ONLY the phrase's final note (downbeats stay loose/scale-y, but
+//             every phrase still lands home — the more human lounge feel)
+enum { IMPROV_SNAP_STRONG, IMPROV_SNAP_RESOLVE };
+
+// the notes worth landing on a chord tone, per the scope above (the resolving
+// last note is always a target; STRONG adds the two bar downbeats)
+static bool improv_is_target(const Improv *im, int i, int scope) {
     if (i == im->n - 1) return true;
+    if (scope == IMPROV_SNAP_RESOLVE) return false;
     return im->onset[i] == 0 || im->onset[i] == 16;
 }
 
-// chord-aware pitch: strong notes snap to a chord tone, the rest walk the scale
-// as before. chordPc == NULL is EXACTLY improv_midi (no behaviour change).
+// chord-aware pitch: the target notes (per `scope`) snap to a chord tone, the
+// rest walk the scale as before. chordPc == NULL is EXACTLY improv_midi.
 static int improv_midi_chord(Improv *im, int i, long barInSolo, int keyPc,
                              const int *mode7, int bluePct,
-                             const int *chordPc, int nPc) {
+                             const int *chordPc, int nPc, int scope) {
     int m = improv_midi(im, i, barInSolo, keyPc, mode7, bluePct);
-    if (chordPc && improv_is_target(im, i)) m = improv_snap(m, chordPc, nPc);
+    if (chordPc && improv_is_target(im, i, scope)) m = improv_snap(m, chordPc, nPc);
     return m;
 }
 
@@ -195,13 +203,18 @@ static inline void improv_selfcheck(void) {
     static const int BONLY[1] = { 11 };
     expect_eq(improv_snap(60, BONLY, 1), 59, "improv snap: shortest path, not nearest-up");
 
-    // targets: bar downbeats (0,16) + the last note; the off-beats walk free
+    // STRONG scope: bar downbeats (0,16) + the last note are targets; off-beats free
     Improv im; im.n = 4;
     im.onset[0] = 0; im.onset[1] = 6; im.onset[2] = 16; im.onset[3] = 21;
-    expect(improv_is_target(&im, 0), "improv target: bar-1 downbeat");
-    expect(!improv_is_target(&im, 1), "improv target: an off-beat walks free");
-    expect(improv_is_target(&im, 2), "improv target: bar-2 downbeat");
-    expect(improv_is_target(&im, 3), "improv target: the resolving last note");
+    expect(improv_is_target(&im, 0, IMPROV_SNAP_STRONG), "improv STRONG: bar-1 downbeat");
+    expect(!improv_is_target(&im, 1, IMPROV_SNAP_STRONG), "improv STRONG: an off-beat walks free");
+    expect(improv_is_target(&im, 2, IMPROV_SNAP_STRONG), "improv STRONG: bar-2 downbeat");
+    expect(improv_is_target(&im, 3, IMPROV_SNAP_STRONG), "improv STRONG: the resolving last note");
+
+    // RESOLVE scope: ONLY the last note is a target — even the downbeats walk free
+    expect(!improv_is_target(&im, 0, IMPROV_SNAP_RESOLVE), "improv RESOLVE: downbeat walks free");
+    expect(!improv_is_target(&im, 2, IMPROV_SNAP_RESOLVE), "improv RESOLVE: bar-2 downbeat free too");
+    expect(improv_is_target(&im, 3, IMPROV_SNAP_RESOLVE), "improv RESOLVE: only the resolving note lands");
 }
 #endif // DE_SPEC
 

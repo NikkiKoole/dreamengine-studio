@@ -342,8 +342,10 @@ static void play_step(long abs, double pos) {
         int cpc[4]; int ncp = chord_pcs(fn_at(bar), cpc);   // the bar's chord tones
         for (int i = 0; i < solo.n; i++)
             if (solo.onset[i] == cs) {
-                int m   = improv_midi_chord(&solo, i, soloBar, sng.keyPc,
-                                            JAZZMAJ, sng.blue, cpc, ncp);
+                // RESOLVE scope: downbeats stay loose, but each phrase lands
+                // home on a chord tone — the lounge feel (vs STRONG's locked-on)
+                int m   = improv_midi_chord(&solo, i, soloBar, sng.keyPc, JAZZMAJ,
+                                            sng.blue, cpc, ncp, IMPROV_SNAP_RESOLVE);
                 int vol = (sect == S_BASS ? 6 : 4) + (arc > 0.6f ? 1 : 0);
                 int gat = (int)(stepMs * (solo.dur[i] > 4 ? solo.dur[i] : 2) * 0.85f);
                 schedule_hit(dly + sw + 10, m, sect == S_BASS ? I_BASS : I_PSOLO,

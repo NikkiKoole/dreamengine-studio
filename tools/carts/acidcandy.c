@@ -1366,15 +1366,21 @@ static void draw_mst(Box stage) {
     float H = stage.h, W = stage.w;
     Box body   = lay_inset(stage, 2);
     Box volrow = lay_split(body, EDGE_TOP,    H * 0.07f, &body);   // ①b per-machine vol sliders
-    Box krow   = lay_split(body, EDGE_TOP,    H * 0.27f, &body);   // ② master knobs (taller → knobs grow to fill)
-    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.30f, &body);   // ④b delay · ⑤ send · ⑥ dub
+    Box rcol   = lay_split(body, EDGE_RIGHT,  W * 0.13f, &body);   // ④ full-height right column: SWG · TEMPO · DUB
+    Box krow   = lay_split(body, EDGE_TOP,    H * 0.27f, &body);   // ② master knobs (now LEFT of rcol → no PUMP↔SWG clash)
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.30f, &body);   // ④b delay · ⑤ send
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys
-    Box gutter = lay_split(body, EDGE_RIGHT,  W * 0.10f, &body);   // ④ SWG/TEMPO
-    Box lcd    = lay_inset(body, 1);                                             // the hero glass
+    Box lcd    = lay_inset(body, 1);                               // the hero glass
 
-    // ①b per-machine VOLUME sliders — drag L/R; fill = level, machine-tinted, grey when muted
+    // ①b per-machine VOLUME sliders — aligned UNDER each machine's nav cartridge tab, so the pink
+    // slider sits below the pink 303a tab, etc. Same geometry as navspine (skip the PLAY/HOME
+    // bookends, then M_N cartridge cells — machines are cells 0..3). Drag L/R; fill = level, tinted.
+    Box crun = lay_inset(box(stage.x, volrow.y, stage.w, volrow.h), 1);
+    { Box pc = lay_split(crun, EDGE_LEFT,  lay_clamp(FU * 0.8f, 12, 24), &crun);   // skip PLAY
+      Box hc = lay_split(crun, EDGE_RIGHT, lay_clamp(FU * 0.7f, 11, 22), &crun);   // skip HOME
+      (void)pc; (void)hc; }
     for (int m = 0; m < 4; m++) {
-        Box c = lay_grid(volrow, 4, 4, m, 2);
+        Box c = lay_grid(crun, M_N, M_N, m, 2);   // cartridge cell m = machine m's tab column
         int sx = (int)c.x, sy = (int)c.y, sw = (int)c.w, sh = (int)c.h; if (sh < 3) sh = 3;
         void *w = ui_wid_hash(0xF0u + m, sx, sy, sw, sh); ui_reg(w, sx, sy, sw, sh, 0);
         UiCap *cc = ui_cap_for(w);
@@ -1447,33 +1453,22 @@ static void draw_mst(Box stage) {
         }
     }
 
-    // ④ SWG (top) + TEMPO (bottom) — matching gutter knobs to the right of the LCD.
-    knob_cell(lay_grid(gutter, 1, 2, 0, 2), &g_swing, "SWG", 0.0f);
-    g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                       // sync tempo from the proxy (rounded → no per-frame fx re-apply)
-    {   Box tc = lay_grid(gutter, 1, 2, 1, 2);
+    // ④ the RIGHT COLUMN — SWG · TEMPO · DUB stacked full-height, each its own cell (was a cramped
+    // gutter beside the LCD where "PUMP" collided with SWG + the tempo readout spilled into the DLY row).
+    knob_cell(lay_grid(rcol, 1, 3, 0, 2), &g_swing, "SWG", 0.0f);
+    {   Box tc = lay_grid(rcol, 1, 3, 1, 2);                               // TEMPO — gknob shows the live BPM as its label
+        g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                     // sync tempo from the proxy (rounded → no per-frame fx re-apply)
         char b[4]; int bi = (int)g_bpm, ni = 0;
         if (bi >= 100) b[ni++] = '0' + bi / 100;
         b[ni++] = '0' + (bi / 10) % 10; b[ni++] = '0' + bi % 10; b[ni] = 0;
-        int r = (int)lay_clamp(tc.h * 0.30f, 4, 10);
-        gknob(&bpm01, (int)(tc.x + tc.w / 2), (int)(tc.y + r + 1), r, b);   // gknob shows the live BPM
+        float rh = tc.h * 0.30f, rw = tc.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 5, 12);
+        int cy = (int)(tc.y + r + 1); if (cy + r + 7 > (int)(tc.y + tc.h)) cy = (int)(tc.y + tc.h) - r - 7;
+        gknob(&bpm01, (int)(tc.x + tc.w / 2), cy, r, b);
     }
     g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);
-
-    // the bottom band: DELAY buttons (top) · SEND knobs (below) · DUB pad (right corner)
-    Box delrow = lay_split(bottom, EDGE_TOP,    bottom.h * 0.42f, &bottom);
-    Box dub    = lay_split(bottom, EDGE_RIGHT,  W * 0.22f, &bottom);
-    Box sendrow = bottom;
-    // ④b DELAY division buttons (set mdiv directly; label = the division)
-    { Box lbl = lay_split(delrow, EDGE_LEFT, W * 0.11f, &delrow);
-      font(FONT_TINY); plabel("DLY", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
-      for (int i = 0; i < 4; i++) { Box c = lay_grid(delrow, 4, 4, i, 2);
-          if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; } }
-    // ⑤ per-machine delay SEND
-    { Box lbl = lay_split(sendrow, EDGE_LEFT, W * 0.11f, &sendrow);
-      font(FONT_TINY); plabel("SND", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
-      for (int m = 0; m < 4; m++) knob_cell(lay_grid(sendrow, 4, 4, m, 2), &msend[m], MLAB[m], m < 2 ? 0.10f : 0.0f); }
-    // ⑥ DUB PAD — HOLD + drag: X = delay TIME, Y = FEEDBACK. Momentary (apply_fx overrides while held).
-    {   int px = (int)dub.x + 1, py = (int)dub.y, pw = (int)dub.w - 2, ph = (int)dub.h; if (pw < 6) pw = 6;
+    {   // ⑥ DUB PAD — HOLD + drag: X = delay TIME, Y = FEEDBACK. Momentary (apply_fx overrides while held).
+        Box dc = lay_grid(rcol, 1, 3, 2, 2);
+        int px = (int)dc.x, py = (int)dc.y, pw = (int)dc.w, ph = (int)dc.h; if (pw < 6) pw = 6;
         void *w = ui_wid_hash(0x28u, px, py, pw, ph); ui_reg(w, px, py, pw, ph, 0);
         UiCap *c = ui_cap_for(w);
         if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
@@ -1488,6 +1483,19 @@ static void draw_mst(Box stage) {
         circfill(hx, hy, 1, dub_held ? CLR_LIGHT_YELLOW : CLR_TRUE_BLUE);
         font(FONT_TINY); print("DUB", px + 1, py + 1, dub_held ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
     }
+
+    // the bottom band: DELAY buttons (top) · SEND knobs (below) — full width now (DUB moved to the right column)
+    Box delrow = lay_split(bottom, EDGE_TOP, bottom.h * 0.48f, &bottom);
+    Box sendrow = bottom;
+    // ④b DELAY division buttons (set mdiv directly; label = the division)
+    { Box lbl = lay_split(delrow, EDGE_LEFT, W * 0.11f, &delrow);
+      font(FONT_TINY); plabel("DLY", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
+      for (int i = 0; i < 4; i++) { Box c = lay_grid(delrow, 4, 4, i, 2);
+          if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; } }
+    // ⑤ per-machine delay SEND
+    { Box lbl = lay_split(sendrow, EDGE_LEFT, W * 0.11f, &sendrow);
+      font(FONT_TINY); plabel("SND", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
+      for (int m = 0; m < 4; m++) knob_cell(lay_grid(sendrow, 4, 4, m, 2), &msend[m], MLAB[m], m < 2 ? 0.10f : 0.0f); }
 }
 
 void init(void) {

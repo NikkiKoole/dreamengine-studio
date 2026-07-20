@@ -203,9 +203,21 @@ any pinned seed):
   (BOSSA/COCKTAIL/POP) and its seeds are byte-unchanged. `hb_suggest` reads `vocab->reason`.
 - New styles: **`HB_MINPOP`** (the i-VI-III-VII / i-iv-V loops) and **`HB_BLUES`** (12-bar
   tendency). `hb_vocab_pcs()` spells any function in any vocab. All spec-covered in `hb_selfcheck`.
-- **Still open:** wiring a MAJOR/MINOR/BLUES mode into `chordwise` (its palette + analysis are
-  currently major-only — analysis in minor is unsolved-ish, generation/suggest are ready);
-  plain-**triad display** (a beginner sees `Am` not `Am7`); more genre tables (folk, rock).
+- **Analysis generalised (2026-07-21):** `hb_vocab_fn`/`hb_vocab_analyze` name a chord against ANY
+  vocab in a *declared* key — additive, `hb_chord_fn`/`hb_analyze` left byte-exact as the major case.
+  The insight that unblocked minor analysis: it was never the hard problem. Naming a chord in a
+  declared key is a deterministic lookup for minor exactly as for major; the *unsolved* part is
+  GUESSING major-vs-minor from raw chords, which `chordwise` never does (you declare the key). Minor
+  + blues round-trip is spec-locked (`hb_vocab_fn` inverts generation in all 12 keys).
+- **`chordwise` now ships MAJOR/MINOR/BLUES (2026-07-21):** `B` cycles five modes
+  (BOSSA/LOUNGE/POP/MINOR/BLUES); each swaps the whole vocab, so the palette respells, the strip
+  re-analyses, and NEXT re-ranks. The key readout shows `Cm` in minor; the minor palette leads with
+  the everyday i III iv v VI VII and shelves the ii° V vii° color.
+- **Triad display (2026-07-21):** `hb_qtriad[]` (the beginner-facing name per quality, next to
+  `hb_qname`) + a `7`/`7THS`⇄`TRIAD` toggle in `chordwise` that spells AND voices plain triads
+  (`Am F C G`, dropping the 7th from both the label and the played chord), so the tool reads and
+  sounds basic. Roman-numeral function is unaffected — only the chord spelling simplifies.
+- **Still open:** more genre tables (folk, rock).
 
 ## What's still open (post-v1, 2026-07-20)
 

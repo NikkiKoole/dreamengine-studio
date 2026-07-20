@@ -30,6 +30,9 @@
 // ── chord qualities (the shared 5-quality vocab both source carts used) ──────
 enum { HBQ_MAJ7, HBQ_MIN7, HBQ_DOM7, HBQ_M7B5, HBQ_MIN6, HB_NQUAL };
 static const char *hb_qname[HB_NQUAL] = { "maj7", "m7", "7", "m7b5", "m6" };
+// the plain-TRIAD name per quality — the beginner-facing spelling that drops the
+// 7th (C, Am, G, Bdim). Same order/count as hb_qname; a dominant's triad is major.
+static const char *hb_qtriad[HB_NQUAL] = { "", "m", "", "dim", "m" };
 // the chord TONES of each quality (root, 3rd, 5th, 7th/6th as semitone
 // intervals) — what a chord IS, for a melody/solo to target. Five carts each
 // hand-rolled this exact table (bossa QTONES, cocktail/squarepusher CT, …);
@@ -305,6 +308,27 @@ static int hb_analyze(int keyPc, const int *rootPc, const int *qual, int n, int 
     return hit;
 }
 
+// the same analysis over ANY vocab (minor/blues), in a DECLARED key — a chord's
+// function is a deterministic lookup once the key is known, so a minor tool is no
+// harder than a major one (the unsolved part is GUESSING the key, which chordwise
+// never does — you declare it). hb_chord_fn/hb_analyze above are the major case,
+// left byte-exact; these are the general form the added vocabs ride.
+static int hb_vocab_fn(const HbVocab *v, int keyPc, int rootPc, int qual) {
+    int off = (rootPc - keyPc + 120) % 12;
+    for (int f = 0; f < v->n; f++)
+        if (v->off[f] == off && hb_quality_matches(v->qual[f], qual)) return f;
+    return -1;
+}
+static int hb_vocab_analyze(const HbVocab *v, int keyPc, const int *rootPc,
+                            const int *qual, int n, int *outF) {
+    int hit = 0;
+    for (int i = 0; i < n; i++) {
+        outF[i] = hb_vocab_fn(v, keyPc, rootPc[i], qual[i]);
+        if (outF[i] >= 0) hit++;
+    }
+    return hit;
+}
+
 // ── self-check — the spec.h "specs on an includeable" pattern ────────────────
 // A shared header can't define spec() (one per cart), but it can carry its own
 // assertions: a cart's spec() just calls hb_selfcheck(). Lives only under
@@ -379,6 +403,17 @@ static inline void hb_selfcheck(void) {
     // blues style stays in its 3-function world
     { HbOpt o[4]; int n = hb_suggest(&HB_BLUES, HBbl_I, o, 4);
       expect(n >= 1 && o[0].f == HBbl_I && o[0].why[0]=='h', "hb blues: I7 -> home, top"); }
+    // minor & blues ANALYSIS inverts generation too (declared key, all 12 roots) —
+    // the guarantee that lets chordwise name minor/blues chords, not just make them
+    { int okm = 1, okb = 1;
+      for (int k = 0; k < 12; k++) {
+          for (int f = 0; f < HBm_NFUNC; f++)
+              okm &= hb_vocab_fn(&HB_MINOR, k, (k + hbm_off[f]) % 12, hbm_qual[f]) == f;
+          for (int f = 0; f < HBbl_NFUNC; f++)
+              okb &= hb_vocab_fn(&HB_BLUES_VOCAB, k, (k + hbbl_off[f]) % 12, hbbl_qual[f]) == f;
+      }
+      expect(okm, "hb minor round-trip: function -> chord -> same function, all 12 keys");
+      expect(okb, "hb blues round-trip: function -> chord -> same function, all 12 keys"); }
 }
 #endif // DE_SPEC
 

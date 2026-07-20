@@ -134,8 +134,23 @@ up with a full-width play lane); `face_screen(hero, 4, 2, …)` → soft-keys do
 middle lane. chipjam drives both shapes (flanked soft-keys on the melodic face, a single name-gutter flank
 on the drums face) through the one idiom.
 
-**Two faces converted, grammar held (and got better for the friction).** Remaining before Layer 4: any
-more faces the maker wants through it, then decide whether to make face.h the default.
+*Proving pass 3 — [`grooveface`](../../tools/carts/grooveface.c) converted (2026-07-20).* The flagship
+five-zone face (the control-vocabulary showcase) and the first conversion that is **portrait** and at a
+**non-160×100 density** (320×400). It surfaced the one remaining face_resize assumption: the target was
+hardcoded to the landscape candy density. Fixed with
+[`face_resize_to(dw, dh)`](../../runtime/face.h) — the design density is now a per-face choice; the zones
+and register are density-agnostic. Everything else mapped cleanly: all five zones, the GRID/MIX soft-keys
+via `face_screen`'s flank, the step row on the full-width register, pads as a 2×2 `lay_grid`. All input is
+`ui.h`-in-`draw()`, so it converted like chipjam (no `relayout()` needed). Verified live: skin cycles
+(TACTILE/FLAT/PURE render identically through the same zones — **layout is orthogonal to look**), the
+MIX/GRID flow switch, and a pad tap re-selecting the track (`sel=3` after a CLAP tap). Audio untouched.
+
+**Three faces converted (landscape input-in-draw, landscape input-coupled, portrait multi-skin), grammar
+held every time and got better for the two friction points** (the register opinion → `face_sublane`/
+`face_screen`; the density assumption → `face_resize_to`). The grammar now covers: portrait & landscape,
+any design density, fullscreen or flanked screens, per-step register or bounded lanes, and input via ui.h
+or coordinate-coupled update(). Remaining before Layer 4: the maker's call on whether that's proven enough
+to make face.h the default.
 
 **Layer 4 — make it the default (optional, deepest).** A capability so a "device-face" cart gets the
 reflowing canvas + scaffold without opting in each time. Only worth it once Layer 3 proves out across

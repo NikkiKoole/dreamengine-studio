@@ -1,7 +1,7 @@
 /* de:meta
 {
   "slug": "grooveface",
-  "collection": ["device-face"],
+  "collection": ["device-face", "responsive"],
   "title": "groove face",
   "status": "active",
   "created": "2026-07-14",
@@ -10,15 +10,18 @@
     "tech-demo"
   ],
   "teaches": [],
+  "resizable": true,
   "description": {
-    "summary": "The first real DEVICE FACE built from the control vocabulary: a playable drum-machine laid onto the five-zone skeleton — transport+VU spine, always-live knobs, a flow-switched display, a 16-step grid, and drum pads — cycling all three skins (TACTILE / FLAT / PURE).",
-    "detail": "Proves the toolkit in situ (device-face-paradigm.md x control-vocabulary.md). Zone 1 NAV SPINE: play/stop, pattern name, a 7-seg BPM, a VU that bumps on every hit. Zone 2 KNOBS: TUNE + LEVEL retarget to the SELECTED track (parameter-lock idea), SWING + REVERB are global (reverb applied set-and-hold, only on change). Zone 3 DISPLAY: soft-keys pick the flow — GRID (the whole 4x16 pattern with a running playhead + the selected row lit) or MIX (a fader per track). Zone 4 STEP GRID: the 16 cells for the selected track; tap to toggle, the playhead runs. Zone 5 PADS: KICK/SNARE/HAT/CLAP — tap to play live AND select the track (retargeting zones 2+4), and each pad's corner LED lights when the SEQUENCER fires it (external vs finger). Real sound via drumkit.h (DK_ELECTRO). One instrument, one honest core.",
+    "summary": "The first real DEVICE FACE built from the control vocabulary: a playable drum-machine laid onto the five-zone skeleton — transport+VU spine, always-live knobs, a flow-switched display, a 16-step grid, and drum pads — cycling all three skins (TACTILE / FLAT / PURE). NOW RESPONSIVE via face.h (Layer 3 of responsive-first-device-face.md): the PORTRAIT layout is a 5-row FaceZone[] table and reflows to any device — the first face.h conversion at a non-160x100 design density (320x400, via face_resize_to), which proves the grammar is portrait- and density-agnostic and that the three skins are pure rendering (layout is orthogonal to look).",
+    "detail": "Proves the toolkit in situ (device-face-paradigm.md x control-vocabulary.md). Zone 1 NAV SPINE: play/stop, pattern name, a 7-seg BPM, a VU that bumps on every hit. Zone 2 KNOBS: TUNE + LEVEL retarget to the SELECTED track (parameter-lock idea), SWING + REVERB are global (reverb applied set-and-hold, only on change). Zone 3 DISPLAY: soft-keys pick the flow — GRID (the whole 4x16 pattern with a running playhead + the selected row lit) or MIX (a fader per track). Zone 4 STEP GRID: the 16 cells for the selected track; tap to toggle, the playhead runs. Zone 5 PADS: KICK/SNARE/HAT/CLAP — tap to play live AND select the track (retargeting zones 2+4), and each pad's corner LED lights when the SEQUENCER fires it (external vs finger). Real sound via drumkit.h (DK_ELECTRO). One instrument, one honest core. face.h note: all input is ui.h widgets in draw(), so this converts like chipjam (face_layout in draw(), no relayout()-in-update needed); the display's GRID/MIX soft-keys use face_screen's left flank.",
     "controls": "Press PLAY (spine) to run the sequencer. Tap a PAD to play that drum and select its track; the knobs + step row then edit THAT track. Tap step cells to write the pattern. Turn TUNE/LEVEL for the selected track, SWING/REVERB globally. Tap GRID/MIX to switch the display flow. SKIN button (top-right) or B cycles the three looks."
   }
 }
 de:meta */
 #include "studio.h"
+#include "lay.h"
 #include "ui.h"
+#include "face.h"
 #include "drumkit.h"
 
 // GROOVE FACE — a drum machine on the five-zone device-face skeleton, drawn with
@@ -188,74 +191,110 @@ void update(void) {
 #endif
 }
 
+// ── face.h layout: the five zones as one declarative table (PORTRAIT) ─────────
+static FaceZone ZONES[] = {
+    { FACE_BAND, EDGE_TOP,    0.055f, "nav"   },   // ① spine
+    { FACE_BAND, EDGE_TOP,    0.15f,  "knobs" },   // ②
+    { FACE_HERO, 0,           0.00f,  "disp"  },   // ③ the display (remainder)
+    { FACE_BAND, EDGE_BOTTOM, 0.10f,  "step"  },   // ④
+    { FACE_BAND, EDGE_BOTTOM, 0.37f,  "pads"  },   // ⑤
+};
+#define NZ 5
+static void fp(Box b) { faceplate((int)b.x, (int)b.y, (int)b.w, (int)b.h); }
+static void pot_cell(Box c, float *v, int accent, const char *label) {   // knob sized to its cell
+    float rh = c.h * 0.30f, rw = c.w * 0.34f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 8, 16);
+    int cx = (int)(c.x + c.w / 2), cy = (int)(c.y + r + 2);
+    if (cy + r + 9 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 9;
+    pot(v, cx, cy, r, accent, label);
+}
+
 void draw(void) {
+    face_resize_to(320, 400);                        // ① chunky canvas at THIS face's density (portrait)
+    Box area = face_area(2);
+    Face f = face_layout(area, ZONES, NZ, 16);
     cls(CLR_BROWNISH_BLACK);
     ui_begin();
     font(FONT_SMALL);
 
     // ① NAV SPINE — transport · pattern · bpm · VU · skin
-    faceplate(4, 3, 312, 22);
-    if (dbtn(0x01u, 10, 6, 30, 16, playing ? "STOP" : "PLAY", playing)) playing = !playing;
-    print("PATTERN A", 48, 7, CLR_LIGHT_PEACH);
-    print("track:", 48, 15, CLR_DARK_GREY); print(dk_role_name(trkrole[sel]), 74, 15, CLR_MAUVE);
-    readout("124", 150, 8); print("BPM", 150, 17, CLR_DARK_GREEN);
+    Box nav = f.box[0]; fp(nav);
+    int nx = (int)nav.x, by = (int)nav.y + 3;
+    if (dbtn(0x01u, nx + 6, by, 30, 16, playing ? "STOP" : "PLAY", playing)) playing = !playing;
+    print("PATTERN A", nx + 44, by + 1, CLR_LIGHT_PEACH);
+    print("track:", nx + 44, by + 9, CLR_DARK_GREY); print(dk_role_name(trkrole[sel]), nx + 70, by + 9, CLR_MAUVE);
+    readout("124", nx + 146, by + 1); print("BPM", nx + 146, by + 10, CLR_DARK_GREEN);
     for (int i = 0; i < 10; i++) { int on = vu > i / 10.0f;               // VU
-        rectfill(186 + i * 5, 9, 4, 10, on ? (i > 7 ? CLR_RED : i > 5 ? CLR_YELLOW : CLR_GREEN) : CLR_DARKER_GREY); }
-    if (dbtn(0x02u, 254, 6, 58, 16, SKIN_NAME[skin], 0) || keyp('B')) skin = (skin + 1) % 3;
+        rectfill(nx + 182 + i * 5, by + 2, 4, 10, on ? (i > 7 ? CLR_RED : i > 5 ? CLR_YELLOW : CLR_GREEN) : CLR_DARKER_GREY); }
+    if (dbtn(0x02u, (int)(nav.x + nav.w) - 62, by, 58, 16, SKIN_NAME[skin], 0) || keyp('B')) skin = (skin + 1) % 3;
 
     // ② KNOBS — TUNE/LEVEL retarget to the selected track; SWING/REVERB global
-    faceplate(4, 28, 312, 60);
-    pot(&tune[sel], 44, 52, 14, CLR_TRUE_BLUE, "TUNE");
-    pot(&lvl[sel], 114, 52, 14, CLR_GREEN, "LEVEL");
-    pot(&swing, 200, 52, 14, CLR_MAUVE, "SWING");
-    pot(&rev, 272, 52, 14, CLR_ORANGE, "REVERB");
+    Box kb = f.box[1]; fp(kb);
+    Box ki = lay_inset(kb, 2);
+    float *kp[4] = { &tune[sel], &lvl[sel], &swing, &rev };
+    int   ka[4] = { CLR_TRUE_BLUE, CLR_GREEN, CLR_MAUVE, CLR_ORANGE };
+    const char *kl[4] = { "TUNE", "LEVEL", "SWING", "REVERB" };
+    for (int i = 0; i < 4; i++) pot_cell(lay_grid(ki, 4, 4, i, 0), kp[i], ka[i], kl[i]);
 
-    // ③ DISPLAY — soft-keys pick the flow (GRID / MIX)
-    faceplate(4, 92, 312, 108);
-    if (dbtn(0x10u, 10, 100, 32, 14, "GRID", flow == 0)) flow = 0;
-    if (dbtn(0x11u, 10, 118, 32, 14, "MIX", flow == 1)) flow = 1;
-    int sx = 48, sy = 100, sw = 262, sh = 92;
-    if (skin == SK_PURE) rect(sx, sy, sw, sh, CLR_MEDIUM_GREY); else { rrectfill(sx, sy, sw, sh, 3, CLR_BROWNISH_BLACK); rrect(sx, sy, sw, sh, 3, CLR_DARKER_GREY); }
+    // ③ DISPLAY — GRID/MIX soft-keys flank the screen (face_screen); flow content in the middle
+    Box disp = f.box[2]; fp(disp);
+    FaceScreen sc = face_screen(lay_inset(disp, 4), 2, 0, 0.13f, 0, 16);
+    Box skcol = sc.left;
+    Box gk = lay_split(skcol, EDGE_TOP, 15, &skcol);
+    Box mk = lay_split(skcol, EDGE_TOP, 15, &skcol);
+    if (dbtn(0x10u, (int)gk.x, (int)gk.y, (int)gk.w, 14, "GRID", flow == 0)) flow = 0;
+    if (dbtn(0x11u, (int)mk.x, (int)mk.y, (int)mk.w, 14, "MIX", flow == 1)) flow = 1;
+    Box ds = sc.screen;
+    if (skin == SK_PURE) rect((int)ds.x, (int)ds.y, (int)ds.w, (int)ds.h, CLR_MEDIUM_GREY);
+    else { rrectfill((int)ds.x, (int)ds.y, (int)ds.w, (int)ds.h, 3, CLR_BROWNISH_BLACK); rrect((int)ds.x, (int)ds.y, (int)ds.w, (int)ds.h, 3, CLR_DARKER_GREY); }
+    Box di = lay_inset(ds, 4);
     if (flow == 0) {                                                     // GRID: the whole 4x16 pattern
-        int gx = sx + 8, gy = sy + 14, cw = 15, cellh = 14;
+        Box names = lay_split(di, EDGE_LEFT, 32, &di);
+        LayLane gl = face_sublane(di, 16);                              // bounded to the grid area (after the name gutter)
         for (int t = 0; t < NTRK; t++) {
-            print(dk_role_name(trkrole[t]), sx + 4, gy + t * (cellh + 2) - 8 + 4, t == sel ? CLR_WHITE : CLR_DARK_GREY);
+            Box row = lay_grid(di, 1, NTRK, t, 2);
+            Box nrow = lay_grid(names, 1, NTRK, t, 2);
+            print(dk_role_name(trkrole[t]), (int)nrow.x, (int)(nrow.y + nrow.h / 2 - 3), t == sel ? CLR_WHITE : CLR_DARK_GREY);
             for (int s = 0; s < 16; s++) {
-                int cx = gx + s * cw, cy = gy + t * (cellh + 2);
+                Box c = lay_lane_cell(gl, row, s, 1);
                 int on = pat[t][s], here = playing && s == step;
                 int col = here ? CLR_WHITE : on ? (on == 2 ? CLR_ORANGE : CLR_MEDIUM_GREEN) : CLR_DARKER_GREY;
-                rectfill(cx, cy, cw - 2, cellh - 4, col);
+                rectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, col);
             }
         }
-        print(">", gx + step * cw + (cw - 2) / 2 - 1, gy - 6, CLR_LIGHT_YELLOW);   // playhead marker
+        Box hc = lay_lane_cell(gl, di, step, 1);
+        print(">", (int)hc.x, (int)di.y - 6, CLR_LIGHT_YELLOW);          // playhead marker
     } else {                                                            // MIX: a fader per track
         const char *mn[NTRK] = { "KICK", "SNARE", "HAT", "CLAP" };
         int mc[NTRK] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_TRUE_BLUE };
-        for (int t = 0; t < NTRK; t++) vfader(&lvl[t], sx + 40 + t * 60, sy + 8, 66, mc[t], mn[t]);
+        for (int t = 0; t < NTRK; t++) {
+            Box mcell = lay_grid(di, NTRK, NTRK, t, 0);
+            vfader(&lvl[t], (int)(mcell.x + mcell.w / 2), (int)mcell.y, (int)mcell.h - 10, mc[t], mn[t]);
+        }
     }
 
-    // ④ STEP GRID — the 16 cells for the SELECTED track (mode = which pad is selected)
-    faceplate(4, 204, 312, 40);
-    print(dk_role_name(trkrole[sel]), 10, 208, CLR_MAUVE);
-    {
-        int x0 = 10, cw = 19, y = 220, s = 16;
-        for (int i = 0; i < 16; i++) {
-            int tog = 0;
-            stepcell(0x30u + i, x0 + i * cw, y, s, pat[sel][i] != 0, pat[sel][i] == 2, playing && i == step, &tog);
-            if (tog) pat[sel][i] = pat[sel][i] ? 0 : 1;                  // tap toggles; (accent = future)
-        }
+    // ④ STEP GRID — the 16 cells for the SELECTED track, on the FULL-WIDTH register
+    Box st = f.box[3]; fp(st);
+    Box si = lay_inset(st, 2);
+    Box lbl = lay_split(si, EDGE_TOP, 9, &si);
+    print(dk_role_name(trkrole[sel]), (int)lbl.x + 6, (int)lbl.y, CLR_MAUVE);
+    for (int i = 0; i < 16; i++) {
+        Box c = face_col(&f, si, i, 2);
+        int s = (int)(c.w < si.h ? c.w : si.h);
+        int tog = 0;
+        stepcell(0x30u + i, (int)c.x, (int)si.y, s, pat[sel][i] != 0, pat[sel][i] == 2, playing && i == step, &tog);
+        if (tog) pat[sel][i] = pat[sel][i] ? 0 : 1;                      // tap toggles; (accent = future)
     }
 
     // ⑤ PADS — play live + select the track; corner LED = the sequencer fired it
-    faceplate(4, 248, 312, 148);
-    {
-        int pc[NTRK] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_TRUE_BLUE };
-        int px[NTRK] = { 12, 164, 12, 164 }, py[NTRK] = { 258, 258, 326, 326 };
-        for (int t = 0; t < NTRK; t++) {
-            int hit = 0;
-            pad(0x40u + t, px[t], py[t], 144, 62, pc[t], penv[t], pled[t], dk_role_name(trkrole[t]), t == sel, &hit);
-            if (hit) { sel = t; fire(t, 1, 0); }                        // manual: play + select (no LED)
-        }
+    Box pz = f.box[4]; fp(pz);
+    Box pi = lay_inset(pz, 2);
+    int pc[NTRK] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_TRUE_BLUE };
+    for (int t = 0; t < NTRK; t++) {
+        Box p = lay_inset(lay_grid(pi, 2, NTRK, t, 4), 2);
+        int hit = 0;
+        pad(0x40u + t, (int)p.x, (int)p.y, (int)p.w, (int)p.h, pc[t], penv[t], pled[t], dk_role_name(trkrole[t]), t == sel, &hit);
+        if (hit) { sel = t; fire(t, 1, 0); }                            // manual: play + select (no LED)
     }
 
     font(FONT_NORMAL);

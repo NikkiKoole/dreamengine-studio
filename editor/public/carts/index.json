@@ -3052,7 +3052,7 @@
   },
   {
     "title": "groove face",
-    "description": "The first real DEVICE FACE built from the control vocabulary: a playable drum-machine laid onto the five-zone skeleton — transport+VU spine, always-live knobs, a flow-switched display, a 16-step grid, and drum pads — cycling all three skins (TACTILE / FLAT / PURE). Proves the toolkit in situ (device-face-paradigm.md x control-vocabulary.md). Zone 1 NAV SPINE: play/stop, pattern name, a 7-seg BPM, a VU that bumps on every hit. Zone 2 KNOBS: TUNE + LEVEL retarget to the SELECTED track (parameter-lock idea), SWING + REVERB are global (reverb applied set-and-hold, only on change). Zone 3 DISPLAY: soft-keys pick the flow — GRID (the whole 4x16 pattern with a running playhead + the selected row lit) or MIX (a fader per track). Zone 4 STEP GRID: the 16 cells for the selected track; tap to toggle, the playhead runs. Zone 5 PADS: KICK/SNARE/HAT/CLAP — tap to play live AND select the track (retargeting zones 2+4), and each pad's corner LED lights when the SEQUENCER fires it (external vs finger). Real sound via drumkit.h (DK_ELECTRO). One instrument, one honest core. Press PLAY (spine) to run the sequencer. Tap a PAD to play that drum and select its track; the knobs + step row then edit THAT track. Tap step cells to write the pattern. Turn TUNE/LEVEL for the selected track, SWING/REVERB globally. Tap GRID/MIX to switch the display flow. SKIN button (top-right) or B cycles the three looks.",
+    "description": "The first real DEVICE FACE built from the control vocabulary: a playable drum-machine laid onto the five-zone skeleton — transport+VU spine, always-live knobs, a flow-switched display, a 16-step grid, and drum pads — cycling all three skins (TACTILE / FLAT / PURE). NOW RESPONSIVE via face.h (Layer 3 of responsive-first-device-face.md): the PORTRAIT layout is a 5-row FaceZone[] table and reflows to any device — the first face.h conversion at a non-160x100 design density (320x400, via face_resize_to), which proves the grammar is portrait- and density-agnostic and that the three skins are pure rendering (layout is orthogonal to look). Proves the toolkit in situ (device-face-paradigm.md x control-vocabulary.md). Zone 1 NAV SPINE: play/stop, pattern name, a 7-seg BPM, a VU that bumps on every hit. Zone 2 KNOBS: TUNE + LEVEL retarget to the SELECTED track (parameter-lock idea), SWING + REVERB are global (reverb applied set-and-hold, only on change). Zone 3 DISPLAY: soft-keys pick the flow — GRID (the whole 4x16 pattern with a running playhead + the selected row lit) or MIX (a fader per track). Zone 4 STEP GRID: the 16 cells for the selected track; tap to toggle, the playhead runs. Zone 5 PADS: KICK/SNARE/HAT/CLAP — tap to play live AND select the track (retargeting zones 2+4), and each pad's corner LED lights when the SEQUENCER fires it (external vs finger). Real sound via drumkit.h (DK_ELECTRO). One instrument, one honest core. face.h note: all input is ui.h widgets in draw(), so this converts like chipjam (face_layout in draw(), no relayout()-in-update needed); the display's GRID/MIX soft-keys use face_screen's left flank. Press PLAY (spine) to run the sequencer. Tap a PAD to play that drum and select its track; the knobs + step row then edit THAT track. Tap step cells to write the pattern. Turn TUNE/LEVEL for the selected track, SWING/REVERB globally. Tap GRID/MIX to switch the display flow. SKIN button (top-right) or B cycles the three looks.",
     "file": "grooveface.cart.png",
     "created": "2026-07-14",
     "orientation": "portrait",
@@ -3062,7 +3062,8 @@
     ],
     "teaches": [],
     "collection": [
-      "device-face"
+      "device-face",
+      "responsive"
     ]
   },
   {

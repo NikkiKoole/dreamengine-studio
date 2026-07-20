@@ -85,19 +85,24 @@ typedef struct {
     LayLane lane;                  // the shared per-step register (spans the FULL content width)
 } Face;
 
-// face_resize — request the CHUNKY canvas (route 2 of canvas-density-spectrum.md): match
-// the DEVICE ratio at the DESIGN's density, keep the fitting axis at the design value,
-// extend the other to match the ratio (the reflow spreads the design in — no bars). The
-// ratio is invariant under our own resize, so the target is a stable fixed point.
-static inline void face_resize(void) {
+// face_resize_to — request the CHUNKY canvas (route 2 of canvas-density-spectrum.md) at a
+// chosen DESIGN density dw×dh: match the DEVICE ratio at that density, keep the fitting axis
+// at the design value, extend the other to match the ratio (the reflow spreads the design in
+// — no bars). The design density is a PER-FACE choice: the candy landscape family designs at
+// 160×100, a portrait face (e.g. grooveface) at 320×400 — the zones/register are
+// density-agnostic, only this target changes. The ratio is invariant under our own resize,
+// so the target is a stable fixed point.
+static inline void face_resize_to(int dw, int dh) {
     int cw = screen_w(), ch = screen_h();
     if (cw <= 0 || ch <= 0) return;
-    float r = (float)cw / (float)ch;
+    float r = (float)cw / (float)ch, dr = (float)dw / (float)dh;
     int tw, th;
-    if (r >= 1.6f) { th = 100; tw = (int)(100.0f * r + 0.5f); }   // wide → keep height, extend width
-    else           { tw = 160; th = (int)(160.0f / r + 0.5f); }   // tall → keep width, extend height
+    if (r >= dr) { th = dh; tw = (int)(dh * r + 0.5f); }   // wider than design → keep height, extend width
+    else         { tw = dw; th = (int)(dw / r + 0.5f); }   // taller than design → keep width, extend height
     if (tw != cw || th != ch) de_resize(tw, th);
 }
+// the landscape candy-family default (160×100). Portrait/other faces call face_resize_to().
+static inline void face_resize(void) { face_resize_to(160, 100); }
 
 // face_area — the content area = the whole screen inset by `chassis` px, then intersected
 // with the safe rect (notch / home-bar; == whole canvas on desktop). Draw your chassis to

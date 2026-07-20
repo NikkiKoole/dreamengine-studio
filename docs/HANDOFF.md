@@ -205,10 +205,11 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > **Resume at the cart's live punch-list — the `de:meta.todo[]` in
 > [`tools/carts/acidcandy.c`](../tools/carts/acidcandy.c)** (`node tools/cart-todos.js acidcandy`); the newest
 > entries (DUB / GATE / CRUSH / PERF / LCD-GROW) carry the mechanism + every caveat above.
-> **ENGINE-READY, awaiting UI wiring (2026-07-20):** two `runtime/acid303.h` features shipped this session
-> now just need cart controls — a **per-303 classic⟷Devil-Fish voicing switch** (`Acid.classic`, read live,
-> non-destructive) and a **303 DRIFT** amount (`Acid.drift`). Both are struct fields (no `ACID_*` enum churn);
-> the DF-light-as-voicing + separate view-tab plan + the drift-knob home are specced in
+> **ENGINE-READY, awaiting UI wiring (2026-07-20):** `runtime/acid303.h` features shipped this session now just
+> need cart controls — the classic⟷DF voicing switch is DONE; still pending: a **303 DRIFT** amount (`Acid.drift`)
+> and a per-303 **CLEAN/RAW saw** toggle (`Acid.clean` — the opt-in PolyBLEP band-limited saw; engine +
+> `instrument_bandlimit` API done, live A/B already in `tb303` via the `C` key). All are struct fields (no `ACID_*`
+> enum churn); homes + snippets in
 > [`audio-notes.md §26`](design/audio-notes.md#26-303-realism--it-sounds-kinda-digital-2026-07-19). Wire when acidcandy.c frees up.
 > Other OPEN there:
 > PERF follow-ups (the 2X **funny-accent-order**, octave-shove + reverse lenses, a drums PERF layer), the

@@ -2299,6 +2299,24 @@ surface (VISION). Decision: the naive saw's aliasing is a **feature, not a bug**
 replace. NB for a future agent: "the saw aliases" is a KNOWN, WANTED property here — don't PolyBLEP it
 on sight. (Torture-probe that shows/hears it: a raw `INSTR_SAW` glided C3→C9 with no filter.)
 
+> **UPDATE 2026-07-20 — the opt-in clean saw was built (raw is STILL the default).** The maker wanted a
+> live toggle to keep A/B-ing, so band-limiting shipped exactly as the reassess prescribed: **opt-in, never
+> a default swap.** Engine: **`sound_polyblep()`** subtracted from the naive saw at its wrap, gated by a
+> per-voice flag `v->aa` (from `instr_bank.bandlimit`); applied only on the non-unison osc path. API:
+> **`instrument_bandlimit(slot, on)`** (SR_INSTR_BANDLIMIT=135; 4-place). `acid303.h` carries **`Acid.clean`**
+> (0=raw default) → `instrument_bandlimit` in `acid_define`, non-destructive like `classic`/`drift`. `aa=0`
+> ⇒ byte-identical raw saw (verified: h1–h4 identical raw vs clean = brightness kept; high-freq junk lower on
+> clean = aliasing removed; soundcheck/tune-check/build-all all clean). **Live A/B: `tb303`, press `C`** (open
+> CUT + play high to hear it). Unison saws stay raw by design (acid/tb303 are non-unison). acidcandy per-303
+> clean toggle = the pending UI handoff (below).
+>
+> **PENDING — acidcandy per-303 CLEAN toggle (UI only; engine done).** Wire like `classic`/DF (a per-303
+> `Acid` flag + re-`acid_define`), NON-destructive, no `ACID_*` enum churn. State: none new — it's `ac[i].clean`.
+> Toggle: `ac[i].clean = !ac[i].clean; acid_define(&ac[i]);`. Natural home: the **DEEP (DF-extras) page**, next
+> to the existing `WAVE` (SAW/SQR) switch — it's a saw-character control, so it belongs with WAVE, and both are
+> DF-page widgets. Draw a small `RAW`/`CLN` button; lit = clean. (It's independent of `classic` — a vanilla 303
+> can be clean or raw too; only affects the SAW wave.) Point an agent at this section; ~10 min like classic/DF.
+
 **SHIPPED — both halves, a per-303 classic⟷Devil-Fish voicing switch (2026-07-20).** UI wired into
 `acidcandy.c` 2026-07-20 (commit 235c78b2) exactly per the READY-TO-APPLY snippet below, with one
 change: the VIEW-tab hash seed is **`0x05u`**, not the snippet's `0x0Bu` — `0x0Bu` = `0x0Au + 1`

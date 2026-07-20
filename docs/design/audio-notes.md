@@ -2292,3 +2292,54 @@ DF-extras), and since the classic-5 knobs (CUT/RES/ENV/DEC/ACC) drive **both** v
 matters in DF mode: **grey/hide the DF-extras page when `classic`** (nothing to edit there). So core-5 is
 always tweakable — you can sit on the classic knobs with DF blazing, which was the maker's explicit ask.
 No `ACID_*` enum churn (it's a struct field). Small once the cart frees up.
+
+**READY-TO-APPLY acidcandy wiring** (against `tools/carts/acidcandy.c` as of 2026-07-20 — re-locate the
+`krDF` block by name, not line number; it may have moved). The 303 face-draw already has in scope: the
+per-line `Acid *a` (== `&ac[i]`), the index `i`, `kpage[i]` (the view page), and `mac[i].col` (machine
+tint). **No new global** — voicing is `a->classic` (persistent), view is the existing `kpage[i]`.
+
+*Step 1 — split the right-end `krDF` column into two stacked switches* (replace the single `krDF` split):
+```c
+Box krDF   = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 14, 26), &krow);
+Box krPAGE = lay_split(krDF, EDGE_BOTTOM, krDF.h * 0.44f, &krDF);   // krDF = top (VOICING), krPAGE = bottom (VIEW tab)
+```
+*Step 2 — the knob if/else (`if (!kpage[i]) … else …`) is UNCHANGED* (still core-5 vs DF-extras+WAVE).
+
+*Step 3 — replace the single `{ // the DF page switch … }` block with these two* (chassis-button idiom,
+same as the old DF/WAVE buttons; pixel margins are eyeball-tune, the row is tight):
+```c
+{   // TOP = VOICING switch: flip classic <-> Devil Fish (non-destructive — a->p[] preserved).
+    int bx=(int)krDF.x, by=(int)krDF.y+1, bw=(int)krDF.w-1, bh=(int)krDF.h-2, dp=0,dhot=0,df=0;
+    void *wd = ui_wid_hash(0x07u, bx, by, bw, bh);                 // keep the old DF hash id
+    if (ui_button_core(wd, bx, by, bw, bh, &df, &dp, &dhot)) {
+        a->classic = !a->classic;                                 // FLIP the sound
+        if (a->classic) kpage[i] = 0;                             // DF-extras page is meaningless in classic -> snap to core-5
+        acid_define(a);                                           // re-apply: attack + cutoff-range change at define time
+    }
+    int dfon = !a->classic;                                       // LED lit = Devil Fish voicing ON
+    rrectfill(bx, by, bw, bh, 2, dfon ? mac[i].col : CLR_DARK_PURPLE);
+    rrect(bx, by, bw, bh, 2, (dhot || dfon) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    font(FONT_TINY); plabel(dfon ? "DF" : "CL", bx+bw/2, by+2, dfon ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH);
+    circfill(bx+bw/2, by+bh-3, 1, dfon ? CLR_LIME_GREEN : CLR_DARKER_PURPLE);
+}
+{   // BOTTOM = VIEW page-tab: core-5 <-> DF-extras. Only meaningful in DF; greyed + inert in classic.
+    int bx=(int)krPAGE.x, by=(int)krPAGE.y, bw=(int)krPAGE.w-1, bh=(int)krPAGE.h-1, pp=0,phot=0,pf=0;
+    int avail = !a->classic;                                      // nothing to view when classic
+    void *wp2 = ui_wid_hash(0x0Bu, bx, by, bw, bh);               // 0x0B = an unused hash id (verify no clash)
+    if (avail && ui_button_core(wp2, bx, by, bw, bh, &pf, &pp, &phot)) kpage[i] = !kpage[i];
+    int lit = avail && kpage[i];
+    rrectfill(bx, by, bw, bh, 2, lit ? mac[i].col : CLR_DARK_PURPLE);
+    rrect(bx, by, bw, bh, 2, (avail && (phot || kpage[i])) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    font(FONT_TINY); plabel(kpage[i] ? "2" : "1", bx+bw/2, by+1,
+                            avail ? (lit ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH) : CLR_DARKER_PURPLE);
+}
+```
+*Do it for BOTH 303s* (the face-draw runs per `i`, so this already applies to 303a and 303b independently
+— that's the per-303 requirement, for free).
+
+**Decide (small):** the classic 303's saw/square switch is arguably *core*, but WAVE currently lives on the
+DF-extras page (unreachable in classic). Either leave it (fine) or hoist WAVE to always-visible if you want
+classic to switch waveform. **Test:** ▶ in the editor, flip each 303's DF light independently; set SUB high
+on 303a, flip to classic and back — SUB must still be there (proves the non-destructive flip). **Then:** fold
+a one-line note into acidcandy's `de:meta.todo[]` (next to the DRIFT-knob entry) and, if the chassis grew a
+new control vocabulary, `candy-style.md`.

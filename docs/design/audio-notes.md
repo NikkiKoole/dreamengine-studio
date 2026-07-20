@@ -2387,9 +2387,11 @@ same as the old DF/WAVE buttons; pixel margins are eyeball-tune, the row is tigh
 *Do it for BOTH 303s* (the face-draw runs per `i`, so this already applies to 303a and 303b independently
 — that's the per-303 requirement, for free).
 
-**Decide (small):** the classic 303's saw/square switch is arguably *core*, but WAVE currently lives on the
-DF-extras page (unreachable in classic). Either leave it (fine) or hoist WAVE to always-visible if you want
-classic to switch waveform. **Test:** ▶ in the editor, flip each 303's DF light independently; set SUB high
+**Decided + FIXED (2026-07-20, `ca66009b`):** the classic 303's saw/square switch IS core, and it was
+unreachable in classic (WAVE lived on the DF-extras page; classic locks `kpage=0`). Fix: the bottom stacked
+slot is now dual-purpose — the VIEW page-tab in DF, the **SAW/SQR WAVE switch in classic** (classic has no
+page to switch, so the slot is free for it). WAVE reachable in both voicings; engine was always fine (classic
+never gated `a->wave`). Verified via a scripted DF→CL flip (the SAW toggle appears bottom-right). **Test:** ▶ in the editor, flip each 303's DF light independently; set SUB high
 on 303a, flip to classic and back — SUB must still be there (proves the non-destructive flip). **Then:** fold
 a one-line note into acidcandy's `de:meta.todo[]` (next to the DRIFT-knob entry) and, if the chassis grew a
 new control vocabulary, `candy-style.md`.

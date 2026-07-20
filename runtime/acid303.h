@@ -43,6 +43,8 @@ typedef struct {
     int   base;                   // midi note the pattern's pitch 0 maps to (303 default 36)
     float cut_top;                // cutoff range: CUT knob spans this many octaves above 60Hz.
                                   // 6.38 = Devil Fish wide (~5100Hz, the default); 6.0 = vanilla (~3840Hz).
+    float drift;                  // analog drift 0..1: slow filtered-random pitch+cutoff wander so the
+                                  // voice isn't frozen-perfect (the "digital" tell). 0 = dead-flat/off.
     float echo_send, rev_send;    // per-voice sends (0 = dry). echo_send = tb303's slapback (an OPTION, 0.10 stock).
     float p[ACID_NPARAM];         // params, 0..1 — index by ACID_CUT .. ACID_SUB
     int   h, hsub;                // held handles (-1 = none)
@@ -52,7 +54,8 @@ typedef struct {
 
 // ── param → engine-unit mappings (acidrack's superset curves) ────────────────
 static int   acid_cut_hz(Acid *a)   { return (int)(60.0f * powf(2.0f, a->p[ACID_CUT] * a->cut_top)); } // range set by cut_top (6.38 DF / 6.0 vanilla)
-static int   acid_res_q(Acid *a)    { return (int)(a->p[ACID_RES] * 15.0f); }                     // 0..15 Q
+static int   acid_res_q(Acid *a)    { return (int)(a->p[ACID_RES] * 15.0f); }                     // 0..15 Q (int — instrument_filter's baseline)
+static float acid_res_f(Acid *a)    { return a->p[ACID_RES] * 15.0f; }                            // 0..15 CONTINUOUS — the live note_res ride (analog res, no 16-step stepping)
 static float acid_env_hz(Acid *a)   { return a->p[ACID_ENV] * 3000.0f; }                          // filter-env depth Hz
 static int   acid_dec_ms(Acid *a)   { return 30 + (int)(a->p[ACID_DEC]  * 500.0f); }              // 30..530 ms
 static int   acid_adec_ms(Acid *a)  { return 30 + (int)(a->p[ACID_ADEC] * 500.0f); }              // accent's own decay (two-decay)
@@ -72,6 +75,14 @@ static void acid_define(Acid *a) {
     if (a->echo_send > 0.0f) instrument_echo(a->slot, a->echo_send);
     if (a->rev_send  > 0.0f) instrument_reverb(a->slot, a->rev_send);
     if (a->subslot >= 0)     instrument(a->subslot, INSTR_TRI, acid_atk_ms(a), 60, 6, 25);
+    // analog drift — the missing "living" imperfection. LFO_SHAPE_RANDOM is the engine's slow
+    // filtered-random wander; a touch on PITCH (~cents) + CUTOFF (~Hz) so the saw+filter aren't a
+    // frozen-perfect digital tone. Slots 0/1 (2 free); different rates so they never lock. Each
+    // note-on re-seeds independently, so 303a/303b drift apart. drift=0 → depth 0 → skipped (byte-
+    // identical to the old dead-flat voice), so it's fully A/B-able and opt-out.
+    instrument_lfo(a->slot, 0, LFO_PITCH,  0.13f, 0.05f * a->drift); lfo_shape(a->slot, 0, LFO_SHAPE_RANDOM);
+    instrument_lfo(a->slot, 1, LFO_CUTOFF, 0.19f, 40.0f * a->drift); lfo_shape(a->slot, 1, LFO_SHAPE_RANDOM);
+    if (a->subslot >= 0) { instrument_lfo(a->subslot, 0, LFO_PITCH, 0.11f, 0.06f * a->drift); lfo_shape(a->subslot, 0, LFO_SHAPE_RANDOM); }
     a->_lc = acid_cut_hz(a); a->_lr = acid_res_q(a);
 }
 
@@ -82,6 +93,7 @@ static void acid_init(Acid *a, int slot, int subslot) {
     a->slot = slot; a->subslot = subslot; a->wave = INSTR_SAW;
     a->drvmode = DRIVE_SOFT; a->sweep = 0; a->base = 36;
     a->cut_top = 6.38f;                            // Devil Fish wide range by default
+    a->drift   = 0.5f;                             // gentle analog drift on by default (set 0 for dead-flat)
     a->echo_send = 0.10f; a->rev_send = 0.0f;      // tb303's subtle slapback, dry reverb
     a->h = a->hsub = -1; a->prev_slide = 0;
     for (int i = 0; i < ACID_NPARAM; i++) a->p[i] = def[i];
@@ -115,7 +127,7 @@ static void acid_stock(Acid *a) {
 static void acid_ride(Acid *a) {
     int c = acid_cut_hz(a), r = acid_res_q(a);
     if (c != a->_lc || r != a->_lr) { instrument_filter(a->slot, FILTER_DIODE, c, r); a->_lc = c; a->_lr = r; }
-    if (a->h >= 0) { note_cutoff(a->h, c); note_res(a->h, (float)r); note_drive(a->h, a->p[ACID_DRV]); }
+    if (a->h >= 0) { note_cutoff(a->h, c); note_res(a->h, acid_res_f(a)); note_drive(a->h, a->p[ACID_DRV]); }
 }
 
 // release everything (rest / stop / pattern switch)

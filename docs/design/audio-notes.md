@@ -994,7 +994,10 @@ sweep the ratio, but costs nothing. The full dynamic mix requires the
 second-oscillator path in §12 gap 2b. The unison-detune flag (cheapest 80% of
 gap 2b) covers the *thickness* aspect but not the waveform blend.
 
-**Gap B — BBD chorus (§8.10).**
+**Gap B — BBD chorus (§8.10).** **✓ RESOLVED — `chorus()` IS this BBD chorus** (the
+shared modulated-delay buffer; §8.10 shipped). **Showcase: `juno`** (juno-6 — the famous
+OFF/I/II switch + the mono chord fanning out into a stereo wash). The Juno-60 is no longer
+blocked; the rest of this note is the original (now-closed) planning rationale.
 The Juno's chorus is *the* defining sound. Without it the cart is a dry generic
 pad, not a Juno. The BBD chorus is a short pitch-modulated delay — the same
 building block as the Leslie's doppler component (§8.3/§8.10). It falls out of
@@ -2206,3 +2209,49 @@ any new per-voice cutoff math must stay positive and sub-Nyquist; the engine now
 > ~6% (29/482) transient-**OOM'd** under the memory pressure; each rebuilds fine in isolation.
 > If a batch shows scattered `emcc… FAILED` with no error text, it's contention — re-`--force`
 > the failed set individually (or in a small serial group), don't hunt for a per-cart bug.
+
+## 26. 303 realism — "it sounds kinda digital" (2026-07-19)
+
+§25 gave the filter its measured 303 character; this pass chased the leftover **digital** feel
+(maker's ear on `acidcandy`). Diagnosis, by rendering the `303a`/`303b` solo stems
+(`play.js --solo-slot 6|7 --wav`) + reading the voice: the *filter* and its envelope were fine
+(the diode ladder is a proper saturating ZDF; the mod-env decays exponentially `e^-4t/d`). Three
+tells, all **outside** the filter, ranked by audibility on the default (filter-closed) patches:
+
+1. **The oscillator is frozen-perfect.** `harmonic-spec` on both stems came back razor-clean
+   integer harmonics — no pitch drift, no cutoff jitter, no per-cycle variation. The engine
+   *models* analog wander for its physical voices (reed/brass/vox humanize; tape/BBD wow) but the
+   acid saw got none. **This was the #1 tell** — the sound sits perfectly still.
+2. **Resonance quantized to 16 integer Q steps.** `acid_res_q()` cast `p·15` to `int`; the DSP
+   `flt_q` (and `note_res`, which encodes ×1000) are continuous — the stepping was purely that cast.
+3. **Naive non-band-limited saw** (`sound.h:2578`, `phase·2−1`, no PolyBLEP). Aliases — but a
+   *latent* tell: both default patches render **0% energy >4 kHz**, so it only bites when the cutoff
+   opens hard on the lead. Engine-wide blast radius (every saw voice), so **deferred** pending a
+   real need; see the open item below.
+
+**Fixed 1+2, both isolated to `acid303.h`:**
+- **Continuous res** — new `acid_res_f()` (float `p·15`) feeds the live `note_res` ride; the int
+  `acid_res_q` stays for `instrument_filter`'s baseline (engine API is int) + the change-guard.
+  Only matters ~1 frame at note-on before the ride takes over.
+- **Analog drift** — new `Acid.drift` field (0..1, default **0.5**). `acid_define` attaches two
+  always-on **`LFO_SHAPE_RANDOM`** wanders (the engine's slow filtered-random source, `mod_randwalk`):
+  LFO 0 → `LFO_PITCH` ~5 cents @ 0.13 Hz, LFO 1 → `LFO_CUTOFF` ~20 Hz @ 0.19 Hz (sub-osc gets its own
+  pitch wander @ 0.11 Hz). Different rates so they never lock; each note-on re-seeds independently
+  (`lfo_seed_ctr`, `sound.h:5014`) so 303a/303b drift apart. `drift=0` → depth 0 → skipped →
+  **byte-identical** to the old dead-flat voice (opt-out + clean A/B). Emergent, no per-frame cart
+  code. All three acid carts (`tb303`/`acidrack`/`acidcandy`) inherit it; `build-all` clean.
+
+Verification caveat worth recording: **`wav-correlate` is the wrong oracle for a near-self-osc acid
+voice.** Same code rendered twice correlated at **0.03** — the diode filter at res ≈10.5/15 is a
+nonlinear system that amplifies sub-sample timing differences into fully decorrelated ringing that
+sounds identical. The LFO drift itself is deterministic (counter-seeded); the chaos is the filter.
+Verify resonant voices with **statistical** measures (spectrum / f0-wobble / levels), not waveform
+correlation. Maker confirmed the drift amount "subtle enough" by ear.
+
+**OPEN — a drift "tweak" knob.** Drift is currently a fixed `0.5` baked in `acid_init`. The maker
+flagged wanting a little control for it somewhere. Cleanest surface without churning the `ACID_*`
+enum (the "inserting mid-list cross-wires presets" gotcha — [cart-authoring](../guides/cart-authoring.md)):
+`Acid.drift` is already a per-voice float, so a cart can set it directly. A candy UI home would be
+one MST-global "DRIFT" knob writing `ac[0].drift = ac[1].drift = v` + re-`acid_define`, or a per-303
+knob on the DF/DEEP page. Deferred as a small follow-up, not yet wired. Also still open: **#3**, the
+band-limited saw (reassess only if the aliasing becomes audible on an open-filter lead).

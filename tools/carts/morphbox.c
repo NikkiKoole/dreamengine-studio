@@ -11,8 +11,8 @@
   "lineage": "The groovebox transport (self-playing grid + summed-bus sidechain pump) crossed with a NEW honest core: runtime/morphdrum.h, where each of three drum voices is ONE parametric synth and the 808/909 are just two points in it — a CHARACTER knob morphs the 808↔909 STRUCTURE while a deep panel of absolute knobs shapes the sound past both machines (electro→rock). Complements acidcandy (which keeps 808/909 as separate faces); this is the continuum, exposed as knobs.",
   "description": {
     "summary": "A three-voice drum synth where every drum is a MORPH, not a preset: focus KICK, SNARE or HAT and it fills two rows of ~10 knobs — CHARACTER slides the 808↔909 voicing while TUNE/DEC/PUNCH/DRIVE/CUT/SUB… carve the sound well past both machines. A 3-row step grid plays itself; real summed-bus PUMP off the kick.",
-    "detail": "The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick.",
-    "controls": "Tap/drag grid cells to paint steps (each finger paints). Tap a voice NAME to focus it, then drag the top knobs (vertical = value, double-tap = reset). Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right."
+    "detail": "The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick. Per-step P-LOCK LANES (the acidcandy lesson): a LANE button cycles the grid between STEP (on/off) and PROB / VEL / TUNE / DEC / CHAR — each active step becomes an editable bar (PROB/VEL pull down from full; TUNE/DEC/CHAR are bipolar offsets around the voice knob, so e.g. every hit can sit at a different point in the 808↔909 space). Reflows: roomy 320x200 or the compact 160x100 pocket face.",
+    "controls": "Tap/drag grid cells to paint steps (hat cells cycle off→closed→open). Tap a voice NAME to focus it, then drag the top knobs (vertical = value, double-tap = reset). The LANE button (header) cycles STEP/PROB/VEL/TUNE/DEC/CHAR — in a lane, vertical-drag a cell to set its bar, drag across to sweep a contour. Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right."
   }
 }
 de:meta */
@@ -90,14 +90,23 @@ static float k_pump  = 0.55f;    // master sidechain depth
 // offsets around the voice knob (default 0.5 = follow) — wired in increment 2.
 enum { PL_PROB, PL_VEL, PL_TUNE, PL_DEC, PL_CHAR, PL_N };
 static float pl[ROWS][STEPS][PL_N];
-// the grid's edit mode: STEP = on/off; a lane = a pull-down bar for that param.
-enum { LN_STEP, LN_PROB, LN_VEL, LN_N };
+// the grid's edit mode: STEP = on/off; a lane = a bar for that param. PROB/VEL are unipolar
+// (pull down from full); TUNE/DEC/CHAR are BIPOLAR per-step offsets around the voice knob
+// (centre = follow the knob, up/down = ± that step).
+enum { LN_STEP, LN_PROB, LN_VEL, LN_TUNE, LN_DEC, LN_CHAR, LN_N };
 static int  lane = LN_STEP;
-static const char *LN_NAME[LN_N] = { "STEP", "PROB", "VEL" };
-static const int   LN_PL  [LN_N] = { -1, PL_PROB, PL_VEL };   // pl[] index the lane edits
+static const char *LN_NAME[LN_N] = { "STEP", "PROB", "VEL", "TUNE", "DEC", "CHAR" };
+static const int   LN_PL  [LN_N] = { -1, PL_PROB, PL_VEL, PL_TUNE, PL_DEC, PL_CHAR };
+static const int   LN_BI  [LN_N] = { 0, 0, 0, 1, 1, 1 };   // bipolar (centre = follow knob)?
+static const int   LN_MP  [LN_N] = { -1, -1, -1, MD_TUNE, MD_DECAY, MD_CHAR };  // the morphdrum knob it offsets
 
 typedef struct { int id, paint, lastR, lastC; } Ptr;   // id MUST be first (pointer.h contract)
 static Ptr ptr[PTR_MAX];
+
+static float plock_off(float base, float o) {   // knob + per-step offset (o=0.5 = follow), clamped
+    float e = base + (o - 0.5f);
+    return e < 0 ? 0 : e > 1 ? 1 : e;
+}
 
 static void fire_row(int r, int boost, int delay) {
     if (r == MD_HAT && hopen[cur_step]) morph_fire_open(&kit, boost, delay);
@@ -150,7 +159,21 @@ void update(void) {
                 if (!grid[r][cur_step]) continue;
                 if (rnd(1000) >= (int)(pl[r][cur_step][PL_PROB] * 1000)) continue;   // PROB gate
                 int boost = -(int)((1.0f - pl[r][cur_step][PL_VEL]) * 6.0f + 0.5f);  // VEL → velocity
-                fire_row(r, boost, sw);
+                // param p-LOCKS: offset TUNE/DEC/CHAR around the voice knob for THIS hit, then
+                // reconfigure the voice (CHAR/DEC change the instrument), fire, and restore.
+                float ot = pl[r][cur_step][PL_TUNE], od = pl[r][cur_step][PL_DEC], oc = pl[r][cur_step][PL_CHAR];
+                if (ot != 0.5f || od != 0.5f || oc != 0.5f) {
+                    float st = kit.p[r][MD_TUNE], sd = kit.p[r][MD_DECAY], sc = kit.p[r][MD_CHAR];
+                    kit.p[r][MD_TUNE] = plock_off(st, ot);
+                    kit.p[r][MD_DECAY] = plock_off(sd, od);
+                    kit.p[r][MD_CHAR] = plock_off(sc, oc);
+                    morph_apply(&kit, r);
+                    fire_row(r, boost, sw);
+                    kit.p[r][MD_TUNE] = st; kit.p[r][MD_DECAY] = sd; kit.p[r][MD_CHAR] = sc;
+                    morph_apply(&kit, r);              // back to the knob state for the next fire / display
+                } else {
+                    fire_row(r, boost, sw);
+                }
             }
         }
     }
@@ -293,10 +316,17 @@ void draw(void) {
                     rectfill(x + 1, y + 1, cw - 2, ch - 2, LIT[r]);
                     if (r == MD_HAT && hopen[c]) rect(x + 2, y + 2, cw - 4, ch - 4, CLR_WHITE);  // open hat = ringed
                 }
-            } else if (grid[r][c]) {                        // LANE: a pull-down bar (dim on OFF steps)
+            } else if (grid[r][c]) {                        // LANE: a bar (dim on OFF steps)
                 float v = pl[r][c][LN_PL[lane]];
-                int bh = (int)(v * (ch - 2) + 0.5f);
-                rectfill(x + 1, y + ch - 1 - bh, cw - 2, bh, LIT[r]);
+                if (LN_BI[lane]) {                          // bipolar: bar from a centre line
+                    int mid = y + ch / 2, off = (int)((v - 0.5f) * (ch - 2));
+                    if (off > 0)      rectfill(x + 1, mid - off, cw - 2, off, LIT[r]);
+                    else if (off < 0) rectfill(x + 1, mid + 1,   cw - 2, -off, LIT[r]);
+                    line(x + 1, mid, x + cw - 2, mid, CLR_MEDIUM_GREY);
+                } else {                                    // unipolar: pull-down bar
+                    int bh = (int)(v * (ch - 2) + 0.5f);
+                    rectfill(x + 1, y + ch - 1 - bh, cw - 2, bh, LIT[r]);
+                }
             } else {
                 rectfill(x + 1, y + ch - 2, cw - 2, 1, CLR_DARK_GREY);   // off-step floor tick
             }

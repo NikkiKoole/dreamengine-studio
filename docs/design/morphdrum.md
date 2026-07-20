@@ -43,6 +43,14 @@ self-playing 3-row step grid; SWG shuffles the whole grid; PUMP is a real summed
 off the kick. Hat cells cycle off → closed → open (ringed) → off, with the open hat choked by the
 next closed one.
 
+**Per-step p-lock lanes** (acidcandy's lesson, adapted): a LANE button cycles the grid between STEP
+(on/off) and PROB / VEL / TUNE / DEC / CHAR. PROB/VEL are unipolar pull-down bars (trig chance,
+velocity); TUNE/DEC/CHAR are bipolar per-step offsets around the voice knob (centre = follow) applied
+by swapping the knob around each fire + re-`morph_apply` — so a per-step CHAR contour walks every hit
+through a different spot in the 808↔909 space. The grid's finger pool uses `pointer.h` (never
+hand-roll it — the negative synthetic-mouse id collides with a `-1` free marker; `lint-carts` guards
+this now).
+
 Recipe entry (the synthesis params + ranges): [`instrument-recipes.md`](../guides/instrument-recipes.md).
 
 ## Seam — the hat

@@ -22,6 +22,16 @@ endless boom, distortion). 808 and 909 become two spots you can dial to, and you
 either. This is the [`acid303.h`](../../runtime/acid303.h) move — "both voicings, one header, chosen
 by data" — applied to drums, with the whole synth exposed as knobs.
 
+## The melodic voice (PLUCK)
+
+The bank isn't only drums: a 4th voice is a melodic **PLUCK** (`INSTR_PLUCK`). It rides the same
+parametric-voice + p-lock machinery, but CHAR morphs its **material** (dark round → bright metallic)
+rather than 808↔909 — the general thesis holds (a voice is a parameter space; CHAR travels its
+character axis; 808↔909 is just the drum instance). Its TUNE is snapped to a **minor pentatonic** over
+~3 octaves so per-step TUNE *p-locks* always land musical — you draw a bassline by selecting steps in
+LOCK mode and pitching them. This is where the step-first p-locks pay off most: the same feature that
+morphs a kick per-hit writes a melody on the pluck.
+
 ## Where it sits on the shelf
 
 - **NOT [`drumkit.h`](../../runtime/drumkit.h)** — that's a pad *map* over the engine's built-in roles.

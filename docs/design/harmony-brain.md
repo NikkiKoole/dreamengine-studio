@@ -201,8 +201,13 @@ call `hb_pick` per step; that's what made the byte-identical proof trivial.
 - **The template stations** (`citypop`/`house`/`yacht`/`air`/`jingle`/`polopan`) — re-express or
   validate their hard-coded 4-chord tables against the vocab (per-genre *weight sets*, the research
   says); would prove "one vocab, many weights" beyond jazz.
-- **Chord-aware `improv.h`** — feed the current function to the soloist (the missing bridge; would
-  make every radio's solos chord-aware at once).
+- **Chord-aware `improv.h`** — ✅ the bridge landed (2026-07-20): pure `improv_snap` /
+  `improv_is_target` / `improv_midi_chord` pull a solo's STRONG notes (bar downbeats + the resolving
+  tone) onto the current chord's tones — no `rnd()`, so a performance/seed stream can't shift, and
+  `chordPc=NULL` is byte-identical to the old key-relative path. Carries `improv_selfcheck()` (DE_SPEC).
+  `cocktail` is the first customer (its `chord_pcs()` feeds the bar's tones). **Open: roll it out** to
+  the other 5 improv stations (`addis`/`afrobeat`/`motorik`/`roadhouse`/`squarepusher`) — each just
+  needs a `chord_pcs`-style feed at its solo call site.
 - **`pocketbox`'s chord track / `chordblossom2` flavors** — adopt the vocab as their chord type.
 - **Suggest UX depth** — reasons are one word; the "explain the pull" layer (e.g. tension arrows
   toward home) is untouched.

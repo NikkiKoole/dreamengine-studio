@@ -55,9 +55,14 @@ node tools/youtube-push.js --check                                  # offline: c
   path already emits libx264/yuv420p/AAC/`+faststart`, so a cart clip is upload-ready as baked;
   a `.webm` app reel is transcoded to mp4 first.
 
-> The letterbox bars are the honest zero-engine v0.1 shape. A *true* full-bleed 9:16 wants the
-> cart reflowed to a vertical canvas (it's `resizable` — [device-adaptive-layout](device-adaptive-layout.md)),
-> which is a per-cart authoring job, not this tool's. Parked as a follow-up.
+> **Authoring note — the target is 9:16, and full-bleed beats letterbox.** For YouTube reach the
+> shape that travels is the vertical **9:16 Short**, not the engine's native 16:10. This tool
+> composites a 16:10 clip onto the 9:16 canvas, which is honest but leaves **letterbox bars** top
+> and bottom. A *true* full-bleed Short (fills the whole phone screen) wants the **cart itself
+> laid out vertically** — carts are `resizable` ([device-adaptive-layout](device-adaptive-layout.md)),
+> so a cart *can* reflow to a tall canvas, but designing that stacked layout is a **per-cart
+> authoring job**, not this tool's. So: when a cart is meant to star in Shorts, consider authoring
+> a vertical face for it. Parked as a follow-up; the letterboxed Short is the fine default meanwhile.
 
 ## Auth — OAuth2, the one difference from asc-push
 

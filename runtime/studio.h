@@ -531,6 +531,7 @@ void reverb_bus(int tank, float size, float damp);          // configure reverb 
 void instrument_reverb_bus(int slot, int tank, float mix);  // route this slot's reverb send into tank 1..2 instead of the master send; mix 0..1
 void reverb_bus_fx(int tank, int fx, float a, float b, float c);  // add an effect AFTER the reverb on tank 1..2 — fx = FX_CRUSH/FX_EQ/FX_TAPE/FX_CHORUS; a/b/c = that effect's params (crush:bits,rate,mix · eq:lo,mid,hi dB · tape:wow,flut,sat · chorus:rate,depth,mix). crush/chorus mix 0 = off
 void reverb_insert(float size, float damp, float mix);            // reverb as a dry/wet INSERT on the master bus — a REAL reorderable pedal (put FX_REVERB in fx_order(0,…) to place it). size/damp 0..1, mix 0..1 (0 = bypass). Unlike reverb() (a send), its chain position is audible
+void reverb_spring(float amount);                                 // give the reverb a SPRING-TANK voice: transients smear into a metallic "boing" (dispersion — highs chirp ahead) and the tone narrows to a mid band, like a Fender/surf/dub spring tank. amount 0 = clean digital reverb (default), 1 = full spring. Affects every reverb tank (reverb()/reverb_bus()/reverb_insert())
 
 // chorus — THE master chorus (there is exactly one), applied to the whole mix: a BBD/Juno-style
 // modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).

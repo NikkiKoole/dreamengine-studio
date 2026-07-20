@@ -1718,6 +1718,19 @@ v1, document it on the panel.
     pull to 0.5 then push back to just 1.05 now re-ignites and blooms to full (amp 0.06→1.00), peak −7.7 dBFS /
     0 clipped, soak stable, level-check ✓ (base echo unchanged).
 
+32. **Spring reverb voicing (`reverb_spring`)** — the Schroeder reverb given a spring-tank voice.
+    **SCAFFOLD shipped 2026-07-20 (dispersion tuning WIP — ear pass pending).** `reverb_spring(amount)`,
+    amount 0..1, `0` = clean Schroeder (dormant → byte-identical). Two ingredients, both inside the reverb
+    tank: (a) DISPERSION — a cascade of first-order allpasses (`SPRING_STAGES`=24, `SPRING_DISP`) for the
+    frequency-dependent group delay that makes a transient chirp/"boing"; (b) a mid BAND-LIMIT (~75 Hz HP +
+    ~4 kHz LP) so the tone narrows to the metallic spring band. Applied to the reverb INPUT (`pre`), blended
+    by amount, for ALL tanks (global `rvb_spring`). `SR_REVERB_SPRING`=132, full 4-place wiring; `rvb_spring==0`
+    skips the block → byte-identical (level/fx Δpk Δrms +0.0, soak stable, no clip). **KNOWN:** v1 reads subtle
+    in a level meter (expected — dispersion is a phase/group-delay effect, not a level change); the ear is the
+    judge. Next: a "kick-the-tank" showcase cart + tune the dispersion by ear (likely stretched delay-line
+    allpasses + a feedback bounce for a longer, more audible chirp). Refs: Välimäki *Spring reverberation: a
+    physical perspective*; arXiv 1910.10105.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

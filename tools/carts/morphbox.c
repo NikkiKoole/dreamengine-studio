@@ -10,7 +10,7 @@
   "teaches": ["step-sequencer"],
   "lineage": "The groovebox transport (self-playing grid + summed-bus sidechain pump) crossed with a NEW honest core: runtime/morphdrum.h, where each of three drum voices is ONE parametric synth and the 808/909 are just two points in it — a CHARACTER knob morphs the 808↔909 STRUCTURE while a deep panel of absolute knobs shapes the sound past both machines (electro→rock). Complements acidcandy (which keeps 808/909 as separate faces); this is the continuum, exposed as knobs.",
   "description": {
-    "summary": "A four-voice groovebox where every voice is a MORPH, not a preset: KICK/SNARE/HAT are drum voices whose CHARACTER knob slides the 808↔909 voicing (and past it), plus a melodic PLUCK whose CHAR morphs dark↔bright and whose pitch is pentatonic. Focus a voice and it fills two rows of ~10 knobs + a MORPH pad; write a bassline on the pluck by pinning per-step pitch. A step grid plays itself; real summed-bus PUMP off the kick.",
+    "summary": "A five-voice groovebox where every voice is a MORPH, not a preset: KICK/SNARE/HAT are drum voices whose CHARACTER knob slides the 808↔909 voicing (and past it), plus two melodic bass voices — a synth PLUCK and an UPRIGHT double-bass (INSTR_BOWED pizz) — whose CHAR morphs dark↔bright and whose pitch is pentatonic. Focus a voice and it fills two rows of ~10 knobs + a MORPH pad; write a bassline by pinning per-step pitch. A step grid plays itself; real summed-bus PUMP off the kick.",
     "detail": "The honest core is runtime/morphdrum.h — an 808 kick and a 909 kick are the SAME synthesis structure at different numbers, so each voice is one parametric model with a full knob panel. Tap a voice name (left of the grid) to FOCUS it; the two knob rows up top edit that voice. CHAR morphs the STRUCTURAL 808↔909 voicing (click brightness, noise mode, FM metal floor); the rest are absolute controls with ranges that reach beyond both (sub-deep TUNE, endless DEC, PUNCH pitch-sweep, DRIVE into distortion). SWG shuffles the whole grid; PUMP is a real master sidechain keyed off the kick. Per-step automation, two idioms (acidcandy's lesson + the Elektron step-first model). A MODE button cycles STEP / PROB / VEL / LOCK. PROB and VEL are CONTOUR LANES — each active step is a pull-down bar you sweep across the row (trig chance, velocity). LOCK is the STEP-FIRST p-lock editor: tap a step to SELECT it (white ring) and the knobs + MORPH pad pin THAT step's params to absolute values — a dot marks a locked knob and a locked step — so every hit can sit at its own point in the 808↔909 space, its own cutoff, decay, drive, sub. No page-per-parameter; the controls you already have become the step's editor. Reflows: roomy 320x200 or the compact 160x100 pocket face.",
     "controls": "STEP mode: tap/drag cells to paint (hat cells cycle off→closed→open). Tap a voice NAME to focus it, drag the top knobs (vertical = value, double-tap = reset). MODE button (header) cycles STEP/PROB/VEL/LOCK. PROB/VEL: vertical-drag a cell to set its bar, drag across to sweep a contour. LOCK: tap a step to select it, then turn any knob or drag the MORPH pad to pin that param for the step (re-tap = deselect, double-tap a step = clear its locks). Top row's 6th knob = SWG, 2nd row's 6th = PUMP. BPM readout, PLAY/STOP top-right."
   }
@@ -50,16 +50,16 @@ static void layout(void) {
     roomy = (w >= 240);
     if (roomy) {                       // 320x200 — roomy, FONT_NORMAL text
         hfont = FONT_NORMAL;
-        padx = 6; pady = 28; padw = 80; padh = 78;
+        padx = 6; pady = 28; padw = 80; padh = 74;
         kx[0] = 116; kx[1] = 158; kx[2] = 200; kx[3] = 242; kx[4] = 300;
         ky1 = 48; ky2 = 90;
-        gx = 40; gy = 118; sx = 17; sy = 19; cw = 15; ch = 16;   // 4 rows fit in 118..194
+        gx = 40; gy = 118; sx = 17; sy = 15; cw = 15; ch = 13;   // 5 rows fit in 118..193
     } else {                           // 160x100 — compact pocket face, FONT_SMALL
         hfont = FONT_SMALL;
-        padx = 3; pady = 14; padw = 42; padh = 40;
+        padx = 3; pady = 13; padw = 42; padh = 38;
         kx[0] = 56; kx[1] = 78; kx[2] = 100; kx[3] = 122; kx[4] = 144;
-        ky1 = 21; ky2 = 43;
-        gx = 20; gy = 58; sx = 8; sy = 10; cw = 7; ch = 9;       // 4 rows fit in 58..98
+        ky1 = 19; ky2 = 41;
+        gx = 20; gy = 57; sx = 8; sy = 8; cw = 7; ch = 7;        // 5 rows fit in 57..97 (labels clear at 56)
     }
 }
 
@@ -67,14 +67,15 @@ static MorphKit kit;
 static bool grid[ROWS][STEPS];
 static bool hopen[STEPS];        // HAT row: this step is an OPEN hat (long, choked by the next closed)
 
-static const int LIT[ROWS] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN };
+static const int LIT[ROWS] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN, CLR_BLUE };
 
 // a default groove that shows the box off the moment it loads
 static const char *PRESET[ROWS] = {
     "x...x...x...x...",   // KICK — four on the floor
     "....x.......x...",   // SNARE — backbeat
     "..x.x.x.x.x.x.x.",   // HAT — running off-beats
-    "x.......x...x...",   // PLUCK — a sparse bass root (lock TUNE per step for a line)
+    "x.......x...x...",   // PLUCK — a sparse synth-bass root (lock TUNE per step for a line)
+    "x...x...x...x...",   // UPRIGHT — a walking quarter-note bass (lock TUNE per step)
 };
 
 static int  focus    = 0;        // which voice the top knob rows edit
@@ -317,8 +318,9 @@ void draw(void) {
         line(px, y + 1, px, y + h - 2, CLR_DARK_GREY);
         // X-axis labels are voice-aware: drums travel 808→909, the pluck travels dark→bright.
         int pv = locking ? sel_r : focus;
-        const char *xlo = (pv == MD_PLUCK) ? "DARK" : "808";
-        const char *xhi = (pv == MD_PLUCK) ? "BRT"  : "909";
+        bool melodic = (pv == MD_PLUCK || pv == MD_UPRIGHT);
+        const char *xlo = melodic ? "DARK" : "808";
+        const char *xhi = melodic ? "BRT"  : "909";
         font(hfont);
         print("TUNE", x + 2, y + 1, CLR_MEDIUM_GREY);                          // Y axis (pitch)
         print(xlo, x + 2, y + h - fh - 1, CLR_MEDIUM_GREY);

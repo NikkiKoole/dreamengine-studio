@@ -35,9 +35,9 @@
 #include "studio.h"
 #include <math.h>   // powf
 
-// ── the voices: three drums (808↔909 via CHAR) + a melodic PLUCK (CHAR = dark↔bright) ──
-enum { MD_KICK, MD_SNARE, MD_HAT, MD_PLUCK, MD_NV };
-static const char *MD_NAME[MD_NV] = { "KICK", "SNAR", "HAT", "PLUK" };
+// ── voices: three drums (808↔909 via CHAR) + melodic PLUCK + UPRIGHT bass (bowed pizz) ──
+enum { MD_KICK, MD_SNARE, MD_HAT, MD_PLUCK, MD_UPRIGHT, MD_NV };
+static const char *MD_NAME[MD_NV] = { "KICK", "SNAR", "HAT", "PLUK", "UPRT" };
 
 // ── the parameter superset (0..1). Each voice reads the subset in MD_PANEL[]. ──
 enum { MD_CHAR, MD_TUNE, MD_DECAY, MD_PUNCH, MD_SNAP, MD_CLICK, MD_DRIVE,
@@ -57,10 +57,12 @@ static const MDKnob MD_PANEL[MD_NV][MD_PANEL_N] = {
       {MD_SUB,"METL"}, {MD_CUT,"CUT"},  {MD_RES,"RES"},   {MD_DRIVE,"DRV"},{MD_LEVEL,"LVL"} },   // HAT
     { {MD_CHAR,"CHAR"},{MD_TUNE,"TUNE"},{MD_DECAY,"DEC"}, {MD_TONE,"TONE"},{MD_CUT,"CUT"},
       {MD_RES,"RES"},  {MD_DRIVE,"DRV"},{MD_PUNCH,"ATK"}, {MD_SUB,"OCT"},  {MD_LEVEL,"LVL"} },   // PLUCK (melodic)
+    { {MD_CHAR,"CHAR"},{MD_TUNE,"TUNE"},{MD_DECAY,"RING"},{MD_TONE,"PRES"},{MD_CUT,"CUT"},
+      {MD_RES,"RES"},  {MD_DRIVE,"DRV"},{MD_PUNCH,"ATK"}, {MD_SUB,"OCT"},  {MD_LEVEL,"LVL"} },   // UPRIGHT (bowed pizz)
 };
 
-// ── instrument-slot layout: 8 slots (kick body+click+sub, snare + hat two each, pluck one) ──
-enum { MDS_KICK, MDS_KICKC, MDS_KICKS, MDS_SNB, MDS_SNN, MDS_HC, MDS_HO, MDS_PLK, MD_NSLOT };
+// ── instrument-slot layout: 9 slots (kick 3, snare 2, hat 2, pluck 1, upright 1) ──
+enum { MDS_KICK, MDS_KICKC, MDS_KICKS, MDS_SNB, MDS_SNN, MDS_HC, MDS_HO, MDS_PLK, MDS_UPR, MD_NSLOT };
 
 typedef struct {
     int   base;
@@ -75,6 +77,7 @@ static const float MD_DEF[MD_NV][MD_NPARAM] = {
     {  0.30f,0.38f,0.42f,0.30f,0.30f,0.00f,0.05f,0.45f,0.20f,0.55f,0.45f,0.00f,0.70f },  // SNARE
     {  0.55f,0.53f,0.22f,0.50f,0.50f,0.00f,0.00f,0.45f,0.30f,0.80f,0.50f,0.85f,0.65f },  // HAT
     {  0.40f,0.20f,0.50f,0.10f,0.50f,0.00f,0.10f,0.55f,0.20f,0.40f,0.50f,0.50f,0.72f },  // PLUCK
+    {  0.45f,0.18f,0.55f,0.30f,0.50f,0.00f,0.05f,0.45f,0.15f,0.30f,0.50f,0.50f,0.75f },  // UPRIGHT
 };
 
 // ── absolute param → engine-unit mappings ────────────────────────────────────
@@ -155,6 +158,19 @@ static void md__resolve(const MorphKit *k, int v, MDRes *r) {
         r->drv  = p[MD_DRIVE];
         break;
     }
+    case MD_UPRIGHT: {  // the double bass — INSTR_BOWED pizz (from walkroll/walkbox)
+        r->osc  = INSTR_BOWED; r->filt = FILTER_LOW;
+        int oct = (int)((p[MD_SUB] - 0.5f) * 4.0f + (p[MD_SUB] >= 0.5f ? 0.5f : -0.5f));
+        r->midi = md_penta(p[MD_TUNE], 33) + oct * 12;
+        r->dec  = md_lin(p[MD_DECAY], 120, 1600);            // RING: it decays on its own
+        r->harm = MD_L(0.70f, 0.10f, ch);                    // CHAR: bow position — dark/tasto → bright/ponticello
+        r->timbre = p[MD_TONE];                              // PRES: bow pressure
+        r->morph  = 0.45f;
+        r->cut  = md_exp(p[MD_CUT], 300, 4.5f);              // 300..6800 pickup fine
+        r->res  = md_lin(p[MD_RES], 0, 8);
+        r->drv  = p[MD_DRIVE];
+        break;
+    }
     }
 }
 
@@ -205,6 +221,18 @@ static void morph_apply(MorphKit *k, int v) {
         instrument_drive(b + MDS_PLK, r.drv);
         break;
     }
+    case MD_UPRIGHT: {
+        int atk = md_lin(k->p[v][MD_PUNCH], 2, 30);          // ATK: pluck attack
+        instrument(b + MDS_UPR, INSTR_BOWED, atk, 0, 7, r.dec);
+        instrument_mode(b + MDS_UPR, MODE_BOW_PIZZ, 1.0f);   // pizzicato — seed a pluck, bow off
+        instrument_harmonics(b + MDS_UPR, r.harm);
+        instrument_timbre(b + MDS_UPR, r.timbre);
+        instrument_morph(b + MDS_UPR, r.morph);
+        instrument_filter(b + MDS_UPR, FILTER_LOW, r.cut, r.res);
+        instrument_drive(b + MDS_UPR, r.drv);
+        instrument_reverb(b + MDS_UPR, 0.16f);
+        break;
+    }
     }
 }
 
@@ -253,6 +281,9 @@ static void morph_fire(MorphKit *k, int v, int boost, int delay) {
         break;
     case MD_PLUCK:  // the melodic voice — one plucked note at its pentatonic pitch
         schedule_hit(delay, r.midi, b + MDS_PLK, vol, r.dec);
+        break;
+    case MD_UPRIGHT:  // the double bass — one pizz note, rings down on its own
+        schedule_hit(delay, r.midi, b + MDS_UPR, vol, r.dec);
         break;
     }
 }

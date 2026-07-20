@@ -85,12 +85,23 @@ static int  g_bpm    = 124;
 static float k_swing = 0.0f;     // global shuffle 0..1
 static float k_pump  = 0.55f;    // master sidechain depth
 
+// ── per-step LANES (acidcandy's p-lock lesson): a step carries more than on/off ──
+// PROB/VEL are 0..1, default 1 (full bar, pull DOWN to reduce). TUNE/DEC/CHAR are bipolar
+// offsets around the voice knob (default 0.5 = follow) — wired in increment 2.
+enum { PL_PROB, PL_VEL, PL_TUNE, PL_DEC, PL_CHAR, PL_N };
+static float pl[ROWS][STEPS][PL_N];
+// the grid's edit mode: STEP = on/off; a lane = a pull-down bar for that param.
+enum { LN_STEP, LN_PROB, LN_VEL, LN_N };
+static int  lane = LN_STEP;
+static const char *LN_NAME[LN_N] = { "STEP", "PROB", "VEL" };
+static const int   LN_PL  [LN_N] = { -1, PL_PROB, PL_VEL };   // pl[] index the lane edits
+
 typedef struct { int id, paint, lastR, lastC; } Ptr;   // id MUST be first (pointer.h contract)
 static Ptr ptr[PTR_MAX];
 
-static void fire_row(int r, int delay) {
-    if (r == MD_HAT && hopen[cur_step]) morph_fire_open(&kit, 0, delay);
-    else                                morph_fire(&kit, r, 0, delay);
+static void fire_row(int r, int boost, int delay) {
+    if (r == MD_HAT && hopen[cur_step]) morph_fire_open(&kit, boost, delay);
+    else                                morph_fire(&kit, r, boost, delay);
     flash[r] = frame();
 }
 
@@ -98,8 +109,11 @@ void init(void) {
     morph_build(&kit, 9);        // voice slots 9..9+MD_NSLOT-1
 
     for (int r = 0; r < ROWS; r++)
-        for (int c = 0; c < STEPS; c++)
+        for (int c = 0; c < STEPS; c++) {
             grid[r][c] = (PRESET[r][c] == 'x');
+            pl[r][c][PL_PROB] = 1.0f; pl[r][c][PL_VEL] = 1.0f;   // full = always, full velocity
+            pl[r][c][PL_TUNE] = pl[r][c][PL_DEC] = pl[r][c][PL_CHAR] = 0.5f;   // centre = follow knob
+        }
 
     sidechain_key(kit.base + MDS_KICK, 0, 1.0f);   // the kick body IS the pump trigger
 
@@ -132,8 +146,12 @@ void update(void) {
             last_16  = sixteenth;
             cur_step = sixteenth % STEPS;
             int sw = (cur_step & 1) ? (int)(k_swing * 0.6f * (15000.0f / g_bpm)) : 0;
-            for (int r = 0; r < ROWS; r++)
-                if (grid[r][cur_step]) fire_row(r, sw);
+            for (int r = 0; r < ROWS; r++) {
+                if (!grid[r][cur_step]) continue;
+                if (rnd(1000) >= (int)(pl[r][cur_step][PL_PROB] * 1000)) continue;   // PROB gate
+                int boost = -(int)((1.0f - pl[r][cur_step][PL_VEL]) * 6.0f + 0.5f);  // VEL → velocity
+                fire_row(r, boost, sw);
+            }
         }
     }
 
@@ -162,17 +180,28 @@ void update(void) {
         }
     }
 
-    // ── touch/mouse: tap a cell to toggle (hat cycles off→closed→open→off), drag to paint a
-    // run. Uses the shared pointer.h pool (groovebox's proven pattern) — PTR_ACQUIRE tracks each
-    // finger by id (handling the negative synthetic-mouse id), touch_ended_*() releases it. ──
+    // ── touch/mouse (pointer.h pool). STEP mode: tap toggles (hat cycles off→closed→open),
+    // drag paints a run. A LANE mode (PROB/VEL): a finger sets that cell's bar from its Y, and
+    // sweeps a contour as it drags across — the acidcandy PROB/PCF-lane feel. ──
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i), r, c;
         bool fresh;
         Ptr *p = PTR_ACQUIRE(ptr, id, &fresh);
         if (!p) continue;                                  // pool full
+        bool on = cell_rc(tx, ty, &r, &c);
         if (fresh) {
-            if (!cell_rc(tx, ty, &r, &c)) { p->id = PTR_NONE; continue; }  // off the grid — not ours
-            p->id = id; p->lastR = r; p->lastC = c;
+            if (!on) { p->id = PTR_NONE; continue; }        // landed off the grid — not ours
+            p->id = id; p->paint = -1; p->lastR = p->lastC = -1;
+        }
+        if (!on) continue;                                 // dragged off the grid — hold, do nothing
+
+        if (lane != LN_STEP) {                             // LANE edit: set this cell's bar from Y
+            float v = 1.0f - (float)(ty - (gy + r * sy)) / (ch - 1);
+            pl[r][c][LN_PL[lane]] = v < 0 ? 0 : v > 1 ? 1 : v;
+            p->lastR = r; p->lastC = c;
+            continue;
+        }
+        if (fresh) {                                       // STEP: decide + start the stroke
             if (r == MD_HAT) {                             // hat cell CYCLES: off → closed → open → off
                 if (!grid[r][c])    { grid[r][c] = true; hopen[c] = false; }   // → closed
                 else if (!hopen[c]) { hopen[c] = true; }                       // → open
@@ -185,13 +214,14 @@ void update(void) {
             } else {
                 p->paint = !grid[r][c];
                 grid[r][c] = p->paint;
-                if (p->paint) fire_row(r, 0);
+                if (p->paint) fire_row(r, 0, 0);
             }
-        } else if (cell_rc(tx, ty, &r, &c) && (r != p->lastR || c != p->lastC)) {
-            p->lastR = r; p->lastC = c;                    // drag: extend the stroke onto a new cell
-            grid[r][c] = p->paint;
+            p->lastR = r; p->lastC = c;
+        } else if (p->paint >= 0 && (r != p->lastR || c != p->lastC)) {
+            grid[r][c] = p->paint;                         // drag: extend the stroke onto a new cell
             if (r == MD_HAT) hopen[c] = false;             // dragging paints CLOSED hats (tap to cycle open)
-            if (p->paint) fire_row(r, 0);
+            if (p->paint) fire_row(r, 0, 0);
+            p->lastR = r; p->lastC = c;
         }
     }
     for (int i = 0; i < touch_ended_count(); i++) {
@@ -215,6 +245,8 @@ void draw(void) {
     print(bt, hx + (roomy ? 44 : 28), 3, CLR_LIGHT_GREY);
     int bw = roomy ? 48 : 32, bhh = roomy ? 13 : 9;
     if (ui_button(screen_w() - bw - 2, 1, bw, bhh, playing ? "STOP" : "PLAY")) playing = !playing;
+    // LANE selector: cycles STEP → PROB → VEL. When != STEP the grid edits that lane as bars.
+    if (ui_button(screen_w() - bw - bw - 6, 1, bw, bhh, LN_NAME[lane])) lane = (lane + 1) % LN_N;
 
     // ── the MORPH PAD (left): CHAR × TUNE of the focused voice, 808/909 landmarks ──
     {
@@ -256,9 +288,17 @@ void draw(void) {
             int x = gx + c * sx;
             int bg = (c % 4 == 0) ? CLR_DARK_GREY : CLR_DARKER_GREY;
             rectfill(x, y, cw, ch, bg);
-            if (grid[r][c]) {
-                rectfill(x + 1, y + 1, cw - 2, ch - 2, LIT[r]);
-                if (r == MD_HAT && hopen[c]) rect(x + 2, y + 2, cw - 4, ch - 4, CLR_WHITE);  // open hat = ringed
+            if (lane == LN_STEP) {                          // on/off blocks
+                if (grid[r][c]) {
+                    rectfill(x + 1, y + 1, cw - 2, ch - 2, LIT[r]);
+                    if (r == MD_HAT && hopen[c]) rect(x + 2, y + 2, cw - 4, ch - 4, CLR_WHITE);  // open hat = ringed
+                }
+            } else if (grid[r][c]) {                        // LANE: a pull-down bar (dim on OFF steps)
+                float v = pl[r][c][LN_PL[lane]];
+                int bh = (int)(v * (ch - 2) + 0.5f);
+                rectfill(x + 1, y + ch - 1 - bh, cw - 2, bh, LIT[r]);
+            } else {
+                rectfill(x + 1, y + ch - 2, cw - 2, 1, CLR_DARK_GREY);   // off-step floor tick
             }
             if (c == cur_step && playing) rect(x, y, cw, ch, CLR_WHITE);   // playhead
         }

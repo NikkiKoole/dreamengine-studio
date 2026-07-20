@@ -124,6 +124,12 @@ static inline Face face_layout(Box area, FaceZone *z, int n, int lane_cols) {
 
 // face_col — column `i` of the shared register, occupying `band`'s vertical extent. Use it
 // for BOTH a LANE zone AND the hero's per-step overlay, and they line up by construction.
+// The register is anchored to the FULL content width (it takes only the band's y/h, never
+// its x) — that's what guarantees alignment. So per-step content that must be INDENTED
+// (e.g. a drum grid sitting after a left name-gutter) can't use face_col; drop to lay.h and
+// build a LOCAL lane on the sub-box: `LayLane g = lay_lane(sub, cols);
+// lay_lane_cell(g, band, i, gap)`. (Escape hatch — surfaced converting chipjam; scaffold,
+// not straitjacket.)
 static inline Box face_col(Face *f, Box band, int i, float gap) {
     return lay_lane_cell(f->lane, band, i, gap);
 }

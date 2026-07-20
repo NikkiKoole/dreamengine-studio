@@ -1325,7 +1325,7 @@
   },
   {
     "title": "Tiny Chip Jam (mockup)",
-    "description": "WIP chiptune RACK on the acidcandy device-face — a 'Tiny Chip Jam' sibling at 160x100 x4. THREE-PART layout: candy KNOBS on top, a green SCREEN in the middle, a colour PLAY surface below. Five machines (keys 1-5): PU1 is WIRED FOR REAL — a monophonic INSTR_SQUARE pulse voice, retriggered per 16th, with LIVE note_duty and a working ARPEGGIO on the arp steps (draggable DUTY/ATK/DEC/ARP/SWP knobs). PU2/TRI/NSE/MST are still LOOK mockups. PU1 audio: one held voice (note_on handle), retriggered each step; note_duty ridden live from the DUTY knob (maps to pulse width); ARP steps cycle a major chord {0,4,7,12} on the held voice via note_pitch at ARP-knob rate; SWP glides the pitch into the note; ATK/DEC rebuild the square instrument's envelope on change. The bet: a chiptune pulse channel IS a 303 line in UX, so PU1/PU2/TRI share the melodic face; NSE is the drum face; MST is master. Auto-plays on load; SPACE toggles transport. SPACE = play/stop. Keys 1-5 switch face. PU1: drag DUTY (pulse width), ATK/DEC (envelope), ARP (arp speed), SWP (pitch sweep) — vertical drag or wheel. Other faces are draw-only for now.",
+    "description": "WIP chiptune RACK on the device-face paradigm — a 'Tiny Chip Jam' sibling. NOW RESPONSIVE via face.h (Layer 3 of responsive-first-device-face.md): the layout is a 4-row FaceZone[] table (nav band · knob band · green SCREEN hero · play-surface lane) instead of hardcoded 160x100 coordinates, so it reflows to any device and the piano-roll + note-bars share ONE full-width register (they used to be hand-aligned at different widths). Five machines (keys 1-5): PU1 is WIRED FOR REAL — a monophonic INSTR_SQUARE pulse voice, retriggered per 16th, with LIVE note_duty and a working ARPEGGIO (draggable DUTY/ATK/DEC/ARP/SWP knobs). PU2/TRI/NSE/MST are still LOOK mockups. The face.h conversion (the Layer-3 proving step): draw() became face_resize() -> face_area() -> face_layout() -> draw into f.box[i], and each face draws into the passed zone Boxes with lay_grid + face_col instead of magic numbers. Surfaced by the conversion: chipjam's flanking soft-keys (SEQ/FLAG/FX/GEN left, KEY/PAT right) fought the full-width register, so the grammar moved them to a horizontal nook at the top of the screen and the roll went full-width — the register principle enforced by construction. Audio is unchanged: one held voice (note_on handle) retriggered each step; note_duty ridden live; ARP cycles a major chord; ATK/DEC rebuild the square envelope on change. SPACE = play/stop. Keys 1-5 switch face. PU1: drag DUTY (pulse width), ATK/DEC (envelope), ARP (arp speed), SWP (pitch sweep) — vertical drag or wheel. Other faces are draw-only for now. Resize / rotate — face.h reflows it, never scales.",
     "file": "chipjam.cart.png",
     "created": "2026-07-19",
     "kind": [
@@ -1334,7 +1334,8 @@
     ],
     "teaches": [],
     "collection": [
-      "device-face"
+      "device-face",
+      "responsive"
     ]
   },
   {

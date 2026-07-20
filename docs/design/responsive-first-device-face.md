@@ -81,8 +81,26 @@ per-breakpoint arrangement is one branch — pick the `FaceZone[]` table off `de
 (TALL/WIDE/ROOMY). Worked demo: [`facedemo`](../../tools/carts/facedemo.c) — the same five zones as the
 `deviceface` starter, but the whole layout is a 5-row table and `draw()` is
 `face_resize()`→`face_area()`→`face_layout()`→draw into `f.box[i]`. Scaffold not straitjacket: every
-zone is a plain `Box`, and a bespoke face just doesn't call `face_layout()`. **Still to prove:** run it
-against 2–3 more real faces (the mockup loop) and let the maker vibe-check before Layer 4.
+zone is a plain `Box`, and a bespoke face just doesn't call `face_layout()`.
+
+*Proving pass 1 — [`chipjam`](../../tools/carts/chipjam.c) converted (2026-07-20).* Took an existing
+fixed-canvas 160×100 face (dense literal coordinates, five machines, live PU1 audio) and reflowed its
+`draw()` onto face.h — the exact retrofit case. **The grammar held**: the four zones mapped cleanly, the
+knob band cell-sized across 4/5-knob faces, and the register unified chipjam's two per-step strips (the
+piano-roll + the note-bars, previously hand-aligned at *different* widths). Audio was untouched (the
+conversion is `draw()`-only). Two findings worth keeping:
+- **Enforcement changes non-conforming faces (as intended).** chipjam's soft-keys used to *flank* the
+  roll (left `SEQ/FLAG/FX/GEN`, right `KEY/PAT`) — mild side-rails that narrowed the per-step roll. The
+  grammar has no way to express that, so they moved to a horizontal **nook** at the top of the screen and
+  the roll went full-width. A real visual change, and the right one.
+- **The register is full-width-anchored → indented per-step content needs the escape hatch.** `face_col`
+  takes only a band's y/h, never its x (that's what guarantees alignment). The drums face's grid sits
+  *after* a voice-name gutter, so it can't ride the full-width register — it drops to `lay_lane(sub, cols)`
+  on the indented sub-box (documented in `face.h` at `face_col`). This is the scaffold-not-straitjacket
+  seam working, not a bug — but it's the first thing a converter hits, so it's now called out.
+
+**Still to prove:** 1–2 more faces (a keybed-bodied one, e.g. dubjam, would stress the perform zone) and
+the maker's vibe-check before Layer 4.
 
 **Layer 4 — make it the default (optional, deepest).** A capability so a "device-face" cart gets the
 reflowing canvas + scaffold without opting in each time. Only worth it once Layer 3 proves out across

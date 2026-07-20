@@ -201,11 +201,63 @@ static void draw_C(Box body, int knobrows) {
     steprow(strip);
 }
 
+// the SCREEN as a note-POSITION editor: a pitch×step matrix (grid lines + notes placed by pitch).
+// This is where you set the note, so the bottom strip needn't carry pitch as tall bars.
+static void notegrid(Box scr) {
+    rrectfill((int)scr.x, (int)scr.y, (int)scr.w, (int)scr.h, 3, CLR_BROWNISH_BLACK);
+    Box glass = lay_inset(scr, 2);
+    rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
+    Box gc = lay_inset(glass, 2);
+    float sw = gc.w / 16.0f;
+    int base = (int)(gc.y + gc.h - 2);
+    float ppx = (gc.h - 5) / (float)PITCH_MAX;
+    blend(BLEND_AVG);
+    for (int p = 0; p <= PITCH_MAX; p += 12) { int y = base - (int)(p * ppx); line((int)gc.x, y, (int)(gc.x + gc.w - 1), y, CLR_MEDIUM_GREEN); }   // octave guides
+    for (int s = 0; s <= 16; s++) { int gx = (int)(gc.x + s * sw); line(gx, (int)gc.y, gx, (int)(gc.y + gc.h - 1), s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_BROWNISH_BLACK); }   // step grid
+    blend_reset();
+    { int cx = (int)(gc.x + g_step * sw); blend(BLEND_AVG); rectfill(cx, (int)gc.y, (int)sw, (int)gc.h, CLR_MEDIUM_GREEN); blend_reset(); }   // playhead
+    for (int s = 0; s < 16; s++) {
+        if (!p_on[s]) continue;
+        int cx = (int)(gc.x + s * sw), cw = (int)sw - 1; if (cw < 3) cw = 3;
+        int y = base - (int)(p_pit[s] * ppx);
+        int w2 = p_tie[s] ? cw + (int)sw : cw;
+        rectfill(cx + 1, y - 1, w2 - 1, 3, p_acc[s] ? CLR_LIME_GREEN : CLR_LIGHT_YELLOW);
+        if (p_sld[s] && s < 15 && p_on[s + 1]) { int ny = base - (int)(p_pit[s + 1] * ppx); line(cx + cw, y, (int)(gc.x + (s + 1) * sw), ny, CLR_LIME_GREEN); }
+    }
+}
+
+// SHORT compact step strip — on/off + accent only (pitch lives in the note-grid above)
+static void stepstrip_compact(Box c) {
+    float sw = c.w / 16.0f;
+    for (int s = 0; s < 16; s++) {
+        int cx = (int)(c.x + s * sw), cw = (int)sw - 1; if (cw < 3) cw = 3;
+        int hi = (s == g_step), on = p_on[s];
+        rrectfill(cx, (int)c.y, cw, (int)c.h, 1, on ? (hi ? CLR_WHITE : CLR_PINK) : ((s / 4) % 2 ? CLR_DARK_BROWN : CLR_BROWNISH_BLACK));
+        if (on && p_acc[s]) rectfill(cx + 1, (int)c.y + 1, cw - 2, 2, CLR_ORANGE);
+        rrect(cx, (int)c.y, cw, (int)c.h, 1, hi ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    }
+}
+
+// ── ARRANGEMENT E — 1 knob row + DF/page nook · FULL-WIDTH note-grid · SHORT step strip ──
+static void draw_E(Box body) {
+    float H = body.h;
+    Box strip = lay_split_gap(body, EDGE_BOTTOM, H * 0.13f, 2, &body);        // short compact cells
+    Box krow  = lay_split_gap(body, EDGE_TOP,    H * 0.26f, 2, &body);        // one knob row
+    Box scr   = body;                                                         // the full-width note-position editor (the star)
+    Box tog   = lay_split_gap(krow, EDGE_RIGHT, krow.w * 0.15f, 2, &krow);    // toggling space (DF / page)
+    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, 13, 13, i, 2), KN[i], KV[i]);
+    Box t1 = lay_split_gap(tog, EDGE_TOP, tog.h * 0.5f, 2, &tog);
+    cbtn(t1, "DF", 1); cbtn(tog, "1/2", 0);                                   // voicing + view-page toggles
+    notegrid(scr);
+    stepstrip_compact(strip);
+}
+
 void update(void) {
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
     if (keyp('3')) arr = 2;
     if (keyp('4')) arr = 3;
+    if (keyp('5')) arr = 4;
     g_step = (int)(now() * 8) % 16;
 }
 
@@ -226,11 +278,13 @@ void draw(void) {
     Box nav = lay_split_gap(panel, EDGE_TOP, panel.h * 0.11f, 1, &body);
     navstrip(nav);
 
-    // little A/B/C/D tag so the render is self-labelling
-    font(FONT_TINY); print(arr == 0 ? "A" : arr == 1 ? "B" : arr == 2 ? "C" : "D", (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
+    // little tag so the render is self-labelling
+    static const char *TAG[5] = { "A", "B", "C", "D", "E" };
+    font(FONT_TINY); print(TAG[arr], (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
 
     if (arr == 0)      draw_A(body);
     else if (arr == 1) draw_B(body);
     else if (arr == 2) draw_C(body, 1);
-    else               draw_C(body, 2);
+    else if (arr == 3) draw_C(body, 2);
+    else               draw_E(body);
 }

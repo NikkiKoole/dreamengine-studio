@@ -207,22 +207,45 @@ static void notegrid(Box scr) {
     rrectfill((int)scr.x, (int)scr.y, (int)scr.w, (int)scr.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(scr, 2);
     rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
-    Box gc = lay_inset(glass, 2);
+    Box inner = lay_inset(glass, 2);
+    Box ruler = lay_split_gap(inner, EDGE_LEFT, 7, 1, &inner);   // left = pitch KEYBOARD (the Y axis, made obvious)
+    Box gc = inner;
     float sw = gc.w / 16.0f;
-    int base = (int)(gc.y + gc.h - 2);
-    float ppx = (gc.h - 5) / (float)PITCH_MAX;
+    int base = (int)(gc.y + gc.h - 3);
+    float ppx = (gc.h - 6) / (float)PITCH_MAX;
+    int ph = (int)ppx < 1 ? 1 : (int)ppx;
+
+    // beat-group column shading — every other group of 4 gets a faint band → reads as a step matrix
     blend(BLEND_AVG);
-    for (int p = 0; p <= PITCH_MAX; p += 12) { int y = base - (int)(p * ppx); line((int)gc.x, y, (int)(gc.x + gc.w - 1), y, CLR_MEDIUM_GREEN); }   // octave guides
-    for (int s = 0; s <= 16; s++) { int gx = (int)(gc.x + s * sw); line(gx, (int)gc.y, gx, (int)(gc.y + gc.h - 1), s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_BROWNISH_BLACK); }   // step grid
+    for (int s = 0; s < 16; s++) if ((s / 4) % 2 == 0) rectfill((int)(gc.x + s * sw), (int)gc.y, (int)sw, (int)gc.h, CLR_BROWNISH_BLACK);
+    // octave guide lines + step gridlines
+    for (int p = 0; p <= PITCH_MAX; p += 12) { int y = base - (int)(p * ppx); line((int)gc.x, y, (int)(gc.x + gc.w - 1), y, CLR_MEDIUM_GREEN); }
+    for (int s = 0; s <= 16; s++) { int gx = (int)(gc.x + s * sw); line(gx, (int)gc.y, gx, (int)(gc.y + gc.h - 1), s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_DARK_BROWN); }
     blend_reset();
-    { int cx = (int)(gc.x + g_step * sw); blend(BLEND_AVG); rectfill(cx, (int)gc.y, (int)sw, (int)gc.h, CLR_MEDIUM_GREEN); blend_reset(); }   // playhead
+
+    // left keyboard: white/black keys per semitone → the pitch axis reads at a glance
+    rectfill((int)ruler.x, (int)ruler.y, (int)ruler.w, (int)ruler.h, CLR_BROWNISH_BLACK);
+    for (int p = 0; p <= PITCH_MAX; p++) {
+        int y = base - (int)(p * ppx), cls = p % 12;
+        int black = (cls == 1 || cls == 3 || cls == 6 || cls == 8 || cls == 10);
+        rectfill((int)ruler.x, y - ph + 1, (int)ruler.w - 1, ph, black ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN);
+        if (cls == 0) rectfill((int)ruler.x, y, (int)ruler.w - 1, 1, CLR_LIME_GREEN);   // root-C tick
+    }
+
+    // playhead column
+    { int cx = (int)(gc.x + g_step * sw); blend(BLEND_AVG); rectfill(cx, (int)gc.y, (int)sw, (int)gc.h, CLR_MEDIUM_GREEN); blend_reset(); }
+
     for (int s = 0; s < 16; s++) {
-        if (!p_on[s]) continue;
         int cx = (int)(gc.x + s * sw), cw = (int)sw - 1; if (cw < 3) cw = 3;
-        int y = base - (int)(p_pit[s] * ppx);
+        if (!p_on[s]) { pset(cx + cw / 2, base, s % 4 == 0 ? CLR_MEDIUM_GREEN : CLR_DARK_GREEN); continue; }   // empty step = a faint "tap here" floor dot
+        int y = base - (int)(p_pit[s] * ppx), playing = (s == g_step);
         int w2 = p_tie[s] ? cw + (int)sw : cw;
-        rectfill(cx + 1, y - 1, w2 - 1, 3, p_acc[s] ? CLR_LIME_GREEN : CLR_LIGHT_YELLOW);
-        if (p_sld[s] && s < 15 && p_on[s + 1]) { int ny = base - (int)(p_pit[s + 1] * ppx); line(cx + cw, y, (int)(gc.x + (s + 1) * sw), ny, CLR_LIME_GREEN); }
+        if (p_sld[s] && s < 15 && p_on[s + 1]) { int ny = base - (int)(p_pit[s + 1] * ppx); line(cx + cw, y, (int)(gc.x + (s + 1) * sw), ny, CLR_LIME_GREEN); }   // slide ramp (under the block)
+        if (playing) { blend(BLEND_AVG); rrectfill(cx, y - 3, w2, 7, 1, CLR_WHITE); blend_reset(); }   // playing-note glow
+        int col = playing ? CLR_WHITE : p_acc[s] ? CLR_LIME_GREEN : CLR_LIGHT_YELLOW;
+        rrectfill(cx + 1, y - 1, w2 - 1, 4, 1, col);                        // chunky note block (an object, not a bar)
+        rrect(cx + 1, y - 1, w2 - 1, 4, 1, CLR_BROWNISH_BLACK);
+        if (p_acc[s]) pset(cx + cw / 2, y - 3, CLR_ORANGE);                 // accent tick above the note
     }
 }
 

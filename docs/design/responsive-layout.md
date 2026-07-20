@@ -142,7 +142,7 @@ To be explicit: **this is just an experiment.** It's a positioning vocabulary,
 nothing more — proof that a small set of `lay_*` helpers feels right, run against
 a fake screen so it costs nothing and commits to nothing. It is *not* a layout
 engine and it does not pretend to cover everything a responsive UI eventually
-wants. Two known gaps, each its own concern, to add **only if a real cart hits
+wants. Three known gaps, each its own concern, to add **only if a real cart hits
 them** (don't pre-build them):
 
 - **Text reflow.** Today we only do the font-step trick (TINY → SMALL → NORMAL by
@@ -154,8 +154,20 @@ them** (don't pre-build them):
   **scroll offset + clip** (and, on touch, momentum) — a whole mechanism the
   layout helpers deliberately don't touch. `lay_*` decides *where things go*; it
   has no opinion on *what to do when they don't fit*.
+- **Widgets sizing to a cell — esp. round controls (knobs/pads/LEDs).** `lay_*` hands you a `Box`;
+  sizing a control *within* it (radius from the cell, capped so it can't overflow the row) and rendering
+  it cleanly at ANY size is still hand-rolled per cart. `acidcandy`'s `_knobx` is the worked case: a
+  fixed-1px bevel rim went chunky/gappy once the knob grew or the small canvas was cover-scaled on a
+  device (fixed 2026-07-20 by scaling the bevel thickness with `r` — but *only in that cart*, so the next
+  knob cart will hit it again). The real fix is a shared **`ui_knob(Box cell, float *v, label, def)` in
+  [`ui.h`](../../runtime/ui.h)** that owns sizing + the scale-clean bevel + the gear-drag/double-tap
+  gesture — a drop-in like `ui_button`, so the responsive behaviour is solved once for every cart; plus
+  maybe a tiny `lay_fit_square(Box, frac)` for the other round widgets. Rule-of-three: acidcandy is the
+  first user (it even lists "graduate the gear-drag knob into `ui_knob`" in its own todo); build it when a
+  second scalable-knob cart appears. Sizing knobs by cell **width** (× ~0.21, clamp-style) is the pattern
+  that gave "small at 160×100, bigger on a phone" from one rule — see [`canvas-density-spectrum.md`](canvas-density-spectrum.md).
 
-Neither blocks the experiment. They're noted here so nobody mistakes "the layout
+None block the experiment. They're noted here so nobody mistakes "the layout
 math is done" for "responsive UIs are done."
 
 ## Path to graduation (if the prototype proves out)

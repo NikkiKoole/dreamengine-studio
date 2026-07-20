@@ -21,6 +21,9 @@ de:meta */
 #define UI_KNOB_DRAG_PX 40       // shorter full-sweep drag to suit the tiny screen
 #include "ui.h"
 #include "morphdrum.h"   // the honest core: one parametric voice per role, 808↔909 as endpoints
+#include "pointer.h"     // the shared multi-finger pool (PTR_ACQUIRE/FIND/CLEAR) — handles the
+                         // touch_id bookkeeping right, incl. the negative synthetic-mouse id my
+                         // hand-rolled pool mis-treated as a free slot (the paint bug)
 #include <stdio.h>       // snprintf (the BPM readout)
 
 // MORPHBOX — a three-voice drum box on the idea that the 808 and the 909 are two ends
@@ -82,8 +85,8 @@ static int  g_bpm    = 124;
 static float k_swing = 0.0f;     // global shuffle 0..1
 static float k_pump  = 0.55f;    // master sidechain depth
 
-typedef struct { int id, paint, lastR, lastC; } Ptr;   // id MUST be first
-static Ptr ptr[8];
+typedef struct { int id, paint, lastR, lastC; } Ptr;   // id MUST be first (pointer.h contract)
+static Ptr ptr[PTR_MAX];
 
 static void fire_row(int r, int delay) {
     if (r == MD_HAT && hopen[cur_step]) morph_fire_open(&kit, 0, delay);
@@ -100,7 +103,7 @@ void init(void) {
 
     sidechain_key(kit.base + MDS_KICK, 0, 1.0f);   // the kick body IS the pump trigger
 
-    for (int i = 0; i < 8; i++) ptr[i].id = -1;
+    PTR_CLEAR(ptr);
 }
 
 static int cell_rc(int x, int y, int *r, int *c) {
@@ -159,49 +162,41 @@ void update(void) {
         }
     }
 
-    // ── touch/mouse: paint cells; each finger carries its own paint value ──
+    // ── touch/mouse: tap a cell to toggle (hat cycles off→closed→open→off), drag to paint a
+    // run. Uses the shared pointer.h pool (groovebox's proven pattern) — PTR_ACQUIRE tracks each
+    // finger by id (handling the negative synthetic-mouse id), touch_ended_*() releases it. ──
     for (int i = 0; i < touch_count(); i++) {
-        int tx = touch_x(i), ty = touch_y(i), tid = touch_id(i);
-        int slot = -1;
-        for (int j = 0; j < 8; j++) if (ptr[j].id == tid) { slot = j; break; }
-        if (slot < 0) {
-            for (int j = 0; j < 8; j++) if (ptr[j].id < 0) { slot = j; break; }
-            if (slot < 0) continue;
-            ptr[slot].id = tid; ptr[slot].lastR = ptr[slot].lastC = -1;
-            int r, c;
-            if (cell_rc(tx, ty, &r, &c)) {
-                if (r == MD_HAT) {                  // hat cell CYCLES: off → closed → open → off
-                    if (!grid[r][c])      { grid[r][c] = true;  hopen[c] = false; }   // → closed
-                    else if (!hopen[c])   { hopen[c] = true; }                        // → open
-                    else                  { grid[r][c] = false; hopen[c] = false; }   // → off
-                    ptr[slot].paint = grid[r][c] ? 1 : 0;
-                    if (grid[r][c]) {               // audition what it just became
-                        if (hopen[c]) morph_fire_open(&kit, 0, 0); else morph_fire(&kit, MD_HAT, 0, 0);
-                        flash[r] = frame();
-                    }
-                } else {
-                    ptr[slot].paint = !grid[r][c];
-                    grid[r][c] = ptr[slot].paint;
-                    if (ptr[slot].paint) fire_row(r, 0);
+        int id = touch_id(i), tx = touch_x(i), ty = touch_y(i), r, c;
+        bool fresh;
+        Ptr *p = PTR_ACQUIRE(ptr, id, &fresh);
+        if (!p) continue;                                  // pool full
+        if (fresh) {
+            if (!cell_rc(tx, ty, &r, &c)) { p->id = PTR_NONE; continue; }  // off the grid — not ours
+            p->id = id; p->lastR = r; p->lastC = c;
+            if (r == MD_HAT) {                             // hat cell CYCLES: off → closed → open → off
+                if (!grid[r][c])    { grid[r][c] = true; hopen[c] = false; }   // → closed
+                else if (!hopen[c]) { hopen[c] = true; }                       // → open
+                else                { grid[r][c] = false; hopen[c] = false; }  // → off
+                p->paint = grid[r][c] ? 1 : 0;
+                if (grid[r][c]) {                          // audition what it became
+                    if (hopen[c]) morph_fire_open(&kit, 0, 0); else morph_fire(&kit, MD_HAT, 0, 0);
+                    flash[r] = frame();
                 }
-                ptr[slot].lastR = r; ptr[slot].lastC = c;
-            } else ptr[slot].paint = -1;   // off the grid — the name cells are ui buttons (see draw)
-        } else {
-            int r, c;
-            if (ptr[slot].paint >= 0 && cell_rc(tx, ty, &r, &c) &&
-                (r != ptr[slot].lastR || c != ptr[slot].lastC)) {
-                grid[r][c] = ptr[slot].paint;
-                if (r == MD_HAT) hopen[c] = false;   // dragging paints CLOSED hats (tap to cycle open)
-                if (ptr[slot].paint) fire_row(r, 0);
-                ptr[slot].lastR = r; ptr[slot].lastC = c;
+            } else {
+                p->paint = !grid[r][c];
+                grid[r][c] = p->paint;
+                if (p->paint) fire_row(r, 0);
             }
+        } else if (cell_rc(tx, ty, &r, &c) && (r != p->lastR || c != p->lastC)) {
+            p->lastR = r; p->lastC = c;                    // drag: extend the stroke onto a new cell
+            grid[r][c] = p->paint;
+            if (r == MD_HAT) hopen[c] = false;             // dragging paints CLOSED hats (tap to cycle open)
+            if (p->paint) fire_row(r, 0);
         }
     }
-    for (int j = 0; j < 8; j++) {
-        if (ptr[j].id < 0) continue;
-        bool live = false;
-        for (int i = 0; i < touch_count(); i++) if (touch_id(i) == ptr[j].id) { live = true; break; }
-        if (!live) ptr[j].id = -1;
+    for (int i = 0; i < touch_ended_count(); i++) {
+        Ptr *p = PTR_FIND(ptr, touch_ended_id(i));
+        if (p) p->id = PTR_NONE;
     }
 }
 

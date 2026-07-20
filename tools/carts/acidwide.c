@@ -184,13 +184,16 @@ static void steprow(Box c) {
     }
 }
 
-// ── ARRANGEMENT C — knob row + display screen + a chunky 16-cell strip at the BOTTOM ──
-static void draw_C(Box body) {
-    Box strip = lay_split_gap(body, EDGE_BOTTOM, body.h * 0.28f, 2, &body);   // the 16-cell step strip
-    Box krow  = lay_split_gap(body, EDGE_TOP,    body.h * 0.30f, 2, &body);   // knob row
+// ── ARRANGEMENT C/D — knob block + display screen + a chunky 16-cell strip at the BOTTOM ──
+// knobrows 1 = C (13 knobs in one row — crowded labels), 2 = D (7-wide grid → 2 rows, roomy labels).
+static void draw_C(Box body, int knobrows) {
+    float H = body.h;
+    Box strip = lay_split_gap(body, EDGE_BOTTOM, H * 0.26f, 2, &body);        // the 16-cell step strip
+    Box krow  = lay_split_gap(body, EDGE_TOP, H * (knobrows == 2 ? 0.36f : 0.28f), 2, &body);   // 2 rows need more height
     Box scr   = body;                                                         // the display (piano-roll, no lanes — the strip is the step editor)
     Box endcol = lay_split_gap(krow, EDGE_RIGHT, krow.w * 0.14f, 2, &krow);
-    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, 13, 13, i, 2), KN[i], KV[i]);
+    int cols = knobrows == 2 ? 7 : 13;
+    for (int i = 0; i < 13; i++) knob_cell(lay_grid(krow, cols, 13, i, 2), KN[i], KV[i]);
     Box sw = lay_split_gap(endcol, EDGE_TOP, endcol.h * 0.5f, 2, &endcol);
     switches(sw, 1);
     softkeys(endcol, 1);
@@ -202,6 +205,7 @@ void update(void) {
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
     if (keyp('3')) arr = 2;
+    if (keyp('4')) arr = 3;
     g_step = (int)(now() * 8) % 16;
 }
 
@@ -222,10 +226,11 @@ void draw(void) {
     Box nav = lay_split_gap(panel, EDGE_TOP, panel.h * 0.11f, 1, &body);
     navstrip(nav);
 
-    // little A/B/C tag so the render is self-labelling
-    font(FONT_TINY); print(arr == 0 ? "A" : arr == 1 ? "B" : "C", (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
+    // little A/B/C/D tag so the render is self-labelling
+    font(FONT_TINY); print(arr == 0 ? "A" : arr == 1 ? "B" : arr == 2 ? "C" : "D", (int)(panel.x + panel.w - 6), (int)panel.y + 1, CLR_DARK_BROWN);
 
     if (arr == 0)      draw_A(body);
     else if (arr == 1) draw_B(body);
-    else               draw_C(body);
+    else if (arr == 2) draw_C(body, 1);
+    else               draw_C(body, 2);
 }

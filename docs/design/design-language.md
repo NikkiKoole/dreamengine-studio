@@ -159,6 +159,18 @@ rule-of-three extraction candidate (`respond`/`acidwire`/`acidcandy` each hand-r
 "scale it up" to "full reflow", set by one number (the canvas density you request) — is written up in
 [`canvas-density-spectrum.md`](canvas-density-spectrum.md).**
 
+**The copy-me starter (so nobody re-derives it).** The rule-of-three extraction above has now landed as a
+template, not a shared header: [`tools/carts/deviceface.c`](../../tools/carts/deviceface.c) — a runnable,
+heavily-commented device-face **skeleton** you fork instead of re-deriving. It ships responsive: the
+chunky-canvas `de_resize` (route 2), the [five zones](device-face-paradigm.md) stacked as bands, and the
+per-step **16-column register** shared between the display roll and the step grid so alignment is
+structural. It bakes in the four constraints the `acidwide` A–H study surfaced — the column register ·
+per-step-vs-band (knobs/nav are horizontal bands, never a width-stealing side-rail) · paging-is-fine (the
+nav tabs page the display; the step lane is permanent) · widgets-size-to-cell (`knob_cell` derives its
+radius from the cell). It's silent on purpose — it teaches the *layout*; you drop your instrument into the
+marked seams. This is **Layer 1** of [`responsive-first-device-face.md`](responsive-first-device-face.md);
+Layer 2 promotes `knob_cell` → `ui_knob(Box)` and the register → a real `Lane` in `ui.h`/`lay.h`.
+
 ## Constraints create quality — the shared DNA
 
 Several of these are the same move seen from different angles: *one honest core*, *160×100 first*, *one

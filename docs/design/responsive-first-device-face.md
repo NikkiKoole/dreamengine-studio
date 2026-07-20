@@ -1,9 +1,9 @@
 # Responsive-first device faces — building it in from the start
 
-STATUS: EXPLORING (2026-07-20) — a forward-looking plan, not yet building. Answers the maker's
-question "could we make a cart responsive-and-opinionated *from the beginning*, instead of
-retrofitting it like we did to acidcandy?" The encouraging finding: the hard, irreversible half is
-already done — what's left is cart-land layers (ADR-0006 style), sequenced cheapest → deepest.
+STATUS: BUILDING (2026-07-20) — Layer 1 (the starter) has SHIPPED; Layers 2–4 are still ahead.
+Answers the maker's question "could we make a cart responsive-and-opinionated *from the beginning*,
+instead of retrofitting it like we did to acidcandy?" The encouraging finding: the hard, irreversible
+half is already done — what's left is cart-land layers (ADR-0006 style), sequenced cheapest → deepest.
 Born from the [`acidwide`](../../tools/carts/acidwide.c) mockup session (eight arrangements A–H,
 vibe-checked by *looking*). Supersedes nothing; it's the graduation target for
 [`canvas-density-spectrum.md`](canvas-density-spectrum.md) + [`responsive-layout.md`](responsive-layout.md).
@@ -44,10 +44,15 @@ That was the `§4b` wall in [`responsive-layout.md`](responsive-layout.md) / the
 [`device-adaptive-layout.md`](device-adaptive-layout.md), and it's climbed. Everything below is
 cart-land, low-risk, no more engine surgery.
 
-**Layer 1 — a device-face *starter* (cheap, mostly docs + a template).** Today every face re-copies
-the chunky-canvas `de_resize` block and re-derives its bands by hand. Promote that into **one template
-cart + a recipe** so a new face starts responsive *by starting from it*. Pure capture of what
-acidcandy/acidwide already taught; folds into [`design-language.md`](design-language.md).
+**Layer 1 — a device-face *starter* (cheap, mostly docs + a template). SHIPPED 2026-07-20.**
+Today every face re-copies the chunky-canvas `de_resize` block and re-derives its bands by hand.
+Promoted into **one template cart + a recipe** so a new face starts responsive *by starting from it* —
+[`tools/carts/deviceface.c`](../../tools/carts/deviceface.c): a runnable, heavily-commented skeleton
+that ships the route-2 chunky canvas, the five zones stacked as bands, and the shared 16-column
+register (display roll ⇄ step grid), with all four constraints baked in and marked seams to drop an
+instrument into. It's silent on purpose (teaches the layout, not the sound). Recipe folded into
+[`design-language.md`](design-language.md) ("the copy-me starter"). Pure capture of what
+acidcandy/acidwide already taught — no engine surgery.
 
 **Layer 2 — widgets + a lane that own the rules (medium; `ui.h`/`lay.h` additions).**
 - **`ui_knob(Box)` / `ui_button(Box)`** — controls that size to a cell (the backlogged widget-in-a-cell

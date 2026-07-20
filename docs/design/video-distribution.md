@@ -1,8 +1,10 @@
 # Video distribution — pushing a clip to YouTube (lever #2's last mile)
 
-STATUS: READY (2026-07-20) — specced, buildable, not built. The platform + build-shape
-decision is settled in [ADR-0033](../decisions/0033-youtube-first-video-distribution.md);
-this doc is the tool design (contract, auth, metadata, staging).
+STATUS: BUILDING (2026-07-20) — `tools/youtube-push.js` is built and verified for every local
+path (`--check`, metadata derivation, `--dry-run`, the bake/transcode → 9:16 composite, the
+>60s Short guard, `--landscape`/`--public`); the live OAuth sign-in + resumable upload are
+written but **await the maker's Google Cloud creds** to run. The platform + build-shape
+decision is settled in [ADR-0033](../decisions/0033-youtube-first-video-distribution.md).
 
 ## The gap this closes
 
@@ -22,8 +24,10 @@ composes a reel; this doc ships one out.
 
 ## The tool — `tools/youtube-push.js`
 
-Modelled line-for-line on [`asc-push.js`](store-agents.md) (ADR-0026): node, no heavy deps,
-creds outside git, `--dry-run` GETs live state + diffs, `--check` is an offline gate.
+Modelled on [`asc-push.js`](store-agents.md) (ADR-0026): node, no heavy deps, creds outside
+git (`~/.youtube/`), `--dry-run` prints the exact upload plan without touching the network,
+`--check` is an offline gate. (Unlike asc-push there's no live-state *diff* — a new upload has
+nothing to compare against — so `--dry-run` shows the plan rather than a diff.)
 
 ```bash
 # the common path — bake (if needed) the cart's clip and upload it as a Short
@@ -38,11 +42,21 @@ node tools/youtube-push.js --check                                  # offline: c
 - **Input** — a committed recipe (baked via `make-gif.js` if the clip isn't already in
   `editor/public/clips/<cart>/`), or a baked app reel (`editor/public/reels/<app>.webm`).
 - **Default output shape = a Short.** Per ADR-0033 a Short is just a ≤60s, 9:16 upload with
-  `#Shorts` in the description — so the tool bakes/selects the `--ratio 9:16` cut and, if the
-  take runs longer than 60s, **refuses with a clear message** (trim first) rather than silently
-  uploading a non-Short. `--landscape` opts into the full clip as a normal video.
+  `#Shorts` in title+description. `make-gif.js` has no `--ratio` flag, so **the tool composites
+  the Short itself** (ffmpeg, same "composite don't stretch" rule as `store-shots.js`): it
+  integer-upscales the landscape clip and centres it on a 1080×1920 canvas over a solid bg
+  (`config.shortBg`), leaving crisp pixels and letterbox bars rather than a stretched frame. If
+  the take runs longer than 60s it **refuses with a clear message** (trim first, or
+  `--landscape`) rather than silently uploading a non-Short. `--landscape` opts into the full
+  clip as a normal 16:10 video (no 60s limit).
 - **Uploads mp4 (h264/AAC)** — the format YouTube ingests cleanest, at a low CRF source so
-  YouTube's re-encode has good material (same reasoning as the Reddit bake).
+  YouTube's re-encode has good material (same reasoning as the Reddit bake). `make-gif.js`'s mp4
+  path already emits libx264/yuv420p/AAC/`+faststart`, so a cart clip is upload-ready as baked;
+  a `.webm` app reel is transcoded to mp4 first.
+
+> The letterbox bars are the honest zero-engine v0.1 shape. A *true* full-bleed 9:16 wants the
+> cart reflowed to a vertical canvas (it's `resizable` — [device-adaptive-layout](device-adaptive-layout.md)),
+> which is a per-cart authoring job, not this tool's. Parked as a follow-up.
 
 ## Auth — OAuth2, the one difference from asc-push
 
@@ -74,18 +88,22 @@ Own generated audio → **no Content ID / copyright risk**, so uploads are safe 
 
 ## Staging
 
-- **v0.1 — single clip upload.** Bake-if-needed → resumable upload → return the URL. Landscape
-  and 9:16, `--dry-run`, `--check`, creds in `~/.youtube/`. The whole point in the smallest form.
+- **v0.1 — single clip upload. BUILT (2026-07-20).** Bake-if-needed → resumable upload → return
+  the URL. Landscape and 9:16, `--dry-run`, `--check`, creds in `~/.youtube/`. The whole point
+  in the smallest form.
 - **v0.2 — Shorts as the default** + `--reel <app>` to push a composed app trailer. The >60s
-  guard + `#Shorts` handling.
-- **v0.3 — scheduled drip.** A launchd/cron runner (twin of
+  guard + `#Shorts` handling. **BUILT alongside v0.1 (2026-07-20)** — it fell out of the same
+  code, so the shipped tool is v0.1+v0.2. *Remaining before "shipped":* one real upload once the
+  OAuth client exists (`--auth` → a `--dry-run`-verified `--public` push), to prove the live path.
+- **v0.3 — scheduled drip.** NOT built. A launchd/cron runner (twin of
   [`reddit-gaps-drip.sh`](demand-discovery.md)) that pushes the newest committed clip on a
   cadence — a steady lever-#2 heartbeat without hand-work.
 
 ## Open questions
 
-- **Channel model** — one channel for the whole shelf, or per-app? Start with one; the tool
-  takes the target channel from `~/.youtube/config.json`.
+- **Channel model** — one channel for the whole shelf, or per-app? v0.1 uploads to whatever
+  channel the cached OAuth token authorizes (one account = one signed-in channel); per-app would
+  need separate tokens or a brand-account selector. Start with one.
 - **Privacy default** — upload `unlisted` (review before going public) or straight to `public`?
   Lean `unlisted` for v0.1 so a bad take never auto-publishes; `--public` to commit.
 - **Thumbnail** — YouTube auto-picks a frame; `store-shots.js` / `store-contact.js` already

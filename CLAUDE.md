@@ -291,6 +291,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              reddit-gaps-drip.sh  the scheduled-drip RUNNER for reddit-gaps (loaded by the macOS LaunchAgent
                              com.dreamengine.reddit-gaps-drip): resolves node under launchd's bare env + fires
                              `reddit-gaps.js --drip` (stalest sub in reddit-gaps-subs.txt) every 6h. `zsh tools/reddit-gaps-drip.sh` to fire once
+             youtube-push.js the DISTRIBUTION last mile of demand lever #2 (twin of asc-push, ADR-0033): recipe →
+                             bake mp4 (make-gif) → composite a 9:16 SHORT (integer-upscale + pad, never stretch; >60s
+                             refused) → resumable upload → URL back. --landscape = full 16:10; --reel <app> = an app
+                             trailer; metadata derived from cart de:meta / app listing (no hand-typed copy). OAuth2
+                             creds in ~/.youtube/ (--auth one-time), NEVER git. --dry-run plan / --check offline gate.
+                             Design: docs/design/video-distribution.md
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the

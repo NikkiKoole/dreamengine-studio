@@ -84,6 +84,7 @@
 #define UI_H
 
 #include "studio.h"
+#include "lay.h"              // Box + lay_* — ui_knob_cell/ui_button_cell size to a lay.h cell (guarded; safe to also include lay.h in the cart)
 #include <stdint.h>
 #ifdef DE_TRACE
 #include <stdio.h>          // ui_begin()/ui_end() tripwire warning (debug builds only)
@@ -566,11 +567,11 @@ static int ui_slider(float *v, int x, int y, int w, const char *label) {
     return *v != old;
 }
 
-// rotary knob editing *v in 0..1; x,y = CENTER. Relative vertical drag
-// (UI_KNOB_DRAG_PX for a full sweep); hover + wheel = fine-tune.
-// Returns 1 if *v changed this frame.
-static int ui_knob(float *v, int x, int y, const char *label) {
-    int r = UI_KNOB_R;
+// rotary knob core: edit *v in 0..1, x,y = CENTER, radius r. Relative vertical drag
+// (UI_KNOB_DRAG_PX for a full sweep); hover + wheel = fine-tune. Returns 1 if *v
+// changed this frame. The shared body of ui_knob (fixed radius) and ui_knob_cell
+// (radius from a cell); call those, not this, unless you're picking your own radius.
+static int ui_knob_at(float *v, int x, int y, int r, const char *label) {
     int fi = ui_reg(v, x - r, y - r, 2 * r + 1, 2 * r + 1, 1);
     int focused = ui_focus_on && fi >= 0 && fi == ui_focus_i;
     float old = *v;
@@ -595,6 +596,26 @@ static int ui_knob(float *v, int x, int y, const char *label) {
                      hot ? UI_COL_TEXT_HOT : UI_COL_TEXT);
     if (focused) ui_ring(x - r - 2, y - r - 2, 2 * r + 5, 2 * r + 5);
     return *v != old;
+}
+
+// rotary knob editing *v in 0..1; x,y = CENTER, fixed UI_KNOB_R radius.
+static int ui_knob(float *v, int x, int y, const char *label) {
+    return ui_knob_at(v, x, y, UI_KNOB_R, label);
+}
+
+// ui_knob_cell — the Box/responsive twin of ui_knob: a knob sized to its CELL. The
+// radius comes from the cell HEIGHT (so it keeps a constant margin above/below as a
+// chunky canvas scales the whole face up — a width-scaled knob would swell to fill a
+// wide cell and eat the row); the width only CAPS it so it can't overflow a narrow
+// cell. Centered horizontally, label below. Bind it to a lay_grid() / lay_cell() cell
+// and the layout owns the sizing — no hand-tuned radius. Returns 1 if *v changed.
+static int ui_knob_cell(Box c, float *v, const char *label) {
+    float rh = c.h * 0.30f, rw = c.w * 0.42f;
+    int r = (int)(rh < rw ? rh : rw);
+    if (r < 4) r = 4; if (r > 14) r = 14;
+    int cx = (int)(c.x + c.w / 2), cy = (int)(c.y + r + 1);
+    if (label && cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    return ui_knob_at(v, cx, cy, r, label);
 }
 
 // widget identity from its RECT (labels can be dynamic; the rect is stable).
@@ -645,6 +666,12 @@ static int ui_button(int x, int y, int w, int h, const char *label) {
                      pressed ? UI_COL_TEXT_HOT : UI_COL_TEXT);
     if (focused) ui_ring(x - 2, y - 2, w + 4, h + 4);
     return activated;
+}
+
+// ui_button_cell — the Box twin of ui_button: fill a whole cell, no px maths. Bind
+// it to a lay_grid()/lay_cell()/lay_split() Box and the layout owns the sizing.
+static int ui_button_cell(Box c, const char *label) {
+    return ui_button((int)c.x, (int)c.y, (int)c.w, (int)c.h, label);
 }
 
 // Sprite-button style — per-state colours so a cart can keep its own toolbar look

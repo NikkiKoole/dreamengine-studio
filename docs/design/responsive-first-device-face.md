@@ -54,12 +54,19 @@ instrument into. It's silent on purpose (teaches the layout, not the sound). Rec
 [`design-language.md`](design-language.md) ("the copy-me starter"). Pure capture of what
 acidcandy/acidwide already taught — no engine surgery.
 
-**Layer 2 — widgets + a lane that own the rules (medium; `ui.h`/`lay.h` additions).**
-- **`ui_knob(Box)` / `ui_button(Box)`** — controls that size to a cell (the backlogged widget-in-a-cell
-  gap in [`responsive-layout.md`](responsive-layout.md); acidcandy's `_knobx` is the proven source).
-- **A `Lane` concept** — the shared 16-column register. The sequencer view *and* the strip bind to one
-  lane, so alignment is *guaranteed*, not hand-matched (acidwide's `grid_lane` is the hack this
-  replaces). E's insight, made structural.
+**Layer 2 — widgets + a lane that own the rules. SHIPPED 2026-07-20** (the deeper knob gesture deferred).
+- **`ui_knob_cell(Box, *v, label)` / `ui_button_cell(Box, label)`** in [`ui.h`](../../runtime/ui.h) —
+  controls that size to a cell (closes the backlogged widget-in-a-cell gap in
+  [`responsive-layout.md`](responsive-layout.md); graduated from acidcandy's `_knobx` / deviceface's
+  local `knob_cell`). Named `_cell`, not `ui_knob(Box)` — C has no overloading and `ui_knob(float*,…)`
+  already exists. **Deferred:** the scale-clean bevel + gear-drag/double-tap gesture (need two extra
+  `ui.h` bits per acidcandy's todo); `ui_knob_cell` ships the plain vertical-drag knob.
+- **A `LayLane` concept** in [`lay.h`](../../runtime/lay.h) — the shared 16-column register: `lay_lane`
+  builds it from an x-span once, `lay_lane_cell` places column *i* into any band, so the sequencer view
+  *and* the strip bind to one lane and alignment is *guaranteed*, not hand-matched (acidwide's
+  `grid_lane` / deviceface's `g_lane_*` is the hack this replaces). E's insight, made structural. Typed
+  `LayLane` not bare `Lane` — carts already use `Lane` for their own structs (acidcandy). `deviceface`
+  now drives both; `ui.h` includes `lay.h` (guarded) so the widgets can take a `Box`.
 
 **Layer 3 — a face *grammar* (the real "opinionated" core; a `face.h` cart-land header).** A small
 declarative scaffold over `lay.h`: declare **zones** (nav · knob-band · screen · step-lane) tagged

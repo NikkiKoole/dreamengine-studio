@@ -119,6 +119,24 @@ static inline Box lay_grid(Box c, int cols, int n, int i, float gap) {
     return box(c.x + (i % cols) * (cw + gap), c.y + (i / cols) * (ch + gap), cw, ch);
 }
 
+// lane(): a shared COLUMN REGISTER — the fix for "two (or more) stacked strips whose
+// columns MUST line up" (a step sequencer's roll above its 16-step grid; any per-step
+// lane). Capture the x-span + column count ONCE, then place column i of that lane into
+// ANY band with lay_lane_cell(): every band bound to the same Lane is column-aligned by
+// construction, not by hand-matched maths. The column x-step is always w/n, so left
+// edges align across bands even when each band uses a different gap — gap only shrinks
+// the drawn width. (Graduates deviceface's g_lane_* / acidwide's grid_lane hack;
+// design/responsive-first-device-face.md Layer 2. Keep per-step things on one lane and
+// non-per-step controls in bands — never a side-rail that steals the lane's width.)
+// (type is `LayLane`, not bare `Lane` — `Lane` is a name carts already use for their
+// own domain structs, e.g. acidcandy; the lay_ prefix keeps the register collision-free.)
+typedef struct { float x, w; int n; } LayLane;
+static inline LayLane lay_lane(Box span, int n) { LayLane L = { span.x, span.w, n < 1 ? 1 : n }; return L; }
+static inline Box     lay_lane_cell(LayLane L, Box band, int i, float gap) {
+    float step = L.w / (float)L.n;
+    return box(L.x + i * step, band.y, step - gap, band.h);
+}
+
 // wrap(): i-th of n items in an AUTO-FLOWING grid — as many ~minItem-wide columns
 // as fit in c.w, wrapping to new rows (CSS repeat(auto-fit, minmax(minItem,1fr))).
 // Unlike grid(), the column count responds to width on its own — feed it a

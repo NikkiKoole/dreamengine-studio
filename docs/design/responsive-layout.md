@@ -154,18 +154,18 @@ wants. Four concerns, each its own — **one now shipped** (the split-gap), the 
   **scroll offset + clip** (and, on touch, momentum) — a whole mechanism the
   layout helpers deliberately don't touch. `lay_*` decides *where things go*; it
   has no opinion on *what to do when they don't fit*.
-- **Widgets sizing to a cell — esp. round controls (knobs/pads/LEDs).** `lay_*` hands you a `Box`;
-  sizing a control *within* it (radius from the cell, capped so it can't overflow the row) and rendering
-  it cleanly at ANY size is still hand-rolled per cart. `acidcandy`'s `_knobx` is the worked case: a
-  fixed-1px bevel rim went chunky/gappy once the knob grew or the small canvas was cover-scaled on a
-  device (fixed 2026-07-20 by scaling the bevel thickness with `r` — but *only in that cart*, so the next
-  knob cart will hit it again). The real fix is a shared **`ui_knob(Box cell, float *v, label, def)` in
-  [`ui.h`](../../runtime/ui.h)** that owns sizing + the scale-clean bevel + the gear-drag/double-tap
-  gesture — a drop-in like `ui_button`, so the responsive behaviour is solved once for every cart; plus
-  maybe a tiny `lay_fit_square(Box, frac)` for the other round widgets. Rule-of-three: acidcandy is the
-  first user (it even lists "graduate the gear-drag knob into `ui_knob`" in its own todo); build it when a
-  second scalable-knob cart appears. Sizing knobs by cell **width** (× ~0.21, clamp-style) is the pattern
-  that gave "small at 160×100, bigger on a phone" from one rule — see [`canvas-density-spectrum.md`](canvas-density-spectrum.md).
+- **Widgets sizing to a cell — the SIZING half SHIPPED (2026-07-20), the bevel + gesture still open.**
+  `lay_*` hands you a `Box`; sizing a control *within* it (radius from the cell, capped so it can't
+  overflow the row) used to be hand-rolled per cart. **`ui_knob_cell(Box, float *v, label)`** and
+  **`ui_button_cell(Box, label)`** now live in [`ui.h`](../../runtime/ui.h) — drop-ins that take a Box
+  and own the cell-sizing (radius from cell HEIGHT, width caps it), so a `lay_grid`/`lay_cell` cell is
+  all you pass. Graduated from `acidcandy`'s `_knobx` / `deviceface`'s local `knob_cell` — Layer 2 of
+  [`responsive-first-device-face.md`](responsive-first-device-face.md); `deviceface` is the worked user.
+  **Still open (deeper graduation):** the *scale-clean bevel* (bevel thickness ∝ `r`, so a grown knob's
+  rim stays crisp — acidcandy fixed this in-cart 2026-07-20) and the *gear-drag / double-tap-reset*
+  gesture. Those need two extra `ui.h` bits acidcandy's todo names (a persistent per-widget ring for the
+  double-tap clock, and a generic "a widget is being dragged" signal); `ui_knob_cell` ships the plain
+  vertical-drag knob for now. Plus maybe a tiny `lay_fit_square(Box, frac)` for other round widgets.
 
 - **✓ SHIPPED (2026-07-20) — gap between a split and its remainder: `lay_split_gap(c, edge, size,
   gap, rest)`.** `lay_split` hands back **edge-flush** rects: the piece you split off and the

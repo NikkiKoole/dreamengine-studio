@@ -117,6 +117,7 @@ static int  lpos[2] = { 0, 0 };             // per-line playhead
 enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT, PS_PERF };  // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks) / PERF (live play lenses)
 static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
 static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
+static int  seq_grid = 0;                     // 0 = the tall NOTE BARS (default, old); 1 = the editable wide GRID (drag notes on the SEQ screen). Toggled by the BARS/GRID chip in the SEQ header. STAGE 1 of the acidwide-style layout — keep both while it proves out.
 enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
 static int  armed = FL_NOTE;                 // which flag a bar-tap paints (default NOTE = add notes right from the FLAG screen)
 static const char *FLNAME[FL_N] = { "NOTE", "ACC", "SLD", "TIE", "OCT+", "OCT-" };
@@ -901,13 +902,27 @@ static void draw_303(Box stage, int i) {
         pf_acc[i]   = lcdlatch(0x7Du, (int)h2.x, (int)h2.y, (int)h2.w, (int)h2.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
         pf_stac[i]  = lcdlatch(0x7Eu, (int)s0.x, (int)s0.y, (int)s0.w, (int)s0.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
         pf_glide[i] = lcdlatch(0x7Fu, (int)s1.x, (int)s1.y, (int)s1.w, (int)s1.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
-    } else {                                                          // SEQ — the piano-roll readout, FILLS the glass (hero)
+    } else {                                                          // SEQ — piano-roll readout OR editable GRID (seq_grid)
+        Box ghdr = lay_split(gc, EDGE_TOP, gc.h * 0.20f, &gc);        // carve a thin header; gc becomes the roll/grid area
         { int bi = (int)(g_bpm + 0.5f); char nb[4]; int ni = 0;
           if (bi >= 100) nb[ni++] = '0' + bi / 100;
           nb[ni++] = '0' + (bi / 10) % 10; nb[ni++] = '0' + bi % 10; nb[ni] = 0;
-          font(FONT_TINY); print(nb, (int)gc.x, (int)gc.y, CLR_MEDIUM_GREEN); }
+          font(FONT_TINY); print(nb, (int)ghdr.x, (int)ghdr.y, CLR_MEDIUM_GREEN); }
+        { Box tg = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.30f, &ghdr);   // BARS/GRID view-style toggle (Stage 1)
+          if (lcdbtn(0x2Du, (int)tg.x, (int)tg.y, (int)tg.w, (int)tg.h, seq_grid ? "GRID" : "BARS", seq_grid)) seq_grid = !seq_grid; }
         float sw = gc.w / (float)plen[i];                            // px per step across the glass
         int top = (int)gc.y, bot = (int)(gc.y + gc.h), span = bot - top; if (span < 8) span = 8;
+        if (seq_grid) {   // EDITABLE grid: drag on the screen — x = step, y = pitch (scale-snapped); the bottom band = rest → erase
+            void *wg = ui_wid_hash(0x2Cu, (int)gc.x, top, (int)gc.w, span); ui_reg(wg, (int)gc.x, top, (int)gc.w, span, 0);
+            UiCap *gcc = ui_cap_for(wg);
+            if (gcc) { g_drag_frame = ui_frame_ct; g_drag_y = gcc->cy;
+                int px = gcc->released ? gcc->rx : gcc->cx, py = gcc->released ? gcc->ry : gcc->cy;
+                int cell = (int)((px - gc.x) / sw); if (cell < 0) cell = 0; if (cell >= plen[i]) cell = plen[i] - 1;
+                sel[i] = cell;
+                if (py >= bot - 4) on[i][cell] = 0;                  // bottom rest band → note OFF (pitch kept)
+                else { float frac = clamp((bot - 4 - py) / (float)(span - 5), 0, 1);
+                       pit[i][cell] = SCALES[mscale[i]].deg[(int)(frac * (SCALES[mscale[i]].n - 1) + 0.5f)]; on[i][cell] = 1; } }
+        }
         int heldy = -1;
         for (int s = 0; s < plen[i]; s++) {
             int cx = (int)(gc.x + s * sw), pw = (int)sw; if (pw < 2) pw = 2;
@@ -958,7 +973,7 @@ static void draw_303(Box stage, int i) {
                 int adx = px - drag_gx; if (adx < 0) adx = -adx;
                 int ady = py - drag_gy; if (ady < 0) ady = -ady;
                 if (!drag_axis && (adx > 4 || ady > 4)) drag_axis = 1;   // moved past the deadzone → drawing
-                if (drag_axis) {                                     // free draw: height = pitch, bottom = rest
+                if (drag_axis && !seq_grid) {                        // free draw: height = pitch, bottom = rest (GRID mode owns pitch → bars are tap-on/off only)
                     int cell = (int)((px - notes.x) / stepw); if (cell < 0) cell = 0; if (cell >= STEPS) cell = STEPS - 1;
                     sel[i] = cell;
                     if (py >= by + bh - 4) on[i][cell] = 0;          // bottom band → note OFF (pitch kept)

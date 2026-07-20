@@ -58,6 +58,17 @@ _Last updated: 2026-07-20 (**THE HARMONY BRAIN GRADUATES — `runtime/harmony.h`
   Tiny Jam's listing: [`marketing/tinyjam/app-store-listing.md`](marketing/tinyjam/app-store-listing.md).
   Still open (before a real submission): per-locale copy, the ASC upload/TestFlight step
   (ADR-0026), and the Search-Term-Rank popularity column (Apple beta).
+- **`youtube-push.js` — video distribution, lever #2's last mile** (2026-07-20) — the in-house
+  YouTube uploader (twin of `asc-push`, [ADR-0033](decisions/0033-youtube-first-video-distribution.md)):
+  a committed recipe → bake an mp4 (`make-gif`) → composite a crisp 9:16 **Short** (integer-
+  upscale + pad, never stretch; a >60s clip is refused) → resumable upload → a `youtube.com/
+  shorts/…` URL back, from one command. `--landscape` = the full 16:10 video; `--reel <app>` =
+  push an app trailer. Metadata (title/description/tags/category, `#Shorts` when vertical) is
+  **derived** from cart `de:meta` / the app `listing` — no hand-typed copy. OAuth2 creds live in
+  `~/.youtube/` (`--auth` one-time browser consent), never git; `--dry-run` prints the plan,
+  `--check` is the offline gate. YouTube first because it's the only short-video venue with a
+  usable official upload API (TikTok/Reels stay manual). PROVEN live (first real upload: the
+  tinyjam reel → an unlisted Short). Design: [`design/video-distribution.md`](design/video-distribution.md).
 - **Live (libtcc) backend + hot reload** — a "run mode" toggle (settings) switches ▶ run from the clang static build to a persistent `-DDE_TCC` host that JIT-compiles the cart in-process via vendored `runtime/libtcc/`. Editing the code auto-reloads it (debounced, no Run press) without restarting the window; compile errors mark the line and keep the last good cart running. State survives reloads via **`de_state()`** — promoted to a first-class `studio.h` API and fronted by the starter cart's friendly `STATE { ... }; / S->field` sugar (clickable to help). arm64-macOS only; sprite/screen changes relaunch. Full record + rationale: [`design/cart-as-script.md`](design/cart-as-script.md).
 - 5-tab navbar (code · pixels · carts · docs · settings); in-app docs viewer renders
   this `docs/` set (with cross-links) in the Docs tab.

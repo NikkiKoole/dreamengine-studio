@@ -10,9 +10,9 @@
   "teaches": [],
   "resizable": true,
   "description": {
-    "summary": "Draw-only LAYOUT STUDY for the tablet/iPad-Pro question in responsive-first-device-face.md: how a device face should spread onto a much larger screen. Two arrangements to vibe-check (keys 1/2): B = SHOW MORE — tile the whole rack (four machine faces at once, 2x2); C = UNHIDE THE DEPTH — one machine using the whole screen with everything that pages behind soft-keys on a phone shown at once. Both are built on the SAME face.h grammar (face_layout per cell for B; one fuller FaceZone[] for C), proving the seam needs no engine work — only a device_class()==ROOMY branch.",
-    "detail": "The two axes of canvas-density-spectrum made concrete on an iPad-Pro-shaped canvas (4:3). B keeps each face at ~phone density but gives the canvas room for FOUR — the paradigm's 'show more, not rearrange'; best for a multi-machine rack (acidcandy). C spends the room on ONE machine unhidden — the acidwide A-H bet at tablet scale; best for a single deep instrument. face.h supports both for free: B calls face_layout() on each of a 2x2 lay_grid's cells; C calls it once with a wider zone table. No audio, fake data — this is a LOOK study to pick the direction before touching acidcandy.",
-    "controls": "1 = arrangement B (tile the rack). 2 = arrangement C (unhide one machine). Draw-only mockup."
+    "summary": "Draw-only LAYOUT STUDY for the tablet/iPad-Pro question in responsive-first-device-face.md: how a device face should spread onto a much larger screen. The arrangement stays OPEN — a cart-choice menu, not one default. Three to vibe-check (keys 1/2/3): B = SHOW MORE (tile the whole rack, 2x2); C = UNHIDE THE DEPTH (one machine, everything that pages behind soft-keys shown at once); D = 2x2 + MASTER (the ReBirth RB-338 classic — the rack plus a docked mix/FX section). All three are built on the SAME face.h grammar, proving the seam needs no engine work — only a device_class()==ROOMY branch.",
+    "detail": "The two axes of canvas-density-spectrum made concrete on an iPad-Pro-shaped canvas (4:3). B keeps each face at ~phone density but gives the canvas room for FOUR — the paradigm's 'show more, not rearrange'; best for a multi-machine rack (acidcandy). C spends the room on ONE machine unhidden — the acidwide A-H bet at tablet scale; best for a single deep instrument. D is B plus a docked master strip (channel faders + master FX), the ReBirth RB-338 layout. face.h supports all three for free: B/D call face_layout() on each of a 2x2 lay_grid's cells; C calls it once with a wider zone table. No audio, fake data — a LOOK study; the arrangement stays a per-cart choice, not a baked default.",
+    "controls": "1 = B (tile the rack). 2 = C (unhide one machine). 3 = D (2x2 + master, ReBirth). Draw-only mockup."
   }
 }
 de:meta */
@@ -170,20 +170,60 @@ static void draw_unhidden(Box area) {
         rectfill((int)(w.x + w.w - bw / 2), (int)kb.y, bw, (int)(kb.h * 0.62f), CLR_BLACK); }
 }
 
+// a draw-only vertical channel fader (label reserved at the bottom)
+static void vbar(Box c, const char *label, float v, int col) {
+    Box lbl = lay_split(c, EDGE_BOTTOM, 6, &c);
+    Box tr = lay_inset(c, 1);
+    int tx = (int)(tr.x + tr.w / 2);
+    rrectfill(tx - 1, (int)tr.y, 3, (int)tr.h, 1, CLR_BROWNISH_BLACK);
+    int capy = (int)(tr.y + (1 - v) * (tr.h - 5));
+    rrectfill((int)tr.x, capy, (int)tr.w, 5, 1, col);
+    font(FONT_TINY); plabel(label, (int)(lbl.x + lbl.w / 2), (int)lbl.y, CLR_LIGHT_GREY);
+}
+
+// ── D: 2×2 rack + a docked MASTER section (ReBirth RB-338 classic) ────────────
+static void draw_rebirth(Box area) {
+    Box master = lay_split(area, EDGE_RIGHT, lay_clamp(area.w * 0.22f, 72, 120), &area);
+    const char *MN[4] = { "303 A", "303 B", "808", "909" };
+    const char *MS[4] = { "3A", "3B", "08", "09" };
+    int MC[4] = { CLR_PINK, CLR_ORANGE, CLR_TRUE_BLUE, CLR_LIME_GREEN };
+    int ML[4] = { CLR_DARK_PURPLE, CLR_DARK_ORANGE, CLR_DARK_BLUE, CLR_DARK_GREEN };
+    for (int m = 0; m < 4; m++)
+        mini_face(lay_inset(lay_grid(area, 2, 4, m, 6), 2), MN[m], MC[m], ML[m]);
+    // the docked master strip
+    master = lay_inset(master, 2);
+    rrectfill((int)master.x, (int)master.y, (int)master.w, (int)master.h, 5, CLR_INDIGO);
+    Box mp = lay_inset(master, 4);
+    Box hdr = lay_split(mp, EDGE_TOP, 9, &mp);
+    print("MASTER", (int)hdr.x, (int)hdr.y, CLR_WHITE);
+    float chv[4] = { 0.8f, 0.7f, 0.85f, 0.6f };
+    Box chans = lay_split(mp, EDGE_TOP, mp.h * 0.46f, &mp);      // 4 channel faders
+    for (int i = 0; i < 4; i++) vbar(lay_grid(chans, 4, 4, i, 2), MS[i], chv[i], MC[i]);
+    Box fx = lay_split(mp, EDGE_TOP, mp.h * 0.5f, &mp);          // master FX
+    mknob(lay_grid(fx, 2, 2, 0, 3), "DLY", 0.40f, CLR_ORANGE);
+    mknob(lay_grid(fx, 2, 2, 1, 3), "VERB", 0.50f, CLR_TRUE_BLUE);
+    vbar(mp, "OUT", 0.90f, CLR_LIME_GREEN);                      // master out
+}
+
 void draw(void) {
     de_resize(420, 315);                       // force an iPad-Pro-ish 4:3 canvas for the study
     if (keyp('1')) arr = 0;
     if (keyp('2')) arr = 1;
+    if (keyp('3')) arr = 2;
 
+    static const char *CAP[3] = {
+        "B \x1a SHOW MORE: tile the rack (best for a multi-machine rack)",
+        "C \x1a UNHIDE THE DEPTH: one machine, all at once (best for a single deep instrument)",
+        "D \x1a 2x2 + MASTER (ReBirth RB-338 classic): the whole rack + a docked mix/FX section",
+    };
     cls(CLR_BROWNISH_BLACK);
     Box scr = box(0, 0, screen_w(), screen_h());
     Box area = lay_split(scr, EDGE_TOP, 12, &scr);        // a thin caption bar
     font(FONT_SMALL);
-    print(arr == 0 ? "B \x1a SHOW MORE: tile the rack (best for a multi-machine rack)"
-                   : "C \x1a UNHIDE THE DEPTH: one machine, everything at once (best for a single deep instrument)",
-          3, 3, CLR_LIGHT_GREY);
-    print("1 / 2", screen_w() - 30, 3, CLR_DARK_GREY);
+    print(CAP[arr], 3, 3, CLR_LIGHT_GREY);
+    print("1/2/3", screen_w() - 30, 3, CLR_DARK_GREY);
 
-    if (arr == 0) draw_tiled(lay_inset(scr, 4));
-    else          draw_unhidden(lay_inset(scr, 2));
+    if (arr == 0)      draw_tiled(lay_inset(scr, 4));
+    else if (arr == 1) draw_unhidden(lay_inset(scr, 2));
+    else               draw_rebirth(lay_inset(scr, 4));
 }

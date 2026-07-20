@@ -162,15 +162,19 @@ A much larger screen is a *different* question from reflow: route-2's chunky can
 face up huge (sparse on a 13"). The good news is face.h needs no engine work for the tablet — `face_layout`
 takes any Box (tile faces) and `face_resize_to` is density-free (ask for a finer canvas), so the whole
 spread is a `device_class()==ROOMY` branch. What's *not* settled is the arrangement, and it's cart-dependent.
-Two candidates are mocked draw-only in [`roomyface`](../../tools/carts/roomyface.c) (keys 1/2), both on the
-same grammar, on an iPad-Pro 4:3 canvas:
+**Decision (2026-07-20, with the maker): keep the arrangement OPEN — it's a per-cart choice menu, not one
+default.** Both directions have merit and different carts want different ones. Three are mocked draw-only in
+[`roomyface`](../../tools/carts/roomyface.c) (keys 1/2/3), all on the same grammar, on an iPad-Pro 4:3 canvas:
 - **B · show more — tile the rack.** Four machine faces at once (2×2), each a compact `face_layout` per
-  `lay_grid` cell. Best for a **multi-machine rack** (acidcandy). The paradigm's "show more, not rearrange".
+  `lay_grid` cell. Best for a **multi-machine rack**. The paradigm's "show more, not rearrange".
 - **C · unhide the depth.** One machine using the whole screen, everything that pages behind soft-keys on a
   phone shown at once (the `acidwide` A–H bet at tablet scale). Best for a **single deep instrument**.
-Recommendation: face.h stays neutral (it already does both); the cart picks B or C in its ROOMY branch.
-**Awaiting the maker's vibe-check** before this becomes a documented pattern and, later, before acidcandy
-(a 4-machine rack → almost certainly B) is converted.
+- **D · 2×2 + master (ReBirth RB-338 classic).** B plus a docked master strip (per-machine channel faders +
+  master FX + master out) — the whole rack *and* the mix in one view. The maker's reference for "sometimes
+  this is the best."
+face.h stays **neutral** — it already does all three (B/D = `face_layout` per cell + a master column; C = one
+wider zone table), so the cart's `device_class()==ROOMY` branch picks. No default is baked. When acidcandy
+(a 4-machine rack) is eventually converted, D/B is the likely pick — but that stays the cart's call.
 
 ## The one thing to protect
 

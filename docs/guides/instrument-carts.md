@@ -156,7 +156,9 @@ The "build a sound, then play it" carts — the deepest, most general instrument
 ## Classic-machine homages
 
 Faithful recreations of real hardware. Drum machines, the acid box, the strap synth,
-the tape echo.
+and the effect pedals — tape echo, BBD analog delay, spring reverb, and the overdrive/
+distortion/fuzz box (each a showcase for a gated famous-hardware VOICE: `echo_insert_bbd`,
+`reverb_spring`, `drive_voice`).
 
 | Cart | What it is | Built from |
 |---|---|---|
@@ -169,6 +171,9 @@ the tape echo.
 | **session desk** (`yachtrack`) | The yacht radio opened up — tinyjam rack #2, the first CHORD-FIRST rack: an editable chord CHART (the mu vocabulary, MU-IFY/SUS-MELT, form row + gear change) + drum skeleton lanes with three drummer chairs + the sax hook cell, while bass runs/comp anticipation/ghosts/swing stay session PLAYERS behind feel knobs. The generator is yacht's `new_song` verbatim — an 8-hex code from the radio dial reproduces that exact song here, opened up (the first radio→rack seed handoff, spec-gated). docs/design/yacht-rack.md | `radio.h` (seed stream, clock, `rad_lead_to`/`rad_bass_to`, chairs), `save_bytes`, `.bake/wav_request` export, `spec()` golden corpus |
 | **sh-101** (`sh101`) | Roland's SH-101 (1982) strap synth, modeled panel section-by-section — 4-source mixer, sequencer, arp, full multitouch keybed. | `ui.h`, `note_on`, multitouch, `INSTR_SAW`/`SQUARE`/`NOISE` |
 | **re-201 space echo** (`spacecho`) | Roland's RE-201 (1974) tape echo — the showcase for THE echo bus: sweep the rate and the tails pitch-bend; crank feedback past the red and it self-oscillates. | `INSTR_PLUCK`, `echo()`/`instrument_echo` |
+| **aqua-puss** (`aquapuss`) | The Way Huge Aqua-Puss BBD analog delay — the showcase for `echo_insert_bbd()`: the in-line delay's repeats WOBBLE (clock wow/flutter) and a longer delay DARKENS the tail, colouring only the echoes (dry stays clean). B A/Bs analog vs clean digital. | `INSTR_GUITAR`, `echo_insert()`/`echo_insert_bbd()`, `FX_ECHO` |
+| **spring tank** (`springtank`) | An Accutronics/Fender spring reverb — the showcase for `reverb_spring()`/`reverb_spring_tone()`: transients disperse into a metallic "boing" + a mid band-limit. Three scenes (KICK / SURF / DUB), B A/Bs vs clean, BOING dials the dispersion. | `hit`, `INSTR_GUITAR`/`ORGAN`/`NOISE`/`MEMBRANE`, `reverb()`/`reverb_spring()` |
+| **tube screamer** (`tubescreamer`) | The Ibanez TS808 overdrive — the showcase for `drive_voice()`: `DRIVE_VOICE_TS`/`RAT`/`MUFF` (Tube Screamer mid-hump / ProCo RAT hard-clip / Big Muff fuzz-scoop) wrap the drive insert's clip with the filtering that IS each pedal. B A/Bs the hump. The three voices are also selectable on `pedalboard`'s OD pedal (VOICE knob). | `INSTR_GUITAR`, `drive_insert()`/`drive_voice()`, `FX_DRIVE` |
 | **juno-6** (`juno`) | Roland's Juno-6 (1982) — a saw+sub+resonant-LP poly synth whose one defining feature is the BBD CHORUS: the showcase for `chorus()`. Dry it's "sh101 with more voices"; the OFF/I/II switch flips it to a lush wide stereo wash. | `ui.h`, `hit`, `INSTR_SAW`, `chorus()`, `instrument_filter` |
 | **cathedral** (`cathedral`) | A church organ blooming into a vast stone hall — the showcase for `reverb()`. Strike a chord; the dry attack is brief but the reverb tail swells and hangs for seconds. SIZE/DAMP/WET + chord pads + an AUTO processional. | `ui.h`, `hit`, `INSTR_ORGAN`, `reverb()`/`instrument_reverb` |
 | **electric mistress** (`mistress`) | An EHX Electric Mistress flanger pedal — the showcase for `flanger()`. Strum a guitar through the swept comb; the FLANGER footswitch A/Bs it, FEEDBACK takes it from gentle to screaming jet, and the JET button fires a noise swell = the jet overhead. | `ui.h`, `strum`, `INSTR_GUITAR`/`INSTR_NOISE`, `flanger()` |

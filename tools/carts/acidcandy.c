@@ -1096,7 +1096,7 @@ static void draw_808(Box stage) {
     }
 
     // ④ VOICE PICKER — all 16 voices in one row (acid order), spread across the width.
-    float psw = pick.w / (float)TR_NV; int pby = (int)pick.y, pbh = (int)pick.h;
+    float psw = pick.w / (float)TR_NV; int pby = (int)pick.y + 1, pbh = (int)pick.h - 2;   // 1px gap top & bottom → the voice button never touches its cell edge
     for (int r = 0; r < TR_NV; r++) {
         int v = VL[r], x = (int)(pick.x + r * psw), pw = (int)psw - 1, selp = (v == dsel), mtd = dmute[v]; if (pw < 4) pw = 4;
         void *wp = ui_wid_hash(0x90u + v, x, pby, pw, pbh); ui_reg(wp, x, pby, pw, pbh, 0);
@@ -1267,7 +1267,7 @@ static void draw_909(Box stage) {
     }
 
     // ④ voice picker — all 11 voices in one row (acid order, amber pads), spread across the width.
-    float psw = pick.w / (float)TR9_NV; int pby = (int)pick.y, pbh = (int)pick.h;
+    float psw = pick.w / (float)TR9_NV; int pby = (int)pick.y + 1, pbh = (int)pick.h - 2;   // 1px gap top & bottom → the voice button never touches its cell edge
     for (int r = 0; r < TR9_NV; r++) {
         int v = VL[r], x = (int)(pick.x + r * psw), pw = (int)psw - 1, selp = (v == d9sel), mtd = d9mute[v]; if (pw < 4) pw = 4;
         void *wp = ui_wid_hash(0x90u + v, x, pby, pw, pbh); ui_reg(wp, x, pby, pw, pbh, 0);

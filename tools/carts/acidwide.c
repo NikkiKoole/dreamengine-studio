@@ -379,7 +379,7 @@ void update(void) {
     if (keyp('6')) arr = 5;
     if (keyp('7')) arr = 6;
     if (keyp('8')) arr = 7;
-    if (arr == 7) { if (keyp('q')) h_mode = (h_mode + 1) % 7; }   // (in H) cycle the screen page to preview paging
+    if (arr == 7) { if (keyp('Q')) h_mode = (h_mode + 1) % 7; }   // (in H) cycle the screen page — KEY_Q is uppercase 'Q', not 'q'
     g_step = (int)(now() * 8) % 16;
 }
 

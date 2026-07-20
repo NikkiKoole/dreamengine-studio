@@ -52,6 +52,7 @@
 de:meta */
 #include "studio.h"
 #include "ui.h"
+#include "cursor.h"   // pixel hand cursor (CUR_HAND/CUR_GRAB) — desktop only, auto-hides the OS arrow, no-op on touch
 #include "acid303.h"
 #include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
 #include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
@@ -1744,4 +1745,5 @@ void draw(void) {
 
     font(FONT_NORMAL);
     ui_end();
+    cursor_draw(mouse_down(MOUSE_LEFT) ? CUR_GRAB : CUR_HAND);   // cute pixel hand — curls to a fist while grabbing; desktop-only (no-op on touch)
 }

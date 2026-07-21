@@ -1,6 +1,9 @@
 # Responsive-first device faces — building it in from the start
 
-STATUS: BUILDING (2026-07-20) — Layer 1 (the starter) has SHIPPED; Layers 2–4 are still ahead.
+STATUS: BUILDING (2026-07-21) — Layers 1–3 have SHIPPED (the starter · cell widgets + the shared
+LayLane register · the declarative `face.h` grammar, proven across three conversions —
+chipjam/dubjam/grooveface). The tablet/iPad-Pro spread is MOCKED (`roomyface` B/C/D, arrangement kept
+OPEN as a per-cart choice). Only **Layer 4** (make `face.h` the default) is left, gated on the maker's call.
 Answers the maker's question "could we make a cart responsive-and-opinionated *from the beginning*,
 instead of retrofitting it like we did to acidcandy?" The encouraging finding: the hard, irreversible
 half is already done — what's left is cart-land layers (ADR-0006 style), sequenced cheapest → deepest.

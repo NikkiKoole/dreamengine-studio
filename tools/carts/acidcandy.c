@@ -21,7 +21,7 @@
     "SESSION 2026-07-21 — PERF / GEN / voice-panel overhaul (SHIPPED): (1) 303 PERF reworked to HALF + OCT (octave-down every OTHER step, the acid bounce) + REV (reverse the read) + ROLL (HOLD-to-stutter the last played note, HALF-aware rate); the 2X/8-12 speeds AND the AC3/AC4 accent cross-rhythms were tried and DROPPED (not musical — the maker's call). (2) DRUM PERF layer added, per machine (a PERF soft-key on 808/909): beat-repeat RP1/RP2/RP4 (grid-locked N-step slice loop via drum_effstep), DENSITY THIN (kit → downbeats+accents) / BUSY (fill the SELECTED voice's off-16ths), ACC (accent all). Grid-locked by construction (flows through the step grid, not a retrig clock). (3) 303 reverb tank retuned warm-hall → bright PLATE (reverb(0.45,0.22)) for the modern stab space. (4) MST CLR is now a small TOP-RIGHT CORNER overlay on the PCF/CRUSH/GATE lanes (columns beneath it clip their capture) — no longer steals a header row. (5) 808/909 VCE now folds in MIX = ONE panel (TUNE/DEC/[CHAR]/VOL/PAN/FINE) + a per-voice MUTE toggle in the header + a proper VCE soft-key (left col VCE/KIT/FLAG); the MIX soft-key is RETIRED (DS_MIX enum kept, unused). (6) GEN rewritten into an ACID-RIFF generator (gen_line): a scale-degree MOTIF repeated across the bar, octave climb on the last repeat, root-anchored accented downbeat, slides gliding between neighbours, key/scale-aware (mscale). (7) responsive polish on the 303 face: one shared right-column width (DF switch aligns with GEN/KEY/PAT), even soft-key spacing (colcell), PERF/PAT bottom-aligned to the glass; nav cartridge labels no longer spill left on tall/square window ratios. (8) the 303 BARS→GRID toggle is HIDDEN (static grid_view_on=0 — note-bars are the shipping view; the editable GRID is kept intact, flip to expose). REMAINING OPEN (punch-list): DRIFT knob (below); DUB-pad + GATE-lane EAR-CHECKS (GATE wants a master VOLUME to ride = the level[] master-vol TODO); per-step 303 CUT/RES p-lock lanes; exact-BPM entry (tap/±); LIVE/step record; a SOLO gesture; the drvmode waveshaper; mode HINT-OUTLINES; the SONG layer + SAVE/LOAD (deferred until the feature-set stabilises → one state struct first); the mascot/SOUL; the iPad ROOMY tablet layout.",
     "VOICING switch: SHIPPED (2026-07-20) — the 303 knob-row's right end now stacks TWO switches (audio-notes.md §26): TOP = VOICING (classic 'CL' ⟷ Devil Fish 'DF', per-303, LED lit = DF; flips ac[i].classic + re-acid_define, NON-destructive — the DF knob values survive), BOTTOM = DUAL-PURPOSE: in DF it's the VIEW page-tab (core-5 '1' ⟷ DF-extras '2'); in classic it becomes the SAW/SQR WAVE switch. The old single 'DF' button (a mere kpage flip) is gone. WAVE-IN-VANILLA (fixed 2026-07-20): the SAW/SQR switch is a stock-303 CORE control, but it lives on the DF-extras page (unreachable in classic since kpage locks to 0). Since classic has no page to switch, the bottom slot hosts WAVE there instead → reachable in both voicings. (Engine was always fine — classic never gated a->wave.)",
     "303 DRIFT knob (OPEN, 2026-07-19): the 303 voices now carry analog drift (acid303.h Acid.drift, default 0.5 — slow LFO_SHAPE_RANDOM pitch+cutoff wander that killed the 'sounds kinda digital' tell; see audio-notes.md §26). It's a fixed bake right now; maker wants a little tweak somewhere. Cleanest: an MST-global DRIFT knob writing ac[0].drift=ac[1].drift=v then re-acid_define (or a per-303 knob on the DEEP page). Acid.drift is already a per-voice float so no ACID_* enum churn. Small follow-up, not yet wired.",
-    "DUB PAD: SHIPPED (2026-07-19) — a little XY pad in the MST's freed bottom-right corner (x123,y80,32x13). HOLD + drag: X = delay TIME (continuous 30-500ms → pitch-sliding echoes), Y = FEEDBACK (up → 0.92, runaway but bounded). MOMENTARY: dub_held (reset each frame in draw(), re-asserted by the pad while touched) makes apply_fx's echo() override the resting DIVISION-buttons + FB-knob time/fb; release snaps back. echo() is NOT ride-safe, so it's set-and-hold — re-applies only when the computed (et,ef) change (unified guard replaced the old mfb/mdiv/bpm one). VERIFIED: fx-frame clean, a held sweep at fb 0.85 = 0 clipped samples + steady RMS, no NaN. OPEN/CAVEAT: because echo() re-times on each step of the sweep (not ride-safe), a fast time-sweep may STEP rather than glide buttery-smooth — needs an ear check; if it clicks, quantize et to fewer steps or find a ride-safe delay-time path.",
+    "DUB PAD: REMOVED (2026-07-21) — the MST corner XY dub-throw pad (echo time/feedback while held) was cut as gimmicky. The MST right column is now just SWG + TEMPO (each half-height). The shared delay stays tempo-synced (DIVISION buttons + FB knob) in apply_fx; dub_held/dub_t/dub_fb globals gone.",
     "GATE lane: SHIPPED (2026-07-18) — a 3rd drawable master lane on the MST screen (MIX/PCF/CRU/GAT, soft-keys shrunk to h7 so 4 fit), the RHYTHM twin: PCF=tone, CRUSH=texture, GATE=chop. mgate[16] 0..7/step (7=open, drawn DOWN = the step cuts); apply_fx rides the master gate((1-o)*0.85 threshold, 2ms atk, 45ms rel) on STEP CHANGE (set-and-hold, guarded by aGate). Pink bars (0xA0u hashes). Verified audible: open-vs-full-gate WAV correlate 0.78, no NaN. CAVEAT (worth a play-test): gate() is a THRESHOLD/dynamics gate, not a pure per-step volume chop — the cut depends on the signal level, so it reads more as a rhythmic dynamics-gate than a clean trance-gate. If a cleaner chop is wanted, the real fix is a master VOLUME the lane can ride (the level[] master-vol TODO) — revisit if the feel is off.",
     "CRUSH lane: SHIPPED (2026-07-18) — a 2nd drawable master-automation lane on the MST screen, the PCF's TEXTURE twin (PCF = tone/filter; CRUSH = bit-depth grit). A 3rd MST soft-key (MIX/PCF/CRU) draws mcrush[16] (0..7/step, 0 = clean); apply_fx rides the whole-mix crush(16-c*13 bits, 1+c*24 rate, c mix) on STEP CHANGE only (crush() is NOT ride-safe → set-and-hold, guarded by aCrush; fx-frame lint passes). Drawn in ORANGE bars (vs PCF's green) so the two lanes read distinct; empty step = a floor tick. Same draw code + widget pattern as PCF (0xE0u hashes). Verified audible: clean-vs-full-crush WAV correlate 0.79 (same notes, degraded texture), no NaN. The engine already had crush/gate/tape/eq/chorus/reverb/grains as global master fx, so more lanes (e.g. a GATE rhythm lane) are cheap follow-ons if wanted.",
     "LCD GROW: SHIPPED (2026-07-18) — the green LCD glass on ALL FOUR faces (303/808/909/MST) is now h30 (y37-66), one consistent size; it CONTAINS the soft-key columns (PERF/PAT/GEN/KEY used to poke below) and leaves a 1px gap above the content below (drum voice pads at y68; 303 note-bars nudged 67→68, bh 27→26 so the loop handle stays at y94). MST caught up (2026-07-18): the master TEMPO moved to a compact KNOB in the LCD's right gutter (gknob — shows the real VALUE label, not knob()'s 0-99; bpm01 maps 0..1 → 60..200, rounded to int so no per-frame fx re-apply), which freed the full-width y64 row so the LCD could grow. DELAY stayed as its 4 small division buttons (maker preferred buttons to a knob) — now tucked UNDER the grown LCD in the y67-78 band (set mdiv directly, label = the division). The 303 SEQ roll fills the taller glass (baseline 56→61, taller playhead) and the MST MIX faders/PCF lane grew to fh22. Also: accented notes in the 303 roll get an ORANGE CAP in the space ABOVE the note (the 'accents use space above' ask) — matches how the drum faces mark accents above the cell.",
@@ -244,8 +244,6 @@ static int   mpcf[STEPS];                                   // pattern-controlle
 static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
 static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
 static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane
-static int   dub_held = 0;                                  // the DUB pad (MST corner) is being touched → overrides the delay this frame
-static float dub_t = 0.5f, dub_fb = 0.6f;                   // DUB pad XY: X = delay time (0..1 → 30..500ms), Y = feedback (0..1 → 0..0.92)
 
 // ── PATTERN BANKS (ARRANGEMENT) ──────────────────────────────────────────────
 // PER-MACHINE A/B/C/D slots. A pattern stores only the SEQUENCE (steps + per-step
@@ -357,13 +355,11 @@ static void pat_queue(int m, int s) {
 static void apply_fx(void) {
     static float aS[4] = { -1, -1, -1, -1 }, aComp = -1, aBpm = -1, aEf = -1;
     static int   aMode = -2, aEt = -1;
-    {   // the shared delay unit. Resting = the tempo-synced DIVISION (buttons) + the FB knob;
-        // while the DUB pad is HELD it overrides with a CONTINUOUS time (X, 30-500ms → pitch-
-        // sliding echoes) + high feedback (Y). Set-and-hold: echo() re-applies only when the
-        // computed time/fb CHANGE (echo() is not ride-safe), so a sweep re-times on each step.
+    {   // the shared delay unit: tempo-synced DIVISION (buttons) + the FB knob. Set-and-hold —
+        // echo() re-applies only when the computed time/fb CHANGE (echo() is not ride-safe).
         static const float DIV[4] = { 0.25f, 0.5f, 0.75f, 1.0f };   // 1/16 · 1/8 · dotted · 1/4
-        int   et = dub_held ? (int)(30 + dub_t * 470) : (int)(60000.0f / g_bpm * DIV[mdiv]);
-        float ef = dub_held ? dub_fb * 0.92f : mfb * 0.72f;
+        int   et = (int)(60000.0f / g_bpm * DIV[mdiv]);
+        float ef = mfb * 0.72f;
         if (et != aEt || ef != aEf) { echo(et, ef, 0.45f); aEt = et; aEf = ef; }
         if (g_bpm != aBpm) { bpm((int)g_bpm); aBpm = g_bpm; }   // keep the engine musical clock synced on a tempo change
     }
@@ -520,6 +516,61 @@ static void gen_drums9(int d) {
 
 // snap a 0..1 vertical drag to the four RD-8-style trig-prob buckets (grafted from tr808.c)
 static int snap_prob(float f) { return f >= 0.875f ? 100 : f >= 0.625f ? 75 : f >= 0.375f ? 50 : 25; }
+
+// ── WHOLE-RACK genre presets (MST GEN) ───────────────────────────────────────
+// One tap fills the entire rack — both 303s (via the acid-riff gen_line at a genre density),
+// a drum kit programmed for the style, plus tempo / swing / key. A starting song you then tweak.
+// The 303s always play; the drums use ONE machine per genre (the other is cleared for a clean start).
+enum { SNG_HOUSE, SNG_ACID, SNG_ELECTRO, SNG_GLITCH, SNG_TECHNO, SNG_TEKNO, SNG_N };
+static const char *SNG_NAME[SNG_N] = { "PARTY", "ALOT", "YO", "SING", "PUMP", "TOMS" };   // cute labels: PARTY=house · ALOT=acid · YO=electro · SING=glitch · PUMP=techno · TOMS=tekno
+static void gen_song(int g) {
+    float bpm; float sw; int scale;                        // transport + key per genre
+    switch (g) {
+        case SNG_HOUSE:   bpm = 124; sw = 0.18f; scale = 2; break;   // MINOR
+        case SNG_ACID:    bpm = 130; sw = 0.00f; scale = 0; break;   // m.PENT
+        case SNG_ELECTRO: bpm = 128; sw = 0.00f; scale = 2; break;
+        case SNG_GLITCH:  bpm = 142; sw = 0.00f; scale = 2; break;
+        case SNG_TEKNO:   bpm = 150; sw = 0.00f; scale = 2; break;   // tribe tekno — fast + dark
+        default:          bpm = 132; sw = 0.10f; scale = 2; break;   // TECHNO
+    }
+    bpm01 = clamp((bpm - 60) / 140.0f, 0, 1); g_bpm = bpm; g_swing = sw;
+    mroot[0] = mroot[1] = 0; mscale[0] = mscale[1] = scale; loct[0] = 0; loct[1] = 0;
+
+    gen_drums(0); gen_drums9(0);                           // clear both kits, then program the genre's
+    if (g == SNG_HOUSE || g == SNG_ACID || g == SNG_TECHNO) {          // 909 four-on-floor
+        for (int s = 0; s < STEPS; s += 4) d9grid[TR9_BD][s] = 1;
+        d9grid[TR9_CP][4] = d9grid[TR9_CP][12] = 1;                    // clap backbeat
+        for (int s = 2; s < STEPS; s += 4) d9grid[TR9_OH][s] = 1;      // off-beat open hats
+        int hs = (g == SNG_TECHNO) ? 1 : 2;                            // techno = 16th hats, else 8ths
+        for (int s = 0; s < STEPS; s += hs) d9grid[TR9_CH][s] = 1;
+        if (g == SNG_ACID) for (int s = 0; s < STEPS; s++) if (rnd_between(0, 99) < 18) d9grid[TR9_RC][s] = 1;   // ride sparkle
+    } else if (g == SNG_ELECTRO) {                                     // 808 broken/syncopated
+        dgrid[TR_BD][0] = dgrid[TR_BD][3] = dgrid[TR_BD][6] = dgrid[TR_BD][10] = 1;
+        dgrid[TR_SD][4] = dgrid[TR_SD][12] = 1; dgrid[TR_CP][4] = dgrid[TR_CP][12] = 1;
+        for (int s = 0; s < STEPS; s++) dgrid[TR_CH][s] = 1;           // 16th hats
+        dgrid[TR_OH][2] = dgrid[TR_OH][10] = 1;
+    } else if (g == SNG_TEKNO) {                                      // TRIBE TEKNO — hard four-on-floor + rolling tribal toms/congas, dark
+        for (int s = 0; s < STEPS; s += 4) dgrid[TR_BD][s] = 1;
+        dacc[TR_BD][0] = dacc[TR_BD][8] = 1;                          // accent the 1 & the 3
+        static const int tribe[6] = { TR_LC, TR_MC, TR_HC, TR_LT, TR_MT, TR_HT };   // congas + toms
+        for (int s = 0; s < STEPS; s++) if (s % 4 != 0 && rnd_between(0, 99) < 55) dgrid[tribe[rnd_between(0, 5)]][s] = 1;   // rolling percussion OFF the kick
+        for (int s = 2; s < STEPS; s += 4) dgrid[TR_MA][s] = 1;       // maraca shaker on the off-beats
+    } else {                                                          // GLITCH — sparse, broken, probabilistic
+        dgrid[TR_BD][0] = dgrid[TR_BD][7] = dgrid[TR_BD][11] = 1; dacc[TR_BD][0] = 1;
+        dgrid[TR_SD][4] = dgrid[TR_SD][12] = 1;
+        for (int s = 0; s < STEPS; s++) if (rnd_between(0, 99) < 55) { dgrid[TR_CH][s] = 1; dprob[TR_CH][s] = snap_prob(rnd_between(0, 99) / 100.0f); }
+        for (int s = 0; s < STEPS; s++) if (rnd_between(0, 99) < 15) dgrid[TR_CP][s] = 1;
+    }
+
+    switch (g) {                                           // the 303 lines (mscale is set → gen_line stays in key)
+        case SNG_HOUSE:   gen_line(0, 2); gen_line(1, 1); loct[1] = 1; break;   // rolling bass + a sparse lead up an octave
+        case SNG_ACID:    gen_line(0, 3); gen_line(1, 2); loct[1] = 1; break;   // busy acid bass + lead
+        case SNG_ELECTRO: gen_line(0, 2); gen_line(1, 0); break;                // bass only
+        case SNG_GLITCH:  gen_line(0, 3); gen_line(1, 3); break;                // both busy/chaotic
+        case SNG_TEKNO:   gen_line(0, 1); gen_line(1, 0); loct[0] = -1; break;  // minimal DARK bass an octave down, no lead
+        default:          gen_line(0, 1); gen_line(1, 0); break;                // TECHNO — a minimal hypnotic stab
+    }
+}
 
 // ── candy widgets ──────────────────────────────────────────────────────────
 static void plabel(const char *s, int cx, int y, int col) { print(s, cx - text_width(s) / 2, y, col); }
@@ -793,9 +844,13 @@ static void navspine(Box nav) {
         ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);
         rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
         rrect(hx, hy, hw, hh, 2, hhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        int cxh = hx + hw / 2, cyh = hy + hh / 2;                 // little house glyph
-        trifill(cxh - 3, cyh, cxh + 3, cyh, cxh, cyh - 3, CLR_LIGHT_PEACH);
-        rectfill(cxh - 2, cyh, 5, 3, CLR_LIGHT_PEACH);
+        // little HOUSE glyph — hand-placed so it's pixel-symmetric about cxh (the old trifill roof rasterised lopsided)
+        int cxh = hx + hw / 2, cyh = hy + hh / 2 - 2;
+        pset(cxh, cyh, CLR_LIGHT_PEACH);                          // roof apex
+        rectfill(cxh - 1, cyh + 1, 3, 1, CLR_LIGHT_PEACH);        // roof mid (3 wide)
+        rectfill(cxh - 2, cyh + 2, 5, 1, CLR_LIGHT_PEACH);        // roof base (5 wide)
+        rectfill(cxh - 2, cyh + 3, 5, 3, CLR_LIGHT_PEACH);        // body (5×3)
+        rectfill(cxh,     cyh + 4, 1, 2, CLR_DARK_BROWN);         // a little door, centred
     }
 }
 
@@ -1570,9 +1625,9 @@ static void draw_mst(Box stage) {
     float H = stage.h, W = stage.w;
     Box body   = lay_inset(stage, 2);
     Box volrow = lay_split(body, EDGE_TOP,    H * 0.06f, &body);   // ①b per-machine vol sliders
-    Box rcol   = lay_split(body, EDGE_RIGHT,  W * 0.13f, &body);   // ④ full-height right column: SWG · TEMPO · DUB
+    Box rcol   = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);   // ③b RIGHT soft-key margin (GEN + room); SWG → knob row, TEMPO → bottom
     Box krow   = lay_split(body, EDGE_TOP,    H * 0.24f, &body);   // ② master knobs (now LEFT of rcol → no PUMP↔SWG clash)
-    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.28f, &body);   // ④b delay · ⑤ send
+    Box bottom = lay_split(body, EDGE_BOTTOM, H * 0.20f, &body);   // ⑤ TEMPO + SEND (one row now — DELAY moved to the right side-column)
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);   // ③ soft-keys (band reclaimed above → tall enough for the labels)
     Box lcd    = lay_inset(body, 1);                               // the hero glass
 
@@ -1595,17 +1650,23 @@ static void draw_mst(Box stage) {
         if (lw > 0) rectfill(sx + 1, sy + 1, lw, sh - 2, mac[m].mute ? CLR_DARKER_GREY : mac[m].col);
     }
 
-    // ② master live knobs — GLU/FLT/RES/FB/PUMP, spread across the row
-    knob_cell(lay_grid(krow, 5, 5, 0, 2), &mglu,  "GLU",  0.30f);
-    knob_cell(lay_grid(krow, 5, 5, 1, 2), &mflt,  "FLT",  0.50f);
-    knob_cell(lay_grid(krow, 5, 5, 2, 2), &mfres, "RES",  0.35f);
-    knob_cell(lay_grid(krow, 5, 5, 3, 2), &mfb,   "FB",   0.35f);
-    knob_cell(lay_grid(krow, 5, 5, 4, 2), &mpump, "PUMP", 0.0f);
+    // ② master live knobs — GLU/FLT/RES/FB/PUMP + SWG (the rack-wide swing joins the master row)
+    knob_cell(lay_grid(krow, 6, 6, 0, 2), &mglu,    "GLU",  0.30f);
+    knob_cell(lay_grid(krow, 6, 6, 1, 2), &mflt,    "FLT",  0.50f);
+    knob_cell(lay_grid(krow, 6, 6, 2, 2), &mfres,   "RES",  0.35f);
+    knob_cell(lay_grid(krow, 6, 6, 3, 2), &mfb,     "FB",   0.35f);
+    knob_cell(lay_grid(krow, 6, 6, 4, 2), &mpump,   "PUMP", 0.0f);
+    knob_cell(lay_grid(krow, 6, 6, 5, 2), &g_swing, "SWG",  0.0f);
 
-    // ③ soft-keys — MIX meters + PCF/CRUSH/GATE drawable master lanes
+    // ③ soft-keys — LEFT margin: the 4 LCD views (MIX + the PCF/CRUSH/GATE lanes).
     { static const char *L[4] = { "MIX", "PCF", "CRU", "GAT" };
       for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
           if (cbtn(0x20u + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == k)) mstflow = k; } }
+    // ③b RIGHT margin — the SIDE-BUTTON column: GEN (genre presets) on top, then the 4 DELAY divisions stacked
+    { Box c = lay_grid(rcol, 1, 5, 0, 2);
+      if (cbtn(0x24u, (int)c.x, (int)c.y, (int)c.w, (int)c.h, "GEN", mstflow == 4)) mstflow = 4; }
+    for (int i = 0; i < 4; i++) { Box c = lay_grid(rcol, 1, 5, i + 1, 2);
+        if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);
     rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
@@ -1628,6 +1689,10 @@ static void draw_mst(Box stage) {
             if (lv > 0) rectfill(cx + 1, fy + fh - 1 - lv, fw - 2, lv, col);
             print(MLAB[m], cx + (fw - text_width(MLAB[m])) / 2, fy + fh - 6, CLR_LIGHT_YELLOW);
         }
+    } else if (mstflow == 4) {
+        // GEN — whole-rack genre presets. One tap fills both 303s + a kit + tempo/swing/key.
+        for (int i = 0; i < SNG_N; i++) { Box c = lay_grid(gc, 2, 6, i, 2);
+            if (lcdbtn(0x60u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, SNG_NAME[i], 0)) gen_song(i); }
     } else {
         // PCF / CRUSH / GATE — a drawable 16-step master lane (mstflow 1/2/3), spread across the glass.
         // PCF = tone (green), CRUSH = texture (orange), GATE = chop (pink); full bar = no effect.
@@ -1668,53 +1733,19 @@ static void draw_mst(Box stage) {
             for (int s = 0; s < STEPS; s++) lane[s] = dflt;   // one-tap wipe back to no-effect
     }
 
-    // ④ the RIGHT COLUMN — SWG · TEMPO · DUB stacked full-height, each its own cell (was a cramped
-    // gutter beside the LCD where "PUMP" collided with SWG + the tempo readout spilled into the DLY row).
-    knob_cell(lay_grid(rcol, 1, 3, 0, 2), &g_swing, "SWG", 0.0f);
-    {   Box tc = lay_grid(rcol, 1, 3, 1, 2);                               // TEMPO — gknob shows the live BPM as its label
-        g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                     // sync tempo from the proxy (rounded → no per-frame fx re-apply)
+    // ④ the bottom band: TEMPO (left gutter) + the per-machine SEND knobs — ONE row, all at the same y
+    Box tc = lay_split(bottom, EDGE_LEFT, W * 0.13f, &bottom);              // TEMPO gutter (x); the sends fill the rest
+    g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                         // sync tempo from the proxy (rounded → no per-frame fx re-apply)
+    for (int m = 0; m < 4; m++) { Box c = lay_grid(bottom, 4, 4, m, 2);    // ⑤ per-machine delay SEND (knob label = the machine)
+        float rh = c.h * 0.34f, rw = c.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
+        knob(&msend[m], (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, MLAB[m], m < 2 ? 0.10f : 0.0f); }
+    {   // TEMPO gknob — SAME y as the SEND knobs (aligned bottom row); the value IS the BPM readout
         char b[4]; int bi = (int)g_bpm, ni = 0;
         if (bi >= 100) b[ni++] = '0' + bi / 100;
         b[ni++] = '0' + (bi / 10) % 10; b[ni++] = '0' + bi % 10; b[ni] = 0;
-        float rh = tc.h * 0.30f, rw = tc.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 5, 12);
-        int cy = (int)(tc.y + r + 1); if (cy + r + 7 > (int)(tc.y + tc.h)) cy = (int)(tc.y + tc.h) - r - 7;
-        gknob(&bpm01, (int)(tc.x + tc.w / 2), cy, r, b);
+        float rh = bottom.h * 0.34f, rw = tc.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
+        gknob(&bpm01, (int)(tc.x + tc.w / 2), (int)(bottom.y + r + 1), r, b);
     }
-    g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);
-    {   // ⑥ DUB PAD — HOLD + drag: X = delay TIME, Y = FEEDBACK. Momentary (apply_fx overrides while held).
-        Box dc = lay_grid(rcol, 1, 3, 2, 2);
-        int px = (int)dc.x, py = (int)dc.y, pw = (int)dc.w, ph = (int)dc.h; if (pw < 6) pw = 6;
-        void *w = ui_wid_hash(0x28u, px, py, pw, ph); ui_reg(w, px, py, pw, ph, 0);
-        UiCap *c = ui_cap_for(w);
-        if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
-            int fx = c->released ? c->rx : c->cx, fy = c->released ? c->ry : c->cy;
-            dub_t  = clamp((fx - px) / (float)(pw - 1), 0, 1);
-            dub_fb = clamp((py + ph - 1 - fy) / (float)(ph - 1), 0, 1);
-            if (!c->released) dub_held = 1;
-        }
-        rrectfill(px, py, pw, ph, 1, CLR_BROWNISH_BLACK);
-        rrect(px, py, pw, ph, 1, dub_held ? CLR_WHITE : CLR_DARK_BROWN);
-        int hx = px + (int)(dub_t * (pw - 1)), hy = py + ph - 1 - (int)(dub_fb * (ph - 1));
-        circfill(hx, hy, 1, dub_held ? CLR_LIGHT_YELLOW : CLR_TRUE_BLUE);
-        font(FONT_TINY); print("DUB", px + 1, py + 1, dub_held ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
-    }
-
-    // the bottom band: DELAY buttons (top) · SEND knobs (below) — full width now (DUB moved to the right column)
-    Box delrow = lay_split(bottom, EDGE_TOP, bottom.h * 0.36f, &bottom);   // shorter → DLY buttons not too tall
-    Box sendrow = bottom;
-    // ④b DELAY division buttons (set mdiv directly; label = the division)
-    { Box lbl = lay_split(delrow, EDGE_LEFT, W * 0.11f, &delrow);
-      font(FONT_TINY); plabel("DLY", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
-      for (int i = 0; i < 4; i++) { Box c = lay_grid(delrow, 4, 4, i, 2);
-          if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; } }
-    // ⑤ per-machine delay SEND
-    { Box lbl = lay_split(sendrow, EDGE_LEFT, W * 0.11f, &sendrow);
-      font(FONT_TINY); plabel("SND", (int)(lbl.x + lbl.w / 2), (int)(lbl.y + lbl.h / 2 - 2), CLR_DARK_BROWN);
-      // SND knobs TOP-aligned (not knob_cell) so the dial top always keeps a 1px gap below the DLY
-      // buttons — the short send row would otherwise trip knob_cell's label-fit clamp and push the dial UP.
-      for (int m = 0; m < 4; m++) { Box c = lay_grid(sendrow, 4, 4, m, 2);
-          float rh = c.h * 0.34f, rw = c.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
-          knob(&msend[m], (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, MLAB[m], m < 2 ? 0.10f : 0.0f); } }
 }
 
 void init(void) {
@@ -1920,7 +1951,6 @@ void draw(void) {
           if (tw != cw || th != ch) de_resize(tw, th);                  // request the chunky canvas (no-op once at the fixed point)
       } }
 
-    dub_held = 0;                              // the DUB pad re-asserts it each frame it's held (draw_mst); else the delay is normal
     cls(CLR_DARK_PURPLE);                       // the candy shell — BLEEDS to every screen edge (fills margins, no black bars)
 
     // device-adaptive frame: the chassis fills the safe area (notch/home-bar dodged on device,

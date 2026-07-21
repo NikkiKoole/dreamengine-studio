@@ -43,7 +43,9 @@
 //
 // A recipe / --from file may carry self-describing metadata as `# key value` comment
 // lines (harmless to the runtime script parser): `# frames 490`, `# fps 30`, `# scale 1`,
-// `# crf 30`. A CLI flag always overrides the recipe's value. This is what lets `--all`
+// `# crf 30`, `# seed N` (a recorded .rec carries its own — honoured so the take replays into
+// the SAME seeded world it was captured in). A CLI flag always overrides the recipe's value.
+// This is what lets `--all`
 // rebuild every clip at its own length with no per-cart bookkeeping.
 
 const fs   = require('fs')
@@ -124,7 +126,7 @@ if (playFile) {
   const isRec = path.extname(playFile) === '.rec'
   let maxFrame = 0
   for (const raw of fs.readFileSync(playFile, 'utf8').split('\n')) {
-    const mm = raw.match(/^#\s*(frames|fps|scale|crf)\s+(\d+)/)
+    const mm = raw.match(/^#\s*(frames|fps|scale|crf|seed)\s+(\d+)/)
     if (mm) { meta[mm[1]] = +mm[2]; continue }
     const fe = isRec ? raw.match(/^\s*(\d+)\s+[kmb]\b/)     // a .rec log line
                      : raw.match(/^\s*(?:down|up|tap)\s+(\d+)/)   // a .script event frame
@@ -177,6 +179,9 @@ if (playFile) playArgs.push(playFile)
 playArgs.push('--headless', '--frames', String(frames), '--dump', dumpDir, '--dump-every', String(every))
 if (wantAudio) playArgs.push('--wav', wavPath)
 for (const f of ['--seed', '--bpm', '--screen']) if (opt(f, null)) playArgs.push(f, opt(f, null))
+// a recorded .rec carries its own `# seed N` — honour it so the recipe replays into the SAME
+// world the take was captured in (replay is --det/seeded; a mismatched seed diverges). CLI --seed wins.
+if (opt('--seed', null) === null && meta.seed !== undefined) playArgs.push('--seed', String(meta.seed))
 
 console.log(`\n[1/3] dumping ${frames} frames (every ${every} → ${fps}fps)${wantAudio ? ' + audio' : ''} of '${name}' ${from ? `from ${path.basename(from)}` : '(headless run)'}…`)
 if (spawnSync('node', playArgs, { stdio: 'inherit' }).status !== 0) { console.error('frame dump failed'); process.exit(1) }

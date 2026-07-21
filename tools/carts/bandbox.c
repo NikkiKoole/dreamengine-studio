@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker."
+    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression."
   }
 }
 de:meta */
@@ -508,7 +508,8 @@ static void glass_help(Box g) {
     rectfill(x, y + 1, 3, 3, CLR_MEDIUM_GREY); print("follows the chord + genre", x + 6, y, CLR_LIGHT_GREY); y += 7;
     rectfill(x, y + 1, 3, 3, CLR_ORANGE);      print("p-locked (a per-cell override)", x + 6, y, CLR_LIGHT_GREY); y += 7;
     print("tap a rail header to mute a lane", x, y, CLR_INDIGO); y += 7;
-    print("KEY: stopped respells, playing moves", x, y, CLR_INDIGO);
+    print("+ picks a chord (or type A S D F.. like", x, y, CLR_INDIGO); y += 7;
+    print("garageband). KEY: stopped respells, plays move", x, y, CLR_INDIGO);
 }
 
 // GLASS material — a recessed dark display panel with a bezel.
@@ -720,11 +721,13 @@ static void glass_editor(Box g) {
     }
 }
 
-// a key press → PICKING appends a chord on that root (diatonic quality if it fits
-// the key); EDITING a chord cell re-roots that chord. Inert otherwise.
+// a key press (on-screen keybed OR the QWERTY musical typing) → PICKING appends a
+// chord on that root (diatonic quality if it fits the key); EDITING a chord cell
+// re-roots it; IDLE opens the picker and appends (so you can just start typing chords).
 static void keybed_pick(int pc) {
-    if (picking)                append_chord(pc, qual_for_root(pc));
-    else if (selVoice == V_CH)  set_root(selBar, pc);
+    if (!picking && selVoice == V_CH) { set_root(selBar, pc); return; }
+    if (!picking) picking = 1;
+    append_chord(pc, qual_for_root(pc));
 }
 // a tiny keybed (chassis) — live while ADDING (the picker) or EDITING a chord.
 static void zone_keybed(Box b) {
@@ -767,6 +770,16 @@ void update(void) {
     if (keyp('B'))       { modeSel = (modeSel + 1) % NMODE; rethink(); }
     if (keyp(KEY_BACKSPACE)) { selVoice = -1; picking = 0; }
     if (keyp('N'))           new_song();   // start a fresh empty song
+
+    // GarageBand-style MUSICAL TYPING — the QWERTY rows are a keyboard that drives
+    // the keybed (a chord root). Home row A S D F G H J K L ; = the white keys
+    // (C D E F G A B C D E), top row W E T Y U O P = the black keys. Each press
+    // adds/edits a chord (via keybed_pick), so you can type a progression.
+    { static const struct { int k, pc; } MT[] = {
+        {'A',0},{'W',1},{'S',2},{'E',3},{'D',4},{'F',5},{'T',6},{'G',7},
+        {'Y',8},{'H',9},{'U',10},{'J',11},{'K',0},{'O',1},{'L',2},{'P',3},{';',4} };
+      for (int i = 0; i < (int)(sizeof MT / sizeof MT[0]); i++)
+          if (keyp(MT[i].k)) keybed_pick(MT[i].pc); }
     if (keyp(KEY_SPACE) && nbars) { playing = !playing; playSlot = 0; playT = 0;
         bassLast = 36 + (octSel - 1) * 12; melLast = 72 + (octSel - 1) * 12; melI = 0; }
 
@@ -922,6 +935,13 @@ void spec(void) {
     expect_eq(qual_for_root(7), HBQ_DOM7, "qual_for_root: G in C major = V's dominant 7");
     append_chord((keyPc + hb_off[HB_V]) % 12, hb_qual[HB_V]);
     expect(nbars == 1 && pfn[0] == HB_V, "picker append: a V lands as V");
+
+    // musical typing (idle keybed_pick) opens the picker + appends that root
+    new_song();
+    keybed_pick(7);
+    expect(picking && nbars == 1 && arr[0].rootPc == 7,
+           "idle keybed_pick opens the picker + appends (G)");
+    picking = 0;
 
     // back to a clean state
     modeSel = 0; keyPc = 0; seed_demo();

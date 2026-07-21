@@ -1,9 +1,13 @@
 # BandBox — the chord-chart SEQUENCER (build brief)
 
-STATUS: READY-TO-WIRE (2026-07-21) — the look/layout mockup is **committed and settled**
-(`26e58cb6`, `tools/carts/bandbox.c`); it's **draw-only** (hardcoded sample state). The design
-language is decided (don't relitigate it — see below). This doc is the brief for the **build phase**:
-wiring it for real. Sibling of `chordwise`; part of the chord-bloom thread in
+STATUS: BUILDING (2026-07-21) — **wired** (`tools/carts/bandbox.c`): the draw-only mockup is now a
+real sequencer. Steps 1–6 of the build plan below are done — the chord lane analyzes via the harmony
+brain, the ^/v spinner + keybed edit chords, the ported chordwise band plays every genre, every voice
+takes per-cell p-locks (strum/inv/oct/7th · bass mute/walk · drum FILL · mel rest/accent · pad on/off),
+and it carries a `spec()` (61 assertions, all green). Demo clip parked at `tools/clips/bandbox/01-doowop.beats`.
+Open follow-ups: the shared `band.h` extraction (still copy-first — the p-lock shape is now known, so this
+is the moment to consider it), and richer per-voice editors (density/register/kit) if wanted. The design
+language stayed settled (see below). Sibling of `chordwise`; part of the chord-bloom thread in
 [`bossa-rack.md`](bossa-rack.md).
 
 ---

@@ -1,0 +1,6 @@
+# bandbox demo — the cold-open doo-wop (I vi IV V) played by the BOSSA band,
+# then B switches the genre live (the same chords, a new idiom). Deterministic.
+bpm 120
+start 2
+beat 16 tap B    # -> LOUNGE (the band re-voices, chords stay)
+beat 32 tap B    # -> POP

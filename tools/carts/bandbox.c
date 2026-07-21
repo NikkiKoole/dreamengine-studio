@@ -481,17 +481,25 @@ static void play_mel_step(int step, int delay) {
     queue_note(melLast, I_LEAD, feel_vel(playSlot, ml == 1 ? 5 : 4), delay + feel_delay_fr(playSlot));
 }
 
-// ── pad (bandbox's own voice — a slow sustained chord under the bar) ────────
+// ── pad (a real sustained BED, not a per-bar blip) ──────────────────────────
+// The fix for "useless pads": HOLD the chord for the whole bar (hit() with a
+// bar-length ring, so the tail overlaps the next bar = a legato wash) in a warm MID
+// register — under the melody, above the bass — instead of one soft low blip.
+// Timing is deliberately loose (a pad doesn't swing), so it ignores the step delay.
 static void play_pad(int delay) {
+    (void)delay;
     if (!nbars) return;
     int on = arr[playSlot].pad < 0 ? von[V_PA] : arr[playSlot].pad;
     if (!on) return;
     int r0 = arr[playSlot].rootPc, q = arr[playSlot].qual;
-    int base = 36 + (octSel - 1) * 12 + r0;      // low & warm
+    int base = 48 + (octSel - 1) * 12 + r0;      // mid — a chord-register bed
     int voices = bar_sev(playSlot) ? 4 : 3;
+    int dur = (int)(bar_frames() * (1000.0f / 60.0f));   // sustain ~one bar; the release tail bleeds into the next
+    int vel = feel_vel(playSlot, 3);
     for (int i = 0; i < voices; i++) {
-        if (lit_voice() == V_PA) light_pc(base + hb_tones[q][i]);
-        queue_note(base + hb_tones[q][i], I_PAD, feel_vel(playSlot, 3), delay + feel_delay_fr(playSlot));
+        int m = base + hb_tones[q][i];
+        if (lit_voice() == V_PA) light_pc(m);
+        hit(m, I_PAD, vel, dur);                 // HELD (vs note()'s quick decay) — a proper pad
     }
 }
 

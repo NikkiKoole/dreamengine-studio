@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   }
 }
 de:meta */
@@ -126,7 +126,7 @@ typedef struct {
     int rootPc, qual;            // the CHORD (the harmonic spine of the bar)
     int strum, inv, oct, sev;    // CHORD p-locks (-1 = auto)
     int bass;                    // BASS p-lock (BPL_*): -1 FOLLOW · MUTE/HOLD/WALK/OCT/FILL
-    int fill;                    // DRUM p-lock: 0 groove · 1 fill this bar
+    int fill;                    // DRUM p-lock (DPL_*): GROOVE(0)/DROP/KICK/FILL/CRASH/BUILD
     int mel;                     // MEL  p-lock: -1 auto · 0 rest · 1 accent
     int pad;                     // PAD  p-lock: -1 auto · 0 off · 1 on
 } Bar;
@@ -150,6 +150,16 @@ static const int   BPL_VAL[6] = { BPL_FOLLOW, BPL_MUTE, BPL_HOLD, BPL_WALK, BPL_
 static int bassSel = B_BAND;
 static const char *DRUM_LAB[2] = { "PLAIN", "BAND" };
 static int drumSel = 1;   // 0 PLAIN · 1 BAND
+// the KIT — the whole rhythm section's SOUND (drumkit.h ships both). A one-line
+// dk_use() swap; set-and-hold (re-applied only when the KIT chip changes, never per frame).
+static const DrumKitDef *KITS[2]   = { &DK_ELECTRO, &DK_ACOUSTIC };
+static const char       *KIT_LAB[2] = { "ELECTRO", "ACOUSTIC" };
+static int kitSel = 1;    // default ACOUSTIC
+// per-CELL drum p-locks (arr[].fill; GROOVE is the default, the rest are one-bar
+// moves a drummer punches in): drop out, strip to the kick, a genre fill, a crash
+// accent over the groove, or a whole-bar snare build.
+enum { DPL_GROOVE, DPL_DROP, DPL_KICK, DPL_FILL, DPL_CRASH, DPL_BUILD };
+static const char *DPL_LAB[6] = { "GROOVE", "DROP", "KICK", "FILL", "CRASH", "BUILD" };
 
 // resolve a bar's effective chord-voicing (p-lock else global)
 static int bar_strum(int b) { return arr[b].strum >= 0 ? arr[b].strum : strumSel; }
@@ -308,14 +318,28 @@ static const FillPat FILL_PAT[NMODE] = {
 static const FillPat FILL_PLAIN = { "....sshl", 1 };
 static void play_drum_step(int step, int delayMs) {
     if (!von[V_DR] || !nbars) return;
+    int dp = arr[playSlot].fill;                 // DPL_* per-cell move
+    if (dp == DPL_DROP) return;                  // DROP — silent this bar
     const DrumPat *d = (drumSel == 1) ? &DRUM_PAT[modeSel] : &DRUM_PLAIN;
-    if (arr[playSlot].fill) {                    // p-lock FILL — the genre flourish this bar
+
+    if (dp == DPL_FILL) {                        // FILL — the genre flourish + turnaround crash
         const FillPat *fp = (drumSel == 1) ? &FILL_PAT[modeSel] : &FILL_PLAIN;
         if (step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, 5);
         int r = fill_role(fp->pat[step]);
-        if (r >= 0) { dk_fire_at(delayMs, r, 0, 4 + step / 2); return; }
-        return;                                  // a fill bar takes over the whole bar
+        if (r >= 0) dk_fire_at(delayMs, r, 0, 4 + step / 2);
+        return;
     }
+    if (dp == DPL_BUILD) {                       // BUILD — a whole-bar snare riser
+        int vel = 3 + step; if (vel > 7) vel = 7;
+        dk_fire_at(delayMs, DK_SNARE, 0, vel);
+        if (step == 0) dk_fire_at(delayMs, DK_KICK, 0, 6);
+        return;
+    }
+    if (dp == DPL_KICK) {                         // KICK — strip to the bare pulse
+        if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK, 0, 6);
+        return;
+    }
+    if (dp == DPL_CRASH && step == 0) dk_fire_at(delayMs, DK_CRASH, 0, 5);   // accent, then GROOVE
     if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, 6);
     if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, 5);
     if (d->hat[step]  == 'x') dk_fire_at(delayMs, d->hatRole,  0, 3);
@@ -754,13 +778,23 @@ static void editor_bass(Box g) {
             arr[selBar].bass = BPL_VAL[i + 3];
     }
 }
+// DRUMS editor: global STYLE + KIT chips, then the per-cell vocab (2x3):
+// GROOVE / DROP / KICK / FILL / CRASH / BUILD.
 static void editor_drums(Box g) {
-    Box styRow = lay_split(g, EDGE_TOP, 15, &g);
+    Box styRow = lay_split(g, EDGE_TOP, 13, &g);
+    Box styB = lay_grid(styRow, 2, 2, 0, 1), kitB = lay_grid(styRow, 2, 2, 1, 1);
     char sv[8]; snprintf(sv, sizeof sv, "%s", DRUM_LAB[drumSel]);
-    if (chip(lay_inset(styRow, 1), "STYLE", sv, 1, 0x2440)) drumSel = (drumSel + 1) % 2;
+    if (chip(lay_inset(styB, 1), "STYLE", sv, 1, 0x2440)) drumSel = (drumSel + 1) % 2;
+    if (chip(lay_inset(kitB, 1), "KIT", KIT_LAB[kitSel], 1, 0x2443)) {
+        kitSel = !kitSel; dk_use(KITS[kitSel], 20);   // set-and-hold: swap only on tap
+    }
     Box p = lay_inset(g, 1);
-    if (seg(lay_grid(p, 2, 2, 0, 1), "GROOVE", arr[selBar].fill == 0, 0x2441)) arr[selBar].fill = 0;
-    if (seg(lay_grid(p, 2, 2, 1, 1), "FILL",   arr[selBar].fill == 1, 0x2442)) arr[selBar].fill = 1;
+    int dp = arr[selBar].fill;
+    Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
+    for (int i = 0; i < 3; i++) {
+        if (seg(lay_grid(r0, 3, 3, i, 1), DPL_LAB[i],     dp == i,     0x2444u + i)) arr[selBar].fill = i;
+        if (seg(lay_grid(r1, 3, 3, i, 1), DPL_LAB[i + 3], dp == i + 3, 0x2447u + i)) arr[selBar].fill = i + 3;
+    }
 }
 static void editor_mel(Box g) {
     Box p = lay_inset(g, 1);
@@ -861,7 +895,7 @@ void init(void) {
     instrument(I_BSS, INSTR_TRI, 6, 160, 3, 220);
     instrument(I_LEAD, INSTR_SINE, 4, 180, 3, 200);
     instrument(I_PAD, INSTR_SINE, 300, 0, 7, 500);   // the doc's pad recipe
-    dk_use(&DK_ACOUSTIC, 20);                        // the rhythm section — slots 20..27
+    dk_use(KITS[kitSel], 20);                        // the rhythm section — slots 20..27
     seed_demo();
 }
 
@@ -989,11 +1023,13 @@ void spec(void) {
     expect_eq(bar_strum(1), 2, "a neighbour still follows the global");
     arr[0].strum = -1; strumSel = 0;                  // reset
 
-    // the drum FILL p-lock (the maker's canonical example)
-    expect_eq(arr[3].fill, 0, "bars default to GROOVE (no fill)");
-    arr[3].fill = 1;
-    expect_eq(arr[3].fill, 1, "bar 3 p-locked to FILL");
-    arr[3].fill = 0;
+    // the drum per-cell vocab (GROOVE is the default; the rest are one-bar moves)
+    expect_eq(arr[3].fill, DPL_GROOVE, "bars default to GROOVE");
+    expect(!cell_locked(V_DR, 3), "a GROOVE drum cell reads as unlocked");
+    arr[3].fill = DPL_FILL;  expect(cell_locked(V_DR, 3), "FILL reads as a p-lock");
+    arr[3].fill = DPL_CRASH; expect_eq(arr[3].fill, DPL_CRASH, "drum CRASH p-lock sets");
+    arr[3].fill = DPL_BUILD; expect_eq(arr[3].fill, DPL_BUILD, "drum BUILD p-lock sets");
+    arr[3].fill = DPL_GROOVE;
 
     // the bass per-cell vocab: FOLLOW is the AUTO default, the rest are one-bar overrides
     expect_eq(arr[0].bass, BPL_FOLLOW, "bars default to FOLLOW the bass style");

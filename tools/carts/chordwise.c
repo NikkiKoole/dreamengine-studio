@@ -13,10 +13,14 @@
   ],
   "lineage": "The first consumer of runtime/harmony.h — the shared harmony brain extracted byte-identically from bossa/cocktail's Markov chord engines (design/harmony-brain.md). Built for the loudest demand-discovery gap on record: r/musictheory demand-82, 'a harmonic progression analyzer / suggestion tool'. Analysis is generation inverted: the same function vocab + transition table that composes bossa's changes here names YOUR chords and ranks what could come next.",
   "description": {
-    "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). Eleven modes span MAJOR (bossa/lounge/pop/folk), MINOR (sad-pop + cinematic), all four church MODES (dorian/mixolydian/phrygian/lydian) and BLUES, and a 7THS/TRIAD toggle reads (and voices) plain triads (Am F C G) for beginners or full sevenths for jazz. A STRUM picker rakes the pluck as a block chord, a down/up-stroke or a slow roll, an INV picker voices the chord in root position or an inversion (the bass note changes, so you hear it), an OCT picker drops or lifts the whole voicing a register (the way a pianist plays a chord an octave down), a BASS picker plays a generated bassline under the loop (HOLD root, R-5 root+fifth pump, or a WALK that quarter-note-walks INTO the next chord's root), and a BPM slider sets the loop tempo (60-180). SPACE loops your changes on a soft pluck. A ? button opens a legend explaining the roman numerals and every NEXT reason-word (home, cadence, walk, borrow, tritone sub...).",
+    "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). Eleven modes span MAJOR (bossa/lounge/pop/folk), MINOR (sad-pop + cinematic), all four church MODES (dorian/mixolydian/phrygian/lydian) and BLUES, and a 7THS/TRIAD toggle reads (and voices) plain triads (Am F C G) for beginners or full sevenths for jazz. A STRUM picker rakes the pluck as a block chord, a down/up-stroke or a slow roll, an INV picker voices the chord in root position or an inversion (the bass note changes, so you hear it), an OCT picker drops or lifts the whole voicing a register (the way a pianist plays a chord an octave down), a BASS picker plays a generated bassline under the loop (HOLD root, R-5 root+fifth pump, WALK a quarter-note jazz walk INTO the next chord's root, or BAND - a genre-aware bassist that reads the declared mode and plays its idiom: bossa root-fifth, folk boom-chuck, rock root-fifth+b7, phrygian b2, dorian natural-6, the 12-bar boogie shuffle...), and a BPM slider sets the loop tempo (60-180). SPACE loops your changes on a soft pluck. A ? button opens a legend explaining the roman numerals and every NEXT reason-word (home, cadence, walk, borrow, tritone sub...).",
     "detail": "The demand-82 toy: a progression analyzer + next-chord suggester on the shared harmony brain (runtime/harmony.h, lifted byte-identically from the bossa/cocktail radio stations). B cycles eleven MODES that each swap the whole tonal system - the palette respells, the strip re-analyses, NEXT re-ranks. Four ride the 13-function MAJOR vocab, differently weighted (the research thesis - genres differ by WEIGHTS, not grammar): BOSSA (jazz - 6 diatonic seats + the borrowed/chromatic shelf: II7/VI7, tritone sub bII7, backdoor iv/bVII7, v, I7), LOUNGE (cocktail's 10-function trio tuning), POP (the I-V-vi-IV axis + 50s doo-wop), FOLK (IV-forward three-chord-song staples, plainer than pop). Two ride the MINOR vocab (i ii° III iv v V VI VII vii°, natural + harmonic-minor V): MINOR (sad-pop/EDM) and CINE (the epic i-VI-III-VII trailer climb). Then the four CHURCH MODES, each its own vocab with one characteristic chord: DORIAN (minor + a bright MAJOR IV, the lo-fi/neo-soul i<->IV vamp), MIXOLYDIAN (major + a flat 7, the bVII-IV-I rock cadence), PHRYGIAN (minor + a flat 2, the bII-i flamenco/metal half-step), LYDIAN (major + a sharp 4, the floating I<->II film sound). BLUES is I7 IV7 V7, the 12-bar's whole world. Analysis stays honest in every mode because the key is DECLARED, never guessed. Tap chords into an 8-slot strip; every frame the strip is RE-ANALYZED from the raw chords (root + quality) against the current mode's vocab, so the roman numerals are honest lookups, not echoes of what you pressed - move the key OR the mode under a finished progression and the same chords re-name (Cmaj7: I in C major, III in A minor), and chords outside the mode's vocabulary show ? instead of a guess. Minor/blues analysis works because the key is DECLARED, never guessed (auto-detecting major-vs-minor from raw chords is the unsolved part, which this toy sidesteps by design). The NEXT panel reads the same Markov table that composes the songs FORWARD: ranked candidates with weight pips and a one-word reason each - the research made audible: genres differ by WEIGHTS over a vocab, not by grammar. Deterministic; carries a spec() (round-trip: every function's spelling re-analyzes to itself in all 12 keys, in major, minor AND blues; doo-wop = I vi IV V; ii-V-I; minor i-VI).",
-    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the top row, A S D F G H J = the second row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle mode (BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES). 7 (or the 7THS/TRIAD button) toggles between seventh chords (Am7 Fmaj7) and plain triads (Am F) - triads also VOICE without the 7th, so the tool reads AND sounds basic. 8 (or the STRUM button) cycles how the strings are raked: BLOCK (all at once), DOWN (low->high), UP (high->low) and ROLL (a slow arpeggiated rake). 9 (or the INV button) cycles the voicing: ROOT position, 1ST, 2ND (and 3RD for sevenths) inversion - the soft bass follows, so the lowest note actually changes. 0 (or the OCT button) shifts the register LOW / MID / HIGH - the whole chord an octave down or up, MID being the original. The BASS button cycles the accompaniment played UNDER the SPACE loop (silent while tapping): HOLD (the held root), R-5 (root + fifth pump) and WALK (a quarter-note walking bass that leads into the next chord's root). The BPM slider (bottom-right) sets the SPACE-loop tempo, 60-180 BPM. The ? button (top) opens the legend: what the roman numerals and NEXT reason-words mean."
-  }
+    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the top row, A S D F G H J = the second row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle mode (BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES). 7 (or the 7THS/TRIAD button) toggles between seventh chords (Am7 Fmaj7) and plain triads (Am F) - triads also VOICE without the 7th, so the tool reads AND sounds basic. 8 (or the STRUM button) cycles how the strings are raked: BLOCK (all at once), DOWN (low->high), UP (high->low) and ROLL (a slow arpeggiated rake). 9 (or the INV button) cycles the voicing: ROOT position, 1ST, 2ND (and 3RD for sevenths) inversion - the soft bass follows, so the lowest note actually changes. 0 (or the OCT button) shifts the register LOW / MID / HIGH - the whole chord an octave down or up, MID being the original. The BASS button cycles the accompaniment played UNDER the SPACE loop (silent while tapping): HOLD (the held root), R-5 (root + fifth pump), WALK (a quarter-note jazz walking bass that leads into the next chord's root) and BAND (a genre-aware bassist that plays the DECLARED mode's own idiom - bossa/folk/rock/phrygian/blues-boogie... each different). The BPM slider (bottom-right) sets the SPACE-loop tempo, 60-180 BPM. The ? button (top) opens the legend: what the roman numerals and NEXT reason-words mean."
+  },
+  "todo": [
+    "Consider extracting a shared bass.h once a 2nd/3rd consumer appears (the second-customer rule, like harmony.h/improv.h): a genre-idiom SKELETON (which note on which beat, per genre) that both BAND and the radio stations draw from, each adding its own voice/swing/variation. NOT worth it yet - radio bass is bespoke + already richer (swing, chance-variation, dynamics) than BAND.",
+    "BAND could gain LIFE like the radios if wanted: chance()-based note variation + swing/behind-the-beat feel. Deliberately omitted for now - chordwise is a legible, deterministic teaching toy (carries a spec), and predictability is the right call here."
+  ]
 }
 de:meta */
 // chordwise — the progression analyzer + next-chord suggester (demand-82).
@@ -41,6 +45,7 @@ de:meta */
 #include "studio.h"
 #include "harmony.h"
 #include "ui.h"
+#include "radio.h"   // rad_bass_to — nearest-octave voice leading for the bassline
 #include <stdio.h>
 #include <string.h>
 
@@ -219,30 +224,76 @@ static void sound_chord(int rootPc, int q, int withBass) {
 
 // BASS — a generated accompaniment under the SPACE loop (silent while tapping).
 // HOLD = the held root sound_chord already plays. R-5 = root/fifth pump. WALK =
-// a quarter-note walk: root, 3rd, 5th, then a half-step approach INTO the next
-// chord's root — the progression's forward motion (the NEXT panel's data) made
-// audible. Reused idea: improv.h's "chord tone on the strong beat" walking rule.
-enum { B_HOLD, B_ROOT5, B_WALK };
-static const char *BASS_LAB[3] = { "HOLD", "R-5", "WALK" };
+// a jazz quarter-note walk (root, 3rd, 5th, chromatic approach into the next
+// root). BAND = a genre-aware bassist: it reads the DECLARED mode and plays that
+// genre's idiom — the same "genres differ by character over one vocab" thesis the
+// chords already make audible, now in the bass. Reuses improv.h's "chord tone on
+// the strong beat" rule; the mode is an input, so this stays honest, never guessed.
+// Every style is VOICE-LED through radio.h's rad_bass_to: each note steps to the
+// NEAREST instance of its pitch class and folds into a register window, so the
+// line walks smoothly instead of leaping (octave bounces are layered on top).
+enum { B_HOLD, B_ROOT5, B_WALK, B_BAND };
+static const char *BASS_LAB[4] = { "HOLD", "R-5", "WALK", "BAND" };
 static int bassSel = 0;
+
+// beat tokens the BAND patterns are written in — resolved against the live chord
+// (quality-correct 3rd/5th) and the next root, so one table serves every key.
+enum { BT_ROOT, BT_OCTU, BT_FIFTH, BT_FIFTHD, BT_THIRD, BT_SIXTH, BT_FLAT2, BT_FLAT7, BT_APPR, BT_REST };
+
+// the genre map: one 4-beat bass idiom per MODE (index matches MODES[] above).
+static const int BASS_PAT[NMODE][4] = {
+    /* BOSSA  */ { BT_ROOT,  BT_REST,  BT_FIFTHD, BT_REST  },  // sparse latin root / fifth-below
+    /* LOUNGE */ { BT_ROOT,  BT_THIRD, BT_FIFTH,  BT_APPR  },  // the jazz quarter walk (its true home)
+    /* POP    */ { BT_ROOT,  BT_REST,  BT_OCTU,   BT_REST  },  // root / root-octave pulse
+    /* FOLK   */ { BT_ROOT,  BT_REST,  BT_FIFTH,  BT_REST  },  // boom-chuck: root then fifth
+    /* MINOR  */ { BT_ROOT,  BT_OCTU,  BT_ROOT,   BT_OCTU  },  // driving root/octave eighths
+    /* CINE   */ { BT_ROOT,  BT_REST,  BT_REST,   BT_REST  },  // one sustained pedal root a bar
+    /* DORIAN */ { BT_ROOT,  BT_SIXTH, BT_FIFTH,  BT_SIXTH },  // the bright natural-6 dorian color
+    /* MIXO   */ { BT_ROOT,  BT_FIFTH, BT_FLAT7,  BT_FIFTH },  // rock: root, fifth, the flat-7
+    /* PHRYG  */ { BT_ROOT,  BT_FLAT2, BT_ROOT,   BT_FLAT2 },  // the flamenco b2 half-step
+    /* LYDIAN */ { BT_ROOT,  BT_REST,  BT_FIFTH,  BT_REST  },  // sparse floating root/fifth
+    /* BLUES  */ { BT_ROOT,  BT_THIRD, BT_FIFTH,  BT_SIXTH },  // the boogie shuffle 1-3-5-6
+};
+
+static int bassLast = 36;   // last bass note played — the voice-leading anchor
 
 static void play_bass_beat(int beat) {   // beat 0..3 within the current chord's bar
     if (bassSel == B_HOLD || !plen) return;
     int r0 = prootv[playSlot], q = pqual[playSlot];
     int rN = prootv[(playSlot + 1) % plen];      // the chord we're walking toward
     int base = 36 + (octSel - 1) * 12;           // bass register, follows OCT
-    int pc;
+    int lo = base - 4, hi = base + 12;           // the register window the line lives in
+
+    // pick a target pitch CLASS for this beat; oct = a deliberate octave bounce
+    // (POP/MINOR root-octave, BOSSA fifth-below) layered ON TOP of the voice leading.
+    int pc = -1, oct = 0;
     if (bassSel == B_ROOT5) {
         if (beat == 0)      pc = r0;
-        else if (beat == 2) pc = (r0 + 7) % 12;  // the fifth, on beat 3
-        else return;                             // beats 2 & 4 rest
-    } else {                                     // B_WALK
+        else if (beat == 2) pc = (r0 + 7) % 12;      // the fifth, on beat 3
+        else return;                                 // beats 2 & 4 rest
+    } else if (bassSel == B_WALK) {
         if      (beat == 0) pc = r0;                          // root, the strong beat
         else if (beat == 1) pc = (r0 + hb_tones[q][1]) % 12;  // the 3rd
         else if (beat == 2) pc = (r0 + hb_tones[q][2]) % 12;  // the 5th
-        else                pc = (rN + 11) % 12;              // half-step below next root
+        else                pc = (rN + 11) % 12;              // approach the next root
+    } else {                                         // B_BAND — the genre idiom
+        switch (BASS_PAT[modeSel][beat]) {
+            case BT_REST:                            return;
+            case BT_ROOT:   pc = r0;                          break;
+            case BT_OCTU:   pc = r0;                 oct = +1; break;  // root, an octave up
+            case BT_FIFTH:  pc = (r0 + hb_tones[q][2]) % 12;  break;
+            case BT_FIFTHD: pc = (r0 + hb_tones[q][2]) % 12; oct = -1; break;  // fifth, an octave down
+            case BT_THIRD:  pc = (r0 + hb_tones[q][1]) % 12;  break;
+            case BT_SIXTH:  pc = (r0 + 9) % 12;               break;
+            case BT_FLAT2:  pc = (r0 + 1) % 12;               break;
+            case BT_FLAT7:  pc = (r0 + 10) % 12;              break;
+            case BT_APPR:   pc = (rN + 11) % 12;              break;
+        }
     }
-    note(base + pc, I_BSS, 5);
+    if (pc < 0) return;
+    int n = rad_bass_to(pc, bassLast, lo, hi);   // step to the NEAREST instance of pc
+    bassLast = n;                                // anchor the line on the in-register note...
+    note(n + oct * 12, I_BSS, 5);                // ...but sound the octave bounce, if any
 }
 
 static void analyze(void) { hb_vocab_analyze(cur_vocab(), keyPc, prootv, pqual, plen, pfn); }
@@ -302,7 +353,7 @@ void update(void) {
       for (int i = 0; i < r1 && i < 6; i++)          if (keyp(R1K[i])) add_fn(fn_at(i));
       for (int i = 0; i + r1 < v->n && i < 7; i++)   if (keyp(R2K[i])) add_fn(fn_at(r1 + i)); }
     if (keyp('X'))       { plen = 0; playing = 0; rethink(); }
-    if (keyp(KEY_SPACE) && plen) { playing = !playing; playSlot = 0; playT = 0; }
+    if (keyp(KEY_SPACE) && plen) { playing = !playing; playSlot = 0; playT = 0; bassLast = 36 + (octSel - 1) * 12; }
     for (int i = 0; i < 4; i++)
         if (keyp('1' + i) && i < nsugg) add_fn(sugg[i].f);
 
@@ -361,7 +412,7 @@ void draw(void) {
             print(R[i], 150, y + i * 10, CLR_LIGHT_GREY);
         }
         y += 6 * 10 + 6;
-        print("BASS (loop)  HOLD=root . R-5=root+5th . WALK=into next root",
+        print("BASS (loop): HOLD, R-5, WALK, BAND=plays the mode's genre",
               8, y, CLR_LIGHT_GREY); y += 11;
         print("CONTROLS  B=mode  7=spell  8=strum  9=inv  0=octave",
               8, y, CLR_INDIGO); y += 8;
@@ -452,12 +503,12 @@ void draw(void) {
     if (ui_button(50, 161, 44, 15, STRUMS[strumSel].name)) strumSel = (strumSel + 1) % NSTRUM;
     if (ui_button(96, 161, 34, 15, INV_LAB[invSel])) invSel = (invSel + 1) % (seventh ? 4 : 3);
     if (ui_button(132, 161, 34, 15, OCT_LAB[octSel])) octSel = (octSel + 1) % 3;
-    if (ui_button(168, 161, 44, 15, BASS_LAB[bassSel])) bassSel = (bassSel + 1) % 3;
+    if (ui_button(168, 161, 44, 15, BASS_LAB[bassSel])) bassSel = (bassSel + 1) % 4;
     font(FONT_SMALL); print("bass: loop only", 216, 165, CLR_DARK_GREY); font(FONT_NORMAL);
 
     // ── transport + tempo row ──
     if (ui_button(4, 180, 40, 15, playing ? "STOP" : "PLAY")) {
-        if (plen) { playing = !playing; playSlot = 0; playT = 0; }
+        if (plen) { playing = !playing; playSlot = 0; playT = 0; bassLast = 36 + (octSel - 1) * 12; }
     }
     if (ui_button(48, 180, 40, 15, "UNDO")) { if (plen) { plen--; rethink(); } }
     if (ui_button(92, 180, 32, 15, "CLR"))  { plen = 0; playing = 0; rethink(); }

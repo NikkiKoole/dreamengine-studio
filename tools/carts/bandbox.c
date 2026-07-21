@@ -521,18 +521,20 @@ static Box glass_panel(Box b) {
 
 // the VOICE RAIL — row headers aligned to the glass lanes; tap = mute/unmute.
 static void zone_rail(Box rail, Box g) {
-    // FOCUS mode: the edited voice's lane is promoted to the top row, so the rail
-    // shows just that voice's header (aligned to the strip) + a big BACK below.
-    if (selVoice >= 0 && !picking && !helpOn) {
+    // FOCUS mode (editing a cell OR the chord picker): the active voice's lane is
+    // promoted to the top row, so the rail shows just that voice's header (aligned to
+    // the strip) + a big BACK below. Picking = adding to the CHORDS lane.
+    if ((selVoice >= 0 || picking) && !helpOn) {
+        int fv = picking ? V_CH : selVoice;
         Box r0 = lay_grid(g, 1, VOICES, 0, 1);
         Box r1 = lay_grid(g, 1, VOICES, 1, 1);
         Box hdr = box(rail.x, r0.y, rail.w, r0.h);
         rrectfill((int)hdr.x, (int)hdr.y, (int)hdr.w, (int)hdr.h, 2, CLR_DARK_BLUE);
         rect((int)hdr.x, (int)hdr.y, (int)hdr.w, (int)hdr.h, CLR_ORANGE);
-        print(VL[selVoice], (int)(hdr.x + hdr.w / 2 - text_width(VL[selVoice]) / 2),
+        print(VL[fv], (int)(hdr.x + hdr.w / 2 - text_width(VL[fv]) / 2),
               (int)(hdr.y + hdr.h / 2 - 2), CLR_WHITE);
         Box back = box(rail.x, r1.y, rail.w, g.y + g.h - r1.y);
-        if (seg(back, "BACK", 0, 0x2400)) selVoice = -1;
+        if (seg(back, "BACK", 0, 0x2400)) { picking = 0; selVoice = -1; }
         return;
     }
     for (int v = 0; v < VOICES; v++) {
@@ -600,15 +602,35 @@ static void glass_grid(Box g) {
 // prolly want") on top, the full mode palette below (roman-numeral chips, suggested
 // ones flagged green), and the keybed live for ANY root. Each pick appends + auditions
 // and stays open, so you build a progression fast.
+// the CHORDS lane promoted at the top while picking — same in-place treatment as the
+// editor: you watch the progression grow, the green "+" marks where the next lands.
+static void pick_strip(Box lane) {
+    for (int i = 0; i < NBARS; i++) {
+        Box c = lay_grid(lane, NBARS, NBARS, i, 1);
+        int on = i < nbars, cur = playing && i == playSlot, last = i == nbars - 1, ins = i == nbars;
+        rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 1,
+                  on ? (cur ? CLR_DARK_BLUE : CLR_DARKER_BLUE) : CLR_BROWNISH_BLACK);
+        if (on) {
+            const char *rn = pfn[i] >= 0 ? cur_vocab()->fname[pfn[i]] : "?";
+            print(rn, (int)(c.x + c.w / 2 - text_width(rn) / 2), (int)(c.y + c.h / 2 - 2),
+                  pfn[i] >= 0 ? (last ? CLR_WHITE : CLR_YELLOW) : CLR_RED);
+        } else if (ins) {
+            print("+", (int)(c.x + c.w / 2 - 1), (int)(c.y + c.h / 2 - 2), CLR_LIME_GREEN);
+        }
+        rect((int)c.x, (int)c.y, (int)c.w, (int)c.h,
+             ins ? CLR_LIME_GREEN : (cur ? CLR_LIME_GREEN : CLR_DARKER_GREY));
+    }
+}
 static void glass_pick(Box g) {
     const HbVocab *v = cur_vocab();
     char nm[16];
 
-    Box top = lay_split(g, EDGE_TOP, 9, &g);
-    char t[20]; snprintf(t, sizeof t, "PICK A CHORD  (%d)", nbars);
-    print(t, (int)top.x + 1, (int)(top.y + 2), CLR_LIGHT_GREY);
-    Box done = lay_split(top, EDGE_RIGHT, 30, &top);
-    if (seg(done, "DONE", 0, 0x2600)) picking = 0;
+    // the promoted CHORDS lane (row 0, aligned to the rail's CH header); the picker
+    // unfolds in the freed space below — same shape as the in-place voice editors.
+    Box r0 = lay_grid(g, 1, VOICES, 0, 1);
+    Box r1 = lay_grid(g, 1, VOICES, 1, 1);
+    pick_strip(r0);
+    Box s = box(g.x, r1.y, g.w, g.y + g.h - r1.y);
 
     // which functions to recommend: the ranked suggestions from the last chord,
     // or the tonic when the song is empty (the natural place to start).
@@ -617,7 +639,7 @@ static void glass_pick(Box g) {
     else sf[ns++] = 0;
 
     // NEXT row — the recommended chords, big, with their names.
-    Box nx = lay_split(g, EDGE_TOP, 15, &g);
+    Box nx = lay_split(s, EDGE_TOP, 15, &s);
     Box nlab = lay_split(nx, EDGE_LEFT, 18, &nx);
     print("NEXT", (int)nlab.x, (int)(nlab.y + nlab.h / 2 - 2), CLR_INDIGO);
     for (int i = 0; i < ns; i++) {
@@ -635,7 +657,7 @@ static void glass_pick(Box g) {
     // PALETTE — every diatonic chord as a roman-numeral chip; recommended ones green.
     int n = v->n, cols = (n + 1) / 2;
     for (int f = 0; f < n; f++) {
-        Box ch = lay_grid(g, cols, cols * 2, f, 1);
+        Box ch = lay_grid(s, cols, cols * 2, f, 1);
         int isSug = 0; for (int i = 0; i < ns; i++) if (sf[i] == f) isSug = 1;
         rrectfill((int)ch.x, (int)ch.y, (int)ch.w, (int)ch.h, 1, CLR_BROWNISH_BLACK);
         rect((int)ch.x, (int)ch.y, (int)ch.w, (int)ch.h, isSug ? CLR_LIME_GREEN : CLR_DARKER_GREY);
@@ -644,7 +666,7 @@ static void glass_pick(Box g) {
               isSug ? CLR_WHITE : CLR_LIGHT_GREY);
         if (tapped(ch, 0x2620u + f)) append_chord((keyPc + v->off[f]) % 12, v->qual[f]);
     }
-    if (nbars >= NBARS) print("(full)", (int)g.x + 1, (int)(g.y + g.h - 6), CLR_DARK_GREY);
+    if (nbars >= NBARS) print("(full)", (int)s.x + 1, (int)(s.y + s.h - 6), CLR_DARK_GREY);
 }
 
 // ── the block EDITORS, drawn ON the glass (chassis stays put) ───────────────

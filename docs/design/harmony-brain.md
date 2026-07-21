@@ -217,7 +217,14 @@ any pinned seed):
   `hb_qname`) + a `7`/`7THS`⇄`TRIAD` toggle in `chordwise` that spells AND voices plain triads
   (`Am F C G`, dropping the 7th from both the label and the played chord), so the tool reads and
   sounds basic. Roman-numeral function is unaffected — only the chord spelling simplifies.
-- **Still open:** more genre tables (folk, rock).
+- **DORIAN vocab + FOLK/CINE style tables (2026-07-21):** `HB_DORIAN` — minor with a bright MAJOR
+  IV (the lo-fi/neo-soul i↔IV vamp), the first *modal* vocab; analysis stays free (declared key).
+  Plus two zero-new-vocab style tables proving the "genres = weights" thesis: `HB_FOLK` (IV-forward
+  three-chord staples over the major vocab) and `HB_CINEMATIC` (the epic i-VI-III-VII climb over the
+  minor vocab). `chordwise` now cycles **eight** modes (BOSSA/LOUNGE/POP/FOLK · MINOR/CINE · DORIAN ·
+  BLUES). All round-trip spec-locked in `hb_selfcheck`.
+- **Still open:** the other church modes (Mixolydian bVII-IV-I, Phrygian bII, Lydian #IV) — each a
+  small vocab like Dorian; the analysis-is-free property carries over.
 
 ## What's still open (post-v1, 2026-07-20)
 

@@ -107,6 +107,16 @@ static const int hbbl_off[HBbl_NFUNC]  = { 0, 5, 7 };
 static const int hbbl_qual[HBbl_NFUNC] = { HBQ_DOM7, HBQ_DOM7, HBQ_DOM7 };
 static const char *hbbl_fname[HBbl_NFUNC] = { "I7", "IV7", "V7" };
 
+// ── the DORIAN vocab — minor with a BRIGHT MAJOR IV (the lo-fi / neo-soul / funk
+// "So What" sound). Natural minor's flat 3/6/7, but the raised 6th makes iv into
+// a MAJOR IV — the one chord that separates dorian from plain minor, and the
+// whole point of the i↔IV vamp. Diatonic 7ths off the (minor) tonic.
+enum { HBd_i, HBd_ii, HBd_III, HBd_IV, HBd_v, HBd_vio, HBd_VII, HBd_NFUNC };
+static const int hbd_off[HBd_NFUNC]  = { 0, 2, 3, 5, 7, 9, 10 };
+static const int hbd_qual[HBd_NFUNC] = { HBQ_MIN7, HBQ_MIN7, HBQ_MAJ7, HBQ_DOM7,
+                                         HBQ_MIN7, HBQ_M7B5, HBQ_MAJ7 };
+static const char *hbd_fname[HBd_NFUNC] = { "i","ii","III","IV","v","vi\xf8","VII" };
+
 // ── styles: where can each function go? repeats = more likely ────────────────
 // A style is weights over ONE vocab (the research finding: genres differ by
 // weights, not grammars). Row length is part of a cart's PRNG contract — never
@@ -229,11 +239,23 @@ static const char *hbbl_reason(int from, int to) {
     if (to == HBbl_V)  return "turnaround";
     return "walk";
 }
+// dorian motion — the i<->IV vamp IS the mode (the bright IV is the whole tell)
+static const char *hbd_reason(int from, int to) {
+    if (to == HBd_i  && from == HBd_IV)  return "dorian vamp";
+    if (to == HBd_i  && from == HBd_VII) return "subtonic";
+    if (to == HBd_i  && from == HBd_v)   return "minor cadence";
+    if (to == HBd_IV)                    return "bright IV";
+    if (to == HBd_VII)                   return "subtonic";
+    if (to == HBd_ii)                    return "pre-cadence";
+    if (to == HBd_III)                   return "relative";
+    return "walk";
+}
 // the vocab instances — the major one wraps the frozen arrays; a NULL style vocab
 // resolves to this, so nothing pre-existing changes.
 static const HbVocab HB_MAJOR       = { hb_off,   hb_qual,   hb_fname,   HB_NFUNC,   hb_reason };
 static const HbVocab HB_MINOR       = { hbm_off,  hbm_qual,  hbm_fname,  HBm_NFUNC,  hbm_reason };
 static const HbVocab HB_BLUES_VOCAB = { hbbl_off, hbbl_qual, hbbl_fname, HBbl_NFUNC, hbbl_reason };
+static const HbVocab HB_DORIAN      = { hbd_off,  hbd_qual,  hbd_fname,  HBd_NFUNC,  hbd_reason };
 
 // a MINOR-POP / EDM style — the loops the tribe hums: i-VI-III-VII, i-iv-V, the
 // climb i-VI-VII-i. Weighted over the minor vocab; not consumed by any radio.
@@ -259,6 +281,60 @@ static const int HB_BL_V[4]  = { HBbl_I, HBbl_I, HBbl_IV, HBbl_V };
 static const int *const HB_BLUES_NEXT[HBbl_NFUNC] = { HB_BL_I, HB_BL_IV, HB_BL_V };
 static const int HB_BLUES_N[HBbl_NFUNC] = { 5, 4, 4 };
 static const HbStyle HB_BLUES = { HB_BLUES_NEXT, HB_BLUES_N, HBbl_NFUNC, &HB_BLUES_VOCAB };
+
+// a DORIAN style — the i<->IV vamp is home base; VII and v are the other pulls.
+// The bright IV keeps coming back (that's the mode's whole identity). Over the
+// dorian vocab; no radio consumes it, so the rows carry no pinned-seed contract.
+static const int HB_D_i[7]    = { HBd_IV, HBd_IV, HBd_IV, HBd_VII, HBd_VII, HBd_v, HBd_ii };
+static const int HB_D_ii[4]   = { HBd_v, HBd_v, HBd_IV, HBd_i };
+static const int HB_D_III[3]  = { HBd_VII, HBd_IV, HBd_i };
+static const int HB_D_IV[5]   = { HBd_i, HBd_i, HBd_i, HBd_VII, HBd_v };
+static const int HB_D_v[4]    = { HBd_i, HBd_i, HBd_IV, HBd_VII };
+static const int HB_D_vio[2]  = { HBd_i, HBd_v };
+static const int HB_D_VII[4]  = { HBd_i, HBd_i, HBd_IV, HBd_III };
+static const int *const HB_DORIAN_NEXT[HBd_NFUNC] = { HB_D_i, HB_D_ii, HB_D_III,
+    HB_D_IV, HB_D_v, HB_D_vio, HB_D_VII };
+static const int HB_DORIAN_N[HBd_NFUNC] = { 7, 4, 3, 5, 4, 2, 4 };
+static const HbStyle HB_DORIAN_STYLE = { HB_DORIAN_NEXT, HB_DORIAN_N, HBd_NFUNC, &HB_DORIAN };
+
+// a FOLK style — the three-chord-song staples on the MAJOR vocab, plainer than
+// POP: IV-forward (I-IV-V, plagal), the borrowed shelf barely reached. Same
+// grammar as bossa/pop, weight piled on I IV V vi. NULL vocab = major default.
+static const int HB_F_I[7]    = { HB_IV, HB_IV, HB_V, HB_V, HB_vi, HB_vi, HB_ii };
+static const int HB_F_ii[3]   = { HB_V, HB_V, HB_IV };
+static const int HB_F_iii[3]  = { HB_vi, HB_IV, HB_ii };
+static const int HB_F_IV[5]   = { HB_I, HB_I, HB_V, HB_V, HB_vi };
+static const int HB_F_V[5]    = { HB_I, HB_I, HB_I, HB_vi, HB_IV };
+static const int HB_F_vi[5]   = { HB_IV, HB_IV, HB_V, HB_ii, HB_I };
+static const int HB_F_II7[1]  = { HB_V };
+static const int HB_F_VI7[1]  = { HB_ii };
+static const int HB_F_bII7[1] = { HB_I };
+static const int HB_F_iv[2]   = { HB_I, HB_I };
+static const int HB_F_bVII7[2]= { HB_I, HB_IV };
+static const int HB_F_v[1]    = { HB_I };
+static const int HB_F_I7[1]   = { HB_IV };
+static const int *const HB_FOLK_NEXT[HB_NFUNC] = { HB_F_I, HB_F_ii, HB_F_iii,
+    HB_F_IV, HB_F_V, HB_F_vi, HB_F_II7, HB_F_VI7, HB_F_bII7, HB_F_iv,
+    HB_F_bVII7, HB_F_v, HB_F_I7 };
+static const int HB_FOLK_N[HB_NFUNC] = { 7, 3, 3, 5, 5, 5, 1, 1, 1, 2, 2, 1, 1 };
+static const HbStyle HB_FOLK = { HB_FOLK_NEXT, HB_FOLK_N, HB_NFUNC };
+
+// a CINEMATIC style — epic/trailer minor: the i-VI-III-VII climb, weight piled on
+// the bright major chords (III VI VII) rather than the ii°/v color. Same minor
+// vocab as MINPOP, different gravity (the "two steps from hell" pull).
+static const int HB_CIN_i[6]    = { HBm_VI, HBm_VI, HBm_VI, HBm_VII, HBm_III, HBm_iv };
+static const int HB_CIN_iio[2]  = { HBm_i, HBm_v };
+static const int HB_CIN_III[4]  = { HBm_VII, HBm_VII, HBm_VI, HBm_i };
+static const int HB_CIN_iv[3]   = { HBm_i, HBm_VII, HBm_v };
+static const int HB_CIN_v[3]    = { HBm_i, HBm_VI, HBm_iv };
+static const int HB_CIN_V[2]    = { HBm_i, HBm_VI };
+static const int HB_CIN_VI[5]   = { HBm_VII, HBm_VII, HBm_III, HBm_III, HBm_iv };
+static const int HB_CIN_VII[5]  = { HBm_i, HBm_i, HBm_III, HBm_VI, HBm_iv };
+static const int HB_CIN_viio[2] = { HBm_i, HBm_i };
+static const int *const HB_CIN_NEXT[HBm_NFUNC] = { HB_CIN_i, HB_CIN_iio, HB_CIN_III,
+    HB_CIN_iv, HB_CIN_v, HB_CIN_V, HB_CIN_VI, HB_CIN_VII, HB_CIN_viio };
+static const int HB_CIN_N[HBm_NFUNC] = { 6, 2, 4, 3, 3, 2, 5, 5, 2 };
+static const HbStyle HB_CINEMATIC = { HB_CIN_NEXT, HB_CIN_N, HBm_NFUNC, &HB_MINOR };
 
 typedef struct { int f, w; const char *why; } HbOpt;   // function, weight, reason
 
@@ -403,17 +479,34 @@ static inline void hb_selfcheck(void) {
     // blues style stays in its 3-function world
     { HbOpt o[4]; int n = hb_suggest(&HB_BLUES, HBbl_I, o, 4);
       expect(n >= 1 && o[0].f == HBbl_I && o[0].why[0]=='h', "hb blues: I7 -> home, top"); }
-    // minor & blues ANALYSIS inverts generation too (declared key, all 12 roots) —
-    // the guarantee that lets chordwise name minor/blues chords, not just make them
-    { int okm = 1, okb = 1;
+    // minor, blues & dorian ANALYSIS inverts generation too (declared key, all 12
+    // roots) — the guarantee that lets chordwise NAME these chords, not just make them
+    { int okm = 1, okb = 1, okd = 1;
       for (int k = 0; k < 12; k++) {
           for (int f = 0; f < HBm_NFUNC; f++)
               okm &= hb_vocab_fn(&HB_MINOR, k, (k + hbm_off[f]) % 12, hbm_qual[f]) == f;
           for (int f = 0; f < HBbl_NFUNC; f++)
               okb &= hb_vocab_fn(&HB_BLUES_VOCAB, k, (k + hbbl_off[f]) % 12, hbbl_qual[f]) == f;
+          for (int f = 0; f < HBd_NFUNC; f++)
+              okd &= hb_vocab_fn(&HB_DORIAN, k, (k + hbd_off[f]) % 12, hbd_qual[f]) == f;
       }
       expect(okm, "hb minor round-trip: function -> chord -> same function, all 12 keys");
-      expect(okb, "hb blues round-trip: function -> chord -> same function, all 12 keys"); }
+      expect(okb, "hb blues round-trip: function -> chord -> same function, all 12 keys");
+      expect(okd, "hb dorian round-trip: function -> chord -> same function, all 12 keys"); }
+
+    // dorian's tell: the major IV, and the i<->IV vamp is the top suggestion
+    { int t[4];
+      hb_vocab_pcs(&HB_DORIAN, 0, HBd_IV, t);     // IV in C dorian = F major (F A C)
+      expect(t[0]==5 && t[1]==9 && t[2]==0, "hb dorian: IV in C = F MAJOR (the bright IV)");
+      HbOpt o[4]; int n = hb_suggest(&HB_DORIAN_STYLE, HBd_i, o, 4);
+      expect(n >= 1 && o[0].f == HBd_IV, "hb dorian: i leans IV (the vamp)"); }
+
+    // the free style tables ride existing vocabs, differently weighted
+    { HbOpt o[4];
+      int nf = hb_suggest(&HB_FOLK, HB_I, o, 4);         // folk from I: IV first (plagal)
+      expect(nf >= 1 && o[0].f == HB_IV, "hb folk: I leans IV (plagal, IV-forward)");
+      int nc = hb_suggest(&HB_CINEMATIC, HBm_i, o, 4);   // cinematic from i: the VI climb
+      expect(nc >= 1 && o[0].f == HBm_VI, "hb cinematic: i leans VI (the epic climb)"); }
 }
 #endif // DE_SPEC
 

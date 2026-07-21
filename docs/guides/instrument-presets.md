@@ -1342,6 +1342,16 @@ for width (the in-cart fake for the missing chorus effect; see [afrobeat-effects
 - origin: afrobeat
 - used by: afrobeat (`I_TPT`)
 
+### brass/muted-trumpet  *(the Harmon mute — Miles)*
+`INSTR_BRASS` · A1 D0 S4 R1100 · h0.15 t0.55 m0.42 · **BAND 1700/2** (the mute)
+The Miles Davis Harmon-mute trumpet — afro-trumpet's blatty macros run through a tight
+bandpass around 1.7 kHz, which is what a Harmon mute does: strips the body, leaves the thin,
+nasal, vocal buzz. The `improv.h` soloist plays it (spare, behind the beat). The band panel's
+"open bell" (LP 3600) and "flugel" (h0.46 t0.30, round) alternates are the un-muted horn.
+- tier: unique (kin `brass/afro-trumpet`)
+- origin: modaljazz
+- used by: modaljazz (`I_TPT`)
+
 ## Pads
 
 ### saw/ambient-pad

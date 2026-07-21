@@ -886,6 +886,30 @@ ping-pong delay on flute/mallet) noted in
 
 ---
 
+## modaljazz — Miles Davis "So What" (the first MODAL-generating station)
+
+Solo layer: **`improv.h`** (the shared soloist, routed to the trumpet in its solo, the Rhodes
+in its). The novelty isn't the band — it's the **chord brain**: the first station to run a
+*modal* vocab from the shared harmony brain FORWARD. `HB_DORIAN_STYLE` (`runtime/harmony.h`)
+floats the i↔IV dorian vamp (that bright major IV is dorian's whole tell), one chord held two
+bars, home to i each chorus — the same brain `chordwise` *analyzes* with, here *composing*.
+Over AABA it lifts a half-step for the B section (the So What key bump) and drops back.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_TPT`  | the Harmon-muted trumpet — head + lead solo | `brass/muted-trumpet` *(new: BAND 1700/2 mute over the afro-trumpet macros)* | BRASS |
+| `I_RHO`  | the Rhodes — rootless 3-7-9 comping + its own solo | `epiano/rhodes` (h0.15 t0.40 m0.30, LP 2400/2) ↗epiano | EPIANO |
+| `I_BASS` | the walking upright | `tri/upright-bass` ⟳ *(cocktail's session double-bass, verbatim: TRI + pitch-env thumb)* | TRI |
+| `SL_RIDE`/`SL_HAT`/`SL_BRSH`/`SL_KICK` | brushes — swung ride, hat on 2&4, sweep, feathered kick | cocktail's brush kit ⟳ (SQUARE ride, NOISE hat/sweep, SINE kick) | SQUARE / NOISE / SINE |
+
+**Borrowing at a glance:** the bass and the whole brush kit are cocktail's, verbatim — the
+acoustic-jazz cluster. The one *new* recipe is `brass/muted-trumpet` (the Harmon mute = a tight
+bandpass over afrobeat's `brass/afro-trumpet` macros). The Rhodes joins the `INSTR_EPIANO`
+station voicings (air/italo). modaljazz is the second consumer of the harmony brain's church-mode
+vocabs (`chordwise` was the first) — the proof the brain is genuinely shared.
+
+---
+
 # Findings — all 20 stations charted
 
 The catalog answers the question this pair was built for: *what plays what, and where are we
@@ -896,7 +920,7 @@ reusing the same recipe?* The picture that emerged:
 | cluster | shared palette | stations |
 |---|---|---|
 | **dance / groove** | the synth kit (kick/snare/hat ×6), the 808 box, the disco bass, the PWM-square leads | house · italo · citypop · motorik · lowend · dub · jangle · jingle |
-| **acoustic jazz / classical** | fake TRI/SINE pianos, the session upright bass, the cross-stick/clave, the shaker | cocktail · roadhouse · tango · exotica (· bossa percussion) |
+| **acoustic jazz / classical** | fake TRI/SINE pianos, the session upright bass, the cross-stick/clave, the shaker | cocktail · modaljazz (+ Rhodes/muted-trumpet) · roadhouse · tango · exotica (· bossa percussion) |
 | **islands** (own voices, engine-level kin only) | — | gamelan · addis · carlos · satie · ambient |
 
 `solo.h` membership predicts *nothing* (its five stations split across all three groups);

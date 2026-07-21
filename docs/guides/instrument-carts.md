@@ -257,6 +257,7 @@ closest genre cousin, never start a station from scratch.
 | **yacht radio** (`yacht`) | yacht rock / AOR (Steely Dan / Doobies) | DX EPs, multi-engine |
 | **roadhouse radio** (`roadhouse`) | modal psych-rock (The Doors) | `improv.h` organ soloist |
 | **cocktail radio** (`cocktail`) | piano-trio lounge (Vince Guaraldi) | `improv.h` soloist |
+| **modal jazz radio** (`modaljazz`) | modal jazz (Miles Davis "So What") — **the first station that GENERATES over a MODE** (harmony.h `HB_DORIAN_STYLE` run forward: the i↔IV dorian vamp + the So What half-step lift) | muted-trumpet lead / Rhodes comp / walking upright / brushes; `improv.h` soloist; second consumer of the church-mode vocabs after `chordwise` |
 | **tango radio** (`tango`) | Golden-Age orquesta típica | three orquesta voicings |
 | **motorik radio** (`motorik`) | krautrock (Neu! × Stereolab) | `improv.h` vibraphone soloist |
 | **addis radio** (`addis`) | ethio-jazz (Mulatu Astatke) — scales-as-data | five engines, `improv.h` |

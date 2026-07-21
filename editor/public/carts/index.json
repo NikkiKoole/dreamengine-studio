@@ -4148,6 +4148,26 @@
     "lineage": "docs/design/teaching-gaps.md Gap type 3 flagged 8 instrument_* per-slot effect variants as zero-cart -- undersold, not under-taught. groovebox.c owns the SUMMED-BUS family (many voices, one shared rack) and pedalboard.c/combo.c own the SERIAL-chain family (one guitar, many pedals); this is the third sibling -- the PER-INSTRUMENT family, where each voice gets its OWN private effect and the rest of the mix stays untouched. Also retrofits ampcab.h (previously only combo/pedalboard/afrobeat/wba) onto a sixth track, and clears strum_notes (an explicit voicing, not a CHORD_* type) on the guitar's re-strum."
   },
   {
+    "title": "modal jazz radio",
+    "description": "An endless modal-jazz set - the Miles Davis 'So What' homage, and the first station that GENERATES its changes over a MODE instead of functional chords. The chord brain is runtime/harmony.h's HB_DORIAN_STYLE: it floats the i<->IV dorian vamp (that bright major IV is the whole tell), one chord held two bars so nothing's in a hurry, coming home to i at the top of each chorus - the same shared brain the chordwise analyzer names chords with, here running FORWARD to compose. Over an AABA form it lifts a half-step for the B section (the 'So What' key bump: Dm up to Ebm) and settles back. The band: a Harmon-muted trumpet lead (improv.h solos, spare and behind the beat), a Rhodes comping the rootless 3-7-9 voicings, a walking upright bass (chord tone on 1, motion through the middle, chromatic approach into the next root), and brushes at a whisper (swung ride ding ding-ga-ding, hat on 2 and 4, feathered kick). Set form: head, trumpet solo, Rhodes solo, trumpet trades back, head out - R replays the tune, the solos are always new. SPACE next tune, [ ] history, LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.",
+    "file": "modaljazz.cart.png",
+    "created": "2026-07-21",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "teaches": [
+      "generative-melody",
+      "chord-voicing",
+      "swing-timing"
+    ],
+    "collection": [
+      "radio"
+    ],
+    "lineage": "The first radio station to GENERATE over a modal vocab from the shared harmony brain (runtime/harmony.h HB_DORIAN_STYLE) - the second consumer of the church-mode vocabs after the chordwise analyzer, the proof the brain is genuinely shared. Chassis copied from cocktail.c (piano-trio + improv.h soloist); the band and the modal chord brain are new.",
+    "homage": "Miles Davis - So What / Kind of Blue (modal jazz)"
+  },
+  {
     "title": "mode 7",
     "description": "The real SNES floor trick: one flat terrain texture sampled once per scanline with a perspective divide, so it stretches to a horizon and rotates under you (not faked road segments). Pilot a craft over a procedurally generated world — sea, beaches, forest, snowy peaks — and fly through the glowing rings (projected with the same math, inverted) before the clock runs out; each ring buys +5s. Left/Right turn, Up/Down throttle, Z climb, X dive.",
     "file": "mode7.cart.png",

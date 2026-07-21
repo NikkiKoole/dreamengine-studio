@@ -226,9 +226,15 @@ any pinned seed):
   is its own small vocab with one characteristic chord; analysis stays free because chordwise's key is
   declared. `chordwise` now cycles **eleven** modes (BOSSA/LOUNGE/POP/FOLK · MINOR/CINE · DORIAN/MIXO/
   PHRYG/LYDIAN · BLUES), all round-trip spec-locked in `hb_selfcheck`.
-- **Still open:** nothing on the vocab front — major, minor, all seven diatonic modes (via the four
-  church-mode vocabs + major/minor), and blues are covered. Further work is new *styles* (weights)
-  over the existing vocabs, or a second consumer of the modal vocabs (a radio station / instrument).
+- **The brain runs FORWARD in a station too (2026-07-21):** `modaljazz.c` — the first radio station
+  to *generate* over a modal vocab (`HB_DORIAN_STYLE` via `hb_pick`), the Miles Davis "So What"
+  homage (i↔IV dorian vamp, held two bars, the AABA half-step lift). Second consumer of the
+  church-mode vocabs after the `chordwise` analyzer — the proof the brain is genuinely shared, not
+  one-cart, and bidirectional in *both* its consumers' directions (chordwise analyzes; modaljazz
+  composes).
+- **Still open:** nothing on the vocab front — major, minor, all seven diatonic modes, and blues are
+  covered, and the brain now has both an analyzing consumer and a generating one. Further work is new
+  *styles* (weights) over the existing vocabs, or wiring the modal vocabs into more stations.
 
 ## What's still open (post-v1, 2026-07-20)
 

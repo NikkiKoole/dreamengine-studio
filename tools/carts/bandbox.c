@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, the play button loops. Keys: SPACE loop, LEFT/RIGHT key, B mode, BACKSPACE closes the editor."
+    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to add a bar. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor."
   }
 }
 de:meta */
@@ -152,6 +152,9 @@ static int bar_oct(int b)   { return arr[b].oct   >= 0 ? arr[b].oct   : octSel; 
 static int bar_sev(int b)   { return arr[b].sev   >= 0 ? arr[b].sev   : seventh;  }
 
 static int playing = 0, playSlot = 0, playT = 0;
+static int selVoice = -1;   // which voice's editor is open (-1 = the tracker)
+static int selBar   = 0;    // which bar the editor edits
+static int helpOn   = 0;    // the legend overlay (? button)
 
 // ── chord voicing (chordwise's sound_chord, now p-lock-parameterized) ──────
 static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
@@ -392,6 +395,16 @@ static void add_bar(void) {
     audition(nbars - 1);
 }
 
+// NEW SONG — empty the arrangement (nbars=0; build it back up with the "+" slot).
+// Clears the chords + every p-lock but KEEPS your key / mode / voice setup — that's
+// the session, not the song (like a groovebox: new pattern, same kit).
+static void new_song(void) {
+    for (int i = 0; i < NBARS; i++) bar_defaults(&arr[i]);
+    nbars = 0;
+    playing = 0; selVoice = -1; selBar = 0; helpOn = 0;
+    rethink();
+}
+
 // cold-open with the doo-wop (I vi IV V) so a stranger sees the whole idea.
 static void seed_demo(void) {
     static const int DW[4] = { HB_I, HB_vi, HB_IV, HB_V };
@@ -416,10 +429,6 @@ static FaceZone ZONES[] = {
     { FACE_BAND, EDGE_BOTTOM, 0.19f, "keys" },
 };
 #define NZ 3
-
-static int selVoice = -1;   // which voice's editor is open (-1 = the tracker)
-static int selBar   = 0;    // which bar the editor edits
-static int helpOn   = 0;    // the legend overlay (? button)
 
 // a draw-nothing tap hit-test (ui.h capture, touch+mouse), so custom cell/key
 // visuals show through. Distinct seeds keep widget identities apart.
@@ -467,6 +476,8 @@ static void zone_nav(Box b) {
         bassLast = 36 + (octSel - 1) * 12; melLast = 72 + (octSel - 1) * 12; melI = 0; }
     Box help = lay_split(b, EDGE_RIGHT, 10, &b);
     if (seg(help, "?", helpOn, 0x2104)) helpOn = !helpOn;
+    Box neu = lay_split(b, EDGE_RIGHT, 20, &b);
+    if (seg(neu, "NEW", 0, 0x2107)) new_song();   // empty the arrangement, keep the setup
     // MODE fills the rest
     Box mode = lay_inset(b, 1);
     if (seg(mode, MODES[modeSel].name, 0, 0x2105)) { modeSel = (modeSel + 1) % NMODE; rethink(); }
@@ -535,8 +546,9 @@ static void glass_grid(Box g) {
                 const char *rn = pfn[i] >= 0 ? cur_vocab()->fname[pfn[i]] : "?";
                 print(rn, (int)(c.x + c.w / 2 - text_width(rn) / 2), (int)(c.y + c.h / 2 - 2),
                       pfn[i] >= 0 ? (cur ? CLR_WHITE : CLR_YELLOW) : CLR_RED);
-            } else if (v == V_CH && i == nbars) {  // the "add a bar" slot
-                print("+", (int)(c.x + c.w / 2 - 1), (int)(c.y + c.h / 2 - 2), CLR_DARK_GREY);
+            } else if (v == V_CH && i == nbars) {  // the "add a bar" slot (bright when empty)
+                print("+", (int)(c.x + c.w / 2 - 1), (int)(c.y + c.h / 2 - 2),
+                      nbars == 0 ? CLR_LIME_GREEN : CLR_DARK_GREY);
             } else if (lit && on) {                // other voices — a pip
                 int lk = cell_locked(v, i);
                 rectfill((int)(c.x + c.w / 2 - 1), (int)(c.y + c.h / 2 - 1), 3, 3,
@@ -549,6 +561,11 @@ static void glass_grid(Box g) {
                 else if (on) { selVoice = v; selBar = i; }
             }
         }
+    }
+    if (nbars == 0) {   // an empty song — point at the "+" (in the MEL lane, clear of the grid)
+        Box hint = lay_grid(g, 1, VOICES, V_ME, 1);
+        const char *h = "NEW SONG - tap + to add a bar";
+        print(h, (int)(hint.x + hint.w / 2 - text_width(h) / 2), (int)(hint.y + hint.h / 2 - 2), CLR_INDIGO);
     }
 }
 
@@ -679,6 +696,7 @@ void update(void) {
     if (keyp(KEY_RIGHT)) change_key(+1);
     if (keyp('B'))       { modeSel = (modeSel + 1) % NMODE; rethink(); }
     if (keyp(KEY_BACKSPACE)) selVoice = -1;
+    if (keyp('N'))           new_song();   // start a fresh empty song
     if (keyp(KEY_SPACE) && nbars) { playing = !playing; playSlot = 0; playT = 0;
         bassLast = 36 + (octSel - 1) * 12; melLast = 72 + (octSel - 1) * 12; melI = 0; }
 
@@ -719,7 +737,7 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     rrectfill(0, 0, screen_w(), screen_h(), 6, CLR_INDIGO);   // the molded device body
 
-    if (selBar >= nbars) selBar = nbars - 1;                  // stay valid if the loop shrank
+    if (nbars && selBar >= nbars) selBar = nbars - 1;         // stay valid if the loop shrank
 
     font(FONT_TINY);
     ui_begin();
@@ -819,6 +837,13 @@ void spec(void) {
     rethink();
     expect(pfn[0]==HBbl_I && pfn[1]==HBbl_IV && pfn[2]==HBbl_V,
            "blues reads I7 IV7 V7 in A");
+
+    // NEW SONG empties the arrangement; the "+" slot builds it back
+    new_song();
+    expect_eq(nbars, 0, "new_song empties the arrangement");
+    expect(!playing && selVoice < 0, "new_song stops + closes the editor");
+    add_bar();
+    expect_eq(nbars, 1, "the + slot adds the first bar back (a I in the key)");
 
     // back to a clean state
     modeSel = 0; keyPc = 0; seed_demo();

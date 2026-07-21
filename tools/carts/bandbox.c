@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   }
 }
 de:meta */
@@ -148,6 +148,29 @@ enum { BPL_FOLLOW = -1, BPL_MUTE = 0, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL };
 static const char *BPL_LAB[6] = { "FOLLOW", "MUTE", "HOLD", "WALK", "OCT", "FILL" };
 static const int   BPL_VAL[6] = { BPL_FOLLOW, BPL_MUTE, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL };
 static int bassSel = B_BAND;
+// the bass TONE — the SOUND of the bass voice (I_BSS), swapped by re-instrumenting the
+// slot (set-and-hold: only on a TONE-chip change). Recipes from instrument-recipes.md.
+static const char *BTONE_LAB[4] = { "SYNTH", "SUB", "FM", "UPRIGHT" };
+static int bassTone = 0;
+static void apply_bass_tone(void) {
+    switch (bassTone) {
+        case 0:  // round triangle synth (the original)
+            instrument(I_BSS, INSTR_TRI, 6, 160, 3, 220);
+            instrument_filter(I_BSS, FILTER_OFF, 0, 0); break;
+        case 1:  // deep sine sub
+            instrument(I_BSS, INSTR_SINE, 8, 200, 5, 260);
+            instrument_filter(I_BSS, FILTER_OFF, 0, 0); break;
+        case 2:  // DX-style FM bass (fm/bass recipe)
+            instrument(I_BSS, INSTR_FM, 1, 245, 5, 121);
+            instrument_filter(I_BSS, FILTER_OFF, 0, 0);
+            instrument_harmonics(I_BSS, 0.00f); instrument_timbre(I_BSS, 0.75f); instrument_morph(I_BSS, 0.30f); break;
+        case 3:  // jazz upright double-bass pizzicato (bowed/upright-pizz recipe)
+            instrument(I_BSS, INSTR_BOWED, 4, 0, 7, 300);
+            instrument_mode(I_BSS, MODE_BOW_PIZZ, 1.0f);
+            instrument_filter(I_BSS, FILTER_LOW, 900, 3);
+            instrument_harmonics(I_BSS, 0.30f); instrument_timbre(I_BSS, 0.30f); instrument_morph(I_BSS, 0.45f); break;
+    }
+}
 static const char *DRUM_LAB[2] = { "PLAIN", "BAND" };
 static int drumSel = 1;   // 0 PLAIN · 1 BAND
 // the KIT — the whole rhythm section's SOUND (drumkit.h ships both). A one-line
@@ -766,8 +789,12 @@ static void editor_chords(Box g) {
 // FOLLOW the style, or override this one bar — MUTE / HOLD / WALK / OCT / FILL.
 static void editor_bass(Box g) {
     Box styRow = lay_split(g, EDGE_TOP, 13, &g);
+    Box styB = lay_grid(styRow, 2, 2, 0, 1), tonB = lay_grid(styRow, 2, 2, 1, 1);
     char sv[8]; snprintf(sv, sizeof sv, "%s", BASS_LAB[bassSel]);
-    if (chip(lay_inset(styRow, 1), "STYLE", sv, 1, 0x2430)) bassSel = (bassSel + 1) % 4;
+    if (chip(lay_inset(styB, 1), "STYLE", sv, 1, 0x2430)) bassSel = (bassSel + 1) % 4;
+    if (chip(lay_inset(tonB, 1), "TONE", BTONE_LAB[bassTone], 1, 0x243A)) {
+        bassTone = (bassTone + 1) % 4; apply_bass_tone();   // set-and-hold: re-voice only on tap
+    }
     Box p = lay_inset(g, 1);
     int bl = arr[selBar].bass;
     Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
@@ -892,7 +919,7 @@ static void zone_keybed(Box b) {
 
 void init(void) {
     instrument(I_PLK, INSTR_PLUCK, 2, 200, 2, 250);
-    instrument(I_BSS, INSTR_TRI, 6, 160, 3, 220);
+    apply_bass_tone();                               // the bass voice sound (TONE selector)
     instrument(I_LEAD, INSTR_SINE, 4, 180, 3, 200);
     instrument(I_PAD, INSTR_SINE, 300, 0, 7, 500);   // the doc's pad recipe
     dk_use(KITS[kitSel], 20);                        // the rhythm section — slots 20..27
@@ -1038,6 +1065,11 @@ void spec(void) {
     arr[0].bass = BPL_OCT;  expect_eq(arr[0].bass, BPL_OCT,  "bass OCT p-lock sets");
     arr[0].bass = BPL_FILL; expect_eq(arr[0].bass, BPL_FILL, "bass FILL p-lock sets");
     arr[0].bass = BPL_FOLLOW;
+
+    // every bass TONE preset is a valid engine setup (applies without fault)
+    for (bassTone = 0; bassTone < 4; bassTone++) apply_bass_tone();
+    bassTone = 0; apply_bass_tone();
+    expect(1, "all bass TONE presets apply (SYNTH/SUB/FM/UPRIGHT)");
 
     // add_bar extends the loop with a default I chord
     add_bar();

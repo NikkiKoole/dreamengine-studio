@@ -117,7 +117,8 @@ static int  lpos[2] = { 0, 0 };             // per-line playhead
 enum { PS_SEQ, PS_FLAG, PS_FX, PS_GEN, PS_KEY, PS_PAT, PS_PERF };  // 303 LCD content: roll / flags / FX / generate / KEY (root·scale·octave) / PAT (A-D banks) / PERF (live play lenses)
 static int  pscreen[2] = { PS_SEQ, PS_SEQ };  // per-303 screen mode (SEQ/FLAG/FX soft-keys)
 static int  kpage[2];                        // per-303 knob page: 0 = vanilla, 1 = DEEP (Devil Fish + drive)
-static int  seq_grid = 0;                     // 0 = the tall NOTE BARS (default, old); 1 = the editable wide GRID (drag notes on the SEQ screen). Toggled by the BARS/GRID chip in the SEQ header. STAGE 1 of the acidwide-style layout — keep both while it proves out.
+static int  seq_grid = 0;                     // 0 = the tall NOTE BARS (default, old); 1 = the editable wide GRID (drag notes on the SEQ screen). STAGE 1 of the acidwide-style layout.
+static const int grid_view_on = 0;            // the BARS→GRID toggle is HIDDEN — the note-bars are the shipping view (the maker's call). The GRID view is kept fully intact; flip this to 1 to expose the chip again.
 static int  keys_mode = 0;                    // GRID bottom row: 0 = STEP strip · 1 = KEYS keypad (13 chromatic notes + OCT-/OCT+/SLIDE, 303 step-entry into sel[i]). Stage 2. Toggled by the STEP/KEYS chip.
 static int  key_oct   = 0;                    // KEYS entry octave offset (-1..+2), written into oct[i][sel]
 enum { FL_NOTE, FL_ACC, FL_SLD, FL_TIE, FL_OCTU, FL_OCTD, FL_N };   // FL_NOTE = toggle the note itself (so you add notes WITHOUT leaving FLAG for SEQ). (LEN moved out — it's a per-LINE loop length, now a draggable handle at the end of the note-bars, not a per-step flag)
@@ -129,7 +130,7 @@ enum { LK_TUNE, LK_DEC, LK_CHAR, LK_VOL, LK_PAN, LK_N };    // continuous-lane p
 // optional CHAR would otherwise land on the wrong slot). DD_* stays PARALLEL to LK_*.
 enum { DD_ACC, DD_PROB, DD_STRK, DD_TUN, DD_DEC, DD_CHAR, DD_VOL, DD_PAN, DD_N };
 static const char *DDNAME[DD_N] = { "ACC", "PROB", "STRK", "TUN", "DEC", "CHR", "VOL", "PAN" };
-enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX, DS_PAT };     // drum LCD: tone / kit / flags / generate / MIX (level·pan·fine) / PAT (A-D banks)
+enum { DS_VCE, DS_KIT, DS_FLAG, DS_GEN, DS_MIX, DS_PAT, DS_PERF };     // drum LCD: VCE (tone+mix knobs, one panel) / kit / flags / generate / (DS_MIX retired — folded into VCE) / PAT (A-D banks) / PERF (ROLL·ACC)
 static int  dscreen = DS_VCE;                 // (VCE is entered by tapping a voice; KIT/FLAG are soft-keys)
 static int  darmed = DD_ACC;                  // which drum flag a cell paints (FLAG mode)
 // What a voice-pad tap DOES (drum faces) — one 4-way TOOL selector (the far-right button).
@@ -305,13 +306,38 @@ static float g_swing = 0;                                   // master SWING (rac
 // across faces — 303a keeps doubling while you work 303b) OR HOLD=momentary (on while held).
 // pf_* = the EFFECTIVE per-frame state read by the step clock; recomputed in draw() from the
 // persistent latch + the focused line's held buttons.
-enum { PL_HALF, PL_DBL, PL_ACC, PL_STAC, PL_GLIDE, PL_N };   // lens index (for pf_latch/pf_hold)
+enum { PL_HALF, PL_ACC, PL_OCT, PL_STAC, PL_GLIDE, PL_REV, PL_ROLL, PL_N };   // lens index (for pf_latch/pf_hold). Speed = just HALF (2X/8-12 dropped); accent cross-rhythms (AC3/AC4) dropped — didn't add much
 #define PERF_TAP 12                  // release within this many frames (~200ms) = a TAP (toggle latch); longer = a momentary HOLD
+#define ROLL_RATE 2.0f               // 303 ROLL retrigger subdivisions per 16th (2 = 32nd-note roll; 4 = 64th buzz, 1.5 = 16th-triplet). Tune the fill's speed by ear here.
 static int pf_latch[PL_N][2];        // persistent per-lens-per-line LATCH (tap-toggled; holds across faces + stop/start)
 static int pf_hold[PL_N][2];         // frames each button has been held (for the tap-vs-hold split)
-static int pf_half[2], pf_dbl[2];    // effective speed lens: half-time / double-time (clean 2:1 → stays phase-locked to the drums)
+static int pf_half[2];               // effective speed lens: half-time (the one that survived — clean 2:1 → phase-locked to the drums)
 static int pf_acc[2];                // effective total-accent: every fired note gets the accent (the 909 "accent everything" move)
+static int pf_oct[2];                // effective OCTAVE-JUMP lens: every OTHER step (odd counter) drops an octave — the classic acid octave bounce, live-only (pattern untouched)
 static int pf_stac[2], pf_glide[2];  // effective slide lens: STAC forces all slides OFF (plucky), GLIDE forces them ALL on (a smooth river)
+static int pf_rev[2];                // effective REVERSE lens: read the pattern backwards (step index mirrored) — an instant melodic flip / turnaround
+static int pf_roll[2];               // effective ROLL lens: while held, retrigger the last played note at ROLL_RATE (a stutter/fill — momentary by nature)
+static int rollctr[2] = { -1, -1 };  // ROLL sub-step counter (reset to -1 when not rolling → clean re-engage)
+static int roll_pit[2] = { 24, 24 }, roll_acc[2];   // the last played note (midi + accent) ROLL repeats
+
+// Drum PERF (per machine: 0 = 808, 1 = 909) — live variation that all flows through the STEP GRID, so
+// it's grid-locked by construction. BEAT-REPEAT (RP1/RP2/RP4) loops the last 1/2/4-step slice; DENSITY
+// (THIN drops the kit to downbeats+accents, BUSY fills the SELECTED voice's off-16ths); ACC accents every hit. Same
+// TAP=latch / HOLD=momentary model as the 303 PERF; seeded from the latch in draw() so it holds.
+enum { DPL_RP1, DPL_RP2, DPL_RP4, DPL_THIN, DPL_BUSY, DPL_ACC, DPL_N };
+static int dpf_latch[DPL_N][2], dpf_hold[DPL_N][2];   // per-lens-per-machine latch + hold frames
+static int pf_rp1[2], pf_rp2[2], pf_rp4[2];           // effective beat-repeat holds (1/2/4-step slice), per machine
+static int pf_thin[2], pf_busy[2], pf_dacc[2];        // effective DENSITY (thin/busy) + accent-all, per machine
+static int rpt_base[2], rpt_n[2], rpt_was[2];         // beat-repeat slice capture (frozen N-aligned start)
+
+// beat-repeat: map the real transport `step` to a FROZEN, N-aligned slice that loops (grid-locked).
+// m = 0 (808) / 1 (909). Returns `step` unchanged when no RP button is held for that machine.
+static int drum_effstep(int m, int step) {
+    int n = pf_rp1[m] ? 1 : pf_rp2[m] ? 2 : pf_rp4[m] ? 4 : 0;   // priority if several held
+    if (!n) { rpt_was[m] = 0; return step; }
+    if (!rpt_was[m] || rpt_n[m] != n) { rpt_base[m] = step - (step % n); rpt_n[m] = n; rpt_was[m] = 1; }  // (re)capture the slice
+    return rpt_base[m] + (((step - rpt_base[m]) % n) + n) % n;   // loop [base, base+n); n divides 16 → always in range
+}
 
 // LIVE bank switching: a bank tap is QUANTIZED to the bar when the transport runs —
 // it ARMS the slot (blinks) and the switch LANDS on the next bar downbeat (update()),
@@ -405,24 +431,54 @@ static void apply_fx(void) {
     if (level[3] != aLv[3]) { for (int i = 0; i < TR909_NSLOT; i++) instrument_level(D909_BASE + i, level[3]); aLv[3] = level[3]; }
 }
 
-// generate a 303 line at density d: 0=clear · 1=minimal · 2=classic · 3=busy
+// generate a 303 line at density d: 0=clear · 1=minimal · 2=classic · 3=busy.
+// NOT random noise — an ACID riff: a short scale-degree MOTIF repeated across the bar (the last
+// repeat climbs an octave = the classic acid climb), anchored on the ROOT downbeat, with SLIDES
+// gliding between neighbouring notes and ACCENTS driving the strong steps. Notes come from the
+// line's own KEY/SCALE (mscale), so GEN respects the key you set.
 static void gen_line(int i, int d) {
-    static const int pool[8] = { 0, 0, 0, 3, 5, 7, 10, 12 };
     plen[i] = STEPS;
-    for (int s = 0; s < STEPS; s++) { on[i][s] = acc[i][s] = sld[i][s] = oct[i][s] = tie[i][s] = 0; }
+    for (int s = 0; s < STEPS; s++) { on[i][s] = acc[i][s] = sld[i][s] = oct[i][s] = tie[i][s] = pit[i][s] = 0; }
     if (d == 0) return;                                                   // CLEAR = empty
-    int onp = d == 1 ? 42 : d == 3 ? 90 : 72;                             // note density
-    int accp = d == 1 ? 18 : d == 3 ? 45 : 30, sldp = d == 1 ? 12 : d == 3 ? 42 : 22;
-    int prev = 0;
+
+    const KeyScale *sc = &SCALES[mscale[i]];
+    int nd   = sc->n;                                                     // scale degrees (index nd-1 = the octave)
+    int gate = d == 1 ? 55 : d == 3 ? 95 : 78;                            // chance a step SOUNDS (else a rest — the line breathes)
+    int accp = d == 1 ? 16 : d == 3 ? 34 : 24;
+    int sldp = d == 1 ? 28 : d == 3 ? 55 : 42;                            // acid = plenty of glide
+    int octp = d == 1 ? 6  : d == 3 ? 20 : 12;
+    int ML   = d == 1 ? 8  : 4;                                           // motif length; repeats = STEPS/ML
+
+    // MOTIF — a small random walk over scale degrees (small steps + the odd snap home), rooted.
+    int cellpit[8], deg = 0;
+    cellpit[0] = sc->deg[0];                                              // the cell opens on the root
+    for (int c = 1; c < ML; c++) {
+        int r = rnd_between(0, 99);
+        if      (r < 34) deg += 1;
+        else if (r < 60) deg -= 1;
+        else if (r < 72) deg += 2;
+        else if (r < 82) deg -= 2;
+        else             deg  = 0;                                        // pull back to the root
+        if (deg < 0) deg = 0; if (deg > nd - 1) deg = nd - 1;             // stay within one octave of degrees
+        cellpit[c] = sc->deg[deg];
+    }
+
+    // lay the motif across the bar; the LAST repeat climbs an octave (call → response)
+    int last = STEPS / ML - 1;
     for (int s = 0; s < STEPS; s++) {
-        on[i][s] = rnd_between(0, 99) < onp;
-        int p = pool[rnd_between(0, 7)];
-        if (rnd_between(0, 99) < 35) p = prev;
-        pit[i][s] = prev = p;
-        acc[i][s] = rnd_between(0, 99) < accp;
-        sld[i][s] = rnd_between(0, 99) < sldp;
-        oct[i][s] = rnd_between(0, 99) < (d == 3 ? 18 : 10) ? 1 : 0;
-        tie[i][s] = (!on[i][s] && rnd_between(0, 99) < 15) ? 1 : 0;
+        int c = s % ML, rep = s / ML, strong = (s % 4 == 0);
+        on[i][s]  = rnd_between(0, 99) < gate;
+        pit[i][s] = cellpit[c];
+        acc[i][s] = rnd_between(0, 99) < (strong ? accp + 22 : accp);     // strong steps accented more
+        oct[i][s] = rnd_between(0, 99) < (rep == last ? octp + 18 : octp);// the acid octave climb on the final repeat
+        if (!on[i][s]) tie[i][s] = rnd_between(0, 99) < 18;               // a held tail through some rests
+    }
+    on[i][0] = 1; acc[i][0] = 1; pit[i][0] = sc->deg[0]; oct[i][0] = 0;   // strong ROOT downbeat, anchored
+
+    // SLIDES — glide between consecutive sounding notes (the liquid 303 legato)
+    for (int s = 0; s < STEPS; s++) {
+        int ns = (s + 1) % STEPS;
+        if (on[i][s] && (on[i][ns] || tie[i][ns]) && rnd_between(0, 99) < sldp) sld[i][s] = 1;
     }
 }
 
@@ -687,7 +743,7 @@ static int lcdlatch(unsigned seed, int x, int y, int w, int hh, const char *s, i
 static void cartridge(Box c, int m) {
     int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
     int foc = (m == face), live = !mac[m].mute;
-    int ledW = h;                                                 // reserve a square-ish slot at the right for the LED
+    int ledW = h; if (ledW > 9) ledW = 9;                         // square-ish LED slot, but CAPPED — on tall/square window ratios a full-h slot starved the name body (width stays pinned at 160) and the label spilled out the left
     int bodyW = w - ledW; if (bodyW < 8) bodyW = 8;
     int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
     void *wf = ui_wid_hash(0x70u + m, x, y, bodyW, h);            // FOCUS = the name body
@@ -702,7 +758,8 @@ static void cartridge(Box c, int m) {
     if (foc) { blend(BLEND_AVG); line(x + 2, y + 1, x + w - 3, y + 1, CLR_WHITE); blend_reset(); }   // top sheen
     rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_TINY);
-    print(mac[m].name, x + (bodyW - text_width(mac[m].name)) / 2, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    int tx = x + (bodyW - text_width(mac[m].name)) / 2; if (tx < x) tx = x;   // centre in the body, but never spill left of the cartridge
+    print(mac[m].name, tx, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
     int lx = x + bodyW + ledW / 2, ly = y + h / 2;               // mute LED, centred in its slot
     circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
     circ(lx, ly, 2, (hotm && live) ? CLR_WHITE : CLR_BROWNISH_BLACK);
@@ -768,6 +825,19 @@ static void draw_gen(int m) {
     }
 }
 
+// stack button k of n in column `col` with EVEN integer vertical spacing (every gap == `gap`,
+// no lay_grid float→int drift). BOTTOM-anchored: the last cell's bottom == col bottom, and any
+// integer-division remainder sits as slack ABOVE the first cell — so a flank column lines its
+// last soft-key up with the glass edge instead of drifting a pixel per resolution.
+static Box colcell(Box col, int n, int k, int gap) {
+    if (n < 1) n = 1;
+    int x = (int)col.x, w = (int)col.w;
+    int y0 = (int)col.y, y1 = (int)(col.y + col.h);
+    int ch = ((y1 - y0) - gap * (n - 1)) / n; if (ch < 1) ch = 1;
+    int top = y1 - (n * ch + gap * (n - 1));                       // bottom-anchor the stack
+    return box(x, top + k * (ch + gap), w, ch);
+}
+
 // ── a 303 face (zones 2–5) ───────────────────────────────────────────────────
 static void draw_303(Box stage, int i) {
     Acid *a = &ac[i];
@@ -780,11 +850,12 @@ static void draw_303(Box stage, int i) {
     Box loopS = lay_split(body, EDGE_BOTTOM, H * 0.05f, &body);   // loop-length handle strip
     Box notes = lay_split(body, EDGE_BOTTOM, H * (seq_grid ? 0.12f : 0.28f), &body);   // GRID: thin compact strip (the LCD, = the remainder, grows into the freed space); BARS: tall note bars
     Box skcL = {0}, skcR = {0};                                  // ③ soft-key columns — BARS only; GRID moves the mode selector IN-screen (tabs) for a full-width glass
-    if (!seq_grid) { skcL = lay_split(body, EDGE_LEFT, W * 0.11f, &body); skcR = lay_split(body, EDGE_RIGHT, W * 0.11f, &body); }
+    float colw = W * 0.11f;                                      // ONE width for BOTH flank columns AND the DF switch above, so the right side reads as one column
+    if (!seq_grid) { skcL = lay_split(body, EDGE_LEFT, colw, &body); skcR = lay_split(body, EDGE_RIGHT, colw, &body); }
     Box lcd   = lay_inset(body, 1);                               // the hero glass = the remainder (full-width in GRID mode, edge-to-edge with the 16-step row)
 
     // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
-    Box krDF = lay_split(krow, EDGE_RIGHT, lay_clamp(FU * 0.8f, 14, 26), &krow);
+    Box krDF = lay_split(krow, EDGE_RIGHT, colw, &krow);          // same width + right edge as the GEN/KEY/PAT column below → the right side is one column
     Box krPAGE = lay_split(krDF, EDGE_BOTTOM, krDF.h * 0.44f, &krDF);      // krDF = top (VOICING switch), krPAGE = bottom (VIEW tab)
     if (!kpage[i]) {                                                       // page 0 — vanilla
         knob_cell(lay_grid(krow, 5, 5, 0, 2), &a->p[ACID_CUT], "CUT", 0.55f);
@@ -844,13 +915,18 @@ static void draw_303(Box stage, int i) {
     // ③ soft-keys flank the LCD (left: SEQ/FLAG/FX/PERF · right: GEN/KEY/PAT) — BARS mode only.
     // GRID mode draws these as an IN-SCREEN tab row instead (below), so the glass is full-width.
     if (!seq_grid) {
+    // Lay the flank keys over the GLASS's vertical extent (not the full body): the last key's
+    // bottom lands on the glass edge, leaving a 1px gap above the notes strip (which starts at
+    // body bottom == lcd bottom + 1) — and colcell keeps every gap equal at any resolution.
+    Box colL = box(skcL.x, lcd.y, skcL.w, lcd.h);
+    Box colR = box(skcR.x, lcd.y, skcR.w, lcd.h);
     { static const char *L[4] = { "SEQ", "FLAG", "FX", "PERF" }; static const int Lm[4] = { PS_SEQ, PS_FLAG, PS_FX, PS_PERF };
       static const unsigned Ls[4] = { 0x08u, 0x09u, 0x06u, 0x37u };
-      for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
+      for (int k = 0; k < 4; k++) { Box c = colcell(colL, 4, k, 2);
           if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], pscreen[i] == Lm[k])) pscreen[i] = Lm[k]; } }
     { static const char *R[3] = { "GEN", "KEY", "PAT" }; static const int Rm[3] = { PS_GEN, PS_KEY, PS_PAT };
       static const unsigned Rs[3] = { 0x31u, 0x34u, 0x35u };
-      for (int k = 0; k < 3; k++) { Box c = lay_grid(skcR, 1, 3, k, 2);
+      for (int k = 0; k < 3; k++) { Box c = colcell(colR, 3, k, 2);
           if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], pscreen[i] == Rm[k])) pscreen[i] = Rm[k]; } }
     }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
@@ -911,23 +987,28 @@ static void draw_303(Box stage, int i) {
         for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
             pat_pad(0x3Bu + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], i, k); }
     } else if (pscreen[i] == PS_PERF) {                              // PERF — play LENSES (TAP=latch / HOLD=momentary)
-        Box prow2; Box ptop = lay_split(gc, EDGE_TOP, gc.h * 0.5f, &prow2);
-        Box h0 = lay_grid(ptop, 3, 3, 0, 2), h1 = lay_grid(ptop, 3, 3, 1, 2), h2 = lay_grid(ptop, 3, 3, 2, 2);
-        Box s0 = lay_grid(prow2, 2, 2, 0, 2), s1 = lay_grid(prow2, 2, 2, 1, 2);
-        pf_half[i]  = lcdlatch(0x7Bu, (int)h0.x, (int)h0.y, (int)h0.w, (int)h0.h, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  &pf_latch[PL_DBL][i]);
-        pf_dbl[i]   = lcdlatch(0x7Cu, (int)h1.x, (int)h1.y, (int)h1.w, (int)h1.h, "2X",    &pf_latch[PL_DBL][i],   &pf_hold[PL_DBL][i],   &pf_latch[PL_HALF][i]);
-        pf_acc[i]   = lcdlatch(0x7Du, (int)h2.x, (int)h2.y, (int)h2.w, (int)h2.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
-        pf_stac[i]  = lcdlatch(0x7Eu, (int)s0.x, (int)s0.y, (int)s0.w, (int)s0.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
-        pf_glide[i] = lcdlatch(0x7Fu, (int)s1.x, (int)s1.y, (int)s1.w, (int)s1.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
+        // A 4×2 grid. Row 1: HALF · ACC · OCT · REV  ·  Row 2: STAC · GLIDE · ROLL (last cell spare).
+        // Read-path lenses (TAP=latch / HOLD=momentary); ROLL is momentary by nature (hold to stutter).
+        Box c0 = lay_grid(gc, 4, 8, 0, 2), c1 = lay_grid(gc, 4, 8, 1, 2), c2 = lay_grid(gc, 4, 8, 2, 2), c3 = lay_grid(gc, 4, 8, 3, 2);
+        Box c4 = lay_grid(gc, 4, 8, 4, 2), c5 = lay_grid(gc, 4, 8, 5, 2), c6 = lay_grid(gc, 4, 8, 6, 2);
+        pf_half[i]  = lcdlatch(0x7Bu, (int)c0.x, (int)c0.y, (int)c0.w, (int)c0.h, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  0);
+        pf_acc[i]   = lcdlatch(0x7Du, (int)c1.x, (int)c1.y, (int)c1.w, (int)c1.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
+        pf_oct[i]   = lcdlatch(0x80u, (int)c2.x, (int)c2.y, (int)c2.w, (int)c2.h, "OCT",   &pf_latch[PL_OCT][i],   &pf_hold[PL_OCT][i],   0);
+        pf_rev[i]   = lcdlatch(0x82u, (int)c3.x, (int)c3.y, (int)c3.w, (int)c3.h, "REV",   &pf_latch[PL_REV][i],   &pf_hold[PL_REV][i],   0);
+        pf_stac[i]  = lcdlatch(0x7Eu, (int)c4.x, (int)c4.y, (int)c4.w, (int)c4.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
+        pf_glide[i] = lcdlatch(0x7Fu, (int)c5.x, (int)c5.y, (int)c5.w, (int)c5.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
+        pf_roll[i]  = lcdlatch(0x83u, (int)c6.x, (int)c6.y, (int)c6.w, (int)c6.h, "ROLL",  &pf_latch[PL_ROLL][i],  &pf_hold[PL_ROLL][i],  0);
     } else {                                                          // SEQ — piano-roll readout OR editable GRID (seq_grid)
         char nb[4]; { int bi = (int)(g_bpm + 0.5f), ni = 0;
           if (bi >= 100) nb[ni++] = '0' + bi / 100;
           nb[ni++] = '0' + (bi / 10) % 10; nb[ni++] = '0' + bi % 10; nb[ni] = 0; }
-        if (!seq_grid) {                                             // BARS: in-content header (BPM + the BARS→GRID toggle)
+        if (!seq_grid) {                                             // BARS: in-content header (BPM readout; the GRID toggle is hidden unless grid_view_on)
             Box ghdr = lay_split(gc, EDGE_TOP, gc.h * 0.20f, &gc);
             font(FONT_TINY); print(nb, (int)ghdr.x, (int)ghdr.y, CLR_MEDIUM_GREEN);
-            Box tg = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.30f, &ghdr);
-            if (lcdbtn(0x2Du, (int)tg.x, (int)tg.y, (int)tg.w, (int)tg.h, "BARS", 0)) seq_grid = 1;
+            if (grid_view_on) {                                      // the BARS→GRID chip — hidden by default (note-bars are the shipping view)
+                Box tg = lay_split(ghdr, EDGE_RIGHT, ghdr.w * 0.30f, &ghdr);
+                if (lcdbtn(0x2Du, (int)tg.x, (int)tg.y, (int)tg.w, (int)tg.h, "BARS", 0)) seq_grid = 1;
+            }
         } else {                                                     // GRID: the tab row above carries the chrome; just a small BPM in the corner
             font(FONT_TINY); print(nb, (int)gc.x, (int)gc.y, CLR_MEDIUM_GREEN);
         }
@@ -1115,6 +1196,21 @@ static void draw_303(Box stage, int i) {
 // is the work surface (voice picker + the 16 HITS of the picked voice); the screen
 // stays free for the kit overview + tweaks. Its identity: a blue 808 badge, blue
 // voice pads, and the hits in the iconic 808 red·orange·yellow·white quarters.
+// the drum PERF screen (shared by both drum faces) — ROLL + ACC for the face being drawn.
+// m is derived from `face` (draw_808 → 0, draw_909 → 1), so the branch is identical in both.
+static void draw_drum_perf(Box gc) {
+    int m = (face == M_909) ? 1 : 0;
+    // Row 1: BEAT-REPEAT RP1/RP2/RP4 (hold → loop the last 1/2/4 steps) · Row 2: THIN · BUSY · ACC.
+    Box a0 = lay_grid(gc, 3, 6, 0, 2), a1 = lay_grid(gc, 3, 6, 1, 2), a2 = lay_grid(gc, 3, 6, 2, 2);
+    Box b0 = lay_grid(gc, 3, 6, 3, 2), b1 = lay_grid(gc, 3, 6, 4, 2), b2 = lay_grid(gc, 3, 6, 5, 2);
+    pf_rp1[m]  = lcdlatch(0x84u, (int)a0.x, (int)a0.y, (int)a0.w, (int)a0.h, "RP1",  &dpf_latch[DPL_RP1][m],  &dpf_hold[DPL_RP1][m],  0);
+    pf_rp2[m]  = lcdlatch(0x85u, (int)a1.x, (int)a1.y, (int)a1.w, (int)a1.h, "RP2",  &dpf_latch[DPL_RP2][m],  &dpf_hold[DPL_RP2][m],  0);
+    pf_rp4[m]  = lcdlatch(0x86u, (int)a2.x, (int)a2.y, (int)a2.w, (int)a2.h, "RP4",  &dpf_latch[DPL_RP4][m],  &dpf_hold[DPL_RP4][m],  0);
+    pf_thin[m] = lcdlatch(0x87u, (int)b0.x, (int)b0.y, (int)b0.w, (int)b0.h, "THIN", &dpf_latch[DPL_THIN][m], &dpf_hold[DPL_THIN][m], &dpf_latch[DPL_BUSY][m]);
+    pf_busy[m] = lcdlatch(0x88u, (int)b1.x, (int)b1.y, (int)b1.w, (int)b1.h, "BUSY", &dpf_latch[DPL_BUSY][m], &dpf_hold[DPL_BUSY][m], &dpf_latch[DPL_THIN][m]);
+    pf_dacc[m] = lcdlatch(0x89u, (int)b2.x, (int)b2.y, (int)b2.w, (int)b2.h, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
+}
+
 static void draw_808(Box stage) {
     // acid order (from acidrack): always-on kick/hats/clap/snare, then cowbell + rim/clave,
     // then the fill voices (maracas/cymbal/toms/congas) — page 1 is a whole beat on its own.
@@ -1137,13 +1233,13 @@ static void draw_808(Box stage) {
 
     if (darmed == DD_STRK) darmed = DD_ACC;                 // STRK is 909-only — reset if armed here
     // ③ soft-keys flank the LCD — left KIT/FLAG/MIX · right GEN/PAT (VCE via the pad TOOL)
-    { static const char *L[3] = { "KIT", "FLAG", "MIX" }; static const int Lm[3] = { DS_KIT, DS_FLAG, DS_MIX };
-      static const unsigned Ls[3] = { 0x20u, 0x21u, 0x33u };
+    { static const char *L[3] = { "VCE", "KIT", "FLAG" }; static const int Lm[3] = { DS_VCE, DS_KIT, DS_FLAG };   // VCE now holds TONE *and* MIX knobs in one panel (MIX soft-key retired)
+      static const unsigned Ls[3] = { 0x22u, 0x20u, 0x21u };
       for (int k = 0; k < 3; k++) { Box c = lay_grid(skcL, 1, 3, k, 2);
           if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], dscreen == Lm[k])) dscreen = Lm[k]; } }
-    { static const char *R[2] = { "GEN", "PAT" }; static const int Rm[2] = { DS_GEN, DS_PAT };
-      static const unsigned Rs[2] = { 0x31u, 0x36u };
-      for (int k = 0; k < 2; k++) { Box c = lay_grid(skcR, 1, 2, k, 2);
+    { static const char *R[3] = { "GEN", "PAT", "PERF" }; static const int Rm[3] = { DS_GEN, DS_PAT, DS_PERF };
+      static const unsigned Rs[3] = { 0x31u, 0x36u, 0x39u };
+      for (int k = 0; k < 3; k++) { Box c = lay_grid(skcR, 1, 3, k, 2);
           if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], dscreen == Rm[k])) dscreen = Rm[k]; } }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);
@@ -1173,23 +1269,26 @@ static void draw_808(Box stage) {
                 if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR_NV, CLR_MEDIUM_GREEN); blend_reset(); }
                 if (dgrid[v][s]) rectfill(gx, gy, (int)gsw - 1 < 2 ? 2 : (int)gsw - 1, 1, dmute[v] ? CLR_DARKER_GREY : v == dsel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
             } }
-    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE
-        font(FONT_TINY); plabel(TR808_NAME[dsel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
-        Box mr = lay_pad(gc, 6, 0, 0, 0);
-        lcdknob_cell(lay_grid(mr, 3, 3, 0, 2), &dvol[dsel],  "VOL",  0.5f);
-        lcdknob_cell(lay_grid(mr, 3, 3, 1, 2), &dpan[dsel],  "PAN",  0.5f);
-        lcdknob_cell(lay_grid(mr, 3, 3, 2, 2), &dfine[dsel], "FINE", 0.5f);   // ±50c — null a kick; TUNE keeps semitones
     } else if (dscreen == DS_PAT) {                         // PAT — A-D banks
         static const char *AD[NPAT] = { "A", "B", "C", "D" };
         for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
             pat_pad(0x3Fu + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], M_808, k); }
+    } else if (dscreen == DS_PERF) {                        // PERF — ROLL (fill) + ACC (accent all), per machine
+        draw_drum_perf(gc);
     } else {                                                // DS_VCE — the voice's TONE knobs
         font(FONT_TINY); plabel(TR808_NAME[dsel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
+        {   // little MUTE toggle for the SELECTED voice, top-right of the header (ease-of-use — no need to reach for the MUT pad-tool)
+            int bw = (int)lay_clamp(gc.w * 0.24f, 16, 26), bx = (int)(gc.x + gc.w) - bw, by = (int)gc.y;
+            if (lcdbtn(0x8Au, bx, by, bw, 6, dmute[dsel] ? "MUTED" : "MUTE", dmute[dsel])) dmute[dsel] = !dmute[dsel];
+        }
         Box vr = lay_pad(gc, 6, 0, 0, 0);
-        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced
+        float *kv[6]; const char *kl[6]; int nk = 0;        // ONE panel: TONE (TUNE/DEC/[char]) + MIX (VOL/PAN/FINE) in a single row
         kv[nk] = &dtune[dsel];  kl[nk++] = "TUNE";
         kv[nk] = &ddecay[dsel]; kl[nk++] = "DEC";
         if (CH8[dsel]) { kv[nk] = &dcolor[dsel]; kl[nk++] = CH8[dsel]; }
+        kv[nk] = &dvol[dsel];   kl[nk++] = "VOL";
+        kv[nk] = &dpan[dsel];   kl[nk++] = "PAN";
+        kv[nk] = &dfine[dsel];  kl[nk++] = "FINE";   // ±50c microtune
         for (int i = 0; i < nk; i++) lcdknob_cell(lay_grid(vr, nk, nk, i, 2), kv[i], kl[i], 0.5f);
     }
 
@@ -1307,13 +1406,13 @@ static void draw_909(Box stage) {
     }
 
     // ③ soft-keys flank the LCD — left KIT/FLAG/MIX · right GEN/PAT (VCE via the pad TOOL)
-    { static const char *L[3] = { "KIT", "FLAG", "MIX" }; static const int Lm[3] = { DS_KIT, DS_FLAG, DS_MIX };
-      static const unsigned Ls[3] = { 0x20u, 0x21u, 0x33u };
+    { static const char *L[3] = { "VCE", "KIT", "FLAG" }; static const int Lm[3] = { DS_VCE, DS_KIT, DS_FLAG };   // VCE now holds TONE *and* MIX knobs in one panel (MIX soft-key retired)
+      static const unsigned Ls[3] = { 0x22u, 0x20u, 0x21u };
       for (int k = 0; k < 3; k++) { Box c = lay_grid(skcL, 1, 3, k, 2);
           if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], dscreen == Lm[k])) dscreen = Lm[k]; } }
-    { static const char *R[2] = { "GEN", "PAT" }; static const int Rm[2] = { DS_GEN, DS_PAT };
-      static const unsigned Rs[2] = { 0x31u, 0x36u };
-      for (int k = 0; k < 2; k++) { Box c = lay_grid(skcR, 1, 2, k, 2);
+    { static const char *R[3] = { "GEN", "PAT", "PERF" }; static const int Rm[3] = { DS_GEN, DS_PAT, DS_PERF };
+      static const unsigned Rs[3] = { 0x31u, 0x36u, 0x39u };
+      for (int k = 0; k < 3; k++) { Box c = lay_grid(skcR, 1, 3, k, 2);
           if (cbtn(Rs[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, R[k], dscreen == Rm[k])) dscreen = Rm[k]; } }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);
@@ -1344,23 +1443,26 @@ static void draw_909(Box stage) {
                 if (s == step && playing) { blend(BLEND_AVG); rectfill(gx - 1, (int)grid.y, (int)gsw, TR9_NV, CLR_MEDIUM_GREEN); blend_reset(); }
                 if (d9grid[v][s]) rectfill(gx, gy, (int)gsw - 1 < 2 ? 2 : (int)gsw - 1, 1, d9mute[v] ? CLR_DARKER_GREY : v == d9sel ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
             } }
-    } else if (dscreen == DS_MIX) {                         // MIX — per-voice LEVEL / PAN / FINE
-        font(FONT_TINY); plabel(TR909_NAME[d9sel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
-        Box mr = lay_pad(gc, 6, 0, 0, 0);
-        lcdknob_cell(lay_grid(mr, 3, 3, 0, 2), &d9vol[d9sel],  "VOL",  0.5f);
-        lcdknob_cell(lay_grid(mr, 3, 3, 1, 2), &d9pan[d9sel],  "PAN",  0.5f);
-        lcdknob_cell(lay_grid(mr, 3, 3, 2, 2), &d9fine[d9sel], "FINE", 0.5f);
     } else if (dscreen == DS_PAT) {                         // PAT — A-D banks
         static const char *AD[NPAT] = { "A", "B", "C", "D" };
         for (int k = 0; k < NPAT; k++) { Box c = lay_grid(lay_inset(gc, 1), NPAT, NPAT, k, 3);
             pat_pad(0x43u + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, AD[k], M_909, k); }
+    } else if (dscreen == DS_PERF) {                        // PERF — ROLL (fill) + ACC (accent all), per machine
+        draw_drum_perf(gc);
     } else {                                                // DS_VCE — the voice's TONE knobs
         font(FONT_TINY); plabel(TR909_NAME[d9sel], (int)(gc.x + gc.w / 2), (int)gc.y, CLR_LIME_GREEN);
+        {   // little MUTE toggle for the SELECTED voice, top-right of the header (ease-of-use)
+            int bw = (int)lay_clamp(gc.w * 0.24f, 16, 26), bx = (int)(gc.x + gc.w) - bw, by = (int)gc.y;
+            if (lcdbtn(0x8Bu, bx, by, bw, 6, d9mute[d9sel] ? "MUTED" : "MUTE", d9mute[d9sel])) d9mute[d9sel] = !d9mute[d9sel];
+        }
         Box vr = lay_pad(gc, 6, 0, 0, 0);
-        float *kv[3]; const char *kl[3]; int nk = 0;        // TUNE / DEC / [char] — even-spaced
+        float *kv[6]; const char *kl[6]; int nk = 0;        // ONE panel: TONE (TUNE/DEC/[char]) + MIX (VOL/PAN/FINE) in a single row
         kv[nk] = &d9tune[d9sel];  kl[nk++] = "TUNE";
         kv[nk] = &d9decay[d9sel]; kl[nk++] = "DEC";
         if (CH9[d9sel]) { kv[nk] = &d9color[d9sel]; kl[nk++] = CH9[d9sel]; }
+        kv[nk] = &d9vol[d9sel];   kl[nk++] = "VOL";
+        kv[nk] = &d9pan[d9sel];   kl[nk++] = "PAN";
+        kv[nk] = &d9fine[d9sel];  kl[nk++] = "FINE";   // ±50c microtune
         for (int i = 0; i < nk; i++) lcdknob_cell(lay_grid(vr, nk, nk, i, 2), kv[i], kl[i], 0.5f);
     }
 
@@ -1527,10 +1629,19 @@ static void draw_mst(Box stage) {
         // PCF = tone (green), CRUSH = texture (orange), GATE = chop (pink); full bar = no effect.
         int *lane = (mstflow == 1) ? mpcf : (mstflow == 2) ? mcrush : mgate;
         unsigned seed = (mstflow == 1) ? 0xC0u : (mstflow == 2) ? 0xE0u : 0xA0u;
+        int dflt = (mstflow == 2) ? 0 : 7;                   // the lane's no-effect value (CRUSH clean = 0; PCF/GATE open = 7)
+        int drawn = 0; for (int s = 0; s < STEPS; s++) if (lane[s] != dflt) { drawn = 1; break; }
+        // CLR = a small TOP-RIGHT CORNER button (only when the lane is drawn). It OVERLAYS the lane
+        // instead of stealing a header row; the columns beneath it clip their capture BELOW it so a
+        // CLR tap can never also draw a step. Drawn after the loop; wipes the lane back to default.
+        int clrw = drawn ? (int)lay_clamp(gc.w * 0.16f, 14, 22) : 0, clrh = 7;
+        int clrx = (int)(gc.x + gc.w) - clrw, clry = (int)gc.y;
         float lsw = gc.w / (float)STEPS; int ly = (int)gc.y, lh = (int)gc.h;
         for (int s = 0; s < STEPS; s++) {
             int cx = (int)(gc.x + s * lsw), lw = (int)lsw - 1; if (lw < 2) lw = 2;
-            void *w = ui_wid_hash(seed + s, cx, ly, lw, lh); ui_reg(w, cx, ly, lw, lh, 0);
+            int cy = ly, chh = lh;
+            if (drawn && cx + lw > clrx) { cy = clry + clrh; chh = ly + lh - cy; }   // column under CLR → capture only below it (value still maps to full ly/lh)
+            void *w = ui_wid_hash(seed + s, cx, cy, lw, chh); ui_reg(w, cx, cy, lw, chh, 0);
             UiCap *c = ui_cap_for(w);
             if (c) {                                         // the captured cell tracks the finger → draw the curve
                 g_drag_frame = ui_frame_ct; g_drag_y = c->cy;
@@ -1549,6 +1660,8 @@ static void draw_mst(Box stage) {
                 rectfill(cx, ly + lh - fh, lw, fh, col);
             }
         }
+        if (drawn && lcdbtn(0x90u, clrx, clry, clrw, clrh, "CLR", 0))
+            for (int s = 0; s < STEPS; s++) lane[s] = dflt;   // one-tap wipe back to no-effect
     }
 
     // ④ the RIGHT COLUMN — SWG · TEMPO · DUB stacked full-height, each its own cell (was a cramped
@@ -1622,7 +1735,7 @@ void init(void) {
     tr909_metal(D909_BASE, m9cut, m9res);
     for (int v = 0; v < TR9_NV; v++) { d9tune[v] = d9decay[v] = d9color[v] = d9vol[v] = d9pan[v] = d9fine[v] = 0.5f; d9panlast[v] = d9tunefine[v] = -9; }  // 0.5 = neutral; -9 = force first push
     for (int v = 0; v < TR9_NV; v++) for (int s = 0; s < STEPS; s++) d9prob[v][s] = 100;
-    reverb(0.62f, 0.42f);                                  // the warm HALL — the 303s' space (tank 0), acidrack's tuning
+    reverb(0.45f, 0.22f);                                  // the 303s' space (tank 0) — a bright, tighter PLATE (was a warm hall 0.62/0.42): glassier + shorter = the modern acid/house stab sound
     reverb_bus(1, 0.34f, 0.15f);                           // 909 → its own tight bright PLATE (tank 1)
     reverb_bus(2, 0.45f, 0.30f);                           // 808 → its own room (tank 2)
     pan_law(PAN_LINEAR);                                   // fixed rack pan law (the LIN/PWR toggle was removed; LINEAR = engine default)
@@ -1678,25 +1791,44 @@ void update(void) {
         // (lf >= sw). The other lenses (total-accent, slide-flip) override the READ, so the
         // stored pattern is untouched — release the button and it's back to normal.
         for (int i = 0; i < 2; i++) {
-            float spd = pf_dbl[i] ? 2.0f : pf_half[i] ? 0.5f : 1.0f;   // PERF speed lens
+            float spd = pf_half[i] ? 0.5f : 1.0f;                      // PERF speed lens (half-time only) — also halves the ROLL rate below
+            // ROLL lens: while held, TAKE OVER this line — retrigger the last played note at a fast
+            // subdivision (a stutter/fill). Respects HALF (rolls half as fast when HALF is on).
+            // Momentary by nature; the normal clock is skipped so the pattern picks straight back up on release.
+            if (pf_roll[i] && !mac[i].mute) {
+                int rc = (int)(g_phase * ROLL_RATE * spd);
+                if (rc != rollctr[i]) { rollctr[i] = rc; acid_note(&ac[i], roll_pit[i], roll_acc[i], 0); mbop = 1; }
+                continue;
+            }
+            rollctr[i] = -1;                                          // not rolling → reset so the next ROLL starts clean
+
             float lp  = g_phase * spd;                                 // this line's own phase
             int   lc  = (int)lp; float lf = lp - lc;
             int   lcs = ((lc & 1) && lf < sw) ? lc - 1 : lc;          // swung per-line counter
             if (lcs != laststep303[i]) {
                 laststep303[i] = lcs;
-                int ls = lcs % plen[i]; lpos[i] = ls;
+                int raw = lcs % plen[i];
+                int ls  = pf_rev[i] ? (plen[i] - 1 - raw) : raw;      // REV lens: mirror the step index (play backwards)
+                lpos[i] = ls;
                 if (mac[i].mute) { acid_off(&ac[i]); continue; }
                 int accent = acc[i][ls] || pf_acc[i];                          // total-accent lens
                 int slide  = pf_stac[i] ? 0 : pf_glide[i] ? 1 : sld[i][ls];    // slide-flip lens
-                if (on[i][ls]) { acid_note(&ac[i], ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12, accent, slide); mbop = 1; }
+                int oshift = (pf_oct[i] && (lcs & 1)) ? -12 : 0;               // OCT lens: every OTHER step (odd counter) an octave down — the acid bounce
+                if (on[i][ls]) {
+                    int midi = ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12 + oshift;
+                    acid_note(&ac[i], midi, accent, slide); mbop = 1;
+                    roll_pit[i] = midi; roll_acc[i] = accent;         // remember the last played note for ROLL to repeat
+                }
                 else if (tie[i][ls]) acid_tie(&ac[i], slide);         // hold the previous note through
                 else acid_off(&ac[i]);
             } else if (!pf_glide[i]) {                                // staccato gate between flips (GLIDE lens sustains → skip entirely)
-                int ls = lcs % plen[i];
+                int raw = lcs % plen[i];
+                int ls  = pf_rev[i] ? (plen[i] - 1 - raw) : raw;
                 int slide = pf_stac[i] ? 0 : sld[i][ls];             // STAC forces staccato; else a slid step glides OUT
                 if (on[i][ls] && !slide) {                           // gate ONLY a fresh, NON-slid note (tb303's rule): a slid
                     float onset = (lcs & 1) ? sw : 0.0f;             // step must ring on to glide, and a tie/rest holds — cutting
-                    int nx = (lcs + 1) % plen[i];                    // them at 70% was the bug (manual slides never actually glided)
+                    int rawn = (lcs + 1) % plen[i];                  // them at 70% was the bug (manual slides never actually glided)
+                    int nx = pf_rev[i] ? (plen[i] - 1 - rawn) : rawn;
                     acid_gate(&ac[i], lf, onset, tie[i][nx]);       // (next_ties still spares the cut into a tie)
                 }
             }
@@ -1707,14 +1839,19 @@ void update(void) {
         if (ctr != laststep) {
             laststep = ctr;
             int swms = (step & 1) ? (int)(sw * (15000.0f / g_bpm)) : 0;   // the same 0..0.6-of-a-16th shuffle, in ms
+            int es8 = drum_effstep(0, step);                      // beat-repeat: WHICH pattern column plays (timing stays on `step`)
             for (int v = 0; v < TR_NV; v++) {                     // the 808 line, same transport
-                if (!dgrid[v][step] || (dprob[v][step] < 100 && rnd(100) >= dprob[v][step])) continue;
+                int hit = dgrid[v][es8] && !(dprob[v][es8] < 100 && rnd(100) >= dprob[v][es8]);
+                int ghost = 0;
+                if (pf_thin[0] && hit && !(es8 % 4 == 0 || dacc[v][es8])) hit = 0;                                            // THIN: keep only downbeats + accents
+                if (pf_busy[0] && !hit && (es8 & 1) && v == dsel && v != TR_BD) { hit = ghost = 1; }                          // BUSY: fill the SELECTED voice's off-16ths (add the &s — pick a hat)
+                if (!hit) continue;
                 dtrig[v] = 1;                                     // would-trigger → the pad pulses even while muted
                 if (!mac[M_808].mute && !dmute[v]) {              // ...but only SOUND if not muted
-                    int bo = dacc[v][step] ? 2 : 0;                                     // accent → +2 velocity
+                    int bo = dacc[v][es8] ? 2 : 0; if (pf_dacc[0]) bo += 2; if (ghost) bo -= 1;   // accent lens + quieter ghosts
                     Lane L[LK_N]; int nl = drum_lanes(M_808, v, L); float sv[LK_N];      // per-step lane offsets, around each voice knob
                     for (int p = 0; p < nl; p++) {
-                        float eff = clamp(*L[p].knob + L[p].off[step] * 0.5f, 0, 1);
+                        float eff = clamp(*L[p].knob + L[p].off[es8] * 0.5f, 0, 1);
                         if (L[p].sink == SK_ARG) { sv[p] = *L[p].knob; *L[p].knob = eff; }                        // ride the fire array
                         else if (L[p].sink == SK_VEL) bo += (int)((eff - 0.5f) * 8 + (eff >= 0.5f ? 0.5f : -0.5f)); // VOL → ±4 velocity (0.5 = unity)
                         else if (L[p].sink == SK_PAN && eff != dpanlast[v]) { tr808_pan(TR808_BASE, v, (eff - 0.5f) * 2); dpanlast[v] = eff; }  // PAN → -1..+1; push only on CHANGE (queued set-and-hold)
@@ -1723,19 +1860,24 @@ void update(void) {
                     for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
             }
+            int es9 = drum_effstep(1, step);
             for (int v = 0; v < TR9_NV; v++) {                    // the 909 line
-                if (!d9grid[v][step] || (d9prob[v][step] < 100 && rnd(100) >= d9prob[v][step])) continue;
+                int hit = d9grid[v][es9] && !(d9prob[v][es9] < 100 && rnd(100) >= d9prob[v][es9]);
+                int ghost = 0;
+                if (pf_thin[1] && hit && !(es9 % 4 == 0 || d9acc[v][es9])) hit = 0;
+                if (pf_busy[1] && !hit && (es9 & 1) && v == d9sel && v != TR9_BD) { hit = ghost = 1; }                        // BUSY: fill the SELECTED voice's off-16ths
+                if (!hit) continue;
                 d9trig[v] = 1;
                 if (!mac[M_909].mute && !d9mute[v]) {
-                    int bo = d9acc[v][step] ? 2 : 0, st = d9strk[v][step];
+                    int bo = d9acc[v][es9] ? 2 : 0, st = d9strk[v][es9]; if (pf_dacc[1]) bo += 2; if (ghost) bo -= 1;   // accent lens + quieter ghosts
                     Lane L[LK_N]; int nl = drum_lanes(M_909, v, L); float sv[LK_N];      // per-step lane offsets, around each voice knob
                     for (int p = 0; p < nl; p++) {
-                        float eff = clamp(*L[p].knob + L[p].off[step] * 0.5f, 0, 1);
+                        float eff = clamp(*L[p].knob + L[p].off[es9] * 0.5f, 0, 1);
                         if (L[p].sink == SK_ARG) { sv[p] = *L[p].knob; *L[p].knob = eff; }
                         else if (L[p].sink == SK_VEL) bo += (int)((eff - 0.5f) * 8 + (eff >= 0.5f ? 0.5f : -0.5f)); // VOL → ±4 velocity
                         else if (L[p].sink == SK_PAN && eff != d9panlast[v]) { tr909_pan(D909_BASE, v, (eff - 0.5f) * 2); d9panlast[v] = eff; }  // PAN → -1..+1; push only on CHANGE
                     }
-                    if (st) tr909_fire_stroke(D909_BASE, v, st, bo, swms, (int)(15000.0f / g_bpm), d9tune, d9decay, d9color);   // one 16th = 15000/bpm ms (113 @132)
+                    if (st && !ghost) tr909_fire_stroke(D909_BASE, v, st, bo, swms, (int)(15000.0f / g_bpm), d9tune, d9decay, d9color);   // one 16th = 15000/bpm ms (113 @132)
                     else    tr909_fire(D909_BASE, v, bo, swms, d9tune, d9decay, d9color);
                     for (int p = 0; p < nl; p++) if (L[p].sink == SK_ARG) *L[p].knob = sv[p];
                 }
@@ -1752,8 +1894,13 @@ void draw(void) {
     // seed each line's EFFECTIVE lens from its persistent LATCH (so a latched lens holds across
     // faces + while another line is focused); the focused PERF screen then adds momentary-hold on top.
     for (int i = 0; i < 2; i++) {
-        pf_half[i]  = pf_latch[PL_HALF][i];  pf_dbl[i]   = pf_latch[PL_DBL][i];  pf_acc[i] = pf_latch[PL_ACC][i];
+        pf_half[i]  = pf_latch[PL_HALF][i];  pf_acc[i]  = pf_latch[PL_ACC][i];  pf_oct[i] = pf_latch[PL_OCT][i];
         pf_stac[i]  = pf_latch[PL_STAC][i];  pf_glide[i] = pf_latch[PL_GLIDE][i];
+        pf_rev[i]   = pf_latch[PL_REV][i];   pf_roll[i]  = pf_latch[PL_ROLL][i];
+    }
+    for (int m = 0; m < 2; m++) {   // drum PERF holds when its screen isn't showing
+        pf_rp1[m]  = dpf_latch[DPL_RP1][m];  pf_rp2[m]  = dpf_latch[DPL_RP2][m];  pf_rp4[m]  = dpf_latch[DPL_RP4][m];
+        pf_thin[m] = dpf_latch[DPL_THIN][m]; pf_busy[m] = dpf_latch[DPL_BUSY][m]; pf_dacc[m] = dpf_latch[DPL_ACC][m];
     }
     // CHUNKY CANVAS (the "scale up the 160×100, then spread the leftover offset" model): match the
     // DEVICE ratio at the DESIGN's pixel density — keep the fitting axis at the design value (crisp,

@@ -98,7 +98,7 @@ static const Mode MODES[] = {
     // radio-station ideas as genres — same vocab as a sibling mode, but their OWN groove
     // (the vibe lives in the band tables below): jangle-pop, Mac-DeMarco jingle, ND funk.
     { "JANGLE", &HB_POP,          0 },   // bright 8th-strum indie-pop (jangle.c)
-    { "JINGLE", &HB_BOSSA,        0 },   // laid-back slacker-jangle, borrowed chords (jingle.c)
+    { "JINGLE", &HB_JINGLE,       0 },   // Mac-DeMarco slacker-jangle: bVII7 home, ii-V, backdoor (jingle.c)
     { "NAPOLN", &HB_MIXO_STYLE,   0 },   // Canned-Heat acid-jazz disco-funk (napoleon.c)
 };
 #define NMODE ((int)(sizeof MODES / sizeof MODES[0]))
@@ -1239,6 +1239,12 @@ void spec(void) {
     expect_eq(NMODE, 14, "three radio-idea genres added");
     modeSel = 11; keyPc = 0; seed_demo();   // JANGLE rides the POP vocab
     expect(pfn[0] == HB_I && pfn[3] == HB_V, "jangle reads the doo-wop I .. V (pop vocab)");
+
+    // JINGLE has its OWN harmony now (Mac DeMarco's gravity): from I it leans bVII7
+    modeSel = 12; keyPc = 0; nbars = 1; bar_defaults(&arr[0]);
+    arr[0].rootPc = 0; arr[0].qual = HBQ_MAJ7; rethink();
+    expect(pfn[0] == HB_I, "jingle: Cmaj7 = I");
+    expect(nsugg >= 1 && sugg[0].f == HB_bVII7, "jingle from I leans bVII7 (Mac's flat-7 home)");
 
     // back to a clean state
     modeSel = 0; keyPc = 0; seed_demo();

@@ -203,6 +203,10 @@ any pinned seed):
   (BOSSA/COCKTAIL/POP) and its seeds are byte-unchanged. `hb_suggest` reads `vocab->reason`.
 - New styles: **`HB_MINPOP`** (the i-VI-III-VII / i-iv-V loops) and **`HB_BLUES`** (12-bar
   tendency). `hb_vocab_pcs()` spells any function in any vocab. All spec-covered in `hb_selfcheck`.
+- **`HB_JINGLE`** (2026-07-21): a Mac-DeMarco / slacker-jangle weighting over the SAME major vocab —
+  the gravity leans off the plain V→I axis onto the borrowed shelf (bVII7 as a home base, ii-V cells,
+  secondary dominants, the backdoor). Additive, no radio consumer → no pinned-seed contract; drives
+  bandbox's JINGLE genre. The thesis again: genres differ by WEIGHTS over one grammar, not by grammar.
 - **Analysis generalised (2026-07-21):** `hb_vocab_fn`/`hb_vocab_analyze` name a chord against ANY
   vocab in a *declared* key — additive, `hb_chord_fn`/`hb_analyze` left byte-exact as the major case.
   The insight that unblocked minor analysis: it was never the hard problem. Naming a chord in a

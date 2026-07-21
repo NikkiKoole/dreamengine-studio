@@ -221,6 +221,30 @@ static const int *const HB_POP_NEXT[HB_NFUNC] = { HB_P_I, HB_P_ii, HB_P_iii,
 static const int HB_POP_N[HB_NFUNC] = { 8, 5, 4, 5, 6, 6, 2, 2, 1, 2, 3, 1, 1 };
 static const HbStyle HB_POP = { HB_POP_NEXT, HB_POP_N, HB_NFUNC };
 
+// a JINGLE / slacker-jangle style (Mac DeMarco's gravity) — the SAME 13-function
+// major vocab as POP/BOSSA, but the weight leans off the plain V→I axis and onto
+// the borrowed shelf: bVII7 as a home base (his signature flat-7 major), ii-V cells
+// + secondary dominants (II7→V, VI7→ii), the backdoor (iv/bVII7→I). Additive — no
+// radio cart consumes it, so these rows carry no pinned-seed contract.
+static const int HB_J_I[9]    = { HB_bVII7, HB_bVII7, HB_bVII7, HB_IV, HB_IV, HB_VI7, HB_vi, HB_II7, HB_iii };
+static const int HB_J_ii[5]   = { HB_V, HB_V, HB_V, HB_bII7, HB_V };
+static const int HB_J_iii[4]  = { HB_vi, HB_vi, HB_VI7, HB_IV };
+static const int HB_J_IV[7]   = { HB_I, HB_I, HB_iv, HB_iv, HB_bVII7, HB_V, HB_ii };
+static const int HB_J_V[5]    = { HB_I, HB_I, HB_I, HB_vi, HB_iii };
+static const int HB_J_vi[5]   = { HB_IV, HB_IV, HB_ii, HB_II7, HB_V };
+static const int HB_J_II7[4]  = { HB_V, HB_V, HB_V, HB_ii };
+static const int HB_J_VI7[4]  = { HB_ii, HB_ii, HB_ii, HB_ii };
+static const int HB_J_bII7[4] = { HB_I, HB_I, HB_I, HB_I };
+static const int HB_J_iv[3]   = { HB_I, HB_I, HB_bVII7 };
+static const int HB_J_bVII7[4]= { HB_I, HB_I, HB_I, HB_IV };
+static const int HB_J_v[2]    = { HB_I7, HB_I7 };
+static const int HB_J_I7[2]   = { HB_IV, HB_IV };
+static const int *const HB_JINGLE_NEXT[HB_NFUNC] = { HB_J_I, HB_J_ii, HB_J_iii,
+    HB_J_IV, HB_J_V, HB_J_vi, HB_J_II7, HB_J_VI7, HB_J_bII7, HB_J_iv,
+    HB_J_bVII7, HB_J_v, HB_J_I7 };
+static const int HB_JINGLE_N[HB_NFUNC] = { 9, 5, 4, 7, 5, 5, 4, 4, 4, 3, 4, 2, 2 };
+static const HbStyle HB_JINGLE = { HB_JINGLE_NEXT, HB_JINGLE_N, HB_NFUNC };
+
 // ── generate: the cart keeps its PRNG stream (pinned seeds stay byte-exact) ──
 static int hb_nopts(const HbStyle *st, int f) { return st->n[f]; }          // pass to your srnd()
 static int hb_pick (const HbStyle *st, int f, int r) { return st->next[f][r]; }

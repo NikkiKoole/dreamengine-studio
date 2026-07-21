@@ -1662,10 +1662,12 @@ static void draw_mst(Box stage) {
     { static const char *L[4] = { "MIX", "PCF", "CRU", "GAT" };
       for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
           if (cbtn(0x20u + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == k)) mstflow = k; } }
-    // ③b RIGHT margin — the SIDE-BUTTON column: GEN (genre presets) on top, then the 4 DELAY divisions stacked
-    { Box c = lay_grid(rcol, 1, 5, 0, 2);
-      if (cbtn(0x24u, (int)c.x, (int)c.y, (int)c.w, (int)c.h, "GEN", mstflow == 4)) mstflow = 4; }
-    for (int i = 0; i < 4; i++) { Box c = lay_grid(rcol, 1, 5, i + 1, 2);
+    // ③b RIGHT margin — the SIDE-BUTTON column: a BIG GEN, a little SAVE, then the DELAY divisions (compact = less prominent)
+    { Box gcell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.30f, 1, &rcol);   // 1px gaps (lay_split_gap) so GEN/SAVE/ratios all sit apart evenly
+      if (cbtn(0x24u, (int)gcell.x, (int)gcell.y, (int)gcell.w, (int)gcell.h, "GEN", mstflow == 4)) mstflow = 4; }
+    { Box scell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.22f, 1, &rcol);   // SAVE — placeholder (SAVE/LOAD is the deferred SONG layer, not wired yet — like HOME)
+      cbtn(0x26u, (int)scell.x, (int)scell.y, (int)scell.w, (int)scell.h, "SAVE", 0); }
+    for (int i = 0; i < 4; i++) { Box c = lay_grid(rcol, 1, 4, i, 1);   // DELAY divisions — small, in the bottom of the column
         if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);

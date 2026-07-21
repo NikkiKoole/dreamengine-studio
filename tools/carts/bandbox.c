@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression."
   }
 }
 de:meta */
@@ -125,7 +125,7 @@ enum { V_CH, V_BA, V_ME, V_DR, V_PA };
 typedef struct {
     int rootPc, qual;            // the CHORD (the harmonic spine of the bar)
     int strum, inv, oct, sev;    // CHORD p-locks (-1 = auto)
-    int bass;                    // BASS p-lock: -1 auto · 0 mute · 1 walk
+    int bass;                    // BASS p-lock (BPL_*): -1 FOLLOW · MUTE/HOLD/WALK/OCT/FILL
     int fill;                    // DRUM p-lock: 0 groove · 1 fill this bar
     int mel;                     // MEL  p-lock: -1 auto · 0 rest · 1 accent
     int pad;                     // PAD  p-lock: -1 auto · 0 off · 1 on
@@ -141,6 +141,12 @@ static int von[VOICES] = { 1, 1, 1, 1, 0 };   // pad off by default (chords alwa
 // global voice STYLE defaults
 enum { B_HOLD, B_ROOT5, B_WALK, B_BAND };
 static const char *BASS_LAB[4] = { "HOLD", "R-5", "WALK", "BAND" };
+// per-CELL bass p-locks (arr[].bass; -1 = FOLLOW the global style). One-bar
+// overrides a bassist would punch in: drop out, sit on the root, walk, pump the
+// octave, or run a fill into the next chord.
+enum { BPL_FOLLOW = -1, BPL_MUTE = 0, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL };
+static const char *BPL_LAB[6] = { "FOLLOW", "MUTE", "HOLD", "WALK", "OCT", "FILL" };
+static const int   BPL_VAL[6] = { BPL_FOLLOW, BPL_MUTE, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL };
 static int bassSel = B_BAND;
 static const char *DRUM_LAB[2] = { "PLAIN", "BAND" };
 static int drumSel = 1;   // 0 PLAIN · 1 BAND
@@ -203,37 +209,53 @@ static const int BASS_PAT[NMODE][4] = {
 static int bassLast = 36;
 static void play_bass_beat(int beat, int delay) {
     if (!von[V_BA] || !nbars) return;
-    int bl = arr[playSlot].bass;
-    if (bl == 0) return;                         // p-lock MUTE — silent this bar
-    int eff = (bl == 1) ? B_WALK : bassSel;      // p-lock WALK — force the jazz walk
-    if (eff == B_HOLD) { if (beat == 0) queue_note(36 + (octSel - 1) * 12 + arr[playSlot].rootPc, I_BSS, 5, delay); return; }
+    int bl = arr[playSlot].bass;                 // per-cell p-lock (BPL_*), -1 = follow
+    if (bl == BPL_MUTE) return;                  // MUTE — drop out this bar
 
     int r0 = arr[playSlot].rootPc, q = arr[playSlot].qual;
     int rN = arr[(playSlot + 1) % nbars].rootPc;
     int base = 36 + (octSel - 1) * 12;
     int lo = base - 4, hi = base + 12;
     int pc = -1, oct = 0;
-    if (eff == B_ROOT5) {
-        if (beat == 0)      pc = r0;
-        else if (beat == 2) pc = (r0 + 7) % 12;
-        else return;
-    } else if (eff == B_WALK) {
+
+    if (bl == BPL_HOLD) {                         // HOLD — one root on the downbeat
+        if (beat == 0) pc = r0; else return;
+    } else if (bl == BPL_WALK) {                  // WALK — the jazz quarter walk
         if      (beat == 0) pc = r0;
         else if (beat == 1) pc = (r0 + hb_tones[q][1]) % 12;
         else if (beat == 2) pc = (r0 + hb_tones[q][2]) % 12;
         else                pc = (rN + 11) % 12;
-    } else {                                     // B_BAND — the genre idiom
-        switch (BASS_PAT[modeSel][beat]) {
-            case BT_REST:                            return;
-            case BT_ROOT:   pc = r0;                          break;
-            case BT_OCTU:   pc = r0;                 oct = +1; break;
-            case BT_FIFTH:  pc = (r0 + hb_tones[q][2]) % 12;  break;
-            case BT_FIFTHD: pc = (r0 + hb_tones[q][2]) % 12; oct = -1; break;
-            case BT_THIRD:  pc = (r0 + hb_tones[q][1]) % 12;  break;
-            case BT_SIXTH:  pc = (r0 + 9) % 12;               break;
-            case BT_FLAT2:  pc = (r0 + 1) % 12;               break;
-            case BT_FLAT7:  pc = (r0 + 10) % 12;              break;
-            case BT_APPR:   pc = (rN + 11) % 12;              break;
+    } else if (bl == BPL_OCT) {                   // OCT — root / octave-up pump
+        pc = r0; oct = (beat % 2) ? 1 : 0;
+    } else if (bl == BPL_FILL) {                  // FILL — a rising run into the next root
+        if      (beat == 0) pc = r0;
+        else if (beat == 1) pc = (r0 + 2) % 12;
+        else if (beat == 2) pc = (r0 + 4) % 12;
+        else                pc = (rN + 11) % 12;
+    } else {                                      // FOLLOW — the global style
+        if (bassSel == B_HOLD) { if (beat == 0) pc = r0; else return; }
+        else if (bassSel == B_ROOT5) {
+            if (beat == 0)      pc = r0;
+            else if (beat == 2) pc = (r0 + 7) % 12;
+            else return;
+        } else if (bassSel == B_WALK) {
+            if      (beat == 0) pc = r0;
+            else if (beat == 1) pc = (r0 + hb_tones[q][1]) % 12;
+            else if (beat == 2) pc = (r0 + hb_tones[q][2]) % 12;
+            else                pc = (rN + 11) % 12;
+        } else {                                  // B_BAND — the genre idiom
+            switch (BASS_PAT[modeSel][beat]) {
+                case BT_REST:                            return;
+                case BT_ROOT:   pc = r0;                          break;
+                case BT_OCTU:   pc = r0;                 oct = +1; break;
+                case BT_FIFTH:  pc = (r0 + hb_tones[q][2]) % 12;  break;
+                case BT_FIFTHD: pc = (r0 + hb_tones[q][2]) % 12; oct = -1; break;
+                case BT_THIRD:  pc = (r0 + hb_tones[q][1]) % 12;  break;
+                case BT_SIXTH:  pc = (r0 + 9) % 12;               break;
+                case BT_FLAT2:  pc = (r0 + 1) % 12;               break;
+                case BT_FLAT7:  pc = (r0 + 10) % 12;              break;
+                case BT_APPR:   pc = (rN + 11) % 12;              break;
+            }
         }
     }
     if (pc < 0) return;
@@ -703,16 +725,21 @@ static void editor_chords(Box g) {
     if (chip(d,  "7TH",   v3, b->sev   >= 0, 0x2423)) b->sev   = (b->sev   + 2) % 3 - 1;
 }
 
-// a voice editor with an optional global STYLE chip + a row of per-cell segments.
+// BASS editor: the global STYLE chip + the per-cell p-lock vocab (2x3):
+// FOLLOW the style, or override this one bar — MUTE / HOLD / WALK / OCT / FILL.
 static void editor_bass(Box g) {
-    Box styRow = lay_split(g, EDGE_TOP, 15, &g);
+    Box styRow = lay_split(g, EDGE_TOP, 13, &g);
     char sv[8]; snprintf(sv, sizeof sv, "%s", BASS_LAB[bassSel]);
     if (chip(lay_inset(styRow, 1), "STYLE", sv, 1, 0x2430)) bassSel = (bassSel + 1) % 4;
     Box p = lay_inset(g, 1);
-    int bl = arr[selBar].bass;   // -1 auto · 0 mute · 1 walk
-    if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", bl < 0, 0x2431)) arr[selBar].bass = -1;
-    if (seg(lay_grid(p, 3, 3, 1, 1), "MUTE",   bl == 0, 0x2432)) arr[selBar].bass = 0;
-    if (seg(lay_grid(p, 3, 3, 2, 1), "WALK",   bl == 1, 0x2433)) arr[selBar].bass = 1;
+    int bl = arr[selBar].bass;
+    Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
+    for (int i = 0; i < 3; i++) {
+        if (seg(lay_grid(r0, 3, 3, i, 1), BPL_LAB[i],     bl == BPL_VAL[i],     0x2431u + i))
+            arr[selBar].bass = BPL_VAL[i];
+        if (seg(lay_grid(r1, 3, 3, i, 1), BPL_LAB[i + 3], bl == BPL_VAL[i + 3], 0x2434u + i))
+            arr[selBar].bass = BPL_VAL[i + 3];
+    }
 }
 static void editor_drums(Box g) {
     Box styRow = lay_split(g, EDGE_TOP, 15, &g);
@@ -944,6 +971,14 @@ void spec(void) {
     arr[3].fill = 1;
     expect_eq(arr[3].fill, 1, "bar 3 p-locked to FILL");
     arr[3].fill = 0;
+
+    // the bass per-cell vocab: FOLLOW is the AUTO default, the rest are one-bar overrides
+    expect_eq(arr[0].bass, BPL_FOLLOW, "bars default to FOLLOW the bass style");
+    expect(!cell_locked(V_BA, 0), "a FOLLOW bass cell reads as unlocked");
+    arr[0].bass = BPL_HOLD; expect(cell_locked(V_BA, 0), "HOLD reads as a p-lock");
+    arr[0].bass = BPL_OCT;  expect_eq(arr[0].bass, BPL_OCT,  "bass OCT p-lock sets");
+    arr[0].bass = BPL_FILL; expect_eq(arr[0].bass, BPL_FILL, "bass FILL p-lock sets");
+    arr[0].bass = BPL_FOLLOW;
 
     // add_bar extends the loop with a default I chord
     add_bar();

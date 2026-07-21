@@ -79,8 +79,8 @@ enum { M_303A, M_303B, M_808, M_909, M_MST, M_N };
 enum { MK_303, MK_DRUM, MK_MST };
 typedef struct { const char *name; int kind; int col, lo; int mute; } Machine;
 static Machine mac[M_N] = {
-    { "303", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 0 },   // pink 303 (bass)
-    { "303", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 0 },   // orange 303 (lead) — told apart by colour
+    { "303", MK_303,  CLR_PINK,      CLR_DARK_PURPLE, 1 },   // pink 303 (bass) — MUTED by default (bring it in on record)
+    { "303", MK_303,  CLR_ORANGE,    CLR_DARK_ORANGE, 1 },   // orange 303 (lead) — MUTED by default
     { "808",  MK_DRUM, CLR_TRUE_BLUE, CLR_DARK_BLUE,   0 },
     { "909",  MK_DRUM, CLR_YELLOW,    CLR_DARK_ORANGE, 0 },
     { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },

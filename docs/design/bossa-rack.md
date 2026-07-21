@@ -33,9 +33,16 @@ melody-cell disclosure layer, arrangement, and export.
 >   **voice-led** through `radio.h`'s `rad_bass_to` (nearest-note, register-folded).
 > - **Drums** ✓ — a genre groove map (`DRUM_PAT` per mode) on the shared `drumkit.h`, plus a
 >   **genre-aware FILL** (`FILL_PAT`: rock tom roll vs EDM snare build vs flamenco palmas) + turnaround crash.
-> - **Melody** ✗ — the one still-missing layer, and the path is known: `bossa.c`'s `pick_mel` /
->   `improv.h` already do chord-blooming melody (one stored rhythm cell, pitch re-resolves to each
->   chord). This is the "chord-aware improv.h" roadmap in [`harmony-brain.md`](harmony-brain.md).
+> - **Melody** ✓ (2026-07-21) — a `MEL` toggle: a genre-rhythmed lead (`MEL_PAT` per mode) that
+>   arpeggiates the live chord's tones + the 9th, voice-led via `rad_bass_to` in a high register, so
+>   it re-pitches to each chord — the `pick_mel` "bloom from the chord" idea, kept simple/deterministic.
+>   A richer soloist later could adopt `improv.h` (the "chord-aware improv.h" roadmap in
+>   [`harmony-brain.md`](harmony-brain.md)); the arpeggio bloom is the legible v1.
+>
+> So chordwise now proves the WHOLE stack — chord chart + bass + drums + fills + melody, all genre-aware
+> from one declared mode. The density ceiling is now visible (the control row is full at 8 buttons):
+> the day it needs **panels/tabs** to stay legible is the day the *played sequencer* wants to be its
+> own cart (chordblossom2's shape) rather than more bolted onto the teaching toy.
 >
 > **Why this matters for the rack.** The directness the maker wanted ("no knobs between finger and
 > sound") is exactly what `chordwise` feels like — you place a chord, the band serves it. It's the

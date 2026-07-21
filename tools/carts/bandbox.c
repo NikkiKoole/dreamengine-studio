@@ -1197,6 +1197,19 @@ void spec(void) {
     expect_eq(feel_vel(0, 5), 5, "DRAG does not lift velocity");
     arr[0].feel = FEEL_STRAIGHT;
 
+    // P-LOCK ISOLATION — every per-cell p-lock set on bar 0 must leave bar 1 untouched
+    // (the guard against a p-lock leaking to the whole instrument).
+    seed_demo();   // 4 fresh bars, all AUTO/default
+    arr[0].strum = 0; arr[0].inv = 1; arr[0].oct = 0; arr[0].sev = 0;
+    expect(arr[1].strum < 0 && arr[1].inv < 0 && arr[1].oct < 0 && arr[1].sev < 0,
+           "chord voicing p-locks are bar-local (bar 1 still AUTO)");
+    arr[0].bass = BPL_MUTE;   expect(arr[1].bass < 0,            "bass p-lock is bar-local");
+    arr[0].fill = DPL_FILL;   expect_eq(arr[1].fill, DPL_GROOVE, "drum p-lock is bar-local");
+    arr[0].mel  = 0;          expect(arr[1].mel  < 0,            "mel p-lock is bar-local");
+    arr[0].pad  = 1;          expect(arr[1].pad  < 0,            "pad p-lock is bar-local");
+    arr[0].feel = FEEL_ACCENT; expect_eq(arr[1].feel, FEEL_STRAIGHT, "feel p-lock is bar-local");
+    seed_demo();   // clear the probes
+
     // add_bar extends the loop with a default I chord
     add_bar();
     expect_eq(nbars, 5, "add_bar extends the loop");

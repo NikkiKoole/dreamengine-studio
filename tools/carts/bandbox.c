@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, else the chords."
   }
 }
 de:meta */
@@ -163,6 +163,13 @@ static int selBar   = 0;    // which bar the editor edits
 static int helpOn   = 0;    // the legend overlay (? button)
 static int picking  = 0;    // the ADD-CHORD picker is open (tap "+")
 
+// keybed note-lights: per-pitch-class glow that decays each frame. The voice in
+// view (the focused one, or CHORDS when picking/idle) lights its notes as they
+// fire, folded (mod 12) onto the tiny keybed — a live "what's playing" readout.
+static float keyLit[12];
+static void  light_pc(int pc) { keyLit[((pc % 12) + 12) % 12] = 1.0f; }
+static int   lit_voice(void)  { return picking ? V_CH : (selVoice >= 0 ? selVoice : V_CH); }
+
 // ── chord voicing (chordwise's sound_chord, now p-lock-parameterized) ──────
 static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
                         int strum, int inv, int oct, int sev) {
@@ -261,6 +268,7 @@ static void play_bass_beat(int beat, int delay) {
     if (pc < 0) return;
     int n = rad_bass_to(pc, bassLast, lo, hi);
     bassLast = n;
+    if (lit_voice() == V_BA) light_pc(n + oct * 12);
     queue_note(n + oct * 12, I_BSS, 5, delay);
 }
 
@@ -333,6 +341,7 @@ static void play_mel_step(int step, int delay) {
     cand[nc++] = (r0 + 2) % 12;
     int pc = cand[melI % nc]; melI++;
     melLast = rad_bass_to(pc, melLast, lo, hi);
+    if (lit_voice() == V_ME) light_pc(melLast);
     queue_note(melLast, I_LEAD, ml == 1 ? 5 : 4, delay);   // p-lock ACCENT = louder
 }
 
@@ -344,7 +353,10 @@ static void play_pad(int delay) {
     int r0 = arr[playSlot].rootPc, q = arr[playSlot].qual;
     int base = 36 + (octSel - 1) * 12 + r0;      // low & warm
     int voices = bar_sev(playSlot) ? 4 : 3;
-    for (int i = 0; i < voices; i++) queue_note(base + hb_tones[q][i], I_PAD, 3, delay);
+    for (int i = 0; i < voices; i++) {
+        if (lit_voice() == V_PA) light_pc(base + hb_tones[q][i]);
+        queue_note(base + hb_tones[q][i], I_PAD, 3, delay);
+    }
 }
 
 // FEEL — the comp rhythm + per-genre swing (baked, no knob).
@@ -823,19 +835,23 @@ static void zone_keybed(Box b) {
     int rootW = -1;
     if (hlPc >= 0) for (int i = 0; i < 10; i++) if (WPC[i] == hlPc) { rootW = i; break; }
     float ww = b.w / 10.0f;
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {                  // white keys — the note-lights glow green
         Box k = box(b.x + i * ww, b.y, ww - 1, b.h);
-        int held = i == rootW;
-        rrectfill((int)k.x, (int)k.y, (int)k.w, (int)k.h, 1,
-                  held ? CLR_ORANGE : (active ? CLR_WHITE : CLR_LIGHT_GREY));
-        if (active && tapped(k, 0x2500u + i)) keybed_pick(WPC[i]);
+        int held = i == rootW, pc = WPC[i];
+        int col = held ? CLR_ORANGE : (active ? CLR_WHITE : CLR_LIGHT_GREY);
+        if (!held) { if (keyLit[pc] > 0.55f) col = CLR_LIME_GREEN; else if (keyLit[pc] > 0.18f) col = CLR_GREEN; }
+        rrectfill((int)k.x, (int)k.y, (int)k.w, (int)k.h, 1, col);
+        if (active && tapped(k, 0x2500u + i)) keybed_pick(pc);
     }
     for (int i = 0; i < 9; i++) {                  // black keys (right of C,D,F,G,A)
         int s = i % 7;
         if (s == 2 || s == 6) continue;
+        int pc = (WPC[i] + 1) % 12;
         Box bk = box(b.x + (i + 1) * ww - ww * 0.32f, b.y, ww * 0.64f, b.h * 0.6f);
-        rectfill((int)bk.x, (int)bk.y, (int)bk.w, (int)bk.h, CLR_BLACK);
-        if (active && tapped(bk, 0x2510u + i)) keybed_pick((WPC[i] + 1) % 12);
+        int col = CLR_BLACK;
+        if (keyLit[pc] > 0.55f) col = CLR_LIME_GREEN; else if (keyLit[pc] > 0.18f) col = CLR_GREEN;
+        rectfill((int)bk.x, (int)bk.y, (int)bk.w, (int)bk.h, col);
+        if (active && tapped(bk, 0x2510u + i)) keybed_pick(pc);
     }
 }
 
@@ -879,8 +895,13 @@ void update(void) {
             int s = playT / stepLen;
             if (s < 8) {
                 int sw = (s == 2 || s == 6) ? swMax : 0;
-                if (COMP_PAT[modeSel][s] == 'x')
+                if (COMP_PAT[modeSel][s] == 'x') {
                     sound_chord(r0, q, 0, sw, bar_strum(b0), bar_inv(b0), bar_oct(b0), bar_sev(b0));
+                    if (lit_voice() == V_CH) {   // light the chord tones as it comps
+                        int nv = bar_sev(b0) ? 4 : 3;
+                        for (int i = 0; i < nv; i++) light_pc(r0 + hb_tones[q][i]);
+                    }
+                }
                 play_drum_step(s, sw * 1000 / 60);
                 play_mel_step(s, sw);
                 if (s == 0) play_pad(sw);          // the pad enters on the downbeat
@@ -894,6 +915,7 @@ void update(void) {
         if (++playT >= bf) { playT = 0; playSlot = (playSlot + 1) % nbars; }
     } else playSlot = 0;
 
+    for (int i = 0; i < 12; i++) keyLit[i] *= 0.86f;   // the note-lights fade out
     pump_notes();
 }
 

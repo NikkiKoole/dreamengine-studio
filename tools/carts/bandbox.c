@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT. PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   }
 }
 de:meta */
@@ -165,10 +165,57 @@ static void apply_bass_tone(void) {
             instrument_filter(I_BSS, FILTER_OFF, 0, 0);
             instrument_harmonics(I_BSS, 0.00f); instrument_timbre(I_BSS, 0.75f); instrument_morph(I_BSS, 0.30f); break;
         case 3:  // jazz upright double-bass pizzicato (bowed/upright-pizz recipe)
-            instrument(I_BSS, INSTR_BOWED, 4, 0, 7, 300);
+            instrument(I_BSS, INSTR_BOWED, 4, 0, 7, 360);
             instrument_mode(I_BSS, MODE_BOW_PIZZ, 1.0f);
-            instrument_filter(I_BSS, FILTER_LOW, 900, 3);
-            instrument_harmonics(I_BSS, 0.30f); instrument_timbre(I_BSS, 0.30f); instrument_morph(I_BSS, 0.45f); break;
+            instrument_filter(I_BSS, FILTER_LOW, 1400, 4);   // brighter = more presence in the mix
+            instrument_harmonics(I_BSS, 0.30f); instrument_timbre(I_BSS, 0.40f); instrument_morph(I_BSS, 0.45f); break;
+    }
+}
+// the modeled/plucked tones read softer (a pluck's energy is transient) — give them
+// a touch more velocity so the bass stays present when you switch tone.
+static int bass_vel(void) { return bassTone == 3 ? 7 : (bassTone == 2 ? 6 : 5); }
+
+// CHORDS voice TONE (I_PLK) — the comping sound.
+static const char *CTONE_LAB[3] = { "PLUCK", "EPIANO", "ORGAN" };
+static int chordTone = 0;
+static void apply_chord_tone(void) {
+    instrument_filter(I_PLK, FILTER_OFF, 0, 0);
+    switch (chordTone) {
+        case 0: instrument(I_PLK, INSTR_PLUCK, 2, 200, 2, 250); break;                       // plucked string (guitar/harp)
+        case 1: instrument(I_PLK, INSTR_EPIANO, 2, 300, 2, 420);                              // Rhodes e-piano
+                instrument_harmonics(I_PLK, 0.20f); instrument_timbre(I_PLK, 0.45f); instrument_morph(I_PLK, 0.25f); break;
+        case 2: instrument(I_PLK, INSTR_ORGAN, 4, 0, 7, 120);                                 // tonewheel organ (holds)
+                instrument_harmonics(I_PLK, 0.45f); instrument_timbre(I_PLK, 0.40f); instrument_morph(I_PLK, 0.20f); break;
+    }
+}
+// MEL voice TONE (I_LEAD) — the lead melody sound.
+static const char *MTONE_LAB[4] = { "SINE", "SQR", "FM", "BELL" };
+static int melTone = 0;
+static void apply_mel_tone(void) {
+    instrument_filter(I_LEAD, FILTER_OFF, 0, 0);
+    switch (melTone) {
+        case 0: instrument(I_LEAD, INSTR_SINE, 4, 180, 3, 200); break;                        // soft sine
+        case 1: instrument(I_LEAD, INSTR_SQUARE, 3, 150, 3, 180);
+                instrument_filter(I_LEAD, FILTER_LOW, 3000, 2); break;                         // chip-lead square
+        case 2: instrument(I_LEAD, INSTR_FM, 2, 220, 3, 240);                                  // round FM lead
+                instrument_harmonics(I_LEAD, 0.15f); instrument_timbre(I_LEAD, 0.50f); instrument_morph(I_LEAD, 0.20f); break;
+        case 3: instrument(I_LEAD, INSTR_MALLET, 2, 500, 0, 700);                              // bell/celesta
+                instrument_harmonics(I_LEAD, 0.70f); instrument_timbre(I_LEAD, 0.50f); instrument_morph(I_LEAD, 0.40f); break;
+    }
+}
+// PAD voice TONE (I_PAD) — the sustained bed.
+static const char *PTONE_LAB[3] = { "SINE", "SAW", "STRINGS" };
+static int padTone = 0;
+static void apply_pad_tone(void) {
+    instrument_filter(I_PAD, FILTER_OFF, 0, 0);
+    switch (padTone) {
+        case 0: instrument(I_PAD, INSTR_SINE, 300, 0, 7, 500); break;                          // warm sine
+        case 1: instrument(I_PAD, INSTR_SAW, 300, 0, 6, 500);
+                instrument_filter(I_PAD, FILTER_LOW, 1600, 2); break;                          // analog string-machine saw
+        case 2: instrument(I_PAD, INSTR_BOWED, 200, 0, 7, 500);                                // bowed strings (arco, holds)
+                instrument_mode(I_PAD, MODE_BOW_PIZZ, 0.0f);
+                instrument_filter(I_PAD, FILTER_LOW, 2200, 2);
+                instrument_harmonics(I_PAD, 0.40f); instrument_timbre(I_PAD, 0.40f); instrument_morph(I_PAD, 0.40f); break;
     }
 }
 static const char *DRUM_LAB[2] = { "PLAIN", "BAND" };
@@ -303,7 +350,7 @@ static void play_bass_beat(int beat, int delay) {
     int n = rad_bass_to(pc, bassLast, lo, hi);
     bassLast = n;
     if (lit_voice() == V_BA) light_pc(n + oct * 12);
-    queue_note(n + oct * 12, I_BSS, 5, delay);
+    queue_note(n + oct * 12, I_BSS, bass_vel(), delay);
 }
 
 // ── drums (chordwise's kit + patterns; FILL is now a per-cell p-lock) ───────
@@ -755,10 +802,15 @@ static void glass_pick(Box g) {
 // the voice EDITORS below draw only their settings into the box they're given (the
 // area under the promoted lane strip); the strip + rail-BACK are the header now.
 static void editor_chords(Box g) {
+    // global TONE chip on top (the comping sound), then the spinner + p-lock chips
+    Box tRow = lay_split(g, EDGE_TOP, 12, &g);
+    if (chip(lay_inset(tRow, 1), "TONE", CTONE_LAB[chordTone], 1, 0x2424)) {
+        chordTone = (chordTone + 1) % 3; apply_chord_tone();
+    }
     // left: the ^ name v spinner
     Box spin = lay_split(g, EDGE_LEFT, g.w * 0.42f, &g);
-    Box up = lay_split(spin, EDGE_TOP, 11, &spin);
-    Box dn = lay_split(spin, EDGE_BOTTOM, 11, &spin);
+    Box up = lay_split(spin, EDGE_TOP, 8, &spin);
+    Box dn = lay_split(spin, EDGE_BOTTOM, 8, &spin);
     if (seg(up, "^", 0, 0x2410)) nudge_cell(selBar, +1);
     if (seg(dn, "v", 0, 0x2411)) nudge_cell(selBar, -1);
     rrectfill((int)spin.x, (int)spin.y, (int)spin.w, (int)spin.h, 2, CLR_DARKER_BLUE);
@@ -824,6 +876,10 @@ static void editor_drums(Box g) {
     }
 }
 static void editor_mel(Box g) {
+    Box tRow = lay_split(g, EDGE_TOP, 13, &g);
+    if (chip(lay_inset(tRow, 1), "TONE", MTONE_LAB[melTone], 1, 0x2454)) {
+        melTone = (melTone + 1) % 4; apply_mel_tone();
+    }
     Box p = lay_inset(g, 1);
     int ml = arr[selBar].mel;
     if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", ml < 0, 0x2451)) arr[selBar].mel = -1;
@@ -831,6 +887,10 @@ static void editor_mel(Box g) {
     if (seg(lay_grid(p, 3, 3, 2, 1), "ACCENT", ml == 1, 0x2453)) arr[selBar].mel = 1;
 }
 static void editor_pad(Box g) {
+    Box tRow = lay_split(g, EDGE_TOP, 13, &g);
+    if (chip(lay_inset(tRow, 1), "TONE", PTONE_LAB[padTone], 1, 0x2464)) {
+        padTone = (padTone + 1) % 3; apply_pad_tone();
+    }
     Box p = lay_inset(g, 1);
     int pl = arr[selBar].pad;
     if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", pl < 0, 0x2461)) arr[selBar].pad = -1;
@@ -918,10 +978,10 @@ static void zone_keybed(Box b) {
 }
 
 void init(void) {
-    instrument(I_PLK, INSTR_PLUCK, 2, 200, 2, 250);
-    apply_bass_tone();                               // the bass voice sound (TONE selector)
-    instrument(I_LEAD, INSTR_SINE, 4, 180, 3, 200);
-    instrument(I_PAD, INSTR_SINE, 300, 0, 7, 500);   // the doc's pad recipe
+    apply_chord_tone();                              // each voice's sound = its TONE selector
+    apply_bass_tone();
+    apply_mel_tone();
+    apply_pad_tone();
     dk_use(KITS[kitSel], 20);                        // the rhythm section — slots 20..27
     seed_demo();
 }
@@ -1066,10 +1126,12 @@ void spec(void) {
     arr[0].bass = BPL_FILL; expect_eq(arr[0].bass, BPL_FILL, "bass FILL p-lock sets");
     arr[0].bass = BPL_FOLLOW;
 
-    // every bass TONE preset is a valid engine setup (applies without fault)
-    for (bassTone = 0; bassTone < 4; bassTone++) apply_bass_tone();
-    bassTone = 0; apply_bass_tone();
-    expect(1, "all bass TONE presets apply (SYNTH/SUB/FM/UPRIGHT)");
+    // every voice TONE preset is a valid engine setup (applies without fault)
+    for (bassTone = 0; bassTone < 4; bassTone++) apply_bass_tone();   bassTone = 0;  apply_bass_tone();
+    for (chordTone = 0; chordTone < 3; chordTone++) apply_chord_tone(); chordTone = 0; apply_chord_tone();
+    for (melTone = 0; melTone < 4; melTone++) apply_mel_tone();       melTone = 0;   apply_mel_tone();
+    for (padTone = 0; padTone < 3; padTone++) apply_pad_tone();       padTone = 0;   apply_pad_tone();
+    expect(1, "all voice TONE presets apply (bass/chord/mel/pad)");
 
     // add_bar extends the loop with a default I chord
     add_bar();

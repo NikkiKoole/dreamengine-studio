@@ -2175,6 +2175,13 @@ function dressGuard(cart, label) {
   if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(label || '')) return 'bad clip label'
   return null
 }
+// the chosen output size (WxH from ratios.js) → dress-clip --w/--h. '' = let dress-clip use its
+// 1080x1920 default. `div` shrinks it for the fast preview (e.g. 2 → half-res). Returns [] when unset.
+function dressSize(fields, div = 1) {
+  const m = (fields && typeof fields.size === 'string') ? fields.size.match(/^(\d+)x(\d+)$/) : null
+  if (!m) return div > 1 ? ['--w', '540', '--h', '960'] : []   // preview keeps its half-res 9:16 default
+  return ['--w', String(Math.max(2, Math.round(+m[1] / div))), '--h', String(Math.max(2, Math.round(+m[2] / div)))]
+}
 ipcMain.handle('studio:dress-preview', async (_e, cart, label, fields) => {
   const ROOT = path.join(__dirname, '../..')
   const bad = dressGuard(cart, label); if (bad) return { ok: false, output: bad }
@@ -2183,10 +2190,10 @@ ipcMain.handle('studio:dress-preview', async (_e, cart, label, fields) => {
   const tmpDir = path.join(ROOT, 'build/.yt')
   fs.mkdirSync(tmpDir, { recursive: true })
   const png = path.join(tmpDir, 'dress-preview.png')
-  // half-res (540×960) — snappy for the debounced live preview; the layout is fractional so it
-  // looks identical to the full 1080×1920 render.
+  // half-res of the chosen ratio — snappy for the debounced live preview; the layout is fractional so
+  // it looks identical to the full render.
   const args = [path.join(ROOT, 'tools/dress-clip.js'), path.join(ROOT, inRel), ...dressArgs(fields),
-    '--w', '540', '--h', '960', '--preview', png, '--at', '0.5']
+    ...dressSize(fields, 2), '--preview', png, '--at', '0.5']
   return new Promise(resolve => {
     let err = ''
     const proc = spawn('node', args, { cwd: ROOT })
@@ -2209,8 +2216,8 @@ ipcMain.handle('studio:dress-clip', async (_e, cart, label, fields) => {
   const mp4 = !!(fields && fields.mp4)
   const outRel = `editor/public/clips/${cart}/${label}-dressed.${mp4 ? 'mp4' : 'webm'}`
   const args = [path.join(ROOT, 'tools/dress-clip.js'), path.join(ROOT, inRel), ...dressArgs(fields),
-    '--out', path.join(ROOT, outRel), ...(mp4 ? ['--mp4'] : [])]
-  send('cart:log', `\n── dress ${cart}/${label} → 9:16 Short ──\n`)
+    ...dressSize(fields), '--out', path.join(ROOT, outRel), ...(mp4 ? ['--mp4'] : [])]
+  send('cart:log', `\n── dress ${cart}/${label} → Short ──\n`)
   return new Promise(resolve => {
     const proc = spawn('node', args, { cwd: ROOT })
     proc.stdout.on('data', c => send('cart:log', c.toString()))
@@ -2232,7 +2239,7 @@ ipcMain.handle('studio:dress-motion', async (_e, cart, label, fields) => {
   const tmpDir = path.join(ROOT, 'build/.yt'); fs.mkdirSync(tmpDir, { recursive: true })
   const out = path.join(tmpDir, 'dress-motion.webm')
   const args = [path.join(ROOT, 'tools/dress-clip.js'), path.join(ROOT, inRel), ...dressArgs(fields),
-    '--secs', '3', '--out', out]
+    ...dressSize(fields), '--secs', '3', '--out', out]
   send('cart:log', `\n── preview motion ${cart}/${label} (${'~3'}s) ──\n`)
   return new Promise(resolve => {
     const proc = spawn('node', args, { cwd: ROOT })

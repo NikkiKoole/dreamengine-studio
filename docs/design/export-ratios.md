@@ -17,8 +17,14 @@
 > **variants** (`editor/public/clips/<cart>/<label>--<W>x<H>.webm`, baked via the Promote "bake at"
 > picker) that `compose-clips` prefers at a matching `# size`, so a reel **fills** instead of barring.
 > Proven on `onetake` (keyboard-driven demo) + `flank` (a fixed 320×200 game → a crisp 720×1280 9:16).
-> **Presets are full-size even frames** — 16:9 1280×720 · 9:16 720×1280 · 1:1 1080×1080 · iPhone 6.9
-> 886×1920 / 1920×886 · iPad 1200×1600 — output at **`# scale 1`** (exactly that size). **Two gotchas
+> **Presets live in ONE place — `editor/src/ratios.js`** (2026-07-21): the bake picker, the trailer
+> output picker, and the dress-modal ratio picker all build from `RATIO_PRESETS` (they used to be three
+> hand-copied lists that drifted). Social presets are standard 1080-class even frames — **16:9 1920×1080 ·
+> 9:16 1080×1920 · 1:1 1080×1080 · 4:5 1080×1350** — so 9:16 is a single 1080×1920 everywhere (matching
+> `dress-clip.js` + `youtube-push`). App Store: iPhone 6.9 886×1920 / 1920×886 · iPad 1200×1600 / 1600×1200
+> (these are app-PREVIEW-VIDEO aspect sizes — deliberately smaller than the SCREENSHOT pixels in
+> `store-shots.js`'s `DEVICES`; the two specs differ, verify vs ASC). Output at **`# scale 1`** (exactly
+> that size). **Two gotchas
 > banked:** (1) canvases must be **even** (odd widths break ffmpeg's `pad`); (2) never let a small
 > frame **downscale** the source — that was the blur (a 320-wide game squeezed into a 180-wide 9:16).
 > The fixed-cart letterbox now **integer nearest-upscales** the native to FIT the frame (320×200 → ×2 =
@@ -120,13 +126,20 @@ Designing a cart with keyboard shortcuts up front is the cheapest thing you can 
 (The full input-portability reasoning: [`resolution-portable-input.md`](resolution-portable-input.md);
 its Rung-0 bet — "make racks demo themselves from the keyboard" — is exactly this move.)
 
-## The device sizes already live in one place
+## The sizes live in one place per medium (two specs, don't conflate them)
 
-`tools/store-shots.js` holds the device pixel dims (its `DEVICES` map — `iphone69 1290×2796`,
-`iphone65 1242×2688`, `ipad13 2048×2732`, `ipad11 1668×2388`). **That is the single source of truth**
-— any video sizing should read the same presets, never re-hardcode them (they're Apple's still-shot
-sizes; the app-*preview* video spec differs and drifts, so verify video dims/fps/duration against
-App Store Connect when we build that path). The stable thing is the **ratios**, not the pixels.
+There are **two** size vocabularies, because Apple's app-preview **video** sizes differ from its
+**screenshot** sizes (and the video spec drifts — verify vs App Store Connect):
+
+- **Screenshots (stills):** `tools/store-shots.js`'s `DEVICES` map — the real device pixels
+  (`iphone69 1290×2796`, `iphone65 1242×2688`, `ipad13 2048×2732`, `ipad11 1668×2388`). The single
+  source of truth for STILL screenshots; `store-shots.js` reads it, nothing else should re-hardcode it.
+- **Video exports (clips / reels / dressed Shorts):** `editor/src/ratios.js`'s `RATIO_PRESETS` — the
+  single source for the editor's ratio pickers (social 1080-class + app-preview-video aspect sizes).
+  The bake picker, trailer output picker, and dress-modal picker all build from it.
+
+The stable thing is the **ratios**, not the exact pixels. (Earlier this doc named `DEVICES` the source
+of truth for "any video sizing" — that was conflating the two; video sizing now has its own module.)
 
 ## Two approaches (both viable; they compose)
 

@@ -6,6 +6,7 @@ import { aseToDataUrl } from './aseprite.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
 import { settings, buildSettingsPanel, applyCartSettings } from './settings.js'
+import { ratioLabel, buildRatioSelect, setRatioValue } from './ratios.js'
 import { marked } from 'marked'
 
 let currentCartName = ''  // set when a cart is loaded; used as the game window title
@@ -1532,6 +1533,7 @@ function dressFields() {
   f.boil = parseFloat(val('boil'))
   f.breathe = parseFloat(val('breathe'))
   f.anim = val('anim')
+  f.size = val('ratio')   // '' = dress-clip's default 9:16; else a WxH from ratios.js
   return f
 }
 // swap the preview area back to the layout still (used whenever inputs change — the motion clip is
@@ -1893,9 +1895,11 @@ async function playTake(playPath, playKind) {
   const res = await window.studio.replay(code, { ...settings, cartName: currentCartName, cartFile: currentCartFile }, playPath)
   if (res && !res.ok) showLog(res)
 }
-// friendly labels for the per-ratio output sizes (shared by the bake picker + the variant chips)
-const RATIO_LABEL = { '1280x720': '16:9', '720x1280': '9:16', '1080x1080': '1:1', '886x1920': 'iPhone', '1920x886': 'iPhone L', '1200x1600': 'iPad' }
-const ratioLabel = v => RATIO_LABEL[v] || v
+// the ratio/size vocabulary lives in ./ratios.js (ratioLabel is imported) — build every picker from it
+// so the bake picker, the trailer output picker, and the dress-modal picker never drift apart.
+buildRatioSelect(document.getElementById('promote-bake-ratio'))
+buildRatioSelect(document.getElementById('tl-ratio'))
+{ const dr = document.getElementById('dress-ratio'); if (dr) { buildRatioSelect(dr); setRatioValue(dr, '1080x1920') } }   // dress defaults to a 9:16 Short
 // bake a take → a clip (webm) at the "bake at" ratio (native, or a per-ratio variant), then re-render.
 async function bakeTake(label, btn) {
   if (!window.studio?.bakeClip) { showToast('bake requires the desktop app  (npm start)', 3000); return }
@@ -2027,7 +2031,7 @@ async function openTrailer(subject) {
     : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }))
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = `${kind === 'cart' ? 'cart · ' : ''}${res.name || name}`
-  { const rsel = document.getElementById('tl-ratio'); if (rsel) rsel.value = res.size || '' }   // reflect the reel's saved output size
+  setRatioValue(document.getElementById('tl-ratio'), res.size || '')   // reflect the reel's saved output size (tolerates an old non-preset size)
   tlSeedFrame(res)
   const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
   const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = false   // monitor + inspector sit side by side while the panel is open
@@ -2059,7 +2063,7 @@ async function tlLoadReel(name) {
   tlRows = (res.rows || []).map(r => ({ ...r }))
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = `reel · ${name}`
-  { const rsel = document.getElementById('tl-ratio'); if (rsel) rsel.value = res.size || '' }   // reflect the reel's saved output size
+  setRatioValue(document.getElementById('tl-ratio'), res.size || '')   // reflect the reel's saved output size (tolerates an old non-preset size)
   tlSeedFrame(res)
   tlRender(); tlRenderReels()
 }
@@ -2071,6 +2075,10 @@ document.getElementById('tl-reels')?.addEventListener('click', e => {
 document.getElementById('tl-frame')?.addEventListener('change', e => {
   tlFrame = e.target.value || ''
   const col = document.getElementById('tl-framecol'); if (col) col.hidden = tlFrame !== 'letterbox'
+  // the dressed frame only reads right in a portrait canvas (bars top/bottom) — if the output is
+  // still 'native', default it to 9:16 so letterbox + native doesn't yield a bar-less landscape frame.
+  const rsel = document.getElementById('tl-ratio')
+  if (tlFrame === 'letterbox' && rsel && !rsel.value) { setRatioValue(rsel, '1080x1920'); showToast('output set to 9:16 for the dressed frame', 2500) }
 })
 document.getElementById('tl-framebg')?.addEventListener('input', e => { tlFrameBg = e.target.value })
 document.getElementById('tl-frameaccent')?.addEventListener('input', e => { tlFrameAccent = e.target.value })

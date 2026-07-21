@@ -219,19 +219,7 @@
               <div id="promote-clips"></div>
               <button id="promote-rec" title="record your play as an input track — play, then close the window (Esc) to save the take">● record a take</button>
               <label class="pm-bakeratio-lab">bake at
-                <select id="promote-bake-ratio" title="output ratio for 🎬 bake — a crisp standalone clip for that ratio (also FILLS a same-ratio reel). Fixed carts letterbox with bars; resizable carts reflow. docs/design/export-ratios.md">
-                  <option value="">native</option>
-                  <optgroup label="social">
-                    <option value="1280x720">16:9</option>
-                    <option value="720x1280">9:16 (vertical)</option>
-                    <option value="1080x1080">1:1 (square)</option>
-                  </optgroup>
-                  <optgroup label="App Store (verify vs ASC)">
-                    <option value="886x1920">iPhone 6.9″ (portrait)</option>
-                    <option value="1920x886">iPhone 6.9″ (landscape)</option>
-                    <option value="1200x1600">iPad 13″ (portrait)</option>
-                  </optgroup>
-                </select></label>
+                <select id="promote-bake-ratio" title="output ratio for 🎬 bake — a crisp standalone clip for that ratio (also FILLS a same-ratio reel). Fixed carts letterbox with bars; resizable carts reflow. docs/design/export-ratios.md"><!-- options built from src/ratios.js --></select></label>
             </section>
             <section class="promote-sec">
               <div class="promote-h">stills <span class="apps-hint">a frame worth posting · 📸 snapshots the current cart</span></div>
@@ -352,19 +340,7 @@
         <div class="tl-tlwrap"><span class="app-sec">timeline — click a block to preview · drag ◧▮ to trim · ◇ transition</span><div id="tl-timeline"></div></div>
         <div class="tl-actions"><button id="tl-build">▶ Build trailer</button>
           <label class="tl-ratio-lab">output
-            <select id="tl-ratio" title="output aspect/size — a clip that doesn't match gets letterboxed; bake a clip AT this ratio to fill it (docs/design/export-ratios.md)">
-              <option value="">native</option>
-              <optgroup label="social">
-                <option value="1280x720">16:9</option>
-                <option value="720x1280">9:16 (vertical)</option>
-                <option value="1080x1080">1:1 (square)</option>
-              </optgroup>
-              <optgroup label="App Store (verify vs ASC) (verify vs ASC)">
-                <option value="886x1920">iPhone 6.9″ (portrait)</option>
-                <option value="1920x886">iPhone 6.9″ (landscape)</option>
-                <option value="1200x1600">iPad 13″ (portrait)</option>
-              </optgroup>
-            </select></label>
+            <select id="tl-ratio" title="output aspect/size — a clip that doesn't match gets letterboxed; bake a clip AT this ratio to fill it (docs/design/export-ratios.md)"><!-- options built from src/ratios.js --></select></label>
           <label class="tl-ratio-lab">frame
             <select id="tl-frame" title="frame style — 'letterbox (dressed)' centres the console with a device frame + bars for on-screen text (pos top/bottom = the bars, center = over the console)">
               <option value="">none (full frame)</option>
@@ -403,7 +379,7 @@
          button in the Promote tab. openDress(label). docs/design/export-ratios.md "Dressed composite". -->
     <div id="dress-modal" class="modal" hidden>
       <section id="dress-lab">
-        <h3>✨ Dress a clip → 9:16 Short <span class="apps-hint" id="dress-subject"></span>
+        <h3>✨ Dress a clip <span class="apps-hint" id="dress-subject"></span>
           <button id="dress-close" title="close">✕</button></h3>
         <div class="dress-cols">
           <div class="dress-preview-wrap">
@@ -418,6 +394,7 @@
             <label class="dress-fld">CTA <input id="dress-cta" type="text" placeholder="play free in your browser" spellcheck="false" /></label>
             <label class="dress-fld">footer <input id="dress-footer" type="text" placeholder="made in dreamengine" spellcheck="false" /></label>
             <div class="dress-colors">
+              <label class="dress-fld dress-anim">ratio <select id="dress-ratio" title="output aspect/size (src/ratios.js)"><!-- built from src/ratios.js --></select></label>
               <label class="dress-col">bg <input id="dress-bg" type="color" value="#0d0d16" /></label>
               <label class="dress-col">frame <input id="dress-accent" type="color" value="#ff6ab5" /></label>
               <label class="dress-fld dress-anim">entrance

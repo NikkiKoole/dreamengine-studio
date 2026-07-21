@@ -245,6 +245,30 @@ static const int *const HB_JINGLE_NEXT[HB_NFUNC] = { HB_J_I, HB_J_ii, HB_J_iii,
 static const int HB_JINGLE_N[HB_NFUNC] = { 9, 5, 4, 7, 5, 5, 4, 4, 4, 3, 4, 2, 2 };
 static const HbStyle HB_JINGLE = { HB_JINGLE_NEXT, HB_JINGLE_N, HB_NFUNC };
 
+// a CITY-POP / J-pop style — the SAME major vocab, gravity tuned to the ROYAL ROAD
+// progression (王道進行): IVmaj7 -> V7 -> iiim7 -> vim7, the maj7-drenched loop. The
+// tells vs plain POP: IV leans V, and V leans iii (not I — the deceptive Royal-Road
+// move), iii leans vi, vi turns back to ii/IV. Lush ii-V color throughout. Additive,
+// no radio consumer -> no pinned-seed contract. (citypop.c's named-template idea as weights.)
+static const int HB_CP_I[8]    = { HB_IV, HB_IV, HB_IV, HB_vi, HB_vi, HB_ii, HB_iii, HB_VI7 };
+static const int HB_CP_ii[5]   = { HB_V, HB_V, HB_V, HB_iii, HB_I };
+static const int HB_CP_iii[5]  = { HB_vi, HB_vi, HB_vi, HB_VI7, HB_IV };
+static const int HB_CP_IV[6]   = { HB_V, HB_V, HB_V, HB_iii, HB_ii, HB_I };
+static const int HB_CP_V[5]    = { HB_iii, HB_iii, HB_iii, HB_I, HB_I };   // V->iii: the Royal-Road tell
+static const int HB_CP_vi[6]   = { HB_ii, HB_ii, HB_IV, HB_IV, HB_V, HB_II7 };
+static const int HB_CP_II7[4]  = { HB_V, HB_V, HB_V, HB_ii };
+static const int HB_CP_VI7[4]  = { HB_ii, HB_ii, HB_ii, HB_ii };
+static const int HB_CP_bII7[4] = { HB_I, HB_I, HB_I, HB_I };
+static const int HB_CP_iv[3]   = { HB_I, HB_I, HB_bVII7 };
+static const int HB_CP_bVII7[3]= { HB_I, HB_I, HB_IV };
+static const int HB_CP_v[2]    = { HB_I7, HB_I7 };
+static const int HB_CP_I7[2]   = { HB_IV, HB_IV };
+static const int *const HB_CITYPOP_NEXT[HB_NFUNC] = { HB_CP_I, HB_CP_ii, HB_CP_iii,
+    HB_CP_IV, HB_CP_V, HB_CP_vi, HB_CP_II7, HB_CP_VI7, HB_CP_bII7, HB_CP_iv,
+    HB_CP_bVII7, HB_CP_v, HB_CP_I7 };
+static const int HB_CITYPOP_N[HB_NFUNC] = { 8, 5, 5, 6, 5, 6, 4, 4, 4, 3, 3, 2, 2 };
+static const HbStyle HB_CITYPOP = { HB_CITYPOP_NEXT, HB_CITYPOP_N, HB_NFUNC };
+
 // ── generate: the cart keeps its PRNG stream (pinned seeds stay byte-exact) ──
 static int hb_nopts(const HbStyle *st, int f) { return st->n[f]; }          // pass to your srnd()
 static int hb_pick (const HbStyle *st, int f, int r) { return st->next[f][r]; }

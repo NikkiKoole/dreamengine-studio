@@ -12,7 +12,7 @@
   "lineage": "The SEQUENCER sibling of chordwise (the demand-82 harmony analyzer). chordwise proved the chord-chart + genre-band stack on one flat screen and hit a density ceiling; bandbox is the standalone 160x100 device-face sequencer where every VOICE is a lane of lego-block cells and every cell is p-lockable (Elektron-style per-cell overrides on top of the voice's auto 'follows the chord' default). chordwise did per-cell only for chords; bandbox does it for every voice. Reuses the harmony brain (harmony.h) + chordwise's genre-band maps + rad_bass_to + drumkit.h. Design: docs/design/bandbox.md.",
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
-    "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + three lifted from the radio stations: JANGLE, JINGLE, NAPOLN). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
+    "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + four lifted from the radio stations: JANGLE, JINGLE, NAPOLN, CITYPO - the last two with their OWN harmony (HB_JINGLE Mac-DeMarco gravity, HB_CITYPOP Royal Road)). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
     "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT. PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON. Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat (deterministic; PUSH/ahead is a follow-up). Tap a voice rail header to mute/unmute the lane (chords included). Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   }
 }
@@ -100,6 +100,7 @@ static const Mode MODES[] = {
     { "JANGLE", &HB_POP,          0 },   // bright 8th-strum indie-pop (jangle.c)
     { "JINGLE", &HB_JINGLE,       0 },   // Mac-DeMarco slacker-jangle: bVII7 home, ii-V, backdoor (jingle.c)
     { "NAPOLN", &HB_MIXO_STYLE,   0 },   // Canned-Heat acid-jazz disco-funk (napoleon.c)
+    { "CITYPO", &HB_CITYPOP,      0 },   // J-pop Royal Road (IVmaj7-V7-iii-vi), smooth funk (citypop.c)
 };
 #define NMODE ((int)(sizeof MODES / sizeof MODES[0]))
 static int modeSel = 0;
@@ -310,6 +311,7 @@ static const int BASS_PAT[NMODE][4] = {
     /* JANGLE */ { BT_ROOT,  BT_FIFTH, BT_ROOT,   BT_FIFTH },  // driving root-fifth pulse
     /* JINGLE */ { BT_ROOT,  BT_REST,  BT_FIFTH,  BT_REST  },  // gentle boom-chuck
     /* NAPOLN */ { BT_ROOT,  BT_FIFTH, BT_OCTU,   BT_FIFTH },  // disco-funk octave pump
+    /* CITYPO */ { BT_ROOT,  BT_FIFTH, BT_SIXTH,  BT_FIFTH },  // smooth melodic root-fifth-six
 };
 static int bassLast = 36;
 static void play_bass_beat(int beat, int delay) {
@@ -387,6 +389,7 @@ static const DrumPat DRUM_PAT[NMODE] = {
     /* JANGLE */ { "x...x...", "....x...", "x.x.x.x.", DK_SNARE,  DK_HHC },  // driving pop backbeat
     /* JINGLE */ { "x.......", "....x...", "x.x.x.x.", DK_SNARE,  DK_HHC },  // soft laid-back backbeat
     /* NAPOLN */ { "x...x...", "....x...", ".x.x.x.x", DK_CLAP,   DK_HHO },  // four-on-floor disco + claps
+    /* CITYPO */ { "x..x....", "....x...", "x.x.x.x.", DK_SNARE,  DK_HHC },  // smooth pop-funk backbeat
 };
 static const DrumPat DRUM_PLAIN = { "x.......", "....x...", "x.x.x.x.", DK_SNARE, DK_HHC };
 static int fill_role(char c) {
@@ -407,6 +410,7 @@ static const FillPat FILL_PAT[NMODE] = {
     /* JANGLE */ { "....sshl", 1 },  // a bright tom roll
     /* JINGLE */ { "....s.hl", 0 },  // a gentle tag, no crash
     /* NAPOLN */ { "....ssss", 1 },  // a disco snare build
+    /* CITYPO */ { "....sshl", 1 },  // a smooth tom fill
 };
 static const FillPat FILL_PLAIN = { "....sshl", 1 };
 static void play_drum_step(int step, int delayMs) {
@@ -446,6 +450,7 @@ static const char *MEL_PAT[NMODE] = {
     /* DORIAN */ "..x...x.", /* MIXO */ "x..x.x..", /* PHRYG */ "x.x.x...",
     /* LYDIAN */ "x.....x.", /* BLUES */ "x..x..x.",
     /* JANGLE */ "x.x.x.x.", /* JINGLE */ "x...x.x.", /* NAPOLN */ "..x..x.x",
+    /* CITYPO */ "x..x.x.x",
 };
 static int melLast = 72, melI = 0;
 static void play_mel_step(int step, int delay) {
@@ -486,10 +491,11 @@ static const char *COMP_PAT[NMODE] = {
     /* DORIAN */ "..x..x..", /* MIXO */ "x..x.x..", /* PHRYG */ "x.xx.x..",
     /* LYDIAN */ "x.......", /* BLUES */ "x...x...",
     /* JANGLE */ "x.x.x.x.", /* JINGLE */ "x..x.x..", /* NAPOLN */ "..x.x.x.",
+    /* CITYPO */ "..x.x.x.",
 };
 static const float SWING[NMODE] = {
     0.12f, 0.60f, 0.00f, 0.10f, 0.00f, 0.00f, 0.38f, 0.08f, 0.00f, 0.00f, 0.66f,
-    /* JANGLE */ 0.00f, /* JINGLE */ 0.30f, /* NAPOLN */ 0.14f,
+    /* JANGLE */ 0.00f, /* JINGLE */ 0.30f, /* NAPOLN */ 0.14f, /* CITYPO */ 0.14f,
 };
 
 // ── analysis + suggestion (harmony brain, over the arrangement) ─────────────
@@ -1235,8 +1241,8 @@ void spec(void) {
            "idle keybed_pick opens the picker + appends (G)");
     picking = 0;
 
-    // the radio-idea genres (jangle/jingle/napoleon) — appended, analyze on their vocab
-    expect_eq(NMODE, 14, "three radio-idea genres added");
+    // the radio-idea genres (jangle/jingle/napoleon/citypop) — appended, analyze on their vocab
+    expect_eq(NMODE, 15, "four radio-idea genres added");
     modeSel = 11; keyPc = 0; seed_demo();   // JANGLE rides the POP vocab
     expect(pfn[0] == HB_I && pfn[3] == HB_V, "jangle reads the doo-wop I .. V (pop vocab)");
 
@@ -1245,6 +1251,12 @@ void spec(void) {
     arr[0].rootPc = 0; arr[0].qual = HBQ_MAJ7; rethink();
     expect(pfn[0] == HB_I, "jingle: Cmaj7 = I");
     expect(nsugg >= 1 && sugg[0].f == HB_bVII7, "jingle from I leans bVII7 (Mac's flat-7 home)");
+
+    // CITYPOP has its own gravity: the Royal-Road tell is V -> iii (not V -> I)
+    modeSel = 14; keyPc = 0; nbars = 1; bar_defaults(&arr[0]);
+    arr[0].rootPc = 7; arr[0].qual = HBQ_DOM7; rethink();   // G7 = V in C
+    expect(pfn[0] == HB_V, "citypop: G7 = V");
+    expect(nsugg >= 1 && sugg[0].f == HB_iii, "citypop from V leans iii (the Royal Road tell)");
 
     // back to a clean state
     modeSel = 0; keyPc = 0; seed_demo();

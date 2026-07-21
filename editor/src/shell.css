@@ -218,6 +218,8 @@ html, body {
 #reels-all { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; }
 .tl-ratio-lab { font-size: 11px; color: var(--fg-dim); display: inline-flex; align-items: center; gap: 4px; }
 .tl-ratio-lab select { font-family: var(--font); font-size: 11px; background: var(--bg2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
+.tl-framecol input[type="color"] { width: 26px; height: 18px; padding: 0; border: 1px solid var(--border); border-radius: 3px; background: none; cursor: pointer; vertical-align: middle; }
+.tl-framecol[hidden] { display: none; }
 .tl-reelswrap { margin: 8px 0; }
 #tl-reels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .tl-reel { font-size: 11px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 4px;
@@ -246,6 +248,46 @@ html, body {
 .kw-hint { color: var(--fg-dim); font-size: 11px; margin-bottom: 10px; }
 #kw-results { font-size: 12px; }
 #kw-close { margin-left: auto; font-size: 12px; padding: 1px 8px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim); }
+/* dress-a-clip popup — shares the .modal backdrop + panel look; two columns: live preview | form */
+#dress-lab { width: min(860px, 94vw); max-height: calc(100vh - 48px); overflow-y: auto; margin: auto;
+             background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+             padding: 16px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4); }
+#dress-lab h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 14px; }
+#dress-lab .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
+#dress-close { margin-left: auto; font-size: 12px; padding: 1px 8px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim); }
+.dress-cols { display: grid; grid-template-columns: 216px 1fr; gap: 18px; align-items: start; }
+.dress-preview-wrap { position: relative; }
+#dress-preview, #dress-motion { width: 216px; aspect-ratio: 9 / 16; display: block; background: #000;
+                 border: 1px solid var(--border); border-radius: 4px; object-fit: contain; }
+#dress-motion[hidden] { display: none; }
+.dress-note { color: var(--fg-dim); font-size: 10px; text-align: center; margin-top: 6px; }
+.dress-preview-wrap.busy #dress-preview, .dress-preview-wrap.busy #dress-motion { opacity: 0.55; transition: opacity 0.1s; }
+.dress-anim { flex: 1; }
+.dress-anim select { font-family: var(--font); font-size: 11px; background: var(--bg); color: var(--fg);
+                     border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; }
+.dress-motion-knobs { display: flex; gap: 16px; margin: 2px 0; }
+.dress-slider { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-dim); flex: 1; }
+.dress-slider input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.dress-sv { width: 26px; text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
+#dress-motion-btn { background: none; border: 1px solid var(--border); color: var(--fg); font-family: var(--font);
+                    font-size: 12px; padding: 6px 12px; cursor: pointer; white-space: nowrap; margin-left: auto; }
+#dress-motion-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+#dress-motion-btn:disabled { opacity: 0.5; cursor: default; }
+.dress-form { display: flex; flex-direction: column; gap: 8px; }
+.dress-fld { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--fg-dim); }
+.dress-fld input[type="text"] { background: var(--bg); border: 1px solid var(--border); color: var(--fg);
+                                font-family: var(--font); font-size: 12px; padding: 6px 10px; }
+.dress-colors { display: flex; gap: 14px; margin: 2px 0; }
+.dress-col { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-dim); }
+.dress-col input[type="color"] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--border);
+                                 border-radius: 4px; background: none; cursor: pointer; }
+.dress-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.dress-mp4 { font-size: 11px; color: var(--fg-dim); display: flex; align-items: center; gap: 5px; }
+#dress-run { background: none; border: 1px solid var(--border); color: var(--fg); font-family: var(--font);
+             font-size: 12px; padding: 6px 16px; cursor: pointer; white-space: nowrap; margin-left: auto; }
+#dress-run:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+#dress-run:disabled { opacity: 0.5; cursor: default; }
+.pm-dress { font-size: 10px; padding: 1px 8px; cursor: pointer; }
 #apps-body h3 { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
 #apps-body .apps-hint { color: var(--fg-dim); font-size: 11px; font-weight: normal; margin-left: 8px; }
 .aso-tool { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }

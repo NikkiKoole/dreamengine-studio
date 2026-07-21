@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld('studio', {
   appClips:     (name)           => ipcRenderer.invoke('studio:app-clips', name),
   listReels:    ()               => ipcRenderer.invoke('studio:list-reels'),
   reelLoad:     (name)           => ipcRenderer.invoke('studio:reel-load', name),
-  buildReel:    (name, rows, loop, size) => ipcRenderer.invoke('studio:build-reel', name, rows, loop, size),
+  buildReel:    (name, rows, loop, size, frame) => ipcRenderer.invoke('studio:build-reel', name, rows, loop, size, frame),
   asoLint:      (fields)         => ipcRenderer.invoke('studio:aso-lint', fields),
   asoCompose:   (fields)         => ipcRenderer.invoke('studio:aso-compose', fields),
   onAsoLog:     (cb)             => ipcRenderer.on('aso:log', (_, s) => cb(s)),
@@ -57,6 +57,11 @@ contextBridge.exposeInMainWorld('studio', {
   leads:        (name)           => ipcRenderer.invoke('studio:leads', name),
   cartLeads:    (cart)           => ipcRenderer.invoke('studio:cart-leads', cart),
   cartClips:    (cart)           => ipcRenderer.invoke('studio:cart-clips', cart),
+  // dress a baked clip into a 9:16 Short with engine-font kinetic text — preview = one drawtext frame
+  // (data URL), motion = a short real engine clip (data URL), clip = the full render into the folder
+  dressPreview: (cart, label, fields) => ipcRenderer.invoke('studio:dress-preview', cart, label, fields),
+  dressMotion:  (cart, label, fields) => ipcRenderer.invoke('studio:dress-motion', cart, label, fields),
+  dressClip:    (cart, label, fields) => ipcRenderer.invoke('studio:dress-clip', cart, label, fields),
   // App Store metadata: dry-run returns a structured PLAN; { push:[fields] } PATCHes only those live
   ascMetadata:  (name, opts)     => ipcRenderer.invoke('studio:asc-metadata', name, opts),
   // App Store promoted purchases: dry-run PLAN; { push:[productIds] } promotes only those IAPs

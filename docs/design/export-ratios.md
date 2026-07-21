@@ -31,9 +31,35 @@
 takes a baked clip and composites it into a 9:16 Short with your **hand-typed** text in the bars
 (title card + accent rule above, hook/CTA below, framed console in the middle), `--bg`/`--accent`/
 `--ink` colours, `--mp4` or webm out. Verified on the real acidcandy clip. Completes the user story
-**record → bake → dress with text → export** (dress is the CLI step; a Promote-tab button is the
-follow-up). Open follow-ups: the engine BITMAP font (needs a pixel TTF — v1 uses Bungee+Comic Mono),
-wiring it into the Promote bake flow, and `youtube-push --dress`. The direction it grew from:
+**record → bake → dress with text → export**. **Now fully driveable from the editor with the REAL
+engine font + kinetic text** (2026-07-21):
+
+- **Engine bitmap font + boil + tween-in** (the old "needs a pixel TTF" follow-up — SOLVED without a
+  TTF). The on-screen text is no longer ffmpeg `drawtext` with a smooth TTF; it's drawn by the
+  **`titlecard` cart** (the trailer builder's renderer) in the real `dos_8x8` pixel font with a drop
+  shadow, per-letter **boil**, a **breathe** pulse, and a **tween-in** entrance (fade / slide from an
+  edge). dress-clip bakes two titlecards (title/sub up top, hook/cta/footer at the bottom) onto the
+  magic-green key, then `colorkey`+`overlay`s them into the bars over the console — the SAME
+  pixel-perfect path `compose-clips.js` uses for reel overlays. Zero engine/cart changes.
+- **Editor UI** — a **✨ dress** button on each baked clip in the Promote tab opens a modal with:
+  an instant `drawtext` **layout preview** (`dress-clip.js --preview <png>`, one frame, smooth-face
+  approximation of placement, re-rendered debounced as you type); free-text fields; bg/frame colour
+  pickers; **boil/breathe sliders** + an **entrance** dropdown; a **▶ preview motion** button that
+  bakes a short real engine clip (`--secs 3`) so you see the actual pixel font + boil before
+  committing; and **✨ Dress** → `<label>-dressed.webm` into the clip folder. (Two preview tiers
+  because engine text can't render per-keystroke — each is a cart compile+bake.)
+
+The CLI stays the single source of truth for the composite + kinetic look — the editor just drives
+it. Long takes are capped to a 60s Short. Open follow-up: `youtube-push --dress`.
+
+**Unified with the trailer builder (2026-07-21).** The same dressed look is now a **frame style** in
+the trailer builder ([`trailer-builder.md`](trailer-builder.md) §"Frame styles"): `# frame letterbox`
+renders every reel clip console-centred with a device frame + bars, and the trailer builder's existing
+**multiple timed text overlays** (drag each one's time window on the overlay lane — same-time or
+staggered; `pos top/center/bottom` = top-bar / over-console / bottom-bar under the letterbox frame)
+give the multi-overlay, staggered version. So: the **`dress-clip.js` modal** is the quick single-clip
+dresser (title/sub/hook/cta/footer, always-on); a **1-clip letterbox reel** is the same look with an
+arbitrary number of timed overlays. The direction it grew from:
 
 Turn the letterbox bars from dead space into a **framed treatment** — a title card above the cart,
 a hook/CTA below (the [`store-shots.js`](store-agents.md) "console as a framed

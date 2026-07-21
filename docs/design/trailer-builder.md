@@ -224,11 +224,25 @@ continuation line under a clip bakes a magic-bg card and composites it via `colo
 clip-local window (verified: text keyed clean over live acidrack gameplay, no fringe). And the
 **editor "＋ text card" is BUILT** — a card block with a title/sub/body line-stack, anim + bg-swatch +
 duration controls, reorder/dup/remove; it round-trips `@card`/`over` through build-reel/app-clips
-(verified: an editor-serialized reel composes). Still open: an editor UI to *attach* overlays to a
-clip (they round-trip if hand-added), beat-sync, and named styles. Resolves the
+(verified: an editor-serialized reel composes). The **editor UI to *attach* overlays to a clip is
+BUILT too (2026-07-05)** — a second "overlay lane" above the clip track with `＋ text overlay`,
+green-dashed blocks you drag/resize to set each `[a-b]` time window, and an inspector for lines /
+`pos` / in-out anim / boil-breathe; multiple overlays per clip (overlapping = same-time, sequential =
+staggered) all round-trip. Beat-sync is BUILT. Still open: named `style` bundles (font/ink) — the
+`style` segment is currently a no-op. Resolves the
 **text/tween fork** left open in
 [`demand-generation.md`](demand-generation.md) (§"App-trailer pipeline") — toward **engine-native**,
 not ffmpeg `drawtext` and not a hand-off to CapCut.
+
+**Frame styles — the "dressed"/letterbox look, SHIPPED (2026-07-21).** A per-reel `# frame letterbox`
+(+ `# framebg RRGGBB` / `# frameaccent RRGGBB`) meta makes `compose-clips` render every clip
+**console-centred with a device frame + bg bars** (the [`export-ratios.md`](export-ratios.md) dressed
+composite, ported into the reel per-clip render) instead of the default black-pad. The elegant part:
+once the console shrinks to the middle, the existing `pos top / center / bottom` **become top-bar /
+over-console / bottom-bar** — so timed overlays land in the bars or over the gameplay with **no new
+positioning vocabulary**. Editor: a **frame** dropdown (none / letterbox) + bg/frame colour pickers
+next to the output-ratio select (`#tl-frame`, round-tripped via the `.reel` header). A dressed 9:16
+Short = a **1-clip letterbox reel** (the single-clip `dress-clip.js` modal stays for the quick case).
 
 **The idea.** CapCut's moat is kinetic text — but it's smooth vector type that looks like every other
 social clip. This engine has what CapCut doesn't: **bitmap fonts** (`dos_8x8`, `FONT_SMALL/TINY/LARGE/

@@ -1516,6 +1516,97 @@ document.getElementById('kw-results')?.addEventListener('click', e => {
   if (chip) { e.preventDefault(); const t = document.getElementById('kw-terms'); if (t) t.value = chip.dataset.term; kwRun('research') }
 })
 
+// ── dress a clip → a 9:16 Short with engine-font kinetic text (drives tools/dress-clip.js) ────────
+// The on-screen text is the REAL engine bitmap font with boil + a tween-in entrance, drawn by the
+// titlecard cart (same renderer as the trailer builder). Two preview tiers: an instant drawtext
+// LAYOUT still as you type (dressPreview) + a ▶ preview-motion that bakes a short real clip
+// (dressMotion) so you see the actual pixel font + boil before committing. Dress = the full render.
+let dressLabel = ''            // the baked clip currently being dressed
+let dressPrevTimer = null      // debounce handle for the layout preview
+const DRESS_TEXT = ['title', 'sub', 'hook', 'cta', 'footer']
+function dressFields() {
+  const val = id => (document.getElementById('dress-' + id)?.value || '')
+  const f = { mp4: !!document.getElementById('dress-mp4')?.checked }
+  for (const k of DRESS_TEXT) f[k] = val(k)
+  for (const k of ['bg', 'accent']) f[k] = val(k)   // <input type=color> → #rrggbb
+  f.boil = parseFloat(val('boil'))
+  f.breathe = parseFloat(val('breathe'))
+  f.anim = val('anim')
+  return f
+}
+// swap the preview area back to the layout still (used whenever inputs change — the motion clip is
+// now stale). The motion <video> only shows right after a ▶ preview motion bake.
+function dressShowStill() {
+  const img = document.getElementById('dress-preview'), vid = document.getElementById('dress-motion')
+  if (vid) { vid.hidden = true; vid.removeAttribute('src'); vid.load?.() }
+  if (img) img.hidden = false
+}
+function openDress(label) {
+  if (!window.studio?.dressClip) { showToast('dressing requires the desktop app  (npm start)', 3000); return }
+  dressLabel = label
+  const subj = document.getElementById('dress-subject'); if (subj) subj.textContent = `${currentCartFile} · ${label}`
+  document.getElementById('dress-modal').hidden = false
+  dressShowStill()
+  document.getElementById('dress-title')?.focus()
+  dressPreviewRefresh()   // seed the layout preview with the current (default) fields
+}
+function dressPreviewRefresh() {
+  dressShowStill()        // any edit invalidates a baked motion clip
+  clearTimeout(dressPrevTimer)
+  dressPrevTimer = setTimeout(async () => {
+    if (!dressLabel || !window.studio?.dressPreview) return
+    const wrap = document.querySelector('.dress-preview-wrap')
+    wrap?.classList.add('busy')
+    const res = await window.studio.dressPreview(currentCartFile, dressLabel, dressFields())
+    wrap?.classList.remove('busy')
+    const img = document.getElementById('dress-preview')
+    if (res?.ok && img) img.src = res.dataUrl
+    else if (!res?.ok) { const n = document.getElementById('dress-preview-note'); if (n) n.textContent = res?.output || 'preview failed' }
+  }, 250)
+}
+// ▶ preview motion — bake a short real engine clip (pixel font + boil + entrance), show it inline.
+async function dressMotionRun() {
+  if (!dressLabel || !window.studio?.dressMotion) { showToast('preview requires the desktop app  (npm start)', 3000); return }
+  const btn = document.getElementById('dress-motion-btn')
+  const wrap = document.querySelector('.dress-preview-wrap')
+  const stop = busyDots(btn, 'baking', '▶ preview motion'); if (btn) btn.disabled = true
+  wrap?.classList.add('busy')
+  const res = await window.studio.dressMotion(currentCartFile, dressLabel, dressFields())
+  wrap?.classList.remove('busy'); stop(); if (btn) btn.disabled = false
+  if (res?.ok) {
+    const img = document.getElementById('dress-preview'), vid = document.getElementById('dress-motion')
+    if (vid && img) { img.hidden = true; vid.hidden = false; vid.src = res.dataUrl; vid.play?.().catch(() => {}) }
+  } else showToast(res?.output || 'motion preview failed — see the log', 4000)
+}
+async function dressRun() {
+  if (!dressLabel) return
+  const btn = document.getElementById('dress-run')
+  if (!window.studio?.dressClip) { showToast('dressing requires the desktop app  (npm start)', 3000); return }
+  const stop = busyDots(btn, 'dressing', '✨ Dress'); if (btn) btn.disabled = true
+  const res = await window.studio.dressClip(currentCartFile, dressLabel, dressFields())
+  stop(); if (btn) btn.disabled = false
+  if (res?.ok) {
+    showToast(`✓ dressed → ${res.out}`, 3000)
+    document.getElementById('dress-modal').hidden = true
+    renderPromote()                                  // the new -dressed clip appears in the list
+    window.studio?.openExternal?.(location.origin + res.out)
+  } else showToast(res?.output || 'dress failed — see the log', 4000)
+}
+// text + colours change the layout still; boil/breathe/anim only change the motion (so they just
+// invalidate the baked clip + update their readout — no wasted still re-render).
+DRESS_TEXT.concat(['bg', 'accent']).forEach(k => {
+  document.getElementById('dress-' + k)?.addEventListener('input', dressPreviewRefresh)
+})
+for (const k of ['boil', 'breathe']) {
+  const el = document.getElementById('dress-' + k), out = document.getElementById('dress-' + k + '-v')
+  el?.addEventListener('input', () => { if (out) out.textContent = el.value; dressShowStill() })
+}
+document.getElementById('dress-anim')?.addEventListener('change', dressShowStill)
+document.getElementById('dress-motion-btn')?.addEventListener('click', dressMotionRun)
+document.getElementById('dress-run')?.addEventListener('click', dressRun)
+document.getElementById('dress-close')?.addEventListener('click', () => { document.getElementById('dress-modal').hidden = true; dressShowStill() })
+DRESS_TEXT.forEach(k => document.getElementById('dress-' + k)?.addEventListener('keydown', e => { if (e.key === 'Enter') dressRun() }))
+
 // score — render aso-score's scorecard WITH its gotchas inline (a bare number in a GUI reads as
 // gospel; the caveats have to travel with it). Committed listing only; the A/B tweak loop is CLI.
 function renderScore(data) {
@@ -1759,10 +1850,12 @@ async function renderPromote() {
       // variant chips show which per-ratio versions are already baked (export-ratios Stage 2).
       const clipLink = cl.baked ? `<a href="#" class="pm-clip" data-url="${escHtml(location.origin + cl.clipUrl)}" title="open the native clip">🎬 clip</a>` : ''
       const bakeBtn  = cl.playPath ? `<button class="pm-bake" data-bake="${escHtml(cl.label)}" title="bake this take at the output ratio selected above">🎬 bake</button>` : ''
+      // a baked clip can be DRESSED into a 9:16 Short with on-screen text (title/hook/CTA in the bars)
+      const dressBtn = cl.baked ? `<button class="pm-dress" data-dress="${escHtml(cl.label)}" title="dress this clip into a 9:16 Short with on-screen text">✨ dress</button>` : ''
       const notBaked = (!cl.baked && !cl.playPath) ? `<span class="rs-dim">not baked</span>` : ''
       // each baked variant is a STANDALONE export (single-clip → a post) — click to open/save it
       const varChips = (cl.variants || []).map(v => `<a href="#" class="pm-var" data-url="${escHtml(location.origin + `/clips/${cart}/${cl.label}--${v}.webm`)}" title="open the ${escHtml(v)} export — save it for a post">${escHtml(ratioLabel(v))} ↗</a>`).join(' ')
-      return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${clipLink} ${bakeBtn} ${notBaked} ${varChips}</div>`
+      return `<div class="pm-take">${label} <span class="rs-dim">${escHtml(cl.kinds.join('/'))}</span> ${clipLink} ${bakeBtn} ${dressBtn} ${notBaked} ${varChips}</div>`
     }).join('')
   }
   // B · stills — a per-cart gallery; click a thumb to open it full size
@@ -1823,6 +1916,8 @@ document.getElementById('promote-body')?.addEventListener('click', e => {
   if (rp) { e.preventDefault(); playTake(rp.dataset.playPath, rp.dataset.playKind); return }
   const bk = e.target.closest('[data-bake]')
   if (bk) { e.preventDefault(); bakeTake(bk.dataset.bake, bk); return }
+  const dr = e.target.closest('[data-dress]')
+  if (dr) { e.preventDefault(); openDress(dr.dataset.dress); return }
 })
 document.getElementById('promote-rec')?.addEventListener('click', () => recordCart())
 document.getElementById('promote-snap')?.addEventListener('click', async (e) => {
@@ -1884,6 +1979,16 @@ let tlSubject = null   // the SUBJECT reels group under (cart/app name) — the 
                        // to it: <subject>.reel + <subject>--<variant>.reel. Distinct from tlApp (the
                        // build target). Standalone reels (demo/teaser) belong to no subject → not shown here.
 let tlLoop = null   // {type, dur} — seamless loop-close back to the start (null = off)
+let tlFrame = ''    // '' | 'letterbox' — dressed frame style (console centred + device frame + bars)
+let tlFrameBg = '#0d0d16', tlFrameAccent = '#ff6ab5'
+// seed the frame-style state + its controls from a loaded reel (openTrailer / tlLoadReel)
+function tlSeedFrame(res) {
+  tlFrame = res.frame || ''; tlFrameBg = res.frameBg || '#0d0d16'; tlFrameAccent = res.frameAccent || '#ff6ab5'
+  const f = document.getElementById('tl-frame'); if (f) f.value = tlFrame
+  const bg = document.getElementById('tl-framebg'); if (bg) bg.value = tlFrameBg
+  const ac = document.getElementById('tl-frameaccent'); if (ac) ac.value = tlFrameAccent
+  const col = document.getElementById('tl-framecol'); if (col) col.hidden = tlFrame !== 'letterbox'
+}
 let tlBaked = new Set()   // clips with a baked .webm (scrubbable / probeable)
 let tlDur = {}            // clip → source duration (s), probed client-side from the <video> (no ffprobe)
 let tlFocus = -1          // which clip block the preview monitor is showing
@@ -1923,6 +2028,7 @@ async function openTrailer(subject) {
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = `${kind === 'cart' ? 'cart · ' : ''}${res.name || name}`
   { const rsel = document.getElementById('tl-ratio'); if (rsel) rsel.value = res.size || '' }   // reflect the reel's saved output size
+  tlSeedFrame(res)
   const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
   const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = false   // monitor + inspector sit side by side while the panel is open
   const tlLog = document.getElementById('tl-log'); if (tlLog) { tlLog.hidden = true; tlLog.textContent = '' }
@@ -1954,12 +2060,20 @@ async function tlLoadReel(name) {
   tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = `reel · ${name}`
   { const rsel = document.getElementById('tl-ratio'); if (rsel) rsel.value = res.size || '' }   // reflect the reel's saved output size
+  tlSeedFrame(res)
   tlRender(); tlRenderReels()
 }
 document.getElementById('tl-reels')?.addEventListener('click', e => {
   const a = e.target.closest('[data-reel]'); if (!a) return
   e.preventDefault(); tlLoadReel(a.dataset.reel)
 })
+// frame style: none | letterbox (dressed). Show the bg/frame colours only when letterbox.
+document.getElementById('tl-frame')?.addEventListener('change', e => {
+  tlFrame = e.target.value || ''
+  const col = document.getElementById('tl-framecol'); if (col) col.hidden = tlFrame !== 'letterbox'
+})
+document.getElementById('tl-framebg')?.addEventListener('input', e => { tlFrameBg = e.target.value })
+document.getElementById('tl-frameaccent')?.addEventListener('input', e => { tlFrameAccent = e.target.value })
 // open a saved reel directly in the trailer builder (from the cross-subject overview). Sets the
 // subject from the reel name (<subject>--<variant> → <subject>) so the in-builder list stays scoped.
 async function openReel(name) {
@@ -2133,7 +2247,7 @@ function tlOvInspector(r, ov, i, o) {
     +   `<span class="tl-phase" title="entrance — effect + seconds">in ${effSel(inEff, 'tl-ovineff')}${num('tl-ovindur', inDur, 0, null, 0.1)}</span>`
     +   `<span class="tl-phase" title="exit — effect + seconds (0 = no exit tween)">out ${effSel(outEff, 'tl-ovouteff')}${num('tl-ovoutdur', outDur, 0, null, 0.1)}</span></div></div>`
     + `<div class="tl-ingroup"><span class="tl-ink">life</span><div class="tl-cardopts">`
-    +   `<label class="tl-splbl" title="boil — hand-drawn wobble (0…1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-ovboil="${i},${o}" value="${ov.boil ?? 0}"></label>`
+    +   `<label class="tl-splbl" title="boil — hand-drawn wobble (0 = off … 1); default on, matches the render">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-ovboil="${i},${o}" value="${ov.boil ?? 1}"></label>`
     +   `<label class="tl-splbl" title="breathe — grow/shrink pulse (0…1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-ovbreathe="${i},${o}" value="${ov.breathe ?? 0}"></label>`
     +   `<label class="tl-splbl" title="beat-sync BPM (0 = off)">bpm<input class="tl-num" type="number" min="0" step="1" data-tl-ovbpm="${i},${o}" value="${ov.bpm ?? 0}"></label></div></div>`
 }
@@ -2403,7 +2517,7 @@ document.getElementById('tl-inspector')?.addEventListener('click', e => {
   // ── text overlays ──
   else if (ovadd) { const i = +ovadd.dataset.tlOvadd, dur = tlRowDur(tlRows[i])   // a new overlay riding this clip
     const ovs = tlRows[i].overlays || (tlRows[i].overlays = [])
-    ovs.push({ a: round1(Math.min(0.3, dur * 0.1)), b: round1(Math.min(dur, Math.max(1.5, dur * 0.6))), pos: 'bottom', inDur: 0.4, inEffect: 'fade', outDur: 0.4, outEffect: 'slide top', lines: [{ role: 'body', text: 'new' }] })
+    ovs.push({ a: round1(Math.min(0.3, dur * 0.1)), b: round1(Math.min(dur, Math.max(1.5, dur * 0.6))), pos: 'bottom', inDur: 0.4, inEffect: 'fade', outDur: 0.4, outEffect: 'slide top', boil: 1, breathe: 0, lines: [{ role: 'body', text: 'new' }] })
     tlOvSel = { r: i, o: ovs.length - 1 }; tlSel = -1; tlRender(); tlSeqSync() }
   else if (ovrm) { const [i, o] = ovrm.dataset.tlOvrm.split(',').map(Number); tlRows[i].overlays.splice(o, 1); tlOvSel = null; tlRender(); tlSeqSync() }
   else if (ovsel) { const [i, o] = ovsel.dataset.tlOvsel.split(',').map(Number); tlOvSel = { r: i, o }; tlSel = -1; tlRender() }
@@ -2638,8 +2752,9 @@ document.getElementById('tl-build')?.addEventListener('click', async () => {
   const btn = document.getElementById('tl-build'); const stop = busyDots(btn, 'building (bakes + composes)', '▶ Build trailer'); btn.disabled = true
   const tlLog = document.getElementById('tl-log')
   const size = document.getElementById('tl-ratio')?.value || null   // '' = native (first clip's dims)
-  if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}${size ? ` @ ${size}` : ''}…\n` }   // live feedback of what it's doing
-  const res = await window.studio.buildReel(tlApp, tlRows, tlLoop, size)
+  const frame = tlFrame ? { style: tlFrame, bg: tlFrameBg, accent: tlFrameAccent } : null   // dressed letterbox look (applied on bake)
+  if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}${size ? ` @ ${size}` : ''}${frame ? ' · letterbox frame' : ''}…\n` }   // live feedback of what it's doing
+  const res = await window.studio.buildReel(tlApp, tlRows, tlLoop, size, frame)
   stop(); btn.disabled = false
   if (!res?.ok) { if (tlLog) tlLog.textContent += `\n✗ ${res?.error || 'build failed'}\n`; showToast(res?.error || 'build failed', 3500); return }
   if (tlLog) tlLog.textContent += `\n✓ done\n`

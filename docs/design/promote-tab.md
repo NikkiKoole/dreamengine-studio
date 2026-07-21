@@ -72,6 +72,14 @@ find-tribes glance); this tab is the per-cart **source** those aggregate from, b
 - **● Record**: capture a new take live (**built** — the record button from the editor-media lane).
 - **Baked clips**: a thumbnail grid of `editor/public/clips/<cart>/*.{webm,gif,mp4}` — play, show the
   recipe it came from, re-bake, delete.
+- **✨ Dress a clip** (**built** 2026-07-21): a baked clip → a 9:16 Short with hand-typed text in the
+  letterbox bars, drawn in the **real engine `dos_8x8` pixel font** with **boil** + a **tween-in**
+  entrance (via the `titlecard` cart, colour-keyed in — same renderer as the trailer builder). The
+  modal has two preview tiers: an instant `drawtext` **layout** still as you type
+  (`studio:dress-preview`) + a **▶ preview motion** button that bakes a short real engine clip
+  (`studio:dress-motion`), plus boil/breathe sliders + an entrance dropdown; **✨ Dress**
+  (`studio:dress-clip`) renders `<label>-dressed.webm` into the folder. [`export-ratios.md`](export-ratios.md)
+  "Dressed composite".
 - **Bake a take → clip**: run `make-gif.js --recipe <NN-label>` on a take (webm/gif/9:16 export). The
   "produce" verb made concrete — a deterministic replay becomes a shareable clip.
 

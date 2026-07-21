@@ -76,7 +76,8 @@ if (!out) out = reelName ? path.join(REELS_OUT, `${reelName}.webm`) : path.join(
 out = path.resolve(out)
 
 // ── parse the manifest ────────────────────────────────────────
-const meta = { fps: 30, crf: 28, size: null, scale: 3, xtype: 'fade', xdur: 0.5, loopType: null, loopDur: 0 }
+const meta = { fps: 30, crf: 28, size: null, scale: 3, xtype: 'fade', xdur: 0.5, loopType: null, loopDur: 0,
+  frame: null, frameBg: '0d0d16', frameAccent: 'ff6ab5' }   // frame='letterbox' = the dressed look (console centred + device frame + bars)
 const shots = []
 for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   const line = raw.trim()
@@ -88,6 +89,9 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   if ((m = line.match(/^#\s*scale\s+(\d+)/)))      { meta.scale = +m[1]; continue }
   if ((m = line.match(/^#\s*xfade\s+(\w+)\s+([\d.]+)/))) { meta.xtype = m[1]; meta.xdur = +m[2]; continue }
   if ((m = line.match(/^#\s*loop\s+(\w+)\s+([\d.]+)/)))  { meta.loopType = m[1]; meta.loopDur = +m[2]; continue }
+  if ((m = line.match(/^#\s*frame\s+(\w+)/)))            { meta.frame = m[1].toLowerCase(); continue }   // 'letterbox' = dressed
+  if ((m = line.match(/^#\s*framebg\s+#?([0-9a-fA-F]{6})/)))     { meta.frameBg = m[1]; continue }
+  if ((m = line.match(/^#\s*frameaccent\s+#?([0-9a-fA-F]{6})/))) { meta.frameAccent = m[1]; continue }
   if (line.startsWith('#')) continue
   if (line.startsWith('@card')) {   // a generated text-card part (baked from the titlecard cart)
     const parts = line.split('|').map(s => s.trim())
@@ -149,7 +153,7 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   if (!fs.existsSync(shot.file)) { console.error(`clip not found for "${refPart}": ${shot.file}\n  (bake it first: node tools/make-gif.js ${refPart.split('/')[0]} --recipe ${refPart.split('/')[1] || ''})`); process.exit(1) }
   shots.push(shot)
 }
-if (shots.length < 2) { console.error('a reel needs at least 2 clips'); process.exit(1) }
+if (shots.length < 1) { console.error('a reel needs at least 1 clip'); process.exit(1) }   // 1 clip + overlays is valid (a dressed Short); the xfade chain below just no-ops
 if (opt('--fps', null)) meta.fps = +opt('--fps')
 if (opt('--crf', null)) meta.crf = +opt('--crf')
 if (opt('--size', null)) { const s = opt('--size').match(/(\d+)x(\d+)/); if (s) meta.size = [+s[1], +s[2]] }
@@ -252,6 +256,17 @@ shots.forEach(s => {
   s.vin = inIdx++; inputs.push('-i', s.file)
   for (const ov of (s.overlays || [])) { ov.vin = inIdx++; inputs.push('-i', ov.file) }
 })
+// letterbox ("dressed") frame: shrink the clip to a centred inner rect (integer nearest-upscale that
+// FITS 0.92W × 0.44H — the dress-clip.js geometry), pad with the frame bg, draw a device frame around
+// it. Leaves top/bottom BARS the text overlays live in (pos top/center/bottom → bar/over-console/bar).
+function letterboxScale(vin, vpre, sw, sh) {
+  const sc = Math.max(1, Math.min(Math.floor((W * 0.92) / sw), Math.floor((H * 0.44) / sh)))
+  const iw = sw * sc, ih = sh * sc, x = Math.round((W - iw) / 2), y = Math.round((H - ih) / 2)
+  return `[${vin}:v]${vpre}scale=${iw}:${ih}:flags=neighbor,` +
+         `pad=${W}:${H}:${x}:${y}:color=0x${meta.frameBg},` +
+         `drawbox=x=${x - 6}:y=${y - 6}:w=${iw + 12}:h=${ih + 12}:color=0x${meta.frameAccent}:t=4,` +
+         `fps=${meta.fps},setsar=1`
+}
 const vparts = [], aparts = []
 shots.forEach((s, i) => {
   const trimming = s.trimStart > 1e-6 || s.trimEnd < s.srcDur - 1e-6
@@ -259,8 +274,10 @@ shots.forEach((s, i) => {
   let vpre = ''
   if (trimming)                 vpre += `trim=start=${s.trimStart}:end=${s.trimEnd},`
   if (trimming || s.speed !== 1) vpre += `setpts=(PTS-STARTPTS)/${s.speed},`
-  const scaled = `[${s.vin}:v]${vpre}scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,` +
-                 `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${meta.fps},setsar=1`
+  const scaled = meta.frame === 'letterbox'
+    ? letterboxScale(s.vin, vpre, s.w, s.h)
+    : `[${s.vin}:v]${vpre}scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,` +
+      `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${meta.fps},setsar=1`
   const overlays = s.overlays || []
   if (!overlays.length) {
     vparts.push(`${scaled},format=yuv420p[v${i}]`)

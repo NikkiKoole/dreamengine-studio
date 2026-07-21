@@ -2141,6 +2141,111 @@ ipcMain.handle('studio:bake-clip', async (_e, cart, label, size) => {
     ff.on('error', e => resolve({ ok: false, output: String(e.message) }))
   })
 })
+// dress a baked clip → a 9:16 Short with hand-typed on-screen text (title/sub/hook/cta/footer),
+// drawn in the REAL engine bitmap font with BOIL + a tween-in entrance (via the titlecard cart),
+// bg/accent colours, through tools/dress-clip.js. The Promote-tab ✨ dress modal drives THREE:
+// studio:dress-preview (one drawtext frame → data-URL, the fast LAYOUT preview as you type),
+// studio:dress-motion (a short real engine clip → data-URL, the ▶ preview-motion check), and
+// studio:dress-clip (the full Short, written back into the cart's clip folder). The CLI owns the
+// composite + the kinetic look; these handlers just build args + spawn it. docs/design/export-ratios.md.
+const HEX6 = /^#?[0-9a-fA-F]{6}$/
+const DRESS_ANIM = new Set(['fade', 'slide bottom', 'slide top', 'slide left', 'slide right'])
+function dressArgs(fields) {
+  // free text → argv entries (spawn, no shell → arbitrary strings are safe; the titlecard params
+  // file reads whole lines). Empty regions omitted. Colours validated hex; motion knobs clamped.
+  const f = fields || {}
+  const args = []
+  for (const k of ['title', 'sub', 'hook', 'cta', 'footer']) {
+    const v = typeof f[k] === 'string' ? f[k] : ''
+    if (v.trim()) args.push('--' + k, v)
+  }
+  for (const [k, flag] of [['bg', '--bg'], ['accent', '--accent']]) {
+    const v = f[k]
+    if (typeof v === 'string' && HEX6.test(v)) args.push(flag, v)
+  }
+  for (const [k, flag] of [['boil', '--boil'], ['breathe', '--breathe']]) {
+    const v = Number(f[k])
+    if (Number.isFinite(v) && v >= 0 && v <= 1) args.push(flag, String(v))
+  }
+  if (typeof f.anim === 'string' && DRESS_ANIM.has(f.anim)) args.push('--anim', f.anim)
+  return args
+}
+function dressGuard(cart, label) {
+  if (!/^[a-z0-9_-]+$/i.test(cart || '')) return 'bad cart name'
+  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(label || '')) return 'bad clip label'
+  return null
+}
+ipcMain.handle('studio:dress-preview', async (_e, cart, label, fields) => {
+  const ROOT = path.join(__dirname, '../..')
+  const bad = dressGuard(cart, label); if (bad) return { ok: false, output: bad }
+  const inRel = `editor/public/clips/${cart}/${label}.webm`
+  if (!fs.existsSync(path.join(ROOT, inRel))) return { ok: false, output: 'no baked clip to dress' }
+  const tmpDir = path.join(ROOT, 'build/.yt')
+  fs.mkdirSync(tmpDir, { recursive: true })
+  const png = path.join(tmpDir, 'dress-preview.png')
+  // half-res (540×960) — snappy for the debounced live preview; the layout is fractional so it
+  // looks identical to the full 1080×1920 render.
+  const args = [path.join(ROOT, 'tools/dress-clip.js'), path.join(ROOT, inRel), ...dressArgs(fields),
+    '--w', '540', '--h', '960', '--preview', png, '--at', '0.5']
+  return new Promise(resolve => {
+    let err = ''
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stderr.on('data', c => { err += c.toString() })
+    proc.on('exit', code => {
+      if (code !== 0) return resolve({ ok: false, output: err.split('\n').slice(-3).join('\n') || 'preview failed' })
+      try { resolve({ ok: true, dataUrl: 'data:image/png;base64,' + fs.readFileSync(png).toString('base64') }) }
+      catch (e) { resolve({ ok: false, output: String(e.message) }) }
+    })
+    proc.on('error', e => resolve({ ok: false, output: String(e.message) }))
+  })
+})
+ipcMain.handle('studio:dress-clip', async (_e, cart, label, fields) => {
+  const ROOT = path.join(__dirname, '../..')
+  const bad = dressGuard(cart, label); if (bad) return { ok: false, output: bad }
+  const wc = _e.sender
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  const inRel = `editor/public/clips/${cart}/${label}.webm`
+  if (!fs.existsSync(path.join(ROOT, inRel))) return { ok: false, output: 'no baked clip to dress' }
+  const mp4 = !!(fields && fields.mp4)
+  const outRel = `editor/public/clips/${cart}/${label}-dressed.${mp4 ? 'mp4' : 'webm'}`
+  const args = [path.join(ROOT, 'tools/dress-clip.js'), path.join(ROOT, inRel), ...dressArgs(fields),
+    '--out', path.join(ROOT, outRel), ...(mp4 ? ['--mp4'] : [])]
+  send('cart:log', `\n── dress ${cart}/${label} → 9:16 Short ──\n`)
+  return new Promise(resolve => {
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stdout.on('data', c => send('cart:log', c.toString()))
+    proc.stderr.on('data', c => send('cart:log', c.toString()))
+    proc.on('exit', code => resolve(code === 0 ? { ok: true, out: '/' + outRel.replace(/^editor\/public\//, '') } : { ok: false, output: 'dress failed — see the log' }))
+    proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve({ ok: false, output: String(e.message) }) })
+  })
+})
+// ▶ preview motion: render a SHORT (~3s) real engine clip so the maker sees the actual pixel font +
+// boil + tween-in before committing. Returns a webm data-URL for an inline <video>. Slower than the
+// drawtext still (it compiles+bakes the titlecards), so the modal shows a spinner while it runs.
+ipcMain.handle('studio:dress-motion', async (_e, cart, label, fields) => {
+  const ROOT = path.join(__dirname, '../..')
+  const bad = dressGuard(cart, label); if (bad) return { ok: false, output: bad }
+  const wc = _e.sender
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  const inRel = `editor/public/clips/${cart}/${label}.webm`
+  if (!fs.existsSync(path.join(ROOT, inRel))) return { ok: false, output: 'no baked clip to dress' }
+  const tmpDir = path.join(ROOT, 'build/.yt'); fs.mkdirSync(tmpDir, { recursive: true })
+  const out = path.join(tmpDir, 'dress-motion.webm')
+  const args = [path.join(ROOT, 'tools/dress-clip.js'), path.join(ROOT, inRel), ...dressArgs(fields),
+    '--secs', '3', '--out', out]
+  send('cart:log', `\n── preview motion ${cart}/${label} (${'~3'}s) ──\n`)
+  return new Promise(resolve => {
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stdout.on('data', c => send('cart:log', c.toString()))
+    proc.stderr.on('data', c => send('cart:log', c.toString()))
+    proc.on('exit', code => {
+      if (code !== 0) return resolve({ ok: false, output: 'motion preview failed — see the log' })
+      try { resolve({ ok: true, dataUrl: 'data:video/webm;base64,' + fs.readFileSync(out).toString('base64') }) }
+      catch (e) { resolve({ ok: false, output: String(e.message) }) }
+    })
+    proc.on('error', e => { send('cart:log', String(e.message) + '\n'); resolve({ ok: false, output: String(e.message) }) })
+  })
+})
 // snapshot the current cart → a plain PNG still (editor/public/shots/<cart>/NN-snap.png), a frame
 // worth posting. Runs play.js headless, dumps ~40 frames, keeps the middle one (past boot). These
 // are per-cart stills — NOT the device-sized App Store shots (store-shots.js, app-scope). §B.
@@ -2354,6 +2459,12 @@ function parseReelFile(reelPath) {
   const loop = lm ? { type: lm[1], dur: +lm[2] } : null
   const sm = text.match(/^#\s*size\s+(\d+x\d+)/m)   // output aspect/size the reel was built at
   const size = sm ? sm[1] : null
+  const fm = text.match(/^#\s*frame\s+(\w+)/m)       // dressed frame style (console centred + device frame + bars)
+  const frame = fm ? fm[1].toLowerCase() : ''
+  const bgm = text.match(/^#\s*framebg\s+#?([0-9a-fA-F]{6})/m)
+  const acm = text.match(/^#\s*frameaccent\s+#?([0-9a-fA-F]{6})/m)
+  const frameBg = bgm ? '#' + bgm[1] : '#0d0d16'
+  const frameAccent = acm ? '#' + acm[1] : '#ff6ab5'
   const rows = []
   const parseLines = (parts) => parts.reduce((acc, seg) => {   // pull title/sub/body role-lines out of a segment list
     const cm = seg.match(/^(title|sub|body)\s+(.*)$/); if (cm) acc.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') }); return acc
@@ -2412,7 +2523,7 @@ function parseReelFile(reelPath) {
     }
     rows.push(row)
   }
-  return { rows, loop, size }
+  return { rows, loop, size, frame, frameBg, frameAccent }
 }
 ipcMain.handle('studio:app-clips', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
@@ -2420,8 +2531,8 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
   try {
     const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
     const carts = (m.carts || []).map(c => ({ cart: c, clips: reelClipsFor(ROOT, c) }))
-    const { rows, loop, size } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
-    return { ok: true, name: m.name || name, carts, rows, loop, size }
+    const { rows, loop, size, frame, frameBg, frameAccent } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
+    return { ok: true, name: m.name || name, carts, rows, loop, size, frame, frameBg, frameAccent }
   } catch (e) { return { ok: false, error: String(e.message || e) } }
 })
 // list-reels: every saved scenario (tools/reels/*.reel) + whether it has a built webm. Drives the
@@ -2439,16 +2550,16 @@ ipcMain.handle('studio:list-reels', async () => {
 ipcMain.handle('studio:reel-load', async (_e, name) => {
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad reel name' }
-  const { rows, loop, size } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
+  const { rows, loop, size, frame, frameBg, frameAccent } = parseReelFile(path.join(ROOT, 'tools/reels', `${name}.reel`))
   if (!rows) return { ok: false, error: `no tools/reels/${name}.reel` }
   const carts = [...new Set(rows.filter(r => !r.card && r.clip).map(r => String(r.clip).split('/')[0]))]
     .map(c => ({ cart: c, clips: reelClipsFor(ROOT, c) }))
-  return { ok: true, name, carts, rows, loop, size }
+  return { ok: true, name, carts, rows, loop, size, frame, frameBg, frameAccent }
 })
 // build-reel: NON-DESTRUCTIVE — write the ordered rows to tools/reels/<name>.reel (a parameter
 // list, sources untouched), bake any referenced clip that isn't baked yet, then compose → the
 // baked reel the editor previews. rows: [{clip:"cart/label", xtype, xdur}] in order.
-ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size) => {
+ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size, frame) => {
   const wc = _e.sender
   const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
   const ROOT = path.join(__dirname, '../..')
@@ -2477,6 +2588,12 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size) => {
     reel += `# size ${size}\n# scale 1\n`
   }
   if (loop && loop.type && loop.dur > 0) reel += `# loop ${loop.type} ${loop.dur}\n`   // seamless loop-close
+  if (frame && frame.style === 'letterbox') {   // the dressed frame style — console centred + device frame + bars
+    reel += `# frame letterbox\n`
+    const hex = v => (typeof v === 'string' && /^#?[0-9a-fA-F]{6}$/.test(v)) ? v.replace(/^#/, '') : null
+    if (hex(frame.bg)) reel += `# framebg ${hex(frame.bg)}\n`
+    if (hex(frame.accent)) reel += `# frameaccent ${hex(frame.accent)}\n`
+  }
   const lineFor = (r, i) => {   // one row → one or more .reel lines (a clip/card + its overlay continuation lines)
     const cut = i > 0 ? [`${r.xtype || 'fade'} ${r.xdur || 0.5}`] : []
     if (r.card) {               // @card <dur> | <cut> | title/sub/body | anim | bg
@@ -2519,7 +2636,7 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop, size) => {
   fs.mkdirSync(path.dirname(reelPath), { recursive: true })
   fs.writeFileSync(reelPath, reel)
   log(`wrote tools/reels/${name}.reel\n`)
-  if (rows.length < 2) return { ok: true, reel: `tools/reels/${name}.reel`, out: null, note: 'add a 2nd clip to compose a reel' }
+  if (rows.length < 1) return { ok: true, reel: `tools/reels/${name}.reel`, out: null, note: 'add a clip to compose' }
   if (!await spawnP('node', [path.join(ROOT, 'tools/compose-clips.js'), name], ROOT, log)) return { ok: false, error: 'compose failed' }
   log(`✓ editor/public/reels/${name}.webm\n`)
   return { ok: true, reel: `tools/reels/${name}.reel`, out: `reels/${name}.webm` }   // web path (Vite serves public/)

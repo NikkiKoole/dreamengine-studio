@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to add a bar. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor."
+    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker."
   }
 }
 de:meta */
@@ -155,6 +155,7 @@ static int playing = 0, playSlot = 0, playT = 0;
 static int selVoice = -1;   // which voice's editor is open (-1 = the tracker)
 static int selBar   = 0;    // which bar the editor edits
 static int helpOn   = 0;    // the legend overlay (? button)
+static int picking  = 0;    // the ADD-CHORD picker is open (tap "+")
 
 // ── chord voicing (chordwise's sound_chord, now p-lock-parameterized) ──────
 static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
@@ -383,16 +384,27 @@ static void bar_defaults(Bar *b) {
     b->strum = b->inv = b->oct = b->sev = -1;
     b->bass = -1; b->fill = 0; b->mel = -1; b->pad = -1;
 }
-// add a bar at the end (a default I chord in the key) — extends the loop.
-static void add_bar(void) {
+// append a bar with a chosen chord (root + quality) — extends the loop, auditions.
+static void append_chord(int rootPc, int qual) {
     if (nbars >= NBARS) return;
-    const HbVocab *v = cur_vocab();
     bar_defaults(&arr[nbars]);
-    arr[nbars].rootPc = (keyPc + v->off[0]) % 12;
-    arr[nbars].qual   = v->qual[0];
+    arr[nbars].rootPc = rootPc % 12;
+    arr[nbars].qual   = qual;
     nbars++;
     rethink();
     audition(nbars - 1);
+}
+// append the mode's tonic (the default I) — the spec's builder + the fallback.
+static void add_bar(void) {
+    const HbVocab *v = cur_vocab();
+    append_chord((keyPc + v->off[0]) % 12, v->qual[0]);
+}
+// the diatonic quality for a root pitch-class (so a keybed-picked root sounds in
+// the mode); an out-of-key root falls back to a plain major/dominant seventh.
+static int qual_for_root(int pc) {
+    const HbVocab *v = cur_vocab();
+    for (int f = 0; f < v->n; f++) if ((keyPc + v->off[f]) % 12 == pc % 12) return v->qual[f];
+    return HBQ_MAJ7;
 }
 
 // NEW SONG — empty the arrangement (nbars=0; build it back up with the "+" slot).
@@ -401,7 +413,7 @@ static void add_bar(void) {
 static void new_song(void) {
     for (int i = 0; i < NBARS; i++) bar_defaults(&arr[i]);
     nbars = 0;
-    playing = 0; selVoice = -1; selBar = 0; helpOn = 0;
+    playing = 0; selVoice = -1; selBar = 0; helpOn = 0; picking = 0;
     rethink();
 }
 
@@ -555,18 +567,69 @@ static void glass_grid(Box g) {
                          lk ? CLR_ORANGE : CLR_MEDIUM_GREY);
             }
             rect((int)c.x, (int)c.y, (int)c.w, (int)c.h, cur ? CLR_LIME_GREEN : CLR_DARKER_GREY);
-            // tap → open editor (or extend the loop on the '+' chord slot)
+            // tap → open editor (or the chord PICKER on the '+' slot)
             if (tapped(c, 0x2300u + v * 16 + i)) {
-                if (v == V_CH && i == nbars) add_bar();
+                if (v == V_CH && i == nbars) picking = 1;
                 else if (on) { selVoice = v; selBar = i; }
             }
         }
     }
     if (nbars == 0) {   // an empty song — point at the "+" (in the MEL lane, clear of the grid)
         Box hint = lay_grid(g, 1, VOICES, V_ME, 1);
-        const char *h = "NEW SONG - tap + to add a bar";
+        const char *h = "NEW SONG - tap + to pick a chord";
         print(h, (int)(hint.x + hint.w / 2 - text_width(h) / 2), (int)(hint.y + hint.h / 2 - 2), CLR_INDIGO);
     }
+}
+
+// the ADD-CHORD picker (tap "+"). The harmony brain's NEXT suggestions ("what you
+// prolly want") on top, the full mode palette below (roman-numeral chips, suggested
+// ones flagged green), and the keybed live for ANY root. Each pick appends + auditions
+// and stays open, so you build a progression fast.
+static void glass_pick(Box g) {
+    const HbVocab *v = cur_vocab();
+    char nm[16];
+
+    Box top = lay_split(g, EDGE_TOP, 9, &g);
+    char t[20]; snprintf(t, sizeof t, "PICK A CHORD  (%d)", nbars);
+    print(t, (int)top.x + 1, (int)(top.y + 2), CLR_LIGHT_GREY);
+    Box done = lay_split(top, EDGE_RIGHT, 30, &top);
+    if (seg(done, "DONE", 0, 0x2600)) picking = 0;
+
+    // which functions to recommend: the ranked suggestions from the last chord,
+    // or the tonic when the song is empty (the natural place to start).
+    int sf[4], ns = 0;
+    if (nbars > 0 && nsugg > 0) { for (int i = 0; i < nsugg && i < 4; i++) sf[ns++] = sugg[i].f; }
+    else sf[ns++] = 0;
+
+    // NEXT row — the recommended chords, big, with their names.
+    Box nx = lay_split(g, EDGE_TOP, 15, &g);
+    Box nlab = lay_split(nx, EDGE_LEFT, 18, &nx);
+    print("NEXT", (int)nlab.x, (int)(nlab.y + nlab.h / 2 - 2), CLR_INDIGO);
+    for (int i = 0; i < ns; i++) {
+        Box ch = lay_grid(nx, 4, 4, i, 1);
+        int pc = (keyPc + v->off[sf[i]]) % 12;
+        chname(nm, sizeof nm, pc, v->qual[sf[i]], seventh);
+        rrectfill((int)ch.x, (int)ch.y, (int)ch.w, (int)ch.h, 2, CLR_DARK_BLUE);
+        rect((int)ch.x, (int)ch.y, (int)ch.w, (int)ch.h, CLR_LIME_GREEN);
+        const char *rn = v->fname[sf[i]];
+        print(rn, (int)(ch.x + ch.w / 2 - text_width(rn) / 2), (int)ch.y + 1, CLR_WHITE);
+        print(nm, (int)(ch.x + ch.w / 2 - text_width(nm) / 2), (int)ch.y + 8, CLR_LIGHT_GREY);
+        if (tapped(ch, 0x2610u + i)) append_chord(pc, v->qual[sf[i]]);
+    }
+
+    // PALETTE — every diatonic chord as a roman-numeral chip; recommended ones green.
+    int n = v->n, cols = (n + 1) / 2;
+    for (int f = 0; f < n; f++) {
+        Box ch = lay_grid(g, cols, cols * 2, f, 1);
+        int isSug = 0; for (int i = 0; i < ns; i++) if (sf[i] == f) isSug = 1;
+        rrectfill((int)ch.x, (int)ch.y, (int)ch.w, (int)ch.h, 1, CLR_BROWNISH_BLACK);
+        rect((int)ch.x, (int)ch.y, (int)ch.w, (int)ch.h, isSug ? CLR_LIME_GREEN : CLR_DARKER_GREY);
+        const char *rn = v->fname[f];
+        print(rn, (int)(ch.x + ch.w / 2 - text_width(rn) / 2), (int)(ch.y + ch.h / 2 - 2),
+              isSug ? CLR_WHITE : CLR_LIGHT_GREY);
+        if (tapped(ch, 0x2620u + f)) append_chord((keyPc + v->off[f]) % 12, v->qual[f]);
+    }
+    if (nbars >= NBARS) print("(full)", (int)g.x + 1, (int)(g.y + g.h - 6), CLR_DARK_GREY);
 }
 
 // ── the block EDITORS, drawn ON the glass (chassis stays put) ───────────────
@@ -657,27 +720,34 @@ static void glass_editor(Box g) {
     }
 }
 
-// a tiny keybed (chassis) — sets the selected chord's root. Inert unless a CHORDS
-// cell is open in the editor.
+// a key press → PICKING appends a chord on that root (diatonic quality if it fits
+// the key); EDITING a chord cell re-roots that chord. Inert otherwise.
+static void keybed_pick(int pc) {
+    if (picking)                append_chord(pc, qual_for_root(pc));
+    else if (selVoice == V_CH)  set_root(selBar, pc);
+}
+// a tiny keybed (chassis) — live while ADDING (the picker) or EDITING a chord.
 static void zone_keybed(Box b) {
     static const int WPC[10] = { 0, 2, 4, 5, 7, 9, 11, 0, 2, 4 };   // C D E F G A B C D E
-    int active = (selVoice == V_CH);
+    int editing = (selVoice == V_CH && !picking);
+    int active = picking || editing;
+    int hlPc = editing ? arr[selBar].rootPc % 12 : (picking && nbars > 0 ? arr[nbars - 1].rootPc % 12 : -1);
     int rootW = -1;
-    if (active) for (int i = 0; i < 10; i++) if (WPC[i] == arr[selBar].rootPc % 12) { rootW = i; break; }
+    if (hlPc >= 0) for (int i = 0; i < 10; i++) if (WPC[i] == hlPc) { rootW = i; break; }
     float ww = b.w / 10.0f;
     for (int i = 0; i < 10; i++) {
         Box k = box(b.x + i * ww, b.y, ww - 1, b.h);
         int held = i == rootW;
         rrectfill((int)k.x, (int)k.y, (int)k.w, (int)k.h, 1,
                   held ? CLR_ORANGE : (active ? CLR_WHITE : CLR_LIGHT_GREY));
-        if (active && tapped(k, 0x2500u + i)) set_root(selBar, WPC[i]);
+        if (active && tapped(k, 0x2500u + i)) keybed_pick(WPC[i]);
     }
     for (int i = 0; i < 9; i++) {                  // black keys (right of C,D,F,G,A)
         int s = i % 7;
         if (s == 2 || s == 6) continue;
         Box bk = box(b.x + (i + 1) * ww - ww * 0.32f, b.y, ww * 0.64f, b.h * 0.6f);
         rectfill((int)bk.x, (int)bk.y, (int)bk.w, (int)bk.h, CLR_BLACK);
-        if (active && tapped(bk, 0x2510u + i)) set_root(selBar, (WPC[i] + 1) % 12);
+        if (active && tapped(bk, 0x2510u + i)) keybed_pick((WPC[i] + 1) % 12);
     }
 }
 
@@ -695,7 +765,7 @@ void update(void) {
     if (keyp(KEY_LEFT))  change_key(-1);
     if (keyp(KEY_RIGHT)) change_key(+1);
     if (keyp('B'))       { modeSel = (modeSel + 1) % NMODE; rethink(); }
-    if (keyp(KEY_BACKSPACE)) selVoice = -1;
+    if (keyp(KEY_BACKSPACE)) { selVoice = -1; picking = 0; }
     if (keyp('N'))           new_song();   // start a fresh empty song
     if (keyp(KEY_SPACE) && nbars) { playing = !playing; playSlot = 0; playT = 0;
         bassLast = 36 + (octSel - 1) * 12; melLast = 72 + (octSel - 1) * 12; melI = 0; }
@@ -746,7 +816,8 @@ void draw(void) {
     Box rail = lay_split(body, EDGE_LEFT, 18, &body);
     Box g = glass_panel(body);
     zone_rail(rail, g);
-    if (helpOn)              glass_help(g);
+    if (picking)             glass_pick(g);
+    else if (helpOn)         glass_help(g);
     else if (selVoice >= 0)  glass_editor(g);
     else                     glass_grid(g);
     zone_keybed(f.box[2]);
@@ -839,11 +910,18 @@ void spec(void) {
            "blues reads I7 IV7 V7 in A");
 
     // NEW SONG empties the arrangement; the "+" slot builds it back
+    modeSel = 0; keyPc = 0;
     new_song();
     expect_eq(nbars, 0, "new_song empties the arrangement");
-    expect(!playing && selVoice < 0, "new_song stops + closes the editor");
+    expect(!playing && selVoice < 0 && !picking, "new_song stops + closes editor/picker");
     add_bar();
     expect_eq(nbars, 1, "the + slot adds the first bar back (a I in the key)");
+
+    // the chord picker: append_chord + the keybed's diatonic-quality helper
+    new_song();
+    expect_eq(qual_for_root(7), HBQ_DOM7, "qual_for_root: G in C major = V's dominant 7");
+    append_chord((keyPc + hb_off[HB_V]) % 12, hb_qual[HB_V]);
+    expect(nbars == 1 && pfn[0] == HB_V, "picker append: a V lands as V");
 
     // back to a clean state
     modeSel = 0; keyPc = 0; seed_demo();

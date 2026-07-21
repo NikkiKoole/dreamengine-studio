@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to open its voice's block editor in the glass; BACK closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + per-cell FOLLOW/MUTE/WALK. DRUMS: global STYLE + per-cell GROOVE/FILL. MEL: FOLLOW/REST/ACCENT. PAD: FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression."
   }
 }
 de:meta */
@@ -521,6 +521,20 @@ static Box glass_panel(Box b) {
 
 // the VOICE RAIL — row headers aligned to the glass lanes; tap = mute/unmute.
 static void zone_rail(Box rail, Box g) {
+    // FOCUS mode: the edited voice's lane is promoted to the top row, so the rail
+    // shows just that voice's header (aligned to the strip) + a big BACK below.
+    if (selVoice >= 0 && !picking && !helpOn) {
+        Box r0 = lay_grid(g, 1, VOICES, 0, 1);
+        Box r1 = lay_grid(g, 1, VOICES, 1, 1);
+        Box hdr = box(rail.x, r0.y, rail.w, r0.h);
+        rrectfill((int)hdr.x, (int)hdr.y, (int)hdr.w, (int)hdr.h, 2, CLR_DARK_BLUE);
+        rect((int)hdr.x, (int)hdr.y, (int)hdr.w, (int)hdr.h, CLR_ORANGE);
+        print(VL[selVoice], (int)(hdr.x + hdr.w / 2 - text_width(VL[selVoice]) / 2),
+              (int)(hdr.y + hdr.h / 2 - 2), CLR_WHITE);
+        Box back = box(rail.x, r1.y, rail.w, g.y + g.h - r1.y);
+        if (seg(back, "BACK", 0, 0x2400)) selVoice = -1;
+        return;
+    }
     for (int v = 0; v < VOICES; v++) {
         Box lane = lay_grid(g, 1, VOICES, v, 1);
         Box row = box(rail.x, lane.y, rail.w, lane.h);
@@ -634,16 +648,9 @@ static void glass_pick(Box g) {
 }
 
 // ── the block EDITORS, drawn ON the glass (chassis stays put) ───────────────
-static void editor_top(Box *g, const char *what) {
-    Box top = lay_split(*g, EDGE_TOP, 11, g);
-    char t[20]; snprintf(t, sizeof t, "BAR %d %s", selBar + 1, what);
-    print(t, (int)top.x + 1, (int)(top.y + 3), CLR_LIGHT_GREY);
-    Box back = lay_split(top, EDGE_RIGHT, 30, &top);
-    if (seg(back, "BACK", 0, 0x2400)) selVoice = -1;
-}
-
+// the voice EDITORS below draw only their settings into the box they're given (the
+// area under the promoted lane strip); the strip + rail-BACK are the header now.
 static void editor_chords(Box g) {
-    editor_top(&g, "CHORD");
     // left: the ^ name v spinner
     Box spin = lay_split(g, EDGE_LEFT, g.w * 0.42f, &g);
     Box up = lay_split(spin, EDGE_TOP, 11, &spin);
@@ -676,7 +683,6 @@ static void editor_chords(Box g) {
 
 // a voice editor with an optional global STYLE chip + a row of per-cell segments.
 static void editor_bass(Box g) {
-    editor_top(&g, "BASS");
     Box styRow = lay_split(g, EDGE_TOP, 15, &g);
     char sv[8]; snprintf(sv, sizeof sv, "%s", BASS_LAB[bassSel]);
     if (chip(lay_inset(styRow, 1), "STYLE", sv, 1, 0x2430)) bassSel = (bassSel + 1) % 4;
@@ -687,7 +693,6 @@ static void editor_bass(Box g) {
     if (seg(lay_grid(p, 3, 3, 2, 1), "WALK",   bl == 1, 0x2433)) arr[selBar].bass = 1;
 }
 static void editor_drums(Box g) {
-    editor_top(&g, "DRUMS");
     Box styRow = lay_split(g, EDGE_TOP, 15, &g);
     char sv[8]; snprintf(sv, sizeof sv, "%s", DRUM_LAB[drumSel]);
     if (chip(lay_inset(styRow, 1), "STYLE", sv, 1, 0x2440)) drumSel = (drumSel + 1) % 2;
@@ -696,7 +701,6 @@ static void editor_drums(Box g) {
     if (seg(lay_grid(p, 2, 2, 1, 1), "FILL",   arr[selBar].fill == 1, 0x2442)) arr[selBar].fill = 1;
 }
 static void editor_mel(Box g) {
-    editor_top(&g, "MEL");
     Box p = lay_inset(g, 1);
     int ml = arr[selBar].mel;
     if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", ml < 0, 0x2451)) arr[selBar].mel = -1;
@@ -704,20 +708,52 @@ static void editor_mel(Box g) {
     if (seg(lay_grid(p, 3, 3, 2, 1), "ACCENT", ml == 1, 0x2453)) arr[selBar].mel = 1;
 }
 static void editor_pad(Box g) {
-    editor_top(&g, "PAD");
     Box p = lay_inset(g, 1);
     int pl = arr[selBar].pad;
     if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", pl < 0, 0x2461)) arr[selBar].pad = -1;
     if (seg(lay_grid(p, 3, 3, 1, 1), "OFF",    pl == 0, 0x2462)) arr[selBar].pad = 0;
     if (seg(lay_grid(p, 3, 3, 2, 1), "ON",     pl == 1, 0x2463)) arr[selBar].pad = 1;
 }
+// the promoted lane — the selected voice's 8 cells, kept visible at the top row so
+// edits land IN PLACE. The selected bar is yellow; tap another cell to scrub to it.
+static void focus_strip(Box lane) {
+    for (int i = 0; i < NBARS; i++) {
+        Box c = lay_grid(lane, NBARS, NBARS, i, 1);
+        int on = i < nbars, cur = playing && i == playSlot, sel = i == selBar;
+        rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 1,
+                  on ? (cur ? CLR_DARK_BLUE : CLR_DARKER_BLUE) : CLR_BROWNISH_BLACK);
+        if (selVoice == V_CH && on) {
+            const char *rn = pfn[i] >= 0 ? cur_vocab()->fname[pfn[i]] : "?";
+            print(rn, (int)(c.x + c.w / 2 - text_width(rn) / 2), (int)(c.y + c.h / 2 - 2),
+                  pfn[i] >= 0 ? (sel ? CLR_WHITE : CLR_YELLOW) : CLR_RED);
+        } else if (on) {
+            int lk = cell_locked(selVoice, i);
+            rectfill((int)(c.x + c.w / 2 - 1), (int)(c.y + c.h / 2 - 1), 3, 3,
+                     lk ? CLR_ORANGE : CLR_MEDIUM_GREY);
+        }
+        rect((int)c.x, (int)c.y, (int)c.w, (int)c.h,
+             sel ? CLR_YELLOW : (cur ? CLR_LIME_GREEN : CLR_DARKER_GREY));
+        if (on && tapped(c, 0x2700u + i)) selBar = i;
+    }
+}
 static void glass_editor(Box g) {
+    // the promoted lane stays at the top (row 0 of the shared 5-slot register, so it
+    // aligns with the rail header); the settings unfold in the freed space below.
+    Box r0 = lay_grid(g, 1, VOICES, 0, 1);
+    Box r1 = lay_grid(g, 1, VOICES, 1, 1);
+    focus_strip(r0);
+    Box s = box(g.x, r1.y, g.w, g.y + g.h - r1.y);
+    Box hdr = lay_split(s, EDGE_TOP, 7, &s);
+    char nm[16]; chname(nm, sizeof nm, arr[selBar].rootPc, arr[selBar].qual, bar_sev(selBar));
+    const char *rn = pfn[selBar] >= 0 ? cur_vocab()->fname[pfn[selBar]] : "?";
+    char t[28]; snprintf(t, sizeof t, "BAR %d   %s   %s", selBar + 1, nm, rn);
+    print(t, (int)hdr.x + 1, (int)hdr.y + 1, CLR_INDIGO);
     switch (selVoice) {
-        case V_CH: editor_chords(g); break;
-        case V_BA: editor_bass(g);   break;
-        case V_ME: editor_mel(g);    break;
-        case V_DR: editor_drums(g);  break;
-        case V_PA: editor_pad(g);    break;
+        case V_CH: editor_chords(s); break;
+        case V_BA: editor_bass(s);   break;
+        case V_ME: editor_mel(s);    break;
+        case V_DR: editor_drums(s);  break;
+        case V_PA: editor_pad(s);    break;
     }
 }
 

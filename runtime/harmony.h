@@ -117,6 +117,33 @@ static const int hbd_qual[HBd_NFUNC] = { HBQ_MIN7, HBQ_MIN7, HBQ_MAJ7, HBQ_DOM7,
                                          HBQ_MIN7, HBQ_M7B5, HBQ_MAJ7 };
 static const char *hbd_fname[HBd_NFUNC] = { "i","ii","III","IV","v","vi\xf8","VII" };
 
+// ── the MIXOLYDIAN vocab — MAJOR with a flat 7 (rock/funk/folk). The tonic is a
+// dominant (I7) and the tell is the major bVII: the bVII-IV-I "mixolydian
+// cadence" (Sweet Home Alabama, most of rock). Diatonic 7ths off the tonic.
+enum { HBmx_I, HBmx_ii, HBmx_iiio, HBmx_IV, HBmx_v, HBmx_vi, HBmx_bVII, HBmx_NFUNC };
+static const int hbmx_off[HBmx_NFUNC]  = { 0, 2, 4, 5, 7, 9, 10 };
+static const int hbmx_qual[HBmx_NFUNC] = { HBQ_DOM7, HBQ_MIN7, HBQ_M7B5, HBQ_MAJ7,
+                                           HBQ_MIN7, HBQ_MIN7, HBQ_MAJ7 };
+static const char *hbmx_fname[HBmx_NFUNC] = { "I","ii","iii\xf8","IV","v","vi","bVII" };
+
+// ── the PHRYGIAN vocab — MINOR with a flat 2 (metal / flamenco / "Spanish"). The
+// tell is the major bII a half-step above the tonic: the bII-i "Phrygian cadence"
+// (the Andalusian pull). Natural minor's flat 3/6/7 plus that flat 2.
+enum { HBph_i, HBph_bII, HBph_III, HBph_iv, HBph_vo, HBph_VI, HBph_vii, HBph_NFUNC };
+static const int hbph_off[HBph_NFUNC]  = { 0, 1, 3, 5, 7, 8, 10 };
+static const int hbph_qual[HBph_NFUNC] = { HBQ_MIN7, HBQ_MAJ7, HBQ_DOM7, HBQ_MIN7,
+                                           HBQ_M7B5, HBQ_MAJ7, HBQ_MIN7 };
+static const char *hbph_fname[HBph_NFUNC] = { "i","bII","III","iv","v\xf8","VI","vii" };
+
+// ── the LYDIAN vocab — MAJOR with a sharp 4 (dreamy / film / "The Simpsons"). The
+// tell is the major II a whole-step up: the I-II vamp (the floating lydian sound).
+// Diatonic 7ths off the tonic; the #iv° is the raised-4th diminished seat.
+enum { HBly_I, HBly_II, HBly_iii, HBly_ivo, HBly_V, HBly_vi, HBly_vii, HBly_NFUNC };
+static const int hbly_off[HBly_NFUNC]  = { 0, 2, 4, 6, 7, 9, 11 };
+static const int hbly_qual[HBly_NFUNC] = { HBQ_MAJ7, HBQ_DOM7, HBQ_MIN7, HBQ_M7B5,
+                                           HBQ_MAJ7, HBQ_MIN7, HBQ_MIN7 };
+static const char *hbly_fname[HBly_NFUNC] = { "I","II","iii","#iv\xf8","V","vi","vii" };
+
 // ── styles: where can each function go? repeats = more likely ────────────────
 // A style is weights over ONE vocab (the research finding: genres differ by
 // weights, not grammars). Row length is part of a cart's PRNG contract — never
@@ -250,12 +277,47 @@ static const char *hbd_reason(int from, int to) {
     if (to == HBd_III)                   return "relative";
     return "walk";
 }
+// mixolydian motion — the bVII-IV-I cadence is the rock tell
+static const char *hbmx_reason(int from, int to) {
+    if (to == HBmx_I && from == HBmx_bVII) return "mixo cadence";
+    if (to == HBmx_I && from == HBmx_IV)   return "plagal";
+    if (to == HBmx_I)                      return "home";
+    if (to == HBmx_bVII)                   return "the bVII";
+    if (to == HBmx_IV)                     return "the IV";
+    if (to == HBmx_v || to == HBmx_vi)     return "relative";
+    if (to == HBmx_ii)                     return "pre-cadence";
+    return "walk";
+}
+// phrygian motion — the bII-i half-step is the flamenco/metal tell
+static const char *hbph_reason(int from, int to) {
+    if (to == HBph_i && from == HBph_bII)  return "phryg cadence";
+    if (to == HBph_i && from == HBph_vii)  return "subtonic";
+    if (to == HBph_i)                      return "home";
+    if (to == HBph_bII)                    return "the bII";
+    if (to == HBph_III)                    return "relative";
+    if (to == HBph_iv)                     return "minor sub";
+    if (to == HBph_VI)                     return "the VI";
+    return "walk";
+}
+// lydian motion — the I<->II vamp is the floating tell
+static const char *hbly_reason(int from, int to) {
+    if (to == HBly_I && from == HBly_II)   return "lydian vamp";
+    if (to == HBly_I)                      return "home";
+    if (to == HBly_II)                     return "bright II";
+    if (to == HBly_V)                      return "cadence";
+    if (to == HBly_vi)                     return "relative";
+    if (to == HBly_iii)                    return "pre-cadence";
+    return "walk";
+}
 // the vocab instances — the major one wraps the frozen arrays; a NULL style vocab
 // resolves to this, so nothing pre-existing changes.
 static const HbVocab HB_MAJOR       = { hb_off,   hb_qual,   hb_fname,   HB_NFUNC,   hb_reason };
 static const HbVocab HB_MINOR       = { hbm_off,  hbm_qual,  hbm_fname,  HBm_NFUNC,  hbm_reason };
 static const HbVocab HB_BLUES_VOCAB = { hbbl_off, hbbl_qual, hbbl_fname, HBbl_NFUNC, hbbl_reason };
 static const HbVocab HB_DORIAN      = { hbd_off,  hbd_qual,  hbd_fname,  HBd_NFUNC,  hbd_reason };
+static const HbVocab HB_MIXO        = { hbmx_off, hbmx_qual, hbmx_fname, HBmx_NFUNC, hbmx_reason };
+static const HbVocab HB_PHRYG       = { hbph_off, hbph_qual, hbph_fname, HBph_NFUNC, hbph_reason };
+static const HbVocab HB_LYDIAN      = { hbly_off, hbly_qual, hbly_fname, HBly_NFUNC, hbly_reason };
 
 // a MINOR-POP / EDM style — the loops the tribe hums: i-VI-III-VII, i-iv-V, the
 // climb i-VI-VII-i. Weighted over the minor vocab; not consumed by any radio.
@@ -335,6 +397,45 @@ static const int *const HB_CIN_NEXT[HBm_NFUNC] = { HB_CIN_i, HB_CIN_iio, HB_CIN_
     HB_CIN_iv, HB_CIN_v, HB_CIN_V, HB_CIN_VI, HB_CIN_VII, HB_CIN_viio };
 static const int HB_CIN_N[HBm_NFUNC] = { 6, 2, 4, 3, 3, 2, 5, 5, 2 };
 static const HbStyle HB_CINEMATIC = { HB_CIN_NEXT, HB_CIN_N, HBm_NFUNC, &HB_MINOR };
+
+// a MIXOLYDIAN style — the I-bVII-IV rock vamp is home base; bVII keeps returning.
+static const int HB_MX_I[7]    = { HBmx_bVII, HBmx_bVII, HBmx_bVII, HBmx_IV, HBmx_IV, HBmx_v, HBmx_vi };
+static const int HB_MX_ii[3]   = { HBmx_v, HBmx_IV, HBmx_I };
+static const int HB_MX_iiio[2] = { HBmx_IV, HBmx_vi };
+static const int HB_MX_IV[5]   = { HBmx_I, HBmx_I, HBmx_bVII, HBmx_bVII, HBmx_v };
+static const int HB_MX_v[3]    = { HBmx_I, HBmx_IV, HBmx_bVII };
+static const int HB_MX_vi[4]   = { HBmx_IV, HBmx_IV, HBmx_bVII, HBmx_ii };
+static const int HB_MX_bVII[5] = { HBmx_IV, HBmx_IV, HBmx_I, HBmx_I, HBmx_v };
+static const int *const HB_MIXO_NEXT[HBmx_NFUNC] = { HB_MX_I, HB_MX_ii, HB_MX_iiio,
+    HB_MX_IV, HB_MX_v, HB_MX_vi, HB_MX_bVII };
+static const int HB_MIXO_N[HBmx_NFUNC] = { 7, 3, 2, 5, 3, 4, 5 };
+static const HbStyle HB_MIXO_STYLE = { HB_MIXO_NEXT, HB_MIXO_N, HBmx_NFUNC, &HB_MIXO };
+
+// a PHRYGIAN style — the i<->bII half-step vamp (flamenco / metal); bII dominates.
+static const int HB_PH_i[6]   = { HBph_bII, HBph_bII, HBph_bII, HBph_vii, HBph_III, HBph_iv };
+static const int HB_PH_bII[4] = { HBph_i, HBph_i, HBph_III, HBph_vii };
+static const int HB_PH_III[3] = { HBph_iv, HBph_bII, HBph_i };
+static const int HB_PH_iv[3]  = { HBph_i, HBph_III, HBph_bII };
+static const int HB_PH_vo[2]  = { HBph_i, HBph_iv };
+static const int HB_PH_VI[3]  = { HBph_bII, HBph_III, HBph_i };
+static const int HB_PH_vii[3] = { HBph_i, HBph_i, HBph_VI };
+static const int *const HB_PHRYG_NEXT[HBph_NFUNC] = { HB_PH_i, HB_PH_bII, HB_PH_III,
+    HB_PH_iv, HB_PH_vo, HB_PH_VI, HB_PH_vii };
+static const int HB_PHRYG_N[HBph_NFUNC] = { 6, 4, 3, 3, 2, 3, 3 };
+static const HbStyle HB_PHRYG_STYLE = { HB_PHRYG_NEXT, HB_PHRYG_N, HBph_NFUNC, &HB_PHRYG };
+
+// a LYDIAN style — the I<->II vamp is home base (the floating, film-score sound).
+static const int HB_LY_I[6]   = { HBly_II, HBly_II, HBly_II, HBly_V, HBly_vi, HBly_iii };
+static const int HB_LY_II[4]  = { HBly_I, HBly_I, HBly_V, HBly_vi };
+static const int HB_LY_iii[3] = { HBly_vi, HBly_II, HBly_I };
+static const int HB_LY_ivo[2] = { HBly_V, HBly_I };
+static const int HB_LY_V[4]   = { HBly_I, HBly_I, HBly_vi, HBly_II };
+static const int HB_LY_vi[3]  = { HBly_II, HBly_V, HBly_iii };
+static const int HB_LY_vii[2] = { HBly_I, HBly_iii };
+static const int *const HB_LYDIAN_NEXT[HBly_NFUNC] = { HB_LY_I, HB_LY_II, HB_LY_iii,
+    HB_LY_ivo, HB_LY_V, HB_LY_vi, HB_LY_vii };
+static const int HB_LYDIAN_N[HBly_NFUNC] = { 6, 4, 3, 2, 4, 3, 2 };
+static const HbStyle HB_LYDIAN_STYLE = { HB_LYDIAN_NEXT, HB_LYDIAN_N, HBly_NFUNC, &HB_LYDIAN };
 
 typedef struct { int f, w; const char *why; } HbOpt;   // function, weight, reason
 
@@ -494,6 +595,20 @@ static inline void hb_selfcheck(void) {
       expect(okb, "hb blues round-trip: function -> chord -> same function, all 12 keys");
       expect(okd, "hb dorian round-trip: function -> chord -> same function, all 12 keys"); }
 
+    // the other three church modes round-trip too (each a distinct declared key)
+    { int okx = 1, okp = 1, okl = 1;
+      for (int k = 0; k < 12; k++) {
+          for (int f = 0; f < HBmx_NFUNC; f++)
+              okx &= hb_vocab_fn(&HB_MIXO, k, (k + hbmx_off[f]) % 12, hbmx_qual[f]) == f;
+          for (int f = 0; f < HBph_NFUNC; f++)
+              okp &= hb_vocab_fn(&HB_PHRYG, k, (k + hbph_off[f]) % 12, hbph_qual[f]) == f;
+          for (int f = 0; f < HBly_NFUNC; f++)
+              okl &= hb_vocab_fn(&HB_LYDIAN, k, (k + hbly_off[f]) % 12, hbly_qual[f]) == f;
+      }
+      expect(okx, "hb mixolydian round-trip: all 12 keys");
+      expect(okp, "hb phrygian round-trip: all 12 keys");
+      expect(okl, "hb lydian round-trip: all 12 keys"); }
+
     // dorian's tell: the major IV, and the i<->IV vamp is the top suggestion
     { int t[4];
       hb_vocab_pcs(&HB_DORIAN, 0, HBd_IV, t);     // IV in C dorian = F major (F A C)
@@ -507,6 +622,21 @@ static inline void hb_selfcheck(void) {
       expect(nf >= 1 && o[0].f == HB_IV, "hb folk: I leans IV (plagal, IV-forward)");
       int nc = hb_suggest(&HB_CINEMATIC, HBm_i, o, 4);   // cinematic from i: the VI climb
       expect(nc >= 1 && o[0].f == HBm_VI, "hb cinematic: i leans VI (the epic climb)"); }
+
+    // each mode's characteristic chord is its top pull, and it's the right quality
+    { int t[4]; HbOpt o[4]; int n;
+      n = hb_suggest(&HB_MIXO_STYLE, HBmx_I, o, 4);
+      expect(n >= 1 && o[0].f == HBmx_bVII, "hb mixo: I leans bVII (the rock cadence)");
+      hb_vocab_pcs(&HB_MIXO, 0, HBmx_bVII, t);           // bVII in C = Bb major
+      expect(t[0]==10 && t[1]==2 && t[2]==5, "hb mixo: bVII in C = Bb MAJOR");
+      n = hb_suggest(&HB_PHRYG_STYLE, HBph_i, o, 4);
+      expect(n >= 1 && o[0].f == HBph_bII, "hb phryg: i leans bII (the half-step)");
+      hb_vocab_pcs(&HB_PHRYG, 0, HBph_bII, t);           // bII in C = Db major
+      expect(t[0]==1 && t[1]==5 && t[2]==8, "hb phryg: bII in C = Db MAJOR");
+      n = hb_suggest(&HB_LYDIAN_STYLE, HBly_I, o, 4);
+      expect(n >= 1 && o[0].f == HBly_II, "hb lydian: I leans II (the bright II)");
+      hb_vocab_pcs(&HB_LYDIAN, 0, HBly_II, t);           // II in C = D major
+      expect(t[0]==2 && t[1]==6 && t[2]==9, "hb lydian: II in C = D MAJOR"); }
 }
 #endif // DE_SPEC
 

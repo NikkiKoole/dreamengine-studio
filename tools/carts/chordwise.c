@@ -13,9 +13,9 @@
   ],
   "lineage": "The first consumer of runtime/harmony.h — the shared harmony brain extracted byte-identically from bossa/cocktail's Markov chord engines (design/harmony-brain.md). Built for the loudest demand-discovery gap on record: r/musictheory demand-82, 'a harmonic progression analyzer / suggestion tool'. Analysis is generation inverted: the same function vocab + transition table that composes bossa's changes here names YOUR chords and ranks what could come next.",
   "description": {
-    "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). Eight modes span MAJOR (bossa/lounge/pop/folk), MINOR (sad-pop + cinematic), DORIAN (lo-fi/neo-soul) and BLUES, and a 7THS/TRIAD toggle reads (and voices) plain triads (Am F C G) for beginners or full sevenths for jazz. SPACE loops your changes on a soft pluck.",
-    "detail": "The demand-82 toy: a progression analyzer + next-chord suggester on the shared harmony brain (runtime/harmony.h, lifted byte-identically from the bossa/cocktail radio stations). B cycles eight MODES that each swap the whole tonal system - the palette respells, the strip re-analyses, NEXT re-ranks. Three ride the 13-function MAJOR vocab, differently weighted (the research thesis - genres differ by WEIGHTS, not grammar): BOSSA (jazz - 6 diatonic seats + the borrowed/chromatic shelf: II7/VI7, tritone sub bII7, backdoor iv/bVII7, v, I7), LOUNGE (cocktail's 10-function trio tuning), POP (the I-V-vi-IV axis + 50s doo-wop), FOLK (IV-forward three-chord-song staples, plainer than pop). Two ride the MINOR vocab (i ii° III iv v V VI VII vii°, natural + harmonic-minor V): MINOR (sad-pop/EDM) and CINE (the epic i-VI-III-VII trailer climb). DORIAN adds its own vocab - minor with a bright MAJOR IV, the lo-fi/neo-soul i<->IV vamp. BLUES is I7 IV7 V7, the 12-bar's whole world. Tap chords into an 8-slot strip; every frame the strip is RE-ANALYZED from the raw chords (root + quality) against the current mode's vocab, so the roman numerals are honest lookups, not echoes of what you pressed - move the key OR the mode under a finished progression and the same chords re-name (Cmaj7: I in C major, III in A minor), and chords outside the mode's vocabulary show ? instead of a guess. Minor/blues analysis works because the key is DECLARED, never guessed (auto-detecting major-vs-minor from raw chords is the unsolved part, which this toy sidesteps by design). The NEXT panel reads the same Markov table that composes the songs FORWARD: ranked candidates with weight pips and a one-word reason each - the research made audible: genres differ by WEIGHTS over a vocab, not by grammar. Deterministic; carries a spec() (round-trip: every function's spelling re-analyzes to itself in all 12 keys, in major, minor AND blues; doo-wop = I vi IV V; ii-V-I; minor i-VI).",
-    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the top row, A S D F G H J = the second row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle mode (BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/BLUES). 7 (or the 7THS/TRIAD button) toggles between seventh chords (Am7 Fmaj7) and plain triads (Am F) - triads also VOICE without the 7th, so the tool reads AND sounds basic."
+    "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). Eleven modes span MAJOR (bossa/lounge/pop/folk), MINOR (sad-pop + cinematic), all four church MODES (dorian/mixolydian/phrygian/lydian) and BLUES, and a 7THS/TRIAD toggle reads (and voices) plain triads (Am F C G) for beginners or full sevenths for jazz. SPACE loops your changes on a soft pluck.",
+    "detail": "The demand-82 toy: a progression analyzer + next-chord suggester on the shared harmony brain (runtime/harmony.h, lifted byte-identically from the bossa/cocktail radio stations). B cycles eleven MODES that each swap the whole tonal system - the palette respells, the strip re-analyses, NEXT re-ranks. Four ride the 13-function MAJOR vocab, differently weighted (the research thesis - genres differ by WEIGHTS, not grammar): BOSSA (jazz - 6 diatonic seats + the borrowed/chromatic shelf: II7/VI7, tritone sub bII7, backdoor iv/bVII7, v, I7), LOUNGE (cocktail's 10-function trio tuning), POP (the I-V-vi-IV axis + 50s doo-wop), FOLK (IV-forward three-chord-song staples, plainer than pop). Two ride the MINOR vocab (i ii° III iv v V VI VII vii°, natural + harmonic-minor V): MINOR (sad-pop/EDM) and CINE (the epic i-VI-III-VII trailer climb). Then the four CHURCH MODES, each its own vocab with one characteristic chord: DORIAN (minor + a bright MAJOR IV, the lo-fi/neo-soul i<->IV vamp), MIXOLYDIAN (major + a flat 7, the bVII-IV-I rock cadence), PHRYGIAN (minor + a flat 2, the bII-i flamenco/metal half-step), LYDIAN (major + a sharp 4, the floating I<->II film sound). BLUES is I7 IV7 V7, the 12-bar's whole world. Analysis stays honest in every mode because the key is DECLARED, never guessed. Tap chords into an 8-slot strip; every frame the strip is RE-ANALYZED from the raw chords (root + quality) against the current mode's vocab, so the roman numerals are honest lookups, not echoes of what you pressed - move the key OR the mode under a finished progression and the same chords re-name (Cmaj7: I in C major, III in A minor), and chords outside the mode's vocabulary show ? instead of a guess. Minor/blues analysis works because the key is DECLARED, never guessed (auto-detecting major-vs-minor from raw chords is the unsolved part, which this toy sidesteps by design). The NEXT panel reads the same Markov table that composes the songs FORWARD: ranked candidates with weight pips and a one-word reason each - the research made audible: genres differ by WEIGHTS over a vocab, not by grammar. Deterministic; carries a spec() (round-trip: every function's spelling re-analyzes to itself in all 12 keys, in major, minor AND blues; doo-wop = I vi IV V; ii-V-I; minor i-VI).",
+    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the top row, A S D F G H J = the second row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle mode (BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES). 7 (or the 7THS/TRIAD button) toggles between seventh chords (Am7 Fmaj7) and plain triads (Am F) - triads also VOICE without the 7th, so the tool reads AND sounds basic."
   }
 }
 de:meta */
@@ -70,6 +70,19 @@ static const int DORIAN_ORDER[HBd_NFUNC] = {
     HBd_i, HBd_IV, HBd_VII, HBd_v,                    // row 1: the vamp
     HBd_ii, HBd_III, HBd_vio                          // row 2: the color
 };
+// the other three modes: the characteristic chord second in row 1, color below
+static const int MIXO_ORDER[HBmx_NFUNC] = {
+    HBmx_I, HBmx_bVII, HBmx_IV, HBmx_v, HBmx_vi,      // row 1: I-bVII-IV rock vamp
+    HBmx_ii, HBmx_iiio                                // row 2: the color
+};
+static const int PHRYG_ORDER[HBph_NFUNC] = {
+    HBph_i, HBph_bII, HBph_III, HBph_iv, HBph_VI,     // row 1: i-bII flamenco vamp
+    HBph_vo, HBph_vii                                 // row 2: the color
+};
+static const int LYDIAN_ORDER[HBly_NFUNC] = {
+    HBly_I, HBly_II, HBly_V, HBly_vi, HBly_iii,       // row 1: I-II floating vamp
+    HBly_ivo, HBly_vii                                // row 2: the color
+};
 
 typedef struct {
     const char    *name;      // the mode button label
@@ -87,6 +100,9 @@ static const Mode MODES[] = {
     { "MINOR",  &HB_MINPOP,      6, "MINOR",    "HARMONIC", MINOR_ORDER,  1 },
     { "CINE",   &HB_CINEMATIC,   6, "MINOR",    "HARMONIC", MINOR_ORDER,  1 },
     { "DORIAN", &HB_DORIAN_STYLE,4, "DORIAN",   "COLOR",    DORIAN_ORDER, 0 },
+    { "MIXO",   &HB_MIXO_STYLE,  5, "MIXO",     "COLOR",    MIXO_ORDER,   0 },
+    { "PHRYG",  &HB_PHRYG_STYLE, 5, "PHRYG",    "COLOR",    PHRYG_ORDER,  0 },
+    { "LYDIAN", &HB_LYDIAN_STYLE,5, "LYDIAN",   "COLOR",    LYDIAN_ORDER, 0 },
     { "BLUES",  &HB_BLUES,       3, "12-BAR",   "",         NULL,         0 },
 };
 #define NMODE ((int)(sizeof MODES / sizeof MODES[0]))
@@ -339,8 +355,31 @@ void spec(void) {
     add_chord(5, HB_TRIAD_MAJ);                      // an F MAJOR triad = IV in C dorian
     expect_eq(pfn[3], HBd_IV, "F major in C dorian -> IV (the bright IV, named)");
 
-    // BLUES mode (index 7): A7 D7 E7 in A = I7 IV7 V7 (all dominant, the 12-bar)
-    modeSel = 7; plen = 0; keyPc = 9; rethink();
+    // MIXOLYDIAN (index 7): the major bVII is diatonic here (Bb in C = bVII, the
+    // rock cadence), where in C MAJOR that same chord is the borrowed bVII7.
+    modeSel = 7; plen = 0; keyPc = 0; rethink();
+    add_fn(HBmx_I); add_fn(HBmx_bVII); add_fn(HBmx_IV);
+    expect(pfn[0] == HBmx_I && pfn[1] == HBmx_bVII && pfn[2] == HBmx_IV,
+           "mixo strip reads I bVII IV in C");
+    add_chord(10, HB_TRIAD_MAJ);                     // Bb major triad = bVII
+    expect_eq(pfn[3], HBmx_bVII, "Bb major in C mixo -> bVII (named diatonic)");
+
+    // PHRYGIAN (index 8): the tell is the major bII a half-step up (Db in C).
+    modeSel = 8; plen = 0; keyPc = 0; rethink();
+    add_fn(HBph_i); add_fn(HBph_bII);
+    expect(pfn[0] == HBph_i && pfn[1] == HBph_bII, "phryg strip reads i bII in C");
+    add_chord(1, HB_TRIAD_MAJ);                      // Db major triad = bII
+    expect_eq(pfn[2], HBph_bII, "Db major in C phrygian -> bII (the tell)");
+
+    // LYDIAN (index 9): the tell is the major II a whole-step up (D in C).
+    modeSel = 9; plen = 0; keyPc = 0; rethink();
+    add_fn(HBly_I); add_fn(HBly_II);
+    expect(pfn[0] == HBly_I && pfn[1] == HBly_II, "lydian strip reads I II in C");
+    add_chord(2, HB_TRIAD_MAJ);                      // D major triad = II
+    expect_eq(pfn[2], HBly_II, "D major in C lydian -> II (the bright II)");
+
+    // BLUES mode (index 10): A7 D7 E7 in A = I7 IV7 V7 (all dominant, the 12-bar)
+    modeSel = 10; plen = 0; keyPc = 9; rethink();
     add_fn(HBbl_I); add_fn(HBbl_IV); add_fn(HBbl_V);
     expect(pfn[0] == HBbl_I && pfn[1] == HBbl_IV && pfn[2] == HBbl_V,
            "blues strip reads I7 IV7 V7 in A");

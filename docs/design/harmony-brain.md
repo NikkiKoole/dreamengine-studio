@@ -217,14 +217,18 @@ any pinned seed):
   `hb_qname`) + a `7`/`7THS`⇄`TRIAD` toggle in `chordwise` that spells AND voices plain triads
   (`Am F C G`, dropping the 7th from both the label and the played chord), so the tool reads and
   sounds basic. Roman-numeral function is unaffected — only the chord spelling simplifies.
-- **DORIAN vocab + FOLK/CINE style tables (2026-07-21):** `HB_DORIAN` — minor with a bright MAJOR
-  IV (the lo-fi/neo-soul i↔IV vamp), the first *modal* vocab; analysis stays free (declared key).
-  Plus two zero-new-vocab style tables proving the "genres = weights" thesis: `HB_FOLK` (IV-forward
-  three-chord staples over the major vocab) and `HB_CINEMATIC` (the epic i-VI-III-VII climb over the
-  minor vocab). `chordwise` now cycles **eight** modes (BOSSA/LOUNGE/POP/FOLK · MINOR/CINE · DORIAN ·
-  BLUES). All round-trip spec-locked in `hb_selfcheck`.
-- **Still open:** the other church modes (Mixolydian bVII-IV-I, Phrygian bII, Lydian #IV) — each a
-  small vocab like Dorian; the analysis-is-free property carries over.
+- **FOLK/CINE style tables (2026-07-21):** two zero-new-vocab style tables proving the "genres =
+  weights" thesis: `HB_FOLK` (IV-forward three-chord staples over the major vocab) and `HB_CINEMATIC`
+  (the epic i-VI-III-VII climb over the minor vocab).
+- **All four CHURCH MODES (2026-07-21):** `HB_DORIAN` (minor + bright MAJOR IV, the lo-fi/neo-soul
+  i↔IV vamp), `HB_MIXO` (major + flat 7, the bVII-IV-I rock cadence), `HB_PHRYG` (minor + flat 2, the
+  bII-i flamenco/metal half-step), `HB_LYDIAN` (major + sharp 4, the floating I↔II film sound). Each
+  is its own small vocab with one characteristic chord; analysis stays free because chordwise's key is
+  declared. `chordwise` now cycles **eleven** modes (BOSSA/LOUNGE/POP/FOLK · MINOR/CINE · DORIAN/MIXO/
+  PHRYG/LYDIAN · BLUES), all round-trip spec-locked in `hb_selfcheck`.
+- **Still open:** nothing on the vocab front — major, minor, all seven diatonic modes (via the four
+  church-mode vocabs + major/minor), and blues are covered. Further work is new *styles* (weights)
+  over the existing vocabs, or a second consumer of the modal vocabs (a radio station / instrument).
 
 ## What's still open (post-v1, 2026-07-20)
 

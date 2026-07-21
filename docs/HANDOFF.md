@@ -46,6 +46,16 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
+> **▶ ACTIVE THREAD (2026-07-21) — `bandbox`: the chord-chart SEQUENCER (mockup done, READY TO WIRE).**
+> The standalone device-face instrument the `chordwise` analyzer pointed at: a 160×100 face where you
+> compose a chord chart and a genre band (chords/bass/mel/drums/pad) follows it, every voice a lane of
+> **lego-block cells** with per-cell **p-locks**. This session settled the whole LOOK (draw-only mockup,
+> committed `26e58cb6`): glass 5-lane tracker + chassis (aligned voice rail / nav / keybed), FONT_TINY,
+> screen-morphs-chassis-stays. **NEXT = the build phase — wire it.** Full brief (data model, ordered
+> build plan, reuse map, gotchas): [`design/bandbox.md`](design/bandbox.md). Reuse the working engine in
+> `chordwise.c` (genre band maps + playback) + harmony.h/radio.h/drumkit.h/keybed.h; the shared `band.h`
+> extraction is a LATER call (third-customer rule). Chord-bloom context: [`design/bossa-rack.md`](design/bossa-rack.md).
+
 > **▶ ACTIVE THREAD (2026-07-21) — responsive-first device faces: the `face.h` grammar (Layers 1–3 SHIPPED).**
 > The "could a cart be responsive-and-opinionated *from the start*?" line
 > ([`design/responsive-first-device-face.md`](design/responsive-first-device-face.md)) — a thread DISTINCT

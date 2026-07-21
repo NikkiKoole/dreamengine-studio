@@ -55,6 +55,13 @@ melody-cell disclosure layer, arrangement, and export.
 > to build yet — but when chordblossom2 grows its bass/drums/melody, borrow chordwise's genre maps
 > rather than re-authoring them. Live cart: `tools/carts/chordwise.c`.
 
+> **★ THE SEQUENCER CART EXISTS (2026-07-21) — `bandbox`.** The "own cart when it needs panels" call
+> got made: `bandbox` is a 160×100 device-face chord SEQUENCER (glass 5-lane tracker of lego-block
+> cells with per-cell **p-locks** + chassis rail/nav/keybed). The LOOK is mocked + committed; the
+> build phase (wiring the harmony + genre band + p-locks) is briefed in
+> [`bandbox.md`](bandbox.md). This is the first concrete `band.h` customer #3 — when it settles,
+> extract the shared band engine.
+
 > **The thesis.** The earlier racks bracketed the design space and left a hole in the middle:
 > [`acidrack`](rebirth-classic.md) is **cells all the way down** (great, but acid has no moving
 > harmony); [`yachtrack`](yacht-rack.md) is a **chart + feel knobs** (musically honest, but the

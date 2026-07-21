@@ -13,9 +13,9 @@
   ],
   "lineage": "The first consumer of runtime/harmony.h — the shared harmony brain extracted byte-identically from bossa/cocktail's Markov chord engines (design/harmony-brain.md). Built for the loudest demand-discovery gap on record: r/musictheory demand-82, 'a harmonic progression analyzer / suggestion tool'. Analysis is generation inverted: the same function vocab + transition table that composes bossa's changes here names YOUR chords and ranks what could come next.",
   "description": {
-    "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). Eleven modes span MAJOR (bossa/lounge/pop/folk), MINOR (sad-pop + cinematic), all four church MODES (dorian/mixolydian/phrygian/lydian) and BLUES, and a 7THS/TRIAD toggle reads (and voices) plain triads (Am F C G) for beginners or full sevenths for jazz. SPACE loops your changes on a soft pluck.",
+    "summary": "Build a chord progression by tapping chords in a key - the strip names each one in roman numerals (I, ii, V...) and a NEXT panel suggests where the harmony wants to go, ranked, each with a one-word reason (cadence, home, tritone sub). Change the key and watch the same chords get re-named - or turn un-nameable (?). Eleven modes span MAJOR (bossa/lounge/pop/folk), MINOR (sad-pop + cinematic), all four church MODES (dorian/mixolydian/phrygian/lydian) and BLUES, and a 7THS/TRIAD toggle reads (and voices) plain triads (Am F C G) for beginners or full sevenths for jazz. A STRUM picker rakes the pluck as a block chord, a down/up-stroke or a slow roll, an INV picker voices the chord in root position or an inversion (the bass note changes, so you hear it), an OCT picker drops or lifts the whole voicing a register (the way a pianist plays a chord an octave down), a BASS picker plays a generated bassline under the loop (HOLD root, R-5 root+fifth pump, or a WALK that quarter-note-walks INTO the next chord's root), and a BPM slider sets the loop tempo (60-180). SPACE loops your changes on a soft pluck. A ? button opens a legend explaining the roman numerals and every NEXT reason-word (home, cadence, walk, borrow, tritone sub...).",
     "detail": "The demand-82 toy: a progression analyzer + next-chord suggester on the shared harmony brain (runtime/harmony.h, lifted byte-identically from the bossa/cocktail radio stations). B cycles eleven MODES that each swap the whole tonal system - the palette respells, the strip re-analyses, NEXT re-ranks. Four ride the 13-function MAJOR vocab, differently weighted (the research thesis - genres differ by WEIGHTS, not grammar): BOSSA (jazz - 6 diatonic seats + the borrowed/chromatic shelf: II7/VI7, tritone sub bII7, backdoor iv/bVII7, v, I7), LOUNGE (cocktail's 10-function trio tuning), POP (the I-V-vi-IV axis + 50s doo-wop), FOLK (IV-forward three-chord-song staples, plainer than pop). Two ride the MINOR vocab (i ii° III iv v V VI VII vii°, natural + harmonic-minor V): MINOR (sad-pop/EDM) and CINE (the epic i-VI-III-VII trailer climb). Then the four CHURCH MODES, each its own vocab with one characteristic chord: DORIAN (minor + a bright MAJOR IV, the lo-fi/neo-soul i<->IV vamp), MIXOLYDIAN (major + a flat 7, the bVII-IV-I rock cadence), PHRYGIAN (minor + a flat 2, the bII-i flamenco/metal half-step), LYDIAN (major + a sharp 4, the floating I<->II film sound). BLUES is I7 IV7 V7, the 12-bar's whole world. Analysis stays honest in every mode because the key is DECLARED, never guessed. Tap chords into an 8-slot strip; every frame the strip is RE-ANALYZED from the raw chords (root + quality) against the current mode's vocab, so the roman numerals are honest lookups, not echoes of what you pressed - move the key OR the mode under a finished progression and the same chords re-name (Cmaj7: I in C major, III in A minor), and chords outside the mode's vocabulary show ? instead of a guess. Minor/blues analysis works because the key is DECLARED, never guessed (auto-detecting major-vs-minor from raw chords is the unsolved part, which this toy sidesteps by design). The NEXT panel reads the same Markov table that composes the songs FORWARD: ranked candidates with weight pips and a one-word reason each - the research made audible: genres differ by WEIGHTS over a vocab, not by grammar. Deterministic; carries a spec() (round-trip: every function's spelling re-analyzes to itself in all 12 keys, in major, minor AND blues; doo-wop = I vi IV V; ii-V-I; minor i-VI).",
-    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the top row, A S D F G H J = the second row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle mode (BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES). 7 (or the 7THS/TRIAD button) toggles between seventh chords (Am7 Fmaj7) and plain triads (Am F) - triads also VOICE without the 7th, so the tool reads AND sounds basic."
+    "controls": "Tap a palette chord to add it (it plays) - or type it: Q W E R T Y = the top row, A S D F G H J = the second row. Tap a NEXT suggestion (or keys 1-4) to follow the brain. SPACE play/stop the loop, U or BACKSPACE undo, X clear. LEFT/RIGHT change the key, B cycle mode (BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES). 7 (or the 7THS/TRIAD button) toggles between seventh chords (Am7 Fmaj7) and plain triads (Am F) - triads also VOICE without the 7th, so the tool reads AND sounds basic. 8 (or the STRUM button) cycles how the strings are raked: BLOCK (all at once), DOWN (low->high), UP (high->low) and ROLL (a slow arpeggiated rake). 9 (or the INV button) cycles the voicing: ROOT position, 1ST, 2ND (and 3RD for sevenths) inversion - the soft bass follows, so the lowest note actually changes. 0 (or the OCT button) shifts the register LOW / MID / HIGH - the whole chord an octave down or up, MID being the original. The BASS button cycles the accompaniment played UNDER the SPACE loop (silent while tapping): HOLD (the held root), R-5 (root + fifth pump) and WALK (a quarter-note walking bass that leads into the next chord's root). The BPM slider (bottom-right) sets the SPACE-loop tempo, 60-180 BPM. The ? button (top) opens the legend: what the roman numerals and NEXT reason-words mean."
   }
 }
 de:meta */
@@ -46,6 +46,50 @@ de:meta */
 
 #define I_PLK 5   // the pluck that voices your taps
 #define I_BSS 6   // a soft root under it
+
+// STRUM — how the chord's strings are raked. BLOCK fires every voice on one
+// frame (a piano-style block); the others stagger the onsets a few frames apart
+// so it reads as a strummed guitar. gap = frames between strings; up = 1 rakes
+// high->low (an upstroke), else low->high (a downstroke).
+typedef struct { const char *name; int gap, up; } Strum;
+static const Strum STRUMS[] = {
+    { "BLOCK", 0, 0 },   // all at once — the original block chord
+    { "DOWN",  2, 0 },   // low string first — a downstroke
+    { "UP",    2, 1 },   // high string first — an upstroke
+    { "ROLL",  6, 0 },   // slow low->high rake, near-arpeggiated
+};
+#define NSTRUM ((int)(sizeof STRUMS / sizeof STRUMS[0]))
+static int strumSel = 0;
+
+// INVERSION — which chord tone sits in the bass. ROOT = root position; 1ST/2ND
+// raise the lowest 1/2 tones an octave (3RD needs a 7th). The soft root follows,
+// so the LOWEST note actually changes — you hear the inversion, not just a spread.
+static const char *INV_LAB[4] = { "ROOT", "1ST", "2ND", "3RD" };
+static int invSel = 0;
+
+// OCTAVE — the whole voicing shifted a register, the way a pianist drops a chord
+// an octave for a darker/fuller sound or lifts it for a brighter one. MID = the
+// original register (0 shift), so it stays byte-identical unless you touch it.
+static const char *OCT_LAB[3] = { "LOW", "MID", "HIGH" };
+static int octSel = 1;
+
+// a tiny pending-note queue so sound_chord can stagger a strum across frames.
+#define NPEND 12
+static struct { int midi, instr, vol, at; } pend[NPEND];
+static int npend = 0;
+static void queue_note(int midi, int instr, int vol, int at) {
+    if (at <= 0) { note(midi, instr, vol); return; }   // fire now
+    if (npend >= NPEND) return;                         // full — drop (won't happen)
+    pend[npend].midi = midi; pend[npend].instr = instr;
+    pend[npend].vol = vol;   pend[npend].at = at;       npend++;
+}
+static void pump_notes(void) {                          // call once per frame
+    for (int i = 0; i < npend; ) {
+        if (--pend[i].at <= 0) { note(pend[i].midi, pend[i].instr, pend[i].vol);
+                                 pend[i] = pend[--npend]; }
+        else i++;
+    }
+}
 
 static const char *NOTE[12] = { "C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B" };
 // chord tones for the tap SOUND come from harmony.h's shared table (hb_tones);
@@ -127,7 +171,15 @@ static HbOpt sugg[4];                             // the NEXT panel
 static int   nsugg = 0;
 
 static int playing = 0, playSlot = 0, playT = 0;
-#define BAR_FRAMES 66                             // ~1.1s per chord
+static int helpOn = 0;                            // the legend overlay (? button)
+// tempo: the loop holds each chord for a half-note. BPM is a 0..1 slider mapped
+// to BPM_MIN..BPM_MAX; bar_frames() is that in 60fps frames (default ~109 BPM =
+// the old 66-frame, ~1.1s-per-chord feel).
+#define BPM_MIN 60
+#define BPM_MAX 180
+static float bpmN = 0.408f;                       // (109-60)/(180-60)
+static int cur_bpm(void)    { return BPM_MIN + (int)(bpmN * (BPM_MAX - BPM_MIN) + 0.5f); }
+static int bar_frames(void) { return (int)(7200.0f / cur_bpm() + 0.5f); }  // half-note @ 60fps
 
 // 1 = seventh names + voicings (Cmaj7, the jazz reading); 0 = plain triads
 // (C Am G) that also VOICE as triads, so a beginner's tool reads AND sounds basic.
@@ -137,11 +189,60 @@ static void chname(char *out, int n, int rootPc, int q) {
     snprintf(out, n, "%s%s", NOTE[rootPc], seventh ? hb_qname[q] : hb_qtriad[q]);
 }
 
-static void sound_chord(int rootPc, int q) {
-    int r = 48 + rootPc;
-    note(r - 12, I_BSS, 5);
+static void sound_chord(int rootPc, int q, int withBass) {
+    int r = 48 + rootPc + (octSel - 1) * 12;    // OCT: shift the whole voicing a register
     int voices = seventh ? 4 : 3;               // triad mode drops the 7th/6th
-    for (int i = 0; i < voices; i++) note(r + hb_tones[q][i], I_PLK, 5);
+    int inv = invSel; if (inv > voices - 1) inv = voices - 1;   // 3RD needs a 7th
+
+    // chord-tone offsets; an inversion raises the lowest `inv` of them an octave.
+    int off[4];
+    for (int i = 0; i < voices; i++) off[i] = hb_tones[q][i];
+    for (int k = 0; k < inv; k++) off[k] += 12;
+    int lo = off[0]; for (int i = 1; i < voices; i++) if (off[i] < lo) lo = off[i];
+
+    // the soft root follows the inversion's bass, an octave under it. A moving
+    // bassline (BASS != HOLD) drives its own root, so skip this one to avoid doubling.
+    int m[5], inst[5], nv = 0;
+    if (withBass) { m[nv] = r + lo - 12; inst[nv] = I_BSS; nv++; }
+    for (int i = 0; i < voices; i++) { m[nv] = r + off[i]; inst[nv] = I_PLK; nv++; }
+
+    // rake by actual PITCH so a strum stays low->high even after inverting.
+    int idx[5]; for (int i = 0; i < nv; i++) idx[i] = i;
+    for (int a = 0; a < nv; a++) for (int b = a + 1; b < nv; b++)
+        if (m[idx[b]] < m[idx[a]]) { int t = idx[a]; idx[a] = idx[b]; idx[b] = t; }
+    int gap = STRUMS[strumSel].gap, up = STRUMS[strumSel].up;
+    for (int p = 0; p < nv; p++) {
+        int i = idx[up ? (nv - 1 - p) : p];     // which string is struck when
+        queue_note(m[i], inst[i], 5, p * gap);
+    }
+}
+
+// BASS — a generated accompaniment under the SPACE loop (silent while tapping).
+// HOLD = the held root sound_chord already plays. R-5 = root/fifth pump. WALK =
+// a quarter-note walk: root, 3rd, 5th, then a half-step approach INTO the next
+// chord's root — the progression's forward motion (the NEXT panel's data) made
+// audible. Reused idea: improv.h's "chord tone on the strong beat" walking rule.
+enum { B_HOLD, B_ROOT5, B_WALK };
+static const char *BASS_LAB[3] = { "HOLD", "R-5", "WALK" };
+static int bassSel = 0;
+
+static void play_bass_beat(int beat) {   // beat 0..3 within the current chord's bar
+    if (bassSel == B_HOLD || !plen) return;
+    int r0 = prootv[playSlot], q = pqual[playSlot];
+    int rN = prootv[(playSlot + 1) % plen];      // the chord we're walking toward
+    int base = 36 + (octSel - 1) * 12;           // bass register, follows OCT
+    int pc;
+    if (bassSel == B_ROOT5) {
+        if (beat == 0)      pc = r0;
+        else if (beat == 2) pc = (r0 + 7) % 12;  // the fifth, on beat 3
+        else return;                             // beats 2 & 4 rest
+    } else {                                     // B_WALK
+        if      (beat == 0) pc = r0;                          // root, the strong beat
+        else if (beat == 1) pc = (r0 + hb_tones[q][1]) % 12;  // the 3rd
+        else if (beat == 2) pc = (r0 + hb_tones[q][2]) % 12;  // the 5th
+        else                pc = (rN + 11) % 12;              // half-step below next root
+    }
+    note(base + pc, I_BSS, 5);
 }
 
 static void analyze(void) { hb_vocab_analyze(cur_vocab(), keyPc, prootv, pqual, plen, pfn); }
@@ -160,7 +261,7 @@ static void add_chord(int rootPc, int q) {
     if (plen >= MAXP) return;
     prootv[plen] = rootPc; pqual[plen] = q; plen++;
     rethink();
-    sound_chord(rootPc, q);
+    sound_chord(rootPc, q, 1);   // tap audition: full chord + its root
 }
 static void add_fn(int f) {
     const HbVocab *v = cur_vocab();
@@ -189,7 +290,10 @@ void update(void) {
     if (keyp(KEY_LEFT))  { keyPc = (keyPc + 11) % 12; rethink(); }
     if (keyp(KEY_RIGHT)) { keyPc = (keyPc + 1)  % 12; rethink(); }
     if (keyp('B'))       { modeSel = (modeSel + 1) % NMODE; rethink(); }  // vocab may change → re-analyse
-    if (keyp('7'))       { seventh = !seventh; }                          // 7ths <-> plain triads
+    if (keyp('7'))       { seventh = !seventh; if (!seventh && invSel > 2) invSel = 2; }  // 7ths <-> triads
+    if (keyp('8'))       { strumSel = (strumSel + 1) % NSTRUM; }           // block <-> strum styles
+    if (keyp('9'))       { invSel = (invSel + 1) % (seventh ? 4 : 3); }    // root <-> inversions
+    if (keyp('0'))       { octSel = (octSel + 1) % 3; }                    // low / mid / high register
     if (keyp('U') || keyp(KEY_BACKSPACE)) { if (plen) { plen--; rethink(); } }
     { const HbVocab *v = cur_vocab();
       int r1 = MODES[modeSel].row1; if (r1 > v->n) r1 = v->n;
@@ -203,9 +307,20 @@ void update(void) {
         if (keyp('1' + i) && i < nsugg) add_fn(sugg[i].f);
 
     if (playing && plen) {
-        if (playT == 0) sound_chord(prootv[playSlot], pqual[playSlot]);
-        if (++playT >= BAR_FRAMES) { playT = 0; playSlot = (playSlot + 1) % plen; }
+        int bf = bar_frames();
+        // the chord lands on beat 1; a moving bassline drives its own root, so
+        // suppress the chord's built-in one unless we're on HOLD.
+        if (playT == 0) sound_chord(prootv[playSlot], pqual[playSlot], bassSel == B_HOLD);
+        // subdivide the bar into 4 beats for the bassline
+        if (bassSel != B_HOLD) {
+            int beatLen = bf / 4; if (beatLen < 1) beatLen = 1;
+            int beat = playT / beatLen;
+            if (beat < 4 && playT % beatLen == 0) play_bass_beat(beat);
+        }
+        if (++playT >= bf) { playT = 0; playSlot = (playSlot + 1) % plen; }
     } else playSlot = 0;
+
+    pump_notes();   // fire any staggered strum voices whose delay has elapsed
 }
 
 void draw(void) {
@@ -213,10 +328,54 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     ui_begin();
 
+    // ── help overlay: what the roman numerals + NEXT reason-words mean ──
+    if (helpOn) {
+        print("WHAT THE NAMES MEAN", 8, 5, CLR_WHITE);
+        if (ui_button(SCREEN_W - 46, 3, 42, 14, "CLOSE")) helpOn = 0;
+        font(FONT_SMALL);
+        int y = 26;
+        print("ROMAN NUMERALS - each chord's JOB in the key", 8, y, CLR_YELLOW); y += 11;
+        print("UPPER = major (I IV V)   lower = minor (ii vi)", 12, y, CLR_LIGHT_GREY); y += 8;
+        print("dot=diminished   7=seventh   b=borrowed / flat", 12, y, CLR_LIGHT_GREY); y += 8;
+        print("I is HOME.  V pulls to I.   ? = outside the key", 12, y, CLR_LIGHT_GREY); y += 15;
+
+        print("WHY 'NEXT' SUGGESTS EACH - the word beneath it", 8, y, CLR_YELLOW); y += 11;
+        static const char *L[6] = {
+            "home     V->I, arrived",
+            "cadence  ii-V-I move",
+            "walk     a plain step",
+            "resolve  tension eases",
+            "borrow   parallel key",
+            "plagal   IV->I, 'amen'",
+        };
+        static const char *R[6] = {
+            "tritone  bII replaces V",
+            "turnrnd  loops to top",
+            "relative maj/min, same notes",
+            "leadtone vii pulls to i",
+            "pre-cad  sets up cadence",
+            "subtonic bVII, flat-7 step",
+        };
+        for (int i = 0; i < 6; i++) {
+            print(L[i], 8,   y + i * 10, CLR_LIGHT_GREY);
+            print(R[i], 150, y + i * 10, CLR_LIGHT_GREY);
+        }
+        y += 6 * 10 + 6;
+        print("BASS (loop)  HOLD=root . R-5=root+5th . WALK=into next root",
+              8, y, CLR_LIGHT_GREY); y += 11;
+        print("CONTROLS  B=mode  7=spell  8=strum  9=inv  0=octave",
+              8, y, CLR_INDIGO); y += 8;
+        print("Q-Y/A-J add chords  SPACE=loop  U=undo  X=clear  arrows=key",
+              8, y, CLR_INDIGO);
+        font(FONT_NORMAL);
+        ui_end();
+        return;
+    }
+
     // ── header: title + key + mode ──
     print("CHORDWISE", 8, 5, CLR_WHITE);
     font(FONT_SMALL);
-    print("next-chord brain", 88, 7, CLR_INDIGO);
+    print("next-chord", 88, 7, CLR_INDIGO);
     font(FONT_NORMAL);
     if (ui_button(168, 2, 14, 14, "<")) { keyPc = (keyPc + 11) % 12; rethink(); }
     rectfill(184, 2, 54, 14, CLR_BROWNISH_BLACK);
@@ -226,6 +385,7 @@ void draw(void) {
     font(FONT_NORMAL);
     if (ui_button(240, 2, 14, 14, ">")) { keyPc = (keyPc + 1) % 12; rethink(); }
     if (ui_button(260, 2, 54, 14, MODES[modeSel].name)) { modeSel = (modeSel + 1) % NMODE; rethink(); }
+    if (ui_button(146, 2, 16, 14, "?")) helpOn = !helpOn;   // the legend overlay
 
     // ── the strip: your progression, re-analyzed every frame ──
     for (int i = 0; i < MAXP; i++) {
@@ -272,30 +432,39 @@ void draw(void) {
     { const HbVocab *v = cur_vocab();
       int r1 = MODES[modeSel].row1; if (r1 > v->n) r1 = v->n;
       int r2 = v->n - r1;
-      font(FONT_SMALL); print(MODES[modeSel].lab1, 8, 112, CLR_INDIGO); font(FONT_NORMAL);
+      font(FONT_SMALL); print(MODES[modeSel].lab1, 8, 108, CLR_INDIGO); font(FONT_NORMAL);
       for (int i = 0; i < r1; i++) {
           int f = fn_at(i);
           chname(buf, sizeof buf, (keyPc + v->off[f]) % 12, v->qual[f]);
-          if (ui_button(8 + i * 52, 119, 50, 20, buf)) add_fn(f);
+          if (ui_button(8 + i * 52, 114, 50, 18, buf)) add_fn(f);
       }
       if (r2 > 0) {
-          font(FONT_SMALL); print(MODES[modeSel].lab2, 8, 143, CLR_INDIGO); font(FONT_NORMAL);
+          font(FONT_SMALL); print(MODES[modeSel].lab2, 8, 134, CLR_INDIGO); font(FONT_NORMAL);
           for (int i = 0; i < r2; i++) {
               int f = fn_at(r1 + i);
               chname(buf, sizeof buf, (keyPc + v->off[f]) % 12, v->qual[f]);
-              if (ui_button(8 + i * 44, 150, 42, 20, buf)) add_fn(f);
+              if (ui_button(8 + i * 44, 140, 42, 18, buf)) add_fn(f);
           }
       } }
 
-    // ── transport ──
-    if (ui_button(8, 178, 40, 16, playing ? "STOP" : "PLAY")) {
+    // ── voicing + accompaniment row ──
+    if (ui_button(4, 161, 44, 15, seventh ? "7THS" : "TRIAD")) { seventh = !seventh; if (!seventh && invSel > 2) invSel = 2; }
+    if (ui_button(50, 161, 44, 15, STRUMS[strumSel].name)) strumSel = (strumSel + 1) % NSTRUM;
+    if (ui_button(96, 161, 34, 15, INV_LAB[invSel])) invSel = (invSel + 1) % (seventh ? 4 : 3);
+    if (ui_button(132, 161, 34, 15, OCT_LAB[octSel])) octSel = (octSel + 1) % 3;
+    if (ui_button(168, 161, 44, 15, BASS_LAB[bassSel])) bassSel = (bassSel + 1) % 3;
+    font(FONT_SMALL); print("bass: loop only", 216, 165, CLR_DARK_GREY); font(FONT_NORMAL);
+
+    // ── transport + tempo row ──
+    if (ui_button(4, 180, 40, 15, playing ? "STOP" : "PLAY")) {
         if (plen) { playing = !playing; playSlot = 0; playT = 0; }
     }
-    if (ui_button(52, 178, 40, 16, "UNDO")) { if (plen) { plen--; rethink(); } }
-    if (ui_button(96, 178, 40, 16, "CLR"))  { plen = 0; playing = 0; rethink(); }
-    if (ui_button(140, 178, 48, 16, seventh ? "7THS" : "TRIAD")) seventh = !seventh;
+    if (ui_button(48, 180, 40, 15, "UNDO")) { if (plen) { plen--; rethink(); } }
+    if (ui_button(92, 180, 32, 15, "CLR"))  { plen = 0; playing = 0; rethink(); }
     font(FONT_SMALL);
-    print("Q-Y/A-J add . B mode . 7 spell", 192, 183, CLR_DARK_GREY);
+    snprintf(buf, sizeof buf, "%d BPM", cur_bpm());
+    print(buf, 150, 181, CLR_INDIGO);
+    ui_slider(&bpmN, 186, 183, 128, NULL);        // tempo of the SPACE loop
     font(FONT_NORMAL);
 
     ui_end();

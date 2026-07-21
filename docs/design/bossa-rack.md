@@ -22,6 +22,32 @@ melody-cell disclosure layer, arrangement, and export.
 > finding. See [`genre-box-rosters.md`](genre-box-rosters.md) for the flavor generalization; the live
 > cart is `tools/carts/chordblossom2.c`.
 
+> **★ CONVERGENCE (2026-07-21) — `chordwise` reached this same shape from the ANALYZER side, and
+> validated the missing pieces.** `chordwise` (the harmony-brain demand-82 toy) started as a
+> progression *analyzer + next-chord suggester*, but grew a playable band and independently landed on
+> the exact surface this doc's opening calls the missing piece — **a playable/editable chord chart
+> where you drive the harmony and the band follows**:
+> - **The chord chart** ✓ — its 8-slot strip (`MAXP 8`) IS the editable chart. You tap/type chords in,
+>   it loops them.
+> - **Bass** ✓ — a genre-aware bassist (`BASS_PAT` per mode: bossa root-fifth, boogie, rock, etc.),
+>   **voice-led** through `radio.h`'s `rad_bass_to` (nearest-note, register-folded).
+> - **Drums** ✓ — a genre groove map (`DRUM_PAT` per mode) on the shared `drumkit.h`, plus a
+>   **genre-aware FILL** (`FILL_PAT`: rock tom roll vs EDM snare build vs flamenco palmas) + turnaround crash.
+> - **Melody** ✗ — the one still-missing layer, and the path is known: `bossa.c`'s `pick_mel` /
+>   `improv.h` already do chord-blooming melody (one stored rhythm cell, pitch re-resolves to each
+>   chord). This is the "chord-aware improv.h" roadmap in [`harmony-brain.md`](harmony-brain.md).
+>
+> **Why this matters for the rack.** The directness the maker wanted ("no knobs between finger and
+> sound") is exactly what `chordwise` feels like — you place a chord, the band serves it. It's the
+> analyzer-side proof of the chord-bloom thesis. **Two carts now embody it** (chordwise = a legible,
+> deterministic *teaching* toy that stays one honest core; chordblossom2 = the *played* instrument),
+> which trips the **second-customer rule**: genre "band-follows-the-chord" logic (bass idioms, groove
+> maps, fills) now lives in ≥2 places and wants a shared home — a future **`band.h`** (the bigger
+> sibling of the `bass.h` todo parked in `chordwise`'s `de:meta`), that chordblossom2, chordwise, AND
+> the radios (`bossa`/`cocktail`) could all draw from, each adding its own voice/swing/variation. NOT
+> to build yet — but when chordblossom2 grows its bass/drums/melody, borrow chordwise's genre maps
+> rather than re-authoring them. Live cart: `tools/carts/chordwise.c`.
+
 > **The thesis.** The earlier racks bracketed the design space and left a hole in the middle:
 > [`acidrack`](rebirth-classic.md) is **cells all the way down** (great, but acid has no moving
 > harmony); [`yachtrack`](yacht-rack.md) is a **chart + feel knobs** (musically honest, but the

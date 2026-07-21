@@ -1030,7 +1030,14 @@ static void draw_303(Box stage, int i) {
             if (!sharp) { font(FONT_TINY); plabel(NOTE[k], px + pw / 2, py + 1, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN); }
         }
         Box sc = lay_split(krow2, EDGE_LEFT, krow2.w * 0.45f, &krow2);   // scale name (left)
-        if (lcdbtn(0x78u, (int)sc.x, (int)sc.y, (int)sc.w, (int)sc.h, SCALES[mscale[i]].name, 0)) mscale[i] = (mscale[i] + 1) % NSCALE;
+        if (lcdbtn(0x78u, (int)sc.x, (int)sc.y, (int)sc.w, (int)sc.h, SCALES[mscale[i]].name, 0)) {
+            int oldsc = mscale[i], nw = (oldsc + 1) % NSCALE;                 // REMAP the live line to the same DEGREE in the new
+            for (int s = 0; s < STEPS; s++) {                                 // scale, so maj↔minor actually re-pitches the melody
+                int di = scale_idx(oldsc, pit[i][s]); if (di >= SCALES[nw].n) di = SCALES[nw].n - 1;
+                pit[i][s] = SCALES[nw].deg[di];
+            }
+            mscale[i] = nw;
+        }
         Box ol = lay_split(krow2, EDGE_LEFT, krow2.w * 0.28f, &krow2);   // "OCT" label
         font(FONT_TINY); plabel("OCT", (int)(ol.x + ol.w / 2), (int)(ol.y + ol.h / 2 - 2), CLR_DARK_BROWN);
         Box om = lay_grid(krow2, 3, 3, 0, 1), on2 = lay_grid(krow2, 3, 3, 1, 1), op = lay_grid(krow2, 3, 3, 2, 1);

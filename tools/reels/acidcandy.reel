@@ -1,0 +1,5 @@
+# acidcandy — built by the trailer builder (docs/design/trailer-builder.md)
+# fps 30
+# xfade fade 0.5
+acidcandy/04-jam | trim 29.9 148.574
+over @1.8-4.3 | pos center | in 0.4 fade | out 0.4 slide top | boil 1 | breathe 0 | title "Here we go!"

@@ -669,13 +669,13 @@ static void zone_rail(Box rail, Box g) {
     for (int v = 0; v < VOICES; v++) {
         Box lane = lay_grid(g, 1, VOICES, v, 1);
         Box row = box(rail.x, lane.y, rail.w, lane.h);
-        int lit = (v == V_CH) ? 1 : von[v];
+        int lit = von[v];
         rrectfill((int)row.x, (int)row.y, (int)row.w, (int)row.h, 2, CLR_BROWNISH_BLACK);
         rect((int)row.x, (int)row.y, (int)row.w, (int)row.h, lit ? CLR_ORANGE : CLR_DARKER_GREY);
         print(VL[v], (int)(row.x + row.w / 2 - text_width(VL[v]) / 2), (int)(row.y + row.h / 2 - 2),
               lit ? CLR_WHITE : CLR_DARK_GREY);
         rectfill((int)(row.x + row.w - 4), (int)row.y + 2, 2, 2, lit ? CLR_LIME_GREEN : CLR_DARK_GREY);
-        if (v != V_CH && tapped(row, 0x2200u + v)) von[v] = !von[v];
+        if (tapped(row, 0x2200u + v)) von[v] = !von[v];   // any lane mutes/unmutes, chords included
     }
 }
 
@@ -694,7 +694,7 @@ static int cell_locked(int v, int i) {
 static void glass_grid(Box g) {
     for (int v = 0; v < VOICES; v++) {
         Box lane = lay_grid(g, 1, VOICES, v, 1);
-        int lit = (v == V_CH) ? 1 : von[v];
+        int lit = von[v];   // chord numerals always draw (below); lit only gates the pips
         for (int i = 0; i < NBARS; i++) {
             Box c = lay_grid(lane, NBARS, NBARS, i, 1);
             int on = i < nbars, cur = playing && i == playSlot;
@@ -1017,7 +1017,7 @@ void update(void) {
             int s = playT / stepLen;
             if (s < 8) {
                 int sw = (s == 2 || s == 6) ? swMax : 0;
-                if (COMP_PAT[modeSel][s] == 'x') {
+                if (von[V_CH] && COMP_PAT[modeSel][s] == 'x') {   // the chords lane can be muted too
                     sound_chord(r0, q, 0, sw, bar_strum(b0), bar_inv(b0), bar_oct(b0), bar_sev(b0));
                     if (lit_voice() == V_CH) {   // light the chord tones as it comps
                         int nv = bar_sev(b0) ? 4 : 3;
@@ -1132,6 +1132,11 @@ void spec(void) {
     for (melTone = 0; melTone < 4; melTone++) apply_mel_tone();       melTone = 0;   apply_mel_tone();
     for (padTone = 0; padTone < 3; padTone++) apply_pad_tone();       padTone = 0;   apply_pad_tone();
     expect(1, "all voice TONE presets apply (bass/chord/mel/pad)");
+
+    // every lane can be muted — the chords included (no longer forced on)
+    expect_eq(von[V_CH], 1, "chords lane starts on");
+    von[V_CH] = 0; expect_eq(von[V_CH], 0, "chords lane can be muted too");
+    von[V_CH] = 1;
 
     // add_bar extends the loop with a default I chord
     add_bar();

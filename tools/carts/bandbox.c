@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (BOSSA .. BLUES). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT. PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON. Tap a voice rail header to mute/unmute the lane. Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT. PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON. Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat (deterministic; PUSH/ahead is a follow-up). Tap a voice rail header to mute/unmute the lane (chords included). Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   }
 }
 de:meta */
@@ -129,10 +129,19 @@ typedef struct {
     int fill;                    // DRUM p-lock (DPL_*): GROOVE(0)/DROP/KICK/FILL/CRASH/BUILD
     int mel;                     // MEL  p-lock: -1 auto · 0 rest · 1 accent
     int pad;                     // PAD  p-lock: -1 auto · 0 off · 1 on
+    int feel;                    // per-BAR FEEL (FEEL_*): the whole band's groove this bar
 } Bar;
+// FEEL — a per-bar performance p-lock the whole band shares (deterministic, spec-safe):
+// ACCENT punches the bar louder, DRAG lays it behind the beat. (PUSH/ahead needs
+// bar-lookahead in a forward-only scheduler — a follow-up.)
+enum { FEEL_STRAIGHT, FEEL_ACCENT, FEEL_DRAG };
+static const char *FEEL_LAB[3] = { "STRAIGHT", "ACCENT", "DRAG" };
+#define FEEL_DRAG_FR 3           // frames the whole bar lags when DRAGged
 static Bar arr[NBARS];
 static int nbars = 4;            // loop length (contiguous bars 0..nbars-1)
 static int pfn[NBARS];           // each bar's analyzed function (-1 = ? / out of vocab)
+static int feel_delay_fr(int b) { return arr[b].feel == FEEL_DRAG ? FEEL_DRAG_FR : 0; }
+static int feel_vel(int b, int base) { if (arr[b].feel == FEEL_ACCENT) { base += 2; if (base > 7) base = 7; } return base; }
 
 // the band's voices (the rail = the tracker's row headers). von = lane on/off.
 static const char *VL[VOICES]  = { "CH", "BA", "ME", "DR", "PA" };
@@ -253,7 +262,7 @@ static int   lit_voice(void)  { return picking ? V_CH : selVoice; }
 
 // ── chord voicing (chordwise's sound_chord, now p-lock-parameterized) ──────
 static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
-                        int strum, int inv, int oct, int sev) {
+                        int strum, int inv, int oct, int sev, int vel) {
     int r = 48 + rootPc + (oct - 1) * 12;
     int voices = sev ? 4 : 3;
     if (inv > voices - 1) inv = voices - 1;
@@ -270,13 +279,13 @@ static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
     int gap = STRUMS[strum].gap, up = STRUMS[strum].up;
     for (int p = 0; p < nv; p++) {
         int i = idx[up ? (nv - 1 - p) : p];
-        queue_note(m[i], inst[i], 5, baseDelay + p * gap);
+        queue_note(m[i], inst[i], vel, baseDelay + p * gap);
     }
 }
 // audition a bar's chord with its resolved voicing (+ its soft root)
 static void audition(int b) {
     sound_chord(arr[b].rootPc, arr[b].qual, 1, 0,
-                bar_strum(b), bar_inv(b), bar_oct(b), bar_sev(b));
+                bar_strum(b), bar_inv(b), bar_oct(b), bar_sev(b), 5);
 }
 
 // ── bass (chordwise's play_bass_beat, now reading the bar's bass p-lock) ────
@@ -350,7 +359,7 @@ static void play_bass_beat(int beat, int delay) {
     int n = rad_bass_to(pc, bassLast, lo, hi);
     bassLast = n;
     if (lit_voice() == V_BA) light_pc(n + oct * 12);
-    queue_note(n + oct * 12, I_BSS, bass_vel(), delay);
+    queue_note(n + oct * 12, I_BSS, feel_vel(playSlot, bass_vel()), delay + feel_delay_fr(playSlot));
 }
 
 // ── drums (chordwise's kit + patterns; FILL is now a per-cell p-lock) ───────
@@ -390,13 +399,14 @@ static void play_drum_step(int step, int delayMs) {
     if (!von[V_DR] || !nbars) return;
     int dp = arr[playSlot].fill;                 // DPL_* per-cell move
     if (dp == DPL_DROP) return;                  // DROP — silent this bar
+    delayMs += feel_delay_fr(playSlot) * 1000 / 60;   // FEEL: the whole bar drags/accents
     const DrumPat *d = (drumSel == 1) ? &DRUM_PAT[modeSel] : &DRUM_PLAIN;
 
     if (dp == DPL_FILL) {                        // FILL — the genre flourish + turnaround crash
         const FillPat *fp = (drumSel == 1) ? &FILL_PAT[modeSel] : &FILL_PLAIN;
-        if (step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, 5);
+        if (step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 5));
         int r = fill_role(fp->pat[step]);
-        if (r >= 0) dk_fire_at(delayMs, r, 0, 4 + step / 2);
+        if (r >= 0) dk_fire_at(delayMs, r, 0, feel_vel(playSlot, 4 + step / 2));
         return;
     }
     if (dp == DPL_BUILD) {                       // BUILD — a whole-bar snare riser
@@ -406,13 +416,13 @@ static void play_drum_step(int step, int delayMs) {
         return;
     }
     if (dp == DPL_KICK) {                         // KICK — strip to the bare pulse
-        if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK, 0, 6);
+        if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK, 0, feel_vel(playSlot, 6));
         return;
     }
-    if (dp == DPL_CRASH && step == 0) dk_fire_at(delayMs, DK_CRASH, 0, 5);   // accent, then GROOVE
-    if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, 6);
-    if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, 5);
-    if (d->hat[step]  == 'x') dk_fire_at(delayMs, d->hatRole,  0, 3);
+    if (dp == DPL_CRASH && step == 0) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 5));   // accent, then GROOVE
+    if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, feel_vel(playSlot, 6));
+    if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
+    if (d->hat[step]  == 'x') dk_fire_at(delayMs, d->hatRole,  0, feel_vel(playSlot, 3));
 }
 
 // ── melody (chordwise's bloom; per-cell rest/accent p-lock) ─────────────────
@@ -437,7 +447,7 @@ static void play_mel_step(int step, int delay) {
     int pc = cand[melI % nc]; melI++;
     melLast = rad_bass_to(pc, melLast, lo, hi);
     if (lit_voice() == V_ME) light_pc(melLast);
-    queue_note(melLast, I_LEAD, ml == 1 ? 5 : 4, delay);   // p-lock ACCENT = louder
+    queue_note(melLast, I_LEAD, feel_vel(playSlot, ml == 1 ? 5 : 4), delay + feel_delay_fr(playSlot));
 }
 
 // ── pad (bandbox's own voice — a slow sustained chord under the bar) ────────
@@ -450,7 +460,7 @@ static void play_pad(int delay) {
     int voices = bar_sev(playSlot) ? 4 : 3;
     for (int i = 0; i < voices; i++) {
         if (lit_voice() == V_PA) light_pc(base + hb_tones[q][i]);
-        queue_note(base + hb_tones[q][i], I_PAD, 3, delay);
+        queue_note(base + hb_tones[q][i], I_PAD, feel_vel(playSlot, 3), delay + feel_delay_fr(playSlot));
     }
 }
 
@@ -511,7 +521,7 @@ static void set_root(int cell, int pc) {
 
 static void bar_defaults(Bar *b) {
     b->strum = b->inv = b->oct = b->sev = -1;
-    b->bass = -1; b->fill = 0; b->mel = -1; b->pad = -1;
+    b->bass = -1; b->fill = 0; b->mel = -1; b->pad = -1; b->feel = FEEL_STRAIGHT;
 }
 // append a bar with a chosen chord (root + quality) — extends the loop, auditions.
 static void append_chord(int rootPc, int qual) {
@@ -926,11 +936,16 @@ static void glass_editor(Box g) {
     Box r1 = lay_grid(g, 1, VOICES, 1, 1);
     focus_strip(r0);
     Box s = box(g.x, r1.y, g.w, g.y + g.h - r1.y);
-    Box hdr = lay_split(s, EDGE_TOP, 7, &s);
+    Box hdr = lay_split(s, EDGE_TOP, 9, &s);
+    // FEEL is per-BAR (the whole band's groove), so it lives in the bar header — set it
+    // from any voice's editor; ACCENT/DRAG show orange.
+    Box fbox = lay_split(hdr, EDGE_RIGHT, 46, &hdr);
+    if (seg(fbox, FEEL_LAB[arr[selBar].feel], arr[selBar].feel != FEEL_STRAIGHT, 0x2480))
+        arr[selBar].feel = (arr[selBar].feel + 1) % 3;
     char nm[16]; chname(nm, sizeof nm, arr[selBar].rootPc, arr[selBar].qual, bar_sev(selBar));
     const char *rn = pfn[selBar] >= 0 ? cur_vocab()->fname[pfn[selBar]] : "?";
-    char t[28]; snprintf(t, sizeof t, "BAR %d   %s   %s", selBar + 1, nm, rn);
-    print(t, (int)hdr.x + 1, (int)hdr.y + 1, CLR_INDIGO);
+    char t[28]; snprintf(t, sizeof t, "BAR %d  %s %s", selBar + 1, nm, rn);
+    print(t, (int)hdr.x + 1, (int)hdr.y + 2, CLR_INDIGO);
     switch (selVoice) {
         case V_CH: editor_chords(s); break;
         case V_BA: editor_bass(s);   break;
@@ -1018,7 +1033,8 @@ void update(void) {
             if (s < 8) {
                 int sw = (s == 2 || s == 6) ? swMax : 0;
                 if (von[V_CH] && COMP_PAT[modeSel][s] == 'x') {   // the chords lane can be muted too
-                    sound_chord(r0, q, 0, sw, bar_strum(b0), bar_inv(b0), bar_oct(b0), bar_sev(b0));
+                    sound_chord(r0, q, 0, sw + feel_delay_fr(b0), bar_strum(b0), bar_inv(b0),
+                                bar_oct(b0), bar_sev(b0), feel_vel(b0, 5));
                     if (lit_voice() == V_CH) {   // light the chord tones as it comps
                         int nv = bar_sev(b0) ? 4 : 3;
                         for (int i = 0; i < nv; i++) light_pc(r0 + hb_tones[q][i]);
@@ -1137,6 +1153,14 @@ void spec(void) {
     expect_eq(von[V_CH], 1, "chords lane starts on");
     von[V_CH] = 0; expect_eq(von[V_CH], 0, "chords lane can be muted too");
     von[V_CH] = 1;
+
+    // FEEL p-lock (per-bar): ACCENT lifts velocity, DRAG lags the whole bar, deterministically
+    expect_eq(arr[0].feel, FEEL_STRAIGHT, "bars default to STRAIGHT feel");
+    arr[0].feel = FEEL_ACCENT; expect_eq(feel_vel(0, 5), 7, "ACCENT lifts velocity (+2, clamped)");
+    expect_eq(feel_delay_fr(0), 0, "ACCENT does not drag");
+    arr[0].feel = FEEL_DRAG;   expect_eq(feel_delay_fr(0), FEEL_DRAG_FR, "DRAG lags the bar");
+    expect_eq(feel_vel(0, 5), 5, "DRAG does not lift velocity");
+    arr[0].feel = FEEL_STRAIGHT;
 
     // add_bar extends the loop with a default I chord
     add_bar();

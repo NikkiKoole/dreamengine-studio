@@ -127,6 +127,20 @@ on-device permission-prompt run (the backends are written to the `platform.h` co
 a device build to verify). The mic is *most* compelling on a phone — that's the whole reason it
 ranked in the demand data. This is the "land it on the product surface" follow-through.
 
+> **iOS mic host — two gotchas the `pedalboard` GUITAR IN device run cost real time (2026-07-22):**
+> 1. **Capture on a SEPARATE `AVAudioEngine` from output.** Installing an input tap on the *output*
+>    engine's `inputNode` makes iOS reconfigure that engine's I/O (`AVAudioEngineConfigurationChange`),
+>    which drops the output render edge → **the whole app goes silent the instant the mic turns on**.
+>    A config-change reconnect handler could NOT reliably keep it alive. The fix that works: a
+>    dedicated capture engine (tap → `de_audio_input`, no output wiring); its reconfiguration is its
+>    own and can't touch playback. Both engines share one `.playAndRecord` session (set at launch —
+>    that alone doesn't prompt; only reading input does). See [`ios/Sources/AudioEngine.swift`](../../ios/Sources/AudioEngine.swift).
+> 2. **Resample non-44.1k phone mics to the engine rate** *before* the `sound_extin` ring. iOS taps
+>    the mic at its native 48k; the ring is drained at 44.1k, so raw writes overflow → dropped samples
+>    → garbled near-silence, ~9% sharp. Desktop hid this (CoreAudio forces 44.1k capture). Fixed in
+>    [`mic.h`](../../runtime/mic.h)'s `mic_input_push` (linear resample; `sr==engine` → byte-identical
+>    fast path). Also fixes `voxbox`/`hardtune` on 48k phone mics.
+
 ## The through-line
 
 The mic turned the engine from a thing that *only speaks* into a thing that *hears, transforms,

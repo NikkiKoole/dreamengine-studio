@@ -1844,7 +1844,7 @@ static void draw_mst(Box stage) {
 
     // ④ the bottom band: TEMPO (left gutter) + the per-machine SEND knobs — ONE row, all at the same y
     Box tc = lay_split(bottom, rack_view ? EDGE_RIGHT : EDGE_LEFT, W * 0.13f, &bottom);  // TEMPO gutter — iPad: on the RIGHT (under SWG, next to the swing knob); phone: left. Sends fill the rest
-    g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                         // sync tempo from the proxy (rounded → no per-frame fx re-apply)
+    // (tempo g_bpm sync moved to update() so it runs in ALL modes/faces, not just when this face is drawn)
     for (int m = 0; m < 4; m++) { Box c = lay_grid(bottom, 4, 4, m, 2);    // ⑤ per-machine delay SEND (knob label = the machine)
         float rh = c.h * 0.34f, rw = c.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
         knob(&msend[m], (int)(c.x + c.w / 2), (int)(c.y + r + 1), r, MLAB[m], m < 2 ? 0.10f : 0.0f); }
@@ -2079,6 +2079,7 @@ void init(void) {
 }
 
 void update(void) {
+    g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                     // TEMPO sync — here (every frame, every mode), NOT in draw_mst (which only runs on the MST tab in phone mode → tempo would desync by layout)
     autosave_tick();                                                   // rolling autosave (resume-where-you-left-off)
     if (mbop > 0) mbop -= 0.08f;
     for (int v = 0; v < TR_NV;  v++) if (dtrig[v]  > 0) dtrig[v]  -= 0.14f;   // drum-pad flash decays
@@ -2091,7 +2092,9 @@ void update(void) {
     for (int v = 0; v < TR9_NV; v++) { float fn = d9fine[v] - 0.5f; if (fn != d9tunefine[v]) { tr909_tune(D909_BASE, v, fn); d9tunefine[v] = fn; } }
     float t = now();                                                   // live-tempo clock: accumulate 16th-note phase so a
     if (g_last_t == 0) g_last_t = t;                                   // bpm change moves the RATE, never JUMPS the counter
-    g_phase += (t - g_last_t) * (g_bpm / 60.0f * 4);
+    float dt = t - g_last_t;
+    if (dt > 0.05f) dt = 0.05f;                                        // clamp a heavy frame (view toggle / window resize) so the sequencer never SKIPS ahead — smooth over a hitch instead of jumping
+    g_phase += dt * (g_bpm / 60.0f * 4);
     g_last_t = t;
     if (playing) {
         float stepf = g_phase;                                         // 16th-note counter (polymeter), live-tempo

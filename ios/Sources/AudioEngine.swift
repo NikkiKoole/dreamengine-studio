@@ -7,7 +7,8 @@ import AVFoundation
 // first — it calls sound_init(); the audio thread only ever pulls, never inits.
 final class AudioEngine {
     static let shared = AudioEngine()
-    private let engine = AVAudioEngine()
+    private let engine = AVAudioEngine()        // OUTPUT engine — renders the real mixer; NEVER touches input
+    private let micEngine = AVAudioEngine()     // INPUT engine — capture ONLY, fully isolated (see installMicTap)
     private var src: AVAudioSourceNode?
     private var started = false
     private var scratch = [Float](repeating: 0, count: 8192 * 2)   // interleaved L,R,L,R…
@@ -40,11 +41,14 @@ final class AudioEngine {
 
     private func installMicTap() {
         guard !micRunning else { return }
-        // The session is ALREADY .playAndRecord (set once at start) and the engine is running, so we
-        // just tap the input — NO engine stop/restart and NO category switch. The old code stopped +
-        // reconfigured + restarted the engine here, which dropped the output render node → the whole
-        // app went silent when GUITAR IN turned on. Tapping a live engine leaves output untouched.
-        let input = engine.inputNode
+        // CAPTURE ON A SEPARATE ENGINE. Tapping the OUTPUT engine's inputNode makes iOS reconfigure
+        // that engine's I/O (AVAudioEngineConfigurationChange), which dropped its source→mixer edge →
+        // whole-app silence when GUITAR IN turned on (a reconnect handler couldn't keep it alive). A
+        // second, dedicated AVAudioEngine owns the mic: its reconfiguration is its own business and
+        // CANNOT touch the output engine. Both share the one .playAndRecord session. Capture-only, so
+        // its input isn't wired to any output (no monitoring here — the engine mixer does that via the
+        // extin ring in de_audio_input).
+        let input = micEngine.inputNode
         let fmt = input.inputFormat(forBus: 0)
         guard fmt.channelCount > 0, fmt.sampleRate > 0 else {
             NSLog("[tinyjam] no mic input channels"); return
@@ -54,13 +58,17 @@ final class AudioEngine {
             guard let ch = buffer.floatChannelData else { return }
             de_audio_input(ch[0], Int32(buffer.frameLength), sr)   // channel 0 = the mono take
         }
+        micEngine.prepare()
+        do { try micEngine.start() }
+        catch { NSLog("[tinyjam] mic engine start failed: %@", error.localizedDescription); input.removeTap(onBus: 0); return }
         micRunning = true
         de_mic_set_active(1)
-        NSLog("[tinyjam] mic tap installed @ %.0f Hz", fmt.sampleRate)
+        NSLog("[tinyjam] mic capture started @ %.0f Hz (isolated engine)", fmt.sampleRate)
     }
 
     private func stopMic() {
-        engine.inputNode.removeTap(onBus: 0)   // stops input use → iOS drops the mic indicator; output keeps running
+        micEngine.stop()
+        micEngine.inputNode.removeTap(onBus: 0)   // output engine untouched → playback keeps running
         micRunning = false
         de_mic_set_active(0)
     }

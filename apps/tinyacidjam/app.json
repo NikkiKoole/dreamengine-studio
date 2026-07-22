@@ -1,7 +1,7 @@
 {
   "name":     "Tiny Acid Jam",
   "bundleId": "com.mipolai.tinyacidjam",
-  "version":  "0.1",
+  "version":  "1.0",
   "price":    "1.99",
   "orientation": "landscape",
   "icon":     "apps/tinyacidjam/icon.png",

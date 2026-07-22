@@ -14,6 +14,7 @@
 //   node tools/asc-push.js <app> --metadata --screenshots
 //   node tools/asc-push.js <app> --category              # set primary category (manifest listing.category, default MUSIC)
 //   node tools/asc-push.js <app> --age-rating            # set the age-rating declaration (4+ unless listing.ageRating overrides)
+//   node tools/asc-push.js <app> --price                 # set the paid-app price schedule (manifest `price`; 0 = Free; base USA)
 //   (privacyPolicyUrl rides --metadata via listing.privacyPolicyUrl. App Privacy "data collection"
 //    has no reachable API here — declare it once in the ASC web UI: App Privacy → Get Started.)
 //   node tools/asc-push.js <app> --iap                   # create/sync IAPs (existing prices are LEFT AS-IS)
@@ -95,7 +96,7 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
@@ -104,6 +105,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--promote') opt.promote = true
   else if (a === '--category') opt.category = true      // set the App Store primary/secondary category (appInfo)
   else if (a === '--age-rating') opt.ageRating = true   // set the age-rating declaration (default 4+)
+  else if (a === '--price') opt.price = true            // set the paid-app price schedule (manifest `price`; base USA)
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
   else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
@@ -115,10 +117,10 @@ for (let i = 0; i < argv.length; i++) {
   else { console.error(`unknown arg: ${a}`); process.exit(2) }
 }
 if (!opt.app) {
-  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--category] [--age-rating] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
+  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--category] [--age-rating] [--price] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
   process.exit(2)
 }
-if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating) opt.metadata = true // default action
+if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating && !opt.price) opt.metadata = true // default action
 
 // ── manifest + copy assembly ────────────────────────────────────────────────────────────────
 const appDir = path.join(ROOT, 'apps', opt.app)
@@ -299,6 +301,42 @@ async function pushAgeRating() {
   if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
   await api('PATCH', `/v1/ageRatingDeclarations/${info.id}`, { data: { type: 'ageRatingDeclarations', id: info.id, attributes } })
   console.log('  ✓ pushed age rating')
+}
+
+// ── app price (the PAID-APP tier; manifest `price`, base USA — Apple equalizes the rest) ──────
+async function pushPrice() {
+  const price = manifest.price != null ? Number(manifest.price) : 0
+  const want = price.toFixed(2)
+  const app = await resolveApp()
+  console.log(`\n▸ price → app ${app.id} "${app.attributes.name}"`)
+  // find the base-territory price point whose customer price matches the manifest (0.00 = Free)
+  const pts = await api('GET', `/v1/apps/${app.id}/appPricePoints?filter[territory]=${PRICE_TERRITORY}&limit=200`)
+  const point = (pts.data || []).find(pp => Number(pp.attributes.customerPrice).toFixed(2) === want)
+  if (!point) {
+    const near = [...new Set((pts.data || []).map(pp => Number(pp.attributes.customerPrice))
+      .filter(n => Math.abs(n - price) < 1).sort((a, b) => a - b).map(n => n.toFixed(2)))]
+    console.log(`    ✗ no $${want} price point in ${PRICE_TERRITORY}. Nearby: ${near.join(', ') || '(none within $1)'}`)
+    return
+  }
+  console.log(`    → $${want} (${price === 0 ? 'Free' : 'base ' + PRICE_TERRITORY + ', Apple equalizes other territories'})`)
+  if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
+  // Apple inline-creation: the included appPrices id must be a '${local-id}', referenced by manualPrices.
+  const localId = '${new-app-price}'
+  await api('POST', '/v1/appPriceSchedules', {
+    data: {
+      type: 'appPriceSchedules',
+      relationships: {
+        app: { data: { type: 'apps', id: app.id } },
+        baseTerritory: { data: { type: 'territories', id: PRICE_TERRITORY } },
+        manualPrices: { data: [{ type: 'appPrices', id: localId }] },
+      },
+    },
+    included: [{
+      type: 'appPrices', id: localId, attributes: { startDate: null },
+      relationships: { appPricePoint: { data: { type: 'appPricePoints', id: point.id } } },
+    }],
+  })
+  console.log(`    ✓ price set $${want}`)
 }
 
 async function pushMetadata() {
@@ -861,6 +899,7 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   if (opt.metadata) await pushMetadata()
   if (opt.category) await pushCategory()
   if (opt.ageRating) await pushAgeRating()
+  if (opt.price) await pushPrice()
   if (opt.screenshots) await pushScreenshots()
   if (opt.iap) await pushIAP()
   if (opt.promote) await pushPromoted()

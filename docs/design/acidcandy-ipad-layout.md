@@ -23,11 +23,19 @@ dos_8x8 in-game font; the knobs are the mockup's clean black-disc + coloured-out
 style (`r2_knob`), NOT the candy bevel rotary, but with the identical gear/fine + double-tap-reset
 drag feel.
 
-**M2 backlog (the ◻ items below):** the soft-key row is DRAWN but inert — wiring each key to swap
-the screen content (FLAG / PERF / GEN / KIT / the DF deep page + WAVE / KEY editing / per-step
-ACC/PROB/STRK / 909 METAL XY / MST RES/FB + DELAY buttons / drum MUT/REC latches / VOL·PAN·FINE)
-is the next milestone. Do NOT flip the default off `draw_rack` until the checklist is fully green
-AND it feels good in play-testing.
+**M2 SHIPPED (2026-07-23) — the soft-keys now switch the screen content:**
+- **303**: SEQ (note grid) · FLAG (arm NOTE/ACC/SLD/TIE/OCT± then paint the grid) · GEN (CLEAR/MIN/
+  MID/BUSY → the real `gen_line`).
+- **808/909**: VCE (voice grid) · FLAG (ACC paint-drag; PROB cycle 100/75/50/25; 909 STRK cycle
+  flam/drag/ratchet — drawn as shorter cells / pips) · GEN (CLEAR/MIN/MID/BUSY → `gen_drums`/`gen_drums9`).
+- **MST**: MIX (4-channel meters) · PCF / CRU / GAT (each a big editable automation lane — drag to
+  paint the per-step 0..7 level).
+
+**M3 backlog (still ◻):** 303 PERF lenses + KEY editing + the DF deep page (SUB/ADEC/SLDT/TRK) +
+WAVE; drum KIT minimap + PERF + MUT/REC latches; per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
+909 METAL XY; MST RES/FB + the DELAY-division buttons + per-machine SEND (the FX SND knob covers
+the send level, the division picker is still open). Do NOT flip the default off `draw_rack` until
+the checklist is fully green AND it feels good in play-testing.
 
 The [`acidcandy_ipad`](../../tools/carts/acidcandy_ipad.c) mockup is a ground-up redesign of
 acidcandy's iPad view. The full model + open questions live in that cart's `de:meta`

@@ -8,7 +8,7 @@
   "genre": null,
   "teaches": ["functional-harmony"],
   "resizable": true,
-  "collection": ["device-face"],
+  "collection": ["device-face", "chord-bloom"],
   "lineage": "The SEQUENCER sibling of chordwise (the demand-82 harmony analyzer). chordwise proved the chord-chart + genre-band stack on one flat screen and hit a density ceiling; bandbox is the standalone 160x100 device-face sequencer where every VOICE is a lane of lego-block cells and every cell is p-lockable (Elektron-style per-cell overrides on top of the voice's auto 'follows the chord' default). chordwise did per-cell only for chords; bandbox does it for every voice. Reuses the harmony brain (harmony.h) + chordwise's genre-band maps + rad_bass_to + drumkit.h. Design: docs/design/bandbox.md.",
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",

@@ -926,9 +926,7 @@ void draw(void) {
     rrect(bx + 114, by0, 54, 11, 2, guitar_in ? CLR_WHITE : CLR_DARK_GREY);
     print(guitar_in ? "GTR: IN" : "GTR IN", bx + 120, saY + 4, guitar_in ? CLR_WHITE : CLR_LIGHT_PEACH);
     print_right(autoplay ? "AUTO: on" : "AUTO: off", saX + saW - 6, saY + 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
-    font(FONT_TINY);
-    if (palette_open) print_centered("UP add   DOWN remove", (saX + 168 + saX + saW - 70) / 2, saY + 5, CLR_MEDIUM_GREY);
-    else if (mic_live) print_centered("use headphones — mic feeds back on speaker", (saX + 168 + saX + saW - 70) / 2, saY + 5, CLR_DARK_ORANGE);
+    if (palette_open) { font(FONT_TINY); print_centered("UP add   DOWN remove", (saX + 168 + saX + saW - 70) / 2, saY + 5, CLR_MEDIUM_GREY); }
     font(FONT_NORMAL);
 
     // a chain pedal being dragged is LIFTED out of the row (the rest close up), so the caret lines

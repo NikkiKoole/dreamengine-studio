@@ -2092,9 +2092,9 @@ void update(void) {
     for (int v = 0; v < TR9_NV; v++) { float fn = d9fine[v] - 0.5f; if (fn != d9tunefine[v]) { tr909_tune(D909_BASE, v, fn); d9tunefine[v] = fn; } }
     float t = now();                                                   // live-tempo clock: accumulate 16th-note phase so a
     if (g_last_t == 0) g_last_t = t;                                   // bpm change moves the RATE, never JUMPS the counter
-    float dt = t - g_last_t;
-    if (dt > 0.05f) dt = 0.05f;                                        // clamp a heavy frame (view toggle / window resize) so the sequencer never SKIPS ahead — smooth over a hitch instead of jumping
-    g_phase += dt * (g_bpm / 60.0f * 4);
+    // NB: NO per-frame dt clamp — phase must accumulate REAL elapsed time so the tempo is
+    // correct at ANY frame rate (a clamp made the heavy rack run persistently slow < 20 FPS).
+    g_phase += (t - g_last_t) * (g_bpm / 60.0f * 4);
     g_last_t = t;
     if (playing) {
         float stepf = g_phase;                                         // 16th-note counter (polymeter), live-tempo

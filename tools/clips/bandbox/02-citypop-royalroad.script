@@ -1,0 +1,98 @@
+# bandbox · 02-citypop-royalroad — a demo SONG laid out entirely through the UI with
+# the 2026-07-22 radio-idiom p-locks, citypop style (the citypop.c checklist on the
+# bandbox face):
+#   MODE CITYPO (14 B presses — the harness registers one extra keyp, calibrated),
+#   NEW, then MUSICAL-TYPE the Royal Road twice: F G E A | F G E A = IV V iii vi x2.
+#   p-locks: CHORDS ANTIC on bars 4+8 (the brass push into the change) · BASS POP on
+#   4+8 (octave-pop cell running into the change) · DRUMS FILL 4, OPEN 5+6 (disco
+#   tss), DOUBLE 7 (16th hats), FILL 8 · MEL OCT+ 8 · PAD lane ON + SWELL 4 (a
+#   crescendo into the lift) · FEEL LIFT on bar 5 = the truck-driver gear change
+#   (bars 5-8 sound +2, the wrap comes back down — verified: bass downbeat F2
+#   87.2Hz -> G2 97.7Hz).
+# Click coords are WINDOW px (2x canvas). SPACE at 545 starts the loop; 1700
+# frames = the layout being punched in + two full passes of the song.
+# frames 1700
+down 20 B
+up 23 B
+down 26 B
+up 29 B
+down 32 B
+up 35 B
+down 38 B
+up 41 B
+down 44 B
+up 47 B
+down 50 B
+up 53 B
+down 56 B
+up 59 B
+down 62 B
+up 65 B
+down 68 B
+up 71 B
+down 74 B
+up 77 B
+down 80 B
+up 83 B
+down 86 B
+up 89 B
+down 92 B
+up 95 B
+down 98 B
+up 101 B
+down 110 N
+up 113 N
+down 120 F
+up 123 F
+down 126 G
+up 129 G
+down 132 D
+up 135 D
+down 138 H
+up 141 H
+down 144 F
+up 147 F
+down 150 G
+up 153 G
+down 156 D
+up 159 D
+down 162 H
+up 165 H
+down 175 BACKSPACE
+up 178 BACKSPACE
+click 190 160 46
+click 200 230 138
+click 210 288 46
+click 220 230 138
+click 230 192 46
+click 240 240 66
+click 250 240 66
+click 260 240 66
+click 270 240 66
+click 280 240 66
+click 290 26 106
+click 300 160 70
+click 310 176 138
+click 320 288 46
+click 330 176 138
+click 340 26 106
+click 350 160 116
+click 360 227 114
+click 370 192 46
+click 380 176 138
+click 390 224 46
+click 400 176 138
+click 410 256 46
+click 420 278 138
+click 430 288 46
+click 440 227 114
+click 450 26 106
+click 460 288 94
+click 470 262 138
+click 480 26 106
+click 490 26 140
+click 500 160 140
+click 510 90 138
+click 520 26 106
+down 545 SPACE
+up 548 SPACE

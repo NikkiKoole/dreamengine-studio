@@ -6,7 +6,7 @@
   "orientation": "landscape",
   "icon":     "apps/pedalboard/icon.png",
   "carts":    ["pedalboard"],
-  "review":   { "firstName": "Nikki", "lastName": "Koole", "email": "nikkikoole@gmail.com", "phone": "" },
+  "review":   { "firstName": "Nikki", "lastName": "Koole", "email": "nikkikoole@gmail.com", "phone": "+31647048515" },
   "listing": {
     "title":    "Tiny Pedalboard: Guitar FX",
     "subtitle": "Build a chain, order your tone",

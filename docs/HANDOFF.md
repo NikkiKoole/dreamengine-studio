@@ -82,7 +82,17 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > **NEXT (the maker's call):** prove a ROOMY branch on a REAL cart — `acidcandy` (a 4-machine rack, D/B the
 > likely pick) turns the mockup into a shipped tablet arrangement and hardens the grammar once more; OR
 > **Layer 4** (make face.h the default), worth it only once L3 is judged proven enough.
-> **acidcandy ROOMY layout MOCKED (2026-07-22, draw-only) → [`acidcandy_ipad`](../tools/carts/acidcandy_ipad.c).**
+> **acidcandy ROOMY layout — MILESTONE 1 WIRED (2026-07-23) into [`acidcandy.c`](../tools/carts/acidcandy.c) `draw_rack2` (`rack_view==2`).**
+> The `acidcandy_ipad` mockup is now a real `draw_rack2()` (helpers `r2_*`) coexisting behind a toggle
+> (default UNTOUCHED — reach it via the **NEW** button in the old 2×2; **HOME** → 2×2 → **NEW** on desktop).
+> LIVE now: sticky FOCUS, per-machine MUTE, PLAY, MST TEMPO/SWING/GLU/FLT/PUMP + mixer, both 303 knob-columns
+> (acid 5 + FX trio + CL/DF + KEY label), the shared screen (303 note-grid tap/drag-draws real notes · drum 2D
+> voice-grid tap/drag paints · MST PCF/CRU/GAT lanes), 808/909 pad strips (tap=select+audition-when-stopped) +
+> the shared colour-coded context panel. **M2 (next):** the soft-key row is drawn but INERT — wire each key to
+> swap the screen (FLAG/PERF/GEN/KIT + DF deep page/WAVE + KEY editing + per-step ACC/PROB/STRK + 909 METAL XY +
+> MST RES/FB + DELAY buttons + drum MUT/REC + VOL·PAN·FINE). Gate before flipping the default: the feature-parity
+> checklist in [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md). The original draw-only mockup
+> stays at [`acidcandy_ipad`](../tools/carts/acidcandy_ipad.c).**
 > Maker-driven ground-up iPad layout, all 5 machines at once (NOT the roomyface tiles): narrow 303a/303b +
 > MASTER knob-strips bracket a big shared SCREEN; 808(16)/909(11) as pad-bank strips stacked at the bottom.
 > **STICKY FOCUS** (tap a nameplate → that machine's DEEP editor fills the screen; play stays live for all).

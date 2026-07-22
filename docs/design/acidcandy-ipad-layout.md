@@ -1,6 +1,28 @@
 # acidcandy — the new iPad ROOMY layout (feature-parity checklist)
 
-**STATUS: exploring** (draw-only mockup done; wiring not started).
+**STATUS: building** (Milestone 1 wired into `acidcandy.c` behind `rack_view==2`, coexisting with the old 2×2; the mockup's DECIDED features are live + interactive, the OPEN ones are the M2 backlog below).
+
+## Wiring status (2026-07-23) — Milestone 1 SHIPPED into `acidcandy.c`
+
+The layout is now a real `draw_rack2()` in `tools/carts/acidcandy.c` (helpers `r2_*`), dispatched
+when `rack_view==2`. **Coexistence, default untouched:** the phone view (0) and old 2×2 (1) are
+unchanged; reach the new layout via the **NEW** button (in the old 2×2 transport) and flip back
+with **2×2 / HM**. On desktop: load acidcandy → **HOME** (→ 2×2) → **NEW** (→ roomy). On iPad it
+still boots to the old 2×2 (safe while under review).
+
+**Live + interactive now (M1):** sticky FOCUS (tap a nameplate) routing the big shared screen;
+per-machine MUTE (LED); PLAY; TEMPO/SWING + GLU/FLT/PUMP + the 4-ch mixer (MST column); the two
+303 columns (CUT/RES/ENV/DEC/ACC + DRV/SEND/VERB + CL/DF voicing + KEY label); the shared screen
+per focus — 303 NOTE GRID (tap=on/off, drag=draw melody, real pattern), drum 2D VOICE GRID
+(tap/drag paints hits), MST automation lanes (PCF/CRU/GAT display); the 808/909 PAD strips
+(tap=select + audition-when-stopped, in-pattern glow, fire-pulse) + FX trio + the ONE shared
+colour-coded context panel (TUN/DEC/⟨char⟩/VOL) following the last-picked voice.
+
+**M2 backlog (the ◻ items below):** the soft-key row is DRAWN but inert — wiring each key to swap
+the screen content (FLAG / PERF / GEN / KIT / the DF deep page + WAVE / KEY editing / per-step
+ACC/PROB/STRK / 909 METAL XY / MST RES/FB + DELAY buttons / drum MUT/REC latches / VOL·PAN·FINE)
+is the next milestone. Do NOT flip the default off `draw_rack` until the checklist is fully green
+AND it feels good in play-testing.
 
 The [`acidcandy_ipad`](../../tools/carts/acidcandy_ipad.c) mockup is a ground-up redesign of
 acidcandy's iPad view. The full model + open questions live in that cart's `de:meta`

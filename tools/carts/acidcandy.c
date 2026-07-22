@@ -2209,6 +2209,56 @@ void update(void) {
 #endif
 }
 
+// ── iPad ROOMY: the full RB-338 rack — all four machines + master at once ────────
+// 808 & 909 were built one-at-a-time, so they SHARE dscreen/darmed/dmut_*/drec_*.
+// In the rack both draw each frame, so each drum gets its own persisted copy that we
+// SWAP into those globals around its draw call (exchange in, draw, exchange back) —
+// zero edits inside the 800-line drum functions, and phone mode (one drum at a time)
+// is untouched. The 303s (sel[2]/pscreen[2]/kpage[2]) are already independent.
+typedef struct { int scr, arm, ml, mh, mn, rl, rh, rn; } DrumUI;
+static DrumUI drum_ui[2] = { { DS_VCE, DD_ACC, 0,0,0, 0,0,0 }, { DS_VCE, DD_ACC, 0,0,0, 0,0,0 } };
+static void drum_ui_swap(DrumUI *u) {   // exchange the shared drum globals ⇄ this store
+    int t;
+    t = dscreen;    dscreen    = u->scr; u->scr = t;
+    t = darmed;     darmed     = u->arm; u->arm = t;
+    t = dmut_latch; dmut_latch = u->ml;  u->ml  = t;
+    t = dmut_hold;  dmut_hold  = u->mh;  u->mh  = t;
+    t = dmut_now;   dmut_now   = u->mn;  u->mn  = t;
+    t = drec_latch; drec_latch = u->rl;  u->rl  = t;
+    t = drec_hold;  drec_hold  = u->rh;  u->rh  = t;
+    t = drec_now;   drec_now   = u->rn;  u->rn  = t;
+}
+static void draw_rack(Box area) {
+    float gap = 2;
+    Box stage = area;
+    Box bar   = lay_split(stage, EDGE_TOP,    16,  &stage);   // transport/title
+    Box mstrp = lay_split(stage, EDGE_BOTTOM, 104, &stage);   // MASTER strip (landscape face → full-width, not a narrow column)
+    // transport bar: title + a real PLAY (mirrors navspine's toggle)
+    { rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);
+      font(FONT_SMALL);
+      print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)(bar.h / 2) - 3, CLR_LIGHT_PEACH);
+      int pw = 24, ph = (int)bar.h - 4, px = (int)(bar.x + bar.w) - pw - 3, py = (int)bar.y + 2;
+      void *wid = ui_wid_hash(0x2Fu, px, py, pw, ph);
+      int pr = 0, hot = 0, foc = 0; int act = ui_button_core(wid, px, py, pw, ph, &foc, &pr, &hot);
+      if (act) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
+                 for (int m = 0; m < M_N; m++) armpat[m] = -1; }
+      rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
+      int cx = px + pw / 2, cy = py + ph / 2;
+      if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); }
+      else         print(">", cx - 1, cy - 3, CLR_WHITE); }
+    // 2×2 instrument grid — 909|808 over 303a|303b (ReBirth's drums-over-synths)
+    Box top  = lay_split(stage, EDGE_TOP, (stage.h - gap) * 0.5f, &stage);
+    Box bot  = stage; bot.y += gap; bot.h -= gap;
+    Box c909 = lay_split(top, EDGE_LEFT, (top.w - gap) * 0.5f, &top);  Box c808 = top;
+    Box c3a  = lay_split(bot, EDGE_LEFT, (bot.w - gap) * 0.5f, &bot);  Box c3b  = bot;
+    c808.x += gap; c808.w -= gap;  c3b.x += gap; c3b.w -= gap;
+    drum_ui_swap(&drum_ui[1]); draw_909(c909); drum_ui_swap(&drum_ui[1]);   // 909 → store 1
+    drum_ui_swap(&drum_ui[0]); draw_808(c808); drum_ui_swap(&drum_ui[0]);   // 808 → store 0
+    draw_303(c3a, M_303A);
+    draw_303(c3b, M_303B);
+    { Box m = mstrp; m.y += gap; m.h -= gap; draw_mst(m); }   // MASTER strip along the base
+}
+
 void draw(void) {
     // seed each line's EFFECTIVE lens from its persistent LATCH (so a latched lens holds across
     // faces + while another line is focused); the focused PERF screen then adds momentary-hold on top.
@@ -2221,18 +2271,26 @@ void draw(void) {
         pf_rp1[m]  = dpf_latch[DPL_RP1][m];  pf_rp2[m]  = dpf_latch[DPL_RP2][m];  pf_rp4[m]  = dpf_latch[DPL_RP4][m];
         pf_thin[m] = dpf_latch[DPL_THIN][m]; pf_busy[m] = dpf_latch[DPL_BUSY][m]; pf_dacc[m] = dpf_latch[DPL_ACC][m];
     }
-    // CHUNKY CANVAS (the "scale up the 160×100, then spread the leftover offset" model): match the
-    // DEVICE ratio at the DESIGN's pixel density — keep the fitting axis at the design value (crisp,
-    // chunky, blit-like), extend the other axis just enough to match the screen ratio, and let the
-    // reflow spread the design into that leftover instead of leaving bars. de_resize is cart-drivable
-    // (studio.c). The ratio is invariant under our own resize, so the target is a fixed point (stable).
+    // DEVICE CLASS — classify ONCE on the first frame, BEFORE we shrink the canvas below
+    // (our own de_resize makes de_sw/de_sh tiny, so device_class() would then read WIDE
+    // forever; frame 0 still reports the physical screen). ROOMY (tablet) → the full rack.
+    static int dev = -1;
+    if (dev < 0) dev = device_class();   // 0 TALL · 1 WIDE (phone) · 2 ROOMY (iPad → rack)
+    // CANVAS: phone keeps the chunky "scale up 160×100, spread the leftover" density (one face);
+    // ROOMY holds a fixed HEIGHT tall enough for 2 instrument rows + a full master strip, and
+    // matches WIDTH to the window ratio so the rack FILLS the window without clipping.
     { int cw = screen_w(), ch = screen_h();
       if (cw > 0 && ch > 0) {
-          float r = (float)cw / (float)ch;
           int tw, th;
-          if (r >= 1.6f) { th = 100; tw = (int)(100.0f * r + 0.5f); }   // wider than 16:10 → keep height, extend width
-          else           { tw = 160; th = (int)(160.0f / r + 0.5f); }   // taller → keep width, extend height
-          if (tw != cw || th != ch) de_resize(tw, th);                  // request the chunky canvas (no-op once at the fixed point)
+          if (dev == 2) {                                              // ROOMY — the rack
+              th = 320; tw = (int)(320.0f * (float)cw / (float)ch + 0.5f);
+              if (tw < 380) tw = 380;                                  // keep 2 landscape instruments legible
+          } else {                                                     // phone — the chunky single face
+              float r = (float)cw / (float)ch;
+              if (r >= 1.6f) { th = 100; tw = (int)(100.0f * r + 0.5f); }
+              else           { tw = 160; th = (int)(160.0f / r + 0.5f); }
+          }
+          if (tw != cw || th != ch) de_resize(tw, th);
       } }
 
     cls(CLR_DARK_PURPLE);                       // the candy shell — BLEEDS to every screen edge (fills margins, no black bars)
@@ -2261,19 +2319,19 @@ void draw(void) {
     float ax1 = (panel.x + panel.w) < (sx + sw) ? (panel.x + panel.w) : (float)(sx + sw);
     float ay1 = (panel.y + panel.h) < (sy + sh) ? (panel.y + panel.h) : (float)(sy + sh);
     Box area = box(ax0, ay0, ax1 - ax0, ay1 - ay0);
-    Box stage;
-    Box nav = lay_split(area, EDGE_TOP, area.h * 0.12f, &stage);   // nav strip ≈ design 12/100
-    navspine(nav);
-    // ARRANGEMENT SEAM (canvas-density-spectrum.md axis 2): today every class draws ONE focused face
-    // (the phone version — scaled + spread by the chunky canvas above; also fine on iPad as a big
-    // focused face). iPad-READY HOOK: when ROOMY, branch here to a future draw_all_rows(stage) that
-    // composes the four machines in rows. Every face already draws into a passed Box, so that tablet
-    // layout is a clean ADD, not a rewrite. (device_class(): 0 TALL · 1 WIDE · 2 ROOMY.)
-    // if (device_class() == 2) { draw_all_rows(stage); return_from_faces; }   // ← iPad ROOMY (design pending)
-    if (mac[face].kind == MK_303) draw_303(stage, face);
-    else if (face == M_808)       draw_808(stage);
-    else if (face == M_909)       draw_909(stage);
-    else                          draw_mst(stage);   // M_MST
+    // ARRANGEMENT (canvas-density-spectrum.md axis 2): ROOMY (iPad) shows the WHOLE rack at once;
+    // phone (TALL/WIDE) shows one focused face reached through the nav-tab strip. Same faces, two modes.
+    if (dev == 2) {
+        draw_rack(area);                                             // iPad — all four machines + master
+    } else {
+        Box stage;
+        Box nav = lay_split(area, EDGE_TOP, area.h * 0.12f, &stage); // nav strip ≈ design 12/100
+        navspine(nav);
+        if (mac[face].kind == MK_303) draw_303(stage, face);
+        else if (face == M_808)       draw_808(stage);
+        else if (face == M_909)       draw_909(stage);
+        else                          draw_mst(stage);              // M_MST
+    }
 
     font(FONT_NORMAL);
     ui_end();

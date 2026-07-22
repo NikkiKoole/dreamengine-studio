@@ -10,13 +10,18 @@ unchanged; reach the new layout via the **NEW** button (in the old 2×2 transpor
 with **2×2 / HM**. On desktop: load acidcandy → **HOME** (→ 2×2) → **NEW** (→ roomy). On iPad it
 still boots to the old 2×2 (safe while under review).
 
-**Live + interactive now (M1):** sticky FOCUS (tap a nameplate) routing the big shared screen;
-per-machine MUTE (LED); PLAY; TEMPO/SWING + GLU/FLT/PUMP + the 4-ch mixer (MST column); the two
-303 columns (CUT/RES/ENV/DEC/ACC + DRV/SEND/VERB + CL/DF voicing + KEY label); the shared screen
-per focus — 303 NOTE GRID (tap=on/off, drag=draw melody, real pattern), drum 2D VOICE GRID
-(tap/drag paints hits), MST automation lanes (PCF/CRU/GAT display); the 808/909 PAD strips
-(tap=select + audition-when-stopped, in-pattern glow, fire-pulse) + FX trio + the ONE shared
-colour-coded context panel (TUN/DEC/⟨char⟩/VOL) following the last-picked voice.
+**Live + interactive now (M1 + maker's look pass):** sticky FOCUS (tap a nameplate) routing the big
+shared screen; per-machine MUTE (LED); PLAY; TEMPO/SWING + GLU/FLT/PUMP + the 4-ch mixer (MST
+column); the two 303 columns (CUT/RES/ENV/DEC/ACC + DRV/SEND/VERB + CL/DF voicing + KEY label); the
+shared screen per focus — 303 NOTE GRID (tap=on/off, drag=draw melody, real pattern), drum 2D VOICE
+GRID (tap/drag paints hits), MST automation lanes (PCF/CRU/GAT display). The DRUMS read as a
+KEYBOARD: 808 = white keys (16, full-width, bottom row), 909 = black keys (11, narrower, spread +
+centred over the 808 gaps, just above) — two separate rows, tap=select + audition-when-stopped. The
+shared colour-coded VOICE context row (its OWN compact band above the drums, TUN/DEC/⟨char⟩/VOL/PAN/
+FINE) follows the last-picked voice on either machine. Look pass (maker's call): nameplates in the
+dos_8x8 in-game font; the knobs are the mockup's clean black-disc + coloured-outline + white-tick
+style (`r2_knob`), NOT the candy bevel rotary, but with the identical gear/fine + double-tap-reset
+drag feel.
 
 **M2 backlog (the ◻ items below):** the soft-key row is DRAWN but inert — wiring each key to swap
 the screen content (FLAG / PERF / GEN / KIT / the DF deep page + WAVE / KEY editing / per-step

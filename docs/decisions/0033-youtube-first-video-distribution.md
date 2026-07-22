@@ -29,7 +29,10 @@ Two sub-decisions fall out:
   landscape flag for the full trailer.
 - **TikTok and Instagram Reels stay MANUAL.** Their posting APIs are approval-gated (TikTok
   Content Posting API) / business-account-gated (Instagram Graph API) — hostile to a solo
-  dev's automation. Revisit only if that changes.
+  dev's automation. Revisit only if that changes. *(Revisited 2026-07-22: TikTok's API was
+  re-checked — its self-serve tier is drafts-only and saves nothing at our volume; still
+  manual, via tiktok.com/upload. Details: [`video-distribution.md`](../design/video-distribution.md)
+  §"The other venues".)*
 
 ## Why
 - **YouTube has the only usable official upload API of the three.** This is the decisive

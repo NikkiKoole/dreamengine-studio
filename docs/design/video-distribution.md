@@ -132,6 +132,25 @@ Own generated audio → **no Content ID / copyright risk**, so uploads are safe 
 - **Thumbnail** — YouTube auto-picks a frame; `store-shots.js` / `store-contact.js` already
   pick hero frames, so a later `--thumb` could set a crisp custom one.
 
+## The other venues — TikTok (revisited 2026-07-22, still manual)
+
+ADR-0033's "TikTok stays manual" was re-checked against TikTok's
+[Content Posting API](https://developers.tiktok.com/doc/content-posting-api-get-started-upload-content)
+— the conclusion HOLDS, but the reason is now sharper than "approval-gated":
+
+- **The self-serve tier is drafts-only.** After registering a developer app AND passing a human
+  scope review (`video.upload`, days-to-weeks), the API can only park a video in your TikTok
+  **inbox as a draft** — you still open the phone app to caption + publish. Direct publish is a
+  second, heavier audit (and unaudited direct-post is restricted to private-only visibility).
+- **The manual path is one drag-and-drop.** tiktok.com/upload (TikTok Studio, in a browser)
+  takes the baked mp4 straight from `editor/public/clips/` / `build/` — caption, schedule,
+  publish, no phone. At this repo's volume (a few clips a week) the API tier would save
+  *only the drag*, at the cost of the registration + review + a new `tiktok-push.js`.
+- **Revisit trigger:** wanting a fully hands-off drip (v0.3-style cron) to TikTok — and even
+  then the drafts-only tier doesn't deliver it; it'd need the direct-post audit.
+
+So: the pipeline ends at the baked mp4; TikTok's upload page is the last step, by hand, on purpose.
+
 ## See also
 - [ADR-0033](../decisions/0033-youtube-first-video-distribution.md) — the platform + in-house
   decision this implements.

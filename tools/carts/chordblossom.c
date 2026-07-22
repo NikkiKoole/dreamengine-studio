@@ -11,6 +11,7 @@
     "chord-voicing",
     "step-sequencer"
   ],
+  "collection": ["chord-bloom"],
   "homage": "Telepathic Instruments Orchid (ORC-1, 2026) — the chord-generating synth co-founded by Tame Impala's Kevin Parker; itself in the Suzuki Omnichord / '80s home-keyboard lineage.",
   "lineage": "Truthful homage to the Telepathic Instruments Orchid: you play CHORDS, not notes. A one-octave keybed picks the root, four TYPE buttons + four combinable MODIFIER buttons build the quality, and the signature VOICING dial cascades the chord one note at a time through inversions and octave-spreads across the keyboard. The real Orchid is a deliberately minimal SONGWRITING idea-machine + 3-part MIDI brain (it sends chords / lead / bass on separate MIDI channels), with ~50 curated non-editable presets across three engines (virtual-analog / FM / reed-EP), a separate sub-bass engine with Follow/Solo, TWO voicing dials (lead AND bass), and a Key mode for diatonic auto-harmony — its depth is the chord-logic + gorgeous sounds, not synthesis or long sequencing (reviewers dispute the drum machine/looper). Distinct from the repo's existing Suzuki-Omnichord tribute (omnichord/Strumharpy): keybed-root + type/modifier logic + the voicing cascade are the Orchid's own thing.",
   "description": {

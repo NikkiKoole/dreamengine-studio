@@ -31,11 +31,13 @@ drag feel.
 - **MST**: MIX (4-channel meters) · PCF / CRU / GAT (each a big editable automation lane — drag to
   paint the per-step 0..7 level).
 
-**M3 backlog (still ◻):** 303 PERF lenses + KEY editing + the DF deep page (SUB/ADEC/SLDT/TRK) +
-WAVE; drum KIT minimap + PERF + MUT/REC latches; per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
+**M3 backlog (still ◻):** 303 PERF lenses + KEY editing; drum KIT minimap + PERF + MUT/REC latches;
+per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
 909 METAL XY; the MST DELAY-division buttons + per-machine SEND (the FX SND knob covers the send
-level, the division picker is still open). (MST RES + FB now DONE — the column is a 2-wide grid,
-TMP|SWG / GLU|PMP / FLT|RES + FB, mirroring the 303 CUT|RES pairing.) Do NOT flip the default off `draw_rack` until
+level, the division picker is still open). (DONE since M2: MST RES + FB — the column is a 2-wide
+grid TMP|SWG / GLU|PMP / FLT|RES + FB; the 303 Devil Fish DEEP page — a CORE/DF-KNOBS page tab in
+DF voicing swaps in SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle; and the on-screen tools now live in
+a 2-row UI, a submenu row above the soft-keys.) Do NOT flip the default off `draw_rack` until
 the checklist is fully green AND it feels good in play-testing.
 
 The [`acidcandy_ipad`](../../tools/carts/acidcandy_ipad.c) mockup is a ground-up redesign of

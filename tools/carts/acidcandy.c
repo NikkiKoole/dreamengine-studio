@@ -2246,12 +2246,12 @@ static Box rack_deco(Box c, int m, int mutable_) {
     static const char *RL[M_N]   = { "303a", "303b", "808", "909", "MST" };
     // per-machine panel WASH (distinct from the accent mac[m].col): 303s yellow/orange, 808 brown,
     // 909 cream, master grey — blended 50% over the peach chassis so each machine reads at a glance.
-    // Per-machine panel colour — a SOLID palette fill (NOT blend(BLEND_AVG): that was a per-pixel
-    // blend = ~98% of a software-canvas frame; a solid fill is a sw memset, fast on the shipping iPad,
-    // and keeps the rounded corners). Colours from the maker's pico32 swatch:
-    //   303a dark-orange · 303b orange · 808 dark-grey · 909 lime-green · master light-grey.
-    static const int RWASH[M_N] = { CLR_DARK_ORANGE, CLR_ORANGE, CLR_DARK_GREY, CLR_LIME_GREEN, CLR_LIGHT_GREY };
-    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, RWASH[m]);
+    // Per-machine panel colour — EXACT RGB from the maker's swatch (rectfill_rgb: true 24-bit, not
+    // the 32-colour palette, since the greens/coral aren't palette entries). A solid fill = a fast sw
+    // memset on the iPad canvas (NOT blend(BLEND_AVG), which was ~98% of a software frame).
+    //   303a orange · 303b coral · 808 green · 909 yellow · master grey.
+    static const int RWASH_RGB[M_N] = { 0xf69c31, 0xf26c55, 0x4fd94a, 0xfee74b, 0xbabbbf };
+    rectfill_rgb((int)c.x, (int)c.y, (int)c.w, (int)c.h, RWASH_RGB[m]);
     Box hdr = lay_split(c, EDGE_TOP, 13, &c);                         // taller header → a chunkier MUTE
     font(FONT_TINY);
     int hx = (int)hdr.x + 1, hy = (int)hdr.y + 1;

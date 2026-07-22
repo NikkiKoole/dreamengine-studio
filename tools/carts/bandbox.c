@@ -537,6 +537,15 @@ static void play_drum_step(int step, int delayMs) {
     if (dp == DPL_DROP) return;                  // DROP — silent this bar
     delayMs += feel_delay_fr(playSlot) * 1000 / 60;   // FEEL: the whole bar drags/accents
     const DrumPat *d = (drumSel == 1) ? &DRUM_PAT[modeSel] : &DRUM_PLAIN;
+    // OPEN-HAT genres (NAPOLN/MINOR set hatRole = DK_HHO): an open hat carries far
+    // more noise-energy than a closed one, so the genre hat line plays a velocity
+    // notch SOFTER (the "washy drums" fix), and anything that DENSIFIES the hats
+    // (BUSY gap-fill, the 16th DOUBLE bar, HALF's on-beats) goes to the CLOSED hat —
+    // 16ths on an open hat is wash, not the disco idiom (the opens stay on the
+    // groove's offbeats where they belong).
+    int openHats  = d->hatRole == DK_HHO;
+    int hatVel    = openHats ? 2 : 3;
+    int denseRole = openHats ? DK_HHC : d->hatRole;
 
     if (bar_feel(playSlot) == FEEL_STOP) {       // STOP — one accented kick on 1, then air
         if (step == 0) dk_fire_at(delayMs, DK_KICK, 0, feel_vel(playSlot, 5));
@@ -546,24 +555,24 @@ static void play_drum_step(int step, int delayMs) {
         if (step == 0) dk_fire_at(delayMs, DK_KICK, 0, feel_vel(playSlot, 6));
         if (step == 4) dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 6));   // mid-bar, BIG
         if (drumBusy >= 1 && (step == 0 || step == 4))
-            dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
+            dk_fire_at(delayMs, denseRole, 0, feel_vel(playSlot, 3));
         return;
     }
     if (dp == DPL_OPEN) {                        // OPEN — offbeat open hats (the disco "tss")
         if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, feel_vel(playSlot, 6));
         if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
-        if (drumBusy >= 1 && (step % 2)) dk_fire_at(delayMs, DK_HHO, 0, feel_vel(playSlot, 3));
+        if (drumBusy >= 1 && (step % 2)) dk_fire_at(delayMs, DK_HHO, 0, feel_vel(playSlot, 2));
         return;
     }
     if (dp == DPL_HATS) {                        // HATS — breakdown: the hat line alone
-        if (d->hat[step] == 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
-        else if (drumBusy == 2)  dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 2));
+        if (d->hat[step] == 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, hatVel));
+        else if (drumBusy == 2)  dk_fire_at(delayMs, denseRole, 0, feel_vel(playSlot, 2));
         return;
     }
-    if (dp == DPL_DOUBLE) {                      // DOUBLE — 16th hats for one bar
+    if (dp == DPL_DOUBLE) {                      // DOUBLE — 16th hats for one bar (closed 16ths)
         if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, feel_vel(playSlot, 6));
         if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
-        dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
+        dk_fire_at(delayMs, denseRole, 0, feel_vel(playSlot, 3));
         return;
     }
     if (dp == DPL_FILL) {                        // FILL — the genre flourish + turnaround crash
@@ -588,9 +597,9 @@ static void play_drum_step(int step, int delayMs) {
     if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
     // BUSY: SPARSE(0) drops the hats; NORMAL(1) plays the genre hats; BUSY(2) fills the
     // gaps with soft offbeat hats + a ghost snare on the 'e/a' between backbeats.
-    if (drumBusy >= 1 && d->hat[step] == 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
+    if (drumBusy >= 1 && d->hat[step] == 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, hatVel));
     if (drumBusy == 2 && bar_feel(playSlot) != FEEL_HUSH) {   // HUSH feathers the extras away
-        if (d->hat[step] != 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 2));
+        if (d->hat[step] != 'x') dk_fire_at(delayMs, denseRole, 0, feel_vel(playSlot, 2));
         if ((step == 3 || step == 6) && d->back[step] != 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 2));
     }
 }

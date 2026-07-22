@@ -1,0 +1,13 @@
+# chordblossom2 — reddit take: title card + the full take (chord-following strum demo)
+# bakes editor/public/reels/chordblossom2-reddit.webm ; the committed .mp4 is that,
+# upscaled x4 nearest + transcoded to H.264/AAC for Reddit native-video upload:
+#   node tools/compose-clips.js chordblossom2-reddit
+#   ffmpeg -y -i editor/public/reels/chordblossom2-reddit.webm \
+#     -vf scale=1280:800:flags=neighbor -c:v libx264 -pix_fmt yuv420p -crf 20 \
+#     -preset slow -c:a aac -b:a 160k -movflags +faststart \
+#     editor/public/reels/chordblossom2-reddit.mp4
+# size 320x200
+# fps 30
+# crf 24
+@card 2.5 | title "strum thingie" | sub "a chord-following toy" | bg 1 | anim fade
+chordblossom2/01-reddit | fade 0.5 | trim 7 63.1

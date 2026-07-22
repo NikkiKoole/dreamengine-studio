@@ -1,7 +1,7 @@
 # bandbox · 02-citypop-royalroad — a demo SONG laid out entirely through the UI with
 # the 2026-07-22 radio-idiom p-locks, citypop style (the citypop.c checklist on the
 # bandbox face):
-#   MODE CITYPO (14 B presses — the harness registers one extra keyp, calibrated),
+#   MODE CITYPO (14 B presses — NMODE is 15, CITYPO is index 14; keys are 1:1),
 #   NEW, then MUSICAL-TYPE the Royal Road twice: F G E A | F G E A = IV V iii vi x2.
 #   p-locks: CHORDS ANTIC on bars 4+8 (the brass push into the change) · BASS POP on
 #   4+8 (octave-pop cell running into the change) · DRUMS FILL 4, OPEN 5+6 (disco

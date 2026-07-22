@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + four lifted from the radio stations: JANGLE, JINGLE, NAPOLN, CITYPO - the last two with their OWN harmony (HB_JINGLE Mac-DeMarco gravity, HB_CITYPOP Royal Road)). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. The 2026-07-22 radio-idiom sweep (mined from the radio carts' bar-level moves) widened the vocab: chord COMP ANTIC/STAB/HELD/TACET, bass APPR/POP/GHOST/PEDAL, drum HALF/OPEN/HATS/DOUBLE, mel HOLD/DOUBLE/OCT+, pad SWELL/HIGH, and the band-wide FEELs HUSH/STOP/LIFT - enough to lay out bars that read as bossa (ANTIC+APPR), citypop (POP+OPEN+ANTIC+LIFT), napoleon disco (POP+GHOST+OPEN), or a cocktail hush. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH/COMP chips (AUTO = follow the global voicing, else a per-cell p-lock; COMP = the bar's comp texture: ANTIC strikes the NEXT bar's chord on the last 8th - the bossa/citypop push - STAB chokes the hits short, HELD rings them to the bar line, TACET rests the comp); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL (drop out, sit on the root, walk, octave-pump, run a fill, lead in chromatic on beat 4, the disco octave-pop cell, soft ghosts in the style's rests, or a key-tonic pedal point). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE (half-time backbeat, offbeat open hats, hats-only breakdown, 16th-hat bar). MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT/HOLD/DOUBLE/OCT+ (one bar-long tone, a double-time run, the bloom an octave up). PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON/SWELL/HIGH (a slow crescendo across the bar; the bed +12). Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG/HUSH/STOP/LIFT) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone down (the room leans in), STOP is the band stop (one accented downbeat hit then air), LIFT is the truck-driver gear change (+2 semitones from that bar to the loop's end; the wrap comes back down). All deterministic; PUSH/ahead is still a follow-up - ANTIC covers the anticipation idiom forward-only. Tap a voice rail header to mute/unmute the lane (chords included). Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH/COMP chips (AUTO = follow the global voicing, else a per-cell p-lock; COMP = the bar's comp texture: ANTIC strikes the NEXT bar's chord on the last 8th - the bossa/citypop push - STAB chokes the hits short, HELD rings them to the bar line, TACET rests the comp); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL (drop out, sit on the root, walk, octave-pump, run a fill, lead in chromatic on beat 4, the disco octave-pop cell, soft ghosts in the style's rests, or a key-tonic pedal point). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE (half-time backbeat, offbeat open hats, hats-only breakdown, 16th-hat bar). MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT/HOLD/DOUBLE/OCT+ (one bar-long tone, a double-time run, the bloom an octave up). PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON/SWELL/HIGH (a slow crescendo across the bar; the bed +12). Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG/HUSH/STOP/LIFT) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone down (the room leans in), STOP is the band stop (one accented downbeat hit then air), LIFT is the truck-driver gear change (+2 semitones from that bar to the loop's end; the wrap comes back down). All deterministic; PUSH/ahead is still a follow-up - ANTIC covers the anticipation idiom forward-only. Tap a voice rail header to mute/unmute the lane (chords included). Nav: SONG (top-left) opens the SONGS popup - your autosaved song (MINE) + built-in demos (CITY POP = the Royal-Road demo with the full lock set, BOSSA = the early change + chromatic lead-in); picking one loads it. The song AUTOSAVES on every edit (a versioned 120-byte blob via save_bytes - the save file format); loading a demo is not an edit, so MINE survives browsing until you edit on top. < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   },
   "todo": [
     "SONG STRUCTURE (the leap from loop to song, the biggest gap for real pop songs): A/B sections (verse/chorus/bridge), each with its OWN progression + arrangement (which voices on, BUSY/feel), plus a SONG ORDER (A A B A...). A pop song IS the contrast between sections; right now bandbox is one 4-8 bar loop forever. Composes with every per-bar param already built (mute/BUSY/feel/p-locks). Sketch the data model + how it fits the 160x100 face BEFORE wiring - it's the biggest structural change.",
@@ -312,6 +312,8 @@ static int selVoice = -1;   // which voice's editor is open (-1 = the tracker)
 static int selBar   = 0;    // which bar the editor edits
 static int helpOn   = 0;    // the legend overlay (? button)
 static int picking  = 0;    // the ADD-CHORD picker is open (tap "+")
+static int songsOn  = 0;    // the SONGS popup is open (demos + your autosave)
+static int haveSave = 0;    // probed when the popup opens: does a MINE blob exist?
 
 // keybed note-lights: per-pitch-class glow that decays each frame. ONLY the voice a
 // single instrument is focused on (the edited voice, or CHORDS while picking) lights
@@ -729,6 +731,130 @@ static void seed_demo(void) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE SONG FILE FORMAT (v1) — one serialized shape for a whole song: the header
+// (key/mode/tempo/loop length), every voice's global setup, the lane switches,
+// and all NBARS bars with their full p-lock set. 120 bytes, versioned. It is
+// BOTH the save file (autosaved via save_bytes into build/saves/bandbox/) and
+// the shape a built-in DEMO loads through — one format, two producers.
+// Harness builds (DE_TRACE/DE_SPEC) never touch the disk copy: play.js/spec runs
+// stay deterministic and the parked clips keep replaying from the doo-wop boot.
+// ─────────────────────────────────────────────────────────────────────────
+#define SONG_BYTES (24 + NBARS * 12)
+static void song_pack(signed char *b) {
+    b[0] = 'B'; b[1] = 'X'; b[2] = 1;                 // magic + version
+    b[3] = (signed char)keyPc;   b[4] = (signed char)modeSel;
+    b[5] = (signed char)(bpmN * 100.0f + 0.5f);       // tempo knob, 0..100
+    b[6] = (signed char)nbars;
+    b[7] = (signed char)strumSel; b[8] = (signed char)invSel;
+    b[9] = (signed char)octSel;   b[10] = (signed char)seventh;
+    b[11] = (signed char)bassSel; b[12] = (signed char)bassTone;
+    b[13] = (signed char)chordTone; b[14] = (signed char)melTone; b[15] = (signed char)padTone;
+    b[16] = (signed char)drumSel; b[17] = (signed char)kitSel; b[18] = (signed char)drumBusy;
+    for (int v = 0; v < VOICES; v++) b[19 + v] = (signed char)von[v];
+    for (int i = 0; i < NBARS; i++) {
+        signed char *r = b + 24 + i * 12;
+        r[0] = (signed char)arr[i].rootPc; r[1] = (signed char)arr[i].qual;
+        r[2] = (signed char)arr[i].strum;  r[3] = (signed char)arr[i].inv;
+        r[4] = (signed char)arr[i].oct;    r[5] = (signed char)arr[i].sev;
+        r[6] = (signed char)arr[i].comp;   r[7] = (signed char)arr[i].bass;
+        r[8] = (signed char)arr[i].fill;   r[9] = (signed char)arr[i].mel;
+        r[10] = (signed char)arr[i].pad;   r[11] = (signed char)arr[i].feel;
+    }
+}
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+static int song_unpack(const signed char *b, int n) {
+    if (n < SONG_BYTES || b[0] != 'B' || b[1] != 'X' || b[2] != 1) return 0;
+    keyPc = clampi(b[3], 0, 11);  modeSel = clampi(b[4], 0, NMODE - 1);
+    bpmN = clampi(b[5], 0, 100) / 100.0f;
+    nbars = clampi(b[6], 0, NBARS);
+    strumSel = clampi(b[7], 0, NSTRUM - 1); invSel = clampi(b[8], 0, 3);
+    octSel = clampi(b[9], 0, 2); seventh = b[10] ? 1 : 0;
+    bassSel = clampi(b[11], 0, 3); bassTone = clampi(b[12], 0, 3);
+    chordTone = clampi(b[13], 0, 2); melTone = clampi(b[14], 0, 3); padTone = clampi(b[15], 0, 2);
+    drumSel = clampi(b[16], 0, 1); kitSel = clampi(b[17], 0, 1); drumBusy = clampi(b[18], 0, 2);
+    for (int v = 0; v < VOICES; v++) von[v] = b[19 + v] ? 1 : 0;
+    for (int i = 0; i < NBARS; i++) {
+        const signed char *r = b + 24 + i * 12;
+        arr[i].rootPc = clampi(r[0], 0, 11);
+        arr[i].qual   = clampi(r[1], 0, HB_NQUAL - 1);
+        arr[i].strum  = clampi(r[2], -1, NSTRUM - 1);
+        arr[i].inv    = clampi(r[3], -1, 3);
+        arr[i].oct    = clampi(r[4], -1, 2);
+        arr[i].sev    = clampi(r[5], -1, 1);
+        arr[i].comp   = clampi(r[6], -1, CPL_N - 1);
+        arr[i].bass   = clampi(r[7], -1, BPL_PEDAL);
+        arr[i].fill   = clampi(r[8], 0, DPL_DOUBLE);
+        arr[i].mel    = clampi(r[9], -1, MPL_OCT);
+        arr[i].pad    = clampi(r[10], -1, PPL_HIGH);
+        arr[i].feel   = clampi(r[11], 0, NFEEL - 1);
+    }
+    apply_chord_tone(); apply_bass_tone(); apply_mel_tone(); apply_pad_tone();
+    dk_use(KITS[kitSel], 20);                         // set-and-hold: re-voice on load only
+    playing = 0; selVoice = -1; picking = 0;
+    rethink();
+    return 1;
+}
+// AUTOSAVE — a checksum of the packed song, taken every frame; when it moves, the
+// blob is written. Loads (boot / MINE / a demo) re-arm the checksum WITHOUT saving,
+// so browsing demos never clobbers your song until you actually edit on top of one.
+static unsigned songClean = 0;
+static unsigned song_sum(void) {
+    signed char b[SONG_BYTES]; song_pack(b);
+    unsigned h = 2166136261u;
+    for (int i = 0; i < SONG_BYTES; i++) { h ^= (unsigned char)b[i]; h *= 16777619u; }
+    return h;
+}
+static void song_mark_clean(void) { songClean = song_sum(); }
+
+// ── the built-in DEMOS — songs as DATA in the song format's shape. The first is
+// the parked 02-citypop-royalroad clip transcribed (the citypop.c checklist:
+// Royal Road x2, POP bass + disco hats into the turn, ANTIC pushes, +2 LIFT).
+typedef struct {
+    const char *name, *blurb;
+    int mode, key, nbars, padOn;
+    signed char root[NBARS], qual[NBARS], comp[NBARS], bass[NBARS],
+                fill[NBARS], mel[NBARS], pad[NBARS], feel[NBARS];
+} Demo;
+static const Demo DEMOS[] = {
+    { "CITY POP", "royal road x2 - the +2 LIFT",
+      14, 0, 8, 1,
+      { 5, 7, 4, 9, 5, 7, 4, 9 },
+      { HBQ_MAJ7, HBQ_DOM7, HBQ_MIN7, HBQ_MIN7, HBQ_MAJ7, HBQ_DOM7, HBQ_MIN7, HBQ_MIN7 },
+      { -1, -1, -1, CPL_ANTIC, -1, -1, -1, CPL_ANTIC },
+      { -1, -1, -1, BPL_POP,   -1, -1, -1, BPL_POP },
+      { 0, 0, 0, DPL_FILL, DPL_OPEN, DPL_OPEN, DPL_DOUBLE, DPL_FILL },
+      { -1, -1, -1, -1, -1, -1, -1, MPL_OCT },
+      { -1, -1, -1, PPL_SWELL, -1, -1, -1, -1 },
+      { 0, 0, 0, 0, FEEL_LIFT, 0, 0, 0 } },
+    { "BOSSA", "the early change + lead-in",
+      0, 0, 4, 0,
+      { 0, 9, 5, 7, 0, 0, 0, 0 },
+      { HBQ_MAJ7, HBQ_MIN7, HBQ_MAJ7, HBQ_DOM7, 0, 0, 0, 0 },
+      { -1, -1, -1, CPL_ANTIC, -1, -1, -1, -1 },
+      { -1, BPL_APPR, -1, BPL_APPR, -1, -1, -1, -1 },
+      { 0, 0, 0, 0, 0, 0, 0, 0 },
+      { -1, -1, -1, -1, -1, -1, -1, -1 },
+      { -1, -1, -1, -1, -1, -1, -1, -1 },
+      { 0, 0, 0, 0, 0, 0, 0, 0 } },
+};
+#define NDEMO ((int)(sizeof DEMOS / sizeof DEMOS[0]))
+static void demo_load(const Demo *d) {
+    playing = 0; selVoice = -1; picking = 0;
+    keyPc = d->key; modeSel = d->mode; nbars = d->nbars;
+    von[V_PA] = d->padOn;
+    for (int i = 0; i < NBARS; i++) {
+        bar_defaults(&arr[i]);
+        if (i >= d->nbars) continue;
+        arr[i].rootPc = d->root[i]; arr[i].qual = d->qual[i];
+        arr[i].comp = d->comp[i];   arr[i].bass = d->bass[i];
+        arr[i].fill = d->fill[i];   arr[i].mel  = d->mel[i];
+        arr[i].pad  = d->pad[i];    arr[i].feel = d->feel[i];
+    }
+    rethink();
+    song_mark_clean();                                // a demo is not an edit
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE FACE — the glass morphs (tracker <-> a tapped cell's editor); the chassis
 // (rail / nav / keybed) never moves. Layout is computed ONCE per frame in draw();
 // all input is ui.h immediate-mode in draw() + keyp() in update(), so taps never
@@ -767,6 +893,20 @@ static int seg(Box b, const char *lab, int active, unsigned seed) {
 }
 
 static void zone_nav(Box b) {
+    // SONG (top-left) — the songs popup: built-in demos + your autosaved song
+    Box sng = lay_split(b, EDGE_LEFT, 21, &b);
+    if (seg(sng, "SONG", songsOn, 0x2108)) {
+        songsOn = !songsOn; selVoice = -1; picking = 0; helpOn = 0;
+        if (songsOn) {                                // probe MINE once, on open
+#if !defined(DE_TRACE) && !defined(DE_SPEC)           // harness runs never see the disk
+            signed char probe[SONG_BYTES];            // copy — clips stay deterministic
+            haveSave = load_bytes(probe, SONG_BYTES) == SONG_BYTES
+                       && probe[0] == 'B' && probe[1] == 'X' && probe[2] == 1;
+#else
+            haveSave = 0;
+#endif
+        }
+    }
     // < KEY x >
     Box kdec = lay_split(b, EDGE_LEFT, 9, &b);
     if (seg(kdec, "<", 0, 0x2101)) change_key(-1);
@@ -809,6 +949,39 @@ static void glass_help(Box g) {
     print("tap a rail header to mute a lane", x, y, CLR_INDIGO); y += 7;
     print("+ picks a chord (or type A S D F.. like", x, y, CLR_INDIGO); y += 7;
     print("garageband). KEY: stopped respells, plays move", x, y, CLR_INDIGO);
+}
+
+// the SONGS popup, drawn ON the glass (the same morph as help/picker): your
+// autosaved song (MINE) + the built-in demos. Picking one loads it and closes.
+// Loads are not edits — MINE survives demo browsing until you edit on top.
+static void glass_songs(Box g) {
+    Box top = lay_split(g, EDGE_TOP, 11, &g);
+    print("SONGS", (int)top.x + 1, (int)(top.y + 3), CLR_WHITE);
+    Box back = lay_split(top, EDGE_RIGHT, 30, &top);
+    if (seg(back, "BACK", 0, 0x2900)) songsOn = 0;
+    Box p = lay_inset(g, 2);
+    for (int i = 0; i < NDEMO + 1; i++) {             // row 0 = MINE, then the demos
+        Box row = lay_split(p, EDGE_TOP, 15, &p);     // fixed-height rows (3 fit; a
+        int mine = i == 0, on = !mine || haveSave;    // longer shelf needs paging later)
+        const char *nm = mine ? "MINE" : DEMOS[i - 1].name;
+        const char *bl = mine ? (haveSave ? "your autosaved song" : "nothing saved yet")
+                              : DEMOS[i - 1].blurb;
+        Box r = lay_inset(row, 1);
+        rrectfill((int)r.x, (int)r.y, (int)r.w, (int)r.h, 2, on ? CLR_DARK_BLUE : CLR_BROWNISH_BLACK);
+        rect((int)r.x, (int)r.y, (int)r.w, (int)r.h, on ? CLR_ORANGE : CLR_DARKER_GREY);
+        print(nm, (int)r.x + 2, (int)r.y + 2, on ? CLR_WHITE : CLR_DARK_GREY);
+        print(bl, (int)r.x + 2, (int)(r.y + r.h - 7), on ? CLR_LIGHT_GREY : CLR_DARK_GREY);
+        if (on && tapped(r, 0x2910u + i)) {
+            if (mine) {
+#if !defined(DE_TRACE) && !defined(DE_SPEC)
+                signed char b[SONG_BYTES];
+                if (load_bytes(b, SONG_BYTES) == SONG_BYTES && song_unpack(b, SONG_BYTES))
+                    song_mark_clean();
+#endif
+            } else demo_load(&DEMOS[i - 1]);
+            songsOn = 0;
+        }
+    }
 }
 
 // GLASS material — a recessed dark display panel with a bezel.
@@ -1168,7 +1341,16 @@ void init(void) {
     apply_mel_tone();
     apply_pad_tone();
     dk_use(KITS[kitSel], 20);                        // the rhythm section — slots 20..27
+#if !defined(DE_TRACE) && !defined(DE_SPEC)
+    // resume your autosaved song if one exists; else the doo-wop cold open. Harness
+    // builds always cold-open — the parked clips + spec stay deterministic.
+    { signed char b[SONG_BYTES];
+      if (!(load_bytes(b, SONG_BYTES) == SONG_BYTES && song_unpack(b, SONG_BYTES)))
+          seed_demo(); }
+#else
     seed_demo();
+#endif
+    song_mark_clean();                               // booting is not an edit
 }
 
 void update(void) {
@@ -1176,7 +1358,7 @@ void update(void) {
     if (keyp(KEY_LEFT))  change_key(-1);
     if (keyp(KEY_RIGHT)) change_key(+1);
     if (keyp('B'))       { modeSel = (modeSel + 1) % NMODE; rethink(); }
-    if (keyp(KEY_BACKSPACE)) { selVoice = -1; picking = 0; }
+    if (keyp(KEY_BACKSPACE)) { selVoice = -1; picking = 0; songsOn = 0; }
     if (keyp('N'))           new_song();   // start a fresh empty song
 
     // GarageBand-style MUSICAL TYPING — the QWERTY rows are a keyboard that drives
@@ -1251,6 +1433,13 @@ void update(void) {
 
     for (int i = 0; i < 12; i++) keyLit[i] *= 0.86f;   // the note-lights fade out
     pump_notes();
+
+#if !defined(DE_TRACE) && !defined(DE_SPEC)
+    // AUTOSAVE — any edit moves the song checksum; write the v1 blob when it does.
+    // Loads re-arm the checksum without writing, so demo browsing never clobbers MINE.
+    { unsigned s = song_sum();
+      if (s != songClean) { signed char b[SONG_BYTES]; song_pack(b); save_bytes(b, SONG_BYTES); songClean = s; } }
+#endif
 }
 
 void draw(void) {
@@ -1272,6 +1461,7 @@ void draw(void) {
     zone_rail(rail, g);
     if (picking)             glass_pick(g);
     else if (helpOn)         glass_help(g);
+    else if (songsOn)        glass_songs(g);
     else if (selVoice >= 0)  glass_editor(g);
     else                     glass_grid(g);
     zone_keybed(f.box[2]);
@@ -1473,6 +1663,34 @@ void spec(void) {
     arr[0].rootPc = 7; arr[0].qual = HBQ_DOM7; rethink();   // G7 = V in C
     expect(pfn[0] == HB_V, "citypop: G7 = V");
     expect(nsugg >= 1 && sugg[0].f == HB_iii, "citypop from V leans iii (the Royal Road tell)");
+
+    // SONG format v1 (the save file + the demo shape): pack -> wreck -> unpack restores
+    modeSel = 14; keyPc = 3; seed_demo();
+    arr[1].bass = BPL_POP; arr[2].feel = FEEL_LIFT; arr[0].comp = CPL_STAB; von[V_PA] = 1;
+    { signed char sb[SONG_BYTES], sb2[SONG_BYTES];
+      song_pack(sb);
+      modeSel = 0; keyPc = 0; new_song(); von[V_PA] = 0;
+      expect(song_unpack(sb, SONG_BYTES), "a v1 blob unpacks (magic + version accepted)");
+      expect(modeSel == 14 && keyPc == 3 && nbars == 4, "unpack restores key/mode/loop length");
+      expect(arr[1].bass == BPL_POP && arr[2].feel == FEEL_LIFT && arr[0].comp == CPL_STAB && von[V_PA] == 1,
+             "unpack restores p-locks + lane switches");
+      song_pack(sb2);
+      expect(memcmp(sb, sb2, SONG_BYTES) == 0, "pack(unpack(b)) == b (the format is stable)");
+      sb[2] = 99;
+      expect(!song_unpack(sb, SONG_BYTES), "an unknown version is refused, not misread"); }
+
+    // the built-in demos load through the same shape
+    demo_load(&DEMOS[0]);
+    expect(modeSel == 14 && nbars == 8 && von[V_PA] == 1, "CITY POP demo: CITYPO, 8 bars, pad on");
+    expect(arr[3].bass == BPL_POP && arr[3].comp == CPL_ANTIC && arr[4].feel == FEEL_LIFT
+           && arr[6].fill == DPL_DOUBLE && arr[7].mel == MPL_OCT && arr[3].pad == PPL_SWELL,
+           "CITY POP demo carries the parked clip's locks (POP/ANTIC/LIFT/DOUBLE/OCT+/SWELL)");
+    expect(pfn[0] == HB_IV && pfn[1] == HB_V && pfn[2] == HB_iii && pfn[3] == HB_vi,
+           "CITY POP demo analyzes as the Royal Road (IV V iii vi)");
+    demo_load(&DEMOS[1]);
+    expect(modeSel == 0 && nbars == 4 && arr[1].bass == BPL_APPR && arr[3].comp == CPL_ANTIC,
+           "BOSSA demo: the early change + the chromatic lead-in");
+    von[V_PA] = 0;
 
     // back to a clean state
     modeSel = 0; keyPc = 0; seed_demo();

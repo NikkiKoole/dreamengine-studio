@@ -2238,7 +2238,7 @@ static Box rack_deco(Box c, int m, int mutable_) {
     static const char *RL[M_N]   = { "303a", "303b", "808", "909", "MST" };
     // per-machine panel WASH (distinct from the accent mac[m].col): 303s yellow/orange, 808 brown,
     // 909 cream, master grey — blended 50% over the peach chassis so each machine reads at a glance.
-    static const int   RWASH[M_N] = { CLR_YELLOW, CLR_ORANGE, CLR_BROWN, CLR_WHITE, CLR_LIGHT_GREY };
+    static const int   RWASH[M_N] = { CLR_YELLOW, CLR_ORANGE, CLR_DARK_BROWN, CLR_WHITE, CLR_LIGHT_GREY };
     blend(BLEND_AVG); rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, RWASH[m]); blend_reset();  // machine wash
     Box hdr = lay_split(c, EDGE_TOP, 9, &c);
     font(FONT_TINY);

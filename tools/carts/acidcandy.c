@@ -2633,10 +2633,14 @@ static void r2_colmst(Box c) {
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), M_MST);
     Box mix = lay_split(cc, EDGE_BOTTOM, 26, &cc);
-    float *KV[5] = { &bpm01, &g_swing, &mglu, &mflt, &mpump };
-    static const char *KN[5] = { "TMP", "SWG", "GLU", "FLT", "PMP" };
-    static const float KD[5] = { 0.5143f, 0.0f, 0.30f, 0.5f, 0.0f };
-    for (int k = 0; k < 5; k++) r2_kcell(lay_grid(cc, 1, 5, k, 1), KV[k], KN[k], KD[k], mac[M_MST].col);
+    // master knobs — 2-wide grid, filter pair FLT|RES together (mirrors the 303 CUT|RES); FB centred
+    // on its own row below (the delay feedback). RES + FB were the two missing from the column.
+    float *KV[6] = { &bpm01, &g_swing, &mglu, &mpump, &mflt, &mfres };
+    static const char *KN[6] = { "TMP", "SWG", "GLU", "PMP", "FLT", "RES" };
+    static const float KD[6] = { 0.5143f, 0.0f, 0.30f, 0.0f, 0.5f, 0.35f };
+    Box fbr = lay_split(cc, EDGE_BOTTOM, cc.h / 4, &cc);      // FB row (centred, full width)
+    for (int k = 0; k < 6; k++) r2_kcell(lay_grid(cc, 2, 6, k, 1), KV[k], KN[k], KD[k], mac[M_MST].col);
+    r2_kcell(fbr, &mfb, "FB", 0.35f, mac[M_MST].col);
     // 4-channel mini mixer (303a/303b/808/909 faders) + delay division label
     int mmx = (int)mix.x + 2, mmy = (int)mix.y, fw = ((int)mix.w - 4) / 4;
     static const int MC[4] = { M_303A, M_303B, M_808, M_909 };

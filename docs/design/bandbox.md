@@ -10,6 +10,30 @@ is the moment to consider it), and richer per-voice editors (density/register/ki
 language stayed settled (see below). Sibling of `chordwise`; part of the chord-bloom thread in
 [`bossa-rack.md`](bossa-rack.md).
 
+**2026-07-22 — the radio-idiom p-lock sweep.** Mined the radio carts' bar-level moves (bossa/jangle/
+jingle/napoleon/citypop/cocktail + lofi/motorik/italo for contrast) and shipped the recurring idioms as
+19 new per-cell locks, so a chart can read as any of the lifted genres:
+- **CHORDS · COMP chip** — `ANTIC` (the last 8th of THIS bar already strikes the NEXT bar's chord —
+  bossa's early change / citypop's brass push, implemented forward-only: no lookahead scheduling, which
+  is why this landed while the whole-band PUSH feel is still parked) · `STAB` (60 ms choke) · `HELD`
+  (rings to the bar line) · `TACET`.
+- **BASS** — `APPR` (the global style, but beat 4 leads in chromatic from below — the single most
+  recurring idiom on the radio shelf) · `POP` (root · octave-pop · fifth · run-into-the-change, the
+  disco/citypop cell) · `GHOST` (the style + vel-2 root ghosts in its rests) · `PEDAL` (the KEY's tonic
+  under every chord).
+- **DRUMS** — `HALF` (backbeat once, mid-bar, big) · `OPEN` (offbeat open hats, the disco "tss") ·
+  `HATS` (breakdown, hat line alone) · `DOUBLE` (16th hats for one bar).
+- **MEL** — `HOLD` (one bar-long tone) · `DOUBLE` (double-time run) · `OCT+`.
+- **PAD** — `SWELL` (a one-bar crescendo ridden live via `note_on`+`note_vol`; verified by stem
+  envelope — rises 0→peak across its bar, tail bleeds over the bar line) · `HIGH` (+12).
+- **FEEL** (per-bar, band-wide) — `HUSH` (−2 vel, BUSY extras feathered — cocktail's "the room leans
+  in") · `STOP` (one accented downbeat hit, then air) · `LIFT` (the truck-driver gear change: playback
+  transposes +2 from the LIFT bar to the loop's end; the chart + analysis stay in the written key).
+Genre recipes these unlock: bossa = ANTIC+APPR · citypop = POP+OPEN+ANTIC+LIFT on the last pass ·
+napoleon disco = POP+GHOST+OPEN · cocktail = WALK+HUSH+HATS. Spec grew to 112 assertions (feel maths,
+transpose bounds, lock/unlock per lane). Out of scope, still parked: sus/add9 qualities (a `harmony.h`
+vocab change), song sections, the composed hook, whole-band PUSH.
+
 ---
 
 ## What it is (the soul)

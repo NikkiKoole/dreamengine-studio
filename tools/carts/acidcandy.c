@@ -2398,20 +2398,36 @@ static void r2_header(Box hd, int m) {
 // octave (^/v) + tie (a stretched cell); a line = slide. Draw + edit: tap = on/off, drag = draw the
 // melody (pitch = row). ONE capture widget (not 16 — keeps well under UI_MAX_WID).
 static void r2_screen303(Box g, int i) {
-    int hi = mac[i ? M_303B : M_303A].col;
+    int mode = pscreen[i], hi = mac[i ? M_303B : M_303A].col;
+    Box gg = g;
+    // FLAG: a palette strip on top to ARM which flag the grid then paints
+    if (mode == PS_FLAG) {
+        Box pal = lay_split(gg, EDGE_TOP, 10, &gg);
+        int bw = ((int)pal.w) / FL_N;
+        for (int f = 0; f < FL_N; f++)
+            if (lcdbtn(0x140u + f, (int)pal.x + f * bw, (int)pal.y, bw - 1, 9, FLNAME[f], armed == f)) armed = f;
+    }
     int NR = SCALES[mscale[i]].n;
-    int gut = 9, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h - 7;
+    int gut = 9, gx = (int)gg.x + gut, gy = (int)gg.y, gw = (int)gg.w - gut - 1, gh = (int)gg.h - 7;
     int step = gw / STEPS, rh = gh / NR;
-    // edit — one capture over the whole grid
-    void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
-    UiCap *c = ui_cap_for(w);
-    if (c) {
-        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
-        int s = (px - gx) / step, frow = (py - gy) / rh;
-        if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
-            int deg = (NR - 1) - frow;
-            if (ui_grabbed(w) && on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0;  // tap an existing note = off
-            else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
+    // edit — one capture over the grid (SEQ = note/pitch, FLAG = paint the armed flag). GEN has no
+    // grid widget (its menu buttons live over the grid → no overlap).
+    if (mode != PS_GEN) {
+        void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
+        UiCap *c = ui_cap_for(w);
+        if (c) {
+            int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
+            int s = (px - gx) / step, frow = (py - gy) / rh;
+            if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
+                int deg = (NR - 1) - frow;
+                if (mode == PS_FLAG && armed != FL_NOTE) {
+                    if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);   // decide on the first cell, then paint the drag
+                    flag_set(i, s, armed, paint_val);
+                } else {
+                    if (ui_grabbed(w) && on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0;  // tap an existing note = off
+                    else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
+                }
+            }
         }
     }
     // faint grid + beat lines + playhead
@@ -2433,53 +2449,108 @@ static void r2_screen303(Box g, int i) {
         if (sld[i][s] && on[i][ns]) { int r2 = (NR - 1) - scale_idx(mscale[i], pit[i][ns]);
             line(cx + step, ry + rh / 2, gx + ns * step, gy + r2 * rh + rh / 2, CLR_LIGHT_PEACH); }
     }
-    font(FONT_TINY); print("tap=on/off  drag=draw melody", gx, gy + rh * NR + 1, CLR_MEDIUM_GREEN);
+    if (mode == PS_GEN) {   // CLEAR + density menu (calls the real acid-riff generator)
+        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+        int bw = gw / 4, by = gy + rh * NR / 2 - 6;
+        for (int d = 0; d < 4; d++) if (lcdbtn(0x150u + d, gx + d * bw, by, bw - 3, 12, GN[d], 0)) gen_line(i, d);
+    } else {
+        font(FONT_TINY); print(mode == PS_FLAG ? "arm a flag \x7f paint the grid" : "tap=on/off  drag=draw melody", gx, gy + rh * NR + 1, CLR_MEDIUM_GREEN);
+    }
 }
 
 // SHARED SCREEN — the drum 2D VOICE GRID (voices × 16 steps). left gutter names each voice; the
 // selected row is lit. tap/drag paints hits. ONE capture widget.
 static void r2_screendrum(Box g, int focus) {
-    int hi = mac[focus].col, nv = (focus == M_808) ? TR_NV : TR9_NV;
+    int mode = dscreen, hi = mac[focus].col, nv = (focus == M_808) ? TR_NV : TR9_NV;
     int (*grid)[STEPS] = (focus == M_808) ? dgrid : d9grid;
     int (*accg)[STEPS] = (focus == M_808) ? dacc : d9acc;
+    int (*prbg)[STEPS] = (focus == M_808) ? dprob : d9prob;
     const char **vn = (focus == M_808) ? AB8 : AB9;
     int sel = (focus == M_808) ? dsel : d9sel;
-    int gut = 13, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h;
+    Box gg = g;
+    // FLAG: arm ACC / PROB (/ STRK on the 909), then work the cells
+    if (mode == DS_FLAG) {
+        Box pal = lay_split(gg, EDGE_TOP, 10, &gg);
+        static const char *FN[3] = { "ACC", "PROB", "STRK" };
+        static const int   FM[3] = { DD_ACC, DD_PROB, DD_STRK };
+        int n = (focus == M_909) ? 3 : 2, bw = ((int)pal.w) / n;
+        for (int f = 0; f < n; f++)
+            if (lcdbtn(0x160u + f, (int)pal.x + f * bw, (int)pal.y, bw - 1, 9, FN[f], darmed == FM[f])) darmed = FM[f];
+    }
+    int gut = 13, gx = (int)gg.x + gut, gy = (int)gg.y, gw = (int)gg.w - gut - 1, gh = (int)gg.h;
     int step = gw / STEPS, rh = gh / nv;
-    void *w = ui_wid_hash(0x120u + focus, gx, gy, step * STEPS, rh * nv); ui_reg(w, gx, gy, step * STEPS, rh * nv, 0);
-    UiCap *c = ui_cap_for(w);
-    if (c) {
-        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
-        int s = (px - gx) / step, v = (py - gy) / rh;
-        if (s >= 0 && s < STEPS && v >= 0 && v < nv) {
-            if (ui_grabbed(w)) paint_val = !grid[v][s];
-            grid[v][s] = paint_val;
+    if (mode != DS_GEN) {
+        void *w = ui_wid_hash(0x120u + focus, gx, gy, step * STEPS, rh * nv); ui_reg(w, gx, gy, step * STEPS, rh * nv, 0);
+        UiCap *c = ui_cap_for(w);
+        if (c) {
+            int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
+            int s = (px - gx) / step, v = (py - gy) / rh;
+            if (s >= 0 && s < STEPS && v >= 0 && v < nv) {
+                if (mode == DS_FLAG && darmed == DD_ACC) {            // ACC paints (fill-drag): a hit + its accent
+                    if (ui_grabbed(w)) paint_val = !accg[v][s];
+                    accg[v][s] = paint_val; if (paint_val) grid[v][s] = 1;
+                } else if (mode == DS_FLAG && ui_grabbed(w)) {        // PROB / STRK cycle on the tap
+                    if (darmed == DD_PROB) { grid[v][s] = 1; int p = prbg[v][s]; prbg[v][s] = p >= 100 ? 75 : p >= 75 ? 50 : p >= 50 ? 25 : 100; }
+                    else if (focus == M_909) { d9strk[v][s] = (d9strk[v][s] + 1) & 3; grid[v][s] = 1; }
+                } else if (mode != DS_FLAG) {                         // VCE — paint hits
+                    if (ui_grabbed(w)) paint_val = !grid[v][s];
+                    grid[v][s] = paint_val;
+                }
+            }
         }
     }
     if (playing) rectfill(gx + lpos[0] * step, gy, step - 1, rh * nv, CLR_DARK_GREEN);
     for (int v = 0; v < nv; v++) {
         int ry = gy + v * rh;
-        if (v == sel) rectfill((int)g.x + 1, ry, gut - 1, rh - 1, CLR_DARK_GREEN);
-        font(FONT_TINY); print(vn[v], (int)g.x + 2, ry + (rh - 5) / 2, (v == sel) ? CLR_WHITE : CLR_MEDIUM_GREEN);
+        if (v == sel) rectfill((int)gg.x + 1, ry, gut - 1, rh - 1, CLR_DARK_GREEN);
+        font(FONT_TINY); print(vn[v], (int)gg.x + 2, ry + (rh - 5) / 2, (v == sel) ? CLR_WHITE : CLR_MEDIUM_GREEN);
         for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
-            if (grid[v][s]) rectfill(cx + 1, ry + 1, step - 2, rh - 2, accg[v][s] ? CLR_WHITE : hi);
-            else pset(cx + step / 2, ry + rh / 2, (s % 4 == 0) ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK); }
+            if (grid[v][s]) {
+                int pr = prbg[v][s] > 0 ? prbg[v][s] : 100, ch = (rh - 2) * pr / 100; if (ch < 2) ch = 2;   // PROB = a shorter cell
+                rectfill(cx + 1, ry + 1 + (rh - 2 - ch), step - 2, ch, accg[v][s] ? CLR_WHITE : hi);
+                if (focus == M_909 && d9strk[v][s]) for (int p = 0; p <= d9strk[v][s]; p++) pset(cx + 1 + p * 2, ry + 1, CLR_TRUE_BLUE);   // STRK pips
+            } else pset(cx + step / 2, ry + rh / 2, (s % 4 == 0) ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK);
+        }
+    }
+    if (mode == DS_GEN) {   // CLEAR + density menu (the real drum generator, per machine)
+        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+        int bw = gw / 4, by = gy + rh * nv / 2 - 6;
+        for (int d = 0; d < 4; d++) if (lcdbtn(0x170u + d, gx + d * bw, by, bw - 3, 12, GN[d], 0)) { if (focus == M_808) gen_drums(d); else gen_drums9(d); }
     }
 }
 
-// SHARED SCREEN — master automation lanes (PCF / CRUSH / GATE), read-out of the per-step levels.
+// SHARED SCREEN — master. MIX = the 4-channel meters; PCF/CRU/GAT = ONE big editable automation
+// lane (drag to paint the per-step 0..7 level). mstflow: 0=MIX 1=PCF 2=CRUSH 3=GATE.
 static void r2_screenmst(Box g) {
-    const char *lab[3] = { "PCF", "CRU", "GAT" }; const int col[3] = { CLR_GREEN, CLR_ORANGE, CLR_PINK };
-    int *lane[3] = { mpcf, mcrush, mgate };
-    int lh = (int)g.h / 3, gx = (int)g.x + 22, step = ((int)g.w - 26) / STEPS;
-    for (int L = 0; L < 3; L++) {
-        int ly = (int)g.y + L * lh;
-        font(FONT_TINY); print(lab[L], (int)g.x + 4, ly + lh / 2 - 2, col[L]);
-        for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
-            int v = lane[L][s] * (lh - 4) / 7;
-            if (s == lpos[0] && playing) rectfill(cx, ly, step - 1, lh - 2, CLR_DARK_GREEN);
-            rectfill(cx, ly + (lh - 2) - v, step - 2, v, col[L]); }
+    if (mstflow == 0) {   // MIX — four tall channel meters
+        static const int MC[4] = { M_303A, M_303B, M_808, M_909 };
+        static const char *ML[4] = { "303a", "303b", "808", "909" };
+        int fw = ((int)g.w - 8) / 4, bh = (int)g.h - 12;
+        for (int k = 0; k < 4; k++) { int cx = (int)g.x + 4 + k * fw, by = (int)g.y + 4;
+            int lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh; if (lv < 0) lv = 0;
+            rectfill(cx, by, fw - 4, bh, CLR_BLACK);
+            rectfill(cx, by + bh - lv, fw - 4, lv, mac[MC[k]].col);
+            font(FONT_TINY); print(ML[k], cx, by + bh + 2, mac[MC[k]].col); }
+        return;
     }
+    int L = mstflow - 1;                                     // 0=PCF 1=CRUSH 2=GATE
+    int *lane = (L == 0) ? mpcf : (L == 1) ? mcrush : mgate;
+    int col = (L == 0) ? CLR_GREEN : (L == 1) ? CLR_ORANGE : CLR_PINK;
+    const char *lab = (L == 0) ? "PCF" : (L == 1) ? "CRUSH" : "GATE";
+    int gx = (int)g.x + 26, gy = (int)g.y + 2, gw = ((int)g.w - 30), gh = (int)g.h - 6, step = gw / STEPS;
+    void *w = ui_wid_hash(0x180u, gx, gy, step * STEPS, gh); ui_reg(w, gx, gy, step * STEPS, gh, 0);
+    UiCap *c = ui_cap_for(w);
+    if (c) {   // drag to paint the level (top = 7, bottom = 0)
+        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / step;
+        if (s >= 0 && s < STEPS) { int lv = 7 - (py - gy) * 8 / gh; if (lv < 0) lv = 0; if (lv > 7) lv = 7; lane[s] = lv; }
+    }
+    font(FONT_TINY); print(lab, (int)g.x + 3, gy + gh / 2 - 2, col);
+    for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
+        int v = lane[s] * (gh - 2) / 7;
+        if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
+        if (s == lpos[0] && playing) rectfill(cx, gy, step - 1, gh, CLR_DARK_GREEN);
+        rectfill(cx, gy + gh - v, step - 2, v, col); }
+    font(FONT_TINY); print("drag to draw the lane", gx, gy + gh - 6, CLR_MEDIUM_GREEN);
 }
 
 // the big shared middle screen — frame + tag row + the focused machine's deep editor + soft-keys.
@@ -2497,16 +2568,21 @@ static void r2_bigscreen(Box c, int focus) {
     if (focus <= M_303B)      r2_screen303(body, focus);
     else if (focus <= M_909)  r2_screendrum(body, focus);
     else                      r2_screenmst(body);
-    // soft-key row (labels per machine) — VIEW switch is a follow-up; drawn as the affordance.
-    static const char *K303[5] = { "SEQ", "FLAG", "FX", "PERF", "GEN" };
-    static const char *KDRM[5] = { "VCE", "FLAG", "KIT", "PERF", "GEN" };
-    static const char *KMST[4] = { "MIX", "PCF", "CRU", "GAT" };
-    const char **keys = (focus <= M_303B) ? K303 : (focus <= M_909 ? KDRM : KMST);
-    int nk = (focus == M_MST) ? 4 : 5, kw = (w - 10) / nk, ky = y + h - 11;
-    for (int k = 0; k < nk; k++) { int cx = x + 5 + k * kw;
-        rect(cx, ky, kw - 2, 9, CLR_LIME_GREEN);
-        if (k == 0) rectfill(cx, ky, kw - 2, 9, mac[focus].lo);
-        font(FONT_TINY); print(keys[k], cx + 3, ky + 2, (k == 0) ? CLR_WHITE : CLR_LIME_GREEN); }
+    // soft-key row — switches the shared screen's CONTENT for the focused machine (lit = active view).
+    int ky = y + h - 11;
+    if (focus <= M_303B) {
+        static const char *K[3] = { "SEQ", "FLAG", "GEN" }; static const int MO[3] = { PS_SEQ, PS_FLAG, PS_GEN };
+        int kw = (w - 10) / 3;
+        for (int k = 0; k < 3; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
+    } else if (focus <= M_909) {
+        static const char *K[3] = { "VCE", "FLAG", "GEN" }; static const int MO[3] = { DS_VCE, DS_FLAG, DS_GEN };
+        int kw = (w - 10) / 3;
+        for (int k = 0; k < 3; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
+    } else {
+        static const char *K[4] = { "MIX", "PCF", "CRU", "GAT" };
+        int kw = (w - 10) / 4;
+        for (int k = 0; k < 4; k++) if (lcdbtn(0x13Cu + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], mstflow == k)) mstflow = k;
+    }
 }
 
 // a narrow 303 knob-column: header + 5 acid knobs + FX trio + CL/DF + KEY. The note surface lives

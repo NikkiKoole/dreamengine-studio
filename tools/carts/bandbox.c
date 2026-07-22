@@ -13,7 +13,7 @@
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
     "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + four lifted from the radio stations: JANGLE, JINGLE, NAPOLN, CITYPO - the last two with their OWN harmony (HB_JINGLE Mac-DeMarco gravity, HB_CITYPOP Royal Road)). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. The 2026-07-22 radio-idiom sweep (mined from the radio carts' bar-level moves) widened the vocab: chord COMP ANTIC/STAB/HELD/TACET, bass APPR/POP/GHOST/PEDAL, drum HALF/OPEN/HATS/DOUBLE, mel HOLD/DOUBLE/OCT+, pad SWELL/HIGH, and the band-wide FEELs HUSH/STOP/LIFT - enough to lay out bars that read as bossa (ANTIC+APPR), citypop (POP+OPEN+ANTIC+LIFT), napoleon disco (POP+GHOST+OPEN), or a cocktail hush. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH/COMP chips (AUTO = follow the global voicing, else a per-cell p-lock; COMP = the bar's comp texture: ANTIC strikes the NEXT bar's chord on the last 8th and ties over the barline (the next downbeat comp is skipped, never doubled) - the bossa/citypop push - STAB chokes the hits short, HELD rings them to the bar line, TACET rests the comp); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL (drop out, sit on the root, walk, octave-pump, run a fill, lead in chromatic on beat 4, the disco octave-pop cell, soft ghosts in the style's rests, or a key-tonic pedal point). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE (half-time backbeat, offbeat open hats, hats-only breakdown, 16th-hat bar). MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT/HOLD/DOUBLE/OCT+ (one bar-long tone, a double-time run, the bloom an octave up). PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON/SWELL/HIGH (a slow crescendo across the bar; the bed +12). Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG/HUSH/STOP/LIFT) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone down (the room leans in), STOP is the band stop (one accented downbeat hit then air), LIFT is the truck-driver gear change (+2 semitones from that bar to the loop's end; the wrap comes back down). All deterministic; PUSH/ahead is still a follow-up - ANTIC covers the anticipation idiom forward-only. Tap a voice rail header to mute/unmute the lane (chords included). Nav: SONG (top-left) opens the SONGS popup - your autosaved song (MINE) + built-in demos (CITY POP = the Royal-Road demo with the full lock set, BOSSA = the early change + chromatic lead-in); picking one loads it. The song AUTOSAVES on every edit (a versioned 120-byte blob via save_bytes - the save file format); loading a demo is not an edit, so MINE survives browsing until you edit on top. < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH/COMP chips (AUTO = follow the global voicing, else a per-cell p-lock; COMP = the bar's comp texture: ANTIC strikes the NEXT bar's chord on the last 8th and ties over the barline (the next downbeat comp is skipped, never doubled) - the bossa/citypop push - STAB chokes the hits short, HELD rings them to the bar line, TACET rests the comp); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL (drop out, sit on the root, walk, octave-pump, run a fill, lead in chromatic on beat 4, the disco octave-pop cell, soft ghosts in the style's rests, or a key-tonic pedal point). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE (half-time backbeat, offbeat open hats, hats-only breakdown, 16th-hat bar). MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT/HOLD/DOUBLE/OCT+ (one bar-long tone, a double-time run, the bloom an octave up). PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON/SWELL/HIGH (a slow crescendo across the bar; the bed +12). Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG/HUSH/STOP/LIFT) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone down (the room leans in), STOP is the band stop (one accented downbeat hit then air), LIFT is the truck-driver gear change (+2 semitones from that bar to the loop's end; the wrap comes back down). All deterministic; PUSH/ahead is still a follow-up - ANTIC covers the anticipation idiom forward-only. Tap a voice rail header to mute/unmute the lane (chords included). Nav: SONG (top-left) opens the SONGS popup - your autosaved song (MINE) + built-in demos (CITY POP = the Royal-Road demo with the full lock set, BOSSA = the early change + chromatic lead-in, NAPOLEON = the disco-funk boogie vamp with a STOP break, ACCENT re-entry and BUILD riser); picking one loads it. The song AUTOSAVES on every edit (a versioned 120-byte blob via save_bytes - the save file format); loading a demo is not an edit, so MINE survives browsing until you edit on top. < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   },
   "todo": [
     "SONG STRUCTURE (the leap from loop to song, the biggest gap for real pop songs): A/B sections (verse/chorus/bridge), each with its OWN progression + arrangement (which voices on, BUSY/feel), plus a SONG ORDER (A A B A...). A pop song IS the contrast between sections; right now bandbox is one 4-8 bar loop forever. Composes with every per-bar param already built (mute/BUSY/feel/p-locks). Sketch the data model + how it fits the 160x100 face BEFORE wiring - it's the biggest structural change.",
@@ -837,6 +837,20 @@ static const Demo DEMOS[] = {
       { -1, -1, -1, -1, -1, -1, -1, -1 },
       { -1, -1, -1, -1, -1, -1, -1, -1 },
       { 0, 0, 0, 0, 0, 0, 0, 0 } },
+    // the disco-funk archetype (napoleon.c DANCE): a mixolydian boogie vamp
+    // (I7 I7 bVII IV — the Sweet Home cadence as the loop wraps), STAB clav chucks
+    // on the vamp, POP runs on the changes, a STOP break on bar 4 with an ACCENT
+    // re-entry + crash, DOUBLE heat into a BUILD riser, ANTIC pushing the restart.
+    { "NAPOLEON", "boogie vamp - break + BUILD",
+      13, 0, 8, 0,
+      { 0, 0, 10, 5, 0, 0, 10, 5 },
+      { HBQ_DOM7, HBQ_DOM7, HBQ_MAJ7, HBQ_MAJ7, HBQ_DOM7, HBQ_DOM7, HBQ_MAJ7, HBQ_MAJ7 },
+      { CPL_STAB, CPL_STAB, -1, -1, CPL_STAB, CPL_STAB, -1, CPL_ANTIC },
+      { -1, -1, BPL_POP, -1, -1, -1, BPL_POP, BPL_FILL },
+      { DPL_CRASH, 0, 0, 0, DPL_CRASH, 0, DPL_DOUBLE, DPL_BUILD },
+      { MPL_REST, MPL_REST, MPL_ACCENT, -1, -1, -1, MPL_OCT, -1 },
+      { -1, -1, -1, -1, -1, -1, -1, -1 },
+      { 0, 0, 0, FEEL_STOP, FEEL_ACCENT, 0, 0, 0 } },
 };
 #define NDEMO ((int)(sizeof DEMOS / sizeof DEMOS[0]))
 static void demo_load(const Demo *d) {
@@ -956,22 +970,21 @@ static void glass_help(Box g) {
 // autosaved song (MINE) + the built-in demos. Picking one loads it and closes.
 // Loads are not edits — MINE survives demo browsing until you edit on top.
 static void glass_songs(Box g) {
-    Box top = lay_split(g, EDGE_TOP, 11, &g);
-    print("SONGS", (int)top.x + 1, (int)(top.y + 3), CLR_WHITE);
+    Box top = lay_split(g, EDGE_TOP, 9, &g);
+    print("SONGS", (int)top.x + 1, (int)(top.y + 2), CLR_WHITE);
     Box back = lay_split(top, EDGE_RIGHT, 30, &top);
     if (seg(back, "BACK", 0, 0x2900)) songsOn = 0;
-    Box p = lay_inset(g, 2);
+    Box p = lay_inset(g, 1);
     for (int i = 0; i < NDEMO + 1; i++) {             // row 0 = MINE, then the demos
-        Box row = lay_split(p, EDGE_TOP, 15, &p);     // fixed-height rows (3 fit; a
+        Box row = lay_split(p, EDGE_TOP, 12, &p);     // fixed-height rows (4 fit; a
         int mine = i == 0, on = !mine || haveSave;    // longer shelf needs paging later)
         const char *nm = mine ? "MINE" : DEMOS[i - 1].name;
         const char *bl = mine ? (haveSave ? "your autosaved song" : "nothing saved yet")
                               : DEMOS[i - 1].blurb;
         Box r = lay_inset(row, 1);
         rrectfill((int)r.x, (int)r.y, (int)r.w, (int)r.h, 2, on ? CLR_DARK_BLUE : CLR_BROWNISH_BLACK);
-        rect((int)r.x, (int)r.y, (int)r.w, (int)r.h, on ? CLR_ORANGE : CLR_DARKER_GREY);
-        print(nm, (int)r.x + 2, (int)r.y + 2, on ? CLR_WHITE : CLR_DARK_GREY);
-        print(bl, (int)r.x + 2, (int)(r.y + r.h - 7), on ? CLR_LIGHT_GREY : CLR_DARK_GREY);
+        print(nm, (int)r.x + 3, (int)r.y,       on ? CLR_ORANGE : CLR_DARK_GREY);
+        print(bl, (int)r.x + 3, (int)(r.y + 5), on ? CLR_LIGHT_GREY : CLR_DARK_GREY);
         if (on && tapped(r, 0x2910u + i)) {
             if (mine) {
 #if !defined(DE_TRACE) && !defined(DE_SPEC)
@@ -1699,6 +1712,12 @@ void spec(void) {
     demo_load(&DEMOS[1]);
     expect(modeSel == 0 && nbars == 4 && arr[1].bass == BPL_APPR && arr[3].comp == CPL_ANTIC,
            "BOSSA demo: the early change + the chromatic lead-in");
+    demo_load(&DEMOS[2]);
+    expect(modeSel == 13 && nbars == 8 && arr[3].feel == FEEL_STOP && arr[4].feel == FEEL_ACCENT
+           && arr[0].comp == CPL_STAB && arr[7].fill == DPL_BUILD && arr[2].bass == BPL_POP,
+           "NAPOLEON demo: the break + accented re-entry + the boogie locks");
+    expect(pfn[0] == HBmx_I && pfn[2] == HBmx_bVII && pfn[3] == HBmx_IV,
+           "NAPOLEON demo analyzes as I / bVII / IV (the mixolydian cadence)");
     von[V_PA] = 0;
 
     // back to a clean state

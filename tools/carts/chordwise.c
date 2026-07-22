@@ -365,7 +365,7 @@ static void play_drum_step(int step, int delayMs) {   // step 0..7, sixteenths w
     // FILL: the genre's own flourish on the loop's LAST bar, and its turnaround crash.
     if (fillOn && plen > 1) {
         const FillPat *fp = (drumSel == D_BAND) ? &FILL_PAT[modeSel] : &FILL_PLAIN;
-        if (playSlot == 0 && step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, 5);
+        if (playSlot == 0 && step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, 4);   // base 4 — the crash is loud enough (bandbox's trim, mirrored)
         if (playSlot == plen - 1) {
             int r = fill_role(fp->pat[step]);
             if (r >= 0) { dk_fire_at(delayMs, r, 0, 4 + step / 2); return; }   // crescendo into the turnaround
@@ -513,6 +513,7 @@ void init(void) {
     instrument_choke(20 + DK_HHO,  20 + DK_HHO);
     instrument_choke(20 + DK_HHC,  20 + DK_HHO);
     instrument_choke(20 + DK_KICK, 20 + DK_HHO);
+    instrument_level(20 + DK_CRASH, 0.6f);   // the crash slot is hot — duck ~-4.4 dB (bandbox's trim, mirrored)
     seed_demo();
 }
 

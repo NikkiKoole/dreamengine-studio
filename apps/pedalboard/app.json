@@ -1,7 +1,7 @@
 {
   "name":     "Tiny Pedalboard",
   "bundleId": "com.mipolai.tinypedalboard",
-  "version":  "0.1",
+  "version":  "1.0",
   "price":    "1.99",
   "orientation": "landscape",
   "icon":     "apps/pedalboard/icon.png",

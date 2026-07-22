@@ -2368,10 +2368,11 @@ static void r2_knob(float *v, int cx, int cy, int r, const char *label, float de
     if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 }; plabel(b, cx, cy + r + 1, accent); }
     else plabel(label, cx, cy + r + 1, R2_DIM);
 }
-// centre an r2_knob in a cell, label below — the r2 twin of knob_cell.
+// centre an r2_knob in a cell, label below — the r2 twin of knob_cell. Small discs (r≤10) so the
+// knob strips stay compact and the pattern screen gets the room.
 static void r2_kcell(Box c, float *v, const char *lab, float def, int accent) {
-    float rh = c.h * 0.40f, rw = c.w * 0.50f;
-    int r = (int)lay_clamp(rh < rw ? rh : rw, 5, 15);
+    float rh = c.h * 0.34f, rw = c.w * 0.44f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 10);
     int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
     r2_knob(v, (int)(c.x + c.w / 2), cy, r, lab, def, accent);
 }
@@ -2747,7 +2748,7 @@ static void draw_rack2(Box area) {
     Box d909 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // black keys just above
     Box ctx  = lay_split(stage, EDGE_BOTTOM, stage.h * 0.15f, &stage);   // the shared VOICE knob row (this is what makes the screen a little less tall)
     // middle band: [303a | 303b | SCREEN | MST]
-    float colw = lay_clamp(area.w * 0.135f, 44, 72);
+    float colw = lay_clamp(area.w * 0.11f, 40, 58);   // narrower (small-disc knobs) → the shared pattern screen gets the width
     Box c3a = lay_split(stage, EDGE_LEFT, colw, &stage);
     Box c3b = lay_split(stage, EDGE_LEFT, colw, &stage);
     Box cms = lay_split(stage, EDGE_RIGHT, colw, &stage);

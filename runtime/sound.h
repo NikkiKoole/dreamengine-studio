@@ -1659,6 +1659,8 @@ static float      sound_extin[SOUND_EXTIN_LEN];
 static atomic_int extin_w = 0;              // producer index (capture thread)
 static atomic_int extin_r = 0;              // consumer index (audio thread)
 static int        extin_on = 0;             // a live effect wants the mic feed (set by vocoder_mic)
+static int        extin_mon_on   = 0;       // input_monitor(): feed the live mic into master bus 0's fx chain
+static float      extin_mon_gain = 0.0f;    // input_monitor() gain (0 = off)
 static float      voc_mic_amt = 0.0f;       // vocoder: how much the LIVE mic drives the modulator (0 = off)
 
 static void sound_extin_write(float s) {    // capture thread — drop on a full ring (only the reader frees space)
@@ -2179,6 +2181,7 @@ typedef enum {
     SR_REVERB_SPRING_TONE = 133, // a=x*1000 — spring dispersion coefficient (reverb_spring_tone): the "boing" character, live
     SR_DRIVE_VOICE = 134,   // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert (drive_voice)
     SR_INSTR_BANDLIMIT = 135, // a=slot, b=on — PolyBLEP anti-alias the slot's saw (0 = raw naive saw, default)
+    SR_INPUT_MONITOR = 136,   // a=gain*1000 — route the LIVE mic through the master fx chain (input_monitor); audio-input-frontier.md ★1
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -5957,6 +5960,14 @@ static void sound_fire_req(SoundReq r) {
     case SR_VOCODER_UNVOICED: {  // a=amount*1000 — v2: noise-substitute the top bands for unvoiced consonants
         voc_uv_amt = clamp01(r.a / 1000.0f);
     } break;
+    case SR_INPUT_MONITOR: {  // a=gain*1000 — route the LIVE mic through the master fx chain (the pedal tier)
+        float g = clampf(0.0f, 4.0f, r.a / 1000.0f);
+        int on = g > 0.0005f;
+        if (on && !extin_on) sound_extin_reset();   // starting: drop stale latency
+        extin_mon_gain = g;
+        extin_mon_on = on;
+        extin_on = on;
+    } break;
     case SR_AUTOTUNE_MIC: {  // a=amount*1000, b=root, c=scale — LIVE streaming mic auto-tune
         float amt = clamp01(r.a / 1000.0f);
         int on = amt > 0.001f;
@@ -6539,6 +6550,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float wet = reverb_process(&rvb_tank[0], reverb_in);   // tank 0 = the master send; navkit Schroeder core, MONO in v1
             mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
         }
+
+        // LIVE INPUT MONITOR (audio-input-frontier.md ★1) — the mic ring feeds the master DRY mix
+        // here, so the insert chain below processes your own sound (guitar/voice → the pedalboard).
+        // ONE ring sample per output sample (same discipline as the vocoder/autotune reads). LIVE.
+        if (extin_mon_on) { float in = sound_extin_read() * extin_mon_gain; mixL += in; mixR += in; }
 
         // INSERT CHAIN — MASTER (bus 0) inserts, on the whole mix (chorus()/flanger()/… configure
         // these). Per-instrument inserts already ran on their aux buses above. Run in bus 0's
@@ -7569,6 +7585,9 @@ void vocoder_mic(float amount) {   // route the LIVE mic into the vocoder modula
 }
 void vocoder_unvoiced(float amount) {   // v2: fill the top bands with noise for unvoiced consonants (s/sh/f/t)
     sound_push_ctrl(SR_VOCODER_UNVOICED, (int)(amount * 1000.0f), 0, 0, 0, 0, 0);
+}
+void input_monitor(float gain) {   // route the LIVE mic through the master fx chain (needs mic_start + permission)
+    sound_push_ctrl(SR_INPUT_MONITOR, (int)(gain * 1000.0f), 0, 0, 0, 0, 0);
 }
 void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
     sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);

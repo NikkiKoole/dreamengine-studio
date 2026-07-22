@@ -12,16 +12,16 @@
   "lineage": "The SEQUENCER sibling of chordwise (the demand-82 harmony analyzer). chordwise proved the chord-chart + genre-band stack on one flat screen and hit a density ceiling; bandbox is the standalone 160x100 device-face sequencer where every VOICE is a lane of lego-block cells and every cell is p-lockable (Elektron-style per-cell overrides on top of the voice's auto 'follows the chord' default). chordwise did per-cell only for chords; bandbox does it for every voice. Reuses the harmony brain (harmony.h) + chordwise's genre-band maps + rad_bass_to + drumkit.h. Design: docs/design/bandbox.md.",
   "description": {
     "summary": "A 160x100 device-face chord SEQUENCER: compose a progression as a 5-lane tracker (CHORDS / BASS / MEL / DRUMS / PAD x 8 bars) and a genre BAND follows the one declared MODE. Every cell defaults to 'follow the chord + genre'; tap one to open its block editor in the glass and P-LOCK it - a per-cell override (a chord's own strum/inversion/octave, a bass MUTE or WALK, a drum FILL bar, a melody REST or ACCENT, a pad ON/OFF). The chassis (voice rail, nav, keybed) never moves; only the glass morphs.",
-    "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + four lifted from the radio stations: JANGLE, JINGLE, NAPOLN, CITYPO - the last two with their OWN harmony (HB_JINGLE Mac-DeMarco gravity, HB_CITYPOP Royal Road)). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
-    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH chips (AUTO = follow the global voicing, else a per-cell p-lock); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL (drop out, sit on the root, walk, octave-pump, or run a fill into the next chord). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD. MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT. PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON. Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat (deterministic; PUSH/ahead is a follow-up). Tap a voice rail header to mute/unmute the lane (chords included). Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
+    "detail": "The build of the bandbox brief (docs/design/bandbox.md): the draw-only mockup wired for real. The chord lane analyzes in roman numerals via the shared harmony brain (harmony.h); the ^/v spinner steps a chord in-key; the keybed sets the selected chord's root. Playback ports chordwise's subdivided-bar loop (chord comp, walking/idiomatic bass, drumkit groove, blooming melody, held pad) - all reading the declared KEY + MODE, so the band plays the genre's idiom (14 genres: BOSSA/LOUNGE/POP/FOLK/MINOR/CINE/DORIAN/MIXO/PHRYG/LYDIAN/BLUES + four lifted from the radio stations: JANGLE, JINGLE, NAPOLN, CITYPO - the last two with their OWN harmony (HB_JINGLE Mac-DeMarco gravity, HB_CITYPOP Royal Road)). The sequencer difference: p-locks. Each bar carries per-cell overrides that playback reads as p-lock-else-global. The 2026-07-22 radio-idiom sweep (mined from the radio carts' bar-level moves) widened the vocab: chord COMP ANTIC/STAB/HELD/TACET, bass APPR/POP/GHOST/PEDAL, drum HALF/OPEN/HATS/DOUBLE, mel HOLD/DOUBLE/OCT+, pad SWELL/HIGH, and the band-wide FEELs HUSH/STOP/LIFT - enough to lay out bars that read as bossa (ANTIC+APPR), citypop (POP+OPEN+ANTIC+LIFT), napoleon disco (POP+GHOST+OPEN), or a cocktail hush. Deterministic (carries a spec()); no swing-jitter/life yet, same call chordwise made for spec-ability.",
+    "controls": "Tap a tracker cell to edit it IN PLACE: that voice's lane rises to the top row (staying visible so you see the change land) and its block editor unfolds in the freed space below; tap another cell in the promoted lane to scrub to that bar, BACK (rail) closes it. CHORDS editor: a global TONE (PLUCK/EPIANO/ORGAN) + ^/v step the chord in-key + STRUM/INV/OCT/7TH/COMP chips (AUTO = follow the global voicing, else a per-cell p-lock; COMP = the bar's comp texture: ANTIC strikes the NEXT bar's chord on the last 8th - the bossa/citypop push - STAB chokes the hits short, HELD rings them to the bar line, TACET rests the comp); the keybed sets the chord's root. BASS: global STYLE + TONE (the bass SOUND: SYNTH/SUB/FM/UPRIGHT pizzicato) + per-cell FOLLOW/MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL (drop out, sit on the root, walk, octave-pump, run a fill, lead in chromatic on beat 4, the disco octave-pop cell, soft ghosts in the style's rests, or a key-tonic pedal point). DRUMS: global STYLE + KIT (ELECTRO/ACOUSTIC) + BUSY (SPARSE/NORMAL/BUSY - the Apple-Drummer simple<->complex axis: SPARSE drops the hats, BUSY fills offbeat hats + ghost snares) + per-cell GROOVE/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE (half-time backbeat, offbeat open hats, hats-only breakdown, 16th-hat bar). MEL: global TONE (SINE/SQR/FM/BELL) + per-cell FOLLOW/REST/ACCENT/HOLD/DOUBLE/OCT+ (one bar-long tone, a double-time run, the bloom an octave up). PAD: global TONE (SINE/SAW/STRINGS) + per-cell FOLLOW/OFF/ON/SWELL/HIGH (a slow crescendo across the bar; the bed +12). Every BAR also has a FEEL in the editor header (STRAIGHT/ACCENT/DRAG/HUSH/STOP/LIFT) - a per-bar performance p-lock the whole band shares: ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone down (the room leans in), STOP is the band stop (one accented downbeat hit then air), LIFT is the truck-driver gear change (+2 semitones from that bar to the loop's end; the wrap comes back down). All deterministic; PUSH/ahead is still a follow-up - ANTIC covers the anticipation idiom forward-only. Tap a voice rail header to mute/unmute the lane (chords included). Nav: < KEY > steps the key (STOPPED re-analyzes, PLAYING transposes), MODE cycles the genre, NEW empties to a fresh song (keeping your key/genre/voice setup), the play button loops. Tap the '+' chord cell to open the ADD-CHORD picker: the harmony brain's NEXT suggestions (ranked, what the progression wants) + the full mode palette as roman-numeral chips + the live keybed for any root; each pick appends + auditions and stays open. Keys: SPACE loop, LEFT/RIGHT key, B mode, N new song, BACKSPACE closes the editor/picker. MUSICAL TYPING (GarageBand-style): the QWERTY rows play the keybed - home row A S D F G H J K L (;) = white keys C D E F G A B C D E, top row W E T Y U O P = the black keys; each press adds/edits a chord on that root (opens the picker if idle), so you can type a progression. While the loop plays, the keybed LIGHTS UP (green) the notes the in-view voice is triggering, folded onto the keys - the focused voice when editing, or the chords while picking (the full tracker view stays dark)."
   },
   "todo": [
     "SONG STRUCTURE (the leap from loop to song, the biggest gap for real pop songs): A/B sections (verse/chorus/bridge), each with its OWN progression + arrangement (which voices on, BUSY/feel), plus a SONG ORDER (A A B A...). A pop song IS the contrast between sections; right now bandbox is one 4-8 bar loop forever. Composes with every per-bar param already built (mute/BUSY/feel/p-locks). Sketch the data model + how it fits the 160x100 face BEFORE wiring - it's the biggest structural change.",
     "A real MELODY / HOOK: the mel voice currently ARPEGGIATES chord tones (tasteful filler, not a topline you'd hum). Let the melody be COMPOSED - a note lane you place, or motif logic that states + repeats a phrase. Pop lives on the hook; a song without one is a backing track.",
     "Cheap pop wins: extend past 8 bars (16) so a full verse fits; add sus/add9 chord qualities (the pop sparkle) - needs a vocab/quality addition in harmony.h.",
-    "PUSH feel (ahead of the beat): the DRAG/ACCENT feels shipped, but PUSH needs bar-LOOKAHEAD scheduling (schedule bar N's downbeat during bar N-1) - the forward-only step scheduler can't fire before the beat.",
+    "PUSH feel (ahead of the beat): still needs bar-LOOKAHEAD scheduling (schedule bar N's downbeat during bar N-1) - the forward-only step scheduler can't fire before the beat. The chord lane's ANTIC comp lock now covers the anticipation idiom forward-only (it strikes the next chord late in THIS bar); a whole-band PUSH remains the follow-up.",
     "band.h extraction: the genre-idiom tables + harmony vocab + p-lock vocab + tone-preset machinery is now proven across bandbox - extract a shared band.h so chordwise + the radios draw from ONE source (the copy-first rule is satisfied). The big structural consolidation.",
-    "Play-test + tune pass: several tones/grooves were verified by spec + stem A/B, not full-mix listening - check the mel/pad/chord TONES, the new genre grooves (esp. NAPOLN/CITYPO), the DRAG amount (3 frames), and whether the mid-register PAD muds with the comp."
+    "Play-test + tune pass: several tones/grooves were verified by spec + stem A/B, not full-mix listening - check the mel/pad/chord TONES, the new genre grooves (esp. NAPOLN/CITYPO), the DRAG amount (3 frames), whether the mid-register PAD muds with the comp, and the 2026-07-22 radio-idiom locks (STAB's 60ms choke, POP's velocities, HALF's hat rate, the SWELL curve - linear now, maybe wants a curve)."
   ]
 }
 de:meta */
@@ -67,18 +67,24 @@ static const char *OCT_LAB[3] = { "LOW", "MID", "HIGH" };
 static int strumSel = 0, invSel = 0, octSel = 1, seventh = 1;
 
 // a tiny pending-note queue so the strum can stagger across frames.
+// dur > 0 = ring exactly that long (hit()); dur 0 = the instrument's own envelope
+// (note()) — the STAB/HELD comp locks + the mel HOLD lock ride the dur channel.
 #define NPEND 16
-static struct { int midi, instr, vol, at; } pend[NPEND];
+static struct { int midi, instr, vol, at, dur; } pend[NPEND];
 static int npend = 0;
-static void queue_note(int midi, int instr, int vol, int at) {
-    if (at <= 0) { note(midi, instr, vol); return; }
+static void fire_note(int midi, int instr, int vol, int dur) {
+    if (dur > 0) hit(midi, instr, vol, dur); else note(midi, instr, vol);
+}
+static void queue_dur(int midi, int instr, int vol, int at, int dur) {
+    if (at <= 0) { fire_note(midi, instr, vol, dur); return; }
     if (npend >= NPEND) return;
     pend[npend].midi = midi; pend[npend].instr = instr;
-    pend[npend].vol = vol;   pend[npend].at = at;   npend++;
+    pend[npend].vol = vol;   pend[npend].at = at;   pend[npend].dur = dur;   npend++;
 }
+static void queue_note(int midi, int instr, int vol, int at) { queue_dur(midi, instr, vol, at, 0); }
 static void pump_notes(void) {
     for (int i = 0; i < npend; ) {
-        if (--pend[i].at <= 0) { note(pend[i].midi, pend[i].instr, pend[i].vol);
+        if (--pend[i].at <= 0) { fire_note(pend[i].midi, pend[i].instr, pend[i].vol, pend[i].dur);
                                  pend[i] = pend[--npend]; }
         else i++;
     }
@@ -138,24 +144,41 @@ static void chname(char *out, int n, int rootPc, int q, int sev) {
 enum { V_CH, V_BA, V_ME, V_DR, V_PA };
 typedef struct {
     int rootPc, qual;            // the CHORD (the harmonic spine of the bar)
-    int strum, inv, oct, sev;    // CHORD p-locks (-1 = auto)
-    int bass;                    // BASS p-lock (BPL_*): -1 FOLLOW · MUTE/HOLD/WALK/OCT/FILL
-    int fill;                    // DRUM p-lock (DPL_*): GROOVE(0)/DROP/KICK/FILL/CRASH/BUILD
-    int mel;                     // MEL  p-lock: -1 auto · 0 rest · 1 accent
-    int pad;                     // PAD  p-lock: -1 auto · 0 off · 1 on
+    int strum, inv, oct, sev;    // CHORD voicing p-locks (-1 = auto)
+    int comp;                    // CHORD comp p-lock (CPL_*): -1 auto · ANTIC/STAB/HELD/TACET
+    int bass;                    // BASS p-lock (BPL_*): -1 FOLLOW · MUTE/HOLD/WALK/OCT/FILL/APPR/POP/GHOST/PEDAL
+    int fill;                    // DRUM p-lock (DPL_*): GROOVE(0)/DROP/KICK/FILL/CRASH/BUILD/HALF/OPEN/HATS/DOUBLE
+    int mel;                     // MEL  p-lock (MPL_*): -1 auto · REST/ACCENT/HOLD/DOUBLE/OCT+
+    int pad;                     // PAD  p-lock (PPL_*): -1 auto · OFF/ON/SWELL/HIGH
     int feel;                    // per-BAR FEEL (FEEL_*): the whole band's groove this bar
 } Bar;
 // FEEL — a per-bar performance p-lock the whole band shares (deterministic, spec-safe):
-// ACCENT punches the bar louder, DRAG lays it behind the beat. (PUSH/ahead needs
-// bar-lookahead in a forward-only scheduler — a follow-up.)
-enum { FEEL_STRAIGHT, FEEL_ACCENT, FEEL_DRAG };
-static const char *FEEL_LAB[3] = { "STRAIGHT", "ACCENT", "DRAG" };
+// ACCENT punches the bar louder, DRAG lays it behind the beat, HUSH pulls everyone
+// down (cocktail's "the room leans in"), STOP is the band stop (one accented downbeat
+// hit, then silence), LIFT is the truck-driver gear change (citypop/italo): from the
+// LIFT bar to the loop's end everything SOUNDS +2 semitones; the wrap comes back down.
+// (PUSH/ahead needs bar-lookahead in a forward-only scheduler — still a follow-up;
+// the chord lane's ANTIC lock covers the anticipation idiom forward-only.)
+enum { FEEL_STRAIGHT, FEEL_ACCENT, FEEL_DRAG, FEEL_HUSH, FEEL_STOP, FEEL_LIFT };
+static const char *FEEL_LAB[6] = { "STRAIGHT", "ACCENT", "DRAG", "HUSH", "STOP", "LIFT" };
+#define NFEEL 6
 #define FEEL_DRAG_FR 3           // frames the whole bar lags when DRAGged
 static Bar arr[NBARS];
 static int nbars = 4;            // loop length (contiguous bars 0..nbars-1)
 static int pfn[NBARS];           // each bar's analyzed function (-1 = ? / out of vocab)
 static int feel_delay_fr(int b) { return arr[b].feel == FEEL_DRAG ? FEEL_DRAG_FR : 0; }
-static int feel_vel(int b, int base) { if (arr[b].feel == FEEL_ACCENT) { base += 2; if (base > 7) base = 7; } return base; }
+static int feel_vel(int b, int base) {
+    if (arr[b].feel == FEEL_ACCENT || arr[b].feel == FEEL_STOP) { base += 2; if (base > 7) base = 7; }
+    if (arr[b].feel == FEEL_HUSH) { base -= 2; if (base < 1) base = 1; }
+    return base;
+}
+// LIFT: playback-only transpose — the chart + analysis stay in the written key.
+static int bar_tp(int b) {
+    for (int i = 0; i <= b && i < nbars; i++) if (arr[i].feel == FEEL_LIFT) return 2;
+    return 0;
+}
+// STOP: everything after the (accented, via feel_vel) downbeat is silenced.
+static int feel_stopped(int b, int s) { return arr[b].feel == FEEL_STOP && s > 0; }
 
 // the band's voices (the rail = the tracker's row headers). von = lane on/off.
 static const char *VL[VOICES]  = { "CH", "BA", "ME", "DR", "PA" };
@@ -166,10 +189,17 @@ enum { B_HOLD, B_ROOT5, B_WALK, B_BAND };
 static const char *BASS_LAB[4] = { "HOLD", "R-5", "WALK", "BAND" };
 // per-CELL bass p-locks (arr[].bass; -1 = FOLLOW the global style). One-bar
 // overrides a bassist would punch in: drop out, sit on the root, walk, pump the
-// octave, or run a fill into the next chord.
-enum { BPL_FOLLOW = -1, BPL_MUTE = 0, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL };
-static const char *BPL_LAB[6] = { "FOLLOW", "MUTE", "HOLD", "WALK", "OCT", "FILL" };
-static const int   BPL_VAL[6] = { BPL_FOLLOW, BPL_MUTE, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL };
+// octave, or run a fill into the next chord. The 2026-07-22 radio-idiom sweep added
+// APPR (the style, but beat 4 leads in chromatic — bossa/jingle/cocktail's move),
+// POP (the disco octave-pop cell ending in the run — citypop/napoleon), GHOST (the
+// style + soft root ghosts in its rests), and PEDAL (insist on the KEY's tonic
+// under every chord — the pre-chorus tension device).
+enum { BPL_FOLLOW = -1, BPL_MUTE = 0, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL,
+       BPL_APPR, BPL_POP, BPL_GHOST, BPL_PEDAL };
+static const char *BPL_LAB[10] = { "FOLLOW", "MUTE", "HOLD", "WALK", "OCT", "FILL",
+                                   "APPR", "POP", "GHOST", "PEDAL" };
+static const int   BPL_VAL[10] = { BPL_FOLLOW, BPL_MUTE, BPL_HOLD, BPL_WALK, BPL_OCT, BPL_FILL,
+                                   BPL_APPR, BPL_POP, BPL_GHOST, BPL_PEDAL };
 static int bassSel = B_BAND;
 // the bass TONE — the SOUND of the bass voice (I_BSS), swapped by re-instrumenting the
 // slot (set-and-hold: only on a TONE-chip change). Recipes from instrument-recipes.md.
@@ -255,10 +285,22 @@ static const char *BUSY_LAB[3] = { "SPARSE", "NORMAL", "BUSY" };
 static int drumBusy = 1;
 // per-CELL drum p-locks (arr[].fill; GROOVE is the default, the rest are one-bar
 // moves a drummer punches in): drop out, strip to the kick, a genre fill, a crash
-// accent over the groove, or a whole-bar snare build.
-enum { DPL_GROOVE, DPL_DROP, DPL_KICK, DPL_FILL, DPL_CRASH, DPL_BUILD };
-static const char *DPL_LAB[6] = { "GROOVE", "DROP", "KICK", "FILL", "CRASH", "BUILD" };
+// accent over the groove, or a whole-bar snare build. The radio-idiom sweep added
+// HALF (half-time: the backbeat lands once, mid-bar — napoleon FOREVER's gated 8),
+// OPEN (offbeat open hats over the groove — the disco "tss"), HATS (breakdown: the
+// hat line alone), and DOUBLE (16th hats for one bar — the one-bar BUSY punch).
+enum { DPL_GROOVE, DPL_DROP, DPL_KICK, DPL_FILL, DPL_CRASH, DPL_BUILD,
+       DPL_HALF, DPL_OPEN, DPL_HATS, DPL_DOUBLE };
+static const char *DPL_LAB[10] = { "GROOVE", "DROP", "KICK", "FILL", "CRASH", "BUILD",
+                                   "HALF", "OPEN", "HATS", "DOUBLE" };
 
+// per-CELL chord COMP p-locks (arr[].comp; -1 = AUTO comp): ANTIC also strikes the
+// NEXT bar's chord on the last 8th (the bossa early change / citypop brass push —
+// forward-only: it fires late in THIS bar, no lookahead needed) · STAB chokes every
+// comp hit short (the funk chuck) · HELD lets each hit ring to the bar's end (the
+// held-Rhodes texture) · TACET rests the comp for the bar.
+enum { CPL_ANTIC, CPL_STAB, CPL_HELD, CPL_TACET, CPL_N };
+static const char *CPL_LAB[CPL_N] = { "ANTIC", "STAB", "HELD", "TACET" };
 // resolve a bar's effective chord-voicing (p-lock else global)
 static int bar_strum(int b) { return arr[b].strum >= 0 ? arr[b].strum : strumSel; }
 static int bar_inv(int b)   { return arr[b].inv   >= 0 ? arr[b].inv   : invSel;   }
@@ -281,7 +323,7 @@ static int   lit_voice(void)  { return picking ? V_CH : selVoice; }
 
 // ── chord voicing (chordwise's sound_chord, now p-lock-parameterized) ──────
 static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
-                        int strum, int inv, int oct, int sev, int vel) {
+                        int strum, int inv, int oct, int sev, int vel, int durMs) {
     int r = 48 + rootPc + (oct - 1) * 12;
     int voices = sev ? 4 : 3;
     if (inv > voices - 1) inv = voices - 1;
@@ -298,13 +340,13 @@ static void sound_chord(int rootPc, int q, int withBass, int baseDelay,
     int gap = STRUMS[strum].gap, up = STRUMS[strum].up;
     for (int p = 0; p < nv; p++) {
         int i = idx[up ? (nv - 1 - p) : p];
-        queue_note(m[i], inst[i], vel, baseDelay + p * gap);
+        queue_dur(m[i], inst[i], vel, baseDelay + p * gap, durMs);
     }
 }
 // audition a bar's chord with its resolved voicing (+ its soft root)
 static void audition(int b) {
-    sound_chord(arr[b].rootPc, arr[b].qual, 1, 0,
-                bar_strum(b), bar_inv(b), bar_oct(b), bar_sev(b), 5);
+    sound_chord((arr[b].rootPc + bar_tp(b)) % 12, arr[b].qual, 1, 0,
+                bar_strum(b), bar_inv(b), bar_oct(b), bar_sev(b), 5, 0);
 }
 
 // ── bass (chordwise's play_bass_beat, now reading the bar's bass p-lock) ────
@@ -327,16 +369,46 @@ static const int BASS_PAT[NMODE][4] = {
     /* CITYPO */ { BT_ROOT,  BT_FIFTH, BT_SIXTH,  BT_FIFTH },  // smooth melodic root-fifth-six
 };
 static int bassLast = 36;
+// what the GLOBAL style would play this beat (-1 = rest) — factored out so the
+// APPR/GHOST p-locks can lean on it (they play AROUND the style, not instead of it).
+static int bass_follow_pc(int beat, int r0, int q, int rN, int *oct) {
+    if (bassSel == B_HOLD) return beat == 0 ? r0 : -1;
+    if (bassSel == B_ROOT5) {
+        if (beat == 0) return r0;
+        if (beat == 2) return (r0 + 7) % 12;
+        return -1;
+    }
+    if (bassSel == B_WALK) {
+        if (beat == 0) return r0;
+        if (beat == 1) return (r0 + hb_tones[q][1]) % 12;
+        if (beat == 2) return (r0 + hb_tones[q][2]) % 12;
+        return (rN + 11) % 12;
+    }
+    switch (BASS_PAT[modeSel][beat]) {            // B_BAND — the genre idiom
+        case BT_ROOT:   return r0;
+        case BT_OCTU:   *oct = +1; return r0;
+        case BT_FIFTH:  return (r0 + hb_tones[q][2]) % 12;
+        case BT_FIFTHD: *oct = -1; return (r0 + hb_tones[q][2]) % 12;
+        case BT_THIRD:  return (r0 + hb_tones[q][1]) % 12;
+        case BT_SIXTH:  return (r0 + 9) % 12;
+        case BT_FLAT2:  return (r0 + 1) % 12;
+        case BT_FLAT7:  return (r0 + 10) % 12;
+        case BT_APPR:   return (rN + 11) % 12;
+    }
+    return -1;                                    // BT_REST
+}
 static void play_bass_beat(int beat, int delay) {
     if (!von[V_BA] || !nbars) return;
     int bl = arr[playSlot].bass;                 // per-cell p-lock (BPL_*), -1 = follow
     if (bl == BPL_MUTE) return;                  // MUTE — drop out this bar
+    if (feel_stopped(playSlot, beat)) return;    // STOP — only the downbeat hit
 
-    int r0 = arr[playSlot].rootPc, q = arr[playSlot].qual;
-    int rN = arr[(playSlot + 1) % nbars].rootPc;
+    int nb = (playSlot + 1) % nbars;
+    int r0 = (arr[playSlot].rootPc + bar_tp(playSlot)) % 12, q = arr[playSlot].qual;
+    int rN = (arr[nb].rootPc + bar_tp(nb)) % 12;
     int base = 36 + (octSel - 1) * 12;
     int lo = base - 4, hi = base + 12;
-    int pc = -1, oct = 0;
+    int pc = -1, oct = 0, vel = bass_vel();
 
     if (bl == BPL_HOLD) {                         // HOLD — one root on the downbeat
         if (beat == 0) pc = r0; else return;
@@ -352,37 +424,27 @@ static void play_bass_beat(int beat, int delay) {
         else if (beat == 1) pc = (r0 + 2) % 12;
         else if (beat == 2) pc = (r0 + 4) % 12;
         else                pc = (rN + 11) % 12;
+    } else if (bl == BPL_APPR) {                  // APPR — the style, but beat 4 leads in
+        if (beat == 3) pc = (rN + 11) % 12;       // chromatic from below into the next root
+        else pc = bass_follow_pc(beat, r0, q, rN, &oct);
+    } else if (bl == BPL_POP) {                   // POP — the disco/citypop octave-pop cell
+        if      (beat == 0) pc = r0;
+        else if (beat == 1) { pc = r0; oct = 1; if (vel > 1) vel--; }
+        else if (beat == 2) pc = (r0 + hb_tones[q][2]) % 12;
+        else                pc = (rN + 11) % 12;  // ... ending in the run into the change
+    } else if (bl == BPL_GHOST) {                 // GHOST — the style + soft ghosts in its rests
+        pc = bass_follow_pc(beat, r0, q, rN, &oct);
+        if (pc < 0) { pc = r0; oct = 0; vel = 2; }
+    } else if (bl == BPL_PEDAL) {                 // PEDAL — insist on the KEY's tonic
+        pc = (keyPc + bar_tp(playSlot)) % 12;     // under every chord (pre-chorus tension)
     } else {                                      // FOLLOW — the global style
-        if (bassSel == B_HOLD) { if (beat == 0) pc = r0; else return; }
-        else if (bassSel == B_ROOT5) {
-            if (beat == 0)      pc = r0;
-            else if (beat == 2) pc = (r0 + 7) % 12;
-            else return;
-        } else if (bassSel == B_WALK) {
-            if      (beat == 0) pc = r0;
-            else if (beat == 1) pc = (r0 + hb_tones[q][1]) % 12;
-            else if (beat == 2) pc = (r0 + hb_tones[q][2]) % 12;
-            else                pc = (rN + 11) % 12;
-        } else {                                  // B_BAND — the genre idiom
-            switch (BASS_PAT[modeSel][beat]) {
-                case BT_REST:                            return;
-                case BT_ROOT:   pc = r0;                          break;
-                case BT_OCTU:   pc = r0;                 oct = +1; break;
-                case BT_FIFTH:  pc = (r0 + hb_tones[q][2]) % 12;  break;
-                case BT_FIFTHD: pc = (r0 + hb_tones[q][2]) % 12; oct = -1; break;
-                case BT_THIRD:  pc = (r0 + hb_tones[q][1]) % 12;  break;
-                case BT_SIXTH:  pc = (r0 + 9) % 12;               break;
-                case BT_FLAT2:  pc = (r0 + 1) % 12;               break;
-                case BT_FLAT7:  pc = (r0 + 10) % 12;              break;
-                case BT_APPR:   pc = (rN + 11) % 12;              break;
-            }
-        }
+        pc = bass_follow_pc(beat, r0, q, rN, &oct);
     }
     if (pc < 0) return;
     int n = rad_bass_to(pc, bassLast, lo, hi);
     bassLast = n;
     if (lit_voice() == V_BA) light_pc(n + oct * 12);
-    queue_note(n + oct * 12, I_BSS, feel_vel(playSlot, bass_vel()), delay + feel_delay_fr(playSlot));
+    queue_note(n + oct * 12, I_BSS, feel_vel(playSlot, vel), delay + feel_delay_fr(playSlot));
 }
 
 // ── drums (chordwise's kit + patterns; FILL is now a per-cell p-lock) ───────
@@ -433,6 +495,34 @@ static void play_drum_step(int step, int delayMs) {
     delayMs += feel_delay_fr(playSlot) * 1000 / 60;   // FEEL: the whole bar drags/accents
     const DrumPat *d = (drumSel == 1) ? &DRUM_PAT[modeSel] : &DRUM_PLAIN;
 
+    if (arr[playSlot].feel == FEEL_STOP) {       // STOP — one accented kick on 1, then air
+        if (step == 0) dk_fire_at(delayMs, DK_KICK, 0, feel_vel(playSlot, 5));
+        return;
+    }
+    if (dp == DPL_HALF) {                        // HALF — half-time: the backbeat lands once,
+        if (step == 0) dk_fire_at(delayMs, DK_KICK, 0, feel_vel(playSlot, 6));
+        if (step == 4) dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 6));   // mid-bar, BIG
+        if (drumBusy >= 1 && (step == 0 || step == 4))
+            dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
+        return;
+    }
+    if (dp == DPL_OPEN) {                        // OPEN — offbeat open hats (the disco "tss")
+        if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, feel_vel(playSlot, 6));
+        if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
+        if (drumBusy >= 1 && (step % 2)) dk_fire_at(delayMs, DK_HHO, 0, feel_vel(playSlot, 3));
+        return;
+    }
+    if (dp == DPL_HATS) {                        // HATS — breakdown: the hat line alone
+        if (d->hat[step] == 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
+        else if (drumBusy == 2)  dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 2));
+        return;
+    }
+    if (dp == DPL_DOUBLE) {                      // DOUBLE — 16th hats for one bar
+        if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, feel_vel(playSlot, 6));
+        if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
+        dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
+        return;
+    }
     if (dp == DPL_FILL) {                        // FILL — the genre flourish + turnaround crash
         const FillPat *fp = (drumSel == 1) ? &FILL_PAT[modeSel] : &FILL_PLAIN;
         if (step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 5));
@@ -456,7 +546,7 @@ static void play_drum_step(int step, int delayMs) {
     // BUSY: SPARSE(0) drops the hats; NORMAL(1) plays the genre hats; BUSY(2) fills the
     // gaps with soft offbeat hats + a ghost snare on the 'e/a' between backbeats.
     if (drumBusy >= 1 && d->hat[step] == 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 3));
-    if (drumBusy == 2) {
+    if (drumBusy == 2 && arr[playSlot].feel != FEEL_HUSH) {   // HUSH feathers the extras away
         if (d->hat[step] != 'x') dk_fire_at(delayMs, d->hatRole, 0, feel_vel(playSlot, 2));
         if ((step == 3 || step == 6) && d->back[step] != 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 2));
     }
@@ -471,14 +561,20 @@ static const char *MEL_PAT[NMODE] = {
     /* JANGLE */ "x.x.x.x.", /* JINGLE */ "x...x.x.", /* NAPOLN */ "..x..x.x",
     /* CITYPO */ "x..x.x.x",
 };
+// per-CELL mel p-locks (arr[].mel; -1 = FOLLOW the bloom): REST · ACCENT (louder) ·
+// HOLD (one long tone — improv.h's phrase-end resolve) · DOUBLE (double-time run —
+// the solo-heats-up bar) · OCT+ (the bloom an octave up).
+enum { MPL_FOLLOW = -1, MPL_REST = 0, MPL_ACCENT, MPL_HOLD, MPL_DOUBLE, MPL_OCT };
 static int melLast = 72, melI = 0;
 static void play_mel_step(int step, int delay) {
     if (!von[V_ME] || !nbars) return;
     int ml = arr[playSlot].mel;
-    if (ml == 0) return;                         // p-lock REST — silent this bar
-    if (MEL_PAT[modeSel][step] != 'x') return;
-    int r0 = arr[playSlot].rootPc, q = arr[playSlot].qual;
-    int base = 72 + (octSel - 1) * 12;
+    if (ml == MPL_REST) return;                  // p-lock REST — silent this bar
+    if (feel_stopped(playSlot, step)) return;    // STOP — nothing after the downbeat
+    if (ml == MPL_HOLD) { if (step != 0) return; }              // HOLD fires once
+    else if (ml != MPL_DOUBLE && MEL_PAT[modeSel][step] != 'x') return;   // DOUBLE fires every step
+    int r0 = (arr[playSlot].rootPc + bar_tp(playSlot)) % 12, q = arr[playSlot].qual;
+    int base = 72 + (octSel - 1) * 12 + (ml == MPL_OCT ? 12 : 0);
     int lo = base - 5, hi = base + 7;
     int cand[5], nc = 0, voices = bar_sev(playSlot) ? 4 : 3;
     for (int i = 0; i < voices; i++) cand[nc++] = (r0 + hb_tones[q][i]) % 12;
@@ -486,7 +582,9 @@ static void play_mel_step(int step, int delay) {
     int pc = cand[melI % nc]; melI++;
     melLast = rad_bass_to(pc, melLast, lo, hi);
     if (lit_voice() == V_ME) light_pc(melLast);
-    queue_note(melLast, I_LEAD, feel_vel(playSlot, ml == 1 ? 5 : 4), delay + feel_delay_fr(playSlot));
+    int dur = ml == MPL_HOLD ? (int)(bar_frames() * (1000.0f / 60.0f)) : 0;   // one bar-long tone
+    queue_dur(melLast, I_LEAD, feel_vel(playSlot, ml == MPL_ACCENT ? 5 : 4),
+              delay + feel_delay_fr(playSlot), dur);
 }
 
 // ── pad (a real sustained BED, not a per-bar blip) ──────────────────────────
@@ -494,21 +592,33 @@ static void play_mel_step(int step, int delay) {
 // bar-length ring, so the tail overlaps the next bar = a legato wash) in a warm MID
 // register — under the melody, above the bass — instead of one soft low blip.
 // Timing is deliberately loose (a pad doesn't swing), so it ignores the step delay.
+// per-CELL pad p-locks (arr[].pad; -1 = FOLLOW the lane switch): OFF · ON · SWELL
+// (a slow crescendo across the bar — napoleon SERENADE's string swell, ridden live
+// via note_on handles + note_vol, which are built to be ridden) · HIGH (bed +12).
+enum { PPL_FOLLOW = -1, PPL_OFF = 0, PPL_ON = 1, PPL_SWELL, PPL_HIGH };
+static int   swellH[4], nswellH = 0;             // the live swell's note handles
+static float swellTgt = 3;                       // the velocity the swell rises to
+static void kill_swell(void) { for (int i = 0; i < nswellH; i++) note_off(swellH[i]); nswellH = 0; }
 static void play_pad(int delay) {
     (void)delay;
+    kill_swell();                                // last bar's swell releases at the bar line
     if (!nbars) return;
-    int on = arr[playSlot].pad < 0 ? von[V_PA] : arr[playSlot].pad;
+    int pl = arr[playSlot].pad;
+    int on = pl < 0 ? von[V_PA] : (pl != PPL_OFF);
     if (!on) return;
-    int r0 = arr[playSlot].rootPc, q = arr[playSlot].qual;
-    int base = 48 + (octSel - 1) * 12 + r0;      // mid — a chord-register bed
+    if (arr[playSlot].feel == FEEL_STOP) return; // a held bed defeats a band stop
+    int r0 = (arr[playSlot].rootPc + bar_tp(playSlot)) % 12, q = arr[playSlot].qual;
+    int base = 48 + (octSel - 1) * 12 + r0 + (pl == PPL_HIGH ? 12 : 0);   // mid — a chord-register bed
     int voices = bar_sev(playSlot) ? 4 : 3;
     int dur = (int)(bar_frames() * (1000.0f / 60.0f));   // sustain ~one bar; the release tail bleeds into the next
     int vel = feel_vel(playSlot, 3);
     for (int i = 0; i < voices; i++) {
         int m = base + hb_tones[q][i];
         if (lit_voice() == V_PA) light_pc(m);
-        hit(m, I_PAD, vel, dur);                 // HELD (vs note()'s quick decay) — a proper pad
+        if (pl == PPL_SWELL) { if (nswellH < 4) swellH[nswellH++] = note_on(m, I_PAD, 0); }
+        else hit(m, I_PAD, vel, dur);            // HELD (vs note()'s quick decay) — a proper pad
     }
+    swellTgt = (float)vel;
 }
 
 // FEEL — the comp rhythm + per-genre swing (baked, no knob).
@@ -570,7 +680,7 @@ static void set_root(int cell, int pc) {
 }
 
 static void bar_defaults(Bar *b) {
-    b->strum = b->inv = b->oct = b->sev = -1;
+    b->strum = b->inv = b->oct = b->sev = b->comp = -1;
     b->bass = -1; b->fill = 0; b->mel = -1; b->pad = -1; b->feel = FEEL_STRAIGHT;
 }
 // append a bar with a chosen chord (root + quality) — extends the loop, auditions.
@@ -743,7 +853,7 @@ static void zone_rail(Box rail, Box g) {
 // orange = p-locked). Tap any cell to open its voice's editor.
 static int cell_locked(int v, int i) {
     switch (v) {
-        case V_CH: return arr[i].strum >= 0 || arr[i].inv >= 0 || arr[i].oct >= 0 || arr[i].sev >= 0;
+        case V_CH: return arr[i].strum >= 0 || arr[i].inv >= 0 || arr[i].oct >= 0 || arr[i].sev >= 0 || arr[i].comp >= 0;
         case V_BA: return arr[i].bass >= 0;
         case V_ME: return arr[i].mel  >= 0;
         case V_DR: return arr[i].fill != 0;
@@ -880,21 +990,24 @@ static void editor_chords(Box g) {
     print(rn, (int)(spin.x + spin.w / 2 - text_width(rn) / 2), (int)(spin.y + spin.h / 2 + 2),
           pfn[selBar] >= 0 ? CLR_YELLOW : CLR_RED);
 
-    // right: 2x2 grid of per-cell p-lock chips (AUTO = follow the global voicing)
-    char v0[8], v1[8], v2[8], v3[8];
+    // right: 2x3 grid of per-cell p-lock chips (AUTO = follow the global voicing).
+    // COMP is the bar's comp texture (ANTIC/STAB/HELD/TACET — the radio-idiom locks).
+    char v0[8], v1[8], v2[8], v3[8], v4[8];
     Bar *b = &arr[selBar];
     snprintf(v0, sizeof v0, "%s", b->strum < 0 ? "AUTO" : STRUMS[b->strum].name);
     snprintf(v1, sizeof v1, "%s", b->inv   < 0 ? "AUTO" : INV_LAB[b->inv]);
     snprintf(v2, sizeof v2, "%s", b->oct   < 0 ? "AUTO" : OCT_LAB[b->oct]);
     snprintf(v3, sizeof v3, "%s", b->sev   < 0 ? "AUTO" : (b->sev ? "7TH" : "TRIAD"));
+    snprintf(v4, sizeof v4, "%s", b->comp  < 0 ? "AUTO" : CPL_LAB[b->comp]);
     Box p = lay_inset(g, 1);
     Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
-    Box a = lay_grid(r0, 2, 2, 0, 1), bb = lay_grid(r0, 2, 2, 1, 1);
-    Box c = lay_grid(r1, 2, 2, 0, 1), d = lay_grid(r1, 2, 2, 1, 1);
+    Box a = lay_grid(r0, 3, 3, 0, 1), bb = lay_grid(r0, 3, 3, 1, 1), c = lay_grid(r0, 3, 3, 2, 1);
+    Box d = lay_grid(r1, 3, 3, 0, 1), e  = lay_grid(r1, 3, 3, 1, 1);
     if (chip(a,  "STRUM", v0, b->strum >= 0, 0x2420)) b->strum = (b->strum + 2) % (NSTRUM + 1) - 1;
     if (chip(bb, "INV",   v1, b->inv   >= 0, 0x2421)) b->inv   = (b->inv   + 2) % ((bar_sev(selBar) ? 4 : 3) + 1) - 1;
     if (chip(c,  "OCT",   v2, b->oct   >= 0, 0x2422)) b->oct   = (b->oct   + 2) % 4 - 1;
     if (chip(d,  "7TH",   v3, b->sev   >= 0, 0x2423)) b->sev   = (b->sev   + 2) % 3 - 1;
+    if (chip(e,  "COMP",  v4, b->comp  >= 0, 0x2425)) b->comp  = (b->comp  + 2) % (CPL_N + 1) - 1;
 }
 
 // BASS editor: the global STYLE chip + the per-cell p-lock vocab (2x3):
@@ -910,11 +1023,11 @@ static void editor_bass(Box g) {
     Box p = lay_inset(g, 1);
     int bl = arr[selBar].bass;
     Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
-    for (int i = 0; i < 3; i++) {
-        if (seg(lay_grid(r0, 3, 3, i, 1), BPL_LAB[i],     bl == BPL_VAL[i],     0x2431u + i))
+    for (int i = 0; i < 5; i++) {
+        if (seg(lay_grid(r0, 5, 5, i, 1), BPL_LAB[i],     bl == BPL_VAL[i],     0x2431u + i))
             arr[selBar].bass = BPL_VAL[i];
-        if (seg(lay_grid(r1, 3, 3, i, 1), BPL_LAB[i + 3], bl == BPL_VAL[i + 3], 0x2434u + i))
-            arr[selBar].bass = BPL_VAL[i + 3];
+        if (seg(lay_grid(r1, 5, 5, i, 1), BPL_LAB[i + 5], bl == BPL_VAL[i + 5], 0x24B0u + i))
+            arr[selBar].bass = BPL_VAL[i + 5];
     }
 }
 // DRUMS editor: global STYLE + KIT + BUSY chips, then the per-cell vocab (2x3):
@@ -930,9 +1043,9 @@ static void editor_drums(Box g) {
     Box p = lay_inset(g, 1);
     int dp = arr[selBar].fill;
     Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
-    for (int i = 0; i < 3; i++) {
-        if (seg(lay_grid(r0, 3, 3, i, 1), DPL_LAB[i],     dp == i,     0x2444u + i)) arr[selBar].fill = i;
-        if (seg(lay_grid(r1, 3, 3, i, 1), DPL_LAB[i + 3], dp == i + 3, 0x2447u + i)) arr[selBar].fill = i + 3;
+    for (int i = 0; i < 5; i++) {
+        if (seg(lay_grid(r0, 5, 5, i, 1), DPL_LAB[i],     dp == i,     0x2444u + i)) arr[selBar].fill = i;
+        if (seg(lay_grid(r1, 5, 5, i, 1), DPL_LAB[i + 5], dp == i + 5, 0x24C0u + i)) arr[selBar].fill = i + 5;
     }
 }
 static void editor_mel(Box g) {
@@ -942,9 +1055,13 @@ static void editor_mel(Box g) {
     }
     Box p = lay_inset(g, 1);
     int ml = arr[selBar].mel;
-    if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", ml < 0, 0x2451)) arr[selBar].mel = -1;
-    if (seg(lay_grid(p, 3, 3, 1, 1), "REST",   ml == 0, 0x2452)) arr[selBar].mel = 0;
-    if (seg(lay_grid(p, 3, 3, 2, 1), "ACCENT", ml == 1, 0x2453)) arr[selBar].mel = 1;
+    Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
+    if (seg(lay_grid(r0, 3, 3, 0, 1), "FOLLOW", ml < 0,             0x2451)) arr[selBar].mel = MPL_FOLLOW;
+    if (seg(lay_grid(r0, 3, 3, 1, 1), "REST",   ml == MPL_REST,     0x2452)) arr[selBar].mel = MPL_REST;
+    if (seg(lay_grid(r0, 3, 3, 2, 1), "ACCENT", ml == MPL_ACCENT,   0x2453)) arr[selBar].mel = MPL_ACCENT;
+    if (seg(lay_grid(r1, 3, 3, 0, 1), "HOLD",   ml == MPL_HOLD,     0x2455)) arr[selBar].mel = MPL_HOLD;
+    if (seg(lay_grid(r1, 3, 3, 1, 1), "DOUBLE", ml == MPL_DOUBLE,   0x2456)) arr[selBar].mel = MPL_DOUBLE;
+    if (seg(lay_grid(r1, 3, 3, 2, 1), "OCT+",   ml == MPL_OCT,      0x2457)) arr[selBar].mel = MPL_OCT;
 }
 static void editor_pad(Box g) {
     Box tRow = lay_split(g, EDGE_TOP, 13, &g);
@@ -953,9 +1070,12 @@ static void editor_pad(Box g) {
     }
     Box p = lay_inset(g, 1);
     int pl = arr[selBar].pad;
-    if (seg(lay_grid(p, 3, 3, 0, 1), "FOLLOW", pl < 0, 0x2461)) arr[selBar].pad = -1;
-    if (seg(lay_grid(p, 3, 3, 1, 1), "OFF",    pl == 0, 0x2462)) arr[selBar].pad = 0;
-    if (seg(lay_grid(p, 3, 3, 2, 1), "ON",     pl == 1, 0x2463)) arr[selBar].pad = 1;
+    Box r0 = lay_grid(p, 1, 2, 0, 1), r1 = lay_grid(p, 1, 2, 1, 1);
+    if (seg(lay_grid(r0, 3, 3, 0, 1), "FOLLOW", pl < 0,            0x2461)) arr[selBar].pad = PPL_FOLLOW;
+    if (seg(lay_grid(r0, 3, 3, 1, 1), "OFF",    pl == PPL_OFF,     0x2462)) arr[selBar].pad = PPL_OFF;
+    if (seg(lay_grid(r0, 3, 3, 2, 1), "ON",     pl == PPL_ON,      0x2463)) arr[selBar].pad = PPL_ON;
+    if (seg(lay_grid(r1, 3, 3, 0, 1), "SWELL",  pl == PPL_SWELL,   0x2465)) arr[selBar].pad = PPL_SWELL;
+    if (seg(lay_grid(r1, 3, 3, 1, 1), "HIGH",   pl == PPL_HIGH,    0x2466)) arr[selBar].pad = PPL_HIGH;
 }
 // the promoted lane — the selected voice's 8 cells, kept visible at the top row so
 // edits land IN PLACE. The selected bar is yellow; tap another cell to scrub to it.
@@ -991,7 +1111,7 @@ static void glass_editor(Box g) {
     // from any voice's editor; ACCENT/DRAG show orange.
     Box fbox = lay_split(hdr, EDGE_RIGHT, 46, &hdr);
     if (seg(fbox, FEEL_LAB[arr[selBar].feel], arr[selBar].feel != FEEL_STRAIGHT, 0x2480))
-        arr[selBar].feel = (arr[selBar].feel + 1) % 3;
+        arr[selBar].feel = (arr[selBar].feel + 1) % NFEEL;
     char nm[16]; chname(nm, sizeof nm, arr[selBar].rootPc, arr[selBar].qual, bar_sev(selBar));
     const char *rn = pfn[selBar] >= 0 ? cur_vocab()->fname[pfn[selBar]] : "?";
     char t[28]; snprintf(t, sizeof t, "BAR %d  %s %s", selBar + 1, nm, rn);
@@ -1082,12 +1202,30 @@ void update(void) {
             int s = playT / stepLen;
             if (s < 8) {
                 int sw = (s == 2 || s == 6) ? swMax : 0;
-                if (von[V_CH] && COMP_PAT[modeSel][s] == 'x') {   // the chords lane can be muted too
-                    sound_chord(r0, q, 0, sw + feel_delay_fr(b0), bar_strum(b0), bar_inv(b0),
-                                bar_oct(b0), bar_sev(b0), feel_vel(b0, 5));
+                int cpl = arr[b0].comp, tp0 = bar_tp(b0);
+                if (von[V_CH] && cpl != CPL_TACET && !feel_stopped(b0, s)
+                    && COMP_PAT[modeSel][s] == 'x') {   // the chords lane can be muted too
+                    // STAB chokes the hit short; HELD rings it to the bar line; else
+                    // the instrument's own envelope (dur 0).
+                    int dur = cpl == CPL_STAB ? 60
+                            : cpl == CPL_HELD ? (int)((8 - s) * stepLen * (1000.0f / 60.0f)) : 0;
+                    sound_chord((r0 + tp0) % 12, q, 0, sw + feel_delay_fr(b0), bar_strum(b0), bar_inv(b0),
+                                bar_oct(b0), bar_sev(b0), feel_vel(b0, 5), dur);
                     if (lit_voice() == V_CH) {   // light the chord tones as it comps
                         int nv = bar_sev(b0) ? 4 : 3;
-                        for (int i = 0; i < nv; i++) light_pc(r0 + hb_tones[q][i]);
+                        for (int i = 0; i < nv; i++) light_pc(r0 + tp0 + hb_tones[q][i]);
+                    }
+                }
+                // ANTIC — the anticipation: the last 8th of THIS bar already strikes the
+                // NEXT bar's chord (its own resolved voicing). Forward-only, no lookahead.
+                if (von[V_CH] && cpl == CPL_ANTIC && s == 7 && !feel_stopped(b0, s)) {
+                    int nb = (b0 + 1) % nbars;
+                    int rA = (arr[nb].rootPc + bar_tp(nb)) % 12, qA = arr[nb].qual;
+                    sound_chord(rA, qA, 0, feel_delay_fr(b0), bar_strum(nb), bar_inv(nb),
+                                bar_oct(nb), bar_sev(nb), feel_vel(b0, 5), 0);
+                    if (lit_voice() == V_CH) {
+                        int nv = bar_sev(nb) ? 4 : 3;
+                        for (int i = 0; i < nv; i++) light_pc(rA + hb_tones[qA][i]);
                     }
                 }
                 play_drum_step(s, sw * 1000 / 60);
@@ -1101,7 +1239,15 @@ void update(void) {
             if (beat < 4) play_bass_beat(beat, (beat == 1 || beat == 3) ? swMax : 0);
         }
         if (++playT >= bf) { playT = 0; playSlot = (playSlot + 1) % nbars; }
-    } else playSlot = 0;
+        // PAD SWELL — ride the held notes' volume up across the bar (note_vol is
+        // built to be ridden live; the handles die at the next bar line). Skip the
+        // wrap frame (playT 0) so the peak holds until note_off's release tail —
+        // the swell bleeds into the next bar like the normal pad does.
+        if (nswellH && playT > 0) {
+            float v = swellTgt * (float)playT / (float)bar_frames();
+            for (int i = 0; i < nswellH; i++) note_vol(swellH[i], v);
+        }
+    } else { playSlot = 0; if (nswellH) kill_swell(); }
 
     for (int i = 0; i < 12; i++) keyLit[i] *= 0.86f;   // the note-lights fade out
     pump_notes();
@@ -1212,6 +1358,35 @@ void spec(void) {
     arr[0].feel = FEEL_DRAG;   expect_eq(feel_delay_fr(0), FEEL_DRAG_FR, "DRAG lags the bar");
     expect_eq(feel_vel(0, 5), 5, "DRAG does not lift velocity");
     arr[0].feel = FEEL_STRAIGHT;
+
+    // the radio-idiom FEELs (2026-07-22): HUSH pulls down, STOP accents the lone hit
+    // then silences, LIFT transposes from its bar to the loop's end (and only there)
+    arr[1].feel = FEEL_HUSH;  expect_eq(feel_vel(1, 5), 3, "HUSH pulls the band down two");
+    expect_eq(feel_vel(1, 2), 1, "HUSH clamps at 1 (never silent)");
+    arr[1].feel = FEEL_STOP;  expect_eq(feel_vel(1, 5), 7, "STOP's downbeat hit is accented");
+    expect(!feel_stopped(1, 0) && feel_stopped(1, 3), "STOP silences after the downbeat only");
+    arr[1].feel = FEEL_STRAIGHT;
+    expect_eq(bar_tp(nbars - 1), 0, "no LIFT = no transpose");
+    arr[2].feel = FEEL_LIFT;
+    expect(bar_tp(1) == 0 && bar_tp(2) == 2 && bar_tp(3) == 2,
+           "LIFT transposes from its bar to the loop end (the gear change), not before");
+    arr[2].feel = FEEL_STRAIGHT;
+
+    // the radio-idiom per-cell locks read as p-locks (orange pip) and reset clean
+    expect(!cell_locked(V_CH, 0), "chord cell starts unlocked");
+    arr[0].comp = CPL_ANTIC; expect(cell_locked(V_CH, 0), "COMP ANTIC reads as a p-lock");
+    arr[0].comp = CPL_TACET; expect_eq(arr[0].comp, CPL_TACET, "COMP TACET sets");
+    arr[0].comp = -1;        expect(!cell_locked(V_CH, 0), "COMP back to AUTO unlocks");
+    arr[0].bass = BPL_APPR;  expect(cell_locked(V_BA, 0), "bass APPR reads as a p-lock");
+    arr[0].bass = BPL_PEDAL; expect_eq(arr[0].bass, BPL_PEDAL, "bass PEDAL sets");
+    arr[0].bass = BPL_FOLLOW;
+    arr[3].fill = DPL_HALF;  expect(cell_locked(V_DR, 3), "drum HALF reads as a p-lock");
+    arr[3].fill = DPL_DOUBLE; expect_eq(arr[3].fill, DPL_DOUBLE, "drum DOUBLE sets");
+    arr[3].fill = DPL_GROOVE;
+    arr[0].mel = MPL_HOLD;   expect(cell_locked(V_ME, 0), "mel HOLD reads as a p-lock");
+    arr[0].mel = MPL_FOLLOW;
+    arr[0].pad = PPL_SWELL;  expect(cell_locked(V_PA, 0), "pad SWELL reads as a p-lock");
+    arr[0].pad = PPL_FOLLOW;
 
     // P-LOCK ISOLATION — every per-cell p-lock set on bar 0 must leave bar 1 untouched
     // (the guard against a p-lock leaking to the whole instrument).

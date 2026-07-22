@@ -574,6 +574,12 @@ static double  det_clock     = 0.0;      // synthetic now() seconds, advances DE
 // synthetic clock: deterministic runs read frame-derived time, not the wall clock
 static double clk(void) { return det_mode ? det_clock : GetTime(); }
 
+// --frames bound + the turbo flag live OUT here (not the native harness block below)
+// because the shared present path (!det_turbo) and main() setup reference them on web
+// too, where the harness is a no-op — det_turbo stays false, max_frames stays 0.
+static int  max_frames = 0;      // --frames: stop after N frames (0 = run until close)
+static bool det_turbo  = false;  // deterministic bounded headless run → uncap FPS + skip the present
+
 #ifndef PLATFORM_WEB
 #define KEYSTATE_N  512                  // raylib MAX_KEYBOARD_KEYS
 
@@ -599,8 +605,7 @@ static int         replay_i   = 0;       // next event to apply
 static FILE   *trace_file     = NULL;    // --trace: one JSONL line of watch() state per frame
 static int     dump_every     = 0;       // --dump-every: 0 = off, else export every Nth frame
 static char    dump_dir[256]  = {0};     // --dump: directory for filmstrip PNGs
-static int     max_frames     = 0;       // --frames: stop after N frames (0 = run until close)
-static bool    det_turbo      = false;   // deterministic bounded headless run → uncap FPS + skip the (unseen) window present
+// max_frames + det_turbo are declared above the #ifndef PLATFORM_WEB (shared with web)
 // --resize "WxH,WxH,…": a scripted canvas-size SWEEP for testing device-adaptive layouts
 // (device-adaptive-layout.md). Each size is held RESIZE_HOLD frames (so the reflow + a little
 // animation settle), then one PNG cropped to the ACTIVE region is dumped, named by size — a
@@ -3143,17 +3148,19 @@ int main(int argc, char **argv) {
     if (env_is("DE_SOFTWARE_CANVAS","on"))     { sw_canvas_enabled = true; sw_canvas_active = true; }  // Phase 0 probe
     if (env_is("DE_CPU_RASTER",     "on"))     cpu_raster_enabled = true;   // line()/rectfill_rot → CPU everywhere
     if (env_is("DE_AUDIO",          "off"))    audio_off          = true;   // skip all audio
+#ifndef PLATFORM_WEB
     micwav_load();                             // DE_MIC_WAV=<file> → feed a WAV as the mic (headless mic-cart testing)
+#endif
     { const char *ss = getenv("DE_SHOW_SIZE");          // DE_SHOW_SIZE=1 → live WxH overlay (resizable carts)
       if (ss && ss[0] && strcmp(ss, "0") != 0) size_overlay_on = true; }    // kept: "set & not 0", not an ==match
 #ifndef DE_WINDOW_TITLE            // exports bake the cart name in (a double-clicked app gets no argv)
 #define DE_WINDOW_TITLE "dreamengine"
 #endif
     const char *window_title           = DE_WINDOW_TITLE;
+    int         hide_window            = 0;   // shared: the web setup path reads it too (always 0 there — no --headless)
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
     int         screenshot_frames_done = 0;
-    int         hide_window            = 0;
     unsigned    seed                   = 1;
     int         seed_explicit          = 0;   // --seed given on the CLI → overrides a .rec's `# seed` header
     const char *rec_path = NULL, *replay_path = NULL, *script_path = NULL, *trace_path = NULL;

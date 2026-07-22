@@ -1,0 +1,14 @@
+{
+  "name":     "Pedalboard",
+  "bundleId": "com.mipolai.pedalboard",
+  "version":  "0.1",
+  "price":    "1.99",
+  "orientation": "landscape",
+  "icon":     "apps/pedalboard/icon.png",
+  "carts":    ["pedalboard"],
+  "listing": {
+    "title":    "Pedalboard: Playable Guitar FX",
+    "subtitle": "Build a chain, order your tone",
+    "keywords": "builder,planner,stompbox,fuzz,distortion,overdrive,reverb,delay,chorus,phaser,wah,amp,rig,pedals"
+  }
+}

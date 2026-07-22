@@ -2399,34 +2399,24 @@ static void r2_header(Box hd, int m) {
 // melody (pitch = row). ONE capture widget (not 16 — keeps well under UI_MAX_WID).
 static void r2_screen303(Box g, int i) {
     int mode = pscreen[i], hi = mac[i ? M_303B : M_303A].col;
-    Box gg = g;
-    // FLAG: a palette strip on top to ARM which flag the grid then paints
-    if (mode == PS_FLAG) {
-        Box pal = lay_split(gg, EDGE_TOP, 10, &gg);
-        int bw = ((int)pal.w) / FL_N;
-        for (int f = 0; f < FL_N; f++)
-            if (lcdbtn(0x140u + f, (int)pal.x + f * bw, (int)pal.y, bw - 1, 9, FLNAME[f], armed == f)) armed = f;
-    }
     int NR = SCALES[mscale[i]].n;
-    int gut = 9, gx = (int)gg.x + gut, gy = (int)gg.y, gw = (int)gg.w - gut - 1, gh = (int)gg.h - 7;
+    int gut = 9, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h - 1;
     int step = gw / STEPS, rh = gh / NR;
-    // edit — one capture over the grid (SEQ = note/pitch, FLAG = paint the armed flag). GEN has no
-    // grid widget (its menu buttons live over the grid → no overlap).
-    if (mode != PS_GEN) {
-        void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
-        UiCap *c = ui_cap_for(w);
-        if (c) {
-            int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
-            int s = (px - gx) / step, frow = (py - gy) / rh;
-            if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
-                int deg = (NR - 1) - frow;
-                if (mode == PS_FLAG && armed != FL_NOTE) {
-                    if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);   // decide on the first cell, then paint the drag
-                    flag_set(i, s, armed, paint_val);
-                } else {
-                    if (ui_grabbed(w) && on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0;  // tap an existing note = off
-                    else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
-                }
+    // one capture over the grid; the MODE only changes what a paint does (SEQ/GEN = note/pitch,
+    // FLAG = paint the armed flag). Tools/menu live in the submenu ROW below, never over the grid.
+    void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
+    UiCap *c = ui_cap_for(w);
+    if (c) {
+        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
+        int s = (px - gx) / step, frow = (py - gy) / rh;
+        if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
+            int deg = (NR - 1) - frow;
+            if (mode == PS_FLAG && armed != FL_NOTE) {
+                if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);   // decide on the first cell, then paint the drag
+                flag_set(i, s, armed, paint_val);
+            } else {
+                if (ui_grabbed(w) && on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0;  // tap an existing note = off
+                else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
             }
         }
     }
@@ -2449,13 +2439,6 @@ static void r2_screen303(Box g, int i) {
         if (sld[i][s] && on[i][ns]) { int r2 = (NR - 1) - scale_idx(mscale[i], pit[i][ns]);
             line(cx + step, ry + rh / 2, gx + ns * step, gy + r2 * rh + rh / 2, CLR_LIGHT_PEACH); }
     }
-    if (mode == PS_GEN) {   // CLEAR + density menu (calls the real acid-riff generator)
-        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
-        int bw = gw / 4, by = gy + rh * NR / 2 - 6;
-        for (int d = 0; d < 4; d++) if (lcdbtn(0x150u + d, gx + d * bw, by, bw - 3, 12, GN[d], 0)) gen_line(i, d);
-    } else {
-        font(FONT_TINY); print(mode == PS_FLAG ? "arm a flag \x7f paint the grid" : "tap=on/off  drag=draw melody", gx, gy + rh * NR + 1, CLR_MEDIUM_GREEN);
-    }
 }
 
 // SHARED SCREEN — the drum 2D VOICE GRID (voices × 16 steps). left gutter names each voice; the
@@ -2467,19 +2450,10 @@ static void r2_screendrum(Box g, int focus) {
     int (*prbg)[STEPS] = (focus == M_808) ? dprob : d9prob;
     const char **vn = (focus == M_808) ? AB8 : AB9;
     int sel = (focus == M_808) ? dsel : d9sel;
-    Box gg = g;
-    // FLAG: arm ACC / PROB (/ STRK on the 909), then work the cells
-    if (mode == DS_FLAG) {
-        Box pal = lay_split(gg, EDGE_TOP, 10, &gg);
-        static const char *FN[3] = { "ACC", "PROB", "STRK" };
-        static const int   FM[3] = { DD_ACC, DD_PROB, DD_STRK };
-        int n = (focus == M_909) ? 3 : 2, bw = ((int)pal.w) / n;
-        for (int f = 0; f < n; f++)
-            if (lcdbtn(0x160u + f, (int)pal.x + f * bw, (int)pal.y, bw - 1, 9, FN[f], darmed == FM[f])) darmed = FM[f];
-    }
-    int gut = 13, gx = (int)gg.x + gut, gy = (int)gg.y, gw = (int)gg.w - gut - 1, gh = (int)gg.h;
+    int gut = 13, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h;
     int step = gw / STEPS, rh = gh / nv;
-    if (mode != DS_GEN) {
+    // one capture over the grid — the FLAG tools are armed from the submenu ROW below (never over the grid)
+    {
         void *w = ui_wid_hash(0x120u + focus, gx, gy, step * STEPS, rh * nv); ui_reg(w, gx, gy, step * STEPS, rh * nv, 0);
         UiCap *c = ui_cap_for(w);
         if (c) {
@@ -2502,8 +2476,8 @@ static void r2_screendrum(Box g, int focus) {
     if (playing) rectfill(gx + lpos[0] * step, gy, step - 1, rh * nv, CLR_DARK_GREEN);
     for (int v = 0; v < nv; v++) {
         int ry = gy + v * rh;
-        if (v == sel) rectfill((int)gg.x + 1, ry, gut - 1, rh - 1, CLR_DARK_GREEN);
-        font(FONT_TINY); print(vn[v], (int)gg.x + 2, ry + (rh - 5) / 2, (v == sel) ? CLR_WHITE : CLR_MEDIUM_GREEN);
+        if (v == sel) rectfill((int)g.x + 1, ry, gut - 1, rh - 1, CLR_DARK_GREEN);
+        font(FONT_TINY); print(vn[v], (int)g.x + 2, ry + (rh - 5) / 2, (v == sel) ? CLR_WHITE : CLR_MEDIUM_GREEN);
         for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
             if (grid[v][s]) {
                 int pr = prbg[v][s] > 0 ? prbg[v][s] : 100, ch = (rh - 2) * pr / 100; if (ch < 2) ch = 2;   // PROB = a shorter cell
@@ -2511,11 +2485,6 @@ static void r2_screendrum(Box g, int focus) {
                 if (focus == M_909 && d9strk[v][s]) for (int p = 0; p <= d9strk[v][s]; p++) pset(cx + 1 + p * 2, ry + 1, CLR_TRUE_BLUE);   // STRK pips
             } else pset(cx + step / 2, ry + rh / 2, (s % 4 == 0) ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK);
         }
-    }
-    if (mode == DS_GEN) {   // CLEAR + density menu (the real drum generator, per machine)
-        static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
-        int bw = gw / 4, by = gy + rh * nv / 2 - 6;
-        for (int d = 0; d < 4; d++) if (lcdbtn(0x170u + d, gx + d * bw, by, bw - 3, 12, GN[d], 0)) { if (focus == M_808) gen_drums(d); else gen_drums9(d); }
     }
 }
 
@@ -2553,7 +2522,38 @@ static void r2_screenmst(Box g) {
     font(FONT_TINY); print("drag to draw the lane", gx, gy + gh - 6, CLR_MEDIUM_GREEN);
 }
 
-// the big shared middle screen — frame + tag row + the focused machine's deep editor + soft-keys.
+// the SUBMENU row — one row directly above the soft-keys. Shows the tool palette / menu for the
+// ACTIVE view: FLAG = the flag palette (arm which flag the grid paints); GEN = CLEAR/MIN/MID/BUSY.
+// SEQ / VCE / MST have no submenu (blank). Together with the soft-key row this is the 2-row screen UI.
+static void r2_subrow(Box r, int focus) {
+    int x = (int)r.x, y = (int)r.y, w = (int)r.w, h = (int)r.h;
+    if (focus <= M_303B) {
+        int mode = pscreen[focus];
+        if (mode == PS_FLAG) {
+            int bw = w / FL_N;
+            for (int f = 0; f < FL_N; f++) if (lcdbtn(0x140u + f, x + f * bw, y, bw - 1, h, FLNAME[f], armed == f)) armed = f;
+        } else if (mode == PS_GEN) {
+            static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+            int bw = w / 4;
+            for (int d = 0; d < 4; d++) if (lcdbtn(0x150u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) gen_line(focus, d);
+        }
+    } else if (focus <= M_909) {
+        int mode = dscreen;
+        if (mode == DS_FLAG) {
+            static const char *FN[3] = { "ACC", "PROB", "STRK" };
+            static const int   FM[3] = { DD_ACC, DD_PROB, DD_STRK };
+            int n = (focus == M_909) ? 3 : 2, bw = w / n;
+            for (int f = 0; f < n; f++) if (lcdbtn(0x160u + f, x + f * bw, y, bw - 1, h, FN[f], darmed == FM[f])) darmed = FM[f];
+        } else if (mode == DS_GEN) {
+            static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+            int bw = w / 4;
+            for (int d = 0; d < 4; d++) if (lcdbtn(0x170u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) { if (focus == M_808) gen_drums(d); else gen_drums9(d); }
+        }
+    }
+    // MST: no submenu (the PCF/CRU/GAT lane IS the editor)
+}
+
+// the big shared middle screen — frame + tag row + the deep editor + the 2-row UI (submenu + soft-keys).
 static void r2_bigscreen(Box c, int focus) {
     int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
     rectfill(x, y, w, h, CLR_DARK_GREEN);
@@ -2564,10 +2564,11 @@ static void r2_bigscreen(Box c, int focus) {
     print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
     { char b[8]; int bp = (int)g_bpm, k = 0; if (bp >= 100) b[k++] = '0' + bp / 100; b[k++] = '0' + (bp / 10) % 10; b[k++] = '0' + bp % 10; b[k++] = 0;
       print(b, x + w - 24, y + 3, CLR_LIME_GREEN); }
-    Box body = box(x + 3, y + 13, w - 6, h - 25);
+    Box body = box(x + 3, y + 13, w - 6, h - 36);   // leaves the bottom for the 2-row UI (submenu + soft-keys)
     if (focus <= M_303B)      r2_screen303(body, focus);
     else if (focus <= M_909)  r2_screendrum(body, focus);
     else                      r2_screenmst(body);
+    r2_subrow(box(x + 4, y + h - 22, w - 8, 9), focus);   // submenu row, directly above the soft-keys
     // soft-key row — switches the shared screen's CONTENT for the focused machine (lit = active view).
     int ky = y + h - 11;
     if (focus <= M_303B) {

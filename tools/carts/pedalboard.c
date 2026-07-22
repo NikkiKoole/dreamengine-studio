@@ -55,6 +55,10 @@ extern void de_resize(int w, int h);   // engine seam: set the active canvas (ac
 // layout below reads screen_w()/screen_h() and spreads into the leftover. Base 320x200 (ratio 1.6):
 // a wider window locks HEIGHT 200 + widens (more of the pedal chain shows); a narrower/taller window
 // (e.g. iPad 4:3) locks WIDTH 320 + grows the guitar downward. At exactly 320x200 it's a no-op.
+// The SAFE-AREA layout frame: the whole layout lives inside (saX,saY,saW,saH) so controls dodge the
+// notch / Dynamic Island / home-bar, while the background (cls) bleeds to the full canvas. On desktop
+// safe_rect == the whole canvas, so saX/saY = 0 and saW/saH = screen_w()/h() → the base is unchanged.
+static int saX, saY, saW, saH;
 static void fit_canvas(void) {
     int cw = screen_w(), ch = screen_h();
     if (cw <= 0 || ch <= 0) return;
@@ -63,6 +67,7 @@ static void fit_canvas(void) {
     if (r >= 1.6f) { th = 200; tw = (int)(200.0f * r + 0.5f); }   // wide  → lock height, widen the board
     else           { tw = 320; th = (int)(320.0f / r + 0.5f); }   // narrow→ lock width, grow downward
     if (tw != cw || th != ch) de_resize(tw, th);
+    safe_rect(&saX, &saY, &saW, &saH);   // read AFTER the resize (it rescales to the reflowed canvas)
 }
 
 #define I_GTR  5
@@ -194,31 +199,33 @@ static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor
 // The top strip (bar + pedal chain) is FIXED-height and top-anchored; only WIDTH-dependent anchors
 // (cabinet, chain viewport, guitar span, control rows) read screen_w()/screen_h(). Every macro below
 // is exact at 320x200 (byte-identical base), and spreads into the leftover on other ratios.
-#define PED_Y 14
+// All positions are measured inside the safe frame: left origin saX, right edge saX+saW, top saY,
+// bottom saY+saH. Each is exact at 320x200/full-safe (byte-identical base) and dodges the notch/home-bar.
+#define PED_Y (saY + 14)
 #define PED_H 70                     // a touch shorter (was 72) — trimmed padding feeds the neck
 #define PED_W 54                     // a touch wider — room for the staggered knobs + side labels
 #define PITCH 58                     // pedal size is FIXED → a wider canvas simply shows MORE of the chain
-#define CHAIN_X0 4
+#define CHAIN_X0 (saX + 4)
 #define CAB_W   54                   // the pinned output-cabinet box (never scrolls) — "the chain plugs into it"
-#define CAB_X   (screen_w() - CAB_W - 2)   // right-pinned to the real canvas edge
+#define CAB_X   (saX + saW - CAB_W - 2)    // right-pinned to the safe-area edge (clears the notch)
 #define VIEW_W  view_w()             // chain viewport width: fills from CHAIN_X0 up to the cabinet
 #define VIEW_R  (CHAIN_X0 + view_w())
 #define SB_Y    (PED_Y + PED_H)      // scrollbar track (only drawn on overflow)
 #define ILLU_CY (PED_Y + 13)         // illustration center — pulled up, padding trimmed
-#define PAL_Y   88                   // palette panel top (when open) — fixed; a taller canvas just fits more rows
-#define SX0   22                     // nut (neck end)
-#define SX1   (screen_w() - 18)      // bridge (body end) — tracks the right edge (= 302 at 320w)
+#define PAL_Y   (saY + 88)           // palette panel top (when open); a taller canvas just fits more rows
+#define SX0   (saX + 22)             // nut (neck end)
+#define SX1   (saX + saW - 18)       // bridge (body end) — tracks the safe right edge (= 302 at 320w)
 #define STRUMX (SX1 - 106)           // strum zone keeps its width, rides the bridge (= 196 at 320w)
-#define STR_Y0 93                    // strings spread WIDER now (10px, was 7) — easy to pick on a phone
-#define STR_DY ((SHAPE_Y - 104) / (NSTR - 1))   // fills down to the chord rows (= 10 at 200h)
+#define STR_Y0 (saY + 93)            // strings spread WIDER now (10px, was 7) — easy to pick on a phone
+#define STR_DY ((SHAPE_Y - STR_Y0 - 11) / (NSTR - 1))   // SPAN-based → fills down to the chord rows (= 10 at 200h)
 #define STR_Y(s) (STR_Y0 + (s) * STR_DY)
 #define CHORD_H 21                   // chord buttons ~1.5× taller (was 14), parked at the bottom
-#define SHAPE_Y (screen_h() - 46)    // the two chord rows sit at the BOTTOM (grow down on a taller canvas)
-#define SHAPE_W (56 * screen_w() / 320)   // rows stretch to fill the width (exact 56 at 320w)
-#define SHAPE_X(i) ((12 + (i) * 60) * screen_w() / 320)
-#define ROOT_Y  (screen_h() - 23)
-#define ROOT_W  (40 * screen_w() / 320)
-#define ROOT_X(i) ((11 + (i) * 43) * screen_w() / 320)
+#define SHAPE_Y (saY + saH - 46)     // the two chord rows sit at the BOTTOM (above the home-bar; grow with height)
+#define SHAPE_W (56 * saW / 320)     // rows stretch to fill the safe width (exact 56 at 320w)
+#define SHAPE_X(i) (saX + (12 + (i) * 60) * saW / 320)
+#define ROOT_Y  (saY + saH - 23)
+#define ROOT_W  (40 * saW / 320)
+#define ROOT_X(i) (saX + (11 + (i) * 43) * saW / 320)
 static int view_w(void) { return CAB_X - CHAIN_X0 - 6; }   // = 254 at 320w
 
 // knobs are STAGGERED (zigzag, 2 columns) so each gets room to be bigger than a cramped row.
@@ -532,11 +539,11 @@ static int slot_under(int tx) {
 // build the list of palette-available cats (not in the chain) + the chip rect for the a-th of them
 #define PAL_COLS 6
 #define PAL_CH   24    // shaved so all 22 effects (4 rows, empty chain) clear the bottom edge
-#define PAL_PITCH ((screen_w() - 8) / PAL_COLS)   // 6 chips spread to fill the canvas width (= 52 at 320w)
+#define PAL_PITCH ((saW - 8) / PAL_COLS)          // 6 chips spread to fill the safe width (= 52 at 320w)
 #define PAL_CW   (PAL_PITCH - 2)                   // (= 50 at 320w)
 static int pal_avail(int *out) { int n = 0; for (int c = 0; c < NCAT; c++) if (chain_index(c) < 0) out[n++] = c; return n; }
 // grid starts just under the panel border (help text now lives up in the top bar, not here)
-static void pal_chip_rect(int a, int *x, int *y) { *x = 4 + (a % PAL_COLS) * PAL_PITCH; *y = PAL_Y + 3 + (a / PAL_COLS) * (PAL_CH + 2); }
+static void pal_chip_rect(int a, int *x, int *y) { *x = saX + 4 + (a % PAL_COLS) * PAL_PITCH; *y = PAL_Y + 3 + (a / PAL_COLS) * (PAL_CH + 2); }
 
 // the RIG panel: a 2-column list of "legendary setup" buttons (lower half, when rig_open)
 #define RIG_W 150
@@ -575,13 +582,15 @@ void update(void) {
     for (int i = 0; i < chain_n; i++) if (keyp('1' + i) && (chain[i].on || !pedal_locked(chain[i].cat))) { chain[i].on = !chain[i].on; dirty = 1; }
     if (keyp(KEY_SPACE)) { strum_down(); autoplay = false; }
 
-    if (tapp(4, 2, 56, 11))           { palette_open = !palette_open; if (palette_open) rig_open = false; }
-    if (tapp(64, 2, 46, 11))          { rig_open = !rig_open; if (rig_open) palette_open = false; }
-    if (tapp(114, 2, 54, 11))         { guitar_in = !guitar_in; if (guitar_in) mic_start(); else mic_stop(); }
-    if (tapp(screen_w() - 70, 4, 66, 10)) autoplay = !autoplay;
+    if (tapp(saX + 4, saY + 2, 56, 11))   { palette_open = !palette_open; if (palette_open) rig_open = false; }
+    if (tapp(saX + 64, saY + 2, 46, 11))  { rig_open = !rig_open; if (rig_open) palette_open = false; }
+    if (tapp(saX + 114, saY + 2, 54, 11)) { guitar_in = !guitar_in; if (guitar_in) mic_start(); else mic_stop(); }
+    if (tapp(saX + saW - 70, saY + 4, 66, 10)) autoplay = !autoplay;
 
     // GUITAR IN — feed the live mic through the chain you built. Set-and-hold: push only on change.
-    if ((int)guitar_in != ap_gtr_in) { input_monitor(guitar_in ? 1.2f : 0.0f); ap_gtr_in = guitar_in; }
+    // Gain is deliberately SUB-UNITY (0.8): monitoring your own mic through the device speaker feeds
+    // back (mic hears the speaker); <1 makes the loop DECAY instead of howl. Headphones kill it fully.
+    if ((int)guitar_in != ap_gtr_in) { input_monitor(guitar_in ? 0.8f : 0.0f); ap_gtr_in = guitar_in; }
 
     bool overflow = max_scroll() > 0;
 
@@ -808,7 +817,7 @@ static void draw_rigs(void) {
     rectfill(0, PAL_Y, screen_w(), screen_h() - PAL_Y, CLR_BROWNISH_BLACK);
     line(0, PAL_Y, screen_w(), PAL_Y, CLR_DARK_GREY);
     font(FONT_TINY);
-    print_centered("RIGS — tap a setup to load the whole board (pedals + cabinet), then tweak", screen_w() / 2, PAL_Y + 4, CLR_MEDIUM_GREY);
+    print_centered("RIGS — tap a setup to load the whole board (pedals + cabinet), then tweak", saX + saW / 2, PAL_Y + 4, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
     for (int r = 0; r < NRIG; r++) {
         int rx, ry; rig_rect(r, &rx, &ry);
@@ -823,8 +832,8 @@ static void draw_rigs(void) {
 
 static void draw_guitar(void) {
     int by = STR_Y0 - 4, bh = (STR_Y(NSTR - 1) + 8) - by;   // clears the scrollbar above; the neck is taller now
-    rrectfill(6, by, screen_w() - 12, bh, 6, CLR_BLUE_GREEN);
-    rrect(6, by, screen_w() - 12, bh, 6, CLR_BLUE);
+    rrectfill(saX + 6, by, saW - 12, bh, 6, CLR_BLUE_GREEN);
+    rrect(saX + 6, by, saW - 12, bh, 6, CLR_BLUE);
     rrectfill(SX0 - 8, by + 3, SX1 - SX0 + 28, bh - 6, 4, CLR_LIGHT_PEACH);
     rectfill(STRUMX, by + 3, SX1 - STRUMX + 4, bh - 6, CLR_PEACH);
     rectfill(SX0 + 60, by + 3, 5, bh - 6, CLR_DARKER_GREY);
@@ -902,21 +911,24 @@ void draw(void) {
     fit_canvas();   // idempotent with update()'s call — guarantees draw + hit-test share one canvas
     cls(CLR_BROWNISH_BLACK);
 
-    // top bar — PEDALS palette (left), RIGS (next), AUTO (right)
-    rrectfill(4, 2, 56, 11, 2, palette_open ? CLR_INDIGO : CLR_DARKER_GREY);
-    rrect(4, 2, 56, 11, 2, palette_open ? CLR_WHITE : CLR_DARK_GREY);
-    rrectfill(64, 2, 46, 11, 2, rig_open ? CLR_ORANGE : CLR_DARKER_GREY);
-    rrect(64, 2, 46, 11, 2, rig_open ? CLR_WHITE : CLR_DARK_GREY);
+    // top bar — PEDALS palette (left), RIGS (next), GTR IN, AUTO (right) — all inside the safe frame
+    int bx = saX, by0 = saY + 2;
+    rrectfill(bx + 4, by0, 56, 11, 2, palette_open ? CLR_INDIGO : CLR_DARKER_GREY);
+    rrect(bx + 4, by0, 56, 11, 2, palette_open ? CLR_WHITE : CLR_DARK_GREY);
+    rrectfill(bx + 64, by0, 46, 11, 2, rig_open ? CLR_ORANGE : CLR_DARKER_GREY);
+    rrect(bx + 64, by0, 46, 11, 2, rig_open ? CLR_WHITE : CLR_DARK_GREY);
     font(FONT_SMALL);
-    print(palette_open ? "x CLOSE" : "= PEDALS", 9, 4, CLR_WHITE);
-    print(rig_open ? "x RIGS" : "RIGS", 70, 4, rig_open ? CLR_WHITE : CLR_LIGHT_PEACH);
+    print(palette_open ? "x CLOSE" : "= PEDALS", bx + 9, saY + 4, CLR_WHITE);
+    print(rig_open ? "x RIGS" : "RIGS", bx + 70, saY + 4, rig_open ? CLR_WHITE : CLR_LIGHT_PEACH);
     // GUITAR IN — route the live mic through the built chain (green = live, red = armed/awaiting mic)
     bool mic_live = guitar_in && mic_active();
-    rrectfill(114, 2, 54, 11, 2, guitar_in ? (mic_live ? CLR_DARK_GREEN : CLR_DARK_RED) : CLR_DARKER_GREY);
-    rrect(114, 2, 54, 11, 2, guitar_in ? CLR_WHITE : CLR_DARK_GREY);
-    print(guitar_in ? "GTR: IN" : "GTR IN", 120, 4, guitar_in ? CLR_WHITE : CLR_LIGHT_PEACH);
-    print_right(autoplay ? "AUTO: on" : "AUTO: off", screen_w() - 6, 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
-    if (palette_open) { font(FONT_TINY); print_centered("UP add   DOWN remove", (168 + screen_w() - 70) / 2, 5, CLR_MEDIUM_GREY); }
+    rrectfill(bx + 114, by0, 54, 11, 2, guitar_in ? (mic_live ? CLR_DARK_GREEN : CLR_DARK_RED) : CLR_DARKER_GREY);
+    rrect(bx + 114, by0, 54, 11, 2, guitar_in ? CLR_WHITE : CLR_DARK_GREY);
+    print(guitar_in ? "GTR: IN" : "GTR IN", bx + 120, saY + 4, guitar_in ? CLR_WHITE : CLR_LIGHT_PEACH);
+    print_right(autoplay ? "AUTO: on" : "AUTO: off", saX + saW - 6, saY + 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    font(FONT_TINY);
+    if (palette_open) print_centered("UP add   DOWN remove", (saX + 168 + saX + saW - 70) / 2, saY + 5, CLR_MEDIUM_GREY);
+    else if (mic_live) print_centered("use headphones — mic feeds back on speaker", (saX + 168 + saX + saW - 70) / 2, saY + 5, CLR_DARK_ORANGE);
     font(FONT_NORMAL);
 
     // a chain pedal being dragged is LIFTED out of the row (the rest close up), so the caret lines
@@ -952,7 +964,7 @@ void draw(void) {
         trifill(gx - 3, PED_Y, gx + 3, PED_Y, gx, PED_Y + 5, CLR_LIME_GREEN);
         trifill(gx - 3, PED_Y + PED_H, gx + 3, PED_Y + PED_H, gx, PED_Y + PED_H - 5, CLR_LIME_GREEN);
     }
-    if (chain_n == 0) { font(FONT_SMALL); print_centered("open PEDALS, drag effects in →", screen_w() / 2, PED_Y + 32, CLR_DARK_GREY); font(FONT_NORMAL); }
+    if (chain_n == 0) { font(FONT_SMALL); print_centered("open PEDALS, drag effects in →", saX + saW / 2, PED_Y + 32, CLR_DARK_GREY); font(FONT_NORMAL); }
 
     // scrollbar (only on overflow)
     if (max_scroll() > 0) {

@@ -51,7 +51,7 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         # microphone permission prompt copy (mic-and-sampling.md Tier-1) — required or the app
         # crashes the first time a cart calls mic_start(). Only carts that opt in ever trigger it.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lets carts that listen — like instruments you play by humming or clapping — hear your microphone."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Lets you play your guitar, voice, or any sound live through the effects — and instruments you play by humming or clapping."
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # device-adaptive Phase 2: allow rotation. layoutSubviews fires on rotate → de_resize reflows
         # a resizable cart to the new shape for free. (Fixed carts just re-letterbox in the new bounds.)

@@ -50,7 +50,12 @@ checksum without writing, so browsing demos never clobbers MINE until you actual
 **harness builds (`DE_TRACE`/`DE_SPEC`) never touch the disk copy** — parked clips + spec keep their
 deterministic doo-wop cold open. Spec: 121 assertions (adds pack→unpack round-trip byte-stability,
 version refusal, the demos' locks + their harmony analyses). Popup rows are fixed-height (4 fit the
-glass — MINE + three demos = AT CAPACITY); the next demo forces the paging follow-up. Untested by harness (compiled out under
+glass — MINE + three demos = AT CAPACITY); the next demo forces the paging follow-up.
+
+**Parked idea — notation glyphs on a roomier glass:** at 320×200 the tracker cells could show
+*what* each lock is as a real notation mark (the ANTIC tie arc, staccato STAB, simile-mark AUTO
+cells, ♯♭Δ chord spelling) instead of an orange pip. The full symbol inventory + gather/make
+sourcing plan: [`music-notation-glyphs.md`](music-notation-glyphs.md). Untested by harness (compiled out under
 DE_TRACE): the in-editor autosave→restart→resume loop — verify by hand once.
 
 ---

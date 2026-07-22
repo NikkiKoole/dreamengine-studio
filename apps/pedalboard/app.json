@@ -9,6 +9,10 @@
   "listing": {
     "title":    "Tiny Pedalboard: Guitar FX",
     "subtitle": "Build a chain, order your tone",
-    "keywords": "builder,planner,stompbox,fuzz,distortion,overdrive,reverb,delay,chorus,phaser,wah,amp,rig,pedals"
+    "keywords": "builder,planner,stompbox,fuzz,distortion,overdrive,reverb,delay,chorus,phaser,wah,amp,rig,pedals",
+    "supportUrl":       "https://mipolai.com",
+    "marketingUrl":     "https://mipolai.com",
+    "privacyPolicyUrl": "https://mipolai.com/makes/privacy.html",
+    "copyright":        "2026 Nikki Koole"
   }
 }

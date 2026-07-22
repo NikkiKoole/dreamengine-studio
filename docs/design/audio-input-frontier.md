@@ -80,11 +80,16 @@ scale-locked note loop on any instrument, vein 2) and the **voice sampler**
 ([`singsynth`](../../tools/carts/singsynth.c) — hold a vowel, play your own voice polyphonically,
 vein 3). Both capture-then-freeze (deterministic). What's left:
 
-**★ 1 — The pedal tier (a live looper first).** The biggest unlock, and the hard part is already
-built: the `sound_extin_*` ring means live mic can now be routed through *any* effect. A **live
-looper** (record → overdub → stacked layers) is the single loudest unmet wish the demand tool
-keeps surfacing, it's a self-contained honest core, and it fits the doctrine cleanly (live-only per
-ADR-0032). Then: live fuzz/granular/delay/reverb pedals off the same ring. *Prereq: done (the ring).*
+**★ 1 — The pedal tier — the SEAM SHIPPED (2026-07-22).** The generic "route the live mic through
+*any* effect" path is now a one-liner: **`input_monitor(gain)`** sums the `sound_extin_*` ring into
+master bus 0's DRY mix just before the `fx_order` insert chain — so every master insert
+(crush/filter/chorus/eq/tape/drive **and** `reverb_insert`/`echo_insert`, the reorderable reverb +
+delay pedals) processes your own sound. Dormant unless armed (existing carts byte-identical);
+live-only per ADR-0032. Proven by the spike [`micfuzz`](../../tools/carts/micfuzz.c) (latency
+confirmed good on Mac), then wired into [`pedalboard`](../../tools/carts/pedalboard.c) as the
+**GUITAR IN** toggle — a guitar/voice now runs through the chain you build, order and all. *Still
+open:* the **live looper** (record → overdub → stacked layers) — the loudest unmet wish the demand
+tool keeps surfacing — off the same ring; and live granular. *Prereq: done (ring + `input_monitor`).*
 Detail: [`vocoder.md`](vocoder.md) §"the pedal tier" + [`sound-next-steps.md`](sound-next-steps.md).
 
 **★ 2 — Auto-tune / pitch-correction.** Two very different builds hide under one name:

@@ -13,7 +13,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it, drag a chain pedal by its label sideways to reorder, drag one DOWN out to remove; a scrollbar appears when the chain outgrows the screen. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (Reverb is a send, so its chain position is cosmetic for now - the multiple-reverb-tanks step makes it a true insert.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it, drag a chain pedal by its label sideways to reorder, drag one DOWN out to remove; a scrollbar appears when the chain outgrows the screen. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -169,6 +169,8 @@ static int   pend[NSTR];
 
 static bool  autoplay = true;
 static int   apos = 0;
+static bool  guitar_in = false;   // GUITAR IN: route the live mic THROUGH the built chain (input_monitor)
+static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor() only on a change (set-and-hold)
 
 // ── geometry ──
 #define PED_Y 14
@@ -552,7 +554,11 @@ void update(void) {
 
     if (tapp(4, 2, 56, 11))           { palette_open = !palette_open; if (palette_open) rig_open = false; }
     if (tapp(64, 2, 46, 11))          { rig_open = !rig_open; if (rig_open) palette_open = false; }
+    if (tapp(114, 2, 54, 11))         { guitar_in = !guitar_in; if (guitar_in) mic_start(); else mic_stop(); }
     if (tapp(SCREEN_W - 70, 4, 66, 10)) autoplay = !autoplay;
+
+    // GUITAR IN — feed the live mic through the chain you built. Set-and-hold: push only on change.
+    if ((int)guitar_in != ap_gtr_in) { input_monitor(guitar_in ? 1.2f : 0.0f); ap_gtr_in = guitar_in; }
 
     bool overflow = max_scroll() > 0;
 
@@ -880,8 +886,13 @@ void draw(void) {
     font(FONT_SMALL);
     print(palette_open ? "x CLOSE" : "= PEDALS", 9, 4, CLR_WHITE);
     print(rig_open ? "x RIGS" : "RIGS", 70, 4, rig_open ? CLR_WHITE : CLR_LIGHT_PEACH);
+    // GUITAR IN — route the live mic through the built chain (green = live, red = armed/awaiting mic)
+    bool mic_live = guitar_in && mic_active();
+    rrectfill(114, 2, 54, 11, 2, guitar_in ? (mic_live ? CLR_DARK_GREEN : CLR_DARK_RED) : CLR_DARKER_GREY);
+    rrect(114, 2, 54, 11, 2, guitar_in ? CLR_WHITE : CLR_DARK_GREY);
+    print(guitar_in ? "GTR: IN" : "GTR IN", 120, 4, guitar_in ? CLR_WHITE : CLR_LIGHT_PEACH);
     print_right(autoplay ? "AUTO: on" : "AUTO: off", SCREEN_W - 6, 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
-    if (palette_open) { font(FONT_TINY); print_centered("drag UP to add    DOWN to remove", 190, 5, CLR_MEDIUM_GREY); }
+    if (palette_open) { font(FONT_TINY); print_centered("UP add   DOWN remove", 210, 5, CLR_MEDIUM_GREY); }
     font(FONT_NORMAL);
 
     // a chain pedal being dragged is LIFTED out of the row (the rest close up), so the caret lines

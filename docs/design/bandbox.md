@@ -39,16 +39,18 @@ vocab change), song sections, the composed hook, whole-band PUSH.
 **2026-07-22 (later) — the SONG button, the demos shelf, and the save format (v1).** A `SONG` chip
 top-left in the nav opens a SONGS popup on the glass (same morph family as help/picker): **MINE**
 (your autosaved song) + built-in **demos** — CITY POP (the parked `02-citypop-royalroad` clip
-transcribed to data: Royal Road ×2 with the full lock set) and BOSSA (the early change + chromatic
-lead-in). This forced the **song file format**: one versioned 120-byte blob (`song_pack`/`song_unpack`
+transcribed to data: Royal Road ×2 with the full lock set), BOSSA (the early change + chromatic
+lead-in), and NAPOLEON (the disco-funk archetype: a mixolydian I7·I7·bVII·IV boogie vamp — the Sweet
+Home cadence as the loop wraps — STAB clav chucks, POP runs, a STOP break on bar 4 with an ACCENT
+re-entry + crash, DOUBLE heat into a BUILD snare riser, ANTIC pushing the restart). This forced the **song file format**: one versioned 120-byte blob (`song_pack`/`song_unpack`
 — magic `BX` + v1 + key/mode/tempo/loop + voice globals + lane switches + 8 bars × 12 lock bytes),
 which is BOTH the save file (autosaved via `save_bytes` whenever the packed checksum moves) and the
 shape demos load through. Rules that keep it safe: **loads are not edits** (boot/MINE/demo re-arm the
 checksum without writing, so browsing demos never clobbers MINE until you actually edit on top), and
 **harness builds (`DE_TRACE`/`DE_SPEC`) never touch the disk copy** — parked clips + spec keep their
 deterministic doo-wop cold open. Spec: 121 assertions (adds pack→unpack round-trip byte-stability,
-version refusal, both demos' locks + the Royal-Road analysis). Popup rows are fixed-height (3 fit the
-glass); a longer demo shelf needs paging — a follow-up. Untested by harness (compiled out under
+version refusal, the demos' locks + their harmony analyses). Popup rows are fixed-height (4 fit the
+glass — MINE + three demos = AT CAPACITY); the next demo forces the paging follow-up. Untested by harness (compiled out under
 DE_TRACE): the in-editor autosave→restart→resume loop — verify by hand once.
 
 ---

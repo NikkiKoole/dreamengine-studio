@@ -90,8 +90,18 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > automation lanes. Drums have no column, so the bottom strip = voice PADS + one SHARED colour-coded context
 > panel (in the 909's spare room) that follows the last-picked voice on either machine (blue=808 / yellow=909).
 > Full model + the OPEN questions (drum VCE home, 303 pitch-gutter, 808 grid cell size) are in the cart's
-> `de:meta`; run `node tools/orient.js acidcandy_ipad`. **NEXT = maker locks the screen model, then WIRE the
-> real cart** — data shapes are concrete (per-step degree/acc/slide/oct/tie for 303s, voice×step for drums).
+> `de:meta`; run `node tools/orient.js acidcandy_ipad`.
+> **This REPLACES acidcandy's current iPad rack** — `draw_rack` (acidcandy.c ~L2273, the `rack_view==1` path):
+> a 2×2 of the full phone device-faces (909|808 / 303a|303b) + a master strip = "four phones taped together",
+> four tiny screens, no focal point (the maker isn't happy with it). The mockup's bet = minimal per-machine
+> surfaces + ONE big shared screen via sticky focus. TRADEOFF the maker accepted: give up editing all 4
+> patterns AT ONCE (2×2) for a big calm one-at-a-time deep editor (play stays live for all).
+> **COEXISTENCE (app is under App Store review — do NOT delete the old):** keep `draw_rack` as the shipping
+> DEFAULT; wire the new layout as an ALTERNATE behind a toggle (e.g. `rack_view==2` / a dev flag), flip the
+> default to it only when the maker is FULLY happy, remove the 2×2 only after that.
+> **NEXT = maker locks the screen model, then WIRE** the new `draw_rack` variant — data shapes are concrete
+> (per-step degree/acc/slide/oct/tie for 303s, voice×step for drums); the 303/drum grids already exist in
+> `acidcandy.c` (seq_grid / draw_808 / draw_909) to lift from.
 > **Resume-at:** [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest).
 > Hot files: `runtime/face.h` · `runtime/lay.h` · `runtime/ui.h` (shared — targeted `Edit`s only, the sound.h rule applies).
 

@@ -2596,14 +2596,29 @@ static void r2_col303(Box c, int i) {
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);
     Box meta = lay_split(cc, EDGE_BOTTOM, 20, &cc);
     Box fx   = lay_split(cc, EDGE_BOTTOM, 30, &cc);
-    // acid knobs — a 2-wide grid so the filter pair CUT|RES sits together (then ENV|DEC), ACC
-    // centred on its own row below. (Was a single tall stack.)
-    static const int AK[4] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC };
-    static const char *AN[4] = { "CUT", "RES", "ENV", "DEC" };
-    static const float AD[4] = { 0.55f, 0.70f, 0.55f, 0.45f };
-    Box accr = lay_split(cc, EDGE_BOTTOM, cc.h / 3, &cc);     // ACC row (centred, full width)
-    for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
-    r2_kcell(accr, &a->p[ACID_ACC], "ACC", 0.55f, mac[m].col);
+    // acid knobs, 2-wide (filter pair CUT|RES together). CORE page = CUT/RES/ENV/DEC/ACC. In Devil
+    // Fish voicing a page tab reveals the DEEP page — the extra DF knobs SUB/ADEC/SLDT/TRK + a
+    // SAW/SQR WAVE toggle (their own labels); vanilla has no deep page (kpage stays 0).
+    int deep = !a->classic && kpage[i];
+    if (!a->classic) {   // DF only: the CORE ⟷ DF-knobs page tab
+        Box pg = lay_split(cc, EDGE_TOP, 9, &cc);
+        if (cbtn(0x1A0u + i, (int)pg.x, (int)pg.y, (int)pg.w - 1, 8, deep ? "DF KNOBS" : "CORE", deep)) kpage[i] = !kpage[i];
+    }
+    Box accr = lay_split(cc, EDGE_BOTTOM, cc.h / 3, &cc);     // bottom row: ACC (core) / WAVE (deep)
+    if (!deep) {
+        static const int AK[4] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC };
+        static const char *AN[4] = { "CUT", "RES", "ENV", "DEC" };
+        static const float AD[4] = { 0.55f, 0.70f, 0.55f, 0.45f };
+        for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
+        r2_kcell(accr, &a->p[ACID_ACC], "ACC", 0.55f, mac[m].col);
+    } else {
+        static const int DK[4] = { ACID_SUB, ACID_ADEC, ACID_SLDT, ACID_TRK };
+        static const char *DN[4] = { "SUB", "ADEC", "SLDT", "TRK" };
+        static const float DFD[4] = { 0.0f, 0.40f, 0.14f, 0.0f };
+        for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[DK[k]], DN[k], DFD[k], mac[m].col);
+        int ww = 34, wh = 10, wx = (int)accr.x + ((int)accr.w - ww) / 2, wy = (int)accr.y + ((int)accr.h - wh) / 2;
+        if (cbtn(0x1A8u + i, wx, wy, ww, wh, a->wave == INSTR_SQUARE ? "SQR" : "SAW", 0)) { a->wave = (a->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW; acid_define(a); }
+    }
     // FX trio — a horizontal row so it reads as "the FX", not more core
     line((int)fx.x + 2, (int)fx.y, (int)fx.x + (int)fx.w - 2, (int)fx.y, mac[m].lo);
     font(FONT_TINY); print("FX", (int)fx.x + 2, (int)fx.y + 1, R2_DIM);

@@ -40,40 +40,29 @@ final class AudioEngine {
 
     private func installMicTap() {
         guard !micRunning else { return }
-        // The input node needs a record-capable session. Switch to playAndRecord (keeping output on
-        // the main speaker) around an engine stop/start so the input route is picked up cleanly.
-        let session = AVAudioSession.sharedInstance()
-        engine.stop()
-        do {
-            try session.setCategory(.playAndRecord, mode: .default,
-                                    options: [.defaultToSpeaker, .allowBluetooth])
-            try session.setActive(true)
-        } catch { NSLog("[tinyjam] mic session failed: %@", error.localizedDescription); try? engine.start(); return }
-
+        // The session is ALREADY .playAndRecord (set once at start) and the engine is running, so we
+        // just tap the input — NO engine stop/restart and NO category switch. The old code stopped +
+        // reconfigured + restarted the engine here, which dropped the output render node → the whole
+        // app went silent when GUITAR IN turned on. Tapping a live engine leaves output untouched.
         let input = engine.inputNode
         let fmt = input.inputFormat(forBus: 0)
         guard fmt.channelCount > 0, fmt.sampleRate > 0 else {
-            NSLog("[tinyjam] no mic input channels"); try? engine.start(); return
+            NSLog("[tinyjam] no mic input channels"); return
         }
         let sr = Int32(fmt.sampleRate)
         input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { buffer, _ in
             guard let ch = buffer.floatChannelData else { return }
             de_audio_input(ch[0], Int32(buffer.frameLength), sr)   // channel 0 = the mono take
         }
-        do { try engine.start() } catch { NSLog("[tinyjam] engine restart failed: %@", error.localizedDescription); return }
         micRunning = true
         de_mic_set_active(1)
         NSLog("[tinyjam] mic tap installed @ %.0f Hz", fmt.sampleRate)
     }
 
     private func stopMic() {
-        engine.inputNode.removeTap(onBus: 0)
+        engine.inputNode.removeTap(onBus: 0)   // stops input use → iOS drops the mic indicator; output keeps running
         micRunning = false
         de_mic_set_active(0)
-        // revert to playback-only so iOS drops the mic-in-use indicator
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
     }
 
     func start() {
@@ -104,7 +93,13 @@ final class AudioEngine {
         engine.connect(node, to: engine.mainMixerNode, format: fmt)
 
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            // .playAndRecord from the START (not .playback) so enabling the mic later is a no-op tap
+            // with zero output disruption. This does NOT prompt for mic permission — only actually
+            // reading the input (requestRecordPermission / installing the input tap) does — so a cart
+            // that never listens never prompts. .defaultToSpeaker routes playback to the loud speaker;
+            // .allowBluetoothA2DP keeps Bluetooth OUTPUT hi-fi (input falls back to the built-in mic).
+            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default,
+                                                            options: [.defaultToSpeaker, .allowBluetoothA2DP])
             try AVAudioSession.sharedInstance().setActive(true)
             try engine.start()
             started = true

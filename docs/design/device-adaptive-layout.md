@@ -220,6 +220,47 @@ that ignores the new API renders at a fixed size and letterboxes exactly as toda
 opt-in per rack.** Runtime-dims changes *how studio.c reads the size*, not whether a given cart
 varies. Fixed-canvas carts compile and behave unchanged; their runtime value is simply pinned at boot.
 
+## Recipe — retrofit a FIXED-layout cart to landscape reflow (the lightweight path)
+
+Not every cart needs the full `lay.h`/`face.h` graduation below. A landscape cart with hand-rolled
+fixed-pixel geometry (a wall of `#define`d coords, no `lay_*`) can be made to fill any window/device
+**with no letterbox bars** in an afternoon — this is the "chunky-canvas" trick, done plainly in
+[`pedalboard`](../../tools/carts/pedalboard.c) (and atop `lay.h` in [`acidcandy`](../../tools/carts/acidcandy.c)).
+Five moves:
+
+1. **`"resizable": true` in `de:meta`** → the build gets `-DDE_RESIZABLE`, the window becomes
+   resizable, and `screen_w()/screen_h()` return the LIVE canvas (not the baked `SCREEN_W/H`).
+2. **`fit_canvas()` — `de_resize()` to the window's aspect ratio**, locking the base's SHORT side and
+   growing the long one, so the small design upscales crisp with no bars. Call it FIRST in **both**
+   `update()` and `draw()` (idempotent) so hit-testing and drawing share one canvas the same frame:
+   ```c
+   static void fit_canvas(void) {           // BASE_W×BASE_H = the authored size; BASE_RATIO = BASE_W/BASE_H
+       int cw = screen_w(), ch = screen_h(); if (cw <= 0 || ch <= 0) return;
+       float r = (float)cw / (float)ch; int tw, th;
+       if (r >= BASE_RATIO) { th = BASE_H; tw = (int)(BASE_H * r + 0.5f); }  // wide → lock height, widen
+       else                 { tw = BASE_W; th = (int)(BASE_W / r + 0.5f); }  // tall → lock width, heighten
+       if (tw != cw || th != ch) de_resize(tw, th);
+   }
+   ```
+3. **Convert ONLY the width/height-dependent anchors** from `SCREEN_W/H` to `screen_w()/screen_h()`.
+   Top-anchored fixed strips and fixed element *sizes* stay as-is.
+4. **Exact-at-base discipline:** write each responsive macro so it evaluates to the OLD constant at the
+   base resolution — e.g. `#define SX1 (screen_w() - 18)` is exactly `302` at 320w. Then the base is
+   **byte-identical** (thumbnail + `canvas-diff` unchanged), so the retrofit is zero-risk and incremental.
+5. **Pick a behaviour per element:** *stretch* (backgrounds/spans → `screen_w()`), *pin* (edge-anchored →
+   `screen_w() - k`), *spread* (button rows → scale positions by `screen_w()/BASE_W`), or **fix** (keep
+   the element's size; a growing viewport then shows *more content* — often the best UX: pedalboard's
+   fixed-width pedals mean a wider window simply reveals more of the chain, no stretching).
+
+**Traps / rules:**
+- **NEVER camera-scale to fill** (`camera()/camera_ex()`) — it desyncs `ui.h`/`tapp` hit-testing (see
+  CLAUDE.md). Reflow only; the ENGINE upscales the small canvas to the window, so "scale up" is free.
+- **Check BOTH ratio regimes.** A 16:10 base (1.6) grows *width* on a phone (≈2.0–2.4 landscape) but
+  grows *height* on an iPad (4:3 = 1.33 is *narrower* than the base) — the tall case is easy to forget.
+- **Test with the sweep:** `node tools/play.js <cart> run --resize 320x200,440x200,320x240` dumps a
+  frame per size to `build/.resize/<cart>`; add `--screen WxH` + a `.script` to catch interactive
+  states (a palette/menu open). Eyeball that the base size is unchanged and the others fill with no bars.
+
 ## The cart model (graduating `lay.h`)
 
 - The `lay_*` toolkit graduates from the `respond.c` prototype to `runtime/lay.h` **unchanged** —

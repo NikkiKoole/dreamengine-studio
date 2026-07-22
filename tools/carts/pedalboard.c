@@ -506,11 +506,13 @@ static int slot_under(int tx) {
 }
 
 // build the list of palette-available cats (not in the chain) + the chip rect for the a-th of them
-#define PAL_COLS 5
-#define PAL_CW   58
-#define PAL_CH   26
+#define PAL_COLS 6
+#define PAL_CW   50
+#define PAL_CH   24    // shaved so all 22 effects (4 rows, empty chain) clear the bottom edge
+#define PAL_PITCH 52   // column pitch: 6 chips × 52 = 312, fits the 320 canvas (was 5 × 62)
 static int pal_avail(int *out) { int n = 0; for (int c = 0; c < NCAT; c++) if (chain_index(c) < 0) out[n++] = c; return n; }
-static void pal_chip_rect(int a, int *x, int *y) { *x = 5 + (a % PAL_COLS) * 62; *y = PAL_Y + 16 + (a / PAL_COLS) * (PAL_CH + 2); }
+// grid starts just under the panel border (help text now lives up in the top bar, not here)
+static void pal_chip_rect(int a, int *x, int *y) { *x = 4 + (a % PAL_COLS) * PAL_PITCH; *y = PAL_Y + 3 + (a / PAL_COLS) * (PAL_CH + 2); }
 
 // the RIG panel: a 2-column list of "legendary setup" buttons (lower half, when rig_open)
 #define RIG_W 150
@@ -768,9 +770,6 @@ static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
 static void draw_palette(void) {
     rectfill(0, PAL_Y, SCREEN_W, SCREEN_H - PAL_Y, CLR_BROWNISH_BLACK);
     line(0, PAL_Y, SCREEN_W, PAL_Y, CLR_DARK_GREY);
-    font(FONT_TINY);
-    print_centered("drag a pedal UP into the chain  ·  drag a chain pedal DOWN here to remove", SCREEN_W / 2, PAL_Y + 4, CLR_MEDIUM_GREY);
-    font(FONT_NORMAL);
     int avail[NCAT], na = pal_avail(avail);
     for (int a = 0; a < na; a++) { int cx2, cy2; pal_chip_rect(a, &cx2, &cy2); draw_chip(avail[a], cx2, cy2, PAL_CW, PAL_CH, false); }
 }
@@ -882,6 +881,7 @@ void draw(void) {
     print(palette_open ? "x CLOSE" : "= PEDALS", 9, 4, CLR_WHITE);
     print(rig_open ? "x RIGS" : "RIGS", 70, 4, rig_open ? CLR_WHITE : CLR_LIGHT_PEACH);
     print_right(autoplay ? "AUTO: on" : "AUTO: off", SCREEN_W - 6, 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    if (palette_open) { font(FONT_TINY); print_centered("drag UP to add    DOWN to remove", 190, 5, CLR_MEDIUM_GREY); }
     font(FONT_NORMAL);
 
     // a chain pedal being dragged is LIFTED out of the row (the rest close up), so the caret lines

@@ -937,6 +937,7 @@ static void draw_303(Box stage, int i) {
     // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
     Box krDF = lay_split(krow, EDGE_RIGHT, colw, &krow);          // same width + right edge as the GEN/KEY/PAT column below → the right side is one column
     Box krPAGE = lay_split(krDF, EDGE_BOTTOM, krDF.h * 0.44f, &krDF);      // krDF = top (VOICING switch), krPAGE = bottom (VIEW tab)
+    if (rack_view && !seq_grid) { Box kg = lay_split(krow, EDGE_LEFT, colw, &krow); (void)kg; }   // iPad: align the knob row's LEFT edge with the LCD (its right already matches krDF/skcR)
     if (!kpage[i]) {                                                       // page 0 — vanilla
         knob_cell(lay_grid(krow, 5, 5, 0, 2), &a->p[ACID_CUT], "CUT", 0.55f);
         knob_cell(lay_grid(krow, 5, 5, 1, 2), &a->p[ACID_RES], "RES", 0.70f);
@@ -1311,6 +1312,7 @@ static void draw_808(Box stage) {
     Box skcL   = lay_split(body, EDGE_LEFT,   W * 0.11f, &body);            // ③ soft-key columns
     Box skcR   = lay_split(body, EDGE_RIGHT,  W * 0.11f, &body);
     Box lcd    = lay_inset(body, 1);                                                      // the hero glass
+    if (rack_view) { float cw = W * 0.11f; krow.x += cw; krow.w -= 2 * cw; }  // iPad: align the FX row (DIST/SEND/VERB) to the LCD x-span
     Box tool   = lay_split(bottom, EDGE_RIGHT,  W * 0.05f, &bottom);        // ④a pad TOOL (right edge)
     Box hits   = lay_split(bottom, EDGE_BOTTOM, bottom.h * 0.60f, &bottom); // ⑤ the 16 hits
     Box pick   = bottom;                                                    // ④ voice picker row
@@ -1482,6 +1484,7 @@ static void draw_909(Box stage) {
     Box hits   = lay_split(bottom, EDGE_BOTTOM, bottom.h * 0.60f, &bottom); // ⑤ the 16 hits
     Box pick   = bottom;                                                    // ④ voice picker
 
+    if (rack_view) { float cw = W * 0.11f; krow.x += cw; krow.w -= 2 * cw; }  // iPad: align the FX row + METAL XY to the LCD x-span
     Box mtl = lay_split(krow, EDGE_RIGHT, W * 0.13f, &krow);   // METAL XY in the top-zone right gutter
     draw_fxrow(krow, 3);                                        // ② DIST · SEND · VERB
     {   // 909 METAL-filter XY — the shared highpass on the metal voices (hats/cymbal/cowbell). Drag X=cut Y=res.
@@ -1838,7 +1841,7 @@ static void draw_mst(Box stage) {
     }
 
     // ④ the bottom band: TEMPO (left gutter) + the per-machine SEND knobs — ONE row, all at the same y
-    Box tc = lay_split(bottom, EDGE_LEFT, W * 0.13f, &bottom);              // TEMPO gutter (x); the sends fill the rest
+    Box tc = lay_split(bottom, rack_view ? EDGE_RIGHT : EDGE_LEFT, W * 0.13f, &bottom);  // TEMPO gutter — iPad: on the RIGHT (under SWG, next to the swing knob); phone: left. Sends fill the rest
     g_bpm = (float)(int)(60 + bpm01 * 140 + 0.5f);                         // sync tempo from the proxy (rounded → no per-frame fx re-apply)
     for (int m = 0; m < 4; m++) { Box c = lay_grid(bottom, 4, 4, m, 2);    // ⑤ per-machine delay SEND (knob label = the machine)
         float rh = c.h * 0.34f, rw = c.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
@@ -2240,18 +2243,18 @@ static Box rack_deco(Box c, int m, int mutable_) {
     // 909 cream, master grey — blended 50% over the peach chassis so each machine reads at a glance.
     static const int   RWASH[M_N] = { CLR_YELLOW, CLR_ORANGE, CLR_DARK_BROWN, CLR_WHITE, CLR_LIGHT_GREY };
     blend(BLEND_AVG); rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, RWASH[m]); blend_reset();  // machine wash
-    Box hdr = lay_split(c, EDGE_TOP, 9, &c);
+    Box hdr = lay_split(c, EDGE_TOP, 13, &c);                         // taller header → a chunkier MUTE
     font(FONT_TINY);
     int hx = (int)hdr.x + 1, hy = (int)hdr.y + 1;
-    if (mutable_) {                                                    // MUTE toggle (top-left)
-        int mw = 9, mh = (int)hdr.h - 1;
+    if (mutable_) {                                                    // MUTE toggle (top-left) — big, easy to hit
+        int mw = 22, mh = (int)hdr.h - 2;
         void *w = ui_wid_hash(0xF8u + m, hx, hy, mw, mh);
         int pr = 0, hot = 0, fo = 0;
         if (ui_button_core(w, hx, hy, mw, mh, &fo, &pr, &hot)) mac[m].mute = !mac[m].mute;
         rrectfill(hx, hy, mw, mh, 2, mac[m].mute ? CLR_DARK_BROWN : mac[m].col);
         rrect(hx, hy, mw, mh, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        if (mac[m].mute) line(hx + 1, hy + mh - 2, hx + mw - 2, hy + 1, CLR_RED);   // red slash = muted
-        else             rectfill(hx + mw/2 - 1, hy + mh/2 - 1, 2, 2, CLR_BROWNISH_BLACK);  // a dot = live
+        print("MUTE", hx + mw / 2 - text_width("MUTE") / 2, hy + mh / 2 - 2,
+              mac[m].mute ? CLR_RED : CLR_BROWNISH_BLACK);            // label; red when muted
         hx += mw + 3;
     }
     print(RL[m], hx, hy + 1, mac[m].mute ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);

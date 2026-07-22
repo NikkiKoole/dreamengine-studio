@@ -90,7 +90,9 @@ static Machine mac[M_N] = {
     { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },
 };
 static int face = M_303A;
-static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · 1 = iPad full rack. The HOME button toggles it.
+static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · 1 = iPad full rack (2×2) · 2 = iPad ROOMY (draw_rack2 — sticky-focus, one big shared screen). HOME toggles it; on the iPad the NEW/2×2 buttons flip 1↔2 (coexistence while the app is under review).
+static int r2_focus   = 0;   // ROOMY: which machine owns the big shared screen (0=303a 1=303b 2=808 3=909 4=MST) — sticky focus, set by tapping a nameplate. Play stays live for ALL regardless.
+static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M_909) — the shared context panel + its ring colour follow it (voice = dsel/d9sel)
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2300,7 +2302,15 @@ static void draw_rack(Box area) {
       rectfill(hcx - 1, hcy + 1, 3, 1, CLR_LIGHT_PEACH);
       rectfill(hcx - 2, hcy + 2, 5, 1, CLR_LIGHT_PEACH);
       rectfill(hcx - 2, hcy + 3, 5, 3, CLR_LIGHT_PEACH);
-      rectfill(hcx,     hcy + 4, 1, 2, CLR_DARK_BROWN); }
+      rectfill(hcx,     hcy + 4, 1, 2, CLR_DARK_BROWN);
+      // NEW — flip to the ROOMY layout (draw_rack2). Coexistence toggle while the app is under review.
+      int nw = 26, nx = hx - nw - 3, ny = hy;
+      void *wn = ui_wid_hash(0x2Du, nx, ny, nw, ph);
+      int prn = 0, hotn = 0, fon = 0;
+      if (ui_button_core(wn, nx, ny, nw, ph, &fon, &prn, &hotn)) rack_view = 2;
+      rrectfill(nx, ny, nw, ph, 2, CLR_DARK_GREEN);
+      rrect(nx, ny, nw, ph, 2, hotn ? CLR_WHITE : CLR_BROWNISH_BLACK);
+      font(FONT_TINY); print("NEW", nx + nw / 2 - text_width("NEW") / 2, ny + ph / 2 - 2, CLR_LIME_GREEN); font(FONT_SMALL); }
     // 2×2 instrument grid — 909|808 over 303a|303b (ReBirth's drums-over-synths)
     Box top  = lay_split(stage, EDGE_TOP, (stage.h - gap) * 0.5f, &stage);
     Box bot  = stage; bot.y += gap; bot.h -= gap;
@@ -2313,6 +2323,316 @@ static void draw_rack(Box area) {
     draw_303(rack_deco(c3b, M_303B, 1), M_303B);
     { Box m = mstrp; m.y += gap; m.h -= gap; draw_mst(rack_deco(m, M_MST, 0)); }   // MASTER strip (green wash, no machine mute)
 }
+
+// ═══ ROOMY (rack_view==2): the sticky-focus iPad layout ═══════════════════════════════════
+// The acidcandy_ipad mockup, wired to real state. Narrow 303a/303b + MST knob-columns bracket
+// ONE big shared SCREEN; the 808/909 sit as pad-bank strips at the bottom. Tapping a nameplate
+// FOCUSES that machine's DEEP editor onto the screen (r2_focus); play stays live for ALL
+// machines regardless of focus. Coexists with the old 2×2 draw_rack behind rack_view (flip via
+// the NEW / 2×2 buttons) so the shipping default is undisturbed while the app is under App Store
+// review. Feature-parity gate before flipping the default: docs/design/acidcandy-ipad-layout.md.
+#define R2_INK  CLR_LIGHT_GREY
+#define R2_DIM  CLR_MEDIUM_GREY
+#define R2_PNL  CLR_DARKER_GREY
+
+// header nameplate: tap the body = FOCUS this machine onto the shared screen; the corner LED = MUTE.
+static void r2_header(Box hd, int m) {
+    int x = (int)hd.x, y = (int)hd.y, w = (int)hd.w, h = (int)hd.h;
+    int foc = (r2_focus == m), live = !mac[m].mute, ledW = (m == M_MST) ? 0 : 10;
+    int prf = 0, hotf = 0, fof = 0, prm = 0, hotm = 0, fom = 0;
+    void *wf = ui_wid_hash(0x90u + m, x, y, w - ledW, h);
+    if (ui_button_core(wf, x, y, w - ledW, h, &fof, &prf, &hotf)) r2_focus = m;
+    if (ledW) { void *wm = ui_wid_hash(0x98u + m, x + w - ledW, y, ledW, h);
+        if (ui_button_core(wm, x + w - ledW, y, ledW, h, &fom, &prm, &hotm)) mac[m].mute = !mac[m].mute; }
+    rrectfill(x, y, w, h, 2, foc ? mac[m].col : mac[m].lo);
+    rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
+    font(FONT_TINY);
+    print(mac[m].name, x + 3, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    if (ledW) { int lx = x + w - ledW / 2 - 1, ly = y + h / 2;
+        circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
+        if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED); }
+}
+
+// SHARED SCREEN — the 303 NOTE GRID (scale-degree rows × 16 steps). colour = accent, shape carries
+// octave (^/v) + tie (a stretched cell); a line = slide. Draw + edit: tap = on/off, drag = draw the
+// melody (pitch = row). ONE capture widget (not 16 — keeps well under UI_MAX_WID).
+static void r2_screen303(Box g, int i) {
+    int hi = mac[i ? M_303B : M_303A].col;
+    int NR = SCALES[mscale[i]].n;
+    int gut = 9, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h - 7;
+    int step = gw / STEPS, rh = gh / NR;
+    // edit — one capture over the whole grid
+    void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
+    UiCap *c = ui_cap_for(w);
+    if (c) {
+        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
+        int s = (px - gx) / step, frow = (py - gy) / rh;
+        if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
+            int deg = (NR - 1) - frow;
+            if (ui_grabbed(w) && on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0;  // tap an existing note = off
+            else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
+        }
+    }
+    // faint grid + beat lines + playhead
+    for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
+        if (s % 4 == 0) line(cx, gy, cx, gy + rh * NR, CLR_DARK_GREEN);
+        if (s == lpos[i] && playing) rectfill(cx, gy, step - 1, rh * NR, CLR_DARK_GREEN);
+        if (s >= plen[i]) rectfill(cx, gy, step - 1, rh * NR, CLR_BROWNISH_BLACK); }
+    for (int r = 0; r <= NR; r++) line(gx, gy + r * rh, gx + gw, gy + r * rh, CLR_BROWNISH_BLACK);
+    // the notes
+    for (int s = 0; s < plen[i]; s++) {
+        if (!on[i][s]) { if (tie[i][s]) rectfill(gx + s * step, gy + rh * NR / 2, step - 1, 2, CLR_TRUE_BLUE); continue; }
+        int idx = scale_idx(mscale[i], pit[i][s]), row = (NR - 1) - idx;
+        int ry = gy + row * rh, cx = gx + s * step;
+        int cw = step - 1 + (tie[i][s] ? step : 0), col = acc[i][s] ? CLR_WHITE : hi;
+        rectfill(cx + 1, ry + 1, cw - 1, rh - 1, col);
+        if (oct[i][s] > 0) { line(cx + 2, ry + 4, cx + 4, ry + 1, CLR_BLACK); line(cx + 4, ry + 1, cx + 6, ry + 4, CLR_BLACK); }
+        else if (oct[i][s] < 0) { line(cx + 2, ry + rh - 5, cx + 4, ry + rh - 2, CLR_BLACK); line(cx + 4, ry + rh - 2, cx + 6, ry + rh - 5, CLR_BLACK); }
+        int ns = (s + 1) % plen[i];
+        if (sld[i][s] && on[i][ns]) { int r2 = (NR - 1) - scale_idx(mscale[i], pit[i][ns]);
+            line(cx + step, ry + rh / 2, gx + ns * step, gy + r2 * rh + rh / 2, CLR_LIGHT_PEACH); }
+    }
+    font(FONT_TINY); print("tap=on/off  drag=draw melody", gx, gy + rh * NR + 1, CLR_MEDIUM_GREEN);
+}
+
+// SHARED SCREEN — the drum 2D VOICE GRID (voices × 16 steps). left gutter names each voice; the
+// selected row is lit. tap/drag paints hits. ONE capture widget.
+static void r2_screendrum(Box g, int focus) {
+    int hi = mac[focus].col, nv = (focus == M_808) ? TR_NV : TR9_NV;
+    int (*grid)[STEPS] = (focus == M_808) ? dgrid : d9grid;
+    int (*accg)[STEPS] = (focus == M_808) ? dacc : d9acc;
+    const char **vn = (focus == M_808) ? AB8 : AB9;
+    int sel = (focus == M_808) ? dsel : d9sel;
+    int gut = 13, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h;
+    int step = gw / STEPS, rh = gh / nv;
+    void *w = ui_wid_hash(0x120u + focus, gx, gy, step * STEPS, rh * nv); ui_reg(w, gx, gy, step * STEPS, rh * nv, 0);
+    UiCap *c = ui_cap_for(w);
+    if (c) {
+        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
+        int s = (px - gx) / step, v = (py - gy) / rh;
+        if (s >= 0 && s < STEPS && v >= 0 && v < nv) {
+            if (ui_grabbed(w)) paint_val = !grid[v][s];
+            grid[v][s] = paint_val;
+        }
+    }
+    if (playing) rectfill(gx + lpos[0] * step, gy, step - 1, rh * nv, CLR_DARK_GREEN);
+    for (int v = 0; v < nv; v++) {
+        int ry = gy + v * rh;
+        if (v == sel) rectfill((int)g.x + 1, ry, gut - 1, rh - 1, CLR_DARK_GREEN);
+        font(FONT_TINY); print(vn[v], (int)g.x + 2, ry + (rh - 5) / 2, (v == sel) ? CLR_WHITE : CLR_MEDIUM_GREEN);
+        for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
+            if (grid[v][s]) rectfill(cx + 1, ry + 1, step - 2, rh - 2, accg[v][s] ? CLR_WHITE : hi);
+            else pset(cx + step / 2, ry + rh / 2, (s % 4 == 0) ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK); }
+    }
+}
+
+// SHARED SCREEN — master automation lanes (PCF / CRUSH / GATE), read-out of the per-step levels.
+static void r2_screenmst(Box g) {
+    const char *lab[3] = { "PCF", "CRU", "GAT" }; const int col[3] = { CLR_GREEN, CLR_ORANGE, CLR_PINK };
+    int *lane[3] = { mpcf, mcrush, mgate };
+    int lh = (int)g.h / 3, gx = (int)g.x + 22, step = ((int)g.w - 26) / STEPS;
+    for (int L = 0; L < 3; L++) {
+        int ly = (int)g.y + L * lh;
+        font(FONT_TINY); print(lab[L], (int)g.x + 4, ly + lh / 2 - 2, col[L]);
+        for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
+            int v = lane[L][s] * (lh - 4) / 7;
+            if (s == lpos[0] && playing) rectfill(cx, ly, step - 1, lh - 2, CLR_DARK_GREEN);
+            rectfill(cx, ly + (lh - 2) - v, step - 2, v, col[L]); }
+    }
+}
+
+// the big shared middle screen — frame + tag row + the focused machine's deep editor + soft-keys.
+static void r2_bigscreen(Box c, int focus) {
+    int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
+    rectfill(x, y, w, h, CLR_DARK_GREEN);
+    rect(x, y, w, h, mac[focus].lo); rect(x + 1, y + 1, w - 2, h - 2, CLR_BLACK);
+    static const char *ROLE[M_N] = { "NOTE GRID", "NOTE GRID", "16 VOICES", "11 VOICES", "MIX+FX" };
+    font(FONT_TINY);
+    print(mac[focus].name, x + 4, y + 3, mac[focus].col);
+    print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
+    { char b[8]; int bp = (int)g_bpm, k = 0; if (bp >= 100) b[k++] = '0' + bp / 100; b[k++] = '0' + (bp / 10) % 10; b[k++] = '0' + bp % 10; b[k++] = 0;
+      print(b, x + w - 24, y + 3, CLR_LIME_GREEN); }
+    Box body = box(x + 3, y + 13, w - 6, h - 25);
+    if (focus <= M_303B)      r2_screen303(body, focus);
+    else if (focus <= M_909)  r2_screendrum(body, focus);
+    else                      r2_screenmst(body);
+    // soft-key row (labels per machine) — VIEW switch is a follow-up; drawn as the affordance.
+    static const char *K303[5] = { "SEQ", "FLAG", "FX", "PERF", "GEN" };
+    static const char *KDRM[5] = { "VCE", "FLAG", "KIT", "PERF", "GEN" };
+    static const char *KMST[4] = { "MIX", "PCF", "CRU", "GAT" };
+    const char **keys = (focus <= M_303B) ? K303 : (focus <= M_909 ? KDRM : KMST);
+    int nk = (focus == M_MST) ? 4 : 5, kw = (w - 10) / nk, ky = y + h - 11;
+    for (int k = 0; k < nk; k++) { int cx = x + 5 + k * kw;
+        rect(cx, ky, kw - 2, 9, CLR_LIME_GREEN);
+        if (k == 0) rectfill(cx, ky, kw - 2, 9, mac[focus].lo);
+        font(FONT_TINY); print(keys[k], cx + 3, ky + 2, (k == 0) ? CLR_WHITE : CLR_LIME_GREEN); }
+}
+
+// a narrow 303 knob-column: header + 5 acid knobs + FX trio + CL/DF + KEY. The note surface lives
+// on the big screen; this column is only the SOUND (always live, focus or not).
+static void r2_col303(Box c, int i) {
+    int m = i ? M_303B : M_303A; Acid *a = &ac[i];
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
+    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].lo);
+    Box cc = lay_inset(c, 2);
+    r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);
+    Box meta = lay_split(cc, EDGE_BOTTOM, 20, &cc);
+    Box fx   = lay_split(cc, EDGE_BOTTOM, 30, &cc);
+    // 5 acid knobs stacked
+    static const int AK[5] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC, ACID_ACC };
+    static const char *AN[5] = { "CUT", "RES", "ENV", "DEC", "ACC" };
+    static const float AD[5] = { 0.55f, 0.70f, 0.55f, 0.45f, 0.55f };
+    for (int k = 0; k < 5; k++) knob_cell(lay_grid(cc, 1, 5, k, 1), &a->p[AK[k]], AN[k], AD[k]);
+    // FX trio — a horizontal row so it reads as "the FX", not more core
+    line((int)fx.x + 2, (int)fx.y, (int)fx.x + (int)fx.w - 2, (int)fx.y, mac[m].lo);
+    font(FONT_TINY); print("FX", (int)fx.x + 2, (int)fx.y + 1, R2_DIM);
+    Box fxr = lay_split(fx, EDGE_BOTTOM, fx.h - 6, &fx);
+    knob_cell(lay_grid(fxr, 3, 3, 0, 1), &a->p[ACID_DRV], "DRV", 0.35f);
+    knob_cell(lay_grid(fxr, 3, 3, 1, 1), &msend[i],       "SND", 0.10f);
+    knob_cell(lay_grid(fxr, 3, 3, 2, 1), &fxverb[i],      "VRB", 0.0f);
+    // CL/DF voicing toggle + KEY label
+    int mx = (int)meta.x, my = (int)meta.y, mw = (int)meta.w;
+    int bw = (mw - 2) / 2, bh = 9, pr = 0, hot = 0, fo = 0;
+    void *wd = ui_wid_hash(0xA0u + i, mx, my, mw, bh);
+    if (ui_button_core(wd, mx, my, mw, bh, &fo, &pr, &hot)) { a->classic = !a->classic; if (a->classic) kpage[i] = 0; acid_define(a); }
+    int df = !a->classic;
+    rrectfill(mx, my, bw, bh, 2, df ? R2_PNL : mac[m].col);          // CL lit when classic
+    rrectfill(mx + bw + 2, my, bw, bh, 2, df ? mac[m].col : R2_PNL); // DF lit when devil-fish
+    font(FONT_TINY);
+    print("CL", mx + bw / 2 - 4, my + 2, df ? R2_DIM : CLR_BLACK);
+    print("DF", mx + bw + 2 + bw / 2 - 4, my + 2, df ? CLR_BLACK : R2_DIM);
+    print("KEY", mx, my + bh + 2, R2_DIM);
+    print(NOTE[mroot[i]], mx + 18, my + bh + 2, mac[m].col);
+    print(SCALES[mscale[i]].name, mx + 30, my + bh + 2, mac[m].col);
+}
+
+// the MASTER knob-column — same shape as a 303: header + master knobs + a 4-channel mini mixer.
+static void r2_colmst(Box c) {
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
+    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[M_MST].lo);
+    Box cc = lay_inset(c, 2);
+    r2_header(lay_split(cc, EDGE_TOP, 12, &cc), M_MST);
+    Box mix = lay_split(cc, EDGE_BOTTOM, 26, &cc);
+    float *KV[5] = { &bpm01, &g_swing, &mglu, &mflt, &mpump };
+    static const char *KN[5] = { "TMP", "SWG", "GLU", "FLT", "PMP" };
+    static const float KD[5] = { 0.5143f, 0.0f, 0.30f, 0.5f, 0.0f };
+    for (int k = 0; k < 5; k++) knob_cell(lay_grid(cc, 1, 5, k, 1), KV[k], KN[k], KD[k]);
+    // 4-channel mini mixer (303a/303b/808/909 faders) + delay division label
+    int mmx = (int)mix.x + 2, mmy = (int)mix.y, fw = ((int)mix.w - 4) / 4;
+    static const int MC[4] = { M_303A, M_303B, M_808, M_909 };
+    for (int k = 0; k < 4; k++) { int cx = mmx + k * fw, bh = 14, lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh;
+        rectfill(cx, mmy, fw - 1, bh, CLR_BLACK);
+        rectfill(cx, mmy + bh - lv, fw - 1, lv, mac[MC[k]].col); }
+    static const char *DIV[4] = { "1/16", "1/8", "DOT", "1/4" };
+    font(FONT_TINY); print("DLY", mmx, mmy + 16, mac[M_MST].col); print(DIV[mdiv & 3], mmx + 18, mmy + 16, R2_INK);
+}
+
+// a horizontal drum strip: header + a PAD per voice + FX trio + (909's spare room) the SHARED
+// context panel that edits whichever voice was last picked on either machine, ringed in its colour.
+static void r2_drumstrip(Box c, int focus) {
+    int nv = (focus == M_808) ? TR_NV : TR9_NV;
+    int (*grid)[STEPS] = (focus == M_808) ? dgrid : d9grid;
+    const char **vn = (focus == M_808) ? AB8 : AB9;
+    float *trig = (focus == M_808) ? dtrig : d9trig;
+    int *mut = (focus == M_808) ? dmute : d9mute;
+    int sel = (focus == M_808) ? dsel : d9sel;
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
+    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[focus].lo);
+    Box cc = lay_inset(c, 2);
+    r2_header(lay_split(cc, EDGE_LEFT, 30, &cc), focus);
+    Box fx = lay_split(cc, EDGE_RIGHT, 66, &cc);
+    // FX trio (DIST/SEND/VERB)
+    float *dst = (focus == M_808) ? &dist8 : &dist9;
+    knob_cell(lay_grid(fx, 3, 3, 0, 1), dst,            "DST", 0.0f);
+    knob_cell(lay_grid(fx, 3, 3, 1, 1), &msend[focus],  "SND", 0.10f);
+    knob_cell(lay_grid(fx, 3, 3, 2, 1), &fxverb[focus], "VRB", 0.0f);
+    // the pads — a cell per voice (an instrument, not a step). tap = select + audition-when-stopped.
+    int px0 = (int)cc.x, py = (int)cc.y + 1, ph = (int)cc.h - 2;
+    int stepw = ((int)cc.w) / 16;   // fixed 16-voice reference so both machines share a pad width
+    int pw = stepw - 1;
+    for (int v = 0; v < nv; v++) {
+        int cx = px0 + v * stepw, active = 0;
+        for (int s = 0; s < STEPS; s++) if (grid[v][s]) { active = 1; break; }
+        int firing = trig[v] > 0.05f, pr = 0, hot = 0, fo = 0;
+        void *w = ui_wid_hash(0xB0u + focus * 32 + v, cx, py, pw, ph);
+        if (ui_button_core(w, cx, py, pw, ph, &fo, &pr, &hot)) {
+            r2_selmach = focus;
+            if (focus == M_808) { dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
+            else                { d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
+        }
+        int col = firing ? CLR_WHITE : (mut[v] ? CLR_DARKER_PURPLE : (active ? mac[focus].col : CLR_DARK_GREY));
+        rectfill(cx, py, pw, ph, active && !mut[v] ? mac[focus].lo : CLR_BLACK);
+        rect(cx, py, pw, ph, (hot || (v == sel && focus == r2_selmach)) ? CLR_WHITE : col);
+        if (mut[v]) line(cx, py, cx + pw, py + ph, CLR_RED);
+        font(FONT_TINY); print(vn[v], cx + (pw - 8) / 2, py + (ph - 5) / 2, col);
+    }
+    // shared context panel in the 909's spare room (nv < 16): follows the last-picked voice
+    if (nv < 16) {
+        int sm = r2_selmach, sv = (sm == M_808) ? dsel : d9sel, shi = mac[sm].col;
+        const char *svn = (sm == M_808) ? AB8[sv] : AB9[sv];
+        const char *chn = (sm == M_808) ? CH8[sv] : CH9[sv];
+        float *ktun = (sm == M_808) ? &dtune[sv] : &d9tune[sv];
+        float *kdec = (sm == M_808) ? &ddecay[sv] : &d9decay[sv];
+        float *kcol = (sm == M_808) ? &dcolor[sv] : &d9color[sv];
+        float *kvol = (sm == M_808) ? &dvol[sv] : &d9vol[sv];
+        int fx0 = px0 + nv * stepw + 4, fw = (int)cc.x + (int)cc.w - fx0;
+        Box p = box(fx0, (int)cc.y, fw, (int)cc.h);
+        rect((int)p.x, (int)p.y, (int)p.w - 1, (int)p.h - 1, shi);
+        font(FONT_TINY); print(svn, (int)p.x + 2, (int)p.y + 1, shi);
+        Box pk = box(p.x, p.y + 7, p.w, p.h - 8);
+        knob_cell(lay_grid(pk, 4, 4, 0, 1), ktun, "TUN", 0.5f);
+        knob_cell(lay_grid(pk, 4, 4, 1, 1), kdec, "DEC", 0.5f);
+        knob_cell(lay_grid(pk, 4, 4, 2, 1), kcol, chn ? chn : "COL", 0.5f);
+        knob_cell(lay_grid(pk, 4, 4, 3, 1), kvol, "VOL", 0.5f);
+    }
+}
+
+static void draw_rack2(Box area) {
+    Box stage = area;
+    Box bar = lay_split(stage, EDGE_TOP, 16, &stage);          // transport
+    Box leg = lay_split(stage, EDGE_BOTTOM, 8, &stage);        // legend
+    float dh = stage.h * 0.145f;                               // two drum strips at the bottom
+    Box d808 = lay_split(stage, EDGE_BOTTOM, dh, &stage);
+    Box d909 = lay_split(stage, EDGE_BOTTOM, dh, &stage);
+    // middle band: [303a | 303b | SCREEN | MST]
+    float colw = lay_clamp(area.w * 0.135f, 44, 72);
+    Box c3a = lay_split(stage, EDGE_LEFT, colw, &stage);
+    Box c3b = lay_split(stage, EDGE_LEFT, colw, &stage);
+    Box cms = lay_split(stage, EDGE_RIGHT, colw, &stage);
+    Box scr = stage;
+    // transport bar
+    rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);
+    font(FONT_SMALL); print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)bar.h / 2 - 3, CLR_LIGHT_PEACH);
+    { int pw = 24, ph = (int)bar.h - 4, px = (int)(bar.x + bar.w) - pw - 3, py = (int)bar.y + 2;
+      void *wid = ui_wid_hash(0x2Fu, px, py, pw, ph); int pr = 0, hot = 0, fo = 0;
+      if (ui_button_core(wid, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1; for (int m = 0; m < M_N; m++) armpat[m] = -1; }
+      rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
+      int cx = px + pw / 2, cy = py + ph / 2;
+      if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); } else trifill(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, CLR_WHITE);
+      // 2×2 — back to the old rack; HOME — to the phone view
+      int bw = 22, bx = px - bw - 3, by = py, prb = 0, hob = 0, fob = 0;
+      void *w2 = ui_wid_hash(0x2Cu, bx, by, bw, ph);
+      if (ui_button_core(w2, bx, by, bw, ph, &fob, &prb, &hob)) rack_view = 1;
+      rrectfill(bx, by, bw, ph, 2, CLR_DARK_BROWN); rrect(bx, by, bw, ph, 2, hob ? CLR_WHITE : CLR_BROWNISH_BLACK);
+      font(FONT_TINY); print("2x2", bx + bw / 2 - text_width("2x2") / 2, by + ph / 2 - 2, CLR_LIGHT_PEACH);
+      int hw = 20, hx = bx - hw - 3, hy = py, prh = 0, hoh = 0, foh = 0;
+      void *wh = ui_wid_hash(0x2Eu, hx, hy, hw, ph);
+      if (ui_button_core(wh, hx, hy, hw, ph, &foh, &prh, &hoh)) rack_view = 0;
+      rrectfill(hx, hy, hw, ph, 2, CLR_DARK_BROWN); rrect(hx, hy, hw, ph, 2, hoh ? CLR_WHITE : CLR_BROWNISH_BLACK);
+      print("HM", hx + hw / 2 - text_width("HM") / 2, hy + ph / 2 - 2, CLR_LIGHT_PEACH); font(FONT_SMALL); }
+    // the machines
+    r2_col303(c3a, 0);
+    r2_col303(c3b, 1);
+    r2_bigscreen(scr, r2_focus);
+    r2_colmst(cms);
+    { Box d = d909; d.x += 1; d.w -= 2; r2_drumstrip(d, M_909); }
+    { Box d = d808; d.x += 1; d.w -= 2; r2_drumstrip(d, M_808); }
+    font(FONT_TINY); print("STICKY FOCUS \x7f tap a nameplate to put that machine on the big screen; play stays live", (int)leg.x + 3, (int)leg.y + 1, R2_DIM);
+    font(FONT_SMALL);
+}
+#undef R2_INK
+#undef R2_DIM
+#undef R2_PNL
 
 void draw(void) {
     // seed each line's EFFECTIVE lens from its persistent LATCH (so a latched lens holds across
@@ -2375,8 +2695,10 @@ void draw(void) {
     Box area = box(ax0, ay0, ax1 - ax0, ay1 - ay0);
     // ARRANGEMENT (canvas-density-spectrum.md axis 2): ROOMY (iPad) shows the WHOLE rack at once;
     // phone (TALL/WIDE) shows one focused face reached through the nav-tab strip. Same faces, two modes.
-    if (rack_view) {
-        draw_rack(area);                                             // iPad — all four machines + master
+    if (rack_view == 2) {
+        draw_rack2(area);                                            // iPad ROOMY — sticky focus + one big shared screen (the new layout, coexisting behind a toggle)
+    } else if (rack_view) {
+        draw_rack(area);                                             // iPad — all four machines + master (the old 2×2)
     } else {
         Box stage;
         Box nav = lay_split(area, EDGE_TOP, area.h * 0.12f, &stage); // nav strip ≈ design 12/100

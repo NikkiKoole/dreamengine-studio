@@ -6,9 +6,15 @@
   "orientation": "landscape",
   "icon":     "apps/tinyacidjam/icon.png",
   "carts":    ["acidcandy"],
+  "review":   { "firstName": "Nikki", "lastName": "Koole", "email": "nikkikoole@gmail.com", "phone": "+31647048515" },
   "listing": {
     "title":    "Tiny Acid Jam: 303 Groovebox",
     "subtitle": "808, 909, house in your pocket",
-    "keywords": "808,909,emulator,techno,bassline,drum,synth,sequencer,rave,rebirth,338,tb303,dance,operator,loop"
+    "keywords": "808,909,emulator,techno,bassline,drum,synth,sequencer,rave,rebirth,338,tb303,dance,operator,loop",
+    "category": "MUSIC",
+    "supportUrl":       "https://mipolai.com",
+    "marketingUrl":     "https://mipolai.com",
+    "privacyPolicyUrl": "https://mipolai.com/makes/privacy.html",
+    "copyright":        "2026 Nikki Koole"
   }
 }

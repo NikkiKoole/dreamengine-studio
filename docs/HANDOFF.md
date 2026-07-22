@@ -101,8 +101,11 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > default to it only when the maker is FULLY happy, remove the 2×2 only after that.
 > **NEXT = maker locks the screen model, then WIRE** the new `draw_rack` variant — data shapes are concrete
 > (per-step degree/acc/slide/oct/tie for 303s, voice×step for drums); the 303/drum grids already exist in
-> `acidcandy.c` (seq_grid / draw_808 / draw_909) to lift from.
-> **Resume-at:** [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest).
+> `acidcandy.c` (seq_grid / draw_808 / draw_909) to lift from. **Wiring GATE = the feature-parity checklist**
+> in [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md) (every phone feature must reach the
+> new layout before flipping the default off `draw_rack`; several OPEN: DF deep page, FLAG/PERF/GEN/KIT,
+> MUT/REC, VOL/PAN/FINE, 909 METAL XY, MST RES/FB, DELAY buttons, per-machine SEND).
+> **Resume-at:** [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md) + [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest).
 > Hot files: `runtime/face.h` · `runtime/lay.h` · `runtime/ui.h` (shared — targeted `Edit`s only, the sound.h rule applies).
 
 > **▶ ACTIVE THREAD (2026-07-20, later the same day) — harmony brain: SHIPPED v1 — `runtime/harmony.h` + the `chordwise` toy.**

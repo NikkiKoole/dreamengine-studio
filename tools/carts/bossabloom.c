@@ -4,7 +4,7 @@
   "title": "bossa bloom",
   "status": "active",
   "created": "2026-07-17",
-  "collection": ["radio", "device-face"],
+  "collection": ["radio", "device-face", "chord-bloom"],
   "kind": [
     "instrument",
     "toy"

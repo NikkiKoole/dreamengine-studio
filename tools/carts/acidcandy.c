@@ -59,6 +59,7 @@ de:meta */
 #include "acid303.h"
 #include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
 #include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
+#include <string.h>  // memcpy/memset/memcmp — the SaveBlob snapshot/restore + autosave dirty-check
 #include "lay.h"      // responsive containers (device-adaptive-layout.md): the faces reflow to fill
                       // the live canvas in LANDSCAPE via lay_split/lay_grid + finger_px() (FU) — never
                       // a camera scale (that desyncs ui.h; see CLAUDE.md). One focused face, spread to fill.
@@ -1657,6 +1658,16 @@ static int machine_active(int m) {
     if (m == M_909) { for (int v = 0; v < TR9_NV; v++) if (d9grid[v][step]) return 1; return 0; }
     return 0;
 }
+// The SONG save/load core lives just above init() (it needs apply_fx/pat_io/etc.);
+// the MST SONGS page below drives it through these four accessors — so the page
+// never touches the SaveBank type/global directly.
+#define NSLOT 6
+#define SONG_HOLD (PERF_TAP + 26)    // frames a slot must be HELD to commit a save (~0.6s) — the charge-up bar fills across PERF_TAP..SONG_HOLD
+static int  song_slot_used(int i);   // does slot i hold a saved song?
+static int  song_slot_cur(void);     // last loaded/saved slot (-1 = none) — for the highlight
+static void song_save_slot(int i);   // snapshot the live rack INTO slot i (overwrites)
+static void song_load_slot(int i);   // restore slot i into the live rack
+
 static void draw_mst(Box stage) {
     static const char *MLAB[4] = { "303a", "303b", "808", "909" };
     static const char *DL[4]   = { "1/16", "1/8", "DOT", "1/4" };
@@ -1704,8 +1715,8 @@ static void draw_mst(Box stage) {
     // ③b RIGHT margin — the SIDE-BUTTON column: a BIG GEN, a little SAVE, then the DELAY divisions (compact = less prominent)
     { Box gcell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.30f, 1, &rcol);   // 1px gaps (lay_split_gap) so GEN/SAVE/ratios all sit apart evenly
       if (cbtn(0x24u, (int)gcell.x, (int)gcell.y, (int)gcell.w, (int)gcell.h, "GEN", mstflow == 4)) mstflow = 4; }
-    { Box scell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.22f, 1, &rcol);   // SAVE — placeholder (SAVE/LOAD is the deferred SONG layer, not wired yet — like HOME)
-      cbtn(0x26u, (int)scell.x, (int)scell.y, (int)scell.w, (int)scell.h, "SAVE", 0); }
+    { Box scell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.22f, 1, &rcol);   // SONG — opens the SONGS page in the LCD (tap a slot = load · hold = save). The deferred SONG layer, now wired.
+      if (cbtn(0x26u, (int)scell.x, (int)scell.y, (int)scell.w, (int)scell.h, "SONG", mstflow == 5)) mstflow = (mstflow == 5) ? 0 : 5; }
     for (int i = 0; i < 4; i++) { Box c = lay_grid(rcol, 1, 4, i, 1);   // DELAY divisions — small, in the bottom of the column
         if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
@@ -1734,6 +1745,55 @@ static void draw_mst(Box stage) {
         // GEN — whole-rack genre presets. One tap fills both 303s + a kit + tempo/swing/key.
         for (int i = 0; i < SNG_N; i++) { Box c = lay_grid(gc, 2, 6, i, 2);
             if (lcdbtn(0x60u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, SNG_NAME[i], 0)) gen_song(i); }
+    } else if (mstflow == 5) {
+        // SONGS — six whole-rack song slots. TAP a slot = load · HOLD = save; an
+        // OCCUPIED slot asks X/OK before it overwrites. Autosave keeps the live rack,
+        // so loading never loses your working take (the "6 songs in master" layer).
+        static int shf[NSLOT] = { 0 };     // per-tile hold-frame counter (tap vs hold, like the PERF lenses)
+        static int confirm = -1;           // slot showing the X/OK overwrite guard (-1 = none)
+        int cur = song_slot_cur();
+        Box hint = lay_split(gc, EDGE_BOTTOM, 6, &gc);        // reserve the bottom for the hint line
+        for (int i = 0; i < NSLOT; i++) {
+            Box c = lay_grid(gc, 3, NSLOT, i, 2);            // 3 cols × 2 rows
+            int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
+            int used = song_slot_used(i);
+            char n[2] = { (char)('1' + i), 0 };
+            if (confirm == i) {                               // this slot is asking before overwrite
+                if (lcdbtn(0xB0u + i, x, y, w / 2 - 1, h, "X", 0))  confirm = -1;                       // cancel
+                if (lcdbtn(0xB8u + i, x + w / 2, y, w - w / 2, h, "OK", 0)) { song_save_slot(i); confirm = -1; }  // overwrite
+                continue;
+            }
+            if (confirm >= 0) {                               // another slot is confirming → this one is inert
+                rrect(x, y, w, h, 2, CLR_MEDIUM_GREEN);
+                print(n, x + 3, y + 2, CLR_MEDIUM_GREEN);
+                if (used) circfill(x + w - 4, y + 4, 1, CLR_MEDIUM_GREEN);
+                continue;
+            }
+            void *wid = ui_wid_hash(0x68u + i, x, y, w, h);
+            int pr = 0, hot = 0, foc = 0;
+            int act = ui_button_core(wid, x, y, w, h, &foc, &pr, &hot);
+            if (pr) shf[i]++;
+            else {
+                if (act) {                                       // fire on RELEASE (so a full charge, then lift)
+                    if (shf[i] >= SONG_HOLD) { if (used) confirm = i; else song_save_slot(i); }  // charged to full → save (occupied asks first)
+                    else if (shf[i] <= PERF_TAP && used) song_load_slot(i);                      // quick tap → load (mid-hold release = abort)
+                }
+                shf[i] = 0;
+            }
+            int holding = pr && shf[i] > PERF_TAP;               // past the tap window → charging a save
+            int ready   = pr && shf[i] >= SONG_HOLD;             // bar full → release to save
+            // charge-up: fill the tile left→right as you hold, so you SEE the save coming
+            if (hot && !pr) rrectfill(x, y, w, h, 2, CLR_MEDIUM_GREEN);
+            if (holding) {
+                float p = clamp((shf[i] - PERF_TAP) / (float)(SONG_HOLD - PERF_TAP), 0, 1);
+                int bw = (int)((w - 2) * p + 0.5f);
+                if (bw > 0) rectfill(x + 1, y + 1, bw, h - 2, ready ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN);
+            }
+            rrect(x, y, w, h, 2, (i == cur) ? CLR_WHITE : ready ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+            print(n, x + 3, y + 2, ready ? CLR_DARK_GREEN : CLR_LIME_GREEN);
+            if (used) circfill(x + w - 4, y + 4, 1, (i == cur) ? CLR_WHITE : CLR_LIME_GREEN);
+        }
+        print("tap load  hold save", (int)hint.x, (int)hint.y, CLR_MEDIUM_GREEN);
     } else {
         // PCF / CRUSH / GATE — a drawable 16-step master lane (mstflow 1/2/3), spread across the glass.
         // PCF = tone (green), CRUSH = texture (orange), GATE = chop (pink); full bar = no effect.
@@ -1789,6 +1849,184 @@ static void draw_mst(Box stage) {
     }
 }
 
+// ── save / load: whole-rack SONG snapshots (the "6 songs in master" layer) ───
+// A song = a WHOLE-RACK snapshot: every pattern bank of every machine + all the
+// sound/FX/transport values. View state, transport runtime and the momentary
+// PERF lenses stay OUT (they aren't the song). save_bytes is ONE unnamed blob
+// per cart, so all six named slots + a rolling autosave live in ONE SaveBank
+// file. Versioned MAGIC: a format bump IGNORES old files (fall back to the
+// generated default) rather than loading a rotten struct. STEP 1 = the core +
+// autosave; the six-slot picker UI lands on top of this (the dead SAVE button).
+// (NSLOT is #defined just above draw_mst so the SONGS page can size its grid.)
+#define SAVE_MAGIC 0xACCA0002u   // v2 — added per-machine mutes (mmute[]); v1 saves ignored. Bump on any SaveBlob layout change
+
+typedef struct {                 // the sound-defining half of an Acid — NOT its live handles/change-guards
+    float p[ACID_NPARAM];
+    int   wave, drvmode, sweep, base, classic, clean;
+    float cut_top, drift, echo_send, rev_send;
+} AcidSnap;
+
+typedef struct {
+    // sequences — every pattern bank of every machine + which bank each has selected
+    P303 pat303[2][NPAT];
+    P808 pat808[NPAT];
+    P909 pat909[NPAT];
+    int  curpat[M_N];
+    // 303 sound (per line)
+    AcidSnap ac[2];
+    int  mroot[2], mscale[2], loct[2], kpage[2], plen[2];
+    // drum sound (global, per voice)
+    float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV], dvol[TR_NV], dpan[TR_NV], dfine[TR_NV];
+    float d9tune[TR9_NV], d9decay[TR9_NV], d9color[TR9_NV], d9vol[TR9_NV], d9pan[TR9_NV], d9fine[TR9_NV];
+    float m9cut, m9res;
+    int   mmute[M_N];                // per-MACHINE mute (the cartridge-LED mute); MST's entry is unused
+    int   dmute[TR_NV], d9mute[TR9_NV];
+    // master fx + transport
+    float mglu, mflt, mfres, mfb, mpump, msend[4], fxverb[4], dist8, dist9, level[M_N];
+    int   mdiv, mpcf[STEPS], mcrush[STEPS], mgate[STEPS];
+    float g_bpm_s, bpm01_s, g_swing_s;
+} SaveBlob;
+
+typedef struct {
+    unsigned      magic;
+    int           cur;             // last active/loaded named slot (UI highlight); -1 = none
+    int           autos_used;      // 1 = the rolling autosave holds real state (else boot keeps the generated default)
+    unsigned char used[NSLOT];     // 1 = that named slot holds a saved song
+    SaveBlob      autos;           // rolling autosave — resume-where-you-left-off, SEPARATE from the six deliberate slots
+    SaveBlob      slot[NSLOT];     // the six song slots
+} SaveBank;
+
+static SaveBank g_bank;            // in-memory mirror of the save file (BSS — big, do not put on the stack)
+static SaveBlob g_scratch;         // dirty-check scratch for the autosave (BSS, not stack)
+
+static void acid_snap_save(AcidSnap *s, Acid *a) {
+    for (int i = 0; i < ACID_NPARAM; i++) s->p[i] = a->p[i];
+    s->wave = a->wave; s->drvmode = a->drvmode; s->sweep = a->sweep; s->base = a->base;
+    s->classic = a->classic; s->clean = a->clean;
+    s->cut_top = a->cut_top; s->drift = a->drift; s->echo_send = a->echo_send; s->rev_send = a->rev_send;
+}
+static void acid_snap_load(Acid *a, const AcidSnap *s) {
+    for (int i = 0; i < ACID_NPARAM; i++) a->p[i] = s->p[i];
+    a->wave = s->wave; a->drvmode = s->drvmode; a->sweep = s->sweep; a->base = s->base;
+    a->classic = s->classic; a->clean = s->clean;
+    a->cut_top = s->cut_top; a->drift = s->drift; a->echo_send = s->echo_send; a->rev_send = s->rev_send;
+    acid_define(a);   // rebuild the voice from restored params (also resets the change-guards)
+}
+
+// live editing arrays → the current bank slot, so an in-progress edit isn't left
+// stale in the snapshot (the same flush pat_switch does before it reads a slot).
+static void song_flush_live(void) {
+    pat_io_303(0, curpat[M_303A], 1);
+    pat_io_303(1, curpat[M_303B], 1);
+    pat_io_808(curpat[M_808], 1);
+    pat_io_909(curpat[M_909], 1);
+}
+
+static void song_capture(SaveBlob *b) {
+    memset(b, 0, sizeof *b);       // zero padding too, so memcmp dirty-checks are stable
+    song_flush_live();
+    memcpy(b->pat303, pat303, sizeof pat303);
+    memcpy(b->pat808, pat808, sizeof pat808);
+    memcpy(b->pat909, pat909, sizeof pat909);
+    memcpy(b->curpat, curpat, sizeof curpat);
+    for (int i = 0; i < 2; i++) acid_snap_save(&b->ac[i], &ac[i]);
+    memcpy(b->mroot, mroot, sizeof mroot);   memcpy(b->mscale, mscale, sizeof mscale);
+    memcpy(b->loct, loct, sizeof loct);      memcpy(b->kpage, kpage, sizeof kpage);
+    memcpy(b->plen, plen, sizeof plen);
+    memcpy(b->dtune, dtune, sizeof dtune);   memcpy(b->ddecay, ddecay, sizeof ddecay);
+    memcpy(b->dcolor, dcolor, sizeof dcolor);memcpy(b->dvol, dvol, sizeof dvol);
+    memcpy(b->dpan, dpan, sizeof dpan);      memcpy(b->dfine, dfine, sizeof dfine);
+    memcpy(b->d9tune, d9tune, sizeof d9tune);memcpy(b->d9decay, d9decay, sizeof d9decay);
+    memcpy(b->d9color, d9color, sizeof d9color);memcpy(b->d9vol, d9vol, sizeof d9vol);
+    memcpy(b->d9pan, d9pan, sizeof d9pan);   memcpy(b->d9fine, d9fine, sizeof d9fine);
+    b->m9cut = m9cut; b->m9res = m9res;
+    for (int m = 0; m < M_N; m++) b->mmute[m] = mac[m].mute;
+    memcpy(b->dmute, dmute, sizeof dmute);   memcpy(b->d9mute, d9mute, sizeof d9mute);
+    b->mglu = mglu; b->mflt = mflt; b->mfres = mfres; b->mfb = mfb; b->mpump = mpump;
+    memcpy(b->msend, msend, sizeof msend);   memcpy(b->fxverb, fxverb, sizeof fxverb);
+    b->dist8 = dist8; b->dist9 = dist9; memcpy(b->level, level, sizeof level);
+    b->mdiv = mdiv;
+    memcpy(b->mpcf, mpcf, sizeof mpcf); memcpy(b->mcrush, mcrush, sizeof mcrush); memcpy(b->mgate, mgate, sizeof mgate);
+    b->g_bpm_s = g_bpm; b->bpm01_s = bpm01; b->g_swing_s = g_swing;
+}
+
+static void song_restore(const SaveBlob *b) {
+    memcpy(pat303, b->pat303, sizeof pat303);
+    memcpy(pat808, b->pat808, sizeof pat808);
+    memcpy(pat909, b->pat909, sizeof pat909);
+    memcpy(curpat, b->curpat, sizeof curpat);
+    for (int m = 0; m < M_N; m++) armpat[m] = -1;      // drop any queued bank switches
+    for (int i = 0; i < 2; i++) acid_snap_load(&ac[i], &b->ac[i]);
+    memcpy(mroot, b->mroot, sizeof mroot);   memcpy(mscale, b->mscale, sizeof mscale);
+    memcpy(loct, b->loct, sizeof loct);      memcpy(kpage, b->kpage, sizeof kpage);
+    memcpy(plen, b->plen, sizeof plen);
+    memcpy(dtune, b->dtune, sizeof dtune);   memcpy(ddecay, b->ddecay, sizeof ddecay);
+    memcpy(dcolor, b->dcolor, sizeof dcolor);memcpy(dvol, b->dvol, sizeof dvol);
+    memcpy(dpan, b->dpan, sizeof dpan);      memcpy(dfine, b->dfine, sizeof dfine);
+    memcpy(d9tune, b->d9tune, sizeof d9tune);memcpy(d9decay, b->d9decay, sizeof d9decay);
+    memcpy(d9color, b->d9color, sizeof d9color);memcpy(d9vol, b->d9vol, sizeof d9vol);
+    memcpy(d9pan, b->d9pan, sizeof d9pan);   memcpy(d9fine, b->d9fine, sizeof d9fine);
+    m9cut = b->m9cut; m9res = b->m9res;
+    for (int m = 0; m < M_N; m++) mac[m].mute = b->mmute[m];
+    memcpy(dmute, b->dmute, sizeof dmute);   memcpy(d9mute, b->d9mute, sizeof d9mute);
+    mglu = b->mglu; mflt = b->mflt; mfres = b->mfres; mfb = b->mfb; mpump = b->mpump;
+    memcpy(msend, b->msend, sizeof msend);   memcpy(fxverb, b->fxverb, sizeof fxverb);
+    dist8 = b->dist8; dist9 = b->dist9; memcpy(level, b->level, sizeof level);
+    mdiv = b->mdiv;
+    memcpy(mpcf, b->mpcf, sizeof mpcf); memcpy(mcrush, b->mcrush, sizeof mcrush); memcpy(mgate, b->mgate, sizeof mgate);
+    g_bpm = b->g_bpm_s; bpm01 = b->bpm01_s; g_swing = b->g_swing_s;
+    // re-sync the LIVE editing arrays from the restored current banks
+    pat_io_303(0, curpat[M_303A], 0);
+    pat_io_303(1, curpat[M_303B], 0);
+    pat_io_808(curpat[M_808], 0);
+    pat_io_909(curpat[M_909], 0);
+    // force the queued set-and-hold controls to re-push (the *last[] dedup caches are derived)
+    for (int v = 0; v < TR_NV;  v++) { dpanlast[v]  = -9; dtunefine[v]  = -9; }
+    for (int v = 0; v < TR9_NV; v++) { d9panlast[v] = -9; d9tunefine[v] = -9; }
+    tr909_metal(D909_BASE, m9cut, m9res);   // metal filter is set-and-hold
+    bpm((int)g_bpm);
+    apply_fx();                             // effects are set-and-hold — re-engage the restored values
+}
+
+static void bank_write(void) { g_bank.magic = SAVE_MAGIC; save_bytes(&g_bank, sizeof g_bank); }
+
+static int bank_load(void) {   // 1 = a valid bank was read into g_bank; 0 = none (g_bank left empty)
+    int n = load_bytes(&g_bank, sizeof g_bank);
+    if (n != (int)sizeof g_bank || g_bank.magic != SAVE_MAGIC) {
+        memset(&g_bank, 0, sizeof g_bank); g_bank.cur = -1;
+        return 0;
+    }
+    return 1;
+}
+
+// autosave: capture the live rack ~3×/s, and when it actually CHANGED, debounce a
+// file write. No per-edit-site wiring (the change-detect replaces mark_dirty()).
+static int save_cooldown = 0;
+static void autosave_tick(void) {
+    static unsigned tick = 0;
+    if ((tick++ % 20) == 0) {                       // cheap change-detect a few times a second
+        song_capture(&g_scratch);
+        if (memcmp(&g_scratch, &g_bank.autos, sizeof g_scratch) != 0) {
+            memcpy(&g_bank.autos, &g_scratch, sizeof g_scratch);
+            g_bank.autos_used = 1;
+            save_cooldown = 45;                     // debounce: write ~0.75s after the last change
+        }
+    }
+    if (save_cooldown > 0 && --save_cooldown == 0) bank_write();
+}
+
+// ── the four accessors the MST SONGS page drives (forward-declared above draw_mst) ──
+static int  song_slot_used(int i) { return i >= 0 && i < NSLOT && g_bank.used[i]; }
+static int  song_slot_cur(void)   { return g_bank.cur; }
+static void song_save_slot(int i) {
+    if (i < 0 || i >= NSLOT) return;
+    song_capture(&g_bank.slot[i]); g_bank.used[i] = 1; g_bank.cur = i; bank_write();
+}
+static void song_load_slot(int i) {
+    if (i < 0 || i >= NSLOT || !g_bank.used[i]) return;
+    song_restore(&g_bank.slot[i]); g_bank.cur = i; bank_write();
+}
+
 void init(void) {
     bpm((int)g_bpm);
     acid_init(&ac[0], 6, 36);                                          // 303a — the bass line (+ octave-down sub on slot 36)
@@ -1826,9 +2064,14 @@ void init(void) {
     sidechain_key(TR808_BASE + TRS_BD, 0, 1);              // both kicks drive the PUMP
     sidechain_key(D909_BASE + TR9S_BD, 0, 1);
     apply_fx();                                            // engage the default master glue
+    // resume the last session from the rolling autosave (else keep the generated
+    // default above). Named-slot recall lands with the picker UI (step 2).
+    if (bank_load() && g_bank.autos_used) song_restore(&g_bank.autos);
+    else { song_capture(&g_bank.autos); g_bank.autos_used = 1; bank_write(); }  // seed the file with the default
 }
 
 void update(void) {
+    autosave_tick();                                                   // rolling autosave (resume-where-you-left-off)
     if (mbop > 0) mbop -= 0.08f;
     for (int v = 0; v < TR_NV;  v++) if (dtrig[v]  > 0) dtrig[v]  -= 0.14f;   // drum-pad flash decays
     for (int v = 0; v < TR9_NV; v++) if (d9trig[v] > 0) d9trig[v] -= 0.14f;

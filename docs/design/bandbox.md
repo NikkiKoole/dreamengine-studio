@@ -52,6 +52,20 @@ deterministic doo-wop cold open. Spec: 121 assertions (adds pack→unpack round-
 version refusal, the demos' locks + their harmony analyses). Popup rows are fixed-height (4 fit the
 glass — MINE + three demos = AT CAPACITY); the next demo forces the paging follow-up.
 
+**2026-07-22 (later still) — the VOLTA lock (song structure lite).** The 1st/2nd-ending mark,
+generalized over a **4-round cycle** and answering "don't we need more than rest for the other
+rounds?": two families in one per-bar field. **Gate the bar** — `ODD`/`EVEN`/`4TH` sound only those
+rounds (rest otherwise; the classic volta endings). **Gate the locks** — `VAR2`/`VAR4` always sound,
+but the bar's p-locks + FEEL engage only on even rounds / round 4 — so the *variation vocabulary is
+the whole existing lock set*, pass-gated: a bar with FEEL STOP + VAR2 plays plain on round 1 and
+breaks on round 2. Chip lives next to FEEL in the editor header; the tracker shows it live (resting
+bars dim, dormant VAR pips grey). Save format bumped to **v2** (13 bytes/bar; v1 blobs still load,
+volta defaulting ALL — the versioning discipline's first real test). The NAPOLEON demo became the
+showcase: a 4-round form (break every 2nd round via VAR2, the BUILD turn every 4th via VAR4),
+verified by a 4-round WAV render (break dips at rounds 2+4 only). Spec: 131. The full jump-volta
+(loop actually shortens/skips) and 3-plus-ending brackets stay future; this is the rest-bar +
+lock-gate v1. It delivers a real slice of the SONG STRUCTURE todo without the section data model.
+
 **Parked idea — notation glyphs on a roomier glass:** at 320×200 the tracker cells could show
 *what* each lock is as a real notation mark (the ANTIC tie arc, staccato STAB, simile-mark AUTO
 cells, ♯♭Δ chord spelling) instead of an orange pip. The full symbol inventory + gather/make

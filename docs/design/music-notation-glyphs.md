@@ -59,7 +59,7 @@ to a 12-year-old). The split that serves both:
 | glyph | for | source |
 |---|---|---|
 | 𝄆 𝄇 repeat barlines | framing the loop — the tracker *is* a repeated section | **make** — sprite (cell-height) |
-| volta brackets (1. / 2. endings) | **a sneaky-cheap song-structure p-lock**: "this bar plays only on pass 1/2" composes with everything built, long before real sections | **make** — drawn bracket + ASCII digit |
+| volta brackets (1. / 2. endings) | the VOLTA lock **shipped** (2026-07-22: ALL/ODD/EVEN/4TH + VAR2/VAR4 over a 4-round cycle) — the BRACKET GLYPH over the cells is what remains | **make** — drawn bracket + ASCII digit |
 | 𝄋 segno / 𝄌 coda | the eventual SONG ORDER navigation (A A B A = D.S. al coda in costume) | **make** — font atlas |
 | 𝄞 𝄢 + percussion clef | lane icons replacing CH/BA/ME/DR/PA rail text | **make** — sprites (the `flank` icon-glyph precedent) |
 | ♩= 109 | metronome mark for the BPM readout | **make** — needs ♩ from Tier 2 |

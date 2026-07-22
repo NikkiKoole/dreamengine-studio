@@ -1,10 +1,9 @@
 ---
 developer: Nikki Koole
-basedIn: TODO — your city, Netherlands
-website: TODO — https://your-site.com
-pressContact: nikki@floorplanner.com
-mastodon: TODO — https://mastodon.social/@you
-youtube: TODO — https://youtube.com/@you
+basedIn: Rotterdam, Netherlands
+website: https://mipolai.com
+pressContact: nikkikoole@gmail.com
+youtube: https://www.youtube.com/@mipo_club
 ---
 
 ## About

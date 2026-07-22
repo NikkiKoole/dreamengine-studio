@@ -373,7 +373,9 @@ static void play_drum_step(int step, int delayMs) {   // step 0..7, sixteenths w
     }
     if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, 6);
     if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, 5);
-    if (d->hat[step]  == 'x') dk_fire_at(delayMs, d->hatRole,  0, 3);
+    // an OPEN hat (MINOR's offbeat opens) carries far more noise-energy than a
+    // closed one — one velocity notch softer keeps it from washing out the mix.
+    if (d->hat[step]  == 'x') dk_fire_at(delayMs, d->hatRole,  0, d->hatRole == DK_HHO ? 2 : 3);
 }
 
 // MELODY — a lead that BLOOMS from the chords: on a genre rhythm it arpeggiates the

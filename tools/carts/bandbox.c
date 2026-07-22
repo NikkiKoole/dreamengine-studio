@@ -315,6 +315,17 @@ static int drumSel = 1;   // 0 PLAIN · 1 BAND
 static const DrumKitDef *KITS[2]   = { &DK_ELECTRO, &DK_ACOUSTIC };
 static const char       *KIT_LAB[2] = { "ELECTRO", "ACOUSTIC" };
 static int kitSel = 1;    // default ACOUSTIC
+// swap the kit + wire the HAT CHOKES (drumkit.h documents these as the candidate
+// default but doesn't wire them): the open hat is MONO (a new open kills the last —
+// they must never stack, that stacking IS the wash), the closed hat chokes it
+// (the classic 808 pair), and the KICK chokes it (the disco foot-close: the pedal
+// shuts on the downbeat). Set-and-hold — called on init/KIT-tap/song-load only.
+static void apply_kit(void) {
+    dk_use(KITS[kitSel], 20);
+    instrument_choke(20 + DK_HHO,  20 + DK_HHO);
+    instrument_choke(20 + DK_HHC,  20 + DK_HHO);
+    instrument_choke(20 + DK_KICK, 20 + DK_HHO);
+}
 // BUSY — the Apple-Drummer "Simple <-> Complex" axis, global to the drums voice and
 // deterministic: SPARSE drops the hats (kick+backbeat only), NORMAL is the genre
 // groove, BUSY fills offbeat hats + a soft ghost snare. genre=who, KIT=what, BUSY=how much.
@@ -850,7 +861,7 @@ static int song_unpack(const signed char *b, int n) {
         arr[i].volta  = ver >= 2 ? clampi(r[12], 0, VLT_N - 1) : VLT_ALL;
     }
     apply_chord_tone(); apply_bass_tone(); apply_mel_tone(); apply_pad_tone();
-    dk_use(KITS[kitSel], 20);                         // set-and-hold: re-voice on load only
+    apply_kit();                                      // set-and-hold: re-voice on load only
     playing = 0; selVoice = -1; picking = 0;
     rethink();
     return 1;
@@ -1297,7 +1308,7 @@ static void editor_drums(Box g) {
     Box styB = lay_grid(styRow, 3, 3, 0, 1), kitB = lay_grid(styRow, 3, 3, 1, 1), busB = lay_grid(styRow, 3, 3, 2, 1);
     if (chip(lay_inset(styB, 1), "STYLE", DRUM_LAB[drumSel], 1, 0x2440)) drumSel = (drumSel + 1) % 2;
     if (chip(lay_inset(kitB, 1), "KIT", KIT_LAB[kitSel], 1, 0x2443)) {
-        kitSel = !kitSel; dk_use(KITS[kitSel], 20);   // set-and-hold: swap only on tap
+        kitSel = !kitSel; apply_kit();                // set-and-hold: swap only on tap
     }
     if (chip(lay_inset(busB, 1), "BUSY", BUSY_LAB[drumBusy], 1, 0x2450)) drumBusy = (drumBusy + 1) % 3;
     Box p = lay_inset(g, 1);
@@ -1430,7 +1441,7 @@ void init(void) {
     apply_bass_tone();
     apply_mel_tone();
     apply_pad_tone();
-    dk_use(KITS[kitSel], 20);                        // the rhythm section — slots 20..27
+    apply_kit();                                     // the rhythm section — slots 20..27 (+ hat chokes)
 #if !defined(DE_TRACE) && !defined(DE_SPEC)
     // resume your autosaved song if one exists; else the doo-wop cold open. Harness
     // builds always cold-open — the parked clips + spec stay deterministic.

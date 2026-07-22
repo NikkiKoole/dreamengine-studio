@@ -1616,11 +1616,19 @@ async function runProfileAttach(pid, cfg) {
   } catch (e) {
     return { ok: false, profile: true, output: `sample failed (needs permission to attach?): ${e.message}` }
   }
-  // Frame-timing: the on-demand mailbox dump (fresh snapshot) is best; if the cart was
-  // throttled and didn't serve it in time, fall back to its own perf.json (auto-flushed
-  // every 30 frames — same running cart, slightly less fresh). Null only if neither exists.
+  // Frame-timing: the on-demand mailbox dump (fresh snapshot, pid-targeted) is the only
+  // source we can trust for an ATTACH. If the cart didn't serve it, fall back to build/perf.json
+  // ONLY if it was written during THIS profiling window — i.e. a live -DDE_PROFILE cart is
+  // actively flushing it. A normal ▶ run isn't instrumented, so build/perf.json is then a stale
+  // leftover from some past full-profile run; showing it would report a bogus, unrelated frame
+  // time (the "byte-identical 44.9ms across every attach" bug). Stale → null → honest perfNote.
   let perf = served ? readPerfFrom(perfOut) : null
-  if (!perf) perf = readPerf()
+  if (!perf) {
+    try {
+      const age = Date.now() - fs.statSync(path.join(BUILD_DIR, 'perf.json')).mtimeMs
+      if (age <= seconds * 1000 + 3000) perf = readPerf()   // fresh enough to be this session's cart
+    } catch {}
+  }
   return {
     ok: true, profile: true, attached: true, seconds, cartName: target.name,
     hotspots: parseSample(report),

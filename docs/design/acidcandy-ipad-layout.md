@@ -37,7 +37,9 @@ per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
 level, the division picker is still open). (DONE since M2: MST RES + FB — the column is a 2-wide
 grid TMP|SWG / GLU|PMP / FLT|RES + FB; the 303 Devil Fish DEEP page — a CORE/DF-KNOBS page tab in
 DF voicing swaps in SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle; and the on-screen tools now live in
-a 2-row UI, a submenu row above the soft-keys.) Do NOT flip the default off `draw_rack` until
+a 2-row UI, a submenu row above the soft-keys; PAT pattern banks A/B/C/D per machine via a PAT
+soft-key → bank pads in the submenu row, reusing pat_pad's instant/bar-quantized switching; and the
+knobs are small discs with narrower columns so the pattern screen gets the width.) Do NOT flip the default off `draw_rack` until
 the checklist is fully green AND it feels good in play-testing.
 
 The [`acidcandy_ipad`](../../tools/carts/acidcandy_ipad.c) mockup is a ground-up redesign of

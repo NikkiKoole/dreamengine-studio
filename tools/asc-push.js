@@ -96,7 +96,7 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, price: false, contentRights: false, reviewContact: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
@@ -106,6 +106,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--category') opt.category = true      // set the App Store primary/secondary category (appInfo)
   else if (a === '--age-rating') opt.ageRating = true   // set the age-rating declaration (default 4+)
   else if (a === '--price') opt.price = true            // set the paid-app price schedule (manifest `price`; base USA)
+  else if (a === '--content-rights') opt.contentRights = true  // declare third-party content usage (default: does not)
+  else if (a === '--review-contact') opt.reviewContact = true  // set the App Review contact (manifest `review`)
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
   else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
@@ -120,7 +122,7 @@ if (!opt.app) {
   console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--category] [--age-rating] [--price] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
   process.exit(2)
 }
-if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating && !opt.price) opt.metadata = true // default action
+if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating && !opt.price && !opt.contentRights && !opt.reviewContact) opt.metadata = true // default action
 
 // ── manifest + copy assembly ────────────────────────────────────────────────────────────────
 const appDir = path.join(ROOT, 'apps', opt.app)
@@ -301,6 +303,43 @@ async function pushAgeRating() {
   if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
   await api('PATCH', `/v1/ageRatingDeclarations/${info.id}`, { data: { type: 'ageRatingDeclarations', id: info.id, attributes } })
   console.log('  ✓ pushed age rating')
+}
+
+// ── content rights (App Information → Content Rights): does the app use third-party content? ──
+async function pushContentRights() {
+  const decl = manifest.usesThirdPartyContent ? 'USES_THIRD_PARTY_CONTENT' : 'DOES_NOT_USE_THIRD_PARTY_CONTENT'
+  const app = await resolveApp()
+  console.log(`\n▸ content rights → app ${app.id} "${app.attributes.name}"`)
+  console.log(`    → ${decl}`)
+  if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
+  await api('PATCH', `/v1/apps/${app.id}`, { data: { type: 'apps', id: app.id, attributes: { contentRightsDeclaration: decl } } })
+  console.log('  ✓ pushed content rights')
+}
+
+// ── App Review contact (version App Review Information); manifest `review` {firstName,lastName,phone,email} ──
+async function pushReviewContact() {
+  const r = manifest.review || {}
+  const missing = ['firstName', 'lastName', 'phone', 'email'].filter(k => !r[k])
+  if (missing.length) die(`review contact needs manifest "review": { ${missing.map(k => `"${k}"`).join(', ')} }`)
+  const app = await resolveApp()
+  const { version } = await editableVersionLoc(app.id)
+  const attributes = {
+    contactFirstName: r.firstName, contactLastName: r.lastName, contactPhone: r.phone, contactEmail: r.email,
+    demoAccountRequired: !!r.demoUser,
+  }
+  if (r.demoUser) attributes.demoAccountName = r.demoUser
+  if (r.demoPassword) attributes.demoAccountPassword = r.demoPassword
+  if (r.notes) attributes.notes = r.notes
+  const existing = await apiOrNull('GET', `/v1/appStoreVersions/${version.id}/appStoreReviewDetail`)
+  console.log(`\n▸ review contact → app ${app.id} v${version.attributes.versionString}`)
+  console.log(`    ${r.firstName} ${r.lastName} · ${r.email} · ${r.phone}`)
+  if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
+  if (existing && existing.data) {
+    await api('PATCH', `/v1/appStoreReviewDetails/${existing.data.id}`, { data: { type: 'appStoreReviewDetails', id: existing.data.id, attributes } })
+  } else {
+    await api('POST', '/v1/appStoreReviewDetails', { data: { type: 'appStoreReviewDetails', attributes, relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: version.id } } } } })
+  }
+  console.log('  ✓ pushed review contact')
 }
 
 // ── app price (the PAID-APP tier; manifest `price`, base USA — Apple equalizes the rest) ──────
@@ -900,6 +939,8 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   if (opt.category) await pushCategory()
   if (opt.ageRating) await pushAgeRating()
   if (opt.price) await pushPrice()
+  if (opt.contentRights) await pushContentRights()
+  if (opt.reviewContact) await pushReviewContact()
   if (opt.screenshots) await pushScreenshots()
   if (opt.iap) await pushIAP()
   if (opt.promote) await pushPromoted()

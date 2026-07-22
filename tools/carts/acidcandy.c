@@ -54,6 +54,7 @@
 }
 de:meta */
 #include "studio.h"
+#define UI_MAX_WID 256   // iPad rack mode draws all 5 machines at once → far more than the default 64 widgets/frame; without this, every tap past widget #64 silently drops (dead panels)
 #include "ui.h"
 #include "cursor.h"   // pixel hand cursor (CUR_HAND/CUR_GRAB) — desktop only, auto-hides the OS arrow, no-op on touch
 #include "acid303.h"

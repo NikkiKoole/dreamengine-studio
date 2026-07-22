@@ -142,7 +142,9 @@
 #define UI_COL_FOCUS CLR_WHITE
 #endif
 
-#define UI_MAX_WID   64   // widgets drawn per frame
+#ifndef UI_MAX_WID
+#define UI_MAX_WID   64   // widgets drawn per frame (a cart can #define this LARGER before including ui.h — e.g. a multi-panel rack that draws several faces at once; past this, ui_reg drops widgets = dead taps)
+#endif
 #define UI_MAX_CAP    8   // simultaneous captured contacts
 #define UI_MAX_PRESS  8   // new presses per frame
 #define UI_MAX_SEEN  16   // tracked contact ids

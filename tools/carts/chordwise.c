@@ -507,6 +507,12 @@ void init(void) {
     instrument(I_BSS, INSTR_TRI, 6, 160, 3, 220);
     instrument(I_LEAD, INSTR_SINE, 4, 180, 3, 200);   // a soft lead for the melody
     dk_use(&DK_ACOUSTIC, 20);   // the rhythm section — voice slots 20..27
+    // hat chokes (drumkit.h's documented candidate default, wired cart-side): the
+    // open hat is mono + choked by the closed hat AND the kick (the foot-close) —
+    // stacked open-hat rings are the "washy drums" (MINOR's offbeat opens).
+    instrument_choke(20 + DK_HHO,  20 + DK_HHO);
+    instrument_choke(20 + DK_HHC,  20 + DK_HHO);
+    instrument_choke(20 + DK_KICK, 20 + DK_HHO);
     seed_demo();
 }
 

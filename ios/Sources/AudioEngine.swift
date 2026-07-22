@@ -92,6 +92,18 @@ final class AudioEngine {
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: fmt)
 
+        // When the mic tap is first installed, iOS reconfigures the engine's I/O (adds input) and
+        // fires AVAudioEngineConfigurationChange — which DROPS our source→mixer edge, so the whole
+        // app went silent the moment GUITAR IN turned on. Re-establish the output edge (and restart
+        // the engine if the change stopped it) every time the graph reconfigures. This is THE fix
+        // for "output dies when the mic starts"; the reconnect is idempotent and cheap.
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange,
+                                               object: engine, queue: .main) { [weak self] _ in
+            guard let self = self, let out = self.src else { return }
+            self.engine.connect(out, to: self.engine.mainMixerNode, format: fmt)
+            if !self.engine.isRunning { try? self.engine.start() }
+        }
+
         do {
             // .playAndRecord from the START (not .playback) so enabling the mic later is a no-op tap
             // with zero output disruption. This does NOT prompt for mic permission — only actually

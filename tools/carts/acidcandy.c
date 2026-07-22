@@ -89,6 +89,7 @@ static Machine mac[M_N] = {
     { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },
 };
 static int face = M_303A;
+static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · 1 = iPad full rack. The HOME button toggles it.
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -859,10 +860,11 @@ static void navspine(Box nav) {
         else trifill(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, CLR_WHITE);
     }
     for (int m = 0; m < M_N; m++) cartridge(lay_grid(row, M_N, M_N, m, 2), m);   // cartridges spread across the width
-    {   // HOME (meta) — reserved; the app shell owns the real leave-cart gesture
+    {   // HOME — toggles the LAYOUT: phone single-face+tabs ⇄ the full iPad rack
         int hx = (int)hcell.x + 1, hy = (int)hcell.y, hw = (int)hcell.w - 1, hh = (int)hcell.h, hpr = 0, hhot = 0, hfo = 0;
         void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
-        ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);
+        int acth = ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);
+        if (acth && nav_clean(wh)) rack_view = !rack_view;       // flip to the rack (nav_clean = ignore a drag-bounce tap)
         rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
         rrect(hx, hy, hw, hh, 2, hhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
         // little HOUSE glyph — hand-placed so it's pixel-symmetric about cxh (the old trifill roof rasterised lopsided)
@@ -2245,7 +2247,20 @@ static void draw_rack(Box area) {
       rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
       int cx = px + pw / 2, cy = py + ph / 2;
       if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); }
-      else         print(">", cx - 1, cy - 3, CLR_WHITE); }
+      else         print(">", cx - 1, cy - 3, CLR_WHITE);
+      // HOME — flip back to the phone single-face+tabs view (twin of navspine's HOME)
+      int hw2 = ph, hx = px - hw2 - 3, hy = py;
+      void *wh = ui_wid_hash(0x2Eu, hx, hy, hw2, ph);
+      int prh = 0, hoth = 0, foh = 0;
+      if (ui_button_core(wh, hx, hy, hw2, ph, &foh, &prh, &hoth)) rack_view = 0;
+      rrectfill(hx, hy, hw2, ph, 2, CLR_DARK_BROWN);
+      rrect(hx, hy, hw2, ph, 2, hoth ? CLR_WHITE : CLR_BROWNISH_BLACK);
+      int hcx = hx + hw2 / 2, hcy = hy + ph / 2 - 2;                 // little house glyph (matches navspine's)
+      pset(hcx, hcy, CLR_LIGHT_PEACH);
+      rectfill(hcx - 1, hcy + 1, 3, 1, CLR_LIGHT_PEACH);
+      rectfill(hcx - 2, hcy + 2, 5, 1, CLR_LIGHT_PEACH);
+      rectfill(hcx - 2, hcy + 3, 5, 3, CLR_LIGHT_PEACH);
+      rectfill(hcx,     hcy + 4, 1, 2, CLR_DARK_BROWN); }
     // 2×2 instrument grid — 909|808 over 303a|303b (ReBirth's drums-over-synths)
     Box top  = lay_split(stage, EDGE_TOP, (stage.h - gap) * 0.5f, &stage);
     Box bot  = stage; bot.y += gap; bot.h -= gap;
@@ -2274,15 +2289,14 @@ void draw(void) {
     // DEVICE CLASS — classify ONCE on the first frame, BEFORE we shrink the canvas below
     // (our own de_resize makes de_sw/de_sh tiny, so device_class() would then read WIDE
     // forever; frame 0 still reports the physical screen). ROOMY (tablet) → the full rack.
-    static int dev = -1;
-    if (dev < 0) dev = device_class();   // 0 TALL · 1 WIDE (phone) · 2 ROOMY (iPad → rack)
+    if (rack_view < 0) rack_view = (device_class() == 2) ? 1 : 0;   // default from the screen (frame 0, before we shrink it); HOME toggles it after
     // CANVAS: phone keeps the chunky "scale up 160×100, spread the leftover" density (one face);
     // ROOMY holds a fixed HEIGHT tall enough for 2 instrument rows + a full master strip, and
     // matches WIDTH to the window ratio so the rack FILLS the window without clipping.
     { int cw = screen_w(), ch = screen_h();
       if (cw > 0 && ch > 0) {
           int tw, th;
-          if (dev == 2) {                                              // ROOMY — the rack
+          if (rack_view) {                                             // ROOMY — the rack
               th = 320; tw = (int)(320.0f * (float)cw / (float)ch + 0.5f);
               if (tw < 380) tw = 380;                                  // keep 2 landscape instruments legible
           } else {                                                     // phone — the chunky single face
@@ -2321,7 +2335,7 @@ void draw(void) {
     Box area = box(ax0, ay0, ax1 - ax0, ay1 - ay0);
     // ARRANGEMENT (canvas-density-spectrum.md axis 2): ROOMY (iPad) shows the WHOLE rack at once;
     // phone (TALL/WIDE) shows one focused face reached through the nav-tab strip. Same faces, two modes.
-    if (dev == 2) {
+    if (rack_view) {
         draw_rack(area);                                             // iPad — all four machines + master
     } else {
         Box stage;

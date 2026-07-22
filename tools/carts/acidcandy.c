@@ -2549,11 +2549,7 @@ static void r2_subrow(Box r, int focus) {
             static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
             int bw = w / 4;
             for (int d = 0; d < 4; d++) if (lcdbtn(0x170u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) { if (focus == M_808) gen_drums(d); else gen_drums9(d); }
-        } else if (mode == DS_PAT) {   // A/B/C/D pattern banks for the focused drum machine
-            static const char *BK[NPAT] = { "A", "B", "C", "D" };
-            int bw = w / NPAT;
-            for (int k = 0; k < NPAT; k++) pat_pad(0x1B0u + focus * 8 + k, x + k * bw, y, bw - 1, h, BK[k], focus, k);
-        }
+        }   // drum banks are the A/B/C/D buttons at the left of the strip, not a screen submenu
     }
     // MST: no submenu (the PCF/CRU/GAT lane IS the editor)
 }
@@ -2581,9 +2577,9 @@ static void r2_bigscreen(Box c, int focus) {
         int kw = (w - 10) / 3;
         for (int k = 0; k < 3; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
     } else if (focus <= M_909) {
-        static const char *K[4] = { "VCE", "FLAG", "GEN", "PAT" }; static const int MO[4] = { DS_VCE, DS_FLAG, DS_GEN, DS_PAT };
-        int kw = (w - 10) / 4;
-        for (int k = 0; k < 4; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
+        static const char *K[3] = { "VCE", "FLAG", "GEN" }; static const int MO[3] = { DS_VCE, DS_FLAG, DS_GEN };   // banks are the A/B/C/D buttons in the strip, not a screen view
+        int kw = (w - 10) / 3;
+        for (int k = 0; k < 3; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
     } else {
         static const char *K[4] = { "MIX", "PCF", "CRU", "GAT" };
         int kw = (w - 10) / 4;
@@ -2724,6 +2720,13 @@ static void r2_drumstrip(Box c, int focus) {
     rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
     rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[focus].lo);
     Box cc = lay_inset(c, 2);
+    // A/B/C/D pattern banks BEFORE the header (a 2×2 block at the far-left edge) — the drum twin of
+    // the 303 column banks (lit = current, blink = armed while playing).
+    Box bnk = lay_split(cc, EDGE_LEFT, 18, &cc);
+    { static const char *BK[NPAT] = { "A", "B", "C", "D" };
+      for (int k = 0; k < NPAT; k++) { Box bc = lay_grid(bnk, 2, NPAT, k, 1);
+          int lit = (curpat[focus] == k) || (armpat[focus] == k && ((int)g_phase & 1));
+          if (cbtn(0x1C0u + focus * 8 + k, (int)bc.x, (int)bc.y, (int)bc.w - 1, (int)bc.h - 1, BK[k], lit)) pat_queue(focus, k); } }
     r2_header(lay_split(cc, EDGE_LEFT, 30, &cc), focus);
     Box fx = lay_split(cc, EDGE_RIGHT, 66, &cc);
     float *dst = (focus == M_808) ? &dist8 : &dist9;

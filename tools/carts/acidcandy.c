@@ -2231,6 +2231,30 @@ static void drum_ui_swap(DrumUI *u) {   // exchange the shared drum globals ⇄ 
     t = drec_hold;  drec_hold  = u->rh;  u->rh  = t;
     t = drec_now;   drec_now   = u->rn;  u->rn  = t;
 }
+// rack per-panel deco: wash the panel in the machine's colour (so each machine reads at a glance)
+// + a slim header with a MUTE toggle (top-left, the nav-LED mute the rack has no room for) and a
+// label. Returns the shrunk box the face draws into (below the header). MST passes mute=0 (no machine mute).
+static Box rack_deco(Box c, int m, int mutable_) {
+    static const char *RL[M_N] = { "303a", "303b", "808", "909", "MST" };
+    blend(BLEND_AVG); rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].col); blend_reset();  // machine-colour wash
+    Box hdr = lay_split(c, EDGE_TOP, 9, &c);
+    font(FONT_TINY);
+    int hx = (int)hdr.x + 1, hy = (int)hdr.y + 1;
+    if (mutable_) {                                                    // MUTE toggle (top-left)
+        int mw = 9, mh = (int)hdr.h - 1;
+        void *w = ui_wid_hash(0xF8u + m, hx, hy, mw, mh);
+        int pr = 0, hot = 0, fo = 0;
+        if (ui_button_core(w, hx, hy, mw, mh, &fo, &pr, &hot)) mac[m].mute = !mac[m].mute;
+        rrectfill(hx, hy, mw, mh, 2, mac[m].mute ? CLR_DARK_BROWN : mac[m].col);
+        rrect(hx, hy, mw, mh, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        if (mac[m].mute) line(hx + 1, hy + mh - 2, hx + mw - 2, hy + 1, CLR_RED);   // red slash = muted
+        else             rectfill(hx + mw/2 - 1, hy + mh/2 - 1, 2, 2, CLR_BROWNISH_BLACK);  // a dot = live
+        hx += mw + 3;
+    }
+    print(RL[m], hx, hy + 1, mac[m].mute ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);
+    return c;
+}
+
 static void draw_rack(Box area) {
     float gap = 2;
     Box stage = area;
@@ -2268,11 +2292,11 @@ static void draw_rack(Box area) {
     Box c909 = lay_split(top, EDGE_LEFT, (top.w - gap) * 0.5f, &top);  Box c808 = top;
     Box c3a  = lay_split(bot, EDGE_LEFT, (bot.w - gap) * 0.5f, &bot);  Box c3b  = bot;
     c808.x += gap; c808.w -= gap;  c3b.x += gap; c3b.w -= gap;
-    drum_ui_swap(&drum_ui[1]); draw_909(c909); drum_ui_swap(&drum_ui[1]);   // 909 → store 1
-    drum_ui_swap(&drum_ui[0]); draw_808(c808); drum_ui_swap(&drum_ui[0]);   // 808 → store 0
-    draw_303(c3a, M_303A);
-    draw_303(c3b, M_303B);
-    { Box m = mstrp; m.y += gap; m.h -= gap; draw_mst(m); }   // MASTER strip along the base
+    { Box f = rack_deco(c909, M_909, 1); drum_ui_swap(&drum_ui[1]); draw_909(f); drum_ui_swap(&drum_ui[1]); }  // 909 → store 1
+    { Box f = rack_deco(c808, M_808, 1); drum_ui_swap(&drum_ui[0]); draw_808(f); drum_ui_swap(&drum_ui[0]); }  // 808 → store 0
+    draw_303(rack_deco(c3a, M_303A, 1), M_303A);
+    draw_303(rack_deco(c3b, M_303B, 1), M_303B);
+    { Box m = mstrp; m.y += gap; m.h -= gap; draw_mst(rack_deco(m, M_MST, 0)); }   // MASTER strip (green wash, no machine mute)
 }
 
 void draw(void) {

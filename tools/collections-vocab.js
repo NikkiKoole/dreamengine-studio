@@ -59,6 +59,12 @@ const COLLECTIONS = [
     doc: "docs/design/device-face-paradigm.md",
     blurb: "a whole cart IS one physical device's face — a playable instrument/tool front panel.",
   },
+  {
+    slug: "chord-bloom",
+    title: "Chord-bloom",
+    doc: "docs/design/bossa-rack.md",
+    blurb: "the harmony-IS-the-instrument thread — one genre band brain behind three verbs: read (chordwise), play (chordblossom2), write (bandbox); band.h extraction pending.",
+  },
 ];
 
 const COLLECTION_SLUGS = new Set(COLLECTIONS.map(c => c.slug));

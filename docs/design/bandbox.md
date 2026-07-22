@@ -15,8 +15,10 @@ jingle/napoleon/citypop/cocktail + lofi/motorik/italo for contrast) and shipped 
 19 new per-cell locks, so a chart can read as any of the lifted genres:
 - **CHORDS · COMP chip** — `ANTIC` (the last 8th of THIS bar already strikes the NEXT bar's chord —
   bossa's early change / citypop's brass push, implemented forward-only: no lookahead scheduling, which
-  is why this landed while the whole-band PUSH feel is still parked) · `STAB` (60 ms choke) · `HELD`
-  (rings to the bar line) · `TACET`.
+  is why this landed while the whole-band PUSH feel is still parked; and it **ties over the barline**:
+  the next bar's downbeat comp is skipped so the anticipation replaces it, never doubles it — the fix
+  for "ANTIC on the last chord is messy" in genres whose comp pattern hits the downbeat, e.g. BOSSA) ·
+  `STAB` (60 ms choke) · `HELD` (rings to the bar line) · `TACET`.
 - **BASS** — `APPR` (the global style, but beat 4 leads in chromatic from below — the single most
   recurring idiom on the radio shelf) · `POP` (root · octave-pop · fifth · run-into-the-change, the
   disco/citypop cell) · `GHOST` (the style + vel-2 root ghosts in its rests) · `PEDAL` (the KEY's tonic

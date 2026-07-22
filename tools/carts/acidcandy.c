@@ -2246,8 +2246,13 @@ static Box rack_deco(Box c, int m, int mutable_) {
     static const char *RL[M_N]   = { "303a", "303b", "808", "909", "MST" };
     // per-machine panel WASH (distinct from the accent mac[m].col): 303s yellow/orange, 808 brown,
     // 909 cream, master grey — blended 50% over the peach chassis so each machine reads at a glance.
-    static const int   RWASH[M_N] = { CLR_YELLOW, CLR_ORANGE, CLR_DARK_BROWN, CLR_WHITE, CLR_LIGHT_GREY };
-    blend(BLEND_AVG); rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, RWASH[m]); blend_reset();  // machine wash
+    // Machine WASH as a SOLID true-colour fill — the pre-blended tint, NOT blend(BLEND_AVG) over
+    // the panel. BLEND_AVG is free on the GPU but on the SOFTWARE canvas (the shipping iPad) it's a
+    // per-pixel blend across every panel = ~98% of the frame (profiled). The blend was over a UNIFORM
+    // peach chassis, so the result is one flat colour: precompute avg(machine, #ffccaa) and rectfill_rgb
+    // it (a memset). Same tints (303a yellow / 303b orange / 808 brown / 909 cream / MST grey), ~50× cheaper.
+    static const int RWASH_RGB[M_N] = { 0xffdc68, 0xffb755, 0xb97d69, 0xffdec9, 0xe0c7b8 };
+    rectfill_rgb((int)c.x, (int)c.y, (int)c.w, (int)c.h, RWASH_RGB[m]);
     Box hdr = lay_split(c, EDGE_TOP, 13, &c);                         // taller header → a chunkier MUTE
     font(FONT_TINY);
     int hx = (int)hdr.x + 1, hy = (int)hdr.y + 1;

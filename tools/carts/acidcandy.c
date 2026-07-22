@@ -2595,11 +2595,14 @@ static void r2_col303(Box c, int i) {
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);
     Box meta = lay_split(cc, EDGE_BOTTOM, 20, &cc);
     Box fx   = lay_split(cc, EDGE_BOTTOM, 30, &cc);
-    // 5 acid knobs stacked
-    static const int AK[5] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC, ACID_ACC };
-    static const char *AN[5] = { "CUT", "RES", "ENV", "DEC", "ACC" };
-    static const float AD[5] = { 0.55f, 0.70f, 0.55f, 0.45f, 0.55f };
-    for (int k = 0; k < 5; k++) r2_kcell(lay_grid(cc, 1, 5, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
+    // acid knobs — a 2-wide grid so the filter pair CUT|RES sits together (then ENV|DEC), ACC
+    // centred on its own row below. (Was a single tall stack.)
+    static const int AK[4] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC };
+    static const char *AN[4] = { "CUT", "RES", "ENV", "DEC" };
+    static const float AD[4] = { 0.55f, 0.70f, 0.55f, 0.45f };
+    Box accr = lay_split(cc, EDGE_BOTTOM, cc.h / 3, &cc);     // ACC row (centred, full width)
+    for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
+    r2_kcell(accr, &a->p[ACID_ACC], "ACC", 0.55f, mac[m].col);
     // FX trio — a horizontal row so it reads as "the FX", not more core
     line((int)fx.x + 2, (int)fx.y, (int)fx.x + (int)fx.w - 2, (int)fx.y, mac[m].lo);
     font(FONT_TINY); print("FX", (int)fx.x + 2, (int)fx.y + 1, R2_DIM);

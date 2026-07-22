@@ -325,6 +325,11 @@ static void apply_kit(void) {
     instrument_choke(20 + DK_HHO,  20 + DK_HHO);
     instrument_choke(20 + DK_HHC,  20 + DK_HHO);
     instrument_choke(20 + DK_KICK, 20 + DK_HHO);
+    // the crash slot is HOT (a lone hit rails the stem, and velocity is only worth
+    // ~1 dB/step on it) — duck it at the per-slot mixer instead (napoleon.c's
+    // instrument_level MIX pattern). ~-4.4 dB: still the biggest thing in the kit,
+    // no longer a blast.
+    instrument_level(20 + DK_CRASH, 0.6f);
 }
 // BUSY — the Apple-Drummer "Simple <-> Complex" axis, global to the drums voice and
 // deterministic: SPARSE drops the hats (kick+backbeat only), NORMAL is the genre
@@ -588,7 +593,9 @@ static void play_drum_step(int step, int delayMs) {
     }
     if (dp == DPL_FILL) {                        // FILL — the genre flourish + turnaround crash
         const FillPat *fp = (drumSel == 1) ? &FILL_PAT[modeSel] : &FILL_PLAIN;
-        if (step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 5));
+        // crash base 4 (not 5): a crash is already the loudest thing in the kit, and
+        // an ACCENT bar's +2 was slamming it to max — base 4 keeps the accent headroom.
+        if (step == 0 && fp->crash) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 4));
         int r = fill_role(fp->pat[step]);
         if (r >= 0) dk_fire_at(delayMs, r, 0, feel_vel(playSlot, 4 + step / 2));
         return;
@@ -603,7 +610,7 @@ static void play_drum_step(int step, int delayMs) {
         if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK, 0, feel_vel(playSlot, 6));
         return;
     }
-    if (dp == DPL_CRASH && step == 0) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 5));   // accent, then GROOVE
+    if (dp == DPL_CRASH && step == 0) dk_fire_at(delayMs, DK_CRASH, 0, feel_vel(playSlot, 4));   // accent, then GROOVE (base 4 — see FILL)
     if (d->kick[step] == 'x') dk_fire_at(delayMs, DK_KICK,     0, feel_vel(playSlot, 6));
     if (d->back[step] == 'x') dk_fire_at(delayMs, d->backRole, 0, feel_vel(playSlot, 5));
     // BUSY: SPARSE(0) drops the hats; NORMAL(1) plays the genre hats; BUSY(2) fills the

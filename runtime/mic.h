@@ -105,7 +105,27 @@ static inline void mic_input_push(const float *s, int n, int sr) {
         for (int i = 0; i < take; i++) mic_rec[mic_rec_n + i] = s[i];
         mic_rec_n += take;
     }
-    if (extin_on) for (int i = 0; i < n; i++) sound_extin_write(s[i]);   // Phase 2: feed the live vocoder/pedal ring (sound.h)
+    // Phase 2: feed the live vocoder/pedal ring (sound.h) — AT THE ENGINE RATE. A phone mic runs at
+    // 48k while the engine mixes at 44.1k; writing raw samples overflows the ring (drops → garble +
+    // ~9% sharp). Resample (linear) to SOUND_SAMPLE_RATE. Desktop delivers 44.1k already → fast path,
+    // byte-identical. State carries the read position + last sample across capture buffers.
+    if (extin_on) {
+        if (sr == SOUND_SAMPLE_RATE) {
+            for (int i = 0; i < n; i++) sound_extin_write(s[i]);
+        } else {
+            static float rs_q = 0.0f, rs_prev = 0.0f;      // rs_q: read pos this buffer (idx -1 = rs_prev)
+            float ratio = (float)sr / (float)SOUND_SAMPLE_RATE;
+            while (rs_q < (float)(n - 1)) {
+                int   i    = (int)(rs_q + 1.0f) - 1;       // floor for rs_q >= -1 (no math.h dependency)
+                float lo   = (i < 0) ? rs_prev : s[i];
+                float hi   = s[i + 1];                     // i+1 in [0, n-1] (loop guards rs_q < n-1)
+                sound_extin_write(lo + (hi - lo) * (rs_q - (float)i));
+                rs_q += ratio;
+            }
+            rs_prev = s[n - 1];
+            rs_q   -= (float)n;                            // shift: s[n-1] becomes next buffer's idx -1
+        }
+    }
     for (int i = 0; i < n; i++) {
         mic_acc[mic_acc_n++] = s[i];
         if (mic_acc_n >= MIC_WIN) {

@@ -12,6 +12,10 @@
 //   node tools/asc-push.js <app> --metadata --only description,supportUrl   # push ONLY these fields
 //   node tools/asc-push.js <app> --screenshots           # upload apps/<app>/screenshots/*.png
 //   node tools/asc-push.js <app> --metadata --screenshots
+//   node tools/asc-push.js <app> --category              # set primary category (manifest listing.category, default MUSIC)
+//   node tools/asc-push.js <app> --age-rating            # set the age-rating declaration (4+ unless listing.ageRating overrides)
+//   (privacyPolicyUrl rides --metadata via listing.privacyPolicyUrl. App Privacy "data collection"
+//    has no reachable API here — declare it once in the ASC web UI: App Privacy → Get Started.)
 //   node tools/asc-push.js <app> --iap                   # create/sync IAPs (existing prices are LEFT AS-IS)
 //   node tools/asc-push.js <app> --iap --reprice         # ALSO overwrite an existing IAP's price schedule
 //
@@ -61,14 +65,27 @@ const DISPLAY_TYPE = {
 
 // Three ASC homes: appInfoLocalization (name/subtitle), appStoreVersionLocalization (the localized
 // copy), and the appStoreVersion resource itself (copyright — NOT localized).
-const APP_INFO_FIELDS = new Set(['name', 'subtitle'])
+const APP_INFO_FIELDS = new Set(['name', 'subtitle', 'privacyPolicyUrl'])
 const VERSION_FIELDS = ['description', 'keywords', 'promotionalText', 'whatsNew', 'supportUrl', 'marketingUrl']
 const VERSION_ATTR_FIELDS = new Set(['copyright'])
 // manifest listing.<key> → ASC field. listing.title is the App Store *name*; the rest match 1:1.
 const LISTING_TO_FIELD = {
   title: 'name', subtitle: 'subtitle', keywords: 'keywords', description: 'description',
   promotionalText: 'promotionalText', whatsNew: 'whatsNew', supportUrl: 'supportUrl',
-  marketingUrl: 'marketingUrl', copyright: 'copyright',
+  marketingUrl: 'marketingUrl', copyright: 'copyright', privacyPolicyUrl: 'privacyPolicyUrl',
+}
+// The "no objectionable content" answers → a 4+ rating. Every ASC ageRatingDeclaration field is
+// REQUIRED (a 409 lists any you omit); frequency fields take NONE, the capability flags take false.
+// Verified live 2026-07-22 on Tiny Pedalboard. Override with manifest listing.ageRating (an object
+// of field→value) if a cart ever needs a higher band.
+const AGE_RATING_4PLUS = {
+  alcoholTobaccoOrDrugUseOrReferences: 'NONE', contests: 'NONE', gamblingSimulated: 'NONE',
+  horrorOrFearThemes: 'NONE', matureOrSuggestiveThemes: 'NONE', medicalOrTreatmentInformation: 'NONE',
+  profanityOrCrudeHumor: 'NONE', sexualContentGraphicAndNudity: 'NONE', sexualContentOrNudity: 'NONE',
+  violenceCartoonOrFantasy: 'NONE', violenceRealistic: 'NONE', violenceRealisticProlongedGraphicOrSadistic: 'NONE',
+  gunsOrOtherWeapons: 'NONE', gambling: false, unrestrictedWebAccess: false, lootBox: false,
+  advertising: false, healthOrWellnessTopics: false, messagingAndChat: false, parentalControls: false,
+  userGeneratedContent: false, socialMedia: false, ageAssurance: false, kidsAgeBand: null,
 }
 // Fastlane-style filename -> our field name
 const FILE_TO_FIELD = {
@@ -78,13 +95,15 @@ const FILE_TO_FIELD = {
 
 // ── args ──────────────────────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
-const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
+const opt = { app: '', metadata: false, screenshots: false, iap: false, promote: false, category: false, ageRating: false, dryRun: false, check: false, locale: 'en-US', version: '', json: false, only: null, reprice: false }
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--metadata') opt.metadata = true
   else if (a === '--screenshots') opt.screenshots = true
   else if (a === '--iap') opt.iap = true
   else if (a === '--promote') opt.promote = true
+  else if (a === '--category') opt.category = true      // set the App Store primary/secondary category (appInfo)
+  else if (a === '--age-rating') opt.ageRating = true   // set the age-rating declaration (default 4+)
   else if (a === '--dry-run') opt.dryRun = true
   else if (a === '--check') opt.check = true
   else if (a === '--json') opt.json = true          // machine-readable plan/result (metadata channel; for the editor panel)
@@ -96,10 +115,10 @@ for (let i = 0; i < argv.length; i++) {
   else { console.error(`unknown arg: ${a}`); process.exit(2) }
 }
 if (!opt.app) {
-  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
+  console.error('usage: node tools/asc-push.js <app> [--metadata] [--screenshots] [--category] [--age-rating] [--iap] [--reprice] [--promote] [--dry-run] [--check] [--locale en-US]')
   process.exit(2)
 }
-if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote) opt.metadata = true // default action
+if (!opt.check && !opt.metadata && !opt.screenshots && !opt.iap && !opt.promote && !opt.category && !opt.ageRating) opt.metadata = true // default action
 
 // ── manifest + copy assembly ────────────────────────────────────────────────────────────────
 const appDir = path.join(ROOT, 'apps', opt.app)
@@ -183,7 +202,15 @@ let TOKEN = null
 async function api(method, urlPath, body, extraHeaders) {
   const headers = { Authorization: `Bearer ${TOKEN}`, ...extraHeaders }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  const res = await fetch(BASE + urlPath, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+  const init = { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }
+  // retry NETWORK-level failures ("fetch failed") only — transient blips seen in some sandboxes.
+  // HTTP error statuses are NOT retried (they're handled below); a PATCH/POST that reached Apple
+  // and errored must not be blindly re-sent.
+  let res
+  for (let attempt = 0; ; attempt++) {
+    try { res = await fetch(BASE + urlPath, init); break }
+    catch (e) { if (attempt >= 4) throw e; await sleep(400 * (attempt + 1)) }
+  }
   const text = await res.text()
   const json = text ? safeJson(text) : null
   if (!res.ok) {
@@ -235,6 +262,43 @@ async function editableInfoLoc(appId) {
   const loc = locs.data.find(l => l.attributes.locale === opt.locale)
   if (!loc) die(`appInfo has no ${opt.locale} localization`)
   return loc
+}
+
+async function editableInfo(appId) {
+  const infos = await api('GET', `/v1/apps/${appId}/appInfos?limit=10`)
+  const info = infos.data.find(i => EDITABLE.has(i.attributes.appStoreState)) || infos.data[0]
+  if (!info) die('no appInfo record on this app')
+  return info
+}
+
+// ── category (appInfo primary/secondary; manifest listing.category, default MUSIC) ────────────
+async function pushCategory() {
+  const primary = (listing.category || 'MUSIC').toUpperCase()
+  const secondary = listing.categorySecondary ? String(listing.categorySecondary).toUpperCase() : null
+  const app = await resolveApp()
+  const info = await editableInfo(app.id)
+  const curP = (await apiOrNull('GET', `/v1/appInfos/${info.id}/relationships/primaryCategory`))?.data?.id || '(none)'
+  const curS = (await apiOrNull('GET', `/v1/appInfos/${info.id}/relationships/secondaryCategory`))?.data?.id || '(none)'
+  console.log(`\n▸ category → app ${app.id} "${app.attributes.name}"`)
+  console.log(`    primary:   ${curP} → ${primary}`)
+  if (secondary) console.log(`    secondary: ${curS} → ${secondary}`)
+  if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
+  const relationships = { primaryCategory: { data: { type: 'appCategories', id: primary } } }
+  if (secondary) relationships.secondaryCategory = { data: { type: 'appCategories', id: secondary } }
+  await api('PATCH', `/v1/appInfos/${info.id}`, { data: { type: 'appInfos', id: info.id, relationships } })
+  console.log('  ✓ pushed category')
+}
+
+// ── age rating (the declaration id == the appInfo id; default 4+ = AGE_RATING_4PLUS) ──────────
+async function pushAgeRating() {
+  const attributes = { ...AGE_RATING_4PLUS, ...(listing.ageRating || {}) }
+  const app = await resolveApp()
+  const info = await editableInfo(app.id)
+  console.log(`\n▸ age rating → app ${app.id} "${app.attributes.name}"`)
+  console.log(`    → ${listing.ageRating ? 'custom (manifest listing.ageRating)' : '4+ (no objectionable content)'}`)
+  if (opt.dryRun) { console.log('  (--dry-run: no changes sent)'); return }
+  await api('PATCH', `/v1/ageRatingDeclarations/${info.id}`, { data: { type: 'ageRatingDeclarations', id: info.id, attributes } })
+  console.log('  ✓ pushed age rating')
 }
 
 async function pushMetadata() {
@@ -795,6 +859,8 @@ function die(msg) { console.error('✗ ' + msg); process.exit(1) }
   if (auth.problems.length) die('auth not configured — ' + auth.problems.join('; ') + '\n  See the file header for the ~2-min ASC API-key setup, or run --check offline first.')
   TOKEN = mintJWT(auth)
   if (opt.metadata) await pushMetadata()
+  if (opt.category) await pushCategory()
+  if (opt.ageRating) await pushAgeRating()
   if (opt.screenshots) await pushScreenshots()
   if (opt.iap) await pushIAP()
   if (opt.promote) await pushPromoted()

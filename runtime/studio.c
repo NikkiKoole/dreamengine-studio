@@ -5526,13 +5526,23 @@ void rrectfill(int x, int y, int w, int h, int r, int color) {
     if (r <= 0) { rectfill(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
-    // fill = all pixels inside; plot_pat handles both solid and fillp dither.
-    // Scan box clamped to the visible region — skipped pixels are off-viewport (byte-identical).
-    int sx0 = x, sy0 = y, sx1 = x + w - 1, sy1 = y + h - 1;
-    poly_clamp_scan(&sx0, &sy0, &sx1, &sy1);
-    for (int py = sy0; py <= sy1; py++)
-        for (int px = sx0; px <= sx1; px++)
-            if (rrect_inside(px, py, x, y, w, h, r)) plot_pat(px, py, color);
+    // FAST fill: the body is real rectangle primitives (GPU DrawRectangle / sw row-fill),
+    // and ONLY the four r×r rounded corners are plotted per-pixel. Was O(w×h) plot_pat per
+    // call (one GPU vertex PER PIXEL under immediate mode) — the dominant frame cost in any
+    // widget-dense cart (the acidcandy iPad rack alone calls this ~200×/frame). rectfill honors
+    // fillp + clip (scissor) + camera identically to plot_pat, so the output is pixel-identical.
+    // The decomposition tiles exactly: centre band (full width, no rounding) + top/bottom strips
+    // between the corners + the four corner squares (the only place rrect_inside can be false).
+    if (h - 2 * r > 0) rectfill(x,     y + r,         w,         h - 2 * r, color);   // centre band
+    if (w - 2 * r > 0) rectfill(x + r, y,             w - 2 * r, r,         color);   // top strip
+    if (w - 2 * r > 0) rectfill(x + r, y + h - r,     w - 2 * r, r,         color);   // bottom strip
+    for (int cy = 0; cy < r; cy++)
+        for (int cx = 0; cx < r; cx++) {   // four mirrored corners — arc-tested, so the outside pixels stay empty
+            if (rrect_inside(x + cx,         y + cy,         x, y, w, h, r)) plot_pat(x + cx,         y + cy,         color);
+            if (rrect_inside(x + w - 1 - cx, y + cy,         x, y, w, h, r)) plot_pat(x + w - 1 - cx, y + cy,         color);
+            if (rrect_inside(x + cx,         y + h - 1 - cy, x, y, w, h, r)) plot_pat(x + cx,         y + h - 1 - cy, color);
+            if (rrect_inside(x + w - 1 - cx, y + h - 1 - cy, x, y, w, h, r)) plot_pat(x + w - 1 - cx, y + h - 1 - cy, color);
+        }
 }
 
 // dithered gradient: blend c_top→c_bot (or c_left→c_right) using fillp() checker.

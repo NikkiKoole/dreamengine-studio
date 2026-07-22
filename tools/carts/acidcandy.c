@@ -2537,6 +2537,10 @@ static void r2_subrow(Box r, int focus) {
             static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
             int bw = w / 4;
             for (int d = 0; d < 4; d++) if (lcdbtn(0x150u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) gen_line(focus, d);
+        } else if (mode == PS_PAT) {   // A/B/C/D pattern banks (instant switch stopped; bar-quantized queue while playing)
+            static const char *BK[NPAT] = { "A", "B", "C", "D" };
+            int bw = w / NPAT;
+            for (int k = 0; k < NPAT; k++) pat_pad(0x1B0u + focus * 8 + k, x + k * bw, y, bw - 1, h, BK[k], focus, k);
         }
     } else if (focus <= M_909) {
         int mode = dscreen;
@@ -2549,6 +2553,10 @@ static void r2_subrow(Box r, int focus) {
             static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
             int bw = w / 4;
             for (int d = 0; d < 4; d++) if (lcdbtn(0x170u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) { if (focus == M_808) gen_drums(d); else gen_drums9(d); }
+        } else if (mode == DS_PAT) {   // A/B/C/D pattern banks for the focused drum machine
+            static const char *BK[NPAT] = { "A", "B", "C", "D" };
+            int bw = w / NPAT;
+            for (int k = 0; k < NPAT; k++) pat_pad(0x1B0u + focus * 8 + k, x + k * bw, y, bw - 1, h, BK[k], focus, k);
         }
     }
     // MST: no submenu (the PCF/CRU/GAT lane IS the editor)
@@ -2573,13 +2581,13 @@ static void r2_bigscreen(Box c, int focus) {
     // soft-key row — switches the shared screen's CONTENT for the focused machine (lit = active view).
     int ky = y + h - 11;
     if (focus <= M_303B) {
-        static const char *K[3] = { "SEQ", "FLAG", "GEN" }; static const int MO[3] = { PS_SEQ, PS_FLAG, PS_GEN };
-        int kw = (w - 10) / 3;
-        for (int k = 0; k < 3; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
+        static const char *K[4] = { "SEQ", "FLAG", "GEN", "PAT" }; static const int MO[4] = { PS_SEQ, PS_FLAG, PS_GEN, PS_PAT };
+        int kw = (w - 10) / 4;
+        for (int k = 0; k < 4; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
     } else if (focus <= M_909) {
-        static const char *K[3] = { "VCE", "FLAG", "GEN" }; static const int MO[3] = { DS_VCE, DS_FLAG, DS_GEN };
-        int kw = (w - 10) / 3;
-        for (int k = 0; k < 3; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
+        static const char *K[4] = { "VCE", "FLAG", "GEN", "PAT" }; static const int MO[4] = { DS_VCE, DS_FLAG, DS_GEN, DS_PAT };
+        int kw = (w - 10) / 4;
+        for (int k = 0; k < 4; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
     } else {
         static const char *K[4] = { "MIX", "PCF", "CRU", "GAT" };
         int kw = (w - 10) / 4;

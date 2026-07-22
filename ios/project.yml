@@ -29,9 +29,11 @@ targets:
       # single-cart builds — optional means xcodegen just skips it then).
       - path: gen/Assets.xcassets
         optional: true
+    # de:au-begin — AU embed; testflight.sh strips this block when the manifest sets no auCart (AU is opt-in, single-cart standalones ship without it)
     dependencies:
       - target: TinyjamAU       # embed the AUv3 extension into the app's PlugIns
         embed: true
+    # de:au-end
     # NOTE: the app-group entitlement is re-added once the group is registered for automatic
     # provisioning. It blocks plain device signing until then, and the AppGroup UserDefaults
     # suite works without it. (Was: application-groups group.com.tinyjam.)
@@ -76,6 +78,7 @@ targets:
         GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCALE=1]
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
+  # de:au-begin
   TinyjamAU:
     type: app-extension
     platform: iOS
@@ -118,6 +121,7 @@ targets:
                 sandboxSafe: true
                 tags:
                   - Synthesizer
+  # de:au-end
   TinyjamHelloTests:
     type: bundle.unit-test
     platform: iOS

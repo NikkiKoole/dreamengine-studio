@@ -5,6 +5,7 @@
   "icon":     "docs/marketing/tinyjam/icons/tinyjam-icon-1024.png",
   "carts":    ["acidrack", "epiano", "omnichord", "pedalboard", "otamatone"],
   "launcher": "tinyjam-menu",
+  "auCart":   "epiano",
   "listing": {
     "title":    "Tiny Jam: Pocket Music Toys",
     "subtitle": "Make grooves with micro synths",

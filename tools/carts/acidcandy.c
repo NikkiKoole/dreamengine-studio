@@ -2537,11 +2537,7 @@ static void r2_subrow(Box r, int focus) {
             static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
             int bw = w / 4;
             for (int d = 0; d < 4; d++) if (lcdbtn(0x150u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) gen_line(focus, d);
-        } else if (mode == PS_PAT) {   // A/B/C/D pattern banks (instant switch stopped; bar-quantized queue while playing)
-            static const char *BK[NPAT] = { "A", "B", "C", "D" };
-            int bw = w / NPAT;
-            for (int k = 0; k < NPAT; k++) pat_pad(0x1B0u + focus * 8 + k, x + k * bw, y, bw - 1, h, BK[k], focus, k);
-        }
+        }   // 303 banks are the always-visible A/B/C/D buttons in the column, not a screen submenu
     } else if (focus <= M_909) {
         int mode = dscreen;
         if (mode == DS_FLAG) {
@@ -2581,9 +2577,9 @@ static void r2_bigscreen(Box c, int focus) {
     // soft-key row — switches the shared screen's CONTENT for the focused machine (lit = active view).
     int ky = y + h - 11;
     if (focus <= M_303B) {
-        static const char *K[4] = { "SEQ", "FLAG", "GEN", "PAT" }; static const int MO[4] = { PS_SEQ, PS_FLAG, PS_GEN, PS_PAT };
-        int kw = (w - 10) / 4;
-        for (int k = 0; k < 4; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
+        static const char *K[3] = { "SEQ", "FLAG", "GEN" }; static const int MO[3] = { PS_SEQ, PS_FLAG, PS_GEN };   // banks are the column A/B/C/D buttons, not a screen view
+        int kw = (w - 10) / 3;
+        for (int k = 0; k < 3; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
     } else if (focus <= M_909) {
         static const char *K[4] = { "VCE", "FLAG", "GEN", "PAT" }; static const int MO[4] = { DS_VCE, DS_FLAG, DS_GEN, DS_PAT };
         int kw = (w - 10) / 4;
@@ -2603,18 +2599,18 @@ static void r2_col303(Box c, int i) {
     rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].lo);
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);
-    Box meta = lay_split(cc, EDGE_BOTTOM, 20, &cc);
-    Box fx   = lay_split(cc, EDGE_BOTTOM, 30, &cc);
+    Box meta = lay_split(cc, EDGE_BOTTOM, 30, &cc);   // voicing+WAVE row · A/B/C/D banks · KEY
+    Box fx   = lay_split(cc, EDGE_BOTTOM, 26, &cc);
     // acid knobs, 2-wide (filter pair CUT|RES together). CORE page = CUT/RES/ENV/DEC/ACC. In Devil
-    // Fish voicing a page tab reveals the DEEP page — the extra DF knobs SUB/ADEC/SLDT/TRK + a
-    // SAW/SQR WAVE toggle (their own labels); vanilla has no deep page (kpage stays 0).
+    // Fish voicing a page tab reveals the DEEP page — the extra DF knobs SUB/ADEC/SLDT/TRK. (WAVE is
+    // a CORE control, so it lives in the meta row below, reachable in BOTH voicings — not on the DF page.)
     int deep = !a->classic && kpage[i];
     if (!a->classic) {   // DF only: the CORE ⟷ DF-knobs page tab
         Box pg = lay_split(cc, EDGE_TOP, 9, &cc);
         if (cbtn(0x1A0u + i, (int)pg.x, (int)pg.y, (int)pg.w - 1, 8, deep ? "DF KNOBS" : "CORE", deep)) kpage[i] = !kpage[i];
     }
-    Box accr = lay_split(cc, EDGE_BOTTOM, cc.h / 3, &cc);     // bottom row: ACC (core) / WAVE (deep)
     if (!deep) {
+        Box accr = lay_split(cc, EDGE_BOTTOM, cc.h / 3, &cc);     // ACC on its own centred row
         static const int AK[4] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC };
         static const char *AN[4] = { "CUT", "RES", "ENV", "DEC" };
         static const float AD[4] = { 0.55f, 0.70f, 0.55f, 0.45f };
@@ -2625,8 +2621,6 @@ static void r2_col303(Box c, int i) {
         static const char *DN[4] = { "SUB", "ADEC", "SLDT", "TRK" };
         static const float DFD[4] = { 0.0f, 0.40f, 0.14f, 0.0f };
         for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[DK[k]], DN[k], DFD[k], mac[m].col);
-        int ww = 34, wh = 10, wx = (int)accr.x + ((int)accr.w - ww) / 2, wy = (int)accr.y + ((int)accr.h - wh) / 2;
-        if (cbtn(0x1A8u + i, wx, wy, ww, wh, a->wave == INSTR_SQUARE ? "SQR" : "SAW", 0)) { a->wave = (a->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW; acid_define(a); }
     }
     // FX trio — a horizontal row so it reads as "the FX", not more core
     line((int)fx.x + 2, (int)fx.y, (int)fx.x + (int)fx.w - 2, (int)fx.y, mac[m].lo);
@@ -2635,20 +2629,34 @@ static void r2_col303(Box c, int i) {
     r2_kcell(lay_grid(fxr, 3, 3, 0, 1), &a->p[ACID_DRV], "DRV", 0.35f, mac[m].col);
     r2_kcell(lay_grid(fxr, 3, 3, 1, 1), &msend[i],       "SND", 0.10f, mac[m].col);
     r2_kcell(lay_grid(fxr, 3, 3, 2, 1), &fxverb[i],      "VRB", 0.0f,  mac[m].col);
-    // CL/DF voicing toggle + KEY label
-    int mx = (int)meta.x, my = (int)meta.y, mw = (int)meta.w;
-    int bw = (mw - 2) / 2, bh = 9, pr = 0, hot = 0, fo = 0;
-    void *wd = ui_wid_hash(0xA0u + i, mx, my, mw, bh);
-    if (ui_button_core(wd, mx, my, mw, bh, &fo, &pr, &hot)) { a->classic = !a->classic; if (a->classic) kpage[i] = 0; acid_define(a); }
+    // meta = 3 rows: [CL/DF voicing + WAVE] · [A/B/C/D pattern banks] · [KEY label].
+    Box keyR  = lay_split(meta, EDGE_BOTTOM, 7, &meta);        // KEY label (bottom)
+    Box bankR = lay_split(meta, EDGE_BOTTOM, 9, &meta);        // A/B/C/D banks
+    int mx = (int)meta.x, my = (int)meta.y, mw = (int)meta.w, bh = 9, pr = 0, hot = 0, fo = 0;
+    // voicing toggle (CL|DF) on the left, WAVE (SAW/SQR — a CORE control) on the right
+    int vw = mw * 3 / 5, cw = (vw - 1) / 2;
+    void *wd = ui_wid_hash(0xA0u + i, mx, my, vw, bh);
+    if (ui_button_core(wd, mx, my, vw, bh, &fo, &pr, &hot)) { a->classic = !a->classic; if (a->classic) kpage[i] = 0; acid_define(a); }
     int df = !a->classic;
-    rrectfill(mx, my, bw, bh, 2, df ? R2_PNL : mac[m].col);          // CL lit when classic
-    rrectfill(mx + bw + 2, my, bw, bh, 2, df ? mac[m].col : R2_PNL); // DF lit when devil-fish
+    rrectfill(mx, my, cw, bh, 2, df ? R2_PNL : mac[m].col);
+    rrectfill(mx + cw + 1, my, cw, bh, 2, df ? mac[m].col : R2_PNL);
     font(FONT_TINY);
-    print("CL", mx + bw / 2 - 4, my + 2, df ? R2_DIM : CLR_BLACK);
-    print("DF", mx + bw + 2 + bw / 2 - 4, my + 2, df ? CLR_BLACK : R2_DIM);
-    print("KEY", mx, my + bh + 2, R2_DIM);
-    print(NOTE[mroot[i]], mx + 18, my + bh + 2, mac[m].col);
-    print(SCALES[mscale[i]].name, mx + 30, my + bh + 2, mac[m].col);
+    print("CL", mx + cw / 2 - 4, my + 2, df ? R2_DIM : CLR_BLACK);
+    print("DF", mx + cw + 1 + cw / 2 - 4, my + 2, df ? CLR_BLACK : R2_DIM);
+    int wx = mx + vw + 2, ww = mw - vw - 2;
+    if (cbtn(0x1A8u + i, wx, my, ww, bh, a->wave == INSTR_SQUARE ? "SQR" : "SAW", 0)) { a->wave = (a->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW; acid_define(a); }
+    // A/B/C/D pattern banks — little always-visible rects (lit = current; blinks = armed while playing)
+    static const char *BK[NPAT] = { "A", "B", "C", "D" };
+    int kw = mw / NPAT;
+    for (int k = 0; k < NPAT; k++) {
+        int lit = (curpat[m] == k) || (armpat[m] == k && ((int)g_phase & 1));
+        if (cbtn(0x1B0u + i * 8 + k, mx + k * kw, (int)bankR.y, kw - 1, (int)bankR.h - 1, BK[k], lit)) pat_queue(m, k);
+    }
+    // KEY label
+    font(FONT_TINY);
+    print("KEY", mx, (int)keyR.y + 1, R2_DIM);
+    print(NOTE[mroot[i]], mx + 18, (int)keyR.y + 1, mac[m].col);
+    print(SCALES[mscale[i]].name, mx + 30, (int)keyR.y + 1, mac[m].col);
 }
 
 // the MASTER knob-column — same shape as a 303: header + master knobs + a 4-channel mini mixer.

@@ -2335,6 +2335,47 @@ static void draw_rack(Box area) {
 #define R2_DIM  CLR_MEDIUM_GREY
 #define R2_PNL  CLR_DARKER_GREY
 
+// the ROOMY knob look the maker prefers (from the mockup): just a black disc + a coloured outline +
+// a white tick — NOT the candy bevel rotary. Same drag FEEL as knob() though (gear/fine pull-out,
+// double-tap = default, wheel), so it's the exact same interaction under a cleaner face.
+static void r2_knob(float *v, int cx, int cy, int r, const char *label, float def, int accent) {
+    ui_reg(v, cx - r, cy - r, 2 * r + 1, 2 * r + 1, 0);
+    UiCap *c = ui_cap_for(v);
+    if (c) { g_drag_frame = ui_frame_ct; g_drag_y = c->cy; }
+    int mi = kmeta_i(v), held = c != 0;
+    if (ui_grabbed(v)) { kmeta[mi].gval = *v; kmeta[mi].gt = now(); }
+    if (c) {
+        if (!c->has_v0) { c->has_v0 = 1; c->v0 = *v; c->by = c->cy; }
+        int py = c->released ? c->ry : c->cy, px = c->released ? c->rx : c->cx;
+        int ox = px - cx; if (ox < 0) ox = -ox;
+        float gear = 1.0f + ox / KNOB_GEAR; if (gear > KNOB_GEARMAX) gear = KNOB_GEARMAX;
+        *v = clamp(c->v0 + (c->by - py) / (KNOB_SWEEP * gear), 0, 1);
+        c->v0 = *v; c->by = py;
+    }
+    if (ui_released(v)) {
+        float rt = now(), dv = *v - kmeta[mi].gval; if (dv < 0) dv = -dv;
+        if (dv < 0.02f && rt - kmeta[mi].gt < 0.25f) {
+            if (rt - kmeta[mi].ltt < 0.35f) { *v = def; kmeta[mi].ltt = -9; } else kmeta[mi].ltt = rt;
+        }
+    }
+    int hot = held || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
+    if (!c && hot && mouse_wheel() != 0) *v = clamp(*v + mouse_wheel() * 0.04f, 0, 1);
+    float ang = 150 + *v * 240;
+    circfill(cx, cy, r, CLR_BLACK);
+    circ(cx, cy, r, (held || hot) ? CLR_WHITE : accent);
+    line(cx, cy, cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), CLR_WHITE);
+    font(FONT_TINY);
+    if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 }; plabel(b, cx, cy + r + 1, accent); }
+    else plabel(label, cx, cy + r + 1, R2_DIM);
+}
+// centre an r2_knob in a cell, label below — the r2 twin of knob_cell.
+static void r2_kcell(Box c, float *v, const char *lab, float def, int accent) {
+    float rh = c.h * 0.40f, rw = c.w * 0.50f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 5, 15);
+    int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    r2_knob(v, (int)(c.x + c.w / 2), cy, r, lab, def, accent);
+}
+
 // header nameplate: tap the body = FOCUS this machine onto the shared screen; the corner LED = MUTE.
 static void r2_header(Box hd, int m) {
     int x = (int)hd.x, y = (int)hd.y, w = (int)hd.w, h = (int)hd.h;
@@ -2346,8 +2387,8 @@ static void r2_header(Box hd, int m) {
         if (ui_button_core(wm, x + w - ledW, y, ledW, h, &fom, &prm, &hotm)) mac[m].mute = !mac[m].mute; }
     rrectfill(x, y, w, h, 2, foc ? mac[m].col : mac[m].lo);
     rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
-    font(FONT_TINY);
-    print(mac[m].name, x + 3, y + (h - 5) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
+    font(FONT_NORMAL);   // the dos_8x8 in-game font reads best on the instrument nameplates (the maker's call)
+    print(mac[m].name, x + 3, y + (h - 8) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
     if (ledW) { int lx = x + w - ledW / 2 - 1, ly = y + h / 2;
         circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
         if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED); }
@@ -2482,14 +2523,14 @@ static void r2_col303(Box c, int i) {
     static const int AK[5] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC, ACID_ACC };
     static const char *AN[5] = { "CUT", "RES", "ENV", "DEC", "ACC" };
     static const float AD[5] = { 0.55f, 0.70f, 0.55f, 0.45f, 0.55f };
-    for (int k = 0; k < 5; k++) knob_cell(lay_grid(cc, 1, 5, k, 1), &a->p[AK[k]], AN[k], AD[k]);
+    for (int k = 0; k < 5; k++) r2_kcell(lay_grid(cc, 1, 5, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
     // FX trio — a horizontal row so it reads as "the FX", not more core
     line((int)fx.x + 2, (int)fx.y, (int)fx.x + (int)fx.w - 2, (int)fx.y, mac[m].lo);
     font(FONT_TINY); print("FX", (int)fx.x + 2, (int)fx.y + 1, R2_DIM);
     Box fxr = lay_split(fx, EDGE_BOTTOM, fx.h - 6, &fx);
-    knob_cell(lay_grid(fxr, 3, 3, 0, 1), &a->p[ACID_DRV], "DRV", 0.35f);
-    knob_cell(lay_grid(fxr, 3, 3, 1, 1), &msend[i],       "SND", 0.10f);
-    knob_cell(lay_grid(fxr, 3, 3, 2, 1), &fxverb[i],      "VRB", 0.0f);
+    r2_kcell(lay_grid(fxr, 3, 3, 0, 1), &a->p[ACID_DRV], "DRV", 0.35f, mac[m].col);
+    r2_kcell(lay_grid(fxr, 3, 3, 1, 1), &msend[i],       "SND", 0.10f, mac[m].col);
+    r2_kcell(lay_grid(fxr, 3, 3, 2, 1), &fxverb[i],      "VRB", 0.0f,  mac[m].col);
     // CL/DF voicing toggle + KEY label
     int mx = (int)meta.x, my = (int)meta.y, mw = (int)meta.w;
     int bw = (mw - 2) / 2, bh = 9, pr = 0, hot = 0, fo = 0;
@@ -2516,7 +2557,7 @@ static void r2_colmst(Box c) {
     float *KV[5] = { &bpm01, &g_swing, &mglu, &mflt, &mpump };
     static const char *KN[5] = { "TMP", "SWG", "GLU", "FLT", "PMP" };
     static const float KD[5] = { 0.5143f, 0.0f, 0.30f, 0.5f, 0.0f };
-    for (int k = 0; k < 5; k++) knob_cell(lay_grid(cc, 1, 5, k, 1), KV[k], KN[k], KD[k]);
+    for (int k = 0; k < 5; k++) r2_kcell(lay_grid(cc, 1, 5, k, 1), KV[k], KN[k], KD[k], mac[M_MST].col);
     // 4-channel mini mixer (303a/303b/808/909 faders) + delay division label
     int mmx = (int)mix.x + 2, mmy = (int)mix.y, fw = ((int)mix.w - 4) / 4;
     static const int MC[4] = { M_303A, M_303B, M_808, M_909 };
@@ -2529,8 +2570,36 @@ static void r2_colmst(Box c) {
 
 // a horizontal drum strip: header + a PAD per voice + FX trio + (909's spare room) the SHARED
 // context panel that edits whichever voice was last picked on either machine, ringed in its colour.
+// the shared VOICE context row (its own full-width band above the drums): the selected voice's
+// knobs (TUN/DEC/⟨char⟩/VOL/PAN/FINE), following whichever pad was last picked on either machine,
+// ringed + labelled in that machine's colour (blue = 808 voice, amber = 909).
+static void r2_ctxrow(Box c) {
+    int sm = r2_selmach, sv = (sm == M_808) ? dsel : d9sel, hi = mac[sm].col;
+    const char *svn = (sm == M_808) ? AB8[sv] : AB9[sv];
+    const char *chn = (sm == M_808) ? CH8[sv] : CH9[sv];
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
+    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, hi);
+    Box cc = lay_inset(c, 2);
+    Box lab = lay_split(cc, EDGE_LEFT, 34, &cc);
+    font(FONT_NORMAL); print((sm == M_808) ? "808" : "909", (int)lab.x, (int)lab.y + 1, hi);
+    font(FONT_TINY);   print(svn, (int)lab.x, (int)lab.y + 11, R2_INK);
+    cc = lay_split(cc, EDGE_LEFT, lay_clamp(6 * 28, 0, cc.w), &cc);   // cluster the 6 knobs next to the label (not a full row), with a little breathing room
+    float *ktun = (sm == M_808) ? &dtune[sv]  : &d9tune[sv];
+    float *kdec = (sm == M_808) ? &ddecay[sv] : &d9decay[sv];
+    float *kcol = (sm == M_808) ? &dcolor[sv] : &d9color[sv];
+    float *kvol = (sm == M_808) ? &dvol[sv]   : &d9vol[sv];
+    float *kpan = (sm == M_808) ? &dpan[sv]   : &d9pan[sv];
+    float *kfin = (sm == M_808) ? &dfine[sv]  : &d9fine[sv];
+    float *K[6] = { ktun, kdec, kcol, kvol, kpan, kfin };
+    const char *N[6] = { "TUN", "DEC", chn ? chn : "COL", "VOL", "PAN", "FINE" };
+    for (int k = 0; k < 6; k++) r2_kcell(lay_grid(cc, 6, 6, k, 1), K[k], N[k], 0.5f, hi);
+}
+
+// a drum PAD row. 808 = the WHITE keys (16, full-width, light); 909 = the BLACK keys (11, narrower
+// + spread across, centred over the 808's gaps, dark) — two SEPARATE rows that read as a keyboard.
+// header (left) + FX trio (right) bracket the keys; both rows share the key x-span so they line up.
 static void r2_drumstrip(Box c, int focus) {
-    int nv = (focus == M_808) ? TR_NV : TR9_NV;
+    int nv = (focus == M_808) ? TR_NV : TR9_NV, black = (focus == M_909);
     int (*grid)[STEPS] = (focus == M_808) ? dgrid : d9grid;
     const char **vn = (focus == M_808) ? AB8 : AB9;
     float *trig = (focus == M_808) ? dtrig : d9trig;
@@ -2541,18 +2610,18 @@ static void r2_drumstrip(Box c, int focus) {
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_LEFT, 30, &cc), focus);
     Box fx = lay_split(cc, EDGE_RIGHT, 66, &cc);
-    // FX trio (DIST/SEND/VERB)
     float *dst = (focus == M_808) ? &dist8 : &dist9;
-    knob_cell(lay_grid(fx, 3, 3, 0, 1), dst,            "DST", 0.0f);
-    knob_cell(lay_grid(fx, 3, 3, 1, 1), &msend[focus],  "SND", 0.10f);
-    knob_cell(lay_grid(fx, 3, 3, 2, 1), &fxverb[focus], "VRB", 0.0f);
-    // the pads — a cell per voice (an instrument, not a step). tap = select + audition-when-stopped.
-    int px0 = (int)cc.x, py = (int)cc.y + 1, ph = (int)cc.h - 2;
-    int stepw = ((int)cc.w) / 16;   // fixed 16-voice reference so both machines share a pad width
-    int pw = stepw - 1;
+    r2_kcell(lay_grid(fx, 3, 3, 0, 1), dst,            "DST", 0.0f,  mac[focus].col);
+    r2_kcell(lay_grid(fx, 3, 3, 1, 1), &msend[focus],  "SND", 0.10f, mac[focus].col);
+    r2_kcell(lay_grid(fx, 3, 3, 2, 1), &fxverb[focus], "VRB", 0.0f,  mac[focus].col);
+    // the keys — tap = select + audition-when-stopped. Same 16-slot pitch on both rows → aligned.
+    int x0 = (int)cc.x, py = (int)cc.y + 1, ph = (int)cc.h - 2, ww = (int)cc.w / 16;
     for (int v = 0; v < nv; v++) {
-        int cx = px0 + v * stepw, active = 0;
-        for (int s = 0; s < STEPS; s++) if (grid[v][s]) { active = 1; break; }
+        int cx, pw;
+        if (black) { int b = (int)((v + 0.5f) * 16.0f / nv + 0.5f);   // 11 black keys spread over the 16-slot span
+                     pw = (ww * 7) / 10; if (pw < 8) pw = 8; cx = x0 + b * ww - pw / 2; }
+        else       { pw = ww - 1; cx = x0 + v * ww; }
+        int active = 0; for (int s = 0; s < STEPS; s++) if (grid[v][s]) { active = 1; break; }
         int firing = trig[v] > 0.05f, pr = 0, hot = 0, fo = 0;
         void *w = ui_wid_hash(0xB0u + focus * 32 + v, cx, py, pw, ph);
         if (ui_button_core(w, cx, py, pw, ph, &fo, &pr, &hot)) {
@@ -2560,30 +2629,13 @@ static void r2_drumstrip(Box c, int focus) {
             if (focus == M_808) { dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
             else                { d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
         }
-        int col = firing ? CLR_WHITE : (mut[v] ? CLR_DARKER_PURPLE : (active ? mac[focus].col : CLR_DARK_GREY));
-        rectfill(cx, py, pw, ph, active && !mut[v] ? mac[focus].lo : CLR_BLACK);
-        rect(cx, py, pw, ph, (hot || (v == sel && focus == r2_selmach)) ? CLR_WHITE : col);
+        int selhere = (v == sel && focus == r2_selmach), fill, ink;
+        if (black) { fill = firing ? CLR_WHITE : (mut[v] ? CLR_DARKER_PURPLE : (active ? mac[focus].col : CLR_BROWNISH_BLACK)); ink = active ? CLR_BLACK : mac[focus].col; }
+        else       { fill = firing ? CLR_WHITE : (mut[v] ? CLR_DARKER_PURPLE : (active ? mac[focus].col : CLR_LIGHT_GREY));     ink = CLR_BLACK; }
+        rectfill(cx, py, pw, ph, fill);
+        rect(cx, py, pw, ph, (hot || selhere) ? CLR_WHITE : mac[focus].lo);
         if (mut[v]) line(cx, py, cx + pw, py + ph, CLR_RED);
-        font(FONT_TINY); print(vn[v], cx + (pw - 8) / 2, py + (ph - 5) / 2, col);
-    }
-    // shared context panel in the 909's spare room (nv < 16): follows the last-picked voice
-    if (nv < 16) {
-        int sm = r2_selmach, sv = (sm == M_808) ? dsel : d9sel, shi = mac[sm].col;
-        const char *svn = (sm == M_808) ? AB8[sv] : AB9[sv];
-        const char *chn = (sm == M_808) ? CH8[sv] : CH9[sv];
-        float *ktun = (sm == M_808) ? &dtune[sv] : &d9tune[sv];
-        float *kdec = (sm == M_808) ? &ddecay[sv] : &d9decay[sv];
-        float *kcol = (sm == M_808) ? &dcolor[sv] : &d9color[sv];
-        float *kvol = (sm == M_808) ? &dvol[sv] : &d9vol[sv];
-        int fx0 = px0 + nv * stepw + 4, fw = (int)cc.x + (int)cc.w - fx0;
-        Box p = box(fx0, (int)cc.y, fw, (int)cc.h);
-        rect((int)p.x, (int)p.y, (int)p.w - 1, (int)p.h - 1, shi);
-        font(FONT_TINY); print(svn, (int)p.x + 2, (int)p.y + 1, shi);
-        Box pk = box(p.x, p.y + 7, p.w, p.h - 8);
-        knob_cell(lay_grid(pk, 4, 4, 0, 1), ktun, "TUN", 0.5f);
-        knob_cell(lay_grid(pk, 4, 4, 1, 1), kdec, "DEC", 0.5f);
-        knob_cell(lay_grid(pk, 4, 4, 2, 1), kcol, chn ? chn : "COL", 0.5f);
-        knob_cell(lay_grid(pk, 4, 4, 3, 1), kvol, "VOL", 0.5f);
+        font(FONT_TINY); print(vn[v], cx + (pw - 8) / 2, py + (ph - 5) / 2, ink);
     }
 }
 
@@ -2591,9 +2643,10 @@ static void draw_rack2(Box area) {
     Box stage = area;
     Box bar = lay_split(stage, EDGE_TOP, 16, &stage);          // transport
     Box leg = lay_split(stage, EDGE_BOTTOM, 8, &stage);        // legend
-    float dh = stage.h * 0.145f;                               // two drum strips at the bottom
-    Box d808 = lay_split(stage, EDGE_BOTTOM, dh, &stage);
-    Box d909 = lay_split(stage, EDGE_BOTTOM, dh, &stage);
+    float dh = stage.h * 0.125f;                               // each drum key-row (808 white / 909 black)
+    Box d808 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // white keys at the very bottom
+    Box d909 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // black keys just above
+    Box ctx  = lay_split(stage, EDGE_BOTTOM, stage.h * 0.15f, &stage);   // the shared VOICE knob row (this is what makes the screen a little less tall)
     // middle band: [303a | 303b | SCREEN | MST]
     float colw = lay_clamp(area.w * 0.135f, 44, 72);
     Box c3a = lay_split(stage, EDGE_LEFT, colw, &stage);
@@ -2602,7 +2655,7 @@ static void draw_rack2(Box area) {
     Box scr = stage;
     // transport bar
     rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);
-    font(FONT_SMALL); print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)bar.h / 2 - 3, CLR_LIGHT_PEACH);
+    font(FONT_NORMAL); print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)bar.h / 2 - 4, CLR_LIGHT_PEACH);
     { int pw = 24, ph = (int)bar.h - 4, px = (int)(bar.x + bar.w) - pw - 3, py = (int)bar.y + 2;
       void *wid = ui_wid_hash(0x2Fu, px, py, pw, ph); int pr = 0, hot = 0, fo = 0;
       if (ui_button_core(wid, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1; for (int m = 0; m < M_N; m++) armpat[m] = -1; }
@@ -2625,8 +2678,9 @@ static void draw_rack2(Box area) {
     r2_col303(c3b, 1);
     r2_bigscreen(scr, r2_focus);
     r2_colmst(cms);
-    { Box d = d909; d.x += 1; d.w -= 2; r2_drumstrip(d, M_909); }
-    { Box d = d808; d.x += 1; d.w -= 2; r2_drumstrip(d, M_808); }
+    r2_ctxrow(ctx);
+    { Box d = d909; d.x += 1; d.w -= 2; r2_drumstrip(d, M_909); }   // black keys (top)
+    { Box d = d808; d.x += 1; d.w -= 2; r2_drumstrip(d, M_808); }   // white keys (bottom)
     font(FONT_TINY); print("STICKY FOCUS \x7f tap a nameplate to put that machine on the big screen; play stays live", (int)leg.x + 3, (int)leg.y + 1, R2_DIM);
     font(FONT_SMALL);
 }

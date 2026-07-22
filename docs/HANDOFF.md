@@ -82,6 +82,16 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > **NEXT (the maker's call):** prove a ROOMY branch on a REAL cart — `acidcandy` (a 4-machine rack, D/B the
 > likely pick) turns the mockup into a shipped tablet arrangement and hardens the grammar once more; OR
 > **Layer 4** (make face.h the default), worth it only once L3 is judged proven enough.
+> **acidcandy ROOMY layout MOCKED (2026-07-22, draw-only) → [`acidcandy_ipad`](../tools/carts/acidcandy_ipad.c).**
+> Maker-driven ground-up iPad layout, all 5 machines at once (NOT the roomyface tiles): narrow 303a/303b +
+> MASTER knob-strips bracket a big shared SCREEN; 808(16)/909(11) as pad-bank strips stacked at the bottom.
+> **STICKY FOCUS** (tap a nameplate → that machine's DEEP editor fills the screen; play stays live for all).
+> Screen per focus: 303 = tb303 note-grid (colour=accent, shape=oct/slide/tie); drum = 2D voice-grid; MST =
+> automation lanes. Drums have no column, so the bottom strip = voice PADS + one SHARED colour-coded context
+> panel (in the 909's spare room) that follows the last-picked voice on either machine (blue=808 / yellow=909).
+> Full model + the OPEN questions (drum VCE home, 303 pitch-gutter, 808 grid cell size) are in the cart's
+> `de:meta`; run `node tools/orient.js acidcandy_ipad`. **NEXT = maker locks the screen model, then WIRE the
+> real cart** — data shapes are concrete (per-step degree/acc/slide/oct/tie for 303s, voice×step for drums).
 > **Resume-at:** [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest).
 > Hot files: `runtime/face.h` · `runtime/lay.h` · `runtime/ui.h` (shared — targeted `Edit`s only, the sound.h rule applies).
 

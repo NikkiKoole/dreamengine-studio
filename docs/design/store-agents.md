@@ -1,7 +1,9 @@
 # Store agents — the judgment layer above the App Store pipeline
 
-STATUS: BUILDING (2026-07-03) — the free ASO/press/share **toolchain + its editor surface
-SHIPPED** today (ledger: [`../STATUS.md`](../STATUS.md)). Captures the *agentic* half of App
+STATUS: BUILDING (2026-07-03; FIRST SHIP 2026-07-22) — the free ASO/press/share **toolchain + its editor surface
+SHIPPED** (ledger: [`../STATUS.md`](../STATUS.md)). **2026-07-22: the first app went end-to-end to "Submitted"**
+(Tiny Pedalboard) — `asc-push` grew `--category/--age-rating/--price/--content-rights/--review-contact` +
+privacyPolicyUrl + network retries; the verified path is the "First-submission runbook" below (App Privacy is the lone web-UI step). Captures the *agentic* half of App
 Store deployment — the work that decides whether an app gets **accepted** and **discovered**,
 which a REST client can't do. [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)
 decided the plumbing (in-house ASC API tool, not Fastlane); this doc is the layer above it.
@@ -243,6 +245,43 @@ exists, what's a paywalled moat, what we build).
   new/fixed mechanically → a changelog.
 - *Agent:* write the player-facing sentence in the project's actual tone from that
   changelog. The script lists; only the agent writes the line.
+
+### First-submission runbook — VERIFIED end-to-end 2026-07-22 (Tiny Pedalboard, the first ship)
+
+The ordered path from a green cart to "Submitted", and — crucially — **what `asc-push` now
+automates vs. what is web-UI-only**. Every step below was run for real; the tool grew the
+`--category / --age-rating / --price / --content-rights / --review-contact` actions here.
+
+1. **Create the app record** — ASC web UI (Apps → +). `asc-push` finds the app by `bundleId` and
+   *dies* if it doesn't exist yet; it can't create it. One-time, manual.
+2. **Push the whole product surface** — one command each, all idempotent, `--dry-run` first:
+   `asc-push <app> --metadata` (name/subtitle/keywords/description/promo/URLs/copyright **+
+   privacyPolicyUrl**) · `--screenshots` · `--category` (default MUSIC) · `--age-rating` (4+) ·
+   `--price` (manifest `price`) · `--content-rights` (default: no third-party content) ·
+   `--review-contact` (manifest `review` {firstName,lastName,phone,email}).
+3. **Upload a build** — `cd ios && APP=<app> ./testflight.sh` (env var, not an arg). Processing
+   takes 5–30 min before it's attachable.
+4. **App Privacy** — ⚠ **WEB-UI ONLY.** The `appDataUsages*` endpoints 404 with an App-Manager
+   key (Admin-gated), so `asc-push` cannot touch it. App Privacy → answer → **Publish**. Not
+   publishing it is a silent "Unable to Add for Review" blocker.
+5. **Add for Review → Submit** — attach the build, submit.
+
+**The three gates that block "Add for Review" (and bit us last, at the end):** Content Rights,
+Contact Information, and App Privacy. #2's `--content-rights` + `--review-contact` clear the first
+two by API; App Privacy is the lone manual one.
+
+**Gotchas, all learned the hard way:**
+- **Build version MUST equal the ASC version string.** A `0.1` build won't attach to a `1.0`
+  store version — Apple only lists version-matched builds. Keep manifest `version` == the ASC version.
+- **Age rating: EVERY field is required** (a 409 enumerates the missing ones). Frequency fields take
+  `NONE`, capability flags take `false` → 4+. The full set is `AGE_RATING_4PLUS` in `asc-push.js`.
+- **App price points:** `/v1/apps/{id}/appPricePoints` (v1, not v2), and `limit` maxes at **200**
+  (not 8000 like the IAP endpoint).
+- **Screenshots cascade:** upload only to the largest iPhone slot (`APP_IPHONE_67`); ASC auto-fills
+  6.5"/6.1"/5.5" ("Using 6.9" Display" is normal, not an error). Filenames map by device key
+  (`<label>-iphone69.png`), and landscape dims are valid for a landscape app.
+- **Network:** the ASC API blips `fetch failed` intermittently from some sandboxes — `asc-push`'s
+  `api()` now retries network-level failures (never HTTP errors).
 
 ### Post-launch — deployment doesn't end at submit
 

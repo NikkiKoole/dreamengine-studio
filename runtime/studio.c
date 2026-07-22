@@ -5504,21 +5504,39 @@ void thicklineoutline(int x1, int y1, int x2, int y2, int w, int color) {
     thick_draw(x1, y1, x2, y2, w, color, true);
 }
 
+// outline = pixels inside that have at least one outside 4-neighbour.
+static inline int rrect_edge(int px, int py, int x, int y, int w, int h, int r) {
+    return rrect_inside(px,py,x,y,w,h,r) &&
+        (!rrect_inside(px-1,py,x,y,w,h,r) || !rrect_inside(px+1,py,x,y,w,h,r) ||
+         !rrect_inside(px,py-1,x,y,w,h,r) || !rrect_inside(px,py+1,x,y,w,h,r));
+}
 void rrect(int x, int y, int w, int h, int r, int color) {
     PROF("rrect");
     if (r <= 0) { rect(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
-    // outline = pixels inside that have at least one outside 4-neighbour.
-    // Scan box clamped to the visible region — skipped pixels are off-viewport (byte-identical).
-    int sx0 = x, sy0 = y, sx1 = x + w - 1, sy1 = y + h - 1;
-    poly_clamp_scan(&sx0, &sy0, &sx1, &sy1);
-    for (int py = sy0; py <= sy1; py++)
-        for (int px = sx0; px <= sx1; px++)
-            if (rrect_inside(px,py,x,y,w,h,r) &&
-                (!rrect_inside(px-1,py,x,y,w,h,r) || !rrect_inside(px+1,py,x,y,w,h,r) ||
-                 !rrect_inside(px,py-1,x,y,w,h,r) || !rrect_inside(px,py+1,x,y,w,h,r)))
-                pset(px, py, color);
+    if (fp_on) {   // fillp: the outline is solid pset regardless, so keep the exact per-pixel path (rare)
+        int sx0 = x, sy0 = y, sx1 = x + w - 1, sy1 = y + h - 1;
+        poly_clamp_scan(&sx0, &sy0, &sx1, &sy1);
+        for (int py = sy0; py <= sy1; py++)
+            for (int px = sx0; px <= sx1; px++)
+                if (rrect_edge(px,py,x,y,w,h,r)) pset(px, py, color);
+        return;
+    }
+    // FAST: the four straight edges as solid 1px rect primitives (was an O(w×h) scan that plot'd
+    // the perimeter one GPU vertex per pixel); ONLY the four r×r corner arcs stay per-pixel.
+    // Edges + corner squares tile the perimeter exactly and disjointly, so this is pixel-identical.
+    if (w - 2*r > 0) { rectfill(x + r, y,         w - 2*r, 1, color);      // top edge
+                       rectfill(x + r, y + h - 1, w - 2*r, 1, color); }    // bottom edge
+    if (h - 2*r > 0) { rectfill(x,         y + r, 1, h - 2*r, color);      // left edge
+                       rectfill(x + w - 1, y + r, 1, h - 2*r, color); }    // right edge
+    for (int cy = 0; cy < r; cy++)
+        for (int cx = 0; cx < r; cx++) {
+            int cpx[4] = { x + cx, x + w - 1 - cx, x + cx,         x + w - 1 - cx };
+            int cpy[4] = { y + cy, y + cy,         y + h - 1 - cy, y + h - 1 - cy };
+            for (int k = 0; k < 4; k++)
+                if (rrect_edge(cpx[k], cpy[k], x, y, w, h, r)) pset(cpx[k], cpy[k], color);
+        }
 }
 
 void rrectfill(int x, int y, int w, int h, int r, int color) {

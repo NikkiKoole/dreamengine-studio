@@ -2658,9 +2658,9 @@ static void r2_keyboard(Box b, int i) {
     static const int   WMIDI[7] = { 0, 2, 4, 5, 7, 9, 11 };
     static const char *WN[7]    = { "C", "D", "E", "F", "G", "A", "B" };
     static const int   BK[5][2] = { { 1, 1 }, { 3, 2 }, { 6, 4 }, { 8, 5 }, { 10, 6 } };  // {root midi, white index it sits left of}
-    int bx = (int)b.x, by = (int)b.y, bw = (int)b.w, bh = (int)b.h, ww = bw / 7;
+    int bx = (int)b.x, by = (int)b.y, bh = (int)b.h, ww = (int)b.w / 7; if (ww > 20) ww = 20;   // cap the key width so the keyboard is compact (not stretched full-width)
     for (int k = 0; k < 7; k++) {                     // white keys (full height)
-        int px = bx + k * ww, pw = (k == 6) ? (bx + bw - px - 1) : ww - 1, lit = (mroot[i] == WMIDI[k]);
+        int px = bx + k * ww, pw = ww - 1, lit = (mroot[i] == WMIDI[k]);
         int pr = 0, hot = 0, fo = 0; void *w = ui_wid_hash(0x250u + k, px, by, pw, bh);
         if (ui_button_core(w, px, by, pw, bh, &fo, &pr, &hot)) mroot[i] = WMIDI[k];
         rrectfill(px, by, pw, bh, 1, lit ? CLR_LIME_GREEN : CLR_DARK_GREEN);

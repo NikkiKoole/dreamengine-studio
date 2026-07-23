@@ -18,6 +18,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick it (auditions only while stopped; while playing, light REC to hear taps) — a machine-scoped screen (GEN/PAT/PERF/KIT) snaps to VCE on a voice tap, a voice-scoped one (VCE/FLAG) stays put; VCE shows TUNE/DEC/[character]/VOL/PAN/FINE (character where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK); the picker shows the whole roster in one row (all 16/11 voices, acid order); MUT (left column, tap=latch / hold=momentary) flips pad taps to DIRECT per-voice mute — orange pad rims while live; the far-right REC latch (same grammar) punches pad taps onto the current step while playing; left soft-keys VCE/FLAG + MUT, right GEN/PAT/PERF/KIT (the generate menu = CLEAR / MIN / MID / BUSY, KIT = the minimap). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND; a little DUB pad in the bottom-right corner momentarily throws the delay (HOLD + drag: X = time, Y = feedback)."
   },
   "todo": [
+    "SWEEP macro: SHIPPED on PHONE (2026-07-23) — a whole-mix phaser/flanger for breakdown risers, on a new MST 'SWP' LCD page (5th left soft-key, mstflow 6). Controls: a FLG/PHS flavour toggle (FLG = metallic jet, PHS = hollow swirl) + tempo-synced rate (1/2/4-BAR buttons) on top, SWEEP (mix/depth macro) + FB (feedback = the 'mental' intensity) knobs below. The engine's own LFO does the swirl (srate = g_bpm/(240*bars)); flanger()/phaser() are set-and-hold, reconfigured only on change in apply_fx (fx-frame lint clean), FLG+PHS mutually exclusive (idle one held dry). State: msweep/msweepfb/mswmode/mswdiv. Verified audible: sweep-on vs off WAV correlate 0.55 (same take, phaser-notched texture), no NaN. OPEN: (1) mirror it into the iPad ROOMY view (r2_colmst) — the maker wants features in BOTH views; (2) NOT in the SONG snapshot yet (deferred with the rest of SAVE); (3) play-feel tuning — default flavour (PHS), depth curve (0.55+0.45*mix), fb scale (*0.9), and whether it wants a per-303 phaser too are all ear-check candidates; (4) maybe a drawable SWEEP automation lane (draw the riser per-step) as the PCF/CRU/GAT sibling.",
     "FOR ANOTHER TIME — SOLO in the MUT grammar (parked 2026-07-22; the maker LIKES the new MUT latch, build on it): now that MUT is a clatch pad-latch (tap=latch / hold=momentary, pads mute directly), SOLO is the natural sibling. Candidate shapes, pick on play-feel: (a) a SOLO latch key — but the left col is full (VCE/FLAG/MUT), so either a half-height MUT/SOL stack or a second state ON the MUT key (tap again while latched = solo mode, a different colour); (b) a gesture while MUT is live — e.g. tap = mute, hold a pad = solo it (note: solo drops are beat-critical too, so if hold feels late here the same way hold-to-mute did, prefer shape a); (c) machine-level: hold/latch a cartridge LED to solo that machine (mute the rest) — the cheap live win already suggested in the mute-SCENES entry. Whatever the shape, the semantics: solo = mute everything else BUT remember the hand-set mute pattern, un-solo = restore it (don't wipe the maker's mutes).",
     "SESSION 2026-07-22 — drum-face PANEL RESHUFFLE / pad-tool dissolution (SHIPPED): the far-right 4-way PICK/PLAY/MUTE/REC cycle tool is GONE (a hidden meta-mode — the maker forgot it existed, remembered it as 3-way; mute was buried 2-3 taps into the cycle). (1) PICK+PLAY merged into the DEFAULT pad tap = SELECT + audition-when-STOPPED. (CORRECTED same day: the first cut auditioned while playing too — the maker flagged that the old PICK-silent-during-playback rule was DELIBERATE, an off-grid hit smears the running groove and was exactly why PLAY existed as the audible opt-in. Now: playing + no REC = silent select; REC lit = the tap fires audibly AND punches the step — REC absorbed PLAY's job.) (2) MUTE = a MUT key in the LEFT soft-key column with the PERF-lens grammar via clatch() (the new candy-chassis twin of lcdlatch): TAP=latch (white border) / HOLD=momentary — each pad tap then mutes DIRECTLY, no hold delay (hold-to-mute was tried earlier and REJECTED: live mutes must land on the beat); the picker pad rims tint ORANGE while MUT is live (a mini mode-hint-outline). (3) REC = a dedicated red latch strip where the tool was (same tap=latch/hold=momentary; on touch, hold REC with the thumb + tap pads = momentary punch-in); lit + playing → a pad tap also writes the current step. (4) SCOPE-AWARE stickiness: a voice tap snaps machine-scoped screens (GEN/PAT/PERF/KIT) to VCE, voice-scoped ones (VCE/FLAG) stay sticky — fixes 'select a voice, then also tap VCE' WITHOUT breaking flag-painting across voices (the earlier always-snap-to-VCE attempt broke exactly that). (5) columns now honest to scope: LEFT = the voice (VCE/FLAG/MUT), RIGHT = the machine (GEN/PAT/PERF/KIT — KIT moved right; it was the one machine key masquerading as a voice key). PLAY-TEST WATCHLIST: latched-MUT footgun (next 'select' tap mutes instead — mitigated by white border + orange rims, but maybe auto-unlatch after N idle seconds if it bites); the 909's orange MUT rims on amber pads (contrast); 4 right keys = shorter buttons.",
     "SESSION 2026-07-21 — PERF / GEN / voice-panel overhaul (SHIPPED): (1) 303 PERF reworked to HALF + OCT (octave-down every OTHER step, the acid bounce) + REV (reverse the read) + ROLL (HOLD-to-stutter the last played note, HALF-aware rate); the 2X/8-12 speeds AND the AC3/AC4 accent cross-rhythms were tried and DROPPED (not musical — the maker's call). (2) DRUM PERF layer added, per machine (a PERF soft-key on 808/909): beat-repeat RP1/RP2/RP4 (grid-locked N-step slice loop via drum_effstep), DENSITY THIN (kit → downbeats+accents) / BUSY (fill the SELECTED voice's off-16ths), ACC (accent all). Grid-locked by construction (flows through the step grid, not a retrig clock). (3) 303 reverb tank retuned warm-hall → bright PLATE (reverb(0.45,0.22)) for the modern stab space. (4) MST CLR is now a small TOP-RIGHT CORNER overlay on the PCF/CRUSH/GATE lanes (columns beneath it clip their capture) — no longer steals a header row. (5) 808/909 VCE now folds in MIX = ONE panel (TUNE/DEC/[CHAR]/VOL/PAN/FINE) + a per-voice MUTE toggle in the header + a proper VCE soft-key (left col VCE/KIT/FLAG); the MIX soft-key is RETIRED (DS_MIX enum kept, unused). (6) GEN rewritten into an ACID-RIFF generator (gen_line): a scale-degree MOTIF repeated across the bar, octave climb on the last repeat, root-anchored accented downbeat, slides gliding between neighbours, key/scale-aware (mscale). (7) responsive polish on the 303 face: one shared right-column width (DF switch aligns with GEN/KEY/PAT), even soft-key spacing (colcell), PERF/PAT bottom-aligned to the glass; nav cartridge labels no longer spill left on tall/square window ratios. (8) the 303 BARS→GRID toggle is HIDDEN (static grid_view_on=0 — note-bars are the shipping view; the editable GRID is kept intact, flip to expose). REMAINING OPEN (punch-list): DRIFT knob (below); DUB-pad + GATE-lane EAR-CHECKS (GATE wants a master VOLUME to ride = the level[] master-vol TODO); per-step 303 CUT/RES p-lock lanes; exact-BPM entry (tap/±); LIVE/step record; a SOLO gesture; the drvmode waveshaper; mode HINT-OUTLINES; the SONG layer + SAVE/LOAD (deferred until the feature-set stabilises → one state struct first); the mascot/SOUL; the iPad ROOMY tablet layout.",
@@ -260,7 +261,9 @@ static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB f
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
 static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
-static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane
+static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 6 = SWEEP macro
+static float msweep = 0.0f, msweepfb = 0.5f;                // master SWEEP: mix/depth macro (0 = off) + feedback (the "mental" intensity). Whole-mix phaser/flanger for breakdown risers
+static int   mswmode = 1, mswdiv = 0;                       // SWEEP flavour (0 = FLG metallic jet, 1 = PHS hollow swirl) + rate div (0 = 1-bar, 1 = 2-bar, 2 = 4-bar sweep, tempo-synced)
 
 // ── PATTERN BANKS (ARRANGEMENT) ──────────────────────────────────────────────
 // PER-MACHINE A/B/C/D slots. A pattern stores only the SEQUENCE (steps + per-step
@@ -424,6 +427,23 @@ static void apply_fx(void) {
         if (pumping) sidechain(0, 0, mpump, 1, 140);
         else         glue(0, mglu < 0.02f ? 0.0f : mglu * 0.55f, 8, 150);
         aMode = mode; aComp = arg;
+    }
+    // master SWEEP — a whole-mix phaser/flanger for breakdown risers. The engine's own LFO does the
+    // swirl (rate = a tempo-synced bar division); the SWEEP knob sets mix+depth, FB the resonance/
+    // "mental" intensity, FLG/PHS the flavour. Set-and-hold (flanger()/phaser() rebuild DSP — not
+    // ride-safe): reconfigured only on a control change. FLG + PHS are mutually exclusive (the idle one
+    // is held dry) so the two never stack.
+    static float aSwp = -2, aSwpFb = -2, aSwpRate = -2; static int aSwpMode = -3;
+    {
+        static const float SBARS[3] = { 1.0f, 2.0f, 4.0f };
+        float srate = g_bpm / (240.0f * SBARS[mswdiv]);        // Hz: one LFO cycle per N bars (4 beats/bar)
+        if (msweep != aSwp || msweepfb != aSwpFb || mswmode != aSwpMode || srate != aSwpRate) {
+            float mix = msweep, dep = 0.55f + 0.45f * msweep, fb = msweepfb * 0.9f;
+            if (msweep < 0.02f)    { flanger(0.3f, 0, 0, 0);     phaser(0.4f, 0, 0, 0, 6); }              // off → both dry
+            else if (mswmode == 0) { phaser(0.4f, 0, 0, 0, 6);   flanger(srate, dep, fb, mix); }          // FLG jet
+            else                   { flanger(0.3f, 0, 0, 0);     phaser(srate, dep, fb, mix, 6); }        // PHS swirl
+            aSwp = msweep; aSwpFb = msweepfb; aSwpMode = mswmode; aSwpRate = srate;
+        }
     }
     // per-machine REVERB sends — 303s into the warm hall (tank 0, sub stays dry),
     // drums into their own plates with the KICK hard-excluded (else it muds the floor).
@@ -1743,9 +1763,11 @@ static void draw_mst(Box stage) {
     knob_cell(lay_grid(krow, 6, 6, 5, 2), &g_swing, "SWG",  0.0f);
 
     // ③ soft-keys — LEFT margin: the 4 LCD views (MIX + the PCF/CRUSH/GATE lanes).
-    { static const char *L[4] = { "MIX", "PCF", "CRU", "GAT" };
-      for (int k = 0; k < 4; k++) { Box c = lay_grid(skcL, 1, 4, k, 2);
-          if (cbtn(0x20u + k, (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == k)) mstflow = k; } }
+    { static const char *L[5] = { "MIX", "PCF", "CRU", "GAT", "SWP" };
+      static const int   Lm[5] = { 0, 1, 2, 3, 6 };                       // SWP = the sweep macro page (mstflow 6)
+      static const unsigned Ls[5] = { 0x20u, 0x21u, 0x22u, 0x23u, 0x2Au };
+      for (int k = 0; k < 5; k++) { Box c = lay_grid(skcL, 1, 5, k, 2);
+          if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == Lm[k])) mstflow = Lm[k]; } }
     // ③b RIGHT margin — the SIDE-BUTTON column: a BIG GEN, a little SAVE, then the DELAY divisions (compact = less prominent)
     { Box gcell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.30f, 1, &rcol);   // 1px gaps (lay_split_gap) so GEN/SAVE/ratios all sit apart evenly
       if (cbtn(0x24u, (int)gcell.x, (int)gcell.y, (int)gcell.w, (int)gcell.h, "GEN", mstflow == 4)) mstflow = 4; }
@@ -1828,6 +1850,18 @@ static void draw_mst(Box stage) {
             if (used) circfill(x + w - 4, y + 4, 1, (i == cur) ? CLR_WHITE : CLR_LIME_GREEN);
         }
         print("tap load  hold save", (int)hint.x, (int)hint.y, CLR_MEDIUM_GREEN);
+    } else if (mstflow == 6) {
+        // SWEEP — the whole-mix phaser/flanger MACRO (breakdown riser). Flavour toggle + tempo-synced
+        // rate on top; the SWEEP (mix/depth) + FB (feedback = the "mental" intensity) knobs below. The
+        // engine's own LFO does the swirl — turn SWEEP up and the mix whooshes on its own.
+        Box top  = lay_split(gc, EDGE_TOP, gc.h * 0.42f, &gc);
+        Box mbtn = lay_split(top, EDGE_LEFT, top.w * 0.40f, &top);
+        if (lcdbtn(0x70u, (int)mbtn.x, (int)mbtn.y, (int)mbtn.w - 2, (int)mbtn.h, mswmode ? "PHS" : "FLG", 1)) mswmode = !mswmode;
+        static const char *RB[3] = { "1BAR", "2BAR", "4BAR" };
+        for (int r = 0; r < 3; r++) { Box c = lay_grid(top, 3, 3, r, 1);
+            if (lcdbtn(0x71u + r, (int)c.x, (int)c.y, (int)c.w - 1, (int)c.h, RB[r], mswdiv == r)) mswdiv = r; }
+        lcdknob_cell(lay_grid(gc, 2, 2, 0, 2), &msweep,   "SWEEP", 0.0f);
+        lcdknob_cell(lay_grid(gc, 2, 2, 1, 2), &msweepfb, "FB",    0.5f);
     } else {
         // PCF / CRUSH / GATE — a drawable 16-step master lane (mstflow 1/2/3), spread across the glass.
         // PCF = tone (green), CRUSH = texture (orange), GATE = chop (pink); full bar = no effect.

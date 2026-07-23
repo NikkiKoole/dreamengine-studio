@@ -27,7 +27,7 @@
     "Bass SOLO mode: play a truly independent bassline off the keybed (the real Orchid's long-press-Bass 'take the bassline for a walk'), separate from the chord root. Follow=root + the manual UP/DOWN bass-voicing walk are already in.",
     "Two voicing DIALS on the panel: give LEAD and BASS each a proper on-screen dial (the walk logic for both already exists — this is the UI surface, matching the Orchid's two physical dials).",
     "Live re-voice of a HELD chord: turning the lead voicing dial while a chord rings should GLIDE the held notes to the new voicing (note_pitch, no re-attack) — a fourth feel beyond the PLAY STYLE seam (SIMPLE silent / ADVANCED re-fire-on-quality / FREE re-fire-on-any).",
-    "SEAM decisions (SEAM:harmony, SEAM:trigger): experimental Orchid-faithful forks kept side by side, flippable live in the LAB overlay (` key or the LAB chip top-right) so you can A/B by ear then decide. Once a favourite emerges, keep the chosen branch and delete the LAB block + losing branches (grep the tag). Candidate to reconsider: is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)?",
+    "SEAM decisions (SEAM:harmony chromatic|diatonic, SEAM:trigger SIMPLE|ADV|FREE, SEAM:voicing CASCADE|ACCIDENT): experimental Orchid-faithful forks kept side by side, flippable live in the LAB overlay (` key or the LAB chip top-right) so you can A/B by ear then decide. Once a favourite emerges, keep the chosen branch and delete the LAB block + losing branches (grep the tag). Open questions to decide by feel: (1) is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)? (2) does ACCIDENT voicing feel Orchid-magical or just random?",
     "LAB is the pattern, not the product: it's try-before-commit scaffolding (docs/design/lab-experiments.md). New experiment = one row in LAB[]. It should NOT ship to players once the seams are decided."
   ]
 }
@@ -142,11 +142,19 @@ static const char *PMNAME[NPERF] = { "PLAY", "STRUM", "HARP", "ARP", "PATTERN", 
 //        PS_ADVANCED : changing TYPE / MODIFIER re-fires the held chord live
 //        PS_FREE     : Advanced + VOICING / OCTAVE tweaks also re-fire
 //     Generalises the old RETRIG bool (OFF ≈ SIMPLE, ON ≈ FREE) into 3 named steps.
+//
+//   SEAM:voicing  (var `voiceStyle`) — HOW the voicing dial re-arranges the chord:
+//        VS_CASCADE  : tidy — a sliding window, each step = one chord-tone up/down
+//        VS_ACCIDENT : the Orchid's "happy accidents" — lift the LOWEST voice an
+//                      octave each step, rarely root-position, spread drifts with
+//                      note count. Same notes, wilder & less predictable.
 // ═══════════════════════════════════════════════════════════════════════════
 enum { HS_CHROMATIC, HS_DIATONIC };                     // SEAM:harmony (keyMode 0/1)
 enum { PS_SIMPLE, PS_ADVANCED, PS_FREE, NPLAYSTYLE };   // SEAM:trigger (playStyle)
 static const char *PSNAME [NPLAYSTYLE] = { "SIMPLE", "ADVANCED", "FREE" };  // watch/trace
 static const char *PSSHORT[NPLAYSTYLE] = { "SIMPLE", "ADV", "FREE" };       // fits the chip
+enum { VS_CASCADE, VS_ACCIDENT, NVOICESTYLE };          // SEAM:voicing (voiceStyle)
+static const char *VSNAME[NVOICESTYLE] = { "CASCADE", "ACCIDENT" };
 enum { CH_QUALITY, CH_VOICE };   // what changed: quality = type/mod/richness · voice = voicing/octave
 
 static const char *NOTE[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
@@ -231,6 +239,7 @@ static int  voicing  = 0;                 // the cascade offset (signature dial)
 static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), whole chord
 static int  playStyle = PS_SIMPLE;        // SEAM:trigger — Orchid Play Style (was the RETRIG bool)
 static bool labOpen  = false;             // LAB overlay: flip the SEAM experiments live, then decide
+static int  voiceStyle = VS_CASCADE;      // SEAM:voicing — tidy cascade vs Orchid "happy accidents"
 static int  bassVoi  = 0;                 // BASS voicing walk: 0=root, 1=3rd, 2=5th, then up an octave… (the Orchid's bass dial)
 static int  engine   = 0;                 // PIANO model — index into MODEL[]; start on reed EP (warm)
 static int  harpModel = 3;                // HARP (sonic-strings) model — index into MODEL[]; start on PLUCK
@@ -333,11 +342,32 @@ static void cb_build(void) {
     for (int oct = 0; oct < 9 && nt < 120; oct++)
         for (int i = 0; i < npc && nt < 120; i++)
             tones[nt++] = base + pc[i] + 12 * oct;
-    int start = 0;
-    while (start < nt && tones[start] < 48 + root + transpose + octave * 12) start++;   // comfortable mid register
-    int idx = mid(0, start + voicing, nt - npc);
-    nVoiced = npc;
-    for (int k = 0; k < npc; k++) voiced[k] = tones[idx + k];
+    if (voiceStyle == VS_CASCADE) {                    // SEAM:voicing — tidy sliding window (1 chord-tone/step)
+        int start = 0;
+        while (start < nt && tones[start] < 48 + root + transpose + octave * 12) start++;   // comfortable mid register
+        int idx = mid(0, start + voicing, nt - npc);
+        nVoiced = npc;
+        for (int k = 0; k < npc; k++) voiced[k] = tones[idx + k];
+    } else {                                           // SEAM:voicing — VS_ACCIDENT: the Orchid's "happy accidents"
+        // seat the chord mid-register, then LIFT THE LOWEST voice an octave each step (opens the
+        // chord upward + cycles inversions). A note-count-dependent start (+n) keeps it off root
+        // position, and the spread wraps within ~3 octaves. Same notes, wilder & less predictable.
+        int n = npc, notes[12];
+        int seat = 48 + root + transpose + octave * 12;
+        for (int k = 0; k < n; k++) notes[k] = seat + pc[k];
+        int span = n * 3;
+        int steps = (((voicing + n) % span) + span) % span;   // +n = non-root start; wraps negatives
+        for (int s = 0; s < steps; s++) {                      // move the current lowest voice up an octave
+            int lo = 0; for (int k = 1; k < n; k++) if (notes[k] < notes[lo]) lo = k;
+            notes[lo] += 12;
+        }
+        for (int a = 0; a < n; a++) {                          // insertion-sort ascending into voiced[]
+            int m = a; for (int b = a + 1; b < n; b++) if (notes[b] < notes[m]) m = b;
+            int t = notes[a]; notes[a] = notes[m]; notes[m] = t;
+        }
+        nVoiced = n;
+        for (int k = 0; k < n; k++) voiced[k] = notes[k];
+    }
 
     // strum-plate strings: the same pitch classes across ~5 octaves, low→high
     nStr = 0;
@@ -747,14 +777,17 @@ static void update_rhythm(void) {
 // the losing seam branches (grep 'SEAM:') — the lab exists only while it's a question.
 typedef struct { const char *name; int *val; int n; const char *const *opts; } Experiment;
 static const char *const OPT_HARMONY[2] = { "CHROMATIC", "DIATONIC" };   // SEAM:harmony
-#define NLAB 2
+#define NLAB 3
 static const Experiment LAB[NLAB] = {
-    { "harmony",   &keyMode,   2,          OPT_HARMONY },   // SEAM:harmony  (chromatic vs Key mode)
-    { "playstyle", &playStyle, NPLAYSTYLE, PSNAME },        // SEAM:trigger  (SIMPLE/ADVANCED/FREE)
+    { "harmony",   &keyMode,    2,           OPT_HARMONY },  // SEAM:harmony  (chromatic vs Key mode)
+    { "playstyle", &playStyle,  NPLAYSTYLE,  PSNAME },       // SEAM:trigger  (SIMPLE/ADVANCED/FREE)
+    { "voicing",   &voiceStyle, NVOICESTYLE, VSNAME },       // SEAM:voicing  (cascade vs happy-accident)
 };
 #define LAB_X 24
 #define LAB_Y 26
 #define LAB_W 272
+#define LAB_H (16 + NLAB * 16)            // panel height grows with the number of experiments
+#define LAB_ROWY(e) (LAB_Y + 14 + (e) * 16)   // shared row baseline (hit-test + draw)
 #define LAB_CHIP 282                      // the top-right LAB toggle chip (clear of the play/stop tab at 232..272)
 
 // hit-test + draw SHARE this layout: row e at LAB_Y+16+e*20, option chips left→right.
@@ -763,10 +796,10 @@ static void lab_update(void) {
     if (!labOpen) return;
     font(FONT_NORMAL);
     for (int e = 0; e < NLAB; e++) {
-        int ry = LAB_Y + 16 + e * 20, cx = LAB_X + 78;
+        int ry = LAB_ROWY(e), cx = LAB_X + 78;
         for (int o = 0; o < LAB[e].n; o++) {
             int w = text_width(LAB[e].opts[o]) + 10;
-            if (tapp(cx, ry, w, 14)) *LAB[e].val = o;   // flip the seam live
+            if (tapp(cx, ry, w, 13)) *LAB[e].val = o;   // flip the seam live
             cx += w + 4;
         }
     }
@@ -777,19 +810,19 @@ static void lab_draw(void) {
     font(FONT_NORMAL);
     print("LAB", LAB_CHIP + (34 - text_width("LAB")) / 2, 3, labOpen ? CLR_BLACK : CLR_LIGHT_GREY);
     if (!labOpen) return;
-    rectfill(LAB_X, LAB_Y, LAB_W, 62, CLR_BLACK);
-    rect(LAB_X, LAB_Y, LAB_W, 62, CLR_ORANGE);
+    rectfill(LAB_X, LAB_Y, LAB_W, LAB_H, CLR_BLACK);
+    rect(LAB_X, LAB_Y, LAB_W, LAB_H, CLR_ORANGE);
     font(FONT_SMALL);
     print("EXPERIMENTS  (` hide) - flip, play, decide", LAB_X + 6, LAB_Y + 4, CLR_LIGHT_GREY);
     font(FONT_NORMAL);
     for (int e = 0; e < NLAB; e++) {
-        int ry = LAB_Y + 16 + e * 20, cx = LAB_X + 78;
+        int ry = LAB_ROWY(e), cx = LAB_X + 78;
         print(LAB[e].name, LAB_X + 6, ry + 3, CLR_MEDIUM_GREY);
         for (int o = 0; o < LAB[e].n; o++) {
             int w = text_width(LAB[e].opts[o]) + 10;
             bool on = (*LAB[e].val == o);
-            rectfill(cx, ry, w, 14, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
-            rect(cx, ry, w, 14, on ? CLR_WHITE : CLR_MAUVE);
+            rectfill(cx, ry, w, 13, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
+            rect(cx, ry, w, 13, on ? CLR_WHITE : CLR_MAUVE);
             print(LAB[e].opts[o], cx + 5, ry + 3, on ? CLR_BLACK : CLR_LIGHT_PEACH);
             cx += w + 4;
         }

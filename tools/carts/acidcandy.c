@@ -2453,6 +2453,27 @@ static void r2_screendrum(Box g, int focus) {
     const char **vn = (focus == M_808) ? AB8 : AB9;
     int sel = (focus == M_808) ? dsel : d9sel;
     int gut = 13, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h;
+    if (r2_dpaint >= 4) {   // p-lock LANE for the SELECTED voice — a bipolar per-step OFFSET (TUN/DEC/⟨char⟩) you draw
+        int lk = r2_dpaint - 4, step0 = gw / STEPS, cy0 = gy + gh / 2, half = gh / 2 - 2;
+        float *lane = (focus == M_808) ? doff[lk][sel] : d9off[lk][sel];
+        const char *chn = (focus == M_808) ? CH8[sel] : CH9[sel];
+        const char *nm = lk == LK_TUNE ? "TUN" : lk == LK_DEC ? "DEC" : (chn ? chn : "CHAR");
+        void *w = ui_wid_hash(0x128u + focus, gx, gy, step0 * STEPS, gh); ui_reg(w, gx, gy, step0 * STEPS, gh, 0);
+        UiCap *c = ui_cap_for(w);
+        if (c) { int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / step0;
+            if (s >= 0 && s < STEPS) lane[s] = clamp((cy0 - py) / (float)half, -1, 1); }
+        font(FONT_TINY); print(vn[sel], (int)g.x + 2, gy + 1, hi); print(nm, (int)g.x + 2, gy + 9, CLR_MEDIUM_GREEN);
+        line(gx, cy0, gx + step0 * STEPS, cy0, CLR_MEDIUM_GREEN);
+        for (int s = 0; s < STEPS; s++) { int cx = gx + s * step0;
+            if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
+            if (s == lpos[0] && playing) rectfill(cx, gy, step0 - 1, gh, CLR_DARK_GREEN);
+            int bh = (int)(lane[s] * half), col = lane[s] >= 0 ? hi : CLR_ORANGE;
+            if (bh > 0)      rectfill(cx + 1, cy0 - bh, step0 - 2, bh, col);
+            else if (bh < 0) rectfill(cx + 1, cy0, step0 - 2, -bh, col);
+            if (grid[sel][s]) pset(cx + step0 / 2, gy + gh - 2, CLR_WHITE);   // this step fires
+        }
+        return;
+    }
     int step = gw / STEPS, rh = gh / nv;
     // one capture over the grid — the FLAG tools are armed from the submenu ROW below (never over the grid)
     {
@@ -2542,10 +2563,17 @@ static void r2_drumband(Box band, int focus) {
     if (lcdbtn(0x230u + focus * 3 + 1, bx,          by + rh, tw, rh - 1, "GEN",  dscreen == DS_GEN))   dscreen = DS_GEN;
     if (lcdbtn(0x230u + focus * 3 + 2, bx + tw + 1, by,      tw, rh - 1, "PERF", dscreen == DS_PERF))  dscreen = DS_PERF;
     if (!grid) return;   // GEN / PERF panel showing → hide the paint palette (tabs stay, so you can get back)
-    static const char *FN[4] = { "HIT", "ACC", "PROB", "STRK" };
-    int n = (focus == M_909) ? 4 : 3, fw = 32, gap = 1, x0 = bx + bw - 2 * (fw + gap);   // 2-column, right-aligned
-    for (int k = 0; k < n; k++) { int col = k % 2, row = k / 2;
-        if (lcdbtn(0x148u + k, x0 + col * (fw + gap), by + row * rh, fw - 1, rh - 1, FN[k], r2_dpaint == k)) r2_dpaint = k; }
+    int fw = 28, gap = 1;
+    // top row = the flag tools (HIT / ACC / PROB [/ STRK]); right-aligned
+    static const char *FL[4] = { "HIT", "ACC", "PROB", "STRK" };
+    int fn = (focus == M_909) ? 4 : 3, fx0 = bx + bw - fn * (fw + gap);
+    for (int k = 0; k < fn; k++) if (lcdbtn(0x148u + k, fx0 + k * (fw + gap), by, fw - 1, rh - 1, FL[k], r2_dpaint == k)) r2_dpaint = k;
+    // bottom row = the per-step p-LOCK tools (TUN / DEC [/ ⟨char⟩]); right-aligned; edits a bipolar lane
+    int selv = (focus == M_808) ? dsel : d9sel;
+    const char *chn = (focus == M_808) ? CH8[selv] : CH9[selv];
+    const char *PL[3] = { "TUN", "DEC", chn ? chn : "" };
+    int pn = chn ? 3 : 2, px0 = bx + bw - pn * (fw + gap);
+    for (int k = 0; k < pn; k++) if (lcdbtn(0x14Cu + k, px0 + k * (fw + gap), by + rh, fw - 1, rh - 1, PL[k], r2_dpaint == 4 + k)) r2_dpaint = 4 + k;
 }
 
 // the big shared middle screen — frame + tag row + the deep editor + the 2-row screen UI.

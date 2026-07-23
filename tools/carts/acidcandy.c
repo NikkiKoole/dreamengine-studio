@@ -2900,12 +2900,12 @@ static void r2_drumstrip(Box c, int focus) {
     Box cc = lay_inset(c, 2);
     // A/B/C/D pattern banks BEFORE the header (a 2×2 block at the far-left edge) — the drum twin of
     // the 303 column banks (lit = current, blink = armed while playing).
-    Box bnk = lay_split(cc, EDGE_LEFT, 18, &cc);
+    Box bnk = lay_split(cc, EDGE_LEFT, 26, &cc);   // pattern banks — wider now (taken from the header) so A/B/C/D aren't cramped
     { static const char *BK[NPAT] = { "A", "B", "C", "D" };
       for (int k = 0; k < NPAT; k++) { Box bc = lay_grid(bnk, 2, NPAT, k, 1);
           int lit = (curpat[focus] == k) || (armpat[focus] == k && ((int)g_phase & 1));
           if (cbtn(0x1C0u + focus * 8 + k, (int)bc.x, (int)bc.y, (int)bc.w - 1, (int)bc.h - 1, BK[k], lit)) pat_queue(focus, k); } }
-    r2_header(lay_split(cc, EDGE_LEFT, 30, &cc), focus);
+    r2_header(lay_split(cc, EDGE_LEFT, 22, &cc), focus);
     Box fx = lay_split(cc, EDGE_RIGHT, 66, &cc);
     float *dst = (focus == M_808) ? &dist8 : &dist9;
     r2_kcell(lay_grid(fx, 3, 3, 0, 1), dst,            "DST", 0.0f,  mac[focus].col);
@@ -2917,7 +2917,7 @@ static void r2_drumstrip(Box c, int focus) {
         int cx, pw;
         if (black) { int b = (int)((v + 0.5f) * 16.0f / nv + 0.5f);   // 11 black keys spread over the 16-slot span
                      pw = (ww * 7) / 10; if (pw < 8) pw = 8; cx = x0 + b * ww - pw / 2; }
-        else       { pw = ww - 1; cx = x0 + v * ww; }
+        else       { pw = ww - 3; cx = x0 + v * ww + 1; }   // 808 white keys: a touch narrower (more gap, less padded)
         int active = 0; for (int s = 0; s < STEPS; s++) if (grid[v][s]) { active = 1; break; }
         int firing = trig[v] > 0.05f, pr = 0, hot = 0, fo = 0;
         void *w = ui_wid_hash(0xB0u + focus * 32 + v, cx, py, pw, ph);

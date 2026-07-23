@@ -47,7 +47,11 @@ HOLD=momentary, same pf_latch/dpf_latch state as the phone).
 pad-latches (re-target a pad tap: MUT = per-voice mute w/ orange rims, REC = punch-on-step while
 playing) + the 909 METAL XY (m9cut/m9res, shown only when a 909 voice is picked).
 
-**M3 backlog (still ◻):** drum KIT minimap; per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
+**Per-step p-locks SHIPPED (2026-07-23):** the drum paint palette gained a second row (TUN/DEC/⟨char⟩);
+arming one swaps the voice grid for the selected voice's bipolar OFFSET LANE (drag = draw a per-step
+tune/decay/character contour into doff/d9off).
+
+**M3 backlog (still ◻):** drum KIT minimap;
 909 METAL XY; the MST DELAY-division buttons + per-machine SEND (the FX SND knob covers the send
 level, the division picker is still open). (DONE since M2: MST RES + FB — the column is a 2-wide
 grid TMP|SWG / GLU|PMP / FLT|RES + FB; the 303 Devil Fish DEEP page — a CORE/DF-KNOBS page tab in

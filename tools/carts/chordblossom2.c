@@ -27,7 +27,7 @@
     "Bass SOLO mode: play a truly independent bassline off the keybed (the real Orchid's long-press-Bass 'take the bassline for a walk'), separate from the chord root. Follow=root + the manual UP/DOWN bass-voicing walk are already in.",
     "Two voicing DIALS on the panel: give LEAD and BASS each a proper on-screen dial (the walk logic for both already exists — this is the UI surface, matching the Orchid's two physical dials).",
     "Live re-voice of a HELD chord: turning the lead voicing dial while a chord rings should GLIDE the held notes to the new voicing (note_pitch, no re-attack) — a fourth feel beyond the PLAY STYLE seam (SIMPLE silent / ADVANCED re-fire-on-quality / FREE re-fire-on-any).",
-    "SEAM decisions (SEAM:harmony chromatic|diatonic, SEAM:trigger SIMPLE|ADV|FREE, SEAM:voicing CASCADE|ACCIDENT): experimental Orchid-faithful forks kept side by side, flippable live in the LAB overlay (` key or the LAB chip top-right) so you can A/B by ear then decide. Once a favourite emerges, keep the chosen branch and delete the LAB block + losing branches (grep the tag). Open questions to decide by feel: (1) is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)? (2) does ACCIDENT voicing feel Orchid-magical or just random?",
+    "SEAM decisions (SEAM:harmony chromatic|diatonic, SEAM:trigger SIMPLE|ADV|FREE, SEAM:voicing CASCADE|ACCIDENT, SEAM:bass CHORDS|UNISON|SINGLE|SOLO): experimental Orchid-faithful forks kept side by side, flippable live in the LAB overlay (` key or the LAB chip top-right) so you can A/B by ear then decide. Once a favourite emerges, keep the chosen branch and delete the LAB block + losing branches (grep the tag). Open questions to decide by feel: (1) is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)? (2) does ACCIDENT voicing feel Orchid-magical or just random? (3) the Orchid doc only NAMES the four bass modes; are our readings (UNISON=root+5th, SINGLE=no sub, SOLO=walk-only) the right ones?",
     "LAB is the pattern, not the product: it's try-before-commit scaffolding (docs/design/lab-experiments.md). New experiment = one row in LAB[]. It should NOT ship to players once the seams are decided."
   ]
 }
@@ -148,6 +148,14 @@ static const char *PMNAME[NPERF] = { "PLAY", "STRUM", "HARP", "ARP", "PATTERN", 
 //        VS_ACCIDENT : the Orchid's "happy accidents" — lift the LOWEST voice an
 //                      octave each step, rarely root-position, spread drifts with
 //                      note count. Same notes, wilder & less predictable.
+//
+//   SEAM:bass  (var `bassMode`) — the Orchid Options>Bass menu (it only NAMES the
+//     four modes; these are our plausible, audibly-distinct readings, to pick by ear):
+//        BM_CHORDS : root + octave-down SUB, auto-fires with the chord/groove (deep)
+//        BM_UNISON : root + fifth dyad in the bass octave (fat "unison"), auto-fires
+//        BM_SINGLE : one clean root note, no sub layer, auto-fires (thin/clean)
+//        BM_SOLO   : root + sub, but DECOUPLED — no auto-fire; only the UP/DOWN walk
+//                    sounds it ("take the bassline for a walk")
 // ═══════════════════════════════════════════════════════════════════════════
 enum { HS_CHROMATIC, HS_DIATONIC };                     // SEAM:harmony (keyMode 0/1)
 enum { PS_SIMPLE, PS_ADVANCED, PS_FREE, NPLAYSTYLE };   // SEAM:trigger (playStyle)
@@ -155,6 +163,8 @@ static const char *PSNAME [NPLAYSTYLE] = { "SIMPLE", "ADVANCED", "FREE" };  // w
 static const char *PSSHORT[NPLAYSTYLE] = { "SIMPLE", "ADV", "FREE" };       // fits the chip
 enum { VS_CASCADE, VS_ACCIDENT, NVOICESTYLE };          // SEAM:voicing (voiceStyle)
 static const char *VSNAME[NVOICESTYLE] = { "CASCADE", "ACCIDENT" };
+enum { BM_CHORDS, BM_UNISON, BM_SINGLE, BM_SOLO, NBASSMODE };   // SEAM:bass (bassMode)
+static const char *BMNAME[NBASSMODE] = { "CHORDS", "UNISON", "SINGLE", "SOLO" };
 enum { CH_QUALITY, CH_VOICE };   // what changed: quality = type/mod/richness · voice = voicing/octave
 
 static const char *NOTE[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
@@ -240,6 +250,7 @@ static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), w
 static int  playStyle = PS_SIMPLE;        // SEAM:trigger — Orchid Play Style (was the RETRIG bool)
 static bool labOpen  = false;             // LAB overlay: flip the SEAM experiments live, then decide
 static int  voiceStyle = VS_CASCADE;      // SEAM:voicing — tidy cascade vs Orchid "happy accidents"
+static int  bassMode  = BM_CHORDS;        // SEAM:bass — Orchid Options>Bass: chords/unison/single/solo
 static int  bassVoi  = 0;                 // BASS voicing walk: 0=root, 1=3rd, 2=5th, then up an octave… (the Orchid's bass dial)
 static int  engine   = 0;                 // PIANO model — index into MODEL[]; start on reed EP (warm)
 static int  harpModel = 3;                // HARP (sonic-strings) model — index into MODEL[]; start on PLUCK
@@ -401,10 +412,26 @@ static void cb_bass_at(int dur, int volBias) {
     int bn = cb_bass_note();
     if (bn < 0) return;
     int v = mid(1, (int)(kBass * 6) + 1 + volBias, 7);
-    hit(bn,      SL_BASS, v,                dur);
-    hit(bn - 12, SL_BASS, mid(1, v - 2, 7), dur - 40);   // octave-down SUB layer
+    switch (bassMode) {                                  // SEAM:bass — what the bass PLAYS
+        case BM_UNISON:                                  // root + fifth dyad, fat "unison" in the bass
+            hit(bn,     SL_BASS, v,                dur);
+            hit(bn + 7, SL_BASS, mid(1, v - 1, 7), dur);
+            break;
+        case BM_SINGLE:                                  // one clean note, no sub layer
+            hit(bn, SL_BASS, v, dur);
+            break;
+        default:                                         // BM_CHORDS / BM_SOLO — root + octave-down SUB
+            hit(bn,      SL_BASS, v,                dur);
+            hit(bn - 12, SL_BASS, mid(1, v - 2, 7), dur - 40);
+    }
 }
-static void cb_bass(void) { cb_bass_at(420, 0); }        // chord-change articulation
+static void cb_bass(void) { cb_bass_at(420, 0); }        // MANUAL walk articulation (always sounds)
+// SEAM:bass — the AUTO (chord-change / groove) bass fire. SOLO decouples: no auto,
+// the bass only sounds when you WALK it (UP/DOWN). Every automatic caller routes here.
+static void cb_bass_auto(int dur, int volBias) {
+    if (bassMode == BM_SOLO) return;
+    cb_bass_at(dur, volBias);
+}
 
 // play the current chord in the current performance mode
 static void cb_play(void) {
@@ -438,7 +465,7 @@ static void cb_play(void) {
             arpIdx = 0;      // beat-clock driven in update(); just (re)arm here
             break;
     }
-    cb_bass();                                           // Follow: the bass tracks the chord root
+    cb_bass_auto(420, 0);                                // Follow: the bass tracks the chord root (SEAM:bass — SOLO skips)
     armed = true;
 }
 
@@ -509,7 +536,7 @@ static void play_row(int r) {
         case 2: hit(84, INSTR_NOISE, v[3],  28); break;
         case 3: hit(84, INSTR_NOISE, v[2], 170); break;
         case 4: hit(64, INSTR_NOISE, v[4],  60); break;
-        case 5: cb_bass_at(180, -1); break;              // BASS row grooves the following sub-bass (own engine, tracks root)
+        case 5: cb_bass_auto(180, -1); break;            // BASS row grooves the following sub-bass (SEAM:bass — SOLO skips)
     }
 }
 static void loadPreset(int p) {
@@ -566,15 +593,15 @@ static void flavor_accomp(int s16) {
 
     // BASS — surdo/walk; the fill bar gets a busier pickup; GROOVE sets density
     if (fill && step >= 12) {
-        if (step == 12 || step == 14) cb_bass_at(160, -1);
+        if (step == 12 || step == 14) cb_bass_auto(160, -1);
     } else {
         for (int i = 0; F->bassOn[i] >= 0; i++)
             if (F->bassOn[i] == s32) {
                 if (groove == 0 && s32 % 16 != 0) break;                  // sparse: bass only on the "1"
-                cb_bass_at((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1);
+                cb_bass_auto((s32 % 16 == 0) ? 300 : 240, (s32 % 16 == 0) ? 0 : -1);
                 break;
             }
-        if (groove == 2 && (step == 6 || step == 14)) cb_bass_at(180, -1);  // busy: extra offbeat bass
+        if (groove == 2 && (step == 6 || step == 14)) cb_bass_auto(180, -1);  // busy: extra offbeat bass
     }
 
     // a soft open-hat lift on the turnaround — the phrase taking a breath
@@ -777,17 +804,18 @@ static void update_rhythm(void) {
 // the losing seam branches (grep 'SEAM:') — the lab exists only while it's a question.
 typedef struct { const char *name; int *val; int n; const char *const *opts; } Experiment;
 static const char *const OPT_HARMONY[2] = { "CHROMATIC", "DIATONIC" };   // SEAM:harmony
-#define NLAB 3
+#define NLAB 4
 static const Experiment LAB[NLAB] = {
     { "harmony",   &keyMode,    2,           OPT_HARMONY },  // SEAM:harmony  (chromatic vs Key mode)
     { "playstyle", &playStyle,  NPLAYSTYLE,  PSNAME },       // SEAM:trigger  (SIMPLE/ADVANCED/FREE)
     { "voicing",   &voiceStyle, NVOICESTYLE, VSNAME },       // SEAM:voicing  (cascade vs happy-accident)
+    { "bass",      &bassMode,   NBASSMODE,   BMNAME },       // SEAM:bass     (chords/unison/single/solo)
 };
-#define LAB_X 24
+#define LAB_X 4
 #define LAB_Y 26
-#define LAB_W 272
-#define LAB_H (16 + NLAB * 16)            // panel height grows with the number of experiments
-#define LAB_ROWY(e) (LAB_Y + 14 + (e) * 16)   // shared row baseline (hit-test + draw)
+#define LAB_W 312                         // near full-width so the widest row (bass: 4 chips) fits
+#define LAB_H (12 + NLAB * 13)            // panel height grows with the number of experiments (stays above the plate at y92)
+#define LAB_ROWY(e) (LAB_Y + 12 + (e) * 13)   // shared row baseline (hit-test + draw)
 #define LAB_CHIP 282                      // the top-right LAB toggle chip (clear of the play/stop tab at 232..272)
 
 // hit-test + draw SHARE this layout: row e at LAB_Y+16+e*20, option chips left→right.
@@ -799,7 +827,7 @@ static void lab_update(void) {
         int ry = LAB_ROWY(e), cx = LAB_X + 78;
         for (int o = 0; o < LAB[e].n; o++) {
             int w = text_width(LAB[e].opts[o]) + 10;
-            if (tapp(cx, ry, w, 13)) *LAB[e].val = o;   // flip the seam live
+            if (tapp(cx, ry, w, 12)) *LAB[e].val = o;   // flip the seam live
             cx += w + 4;
         }
     }
@@ -817,13 +845,13 @@ static void lab_draw(void) {
     font(FONT_NORMAL);
     for (int e = 0; e < NLAB; e++) {
         int ry = LAB_ROWY(e), cx = LAB_X + 78;
-        print(LAB[e].name, LAB_X + 6, ry + 3, CLR_MEDIUM_GREY);
+        print(LAB[e].name, LAB_X + 6, ry + 2, CLR_MEDIUM_GREY);
         for (int o = 0; o < LAB[e].n; o++) {
             int w = text_width(LAB[e].opts[o]) + 10;
             bool on = (*LAB[e].val == o);
-            rectfill(cx, ry, w, 13, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
-            rect(cx, ry, w, 13, on ? CLR_WHITE : CLR_MAUVE);
-            print(LAB[e].opts[o], cx + 5, ry + 3, on ? CLR_BLACK : CLR_LIGHT_PEACH);
+            rectfill(cx, ry, w, 12, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
+            rect(cx, ry, w, 12, on ? CLR_WHITE : CLR_MAUVE);
+            print(LAB[e].opts[o], cx + 5, ry + 2, on ? CLR_BLACK : CLR_LIGHT_PEACH);
             cx += w + 4;
         }
     }

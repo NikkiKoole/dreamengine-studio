@@ -27,7 +27,8 @@
     "Bass SOLO mode: play a truly independent bassline off the keybed (the real Orchid's long-press-Bass 'take the bassline for a walk'), separate from the chord root. Follow=root + the manual UP/DOWN bass-voicing walk are already in.",
     "Two voicing DIALS on the panel: give LEAD and BASS each a proper on-screen dial (the walk logic for both already exists — this is the UI surface, matching the Orchid's two physical dials).",
     "Live re-voice of a HELD chord: turning the lead voicing dial while a chord rings should GLIDE the held notes to the new voicing (note_pitch, no re-attack) — a fourth feel beyond the PLAY STYLE seam (SIMPLE silent / ADVANCED re-fire-on-quality / FREE re-fire-on-any).",
-    "SEAM decisions (SEAM:harmony, SEAM:trigger): these are experimental Orchid-faithful forks kept side by side. Once a favourite emerges, keep the chosen branch and delete the switch + losers (grep the tag). Candidate to reconsider: is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)?"
+    "SEAM decisions (SEAM:harmony, SEAM:trigger): experimental Orchid-faithful forks kept side by side, flippable live in the LAB overlay (` key or the LAB chip top-right) so you can A/B by ear then decide. Once a favourite emerges, keep the chosen branch and delete the LAB block + losing branches (grep the tag). Candidate to reconsider: is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)?",
+    "LAB is the pattern, not the product: it's try-before-commit scaffolding (docs/design/lab-experiments.md). New experiment = one row in LAB[]. It should NOT ship to players once the seams are decided."
   ]
 }
 de:meta */
@@ -229,6 +230,7 @@ static bool modOn[NMOD] = { false, false, false, false };
 static int  voicing  = 0;                 // the cascade offset (signature dial)
 static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), whole chord
 static int  playStyle = PS_SIMPLE;        // SEAM:trigger — Orchid Play Style (was the RETRIG bool)
+static bool labOpen  = false;             // LAB overlay: flip the SEAM experiments live, then decide
 static int  bassVoi  = 0;                 // BASS voicing walk: 0=root, 1=3rd, 2=5th, then up an octave… (the Orchid's bass dial)
 static int  engine   = 0;                 // PIANO model — index into MODEL[]; start on reed EP (warm)
 static int  harpModel = 3;                // HARP (sonic-strings) model — index into MODEL[]; start on PLUCK
@@ -604,6 +606,8 @@ void init(void) {
 
 // ── input: the CHORD tab ────────────────────────────────────
 static void update_chord(void) {
+    bool ctl = !labOpen;   // LAB open? suspend on-screen CONTROL taps (the panel covers them);
+                           // keybed KEYS + strum plate stay live so you can still play & compare.
     // keybed roots (QWERTY) — in KEY mode a white key plays the diatonic chord of that
     // degree; otherwise a chromatic root (keeping the current type). Black keys stay
     // chromatic "off-road" roots either way.
@@ -649,22 +653,22 @@ static void update_chord(void) {
         // KEY mode — two clear zones, one behavior each:
         // SPICE STRIP (row 1): each is a chord you PRESS (like a key), no arming.
         for (int i = 0; i < NSPICE; i++)
-            if (tapp(6 + i * 51, 32, 48, 14) || keyp('1' + i))
+            if ((ctl && tapp(6 + i * 51, 32, 48, 14)) || keyp('1' + i))
                 play_key_chord((keyRoot + SPICE[i].off) % 12, SPICE[i].ty, SPICE[i].sev);
         // RICHNESS (row 2): one radio-select — simple / 7th / 9th / lush
-        for (int r = 0; r < 4; r++) if (tapp(6 + r * 78, 50, 72, 14) || keyp('5' + r)) { richness = r; cb_param_kind(CH_QUALITY); }  // SEAM:trigger rebuild → plate strings update live
+        for (int r = 0; r < 4; r++) if ((ctl && tapp(6 + r * 78, 50, 72, 14)) || keyp('5' + r)) { richness = r; cb_param_kind(CH_QUALITY); }  // SEAM:trigger rebuild → plate strings update live
     } else {
         // chromatic mode — the original chord builders  (SEAM:trigger: quality tweaks)
         for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_param_kind(CH_QUALITY); }
         for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_param_kind(CH_QUALITY); }
-        for (int t = 0; t < 4; t++) if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param_kind(CH_QUALITY); }
-        for (int m = 0; m < NMOD; m++) if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param_kind(CH_QUALITY); }
+        for (int t = 0; t < 4; t++) if (ctl && tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param_kind(CH_QUALITY); }
+        for (int m = 0; m < NMOD; m++) if (ctl && tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param_kind(CH_QUALITY); }
     }
 
     // LEAD VOICING strip — LEFT/RIGHT or drag on the strip
     if (btnp(0, BTN_LEFT))  { voicing--; cb_param(); }
     if (btnp(0, BTN_RIGHT)) { voicing++; cb_param(); }
-    if (tapp(6, 68, SCREEN_W - 12, 14)) {
+    if (ctl && tapp(6, 68, SCREEN_W - 12, 14)) {
         int nx = mid(-14, (touch_x(0) - SCREEN_W / 2) / 8, 14);
         if (nx != voicing) { voicing = nx; cb_param(); }
     }
@@ -735,6 +739,63 @@ static void update_rhythm(void) {
     if (tapp(138, 170, 60, 16)) { nLoop = 0; loopRec = false; }
 }
 
+// ── LAB: the experiment dashboard (try-before-commit for SEAMs) ─────────────
+// ONE overlay that gathers every live SEAM so you can flip variants WHILE playing,
+// A/B them by ear, then decide. Pure scaffolding: it pokes only the seam vars,
+// never the audio path. Toggle with the ` key or the LAB chip (top-right). Adding
+// an experiment = ONE row in LAB[]. Once a winner is chosen, delete this block +
+// the losing seam branches (grep 'SEAM:') — the lab exists only while it's a question.
+typedef struct { const char *name; int *val; int n; const char *const *opts; } Experiment;
+static const char *const OPT_HARMONY[2] = { "CHROMATIC", "DIATONIC" };   // SEAM:harmony
+#define NLAB 2
+static const Experiment LAB[NLAB] = {
+    { "harmony",   &keyMode,   2,          OPT_HARMONY },   // SEAM:harmony  (chromatic vs Key mode)
+    { "playstyle", &playStyle, NPLAYSTYLE, PSNAME },        // SEAM:trigger  (SIMPLE/ADVANCED/FREE)
+};
+#define LAB_X 24
+#define LAB_Y 26
+#define LAB_W 272
+#define LAB_CHIP 282                      // the top-right LAB toggle chip (clear of the play/stop tab at 232..272)
+
+// hit-test + draw SHARE this layout: row e at LAB_Y+16+e*20, option chips left→right.
+static void lab_update(void) {
+    if (keyp('`') || tapp(LAB_CHIP, 1, 34, 12)) labOpen = !labOpen;
+    if (!labOpen) return;
+    font(FONT_NORMAL);
+    for (int e = 0; e < NLAB; e++) {
+        int ry = LAB_Y + 16 + e * 20, cx = LAB_X + 78;
+        for (int o = 0; o < LAB[e].n; o++) {
+            int w = text_width(LAB[e].opts[o]) + 10;
+            if (tapp(cx, ry, w, 14)) *LAB[e].val = o;   // flip the seam live
+            cx += w + 4;
+        }
+    }
+}
+static void lab_draw(void) {
+    rectfill(LAB_CHIP, 1, 34, 12, labOpen ? CLR_ORANGE : CLR_DARKER_PURPLE);   // always-visible toggle
+    rect(LAB_CHIP, 1, 34, 12, labOpen ? CLR_WHITE : CLR_MAUVE);
+    font(FONT_NORMAL);
+    print("LAB", LAB_CHIP + (34 - text_width("LAB")) / 2, 3, labOpen ? CLR_BLACK : CLR_LIGHT_GREY);
+    if (!labOpen) return;
+    rectfill(LAB_X, LAB_Y, LAB_W, 62, CLR_BLACK);
+    rect(LAB_X, LAB_Y, LAB_W, 62, CLR_ORANGE);
+    font(FONT_SMALL);
+    print("EXPERIMENTS  (` hide) - flip, play, decide", LAB_X + 6, LAB_Y + 4, CLR_LIGHT_GREY);
+    font(FONT_NORMAL);
+    for (int e = 0; e < NLAB; e++) {
+        int ry = LAB_Y + 16 + e * 20, cx = LAB_X + 78;
+        print(LAB[e].name, LAB_X + 6, ry + 3, CLR_MEDIUM_GREY);
+        for (int o = 0; o < LAB[e].n; o++) {
+            int w = text_width(LAB[e].opts[o]) + 10;
+            bool on = (*LAB[e].val == o);
+            rectfill(cx, ry, w, 14, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
+            rect(cx, ry, w, 14, on ? CLR_WHITE : CLR_MAUVE);
+            print(LAB[e].opts[o], cx + 5, ry + 3, on ? CLR_BLACK : CLR_LIGHT_PEACH);
+            cx += w + 4;
+        }
+    }
+}
+
 void update(void) {
     bpm(tempo);
 
@@ -747,6 +808,7 @@ void update(void) {
     if (keyp(KEY_SPACE)) { playing = !playing; if (!playing) note_off_all(); }
     if (keyp('V'))       apply_flavor(flavor + 1);   // cycle the genre flavor (the fork)
     if (keyp('R'))       { armed = false; note_off_all(); }   // REST — hush the chord (the groove keeps going)
+    lab_update();        // LAB overlay toggle + (when open) its experiment chips
 
     // 16th-note tick drives the drums, the arp/pattern, and the looper
     int sixteenth = beat() * 4 + (int)(beat_pos() * 4.0f);
@@ -790,9 +852,11 @@ void update(void) {
     applyFX();
     apply_pedals();
 
-    if      (tab == TAB_CHORD)  update_chord();
-    else if (tab == TAB_MIX)    update_mix();
-    else                        update_rhythm();
+    // CHORD always runs so you can keep playing with the LAB open (it gates its own
+    // control taps); MIX/RHYTHM freeze while the LAB covers them, to avoid tap clashes.
+    if      (tab == TAB_CHORD)         update_chord();
+    else if (!labOpen && tab == TAB_MIX) update_mix();
+    else if (!labOpen)                 update_rhythm();
 
 #ifdef DE_TRACE
     watch("flavor",  "%d", flavor);
@@ -1031,4 +1095,5 @@ void draw(void) {
     else if (tab == TAB_MIX)    drawMixTab();
     else                        drawRhythmTab();
     ui_end();                            // LAST: resolve knob drags — without this they're dead
+    lab_draw();                          // the LAB overlay sits on TOP of everything
 }

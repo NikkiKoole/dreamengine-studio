@@ -42,9 +42,13 @@
 //                      docs/guides/debug-harness.md → the det-turbo note. (Don't use
 //                      DE_AUDIO=off to go faster — it just spams queue-overflow warnings.)
 //   --seed <n>         RNG seed for deterministic runs (default 1)
-//   --wav <file>       render the audio to a WAV (deterministic: same script +
-//                      seed + frames = identical bytes; analyze with
-//                      tools/wav-analyze.js — see docs/guides/debug-harness.md)
+//   --wav <file>       render the audio to a WAV. In `run` mode this AUTO-ENABLES --det (fixed
+//                      timestep) so the render is bit-reproducible — a self-running cart under plain
+//                      wall-clock `run` jitters its note-on sample positions, which makes wav-correlate
+//                      A/Bs meaningless (~0.3-0.5 = timing noise, not the cart). Same seed + frames =
+//                      identical bytes; analyze with tools/wav-analyze.js — see docs/guides/debug-harness.md
+//   --det              force fixed timestep + seeded RNG in `run` mode (reproducible; script/replay imply it)
+//   --no-det           opt OUT of the auto --det that --wav turns on (true wall-clock timing)
 //   --bpm <n>          tempo used to convert `beat` directives to frames (default 120)
 //   --screen WxH       screen dims (default from cart settings / 320x200)
 //
@@ -85,7 +89,7 @@ const modeFile = (args[2] && !args[2].startsWith('--')) ? args[2] : null
 
 if (!name || !mode) {
   console.error('usage: node tools/play.js <name> <run|record|replay|beats|script> [file] [options]')
-  console.error('  common options: --frames <n> --trace <f> --dump <dir> --headless --seed <n> --bpm <n> --wav <f>')
+  console.error('  common options: --frames <n> --trace <f> --dump <dir> --headless --seed <n> --bpm <n> --wav <f> [--det|--no-det]')
   console.error('  --resize WxH,WxH,…   device-adaptive layout SWEEP (implies -DDE_RESIZABLE; dumps build/.resize/<cart>)')
   console.error('  (full option list: the header comment at the top of tools/play.js)')
   process.exit(1)
@@ -322,7 +326,19 @@ if (resizeSpec) {                                 // --resize "WxH,WxH,…": swe
   }
 }
 if (hasFlag('--net-echo'))     runArgs.push('--net-echo')   // lockstep vs the loopback fake peer (P2 mirrors P1; implies --det)
-if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // deterministic audio render → WAV
+if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // audio render → WAV (deterministic once --det is on, see below)
+// --det → fixed timestep + seeded RNG (studio.c): bit-reproducible runs. `script`/`replay`/`--net-echo`
+// already imply it; `run` is wall-clock-paced so note-on SAMPLE positions jitter between runs (~0.3-0.5
+// wav-correlate = pure timing noise, not the cart). A --wav A/B almost always wants determinism, so
+// AUTO-ENABLE --det whenever --wav is rendered in run mode (opt out with --no-det for true wall-clock).
+// Also forward an explicit --det (e.g. to make a --dump reproducible). Discoverable via the printed note.
+if (mode === 'run' && !hasFlag('--net-echo')) {
+  const autoDet = !!opt('--wav', null) && !hasFlag('--no-det')
+  if (hasFlag('--det') || autoDet) {
+    runArgs.push('--det')
+    if (autoDet && !hasFlag('--det')) console.log('  ↳ --wav ⇒ --det (fixed timestep = reproducible render; pass --no-det for wall-clock timing)')
+  }
+}
 if (opt('--solo-slot', null))  runArgs.push('--solo-slot', opt('--solo-slot'))   // stem render: mute all but these instrument slot(s), e.g. 6 or 5,6 (docs/design/audio-voice-debugging.md)
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 

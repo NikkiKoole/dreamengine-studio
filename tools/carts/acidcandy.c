@@ -2540,6 +2540,7 @@ static void r2_drumband(Box band, int focus) {
     int rh = (bh + 1) / 2, tw = 36;
     if (lcdbtn(0x230u + focus * 2 + 0, bx, by,      tw, rh - 1, "VCE", dscreen != DS_GEN)) dscreen = DS_VCE;
     if (lcdbtn(0x230u + focus * 2 + 1, bx, by + rh, tw, rh - 1, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
+    if (dscreen == DS_GEN) return;   // GEN panel showing → hide the paint palette (tabs stay, so you can get back)
     static const char *FN[4] = { "HIT", "ACC", "PROB", "STRK" };
     int n = (focus == M_909) ? 4 : 3, fw = 32, gap = 1, x0 = bx + bw - 2 * (fw + gap);   // 2-column, right-aligned
     for (int k = 0; k < n; k++) { int col = k % 2, row = k / 2;
@@ -2617,11 +2618,12 @@ static void r2_bigscreen(Box c, int focus) {
         return;
     }
     // drums + MST keep the submenu-row + soft-key-row UI
-    if (focus <= M_909) {   // drum: voice grid (VCE) or GEN panel; a 2-row band = VCE/GEN tabs-left + paint palette-right
+    if (focus <= M_909) {   // drum: voice grid (VCE) or GEN panel; the 2-row band (tabs + palette) is ALWAYS drawn so VCE/GEN can always switch back
         int bandH = 20;
-        if (dscreen == DS_GEN) r2_gendrum(box(x + 3, y + 13, w - 6, h - 13 - 2), focus);
-        else { r2_screendrum(box(x + 3, y + 13, w - 6, h - 13 - bandH - 2), focus);
-               r2_drumband(box(x + 3, y + h - bandH - 1, w - 6, bandH), focus); }
+        Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
+        if (dscreen == DS_GEN) r2_gendrum(main, focus);
+        else                   r2_screendrum(main, focus);
+        r2_drumband(box(x + 3, y + h - bandH - 1, w - 6, bandH), focus);
         return;
     }
     // MST — the automation view + its own soft-key row (no submenu)

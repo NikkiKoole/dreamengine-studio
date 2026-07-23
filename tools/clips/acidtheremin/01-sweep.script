@@ -1,0 +1,6 @@
+# acid theremin — a sound-check sweep: rising smear into the screaming top-right, then a wobble down.
+# frames 300
+# fps 30
+drag 10 20 185 120 305 25
+drag 135 305 25 200 40 140
+drag 210 40 140 290 260 60

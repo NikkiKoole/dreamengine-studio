@@ -2749,8 +2749,8 @@ static void r2_bigscreen(Box c, int focus) {
 // on the big screen; this column is only the SOUND (always live, focus or not).
 static void r2_col303(Box c, int i) {
     int m = i ? M_303B : M_303A; Acid *a = &ac[i];
-    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
-    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].lo);
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].lo);                  // 2px frame (fill-and-punch)
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);      // nameplate at the TOP as well…
     r2_header(lay_split(cc, EDGE_BOTTOM, 12, &cc), m);   // …AND the BOTTOM — focus/mute reachable from either end (the maker's ask)
@@ -2815,8 +2815,8 @@ static void r2_col303(Box c, int i) {
 
 // the MASTER knob-column — same shape as a 303: header + master knobs + a 4-channel mini mixer.
 static void r2_colmst(Box c) {
-    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
-    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[M_MST].lo);
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[M_MST].lo);             // 2px frame (fill-and-punch)
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), M_MST);      // nameplate top…
     r2_header(lay_split(cc, EDGE_BOTTOM, 12, &cc), M_MST);   // …and bottom (aligns with the 303 columns)
@@ -2848,8 +2848,8 @@ static void r2_ctxrow(Box c) {
     int sm = r2_selmach, sv = (sm == M_808) ? dsel : d9sel, hi = mac[sm].col;
     const char *svn = (sm == M_808) ? AB8[sv] : AB9[sv];
     const char *chn = (sm == M_808) ? CH8[sv] : CH9[sv];
-    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
-    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, hi);
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, hi);                        // 2px frame (fill-and-punch)
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
     Box cc = lay_inset(c, 2);
     Box lab = lay_split(cc, EDGE_LEFT, 34, &cc);
     font(FONT_NORMAL); print((sm == M_808) ? "808" : "909", (int)lab.x, (int)lab.y + 1, hi);
@@ -2895,8 +2895,8 @@ static void r2_drumstrip(Box c, int focus) {
     float *trig = (focus == M_808) ? dtrig : d9trig;
     int *mut = (focus == M_808) ? dmute : d9mute;
     int sel = (focus == M_808) ? dsel : d9sel;
-    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
-    rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[focus].lo);
+    rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[focus].lo);             // 2px frame (fill-and-punch)
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
     Box cc = lay_inset(c, 2);
     // A/B/C/D pattern banks BEFORE the header (a 2×2 block at the far-left edge) — the drum twin of
     // the 303 column banks (lit = current, blink = armed while playing).

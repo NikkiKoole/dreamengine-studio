@@ -95,6 +95,7 @@ static int r2_focus   = 0;   // ROOMY: which machine owns the big shared screen 
 static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M_909) — the shared context panel + its ring colour follow it (voice = dsel/d9sel)
 static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) · 1=ACC · 2=PROB · 3=STRK (909) — the drum twin of the 303's `armed` flag palette
 static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per line: +1 up / 0 center / -1 down. A note drawn on the roll lands at this octave; tapping the matching note erases it.
+static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEALED, per line (0 = none / roll gets the room · 1 = PERF · 2 = GEN), toggled by the bottom-left chips.
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2556,39 +2557,39 @@ static void r2_screendrum(Box g, int focus) {
     r2_playcol(gx, step, tstep, gy, rh * nv);   // walking playhead on top (drum transport step)
 }
 
-// SHARED SCREEN — master. MIX = the 4-channel meters; PCF/CRU/GAT = ONE big editable automation
-// lane (drag to paint the per-step 0..7 level). mstflow: 0=MIX 1=PCF 2=CRUSH 3=GATE.
+// SHARED SCREEN — master, ALL AT ONCE (no tabs): the 4-channel mixer on the left, the three
+// per-step automation lanes PCF / CRUSH / GATE stacked on the right (drag any lane to paint 0..7).
 static void r2_screenmst(Box g) {
-    if (mstflow == 0) {   // MIX — four tall channel meters
-        static const int MC[4] = { M_303A, M_303B, M_808, M_909 };
-        static const char *ML[4] = { "303a", "303b", "808", "909" };
-        int fw = ((int)g.w - 8) / 4, bh = (int)g.h - 12;
-        for (int k = 0; k < 4; k++) { int cx = (int)g.x + 4 + k * fw, by = (int)g.y + 4;
-            int lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh; if (lv < 0) lv = 0;
-            rectfill(cx, by, fw - 4, bh, CLR_BLACK);
-            rectfill(cx, by + bh - lv, fw - 4, lv, mac[MC[k]].col);
-            font(FONT_TINY); print(ML[k], cx, by + bh + 2, mac[MC[k]].col); }
-        return;
+    int tstep = step;                                        // transport step, before local `step` shadows it
+    Box mx = lay_split(g, EDGE_LEFT, lay_clamp(g.w * 0.26f, 40, 90), &g);
+    // ── the 4-channel mixer ──
+    { static const int MC[4] = { M_303A, M_303B, M_808, M_909 };
+      static const char *ML[4] = { "303a", "303b", "808", "909" };
+      Box m = lay_inset(mx, 3); int fw = (int)m.w / 4, bh = (int)m.h - 8;
+      for (int k = 0; k < 4; k++) { int cx = (int)m.x + k * fw, by = (int)m.y;
+          int lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh; if (lv < 0) lv = 0;
+          rectfill(cx, by, fw - 2, bh, CLR_BLACK);
+          rectfill(cx, by + bh - lv, fw - 2, lv, mac[MC[k]].col);
+          font(FONT_TINY); print(ML[k], cx, by + bh + 2, mac[MC[k]].col); } }
+    // ── the three automation lanes, stacked ──
+    int *lanes[3] = { mpcf, mcrush, mgate };
+    int  lcol[3]  = { CLR_GREEN, CLR_ORANGE, CLR_PINK };
+    const char *lname[3] = { "PCF", "CRU", "GAT" };
+    Box la = lay_inset(g, 2); int lh = (int)la.h / 3, gut = 20;
+    for (int L = 0; L < 3; L++) {
+        int *lane = lanes[L];
+        int gy = (int)la.y + L * lh, gx = (int)la.x + gut, gw = (int)la.w - gut, gh = lh - 2, stw = gw / STEPS;
+        void *w = ui_wid_hash(0x180u + L, gx, gy, stw * STEPS, gh); ui_reg(w, gx, gy, stw * STEPS, gh, 0);
+        UiCap *c = ui_cap_for(w);
+        if (c) { int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / stw;
+            if (s >= 0 && s < STEPS) { int lv = 7 - (py - gy) * 8 / gh; if (lv < 0) lv = 0; if (lv > 7) lv = 7; lane[s] = lv; } }
+        font(FONT_TINY); print(lname[L], (int)la.x + 1, gy + gh / 2 - 2, lcol[L]);
+        for (int s = 0; s < STEPS; s++) { int cx = gx + s * stw;
+            if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
+            int v = lane[s] * (gh - 1) / 7;
+            rectfill(cx, gy + gh - v, stw - 1, v, lcol[L]); }
+        r2_playcol(gx, stw, tstep, gy, gh);
     }
-    int L = mstflow - 1;                                     // 0=PCF 1=CRUSH 2=GATE
-    int *lane = (L == 0) ? mpcf : (L == 1) ? mcrush : mgate;
-    int col = (L == 0) ? CLR_GREEN : (L == 1) ? CLR_ORANGE : CLR_PINK;
-    const char *lab = (L == 0) ? "PCF" : (L == 1) ? "CRUSH" : "GATE";
-    int tstep = step;   // transport step, before the local `step` (cell width) shadows the global
-    int gx = (int)g.x + 26, gy = (int)g.y + 2, gw = ((int)g.w - 30), gh = (int)g.h - 6, step = gw / STEPS;
-    void *w = ui_wid_hash(0x180u, gx, gy, step * STEPS, gh); ui_reg(w, gx, gy, step * STEPS, gh, 0);
-    UiCap *c = ui_cap_for(w);
-    if (c) {   // drag to paint the level (top = 7, bottom = 0)
-        int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / step;
-        if (s >= 0 && s < STEPS) { int lv = 7 - (py - gy) * 8 / gh; if (lv < 0) lv = 0; if (lv > 7) lv = 7; lane[s] = lv; }
-    }
-    font(FONT_TINY); print(lab, (int)g.x + 3, gy + gh / 2 - 2, col);
-    for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
-        int v = lane[s] * (gh - 2) / 7;
-        if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
-        rectfill(cx, gy + gh - v, step - 2, v, col); }
-    r2_playcol(gx, step, tstep, gy, gh);   // walking playhead on top (shared transport step)
-    font(FONT_TINY); print("drag to draw the lane", gx, gy + gh - 6, CLR_MEDIUM_GREEN);
 }
 
 // the drum GEN panel (the sibling of the VCE grid) — CLEAR / MIN / MID / BUSY, per machine.
@@ -2621,59 +2622,81 @@ static void r2_drumband(Box band, int focus) {
     for (int k = 0; k < pn; k++) if (lcdbtn(0x14Cu + k, px0 + k * (fw + gap), by + rh, fw - 1, rh - 1, PL[k], r2_dpaint == 4 + k)) r2_dpaint = 4 + k;
 }
 
-// the big shared middle screen — frame + tag row + the deep editor + the 2-row screen UI.
-// the 303 SETUP panel (the sibling of the SEQ grid): GEN (clear/densities) + KEY (root/scale/octave
-// editing) on ONE panel — the two "utility" jobs together, per the maker.
-static void r2_setup303(Box main, int i) {
-    Box m = lay_inset(main, 3);
-    Box gr = lay_split(m, EDGE_TOP, lay_clamp(m.h * 0.24f, 12, 20), &m);          // GEN row
-    static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
-    for (int g = 0; g < 4; g++) { Box c = lay_grid(gr, 4, 4, g, 2);
-        if (lcdbtn(0x150u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) gen_line(i, g); }
-    font(FONT_TINY); print("KEY", (int)m.x, (int)m.y, CLR_MEDIUM_GREEN);
-    lay_split(m, EDGE_TOP, 8, &m);                                                // label spacer
-    Box rootrow = lay_split(m, EDGE_TOP, lay_clamp(m.h * 0.5f, 12, 22), &m);      // 12-note root strip
-    for (int k = 0; k < 12; k++) {
-        int sharp = (k == 1 || k == 3 || k == 6 || k == 8 || k == 10);
-        Box c = lay_grid(rootrow, 12, 12, k, 1);
-        int px = (int)c.x, py = (int)c.y, pw = (int)c.w, ph = (int)c.h, pr = 0, hot = 0, fo = 0;
-        void *w = ui_wid_hash(0x210u + k, px, py, pw, ph);
-        if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) mroot[i] = k;
-        int lit = (mroot[i] == k);
-        rrectfill(px, py, pw, ph, 1, lit ? CLR_LIME_GREEN : sharp ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
-        rrect(px, py, pw, ph, 1, (lit || hot) ? CLR_WHITE : CLR_DARK_GREEN);
-        if (!sharp) { font(FONT_TINY); plabel(NOTE[k], px + pw / 2, py + 1, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN); }
-    }
-    Box sc = lay_split(m, EDGE_LEFT, m.w * 0.5f, &m);                             // scale name (remaps the line)
-    if (lcdbtn(0x21Fu, (int)sc.x, (int)sc.y, (int)sc.w - 2, (int)sc.h - 1, SCALES[mscale[i]].name, 0)) {
-        int oldsc = mscale[i], nw = (oldsc + 1) % NSCALE;
-        for (int s = 0; s < STEPS; s++) { int di = scale_idx(oldsc, pit[i][s]); if (di >= SCALES[nw].n) di = SCALES[nw].n - 1; pit[i][s] = SCALES[nw].deg[di]; }
-        mscale[i] = nw;
-    }
-    Box ol = lay_split(m, EDGE_LEFT, 22, &m);                                     // octave ±
-    font(FONT_TINY); plabel("OCT", (int)(ol.x + ol.w / 2), (int)(ol.y + ol.h / 2 - 2), CLR_MEDIUM_GREEN);
-    Box om = lay_grid(m, 3, 3, 0, 1), on2 = lay_grid(m, 3, 3, 1, 1), op = lay_grid(m, 3, 3, 2, 1);
-    if (lcdbtn(0x220u, (int)om.x, (int)om.y, (int)om.w, (int)om.h, "-", 0) && loct[i] > -2) loct[i]--;
-    { char ob[4]; ob[0] = loct[i] > 0 ? '+' : loct[i] < 0 ? '-' : ' '; ob[1] = (char)('0' + (loct[i] < 0 ? -loct[i] : loct[i])); ob[2] = 0;
-      plabel(ob, (int)(on2.x + on2.w / 2), (int)(on2.y + on2.h / 2 - 2), CLR_LIME_GREEN); }
-    if (lcdbtn(0x221u, (int)op.x, (int)op.y, (int)op.w, (int)op.h, "+", 0) && loct[i] < 2) loct[i]++;
-}
 
 // the 303 screen's bottom band (2 rows): SEQ/SETUP tabs LEFT-aligned, the flag palette (2 rows × 3)
 // RIGHT-aligned — the grid above keeps the two groups apart. SEQ = grid; SETUP = GEN + KEY.
 // 303 PERF — the live-play lenses (TAP=latch / HOLD=momentary; read-path, non-destructive). Same
 // pf_latch[] state as the phone; draw() seeds the effective pf_* from the latches each frame.
+// text-fit LCD widgets that FLOW left-to-right (width = label + a little padding, not stretched to
+// fill) — so screen buttons read as buttons, not full-width bars. Each advances *px past itself.
+static int lcdbtnf(unsigned seed, int *px, int y, int h, const char *s, int on2) {
+    font(FONT_TINY); int bw = text_width(s) + 7;
+    int r = lcdbtn(seed, *px, y, bw, h, s, on2); *px += bw + 3; return r;
+}
+static int lcdlatchf(unsigned seed, int *px, int y, int h, const char *s, int *lat, int *hld, int *sib) {
+    font(FONT_TINY); int bw = text_width(s) + 7;
+    int r = lcdlatch(seed, *px, y, bw, h, s, lat, hld, sib); *px += bw + 3; return r;
+}
+
+// PERF as a revealed 2-row panel (the 7 live-play lenses, text-fit + left-packed) — PERF chip toggles it.
 static void r2_perf303(Box main, int i) {
-    Box m = lay_inset(main, 3);
-    Box c0 = lay_grid(m, 4, 8, 0, 2), c1 = lay_grid(m, 4, 8, 1, 2), c2 = lay_grid(m, 4, 8, 2, 2), c3 = lay_grid(m, 4, 8, 3, 2);
-    Box c4 = lay_grid(m, 4, 8, 4, 2), c5 = lay_grid(m, 4, 8, 5, 2), c6 = lay_grid(m, 4, 8, 6, 2);
-    pf_half[i]  = lcdlatch(0x7Bu, (int)c0.x, (int)c0.y, (int)c0.w, (int)c0.h, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  0);
-    pf_acc[i]   = lcdlatch(0x7Du, (int)c1.x, (int)c1.y, (int)c1.w, (int)c1.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
-    pf_oct[i]   = lcdlatch(0x80u, (int)c2.x, (int)c2.y, (int)c2.w, (int)c2.h, "OCT",   &pf_latch[PL_OCT][i],   &pf_hold[PL_OCT][i],   0);
-    pf_rev[i]   = lcdlatch(0x82u, (int)c3.x, (int)c3.y, (int)c3.w, (int)c3.h, "REV",   &pf_latch[PL_REV][i],   &pf_hold[PL_REV][i],   0);
-    pf_stac[i]  = lcdlatch(0x7Eu, (int)c4.x, (int)c4.y, (int)c4.w, (int)c4.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
-    pf_glide[i] = lcdlatch(0x7Fu, (int)c5.x, (int)c5.y, (int)c5.w, (int)c5.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
-    pf_roll[i]  = lcdlatch(0x83u, (int)c6.x, (int)c6.y, (int)c6.w, (int)c6.h, "ROLL",  &pf_latch[PL_ROLL][i],  &pf_hold[PL_ROLL][i],  0);
+    Box m = lay_inset(main, 2);
+    int rowH = ((int)m.h - 1) / 2, y0 = (int)m.y, y1 = y0 + rowH + 1, px = (int)m.x;
+    pf_half[i]  = lcdlatchf(0x7Bu, &px, y0, rowH, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  0);
+    pf_acc[i]   = lcdlatchf(0x7Du, &px, y0, rowH, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
+    pf_oct[i]   = lcdlatchf(0x80u, &px, y0, rowH, "OCT",   &pf_latch[PL_OCT][i],   &pf_hold[PL_OCT][i],   0);
+    pf_rev[i]   = lcdlatchf(0x82u, &px, y0, rowH, "REV",   &pf_latch[PL_REV][i],   &pf_hold[PL_REV][i],   0);
+    px = (int)m.x;
+    pf_stac[i]  = lcdlatchf(0x7Eu, &px, y1, rowH, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
+    pf_glide[i] = lcdlatchf(0x7Fu, &px, y1, rowH, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
+    pf_roll[i]  = lcdlatchf(0x83u, &px, y1, rowH, "ROLL",  &pf_latch[PL_ROLL][i],  &pf_hold[PL_ROLL][i],  0);
+}
+
+// a one-octave PIANO KEYBOARD root picker (white C D E F G A B + narrow black keys between), like the
+// phone KEY screen — tap a key to set this line's root; the selected key lights up.
+static void r2_keyboard(Box b, int i) {
+    static const int   WMIDI[7] = { 0, 2, 4, 5, 7, 9, 11 };
+    static const char *WN[7]    = { "C", "D", "E", "F", "G", "A", "B" };
+    static const int   BK[5][2] = { { 1, 1 }, { 3, 2 }, { 6, 4 }, { 8, 5 }, { 10, 6 } };  // {root midi, white index it sits left of}
+    int bx = (int)b.x, by = (int)b.y, bw = (int)b.w, bh = (int)b.h, ww = bw / 7;
+    for (int k = 0; k < 7; k++) {                     // white keys (full height)
+        int px = bx + k * ww, pw = (k == 6) ? (bx + bw - px - 1) : ww - 1, lit = (mroot[i] == WMIDI[k]);
+        int pr = 0, hot = 0, fo = 0; void *w = ui_wid_hash(0x250u + k, px, by, pw, bh);
+        if (ui_button_core(w, px, by, pw, bh, &fo, &pr, &hot)) mroot[i] = WMIDI[k];
+        rrectfill(px, by, pw, bh, 1, lit ? CLR_LIME_GREEN : CLR_DARK_GREEN);
+        rrect(px, by, pw, bh, 1, (lit || hot) ? CLR_WHITE : CLR_MEDIUM_GREEN);
+        font(FONT_TINY); plabel(WN[k], px + pw / 2, by + bh - 6, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN);
+    }
+    int bkw = (ww * 6) / 10, bkh = (bh * 6) / 10;     // black keys (narrow, top portion, ON TOP → hit-tested after)
+    for (int j = 0; j < 5; j++) {
+        int px = bx + BK[j][1] * ww - bkw / 2, lit = (mroot[i] == BK[j][0]);
+        int pr = 0, hot = 0, fo = 0; void *w = ui_wid_hash(0x258u + j, px, by, bkw, bkh);
+        if (ui_button_core(w, px, by, bkw, bkh, &fo, &pr, &hot)) mroot[i] = BK[j][0];
+        rrectfill(px, by, bkw, bkh, 1, lit ? CLR_LIME_GREEN : CLR_BROWNISH_BLACK);
+        rrect(px, by, bkw, bkh, 1, (lit || hot) ? CLR_WHITE : CLR_BLACK);
+    }
+}
+
+// GEN panel (the GEN chip toggles it): the generate buttons AND the KEY editor together — because
+// "when generating you want to do key too". Rows: CLR/MIN/MID/BSY · the piano keyboard (root) · scale + octave.
+static void r2_gen303(Box b, int i) {
+    Box m = lay_inset(b, 2);
+    Box genr = lay_split(m, EDGE_TOP, lay_clamp(m.h * 0.22f, 8, 12), &m);
+    static const char *GN[4] = { "CLR", "MIN", "MID", "BSY" };
+    { int gx = (int)genr.x; for (int g = 0; g < 4; g++) if (lcdbtnf(0x240u + g, &gx, (int)genr.y, (int)genr.h - 1, GN[g], 0)) gen_line(i, g); }
+    Box kb = lay_split(m, EDGE_TOP, m.h * 0.55f, &m);
+    r2_keyboard(kb, i);
+    int sx = (int)m.x, sy = (int)m.y, sh = (int)m.h - 1;         // scale + octave row, flowing
+    if (lcdbtnf(0x246u + i, &sx, sy, sh, SCALES[mscale[i]].name, 0)) {   // scale name (cycles + remaps the line)
+        int old = mscale[i], nw = (old + 1) % NSCALE;
+        for (int s = 0; s < STEPS; s++) { int di = scale_idx(old, pit[i][s]); if (di >= SCALES[nw].n) di = SCALES[nw].n - 1; pit[i][s] = SCALES[nw].deg[di]; }
+        mscale[i] = nw;
+    }
+    sx += 4; font(FONT_TINY); print("OCT", sx, sy + sh / 2 - 2, CLR_MEDIUM_GREEN); sx += text_width("OCT") + 4;
+    if (lcdbtnf(0x248u + i, &sx, sy, sh, "-", 0) && loct[i] > -2) loct[i]--;
+    { char ob[3] = { (char)(loct[i] > 0 ? '+' : loct[i] < 0 ? '-' : ' '), (char)('0' + (loct[i] < 0 ? -loct[i] : loct[i])), 0 };
+      print(ob, sx, sy + sh / 2 - 2, CLR_LIME_GREEN); sx += text_width(ob) + 4; }
+    if (lcdbtnf(0x24Au + i, &sx, sy, sh, "+", 0) && loct[i] <  2) loct[i]++;
 }
 
 // drum PERF — beat-repeat RP1/RP2/RP4 + THIN/BUSY density + ACC (the roomy twin of draw_drum_perf,
@@ -2691,16 +2714,6 @@ static void r2_perfdrum(Box main, int focus) {
     pf_dacc[m] = lcdlatch(0x89u, (int)b2.x, (int)b2.y, (int)b2.w, (int)b2.h, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
 }
 
-// one row of screen tabs (SEQ = the note roll + its ACC/SLD/TIE lanes · SETUP = GEN + KEY · PERF =
-// the live lenses). The old arm-a-flag palette is GONE — ACC/SLD/TIE are now direct lanes on the roll.
-static void r2_303band(Box band, int i) {
-    int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
-    int mode = pscreen[i], tw = (bw - 2) / 3; if (tw > 44) tw = 44;
-    if (lcdbtn(0x132u + i * 3 + 0, bx,              by, tw - 1, bh - 1, "SEQ",   mode == PS_SEQ))  pscreen[i] = PS_SEQ;
-    if (lcdbtn(0x132u + i * 3 + 1, bx + tw,         by, tw - 1, bh - 1, "SETUP", mode == PS_GEN))  pscreen[i] = PS_GEN;
-    if (lcdbtn(0x132u + i * 3 + 2, bx + 2 * tw,     by, tw - 1, bh - 1, "PERF",  mode == PS_PERF)) pscreen[i] = PS_PERF;
-}
-
 static void r2_bigscreen(Box c, int focus) {
     int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
     rectfill(x, y, w, h, CLR_DARK_GREEN);
@@ -2711,13 +2724,19 @@ static void r2_bigscreen(Box c, int focus) {
     print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
     { char b[8]; int bp = (int)g_bpm, k = 0; if (bp >= 100) b[k++] = '0' + bp / 100; b[k++] = '0' + (bp / 10) % 10; b[k++] = '0' + bp % 10; b[k++] = 0;
       print(b, x + w - 24, y + 3, CLR_LIME_GREEN); }
-    if (focus <= M_303B) {   // 303: SEQ (note roll + ACC/SLD/TIE lanes) or SETUP fills the screen; a 1-row tab band below
-        int i = focus, bandH = 11;
-        Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
-        if      (pscreen[i] == PS_GEN)  r2_setup303(main, i);   // SETUP = GEN + KEY
-        else if (pscreen[i] == PS_PERF) r2_perf303(main, i);    // PERF lenses
-        else                            r2_screen303(main, i);  // SEQ grid
-        r2_303band(box(x + 3, y + h - bandH - 1, w - 6, bandH), i);
+    if (focus <= M_303B) {   // 303: full-width roll; PERF / GEN are panels REVEALED by the bottom-left chips (roll keeps the room when closed)
+        int i = focus, chipH = 11, open = r2_303panel[i];
+        int panelH = (open == 2) ? 46 : 26;            // GEN (piano + gen + scale/oct) needs more height than PERF
+        int botH = chipH + (open ? panelH + 1 : 0);
+        Box main = box(x + 3, y + 13, w - 6, h - 13 - botH - 2);
+        r2_screen303(main, i);                                       // roll + octave pen + ACC/SLD/TIE lanes
+        if (open) {                                                  // the revealed control panel sits just above the chips
+            Box panel = box(x + 3, y + h - chipH - panelH - 1, w - 6, panelH);
+            if (open == 1) r2_perf303(panel, i); else r2_gen303(panel, i);
+        }
+        int chx = x + 3;                                             // toggle chips, bottom-left (text-fit)
+        if (lcdbtnf(0x132u + i, &chx, y + h - chipH - 1, chipH - 1, "PERF", open == 1)) r2_303panel[i] = (open == 1) ? 0 : 1;
+        if (lcdbtnf(0x135u + i, &chx, y + h - chipH - 1, chipH - 1, "GEN",  open == 2)) r2_303panel[i] = (open == 2) ? 0 : 2;
         return;
     }
     if (focus <= M_909) {   // drum: VCE grid / GEN / PERF; the 2-row band (tabs + palette) is ALWAYS drawn so you can switch back
@@ -2730,10 +2749,7 @@ static void r2_bigscreen(Box c, int focus) {
         return;
     }
     // MST — the automation view + its own soft-key row (no submenu)
-    r2_screenmst(box(x + 3, y + 13, w - 6, h - 24));
-    int ky = y + h - 11, kw = (w - 10) / 4;
-    static const char *K[4] = { "MIX", "PCF", "CRU", "GAT" };
-    for (int k = 0; k < 4; k++) if (lcdbtn(0x13Cu + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], mstflow == k)) mstflow = k;
+    r2_screenmst(box(x + 3, y + 13, w - 6, h - 15));   // mixer + PCF/CRU/GAT lanes all at once — no tabs
 }
 
 // a narrow 303 knob-column: header + 5 acid knobs + FX trio + CL/DF + KEY. The note surface lives

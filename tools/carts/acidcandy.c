@@ -96,6 +96,7 @@ static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M
 static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) · 1=ACC · 2=PROB · 3=STRK (909) — the drum twin of the 303's `armed` flag palette
 static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per line: +1 up / 0 center / -1 down. A note drawn on the roll lands at this octave; tapping the matching note erases it.
 static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEALED, per line (0 = none / roll gets the room · 1 = PERF · 2 = GEN), toggled by the bottom-left chips.
+static int r2_drumpanel[2] = { 1, 1 };// ROOMY drum: which panel is REVEALED, per machine (0 = none · 1 = FLAG/paint · 2 = GEN · 3 = PERF), toggled by the bottom-left chips. Default FLAG so the paint tools are up.
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -815,6 +816,17 @@ static int lcdlatch(unsigned seed, int x, int y, int w, int hh, const char *s, i
     rrect(x, y, w, hh, 2, *latch ? CLR_WHITE : (hot || on) ? CLR_LIME_GREEN : CLR_MEDIUM_GREEN);
     font(FONT_TINY); print(s, x + (w - text_width(s)) / 2, y + 1, on ? CLR_DARK_GREEN : CLR_LIME_GREEN);
     return on;
+}
+
+// text-fit LCD widgets that FLOW left-to-right (width = label + a little padding, not stretched to
+// fill) — so screen buttons read as buttons, not full-width bars. Each advances *px past itself.
+static int lcdbtnf(unsigned seed, int *px, int y, int h, const char *s, int on2) {
+    font(FONT_TINY); int bw = text_width(s) + 7;
+    int r = lcdbtn(seed, *px, y, bw, h, s, on2); *px += bw + 3; return r;
+}
+static int lcdlatchf(unsigned seed, int *px, int y, int h, const char *s, int *lat, int *hld, int *sib) {
+    font(FONT_TINY); int bw = text_width(s) + 7;
+    int r = lcdlatch(seed, *px, y, bw, h, s, lat, hld, sib); *px += bw + 3; return r;
 }
 
 // ── the cartridge nav strip (zone 1) ─────────────────────────────────────────
@@ -2592,52 +2604,35 @@ static void r2_screenmst(Box g) {
     }
 }
 
-// the drum GEN panel (the sibling of the VCE grid) — CLEAR / MIN / MID / BUSY, per machine.
+// the drum GEN panel — CLR/MIN/MID/BSY (text-fit row), per machine.
 static void r2_gendrum(Box main, int focus) {
-    Box m = lay_inset(main, 4);
-    static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
-    for (int g = 0; g < 4; g++) { Box c = lay_grid(m, 2, 4, g, 3);
-        if (lcdbtn(0x158u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) { if (focus == M_808) gen_drums(g); else gen_drums9(g); } }
+    Box m = lay_inset(main, 2);
+    static const char *GN[4] = { "CLR", "MIN", "MID", "BSY" };
+    int gx = (int)m.x;
+    for (int g = 0; g < 4; g++) if (lcdbtnf(0x158u + g, &gx, (int)m.y, (int)m.h - 1, GN[g], 0)) { if (focus == M_808) gen_drums(g); else gen_drums9(g); }
 }
 
-// the drum screen's bottom band (2 rows), mirroring the 303: VCE/GEN tabs LEFT-aligned, the paint
-// palette (HIT/ACC/PROB[/STRK]) RIGHT-aligned as a 2-column block — the voice grid keeps them apart.
-static void r2_drumband(Box band, int focus) {
-    int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
-    int rh = (bh + 1) / 2, tw = 34, grid = (dscreen != DS_GEN && dscreen != DS_PERF);
-    if (lcdbtn(0x230u + focus * 3 + 0, bx,          by,      tw, rh - 1, "VCE",  grid))                dscreen = DS_VCE;
-    if (lcdbtn(0x230u + focus * 3 + 1, bx,          by + rh, tw, rh - 1, "GEN",  dscreen == DS_GEN))   dscreen = DS_GEN;
-    if (lcdbtn(0x230u + focus * 3 + 2, bx + tw + 1, by,      tw, rh - 1, "PERF", dscreen == DS_PERF))  dscreen = DS_PERF;
-    if (!grid) return;   // GEN / PERF panel showing → hide the paint palette (tabs stay, so you can get back)
-    int fw = 28, gap = 1;
-    // top row = the flag tools (HIT / ACC / PROB [/ STRK]); right-aligned
+// the drum FLAG panel — the paint-tool palette (what a grid tap does): HIT/ACC/PROB[/STRK] on top,
+// the per-step p-locks TUN/DEC/⟨char⟩ below. Sets r2_dpaint (>=4 = a p-lock → the grid becomes the
+// bipolar offset lane for the selected voice). Text-fit + left-packed, 2 rows.
+static void r2_drumflags(Box b, int focus) {
+    Box m = lay_inset(b, 2);
+    int rowH = ((int)m.h - 1) / 2, y0 = (int)m.y, y1 = y0 + rowH + 1, px = (int)m.x;
     static const char *FL[4] = { "HIT", "ACC", "PROB", "STRK" };
-    int fn = (focus == M_909) ? 4 : 3, fx0 = bx + bw - fn * (fw + gap);
-    for (int k = 0; k < fn; k++) if (lcdbtn(0x148u + k, fx0 + k * (fw + gap), by, fw - 1, rh - 1, FL[k], r2_dpaint == k)) r2_dpaint = k;
-    // bottom row = the per-step p-LOCK tools (TUN / DEC [/ ⟨char⟩]); right-aligned; edits a bipolar lane
+    int fn = (focus == M_909) ? 4 : 3;
+    for (int k = 0; k < fn; k++) if (lcdbtnf(0x148u + k, &px, y0, rowH, FL[k], r2_dpaint == k)) r2_dpaint = k;
+    px = (int)m.x;
     int selv = (focus == M_808) ? dsel : d9sel;
     const char *chn = (focus == M_808) ? CH8[selv] : CH9[selv];
     const char *PL[3] = { "TUN", "DEC", chn ? chn : "" };
-    int pn = chn ? 3 : 2, px0 = bx + bw - pn * (fw + gap);
-    for (int k = 0; k < pn; k++) if (lcdbtn(0x14Cu + k, px0 + k * (fw + gap), by + rh, fw - 1, rh - 1, PL[k], r2_dpaint == 4 + k)) r2_dpaint = 4 + k;
+    int pn = chn ? 3 : 2;
+    for (int k = 0; k < pn; k++) if (lcdbtnf(0x14Cu + k, &px, y1, rowH, PL[k], r2_dpaint == 4 + k)) r2_dpaint = 4 + k;
 }
-
 
 // the 303 screen's bottom band (2 rows): SEQ/SETUP tabs LEFT-aligned, the flag palette (2 rows × 3)
 // RIGHT-aligned — the grid above keeps the two groups apart. SEQ = grid; SETUP = GEN + KEY.
 // 303 PERF — the live-play lenses (TAP=latch / HOLD=momentary; read-path, non-destructive). Same
 // pf_latch[] state as the phone; draw() seeds the effective pf_* from the latches each frame.
-// text-fit LCD widgets that FLOW left-to-right (width = label + a little padding, not stretched to
-// fill) — so screen buttons read as buttons, not full-width bars. Each advances *px past itself.
-static int lcdbtnf(unsigned seed, int *px, int y, int h, const char *s, int on2) {
-    font(FONT_TINY); int bw = text_width(s) + 7;
-    int r = lcdbtn(seed, *px, y, bw, h, s, on2); *px += bw + 3; return r;
-}
-static int lcdlatchf(unsigned seed, int *px, int y, int h, const char *s, int *lat, int *hld, int *sib) {
-    font(FONT_TINY); int bw = text_width(s) + 7;
-    int r = lcdlatch(seed, *px, y, bw, h, s, lat, hld, sib); *px += bw + 3; return r;
-}
-
 // PERF as a revealed 2-row panel (the 7 live-play lenses, text-fit + left-packed) — PERF chip toggles it.
 static void r2_perf303(Box main, int i) {
     Box m = lay_inset(main, 2);
@@ -2703,15 +2698,15 @@ static void r2_gen303(Box b, int i) {
 // which keys off `face`; here the machine comes in as `focus`).
 static void r2_perfdrum(Box main, int focus) {
     int m = focus - M_808;   // 0 = 808, 1 = 909
-    Box g = lay_inset(main, 3);
-    Box a0 = lay_grid(g, 3, 6, 0, 2), a1 = lay_grid(g, 3, 6, 1, 2), a2 = lay_grid(g, 3, 6, 2, 2);
-    Box b0 = lay_grid(g, 3, 6, 3, 2), b1 = lay_grid(g, 3, 6, 4, 2), b2 = lay_grid(g, 3, 6, 5, 2);
-    pf_rp1[m]  = lcdlatch(0x84u, (int)a0.x, (int)a0.y, (int)a0.w, (int)a0.h, "RP1",  &dpf_latch[DPL_RP1][m],  &dpf_hold[DPL_RP1][m],  0);
-    pf_rp2[m]  = lcdlatch(0x85u, (int)a1.x, (int)a1.y, (int)a1.w, (int)a1.h, "RP2",  &dpf_latch[DPL_RP2][m],  &dpf_hold[DPL_RP2][m],  0);
-    pf_rp4[m]  = lcdlatch(0x86u, (int)a2.x, (int)a2.y, (int)a2.w, (int)a2.h, "RP4",  &dpf_latch[DPL_RP4][m],  &dpf_hold[DPL_RP4][m],  0);
-    pf_thin[m] = lcdlatch(0x87u, (int)b0.x, (int)b0.y, (int)b0.w, (int)b0.h, "THIN", &dpf_latch[DPL_THIN][m], &dpf_hold[DPL_THIN][m], &dpf_latch[DPL_BUSY][m]);
-    pf_busy[m] = lcdlatch(0x88u, (int)b1.x, (int)b1.y, (int)b1.w, (int)b1.h, "BUSY", &dpf_latch[DPL_BUSY][m], &dpf_hold[DPL_BUSY][m], &dpf_latch[DPL_THIN][m]);
-    pf_dacc[m] = lcdlatch(0x89u, (int)b2.x, (int)b2.y, (int)b2.w, (int)b2.h, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
+    Box g = lay_inset(main, 2);
+    int rowH = ((int)g.h - 1) / 2, y0 = (int)g.y, y1 = y0 + rowH + 1, px = (int)g.x;
+    pf_rp1[m]  = lcdlatchf(0x84u, &px, y0, rowH, "RP1",  &dpf_latch[DPL_RP1][m],  &dpf_hold[DPL_RP1][m],  0);
+    pf_rp2[m]  = lcdlatchf(0x85u, &px, y0, rowH, "RP2",  &dpf_latch[DPL_RP2][m],  &dpf_hold[DPL_RP2][m],  0);
+    pf_rp4[m]  = lcdlatchf(0x86u, &px, y0, rowH, "RP4",  &dpf_latch[DPL_RP4][m],  &dpf_hold[DPL_RP4][m],  0);
+    px = (int)g.x;
+    pf_thin[m] = lcdlatchf(0x87u, &px, y1, rowH, "THIN", &dpf_latch[DPL_THIN][m], &dpf_hold[DPL_THIN][m], &dpf_latch[DPL_BUSY][m]);
+    pf_busy[m] = lcdlatchf(0x88u, &px, y1, rowH, "BUSY", &dpf_latch[DPL_BUSY][m], &dpf_hold[DPL_BUSY][m], &dpf_latch[DPL_THIN][m]);
+    pf_dacc[m] = lcdlatchf(0x89u, &px, y1, rowH, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
 }
 
 static void r2_bigscreen(Box c, int focus) {
@@ -2739,13 +2734,22 @@ static void r2_bigscreen(Box c, int focus) {
         if (lcdbtnf(0x135u + i, &chx, y + h - chipH - 1, chipH - 1, "GEN",  open == 2)) r2_303panel[i] = (open == 2) ? 0 : 2;
         return;
     }
-    if (focus <= M_909) {   // drum: VCE grid / GEN / PERF; the 2-row band (tabs + palette) is ALWAYS drawn so you can switch back
-        int bandH = 20;
-        Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
-        if      (dscreen == DS_GEN)  r2_gendrum(main, focus);
-        else if (dscreen == DS_PERF) r2_perfdrum(main, focus);
-        else                         r2_screendrum(main, focus);
-        r2_drumband(box(x + 3, y + h - bandH - 1, w - 6, bandH), focus);
+    if (focus <= M_909) {   // drum: full-width voice grid; FLAG (paint) / GEN / PERF are panels REVEALED by the bottom-left chips
+        int mi = focus - M_808, chipH = 11, open = r2_drumpanel[mi];
+        int panelH = (open == 2) ? 14 : 22;                         // GEN = 1 row · FLAG/PERF = 2 rows
+        int botH = chipH + (open ? panelH + 1 : 0);
+        Box main = box(x + 3, y + 13, w - 6, h - 13 - botH - 2);
+        r2_screendrum(main, focus);                                 // the voice grid (or the p-lock offset lane when a p-lock is armed)
+        if (open) {
+            Box panel = box(x + 3, y + h - chipH - panelH - 1, w - 6, panelH);
+            if      (open == 1) r2_drumflags(panel, focus);
+            else if (open == 2) r2_gendrum(panel, focus);
+            else                r2_perfdrum(panel, focus);
+        }
+        int chx = x + 3, cy = y + h - chipH - 1;                    // toggle chips, bottom-left (text-fit)
+        if (lcdbtnf(0x230u + focus * 3 + 0, &chx, cy, chipH - 1, "FLAG", open == 1)) r2_drumpanel[mi] = (open == 1) ? 0 : 1;
+        if (lcdbtnf(0x230u + focus * 3 + 1, &chx, cy, chipH - 1, "GEN",  open == 2)) r2_drumpanel[mi] = (open == 2) ? 0 : 2;
+        if (lcdbtnf(0x230u + focus * 3 + 2, &chx, cy, chipH - 1, "PERF", open == 3)) r2_drumpanel[mi] = (open == 3) ? 0 : 3;
         return;
     }
     // MST — the automation view + its own soft-key row (no submenu)

@@ -43,7 +43,11 @@ VCE+FLAG merged into the voice grid with a HIT/ACC/PROB[/STRK] paint palette, GE
 tab block). 303 = HALF/ACC/OCT/REV/STAC/GLIDE/ROLL; drums = RP1/RP2/RP4 + THIN/BUSY/ACC (TAP=latch /
 HOLD=momentary, same pf_latch/dpf_latch state as the phone).
 
-**M3 backlog (still ◻):** drum KIT minimap; MUT/REC latches; per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
+**MUT/REC + METAL SHIPPED (2026-07-23):** the context row's freed right space now holds MUT + REC
+pad-latches (re-target a pad tap: MUT = per-voice mute w/ orange rims, REC = punch-on-step while
+playing) + the 909 METAL XY (m9cut/m9res, shown only when a 909 voice is picked).
+
+**M3 backlog (still ◻):** drum KIT minimap; per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
 909 METAL XY; the MST DELAY-division buttons + per-machine SEND (the FX SND knob covers the send
 level, the division picker is still open). (DONE since M2: MST RES + FB — the column is a 2-wide
 grid TMP|SWG / GLU|PMP / FLT|RES + FB; the 303 Devil Fish DEEP page — a CORE/DF-KNOBS page tab in

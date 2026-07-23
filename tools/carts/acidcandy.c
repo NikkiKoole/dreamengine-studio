@@ -97,6 +97,7 @@ static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) �
 static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per line: +1 up / 0 center / -1 down. A note drawn on the roll lands at this octave; tapping the matching note erases it.
 static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEALED, per line (0 = none / roll gets the room · 1 = PERF · 2 = GEN), toggled by the bottom-left chips.
 static int r2_drumpanel[2] = { 1, 1 };// ROOMY drum: which panel is REVEALED, per machine (0 = none · 1 = FLAG/paint · 2 = GEN · 3 = PERF), toggled by the bottom-left chips. Default FLAG so the paint tools are up.
+static int r2_mstpanel = 0;           // ROOMY master: which panel is REVEALED (0 = none / mixer+lanes all-at-once · 1 = GEN song-generator · 2 = SONG save/load slots · 3 = DLY delay division), toggled by the bottom-left chips.
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2604,6 +2605,51 @@ static void r2_screenmst(Box g) {
     }
 }
 
+// MST GEN panel — the whole-rack song GENERATOR: one tap fills both 303s + a kit + tempo/swing/key
+// by genre (gen_song). Text-fit row of the cute style names.
+static void r2_mstgen(Box b) {
+    Box m = lay_inset(b, 2);
+    int gx = (int)m.x;
+    for (int i = 0; i < SNG_N; i++) if (lcdbtnf(0x2A0u + i, &gx, (int)m.y, (int)m.h - 1, SNG_NAME[i], 0)) gen_song(i);
+}
+
+// MST DLY panel — the tempo-synced delay DIVISION picker (1/16 · 1/8 · DOT · 1/4 → mdiv).
+static void r2_mstdelay(Box b) {
+    Box m = lay_inset(b, 2);
+    static const char *DL[4] = { "1/16", "1/8", "DOT", "1/4" };
+    int dx = (int)m.x;
+    for (int k = 0; k < 4; k++) if (lcdbtnf(0x2D0u + k, &dx, (int)m.y, (int)m.h - 1, DL[k], mdiv == k)) mdiv = k;
+}
+
+// MST SONG panel — six whole-rack song slots (the "6 songs in master" layer). TAP a slot = load ·
+// HOLD to charge = save (an occupied slot asks X/OK first). Ported from the phone SONGS page.
+static void r2_mstsong(Box b) {
+    Box m = lay_inset(b, 2);
+    static int shf[NSLOT] = { 0 };
+    static int confirm = -1;
+    int cur = song_slot_cur(), sw = (int)m.w / NSLOT;
+    for (int i = 0; i < NSLOT; i++) {
+        int x = (int)m.x + i * sw, y = (int)m.y, w = sw - 2, h = (int)m.h - 1, used = song_slot_used(i);
+        char n[2] = { (char)('1' + i), 0 };
+        if (confirm == i) {                                   // this slot is asking before overwrite
+            if (lcdbtn(0x2B8u + i, x, y, w / 2 - 1, h, "X", 0)) confirm = -1;
+            if (lcdbtn(0x2C8u + i, x + w / 2, y, w - w / 2, h, "OK", 0)) { song_save_slot(i); confirm = -1; }
+            continue;
+        }
+        if (confirm >= 0) { rrect(x, y, w, h, 2, CLR_MEDIUM_GREEN); font(FONT_TINY); print(n, x + 3, y + 2, CLR_MEDIUM_GREEN); if (used) circfill(x + w - 4, y + 4, 1, CLR_MEDIUM_GREEN); continue; }
+        void *wid = ui_wid_hash(0x2B0u + i, x, y, w, h);
+        int pr = 0, hot = 0, foc = 0, act = ui_button_core(wid, x, y, w, h, &foc, &pr, &hot);
+        if (pr) shf[i]++;
+        else { if (act) { if (shf[i] >= SONG_HOLD) { if (used) confirm = i; else song_save_slot(i); } else if (shf[i] <= PERF_TAP && used) song_load_slot(i); } shf[i] = 0; }
+        int holding = pr && shf[i] > PERF_TAP, ready = pr && shf[i] >= SONG_HOLD;
+        if (hot && !pr) rrectfill(x, y, w, h, 2, CLR_MEDIUM_GREEN);
+        if (holding) { float p = clamp((shf[i] - PERF_TAP) / (float)(SONG_HOLD - PERF_TAP), 0, 1); int bw = (int)((w - 2) * p + 0.5f); if (bw > 0) rectfill(x + 1, y + 1, bw, h - 2, ready ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREEN); }
+        rrect(x, y, w, h, 2, (i == cur) ? CLR_WHITE : ready ? CLR_LIGHT_YELLOW : CLR_LIME_GREEN);
+        font(FONT_TINY); print(n, x + 3, y + 2, ready ? CLR_DARK_GREEN : CLR_LIME_GREEN);
+        if (used) circfill(x + w - 4, y + 4, 1, (i == cur) ? CLR_WHITE : CLR_LIME_GREEN);
+    }
+}
+
 // the drum GEN panel — CLR/MIN/MID/BSY (text-fit row), per machine.
 static void r2_gendrum(Box main, int focus) {
     Box m = lay_inset(main, 2);
@@ -2752,8 +2798,23 @@ static void r2_bigscreen(Box c, int focus) {
         if (lcdbtnf(0x230u + focus * 3 + 2, &chx, cy, chipH - 1, "PERF", open == 3)) r2_drumpanel[mi] = (open == 3) ? 0 : 3;
         return;
     }
-    // MST — the automation view + its own soft-key row (no submenu)
-    r2_screenmst(box(x + 3, y + 13, w - 6, h - 15));   // mixer + PCF/CRU/GAT lanes all at once — no tabs
+    // MST — mixer + PCF/CRU/GAT lanes all at once; GEN / SONG / DLY are chip-revealed panels (like 303/drums)
+    {
+        int chipH = 11, open = r2_mstpanel;
+        int panelH = (open == 2) ? 22 : 13;                         // SONG (6 slots) taller; GEN/DLY are one row
+        int botH = chipH + (open ? panelH + 1 : 0);
+        r2_screenmst(box(x + 3, y + 13, w - 6, h - 13 - botH - 2));  // mixer + lanes (default all-at-once)
+        if (open) {
+            Box panel = box(x + 3, y + h - chipH - panelH - 1, w - 6, panelH);
+            if      (open == 1) r2_mstgen(panel);
+            else if (open == 2) r2_mstsong(panel);
+            else                r2_mstdelay(panel);
+        }
+        int chx = x + 3, cy = y + h - chipH - 1;                    // toggle chips, bottom-left (text-fit)
+        if (lcdbtnf(0x13Cu, &chx, cy, chipH - 1, "GEN",  open == 1)) r2_mstpanel = (open == 1) ? 0 : 1;
+        if (lcdbtnf(0x13Du, &chx, cy, chipH - 1, "SONG", open == 2)) r2_mstpanel = (open == 2) ? 0 : 2;
+        if (lcdbtnf(0x13Eu, &chx, cy, chipH - 1, "DLY",  open == 3)) r2_mstpanel = (open == 3) ? 0 : 3;
+    }
 }
 
 // a narrow 303 knob-column: header + 5 acid knobs + FX trio + CL/DF + KEY. The note surface lives
@@ -2961,17 +3022,16 @@ static void draw_rack2(Box area) {
     float dh = stage.h * 0.125f;                               // each drum key-row (808 white / 909 black)
     Box d808 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // white keys at the very bottom
     Box d909 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // black keys just above
-    // middle band: [MST | 303a | 303b | SCREEN → right edge]. MASTER goes FIRST so the three
-    // knob-columns cluster on the left with their nameplates in a row along the bottom (a short hop
-    // between instruments); the SCREEN flows to the right edge. The columns take the FULL band height
-    // (taller now); the shared VOICE context row is carved from the right region only, so it lines up
-    // UNDER the screen instead of stretching across the whole width.
+    // middle band: [303a | 303b | SCREEN | MST]. 303a/303b are knob-columns on the left, the MASTER
+    // column is on the RIGHT (classic mixer layout), and the shared SCREEN sits between them. The
+    // columns take the FULL band height; the shared VOICE context row is carved from the screen region
+    // only, so it lines up UNDER the screen instead of stretching across the whole width.
     float colw = lay_clamp(area.w * 0.11f, 40, 58);   // narrower (small-disc knobs) → the shared pattern screen gets the width
-    Box cms = lay_split(stage, EDGE_LEFT, colw, &stage);       // MST first (leftmost)
-    Box c3a = lay_split(stage, EDGE_LEFT, colw, &stage);
+    Box c3a = lay_split(stage, EDGE_LEFT, colw, &stage);       // 303a / 303b on the left…
     Box c3b = lay_split(stage, EDGE_LEFT, colw, &stage);
+    Box cms = lay_split(stage, EDGE_RIGHT, colw, &stage);      // …MASTER on the RIGHT (mixer convention)
     Box ctx = lay_split(stage, EDGE_BOTTOM, lay_clamp(stage.h * 0.19f, 32, 44), &stage);   // context row under the screen
-    Box scr = stage;
+    Box scr = stage;                                           // the shared screen sits between 303b and MST
     // transport bar
     rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);
     font(FONT_NORMAL); print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)bar.h / 2 - 4, CLR_LIGHT_PEACH);

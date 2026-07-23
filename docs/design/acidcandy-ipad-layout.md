@@ -34,11 +34,13 @@ drag feel.
 **303 screen reorg (2026-07-23):** SEQ+FLAG merged (one grid, flags = paint-tools) and GEN+KEY
 merged into a SETUP panel → the 303 soft-keys are now just **SEQ | SETUP**, drawn as a 2-row bottom
 band (tabs left-aligned, the flag palette a right-aligned 2×3 block, grid between). SETUP holds GEN
-+ KEY editing (root/scale/octave — now editable). Drums still use the VCE/FLAG/GEN 1-row submenu
-(same merge pending there). MUT + REC deferred (planned as on-screen buttons).
++ KEY editing (root/scale/octave — now editable). **Drums got the same treatment (2026-07-23):**
+VCE+FLAG merged into the voice grid with a HIT/ACC/PROB[/STRK] paint palette, GEN its own tab, same
+2-row band (VCE/GEN left, palette right); `r2_dpaint` drives the paint tool. MUT + REC deferred
+(planned as on-screen buttons).
 
-**M3 backlog (still ◻):** 303 PERF lenses; drum tab-merge (VCE+FLAG) + KIT minimap + PERF + MUT/REC
-latches; per-step p-locks (TUN/DEC/⟨char⟩) as grid lenses;
+**M3 backlog (still ◻):** 303 + drum PERF lenses; drum KIT minimap; MUT/REC latches; per-step
+p-locks (TUN/DEC/⟨char⟩) as grid lenses;
 909 METAL XY; the MST DELAY-division buttons + per-machine SEND (the FX SND knob covers the send
 level, the division picker is still open). (DONE since M2: MST RES + FB — the column is a 2-wide
 grid TMP|SWG / GLU|PMP / FLT|RES + FB; the 303 Devil Fish DEEP page — a CORE/DF-KNOBS page tab in

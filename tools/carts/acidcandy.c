@@ -93,6 +93,7 @@ static int face = M_303A;
 static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · 1 = iPad full rack (2×2) · 2 = iPad ROOMY (draw_rack2 — sticky-focus, one big shared screen). HOME toggles it; on the iPad the NEW/2×2 buttons flip 1↔2 (coexistence while the app is under review).
 static int r2_focus   = 0;   // ROOMY: which machine owns the big shared screen (0=303a 1=303b 2=808 3=909 4=MST) — sticky focus, set by tapping a nameplate. Play stays live for ALL regardless.
 static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M_909) — the shared context panel + its ring colour follow it (voice = dsel/d9sel)
+static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) · 1=ACC · 2=PROB · 3=STRK (909) — the drum twin of the 303's `armed` flag palette
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2445,7 +2446,7 @@ static void r2_screen303(Box g, int i) {
 // SHARED SCREEN — the drum 2D VOICE GRID (voices × 16 steps). left gutter names each voice; the
 // selected row is lit. tap/drag paints hits. ONE capture widget.
 static void r2_screendrum(Box g, int focus) {
-    int mode = dscreen, hi = mac[focus].col, nv = (focus == M_808) ? TR_NV : TR9_NV;
+    int hi = mac[focus].col, nv = (focus == M_808) ? TR_NV : TR9_NV;
     int (*grid)[STEPS] = (focus == M_808) ? dgrid : d9grid;
     int (*accg)[STEPS] = (focus == M_808) ? dacc : d9acc;
     int (*prbg)[STEPS] = (focus == M_808) ? dprob : d9prob;
@@ -2461,13 +2462,14 @@ static void r2_screendrum(Box g, int focus) {
             int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
             int s = (px - gx) / step, v = (py - gy) / rh;
             if (s >= 0 && s < STEPS && v >= 0 && v < nv) {
-                if (mode == DS_FLAG && darmed == DD_ACC) {            // ACC paints (fill-drag): a hit + its accent
+                if (r2_dpaint == 1) {                                 // ACC — fill-drag: a hit + its accent
                     if (ui_grabbed(w)) paint_val = !accg[v][s];
                     accg[v][s] = paint_val; if (paint_val) grid[v][s] = 1;
-                } else if (mode == DS_FLAG && ui_grabbed(w)) {        // PROB / STRK cycle on the tap
-                    if (darmed == DD_PROB) { grid[v][s] = 1; int p = prbg[v][s]; prbg[v][s] = p >= 100 ? 75 : p >= 75 ? 50 : p >= 50 ? 25 : 100; }
-                    else if (focus == M_909) { d9strk[v][s] = (d9strk[v][s] + 1) & 3; grid[v][s] = 1; }
-                } else if (mode != DS_FLAG) {                         // VCE — paint hits
+                } else if (r2_dpaint == 2 && ui_grabbed(w)) {         // PROB — cycle on the tap
+                    grid[v][s] = 1; int p = prbg[v][s]; prbg[v][s] = p >= 100 ? 75 : p >= 75 ? 50 : p >= 50 ? 25 : 100;
+                } else if (r2_dpaint == 3 && ui_grabbed(w) && focus == M_909) {   // STRK — cycle none→flam→drag→ratchet
+                    d9strk[v][s] = (d9strk[v][s] + 1) & 3; grid[v][s] = 1;
+                } else if (r2_dpaint == 0) {                          // HIT — paint hits (the default)
                     if (ui_grabbed(w)) paint_val = !grid[v][s];
                     grid[v][s] = paint_val;
                 }
@@ -2523,38 +2525,28 @@ static void r2_screenmst(Box g) {
     font(FONT_TINY); print("drag to draw the lane", gx, gy + gh - 6, CLR_MEDIUM_GREEN);
 }
 
-// the SUBMENU row — one row directly above the soft-keys. Shows the tool palette / menu for the
-// ACTIVE view: FLAG = the flag palette (arm which flag the grid paints); GEN = CLEAR/MIN/MID/BUSY.
-// SEQ / VCE / MST have no submenu (blank). Together with the soft-key row this is the 2-row screen UI.
-static void r2_subrow(Box r, int focus) {
-    int x = (int)r.x, y = (int)r.y, w = (int)r.w, h = (int)r.h;
-    if (focus <= M_303B) {
-        int mode = pscreen[focus];
-        if (mode == PS_FLAG) {
-            int bw = w / FL_N;
-            for (int f = 0; f < FL_N; f++) if (lcdbtn(0x140u + f, x + f * bw, y, bw - 1, h, FLNAME[f], armed == f)) armed = f;
-        } else if (mode == PS_GEN) {
-            static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
-            int bw = w / 4;
-            for (int d = 0; d < 4; d++) if (lcdbtn(0x150u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) gen_line(focus, d);
-        }   // 303 banks are the always-visible A/B/C/D buttons in the column, not a screen submenu
-    } else if (focus <= M_909) {
-        int mode = dscreen;
-        if (mode == DS_FLAG) {
-            static const char *FN[3] = { "ACC", "PROB", "STRK" };
-            static const int   FM[3] = { DD_ACC, DD_PROB, DD_STRK };
-            int n = (focus == M_909) ? 3 : 2, bw = w / n;
-            for (int f = 0; f < n; f++) if (lcdbtn(0x160u + f, x + f * bw, y, bw - 1, h, FN[f], darmed == FM[f])) darmed = FM[f];
-        } else if (mode == DS_GEN) {
-            static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
-            int bw = w / 4;
-            for (int d = 0; d < 4; d++) if (lcdbtn(0x170u + d, x + d * bw, y, bw - 1, h, GN[d], 0)) { if (focus == M_808) gen_drums(d); else gen_drums9(d); }
-        }   // drum banks are the A/B/C/D buttons at the left of the strip, not a screen submenu
-    }
-    // MST: no submenu (the PCF/CRU/GAT lane IS the editor)
+// the drum GEN panel (the sibling of the VCE grid) — CLEAR / MIN / MID / BUSY, per machine.
+static void r2_gendrum(Box main, int focus) {
+    Box m = lay_inset(main, 4);
+    static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+    for (int g = 0; g < 4; g++) { Box c = lay_grid(m, 2, 4, g, 3);
+        if (lcdbtn(0x158u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) { if (focus == M_808) gen_drums(g); else gen_drums9(g); } }
 }
 
-// the big shared middle screen — frame + tag row + the deep editor + the 2-row UI (submenu + soft-keys).
+// the drum screen's bottom band (2 rows), mirroring the 303: VCE/GEN tabs LEFT-aligned, the paint
+// palette (HIT/ACC/PROB[/STRK]) RIGHT-aligned as a 2-column block — the voice grid keeps them apart.
+static void r2_drumband(Box band, int focus) {
+    int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
+    int rh = (bh + 1) / 2, tw = 36;
+    if (lcdbtn(0x230u + focus * 2 + 0, bx, by,      tw, rh - 1, "VCE", dscreen != DS_GEN)) dscreen = DS_VCE;
+    if (lcdbtn(0x230u + focus * 2 + 1, bx, by + rh, tw, rh - 1, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
+    static const char *FN[4] = { "HIT", "ACC", "PROB", "STRK" };
+    int n = (focus == M_909) ? 4 : 3, fw = 32, gap = 1, x0 = bx + bw - 2 * (fw + gap);   // 2-column, right-aligned
+    for (int k = 0; k < n; k++) { int col = k % 2, row = k / 2;
+        if (lcdbtn(0x148u + k, x0 + col * (fw + gap), by + row * rh, fw - 1, rh - 1, FN[k], r2_dpaint == k)) r2_dpaint = k; }
+}
+
+// the big shared middle screen — frame + tag row + the deep editor + the 2-row screen UI.
 // the 303 SETUP panel (the sibling of the SEQ grid): GEN (clear/densities) + KEY (root/scale/octave
 // editing) on ONE panel — the two "utility" jobs together, per the maker.
 static void r2_setup303(Box main, int i) {
@@ -2625,20 +2617,18 @@ static void r2_bigscreen(Box c, int focus) {
         return;
     }
     // drums + MST keep the submenu-row + soft-key-row UI
-    Box body = box(x + 3, y + 13, w - 6, h - 36);
-    if (focus <= M_909)  r2_screendrum(body, focus);
-    else                 r2_screenmst(body);
-    r2_subrow(box(x + 4, y + h - 22, w - 8, 9), focus);
-    int ky = y + h - 11;
-    if (focus <= M_909) {
-        static const char *K[3] = { "VCE", "FLAG", "GEN" }; static const int MO[3] = { DS_VCE, DS_FLAG, DS_GEN };
-        int kw = (w - 10) / 3;
-        for (int k = 0; k < 3; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
-    } else {
-        static const char *K[4] = { "MIX", "PCF", "CRU", "GAT" };
-        int kw = (w - 10) / 4;
-        for (int k = 0; k < 4; k++) if (lcdbtn(0x13Cu + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], mstflow == k)) mstflow = k;
+    if (focus <= M_909) {   // drum: voice grid (VCE) or GEN panel; a 2-row band = VCE/GEN tabs-left + paint palette-right
+        int bandH = 20;
+        if (dscreen == DS_GEN) r2_gendrum(box(x + 3, y + 13, w - 6, h - 13 - 2), focus);
+        else { r2_screendrum(box(x + 3, y + 13, w - 6, h - 13 - bandH - 2), focus);
+               r2_drumband(box(x + 3, y + h - bandH - 1, w - 6, bandH), focus); }
+        return;
     }
+    // MST — the automation view + its own soft-key row (no submenu)
+    r2_screenmst(box(x + 3, y + 13, w - 6, h - 24));
+    int ky = y + h - 11, kw = (w - 10) / 4;
+    static const char *K[4] = { "MIX", "PCF", "CRU", "GAT" };
+    for (int k = 0; k < 4; k++) if (lcdbtn(0x13Cu + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], mstflow == k)) mstflow = k;
 }
 
 // a narrow 303 knob-column: header + 5 acid knobs + FX trio + CL/DF + KEY. The note surface lives

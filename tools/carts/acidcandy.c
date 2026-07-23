@@ -2378,8 +2378,9 @@ static void r2_knob(float *v, int cx, int cy, int r, const char *label, float de
     int hot = held || ui_hover(cx - r, cy - r, 2 * r + 1, 2 * r + 1);
     if (!c && hot && mouse_wheel() != 0) *v = clamp(*v + mouse_wheel() * 0.04f, 0, 1);
     float ang = 150 + *v * 240;
-    circfill(cx, cy, r, CLR_BLACK);
-    circ(cx, cy, r, (held || hot) ? CLR_WHITE : accent);
+    int oc = (held || hot) ? CLR_WHITE : accent;
+    circfill(cx, cy, r, oc);              // 2px-thick ring, done as fill-and-punch so it's SOLID
+    circfill(cx, cy, r - 2, CLR_BLACK);   // (two circ() outlines leave holes) — punch the black face
     line(cx, cy, cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), CLR_WHITE);
     font(FONT_TINY);
     if (held) { int p = (int)(*v * 99 + 0.5f); char b[3] = { (char)('0' + p / 10), (char)('0' + p % 10), 0 }; plabel(b, cx, cy + r + 1, accent); }

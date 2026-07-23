@@ -2348,9 +2348,9 @@ static void draw_rack(Box area) {
 // machines regardless of focus. Coexists with the old 2×2 draw_rack behind rack_view (flip via
 // the NEW / 2×2 buttons) so the shipping default is undisturbed while the app is under App Store
 // review. Feature-parity gate before flipping the default: docs/design/acidcandy-ipad-layout.md.
-#define R2_INK  CLR_LIGHT_GREY
-#define R2_DIM  CLR_MEDIUM_GREY
-#define R2_PNL  CLR_DARKER_GREY
+#define R2_INK  CLR_BROWNISH_BLACK   // primary text/label ink — now dark, reads on the salmon panels
+#define R2_DIM  CLR_DARK_BROWN        // dim label ink (matches the phone chassis labels)
+#define R2_PNL  CLR_LIGHT_PEACH       // panel/chassis fill — SALMON, same as the phone version's bg
 
 // the ROOMY knob look the maker prefers (from the mockup): just a black disc + a coloured outline +
 // a white tick — NOT the candy bevel rotary. Same drag FEEL as knob() though (gear/fine pull-out,

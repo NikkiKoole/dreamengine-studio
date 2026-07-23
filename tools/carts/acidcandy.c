@@ -94,6 +94,7 @@ static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0)
 static int r2_focus   = 0;   // ROOMY: which machine owns the big shared screen (0=303a 1=303b 2=808 3=909 4=MST) — sticky focus, set by tapping a nameplate. Play stays live for ALL regardless.
 static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M_909) — the shared context panel + its ring colour follow it (voice = dsel/d9sel)
 static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) · 1=ACC · 2=PROB · 3=STRK (909) — the drum twin of the 303's `armed` flag palette
+static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per line: +1 up / 0 center / -1 down. A note drawn on the roll lands at this octave; tapping the matching note erases it.
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2396,44 +2397,52 @@ static void r2_header(Box hd, int m) {
         if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED); }
 }
 
+// ROOMY playhead — a LIT column that walks the on-screen cells, drawn ON TOP with an ADD glow so it
+// reads over both empty grid and filled cells (the dark-green behind-column was invisible on the LCD).
+// `s` = the live step (303 = its own lpos[i]; drums/MST = the shared transport `step`).
+static void r2_playcol(int gx, int stepw, int s, int gy, int gh) {
+    if (!playing || s < 0) return;
+    blend(BLEND_ADD); rectfill(gx + s * stepw, gy, stepw - 1, gh, CLR_MEDIUM_GREEN); blend_reset();
+}
+
 // SHARED SCREEN — the 303 NOTE GRID (scale-degree rows × 16 steps). colour = accent, shape carries
 // octave (^/v) + tie (a stretched cell); a line = slide. Draw + edit: tap = on/off, drag = draw the
 // melody (pitch = row). ONE capture widget (not 16 — keeps well under UI_MAX_WID).
 static void r2_screen303(Box g, int i) {
     int hi = mac[i ? M_303B : M_303A].col;
     int NR = SCALES[mscale[i]].n;
-    int gut = 9, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h - 1;
-    int step = gw / STEPS, rh = gh / NR;
-    // one capture over the grid; the ARMED flag decides what a paint does (SEQ+FLAG are merged into
-    // this one grid). NOTE = draw/erase the note itself; any other flag = paint the flag on the note.
-    void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
+    // the note roll on top; three per-step effect lanes (ACC/SLD/TIE) stacked below it — the old
+    // tb303 model (no arm-a-flag palette): draw notes right on the roll, toggle a lane cell directly.
+    int laneH = 7, laneGap = 1, nlanes = 3, lanesH = nlanes * (laneH + laneGap);
+    int octH = 9;                                     // the "active draw octave" pen strip (^ / — / v)
+    int gut = 14, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1;
+    int gridH = (int)g.h - 1 - lanesH - 2 - octH - 1; // reserve the octave-pen strip + the lane strip at the bottom
+    int step = gw / STEPS, rh = gridH / NR, gh = rh * NR;
+    int pen = r2_octpen[i];
+    // ── the NOTE ROLL — one capture; tap/drag draws the melody (row = pitch) at the PEN octave. Tapping
+    // the SAME note (row + pen octave) erases it; tapping a note at a DIFFERENT octave moves it to the pen.
+    void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, gh); ui_reg(w, gx, gy, step * STEPS, gh, 0);
     UiCap *c = ui_cap_for(w);
     if (c) {
-        static int note_erase;   // NOTE tool: is this drag an ERASE gesture? latched on the grab frame so a held tap doesn't re-add
+        static int note_erase;   // is this drag an ERASE gesture? latched on the grab frame so a held tap doesn't re-add
         int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
         int s = (px - gx) / step, frow = (py - gy) / rh;
         if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
             int deg = (NR - 1) - frow;
-            if (armed != FL_NOTE) {                                      // a flag is armed (ACC/SLD/TIE/OCT±) → paint it across the drag
-                if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);   // decide on the first cell, then paint the drag
-                flag_set(i, s, armed, paint_val);
-                if (paint_val && armed != FL_TIE) on[i][s] = 1;          // ACC/SLD/OCT ride a NOTE — add one so the paint is VISIBLE. TIE rides an EMPTY step (holds the previous note) so it must NOT plant a cell
-            } else {                                                     // NOTE tool → draw / erase (latch the gesture on grab so a held tap doesn't flicker back on)
-                if (ui_grabbed(w)) note_erase = on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg;  // tapped an existing note = erase gesture
-                if (note_erase) { if (on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0; }
-                else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
-            }
+            int match = on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg && oct[i][s] == pen;  // the exact same note under the pen
+            if (ui_grabbed(w)) note_erase = match;
+            if (note_erase) { if (match) on[i][s] = 0; }
+            else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; oct[i][s] = pen; }   // draw at the pen octave
         }
     }
-    // faint grid + beat lines + playhead
+    // faint grid + beat lines (the walking playhead is drawn ON TOP at the end)
     for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
-        if (s % 4 == 0) line(cx, gy, cx, gy + rh * NR, CLR_DARK_GREEN);
-        if (s == lpos[i] && playing) rectfill(cx, gy, step - 1, rh * NR, CLR_DARK_GREEN);
-        if (s >= plen[i]) rectfill(cx, gy, step - 1, rh * NR, CLR_BROWNISH_BLACK); }
+        if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
+        if (s >= plen[i]) rectfill(cx, gy, step - 1, gh, CLR_BROWNISH_BLACK); }
     for (int r = 0; r <= NR; r++) line(gx, gy + r * rh, gx + gw, gy + r * rh, CLR_BROWNISH_BLACK);
     // the notes
     for (int s = 0; s < plen[i]; s++) {
-        if (!on[i][s]) { if (tie[i][s]) rectfill(gx + s * step, gy + rh * NR / 2, step - 1, 2, CLR_TRUE_BLUE); continue; }
+        if (!on[i][s]) { if (tie[i][s]) rectfill(gx + s * step, gy + gh / 2, step - 1, 2, CLR_TRUE_BLUE); continue; }
         int idx = scale_idx(mscale[i], pit[i][s]), row = (NR - 1) - idx;
         int ry = gy + row * rh, cx = gx + s * step;
         int cw = step - 1 + (tie[i][s] ? step : 0), col = acc[i][s] ? CLR_WHITE : hi;
@@ -2444,6 +2453,35 @@ static void r2_screen303(Box g, int i) {
         if (sld[i][s] && on[i][ns]) { int r2 = (NR - 1) - scale_idx(mscale[i], pit[i][ns]);
             line(cx + step, ry + rh / 2, gx + ns * step, gy + r2 * rh + rh / 2, CLR_LIGHT_PEACH); }
     }
+    // ── the OCTAVE PEN — an "active draw octave" toggle (^ up / — center / v down). Notes drawn on the
+    // roll land at whichever is lit; default center = the old behaviour. Sits right under the roll.
+    int oy = gy + gh + 1;
+    font(FONT_TINY); print("OCT", (int)g.x + 1, oy + 2, R2_DIM);
+    { static const int OV[3] = { 1, 0, -1 }; int bw = 15;
+      for (int b = 0; b < 3; b++) { int bx = gx + b * (bw + 2), sel = (pen == OV[b]);
+          if (lcdbtn(0x168u + i * 3 + b, bx, oy, bw, octH, "", sel)) r2_octpen[i] = OV[b];
+          int cxg = bx + bw / 2, cyg = oy + octH / 2, gc = sel ? CLR_BLACK : hi;
+          if (OV[b] > 0)      { line(cxg - 3, cyg + 2, cxg, cyg - 1, gc); line(cxg, cyg - 1, cxg + 3, cyg + 2, gc); }   // ^ up
+          else if (OV[b] < 0) { line(cxg - 3, cyg - 1, cxg, cyg + 2, gc); line(cxg, cyg + 2, cxg + 3, cyg - 1, gc); }   // v down
+          else                  line(cxg - 3, cyg, cxg + 3, cyg, gc); } }                                             // — center
+    // ── the three effect LANES — one row each, tap/drag a cell to toggle it directly (no flag to arm)
+    int ly0 = oy + octH + 2;
+    static const char *LN[3]  = { "ACC", "SLD", "TIE" };
+    for (int f = 0; f < 3; f++) {
+        int *arr = (f == 0) ? acc[i] : (f == 1) ? sld[i] : tie[i];
+        int lcol = (f == 0) ? CLR_ORANGE : (f == 1) ? CLR_LIME_GREEN : CLR_TRUE_BLUE;
+        int ly = ly0 + f * (laneH + laneGap);
+        void *lw = ui_wid_hash(0x160u + i * 3 + f, gx, ly, step * STEPS, laneH); ui_reg(lw, gx, ly, step * STEPS, laneH, 0);
+        UiCap *lc = ui_cap_for(lw);
+        if (lc) { int px = lc->released ? lc->rx : lc->cx, s = (px - gx) / step;
+            if (s >= 0 && s < plen[i]) { if (ui_grabbed(lw)) paint_val = !arr[s]; arr[s] = paint_val; } }   // grab decides on/off, drag paints it across
+        font(FONT_TINY); print(LN[f], (int)g.x + 1, ly + 1, lcol);
+        for (int s = 0; s < plen[i]; s++) { int cx = gx + s * step;
+            if (arr[s]) rectfill(cx + 1, ly, step - 2, laneH, lcol);
+            else        rect(cx + 1, ly, step - 2, laneH, CLR_BROWNISH_BLACK); }
+    }
+    r2_playcol(gx, step, lpos[i], gy, gh);            // playhead over the roll…
+    r2_playcol(gx, step, lpos[i], ly0, lanesH);       // …and over the lanes (skipping the octave-pen strip between)
 }
 
 // SHARED SCREEN — the drum 2D VOICE GRID (voices × 16 steps). left gutter names each voice; the
@@ -2455,6 +2493,7 @@ static void r2_screendrum(Box g, int focus) {
     int (*prbg)[STEPS] = (focus == M_808) ? dprob : d9prob;
     const char **vn = (focus == M_808) ? AB8 : AB9;
     int sel = (focus == M_808) ? dsel : d9sel;
+    int tstep = step;   // capture the global transport step before the local `step` (cell width) shadows it below
     int gut = 13, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h;
     if (r2_dpaint >= 4) {   // p-lock LANE for the SELECTED voice — a bipolar per-step OFFSET (TUN/DEC/⟨char⟩) you draw
         int lk = r2_dpaint - 4, step0 = gw / STEPS, cy0 = gy + gh / 2, half = gh / 2 - 2;
@@ -2469,12 +2508,12 @@ static void r2_screendrum(Box g, int focus) {
         line(gx, cy0, gx + step0 * STEPS, cy0, CLR_MEDIUM_GREEN);
         for (int s = 0; s < STEPS; s++) { int cx = gx + s * step0;
             if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
-            if (s == lpos[0] && playing) rectfill(cx, gy, step0 - 1, gh, CLR_DARK_GREEN);
             int bh = (int)(lane[s] * half), col = lane[s] >= 0 ? hi : CLR_ORANGE;
             if (bh > 0)      rectfill(cx + 1, cy0 - bh, step0 - 2, bh, col);
             else if (bh < 0) rectfill(cx + 1, cy0, step0 - 2, -bh, col);
             if (grid[sel][s]) pset(cx + step0 / 2, gy + gh - 2, CLR_WHITE);   // this step fires
         }
+        r2_playcol(gx, step0, tstep, gy, gh);   // walking playhead on top (drum transport step)
         return;
     }
     int step = gw / STEPS, rh = gh / nv;
@@ -2500,7 +2539,6 @@ static void r2_screendrum(Box g, int focus) {
             }
         }
     }
-    if (playing) rectfill(gx + lpos[0] * step, gy, step - 1, rh * nv, CLR_DARK_GREEN);
     for (int v = 0; v < nv; v++) {
         int ry = gy + v * rh;
         if (v == sel) rectfill((int)g.x + 1, ry, gut - 1, rh - 1, CLR_DARK_GREEN);
@@ -2513,6 +2551,7 @@ static void r2_screendrum(Box g, int focus) {
             } else pset(cx + step / 2, ry + rh / 2, (s % 4 == 0) ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK);
         }
     }
+    r2_playcol(gx, step, tstep, gy, rh * nv);   // walking playhead on top (drum transport step)
 }
 
 // SHARED SCREEN — master. MIX = the 4-channel meters; PCF/CRU/GAT = ONE big editable automation
@@ -2533,6 +2572,7 @@ static void r2_screenmst(Box g) {
     int *lane = (L == 0) ? mpcf : (L == 1) ? mcrush : mgate;
     int col = (L == 0) ? CLR_GREEN : (L == 1) ? CLR_ORANGE : CLR_PINK;
     const char *lab = (L == 0) ? "PCF" : (L == 1) ? "CRUSH" : "GATE";
+    int tstep = step;   // transport step, before the local `step` (cell width) shadows the global
     int gx = (int)g.x + 26, gy = (int)g.y + 2, gw = ((int)g.w - 30), gh = (int)g.h - 6, step = gw / STEPS;
     void *w = ui_wid_hash(0x180u, gx, gy, step * STEPS, gh); ui_reg(w, gx, gy, step * STEPS, gh, 0);
     UiCap *c = ui_cap_for(w);
@@ -2544,8 +2584,8 @@ static void r2_screenmst(Box g) {
     for (int s = 0; s < STEPS; s++) { int cx = gx + s * step;
         int v = lane[s] * (gh - 2) / 7;
         if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
-        if (s == lpos[0] && playing) rectfill(cx, gy, step - 1, gh, CLR_DARK_GREEN);
         rectfill(cx, gy + gh - v, step - 2, v, col); }
+    r2_playcol(gx, step, tstep, gy, gh);   // walking playhead on top (shared transport step)
     font(FONT_TINY); print("drag to draw the lane", gx, gy + gh - 6, CLR_MEDIUM_GREEN);
 }
 
@@ -2649,17 +2689,14 @@ static void r2_perfdrum(Box main, int focus) {
     pf_dacc[m] = lcdlatch(0x89u, (int)b2.x, (int)b2.y, (int)b2.w, (int)b2.h, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
 }
 
+// one row of screen tabs (SEQ = the note roll + its ACC/SLD/TIE lanes · SETUP = GEN + KEY · PERF =
+// the live lenses). The old arm-a-flag palette is GONE — ACC/SLD/TIE are now direct lanes on the roll.
 static void r2_303band(Box band, int i) {
     int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
-    int rh = (bh + 1) / 2, mode = pscreen[i], tw = 34;
-    if (lcdbtn(0x132u + i * 3 + 0, bx,          by,      tw, rh - 1, "SEQ",   mode == PS_SEQ))  pscreen[i] = PS_SEQ;
-    if (lcdbtn(0x132u + i * 3 + 1, bx,          by + rh, tw, rh - 1, "SETUP", mode == PS_GEN))  pscreen[i] = PS_GEN;
-    if (lcdbtn(0x132u + i * 3 + 2, bx + tw + 1, by,      tw, rh - 1, "PERF",  mode == PS_PERF)) pscreen[i] = PS_PERF;
-    if (mode == PS_SEQ) {                                                          // flags — 2×3, right-aligned (grid mode only)
-        int fw = 30, gap = 1, x0 = bx + bw - 3 * (fw + gap);
-        for (int k = 0; k < FL_N; k++) { int col = k % 3, row = k / 3;
-            if (lcdbtn(0x140u + k, x0 + col * (fw + gap), by + row * rh, fw - 1, rh - 1, FLNAME[k], armed == k)) armed = k; }
-    }
+    int mode = pscreen[i], tw = (bw - 2) / 3; if (tw > 44) tw = 44;
+    if (lcdbtn(0x132u + i * 3 + 0, bx,              by, tw - 1, bh - 1, "SEQ",   mode == PS_SEQ))  pscreen[i] = PS_SEQ;
+    if (lcdbtn(0x132u + i * 3 + 1, bx + tw,         by, tw - 1, bh - 1, "SETUP", mode == PS_GEN))  pscreen[i] = PS_GEN;
+    if (lcdbtn(0x132u + i * 3 + 2, bx + 2 * tw,     by, tw - 1, bh - 1, "PERF",  mode == PS_PERF)) pscreen[i] = PS_PERF;
 }
 
 static void r2_bigscreen(Box c, int focus) {
@@ -2672,8 +2709,8 @@ static void r2_bigscreen(Box c, int focus) {
     print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
     { char b[8]; int bp = (int)g_bpm, k = 0; if (bp >= 100) b[k++] = '0' + bp / 100; b[k++] = '0' + (bp / 10) % 10; b[k++] = '0' + bp % 10; b[k++] = 0;
       print(b, x + w - 24, y + 3, CLR_LIME_GREEN); }
-    if (focus <= M_303B) {   // 303: grid (SEQ) or SETUP fills the screen; a 2-row bottom band = tabs-left + flags-right
-        int i = focus, bandH = 20;
+    if (focus <= M_303B) {   // 303: SEQ (note roll + ACC/SLD/TIE lanes) or SETUP fills the screen; a 1-row tab band below
+        int i = focus, bandH = 11;
         Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
         if      (pscreen[i] == PS_GEN)  r2_setup303(main, i);   // SETUP = GEN + KEY
         else if (pscreen[i] == PS_PERF) r2_perf303(main, i);    // PERF lenses
@@ -2704,30 +2741,30 @@ static void r2_col303(Box c, int i) {
     rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
     rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].lo);
     Box cc = lay_inset(c, 2);
-    r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);
+    r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);      // nameplate at the TOP as well…
+    r2_header(lay_split(cc, EDGE_BOTTOM, 12, &cc), m);   // …AND the BOTTOM — focus/mute reachable from either end (the maker's ask)
     Box meta = lay_split(cc, EDGE_BOTTOM, 30, &cc);   // voicing+WAVE row · A/B/C/D banks · KEY
     Box fx   = lay_split(cc, EDGE_BOTTOM, 26, &cc);
-    // acid knobs, 2-wide (filter pair CUT|RES together). CORE page = CUT/RES/ENV/DEC/ACC. In Devil
-    // Fish voicing a page tab reveals the DEEP page — the extra DF knobs SUB/ADEC/SLDT/TRK. (WAVE is
-    // a CORE control, so it lives in the meta row below, reachable in BOTH voicings — not on the DF page.)
-    int deep = !a->classic && kpage[i];
-    if (!a->classic) {   // DF only: the CORE ⟷ DF-knobs page tab
-        Box pg = lay_split(cc, EDGE_TOP, 9, &cc);
-        if (cbtn(0x1A0u + i, (int)pg.x, (int)pg.y, (int)pg.w - 1, 8, deep ? "DF KNOBS" : "CORE", deep)) kpage[i] = !kpage[i];
-    }
-    if (!deep) {
-        Box accr = lay_split(cc, EDGE_BOTTOM, cc.h / 3, &cc);     // ACC on its own centred row
-        static const int AK[4] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC };
-        static const char *AN[4] = { "CUT", "RES", "ENV", "DEC" };
-        static const float AD[4] = { 0.55f, 0.70f, 0.55f, 0.45f };
-        for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
-        r2_kcell(accr, &a->p[ACID_ACC], "ACC", 0.55f, mac[m].col);
-    } else {
+    // acid knobs, 2-wide (filter pair CUT|RES together): CORE = CUT/RES/ENV/DEC/ACC, ALWAYS shown.
+    // In Devil Fish voicing the DEEP knobs (SUB/ADEC/SLDT/TRK) show BELOW the core — no page toggle,
+    // both live at once (the full-height column has the room). WAVE stays in the meta row (both voicings).
+    Box knob = cc;
+    if (!a->classic) {                                   // DF voicing → a DEEP knob section under the core
+        Box dfb = lay_split(knob, EDGE_BOTTOM, knob.h * 0.42f, &knob);
+        line((int)dfb.x + 2, (int)dfb.y, (int)dfb.x + (int)dfb.w - 2, (int)dfb.y, mac[m].lo);
+        Box dfl = lay_split(dfb, EDGE_TOP, 6, &dfb);
+        font(FONT_TINY); print("DF", (int)dfl.x + 2, (int)dfl.y, R2_DIM);
         static const int DK[4] = { ACID_SUB, ACID_ADEC, ACID_SLDT, ACID_TRK };
         static const char *DN[4] = { "SUB", "ADEC", "SLDT", "TRK" };
         static const float DFD[4] = { 0.0f, 0.40f, 0.14f, 0.0f };
-        for (int k = 0; k < 4; k++) r2_kcell(lay_grid(cc, 2, 4, k, 1), &a->p[DK[k]], DN[k], DFD[k], mac[m].col);
+        for (int k = 0; k < 4; k++) r2_kcell(lay_grid(dfb, 2, 4, k, 1), &a->p[DK[k]], DN[k], DFD[k], mac[m].col);
     }
+    { Box accr = lay_split(knob, EDGE_BOTTOM, knob.h / 3, &knob);   // ACC on its own centred row, bottom of the CORE cluster
+      static const int AK[4] = { ACID_CUT, ACID_RES, ACID_ENV, ACID_DEC };
+      static const char *AN[4] = { "CUT", "RES", "ENV", "DEC" };
+      static const float AD[4] = { 0.55f, 0.70f, 0.55f, 0.45f };
+      for (int k = 0; k < 4; k++) r2_kcell(lay_grid(knob, 2, 4, k, 1), &a->p[AK[k]], AN[k], AD[k], mac[m].col);
+      r2_kcell(accr, &a->p[ACID_ACC], "ACC", 0.55f, mac[m].col); }
     // FX trio — a horizontal row so it reads as "the FX", not more core
     line((int)fx.x + 2, (int)fx.y, (int)fx.x + (int)fx.w - 2, (int)fx.y, mac[m].lo);
     font(FONT_TINY); print("FX", (int)fx.x + 2, (int)fx.y + 1, R2_DIM);
@@ -2770,7 +2807,8 @@ static void r2_colmst(Box c) {
     rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, R2_PNL);
     rrect((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[M_MST].lo);
     Box cc = lay_inset(c, 2);
-    r2_header(lay_split(cc, EDGE_TOP, 12, &cc), M_MST);
+    r2_header(lay_split(cc, EDGE_TOP, 12, &cc), M_MST);      // nameplate top…
+    r2_header(lay_split(cc, EDGE_BOTTOM, 12, &cc), M_MST);   // …and bottom (aligns with the 303 columns)
     Box mix = lay_split(cc, EDGE_BOTTOM, 26, &cc);
     // master knobs — 2-wide grid, filter pair FLT|RES together (mirrors the 303 CUT|RES); FB centred
     // on its own row below (the delay feedback). RES + FB were the two missing from the column.
@@ -2805,7 +2843,12 @@ static void r2_ctxrow(Box c) {
     Box lab = lay_split(cc, EDGE_LEFT, 34, &cc);
     font(FONT_NORMAL); print((sm == M_808) ? "808" : "909", (int)lab.x, (int)lab.y + 1, hi);
     font(FONT_TINY);   print(svn, (int)lab.x, (int)lab.y + 11, R2_INK);
-    Box knobs = lay_split(cc, EDGE_LEFT, lay_clamp(6 * 28, 0, cc.w), &cc);   // knobs clustered LEFT; cc = the freed space to the right
+    // MUT / REC pad-latches — BEFORE the knobs now (the maker's ask), a stacked pair right after the label
+    Box mr = lay_split(cc, EDGE_LEFT, 42, &cc);
+    { Box rc = lay_inset(mr, 1); int mh = ((int)rc.h - 1) / 2;
+      dmut_now = clatch(0x260u, (int)rc.x, (int)rc.y,      (int)rc.w, mh - 1, "MUT", &dmut_latch, &dmut_hold, CLR_ORANGE);
+      drec_now = clatch(0x261u, (int)rc.x, (int)rc.y + mh, (int)rc.w, mh - 1, "REC", &drec_latch, &drec_hold, CLR_RED); }
+    Box knobs = lay_split(cc, EDGE_LEFT, lay_clamp(6 * 28, 0, cc.w), &cc);   // the voice knobs; cc = the freed space to the right
     float *ktun = (sm == M_808) ? &dtune[sv]  : &d9tune[sv];
     float *kdec = (sm == M_808) ? &ddecay[sv] : &d9decay[sv];
     float *kcol = (sm == M_808) ? &dcolor[sv] : &d9color[sv];
@@ -2815,13 +2858,10 @@ static void r2_ctxrow(Box c) {
     float *K[6] = { ktun, kdec, kcol, kvol, kpan, kfin };
     const char *N[6] = { "TUN", "DEC", chn ? chn : "COL", "VOL", "PAN", "FINE" };
     for (int k = 0; k < 6; k++) r2_kcell(lay_grid(knobs, 6, 6, k, 1), K[k], N[k], 0.5f, hi);
-    // the freed space: MUT / REC pad-latches (both drum machines) + the 909 METAL XY pad
-    Box rc = lay_inset(cc, 2);
-    int mw = 40, mh = ((int)rc.h - 1) / 2;
-    dmut_now = clatch(0x260u, (int)rc.x, (int)rc.y,      mw, mh - 1, "MUT", &dmut_latch, &dmut_hold, CLR_ORANGE);
-    drec_now = clatch(0x261u, (int)rc.x, (int)rc.y + mh, mw, mh - 1, "REC", &drec_latch, &drec_hold, CLR_RED);
-    if (sm == M_909) {   // 909 metal-voice highpass XY (tr909_metal): X = cut, Y = res
-        int pw = (int)rc.h - 6, px0 = (int)rc.x + mw + 8, py0 = (int)rc.y;
+    // the freed space to the right: the 909 METAL XY pad (tr909_metal highpass: X = cut, Y = res)
+    if (sm == M_909) {
+        Box rc = lay_inset(cc, 2);
+        int pw = (int)rc.h - 6, px0 = (int)rc.x, py0 = (int)rc.y;
         void *w = ui_wid_hash(0x262u, px0, py0, pw, pw); ui_reg(w, px0, py0, pw, pw, 0);
         UiCap *cp = ui_cap_for(w);
         if (cp) { int px = cp->released ? cp->rx : cp->cx, py = cp->released ? cp->ry : cp->cy;
@@ -2899,12 +2939,16 @@ static void draw_rack2(Box area) {
     float dh = stage.h * 0.125f;                               // each drum key-row (808 white / 909 black)
     Box d808 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // white keys at the very bottom
     Box d909 = lay_split(stage, EDGE_BOTTOM, dh, &stage);      // black keys just above
-    Box ctx  = lay_split(stage, EDGE_BOTTOM, stage.h * 0.15f, &stage);   // the shared VOICE knob row (this is what makes the screen a little less tall)
-    // middle band: [303a | 303b | SCREEN | MST]
+    // middle band: [MST | 303a | 303b | SCREEN → right edge]. MASTER goes FIRST so the three
+    // knob-columns cluster on the left with their nameplates in a row along the bottom (a short hop
+    // between instruments); the SCREEN flows to the right edge. The columns take the FULL band height
+    // (taller now); the shared VOICE context row is carved from the right region only, so it lines up
+    // UNDER the screen instead of stretching across the whole width.
     float colw = lay_clamp(area.w * 0.11f, 40, 58);   // narrower (small-disc knobs) → the shared pattern screen gets the width
+    Box cms = lay_split(stage, EDGE_LEFT, colw, &stage);       // MST first (leftmost)
     Box c3a = lay_split(stage, EDGE_LEFT, colw, &stage);
     Box c3b = lay_split(stage, EDGE_LEFT, colw, &stage);
-    Box cms = lay_split(stage, EDGE_RIGHT, colw, &stage);
+    Box ctx = lay_split(stage, EDGE_BOTTOM, lay_clamp(stage.h * 0.19f, 32, 44), &stage);   // context row under the screen
     Box scr = stage;
     // transport bar
     rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);

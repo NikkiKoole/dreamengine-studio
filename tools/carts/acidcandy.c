@@ -2555,6 +2555,57 @@ static void r2_subrow(Box r, int focus) {
 }
 
 // the big shared middle screen — frame + tag row + the deep editor + the 2-row UI (submenu + soft-keys).
+// the 303 SETUP panel (the sibling of the SEQ grid): GEN (clear/densities) + KEY (root/scale/octave
+// editing) on ONE panel — the two "utility" jobs together, per the maker.
+static void r2_setup303(Box main, int i) {
+    Box m = lay_inset(main, 3);
+    Box gr = lay_split(m, EDGE_TOP, lay_clamp(m.h * 0.24f, 12, 20), &m);          // GEN row
+    static const char *GN[4] = { "CLEAR", "MIN", "MID", "BUSY" };
+    for (int g = 0; g < 4; g++) { Box c = lay_grid(gr, 4, 4, g, 2);
+        if (lcdbtn(0x150u + g, (int)c.x, (int)c.y, (int)c.w, (int)c.h, GN[g], 0)) gen_line(i, g); }
+    font(FONT_TINY); print("KEY", (int)m.x, (int)m.y, CLR_MEDIUM_GREEN);
+    lay_split(m, EDGE_TOP, 8, &m);                                                // label spacer
+    Box rootrow = lay_split(m, EDGE_TOP, lay_clamp(m.h * 0.5f, 12, 22), &m);      // 12-note root strip
+    for (int k = 0; k < 12; k++) {
+        int sharp = (k == 1 || k == 3 || k == 6 || k == 8 || k == 10);
+        Box c = lay_grid(rootrow, 12, 12, k, 1);
+        int px = (int)c.x, py = (int)c.y, pw = (int)c.w, ph = (int)c.h, pr = 0, hot = 0, fo = 0;
+        void *w = ui_wid_hash(0x210u + k, px, py, pw, ph);
+        if (ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot)) mroot[i] = k;
+        int lit = (mroot[i] == k);
+        rrectfill(px, py, pw, ph, 1, lit ? CLR_LIME_GREEN : sharp ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
+        rrect(px, py, pw, ph, 1, (lit || hot) ? CLR_WHITE : CLR_DARK_GREEN);
+        if (!sharp) { font(FONT_TINY); plabel(NOTE[k], px + pw / 2, py + 1, lit ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREEN); }
+    }
+    Box sc = lay_split(m, EDGE_LEFT, m.w * 0.5f, &m);                             // scale name (remaps the line)
+    if (lcdbtn(0x21Fu, (int)sc.x, (int)sc.y, (int)sc.w - 2, (int)sc.h - 1, SCALES[mscale[i]].name, 0)) {
+        int oldsc = mscale[i], nw = (oldsc + 1) % NSCALE;
+        for (int s = 0; s < STEPS; s++) { int di = scale_idx(oldsc, pit[i][s]); if (di >= SCALES[nw].n) di = SCALES[nw].n - 1; pit[i][s] = SCALES[nw].deg[di]; }
+        mscale[i] = nw;
+    }
+    Box ol = lay_split(m, EDGE_LEFT, 22, &m);                                     // octave ±
+    font(FONT_TINY); plabel("OCT", (int)(ol.x + ol.w / 2), (int)(ol.y + ol.h / 2 - 2), CLR_MEDIUM_GREEN);
+    Box om = lay_grid(m, 3, 3, 0, 1), on2 = lay_grid(m, 3, 3, 1, 1), op = lay_grid(m, 3, 3, 2, 1);
+    if (lcdbtn(0x220u, (int)om.x, (int)om.y, (int)om.w, (int)om.h, "-", 0) && loct[i] > -2) loct[i]--;
+    { char ob[4]; ob[0] = loct[i] > 0 ? '+' : loct[i] < 0 ? '-' : ' '; ob[1] = (char)('0' + (loct[i] < 0 ? -loct[i] : loct[i])); ob[2] = 0;
+      plabel(ob, (int)(on2.x + on2.w / 2), (int)(on2.y + on2.h / 2 - 2), CLR_LIME_GREEN); }
+    if (lcdbtn(0x221u, (int)op.x, (int)op.y, (int)op.w, (int)op.h, "+", 0) && loct[i] < 2) loct[i]++;
+}
+
+// the 303 screen's bottom band (2 rows): SEQ/SETUP tabs LEFT-aligned, the flag palette (2 rows × 3)
+// RIGHT-aligned — the grid above keeps the two groups apart. SEQ = grid; SETUP = GEN + KEY.
+static void r2_303band(Box band, int i) {
+    int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
+    int rh = (bh + 1) / 2, mode = pscreen[i], tw = 36;
+    if (lcdbtn(0x132u + i * 2 + 0, bx, by,      tw, rh - 1, "SEQ",   mode != PS_GEN)) pscreen[i] = PS_SEQ;
+    if (lcdbtn(0x132u + i * 2 + 1, bx, by + rh, tw, rh - 1, "SETUP", mode == PS_GEN)) pscreen[i] = PS_GEN;
+    if (mode != PS_GEN) {                                                          // flags — 2×3, right-aligned
+        int fw = 30, gap = 1, x0 = bx + bw - 3 * (fw + gap);
+        for (int k = 0; k < FL_N; k++) { int col = k % 3, row = k / 3;
+            if (lcdbtn(0x140u + k, x0 + col * (fw + gap), by + row * rh, fw - 1, rh - 1, FLNAME[k], armed == k)) armed = k; }
+    }
+}
+
 static void r2_bigscreen(Box c, int focus) {
     int x = (int)c.x, y = (int)c.y, w = (int)c.w, h = (int)c.h;
     rectfill(x, y, w, h, CLR_DARK_GREEN);
@@ -2565,19 +2616,22 @@ static void r2_bigscreen(Box c, int focus) {
     print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
     { char b[8]; int bp = (int)g_bpm, k = 0; if (bp >= 100) b[k++] = '0' + bp / 100; b[k++] = '0' + (bp / 10) % 10; b[k++] = '0' + bp % 10; b[k++] = 0;
       print(b, x + w - 24, y + 3, CLR_LIME_GREEN); }
-    Box body = box(x + 3, y + 13, w - 6, h - 36);   // leaves the bottom for the 2-row UI (submenu + soft-keys)
-    if (focus <= M_303B)      r2_screen303(body, focus);
-    else if (focus <= M_909)  r2_screendrum(body, focus);
-    else                      r2_screenmst(body);
-    r2_subrow(box(x + 4, y + h - 22, w - 8, 9), focus);   // submenu row, directly above the soft-keys
-    // soft-key row — switches the shared screen's CONTENT for the focused machine (lit = active view).
+    if (focus <= M_303B) {   // 303: grid (SEQ) or SETUP fills the screen; a 2-row bottom band = tabs-left + flags-right
+        int i = focus, bandH = 20;
+        Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
+        if (pscreen[i] == PS_GEN) r2_setup303(main, i);
+        else                      r2_screen303(main, i);
+        r2_303band(box(x + 3, y + h - bandH - 1, w - 6, bandH), i);
+        return;
+    }
+    // drums + MST keep the submenu-row + soft-key-row UI
+    Box body = box(x + 3, y + 13, w - 6, h - 36);
+    if (focus <= M_909)  r2_screendrum(body, focus);
+    else                 r2_screenmst(body);
+    r2_subrow(box(x + 4, y + h - 22, w - 8, 9), focus);
     int ky = y + h - 11;
-    if (focus <= M_303B) {
-        static const char *K[3] = { "SEQ", "FLAG", "GEN" }; static const int MO[3] = { PS_SEQ, PS_FLAG, PS_GEN };   // banks are the column A/B/C/D buttons, not a screen view
-        int kw = (w - 10) / 3;
-        for (int k = 0; k < 3; k++) if (lcdbtn(0x130u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], pscreen[focus] == MO[k])) pscreen[focus] = MO[k];
-    } else if (focus <= M_909) {
-        static const char *K[3] = { "VCE", "FLAG", "GEN" }; static const int MO[3] = { DS_VCE, DS_FLAG, DS_GEN };   // banks are the A/B/C/D buttons in the strip, not a screen view
+    if (focus <= M_909) {
+        static const char *K[3] = { "VCE", "FLAG", "GEN" }; static const int MO[3] = { DS_VCE, DS_FLAG, DS_GEN };
         int kw = (w - 10) / 3;
         for (int k = 0; k < 3; k++) if (lcdbtn(0x138u + k, x + 5 + k * kw, ky, kw - 2, 9, K[k], dscreen == MO[k])) dscreen = MO[k];
     } else {

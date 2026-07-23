@@ -512,6 +512,18 @@
     "homage": "Propellerhead ReBirth RB-338 (1997)"
   },
   {
+    "title": "Acid Theremin",
+    "description": "A frets-off acid theremin: smear a finger across a dark pad and one held TB-303 voice CHASES it with portamento. X = pitch (continuous glissando, no keys), Y = filter cutoff (bottom = closed/dark, top = screaming open). Resonance is cranked toward self-oscillation and the drive runs through a wavefolder, so it squelches and screams — gnarly by design. Built on the shared runtime/acid303.h voice. One Devil-Fish Acid voice (acid303.h) held open the whole time you touch. Touch-down triggers the filter-env kick with an accent stab, then note_pitch rides the finger's FRACTIONAL pitch every frame (note_glide smears it — the acid slide as a continuous gesture); note_off on release. Y drives ACID_CUT live via acid_ride AND pushes ACID_DRV up as you open the filter, so the top of the pad is where it screams. A sub-osc an octave down adds weight; analog DRIFT keeps it from freezing digital. Keys: 1/2/3/4 pick the drive waveshaper (SOFT/HARD/FOLD/ASYM — FOLD is the metallic default), S toggles free glide vs minor-pentatonic scale-snap. A phosphor trail follows the finger; the orb runs hot as the filter opens. Drag anywhere (mouse or touch): X = pitch, Y = filter cutoff (up = brighter + more drive). Release to let the note decay. 1/2/3/4 = drive mode SOFT/HARD/FOLD/ASYM. S = snap pitch to a minor-pentatonic scale (off = true theremin glide).",
+    "file": "acidtheremin.cart.png",
+    "created": "2026-07-23",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [],
+    "lineage": "acidcandy",
+    "homage": "the TB-303 + the theremin"
+  },
+  {
     "title": "Tiny Acid Jam — wide 303 (mockup)",
     "description": "Draw-only LAYOUT STUDY: one 303 fully UNHIDDEN on a WIDE screen — everything that pages behind soft-keys on the phone (core knobs CUT/RES/ENV/DEC/ACC + the DF-extras SUB/ADEC/SLDT/TRK + FX DRV/SEND/VERB + DRIFT, and a full piano-roll sequencer with ACC/SLIDE/TIE lanes) shown at ONCE. Two arrangements to compare (keys 1/2): A = control RAIL left + big sequencer screen right; B = full knob ROW on top + one tall screen that absorbs the perform strip. Reflow, not scale. The bet: a phone 303 hides most of itself behind SEQ/FLAG/FX/... soft-keys because it only has height. Give it WIDTH and the whole TB setup fits unhidden — the sequencer stops being a 12px bottom strip and becomes the screen (pitch on Y, 16 steps on X, ACC/SLD/TIE lanes right under it). A puts the panel on a left rail (hardware feel); B keeps the familiar top knob-row and lets one tall screen eat the perform strip. Same pieces, two arrangements — the canvas-density-spectrum 'arrangement axis'. Chunky ~240x100 canvas (reflows to the window width). 1 = arrangement A (rail + screen). 2 = arrangement B (knob-row + tall screen). Draw-only mockup: no audio, fake pattern.",
     "file": "acidwide.cart.png",

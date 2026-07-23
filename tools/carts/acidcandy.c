@@ -98,6 +98,7 @@ static int r2_octpen[2] = { 0, 0 };   // ROOMY 303 "active draw octave" pen, per
 static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEALED, per line (0 = none / roll gets the room · 1 = PERF · 2 = GEN), toggled by the bottom-left chips.
 static int r2_drumpanel[2] = { 1, 1 };// ROOMY drum: which panel is REVEALED, per machine (0 = none · 1 = FLAG/paint · 2 = GEN · 3 = PERF), toggled by the bottom-left chips. Default FLAG so the paint tools are up.
 static int r2_mstpanel = 0;           // ROOMY master: which panel is REVEALED (0 = none / mixer+lanes all-at-once · 1 = GEN song-generator · 2 = SONG save/load slots · 3 = DLY delay division), toggled by the bottom-left chips.
+static int r2_mstlane  = -1;          // ROOMY master: which automation lane is EXPANDED to full height for precise editing (-1 = the 3-up overview · 0 = PCF · 1 = CRUSH · 2 = GATE). Tap a lane's label to toggle.
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2570,8 +2571,30 @@ static void r2_screendrum(Box g, int focus) {
     r2_playcol(gx, step, tstep, gy, rh * nv);   // walking playhead on top (drum transport step)
 }
 
+// one master automation lane in box `lb`: a left LABEL (tap it to expand this lane full-height / back
+// to the 3-up overview) + the 16-step 0..7 bars (drag to paint). Bigger box = taller bars = finer edit.
+static void r2_mstlane_draw(Box lb, int L, int tstep) {
+    int *lane = (L == 0) ? mpcf : (L == 1) ? mcrush : mgate;
+    int col   = (L == 0) ? CLR_GREEN : (L == 1) ? CLR_ORANGE : CLR_PINK;
+    const char *nm = (L == 0) ? "PCF" : (L == 1) ? "CRU" : "GAT";
+    int gut = 20, gy = (int)lb.y, gx = (int)lb.x + gut, gw = (int)lb.w - gut, gh = (int)lb.h, stw = gw / STEPS;
+    { int lx = (int)lb.x, lw = gut - 1, pr = 0, hot = 0, fo = 0;   // the label = a toggle: expand this lane / collapse to the overview
+      void *w = ui_wid_hash(0x190u + L, lx, gy, lw, gh);
+      if (ui_button_core(w, lx, gy, lw, gh, &fo, &pr, &hot)) r2_mstlane = (r2_mstlane == L) ? -1 : L;
+      font(FONT_TINY); print(nm, lx + 1, gy + gh / 2 - 2, (hot || r2_mstlane == L) ? CLR_WHITE : col); }
+    void *w2 = ui_wid_hash(0x180u + L, gx, gy, stw * STEPS, gh); ui_reg(w2, gx, gy, stw * STEPS, gh, 0);
+    UiCap *c = ui_cap_for(w2);
+    if (c) { int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / stw;
+        if (s >= 0 && s < STEPS) { int lv = 7 - (py - gy) * 8 / gh; if (lv < 0) lv = 0; if (lv > 7) lv = 7; lane[s] = lv; } }
+    for (int s = 0; s < STEPS; s++) { int cx = gx + s * stw;
+        if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
+        int v = lane[s] * (gh - 1) / 7;
+        rectfill(cx, gy + gh - v, stw - 1, v, col); }
+    r2_playcol(gx, stw, tstep, gy, gh);
+}
+
 // SHARED SCREEN — master, ALL AT ONCE (no tabs): the 4-channel mixer on the left, the three
-// per-step automation lanes PCF / CRUSH / GATE stacked on the right (drag any lane to paint 0..7).
+// per-step automation lanes PCF / CRUSH / GATE on the right — the 3-up overview, or one EXPANDED.
 static void r2_screenmst(Box g) {
     int tstep = step;                                        // transport step, before local `step` shadows it
     Box mx = lay_split(g, EDGE_LEFT, lay_clamp(g.w * 0.26f, 40, 90), &g);
@@ -2584,25 +2607,10 @@ static void r2_screenmst(Box g) {
           rectfill(cx, by, fw - 2, bh, CLR_BLACK);
           rectfill(cx, by + bh - lv, fw - 2, lv, mac[MC[k]].col);
           font(FONT_TINY); print(ML[k], cx, by + bh + 2, mac[MC[k]].col); } }
-    // ── the three automation lanes, stacked ──
-    int *lanes[3] = { mpcf, mcrush, mgate };
-    int  lcol[3]  = { CLR_GREEN, CLR_ORANGE, CLR_PINK };
-    const char *lname[3] = { "PCF", "CRU", "GAT" };
-    Box la = lay_inset(g, 2); int lh = (int)la.h / 3, gut = 20;
-    for (int L = 0; L < 3; L++) {
-        int *lane = lanes[L];
-        int gy = (int)la.y + L * lh, gx = (int)la.x + gut, gw = (int)la.w - gut, gh = lh - 2, stw = gw / STEPS;
-        void *w = ui_wid_hash(0x180u + L, gx, gy, stw * STEPS, gh); ui_reg(w, gx, gy, stw * STEPS, gh, 0);
-        UiCap *c = ui_cap_for(w);
-        if (c) { int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / stw;
-            if (s >= 0 && s < STEPS) { int lv = 7 - (py - gy) * 8 / gh; if (lv < 0) lv = 0; if (lv > 7) lv = 7; lane[s] = lv; } }
-        font(FONT_TINY); print(lname[L], (int)la.x + 1, gy + gh / 2 - 2, lcol[L]);
-        for (int s = 0; s < STEPS; s++) { int cx = gx + s * stw;
-            if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
-            int v = lane[s] * (gh - 1) / 7;
-            rectfill(cx, gy + gh - v, stw - 1, v, lcol[L]); }
-        r2_playcol(gx, stw, tstep, gy, gh);
-    }
+    // ── the automation lanes ── the 3-up overview, OR one lane EXPANDED to full height (tap a label)
+    Box la = lay_inset(g, 2);
+    if (r2_mstlane >= 0) r2_mstlane_draw(la, r2_mstlane, tstep);
+    else { int lh = (int)la.h / 3; for (int L = 0; L < 3; L++) r2_mstlane_draw(box(la.x, la.y + L * lh, la.w, lh - 2), L, tstep); }
 }
 
 // MST GEN panel — the whole-rack song GENERATOR: one tap fills both 303s + a kit + tempo/swing/key

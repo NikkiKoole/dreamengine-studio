@@ -2957,21 +2957,29 @@ static void draw_rack2(Box area) {
     Box cms = lay_split(stage, EDGE_RIGHT, colw, &stage);      // …MASTER on the RIGHT (mixer convention)
     Box ctx = lay_split(stage, EDGE_BOTTOM, lay_clamp(stage.h * 0.19f, 32, 44), &stage);   // context row under the screen
     Box scr = stage;                                           // the shared screen sits between 303b and MST
-    // transport bar
+    // transport bar — PLAY on the LEFT, HOME (house) on the RIGHT, same spots as the phone nav strip
     rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);
-    font(FONT_NORMAL); print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)bar.h / 2 - 4, CLR_LIGHT_PEACH);
-    { int pw = 24, ph = (int)bar.h - 4, px = (int)(bar.x + bar.w) - pw - 3, py = (int)bar.y + 2;
-      void *wid = ui_wid_hash(0x2Fu, px, py, pw, ph); int pr = 0, hot = 0, fo = 0;
+    int ph = (int)bar.h - 4, py = (int)bar.y + 2;
+    {   // PLAY / STOP (left)
+      int pw = 24, px = (int)bar.x + 2, pr = 0, hot = 0, fo = 0;
+      void *wid = ui_wid_hash(0x2Fu, px, py, pw, ph);
       if (ui_button_core(wid, px, py, pw, ph, &fo, &pr, &hot)) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1; for (int m = 0; m < M_N; m++) armpat[m] = -1; }
       rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
+      rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
       int cx = px + pw / 2, cy = py + ph / 2;
       if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); } else trifill(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, CLR_WHITE);
-      // HOME — to the phone single-face view (the old 2×2 toggle is gone; ROOMY is THE tablet view)
-      int hw = 22, hx = px - hw - 3, hy = py, prh = 0, hoh = 0, foh = 0;
-      void *wh = ui_wid_hash(0x2Eu, hx, hy, hw, ph);
-      if (ui_button_core(wh, hx, hy, hw, ph, &foh, &prh, &hoh)) rack_view = 0;
-      rrectfill(hx, hy, hw, ph, 2, CLR_DARK_BROWN); rrect(hx, hy, hw, ph, 2, hoh ? CLR_WHITE : CLR_BROWNISH_BLACK);
-      font(FONT_TINY); print("HM", hx + hw / 2 - text_width("HM") / 2, hy + ph / 2 - 2, CLR_LIGHT_PEACH); font(FONT_SMALL); }
+      font(FONT_NORMAL); print("TINY ACID JAM", px + pw + 5, (int)bar.y + (int)bar.h / 2 - 4, CLR_LIGHT_PEACH); }
+    {   // HOME (right) — the house glyph, exactly as the phone nav; taps back to the phone single-face view
+      int hw = 22, hx = (int)(bar.x + bar.w) - hw - 3, prh = 0, hoh = 0, foh = 0;
+      void *wh = ui_wid_hash(0x2Eu, hx, py, hw, ph);
+      if (ui_button_core(wh, hx, py, hw, ph, &foh, &prh, &hoh)) rack_view = 0;
+      rrectfill(hx, py, hw, ph, 2, CLR_DARK_BROWN); rrect(hx, py, hw, ph, 2, hoh ? CLR_WHITE : CLR_BROWNISH_BLACK);
+      int cxh = hx + hw / 2, cyh = py + ph / 2 - 2;
+      pset(cxh, cyh, CLR_LIGHT_PEACH);
+      rectfill(cxh - 1, cyh + 1, 3, 1, CLR_LIGHT_PEACH);
+      rectfill(cxh - 2, cyh + 2, 5, 1, CLR_LIGHT_PEACH);
+      rectfill(cxh - 2, cyh + 3, 5, 3, CLR_LIGHT_PEACH);
+      rectfill(cxh,     cyh + 4, 1, 2, CLR_DARK_BROWN); }
     // the machines
     r2_col303(c3a, 0);
     r2_col303(c3b, 1);

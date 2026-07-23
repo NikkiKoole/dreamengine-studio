@@ -2936,7 +2936,11 @@ static void r2_drumstrip(Box c, int focus) {
         rectfill(cx, py, pw, ph, fill);
         rect(cx, py, pw, ph, dmut_now ? CLR_ORANGE : (hot || selhere) ? CLR_WHITE : mac[focus].lo);   // orange rim = MUT live
         if (mut[v]) line(cx, py, cx + pw, py + ph, CLR_RED);
-        font(FONT_TINY); print(vn[v], cx + (pw - 8) / 2, py + (ph - 5) / 2, ink);
+        // the 2-letter abbreviation in the chunky dos 8x8 font where it fits (wide 808 white keys),
+        // falling back to FONT_TINY on the narrow 909 black keys / narrow tablets
+        font(FONT_NORMAL); int lw = text_width(vn[v]), gh = 8;
+        if (lw > pw - 1) { font(FONT_TINY); lw = text_width(vn[v]); gh = 5; }
+        print(vn[v], cx + (pw - lw) / 2, py + (ph - gh) / 2, ink);
     }
 }
 

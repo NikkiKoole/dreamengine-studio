@@ -1,6 +1,6 @@
 # acidcandy — the new iPad ROOMY layout (feature-parity checklist)
 
-**STATUS: building** (Milestone 1 wired into `acidcandy.c` behind `rack_view==2`, coexisting with the old 2×2; the mockup's DECIDED features are live + interactive, the OPEN ones are the M2 backlog below).
+**STATUS: shipped** (2026-07-23 — ROOMY is now THE tablet view: the old 2×2 `draw_rack` + `rack_deco` were REMOVED and the maker promoted `draw_rack2` full-stop. Tablets boot into it (`device_class()==2 → rack_view=2`); phone stays the single-face view, toggled by HOME/nav. All screens use the chip/panel + text-fit-button model; master is on the right with GEN/SONG/DLY chips; salmon chassis; 2px knob rings. The checklist below is historical.)
 
 ## Wiring status (2026-07-23) — Milestone 1 SHIPPED into `acidcandy.c`
 

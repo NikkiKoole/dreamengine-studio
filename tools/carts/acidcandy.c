@@ -90,7 +90,7 @@ static Machine mac[M_N] = {
     { "MST",  MK_MST,  CLR_GREEN,     CLR_DARK_GREEN,  0 },
 };
 static int face = M_303A;
-static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · 1 = iPad full rack (2×2) · 2 = iPad ROOMY (draw_rack2 — sticky-focus, one big shared screen). HOME toggles it; on the iPad the NEW/2×2 buttons flip 1↔2 (coexistence while the app is under review).
+static int rack_view = -1;   // LAYOUT: -1 = auto (from device_class on frame 0) · 0 = phone single-face+tabs · nonzero (2) = iPad ROOMY rack (draw_rack2 — sticky-focus, one big shared screen). HOME/nav toggles phone⇄ROOMY. (The old 2×2 draw_rack was removed 2026-07-23 — ROOMY is THE tablet view.)
 static int r2_focus   = 0;   // ROOMY: which machine owns the big shared screen (0=303a 1=303b 2=808 3=909 4=MST) — sticky focus, set by tapping a nameplate. Play stays live for ALL regardless.
 static int r2_selmach = M_808;   // ROOMY: the last-picked DRUM machine (M_808/M_909) — the shared context panel + its ring colour follow it (voice = dsel/d9sel)
 static int r2_dpaint  = 0;       // ROOMY drum grid paint tool: 0=HIT (toggle) · 1=ACC · 2=PROB · 3=STRK (909) — the drum twin of the 303's `armed` flag palette
@@ -886,7 +886,7 @@ static void navspine(Box nav) {
         int hx = (int)hcell.x + 1, hy = (int)hcell.y, hw = (int)hcell.w - 1, hh = (int)hcell.h, hpr = 0, hhot = 0, hfo = 0;
         void *wh = ui_wid_hash(0x03u, hx, hy, hw, hh);
         int acth = ui_button_core(wh, hx, hy, hw, hh, &hfo, &hpr, &hhot);
-        if (acth && nav_clean(wh)) rack_view = !rack_view;       // flip to the rack (nav_clean = ignore a drag-bounce tap)
+        if (acth && nav_clean(wh)) rack_view = rack_view ? 0 : 2;   // flip phone ⇄ ROOMY rack (nav_clean = ignore a drag-bounce tap)
         rrectfill(hx, hy, hw, hh, 2, CLR_DARK_BROWN);
         rrect(hx, hy, hw, hh, 2, hhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
         // little HOUSE glyph — hand-placed so it's pixel-symmetric about cxh (the old trifill roof rasterised lopsided)
@@ -2258,96 +2258,12 @@ static void drum_ui_swap(DrumUI *u) {   // exchange the shared drum globals ⇄ 
     t = drec_hold;  drec_hold  = u->rh;  u->rh  = t;
     t = drec_now;   drec_now   = u->rn;  u->rn  = t;
 }
-// rack per-panel deco: wash the panel in the machine's colour (so each machine reads at a glance)
-// + a slim header with a MUTE toggle (top-left, the nav-LED mute the rack has no room for) and a
-// label. Returns the shrunk box the face draws into (below the header). MST passes mute=0 (no machine mute).
-static Box rack_deco(Box c, int m, int mutable_) {
-    static const char *RL[M_N]   = { "303a", "303b", "808", "909", "MST" };
-    // per-machine panel WASH (distinct from the accent mac[m].col): 303s yellow/orange, 808 brown,
-    // 909 cream, master grey — blended 50% over the peach chassis so each machine reads at a glance.
-    // Per-machine panel colour — EXACT RGB from the maker's swatch (rectfill_rgb: true 24-bit, not
-    // the 32-colour palette, since the greens/coral aren't palette entries). A solid fill = a fast sw
-    // memset on the iPad canvas (NOT blend(BLEND_AVG), which was ~98% of a software frame).
-    //   303a orange · 303b coral · 808 green · 909 yellow · master grey.
-    static const int RWASH_RGB[M_N] = { 0xf69c31, 0xf26c55, 0x4fd94a, 0xfee74b, 0xbabbbf };
-    rectfill_rgb((int)c.x, (int)c.y, (int)c.w, (int)c.h, RWASH_RGB[m]);
-    Box hdr = lay_split(c, EDGE_TOP, 13, &c);                         // taller header → a chunkier MUTE
-    font(FONT_TINY);
-    int hx = (int)hdr.x + 1, hy = (int)hdr.y + 1;
-    if (mutable_) {                                                    // MUTE toggle (top-left) — big, easy to hit
-        int mw = 22, mh = (int)hdr.h - 2;
-        void *w = ui_wid_hash(0xF8u + m, hx, hy, mw, mh);
-        int pr = 0, hot = 0, fo = 0;
-        if (ui_button_core(w, hx, hy, mw, mh, &fo, &pr, &hot)) mac[m].mute = !mac[m].mute;
-        rrectfill(hx, hy, mw, mh, 2, mac[m].mute ? CLR_DARK_BROWN : mac[m].col);
-        rrect(hx, hy, mw, mh, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
-        print("MUTE", hx + mw / 2 - text_width("MUTE") / 2, hy + mh / 2 - 2,
-              mac[m].mute ? CLR_RED : CLR_BROWNISH_BLACK);            // label; red when muted
-        hx += mw + 3;
-    }
-    print(RL[m], hx, hy + 1, mac[m].mute ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);
-    return c;
-}
 
-static void draw_rack(Box area) {
-    float gap = 2;
-    Box stage = area;
-    Box bar   = lay_split(stage, EDGE_TOP,    16,  &stage);   // transport/title
-    Box mstrp = lay_split(stage, EDGE_BOTTOM, 104, &stage);   // MASTER strip (landscape face → full-width, not a narrow column)
-    // transport bar: title + a real PLAY (mirrors navspine's toggle)
-    { rrectfill((int)bar.x, (int)bar.y, (int)bar.w, (int)bar.h, 2, CLR_DARK_BROWN);
-      font(FONT_SMALL);
-      print("TINY ACID JAM", (int)bar.x + 4, (int)bar.y + (int)(bar.h / 2) - 3, CLR_LIGHT_PEACH);
-      int pw = 24, ph = (int)bar.h - 4, px = (int)(bar.x + bar.w) - pw - 3, py = (int)bar.y + 2;
-      void *wid = ui_wid_hash(0x2Fu, px, py, pw, ph);
-      int pr = 0, hot = 0, foc = 0; int act = ui_button_core(wid, px, py, pw, ph, &foc, &pr, &hot);
-      if (act) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
-                 for (int m = 0; m < M_N; m++) armpat[m] = -1; }
-      rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
-      int cx = px + pw / 2, cy = py + ph / 2;
-      if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); }
-      else         print(">", cx - 1, cy - 3, CLR_WHITE);
-      // HOME — flip back to the phone single-face+tabs view (twin of navspine's HOME)
-      int hw2 = ph, hx = px - hw2 - 3, hy = py;
-      void *wh = ui_wid_hash(0x2Eu, hx, hy, hw2, ph);
-      int prh = 0, hoth = 0, foh = 0;
-      if (ui_button_core(wh, hx, hy, hw2, ph, &foh, &prh, &hoth)) rack_view = 0;
-      rrectfill(hx, hy, hw2, ph, 2, CLR_DARK_BROWN);
-      rrect(hx, hy, hw2, ph, 2, hoth ? CLR_WHITE : CLR_BROWNISH_BLACK);
-      int hcx = hx + hw2 / 2, hcy = hy + ph / 2 - 2;                 // little house glyph (matches navspine's)
-      pset(hcx, hcy, CLR_LIGHT_PEACH);
-      rectfill(hcx - 1, hcy + 1, 3, 1, CLR_LIGHT_PEACH);
-      rectfill(hcx - 2, hcy + 2, 5, 1, CLR_LIGHT_PEACH);
-      rectfill(hcx - 2, hcy + 3, 5, 3, CLR_LIGHT_PEACH);
-      rectfill(hcx,     hcy + 4, 1, 2, CLR_DARK_BROWN);
-      // NEW — flip to the ROOMY layout (draw_rack2). Coexistence toggle while the app is under review.
-      int nw = 26, nx = hx - nw - 3, ny = hy;
-      void *wn = ui_wid_hash(0x2Du, nx, ny, nw, ph);
-      int prn = 0, hotn = 0, fon = 0;
-      if (ui_button_core(wn, nx, ny, nw, ph, &fon, &prn, &hotn)) rack_view = 2;
-      rrectfill(nx, ny, nw, ph, 2, CLR_DARK_GREEN);
-      rrect(nx, ny, nw, ph, 2, hotn ? CLR_WHITE : CLR_BROWNISH_BLACK);
-      font(FONT_TINY); print("NEW", nx + nw / 2 - text_width("NEW") / 2, ny + ph / 2 - 2, CLR_LIME_GREEN); font(FONT_SMALL); }
-    // 2×2 instrument grid — 909|808 over 303a|303b (ReBirth's drums-over-synths)
-    Box top  = lay_split(stage, EDGE_TOP, (stage.h - gap) * 0.5f, &stage);
-    Box bot  = stage; bot.y += gap; bot.h -= gap;
-    Box c909 = lay_split(top, EDGE_LEFT, (top.w - gap) * 0.5f, &top);  Box c808 = top;
-    Box c3a  = lay_split(bot, EDGE_LEFT, (bot.w - gap) * 0.5f, &bot);  Box c3b  = bot;
-    c808.x += gap; c808.w -= gap;  c3b.x += gap; c3b.w -= gap;
-    { Box f = rack_deco(c909, M_909, 1); drum_ui_swap(&drum_ui[1]); draw_909(f); drum_ui_swap(&drum_ui[1]); }  // 909 → store 1
-    { Box f = rack_deco(c808, M_808, 1); drum_ui_swap(&drum_ui[0]); draw_808(f); drum_ui_swap(&drum_ui[0]); }  // 808 → store 0
-    draw_303(rack_deco(c3a, M_303A, 1), M_303A);
-    draw_303(rack_deco(c3b, M_303B, 1), M_303B);
-    { Box m = mstrp; m.y += gap; m.h -= gap; draw_mst(rack_deco(m, M_MST, 0)); }   // MASTER strip (green wash, no machine mute)
-}
-
-// ═══ ROOMY (rack_view==2): the sticky-focus iPad layout ═══════════════════════════════════
-// The acidcandy_ipad mockup, wired to real state. Narrow 303a/303b + MST knob-columns bracket
-// ONE big shared SCREEN; the 808/909 sit as pad-bank strips at the bottom. Tapping a nameplate
-// FOCUSES that machine's DEEP editor onto the screen (r2_focus); play stays live for ALL
-// machines regardless of focus. Coexists with the old 2×2 draw_rack behind rack_view (flip via
-// the NEW / 2×2 buttons) so the shipping default is undisturbed while the app is under App Store
-// review. Feature-parity gate before flipping the default: docs/design/acidcandy-ipad-layout.md.
+// ═══ ROOMY: the sticky-focus iPad layout — THE tablet view (the old 2×2 draw_rack is gone) ═══
+// Narrow 303a/303b + MST knob-columns bracket ONE big shared SCREEN; the 808/909 sit as pad-bank
+// strips at the bottom. Tapping a nameplate FOCUSES that machine's DEEP editor onto the screen
+// (r2_focus); play stays live for ALL machines regardless of focus. rack_view: 0 = phone · nonzero
+// = this ROOMY view. Design: docs/design/acidcandy-ipad-layout.md.
 #define R2_INK  CLR_BROWNISH_BLACK   // primary text/label ink — now dark, reads on the salmon panels
 #define R2_DIM  CLR_DARK_BROWN        // dim label ink (matches the phone chassis labels)
 #define R2_PNL  CLR_LIGHT_PEACH       // panel/chassis fill — SALMON, same as the phone version's bg
@@ -3050,17 +2966,12 @@ static void draw_rack2(Box area) {
       rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
       int cx = px + pw / 2, cy = py + ph / 2;
       if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); } else trifill(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, CLR_WHITE);
-      // 2×2 — back to the old rack; HOME — to the phone view
-      int bw = 22, bx = px - bw - 3, by = py, prb = 0, hob = 0, fob = 0;
-      void *w2 = ui_wid_hash(0x2Cu, bx, by, bw, ph);
-      if (ui_button_core(w2, bx, by, bw, ph, &fob, &prb, &hob)) rack_view = 1;
-      rrectfill(bx, by, bw, ph, 2, CLR_DARK_BROWN); rrect(bx, by, bw, ph, 2, hob ? CLR_WHITE : CLR_BROWNISH_BLACK);
-      font(FONT_TINY); print("2x2", bx + bw / 2 - text_width("2x2") / 2, by + ph / 2 - 2, CLR_LIGHT_PEACH);
-      int hw = 20, hx = bx - hw - 3, hy = py, prh = 0, hoh = 0, foh = 0;
+      // HOME — to the phone single-face view (the old 2×2 toggle is gone; ROOMY is THE tablet view)
+      int hw = 22, hx = px - hw - 3, hy = py, prh = 0, hoh = 0, foh = 0;
       void *wh = ui_wid_hash(0x2Eu, hx, hy, hw, ph);
       if (ui_button_core(wh, hx, hy, hw, ph, &foh, &prh, &hoh)) rack_view = 0;
       rrectfill(hx, hy, hw, ph, 2, CLR_DARK_BROWN); rrect(hx, hy, hw, ph, 2, hoh ? CLR_WHITE : CLR_BROWNISH_BLACK);
-      print("HM", hx + hw / 2 - text_width("HM") / 2, hy + ph / 2 - 2, CLR_LIGHT_PEACH); font(FONT_SMALL); }
+      font(FONT_TINY); print("HM", hx + hw / 2 - text_width("HM") / 2, hy + ph / 2 - 2, CLR_LIGHT_PEACH); font(FONT_SMALL); }
     // the machines
     r2_col303(c3a, 0);
     r2_col303(c3b, 1);
@@ -3091,7 +3002,7 @@ void draw(void) {
     // DEVICE CLASS — classify ONCE on the first frame, BEFORE we shrink the canvas below
     // (our own de_resize makes de_sw/de_sh tiny, so device_class() would then read WIDE
     // forever; frame 0 still reports the physical screen). ROOMY (tablet) → the full rack.
-    if (rack_view < 0) rack_view = (device_class() == 2) ? 1 : 0;   // default from the screen (frame 0, before we shrink it); HOME toggles it after
+    if (rack_view < 0) rack_view = (device_class() == 2) ? 2 : 0;   // tablet → ROOMY, phone → single-face; HOME toggles it (frame 0, before we shrink the canvas)
     // CANVAS: phone keeps the chunky "scale up 160×100, spread the leftover" density (one face);
     // ROOMY holds a fixed HEIGHT tall enough for 2 instrument rows + a full master strip, and
     // matches WIDTH to the window ratio so the rack FILLS the window without clipping.
@@ -3137,10 +3048,8 @@ void draw(void) {
     Box area = box(ax0, ay0, ax1 - ax0, ay1 - ay0);
     // ARRANGEMENT (canvas-density-spectrum.md axis 2): ROOMY (iPad) shows the WHOLE rack at once;
     // phone (TALL/WIDE) shows one focused face reached through the nav-tab strip. Same faces, two modes.
-    if (rack_view == 2) {
-        draw_rack2(area);                                            // iPad ROOMY — sticky focus + one big shared screen (the new layout, coexisting behind a toggle)
-    } else if (rack_view) {
-        draw_rack(area);                                             // iPad — all four machines + master (the old 2×2)
+    if (rack_view) {
+        draw_rack2(area);                                            // ROOMY — the tablet view (sticky focus + one big shared screen)
     } else {
         Box stage;
         Box nav = lay_split(area, EDGE_TOP, area.h * 0.12f, &stage); // nav strip ≈ design 12/100

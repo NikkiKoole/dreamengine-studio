@@ -43,7 +43,7 @@
     "PERF LATCH: SHIPPED (2026-07-18) — the PERF buttons are now TAP=latch / HOLD=momentary (lcdhold → lcdlatch). A quick tap (release within PERF_TAP=12 frames) TOGGLES a persistent per-lens-per-line latch (pf_latch[PL_N][2]); a longer press is momentary (on while held, no toggle). The latch PERSISTS across faces + stop/start, so 303a can keep doubling while you work 303b — the whole point (momentary alone only touched the FOCUSED line). draw() seeds each line's effective pf_* from its latch, then the focused PERF screen's lcdlatch adds hold on top. HALF↔2X and STAC↔GLIDE are mutually exclusive (tapping one clears its partner via the excl arg). Latched = WHITE border, momentary = green fill. EDGE (noted in the follow-ups todo): a momentary hold can't override a conflicting latch (update precedence dbl>half, stac>glide).",
     "FLAG note-on: SHIPPED (2026-07-18) — added FL_NOTE as the FIRST entry in the 303 flag palette (NOTE/ACC/SLD/TIE/OCT+/OCT-) and made it the DEFAULT armed flag. Arming NOTE makes a bar tap/drag toggle the note itself (flag_get/set → on[i][s]), so you add notes right on the FLAG screen instead of maneuvring to SEQ and back — the maker's repeated ask. Pitch still lives in SEQ (drag) — NOTE keeps the bar's existing pitch. paint-across works (grab an off bar → paints on, grab an on bar → erases).",
     "drum-machine ergonomics: (1) CLEAR — SHIPPED (2026-07-16) as part of a GEN flow. Every instrument has a GEN soft-key (right margin, replacing the decorative SCP) that fills the LCD with a CLEAR + MIN/MID/BUSY menu — CLEAR empties the pattern, the three densities regenerate it (MID = the old NEW recipe). Replaces the single NEW button. (2) LIVE RECORD — still open: while the loop plays, a mode where tapping a voice pad punches its hit onto the CURRENT step (step/overdub record), instead of only auditioning.",
-    "waveshape flip: SHIPPED (2026-07-16) a SAW/SQR WAVE toggle in the 5th knob slot of the 303 DEEP page (flips a.wave + re-calls acid_define). Still open: the drvmode waveshaper (SOFT/HARD/FOLD/ASYM) could get the same treatment.",
+    "waveshape flip: SHIPPED (2026-07-16) a SAW/SQR WAVE toggle in the 5th knob slot of the 303 DEEP page (flips a.wave + re-calls acid_define). DRVMODE: SHIPPED (2026-07-23) — same treatment, a 4-way cycle button (S/H/F/A = Soft/Hard/Fold/Asym, flips a.drvmode + re-calls acid_define). Lives in the knob-row's right switch column, which grew from a 1-col VOICING/VIEW stack into a 2×2 mini switch-bank (col1 = VOICING / WAVE-VIEW, col2 = DRV mode / spare) filling the same colw so the right edge still reads as one seam; reachable in BOTH voicings. Labels are 1 char because the split slot is ~8px (2-char labels of adjacent switches collided — ear/eye-checked via bake). The col2 bottom slot is left empty as a DRIFT-knob home.",
     "303 DEEP knobs: SHIPPED (2026-07-15) a DF soft-key flips the zone-2 row between vanilla (CUT/RES/ENV/DEC/ACC) and a DEEP page (SUB/ADEC/SLDT/TRK) — the headline Devil Fish knobs, per-303, sub-osc wired on slots 36/37 (34/35 belong to the 909's 13-slot bank). DRV moved to the FX panel (aligns with the drums). Still not surfaced: ATK (soft attack) + SQL (env-sweep) + the accent-SWEEP mode; a fuller flow could page those too.",
     "wire the still-decorative soft-keys: SHIPPED (2026-07-15) the per-machine FX panel — the FX soft-key on every 303/808/909 opens an aligned DRV/DIST + SEND (shared delay) + VERB (reverb) row (draw_fxrow); reverb is real (303s → warm hall tank 0, 909 → tight plate tank 1, 808 → room tank 2, kicks kept dry) + per-machine drum drive. every soft-key is now live: the 303/drum SCP slots → GEN (2026-07-16); MST SCP → the LIN/PWR pan-LAW toggle; MST SNG removed (SONG layer deferred); the 909 METAL XY shipped into its FX panel; MUT/REC are arm-toggles by the voices.",
     "SOUL: the LCD screens have no MASCOT yet (the slime from tinyface/facemock, candy-style §3) — a FACE flow could give a bopping/reacting creature its own screen. Deferred for now.",
@@ -956,9 +956,16 @@ static void draw_303(Box stage, int i) {
     if (!seq_grid) { skcL = lay_split(body, EDGE_LEFT, colw, &body); skcR = lay_split(body, EDGE_RIGHT, colw, &body); }
     Box lcd   = lay_inset(body, 1);                               // the hero glass = the remainder (full-width in GRID mode, edge-to-edge with the 16-step row)
 
-    // ② the gear-drag knob row. The DF switch at the right end flips vanilla↔DEEP (Devil Fish).
-    Box krDF = lay_split(krow, EDGE_RIGHT, colw, &krow);          // same width + right edge as the GEN/KEY/PAT column below → the right side is one column
-    Box krPAGE = lay_split(krDF, EDGE_BOTTOM, krDF.h * 0.44f, &krDF);      // krDF = top (VOICING switch), krPAGE = bottom (VIEW tab)
+    // ② the gear-drag knob row. The right end is a 2×2 mini switch-bank filling the SAME colw + right
+    // edge as the GEN/KEY/PAT column below (so the right side still reads as one seam): col1 = VOICING
+    // (top) / WAVE-VIEW (bottom); col2 = DRV waveshaper mode (top) / spare (bottom, a DRIFT home later).
+    Box krSW   = lay_split(krow, EDGE_RIGHT, colw, &krow);
+    Box krC2   = lay_split(krSW, EDGE_RIGHT, krSW.w * 0.5f, &krSW);        // krSW = col1 (left), krC2 = col2 (right)
+    Box krDF   = krSW;                                                     // col1 top = VOICING switch
+    Box krPAGE = lay_split(krDF, EDGE_BOTTOM, krDF.h * 0.44f, &krDF);      // col1 bottom = VIEW tab / WAVE
+    Box krDRV  = krC2;                                                     // col2 top = DRV mode cycle
+    Box krSpare = lay_split(krDRV, EDGE_BOTTOM, krDRV.h * 0.44f, &krDRV);  // col2 bottom = spare (empty for now)
+    (void)krSpare;
     if (rack_view && !seq_grid) { Box kg = lay_split(krow, EDGE_LEFT, colw, &krow); (void)kg; }   // iPad: align the knob row's LEFT edge with the LCD (its right already matches krDF/skcR)
     if (!kpage[i]) {                                                       // page 0 — vanilla
         knob_cell(lay_grid(krow, 5, 5, 0, 2), &a->p[ACID_CUT], "CUT", 0.55f);
@@ -1013,6 +1020,17 @@ static void draw_303(Box stage, int i) {
             rrect(bx, by, bw, bh, 2, (phot || kpage[i]) ? CLR_WHITE : CLR_BROWNISH_BLACK);
             font(FONT_TINY); plabel(kpage[i] ? "2" : "1", bx + bw / 2, by + 1, lit ? CLR_BROWNISH_BLACK : CLR_LIGHT_PEACH);
         }
+    }
+    {   // col2 TOP — DRV waveshaper MODE. Cycles the drive FLAVOUR (the DRV *amount* is the FX-row knob):
+        // SFT tanh soft-clip · HRD hard clip · FLD sine wavefolder (the "mental" one) · ASY even-harmonic tube.
+        // A stock drive control (not a Devil Fish extra), so it lives in the knob row → reachable in BOTH voicings.
+        static const char *DM[4] = { "S", "H", "F", "A" };   // Soft / Hard / Fold / Asym — 1 char clears the 8px slot cleanly
+        int bx = (int)krDRV.x, by = (int)krDRV.y + 1, bw = (int)krDRV.w - 1, bh = (int)krDRV.h - 2, mp = 0, mhot = 0, mf = 0;
+        void *wm = ui_wid_hash(0x2Bu, bx, by, bw, bh);
+        if (ui_button_core(wm, bx, by, bw, bh, &mf, &mp, &mhot)) { a->drvmode = (a->drvmode + 1) & 3; acid_define(a); }
+        rrectfill(bx, by, bw, bh, 2, CLR_DARK_PURPLE);
+        rrect(bx, by, bw, bh, 2, mhot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+        font(FONT_TINY); plabel(DM[a->drvmode & 3], bx + bw / 2, by + 1, CLR_LIGHT_YELLOW);
     }
 
     // ③ soft-keys flank the LCD (left: SEQ/FLAG/FX/PERF · right: GEN/KEY/PAT) — BARS mode only.

@@ -99,6 +99,7 @@ static int r2_303panel[2] = { 0, 0 }; // ROOMY 303: which control panel is REVEA
 static int r2_drumpanel[2] = { 1, 1 };// ROOMY drum: which panel is REVEALED, per machine (0 = none · 1 = FLAG/paint · 2 = GEN · 3 = PERF), toggled by the bottom-left chips. Default FLAG so the paint tools are up.
 static int r2_mstpanel = 0;           // ROOMY master: which panel is REVEALED (0 = none / mixer+lanes all-at-once · 1 = GEN song-generator · 2 = SONG save/load slots · 3 = DLY delay division), toggled by the bottom-left chips.
 static int r2_mstlane  = -1;          // ROOMY master: which automation lane is EXPANDED to full height for precise editing (-1 = the 3-up overview · 0 = PCF · 1 = CRUSH · 2 = GATE). Tap a lane's label to toggle.
+static int r2_dark     = 0;           // ROOMY chassis theme: 0 = salmon candy skin · 1 = dark. Toggled by the tiny header button (flips R2_PNL/INK/DIM).
 
 // the two TB-303 lines (index 0/1 == machine M_303A/M_303B). Pattern lives here.
 static Acid ac[2];
@@ -2264,9 +2265,11 @@ static void drum_ui_swap(DrumUI *u) {   // exchange the shared drum globals ⇄ 
 // strips at the bottom. Tapping a nameplate FOCUSES that machine's DEEP editor onto the screen
 // (r2_focus); play stays live for ALL machines regardless of focus. rack_view: 0 = phone · nonzero
 // = this ROOMY view. Design: docs/design/acidcandy-ipad-layout.md.
-#define R2_INK  CLR_BROWNISH_BLACK   // primary text/label ink — now dark, reads on the salmon panels
-#define R2_DIM  CLR_DARK_BROWN        // dim label ink (matches the phone chassis labels)
-#define R2_PNL  CLR_LIGHT_PEACH       // panel/chassis fill — SALMON, same as the phone version's bg
+// roomy chassis THEME — the header toggle (r2_dark) flips between the salmon candy skin and a dark
+// one; the ink tones flip with it so labels stay legible on either background.
+#define R2_INK  (r2_dark ? CLR_LIGHT_GREY  : CLR_BROWNISH_BLACK)   // primary text/label ink
+#define R2_DIM  (r2_dark ? CLR_MEDIUM_GREY : CLR_DARK_BROWN)       // dim label ink
+#define R2_PNL  (r2_dark ? CLR_DARKER_GREY : CLR_LIGHT_PEACH)      // panel/chassis fill (salmon ⇄ dark)
 
 // the ROOMY knob look the maker prefers (from the mockup): just a black disc + a coloured outline +
 // a white tick — NOT the candy bevel rotary. Same drag FEEL as knob() though (gear/fine pull-out,
@@ -2973,6 +2976,12 @@ static void draw_rack2(Box area) {
       int cx = px + pw / 2, cy = py + ph / 2;
       if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); } else trifill(cx - 2, cy - 3, cx - 2, cy + 3, cx + 3, cy, CLR_WHITE);
       font(FONT_NORMAL); print("TINY ACID JAM", px + pw + 5, (int)bar.y + (int)bar.h / 2 - 4, CLR_LIGHT_PEACH); }
+    {   // THEME toggle — a tiny square just left of HOME; a swatch of the OTHER skin, flips salmon ⇄ dark
+      int tw = ph, tx = (int)(bar.x + bar.w) - 22 - 3 - tw - 3, pr = 0, hot = 0, fo = 0;
+      void *w = ui_wid_hash(0x2Du, tx, py, tw, ph);
+      if (ui_button_core(w, tx, py, tw, ph, &fo, &pr, &hot)) r2_dark = !r2_dark;
+      rrectfill(tx, py, tw, ph, 2, CLR_DARK_BROWN); rrect(tx, py, tw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
+      rectfill(tx + tw / 2 - 2, py + ph / 2 - 2, 4, 4, r2_dark ? CLR_LIGHT_PEACH : CLR_DARKER_GREY); }
     {   // HOME (right) — the house glyph, exactly as the phone nav; taps back to the phone single-face view
       int hw = 22, hx = (int)(bar.x + bar.w) - hw - 3, prh = 0, hoh = 0, foh = 0;
       void *wh = ui_wid_hash(0x2Eu, hx, py, hw, ph);

@@ -2400,24 +2400,27 @@ static void r2_header(Box hd, int m) {
 // octave (^/v) + tie (a stretched cell); a line = slide. Draw + edit: tap = on/off, drag = draw the
 // melody (pitch = row). ONE capture widget (not 16 — keeps well under UI_MAX_WID).
 static void r2_screen303(Box g, int i) {
-    int mode = pscreen[i], hi = mac[i ? M_303B : M_303A].col;
+    int hi = mac[i ? M_303B : M_303A].col;
     int NR = SCALES[mscale[i]].n;
     int gut = 9, gx = (int)g.x + gut, gy = (int)g.y, gw = (int)g.w - gut - 1, gh = (int)g.h - 1;
     int step = gw / STEPS, rh = gh / NR;
-    // one capture over the grid; the MODE only changes what a paint does (SEQ/GEN = note/pitch,
-    // FLAG = paint the armed flag). Tools/menu live in the submenu ROW below, never over the grid.
+    // one capture over the grid; the ARMED flag decides what a paint does (SEQ+FLAG are merged into
+    // this one grid). NOTE = draw/erase the note itself; any other flag = paint the flag on the note.
     void *w = ui_wid_hash(0x110u + i, gx, gy, step * STEPS, rh * NR); ui_reg(w, gx, gy, step * STEPS, rh * NR, 0);
     UiCap *c = ui_cap_for(w);
     if (c) {
+        static int note_erase;   // NOTE tool: is this drag an ERASE gesture? latched on the grab frame so a held tap doesn't re-add
         int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy;
         int s = (px - gx) / step, frow = (py - gy) / rh;
         if (s >= 0 && s < plen[i] && frow >= 0 && frow < NR) {
             int deg = (NR - 1) - frow;
-            if (mode == PS_FLAG && armed != FL_NOTE) {
+            if (armed != FL_NOTE) {                                      // a flag is armed (ACC/SLD/TIE/OCT±) → paint it across the drag
                 if (ui_grabbed(w)) paint_val = !flag_get(i, s, armed);   // decide on the first cell, then paint the drag
                 flag_set(i, s, armed, paint_val);
-            } else {
-                if (ui_grabbed(w) && on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0;  // tap an existing note = off
+                if (paint_val && armed != FL_TIE) on[i][s] = 1;          // ACC/SLD/OCT ride a NOTE — add one so the paint is VISIBLE. TIE rides an EMPTY step (holds the previous note) so it must NOT plant a cell
+            } else {                                                     // NOTE tool → draw / erase (latch the gesture on grab so a held tap doesn't flicker back on)
+                if (ui_grabbed(w)) note_erase = on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg;  // tapped an existing note = erase gesture
+                if (note_erase) { if (on[i][s] && scale_idx(mscale[i], pit[i][s]) == deg) on[i][s] = 0; }
                 else { on[i][s] = 1; pit[i][s] = SCALES[mscale[i]].deg[deg]; }
             }
         }

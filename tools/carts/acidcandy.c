@@ -2774,7 +2774,7 @@ static void r2_ctxrow(Box c) {
     Box lab = lay_split(cc, EDGE_LEFT, 34, &cc);
     font(FONT_NORMAL); print((sm == M_808) ? "808" : "909", (int)lab.x, (int)lab.y + 1, hi);
     font(FONT_TINY);   print(svn, (int)lab.x, (int)lab.y + 11, R2_INK);
-    cc = lay_split(cc, EDGE_LEFT, lay_clamp(6 * 28, 0, cc.w), &cc);   // cluster the 6 knobs next to the label (not a full row), with a little breathing room
+    Box knobs = lay_split(cc, EDGE_LEFT, lay_clamp(6 * 28, 0, cc.w), &cc);   // knobs clustered LEFT; cc = the freed space to the right
     float *ktun = (sm == M_808) ? &dtune[sv]  : &d9tune[sv];
     float *kdec = (sm == M_808) ? &ddecay[sv] : &d9decay[sv];
     float *kcol = (sm == M_808) ? &dcolor[sv] : &d9color[sv];
@@ -2783,7 +2783,24 @@ static void r2_ctxrow(Box c) {
     float *kfin = (sm == M_808) ? &dfine[sv]  : &d9fine[sv];
     float *K[6] = { ktun, kdec, kcol, kvol, kpan, kfin };
     const char *N[6] = { "TUN", "DEC", chn ? chn : "COL", "VOL", "PAN", "FINE" };
-    for (int k = 0; k < 6; k++) r2_kcell(lay_grid(cc, 6, 6, k, 1), K[k], N[k], 0.5f, hi);
+    for (int k = 0; k < 6; k++) r2_kcell(lay_grid(knobs, 6, 6, k, 1), K[k], N[k], 0.5f, hi);
+    // the freed space: MUT / REC pad-latches (both drum machines) + the 909 METAL XY pad
+    Box rc = lay_inset(cc, 2);
+    int mw = 40, mh = ((int)rc.h - 1) / 2;
+    dmut_now = clatch(0x260u, (int)rc.x, (int)rc.y,      mw, mh - 1, "MUT", &dmut_latch, &dmut_hold, CLR_ORANGE);
+    drec_now = clatch(0x261u, (int)rc.x, (int)rc.y + mh, mw, mh - 1, "REC", &drec_latch, &drec_hold, CLR_RED);
+    if (sm == M_909) {   // 909 metal-voice highpass XY (tr909_metal): X = cut, Y = res
+        int pw = (int)rc.h - 6, px0 = (int)rc.x + mw + 8, py0 = (int)rc.y;
+        void *w = ui_wid_hash(0x262u, px0, py0, pw, pw); ui_reg(w, px0, py0, pw, pw, 0);
+        UiCap *cp = ui_cap_for(w);
+        if (cp) { int px = cp->released ? cp->rx : cp->cx, py = cp->released ? cp->ry : cp->cy;
+            float nx = clamp((px - px0) / (float)(pw - 1), 0, 1), ny = clamp(1.0f - (py - py0) / (float)(pw - 1), 0, 1);
+            if (nx != m9cut || ny != m9res) { m9cut = nx; m9res = ny; tr909_metal(D909_BASE, m9cut, m9res); } }
+        rrectfill(px0, py0, pw, pw, 2, CLR_BLACK);
+        rrect(px0, py0, pw, pw, 2, mac[M_909].col);
+        pset(px0 + (int)(m9cut * (pw - 1)), py0 + pw - 1 - (int)(m9res * (pw - 1)), CLR_LIGHT_YELLOW);
+        font(FONT_TINY); plabel("METAL", px0 + pw / 2, py0 + pw + 1, mac[M_909].col);
+    }
 }
 
 // a drum PAD row. 808 = the WHITE keys (16, full-width, light); 909 = the BLACK keys (11, narrower
@@ -2823,15 +2840,22 @@ static void r2_drumstrip(Box c, int focus) {
         int firing = trig[v] > 0.05f, pr = 0, hot = 0, fo = 0;
         void *w = ui_wid_hash(0xB0u + focus * 32 + v, cx, py, pw, ph);
         if (ui_button_core(w, cx, py, pw, ph, &fo, &pr, &hot)) {
-            r2_selmach = focus;
-            if (focus == M_808) { dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
-            else                { d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
+            if (dmut_now) mut[v] = !mut[v];                       // MUT latch live → a tap mutes the voice directly
+            else if (drec_now && playing) {                      // REC latch live → punch onto the current step + hear it
+                int st = lpos[0]; grid[v][st] = 1; r2_selmach = focus;
+                if (focus == M_808) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; }
+                else                { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; }
+            } else {                                             // default: SELECT + audition-when-stopped
+                r2_selmach = focus;
+                if (focus == M_808) { dsel = v; if (!playing) { tr808_fire(TR808_BASE, v, 1, 0, dtune, ddecay, dcolor); dtrig[v] = 1; } }
+                else                { d9sel = v; if (!playing) { tr909_fire(D909_BASE, v, 1, 0, d9tune, d9decay, d9color); d9trig[v] = 1; } }
+            }
         }
         int selhere = (v == sel && focus == r2_selmach), fill, ink;
         if (black) { fill = firing ? CLR_WHITE : (mut[v] ? CLR_DARKER_PURPLE : (active ? mac[focus].col : CLR_BROWNISH_BLACK)); ink = active ? CLR_BLACK : mac[focus].col; }
         else       { fill = firing ? CLR_WHITE : (mut[v] ? CLR_DARKER_PURPLE : (active ? mac[focus].col : CLR_LIGHT_GREY));     ink = CLR_BLACK; }
         rectfill(cx, py, pw, ph, fill);
-        rect(cx, py, pw, ph, (hot || selhere) ? CLR_WHITE : mac[focus].lo);
+        rect(cx, py, pw, ph, dmut_now ? CLR_ORANGE : (hot || selhere) ? CLR_WHITE : mac[focus].lo);   // orange rim = MUT live
         if (mut[v]) line(cx, py, cx + pw, py + ph, CLR_RED);
         font(FONT_TINY); print(vn[v], cx + (pw - 8) / 2, py + (ph - 5) / 2, ink);
     }

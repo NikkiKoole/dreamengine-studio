@@ -33,9 +33,9 @@ static float curpitch = 40.0f;     // the pitch we're currently commanding (for 
 static const char *NOTE[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 static const char *DRVN[4]  = { "SOFT","HARD","FOLD","ASYM" };
 
-// pitch range across the pad: ~3 octaves
+// pitch range across the pad: ~4 octaves, reaching higher up top
 #define P_LO 28.0f
-#define P_HI 64.0f
+#define P_HI 76.0f
 
 // snap a fractional midi pitch to the nearest minor-pentatonic degree (A-rooted)
 static float snap_pent(float p) {
@@ -65,6 +65,7 @@ static int finger(int *x, int *y) {
 
 void init(void) {
     acid_init(&a, 6, 34);              // voice slot 6, sub-osc slot 34
+    a.cut_top = 7.2f;                  // brighter ceiling than DF's 6.38 → the top of the pad opens further
     a.drvmode = DRIVE_FOLD;            // metallic wavefolder — the gnarl
     a.drift   = 0.25f;                 // a little analog wander
     a.p[ACID_RES]  = 0.92f;            // near self-oscillation — the squelch/scream

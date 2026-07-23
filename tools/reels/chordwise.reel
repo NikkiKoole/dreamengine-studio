@@ -1,0 +1,9 @@
+# chordwise — built by the trailer builder (docs/design/trailer-builder.md)
+# fps 30
+# xfade fade 0.5
+# size 1080x1920
+# scale 1
+# frame letterbox
+# framebg 0d0d16
+# frameaccent ff6ab5
+chordwise/01-take

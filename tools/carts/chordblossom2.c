@@ -26,8 +26,8 @@
     "Self-playing BASS: an auto walking-bassline that moves on its own under the groove (a bass sequencer lane à la more-note-bass, or a generative walk), so you don't have to step it by hand — the 'bass playing by itself' feel.",
     "Bass SOLO mode: play a truly independent bassline off the keybed (the real Orchid's long-press-Bass 'take the bassline for a walk'), separate from the chord root. Follow=root + the manual UP/DOWN bass-voicing walk are already in.",
     "Two voicing DIALS on the panel: give LEAD and BASS each a proper on-screen dial (the walk logic for both already exists — this is the UI surface, matching the Orchid's two physical dials).",
-    "Key mode: pick a key and map a diatonic, in-key chord to each keybed key (press the white keys, get musically-appropriate chords in that key) — the Orchid's beginner-friendly auto-harmony.",
-    "Live re-voice of a HELD chord: turning the lead voicing dial while a chord rings should GLIDE the held notes to the new voicing (note_pitch, no re-attack) — a third option beyond the current RETRIG toggle (silent vs re-strike)."
+    "Live re-voice of a HELD chord: turning the lead voicing dial while a chord rings should GLIDE the held notes to the new voicing (note_pitch, no re-attack) — a fourth feel beyond the PLAY STYLE seam (SIMPLE silent / ADVANCED re-fire-on-quality / FREE re-fire-on-any).",
+    "SEAM decisions (SEAM:harmony, SEAM:trigger): these are experimental Orchid-faithful forks kept side by side. Once a favourite emerges, keep the chosen branch and delete the switch + losers (grep the tag). Candidate to reconsider: is SIMPLE/ADVANCED/FREE the right port of Play Style given our type buttons SELECT (not HOLD)?"
   ]
 }
 de:meta */
@@ -120,6 +120,34 @@ static const Model MODEL[NENG] = {
 #define NPERF 6
 static const char *PMNAME[NPERF] = { "PLAY", "STRUM", "HARP", "ARP", "PATTERN", "SLOP" };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ORCHID SEAMS — two Orchid-faithful behaviours we're trying out. Each is gated
+// by ONE state var and funnelled through ONE dispatch point, and every use site
+// is tagged `SEAM:harmony` or `SEAM:trigger`. So when we later pick a keeper we
+// can DELETE the losing branches (and the switch) without hunting the file — grep
+// the tag, keep the chosen case, drop the rest.
+//
+//   SEAM:harmony  (var `keyMode`) — where a chord COMES FROM on a keybed press:
+//        0 HS_CHROMATIC : the type + modifier buttons build the quality (v1 way)
+//        1 HS_DIATONIC  : white keys auto-play the in-key chord (Orchid Key mode)
+//     Additive by design: a toggle (K) that never removes the chromatic builders
+//     — both ways ship side by side. (This one already existed; now it's labelled.)
+//
+//   SEAM:trigger  (var `playStyle`) — the Orchid "Play Style", adapted to this
+//     cart's PERSISTENT-type model. The real Orchid HOLDS a type button; we SELECT
+//     one that stays put, so the axis becomes "what a tweak does to a chord that's
+//     already ringing" (a faithful port of the same three feels):
+//        PS_SIMPLE   : one-shot — tweaks stay silent until you replay a keybed key
+//        PS_ADVANCED : changing TYPE / MODIFIER re-fires the held chord live
+//        PS_FREE     : Advanced + VOICING / OCTAVE tweaks also re-fire
+//     Generalises the old RETRIG bool (OFF ≈ SIMPLE, ON ≈ FREE) into 3 named steps.
+// ═══════════════════════════════════════════════════════════════════════════
+enum { HS_CHROMATIC, HS_DIATONIC };                     // SEAM:harmony (keyMode 0/1)
+enum { PS_SIMPLE, PS_ADVANCED, PS_FREE, NPLAYSTYLE };   // SEAM:trigger (playStyle)
+static const char *PSNAME [NPLAYSTYLE] = { "SIMPLE", "ADVANCED", "FREE" };  // watch/trace
+static const char *PSSHORT[NPLAYSTYLE] = { "SIMPLE", "ADV", "FREE" };       // fits the chip
+enum { CH_QUALITY, CH_VOICE };   // what changed: quality = type/mod/richness · voice = voicing/octave
+
 static const char *NOTE[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 
 // ── keybed (one octave, GarageBand musical-typing map) ──────
@@ -200,7 +228,7 @@ static int  chType   = TY_MAJ;
 static bool modOn[NMOD] = { false, false, false, false };
 static int  voicing  = 0;                 // the cascade offset (signature dial)
 static int  octave   = 0;                 // Z/X keybed octave shift (-2..+2), whole chord
-static bool retrig   = false;             // RETRIG toggle: re-play the chord on every param change?
+static int  playStyle = PS_SIMPLE;        // SEAM:trigger — Orchid Play Style (was the RETRIG bool)
 static int  bassVoi  = 0;                 // BASS voicing walk: 0=root, 1=3rd, 2=5th, then up an octave… (the Orchid's bass dial)
 static int  engine   = 0;                 // PIANO model — index into MODEL[]; start on reed EP (warm)
 static int  harpModel = 3;                // HARP (sonic-strings) model — index into MODEL[]; start on PLUCK
@@ -417,7 +445,17 @@ static void play_degree(int d) {
 // a chord PARAMETER changed (type / modifier / voicing / octave): always
 // re-voice the plate + arm the next hit SILENTLY. If RETRIG is on, also re-play
 // the chord now (the "hear every tweak" behaviour).
-static void cb_param(void) { cb_build(); if (retrig) cb_play(); }
+// SEAM:trigger — a chord PARAMETER changed. Always re-voice the plate + arm the
+// next hit; whether we ALSO re-fire the ringing chord now is the Play Style's call,
+// keyed on WHAT changed (quality vs voice). Drop-to-one-variant: keep the branch of
+// the winning PS_* and inline it.
+static void cb_param_kind(int kind) {
+    cb_build();
+    bool refire = (playStyle == PS_FREE)                                  // FREE: any tweak re-fires
+               || (playStyle == PS_ADVANCED && kind == CH_QUALITY);       // ADVANCED: quality only
+    if (refire) cb_play();
+}
+static void cb_param(void) { cb_param_kind(CH_VOICE); }   // bare call = a VOICE tweak (voicing/octave)
 
 // ── strum plate helpers ─────────────────────────────────────
 static int stringAt(int x) {
@@ -602,9 +640,10 @@ static void update_chord(void) {
     if (keyp('X')) { octave = min( 2, octave + 1); cb_param(); }
 
     // Changing a chord PARAMETER (type / modifier / voicing / octave) re-voices
-    // the plate + arms the next played chord via cb_param(). With RETRIG OFF
-    // (default) that is SILENT — you hear a chord only when you play a root or
-    // strum. With RETRIG ON, every tweak also re-plays the chord.
+    // the plate + arms the next played chord via cb_param(). Whether the tweak is
+    // ALSO heard now is the PLAY STYLE (SEAM:trigger): SIMPLE stays silent (hear a
+    // chord only when you play a root or strum), ADVANCED re-fires on quality
+    // changes, FREE re-fires on any change.
 
     if (keyMode) {
         // KEY mode — two clear zones, one behavior each:
@@ -613,13 +652,13 @@ static void update_chord(void) {
             if (tapp(6 + i * 51, 32, 48, 14) || keyp('1' + i))
                 play_key_chord((keyRoot + SPICE[i].off) % 12, SPICE[i].ty, SPICE[i].sev);
         // RICHNESS (row 2): one radio-select — simple / 7th / 9th / lush
-        for (int r = 0; r < 4; r++) if (tapp(6 + r * 78, 50, 72, 14) || keyp('5' + r)) { richness = r; cb_param(); }  // rebuild → plate strings update live
+        for (int r = 0; r < 4; r++) if (tapp(6 + r * 78, 50, 72, 14) || keyp('5' + r)) { richness = r; cb_param_kind(CH_QUALITY); }  // SEAM:trigger rebuild → plate strings update live
     } else {
-        // chromatic mode — the original chord builders
-        for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_param(); }
-        for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_param(); }
-        for (int t = 0; t < 4; t++) if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param(); }
-        for (int m = 0; m < NMOD; m++) if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param(); }
+        // chromatic mode — the original chord builders  (SEAM:trigger: quality tweaks)
+        for (int t = 0; t < 4; t++) if (keyp('1' + t)) { chType = t; cb_param_kind(CH_QUALITY); }
+        for (int m = 0; m < NMOD; m++) if (keyp('5' + m)) { modOn[m] = !modOn[m]; cb_param_kind(CH_QUALITY); }
+        for (int t = 0; t < 4; t++) if (tapp(6 + t * 78, 32, 72, 14)) { chType = t; cb_param_kind(CH_QUALITY); }
+        for (int m = 0; m < NMOD; m++) if (tapp(6 + m * 78, 50, 72, 14)) { modOn[m] = !modOn[m]; cb_param_kind(CH_QUALITY); }
     }
 
     // LEAD VOICING strip — LEFT/RIGHT or drag on the strip
@@ -644,7 +683,7 @@ static void update_chord(void) {
         if (keyMode) groove = (groove + 1) % 3;                       // flavor: sparse / normal / busy GROOVE
         else { perfMode = (perfMode + 1) % NPERF; kPerform = (perfMode + 0.5f) / NPERF; }   // chromatic: perform mode
     }
-    if (tapp(100, 138, 100, 12)) { if (keyMode) { armed = false; note_off_all(); } else retrig = !retrig; }  // key: REST (hush) · chromatic: RETRIG
+    if (tapp(100, 138, 100, 12)) { if (keyMode) { armed = false; note_off_all(); } else playStyle = (playStyle + 1) % NPLAYSTYLE; }  // key: REST (hush) · chromatic: SEAM:trigger cycle PLAY STYLE
     if (tapp(206, 138, 58,  12)) { if (!keyMode) keyMode = 1; else keyRoot = (keyRoot + 1) % 12; }  // KEY chip
 
     // sonic-strings plate — every finger strums its own glissando
@@ -763,7 +802,7 @@ void update(void) {
     watch("root",    "%d", root);
     watch("voicing", "%d", voicing);
     watch("octave",  "%d", octave);
-    watch("retrig",  "%d", retrig);
+    watch("playstyle", "%d", playStyle);
     watch("bassVoi", "%d", bassVoi);
     watch("bassN",   "%d", cb_bass_note());
     watch("nVoiced", "%d", nVoiced);
@@ -911,9 +950,9 @@ static void drawChordTab(void) {
         rect(100, 138, 100, 12, CLR_MAUVE);
         print("REST (R)", 104, 140, CLR_LIGHT_GREY);         // hush the chord; the groove keeps going
     } else {
-        rectfill(100, 138, 100, 12, retrig ? CLR_GREEN : CLR_DARKER_PURPLE);
-        rect(100, 138, 100, 12, retrig ? CLR_WHITE : CLR_MAUVE);
-        print(str("RETRIG %s", retrig ? "ON" : "OFF"), 104, 140, retrig ? CLR_BLACK : CLR_LIGHT_GREY);
+        rectfill(100, 138, 100, 12, playStyle ? CLR_GREEN : CLR_DARKER_PURPLE);   // SEAM:trigger chip
+        rect(100, 138, 100, 12, playStyle ? CLR_WHITE : CLR_MAUVE);
+        print(str("PLAY %s", PSSHORT[playStyle]), 104, 140, playStyle ? CLR_BLACK : CLR_LIGHT_GREY);
     }
     rectfill(206, 138, 58, 12, keyMode ? CLR_INDIGO : CLR_DARKER_PURPLE);
     rect(206, 138, 58, 12, keyMode ? CLR_WHITE : CLR_MAUVE);

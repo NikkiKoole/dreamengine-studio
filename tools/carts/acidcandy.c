@@ -261,7 +261,7 @@ static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB f
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
 static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
-static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 6 = SWEEP macro
+static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 4 = GEN, 5 = SONG, 6 = SWEEP macro, 7 = DLY delay-div picker
 static float msweep = 0.0f, msweepfb = 0.5f;                // master SWEEP: mix/depth macro (0 = off) + feedback (the "mental" intensity). Whole-mix phaser/flanger for breakdown risers
 static int   mswmode = 1, mswdiv = 0;                       // SWEEP flavour (0 = FLG metallic jet, 1 = PHS hollow swirl) + rate div (0 = 1-bar, 1 = 2-bar, 2 = 4-bar sweep, tempo-synced)
 
@@ -1773,8 +1773,8 @@ static void draw_mst(Box stage) {
       if (cbtn(0x24u, (int)gcell.x, (int)gcell.y, (int)gcell.w, (int)gcell.h, "GEN", mstflow == 4)) mstflow = 4; }
     { Box scell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.22f, 1, &rcol);   // SONG — opens the SONGS page in the LCD (tap a slot = load · hold = save). The deferred SONG layer, now wired.
       if (cbtn(0x26u, (int)scell.x, (int)scell.y, (int)scell.w, (int)scell.h, "SONG", mstflow == 5)) mstflow = (mstflow == 5) ? 0 : 5; }
-    for (int i = 0; i < 4; i++) { Box c = lay_grid(rcol, 1, 4, i, 1);   // DELAY divisions — small, in the bottom of the column
-        if (cbtn(0x04u + i, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[i], mdiv == i)) mdiv = i; }
+    { Box dcell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.30f, 1, &rcol);   // DLY — opens the delay-division picker IN the LCD (was 4 cramped inline buttons)
+      if (cbtn(0x04u, (int)dcell.x, (int)dcell.y, (int)dcell.w, (int)dcell.h, "DLY", mstflow == 7)) mstflow = (mstflow == 7) ? 0 : 7; }
     rrectfill((int)lcd.x, (int)lcd.y, (int)lcd.w, (int)lcd.h, 3, CLR_BROWNISH_BLACK);
     Box glass = lay_inset(lcd, 2);
     rrectfill((int)glass.x, (int)glass.y, (int)glass.w, (int)glass.h, 2, CLR_DARK_GREEN);
@@ -1850,6 +1850,11 @@ static void draw_mst(Box stage) {
             if (used) circfill(x + w - 4, y + 4, 1, (i == cur) ? CLR_WHITE : CLR_LIME_GREEN);
         }
         print("tap load  hold save", (int)hint.x, (int)hint.y, CLR_MEDIUM_GREEN);
+    } else if (mstflow == 7) {
+        // DLY — the tempo-synced delay DIVISION picker, moved off the cramped right column into the
+        // glass (a 2×2 of big tap targets). FB (feedback) stays the master-row knob; this sets mdiv.
+        for (int d = 0; d < 4; d++) { Box c = lay_grid(gc, 2, 4, d, 2);
+            if (lcdbtn(0x74u + d, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[d], mdiv == d)) mdiv = d; }
     } else if (mstflow == 6) {
         // SWEEP — the whole-mix phaser/flanger MACRO (breakdown riser). Flavour toggle + tempo-synced
         // rate on top; the SWEEP (mix/depth) + FB (feedback = the "mental" intensity) knobs below. The

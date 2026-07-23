@@ -2504,14 +2504,16 @@ static void r2_screendrum(Box g, int focus) {
         UiCap *c = ui_cap_for(w);
         if (c) { int px = c->released ? c->rx : c->cx, py = c->released ? c->ry : c->cy, s = (px - gx) / step0;
             if (s >= 0 && s < STEPS) lane[s] = clamp((cy0 - py) / (float)half, -1, 1); }
-        font(FONT_TINY); print(vn[sel], (int)g.x + 2, gy + 1, hi); print(nm, (int)g.x + 2, gy + 9, CLR_MEDIUM_GREEN);
-        line(gx, cy0, gx + step0 * STEPS, cy0, CLR_MEDIUM_GREEN);
+        font(FONT_SMALL); print(vn[sel], (int)g.x + 2, gy + 1, hi);          // the voice being tuned (bigger)
+        font(FONT_TINY);  print(nm, (int)g.x + 2, gy + 10, CLR_MEDIUM_GREEN);
+        line(gx, cy0, gx + step0 * STEPS, cy0, CLR_MEDIUM_GREEN);             // zero / no-detune line
         for (int s = 0; s < STEPS; s++) { int cx = gx + s * step0;
             if (s % 4 == 0) line(cx, gy, cx, gy + gh, CLR_DARK_GREEN);
             int bh = (int)(lane[s] * half), col = lane[s] >= 0 ? hi : CLR_ORANGE;
-            if (bh > 0)      rectfill(cx + 1, cy0 - bh, step0 - 2, bh, col);
-            else if (bh < 0) rectfill(cx + 1, cy0, step0 - 2, -bh, col);
-            if (grid[sel][s]) pset(cx + step0 / 2, gy + gh - 2, CLR_WHITE);   // this step fires
+            if (bh > 0)      rectfill(cx + 1, cy0 - bh, step0 - 2, bh, col);   // detune up = machine colour
+            else if (bh < 0) rectfill(cx + 1, cy0, step0 - 2, -bh, col);       // detune down = orange
+            rectfill(cx + 1, cy0 - bh - 1, step0 - 2, 2, CLR_WHITE);          // the slider HANDLE — always drawn (sits on the line at 0) so all 16 read as draggable sliders
+            if (grid[sel][s]) rectfill(cx + 1, gy + gh - 2, step0 - 2, 2, hi); // this step FIRES — a clear block along the bottom (was a 1px dot)
         }
         r2_playcol(gx, step0, tstep, gy, gh);   // walking playhead on top (drum transport step)
         return;

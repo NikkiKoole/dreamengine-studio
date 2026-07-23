@@ -1132,6 +1132,62 @@
     "lineage": "Ports the Smith/McIntyre stick-slip bowed-string waveguide from navkit (bowsweep.c Schelleng-wedge calibration); novel: arco/pizzicato as a single waveguide with friction toggled via eng_tune, plus multitouch rub-velocity as bow speed."
   },
   {
+    "title": "Box Jelly — verlet blobs + Box2D crates + a self-righting puppet, one world",
+    "description": "Squishy textured blob characters (verlet, runtime/physics.h), hard Box2D crates, a self-righting Box2D puppet (boxlab's balance controller), and one of each Box2D body type on show — a STATIC tilted ramp, a KINEMATIC spinner (constant rotation, immune to forces), and a DYNAMIC motorised pinwheel (collisions can fight it) — all sharing one world. The two physics engines don't know about each other, so a coupling layer glues them: blobs drape over the ledge, crates, ramp, spinner and puppet; the spinner sweeps blobs and crates; a blob's weight can shove a crate stack, stall the pinwheel, or press on the puppet, which fights to stay upright. Drag a blob, crate, or puppet part; C drops a crate, B a blob. Two independent solvers, one world. VERLET (px space): jelly.c-style pressurized blobs (rim ring + area preservation + tritex face skin). BOX2D (metre space): floor, walls, a static ledge, dynamic crates, and a 10-part revolute-jointed puppet whose parts are auto-hulled + textured by boxrig.h and kept upright by a torso PD controller (boxlab.c). Intermingling is a per-frame coupling: every verlet rim point is resolved against each Box2D shape (point->metres, push-out, back->px) — the HARD direction — for BOTH oriented boxes (crates/ledge) and the puppet's convex-polygon parts (via each polygon's own normals); the reverse direction applies a CAPPED impulse to crates and puppet parts so a blob can nudge them without the two solvers exploding. Blob-vs-blob stays SAT; puppet-vs-crate is native Box2D. Shows the seam where a code-first particle system and an off-the-shelf rigid-body lib meet. Drag a blob rim or a crate to fling it. C = drop a crate at the cursor. B = drop a blob. R = reset.",
+    "file": "boxjelly.cart.png",
+    "created": "2026-07-23",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "verlet-integration",
+      "soft-body",
+      "rigid-body",
+      "procedural-mesh"
+    ],
+    "collection": [
+      "physics"
+    ],
+    "lineage": "The two-physics-worlds experiment, now with all three prior carts in it: dreamengine's verlet toolkit (runtime/physics.h — jelly.c soft-body blobs) AND the vendored Box2D v3 (rigid crates + the boxlab.c self-righting puppet, its parts auto-hulled+textured via boxrig.h) in ONE scene, COUPLED both ways. Box2D->verlet is hard (blob points pushed out of rigid shapes so they rest/drape — vs boxes AND the puppet's convex-polygon parts); verlet->Box2D is a capped impulse (a squishy character can shove a crate or lean on the puppet). Culmination of puppet/boxlab/boxskin."
+  },
+  {
+    "title": "Box Lab — a self-righting Box2D puppet playground",
+    "description": "A little ragdoll made of textured sprite-parts that struggles to stand up. Each limb is an auto-derived <=8-vert Box2D polygon (the puppet.c pipeline); joint springs hold a standing pose and a balance controller keeps the torso vertical, so when you grab, throw, or pelt it with crates it flails and fights its way back upright. A playground for the same ideas as the playtime editor. The self-righting is two cheap parts layered together: (1) every joint carries an angle-limited spring toward the standing rest pose (stiff legs, loose arms), so the SHAPE wants to be a standing figure; (2) a PD controller applies a torque to the torso proportional to its tilt-from-vertical and angular velocity (torque = (-KP*angle - KD*omega) * inertia), so the ROOT wants to point up — with high-friction feet planted, the two together wobble the whole body upright. Knock it over and it struggles back (from a big tumble it may not fully recover — a real get-up controller is future work). Drag any part with a mouse joint; press C to drop a crate at the cursor, K to shove the puppet, R to reset. Built on the same 'sprite alpha -> convex hull -> b2MakePolygon + tritex' parts as puppet.c. Drag any body part to fling it around. C = drop a crate at the cursor. K = shove the puppet sideways. R = reset.",
+    "file": "boxlab.cart.png",
+    "created": "2026-07-23",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "rigid-body",
+      "procedural-mesh"
+    ],
+    "collection": [
+      "physics"
+    ],
+    "lineage": "Brings the playtime (LÖVE2D Box2D character editor) idea back into dreamengine: a grounded puppet — each part an auto <=8-vert convex hull + tritex texture (see puppet.c) — that TRIES TO STAY UPRIGHT via joint springs toward a standing pose plus a torso up-righting PD controller, in a little world you can shove around. Slice 1 of a Box2D playground (next: texture deform across joints, then light in-cart editing)."
+  },
+  {
+    "title": "Box Skin — one texture skinned across a Box2D joint",
+    "description": "One arm sprite, skinned across an elbow. A grid mesh is auto-built over the sprite's alpha; each vertex is weighted to the upper-arm and forearm Box2D bones, so when the physics elbow bends the single texture deforms smoothly across the joint. Press SPACE to A/B it against rigid two-part rendering — watch the seam tear at the elbow in rigid mode and stay smooth when skinned. Drag the hand to bend it. The playtime meshusert move, minimal: (1) a grid over the sprite's opaque pixels becomes a triangle mesh (the carfit clip); (2) each mesh vertex gets linear-blend-skinning weights to the two bones by distance along the limb, blending across the elbow; (3) each frame the vertex world position = sum of weight * (bonePos + rotate(restOffset)) over its bones, then tritex draws the mesh. Two Box2D bodies (upper arm, forearm) joined by a sprung revolute elbow, hung from a sprung shoulder; drag the hand with a mouse joint to bend the arm. SPACE toggles SKINNED vs RIGID (each bone draws its own sprite half as a rigid quad) so the seam at a flexed elbow is obvious. This is LBS — the simpler cousin of playtime's DQS; DQS (no candy-wrapper collapse at big bends) is the next step. Drag the hand to bend the arm. SPACE = toggle skinned / rigid. M = show the mesh wireframe. R = reset.",
+    "file": "boxskin.cart.png",
+    "created": "2026-07-23",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "rigid-body",
+      "procedural-mesh"
+    ],
+    "collection": [
+      "physics"
+    ],
+    "lineage": "Slice 2 of the playtime-into-dreamengine port (after puppet.c rigid parts + boxlab.c self-righting): the playtime meshusert idea — a SINGLE texture spanning several Box2D bones, linear-blend-skinned so it bends smoothly at the joint instead of tearing into rigid halves. Auto-meshes the sprite (carfit grid-clip) and weights each vertex to two bones."
+  },
+  {
     "title": "braindance fm",
     "description": "Aphex Twin's drill'n'bass / braindance, generated forever - Path B of the Aphex problem (he's a RANGE, not a genre, so this builds ONE mode: the chopped-break chaos with a sweet, slightly-wrong melody floating over it). Beauty over brutality: strip the melody and it's jungle, strip the chaos and it's a music box - the station IS the tension between the two layers. The brains, cart-side over radio.h's clock: RHYTHM AS GRAMMAR + a VOLATILITY knob (the kit is not a pattern - anchors persist, kick on 1, snare backbeat, everything else RE-ROLLS every bar on engine rnd; volatility 0 = a near-stable loop, 1 = never the same bar twice - so R replays the track but the drums shred anew); RATCHETS (a hit becomes 3-8 sub-hits at 1/32-1/64 with vol/pitch ramps - the impossible drill rolls, sample-exact); TWO CROSSED DENSITY CURVES (the serene melodic top and the violent drums ride INDEPENDENT curves - the Flim move - drawn as the red D and teal M bars in the window); THE LURCH (sudden DROP events strip to the pad, then SLAM back with a fill); and MISTUNING AS TIMBRE (every melodic voice detuned a few cents + a sub-Hz tape-wow pitch LFO - the machine alive and slightly broken). The sweet top is a Casio CZ PD sweep-pad (the evolving wowww) + a detuned glassy music-box (MALLET); the bottom is a synth break kit + sub + a 303 acid line. The chopped Amen is FAKED (we have no sampler - that granular/time-stretch want is logged). The vibe rolls sweet / drill / funk / eerie. The window is a glitchy oscilloscope that tears with the drums over the two density bars. SPACE next track, R replay (drums shred anew), [ ] history, LEFT/RIGHT density (calm/warm/hot/mental), UP/DOWN tempo, T tone, B band (kit amen/808, topline musicbox/glock, tape warped/clean), M power, H help.",
     "file": "braindance.cart.png",
@@ -1283,6 +1339,22 @@
     "lineage": "Homage to Sensible Software's Cannon Fodder; squad follows a leader-chain trail toward a click target, enemies wander then chase with line-of-sight autofire, and the roster survives between missions via save_bytes — permanent death carrying over is the defining mechanic.",
     "genre": "tactics",
     "homage": "Cannon Fodder (1993)"
+  },
+  {
+    "title": "Car Fit — sprite → poly + deform mesh",
+    "description": "Feed it an arbitrary car sprite; it auto-traces the silhouette into a simplified collision polygon (what you'd hand Box2D) AND a triangulated interior mesh (UV'd by rest position) that you can grab and squish — the paint job deforms with it. No hand-authored geometry: outline + mesh are both read from the sprite's alpha. Two problems that share one input. THE POLY: scan the sprite region with sget() into an alpha mask (index 0 = outside), Moore-neighbour boundary-trace the silhouette, then Ramer-Douglas-Peucker-simplify it to a handful of verts — that loop is the convex-decomposable hull you'd feed b2MakePolygon. THE TEXTURE: overlay a grid on the mask, keep vertices whose pixel is opaque, and emit two triangles per fully-inside cell; each vertex's UV is just its rest pixel position, so tritex paints the sprite onto the mesh with zero seams. The mesh vertices are runtime/physics.h verlet points linked to their grid neighbours (structural + shear), so grabbing one squishes the whole car and it springs back — the sprite's paint deforming along with the geometry. Box2D isn't wired here: this is the geometry-extraction spike that proves the auto pipeline before the rigid chassis+wheels split goes on top. Drag any point of the car to squish/throw it. [O] toggle the detected collision outline, [W] mesh wireframe, [T] texture on/off, [R] reset.",
+    "file": "carfit.cart.png",
+    "created": "2026-07-23",
+    "kind": [
+      "tool"
+    ],
+    "teaches": [
+      "procedural-mesh",
+      "marching-squares",
+      "verlet-integration",
+      "soft-body"
+    ],
+    "lineage": "The auto-mesh half of the deforming-texture + Box2D spike: reuses jelly.c's verlet+tritex skin, but instead of a hand-authored rim ring it DERIVES both the collision outline and the deform mesh from an arbitrary sprite's alpha at runtime (sget → Moore trace → RDP → grid-clip triangulation)."
   },
   {
     "title": "carlos radio",
@@ -5462,6 +5534,25 @@
       "road"
     ],
     "lineage": "Original testbed for pluggable world generators; the roads-and-cities generator applies a SimCity-2000-style dual noise field (land-use × intensity) to a nested road lattice, while the terrain generator is a straight fbm elevation showcase."
+  },
+  {
+    "title": "Puppet — sprite parts as <=8-vert Box2D polys + texture",
+    "description": "Marionette and desk lamp built from sprites: every part's opaque pixels are convex-hulled down to <=8 points (Box2D's polygon budget), turned into a real b2MakePolygon collision shape, and textured with tritex from that same polygon — so what you see is exactly what collides. The whole figure is a data table (part rects + joints with limits + springs); [1]/[2] swap rigs. Drag a part to swing it; springs snap it back to pose. Two directions in one cart. RETARGETING: nothing is hard-coded geometry — a Rig is a table of PartDefs (a sprite rect + a rest-pose centre) and JointDefs (two parts, a world anchor, angle limits, a spring). Per part: sget() reads the rect into an alpha cloud, a monotone-chain convex hull + a min-area vertex cull reduce it to <=8 points, b2ComputeHull + b2MakePolygon make the rigid shape, and tritex fans the sprite across the returned polygon's verts (UV = each vert mapped back to its sheet pixel) so texture == hull. Swap the table and you retarget to any sheet: RIG 1 is a 10-part hung marionette, RIG 2 a 3-part desk lamp on a bolted (static) base. POSE: every joint carries enableLimit (lowerAngle/upperAngle around the rest pose) + an enableSpring toward targetAngle, so limbs can't hyperextend and the figure holds its pose and springs back when you let go — the lamp stands upright, the marionette keeps a relaxed stance. Contrast carfit (soft deform mesh) and ragdoll (verlet sticks): this is the rigid, joint-driven, real-Box2D path. [1] marionette  [2] desk lamp.  Drag any movable part with the mouse to swing / bend it; release and the springs pull it back to pose. R resets the current rig.",
+    "file": "puppet.cart.png",
+    "created": "2026-07-23",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ],
+    "teaches": [
+      "rigid-body",
+      "procedural-mesh",
+      "marching-squares"
+    ],
+    "collection": [
+      "physics"
+    ],
+    "lineage": "The 'puppetmaker' representation on real Box2D: every body part is ONE convex polygon of <=8 (x,y) points (Box2D's B2_MAX_POLYGON_VERTICES) plus a texture — derived automatically from a sprite's alpha (convex-hull the opaque pixels -> reduce to <=8 -> b2ComputeHull/b2MakePolygon), drawn with tritex straight from the polygon's own verts so the paint EXACTLY covers the collision shape. The whole figure is DATA: a Rig table of parts (sheet rects + rest centres) and joints (with angle limits + springs). Two rigs — a hung marionette and a bolted desk lamp — run on the same engine to prove retargeting to any sheet. Rigid-body sibling of the verlet ragdoll.c and the soft-body carfit spike."
   },
   {
     "title": "Puyo",

@@ -22,6 +22,19 @@ C++ fork. So fluids = a `physics.h` cart, not a dependency.)
 `README.md`). Pure C, MIT, zero OS deps. Built per-target by `tools/build-box2d.sh` into
 `build/box2d/<target>/libbox2d.a` (gitignored — rebuild on demand, like any build output).
 
+**Cart-land helper: `runtime/boxrig.h`** — the shared "sprite region → ≤8-vert Box2D polygon +
+texture" toolkit (the *puppetmaker* representation: a body part = one convex poly of ≤8 `(x,y)`
+points + a texture). Four jobs: `boxrig_hull(ox,oy,w,h,ppm,…)` convex-hulls a sprite rect's opaque
+pixels down to Box2D's `B2_MAX_POLYGON_VERTICES` (feed to `b2MakePolygon`); `boxrig_draw(…)`
+`tritex`-textures the polygon from its own verts so the paint exactly covers the collision shape;
+`boxrig_point_in_body(…)` is the click-to-grab test (point inside a part's polygon); and
+`boxrig_resolve_box/poly(…)` (only when `physics.h` is included first) do the verlet↔Box2D coupling —
+push a verlet point out of a rigid shape and return the contact so the cart picks its reaction-impulse
+policy. The cart keeps body/shape/joint + reaction policy. Used by `puppet` (marionette + lamp),
+`boxlab` (self-righting), and `boxjelly` (verlet blobs + crates + puppet in one world). Full contract
+in the file header. The carts built on it + the "what is this for" question:
+[box2d-puppets-and-playground.md](box2d-puppets-and-playground.md).
+
 ## The four-target compile gate (evidence, 2026-07-14)
 
 A `.a` is never portable across platforms — but the *source* is, because Box2D touches no OS

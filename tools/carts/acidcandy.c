@@ -2537,10 +2537,11 @@ static void r2_gendrum(Box main, int focus) {
 // palette (HIT/ACC/PROB[/STRK]) RIGHT-aligned as a 2-column block — the voice grid keeps them apart.
 static void r2_drumband(Box band, int focus) {
     int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
-    int rh = (bh + 1) / 2, tw = 36;
-    if (lcdbtn(0x230u + focus * 2 + 0, bx, by,      tw, rh - 1, "VCE", dscreen != DS_GEN)) dscreen = DS_VCE;
-    if (lcdbtn(0x230u + focus * 2 + 1, bx, by + rh, tw, rh - 1, "GEN", dscreen == DS_GEN)) dscreen = DS_GEN;
-    if (dscreen == DS_GEN) return;   // GEN panel showing → hide the paint palette (tabs stay, so you can get back)
+    int rh = (bh + 1) / 2, tw = 34, grid = (dscreen != DS_GEN && dscreen != DS_PERF);
+    if (lcdbtn(0x230u + focus * 3 + 0, bx,          by,      tw, rh - 1, "VCE",  grid))                dscreen = DS_VCE;
+    if (lcdbtn(0x230u + focus * 3 + 1, bx,          by + rh, tw, rh - 1, "GEN",  dscreen == DS_GEN))   dscreen = DS_GEN;
+    if (lcdbtn(0x230u + focus * 3 + 2, bx + tw + 1, by,      tw, rh - 1, "PERF", dscreen == DS_PERF))  dscreen = DS_PERF;
+    if (!grid) return;   // GEN / PERF panel showing → hide the paint palette (tabs stay, so you can get back)
     static const char *FN[4] = { "HIT", "ACC", "PROB", "STRK" };
     int n = (focus == M_909) ? 4 : 3, fw = 32, gap = 1, x0 = bx + bw - 2 * (fw + gap);   // 2-column, right-aligned
     for (int k = 0; k < n; k++) { int col = k % 2, row = k / 2;
@@ -2587,12 +2588,43 @@ static void r2_setup303(Box main, int i) {
 
 // the 303 screen's bottom band (2 rows): SEQ/SETUP tabs LEFT-aligned, the flag palette (2 rows × 3)
 // RIGHT-aligned — the grid above keeps the two groups apart. SEQ = grid; SETUP = GEN + KEY.
+// 303 PERF — the live-play lenses (TAP=latch / HOLD=momentary; read-path, non-destructive). Same
+// pf_latch[] state as the phone; draw() seeds the effective pf_* from the latches each frame.
+static void r2_perf303(Box main, int i) {
+    Box m = lay_inset(main, 3);
+    Box c0 = lay_grid(m, 4, 8, 0, 2), c1 = lay_grid(m, 4, 8, 1, 2), c2 = lay_grid(m, 4, 8, 2, 2), c3 = lay_grid(m, 4, 8, 3, 2);
+    Box c4 = lay_grid(m, 4, 8, 4, 2), c5 = lay_grid(m, 4, 8, 5, 2), c6 = lay_grid(m, 4, 8, 6, 2);
+    pf_half[i]  = lcdlatch(0x7Bu, (int)c0.x, (int)c0.y, (int)c0.w, (int)c0.h, "HALF",  &pf_latch[PL_HALF][i],  &pf_hold[PL_HALF][i],  0);
+    pf_acc[i]   = lcdlatch(0x7Du, (int)c1.x, (int)c1.y, (int)c1.w, (int)c1.h, "ACC",   &pf_latch[PL_ACC][i],   &pf_hold[PL_ACC][i],   0);
+    pf_oct[i]   = lcdlatch(0x80u, (int)c2.x, (int)c2.y, (int)c2.w, (int)c2.h, "OCT",   &pf_latch[PL_OCT][i],   &pf_hold[PL_OCT][i],   0);
+    pf_rev[i]   = lcdlatch(0x82u, (int)c3.x, (int)c3.y, (int)c3.w, (int)c3.h, "REV",   &pf_latch[PL_REV][i],   &pf_hold[PL_REV][i],   0);
+    pf_stac[i]  = lcdlatch(0x7Eu, (int)c4.x, (int)c4.y, (int)c4.w, (int)c4.h, "STAC",  &pf_latch[PL_STAC][i],  &pf_hold[PL_STAC][i],  &pf_latch[PL_GLIDE][i]);
+    pf_glide[i] = lcdlatch(0x7Fu, (int)c5.x, (int)c5.y, (int)c5.w, (int)c5.h, "GLIDE", &pf_latch[PL_GLIDE][i], &pf_hold[PL_GLIDE][i], &pf_latch[PL_STAC][i]);
+    pf_roll[i]  = lcdlatch(0x83u, (int)c6.x, (int)c6.y, (int)c6.w, (int)c6.h, "ROLL",  &pf_latch[PL_ROLL][i],  &pf_hold[PL_ROLL][i],  0);
+}
+
+// drum PERF — beat-repeat RP1/RP2/RP4 + THIN/BUSY density + ACC (the roomy twin of draw_drum_perf,
+// which keys off `face`; here the machine comes in as `focus`).
+static void r2_perfdrum(Box main, int focus) {
+    int m = focus - M_808;   // 0 = 808, 1 = 909
+    Box g = lay_inset(main, 3);
+    Box a0 = lay_grid(g, 3, 6, 0, 2), a1 = lay_grid(g, 3, 6, 1, 2), a2 = lay_grid(g, 3, 6, 2, 2);
+    Box b0 = lay_grid(g, 3, 6, 3, 2), b1 = lay_grid(g, 3, 6, 4, 2), b2 = lay_grid(g, 3, 6, 5, 2);
+    pf_rp1[m]  = lcdlatch(0x84u, (int)a0.x, (int)a0.y, (int)a0.w, (int)a0.h, "RP1",  &dpf_latch[DPL_RP1][m],  &dpf_hold[DPL_RP1][m],  0);
+    pf_rp2[m]  = lcdlatch(0x85u, (int)a1.x, (int)a1.y, (int)a1.w, (int)a1.h, "RP2",  &dpf_latch[DPL_RP2][m],  &dpf_hold[DPL_RP2][m],  0);
+    pf_rp4[m]  = lcdlatch(0x86u, (int)a2.x, (int)a2.y, (int)a2.w, (int)a2.h, "RP4",  &dpf_latch[DPL_RP4][m],  &dpf_hold[DPL_RP4][m],  0);
+    pf_thin[m] = lcdlatch(0x87u, (int)b0.x, (int)b0.y, (int)b0.w, (int)b0.h, "THIN", &dpf_latch[DPL_THIN][m], &dpf_hold[DPL_THIN][m], &dpf_latch[DPL_BUSY][m]);
+    pf_busy[m] = lcdlatch(0x88u, (int)b1.x, (int)b1.y, (int)b1.w, (int)b1.h, "BUSY", &dpf_latch[DPL_BUSY][m], &dpf_hold[DPL_BUSY][m], &dpf_latch[DPL_THIN][m]);
+    pf_dacc[m] = lcdlatch(0x89u, (int)b2.x, (int)b2.y, (int)b2.w, (int)b2.h, "ACC",  &dpf_latch[DPL_ACC][m],  &dpf_hold[DPL_ACC][m],  0);
+}
+
 static void r2_303band(Box band, int i) {
     int bx = (int)band.x, by = (int)band.y, bw = (int)band.w, bh = (int)band.h;
-    int rh = (bh + 1) / 2, mode = pscreen[i], tw = 36;
-    if (lcdbtn(0x132u + i * 2 + 0, bx, by,      tw, rh - 1, "SEQ",   mode != PS_GEN)) pscreen[i] = PS_SEQ;
-    if (lcdbtn(0x132u + i * 2 + 1, bx, by + rh, tw, rh - 1, "SETUP", mode == PS_GEN)) pscreen[i] = PS_GEN;
-    if (mode != PS_GEN) {                                                          // flags — 2×3, right-aligned
+    int rh = (bh + 1) / 2, mode = pscreen[i], tw = 34;
+    if (lcdbtn(0x132u + i * 3 + 0, bx,          by,      tw, rh - 1, "SEQ",   mode == PS_SEQ))  pscreen[i] = PS_SEQ;
+    if (lcdbtn(0x132u + i * 3 + 1, bx,          by + rh, tw, rh - 1, "SETUP", mode == PS_GEN))  pscreen[i] = PS_GEN;
+    if (lcdbtn(0x132u + i * 3 + 2, bx + tw + 1, by,      tw, rh - 1, "PERF",  mode == PS_PERF)) pscreen[i] = PS_PERF;
+    if (mode == PS_SEQ) {                                                          // flags — 2×3, right-aligned (grid mode only)
         int fw = 30, gap = 1, x0 = bx + bw - 3 * (fw + gap);
         for (int k = 0; k < FL_N; k++) { int col = k % 3, row = k / 3;
             if (lcdbtn(0x140u + k, x0 + col * (fw + gap), by + row * rh, fw - 1, rh - 1, FLNAME[k], armed == k)) armed = k; }
@@ -2612,17 +2644,18 @@ static void r2_bigscreen(Box c, int focus) {
     if (focus <= M_303B) {   // 303: grid (SEQ) or SETUP fills the screen; a 2-row bottom band = tabs-left + flags-right
         int i = focus, bandH = 20;
         Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
-        if (pscreen[i] == PS_GEN) r2_setup303(main, i);
-        else                      r2_screen303(main, i);
+        if      (pscreen[i] == PS_GEN)  r2_setup303(main, i);   // SETUP = GEN + KEY
+        else if (pscreen[i] == PS_PERF) r2_perf303(main, i);    // PERF lenses
+        else                            r2_screen303(main, i);  // SEQ grid
         r2_303band(box(x + 3, y + h - bandH - 1, w - 6, bandH), i);
         return;
     }
-    // drums + MST keep the submenu-row + soft-key-row UI
-    if (focus <= M_909) {   // drum: voice grid (VCE) or GEN panel; the 2-row band (tabs + palette) is ALWAYS drawn so VCE/GEN can always switch back
+    if (focus <= M_909) {   // drum: VCE grid / GEN / PERF; the 2-row band (tabs + palette) is ALWAYS drawn so you can switch back
         int bandH = 20;
         Box main = box(x + 3, y + 13, w - 6, h - 13 - bandH - 2);
-        if (dscreen == DS_GEN) r2_gendrum(main, focus);
-        else                   r2_screendrum(main, focus);
+        if      (dscreen == DS_GEN)  r2_gendrum(main, focus);
+        else if (dscreen == DS_PERF) r2_perfdrum(main, focus);
+        else                         r2_screendrum(main, focus);
         r2_drumband(box(x + 3, y + h - bandH - 1, w - 6, bandH), focus);
         return;
     }

@@ -36,6 +36,10 @@ motored flippers, sensors, ray casts, conveyors — stay their own carts):
   (ends stay off the floor). Torque/mass demo; blobs and crates weigh it down through the coupling.
 - **`b2World_Explode`** — `E` detonates at the cursor: radial impulse to every dynamic body, a
   hand-rolled velocity kick to the verlet blobs (they live outside Box2D), `shake()` + a shockwave ring.
+- **Prismatic launcher** — a pad on a **`b2PrismaticJoint`** (vertical rail, `enableLimit` stroke +
+  `enableMotor`); auto-fires on a timer (or `F`): motor slams it up, retracts once it tops out, flinging
+  whatever rests on it. The one joint type not shown in any other Box2D cart. Lives in the right-hand
+  bay the canvas was widened to 400px for (layout pinned to `WORLD_CX` so nothing else shifted).
 
 ## The pitches
 

@@ -9,4 +9,6 @@ const jelly  = require('./jelly.cart.js')
 const faces = {}
 for (let s = 0; s < 5; s++) faces[32 + s] = jelly.sprites[s]   // slots 32..36 → sheet (s*16, 64)
 
-module.exports = { sprites: { ...puppet.sprites, ...faces } }
+// 400 wide (vs the 320 default) so the playground has an open right-hand bay for the
+// prismatic launcher; the layout is pinned to WORLD_CX=160 in the cart so nothing else shifts.
+module.exports = { sprites: { ...puppet.sprites, ...faces }, screenW: 400 }

@@ -321,7 +321,12 @@ static void draw_crate(b2BodyId id) {
     draw_obox(id, CH, CH, CLR_ORANGE, CLR_BROWN);
     const float lx[4]={-CH,CH,CH,-CH}, ly[4]={-CH,-CH,CH,CH}; int xy[8];
     for (int i=0;i<4;i++){ float wx=p.x+(r.c*lx[i]-r.s*ly[i]), wy=p.y+(r.s*lx[i]+r.c*ly[i]); xy[i*2]=(int)pxX(wx); xy[i*2+1]=(int)pxY(wy); }
-    line(xy[0],xy[1],xy[4],xy[5],CLR_BROWN); line(xy[2],xy[3],xy[6],xy[7],CLR_BROWN);   // X brace
+    // X brace — nudge each corner 1px toward the box centre before joining, so a line() endpoint
+    // lands INSIDE the coverage fill (whose far corner is x1-1,y1-1) instead of on the raw geometric
+    // corner (x1,y1) — otherwise the diagonals poke a 1px "foot" past the box on the software canvas.
+    int cx=(int)pxX(p.x), cy=(int)pxY(p.y), bx[4], by[4];
+    for (int i=0;i<4;i++){ bx[i]=xy[i*2]+(xy[i*2]>cx?-1:xy[i*2]<cx?1:0); by[i]=xy[i*2+1]+(xy[i*2+1]>cy?-1:xy[i*2+1]<cy?1:0); }
+    line(bx[0],by[0],bx[2],by[2],CLR_BROWN); line(bx[1],by[1],bx[3],by[3],CLR_BROWN);   // X brace
 }
 // label a body with tiny text above its centre
 static void label(b2BodyId id, const char *s) {

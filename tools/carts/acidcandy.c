@@ -2376,7 +2376,10 @@ static void r2_header(Box hd, int m) {
     rrect(x, y, w, h, 2, (foc || hotf) ? CLR_WHITE : CLR_BROWNISH_BLACK);
     font(FONT_NORMAL);   // the dos_8x8 in-game font reads best on the instrument nameplates (the maker's call)
     print(mac[m].name, x + 3, y + (h - 8) / 2, foc ? CLR_BROWNISH_BLACK : mac[m].col);
-    if (ledW) { int lx = x + w - ledW / 2 - 1, ly = y + h / 2;
+    // LED lives in the header's top-right. On the wide top-strip headers (303/MST, h≈12) that's
+    // already the vertical centre; on the TALL left-strip drum headers (h large) a centred dot
+    // lands smack on the "808"/"909" digits — so anchor it to the top there (the maker's ask).
+    if (ledW) { int lx = x + w - ledW / 2 - 1, ly = (h > 16) ? y + 3 : y + h / 2;
         circfill(lx, ly, 2, live ? (foc ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_PURPLE);
         if (!live) line(lx - 2, ly - 2, lx + 2, ly + 2, CLR_RED); }
 }

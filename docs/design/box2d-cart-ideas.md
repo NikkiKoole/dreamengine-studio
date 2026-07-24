@@ -21,8 +21,21 @@ ball), CCD **bullets**, and hand-rolled fragmentation. That's the collision + gr
 | **Sensors** + overlap events (trigger zones) | scoring gates, goals, buttons |
 | **Ray casts** (`b2World_CastRay`, line of sight) | a **turret / laser** defense toy |
 | **Conveyor material** (`tangentSpeed`) + mixed joint types | a **Rube-Goldberg marble machine** |
-| Native **`b2World_Explode`** (radial impulse) | (tumble hand-rolls fragments; could A/B the built-in) |
+| Native **`b2World_Explode`** (radial impulse) | ✓ **`boxjelly`** (cursor detonation, E) — tumble hand-rolls fragments; this uses the built-in |
 | **Weld joints** that break | destructible welded structures |
+
+## Now shown in `boxjelly` — the playground bay (2026-07-24)
+
+`boxjelly` grew a small toy shelf that fills three of the rows above without needing a dedicated
+cart, because they're *droppable sandbox toys*, not games (the game-shaped features — wheel joints,
+motored flippers, sensors, ray casts, conveyors — stay their own carts):
+
+- **Circle shapes + restitution A/B** — `b2CreateCircleShape` balls, one springy (restitution 0.82),
+  one dead (0.04); `V` drops more. The first circle shapes in the Box2D carts (all others are boxes/hulls).
+- **See-saw** — a plank on a **revolute joint** with `enableSpring` (self-levels empty) + `enableLimit`
+  (ends stay off the floor). Torque/mass demo; blobs and crates weigh it down through the coupling.
+- **`b2World_Explode`** — `E` detonates at the cursor: radial impulse to every dynamic body, a
+  hand-rolled velocity kick to the verlet blobs (they live outside Box2D), `shake()` + a shockwave ring.
 
 ## The pitches
 

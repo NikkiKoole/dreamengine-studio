@@ -9,9 +9,9 @@
   "teaches": ["verlet-integration", "soft-body", "rigid-body", "procedural-mesh"],
   "lineage": "The two-physics-worlds experiment, now with all three prior carts in it: dreamengine's verlet toolkit (runtime/physics.h — jelly.c soft-body blobs) AND the vendored Box2D v3 (rigid crates + the boxlab.c self-righting puppet, its parts auto-hulled+textured via boxrig.h) in ONE scene, COUPLED both ways. Box2D->verlet is hard (blob points pushed out of rigid shapes so they rest/drape — vs boxes AND the puppet's convex-polygon parts); verlet->Box2D is a capped impulse (a squishy character can shove a crate or lean on the puppet). Culmination of puppet/boxlab/boxskin.",
   "description": {
-    "summary": "Squishy textured blob characters (verlet, runtime/physics.h), hard Box2D crates, a self-righting Box2D puppet (boxlab's balance controller), and one of each Box2D body type on show — a STATIC tilted ramp, a KINEMATIC spinner (constant rotation, immune to forces), and a DYNAMIC motorised pinwheel (collisions can fight it) — all sharing one world. The two physics engines don't know about each other, so a coupling layer glues them: blobs drape over the ledge, crates, ramp, spinner and puppet; the spinner sweeps blobs and crates; a blob's weight can shove a crate stack, stall the pinwheel, or press on the puppet, which fights to stay upright. Drag a blob, crate, or puppet part; C drops a crate, B a blob.",
-    "detail": "Two independent solvers, one world. VERLET (px space): jelly.c-style pressurized blobs (rim ring + area preservation + tritex face skin). BOX2D (metre space): floor, walls, a static ledge, dynamic crates, and a 10-part revolute-jointed puppet whose parts are auto-hulled + textured by boxrig.h and kept upright by a torso PD controller (boxlab.c). Intermingling is a per-frame coupling: every verlet rim point is resolved against each Box2D shape (point->metres, push-out, back->px) — the HARD direction — for BOTH oriented boxes (crates/ledge) and the puppet's convex-polygon parts (via each polygon's own normals); the reverse direction applies a CAPPED impulse to crates and puppet parts so a blob can nudge them without the two solvers exploding. Blob-vs-blob stays SAT; puppet-vs-crate is native Box2D. Shows the seam where a code-first particle system and an off-the-shelf rigid-body lib meet.",
-    "controls": "Drag a blob rim or a crate to fling it. C = drop a crate at the cursor. B = drop a blob. R = reset."
+    "summary": "A Box2D + verlet PLAYGROUND: squishy textured blob characters (verlet, runtime/physics.h), hard Box2D crates, a self-righting Box2D puppet (boxlab's balance controller), one of each Box2D body type — a STATIC tilted ramp, a KINEMATIC spinner, a DYNAMIC motorised pinwheel — plus a spring-levelled SEE-SAW (revolute-pivoted plank), bouncy vs dead BALLS (circle shapes, a restitution showcase), and a cursor EXPLOSION (native b2World_Explode) — all sharing one world. The two physics engines don't know about each other, so a coupling layer glues them: blobs drape over the ledge, crates, ramp, spinner, puppet, see-saw and balls; a blob's weight can shove a crate, weigh down the see-saw, or press on the puppet, which fights to stay upright. Drag a blob, crate, ball or puppet part; C crate, B blob, V ball, E boom, R reset.",
+    "detail": "Two independent solvers, one world. VERLET (px space): jelly.c-style pressurized blobs (rim ring + area preservation + tritex face skin). BOX2D (metre space): floor, walls, a static ledge, dynamic crates, a 10-part revolute-jointed self-righting puppet (auto-hulled+textured by boxrig.h, torso PD controller from boxlab.c), a see-saw (a plank on a spring-levelled, angle-limited revolute joint), bouncy/dead balls (b2Circle shapes A/B'd on restitution), and a cursor detonation via native b2World_Explode. Intermingling is a per-frame coupling: every verlet rim point is resolved against each Box2D shape (point->metres, push-out, back->px) — the HARD direction — for oriented boxes (crates/ledge/see-saw), the puppet's convex-polygon parts, and the balls (circle push-out); the reverse direction applies a CAPPED impulse so a blob can nudge them without the two solvers exploding. The explosion hits every dynamic body via b2World_Explode and kicks the verlet rim points by hand (they live outside Box2D). Blob-vs-blob stays SAT. Shows the seam where a code-first particle system and an off-the-shelf rigid-body lib meet.",
+    "controls": "Drag a blob rim, a crate, or a ball to fling it. C = drop a crate. B = drop a blob. V = drop a bouncy ball. E = explosion at the cursor. R = reset."
   },
   "todo": [
     "Two-way friction/rolling so a blob can roll a crate, not just shove it.",
@@ -107,6 +107,13 @@ static b2BodyId pinwheel;// DYNAMIC  — spun by a joint motor, but collisions c
 #define SPIN_HT 0.14f
 #define PIN_HL  0.60f
 #define PIN_HT  0.11f
+// a see-saw: a plank on a free revolute pivot (spring-levelled + angle-limited) — drop a crate on
+// one end to launch a blob off the other. Teaches torque + mass with the bodies already in the scene.
+static b2BodyId seesaw;
+#define SAW_HW  1.50f
+#define SAW_HH  0.12f
+#define SAW_CX  46.0f          // screen px — the open left floor, clear of the ledge
+#define SAW_PIV 22.0f          // pivot height above the floor (px) — enough travel for the ends
 
 static b2BodyId make_crate(float mx, float my) {
     b2BodyDef bd = b2DefaultBodyDef(); bd.type=b2_dynamicBody; bd.position=(b2Vec2){mx,my};
@@ -117,6 +124,21 @@ static b2BodyId make_crate(float mx, float my) {
     return id;
 }
 static void spawn_crate(float mx, float my) { if (ncrate<MAXCRATE) crate[ncrate++] = make_crate(mx,my); }
+
+// ── bouncy balls (CIRCLE shapes — a restitution showcase: springy vs dead) ────
+#define MAXBALL 10
+typedef struct { b2BodyId body; float r; int bouncy; } Ball;   // r in metres
+static Ball ball[MAXBALL]; static int nball = 0;
+static void spawn_ball(float mx, float my, float r_m, int bouncy) {
+    if (nball>=MAXBALL) return;
+    b2BodyDef bd=b2DefaultBodyDef(); bd.type=b2_dynamicBody; bd.position=(b2Vec2){mx,my};
+    b2BodyId id=b2CreateBody(world,&bd);
+    b2Circle c={{0,0}, r_m};
+    b2ShapeDef sd=b2DefaultShapeDef(); sd.density=0.7f; sd.material.friction=0.4f;
+    sd.material.restitution = bouncy ? 0.82f : 0.04f;   // the whole point: one springs, one thuds
+    b2CreateCircleShape(id,&sd,&c);
+    ball[nball++]=(Ball){ id, r_m, bouncy };
+}
 
 
 // ── the self-righting puppet (boxlab.c rig) dropped into this shared world ─────
@@ -191,7 +213,7 @@ static void build(void) {
     b2Polygon lb=b2MakeBox(mX(48)-mX(0), mX(6)-mX(0));      // half 48px wide, 6px tall
     b2ShapeDef ls=b2DefaultShapeDef(); ls.material.friction=0.8f; b2CreatePolygonShape(ledge,&ls,&lb);
 
-    ncrate=0; nblob=0;
+    ncrate=0; nblob=0; nball=0;
     float ledgeTop = mY(FLOORY-46-6);                       // metres, top face of the ledge
     spawn_crate(mX(SCREEN_W*0.5f-15), ledgeTop+CH);         // a 2+1 stack ON the ledge
     spawn_crate(mX(SCREEN_W*0.5f+15), ledgeTop+CH);
@@ -223,6 +245,26 @@ static void build(void) {
     pj.localAnchorA = b2Body_GetLocalPoint(ground, pc); pj.localAnchorB = (b2Vec2){0,0};
     pj.enableMotor = true; pj.motorSpeed = 3.0f; pj.maxMotorTorque = 9.0f; pj.collideConnected = false;
     b2CreateRevoluteJoint(world, &pj);
+
+    // ── SEE-SAW: a plank pivoted at its centre on a free revolute joint ──
+    b2BodyDef sawd=b2DefaultBodyDef(); sawd.type=b2_dynamicBody;
+    sawd.position=(b2Vec2){ mX(SAW_CX), mY(FLOORY-SAW_PIV) };
+    seesaw=b2CreateBody(world,&sawd);
+    b2Polygon sp=b2MakeBox(SAW_HW,SAW_HH);
+    b2ShapeDef saws=b2DefaultShapeDef(); saws.density=0.5f; saws.material.friction=0.7f;
+    b2CreatePolygonShape(seesaw,&saws,&sp);
+    b2RevoluteJointDef sj=b2DefaultRevoluteJointDef();
+    sj.bodyIdA=ground; sj.bodyIdB=seesaw;
+    b2Vec2 sc=b2Body_GetPosition(seesaw);
+    sj.localAnchorA=b2Body_GetLocalPoint(ground,sc); sj.localAnchorB=(b2Vec2){0,0};
+    sj.collideConnected=false;
+    sj.enableSpring=true; sj.hertz=1.1f; sj.dampingRatio=0.6f; sj.targetAngle=0;   // self-levels when empty
+    sj.enableLimit=true; sj.lowerAngle=-30*DEG; sj.upperAngle=30*DEG;               // ends stay above the floor
+    b2CreateRevoluteJoint(world,&sj);
+
+    // two balls to show restitution: a springy one that lands on the see-saw, a dead one that thuds
+    spawn_ball(mX(34),  mY(40), 0.28f, 1);   // bouncy → lands on the see-saw, tips it, bounces
+    spawn_ball(mX(305), mY(30), 0.30f, 0);   // dead → thuds down by the ramp on the right (clear of the puppet)
 }
 static void reset(void) { b2DestroyWorld(world); build(); }
 
@@ -230,6 +272,9 @@ static void reset(void) { b2DestroyWorld(world); build(); }
 static int grabBl=-1, grabK=-1; static float gw, pmx, pmy;
 static b2JointId mjoint; static bool dragCrate=false;
 static float LHW, LHH;   // ledge half-size cache (metres)
+static int boomF=0; static int boomX, boomY;   // explosion: frames left + screen-px centre (for the ring)
+#define BOOM_LIFE 11
+#define BOOM_R    2.2f   // metres — blast radius (also the verlet-kick reach)
 
 static bool inited=false;
 void update(void) {
@@ -238,6 +283,17 @@ void update(void) {
     if (keyp('R')) reset();
     if (keyp('C')) spawn_crate(mwx,mwy);
     if (keyp('B')) spawn_blob(mx,my, SHAPE_CIRCLE, (nblob*7)%3);
+    if (keyp('V')) spawn_ball(mwx,mwy, 0.28f, 1);            // drop a bouncy ball at the cursor
+    if (keyp('E')) {                                        // BOOM — radial impulse at the cursor
+        b2ExplosionDef ed=b2DefaultExplosionDef();
+        ed.position=(b2Vec2){mwx,mwy}; ed.radius=BOOM_R; ed.falloff=1.3f; ed.impulsePerLength=4.5f;
+        b2World_Explode(world,&ed);                         // hits every DYNAMIC body (crates, balls, pinwheel, puppet, see-saw)
+        float RAD=BOOM_R*PPM, RAD2=RAD*RAD;                 // verlet blobs live outside Box2D → kick them by hand
+        for (int i=0;i<nblob;i++) for (int k=0;k<NR;k++){ PhysPt *P=&blob[i].rim[k]; if(!P->w)continue;
+            float dx=P->x-mx, dy=P->y-my, d2=dx*dx+dy*dy;
+            if (d2<RAD2 && d2>1.0f){ float d=fsqrt(d2), f=(1.0f-d/RAD)*7.0f; P->px-=dx/d*f; P->py-=dy/d*f; } }
+        boomX=(int)mx; boomY=(int)my; boomF=BOOM_LIFE; shake(5.0f);
+    }
 
     if (mouse_pressed(MOUSE_LEFT)) {
         float best=16.0f; grabBl=-1;                        // try a blob rim point first
@@ -247,7 +303,9 @@ void update(void) {
             b2BodyId pick; bool got=false; int bi=-1; float bd=0.6f;
             for (int i=0;i<ncrate;i++){ b2Vec2 c=b2Body_GetPosition(crate[i]); float d=vlen(mwx-c.x,mwy-c.y); if(d<bd){bd=d;bi=i;} }
             if (bi>=0){ pick=crate[bi]; got=true; }
-            else for (int q=0;q<NPART;q++) if (boxrig_point_in_body(part[q].body,&part[q].poly,mwx,mwy)){ pick=part[q].body; got=true; break; }
+            for (int i=0;i<nball && !got;i++){ b2Vec2 c=b2Body_GetPosition(ball[i].body);   // then a ball (grab within its disc)
+                if (vlen(mwx-c.x,mwy-c.y) < ball[i].r+0.15f){ pick=ball[i].body; got=true; } }
+            if (!got) for (int q=0;q<NPART;q++) if (boxrig_point_in_body(part[q].body,&part[q].poly,mwx,mwy)){ pick=part[q].body; got=true; break; }
             if (got){ b2MouseJointDef d=b2DefaultMouseJointDef(); d.bodyIdA=ground; d.bodyIdB=pick; d.target=(b2Vec2){mwx,mwy}; d.hertz=6; d.dampingRatio=0.7f; d.maxForce=1400.0f*b2Body_GetMass(pick); mjoint=b2CreateMouseJoint(world,&d); b2Body_SetAwake(pick,true); dragCrate=true; }
         }
     }
@@ -286,6 +344,17 @@ void update(void) {
                     BrHit h = boxrig_resolve_poly(P, part[q].body, &part[q].poly, PPM, SCREEN_H);
                     if (h.hit && lastPass){ float im=1.2f*h.pen; if(im>0.05f)im=0.05f; b2Body_ApplyLinearImpulse(part[q].body,(b2Vec2){-h.nx*im,-h.ny*im},(b2Vec2){h.cx,h.cy},true); }
                 }
+                { BrHit h = boxrig_resolve_box(P, seesaw, SAW_HW, SAW_HH, PPM, SCREEN_H);   // see-saw: dynamic, blobs can weigh it down
+                  if (h.hit && lastPass){ float im=1.2f*h.pen; if(im>0.05f)im=0.05f; b2Body_ApplyLinearImpulse(seesaw,(b2Vec2){-h.nx*im,-h.ny*im},(b2Vec2){h.cx,h.cy},true); } }
+                for (int bi2=0;bi2<nball;bi2++){                                 // balls: circle push-out + capped reaction
+                    b2Vec2 c=b2Body_GetPosition(ball[bi2].body);
+                    float cxp=pxX(c.x), cyp=pxY(c.y), rr=ball[bi2].r*PPM+P->r;
+                    float dx=P->x-cxp, dy=P->y-cyp, d2=dx*dx+dy*dy;
+                    if (d2 < rr*rr && d2 > 0.01f){ float d=fsqrt(d2), pen=rr-d, nsx=dx/d, nsy=dy/d;   // screen-space outward normal
+                        if (P->w){ P->x+=nsx*pen; P->y+=nsy*pen; }
+                        if (lastPass){ float im=1.2f*(pen/PPM); if(im>0.05f)im=0.05f;   // world normal flips Y; react = shove the ball off
+                            b2Body_ApplyLinearImpulse(ball[bi2].body,(b2Vec2){-nsx*im, nsy*im},(b2Vec2){c.x,c.y},true); } }
+                }
                 phys_bounds(P, WALLX, 0, SCREEN_W-WALLX, FLOORY, 0.3f, 0.6f);
             }
         }
@@ -302,6 +371,7 @@ void update(void) {
     balance();                          // the puppet fights to stay upright
     b2World_Step(world, 1.0f/60.0f, 4);
     pmx=mx; pmy=my;
+    if (boomF>0) boomF--;               // explosion ring lifetime
 
 #ifdef DE_TRACE
     watch("blobs","%d",nblob); watch("crates","%d",ncrate);
@@ -328,6 +398,14 @@ static void draw_crate(b2BodyId id) {
     for (int i=0;i<4;i++){ bx[i]=xy[i*2]+(xy[i*2]>cx?-1:xy[i*2]<cx?1:0); by[i]=xy[i*2+1]+(xy[i*2+1]>cy?-1:xy[i*2+1]<cy?1:0); }
     line(bx[0],by[0],bx[2],by[2],CLR_BROWN); line(bx[1],by[1],bx[3],by[3],CLR_BROWN);   // X brace
 }
+// a ball: a filled disc + a spin spoke (so you can see it roll). Pink = bouncy, grey = dead.
+static void draw_ball(Ball *b) {
+    b2Vec2 p=b2Body_GetPosition(b->body); b2Rot r=b2Body_GetRotation(b->body);
+    int cx=(int)pxX(p.x), cy=(int)pxY(p.y), rr=(int)(b->r*PPM);
+    circfill(cx,cy,rr, b->bouncy?CLR_PINK:CLR_DARKER_GREY);
+    circ(cx,cy,rr, CLR_WHITE);
+    line(cx,cy, cx+(int)(r.c*(rr-1)), cy-(int)(r.s*(rr-1)), CLR_WHITE);   // spoke ends 1px inside the rim (screen Y flipped)
+}
 // label a body with tiny text above its centre
 static void label(b2BodyId id, const char *s) {
     b2Vec2 p=b2Body_GetPosition(id);
@@ -350,15 +428,25 @@ void draw(void) {
     rectfill((int)(SCREEN_W*0.5f-48), FLOORY-46-6, 96, 12, CLR_DARK_GREY);   // ledge
     rect((int)(SCREEN_W*0.5f-48), FLOORY-46-6, 96, 12, CLR_LIGHT_GREY);
 
+    // see-saw fulcrum (a static wedge under the plank pivot)
+    { int fx=(int)SAW_CX, fyt=FLOORY-(int)SAW_PIV;
+      trifill(fx, fyt, fx-8, FLOORY, fx+8, FLOORY, CLR_DARK_GREY); }
+
     draw_obox(ramp, RAMP_HW, RAMP_HH, CLR_MEDIUM_GREY, CLR_LIGHT_GREY);      // STATIC
     draw_obox(spinner, SPIN_HL, SPIN_HT, CLR_BLUE, CLR_LIGHT_GREY);          // KINEMATIC
     draw_obox(pinwheel, PIN_HL, PIN_HT, CLR_YELLOW, CLR_ORANGE);             // DYNAMIC
+    draw_obox(seesaw, SAW_HW, SAW_HH, CLR_BROWN, CLR_ORANGE);                // the see-saw plank
     for (int i=0;i<ncrate;i++) draw_crate(crate[i]);
     for (int i=0;i<NPART;i++) boxrig_draw(part[i].body, part[i].poly, part[i].pcx, part[i].pcy, PPM, SCREEN_H);
+    for (int i=0;i<nball;i++) draw_ball(&ball[i]);
     for (int i=0;i<nblob;i++) draw_blob(&blob[i]);
 
+    // explosion shockwave ring
+    if (boomF>0){ float t=1.0f-(float)boomF/BOOM_LIFE; int rr=(int)(t*66)+4;
+        circ(boomX,boomY,rr, t<0.5f?CLR_YELLOW:CLR_ORANGE); if(rr>6) circ(boomX,boomY,rr-4,CLR_WHITE); }
+
     font(FONT_SMALL);
-    label(ramp, "static"); label(spinner, "kinematic"); label(pinwheel, "dynamic");
-    print("verlet blobs + Box2D crates + puppet + static/kinematic/dynamic bodies", 4, 4, CLR_WHITE);
-    print("drag blob or crate   C crate   B blob   R reset", 4, SCREEN_H-10, CLR_LIGHT_GREY);
+    label(ramp, "static"); label(spinner, "kinematic"); label(pinwheel, "dynamic"); label(seesaw, "see-saw");
+    print("verlet blobs + crates + puppet + static/kinematic/dynamic + see-saw + balls", 4, 4, CLR_WHITE);
+    print("drag  C crate  B blob  V ball  E boom  R reset", 4, SCREEN_H-10, CLR_LIGHT_GREY);
 }

@@ -103,3 +103,8 @@ there). Ship it under the two-part bar ([ADR-0022](../decisions/0022-collaborati
 it must settle correctly *and* be a delight to knock over. Then sit with both feels and decide:
 does this earn the Layer-1 opaque API + backend seam (physics-notes.md), or just live as one
 more optional cart-land library?
+
+## See also
+
+- [`box2d-cart-ideas.md`](box2d-cart-ideas.md) — the backlog of carts this integration unlocks.
+- [`tombola.md`](tombola.md) — the OP-1-style physics sequencer, a first cut built on this seam.

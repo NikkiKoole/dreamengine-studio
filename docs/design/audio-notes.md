@@ -2391,4 +2391,4 @@ page to switch, so the slot is free for it). WAVE reachable in both voicings; en
 never gated `a->wave`). Verified via a scripted DF→CL flip (the SAW toggle appears bottom-right). **Test:** ▶ in the editor, flip each 303's DF light independently; set SUB high
 on 303a, flip to classic and back — SUB must still be there (proves the non-destructive flip). **Then:** fold
 a one-line note into acidcandy's `de:meta.todo[]` (next to the DRIFT-knob entry) and, if the chassis grew a
-new control vocabulary, `candy-style.md`.
+new control vocabulary, [`candy-style.md`](candy-style.md).

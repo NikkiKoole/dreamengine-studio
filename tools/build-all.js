@@ -46,10 +46,21 @@ const carts = fs.readdirSync(CARTS_DIR)
 const DEFS = ['-DSCREEN_W=320', '-DSCREEN_H=200', '-DSCALE=2',
               '-DMAP_W=128', '-DMAP_H=64', '-DCELL_W=16', '-DCELL_H=16', '-DDE_TRACE']
 
+// Opt-in library includes some carts need beyond studio.h (ADR: box2d is NOT in the
+// default cart build). A syntax check just needs the HEADER on the include path — no
+// lib, no link — so we add -Iruntime/box2d/include for any cart that pulls in box2d.
+const BOX2D_INC = path.join(mk.RUNTIME_DIR, 'box2d', 'include')
+function extraIncludes(name) {
+  const src = fs.readFileSync(path.join(CARTS_DIR, `${name}.c`), 'utf8')
+  const inc = []
+  if (/#include\s+[<"]box2d\//.test(src)) inc.push(`-I${BOX2D_INC}`)
+  return inc
+}
+
 async function checkOne(name) {
   const src = path.join(CARTS_DIR, `${name}.c`)
   try {
-    await execFileAsync('clang', ['-fsyntax-only', src, `-I${mk.RUNTIME_DIR}`, ...DEFS])
+    await execFileAsync('clang', ['-fsyntax-only', src, `-I${mk.RUNTIME_DIR}`, ...extraIncludes(name), ...DEFS])
     return { name, ok: true }
   } catch (e) {
     const stderr = (e.stderr ? e.stderr.toString() : '') || (e.message || '')

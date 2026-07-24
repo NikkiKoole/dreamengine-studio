@@ -1,6 +1,6 @@
 # The control vocabulary — a named taxonomy of hardware controls (beveled lo-fi)
 
-REFERENCE (2026-07-14) — the shared NAMING + look for the tactile UI elements the
+**STATUS: REFERENCE (2026-07-14)** — the shared NAMING + look for the tactile UI elements the
 [device-face paradigm](device-face-paradigm.md) reuses across every instrument cart. Settled with the
 maker *before* building the study carts, so the names are fixed once. Target register: **beveled
 lo-fi** (§6). The study carts that prove each family (`rotaries` first) are the next build; this doc

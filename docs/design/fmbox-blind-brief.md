@@ -150,3 +150,6 @@ _Phase 1 only — not built. The verdict this brief encodes: worthwhile **iff** 
 + p-locks; a plain FM-voiced step grid would just reskin `groovebox` and fail the ADR-0022 second half
 (delightful-to-a-stranger). The new value is the metallic FM kit the shelf lacks and the per-step
 macro-lock gesture no cart has._
+
+_The brief's LCD dancer (`fmbox.c` `draw_viz`) grew into its own experiment:
+[`glyph-puppet.md`](glyph-puppet.md) — animation without frames._

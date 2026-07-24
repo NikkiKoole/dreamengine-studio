@@ -137,3 +137,5 @@ be seen, which is rack territory.
   universal-controls section wants one named scale per genre.
 - Does the [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) §3 dancer debut here? A 1-bit
   segmented-LCD dancer reading polymetric trigger lanes is peak Workshop.
+- The "prove the voice as its own cart" rule this doc sets is applied per-genre in
+  [`genre-box-rosters.md`](genre-box-rosters.md) (the supersaw-first note cites it).

@@ -1,6 +1,6 @@
 # The candy device-face style
 
-EXPLORING (2026-07-14) — the warm "candy-toy" visual style for device-face instruments, prototyped in
+**STATUS: EXPLORING (2026-07-14)** — the warm "candy-toy" visual style for device-face instruments, prototyped in
 the [`facemock`](../../tools/carts/facemock.c) / [`tinyface`](../../tools/carts/tinyface.c) /
 [`facefull`](../../tools/carts/facefull.c) vibe mockups and made functional in
 [`acidcandy`](../../tools/carts/acidcandy.c). This is the STYLE GUIDE those carts were reverse-engineered

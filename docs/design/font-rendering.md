@@ -223,3 +223,6 @@ the signatures into [`api-notes.md`](api-notes.md) §17/§19, flip the relevant 
 [`../STATUS.md`](../STATUS.md), and ship a tutorial cart with a baked screenshot. If we
 commit to inline control codes, that choice deserves its own ADR in
 [`../decisions/`](../decisions/README.md).
+
+A downstream consumer of this pipeline: [`music-notation-glyphs.md`](music-notation-glyphs.md)
+wants notation symbols baked as bitmap glyphs so a chord chart reads as music.

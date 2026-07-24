@@ -165,3 +165,5 @@ reaching desktop Ableton is model A's job.
 - [`ios-plan.md`](ios-plan.md) — the AUv3 spike (model B's host).
 - [`held-notes.md`](held-notes.md) — `note_on`/`note_off`/`note_pitch`, the voice lifecycle a
   slide would mirror when *emitting* MIDI.
+- [`audio-input-frontier.md`](audio-input-frontier.md) — the wider "engine hears *and speaks*"
+  map this output direction lives on.

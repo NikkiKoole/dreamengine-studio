@@ -139,3 +139,4 @@ machine's state** (a note-envelope → squash, a filter → gradient offset, the
 - [device-face-paradigm.md](device-face-paradigm.md) — the UI shape acidcandy (and the pet shelf) sits on.
 - [`squishy`](../../tools/carts/squishy.c) — the boil + bevel rendering technique.
 - acidcandy's `de:meta` SOUL todo — the parked mascot idea this spec picks up.
+- [`bossa-rack.md`](bossa-rack.md) — the sibling chord-bloom rack whose "band follows" pattern the pets extend.

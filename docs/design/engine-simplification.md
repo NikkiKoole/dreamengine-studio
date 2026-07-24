@@ -303,3 +303,6 @@ Prove with `tune-check` (pitched) / `fx-check` / `level-check`.
   at `312` is declared after `INSTR_PIPE 25` at `311` — breaks the ascending block;
   cosmetic.) **Fixed:** `SOUND_ENVS` is 3 → now reads "3 per slot (which 0..2)". The
   cosmetic `INSTR_VOICE`/`INSTR_PIPE` reorder left alone (pure `#define` shuffle, no bug).
+
+See also [`runtime-safety-audit.md`](runtime-safety-audit.md) — the sibling sweep covering
+correctness & memory-safety bugs (this one is duplication/helpers/naming).

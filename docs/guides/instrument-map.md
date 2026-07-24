@@ -63,3 +63,6 @@ musical saw…), the 25+ radio stations, and the sequencer/note toys — all cat
 Ship a hardware homage → add its shelf row (instrument-carts checklist #6) **and** its wing
 row here; new recipes/presets follow the shelf checklist's step 7 as usual. Run
 `node tools/lint-docs.js` after.
+
+Reimagining a whole box per genre/era (not just one homage) is scoped in
+[`genre-box-rosters.md`](../design/genre-box-rosters.md).

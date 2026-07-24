@@ -177,3 +177,5 @@ Two patterns decide priority:
   from [`radiophonic-workshop.md`](radiophonic-workshop.md)) before a rack leans on it.
 - **Trademark / faceplate naming** per roster — original names for anything paid; homage in
   `lineage`/`homage` metadata ([`tinyjam-racks.md`](tinyjam-racks.md) §trademark).
+- **A worked roster already designed:** [`bossa-rack.md`](bossa-rack.md) — the chord-bloom rack
+  is a concrete instance of this "genre box per style" thinking taken to a full design.

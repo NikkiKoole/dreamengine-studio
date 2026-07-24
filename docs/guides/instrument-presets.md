@@ -1448,7 +1448,7 @@ above (the detuned-pair "solina-ensemble" voicing); `mallet/vibes` is reused (se
 
 ### voice/air-vocoder  *(FIRST radio melodic `INSTR_VOICE`)*
 `INSTR_VOICE` · A8 D90 S6 R220 · h0.62 (O→A vowel) t0.40 (size) m0.70 (pressed effort) · `instrument_drive` 0.25 · pitch-LFO 5.6 Hz/0.06 · LP 2400/2 · echo 0.14
-The Kelly-Watch-the-Stars robot lead — a sung vowel, not a true vocoder (that needs the §8.10
+The Kelly-Watch-the-Stars robot lead — a sung vowel, not a true vocoder (that needs the
 formant/vocoder bus; see [`../design/air-effects-wants.md`](../design/air-effects-wants.md)).
 No station had used `INSTR_VOICE` for a melodic lead before.
 - tier: unique · origin: air · used by: air (`I_LEAD`, KELLY archetype)

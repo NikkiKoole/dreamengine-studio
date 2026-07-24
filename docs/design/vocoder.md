@@ -199,4 +199,6 @@ buses:**
   already has the carrier chord + mic UI), or a dedicated `vocode` cart.
 - **Related:** [`mic-and-sampling.md`](mic-and-sampling.md), [`audio-notes.md`](audio-notes.md) §13,
   [`sound-next-steps.md`](sound-next-steps.md), [`effects-bus-architecture.md`](effects-bus-architecture.md),
-  [`audio-threading.md`](audio-threading.md).
+  [`audio-threading.md`](audio-threading.md), [`audio-input-frontier.md`](audio-input-frontier.md)
+  (the mic-seam map this bus feeds), [`transparent-autotune.md`](transparent-autotune.md)
+  (the sibling pitch tool on the same input path).

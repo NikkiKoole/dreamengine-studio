@@ -138,7 +138,7 @@ middle lane. chipjam drives both shapes (flanked soft-keys on the melodic face, 
 on the drums face) through the one idiom.
 
 *Proving pass 3 — [`grooveface`](../../tools/carts/grooveface.c) converted (2026-07-20).* The flagship
-five-zone face (the control-vocabulary showcase) and the first conversion that is **portrait** and at a
+five-zone face (the [control-vocabulary](control-vocabulary.md) showcase) and the first conversion that is **portrait** and at a
 **non-160×100 density** (320×400). It surfaced the one remaining face_resize assumption: the target was
 hardcoded to the landscape candy density. Fixed with
 [`face_resize_to(dw, dh)`](../../runtime/face.h) — the design density is now a per-face choice; the zones

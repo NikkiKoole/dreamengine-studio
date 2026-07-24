@@ -115,7 +115,7 @@ else                                 draw_focused_face(stage, face);
 
 One tiny include then serves both "just scale my 160×100 up" carts *and* "reorder everything on a
 tablet" carts. The **nav is class-aware too**: on a phone the cartridge strip *focuses* one face; on a
-tablet it can *highlight* while all stay visible ("focus, don't swap" — device-face-paradigm.md §2).
+tablet it can *highlight* while all stay visible ("focus, don't swap" — [device-face-paradigm.md](device-face-paradigm.md) §2).
 
 **acidcandy's plan (both, per the maker 2026-07-19):** WIDE / phone = the route-2 scaled-up focused
 face we have; ROOMY / iPad = a **bespoke four-machines-in-rows** arrangement designed *for* the tablet

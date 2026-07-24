@@ -201,7 +201,7 @@ for spec-ability; same call here).
   headers use the glass's `lay_grid(g, 1, VOICES, v, 1)` slots — see `zone_rail`).
 - **REFLOW, never camera-scale** (ui.h hit-tests in canvas coords; a zoom desyncs every widget).
 - **Music-cart prep:** this is a music instrument — skim `docs/guides/instrument-carts.md` +
-  `radio-station-howto.md` conventions; keep the recipe docs current when voices ship.
+  [`radio-station-howto.md`](../guides/radio-station-howto.md) conventions; keep the recipe docs current when voices ship.
 - Effects are set-and-hold; `watch()`'s 2nd arg is a format string; British greys (`CLR_*_GREY`);
   don't shadow built-ins (`map`/`line`/…). (See CLAUDE.md "Key things to know".)
 

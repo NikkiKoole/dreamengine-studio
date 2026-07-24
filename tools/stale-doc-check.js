@@ -34,6 +34,13 @@
 //      (a design doc naming `runtime/roadkit.h` may be proposing a not-yet-built file, so
 //      those rank below flags and below guides). Placeholder paths (x.js, XX-name.c) and
 //      lines with proposal cues ("or a --foo", "would", "future") are filtered out.
+//      CAVEAT — a dead flag is NOT always a bug: the cue filter misses PLANNED forward-refs
+//      framed as roadmap ("open follow-up: `youtube-push --dress`", a spike-ladder "→ 7
+//      (`build-app.js --android`)"). Before "fixing" one, read the surrounding doc — a flag
+//      that names not-yet-built work is correct prose, not drift. And a missing path is matched
+//      by its `tools/`|`runtime/` SUBSTRING anywhere on the line, so PREFIXING it (e.g.
+//      `~/Projects/navkit/soundsystem/tools/foo.c` for an external ref) does NOT clear the flag —
+//      only a path that resolves, or wording that drops the path pattern, will.
 //   1. TOOL DRIFT (shown in full) — a doc describes a TOOL whose code changed after it.
 //      A nudge, not a proof: behavior/flags the prose describes MAY now be wrong.
 //   2. DOC CHURN (collapsed to a count; --docs expands) — a doc names another DOC edited

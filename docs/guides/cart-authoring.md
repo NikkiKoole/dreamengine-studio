@@ -26,6 +26,15 @@ Designed to be used by Claude in-session via the Bash tool.
 > used to be on this list; it no longer needs a manual `fade(0)` — the engine clears it.) See
 > the postscript in [`../design/cart-survey-api-priorities.md`](../design/cart-survey-api-priorities.md).
 
+> **Drawing gotcha — outline a coverage fill with `poly()`, not `line()`.** A coverage fill
+> (`polyfill`/`trifill`/`circfill`/`ngonfill`) fills by the centre-inside rule and stops 1px short of
+> its far corner; `line()` draws to the raw corner. So tracing a fill's corners with `line()` — as an
+> outline **or** an interior brace/diagonal — makes the stroke poke 1px past the fill on the **software
+> canvas** (invisible on the GPU, so it hides). Use `poly()` for an outline (its stroke is the fill's
+> own boundary ring); for an interior line that must touch a corner, nudge the endpoint 1px toward
+> centre. Bit `boxjelly` twice; full mechanism + the `raster_test` guard in
+> [`../design/software-canvas.md`](../design/software-canvas.md) ("Authoring gotcha").
+
 ---
 
 ## `tools/make-cart.js`

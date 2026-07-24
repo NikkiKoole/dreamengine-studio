@@ -442,6 +442,19 @@ but garbage on the GPU. Fixed by clearing `canvas` to `palette[0]` **once** at c
 (no per-frame clear → trails still work), so both backends start from the same black. Carts should
 still `cls()`; this just makes the two paths agree when one forgets. (`facegen` also got its `cls()`.)
 
+**Authoring gotcha — don't outline (or brace) a coverage fill with `line()` (2026-07-24, bit `boxjelly` twice).**
+A coverage fill (`polyfill`/`trifill`/`circfill`/`ngonfill`) decides pixels by the **centre-inside**
+rule, so a shape whose geometric corners are `(x0,y0)-(x1,y1)` fills the half-open box
+`[x0..x1-1]×[y0..y1-1]` — it stops one pixel short of the far corner. `line()` (`sw_sline`) instead
+plots all the way to the raw corner `(x1,y1)`. So joining a fill's raw corners with `line()` — for an
+outline **or** an interior brace/diagonal — plants brown pixels 1px past the fill's right/bottom edge:
+the outline "sticks out", the diagonal grows a "foot". On the GPU both go through GL and the mismatch
+is invisible; it only shows on the software canvas. **Fixes:** outline a polygon with `poly()` (its
+stroke *is* the boundary ring of the same coverage fill — hugs at every angle); for an interior line
+whose endpoints must sit on a fill's corner, nudge each endpoint 1px toward the shape centre so it
+lands inside the fill (`boxjelly`'s crate X-brace). The regression guard is `raster_test` (page 2's
+rotating `polyfill`+`poly` quad reads 0 mismatches; swapping in `line()` flags dozens).
+
 **The ideal cart to test Option 3** (software-raster + GPU-rotate-at-present, for *rotation* that keeps
 the SW win): a cart that is **rotation-bound *and* pset/fill-bound at once** — e.g. a **heading-up
 top-down pixel-art world** (GTA-1-style) whose ground is *pixel fills* (not `rectfill_rot` geometry) and

@@ -314,7 +314,7 @@ static void draw_obox(b2BodyId id, float hw, float hh, int fill, int edge) {
     const float lx[4]={-hw,hw,hw,-hw}, ly[4]={-hh,-hh,hh,hh}; int xy[8];
     for (int i=0;i<4;i++){ float wx=p.x+(r.c*lx[i]-r.s*ly[i]), wy=p.y+(r.s*lx[i]+r.c*ly[i]); xy[i*2]=(int)pxX(wx); xy[i*2+1]=(int)pxY(wy); }
     polyfill(xy,4,fill);
-    for (int i=0;i<4;i++){ int a=i*2,b=((i+1)%4)*2; line(xy[a],xy[a+1],xy[b],xy[b+1],edge); }
+    poly(xy,4,edge);   // coverage stroke (not line()) so the outline hugs the coverage fill at EVERY angle — a DDA line() drifts off the fill boundary on rotated edges in the software canvas (HW hides it)
 }
 static void draw_crate(b2BodyId id) {
     b2Vec2 p=b2Body_GetPosition(id); b2Rot r=b2Body_GetRotation(id);

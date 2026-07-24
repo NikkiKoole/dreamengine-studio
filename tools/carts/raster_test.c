@@ -16,6 +16,7 @@
 }
 de:meta */
 #include "studio.h"
+#include <math.h>
 
 // Rasterization pixel-accuracy test cart.
 //
@@ -57,6 +58,7 @@ static int  page         = 0;
 #define FS_FROZEN   3   // stay still, just repaint HUD
 static int  fs          = FS_LIVE;
 static int  last_count  = 0;
+static float quad_rot   = 0;   // page-2 rotating quad — spins in LIVE, frozen the instant SPACE analyses (so pget'd SETUP frame == ANALYSE redraw)
 
 static bool is_fill(int c) { return c == FILL_A || c == FILL_B; }
 // the whole shape = fill ∪ outline ∪ already-painted markers (markers only ever
@@ -224,12 +226,25 @@ static void draw_page2(void) {
         star(250,  52, 24, 10, 5, -90, OUT_C);
         star(205, 122, 20,  9, 6,   0, OUT_C);
     }
-    // convex polygon (quad)
-    int quad[] = {255,98, 305,108, 298,150, 258,142};
-    if (show_dither) fillp(FILL_CHECKER, FILL_B);
-    polyfill(quad, 4, FILL_A);
-    if (show_dither) fillp_reset();
-    if (show_outline) poly(quad, 4, OUT_C);
+    // ROTATING oriented box — the regime an axis-aligned quad never reaches. A rotated box is
+    // exactly what boxjelly draws for its spinner/pinwheel crates, and the class of bug that hid
+    // there: pairing a COVERAGE fill (polyfill) with a DDA outline (line()) drifts up to a pixel
+    // apart on rotated edges in the software canvas (HW hides it). The correct pairing is
+    // polyfill + poly (poly()'s stroke IS the boundary ring of polyfill's coverage), so this must
+    // read 0 at EVERY angle. Spins in LIVE; SPACE freezes the current angle and analyses it.
+    {
+        float a = quad_rot * 0.017453293f, ca = cosf(a), sa = sinf(a);
+        int cx = 283, cy = 124; float hw = 28, hh = 18;
+        float lx[4] = {-hw, hw, hw, -hw}, ly[4] = {-hh, -hh, hh, hh}; int quad[8];
+        for (int i = 0; i < 4; i++) {
+            quad[i*2]   = cx + (int)roundf(ca*lx[i] - sa*ly[i]);
+            quad[i*2+1] = cy + (int)roundf(sa*lx[i] + ca*ly[i]);
+        }
+        if (show_dither) fillp(FILL_CHECKER, FILL_B);
+        polyfill(quad, 4, FILL_A);
+        if (show_dither) fillp_reset();
+        if (show_outline) poly(quad, 4, OUT_C);
+    }
     // quadfill — two trifills sharing a diagonal; poly() of the same 4 corners is
     // the boundary, so 0 mismatches proves the shared diagonal is watertight.
     int qd[] = {282,30, 316,42, 309,74, 285,64};
@@ -362,6 +377,7 @@ void update(void) {
         if (page == EQ_PAGE) { eq_idx = 0; eq_step = EQ_START; eq_ran = false; }
         else fs = (fs == FS_LIVE) ? FS_SETUP : FS_LIVE;
     }
+    if (fs == FS_LIVE) quad_rot += 1.7f;   // advance only while live → angle is frozen across SETUP+ANALYSE
 }
 
 void draw(void) {

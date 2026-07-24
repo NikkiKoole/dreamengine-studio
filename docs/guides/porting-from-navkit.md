@@ -32,7 +32,7 @@ port program / engine catalog) and [decision 0015](../decisions/0015-effects-are
 | `engines/effects.h` | the bus effects (`processWah`, `processChorus`, …) + their default params |
 | `engines/instrument_presets.h` | the preset bank — search it for the index + every `p_*` constant (`instrumentPresets[180].name = "Clav Funky"`) |
 | `engines/synth.h` | the `Voice` / settings structs, `applyDistortion`, `EPIANO_MODES`, the drive/velocity glue |
-| `tools/preset_audition.c` | headless preset→WAV renderer (build standalone, no raylib) — your reference render |
+| `~/Projects/navkit/soundsystem/tools/preset_audition.c` | headless preset→WAV renderer (build standalone, no raylib) — your reference render |
 
 ## The workflow
 

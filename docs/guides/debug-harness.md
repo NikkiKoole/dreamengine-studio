@@ -545,10 +545,10 @@ navkit ships a pile of headless sound tooling that needs no raylib/audio device:
 
 | navkit tool | what it does |
 |---|---|
-| `tools/preset_audition.c` | **THE one to know** — headless preset→WAV: `preset_audition <idx> -n <midi> -d <on s> -t <total s> -o out.wav`. `-a` = analyze-only, `--ref <wav>` = compare against a reference, `--all` = every preset |
-| `tools/wav_analyze.h` | navkit's WAV metrics (peak/RMS/crest/…), the analog of our `tools/wav-analyze.js` |
-| `tools/golden_wav_gen.sh` + `golden_wavs/` | reference renders of demo songs + checksums (regression catch) |
-| `tools/song_render.c` / `daw_render.c` | render a whole song / DAW project offline |
+| `~/Projects/navkit/soundsystem/tools/preset_audition.c` | **THE one to know** — headless preset→WAV: `preset_audition <idx> -n <midi> -d <on s> -t <total s> -o out.wav`. `-a` = analyze-only, `--ref <wav>` = compare against a reference, `--all` = every preset |
+| `~/Projects/navkit/soundsystem/tools/wav_analyze.h` | navkit's WAV metrics (peak/RMS/crest/…), the analog of our `tools/wav-analyze.js` |
+| `~/Projects/navkit/soundsystem/tools/golden_wav_gen.sh` + `golden_wavs/` | reference renders of demo songs + checksums (regression catch) |
+| `~/Projects/navkit/soundsystem/tools/song_render.c` / `daw_render.c` | render a whole song / DAW project offline |
 | `engines/instrument_presets.h` | the preset bank — search it for the index (e.g. `instrumentPresets[180].name = "Clav Funky"`) |
 
 `preset_audition` has no raylib dependency, so it builds standalone:

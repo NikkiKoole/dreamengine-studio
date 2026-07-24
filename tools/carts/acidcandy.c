@@ -2316,7 +2316,8 @@ static void drum_ui_swap(DrumUI *u) {   // exchange the shared drum globals ⇄ 
 // one; the ink tones flip with it so labels stay legible on either background.
 #define R2_INK  (r2_dark ? CLR_LIGHT_GREY  : CLR_BROWNISH_BLACK)   // primary text/label ink
 #define R2_DIM  (r2_dark ? CLR_MEDIUM_GREY : CLR_DARK_BROWN)       // dim label ink
-#define R2_PNL  (r2_dark ? CLR_DARKER_GREY : CLR_LIGHT_PEACH)      // panel/chassis fill (salmon ⇄ dark)
+#define R2_PNL  (r2_dark ? CLR_DARKER_GREY : CLR_PEACH)            // panel/chassis fill — the INACTIVE base (salmon ⇄ dark)
+#define R2_HILITE (r2_dark ? CLR_DARK_GREY : CLR_LIGHT_PEACH)      // the ACTIVE (focused) rack's chassis — one shade lighter than R2_PNL
 
 // the ROOMY knob look the maker prefers (from the mockup): just a black disc + a coloured outline +
 // a white tick — NOT the candy bevel rotary. Same drag FEEL as knob() though (gear/fine pull-out,
@@ -2570,6 +2571,9 @@ static void r2_screenmst(Box g) {
       static const char *ML[4] = { "303a", "303b", "808", "909" };
       Box m = lay_inset(mx, 3); int fw = (int)m.w / 4, bh = (int)m.h - 8;
       for (int k = 0; k < 4; k++) { int cx = (int)m.x + k * fw, by = (int)m.y;
+          void *w = ui_wid_hash(0x1A0u + k, cx, by, fw - 2, bh); ui_reg(w, cx, by, fw - 2, bh, 0);   // draggable fader (full height = 0..2, unity at mid)
+          UiCap *cc = ui_cap_for(w);
+          if (cc) { int fyv = cc->released ? cc->ry : cc->cy; level[MC[k]] = clamp((by + bh - 1 - fyv) / (float)(bh - 1), 0, 1) * 2.0f; }
           int lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh; if (lv < 0) lv = 0;
           rectfill(cx, by, fw - 2, bh, CLR_BLACK);
           rectfill(cx, by + bh - lv, fw - 2, lv, mac[MC[k]].col);
@@ -2818,7 +2822,7 @@ static void r2_bigscreen(Box c, int focus) {
 static void r2_col303(Box c, int i) {
     int m = i ? M_303B : M_303A; Acid *a = &ac[i];
     rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[m].lo);                  // 2px frame (fill-and-punch)
-    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, r2_focus == m ? R2_HILITE : R2_PNL);   // focused rack = lighter chassis
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), m);      // nameplate at the TOP as well…
     r2_header(lay_split(cc, EDGE_BOTTOM, 12, &cc), m);   // …AND the BOTTOM — focus/mute reachable from either end (the maker's ask)
@@ -2893,7 +2897,7 @@ static void r2_col303(Box c, int i) {
 // the MASTER knob-column — same shape as a 303: header + master knobs + a 4-channel mini mixer.
 static void r2_colmst(Box c) {
     rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[M_MST].lo);             // 2px frame (fill-and-punch)
-    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, r2_focus == M_MST ? R2_HILITE : R2_PNL);   // focused rack = lighter chassis
     Box cc = lay_inset(c, 2);
     r2_header(lay_split(cc, EDGE_TOP, 12, &cc), M_MST);      // nameplate top…
     r2_header(lay_split(cc, EDGE_BOTTOM, 12, &cc), M_MST);   // …and bottom (aligns with the 303 columns)
@@ -2909,7 +2913,11 @@ static void r2_colmst(Box c) {
     // 4-channel mini mixer (303a/303b/808/909 faders) + delay division label
     int mmx = (int)mix.x + 2, mmy = (int)mix.y, fw = ((int)mix.w - 4) / 4;
     static const int MC[4] = { M_303A, M_303B, M_808, M_909 };
-    for (int k = 0; k < 4; k++) { int cx = mmx + k * fw, bh = 14, lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh;
+    for (int k = 0; k < 4; k++) { int cx = mmx + k * fw, bh = 14;
+        void *w = ui_wid_hash(0x1A4u + k, cx, mmy, fw - 1, bh); ui_reg(w, cx, mmy, fw - 1, bh, 0);   // draggable fader (matches the MIX screen's 0..2 range)
+        UiCap *cc = ui_cap_for(w);
+        if (cc) { int fyv = cc->released ? cc->ry : cc->cy; level[MC[k]] = clamp((mmy + bh - 1 - fyv) / (float)(bh - 1), 0, 1) * 2.0f; }
+        int lv = (int)(level[MC[k]] / 2.0f * bh); if (lv > bh) lv = bh;
         rectfill(cx, mmy, fw - 1, bh, CLR_BLACK);
         rectfill(cx, mmy + bh - lv, fw - 1, lv, mac[MC[k]].col); }
     static const char *DIV[4] = { "1/16", "1/8", "DOT", "1/4" };
@@ -2973,7 +2981,7 @@ static void r2_drumstrip(Box c, int focus) {
     int *mut = (focus == M_808) ? dmute : d9mute;
     int sel = (focus == M_808) ? dsel : d9sel;
     rrectfill((int)c.x, (int)c.y, (int)c.w, (int)c.h, 2, mac[focus].lo);             // 2px frame (fill-and-punch)
-    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, R2_PNL);
+    rrectfill((int)c.x + 2, (int)c.y + 2, (int)c.w - 4, (int)c.h - 4, 2, r2_focus == focus ? R2_HILITE : R2_PNL);   // focused rack = lighter chassis
     Box cc = lay_inset(c, 2);
     // A/B/C/D pattern banks BEFORE the header (a 2×2 block at the far-left edge) — the drum twin of
     // the 303 column banks (lit = current, blink = armed while playing).

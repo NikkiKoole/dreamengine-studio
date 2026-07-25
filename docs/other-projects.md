@@ -16,6 +16,12 @@ Add a new `##` section per project as more of them start needing this.
 
 ## mipolai.com — the personal website
 
+> **Trigger phrase:** when the maker says **"update mipolai website"** (or "update the website" /
+> "put this on the site"), it means *this* — edit `content/`, rebuild `docs/`, commit both, push;
+> usually to add a `makes` page showcasing a dreamengine cart (see "Showcasing a dreamengine cart"
+> below). The repo has its own `CLAUDE.md` that mirrors this; for a real editing session, start
+> Claude Code *in* that repo.
+
 - **Repo:** `/Users/nikkikoole/Projects/love/nikkikoole.github.io`
 - **What:** a hand-rolled **Lua static-site generator**. Write Markdown in `content/`, run the
   build, it renders HTML into `docs/`, which **GitHub Pages serves** (published at mipolai.com).

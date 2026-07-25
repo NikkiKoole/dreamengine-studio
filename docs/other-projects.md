@@ -100,6 +100,32 @@ canonical, OpenGraph (`og:*`) and Twitter (`summary_large_image`) tags. Confirm 
 > (shot + hero video/poster + full SEO frontmatter, landed as a draft). It's the reference for
 > the next page.
 
+### Showcasing a dreamengine cart (the recurring case)
+
+The most common reason to touch this site from a dreamengine session: **you shipped or polished
+a cart and want a `makes` page for it.** This is a named path, not a re-derivation of the generic
+steps above — it reuses artifacts dreamengine already generates.
+
+1. **Get a hero clip + poster.** Bake a looping clip of the cart with `make-gif.js` (park a good
+   input track at `tools/clips/<cart>/NN-label.*` first so it's reproducible), export `--mp4`, then
+   pull a poster frame:
+   ```sh
+   # in dreamengine/
+   node tools/make-gif.js <cart> --recipe <NN-label> --mp4 build/<cart>.mp4
+   ffmpeg -ss 3 -i build/<cart>.mp4 -frames:v 1 build/<cart>-frame.png
+   ```
+   No clip worth looping? A single crisp still is fine — the baked `.cart.png` thumbnail or a
+   `play.js --dump` frame, brought in via `optimize-image.sh … shot` (crisp pixels).
+2. **Copy the frontmatter from `content/makes/acidcandy.md`** — it's the end-to-end cart reference
+   (shot + hero video/poster + full SEO). Change `title`/`slug`/`timestamp`/`metaDescription` etc.
+3. **Land it as `draft=true`**, drop the `.mp4` + poster into `docs/assets/images/` (see the
+   `<video>` pattern above), rebuild (`lua main.lua`), eyeball at localhost:8080.
+4. **Flip `draft=false`, rebuild, commit both trees, push** — that's the commit that also adds the
+   `makes/index.html` card + sitemap entry.
+
+Prose voice for the write-up: [`guides/voice.md`](guides/voice.md) (synthesized from this
+same site). Keep it short and honest — a stranger should get what the cart *is* and why it's fun.
+
 ### Working on it from a dreamengine session
 
 - Bash cwd resets back to dreamengine after every call — do website work as

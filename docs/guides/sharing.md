@@ -35,6 +35,11 @@
 > `site/<name>/`, writes the C source back to `tools/carts/<name>.c`, commits and pushes.
 > The rest of this doc is the original exploration, kept for the options not taken.
 
+> **Showcase it on the maker's site too.** Beyond the wasm gallery, a shipped/polished cart often
+> wants an editorial **`makes` page on mipolai.com** (hero loop + write-up). That's a separate repo
+> with its own build; the recurring "cart → makes page" recipe is
+> [`../other-projects.md`](../other-projects.md) § "Showcasing a dreamengine cart".
+
 Web builds already work — `build/cart.html + cart.js + cart.wasm` runs in any
 browser. What's missing is a URL you can send someone.
 

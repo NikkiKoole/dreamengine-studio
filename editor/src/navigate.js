@@ -1,9 +1,9 @@
 // navigate.js — read-only engine-source viewer (lives in the DOCS tab).
 //
-// The runtime's C files — studio.h, the cart-land library headers (ui.h,
-// gestures.h, pointer.h, cursor.h, improv.h, radio.h, keybed.h, solo.h,
-// shadermath.h, cards.h, ampcab.h), spec.h (the gameplay-test harness API),
-// sound.h, studio.c — are readable in-editor
+// EVERY file in runtime/ — studio.h, all the cart-land library headers (ui.h,
+// lay.h, face.h, keybed.h, tr808.h, harmony.h, worldnet.h, …), spec.h (the
+// gameplay-test harness API), sound.h, studio.c, down to the generated font
+// data — is readable in-editor
 // under the docs sidebar's "engine source" group. Cmd/ctrl-clicking the
 // filename of an `#include "ui.h"` in your cart does the same thing: it
 // switches to the docs tab with that file open (no overlay over your code —
@@ -26,21 +26,43 @@ import { dayTheme } from './dayTheme.js'
 import { studioDocs } from './studioDocs.js'
 import { flashField, flashRange } from './main.js'
 
-// the files offered in the sidebar group, curated order: the public API,
-// then the cart-land library headers, then engine internals
-export const ENGINE_SOURCES = [
-  // studio.h first, then the cart-land library headers (the capabilities the engine
-  // deliberately doesn't own — ADR-0006), then spec.h (the gameplay-test harness a
-  // cart writes spec() against), then sound.h + studio.c. Generated/data headers
-  // (font *_data.h, studio_tcc_symbols.h) and internal ones (platform.h, midi_input.h,
-  // raylib_compat, stb_image) are left out.
+// The sidebar's "engine source" group is DERIVED from runtime/ (the
+// /runtime-list.json route), not hand-listed — the old hand-kept array had
+// silently rotted 22 headers behind the directory, tr808.h / tr909.h /
+// acid303.h / lay.h / face.h / harmony.h among them. Nothing is excluded now:
+// a new header shows up on its own.
+//
+// ENGINE_ORDER is only a READING ORDER for the ones we know how to introduce:
+// studio.h (the public API), then the cart-land library headers grouped by what
+// they're for (layout/input · audio machines · world+sim · misc — the
+// capabilities the engine deliberately doesn't own, ADR-0006), then spec.h,
+// with the two big engine internals last. Anything on disk that isn't named
+// here lands in a second "engine internals" group, alphabetically. That means a
+// NEW cart-land header appears immediately (just in the wrong group) instead of
+// vanishing — visible drift, not silent drift. Move it up here when you add one.
+export const ENGINE_ORDER = [
   'studio.h',
-  'ui.h', 'gestures.h', 'pointer.h', 'cursor.h',
-  'improv.h', 'radio.h', 'keybed.h', 'solo.h',
-  'shadermath.h', 'cards.h', 'ampcab.h',
+  'lay.h', 'face.h', 'disclose.h', 'ui.h', 'gestures.h', 'pointer.h', 'cursor.h',
+  'keybed.h', 'drumkit.h', 'acid303.h', 'tr808.h', 'tr909.h', 'morphdrum.h',
+  'harmony.h', 'radio.h', 'improv.h', 'solo.h', 'ampcab.h', 'fxicons.h',
+  'physics.h', 'boxrig.h', 'worldnet.h', 'roadkit.h', 'citygen.h',
+  'cards.h', 'endcard.h', 'shadermath.h', 'net.h', 'json.h',
   'spec.h',
   'sound.h', 'studio.c',
 ]
+
+// → { curated, rest } — curated in ENGINE_ORDER order (skipping any that have been
+// deleted from runtime/), rest = everything else on disk, alphabetical. Falls back
+// to the reading order alone if the route is unreachable.
+export async function loadEngineSources() {
+  let files = []
+  try { files = await (await fetch('/runtime-list.json')).json() } catch {}
+  if (!files.length) return { curated: ENGINE_ORDER, rest: [] }
+  return {
+    curated: ENGINE_ORDER.filter(f => files.includes(f)),
+    rest: files.filter(f => !ENGINE_ORDER.includes(f)),
+  }
+}
 
 let vview = null
 const vTheme = new Compartment()

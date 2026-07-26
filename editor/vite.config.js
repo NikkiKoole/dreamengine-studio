@@ -68,6 +68,10 @@ function cartDates() {
 //   GET /docs/<rel>.md      → the raw markdown
 //   GET /runtime-src/<f>.h  → a runtime/ source file (the cmd-click include viewer);
 //                             flat names only — no path separators, .h/.c only
+//   GET /runtime-list.json  → every flat runtime/*.h + *.c, so the docs sidebar's
+//                             "engine source" group is DERIVED from the directory
+//                             instead of a hand-kept array that silently rots (it
+//                             had drifted 22 headers behind, incl. tr808/tr909/acid303)
 function serveDocs() {
   const EXCLUDE = new Set(['guides/cart-specs'])
   const listMarkdown = (dir, base = '') => {
@@ -161,6 +165,16 @@ function serveDocs() {
         if (url === '/docs-search') {
           let out = []
           try { out = searchDocs(new URL('http://x' + req.url).searchParams.get('q') || '') } catch {}
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(out))
+          return
+        }
+
+        if (url === '/runtime-list.json') {
+          let out = []
+          try {
+            out = fs.readdirSync(RUNTIME).filter(f => /\.(h|c)$/.test(f)).sort()
+          } catch {}
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(out))
           return

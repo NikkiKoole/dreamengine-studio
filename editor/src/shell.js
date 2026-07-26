@@ -1,6 +1,6 @@
 import { view, setEditorTheme, setErrorLines, onDocChange } from './main.js'
 import { initOutline, refreshOutline } from './outline.js'
-import { ENGINE_SOURCES, showEngineFileIn, renderEngineOutline } from './navigate.js'
+import { loadEngineSources, showEngineFileIn, renderEngineOutline } from './navigate.js'
 import './sprite-editor.js'
 import { aseToDataUrl } from './aseprite.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
@@ -162,25 +162,39 @@ const introHTML = `
   <p>
     A fantasy console you program in C. Write code on the left, hit
     <span class="kbd">▶ run</span>, and a native game window pops open.
-    The runtime gives you a 320×200 canvas, a 32-color palette, a sprite editor
-    (next tab), a small synth, and the input + drawing API listed below.
-    It's aimed at teens and hobbyists who want to learn real programming through
-    making games — no malloc, no build system, no boilerplate.
+    You get a 320×200 canvas, a 32-color palette, a sprite editor (next tab),
+    a real 8-voice synth, and the input + drawing API listed below.
+    No build system, no boilerplate.
+  </p>
+  <p>
+    <b>What it's for.</b> Taking one real, beloved thing (a KSP orbit, a TR-808,
+    a Dutch apartment block) and modelling its honest core in a cart small enough
+    to hold in your head. One true system, never faked, never special-cased. The
+    lo-fi skin is deliberate: 320×200 and 32 colors leave the simulation nowhere
+    to hide, so the system has to actually be true to carry the cart. Then you put
+    it in a stranger's hands and see whether they want to keep touching it.
   </p>
   <p>
     The goal is the smallest possible distance between an idea and a thing that
     moves on screen. Inspired by PICO-8, DIV Game Studio, and BlitzMax.
-    Coming eventually: an iPad runtime and a sound tracker to match the sprite editor.
   </p>
   <p>
-    <b>New to C?</b> A program is a list of instructions. The runtime calls your
+    <b>The sound is not a chiptune approximation.</b> The 8 voices run a real
+    synthesis engine: rebuilt analog circuits, FM, phase distortion,
+    Karplus-Strong strings, a formant voice, and a full effects rack. Music here
+    is code, not a tracker. See the <b>sound</b> section below, and the instrument
+    carts on the shelf.
+  </p>
+  <p>
+    <b>The runtime model.</b> The runtime calls your
     <span class="kbd">update()</span> 60 times a second, then your
-    <span class="kbd">draw()</span>, and repeats. You declare variables like
-    <span class="kbd">int x = 5;</span> to remember things between frames, and you
-    use <span class="kbd">if</span>, <span class="kbd">for</span>, and function
-    calls to make things happen. Hover any keyword in the editor for a quick
-    explanation — the <b>c basics</b> section below has a short tour of the
-    bits you'll meet first.
+    <span class="kbd">draw()</span>, and repeats. Declare variables like
+    <span class="kbd">int x = 5;</span> to remember things between frames.
+    Game objects are plain C: a static array with an <span class="kbd">on</span>
+    flag, and a <span class="kbd">for</span> loop that skips the inactive slots.
+    Stack and globals, no heap, is the default rather than a law; break it when a
+    cart genuinely needs to. Hover any keyword in the editor for an explanation,
+    and the <b>c basics</b> section below is a short tour of the bits you meet first.
   </p>
   <p><a class="tutorials-link" data-tab="tutorials">→ browse example carts</a></p>
 `
@@ -667,12 +681,19 @@ async function buildDocsSidebar() {
   docsNav.appendChild(docNavItem('★ book', 'book', () => showBook()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
-  // your cart jumps to the same view) — studio.h first, then the cart-land
-  // library headers, then internals
+  // your cart jumps to the same view). DERIVED from runtime/ — the curated
+  // reading order first (studio.h → cart-land headers → spec.h → sound.h),
+  // then whatever else is on disk, so a new header can't go missing.
+  const { curated, rest } = await loadEngineSources()
+  const engItem = f => docNavItem(f, 'engine:' + f, () => showEngineSource(f))
   const engGrp = navGroup('engine source')
-  ENGINE_SOURCES.forEach(f =>
-    engGrp.appendChild(docNavItem(f, 'engine:' + f, () => showEngineSource(f))))
+  curated.forEach(f => engGrp.appendChild(engItem(f)))
   docsNav.appendChild(engGrp)
+  if (rest.length) {
+    const intGrp = navGroup('engine internals')
+    rest.forEach(f => intGrp.appendChild(engItem(f)))
+    docsNav.appendChild(intGrp)
+  }
 
   let files = []
   try { files = await (await fetch('/docs-list.json')).json() } catch {}

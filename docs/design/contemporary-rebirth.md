@@ -209,6 +209,59 @@ the sketch's formant knob.
 `soundcheck` silent · `fx-check` / `level-check` / `web-audio-check` unmoved · `build-all` 568/568 ·
 `ui-audit` clean on the probe.
 
+#### Rung B, same-day postscript — THE GATES PASSED AND IT STILL POPPED
+
+Worth writing down as a method lesson, not just a bugfix. Every gate above was green and the pitch
+numbers were exact, and then the maker **listened to it** and reported popping: worst going down an
+octave, a little on snapped, almost none going up. All three reports were correct, and that asymmetry
+was the entire diagnosis. **Three separate defects**, none of which any existing gate could see:
+
+1. **Zero grain overlap on down-shift.** A grain is `2*Tg` wide and grains land `Tt` apart, so coverage
+   is `2*Tg/Tt`. The width clamp only pulled `Tg` *down* (correct going up, wrong going down), so up an
+   octave got a clean 2.0 while down an octave got **1.0** — Hann windows butt-joined with no crossfade,
+   splicing unrelated source samples at full amplitude once per output period. Measured: 177
+   discontinuities in 1.2 s, worst jump 0.1517 against a 0.160 peak, **a step 95% of peak**.
+2. **Peak-picked epochs instead of phase-locked.** The mark was the local *peak* in a ±28% window, and a
+   vowel with a strong F1 has two comparable peaks per period, so the mark hops and consecutive grains
+   overlap-add at inconsistent phase. **The streaming face had already fixed this and left a comment
+   saying the raw peak "jitters period-to-period → pulsing"** — the offline core simply never got the
+   port. This one hit *every* face, which is why snapped and up popped too.
+3. **A truncated fractional grain read.** `(int)(j * fstep)` is nearest-neighbour resampling: at
+   `fstep` 0.5 every source sample is read twice, a zero-order-hold staircase whose every stair edge is
+   a step discontinuity.
+
+**The measurement lesson: one detector was not enough, and the first one lied.** A first-difference
+splice finder caught #1 and #3 but scored the snapped and up takes at *zero* — it cannot see a phase
+break that happens at the same amplitude. A periodicity-break finder (`r[n] = x[n] − x[n−T]`, normalised,
+**with the unprocessed RAW take as the control**) caught #2 and ranked `UP+12` as the *worst* take of the
+four, the one the first detector had called clean. Conversely #3 hid from the periodicity metric entirely,
+because a staircase repeats identically every period. **Each detector missed a bug the other caught**, so
+neither is the gate on its own.
+
+| take | glitches/s before | after | worst error before | after | control (RAW) |
+|---|---|---|---|---|---|
+| SNAPPED | 51.3 | 36.5 | 2.88 | **1.32** | 0.87 |
+| UP+12 | 99.1 | 94.8 | 2.46 | **0.95** | 0.87 |
+| DOWN−12 | 37.4 | **20.0** | 2.78 | **0.80** | 0.87 |
+
+**Where it landed:** `DOWN−12` now measures *cleaner than the unprocessed source take* (worst 0.795 vs
+0.869, p95 1.02x) with hard splices down 122 → 1. `SNAPPED` and `UP+12` improved 2–3x in severity but
+still sit above control (1.13x / 1.22x p95, and up-shift keeps ~5x the control glitch *rate*), so a faint
+residual is expected there: inherent PSOLA pulse duplication plus un-filtered decimation at `fstep` 2.
+Fixing that needs an anti-aliased grain read and a smarter duplicate-pulse rule, which is the same spike
+as the transparent shift.
+
+**This deliberately broke `sample_autotune`'s bit-identity.** That proof was evidence a *refactor* was
+behaviour-neutral; it was never a promise to preserve a defect. Re-blessed by measurement instead.
+
+**Two follow-ups worth doing** (both parked in [`voxshift`](../../tools/carts/voxshift.c)'s `todo[]`):
+promote the two detectors into a committed `psola-check.js` beside `formant-check.js` so these numbers
+are reproducible rather than living in a scratchpad, and treat `voxshift` as the acceptance probe for
+*artifact-freeness* rather than only for pitch and length — its four takes plus the RAW control are
+exactly the A/B any `at_psola_slot` edit needs. The general point for
+[`checks-and-oracles.md`](../guides/checks-and-oracles.md): **we had no gate for "does it click", only for
+"is it in tune", and a clean gate sheet plus a maker's ear beat a clean gate sheet alone.**
+
 ### Rung C · GAP 1 — a beat-synced buffer re-reader (halftime / beat repeat)
 - **What is missing:** any way to manipulate *time* on the master without dragging pitch along.
   `varispeed` is a tape; `grains` is a texture.

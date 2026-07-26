@@ -2,8 +2,10 @@
 
 STATUS: BUILDING (2026-07-26) — **Rung A shipped the same day** (`multiband()` /
 `instrument_multiband()` / `FX_MULTIBAND`, the OTT box: [`audio-notes.md`](audio-notes.md) §17 #34,
-recipes in [`../guides/effects-recipes.md`](../guides/effects-recipes.md)). Next: `hyperbox` v1 as its
-showcase, then Rung B. The engine audit below is done and precise: of the eight
+recipes in [`../guides/effects-recipes.md`](../guides/effects-recipes.md)) **and `hyperbox` v1 shipped
+as its showcase** — the tiny hyperpop rack: pitch-snapped voice, seven-saw wall, ratcheted 909 kick
+lane, and a master chain with no bypass drawn. Next: Rung B (the formant/harmoniser dial), which is
+what `hyperbox`'s voice box is waiting on. The engine audit below is done and precise: of the eight
 boxes across the two candidate racks, **six need zero engine work**. Three gaps remain (multiband
 squash · a formant/harmoniser dial · a beat-synced buffer re-reader), each specced as a rung with an
 API shape. The pick for the first build is the **hyperpop** rack, because its four boxes need no
@@ -178,8 +180,8 @@ Both racks need two gaps and they share Rung A, so the tiebreakers are these:
   `squash()` — the "prove the voice as its own cart first" rule from
   [`radiophonic-workshop.md`](radiophonic-workshop.md), satisfied for free.
 
-**Tiny cart: `hyperbox`** (name free; the `*box` family — `voxbox` / `morphbox` / `fmbox` /
-`motionbox`). Scope for v1, deliberately small:
+**Tiny cart: `hyperbox`** — SHIPPED 2026-07-26 (the `*box` family: `voxbox` / `morphbox` / `fmbox` /
+`motionbox`). Scope as built, deliberately small:
 
 - **Supersaw box** — one `INSTR_SAW` slot, `instrument_unison(slot, 7, detune)`, three knobs
   (detune / bright / toy) mapped to `instrument_unison_detune` / `instrument_filter` cutoff +
@@ -193,8 +195,21 @@ Both racks need two gaps and they share Rung A, so the tiebreakers are these:
   `DRIVE_HARD` always on, and a pitch riser on a held note. One `apply_fx()`-style change-detector,
   per §5.
 
-Build order: **Rung A → `hyperbox` v1** (which is Rung A's showcase) **→ Rung B → `hyperbox` v2's
-voice engine → Rung C → the hip-hop rack.**
+Build order: ~~Rung A~~ → ~~`hyperbox` v1~~ (both done 2026-07-26) **→ Rung B → `hyperbox` v2's voice
+engine → Rung C → the hip-hop rack.**
+
+**What building it taught us** (both worth carrying into the hip-hop rack):
+
+1. **An always-on master fills every hole.** The first render measured rms −1.5 dBFS with a 1.5 dB
+   crest: a wall with no groove left in it, because OTT lifts the synth's sustain into every gap the
+   kick needed. Two fixes, both cart-side: the saw is a *decaying stab*, not a pad, and the parts sit
+   much lower than feels right dry (the master brings them back up). Landed at rms −5.3 / crest 5.2,
+   which is where real hyperpop masters sit. The lesson generalizes: with a squashed master you mix
+   for the *gaps*, not the levels.
+2. **`ui-audit.js` earns its keep on a rack.** Four labelled strips on a 320×200 canvas produced one
+   off-screen caption and four title/caption collisions on the first pass. The fix that stuck was a
+   `caption()` / `caption_r()` pair in the 4×6 font with `text_width()`-measured right alignment, so a
+   reworded string cannot silently run off the edge again.
 
 ## 7 · Open questions
 

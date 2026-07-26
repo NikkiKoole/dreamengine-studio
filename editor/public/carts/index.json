@@ -3427,6 +3427,24 @@
     "lineage": "Original instrument cart; models the hurdy-gurdy's rosined wheel as a continuous angular-velocity sensor — crank speed maps live to note_vol and note_cutoff on two sustained drone voices, a mechanic no other cart in the library uses."
   },
   {
+    "title": "hyperbox",
+    "description": "A four-box hyperpop rack where the master chain has no bypass. A pitch-snapped vocal lead, seven detuned saws, always-clipped drums, and OTT pinned at 100% — everything is too loud on purpose. The one knob that matters is RETUNE: it only goes from hard to harder, because in this genre there is no natural setting. Four boxes and a locked master, in the ReBirth body plan. VOICE is the lead instrument, not a vocal: an INSTR_VOICE line whose pitch is SNAPPED to a scale, where RETUNE sets how instantly it jumps between notes (0 = the hard robot jump, up = a natural glide) — the retune-speed knob, the same control Auto-Tune made famous, played by a synth so a take replays deterministically. Three vocal presets move the vowel/size/effort macros: CHIP (small tract, pitched up), ROBO (pressed and flat), CHOIR (three stacked voices). SAW is the JP-8000 wall: instrument_unison at seven voices, with DETUNE riding the spread live, BRIGHT on the filter, and TOY crushing it toward ringtone territory, because hyperpop flirts with cheap MIDI on purpose. DRUMS is a 16-step tr909.h kick lane where a second tap makes a step a RATCHET (a 1/32 burst via tr909_fire_stroke) — and the last two steps are always ratcheted, so the pattern is deliberately too fast at the end. MASTER is the point of the cart: multiband() at 100% (three bands pulled down, quiet detail pushed up) into a hard clipper, in that order via fx_order, with NO bypass drawn anywhere. RISER throws a pitch ramp over the top. SPACE — play/stop. Click a step in the DRUM lane: off → hit → RATCHET → off. Drag the knobs: RETUNE (hard→harder), DETUNE / BRIGHT / TOY on the saw wall, and UP (how hard the master lifts quiet detail — the one master knob that moves). 1 / 2 / 3 — vocal presets CHIP / ROBO / CHOIR. R — throw the riser. The master chain is deliberately not switchable.",
+    "file": "hyperbox.cart.png",
+    "created": "2026-07-26",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "subtractive-synth",
+      "drum-synthesis",
+      "step-sequencer",
+      "scale-quantize"
+    ],
+    "lineage": "The tiny first build of docs/design/contemporary-rebirth.md: a CONTEMPORARY ReBirth clones TECHNIQUES, not machines, because modern genres were never made on gear. It is also the showcase cart for multiband() (audio-notes §17 #34, Rung A of that doc) — the OTT box, three bands squashed down AND pushed up, which is the sound of a modern master. The rack shape is acidcandy/acidrack's; the supersaw box is supersaw's instrument_unison stack; the drums are tr909.h. NOT a mic cart: the voice box is INSTR_VOICE (deterministic, no permission prompt) standing in until the formant/harmoniser dial lands (that doc's Rung B).",
+    "homage": "ReBirth RB-338 (Propellerhead, 1997) — the four-box rack shape, and the idea that a rack IS a genre argument. The sound aimed at is hyperpop's, the 100 gecs / SOPHIE lineage: pitched-up vocals, seven detuned saws, and a master bus deliberately overdriven."
+  },
+  {
     "title": "icons12",
     "description": "A little sheet of hand-usable 12×12 PICO-palette icons — a smiley, the acid-house smiley, a steam locomotive (v1), a palm tree, and a redrawn locomotive v2 — drawn programmatically with sprite-draw.js and shown big + at native size. Each icon is authored on a 12×12 canvas in tools/carts/icons12.cart.js then centered into the normal 16×16 sprite slot (offset 2,2), so it packs into the standard 8×8 sheet and spr()s as a clean 12×12 glyph with 2px of transparent breathing room. The cart is a display board: a row of the icons scaled up 4× with labels, then the same icons at actual 12×12 size to prove they read small. Slots 2 and 4 are the same subject drawn twice — a worked lesson that at 12px a confident ICON of a train (four big shapes) reads where an accurate locomotive (cluttered) turns to mush. Copy the .cart.js generators straight into any cart that needs these glyphs. None — just look. Icons are sprite slots 0 smiley · 1 acid · 2 loco (v1) · 3 palm · 4 loco2 (redraw).",
     "file": "icons12.cart.png",

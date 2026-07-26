@@ -7357,8 +7357,33 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
             // this because a correction moves the period by a few percent; an octave halves it. Fix:
             // for a SHIFT, clamp the grain to the OUTPUT period so each grain is one pulse at the new
             // rate. SNAP keeps the full source-period grain → bit-identical to the shipped autotune.
+            //
+            // …and the width has to be TIED to the output period in BOTH directions, not clamped in one.
+            // The first version only pulled Tg DOWN (`if (Tt < Tg)`), which is right going up and broken
+            // going down: a grain is 2*Tg wide and grains land Tt apart, so each output sample is covered
+            // by 2*Tg/Tt grains. Up an octave that was 2.0 (a clean 50% overlap); DOWN an octave it was
+            // 2*T/2T = 1.0 — the Hann windows butt-joined edge to edge with NO crossfade, so every output
+            // period spliced two unrelated source samples at full amplitude. Measured on voxshift take 4:
+            // 177 discontinuities in 1.2 s (~148/s, the output f0), worst jump 0.1517 against a 0.160 peak,
+            // i.e. a step 95% of peak — the popping the maker reported, worst going down, absent going up.
+            // Setting Tg = Tt restores coverage 2.0 at every interval, and costs nothing in pitch
+            // accuracy: -12 still lands f0 110.3 Hz against a 110.25 target, and the +12 path is
+            // numerically UNCHANGED (its Tg was already Tt, so the clamp was a no-op going up).
+            //
+            // ⚠ This fixes the WORST artifact, not all of it. Measured after: -12 drops 177 → 120
+            // discontinuities and the worst jump halves (0.1517 → 0.0804), so the full-amplitude splice
+            // is gone but a quieter one remains. The residual is a DIFFERENT bug and the interval sweep
+            // proves it: it also appears going UP (+5 = 32 clicks), and -7 (157) is WORSE than -12 (120)
+            // — the opposite of what an overlap problem does. Diagnosis: the analysis epoch is chosen as
+            // the NEAREST one to a free-running `op` (below), so the pulse phase is only approximately
+            // continuous. At a 2:1 ratio (-12) that skips exactly 2 epochs every time and stays tidy; at
+            // 1.5:1 (-7) it skips 1-2-1-2 and each irregular step splices two source periods that the
+            // take's own pitch wobble has made genuinely different. The real fix is a phase-CONTINUOUS
+            // analysis pointer (what the streaming face already does with am_ea/am_ts + WSOLA lock),
+            // which is a rewrite of the epoch selection, not a width tweak — parked as a spike beside
+            // the transparent-shift one in contemporary-rebirth.md §"Rung B".
             int Tg = T;
-            if (mode == AT_SHIFT && (int)Tt < Tg) { Tg = (int)Tt; if (Tg < 20) Tg = 20; }
+            if (mode == AT_SHIFT) { Tg = (int)Tt; if (Tg < 20) Tg = 20; }
             for (int j = -Tg; j <= Tg; j++) {
                 int si = a + (int)((float)j * fstep), di = center + j;   // fstep 1 = formants held
                 if (si < 0 || si >= n || di < 0 || di >= n) continue;

@@ -98,7 +98,10 @@ if we later reach for the three gaps below. No hot-file risk until then.
 The genuinely-modern tricks the engine can't do yet — flag, don't fake:
 
 - **Multiband distortion** (FabFilter Saturn's signature) — split into bands, distort each
-  differently. Needs a band-splitter in `sound.h`.
+  differently. Needs a band-splitter in `sound.h`. **The splitter now exists** (2026-07-26):
+  `multiband()`'s three-band one-pole crossover ([`contemporary-rebirth.md`](contemporary-rebirth.md)
+  Rung A, [`audio-notes.md`](audio-notes.md) §17 #34) — so this is now "reuse that split, run a
+  `DRIVE_*` shaper per band", not a from-scratch build.
 - **Drawable / arbitrary transfer curves** — a waveshaper fed a user-drawn lookup table. Would be a
   new `DRIVE_*` kind + a curve buffer.
 - **Rectification / octave-up fuzz** — half/full-wave rectify (ASYM is the closest built-in). Cheap

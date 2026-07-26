@@ -23,6 +23,11 @@ is synchronous, so it may not fully reproduce the editor's real-time-audio timin
 **Live path = feasible + parked** (the offline feature stands on its own). Live-only (ADR-0032). Rolls
 up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
+> **Next customer (2026-07-26):** [`contemporary-rebirth.md`](contemporary-rebirth.md) Rung B wants
+> this DSP re-faced by INTERVAL rather than scale-snap — a `sample_formant(slot, semitones)` +
+> `harmonize_mic(semitones, voices, formant)` pair, i.e. the dial between "chipmunk" (formants follow
+> the pitch) and the transparent correction here (formants held). No new DSP, a new face on this one.
+
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 
 The make-or-break question — *can TD-PSOLA move the pitch while the formants (spectral envelope) stay

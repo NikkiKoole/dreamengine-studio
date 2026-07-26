@@ -132,12 +132,26 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          register, ENFORCING the rules (bands top/bottom only = no side-rail; hero = the
                          remainder). facedemo = grammar demo; deviceface = the raw-lay.h mechanism. Layer 3
                          of responsive-first-device-face.md
+             disclose.h  device-adaptive panel DISCLOSURE over lay.h: a priority + finger-footprint
+                         BUDGET pass (disclose_shape/_budget/_stack) that shows the panel you're on
+                         EXPANDED, promotes the rest FOLDED→COMPACT while the budget allows, and
+                         reflows as the viewport changes. For a rack with more panels than a phone
+                         fits; it decides WHERE + HOW BIG, the cart draws the contents. acidwire
              gestures.h  per-finger swipes judged at lift + pinch_scale (whole-view zoom)
              pointer.h   multi-finger pointer pool (PTR_CLEAR/ACQUIRE/FIND) — layer below ui.h,
                          for bespoke per-finger targets, not widgets
              cursor.h    pixel MOUSE CURSOR in the canvas — cursor_draw(CUR_HAND/GRAB/ARROW/CROSS/MOVE)
                          + _tint; auto-hides the OS arrow ONLY when a real mouse is seen (no-op on touch),
                          call LAST in draw(); shows in screenshots/GIFs (the OS cursor never does)
+             fxicons.h   the shared VISUAL LANGUAGE for the engine effects: one icon + body/accent
+                         colour per FX_* kind, so every cart's "pedals" read the same. Drawing an
+                         effect toggle/stompbox/mode chip? Reuse the glyph, don't redraw it.
+                         pedalboard/epiano/pedalicon. Sibling of ampcab.h (the TONE half)
+             shadermath.h a GLSL-vocabulary toolkit for CPU SHADERS: vec2/vec3 + dot/normalize/cross, the
+                         scalar idioms studio.h lacks (fract/smoothstep/mix/step/sat), colour helpers
+                         (rgb/hsv/palette = the IQ cosine palette) + SDF primitives & combinators
+                         (sd_sphere/box/torus/plane, op_union/sub/smin). For a cart drawing per-pixel
+                         through pset_rgb/rectfill_rgb that wants to read like Shadertoy. raymarch
              keybed.h    polyphonic chromatic keybed (touch+mouse+QWERTY+MIDI) — every keybed
                          cart copies it (epiano/moog/touchpiano/mellotron); NOT ribbons/radio strip
              solo.h      scale-locked solo strip the player drives over a radio (pairs radio.h)
@@ -165,6 +179,12 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          (ropes/cloth/ragdolls/blobs/pseudo-solids). Cart owns its arrays+step loop; NOT
                          a rigid-body engine (that's the Layer-1 seam parked in design/physics-notes.md).
                          verlet=demo, physics=inline teacher; used by ragdoll/linerider/coaster/jelly/sloop/tentacle/waterjar (PBD fluid)
+             boxrig.h    the "sprite region → ≤8-vert Box2D polygon + texture" toolkit (the puppetmaker
+                         representation): boxrig_hull (sprite alpha → b2Hull) + boxrig_draw (tritex the
+                         polygon from its OWN verts so paint covers the hull exactly) + point_in_body +
+                         boxrig_resolve_box/poly (verlet↔rigid coupling with physics.h). Cart still owns
+                         body/joint/density policy. Needs box2d/box2d.h (build-box2d.sh); takes ppm +
+                         screenH, no globals. puppet/boxlab/boxjelly; design/box2d-integration.md
              drumkit.h   shared PLAYABLE drum kit (the engine has no INSTR_KIT): a role vocab
                          (KICK/SNARE/HAT/OPEN/CLAP/TOM/CRASH) + fixed slot layout + dk_fire(role,midi,vel)
                          with pitch as a param. Header owns the trigger SKELETON; each kit's build()
@@ -184,10 +204,24 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          decay/colour knob maths. TR_* 16-voice roster; cart owns the knob arrays. tr808 + acidcandy.
              tr909.h     the shared TR-909 VOICE BANK: tr909_build + tr909_metal (metal-highpass XY) + tr909_fire
                          + tr909_fire_stroke (flam/drag/ratchet). TR9_* 11-voice roster. tr909 + acidcandy.
+             morphdrum.h the MORPHING DRUM VOICE bank, the honest core of "supergroovebox": an 808 kick and a
+                         909 kick are the SAME structure at different parameter values, so each voice is ONE
+                         parametric synth with a deep knob panel. CHARACTER (0=808…1=909) morphs the structural
+                         voicing; the rest are absolute controls reaching PAST both machines. morph_build/_ride/
+                         _fire, params 0..1 by MD_*, MD_PANEL[] = the knobs to lay out. NOT tr808/tr909.h (two
+                         FIXED faithful recipes) and NOT drumkit.h (a pad MAP): this is the SPACE between. morphbox
+             ampcab.h    the shared guitar AMP/CABINET voicing table: five amps as preset BUNDLES of effects we
+                         already ship (instrument_drive + a DRIVE_* shaper + eq + glue), pinned like leslie, NOT
+                         new DSP. ONE truth so the standalone amp + pinned cabinet agree. combo/pedalboard/
+                         afrobeat/mixbooth/wba; design/effects-bus-architecture.md §E. Sibling of fxicons.h (LOOK)
              harmony.h   the shared HARMONY BRAIN (bidirectional): 13-function roman-numeral vocab + per-style
                          Markov tables (HB_BOSSA/HB_COCKTAIL, byte-exact) — hb_pick (generate) + hb_suggest
                          (ranked next chords + reason) + hb_analyze (key-in numerals, -1 = honest ?). Voicing
                          stays rad_lead_to. bossa + cocktail + chordwise; design/harmony-brain.md
+             json.h      EXPERIMENTAL cart-land JSON reader (jsmn, zero-alloc tokenizer): slurp
+                         de_data_path() (the --data flag / $DE_DATA) + walk it, so a cart loads its data at
+                         RUNTIME instead of baking C arrays. Swap the file, don't regenerate the cart.
+                         citydrive/floorplan/roadview; design/external-data-carts.md. Not committed API.
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),

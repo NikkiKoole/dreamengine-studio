@@ -1695,12 +1695,34 @@ static float am_outbuf[AM_RING];      // overlap-add output accumulator
 static float am_nrm[AM_RING];         // per-sample window-sum normalizer
 static long  am_w = 0;                // monotonic write cursor (read trails by AM_LAT)
 static float am_T = 300.0f;           // running source period estimate (samples)
-static long  am_ea = 0, am_ts = 0;    // next analysis / synthesis epoch positions
+static long  am_ea = 0;               // next analysis epoch position
 static long  am_eps[8];               // ring of recent analysis-epoch positions
 static int   am_epi = 0, am_pd = 0;   // epoch-ring index, period-refresh countdown
 static float am_amt = 0.0f;           // correction strength 0..1 (0 = off, byte-identical)
 static int   am_on = 0, am_root = 0, am_scale = 1;
+// The same streaming engine wears TWO faces (contemporary-rebirth.md Rung B), exactly like the
+// offline at_psola_slot: AM_SNAP corrects to a scale (autotune_mic) and AM_SHIFT transposes by a
+// fixed interval with an optional STACK of extra voices (harmonize_mic — formants ride along with
+// the pitch, see the at_psola_slot header on the parked hold axis). ONE corrector, so the last call
+// wins: a cart picks a face, it does not run both. AM_SHIFT gives each voice its own synthesis
+// pointer, all overlap-adding into the one output accumulator.
+enum { AM_SNAP, AM_SHIFT };
+#define AM_MAXV 3                     // voices in a stack: the shift itself, + a fifth, + an octave
+static const float AM_STACK[AM_MAXV] = { 0.0f, 7.0f, 12.0f };
+static long  am_ts[AM_MAXV];          // per-voice synthesis epoch position (voice 0 = the snap face's)
+static int   am_mode = AM_SNAP;       // which face is live
+static int   am_nv = 1;              // active voices (AM_SHIFT only)
+static float am_semis = 0.0f;         // AM_SHIFT interval
+static float am_gain = 1.0f;          // 1/sqrt(voices) so a stack doesn't pile up level (1.0 for SNAP → exact)
 static float autotune_mic_process(float x);   // defined below, after the at_* helpers (uses at_snap)
+// clear the mic ring + the streaming PSOLA state (both faces start from silence, never mid-grain)
+static void am_stream_reset(void) {
+    sound_extin_reset();
+    am_w = 0; am_ea = 0; am_epi = 0; am_pd = 0; am_T = 300.0f;
+    for (int i = 0; i < AM_MAXV; i++) am_ts[i] = 0;
+    for (int i = 0; i < 8; i++) am_eps[i] = 0;
+    for (int i = 0; i < AM_RING; i++) { am_inbuf[i] = 0; am_outbuf[i] = 0; am_nrm[i] = 0; }
+}
 
 static float leslie_pre(float s, float drive) {   // tube pre-amp: Padé tanh (navkit, no libm call)
     if (drive <= 0.001f) return s;
@@ -2268,6 +2290,7 @@ typedef enum {
     SR_INPUT_MONITOR = 136,   // a=gain*1000 — route the LIVE mic through the master fx chain (input_monitor); audio-input-frontier.md ★1
     SR_MULTIBAND     = 137,   // a=low, b=mid, c=high, e0=up, e1=mix (×1000) — THE master multiband squash / OTT box (multiband)
     SR_INSTR_MULTIBAND = 138, // a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000) — multiband squash on one instrument's bus (instrument_multiband)
+    SR_HARMONIZE_MIC = 139,   // a=semis*100, b=voices, c=formant*1000 — LIVE fixed-interval mic harmoniser (harmonize_mic); the AM_SHIFT face of the streaming corrector
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2339,7 +2362,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
-        case SR_MULTIBAND:
+        case SR_MULTIBAND: case SR_HARMONIZE_MIC:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -6073,13 +6096,22 @@ static void sound_fire_req(SoundReq r) {
     case SR_AUTOTUNE_MIC: {  // a=amount*1000, b=root, c=scale — LIVE streaming mic auto-tune
         float amt = clamp01(r.a / 1000.0f);
         int on = amt > 0.001f;
-        if (on && !extin_on) {   // starting: reset the mic ring + the streaming PSOLA state
-            sound_extin_reset();
-            am_w = 0; am_ea = 0; am_ts = 0; am_epi = 0; am_pd = 0; am_T = 300.0f;
-            for (int i = 0; i < 8; i++) am_eps[i] = 0;
-            for (int i = 0; i < AM_RING; i++) { am_inbuf[i] = 0; am_outbuf[i] = 0; am_nrm[i] = 0; }
-        }
+        if (on && !extin_on) am_stream_reset();
         am_amt = amt; am_root = r.b; am_scale = r.c;
+        am_mode = AM_SNAP; am_nv = 1; am_gain = 1.0f;   // the snap face: one voice, unity → byte-identical
+        am_on = on; extin_on = on;
+    } break;
+    case SR_HARMONIZE_MIC: { // a=semis*100, b=voices, c=formant*1000 — LIVE fixed-interval mic harmoniser
+        float semis = (float)r.a / 100.0f;
+        int nv = r.b < 1 ? 1 : (r.b > AM_MAXV ? AM_MAXV : r.b);
+        int on = (semis < -0.01f || semis > 0.01f || nv > 1);
+        if (on && !extin_on) am_stream_reset();
+        am_semis = semis; am_nv = nv;
+        am_mode = AM_SHIFT;
+        // voices overlap-add into ONE accumulator that divides by the summed window, so N voices
+        // AVERAGE rather than pile up (each lands at ~1/N). sqrt(N) puts the stack back at roughly
+        // one voice's level without letting it slam the limiter.
+        am_gain = sqrtf((float)nv);
         am_on = on; extin_on = on;
     } break;
     case SR_GLUE: {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
@@ -7204,22 +7236,29 @@ static float autotune_mic_process(float x) {
         am_eps[am_epi & 7] = pk; am_epi++;
         am_ea = pk + (long)am_T;
     }
-    // synthesis epochs: emit Hann grains at the SNAPPED target period, sourced from the nearest epoch
+    // synthesis epochs: emit Hann grains at each voice's TARGET period, sourced from the nearest
+    // analysis epoch. Grain CONTENT is read with step `fstep` (1 = formants held, the pitch ratio =
+    // formants ride along) — the same axis the offline core has.
     int T = (int)am_T; if (T < 60) T = 60; if (T > 500) T = 500;
-    while (am_ts < am_w - (long)T) {
-        long a = am_eps[0], bd = 1L << 60;                    // nearest recorded analysis epoch to am_ts
-        for (int k = 0; k < 8; k++) { long d = am_ts - am_eps[k]; if (d < 0) d = -d; if (d < bd) { bd = d; a = am_eps[k]; } }
+    int nv = (am_mode == AM_SHIFT) ? am_nv : 1;
+    float fstep = (am_mode == AM_SHIFT) ? powf(2.0f, am_semis / 12.0f) : 1.0f;   // content + spacing move together
+    for (int v = 0; v < nv; v++) {
+      while (am_ts[v] < am_w - (long)T) {
+        long a = am_eps[0], bd = 1L << 60;                    // nearest recorded analysis epoch to am_ts[v]
+        for (int k = 0; k < 8; k++) { long d = am_ts[v] - am_eps[k]; if (d < 0) d = -d; if (d < bd) { bd = d; a = am_eps[k]; } }
         if (a > am_w - T) a = am_w - T;
         for (int j = -T; j <= T; j++) {
-            long di = am_ts + j; if (di < am_w - AM_LAT || di < 0) continue;   // don't touch already-output past
+            long di = am_ts[v] + j; if (di < am_w - AM_LAT || di < 0) continue;   // don't touch already-output past
             float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)T));
-            am_outbuf[di & AM_MASK] += w * am_inbuf[(a + j) & AM_MASK];
+            am_outbuf[di & AM_MASK] += am_gain * w * am_inbuf[(a + (long)((float)j * fstep)) & AM_MASK];
             am_nrm[di & AM_MASK]    += w;
         }
         float f0 = (float)SOUND_SAMPLE_RATE / am_T, dm = at_hz2midi(f0);
-        float tm = dm + am_amt * (at_snap(dm, am_root, am_scale) - dm);   // blend detected→snapped by amount
+        float tm = (am_mode == AM_SHIFT) ? dm + am_semis + AM_STACK[v]
+                                        : dm + am_amt * (at_snap(dm, am_root, am_scale) - dm);
         long Tt = (long)((float)SOUND_SAMPLE_RATE / at_midi2hz(tm)); if (Tt < 40) Tt = 40;
-        am_ts += Tt;
+        am_ts[v] += Tt;
+      }
     }
     // read out the sample AM_LAT behind the write cursor, then clear its slot
     long rd = am_w - AM_LAT; if (rd < 0) return 0.0f;
@@ -7228,12 +7267,37 @@ static float autotune_mic_process(float x) {
     am_outbuf[ri] = 0.0f; am_nrm[ri] = 0.0f;
     return y;
 }
-void sample_autotune(int slot, int root, int scale, float amount) {
+// The offline PSOLA core, shared by BOTH faces of the same DSP (contemporary-rebirth.md Rung B):
+//   AT_SNAP  — correct to a scale (sample_autotune): target = detected + amount·(snapped − detected)
+//   AT_SHIFT — transpose by a fixed interval (sample_shift): target = detected + semis
+// The SHIFT face re-spaces the epochs AND resamples the grain CONTENT by the same ratio (`fstep`),
+// which preserves DURATION (unlike playing a sample slot at a higher note) and moves the formants
+// with the pitch — an honest chipmunk transpose.
+//
+// WHAT THIS DOES NOT DO — the formant-HOLD axis is PARKED, and the measurement is why. Re-spacing
+// epochs while keeping the grain content (fstep 1) should in theory move the pitch and leave the
+// formants: it does hold the formants (F2 991 → 947 measured) but the PITCH comes out unstable at
+// every interval tried (+3/+5/+7/+12 all read an f0 wobble of 170–300 Hz vs the raw take's 5 Hz),
+// because a grain carrying the SOURCE periodicity still sounds at the source pitch no matter how the
+// grains are re-spaced. So "an octave up in the singer's own voice" is a real DSP spike, not a new
+// face on this code — contemporary-rebirth.md Rung B was wrong about that and says so now.
+// The SNAP face is unaffected: a correction moves the period by a few percent, where the effect is
+// inaudible, and it is bit-identical to the shipped autotune (asserted by re-render).
+// The SNAP path passes semis 0 / fstep 1.0f, and `j * 1.0f` is exact in IEEE754, so generalizing
+// this loop left sample_autotune's output BIT-IDENTICAL (asserted by re-render, not by reasoning).
+enum { AT_SNAP, AT_SHIFT };
+static void at_psola_slot(int slot, int mode, int root, int scale, float semis, float formant, float amount) {
     if (slot < 0 || slot >= SOUND_SAMPLE_SLOTS) return;
     SoundSample *s = &sound_samples[slot];
     if (!s->loaded || !s->data || s->len < AT_ACW * 2) return;
-    if (amount <= 0.001f) return;                           // no-op → leave the slot untouched
+    if (mode == AT_SNAP && amount <= 0.001f) return;        // no-op → leave the slot untouched
+    if (mode == AT_SHIFT && semis > -0.01f && semis < 0.01f) return;   // a 0-semitone shift is a no-op too
     if (amount > 1.0f) amount = 1.0f;
+    if (formant < 0.0f) formant = 0.0f; if (formant > 1.0f) formant = 1.0f;
+    // fstep = the pitch ratio: the grain CONTENT is resampled as well as re-spaced. Both together are
+    // what measures clean (voxshift: f0 lands within 0.5 Hz of target at +3/+5/+7/+12, wobble as low as
+    // the raw take). Formants ride along with the pitch — see the header note on the parked hold axis.
+    float fstep = (mode == AT_SHIFT) ? powf(2.0f, semis / 12.0f) : 1.0f;
     int n = s->len, nHop = (n - AT_ACW) / AT_HOP; if (nHop < 1) nHop = 1;
     int maxEp = n / (SOUND_SAMPLE_RATE / 400) + 8;
     float *in = (float *)malloc((size_t)n * sizeof(float));
@@ -7279,16 +7343,29 @@ void sample_autotune(int slot, int root, int scale, float amount) {
             int T = (ai + 1 < nEp) ? (ep[ai + 1] - ep[ai]) : (int)((float)SOUND_SAMPLE_RATE / 110.0f);
             if (T < 20) T = 20; if (T > 900) T = 900;
             int center = (int)(op + 0.5f);
-            for (int j = -T; j <= T; j++) {
-                int si = a + j, di = center + j;
-                if (si < 0 || si >= n || di < 0 || di >= n) continue;
-                float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)T));
-                out[di] += w * in[si]; norm[di] += w;
-            }
+            // the target period has to be known BEFORE the grain is placed, because it sets the
+            // grain WIDTH for a big shift (see Tg below)
             float f = AT_F0(center); if (f < 60.0f) f = 110.0f;
             float dm = at_hz2midi(f);
-            float tm = dm + amount * (at_snap(dm, root, scale) - dm);   // blend raw→snapped by amount
-            op += (float)SOUND_SAMPLE_RATE / at_midi2hz(tm);            // output epoch spacing = target period
+            float tm = (mode == AT_SHIFT) ? dm + semis                          // fixed interval
+                                          : dm + amount * (at_snap(dm, root, scale) - dm);  // blend raw→snapped
+            float Tt = (float)SOUND_SAMPLE_RATE / at_midi2hz(tm);        // output epoch spacing = target period
+            // GRAIN WIDTH. A grain 2 source-periods wide carries the SOURCE periodicity inside it, so
+            // re-spacing those grains closer together does not raise the perceived pitch — it just adds
+            // energy at the new rate while the old fundamental sits there unchanged. Measured: a +12
+            // shift came out still reading f0 220 Hz (voxshift take 2). The snap face never exposed
+            // this because a correction moves the period by a few percent; an octave halves it. Fix:
+            // for a SHIFT, clamp the grain to the OUTPUT period so each grain is one pulse at the new
+            // rate. SNAP keeps the full source-period grain → bit-identical to the shipped autotune.
+            int Tg = T;
+            if (mode == AT_SHIFT && (int)Tt < Tg) { Tg = (int)Tt; if (Tg < 20) Tg = 20; }
+            for (int j = -Tg; j <= Tg; j++) {
+                int si = a + (int)((float)j * fstep), di = center + j;   // fstep 1 = formants held
+                if (si < 0 || si >= n || di < 0 || di >= n) continue;
+                float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)Tg));
+                out[di] += w * in[si]; norm[di] += w;
+            }
+            op += Tt;
         }
         for (int i = 0; i < n; i++) if (norm[i] > 1e-6f) out[i] /= norm[i];
     } else {
@@ -7298,6 +7375,15 @@ void sample_autotune(int slot, int root, int scale, float amount) {
 
     sample_load(slot, out, n);                             // write the corrected take back (its own malloc + swap)
     free(in); free(out); free(norm); free(f0); free(ep);
+}
+
+// the two public faces of the one core above
+void sample_autotune(int slot, int root, int scale, float amount) {
+    at_psola_slot(slot, AT_SNAP, root, scale, 0.0f, 0.0f, amount);
+}
+void sample_shift(int slot, float semitones) {
+    if (semitones < -24.0f) semitones = -24.0f; if (semitones > 24.0f) semitones = 24.0f;
+    at_psola_slot(slot, AT_SHIFT, 0, 0, semitones, 0.0f, 1.0f);
 }
 
 // Live waveform readout of the capture ring WHILE recording (before a grab): downsample the last
@@ -7693,6 +7779,10 @@ void input_monitor(float gain) {   // route the LIVE mic through the master fx c
 }
 void autotune_mic(int root, int scale, float amount) {   // LIVE streaming auto-tune of the mic (needs mic_start)
     sound_push_ctrl(SR_AUTOTUNE_MIC, (int)(amount * 1000.0f), root, scale, 0, 0, 0);
+}
+void harmonize_mic(float semitones, int voices) {   // LIVE fixed-interval mic harmoniser (needs mic_start)
+    if (semitones < -24.0f) semitones = -24.0f; if (semitones > 24.0f) semitones = 24.0f;
+    sound_push_ctrl(SR_HARMONIZE_MIC, (int)(semitones * 100.0f), voices, 0, 0, 0, 0);
 }
 void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);

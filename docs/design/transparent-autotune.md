@@ -23,10 +23,24 @@ is synchronous, so it may not fully reproduce the editor's real-time-audio timin
 **Live path = feasible + parked** (the offline feature stands on its own). Live-only (ADR-0032). Rolls
 up from [`audio-input-frontier.md`](audio-input-frontier.md) §2.
 
-> **Next customer (2026-07-26):** [`contemporary-rebirth.md`](contemporary-rebirth.md) Rung B wants
-> this DSP re-faced by INTERVAL rather than scale-snap — a `sample_formant(slot, semitones)` +
-> `harmonize_mic(semitones, voices, formant)` pair, i.e. the dial between "chipmunk" (formants follow
-> the pitch) and the transparent correction here (formants held). No new DSP, a new face on this one.
+> **The INTERVAL face — SHIPPED 2026-07-26, and one half of the ask turned out to be a spike.**
+> [`contemporary-rebirth.md`](contemporary-rebirth.md) Rung B wanted this DSP re-faced by interval
+> rather than scale-snap, and predicted "no new DSP, just a new face". Half right:
+>
+> - **Shipped:** `sample_shift(slot, semitones)` (offline) + `harmonize_mic(semitones, voices)` (live,
+>   the AM_SHIFT face of the same streaming corrector, with a 1–3 voice stack). Both transpose while
+>   **keeping the take's length**, which playing a sample slot at a higher note cannot do. Measured
+>   exact in [`voxshift`](../../tools/carts/voxshift.c): f0 lands within 0.5 Hz of target at +3 / +5 /
+>   +7 / +12 / −12, with the same wobble as the raw take (5–9 Hz).
+> - **Parked, and now with numbers:** an octave up **in the singer's own voice** is NOT a flag on this
+>   code. Re-spacing epochs while keeping the grain content does hold the formants (F2 991 → 947
+>   measured) but leaves the PITCH unstable at every interval tried — f0 wobble 170–300 Hz against the
+>   raw take's 5 Hz — because a grain that carries the source periodicity still sounds at the source
+>   pitch however you re-space it. The snap face never exposed this: a correction moves the period by a
+>   few percent, where the mismatch is inaudible. So the transparent *shift* (as opposed to the
+>   transparent *correction* this doc shipped) needs its own spike, the same way this one did.
+> - **The snap face is untouched:** generalizing its PSOLA loop was proven **bit-identical** by
+>   re-render (same cart, same seed, `DE_DEFINES=NO_SHIFT`, matching SHA), not by reasoning.
 
 ## Spike result (2026-07-17) — PROVEN, formants stay put
 

@@ -118,18 +118,36 @@ Both racks need it, so it has the highest leverage of the three.
   `lint-fx-frame` clean (it is ride-safe, so it stays out of the footgun set). Recipes +
   §17 #34 ledger entry written.
 
-### Rung B · GAP 3 — the formant / harmoniser dial
-- **What is missing:** the two *ends* ship (chipmunk = formants follow the pitch, because a sample
-  played off-root moves both; transparent = `sample_autotune`, which holds formants), but there is no
-  dial between them, and no way to ask for a **fixed interval** rather than a scale snap.
-- **API shape:** `void sample_formant(int slot, float semitones);` for a take (offline, in place,
-  next to `sample_autotune`), and `void harmonize_mic(float semitones, int voices, float formant);`
-  for the live chain (`voices` 1..3 = the choir stack).
-- **Why it is cheap:** this is a **re-facing of DSP that already shipped** with
-  [`transparent-autotune.md`](transparent-autotune.md), not new DSP. The formant-preserving shifter
-  exists in both offline and streaming form; today it is only reachable through a scale-snap face.
-- **Gates:** `formant-check.js` is exactly the oracle for this (f0 moved AND F1/F2/F3 held), plus
-  `soundcheck`.
+### Rung B · GAP 3 — the interval face · HALF SHIPPED 2026-07-26, half turned out to be a spike
+
+This rung predicted "no new DSP, just a re-facing". **The transpose half was; the formant-hold half
+was not, and the measurement is what settled it.** Both outcomes are worth keeping.
+
+**Shipped:** `sample_shift(slot, semitones)` (offline, in place, beside `sample_autotune`) and
+`harmonize_mic(semitones, voices)` (live — the AM_SHIFT face of the same streaming corrector, with a
+1–3 voice stack: the shift, plus a fifth, plus an octave). Both transpose while **keeping the take's
+length**, which playing a sample slot at a higher note cannot do. Measured exact in
+[`voxshift`](../../tools/carts/voxshift.c): f0 within 0.5 Hz of target at +3 / +5 / +7 / +12 / −12,
+wobble 2–9 Hz against the raw take's 5.5 Hz. One PSOLA core now wears both faces (snap and shift),
+and generalizing it was proven **bit-identical** for the shipped autotune by re-render, not by
+argument (same cart, `DE_DEFINES=NO_SHIFT`, matching SHA).
+
+**Parked, with numbers:** an octave up **in the singer's own voice** is not a flag on this code.
+Re-spacing epochs while holding the grain content does hold the formants (F2 991 → 947 measured) but
+leaves the pitch unstable at *every* interval tried: f0 wobble 170–300 Hz versus the raw take's 5 Hz.
+The reason is structural — a grain that carries the source periodicity still sounds at the source
+pitch however you re-space it. `sample_autotune` never exposed this because a correction moves the
+period by a few percent, where the mismatch is inaudible; an interval halves or doubles it. So the
+transparent *shift* needs its own spike, exactly like the transparent *correction* got two.
+
+**What that costs the rack:** `hyperbox`'s CHIP preset is now real (a pitched-up, length-preserving
+take), and so is the CHOIR stack (`harmonize_mic(12, 3)`, or `sample_read` + `sample_load` + a
+`sample_shift` per slot). What is still stand-in is "same voice, higher" — the *transparent* end of
+the sketch's formant knob.
+
+**Gates run:** `formant-check.js` at five intervals (the numbers above) · the bit-identity re-render ·
+`soundcheck` silent · `fx-check` / `level-check` / `web-audio-check` unmoved · `build-all` 568/568 ·
+`ui-audit` clean on the probe.
 
 ### Rung C · GAP 1 — a beat-synced buffer re-reader (halftime / beat repeat)
 - **What is missing:** any way to manipulate *time* on the master without dragging pitch along.

@@ -1774,6 +1774,29 @@ v1, document it on the panel.
     `map`). Also the crossover [`distortion-lab.md`](distortion-lab.md)'s parked **multiband distortion**
     gap needs. Rung A of [`contemporary-rebirth.md`](contemporary-rebirth.md); showcase: `hyperbox`.
 
+35. **Interval pitch-shift on takes + a live harmoniser (`sample_shift` / `harmonize_mic`)** — the
+    second face of the shipped auto-tune PSOLA. **✓ SHIPPED 2026-07-26** (half of it; see below).
+    `sample_shift(slot, semitones)` transposes a recorded take ±24 semitones **keeping its length**
+    (playing a sample slot at a higher note shortens it — this does not), and
+    `harmonize_mic(semitones, voices)` is the live twin: the same streaming corrector switched from
+    scale-snap to a fixed interval, with a 1–3 voice stack (the shift, +a fifth, +an octave) each
+    getting its own synthesis pointer into one overlap-add accumulator. Both faces are ONE core now
+    (`at_psola_slot(mode, …)` offline, `am_mode` live), so the snap and shift can never drift.
+    Measured in `voxshift`: f0 within 0.5 Hz of target at +3/+5/+7/+12/−12, wobble 2–9 Hz vs the raw
+    take's 5.5. `SR_HARMONIZE_MIC`=139; the shift is game-thread + offline like `sample_autotune`.
+    **The refactor is bit-identical for the shipped autotune, proven by re-render** (same cart under
+    `DE_DEFINES=NO_SHIFT` against the pre-refactor engine, matching SHA) rather than by reasoning —
+    worth copying as a pattern whenever a shipped DSP path gets generalized.
+    **The parked half, and the finding:** transposing with the formants HELD (an octave up in the
+    same voice) does not fall out of this code. Re-spacing epochs while keeping grain content holds
+    the formants (F2 991 → 947) but leaves the pitch unstable at every interval tried (f0 wobble
+    170–300 Hz vs 5 Hz raw) — a grain carrying the source periodicity still sounds at the source
+    pitch however it is re-spaced. `sample_autotune` never exposed it because a correction moves the
+    period a few percent; an interval halves it. Two grain-width strategies were tried (source-period
+    and output-period grains); both trade pitch stability against formant smear. **A transparent
+    interval shift is its own spike**, like [`transparent-autotune.md`](transparent-autotune.md)'s
+    two. Rung B of [`contemporary-rebirth.md`](contemporary-rebirth.md).
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

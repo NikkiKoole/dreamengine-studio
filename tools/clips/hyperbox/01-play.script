@@ -1,2 +1,9 @@
+# hyperbox — start the transport and let the loop run.
+# NOT optional decoration: hyperbox renders PURE SILENCE without it (peak -inf dBFS), because the
+# transport starts stopped and nothing auto-plays. Any --wav / make-gif of this cart needs this clip
+# or an equivalent SPACE press, or you are measuring silence. With it: peak -0.09, rms -5.34 dBFS,
+# which is the mix-for-the-gaps target from docs/design/contemporary-rebirth.md.
+# `script` mode takes RAW frame events (`down <frame> <key>`), not the beats-file `frame N down K` form.
+# Frame numbers are the ORIGINAL 10/12 — don't retime them, a baked recipe may depend on them.
 down 10 SPACE
 up 12 SPACE

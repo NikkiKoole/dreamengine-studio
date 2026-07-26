@@ -61,7 +61,15 @@ static float k_retune = 0.15f;   // THE knob: 0 = instant robot jump .. 1 = a na
 static float k_detune = 0.42f;   // the unison bloom
 static float k_bright = 0.70f;   // filter cutoff
 static float k_toy    = 0.18f;   // crush toward ringtone
-static float k_up     = 0.45f;   // multiband's UPWARD amount — the one master knob that moves
+static float k_up     = 0.45f;   // multiband's UPWARD amount — the macro that makes the master "always on"
+// the three band DOWN amounts. These used to be literals inside draw()'s bar heights, which meant the
+// LOW/MID/HI bars were sized by constants and could never move: they read as three sliders that ignore
+// you, in the one box labelled MASTER DESTRUCTION. multiband() always took them per band — they were
+// simply never exposed. Now they are knobs, which also answers §7's "a knob that does nothing" worry
+// honestly: the bypass stays absent (that IS the thesis), but what remains is real.
+static float k_low    = 0.60f;   // sub squash
+static float k_mid    = 0.48f;   // body squash — lightest, so the riff still speaks
+static float k_high   = 0.72f;   // air squash — hardest, the hyperpop sizzle
 
 // transport
 static int   playing = 0;
@@ -100,10 +108,11 @@ static int snap_penta(int degree) { // degree → midi, wrapping octaves
 static const int MASTER_CHAIN[] = { FX_MULTIBAND, FX_DRIVE };
 
 static void apply_fx(int force) {
-    static float p_up = -1.0f, p_toy = -1.0f;
-    if (!force && p_up == k_up && p_toy == k_toy) return;      // set-and-hold: only on change
-    p_up = k_up; p_toy = k_toy;
-    multiband(0.60f, 0.48f, 0.72f, k_up, 1.0f);                // no bypass, by design
+    static float p_up = -1.0f, p_toy = -1.0f, p_lo = -1.0f, p_md = -1.0f, p_hi = -1.0f;
+    if (!force && p_up == k_up && p_toy == k_toy &&
+        p_lo == k_low && p_md == k_mid && p_hi == k_high) return;   // set-and-hold: only on change
+    p_up = k_up; p_toy = k_toy; p_lo = k_low; p_md = k_mid; p_hi = k_high;
+    multiband(k_low, k_mid, k_high, k_up, 1.0f);               // no bypass, by design
     drive_insert(0.30f, DRIVE_HARD, 0.85f);                    // clip: always
     instrument_crush(SAW, 5.0f - k_toy * 3.0f, 1.0f - k_toy * 0.8f, k_toy);
     if (force) fx_order(0, MASTER_CHAIN, 2);
@@ -285,17 +294,26 @@ void draw(void) {
 
     // ── MASTER DESTRUCTION (no bypass) ───────────────────────────────────────
     box_frame(150, 46, "MASTER DESTRUCTION", CLR_YELLOW);
-    ui_knob(&k_up, 24, 175, "UP");
-    print("OTT 100%", 46, 164, CLR_YELLOW);
-    caption("no bypass", 46, 176, CLR_DARK_GREY);
-    caption("clipper: on", 46, 184, CLR_DARK_GREY);
-    // the three bands, drawn as how hard each is squashed
-    for (int b = 0; b < 3; b++) {
-        int x = 122 + b * 22, hgt = (int)(4 + (b == 0 ? 0.60f : b == 1 ? 0.48f : 0.72f) * 22);
-        rectfill(x, 186 - hgt, 16, hgt, CLR_YELLOW);
-        rectfill(x, 186 - hgt - (int)(k_up * 10.0f) - 2, 16, 2, CLR_WHITE);   // the upward lift
+    // (no "OTT 100% / no bypass / clipper: on" captions any more — they described the design instead of
+    // being it, and the four knobs need the vertical room. The absent bypass speaks for itself.)
+    // Four knobs on one row: the UP macro plus the three band DOWN amounts. Labels are drawn by hand in
+    // the 4x6 font (ui_knob_at's own label uses the current 8x8 font, which collided with the captions on
+    // the right — ui-audit caught it on the first pass), each with a squash bar under it so the shape of
+    // the curve still reads at a glance, which is what the old static bars were for.
+    {
+        float *bk[4]; bk[0] = &k_up; bk[1] = &k_low; bk[2] = &k_mid; bk[3] = &k_high;
+        static const char *bn[4] = { "UP", "LOW", "MID", "HI" };
+        for (int b = 0; b < 4; b++) {
+            int x = 22 + b * 30;
+            if (ui_knob_at(bk[b], x, 170, 8, 0) && b > 0) apply_fx(1);      // squash changed → re-arm
+            caption(bn[b], x - text_width(bn[b]) / 2, 180, b ? CLR_DARK_GREY : CLR_YELLOW);
+            if (b) {                                                        // bands get the squash bar
+                int hgt = (int)(1 + *bk[b] * 6.0f);
+                rectfill(x - 8, 193 - hgt, 16, hgt, CLR_YELLOW);
+                rectfill(x - 8, 193 - hgt - (int)(k_up * 4.0f) - 2, 16, 1, CLR_WHITE);   // upward lift
+            }
+        }
     }
-    caption("LOW MID  HI", 122, 188, CLR_DARK_GREY);
     if (ui_button(262, 156, 50, 18, "RISER") && riser_t < 0.0f) { riser_t = 0.0f; riser_h = note_on(48, RISER, 5); }
     if (ui_button(262, 176, 50, 18, playing ? "STOP" : "PLAY")) {
         playing = !playing;

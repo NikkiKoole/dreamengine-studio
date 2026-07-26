@@ -273,9 +273,25 @@ reverted:
   practice, because it tracks the output position absolutely and is therefore self-correcting instead of
   accumulating error.
 
-Both are now **⚠ DO-NOT-DO comments in `sound.h`** with the measurements attached, which is the only
-durable form of this knowledge: the next person to read that loop will have exactly the same two good
-ideas.
+- **Attempt C — the same correlation lock but with a NARROW search window** (±8% of the period instead
+  of ±25%, on the theory that the alternation came from the window being wide enough to let the mark hop
+  by a quarter period, so spacing alternated 1.25T/0.75T). Run *after* `psola-check.js` existed, and the
+  gate killed it **in one command**: snapped f0 spread 110.5 Hz, ratio 0.874, doubling again — and the
+  periodicity error did not even improve (2.974 vs a 2.875 baseline). Total cost, about a minute,
+  against several listen-and-report rounds for attempts A and B.
+
+Attempts A, B and C are now **⚠ DO-NOT-DO comments in `sound.h`** with the measurements attached, which
+is the only durable form of this knowledge: the next person to read that loop will have exactly the same
+three good ideas.
+
+**The pattern across three failures is itself the finding, and it points at where the real fix is.**
+Every attempt broke the *snapped* take and none broke the shifted ones. That is not coincidence: for the
+snap face the output period is within a few percent of the source period (`Tt ≈ T`), so *any* jitter in
+epoch marking or selection is comparable in size to the correction itself and flips the mapping. At a 2:1
+ratio the mapping has enormous margin and shrugs the same jitter off. So the near-unity-ratio case is the
+constraint that any redesign has to satisfy first, and "make the epoch mapping smarter" is exactly the
+wrong shape of fix — it needs to be *jitter-free*, not better-guessed. Three tries in that family is
+enough evidence to stop tweaking and treat it as the dedicated spike.
 
 **The measurement lesson, which is the real yield: three detectors, each blind to something the others
 caught.** (1) A first-difference splice finder caught defects #1 and #2 but scored the snapped and up

@@ -55,6 +55,7 @@ This page is only the routing layer.
 | want a WAV A/B vs navkit | **`wav-analyze.js`** + **`wav-correlate/-envelope/-modrate.js`**, **`harmonic-spec.js`** |
 | an effect wired into `update()`/`draw()` | **`lint-fx-frame.js --quiet`** (catches set-and-hold effects rebuilt every frame) |
 | a voice/solo **drops out or is "cut off by another instrument"** | **`voice-trace.js <trace>`** (reads a `--trace` run's on/off/reuse/steal/choke — is it real voice loss, and by whom?) + **`play.js … --solo-slot <n>`** (stem render — or is it just masked/quiet?). Design: [`../design/audio-voice-debugging.md`](../design/audio-voice-debugging.md) |
+| **the PSOLA pitch engine** (`at_psola_slot`, `sample_autotune`, `sample_shift`, `autotune_mic`, `harmonize_mic`) | **`psola-check.js`** for artifacts (does it CLICK) **and** `formant-check.js` for correctness (is it in TUNE). Run psola-check BEFORE and after: it renders `voxshift`'s four takes through three detectors, and **no single one of them is sufficient** — a period-doubled take is still perfectly periodic, so a periodicity metric scores that regression as a 2x *improvement*. This gate exists because a full green sheet plus exact pitch numbers shipped audible popping anyway |
 
 ## Cart logic, registration, docs
 

@@ -1,0 +1,65 @@
+{
+  "note": "blessed psola-check baseline — see tools/psola-check.js",
+  "takes": {
+    "RAW": {
+      "splice": {
+        "count": 0,
+        "worst": 0
+      },
+      "periodicity": {
+        "p95": 0.2288,
+        "worst": 0.869
+      },
+      "doubling": {
+        "f0": 220.2,
+        "spread": 4.4,
+        "ratio": 0.999
+      }
+    },
+    "SNAPPED": {
+      "splice": {
+        "count": 0,
+        "worst": 0
+      },
+      "periodicity": {
+        "p95": 0.4307,
+        "worst": 2.875
+      },
+      "doubling": {
+        "f0": 220.2,
+        "spread": 1.1,
+        "ratio": 0.999
+      }
+    },
+    "UP+12": {
+      "splice": {
+        "count": 0,
+        "worst": 0
+      },
+      "periodicity": {
+        "p95": 0.3439,
+        "worst": 2.457
+      },
+      "doubling": {
+        "f0": 440.5,
+        "spread": 8.8,
+        "ratio": 1
+      }
+    },
+    "DOWN-12": {
+      "splice": {
+        "count": 0,
+        "worst": 0
+      },
+      "periodicity": {
+        "p95": 0.4393,
+        "worst": 2.791
+      },
+      "doubling": {
+        "f0": 110.1,
+        "spread": 2.2,
+        "ratio": 0.999
+      }
+    }
+  }
+}

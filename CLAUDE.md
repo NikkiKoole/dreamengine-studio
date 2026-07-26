@@ -366,6 +366,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              formant-check.js  the VOICE oracle: f0 (autocorrelation, mean + WOBBLE) + F1/F2/F3 formant
                              peaks (Welch-smoothed spectral envelope) of a WAV region — the pitch-moved-AND-
                              formants-held gate for sample_autotune / any pitch-shift (design/transparent-autotune.md)
+             psola-check.js  the ARTIFACT oracle for the PSOLA pitch engine — the "does it CLICK" twin of
+                             formant-check's "is it in TUNE". Renders voxshift's four takes and runs THREE
+                             detectors, because each is blind to a defect the others catch: SPLICE (first
+                             difference) · PERIODICITY (x[n]-x[n-T] vs the RAW take as CONTROL) · DOUBLING
+                             (f0 vs expected — the only one that sees period doubling, which is still
+                             perfectly periodic so PERIODICITY scores it as an IMPROVEMENT). Run it before
+                             AND after any at_psola_slot edit; --quiet = CI, --save re-blesses. It killed a
+                             bad epoch-marking change in one command that had previously cost several
+                             listen-and-report rounds. contemporary-rebirth.md §"Rung B … postscript"
              sprite-draw.js  reusable 2D pixel-canvas API for programmatic .cart.js sprites
              sprite-preview.js  render a .cart.js's sprites to one labelled PNG (no compile/run) — the tight loop for code-drawn sprites
              pixelsnap.js    clean up "AI pixel art": snap soft/off-grid pixels onto a real grid + posterize

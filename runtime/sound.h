@@ -7329,8 +7329,13 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     // differs. Normalizing the correlation did not rescue it (165.1 Hz, still flipping). The streaming
     // face needs the lock because it marks epochs from a live ring with no pitch track; here step 1 has
     // already produced a per-hop autocorrelation f0, so the period is known and peak refinement inside
-    // ±28% of it is both sufficient and stable. The alternation problem the lock was reaching for is
-    // real, but it belongs at the SELECTION end and is solved there (step 3's accumulator).
+    // ±28% of it is both sufficient and stable. Narrowing the lock's search window to ±8% (on the theory
+    // that a wide window let the mark hop a quarter period) does not rescue it either: still doubling
+    // (spread 110.5 Hz, ratio 0.874) and the periodicity error got no better. Run `node
+    // tools/psola-check.js` before and after ANY edit here — it caught that third attempt in one command.
+    // Why the snap face specifically: its Tt is within a few percent of T, so any marking jitter is
+    // comparable to the correction itself and flips the mapping, where a 2:1 shift has margin to spare.
+    // The fix has to be jitter-FREE, not better-guessed.
     // Lesson for whoever measures this next: a period-doubled signal is still perfectly periodic, so a
     // periodicity-error metric calls it CLEAN. Only the f0 reading catches it. Use both.
     int nEp = 0, pos = AT_ACW / 2;

@@ -21,18 +21,25 @@ rack), [`pocketbox.md`](pocketbox.md) (the Elektron p-lock/trig-condition workfl
 [`../guides/instrument-map.md`](../guides/instrument-map.md) (the museum floor plan — the shelf's
 coverage), [`device-face-paradigm.md`](device-face-paradigm.md) + [`candy-style.md`](candy-style.md)
 (the two candy/device-face packagings a rack can wear), [`mic-and-sampling.md`](mic-and-sampling.md)
-(the frontier that would unlock the sample-based genres).
+(the frontier that unlocked the sample-based genres), and
+[`contemporary-rebirth.md`](contemporary-rebirth.md) (the **post-hardware** branch of this doc: racks
+for genres that were never made on gear, so the roster is a list of *moves* instead of machines).
 
 ## 0 · The engine filter (read this before proposing anything)
 
 Two shelf rules decide what's buildable:
 
-- **The sampler doctrine** ([`../guides/instrument-map.md`](../guides/instrument-map.md), the
-  curatorial line): the museum takes **analog-circuit / synthesis machines only** — the engine has
-  no sample playback, so a sample box (LinnDrum, SP-1200, MPC, Digitakt, Octatrack, Polyend, PO-33,
-  EP-133, Volca Sample, TE samplers) would be a **caricature**. `mellotron` is the one licensed
-  exception (faked in pure synthesis). The open "unless" clause — mic-equipped iOS sampling — lives
-  in [`mic-and-sampling.md`](mic-and-sampling.md); until that lands, sample-core genres are blocked.
+- **The sampler doctrine — LIFTED (2026-07-26 drift pass; this bullet was written before the
+  sampler shipped).** The curatorial line ([`../guides/instrument-map.md`](../guides/instrument-map.md))
+  used to read "analog-circuit / synthesis machines only, the engine has no sample playback", so a
+  sample box (LinnDrum, SP-1200, MPC, Digitakt, Octatrack, Polyend, PO-33, EP-133, Volca Sample, TE
+  samplers) would have been a **caricature**. That is no longer true: `INSTR_SAMPLE` + `sample_load`
+  + `instrument_sample_region` + the mic vein all shipped
+  ([`mic-and-sampling.md`](mic-and-sampling.md), [`transparent-autotune.md`](transparent-autotune.md)),
+  and `breakchop` / `sampler` / `grainchop` are the proof. What remains is not an engine limit but a
+  **source question** — engine-synthesised, a runtime `--data` file, or the mic; never baked-in audio
+  (see [`contemporary-rebirth.md`](contemporary-rebirth.md) §5). `mellotron` stays the one voice faked
+  in pure synthesis.
 - **The Roland wing is complete** ([`../guides/instrument-map.md`](../guides/instrument-map.md)):
   303/606/808/909/SH-101/Juno/RE-201 all ship, plus the whole RB-338 rack. So the fresh ground is
   **modern boutique gear** and **non-Roland lineages** — that's where these rosters point.
@@ -172,9 +179,11 @@ Two patterns decide priority:
 - **`rack.h` extraction.** Still deferred at customer #2 ([`tinyjam-racks.md`](tinyjam-racks.md));
   a third-and-fourth *different-shaped* rack (an FX-desk, a patch box) is exactly the pressure that
   decides whether there's shared code or just a shared idiom.
-- **Supersaw is the one recurring engine ask** — it gates trance, hardcore, and a lot of rave/
-  progressive. Worth its own small showcase cart first (the "prove the voice as its own cart" rule
-  from [`radiophonic-workshop.md`](radiophonic-workshop.md)) before a rack leans on it.
+- **Supersaw — SHIPPED** (`instrument_unison(slot, 1..7, detune)` + `instrument_unison_detune` +
+  `LFO_DETUNE`/`ENV_DETUNE`, showcase cart `supersaw`, per the "prove the voice as its own cart" rule
+  from [`radiophonic-workshop.md`](radiophonic-workshop.md)). So **trance + hardcore are now pure
+  assembly** and should move up this doc's priority list. The recurring engine ask that replaced it is
+  **multiband dynamics** ([`contemporary-rebirth.md`](contemporary-rebirth.md) Rung A).
 - **Trademark / faceplate naming** per roster — original names for anything paid; homage in
   `lineage`/`homage` metadata ([`tinyjam-racks.md`](tinyjam-racks.md) §trademark).
 - **A worked roster already designed:** [`bossa-rack.md`](bossa-rack.md) — the chord-bloom rack

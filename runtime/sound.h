@@ -7320,15 +7320,43 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     }
     #define AT_F0(pos) (f0[(pos) / AT_HOP < 0 ? 0 : ((pos) / AT_HOP >= nHop ? nHop - 1 : (pos) / AT_HOP)])
 
-    // 2. epoch marking — step by the local period, refine to the local peak (glottal mark)
+    // 2. epoch marking — step by the local period, then PHASE-LOCK the next mark by correlating
+    // against the previous epoch's waveform. This is the streaming face's rule (see the comment on
+    // am_ea above), ported down here because the offline core had kept the naive version and it is
+    // the SAME bug: picking the local PEAK in a ±28% window lets the mark hop between two comparable
+    // peaks of a vowel (a strong F1 gives two per period), so consecutive grains overlap-add at
+    // inconsistent phase. Audible as popping on EVERY face — measured on voxshift against the raw
+    // take as control (periodicity error, glitches/s): raw 19, snapped 51, +12 99, -12 37. Peak
+    // picking is what the streaming face's comment already warned "jitters period-to-period →
+    // pulsing"; correlation is what fixed it there.
+    // ⚠ This CHANGES sample_autotune's output — the earlier bit-identity proof was evidence that a
+    // refactor was behaviour-neutral, not a promise to preserve a defect. Re-blessed by measurement.
     int nEp = 0, pos = AT_ACW / 2;
     while (pos < n - 1 && nEp < maxEp) {
         ep[nEp++] = pos;
         float f = AT_F0(pos); if (f < 60.0f) f = 110.0f;
-        int T = (int)((float)SOUND_SAMPLE_RATE / f), a = pos + (int)(0.72f * T), b = pos + (int)(1.28f * T);
-        if (b >= n) break;
-        int pk = a; float pv = -1e9f;
-        for (int i = a; i <= b; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
+        int T = (int)((float)SOUND_SAMPLE_RATE / f);
+        int cw = (int)(0.45f * T), c0 = pos + T;                  // correlation half-window, nominal next mark
+        int lo = c0 - (int)(0.25f * T), hi = c0 + (int)(0.25f * T);
+        if (lo < cw + 1) lo = cw + 1;
+        if (hi > n - 2 - cw) hi = n - 2 - cw;
+        if (hi < lo) break;
+        int pk = c0;
+        if (nEp == 1) {                                          // first step: nothing to lock to, seed on the peak
+            float pv = -1e30f;
+            for (int i = lo; i <= hi; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
+        } else {                                                 // lock to the previous epoch's waveform
+            int prev = ep[nEp - 1]; float bestc = -1e30f;
+            for (int p = lo; p <= hi; p++) {
+                float s = 0.0f;
+                for (int j = -cw; j <= cw; j += 2) {
+                    int pj = p + j, qj = prev + j;
+                    if (pj < 0 || pj >= n || qj < 0 || qj >= n) continue;
+                    s += in[pj] * in[qj];
+                }
+                if (s > bestc) { bestc = s; pk = p; }
+            }
+        }
         pos = pk;
     }
 
@@ -7385,10 +7413,20 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
             int Tg = T;
             if (mode == AT_SHIFT) { Tg = (int)Tt; if (Tg < 20) Tg = 20; }
             for (int j = -Tg; j <= Tg; j++) {
-                int si = a + (int)((float)j * fstep), di = center + j;   // fstep 1 = formants held
-                if (si < 0 || si >= n || di < 0 || di >= n) continue;
+                // fractional source read, LERPed. Truncating it (the first version) is
+                // nearest-neighbour resampling: at fstep 0.5 every source sample is read twice, so the
+                // grain is a zero-order-hold STAIRCASE and every stair edge is a step discontinuity.
+                // That is a different defect from a phase break and hides from a periodicity check
+                // (the staircase repeats identically each period) — it showed up as 122 first-difference
+                // spikes on the -12 take that the periodicity metric called clean. fstep 1.0 (the SNAP
+                // face) gives fr == 0 exactly, so that path stays bit-for-bit what it was.
+                float sf = (float)a + (float)j * fstep;
+                int si = (int)floorf(sf), di = center + j;
+                float fr = sf - (float)si;
+                if (si < 0 || si + 1 >= n || di < 0 || di >= n) continue;
+                float sv = in[si] + fr * (in[si + 1] - in[si]);
                 float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)Tg));
-                out[di] += w * in[si]; norm[di] += w;
+                out[di] += w * sv; norm[di] += w;
             }
             op += Tt;
         }

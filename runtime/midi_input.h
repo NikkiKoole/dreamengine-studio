@@ -35,6 +35,7 @@ static volatile uint8_t  midi_down[128];
 static volatile int      midi_bend_v = 0;     // -8192..8191
 static volatile int      midi_dev_count = 0;
 static char              midi_dev_name[64] = {0};   // name of the connected keyboard (CoreMIDI / Web MIDI)
+static volatile int      midi_g_wanted = 0;   // a cart called a midi_* read fn → host may ask for MIDI access (web opt-in, mirrors mic_g_wanted). See de_midi_wanted() in studio.c + runtime/web_midi.js.
 
 // producer side — called from the CoreMIDI thread (or, later, the web JS bridge)
 static void de_midi_push(int type, int note, int vel) {
@@ -47,7 +48,11 @@ static void de_midi_push(int type, int note, int vel) {
 }
 
 // ── public API (consumer side, main thread) ──
+// Reading ANY of these means the cart wants MIDI input — so the first call raises the
+// "wanted" flag the web bridge polls (web_midi.js) before it asks for the MIDI permission.
+// A cart that never touches MIDI (e.g. acidcandy) never sets it → no spurious prompt.
 int midi_get(int *note, int *vel) {
+    midi_g_wanted = 1;
     if (midi_r == midi_w) return 0;
     MidiEv e = midi_ring[midi_r & (MIDI_RING - 1)];
     midi_r++;
@@ -55,10 +60,10 @@ int midi_get(int *note, int *vel) {
     if (vel)  *vel  = e.vel;
     return e.type;
 }
-bool midi_held(int note)  { return (note >= 0 && note < 128) && midi_down[note] != 0; }
-int  midi_bend(void)      { return midi_bend_v; }
-bool midi_present(void)   { return midi_dev_count > 0; }
-const char *midi_name(void) { return midi_dev_name; }   // connected keyboard's name, or "" if none
+bool midi_held(int note)  { midi_g_wanted = 1; return (note >= 0 && note < 128) && midi_down[note] != 0; }
+int  midi_bend(void)      { midi_g_wanted = 1; return midi_bend_v; }
+bool midi_present(void)   { midi_g_wanted = 1; return midi_dev_count > 0; }
+const char *midi_name(void) { midi_g_wanted = 1; return midi_dev_name; }   // connected keyboard's name, or "" if none
 
 // ── CoreMIDI backend (DESKTOP macOS only) ───────────────────────────────────────
 // Gated off under DE_NO_RAYLIB: a portable host (iOS AUv3, Switch) is fed MIDI by the

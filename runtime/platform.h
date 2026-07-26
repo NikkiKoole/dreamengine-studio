@@ -121,6 +121,7 @@ void de_key_event(int key, int down);
 // ============================================================================
 void de_audio_input(const float *mono, int n, int sample_rate);  // host → engine: captured frames
 int  de_mic_wanted(void);        // engine → host: does the running cart want the mic on?
+int  de_midi_wanted(void);       // engine → host: has the cart read MIDI input? (web asks for MIDI permission only when so — same lazy opt-in as the mic)
 void de_mic_set_active(int on);  // host → engine: capture is live + permission granted (drives mic_active())
 
 #ifdef __cplusplus

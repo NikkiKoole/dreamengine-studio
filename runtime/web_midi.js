@@ -106,13 +106,28 @@
     window.addEventListener('keydown', onGesture, true);
   }
 
-  if (navigator.permissions && navigator.permissions.query) {
-    navigator.permissions.query({ name: 'midi' }).then(function (st) {
-      if (st.state === 'granted')     start();        // already allowed → connect instantly
-      else if (st.state === 'denied') toast('🎹 MIDI is blocked — click the site icon left of the URL → MIDI → Allow, then reload');
-      else                            armGesture();   // 'prompt' → ask on first interaction
-    }, armGesture);   // browser can't query 'midi' (e.g. Firefox) → gesture path
-  } else {
-    armGesture();
+  function decide() {
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'midi' }).then(function (st) {
+        if (st.state === 'granted')     start();        // already allowed → connect instantly
+        else if (st.state === 'denied') toast('🎹 MIDI is blocked — click the site icon left of the URL → MIDI → Allow, then reload');
+        else                            armGesture();   // 'prompt' → ask on first interaction
+      }, armGesture);   // browser can't query 'midi' (e.g. Firefox) → gesture path
+    } else {
+      armGesture();
+    }
   }
+
+  // Lazy, like the mic: only reach for MIDI once the CART actually reads it
+  // (de_midi_wanted → set on the first midi_get()/midi_held()/midi_present()/… call).
+  // A cart that never touches MIDI (a drum-grid toy, a mouse synth) never prompts.
+  // Poll until the wasm module is ready AND the cart has asked, then decide once.
+  var midiPoll = setInterval(function () {
+    var wanted;
+    try { wanted = Module.ccall('de_midi_wanted', 'number', [], []); }
+    catch (e) { return; }                 // module/ccall not ready yet → keep polling
+    if (!wanted) return;                   // cart hasn't read MIDI → stay silent, no prompt
+    clearInterval(midiPoll);
+    decide();
+  }, 250);
 })();

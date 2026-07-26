@@ -2902,6 +2902,7 @@ float mic_pitch(void)  { return mic_g_pitch; }               // Hz, 0 = no clear
 // platform seam — hosts (studio.c raylib loop, iOS/web) call these:
 DE_WEB_EXPORT void de_audio_input(const float *mono, int n, int sr) { mic_input_push(mono, n, sr); }   // push captured frames
 DE_WEB_EXPORT int  de_mic_wanted(void) { return mic_g_wanted; }            // engine → host: is the mic wanted?
+DE_WEB_EXPORT int  de_midi_wanted(void) { return midi_g_wanted; }          // engine → host: has the cart read MIDI? (web asks for the MIDI permission only when so — mirrors de_mic_wanted)
 DE_WEB_EXPORT void de_mic_set_active(int on) {                            // host → engine: capture is live
     mic_g_active = on ? 1 : 0;
     if (!on) { mic_g_rms = 0.0f; mic_g_pitch = 0.0f; }       // release → readings go quiet

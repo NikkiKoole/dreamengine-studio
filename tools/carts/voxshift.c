@@ -14,7 +14,7 @@
     "controls": "It runs on its own: SPACE replays the sequence from the top. 1 / 2 / 3 / 4 audition one take (raw / auto-tuned / an octave up / an octave down). Watch the waveform lengths: all four are the same length, which is the point."
   },
   "todo": [
-    "REBAKE PENDING: the thumbnail is a placeholder — the bake needs a GL context and the machine could not create one when it landed (raylib InitWindow -> rlglInit -> a NULL GL function pointer, with the display asleep). Run: node tools/make-cart.js --run editor/public/carts/voxshift.cart.png",
+    "The thumbnail is baked from a LATER frame (play.js --dump + make-cart --update), because `--run` screenshots at frame 3 and this cart spends its first ~1.6s capturing the source take — at frame 3 every panel still reads 'waiting for the capture'. Any cart with a startup timeline needs the same treatment.",
     "Once harmonize_mic() has a home cart, cross-link it here: this is the offline twin of that live face.",
     "The SNAPPED take reads f0 206Hz with a 110Hz range in formant-check - the analyzer octave-flips on PSOLA output, not necessarily a fault in the take. Worth a look when the transparent-shift spike happens."
   ]

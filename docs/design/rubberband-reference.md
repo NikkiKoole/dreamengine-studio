@@ -99,6 +99,48 @@ And when that stage exists, the dial is trivial and should be spelled Rubber Ban
 scalar, `0` meaning "derive the preserving default `1/pitchScale`", any other value giving chipmunk
 (`= pitchScale`), transparent, or the interesting territory between. Not a mode enum.
 
+#### 2a-bis. The obvious cheap objection, tested and refused (2026-07-26)
+
+**The claim above was challenged and it held.** Worth recording because the objection is the one any
+DSP-literate reader will raise, and answering it from the armchair is how you end up buying the wrong
+thing.
+
+*The objection:* classic TD-PSOLA is supposed to be formant-preserving **by construction** — the pitch
+move comes from re-spacing the epochs (`Tt`), while `fstep` only resamples the grain *content*. So
+`fstep = 1` plus re-spacing ought to move the pitch and hold the envelope with no envelope stage at
+all, making §2a's two-stage architecture (and its cost) unnecessary. Supporting evidence looked strong:
+`sample_autotune` runs at `fstep = 1` permanently and demonstrably works, holding F1 at 560 Hz while
+flattening a 6.6 Hz wobble to 1.1 Hz.
+
+*The test:* wire `at_psola_slot`'s unused `formant` argument to
+`fstep = powf(2, (semis/12) * (1 - formant))` and force `formant = 1`, so `fstep` becomes exactly 1
+while the epoch re-spacing still targets the shifted period. Run `voxshift`. Crucially this was run
+**after** the same day's two grain-geometry fixes (the down-shift overlap clamp and the LERPed
+fractional read), so the substrate no longer has the bugs the original parked experiment ran on — which
+was the whole substance of the objection.
+
+*The result:* refused, and the down-octave case refutes it cleanly.
+
+| take (`formant` = 1, so `fstep` = 1) | f0 | F1 | F2 |
+|---|---|---|---|
+| RAW (control) | 220.5 | 560 | 991 |
+| **DOWN−12** | **220.5** (unmoved) | **560** | **991** |
+| UP+12 | 202.2 (wobble 77 Hz) | 764 | 958 |
+
+The envelope was held *perfectly* and **the pitch did not move at all**. Not degraded, not unstable:
+unmoved. So `fstep` is not merely *one* lever that moves pitch, it is the *only* one, and §2a's
+sentence "turning it down to hold formants also undoes the pitch move" is literally what happens.
+
+*Why `sample_autotune` misleads:* its corrections are fractions of a semitone, where source and target
+periodicity sit within a few percent and the grain's own periodicity is close enough to pass. At 2:1
+the source periodicity dominates and wins outright. **A working formant-preserving corrector at ±1
+semitone is not evidence of a working formant-preserving shifter at ±12.**
+
+*What this settles:* GAP 3 really is "add an envelope-rescale stage", not "wire a parameter", and the
+`formant` argument sitting unused in `at_psola_slot` is a trap rather than a half-built feature. §3 is
+still right that the stage need not be an FFT (LPC or a filter bank are the time-domain routes), so
+"expensive" here means *a new stage*, not *a phase vocoder*.
+
 ### 2b. Phase continuity confirms the parked epoch spike (→ Rung B, no shortcut)
 
 The comment at [`sound.h:7405`](../../runtime/sound.h) diagnoses the residual clicks in

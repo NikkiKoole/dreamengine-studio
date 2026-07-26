@@ -209,6 +209,17 @@ transparent *shift* needs its own spike, exactly like the transparent *correctio
 > which needs an FFT, or short-time LPC, or a time-varying filter bank), after which the dial itself is
 > one scalar. Budget it as that, not as plumbing `at_psola_slot`'s unused `formant` argument. Note the
 > library is GPL and unusable in this engine (App Store); it is a reference only.
+>
+> **That claim was then challenged and held — see §2a-bis for the numbers.** The obvious cheap objection
+> is that classic TD-PSOLA is formant-preserving *by construction*, since the pitch move comes from
+> epoch re-spacing and `fstep` only resamples content, so `fstep = 1` ought to shift while holding the
+> envelope for free. Tested by wiring the unused `formant` argument to
+> `fstep = powf(2, (semis/12)*(1 - formant))` and forcing 1, **after** the same day's two grain-geometry
+> fixes so the substrate was clean: the down-octave take held its formants exactly (F1 560, F2 991,
+> identical to raw) and **its pitch did not move at all** (220.5 Hz, also identical to raw). So `fstep`
+> is the *only* thing that moves pitch here, and the unused `formant` argument is a trap, not a
+> half-built feature. `sample_autotune` misleads on this point because its corrections are fractions of
+> a semitone; a working corrector at ±1 semitone is not evidence of a working shifter at ±12.
 
 **What that costs the rack:** `hyperbox`'s CHIP preset is now real (a pitched-up, length-preserving
 take), and so is the CHOIR stack (`harmonize_mic(12, 3)`, or `sample_read` + `sample_load` + a

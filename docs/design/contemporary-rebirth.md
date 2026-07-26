@@ -4,12 +4,17 @@ STATUS: BUILDING (2026-07-26) — **Rung A shipped the same day** (`multiband()`
 `instrument_multiband()` / `FX_MULTIBAND`, the OTT box: [`audio-notes.md`](audio-notes.md) §17 #34,
 recipes in [`../guides/effects-recipes.md`](../guides/effects-recipes.md)) **and `hyperbox` v1 shipped
 as its showcase** — the tiny hyperpop rack: pitch-snapped voice, seven-saw wall, ratcheted 909 kick
-lane, and a master chain with no bypass drawn. Next: Rung B (the formant/harmoniser dial), which is
-what `hyperbox`'s voice box is waiting on. The engine audit below is done and precise: of the eight
-boxes across the two candidate racks, **six need zero engine work**. Three gaps remain (multiband
-squash · a formant/harmoniser dial · a beat-synced buffer re-reader), each specced as a rung with an
-API shape. The pick for the first build is the **hyperpop** rack, because its four boxes need no
-external audio at all and it forces the two gaps that are pure signal processing. Origin: a
+lane, and a master chain with no bypass drawn. **Rung B then HALF shipped the same day**
+(`sample_shift()` / `harmonize_mic()`, the length-preserving INTERVAL face, showcased by `voxshift`);
+its other half, a *transparent* shift in the singer's own voice, failed honestly and is **parked with
+measurements** as its own spike, which is what `hyperbox`'s voice box is still waiting on. Next: Rung C
+(a beat-synced buffer re-reader). The engine audit below is done and precise: of the eight
+boxes across the first two candidate racks, **six needed zero engine work**, and a **third rack
+(amapiano, §1c / §2c) added on a second read of the origin conversation needs zero** — a tally of ten of
+twelve before the rungs, twelve of twelve after A and B. One gap remains (the beat-synced buffer
+re-reader), specced as a rung with an API shape. The pick for the first build was the **hyperpop** rack,
+because its four boxes need no external audio at all and it forced the two gaps that are pure signal
+processing; **amapiano is now next** (§6), ahead of the hip-hop rack, which still needs Rung C. Origin: a
 maker + Claude conversation (2026-07-26) starting from "what would a contemporary ReBirth look like,
 not for late-90s acid house but for music popular now."
 
@@ -23,6 +28,15 @@ The second idea, which is the same one ReBirth had: the appliance's **constraint
 In 1997 the pitch was "finally affordable". Today plugins are cheap and cracked, so the pitch is
 **"finally constrained"** — four boxes, one screen, no menu diving, no arrangement view, a fixed
 master chain, and everything you touch already sounds like the genre.
+
+> **This is an observation, not an invention — credit where it is due.** The originating conversation
+> named the precedent: **Teenage Engineering** (the OP-1/PO line) and **Koala Sampler** already ship
+> constraint-as-a-feature, and are arguably ReBirth's real spiritual successors, more than any specific
+> emulation is. Worth stating plainly because it changes what is actually novel here. The novel part is
+> **not** "a constrained music appliance"; that exists and sells. It is cloning a *technique set* rather
+> than a *machine set*, which is what makes the box a genre rack instead of a generally nice groovebox.
+> It also sets the bar: if a rack we ship feels worse to hold than a PO-33, the constraint was an excuse
+> rather than a design.
 
 Companion reading: [`genre-box-rosters.md`](genre-box-rosters.md) is the **hardware-era** catalogue
 (which real machines to homage, filtered by what the engine can synthesize); this doc is its
@@ -62,10 +76,38 @@ The two mirror each other, which is the interesting part: the hip-hop rack's kno
 **groove precision** (glide, ratchets, timing), the hyperpop rack's are all about **signal abuse**
 (pitch, saturation, compression). Same four-box format, opposite philosophy of what a knob is for.
 
+### 1c · The amapiano rack (added on a second read of the origin conversation)
+
+**This one was raised in the originating conversation, dropped from the first pass, and should not have
+been** — because the argument made for it was that it is *the closest structural analogue to acid house
+of the three*, which is the strongest possible reason to include it in a ReBirth doc.
+
+| Box | The move it clones |
+|---|---|
+| **Log drum · bass** | the pitched, plucky, gliding percussive sub that *is* the hook. This is the rack's 303: the melody lives in a drum. Knobs: glide (the signature slide between two pitches), knock (woody attack against sub body), decay |
+| **Shaker groove · percussion** | the rolling shaker/rim/hat bed that carries the swing. The atomic unit is not a hit but a **feel**: the box owns the shuffle, and the shuffle is the genre. Knobs: swing depth, density, brightness |
+| **Jazzy keys · chords** | the warm Rhodes/organ 7th-and-9th vamp, played as a slow loop under everything. Knobs: voicing richness, pad-vs-pluck, tone |
+| **master chain** | wide reverb on the keys · a gentle bus glue · a lowpass you ride into and out of the drop. Notably **not** a destruction chain: this genre's master is *spacious*, which is the opposite of hyperpop's |
+
+**Why it is the best structural fit.** Acid house was defined by a small, instantly recognizable
+signature-sound set (303 squelch, 808 boom) played by a *groove*, not by a production chain. Amapiano is
+the same shape: log drum, shaker, keys, and a specific swing at around 112 BPM. You can hear the genre
+from three sounds and one feel. Hip-hop and hyperpop both smuggle in a *chain* (the vocal chain, the
+destruction chain) as a de facto fifth box, which strains the ReBirth body plan; amapiano genuinely fits
+in four. It is also the only one of the three whose master chain is about **space rather than damage**,
+so it exercises a completely different half of the effects shelf.
+
+So the three racks span the axis properly: **groove precision** (hip-hop), **signal abuse** (hyperpop),
+and **feel and space** (amapiano). The third is the one that most needs a *human* playing it, which is
+either its charm or its problem.
+
 ## 2 · Engine audit — what exists, exactly
 
 Verdict first: **six of the eight boxes are pure assembly of shipped API.** Every claim below was
-checked against `runtime/studio.h` and a proof cart, not from memory.
+checked against `runtime/studio.h` and a proof cart, not from memory. (First pass = the two racks below,
+eight boxes. The amapiano rack was audited the same way in a second pass, §2c: **four more boxes, zero
+new engine gaps**, which takes the running total to **ten of twelve** needing no engine work, and to
+twelve of twelve now that rungs A and B have shipped.)
 
 ### 2a · Hip-hop rack
 
@@ -88,6 +130,24 @@ checked against `runtime/studio.h` and a proof cart, not from memory.
 | Supersaw box | `instrument_unison(slot, 1..7, detune)` (`SOUND_UNISON_MAX 7`) · `instrument_unison_detune` rides live · `LFO_DETUNE` / `ENV_DETUNE` for the bloom · `instrument_bandlimit` (PolyBLEP) as the honest "bright" · `instrument_crush` as "toy" | `supersaw`, `motionbox` | none. Unison sums **inside one voice**, so a 7-saw wall costs 1 of 32 voices |
 | Blown-out drums | `tr808.h` / `tr909.h` / `drumkit.h` · `instrument_crush` · `instrument_drive` · `drive_insert(…, DRIVE_HARD, …)` · `glue()` · ratchets via `schedule_hit` | `tr909`, `morphbox`, `acidcandy` | none |
 | master destruction | OTT = **`multiband()`, SHIPPED** (Rung A) · clipper = `drive_insert` + `DRIVE_HARD` (plus `drive_voice(DRIVE_VOICE_TS)` for a pedal character) · pitch riser = `ENV_PITCH` / `note_pitch` ramp or `varispeed` up · "no bypass" is a UI decision, not an engine feature | `distlab`, `pedalboard`, `fxcheck` | closed |
+
+### 2c · Amapiano rack (second pass, 2026-07-26)
+
+Audited the same way: read against `runtime/studio.h` + `tr808.h` + `drumkit.h` and a proof cart, not
+from memory. **Result: zero engine gaps, and it is the cheapest of the three to build.**
+
+| Box | Shipped API it is built from | Proof cart | Gap |
+|---|---|---|---|
+| Log drum | **`INSTR_MEMBRANE`** is a near-exact structural match and was the surprise of this audit: a struck drumhead of six decaying sine modes whose **`morph` macro is pitch-bend, documented as "the tabla bayan gliss"** — a pitched percussive body that slides is *precisely* what a log drum is. The 808 route also works and may voice better for the sub (`INSTR_SINE` + `instrument_env(ENV_PITCH)` + `note_glide`, the §2a SB-808 recipe verbatim), so this box is a voicing choice between two shipped engines rather than a build | `addis` (MEMBRANE percussion), `tb303` / `braindance` (the glide+pitch-env sub) | none |
+| Shaker groove | `tr808.h` ships **`TR_MA`** (maracas, a 24 ms noise burst on the real circuit values) and `acidcandy` already places it as an off-beat shaker; `addis` runs a dedicated `INSTR_NOISE` shaker on 8ths with a level-gated density ladder, which is this box's mechanism already written. Swing is **cart-owned** (there is no `swing()` API): `acidrack`'s period-correct even-16th shuffle off one master knob is the pattern to copy | `addis`, `acidcandy`, `acidrack` | none |
+| Jazzy keys | `INSTR_EPIANO` (12 decaying sine modes through a pickup nonlinearity, `harmonics` snapping Rhodes / Wurli / Clav) · `INSTR_ORGAN` (9 additive sines, `harmonics` snapping drawbar registrations up to full gospel) · `INSTR_PIANO` for a brighter voicing · chords from **`harmony.h`** (`hb_pick` is table-driven, so an amapiano weight set is new *data*, not new code) | `epiano`, `cocktail`, `bossa`, `chordwise` | none in the engine. An `HB_AMAPIANO` table is a data addition |
+| master (space, not damage) | `reverb()` with 3 tanks · `glue()` is the correct gentle bus compressor here (single-band downward is *right* for this genre, where `multiband()` would be wrong) · `filter()` is built to be ridden live for the drop | `kaoss`, `acidrack`'s PCF | none |
+
+**Two things this audit says that the other two do not.** First, `INSTR_MEMBRANE`'s pitch-bend morph
+means the engine already had a log drum and nobody noticed, which is exactly the "it exists but no agent
+finds it, so they hand-roll it again" failure `lint-docs` gates against. Second, this rack wants
+`glue()` and **not** `multiband()`, which is a useful check on Rung A: the OTT box is a genre choice, not
+a general improvement. A rack that reaches for it by default has stopped listening.
 
 ## 3 · The three gaps, as build rungs
 
@@ -186,6 +246,17 @@ A four-box rack with ratcheted hats, a unison wall and two sample voices fits co
   so a vocal box cannot be demoed by a committed input track. Its clip has to be captured live.
 
 ## 6 · The pick: build the hyperpop rack first
+
+> **Where amapiano (§1c) sits in this order.** It was not in the running when this pick was made,
+> because it had been dropped from the first pass. Re-audited (§2c) it turns out to need **zero engine
+> work and zero external audio**, which makes it *cheaper* than the hyperpop rack was, so it does not
+> have to wait for a rung at all. It stays second rather than first for one honest reason: the hyperpop
+> rack was picked precisely because it *forced* the two signal-processing gaps, and that leverage was
+> real (both rungs shipped the day it was built). Amapiano would have forced nothing. Now that A and B
+> are in, the argument flips: it is the next rack to build, ahead of the hip-hop rack, which still needs
+> Rung C and still has the audio-provenance problem in §5. Its own open question is the interesting one:
+> the genre's identity is a **feel**, so the rack lives or dies on whether the swing is playable rather
+> than on whether the voices are right.
 
 Both racks need two gaps and they share Rung A, so the tiebreakers are these:
 

@@ -152,6 +152,13 @@ via cepstral liftering or LPC, divide it out before the shift, multiply it back 
 and more robust on messy input, but heavier and needs an **FFT on the audio thread** for the live
 version. Reach for it only if PSOLA's artifacts are unacceptable.
 
+> The industry reference for this route is Rubber Band Library, read in
+> [`rubberband-reference.md`](rubberband-reference.md): its formant handling is exactly the cepstral
+> liftering above (`analyseFormant`/`adjustFormant`), and §2a there records the one insight worth
+> having *before* any vocoder work, because it applies to our shipped PSOLA too: the formant scale is
+> **one scalar**, with "preserve" as the derived default `1/pitchScale`, not a mode. Note the library
+> itself is GPL and unusable here (App Store), so that doc is a reference, never a dependency.
+
 **Decision:** PSOLA-offline first. If the spike's oracle shows the formants smearing and tuning it
 doesn't fix it, escalate to the phase vocoder — but learn that from the cheap build, not after wiring
 into the mixer.

@@ -200,6 +200,16 @@ pitch however you re-space it. `sample_autotune` never exposed this because a co
 period by a few percent, where the mismatch is inaudible; an interval halves or doubles it. So the
 transparent *shift* needs its own spike, exactly like the transparent *correction* got two.
 
+> **A read of Rubber Band Library (2026-07-26) says why, structurally**, and it changes what the spike
+> should attempt: see [`rubberband-reference.md`](rubberband-reference.md) §2a. The short version is
+> that a formant-preserving shift is **two independent stages, not one knob** — move the pitch for real
+> (we have that, and `fstep` is its knob), then rescale the spectral envelope back by a separate
+> factor (we have **no such stage**). Holding formants by turning `fstep` down cannot work, because
+> `fstep` belongs to stage one. So the spike's real content is an envelope-rescale stage (cepstral,
+> which needs an FFT, or short-time LPC, or a time-varying filter bank), after which the dial itself is
+> one scalar. Budget it as that, not as plumbing `at_psola_slot`'s unused `formant` argument. Note the
+> library is GPL and unusable in this engine (App Store); it is a reference only.
+
 **What that costs the rack:** `hyperbox`'s CHIP preset is now real (a pitched-up, length-preserving
 take), and so is the CHOIR stack (`harmonize_mic(12, 3)`, or `sample_read` + `sample_load` + a
 `sample_shift` per slot). What is still stand-in is "same voice, higher" — the *transparent* end of
@@ -272,6 +282,12 @@ exactly the A/B any `at_psola_slot` edit needs. The general point for
   glitch when swept, so the parameters have to be read per sample, never re-allocated per call, or it
   lands on the wrong side of the set-and-hold rule (`lint-fx-frame.js`).
 - **Cost:** the biggest of the three (a new buffered insert). Do it when the hip-hop rack is next.
+- **One idea worth stealing before building it:** the industry answer to non-pitch-coupled time
+  manipulation spends the stretch **non-uniformly**, against an onset curve, so transients keep their
+  original timing and only the sustained regions absorb the change. Stretch uniformly and a break
+  smears. See [`rubberband-reference.md`](rubberband-reference.md) §2c (that library's
+  `StretchCalculator` is the study subject; it is GPL and unusable here, so the transferable part is
+  the allocation idea, which needs no FFT and fits our existing grain machinery).
 
 ## 4 · Ceilings to design a four-box rack against
 

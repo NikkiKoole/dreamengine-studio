@@ -1,9 +1,13 @@
-# hyperbox — start the transport and let the loop run.
-# NOT optional decoration: hyperbox renders PURE SILENCE without it (peak -inf dBFS), because the
-# transport starts stopped and nothing auto-plays. Any --wav / make-gif of this cart needs this clip
-# or an equivalent SPACE press, or you are measuring silence. With it: peak -0.09, rms -5.34 dBFS,
-# which is the mix-for-the-gaps target from docs/design/contemporary-rebirth.md.
-# `script` mode takes RAW frame events (`down <frame> <key>`), not the beats-file `frame N down K` form.
-# Frame numbers are the ORIGINAL 10/12 — don't retime them, a baked recipe may depend on them.
-down 10 SPACE
-up 12 SPACE
+# hyperbox — open VOICE and play the lead by hand, which is what v2 added.
+# The transport AUTO-STARTS as of v2, so this clip must NOT press SPACE (that would stop it). v1's
+# version of this clip did exactly that, because v1 booted stopped and a headless render was silence.
+# White keys are ~22px wide from x=2 once VOICE is open; y=130 is below the black keys.
+click 20 40 22        # focus VOICE (its strip is 14..32 while DRUMS is open)
+press 45 13 130       # hold the root
+release 70 13 130
+press 80 58 130       # a third up — RETUNE decides whether this JUMPS or slides
+release 105 58 130
+press 115 104 130
+release 145 104 130
+press 155 149 130
+release 185 149 130

@@ -1,0 +1,11 @@
+# hyperbox — a tour of all four devices, in accordion order.
+# WHY THIS IS COMMITTED: the device strips are hand-rolled tapp() targets, not ui.h widgets, so
+# `ui-audit --explore` cannot discover them and silently audits only the DEFAULT panel (one quarter of
+# the cart). v2's first pass shipped four off-screen captions past a clean --explore because of exactly
+# that. Audit through this instead:  node tools/ui-audit.js hyperbox --script tools/clips/hyperbox/02-tour.script
+# The y coordinates below depend on the accordion state at that frame (the strips MOVE as focus changes),
+# so they are not interchangeable — re-derive them if STRIP_H / TP_H / the device order changes.
+click 20 40 22      # -> VOICE  (strips: VOICE 14..32)
+click 60 40 155     # -> SAW    (VOICE now open 14..146, SAW strip 146..164)
+click 100 40 190    # -> MASTER (SAW now open 32..164, MASTER strip 182..200)
+click 140 40 58     # -> DRUMS  (MASTER now open 68..200, DRUM strip 50..68)

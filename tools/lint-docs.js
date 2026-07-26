@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // lint-docs.js — validate cross-references in docs/.
 //
-// Checks three things, all mechanically certain:
+// Checks four things, all mechanically certain:
 //   1. Relative .md links resolve:  [text](path.md) / [text](../dir/path.md#x)
 //      (anchors ignored; http(s)/mailto skipped)
 //   2. Doc-qualified §-references point at a numbered heading that exists:
@@ -12,6 +12,11 @@
 //      "the tool exists but no agent finds it because it's only linked from a deep design doc"
 //      class — swcanvas_test, road-check, det-probes were all index-invisible. A new internal-only
 //      tool either earns a one-line pointer or gets allowlisted in DATA_SUBDIRS below.
+//   4. Cart-land header discoverability: every cart-land `runtime/*.h` (ADR-0006) appears BOTH in
+//      CLAUDE.md's runtime/ block and in cart-authoring.md's "Cart-land library headers" table.
+//      Same class as 3 — the lists that stop a cart from hand-rolling a capability that exists —
+//      and both had silently rotted, in opposite directions. Platform seams and generated font
+//      tables are allowlisted in ENGINE_INTERNALS / GENERATED_H below.
 //
 // §-resolution is by PREFIX: if §8.4 has no exact heading but §8 exists (e.g. a
 // "→ moved" stub left by a doc split), that's a SOFT note, not an error — stubs
@@ -160,6 +165,46 @@ if (fs.existsSync(CLAUDE) && fs.existsSync(TOOLS)) {
   }
 }
 
+// ---------- 4. cart-land header discoverability (runtime/*.h ↔ CLAUDE.md + the guide) ----------
+// Same gate as 3, for the OTHER thing an agent has to find before it hand-rolls one: the
+// cart-land library headers (ADR-0006). Two hand-kept lists describe them — CLAUDE.md's
+// runtime/ block (the always-in-context pointer) and cart-authoring.md's "Cart-land library
+// headers" table (the full contract) — and in 2026-07 both had rotted in OPPOSITE directions:
+// CLAUDE.md was missing 7 (ampcab/boxrig/disclose/fxicons/json/morphdrum/shadermath), the table
+// was missing 5 (boxrig/cards/citygen/morphdrum/roadkit), so neither was the full set. A hole
+// here is how a cart ends up re-hand-rolling a disclosure pass or a second morphing drum voice.
+//
+// The editor's sidebar list stopped needing a gate — it's DERIVED from the directory now
+// (vite /runtime-list.json). These two can't be: each entry has to say WHEN to reach for the
+// header, which is writing, not generation. Hence a check instead.
+const ENGINE_INTERNALS = new Set([
+  'studio.h',            // the public API, not a cart-land library
+  'sound.h', 'spec.h',   // engine + harness, documented elsewhere in CLAUDE.md
+  'color.h', 'game_rect.h', 'platform.h', 'raylib_compat.h',   // platform seams
+  'mic.h', 'mic_desktop.h', 'midi_input.h',                    // host input plumbing
+  'stb_image.h', 'studio_tcc_symbols.h',                       // vendored / generated
+]);
+const GENERATED_H = /(_data|_font|_baked)\.h$/;   // baked font tables
+const RUNTIME = path.join(DOCS, '..', 'runtime');
+const GUIDE = path.join(DOCS, 'guides', 'cart-authoring.md');
+let headersChecked = 0;
+if (fs.existsSync(CLAUDE) && fs.existsSync(RUNTIME) && fs.existsSync(GUIDE)) {
+  const claude = fs.readFileSync(CLAUDE, 'utf8');
+  const guide = fs.readFileSync(GUIDE, 'utf8');
+  const at = guide.indexOf('Cart-land library headers');
+  const table = at === -1 ? '' : guide.slice(at);   // the table + everything after it
+  if (at === -1)
+    errors.push('docs/guides/cart-authoring.md  the "Cart-land library headers" section is gone — the header table is the full contract half of the gate');
+  for (const name of fs.readdirSync(RUNTIME).sort()) {
+    if (!name.endsWith('.h') || ENGINE_INTERNALS.has(name) || GENERATED_H.test(name)) continue;
+    headersChecked++;
+    if (!claude.includes(name))
+      errors.push(`CLAUDE.md  cart-land header not indexed: runtime/${name} — add a one-line pointer to the runtime/ block (or allowlist it in lint-docs ENGINE_INTERNALS if it's a platform seam)`);
+    if (table && !table.includes(name))
+      errors.push(`docs/guides/cart-authoring.md  cart-land header missing from the table: runtime/${name} — add a row (what it gives you · when to reach for it · showcase carts)`);
+  }
+}
+
 // ---------- report ----------
 if (errors.length) {
   console.log(`ERRORS (${errors.length}):`);
@@ -169,5 +214,5 @@ if (notes.length) {
   console.log(`\nsoft notes (${notes.length}) — resolve via a parent/stub heading, fine if intentional:`);
   for (const n of notes) console.log('  ' + n);
 }
-console.log(`\n${files.length} files · ${linksChecked} md-links checked · ${refsChecked} doc-qualified §-refs checked · ${bareRefs} bare + ${selfResolved} self-resolved §-refs not checked (by design) · ${toolsChecked} tools/dirs indexed in CLAUDE.md`);
+console.log(`\n${files.length} files · ${linksChecked} md-links checked · ${refsChecked} doc-qualified §-refs checked · ${bareRefs} bare + ${selfResolved} self-resolved §-refs not checked (by design) · ${toolsChecked} tools/dirs indexed in CLAUDE.md · ${headersChecked} cart-land headers indexed in CLAUDE.md + cart-authoring`);
 process.exit(errors.length ? 1 : 0);

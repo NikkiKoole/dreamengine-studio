@@ -440,7 +440,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              mic-spike/      SPIKE (audio-input frontier): can the engine HEAR? miniaudio mic capture → live mic_level()/mic_pitch() (Tier-1, docs/design/mic-and-sampling.md). run.sh fetches miniaudio.h + builds; CONFIRMED LIVE on Mac (webcam mic, peak −17 dBFS — level clean, zero-crossing pitch is octave-noisy)
              build-app.js    build a MULTI-CART app from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound/video/sheet contexts (de_switch_cart umbrella) — adding a rack = one manifest line. Bare = a native binary; --mac wraps it signed+notarized via mac-app.sh; --ios stages the set for the Xcode build (ios/device.sh|build.sh APP=<name>)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
-             lint-docs.js    validate docs/ cross-references (links resolve, §-refs, tool-index)
+             lint-docs.js    validate docs/ cross-references (links resolve, §-refs) + the two
+                             DISCOVERABILITY gates: every tools/* and every cart-land runtime/*.h is
+                             indexed in CLAUDE.md (headers also in cart-authoring's table) — the "it
+                             exists but no agent finds it, so they hand-roll it again" class
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
                              unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
                              scope to a feature (`node tools/lint-xrefs.js touch`) to act on it

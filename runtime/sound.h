@@ -7320,47 +7320,43 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     }
     #define AT_F0(pos) (f0[(pos) / AT_HOP < 0 ? 0 : ((pos) / AT_HOP >= nHop ? nHop - 1 : (pos) / AT_HOP)])
 
-    // 2. epoch marking — step by the local period, then PHASE-LOCK the next mark by correlating
-    // against the previous epoch's waveform. This is the streaming face's rule (see the comment on
-    // am_ea above), ported down here because the offline core had kept the naive version and it is
-    // the SAME bug: picking the local PEAK in a ±28% window lets the mark hop between two comparable
-    // peaks of a vowel (a strong F1 gives two per period), so consecutive grains overlap-add at
-    // inconsistent phase. Audible as popping on EVERY face — measured on voxshift against the raw
-    // take as control (periodicity error, glitches/s): raw 19, snapped 51, +12 99, -12 37. Peak
-    // picking is what the streaming face's comment already warned "jitters period-to-period →
-    // pulsing"; correlation is what fixed it there.
-    // ⚠ This CHANGES sample_autotune's output — the earlier bit-identity proof was evidence that a
-    // refactor was behaviour-neutral, not a promise to preserve a defect. Re-blessed by measurement.
+    // 2. epoch marking — step by the local period, refine to the local peak (glottal mark).
+    //
+    // ⚠ DO NOT "improve" this into a WSOLA correlation phase-lock like the streaming face uses. That
+    // was tried (2026-07-26, both raw-sum and energy-normalized forms) and it REGRESSES the snap face:
+    // it took the snapped take from a clean f0 220.4 Hz (wobble 1.1) to 178.8 Hz flipping over 110–220,
+    // i.e. PERIOD DOUBLING — the epoch spacing starts alternating long-short and every other pulse
+    // differs. Normalizing the correlation did not rescue it (165.1 Hz, still flipping). The streaming
+    // face needs the lock because it marks epochs from a live ring with no pitch track; here step 1 has
+    // already produced a per-hop autocorrelation f0, so the period is known and peak refinement inside
+    // ±28% of it is both sufficient and stable. The alternation problem the lock was reaching for is
+    // real, but it belongs at the SELECTION end and is solved there (step 3's accumulator).
+    // Lesson for whoever measures this next: a period-doubled signal is still perfectly periodic, so a
+    // periodicity-error metric calls it CLEAN. Only the f0 reading catches it. Use both.
     int nEp = 0, pos = AT_ACW / 2;
     while (pos < n - 1 && nEp < maxEp) {
         ep[nEp++] = pos;
         float f = AT_F0(pos); if (f < 60.0f) f = 110.0f;
-        int T = (int)((float)SOUND_SAMPLE_RATE / f);
-        int cw = (int)(0.45f * T), c0 = pos + T;                  // correlation half-window, nominal next mark
-        int lo = c0 - (int)(0.25f * T), hi = c0 + (int)(0.25f * T);
-        if (lo < cw + 1) lo = cw + 1;
-        if (hi > n - 2 - cw) hi = n - 2 - cw;
-        if (hi < lo) break;
-        int pk = c0;
-        if (nEp == 1) {                                          // first step: nothing to lock to, seed on the peak
-            float pv = -1e30f;
-            for (int i = lo; i <= hi; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
-        } else {                                                 // lock to the previous epoch's waveform
-            int prev = ep[nEp - 1]; float bestc = -1e30f;
-            for (int p = lo; p <= hi; p++) {
-                float s = 0.0f;
-                for (int j = -cw; j <= cw; j += 2) {
-                    int pj = p + j, qj = prev + j;
-                    if (pj < 0 || pj >= n || qj < 0 || qj >= n) continue;
-                    s += in[pj] * in[qj];
-                }
-                if (s > bestc) { bestc = s; pk = p; }
-            }
-        }
+        int T = (int)((float)SOUND_SAMPLE_RATE / f), a = pos + (int)(0.72f * T), b = pos + (int)(1.28f * T);
+        if (b >= n) break;
+        int pk = a; float pv = -1e9f;
+        for (int i = a; i <= b; i++) if (in[i] > pv) { pv = in[i]; pk = i; }
         pos = pk;
     }
 
     // 3. time-varying TD-PSOLA → out (grain from the nearest analysis epoch, placed at the target period)
+    //
+    // ⚠ DO NOT replace the nearest-epoch selection below with a monotone accumulator (`acc += Tt; while
+    // (acc >= T) { acc -= T; ai++; }`), the textbook PSOLA epoch mapping. It was tried 2026-07-26 and it
+    // REGRESSES the snap face into period doubling, the same failure as the epoch-marking lock in step 2:
+    // with Tt ≈ T it advances 0 or 2 epochs instead of 1 near the boundary, those events alternate, and
+    // the snapped take goes from a clean f0 220.4 Hz (wobble 1.1) to 192.7 flipping over 110–220. The rule
+    // below is worse in theory (it ROUNDS a drifting quantity, so it can flip-flop) and better in
+    // practice, because it tracks op's ABSOLUTE position and is therefore self-correcting rather than
+    // accumulating error. Two attempts at the "proper" fix both regressed it; a real fix wants a
+    // pitch-synchronous mapping designed against a measurement harness, which is the parked spike in
+    // contemporary-rebirth.md §"Rung B". Measure BOTH f0 and periodicity error before believing a change
+    // here: period doubling is invisible to a periodicity metric.
     for (int i = 0; i < n; i++) { out[i] = 0.0f; norm[i] = 0.0f; }
     if (nEp >= 3) {
         int ai = 0;

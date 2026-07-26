@@ -3771,8 +3771,31 @@ void mouse_cursor(int kind) {
     }
     SetMouseCursor(rl);
 }
+#ifdef PLATFORM_WEB
+// raylib's WEB HideCursor() sets CORE.Input.Mouse.cursorHidden — and on web that
+// flag doubles as "the pointer is locked, use raw motion": MouseCursorPosCallback
+// only writes the position `if (!cursorHidden)` (rcore_web.c). So calling raylib's
+// HideCursor in a wasm build FREEZES GetMousePosition — buttons keep firing, the
+// pointer never moves again (cursor.h's pixel cursor stuck in place; desktop GLFW
+// has no such gate, so it only bites on web). Hide the canvas's CSS cursor
+// ourselves and leave raylib's flag alone.
+EM_JS(void, de_web_cursor_css, (int hide), {
+    var c = Module.canvas || document.getElementById('canvas');
+    if (!c) return;
+    if (hide) {
+        if (c.dataset.dePrevCursor === undefined) c.dataset.dePrevCursor = c.style.cursor || '';
+        c.style.cursor = 'none';
+    } else if (c.dataset.dePrevCursor !== undefined) {
+        c.style.cursor = c.dataset.dePrevCursor;
+        delete c.dataset.dePrevCursor;
+    }
+});
+void mouse_hide(void) { de_web_cursor_css(1); }
+void mouse_show(void) { de_web_cursor_css(0); }
+#else
 void mouse_hide(void) { HideCursor(); }
 void mouse_show(void) { ShowCursor(); }
+#endif
 
 static int last_cls_color = 0;   // remembered so smooth_zoom's offscreen clears to the same bg
 void cls(int color) {

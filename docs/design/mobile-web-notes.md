@@ -290,6 +290,46 @@ note was over-cautious — readback was always functional; only the probe-spam w
   (collect 1–2 frames later — matches `pget`'s already-last-frame contract) is the future
   perf upgrade if needed, but no longer a correctness blocker.
 
+## 5d. `mouse_hide()` on web froze the pointer — FIXED 2026-07-26
+
+**Symptom** (reported on an embedded wasm cart): the pixel cursor (`cursor.h`) is drawn and
+its *shape* still reacts to clicks, but it will not follow the mouse — it sits wherever the
+last click landed. Only cursor-drawing carts are affected, only on web, and only *after* the
+first mouse move (which is exactly when `cursor.h` decides a real mouse exists and hides the
+OS arrow). Easy to misread as "the whole cart is frozen" or "clicks work, moves don't".
+
+**Cause:** on web, raylib overloads `CORE.Input.Mouse.cursorHidden` to also mean *"the pointer
+is locked, use raw motion"*, and its GLFW cursor-position callback only writes the position
+when that flag is clear:
+
+```c
+// raylib rcore_web.c — MouseCursorPosCallback
+if (!CORE.Input.Mouse.cursorHidden) { CORE.Input.Mouse.currentPosition = ...; }
+```
+
+`HideCursor()` sets that flag. So the moment a cart hides the OS pointer on web,
+`GetMousePosition()` stops updating on mouse *move* — buttons, wheel and touch keep working
+(hence the shape still changes), and a click still refreshes the position via the button
+path. The desktop GLFW backend writes the position unconditionally, so this never showed up
+in the editor or a native build. `mouse_hide()` is the only door into it: `cursor.h` calls it
+the frame it detects a mouse, and `cityplan`/`squishy` call it directly.
+
+**Fix:** `mouse_hide()`/`mouse_show()` are now web-specific in `studio.c` — an `EM_JS` that
+toggles `Module.canvas.style.cursor = 'none'` (remembering the previous value in a
+`dataset.dePrevCursor` so `mouse_show()` restores it) and never touches raylib's flag. Same
+visible result, no frozen pointer. Native still calls raylib's `HideCursor`/`ShowCursor`.
+
+**Consequence:** every published cart that draws its own cursor needs a **republish** to pick
+this up (`node tools/publish-all.js`) — the fix is in the engine, so the built wasm carries
+the old behaviour until rebuilt. Also note the pair is no longer mutually exclusive with
+`mouse_cursor()` on web: a cart that hides the pointer *and* then sets an OS cursor shape will
+overwrite the `'none'` (a contradiction anyway — pick one).
+
+**Repro to keep in mind:** a top-level page can *look* fine if you only move once — the
+position freezes at wherever you happen to have moved to, so you need two separate moves (or
+a click-then-move) to see the freeze. `site/`-served iframe embed + hover, hover, screenshot
+is the reliable check.
+
 ## 6. Gestures — status unchanged, now with a device
 
 Raylib's rgestures (swipe/pinch/hold/drag) exist one `#include` below us;

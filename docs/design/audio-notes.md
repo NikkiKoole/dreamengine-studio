@@ -1752,6 +1752,28 @@ v1, document it on the panel.
     all gated (voice 0 → plain clip). Measured distinct + 0-clip: TS centroid ~2880 Hz, RAT ~2670 (darker,
     mid-forward), MUFF ~4350 (bright fizz). Next: the three as switchable pedals in `pedalboard`.
 
+34. **Multiband dynamics — the "OTT" box (`multiband`)** — three-band compression with an UPWARD half.
+    **✓ SHIPPED 2026-07-26.** `multiband(low, mid, high, up, mix)` + `instrument_multiband(slot, …)`:
+    the bus splits into sub / body / air on the same one-pole crossovers `eq_process` uses (120 Hz and
+    2.5 kHz here; the three bands sum back to the input, which is what makes the bypass claim exact),
+    each band gets a peak follower and a two-sided gain around a fixed pivot (0.25) — pulled DOWN above
+    it by that band's amount, pushed UP below it by the shared `up` macro. **The upward half is the whole
+    point**: `glue()` (entry 14) already did downward, and downward-only is what makes a compressor sound
+    *smaller*; lifting the quiet detail is what makes a modern pop/trap/hyperpop master read permanently
+    "on". Two guards the first render made necessary: an output MAKEUP (`SQ_MAKEUP` 1.4 per unit of mean
+    down amount — without it the OTT wall measured 1.8 dB QUIETER than dry, backwards for this effect;
+    with it, +5.7 dB and only 2% clip) and a floor taper (`SQ_FLOOR` 0.004, so the lift never amplifies
+    silence or the noise floor). One gain per band derived from the peak of BOTH channels, so the pan
+    stays put (the stereo.md bite #5 rule the master soft-clip follows). `FX_MULTIBAND`=18, auto-placed
+    on first call like `FX_GATE`; `SR_MULTIBAND`=137 / `SR_INSTR_MULTIBAND`=138; `mix` 0 = never called
+    → byte-identical (verified: every other effect Δpk/Δrms +0.0 in `fx-check`, soundcheck silent, level
+    within tolerance, soak stable, wasm parity). RIDE-SAFE (parameters only, no buffer rebuild) so it is
+    NOT in `lint-fx-frame`'s footgun set. **Naming:** the internals keep the `sq_`/`SQ_` "squash" prefix
+    but the public name is `multiband` — `squash` is unusable in cart-land because squash-and-stretch is
+    animation vocabulary, and `build-all` caught 5 carts already declaring a local `squash` (same trap as
+    `map`). Also the crossover [`distortion-lab.md`](distortion-lab.md)'s parked **multiband distortion**
+    gap needs. Rung A of [`contemporary-rebirth.md`](contemporary-rebirth.md); showcase: `hyperbox`.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

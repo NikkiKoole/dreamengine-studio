@@ -694,6 +694,12 @@ void filter_inst(int instance, int mode, float cutoff_hz, float resonance);  // 
 void sidechain(int victim_bus, int key, float amount, int attack_ms, int release_ms);  // duck victim_bus (0 = master) by up to amount 0..1 on every hit in trigger `key` (0..3). amount 0 = off. attack ~1ms, release ~80–250ms = the pump
 void sidechain_key(int slot, int key, float send);   // route a slot into trigger key 0..3 — its level drives any sidechain() keyed there (kick → key 0). send 0..1 (0 = not a trigger)
 void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off
+// multiband — MULTIBAND dynamics (the "OTT" sound): three bands, each pulled DOWN from above and pushed
+// UP from below, so loud parts sit flat while quiet detail comes forward and the mix reads permanently
+// "on" (modern pop/hyperpop/trap masters). glue() is the single-band, down-only version of this.
+// A reorderable insert (FX_MULTIBAND) — ride the knobs live, nothing rebuilds.
+void multiband(float low, float mid, float high, float up, float mix);   // THE master multiband squash: low/mid/high = how hard each band is pulled down 0..1, up = how hard quiet detail is pushed up 0..1 (the OTT macro), mix 0..1 (0 = off). try 0.7/0.6/0.8/0.5/1.0
+void instrument_multiband(int slot, float low, float mid, float high, float up, float mix);  // multiband squash on just this slot (auto-grabs a private FX bus) — squash the drums, leave the pad alone
 // VOCODER (docs/design/vocoder.md) — a synth "speaks" in another sound's voice. The CARRIER is the master mix; the MODULATOR is whatever slot(s) you vocoder_send(). 12-band cross-synthesis. mix 0 = off (byte-identical)
 void vocoder(float mix);                              // turn the master vocoder on: carrier (the mix) wears the modulator's spectral envelope. mix 0..1 wet, 0 = off. Play a rich carrier (saw chord) + vocoder_send a modulator (a voice/INSTR_VOICE line)
 void vocoder_send(int slot, float amount);            // route instrument `slot` into the vocoder MODULATOR (0..1). SEND-ONLY: the slot's own dry is muted, it only shapes the carrier. 0 = not a modulator
@@ -723,6 +729,7 @@ void input_monitor(float gain);                       // route the LIVE MIC thro
 #define FX_DRIVE    15  // mix-bus saturation INSERT — drive the summed mix (via drive_insert(); place in fx_order(0,…)). Kinds 16..31 are free (fx_order packs 5 bits of kind per slot)
 #define FX_SHALLOW  16  // shallow-water INSERT — a filtered-random short delay + Low Pass Gate (via shallow(); place in fx_order). First kind past the old 16-kind ceiling
 #define FX_GATE     17  // noise-gate INSERT — clamps the signal shut below a threshold (via gate()). Put AFTER FX_REVERB in fx_order for gated reverb
+#define FX_MULTIBAND   18  // multiband-dynamics INSERT — 3 bands squashed down + pushed up, the "OTT" master sound (via multiband()). Place it BEFORE FX_DRIVE for squash-then-clip, after for clip-then-squash
 #define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..1 (two per effect).
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 16 slots
 

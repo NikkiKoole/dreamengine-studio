@@ -156,6 +156,14 @@
       "dc": -0.008,
       "clipRatio": 0,
       "sev": "ok"
+    },
+    {
+      "fx": 19,
+      "peakDb": 0,
+      "rmsDb": -7.94,
+      "dc": -0.0003,
+      "clipRatio": 0.016,
+      "sev": "ok"
     }
   ]
 }

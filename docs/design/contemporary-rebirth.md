@@ -1,6 +1,9 @@
 # Contemporary ReBirth — the post-hardware genre rack (techniques, not machines)
 
-STATUS: READY TO BUILD (2026-07-26) — the engine audit below is done and precise: of the eight
+STATUS: BUILDING (2026-07-26) — **Rung A shipped the same day** (`multiband()` /
+`instrument_multiband()` / `FX_MULTIBAND`, the OTT box: [`audio-notes.md`](audio-notes.md) §17 #34,
+recipes in [`../guides/effects-recipes.md`](../guides/effects-recipes.md)). Next: `hyperbox` v1 as its
+showcase, then Rung B. The engine audit below is done and precise: of the eight
 boxes across the two candidate racks, **six need zero engine work**. Three gaps remain (multiband
 squash · a formant/harmoniser dial · a beat-synced buffer re-reader), each specced as a rung with an
 API shape. The pick for the first build is the **hyperpop** rack, because its four boxes need no
@@ -73,7 +76,7 @@ checked against `runtime/studio.h` and a proof cart, not from memory.
 | master · tape stop | `varispeed(0.25..4)`, documented for exactly this dive | `kaoss` | none |
 | master · stutter gate | `tremolo(rate_hz, depth, LFO_SHAPE_SQUARE)` with the rate derived from `bpm()`. (`gate()` is a *threshold* gate, a different thing) | `kaoss` GATE program, `breakchop` STUT | none, but see §5 on set-and-hold |
 | master · halftime | nothing time-stretches the mix. `varispeed(0.5)` couples pitch and time (it is a tape). `grains()` + `grains_pitch()` can pitch-compensate, which is grainy and not beat-locked | `breakchop`'s TONE proves granular repitch holds duration, but on a slot bus | **GAP 1** |
-| master · multiband squash | `glue(bus, amount, atk, rel)` is one band, downward only · `eq()` before/after · `drive_insert(amount, DRIVE_HARD, mix)` is a real hard clipper | `acidcandy`, `groovebox`, `pedalboard` | **GAP 2** |
+| master · multiband squash | **`multiband(low, mid, high, up, mix)` — SHIPPED 2026-07-26** (Rung A). Was: `glue()` one band downward-only · `eq()` before/after · `drive_insert(…, DRIVE_HARD, …)` as the clipper | `fxcheck`; `hyperbox` next | closed |
 
 ### 2b · Hyperpop rack
 
@@ -82,31 +85,36 @@ checked against `runtime/studio.h` and a proof cart, not from memory.
 | Voice engine | `autotune_mic(root, scale, amount)` is **live and formant-preserving**; the tune-speed knob is its `amount` plus a retune slew, which `hardtune` already implements against `mic_pitch()` · `sample_autotune` for takes · chipmunk is free (play a sample above its `root_midi`: pitch and formants rise together) · robot = the vocoder carrier (`vocoder_mic` + `vocoder_unvoiced`) · choir stack = one sample slot triggered at three intervals | `hardtune`, `livetune`, `mictune`, `voxbox` | the **dial between** chipmunk and transparent is missing, as is a fixed-interval harmoniser. **GAP 3** |
 | Supersaw box | `instrument_unison(slot, 1..7, detune)` (`SOUND_UNISON_MAX 7`) · `instrument_unison_detune` rides live · `LFO_DETUNE` / `ENV_DETUNE` for the bloom · `instrument_bandlimit` (PolyBLEP) as the honest "bright" · `instrument_crush` as "toy" | `supersaw`, `motionbox` | none. Unison sums **inside one voice**, so a 7-saw wall costs 1 of 32 voices |
 | Blown-out drums | `tr808.h` / `tr909.h` / `drumkit.h` · `instrument_crush` · `instrument_drive` · `drive_insert(…, DRIVE_HARD, …)` · `glue()` · ratchets via `schedule_hit` | `tr909`, `morphbox`, `acidcandy` | none |
-| master destruction | clipper = `drive_insert` + `DRIVE_HARD` (plus `drive_voice(DRIVE_VOICE_TS)` for a pedal character) · pitch riser = `ENV_PITCH` / `note_pitch` ramp or `varispeed` up · "no bypass" is a UI decision, not an engine feature | `distlab`, `pedalboard` | OTT is **GAP 2** again |
+| master destruction | OTT = **`multiband()`, SHIPPED** (Rung A) · clipper = `drive_insert` + `DRIVE_HARD` (plus `drive_voice(DRIVE_VOICE_TS)` for a pedal character) · pitch riser = `ENV_PITCH` / `note_pitch` ramp or `varispeed` up · "no bypass" is a UI decision, not an engine feature | `distlab`, `pedalboard`, `fxcheck` | closed |
 
 ## 3 · The three gaps, as build rungs
 
-### Rung A · GAP 2 — multiband squash (the OTT box) ★ first
+### Rung A · GAP 2 — multiband squash (the OTT box) ★ SHIPPED 2026-07-26
 Both racks need it, so it has the highest leverage of the three.
 
 - **What is missing:** `glue()` is a single-band, downward-only bus compressor. OTT's signature is
   **three bands** and **upward** compression (the quiet detail gets pushed up, which is what makes a
   hyperpop master sound permanently "on").
-- **API shape:** `void squash(float low, float mid, float high, float up, float mix);` plus
-  `squash_bus(int bus, …)` if a per-instrument version is wanted later. Down-amount per band 0..1,
-  one shared `up` amount, `mix` 0..1 with **0 = bypass, byte-identical** (the house rule for a
-  dormant effect).
-- **Where it lands:** a new reorderable insert kind `FX_SQUASH` (18 — the next free past `FX_GATE`
-  17), so `fx_order()` can place it before or after the drive stage. Implementation reuses the
-  existing house crossover idiom: `eq_process()`'s one-pole split (`EQ_LOW_FREQ` / `EQ_HIGH_FREQ`),
-  with its own crossovers nearer 120 Hz / 2.5 kHz, and `sc_apply()`'s envelope follower per band.
-  Band sum reconstructs the input when all amounts are 0, which keeps the bypass claim honest.
+- **API as shipped:** `void multiband(float low, float mid, float high, float up, float mix);` plus
+  `instrument_multiband(int slot, …)`. Down-amount per band 0..1, one shared `up` amount, `mix` 0..1
+  with **0 = bypass, byte-identical**. **Named `multiband`, not `squash`** — `squash` is unusable in
+  the cart-land namespace because squash-and-stretch is animation vocabulary, and `build-all` caught
+  five carts already declaring a local `squash` (the `map` trap from CLAUDE.md, second instance).
+- **Where it landed:** insert kind `FX_MULTIBAND` (18, the next free past `FX_GATE` 17), auto-placed
+  on first call, so `fx_order()` can put it before or after the drive stage. It reuses the house
+  crossover idiom (`eq_process()`'s one-pole split, at 120 Hz / 2.5 kHz here) and a peak follower per
+  band. The bands sum back to the input, which is what makes the bypass claim exact.
+- **Two things the first render taught us:** with no output makeup the full wall measured **1.8 dB
+  quieter** than dry (backwards for an effect whose entire point is "louder and always on"), so
+  makeup scales with the mean down amount (now +5.7 dB, 2% clip); and the upward half has to taper
+  out near silence or it amplifies the noise floor.
 - **Also unlocks:** the multiband distortion gap already parked in
   [`distortion-lab.md`](distortion-lab.md) §Multiband — same crossover, different per-band stage.
-- **Cost:** one `sound.h` DSP block + the 4-place API wiring. Gates: `soundcheck`, `level-check`,
-  `fx-check`, `soak-check`, `web-audio-check` (engine math), `lint-fx-frame`. Then the recipe goes in
-  [`../guides/effects-recipes.md`](../guides/effects-recipes.md) and the ledger entry in
-  [`audio-notes.md`](audio-notes.md) §17.
+- **Gates run (all green):** `soundcheck` silent · `fx-check` shows every *other* effect at Δpk/Δrms
+  +0.0 (the byte-identical proof) and the new case finite/bounded/off-dry · `level-check` within
+  tolerance · `soak-check` stable · `web-audio-check` wasm parity · `build-all` 566/566 ·
+  `lint-fx-frame` clean (it is ride-safe, so it stays out of the footgun set). Recipes +
+  §17 #34 ledger entry written.
 
 ### Rung B · GAP 3 — the formant / harmoniser dial
 - **What is missing:** the two *ends* ship (chipmunk = formants follow the pitch, because a sample
@@ -181,7 +189,7 @@ Both racks need two gaps and they share Rung A, so the tiebreakers are these:
 - **Voice engine** — deferred to v2 (it is the one part needing Rung B and the mic). v1 puts
   `INSTR_VOICE` in the slot instead: deterministic, no permission prompt, and its SIZE macro is
   already a vocal-tract/formant axis, so the box reads correctly while Rung B is built.
-- **master destruction** — `squash()` at 100% with **no bypass control drawn**, `drive_insert` +
+- **master destruction** — `multiband()` at 100% with **no bypass control drawn**, `drive_insert` +
   `DRIVE_HARD` always on, and a pitch riser on a held note. One `apply_fx()`-style change-detector,
   per §5.
 

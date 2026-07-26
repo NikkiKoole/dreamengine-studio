@@ -1981,13 +1981,96 @@ static void fx_set_gate(int b, float threshold, int attack_ms, int release_ms) {
     gate_used[b] = (threshold > 0.0f);                  // threshold 0 = always open → byte-identical
 }
 
+// ── squash — MULTIBAND dynamics, the "OTT" box (docs/design/contemporary-rebirth.md Rung A) ──────
+// Three bands, each compressed DOWN from above a pivot AND UP from below it, then summed. That
+// upward half is what makes a modern master read permanently "on": loud parts sit flat while the
+// quiet detail is pushed forward. glue()/sc_apply() is the single-band, downward-only sibling — this
+// is the 3-band one with the upward half OTT is famous for. The crossovers reuse eq_process()'s
+// one-pole idiom (the three bands sum back to the input), so with every amount at 0 the wet path IS
+// the dry path, and mix 0 = never called = byte-identical.
+// RIDE-SAFE: parameters only, no buffer or coefficient rebuild — sweep the knobs live like filter().
+// A per-bus reorderable insert (FX_MULTIBAND).
+// NAMING: the internals below keep the sq_/SQ_ "squash" prefix (what the effect colloquially does),
+// but the PUBLIC name is multiband() — `squash` is unusable in the cart-land namespace because
+// squash-and-stretch is animation vocabulary: 5 carts already declare a local `squash` (build-all
+// caught it as "redefinition as a different kind of symbol"). Same trap as `map` in CLAUDE.md.
+#define SQ_LOW_FREQ   120.0f   // low/mid crossover (Hz): sub vs body. Higher than EQ's 80 on purpose — a kick's body belongs to the MID band here
+#define SQ_HIGH_FREQ  2500.0f  // mid/high crossover (Hz): body vs presence/air, where the sizzle lives
+#define SQ_PIVOT      0.25f    // the hinge: band env above it gets pulled down, below it gets pushed up
+#define SQ_FLOOR      0.004f   // the upward half tapers out under this — never amplify silence or the noise floor
+#define SQ_UP_MAX     6.0f     // hard ceiling on the upward gain
+#define SQ_MAKEUP     1.4f     // output makeup per unit of mean downward amount. A compressor with no
+                               // makeup just sounds SMALLER, which is backwards for this effect (the
+                               // whole point is "louder and always on") — tuned by fx-check render so
+                               // the full wall lands a touch hotter than dry, not pinned on the limiter.
+static float sq_down[SOUND_FX_BUSES][3];   // per-band downward amount 0..1 (low / mid / high)
+static float sq_up  [SOUND_FX_BUSES];      // upward amount 0..1, shared by the three bands (OTT's one macro)
+static float sq_mix [SOUND_FX_BUSES];      // dry/wet 0..1 (0 = bypass)
+static float sq_mk  [SOUND_FX_BUSES];      // output makeup gain, derived from the mean down amount
+static float sq_env [SOUND_FX_BUSES][3];   // per-band peak follower
+static float sq_loL[SOUND_FX_BUSES], sq_loR[SOUND_FX_BUSES];   // low-crossover one-pole state
+static float sq_hiL[SOUND_FX_BUSES], sq_hiR[SOUND_FX_BUSES];   // mid/high-crossover one-pole state
+static float sq_atk = 0.0f, sq_rel = 0.0f;   // follower coefficients — FIXED times (OTT has no timing knobs)
+static bool  sq_used[SOUND_FX_BUSES];
+// the two-sided gain for one band, from its follower level
+static float sq_gain(int b, int k, float env) {
+    if (env > SQ_PIVOT) {                                    // above the hinge: pull the excess in
+        float target = SQ_PIVOT + (env - SQ_PIVOT) * (1.0f - sq_down[b][k]);
+        return target / env;
+    }
+    if (sq_up[b] > 0.0f && env > SQ_FLOOR) {                 // below it: lift toward the hinge
+        float target = env + (SQ_PIVOT - env) * sq_up[b];
+        float g = target / env;
+        if (g > SQ_UP_MAX) g = SQ_UP_MAX;
+        float fade = (env - SQ_FLOOR) / (3.0f * SQ_FLOOR);   // taper the lift in just above the floor
+        if (fade < 1.0f) g = 1.0f + (g - 1.0f) * fade;
+        return g;
+    }
+    return 1.0f;
+}
+static void squash_process(int b, float *mixL, float *mixR) {
+    float lowCoeff  = SQ_LOW_FREQ  * SOUND_TWO_PI / (float)SOUND_SAMPLE_RATE;  if (lowCoeff  > 0.99f) lowCoeff  = 0.99f;
+    float highCoeff = SQ_HIGH_FREQ * SOUND_TWO_PI / (float)SOUND_SAMPLE_RATE;  if (highCoeff > 0.99f) highCoeff = 0.99f;
+    sq_loL[b] += lowCoeff * (*mixL - sq_loL[b]);             // L: low = LP; remainder splits into mid + top
+    float lowL = sq_loL[b], restL = *mixL - sq_loL[b];
+    sq_hiL[b] += highCoeff * (restL - sq_hiL[b]);
+    float midL = sq_hiL[b], topL = restL - sq_hiL[b];
+    sq_loR[b] += lowCoeff * (*mixR - sq_loR[b]);             // R
+    float lowR = sq_loR[b], restR = *mixR - sq_loR[b];
+    sq_hiR[b] += highCoeff * (restR - sq_hiR[b]);
+    float midR = sq_hiR[b], topR = restR - sq_hiR[b];
+    float bl[3] = { lowL, midL, topL }, br[3] = { lowR, midR, topR };
+    float wetL = 0.0f, wetR = 0.0f;
+    for (int k = 0; k < 3; k++) {
+        // ONE gain per band, derived from the PEAK of both channels, applied to both — keeps the
+        // pan position put (the stereo.md bite #5 rule the master soft-clip follows too).
+        float pk = fabsf(bl[k]) > fabsf(br[k]) ? fabsf(bl[k]) : fabsf(br[k]);
+        sq_env[b][k] += (pk - sq_env[b][k]) * (pk > sq_env[b][k] ? sq_atk : sq_rel);
+        float g = sq_gain(b, k, sq_env[b][k]);
+        wetL += bl[k] * g; wetR += br[k] * g;
+    }
+    wetL *= sq_mk[b]; wetR *= sq_mk[b];   // makeup — a compressor with none just sounds smaller
+    float m = sq_mix[b];
+    *mixL += (wetL - *mixL) * m;
+    *mixR += (wetR - *mixR) * m;
+}
+static void fx_set_squash(int b, float low, float mid, float high, float up, float mix) {
+    sq_down[b][0] = clamp01(low); sq_down[b][1] = clamp01(mid); sq_down[b][2] = clamp01(high);
+    sq_up[b]  = clamp01(up);
+    sq_mix[b] = clamp01(mix);
+    sq_mk[b]  = 1.0f + (sq_down[b][0] + sq_down[b][1] + sq_down[b][2]) / 3.0f * SQ_MAKEUP;
+    sq_atk = gate_coef(1);                     // 1 ms attack / 120 ms release: fast enough to catch a
+    sq_rel = gate_coef(120);                   // transient, slow enough that the lift doesn't chatter
+    sq_used[b] = (sq_mix[b] > 0.0f);           // mix 0 = bypass → byte-identical
+}
+
 // ── reorderable insert chain (fx_order) ──────────────────────────────────────────────────────
 // The inserts above (FX_* in studio.h) run in a default order; fx_order() lets a cart rearrange
 // them PER BUS. fx_order[b] is the visit list; default = the canonical order, so an un-reordered
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_GATE + 1)             // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW/GATE (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
+#define N_INSERTS (FX_MULTIBAND + 1)           // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW/GATE/SQUASH (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
 #define FX_ORDER_SLOTS 16                   // fx_order packs 16 slots (4 ints × 4 bytes, 1 byte/slot: kind 5 bits | instance 3 bits). Kinds 0..31, instances 0..7. A chain longer than 16 is truncated.
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
 static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
@@ -2012,6 +2095,7 @@ static void apply_insert(int kind, int inst, int b, float *L, float *R) {
         case FX_DRIVE:   if (drvins_used[b][inst]) drive_process(b, inst, L, R); break;   // mix-bus saturation insert (per-instance; reuses the DRIVE_* shapers)
         case FX_SHALLOW: if (shw_used[b])    shallow_process(b, L, R); break;   // K-field short delay + Low Pass Gate
         case FX_GATE:    if (gate_used[b])   gate_process(b, L, R);    break;   // noise gate (follower + threshold)
+        case FX_MULTIBAND:  if (sq_used[b])     squash_process(b, L, R);  break;   // multiband dynamics — 3 bands, down from above + UP from below (the OTT box)
         // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
         // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
         // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
@@ -2182,6 +2266,8 @@ typedef enum {
     SR_DRIVE_VOICE = 134,   // a=voice (DRIVE_VOICE_*), b=tone*1000 — famous-pedal shaping on the drive insert (drive_voice)
     SR_INSTR_BANDLIMIT = 135, // a=slot, b=on — PolyBLEP anti-alias the slot's saw (0 = raw naive saw, default)
     SR_INPUT_MONITOR = 136,   // a=gain*1000 — route the LIVE mic through the master fx chain (input_monitor); audio-input-frontier.md ★1
+    SR_MULTIBAND     = 137,   // a=low, b=mid, c=high, e0=up, e1=mix (×1000) — THE master multiband squash / OTT box (multiband)
+    SR_INSTR_MULTIBAND = 138, // a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000) — multiband squash on one instrument's bus (instrument_multiband)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2253,6 +2339,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
         case SR_BPM: case SR_VOCODER: case SR_VOCODER_MIC: case SR_VOCODER_UNVOICED: case SR_AUTOTUNE_MIC:
         case SR_ECHO_INS_BBD: case SR_REVERB_SPRING: case SR_REVERB_SPRING_TONE: case SR_DRIVE_VOICE:
+        case SR_MULTIBAND:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -2266,7 +2353,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
         case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY: case SR_VOCODER_SEND:
         case SR_INSTR_UNISON: case SR_INSTR_UNISON_DETUNE: case SR_INSTR_LEVEL: case SR_INSTR_SAMPLE: case SR_INSTR_SAMPLE_REGION: case SR_INSTR_SAMPLE_MODE:
-        case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
+        case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM: case SR_INSTR_MULTIBAND:
         case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
             return CTXK_KA;
         // a+b name the target
@@ -5850,6 +5937,21 @@ static void sound_fire_req(SoundReq r) {
             if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_GATE; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
         }
     } break;
+    case SR_MULTIBAND: {       // master multiband squash (bus 0): a=low, b=mid, c=high, e0=up, e1=mix (×1000)
+        fx_set_squash(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
+        bool present = false;               // auto-place FX_MULTIBAND in bus 0's chain (not in the default ladder, like FX_GATE)
+        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_MULTIBAND) present = true;
+        if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_MULTIBAND; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
+    } break;
+    case SR_INSTR_MULTIBAND: { // per-instrument: a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000)
+        int b = fx_instr_bus(r.a);
+        if (b >= 1) {
+            fx_set_squash(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
+            bool present = false;
+            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_MULTIBAND) present = true;
+            if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_MULTIBAND; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
+        }
+    } break;
     case SR_SHALLOW: {      // master shallow water (bus 0): a=rate, b=depth, c=mix (×1000)
         fx_set_shallow(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
         bool present = false;               // auto-place FX_SHALLOW in bus 0's chain (not in the default ladder, like FX_GRAINS)
@@ -7810,6 +7912,17 @@ void gate(float threshold, int attack_ms, int release_ms) {
 void instrument_gate(int slot, float threshold, int attack_ms, int release_ms) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_GATE, slot, (int)(threshold * 1000.0f), attack_ms, release_ms, 0, 0);
+}
+
+// ── multiband: multiband dynamics (the OTT box) — 3 bands, pulled down from above + pushed UP from below ──
+void multiband(float low, float mid, float high, float up, float mix) {
+    sound_push_ctrl(SR_MULTIBAND, (int)(low * 1000.0f), (int)(mid * 1000.0f), (int)(high * 1000.0f),
+                    (int)(up * 1000.0f), (int)(mix * 1000.0f), 0);
+}
+void instrument_multiband(int slot, float low, float mid, float high, float up, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_MULTIBAND, slot, (int)(low * 1000.0f), (int)(mid * 1000.0f),
+                    (int)(high * 1000.0f), (int)(up * 1000.0f), (int)(mix * 1000.0f));
 }
 
 // ── shallow water: a filtered-random short delay + a Low Pass Gate (the warped-water warble) ──

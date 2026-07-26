@@ -48,6 +48,8 @@ const FX_NAMES = {
   16: 'STACK   drive→reverb (order A)',
   17: 'STACK   reverb→drive (order B, reversed)',
   18: 'STACK   kitchen sink (8-deep chain)',
+  // appended after the stacks on purpose — inserting a case renumbers the committed baseline
+  19: 'multiband 3 bands 1.0 + up 1.0 (OTT wall)',
 }
 
 // thresholds

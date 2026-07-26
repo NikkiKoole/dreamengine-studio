@@ -404,6 +404,31 @@ iconic **80s gated reverb** (the Phil Collins snare). A reorderable insert (`FX_
 > sidechain for the pump. Pairs with `amp_noise` — though note the gate (a pre-output insert) clamps the
 > signal path, not the post-limiter `amp_noise` floor; gate a noisy *part*, or use it for gated reverb.
 
+## multiband — `multiband(low, mid, high, up, mix)` · `instrument_multiband(slot, …)`
+
+MULTIBAND DYNAMICS, the **"OTT" sound**. The bus splits into three bands (sub / body / air); each is
+compressed **down** from above a pivot by its own amount, and every band is pushed **up** from below by
+the shared `up` macro. The downward half holds the loud parts flat; the upward half is the one that
+matters musically, dragging quiet detail forward until the mix reads permanently **"on"** — the modern
+pop / trap / hyperpop master. `glue()` is the single-band, downward-only version of the same idea, and
+downward-only is exactly why a compressor can make a mix sound *smaller*. A reorderable insert
+(`FX_MULTIBAND` = kind 18), auto-placed on the first call; `mix` 0 = **bypass**, byte-identical.
+**Ride it live** — parameters only, nothing rebuilds (unlike `crush`/`eq`/`tape`, so it is not a
+set-and-hold footgun). Output makeup is automatic, scaled by how hard you squash.
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| the always-on master | `multiband(0.7f, 0.6f, 0.8f, 0.5f, 1.0f)` | everything forward and loud, no dynamics left to speak of — the hyperpop/trap default | `hyperbox` |
+| gentle 3-band glue | `multiband(0.35f, 0.25f, 0.4f, 0.15f, 0.6f)` | holds a mix together without the pumped, always-on flavour | — |
+| the wall (no bypass) | `multiband(1.0f, 1.0f, 1.0f, 1.0f, 1.0f)` | brick-flat, +5.7 dB hotter than dry, deliberately too much | `fxcheck` |
+| air only | `multiband(0.0f, 0.0f, 0.9f, 0.6f, 1.0f)` | squash the top, leave the low end alone — tames sizzle, lifts detail | — |
+| squash the drum bus | `instrument_multiband(I_DRUMS, 0.8f, 0.7f, 0.9f, 0.4f, 1.0f)` | flat, in-your-face drums while the pad keeps breathing | — |
+| squash → clip | `int ch[] = {FX_MULTIBAND, FX_DRIVE}; fx_order(0, ch, 2);` + `drive_insert(0.6f, DRIVE_HARD, 1.0f)` | the destruction chain: level everything, then hard-clip the result | `hyperbox` |
+
+> **multiband vs glue vs sidechain.** `glue()` is one band, ducking only, off the bus's own level (mix
+> glue). `sidechain()` ducks on a *trigger* (the kick pump). `multiband()` is three bands **and** the
+> upward direction — reach for it when the goal is "louder and always on", not "breathing".
+
 ## varispeed — `varispeed(speed)`
 
 Variable **tape playback speed** of the whole mix (the Chase Bliss MOOD "clock" / a turntable brake;

@@ -27,7 +27,9 @@
 
 // the master effects worth fuzzing at extremes. INSERTS process the whole mix (just call
 // the config fn); SENDS (reverb/echo) also need a per-slot send level to be fed anything.
-#define NTESTS 19   // 0=DRY, 1..12 = one effect each, 13..18 = STACKS (keep in sync with fx-check.js FX_NAMES)
+#define NTESTS 20   // 0=DRY, 1..12 = one effect each, 13..18 = STACKS, 19+ = effects added later
+                    // (APPEND new cases — inserting one renumbers the committed fx-baseline.json).
+                    // Keep in sync with fx-check.js FX_NAMES.
 
 static int fnum = -1;
 static int h0 = -1, h1 = -1, h2 = -1;
@@ -49,6 +51,7 @@ static void fx_all_off(void) {
     echo_insert(1, 0, 0, 0);            // the reorderable INSERT versions (stacks use these)
     reverb_insert(0, 0, 0);
     drive_insert(0, DRIVE_SOFT, 0);
+    multiband(0, 0, 0, 0, 0);              // multiband dynamics — mix 0 = bypass
 }
 
 // STACK chains (indices 13+): fx_order(0,…) sets the master insert chain to EXACTLY these kinds
@@ -89,6 +92,7 @@ static void fx_enable(int t) {
         case 18: drive_insert(0.5f, DRIVE_SOFT, 0.8f); chorus(2, 0.5f, 0.5f); flanger(0.3f, 0.5f, 0.5f, 0.5f);
                  eq(4, 2, 4); crush(8, 1, 0.4f); tape(0.3f, 0.2f, 0.5f); echo_insert(300, 0.5f, 0.5f, 0.5f);
                  reverb_insert(0.6f, 0.4f, 0.5f); fx_order(0, STK_KITCHEN, 8); break; // kitchen sink (deep chain)
+        case 19: multiband(1.0f, 1.0f, 1.0f, 1.0f, 1.0f);                break; // every band fully squashed + max upward lift (the OTT wall)
         default: break;                                                      // 0 = DRY (reference)
     }
 }

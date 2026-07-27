@@ -1,0 +1,19 @@
+# pedalboard — the boot rig autoplaying itself while the chain gets built:
+# open the PEDALS palette, then kick the stompboxes in one at a time so the tone
+# opens up pedal by pedal. Autoplay walks its own 8-chord progression at bpm 100
+# (a chord every 4 beats), so the guitar keeps strumming with no input.
+# Deterministic: no rnd(), no save state.
+# frames 780
+# fps 30
+# crf 20
+click 60 32 8
+drag 110 245 128 175 288 45
+click 230 32 8
+down 260 1
+up 264 1
+down 380 2
+up 384 2
+down 500 5
+up 504 5
+down 620 3
+up 624 3

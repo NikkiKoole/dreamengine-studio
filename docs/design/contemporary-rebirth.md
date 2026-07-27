@@ -396,7 +396,11 @@ Both racks need two gaps and they share Rung A, so the tiebreakers are these:
   two melodic boxes, so one key = the whole seven-saw stack, an octave below the vocal.)*
 - **Blown-out drums** — one 16-step kick lane on `tr909.h` with light steps as `schedule_hit`
   ratchets, `instrument_drive` + `instrument_crush` fixed hot. *(v2 made it four lanes —
-  BD/SD/CH/CP — with each step cycling off → hit → ratchet; one lane read as a placeholder.)*
+  BD/SD/CH/CP — with each step cycling off → hit → ratchet; one lane read as a placeholder. v4 added
+  the pad row + REC, so every box in the rack is now PLAYED as well as edited. Two details that make
+  a tap-record usable, both worth copying: quantize to the NEAREST step, since a hand tap is late by
+  definition and flooring puts every recorded hit one step behind what you heard; and flash the step
+  you wrote, because a quantizer that silently moves your hit is indistinguishable from a bug.)*
 - **Voice engine** — deferred to v2 (it is the one part needing Rung B and the mic). v1 puts
   `INSTR_VOICE` in the slot instead: deterministic, no permission prompt, and its SIZE macro is
   already a vocal-tract/formant axis, so the box reads correctly while Rung B is built.

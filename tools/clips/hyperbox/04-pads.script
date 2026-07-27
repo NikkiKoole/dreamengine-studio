@@ -1,0 +1,17 @@
+# hyperbox — the pad row + REC (v4), on the boot panel (DRUMS is already open).
+# Regression track for the tap-record: the trace's `gridn` (live step count) must GROW while
+# `rec`=1 and hold still while `rec`=0. A tap onto a step that already has a hit leaves gridn
+# unchanged — that's an overwrite, not a miss, so read the deltas not the count.
+#   node tools/play.js hyperbox script tools/clips/hyperbox/04-pads.script --headless --frames 240 --trace t.jsonl
+# frames 240
+# Geometry (drums open: body y=66): lanes at 70/90/110/130, pads 152..170,
+# pad x = 26/72/118/164 (w 44), REC at 210..256.
+click 20 30 160       # BD pad, REC still OFF: it sounds, the grid must NOT change
+click 45 76 160       # SD pad, same
+click 70 232 160      # arm REC (the light blinks on the beat from here)
+click 100 30 160      # BD  -> lands on the nearest step
+click 120 76 160      # SD
+click 140 122 160     # CH
+click 160 168 160     # CP  (the sparse lane: this one is always a new step)
+click 190 232 160     # disarm
+click 215 168 160     # CP again, disarmed: sounds, writes nothing

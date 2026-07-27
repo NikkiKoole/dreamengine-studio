@@ -11,13 +11,13 @@
   "lineage": "The tiny first build of docs/design/contemporary-rebirth.md: a CONTEMPORARY ReBirth clones TECHNIQUES, not machines, because modern genres were never made on gear. It is also the showcase cart for multiband() (audio-notes §17 #34, Rung A of that doc) — the OTT box, three bands squashed down AND pushed up, which is the sound of a modern master. The rack shape is acidcandy/acidrack's ACCORDION (slim strips, one device expanded, sound never depends on what is open); the supersaw box is supersaw's instrument_unison stack; the drums are tr909.h; the keybed is keybed.h. NOT a mic cart: the voice box is INSTR_VOICE (deterministic, no permission prompt) standing in until the formant/harmoniser dial lands (that doc's Rung B).",
   "description": {
     "summary": "A four-box hyperpop rack where the master chain has no bypass. A playable pitch-snapped vocal lead, seven detuned saws you can also play, always-clipped drums you can program, and OTT pinned on — everything is too loud on purpose. Tap a box to open it; the sound never depends on which one is open.",
-    "detail": "Four devices in one screen, ReBirth-style, but cloning MOVES instead of machines: hard tune, the seven-saw wall, ratcheted drums, and a master that is permanently working. VOICE is INSTR_VOICE on a playable keybed (touch/mouse/QWERTY/MIDI) with RETUNE as the hard-tune speed — at 0 the pitch JUMPS between notes, turned up it slides; play legato and you hear the difference. Its three presets move the vocal-tract macros (CHIP small and pitched-up, ROBO pressed and flat, CHOIR stacks a fifth and an octave). SAW is one slot with instrument_unison(7) plus DETUNE/BRIGHT/TOY, where TOY crushes toward a cheap ringtone on purpose — and it has the SAME keybed, an octave lower, because one keybed FOLLOWS FOCUS between the two melodic boxes: one key there is all seven saws at once. DRUMS is four tr909.h lanes (kick/snare/hat/clap) over 16 steps, and a step cycles off → hit → RATCHET, a sample-accurate 1/32 burst via schedule_hit. MASTER is multiband() with all four amounts on knobs plus a hard clipper, in that order, with no bypass drawn anywhere. Play while the pattern runs and it steps aside — but only the part you took: hold the vocal and the riff yields, hold the saw and the chord stab yields.",
-    "controls": "It starts playing on load. SPACE stops/starts. Tap a device strip to expand it (the others stay audible). VOICE and SAW share one keybed, and opening either hands it over — the transport says which (keys VOICE / keys SAW), so a MIDI keyboard keeps playing while you program drums. Play it by touch, mouse, the QWERTY musical-typing rows, or a plugged-in MIDI keyboard; Z/X shift the octave. In VOICE: 1/2/3 pick a preset. In SAW: STAB fires the chord the pattern is on. In DRUMS: tap a step to cycle it off → hit → ratchet. Knobs drag vertically. RISER throws a sweep."
+    "detail": "Four devices in one screen, ReBirth-style, but cloning MOVES instead of machines: hard tune, the seven-saw wall, ratcheted drums, and a master that is permanently working. VOICE is INSTR_VOICE on a playable keybed (touch/mouse/QWERTY/MIDI) with RETUNE as the hard-tune speed — at 0 the pitch JUMPS between notes, turned up it slides; play legato and you hear the difference. Its three presets move the vocal-tract macros (CHIP small and pitched-up, ROBO pressed and flat, CHOIR stacks a fifth and an octave). SAW is one slot with instrument_unison(7) plus DETUNE/BRIGHT/TOY, where TOY crushes toward a cheap ringtone on purpose — and it has the SAME keybed, an octave lower, because one keybed FOLLOWS FOCUS between the two melodic boxes: one key there is all seven saws at once. DRUMS is four tr909.h lanes (kick/snare/hat/clap) over 16 steps, and a step cycles off → hit → RATCHET, a sample-accurate 1/32 burst via schedule_hit — plus a pad row you play by hand, with REC to land what you play in the grid at the NEAREST step (floor-quantizing would put every hand-played hit one step behind where you heard it). The pads light from every hit, sequenced or played, so the row doubles as the box's live readout. MASTER is multiband() with all four amounts on knobs plus a hard clipper, in that order, with no bypass drawn anywhere. Play while the pattern runs and it steps aside — but only the part you took: hold the vocal and the riff yields, hold the saw and the chord stab yields.",
+    "controls": "It starts playing on load. SPACE stops/starts. Tap a device strip to expand it (the others stay audible). VOICE and SAW share one keybed, and opening either hands it over — the transport says which (keys VOICE / keys SAW), so a MIDI keyboard keeps playing while you program drums. Play it by touch, mouse, the QWERTY musical-typing rows, or a plugged-in MIDI keyboard; Z/X shift the octave. In VOICE: 1/2/3 pick a preset. In SAW: STAB fires the chord the pattern is on. In DRUMS: tap a step to cycle it off → hit → ratchet, or play the BD/SD/CH/CP pads by hand; arm REC and what you play lands in the grid on the nearest step (the written step flashes white so you can see where it went). Knobs drag vertically. RISER throws a sweep."
   },
   "todo": [
     "v3: swap the INSTR_VOICE stand-in for the real vocal chain (mic + autotune_mic + the formant/harmoniser dial) once contemporary-rebirth.md Rung B lands. The keybed then plays the mic'd voice instead of a synth one.",
     "The pattern is one bank with no arrangement, per the constraint-is-the-product thesis. If a generator is added it should deliberately overshoot (too fast, too loud), since in this genre the mistakes are the genre.",
-    "The drum lanes are the one box you cannot play with your hands, only program. A pad row (tap BD/SD/CH/CP live, and record-arm it into the grid) is the obvious next depth pass, and it is what the accordion's spare width in the DRUMS panel is for.",
+    "REC can only ADD. The one way to erase is tapping grid cells off one at a time, so a bad take has to be un-picked by hand — a per-lane CLR (and maybe an undo of the last recorded pass) is the missing half of the pad row.",
     "v1 shipped with three LOW/MID/HI bars sized by hardcoded literals, which read as sliders that ignore you, and ten captions that DESCRIBED the constraints instead of being them. The maker's verdict was 'promising but feels very incomplete, lots of UI that doesn't do anything', which is the answer to §7's 'is no bypass honest or hostile' question: constraint-as-feature only reads as opinionated if what REMAINS is deep. Keep that bar for the amapiano rack."
   ]
 }
@@ -54,7 +54,9 @@ de:meta */
 //           honest stand-in for a mic'd vocal chain: deterministic, no permission prompt
 //   SAW     instrument_unison(7) + instrument_unison_detune (live bloom) + filter + crush ("toy"),
 //           on the same keybed: one key = the whole seven-saw stack
-//   DRUMS   tr909.h — tr909_fire for a hit, tr909_fire_stroke(TR9_ST_RATCHET) for a 1/32 burst
+//   DRUMS   tr909.h — tr909_fire for a hit, tr909_fire_stroke(TR9_ST_RATCHET) for a 1/32 burst,
+//           both through ONE hit_lane() so a pad tap and a sequenced step are the same event
+//           (v4: the pad row + REC, so the drums are played as well as programmed)
 //   MASTER  multiband() → drive_insert(DRIVE_HARD) via fx_order, both pinned on
 //
 // The accordion is acidrack's: slim strips always visible, one device expanded, and the SOUND NEVER
@@ -78,6 +80,7 @@ de:meta */
 
 #define STEPS  16
 #define BPM    160        // "160 bpm, everything too loud by design"
+#define STEP_MS ((int)(15000.0f / (float)BPM))   // one 1/16 in ms (the ratchet's burst spacing)
 
 // ── the four devices (accordion: one expanded, the rest slim) ─────────────────────────────────
 enum { D_VOICE, D_SAW, D_DRUM, D_MASTER, D_N };
@@ -145,6 +148,14 @@ static int preset = P_CHIP;
 
 // tr909 per-voice knobs (the cart owns these arrays; 0.5 = neutral)
 static float ktune[TR9_NV], kdecay[TR9_NV], kcolor[TR9_NV];
+
+// the pad row: play the drums with your hands, and REC writes what you play into the grid.
+// pad_glow lights from EVERY hit, sequenced or hand-played (see hit_lane) — the pads are the box's
+// live readout, which is also what tells you the sequencer is still running while you play over it.
+static float pad_glow[LANES];
+static int   rec = 0;                   // armed: a pad tap lands in the grid at the nearest step
+static int   rec_flash = -1;            // the step just written…
+static float rec_flash_t = 0.0f;        // …and how much of its highlight is left
 
 // the melody: scale degrees, snapped — a minor-pentatonic riff, one note per 4 steps
 static const int RIFF[4]   = { 0, 3, 5, 3 };
@@ -253,14 +264,20 @@ static void saw_release(void) {
     for (int i = 0; i < 3; i++) if (saw_h[i] >= 0) { note_off(saw_h[i]); saw_h[i] = -1; }
 }
 
-static void fire_step(int s) {
-    int step_ms = (int)(15000.0f / (float)BPM);      // one 1/16 in ms
+// ONE path for a drum hit, whoever asked for it: the sequencer, or your finger on a pad. That is
+// what makes the pads light up with the pattern instead of only under your own taps — the panel is
+// then a live readout of the box, not four buttons that happen to sit near a grid.
+static void hit_lane(int l, int ratchet, int step_ms) {
+    if (l < 0 || l >= LANES) return;
+    if (ratchet) tr909_fire_stroke(TR909_BASE, LANE_V[l], TR9_ST_RATCHET, LANE_VEL[l], 0, step_ms, ktune, kdecay, kcolor);
+    else         tr909_fire(TR909_BASE, LANE_V[l], LANE_VEL[l], 0, ktune, kdecay, kcolor);
+    pad_glow[l] = 1.0f;
+}
 
+static void fire_step(int s) {
     if (!muted[D_DRUM]) for (int l = 0; l < LANES; l++) {
-        if (grid[l][s] == ST_HIT)
-            tr909_fire(TR909_BASE, LANE_V[l], LANE_VEL[l], 0, ktune, kdecay, kcolor);
-        else if (grid[l][s] == ST_RATCHET)           // a 1/32 burst — the "too fast at the end"
-            tr909_fire_stroke(TR909_BASE, LANE_V[l], TR9_ST_RATCHET, LANE_VEL[l], 0, step_ms, ktune, kdecay, kcolor);
+        if (grid[l][s] == ST_HIT)          hit_lane(l, 0, STEP_MS);
+        else if (grid[l][s] == ST_RATCHET) hit_lane(l, 1, STEP_MS);   // a 1/32 burst — the "too fast at the end"
     }
 
     if ((s & 3) == 0) {                              // one riff note + one chord stab per beat
@@ -323,6 +340,11 @@ void update(void) {
         if (s != step) { step = s; fire_step(s); }
     }
 
+    // pad lights + the recorded-step highlight decay here, not in draw_drums: the pads must be
+    // correct the moment you open the panel, and draw_drums only runs while it is open.
+    for (int l = 0; l < LANES; l++) if (pad_glow[l] > 0.0f) pad_glow[l] -= dt() * 4.0f;
+    if (rec_flash_t > 0.0f) rec_flash_t -= dt() * 5.0f;
+
     if (riser_t >= 0.0f) {                           // a rising sweep, then gone
         riser_t += dt() * 0.8f;
         if (riser_h >= 0) {
@@ -339,6 +361,9 @@ void update(void) {
     watch("focus", "%d", focus);
     watch("held",  "%d", kb_held_n);
     watch("hands", "%d", hand_slot);                 // VOX(6) or SAW(5) — the keybed's target
+    { int n = 0; for (int l = 0; l < LANES; l++) for (int s = 0; s < STEPS; s++) if (grid[l][s]) n++;
+      watch("gridn", "%d", n); }                     // live step count: proves a REC'd pad tap landed
+    watch("rec",   "%d", rec);
     watch("saw0",  "%d", saw_h[0]);                  // the pattern's wall voice; -1 = it stepped aside
     watch("up",    "%.2f", k_up);
     watch("low",   "%.2f", k_low);
@@ -438,7 +463,7 @@ static void draw_saw(int y, int h) {
 }
 
 static void draw_drums(int y, int h) {
-    int x0 = 26, cw = (SCREEN_W - x0 - 6) / STEPS, top = y + 6;
+    int x0 = 26, cw = (SCREEN_W - x0 - 6) / STEPS, top = y + 4;
     int lh = (h - 14) / LANES; if (lh > 20) lh = 20;
     for (int l = 0; l < LANES; l++) {
         int ly = top + l * lh;
@@ -451,10 +476,41 @@ static void draw_drums(int y, int h) {
             if (st == ST_RATCHET)                    // three ticks = the 1/32 burst
                 for (int t = 0; t < 3; t++) rectfill(cx + 2 + t * 4, ly + 2, 2, 2, CLR_WHITE);
             if (s == step) rect(cx, ly, cw - 2, ch, CLR_WHITE);
+            // a step the pad row just wrote: outlined for a fifth of a second, because REC QUANTIZES
+            // and you need to see WHERE your tap landed, not just hear that it did
+            if (s == rec_flash && rec_flash_t > 0.0f) rect(cx - 1, ly - 1, cw, ch + 2, CLR_WHITE);
             if (tapped(cx, ly, cw - 2, ch)) grid[l][s] = (unsigned char)((st + 1) % 3);
         }
     }
-    caption("tap a step: off - hit - RATCHET (a 1/32 burst)", x0, y + h - 8, CLR_DARK_GREY);
+
+    // ── the pad row: the drums were the one box you could only PROGRAM ────────────────────────────
+    // Nearest-step quantize, not floor: a hand tap lands a few ms LATE by definition, so writing to
+    // (int)clock_pos puts every recorded hit one step behind where you heard yourself play it.
+    int py = top + LANES * lh + 2, ph = 18;
+    int q = playing ? (int)(clock_pos + 0.5f) % STEPS : -1;
+    for (int l = 0; l < LANES; l++) {
+        int px = x0 + l * 46, pw = 44;
+        int lit = pad_glow[l] > 0.25f;
+        rectfill(px, py, pw, ph, lit ? CLR_RED : CLR_BLACK);
+        rect(px, py, pw, ph, pad_glow[l] > 0.02f ? CLR_ORANGE : CLR_DARK_GREY);
+        font(FONT_NORMAL);
+        print(LANE_NAME[l], px + pw / 2 - 8, py + ph / 2 - 4, lit ? CLR_BLACK : CLR_RED);
+        if (tapped(px, py, pw, ph)) {
+            hit_lane(l, 0, STEP_MS);
+            if (rec && q >= 0) { grid[l][q] = ST_HIT; rec_flash = q; rec_flash_t = 1.0f; }
+        }
+    }
+    // REC is hand-rolled, not ui_button, for the same reason MUTE is: it has to read ARMED (red) at a
+    // glance, and its light blinks on the beat so an armed rack never looks idle.
+    int rx = x0 + LANES * 46 + 6;
+    if (tapped(rx, py, 46, ph)) rec = !rec;
+    rect(rx, py, 46, ph, rec ? CLR_RED : CLR_DARK_GREY);
+    if (rec && (step & 2) == 0) circfill(rx + 9, py + ph / 2, 3, CLR_RED);
+    caption(rec ? "REC" : "rec", rx + 17, py + ph / 2 - 3, rec ? CLR_RED : CLR_DARK_GREY);
+
+    caption(rec ? "armed: play the pads, they land on the nearest step"
+                : "tap a step: off - hit - RATCHET. or play the pads",
+            x0, y + h - 8, rec ? CLR_RED : CLR_DARK_GREY);
 }
 
 static void draw_master(int y, int h) {

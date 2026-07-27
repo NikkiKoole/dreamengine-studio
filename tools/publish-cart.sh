@@ -39,8 +39,17 @@ done
   echo "  git clone git@github.com:NikkiKoole/dreamengine.git site"; exit 1; }
 
 # ── site leg: commit + push inside site/'s OWN repo. Everything under site/
-# belongs to it, so add -A can't sweep foreign WIP (the shared-index hazard
-# lives in the code repo, not here).
+# belongs to it, so add -A can't sweep foreign WIP *from the code repo* (that
+# shared-index hazard lives there, not here).
+#
+# It CAN, though, sweep another cart that was already built into site/ and never
+# pushed — the editor's publish button builds straight in here, and a parallel
+# agent's build lands here too. So `publish-cart.sh <one-cart>` may push several,
+# and the commit subject will name only yours. Bit us 2026-07-27: publishing
+# hyperbox also took a waiting acidcandy build live. Harmless (nothing is
+# overwritten, and everything under site/ was meant to ship eventually) but it
+# means the push is not always as narrow as the argument list. To see what will
+# go first: `git -C site status --short`.
 cp tools/net-relay.js site/net-relay.js   # the site repo self-deploys the relay (site/render.yaml → Render); keep the copy in sync
 (
   cd site

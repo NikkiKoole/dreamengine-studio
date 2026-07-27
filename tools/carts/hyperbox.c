@@ -10,14 +10,14 @@
   "homage": "ReBirth RB-338 (Propellerhead, 1997) — the four-box rack shape, and the idea that a rack IS a genre argument. The sound aimed at is hyperpop's, the 100 gecs / SOPHIE lineage: pitched-up vocals, seven detuned saws, and a master bus deliberately overdriven.",
   "lineage": "The tiny first build of docs/design/contemporary-rebirth.md: a CONTEMPORARY ReBirth clones TECHNIQUES, not machines, because modern genres were never made on gear. It is also the showcase cart for multiband() (audio-notes §17 #34, Rung A of that doc) — the OTT box, three bands squashed down AND pushed up, which is the sound of a modern master. The rack shape is acidcandy/acidrack's ACCORDION (slim strips, one device expanded, sound never depends on what is open); the supersaw box is supersaw's instrument_unison stack; the drums are tr909.h; the keybed is keybed.h. NOT a mic cart: the voice box is INSTR_VOICE (deterministic, no permission prompt) standing in until the formant/harmoniser dial lands (that doc's Rung B).",
   "description": {
-    "summary": "A four-box hyperpop rack where the master chain has no bypass. A playable pitch-snapped vocal lead, seven detuned saws, always-clipped drums you can program, and OTT pinned on — everything is too loud on purpose. Tap a box to open it; the sound never depends on which one is open.",
-    "detail": "Four devices in one screen, ReBirth-style, but cloning MOVES instead of machines: hard tune, the seven-saw wall, ratcheted drums, and a master that is permanently working. VOICE is INSTR_VOICE on a playable keybed (touch/mouse/QWERTY/MIDI) with RETUNE as the hard-tune speed — at 0 the pitch JUMPS between notes, turned up it slides; play legato and you hear the difference. Its three presets move the vocal-tract macros (CHIP small and pitched-up, ROBO pressed and flat, CHOIR stacks a fifth and an octave). SAW is one slot with instrument_unison(7) plus DETUNE/BRIGHT/TOY, where TOY crushes toward a cheap ringtone on purpose. DRUMS is four tr909.h lanes (kick/snare/hat/clap) over 16 steps, and a step cycles off → hit → RATCHET, a sample-accurate 1/32 burst via schedule_hit. MASTER is multiband() with all four amounts on knobs plus a hard clipper, in that order, with no bypass drawn anywhere. Play a key while the pattern runs and the riff steps aside for you.",
-    "controls": "It starts playing on load. SPACE stops/starts. Tap a device strip to expand it (the others stay audible). In VOICE: play the keybed by touch, mouse, the QWERTY musical-typing rows, or a plugged-in MIDI keyboard; Z/X shift the octave; 1/2/3 pick a preset. In DRUMS: tap a step to cycle it off → hit → ratchet. Knobs drag vertically. RISER throws a sweep."
+    "summary": "A four-box hyperpop rack where the master chain has no bypass. A playable pitch-snapped vocal lead, seven detuned saws you can also play, always-clipped drums you can program, and OTT pinned on — everything is too loud on purpose. Tap a box to open it; the sound never depends on which one is open.",
+    "detail": "Four devices in one screen, ReBirth-style, but cloning MOVES instead of machines: hard tune, the seven-saw wall, ratcheted drums, and a master that is permanently working. VOICE is INSTR_VOICE on a playable keybed (touch/mouse/QWERTY/MIDI) with RETUNE as the hard-tune speed — at 0 the pitch JUMPS between notes, turned up it slides; play legato and you hear the difference. Its three presets move the vocal-tract macros (CHIP small and pitched-up, ROBO pressed and flat, CHOIR stacks a fifth and an octave). SAW is one slot with instrument_unison(7) plus DETUNE/BRIGHT/TOY, where TOY crushes toward a cheap ringtone on purpose — and it has the SAME keybed, an octave lower, because one keybed FOLLOWS FOCUS between the two melodic boxes: one key there is all seven saws at once. DRUMS is four tr909.h lanes (kick/snare/hat/clap) over 16 steps, and a step cycles off → hit → RATCHET, a sample-accurate 1/32 burst via schedule_hit. MASTER is multiband() with all four amounts on knobs plus a hard clipper, in that order, with no bypass drawn anywhere. Play while the pattern runs and it steps aside — but only the part you took: hold the vocal and the riff yields, hold the saw and the chord stab yields.",
+    "controls": "It starts playing on load. SPACE stops/starts. Tap a device strip to expand it (the others stay audible). VOICE and SAW share one keybed, and opening either hands it over — the transport says which (keys VOICE / keys SAW), so a MIDI keyboard keeps playing while you program drums. Play it by touch, mouse, the QWERTY musical-typing rows, or a plugged-in MIDI keyboard; Z/X shift the octave. In VOICE: 1/2/3 pick a preset. In SAW: STAB fires the chord the pattern is on. In DRUMS: tap a step to cycle it off → hit → ratchet. Knobs drag vertically. RISER throws a sweep."
   },
   "todo": [
     "v3: swap the INSTR_VOICE stand-in for the real vocal chain (mic + autotune_mic + the formant/harmoniser dial) once contemporary-rebirth.md Rung B lands. The keybed then plays the mic'd voice instead of a synth one.",
     "The pattern is one bank with no arrangement, per the constraint-is-the-product thesis. If a generator is added it should deliberately overshoot (too fast, too loud), since in this genre the mistakes are the genre.",
-    "The SAW box has no play surface of its own — the STAB pad fires the whole chord, and the keybed is wired to VOICE only (the thesis puts the vocal where ReBirth put the 303). If the saw wants to be played, keybed.h can be re-pointed on focus change.",
+    "The drum lanes are the one box you cannot play with your hands, only program. A pad row (tap BD/SD/CH/CP live, and record-arm it into the grid) is the obvious next depth pass, and it is what the accordion's spare width in the DRUMS panel is for.",
     "v1 shipped with three LOW/MID/HI bars sized by hardcoded literals, which read as sliders that ignore you, and ten captions that DESCRIBED the constraints instead of being them. The maker's verdict was 'promising but feels very incomplete, lots of UI that doesn't do anything', which is the answer to §7's 'is no bypass honest or hostile' question: constraint-as-feature only reads as opinionated if what REMAINS is deep. Keep that bar for the amapiano rack."
   ]
 }
@@ -38,10 +38,22 @@ de:meta */
 // four boxes now rewards being opened: the voice is playable, the drums are programmable, and every
 // master amount is real. The bypass is still absent, because that part IS the thesis.
 //
+// v3 note: ONE KEYBED, TWO BOXES. v2 left the saw box as knobs-plus-a-button — the only box you
+// couldn't play — because the keybed was wired to VOX. Now keybed.h FOLLOWS FOCUS (kb_point) between
+// the two melodic boxes, an octave lower for the wall, and each box's pattern part steps aside only
+// for the box your hands are actually on. Two hazards that came with sharing it, both fixed here and
+// worth copying into any other accordion rack:
+//   1. keybed_layout() is STICKY and keybed_update() hit-tests it whether or not keys were drawn, so
+//      the rect stayed live UNDER the next panel: v2's drum-grid taps also played vocal notes. draw()
+//      retires it (0,0,0,0) when no melodic box is open. QWERTY/MIDI don't use the rect.
+//   2. keybed_config() wipes the held-note table WITHOUT firing the off callbacks, so re-pointing
+//      straight into it orphans a voice per held finger. kb_point() calls keybed_all_off() first.
+//
 // What each box is made of, engine-wise:
 //   VOICE   INSTR_VOICE + keybed.h (touch/mouse/QWERTY/MIDI) + note_glide as the RETUNE knob — an
 //           honest stand-in for a mic'd vocal chain: deterministic, no permission prompt
-//   SAW     instrument_unison(7) + instrument_unison_detune (live bloom) + filter + crush ("toy")
+//   SAW     instrument_unison(7) + instrument_unison_detune (live bloom) + filter + crush ("toy"),
+//           on the same keybed: one key = the whole seven-saw stack
 //   DRUMS   tr909.h — tr909_fire for a hit, tr909_fire_stroke(TR9_ST_RATCHET) for a 1/32 burst
 //   MASTER  multiband() → drive_insert(DRIVE_HARD) via fx_order, both pinned on
 //
@@ -120,6 +132,11 @@ static float riser_t = -1.0f;    // 0..1 while a riser is in flight, <0 = idle
 // hand-played notes (keybed.h manages the gestures, this cart manages the voices so RETUNE applies)
 static int hand_h[128];   /* handle per midi; NOT kb_h — keybed.h owns that name for its layout height (the `map` trap again) */
 static int kb_held_n = 0;
+// WHICH instrument your hands are on. v2 wired the keybed to VOX only, so the saw box was a knob
+// panel with one button — the one box you couldn't play. Now the keybed FOLLOWS FOCUS between the
+// two melodic boxes, and whichever one you're holding steps its own pattern part aside.
+// Named hand_slot, not kb_slot: keybed.h already owns that global (same trap as kb_h above).
+static int hand_slot = VOX;
 
 // vocal presets — vowel / size / effort on INSTR_VOICE's three macros
 enum { P_CHIP, P_ROBO, P_CHOIR, P_COUNT };
@@ -170,8 +187,10 @@ static void voice_macros(void) {   // the preset's vowel / size / effort
 // ── hand-played voices: RETUNE is the glide, so legato playing IS the hard-tune demo ───────────
 static void kb_note(int midi, int vel) {
     if (midi < 0 || midi > 127 || hand_h[midi] >= 0) return;
-    hand_h[midi] = note_on(midi, VOX, vel ? vel : 6);
-    note_glide(hand_h[midi], (int)(k_retune * 120.0f));
+    hand_h[midi] = note_on(midi, hand_slot, vel ? vel : 6);
+    // RETUNE is the VOCAL knob, so only the vocal glides. On the saw a key is one strike of the
+    // seven-saw stack — gliding it would just make the wall seasick, and hide what DETUNE does.
+    if (hand_slot == VOX) note_glide(hand_h[midi], (int)(k_retune * 120.0f));
     kb_held_n++;
 }
 static void kb_off(int midi) {
@@ -179,6 +198,16 @@ static void kb_off(int midi) {
     note_off(hand_h[midi]);
     hand_h[midi] = -1;
     if (kb_held_n > 0) kb_held_n--;
+}
+
+// Re-point the keybed at another instrument. keybed_all_off() FIRST, always: keybed_config()
+// wipes its held-note table without firing the off callbacks, so re-pointing straight into it
+// leaks every held voice (a stuck note per finger, on the box you just left).
+static void kb_point(int slot, int base_oct, int nwhite) {
+    if (hand_slot == slot) return;
+    keybed_all_off();                       // fires kb_off per held note → our handles released
+    hand_slot = slot;
+    keybed_config(slot, base_oct, nwhite);   // slot is unused in unmanaged mode; passed for honesty
 }
 
 void init(void) {
@@ -212,6 +241,18 @@ void init(void) {
 }
 
 // ── one 1/16 step of the pattern ──────────────────────────────────────────────────────────────
+// the wall as a chord: root-octave-down, a fourth under, the note. One place, so the pattern's
+// half-bar stab and the STAB pad cannot drift apart.
+static void saw_chord(int midi) {
+    for (int i = 0; i < 3; i++) if (saw_h[i] >= 0) note_off(saw_h[i]);
+    saw_h[0] = note_on(midi - 12, SAW, 5);
+    saw_h[1] = note_on(midi - 5,  SAW, 4);
+    saw_h[2] = note_on(midi,      SAW, 4);
+}
+static void saw_release(void) {
+    for (int i = 0; i < 3; i++) if (saw_h[i] >= 0) { note_off(saw_h[i]); saw_h[i] = -1; }
+}
+
 static void fire_step(int s) {
     int step_ms = (int)(15000.0f / (float)BPM);      // one 1/16 in ms
 
@@ -226,8 +267,9 @@ static void fire_step(int s) {
         int deg = RIFF[(s >> 2) & 3];
         int midi = snap_penta(deg);
         int glide_ms = (int)(k_retune * 120.0f);
-        // The riff STEPS ASIDE while you play. Nothing clever, just: your hands win.
-        int riff_on = !muted[D_VOICE] && kb_held_n == 0;
+        // The pattern STEPS ASIDE while you play — but only the part you took. Nothing clever,
+        // just: your hands win, on the box your hands are actually on.
+        int riff_on = !muted[D_VOICE] && !(hand_slot == VOX && kb_held_n > 0);
         if (riff_on) {
             // RETUNE: 0 = the pitch JUMPS (hard tune), up = it slides there (natural correction)
             if (vox_h < 0) {
@@ -248,27 +290,23 @@ static void fire_step(int s) {
             for (int i = 0; i < 2; i++) if (vox_stack[i] >= 0) { note_off(vox_stack[i]); vox_stack[i] = -1; }
         }
 
-        if ((s & 7) == 0 && !muted[D_SAW]) {         // re-stab the wall every half bar
-            for (int i = 0; i < 3; i++) if (saw_h[i] >= 0) note_off(saw_h[i]);
-            saw_h[0] = note_on(midi - 12, SAW, 5);
-            saw_h[1] = note_on(midi - 5,  SAW, 4);
-            saw_h[2] = note_on(midi,      SAW, 4);
+        if ((s & 7) == 0) {                          // re-stab the wall every half bar
+            if (!muted[D_SAW] && !(hand_slot == SAW && kb_held_n > 0)) saw_chord(midi);
+            else saw_release();                      // your hands have the wall: get out of the way
         }
     }
 }
 
-static void stab_now(void) {                          // the SAW box's play surface
-    int midi = snap_penta(RIFF[0]);
-    for (int i = 0; i < 3; i++) if (saw_h[i] >= 0) note_off(saw_h[i]);
-    saw_h[0] = note_on(midi - 12, SAW, 5);
-    saw_h[1] = note_on(midi - 5,  SAW, 4);
-    saw_h[2] = note_on(midi,      SAW, 4);
+// the STAB pad: the chord the pattern would play RIGHT NOW, not a fixed one. v2 hardcoded RIFF[0],
+// so tapping it mid-bar fought the running riff instead of doubling it.
+static void stab_now(void) {
+    saw_chord(snap_penta(RIFF[step < 0 ? 0 : (step >> 2) & 3]));
 }
 
 static void all_off(void) {
     if (vox_h >= 0) { note_off(vox_h); vox_h = -1; }
     for (int i = 0; i < 2; i++) if (vox_stack[i] >= 0) { note_off(vox_stack[i]); vox_stack[i] = -1; }
-    for (int i = 0; i < 3; i++) if (saw_h[i] >= 0) { note_off(saw_h[i]); saw_h[i] = -1; }
+    saw_release();
 }
 
 void update(void) {
@@ -300,6 +338,8 @@ void update(void) {
     watch("step",  "%d", step);
     watch("focus", "%d", focus);
     watch("held",  "%d", kb_held_n);
+    watch("hands", "%d", hand_slot);                 // VOX(6) or SAW(5) — the keybed's target
+    watch("saw0",  "%d", saw_h[0]);                  // the pattern's wall voice; -1 = it stepped aside
     watch("up",    "%.2f", k_up);
     watch("low",   "%.2f", k_low);
     watch("retune_ms", "%d", (int)(k_retune * 120.0f));
@@ -339,7 +379,13 @@ static void device_head(int d, int y, int h, int open) {
     if (tapped(mx, y + 2, 32, h - 4)) { muted[d] = !muted[d]; if (muted[d] && d == D_VOICE) all_off(); }
     rect(mx, y + 2, 32, h - 4, muted[d] ? CLR_RED : CLR_DARK_GREY);
     caption_c(muted[d] ? "MUTED" : "MUTE", mx + 16, y + h / 2 - 3, muted[d] ? CLR_RED : CLR_DARK_GREY);
-    if (tapped(0, y, mx - 2, h)) focus = d;
+    // Opening a melodic box hands it the keybed. Opening drums/master leaves the keybed pointed
+    // where it was, so a plugged-in MIDI keyboard keeps playing while you program a pattern.
+    if (tapped(0, y, mx - 2, h)) {
+        focus = d;
+        if (d == D_VOICE)     kb_point(VOX, 4, 14);
+        else if (d == D_SAW)  kb_point(SAW, 3, 14);   // the wall wants a lower register than the chipmunk lead
+    }
 }
 
 static void draw_voice(int y, int h) {
@@ -351,7 +397,8 @@ static void draw_voice(int y, int h) {
     caption(kb_held_n ? "your hands have it - the riff stepped aside" : "play it: touch / mouse / QWERTY / MIDI",
             58, y + 30, kb_held_n ? CLR_PINK : CLR_DARK_GREY);
     caption("Z X octave", 58, y + 38, CLR_DARK_GREY);
-    int ky = y + 48;
+    int ky = y + 52;   // 52, not 48: RETUNE's value word sits at y+44 and FONT_SMALL is 6px tall, so
+                       // at 48 the keys clipped its descenders — the same 5px/6px budgeting as the captions
     keybed_layout(2, ky, SCREEN_W - 4, h - (ky - y) - 3);
     keybed_draw();
 }
@@ -360,29 +407,34 @@ static void draw_saw(int y, int h) {
     float *kk[3]; kk[0] = &k_detune; kk[1] = &k_bright; kk[2] = &k_toy;
     static const char *kn[3] = { "DETUNE", "BRIGHT", "TOY" };
     for (int i = 0; i < 3; i++) {
-        int x = 30 + i * 58;
-        if (ui_knob_at(kk[i], x, y + 24, 10, 0)) {
+        int x = 26 + i * 46;
+        if (ui_knob_at(kk[i], x, y + 18, 10, 0)) {
             if (i == 0) instrument_unison_detune(SAW, 0.10f + k_detune * 0.60f);
             if (i == 1) instrument_filter(SAW, FILTER_LOW, (int)(300 + k_bright * 5200), 4);
             if (i == 2) apply_fx(1);                 // crush lives in the change-detector
         }
-        caption_c(kn[i], x, y + 37, CLR_BLUE);
+        caption_c(kn[i], x, y + 30, CLR_BLUE);
     }
+    if (ui_button(148, y + 6, 44, 22, "STAB")) stab_now();
     // the wall, drawn: seven saws, spread by DETUNE, brightness by BRIGHT
     for (int i = 0; i < 7; i++) {
         int x = 200 + i * 13, spread = (int)(k_detune * 5.0f);
         int hh = (int)(6 + k_bright * 12.0f);
         int c = k_toy > 0.5f ? CLR_GREEN : CLR_BLUE;
-        for (int j = 0; j < 3; j++) line(x + j * 4 + (i - 3) * spread / 3, y + 34,
-                                        x + j * 4 + 3 + (i - 3) * spread / 3, y + 34 - hh, c);
+        for (int j = 0; j < 3; j++) line(x + j * 4 + (i - 3) * spread / 3, y + 30,
+                                        x + j * 4 + 3 + (i - 3) * spread / 3, y + 30 - hh, c);
     }
     // NOTE ON CAPTION WIDTH: FONT_SMALL advances 5px per char, not 4 ("~64 chars across 320px"), which
     // is how v2's first pass put four captions off the right edge. ui-audit missed them because it only
     // ever saw the DEFAULT panel — a focus-model cart needs --explore, or it audits one quarter of itself.
-    caption("7 saws, 1 slot", 200, y + 40, CLR_DARK_GREY);
-    if (ui_button(30, y + 48, 100, 22, "STAB")) stab_now();
-    caption("or the pattern stabs it", 138, y + 52, CLR_DARK_GREY);
-    caption("every half bar", 138, y + 60, CLR_DARK_GREY);
+    caption("7 saws, 1 key", 200, y + 32, CLR_DARK_GREY);
+    // kept short on purpose: the wall drawing's caption sits one row up at x=200, and a 41-char
+    // string here ran under it. text_width() says 5px/char — budget the row, don't eyeball it.
+    caption(kb_held_n ? "the wall is yours" : "one key = all 7 saws",
+            26, y + 38, kb_held_n ? CLR_BLUE : CLR_DARK_GREY);
+    int ky = y + 46;                                 // the same keybed, re-pointed at the saw slot
+    keybed_layout(2, ky, SCREEN_W - 4, h - (ky - y) - 3);
+    keybed_draw();
 }
 
 static void draw_drums(int y, int h) {
@@ -453,7 +505,10 @@ void draw(void) {
     caption("160", 50, 4, CLR_LIGHT_GREY);
     for (int s = 0; s < STEPS; s++)                  // the beat, so the screen is never still
         rectfill(70 + s * 7, 5, 5, 4, s == step ? CLR_WHITE : (s & 3) ? CLR_DARK_GREY : CLR_MEDIUM_GREY);
-    caption_c(P_NAME[preset], 200, 4, CLR_PINK);
+    caption_c(P_NAME[preset], 198, 4, CLR_PINK);
+    // where your hands / a MIDI keyboard are pointed. It follows focus, so with the drums open this
+    // is the only thing that says which box QWERTY will play.
+    caption(hand_slot == VOX ? "keys VOICE" : "keys SAW", 220, 4, hand_slot == VOX ? CLR_PINK : CLR_BLUE);
     caption_r("too loud", SCREEN_W - 4, 4, CLR_YELLOW);
 
     // ── the accordion ────────────────────────────────────────────────────────────────────────
@@ -472,6 +527,12 @@ void draw(void) {
         }
         y += h;
     }
+
+    // Retire the keybed's hit rect when neither melodic box is open. keybed_layout() is STICKY and
+    // keybed_update() hit-tests it whether or not anything drew keys — so v2's rect stayed live under
+    // the drum grid, and tapping a step also played a note. QWERTY/MIDI don't use the rect, so a
+    // plugged-in keyboard still works while you're editing drums; only the phantom keys go away.
+    if (focus != D_VOICE && focus != D_SAW) keybed_layout(0, 0, 0, 0);
 
     cursor_draw(CUR_ARROW);
 }

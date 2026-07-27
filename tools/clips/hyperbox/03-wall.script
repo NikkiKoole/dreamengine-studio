@@ -1,0 +1,15 @@
+# hyperbox — playing the SAW box, the v3 addition (the keybed follows focus).
+# Also the regression track for the two shared-keybed hazards: the trace must show `hands` flip
+# 6(VOX)->5(SAW) on the strip tap, `saw0` go -1 while `held` is 1 (the pattern's chord stepping
+# aside), and `held` return to 0 the moment focus leaves for the drums — no orphaned voice.
+#   node tools/play.js hyperbox script tools/clips/hyperbox/03-wall.script --headless --frames 300 --trace t.jsonl
+# frames 300
+click 10 60 40        # -> SAW opens (from the boot state: DRUMS open, SAW strip at 32..50)
+click 40 170 55       # STAB: the chord the pattern is on, not a fixed one
+press 70 40 120       # a low key: one key = all seven saws, and the pattern's stab yields
+release 100 40 120
+press 110 120 120     # a higher one, held across a bar so you hear the wall against the drums
+release 160 120 120
+click 190 60 172      # -> DRUMS (SAW open: DRUM strip is 164..182). The keybed's hit rect must
+                      #    retire here, or a step tap plays a note. The keys keep the SAW pointing.
+click 220 80 120      # a drum step in the pixels the keybed just occupied: toggles, never sounds

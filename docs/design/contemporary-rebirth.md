@@ -392,8 +392,11 @@ Both racks need two gaps and they share Rung A, so the tiebreakers are these:
 - **Supersaw box** — one `INSTR_SAW` slot, `instrument_unison(slot, 7, detune)`, three knobs
   (detune / bright / toy) mapped to `instrument_unison_detune` / `instrument_filter` cutoff +
   `instrument_bandlimit` / `instrument_crush`. Playable from a short keybed or a held chord.
+  *(v3, 2026-07-27: it has that keybed now — one shared `keybed.h` that FOLLOWS FOCUS between the
+  two melodic boxes, so one key = the whole seven-saw stack, an octave below the vocal.)*
 - **Blown-out drums** — one 16-step kick lane on `tr909.h` with light steps as `schedule_hit`
-  ratchets, `instrument_drive` + `instrument_crush` fixed hot.
+  ratchets, `instrument_drive` + `instrument_crush` fixed hot. *(v2 made it four lanes —
+  BD/SD/CH/CP — with each step cycling off → hit → ratchet; one lane read as a placeholder.)*
 - **Voice engine** — deferred to v2 (it is the one part needing Rung B and the mic). v1 puts
   `INSTR_VOICE` in the slot instead: deterministic, no permission prompt, and its SIZE macro is
   already a vocal-tract/formant axis, so the box reads correctly while Rung B is built.
@@ -401,8 +404,9 @@ Both racks need two gaps and they share Rung A, so the tiebreakers are these:
   `DRIVE_HARD` always on, and a pitch riser on a held note. One `apply_fx()`-style change-detector,
   per §5.
 
-Build order: ~~Rung A~~ → ~~`hyperbox` v1~~ (both done 2026-07-26) **→ Rung B → `hyperbox` v2's voice
-engine → Rung C → the hip-hop rack.**
+Build order: ~~Rung A~~ → ~~`hyperbox` v1~~ (both done 2026-07-26) → ~~`hyperbox` v2/v3~~ (the DEPTH
+pass, 2026-07-26/27: real master knobs, a playable voice, four drum lanes, a playable saw wall)
+**→ Rung B's transparent half → `hyperbox`'s mic voice box → Rung C → the hip-hop rack.**
 
 **What building it taught us** (both worth carrying into the hip-hop rack):
 
@@ -415,7 +419,25 @@ engine → Rung C → the hip-hop rack.**
 2. **`ui-audit.js` earns its keep on a rack.** Four labelled strips on a 320×200 canvas produced one
    off-screen caption and four title/caption collisions on the first pass. The fix that stuck was a
    `caption()` / `caption_r()` pair in the 4×6 font with `text_width()`-measured right alignment, so a
-   reworded string cannot silently run off the edge again.
+   reworded string cannot silently run off the edge again. **But it audits only the panel it can
+   reach:** the device strips are hand-rolled `tapp()` targets, not `ui.h` widgets, so `--explore`
+   can't discover them and a clean pass covered one quarter of the cart (four off-screen captions
+   shipped through one). A focus-model rack needs a committed tour track —
+   `ui-audit.js <cart> --script tools/clips/hyperbox/02-tour.script` — not `--explore`.
+3. **"Constrained" has to mean deep, not sparse.** v1 was honest by its own thesis (no dead code,
+   every knob wired) and still read as *unfinished*: "lots of UI that doesn't do anything". Three of
+   the causes were structural, not cosmetic — three master bars whose heights were literals (sliders
+   that ignore you), one drum lane, and a lead instrument you could not play. The verdict to carry
+   into the amapiano rack: **constraint-as-feature only reads as opinionated if what REMAINS is
+   deep**, which answers §7's bypass question below. Corollary: it must also be making noise when you
+   meet it — v1 booted stopped, so every knob felt dead until you found SPACE.
+4. **A shared keybed must retire its hit rect.** `keybed_layout()` is sticky and `keybed_update()`
+   hit-tests it whether or not anything drew keys, so in an accordion the rect stays live *under the
+   next panel* — v2's drum-grid taps also played vocal notes, silently. Two rules for any rack that
+   shares one keybed: `keybed_layout(0,0,0,0)` when no melodic panel is open (QWERTY/MIDI don't use
+   the rect, so a plugged-in keyboard keeps working), and `keybed_all_off()` BEFORE any
+   `keybed_config()` re-point, because config wipes the held table without firing the off callbacks
+   and orphans a voice per held finger.
 
 ## 7 · Open questions
 
@@ -426,9 +448,14 @@ engine → Rung C → the hip-hop rack.**
 - **Faceplate + naming.** Homage names are free, original faceplate for anything paid
   ([`tinyjam-racks.md`](tinyjam-racks.md) §trademark). "SB-808" in the sketch is close to a live
   trademark; the hip-hop rack needs its own name before it ships.
-- **Is "no bypass" honest or hostile?** The sketch locks OTT and the clipper on. That is the
-  constraint-as-feature thesis, but it also means a cart where a knob does nothing. Precedent to
-  follow: `acidcandy`'s always-on machine FX.
+- ~~**Is "no bypass" honest or hostile?**~~ **ANSWERED by v1's reception (2026-07-26).** It is
+  neither: it is *invisible* either way, and what decides the reading is the rest of the box. v1 kept
+  the bypass out AND shipped a shallow master panel, and the verdict was "feels very incomplete". v2
+  kept the bypass out, put all four `multiband()` amounts on real knobs, and drew the three bands big
+  as the one honest picture of what the chain does — same constraint, opposite reading. So: lock the
+  chain on, but never let the locked box be the thin one. (Also: no fake output meter, however much
+  room the panel has. The engine exposes no master output level, and a decorative one is exactly the
+  defect v1 was pulled up for.) Precedent still `acidcandy`'s always-on machine FX.
 - **Where does the AI-prompt answer sit?** The conversation raised a darker candidate: if the
   defining instrument of current pop is a generative model, the contemporary ReBirth is a text box.
   This repo's answer is the opposite bet (an appliance you *play*), which is worth stating out loud

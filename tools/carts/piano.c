@@ -13,10 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "INSTR_PIANO showcase and tuning rig; ported from navkit's StifKarp engine. Novel: exposes the dispersion allpass chain that adds inharmonicity (stretched upper partials) to Karplus-Strong, with six presets spanning grand piano through celesta as acceptance tests.",
-  "description": "INSTR_PIANO showcase + tuning rig - the struck stiff string (StifKarp). A Karplus-Strong string PLUS a dispersion allpass chain that stretches the upper partials sharp - the inharmonic, slightly metallic shimmer your ear reads as a real piano (and as a dulcimer or clavichord) rather than a plain string - run through a grand-piano soundboard. Struck; rings down on its own, so give it a long hit(). One id covers grand / bright piano / harpsichord / dulcimer / clavichord / celesta. The three engine macros: instrument_harmonics = stiffness (0 = pure harmonic tone; 1 = stretched metallic shimmer - the dispersion depth and the number of active allpass stages), instrument_timbre = hammer (0 = soft felt, mellow; 1 = hard, bright plectrum strike - the excitation lowpass, grand to harpsichord), instrument_morph = pedal (0 = dry/damped staccato; 1 = long open sustain with the highs held, like leaning on the sustain pedal). Six HARDWARE PRESETS on the number row are the acceptance tests - if 1 grand / 2 bright / 3 harpsi / 4 dulcimer / 5 clavi / 6 celesta don't each sound like themselves, the macro mapping is wrong. A one-octave keyboard: white keys A S D F G H J K, black keys W E T Y U - play with the computer keys or click/tap. 1..6 preset, drag a slider (live, or LEFT/RIGHT pick a knob + UP/DOWN turn), SPACE chord, M autoplay on/off. Multitouch: hold a chord with one hand, drag a slider with another. And an optional LAYER (key L, off by default): a second slot ~7 cents away, darker and knockier, level-matched against the first - Reid's Synth Secrets Part 45 conclusion that a piano is two voices \"similar enough to be indistinguishable within the composite, but different enough to create a sound that is more interesting than either\", the beating standing in for the tricord coupling a single string does not have. With it off the voice is byte-identical to the single-string original. Single-string v1 (double-string detune + prepared buzz deferred). Design + STEP-0/1: instrument-engines.md §8.8.9.",
-  "todo": [
-    "DEAD SLIDERS (proven 2026-07-28): \"decay\" and \"knock\" are no-ops — they call instrument_mode() with indices 2/3, but INSTR_PIANO publishes only MODE_STRING_WEIGHT(0) and MODE_STRING_CLICK(1). Sweeping idx 2 renders BYTE-IDENTICAL audio; idx 1 moves -23.2->-15.2 dBFS. THE FIX IS ALREADY IN guitar.c (same engine family, same knob[3]/knob[4], labelled weight/attack) — this cart is that pattern copied with the indices invented, so it needs no design, only an ear test: wiring knock to MODE_STRING_CLICK changes the shipped voice (engine default = click 0). Left inert on purpose and labelled \"(dead)\" on the panel. See the double-warning block atop piano.c and docs/STATUS.md \"Open\"."
-  ]
+  "description": "INSTR_PIANO showcase + tuning rig - the struck stiff string (StifKarp). A Karplus-Strong string PLUS a dispersion allpass chain that stretches the upper partials sharp - the inharmonic, slightly metallic shimmer your ear reads as a real piano (and as a dulcimer or clavichord) rather than a plain string - run through a grand-piano soundboard. Struck; rings down on its own, so give it a long hit(). One id covers grand / bright piano / harpsichord / dulcimer / clavichord / celesta. The three engine macros: instrument_harmonics = stiffness (0 = pure harmonic tone; 1 = stretched metallic shimmer - the dispersion depth and the number of active allpass stages), instrument_timbre = hammer (0 = soft felt, mellow; 1 = hard, bright plectrum strike - the excitation lowpass, grand to harpsichord), instrument_morph = pedal (0 = dry/damped staccato; 1 = long open sustain with the highs held, like leaning on the sustain pedal). Six HARDWARE PRESETS on the number row are the acceptance tests - if 1 grand / 2 bright / 3 harpsi / 4 dulcimer / 5 clavi / 6 celesta don't each sound like themselves, the macro mapping is wrong. A one-octave keyboard: white keys A S D F G H J K, black keys W E T Y U - play with the computer keys or click/tap. 1..6 preset, drag a slider (live, or LEFT/RIGHT pick a knob + UP/DOWN turn), SPACE chord, M autoplay on/off. Multitouch: hold a chord with one hand, drag a slider with another. And an optional LAYER (key L, off by default): a second slot ~7 cents away, darker and knockier, level-matched against the first - Reid's Synth Secrets Part 45 conclusion that a piano is two voices \"similar enough to be indistinguishable within the composite, but different enough to create a sound that is more interesting than either\", the beating standing in for the tricord coupling a single string does not have. With it off the voice is byte-identical to the single-string original. Row 2's DECAY and KNOCK sliders (double-decay depth, hammer-knock amount) are the harp-to-piano tuning controls; they were dead for a long time because the engine dropped their aux-channel indices in the setter, fixed 2026-07-29. Single-string v1 (double-string detune + prepared buzz deferred). Design + STEP-0/1: instrument-engines.md §8.8.9."
 }
 de:meta */
 // piano — INSTR_PIANO showcase + tuning rig: a one-octave keyboard, the three engine macros,
@@ -48,48 +45,37 @@ de:meta */
 
 #define I_PNO  5
 #define I_PNO_B 6                   // the LAYER slot (see pno_layer) — silent unless layering is on
-// ⚠⚠ THESE TWO INDICES DO NOT EXIST, SO THE "decay" AND "knock" SLIDERS ARE DEAD. ⚠⚠
-// Found 2026-07-28 while building the §I9 layer, and left dead ON PURPOSE for now (the owner's call) —
-// wiring them up is NOT a silent fix, so it needs its own ear test. Read this before touching either.
+// The two row-2 TUNING sliders (decay / knock) reach the engine through the per-engine aux channel.
+// They were DEAD for as long as they existed, and the cause was not here — it was one bound in the engine.
+// Kept written down because the shape of the bug is worth recognising again:
 //
-// `instrument_mode(slot, idx, v)` takes a PER-ENGINE index, and INSTR_PIANO publishes exactly two:
-//     MODE_STRING_WEIGHT = 0   fundamental-reinforcement weight (0 = pure string .. 1 = body-thick)
-//     MODE_STRING_CLICK  = 1   attack click / pick noise amount
-// There is no index 2 or 3, and no string-DECAY parameter at all. So both calls in push_knobs() are
-// no-ops and have always been: knob[3] and knob[4] move nothing, in every preset, at every position.
+//   `instrument_mode(slot, idx, v)` guarded with `idx >= 2` in runtime/sound.h, so indices 2 and 3 were
+//   dropped IN THE SETTER. Meanwhile the piano engine implements both end to end — sound_piano_start reads
+//   eng_p[2] as the double-decay scale and eng_p[3] as the hammer-knock scale, they are copied to the voice
+//   at note-on, and the instrument bank defaults them to 0.5 (= 1.0x). So nothing was missing and nothing
+//   here was wrong: two finished engine parameters were simply unreachable, and the sliders moved nothing.
 //
-// PROVEN, not inferred (tools/ab-render.js on a probe, one struck note):
-//     sweeping a value at idx 2 → BYTE-IDENTICAL audio (sha fed8865e2db8 at both 0.0 and 1.0)
-//     the same sweep at idx 1   → -23.2 → -15.2 dBFS, brightness 0.107 → 0.765
-// The comments below used to claim these were "harp→piano fix #1 / #2", i.e. the repair for this cart's
-// central character problem. That repair never ran.
+// Fixed 2026-07-29 (guard widened to `idx >= 4`, eng_p is four wide). It is a no-op at rest — a slider at
+// 0.5 sends exactly the bank default it was already using, so the shipped voice is byte-identical
+// (sha 25cb93583e73) — and only bites once someone moves one. Now proven live: sweeping idx 2 moves
+// brightness 0.067 -> 0.107 -> 0.165 and the centroid 2127 -> 2419 -> 2755 Hz.
 //
-// THE FIX IS ALREADY WRITTEN, IN guitar.c. Same engine family, same two slider positions, done right:
-//     instrument_mode(I_STR, MODE_STRING_WEIGHT, knob[3]);   // labelled "weight"
-//     instrument_mode(I_STR, MODE_STRING_CLICK,  knob[4]);   // labelled "attack"
-// This cart is that pattern copied with the indices renamed to DECAY/KNOCK and the numbers invented. So
-// the repair is to mirror guitar.c and relabel — there is no design question, only an ear test.
-//
-// WHY IT IS STILL A LISTEN ITEM AND NOT A TYPO FIX: the engine default equals click = 0, so wiring knob[4]
-// to MODE_STRING_CLICK with its slider at the current 0.5 would audibly change the shipped piano. And
-// note "decay" is a misnomer either way — MODE_STRING_WEIGHT is fundamental reinforcement (body thickness),
-// not decay, and INSTR_PIANO has no decay parameter at all. A sweep of every other instrument_mode call
-// site (2026-07-28) found this cart is the ONLY offender; everyone else uses the MODE_* names.
-// Tracked in this cart's de:meta.todo and at the top of docs/STATUS.md "Open".
-#define PIANO_DECAY 2               // ⚠ DEAD — no such mode index on INSTR_PIANO (see the block above)
-#define PIANO_KNOCK 3               // ⚠ DEAD — no such mode index on INSTR_PIANO (see the block above)
+// TWO TRAPS THIS COST ME, both worth avoiding next time:
+//   · The indices are NOT validated, so a wrong one is silently ignored. A dead control that compiles,
+//     runs and looks fine is the failure mode; there is no error anywhere.
+//   · My first probe "proved" idx 2 was dead by rendering byte-identical audio — but the probe set idx 2
+//     and then push_knobs' own line immediately OVERWROTE it. The probe was measuring itself being
+//     clobbered. When probing a value a cart also writes, replace the cart's write; do not add a second one.
 #define NKEY   13                   // one octave of semitones, C..C (glow index)
 #define NWHITE 8
 static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // white-key QWERTY labels
 static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
-// row 1 = the 3 engine macros (all live). Row 2: "decay" and "knock" were meant to be the harp→piano
-// tuning scaffolding, but they are DEAD — they address instrument_mode indices INSTR_PIANO does not have
-// (see the ⚠⚠ block above), so they move nothing at any position. Labelled as such rather than left to
-// lie to whoever drags them; the owner's call is to leave them inert until wiring them up gets its own
-// ear test, since it would change the shipped voice. VELO (k=5) IS live — it drives strike velocity for
-// the QWERTY/touch keys, where there is no MIDI velocity to read.
-static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "decay (dead)", "knock (dead)", "velo" };
+// row 1 = the 3 engine macros; row 2 = the TUNING controls, the harp→piano scaffolding: double-decay depth
+// + hammer-knock amount (each 0..2x the voicing default at the 0.5 midpoint — LIVE since the engine guard
+// fix, see the note above), plus VELO = strike velocity for the QWERTY/touch keys, where there is no MIDI
+// velocity to read; it drives brightness and knock, not just loudness.
+static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "decay", "knock", "velo" };
 
 #define NPRESET 6
 static const char *PRESET_NAME[NPRESET] = { "grand","bright","harpsi","dulcimer","clavi","celesta" };
@@ -157,8 +143,8 @@ static void push_knobs(void) {
     instrument_harmonics(I_PNO, knob[0]);
     instrument_timbre(I_PNO, knob[1]);
     instrument_morph(I_PNO, knob[2]);
-    instrument_mode(I_PNO, PIANO_DECAY, knob[3]);   // ⚠ NO-OP — idx 2 does not exist (see the ⚠⚠ block
-    instrument_mode(I_PNO, PIANO_KNOCK, knob[4]);   // ⚠ NO-OP — idx 3 does not exist   at the top of file)
+    instrument_mode(I_PNO, MODE_PIANO_DECAY, knob[3]);   // double-decay depth (0.5 = the voicing default)
+    instrument_mode(I_PNO, MODE_PIANO_KNOCK, knob[4]);   // hammer knock  (0.5 = the voicing default)
 
     // B tracks A's voicing but darker and knockier: it is the thunk and the tail, not the body.
     float b_tim = knob[1] - pno_b_dark; if (b_tim < 0.0f) b_tim = 0.0f;
@@ -178,7 +164,7 @@ static void push_knobs(void) {
     instrument_harmonics(I_PNO_B, knob[0]);
     instrument_timbre(I_PNO_B, b_tim);
     instrument_morph(I_PNO_B, knob[2]);
-    instrument_mode(I_PNO_B, PIANO_KNOCK, b_kno);   // ⚠ also a no-op; kept so B mirrors A exactly
+    instrument_mode(I_PNO_B, MODE_PIANO_KNOCK, b_kno);   // B knocks harder — it is the thunk
     instrument_tune(I_PNO_B, pno_layer ? pno_b_detune : 0.0f);
 
     // Level-matched on purpose: two layers sum, so without this the layered version is simply louder and

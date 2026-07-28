@@ -321,37 +321,33 @@ never cart-authorable, the generative beat-clock path won;
 
 ## Open — prioritized
 
-> ### ⚠ Two of `piano`'s six sliders are DEAD, and there is a class of bug behind it
+> ### ✅ FIXED — `piano`'s two dead sliders were one bound in the engine (and the bug class remains)
 >
-> Found 2026-07-28 while building the Synth Secrets §I9 layer. `piano.c`'s **"decay"** and **"knock"**
-> knobs call `instrument_mode()` with indices **2 and 3**, but `INSTR_PIANO` publishes only
-> `MODE_STRING_WEIGHT` (0) and `MODE_STRING_CLICK` (1). Both calls have always been no-ops — and the
-> source described them as the fix for the cart's central harp-vs-piano character problem, so that repair
-> never ran. **Proven, not inferred:** sweeping a value at idx 2 renders *byte-identical* audio
-> (`fed8865e2db8` at both 0.0 and 1.0); the same sweep at idx 1 moves −23.2 → −15.2 dBFS with brightness
-> 0.107 → 0.765.
+> Found 2026-07-28 while building the Synth Secrets §I9 layer; fixed 2026-07-29. `piano.c`'s **"decay"** and
+> **"knock"** sliders had never done anything, and **the cart was not at fault**. `instrument_mode()` in
+> `runtime/sound.h` guarded with `idx >= 2`, so indices 2 and 3 were dropped **in the setter** — while the
+> piano engine implements both end to end: `sound_piano_start` reads `eng_p[2]` as the double-decay scale and
+> `eng_p[3]` as the hammer-knock scale, both are copied to the voice at note-on, and the instrument bank
+> defaults them to 0.5 (= 1.0×). Nothing was missing; two finished engine parameters were simply unreachable.
 >
-> **Deliberately left inert** (owner's call, 2026-07-28), because it is not a typo fix: the engine default
-> equals click = 0, so pointing "knock" at `MODE_STRING_CLICK` with its slider at the current 0.5 would
-> audibly change the shipped piano — a LISTEN item needing its own A/B. And **"decay" has no engine
-> parameter to point at at all**; it must either be repurposed to `MODE_STRING_WEIGHT` and relabelled, or
-> dropped. Both sliders now read `decay (dead)` / `knock (dead)` on the panel rather than lying to whoever
-> drags them, and `piano.c` opens with a ⚠⚠ block carrying the proof.
+> The guard is now `idx >= 4` (`eng_p` is four wide). **It is a no-op at rest** — a slider at 0.5 sends
+> exactly the bank default it was already using, so the shipped piano is byte-identical (sha `25cb93583e73`,
+> verified against the pre-fix source) — and only bites once a slider moves. Proven live: sweeping idx 2 moves
+> brightness 0.067 → 0.107 → 0.165 and the centroid 2127 → 2419 → 2755 Hz. Gates after the change: soundcheck
+> silent, `tune-check` no new drift, `level-check` and `dc-check` clean, all 569 carts compile.
+> `MODE_PIANO_DECAY` / `MODE_PIANO_KNOCK` now exist so no cart needs raw indices again.
 >
-> **The fix is already written, in `guitar.c`** — same engine family, same two slider positions, done
-> correctly: `instrument_mode(I_STR, MODE_STRING_WEIGHT, knob[3])` / `MODE_STRING_CLICK, knob[4]`, labelled
-> "weight" and "attack". `piano.c` is that pattern copied with the indices renamed to DECAY/KNOCK and the
-> numbers invented. So there is no design question here, only an ear test. (Note "decay" is a misnomer
-> either way: `MODE_STRING_WEIGHT` is fundamental reinforcement, not decay.)
+> **Still open, and the reason this stays here: `instrument_mode` does not validate its index.** An
+> out-of-range idx is silently ignored, which is how a dead user-facing control survived this long — it
+> compiles, runs, and looks fine. Worth deciding whether the engine should complain (a `[sound] WARNING`
+> would have surfaced this immediately, and `soundcheck` greps for exactly that). A sweep of every
+> `instrument_mode` call site found `piano.c` was the only cart affected.
 >
-> **The general lesson, which is why this sits at the top rather than in the cart's todo alone:**
-> `instrument_mode` takes a **per-engine** index with **no validation**, so an out-of-range index is
-> silently ignored — a dead control that compiles, runs, and looks fine. **A sweep of every
-> `instrument_mode` call site (2026-07-28) found `piano.c` is the only offender**; every other cart and
-> header uses the `MODE_*` names. Worth considering whether the engine should complain about an index the
-> selected engine does not publish, since the failure mode is invisible and the one instance of it survived
-> a long time.
-
+> **A measurement trap from the same hunt, worth remembering:** the first probe "proved" idx 2 dead by
+> rendering byte-identical audio — but the probe set idx 2 and the cart's own `push_knobs()` line then
+> *overwrote* it, so the probe was measuring itself being clobbered. When probing a value the cart also
+> writes, **replace** the cart's write rather than adding a second one.
+>
 Ordered by leverage. Section refs point at the design doc that specs each item.
 Which *carts* are probing these questions (and every verdict so far) →
 [`design/probe-carts.md`](design/probe-carts.md); probe carts carry `"probe"` in

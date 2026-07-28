@@ -7070,7 +7070,15 @@ void instrument_duty(int slot, float duty) {
 }
 
 void instrument_mode(int slot, int idx, float value) {   // per-engine aux channel, note-on face (was eng_tune; decision 0017)
-    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 2) return;
+    // `idx >= 4`, NOT `>= 2`. eng_p is four wide and the PIANO's idx 2 (double-decay scale) and idx 3
+    // (hammer-knock scale) are implemented end to end — read at sound_piano_start, copied to the voice at
+    // note-on, bank-defaulted to 0.5 = 1.0×. This guard rejected them, so both were silently dropped HERE,
+    // in the setter, and the piano cart's "decay" and "knock" sliders did nothing for as long as they have
+    // existed. Nothing in the engine was missing; two of its finished parameters were simply unreachable.
+    // Fixing it is a no-op at rest (a slider at 0.5 sends 0.5, which is exactly the bank default it was
+    // already using) and only bites when someone moves one. Found 2026-07-28 via audit §I9. If you add a
+    // fifth aux param, widen eng_p[] AND this bound together.
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 4) return;
     value = clamp01(value);
     sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
 }

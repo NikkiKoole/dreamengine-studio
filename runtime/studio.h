@@ -474,6 +474,8 @@ void note_morph(int handle, float x);          // live macro on a held note, sle
 void instrument_mode(int slot, int idx, float value);  // per-engine aux channel, NOTE-ON face — a slot's structure/mode params past the 3 macros, read at the next note_on. idx is per-engine; use the MODE_* names. GUITAR/PIANO: MODE_STRING_WEIGHT/MODE_STRING_CLICK. BOWED: MODE_BOW_PIZZ (>=0.5 plucks instead of bows). value 0..1. (decision 0017)
 #define MODE_STRING_WEIGHT 0   // instrument_mode idx — INSTR_GUITAR/PIANO: fundamental-reinforcement weight (0 = pure string .. 1 = body-thick)
 #define MODE_STRING_CLICK  1   // instrument_mode idx — INSTR_GUITAR/PIANO: attack click / pick noise amount
+#define MODE_PIANO_DECAY   2   // instrument_mode idx — INSTR_PIANO: double-decay depth scale (0.5 = the voicing's own value, 0..1 → 0..2×)
+#define MODE_PIANO_KNOCK   3   // instrument_mode idx — INSTR_PIANO: hammer-knock scale (0.5 = the voicing's own value, 0..1 → 0..2×)
 #define MODE_BOW_PIZZ      0   // instrument_mode idx — INSTR_BOWED: >= 0.5 = PIZZICATO (pluck the same string), < 0.5 = arco (bow, self-oscillating hold)
 void voice_nasal(int handle, float amount);    // INSTR_VOICE nasal color on a held note: 0 = open vowel .. 1 = hummed/nasal (the honk, the chant). The voice's 4th axis, alongside the harmonics/timbre/morph macros (vowel/size/effort)
 void voice_consonant(int handle, int id);      // begin a held INSTR_VOICE note with a consonant onset that morphs into the vowel ("bah"/"mah"/"sss-ah"). Call right after note_on; id 0..21 (b d g m n l s sh ng r w y dh f v z zh th p t k ch), -1 = none. A timed onset

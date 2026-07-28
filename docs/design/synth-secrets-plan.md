@@ -254,7 +254,7 @@ cheapest LISTEN items we have.
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **DONE — 3BAND is the default** (owner's ear, 2026-07-28), 1BAND kept on key **C**. See below |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | ✅ **DONE — `dyn=1` is the default** (owner's ear, 2026-07-28) on both machines, 0 kept on key **N**. See below |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ❌ **DROPPED — Reid loses all three** (owner's ear, 2026-07-28). Envelope unchanged, byte-identical. The most instructive item so far; see below |
-| 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | ✅ **BUILT, awaiting your ear.** Key **L**. Beating works; Reid's role-crossfade is **not reachable** (no string-decay param). Also uncovered two DEAD sliders — see below |
+| 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | ✅ **DONE — liked, and kept OPT-IN on key L** (owner, 2026-07-28). Layer-off is byte-identical, so it is purely additive. Also **found + fixed** a one-bound engine bug that had killed two sliders — see below |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | Two rows in `REG[8][9]` |
 | 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot`, `brass` | Part 51's two liftable tricks, no filter needed for the first |
 
@@ -464,7 +464,16 @@ long-standing `de:meta.todo` about it), and the patch readout was printed on top
 making half that line unreadable. The readout also stops hard-coding `1,0,4,1200` and now derives from the
 `BRASS_*` constants, so it cannot drift from the patch. Three overlaps remain, all pre-existing.
 
-### 1.5 piano two-slot layer — built, awaiting your ear (2026-07-28)
+### 1.5 piano two-slot layer — ✅ LIKED, and deliberately kept OPT-IN (owner, 2026-07-28)
+
+**✅ VERDICT: the owner likes the layering, and it stays OFF by default on key L** — the one item so far
+that is approved *and* not made the default, for a specific reason rather than hesitancy. This cart's six
+presets are declared **acceptance tests** ("if 1 grand / 2 bright / 3 harpsi … don't each sound like
+themselves, the macro mapping is wrong"), and layering changes what all six sound like, so defaulting it
+would quietly retune the yardstick the cart exists to be. Unlike 1.2 and 1.3, the shipped behaviour here was
+not *wrong* against the book — the layer is a musical addition, so opt-in is the honest place for it.
+**Layer-off renders byte-identical to the pre-session voice (`25cb93583e73`), verified**, which is what makes
+"purely additive" a measurement rather than a claim.
 
 Key **L** toggles it; `build/ab/5-piano-{BEFORE,AFTER-layered}.wav` is the pair. One struck note, 7s ring
 (`tools/clips/piano/01-one-note-ring.script`).
@@ -489,27 +498,38 @@ Stem renders (`play.js --solo-slot`) show B dying **~0.5 s sooner** than A, and 
 So the item delivers Reid's *primary* mechanism and not his secondary one. Getting the crossfade needs a
 per-slot string-decay parameter, which is an engine change — Phase 3 work, deliberately not smuggled in here.
 
-### ⚠ And it uncovered two DEAD sliders in `piano` (unrelated to Reid, worse than the item)
+### ✅ And it uncovered — then fixed — a one-bound engine bug that killed two sliders
 
-Chasing that missing decay control turned up a live bug: **`piano.c`'s "decay" and "knock" knobs have never
-done anything.** They call `instrument_mode()` with indices **2 and 3**, which `INSTR_PIANO` does not
-publish. Proven, not inferred — sweeping a value at idx 2 renders **byte-identical** audio (`fed8865e2db8`
-at both 0.0 and 1.0) while the same sweep at idx 1 moves −23.2 → −15.2 dBFS with brightness 0.107 → 0.765.
-The source described them as "harp→piano fix #1 / #2", i.e. the repair for this cart's central character
-problem. That repair never ran.
+Chasing the missing decay control turned up something better than the item itself: **`piano.c`'s "decay" and
+"knock" sliders had never done anything, and the cart was not at fault.** `instrument_mode()` guarded with
+`idx >= 2`, so indices 2 and 3 were dropped **in the setter** — while the piano engine implements both end to
+end (`sound_piano_start` reads `eng_p[2]` as the double-decay scale and `eng_p[3]` as the hammer-knock scale,
+copied to the voice at note-on, bank-defaulted to 0.5 = 1.0×). Nothing was missing. Two finished engine
+parameters were unreachable.
 
-**The fix is already written, in `guitar.c`** — same engine family, same two slider positions, done right
-(`MODE_STRING_WEIGHT, knob[3]` / `MODE_STRING_CLICK, knob[4]`, labelled "weight" and "attack"). `piano.c` is
-that pattern copied with the indices renamed and the numbers invented, so there is no design question, only
-an ear test: the engine default equals click = 0, so wiring it up with the slider at its current 0.5 would
-audibly change the shipped piano.
+Guard widened to `idx >= 4` (`eng_p` is four wide). **A no-op at rest** — a slider at 0.5 sends exactly the
+bank default it was already using, so the shipped piano is byte-identical (`25cb93583e73`) — and live once a
+slider moves: sweeping idx 2 moves brightness 0.067 → 0.107 → 0.165 and the centroid 2127 → 2419 → 2755 Hz.
+`MODE_PIANO_DECAY` / `MODE_PIANO_KNOCK` added through the four-place treatment so no cart needs raw indices.
+Gates: soundcheck silent, `tune-check` no new drift, `level-check` + `dc-check` clean, 569/569 carts compile.
 
-**Left inert on the owner's call, and made unmissable instead** — the panel now reads `decay (dead)` /
-`knock (dead)` rather than lying to whoever drags them, `piano.c` opens with a ⚠⚠ block carrying the proof,
-it is in the cart's `de:meta.todo`, and it heads [`STATUS.md`](../STATUS.md) → "Open". A sweep of **every**
-`instrument_mode` call site found `piano.c` is the only offender; everyone else uses the `MODE_*` names.
-The general hazard is worth noting: `instrument_mode` takes a per-engine index with **no validation**, so a
-wrong index is silently ignored — a dead control that compiles, runs and looks fine.
+**I got this wrong twice before getting it right, and both mistakes are instructive:**
+
+1. **A probe that measured itself being clobbered.** The first "proof" that idx 2 was dead was a
+   byte-identical render — but the probe *added* an `instrument_mode(I_PNO, 2, …)` call and `push_knobs()`
+   then overwrote it one line later. It was a real byte-identical result measuring the wrong thing.
+   **When probing a value the cart also writes, replace the cart's write; never add a second one.**
+2. **A confident wrong diagnosis written into three docs.** On that bad evidence I wrote up "the indices do
+   not exist" and "the fix is already in `guitar.c`" — into the cart, its `de:meta.todo`, and the top of
+   `STATUS.md`. `guitar.c` was a red herring: it simply uses indices 0 and 1, which always worked. Reading
+   the engine (`eng_p[4]`, and its own comments naming all four) is what settled it. **A grep-and-infer
+   diagnosis deserves less confidence than the prose it gets written up in** — the audit's own rule
+   ("verify a claim by reading") applies to my own findings too.
+
+**Left open**, and now the more interesting half: `instrument_mode` **does not validate its index**, so an
+out-of-range one is silently ignored. That is precisely how a dead user-facing control survives — it
+compiles, runs, and looks fine. A `[sound] WARNING` would have caught it instantly, and `soundcheck` already
+greps for exactly that. Recorded at the top of [`STATUS.md`](../STATUS.md) → "Open".
 
 ---
 

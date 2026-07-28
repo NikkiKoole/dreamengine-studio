@@ -375,6 +375,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              analysis (sample correlation / amp+brightness+spectral-centroid envelope,
                              `--from/--to` region / LFO rate+depth / harmonic series) — for A/B-ing a
                              render against navkit (or before/after an fx like crush/filter/EQ)
+             ab-render.js    A/B a cart against ITSELF: flip one file-scope value (`static x = …;` or
+                             `#define x …`), render each variant, print sha+peak+brightness+centroid in one
+                             table, and ALWAYS restore the source (finally-block, survives Ctrl-C). Use it
+                             instead of hand-sedding a flag — it EXITS 2 and shouts if two variants render
+                             byte-identical audio, i.e. the flag never reached the DSP and the numbers are
+                             meaningless (that bug already cost a bogus finding once). The LISTEN-item
+                             workhorse for design/synth-secrets-plan.md; measures, never judges
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)

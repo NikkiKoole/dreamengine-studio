@@ -40,24 +40,33 @@ a flag, an `eng_p` slot, a second instrument slot — never as a replacement of 
 extra work; it is the thing that makes the comparison possible, and if the verdict is "worse" the item
 costs nothing to abandon.
 
-The mechanics already exist:
+**Use [`tools/ab-render.js`](../../tools/ab-render.js) — do not hand-roll this.** It flips one
+file-scope value, renders each variant, prints the numbers in one table, and restores the source in a
+`finally` block:
 
 ```bash
-# render the same cart both ways and keep both wavs
-node tools/play.js <cart> script tools/clips/<cart>/NN-label.script --headless --wav /tmp/a.wav
-#   ...flip the flag...
-node tools/play.js <cart> script tools/clips/<cart>/NN-label.script --headless --wav /tmp/b.wav
-node tools/wav-envelope.js /tmp/a.wav ; node tools/wav-envelope.js /tmp/b.wav   # amplitude + brightness + centroid
-node tools/harmonic-spec.js /tmp/a.wav <f0>                                    # the spectrum
+node tools/ab-render.js solina --set wow=WOW_CLASSIC,WOW_RANDOM,WOW_BREATHE --frames 1800
+node tools/ab-render.js brass  --set A_REL=1200,200 --f0 220        # + harmonic extent / >4kHz
 ```
 
-Then, per CLAUDE.md's rule for handing work over, **bake the cart** so it can be loaded and played rather
-than only listened to as a file:
+It exists because the manual version — sed the flag, render, sed it back — is three commands and a
+footgun, and the footgun fired: **a regex that matches the *initial* form of a line stops matching after
+the first substitution**, so every later variant silently re-renders the FIRST state. That produced three
+byte-identical WAVs which were nearly written up as "the change has no effect". So the tool **exits 2 and
+shouts if any two variants render byte-identical audio**, because that means the flag never reached the
+DSP and every number in the table is meaningless. Treat that warning as a hard stop, not a curiosity.
+
+Then, per CLAUDE.md's rule for handing work over, **bake the cart** so it can be played rather than only
+heard as a file:
 
 ```bash
 node tools/make-cart.js tools/carts/<cart>.c editor/public/carts/<cart>.cart.png   # re-embed source
 node tools/make-cart.js --run editor/public/carts/<cart>.cart.png                  # bake the thumbnail
 ```
+
+Check the A/B state is actually *visible* in the baked frame before handing it over — an invisible
+readout makes the ear test unverifiable. `ui-audit.js` will not catch a low-contrast label, only an
+off-screen or overlapping one; read the baked PNG.
 
 A LISTEN item is **done** when the cart has an audible toggle, the numbers are in the ledger row, and you
 have said which side wins. If neither side clearly wins, the honest outcome is **DROP** — recorded with
@@ -173,7 +182,7 @@ cheapest LISTEN items we have.
 
 | # | item | kind | rung | cart | note |
 |---|---|---|---|---|---|
-| 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | Part 46's ladder to the ensemble sound; we ship both and the cart uses neither |
+| 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | **BUILT, awaiting ear** — key **W** cycles CLASSIC / RANDOM WOW / BREATHING DETUNE. See results below |
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | The mechanism that makes a real cymbal's spectrum migrate. `tr808.h` only |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | Harder hits should read noisier |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ⚠ release also governs the bore ring-down, so A/B rather than edit |
@@ -183,6 +192,32 @@ cheapest LISTEN items we have.
 
 **Deliverable:** seven A/Bs, each a baked cart you can play. If all seven land, that is a visibly better
 instrument shelf for zero engine risk.
+
+### 1.1 solina — built, baked, awaiting your ear (2026-07-28)
+
+Key **W** cycles three states, shown on the panel under the ENSEMBLE switch. Reid's Part 46 ladder is
+three rungs and this exposes all of them rather than jumping to the end:
+
+| state | what it does | measured (420 frames) |
+|---|---|---|
+| **CLASSIC** | as shipped — one 0.16 Hz sine wow, fixed per-tab detune | peak −5.0 dB · centroid **2267 Hz** |
+| **RANDOM WOW** | same depth, but `LFO_SHAPE_RANDOM` and rates staggered per tab so the six wows never line up | peak −5.0 dB · centroid **2260 Hz** |
+| **BREATHING DETUNE** | the full ladder — `instrument_unison(s,3,0.10)` + `LFO_DETUNE` on a Random shape | peak **−6.8 dB** · centroid **2489 Hz** |
+
+`unison` is intra-voice (the detuned copies live in `Voice.uni_ph[]`), so BREATHING DETUNE costs **no
+polyphony** — that was the thing worth checking before building it.
+
+**Honest limit on the measurements.** BREATHING DETUNE is clearly different: +222 Hz centroid from the
+unison sidebands, and 1.8 dB quieter because unison loudness-normalises. But **CLASSIC vs RANDOM WOW is
+not measurable with any oracle we have.** The difference is the *character* of a 0.16 Hz modulation — one
+cycle per six seconds — buried under a chord progression, and `wav-modrate` locks onto the 14.5 Hz chord
+rate instead, the same failure mode Phase 0 hit. A 30-second render did not help. So rung 2 is
+**ear-only**, which is exactly what the LISTEN category is for; there is no number to hide behind.
+
+What to listen for, per Reid: CLASSIC should reveal "an unnaturally regular modulation" once you notice
+it, and RANDOM should keep the same thickness while the cycle stops being audible — "thick and unstable
+… 'analogue', or perhaps 'human'". If you cannot hear the difference over ~30 s of the AUTO progression,
+rung 2 is a DROP and only BREATHING DETUNE is worth keeping.
 
 ---
 

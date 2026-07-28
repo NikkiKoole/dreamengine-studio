@@ -93,6 +93,16 @@ static int attack_ms(void)  { return 60  + (int)(k_cresc * 1340.0f); }   // 60..
 static int release_ms(void) { return 300 + (int)(k_sust  * 3200.0f); }   // 300..3500
 static float bright_mul(void){ return 0.5f + k_bright * 1.1f; }          // 0.5..1.6
 
+// A/B (Synth Secrets plan 1.1 / audit §F2): Part 46 walks a ladder to the ensemble sound —
+// detune, then MODULATE the detune amount, then make that modulator RANDOM so the ear stops
+// hearing a cycle. Reid is explicit that the last rung is what separates a "wobbly boring buzz"
+// from something "thick and unstable... 'analogue', or perhaps 'human'". We ship LFO_DETUNE and
+// both random LFO shapes; this cart used neither. Key W cycles the three states so they can be
+// compared by ear before any of it becomes the default.
+enum { WOW_CLASSIC = 0, WOW_RANDOM, WOW_BREATHE, WOW_N };
+static int wow = WOW_CLASSIC;
+static const char *WOW_NAME[WOW_N] = { "CLASSIC", "RANDOM WOW", "BREATHING DETUNE" };
+
 static void apply_voices(void) {
     for (int t = 0; t < NTAB; t++) {
         int s = SLOT0 + t;
@@ -100,8 +110,25 @@ static void apply_voices(void) {
         int cut = (int)(TAB[t].cut * bright_mul());
         instrument_filter(s, FILTER_LOW, cut, 2);
         instrument_tune(s, 0.05f + t * 0.005f);              // per-tab detune spread = divide-down beating
-        instrument_lfo(s, 0, LFO_PITCH, 0.16f, 0.04f);       // slow tape-style wow under the ensemble
         instrument_drive(s, TAB[t].brass ? 0.20f : 0.0f);    // brass tabs bite a little
+        switch (wow) {
+        case WOW_CLASSIC:                                    // as shipped: one slow sine wow
+            instrument_unison(s, 1, 0.0f);                   // unison off
+            instrument_lfo(s, 0, LFO_PITCH, 0.16f, 0.04f);   // slow tape-style wow under the ensemble
+            lfo_shape(s, 0, LFO_SHAPE_SINE);
+            break;
+        case WOW_RANDOM:                                     // rung 3 only: kill the periodicity
+            instrument_unison(s, 1, 0.0f);
+            // stagger the rates per tab so the six wows never line up (Reid's summed-LFO point)
+            instrument_lfo(s, 0, LFO_PITCH, 0.13f + t * 0.017f, 0.04f);
+            lfo_shape(s, 0, LFO_SHAPE_RANDOM);               // a drifting wander, not a cycle
+            break;
+        default:                                             // the full ladder: detune that BREATHES
+            instrument_unison(s, 3, 0.10f);                  // intra-voice, so it costs no polyphony
+            instrument_lfo(s, 0, LFO_DETUNE, 0.11f + t * 0.013f, 0.07f);
+            lfo_shape(s, 0, LFO_SHAPE_RANDOM);
+            break;
+        }
     }
 }
 
@@ -147,6 +174,7 @@ void init(void) {
 void update(void) {
     if (keyp(KEY_SPACE)) { autop = !autop; last_step = -1; if (!autop) note_off_all(); }
     if (keyp(KEY_TAB) || keyp('/')) show_help = !show_help;
+    if (keyp('W')) { wow = (wow + 1) % WOW_N; apply_voices(); }   // A/B the detune-modulation ladder (plan 1.1)
 
     keybed_update();    // keys: touch + glissando + QWERTY (ASDF../WETYU) + MIDI + Z/X octave → voice_start/stop
 
@@ -241,6 +269,8 @@ void draw(void) {
     }
     font(FONT_SMALL);
     print(ens ? "the BBD string wash" : "bare divide-down", ex, ey + 31, CLR_DARK_BROWN);
+    // A/B readout for the detune-modulation ladder (plan 1.1) — visible so the ear test is honest
+    print(str("WOW [W] %s", WOW_NAME[wow]), ex, ey + 40, wow ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK);
     font(FONT_NORMAL);
 
     // ── knobs + buttons ──────────────────────────────────────────────────────

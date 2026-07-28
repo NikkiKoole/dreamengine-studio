@@ -435,7 +435,25 @@ pass, 2026-07-26/27: real master knobs, a playable voice, four drum lanes, a pla
    into the amapiano rack: **constraint-as-feature only reads as opinionated if what REMAINS is
    deep**, which answers §7's bypass question below. Corollary: it must also be making noise when you
    meet it — v1 booted stopped, so every knob felt dead until you found SPACE.
-4. **A shared keybed must retire its hit rect.** `keybed_layout()` is sticky and `keybed_update()`
+4. **A control that does nothing gets fixed; a readout that is WRONG survives every pass.** After
+   three depth passes, the question "which visible elements still don't work?" turned up six, and the
+   two worst were not dead controls but lying labels, both untouched since v1 because nobody re-read
+   the parts that were never rewritten. `RETUNE`'s word ran *hard → hardest* as the knob went up,
+   while up means a longer `note_glide`, i.e. **gentler** — the label asserted the opposite of the
+   sound. And the collapsed strips' mini-pattern was `(s & 3) == 0` for every box but the drums, so
+   the saw strip advertised four stabs a bar where two fire, and MASTER, which has no pattern at all,
+   displayed one. Same defect as v1's literal-sized bars, hiding in the one place each depth pass
+   didn't touch. Two rules: **derive every readout from the thing it describes** (the fix was one
+   shared `voice_hits()`/`saw_hits()` predicate used by both the sequencer and the strip, so drift is
+   impossible, and MASTER showing its four amounts instead of a fake pattern), and when auditing a
+   rack, **audit the labels, not the widgets** — `ui-audit.js` checks that text is *placed* well, and
+   has nothing to say about whether it is *true*.
+5. **A per-box MUTE must mute your hands too.** `muted[]` was read only by the sequencer, so the
+   keybed, the chord pad and the drum pads all ignored it: a box went visibly dark and then played the
+   instant you touched it. Muting now also releases what is already sounding, held fingers included —
+   but per box, never one global panic, since dropping the vocal's held note because you muted the
+   drums is an audible glitch from an unrelated tap.
+6. **A shared keybed must retire its hit rect.** `keybed_layout()` is sticky and `keybed_update()`
    hit-tests it whether or not anything drew keys, so in an accordion the rect stays live *under the
    next panel* — v2's drum-grid taps also played vocal notes, silently. Two rules for any rack that
    shares one keybed: `keybed_layout(0,0,0,0)` when no melodic panel is open (QWERTY/MIDI don't use

@@ -5,6 +5,13 @@ STATUS: SHIPPED — brass-engine tuning handoff; asymmetric shaper + level-coupl
 > Session map for the whole waveguide-engine arc (down-bend + brass + the open tuning thread):
 > [`waveguide-bend-handoff.md`](waveguide-bend-handoff.md).
 
+> **Outside-in note (2026-07-28):** part of the remaining gap may be the **envelope shape**, not the
+> engine. Synth Secrets Part 8 is one long argument that ADSR structurally cannot make a real brass
+> contour: the swelled/spit shape needs the level at the end of the Attack to be *below* maximum
+> (Roland Alpha Juno `L1`), and our mod envelopes are AD with a single amount, so they hit Reid's
+> limitations 3 and 5 exactly. See [`synth-secrets-audit.md`](synth-secrets-audit.md) §C6 — the
+> proposed attack-level parameter names `brass`/`brasspec` as its audible home. Not queued.
+
 Working note for whoever picks up the BRASS engine next. The complaint that started this:
 *"my brass synth isn't really sounding very brassy"* — and, after a first fix, *"it's very
 obviously not real brass, whereas the reed section is a lot closer."* That judgment is correct.

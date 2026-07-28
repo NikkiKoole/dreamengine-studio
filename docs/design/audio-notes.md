@@ -22,6 +22,7 @@ left here — that rule is what keeps this doc from regrowing).
 |---|---|
 | engine/synthesis wants, parameter placement, gaps | **here** (§12 gaps, §4 placement, §9 open questions) |
 | a new modeled instrument (organ, reed, membrane…) | [`instrument-engines.md`](instrument-engines.md) — the navkit port program: §8.9 catalog, §8.8.2 playbook, §8.10 effects layer |
+| "is our synth architecture *right*?" — theory cross-check, missing classics | [`synth-secrets-audit.md`](synth-secrets-audit.md) — the engine vs Gordon Reid's 63-part **Synth Secrets**: what already matches (§A), ten drifts with book ref + `sound.h` line + audible-home cart (§B), twelve candidate additions (§C). **Read §B7 alongside §17 below** — Reid sources the "everything sounds clean" complaint to the *voice allocator*, not the effects chain |
 | a musical style / generative recipe | [`../guides/game-music.md`](../guides/game-music.md) (recipes, brain catalog, style cheat-sheet) |
 | a new radio station to build | [`future-stations.md`](future-stations.md) — the candidates parking lot + build-order axes |
 | a per-station timbre swap / engine retrofit | [`radio-instrument-options.md`](radio-instrument-options.md) |
@@ -1157,6 +1158,17 @@ this tooling the same day. How-to lives in
 Tier 2 (navkit `audio_analyze.py` / `preset_audition --ref`) remains open.
 
 ## 17. Grit, darkness, weight — why everything still sounds clean (2026-06-05)
+
+> **A sixth finding, found later and from outside (2026-07-28):** the **voice
+> allocator** is part of this. `sound_find_voice` returns the lowest-index free voice, so a
+> single-note line always plays on voice 0, and every voice runs bit-identical DSP — so there
+> is no per-voice variation of *any* kind to hear. Gordon Reid names exactly this as the
+> source of vintage "organic warmth" (per-voice detune/cutoff scatter) and warns that
+> predictable voice order gives "a disturbing consistency ... firmly within electronic
+> territory." Findings 1-3 below sent us to the signal path; this one is upstream of it. See
+> [`synth-secrets-audit.md`](synth-secrets-audit.md) §B7 for the quotes and the opt-in
+> (deterministic, per-voice-index, `analog_feel(0)` default) that keeps the audio gates
+> reproducible.
 
 Modrack grew six modules in a day (MACRO/XPOSE/MIX/CMP/DIV/ADSR) and every patch
 still comes out *polite*. That's not taste, it's an audit-able property of the

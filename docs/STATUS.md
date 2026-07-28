@@ -1540,6 +1540,32 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     **Still open** (003's OTHER half): the cart-to-cart *relationship* fields (`replaces`/`successor`/`related`),
     an editor gallery filter, and a generated `docs/collections.html` ★ page.
 
+52. **Synth Secrets audit — 22 candidate steps, deliberately NOT queued** *(2026-07-28)*. The engine
+    cross-checked against Gordon Reid's 63-part **Synth Secrets** (SOS 1999-2004), a canonical
+    synthesis text the owner supplied as a PDF (copyrighted, NOT in the repo; cite by part + issue).
+    Full ledger: [`design/synth-secrets-audit.md`](design/synth-secrets-audit.md).
+    **§A what already matches** (recorded so nobody "fixes" it): our ring mod *is* Reid's AM equation
+    with the mix knob as his `a1`/`a2` balance; FM holds a constant modulation index across the
+    keyboard, the one thing he calls impractical on analogue; the vowel formant table matches his
+    adult-male numbers row for row; mod sources sum on shared destinations exactly as his Part 7
+    "biggie" demands; voice stealing (quietest non-held + declick) is better than either policy he
+    describes. **§B ten drifts**, each with a book ref, a `sound.h` line, and the cart it would be
+    heard in — the top three: glide slews **linear Hz** not pitch (his slew generator sits in the
+    1V/oct pitch CV path, so up and down glides don't mirror); **nothing keytracks** (cutoff is
+    absolute Hz everywhere, so no patch is voiced correctly across the keyboard and our three
+    self-oscillating filters can't be played as pitched voices); **no note priority / single-vs-multi
+    trigger** (Part 18's whole subject, "at least 24 keyboard characteristics" — every monosynth cart
+    hand-rolls its own answer). Plus `sound_find_voice` returning the lowest-index free voice with
+    zero per-voice variation, which is a **sourced answer to audio-notes §17** "why everything sounds
+    clean" pointing upstream of the signal path. **§C twelve additions**, cheapest first: LFO delay
+    (delayed vibrato is currently *inexpressible*), LFO rate/depth and resonance as mod destinations,
+    a saw-carrier option for `ringmod` (unlocks the entire analogue inharmonic-metal family we have no
+    engine for), a 6 dB one-pole (which is also the honest portamento circuit), Hammond leakage, and a
+    free `harmonic-spec.js` oracle from his 1:n pulse-width law that costs no code at all.
+    **Owner's working rule, baked into the doc (2026-07-28): one small step at a time, and no engine
+    change lands without a cart where you can hear it** (existing carts are fine to improve). The doc
+    carries a 23-row suggested step order with a named cart per row. Nothing is approved.
+
 ---
 
 ## Decided-against / deferred ✗

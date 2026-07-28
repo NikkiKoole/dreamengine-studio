@@ -1787,6 +1787,18 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     should also state the four **cross-cutting themes** once instead of nine times: keytracking (§B2, six
     chapters), level-dependent inharmonicity (five families), trigger policy (§B3, with §L4 and §K6 needing
     opposite settings), and coupling (§E5/§H5/§I3/§M2 — one architectural question, four faces).
+    **➜ THE PLAN NOW EXISTS (2026-07-28): [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md)**,
+    STATUS READY TO BUILD. Every finding ordered into one ledger and classified **FACT / VERIFY / LISTEN /
+    DESIGN** — the first two are "just do it", the last two need the owner. LISTEN items are built **opt-in
+    from the start** so an A/B is possible and a "worse" verdict costs nothing to abandon; the honest outcome
+    of an inconclusive A/B is DROP, recorded with its measurement. It also answers **when to add a new engine
+    or effect versus change an existing one** from this repo's own ADRs (0006/0015/0016/0017) as a 7-rung
+    ladder — take the lowest rung that holds the finding, escalate only when a *built cart* failed the rung
+    below — and concludes **almost nothing on this list earns a new engine**: §G is a cart-land header, even
+    the electric guitar (§H6) is a second tap on `INSTR_GUITAR`. Phase 0 is ten doc/comment fixes plus five
+    measurements, five of which gate later work; Phase 1 is seven cart-only A/Bs; Phase 2 is the four themes
+    (keytracking alone closes six chapters' requests). Eight items are listed as explicit DROP candidates so
+    they stop costing attention.
 
 ---
 

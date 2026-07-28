@@ -585,6 +585,12 @@ comfort: the canonical text does not settle it either.
 Plus the architecture chapters in §A-§D (1-13, 14-21, 23, 63) and Part 19 closed out in §M8. **All 63
 articles read.** Nothing in the series is now unexamined against the engine.
 
+> **➜ THE PLAN NOW EXISTS: [`synth-secrets-plan.md`](synth-secrets-plan.md)** (2026-07-28). It orders every
+> finding below into one ledger, classifies each as **FACT / VERIFY / LISTEN / DESIGN** (so "just do it" is
+> separated from "needs your ear"), names the cart each lands in, and answers when a finding justifies a new
+> engine versus changing an existing one — using this repo's own ADRs 0006/0015/0016/0017 rather than a new
+> rule. **Work happens there; findings stay here.**
+
 **Next, and the only thing outstanding: one ordered step-by-step guide** (owner, 2026-07-28: "after we've
 sieved through everything we will spend some time to add a step by step guide, but let's first make it
 complete"). Its job is *collection*, not authoring — there are now **nine** per-section step tables and the
@@ -2309,7 +2315,7 @@ STATUS: EXPLORING — nothing queued. **This completes the sieve.**
 The only arc about the *effects layer* rather than an engine, so it exercises a different part of the
 codebase than the seven instrument passes: `echo`/`echo_insert` (+ the BBD voicing), the three reverb
 tanks, `reverb_spring`, `chorus`, `flanger`, `phaser`, `tape`, and `grains`. It pairs with
-[`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes.
+[`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than [`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
 
 Sources: Part 22 "From Springs, Plates & Buckets To Physical Modelling" (SOS February 2001), Part 60
 "From Analogue To Digital Effects" (April 2004), Part 61 "Creative Synthesis With Delays" (May 2004),

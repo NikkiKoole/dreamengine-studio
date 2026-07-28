@@ -1,8 +1,8 @@
 # Synth Secrets — the build plan
 
-STATUS: READY TO BUILD — the ordered work ledger derived from
+STATUS: BUILDING — **Phase 0 is DONE (2026-07-28)**; Phase 1 is next. The ordered work ledger derived from
 [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is the *findings*; this is the *doing*.
-Nothing here is approved yet; Phase 0 is the proposed starting point.
+Phase 0 (free/factual, no ear needed) is complete — its results are in §3. Nothing beyond it is approved.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -143,6 +143,27 @@ gates 3.16, and 0.15 may collapse two Phase 3 items (§H8 and §I5) into a singl
 
 **Deliverable:** ten doc/comment fixes and five measurements, five of which change what we do next.
 
+### ✅ Phase 0 results (2026-07-28)
+
+All fifteen done. Compile-gated (`soundcheck` clean, no `[sound]` warnings) and `tune-check --quiet`
+exit 0. **Four rows changed the rest of the plan:**
+
+| row | result | effect on the plan |
+|---|---|---|
+| **0.1** | Aliasing is a **non-issue.** 1/3-duty nulls measure **42–58 dB deep at every pitch** (A1→A5, no collapse); inter-harmonic energy — the actual aliasing probe — is **−74 dB at A1, −87 at A2, −59 at A4, −53 at A5**, so it does grow with pitch as theory says but never approaches audibility. The worst case §B5 predicted, a **PWM sweep at A5**, measures **−55.9 dB**, i.e. no worse than static. | **3.30 → DROP.** No permanent oracle tool needed either; the cheapest rung held |
+| **0.11** | `instrument_lfo` has **no rate ceiling**, and 80 Hz genuinely works: modulating cutoff at 80 Hz on a 110 Hz carrier puts sidebands at **exactly 110±80 Hz, both up ~30 dB**, with the carrier depleted 12 dB. Reid's "growl" is reachable with shipped primitives. | **3.6 unblocked and cheaper** — it may not need engine work at all |
+| **0.13** | `INSTR_PIPE` is a **CLOSED (odd-harmonic) pipe**: evens sit **50–73 dB** under the odds (h2 −52.5, h4 −53.8, h6 −73.5 against h3 −9.5, h5 −14.4). So it is spectrally a **pan pipe**, and its "flute"/"recorder" presets are structurally wrong — those need even harmonics. | Sharpens §K4 from "unknown" to known. **Also explains §K2**: a closed pipe overblows a *twelfth*, not the octave the docstring promised, so the doc described a different instrument than the code implements |
+| **0.15** | **§H8 and §I5 are one cause.** PLUCK's harmonic extent collapses h23 → h17 → h7 → **h2** across A1→A4, tracking PIANO's decay collapse from §I0. Both are consistent with loop coefficients fixed **per pass** rather than scaled to the note, so higher pitches get more passes per second. | **Two Phase 3 items merge into one fix** |
+| **0.12** | Bow-position comb **verified**: at β=1/4 the three deepest nulls are exactly **h4 (−25.0), h8 (−32.4), h12 (−35.9)**; at β=1/5 they are **h5, h10**. | The waveguide string is right, so §F4's gap really is *only* the missing body |
+| **0.14** | **Confirmed:** MEMBRANE's perceived pitch is the **0,1** mode (0.0¢ at A2/A3/A4), where a real timpani's is the **1,1**. Our loudest mode is the one the detector locks to. | Folds into **3.16** rather than being separate — it is the same fix as §J2+§J3 |
+
+The ten FACT rows are all applied: the `studio.h` PIPE docstring now records the closed bore, the
+non-overblowing macro and the non-monotonic tuning; `sound.h` carries the load-bearing-comb-sign warning,
+the 0.55 justification, the corrected `pn_dd` attribution, and **four "✅ VERIFIED against Part N" notes**
+on the tables that matched the book exactly (vowel formants, membrane Bessel ratios, Hammond drawbars, FM
+ratio detents); `audio-notes` §18 and `brass-realism-handoff` no longer overclaim; and the comb caveat is
+in `effects-recipes.md`.
+
 ---
 
 ## 4. Phase 1 — cart-only, each its own audible proof
@@ -218,7 +239,7 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 | 3.27 | Key-scaled envelope times | B10 | LISTEN | 6 | `piano`, `20-instruments` |
 | 3.28 | Per-voice character + round-robin allocation (`analog_feel`) | B7 | LISTEN | 6 | `polystress`, `jangle` — ⚠ must be deterministic per voice index, never `rand()` |
 | 3.29 | Non-monotonic formant amplitudes | B6 | LISTEN | 2 | `vowel` |
-| 3.30 | BLEP the pulse / PWM | B5 | LISTEN | 6 | `solina` — only if 0.1 says it matters |
+| ~~3.30~~ | ~~BLEP the pulse / PWM~~ **DROPPED by 0.1** — aliasing ≤ −53 dB even at A5, nulls intact at every pitch, PWM sweep no worse | B5 | — | — | measurement recorded in Phase 0 results |
 | 3.31 | Saw PWM | C9 | LISTEN | 6 | `solina`, `juno` |
 | 3.32 | Ping-pong and cross-fed delays | M5 | LISTEN | 6 | `dub`, `spacecho` |
 | 3.33 | Peak level tapers with pitch | I6 | LISTEN | 6 | `piano` — pairs with §I5 |

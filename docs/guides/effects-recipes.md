@@ -14,6 +14,15 @@
 > acts as an instrument body, and he closes regretting that almost nothing lets you — `reverb_bus()` plus
 > `fx_order()` do exactly that.
 
+> **A caveat worth knowing before you reach for a wet/dry knob (audit §B8).** A filter shifts each
+> harmonic's PHASE by a different amount, so blending a filtered copy back against the dry signal is
+> **not** a gentler filter — it is a comb, with notches wherever the two arrive out of phase. Synth
+> Secrets Part 4 makes this its headline: *"Filters not only change a waveform by attenuation, but
+> distort it by individually phase-shifting the harmonics within it."* This applies to `formant()`'s
+> and the auto-wah's `mix` (both blend a resonant bandpass against dry). `filter()` takes no mix, so it
+> is unaffected. Nothing is broken — but "turn the mix down to soften it" is the wrong mental model,
+> and a 50%-wet formant gets notches you did not ask for.
+
 The effects companion to [`instrument-recipes.md`](instrument-recipes.md). That file is the
 supply-side palette of **instrument patches** (how to voice an `INSTR_*` engine); **this file
 is the same shelf for the engine EFFECTS** — echo, reverb, chorus, flanger, tape, auto-wah,

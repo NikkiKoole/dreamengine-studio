@@ -57,7 +57,18 @@ asymmetric shaper steepening with level, and a level+brassiness high-shelf lifti
 ~4kHz. Measured (forte trumpet A3): highest harmonic within 20dB **h9→h17** (~2.0→3.7kHz), energy
 >4kHz **0.2%→2.3%**, crest **6.3→14.6dB**. DC-check + tune-check clean (tuning untouched). **Still
 open:** fix #3 (model the bell to fill the harmonic series natively) and the deferred **mute/plunger
-axis** — the most aggressive bite. Tracked in [audio-notes.md](audio-notes.md) §19 + STATUS. The
+axis** — the most aggressive bite.
+
+> ⚠ **THE MACROS FOR THOSE NUMBERS WERE NEVER RECORDED, and they do not reproduce** (re-measured
+> 2026-07-28, audit plan item 0.5). From `brasspec`'s **committed** defaults — harmonics 0.15 / timbre
+> 0.80 / morph 0.55 — I get **h9 / 1.7%**; reaching **h23 / 2.2%** needs timbre pushed to **1.00**. So the
+> h9→h17 figure was taken somewhere in between, at a position nobody wrote down. Checked for a
+> regression and found none: no commit has touched the brass region of `sound.h` since `8dfd12a`, and the
+> only later change is a uniform makeup-gain trim, which cannot move *relative* dB. Two consequences:
+> treat every harmonic number in this doc as **macro-dependent**, and treat them all as **lower bounds**,
+> because the 372 ms analysis window spans ~2 cycles of the engine's always-on 5.4 Hz lip vibrato and FM
+> smears high harmonics more than low ones (§E9 — and the vibrato has a floor of 0.08 with no defeat, so
+> it cannot currently be controlled for). **Pin the macros next time a number goes in this doc.** Tracked in [audio-notes.md](audio-notes.md) §19 + STATUS. The
 diagnosis + remaining-work sections below are kept verbatim as the as-built record.
 
 ## ⚠️ ORIGINAL STATE NOTE (2026-06-12): there was UNCOMMITTED work in the tree

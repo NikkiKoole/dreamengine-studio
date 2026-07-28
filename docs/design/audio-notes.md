@@ -1876,7 +1876,7 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    few cents. ORGAN's "octave low" is its 16′ drawbar, not detuning.
 2. **PIPE was the real bug, and it's fixed.** Octave-low (full- vs half-wavelength bore +
    an inverting reflection) and flat (uncompensated loop delay). Now in tune ~±3¢ from C4 to
-   ~E6 at any sane embouchure.
+   ~E6 **at the calibration point (morph 0.70)** — *not* across the range; see the ⚠ below.
    > **⚠ "any sane embouchure" is too strong — re-measured 2026-07-28.** The jet-derived
    > compensation's second-stage ramp (`ex = 0.40·(jetLen−5)`, **clamped at 0.80**) saturates at
    > jetLen ≥ 7 and is asked to serve both jetLen 7 and 9, fitting neither. Measured with

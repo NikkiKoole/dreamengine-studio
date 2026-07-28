@@ -309,7 +309,7 @@ typedef struct {
     float  pn_apc, pn_aps;              // fractional-delay allpass coeff + state (pitch tuning)
     float  pn_initf;                    // freq at note-on (pitch-tracking reference)
     float  pn_dampg, pn_damps;          // damper gain (pedal) + slewed state
-    float  pn_dd;                       // DOUBLE-DECAY: extra per-period loss right after the strike, relaxes to 0 (~0.2s). The fast initial drop that says "struck", not "plucked harp"
+    float  pn_dd;                       // DOUBLE-DECAY: extra per-period loss right after the strike, relaxes to 0 (~0.2s) — the fast initial drop into a long aftersound. ⚠ It does NOT mean "struck, not plucked" (the old comment claimed that): a PLUCKED guitar has two-rate decay too, from the string's two polarisation planes decaying at different rates (Synth Secrets Part 28), and the piano's own cause is different again — the pairs and tricords interacting so energy transfer to the soundboard slows (Part 42). Common to both families; only the proportions differ. GUITAR/PLUCK should probably borrow it (audit §H3)
     float  pn_knock;                    // HAMMER KNOCK: default onset transient amount (broadband click over eng_click), ON for piano regardless of MODE_STRING_CLICK
     float  pn_ks2[SOUND_KS_MAX];        // detuned 2nd string delay line (own loop)
     int    pn_ks2_widx, pn_ks2_len;
@@ -2822,8 +2822,14 @@ static void sound_pluck_start(Voice *v) {
         lp += k * (n - lp);
         v->ks_buf[i] = lp;
     }
-    // morph = pick position: comb-filter the excitation (subtract a shifted copy) — notches
-    // the harmonics a real pluck point cancels. 0 = near the bridge (full), 1 = mid-string (hollow)
+    // morph = pick position: comb-filter the excitation (SUBTRACT a shifted copy — the sign matters, see
+    // the piano's AVERAGING twin in sound_piano_start) — notches the harmonics a real pluck point cancels.
+    // 0 = near the bridge (full), 1 = mid-string (hollow). The 0.55 coefficient attenuates the notched
+    // harmonics ~14–30dB rather than nulling them, which looks like a magic number but is defensible: on a
+    // real guitar the body immediately puts them back ("the plate passes some energy back, exciting new
+    // modes in the string itself, including modes that were not present in the original vibration" —
+    // Synth Secrets Part 28), so a partial notch is closer to the instrument than a perfect null. Measured
+    // at 1.0 = every 2nd harmonic down 14–30dB, at 0.638 = every 3rd. Audit §H1/§H2.
     int pos = (int)(period * (0.04f + 0.46f * v->mor));
     if (pos > 0) {
         float tmp[SOUND_KS_MAX];
@@ -2935,6 +2941,11 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     // harmonics = carrier:modulator ratio, SNAPPED to a curated table — a continuous ratio
     // is out-of-tune clang everywhere except the integers. Each detent is a different
     // instrument: integers = harmonic (bass/epiano/brass), offs = bells/clang, 14 = DX tine.
+    // ✅ The integer detents match Synth Secrets Part 13's named C:M cases (audit §A2): 1:1 → a filtered
+    // sawtooth, 1:2 → odd harmonics only (square-like), 1:3 → a 33% pulse, 1:4 → square-ish. And because the
+    // index below is a constant in RADIANS, timbre stays put across the keyboard — the thing Part 12 calls
+    // "almost impossibly difficult to calibrate" on analogue hardware. The off-integer detents are the
+    // deliberately clangorous ones.
     static const float RATIO[10] = { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 3.5f, 4.0f, 5.0f, 7.0f, 14.0f };
     int ri = (int)(v->harm * 9.999f);
     if (ri < 0) ri = 0; else if (ri > 9) ri = 9;
@@ -3083,6 +3094,10 @@ static void sound_organ_start(Voice *v) {
 static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     if (!v->org_on) return 0.0f;                       // engine id without a note-on init
     const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    // ✅ VERIFIED against Synth Secrets Part 55's drawbar table, nine for nine (audit §L1). Referenced to the
+    // 16' those are harmonics 1,3,2,4,6,8,10,12,16 — note the series SKIPS 5,7,9,11,13,14,15, and the panel
+    // order really is 16'/5⅓'/8'. The played unison is the 8' (ratio 1.0), so a 16'-heavy registration sounds
+    // an octave down while being perfectly in tune — that is correct, not a bug (audio-notes §18).
     static const float RAT[9] = { 0.5f, 1.5f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 8.0f };       // 16'..1' footages
     static const float OCT[9] = { -1.0f, 0.585f, 0.0f, 1.0f, 1.585f, 2.0f, 2.322f, 2.585f, 3.0f }; // log2(ratio), precomputed
     // harmonics = registration, SNAPPED to a curated table of iconic recipes (thin → full).
@@ -3438,6 +3453,11 @@ static inline float sound_membrane_sample(Voice *v, float pitch_mul) {
     // tuned head (tabla — its loaded skin pulls the modes to a near-HARMONIC series, a pitched
     // drum) ↔ ideal circular-membrane ratios (djembe/conga — Bessel zeros, inharmonic thud).
     static const float RT[6] = { 1.0f, 2.0f,   3.0f,   4.0f,   5.0f,   6.0f   };
+    // ✅ VERIFIED against Synth Secrets Part 31 Table 1, all six (audit §J1): 0,1=1.00 · 1,1=1.59 · 2,1=2.14
+    // · 0,2=2.30 · 3,1=2.65 · 1,2=2.92. Mode identities matter for §J4: indices 0 and 3 are the CIRCULAR
+    // modes, 1/2/4 are RADIAL, 5 is mixed — a timpanist strikes 1/4 from the edge to suppress the circular
+    // ones. ⚠ RT below is an integer harmonic series, which NO drum has (§J2): a real pitched drum is
+    // air-loaded, putting its radial modes near 1 : 1.47 : 1.91 : 2.36.
     static const float RD[6] = { 1.0f, 1.594f, 2.136f, 2.296f, 2.653f, 2.918f };  // navkit Bessel
     float f = v->freq * pitch_mul;
     if (f < 20.0f) f = 20.0f;
@@ -4045,6 +4065,9 @@ _Static_assert(VOX_NPARAM <= 20, "grow Voice.vox_p[]/vox_s[] (sized [20]) before
 // before); rows 5..9 (AE AH AW UH ER) are the extra vowels, reachable as the diphthong/glide
 // TARGET (vow2 idx 17 selects 0..9). Completing the table was the navkit copy-paste the audit flagged.
 #define VOX_NVOWEL 10
+// ✅ VERIFIED against Synth Secrets Part 23's adult-male formant table (audit §A3): "oo" 300/870/2240 vs
+// his 300/870/2250, "ee" 270/2290/3010 vs 270/2300/3000, "eh" 530/1840/2480 vs 530/1850/2500, "cat"
+// 660/1720/2410 vs 660/1700/2400. Do not "tidy" these numbers — they are measured, not chosen.
 static const float vox_vowel_f[VOX_NVOWEL][4] = {
     { 300.0f,  870.0f, 2240.0f, 3400.0f},   // 0 U  "oo" (boot)   ── path ──
     { 570.0f,  840.0f, 2410.0f, 3400.0f},   // 1 O  "oh" (go)
@@ -4644,7 +4667,13 @@ static void sound_piano_start(Voice *v) {
     float peak = 0.0f;
     for (int i = 0; i < len; i++) { v->ks_buf[i] -= mean; float a = fabsf(v->ks_buf[i]); if (a > peak) peak = a; }
     if (peak > 0.001f) { float g = 1.0f / peak; for (int i = 0; i < len; i++) v->ks_buf[i] *= g; }
-    int ps = (int)(pv->strike * (float)len);           // strike comb (AVERAGING — navkit applyPickPosition)
+    // strike comb (AVERAGING — navkit applyPickPosition). ⚠ THE + IS LOAD-BEARING: do NOT "unify" this
+    // with the pluck/guitar comb, which SUBTRACTS. A pluck point is the string's maximum displacement, so
+    // harmonics with a node there are excluded; a HAMMER stays in contact long enough that the struck point
+    // is forced to BE a node, so the excluded set is the complement. The two combs' nulls interleave, and at
+    // ps = len/2 this averaging form nulls n = 1,3,5,7… — the fundamental and every odd harmonic, which is
+    // exactly what a centre-struck piano string does. Verified against Synth Secrets Part 42 (audit §I1).
+    int ps = (int)(pv->strike * (float)len);
     if (ps < 1) ps = 1; if (ps >= len) ps = len - 1;
     { float tmp[SOUND_KS_MAX];
       memcpy(tmp, v->ks_buf, len * sizeof(float));

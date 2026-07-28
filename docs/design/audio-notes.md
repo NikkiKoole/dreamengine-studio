@@ -856,6 +856,14 @@ investment call is laid out in §13.)
 
 ## 13. The lay of the land — SCWs vs. engines (decided 2026-06-05)
 
+> **A possible THIRD lever, raised 2026-07-28 (nothing decided):** both levers below aim at the
+> *acoustic instrument*. Synth Secrets aims at a different target — the **analogue synth imitating**
+> the instrument — which is a distinct, beloved sound (Minimoog brass, Solina strings) and a much
+> more tractable one. That suggests a third column: **subtractive imitation**, most likely a cart-land
+> header holding Reid's published patch values as data rather than a new `INSTR_*`, since the pieces
+> are already primitives. See [`synth-secrets-audit.md`](synth-secrets-audit.md) §G and the catalog
+> note in [`instrument-engines.md`](instrument-engines.md) §8.9.
+
 §8.4 (single-cycle waves) and §8.5–8.9 (modeled engines) keep getting
 discussed in the same breath, and §12's closing note about `wave_set` going
 unused makes it worse: it *reads* like the cheap, shipped, underused lever

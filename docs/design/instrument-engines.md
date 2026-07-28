@@ -1378,6 +1378,32 @@ the table's only job is to say what those three mean for each. Grow it freely.
 | **PD / phase distortion** (Casio CZ) | `processPDOscillator` — **2 floats, 8 wavetypes incl. 3 resonant** | free (cheapest in the catalog) | wavetype (snapped detents, like FM's ratio table) | static distortion amount (filter-like brightness / reso-peak position, zero filter) | **DCW-envelope depth** — an attack→settle sweep of distortion (the CZ "wowww"; navkit omits this, we build it from the second EG) | CZ basses, synth-brass, the famous resonant sweeps; deeply chiptune-adjacent — strong identity fit, near-zero cost. **SHIPPED 2026-06-08** as `INSTR_PD` (21) incl. the DCW morph sweep — full design: §8.8.6 |
 | **Membrane** (tabla/conga/bongo/djembe/tom) | `processMembraneOscillator` (`:1754`, `MembraneSettings` `synth.h:437` — 6 modal sines at circular-membrane Bessel ratios) | free (~100 B — mallet-family cost) | head character (tabla ↔ djembe mode spread / tension) | **strike position** (center thump ↔ edge ring — the model reweights modes physically; conga open/slap/mute in one knob) | **pitch-bend depth/decay** (the tabla bayan *glissando* — baked into the model) | hand percussion the analog 808/909 recipes can't reach — bend + strike-pos are exactly what sine+pitch-env approximations lack. World-music radio fuel (promoted from the census NO list 2026-06-05). **SHIPPED 2026-06-08** as `INSTR_MEMBRANE` (22) — see §8.5 step 8 for the macro mapping + the one deviation from the port (harmonics also crossfades the *ratios*, tuned↔Bessel) |
 
+> **A candidate that is NOT a navkit port, and may not be an engine at all — "subtractive imitation"
+> (raised by the owner 2026-07-28, from the Synth Secrets audit).** Every engine in the table above
+> chases the *acoustic instrument*. Synth Secrets chases something different and arguably more
+> tractable: the **analogue synth imitating** the instrument. Reid's brass patch does not sound like a
+> trumpet, it sounds like a Minimoog playing a trumpet — the entire 1970s prog/funk horn vocabulary —
+> and his string-machine patches are the Solina sound people still buy hardware for. Two different
+> targets, and we currently only serve one, which is why `INSTR_BRASS` keeps getting judged against a
+> real trumpet and (per [`brass-realism-handoff.md`](brass-realism-handoff.md)) keeps not clearing it.
+>
+> **Probably NOT a new `INSTR_*`.** A Minimoog brass patch is a saw, a resonant lowpass, two envelopes
+> and an audio-rate filter modulator — pieces we ship or nearly ship. The likely shape is a **cart-land
+> header** (`subtractive.h`), following the `acid303.h`/`tr808.h` precedent of "cart owns the pattern,
+> header owns the sound": a voicing table holding Reid's *published parameter values* as data (Minimoog
+> trumpet/tuba/jazz-trombone from Part 26, the SH-101 and Axxe versions from Part 27, the Jupiter 6 and
+> JX10 string patches from Parts 45-46), each row carrying its citation. That makes it both a feature and
+> a regression test. Escalate to an engine id only if the header proves the pieces must sit closer to the
+> voice. Cheap per voice, degrades gracefully, and on-grain for the north star: it simulates a
+> *synthesizer*, a thing with a knowable architecture, rather than an orchestra.
+>
+> **Prerequisites** (all specced in the audit): keyboard tracking of cutoff — cited four times in the
+> series, and Part 26 pins the value at "slightly less than a 1:1 ratio … say, to 190 percent" per
+> octave (≈0.93); audio-rate filter modulation for the brass growl (~80 Hz triangle, AD-gated); an
+> attack-*level* envelope for the spit-brass contour; and a filter envelope separate from the amp
+> envelope. Full write-up + the honest tension (it overlaps `INSTR_SAW` + `instrument_filter`, which a
+> cart can already hand-wire): [`synth-secrets-audit.md`](synth-secrets-audit.md) §G.
+
 > **Full navkit census (2026-06-05) — 23 engines in `soundsystem/engines/synth_oscillators.h`.**
 > Shipped here: pluck, mallet, FM. Roadmapped: organ (next), EP + StifKarp-piano + guitar (§8.5
 > step 5). Catalog above: additive, AM, voice/formant, bowed, reed, pipe, brass, PD, membrane

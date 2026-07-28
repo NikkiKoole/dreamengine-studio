@@ -1581,8 +1581,31 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     never had: Part 24 Fig 8 says the 8th harmonic DOMINATES an overblown note; measured, h1 is still
     loudest and evens are still suppressed (h2 −31.3 dB). Plus §E10, free and cart-side: `brass.c` uses
     a 1 ms attack and a 1200 ms release where the book says 100 ms and effectively instantaneous.
-    Remaining families (strings, drums, pianos, flutes, the rest of the Hammond, delays) still unread —
-    §D5 lists them; §E is the template.
+    **§F = recipe pass 2, STRINGS** (Parts 45-50 — string *machines* + *bowed*, both of which we ship;
+    plucked strings are a separate unread arc). Headline: **`INSTR_BOWED` has no body resonator at all**
+    while `GUITAR` (`gt_body[4]`) and `PIANO` (`pn_body[4]`) both do, and Part 47 is explicit that the
+    body is what makes it a violin ("without these … the sound will not be realistic") — we output
+    Reid's *bridge force* where the ear needs his *radiated* spectrum, and the fix primitive is already
+    in the same header. Also: our PWM may be missing the **two-pitch** effect Part 46 proves is the real
+    reason PWM sounds chorused (unverified, and the measurement is specified); `solina` leaves
+    `LFO_DETUNE` and the Random-shape LFOs unused, which are the exact two rungs Part 45 says the
+    ensemble sound lives on (free, cart-only); Part 50 abandons patch-building to argue **continuous
+    control beats components** ("two modules … can be far more expressive … than any number of modules"),
+    which lands on our ribbon/touch surface and the existing `martenot` cart; and cutoff **keytracking is
+    now cited four separate times** across the series, making it the most-requested missing feature in the
+    book. **§C12 was CORRECTED**: Reid retracts Part 10's "every nth harmonic is missing" law in Part 46
+    (the spectrum is a sinc envelope), so the oracle as originally specced would have gated on something
+    false. Expect more of this — the series ran five years and he revises himself.
+    **§G = the missing engine class (owner's idea, 2026-07-28, nothing designed):** every patch in the
+    book is *subtractive* while all our imitative engines are *physical models*, so "a Minimoog playing a
+    trumpet" — a beloved sound in its own right, and the whole 1970s horn/string-machine vocabulary — is
+    a target we don't serve. Probably **not** a new `INSTR_*` but a cart-land `subtractive.h` holding
+    Reid's *published parameter values* as a cited voicing table (the `acid303.h` precedent), which makes
+    it a feature and a regression test at once. Prerequisites are all already specced in §B/§C.
+    Catalogued in [`design/instrument-engines.md`](design/instrument-engines.md) §8.9 and
+    [`design/audio-notes.md`](design/audio-notes.md) §13 as a possible third lever.
+    Remaining families (plucked strings, drums, pianos, flutes, the rest of the Hammond, delays) still
+    unread — §D5 lists them and ranks what to read next; §E is the template.
 
 ---
 

@@ -2,6 +2,14 @@
 
 STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, hammer knock, velocity→timbre, per-voicing decay + dulcimer unison, stretched tuning); A/B crest 21.6→25.9 dB, onset brightness 0.10→0.25. Only optional polish remains (ear-tune the per-voicing baselines + PIANO_STRETCH_K; promote the eng_p indices to public MODE_PIANO_* constants).
 
+> **Pending outside-in pass:** Synth Secrets devotes **four** chapters to pianos (Parts 41-44, SOS
+> Oct 2002 to Jan 2003), including complete Roland JX10 parameter tables for its "Piano 1-A"/"1-B"
+> layered patch. They have **not** been read yet, and [`synth-secrets-audit.md`](synth-secrets-audit.md)
+> §D5 ranks them as the **second-highest-yield** remaining family, to be paired with this doc. Precedent
+> for expecting something: the brass pass (§E) found a structural miss the brass handoff hadn't
+> considered, and the strings pass (§F) found `INSTR_BOWED` shipping with no body resonator while this
+> engine's `pn_body[4]` sits in the same header.
+
 **Genre: design exploration / handoff.** The diagnosis + roadmap for the one engine in the
 roster that never got past "nice but mediocre." Engine impl: `runtime/sound.h`
 `sound_piano_start` / `sound_piano_sample` (search `INSTR_PIANO`). Showcase + tuning rig:

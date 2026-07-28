@@ -9,10 +9,16 @@ canonical synthesis text says the machine should do, versus what `runtime/sound.
 Nothing here is a bug report. Several divergences are deliberate and documented in the code; they are
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
-**Two passes so far.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read
-from the theory chapters. §E onward are the **recipe** passes, one instrument family at a time (does
-one engine's *voicing* match the physical analysis?), and they carry measurements. Brass is done;
-the remaining families are listed in §D5.
+**Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
+chapters. §E onward are the **recipe** passes, one instrument family at a time (does one engine's
+*voicing* match the physical analysis?), and they carry measurements. **§E brass** and **§F strings**
+are done; remaining families are listed in §D5. **§G** is a design question the recipe passes raised:
+every patch in the book is subtractive and all our imitative engines are physical models, which may
+mean we are missing a category rather than mistranslating one.
+
+Note that §C12 was **corrected** by the strings pass. Reid contradicts himself between Part 10 and
+Part 46 and explicitly retracts the earlier claim, which the original §C12 had quoted as law. Expect
+more of this: the series ran five years and he revises himself.
 
 ---
 
@@ -498,16 +504,30 @@ would be heard.
 
 ### C12. A pulse-width harmonic oracle we can actually run
 
-- **Book:** Part 10 (SOS February 2000, p.94) gives a hard, testable law: "A pulse wave has the same
-  harmonic distribution as a sawtooth wave except that, for a duty cycle of 1:n (where n is an integer)
-  every nth harmonic is missing from the spectrum." He works it: 50% kills the evens (odd harmonics
-  only), 33.3% kills every third, 25% kills every fourth, and a non-integer duty such as 28.5%
-  attenuates the third and fourth "but no harmonics are completely eliminated".
+> **⚠ CORRECTED 2026-07-28 by the strings pass (§F).** This item originally quoted Part 10's "every
+> nth harmonic is missing" as "a hard, testable law". **Reid himself corrects that claim in Part 46**,
+> and calls it "a long-standing mistake usually made in discussions of pulse waveforms". The oracle
+> below is still worth building, but the assertion it makes had to change; the original version would
+> have gated on something false. Details in §F3.
+
+- **Book, the corrected version:** Part 46 (SOS March 2003, p.154-155). The *nulls* are evenly spaced
+  as Part 10 says, but the surviving harmonics do **not** keep the sawtooth's 1/n amplitudes. A pulse
+  wave's spectrum is a **sinc** envelope: "the amplitude of any pulse-wave harmonic is defined by the
+  value of the sinc function at that point ... there can be no harmonics at the points where the sinc
+  function crosses the 'X' axis, which explains why a pulse wave's missing harmonics are evenly
+  spaced." At 25% duty, "every fourth harmonic is missing, but the amplitudes of the others no longer
+  exhibit the 1/n relationship. This becomes increasingly apparent as the duty cycle becomes
+  narrower." He also gives the consequence that kills the naive version outright: build "a sawtooth
+  spectrum with holes in it" and you do not get a pulse wave, you get a **staircase** with as many
+  steps as the null spacing, and at 1% duty that staircase "is all but indistinguishable from a
+  sawtooth wave."
 - **Engine:** `tools/harmonic-spec.js` already measures a harmonic series from a WAV.
-- **Why:** this is not an engine change at all. It is a free correctness gate for the pulse oscillator
-  and, more usefully, a **measurement of how badly the un-BLEP'd pulse (B5) smears the nulls.** Doing
-  this first would tell us whether B5 is worth acting on.
-- **Audible home:** none needed. This one is a tool run, which makes it the cheapest possible first step.
+- **What the oracle should assert:** null *positions* (every nth harmonic, from the duty cycle) and
+  that surviving amplitudes track a **sinc** envelope, not 1/n. Asserting 1/n would fail a correct
+  oscillator.
+- **Why:** still no engine change, and still the cheapest thing here. Its real value is measuring how
+  badly the un-BLEP'd pulse (§B5) smears the nulls, which decides whether §B5 is worth acting on.
+- **Audible home:** none needed. A tool run.
 
 ---
 
@@ -538,15 +558,20 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), 28-30 (plucked
-strings), 31-39 (drums other than the timpani ring-mod passage and the 808 cymbal), 41-43 (pianos,
-the JX10 patch listings), 44-50 (strings and bowed strings), 51-53 (flutes), 54-56 and 58 (the rest
-of the Hammond), 59-62 (delays and effects) were skimmed or grep-targeted, not read end to end. They
-are the *recipe* chapters, and they are the most likely place to find per-engine tuning findings for
-`REED`/`PIPE`/`BOWED`/`PIANO`/`GUITAR` against the physical analysis. Anyone picking this up: those
-chapters plus [`../guides/instrument-recipes.md`](../guides/instrument-recipes.md) is the obvious
-continuation, and it is a different *kind* of audit (per-engine voicing, not engine architecture).
-**Brass (24-27) is now done** — see §E, which is the template for the rest.
+**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), **28-30 (plucked
+strings)**, 31-39 (drums other than the timpani ring-mod passage and the 808 cymbal), **41-43 (pianos,
+with full JX10 patch listings)**, **51-53 (flutes)**, 54-56 and 58 (the rest of the Hammond), 59-62
+(delays and effects) were skimmed or grep-targeted, not read end to end. They are the remaining
+*recipe* chapters, and the most likely place to find per-engine tuning findings for
+`PLUCK`/`GUITAR`/`PIANO`/`REED`/`PIPE`/`ORGAN` against the physical analysis. Pair them with
+[`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
+
+Done so far: **brass (24-27) → §E**, **strings (45-50) → §F**. §E is the template. Suggested next, by
+expected yield: **plucked strings (28-30)** — three chapters against `PLUCK`/`GUITAR`/`PIANO`, and §F4
+already showed the bowed engine missing a body those two have, so the plucked analysis is likely to be
+load-bearing. Then **pianos (41-43)**, which carry complete JX10 parameter tables and pair with the
+existing [`piano-engine.md`](piano-engine.md) diagnosis. Then flutes (51-53) against `PIPE`, which has a
+known tuning caveat already recorded in `studio.h`.
 
 ---
 
@@ -827,6 +852,298 @@ the thing to judge against.
 | 8 | E6 retaper the brassiness macro | engine, small | `brass` |
 | 9 | E5 trade the fundamental away at forte (handoff fix #3) | engine, hard | `brasspec` |
 | 10 | E8 stretched partials | engine, reuses PIANO's allpass | `brasspec` |
+
+---
+
+## F. Recipe pass 2 — STRINGS (Parts 45-50)
+
+STATUS: EXPLORING — nothing queued.
+
+"Strings" is two threads in the series and both map onto things we ship, so both are here. Parts 45-46
+are string **machines** (the Solina/Freeman ensemble lineage, and PWM), which land on `solina`, `juno`,
+`supersaw` and our unison/detune/PWM surface. Parts 47-50 are **bowed** strings, which land on
+`INSTR_BOWED`. **Plucked** strings are a separate arc (Parts 28-30, still unread, see §D5) covering
+`PLUCK`/`GUITAR`/`PIANO`.
+
+Sources: Part 45 "Synthesizing Strings • String Machines" (SOS February 2003), Part 46 "…PWM & String
+Sounds" (SOS March 2003), Part 47 "Synthesizing Bowed Strings • The Violin Family" (SOS April 2003),
+Parts 48-49 "Practical Bowed-string Synthesis" (SOS May, June 2003), Part 50 "Articulation &
+Bowed-string Synthesis" (SOS July 2003). Engine: `sound_bowed_sample`
+([`runtime/sound.h:3778`](../../runtime/sound.h)) + `sound_bowed_start`
+([`runtime/sound.h:3708`](../../runtime/sound.h)).
+
+### F1. What matches, and it is a lot on the machines side
+
+The ensemble half is the best-matched area the audit has found. Part 45 walks a Jupiter 6 up a ladder
+of thickening tricks, and we have every rung:
+
+- **Detune two saws.** `instrument_unison` up to 7 (`SOUND_UNISON_MAX`,
+  [`runtime/sound.h:122`](../../runtime/sound.h)) where the Jupiter 6 had two oscillators.
+- **Then modulate the detune amount with an LFO**, which is his key move: "the LFO is altering the
+  amount of detune between VCO1 and VCO2 ... It is this that our ears hear as the further thickening of
+  the sound." That is exactly `LFO_DETUNE` ([`runtime/studio.h:426`](../../runtime/studio.h)), "the
+  breathing/chorusing width wobble". We also have the one-shot version he doesn't, `ENV_DETUNE`, "THE
+  bloom: one thin saw opening into a wall of N on the attack".
+- **Then swap that LFO to Random to kill the regularity.** He is explicit that a triangle LFO on detune
+  reads as "an unnaturally regular modulation" and that the Jupiter 6's Random setting (a sample & hold
+  clocked at the LFO rate) fixes it: "the essential nature of the sound remains the same, but ... there
+  is now no periodic modulation." We ship `LFO_SHAPE_SH` **and** `LFO_SHAPE_RANDOM`
+  ([`runtime/studio.h:605-606`](../../runtime/studio.h)) — the stepped one he had, plus a smoothed
+  random walk he didn't. With his caveat worth keeping: "If you increase the LFO Depth too far, you
+  will hear the pitch of VCO1 jump around in a most unnatural fashion."
+- **Aperiodic modulation from summed LFOs.** His "Multiple Sine Waves & Modulation" box proves that
+  same-frequency sines always sum to a sine regardless of phase or amplitude, so complexity needs
+  *different* frequencies, and three or more gives something that "loses all semblance of periodicity
+  ... useful when we program sounds with a quasi-random or 'human' element". Our three per-instrument
+  LFOs sum on a shared destination (§A4), so his aperiodic modulator is buildable today.
+- **Chorus is the instrument's identity, not a send.** He notes "most string synths relied heavily on
+  built-in chorus effects to thicken a weedy initial timbre", and `solina`'s own `de:meta` lineage
+  already says it is "demonstrating that `chorus()` is the instrument's entire identity rather than a
+  send effect". Independent agreement.
+
+### F2. `solina` leaves the two tricks that matter unused
+
+- **Book:** the ladder in §F1 is the whole point of Part 45, and the Random-LFO-on-detune rung is the
+  one he says separates a "wobbly boring buzz" from something "thick and unstable ... 'analogue', or
+  perhaps 'human'".
+- **Cart:** `solina.c` uses one `instrument_lfo(s, 0, LFO_PITCH, 0.16f, 0.04f)` for slow tape wow
+  (`solina.c:103`) and models the divide-down stack with per-tab detune. It uses **neither**
+  `LFO_DETUNE` nor any of the `LFO_SHAPE_SH`/`_RANDOM` shapes. Same for the fixed detune it sets at
+  note-on: it never breathes.
+- **Why:** free. Zero engine change, two calls, and it targets the exact quality Reid says the
+  instrument lives or dies on. This is the cheapest item in §F and possibly in the whole doc.
+- **Audible home:** `solina`, then `supersaw` and `juno`.
+
+### F3. Our PWM is probably missing the pitch modulation that makes PWM lush
+
+This is the most interesting finding of the pass, and it is subtle.
+
+- **Book:** Part 45 first states it as a curiosity: "Pulse waves whose widths are modulated by triangle
+  waves have another, rarely appreciated characteristic; they exhibit pitch modulation that oscillates
+  at the PWM rate above and below the true oscillator pitch ... a PWM wave generated by a single
+  oscillator exhibits **two pitches**." Part 46 then spends two full boxes proving it, by
+  differentiating the PWM waveform into its rising and falling edge trains and showing they are two
+  independent signals at *different constant frequencies* (nine-eighths of each other in his worked
+  example): "Now that we have shown PWM to be the sum of two signals, at least one of which is
+  frequency-modulated with respect to the other". That, not the changing harmonic content, is his
+  answer to why PWM sounds chorused: "the changing harmonic content is one of the visible consequences
+  ... but there's more to it than that."
+- **Engine:** `LFO_DUTY` adds the LFO to `duty` ([`runtime/sound.h:6410`](../../runtime/sound.h)) and
+  the oscillator phase advances at a constant rate, so our duty modulation moves the pulse *edge*
+  without altering either edge train's rate. **Unverified**, and it needs verifying rather than
+  assuming: whether the two-pitch effect falls out of a phase-accumulator pulse for free, or whether it
+  is an artifact of how analogue PWM circuits derive the edges, is exactly the sort of thing that
+  deserves a measurement, not an argument. If it does not fall out for free, our PWM is thinner than a
+  Juno's for a reason nobody has named.
+- **The test:** render a single PWM voice at a low pitch with deep, slow modulation, and look for
+  sidebands at the LFO rate around the fundamental. Reid says the effect is "easy to hear at low
+  oscillator pitches and high modulation depths". `harmonic-spec.js` plus `wav-modrate.js` should
+  settle it in one pass.
+- **The consolation prize if it is missing:** Part 46's entire practical half is a recipe for
+  *synthesizing PWM without PWM* — "you can mix two simple sawtooth oscillators, and, if one is
+  frequency-modulated slightly with respect to the other, you will obtain a sound that is all but
+  identical to that of a single, pulse-width modulated, pulse-wave oscillator. Sure, the waveform looks
+  different, but the sound is the same." We can already do that with unison plus `LFO_DETUNE`. So the
+  fix may be a cart recipe rather than an engine change.
+- **Also from this chapter:** Reid's correction to Part 10's pulse-harmonic law, which invalidated the
+  original §C12 (now fixed there). And a useful licence: sawtooth and ramp "have the same spectrum;
+  there is merely a change of polarity", and the difference is "inaudible" in isolation.
+- **Audible home:** `juno` (PWM is its identity), `solina`.
+
+### F4. `INSTR_BOWED` has no body resonator, and the book says that is the difference
+
+This is §F's headline, and it is a clean, sourced gap with the fix already in the same file.
+
+- **Book:** Part 47 separates the two spectra explicitly. Figure 8 is "the force waveform measured at
+  the bridge of a violin", a sawtooth. Figure 14 is the *radiated* spectrum after the body. On why you
+  cannot ship the first and call it done: "The timbre of a violin is strongly linked to the dominant
+  body resonances in the region of a few hundred Hertz, as well as the broad combination of resonances
+  in the region of 2kHz to 4-5kHz or thereabouts. **Without these (or their equivalents for the viola
+  or cello) the sound will not be realistic.**" He also measures the isolated body: flat across a few
+  hundred Hz, a steep bass roll-off, and "a gentler roll-off of about 9dB per octave in the upper-mid
+  and high frequencies" (Figure 13).
+- **Engine:** `sound_bowed_sample` returns `toBridge * 0.8f` DC-blocked and gain-trimmed
+  ([`runtime/sound.h:3857-3861`](../../runtime/sound.h)). The comment calls it "bridge-side signal
+  (what the body radiates)" — but nothing models the body. We ship Reid's Figure 8 where the ear needs
+  his Figure 14. Verified by inspecting the whole function for any biquad/formant/body term: there is
+  none.
+- **And the fix is already in the header.** `GUITAR` has `gt_body[4]` (four parallel body-resonator
+  bandpasses, voiced from its harmonics macro) and `PIANO` has `pn_body[4]`, both built on the shared
+  `SoundBiquad` ([`runtime/sound.h:126`](../../runtime/sound.h)). `BOWED` is the only stringed engine
+  without one, which looks like an oversight rather than a decision — especially since it is the one
+  whose real-world body is most famous.
+- **Knock-on:** `bowed`'s own cart text says PIZZICATO "plucks the same string + **body**", and
+  `studio.h:330` says pizz "plucks the same string + body instead of bowing it". Both overstate what
+  the engine does. Reid even hands us the voicing target for pizz: "there are good reasons why
+  pizzicato played on a violin or viola shares many of the sonic attributes of a banjo", and `GUITAR`'s
+  harmonics macro already has a bright-banjo body at its top end.
+- **Audible home:** `bowed` (its whole surface), plus `mariachi`, `tango`, `satie`, `carlos`.
+
+### F5. The bow-pressure macro is pinned inside the clean wedge, so "surface sound" is unreachable
+
+- **Book:** Part 47 names the sound and its cause. Insufficient bow pressure lets the string "slip twice
+  in each cycle. This 'double-slip' motion does not change the pitch, but more often creates a new tone
+  that violinists call 'surface sound'." Reid then makes the connection for us: "If they had ever
+  studied hard sync on an analogue synth, they would understand what they were hearing!" Multiple slips
+  beyond that are "best avoided by skilled players", so there is a real line between expressive and
+  broken — but double-slip is on the musical side of it.
+- **Engine:** `pressure = 0.10f + v->timb * 0.16f` → the range **[0.10, 0.26]**
+  ([`runtime/sound.h:3782`](../../runtime/sound.h)), and the comment records why the top was pulled in:
+  "recompressed 2026-06-16: the old top (0.32) bowed scratchy — >4kHz noise jumped 0.5%→3.6%". So the
+  scratchy region was deliberately removed as a defect. Reid's analysis says part of that region is
+  *sul tasto / surface sound*, an expressive colour real players use.
+- **Why this is a judgement call, not a bug:** the recompression fixed a real loudness/noise problem and
+  the STEP-0 wedge work exists for good reasons. But it is worth knowing that we traded away a named
+  playing technique, and that a *separate* axis (rather than reopening `timbre`) could return it
+  without destabilising the default voicing.
+- **Audible home:** `bowed`.
+
+### F6. Three bowed behaviours we don't model
+
+Grouped because each is small and individually optional.
+
+- **Louder goes slightly flat.** Part 47: "the pitch of the note goes slightly flat as it becomes
+  louder." Our `morph` is bow speed and does not touch pitch. Measurable with `tune-check.js` swept
+  across morph, which would currently show no deviation.
+- **Per-period pitch jitter.** Part 47: "there is jitter in the pitch as the 'corner' of the wave ...
+  passes under the bow." We have `bw_drift`, a slow random walk, which is a different thing. The
+  primitive for the right thing exists: `INSTR_VOICE`'s `vox_jit_mul` is per-glottal-period pitch
+  jitter ([`runtime/sound.h:270`](../../runtime/sound.h)).
+- **Bow position should comb out harmonics, and this is testable today.** Part 47: bowing at the centre
+  removes the even harmonics; at 1/3 from the bridge "there can be no third, sixth, ninth, and other
+  'third' harmonics"; at 1/4, no fourth/eighth/twelfth. Our `harmonics` macro *is* bow position
+  (`bw_nutlen`/`bw_brlen` split at note-on), so this comb should already fall out of the geometry. It
+  is a free correctness check on the engine's physics, and a good one because a pass proves the
+  waveguide is right where a listening test can't.
+- **Audible home:** `bowed`; the comb check is a `brasspec`-style measurement.
+
+### F7. Part 50 is not about DSP at all, and it is the finding with the widest reach
+
+- **Book:** Part 50 abandons patch-building and argues that **control** beats components. Reid drives a
+  two-module patch (one oscillator, one VCA) from an Ondes Martenot clone: a ring on a wire for
+  continuous unquantised pitch, plus a pressure button for continuous loudness. Result: "With a little
+  practice, the performance is no longer that of a soulless single-oscillator, unmodulated sawtooth
+  buzz. You can add vibrato by wiggling your 'ring' finger from side to side, controlling both the speed
+  and depth in a way that feels and sounds completely natural. Glide is merely a matter of pressing the
+  button as you move to the next note." His closing claim is deliberately provocative: "two modules and
+  a more appropriate method of controlling them can be far more expressive and create more realistic
+  bowed string and brass sounds than any number of modules and facilities" driven from a keyboard.
+- **Why this lands hard here:** a touchscreen ribbon *is* the wire, and we already have the ingredients
+  — `note_on` plus `note_pitch`/`note_glide` for continuous pitch, `note_vol` for continuous loudness,
+  multitouch, `pointer.h`, `gestures.h`, and a `solo.h` ribbon. We even ship the instrument by name
+  (`martenot`), plus `otamatone`, `stylophone`, `monochord`, `ribbonpad`, `musicalsaw`, `acidtheremin`,
+  `humtheremin`. So this is not a gap in capability. It is a **gap in emphasis**: the engine's whole
+  documented centre of gravity is keyed notes with envelopes, and Reid's argument is that for bowed and
+  brass the keyed-plus-envelope path is the *worse* one.
+- **Two concrete things to lift, both cheap:**
+  - **Loudness-to-brightness with no filter.** He morphs the waveform saw→triangle as level falls,
+    "so you can reduce the amplitude or even eliminate harmonics by moving the wave from a sawtooth
+    towards a triangle as you reduce the overall loudness of the sound. This relationship between
+    loudness and high-frequency content is ... very much the behaviour of blown, bowed, strummed and
+    struck instruments, and we're recreating it without a filter anywhere to be seen." Relevant to §B9
+    (velocity does not touch brightness) and it suggests the cheap answer there is a *waveform* morph,
+    not a filter.
+  - **The filter as the gate.** His brass variant replaces the VCA with a lowpass and drives *cutoff*
+    from the button, so at low cutoff nothing passes and "the filter is not only shaping the tone of
+    the sound, it's also differentiating one note from the next. This is incredibly elegant!" Doable
+    today with a held voice plus `note_cutoff`, and nothing demonstrates it.
+- **Audible home:** `martenot` is the obvious one and it already exists — this would be about deepening
+  it rather than building it. `bowed`, `monochord`, `ribbonpad` for the ribbon; `brass` for the
+  filter-as-gate variant.
+
+### F8. Smaller items from the ensemble chapters
+
+- **Amp level should key-track *negatively* for warmth.** Part 46's Korg T2 string patch sets amplifier
+  keyboard tracking to **-04**: "With a negative value, this weights the loudness of the sound to the
+  bottom end of the keyboard, thus generating additional warmth." We have no amp key-tracking in either
+  direction (§B2 covers cutoff; this is a second, independent destination).
+- **String patches want zero resonance and real key-follow.** His JX10 string patch: `LPF Resonance 00`,
+  `Key Follow 64`, `ENV Amount 14`. That is the **fourth** independent citation for §B2 keytracking,
+  after Parts 6, 23, 24 and 26. It is comfortably the most-cited missing feature in the series.
+- **No velocity sensitivity.** "String synths were not velocity-sensitive, so this patch should be
+  likewise" — worth knowing before anyone wires §B9 globally rather than per-slot.
+- **The VCA envelope is a trapezoid**: a crescendo in, a long tail, no filter modulation (Part 45
+  Figure 9). Reid's Part 7 trapezoid, reappearing as the string-machine amp shape.
+- **Layering is the ensemble.** Part 46: three layers at 16'/8'/4' "to emulate the Cello, Viola and
+  Violin options offered by some of the better vintage ensembles", at the cost of polyphony. `solina`
+  already stacks footages, so this is mostly confirmation.
+- **Audible home:** `solina`, `juno`.
+
+### Suggested strings step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | F2 use `LFO_DETUNE` + a Random-shape LFO on it | cart only, free | `solina` |
+| 2 | F3 measure whether our PWM has the two-pitch effect | measurement | `juno` |
+| 3 | F6 measure the bow-position harmonic comb | measurement, proves the physics | `bowed` |
+| 4 | F4 give `BOWED` a body resonator (reuse `gt_body`/`pn_body`) | engine, primitive exists | `bowed` |
+| 5 | F4b fix the pizz "string + body" claim in cart + `studio.h` docs | docs | `bowed` |
+| 6 | F7 loudness→brightness by waveform morph, and filter-as-gate | cart recipes | `martenot`, `brass` |
+| 7 | F8 amp key-tracking (negative for warmth) | engine, small | `solina` |
+| 8 | F5 a separate axis for surface sound / double-slip | engine, judgement call | `bowed` |
+| 9 | F6b louder-goes-flat + per-period jitter | engine, small | `bowed` |
+
+---
+
+## G. The missing engine class — subtractive imitation
+
+STATUS: EXPLORING — raised by the owner 2026-07-28, mid-audit. Nothing designed yet.
+
+Both recipe passes so far have opened with the same caveat: **every patch in Synth Secrets is
+subtractive, and all our imitative engines are physical models.** §E says it about brass, §F about
+bowed strings. That caveat has been treated as a translation problem. It is worth asking whether it is
+actually pointing at a missing *category*.
+
+**The observation.** Reid's brass patch does not sound like a trumpet. It sounds like **a Minimoog
+playing a trumpet**, and that is a beloved sound in its own right — the entire 1970s prog and funk horn
+vocabulary, plus the string-machine sound that Parts 45-46 spend two months on and that people still
+buy hardware to get. Meanwhile `INSTR_BRASS` chases the trumpet itself and gets judged against a
+trumpet, which is a much harder bar and, per
+[`brass-realism-handoff.md`](brass-realism-handoff.md), one we keep not clearing. Two different targets
+have been collapsed into one engine id.
+
+**Why this fits the project.** The north star is "deep, honest simulations behind a humble lo-fi
+surface". An honest analogue-imitation engine is arguably *more* on-grain than photorealistic physical
+modelling: it is a simulation of a **synthesizer**, which is a thing with a real, knowable architecture
+and a 50-year recorded history, rather than a simulation of an orchestra. It is also far cheaper per
+voice than a waveguide, and it degrades gracefully.
+
+**What it probably is not: a new `INSTR_*`.** The pieces are mostly already primitives. A Minimoog
+brass patch is a saw, a resonant lowpass, two envelopes and an audio-rate filter modulator, all of
+which we ship or nearly ship. Which suggests the shape is one of:
+
+1. **A cart-land header** (`subtractive.h`, sibling to `acid303.h` and `tr808.h`): a small struct plus
+   a voicing table holding Reid's published patches as *data* (his Minimoog trumpet, tuba and jazz
+   trombone from Part 26; the SH-101 and Axxe versions from Part 27; the Jupiter 6 and JX10 string
+   patches from Parts 45-46). The header owns the recipe, the cart owns the performance. This is
+   exactly the precedent `acid303.h` set — "cart owns the PATTERN, header owns the SOUND" — and it needs
+   no engine surface at all.
+2. **A thin engine id** that packages the pieces into three macros, if and only if the header proves
+   the pieces need to be closer to the voice than cart-land can reach.
+3. **Just the missing primitives plus a recipes doc**, if §B/§C's items (keytracking, audio-rate filter
+   modulation, an attack-level envelope, a separate filter envelope) turn out to be all that was in the
+   way.
+
+**Option 1 looks right,** and the audit is unusually well-placed to feed it: Reid published *exact
+parameter values* for every one of those patches, and §E10/§F8 already show our own presets drifting
+from them. A voicing table with a citation per row would be both a feature and a regression test.
+
+**Honest tension.** It overlaps `INSTR_SAW` + `instrument_filter` + envelopes, which a cart can already
+wire by hand. The argument for doing it anyway is the same one that justified `acid303.h`: tb303 and
+acidrack had each drifted their own copy of the same voice, and extracting it made them byte-identical.
+If several carts are going to reach for "1970s brass section" or "Solina pad", they should reach for one
+implementation.
+
+**Prerequisites, all already in this doc.** §B2 keytracking (cited four separate times, and Part 26
+pins the value: the filter should track "at slightly less than a 1:1 ratio ... say, to 190 percent" per
+octave, ≈0.93). §E3's audio-rate filter modulation for the growl. §C6's attack-level envelope for the
+spit-brass contour. A separate filter envelope, which the SH-101 famously lacked and Reid had to work
+around. Build those and the header becomes mostly a table.
+
+**Audible home:** whatever it produces, but the natural first two are a Minimoog-brass cart (Reid gives
+three patches, so the acceptance test is that they sound like three different instruments) and pointing
+`solina`/`juno` at the same table. Also catalogued as a candidate engine in
+[`instrument-engines.md`](instrument-engines.md) §8.9.
 
 ---
 

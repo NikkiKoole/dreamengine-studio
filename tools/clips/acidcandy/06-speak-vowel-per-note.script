@@ -18,14 +18,31 @@
 #   2. the VOWEL device armed  -> MST face -> FX -> tap VOWEL -> ON   (see 05-fx-hub-vowel.script)
 #   3. SPK lit                 -> the SPK key next to ON
 #
-# Verified with 1 + vowon/vowspeak forced on (400 frames, isolated save-dir so live saves are safe):
-#   vstep walks all six word positions 0,1,2,3,4,5 and vcur takes 220 distinct values -> it GLIDES
-#   through each syllable rather than jumping (the glide is what makes it a diphthong, not a click).
-#   speak-off vs speak-on: sample correlation 0.428 (MISMATCH), mean per-window spectral-centroid
-#   difference 396 Hz over 556 windows.
-#   NOTE the honest negative: centroid STD is unchanged (1281 Hz off vs 1270 Hz on). The vowel really
-#   moves, but the drums already dominate the spectral variance, so on a busy kit the "speech" is
-#   competing with the hats. That is the evidence for trying instrument_formant on just the 303s.
+# Verified with 1 + vowon/vowspeak forced on (isolated save-dir so live saves are safe):
+#   vstep walks the word 0..7 with ZERO skips and vcur takes ~200 distinct values -> it GLIDES through
+#   each syllable rather than jumping (the glide is what makes it a diphthong, not a click).
+#   The voice GATE (vgate) dips to 0.000 on the word's two REST slots: 23% of frames sit below 0.25,
+#   matching 2-rests-in-8-slots. One pause frame by frame, showing the asymmetric envelope:
+#     0.98 -> 0.44 -> 0.20 -> 0.09 -> 0.04 -> 0.02 -> 0.01 -> 0.19 -> 0.33 -> 0.45 -> 0.63
+#     (snap shut, hold closed, ease back in — a stop consonant into a vowel)
+#
+# THE PAUSES ARE WHAT MAKE IT READ AS SPEECH, and the numbers say so. Spectral centroid over time:
+#     static vowel (SPK off) : mean 2201 Hz  std 1281 Hz
+#     word, NO pauses        : mean 2287 Hz  std 1270 Hz   <- std UNCHANGED: a gapless vowel stream
+#                                                             moves the spectrum no more than a
+#                                                             STATIC vowel does. It slurs, it does
+#                                                             not speak.
+#     word WITH pauses       : mean 2799 Hz  std 1964 Hz   <- +55% variance = audible phrase boundaries
+#
+# TWO BUGS THIS FILE EXISTS TO CATCH (both found by tracing, both invisible by ear alone):
+#   1. DOUBLE-ADVANCE. Both 303 lines feed one word, so notes landing on the same tick advanced it
+#      TWICE in a frame and SKIPPED slots — and a skipped REST is a pause that never happens (vstep
+#      walked 0,2,4,6 and only 6% of frames paused). Fixed by vowfired: one syllable per frame.
+#      If vstep ever skips again, that regressed.
+#   2. TOO-SLOW CLOSE. A pause lasts one note (~6.8 frames for a 16th at 132 BPM) but easing shut on
+#      the GLID slew needed ~7 frames to even reach 0.25, so the mouth never finished closing and the
+#      pause was an inaudible dip. Fixed by making the gate asymmetric (snap closed 0.55, ease open on
+#      GLID). If the paused-frame share falls back toward single digits, that regressed.
 #
 #   node tools/play.js acidcandy script tools/clips/acidcandy/06-speak-vowel-per-note.script \
 #        --headless --frames 400 --trace /tmp/spk.jsonl

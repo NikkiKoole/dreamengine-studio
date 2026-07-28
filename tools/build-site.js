@@ -95,10 +95,18 @@ function buildCart(name, { force = false, worklet = false } = {}) {
   const mapBytes = cfg.map ? mk.buildMap(cfg.map.layout || cfg.map, cfg.map.tiles, MW, MH) : new Uint8Array(0)
   fs.writeFileSync(path.join(work, 'map_data.h'), cHeader('MAP_DATA', Buffer.from(mapBytes)))
 
+  // Bake the cart's title in as the WINDOW title. On web that matters for a reason it doesn't
+  // natively: raylib's InitWindow() pushes the window title into document.title, so without this
+  // every published cart's tab flashes its real HTML <title> and is then overwritten by the
+  // DE_WINDOW_TITLE default ("dreamengine") the moment the wasm boots. Mirrors the editor's
+  // titleDef() for exports (editor/electron/main.cjs) — no shell here, so the quotes go in raw.
+  const winTitle = (cartMeta(name)?.title || name).replace(/["'\\$`]/g, '').trim()
+
   const baseArgs = [
     srcC, path.join(RUNTIME, 'studio.c'),
     '-I', RUNTIME, '-I', work, '-I', path.join(RAYLIB_WEB, 'include'),
     '-DPLATFORM_WEB',
+    ...(winTitle ? [`-DDE_WINDOW_TITLE="${winTitle}"`] : []),
     `-DSCREEN_W=${SW}`, `-DSCREEN_H=${SH}`, `-DSCALE=${SC}`,
     `-DMAP_W=${MW}`, `-DMAP_H=${MH}`, `-DCELL_W=${CW}`, `-DCELL_H=${CH}`,
     `-DTOUCH_CONTROLS_DEFAULT=${cfg.touchControls ? 1 : 0}`,

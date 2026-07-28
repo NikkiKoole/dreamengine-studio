@@ -10,12 +10,12 @@
   "lineage": "Slice 4 of the playtime-into-dreamengine port. puppet.c gave the data-driven Rig (parts + sprung hinges); boxskin.c skinned ONE texture across ONE elbow with LBS. This is the whole figure: the 1:1 between sprite and body is broken (15 invisible bones, 6 sprite skins), weights come from distance to a bone SEGMENT rather than to a bone centre (playtime's applySegmentWeights lesson: point-distance collapses mesh width at bone midpoints), and the blend is DQS rather than LBS so a folded knee doesn't candy-wrapper. A whole leg is ONE texture bending at hip, knee AND ankle.",
   "description": {
     "summary": "A humanoid where each limb is a single continuous sprite strip stretched over several Box2D bones. The right leg is one 20x62 texture that bends at the hip, the knee and the ankle; the left leg is the SAME texture mirrored. Press F to fold a limb to its limit, then SPACE to A/B four ways of deforming that texture: a Bezier SPINE, dual-quaternion and linear weighted blends, and rigid one-bone-per-vertex. Every limb is BANDED across its axis on purpose: a flat colour tells you nothing about how a skin deformed, but a regular stripe fans out on the outside of a bend, bunches on the inside, and shears visibly the moment a blend mode gets it wrong.",
-    "detail": "Four deformation modes over one rig, because the interesting question is not how to attach a texture to a bone but what happens at a hard bend. SPINE is playtime's MESHUSERT spine-bind ported: each vertex is stored as (t, s) — arc-length fraction along a Bezier drawn through the limb's joint chain, plus signed perpendicular offset — and replanted each frame on the live curve, with no weights and nothing to tune. On top of it sits the MITER CLAMP from playtime's ribbon path, which playtime itself never wired into spine-bind: it caps the perpendicular offset at min(segA,segB)*tan(interior half-angle) so the inner edge of a bend cannot cross itself. The cart carries its own oracle for this — every triangle's winding is baked at bind time and compared each frame, so 'inverted triangles' is a number, not an opinion. At a full elbow-and-knee fold: SPINE+clamp 4, SPINE without clamp 7, DQS 19, LBS 19, RIGID 43, out of 880. The structural move over puppet.c: BONES and SKINS are separate lists. 15 bones are invisible Box2D boxes joined by sprung, angle-limited revolutes (pelvis, chest, head, and upper/lower/extremity for each of four limbs). 6 skins are sprite rects from the sheet, each naming the subset of bones that deforms it. Per skin: a grid over the rect's opaque pixels becomes a triangle mesh; each vertex is weighted by 1-smoothstep(0, radius, distanceToBoneSegment), pruned to the best 3 bones and renormalised; bind pose stores the vertex in each bone's LOCAL frame plus that bone's rest angle. Each frame the vertex is placed by blending the bones' DELTA rotations as a circular mean, rotating the bind vertex once by that blend, then adding the weight-averaged translation residual, and tritex draws the triangles with UVs that never move. Left and right limbs share one sprite rect: the geometry mirrors, the UVs do not. The sprite sheet is drawn as a deformation TEST PATTERN — breton torso, banded sleeves and shorts, striped socks, cross-banded shoes — so the eye can read stretch and shear directly instead of guessing from a silhouette. The per-bone blend radius is what keeps a foot rigid while a thigh blends over 14 pixels.",
-    "controls": "Drag any bone with the mouse to pose the figure. F drives the right elbow and knee to a full fold (the extreme-pose test - a mouse drag cannot reliably reach it, the chain would rather swing at the hip). SPACE cycles SPINE / DQS / LBS / RIGID. C toggles the miter clamp in spine mode. M shows the mesh wireframe. B shows the bone skeleton. R resets."
+    "detail": "Four deformation modes over one rig, because the interesting question is not how to attach a texture to a bone but what happens at a hard bend. SPINE is playtime's MESHUSERT spine-bind ported: each vertex is stored as (t, s) — arc-length fraction along a Bezier drawn through the limb's joint chain, plus signed perpendicular offset — and replanted each frame on the live curve, with no weights and nothing to tune. On top of it sits a CURVATURE CLAMP. playtime's own miter clamp (written for its ribbon path, never wired into spine-bind) was tried first and measured worse than no clamp: it is the right formula for a polyline corner, but a Bezier spine has no such corner, so min(segA,segB) only measures sample spacing and collapses exactly at a bend. The correct bound is the local radius of curvature - an offset curve folds on the concave side once the offset exceeds R - and clamping to 0.92R takes the fold artifact to zero at every angle tested. The cart carries its own oracle for this — every triangle's winding is baked at bind time and compared each frame, so 'inverted triangles' is a number, not an opinion. At a full elbow-and-knee fold: SPINE+clamp 4, SPINE without clamp 7, DQS 19, LBS 19, RIGID 43, out of 880. The structural move over puppet.c: BONES and SKINS are separate lists. 15 bones are invisible Box2D boxes joined by sprung, angle-limited revolutes (pelvis, chest, head, and upper/lower/extremity for each of four limbs). 6 skins are sprite rects from the sheet, each naming the subset of bones that deforms it. Per skin: a grid over the rect's opaque pixels becomes a triangle mesh; each vertex is weighted by 1-smoothstep(0, radius, distanceToBoneSegment), pruned to the best 3 bones and renormalised; bind pose stores the vertex in each bone's LOCAL frame plus that bone's rest angle. Each frame the vertex is placed by blending the bones' DELTA rotations as a circular mean, rotating the bind vertex once by that blend, then adding the weight-averaged translation residual, and tritex draws the triangles with UVs that never move. Left and right limbs share one sprite rect: the geometry mirrors, the UVs do not. The sprite sheet is drawn as a deformation TEST PATTERN — breton torso, banded sleeves and shorts, striped socks, cross-banded shoes — so the eye can read stretch and shear directly instead of guessing from a silhouette. The per-bone blend radius is what keeps a foot rigid while a thigh blends over 14 pixels.",
+    "controls": "Drag any bone with the mouse to pose the figure. F drives the right elbow and knee to a full fold (the extreme-pose test - a mouse drag cannot reliably reach it, the chain would rather swing at the hip). SPACE cycles SPINE / DQS / LBS / RIGID. C toggles spine mode's curvature clamp. M shows the mesh wireframe. B shows the bone skeleton. R resets."
   },
   "todo": [
     "Promote the skinning half to runtime/boneskin.h once a second cart wants it - both binds, the four modes and the winding oracle.",
-    "Spine-bind can't branch, so the torso and head still fall back to DQS. That fallback is where the last 4 inverted triangles live; playtime's multi-chain bind (hard per-vertex chain assignment) is the next rung.",
+    "Spine-bind can't branch, so the torso and head still fall back to DQS. playtime's multi-chain bind (hard per-vertex chain assignment) is the next rung.",
     "Adaptive grid: denser rows near a joint, coarser along a straight limb (playtime's deform-textured learning).",
     "Alpha-aware weights so a bone's influence can't leak across a transparent gap to the other limb."
   ]
@@ -140,7 +140,6 @@ typedef struct {
     int    nb;
     float  t, s;              // SPINE bind: arc-length fraction along the chain's
                               // dense polyline, + signed perpendicular offset (px)
-    float  mrest;             // the miter limit AT BIND for this vertex's position
 } Vtx;
 
 typedef struct {
@@ -160,13 +159,14 @@ static float     boneRest[NBONE];                    // world angle at rest = th
 static int       dragBone = -1;
 
 static b2JointId mjoint; static bool dragging = false;
-static int  mode = 0;   // 0=DQS 1=LBS 2=RIGID 3=SPINE. Opens on DQS because DQS
-                        // MEASURES best: an elbow-only fold sweep on the corrected
-                        // rig gives DQS 0 inverted triangles at -70/-95/-120/-138,
-                        // while SPINE sits at a constant ~10 (see the note on
-                        // spine_place — that residual is a spine bug, not a fold
-                        // ceiling, and it is the open item on this cart).
-static bool showMesh = false, showBones = false, folding = false, miter = false;
+static int  mode = 0;   // 0=DQS 1=LBS 2=RIGID 3=SPINE. DQS is the default only
+                        // because it covers every skin including the branching
+                        // torso; on limbs the two now TIE. Elbow-only fold sweep,
+                        // inverted triangles at -70/-95/-120/-138:
+                        //   DQS                     0 0 0 0
+                        //   SPINE + curvature clamp 0 0 0 0
+                        //   SPINE, clamp off        0 1 4 5   <- offset-curve fold
+static bool showMesh = false, showBones = false, folding = false, curveClamp = true;
 static int  keepMode = 1;   // 0 = off, 1 = playtime omega-write, 2 = torque.
                             // 1 is the default because it MEASURES best, see keep_angle().
 static const char *KEEP_NAME[3] = { "off", "omega", "torque" };
@@ -278,23 +278,9 @@ static void spine_project(float px, float py, const float *poly, int n,
 // piece playtime wrote for its RIBBON path and never wired into spine-bind
 // (SPINE-MESH-PLAN.md phase 4 still lists it as to-do) — it is what stops the
 // fold-over the joint limits are otherwise there to dodge.
-static float spine_miter(const float *poly, int n, int i) {
-    if (i < 1 || i > n - 2) return 1e9f;
-    float ax = poly[i*2] - poly[(i-1)*2],   ay = poly[i*2+1] - poly[(i-1)*2+1];
-    float bx = poly[(i+1)*2] - poly[i*2],   by = poly[(i+1)*2+1] - poly[i*2+1];
-    float la = sqrtf(ax*ax + ay*ay), lb = sqrtf(bx*bx + by*by);
-    if (la < 1e-6f || lb < 1e-6f) return 1e9f;
-    float dot = (ax*bx + ay*by) / (la*lb);
-    if (dot > 0.9999f) return 1e9f;                 // straight — no limit needed
-    if (dot < -1.0f) dot = -1.0f;
-    float alpha = (3.14159265f - acosf(dot)) * 0.5f;
-    return (la < lb ? la : lb) * tanf(alpha);
-}
-
 // Which polyline segment does arc-length `target` fall in? Bind and draw MUST
-// use this same routine — the relative miter clamp compares a limit measured at
-// bind against one measured at draw, and two different lookups can land on
-// different corners, which quietly makes the ratio garbage (it did).
+// use this same routine, or a bind-time and a draw-time measurement can land on
+// different corners of the curve.
 static int spine_seg(const float *arcs, int n, float target) {
     if (target <= arcs[0])   return 1;
     if (target >= arcs[n-1]) return n - 1;
@@ -302,9 +288,27 @@ static int spine_seg(const float *arcs, int n, float target) {
     return n - 1;
 }
 
+// Local radius of curvature at sample i, from the circumradius of the triangle
+// (P[i-1], P[i], P[i+1]). `turn` is the signed cross product: >0 means the curve
+// bends toward the LEFT normal, so positive s is the concave (foldable) side.
+// Returns false where the curve is straight enough that no clamp is needed.
+static bool spine_curvature(const float *poly, int n, int i, float *R, float *turn) {
+    if (i < 1 || i > n - 2) return false;
+    float ax = poly[(i-1)*2], ay = poly[(i-1)*2+1];
+    float bx = poly[i*2],     by = poly[i*2+1];
+    float cx = poly[(i+1)*2], cy = poly[(i+1)*2+1];
+    float abx = bx-ax, aby = by-ay, bcx = cx-bx, bcy = cy-by, acx = cx-ax, acy = cy-ay;
+    float cross = abx*bcy - aby*bcx;
+    if (fabsf(cross) < 1e-6f) return false;                       // straight
+    float lab = sqrtf(abx*abx+aby*aby), lbc = sqrtf(bcx*bcx+bcy*bcy), lac = sqrtf(acx*acx+acy*acy);
+    *R = (lab * lbc * lac) / (2.0f * fabsf(cross));               // circumradius
+    *turn = cross;
+    return true;
+}
+
 // Replant a vertex: walk to arc-length t, step s along the local left-normal.
 static void spine_place(const float *poly, int n, const float *arcs, float total,
-                        float t, float s, float mrest, float *ox, float *oy) {
+                        float t, float s, float *ox, float *oy) {
     float target = t * total;
     int seg = spine_seg(arcs, n, target);
 
@@ -315,14 +319,20 @@ static void spine_place(const float *poly, int n, const float *arcs, float total
     float dlen = sqrtf(dx*dx + dy*dy);
     float tx = dlen > 1e-9f ? dx/dlen : 1.0f, ty = dlen > 1e-9f ? dy/dlen : 0.0f;
 
-    if (miter && mrest > 0.0f) {
-        // Clamp RELATIVE to the bind pose, not absolutely. A limb chain can have
-        // an authored corner in it — the ankle here turns 63 deg at rest — and an
-        // absolute clamp squashes that corner on frame 0 (measured: 4 inverted
-        // triangles while standing still). Scaling by live/rest leaves the
-        // authored pose untouched and only bites on bending BEYOND it.
-        float lim = spine_miter(poly, n, seg - 1);
-        if (lim < mrest) s *= lim / mrest;
+    if (curveClamp) {
+        // CURVATURE CLAMP. An offset curve folds through itself on the CONCAVE
+        // side as soon as the offset exceeds the local radius of curvature R —
+        // that, not playtime's miter formula, is the actual condition here.
+        // (The miter limit is for a polyline corner where two straight segments
+        // meet; our spine is a smooth Bezier, so its samples never form that
+        // corner and min(segA,segB) just measures sample spacing, which is why
+        // the ported miter clamp measured WORSE than no clamp at all.)
+        // Only the concave side can fold, so the convex side is left alone.
+        float R, turn;
+        if (spine_curvature(poly, n, seg, &R, &turn)) {
+            float lim = R * 0.92f;                    // a hair inside the cusp
+            if (turn > 0 ? (s > lim) : (s < -lim)) s = (turn > 0) ? lim : -lim;
+        }
     }
     *ox = ax + u*dx + s * (-ty);
     *oy = ay + u*dy + s * ( tx);
@@ -487,9 +497,6 @@ static void build_mesh(int si) {
                 int nd = spine_sample(pts, np, poly);
                 float total = spine_arcs(poly, nd, arcs);
                 spine_project(rx, ry, poly, nd, arcs, total, &v->t, &v->s);
-                // the miter limit at this vertex's rest position — the baseline
-                // the draw-time clamp is measured against
-                v->mrest = spine_miter(poly, nd, spine_seg(arcs, nd, v->t * total) - 1);
             }
             vid[gy][gx] = m->nv++;
         }
@@ -544,13 +551,16 @@ static void reset(void) { b2DestroyWorld(world); build(); }
 // frame in draw(), not per vertex). spnN == 0 means "this skin has no chain, or
 // we're not in spine mode" and the weighted path below runs instead.
 static int   flipped = 0;      // triangles inside-out this frame (the fold-over oracle)
+static int   flipPerSkin[8];   // ...broken down by skin, to localise a residual
+static float flipVMin = 1e9f, flipVMax = -1e9f;   // uv-v span of the flipped tris:
+                                                  // WHERE along the strip they live
 static float spnPoly[SPN_SAMP*2], spnArcs[SPN_SAMP], spnTotal;
 static int   spnN = 0;
 
 static void skin_vertex(const Vtx *v, int *xs, int *ys) {
     if (mode == 3 && spnN > 0) {
         float x, y;
-        spine_place(spnPoly, spnN, spnArcs, spnTotal, v->t, v->s, v->mrest, &x, &y);
+        spine_place(spnPoly, spnN, spnArcs, spnTotal, v->t, v->s, &x, &y);
         *xs = (int)x; *ys = (int)y; return;
     }
     b2Vec2 P[KB];
@@ -640,7 +650,7 @@ void update(void) {
     if (keyp(' ')) mode = (mode + 1) % 4;
     if (keyp('M')) showMesh = !showMesh;
     if (keyp('B')) showBones = !showBones;
-    if (keyp('C')) miter = !miter;   // SPINE mode: the inner-edge clamp, on/off
+    if (keyp('C')) curveClamp = !curveClamp;   // SPINE mode: the concave-side clamp
     if (keyp('G')) keepMode = (keepMode + 1) % 3;   // off / omega / torque
     // F = the EXTREME-POSE test. Dragging with the mouse can't reliably reach a
     // full fold (the mouse joint is force-capped, and the chain would rather
@@ -690,6 +700,10 @@ void update(void) {
     watch("elbow", "%.1f", (bone_angle(B_LARM_R) - bone_angle(B_UARM_R)) / DEG);
     watch("mode", "%s", MODE_NAME[mode]);
     watch("flipped", "%d", flipped);
+    { char b[80]; int n = 0;
+      for (int i = 0; i < NSKIN; i++) n += snprintf(b+n, sizeof(b)-n, "%s%s:%d", i?" ":"", SKINS[i].name, flipPerSkin[i]);
+      watch("flipBySkin", "%s", b); }
+    watch("flipV", "%.0f..%.0f", flipped ? flipVMin : 0, flipped ? flipVMax : 0);
     watch("pelvisTilt", "%.1f", (bone_angle(B_PELVIS) - boneRest[B_PELVIS]) / DEG);
     watch("pelvisRest", "%.1f", boneRest[B_PELVIS] / DEG);
     watch("pelvisAng",  "%.1f", bone_angle(B_PELVIS) / DEG);
@@ -710,6 +724,8 @@ void draw(void) {
     line(0, FLOOR_PY, SCREEN_W-1, FLOOR_PY, CLR_DARK_GREY);           // the horizon
 
     flipped = 0;
+    for (int k = 0; k < 8; k++) flipPerSkin[k] = 0;
+    flipVMin = 1e9f; flipVMax = -1e9f;
     for (int i = 0; i < NSKIN; i++) {
         Mesh *m = &mesh[i];
         spnN = 0;
@@ -726,7 +742,10 @@ void draw(void) {
             // screen y is DOWN, world y is UP, so a screen cross of one sign
             // corresponds to the opposite rest sign — hence the negation.
             float cr = (float)(bx-ax)*(cy-ay) - (float)(by-ay)*(cx-ax);
-            if ((cr >= 0 ? -1 : 1) != m->restSign[t]) flipped++;
+            if ((cr >= 0 ? -1 : 1) != m->restSign[t]) { flipped++; flipPerSkin[i]++;
+                float vs[3] = { a->uvy, b->uvy, c->uvy };
+                for (int q = 0; q < 3; q++) { if (vs[q] < flipVMin) flipVMin = vs[q];
+                                              if (vs[q] > flipVMax) flipVMax = vs[q]; } }
             tritex(ax, ay, a->uvx, a->uvy, bx, by, b->uvx, b->uvy, cx, cy, c->uvx, c->uvy);
         }
         if (showMesh)
@@ -751,8 +770,8 @@ void draw(void) {
     print(mode == 0 ? "weighted bones, rotation-blended"
         : mode == 1 ? "linear blend — a folded knee pinches"
         : mode == 2 ? "rigid — one bone per vertex, seams tear"
-        : miter     ? "spine (t,s) along a Bezier + MITER CLAMP"
-                    : "spine (t,s) along a Bezier, clamp OFF", 30, 4, CLR_LIGHT_GREY);
+        : curveClamp ? "spine (t,s) on a Bezier + curvature clamp"
+                    : "spine (t,s) on a Bezier, clamp OFF", 30, 4, CLR_LIGHT_GREY);
     char hud[96];
     snprintf(hud, sizeof hud, "drag  SPACE mode  G keep:%s  F fold  C clamp  M mesh  B bones  R reset",
              KEEP_NAME[keepMode]);

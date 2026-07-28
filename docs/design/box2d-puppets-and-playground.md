@@ -68,32 +68,34 @@ legible-and-delightful to a stranger).
 - ~~**Skin the puppet's limbs**, not just one elbow~~ — done in `boxhuman`. A **tentacle chain**
   is still open, and is the case where playtime's newer spine-bind `(t, s)` beats weighted bones:
   no weight tuning, but it can't branch, so it does nothing for a torso.
-- **A retracted finding, and why.** An earlier pass here claimed a *fold ceiling* for weighted-bone
-  skinning (clean to ~-95°, inverted by -138°) and that playtime's spine-bind removed it. **Both
-  numbers were measured on a broken rig** — see the ±180° `referenceAngle` branch cut below, which
-  was snapping the whole figure apart on frame 1. The mesh inversions were the physics exploding,
-  not the blend mode. Re-measured after the fix, with only the elbow folding and the knee held
-  straight (inverted triangles out of 880, at frame 190):
+- **The fold artifact, and the clamp that actually fixes it.** Two earlier claims here were wrong
+  and are retracted: a "fold ceiling" for weighted-bone skinning, and a constant ~10-triangle
+  defect in the spine port. The first was measured on a rig broken by the ±180° `referenceAngle`
+  branch cut below (the inversions were the physics exploding, not the blend mode); the second was
+  the bad miter clamp running by default. Both went away once measured properly. Elbow-only fold,
+  knee held straight, inverted triangles out of 880:
 
-  | elbow fold | DQS | SPINE |
-  |---|---|---|
-  | -70° | **0** | 10 |
-  | -95° | **0** | 10 |
-  | -120° | **0** | 10 |
-  | -138° | **0** | 11 |
+  | elbow fold | DQS | SPINE + curvature clamp | SPINE, clamp off |
+  |---|---|---|---|
+  | -70° | 0 | 0 | 0 |
+  | -95° | 0 | 0 | 1 |
+  | -120° | 0 | 0 | 4 |
+  | -138° | 0 | 0 | 5 |
 
-  So DQS has **no** fold ceiling on this rig, and the spine port carries a constant ~10 inverted
-  triangles that does not vary with angle — a defect in the `(t, s)` implementation (most likely the
-  chain-end overshoot or the hand bone), not a property of the technique. `boxhuman` therefore
-  defaults to DQS, keeps SPINE on `SPACE` as an A/B, and the spine residual is the cart's open item.
-  The **miter clamp** is default-off for the same reason: measured 6 rest / 16 fold with it against
-  0 / 5 without. It assumes a smoothly swept ribbon width, and a dense Bezier bunches samples near a
-  corner so `min(segA,segB)` collapses there and the clamp crushes the cross-section. Clamping
-  relative to the bind-pose limit instead of absolutely was tried and did not help.
+  So DQS has no fold ceiling on this rig, and spine-bind ties it once clamped. The clamp is the
+  interesting part. **playtime's miter clamp does not port to a spine** — tried first, it measured
+  *worse* than no clamp (6 rest / 16 fold against 0 / 5). It is the right formula for a polyline
+  corner where two straight segments meet; a Bezier spine has no such corner, so
+  `min(segA,segB)·tan(α)` only measures **sample spacing**, which bunches up near a bend and
+  collapses the limit exactly where the cross-section needs it. The correct bound for a smooth
+  curve is the **local radius of curvature**: an offset curve folds on the concave side as soon as
+  the offset exceeds `R`. Clamping `|s|` to `0.92·R` on the concave side only (circumradius of three
+  consecutive samples; the convex side can never fold) takes the artifact to **zero at every angle
+  tested**, and to zero at rest, where the miter version was mangling the ankle's authored 63° corner.
 
-  The lesson worth keeping: **the inverted-triangle oracle was right all along and the eyeballing
-  was wrong.** Bake each triangle's winding at bind, compare it every frame, and the number tells
-  you what a crop of pixels cannot.
+  The lesson worth keeping: **the inverted-triangle oracle was right every time and the eyeballing
+  never was.** Bake each triangle's winding at bind, compare every frame, and a number tells you
+  what a zoomed crop cannot. It also caught both retractions.
 
 - **KEEP_ANGLE, and why playtime's "wrong" choice is right.** `boxhuman` now has a floor and
   ports playtime's per-body `KEEP_ANGLE` behaviour (`src/keep-angle.lua`): a PD controller that

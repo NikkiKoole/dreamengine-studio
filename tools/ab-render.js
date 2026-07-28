@@ -7,6 +7,8 @@
 //   --set <ident>=<vals>   REQUIRED. `ident` is a cart-source identifier assigned at file scope —
 //                          either `static <type> ident = X;` or `#define ident X`. Each comma-separated
 //                          value is substituted in turn. Values may be C expressions (0.5f, WOW_RANDOM).
+//   --file <path>          patch this file instead of tools/carts/<cart>.c — for a value that lives in
+//                          runtime/*.h (an engine or a cart-land header). The cart is still what renders.
 //   --frames <n>           frames to render per variant (default 420 ≈ 7s @60fps)
 //   --script <file>        input script to drive the cart (default /dev/null = whatever it does on boot)
 //   --f0 <hz>              also print harmonic extent + >4kHz energy at this fundamental
@@ -37,7 +39,12 @@ const crypto = require('crypto');
 const ROOT = path.resolve(__dirname, '..');
 const argv = process.argv.slice(2);
 
-function die(msg) { console.error('ab-render: ' + msg); process.exit(1); }
+// `process.exit()` does NOT run finally blocks, so a die() from inside the render loop would leave the
+// patched source on disk — which then becomes the next run's "original" and gets restored *to the
+// corrupted value*. It happened (`#define TR808_CYM3 04010` survived a failed run and was faithfully
+// put back). Every exit path now goes through the same restore.
+let restoreHook = null;
+function die(msg) { if (restoreHook) restoreHook(); console.error('ab-render: ' + msg); process.exit(1); }
 function flag(name, dflt) {
   const i = argv.indexOf('--' + name);
   return i >= 0 && i + 1 < argv.length ? argv[i + 1] : dflt;
@@ -58,8 +65,9 @@ const script = flag('script', '/dev/null');
 const f0 = flag('f0', null);
 const seed = flag('seed', null);
 
-const src = path.join(ROOT, 'tools/carts', cart + '.c');
-if (!fs.existsSync(src)) die('no such cart source: ' + src);
+const fileArg = flag('file', null);
+const src = fileArg ? path.resolve(ROOT, fileArg) : path.join(ROOT, 'tools/carts', cart + '.c');
+if (!fs.existsSync(src)) die('no such source file: ' + src);
 
 // Locate the assignment. Two accepted forms, both at file scope:
 //   static <type> ident = <value>;      →  replace <value>
@@ -69,11 +77,18 @@ const declRe = new RegExp(`(^[ \\t]*static[^;\\n]*\\b${ident}\\s*=\\s*)([^;]+)(;
 const defRe = new RegExp(`(^[ \\t]*#define[ \\t]+${ident}[ \\t]+)([^\\n/]+)`, 'm');
 const kind = declRe.test(original) ? 'static' : defRe.test(original) ? 'define' : null;
 if (!kind) {
-  die(`could not find \`${ident}\` as a file-scope \`static ... ${ident} = X;\` or \`#define ${ident} X\` in ${cart}.c.\n` +
+  die(`could not find \`${ident}\` as a file-scope \`static ... ${ident} = X;\` or \`#define ${ident} X\` in ${path.relative(ROOT, src)}.\n` +
       `            (a local variable or a struct field can't be substituted — hoist it to file scope first)`);
 }
 const re = kind === 'static' ? declRe : defRe;
 const before = original.match(re)[2].trim();
+
+// Substitute group 2. Note the arity difference: declRe has THREE groups (the `;` is group 3) and
+// defRe has TWO, so a shared `(m, a, b, c) => a + v + c` callback silently appends the match OFFSET
+// (an integer — String.replace passes offset right after the last group) for every #define. That
+// produced `#define X 042` and a build that measured a stale value. Pick the tail by `kind`, never
+// by argument position.
+const subst = (text, v) => text.replace(re, (...args) => args[1] + v + (kind === 'static' ? args[3] : ''));
 
 const outDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'abrender-'));
 const rows = [];
@@ -83,12 +98,14 @@ function restore() {
   fs.writeFileSync(src, original);
   restored = true;
 }
+restoreHook = restore;
 process.on('SIGINT', () => { restore(); process.exit(130); });
+process.on('uncaughtException', (e) => { restore(); console.error(e); process.exit(1); });
 
 try {
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
-    fs.writeFileSync(src, original.replace(re, (_m, a, _b, c) => a + v + (c || '')));
+    fs.writeFileSync(src, subst(original, v));
     // sanity: the substitution must have actually landed
     const now = fs.readFileSync(src, 'utf8').match(re);
     if (!now || now[2].trim() !== v) die(`substitution of \`${ident} = ${v}\` did not take — aborting rather than measure a stale build`);
@@ -123,7 +140,7 @@ try {
 
 // ── report ───────────────────────────────────────────────────────────────────
 const W = (s, n) => String(s).padEnd(n);
-console.log(`\nab-render: ${cart}.c   ${ident} = [${values.join(', ')}]   (was \`${before}\`, source restored)`);
+console.log(`\nab-render: ${cart}  ·  ${path.relative(ROOT, src)}   ${ident} = [${values.join(', ')}]   (was \`${before}\`, restored)`);
 console.log(`  ${frames} frames/variant · script ${script}${seed ? ' · seed ' + seed : ''}\n`);
 const head = `  ${W(ident, 18)}${W('sha', 14)}${W('peak dBFS', 11)}${W('bright', 9)}${W('centroid', 10)}`;
 console.log(head + (f0 ? `${W('extent', 8)}>4kHz` : ''));

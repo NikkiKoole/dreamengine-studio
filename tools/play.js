@@ -187,6 +187,8 @@ if (mode === 'netdemo') {
   }
   const launch = (role, tag) => {
     const a = argsFor(role)
+    // -u -t 1 first: -dims prevents display sleep but can't WAKE an already-sleeping one (see below)
+    if (process.platform === 'darwin') spawnSync('caffeinate', ['-u', '-t', '1'], { stdio: 'ignore' })
     const [cmd, cargs] = process.platform === 'darwin' ? ['caffeinate', ['-dims', BIN, ...a]] : [BIN, a]
     const c = spawn(cmd, cargs, { cwd: mk.BUILD_DIR })
     const pipe = (s, out) => s.on('data', d =>
@@ -347,6 +349,14 @@ if (hasFlag('--show-size')) process.env.DE_SHOW_SIZE = '1'   // live WxH overlay
 console.log('run:', name, mode, runArgs.join(' '))
 // darwin: run under `caffeinate -dims` — a SLEEPING DISPLAY segfaults raylib's window init
 // (even --headless), which silently killed every unattended night run (bit 2026-07-02)
-if (process.platform === 'darwin') spawnSync('caffeinate', ['-dims', BIN, ...runArgs], { cwd: mk.BUILD_DIR, stdio: 'inherit' })
-else                               spawnSync(BIN, runArgs, { cwd: mk.BUILD_DIR, stdio: 'inherit' })
+//
+// `-u -t 1` FIRST, and it is not redundant: -dims only PREVENTS the display from sleeping, it cannot
+// WAKE one that is already asleep. So the 2026-07-02 fix covered "the screen sleeps mid-run" but not
+// "the screen was already off when the run started" — which still segfaulted every single render
+// (bit 2026-07-28, an hour of chasing a cart that had passed minutes earlier). -u asserts user
+// activity, which wakes it; -t 1 keeps the assertion to a second so we don't hold the display on.
+if (process.platform === 'darwin') {
+  spawnSync('caffeinate', ['-u', '-t', '1'], { stdio: 'ignore' })   // wake it if it is already asleep
+  spawnSync('caffeinate', ['-dims', BIN, ...runArgs], { cwd: mk.BUILD_DIR, stdio: 'inherit' })
+} else                             spawnSync(BIN, runArgs, { cwd: mk.BUILD_DIR, stdio: 'inherit' })
 console.log('trace:', tracePath)

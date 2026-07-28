@@ -1835,6 +1835,15 @@ This is §J's headline, and it is a specific, sourced, cheap fix.
 
 ### J5. The 808 cymbal's three unequal decays are missing, so our cymbal's spectrum never moves
 
+> **✅ BUILT 2026-07-28** (plan item 1.2, awaiting the owner's ear). `runtime/tr808.h`, runtime-toggled by
+> `tr808_cym3`; key **C** in the `tr808` cart. Measured: the centroid now walks **14895 → 11844 Hz** over
+> the first 200ms and then converges bit-exactly onto the stock tail, where the one-band version was flat
+> to within 1.5% for the whole ring. Two corrections to what this section assumed, both from measurement:
+> the upper bands must be **band-pass** (a highpass at 7800 on `INSTR_SQUARE` amplifies *aliasing* — it
+> stem-measured −0.0 dBFS with a centroid of 21942 Hz against Nyquist 22050), and the real 808's upper
+> corner (**7100 Hz**) was already recorded in `tr808.c`'s own docblock and had simply never been built.
+> Full write-up incl. the level-matching dead end: [plan §4 "1.2"](synth-secrets-plan.md).
+
 - **Book:** Part 39 gives the full schematic, and the important part is the *decay structure*. The six
   mixed oscillators are "split into two bands by a pair of band-pass filters". The lower band gets a VCA
   and AR contour, and "the TR808's Decay control affects the decay rate of this envelope". Then: "The

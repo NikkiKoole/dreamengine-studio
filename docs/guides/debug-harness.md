@@ -220,6 +220,15 @@ spawn the runtime under **`caffeinate -dims`** on darwin so unattended night run
 you drive the runtime binary by hand and see instant signal-11s at odd hours, wake the screen
 or prefix your command with `caffeinate -dims`.
 
+**`-dims` alone was not enough, and the gap cost another hour on 2026-07-28.** It *prevents* the
+display from sleeping; it cannot **wake** one that is already asleep. So the original fix covered
+"the screen sleeps during a long run" but not "the screen was already off when the run started" —
+where every render still segfaulted, with the same maddening signature (a cart that passed
+minutes earlier, now dying before frame 1, `pmset -g log | grep "Display is turned"` showing the
+display went off in between). All three tools now fire **`caffeinate -u -t 1` first** to wake it,
+then run under `-dims`. Driving the binary by hand? Do the same: `caffeinate -u -t 2; sleep 2`
+before your command, not just `-dims` around it.
+
 ---
 
 ## Netplay diagnostics — why did it hang? (`F2` · stall log · trace `net`)

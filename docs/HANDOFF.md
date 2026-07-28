@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 1/7).**
+> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 2/7).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -85,10 +85,27 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > state 0 and three byte-identical WAVs were nearly written up as "no audible effect". It **exits 2 and
 > shouts on byte-identical variants**. Use it for every LISTEN item; do not hand-roll.
 >
-> **Resume-at:** pick up Phase 1 at **1.2** (the 808 cymbal's three unequal decays, `tr808.h`, no engine
-> change) →
+> **1.2 (`tr808`) is also built and baked, awaiting the same ear call.** Key **C** / tap `CY 1BAND` swaps
+> the crash between the stock single band and Reid's three-band schematic. Stop the sequencer (SPACE) and
+> hit **F** — no preset has a cymbal row, so F is the only way to strike it. The centroid now walks
+> **14895 → 11844 Hz** over 200ms and then converges *bit-exactly* onto the stock tail, where the stock
+> voice was flat for the whole ring; `cym3=0` renders a byte-identical WAV, so the old sound is provably
+> untouched. **One honest caveat to judge around: it is ~6.8 dB hotter at the strike and cannot be
+> level-matched** — `instrument_level` collides with acidcandy/dubjam's per-slot mixers and velocity
+> clamps to silence after 4 steps. Judge the timbre, not the loudness. Two findings worth reusing: a
+> `FILTER_HIGH` above ~7 kHz on `INSTR_SQUARE` amplifies **aliasing** (that band stem-measured −0.0 dBFS,
+> centroid 21942 Hz vs Nyquist 22050 — always stem-check a high band with `--solo-slot`), and the real
+> 808's 7100 Hz upper bandpass had been sitting in `tr808.c`'s own docblock, unimplemented, since day one.
+>
+> **Fixed a harness trap that will otherwise eat an hour of anyone's day:** `caffeinate -dims` *prevents*
+> display sleep but cannot **wake** an already-dark screen, so every headless render segfaulted at
+> `signal 11` before frame 1 with a binary that had passed minutes earlier. `play.js`, `spec.js` and
+> `make-cart --run` now fire `caffeinate -u -t 1` first. See
+> [`guides/debug-harness.md`](guides/debug-harness.md) → "a sleeping display segfaults every harness run".
+>
+> **Resume-at:** pick up Phase 1 at **1.3** (velocity → snare tone/noise balance, `tr808`/`tr909`) →
 > [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#4-phase-1--cart-only-each-its-own-audible-proof).
-> Then 1.3-1.7. After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and
+> Then 1.4-1.7. After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and
 > keytracking alone closes six chapters' independent requests and is the prerequisite for §G.
 > ⚠ Two process traps already hit: `ui-audit` passes **low-contrast** text (it only catches off-screen and
 > overlapping), so read the baked PNG; and `--run` bakes only the thumbnail, so **re-embed after every

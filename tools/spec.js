@@ -65,6 +65,9 @@ function runSpec(name) {
   catch (e) { return { name, err: 'compile failed\n' + (e.stderr?.toString() || e.message) } }
   // darwin: run under `caffeinate -dims` — a SLEEPING DISPLAY segfaults raylib's window init
   // (even --headless), which silently killed every unattended night run (bit 2026-07-02)
+  // -u -t 1 first: -dims only PREVENTS display sleep, it cannot WAKE an already-dark display, which
+  // still segfaults the run (bit 2026-07-28 — the gap the original -dims fix left open).
+  if (process.platform === 'darwin') spawnSync('caffeinate', ['-u', '-t', '1'], { stdio: 'ignore' })
   const r = process.platform === 'darwin'
     ? spawnSync('caffeinate', ['-dims', BIN, '--spec'], { cwd: work, encoding: 'utf8' })
     : spawnSync(BIN, ['--spec'], { cwd: work, encoding: 'utf8' })

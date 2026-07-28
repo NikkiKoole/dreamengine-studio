@@ -40,11 +40,85 @@ static const char *TR808_NAME[TR_NV] = {
     "RIM",  "CLAV", "CLAP", "MARA", "COWB", "CYMB", "OPHH", "CHHH",
 };
 
-// ── instrument-slot layout: 14 slots (some voices share a slot) ──────────────
+// ── instrument-slot layout: 16 slots (some voices share a slot) ──────────────
 enum { TRS_BD, TRS_SDB, TRS_SDN, TRS_TOM, TRS_TOMN, TRS_CON, TRS_RS, TRS_CLV,
-       TRS_CP, TRS_MAR, TRS_CB, TRS_CYT, TRS_HATO, TRS_HATC };
-#define TR808_NSLOT 14
+       TRS_CP, TRS_MAR, TRS_CB, TRS_CYT, TRS_HATO, TRS_HATC,
+       TRS_CYM, TRS_CYH };          // cymbal MID + HIGH bands (see tr808_cym3) — appended, so no
+                                    // existing TRS_* value moves
+#define TR808_NSLOT 16
 #define TR808_BASE   9        // tr808.c's base (slots 5..8 are user waves)
+
+// ── CYMBAL: one band, or the schematic's THREE? (Synth Secrets plan 1.2 / audit §J5) ──────────
+// Part 39 dissects the real TR-808 cymbal: the six enharmonic square oscillators are mixed, then
+// "split into two bands by a pair of band-pass filters"; the LOWER band gets a VCA + AR contour (the
+// panel DECAY rides this one), and "the upper band is further split into two signal paths that pass
+// through independent VCAs controlled by their own contour generators. The upper of the two … has the
+// shortest Decay." Three bands, three highpasses, three UNEQUAL decays, recombined by a mixer — the
+// panel TONE control. And the payoff sentence: "this inequality of decay times allows the TR808 to
+// change the mix of lower-, mid- and higher-frequency components AS THE SOUND PROGRESSES", which is
+// exactly the spectral migration Part 37 says a real cymbal does (energy climbs, then the highs die
+// first and the mids dominate the tail).
+//
+// RUNTIME, not a #define, and deliberately so: a compile-time gate can't be A/B'd by ear in the editor,
+// and the whole point of this item is a judgement only ears can make. The two extra slots are always
+// BUILT (they cost nothing unheard) and `tr808_cym3` only decides whether a crash FIRES them, so a cart
+// can flip it mid-run — instrument_level is read live at mix, so even the balance can be swept live.
+//   0 = as this header shipped — one slot, one highpass, one decay, so the timbre is static as it rings.
+//   1 = the schematic's three bands. Costs 3× the voices per crash (9, from 3 bank members × 3 bands).
+// Unequal decays need per-slot `decay_ms`; a per-hit gate length can't do it, because with sustain 0 the
+// slot's decay governs the ring and the gate only ends an already-silent note. Hence real slots.
+static int tr808_cym3 = 0;
+
+// How much of the two colour bands to mix in — the panel TONE knob's job in Reid's schematic, and a
+// taste knob here. Measured on an isolated crash (tools/clips/tr808/01-cymbal-solo.script); the tail is
+// bit-identical at every setting because only the low band survives it:
+//     mix    strike peak    centroid at strike    centroid walk over the first 200ms
+//     (off)  -14.0 dBFS     11512 Hz              none — flat to within 1.5% for the whole ring
+//     0.02   -12.5          12242                 12380 → 11861 Hz  (520 Hz, subtle)
+//     0.06    -9.9          12967                 ~1500 Hz
+//     0.15    -6.0          14041                 15891 → 12083 Hz  (3800 Hz, obvious)
+//     0.40    -0.4          15475                 widest, but +13.6dB is a different sound not a colour
+// 0.06 is the default: clearly audible migration, and the +4dB strike still reads as the same cymbal.
+// The two colour bands' centre frequencies. Hoisted out of the build so they can be swept with
+// ab-render, because where the TOP band sits is NOT a free choice. Swept on an isolated crash:
+//     hi_hz   whole-file peak   centroid at strike     (low band alone reads 11846 Hz)
+//     5000    -3.5 dBFS         11496 Hz   — no lift at all, the band is under the low one
+//     6200    -3.5              12106
+//     7000    -3.5              13758      ← sane; 7100 (the MEASURED 808 value) sits right here
+//     7800    -0.0              15796      — runs away; see the aliasing note in the build below
+// -3.5 dBFS is the boot KICK in that clip, i.e. at 7000 and below the cymbal stays under the loudest
+// drum in the kit, which is where it should sit. 7800 pushes the crash past it and pins the ceiling.
+//
+// 7100 is not a tuning choice — it's the reverse-engineered 808's own upper cymbal bandpass, already
+// recorded in tr808.c's docblock ("bandpasses at 7100/3440Hz") and never implemented until now. The
+// sweep independently found ~7000 to be the highest corner that doesn't fold, which is a pleasing check.
+//
+// WHERE THIS DEPARTS FROM THE SCHEMATIC, on purpose: Reid has ONE upper bandpass (7100) feeding TWO
+// VCAs with different decays, and a separate highpass after each VCA. A slot here carries exactly one
+// filter, so the post-VCA highpasses get folded into the band frequency instead — two corners rather
+// than one corner and two highpasses. Same three-unequal-decay structure, and it moves the spectrum
+// MORE than stacking both upper paths on one corner would.
+static int tr808_cym3_mid_hz = 5200;
+static int tr808_cym3_hi_hz  = 7100;
+
+// How far under the low band the two colour bands sit, in VELOCITY steps (tr808__vv clamps 0..7). This
+// is the balance lever — deliberately velocity and not instrument_level, because acidcandy and dubjam
+// use instrument_level as their per-slot MIXER (looping `i < TR808_NSLOT` from one fader) and would
+// silently overwrite any level a band set for itself. Velocity rides on the hit, so nothing can clobber it.
+// It is a CLIFF, not a fader, and that is the honest limit of this implementation. tr808__vv clamps
+// 0..7, and the cymbal already fires at ~2, so with boost 1 an offset of -4 lands at -1 → clamped to
+// 0 → silent. Swept at the final band settings (stock crash = -14.0 dBFS, flat at ~11850 Hz):
+//     vel    strike peak    centroid walk over the first 300ms
+//     -3     -7.2 dBFS      14895 → 12929 → 11844 Hz   ← chosen: the quietest setting that still sounds
+//     -4     -14.0          11512 → 11882 → 11824      — bit-identical to stock: the bands are SILENT
+//     -5/-6  identical to -4 (still clamped)
+// So the usable range is 0..-3 and the three-band crash cannot be fully level-matched: it lands ~6.8dB
+// hotter at the strike than the one-band version. Both other levers are dead ends — instrument_level
+// collides with the carts' per-slot mixers (see the build note) and velocity runs out after 4 steps. If
+// the ear likes this cymbal, the proper fix is to make acidcandy/dubjam's mixer loops scale relative to
+// a per-slot base instead of setting it absolutely, and then trim these two slots with instrument_level.
+// Not done yet on purpose: that touches three carts' mixers for a feature still defaulting to OFF.
+static int tr808_cym3_vel = -3;
 
 // ── per-voice knob maths (arrays are the CART's; 0.5 = neutral) ───────────────
 static int tr808__midi(const float *ktune, int v, int base) {           // ±12 semitones
@@ -111,6 +185,33 @@ static void tr808_build(int base) {
     // cymbal — bank squares through the 3440Hz region, very long ring
     instrument(base + TRS_CYT, INSTR_SQUARE, 0, 850, 0, 200);
     instrument_filter(base + TRS_CYT, FILTER_HIGH, 3440, 3);
+    // …plus the schematic's upper two bands (§J5). Higher corner ⇒ shorter decay: the highs die first,
+    // so the surviving spectrum walks downward through the tail instead of holding still. Always built;
+    // tr808_cym3 decides whether a crash fires them.
+    // Resonance 3, same as the low band. Do NOT lower it thinking that tames the peak: this filter
+    // DRAINS level as resonance rises (the documented per-res bass drain, tools/filter-spec.js), so
+    // dropping these to res 1 made the strike LOUDER, not quieter — the opposite of the intent.
+    // FILTER_BAND, not FILTER_HIGH, and this is the one decision here worth reading twice. Reid's text
+    // says the mix is "split into two bands by a pair of BAND-PASS filters", and taking him literally
+    // also fixes a real artifact: a HIGHPASS at 7800 passes everything above 7800, which on INSTR_SQUARE
+    // means it passes the oscillator's ALIASING. Measured as a stem (play.js --solo-slot 24) that band
+    // came out at -0.0 dBFS — 14dB louder than the low band it was supposed to colour, clipping on its
+    // own, with a spectral centroid of 21942 Hz. Nyquist is 22050. It was not a cymbal band at all, it
+    // was a fold-over amplifier. A bandpass rolls off above the corner too, so the junk near Nyquist
+    // stays out and the band lands at a sane level with no trim.
+    //
+    // That is also why there is no instrument_level trim here, which was the first fix attempted and is
+    // REJECTED on top of being unnecessary: acidcandy and dubjam use instrument_level as their per-slot
+    // MIXER, looping `i < TR808_NSLOT` to drive every slot from one fader, which would silently overwrite
+    // any internal balance a band set for itself. Velocity can't carry it either (tr808__vv is an int
+    // 0..7 and the cymbal already fires at ~2). The band levels have to come out right by construction.
+    instrument(base + TRS_CYM, INSTR_SQUARE, 3, 420, 0, 120);   // mid — "near the centre of the range"
+    instrument_filter(base + TRS_CYM, FILTER_BAND, tr808_cym3_mid_hz, 3);
+    instrument(base + TRS_CYH, INSTR_SQUARE, 2, 150, 0, 50);    // high — "the shortest Decay"
+    instrument_filter(base + TRS_CYH, FILTER_BAND, tr808_cym3_hi_hz, 3);
+    // The low band is left exactly as it shipped: it alone survives past ~1.2s, so it IS the tail, and
+    // touching it (a 0.62 trim on the first attempt) quietened the shipped tail by 4.2dB — an audible
+    // change to the part of the sound this item is not about.
 
     // hats — bank squares through ~7kHz highpass; open vs closed = decay
     instrument(base + TRS_HATO, INSTR_SQUARE, 0, 340, 0, 90);
@@ -174,6 +275,17 @@ static void tr808_fire(int base, int v, int boost, int delay,
         schedule_hit(delay, M(79), base + TRS_CYT, VV(CV(0, 6)), D(900));
         schedule_hit(delay, M(72), base + TRS_CYT, VV(2), D(900));
         schedule_hit(delay, M(66), base + TRS_CYT, VV(CV(5, 0)), D(900));
+        if (tr808_cym3) {
+            // the SAME members into the upper two bands — the migration comes from one source decaying
+            // at three rates, not from three different tones (which would just be three sounds)
+            int cvq = tr808_cym3_vel;   // how far the colour bands sit UNDER the low band, in velocity steps
+            schedule_hit(delay, M(79), base + TRS_CYM, VV(CV(0, 6) + cvq), D(450));
+            schedule_hit(delay, M(72), base + TRS_CYM, VV(2 + cvq), D(450));
+            schedule_hit(delay, M(66), base + TRS_CYM, VV(CV(5, 0) + cvq), D(450));
+            schedule_hit(delay, M(79), base + TRS_CYH, VV(CV(0, 6) + cvq), D(170));
+            schedule_hit(delay, M(72), base + TRS_CYH, VV(2 + cvq), D(170));
+            schedule_hit(delay, M(66), base + TRS_CYH, VV(CV(5, 0) + cvq), D(170));
+        }
         break;
     case TR_OH:  // two bank members; RING fades warm↔bright
         schedule_hit(delay, M(79), base + TRS_HATO, VV(CV(0, 6)), D(360));

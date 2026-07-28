@@ -189,8 +189,10 @@ static void flag_set(int i, int s, int f, int v) {
 }
 
 // the 808 drum face — voices from the shared tr808.h (byte-honest to the tr808 cart).
-// The 808 kit lives at slots TR808_BASE(9)..22; the 909 kit sits above it at 23+.
-#define D909_BASE 23
+// The 808 kit lives at slots TR808_BASE(9) .. TR808_BASE+TR808_NSLOT-1; the 909 sits directly above it.
+// Derived, not hard-coded: tr808.h grew from 14 to 16 slots (the cymbal's MID/HIGH bands, §J5), and a
+// literal 23 here silently overlapped the 808's new top two slots.
+#define D909_BASE (TR808_BASE + TR808_NSLOT)
 static int   dgrid[TR_NV][STEPS];                          // the drum pattern
 static float dtune[TR_NV], ddecay[TR_NV], dcolor[TR_NV];   // per-voice knobs (0.5 = neutral)
 static float dvol[TR_NV];                                  // per-voice LEVEL (0.5 = unity); rides the per-hit velocity — line-scope base the VOL lane offsets around

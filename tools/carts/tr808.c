@@ -16,7 +16,7 @@
   ],
   "lineage": "Roland TR-808 (1980), sibling of cr78; voices modeled from reverse-engineered MEASURED circuit values — the shared six-oscillator metal bank, bridged-T kick with pitch-drop boom, dual-mode snare — with per-voice tune/decay/character knobs.",
   "homage": "Roland TR-808 Rhythm Composer (1980)",
-  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. And a modern-clone touch the 1980 panel never had: TRIG PROBABILITY (the RD-8 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click name to audition, drag a cell vertically for its fire-chance, drag knobs to shape."
+  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. And a modern-clone touch the 1980 panel never had: TRIG PROBABILITY (the RD-8 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. And a second switch the 1980 panel never had either: C (or tap CY 1BAND) rebuilds the CYMBAL from the machine's actual schematic — three bands whose decays are deliberately UNEQUAL, so the crash darkens as it rings instead of holding one colour, where the stock voice's spectrum never moves. Stop the sequencer and hit F to hear it; the measured upper bandpass is 7100Hz, a value in this cart's notes since day one and unbuilt until now. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, C cymbal bands, click name to audition, drag a cell vertically for its fire-chance, drag knobs to shape."
 }
 de:meta */
 #include "studio.h"
@@ -301,6 +301,11 @@ void update(void) {
     if (keyp(KEY_DOWN) || tapp(244, 9, 30, 12)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); }
     if (keyp('Z') || tapp(200, 9, 18, 12)) { swing -= 2; if (swing < 50) swing = 50; }                      // SW halves
     if (keyp('X') || tapp(218, 9, 20, 12)) { swing += 2; if (swing > 66) swing = 66; }
+    // C = the cymbal's band structure (tr808.h). 1BAND is the stock voice; 3BAND is Reid's schematic,
+    // where the mid and high bands decay faster than the low one so the crash DARKENS as it rings
+    // instead of holding one colour. Hit F with the sequencer stopped and toggle to hear it — no preset
+    // has a cymbal row, so it's the F key or nothing.
+    if (keyp('C') || tapp(150, 18, 68, 12)) tr808_cym3 = !tr808_cym3;
 
     // knob hover + drag (Y=coarse, X=fine, same as modrack)
     int mx = mouse_x(), my = mouse_y();
@@ -417,6 +422,8 @@ void draw(void) {
     print(" >", nx, 22, CLR_ORANGE);               //  above the accent strip)
     nextz_x = nx + 2;
     print(running ? "PLAYING" : "STOPPED", 248, 22, running ? CLR_GREEN : CLR_RED);
+    print(tr808_cym3 ? "CY 3BAND" : "CY 1BAND", 152, 22,
+          tr808_cym3 ? CLR_ORANGE : CLR_DARK_GREY);   // lit = the three-band schematic cymbal (C)
 
     // playhead column
     if (running)

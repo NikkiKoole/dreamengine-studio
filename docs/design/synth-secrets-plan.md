@@ -183,7 +183,7 @@ cheapest LISTEN items we have.
 | # | item | kind | rung | cart | note |
 |---|---|---|---|---|---|
 | 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | ✅ **DONE — BREATHING kept as the default** (owner's ear, 2026-07-28), CLASSIC retained on a toggle; middle rung DROPPED. See below |
-| 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | The mechanism that makes a real cymbal's spectrum migrate. `tr808.h` only |
+| 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **BUILT, baked, awaiting your ear** (2026-07-28). Key **C** = `CY 1BAND`/`CY 3BAND`. See below |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | Harder hits should read noisier |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ⚠ release also governs the bore ring-down, so A/B rather than edit |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | Part 45's whole conclusion, and free |
@@ -227,6 +227,50 @@ make the toggle *visible and tappable* (not keyboard-only), and mention it in th
 description since it becomes a user-facing control. Two traps this one hit, both worth avoiding: a
 low-contrast readout that `ui-audit` passes clean (it catches off-screen and overlapping text, not
 contrast — read the baked PNG), and a help array grown past its draw-loop bound.
+
+### 1.2 tr808 cymbal — built, baked, awaiting your ear (2026-07-28)
+
+Key **C** (or tap `CY 1BAND` on the panel) switches the crash between the stock single band and Reid's
+three-band schematic. Stop the sequencer with SPACE and hit **F**: no preset has a cymbal row, so F is the
+only way to strike it. All of this is `runtime/tr808.h` + a toggle in the cart; **no engine change**.
+
+**It works, and the measurement is unambiguous.** On an isolated crash
+(`tools/clips/tr808/01-cymbal-solo.script`, committed) the spectral centroid per 100ms window:
+
+| | at strike | +100ms | +200ms | +300ms → end |
+|---|---|---|---|---|
+| **1BAND** (stock) | 11512 Hz | 11882 | 11824 | 11886 … 11939 — **flat**, within 1.5% for the whole ring |
+| **3BAND** | **14895 Hz** | 12929 | 11844 | 11909 … 11939 — **bit-identical to stock** |
+
+That is exactly what Part 39 promises: a 3050 Hz downward walk in the first 200ms, then the upper bands
+are gone and what remains *is* the stock low band, converging on it to the sample. The stock path is
+**byte-identical** to before the change (same WAV sha, verified) — `cym3=0` is a proven no-op.
+
+**Three things I got wrong first, all worth keeping written down:**
+
+1. **The high band was a fold-over amplifier, not a cymbal band.** A `FILTER_HIGH` at 7800 passes
+   everything above 7800, which on `INSTR_SQUARE` means it passes the oscillator's **aliasing**. As a
+   stem (`play.js --solo-slot 24`) it measured −0.0 dBFS, clipping on its own, 14 dB over the band it was
+   meant to colour, centroid **21942 Hz** against a Nyquist of 22050. Reid actually says *band-pass*, and
+   taking him literally fixed it. Lesson: on a square-wave voice, a band above ~7 kHz needs a stem check.
+2. **The real 808 value was already written down and unimplemented.** `tr808.c`'s docblock records the
+   reverse-engineered cymbal as "bandpasses at **7100**/3440Hz" — only 3440 was ever built. The sweep
+   independently found ~7000 to be the highest corner that doesn't fold, which lands on 7100 on its own.
+3. **It cannot be fully level-matched, and both levers are dead ends.** `instrument_level` is out because
+   `acidcandy` and `dubjam` use it as their per-slot *mixer* (`for i < TR808_NSLOT`, one fader → every
+   slot), which would silently overwrite any balance a band set for itself. Velocity is a **cliff**, not a
+   fader: `tr808__vv` clamps 0..7 and the cymbal already fires at ~2, so offset −4 goes silent and −3 is
+   the last audible step. So 3BAND lands **~6.8 dB hotter at the strike** (−7.2 vs −14.0 dBFS), with no
+   clipping. **Judge the timbre, not the loudness** — and if you like it, the proper fix is to make those
+   two carts' mixer loops scale relative to a per-slot base, then trim these slots normally. Deliberately
+   not done yet: that touches three carts' mixers for something still defaulting to OFF.
+
+**Also fixed on the way** (the slot count went 14 → 16): `acidcandy.c` hard-coded `#define D909_BASE 23`,
+which the two new slots would have silently overlapped. It is now derived —
+`(TR808_BASE + TR808_NSLOT)` — so the next slot change can't repeat it. Checked every includer of
+`tr808.h` (`acidcandy`, `acidcandy_ipad`, `dubjam`, `tr909.h`, `morphdrum.h`) and every cart of those;
+all compile, and `voice-trace` shows **no steals** with the pattern running plus 8 crashes (9 voices per
+crash, 143 note-ons, the only 4 chokes being the 808's intended closed-hat-mutes-open-hat).
 
 ---
 

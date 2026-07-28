@@ -1,0 +1,28 @@
+# tr808 — ONE isolated crash cymbal, in silence, ringing out to nothing.
+# The A/B seed for the three-band unequal-decay cymbal (runtime/tr808.h TR808_CYM3; audit §J5,
+# plan item 1.2).
+#
+# Two non-obvious things this script exists to handle, BOTH of which silently ruined a measurement:
+#
+#  1. THIS CART SELF-PLAYS. `static bool running = true` (tr808.c:167) — the sequencer is already
+#     running PLANET ROCK on frame 1. A render with an empty script is not silence, it is a full
+#     drum pattern at -2.7 dBFS. So: SPACE first (the PLAYING/STOPPED toggle), then wait ~40 frames
+#     for the boot hits to decay, and only then strike.
+#  2. NO PRESET HAS A V_CY ROW at all, so no pattern ever strikes the cymbal. 'F' is VKEY[V_CY]
+#     (tr808.c:86) and calls fire() directly for one hit at full boost.
+#
+# Isolation is the whole point: the change under test is a spectral MIGRATION through the tail (the
+# high band dies first, so the surviving centroid walks downward). Any kick or hat overlapping the
+# ring swamps brightness/centroid and makes the numbers unreadable — which is exactly what happened
+# on the first attempt.
+#
+#   node tools/ab-render.js tr808 --file runtime/tr808.h --set TR808_CYM3=0,1 \
+#        --script tools/clips/tr808/01-cymbal-solo.script --frames 180
+#   node tools/wav-envelope.js <wav> 100 --from 0.8    # ← the per-window CENTROID is the verdict
+#
+# 180 frames = 3s at 60fps. Strike lands at frame 45 (0.75s); the low band decays over 850ms, so
+# this captures the whole ring plus silence on both sides.
+down 1 SPACE
+up 3 SPACE
+down 45 f
+up 47 f

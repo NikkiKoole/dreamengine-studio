@@ -582,13 +582,56 @@ per-engine items is the single biggest saving available.
 
 | # | theme | closes | kind | rung | note |
 |---|---|---|---|---|---|
-| 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | DESIGN → 5 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
+| 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **HALF (a) SHIPPED** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | DESIGN → 3 | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
 | 2.3 | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
 
 **Sequencing note:** 2.1 and 2.2 are prerequisites for a lot of Phase 3 and for §G, so they come first
 even though they are the largest items here. 2.4 should start with a measurement, not a build.
+
+### 2.1(a) `instrument_keytrack()` — SHIPPED 2026-07-29
+
+**The engine can follow the keyboard now.** One multiply at note-on:
+`cutoff *= 2^(amount * (midi - 60) / 12)`. `amount` 0 = absolute Hz (the default), 1 = true 1V/oct,
+0.93 = Reid's musically-nice "190 percent per octave". With tracking on, the cutoff passed to
+`instrument_filter()` is the value **at C4** and scales from there.
+
+**Zero risk, and measured rather than asserted:** `amount` defaults to 0, which makes the multiply an exact
+1.0, and `22-filter`, `filterenv` and `moog` all render **byte-identical** against the pre-change engine.
+Gates: soundcheck silent, `tune-check` no new drift, 569/569 carts compile.
+
+**The acceptance test is a number, not an ear** — which is why this was a VERIFY item. Spectral centroid of
+a resonant ladder (cutoff 400 Hz at C4, res 15) across four octaves:
+
+| | C3 | C4 | C5 | C6 |
+|---|---|---|---|---|
+| **tracking 0** (fixed Hz) | 391 Hz | 438 | 511 | 686 |
+| **tracking 1** (follows) | 259 | 438 | **800** | **1535** |
+
+Fixed cutoff barely moves the spectrum across the whole keyboard — that *is* §B2's complaint, quantified: a
+patch is voiced correctly in one register and wrong everywhere else. With tracking the centroid lands on the
+intended 200/400/800/1600 cutoffs.
+
+**Two decisions worth remembering** (agreed before building): `amount = 1` means **true 1V/oct**, not
+Reid's 0.93, because exactly 1.0 is what lets a self-oscillating filter be played in tune — 0.93 is
+documented as the taste value instead. And keytrack applies at **note-on only**; `note_cutoff()` stays
+absolute, so a live sweep (the martenot wah, the brass mute) means the same thing at every pitch.
+
+**New cart: [`keytrack`](../../tools/carts/keytrack.c)**, because this needed to be *seen* as well as heard.
+It runs a phrase four octaves up and back while plotting the note pitch as dots and the cutoff as a line:
+at tracking 0 the line is dead **flat** while the notes climb away from it, and at 1.00 the two run
+**parallel**. That is the whole feature in one glance. Buttons 1/2/3 pick the three amounts, and the
+resonance control is there for Reid's Part 63 Juno trick (crank it and the filter's own whistle becomes a
+playable voice). Pair: `build/ab/7-keytrack-{OFF-fixed-Hz,ON-follows}.wav`.
+
+**Two cart-authoring traps hit while writing it**, both worth the CLAUDE.md list: `SCALE` is a **`-D`
+compile flag** (the window scale factor), so `static const int SCALE[30]` expands to `int 4[30]` and fails
+with a syntax error that points at the array, not the name; and `S` is `#define`d by the starter cart.
+
+**Still open: half (b)** — express `ENV_CUTOFF`/`LFO_CUTOFF` depth in octaves rather than Hz. **59 carts**
+use those destinations, so it must be new constants (`ENV_CUTOFF_OCT` / `LFO_CUTOFF_OCT`) rather than a
+redefinition. Not started.
 
 ---
 

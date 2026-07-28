@@ -3743,6 +3743,20 @@
     "homage": "Katamari Damacy (2004)"
   },
   {
+    "title": "keytrack — the filter follows the keyboard",
+    "description": "KEYBOARD TRACKING, the thing every real subtractive synth has and this engine did not until now. A filter cutoff set in Hz is only correct at ONE pitch: play two octaves up and the same patch is a different sound, because the harmonics moved and the filter did not. instrument_keytrack(slot, amount) makes the cutoff FOLLOW the note - 0 = fixed Hz (how everything behaved before), 1 = the cutoff doubles per octave, and 0.93 is the classic musical setting Reid pins as '190 percent per octave'. With tracking on, the cutoff you pass is the value at C4 and scales from there. Press SPACE to hear it: a scale walks four octaves up and back while the graph draws the note pitch as dots and the CUTOFF as a line, so you watch the line either sit flat (fixed) or climb with the notes (tracking). Measured on this patch, a fixed cutoff moves the spectral centroid only 391 to 686 Hz across four octaves, while full tracking moves it 259 to 1535 Hz - the difference between a patch voiced for one register and one that holds its character everywhere. And the marquee, Reid's Juno 60 move: crank RESONANCE with tracking at 1.0 and the filter's own whistle becomes a playable pitched voice, a third oscillator out of a filter. 1/2/3 set tracking 0 / 0.93 / 1.0, UP/DOWN resonance, LEFT/RIGHT the C4 cutoff, SPACE the scale, A..K play by hand.",
+    "file": "keytrack.cart.png",
+    "created": "2026-07-29",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "subtractive-synth"
+    ],
+    "lineage": "Synth Secrets Part 6 (keyboard tracking) and Part 63's Juno 60 trick of playing a self-oscillating filter as an extra oscillator; the engine side is instrument_keytrack(), added for audit §B2."
+  },
+  {
     "title": "labels",
     "description": "A labeling study for the control vocabulary — how to name a knob/button/fader when there's barely room: the five in-game fonts + scaling, text effects (shadow / outline / emboss / inverted chip), a handwritten 'boiling' vibe (FONT_COMIC + per-char jitter), rotated labels for tight vertical columns, and the classic Dymo labelprinter look in both colorways (white-on-dark tape, dark-on-white paper). The controls all use bare print() today; this cart works out the label LANGUAGE that pairs with them. Row 1 FONTS: the same word in TINY (3x5) / SMALL (4x6) / NORMAL (8x8) / THIN (CGA) / COMIC (handwriting), plus print_rot_scaled for 2x/3x. Row 2 EFFECTS: drop-shadow, 4-way outline, an inverted chip (light on a dark pill), and handwritten — FONT_COMIC with a slow per-character jitter so the text gently boils like ink. Row 3 ROTATED: labels turned 90 degrees (reading up + down) for a narrow fader column, and a 45-degree tag — via print_rot. Row 4 LABELPRINTER: embossed Dymo-tape labels (rounded tape + punched hole + a raised-letter emboss) in the two classic colorways. These become the label helpers the device-face carts pull from. None — a showcase. The handwritten line boils over time; everything else is static.",
     "file": "labels.cart.png",

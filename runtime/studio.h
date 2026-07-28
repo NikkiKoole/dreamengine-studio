@@ -445,6 +445,7 @@ void scope_read2(float *l, float *r, int n);   // STEREO scope: the latest n LEF
 #define FILTER_STEINER_NF 9 // Steiner-Parker notch — the aggressive filter's notch response
 #define FILTER_DIODE 10  // the TB-303 diode-ladder lowpass — THE acid filter: ~18dB/oct (between FILTER_LOW's 12 and the Moog ladder's 24), drains bass as resonance climbs, and the resonance saturates INSIDE the loop (the diodes) so it growls instead of ringing clean. Self-oscillates at the top. Lowpass-only
 void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mode FILTER_*, cutoff in Hz (e.g. 800), resonance 0..15 (high = whistly peak). sweep cutoff with LFO_CUTOFF
+void instrument_keytrack(int slot, float amount);  // make the filter cutoff FOLLOW the pitch: 0 = fixed Hz (default), 1 = doubles per octave. Then the cutoff you set is the value at C4
 
 // modulation envelopes per instrument — a one-shot AD contour (the envelope twin of the LFO).
 // fires once per note: ramps up over attack_ms, then decays back over decay_ms. amount is

@@ -721,7 +721,9 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
 - **Don't name a variable after a built-in.** Cart code shares the `studio.h` namespace. `map` is the
   common trap (clashes with `map()`); use `grid`/`dmap`. Same for `line`/`rect`/`circ`/`print`/`spr`/
   `timer`/`now`. The starter cart also `#define`s `STATE`/`S`/`GameState` (cart-local persistent-state
-  sugar over `de_state()`); a cart wanting `S` for else just removes those defines.
+  sugar over `de_state()`); a cart wanting `S` for else just removes those defines. **`SCREEN_W`/`SCREEN_H`/
+  `SCALE` are `-D` compile flags too**, so `static const int SCALE[30]` expands to `int 4[30]` — the error
+  points at the array, not the name, which is why it reads as nonsense (bit `keytrack`).
 - **Data-driven carts: name your indices** via an enum (`m->param[VK_FENV]`), never raw numbers —
   inserting a knob mid-list once silently cross-wired knobs + presets.
 - **`watch()`'s 2nd arg is a printf FORMAT STRING, not a value** — `watch(name, fmt, ...)`. Passing a

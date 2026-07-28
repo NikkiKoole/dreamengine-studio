@@ -163,6 +163,14 @@ would be heard.
 
 ### B2. Nothing tracks the keyboard
 
+> **✅ HALF (a) SHIPPED 2026-07-29** — `instrument_keytrack(slot, amount)` exists (plan 2.1a). 0 = absolute
+> Hz (default, byte-identical), 1 = true 1V/oct, 0.93 = Reid's musical value; with tracking on the cutoff you
+> set is the value at **C4**. Measured across four octaves on a resonant ladder, a fixed cutoff moves the
+> spectral centroid only 391→686 Hz while full tracking moves it 259→1535 Hz, landing on the intended
+> 200/400/800/1600. Applied at note-on only — `note_cutoff()` stays absolute on purpose. New cart
+> [`keytrack`](../../tools/carts/keytrack.c) plots pitch against cutoff so the tracking is *visible*.
+> **Half (b) (env/LFO depth in octaves) is still open** and needs new constants: 59 carts use the Hz form.
+
 - **Book:** Part 6 (SOS October 1999, p.140): "If you use a resonant filter with moderate Q and make the
   cutoff frequency track the pitch, you can create a characteristic 'emphasised' quality that remains
   tonally consistent as you play up and down the keyboard." And at maximum Q: "If the filter tracks the

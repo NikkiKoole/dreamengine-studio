@@ -83,7 +83,10 @@ typedef struct {
     float lfo_depth[3];             // 0 = off; units depend on dest
     int   lfo_shape[3];             // LFO_SHAPE_* per LFO (default SINE); set by lfo_shape(), copied to new voices
     int   flt_mode;                 // FILTER_OFF / LOW / HIGH / BAND / NOTCH
-    float flt_cutoff;               // Hz
+    float flt_cutoff;               // Hz — the cutoff AT THE REFERENCE PITCH when flt_keytrack != 0
+    float flt_keytrack;             // KEYBOARD TRACKING, octaves of cutoff per octave of pitch (audit §B2).
+                                    // 0 = absolute Hz (the shipped behaviour, and the default) · 1 = true
+                                    // 1V/oct, which is what lets a self-oscillating filter be PLAYED.
     float flt_q;                    // damping coefficient (1/Q); small = resonant
     int   env_dest[3];              // ENV_CUTOFF / ENV_PITCH / ENV_DUTY, per mod-envelope
     int   env_a_samp[3];            // attack, in samples
@@ -2291,6 +2294,7 @@ typedef enum {
     SR_MULTIBAND     = 137,   // a=low, b=mid, c=high, e0=up, e1=mix (×1000) — THE master multiband squash / OTT box (multiband)
     SR_INSTR_MULTIBAND = 138, // a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000) — multiband squash on one instrument's bus (instrument_multiband)
     SR_HARMONIZE_MIC = 139,   // a=semis*100, b=voices, c=formant*1000 — LIVE fixed-interval mic harmoniser (harmonize_mic); the AM_SHIFT face of the streaming corrector
+    SR_INSTR_KEYTRACK = 140,  // a=slot, b=amount*1000 — KEYBOARD TRACKING of the filter cutoff (instrument_keytrack), audit §B2
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2366,6 +2370,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
+        case SR_INSTR_KEYTRACK:
         case SR_INSTR_ENV: case SR_INSTR_MACRO: case SR_INSTR_CHOKE: case SR_INSTR_DRIVE:
         case SR_INSTR_ECHO: case SR_INSTR_TUNE: case SR_INSTR_FOLLOW: case SR_INSTR_PAN:
         case SR_INSTR_REVERB: case SR_INSTR_CHORUS: case SR_INSTR_FLANGER: case SR_INSTR_TAPE:
@@ -5254,7 +5259,18 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->flw_amount = ins->flw_amount;
     v->flw_amp    = 0.0f;
     v->flt_mode       = ins->flt_mode;
-    v->flt_cutoff     = v->cutoff_target = ins->flt_cutoff;
+    // KEYBOARD TRACKING (audit §B2, Synth Secrets Part 6). The slot's cutoff is the value AT THE REFERENCE
+    // PITCH (C4 / MIDI 60); tracking scales it by pitch from there, so a patch keeps its character up and
+    // down the keyboard instead of being voiced correctly in exactly one register. amount 1 = true 1V/oct
+    // (the setting that lets a self-oscillating FILTER_LADDER/DIODE/STEINER be played as a pitched voice);
+    // ~0.93 is Reid's musically-nice "190 percent per octave" for cutoff-follows-pitch.
+    //   Applied ONCE, here at note-on — deliberately not to note_cutoff(), which stays an absolute live
+    //   gesture (the martenot wah, the brass mute) so a sweep means the same thing at every pitch.
+    // amount 0 (the default) leaves this multiply as an exact 1.0, so every existing patch is untouched.
+    float kt_cut = ins->flt_cutoff;
+    if (ins->flt_keytrack != 0.0f)
+        kt_cut *= powf(2.0f, ins->flt_keytrack * (float)(midi - 60) / 12.0f);
+    v->flt_cutoff     = v->cutoff_target = kt_cut;
     v->flt_q          = v->flt_q_target  = ins->flt_q;
     v->flt_low        = 0.0f;
     v->flt_band       = 0.0f;
@@ -5543,6 +5559,11 @@ static void sound_fire_req(SoundReq r) {
         float duty = r.b / 1000.0f;
         duty = clampf(0.01f, 0.99f, duty);
         instr_bank[slot].duty = duty;
+    } break;
+    case SR_INSTR_KEYTRACK: {                  // a=slot, b=amount*1000 (audit §B2)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        instr_bank[slot].flt_keytrack = r.b / 1000.0f;
     } break;
     case SR_ENG_TUNE: {
         int slot = r.a, idx = r.b;
@@ -7619,6 +7640,16 @@ void instrument_filter(int slot, int mode, int cutoff_hz, int resonance) {
     sound_push_ctrl(SR_INSTR_FILTER, slot, mode, cutoff_hz, resonance, 0, 0);
 }
 
+// KEYBOARD TRACKING of the filter cutoff (audit §B2 / Synth Secrets Part 6). See the note-on site in
+// sound_setup_note for the semantics; in short, the slot's cutoff becomes the value AT C4 and this decides
+// how it scales with pitch. Clamped to 0..2: above 1 the cutoff outruns the pitch, which is a real (if
+// extreme) sound, and negative tracking is not musically useful.
+void instrument_keytrack(int slot, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (amount < 0.0f) amount = 0.0f; else if (amount > 2.0f) amount = 2.0f;
+    sound_push_ctrl(SR_INSTR_KEYTRACK, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
+}
+
 void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -8310,6 +8341,7 @@ static void sound_reset_state(void) {
         instr_bank[i].flw_amount = 0.0f;   // off until instrument_follow() is called
         instr_bank[i].flt_mode   = FILTER_OFF;
         instr_bank[i].flt_cutoff = 1000.0f;
+        instr_bank[i].flt_keytrack = 0.0f;   // no keyboard tracking until asked — absolute Hz, as shipped
         instr_bank[i].flt_q      = 1.0f;
         instr_bank[i].harmonics  = 0.5f;   // engine macros: center detent, Plaits-style
         instr_bank[i].timbre     = 0.5f;

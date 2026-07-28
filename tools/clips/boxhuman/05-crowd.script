@@ -1,0 +1,7 @@
+# boxhuman — five instances of one rig table. They differ only in a stiffness
+# multiplier on their joint springs and KEEP_ANGLE gains, so the leftmost slumps
+# while the rightmost stays rigid. F folds every guy's elbow and knee at once.
+down 90 F
+up   92 F
+down 240 SPACE
+up   242 SPACE

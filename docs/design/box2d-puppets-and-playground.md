@@ -29,7 +29,7 @@ The **puppetmaker representation**: a body part = one convex polygon of ≤8 `(x
 | `puppet` | the rigid representation on real Box2D: each part auto-hulled to ≤8 verts (`b2MakePolygon`) + textured from that same polygon. Data-driven Rig table (parts + joints w/ limits + springs); marionette + lamp rigs; springy string; click-to-grab. |
 | `boxlab` | a puppet that **tries to stay upright** — joint springs toward a standing pose + a torso PD controller. Recovers from moderate knocks, topples on big ones. |
 | `boxskin` | one texture **skinned across a joint** (LBS over two bones), A/B vs rigid two-part rendering. The playtime `meshusert` idea, minimal. |
-| `boxhuman` | the whole FIGURE: 15 bones, 6 sprite skins, the sprite↔body 1:1 finally broken. Segment-distance weights + DQS; one leg strip bends at hip, knee AND ankle; left/right share a texture by mirroring geometry and not UVs. |
+| `boxhuman` | the whole FIGURE, then **five of them**: 15 bones and 6 sprite skins per guy, the sprite↔body 1:1 finally broken. One rig TABLE, N instances differing only by a stiffness multiplier. Four deformation modes A/B-able against a winding oracle; playtime's spine-bind + a curvature clamp. |
 | `boxjelly` | the culmination: verlet blob characters + Box2D crates + the self-righting puppet + one each of **static / kinematic / dynamic** bodies, two-way coupled, in one world. |
 
 **`runtime/boxrig.h`** is the promoted shelf (cart-land library header, ADR-0006 — not core
@@ -96,6 +96,16 @@ legible-and-delightful to a stranger).
   The lesson worth keeping: **the inverted-triangle oracle was right every time and the eyeballing
   never was.** Bake each triangle's winding at bind, compare every frame, and a number tells you
   what a zoomed crop cannot. It also caught both retractions.
+
+- **A crowd is a different test than a posed figure.** `boxhuman` runs **five** instances of one
+  rig table (`Fig` struct; per-figure `dx` and a `stiff` multiplier on every joint spring and
+  KEEP_ANGLE gain, so the same 15 bones read as five temperaments from floppy to rigid). Each
+  figure gets collision group `-(i+1)`: a negative group never collides with itself, so a guy
+  ignores his own limbs but bumps into his neighbours. That matters for measurement, because the
+  floppy guys reach collapsed, piled-up poses a single posed figure never does — and *that* is where
+  the deformation modes finally separate. Inverted triangles of 4400, all five folded:
+  **SPINE+clamp 3, DQS 20, LBS 20, RIGID 90**. On one figure they had tied. Cost 0.94ms for 4475
+  `tritex`/frame, so five guys are roughly linear in the one-guy cost.
 
 - **KEEP_ANGLE, and why playtime's "wrong" choice is right.** `boxhuman` now has a floor and
   ports playtime's per-body `KEEP_ANGLE` behaviour (`src/keep-angle.lua`): a PD controller that

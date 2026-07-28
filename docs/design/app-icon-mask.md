@@ -1,0 +1,105 @@
+# The app-icon mask: knowing which pixels iOS throws away
+
+STATUS: SHIPPED (2026-07-28), `tools/icon-mask.js` + the committed measured mask
+(`tools/icon-masks/ios26-2048.png`). Born from two apps sitting in review with their corners shaved.
+Sits under the store pipeline: [`store-agents.md`](store-agents.md) §1 is the *screenshot* half of
+the same problem, [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md) is the
+plumbing.
+
+You hand the App Store a **square** 1024×1024 PNG. iOS shows a **rounded-rect squircle**. The
+difference is 6.1% of your artwork, and you find out at review time unless you design against the
+real curve. This doc is the measured curve and what follows from it.
+
+## Don't guess the shape, Apple ships a renderer
+
+Xcode 26 bundles Icon Composer, and inside it a CLI:
+
+```
+/Applications/Xcode26_6.app/Contents/Applications/Icon Composer.app/Contents/Executables/ictool
+```
+
+`ictool` renders a `.icon` document through the **real** iOS mask. Feed it a flat full-bleed layer
+and the output's **alpha channel *is* the mask**:
+
+```
+ictool Probe.icon --export-image --output-file out.png --platform iOS \
+       --rendition Default --width 1024 --height 1024 --scale 2
+```
+
+(The minimal `.icon` document is a folder: `icon.json` with `fill` / `groups[].layers[].image-name` /
+`supported-platforms`, plus `Assets/<image>.png`. `fill` wants **four** comma-separated components.)
+
+`node tools/icon-mask.js rebuild` drives exactly that, keeps the alpha at 2048², symmetrises it
+8-fold, and commits the result. So the mask in this repo is measured from Apple's own renderer, not
+traced off a blog post. `--check` re-derives and diffs it (skipping cleanly on a machine without
+Xcode), so an Xcode update that changes the shape shows up as a failing gate instead of a surprise
+rejection. Wired into `repo-doctor`.
+
+## What the measurement says
+
+At 1024×1024, from the committed mask:
+
+| | |
+|---|---|
+| area thrown away | **6.1%** (~64k px) |
+| flat part of each side | **38%** of the edge |
+| corner curve run-in | the first **~316 px** of every edge is curving |
+| corner square lost outright | **78×78 px** at each corner |
+
+Three findings that change how you draw:
+
+1. **It is not a superellipse.** The best-fit `|x|ⁿ + |y|ⁿ = 1` is **n = 4.39** and still misses the
+   real boundary by **42 px at 1024**. The popular "n=5 squircle" and the "corner radius = 22.37%"
+   rule are both the *wrong shape* here. Apple's curve is a continuous-curvature spline; approximate
+   it and your corners land further off than the thing you were trying to align. Use the mask.
+2. **iOS 26 is a strict envelope of the classic iOS 7 to 18 mask.** Checked row by row against the
+   continuous rounded rect at r = 0.2237·w, the iOS 26 boundary is at or inside the old one at
+   *every* angle (worst crossing: 0.0 px). So **one template covers both**: survive iOS 26 and you
+   survive iOS 18. That is why the tool ships a single profile instead of a per-OS zoo.
+3. **The inscribed circle is entirely safe.** A circle of diameter = the full icon width sits inside
+   the mask (tangent at the four edge midpoints; at 45° the mask boundary is 613 px from centre
+   against the circle's 512). **Anything inside that circle survives.** Only the four corner slivers
+   between circle and mask edge are at risk. That is the whole rule, and it is why the template
+   draws that circle heaviest.
+
+## The trap that actually bit us
+
+Both apps in review draw a **device chassis**, a rounded rectangle with a coloured border, inside
+the square. A hand-drawn rounded rect has *circular* corners; the mask has *continuous* ones. Even
+when the chassis looks comfortably inside, its corners poke through the mask near the diagonals and
+get shaved, so the border reads as broken at four points. It looks like a bug in the icon.
+
+The fix is not "make the radius bigger". Draw the border **on an offset of the mask itself**:
+
+```
+node tools/icon-mask.js template --inset 28      # green line = the mask, eroded 28px
+node tools/icon-mask.js mask --inset 28          # that curve as a plain mask, to composite
+```
+
+## The workflow
+
+```
+node tools/icon-mask.js template                 # design against this (red = gone)
+node tools/icon-mask.js template --overlay       # transparent inside, float it over artwork
+node tools/icon-mask.js check apps/<app>/icon.png
+```
+
+`check` is the oracle. Per corner it asks whether the cut region is **flat background** (safe: the
+mask takes nothing but backdrop) or carries **detail** (loss), reports how far the lost ink reaches
+in, and writes a 3-up proof PNG: as drawn / as iOS shows it / what got cut, in magenta. `--quiet`
+exits nonzero when a corner loses detail, so it can gate a release.
+
+It also flags an icon with **transparent pixels**, which App Store validation rejects outright.
+Judge that from the raw bytes: sharp's `extractChannel(3)` does *not* reliably hand back the alpha
+band, and reported min=9 on a fully opaque icon.
+
+## Open
+
+- **Only the iOS/iPadOS mask is measured.** `ictool --platform` also takes macOS and watchOS
+  (rounded-square and circle). Same extraction, not yet run. Add profiles when we ship there.
+- **Legacy vs Icon Composer authoring.** We ship a flat 1024 PNG in the asset catalog and let iOS
+  mask it. Icon Composer's layered `.icon` format buys the iOS 26 glass / tinted / dark renditions
+  instead of one flat image for all of them. Not adopted; it would be a real design decision, not a
+  build change.
+- **A `check` step in the app build.** `build-app.js --ios` stages the icon; it could run the corner
+  check and refuse a build that loses detail.

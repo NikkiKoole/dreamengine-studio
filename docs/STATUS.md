@@ -13,6 +13,25 @@ _Last updated: 2026-07-26 (**THE CONTEMPORARY REBIRTH, RUNGS A + B — a post-ha
 
 ## Shipped ✓
 
+- **The app-icon mask, measured** (2026-07-28) — `tools/icon-mask.js` + a committed
+  `tools/icon-masks/ios26-2048.png`. Two apps were in review with their icon corners visibly shaved,
+  so we stopped guessing the squircle: **Xcode 26's Icon Composer ships `ictool`**, which renders a
+  `.icon` document through the **real** iOS mask, and the alpha of a flat full-bleed render *is* the
+  mask. `rebuild` drives it, keeps the alpha at 2048², symmetrises 8-fold (pre-symmetry asymmetry was
+  1/255, so the shape really is 4-fold symmetric) and commits; `--check` re-derives and diffs, gated
+  in `repo-doctor`, skipping cleanly without Xcode. Three findings changed how we draw: it is **not a
+  superellipse** (best fit n=4.39 still misses by 42 px at 1024, so the folklore "n=5 / r=22.37%" is
+  the wrong shape), iOS 26 is a **strict envelope** of the classic iOS 7 to 18 mask (checked per row,
+  worst crossing 0.0 px, so one template covers both), and the **inscribed circle is entirely safe**
+  (only the four corner slivers are at risk, which is the whole design rule). The trap it explains:
+  a hand-drawn rounded-rect chassis has *circular* corners where the mask has *continuous* ones, so
+  it pokes through near the diagonals and the border reads as broken at four points; draw it on
+  `--inset` (an eroded offset of the mask) instead. `check <icon.png>` is the oracle: per corner,
+  flat background (safe) or detail (loss), how far the lost ink reaches, a 3-up proof PNG, and
+  `--quiet` to gate a release. Both icons in review measured: pedalboard loses 16 to 18% of each
+  corner region, tinyacidjam 40 to 45%. Design:
+  [`design/app-icon-mask.md`](design/app-icon-mask.md).
+
 - **The contemporary ReBirth, rungs A + B** (2026-07-26) — a post-hardware rack clones **techniques,
   not machines**. ReBirth RB-338 cloned specific boxes because in 1997 the genre lived in unobtainable
   hardware; modern genres were never made on gear, so their identity lives in a *workflow* (the glide,
@@ -1681,10 +1700,33 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     The *months* were right throughout since they came from page footers; only the numbers moved. The
     mapping is now **validated against the eleven `PART N:` labels the PDF prints itself**, so it is
     trustworthy going forward. Fixed everywhere, including the docs that cite back.
-    Remaining (§D5 ranks them): **flutes 52-54** against `PIPE`, which has a *known* intonation caveat in
-    `studio.h` and is therefore the best value left; the **Hammond 55-59** against `ORGAN`; and the
-    **effects arc 60-62 plus Part 22**, the only remaining chapters about the effects layer rather than an
-    engine. Roughly 50 of the 63 articles are now read end to end.
+    **§K = recipe pass 6, FLUTES** (Parts 52-54) — run next precisely because `studio.h` already carried an
+    open tuning question about `INSTR_PIPE`, and the chapters resolve it. Reid gives the mechanism: because
+    the embouchure hole sits away from the bore end, "the **effective length of the flute increases for
+    higher harmonics**", so a jet-driven pipe genuinely drifts and drifts worse the higher you play — and
+    real instruments are *built* with compensation, since "flute manufacturers try to compensate for this by
+    making tiny adjustments to the position of the cork". **We already do that in software**, and the
+    interesting finding is why it still misses: `sound_pipe_start`'s second-stage ramp
+    (`ex = 0.40·(jetLen−5)`, **clamped at 0.80**) saturates at jetLen ≥ 7 and is asked to serve both jetLen
+    7 and 9, fitting neither. Measured with `tune-check --engine PIPE`: morph 0.70 (jetLen 5, the
+    calibration point) in tune at −1.5¢ worst ✓; morph **0.40** (jetLen 7) **+13…+17¢ sharp** because the
+    saturated ramp over-corrects; morph **0.20** (jetLen 9) −19¢ then a mode collapse at C6 that the
+    engine's own comment already predicts. **Two doc claims therefore need narrowing** — `studio.h` says low
+    embouchure drifts *flat* when at the most plausible mid setting it drifts *sharp*, and
+    [`design/audio-notes.md`](design/audio-notes.md) §18's "in tune ±3¢ at **any sane embouchure**" holds
+    only near its calibration point (same class as §E9: a recorded number that does not survive
+    re-measurement). Separately and also measured: **the `harmonics` macro does not overblow at all** — no
+    register jump at any value, it drives the jet nonlinearity so it brightens and pulls flat (−26¢ by C5)
+    — yet the docstring promises a "fundamental → octave flageolet". And one engine covers three bore
+    topologies the book treats as physically distinct: a pan pipe is closed at the bottom so it has **only
+    odd harmonics** and overblows a *twelfth*, while a flute is open and overblows an *octave*. Plus a
+    second sighting of the noise-through-the-bore win (§E1 found it for brass): Reid needs a formant bank
+    of six to forty filters to tune breath noise to the note, and we get it free by injecting noise into
+    the excitation. Sixth citation for §B2 keytracking, with a value ("pitch tracking of a few percent").
+    Remaining (§D5 ranks them): the **Hammond 55-59** against `ORGAN`, the largest remaining engine arc;
+    and the **effects arc 60-62 plus Part 22**, the only chapters about the effects layer rather than an
+    engine. Roughly 53 of the 63 articles are now read end to end. After those, the plan is to turn the
+    per-section step tables into one ordered step-by-step guide.
 
 ---
 

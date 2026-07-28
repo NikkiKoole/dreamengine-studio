@@ -176,6 +176,13 @@ matrix (+ the "at least" upload set + video note) lives in
 > Still to add (v0.2): frame-diff dedup (mpdecimate/fingerprint), palette-derived backgrounds,
 > multi-line/bottom captions, optional device bezels.
 
+**1b. The app ICON is the same problem one asset over.** You hand the store a square 1024², iOS
+shows a squircle and eats 6.1% of it. Measured, templated and checkable:
+[`app-icon-mask.md`](app-icon-mask.md) + `tools/icon-mask.js`. Deterministic all the way (the mask
+comes out of Apple's own `ictool`), so there's no agent half here, but it's the asset most likely to
+reach review visibly broken, because the shave lands on exactly the corners a hand-drawn chassis
+border runs through.
+
 **v0.1 SHIPPED (2026-07-03): `tools/store-contact.js`** — the hero-picker's deterministic half.
 Turns a `play.js --dump` clip into a labelled contact sheet (evenly-sampled numbered tiles +
 a printed tile→frame map), so the **agent leg works**: I read the sheet, pick the frames that

@@ -311,6 +311,16 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              centered on a bg + caption (Comic Mono Bold, the editor font) in the breathing room; --font
                              swaps it (Bungee etc). Zero engine work. ffmpeg-based,
                              no node deps. Feed it a play.js --dump frame. Design: docs/design/store-agents.md §1
+             icon-mask.js    the APP-ICON MASK template + "which pixels get cut off" oracle. The mask is MEASURED
+                             from Apple's own renderer (Xcode 26's Icon Composer `ictool`: the alpha of a flat
+                             full-bleed render IS the mask), committed as tools/icon-masks/ios26-2048.png; `--check`
+                             re-derives + diffs it (repo-doctor gate, skips without Xcode). `template` = the guide you
+                             draw against (red = gone; --overlay = a transparent LAYER; --inset px = the offset curve to
+                             put your own chassis border ON, because a hand-drawn rounded rect has circular corners
+                             where the mask has continuous ones and gets shaved, the trap that bit two apps in review) ·
+                             `check <icon.png>` = per-corner flat-background-vs-lost-detail report + a 3-up proof PNG,
+                             --quiet gates a release. SAFE RULE: the inscribed circle is entirely inside the mask.
+                             Design: docs/design/app-icon-mask.md
              store-contact.js  build a labelled CONTACT SHEET from a play.js --dump dir (evenly-sampled, numbered
                              tiles + a tile→frame map) so an agent eyeballs a whole clip and PICKS the hero shots to
                              feed store-shots.js — the deterministic half of §1's hero-frame director (agent chooses).

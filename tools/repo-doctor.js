@@ -60,6 +60,7 @@ const CHECKS = [
   { name: "history",      tool: "build-history.js",      args: ["--check"],     gate: true },
   { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
   { name: "xrefs",        tool: "lint-xrefs.js",         args: ["--strict"],    gate: true }, // GRADUATED 2026-07-10: both tiers reached 0 (were 58/203) — exempt classes documented in its header
+  { name: "icon mask",    tool: "icon-mask.js",          args: ["--check"],     gate: true }, // committed app-icon mask vs Apple's ictool; skips (exit 0) without Xcode
   // --- ADVISORY: hygiene / backlog / nudges ---
   { name: "handoff",      tool: "handoff.js",            args: ["--check"] },
   { name: "driftable",    tool: "stale-doc-check.js",    args: ["--driftable"], warn: num(/(\d+) likely drifted/) },

@@ -93,6 +93,15 @@ Design the *voices* intent-first; never inherit the cousin's instrument lineup.
 | **A step sequencer / looper** (a grid or a record-and-layer loop) | the beat clock (`bpm`/`beat`/`beat_pos`) + `schedule_hit` | `drummachine` (16-step grid), `loopstation` (4-track live looper), `mariopaint` (note-placement staff), `tracker` (Song→Chain→Phrase tracker — the song-ARRANGEMENT reference, [`design/tracker-cart.md`](../design/tracker-cart.md)) | |
 | **A multitouch keyboard / pad toy** | the touch API (`touch_*`, `tapr`, `touch_ended_*`) | `touchpiano` (per-finger note_on/off), `multitouch` (paint), `sh101` (chord + fader at once) | Touch model + release API: [`design/touch-notes.md`](../design/touch-notes.md). |
 
+**Drawing a NECK? Use tab order.** A horizontal fretboard puts the HIGH string on top and low E at
+the bottom (higher pitch, higher on the page: what every guitarist reads). Drawing string index 0 on
+top mirrors the neck, which reads as a *left-handed* guitar facing you. Both
+[`pedalboard`](../../tools/carts/pedalboard.c) and [`fretboard`](../../tools/carts/fretboard.c)
+shipped inverted and a player caught it (fixed 2026-07-29). Flip the **row mapping only** (invert the
+index inside `STR_Y(s)` / `str_y(s)`, and invert it back in the y→string hit-test); leave the string
+arrays and the low→high strum order index-ordered, so the audio never moves. Expect one consequence:
+a physical downstroke (low to high) now sweeps *up* the screen, exactly as tab implies.
+
 **Which engine for which timbre?** (the `INSTR_*` modeled engines, wave ids 16+):
 `PLUCK` = plucked string (Karplus-Strong) · `MALLET` = struck bar/metal · `ORGAN` =
 drawbar sines · `EPIANO` = Rhodes/Wurli/Clav · `FM` = 2-op DX bell/bass · `PD` = Casio

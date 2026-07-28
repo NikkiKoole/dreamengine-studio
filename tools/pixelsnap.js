@@ -52,6 +52,14 @@
 //   node tools/pixelsnap.js docs/marketing/tinyjam/icons/tinyjam-icon-pixel.png
 //   node tools/pixelsnap.js in.png out.png --grid 96x96 --colors 24 --scale 6
 //   node tools/pixelsnap.js in.png --palette pico32 --dither --scale 8
+//
+// MAKING AN APP ICON with this? The square you snap is NOT what iOS shows: it masks
+// the icon to a squircle and throws ~6% away, corners first. Draw against the mask
+// (tools/icon-mask.js template --overlay), then check the snapped result:
+//   node tools/icon-mask.js check   <icon.png>    # per corner: background, or lost detail?
+//   node tools/icon-mask.js preview <icon.png>    # how it reads at every real size
+// Grid choice interacts with the mask: a coarse --grid puts big cells in the corners,
+// so a cut lands on whole cells and reads as a chewed edge. docs/design/app-icon-mask.md
 
 'use strict'
 

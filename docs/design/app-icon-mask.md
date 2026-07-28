@@ -107,6 +107,10 @@ node tools/icon-mask.js template --overlay          # tools/icon-masks/template-
 node tools/icon-mask.js template --overlay --inset 28 --out /tmp/guide.png   # + the border curve
 ```
 
+0. **If the art came out of an image generator, snap it first:** `tools/pixelsnap.js` (off-grid soft
+   pixels → a real grid, gradient soup → a small palette). That is the usual upstream step for our
+   icons. Its `--grid` choice interacts with the mask: coarse cells in the corners mean the cut lands
+   on whole cells and reads as a chewed edge, so check afterwards, not before.
 1. **Get the overlay layer.** `template --overlay` is transparent inside and red outside, so it
    floats on top of your artwork in Procreate/Photoshop as a locked top layer: red = gone. The plain
    `template` (white inside, opaque red outside) is the version to draw *under* if you'd rather.

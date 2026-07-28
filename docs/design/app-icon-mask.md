@@ -76,13 +76,54 @@ node tools/icon-mask.js template --inset 28      # green line = the mask, eroded
 node tools/icon-mask.js mask --inset 28          # that curve as a plain mask, to composite
 ```
 
+## Verified against a real device, so the prediction is trustworthy
+
+A measured mask is only worth as much as its match to a phone. `icon-mask.js device <icon.png>` is
+the proof, and it runs end to end: borrow a simulator `.app`, swap in the icon via `actool`, install
+it into a booted iOS 26 simulator, screenshot the home screen, locate the new icon by diffing the
+before/after screenshots (largest roughly-square changed region, polled until the install progress
+ring stops moving), crop it and diff its silhouette against the committed mask.
+
+Results on iOS 26.5 / iPhone 17:
+
+- **The mask matches to mean 0.13 px, max 0.70 px** (flat probe icon, 192 rows). Essentially exact.
+- **iOS applies no gloss to the flat PNG we ship.** A pure-magenta probe comes back
+  rgb 254-255, 0-1, 254-255 across the whole interior: no gradient, no specular, no inner border.
+  So *masking alone* is a faithful prediction, and `preview` deliberately does nothing else.
+  (Careful: `ictool` *does* gloss its render, because a `.icon` document is the layered Icon Composer
+  format that opts into the glass treatment. That is a property of the format, not of our asset.)
+- **The home-screen icon is 192 px, not 180.** iOS 26 draws it at 64pt @3x. Worth knowing before
+  hand-tuning pixel art to a size that stopped being current.
+- **The downscale filter is closest to mitchell.** Swept every candidate against the real device
+  render of a busy pixel-art icon at 192 px: mitchell 5.44/255 mean delta, cubic 5.90, lanczos2 5.94,
+  lanczos3 6.93, nearest 11.82, all at zero pixel offset. So `preview` uses mitchell. The ~2%
+  residual is filter-level difference on high-contrast pixel art, not a treatment iOS is applying,
+  and no shift was needed, which confirms the crop and the mask are aligned.
+
 ## The workflow
 
 ```
 node tools/icon-mask.js template                 # design against this (red = gone)
 node tools/icon-mask.js template --overlay       # transparent inside, float it over artwork
-node tools/icon-mask.js check apps/<app>/icon.png
+node tools/icon-mask.js check   apps/<app>/icon.png    # what gets cut, per corner
+node tools/icon-mask.js preview apps/<app>/icon.png    # what it will LOOK like, every real size
+node tools/icon-mask.js device  apps/<app>/icon.png    # what a real iOS 26 phone actually draws
 ```
+
+`preview` is the everyday one: the icon masked and shrunk to 1024 (App Store product page), 192
+(home screen), 128 (iPad home), 120 (Spotlight), 87 (Settings) and 60 (notifications), on a light and
+a dark backdrop, smooth-scaled the way iOS scales. Only the 192 is measured; the rest are Apple's
+pt×scale and are labelled as such in the sheet. It is where a lo-fi icon's fate is decided, because
+the mask takes the corners but the *downscale* takes the fine detail, and at 87 px a pixel-font
+wordmark turns to mush.
+
+Two places it now runs without being asked:
+
+- **`build-app.js`** prints the corner verdict right after it stages the icon into the asset catalog,
+  the last moment the icon is still cheap to change. Advisory: a build is not the place to refuse
+  over taste.
+- **The editor's Apps tab** grew a per-app **🎨 icon** button (`check` + `preview`, sheet opened for
+  you). See [`../guides/editor-features.md`](../guides/editor-features.md).
 
 `check` is the oracle. Per corner it asks whether the cut region is **flat background** (safe: the
 mask takes nothing but backdrop) or carries **detail** (loss), reports how far the lost ink reaches

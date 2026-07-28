@@ -44,6 +44,7 @@ The per-cart **media bin** — [`../design/promote-tab.md`](../design/promote-ta
 |---|---|---|
 | **⇪ Share popover** — per-cart exports, grouped by audience | topbar ⇪ Share | [`../design/share-panel.md`](../design/share-panel.md) |
 | **Apps tab (ASO lab)** — app-less keyword lab + apps from `apps/*/app.json`; per-app: 📸 screenshots → 📄 press kit, 🍎/📱/🤖 Mac/iOS/Android builds, 📝 worksheet · 🔎 research · 💡 suggest · 🧩 compose · 🔬 analyze · 📊 score · ✅ lint · 🪞 check the `listing` | Apps tab | [`../design/store-agents.md`](../design/store-agents.md), [`../design/press-kit.md`](../design/press-kit.md) |
+| **🎨 icon** — what the iOS squircle mask CUTS OFF this app's icon (per-corner: flat background or lost detail) plus the preview sheet: the icon masked and shrunk to every real display size, light + dark, opened for you. The measured mask, not an approximation | Apps tab → per-app 🎨 icon | [`../design/app-icon-mask.md`](../design/app-icon-mask.md) |
 
 ## Elsewhere in the window
 

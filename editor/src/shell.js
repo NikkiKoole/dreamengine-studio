@@ -2833,6 +2833,7 @@ async function renderAppsList() {
         <span class="app-sec">give</span>
         <button data-act="mac">🍎 Mac app</button>
         <button data-act="ios">📱 iOS app</button>
+        <button data-act="iconmask" title="what the iOS squircle mask cuts off this icon, and how it reads at every real size">🎨 icon</button>
         <span class="app-sec">site</span>
         <button data-act="shots">📸 screenshots</button>
         <button data-act="press">📄 press kit</button>
@@ -2984,6 +2985,7 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const stop = busyDots(btn, 'working', label); btn.disabled = true
     rlogClear()
     if (act === 'press') await window.studio.pressKit(app)
+    else if (act === 'iconmask') await window.studio.iconMask(app)
     else if (act === 'shots') await window.studio.appShots(app)
     else if (act === 'lint' || act === 'compose') await window.studio.asoApp(app, act)
     else await window.studio.buildApp(app, act)

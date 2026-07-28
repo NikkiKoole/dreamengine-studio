@@ -48,7 +48,7 @@
 'use strict'
 const fs = require('fs')
 const path = require('path')
-const { execFileSync } = require('child_process')
+const { execFileSync, spawnSync } = require('child_process')
 const mk = require(path.join(__dirname, 'make-cart.js'))
 
 const ROOT = path.join(__dirname, '..')
@@ -474,6 +474,20 @@ ${fs.readFileSync(c.src, 'utf8')}`)
   }
   fs.copyFileSync(iconSrc, path.join(setDir, 'icon-1024.png'))
   console.log(`✓ staged app icon ${app.icon || 'ios/default-icon.png (default)'} → ios/gen/Assets.xcassets`)
+  // iOS masks that square PNG to a squircle and throws ~6% away. Warn HERE (the last moment the
+  // icon is still cheap to change) if the mask is eating real detail rather than flat background.
+  // Advisory only — the build is not the place to refuse over taste. docs/design/app-icon-mask.md
+  try {
+    const r = spawnSync('node', [path.join(ROOT, 'tools/icon-mask.js'), 'check', iconSrc, '--no-proof'],
+      { cwd: ROOT, encoding: 'utf8' })
+    // just the verdict, not the per-corner table — that's what `check` itself is for
+    const lines = (r.stdout || '').split('\n')
+      .filter(l => /^[⚠·✓]/.test(l.trim()) && /detail is being cut|flat background|alpha|TRANSPARENT|1024/.test(l))
+    for (const l of lines) console.log(`    ${l.trim()}`)
+    if (r.status !== 0 || /real detail is being cut/.test(r.stdout || '')) {
+      console.log(`    → see it: node tools/icon-mask.js preview ${path.relative(ROOT, iconSrc)}`)
+    }
+  } catch { /* icon check is advisory; never break a build over it */ }
   console.log(`✓ staged ${units.length} cart TUs → ios/gen/app  (${d0.screenW}x${d0.screenH})`)
   units.forEach((c, i) => console.log(`    ctx ${i}: ${c.name}${c === launcher ? '  (launcher)' : ''}`))
   console.log(`  next: cd ios && APP=${target} ./build.sh   (sim)  ·  APP=${target} ./device.sh   (phone)`)

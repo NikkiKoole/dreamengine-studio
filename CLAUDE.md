@@ -319,8 +319,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              put your own chassis border ON, because a hand-drawn rounded rect has circular corners
                              where the mask has continuous ones and gets shaved, the trap that bit two apps in review) ·
                              `check <icon.png>` = per-corner flat-background-vs-lost-detail report + a 3-up proof PNG,
-                             --quiet gates a release. SAFE RULE: the inscribed circle is entirely inside the mask.
-                             Design: docs/design/app-icon-mask.md
+                             --quiet gates a release · `preview` = what it will LOOK like, masked + shrunk to every
+                             real display size (1024 store · 192 home · 120 Spotlight · 87 Settings · 60 notif),
+                             light + dark, which is where a lo-fi icon dies · `device` = GROUND TRUTH, installs the
+                             icon into a booted iOS 26 simulator and crops what the home screen actually drew (the
+                             mask matched it to mean 0.13px, and a flat PNG gets NO gloss). Runs itself from
+                             build-app.js icon staging + the editor Apps tab 🎨 icon button. SAFE RULE: the
+                             inscribed circle is entirely inside the mask. Design: docs/design/app-icon-mask.md
              store-contact.js  build a labelled CONTACT SHEET from a play.js --dump dir (evenly-sampled, numbered
                              tiles + a tile→frame map) so an agent eyeballs a whole clip and PICKS the hero shots to
                              feed store-shots.js — the deterministic half of §1's hero-frame director (agent chooses).

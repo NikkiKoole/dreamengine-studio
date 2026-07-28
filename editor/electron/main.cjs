@@ -2452,6 +2452,38 @@ ipcMain.handle('studio:press-kit', async (_e, name) => {
   })
 })
 
+// app icon vs the iOS mask (docs/design/app-icon-mask.md): run the per-corner CHECK, then render the
+// PREVIEW sheet (the icon masked + shrunk to the real sizes iOS shows it at) and open it. Answers
+// "what will this icon actually look like on a phone / in the store" without a build or a submission.
+ipcMain.handle('studio:icon-mask', async (_e, name) => {
+  const wc = _e.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, output: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  let icon = null
+  try {
+    const app = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
+    icon = app.icon ? path.join(ROOT, app.icon) : null
+  } catch (e) { log(`\n✗ ${e.message}\n`); return { ok: false } }
+  if (!icon || !fs.existsSync(icon)) {
+    log(`\n── icon ${name} ──\nno "icon" in apps/${name}/app.json (the build falls back to ios/default-icon.png)\n`)
+    return { ok: false }
+  }
+  log(`\n── icon ${name} ──\n`)
+  const step = (args) => new Promise(resolve => {
+    const proc = spawn('node', [path.join(ROOT, 'tools/icon-mask.js'), ...args], { cwd: ROOT })
+    proc.stdout.on('data', c => log(c.toString()))
+    proc.stderr.on('data', c => log(c.toString()))
+    proc.on('exit', code => resolve(code))
+    proc.on('error', e => { log(String(e.message) + '\n'); resolve(1) })
+  })
+  await step(['check', icon])
+  const sheet = path.join(ROOT, 'build', `${name}-icon-preview.png`)
+  await step(['preview', icon, '--out', sheet])
+  if (fs.existsSync(sheet)) { log(`\nopening ${path.relative(ROOT, sheet)}\n`); shell.openPath(sheet) }
+  return { ok: true }
+})
+
 // ── trailer builder (docs/design/trailer-builder.md) ──────────
 // app-clips: the LIBRARY — each rack's committed clips (baked webm and/or a recipe) + the current
 // tools/reels/<name>.reel parsed into rows, so the builder opens pre-populated (never blank).

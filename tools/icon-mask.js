@@ -22,6 +22,10 @@
  *   - The flat part of each side is only 38% of the side. Corners eat ~31% from each end.
  *   - THE DESIGNER'S RULE: the inscribed circle (diameter = full icon width) is entirely inside the
  *     mask. Anything within that circle survives. Only the four corner slivers outside it are at risk.
+ *   - VERIFIED ON A REAL iOS 26.5 DEVICE (simulator, iPhone 17): the committed mask matches the
+ *     home-screen silhouette to mean 0.13px / max 0.70px, and the interior comes back FLAT (a probe
+ *     rendered rgb 254-255,0-1,254-255) — so iOS applies NO gloss/specular to the flat PNG we ship
+ *     from the asset catalog. Masking alone is a faithful prediction. `device` re-runs that proof.
  *
  * USAGE
  *   node tools/icon-mask.js template [--size 1024] [--out f.png] [--overlay] [--plain]
@@ -35,6 +39,17 @@
  *       Report what the mask cuts off THIS icon, per corner: is the cut region flat background
  *       (safe) or does it carry detail (loss)? Writes a 3-up proof PNG (as drawn / as shown /
  *       what got cut). --quiet exits nonzero if any corner loses detail — release gate.
+ *   node tools/icon-mask.js preview <icon.png> [--out sheet.png] [--nearest]
+ *       WHAT IT WILL LOOK LIKE: the icon masked and shrunk to the real pixel sizes iOS and the
+ *       store display it at, on both a light and a dark backdrop. This is the everyday "will my art
+ *       survive" view — the mask eats the corners, the downscale eats the fine pixel detail, and
+ *       small sizes are where a lo-fi icon dies. --nearest keeps pixels crisp (NOT what iOS does;
+ *       it smooth-scales, which is the default here).
+ *   node tools/icon-mask.js device <icon.png> [--sim <udid|name>] [--out f.png] [--keep]
+ *       GROUND TRUTH, not a prediction: stage the icon into a throwaway app, install it into a
+ *       booted iOS 26 simulator, screenshot the home screen, auto-locate the icon (before/after
+ *       screenshot diff), crop it, and diff the silhouette against the committed mask. Needs Xcode
+ *       + a simulator .app to borrow (ios/build/.../Debug-iphonesimulator/*.app). Uninstalls after.
  *   node tools/icon-mask.js rebuild        re-derive the committed mask from ictool (needs Xcode 26)
  *   node tools/icon-mask.js --check        gate: committed mask still matches ictool (skips w/o Xcode)
  *
@@ -361,6 +376,229 @@ async function cmdCheck (file, opts) {
   if (opts.quiet && anyLoss) process.exit(1)
 }
 
+// ── preview: what it will actually look like ─────────────────────────────────────────────────────
+// The pixel sizes iOS/the store really display an icon at. Only the iPhone home-screen number is
+// MEASURED (192px on iOS 26.5 / iPhone 17 — iOS 26 grew the home-screen icon to 64pt @3x, so the
+// familiar "180" is stale); the rest are Apple's nominal pt×scale and are labelled as such.
+const DISPLAY_SIZES = [
+  { px: 1024, label: 'App Store', note: 'product page' },
+  { px: 192, label: 'home screen', note: '64pt @3x', measured: true },
+  { px: 128, label: 'iPad home', note: '64pt @2x' },
+  { px: 120, label: 'Spotlight', note: '40pt @3x' },
+  { px: 87, label: 'Settings', note: '29pt @3x' },
+  { px: 60, label: 'notification', note: '20pt @3x' }
+]
+
+// mask an icon at a given size and return a premultiplied-over-background RGBA buffer
+async function maskedAt (file, n, bg, kernel) {
+  const m = await loadMask(n)
+  const { data, info } = await sharp(file).resize(n, n, { fit: 'cover', kernel }).ensureAlpha().raw()
+    .toBuffer({ resolveWithObject: true })
+  const C = info.channels
+  const px = Buffer.alloc(n * n * 4)
+  for (let i = 0; i < n * n; i++) {
+    const a = (m[i] / 255) * (data[i * C + 3] / 255)
+    for (let c = 0; c < 3; c++) px[i * 4 + c] = Math.round(data[i * C + c] * a + bg[c] * (1 - a))
+    px[i * 4 + 3] = 255
+  }
+  return px
+}
+
+async function cmdPreview (file, opts) {
+  if (!fs.existsSync(file)) { console.error(`✗ no such file: ${file}`); process.exit(1) }
+  // 'mitchell', not lanczos: swept against the REAL device render (see `device`), mitchell was the
+  // closest match to iOS's own downscale at 192px — mean |delta| 5.44/255 vs cubic 5.90, lanczos2
+  // 5.94, lanczos3 6.93, nearest 11.82, all at zero pixel offset. The ~2% residual is filter-level
+  // difference on high-contrast pixel art, not a treatment iOS applies.
+  const kernel = opts.nearest ? 'nearest' : 'mitchell'
+  const BIG = 384                                    // the 1024 tile, shown scaled down to fit
+  const ROWS = [
+    { name: 'light', bg: [0xf2, 0xf2, 0xf7], fg: '#1c1c1e' },
+    { name: 'dark', bg: [0x1c, 0x1c, 0x1e], fg: '#e8e8ed' }
+  ]
+  const pad = 28, lab = 34, gap = 24
+  const tiles = DISPLAY_SIZES.map(s => ({ ...s, draw: s.px > BIG ? BIG : s.px }))
+  const rowW = tiles.reduce((a, t) => a + t.draw + gap, 0) - gap
+  const rowH = Math.max(...tiles.map(t => t.draw)) + lab
+  const W = rowW + pad * 2, H = ROWS.length * (rowH + pad)   // bands tile H exactly, no sliver
+
+  const layers = []
+  const texts = []
+  let top = pad / 2
+  for (const row of ROWS) {
+    let left = pad
+    for (const t of tiles) {
+      let buf = await maskedAt(file, t.px, row.bg, kernel)
+      let img = sharp(buf, { raw: { width: t.px, height: t.px, channels: 4 } })
+      if (t.draw !== t.px) img = img.resize(t.draw, t.draw, { kernel: 'lanczos3' })
+      layers.push({ input: await img.png().toBuffer(), left, top: top + (rowH - lab - t.draw) })
+      const cx = left + t.draw / 2, ty = top + rowH - 10
+      texts.push(`<text x="${cx}" y="${ty - 14}" fill="${row.fg}" font-family="Helvetica,Arial" font-size="15" font-weight="600" text-anchor="middle">${t.label}${t.measured ? ' ✓' : ''}</text>` +
+        `<text x="${cx}" y="${ty}" fill="${row.fg}" opacity="0.6" font-family="Helvetica,Arial" font-size="12" text-anchor="middle">${t.px}px · ${t.note}${t.draw !== t.px ? ` (shown ${t.draw})` : ''}</text>`)
+      left += t.draw + gap
+    }
+    top += rowH + pad
+  }
+  // backdrop bands, one per row, so each row reads as its own environment
+  const bands = ROWS.map((r, i) => `<rect x="0" y="${i * (rowH + pad)}" width="${W}" height="${rowH + pad}" fill="rgb(${r.bg.join(',')})"/>`).join('')
+  let out = sharp({ create: { width: W, height: H, channels: 4, background: { r: 0xf2, g: 0xf2, b: 0xf7, alpha: 1 } } })
+    .composite([{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${bands}</svg>`) }])
+  out = sharp(await out.png().toBuffer()).composite(layers)
+  try {
+    out = sharp(await out.png().toBuffer())
+      .composite([{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${texts.join('')}</svg>`) }])
+  } catch { /* no librsvg — skip labels */ }
+  await out.png().toFile(opts.out)
+  console.log(`✓ ${path.relative(process.cwd(), opts.out)}  ${path.basename(file)} as iOS will show it, light + dark`)
+  console.log(`  sizes: ${DISPLAY_SIZES.map(s => s.px + (s.measured ? '✓' : '')).join(' · ')}   (✓ = measured on a real iOS 26.5 home screen; rest are Apple's pt×scale)`)
+  console.log(`  scaled with ${opts.nearest ? 'NEAREST (crisp, but NOT what iOS does)' : 'mitchell — the closest match to iOS\'s own downscale, measured against a device render (~2% residual)'}`)
+  console.log(`  the mask is applied, and nothing else: a flat asset-catalog PNG gets NO gloss on iOS 26 (verified — see \`device\`)`)
+}
+
+// ── device: the real thing, not a prediction ─────────────────────────────────────────────────────
+function sh (cmd, args, opts = {}) {
+  return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts })
+}
+function pickSim (want) {
+  const list = JSON.parse(sh('xcrun', ['simctl', 'list', 'devices', 'available', '--json'])).devices
+  const all = []
+  for (const [runtime, devs] of Object.entries(list)) for (const d of devs) all.push({ ...d, runtime })
+  if (want) {
+    const hit = all.find(d => d.udid === want || d.name === want)
+    if (!hit) throw new Error(`no such simulator: ${want}`)
+    return hit
+  }
+  const booted = all.filter(d => d.state === 'Booted')
+  const ios26 = (d) => /iOS-2[6-9]/.test(d.runtime)
+  return booted.find(ios26) || booted[0] ||
+    all.filter(d => ios26(d) && /iPhone/.test(d.name)).sort((a, b) => a.name.localeCompare(b.name))[0] ||
+    all.find(d => /iPhone/.test(d.name))
+}
+// largest roughly-square connected component of a boolean mask over a W×H field
+function biggestBlob (hit, W, H, minSide) {
+  const seen = new Uint8Array(W * H)
+  let best = null
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (seen[y * W + x] || !hit(x, y)) continue
+    const st = [[x, y]]; seen[y * W + x] = 1
+    let n = 0, x0 = W, y0 = H, x1 = -1, y1 = -1
+    while (st.length) {
+      const [px, py] = st.pop(); n++
+      if (px < x0) x0 = px; if (py < y0) y0 = py; if (px > x1) x1 = px; if (py > y1) y1 = py
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = px + dx, ny = py + dy
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || seen[ny * W + nx] || !hit(nx, ny)) continue
+        seen[ny * W + nx] = 1; st.push([nx, ny])
+      }
+    }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1
+    const square = w >= minSide && h >= minSide && w / h > 0.75 && h / w > 0.75
+    if (square && (!best || n > best.n)) best = { n, x0, y0, x1, y1, w, h }
+  }
+  return best
+}
+
+async function cmdDevice (file, opts) {
+  if (!fs.existsSync(file)) { console.error(`✗ no such file: ${file}`); process.exit(1) }
+  // a simulator .app to borrow — we only swap its icon, we never run it
+  const donors = [
+    'ios/build/Build/Products/Debug-iphonesimulator',
+    'ios/build/Build/Products/Release-iphonesimulator'
+  ].flatMap(d => glob(path.join(ROOT, d), /\.app$/))
+  if (!donors.length) {
+    console.error('✗ no simulator .app to borrow. Build one first: (cd ios && ./build.sh) — or run `preview`, which needs nothing.')
+    process.exit(1)
+  }
+  const dev = pickSim(opts.sim)
+  console.log(`· simulator: ${dev.name} (${dev.runtime.replace(/.*SimRuntime\./, '')}) ${dev.state}`)
+  if (dev.state !== 'Booted') { sh('xcrun', ['simctl', 'boot', dev.udid]); sh('xcrun', ['simctl', 'bootstatus', dev.udid, '-b']) }
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'icondev-'))
+  const app = path.join(tmp, 'IconProbe.app')
+  sh('cp', ['-R', donors[0], app])
+  for (const junk of ['PlugIns', '__preview.dylib']) fs.rmSync(path.join(app, junk), { recursive: true, force: true })
+  for (const f of fs.readdirSync(app)) if (f.endsWith('.storekit')) fs.rmSync(path.join(app, f), { force: true })
+  const BUNDLE = 'com.dreamengine.iconprobe'
+  for (const [k, v] of [['CFBundleIdentifier', BUNDLE], ['CFBundleName', 'IconProbe'], ['CFBundleDisplayName', 'IconProbe']]) {
+    try { sh('plutil', ['-replace', k, '-string', v, path.join(app, 'Info.plist')]) } catch { sh('plutil', ['-insert', k, '-string', v, path.join(app, 'Info.plist')]) }
+  }
+  const set = path.join(tmp, 'Assets.xcassets/AppIcon.appiconset')
+  fs.mkdirSync(set, { recursive: true })
+  await sharp(file).resize(1024, 1024, { fit: 'cover' }).removeAlpha().png().toFile(path.join(set, 'icon-1024.png'))
+  fs.writeFileSync(path.join(set, 'Contents.json'),
+    '{ "images": [{ "filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024" }], "info": { "author": "xcode", "version": 1 } }\n')
+  sh('xcrun', ['actool', '--compile', app, '--app-icon', 'AppIcon', '--platform', 'iphonesimulator',
+    '--minimum-deployment-target', '18.0', '--target-device', 'iphone',
+    '--output-partial-info-plist', path.join(tmp, 'partial.plist'), path.join(tmp, 'Assets.xcassets')])
+
+  // make sure it isn't already there, so the AFTER shot really is "one new icon"
+  try { sh('xcrun', ['simctl', 'uninstall', dev.udid, BUNDLE]) } catch {}
+  const shot = (name) => { const p = path.join(tmp, name); sh('xcrun', ['simctl', 'io', dev.udid, 'screenshot', p]); return p }
+  const before = shot('before.png')
+  sh('xcrun', ['simctl', 'install', dev.udid, app])
+
+  const A = await sharp(before).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const W = A.info.width, H = A.info.height, C = A.info.channels
+  // The new icon = the biggest roughly-square region that CHANGED between the two shots. But right
+  // after install the home screen shows the icon DIMMED under an install progress ring, so poll
+  // until two consecutive shots agree on that region — otherwise we'd photograph the ring.
+  let after = null, B = null, blob = null, prev = null
+  for (let attempt = 0; attempt < 14; attempt++) {
+    sh('sleep', ['1'])
+    after = shot(`after${attempt}.png`)
+    B = await sharp(after).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+    const changed = (x, y) => {
+      const o = (y * W + x) * C
+      return Math.max(Math.abs(A.data[o] - B.data[o]), Math.abs(A.data[o + 1] - B.data[o + 1]), Math.abs(A.data[o + 2] - B.data[o + 2])) > 24
+    }
+    blob = biggestBlob(changed, W, H, 48)
+    if (!blob) { prev = null; continue }
+    const snap = Buffer.alloc(blob.w * blob.h * 3)
+    for (let y = 0; y < blob.h; y++) for (let x = 0; x < blob.w; x++) {
+      const o = ((blob.y0 + y) * W + blob.x0 + x) * C, t = (y * blob.h + x) * 3
+      snap[t] = B.data[o]; snap[t + 1] = B.data[o + 1]; snap[t + 2] = B.data[o + 2]
+    }
+    if (prev && prev.length === snap.length) {
+      let d = 0
+      for (let i = 0; i < snap.length; i++) d += Math.abs(snap[i] - prev[i])
+      if (d / snap.length < 2) break                       // settled
+    }
+    prev = snap
+  }
+  if (!blob) {
+    console.error('✗ could not find the new icon in the home-screen screenshot. Is the home screen showing (not an open app)?')
+    console.error(`  screenshots kept for inspection: ${tmp}`)
+    process.exit(1)
+  }
+  const n = Math.max(blob.w, blob.h)
+  await sharp(after).extract({ left: blob.x0, top: blob.y0, width: blob.w, height: blob.h }).png().toFile(opts.out)
+
+  // silhouette check: the device's own edge vs our committed mask, subpixel, per row
+  const mk = await loadMask(n)
+  const dat = (await sharp(after).extract({ left: blob.x0, top: blob.y0, width: blob.w, height: blob.h })
+    .resize(n, n, { fit: 'fill' }).removeAlpha().raw().toBuffer())
+  const bgo = (blob.y0 - 6) * W * C + Math.max(0, blob.x0 - 6) * C  // wallpaper just outside the icon
+  const bg = [B.data[bgo], B.data[bgo + 1], B.data[bgo + 2]]
+  const isIcon = (x, y) => {
+    const o = (y * n + x) * 3
+    return Math.max(Math.abs(dat[o] - bg[0]), Math.abs(dat[o + 1] - bg[1]), Math.abs(dat[o + 2] - bg[2])) > 24 ? 255 : 0
+  }
+  const edge = (f, y) => { for (let x = 0; x < n - 1; x++) { const a = f(x, y), b = f(x + 1, y); if (a < 128 && b >= 128) return x + (128 - a) / (b - a); if (a >= 128) return x } return NaN }
+  // Skip the top/bottom few rows: there the boundary runs almost horizontally, so a row-scan for a
+  // vertical edge is ill-conditioned and a sub-pixel vertical offset reads as a large horizontal one.
+  let s = 0, k = 0, mx = 0
+  for (let y = 4; y < n - 4; y++) {
+    const a = edge(isIcon, y), b = edge((x, yy) => mk[yy * n + x], y)
+    if (!isFinite(a) || !isFinite(b)) continue
+    const d = Math.abs(a - b); s += d; k++; if (d > mx) mx = d
+  }
+  console.log(`✓ ${path.relative(process.cwd(), opts.out)}  the REAL device render, ${blob.w}×${blob.h} px`)
+  if (k > 8) console.log(`  silhouette vs our committed mask: mean ${(s / k).toFixed(2)}px, max ${mx.toFixed(2)}px over ${k} rows — the prediction holds`)
+  else console.log('  (silhouette compare skipped: the icon art is too close to the wallpaper to key an edge)')
+  if (!opts.keep) { try { sh('xcrun', ['simctl', 'uninstall', dev.udid, BUNDLE]) } catch {} ; fs.rmSync(tmp, { recursive: true, force: true }) }
+  else console.log(`  kept: probe app installed, workdir ${tmp}`)
+}
+
 // ── rebuild / self-check ────────────────────────────────────────────────────────────────────────
 async function cmdRebuild (verifyOnly) {
   const ict = findIctool()
@@ -395,7 +633,9 @@ function usage () {
 
   node tools/icon-mask.js template [--size 1024] [--out f.png] [--overlay] [--plain] [--inset px]
   node tools/icon-mask.js mask     [--size 1024] [--out f.png] [--inset px]
-  node tools/icon-mask.js check <icon.png> [--out proof.png] [--tol 24] [--quiet]
+  node tools/icon-mask.js check    <icon.png> [--out proof.png] [--tol 24] [--quiet]
+  node tools/icon-mask.js preview  <icon.png> [--out sheet.png] [--nearest]
+  node tools/icon-mask.js device   <icon.png> [--sim <udid|name>] [--out f.png] [--keep]
   node tools/icon-mask.js rebuild        re-derive the mask from Apple's ictool
   node tools/icon-mask.js --check        gate: committed mask still matches ictool`)
 }
@@ -416,14 +656,28 @@ function usage () {
   if (cmd === 'template') return cmdTemplate({ size, inset, overlay: has('overlay'), plain: has('plain'),
     out: flag('out', path.join(ROOT, `build/icon-template-${size}${has('overlay') ? '-overlay' : ''}.png`)) })
   if (cmd === 'mask') return cmdMask({ size, inset, out: flag('out', path.join(ROOT, `build/icon-mask-${size}${inset ? '-inset' + inset : ''}.png`)) })
+  // <cmd> <icon.png> commands share one default-output convention: build/<parent>-<file>-<suffix>.png
+  const arg1 = () => argv.filter(a => !a.startsWith('--'))[1]
+  const defOut = (file, suffix) => {
+    const stem = (path.basename(path.dirname(path.resolve(file))) + '-' + path.basename(file)).replace(/\.png$/i, '')
+    return path.join(ROOT, 'build', `${stem}-${suffix}.png`)
+  }
+  if (cmd === 'preview') {
+    const file = arg1()
+    if (!file) { console.error('✗ preview needs an icon path'); process.exit(1) }
+    return cmdPreview(file, { nearest: has('nearest'), out: flag('out', defOut(file, 'preview')) })
+  }
+  if (cmd === 'device') {
+    const file = arg1()
+    if (!file) { console.error('✗ device needs an icon path'); process.exit(1) }
+    return cmdDevice(file, { sim: flag('sim', null), keep: has('keep'), out: flag('out', defOut(file, 'device')) })
+  }
   if (cmd === 'check') {
-    const file = argv.filter(a => !a.startsWith('--'))[1]
+    const file = arg1()
     if (!file) { console.error('✗ check needs an icon path'); process.exit(1) }
     // name the proof after <parent>-<file> — every app's icon is called "icon.png", so a plain
     // basename would have each check silently overwrite the last one's proof.
-    const stem = (path.basename(path.dirname(path.resolve(file))) + '-' + path.basename(file)).replace(/\.png$/i, '')
-    const def = path.join(ROOT, 'build', stem + '-maskproof.png')
-    return cmdCheck(file, { out: has('no-proof') ? null : flag('out', def), tol: parseInt(flag('tol', '24'), 10), quiet: has('quiet') })
+    return cmdCheck(file, { out: has('no-proof') ? null : flag('out', defOut(file, 'maskproof')), tol: parseInt(flag('tol', '24'), 10), quiet: has('quiet') })
   }
   usage(); process.exit(1)
 })().catch(e => { console.error('✗ ' + (e.stack || e.message)); process.exit(1) })

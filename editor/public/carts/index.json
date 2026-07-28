@@ -2852,7 +2852,7 @@
   },
   {
     "title": "Fonts",
-    "description": "Showcases the three built-in fonts (FONT_NORMAL 8×8, FONT_SMALL 4×6, FONT_TINY 3×5), print_shadow, print_outline, and the chained print return value.",
+    "description": "Showcases all six built-in fonts (FONT_NORMAL 8×8, FONT_THIN 8×8, FONT_TIC 6×6, FONT_SMALL 4×6, FONT_TINY 3×5, FONT_COMIC 10×20) — each line printed in the font it names — plus drop shadow, print_outline, text_width, and the chained print return value.",
     "file": "fonts.cart.png",
     "created": "2026-06-01",
     "kind": [

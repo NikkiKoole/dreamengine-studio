@@ -575,8 +575,9 @@ worked example (HUD row, start-menu legend, mode-tile + per-slider icons).
 
 - **Editor**: Comic Mono (TTF). **In-game**: `dos_8x8.png` (16×16 grid of 8×8 glyphs, loaded via
   `LoadFontFromImage`).
-- More in-game fonts via `font(FONT_*)`: `FONT_SMALL` 4×6, `FONT_TINY` 3×5, `FONT_LARGE` (MDA 9×14),
-  `FONT_BOOT` (VGA 9×16), `FONT_SMOOTH` (8×8 EPX-upscaled). **Adding a font:**
+- More in-game fonts via `font(FONT_*)`: `FONT_SMALL` 4×6, `FONT_TINY` 3×5, `FONT_COMIC` (Comic Mono
+  Bold 10×20), `FONT_THIN` (IBM CGA thin 8×8), `FONT_TIC` (TIC-80 wide 6×6) — six total; `rottext`
+  cycles them. **Adding a font:**
   [`docs/design/font-rendering.md`](docs/design/font-rendering.md) → "the bitmap-font pipeline".
 
 ## Tutorial carts

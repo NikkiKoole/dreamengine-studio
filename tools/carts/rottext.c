@@ -28,9 +28,9 @@ STATE {
     int   fi;        // font index into FONTS[]
 };
 
-static const int   FONTS[]  = { FONT_NORMAL, FONT_SMALL, FONT_TINY, FONT_COMIC,    FONT_THIN };
-static const char *FNAMES[] = { "NORMAL 8x8", "SMALL 4x6", "TINY 3x5", "COMIC 10x20", "THIN CGA 8x8" };
-#define NFONTS 5
+static const int   FONTS[]  = { FONT_NORMAL, FONT_SMALL, FONT_TINY, FONT_COMIC,    FONT_THIN,      FONT_TIC };
+static const char *FNAMES[] = { "NORMAL 8x8", "SMALL 4x6", "TINY 3x5", "COMIC 10x20", "THIN CGA 8x8", "TIC-80 6x6" };
+#define NFONTS 6
 
 void init(void) {
     S->fi = 3;   // show off the comic font by default; X cycles through them all

@@ -137,8 +137,38 @@ function ttfGlyphs(fontFile, px, gw, gh, threshold = 0.5, patches = {}) {
   return glyphs
 }
 
+// ── source 3: a TIC-80 .inl glyph table → fixed gw×gh cells ──
+// TIC-80 ships its system fonts as C initialiser lists (src/core/font.inl = the WIDE
+// font, altfont.inl = the narrow one): 127 glyphs × 8 bytes, one byte per scanline.
+// Two differences from the IBM ROM path: the bytes are hex TEXT, not binary, and the
+// bit order is REVERSED — LSB = leftmost (IBM ROM dumps are MSB-first). Ink occupies
+// the top-left of each 8×8 byte cell (the wide font is 5×6 inked), so a tighter cell
+// than 8×8 just crops the empty margin — that's the advance/leading TIC-80 itself uses.
+function inlGlyphs(srcFile, gw, gh) {
+  const src = fs.readFileSync(path.join(ROOT, 'tools/fonts', srcFile), 'utf8')
+  const bytes = (src.match(/0x[0-9a-fA-F]{2}/g) || []).map(h => parseInt(h, 16))
+  if (bytes.length % 8) { console.error(`${srcFile}: ${bytes.length} bytes is not a whole number of 8-row glyphs`); process.exit(1) }
+  const count = bytes.length / 8
+  const glyphs = []
+  for (let code = 0; code < 256; code++) {
+    const g = Array.from({ length: gh }, () => Array(gw).fill(0))
+    if (code < count) {
+      for (let y = 0; y < gh && y < 8; y++) {
+        const row = bytes[code * 8 + y]
+        for (let x = 0; x < gw && x < 8; x++) g[y][x] = (row >> x) & 1   // LSB = leftmost
+      }
+    }
+    glyphs.push(g)
+  }
+  return glyphs
+}
+
 // ── generate everything ──
 writeAtlas(ttfGlyphs('ComicMono-Bold.ttf', 18, 10, 20, 0.5, COMIC_PATCHES), 10, 20, 'fontcomic10x20.png', 'fontcomic10x20_data.h', 'FONTCOMIC10X20',
   'Comic Mono Bold rasterized at 18px into 10×20 cells (source: ComicMono-Bold.ttf, MIT).')
 writeAtlas(romGlyphs('CGA-TH.F08', 8, 8), 8, 8, 'fontthin8x8.png', 'fontthin8x8_data.h', 'FONTTHIN8X8',
   'IBM CGA "thin" 8×8 atlas — the narrow alternate CGA ROM font (source: int10h CGA-TH.F08, public-domain ROM dump).')
+// 6×6 = TIC-80's own metrics: 5 inked columns + 1 advance, 6 rows (descenders sit on
+// the last row, so lines touch — exactly as they do in TIC-80).
+writeAtlas(inlGlyphs('tic80-font.inl', 6, 6), 6, 6, 'fonttic6x6.png', 'fonttic6x6_data.h', 'FONTTIC6X6',
+  'TIC-80 wide system font, 6×6 cells (source: nesbox/TIC-80 src/core/font.inl, MIT).')

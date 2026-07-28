@@ -184,6 +184,7 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
 #define FONT_TINY    2   // 3×5 font — fits ~80 chars across 320px
 #define FONT_COMIC   3   // Comic Mono Bold baked to pixels (18px, 10×20) — friendly rounded handwriting; great for titles/dialogue
 #define FONT_THIN    4   // IBM CGA "thin" 8×8 — the narrow-stroke alternate CGA ROM font; lighter than the default 8×8
+#define FONT_TIC     5   // TIC-80's wide 6×6 font — chunky 2px-stem fantasy-console letters; fits ~53 chars across 320px
 void font(int f);        // set active font for all print calls; font(FONT_NORMAL) resets to the default 8×8
 int  text_width(const char *text);                                 // pixel width using the active font — for centering in your own boxes
 int  print(const char *text, int x, int y, int color);             // returns x after the last char (so you can chain or check if text went offscreen)

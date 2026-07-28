@@ -24,6 +24,7 @@
 #include "font3x5_data.h"
 #include "fontcomic10x20_data.h"
 #include "fontthin8x8_data.h"
+#include "fonttic6x6_data.h"
 
 typedef struct { const char *name; const unsigned char *data; int len; int firstChar; } Spec;
 
@@ -39,6 +40,7 @@ int main(void) {
         { "font_tiny",  FONT3X5_DATA,        FONT3X5_DATA_LEN,        32 },
         { "font_comic", FONTCOMIC10X20_DATA, FONTCOMIC10X20_DATA_LEN, 0  },
         { "font_thin",  FONTTHIN8X8_DATA,    FONTTHIN8X8_DATA_LEN,    0  },
+        { "font_tic",   FONTTIC6X6_DATA,     FONTTIC6X6_DATA_LEN,     0  },
     };
     int nfonts = (int)(sizeof specs / sizeof specs[0]);
     int aw[8], ah[8], bs[8], gc[8];              // per-font dims/counts, captured for the summary table
@@ -95,7 +97,7 @@ int main(void) {
         UnloadImage(img);
     }
 
-    fprintf(f, "enum { DE_FONT_GAME, DE_FONT_SMALL, DE_FONT_TINY, DE_FONT_COMIC, DE_FONT_THIN, DE_FONT_COUNT };\n");
+    fprintf(f, "enum { DE_FONT_GAME, DE_FONT_SMALL, DE_FONT_TINY, DE_FONT_COMIC, DE_FONT_THIN, DE_FONT_TIC, DE_FONT_COUNT };\n");
     fprintf(f, "static const DeBakedFont DE_BAKED_FONTS[%d] = {\n", nfonts);
     for (int i = 0; i < nfonts; i++)
         fprintf(f, "  { \"%s\", %d, %d, %s_atlas, %d, %d, %s_glyphs },\n",

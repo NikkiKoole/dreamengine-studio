@@ -1,6 +1,6 @@
 # Font rendering — playful text, beyond `print`
 
-STATUS: EXPLORING — text-effect proposals; the two baked tiny fonts await print_small/print_tiny wiring.
+STATUS: EXPLORING — text-effect proposals (print_wave / print_type / inline control codes) still open; the font family + bake pipeline below have SHIPPED.
 
 > **Genre: design exploration (scratchpad).** Rationale + proposed signatures for
 > not-yet-built text effects. It is **not** the status ledger and **not** the decision
@@ -147,7 +147,9 @@ recipe, not archaeology.
 > **Update (2026-06-12, later):** `FONT_LARGE` (MDA 9×14), `FONT_BOOT` (VGA 9×16), and
 > `FONT_SMOOTH` (16×16 EPX) were **dropped** — they weren't the right fit. With them went their
 > atlases/data headers, the `MDA9.F14`/`VGA9.F16` ROM dumps, and the EPX `smoothGlyphs` source.
-> The family is now **five**, and the constants were renumbered contiguous.
+> The constants were renumbered contiguous.
+>
+> **Update (2026-07-28):** `FONT_TIC` added (source 3 below) — the family is now **six**.
 
 | constant | cell | source | character |
 |---|---|---|---|
@@ -156,6 +158,7 @@ recipe, not archaeology.
 | `FONT_TINY`   | 3×5  | TTF bake (2026-06-01) | max density |
 | `FONT_COMIC`  | 10×20| `ComicMono-Bold.ttf` rasterized @18px | friendly rounded handwriting; titles/dialogue |
 | `FONT_THIN`   | 8×8  | IBM **CGA** "thin" ROM dump | narrow-stroke alternate; lighter than the default |
+| `FONT_TIC`    | 6×6  | TIC-80 `src/core/font.inl` | chunky 2px stems; small but bold (added 2026-07-28) |
 
 `tools/carts/rottext.c` is the playground: it cycles all fonts on **X** and renders each font's
 name in that font (also the `print_rot` angle harness it was originally built for).
@@ -163,7 +166,9 @@ name in that font (also the `print_rot` angle harness it was originally built fo
 ### The atlas format — the contract every font shares
 
 All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` path in
-`studio.c` (no per-font code), so each atlas PNG must be built identically:
+`studio.c` (no per-font code) — and, on the non-Raylib backend, through the pre-baked twin of
+that scan in `runtime/fonts_baked.h` (see the checklist below). So each atlas PNG must be built
+identically:
 
 - **16×16 grid** of glyph cells. `dos_8x8`, the CGA ROM font, and the comic TTF bake use
   **`firstChar = 0`** (cell index == codepoint); the tiny TTF-baked fonts use `32`.
@@ -175,7 +180,7 @@ All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` p
 - Sheet size = `cells*cell + (cells+1)` per axis (the +1s are the separator lattice). A
   9×14 font → `16*9+17 = 161` wide, `16*14+17 = 241` tall.
 
-### Two ways to fill an atlas (both in `gen-rom-font.js`)
+### Three ways to fill an atlas (all in `gen-rom-font.js`)
 
 1. **IBM ROM dump** (`FONT_THIN`). Raw `*.F08`/`*.F14`/`*.F16` files from VileR's int10h
    collection live in `tools/fonts/`. Each is 256 glyphs × H bytes, one byte per 8-pixel
@@ -194,20 +199,43 @@ All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` p
    hand cleanups survive every re-bake — keyed by character, `[x, y, value]`, cell-local coords.
    **Only works on monospace TTFs** — a proportional font baked into fixed cells loses its spacing
    (the engine's `print` is monospace: `text_width = strlen × cell`).
+3. **Another fantasy console's glyph table** (`FONT_TIC`). `inlGlyphs(srcFile, gw, gh)` reads a
+   TIC-80 `.inl` — its system fonts ship as C initialiser lists (`src/core/font.inl` = the wide
+   font, `altfont.inl` = the narrow one), 127 glyphs × 8 bytes, one byte per scanline. Two traps
+   vs the ROM path: the bytes are **hex text**, not binary, and the bit order is **reversed**
+   (LSB = leftmost; IBM ROM dumps are MSB-first). Ink sits top-left in each 8×8 byte cell, so
+   asking for a tighter `gw`/`gh` just crops the empty margin — that's how `FONT_TIC` gets TIC-80's
+   own 6×6 metrics (5 inked columns + 1 advance). **Check the bit order by eyeballing one letter
+   before baking 256** — reversed, the glyphs still look plausibly font-shaped, just wrong.
+   The same reader handles any console that dumps its font as a byte-per-scanline table.
 
 ### Wiring a new font in (the mechanical checklist)
 
 `gen-rom-font.js` emits two files per font: `editor/public/font<NAME>.png` (human-viewable)
 and `runtime/font<NAME>_data.h` (embedded byte array). Then, to expose it:
 
-- **`runtime/studio.c` — five spots:** `#include` the header; add a `static Font font_x`;
-  load it in `init` (`LoadImageFromMemory(".png", …_DATA, …_DATA_LEN)` →
-  `LoadFontFromImage(img, YELLOW, 0)` → `SetTextureFilter(…, POINT)`); `UnloadFont` it on
-  shutdown; add an `active_font_id == FONT_X` case to `cur_font()`; and add `FONT_X` to the
-  `font()` validator's allowed set.
+- **`runtime/studio.c` — the font TABLE.** Since the table refactor there is no per-font draw
+  code: `cur_font()` / `cur_font_img()` / `text_width` / `sw_print` all index one array by
+  `active_font_id`, and load + unload are loops. So: `#include` the data header; add a
+  `static Font font_x` + `static Image font_x_img`; bump `FONT_COUNT`; append the two pointers
+  to `FONT_SLOT[]` / `FONT_IMG[]` (**same order as the `FONT_*` constants** — the id IS the
+  index); append `{ FONTX_DATA, FONTX_DATA_LEN, <firstChar> }` to the `FONT_SRC[]` table in
+  `de_init` (`firstChar` = 0 for a full 256-cell CP437 sheet, 32 for a printable-ASCII bake);
+  and add `FONT_X` to the `font()` validator's allowed set. `cur_font_size()` needs nothing —
+  it reads `baseSize` off the loaded font.
+- **`runtime/fonts_baked.h` — the DE_NO_RAYLIB path** (software canvas / iOS / Switch). That
+  backend has no GPU to scan a keyed atlas with, so the glyph table Raylib's
+  `LoadFontFromImage` would have produced is **pre-baked** by `tools/bake-fonts.c` (build+run
+  instructions in its header). Add your font to its `Spec` list, regenerate `fonts_baked.h`,
+  add a `DE_FONT_X` enum member, and add the matching `de_bind_font(...)` line to
+  `de_setup_baked_fonts()` in `studio.c`. **Skip this and the font works natively but is
+  missing/garbled on the software backend** — the native build won't tell you.
 - **The usual four places** for the `FONT_X` constant: `studio.h` (`#define` + one-liner),
   `studioDocs.js`, `shell.js` (the graphics section's `keys`). (`studio.c` is covered above.)
   Re-run `tools/gen-tcc-symbols.js` after touching `studio.h`.
+- **Check it renders** in `tools/carts/rottext.c` (cycles every font on **X**, printing each
+  font's name in itself), and run `node tools/canvas-diff.js rottext` to catch a
+  GPU-vs-software divergence — i.e. the baked-table step above having been missed or misordered.
 
 ### Sources & licensing
 
@@ -215,6 +243,13 @@ ROM dumps: VileR's [int10h vga-text-mode-fonts](https://github.com/viler-int10h/
 (`FONTS/PC-IBM/CGA-TH.F08` for `FONT_THIN`). The underlying IBM ROM bitmaps are public-domain;
 we keep the raw `.F08` in `tools/fonts/` as the source-of-truth so the generator is reproducible.
 `FONT_COMIC` is baked from `ComicMono-Bold.ttf` (MIT).
+
+`FONT_TIC` comes from [nesbox/TIC-80](https://github.com/nesbox/TIC-80) `src/core/font.inl`
+(**MIT**, © 2017 Vadim Grigoruk), vendored as `tools/fonts/tic80-font.inl` +
+`tools/fonts/TIC80-LICENSE.txt`. The same font is published by its author on FontStruct as
+["TIC-80 wide font"](https://fontstruct.com/fontstructions/show/1388526/tic-80-wide-font)
+under CC0 — we take the repo's glyph table instead because it needs no FontStruct login and
+gives the **exact** pixels rather than a re-rasterized TTF.
 
 ## When this settles
 

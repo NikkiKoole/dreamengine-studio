@@ -45,6 +45,7 @@
 #include "font3x5_data.h"
 #include "fontcomic10x20_data.h"
 #include "fontthin8x8_data.h"
+#include "fonttic6x6_data.h"
 #include "sprites_data.h"
 #include "map_data.h"
 #include "sound.h"
@@ -191,16 +192,18 @@ static Font            font_small = {0};
 static Font            font_tiny  = {0};
 static Font            font_comic = {0};
 static Font            font_thin = {0};
+static Font            font_tic  = {0};
 static int             active_font_id = FONT_NORMAL;
 // CPU copies of each font atlas (for the software-canvas glyph blit; filled at load via
 // LoadImageFromTexture). Same index meaning as active_font_id via cur_font_img().
-static Image           game_font_img = {0}, font_small_img = {0}, font_tiny_img = {0}, font_comic_img = {0}, font_thin_img = {0};
+static Image           game_font_img = {0}, font_small_img = {0}, font_tiny_img = {0}, font_comic_img = {0}, font_thin_img = {0}, font_tic_img = {0};
 static bool            custom_font = false;
-// font id (FONT_NORMAL..FONT_THIN) → its GPU Font + CPU image atlas. One table drives load,
+// font id (FONT_NORMAL..FONT_TIC) → its GPU Font + CPU image atlas. One table drives load,
 // the sw_print CPU copies, cur_font()/cur_font_img() lookup, and unload — see de_init.
-enum { FONT_COUNT = 5 };
-static Font  *const FONT_SLOT[FONT_COUNT] = { &game_font, &font_small, &font_tiny, &font_comic, &font_thin };
-static Image *const FONT_IMG [FONT_COUNT] = { &game_font_img, &font_small_img, &font_tiny_img, &font_comic_img, &font_thin_img };
+// ORDER IS THE CONTRACT: the FONT_* id IS the index into these (and into FONT_SRC below).
+enum { FONT_COUNT = 6 };
+static Font  *const FONT_SLOT[FONT_COUNT] = { &game_font, &font_small, &font_tiny, &font_comic, &font_thin, &font_tic };
+static Image *const FONT_IMG [FONT_COUNT] = { &game_font_img, &font_small_img, &font_tiny_img, &font_comic_img, &font_thin_img, &font_tic_img };
 static DeColor           palette[PALETTE_SIZE];
 static DeColor           base_palette[PALETTE_SIZE];   // pristine copy, for pal_reset()
 // pal()-on-sprites: a palette-swap shader. Sprite texels are exact palette RGBs,
@@ -2962,6 +2965,7 @@ static void de_setup_baked_fonts(void) {
     de_bind_font(&font_tiny,  &font_tiny_img,  &DE_BAKED_FONTS[DE_FONT_TINY]);
     de_bind_font(&font_comic, &font_comic_img, &DE_BAKED_FONTS[DE_FONT_COMIC]);
     de_bind_font(&font_thin,  &font_thin_img,  &DE_BAKED_FONTS[DE_FONT_THIN]);
+    de_bind_font(&font_tic,   &font_tic_img,   &DE_BAKED_FONTS[DE_FONT_TIC]);
 }
 
 void de_init(DeRenderer renderer) {
@@ -3382,6 +3386,7 @@ int main(int argc, char **argv) {
         { FONT3X5_DATA,        FONT3X5_DATA_LEN,        32 },   // FONT_TINY   — 3×5
         { FONTCOMIC10X20_DATA, FONTCOMIC10X20_DATA_LEN, 0  },   // FONT_COMIC  — Comic Mono Bold 10×20
         { FONTTHIN8X8_DATA,    FONTTHIN8X8_DATA_LEN,    0  },   // FONT_THIN   — IBM CGA thin 8×8
+        { FONTTIC6X6_DATA,     FONTTIC6X6_DATA_LEN,     0  },   // FONT_TIC    — TIC-80 wide 6×6
     };
     for (int i = 0; i < FONT_COUNT; i++) {
         Image img = de_image_decode(FONT_SRC[i].data, FONT_SRC[i].len);
@@ -4276,7 +4281,7 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
 // font state + print helpers
 // ------------------------------------------------------------
 
-void font(int f) { active_font_id = (f == FONT_SMALL || f == FONT_TINY || f == FONT_COMIC || f == FONT_THIN) ? f : FONT_NORMAL; }
+void font(int f) { active_font_id = (f > FONT_NORMAL && f < FONT_COUNT) ? f : FONT_NORMAL; }
 
 static Font cur_font(void) { return *FONT_SLOT[active_font_id]; }        // active_font_id clamped to 0..FONT_COUNT-1 by font()
 static Image *cur_font_img(void) { return FONT_IMG[active_font_id]; }

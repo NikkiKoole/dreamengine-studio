@@ -132,6 +132,19 @@ The rules that keep a control honest (a stranger reads it right without a manual
    until pressed again. Never draw a momentary as if it were stateful.
 5. **Feeling blocked vs free.** Turning a bounded pot past its stop should read as *blocked* (the
    pointer stops, maybe a nudge); an endless encoder should feel free and wrap.
+6. **A gesture nobody can SEE is not a control.** A hold, a double-tap, a long-press that opens a
+   page — none of it exists to a stranger, because a widget can't advertise a gesture the way it
+   advertises a bound or a detent. `acidcandy` proved this twice, and deleted the offender both
+   times rather than document it: its 4-way PICK/PLAY/MUTE/REC pad tool (the maker forgot the mode
+   existed at all, and *mute* sat 2–3 taps into a cycle), and later an FX chip whose knob page opened
+   on HOLD — *"im missing the extra knobs to tweak it?"*, with the knobs one invisible gesture away.
+   Needing to be told is the failure. So:
+   - **the frequent, beat-critical action gets the plain tap** (arming an effect, dropping a mute);
+     the slow gesture goes to the thing that isn't time-critical, never the reverse;
+   - a hidden gesture may only be a **shortcut to something already reachable in the open**;
+   - if a widget does carry a second gesture, it must **show** it — a charge-fill while a hold arms,
+     a latch border, or a **label that changes** (acidcandy's first knob reads `VOWL`, and `GLID`
+     once SPK is lit: the mode swap is legible instead of remembered).
 
 ## 6 · Beveled lo-fi — the rendering register
 

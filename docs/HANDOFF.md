@@ -142,6 +142,27 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > had never been visible to anyone, now fixed), yet passed `solina`'s invisible grey-on-brown readout. Run
 > it, then also read the baked PNG.
 >
+> **`spec()` now guards the structural claims — 16 assertions, `node tools/spec.js tr808 tr909`.** The
+> owner's prompt ("not just out of vanity, there are real things to prove") is exactly right, because the
+> 1.3 bug proves the gap: *every audible signal said the feature was fine* while it had stopped depending on
+> velocity. So the specs assert what no ear and no audio gate can see — the tilt is strictly increasing in
+> velocity; the cymbal's three decays stay unequal and ordered; the top cymbal band stays at/below its
+> measured aliasing ceiling; the new cymbal slots stay inside `TR808_NSLOT` (the `D909_BASE 23` collision
+> class); and **the preset data the A/B clips depend on** (PLANET ROCK's accents must miss its snare, BOOM
+> BAP's must land on it — a one-character preset edit would otherwise leave the clip testing nothing).
+> The shared banks carry their own via `tr808_selfcheck()` / `tr909_selfcheck()` (spec.h's "specs on an
+> includeable"). **All were verified to FAIL on the original bug before being kept** — re-introduce the old
+> curve and 2 go red on the 808, 1 on the 909. An assertion never seen failing is a guess.
+>
+> **A blocker worth knowing before you plan a spec:** `spec.h` reserves **`step`**, the obvious name in a
+> step sequencer. `acidcandy` cannot host a spec at all because of it (it has `static int step` for its
+> transport), and the error points at the cart's own pre-existing line, so it reads like the cart broke.
+> Written up in [`design/spec-harness.md`](design/spec-harness.md#reserved-names--step-is-the-one-that-bites).
+> Consequence here: the 808↔909 tilt-curve **drift** check (they carry duplicate copies on purpose) sits in
+> `tr909.h` behind `#ifdef TR808_H` and self-activates the day a both-headers cart can host a spec. It does
+> not run today. **`acidcandy.c` also has live foreign WIP right now** (another agent is building an FX hub
+> in it) — leave it alone and keep it out of your commits.
+>
 > **Also corrected an audit error rather than quietly coding around it:** §J9 claimed the snare's tone→noise
 > drift *over the note* was missing. It was already there — the noise layer outlives the body in both
 > machines (130/100ms, 170/90ms) and a hit's centroid climbs 10890 → 12279 Hz across its own decay. Only the

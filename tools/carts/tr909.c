@@ -647,3 +647,32 @@ void draw(void) {
     print("<>PRESET  ^vBPM  Z/X SHFL  Vdrag=PROB  S=STROKE  L=POLY", 14, 189, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
+
+// ── spec — the deterministic logic oracle (Synth Secrets plan item 1.3) ───────────────────────
+// Proves the STRUCTURE the ear and the audio gates can't see. tr909.h carries the voice bank's own
+// assertions ("specs on an includeable"); this adds what needs the CART's preset data.
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    step(1);                    // init once
+    tr909_selfcheck();          // the shared voice bank's own assertions
+
+    // The committed A/B clip (tools/clips/tr909/01-snare-soft-vs-accent.script) rests entirely on two
+    // facts about the presets, either of which could be edited away without a thought:
+    //   THE BELLS' accents must MISS its snare  → the clip's "soft" control region
+    //   GABBER's accents must LAND on its snare → the clip's "accented" region
+    int b_snare = 0, b_both = 0, g_snare = 0, g_both = 0;
+    for (int s = 0; s < STEPS; s++) {
+        int b_hit = PRESET[1].row[V_SD] && PRESET[1].row[V_SD][s] != '.' && PRESET[1].row[V_SD][s] != '\0';
+        int b_acc = PRESET[1].accent    && PRESET[1].accent[s]    == 'x';
+        int g_hit = PRESET[5].row[V_SD] && PRESET[5].row[V_SD][s] != '.' && PRESET[5].row[V_SD][s] != '\0';
+        int g_acc = PRESET[5].accent    && PRESET[5].accent[s]    == 'x';
+        b_snare += b_hit; b_both += (b_hit && b_acc);
+        g_snare += g_hit; g_both += (g_hit && g_acc);
+    }
+    expect(b_snare > 0 && b_both == 0,
+           "THE BELLS has snares and NONE are accented (the A/B clip's soft control region)");
+    expect(g_snare > 0 && g_both == g_snare,
+           "GABBER has snares and ALL are accented (the A/B clip's accented region)");
+}
+#endif

@@ -1,0 +1,24 @@
+# brass — ONE note: blow, hold, release, silence. The envelope A/B seed for §E10 (plan item 1.4).
+#
+# Two things this exists to control:
+#  1. autoplay is ON at boot (brass.c: `static bool autoplay = true`), and it plays a LEGATO fanfare in
+#     MONO — notes slur into each other, which smears the exact attack and release shapes being measured.
+#     M turns it off, and because mono+no-held-notes it also calls all_notes_off(), so the cart goes quiet.
+#  2. INSTR_BRASS SELF-OSCILLATES and holds for as long as you blow, so the note length is the key hold,
+#     not a decay. 'A' is the lowest blow pad.
+#
+# Layout: M at frame 2 (silence), blow at 30, release at 90 (1s hold), then 150 frames of nothing so the
+# whole release tail lands inside the render — the shipped release is 1200ms, which is 72 frames on its own.
+#
+#   node tools/ab-render.js brass --set brass_env=0,1 \
+#        --script tools/clips/brass/01-one-note-hold-release.script --frames 240
+#   node tools/wav-envelope.js <wav> 20 --from 0.45 --to 0.75   # ATTACK: how long to reach peak
+#   node tools/wav-envelope.js <wav> 20 --from 1.45 --to 2.60   # RELEASE: the tail, incl. the bore ring-down
+#
+# Careful reading the release: this engine's release governs the BORE ring-down as well as the amp
+# envelope (audit §E10), so a shorter release is not only an envelope change — it truncates the model's
+# own tail. That is the whole reason this item is an A/B and not an edit.
+down 2 m
+up 4 m
+down 30 a
+up 90 a

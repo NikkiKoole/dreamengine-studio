@@ -95,6 +95,15 @@ static int tr808_cym3 = 1;
 static int tr808_cym3_mid_hz = 5200;
 static int tr808_cym3_hi_hz  = 7100;
 
+// The three UNEQUAL decays are the §J5 structure itself, not incidental tuning — "this inequality of
+// decay times allows the TR808 to change the mix … as the sound progresses". Named so tr808_selfcheck()
+// can assert the ordering holds: if someone ever equalises them the migration silently disappears and
+// the cymbal goes back to a static spectrum while still sounding perfectly fine.
+#define TR808_CY_HP_LO     3440   // the low band's highpass — the shipped voice's only filter
+#define TR808_CY_DECAY_LO   850   // longest: this band alone IS the tail
+#define TR808_CY_DECAY_MID  420
+#define TR808_CY_DECAY_HI   150   // shortest, so the highs die first and the spectrum walks down
+
 // How far under the low band the two colour bands sit, in VELOCITY steps (tr808__vv clamps 0..7). This
 // is the balance lever — deliberately velocity and not instrument_level, because acidcandy and dubjam
 // use instrument_level as their per-slot MIXER (looping `i < TR808_NSLOT` from one fader) and would
@@ -236,8 +245,8 @@ static void tr808_build(int base) {
     instrument_filter(base + TRS_CB, FILTER_BAND, 2640, 5);
 
     // cymbal — bank squares through the 3440Hz region, very long ring
-    instrument(base + TRS_CYT, INSTR_SQUARE, 0, 850, 0, 200);
-    instrument_filter(base + TRS_CYT, FILTER_HIGH, 3440, 3);
+    instrument(base + TRS_CYT, INSTR_SQUARE, 0, TR808_CY_DECAY_LO, 0, 200);
+    instrument_filter(base + TRS_CYT, FILTER_HIGH, TR808_CY_HP_LO, 3);
     // …plus the schematic's upper two bands (§J5). Higher corner ⇒ shorter decay: the highs die first,
     // so the surviving spectrum walks downward through the tail instead of holding still. Always built;
     // tr808_cym3 decides whether a crash fires them.
@@ -258,9 +267,9 @@ static void tr808_build(int base) {
     // MIXER, looping `i < TR808_NSLOT` to drive every slot from one fader, which would silently overwrite
     // any internal balance a band set for itself. Velocity can't carry it either (tr808__vv is an int
     // 0..7 and the cymbal already fires at ~2). The band levels have to come out right by construction.
-    instrument(base + TRS_CYM, INSTR_SQUARE, 3, 420, 0, 120);   // mid — "near the centre of the range"
+    instrument(base + TRS_CYM, INSTR_SQUARE, 3, TR808_CY_DECAY_MID, 0, 120);   // mid — "near the centre of the range"
     instrument_filter(base + TRS_CYM, FILTER_BAND, tr808_cym3_mid_hz, 3);
-    instrument(base + TRS_CYH, INSTR_SQUARE, 2, 150, 0, 50);    // high — "the shortest Decay"
+    instrument(base + TRS_CYH, INSTR_SQUARE, 2, TR808_CY_DECAY_HI, 0, 50);    // high — "the shortest Decay"
     instrument_filter(base + TRS_CYH, FILTER_BAND, tr808_cym3_hi_hz, 3);
     // The low band is left exactly as it shipped: it alone survives past ~1.2s, so it IS the tail, and
     // touching it (a 0.62 trim on the first attempt) quietened the shipped tail by 4.2dB — an audible
@@ -402,5 +411,70 @@ static void tr808_tune(int base, int v, float semis) {
     case TR_CH:  instrument_tune(base + TRS_HATC, semis); break;
     }
 }
+
+// ── self-check — the spec.h "specs on an includeable" pattern ────────────────
+// A shared header can't define spec() (one per cart), but it can carry its own assertions; the including
+// cart's spec() just calls this. Live only under -DDE_SPEC, so a normal build pays nothing.
+//
+// What is worth proving here is NOT the sound (the audio gates and the owner's ear own that) but the two
+// STRUCTURAL claims the Synth Secrets work rests on — the ones that can silently stop being true while
+// everything still compiles, still renders, and still sounds fine:
+//
+//   1. The snare tilt must actually DEPEND ON VELOCITY. This is not hypothetical: the curve shipped for a
+//      while as `(boost * dyn + 1) / 2`, which looks like harmless half-strength scaling, but `boost` here
+//      is only ever 0/1/2 and the integer rounding mapped boost 1 AND boost 2 onto the same tilt. The
+//      feature measured as a real effect and A/B'd as a real effect while no longer being velocity-
+//      dependent at all — which was the entire point (§J9). No audio oracle can see that; this can.
+//   2. The cymbal's three decays must stay UNEQUAL and ORDERED. Equalise them and the spectral migration
+//      §J5 exists for silently vanishes, leaving a cymbal that still sounds like a cymbal.
+#ifdef DE_SPEC
+#include "spec.h"
+static inline void tr808_selfcheck(void) {
+    int save = tr808_snare_dyn;
+
+    // (1a) a SOFT hit must never tilt, at any strength — this is what keeps the change scoped to accents,
+    //      and it is the invariant the committed A/B clip verifies by sha for one pattern. Here: for all.
+    int soft_ok = 1;
+    for (int d = 0; d <= 4; d++) { tr808_snare_dyn = d; soft_ok &= tr808__snare_tilt(0) == 0; }
+    expect(soft_ok, "tr808 snare: boost 0 never tilts (soft hits stay exactly as shipped)");
+
+    // (1b) dyn 0 must be a true no-op at every velocity
+    tr808_snare_dyn = 0;
+    expect(tr808__snare_tilt(1) == 0 && tr808__snare_tilt(2) == 0,
+           "tr808 snare: dyn 0 is a true no-op (the shipped fixed balance)");
+
+    // (1c) THE ONE THAT CAUGHT THE BUG: a harder hit must tilt STRICTLY further than a softer one.
+    //      boost is only ever 0/1/2 in these carts, so any divisor in the curve collapses 1 and 2 together.
+    int dep_ok = 1;
+    for (int d = 1; d <= 2; d++) {
+        tr808_snare_dyn = d;
+        dep_ok &= tr808__snare_tilt(2) > tr808__snare_tilt(1);
+        dep_ok &= tr808__snare_tilt(1) > tr808__snare_tilt(0);
+    }
+    expect(dep_ok, "tr808 snare: tilt is STRICTLY increasing in boost (velocity-dependent, not just on)");
+
+    // (1d) and the strength knob must actually strengthen
+    int str_ok = 1;
+    for (int b = 1; b <= 2; b++) {
+        tr808_snare_dyn = 1; int t1 = tr808__snare_tilt(b);
+        tr808_snare_dyn = 2; int t2 = tr808__snare_tilt(b);
+        str_ok &= t2 > t1;
+    }
+    expect(str_ok, "tr808 snare: dyn 2 tilts further than dyn 1 at the same velocity");
+
+    tr808_snare_dyn = save;
+
+    // (2) the cymbal's three bands: decays strictly DESCENDING as the corner goes UP, which is what makes
+    //     the highs die first and the spectrum walk downward through the tail (Part 39).
+    expect(TR808_CY_DECAY_LO > TR808_CY_DECAY_MID && TR808_CY_DECAY_MID > TR808_CY_DECAY_HI,
+           "tr808 cymbal: the three decays are unequal and descending (the migration mechanism)");
+    expect(TR808_CY_HP_LO < tr808_cym3_mid_hz && tr808_cym3_mid_hz < tr808_cym3_hi_hz,
+           "tr808 cymbal: the three band corners ascend (low < mid < high)");
+    // measured ceiling: above ~7100 a band on INSTR_SQUARE starts amplifying the oscillator's ALIASING
+    // rather than cymbal (a stem at 7800 read -0.0 dBFS with a centroid of 21942 Hz against Nyquist 22050)
+    expect(tr808_cym3_hi_hz <= 7100,
+           "tr808 cymbal: top band stays at/below 7100Hz (above it the band amplifies aliasing)");
+}
+#endif
 
 #endif // TR808_H

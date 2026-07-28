@@ -153,6 +153,24 @@ compile with `-DDE_SPEC -DDE_TRACE`, run, collect JSONL pass/fail, per-cart repo
   `update` count = audio-param churn, not game logic). Judge candidates, don't trust the
   label blindly.
 
+### Reserved names — `step` is the one that bites
+
+`spec.h` declares **`void step(int n)`** at file scope, so a cart with its own `step`
+identifier cannot host a `spec()` at all: merely including `spec.h` shadows the cart's
+variable and its own code stops compiling. This is not hypothetical and it is not rare —
+`step` is the obvious name in a **step sequencer**, and it blocked `acidcandy` (which has
+`static int step` for its transport, plus a local `step` for cell width) from getting a spec
+in 2026-07. The failure is loud (`incompatible pointer to integer conversion initializing
+'int' with an expression of type 'void (int)'`) but it points at the cart's *existing* line,
+not at the spec, so it reads like the cart broke.
+
+Same hazard class as CLAUDE.md's "don't name a variable after a built-in", with the twist
+that **this collision only exists in the spec build**, so a cart can live happily for a year
+before anyone discovers it can't be spec'd. `expect`, `expect_eq`, `key_down`, `key_up` and
+`spec` are reserved the same way. If you want a spec on a sequencer cart, rename its
+transport variable first (`tstep` / `pstep` / `playhead`) — that is a mechanical but
+repo-wide rename in the cart, so budget for it rather than discovering it mid-task.
+
 ## Which carts warrant a spec — `tools/cart-analyze.js`
 
 Run `node tools/cart-analyze.js` for a ranked report (complexity × mutable global state).

@@ -110,6 +110,28 @@ Two mechanical traps that cost real time here, both worth a glance before handin
   370px footer on a 320px screen in `tr909`; it passed a grey-on-brown readout in `solina` that was
   invisible. Run it, then also read the baked PNG.
 
+**Where a claim is STRUCTURAL, write a `spec()` instead of re-measuring it by hand.** The audio gates and
+the owner's ear cover the sound; what neither can see is an invariant that stops being true while the cart
+still compiles, still renders, and still sounds right. 1.3's bug is the type specimen: the tilt curve had
+stopped depending on velocity and *every audible signal said it was fine*. A three-line assertion catches
+it forever. Shared headers carry their own assertions via the [`spec.h`](../../runtime/spec.h) **"specs on
+an includeable"** pattern — `<lib>_selfcheck()`, called from the including cart's `spec()` — so the check
+travels with the code rather than with one cart. Run `node tools/spec.js <cart>`.
+
+Two rules that make this worth the keystrokes rather than decoration:
+
+- **Prove the spec FAILS on the bug it was written for.** Re-introduce the defect, watch it go red, put it
+  back. 1.3's assertions were verified this way (2 fail on the 808, 1 on the 909 with the old curve).
+  An assertion never observed failing is a guess about what it tests.
+- **Assert the things a future editor could innocently break**, not tautologies. Worth having: the tilt is
+  strictly increasing in velocity; the cymbal's three decays stay unequal and ordered; the top cymbal band
+  stays at/below its measured aliasing ceiling; **and the preset data the A/B clips depend on** (PLANET
+  ROCK's accents must miss its snare, BOOM BAP's must land on it) — a one-character preset edit would
+  otherwise leave the clip silently testing nothing.
+
+Note `spec.h` **reserves `step`**, which is the obvious name in a step sequencer and blocks `acidcandy`
+from having a spec at all. See [spec-harness.md → "reserved names"](spec-harness.md#reserved-names--step-is-the-one-that-bites).
+
 A LISTEN item is **done** when the cart has an audible toggle, the numbers are in the ledger row, and you
 have said which side wins. If neither side clearly wins, the honest outcome is **DROP** — recorded with
 its measurement, so nobody re-litigates it.

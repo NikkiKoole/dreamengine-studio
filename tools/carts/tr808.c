@@ -495,3 +495,46 @@ void draw(void) {
              tr808_cym3 ? 3 : 1, tr808_snare_dyn);
     hint(hbuf);
 }
+
+// ── spec — the deterministic logic oracle (Synth Secrets plan items 1.2 + 1.3) ───────────────
+// The sound is judged by ear and by the audio gates; what this proves is the STRUCTURE those two can't
+// see — invariants that can stop being true while the cart still compiles, still renders, and still
+// sounds like an 808. tr808.h carries its own assertions (the "specs on an includeable" pattern); this
+// adds the ones that need the CART's own pattern data.
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    step(1);                    // init once (builds the bank, loads preset 0)
+    tr808_selfcheck();          // the shared voice bank's own assertions
+
+    // The committed A/B clip (tools/clips/tr808/02-snare-soft-vs-accent.script) only means anything
+    // because of these two facts about the PRESETS, and either could be edited away without a thought:
+    //   PLANET ROCK's accents must MISS its snare  → the clip's "soft" control region
+    //   BOOM BAP's accents must LAND on its snare  → the clip's "accented" region
+    // If a preset edit breaks either, the A/B silently stops testing what it claims to test.
+    int pr_snare = 0, pr_both = 0, bb_snare = 0, bb_both = 0;
+    for (int s = 0; s < STEPS; s++) {
+        int pr_hit = PRESET[0].row[V_SD] && PRESET[0].row[V_SD][s] == 'x';
+        int pr_acc = PRESET[0].accent   && PRESET[0].accent[s]   == 'x';
+        int bb_hit = PRESET[4].row[V_SD] && PRESET[4].row[V_SD][s] == 'x';
+        int bb_acc = PRESET[4].accent    && PRESET[4].accent[s]    == 'x';
+        pr_snare += pr_hit; pr_both += (pr_hit && pr_acc);
+        bb_snare += bb_hit; bb_both += (bb_hit && bb_acc);
+    }
+    expect(pr_snare > 0 && pr_both == 0,
+           "PLANET ROCK has snares and NONE are accented (the A/B clip's soft control region)");
+    expect(bb_snare > 0 && bb_both == bb_snare,
+           "BOOM BAP has snares and ALL are accented (the A/B clip's accented region)");
+
+    // The cymbal is only reachable by key in this cart — no preset has a CY row — which is why the clip
+    // presses F rather than letting the sequencer run. Assert that, so "press F or hear nothing" stays true.
+    int cy_rows = 0;
+    for (int p = 0; p < NP; p++) if (PRESET[p].row[V_CY]) cy_rows++;
+    expect_eq(cy_rows, 0, "no preset has a cymbal row (so F is the only way to strike it)");
+
+    // The two new cymbal band slots must sit INSIDE the bank's declared footprint, or they land on
+    // whatever a sibling kit put above it — the exact collision that hid in acidcandy's D909_BASE 23.
+    expect(TRS_CYH < TR808_NSLOT && TRS_CYM < TR808_NSLOT,
+           "the cymbal MID/HIGH slots are inside TR808_NSLOT (no overlap with a kit stacked above)");
+}
+#endif

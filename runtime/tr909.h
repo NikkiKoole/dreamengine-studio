@@ -268,4 +268,56 @@ static void tr909_tune(int base, int v, float semis) {
     }
 }
 
+// ── self-check — the spec.h "specs on an includeable" pattern ────────────────
+// The 909's half; the long reasoning is in tr808.h next to its twin. Short version: the snare tilt curve
+// must actually depend on VELOCITY, and it once silently didn't — `(boost * dyn + 1) / 2` collapsed boost 1
+// and boost 2 onto the same tilt because boost only ever spans 0..2 here, so the feature measured and
+// A/B'd as real while no longer being velocity-dependent. Since the two headers keep DUPLICATE copies of
+// this curve on purpose, each needs its own assertions or one can drift without the other noticing.
+#ifdef DE_SPEC
+#include "spec.h"
+static inline void tr909_selfcheck(void) {
+    int save = tr909_snare_dyn;
+
+    int soft_ok = 1;
+    for (int d = 0; d <= 4; d++) { tr909_snare_dyn = d; soft_ok &= tr909__snare_tilt(0) == 0; }
+    expect(soft_ok, "tr909 snare: boost 0 never tilts (soft hits stay exactly as shipped)");
+
+    tr909_snare_dyn = 0;
+    expect(tr909__snare_tilt(1) == 0 && tr909__snare_tilt(2) == 0,
+           "tr909 snare: dyn 0 is a true no-op (the shipped fixed balance)");
+
+    int dep_ok = 1;
+    for (int d = 1; d <= 2; d++) {
+        tr909_snare_dyn = d;
+        dep_ok &= tr909__snare_tilt(2) > tr909__snare_tilt(1);
+        dep_ok &= tr909__snare_tilt(1) > tr909__snare_tilt(0);
+    }
+    expect(dep_ok, "tr909 snare: tilt is STRICTLY increasing in boost (velocity-dependent, not just on)");
+
+    tr909_snare_dyn = save;
+
+    // The two headers deliberately carry separate copies of this curve, so DRIFT between them is the risk
+    // the duplication buys. Each header's own check above only proves its OWN curve is sane — one could be
+    // changed to `boost*dyn*2`, still pass, and silently no longer match its twin. This catches that, but
+    // only when both headers are in the same translation unit, hence the guard: tr909.h does not include
+    // tr808.h and must not start. It activates by itself in any cart that includes both.
+    //
+    // No cart runs it TODAY. `acidcandy` is the only one that includes both, and it cannot host a spec()
+    // at all: it has a global named `step`, which spec.h's `void step(int n)` shadows, so merely including
+    // spec.h breaks the cart's own transport code. That trap is generic to sequencer carts — see
+    // docs/design/spec-harness.md → "reserved names".
+#ifdef TR808_H
+    int agree = 1, s8 = tr808_snare_dyn;
+    for (int d = 0; d <= 2; d++)
+        for (int b = 0; b <= 2; b++) {
+            tr909_snare_dyn = d; tr808_snare_dyn = d;
+            agree &= tr909__snare_tilt(b) == tr808__snare_tilt(b);
+        }
+    tr909_snare_dyn = save; tr808_snare_dyn = s8;
+    expect(agree, "the 909 and 808 snare tilt curves still agree (duplicated on purpose, must not drift)");
+#endif
+}
+#endif
+
 #endif // TR909_H

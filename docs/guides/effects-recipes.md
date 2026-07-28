@@ -1,5 +1,19 @@
 # Effects recipes — the grabbable-effect cookbook
 
+> **Outside-in audit (2026-07-28):** the effects layer has been read against Synth Secrets Parts 22 and
+> 60-62 — [`../design/synth-secrets-audit.md`](../design/synth-secrets-audit.md) §M. Nothing is queued, but
+> two items land on recipes written here. **§M4:** `chorus()` is a deliberate two-path Juno-6 model, and
+> three things we ship want three *different* densities of it — the Hammond scanner must stay a single
+> instance ("Roland's three-stage chorus/ensemble is far too lush"), a chorus pedal wants the classic
+> three-phase, and a string ensemble wants the densest, which matters because `solina` declares chorus its
+> entire identity. **§M3:** the reverb is Schroeder with a predelay but **no early reflections**, where
+> Reid's impulse response has three regions (direct, discrete early reflections, dense tail); the fix is a
+> tap list off the predelay buffer we already have. Also **§M6** (BBD degradation should compound with tap
+> distance, not sit on the tap) and **§M5** (ping-pong, multi-tap and cross-fed delay topologies are not
+> expressible). One genuine win recorded: Reid's Part 22 thesis is to place reverb *inside* the patch so it
+> acts as an instrument body, and he closes regretting that almost nothing lets you — `reverb_bus()` plus
+> `fx_order()` do exactly that.
+
 The effects companion to [`instrument-recipes.md`](instrument-recipes.md). That file is the
 supply-side palette of **instrument patches** (how to voice an `INSTR_*` engine); **this file
 is the same shelf for the engine EFFECTS** — echo, reverb, chorus, flanger, tape, auto-wah,

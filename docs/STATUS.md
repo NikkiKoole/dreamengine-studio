@@ -29,8 +29,22 @@ _Last updated: 2026-07-26 (**THE CONTEMPORARY REBIRTH, RUNGS A + B — a post-ha
   `--inset` (an eroded offset of the mask) instead. `check <icon.png>` is the oracle: per corner,
   flat background (safe) or detail (loss), how far the lost ink reaches, a 3-up proof PNG, and
   `--quiet` to gate a release. Both icons in review measured: pedalboard loses 16 to 18% of each
-  corner region, tinyacidjam 40 to 45%. Design:
-  [`design/app-icon-mask.md`](design/app-icon-mask.md).
+  corner region, tinyacidjam 40 to 45%.
+  **Then the prediction got verified against a real device and wired into the pipeline** (same day):
+  `device <icon.png>` runs the whole proof end to end (borrow a simulator `.app`, swap the icon in
+  with `actool`, install into a booted iOS 26 sim, screenshot the home screen, find the new icon by
+  before/after diff polled until the install ring stops, crop, diff the silhouette). On iOS 26.5 /
+  iPhone 17 the committed mask matched to **mean 0.13 px / max 0.70 px**, and a flat probe came back
+  rgb 254-255, 0-1, 254-255 across the interior, so **iOS applies no gloss to the flat PNG we ship**
+  and masking alone is faithful. (`ictool` *does* gloss its own render, because a `.icon` document is
+  the layered Icon Composer format that opts into the glass treatment: a property of the format, not
+  of our asset.) Two more measurements fell out: the home-screen icon is **192 px, not 180** (iOS 26
+  draws 64pt @3x), and iOS's downscale is closest to **mitchell** (5.44/255 mean delta vs cubic 5.90,
+  lanczos3 6.93, nearest 11.82, zero pixel offset), which is now what `preview` uses. `preview` is
+  the everyday view: the icon masked and shrunk to all six real display sizes, light and dark, which
+  is where a lo-fi icon actually dies (at 87 px a pixel-font wordmark turns to mush). It runs itself
+  from `build-app.js` icon staging and from a new per-app **🎨 icon** button in the editor's Apps tab.
+  Design: [`design/app-icon-mask.md`](design/app-icon-mask.md).
 
 - **The contemporary ReBirth, rungs A + B** (2026-07-26) — a post-hardware rack clones **techniques,
   not machines**. ReBirth RB-338 cloned specific boxes because in 1997 the genre lived in unobtainable
@@ -1745,11 +1759,34 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     declare**, not a per-cart convention. Also missing: the two registrations Reid names for what they *do*
     — **83 4211 100** (closest to 1/n = the nearest a Hammond gets to a sawtooth) and **00 8030 200** (1/n
     odd-only = a square) — two table rows that add colours the macro cannot currently reach.
-    **Every instrument family is now done.** One arc left: the **effects chapters 60-62 plus Part 22**
-    (springs/plates/buckets), the only ones about the effects layer rather than an engine, pairing with
-    `guides/effects-recipes.md`. Roughly 58 of 63 articles read end to end. Then the step-by-step guide,
-    whose main job is to collect the cheapest items out of eight scattered step tables — several cost
-    nothing at all (a tool run, two cart-only edits, two comment fixes, two table rows).
+    **§M = recipe pass 8, DELAYS/REVERB/EFFECTS** (Parts 22, 60-62) — **and this COMPLETES the sieve: all
+    63 articles are now read.** The one arc not about an engine, so it exercises the effects layer instead
+    (echo/BBD, the three reverb tanks, spring reverb, chorus, flanger, tape, grains) and pairs with
+    `guides/effects-recipes.md`. Reid's Part 22 thesis is that a short reverb placed *inside* the patch
+    becomes the instrument's **body** ("the characters of the individual notes change, much like those of an
+    acoustic instrument"), and he closes the article regretting that almost nothing lets you position it
+    there — `reverb_bus()` + `fx_order()` do exactly that, the **third** capability the series treats as out
+    of reach (after §E1 and §K1's bore-coloured noise). It also hands **§F4 a cheaper answer**: a body can
+    be **three parallel delay lines at 1-4 ms with different times**, which is what the hardware did, rather
+    than four biquad formants — worth an A/B on `BOWED`. Gaps: the reverb is Schroeder with a predelay but
+    **no early reflections**, where Reid's impulse response has three regions (direct / discrete early
+    reflections / dense tail), and the fix is a tap list off the predelay buffer we already own; `chorus()`
+    is a deliberate two-path Juno-6 model where Reid's "classic" is three-phase at 120° and Roland's 1978
+    ensemble used four BBDs — and **three things we ship want three different densities**, since §L1 says the
+    Hammond scanner must stay a *single* instance while `solina` declares chorus its entire identity; BBD
+    degradation is "cumulative" per stage in the hardware so it should **compound with tap distance** rather
+    than colouring the tap; and ping-pong, multi-tap and cross-fed (echo-of-echoes) topologies are not
+    expressible, which is worth noting because Part 61's actual argument is for *architecture* freedom over
+    presets, and `fx_order()` already grants half of it. Part 19 (duophony) was read to close the series and
+    contributes one allocation rule to the §B3 theme (a duophonic keyboard takes the **lowest and highest**
+    held notes, not the most recent two).
+    **Nothing in the series is now unexamined. Next is not more reading but the step-by-step guide**, whose
+    job is *collection*: there are nine per-section step tables and the cheapest items are scattered across
+    all of them. Several cost nothing at all — a tool run (§C12), two comment fixes (§I1, §H1), two doc
+    corrections (§K3, §E9), five cart-only edits (§F2, §J5, §J9, §E10, §I9), two table rows (§L5). The guide
+    should also state the four **cross-cutting themes** once instead of nine times: keytracking (§B2, six
+    chapters), level-dependent inharmonicity (five families), trigger policy (§B3, with §L4 and §K6 needing
+    opposite settings), and coupling (§E5/§H5/§I3/§M2 — one architectural question, four faces).
 
 ---
 

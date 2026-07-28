@@ -10,10 +10,12 @@ Nothing here is a bug report. Several divergences are deliberate and documented 
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
 **Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
-chapters. §E, §F, §H, §I, §J, §K and §L are the **recipe** passes, one instrument family at a time (does
-one engine's *voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F
-strings**, **§H plucked strings**, **§I pianos**, **§J drums**, **§K flutes** and **§L the Hammond** are
-done; what remains is listed in §D5.
+chapters. §E-§F and §H-§M are the **recipe** passes, one family at a time (does one engine's *voicing*
+match the physical analysis?), and they carry measurements: **§E brass**, **§F strings**, **§H plucked
+strings**, **§I pianos**, **§J drums**, **§K flutes**, **§L the Hammond**, **§M the effects layer**.
+
+**The sieve is COMPLETE (2026-07-28).** All 63 articles have been read, the instrument families and the
+effects layer both. What is left is not more reading but the step-by-step guide — see §D5.
 **§G** is a design question the recipe passes raised: every patch in the book is subtractive and all our
 imitative engines are physical models, which may mean we are missing a category rather than
 mistranslating one — and §H then §I bounded it, since Reid says outright that subtractive cannot do a
@@ -577,31 +579,33 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What is left.** Seven recipe passes done: **brass (24-27) → §E**, **strings (46-51) → §F**,
-**plucked strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) → §J**, **flutes (52-54) →
-§K**, **the Hammond (55-59) → §L**. With the architecture chapters in §A-§D (4-13, 15-18, 20-21, 23, 63)
-that is **roughly 58 of the 63 articles read end to end**. Every instrument family is done. §E is the
-template.
+**D5. The sieve is complete; what is left is the guide.** Eight passes: **brass (24-27) → §E**,
+**strings (46-51) → §F**, **plucked strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) →
+§J**, **flutes (52-54) → §K**, **the Hammond (55-59) → §L**, **delays/reverb/effects (22, 60-62) → §M**.
+Plus the architecture chapters in §A-§D (1-13, 14-21, 23, 63) and Part 19 closed out in §M8. **All 63
+articles read.** Nothing in the series is now unexamined against the engine.
 
-Remaining:
-
-1. **Delays and effects (60-62), with Part 22 (springs, plates and buckets)** against our
-   echo/BBD/chorus/spring-reverb stack. The only remaining arc about the **effects layer** rather than an
-   engine, so it exercises a different part of the codebase than all six passes so far, and it pairs with
-   [`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes. Part 22
-   is the direct ancestor of our spring-reverb and BBD work and should be read with them.
-2. **Duophony (Part 19)** — one chapter, mostly historical, and its content folds into the §B3
-   note-priority theme. Low yield alone; read it with whatever finally acts on §B3.
-3. **Not worth a pass:** `REED` has no dedicated arc (covered incidentally by Part 24, already read for
-   §E, plus the clarinet material in Parts 28, 48 and 52-53, all now read). Part 14 (additive) was partly
-   covered in §A-§D.
-
-**One arc left.** After the effects chapters the sieve is complete, and the plan is then to turn the
-eight per-section step tables into a single ordered step-by-step guide (owner, 2026-07-28: "after we've
+**Next, and the only thing outstanding: one ordered step-by-step guide** (owner, 2026-07-28: "after we've
 sieved through everything we will spend some time to add a step by step guide, but let's first make it
-complete"). Note that the cheapest items are currently scattered across those eight tables, so the guide's
-main job is to collect them into one order — several cost nothing at all (a tool run, two cart-only edits,
-two comment fixes, two table rows).
+complete"). Its job is *collection*, not authoring — there are now **nine** per-section step tables and the
+cheapest items are scattered across all of them. Roughly in ascending cost, the free and near-free ones:
+
+- **No code at all:** §C12's pulse-width oracle (a tool run); §K3 and §E9's doc corrections; §I1 and §H1's
+  comment fixes (the load-bearing comb sign, and why 0.55 is defensible).
+- **Cart-only, no engine change:** §F2 (`solina` never uses `LFO_DETUNE` or the Random LFO shapes, the two
+  rungs Part 46 says the ensemble sound lives on); §J5 (the 808 cymbal's three unequal decays, a `tr808.h`
+  edit); §J9 (velocity → snare tone/noise); §E10 (the brass preset's 1 ms attack and 1200 ms release);
+  §I9 (a two-slot layered piano).
+- **Two table rows:** §L5 (the sawtooth-ish and square-ish Hammond registrations).
+- **One field or one enum:** §C1 (LFO delay — and delayed vibrato is currently *inexpressible*); §C3
+  (resonance as a mod destination).
+
+And four **cross-cutting themes** the guide should state once rather than nine times: **keytracking**
+(§B2, requested in six separate chapters, and Part 26 pins the value at ≈0.93/octave); **level-dependent
+inharmonicity** (§E8, §H, §I4, §J8, §K8 — five families, one physical fact); **trigger policy** (§B3, and
+§L4 versus §K6 show two shipped instruments needing *opposite* settings); and **coupling** (§E5's bell,
+§H5's guitar body, §I3's tricord, §M2's alternative implementation — one architectural question, four
+faces).
 
 ---
 
@@ -2295,6 +2299,190 @@ because its filters have zero resonance. Ours has no filter in the way at all.
 | 3 | L4 percussion single-trigger (with §B3, and against §K6's opposite need) | engine policy | `organ` vs `pipe` |
 | 4 | L6 tonewheel leakage (§C8) | engine, small | `organ` |
 | 5 | L7 percussion steals from the sustain | one multiply | `organ` |
+
+---
+
+## M. Recipe pass 8 — DELAYS, REVERB AND THE EFFECTS LAYER (Parts 22, 60-62)
+
+STATUS: EXPLORING — nothing queued. **This completes the sieve.**
+
+The only arc about the *effects layer* rather than an engine, so it exercises a different part of the
+codebase than the seven instrument passes: `echo`/`echo_insert` (+ the BBD voicing), the three reverb
+tanks, `reverb_spring`, `chorus`, `flanger`, `phaser`, `tape`, and `grains`. It pairs with
+[`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes.
+
+Sources: Part 22 "From Springs, Plates & Buckets To Physical Modelling" (SOS February 2001), Part 60
+"From Analogue To Digital Effects" (April 2004), Part 61 "Creative Synthesis With Delays" (May 2004),
+Part 62 "More Creative Synthesis With Delays" (June 2004). Part 19 "Duophony" (November 2000) was also
+read to close out the series; it contributes only to §M8.
+
+### M1. What matches, including a capability Reid says nothing has
+
+- **We can put the reverb *inside* the patch, which is his whole thesis and his closing regret.** Part 22
+  builds to this: move the reverb from the end of the chain to before the filter and VCA, and "the reverb
+  imposes its complex frequency response upon the output from the oscillator, emphasising some harmonics
+  while suppressing others. Therefore, as you play up and down the keyboard, **the characters of the
+  individual notes change, much like those of an acoustic instrument**." He then closes the article
+  regretting that almost nobody can try it: "I doubt that you'll be able to test this with your latest
+  digital workstation, because it's unlikely that it will allow you to place its reverbs at the correct
+  point within the signal chain." We have `reverb_bus()`, per-instrument aux buses, and `fx_order()` —
+  arbitrary effect placement per instrument is a first-class feature. Third time the audit has found us
+  holding a capability he treats as out of reach (after §E1 and §K1's bore-coloured noise).
+- **Three reverb tanks, and Part 22 asks for exactly three.** His recipe for a "3-dimensional" response is
+  three parallel short reverbs at *different* times: "with a single BBD reverb, we're still limited to a
+  single dimension. So let's add another two parallel reverbs to our signal path … provided that the
+  reverb times are different for each of the BBDs, we will obtain **three families of modes**." We ship
+  `SOUND_REVERB_TANKS 3` with independent parameters. Whether that was the reason or a coincidence, the
+  count and the independence are right.
+- **The spring's "boing" is modelled by dispersion, which is the physically correct mechanism.**
+  `reverb_spring` runs an eight-stage stretched-allpass cascade with a live dispersion coefficient
+  (`rvb_spring_disp`, the `reverb_spring_tone` BOING knob) plus a mid-band limit
+  ([`runtime/sound.h:711-717`](../../runtime/sound.h)). Part 22 explains why a spring boings at all —
+  the round-trip reinforcement gives it a comb response, and "a single spring reverb always exhibits a
+  characteristic, metallic **'boinggg'**" — and notes that makers fight it by "incorporating two or even
+  three **dissimilar** springs", or even by assembling "dissimilar sections into a single spring". Our
+  eight *different* allpass lengths (`{89, 113, 67, 97, 127, 71, 107, 83}`) are that decorrelation trick.
+- **A room is not a comb, a spring is — and our two reverb voicings split the same way.** Part 22: rooms
+  "do not act as comb filters. This is because the thousands of modes are distributed unevenly throughout
+  the spectrum, so the overall response is far flatter", whereas the spring's regular round trip gives it
+  a genuine comb. Our default tank is dense/flat Schroeder and `reverb_spring` is the comby dispersive
+  one, which is the right architectural split rather than one voicing with a knob.
+- **BBD saturation is on the delay taps, not bolted on afterwards.** `cho_bbdsat` is applied to each
+  chorus read ([`runtime/sound.h:895-896`](../../runtime/sound.h)), and the LFO is a *rounded* triangle
+  explicitly "models the BBD capacitor rounding". Part 61's box on why BBDs sound unlike digital delays is
+  about exactly this class of per-stage capacitor limitation.
+- **Anti-aliasing and reconstruction filters are assumed present.** Reid removes them from his diagrams
+  "for the sake of simplicity" but insists "I'd like you to assume that they are in place". Our BBD echo
+  carries a loop tone filter and the time-darkening; §B5 records the oscillator-side gap separately.
+
+### M2. Part 22 hands §F4 a second, cheaper way to give `BOWED` a body
+
+The most useful cross-link in the pass, and it arrives from the effects side.
+
+- **Book:** Part 22's leap is that an instrument body *is* a small reverberant room: "Ignoring the holes,
+  these are all resonant spaces, like rooms, but with smaller dimensions … the body will exhibit reverb,
+  have a value for RT60 and, because of that ol' time/frequency duality, impose a frequency response upon
+  the sound." He gives the required delay range — "we're not quite where we need to be, which is in the
+  delay range of **about 1mS to 4mS**" — notes a spring is far too long ("the spring would synthesize a
+  'violin' with a cavity over four metres long!"), and lands on three short parallel BBD lines with
+  different times.
+- **Why it matters here:** §F4 found `INSTR_BOWED` shipping with no body resonator at all, and §H5 found
+  `GUITAR`'s body is a parallel filter with no return path. Both were framed as "add biquad formants like
+  `gt_body[4]`". Part 22 offers the alternative: **three short parallel delay lines at 1-4 ms with
+  feedback**, which produces a modal response *and* a decay, is cheaper than four biquads, and is what the
+  hardware actually did. We already have the primitives (`moddel_hermite`, the comb helpers, per-instrument
+  aux buses).
+- **Worth an A/B rather than a decision:** biquad formants give you exact control of named resonances;
+  short delay combs give you a physically-derived modal *family* and a tail. For `BOWED`, whose body Reid
+  says is the difference between a sawtooth and a violin, trying both is the honest route.
+- **Audible home:** `bowed`, `guitar`.
+
+### M3. The reverb has a predelay but no early reflections
+
+- **Book:** Part 22's Figure 4 splits an impulse response into **three** temporal regions: the direct
+  sound, then "the so-called 'early reflections' … the first, distinct, reflected sounds you hear — that
+  is, the ones that bounce off just one or two of the available surfaces", and only then "the thousands of
+  reflected clicks" that fuse into the tail (fusing because "the human brain is not usually capable of
+  perceiving echoes separated by less than 30 milliseconds as distinct sounds").
+- **Engine:** `reverb_process` is predelay → four parallel combs → two series allpasses
+  ([`runtime/sound.h:707-728`](../../runtime/sound.h)). Classic Schroeder. The predelay gives the *gap*
+  before the tail but nothing produces the discrete middle region, so we go from dry straight to dense.
+- **Fix shape, and Reid supplies it twice:** a handful of taps off the existing predelay buffer before the
+  combs. Part 22's Figure 2 uses four delays to build the reflection paths off one wall; Part 61's
+  Figures 2-3 are the multi-tap delay line as a primitive. The buffer already exists — this is a tap list
+  and a mix.
+- **Audible home:** `reverbspace`, `cathedral`.
+
+### M4. We have one chorus topology, and three instruments want three different densities
+
+- **Book:** Part 62 walks up the ladder: Figure 6 "A simple, two-path chorus unit", Figure 7 "Using a
+  single LFO to modulate three delay lines" with 120°/240° phase offsets, Figure 13 "**The classic
+  three-phase chorus unit**", Figure 10 a four-path variant, and Figure 15 "A 1978 chorus design by
+  Roland Corporation" modulating the clocks of four BBDs.
+- **Engine:** `chorus_process` is one modulated buffer read at **two antiphase taps** (`d1 = base + mod`
+  → L, `d2 = base − mod` → R), described as "a line-for-line port of navkit's BBD chorus (the Juno-6
+  hardware model)". So it is deliberately Reid's Figure 6, and deliberately a specific Roland design —
+  this is not an oversight.
+- **The finding is the mismatch across instruments, not that ours is wrong.** Three things we ship want
+  three different densities of the same effect:
+  - §L1: the **Hammond scanner** must mix dry with a *single* modulated instance, because "Roland's
+    three-stage chorus/ensemble is far too lush". We get this right.
+  - A **chorus pedal** wants Reid's classic three-phase.
+  - A **string ensemble** wants the densest version — and `solina`'s own `de:meta` lineage says it is
+    "demonstrating that `chorus()` is the instrument's **entire identity** rather than a send effect",
+    while `chorus()` is giving it the two-path Juno-6 design rather than the four-BBD ensemble design.
+    §F1 also recorded Reid saying string synths "relied heavily on built-in chorus effects to thicken a
+    weedy initial timbre".
+- **Fix shape:** the buffer and the fractional reader already exist; three taps at 120° offsets is a
+  parameter and a loop, not a new effect. A `chorus_paths(n)` or a voicing selector would let one
+  implementation serve all three.
+- **Audible home:** `solina` (its identity), `juno`, `organ` (which must stay single).
+
+### M5. Three delay architectures we cannot express
+
+Part 61 builds these from taps and feedback, and none is reachable with a single-tap line:
+
+- **Ping-pong** (Figures 11-12). Our echo is documented mono in v1 ([`stereo.md`](stereo.md)), so the
+  alternating L/R repeat is out.
+- **Multi-tap** (Figures 2-3): several taps off one line, mixed. This is also the M3 fix and the Part 22
+  reflection-path primitive, so it earns its keep three times over.
+- **Cascaded delays, echoes *of* echoes** (Figures 14-16): "Using Delay Line 2 to echo a series of echoes
+  produced by Delay Line 1", then all three lines together for "even denser streams of echoes", which
+  Figure 17 turns into reverb by adding regeneration. We have one echo insert plus a master send; they do
+  not feed each other.
+- **Why it is worth noting even though each is small:** Reid's point in Part 61 is explicitly about
+  *architecture* over presets — modern units "offer a fixed architecture, and turning the knobs just
+  changes the values of the parameters within that architecture … this is still not the same as having
+  access to the basic building blocks of effects synthesis, and being able to build new, innovative
+  effects structures." Our `fx_order()` already grants ordering freedom; taps and cross-feeding would
+  grant topology freedom, which is the thing he is actually arguing for.
+- **Audible home:** `spacecho`, `dub`, `aquapuss`, `tapeloop`.
+
+### M6. BBD degradation is cumulative per stage; ours is a lumped colouration
+
+Part 61's box answers "why do analogue and digital delays sound so different" precisely: in a digital line
+the samples emerge unchanged, but in a BBD "each Sample & Hold stage will be affected by the limitations
+of the capacitors and by electronic noise, so each stage will add or subtract a small voltage from each
+sample. **These errors are cumulative** … more often than not, there will be some form of systematic error
+introduced." Our BBD voicing (`echo_ins_bbd`, `cho_bbdsat`) colours the *tap*, so the character does not
+compound with delay length the way the hardware's does — a long BBD delay should be dirtier than a short
+one for structural reasons, not just darker. Cheap approximation: scale the saturation and noise with the
+tap distance rather than holding them fixed.
+
+### M7. The spring has exactly three modes, and we model the dispersion but not the structure
+
+Part 22 is specific: "whereas the room has thousands of such modes, **the spring has just three**. The
+first is the longitudinal 'compression' mode. The second is the transverse wave … The third is torsional."
+And the consequence: "Since each of these modes has different transmission speeds, the true frequency
+response of the spring is slightly **smoother** than Figure 10 would suggest. Nevertheless, the
+longitudinal mode dominates." He also gives the echo pattern for a 12.5 ms spring: "echoes at 25mS, 75mS,
+125mS… and so on" — odd multiples of the one-way time.
+
+Our eight-stage stretched-allpass cascade produces the dispersive chirp, which is the audible signature,
+but it is one path. Three parallel paths at different propagation speeds (longitudinal dominant) would
+give the smoothing Reid describes *for the physical reason*, and it is the same "three parallel lines"
+shape as M2 and his own three-spring assemblies. Low priority; recorded because it is the honest structure.
+
+### M8. Duophony, and the last chapter in the series
+
+Part 19 read only to close the sieve. Its content is one allocation rule, and it belongs to the §B3 theme:
+a duophonic keyboard assigns the **lowest and highest** held notes, not the most recent two, "because it's
+simpler to design a keyboard that detects the highest and lowest notes than it is to design one that
+recognises the middle two notes". So a Dm7 (D F A C) sounds **D and C**; release the F and nothing changes;
+release the C and you hear D and A. That is a fifth allocation policy alongside §B3's lowest/highest/
+last/first and §H9's per-string choking — worth having in one place whenever §B3 is finally built, and
+worth nothing on its own.
+
+### Suggested effects step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | M3 early-reflection taps off the existing predelay buffer | engine, small; also unlocks M5 | `reverbspace` |
+| 2 | M4 three-phase chorus option (buffer + reader already exist) | engine, small | `solina` |
+| 3 | M2 A/B a 1-4 ms three-line body against `gt_body`-style biquads | experiment, answers §F4 | `bowed` |
+| 4 | M6 scale BBD saturation with tap distance | engine, small | `aquapuss` |
+| 5 | M5 ping-pong and cross-fed delays | engine, medium | `dub`, `spacecho` |
+| 6 | M7 three-mode spring instead of one dispersive chain | engine, low priority | `springtank` |
 
 ---
 

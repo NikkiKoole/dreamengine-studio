@@ -119,8 +119,9 @@ a good sign about the audit — it found voicing and correctness problems, not m
 
 ## 3. Phase 0 — free, factual, and no ear required
 
-Do these first. None needs a decision, none can make anything sound worse, and three of them *decide
-whether later items are worth doing at all*.
+Do these first. None needs a decision, none can make anything sound worse, and **five of them decide
+whether later items are worth doing at all** — 0.1 gates 3.30, 0.11 gates 3.6, 0.13 gates 3.19, 0.14
+gates 3.16, and 0.15 may collapse two Phase 3 items (§H8 and §I5) into a single cause.
 
 | # | item | kind | rung | where | note |
 |---|---|---|---|---|---|

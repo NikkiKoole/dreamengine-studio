@@ -199,6 +199,21 @@ both resolved API-side:
   every row's inflated target overlaps its neighbours. Cost: captures start
   one frame late — invisible at 60fps, and a sub-frame tap still lands
   (press resolves at N, release marked at N+1, button activates at N+1).
+- **The silent failure mode: forgetting `ui_begin()` entirely** (found 2026-07-28 in `hyperbox`,
+  after FOUR shipped versions). Presses are collected in `ui_begin` and resolved in `ui_end`, but
+  widgets *draw* unconditionally and hover reads `mouse_x()` directly — so a cart missing the pair
+  renders a full, hover-responsive rack in which **every knob and button is dead**. It looks finished.
+  The original tripwire only fired *inside* `ui_begin` ("you began but never ended"), which by
+  construction cannot catch "never began at all", the likelier mistake. `ui_reg()` now warns on the
+  first widget registered outside a begin/end pair (`DE_TRACE` only, once per run). If you are
+  hand-rolling `tapp()` targets in the same cart, note that those keep working — which is what makes
+  this so deceptive: half the rack responds, so the cause reads as "those particular widgets are
+  broken" rather than "the frame contract is missing".
+  **Corollary for testing, the real lesson:** hyperbox had committed, passing, deterministic tracks
+  for its strips, grid, pads, MUTE and keybed — every one a hand-rolled target. It had none for a
+  knob or a button, and *exactly* those were broken. A scripted-input suite silently defines its own
+  coverage as "working"; when a cart mixes widget kinds, drive at least one of EACH kind, or the
+  untested kind is where the bug will be.
 - **mobile-lint §5.4 contract enforced from the lint side:** the lint now
   inlines quote-included `runtime/` headers before scanning (skipping
   `studio.h` — declarations would match every regex), so `uikit`/`sfxgen`

@@ -181,6 +181,7 @@ static void   *ui_rel_evt[UI_MAX_EVT];  static int ui_rel_n = 0;
 static int   ui_frame_ct = 0;
 #ifdef DE_TRACE
 static int   ui_ended = 1, ui_warned = 0;   // tripwire: did ui_end() run after the last widget-drawing ui_begin()?
+static int   ui_inside = 0, ui_noframe_warned = 0;   // …and the other half: was ui_begin() called AT ALL?
 #endif
 static int   ui_focus_on = 0;
 static int   ui_focus_i = 0;
@@ -264,6 +265,18 @@ static void ui_push_rel(void *v)  { if (ui_rel_n  < UI_MAX_EVT) ui_rel_evt[ui_re
 
 // register a widget for this frame's press resolution; returns its focus index (-1 if not focusable)
 static int ui_reg(void *wid, int x, int y, int w, int h, int focusable) {
+#ifdef DE_TRACE
+    // The OTHER half of the ui_begin/ui_end tripwire. That one lives INSIDE ui_begin, so it can only
+    // report "you called begin but not end" — a cart that calls NEITHER got total silence, and the
+    // symptom is deceptive: widgets still draw and still hover-highlight, so a rack looks alive while
+    // every knob and button in it is dead. Cost hyperbox four versions before a human noticed.
+    if (!ui_inside && !ui_noframe_warned) {
+        printf("[ui] WARNING: widget drawn without ui_begin() — presses are recorded in ui_begin() and "
+               "resolved in ui_end(), so NOTHING will click (hover still works). Call ui_begin() first "
+               "and ui_end() last in draw().\n");
+        ui_noframe_warned = 1;
+    }
+#endif
     if (ui_wid_n >= UI_MAX_WID) return -1;
     UiWid *u = &ui_wids[ui_wid_n++];
     u->wid = wid; u->x = x; u->y = y; u->w = w; u->h = h;
@@ -359,6 +372,7 @@ static void ui_begin(void) {
         ui_warned = 1;
     }
     ui_ended = 0;
+    ui_inside = 1;                 // widgets drawn from here until ui_end() are correctly framed
 #endif
     ui_wid_n = 0; ui_foc_n = 0;
     ui_press_n = 0;
@@ -442,6 +456,7 @@ extern void de_ui_audit(int x, int y, int w, int h, int focusable);  // harness 
 static void ui_end(void) {
 #ifdef DE_TRACE
     ui_ended = 1;                  // tripwire: ui_end() ran this frame (see ui_begin)
+    ui_inside = 0;
 #endif
     ui_grab_n = 0; ui_rel_n = 0;   // cart has read this frame's events by now
     for (int p = 0; p < ui_press_n; p++) {

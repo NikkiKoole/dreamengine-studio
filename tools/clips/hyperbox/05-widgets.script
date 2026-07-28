@@ -1,0 +1,25 @@
+# hyperbox — every ui.h WIDGET, one per box. The track that should have existed from v1.
+#
+# WHY: v1..v4 shipped with ui_begin()/ui_end() missing, so every ui.h knob and button in the rack
+# was dead while every hand-rolled tapp() target worked. It survived four versions because the
+# committed tracks only ever drove the hand-rolled kind (strips, MUTE, grid, pads, keybed) — a
+# scripted suite defines its own coverage as "working". This drives the OTHER kind.
+#
+# Assert in the trace: preset 0 -> 1 -> 2 (buttons), retune_ms rises (knob drag), a slot-7 voice-on
+# after the RISER click, and 3 slot-5 voice-ons at the STAB click.
+#   node tools/play.js hyperbox script tools/clips/hyperbox/05-widgets.script --headless --frames 250 --trace t.jsonl
+# frames 250
+click 15 60 22        # -> VOICE (body y=30: the three preset buttons span y 38..56)
+click 40 140 47       # ROBO   button
+click 65 196 47       # CHOIR  button
+press 90 24 54        # RETUNE knob (centre y = 30+24) ...
+move  91 24 48        # ... dragged up: a knob is RELATIVE, so it needs motion while held
+move  92 24 42
+release 100 24 42
+click 115 60 155      # -> SAW (body y=48: STAB spans 148..192 / 54..76)
+click 140 170 64      # STAB   button
+press 165 26 66       # DETUNE knob (centre y = 48+18)
+move  166 26 58
+release 175 26 58
+click 190 60 190      # -> MASTER (body y=84: RISER spans 190..250 / 92..114)
+click 215 220 100     # RISER  button

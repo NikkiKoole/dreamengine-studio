@@ -66,6 +66,18 @@ de:meta */
 // The lesson for the next rack: a control that does nothing is easy to spot, so it gets fixed. A
 // readout that is WRONG looks like it works, so it survives every pass. Audit the labels, not the widgets.
 //
+// v6 note: EVERY ui.h WIDGET IN THIS RACK WAS DEAD, v1 through v5. The cart never called ui_begin()
+// or ui_end(), and ui.h collects presses in the first and resolves them in the second — so all eight
+// knobs, STAB, RISER and the three preset buttons did nothing, for four shipped versions. Two reasons
+// it hid that long, both worth carrying:
+//   • It LOOKS fine. Widgets draw unconditionally and hover-highlight straight off mouse_x(), so the
+//     panels animate under the pointer. And the hand-rolled tapp() targets (strips, MUTE, grid, pads,
+//     keybed) all worked, so the symptom read as "those particular knobs are broken", not "the frame
+//     contract is missing". ui.h now warns on a widget drawn outside a begin/end pair (DE_TRACE).
+//   • MY TESTS ONLY DROVE THE WORKING KIND. Every committed track drove hand-rolled targets; not one
+//     drove a knob or a button. A scripted suite quietly defines its own coverage as "working", and
+//     the untested kind is exactly where the bug was. 05-widgets.script now drives one of each.
+//
 // What each box is made of, engine-wise:
 //   VOICE   INSTR_VOICE + keybed.h (touch/mouse/QWERTY/MIDI) + note_glide as the RETUNE knob — an
 //           honest stand-in for a mic'd vocal chain: deterministic, no permission prompt
@@ -397,6 +409,7 @@ void update(void) {
     { int n = 0; for (int l = 0; l < LANES; l++) for (int s = 0; s < STEPS; s++) if (grid[l][s]) n++;
       watch("gridn", "%d", n); }                     // live step count: proves a REC'd pad tap landed
     watch("rec",   "%d", rec);
+    watch("preset", "%d", preset);                   // proves the ui.h preset BUTTONS fire
     watch("saw0",  "%d", saw_h[0]);                  // the pattern's wall voice; -1 = it stepped aside
     watch("up",    "%.2f", k_up);
     watch("low",   "%.2f", k_low);
@@ -628,6 +641,12 @@ static void draw_master(int y, int h) {
 
 void draw(void) {
     cls(CLR_BLACK);
+    // ui_begin() FIRST, ui_end() LAST — ui.h's per-frame contract, and this cart shipped four
+    // versions without either. Widgets still DREW and still hover-highlighted, so the panels looked
+    // alive; but presses are recorded in ui_begin and resolved in ui_end, so every knob and button
+    // in the rack was dead while every hand-rolled tapp() target (strips, MUTE, grid, pads) worked.
+    // That is why it survived: the things I scripted were the things that worked.
+    ui_begin();
 
     // ── transport (always reachable, whatever is open) ────────────────────────────────────────
     rectfill(0, 0, SCREEN_W, TP_H, CLR_DARKER_GREY);
@@ -672,5 +691,6 @@ void draw(void) {
     // plugged-in keyboard still works while you're editing drums; only the phantom keys go away.
     if (focus != D_VOICE && focus != D_SAW) keybed_layout(0, 0, 0, 0);
 
+    ui_end();                 // resolve this frame's presses (before the cursor, which only draws)
     cursor_draw(CUR_ARROW);
 }

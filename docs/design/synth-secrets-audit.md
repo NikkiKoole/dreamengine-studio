@@ -10,11 +10,12 @@ Nothing here is a bug report. Several divergences are deliberate and documented 
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
 **Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
-chapters. §E onward are the **recipe** passes, one instrument family at a time (does one engine's
-*voicing* match the physical analysis?), and they carry measurements. **§E brass** and **§F strings**
-are done; remaining families are listed in §D5. **§G** is a design question the recipe passes raised:
-every patch in the book is subtractive and all our imitative engines are physical models, which may
-mean we are missing a category rather than mistranslating one.
+chapters. §E, §F and §H are the **recipe** passes, one instrument family at a time (does one engine's
+*voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F strings** and
+**§H plucked strings** are done; remaining families are listed in §D5. **§G** is a design question the
+recipe passes raised: every patch in the book is subtractive and all our imitative engines are physical
+models, which may mean we are missing a category rather than mistranslating one — and §H then bounded
+it, since Reid says outright that subtractive cannot do a guitar.
 
 Note that §C12 was **corrected** by the strings pass. Reid contradicts himself between Part 10 and
 Part 46 and explicitly retracts the earlier claim, which the original §C12 had quoted as law. Expect
@@ -558,20 +559,30 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), **28-30 (plucked
-strings)**, 31-39 (drums other than the timpani ring-mod passage and the 808 cymbal), **41-43 (pianos,
-with full JX10 patch listings)**, **51-53 (flutes)**, 54-56 and 58 (the rest of the Hammond), 59-62
-(delays and effects) were skimmed or grep-targeted, not read end to end. They are the remaining
-*recipe* chapters, and the most likely place to find per-engine tuning findings for
-`PLUCK`/`GUITAR`/`PIANO`/`REED`/`PIPE`/`ORGAN` against the physical analysis. Pair them with
-[`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
+**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), 31-39 (drums other than
+the timpani ring-mod passage and the 808 cymbal), **41-43 (pianos, with full JX10 patch listings)**,
+**51-53 (flutes)**, 54-56 and 58 (the rest of the Hammond), 59-62 (delays and effects) were skimmed or
+grep-targeted, not read end to end. They are the remaining *recipe* chapters, and the most likely place
+to find per-engine tuning findings for `PIANO`/`REED`/`PIPE`/`ORGAN` against the physical analysis. Pair
+them with [`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
 
-Done so far: **brass (24-27) → §E**, **strings (45-50) → §F**. §E is the template. Suggested next, by
-expected yield: **plucked strings (28-30)** — three chapters against `PLUCK`/`GUITAR`/`PIANO`, and §F4
-already showed the bowed engine missing a body those two have, so the plucked analysis is likely to be
-load-bearing. Then **pianos (41-43)**, which carry complete JX10 parameter tables and pair with the
-existing [`piano-engine.md`](piano-engine.md) diagnosis. Then flutes (51-53) against `PIPE`, which has a
-known tuning caveat already recorded in `studio.h`.
+Done so far: **brass (24-27) → §E**, **strings (45-50) → §F**, **plucked strings (28-30) → §H**. §E is
+the template. Suggested next, by expected yield:
+
+1. **Pianos (41-43)** — four chapters counting Part 44, with complete Roland JX10 parameter tables for a
+   layered two-patch piano. Pairs with the existing [`piano-engine.md`](piano-engine.md) diagnosis, which
+   now carries a heads-up. §H already turned up piano-adjacent material (`pn_dd`'s comment
+   mis-attributes what two-rate decay signifies; the stretched harmonics are *amplitude*-dependent, not
+   just frequency-dependent, which our static per-note dispersion cannot express).
+2. **Drums (31-39)** — nine chapters against `MEMBRANE`, `tr808`/`tr909`/`morphdrum`. §C4 already
+   extracted the timpani ring-mod recipe from Part 32 and §A5 checked the 808 cymbal against Part 40, so
+   the seam is proven; the other seven chapters are unread. Likely the largest single haul left.
+3. **Flutes (51-53)** against `PIPE`, which carries a known intonation caveat already recorded in
+   `studio.h`, so there is a specific open question to aim at.
+4. **The Hammond (54-58)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep; five
+   chapters on one instrument almost certainly hold more.
+5. **Delays and effects (59-62)** against our echo/BBD/chorus/spring-reverb stack — the only remaining
+   arc that is about the effects layer rather than an engine.
 
 ---
 
@@ -1128,6 +1139,16 @@ which we ship or nearly ship. Which suggests the shape is one of:
 parameter values* for every one of those patches, and §E10/§F8 already show our own presets drifting
 from them. A voicing table with a citation per row would be both a feature and a regression test.
 
+**Scope boundary, established by §H (2026-07-28).** The plucked-strings pass found Reid drawing the
+line himself, twice: "you can not create authentic-sounding acoustic guitar patches using analogue
+subtractive synthesis. **This is one occasion when only digital technology will do!**" (Part 28), and
+after rejecting three factory electric-guitar patches, "the world does not permit practical analogue,
+subtractive synthesis to reproduce a guitar sound" (Part 30). So this engine class is right for
+**brass, string machines and leads** — the families where the analogue imitation *is* the desirable
+sound — and explicitly wrong for **plucked strings**, where our physical models are the tool the book
+endorses. §G should not grow a guitar. That is a useful boundary to have before starting rather than
+after.
+
 **Honest tension.** It overlaps `INSTR_SAW` + `instrument_filter` + envelopes, which a cart can already
 wire by hand. The argument for doing it anyway is the same one that justified `acid303.h`: tb303 and
 acidrack had each drifted their own copy of the same voice, and extracting it made them byte-identical.
@@ -1144,6 +1165,263 @@ around. Build those and the header becomes mostly a table.
 three patches, so the acceptance test is that they sound like three different instruments) and pointing
 `solina`/`juno` at the same table. Also catalogued as a candidate engine in
 [`instrument-engines.md`](instrument-engines.md) §8.9.
+
+---
+
+## H. Recipe pass 3 — PLUCKED STRINGS (Parts 28-30)
+
+STATUS: EXPLORING — nothing queued.
+
+Three chapters against three engines: `INSTR_PLUCK` (bare Karplus-Strong), `INSTR_GUITAR` (KS +
+body), `INSTR_PIANO` (StifKarp + dispersion + body). Part 28 is the physics, Part 29 builds the
+"theoretical" patch, Part 30 tries the electric guitar and gives up. It is the most conclusive arc in
+the series, and the conclusion is in our favour.
+
+Sources: Part 28 "Synthesizing Plucked Strings" (SOS August 2001), Part 29 "The Theoretical Acoustic
+Guitar Patch" (SOS September 2001), Part 30 "A Final Attempt To Synthesize Guitars" (SOS October
+2001). Engine: `sound_pluck_start` ([`runtime/sound.h:2807`](../../runtime/sound.h)),
+`sound_guitar_start` ([`:4431`](../../runtime/sound.h)), `sound_guitar_sample`
+([`:4500`](../../runtime/sound.h)). Prior art: [`piano-engine.md`](piano-engine.md).
+
+### H0. Measurements taken
+
+An off-tree probe cart (the `brasspec` pattern, one `#define` per variant), deleted afterwards. No
+committed cart was edited.
+
+**Pick-position comb, `INSTR_PLUCK` at A2 (110 Hz), levels in dB relative to h1:**
+
+| position | h2 | h3 | h4 | h5 | h6 | h7 | h8 | h9 | h10 | h11 | h12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| centre (morph 1.00) | **-14.3** | +2.4 | **-14.9** | -7.4 | **-24.1** | -11.8 | **-14.0** | -0.3 | **-30.3** | -8.0 | **-27.0** |
+| 1/3 (morph 0.638) | -3.2 | **-7.0** | -4.2 | -7.2 | **-21.9** | -11.5 | -2.7 | **-9.8** | -24.0 | -7.7 | **-23.9** |
+
+Bold = the harmonics the physics predicts should be notched. Both rows put local minima where Reid
+says they belong.
+
+**`INSTR_GUITAR` open ring (harmonics 0.45, morph 0 → claimed t60 ≈ 5.9 s), 100 ms windows:**
+
+| t | 0.00 | 0.10 | 0.20 | 0.30 | 0.40 | 0.50 | 0.70 | 1.00 | 1.20 |
+|---|---|---|---|---|---|---|---|---|---|
+| amplitude | 1.00 | 0.70 | 0.56 | 0.44 | 0.35 | 0.28 | 0.19 | 0.12 | 0.09 |
+| brightness | 0.616 | 0.145 | 0.091 | 0.070 | 0.059 | 0.052 | 0.042 | 0.031 | 0.027 |
+| centroid Hz | 6551 | 3284 | 2497 | 2129 | 1911 | 1760 | 1566 | 1401 | 1336 |
+
+### H1. What matches
+
+- **The pick-position comb is the right mechanism, and it is a macro.** Part 28 derives it: a string
+  plucked at its centre cannot have even harmonics, because "you can't have a node at the point at
+  which the string is plucked", so at 1/3 "every third harmonic will be missing", at 1/4 every fourth,
+  and sweeping the picking hand gives "the distinctive flanging sound ... you're creating the same
+  effect as a swept comb filter." `sound_pluck_start` implements exactly that on the excitation:
+  `ks_buf[i] = tmp[i] - 0.55f * tmp[(i + pos) % period]` with `pos` scaled from the morph macro
+  ([`runtime/sound.h:2825-2832`](../../runtime/sound.h)). Measured in H0 and it lands correctly.
+- **The comb's 0.55 coefficient turns out to be defensible, for a reason the code doesn't state.** It
+  attenuates the notched harmonics by 14-30 dB rather than nulling them. Reid supplies the
+  justification: the body immediately puts them back — string/plate coupling "excit[es] new modes in
+  the string itself, including modes that were not present in the original vibration ... within a cycle
+  or two, the triangular waveform of the string changes to a new shape." A partial notch is closer to a
+  real guitar than a perfect null. Worth writing into the comment so it stops looking like a magic
+  number.
+- **Brightness falls faster than amplitude.** Part 29: "the waveform of a real plucked string tends
+  towards a sine wave as time passes, with nothing but the fundamental present as the oscillation
+  decays to inaudibility", modelled as a lowpass driven by the same contour as the VCA. Measured:
+  amplitude ×0.28 over 500 ms while brightness goes ×0.084 and the centroid drops 6551 → 1760 Hz. The
+  KS loop filter gives us this for free. Part 30 confirms the direction from the other side, praising
+  the Minimoog patch because "the decay of the filter cutoff frequency is somewhat faster than the
+  decay of the amplifier ... produces a more natural-sounding tail."
+- **The body's lowest mode is the air cavity.** `f_lo[0] = 110.0f` with the comment "the body Helmholtz
+  (~110Hz, real guitar F#2-A2)" ([`runtime/sound.h:4465-4469`](../../runtime/sound.h)). Part 28's "Part
+  4: The Hollow Body" is about exactly that resonance, and notes it behaves "analogous to that of a bass
+  reflex loudspeaker."
+- **The excitation lowpass is the pick's hardness.** Part 28: "neither your fingertips nor a plectrum
+  are infinitely small and hard ... This acts as a low-pass filter, suppressing the higher harmonics."
+  That is `timbre` in both engines.
+- **The sub-oscillator weight has a name in the book.** Our `eng_p[0]` "fundamental reinforcement ... the
+  low-end WEIGHT a bare KS string lacks (the 'thin' cure)" is doing the job Part 28 assigns to the body's
+  low modes.
+
+### H2. The pick comb is quantized to whole samples, so its notches drift off-harmonic
+
+- **Measured:** at the 1/3 position the notches should sit exactly on h3, h6, h9, h12. `pos` is
+  `(int)(period * frac)` ([`runtime/sound.h:2827`](../../runtime/sound.h)), so at A2 (period 401)
+  `pos = 133` and the true nulls land at n = 3.02, 6.03, 9.05; at A4 (period 100) `pos = 33` gives
+  3.03, 6.06, 9.09. The error compounds with harmonic number, which is visible in H0: h6 and h12 are
+  deep (-21.9, -23.9) while h9 is shallow (-9.8) and the neighbouring h10 is *deeper* (-24.0) than the
+  harmonic that should have been notched.
+- **Why it matters:** the drift is worst for short periods, i.e. the high register, and it means the
+  "flanging" sweep Reid describes is subtly mistuned as you move up the neck.
+- **The fix is already in the header,** twice: `ks_tap_read` does linear-interpolated fractional reads
+  ([`runtime/sound.h:4490`](../../runtime/sound.h)), and `PIANO` tunes its loop with a fractional-delay
+  allpass (`pn_apc`/`pn_aps`).
+- **Audible home:** `pluck` (its morph knob is the demo), `guitar`, `harp`-family presets.
+
+### H3. `PLUCK` and `GUITAR` have a single-exponential decay; the book's guitar envelope is two-stage
+
+- **Book:** Part 28's "Part 5: Amplitude Response" gives the cause, and it is physical rather than
+  cosmetic. A string plucked *parallel* to the top plate "decays relatively slowly"; plucked
+  *perpendicular*, "the initial level is greater, but the sound decays more quickly" (Figures 9a, 9b).
+  Real plucks are neither: "you will rarely, if ever, pluck the string in exactly these fashions, so
+  the true amplitude response will look more like that shown in Figure 10" — captioned "A realistic
+  decay curve for a plucked guitar note", and distinctly two-stage.
+- **Engine:** `sound_guitar_sample` computes one `fb = t60_to_fb(t60, f)` per note and uses it for the
+  whole ring ([`runtime/sound.h:4509-4510`](../../runtime/sound.h)). Measured (H0): after the first
+  100 ms window the ratio is a flat ~0.80 per window, i.e. mono-exponential. Only the first window
+  (1.00 → 0.70) is faster, and that is largely the 700-sample onset click.
+- **`PIANO` already has this and its comment mis-attributes it.** `pn_dd` is "DOUBLE-DECAY: extra
+  per-period loss right after the strike, relaxes to 0 (~0.2s). The fast initial drop that says
+  'struck', not 'plucked harp'" ([`runtime/sound.h:312`](../../runtime/sound.h)). Per Part 28 a plucked
+  guitar has a two-stage decay *too* — so two-rate decay is not what distinguishes struck from plucked,
+  it is common to both, and the harp-versus-piano difference lies in the proportions. Cheap to port,
+  and the physical framing (two polarisation planes decaying at different rates) is more honest than a
+  tuned envelope.
+- **Audible home:** `guitar`, `pluck`, `upright`, `jangle`.
+
+### H4. `GUITAR` has no sympathetic resonance, and Reid's demo is a guitar demo
+
+- **Book:** Part 28's "Part 6: Other Factors" opens with it and gives a listening test: "Find an
+  acoustic guitar and damp five of the strings. Then pluck the free one ... Now release the five damped
+  strings, and play the same note on the sixth. It's different, isn't it?" The mechanism: energy passes
+  through nut and bridge into the other strings, so you have "nine vibrating resonators (six strings,
+  the top plate, the bottom plate and the air in the cavity) rather than four."
+- **Engine:** `PIANO` carries `pn_symp` ("sympathetic-resonance level (per voicing)",
+  [`runtime/sound.h:301`](../../runtime/sound.h)). `GUITAR` has no equivalent term. The engine that
+  Reid uses to *teach* sympathetic resonance is the one of ours that lacks it.
+- **Audible home:** `guitar`, and it is most audible on chords, so `jangle`/`mariachi`/`alleycat`.
+
+### H5. The body is a filter on the output, not a coupled resonator
+
+- **Book:** Part 28 "Part 3: Coupling The String & The Plate" is emphatic that the coupling runs *both
+  ways*: "the plate absorbs energy from the string, thus sucking energy out of some of its modes ... The
+  vibrating plate then passes some energy back, exciting new modes in the string itself, including modes
+  that were not present in the original vibration ... the modified vibrations in the string now excite
+  the plate in a new way ... and so on." Part 29 Figure 12 builds it as an explicit feedback loop, and is
+  careful about *how*: not at audio rate, because "that ... is amplitude modulation. This will result in
+  the creation of unwanted side bands". His answer is a slow side-chain (highpass, envelope-follow, S&H,
+  slew, invert) so the waveform "change[s] more subtly over the course of a few cycles."
+- **Engine:** `gt_body[4]` runs in **parallel** on the string output and is mixed in via `gt_bodymix`
+  ([`runtime/sound.h:4519-4523`](../../runtime/sound.h)). Nothing returns to the delay line, so the body
+  cannot put back the even harmonics the pick comb removed, and cannot evolve the timbre over the first
+  few cycles.
+- **This is the same class of gap as brass §E5.** There, the fix is "model the bell to fill the harmonic
+  series natively rather than synthesize evens downstream" (handoff fix #3). Here it is "model the body's
+  return path rather than paint its resonances on the output." Two engines, one structural idea, and
+  doing either would probably teach us how to do the other.
+- **Audible home:** `guitar`.
+
+### H6. No pickup, therefore no electric guitar, and every amp cart we ship is driving an acoustic
+
+This is §H's headline: a named gap, a precise spec, and a set of carts already waiting for it.
+
+- **Book:** Part 30 identifies the pickup as *the* reason synth patches fail at electric guitar, and
+  describes it implementably. Two facts: "the distance over which the pickup can detect the string's
+  motion is very short, so it is only sensitive to the small part of the string that lies immediately
+  above it", and "when the string is stationary along the length detected by the pickup, no signal is
+  generated." Consequence one, position: a pickup a third of the way from the bridge combs the series,
+  and "the result is much like that of passing the wave through a comb filter" (Figure 10). Consequence
+  two, and this is the part nobody guesses: "the output of any harmonic is proportional to the
+  **velocity** of its motion at the point on the string that lies immediately above the pickup", which
+  makes the low end of the spectrum "much flatter than that of the common analogue waveforms (most of
+  these conform to the 1/n amplitude relationship)."
+- **Engine:** `INSTR_GUITAR` is documented "acoustic/nylon/banjo/koto/harp/uke/pizzicato"
+  ([`runtime/studio.h:328`](../../runtime/studio.h)) and there is no electric guitar anywhere in the
+  roster (`grep -i "electric guitar" runtime/studio.h` → nothing). `EPIANO` models a pickup nonlinearity
+  for Rhodes/Wurli, so the *concept* exists in the file; the string engines read a single tap.
+- **And here is the part that makes it worth doing:** `combo`, `pedalboard`, `tubescreamer`, `wba` and
+  `mixbooth` all drive `INSTR_GUITAR`. So `ampcab.h`'s five amp voicings, the `drive_voice` Tube
+  Screamer / RAT / Big Muff models, and the whole pedalboard are plugged into an **acoustic** guitar.
+  The dirt chain has been built out ahead of the instrument that belongs in front of it.
+- **Fix shape:** a second, position-dependent tap on the existing KS line, differenced (velocity) rather
+  than read directly. `ks_tap_read` already exists. Two taps for a humbucker. This is a small change with
+  a large, immediately audible payoff, and it is the only §H item that unlocks a genuinely new sound
+  rather than improving an existing one.
+- **Audible home:** `combo`, `pedalboard`, `tubescreamer` — all three currently misrepresent what they
+  are demonstrating.
+
+### H7. `GUITAR` spent its pick-position axis on mute
+
+- **Engine:** "fixed pick comb at ~1/4 string — pick position is baked here (morph carries mute, not
+  pick pos)" ([`runtime/sound.h:4448-4449`](../../runtime/sound.h)).
+- **Book:** Part 28 lists plucking position as the **first** of its eight obstacles and the first thing
+  it teaches, with an explicit listening test. `PLUCK` exposes it; `GUITAR`, the fuller instrument,
+  cannot move the picking hand.
+- **Why this is a real tension, not a bug:** the three-macro discipline
+  ([ADR-0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)) means something had to
+  give, and mute earns its place. But `eng_p[]` is the documented aux channel for exactly this
+  situation, and pick position is a note-on-only parameter, which is the cheapest kind to put there.
+- **Audible home:** `guitar`.
+
+### H8. The high register loses almost all its harmonics (measured, not diagnosed)
+
+- **Measured:** the same 1/3-position pluck at A4 (440 Hz) reads h2 -7.1, h3 -31.4, h4 -38.3, h5 -54.3,
+  and h6 through h9 between **-74 and -83 dB**. At A2 the series was still alive past h12. So the upper
+  register is close to a pure fundamental.
+- **Why I am not calling it a defect:** three things interact at short periods (the excitation lowpass,
+  the KS loop filter's damping average, and the peak-normalize over a much shorter buffer), and a real
+  plucked string genuinely does lose its upper harmonics faster up the neck. But the magnitude looks
+  extreme and nothing in the docs predicts it, which is exactly the profile of an unexamined bug.
+- **The test:** sweep `tune-check`-style across the register and plot harmonic count. If the count
+  collapses faster than a real string's, the loop filter's fixed `0.5` averaging coefficient is the
+  first suspect, since its cutoff is relative to sample rate, not to the note.
+- **Audible home:** `guitar`, `pluck` — audible as high notes sounding thin or "plinky".
+
+### H9. Guitar voice allocation is part of the instrument, and this is the third time the book has said so
+
+- **Book:** Part 29 makes it the *first* difficulty, before any DSP. Notes on the same string curtail
+  each other ("the plucking of each new note terminates the previous one, reinitialising the brightness
+  and loudness contours"), while notes on different strings ring on freely. "How do we decide whether
+  any given note in our guitar imitation should curtail a previous one and, if so, which one? This is a
+  problem that needs a computer for its solution." He also insists on per-string voicing: "the initial
+  tone and amplitude characteristics of, say, a 0.052-inch wound bottom 'E' string are quite different
+  from a 0.009-inch top 'E' string."
+- **Engine:** `instrument_choke(slot, target)` is a 1:1 pairing (built for open/closed hi-hat). A
+  six-string model needs six choke groups plus a fret-to-string assignment, and one voicing per string
+  rather than one voicing transposed across the keyboard.
+- **The pattern:** this is the third independent place the series has said allocation is instrument
+  design, not plumbing — §B3 (mono note priority), §B7 (poly voice assignment and per-voice character),
+  and now per-string assignment. Worth treating as one theme rather than three items.
+- **Audible home:** `guitar`, `fretboard`, `jangle`, `alleycat` — most audible on strums.
+
+### H10. Attack level, cited for the third time
+
+Part 29 models pluck *direction* as an envelope with independent attack level and decay time: "We use
+an AD contour generator that offers simultaneous control over the amplitude of the Attack (AL, Attack
+Level), as well as the Decay Time (DT). If the strum is parallel, the CV causes AL to decrease and DT
+to increase. If it is perpendicular, AL increases and DT decreases", with velocity routed to both.
+That is §C6 again, after Part 8's spit brass and Part 25's `A(AL)A2S`. Three chapters, three
+instrument families, one missing envelope parameter.
+
+### H11. Reid's verdict validates our approach, and narrows §G
+
+The arc ends with an unusually flat conclusion, stated twice. Part 28: "these eight [reasons] give you
+a good idea why you can not create authentic-sounding acoustic guitar patches using analogue
+subtractive synthesis. **This is one occasion when only digital technology will do!**" Part 30, after
+dissecting three factory patches from the Axxe, the SH-101 and the Minimoog and rejecting all three:
+"Clearly, the world does not permit practical analogue, subtractive synthesis to reproduce a guitar
+sound. Even the sound of the electric guitar has eluded us." On the stretched harmonics specifically:
+"there's nothing we can do to model it using subtractive synthesis."
+
+Two consequences:
+
+1. **Our physical-model choice for `PLUCK`/`GUITAR`/`PIANO` is the one the book endorses.** Where §E
+   and §F had to translate his subtractive patches, here he tells us to stop translating. Every §H item
+   above is therefore about improving the physical model, not about adopting his signal chain.
+2. **It bounds §G.** The subtractive-imitation idea is right for brass, string machines, and leads, and
+   Reid says explicitly it is *wrong* for plucked strings. So §G should be scoped to the families where
+   the analogue imitation is itself the desirable sound, and should not grow a guitar. Noted there.
+
+### Suggested plucked-strings step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | H6 pickup tap → the electric guitar the amp carts want | engine, small, new sound | `combo`, `pedalboard` |
+| 2 | H1 write the 0.55 comb's justification into the comment | comment only | none |
+| 3 | H3 port `pn_dd`'s two-rate decay to GUITAR/PLUCK | engine, exists in file | `guitar` |
+| 4 | H2 fractional-delay the pick comb | engine, primitive exists | `pluck` |
+| 5 | H8 diagnose the high-register harmonic collapse | measurement first | `pluck` |
+| 6 | H4 sympathetic resonance on GUITAR (port `pn_symp`) | engine, exists in file | `jangle` |
+| 7 | H7 pick position onto `eng_p[]` | engine, small | `guitar` |
+| 8 | H9 a per-string allocator (cart-land, with §B3) | probably `mono.h`'s sibling | `fretboard` |
+| 9 | H5 body → string feedback (pairs with brass fix #3) | engine, hard | `guitar` |
 
 ---
 

@@ -1604,8 +1604,33 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     it a feature and a regression test at once. Prerequisites are all already specced in §B/§C.
     Catalogued in [`design/instrument-engines.md`](design/instrument-engines.md) §8.9 and
     [`design/audio-notes.md`](design/audio-notes.md) §13 as a possible third lever.
-    Remaining families (plucked strings, drums, pianos, flutes, the rest of the Hammond, delays) still
-    unread — §D5 lists them and ranks what to read next; §E is the template.
+    **§H = recipe pass 3, PLUCKED STRINGS** (Parts 28-30, measured). Headline: **there is no pickup model
+    anywhere, so no electric guitar exists in the roster** — and `combo`, `pedalboard`, `tubescreamer`,
+    `wba` and `mixbooth` all drive `INSTR_GUITAR`, which is documented acoustic-only. The whole dirt chain
+    (`ampcab.h`'s five amps, the TS/RAT/Big Muff `drive_voice` models, the pedalboard) has been built out
+    in front of an acoustic guitar. Part 30 hands us the spec: a pickup senses a short length of string, so
+    it combs the series by position, and because "the output of any harmonic is proportional to the
+    **velocity** of its motion" the low end comes out much flatter than 1/n. That is a second interpolated
+    tap on the existing KS line, differenced — small change, new sound, and the only §H item that unlocks
+    something rather than improving it. Also: PLUCK's pick-position comb is the right mechanism and lands
+    where the physics says (measured), but `pos` is integer-quantized so the notches drift off-harmonic
+    (3.02/6.03/9.05 instead of 3/6/9 at A2, worse up the neck) while `ks_tap_read` and PIANO's
+    fractional-delay allpass both sit in the same file; `GUITAR`/`PLUCK` decay is a single exponential
+    (measured flat ~0.80 per 100 ms window) where Part 28's guitar envelope is two-stage, and **`PIANO`'s
+    `pn_dd` comment mis-attributes why** (a plucked guitar has two-rate decay too, from the string's two
+    polarisation planes, so it isn't what makes a sound "struck"); `GUITAR` has no sympathetic resonance
+    even though Reid's teaching demo for it is literally a guitar; the body is a parallel filter on the
+    output with no return path into the string, which is the **same structural gap as brass fix #3**; and
+    the high register measured close to a pure fundamental (h6-h9 at −74 to −83 dB at A4), flagged as
+    measured-but-undiagnosed. Two validations worth keeping: the 0.55 comb coefficient turns out to be
+    defensible for a reason the code doesn't state (the body puts the notched harmonics back), and **Reid's
+    verdict endorses our approach** — "you can not create authentic-sounding acoustic guitar patches using
+    analogue subtractive synthesis … only digital technology will do", which also **bounds §G** (it is for
+    brass, string machines and leads; it must not grow a guitar). Third citation for §C6's attack-level
+    envelope, and third place the series says voice allocation is instrument design (§B3, §B7, now
+    per-string).
+    Remaining families (pianos, drums, flutes, the rest of the Hammond, delays) still unread — §D5 lists
+    them and now ranks them by expected yield; §E is the template.
 
 ---
 

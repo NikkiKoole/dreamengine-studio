@@ -5,10 +5,22 @@ STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, ha
 > **Pending outside-in pass:** Synth Secrets devotes **four** chapters to pianos (Parts 41-44, SOS
 > Oct 2002 to Jan 2003), including complete Roland JX10 parameter tables for its "Piano 1-A"/"1-B"
 > layered patch. They have **not** been read yet, and [`synth-secrets-audit.md`](synth-secrets-audit.md)
-> §D5 ranks them as the **second-highest-yield** remaining family, to be paired with this doc. Precedent
-> for expecting something: the brass pass (§E) found a structural miss the brass handoff hadn't
-> considered, and the strings pass (§F) found `INSTR_BOWED` shipping with no body resonator while this
-> engine's `pn_body[4]` sits in the same header.
+> §D5 now ranks them the **top** remaining family. Precedent for expecting something: the brass pass
+> (§E) found a structural miss the brass handoff hadn't considered, and the strings pass (§F) found
+> `INSTR_BOWED` shipping with no body resonator while this engine's `pn_body[4]` sits in the same header.
+>
+> **Two things the plucked-strings pass (§H) already turned up that land on this engine:**
+> - **`pn_dd`'s comment mis-attributes what two-rate decay means.** It reads "The fast initial drop that
+>   says 'struck', not 'plucked harp'". Part 28 shows a *plucked guitar* has a two-stage decay too, caused
+>   by the string's two polarisation planes decaying at different rates (parallel to the top plate = quiet
+>   and slow, perpendicular = loud and fast, real plucks are a mix). So two-rate decay is common to struck
+>   and plucked; the harp-vs-piano difference is in the proportions. The behaviour is right, the stated
+>   reason isn't — and `GUITAR`/`PLUCK` should probably borrow it (§H3).
+> - **Stretched harmonics are amplitude-dependent, not just frequency-dependent.** Part 28: the string's
+>   finite cross-section curves it at nut and bridge, so "the string appears shorter at high frequencies
+>   **and high amplitudes** … This sharpens higher, **louder** harmonics." Our dispersion (`pn_disp_c`) and
+>   `PIANO_STRETCH_K` are set per note at note-on, so the inharmonicity cannot grow with playing level or
+>   relax as the note decays. Worth checking against Parts 41-43 before acting.
 
 **Genre: design exploration / handoff.** The diagnosis + roadmap for the one engine in the
 roster that never got past "nice but mediocre." Engine impl: `runtime/sound.h`

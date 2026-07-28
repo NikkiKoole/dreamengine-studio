@@ -1,12 +1,15 @@
 # Synth Secrets — the build plan
 
-STATUS: BUILDING — **Phase 0 DONE; Phase 1 is 4 of 7 (2026-07-28)**: 1.1 solina, 1.2 tr808 cymbal and
-1.3 the 808/909 snare all **shipped by the owner's ear** (each keeping its old sound on a toggle), and
-**1.4 brass is a recorded DROP** — Reid loses all three of his envelope numbers. The ordered work ledger
+STATUS: BUILDING — **Phase 0 DONE; Phase 1 DONE, 7 of 7 (2026-07-29)**: 1.1 solina, 1.2 tr808 cymbal and
+1.3 the 808/909 snare **shipped by the owner's ear** (each keeping its old sound on a toggle); 1.5 the
+layered piano **liked but kept opt-in** (it guards acceptance tests); **1.4 brass and 1.6 Hammond are
+recorded DROPs** — Reid loses all three brass envelope numbers, and the Hammond item was mis-priced;
+1.7 martenot built, awaiting an ear. The ordered work ledger
 derived from [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is the *findings*; this is the
-*doing*. **1.5 (the layered piano) is built and awaiting an ear call**, and it turned up an unrelated live
-bug: two of `piano`'s six sliders have never done anything (see §4 "1.5" and the top of
-[`STATUS.md`](../STATUS.md) → "Open"). Nothing past Phase 1 is approved.
+*doing*. **PHASE 1 IS COMPLETE (7 of 7)**: 1.1/1.2/1.3 shipped by ear, 1.5 liked-but-opt-in, 1.4 and 1.6
+recorded DROPs, 1.7 built and awaiting an ear call. It also produced one engine FIX — `instrument_mode`
+rejected two of its own indices, so two `piano` sliders had never worked. Nothing past Phase 1 is approved;
+**Phase 2 (the four cross-cutting themes) is where the leverage is**, starting with keytracking.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -255,8 +258,8 @@ cheapest LISTEN items we have.
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | ✅ **DONE — `dyn=1` is the default** (owner's ear, 2026-07-28) on both machines, 0 kept on key **N**. See below |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ❌ **DROPPED — Reid loses all three** (owner's ear, 2026-07-28). Envelope unchanged, byte-identical. The most instructive item so far; see below |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | ✅ **DONE — liked, and kept OPT-IN on key L** (owner, 2026-07-28). Layer-off is byte-identical, so it is purely additive. Also **found + fixed** a one-bound engine bug that had killed two sliders — see below |
-| 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | Two rows in `REG[8][9]` |
-| 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot`, `brass` | Part 51's two liftable tricks, no filter needed for the first |
+| 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | ❌ **DROPPED — not two rows after all** (owner, 2026-07-29). The detent table is in the engine; widening it remaps 13 carts. See §8 |
+| 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot` | ✅ **BUILT, awaiting your ear.** Key **0** cycles filter/morph/gate. GATE measures 30dB of range from the filter alone; MORPH is **ear-only** — see below |
 
 **Deliverable:** seven A/Bs, each a baked cart you can play. If all seven land, that is a visibly better
 instrument shelf for zero engine risk.
@@ -531,6 +534,44 @@ out-of-range one is silently ignored. That is precisely how a dead user-facing c
 compiles, runs, and looks fine. A `[sound] WARNING` would have caught it instantly, and `soundcheck` already
 greps for exactly that. Recorded at the top of [`STATUS.md`](../STATUS.md) → "Open".
 
+### 1.7 martenot — loudness→brightness, Part 51's two tricks (built 2026-07-29)
+
+Key **0** cycles three modes; the state shows above the touche. Both of Part 51's liftable moves land in
+one cart, because `martenot` already has the wire and the pressure button that Reid's whole argument rests
+on. Committed clips: `01-touche-swell` (what you listen to) and `02-steady-note` (what you measure).
+
+| mode | what drives brightness | measured, steady note at three touche levels (0.20 / 0.50 / 0.90) |
+|---|---|---|
+| **filter** (as shipped) | a lowpass on `intens²` | peak −26.1 / −16.1 / −10.0 dBFS · centroid 284 / 282 / 377 Hz |
+| **morph** | the WAVE dulls toward a triangle, cutoff parked wide open at 12 kHz | peak −28.3 / −16.5 / −10.0 · centroid 647 / 587 / 564 Hz |
+| **gate** | volume held CONSTANT, the touche drives cutoff alone | peak **−40.4 / −21.6 / −10.2 / −10.0** across 0.05→0.90 |
+
+**GATE is the one the numbers prove.** With `note_vol` pinned at a constant 6, the filter alone produces
+**30 dB of range** — so it is genuinely "not only shaping the tone of the sound, it's also differentiating
+one note from the next". Two implementation notes worth keeping: the floor and the curve are load-bearing
+(my first attempt used `60 + intens²·5200`, which reaches 268 Hz at a light touch and so passes the 130 Hz
+bottom note unattenuated — it gated *nothing*, and the measurement said so), and a 12 dB/oct `FILTER_LOW`
+attenuates rather than mutes, so this approaches Reid's effect rather than reproducing it. His "at low
+cutoff nothing passes" is a 24 dB/oct claim.
+
+**MORPH is ear-only, and honestly so.** No oracle here can adjudicate it: the `brightness(HF/total)` proxy
+reads **0.000** at every setting (this voice has almost nothing above the metric's threshold), and the
+spectral centroid is dominated by the fundamental, so it *falls* as the note gets louder and is
+noise-dominated at the quiet end. That is why the centroid column above runs the "wrong" way for both
+filter and morph. The morph is doing what the code says it does — the wave demonstrably changes shape and
+the renders differ — but whether it reads as Reid's blown-instrument behaviour is a listening call, like
+1.1's middle rung.
+
+**A set-and-hold trap avoided by design:** the morph needs the wavetable to change with loudness, and
+`wave_set()` pushes a 128-float table. Doing that per frame is exactly the hazard `lint-fx-frame` exists
+for, so the dullness is **quantised to 8 steps** and rebuilt only when the step moves — inaudible as
+stepping on a slow swell, and the lint passes.
+
+**Also fixed `ab-render` while here:** it only matched `static` file-scope values, and this cart declares
+its globals bare (`int loud_mode = …` at column 0), which is a common cart style. It now accepts that form
+too — anchored at **column 0 only**, since that is the one cheap way to tell a file-scope global from an
+indented local, and substituting a local would silently measure nothing.
+
 ---
 
 ## 5. Phase 2 — the four cross-cutting themes
@@ -625,6 +666,7 @@ Recording these so they stop costing attention. Each needs one line of agreement
 | item | § | verdict |
 |---|---|---|
 | **Brass envelope (1.4)** | E10 | ❌ **DROPPED 2026-07-28.** All three of Reid's numbers lose on a waveguide; the shipped 1200 ms release *is* the bore's ring-down. Toggle removed, measurements + restore recipe kept in `brass.c`. [Write-up](#14-brass-amp-envelope--dropped-reid-loses-all-three-numbers-owners-ear-2026-07-28) |
+| **Hammond saw/square registrations (1.6)** | L5 | ❌ **DROPPED 2026-07-29.** The audit called it "two rows in `REG[8][9]`"; it is not. The table lives in the ENGINE as **8 snapped detents**, so adding rows re-maps `instrument_harmonics` for the **13 carts** that set it on an organ slot (harm 0.5 would go from Jimmy Smith to Ballad) — silently, and unfixable by inspection wherever a cart's value came from ear rather than a detent index. The zero-risk route exists (`MODE_ORGAN_XREG` behind ORGAN's aux channel, idx 0 is free) but spends **permanent public API surface on two novelty presets**. And §L1 already verified all nine drawbar footages against Part 55, so the organ is not wrong — these are colours, not a fix. Recorded, not built |
 | solina's middle wow rung (1.1) | F2 | ❌ **DROPPED 2026-07-28.** Measured indistinguishable from CLASSIC (centroid 2260 vs 2267 Hz) and no oracle can see a 0.16 Hz character change under a chord progression. Restore code kept in the cart |
 
 **Still candidates, awaiting one line of agreement:**

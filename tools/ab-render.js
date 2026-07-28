@@ -69,18 +69,29 @@ const fileArg = flag('file', null);
 const src = fileArg ? path.resolve(ROOT, fileArg) : path.join(ROOT, 'tools/carts', cart + '.c');
 if (!fs.existsSync(src)) die('no such source file: ' + src);
 
-// Locate the assignment. Two accepted forms, both at file scope:
-//   static <type> ident = <value>;      →  replace <value>
+// Locate the assignment. THREE accepted forms, all at file scope:
+//   static <type> ident = <value>;      →  replace <value>   (any indentation — `static` proves file scope)
+//   <type> ident = <value>;             →  replace <value>   (COLUMN 0 ONLY — see below)
 //   #define ident <value>               →  replace <value>
+//
+// The bare form exists because plenty of carts declare file-scope globals without `static` (martenot,
+// which is what surfaced this). It is anchored at column 0 with NO leading whitespace on purpose: that is
+// the only cheap way to tell a file-scope global from a local, since a local declaration is always
+// indented inside its function. A local would otherwise be substituted and the render would measure
+// something meaningless.
 const original = fs.readFileSync(src, 'utf8');
 const declRe = new RegExp(`(^[ \\t]*static[^;\\n]*\\b${ident}\\s*=\\s*)([^;]+)(;)`, 'm');
+const bareRe = new RegExp(`(^(?:const[ \\t]+)?[A-Za-z_][A-Za-z0-9_]*[ \\t][^;\\n]*\\b${ident}\\s*=\\s*)([^;]+)(;)`, 'm');
 const defRe = new RegExp(`(^[ \\t]*#define[ \\t]+${ident}[ \\t]+)([^\\n/]+)`, 'm');
-const kind = declRe.test(original) ? 'static' : defRe.test(original) ? 'define' : null;
+const kind = declRe.test(original) ? 'static'
+           : bareRe.test(original) ? 'bare'
+           : defRe.test(original)  ? 'define' : null;
 if (!kind) {
-  die(`could not find \`${ident}\` as a file-scope \`static ... ${ident} = X;\` or \`#define ${ident} X\` in ${path.relative(ROOT, src)}.\n` +
+  die(`could not find \`${ident}\` at file scope in ${path.relative(ROOT, src)} as any of:\n` +
+      `              static <type> ${ident} = X;   ·   <type> ${ident} = X;  (at column 0)   ·   #define ${ident} X\n` +
       `            (a local variable or a struct field can't be substituted — hoist it to file scope first)`);
 }
-const re = kind === 'static' ? declRe : defRe;
+const re = kind === 'static' ? declRe : kind === 'bare' ? bareRe : defRe;
 const before = original.match(re)[2].trim();
 
 // Substitute group 2. Note the arity difference: declRe has THREE groups (the `;` is group 3) and
@@ -88,7 +99,8 @@ const before = original.match(re)[2].trim();
 // (an integer — String.replace passes offset right after the last group) for every #define. That
 // produced `#define X 042` and a build that measured a stale value. Pick the tail by `kind`, never
 // by argument position.
-const subst = (text, v) => text.replace(re, (...args) => args[1] + v + (kind === 'static' ? args[3] : ''));
+// `static` and `bare` both capture the trailing `;` as group 3; `define` has only two groups.
+const subst = (text, v) => text.replace(re, (...args) => args[1] + v + (kind === 'define' ? '' : args[3]));
 
 const outDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'abrender-'));
 const rows = [];

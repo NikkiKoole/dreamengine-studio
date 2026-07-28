@@ -1,0 +1,25 @@
+# martenot — one held note, and the TOUCHE ridden all the way up and back down.
+# The A/B seed for Part 51's loudness→brightness tricks (audit §F7, plan item 1.7).
+#
+# The whole claim is about a RELATIONSHIP — brightness tracking loudness — so a static note proves
+# nothing and a struck note proves less. This holds one pitch and sweeps only the intensity, which is
+# the single variable the three modes disagree about:
+#   filter  cutoff rides intens^2 (as shipped)   · morph  cutoff parked open, the WAVE dulls
+#   gate    volume constant, cutoff IS the gate
+#
+# 'A' is the bottom keybed key (GarageBand musical typing) and is HELD for the whole clip: with a key
+# down, `pitchPtr` is set and the intensity target follows the touche `lever`, which UP/DOWN ride at
+# 0.025 per frame — so ~40 held frames covers the full 0..1 travel.
+#
+#   node tools/ab-render.js martenot --set loud_mode=MODE_FILTER,MODE_MORPH,MODE_GATE \
+#        --script tools/clips/martenot/01-touche-swell.script --frames 240
+#   node tools/wav-envelope.js <wav> 100    # amplitude vs CENTROID: do they rise and fall together?
+#
+# In MODE_GATE the amplitude curve should stay flat-ish while the centroid sweeps, since there the
+# filter is doing the gating instead of the VCA. That is the tell.
+down 5 a
+down 15 UP
+up 60 UP
+down 100 DOWN
+up 150 DOWN
+up 200 a

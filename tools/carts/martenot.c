@@ -12,7 +12,7 @@
     "additive-synth"
   ],
   "lineage": "Models the 1928 Ondes Martenot ribbon synth; novel in summing harmonic stops live into a single-cycle wavetable (wave_set) and combining ribbon glissando, detuned-twin beating, pitch drift, and four diffuseur reverb colours in one instrument.",
-  "description": "The 1928 ribbon synth (Radiohead, film scores, Messiaen) - a two-hand upgrade to the theremin, played MOSTLY on the RIBBON: drag it for continuous pitch (X) while the HEIGHT is the swell (Y) - a real theremin volume hand, the glowing orb rising as it gets louder. ONE eerie voice rings the whole time, plus a DETUNED TWIN that beats against it (the haunting shimmer), a slow analogue pitch-drift, a little drive and an ensemble chorus - deliberately NOT a clean synth. la TOUCHE D'INTENSITE (the left lever) is the dynamics hand: it drives note_vol AND note_cutoff (harder = louder + brighter), rides the swell for the keyboard, and overrides the ribbon's Y when you grab it with a second finger. The CLAVIER (piano) plays tempered notes; drag UP on a held key for VIBRATO (the key-wiggle). The combinable TIMBRE stops O/C/G/N are summed live into one drawn cycle (wave_set) + an S breath layer. The four DIFFUSEURS are the loudspeakers as reverb colour (note_reverb live + the reverb bus): Principal (dry), Resonance (spring), Metallique (a bright gong shimmer, the default) and Palme (a long string-halo). Plays three ways - TOUCH (two hands: touche + ribbon), MOUSE (one pointer), or the computer KEYBOARD: GarageBand note layout (A S D F... whites, W E T Y U... blacks, labelled on the keys), Z/X octave, UP/DOWN ride the touche, and the NUMBER ROW works the buttons (1-5 stops, 6-9 diffuseurs)."
+  "description": "The 1928 ribbon synth (Radiohead, film scores, Messiaen) - a two-hand upgrade to the theremin, played MOSTLY on the RIBBON: drag it for continuous pitch (X) while the HEIGHT is the swell (Y) - a real theremin volume hand, the glowing orb rising as it gets louder. ONE eerie voice rings the whole time, plus a DETUNED TWIN that beats against it (the haunting shimmer), a slow analogue pitch-drift, a little drive and an ensemble chorus - deliberately NOT a clean synth. la TOUCHE D'INTENSITE (the left lever) is the dynamics hand: it drives note_vol AND note_cutoff (harder = louder + brighter), rides the swell for the keyboard, and overrides the ribbon's Y when you grab it with a second finger. The CLAVIER (piano) plays tempered notes; drag UP on a held key for VIBRATO (the key-wiggle). The combinable TIMBRE stops O/C/G/N are summed live into one drawn cycle (wave_set) + an S breath layer. The four DIFFUSEURS are the loudspeakers as reverb colour (note_reverb live + the reverb bus): Principal (dry), Resonance (spring), Metallique (a bright gong shimmer, the default) and Palme (a long string-halo). Plays three ways - TOUCH (two hands: touche + ribbon), MOUSE (one pointer), or the computer KEYBOARD: GarageBand note layout (A S D F... whites, W E T Y U... blacks, labelled on the keys), Z/X octave, UP/DOWN ride the touche, and the NUMBER ROW works the buttons (1-5 stops, 6-9 diffuseurs). And key 0 cycles HOW LOUDNESS BECOMES BRIGHTNESS, the two tricks Synth Secrets Part 51 lifts out of the real Ondes: filter (as shipped - a lowpass rides intensity), morph (Reid's no-filter move: the cutoff is parked wide open and the WAVE dulls from the stops toward a triangle as the touche falls, because \"this relationship between loudness and high-frequency content is very much the behaviour of blown, bowed, strummed and struck instruments, and we're recreating it without a filter anywhere to be seen\"), and gate (his brass variant: the volume is held CONSTANT and the touche drives cutoff alone, so the filter both shapes the tone and separates one note from the next - measured, that is 30dB of range from the filter with the VCA untouched)."
 }
 de:meta */
 #include "studio.h"
@@ -81,27 +81,67 @@ int kb_semi = -1;           // semitone of the held computer key, or -1
 
 float fracf(float x) { return x - (int)x; }
 
-// Rebuild the single-cycle wave from whichever stops are lit, normalize, push it
-// into INSTR_USER0 (both VSLOT and DSLOT read it). Called only when timbre changes.
-void rebuild_wave(void) {
+// ---- HOW LOUDNESS BECOMES BRIGHTNESS: Part 51's two tricks (audit §F7 / plan 1.7) --------------
+// Part 51 drops patch-building and argues that CONTROL beats components: Reid plays a two-module patch
+// (one oscillator, one VCA) from an Ondes Martenot clone and claims it out-expresses any number of
+// modules driven from a keyboard. Two of his moves are liftable here, and this cart is the obvious home
+// because it already HAS the wire and the pressure button (ribbon + touche).
+//
+//   MODE_FILTER (as shipped) — brightness comes from a lowpass: `cut = 320 + intens^2 * 4600`. Which is
+//     exactly the thing Reid says you do not need.
+//   MODE_MORPH  — his no-filter trick: "you can reduce the amplitude or even eliminate harmonics by
+//     moving the wave from a sawtooth towards a triangle as you reduce the overall loudness … This
+//     relationship between loudness and high-frequency content is very much the behaviour of blown,
+//     bowed, strummed and struck instruments, and we're recreating it WITHOUT A FILTER anywhere to be
+//     seen." So the cutoff is parked wide open and the WAVE dulls toward a triangle as the touche falls.
+//   MODE_GATE   — his brass variant: the filter replaces the VCA. Volume is held CONSTANT and the touche
+//     drives cutoff alone, down to where nothing passes: "the filter is not only shaping the tone of the
+//     sound, it's also differentiating one note from the next. This is incredibly elegant!"
+//
+// This also answers §B9 (velocity does not touch brightness) with a cheaper mechanism than a filter.
+enum { MODE_FILTER = 0, MODE_MORPH, MODE_GATE, NMODE };
+const char *MODE_NAME[NMODE] = { "filter", "morph", "gate" };
+int loud_mode = MODE_FILTER;
+
+// Rebuild the single-cycle wave from whichever stops are lit, normalize, push it into INSTR_USER0 (both
+// VSLOT and DSLOT read it). Called when timbre changes — and, in MODE_MORPH, when the DULL step changes.
+//
+// `dull` 0 = the stops' own wave, 1 = a pure triangle. QUANTISED to 8 steps by the caller on purpose:
+// wave_set() pushes a 128-float table, and doing that every frame is the set-and-hold hazard the fx-lint
+// exists for. Eight steps is inaudible as stepping on a slow swell and rebuilds only when it moves.
+#define NDULL 8
+int wave_dull_step = -1;         // which dull step is currently loaded, -1 = none yet
+
+void rebuild_wave_dull(int step) {
     static float buf[128];
     const int N = 128;
+    float dull = (NDULL <= 1) ? 0.0f : (float)step / (float)(NDULL - 1);
     float peak = 0.0001f;
+    bool any = stop_on[ST_ONDE] || stop_on[ST_CREUX] || stop_on[ST_GAMBE] || stop_on[ST_NASAL];
     for (int i = 0; i < N; i++) {
         float t = (float)i / N, s = 0;
-        if (stop_on[ST_ONDE])  s += sin_deg(t * 360.0f);
-        if (stop_on[ST_CREUX]) s += clamp(sin_deg(t * 360.0f) * 1.8f, -0.7f, 0.7f);   // flat-topped = hollow
-        if (stop_on[ST_GAMBE]) s += 2.0f * (t - 0.5f);                                // sawtooth
-        if (stop_on[ST_NASAL]) s += (fracf(t) < 0.28f) ? 0.9f : -0.9f;                // narrow pulse
+        if (any) {
+            if (stop_on[ST_ONDE])  s += sin_deg(t * 360.0f);
+            if (stop_on[ST_CREUX]) s += clamp(sin_deg(t * 360.0f) * 1.8f, -0.7f, 0.7f);   // flat-topped = hollow
+            if (stop_on[ST_GAMBE]) s += 2.0f * (t - 0.5f);                                // sawtooth
+            if (stop_on[ST_NASAL]) s += (fracf(t) < 0.28f) ? 0.9f : -0.9f;                // narrow pulse
+        } else {
+            s = sin_deg(t * 360.0f);                        // never silent-by-stops
+        }
+        if (dull > 0.0f) {
+            float tri = 1.0f - 4.0f * ((t < 0.5f) ? (0.5f - t) : (t - 0.5f));   // -1..+1 triangle
+            s = s * (1.0f - dull) + tri * dull;
+        }
         buf[i] = s;
         float a = s < 0 ? -s : s;
         if (a > peak) peak = a;
     }
-    if (!(stop_on[ST_ONDE] || stop_on[ST_CREUX] || stop_on[ST_GAMBE] || stop_on[ST_NASAL]))
-        for (int i = 0; i < N; i++) buf[i] = sin_deg((float)i / N * 360.0f), peak = 1;  // never silent-by-stops
-    for (int i = 0; i < N; i++) buf[i] /= peak;
-    wave_set(0, buf, N);                                   // 0 → INSTR_USER0
+    for (int i = 0; i < N; i++) buf[i] /= peak;             // normalize: the morph must not change LEVEL,
+    wave_set(0, buf, N);                                   // only harmonic content (0 → INSTR_USER0)
+    wave_dull_step = step;
 }
+
+void rebuild_wave(void) { rebuild_wave_dull(loud_mode == MODE_MORPH ? (wave_dull_step < 0 ? 0 : wave_dull_step) : 0); }
 
 int   mainV = -1, souffleV = -1, twinV = -1;   // held voices — declared before apply_diffuseur
 
@@ -189,6 +229,9 @@ void update(void) {
     // ---- buttons on the number row (letters are notes; digits are free) ----
     for (int s = 0; s < NSTOP; s++) if (keyp('1' + s)) toggle_stop(s);
     for (int d = 0; d < 4; d++)     if (keyp('6' + d)) { diffuseur = d; apply_diffuseur(); }
+    // 0 = cycle how LOUDNESS becomes BRIGHTNESS (Part 51 / §F7). The letters are all notes and 1-9 are
+    // taken by the stops and diffuseurs, so the digit 0 is the one free key on this panel.
+    if (keyp('0')) { loud_mode = (loud_mode + 1) % NMODE; rebuild_wave(); }
 
     // ---- MIDI keyboard (engine midi_get): mono, last-note priority. Notes set the
     //      ribbon pitch, velocity sets the swell, and the bend wheel bends the ribbon. ----
@@ -253,9 +296,30 @@ void update(void) {
     float vib = 0.05f + 0.12f * intens;
     if (keyOn) vib += clamp(1.0f - (keyY - KBY) / (float)KBH, 0, 1) * 0.5f;
 
-    // drive the live voices (main + detuned twin)
-    int v = (int)(intens * 7 + 0.5f);
+    // drive the live voices (main + detuned twin) — see the Part 51 note above for the three modes
+    int v   = (int)(intens * 7 + 0.5f);
     int cut = 320 + (int)(intens * intens * 4600);
+    if (loud_mode == MODE_MORPH) {
+        // no filter at all: park the cutoff wide open and let the WAVE carry loudness→brightness.
+        // Rebuild only when the quantised dull step moves (wave_set is a 128-float push, not a knob).
+        cut = 12000;
+        int st = (int)((1.0f - intens) * (NDULL - 0.01f));
+        if (st < 0) st = 0; else if (st > NDULL - 1) st = NDULL - 1;
+        if (st != wave_dull_step) rebuild_wave_dull(st);
+    } else if (loud_mode == MODE_GATE) {
+        // the filter IS the gate: volume is held CONSTANT and the touche drives cutoff alone.
+        // The floor and the curve are load-bearing and were wrong first time round. The bottom note is
+        // LO_MIDI 48 = 130Hz, so a cutoff of 268Hz (what `60 + intens^2*5200` gives at a light touch)
+        // passes the fundamental unattenuated and gates NOTHING — measured, the peak barely moved across
+        // the whole touche travel. It has to sit well UNDER the lowest fundamental at rest, and stay there
+        // for the first part of the throw, hence a 24Hz floor and a CUBIC curve rather than a square one.
+        // A 12dB/oct lowpass (FILTER_LOW, above) attenuates rather than truly mutes, so this is Reid's
+        // effect approached, not reproduced: "at low cutoff nothing passes" is a 24dB/oct claim.
+        v   = 6;
+        cut = 24 + (int)(intens * intens * intens * 6200);
+    } else if (wave_dull_step != 0) {
+        rebuild_wave_dull(0);                               // back to FILTER mode: restore the stops' wave
+    }
     note_pitch(mainV, curMidi);   note_vol(mainV, v);   note_cutoff(mainV, cut);
     note_pitch(twinV, curMidi);   note_vol(twinV, v);   note_cutoff(twinV, cut);
     note_lfo(mainV, 0, LFO_PITCH, 6.2f, vib);
@@ -319,6 +383,10 @@ void draw(void) {
     int mi = (int)(curMidi + 0.5f);
     print(str("%s%d  %s  oct%+d", NOTE_NM[mi % 12], mi / 12 - 1, fromRibbon ? "ruban" : "clavier", kb_oct),
           KX + 4, KBY - 9, intens > 0.01f ? CLR_LIME_GREEN : CLR_LIGHT_PEACH);
+    // how loudness becomes brightness (key 0) — lit when off the shipped filter path, so the A/B is
+    // never invisible to whoever is listening
+    print(str("0:%s", MODE_NAME[loud_mode]), LVX - 2, LVY - 9,
+          loud_mode ? CLR_LIME_GREEN : CLR_DARK_BROWN);
     print_right("drag a key UP = vibrato", SCREEN_W - 6, KBY - 9, CLR_DARK_BROWN);
 
     // KEYBED — tempered manual, drag UP a held key = vibrato; keys labelled with their letters

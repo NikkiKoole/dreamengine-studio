@@ -1,0 +1,20 @@
+# martenot — ONE held note at a FIXED touche level. The measurement clip for Part 51's
+# loudness→brightness claim (audit §F7, plan item 1.7).
+#
+# Deliberately NOT a swell. A swept clip (01-touche-swell) is what you LISTEN to, but it is useless to
+# MEASURE: the spectral centroid of this voice is dominated by its fundamental, so as a note gets louder
+# the centroid falls, and at the quiet ends it is noise-dominated and means nothing at all. Sweeping
+# therefore produces a centroid curve that moves opposite to the brightness you can plainly hear.
+#
+# So instead: hold one note, leave the touche where it starts, and let `lever` be the swept variable
+# ACROSS RENDERS. Each render is then a steady tone at a known loudness, and brightness-vs-loudness is
+# read off a table instead of a curve:
+#
+#   node tools/ab-render.js martenot --set lever=0.20f,0.50f,0.90f \
+#        --script tools/clips/martenot/02-steady-note.script --frames 180
+#   (repeat per mode by flipping loud_mode, or sweep loud_mode at one lever)
+#
+# 'A' is the bottom keybed key and is held throughout; with a key down the intensity target follows
+# `lever`, and nothing else touches it. Measure the settled region, ~1.0s onward.
+down 5 a
+up 170 a

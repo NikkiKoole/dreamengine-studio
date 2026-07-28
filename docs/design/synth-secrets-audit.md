@@ -1076,6 +1076,15 @@ Grouped because each is small and individually optional.
 
 ### F7. Part 51 is not about DSP at all, and it is the finding with the widest reach
 
+> **✅ BOTH TRICKS BUILT 2026-07-29** (plan item 1.7, awaiting the owner's ear). Key **0** in `martenot`
+> cycles filter / morph / gate. The **filter-as-gate** is the one the numbers settle: with `note_vol` pinned
+> constant, the touche driving cutoff alone yields **30 dB of range** (−40.4 → −10.0 dBFS), so the filter
+> really does differentiate one note from the next. The **waveform morph** is ear-only — the HF/total
+> brightness proxy reads 0.000 on this voice and the centroid is fundamental-dominated, so it moves the
+> wrong way; no oracle here can adjudicate it. Caveat on the gate: a 12 dB/oct lowpass attenuates rather
+> than mutes, so Reid's "at low cutoff nothing passes" is approached, not reproduced. Full numbers:
+> [plan §4 "1.7"](synth-secrets-plan.md).
+
 - **Book:** Part 51 abandons patch-building and argues that **control** beats components. Reid drives a
   two-module patch (one oscillator, one VCA) from an Ondes Martenot clone: a ring on a wire for
   continuous unquantised pitch, plus a pressure button for continuous loudness. Result: "With a little
@@ -2308,6 +2317,12 @@ between them, so this is the one genuinely missing axis. Also one `eng_p` slot.
   chiff should stay).
 
 ### L5. Two of Reid's four named registrations are missing, and they are the interesting two
+
+> **❌ DROPPED 2026-07-29** (plan item 1.6). **And this section under-priced it badly:** "two rows in
+> `REG[8][9]`" is wrong, because the table is **8 snapped detents** in the engine — adding rows re-maps
+> `instrument_harmonics` for the **13 carts** that set it on an organ slot, silently. The safe route
+> (`MODE_ORGAN_XREG` behind ORGAN's aux channel) works but spends permanent public API on two novelty
+> presets, and §L1 already verified all nine footages against Part 55, so nothing here is *wrong*. Not built.
 
 - **Book:** beyond 88 8000 000 and 88 8888 888 (both of which we have, L1), Part 55 names two more and
   says what they are *for*: **83 4211 100** is "the closest approximation available to a '1/n' harmonic

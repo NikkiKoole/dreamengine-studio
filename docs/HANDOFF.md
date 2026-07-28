@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 4/7 — three shipped, one DROPPED).**
+> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -197,13 +197,34 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   directly, they picked SHIPPED. **Always hand over the pair, never a single file, and re-confirm against
 >   the incumbent before concluding anything.**
 >
-> **Resume-at:** pick up Phase 1 at **1.5** (a two-slot layered piano, §I9 — "Part 45's whole conclusion,
-> and free") →
+> **PHASE 1 IS DONE, 7 of 7.** Beyond 1.1-1.3 above: **1.5** (`piano`, key **L**) layers two slots ~7 cents
+> apart per Part 45 — liked, but deliberately kept **opt-in**, because this cart's six presets are declared
+> acceptance tests and layering would retune the yardstick. **1.4** (`brass`) and **1.6** (`organ`) are
+> recorded **DROPs**: Reid loses all three brass envelope numbers (the shipped 1200ms release *is* the
+> bore's ring-down), and the Hammond item was mis-priced by the audit — its detent table is in the engine,
+> so "two rows" would silently remap 13 carts. **1.7** (`martenot`, key **0**) is built and awaiting an ear:
+> filter / morph / gate, where the filter-as-gate measures **30 dB of range with the VCA held constant** and
+> the waveform morph is honestly **ear-only** (the HF proxy reads 0.000 on that voice and the centroid is
+> fundamental-dominated, so it moves the wrong way).
+>
+> **The recurring lesson of the whole phase, worth carrying into Phase 2:** on these engines **the envelope
+> does not own the tail — the model does.** It landed three separate times (the 808 cymbal's decays, the
+> brass release, the piano layer's ENV2), and each time a longer release or gate did nothing because the
+> physical model's own decay governs the ring-down. Expect it again, and expect Reid's numbers not to
+> transfer: **never port values from a subtractive patch by editing — always A/B.**
+>
+> **Phase 1 also produced one engine FIX** (`41a4c6ea`): `instrument_mode` guarded `idx >= 2` when `eng_p`
+> is four wide, so the PIANO's double-decay and hammer-knock params — implemented end to end — were
+> unreachable and two `piano` sliders had never worked. A no-op at rest, live once a slider moves.
+> `MODE_PIANO_DECAY`/`MODE_PIANO_KNOCK` now exist. Still open: `instrument_mode` does not VALIDATE its
+> index, which is how a dead control survives; top of [`STATUS.md`](STATUS.md) → "Open".
+>
+> **Resume-at:** **Phase 2**, the four cross-cutting themes — start with **keytracking**, which closes six
+> chapters' independent requests at once and is the prerequisite for §G →
 > [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#4-phase-1--cart-only-each-its-own-audible-proof).
-> Then 1.6 (Hammond's two extra registrations), 1.7 (loudness→brightness
-> waveform morph + filter-as-gate, in `martenot`/`brass`). Read the ear-call loop above first — the shape of
-> every remaining item is the same, and FOUR worked examples are written up in plan §4 — 1.1/1.2/1.3
-> shipped and 1.4 dropped, which is the one to read first if you have not done a LISTEN item before.
+> Read the ear-call loop above first — every Phase 1 item followed it, and SEVEN worked examples are written
+> up in plan §4. If you have not done a LISTEN item before, read **1.4** first: it is the one that failed,
+> and it shows the shape of an honest DROP.
 > After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and keytracking alone
 > closes six chapters' independent requests and is the prerequisite for §G.
 >

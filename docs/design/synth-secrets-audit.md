@@ -10,23 +10,23 @@ Nothing here is a bug report. Several divergences are deliberate and documented 
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
 **Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
-chapters. §E, §F, §H and §I are the **recipe** passes, one instrument family at a time (does one
+chapters. §E, §F, §H, §I and §J are the **recipe** passes, one instrument family at a time (does one
 engine's *voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F
-strings**, **§H plucked strings** and **§I pianos** are done; remaining families are listed in §D5.
+strings**, **§H plucked strings**, **§I pianos** and **§J drums** are done; what remains is listed in §D5.
 **§G** is a design question the recipe passes raised: every patch in the book is subtractive and all our
 imitative engines are physical models, which may mean we are missing a category rather than
 mistranslating one — and §H then §I bounded it, since Reid says outright that subtractive cannot do a
 guitar or a piano.
 
 Two things a reader should know before trusting any single section. **§C12 was corrected** by §F: Reid
-contradicts himself between Part 10 and Part 46 and explicitly retracts the earlier claim, which §C12
+contradicts himself between Part 10 and Part 47 and explicitly retracts the earlier claim, which §C12
 had quoted as law. And **§I found the best match in the audit** — `INSTR_PIANO` gets a piece of physics
 right that is easy to get backwards — so the passes are not uniformly critical; where we are right,
 that is recorded too, because the point is to keep choices from decaying into accidents in either
 direction.
 
 Note that §C12 was **corrected** by the strings pass. Reid contradicts himself between Part 10 and
-Part 46 and explicitly retracts the earlier claim, which the original §C12 had quoted as law. Expect
+Part 47 and explicitly retracts the earlier claim, which the original §C12 had quoted as law. Expect
 more of this: the series ran five years and he revises himself.
 
 ---
@@ -44,6 +44,14 @@ you need it again, ask the owner, or read the individual articles, which SOS sti
 issues from Part 1 = May 1999, so Part 18 = October 2000, Part 63 = July 2004. Page numbers are given
 where the article's own footer supplied one. Text was extracted with `pdftotext -layout`; the PDF has a
 real text layer, so the quotes below are verbatim, not OCR guesses.
+
+> **Numbering fixed 2026-07-28.** The mapping above is now **validated**: the PDF prints an explicit
+> `PART N:` label on the first thirty articles, and all eleven checkable anchors (Parts 18, 21, 23-30
+> and 63) agree with consecutive-monthly. Before that check, §F and §I were each **off by one** — the
+> strings arc was labelled Parts 45-50 and is really **46-51**; the pianos arc was labelled 41-44 and is
+> really **42-45**. The *issue months* were right throughout (they came from the articles' own page
+> footers), so only the numbers moved. Corrected everywhere, including in the docs that cite back here.
+> If you have an earlier revision open, trust the month, not the number.
 
 Part index, for orienting: 1-2 harmonics and the physics of percussion · 3 signals/modifiers/controllers ·
 4-6 filters · 7-9 envelopes, gates, triggers, VCAs · 10 modulation · 11 AM · 12-13 FM · 14 additive ·
@@ -108,9 +116,10 @@ locals, additively for offsets and multiplicatively for pitch. His Figure 4 (two
 into a 4-stage shape "you cannot obtain from what is commonly called a 4-stage ADSR") is reachable today.
 
 **A5. The 808 cymbal is architecturally right.**
-`tr808.h` runs the six-oscillator square bank through a highpass. Part 40 (SOS August 2002) dissects the
-real TR-808 cymbal as pulse-wave oscillators into bandpass and highpass paths with AD and AHD contours.
-Same family.
+`tr808.h` runs the six-oscillator square bank through a highpass. Part 39 (SOS July 2002) dissects the
+real TR-808 cymbal as six enharmonically-tuned square oscillators split into bands by bandpass and
+highpass filters. Same family. *(Citation corrected 2026-07-28: this said "Part 40, August 2002", which
+is "Synthesizing Bells". The cymbal dissection is Part 39. And §J5 shows the match is only partial.)*
 
 **A6. Voice stealing is arguably better than either of his options.**
 Part 21 (SOS January 2001, p.160) gives two policies: rotate-and-steal (Figure 10, "note stealing on a
@@ -158,7 +167,7 @@ would be heard.
   opposite case as the thing that makes formants work: the filter bank's response "is independent of the
   pitch of the source. To see how this differs from conventional synthesizer filtering (in which the
   filter cutoff frequency often tracks the pitch of the note being played) ..." His own patch listings
-  carry it as a first-class control: the JX10 tables in Part 42-43 (SOS November-December 2002) list
+  carry it as a first-class control: the JX10 tables in Part 43-44 (SOS November-December 2002) list
   "56 Key Follow 24", and Part 33 (SOS February 2002) tells you to reach for "the 'VCF Kybd' (keyboard
   tracking)" slider.
 - **Engine:** there is no keytrack anywhere in `sound.h`. Cutoff is absolute Hz at every entry point:
@@ -244,7 +253,7 @@ would be heard.
   applied only when `v->wave == INSTR_SAW` ([`runtime/sound.h:6480-6481`](../../runtime/sound.h)), and
   (c) skipped entirely on the unison path, with the comment "unison saws stay raw by design".
 - **Why it matters:** square and pulse alias freely, and PWM is the worst case because the duty edge is
-  *moving*, which is precisely the waveform Part 46 (SOS March 2003) says is "ideal for creating string
+  *moving*, which is precisely the waveform Part 47 (SOS March 2003) says is "ideal for creating string
   ensemble sounds". For a lo-fi console some aliasing is legitimately the aesthetic. The issue is that
   right now it is not a *choice*, it is an absence: there is no way to ask for a clean pulse.
 - **Fix shape:** extend the existing `bandlimit` flag to the square/pulse path (a second BLEP at the
@@ -514,12 +523,12 @@ would be heard.
 ### C12. A pulse-width harmonic oracle we can actually run
 
 > **⚠ CORRECTED 2026-07-28 by the strings pass (§F).** This item originally quoted Part 10's "every
-> nth harmonic is missing" as "a hard, testable law". **Reid himself corrects that claim in Part 46**,
+> nth harmonic is missing" as "a hard, testable law". **Reid himself corrects that claim in Part 47**,
 > and calls it "a long-standing mistake usually made in discussions of pulse waveforms". The oracle
 > below is still worth building, but the assertion it makes had to change; the original version would
 > have gated on something false. Details in §F3.
 
-- **Book, the corrected version:** Part 46 (SOS March 2003, p.154-155). The *nulls* are evenly spaced
+- **Book, the corrected version:** Part 47 (SOS March 2003, p.154-155). The *nulls* are evenly spaced
   as Part 10 says, but the surviving harmonics do **not** keep the sawtooth's 1/n amplitudes. A pulse
   wave's spectrum is a **sinc** envelope: "the amplitude of any pulse-wave harmonic is defined by the
   value of the sinc function at that point ... there can be no harmonics at the points where the sinc
@@ -567,31 +576,30 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), 31-39 (drums other than
-the timpani ring-mod passage and the 808 cymbal), **51-53 (flutes)**, 54-56 and 58 (the rest of the
-Hammond), 59-62 (delays and effects) were skimmed or grep-targeted, not read end to end. They are the
-remaining *recipe* chapters, and the most likely place to find per-engine tuning findings for
-`MEMBRANE`/`PIPE`/`REED`/`ORGAN` against the physical analysis. Pair them with
-[`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
+**D5. What is left.** Five recipe passes done: **brass (24-27) → §E**, **strings (46-51) → §F**,
+**plucked strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) → §J**. With the architecture
+chapters in §A-§D (4-13, 15-18, 20-21, 23, 63) that is **roughly 50 of the 63 articles read end to
+end**. §E is the template.
 
-Done so far: **brass (24-27) → §E**, **strings (45-50) → §F**, **plucked strings (28-30) → §H**,
-**pianos (41-44) → §I**. §E is the template. Suggested next, by expected yield:
+Remaining, by expected yield:
 
-1. **Drums (31-40)** — ten chapters against `MEMBRANE`, `tr808`/`tr909`/`morphdrum`, `drumkit.h`. The
-   seam is already proven: §C4 pulled the timpani ring-mod recipe out of Part 32 and §A5 checked the 808
-   cymbal against Part 40, both by grep, and both landed. The other eight chapters (timpani ×3, bass
-   drum ×2, snare ×2, metallic percussion ×3, bells, cowbells/claves) are unread. Comfortably the
-   largest single haul left, and the one family where we have *machine* recipes (`tr808.h`, `tr909.h`,
-   `morphdrum.h`) as well as a physical engine, so there are two independent things to check.
-2. **Flutes (51-53)** against `PIPE`, which carries a known intonation caveat already recorded in
-   `studio.h` — the only remaining family with a *specific* open question to aim at.
-3. **The Hammond (54-58)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep; five
-   chapters on one instrument almost certainly hold more.
-4. **Delays and effects (59-62)** against our echo/BBD/chorus/spring-reverb stack — the only remaining
-   arc that is about the effects layer rather than an engine, so it would exercise a different part of
-   the codebase than the four passes so far.
-5. **Reeds** have no dedicated arc; `REED` is covered incidentally by Part 24 (already read for §E) and
-   the clarinet material in Parts 28 and 47. Probably not worth a pass of its own.
+1. **Flutes and pan pipes (52-54)** against `INSTR_PIPE`, which carries a **known intonation caveat
+   already recorded in `studio.h`** ("a low/hollow embouchure and overblow drift flat/unstable at the
+   top"). Only three chapters, but the only remaining family with a specific, already-documented open
+   question to aim at, which makes it the best value left.
+2. **The Hammond (55-59)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep and it
+   landed. Five chapters on one instrument, and `ORGAN` has a lot of surface to check (nine drawbars, key
+   click, percussion ping, scanner chorus, and the leakage we lack).
+3. **Delays and effects (60-62), with Part 22 (springs, plates and buckets)** against our
+   echo/BBD/chorus/spring-reverb stack. The only remaining arc about the **effects layer** rather than an
+   engine, so it exercises a different part of the codebase than all five passes so far, and it pairs
+   with [`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes.
+   Part 22 is the direct ancestor of our spring-reverb and BBD work and should be read with them.
+4. **Duophony (Part 19)** — one chapter, mostly historical, and its content folds into the §B3
+   note-priority theme. Low yield alone.
+5. **Not worth a pass:** `REED` has no dedicated arc (covered incidentally by Part 24, already read for
+   §E, plus the clarinet material in Parts 28 and 48). Parts 14 (additive) and 22 were partly covered in
+   §A-§D already.
 
 ---
 
@@ -875,26 +883,26 @@ the thing to judge against.
 
 ---
 
-## F. Recipe pass 2 — STRINGS (Parts 45-50)
+## F. Recipe pass 2 — STRINGS (Parts 46-51)
 
 STATUS: EXPLORING — nothing queued.
 
-"Strings" is two threads in the series and both map onto things we ship, so both are here. Parts 45-46
+"Strings" is two threads in the series and both map onto things we ship, so both are here. Parts 46-47
 are string **machines** (the Solina/Freeman ensemble lineage, and PWM), which land on `solina`, `juno`,
-`supersaw` and our unison/detune/PWM surface. Parts 47-50 are **bowed** strings, which land on
+`supersaw` and our unison/detune/PWM surface. Parts 48-51 are **bowed** strings, which land on
 `INSTR_BOWED`. **Plucked** strings are a separate arc (Parts 28-30, still unread, see §D5) covering
 `PLUCK`/`GUITAR`/`PIANO`.
 
-Sources: Part 45 "Synthesizing Strings • String Machines" (SOS February 2003), Part 46 "…PWM & String
-Sounds" (SOS March 2003), Part 47 "Synthesizing Bowed Strings • The Violin Family" (SOS April 2003),
-Parts 48-49 "Practical Bowed-string Synthesis" (SOS May, June 2003), Part 50 "Articulation &
+Sources: Part 46 "Synthesizing Strings • String Machines" (SOS February 2003), Part 47 "…PWM & String
+Sounds" (SOS March 2003), Part 48 "Synthesizing Bowed Strings • The Violin Family" (SOS April 2003),
+Parts 49-50 "Practical Bowed-string Synthesis" (SOS May, June 2003), Part 51 "Articulation &
 Bowed-string Synthesis" (SOS July 2003). Engine: `sound_bowed_sample`
 ([`runtime/sound.h:3778`](../../runtime/sound.h)) + `sound_bowed_start`
 ([`runtime/sound.h:3708`](../../runtime/sound.h)).
 
 ### F1. What matches, and it is a lot on the machines side
 
-The ensemble half is the best-matched area the audit has found. Part 45 walks a Jupiter 6 up a ladder
+The ensemble half is the best-matched area the audit has found. Part 46 walks a Jupiter 6 up a ladder
 of thickening tricks, and we have every rung:
 
 - **Detune two saws.** `instrument_unison` up to 7 (`SOUND_UNISON_MAX`,
@@ -923,7 +931,7 @@ of thickening tricks, and we have every rung:
 
 ### F2. `solina` leaves the two tricks that matter unused
 
-- **Book:** the ladder in §F1 is the whole point of Part 45, and the Random-LFO-on-detune rung is the
+- **Book:** the ladder in §F1 is the whole point of Part 46, and the Random-LFO-on-detune rung is the
   one he says separates a "wobbly boring buzz" from something "thick and unstable ... 'analogue', or
   perhaps 'human'".
 - **Cart:** `solina.c` uses one `instrument_lfo(s, 0, LFO_PITCH, 0.16f, 0.04f)` for slow tape wow
@@ -938,10 +946,10 @@ of thickening tricks, and we have every rung:
 
 This is the most interesting finding of the pass, and it is subtle.
 
-- **Book:** Part 45 first states it as a curiosity: "Pulse waves whose widths are modulated by triangle
+- **Book:** Part 46 first states it as a curiosity: "Pulse waves whose widths are modulated by triangle
   waves have another, rarely appreciated characteristic; they exhibit pitch modulation that oscillates
   at the PWM rate above and below the true oscillator pitch ... a PWM wave generated by a single
-  oscillator exhibits **two pitches**." Part 46 then spends two full boxes proving it, by
+  oscillator exhibits **two pitches**." Part 47 then spends two full boxes proving it, by
   differentiating the PWM waveform into its rising and falling edge trains and showing they are two
   independent signals at *different constant frequencies* (nine-eighths of each other in his worked
   example): "Now that we have shown PWM to be the sum of two signals, at least one of which is
@@ -959,7 +967,7 @@ This is the most interesting finding of the pass, and it is subtle.
   sidebands at the LFO rate around the fundamental. Reid says the effect is "easy to hear at low
   oscillator pitches and high modulation depths". `harmonic-spec.js` plus `wav-modrate.js` should
   settle it in one pass.
-- **The consolation prize if it is missing:** Part 46's entire practical half is a recipe for
+- **The consolation prize if it is missing:** Part 47's entire practical half is a recipe for
   *synthesizing PWM without PWM* — "you can mix two simple sawtooth oscillators, and, if one is
   frequency-modulated slightly with respect to the other, you will obtain a sound that is all but
   identical to that of a single, pulse-width modulated, pulse-wave oscillator. Sure, the waveform looks
@@ -974,7 +982,7 @@ This is the most interesting finding of the pass, and it is subtle.
 
 This is §F's headline, and it is a clean, sourced gap with the fix already in the same file.
 
-- **Book:** Part 47 separates the two spectra explicitly. Figure 8 is "the force waveform measured at
+- **Book:** Part 48 separates the two spectra explicitly. Figure 8 is "the force waveform measured at
   the bridge of a violin", a sawtooth. Figure 14 is the *radiated* spectrum after the body. On why you
   cannot ship the first and call it done: "The timbre of a violin is strongly linked to the dominant
   body resonances in the region of a few hundred Hertz, as well as the broad combination of resonances
@@ -1001,7 +1009,7 @@ This is §F's headline, and it is a clean, sourced gap with the fix already in t
 
 ### F5. The bow-pressure macro is pinned inside the clean wedge, so "surface sound" is unreachable
 
-- **Book:** Part 47 names the sound and its cause. Insufficient bow pressure lets the string "slip twice
+- **Book:** Part 48 names the sound and its cause. Insufficient bow pressure lets the string "slip twice
   in each cycle. This 'double-slip' motion does not change the pitch, but more often creates a new tone
   that violinists call 'surface sound'." Reid then makes the connection for us: "If they had ever
   studied hard sync on an analogue synth, they would understand what they were hearing!" Multiple slips
@@ -1022,14 +1030,14 @@ This is §F's headline, and it is a clean, sourced gap with the fix already in t
 
 Grouped because each is small and individually optional.
 
-- **Louder goes slightly flat.** Part 47: "the pitch of the note goes slightly flat as it becomes
+- **Louder goes slightly flat.** Part 48: "the pitch of the note goes slightly flat as it becomes
   louder." Our `morph` is bow speed and does not touch pitch. Measurable with `tune-check.js` swept
   across morph, which would currently show no deviation.
-- **Per-period pitch jitter.** Part 47: "there is jitter in the pitch as the 'corner' of the wave ...
+- **Per-period pitch jitter.** Part 48: "there is jitter in the pitch as the 'corner' of the wave ...
   passes under the bow." We have `bw_drift`, a slow random walk, which is a different thing. The
   primitive for the right thing exists: `INSTR_VOICE`'s `vox_jit_mul` is per-glottal-period pitch
   jitter ([`runtime/sound.h:270`](../../runtime/sound.h)).
-- **Bow position should comb out harmonics, and this is testable today.** Part 47: bowing at the centre
+- **Bow position should comb out harmonics, and this is testable today.** Part 48: bowing at the centre
   removes the even harmonics; at 1/3 from the bridge "there can be no third, sixth, ninth, and other
   'third' harmonics"; at 1/4, no fourth/eighth/twelfth. Our `harmonics` macro *is* bow position
   (`bw_nutlen`/`bw_brlen` split at note-on), so this comb should already fall out of the geometry. It
@@ -1037,9 +1045,9 @@ Grouped because each is small and individually optional.
   waveguide is right where a listening test can't.
 - **Audible home:** `bowed`; the comb check is a `brasspec`-style measurement.
 
-### F7. Part 50 is not about DSP at all, and it is the finding with the widest reach
+### F7. Part 51 is not about DSP at all, and it is the finding with the widest reach
 
-- **Book:** Part 50 abandons patch-building and argues that **control** beats components. Reid drives a
+- **Book:** Part 51 abandons patch-building and argues that **control** beats components. Reid drives a
   two-module patch (one oscillator, one VCA) from an Ondes Martenot clone: a ring on a wire for
   continuous unquantised pitch, plus a pressure button for continuous loudness. Result: "With a little
   practice, the performance is no longer that of a soulless single-oscillator, unmodulated sawtooth
@@ -1073,7 +1081,7 @@ Grouped because each is small and individually optional.
 
 ### F8. Smaller items from the ensemble chapters
 
-- **Amp level should key-track *negatively* for warmth.** Part 46's Korg T2 string patch sets amplifier
+- **Amp level should key-track *negatively* for warmth.** Part 47's Korg T2 string patch sets amplifier
   keyboard tracking to **-04**: "With a negative value, this weights the loudness of the sound to the
   bottom end of the keyboard, thus generating additional warmth." We have no amp key-tracking in either
   direction (§B2 covers cutoff; this is a second, independent destination).
@@ -1082,9 +1090,9 @@ Grouped because each is small and individually optional.
   after Parts 6, 23, 24 and 26. It is comfortably the most-cited missing feature in the series.
 - **No velocity sensitivity.** "String synths were not velocity-sensitive, so this patch should be
   likewise" — worth knowing before anyone wires §B9 globally rather than per-slot.
-- **The VCA envelope is a trapezoid**: a crescendo in, a long tail, no filter modulation (Part 45
+- **The VCA envelope is a trapezoid**: a crescendo in, a long tail, no filter modulation (Part 46
   Figure 9). Reid's Part 7 trapezoid, reappearing as the string-machine amp shape.
-- **Layering is the ensemble.** Part 46: three layers at 16'/8'/4' "to emulate the Cello, Viola and
+- **Layering is the ensemble.** Part 47: three layers at 16'/8'/4' "to emulate the Cello, Viola and
   Violin options offered by some of the better vintage ensembles", at the cost of polyphony. `solina`
   already stacks footages, so this is mostly confirmation.
 - **Audible home:** `solina`, `juno`.
@@ -1116,7 +1124,7 @@ actually pointing at a missing *category*.
 
 **The observation.** Reid's brass patch does not sound like a trumpet. It sounds like **a Minimoog
 playing a trumpet**, and that is a beloved sound in its own right — the entire 1970s prog and funk horn
-vocabulary, plus the string-machine sound that Parts 45-46 spend two months on and that people still
+vocabulary, plus the string-machine sound that Parts 46-47 spend two months on and that people still
 buy hardware to get. Meanwhile `INSTR_BRASS` chases the trumpet itself and gets judged against a
 trumpet, which is a much harder bar and, per
 [`brass-realism-handoff.md`](brass-realism-handoff.md), one we keep not clearing. Two different targets
@@ -1135,7 +1143,7 @@ which we ship or nearly ship. Which suggests the shape is one of:
 1. **A cart-land header** (`subtractive.h`, sibling to `acid303.h` and `tr808.h`): a small struct plus
    a voicing table holding Reid's published patches as *data* (his Minimoog trumpet, tuba and jazz
    trombone from Part 26; the SH-101 and Axxe versions from Part 27; the Jupiter 6 and JX10 string
-   patches from Parts 45-46). The header owns the recipe, the cart owns the performance. This is
+   patches from Parts 46-47). The header owns the recipe, the cart owns the performance. This is
    exactly the precedent `acid303.h` set — "cart owns the PATTERN, header owns the SOUND" — and it needs
    no engine surface at all.
 2. **A thin engine id** that packages the pieces into three macros, if and only if the header proves
@@ -1155,7 +1163,7 @@ Electric guitar, after rejecting three factory patches: "the world does not perm
 subtractive synthesis to reproduce a guitar sound" (Part 30). Piano: "there has never been a convincing
 acoustic piano produced by subtractive synthesis, additive synthesis, or FM synthesis. Only samples
 appear to do the trick", and "is it impossible to create an acoustic piano patch on an analogue synth?
-The strict answer is 'yes'" (Part 41). In all three he points at physical modelling or samples, which is
+The strict answer is 'yes'" (Part 42). In all three he points at physical modelling or samples, which is
 what we already do.
 
 So this engine class is right for **brass, string machines and leads** — the families where the analogue
@@ -1447,18 +1455,18 @@ Two consequences:
 
 ---
 
-## I. Recipe pass 4 — PIANOS (Parts 41-44)
+## I. Recipe pass 4 — PIANOS (Parts 42-45)
 
 STATUS: EXPLORING — nothing queued.
 
-Four chapters: Part 41 is the physics, Parts 42-44 build a subtractive piano on a Roland JX10 (with
+Four chapters: Part 42 is the physics, Parts 43-45 build a subtractive piano on a Roland JX10 (with
 a hard-sync tutorial in the middle, because the patch needs it). **This is the best-matched engine in
 the whole audit.** `INSTR_PIANO` gets a subtle piece of physics right that it could easily have got
-wrong, and most of what Part 41 asks for is already shipped, largely thanks to
+wrong, and most of what Part 42 asks for is already shipped, largely thanks to
 [`piano-engine.md`](piano-engine.md)'s fix round. So §I is mostly confirmations, with a short list of
 real gaps and one genuinely counter-intuitive finding.
 
-Sources: Part 41 "Synthesizing Pianos" (SOS October 2002), Parts 42-44 "Synthesizing Acoustic Pianos On
+Sources: Part 42 "Synthesizing Pianos" (SOS October 2002), Parts 43-45 "Synthesizing Acoustic Pianos On
 The Roland JX10" (SOS November, December 2002, January 2003). Engine: `sound_piano_start`
 ([`runtime/sound.h:4599`](../../runtime/sound.h)), `sound_piano_sample`
 ([`:4693`](../../runtime/sound.h)). Prior art: [`piano-engine.md`](piano-engine.md).
@@ -1481,7 +1489,7 @@ I5.
 ### I1. What matches, including one thing that is easy to get backwards
 
 - **The hammer comb is the INVERSE of the pluck comb, and we implement both correctly.** This is the
-  finding I most expected to go the other way. Part 41 draws the distinction explicitly: "Whereas the
+  finding I most expected to go the other way. Part 42 draws the distinction explicitly: "Whereas the
   position at which a guitar string is plucked determines its maximum displacement, **the piano hammer
   remains in contact with the string long enough to ensure that the position at which the string is
   struck is a node of zero displacement.**" So the excluded harmonics are the complementary set. His
@@ -1502,20 +1510,20 @@ I5.
   worth adding one, because a future tidy-up that "unified" the two combs would silently break the
   piano's physics.
 - **Stretched tuning, and by Reid's own mechanism.** `piano_stretch_freq` /`PIANO_STRETCH_K`
-  ([`:4604`](../../runtime/sound.h)). Part 41 explains both the cause (the string needs a finite length
+  ([`:4604`](../../runtime/sound.h)). Part 42 explains both the cause (the string needs a finite length
   to bend over bridge and nut, so its effective length shortens, stretching the series toward
   1:2:3:4.01:5.02:6.04) and the consequence, which is the good bit: play A440 with the A two octaves
   up and "because A440 exhibits stretched harmonics, the upper 'A' will, if tuned to 1760Hz, sound a
   fraction flat! Indeed, the human ear/brain is so accustomed to this that a perfectly tuned piano not
   only sounds out of tune, **it sounds dull**." His fix is Figure 14: "making the oscillators track the
   keyboard at a ratio just a fraction greater than 1:1", which is what we do.
-- **Register-dependent decay is free, and measured.** Part 41 Figure 9 wants low notes to decay more
+- **Register-dependent decay is free, and measured.** Part 42 Figure 9 wants low notes to decay more
   slowly than high ones. Because the loop applies a fixed per-*period* loss, higher notes take more
   loop passes per second, so T60 falls with pitch structurally: I0 shows A1 still at 0.11 after a
   second while A4 is gone. Nothing to build. Worth recording precisely so nobody adds a redundant
   register term on top of it.
-- **Two-rate decay, and Part 41 supplies the piano's own cause.** `pn_dd`
-  ([`:4629`](../../runtime/sound.h), relaxing at `0.99975` per sample ≈ 90 ms). Part 41: "the tail can
+- **Two-rate decay, and Part 42 supplies the piano's own cause.** `pn_dd`
+  ([`:4629`](../../runtime/sound.h), relaxing at `0.99975` per sample ≈ 90 ms). Part 42: "the tail can
   linger for tens of seconds, which tells us that the rate of the decay diminishes as the note
   progresses. This is because, **as the pairs and tricords interact**, the rate at which energy is
   transferred to the soundboard diminishes." Note this is a *different* mechanism from the guitar's
@@ -1523,7 +1531,7 @@ I5.
   instruments have the behaviour, for different reasons — which is exactly why §H3's correction to
   `pn_dd`'s comment matters: the comment claims two-rate decay is what says "struck, not plucked", and
   it isn't.
-- **We attempt the stage Reid says nobody has managed.** Part 41 splits a piano note into three
+- **We attempt the stage Reid says nobody has managed.** Part 42 splits a piano note into three
   stages: the hammer blow, "the transition period during which the strings begin to oscillate
   harmonically", and the tail. On stage 2: "it is here that the nature of the waveforms is changing
   most rapidly. I suppose it's possible that we could invent a synth architecture to imitate this, but
@@ -1532,7 +1540,7 @@ I5.
   structurally, because redistribution among string modes is what the delay line *does*. Reid was
   writing about subtractive synthesis, so this is not a contradiction — but it is a case where our
   choice of method buys something he explicitly could not have.
-- **Velocity drives timbre, not just level.** Part 41 Figures 11-13 want brightness to respond to note
+- **Velocity drives timbre, not just level.** Part 42 Figures 11-13 want brightness to respond to note
   number, to velocity, and to a contour whose decay rate itself depends on note number. We do
   velocity → hammer hardness ([`:4624`](../../runtime/sound.h)) and velocity → knock amount
   ([`:4634`](../../runtime/sound.h)), plus the register-scaled bloom.
@@ -1540,7 +1548,7 @@ I5.
   41's sustain-pedal section is a description of sympathetic resonance: "the energy then passes through
   the bridge and soundboard to excite other strings. Some will vibrate sympathetically, because they
   share modes of vibration with the initial note."
-- **Our macro assignment is validated from an unexpected direction.** Part 44, on programming the JX10:
+- **Our macro assignment is validated from an unexpected direction.** Part 45, on programming the JX10:
   aftertouch must be zero everywhere because "it's **not possible** to affect the nature of a piano
   note (other than to curtail it) once it has sounded. Any parameters that let you change the
   brightness, the loudness, or add vibrato by bearing down on a depressed key must be set to zero." Our
@@ -1550,7 +1558,7 @@ I5.
 
 ### I2. Hammer position is per-voicing, where the book says per-register
 
-- **Book:** Part 41: "you would think that, to obtain a consistent tone, piano builders would position
+- **Book:** Part 42: "you would think that, to obtain a consistent tone, piano builders would position
   the hammers consistently from one end of the keyboard to the other. But this is not the case; you will
   find them **anywhere from one seventh of the way along the string to about one 15th**. This results in
   different initial frequency relationships, different interactions as the hammer leaves the string, and
@@ -1564,7 +1572,7 @@ I5.
 
 ### I3. Two strings maximum, per-voicing, and they do not exchange energy
 
-- **Book:** Part 41 lays out the register progression: "At the bottom end, single strings are wrapped to
+- **Book:** Part 42 lays out the register progression: "At the bottom end, single strings are wrapped to
   high thickness … Next come notes produced by pairs of wrapped strings, then notes produced by triads
   (or 'tricords') of wrapped strings, and finally tricords of unwrapped strings." And the character is
   in their imperfection: "it's all but impossible to tune these to the same pitch … the strings will
@@ -1582,7 +1590,7 @@ I5.
 
 ### I4. Inharmonicity is fixed at note-on and never responds to level
 
-- **Book:** Part 41 and Part 28 both say the stretching depends on *two* things: "the string appears
+- **Book:** Part 42 and Part 28 both say the stretching depends on *two* things: "the string appears
   shorter at high frequencies **and high amplitudes** than it does at low frequencies and low
   amplitudes. This sharpens higher, **louder** harmonics."
 - **Engine:** `B = pv->stiff² · 0.015 · fscale` where `fscale` derives from `freq` only
@@ -1608,7 +1616,7 @@ I5.
 
 ### I6. Peak level does not fall with pitch
 
-Part 41 Figure 9 shows high notes with **both** a shorter decay and a lower maximum gain, and the
+Part 42 Figure 9 shows high notes with **both** a shorter decay and a lower maximum gain, and the
 architecture in Figure 10 routes keyboard tracking to "both the maximum gain of a VCA and the decay
 rate of the contour that shapes it". We get the decay for free (I1) but nothing tapers the peak, so
 our treble arrives at full level and then vanishes. Small, and it interacts with I5 — fixing the decay
@@ -1618,7 +1626,7 @@ without the level taper may be the wrong half.
 
 The counter-intuitive one, and it cuts against a shipped fix.
 
-- **Book:** Part 41: "for the lowest notes on a grand piano, **the fundamental pitch has very low
+- **Book:** Part 42: "for the lowest notes on a grand piano, **the fundamental pitch has very low
   amplitude**, and the note that you think you hear is to some extent implied by the harmonics. This
   suggests that we require a high-pass filter for the lowest notes in our synthesized sound." Reid then
   declines to bother, on diminishing returns.
@@ -1635,15 +1643,15 @@ The counter-intuitive one, and it cuts against a shipped fix.
 
 ### I8. Smaller items
 
-- **Two bridges.** Part 41: pianos "generally have two of them — one for the treble strings, and one
+- **Two bridges.** Part 42: pianos "generally have two of them — one for the treble strings, and one
   for the bass — and … they are coupled through the soundboard", and "using different bridges can
   change the sound of a piano by a remarkable degree". We have one body per voicing with no bass/treble
   split. Low priority; listed for completeness.
-- **Soundboard modes are enharmonic and the plate is irregular.** Part 41: "piano soundboards have an
+- **Soundboard modes are enharmonic and the plate is irregular.** Part 42: "piano soundboards have an
   irregular shape and are chamfered, so our previous discussions of vibrations in flat plates are, at
   best, approximations". Our `pn_body[4]` is four biquads, which is the standard coarse approximation
   and the same order as `gt_body[4]`.
-- **Our hard sync is always ratio-locked; the JX10's is not.** Part 42's two rules: the output pitch is
+- **Our hard sync is always ratio-locked; the JX10's is not.** Part 43's two rules: the output pitch is
   always the master's, and if the master is *lower* than the slave then moving the slave changes timbre.
   Then the aside that matters: with only the master tracking the keyboard, "the frequency relationship
   between the master and slave is different for each note, resulting in **different tones for each**".
@@ -1654,7 +1662,7 @@ The counter-intuitive one, and it cuts against a shipped fix.
 
 ### I9. Layering is the piano, and §G should encode it
 
-Part 44's conclusion is the most transferable thing in the arc, and it is a *cart* pattern rather than
+Part 45's conclusion is the most transferable thing in the arc, and it is a *cart* pattern rather than
 an engine one.
 
 - **The claim:** "The secret — and it's an important one — lies in the combination of two sounds that
@@ -1682,7 +1690,7 @@ an engine one.
 
 ### I10. Reid's verdict, for the third instrument in a row
 
-Part 41 opens with it: "there has never been a convincing acoustic piano produced by subtractive
+Part 42 opens with it: "there has never been a convincing acoustic piano produced by subtractive
 synthesis, additive synthesis, **or FM synthesis**. Only samples appear to do the trick." And closes:
 "is it impossible to create an acoustic piano patch on an analogue synth? The strict answer is 'yes'."
 He also notes the instruments that did crack it (Roland MKS20 / RD1000 / HP5600) were "based on an early
@@ -1703,6 +1711,213 @@ is about improving the waveguide, not adopting his signal chain. §G's boundary 
 | 6 | I6 taper peak level with pitch | engine, small | `piano` |
 | 7 | I7 A/B tapering sub-osc weight in the bottom octave | engine, judgement call | `upright` |
 | 8 | I3 third string + inter-string coupling | engine, hard, with §E5/§H5 | `piano` |
+
+---
+
+## J. Recipe pass 5 — DRUMS AND PERCUSSION (Parts 31-41)
+
+STATUS: EXPLORING — nothing queued.
+
+Eleven chapters, the longest arc in the series, and the only family where we ship **both** a physical
+engine (`INSTR_MEMBRANE`) and faithful *machine* recipes (`tr808.h`, `tr909.h`, `morphdrum.h`,
+`drumkit.h`), so there are two independent things to check against each other.
+
+Sources: Part 31 "…pitched drums" / timpani physics (SOS November 2001), Part 32 timpani practical
+(December 2001), Part 33 unpitched membranophones (January 2002), Part 34 bass drum (February 2002),
+Parts 35-36 snare theory and synthesis (March, April 2002), Part 37 "Analysing Metallic Percussion"
+(May 2002), Part 38 cymbal analysis (June 2002), Part 39 "Practical Cymbal Synthesis" — the TR-808 and
+TR-909 dissection (July 2002), Part 40 "Synthesizing Bells" (August 2002), Part 41 "Synthesizing
+Cowbells & Claves" (September 2002).
+
+**Read fully:** 31 (membrane physics), 37 (metallic physics), 39 (the machine dissection). **Targeted:**
+32, 34, 35, 36, 38, 40, 41. Parts 32 and 39 had already been mined by grep for §C4 and §A5 before this
+pass; §A5's citation was wrong and is now fixed.
+
+### J1. What matches, and one exact numeric hit
+
+- **Our membrane mode ratios are Reid's Table 1, to three decimals.** `RD[6]` in
+  `sound_membrane_sample` ([`runtime/sound.h:3441`](../../runtime/sound.h)), labelled "navkit Bessel":
+
+  | our `RD` | 1.0 | 1.594 | 2.136 | 2.296 | 2.653 | 2.918 |
+  |---|---|---|---|---|---|---|
+  | Reid Table 1 | 1.00 (0,1) | 1.59 (1,1) | 2.14 (2,1) | 2.30 (0,2) | 2.65 (3,1) | 2.92 (1,2) |
+
+  Six for six. The engine really is on circular-membrane Bessel ratios and the mode identities are
+  recoverable: indices **0 and 3 are the circular modes** (0,1 and 0,2), indices **1, 2 and 4 are radial**
+  (1,1, 2,1, 3,1), and index 5 (1,2) is mixed. That mapping matters for J4.
+- **The snare's two head modes match.** Part 35 gives "approximately 180Hz and 330Hz"; `tr808.h`'s own
+  comment reads "snare = 180+330Hz modes + noise". Independently arrived at, same numbers.
+- **The 808's six-oscillator metal bank is real and we model it.** Part 39: "The initial sound generator
+  comprises six square-wave oscillators tuned **enharmonically**, and mixed to create a complex
+  spectrum. If you remove all the low harmonics from the mix, this produces a moderately dense cluster
+  of partials in the mid and high frequencies." That is `tr808.h`'s bank exactly, down to the approach.
+- **The membrane bend has a physical basis.** Our morph is the pitch chirp settling over ~90 ms (the
+  tabla *bayan* gliss). Part 31's fourth factor is membrane stiffness making the head "appear slightly
+  smaller at higher frequencies (and higher amplitudes)", and Part 33 covers the pitch drop as tension
+  redistributes. A one-sine 808 kick cannot bend six modes together; we can.
+- **`MEMBRANE` exists at all, which the book says analogue could not do.** Part 33's whole argument is
+  that unpitched membranophones need mode counts subtractive synthesis cannot reach.
+
+### J2. The "tuned" end of the membrane ratio crossfade is a harmonic series, and no drum has one
+
+This is §J's headline, and it is a specific, sourced, cheap fix.
+
+- **Engine:** `harmonics` crossfades between `RD` (Bessel, above) and
+  `RT[6] = { 1, 2, 3, 4, 5, 6 }` ([`runtime/sound.h:3440`](../../runtime/sound.h)) — an *integer
+  harmonic* series, described in the comment as "tuned head (tabla — its loaded skin pulls the modes to
+  a near-HARMONIC series, a pitched drum)".
+- **Book:** Part 31 explains what actually makes a drum pitched, and it is **not** an integer series. Air
+  loading raises the **radial** modes toward quasi-harmonic ratios, and he tabulates the measured result
+  (Table 2, relative to the principal):
+
+  | mode | ideal, rel. principal | **measured in air** | shift |
+  |---|---|---|---|
+  | 1,1 | 1.00 | **1.00** | 0 |
+  | 2,1 | 1.34 | **1.47** | +10% |
+  | 3,1 | 1.66 | **1.91** | +15% |
+  | 4,1 | 1.98 | **2.36** | +19% |
+
+  So a real pitched drum's series is roughly **1 : 1.5 : 2 : 2.5**, not 1 : 2 : 3 : 4. And he is explicit
+  that it stops short of harmonic: "They're still too flat to fool the ear into thinking that it's
+  listening to a true harmonic oscillator, but the sound nevertheless conveys a strong sense of tonality
+  without ever quite sounding like a pure tone."
+- **Why it matters:** our `harm = 0` end is a string/pipe spectrum. It will read as *pitched* but not as
+  a *drum* — it is the sound of a struck harmonic oscillator, which is a mallet, not a tabla. The
+  physically honest target sits between our two endpoints and Reid supplies the numbers.
+- **Also, the principal is not the fundamental.** "the 1,1 mode was producing the principal frequency …
+  the principal is not the fundamental, which lies at approximately 63 percent of the principal
+  frequency." So on a real timpani the *perceived pitch* is our mode index 1, at 1.59×, not index 0. If a
+  cart plays MIDI note N expecting to hear N, our membrane is currently a fifth-and-a-bit out from what a
+  timpanist would call the note. Worth checking `tune-check` against a real timpani expectation.
+- **Audible home:** `tabla`, `handpan`, `gamelan`, and the toms in `tr808`/`tr909`.
+
+### J3. Our loudest mode is the one a real membrane suppresses
+
+- **Book:** Part 31's fifth factor: "stretched membranes don't like to wrinkle, so they are resistant to
+  the vibrational modes that attempt to make them do so (**the 0,1 mode is one of these**)". That is why
+  the principal ends up being 1,1 rather than the fundamental.
+- **Engine:** `BASE[6] = { 1.0f, 0.60f, 0.45f, 0.32f, 0.22f, 0.13f }`
+  ([`runtime/sound.h:3418`](../../runtime/sound.h)) — a monotonic falloff putting the **most** energy in
+  index 0, the 0,1 mode, the one the real instrument resists most.
+- **Fix shape:** one array. Weighting index 1 (the 1,1 principal) above index 0 would make the engine
+  pitched-sounding for a physical reason rather than by crossfading toward a harmonic series (J2). The two
+  items are the same fix approached from opposite ends and should be done together.
+- **Audible home:** `tabla`, `handpan`.
+
+### J4. Strike position ignores the distinction a timpanist actually uses
+
+- **Book:** Part 31 describes the technique precisely: pitched playing comes from "striking the membrane
+  almost precisely a quarter the way from the edge to the centre. In doing so, the timpanist **suppresses
+  the circular modes**, ensuring that the quasi-harmonic radial modes dominate the sound." So strike
+  position is not a brightness tilt; it *selects which mode family speaks*, and that is the difference
+  between a pitched note and a thump.
+- **Engine:** `pos = (1 - timb)·(1/(m+1)) + timb·m·0.15` for `m > 0`, with **mode 0 pinned at 1.0**
+  ([`runtime/sound.h:3469-3470`](../../runtime/sound.h), commented "the fundamental, mode 0, is
+  unaffected — it's there wherever you strike"). Two consequences: it is a generic low-to-high tilt that
+  does not distinguish circular (indices 0, 3) from radial (1, 2, 4), and the one mode a timpanist most
+  wants *out* of the way can never be reduced.
+- **Fix shape:** weight by mode *family* rather than by index. We already know which is which (J1), so
+  this is a lookup table and a lerp, and it makes `timbre` mean "centre thump ↔ pitched timpani stroke"
+  instead of "dull ↔ bright".
+- **Audible home:** `tabla` (its strike-position control is the demo).
+
+### J5. The 808 cymbal's three unequal decays are missing, so our cymbal's spectrum never moves
+
+- **Book:** Part 39 gives the full schematic, and the important part is the *decay structure*. The six
+  mixed oscillators are "split into two bands by a pair of band-pass filters". The lower band gets a VCA
+  and AR contour, and "the TR808's Decay control affects the decay rate of this envelope". Then: "The
+  upper band is further split into two signal paths that pass through independent VCAs controlled by
+  their own contour generators. The upper of the two … has the shortest Decay. The lower of the upper
+  bands has a Decay that lies somewhere near the centre of the range of the low band's variable AR
+  control." And the payoff sentence: **"This inequality of decay times allows the TR808 to change the mix
+  of lower-, mid- and higher-frequency components as the sound progresses."** Three bands, three
+  different decay rates, three highpasses, then "a user-controlled mixer recombines them" — which is what
+  the TR-808's tone knob is.
+- **Engine:** `tr808.h` fires three bank voices (MIDI 79, 72, 66) into **one** slot with **one** highpass
+  at 3440 Hz and **one** decay ([`runtime/tr808.h:111-113`](../../runtime/tr808.h) and
+  [`:174-176`](../../runtime/tr808.h)). So the spectrum decays uniformly and the timbre is static across
+  the ring.
+- **Why this is the best item in §J:** Part 37 independently says spectral migration is what a real
+  cymbal *does* — "The high-frequency modes are the shortest-lived … the last of the cymbal's energy lies
+  in the modes at a few hundred Hertz, and — at the end — it's the mid-frequencies that again dominate."
+  The 808's three-decay trick is how the machine fakes it, and we left the trick out. **And it needs no
+  engine change**: three slots at different decays, three highpass corners, mixed. That is a `tr808.h`
+  edit, which fits the "no engine change without a cart to hear it" rule perfectly.
+- **Audible home:** `tr808` (its CYMBAL decay and TONE knobs become meaningful), `cr78`, `tr606`.
+
+### J6. The 909's metal is a ROM sample, we already know it, and Reid adds one gotcha worth keeping
+
+- **Book:** Part 39 is blunt: "Forget analogue FM synthesis, dynamic band-pass filters, and all the other
+  paraphernalia I employed to try to recreate the cymbal's complex spectrum — the TR909 dispenses with
+  all of this by incorporating a **digital sample** of a genuine cymbal." Its 6-bit ROM table runs to a
+  30 kHz clock, then an analogue VCA and lowpass.
+- **Engine:** `tr909.h` calls its hats/crash/ride "ROM stand-ins … FM-clang metal"
+  ([`runtime/tr909.h:5`](../../runtime/tr909.h), [`:96`](../../runtime/tr909.h)) — so this is a documented,
+  deliberate substitution, not a drift. Recorded because it means "faithful 909 metal" is unreachable by
+  synthesis *by construction*, and we do ship `INSTR_SAMPLE` plus sample slots if that ever matters.
+- **The gotcha, if anyone ever does swap in samples:** the 909 derives the amplitude envelope from the
+  sample's **address counter** (through a DAC and an antilog converter) rather than a free-running AR,
+  specifically so that tuning the cymbal cannot truncate it: "if a conventional AR contour generator
+  proceeds at the same rate, no matter what the speed of the digital clock, it's quite possible that the
+  end of the samples will occur before the VCA is fully closed … So Roland made the decay rate of the AR
+  envelope dependent upon the progress of the address counter." Pitch and envelope must stay locked. Our
+  `INSTR_SAMPLE` plays at `freq/smp_root` with the amp ADSR running independently, so a transposed sample
+  would hit exactly the bug Roland engineered around.
+- **Audible home:** `tr909`, `sampler`.
+
+### J7. Cymbals have hundreds of modes, which is the case for §C4
+
+Part 37: "There can be **hundreds** of energised modes in an excited cymbal." And the modes bear no
+usable relationship to flat-plate theory — his Table 1 compares a calculated flat plate against a
+measured domed cymbal at the same 50 Hz fundamental and the deviations run **+3% to +112%**, non-monotonic
+in mode index. So a modal engine is the wrong tool at any realistic mode count, which is exactly why
+§C4's ring-mod-with-a-rich-carrier matters: it is the cheap way to a *dense* inharmonic cloud. §J and §C4
+are the same recommendation reached from the physics and from the synthesis side.
+
+### J8. Amplitude-dependent mode sharpening, for the third time
+
+Part 31's fourth factor: the membrane "appears slightly smaller at higher frequencies (**and higher
+amplitudes**) than at lower ones, thus sharpening the partials produced by the higher modes." That is the
+same claim as §I4 (piano) and §H's stretched-harmonics note (guitar), now for drums. Three families, one
+missing behaviour: **our inharmonicity is never a function of playing level.** `MEMBRANE`'s ratios come
+from a static table with no velocity term at all. Worth treating as one cross-engine item.
+
+### J9. The snare's tone-to-noise balance should move with velocity and over the note
+
+- **Book:** Part 35 gives two dynamics that our fixed layering doesn't express: harder strikes make "the
+  spectrum become more noise-like", and over the course of a note the sound evolves toward noise,
+  "eventually changing into a complex noise". So the tone/noise ratio is a function of both velocity and
+  time.
+- **Engine:** `tr808.h` layers the 180/330 Hz modes with noise at fixed relative levels per hit; velocity
+  scales the whole voice. So a soft hit and a hard hit have the same tone-to-noise balance, and the
+  balance is constant while the note rings.
+- **Fix shape:** cart-side in `tr808.h`/`tr909.h` — scale the noise layer's level and decay against
+  velocity. No engine change.
+- **Audible home:** `tr808`, `tr909`, `fingerdrums`.
+
+### J10. Smaller items
+
+- **The 808 kick is a Bridged T-Network,** and Part 34 dissects it: a self-oscillating filter ringing at
+  close to a sine, "quite unlike any [other]" kick circuit. `tr808.h`'s header already cites the
+  reverse-engineered circuit values and the ~50 Hz ring, so this looks covered; a closer read of Part 34
+  against `tr808_fire`'s kick path is the obvious follow-up if the kick is ever revisited.
+- **Bells and cowbells (Parts 40-41) were only skimmed.** Part 40 builds on the cymbal patch for tuned
+  bells; Part 41 covers cowbells and claves. We have `MALLET` (four modes, bar ratios) and the 808
+  cowbell (`TRS_CB`, a bandpass at 2640 Hz), so there are two specific things to check and I did not
+  check them. Flagged rather than claimed.
+- **Timpani practical (Part 32)** was mined for §C4's ring-mod recipe and not otherwise read.
+
+### Suggested drums step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | J5 three-band unequal-decay 808 cymbal | `tr808.h` only, no engine change | `tr808` |
+| 2 | J9 velocity → snare tone/noise balance | `tr808.h`/`tr909.h` only | `tr808` |
+| 3 | J2 + J3 retarget the "tuned" ratios and mode weights together | engine, two arrays | `tabla` |
+| 4 | J4 strike position by mode *family* | engine, small | `tabla` |
+| 5 | J2b check the principal-vs-fundamental pitch offset | measurement | `tabla` |
+| 6 | J8 level-dependent inharmonicity (with §I4) | engine, cross-family | `tabla`, `piano` |
+| 7 | J10 read Parts 34, 40, 41 properly against the kick, `MALLET`, the cowbell | reading | — |
 
 ---
 

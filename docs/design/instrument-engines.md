@@ -1392,7 +1392,7 @@ the table's only job is to say what those three mean for each. Grow it freely.
 > header** (`subtractive.h`), following the `acid303.h`/`tr808.h` precedent of "cart owns the pattern,
 > header owns the sound": a voicing table holding Reid's *published parameter values* as data (Minimoog
 > trumpet/tuba/jazz-trombone from Part 26, the SH-101 and Axxe versions from Part 27, the Jupiter 6 and
-> JX10 string patches from Parts 45-46), each row carrying its citation. That makes it both a feature and
+> JX10 string patches from Parts 46-47), each row carrying its citation. That makes it both a feature and
 > a regression test. Escalate to an engine id only if the header proves the pieces must sit closer to the
 > voice. Cheap per voice, degrades gracefully, and on-grain for the north star: it simulates a
 > *synthesizer*, a thing with a knowable architecture, rather than an orchestra.

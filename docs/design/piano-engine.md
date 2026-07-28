@@ -2,12 +2,12 @@
 
 STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, hammer knock, velocity→timbre, per-voicing decay + dulcimer unison, stretched tuning); A/B crest 21.6→25.9 dB, onset brightness 0.10→0.25. Only optional polish remains (ear-tune the per-voicing baselines + PIANO_STRETCH_K; promote the eng_p indices to public MODE_PIANO_* constants).
 
-> **✅ Outside-in pass DONE (2026-07-28): Synth Secrets Parts 41-44** (SOS Oct 2002 to Jan 2003 — the
+> **✅ Outside-in pass DONE (2026-07-28): Synth Secrets Parts 42-45** (SOS Oct 2002 to Jan 2003 — the
 > physics chapter plus a three-part Roland JX10 build) read against this engine. Full write-up with a
 > measurement and an 8-step order: [`synth-secrets-audit.md`](synth-secrets-audit.md) §I. **This came out
 > the best-matched engine in the whole audit**, so the headline is a confirmation rather than a gap:
 >
-> - **The hammer comb is the INVERSE of the pluck comb, and we get it right.** Part 41: "Whereas the
+> - **The hammer comb is the INVERSE of the pluck comb, and we get it right.** Part 42: "Whereas the
 >   position at which a guitar string is plucked determines its maximum displacement, **the piano hammer
 >   remains in contact with the string long enough to ensure that the position at which the string is
 >   struck is a node of zero displacement**." So the excluded harmonics are the complementary set. Our
@@ -20,8 +20,8 @@ STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, ha
 >   over 1:1, Figure 14) and his reason for it ("a perfectly tuned piano not only sounds out of tune, **it
 >   sounds dull**"); register-dependent decay falls out of the delay line for free and was **measured**
 >   (A1 still at 0.11 after 1 s, A4 gone); `pn_dd`, `pn_knock`, `pn_symp`, `pn_body[4]`, velocity→timbre
->   all have direct counterparts in Part 41. And the macro split is validated from an odd direction:
->   Part 44 says a piano note's brightness and loudness *cannot* change once sounded ("aftertouch … must
+>   all have direct counterparts in Part 42. And the macro split is validated from an odd direction:
+>   Part 45 says a piano note's brightness and loudness *cannot* change once sounded ("aftertouch … must
 >   be set to zero"), so fixing hammer/voicing at note-on and giving the live axis to the pedal is
 >   physically correct.
 >
@@ -29,12 +29,12 @@ STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, ha
 > says it varies **1/7 to 1/15 along the string across the keyboard** (§I2, one float); the top octave
 > measured **gone in half a second** (A4 at 0.01 of peak by 500 ms), which is steeper than a real grand and
 > may share a cause with §H8's guitar high-register loss (§I5); inharmonicity is fixed at note-on so it
-> never grows with level (§I4, and see below); a **two-slot layered patch** is free and is Part 44's whole
+> never grows with level (§I4, and see below); a **two-slot layered patch** is free and is Part 45's whole
 > conclusion (§I9); peak level doesn't taper with pitch though Figure 9 wants both (§I6); and the
 > tricord is capped at two strings, chosen per voicing, with no energy exchange between them (§I3).
 >
 > **One counter-intuitive finding worth reading in full (§I7): the bottom octave's fundamental should be
-> WEAK.** Part 41: "for the lowest notes on a grand piano, **the fundamental pitch has very low
+> WEAK.** Part 42: "for the lowest notes on a grand piano, **the fundamental pitch has very low
 > amplitude**, and the note that you think you hear is to some extent implied by the harmonics. This
 > suggests that we require a high-pass filter for the lowest notes." Our `eng_p[0]` sub-oscillator — the
 > shipped "thin" cure — reinforces exactly the partial a real grand has least of. Not a call to remove it
@@ -43,7 +43,7 @@ STATUS: SHIPPED (2026-06-25) — the full fix roadmap landed (two-rate decay, ha
 >
 > **Correction to this doc's own framing, from §H3:** `pn_dd`'s comment reads "The fast initial drop that
 > says 'struck', not 'plucked harp'". Part 28 shows a *plucked guitar* has two-rate decay too, from the
-> string's two polarisation planes; Part 41 gives the piano's own different cause, the pairs and tricords
+> string's two polarisation planes; Part 42 gives the piano's own different cause, the pairs and tricords
 > interacting so "the rate at which energy is transferred to the soundboard diminishes". So two-rate decay
 > is common to struck *and* plucked, and the harp-vs-piano difference is in the proportions. The behaviour
 > is right; the stated reason isn't. `GUITAR`/`PLUCK` should probably borrow it (§H3).

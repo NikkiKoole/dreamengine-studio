@@ -1581,19 +1581,19 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     never had: Part 24 Fig 8 says the 8th harmonic DOMINATES an overblown note; measured, h1 is still
     loudest and evens are still suppressed (h2 −31.3 dB). Plus §E10, free and cart-side: `brass.c` uses
     a 1 ms attack and a 1200 ms release where the book says 100 ms and effectively instantaneous.
-    **§F = recipe pass 2, STRINGS** (Parts 45-50 — string *machines* + *bowed*, both of which we ship;
+    **§F = recipe pass 2, STRINGS** (Parts 46-51 — string *machines* + *bowed*, both of which we ship;
     plucked strings are a separate unread arc). Headline: **`INSTR_BOWED` has no body resonator at all**
-    while `GUITAR` (`gt_body[4]`) and `PIANO` (`pn_body[4]`) both do, and Part 47 is explicit that the
+    while `GUITAR` (`gt_body[4]`) and `PIANO` (`pn_body[4]`) both do, and Part 48 is explicit that the
     body is what makes it a violin ("without these … the sound will not be realistic") — we output
     Reid's *bridge force* where the ear needs his *radiated* spectrum, and the fix primitive is already
-    in the same header. Also: our PWM may be missing the **two-pitch** effect Part 46 proves is the real
+    in the same header. Also: our PWM may be missing the **two-pitch** effect Part 47 proves is the real
     reason PWM sounds chorused (unverified, and the measurement is specified); `solina` leaves
-    `LFO_DETUNE` and the Random-shape LFOs unused, which are the exact two rungs Part 45 says the
-    ensemble sound lives on (free, cart-only); Part 50 abandons patch-building to argue **continuous
+    `LFO_DETUNE` and the Random-shape LFOs unused, which are the exact two rungs Part 46 says the
+    ensemble sound lives on (free, cart-only); Part 51 abandons patch-building to argue **continuous
     control beats components** ("two modules … can be far more expressive … than any number of modules"),
     which lands on our ribbon/touch surface and the existing `martenot` cart; and cutoff **keytracking is
     now cited four separate times** across the series, making it the most-requested missing feature in the
-    book. **§C12 was CORRECTED**: Reid retracts Part 10's "every nth harmonic is missing" law in Part 46
+    book. **§C12 was CORRECTED**: Reid retracts Part 10's "every nth harmonic is missing" law in Part 47
     (the spectrum is a sinc envelope), so the oracle as originally specced would have gated on something
     false. Expect more of this — the series ran five years and he revises himself.
     **§G = the missing engine class (owner's idea, 2026-07-28, nothing designed):** every patch in the
@@ -1629,17 +1629,17 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     brass, string machines and leads; it must not grow a guitar). Third citation for §C6's attack-level
     envelope, and third place the series says voice allocation is instrument design (§B3, §B7, now
     per-string).
-    **§I = recipe pass 4, PIANOS** (Parts 41-44, measured) — and this one came out the **best-matched
+    **§I = recipe pass 4, PIANOS** (Parts 42-45, measured) — and this one came out the **best-matched
     engine in the audit**, so it is mostly confirmation. The headline: the hammer comb is the **inverse**
     of the pluck comb, because a pluck point is maximum displacement while "the piano hammer remains in
     contact with the string long enough to ensure that the position at which the string is struck is a
     **node** of zero displacement" — and `sound_piano_start` correctly uses an **averaging** comb where
     `PLUCK`/`GUITAR` use a **differencing** one, which at half-string nulls the fundamental and every odd
-    harmonic exactly as Part 41 describes. The navkit port got a subtle thing right; **nothing in the code
+    harmonic exactly as Part 42 describes. The navkit port got a subtle thing right; **nothing in the code
     records that the sign is load-bearing**, which is §I's step 1. Also confirmed: stretched tuning uses
     Reid's own mechanism and his reason for it ("a perfectly tuned piano not only sounds out of tune, it
     sounds dull"); register-dependent decay falls out of the delay line free (measured: A1 at 0.11 after
-    1 s, A4 gone); and Part 44 validates our macro split from an odd direction, since a piano note's
+    1 s, A4 gone); and Part 45 validates our macro split from an odd direction, since a piano note's
     brightness and loudness physically *cannot* change once sounded, so note-on voicing plus a live pedal
     axis is correct. Gaps: hammer position is per-voicing where the book says it varies **1/7 to 1/15
     across the keyboard**; the **top octave measured gone in half a second** (A4 at 0.01 of peak by
@@ -1652,9 +1652,39 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     sub-oscillator reinforces the partial the instrument has least of — flagged for an A/B, not for
     removal. And §I9 hands §G its best endorsement, from Reid himself on the layered JX10 patch: "there
     are times when I would still use it today, in preference to any of the 'real' things."
-    Remaining families (drums, flutes, the rest of the Hammond, delays) still unread — §D5 lists them and
-    now ranks them by expected yield, with **drums (31-40, ten chapters) the largest haul left**; §E is
-    the template.
+    **§J = recipe pass 5, DRUMS** (Parts 31-41, eleven chapters — the longest arc, and the only family
+    where we ship both a physical engine and faithful *machine* recipes, so there were two independent
+    things to check). Confirmed first: our six `MEMBRANE` mode ratios are **Reid's Table 1 to three
+    decimals** (1.0 / 1.594 / 2.136 / 2.296 / 2.653 / 2.918 vs his 0,1 / 1,1 / 2,1 / 0,2 / 3,1 / 1,2), and
+    `tr808.h`'s snare modes independently match his "approximately 180Hz and 330Hz". Then the gaps, and
+    they cluster: the **"tuned" end of the ratio crossfade is an integer harmonic series and no drum has
+    one** — a real pitched drum is *air-loaded*, which raises the **radial** modes to roughly 1 : 1.47 :
+    1.91 : 2.36, "still too flat to fool the ear … but [conveying] a strong sense of tonality"; our
+    loudest mode is the 0,1 that a real stretched head **resists** ("membranes don't like to wrinkle"), so
+    the principal should be the 1,1 at 1.59×, which also means our perceived pitch may sit a fifth off
+    what a timpanist would call the note; and **strike position is a brightness tilt where the physics is
+    a mode-family selector** — a timpanist strikes a quarter from the edge specifically to "suppress the
+    circular modes", yet our mode 0 is pinned at full weight and can never be reduced. Those three are one
+    fix from three angles, and the mode identities needed to do it are already recoverable from the table.
+    **The best item needs no engine change at all:** Part 39's TR-808 schematic splits the six-oscillator
+    bank into **three bands with three different decay times**, because "this inequality of decay times
+    allows the TR808 to change the mix of lower-, mid- and higher-frequency components as the sound
+    progresses" — which is precisely the spectral migration Part 37 says a real cymbal does. Ours is one
+    band, one highpass, one decay, so the timbre is static as it rings. That is a `tr808.h` edit.
+    Also: the 909's metal really is a 6-bit ROM sample (we already say so, and substitute FM clang — a
+    documented choice, not a drift), but Reid records the gotcha to keep if we ever swap in real samples,
+    since the 909 derives its envelope from the sample's **address counter** so that tuning cannot
+    truncate it, a bug our `INSTR_SAMPLE` would hit as-is. Plus a third sighting of level-dependent
+    inharmonicity (with §I4 and §H), and velocity should move the snare's tone/noise balance.
+    **Numbering correction, same day:** §F and §I were each **off by one** (strings are Parts 46-51 not
+    45-50; pianos 42-45 not 41-44) and §A5 cited the wrong chapter for the 808 cymbal (Part 39, not 40).
+    The *months* were right throughout since they came from page footers; only the numbers moved. The
+    mapping is now **validated against the eleven `PART N:` labels the PDF prints itself**, so it is
+    trustworthy going forward. Fixed everywhere, including the docs that cite back.
+    Remaining (§D5 ranks them): **flutes 52-54** against `PIPE`, which has a *known* intonation caveat in
+    `studio.h` and is therefore the best value left; the **Hammond 55-59** against `ORGAN`; and the
+    **effects arc 60-62 plus Part 22**, the only remaining chapters about the effects layer rather than an
+    engine. Roughly 50 of the 63 articles are now read end to end.
 
 ---
 

@@ -1,0 +1,23 @@
+# piano — ONE struck note, left to ring all the way out. The A/B seed for the two-slot layer
+# (audit §I9 / Part 45; plan item 1.5).
+#
+# Why a single note and not the autoplay figure: the whole claim is about two layers BEATING against each
+# other ("the detuned harmonics sweep in and out of phase … to imitate the energy interactions within an
+# acoustic piano") and about the two layers TRADING PLACES across the note. Both of those live in one
+# note's decay. A chord progression buries them — the beats of overlapping notes swamp the beat between
+# the layers, which is the one thing being measured.
+#
+# autoplay is ON at boot (piano.c: `static bool autoplay = true`), so M first or the render is a figure,
+# not a note. 'A' is the bottom white key (C4).
+#
+#   node tools/ab-render.js piano --set pno_layer=0,1 \
+#        --script tools/clips/piano/01-one-note-ring.script --frames 420
+#   node tools/wav-envelope.js <wav> 100 --from 0.6         # the beat + the tail crossfade
+#
+# A piano note is STRUCK, not held (keybed_manage_voices(false), gate_ms() ~= 6s at the default pedal), so
+# there is no key-up to script: the note rings down on its own. 420 frames = 7s, enough to hear the tail
+# where layer B is supposed to be left holding the note alone.
+down 2 m
+up 4 m
+down 30 a
+up 33 a

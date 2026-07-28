@@ -4,7 +4,9 @@ STATUS: BUILDING — **Phase 0 DONE; Phase 1 is 4 of 7 (2026-07-28)**: 1.1 solin
 1.3 the 808/909 snare all **shipped by the owner's ear** (each keeping its old sound on a toggle), and
 **1.4 brass is a recorded DROP** — Reid loses all three of his envelope numbers. The ordered work ledger
 derived from [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is the *findings*; this is the
-*doing*. Next: **1.5** (a two-slot layered piano). Nothing past Phase 1 is approved.
+*doing*. **1.5 (the layered piano) is built and awaiting an ear call**, and it turned up an unrelated live
+bug: two of `piano`'s six sliders have never done anything (see §4 "1.5" and the top of
+[`STATUS.md`](../STATUS.md) → "Open"). Nothing past Phase 1 is approved.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -252,7 +254,7 @@ cheapest LISTEN items we have.
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **DONE — 3BAND is the default** (owner's ear, 2026-07-28), 1BAND kept on key **C**. See below |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | ✅ **DONE — `dyn=1` is the default** (owner's ear, 2026-07-28) on both machines, 0 kept on key **N**. See below |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ❌ **DROPPED — Reid loses all three** (owner's ear, 2026-07-28). Envelope unchanged, byte-identical. The most instructive item so far; see below |
-| 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | Part 45's whole conclusion, and free |
+| 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | ✅ **BUILT, awaiting your ear.** Key **L**. Beating works; Reid's role-crossfade is **not reachable** (no string-decay param). Also uncovered two DEAD sliders — see below |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | Two rows in `REG[8][9]` |
 | 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot`, `brass` | Part 51's two liftable tricks, no filter needed for the first |
 
@@ -461,6 +463,53 @@ a 320px screen (so `(mute = wah)` had never been visible to anyone — this also
 long-standing `de:meta.todo` about it), and the patch readout was printed on top of the slide's hint,
 making half that line unreadable. The readout also stops hard-coding `1,0,4,1200` and now derives from the
 `BRASS_*` constants, so it cannot drift from the patch. Three overlaps remain, all pre-existing.
+
+### 1.5 piano two-slot layer — built, awaiting your ear (2026-07-28)
+
+Key **L** toggles it; `build/ab/5-piano-{BEFORE,AFTER-layered}.wav` is the pair. One struck note, 7s ring
+(`tools/clips/piano/01-one-note-ring.script`).
+
+Part 45's conclusion, which Reid calls the important secret: two voices "similar enough to be
+indistinguishable within the composite, but different enough to create a sound that is more interesting
+than either of the components in isolation". Two `INSTR_PIANO` slots ~7 cents apart, the second darker and
+knockier, **level-matched** (−23.25 vs −24.00 dBFS) with a near-identical centroid (2438 vs 2441 Hz) — being
+indistinguishable *is* the spec, so matching those is the design, not a compromise. The beating stands in
+for the tricord coupling of §I3 that our single-string model does not have.
+
+**Half of it is not reachable, and the measurement says so plainly.** Reid also has layer B *outlive* A so
+it is left holding the tail ("Piano 1B dominates again … thanks to the longer Decay and Release in ENV2").
+Stem renders (`play.js --solo-slot`) show B dying **~0.5 s sooner** than A, and nothing available fixes it:
+
+- a longer amp release + a longer gate do **not** extend an `INSTR_PIANO` note — the engine's own string
+  decay governs the ring-down, so the envelope's tail has nothing left to hold. That is the third time this
+  session the same lesson has landed (the 808 cymbal's decays, the brass release, now this);
+- and **there is no string-decay aux param at all**: `INSTR_PIANO` publishes exactly
+  `MODE_STRING_WEIGHT` (0) and `MODE_STRING_CLICK` (1).
+
+So the item delivers Reid's *primary* mechanism and not his secondary one. Getting the crossfade needs a
+per-slot string-decay parameter, which is an engine change — Phase 3 work, deliberately not smuggled in here.
+
+### ⚠ And it uncovered two DEAD sliders in `piano` (unrelated to Reid, worse than the item)
+
+Chasing that missing decay control turned up a live bug: **`piano.c`'s "decay" and "knock" knobs have never
+done anything.** They call `instrument_mode()` with indices **2 and 3**, which `INSTR_PIANO` does not
+publish. Proven, not inferred — sweeping a value at idx 2 renders **byte-identical** audio (`fed8865e2db8`
+at both 0.0 and 1.0) while the same sweep at idx 1 moves −23.2 → −15.2 dBFS with brightness 0.107 → 0.765.
+The source described them as "harp→piano fix #1 / #2", i.e. the repair for this cart's central character
+problem. That repair never ran.
+
+**The fix is already written, in `guitar.c`** — same engine family, same two slider positions, done right
+(`MODE_STRING_WEIGHT, knob[3]` / `MODE_STRING_CLICK, knob[4]`, labelled "weight" and "attack"). `piano.c` is
+that pattern copied with the indices renamed and the numbers invented, so there is no design question, only
+an ear test: the engine default equals click = 0, so wiring it up with the slider at its current 0.5 would
+audibly change the shipped piano.
+
+**Left inert on the owner's call, and made unmissable instead** — the panel now reads `decay (dead)` /
+`knock (dead)` rather than lying to whoever drags them, `piano.c` opens with a ⚠⚠ block carrying the proof,
+it is in the cart's `de:meta.todo`, and it heads [`STATUS.md`](../STATUS.md) → "Open". A sweep of **every**
+`instrument_mode` call site found `piano.c` is the only offender; everyone else uses the `MODE_*` names.
+The general hazard is worth noting: `instrument_mode` takes a per-engine index with **no validation**, so a
+wrong index is silently ignored — a dead control that compiles, runs and looks fine.
 
 ---
 

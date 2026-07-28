@@ -321,6 +321,37 @@ never cart-authorable, the generative beat-clock path won;
 
 ## Open — prioritized
 
+> ### ⚠ Two of `piano`'s six sliders are DEAD, and there is a class of bug behind it
+>
+> Found 2026-07-28 while building the Synth Secrets §I9 layer. `piano.c`'s **"decay"** and **"knock"**
+> knobs call `instrument_mode()` with indices **2 and 3**, but `INSTR_PIANO` publishes only
+> `MODE_STRING_WEIGHT` (0) and `MODE_STRING_CLICK` (1). Both calls have always been no-ops — and the
+> source described them as the fix for the cart's central harp-vs-piano character problem, so that repair
+> never ran. **Proven, not inferred:** sweeping a value at idx 2 renders *byte-identical* audio
+> (`fed8865e2db8` at both 0.0 and 1.0); the same sweep at idx 1 moves −23.2 → −15.2 dBFS with brightness
+> 0.107 → 0.765.
+>
+> **Deliberately left inert** (owner's call, 2026-07-28), because it is not a typo fix: the engine default
+> equals click = 0, so pointing "knock" at `MODE_STRING_CLICK` with its slider at the current 0.5 would
+> audibly change the shipped piano — a LISTEN item needing its own A/B. And **"decay" has no engine
+> parameter to point at at all**; it must either be repurposed to `MODE_STRING_WEIGHT` and relabelled, or
+> dropped. Both sliders now read `decay (dead)` / `knock (dead)` on the panel rather than lying to whoever
+> drags them, and `piano.c` opens with a ⚠⚠ block carrying the proof.
+>
+> **The fix is already written, in `guitar.c`** — same engine family, same two slider positions, done
+> correctly: `instrument_mode(I_STR, MODE_STRING_WEIGHT, knob[3])` / `MODE_STRING_CLICK, knob[4]`, labelled
+> "weight" and "attack". `piano.c` is that pattern copied with the indices renamed to DECAY/KNOCK and the
+> numbers invented. So there is no design question here, only an ear test. (Note "decay" is a misnomer
+> either way: `MODE_STRING_WEIGHT` is fundamental reinforcement, not decay.)
+>
+> **The general lesson, which is why this sits at the top rather than in the cart's todo alone:**
+> `instrument_mode` takes a **per-engine** index with **no validation**, so an out-of-range index is
+> silently ignored — a dead control that compiles, runs, and looks fine. **A sweep of every
+> `instrument_mode` call site (2026-07-28) found `piano.c` is the only offender**; every other cart and
+> header uses the `MODE_*` names. Worth considering whether the engine should complain about an index the
+> selected engine does not publish, since the failure mode is invisible and the one instance of it survived
+> a long time.
+
 Ordered by leverage. Section refs point at the design doc that specs each item.
 Which *carts* are probing these questions (and every verdict so far) →
 [`design/probe-carts.md`](design/probe-carts.md); probe carts carry `"probe"` in

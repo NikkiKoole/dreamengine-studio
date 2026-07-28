@@ -9,6 +9,11 @@ canonical synthesis text says the machine should do, versus what `runtime/sound.
 Nothing here is a bug report. Several divergences are deliberate and documented in the code; they are
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
+**Two passes so far.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read
+from the theory chapters. §E onward are the **recipe** passes, one instrument family at a time (does
+one engine's *voicing* match the physical analysis?), and they carry measurements. Brass is done;
+the remaining families are listed in §D5.
+
 ---
 
 ## The source
@@ -533,20 +538,302 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), 24-30 (wind, brass,
-plucked strings), 31-39 (drums other than the timpani ring-mod passage and the 808 cymbal), 41-43
-(pianos, the JX10 patch listings), 44-50 (strings and bowed strings), 51-53 (flutes), 54-56 and 58
-(the rest of the Hammond), 59-62 (delays and effects) were skimmed or grep-targeted, not read end to
-end. They are the *recipe* chapters, and they are the most likely place to find per-engine tuning
-findings for `REED`/`PIPE`/`BOWED`/`BRASS`/`PIANO`/`GUITAR` against the physical analysis. Anyone
-picking this up: those chapters plus [`../guides/instrument-recipes.md`](../guides/instrument-recipes.md) is the obvious
-next pass, and it is a different *kind* of audit (per-engine voicing, not engine architecture).
+**D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), 28-30 (plucked
+strings), 31-39 (drums other than the timpani ring-mod passage and the 808 cymbal), 41-43 (pianos,
+the JX10 patch listings), 44-50 (strings and bowed strings), 51-53 (flutes), 54-56 and 58 (the rest
+of the Hammond), 59-62 (delays and effects) were skimmed or grep-targeted, not read end to end. They
+are the *recipe* chapters, and they are the most likely place to find per-engine tuning findings for
+`REED`/`PIPE`/`BOWED`/`PIANO`/`GUITAR` against the physical analysis. Anyone picking this up: those
+chapters plus [`../guides/instrument-recipes.md`](../guides/instrument-recipes.md) is the obvious
+continuation, and it is a different *kind* of audit (per-engine voicing, not engine architecture).
+**Brass (24-27) is now done** — see §E, which is the template for the rest.
 
 ---
 
-## Suggested step order
+## E. Recipe pass 1 — BRASS (Parts 24-27)
 
-One at a time, each with its cart. Ordered by cost-to-payoff, not by section.
+STATUS: EXPLORING — same rule as §B/§C, nothing queued.
+
+The first per-family pass, and the template for the others. Different in kind from §B/§C: those are
+about the engine's *shape*, this is about whether one engine's *voicing* matches the physical
+analysis. It is also the first section with **measurements**, because a voicing claim that isn't
+measured is just an opinion.
+
+Sources: Part 24 "Synthesizing Wind Instruments" (SOS April 2001), Part 25 "Synthesizing Brass
+Instruments" (SOS May 2001), Part 26 "Brass Synthesis On A Minimoog" (SOS June 2001), Part 27
+"Roland SH101/ARP Axxe Brass Synthesis" (SOS July 2001). Engine: `sound_brass_sample`
+([`runtime/sound.h:3906`](../../runtime/sound.h)) + `sound_brass_start`
+([`runtime/sound.h:3870`](../../runtime/sound.h)). Prior art, and this section is additive to it, not
+a replacement: [`brass-realism-handoff.md`](brass-realism-handoff.md) (fixes #1+#2 shipped, #3 open)
+and [`audio-notes.md`](audio-notes.md) §19.
+
+**A note on Reid's method versus ours.** Every patch in Parts 25-27 is *subtractive*: a sawtooth
+through a resonant lowpass, because that is what a Minimoog has. `INSTR_BRASS` is a *waveguide* — a
+bore delay closed by a bell reflection, driven by a lip valve. So his knob settings are not
+directly portable, and it would be a category error to "fix" our engine to match his signal chain.
+What ports is the **acoustic target**: the spectra, the timings, and the behaviours he measured off
+real instruments. That is what §E checks against.
+
+### E0. Measurements taken
+
+Reproducible; `brasspec` is the existing verification cart, unchanged and uncommitted-to.
+
+```
+node tools/play.js brasspec script /dev/null --headless --frames 180 --wav /tmp/brass_ff.wav
+node tools/harmonic-spec.js /tmp/brass_ff.wav 220
+node tools/wav-envelope.js  /tmp/brass_ff.wav
+```
+
+`brasspec` committed defaults = forte trumpet A3 (harmonics 0.15, timbre 0.80, morph 0.55). The two
+variants below were rendered from an **off-tree copy** with one `#define` changed, then deleted; no
+committed cart was edited.
+
+| render | highest harmonic within 20 dB of f1 | energy >4 kHz | centroid |
+|---|---|---|---|
+| timbre 0.80, morph 0.55 (committed default) | **h9** (~2.0 kHz) | 1.7% | 6434 Hz |
+| timbre **1.00**, morph 0.55 | **h23** (~5.1 kHz) | 2.2% | — |
+| timbre 0.80, morph **0.00** | **h15** (~3.3 kHz) | 0.4% | 4220 Hz |
+
+Harmonic levels relative to f1, at timbre 1.00 (the loudest, brassiest case we can produce):
+
+| h2 | h3 | h4 | h5 | h6 | h7 | h8 | h9 | h10 |
+|---|---|---|---|---|---|---|---|---|
+| -31.3 | -8.4 | -21.9 | -7.8 | -11.1 | **-3.3** | -13.5 | -14.6 | -23.1 |
+
+### E1. What matches, and one place we beat the book
+
+- **The full harmonic series comes out of the physics, not a waveform choice.** Part 24 explains that
+  a cylindrical closed pipe (clarinet) gives odd harmonics only, while a cone or a flare gives the
+  complete series, which is why Reid must reach for a sawtooth. Our bore produces it structurally.
+- **The asymmetric shaper's rationale is Reid's argument, arrived at independently.** The code comment
+  at [`runtime/sound.h:3998-4003`](../../runtime/sound.h) says a plain `tanh` is an odd nonlinearity
+  so "the spectrum stays clarinet-like (hollow, no even partials, doesn't read as 'brass')". That is
+  Part 24's clarinet-versus-trumpet distinction, restated from the DSP side. Nice convergence.
+- **The formant is deliberately fixed per instrument, not swept.** `fmtHz = 900 + (1-dark)*700`
+  ([`runtime/sound.h:3922`](../../runtime/sound.h)), with the comment "a formant that SWEEPS with the
+  macro reads as a synth filter sweep (a big part of the 'synthy' tell)". Part 23's whole thesis is
+  that formants are fixed and pitch-independent. Correct and for the right reason.
+- **Brightness rises with playing level.** `driveOut` and `brite` both scale with `lvl`
+  ([`runtime/sound.h:3996`](../../runtime/sound.h), [`:4022`](../../runtime/sound.h)). Part 24: "as
+  the note gets louder, it contains more harmonics."
+- **Vibrato rate.** 5.4 Hz with a slow wander ([`runtime/sound.h:3926`](../../runtime/sound.h)).
+  Part 25: "modulating frequencies in the region of 5Hz sound the most realistic."
+- **We beat the book on breath noise.** Reid has to *omit* noise on both the Minimoog and the SH-101,
+  twice, in identical words: their noise generator "lacks the formant shaping of the turbulent noise
+  in a real brass instrument, and sounds very unnatural. As on the Minimoog, it is best omitted." Our
+  noise is injected into the mouth pressure `Pm` ([`runtime/sound.h:3938`](../../runtime/sound.h)) and
+  therefore circulates through the bore and gets bore-shaped for free. This is a real win over the
+  hardware he is working with, and worth keeping in mind: it is the *reason* our brass can afford
+  audible air where his can't.
+
+### E2. Vibrato is never delayed and cannot be switched off
+
+- **Book:** Part 25 is unambiguous. "Since vibrato does not occur during the transient stage of the
+  note, you can't simply apply an LFO to the oscillator. Delayed vibrato is what is required, and
+  it's usually implemented as an AR ramp controlling the amount of modulation." Also: "the amplitude
+  of the modulation must be very low, otherwise the timbre will sound electronic."
+- **Engine:** `br_vib_ph` starts at 0 in `sound_brass_start` and `vibd = 0.08f + v->mor * 0.35f`
+  ([`runtime/sound.h:3913`](../../runtime/sound.h)) has a **floor of 0.08** with no path to zero. So
+  every brass note vibratos through its own attack transient, and there is no way to defeat it.
+- **And the cart stacks a second one.** `brass.c:171` adds `note_lfo(h[i], 0, LFO_PITCH, 5.5f, ...)`
+  on top of the engine's own 5.4 Hz. Two vibratos ~0.1 Hz apart will slowly beat against each other.
+- **Why it matters:** this is the same item as §C1, but note it lands *inside* the engine here, and
+  the identical pattern is in `REED`, `PIPE`, `BOWED` (`rd_vib_ph`, `pp_vib_ph`, `bw_vib_ph`). One
+  fix, four engines. It also blocks measurement, see §E9.
+- **Audible home:** `brass` (its VIBRATO slider is already the control surface), then `reed`, `pipe`,
+  `bowed`.
+
+### E3. There is no onset growl, and Reid's mechanism is one we can't currently build
+
+- **Book:** after the envelopes, this is the element Part 25 pushes hardest. Brass needs a settling
+  period, "for a note of, say, 256Hz (middle C), this 'settling' takes about a dozen cycles ... a
+  period of pitch instability lasting about 50mS". The synthesis answer is explicitly **not** pitch
+  modulation: "Any form of periodic or even quasi-periodic modulation applied to the frequency of the
+  oscillator will result in frequency modulation (FM), and therefore lead to the production of
+  side-bands ... This would destroy the timbre of the brass patch." Instead, modulate the **filter**:
+  "a triangle wave is an acceptable source for this modulation, and a frequency in the region of
+  **80Hz** does the trick nicely", gated through "a VCA whose gain is controlled by an AD contour
+  generator". Part 26 patches it as Osc3 at 32' into the filter; Part 27 sets the SH-101's LFO to
+  maximum rate and rides the VCF Mod fader from ~60% down to 0% as the note settles. Tom Rhea's
+  factory variant uses the **noise generator** into the filter instead, "and therefore risking FM
+  side-bands ... This proves to be extremely effective."
+- **Engine:** our onset is an 18 ms breath-noise burst into bore pressure (`br_attack`,
+  [`runtime/sound.h:3890`](../../runtime/sound.h) and [`:3933-3936`](../../runtime/sound.h)). That is
+  a *noise* transient. Reid's rasp is an audio-rate *tonal* roughness, which noise cannot substitute
+  for, and it lasts ~50 ms not 18 ms.
+- **The blocker, and it is the third time the book has said this:** Reid names the LFO ceiling as the
+  reason the ARP Axxe *cannot* produce this sound at all. "One thing I can't do, however, is produce
+  the filter rasp that was so successful on both the Minimoog and the SH101. This is because the LFO
+  has a maximum frequency of just 20Hz, which is not fast enough." He makes the same complaint in
+  Part 25 as a general reviewing criterion ("this, by the way, is one of the reasons why I point out
+  that a maximum LFO frequency of, say, 25Hz is inadequate when reviewing synths"). **I have not
+  verified our LFO ceiling** — `lfo_rate` is a float in Hz with no clamp I could find at the eval
+  site ([`runtime/sound.h:6405`](../../runtime/sound.h)), so 80 Hz may already work. That is a
+  five-minute check and it gates this whole item.
+- **Audible home:** `brass`. The measurable claim is that the growl should read as a *rasp*, not a
+  *breath*, and it should stop by ~50 ms.
+
+### E4. The amplitude/brightness timing relationship is absent, and this may be the big one
+
+- **Book:** the structural core of Reid's patch, stated three times. Part 25 Figure 11: "the harmonics
+  beneath the instrument's natural cutoff frequency ... reach their sustain levels together, and more
+  quickly than the harmonics above the cutoff point", and "some researchers believe that the
+  differences in the development rates of the harmonics are the most important audible clue you have
+  as to the identity of an instrument when you hear it." Part 26 gives the numbers: loudness contour
+  **Attack 100 ms**, filter contour **Attack 600 ms**, "because the filter opens more slowly than the
+  amplifier ... the higher harmonics are let through one by one over the course of about half a
+  second." Roughly a **1:6 ratio**.
+- **Measured:** at 100 ms resolution the note arrives finished. First window: amplitude 0.97 of peak,
+  centroid 5921 Hz against a 6434 Hz mean. There is no attack development to see.
+- **Engine + cart, and the two halves are separable:** the amp attack is cart-side and trivially
+  wrong (`brasspec` and `brass.c` both use 1 ms). But the brightness half is engine-side and
+  structural: `lvl` derives from `br_env`, a one-pole level **follower** with coefficient `0.0016`
+  ([`runtime/sound.h:3977`](../../runtime/sound.h)) = a **14 ms** time constant, not the ~5 ms its
+  comment claims. A follower tracks level, so even with a correct 100 ms amp attack the brightness
+  would complete at ~115 ms, not 600 ms. Reid's shape needs a genuine per-note brightness *ramp*
+  (his AR contour), not a level follower.
+- **Why this ranks first in §E:** it is a *structural* miss rather than a tuning one, it is the thing
+  Reid's own sources call the most important identity cue, and it is not among the items
+  [`brass-realism-handoff.md`](brass-realism-handoff.md) has considered. It is a credible answer to
+  that doc's standing complaint that the engine is "very obviously not real brass."
+- **Audible home:** `brass`. Measure with `wav-envelope.js`, which should show the centroid still
+  climbing at 300-500 ms.
+
+### E5. The fundamental never stops dominating, and even harmonics are still weak
+
+- **Book:** Part 24 Figure 8 compares the same note played quietly and loudly. Quiet: "the
+  fundamental is the dominant harmonic ... contains just six harmonics, making it 'soft'". Loud: "the
+  **eighth harmonic is dominant** in the over-blown note; you would hear this as a squawk three
+  octaves higher than the fundamental", with "significant amplitudes of at least 15 harmonics". The
+  mechanism is named too: "the relative amplitude of the lower harmonics **decrease** as the note
+  gets louder", which is why he then introduces resonance.
+- **Measured (timbre 1.00, the most extreme we can produce):** h1 is at 0 dB and stays the loudest
+  partial. The strongest overtone is h7 at **-3.3 dB**. Evens remain suppressed: h2 -31.3, h4 -21.9,
+  h10 -23.1, against odds h3 -8.4, h5 -7.8, h7 -3.3. So the spectrum is still both
+  fundamental-dominated and noticeably odd-dominated, which is the clarinet-like signature the
+  asymmetric shaper was added to cure. It moved the needle; it did not land the shape.
+- **Nothing in the engine reduces h1 as blow rises.** Every brightness path is additive (`driveOut`,
+  the `brite` high-shelf), so overtones are lifted but the fundamental is never traded away.
+- **Relationship to prior work:** this is the measurable target for
+  [`brass-realism-handoff.md`](brass-realism-handoff.md)'s still-open fix #3 ("model the bell to fill
+  the harmonic series natively"). §E5 gives that item a **pass/fail number** it previously lacked:
+  at forte, h8 should approach or exceed h1.
+- **Audible home:** `brasspec` for the measurement, `brass` for the verdict.
+
+### E6. The brassiness macro is badly tapered at the top
+
+- **Measured:** timbre 0.80 gives h9; timbre 1.00 gives h23. The last fifth of the knob's travel does
+  more spectral work than the first four fifths combined.
+- **Why it matters:** `sound.h`'s own macro rule (§8.8.1, echoed in the comment at
+  [`runtime/sound.h:2889`](../../runtime/sound.h)) is that a knob should be "exponential so every
+  quarter-turn is an audible step". Brass violates it in the opposite direction: almost nothing
+  happens, then everything does. It also explains why brass presets feel hard to voice, and why the
+  handoff doc's headline number is so sensitive to where the macro sits (see §E9).
+- **Audible home:** `brass` — sweep TIMBRE with SPACE (the auto-swell it already has) and the step
+  sizes should be even.
+
+### E7. No sub-oscillator for the low brass
+
+- **Book:** Part 27 dissects Roland's own SH-101 Tuba patch: sawtooth at 60% plus "a square wave
+  sub-oscillator present, one octave down and at 100 percent of its full loudness", and concludes
+  "the combination of the waveforms defines the sound, almost as much as the filter and amplitude
+  settings." He also has you A/B it: "listen to the patch with the sawtooth alone (it lacks body)."
+- **Engine:** `sound_brass_sample` never reads `v->eng_p[]` (verified by inspection of the whole
+  function). The "fundamental reinforcement" sub-oscillator that `GUITAR` and `PIANO` use for exactly
+  this complaint ([`runtime/sound.h:337-343`](../../runtime/sound.h), "adds the low-end WEIGHT a bare
+  KS string lacks (the 'thin' cure)") is simply not wired for brass.
+- **Why:** the primitive exists, the plumbing exists (`instrument_mode` / `eng_p`), and tuba is one of
+  the six hardware presets `brass.c` treats as acceptance tests.
+- **Audible home:** `brass` preset 6 (tuba) and preset 4 (trombone).
+
+### E8. Partials are not stretched
+
+- **Book:** Part 25's closing caveats: "the partials are not, strictly speaking, harmonics at all.
+  Their frequencies are stretched out (sharpened) as the harmonic number increases."
+- **Engine:** the bore is a plain delay line plus a one-pole bell LP, so its modes land on integer
+  multiples. `PIANO` already owns the primitive that fixes this (a dispersion allpass chain,
+  `pn_disp_c` / `pn_disp_n`, [`runtime/sound.h:296-297`](../../runtime/sound.h)) — for precisely the
+  analogous reason, inharmonic piano partials.
+- **Why it is last:** subtle, and it overlaps fix #3 in the handoff doc. Listed for completeness.
+- **Audible home:** `brasspec` (measurable as harmonic frequencies drifting sharp), `brass`.
+
+### E9. Two problems with the way we have been measuring brass
+
+Not engine findings, but they undermine the others if left unsaid.
+
+- **The committed harness does not reproduce the doc's headline number.**
+  [`brass-realism-handoff.md`](brass-realism-handoff.md) records "Measured (forte trumpet A3):
+  highest harmonic within 20dB h9→h17 ... energy >4kHz 0.2%→2.3%". Running `brasspec` at its
+  **committed defaults** today I get **h9 / 1.7%**; I only reach h23 / 2.2% by pushing timbre to
+  1.00. So that measurement was taken at a different macro position than the cart now ships.
+  Checked for a regression and found none: no commit to the brass region of `sound.h` since
+  `8dfd12a`, and the only later brass-adjacent change is a uniform makeup-gain trim, which cannot
+  move relative dB. **Conclusion: not a regression, but the number is not reproducible from the
+  committed harness**, which is worse than it sounds for a doc whose whole job is to be the as-built
+  record. Fix: pin the macros the number was taken at, in the cart or the doc.
+- **The oracle is confounded by the engine's own vibrato.** `harmonic-spec.js` analyses a fixed
+  16384-sample window ([`tools/harmonic-spec.js:56`](../../tools/harmonic-spec.js)) = **372 ms**,
+  which spans ~2 cycles of the engine's 5.4 Hz vibrato. Frequency modulation smears each harmonic's
+  energy across bins, and the absolute deviation grows with harmonic number, so **higher harmonics
+  smear more** and read low. That predicts exactly what I measured: dropping morph from 0.55 to 0.00
+  (which lowers vibrato depth *and* blow pressure) *raised* the harmonic extent from h9 to **h15**,
+  the opposite of what less blow should do. Two candidate explanations remain (a real spectral change
+  from reduced blow, versus vibrato smearing of the analysis) and **they cannot be separated today
+  because §E2 means the vibrato cannot be turned off.** So: §E2 is not just a realism item, it is a
+  prerequisite for trusting any brass spectral measurement, including the ones in this section and
+  the ones in the handoff doc. Treat every harmonic number here as a lower bound.
+- **Audible home:** none; this is a tooling item. But it should probably be step 1 of any brass work.
+
+### E10. The `brass` cart preset contradicts the book on two numbers
+
+Cart-side, no engine change, cheapest thing in §E.
+
+`brass.c:143` is `instrument(I_BRASS, INSTR_BRASS, 1, 0, 4, 1200)`:
+
+| | ours | Reid (Part 26, Minimoog) |
+|---|---|---|
+| amp attack | **1 ms** | 100 ms |
+| sustain | 4 of 7 | maximum |
+| release | **1200 ms** | effectively instantaneous |
+
+On release he is explicit about why: "Because I know that a real brass sound ends very rapidly once
+you stop blowing the instrument, I want the synthesized sound to do likewise, so I set the Decay
+switch to Off." A 1.2 second release is a pad, not a horn. He also supplies a ready-made audit
+checklist by tearing into Roland's own factory SH-101 Trumpet: "The Attack/Decay stages of the Env
+are too short, the amount of Env control in the filter is too low, and the higher initial cutoff
+frequency allows too many harmonics through when you first press a key. Furthermore, there's no
+modulation, so there's no movement in any portion of the note. Yurgh!" Three of those four apply to
+our preset.
+
+Caveat before anyone "fixes" it: our release also governs how the *bore* rings down, so shortening it
+is an audible change to the engine's tail, not only to the envelope. Worth an A/B rather than a
+straight edit. And the six hardware presets in `brass.c` are declared acceptance tests, so they are
+the thing to judge against.
+
+**Audible home:** `brass`, and it also touches `afrobeat`, `mariachi`, `modaljazz`, `napoleon`,
+`pasture`, `lurk` (the other carts using `INSTR_BRASS`).
+
+### Suggested brass step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | E9 pin the handoff's macros; note the vibrato/window caveat | docs + tooling | `brasspec` |
+| 2 | E3 verify whether `instrument_lfo` already accepts 80 Hz | 5-minute check | none |
+| 3 | E2 delayed + defeatable vibrato (also unblocks measurement) | engine, 4 engines share it | `brass` |
+| 4 | E10 preset attack/release/sustain A/B | cart only | `brass` |
+| 5 | E4 per-note brightness ramp (~600 ms), not a level follower | engine, structural | `brass` |
+| 6 | E3 onset rasp, ~50 ms, audio-rate, AD-gated | engine or cart | `brass` |
+| 7 | E7 wire `eng_p` weight/sub for the low bores | engine, small | `brass` presets 4 + 6 |
+| 8 | E6 retaper the brassiness macro | engine, small | `brass` |
+| 9 | E5 trade the fundamental away at forte (handoff fix #3) | engine, hard | `brasspec` |
+| 10 | E8 stretched partials | engine, reuses PIANO's allpass | `brasspec` |
+
+---
+
+## Suggested step order (§B/§C, the architecture pass)
+
+One at a time, each with its cart. Ordered by cost-to-payoff, not by section. The brass family has its
+own order at the end of §E; the two lists are independent and either can go first.
 
 | # | Step | Kind | Cart |
 |---|---|---|---|

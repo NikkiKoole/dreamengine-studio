@@ -1924,6 +1924,22 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
 
 ## 19. BRASS character — partly addressed (2026-06-14; brightness shipped 2026-06-16)
 
+> **Outside-in pass, 2026-07-28:** the brass arc has now been audited against Synth Secrets
+> Parts 24-27 (the two theory chapters + two full patch walkthroughs) —
+> [`synth-secrets-audit.md`](synth-secrets-audit.md) §E, with measurements. It adds items this
+> section had not considered, chiefly a **structural** one: Reid's brass patch runs the amp attack at
+> 100 ms and the *brightness* attack at 600 ms, and calls the differing development rates of the
+> harmonics "the most important audible clue" to an instrument's identity. Ours is a level FOLLOWER
+> with a 14 ms time constant, so measured at 100 ms windows the note arrives fully bright — there is
+> no bloom to hear. Also: our vibrato is never delayed and cannot be defeated (Reid: "vibrato does not
+> occur during the transient stage of the note"), which additionally **invalidates our spectral
+> measurements** (§E9 — the 372 ms analysis window spans ~2 vibrato cycles, smearing high harmonics
+> more than low ones). And the **h9→h17 figure quoted below does not reproduce** from `brasspec`'s
+> committed defaults; I get h9 at timbre 0.80 and h23 at timbre 1.00, so it was measured at an
+> unrecorded macro position. Not a regression (no brass commit since `8dfd12a`), but the number needs
+> pinning. §E5 gives handoff fix #3 the pass/fail target it lacked: at forte, **h8 should approach or
+> exceed h1** (Part 24 Figure 8).
+
 A recurring ear note: the brass doesn't yet sound *very brassy* — it speaks and holds, but the
 aggressive blat/bite of a real horn section isn't fully there. This was scattered across three
 places; consolidated here so it's tracked as one thing (distinct from the **tuning** residual —

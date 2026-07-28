@@ -5,12 +5,43 @@ STATUS: SHIPPED — brass-engine tuning handoff; asymmetric shaper + level-coupl
 > Session map for the whole waveguide-engine arc (down-bend + brass + the open tuning thread):
 > [`waveguide-bend-handoff.md`](waveguide-bend-handoff.md).
 
-> **Outside-in note (2026-07-28):** part of the remaining gap may be the **envelope shape**, not the
-> engine. Synth Secrets Part 8 is one long argument that ADSR structurally cannot make a real brass
-> contour: the swelled/spit shape needs the level at the end of the Attack to be *below* maximum
-> (Roland Alpha Juno `L1`), and our mod envelopes are AD with a single amount, so they hit Reid's
-> limitations 3 and 5 exactly. See [`synth-secrets-audit.md`](synth-secrets-audit.md) §C6 — the
-> proposed attack-level parameter names `brass`/`brasspec` as its audible home. Not queued.
+> **Outside-in audit (2026-07-28): this engine has now been read against Synth Secrets Parts 24-27**
+> (the two brass theory chapters plus the Minimoog and SH-101/Axxe patch walkthroughs) —
+> [`synth-secrets-audit.md`](synth-secrets-audit.md) §E, with measurements and a 10-step order.
+> Nothing there contradicts this doc; it is additive. The headlines, in the order §E ranks them:
+>
+> - **§E9 read this first: our brass measurements are not trustworthy yet.** `harmonic-spec.js`
+>   analyses a 372 ms window, which spans ~2 cycles of the engine's always-on 5.4 Hz lip vibrato;
+>   FM smears high harmonics more than low ones, so every harmonic figure (including this doc's) is a
+>   lower bound. It can't be controlled for, because the vibrato has a floor of 0.08 and no defeat.
+>   Separately, **the h9→h17 headline below does not reproduce** from `brasspec`'s committed defaults:
+>   I measure h9 / 1.7% at timbre 0.80 and h23 / 2.2% at timbre 1.00. Checked for a regression and
+>   found none (no brass commit since `8dfd12a`; the only later change is a uniform gain trim). So it
+>   was measured at an unrecorded macro position and needs pinning.
+> - **§E4, a structural miss this doc has not considered.** Reid's patch sets the amp attack to 100 ms
+>   and the *brightness* attack to 600 ms, and cites researchers who hold that the differing
+>   development rates of the harmonics are "the most important audible clue" to an instrument's
+>   identity. Our `br_env` is a level *follower* with a 14 ms time constant, so brightness arrives with
+>   the amplitude: measured at 100 ms resolution the note is fully bright in the first window. This is
+>   a credible answer to this doc's standing "very obviously not real brass."
+> - **§E5 gives fix #3 a number.** Part 24 Figure 8: on an overblown note the **8th harmonic is
+>   dominant**. Measured at timbre 1.00, h1 is still loudest and h7 (-3.3 dB) is the strongest
+>   overtone, with evens still suppressed (h2 -31.3, h4 -21.9). Nothing in the engine trades the
+>   fundamental away as blow rises. Pass/fail for "model the bell natively": h8 ≥ h1 at forte.
+> - **§E2/E3/E6/E7/E8**: vibrato never delayed and never defeatable (Reid: it "does not occur during
+>   the transient stage"); no onset rasp (his is an ~80 Hz triangle into the *filter*, AD-gated to
+>   ~50 ms, explicitly **not** into oscillator pitch — that would be FM and "would destroy the
+>   timbre"); the brassiness macro does most of its work in the last fifth of its travel; `eng_p`'s
+>   sub-oscillator "weight" is wired for GUITAR/PIANO but not brass, which the SH-101 Tuba patch says
+>   low brass needs; partials aren't stretched sharp.
+> - **§E10, and it's cart-side and free:** `brass.c` uses amp attack **1 ms** and release **1200 ms**
+>   where Reid uses 100 ms and effectively instantaneous ("a real brass sound ends very rapidly once
+>   you stop blowing"). Caveat: our release also governs the bore ring-down, so A/B rather than edit.
+>
+> Also relevant from the architecture pass: **§C6**, Part 8's argument that ADSR structurally cannot
+> make a brass contour — the swelled/spit shape needs an attack *level* below maximum (Alpha Juno
+> `L1`), and our mod envelopes are AD with a single amount, hitting Reid's limitations 3 and 5 exactly.
+> Nothing above is queued.
 
 Working note for whoever picks up the BRASS engine next. The complaint that started this:
 *"my brass synth isn't really sounding very brassy"* — and, after a first fix, *"it's very

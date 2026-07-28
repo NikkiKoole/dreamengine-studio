@@ -1565,6 +1565,24 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     **Owner's working rule, baked into the doc (2026-07-28): one small step at a time, and no engine
     change lands without a cart where you can hear it** (existing carts are fine to improve). The doc
     carries a 23-row suggested step order with a named cart per row. Nothing is approved.
+    **§E = recipe pass 1, BRASS** (Parts 24-27, added the same day) — the per-family half of the audit,
+    and the first section with MEASUREMENTS (rendered via `brasspec` + `harmonic-spec`/`wav-envelope`).
+    Ten findings, own 10-step order. The three that matter: (1) **§E4, structural** — Reid runs the amp
+    attack at 100 ms and the *brightness* attack at 600 ms, citing the differing development rates of
+    the harmonics as "the most important audible clue" to an instrument's identity; our `br_env` is a
+    level FOLLOWER with a 14 ms time constant, so measured at 100 ms windows the note arrives fully
+    bright, with no bloom. This is new to the brass thread and a credible answer to
+    [`design/brass-realism-handoff.md`](design/brass-realism-handoff.md)'s standing "very obviously not
+    real brass". (2) **§E9, tooling** — our brass spectral measurements aren't trustworthy: the 372 ms
+    analysis window spans ~2 cycles of an always-on, undefeatable 5.4 Hz lip vibrato, smearing high
+    harmonics more than low ones; and the handoff doc's headline h9→h17 does NOT reproduce from
+    `brasspec`'s committed defaults (h9 at timbre 0.80, h23 at timbre 1.00). Verified it is *not* a
+    regression, but the number needs pinning. (3) **§E5 gives handoff fix #3 a pass/fail number** it
+    never had: Part 24 Fig 8 says the 8th harmonic DOMINATES an overblown note; measured, h1 is still
+    loudest and evens are still suppressed (h2 −31.3 dB). Plus §E10, free and cart-side: `brass.c` uses
+    a 1 ms attack and a 1200 ms release where the book says 100 ms and effectively instantaneous.
+    Remaining families (strings, drums, pianos, flutes, the rest of the Hammond, delays) still unread —
+    §D5 lists them; §E is the template.
 
 ---
 

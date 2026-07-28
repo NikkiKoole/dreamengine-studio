@@ -18,6 +18,8 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick it (auditions only while stopped; while playing, light REC to hear taps) — a machine-scoped screen (GEN/PAT/PERF/KIT) snaps to VCE on a voice tap, a voice-scoped one (VCE/FLAG) stays put; VCE shows TUNE/DEC/[character]/VOL/PAN/FINE (character where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK); the picker shows the whole roster in one row (all 16/11 voices, acid order); MUT (left column, tap=latch / hold=momentary) flips pad taps to DIRECT per-voice mute — orange pad rims while live; the far-right REC latch (same grammar) punches pad taps onto the current step while playing; left soft-keys VCE/FLAG + MUT, right GEN/PAT/PERF/KIT (the generate menu = CLEAR / MIN / MID / BUSY, KIT = the minimap). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND; a little DUB pad in the bottom-right corner momentarily throws the delay (HOLD + drag: X = time, Y = feedback)."
   },
   "todo": [
+    "SPEAK - the vowel talks (SHIPPED 2026-07-28, under the SPK toggle on the VOWEL page). Every fresh 303 note-on advances the master formant to the next vowel in a 6-vowel WORD (OO AH EE AH EH OH) and the vowel GLIDES there over the following frames, so the rack pronounces a diphthong per note instead of clicking between static vowels. THIS IS THE ONE THING THIS DEVICE CAN DO THAT NO OTHER MASTER EFFECT HERE CAN: formant() is ride-safe (fx_set_formant is a pure coefficient write), so the glide is free, whereas crush/flanger/gate rebuild buffers and can only SNAP on a step edge. Mechanism cribbed from pedalboard's VOWEL pedal STEP mode (fmt_on_attack + formant_tick), same word: vow_attack() on the note, vow_tick() per frame, vow_live() feeding apply_fx. Hooked at the single fresh-note site (both lines feed it); acid_tie is deliberately NOT hooked, since a tie holds the note and is therefore no new syllable. While SPK is lit the first knob becomes GLID (slew rate: slurred vs crisp) and its LABEL changes, so the swap is visible rather than another invisible mode. THE TRAP THIS UNCOVERED, worth more than the feature: the first SPEAK A/B came back ALL VARIANTS BYTE-IDENTICAL, and the cause was that BOTH 303 LINES ARE MUTED AT BOOT by design (mac[] initialisers, 'bring it in on record'). So a default `script /dev/null` render of this cart is DRUMS ONLY, and anything hanging off a 303 note-on can never fire in it. Two consequences: (a) every master-FX number measured before this - including the MIX/Q knob-role sweep in the FX HUB entry - describes the formant on an 808+909 kit, NOT on the acid line; (b) any future 303-driven A/B must unmute first. Both clicks are now parked in tools/clips/acidcandy/06-speak-vowel-per-note.script (LED coords MEASURED off an 8x crop of the nav strip, not guessed: 303a (37,8), 303b (61,8)), and the DE_TRACE watch block now carries vspk/vstep/vcur/vtgt so the same dead end reads in one trace. VERIFIED with the 303s live: vstep walks all six word positions and vcur takes 220 distinct values (it genuinely glides); speak-off vs speak-on = sample correlation 0.428 MISMATCH, mean per-window spectral-centroid difference 396 Hz over 556 windows. HONEST NEGATIVE in the same measurement: centroid STD is unchanged (1281 Hz off vs 1270 Hz on) - the vowel really moves, but the drums already dominate the spectral variance, so on a busy kit the speech competes with the hats. OPEN: (1) EAR CHECK - does it read as SPEECH or as a wobble? The numbers cannot answer this. (2) The centroid-STD result is the strongest argument yet for the parked instrument_formant-on-the-303s-only variant: the acid line would speak while the kit stays crisp. Try it if the master version sounds mushy. (3) Both 303 lines currently feed one word, so a busy 16th bass line can babble - candidates are a source selector (303a only) or advancing every Nth note; GLID smooths it meanwhile. (4) PITCH-MAPPED vowel as an alternative to the fixed word (higher note = brighter vowel) - more emergent, and it would make the existing note-bar editor double as a speech editor, but a pentatonic bass spans little pitch so it may need range normalising. (5) not in the SONG snapshot, same as the rest of the FX state.",
+    "FX HUB + the VOWEL device: SHIPPED (2026-07-28). The phone MST soft-key column was full (MIX/PCF/CRU/GAT/SWP) and one key per effect does not scale, so the DEVICES moved behind ONE 'FX' key (mstflow 8) and SWP retired: the hub is a grid of chips, each wearing its fxicons.h glyph (mouth / jet / swirl) + fx_name. The three drawable lanes KEEP top-level keys (they are the rhythmic soul, not devices). Every remaining MORE-MASTER-FX shelf item (tape/wah/ringmod/drive/spring) is now one more chip: add the kind to FXK[]/FXA[] + a knob branch. CHIP GRAMMAR: a plain TAP opens that device's knob page. Nothing else - no hold, no meta-gesture. THE FIRST CUT GOT THIS WRONG AND IT IS THE LESSON WORTH KEEPING: it had TAP = arm and HOLD (~0.4s, charge bar) = open the page, reasoning that arming is beat-critical so it deserves the fast gesture. The maker's first words on loading it were 'im missing the extra knobs to tweak it?' - the knobs were simply unfindable, because a hold has NO affordance. That is the identical failure this cart already recorded once for the 4-way PICK/PLAY/MUTE/REC pad tool ('a hidden meta-mode - the maker forgot it existed'), so it is now twice-proven here: a gesture nobody can SEE is not a control. The rule this cart should hold to: the hub is a MENU, so its buttons OPEN things; arming lives on the page as a big ON key; and the ONE control that genuinely must be instant mid-take (DRY) sits unhidden in the hub. A chip still SHOWS its arm state (lit), so the menu doubles as a status board. Reachability is now a committed SEED, not a promise: tools/clips/acidcandy/05-fx-hub-vowel.script taps MST -> FX -> the VOWEL chip -> ON -> drags MIX, and it verified end-to-end (through the chip tap the render is byte-identical to the everything-off baseline 39150390ac4a, i.e. navigating is audibly inert; +ON gives 9439f2b966a9 / rms -22.93; +the MIX drag gives f79fa4d7e9fa / rms -21.96 with the knob reading 99). rms RISING with MIX is correct - the bandpasses have resonant gain. FXICONS: glyph ONLY, drawn in LCD green - fxicons' body/accent are CHASSIS colours and this pad lives inside the green glass (the LCD-native house rule). fx_icon draws at a FIXED ~26x13px, so the chip needs the FULL glass height (~24px on phone) to fit glyph + label; that is WHY DRY is a tall right-edge latch (the drum faces' REC idiom) instead of a bottom strip - a bottom strip left the chips ~14px and the glyphs silently dropped to the text-only fallback. DRY KILL: tap = latch / hold = momentary (PERF/MUT grammar), and it holds every device dry WITHOUT clearing any arm flag, so lifting it restores the exact blend (the same 'never wipe the maker's settings' principle the mute/solo note insists on). VERIFIED BYTE-EXACT: with vowon=1 AND flon=1 armed, fxdry_latch=1 renders sha 39150390ac4a, identical to the everything-off baseline (ab-render, 400 frames) - a true bypass, not an approximation. VOWEL = master formant(): 4 bandpasses at the human formant frequencies, the talkbox move. Ride-safe (fx_set_formant is a pure coefficient write, no buffer rebuild - unlike crush/gate/flanger), still pushed only on change to keep the ctrl queue quiet. Boots DISARMED. KNOB ROLES, MEASURED (this corrected a wrong design assumption mid-build, worth keeping): the synth-secrets audit SS-B8 comb caveat says a half-wet formant gets phase notches, from which I had concluded 'depth is Q, not MIX' and parked mix at 0.9. ab-render says otherwise - Q's FULL range 0.15..0.95 moves brightness only 0.061..0.051 (centroid 3.6k..3.4k) and is really a resonance/LEVEL control (peak -6.6..-4.0 dB), while MIX 0.4..1.0 spans brightness 0.56..0.04 (centroid 7.9k..2.8k). MIX is the only real depth axis; the comb is real but reads as colour on a busy acid mix. So MIX = depth (default 0.7, plainly a talkbox with some air left), Q = character (broad/hollow -> pinched/nasal). Armed at the default the whole top end goes, hats included - it is a breakdown gesture like a full filter sweep, NOT glue. Roomy parity: a VOW chip + r2_mstformant panel (r2_mstpanel 5) + the DRY latch on the roomy chip row, sharing ONE fxdry state with the phone. Gates run: compile, lint-fx-frame clean (568 carts), canvas-diff 0px, ui-audit clean, the ab-renders above. OPEN: (1) NOT in the SONG snapshot, deferred with the sweep state and the rest of SAVE; (2) EAR CHECK WANTED on the default MIX 0.7 and on whether a master vowel that eats the hats wants to be per-machine instead (instrument_formant on just the 303s would keep the drums intact - a real alternative if the master version feels too destructive); (3) the drawable VOW LANE is still the standout follow-up (per-step vowel, the PCF/CRU/GAT sibling) and formant's ride-safety means it can GLIDE between steps, which no other lane can - that is the hands-free 'talking acid' the shelf note was after; (4) the phone chip row fits ~3-4 chips, so the shelf's 5 remaining effects will need a second row or a scroll.",
     "SWEEP macro: SHIPPED on PHONE (2026-07-23) — a whole-mix phaser/flanger for breakdown risers, on a new MST 'SWP' LCD page (5th left soft-key, mstflow 6). Controls: a FLG/PHS flavour toggle (FLG = metallic jet, PHS = hollow swirl) + tempo-synced rate (1/2/4-BAR buttons) on top, SWEEP (mix/depth macro) + FB (feedback = the 'mental' intensity) knobs below. The engine's own LFO does the swirl (srate = g_bpm/(240*bars)); flanger()/phaser() are set-and-hold, reconfigured only on change in apply_fx (fx-frame lint clean), FLG+PHS mutually exclusive (idle one held dry). State: msweep/msweepfb/mswmode/mswdiv. Verified audible: sweep-on vs off WAV correlate 0.55 (same take, phaser-notched texture), no NaN. ROOMY: SHIPPED too (2026-07-23) — a SWP chip + r2_mstsweep panel on the MST big screen (r2_mstpanel 4), single wide row (buttons left, SWEEP+FB knobs right third — a 2-row stack collided the knobs into the buttons). TWO DEVICES (2026-07-23): FLG and PHS are now INDEPENDENT on/off devices (flon/phon), not a mutually-exclusive flavour — you can run 2 / 1 / 0 at once (they stack on the master bus). Replaced the 3-state OFF/FLG/PHS toggle with two separate toggles in both views (each lit = armed; both off = dry = the kill switch). PER-DEVICE KNOBS (2026-07-23): each device now owns its MIX + FB (flmix/flfb, phmix/phfb) so you can BLEND them independently (e.g. heavy flanger + subtle phaser); rate stays shared. Phone SWP page = 2 toggles + rate on top, a row of 4 knobs (FMIX/FFB/PMIX/PFB) below (FX-screen style). Roomy = a taller panel (panelH 40): toggles+rate on top, 4 bigger grabbable knobs below. ROOT CAUSE (confirmed on-device 2026-07-23): the earlier tiny shared knob in the short roomy panel had a ~13px grab target = effectively undraggable; the bigger per-device knobs (taller panel) FIXED it — the maker confirmed it works. Lesson: roomy LCD-panel knobs need a tall enough panel or they can't be grabbed. (Couldn't repro headless — scripted drags can't hit the resized roomy canvas, even a known-good knob didn't move, so this was an on-device verify.) Also still wanted: see it more prominently near the (currently display-only) roomy mixer faders. Default mswmode = 0 so the rack boots dry. DETERMINISM (corrected 2026-07-23): acidcandy renders ARE bit-reproducible — but ONLY via `script /dev/null` (fixed timestep), NOT `run` (wall-clock-paced, so note-on sample positions jitter run-to-run and wav-correlate sees ~0.3-0.5 = pure timing noise). This is general to every self-running cart, not a drift thing (drift is a deterministic LCG). So for a sweep A/B: `node tools/play.js acidcandy script /dev/null --headless --frames 400 --wav out.wav` → PHS-vs-PHS = 1.00000, OFF-vs-PHS = 0.95 (the phaser at msweep 0.7 is a SUBTLE ~5% change — a play-feel tuning note: maybe wants more depth/feedback). OPEN: (1) NOT in the SONG snapshot yet (deferred with the rest of SAVE); (3) play-feel tuning — default flavour (PHS), depth curve (0.55+0.45*mix), fb scale (*0.9), and whether it wants a per-303 phaser too are all ear-check candidates; (4) maybe a drawable SWEEP automation lane (draw the riser per-step) as the PCF/CRU/GAT sibling.",
     "MORE MASTER FX — candidate shelf (OPEN, ideas 2026-07-24; after the SWEEP flanger+phaser landed, brainstormed 'what else is super nice for an acid box'). ALL are EXISTING engine functions, so each is the same cheap set-and-hold wiring as flanger/phaser in apply_fx (reconfigure only on control change; NOT ride-safe except filter) — no engine work. Ranked by vibe-per-effort for acid/techno: (1) tape(wow,flutter,sat) — analog glue + subtle pitch wobble, the 'suddenly sounds like hardware' effect, binds the digital rack; add first. (2) wah_lfo(rate_hz,res,mix) — tempo-synced auto-wah (rhythmic bandpass), THE most on-genre missing thing, sync rate to a bar division like SWEEP; pairs with the 303. (3) formant(vowel,q,mix) — vowel/talkbox filter, huge 'wooow-eee' character, great performance macro. (4) ringmod(freq_hz,mix) — metallic/clangorous, made for the existing GLITCH song style (industrial breakdowns). (5) drive_insert(amount,mode,mix)+drive_voice(DRIVE_VOICE_TS,tone) — a master BUS overdrive wall (Tube Screamer voice), squashes+glues the summed mix (distinct from the per-machine instrument_drive already wired) = hard-techno grit. (6) reverb_spring(amount) — flips the reverb tanks to a dub/surf spring 'boing'; pairs with the delay for instant dub-techno. Lower priority (movement/dynamics already covered by flanger/phaser + gate): eq (3-band tilt), autopan, tremolo. STANDOUT IDEA worth more than another knob: a 4TH DRAWABLE MST LANE (PCF/CRU/GAT sibling) that sequences a WAH or VOWEL sweep per-step — hands-free acid movement, fits the instrument's lane soul best. Landing plan mirror SWEEP: new master device(s) on an MST page (phone + roomy r2_mst* panel) OR a drawable lane; state as m* globals; NOT in SONG snapshot until SAVE lands; gate every add with a compile + canvas-diff + a script /dev/null --wav A/B.",
     "FOR ANOTHER TIME — SOLO in the MUT grammar (parked 2026-07-22; the maker LIKES the new MUT latch, build on it): now that MUT is a clatch pad-latch (tap=latch / hold=momentary, pads mute directly), SOLO is the natural sibling. Candidate shapes, pick on play-feel: (a) a SOLO latch key — but the left col is full (VCE/FLAG/MUT), so either a half-height MUT/SOL stack or a second state ON the MUT key (tap again while latched = solo mode, a different colour); (b) a gesture while MUT is live — e.g. tap = mute, hold a pad = solo it (note: solo drops are beat-critical too, so if hold feels late here the same way hold-to-mute did, prefer shape a); (c) machine-level: hold/latch a cartridge LED to solo that machine (mute the rest) — the cheap live win already suggested in the mute-SCENES entry. Whatever the shape, the semantics: solo = mute everything else BUT remember the hand-set mute pattern, un-solo = restore it (don't wipe the maker's mutes).",
@@ -59,6 +61,9 @@ de:meta */
 #define UI_MAX_WID 256   // iPad rack mode draws all 5 machines at once → far more than the default 64 widgets/frame; without this, every tap past widget #64 silently drops (dead panels)
 #include "ui.h"
 #include "cursor.h"   // pixel hand cursor (CUR_HAND/CUR_GRAB) — desktop only, auto-hides the OS arrow, no-op on touch
+#include "fxicons.h"  // the shared effect VISUAL LANGUAGE — the FX hub's chips wear fx_icon()/fx_name() so
+                      // acidcandy's pedals read the same as every other cart's (glyph only; the chassis
+                      // colours stay out, the hub lives INSIDE the green LCD — see fxchip)
 #include "acid303.h"
 #include "tr808.h"    // the shared, honest TR-808 voice bank (the 808 face's SOUND)
 #include "tr909.h"    // ...and the TR-909 (the 909 face's SOUND)
@@ -264,9 +269,65 @@ static float level[M_N] = { 1, 1, 1, 1, 1 };                // per-machine TAB f
 static int   mpcf[STEPS];                                   // pattern-controlled filter: cutoff level 0..7 per step (7 = open)
 static int   mcrush[STEPS];                                 // pattern-controlled CRUSH: bitcrush level 0..7 per step (0 = clean; the PCF's texture twin)
 static int   mgate[STEPS];                                  // pattern-controlled GATE: openness 0..7 per step (7 = open, down = chop; the rhythm twin)
-static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 4 = GEN, 5 = SONG, 6 = SWEEP macro, 7 = DLY delay-div picker
+static int   mstflow = 0;                                   // MST screen: 0 = MIX meters, 1 = PCF lane, 2 = CRUSH lane, 3 = GATE lane, 4 = GEN, 5 = SONG, 7 = DLY delay-div picker, 8 = the FX HUB (was 6 = the old SWEEP page, folded into the hub)
 static float flmix = 0.5f, flfb = 0.5f, phmix = 0.5f, phfb = 0.5f;   // PER-DEVICE mix/depth + feedback — FLANGER (fl*) and PHASER (ph*) each own their knobs so you can BLEND them independently
 static int   flon = 0, phon = 0, mswdiv = 0;                         // the two INDEPENDENT sweep DEVICES: FLANGER on + PHASER on (run 2 / 1 / 0 at once) + shared rate div (0 = 1-bar, 1 = 2-bar, 2 = 4-bar, tempo-synced)
+
+// ── the FX HUB: master effect DEVICES behind one soft-key ─────────────────────
+// The phone's MST soft-key column was full (MIX/PCF/CRU/GAT + one key per device doesn't scale),
+// so the devices live behind ONE "FX" key: a grid of chips wearing their fxicons.h glyph. Every
+// remaining item on the MORE MASTER FX shelf (tape/wah/ringmod/drive/spring) lands as one more chip.
+// Chip grammar: TAP = arm/disarm (instant, the beat-critical action) · HOLD = open its knob page
+// (not beat-critical, so it gets the slow gesture — the deliberate INVERSE of the hold-to-mute
+// lesson that hold felt late for a beat-critical drop).
+static int   fxpage = -1;                    // -1 = the chip grid · else the FX_* kind whose knob page is open
+static int   fxdry_latch = 0;                // the DRY kill: TAP = latch (own line so ab-render can A/B it)
+static int   fxdry_hold = 0;                 // ...and HOLD = momentary (the PERF/MUT latch grammar)
+// DRY holds every master device dry WITHOUT clearing its arm flag, so lifting it restores your exact
+// blend (the same principle the mute/solo note insists on: never wipe the maker's settings).
+#define FXDRY (fxdry_latch || fxdry_hold > 0)
+// the VOWEL device — master formant(): 4 bandpasses parked at the human formant frequencies, so the
+// whole mix takes on an "ooh/aah/eee" vocal colour (the talkbox move). This is a DRASTIC effect by
+// nature, not a subtle glue: armed, it eats the top end (the hats go with it), the way a full filter
+// sweep does. That's the breakdown gesture it's here for.
+// KNOB ROLES, measured (ab-render, 400 frames, brightness + spectral centroid):
+//   MIX is the DEPTH axis — 0.4→1.0 moves brightness 0.56→0.04, centroid 7.9k→2.8k Hz. Wide + monotonic.
+//   Q is a CHARACTER axis, NOT depth — its full range 0.15→0.95 moves brightness only 0.061→0.051
+//     (centroid 3.6k→3.4k). What it really does is resonance/level (peak -6.6→-4.0 dB): broad and
+//     hollow vs pinched and nasal.
+// Mid-MIX does carry phase-cancellation notches (a filtered copy blended against dry combs — the
+// synth-secrets audit §B8 / effects-recipes.md). Real, but it reads as colour on a busy acid mix, and
+// it's not a reason to avoid the one knob that actually dials the effect in.
+static int   vowon = 0;                      // armed (0 = dry — the rack still boots with no master colour)
+static float vowvow = 0.5f;                  // VOWEL 0..1 sweeps OO→OH→AH→EH→EE — the axis you sweep to make it talk
+static float vowq   = 0.6f;                  // Q 0..1 = broad/hollow → pinched/nasal (character, and it pushes level)
+static float vowmix = 0.7f;                  // dry..wet = THE depth knob. 0.7 = plainly a talkbox, still some air left
+// SPEAK — the syllable-per-note mode (under the SPK toggle): every fresh 303 note-on advances to the
+// next vowel in a little WORD, and the vowel GLIDES there instead of jumping, so the rack pronounces
+// a diphthong per note ("wow", "yeah") instead of clicking between static vowels.
+// THIS IS WHAT formant()'s ride-safety BUYS. The glide is a per-frame coefficient re-push, free, and
+// flatly impossible for the buffer-rebuilding effects (crush/flanger/gate) to do — they can only
+// snap on a step edge. It is the one thing this device can do that no other master effect here can.
+// formant() has no trigger input, so the CART drives it: vow_attack() per note, vow_tick() per frame.
+// Mechanism cribbed from pedalboard's VOWEL pedal STEP mode (fmt_on_attack + formant_tick).
+static int   vowspeak = 0;                   // the SPK toggle
+static float vowglide = 0.35f;               // slew toward the new vowel (VOWL becomes GLID while SPEAK is on)
+static float vowcur = 0.5f, vowtgt = 0.5f;   // the gliding vowel + the current note's target
+static int   vowstep = 0;                    // position in the word
+// OO AH EE AH EH OH — pedalboard's spoken word (its indices 0,2,4,2,3,1 over 4). SIX vowels against a
+// 16-step pattern that only advances on ON steps, so the phrase lands differently bar to bar instead
+// of locking to the bar: the same polymeter drift this cart already likes in its per-line loop lengths.
+static const float VOW_WORD[6] = { 0.0f, 0.5f, 1.0f, 0.5f, 0.75f, 0.25f };
+static float vow_live(void) { return vowspeak ? vowcur : vowvow; }   // which vowel actually reaches formant()
+static void  vow_attack(void) {              // a fresh 303 note landed (NOT a tie — a tie holds, so it is no new syllable)
+    if (!vowspeak) return;
+    vowstep = (vowstep + 1) % 6;
+    vowtgt  = VOW_WORD[vowstep];
+}
+static void  vow_tick(void) {                // every frame: ease the vowel toward the note's target
+    if (!vowspeak) { vowcur = vowtgt = vowvow; return; }   // parked on the knob while off, so arming SPEAK starts from where you left it
+    vowcur += (vowtgt - vowcur) * (0.04f + vowglide * 0.40f);   // GLID 0..1 = slurred/slow ... crisp/snappy
+}
 
 // ── PATTERN BANKS (ARRANGEMENT) ──────────────────────────────────────────────
 // PER-MACHINE A/B/C/D slots. A pattern stores only the SEQUENCE (steps + per-step
@@ -436,15 +497,29 @@ static void apply_fx(void) {
     // The engine's own LFO does the swirl (rate = a tempo-synced bar division); SWEEP = shared mix+depth,
     // FB = shared feedback/"mental" intensity. Set-and-hold (flanger()/phaser() rebuild DSP — not ride-
     // safe): reconfigured only on a control change. A disabled device is held DRY (mix 0).
+    // The hub's DRY kill (FXDRY) forces every device dry here, WITHOUT touching its arm flag — so
+    // lifting DRY restores the exact blend. It's folded into the change-guard via the *_live locals.
     static float aFlm = -2, aFlf = -2, aPhm = -2, aPhf = -2, aSwpRate = -2; static int aFlon = -1, aPhon = -1;
     {
         static const float SBARS[3] = { 1.0f, 2.0f, 4.0f };
         float srate = g_bpm / (240.0f * SBARS[mswdiv]);        // Hz: one LFO cycle per N bars (4 beats/bar)
-        if (flmix != aFlm || flfb != aFlf || phmix != aPhm || phfb != aPhf || flon != aFlon || phon != aPhon || srate != aSwpRate) {
-            if (flon && flmix >= 0.02f) flanger(srate, 0.55f + 0.45f * flmix, flfb * 0.9f, flmix);   else flanger(0.3f, 0, 0, 0);       // FLANGER device (own mix/fb)
-            if (phon && phmix >= 0.02f) phaser(srate, 0.55f + 0.45f * phmix, phfb * 0.9f, phmix, 6); else phaser(0.4f, 0, 0, 0, 6);     // PHASER device (own mix/fb)
-            aFlm = flmix; aFlf = flfb; aPhm = phmix; aPhf = phfb; aFlon = flon; aPhon = phon; aSwpRate = srate;
+        int fl_live = flon && !FXDRY, ph_live = phon && !FXDRY;
+        if (flmix != aFlm || flfb != aFlf || phmix != aPhm || phfb != aPhf || fl_live != aFlon || ph_live != aPhon || srate != aSwpRate) {
+            if (fl_live && flmix >= 0.02f) flanger(srate, 0.55f + 0.45f * flmix, flfb * 0.9f, flmix);   else flanger(0.3f, 0, 0, 0);       // FLANGER device (own mix/fb)
+            if (ph_live && phmix >= 0.02f) phaser(srate, 0.55f + 0.45f * phmix, phfb * 0.9f, phmix, 6); else phaser(0.4f, 0, 0, 0, 6);     // PHASER device (own mix/fb)
+            aFlm = flmix; aFlf = flfb; aPhm = phmix; aPhf = phfb; aFlon = fl_live; aPhon = ph_live; aSwpRate = srate;
         }
+    }
+    // master FORMANT — the VOWEL device: four bandpasses at the human formant frequencies, so the whole
+    // rack takes on a vocal colour and a swept VOWEL makes it TALK. formant() is genuinely RIDE-SAFE
+    // (fx_set_formant is a pure coefficient write — no buffer rebuild, no state reset), unlike
+    // crush/gate/flanger above, so sweeping it live is free; we still push only on CHANGE to keep the
+    // ctrl queue quiet. Disarmed (or DRY) = mix 0 = a dormant, byte-identical bypass.
+    static float aVw = -2, aVq = -2, aVm = -2;
+    {
+        float vw = vow_live();                                  // SPEAK on → the glided per-note vowel; else the knob
+        float vm = (vowon && !FXDRY) ? vowmix : 0.0f;
+        if (vw != aVw || vowq != aVq || vm != aVm) { formant(vw, vowq, vm); aVw = vw; aVq = vowq; aVm = vm; }
     }
     // per-machine REVERB sends — 303s into the warm hall (tank 0, sub stays dry),
     // drums into their own plates with the KICK hard-excluded (else it muds the floor).
@@ -851,6 +926,40 @@ static int lcdbtnf(unsigned seed, int *px, int y, int h, const char *s, int on2)
 static int lcdlatchf(unsigned seed, int *px, int y, int h, const char *s, int *lat, int *hld, int *sib) {
     font(FONT_TINY); int bw = text_width(s) + 7;
     int r = lcdlatch(seed, *px, y, bw, h, s, lat, hld, sib); *px += bw + 3; return r;
+}
+
+// ── the FX HUB's chip — one master effect DEVICE as an LCD pad ────────────────
+// Wears the effect's fxicons.h GLYPH + name, so the pedal reads the same as it does in pedalboard/
+// epiano. GLYPH ONLY, in LCD green: fxicons' body/accent colours are CHASSIS colours, and this pad
+// lives INSIDE the green glass, where the house rule is LCD-native (a brown chip would read as a
+// candy widget that fell in the screen). Armed = filled/inverted, like lcdbtn.
+// A PLAIN TAP OPENS THE DEVICE'S KNOB PAGE (returns 1). Nothing else — no hold, no meta-gesture.
+// The first cut had tap = arm and HOLD = open the page, and the knobs were promptly unfindable: the
+// same "hidden meta-mode" that already killed this cart's 4-way pad tool (the maker forgot it
+// existed). The hub is a MENU, so its buttons open things; arming lives on the page as a big ON key,
+// and the one control that truly must be instant during a take (DRY) sits in the hub unhidden.
+// A chip still SHOWS its device's arm state (lit/filled), so the hub reads as a status board too.
+static int fxchip(unsigned seed, Box c, int kind, int armed) {
+    int x = (int)c.x, y = (int)c.y, w = (int)c.w - 1, h = (int)c.h - 1;
+    if (w < 6 || h < 6) return 0;
+    int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, h);
+    int act = ui_button_core(wid, x, y, w, h, &foc, &pr, &hot);
+    int down = pr || armed;
+    if (down) rrectfill(x, y, w, h, 2, CLR_MEDIUM_GREEN);
+    rrect(x, y, w, h, 2, (hot || down) ? CLR_LIME_GREEN : CLR_MEDIUM_GREEN);
+    // the glyph, centred in the pad above its name. fx_icon draws at a FIXED ~26×13 px, so on a
+    // pad too small to hold it we drop the glyph and let the name carry the chip (never clip it).
+    const char *nm = fx_name(kind);
+    font(FONT_TINY);
+    int ink = down ? CLR_DARK_GREEN : CLR_LIME_GREEN, paper = down ? CLR_MEDIUM_GREEN : CLR_DARK_GREEN;
+    int lab_h = 6;
+    if (h >= 20 && w >= 24) fx_icon(kind, x + w / 2, y + (h - lab_h) / 2, ink, paper);
+    print(nm, x + (w - text_width(nm)) / 2, y + h - lab_h, ink);
+    return act;
+}
+// the knob page's way back to the chip grid (drawn top-left of every device page)
+static int fxback(unsigned seed, Box c) {
+    return lcdbtn(seed, (int)c.x, (int)c.y, (int)c.w, (int)c.h, "<", 0);
 }
 
 // ── the cartridge nav strip (zone 1) ─────────────────────────────────────────
@@ -1763,12 +1872,16 @@ static void draw_mst(Box stage) {
     knob_cell(lay_grid(krow, 6, 6, 4, 2), &mpump,   "PUMP", 0.0f);
     knob_cell(lay_grid(krow, 6, 6, 5, 2), &g_swing, "SWG",  0.0f);
 
-    // ③ soft-keys — LEFT margin: the 4 LCD views (MIX + the PCF/CRUSH/GATE lanes).
-    { static const char *L[5] = { "MIX", "PCF", "CRU", "GAT", "SWP" };
-      static const int   Lm[5] = { 0, 1, 2, 3, 6 };                       // SWP = the sweep macro page (mstflow 6)
+    // ③ soft-keys — LEFT margin: the mixer, the 3 drawable lanes, and FX (the device hub).
+    // The lanes keep top-level keys because they're the drawable/rhythmic soul; the DEVICES all live
+    // behind the one FX key (the column can't grow a key per effect, and the shelf is still growing).
+    { static const char *L[5] = { "MIX", "PCF", "CRU", "GAT", "FX" };
+      static const int   Lm[5] = { 0, 1, 2, 3, 8 };                       // FX = the device hub (mstflow 8)
       static const unsigned Ls[5] = { 0x20u, 0x21u, 0x22u, 0x23u, 0x2Au };
       for (int k = 0; k < 5; k++) { Box c = lay_grid(skcL, 1, 5, k, 2);
-          if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == Lm[k])) mstflow = Lm[k]; } }
+          if (cbtn(Ls[k], (int)c.x, (int)c.y, (int)c.w, (int)c.h, L[k], mstflow == Lm[k])) {
+              if (Lm[k] == 8 && mstflow == 8) fxpage = -1;                // FX while already on FX → back out to the chip grid
+              mstflow = Lm[k]; } } }
     // ③b RIGHT margin — the SIDE-BUTTON column: a BIG GEN, a little SAVE, then the DELAY divisions (compact = less prominent)
     { Box gcell = lay_split_gap(rcol, EDGE_TOP, rcol.h * 0.30f, 1, &rcol);   // 1px gaps (lay_split_gap) so GEN/SAVE/ratios all sit apart evenly
       if (cbtn(0x24u, (int)gcell.x, (int)gcell.y, (int)gcell.w, (int)gcell.h, "GEN", mstflow == 4)) mstflow = 4; }
@@ -1856,22 +1969,61 @@ static void draw_mst(Box stage) {
         // glass (a 2×2 of big tap targets). FB (feedback) stays the master-row knob; this sets mdiv.
         for (int d = 0; d < 4; d++) { Box c = lay_grid(gc, 2, 4, d, 2);
             if (lcdbtn(0x74u + d, (int)c.x, (int)c.y, (int)c.w, (int)c.h, DL[d], mdiv == d)) mdiv = d; }
-    } else if (mstflow == 6) {
-        // SWEEP — TWO independent devices (FLG + PHS, run 2/1/0 at once) + shared tempo-synced rate on
-        // top; below, EACH device owns its MIX + FB knobs (2×2: FLANGER row, PHASER row) so you can
-        // blend them independently. The engine's own LFO does the swirl — arm a device, turn its MIX up.
-        Box top  = lay_split(gc, EDGE_TOP, gc.h * 0.42f, &gc);
-        Box mbtn = lay_split(top, EDGE_LEFT, top.w * 0.40f, &top);
-        { Box fb_ = lay_grid(mbtn, 2, 2, 0, 1), pb_ = lay_grid(mbtn, 2, 2, 1, 1);   // two device on/off toggles
-          if (lcdbtn(0x70u, (int)fb_.x, (int)fb_.y, (int)fb_.w - 1, (int)fb_.h, "FLG", flon)) flon = !flon;
-          if (lcdbtn(0x7Au, (int)pb_.x, (int)pb_.y, (int)pb_.w - 1, (int)pb_.h, "PHS", phon)) phon = !phon; }
+    } else if (mstflow == 8) {
+        // ── the FX HUB ── one soft-key holding every master DEVICE. fxpage -1 = the chip MENU;
+        // otherwise that device's knob page. A chip TAP opens its page — no hold, no meta-gesture.
+        static const int FXK[3] = { FX_FORMANT, FX_FLANGER, FX_PHASER };   // the armed shelf so far; tape/wah/ringmod/drive/spring are one more entry each
+        static const int FXA[3] = { 0, 1, 2 };                            // → which arm flag each chip reports (see fx_armed)
         static const char *RB[3] = { "1BAR", "2BAR", "4BAR" };
-        for (int r = 0; r < 3; r++) { Box c = lay_grid(top, 3, 3, r, 1);
-            if (lcdbtn(0x71u + r, (int)c.x, (int)c.y, (int)c.w - 1, (int)c.h, RB[r], mswdiv == r)) mswdiv = r; }
-        lcdknob_cell(lay_grid(gc, 4, 4, 0, 2), &flmix, "FMIX", 0.5f);   // one row of 4: FLANGER mix/fb · PHASER mix/fb (like the FX screen)
-        lcdknob_cell(lay_grid(gc, 4, 4, 1, 2), &flfb,  "FFB",  0.5f);
-        lcdknob_cell(lay_grid(gc, 4, 4, 2, 2), &phmix, "PMIX", 0.5f);
-        lcdknob_cell(lay_grid(gc, 4, 4, 3, 2), &phfb,  "PFB",  0.5f);
+        if (fxpage < 0) {
+            // the chip MENU + the DRY kill as a TALL latch on the far-right edge (the same idiom as the
+            // drum faces' REC latch — a big target for a performance gesture, and it leaves the chips the
+            // FULL glass height, which is what lets their glyphs fit at phone size). DRY = tap latch /
+            // hold momentary: it holds every device dry but REMEMBERS each arm flag, so it's a
+            // throw-it-all-dry gesture, not a wipe. A lit chip = that device is armed.
+            Box dry = lay_split(gc, EDGE_RIGHT, lay_clamp(gc.w * 0.14f, 11, 18), &gc);
+            for (int i = 0; i < 3; i++) {
+                int armed = (FXA[i] == 0) ? vowon : (FXA[i] == 1) ? flon : phon;
+                if (fxchip(0x300u + (unsigned)i, lay_grid(gc, 3, 3, i, 1), FXK[i], armed)) fxpage = FXK[i];
+            }
+            lcdlatch(0x308u, (int)dry.x, (int)dry.y, (int)dry.w - 1, (int)dry.h, "DRY", &fxdry_latch, &fxdry_hold, 0);
+        } else {
+            // a device's knob page: "<" back + the name + the big ON/OFF arm key on top, knobs below.
+            // ON/OFF is the ONLY way to arm a device now (the hub is a menu), so it gets real width.
+            Box hdr = lay_split(gc, EDGE_TOP, lay_clamp(gc.h * 0.26f, 7, 10), &gc);
+            Box bk  = lay_split(hdr, EDGE_LEFT, lay_clamp(hdr.w * 0.13f, 7, 12), &hdr);
+            if (fxback(0x309u, bk)) fxpage = -1;
+            { const char *nm = fx_name(fxpage);
+              int *arm = (fxpage == FX_FORMANT) ? &vowon : (fxpage == FX_FLANGER) ? &flon : &phon;
+              Box ab = lay_split(hdr, EDGE_RIGHT, lay_clamp(hdr.w * 0.30f, 16, 30), &hdr);
+              if (lcdbtn(0x30Au, (int)ab.x, (int)ab.y, (int)ab.w, (int)ab.h, *arm ? "ON" : "OFF", *arm)) *arm = !*arm;
+              // SPK — the syllable-per-note mode, formant only. Sits next to ON because it changes what
+              // the device IS (hand-swept colour vs a thing that pronounces the acid line).
+              if (fxpage == FX_FORMANT) { Box sb = lay_split(hdr, EDGE_RIGHT, lay_clamp(hdr.w * 0.34f, 16, 28), &hdr);
+                  if (lcdbtn(0x30Bu, (int)sb.x, (int)sb.y, (int)sb.w - 2, (int)sb.h, "SPK", vowspeak)) vowspeak = !vowspeak; }
+              font(FONT_TINY); print(nm, (int)hdr.x + 2, (int)hdr.y + 1, CLR_LIME_GREEN); }
+            if (fxpage == FX_FORMANT) {
+                // VOWEL sweeps OO→OH→AH→EH→EE (the talking axis) · Q = character, broad/hollow →
+                // pinched/nasal · MIX = the depth knob (measured: the only one that dials it in).
+                // With SPK lit the notes own the vowel, so the first knob becomes GLID (how fast it
+                // slews to each new syllable = slurred vs crisp). The LABEL changes, so the swap is
+                // visible — not another invisible mode.
+                if (vowspeak) lcdknob_cell(lay_grid(gc, 3, 3, 0, 2), &vowglide, "GLID", 0.35f);
+                else          lcdknob_cell(lay_grid(gc, 3, 3, 0, 2), &vowvow,   "VOWL", 0.5f);
+                lcdknob_cell(lay_grid(gc, 3, 3, 1, 2), &vowq,   "Q",    0.6f);
+                lcdknob_cell(lay_grid(gc, 3, 3, 2, 2), &vowmix, "MIX",  0.7f);
+            } else {
+                // FLANGER / PHASER — each device its own MIX + FB; the tempo-synced RATE is SHARED
+                // by both (one sweep clock for the rack), so it shows on both pages.
+                Box rr = lay_split(gc, EDGE_TOP, gc.h * 0.38f, &gc);
+                for (int r = 0; r < 3; r++) { Box c = lay_grid(rr, 3, 3, r, 1);
+                    if (lcdbtn(0x30Cu + (unsigned)r, (int)c.x, (int)c.y, (int)c.w - 1, (int)c.h, RB[r], mswdiv == r)) mswdiv = r; }
+                float *mx = (fxpage == FX_FLANGER) ? &flmix : &phmix;
+                float *fbk = (fxpage == FX_FLANGER) ? &flfb  : &phfb;
+                lcdknob_cell(lay_grid(gc, 2, 2, 0, 2), mx,  "MIX", 0.5f);
+                lcdknob_cell(lay_grid(gc, 2, 2, 1, 2), fbk, "FB",  0.5f);
+            }
+        }
     } else {
         // PCF / CRUSH / GATE — a drawable 16-step master lane (mstflow 1/2/3), spread across the glass.
         // PCF = tone (green), CRUSH = texture (orange), GATE = chop (pink); full bar = no effect.
@@ -2154,6 +2306,7 @@ void update(void) {
     if (mbop > 0) mbop -= 0.08f;
     for (int v = 0; v < TR_NV;  v++) if (dtrig[v]  > 0) dtrig[v]  -= 0.14f;   // drum-pad flash decays
     for (int v = 0; v < TR9_NV; v++) if (d9trig[v] > 0) d9trig[v] -= 0.14f;
+    vow_tick();                                                        // SPEAK: glide the vowel toward this note's syllable, BEFORE apply_fx pushes it
     apply_fx();                                                        // master FX (glue/filter/delay/pump)
     for (int i = 0; i < 2; i++) acid_ride(&ac[i]);                     // ride cutoff/reso live on both lines
     // FINE tune: a separate per-voice cents trim (MIX screen) applied via instrument_tune on CHANGE
@@ -2217,6 +2370,7 @@ void update(void) {
                 if (on[i][ls]) {
                     int midi = ac[i].base + mroot[i] + loct[i] * 12 + pit[i][ls] + oct[i][ls] * 12 + oshift;
                     acid_note(&ac[i], midi, accent, slide); mbop = 1;
+                    vow_attack();                                     // SPEAK: this note gets the next syllable (both lines feed it)
                     roll_pit[i] = midi; roll_acc[i] = accent;         // remember the last played note for ROLL to repeat
                 }
                 else if (tie[i][ls]) acid_tie(&ac[i], slide);         // hold the previous note through
@@ -2287,6 +2441,12 @@ void update(void) {
 #ifdef DE_TRACE
     watch("face", "%d", face); watch("step", "%d", step); watch("cut", "%d", acid_cut_hz(&ac[0]));
     watch("mute0", "%d", mac[0].mute); watch("mute1", "%d", mac[1].mute);
+    // SPEAK diagnostics — these earned their keep: a byte-identical SPEAK A/B was traced to the
+    // 303s being MUTED at boot (so acid_note, and therefore vow_attack, never ran) in one look.
+    // vstep should walk 0..5 and vcur should show many distinct values (it glides); if vcur is
+    // pinned and vstep is stuck at 0 while vspk=1, no 303 note is reaching vow_attack.
+    watch("vspk", "%d", vowspeak); watch("vstep", "%d", vowstep);
+    watch("vcur", "%.3f", (double)vowcur); watch("vtgt", "%.3f", (double)vowtgt);
 #endif
 }
 
@@ -2625,6 +2785,23 @@ static void r2_mstsweep(Box b) {
     lcdknob_cell(lay_grid(m, 4, 4, 3, 3), &phfb,  "PFB",  0.5f);
 }
 
+// MST VOWEL panel — the master formant: four bandpasses at the human formant frequencies, so the whole
+// rack takes on an "ooh/aah/eee" vocal colour and a swept VOWEL makes it TALK. ON toggle on top, then
+// VOWEL (OO→OH→AH→EH→EE, the axis you sweep) · Q (character: broad/hollow → pinched/nasal) · MIX (the
+// DEPTH knob — see the vowon block for the measured knob roles). Tall panel = grabbable knobs (the
+// roomy lesson from the sweep panel). The phone reaches the same state through the FX hub.
+static void r2_mstformant(Box b) {
+    Box m   = lay_inset(b, 2);
+    Box top = lay_split(m, EDGE_TOP, m.h * 0.30f, &m);
+    int tx  = (int)top.x;
+    if (lcdbtnf(0x312u, &tx, (int)top.y, (int)top.h - 1, "VOWEL", vowon)) vowon = !vowon;
+    if (lcdbtnf(0x313u, &tx, (int)top.y, (int)top.h - 1, "SPEAK", vowspeak)) vowspeak = !vowspeak;   // syllable-per-note
+    if (vowspeak) lcdknob_cell(lay_grid(m, 3, 3, 0, 3), &vowglide, "GLID", 0.35f);   // SPEAK owns the vowel → knob 1 becomes the slew
+    else          lcdknob_cell(lay_grid(m, 3, 3, 0, 3), &vowvow,   "VOWL", 0.5f);
+    lcdknob_cell(lay_grid(m, 3, 3, 1, 3), &vowq,   "Q",    0.6f);
+    lcdknob_cell(lay_grid(m, 3, 3, 2, 3), &vowmix, "MIX",  0.9f);
+}
+
 // MST SONG panel — six whole-rack song slots (the "6 songs in master" layer). TAP a slot = load ·
 // HOLD to charge = save (an occupied slot asks X/OK first). Ported from the phone SONGS page.
 static void r2_mstsong(Box b) {
@@ -2805,7 +2982,7 @@ static void r2_bigscreen(Box c, int focus) {
     // MST — mixer + PCF/CRU/GAT lanes all at once; GEN / SONG / DLY are chip-revealed panels (like 303/drums)
     {
         int chipH = 11, open = r2_mstpanel;
-        int panelH = (open == 4) ? 40 : (open == 2) ? 22 : 13;      // SWEEP tallest (button row + 4 grabbable per-device knobs) · SONG (6 slots) · GEN/DLY one row
+        int panelH = (open == 4) ? 40 : (open == 5) ? 30 : (open == 2) ? 22 : 13;   // SWEEP tallest (button row + 4 grabbable per-device knobs) · VOW (3 knobs) · SONG (6 slots) · GEN/DLY one row
         int botH = chipH + (open ? panelH + 1 : 0);
         r2_screenmst(box(x + 3, y + 13, w - 6, h - 13 - botH - 2));  // mixer + lanes (default all-at-once)
         if (open) {
@@ -2813,6 +2990,7 @@ static void r2_bigscreen(Box c, int focus) {
             if      (open == 1) r2_mstgen(panel);
             else if (open == 2) r2_mstsong(panel);
             else if (open == 3) r2_mstdelay(panel);
+            else if (open == 5) r2_mstformant(panel);                // the VOWEL device (the phone reaches it through the FX hub)
             else                r2_mstsweep(panel);                 // open == 4
         }
         int chx = x + 3, cy = y + h - chipH - 1;                    // toggle chips, bottom-left (text-fit)
@@ -2820,6 +2998,10 @@ static void r2_bigscreen(Box c, int focus) {
         if (lcdbtnf(0x13Du, &chx, cy, chipH - 1, "SONG", open == 2)) r2_mstpanel = (open == 2) ? 0 : 2;
         if (lcdbtnf(0x13Eu, &chx, cy, chipH - 1, "DLY",  open == 3)) r2_mstpanel = (open == 3) ? 0 : 3;
         if (lcdbtnf(0x13Fu, &chx, cy, chipH - 1, "SWP",  open == 4)) r2_mstpanel = (open == 4) ? 0 : 4;
+        if (lcdbtnf(0x310u, &chx, cy, chipH - 1, "VOW",  open == 5)) r2_mstpanel = (open == 5) ? 0 : 5;
+        // the DRY kill rides along the chip row (roomy has no hub page to hold it) — the SAME latch as
+        // the phone's, so a bypass thrown in either view is one shared state.
+        lcdlatchf(0x311u, &chx, cy, chipH - 1, "DRY", &fxdry_latch, &fxdry_hold, 0);
     }
 }
 

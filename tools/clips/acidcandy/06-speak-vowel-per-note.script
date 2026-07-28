@@ -1,0 +1,41 @@
+# acidcandy — SPEAK (syllable-per-note formant) demo + the muted-303 tripwire (2026-07-28).
+#
+# READ THIS FIRST IF A 303-DRIVEN A/B COMES BACK BYTE-IDENTICAL:
+# both 303 lines are MUTED at boot by design (mac[] initialisers: "MUTED by default — bring it in on
+# record"). So a plain `script /dev/null` render of this cart is DRUMS ONLY. Anything hanging off a
+# 303 note-on — SPEAK's vow_attack() is exactly that — can never fire in a default render, and
+# ab-render will correctly report ALL VARIANTS BYTE-IDENTICAL. That is not a broken feature, it is an
+# untriggered one. This cost a real debugging round; the two clicks below are the fix.
+#
+# It also means any master-FX measurement taken WITHOUT these clicks describes the formant on an
+# 808+909 kit, not on the acid line. Re-measure through this script when the 303s matter.
+#
+# The LED coordinates are measured, not guessed (crop the top 14 rows of a --dump frame and scale 8x:
+# each cartridge's mute LED is the rightmost <=9px of its tab). 303a LED (37,8) · 303b LED (61,8).
+#
+# To hear SPEAK you need three things, and the cart boots with NONE of them:
+#   1. a 303 sounding      -> the two clicks below
+#   2. the VOWEL device armed  -> MST face -> FX -> tap VOWEL -> ON   (see 05-fx-hub-vowel.script)
+#   3. SPK lit                 -> the SPK key next to ON
+#
+# Verified with 1 + vowon/vowspeak forced on (400 frames, isolated save-dir so live saves are safe):
+#   vstep walks all six word positions 0,1,2,3,4,5 and vcur takes 220 distinct values -> it GLIDES
+#   through each syllable rather than jumping (the glide is what makes it a diphthong, not a click).
+#   speak-off vs speak-on: sample correlation 0.428 (MISMATCH), mean per-window spectral-centroid
+#   difference 396 Hz over 556 windows.
+#   NOTE the honest negative: centroid STD is unchanged (1281 Hz off vs 1270 Hz on). The vowel really
+#   moves, but the drums already dominate the spectral variance, so on a busy kit the "speech" is
+#   competing with the hats. That is the evidence for trying instrument_formant on just the 303s.
+#
+#   node tools/play.js acidcandy script tools/clips/acidcandy/06-speak-vowel-per-note.script \
+#        --headless --frames 400 --trace /tmp/spk.jsonl
+#   # then read the vspk/vstep/vcur/vtgt watches (frame lines are the ones WITHOUT a "vev" key)
+#
+# HEADS UP, this cart AUTOSAVES: play.js renders into the LIVE build/saves/acidcandy/, so running this
+# script through it persists the unmute into the rolling autosave and changes where you resume next
+# time. Harmless but surprising. To measure without touching the live save, drive the built binary
+# directly with its own save dir (this is how the numbers above were taken):
+#   cd build && mkdir -p saves/_tmp && ./acidcandy-dbg --script <this file> --headless --frames 400 \
+#        --save-dir saves/_tmp --trace /tmp/spk.jsonl --wav /tmp/spk.wav
+click 12 37 8      # 303a cartridge LED -> unmute the bass line (else nothing feeds vow_attack)
+click 24 61 8      # 303b cartridge LED -> unmute the lead line

@@ -22,6 +22,14 @@
 > and the auto-wah's `mix` (both blend a resonant bandpass against dry). `filter()` takes no mix, so it
 > is unaffected. Nothing is broken — but "turn the mix down to soften it" is the wrong mental model,
 > and a 50%-wet formant gets notches you did not ask for.
+>
+> **...but don't over-read it into "use Q instead of mix" (measured 2026-07-28).** Wiring `acidcandy`'s
+> VOWEL device, this caveat was taken as "depth is Q, not mix". It isn't: `ab-render` over 400 frames says
+> `q`'s FULL range 0.15→0.95 moves brightness only 0.061→0.051 (centroid 3.6k→3.4k Hz) — it's really a
+> resonance/**level** control (peak −6.6→−4.0 dB, source material an 808+909 kit) — while `mix` 0.4→1.0 spans brightness 0.56→0.04
+> (centroid 7.9k→2.8k Hz). **`mix` is the only real depth axis a formant has.** The comb is genuine, it
+> just reads as *colour* on a busy mix rather than as a defect. So: know the notches are there, label the
+> knob honestly, and still reach for `mix` when you want less effect.
 
 The effects companion to [`instrument-recipes.md`](instrument-recipes.md). That file is the
 supply-side palette of **instrument patches** (how to voice an `INSTR_*` engine); **this file
@@ -300,6 +308,8 @@ unlike crush/tape). **Showcase: `vowel`** (a saw chord that talks).
 | recipe | call | character | used by |
 |---|---|---|---|
 | talking saw | `formant(swept 0→1, 0.6f, 0.95f)` | a buzzing chord that says its vowels as the knob moves — the talkbox move | `vowel`, `pedalboard` (MANUAL mode) |
+| whole-rack vowel breakdown | `formant(vowel, 0.6f, 0.7f)` on the master bus, armed from a device chip | a drum machine + acid rack that goes vocal for a breakdown. **Drastic, not glue** — at mix 0.7 the top end goes and the hats go with it, like a full filter sweep | `acidcandy` (the FX hub's VOWEL device) |
+| vowel-per-note ("it speaks") | on each sequencer note-on advance a 6-vowel word + **glide** toward it each frame (`vowcur += (tgt-vowcur)*k`), re-pushing `formant()` | the rack pronounces a diphthong per note instead of clicking between static vowels. **This is what formant's ride-safety buys** — the glide is a pure coefficient re-push, so unlike `crush`/`flanger`/`gate` it can move *between* steps, not only on a step edge | `acidcandy` (SPK), `pedalboard` (STEP mode) |
 | nasal "ee" lead | `instrument_formant(slot, 1.0f, 0.8f, 0.85f)` | a pinched, nasal vocal colour on one lead/pad, rest of the mix plain | (per-instrument pattern) |
 | open "ah" pad | `instrument_formant(I_PAD, 0.5f, 0.5f, 0.7f)` | a soft choral "ah" colour on a held pad — broad peaks, gentle | (pad pattern) |
 | randomized crowd vowels | `instrument_formant(slot, base[i]±jitter + excite·k, ~0.6f, 0.9f)` — base re-rolled per note-on, vowel re-pushed per frame | a few voices each on a different, slightly-random vowel that OPENS with intensity — a crowd going "ah… AAAH/eee" the scarier it gets, not one unison tone | `coaster` (roller-coaster riders) |

@@ -1,0 +1,34 @@
+# acidcandy — the FX HUB reachability + VOWEL device regression seed (2026-07-28).
+#
+# This exists because the hub's first cut hid the knob pages behind a HOLD on a chip and they were
+# promptly unfindable (the same "hidden meta-mode" that killed this cart's old 4-way pad tool). The
+# fix was: a plain TAP opens the page. That is a UI-reachability claim, so it gets a deterministic
+# seed rather than a promise — every step below is one plain tap, no gestures.
+#
+# The route, in phone (single-face) layout on the 160x100 canvas:
+#   1. the MST cartridge in the nav strip (5th tab)
+#   2. the FX soft-key (left column, 5th key) -> the chip menu
+#   3. ONE tap on the VOWEL chip        -> must land on the VOWEL knob page
+#   4. the ON key (page header, right)  -> arms the master formant
+#   5. drag the MIX knob up             -> must reach the audio
+#
+# Verified (400 frames, script /dev/null-style fixed timestep, so these are reproducible):
+#   through step 3 only  -> sha 39150390ac4a, byte-identical to the everything-off baseline
+#                           (i.e. navigating the UI is audibly inert, as it must be)
+#   + step 4 (ON)        -> sha 9439f2b966a9, rms -22.93 dBFS
+#   + step 5 (MIX drag)  -> sha f79fa4d7e9fa, rms -21.96 dBFS, knob readout 99
+# rms RISING as MIX rises is correct, not a bug: the formant bandpasses have resonant gain (the
+# ab-render sweep shows peak -6.6 dBFS at mix 0.7 climbing to -4.2 at 1.0).
+#
+#   node tools/play.js acidcandy script tools/clips/acidcandy/05-fx-hub-vowel.script \
+#        --headless --frames 400 --wav /tmp/vow.wav
+#   node tools/play.js acidcandy script tools/clips/acidcandy/05-fx-hub-vowel.script \
+#        --headless --frames 200 --dump /tmp/vowdump      # eyeball the page at ~frame 165
+#
+# If a tap lands somewhere unexpected after a layout change, THAT is the signal — the coordinates are
+# hand-measured against the phone face, so this seed doubles as a layout tripwire.
+click 20 130 8      # nav strip: focus the MST cartridge
+click 45 9 71       # left soft-key column: FX -> the device chip menu
+click 70 40 58      # ONE tap on the VOWEL chip -> its knob page (no hold needed)
+click 95 115 49     # the page's ON key -> arm the master formant
+drag 120 113 61 170 113 44   # MIX knob: press at (113,61), glide up to y44, release at frame 170

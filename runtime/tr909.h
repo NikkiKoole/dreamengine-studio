@@ -60,6 +60,29 @@ static int tr909__cv(const float *kc, int v, int lo, int hi) {
 }
 static int tr909__vv(int base, int boost) { int v = base + boost; return v < 0 ? 0 : (v > 7 ? 7 : v); }
 
+// ── SNARE: does a harder hit read NOISIER, or just louder? (audit §J9 · Synth Secrets Part 35) ──
+// The 909's half of the same idea; the reasoning is written out once in tr808.h next to
+// `tr808_snare_dyn` — read that. Short version: Part 35 says harder strikes make "the spectrum become
+// more noise-like", but `boost` was added to the body and noise layers equally, so an accent was just
+// the same snare louder. This tips them in opposite directions instead: noise up, body down.
+//
+// DUPLICATED here rather than shared, deliberately, on two grounds. tr909.h has no dependency on
+// tr808.h and taking one on for four lines of integer maths would be a bad trade; and this pair's
+// existing convention is already per-header copies of the small helpers (tr909__vv / __cv / __dur are
+// each byte-identical twins of the 808's). Keeping them separate also keeps the two machines tunable
+// apart, which is the standing rule for this pair — an 808 snare and a 909 snare are not the same drum.
+// If you change the CURVE here, change it in tr808.h too, or the two will drift.
+//   0 = as shipped (one fixed balance) · 1 = one step per unit of boost · 2 = double.
+static int tr909_snare_dyn = 1;
+
+// Linear in boost, NOT `(boost*dyn+1)/2` — boost only ever spans 0..2 here, so that rounding collapsed
+// boost 1 and boost 2 onto the same tilt and the balance stopped varying with velocity at all. See the
+// longer note in tr808.h; keep the two curves identical.
+static int tr909__snare_tilt(int boost) {   // velocity steps to tip: + for noise, - for body
+    if (tr909_snare_dyn <= 0 || boost <= 0) return 0;
+    return boost * tr909_snare_dyn;
+}
+
 // ── build the 13-slot bank at `base` (call on init; then tr909_metal) ─────────
 static void tr909_build(int base) {
     // kick — sine body, lowpassed, +30st sweep over 35ms (punch, not boom); run hot
@@ -147,9 +170,10 @@ static void tr909_fire(int base, int v, int boost, int delay,
         break;
     case TR9_SD: {  // 185Hz + 330Hz modes; SNPY fades body↔noise
         int body = CV(8, 1), snpy = CV(1, 8);
-        schedule_hit(delay, M(54), base + TR9S_SDB, VV(body), D(95));
-        schedule_hit(delay, M(64), base + TR9S_SDB, VV(body - 1), D(95));
-        schedule_hit(delay, M(60), base + TR9S_SDN, VV(snpy), D(180));
+        int tilt = tr909__snare_tilt(boost);   // §J9: a harder hit tips body→noise, not just louder
+        schedule_hit(delay, M(54), base + TR9S_SDB, VV(body - tilt), D(95));
+        schedule_hit(delay, M(64), base + TR9S_SDB, VV(body - 1 - tilt), D(95));
+        schedule_hit(delay, M(60), base + TR9S_SDN, VV(snpy + tilt), D(180));
         break;
     }
     case TR9_LT: case TR9_MT: case TR9_HT: {  // sine drop + CLIK attack noise

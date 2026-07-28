@@ -16,7 +16,7 @@
   ],
   "lineage": "Roland TR-808 (1980), sibling of cr78; voices modeled from reverse-engineered MEASURED circuit values — the shared six-oscillator metal bank, bridged-T kick with pitch-drop boom, dual-mode snare — with per-voice tune/decay/character knobs.",
   "homage": "Roland TR-808 Rhythm Composer (1980)",
-  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. And a modern-clone touch the 1980 panel never had: TRIG PROBABILITY (the RD-8 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. And a second switch the 1980 panel never had either: the CYMBAL is now built from the machine's actual schematic — three bands whose decays are deliberately UNEQUAL, so the crash darkens as it rings instead of holding one colour, the way a real cymbal's spectrum migrates. The measured upper bandpass is 7100Hz, a value in this cart's notes since day one and unbuilt until now. C (or tap CY 3BAND) drops back to the single-band voice the cart shipped with, for comparison. Stop the sequencer and hit F to hear either. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, C cymbal bands, click name to audition, drag a cell vertically for its fire-chance, drag knobs to shape."
+  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. And a modern-clone touch the 1980 panel never had: TRIG PROBABILITY (the RD-8 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. And a second switch the 1980 panel never had either: the CYMBAL is now built from the machine's actual schematic — three bands whose decays are deliberately UNEQUAL, so the crash darkens as it rings instead of holding one colour, the way a real cymbal's spectrum migrates. The measured upper bandpass is 7100Hz, a value in this cart's notes since day one and unbuilt until now. C (or tap CY 3BAND) drops back to the single-band voice the cart shipped with, for comparison. Stop the sequencer and hit F to hear either. And the SNARE now answers how hard you hit it: N cycles SNARE-DYN, which tips an accented hit from body toward noise instead of merely making it louder (the real drum gets grittier, not bigger, so an accent buys +37% noise for -1.7dB of level). Only accented hits change, so hear it on BOOM BAP, whose accent row lands on the snare where PLANET ROCK's misses it. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, C cymbal bands, N snare dynamics, click name to audition, drag a cell vertically for its fire-chance, drag knobs to shape."
 }
 de:meta */
 #include "studio.h"
@@ -307,6 +307,11 @@ void update(void) {
     // shipped with, kept for comparison and byte-identical to it. Hit F with the sequencer stopped to
     // hear either — no preset has a cymbal row, so it's the F key or nothing.
     if (keyp('C') || tapp(150, 18, 68, 12)) tr808_cym3 = !tr808_cym3;
+    // N = how much a HARD hit tips the snare from body toward noise (§J9 / Part 35). 0 = the fixed
+    // balance the cart shipped with, 1 = one velocity step on an accent, 2 = twice that. Only ACCENTED
+    // hits change, so to hear it you need a preset whose accent row lands on the snare: BOOM BAP does
+    // (PLANET ROCK's accents miss the snare entirely).
+    if (keyp('N')) tr808_snare_dyn = (tr808_snare_dyn + 1) % 3;
 
     // knob hover + drag (Y=coarse, X=fine, same as modrack)
     int mx = mouse_x(), my = mouse_y();
@@ -481,5 +486,12 @@ void draw(void) {
         }
     }
 
-    hint("CLICK <> PRESET ^v BPM Z/X SWING DRAG KNOBS");
+    // the footer carries the two voice switches AND their state — the panel rows are full, and hint()
+    // auto-shrinks to fit, so this is the one place a live readout can go without crowding the grid.
+    // Its OWN buffer, not the shared `buf[32]` above: this string is ~64 chars, and sprintf'ing it into
+    // buf[32] overflowed the stack and silently broke the --dump filmstrip (no crash, just zero frames).
+    char hbuf[96];
+    snprintf(hbuf, sizeof hbuf, "CLICK <> PRESET ^v BPM Z/X SWING C CYM%d N SNAREDYN%d DRAG KNOBS",
+             tr808_cym3 ? 3 : 1, tr808_snare_dyn);
+    hint(hbuf);
 }

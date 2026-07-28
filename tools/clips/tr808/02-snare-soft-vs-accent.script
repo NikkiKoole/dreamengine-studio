@@ -1,0 +1,24 @@
+# tr808 — the SAME snare at two velocities, for the §J9 velocity→noisiness A/B (plan item 1.3).
+#
+# The trick is that the cart's own presets already give us both cases, so nothing has to be hand-edited:
+#   PLANET ROCK  accent "x.......x......."  ·  SD row "....x.......x..."   → snares NEVER accented (boost 0)
+#   BOOM BAP     accent "....x.......x..."  ·  SD row "....x.......x..."   → snares ALWAYS accented (boost 2)
+# So this plays ~2.5s of PLANET ROCK, presses RIGHT four times to reach BOOM BAP (preset 4), and plays
+# ~3.8s of that. One render contains an unaccented and an accented snare under otherwise identical code.
+#
+# That makes the A/B self-verifying, which is the point:
+#   node tools/ab-render.js tr808 --file runtime/tr808.h --set tr808_snare_dyn=0,1 \
+#        --script tools/clips/tr808/02-snare-soft-vs-accent.script --frames 400
+#   node tools/wav-envelope.js <wav> 100 --from 0.2 --to 2.4   # PLANET ROCK — MUST be identical (boost 0)
+#   node tools/wav-envelope.js <wav> 100 --from 3.2 --to 6.4   # BOOM BAP    — should differ (boost 2)
+# If the first region differs, the tilt is leaking into soft hits and something is wrong.
+#
+# Tempo differs between the presets (126 vs 90 BPM) — that is the presets' own data, not a variable here.
+down 150 RIGHT
+up 152 RIGHT
+down 156 RIGHT
+up 158 RIGHT
+down 162 RIGHT
+up 164 RIGHT
+down 168 RIGHT
+up 170 RIGHT

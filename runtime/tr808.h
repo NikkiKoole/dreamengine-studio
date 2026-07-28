@@ -132,6 +132,47 @@ static int tr808_cym3_vel = -3;
 // since a lone member fires at VV(2) and the clamp is at 0).
 static int tr808_cym3_members = 3;
 
+// ── SNARE: does a harder hit read NOISIER, or just louder? (plan 1.2b/1.3 · audit §J9) ─────────
+// Part 35 on snare drums gives two dynamics a fixed layer balance can't express: harder strikes make
+// "the spectrum become more noise-like", and over the note the sound evolves "eventually changing into
+// a complex noise". The second half we already had by accident — the noise slot outlives the body in
+// both machines (808: 130ms vs 100ms, 909: 170ms vs 90ms), so the tail does drift noise-ward. The FIRST
+// half was missing: `boost` was added to the body and the noise layers EQUALLY, so an accent was the
+// same snare turned up, with the tone-to-noise ratio frozen.
+//
+// This tips the two layers in OPPOSITE directions as the hit gets harder: noise up, body down. That
+// keeps the accent from simply getting louder and makes the change a matter of TIMBRE, which is what
+// Part 35 actually describes. **tr909.h carries its own twin of this** (`tr909_snare_dyn`) — it does not
+// include this file, and the two machines are kept tunable apart on purpose. Change the curve in one and
+// change it in the other, or they drift.
+//
+// Measured on ONE accented hit, snare stem only (tools/clips/tr808/02-snare-soft-vs-accent.script):
+//     dyn   peak        noise share (HF/total)   centroid
+//     0     -5.1 dBFS   1.347                    11393 Hz   — as shipped
+//     1     -6.8        1.849  (+37%)            11713      ← default: the accent buys NOISE, not level
+//     2     -8.6        2.272  (+69%)            12051      — see the caveat below
+// The peak going DOWN as noise goes up is the whole point: an accent stops being "louder" and becomes
+// "grittier". A hit with boost 0 always tilts 0, so SOFT hits stay byte-identical to the shipped voice
+// (verified by sha) — only harder hits change, which is exactly where Part 35 says the timbre should move.
+//
+// CAVEAT on 2: with the SNPY knob centred the body sits at 4, so a tilt of 4 zeroes it and an accent
+// becomes pure noise with no pitch left. That is a usable gated-snare effect, not a subtler version of 1 —
+// and it only degenerates near centre (SNPY toward body puts the body at 8, where 2 is merely strong).
+static int tr808_snare_dyn = 1;
+
+// Velocity steps to tip, given a hit's boost. Positive for the noise layer, negative for the body.
+//
+// Plainly `boost * dyn`, and it started as `(boost * dyn + 1) / 2` — which was a BUG worth recording,
+// because it looked like a harmless half-strength scaling. In this cart boost is only ever 0 (plain),
+// 1 (played by hand) or 2 (accented), so that rounding mapped boost 1 AND boost 2 to the same tilt of 1:
+// the balance stopped varying with velocity at all, which is the one thing §J9 is about. It measured as a
+// real effect and A/B'd as a real effect, so nothing looked wrong — it just wasn't velocity-dependent.
+// Keep this linear in boost; with a range this coarse there is no room for a divisor.
+static int tr808__snare_tilt(int boost) {
+    if (tr808_snare_dyn <= 0 || boost <= 0) return 0;
+    return boost * tr808_snare_dyn;
+}
+
 // ── per-voice knob maths (arrays are the CART's; 0.5 = neutral) ───────────────
 static int tr808__midi(const float *ktune, int v, int base) {           // ±12 semitones
     return base + (int)((ktune[v] - 0.5f) * 24.0f + 0.5f);
@@ -249,9 +290,10 @@ static void tr808_fire(int base, int v, int boost, int delay,
         break;
     case TR_SD: {  // 180Hz + 330Hz modes; SNPY knob fades body↔noise
         int body = CV(8, 0), snpy = CV(0, 8);
-        schedule_hit(delay, M(54), base + TRS_SDB, VV(body), D(110));
-        schedule_hit(delay, M(64), base + TRS_SDB, VV(body), D(110));
-        schedule_hit(delay, M(60), base + TRS_SDN, VV(snpy), D(140));
+        int tilt = tr808__snare_tilt(boost);   // §J9: a harder hit tips body→noise, not just louder
+        schedule_hit(delay, M(54), base + TRS_SDB, VV(body - tilt), D(110));
+        schedule_hit(delay, M(64), base + TRS_SDB, VV(body - tilt), D(110));
+        schedule_hit(delay, M(60), base + TRS_SDN, VV(snpy + tilt), D(140));
         break;
     }
     case TR_LT: case TR_MT: case TR_HT: {  // sine drop + THUD knob controls noise thud level

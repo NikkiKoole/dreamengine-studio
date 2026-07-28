@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 2/7).**
+> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 3/7).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -73,7 +73,26 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > two items merged. `sound.h` now carries a **"the `+` is load-bearing"** warning on the piano comb and
 > **four "✅ VERIFIED against Part N"** notes on tables that matched the book exactly.
 >
-> **Phase 1 (seven cart-only A/Bs) — 2 of 7 done, BOTH confirmed by the owner's ear on 2026-07-28.**
+> **HOW THE EAR-CALL LOOP ACTUALLY WORKS — read this before starting an item, it is the whole rhythm of
+> Phase 1.** Every verdict so far was made from **rendered WAV pairs**, not from playing the cart. So:
+> build the change behind a runtime toggle (never a `#define` — the owner cannot A/B a compile-time flag);
+> A/B it with [`tools/ab-render.js`](../tools/ab-render.js) (`--file runtime/x.h` to patch a header);
+> `--keep` the renders and copy them to `build/ab/<cart>-<STATE>-{stock,recommended}.wav`; hand over the
+> `afplay` lines, say what to listen for and **where in the file it happens**, and name anything that could
+> bias the ear (above all a level difference — a louder take wins on loudness alone). Bake the cart too, so
+> it can be played. When the owner picks: flip the default, keep the loser on the toggle, and **verify the
+> shipped default renders byte-identically to the take that was approved** (this caught a near-miss in 1.2
+> where a leftover experiment would have shipped a sound 4 dB hotter than the one judged). The full
+> protocol with all its traps is [plan §1](design/synth-secrets-plan.md#1-how-we-decide-something-is-done).
+>
+> **Build the A/B clip so it PROVES its own scope.** 1.3's clips play a preset whose accent row misses the
+> snare, then one whose accents hit it, so the first region must come out byte-identical between settings
+> and the second must differ — a structural claim checked by sha instead of by argument. Committed clips
+> live in `tools/clips/<cart>/`; three exist for this thread and each has a long header comment explaining
+> the trap it exists to avoid (e.g. `tr808` **self-plays** on boot, so a render with an empty script is a
+> full drum pattern, not silence; and no `tr808` preset has a cymbal row at all, so only the F key strikes it).
+>
+> **Phase 1 (seven cart-only A/Bs) — 3 of 7 done, ALL THREE confirmed by the owner's ear on 2026-07-28.**
 > `solina` (1.1) has a **WOW switch**: BREATHING (unison spread modulated by a random-shape LFO, staggered
 > per tab — Reid's Part 46 ladder) is the **default by the owner's ear call**, with CLASSIC kept reachable
 > by key **W** or tapping the label. A third state
@@ -99,16 +118,55 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > centroid 21942 Hz vs Nyquist 22050 — always stem-check a high band with `--solo-slot`), and the real
 > 808's 7100 Hz upper bandpass had been sitting in `tr808.c`'s own docblock, unimplemented, since day one.
 >
+> **1.3 (`tr808` + `tr909`) is DONE — the velocity-dependent snare is the DEFAULT on both.** Key **N**
+> cycles 0/1/2 (state in the 808's `hint()` footer, next to POLY on the 909). `boost` used to be added to
+> the body and noise layers *equally*, so an accent was the same snare turned up; now they tip in opposite
+> directions and an accent buys **+37% noise share for −1.7 dB of level**. Soft hits are byte-identical to
+> the pre-change carts by design, and the shipped defaults match the approved takes (`a6dc6c0a02e7` /
+> `b40f2782577b`). `dyn=2` is kept but degenerates near a centred SNPY knob (tilt 4 zeroes the body, so the
+> accent loses its pitch) — an effect setting, not a subtler one.
+>
+> **The most transferable lesson of the thread, from 1.3: print a strength knob's transfer function over its
+> REAL input domain, not its endpoints.** The tilt curve was `(boost * dyn + 1) / 2`, which reads like
+> harmless half-strength scaling — but `boost` in these carts is only ever 0, 1 or 2, so at `dyn=1` the
+> rounding mapped boost 1 *and* boost 2 to the same tilt and the parameter **stopped depending on velocity,
+> which was the entire feature**. It measured as a clear effect, A/B'd as a clear effect, and was one message
+> from shipping as the default; it was caught by evaluating the curve, not by any oracle. A parameter can be
+> audibly doing something and still not be doing the thing you claimed.
+>
+> **Two mechanical traps that cost real time, worth knowing before you touch a cart's draw():**
+> a long **`sprintf` into a cart's shared `char buf[32]`** overflows the stack with no crash and no compiler
+> warning — the only symptom in 1.3 was `play.js --dump` writing **zero frames** while audio rendered
+> perfectly (use your own buffer + `snprintf`); and **`ui-audit.js` catches off-screen/overlapping text but
+> NOT low contrast** — it found a pre-existing 370px footer on `tr909`'s 320px screen (so `POLY:tap=length`
+> had never been visible to anyone, now fixed), yet passed `solina`'s invisible grey-on-brown readout. Run
+> it, then also read the baked PNG.
+>
+> **Also corrected an audit error rather than quietly coding around it:** §J9 claimed the snare's tone→noise
+> drift *over the note* was missing. It was already there — the noise layer outlives the body in both
+> machines (130/100ms, 170/90ms) and a hit's centroid climbs 10890 → 12279 Hz across its own decay. Only the
+> velocity half needed building. Expect a few more §-claims to be half-true; check before implementing.
+>
 > **Fixed a harness trap that will otherwise eat an hour of anyone's day:** `caffeinate -dims` *prevents*
 > display sleep but cannot **wake** an already-dark screen, so every headless render segfaulted at
 > `signal 11` before frame 1 with a binary that had passed minutes earlier. `play.js`, `spec.js` and
 > `make-cart --run` now fire `caffeinate -u -t 1` first. See
 > [`guides/debug-harness.md`](guides/debug-harness.md) → "a sleeping display segfaults every harness run".
 >
-> **Resume-at:** pick up Phase 1 at **1.3** (velocity → snare tone/noise balance, `tr808`/`tr909`) →
+> **Resume-at:** pick up Phase 1 at **1.4** (brass preset attack/release A/B) →
 > [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#4-phase-1--cart-only-each-its-own-audible-proof).
-> Then 1.4-1.7. After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and
-> keytracking alone closes six chapters' independent requests and is the prerequisite for §G.
+> Then 1.5 (two-slot layered piano), 1.6 (Hammond's two extra registrations), 1.7 (loudness→brightness
+> waveform morph + filter-as-gate, in `martenot`/`brass`). Read the ear-call loop above first — the shape of
+> every remaining item is the same, and three worked examples are written up in plan §4 (1.1, 1.2, 1.3).
+> After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and keytracking alone
+> closes six chapters' independent requests and is the prerequisite for §G.
+>
+> **Orienting cold on this thread:** `node tools/orient.js` for the repo, then read plan §1 (the gate + the
+> A/B protocol), §2 (the add-vs-change ladder) and §4 (Phase 1, incl. the three finished write-ups). The
+> audit is reference only — never add work items to it, only ✅ verdict banners pointing back at the plan.
+> The owner's standing constraints for this thread: **small steps**, **every engine change must have a cart
+> where you can hear it**, and **nothing is skipped** — an item that turns out not to be worth doing gets a
+> recorded DROP with its measurement, not silence.
 > ⚠ Two process traps already hit: `ui-audit` passes **low-contrast** text (it only catches off-screen and
 > overlapping), so read the baked PNG; and `--run` bakes only the thumbnail, so **re-embed after every
 > source edit** or the pre-commit hook will (correctly) reject a stale `.cart.png`.

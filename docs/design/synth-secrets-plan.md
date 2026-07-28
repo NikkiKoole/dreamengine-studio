@@ -92,6 +92,24 @@ that was judged. Also verify the OFF path still matches its own pre-change sha, 
 untouched" is a measurement rather than a hope. And do not later "improve" a property the ear signed off
 on: if a known caveat was accepted, note in the ledger that it was accepted *on purpose*.
 
+**Print the transfer function over its REAL input domain before trusting a strength knob.** Not the
+endpoints — every value the input actually takes. 1.3's tilt curve was `(boost * dyn + 1) / 2`, which reads
+like harmless half-strength scaling; but `boost` in these carts is only ever 0, 1 or 2, so at `dyn=1` the
+rounding mapped boost 1 *and* boost 2 to the same tilt and the parameter stopped depending on velocity —
+which was the entire feature. It measured as a clear effect, A/B'd as a clear effect, and was one message
+away from shipping as the default. **A parameter can be audibly doing something and still not be doing the
+thing you claimed.** A three-line loop printing the curve over its domain catches this; no audio oracle does.
+
+Two mechanical traps that cost real time here, both worth a glance before handing over:
+
+- **`sprintf` into a cart's shared `char buf[32]`.** Cart draw functions keep a small shared scratch buffer;
+  a longer footer string overflows the stack with **no crash and no compiler warning**. In 1.3 the only
+  symptom was `play.js --dump` writing zero frames while audio rendered perfectly. Use your own sized
+  buffer and `snprintf`.
+- **`ui-audit.js` catches off-screen and overlapping text but NOT low contrast.** It found a pre-existing
+  370px footer on a 320px screen in `tr909`; it passed a grey-on-brown readout in `solina` that was
+  invisible. Run it, then also read the baked PNG.
+
 A LISTEN item is **done** when the cart has an audible toggle, the numbers are in the ledger row, and you
 have said which side wins. If neither side clearly wins, the honest outcome is **DROP** — recorded with
 its measurement, so nobody re-litigates it.
@@ -208,7 +226,7 @@ cheapest LISTEN items we have.
 |---|---|---|---|---|---|
 | 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | ✅ **DONE — BREATHING kept as the default** (owner's ear, 2026-07-28), CLASSIC retained on a toggle; middle rung DROPPED. See below |
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **DONE — 3BAND is the default** (owner's ear, 2026-07-28), 1BAND kept on key **C**. See below |
-| 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | Harder hits should read noisier |
+| 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | ✅ **DONE — `dyn=1` is the default** (owner's ear, 2026-07-28) on both machines, 0 kept on key **N**. See below |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ⚠ release also governs the bore ring-down, so A/B rather than edit |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | Part 45's whole conclusion, and free |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | Two rows in `REG[8][9]` |
@@ -316,6 +334,62 @@ which the two new slots would have silently overlapped. It is now derived —
 `tr808.h` (`acidcandy`, `acidcandy_ipad`, `dubjam`, `tr909.h`, `morphdrum.h`) and every cart of those;
 all compile, and `voice-trace` shows **no steals** with the pattern running plus 8 crashes (9 voices per
 crash, 143 note-ons, the only 4 chokes being the 808's intended closed-hat-mutes-open-hat).
+
+### 1.3 snare velocity → noisiness, both machines — ✅ `dyn=1` IS THE DEFAULT (owner's ear, 2026-07-28)
+
+**✅ VERDICT (owner, 2026-07-28): the velocity-dependent snare wins on both machines and `dyn=1` is now
+the default**, with the fixed-balance original kept on key **N** — a toggle, not a migration, as in 1.1/1.2.
+Both shipped defaults render byte-identically to the takes that were approved (`a6dc6c0a02e7` on the 808,
+`b40f2782577b` on the 909), and soft hits are byte-identical to the pre-change carts.
+
+Key **N** cycles 0/1/2 in both `tr808` and `tr909` (state in the 808's `hint()` footer; next to POLY on
+the 909). Part 35 says harder strikes make "the spectrum become more noise-like", but `boost` was added to
+the body and the noise layers *equally*, so an accent was the same snare turned up with the tone-to-noise
+ratio frozen. Now they tip in opposite directions: noise up, body down. Cart-side only, **no engine change**.
+
+The second half of §J9 — the sound evolving toward noise *over* the note — turned out to be there already
+by accident: the noise slot outlives the body in both machines (808 130ms vs 100ms, 909 170ms vs 90ms), and
+a single hit's centroid climbs 10890 → 12279 Hz through its own decay. Nothing to do; recorded so it isn't
+"fixed" twice. Per-hit *decay* scaling is not available anyway — with `sustain 0` the slot's `decay_ms`
+governs the ring, so the gate length can't shorten it, which leaves level as the only per-hit lever.
+
+Measured on one accented 808 hit, snare stem only:
+
+| `dyn` | peak | noise share (HF/total) | centroid |
+|---|---|---|---|
+| 0 (stock) | −5.1 dBFS | 1.347 | 11393 Hz |
+| **1** (default) | −6.8 | **1.849** (+37%) | 11713 |
+| 2 | −8.6 | 2.272 (+69%) | 12051 |
+
+The peak dropping as the noise rises is the point: an accent buys grit instead of level. The 909 tracks it.
+
+**The clips are self-verifying, which is the part worth copying.** Each plays a preset whose accent row
+*misses* the snare, then one whose accents *hit* it — `PLANET ROCK` → `BOOM BAP` on the 808, `THE BELLS` →
+`GABBER` on the 909, all straight from the carts' own preset data. The first region must come out
+byte-identical between settings (it does: `5d3c3a52085a` on the 808 at all three values, `11a020cea0` on
+the 909), which *proves* soft hits are untouched and only accents moved. A structural claim checked by sha
+rather than by argument.
+
+**A bug this nearly shipped, and the reason to distrust "it measured as a real effect".** The curve began
+as `(boost * dyn + 1) / 2`, which reads like harmless half-strength scaling. But `boost` here is only ever
+0, 1 or 2, so at `dyn=1` that rounding mapped boost 1 **and** boost 2 to the same tilt: the balance stopped
+varying with velocity at all — the one thing §J9 is about. It still measured as a clear effect, still A/B'd
+as a clear effect, and was offered as the "gentle" default. Nothing looked wrong. It was caught by
+evaluating the curve over its actual input range when asked which setting was best, not by any oracle. The
+curve is now plainly `boost * dyn`; the old `dyn=2` is byte-identical to the new `dyn=1` (verified on both
+machines), so the recommended default is exactly the take that was rendered for listening.
+**Lesson for the remaining items: print the transfer function over its real input domain, not just its
+endpoints.** A parameter can be audibly doing something and still not be doing the thing you claimed.
+
+**Two more, both found by tools rather than by reading:**
+
+1. **A stack buffer overflow I introduced.** `sprintf`ing the new ~64-char footer into the carts' shared
+   `char buf[32]`. No crash, no compiler warning — the only symptom was `play.js --dump` silently writing
+   **zero frames** while audio rendered perfectly. Both carts now use their own sized buffer with
+   `snprintf`. Worth knowing that `buf` in these carts is small and shared.
+2. **A pre-existing overflow in `tr909`:** its footer was 370px wide on a 320px screen, so
+   `POLY:tap=length` had never been visible to anyone. `ui-audit.js` flags it (it *does* catch off-screen
+   text — it's low *contrast* it can't see). Shortened to name the two on-panel buttons instead.
 
 ---
 

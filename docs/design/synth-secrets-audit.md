@@ -1906,6 +1906,15 @@ from a static table with no velocity term at all. Worth treating as one cross-en
 
 ### J9. The snare's tone-to-noise balance should move with velocity and over the note
 
+> **✅ FIXED 2026-07-28 — velocity-dependent is now the DEFAULT on both machines** (plan item 1.3; the
+> owner's ear picked it, and the fixed-balance original stays on key **N**). Key **N** in both `tr808` and `tr909`;
+> `tr808_snare_dyn` / `tr909_snare_dyn`. An accented hit now tips body→noise instead of just getting
+> louder: +37% noise share and −1.7 dB peak on one accented hit. **The second half of this finding was
+> already true and I was wrong to list it as missing** — the noise layer outlives the body in both machines
+> (130/100ms and 170/90ms), so a single hit's centroid already climbs 10890 → 12279 Hz across its own
+> decay. Only the velocity half needed building. Note per-hit *decay* scaling is impossible here: with
+> `sustain 0` the slot's `decay_ms` owns the ring, so the gate length cannot shorten it.
+
 - **Book:** Part 35 gives two dynamics that our fixed layering doesn't express: harder strikes make "the
   spectrum become more noise-like", and over the course of a note the sound evolves toward noise,
   "eventually changing into a complex noise". So the tone/noise ratio is a function of both velocity and
@@ -1934,7 +1943,7 @@ from a static table with no velocity term at all. Worth treating as one cross-en
 | # | Step | Kind | Where |
 |---|---|---|---|
 | 1 | ✅ J5 three-band unequal-decay 808 cymbal — **SHIPPED as the default 2026-07-28** | `tr808.h` only, no engine change | `tr808` |
-| 2 | J9 velocity → snare tone/noise balance | `tr808.h`/`tr909.h` only | `tr808` |
+| 2 | ✅ J9 velocity → snare tone/noise balance — **BUILT 2026-07-28**, awaiting the ear | `tr808.h`/`tr909.h` only | `tr808` + `tr909` |
 | 3 | J2 + J3 retarget the "tuned" ratios and mode weights together | engine, two arrays | `tabla` |
 | 4 | J4 strike position by mode *family* | engine, small | `tabla` |
 | 5 | J2b check the principal-vs-fundamental pitch offset | measurement | `tabla` |

@@ -15,7 +15,7 @@
   ],
   "lineage": "Roland TR-909 (1983), completing the cr78/tr808/tb303 family; hybrid kit where analog voices are subtractive but the ROM-sample hats/cymbals are stood in by an FM voice on the 3.5 inharmonic detent through a closing highpass, plus a flam/drag/ratchet stroke family and period-correct shuffle.",
   "homage": "Roland TR-909 Rhythm Composer (1983)",
-  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. And a modern-clone touch the 1983 panel never had: TRIG PROBABILITY (the RD-9 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. The stroke family is touch-reachable too: tap the header STROKE button (or S) to arm it, then tapping a cell cycles flam/drag/ratchet instead of toggling (right-click still cycles on desktop). 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag a cell vertically for its fire-chance, drag knobs Y=coarse X=fine. And the RD-9 'Poly' move — the POLY toggle (button or L): tap a step and that voice's loop ENDS there (1..16), so a 15-step hat drifts against the 16-step kick off the one shared counter — polymeter, evolving textures from a single loop. Each voice runs its own step (its own drifting playhead); swing and the accent row stay locked to the physical bar. 16 = full, the non-drifting default."
+  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. And a modern-clone touch the 1983 panel never had: TRIG PROBABILITY (the RD-9 'Poly'-era move) — DRAG A CELL UP/DOWN to set its % chance to fire (100/75/50/25), so hats and fills breathe and the loop never repeats identically. A less-than-certain cell draws as a shorter bar in its full-height socket; the gesture is axis-locked so a sideways drag still paints on/off as before. The stroke family is touch-reachable too: tap the header STROKE button (or S) to arm it, then tapping a cell cycles flam/drag/ratchet instead of toggling (right-click still cycles on desktop). 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag a cell vertically for its fire-chance, drag knobs Y=coarse X=fine. And the RD-9 'Poly' move — the POLY toggle (button or L): tap a step and that voice's loop ENDS there (1..16), so a 15-step hat drifts against the 16-step kick off the one shared counter — polymeter, evolving textures from a single loop. Each voice runs its own step (its own drifting playhead); swing and the accent row stay locked to the physical bar. 16 = full, the non-drifting default. And the SNARE now answers how hard you hit it: N cycles SNARE-DYN, which tips an accented hit from body toward noise rather than merely making it louder (a real drum gets grittier, not bigger). Only accented hits change, so hear it on GABBER, whose accent row lands on the snare where THE BELLS' misses it."
 }
 de:meta */
 #include "studio.h"
@@ -349,6 +349,10 @@ void update(void) {
     if (keyp('X') || tapp(218, 7, 24, 12)) { swing += 2; if (swing > 66) swing = 66; }
     if (keyp('S') || tapp(190, 23, 52, 13)) stroke_mode = !stroke_mode;   // STROKE mode: taps cycle flam/drag/ratchet
     if (keyp('L') || tapp(14, 150, 48, 13)) poly_mode = !poly_mode;       // POLY mode: taps set per-voice LENGTH
+    // N = how much a HARD hit tips the snare from body toward noise (§J9 / Part 35; the 808 cart has the
+    // same key). Only ACCENTED hits change, so hear it on a preset whose accent row lands on the snare:
+    // GABBER does, THE BELLS does not.
+    if (keyp('N')) tr909_snare_dyn = (tr909_snare_dyn + 1) % 3;
 
     // knob hover + drag (Y=coarse, X=fine, same as modrack)
     int mx = mouse_x(), my = mouse_y();
@@ -620,9 +624,26 @@ void draw(void) {
         font(FONT_SMALL);
         print("tap a step = that voice's loop end", 66, 153, CLR_DARK_RED);
         font(FONT_NORMAL);
+    } else {
+        // SNARE-DYN state (§J9, key N) lives in the same slot the poly hint uses. Every other row on this
+        // panel is full, and the footer is already at the FONT_SMALL width limit — adding it there cut the
+        // line off. This mirrors what the cart already does here, so it costs no existing text.
+        // keep it under ~27 chars: the METAL pad's RES^ label starts at x=230 and the full sentence
+        // ("hard hits read noisier") ran straight into it
+        char dbuf[48];
+        snprintf(dbuf, sizeof dbuf, "N: SNARE DYN %d (hard=noisy)", tr909_snare_dyn);
+        font(FONT_SMALL);
+        print(dbuf, 70, 153, tr909_snare_dyn ? CLR_DARK_RED : CLR_DARK_GREY);
+        font(FONT_NORMAL);
     }
 
     font(FONT_SMALL);
-    print("<>PRESET  ^vBPM  Z/X SHFL   Vdrag=PROB   STROKE:tap=flam   POLY:tap=length", 14, 189, CLR_DARK_GREY);
+    // carries the SNARE-DYN state too (§J9): the panel has no room for another chip, and this line was
+    // already near the 320px limit at FONT_SMALL, so the two tap hints are compressed to pay for it
+    // rather than dropping the whole footer to FONT_TINY.
+    // Was 370px wide at FONT_SMALL and ran off a 320px screen — a pre-existing overflow that ui-audit
+    // flags; the tail ("POLY:tap=length") was simply never visible. Shortened to point at the two on-panel
+    // BUTTONS, which explain their own tap behaviour when lit, so nothing is actually lost.
+    print("<>PRESET  ^vBPM  Z/X SHFL  Vdrag=PROB  S=STROKE  L=POLY", 14, 189, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

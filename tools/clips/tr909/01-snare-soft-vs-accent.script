@@ -1,0 +1,27 @@
+# tr909 — the SAME snare at two velocities, for the §J9 velocity→noisiness A/B (plan item 1.3).
+# The 909 twin of tools/clips/tr808/02-snare-soft-vs-accent.script; same idea, different presets.
+#
+# Both cases come from the cart's own preset data, so nothing is hand-edited:
+#   THE BELLS (1)  accent "x.......x......."  ·  SD "....x.......x..."   → snares NEVER accented (boost 0)
+#   GABBER    (5)  accent "x...x...x...x..."  ·  SD "....x.......d..."   → snares ALWAYS accented (boost 2)
+# Boot is GOOD LIFE (0), which has no snare row at all, so this steps RIGHT once to THE BELLS, holds, then
+# RIGHT four more times to GABBER.
+#
+# Self-verifying, which is the point: the THE BELLS region must come out BYTE-IDENTICAL between
+# tr909_snare_dyn=0 and =1 (soft hits are untouched by design), while the GABBER region must differ.
+#   node tools/ab-render.js tr909 --file runtime/tr909.h --set tr909_snare_dyn=0,1 \
+#        --script tools/clips/tr909/01-snare-soft-vs-accent.script --frames 400
+# Snare slots for a stem render are TR9S_SDB/TR9S_SDN — check the cart's base before passing --solo-slot.
+#
+# Note GABBER's second snare is a 'd' (drag: two grace notes), a stroke the 909 cart owns; the plain 'x'
+# on step 4 is the clean one to measure.
+down 10 RIGHT
+up 12 RIGHT
+down 190 RIGHT
+up 192 RIGHT
+down 196 RIGHT
+up 198 RIGHT
+down 202 RIGHT
+up 204 RIGHT
+down 208 RIGHT
+up 210 RIGHT

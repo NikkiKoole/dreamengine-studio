@@ -44,6 +44,12 @@
 #      pause was an inaudible dip. Fixed by making the gate asymmetric (snap closed 0.55, ease open on
 #      GLID). If the paused-frame share falls back toward single digits, that regressed.
 #
+# PAUSE DEPTH is on the GAP knob (4th knob, present only while SPK is lit). Swept, 500 frames each:
+#     GAP 0.0 -> gate floor 1.000   0% paused   centroid std 1290 Hz   (= the gapless slur)
+#     GAP 0.5 -> gate floor 0.500   0% paused   centroid std 1597 Hz   (a dip, not a stop)
+#     GAP 1.0 -> gate floor 0.000  23% paused   centroid std 1964 Hz   (full stops, the default)
+# Monotonic, and GAP=0 reproduces the pre-pause behaviour, so the knob A/Bs the whole idea in-place.
+#
 #   node tools/play.js acidcandy script tools/clips/acidcandy/06-speak-vowel-per-note.script \
 #        --headless --frames 400 --trace /tmp/spk.jsonl
 #   # then read the vspk/vstep/vcur/vtgt watches (frame lines are the ones WITHOUT a "vev" key)

@@ -47,6 +47,53 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
+> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 1/7).**
+> The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
+> cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
+> per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
+> `file:line` on ours). Findings live in [`design/synth-secrets-audit.md`](design/synth-secrets-audit.md)
+> §A-§M; **work happens in [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md)**, which is the
+> ordered ledger. Do not add work items to the audit.
+>
+> **The plan's three rules, which is what makes this resumable:** every item is classified **FACT /
+> VERIFY / LISTEN / DESIGN** — the first two are just-do-it, the last two need the owner. A **LISTEN item
+> is built opt-in from the start** (a flag, an `eng_p` slot, a second slot) so an A/B is possible and a
+> "worse" verdict costs nothing to abandon; an inconclusive A/B resolves to **DROP**, recorded with its
+> measurement. And **when to add a new engine vs change one** is answered from this repo's own ADRs
+> (0006/0015/0016/0017) as a **7-rung ladder** — lowest rung that holds the finding, escalate only when a
+> *built cart* failed the rung below. Verdict: **almost nothing on the list earns a new engine**; §G is a
+> cart-land header, and even the electric guitar (§H6) is a second tap on `INSTR_GUITAR`.
+>
+> **Phase 0 SHIPPED (`f10ea94d`)** — ten FACT fixes and five measurements, four of which changed the plan:
+> aliasing on the un-BLEP'd pulse is a **non-issue** (≤ −53 dB even at A5, PWM sweep no worse), so **3.30
+> dropped**; `instrument_lfo` **accepts 80 Hz** (sidebands at exactly ±80 Hz, ~30 dB up), so 3.6 is
+> unblocked and cheaper; `INSTR_PIPE` is a **closed, odd-harmonic pipe** (evens 50-73 dB down), which
+> makes its flute/recorder presets structurally wrong *and* explains why the "octave flageolet" docstring
+> was doubly wrong; and **§H8 + §I5 are one cause** (loop coefficients fixed per pass, not per note), so
+> two items merged. `sound.h` now carries a **"the `+` is load-bearing"** warning on the piano comb and
+> **four "✅ VERIFIED against Part N"** notes on tables that matched the book exactly.
+>
+> **Phase 1 (seven cart-only A/Bs) — 1 of 7 done.** `solina` (1.1) has a **WOW switch**: BREATHING (unison
+> spread modulated by a random-shape LFO, staggered per tab — Reid's Part 46 ladder) is now the **default
+> by the owner's ear call**, with CLASSIC kept reachable by key **W** or tapping the label. A third state
+> was built and **cut**: it measured indistinguishable from CLASSIC and no oracle we have can see a 0.16 Hz
+> character change under a chord progression — the cut is documented in the cart with the code to restore it.
+>
+> **Built a tool on the way: [`tools/ab-render.js`](../tools/ab-render.js).** Flip one file-scope value,
+> render each variant, one table, source restored in a `finally`. It exists because hand-sedding a flag
+> bit me — the regex stopped matching after the first substitution, so every later variant re-rendered
+> state 0 and three byte-identical WAVs were nearly written up as "no audible effect". It **exits 2 and
+> shouts on byte-identical variants**. Use it for every LISTEN item; do not hand-roll.
+>
+> **Resume-at:** pick up Phase 1 at **1.2** (the 808 cymbal's three unequal decays, `tr808.h`, no engine
+> change) →
+> [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#4-phase-1--cart-only-each-its-own-audible-proof).
+> Then 1.3-1.7. After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and
+> keytracking alone closes six chapters' independent requests and is the prerequisite for §G.
+> ⚠ Two process traps already hit: `ui-audit` passes **low-contrast** text (it only catches off-screen and
+> overlapping), so read the baked PNG; and `--run` bakes only the thumbnail, so **re-embed after every
+> source edit** or the pre-commit hook will (correctly) reject a stale `.cart.png`.
+
 > **▶ ACTIVE THREAD (2026-07-26) — the CONTEMPORARY ReBirth: rungs A+B shipped, the PSOLA artifact hunt PARKED behind a new gate, amapiano next.**
 > The post-hardware rack: ReBirth cloned unobtainable *machines*, but modern genres were never made on
 > gear, so a contemporary version clones **techniques** (the glide, the ratchet, hard tune, the

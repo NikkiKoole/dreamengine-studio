@@ -182,7 +182,7 @@ cheapest LISTEN items we have.
 
 | # | item | kind | rung | cart | note |
 |---|---|---|---|---|---|
-| 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | **BUILT, awaiting ear** — key **W** cycles CLASSIC / RANDOM WOW / BREATHING DETUNE. See results below |
+| 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | ✅ **DONE — BREATHING kept as the default** (owner's ear, 2026-07-28), CLASSIC retained on a toggle; middle rung DROPPED. See below |
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | The mechanism that makes a real cymbal's spectrum migrate. `tr808.h` only |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | Harder hits should read noisier |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ⚠ release also governs the bore ring-down, so A/B rather than edit |
@@ -214,10 +214,19 @@ cycle per six seconds — buried under a chord progression, and `wav-modrate` lo
 rate instead, the same failure mode Phase 0 hit. A 30-second render did not help. So rung 2 is
 **ear-only**, which is exactly what the LISTEN category is for; there is no number to hide behind.
 
-What to listen for, per Reid: CLASSIC should reveal "an unnaturally regular modulation" once you notice
-it, and RANDOM should keep the same thickness while the cycle stops being audible — "thick and unstable
-… 'analogue', or perhaps 'human'". If you cannot hear the difference over ~30 s of the AUTO progression,
-rung 2 is a DROP and only BREATHING DETUNE is worth keeping.
+**✅ VERDICT (owner, 2026-07-28): BREATHING wins and is now the default — kept as a toggle, not a
+one-way migration.** The switch is two states, `W` or tap the label: **BREATHING** (default) and
+**CLASSIC** (as the cart shipped). The middle rung, a random-shape *pitch* wow with no unison, is
+**DROPPED** — it measured indistinguishable from CLASSIC (centroid 2260 vs 2267 Hz) and no oracle we
+have can see a 0.16 Hz character change under a chord progression, so shipping a third state nobody can
+tell apart was panel clutter. Per §1's DROP rule the measurement and the code to restore it are recorded
+in the cart's own comment, so it need not be re-derived.
+
+**The pattern for the remaining six:** default to the winner, keep the previous behaviour on a toggle,
+make the toggle *visible and tappable* (not keyboard-only), and mention it in the cart's `de:meta`
+description since it becomes a user-facing control. Two traps this one hit, both worth avoiding: a
+low-contrast readout that `ui-audit` passes clean (it catches off-screen and overlapping text, not
+contrast — read the baked PNG), and a help array grown past its draw-loop bound.
 
 ---
 

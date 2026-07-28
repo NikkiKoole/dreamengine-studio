@@ -12,9 +12,9 @@
     "analog-voice-modeling",
     "chord-voicing"
   ],
-  "lineage": "Homage to the ARP/Eminent Solina String Ensemble (1974); novel in modeling the divide-down organ architecture (per-footage sawtooth stacks, per-tab detune beating, instrument_lfo wow) and demonstrating that chorus() is the instrument's entire identity rather than a send effect.",
+  "lineage": "Homage to the ARP/Eminent Solina String Ensemble (1974); novel in modeling the divide-down organ architecture (per-footage sawtooth stacks, per-tab detune beating, a breathing unison-detune wow) and demonstrating that chorus() is the instrument's entire identity rather than a send effect.",
   "homage": "ARP/Eminent Solina String Ensemble (1974)",
-  "description": "The ARP/Eminent Solina String Ensemble (1974) - THE string machine, and the chorus() companion to JUNO-6: there the chorus widens a synth, HERE the chorus IS the instrument. Not a synth but a divide-down ORGAN - every key you hold sounds (fully polyphonic, paraphonic), each a stack of sawtooths tapped at different FOOTAGES. Six voice tabs you toggle: strings (blue) Contrabass 16', Cello 8', Viola 8', Violin 4', plus brass (orange) Trumpet 8', Horn 4'; enabled tabs all sound = the divide-down mix. Bare, those stacked saws are a buzzy organ - flip the ENSEMBLE switch (off/I/II, key E) and the triple BBD chorus smears them into the lush breathing string wash of every '70s record. Play the 2-octave keyboard by touch or QWERTY (Z..M lower, Q..U upper) - HOLD a key and it swells in (CRESCENDO) then rings out slowly on release (SUSTAIN); TONE rides the master brightness. SPACE toggles AUTO, a slow self-playing string progression (on at boot); TAB or / for help."
+  "description": "The ARP/Eminent Solina String Ensemble (1974) - THE string machine, and the chorus() companion to JUNO-6: there the chorus widens a synth, HERE the chorus IS the instrument. Not a synth but a divide-down ORGAN - every key you hold sounds (fully polyphonic, paraphonic), each a stack of sawtooths tapped at different FOOTAGES. Six voice tabs you toggle: strings (blue) Contrabass 16', Cello 8', Viola 8', Violin 4', plus brass (orange) Trumpet 8', Horn 4'; enabled tabs all sound = the divide-down mix. Bare, those stacked saws are a buzzy organ - flip the ENSEMBLE switch (off/I/II, key E) and the triple BBD chorus smears them into the lush breathing string wash of every '70s record. Play the 2-octave keyboard by touch or QWERTY (Z..M lower, Q..U upper) - HOLD a key and it swells in (CRESCENDO) then rings out slowly on release (SUSTAIN); TONE rides the master brightness. WOW (key W, or tap it) is the detune wobble the ensemble rides on: BREATHING is a unison spread modulated by a random-shape LFO staggered per tab - the ladder Synth Secrets Part 46 says the ensemble sound lives on - and CLASSIC is the single slow sine wow the cart originally shipped with, kept so you can hear the difference. SPACE toggles AUTO, a slow self-playing string progression (on at boot); TAB or / for help."
 }
 de:meta */
 #include "studio.h"
@@ -93,15 +93,21 @@ static int attack_ms(void)  { return 60  + (int)(k_cresc * 1340.0f); }   // 60..
 static int release_ms(void) { return 300 + (int)(k_sust  * 3200.0f); }   // 300..3500
 static float bright_mul(void){ return 0.5f + k_bright * 1.1f; }          // 0.5..1.6
 
-// A/B (Synth Secrets plan 1.1 / audit §F2): Part 46 walks a ladder to the ensemble sound —
-// detune, then MODULATE the detune amount, then make that modulator RANDOM so the ear stops
-// hearing a cycle. Reid is explicit that the last rung is what separates a "wobbly boring buzz"
-// from something "thick and unstable... 'analogue', or perhaps 'human'". We ship LFO_DETUNE and
-// both random LFO shapes; this cart used neither. Key W cycles the three states so they can be
-// compared by ear before any of it becomes the default.
-enum { WOW_CLASSIC = 0, WOW_RANDOM, WOW_BREATHE, WOW_N };
-static int wow = WOW_CLASSIC;
-static const char *WOW_NAME[WOW_N] = { "CLASSIC", "RANDOM WOW", "BREATHING DETUNE" };
+// WOW switch (Synth Secrets plan 1.1 / audit §F2). Part 46 walks a ladder to the ensemble sound:
+// detune, then MODULATE the detune amount, then make that modulator RANDOM so the ear stops hearing
+// a cycle — the rung Reid says separates a "wobbly boring buzz" from something "thick and unstable...
+// 'analogue', or perhaps 'human'". We shipped LFO_DETUNE and the random LFO shapes and this cart used
+// neither; now BREATHING is the default (owner's ear call, 2026-07-28) and the switch stays so the
+// original is still reachable — the A/B is the point, not a one-way migration.
+//   BREATHING — unison spread modulated by a random-shape LFO, staggered per tab. Reid's full ladder.
+//   CLASSIC   — as the cart shipped: one 0.16Hz sine wow, no unison. Kept for comparison.
+// A third state (a random-shape PITCH wow, no unison) was built and cut: it measured indistinguishable
+// from CLASSIC (centroid 2260 vs 2267 Hz) and no oracle we have can see a 0.16Hz character change under
+// a chord progression, so a state nobody can tell apart was just panel clutter. Trivially re-addable —
+// it is `LFO_PITCH` at `0.13f + t*0.017f` with `LFO_SHAPE_RANDOM` and unison off.
+enum { WOW_BREATHE = 0, WOW_CLASSIC, WOW_N };
+static int wow = WOW_BREATHE;
+static const char *WOW_NAME[WOW_N] = { "BREATHING", "CLASSIC" };
 
 static void apply_voices(void) {
     for (int t = 0; t < NTAB; t++) {
@@ -111,23 +117,15 @@ static void apply_voices(void) {
         instrument_filter(s, FILTER_LOW, cut, 2);
         instrument_tune(s, 0.05f + t * 0.005f);              // per-tab detune spread = divide-down beating
         instrument_drive(s, TAB[t].brass ? 0.20f : 0.0f);    // brass tabs bite a little
-        switch (wow) {
-        case WOW_CLASSIC:                                    // as shipped: one slow sine wow
+        if (wow == WOW_CLASSIC) {                            // as the cart shipped: one slow sine wow
             instrument_unison(s, 1, 0.0f);                   // unison off
             instrument_lfo(s, 0, LFO_PITCH, 0.16f, 0.04f);   // slow tape-style wow under the ensemble
             lfo_shape(s, 0, LFO_SHAPE_SINE);
-            break;
-        case WOW_RANDOM:                                     // rung 3 only: kill the periodicity
-            instrument_unison(s, 1, 0.0f);
-            // stagger the rates per tab so the six wows never line up (Reid's summed-LFO point)
-            instrument_lfo(s, 0, LFO_PITCH, 0.13f + t * 0.017f, 0.04f);
-            lfo_shape(s, 0, LFO_SHAPE_RANDOM);               // a drifting wander, not a cycle
-            break;
-        default:                                             // the full ladder: detune that BREATHES
+        } else {                                             // BREATHING — detune that breathes
             instrument_unison(s, 3, 0.10f);                  // intra-voice, so it costs no polyphony
+            // rates staggered per tab so the six never line up (Reid's summed-LFO point)
             instrument_lfo(s, 0, LFO_DETUNE, 0.11f + t * 0.013f, 0.07f);
-            lfo_shape(s, 0, LFO_SHAPE_RANDOM);
-            break;
+            lfo_shape(s, 0, LFO_SHAPE_RANDOM);               // a wander, not a cycle
         }
     }
 }
@@ -206,11 +204,11 @@ static void draw_help(void) {
         "The ENSEMBLE is a triple BBD chorus that",
         "smears those saws into THE string wash.",
         "Flip it OFF then I/II - that is the Solina.",
-        "",
+        "WOW is the detune wobble underneath it.",
         "TABS    tap to mix the footages",
         "PLAY    touch / QWERTY (A S D F.. row); HOLD",
         "        a key to hear it swell in + ring out",
-        "ENSEMBLE off/I/II [E]   SPACE  AUTO",
+        "ENSEMBLE [E]  WOW [W]  SPACE AUTO",
     };
     for (int i = 0; i < 12; i++)
         print(HL[i], 30, 44 + i * 11, (i == 4 || i == 5 || i == 6) ? CLR_LIGHT_PEACH : CLR_WHITE);
@@ -270,7 +268,9 @@ void draw(void) {
     font(FONT_SMALL);
     print(ens ? "the BBD string wash" : "bare divide-down", ex, ey + 31, CLR_DARK_BROWN);
     // A/B readout for the detune-modulation ladder (plan 1.1) — visible so the ear test is honest
-    print(str("WOW [W] %s", WOW_NAME[wow]), ex, ey + 40, wow ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK);
+    // WOW switch — tappable like ENSEMBLE above it, or key W (plan 1.1)
+    if (tapp(ex, ey + 38, 96, 11)) { wow = (wow + 1) % WOW_N; apply_voices(); }
+    print(str("WOW %s", WOW_NAME[wow]), ex, ey + 40, wow == WOW_BREATHE ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK);
     font(FONT_NORMAL);
 
     // ── knobs + buttons ──────────────────────────────────────────────────────

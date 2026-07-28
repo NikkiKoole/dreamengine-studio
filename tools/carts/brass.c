@@ -139,8 +139,48 @@ static int slide_pitch_to_x(float p) {
     return SLIDE_X + (int)(u * SLIDE_W);
 }
 
+// ── the AMP ENVELOPE: an A/B, not a settled number (audit §E10 / Synth Secrets plan 1.4) ──────
+// Reid tears into brass presets in Part 26 and our shipped numbers contradict him on two of three:
+//     ours: attack 1ms · sustain 4 of 7 · release 1200ms
+//     his:  attack 100ms · sustain MAXIMUM · release effectively instantaneous
+// On the release he is explicit and, measured, plainly right: "because I know that a real brass sound
+// ends very rapidly once you stop blowing the instrument, I want the synthesized sound to do likewise,
+// so I set the Decay switch to Off." Ours fades for a full 1.2s after key-up. That is a pad, not a horn.
+//
+// His ATTACK is the interesting disagreement, and the reason this is a toggle rather than an edit.
+// Measured on the shipped patch, a note reaches full level in about 40ms WITH the amp attack set to 1ms —
+// that onset is the WAVEGUIDE's own bore establishing oscillation, not an envelope. Reid's 100ms is a
+// subtractive-synth workaround for not having a bore to do it for him, so applying it literally
+// double-counts and lands at ~140ms, which is a swell, not an articulation. This is the §G theme in
+// miniature: his patches are recipes for a filter-and-VCA machine, ours is a physical model, and the
+// numbers do not always transfer even when the goal does.
+//
+// And his SUSTAIN turns out not to be a tone instruction either. Our decay_ms is 0, so there is no decay
+// stage: the envelope goes attack straight to the sustain level and holds. Sustain is therefore a pure
+// LEVEL TRIM here, and 4→7 measured as exactly +4.86 dB, which is 20*log10(7/4) to the decimal. "Sustain
+// maximum" is arithmetically "turn it up" — a mix decision, not a finding, and folding it into the A/B
+// would have confounded the release test with a loudness change that always wins an ear test.
+//
+// So of Reid's three numbers, ONE transfers: the release. HORN therefore changes ONLY that, which keeps it
+// level-matched against SHIPPED so the comparison is about the tail and nothing else. REID stays available
+// as the literal reading, for reference.
+//
+// One caveat that makes even the release a real judgement and not a typo fix: in this engine the release
+// also governs how the BORE rings down, so shortening it truncates the model's own tail, not just the
+// envelope. Measured, the 5ms version falls 1.00 → 0.50 → 0.16 → 0 over ~6ms — a smooth ramp, not a step,
+// so it does not click; it simply cuts the bore off mid-ring.
+enum { BENV_SHIPPED = 0, BENV_HORN, BENV_REID, BENV_N };
+static int benv = BENV_SHIPPED;
+static const short BENV[BENV_N][4] = {     // attack_ms, decay_ms, sustain 0-7, release_ms
+    {   1, 0, 4, 1200 },   // SHIPPED — as the cart has always sounded
+    {   1, 0, 4,  120 },   // HORN    — ONLY the release: Reid's fast stop, level-matched, bore owns attack
+    { 100, 0, 7,    5 },   // REID    — his Part 26 Minimoog numbers taken literally (slower AND +4.9dB)
+};
+static const char *BENV_NAME[BENV_N] = { "SHIPPED", "HORN", "REID" };
+
 static void apply_patch(void) {
-    instrument(I_BRASS, INSTR_BRASS, 1, 0, 4, 1200);   // held wind voice (attack 1, full sustain, release 4)
+    const short *e = BENV[benv];
+    instrument(I_BRASS, INSTR_BRASS, e[0], e[1], e[2], e[3]);   // held wind voice; E cycles the envelope
     instrument_harmonics(I_BRASS, knob[0]);
     instrument_timbre(I_BRASS, knob[1]);
     instrument_morph(I_BRASS, knob[2]);
@@ -266,6 +306,10 @@ void update(void) {
         apply_patch();
     }
     if (keyp('V'))       { mono = !mono; all_notes_off(); }   // swap mode — clear any stuck voices
+    // E = cycle the amp envelope (§E10). all_notes_off() first because instrument() is set-and-hold: a
+    // sounding note keeps the envelope it was started with, so without this the change appears to do
+    // nothing until the next blow — which reads as a broken key.
+    if (keyp('E'))       { benv = (benv + 1) % BENV_N; all_notes_off(); apply_patch(); }
     if (keyp(KEY_SPACE)) blat = !blat;
     if (keyp('M'))       { autoplay = !autoplay; if (!autoplay && mono && held_n == 0 && !sliding) all_notes_off(); }
     if (keyp('Z') && oct > -2) oct--;
@@ -364,8 +408,15 @@ void draw(void) {
     print(knob[0] < 0.33f ? "bright tight bore" : knob[0] < 0.66f ? "mid bore" : "dark wide bore", 120, 22, CLR_MEDIUM_GREY);
     print(knob[1] < 0.4f ? "mellow / round" : knob[1] < 0.7f ? "brassy" : "blatty fortissimo", 210, 22, knob[1] > 0.7f ? CLR_ORANGE : CLR_MEDIUM_GREY);
     font(FONT_TINY);
-    print(str("instrument(I, INSTR_BRASS, 1,0,4,1200)  h %.2f t %.2f m %.2f", knob[0], knob[1], knob[2]),
-          8, 34, CLR_BLUE_GREEN);
+    // the envelope numbers are READ from the live patch, not typed in: this line used to hard-code
+    // "1,0,4,1200", which would have quietly lied the moment E cycled the envelope (§E10 / plan 1.4)
+    print(str("instrument(I, INSTR_BRASS, %d,%d,%d,%d)  h %.2f t %.2f m %.2f  [E:%s]",
+              BENV[benv][0], BENV[benv][1], BENV[benv][2], BENV[benv][3],
+              knob[0], knob[1], knob[2], BENV_NAME[benv]),
+          8, 31, benv ? CLR_LIME_GREEN : CLR_BLUE_GREEN);   // y=31 not 34: at 34 this collided with the
+          // slide's "drag the SLIDE" hint (both FONT_TINY, both starting at x≈8), which had made the whole
+          // left half of this diagnostic line unreadable. 31..36 fits between the macro text above (ends
+          // y=30) and that hint below (starts y=37).
     font(FONT_NORMAL);
 
     // ── THE SLIDE: a trombone slide ribbon (the marquee gesture). The brass bell at the right, a
@@ -452,8 +503,11 @@ void draw(void) {
     }
 
     font(FONT_TINY);
-    int rx = print("A..K blow   Z/X oct   1..6 voices   V mono   ", 10, SCREEN_H - 8, CLR_DARK_GREY);
+    // Trimmed to FIT: this line ran to x=394 on a 320px screen, so "(mute = wah)" and most of the slider
+    // hint had never been visible to anyone (ui-audit flags it) — a pre-existing overflow, same class as
+    // tr909's footer. Shortened rather than extended, which also buys room for the new E key.
+    int rx = print("A..K blow  Z/X oct  1..6 voice  V mono ", 10, SCREEN_H - 8, CLR_DARK_GREY);
     int sx = print("SPACE brass", rx, SCREEN_H - 8, CLR_MEDIUM_GREY);
-    print("   drag the slide / sliders (mute = wah)", sx, SCREEN_H - 8, CLR_DARK_GREY);
+    print("  E env  drag sliders", sx, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

@@ -851,6 +851,14 @@ Not engine findings, but they undermine the others if left unsaid.
 
 ### E10. The `brass` cart preset contradicts the book on two numbers
 
+> **✅ BUILT 2026-07-28** (plan item 1.4, awaiting the owner's ear). Key **E** in `brass`. **And this section
+> was too credulous: only the RELEASE actually transfers.** Measured, a note already reaches full level in
+> ~40 ms with the amp attack at 1 ms — the *bore* provides the onset, so Reid's 100 ms is a subtractive
+> workaround for hardware with no bore, and applying it makes a swell. And with `decay_ms` 0 there is no
+> decay stage, so sustain is a pure level trim: 4 → 7 is exactly +4.86 dB (= 20·log₁₀(7/4)), a mix decision
+> rather than a finding. The release he is right about: ours runs 1.2 s past key-up. The best §G specimen so
+> far. Full numbers: [plan §4 "1.4"](synth-secrets-plan.md).
+
 Cart-side, no engine change, cheapest thing in §E.
 
 `brass.c:143` is `instrument(I_BRASS, INSTR_BRASS, 1, 0, 4, 1200)`:

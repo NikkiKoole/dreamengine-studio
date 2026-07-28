@@ -249,7 +249,7 @@ cheapest LISTEN items we have.
 | 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | ✅ **DONE — BREATHING kept as the default** (owner's ear, 2026-07-28), CLASSIC retained on a toggle; middle rung DROPPED. See below |
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **DONE — 3BAND is the default** (owner's ear, 2026-07-28), 1BAND kept on key **C**. See below |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | ✅ **DONE — `dyn=1` is the default** (owner's ear, 2026-07-28) on both machines, 0 kept on key **N**. See below |
-| 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ⚠ release also governs the bore ring-down, so A/B rather than edit |
+| 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ✅ **BUILT, awaiting your ear.** Key **E** cycles SHIPPED/HORN/REID. **Only 1 of Reid's 3 numbers transfers** — see below |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | Part 45's whole conclusion, and free |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | Two rows in `REG[8][9]` |
 | 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot`, `brass` | Part 51's two liftable tricks, no filter needed for the first |
@@ -412,6 +412,37 @@ endpoints.** A parameter can be audibly doing something and still not be doing t
 2. **A pre-existing overflow in `tr909`:** its footer was 370px wide on a 320px screen, so
    `POLY:tap=length` had never been visible to anyone. `ui-audit.js` flags it (it *does* catch off-screen
    text — it's low *contrast* it can't see). Shortened to name the two on-panel buttons instead.
+
+### 1.4 brass amp envelope — built, awaiting your ear (2026-07-28)
+
+Key **E** cycles three envelopes; the live values are shown on the cart's own `instrument(...)` readout,
+which used to hard-code `1,0,4,1200` and would have lied the moment the toggle moved.
+
+**The headline is that only ONE of Reid's three numbers survives contact with our engine**, and the two
+that don't are the most useful thing this item produced — this is §G ("his patches are subtractive, ours is
+a waveguide") stated in numbers instead of prose:
+
+| | Reid (Part 26) | ours | verdict |
+|---|---|---|---|
+| **attack** | 100 ms | 1 ms | ❌ **doesn't transfer.** Measured, a note already reaches full level in **~40 ms** with the amp attack at 1 ms — that onset is the *bore establishing oscillation*, a thing a Minimoog has no way to do, which is exactly why he needed an envelope to fake it. Applied literally it lands at ~80 ms (envelope and bore overlap rather than add) and starts far softer: a swell, not an articulation. |
+| **sustain** | maximum | 4 of 7 | ❌ **isn't a tone instruction at all.** Our `decay_ms` is 0, so there is no decay stage and sustain is a pure level trim. 4 → 7 measured as **+4.86 dB**, and 20·log₁₀(7/4) = 4.86 dB to the decimal. "Sustain maximum" is arithmetically "turn it up". |
+| **release** | ~instant | 1200 ms | ✅ **he's right, and it's measurable.** Ours keeps sounding for a **full 1.2 s** after key-up. That is a pad, not a horn. |
+
+So `HORN` changes **only the release** (1 → 120 ms), which keeps it **exactly level-matched** to SHIPPED
+(−20.66 dBFS both) so the A/B is about the tail and nothing else. Folding in his sustain would have made
+the "better" version 4.9 dB louder, and a louder take wins an ear test on loudness alone. `REID` is kept as
+the literal reading for reference, slower attack and +4.9 dB included.
+
+On the audit's caveat that the release also governs the **bore ring-down**: confirmed, and it matters for
+the literal version. At 5 ms the tail falls 1.00 → 0.50 → 0.16 → 0 in about 6 ms. That is a smooth ramp, so
+it does **not** click — but it plainly cuts the bore off mid-ring rather than letting it decay. `HORN`'s
+120 ms lets it ring down in ~110 ms and stop like a horn.
+
+Fixed two pre-existing UI faults in the cart while there, both flagged by `ui-audit`: its footer ran to
+x=394 on a 320px screen (so `(mute = wah)` had never been visible to anyone), and the patch readout sat on
+top of the slide's own hint, making the whole left half of that line unreadable — which matters now that
+the line is what shows the A/B state. Three overlaps remain, all pre-existing and untouched (the preset-row
+labels collide with each other, and the title with the mode label).
 
 ---
 

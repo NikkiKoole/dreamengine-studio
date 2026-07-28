@@ -1,0 +1,760 @@
+/* de:meta
+{
+  "slug": "boxhuman",
+  "collection": ["physics"],
+  "title": "Box Human — four sprite strips, fifteen bones, one skin each",
+  "status": "active",
+  "created": "2026-07-28",
+  "kind": ["tech-demo", "probe"],
+  "teaches": ["rigid-body", "procedural-mesh"],
+  "lineage": "Slice 4 of the playtime-into-dreamengine port. puppet.c gave the data-driven Rig (parts + sprung hinges); boxskin.c skinned ONE texture across ONE elbow with LBS. This is the whole figure: the 1:1 between sprite and body is broken (15 invisible bones, 6 sprite skins), weights come from distance to a bone SEGMENT rather than to a bone centre (playtime's applySegmentWeights lesson: point-distance collapses mesh width at bone midpoints), and the blend is DQS rather than LBS so a folded knee doesn't candy-wrapper. A whole leg is ONE texture bending at hip, knee AND ankle.",
+  "description": {
+    "summary": "A humanoid where each limb is a single continuous sprite strip stretched over several Box2D bones. The right leg is one 20x62 texture that bends at the hip, the knee and the ankle; the left leg is the SAME texture mirrored. Press F to fold a limb to its limit, then SPACE to A/B four ways of deforming that texture: a Bezier SPINE, dual-quaternion and linear weighted blends, and rigid one-bone-per-vertex. Every limb is BANDED across its axis on purpose: a flat colour tells you nothing about how a skin deformed, but a regular stripe fans out on the outside of a bend, bunches on the inside, and shears visibly the moment a blend mode gets it wrong.",
+    "detail": "Four deformation modes over one rig, because the interesting question is not how to attach a texture to a bone but what happens at a hard bend. SPINE is playtime's MESHUSERT spine-bind ported: each vertex is stored as (t, s) — arc-length fraction along a Bezier drawn through the limb's joint chain, plus signed perpendicular offset — and replanted each frame on the live curve, with no weights and nothing to tune. On top of it sits the MITER CLAMP from playtime's ribbon path, which playtime itself never wired into spine-bind: it caps the perpendicular offset at min(segA,segB)*tan(interior half-angle) so the inner edge of a bend cannot cross itself. The cart carries its own oracle for this — every triangle's winding is baked at bind time and compared each frame, so 'inverted triangles' is a number, not an opinion. At a full elbow-and-knee fold: SPINE+clamp 4, SPINE without clamp 7, DQS 19, LBS 19, RIGID 43, out of 880. The structural move over puppet.c: BONES and SKINS are separate lists. 15 bones are invisible Box2D boxes joined by sprung, angle-limited revolutes (pelvis, chest, head, and upper/lower/extremity for each of four limbs). 6 skins are sprite rects from the sheet, each naming the subset of bones that deforms it. Per skin: a grid over the rect's opaque pixels becomes a triangle mesh; each vertex is weighted by 1-smoothstep(0, radius, distanceToBoneSegment), pruned to the best 3 bones and renormalised; bind pose stores the vertex in each bone's LOCAL frame plus that bone's rest angle. Each frame the vertex is placed by blending the bones' DELTA rotations as a circular mean, rotating the bind vertex once by that blend, then adding the weight-averaged translation residual, and tritex draws the triangles with UVs that never move. Left and right limbs share one sprite rect: the geometry mirrors, the UVs do not. The sprite sheet is drawn as a deformation TEST PATTERN — breton torso, banded sleeves and shorts, striped socks, cross-banded shoes — so the eye can read stretch and shear directly instead of guessing from a silhouette. The per-bone blend radius is what keeps a foot rigid while a thigh blends over 14 pixels.",
+    "controls": "Drag any bone with the mouse to pose the figure. F drives the right elbow and knee to a full fold (the extreme-pose test - a mouse drag cannot reliably reach it, the chain would rather swing at the hip). SPACE cycles SPINE / DQS / LBS / RIGID. C toggles the miter clamp in spine mode. M shows the mesh wireframe. B shows the bone skeleton. R resets."
+  },
+  "todo": [
+    "Promote the skinning half to runtime/boneskin.h once a second cart wants it - both binds, the four modes and the winding oracle.",
+    "Spine-bind can't branch, so the torso and head still fall back to DQS. That fallback is where the last 4 inverted triangles live; playtime's multi-chain bind (hard per-vertex chain assignment) is the next rung.",
+    "Adaptive grid: denser rows near a joint, coarser along a straight limb (playtime's deform-textured learning).",
+    "Alpha-aware weights so a bone's influence can't leak across a transparent gap to the other limb."
+  ]
+}
+de:meta */
+#include "studio.h"
+#include "box2d/box2d.h"      // opt-in: make-cart/play link the vendored Box2D v3
+#include <math.h>
+#include <stdio.h>
+
+#define PPM     22.0f
+#define SX(wx)  ((int)((wx) * PPM))
+#define SY(wy)  ((int)(SCREEN_H - (wy) * PPM))
+#define WX(sx)  ((sx) / PPM)
+#define WY(sy)  ((SCREEN_H - (sy)) / PPM)
+#define DEG     (3.14159265f/180.0f)
+#define PI      3.14159265f
+#define FLOOR_PY 132        // the horizon, screen px — the figure rests its feet here
+
+// ── the rig, as data ───────────────────────────────────────────────────
+// A BONE is an invisible Box2D box. Its segment (ax,ay)->(bx,by) is both the
+// box's extent and the line that skin vertices measure their distance to.
+typedef struct {
+    const char *name;
+    int   parent;                 // bone index, -1 = root (hangs from ground)
+    float ax, ay, bx, by;         // segment, screen px, rest pose
+    float radius;                 // skinning blend radius (px) — small = stays rigid
+    // Hinge limits (deg, around rest) + spring Hz. These are deliberately
+    // PERMISSIVE (-145 elbow, -135 knee) so the fold test can reach the angles
+    // where the blend modes visibly disagree. A weighted-bone skin is a flat
+    // sheet with no volume: past roughly 110 deg the inner side of the bend has
+    // nowhere to go and DQS/LBS turn the mesh inside out (swept clean at -70 and
+    // -95, breaking by -120, plainly inverted at -138). SPINE mode doesn't have
+    // that ceiling — the Bezier spreads the corner over 33 samples so no vertex
+    // pair ever crosses — which is exactly why the mode is worth having. Capping
+    // the joint at ~110 is the alternative if you only ever want DQS.
+    float lo, hi, hz;
+    // KEEP_ANGLE (playtime's per-body behaviour, src/keep-angle.lua). Gain of a
+    // PD controller that steers this bone back to the world angle it was
+    // AUTHORED at — upright for the spine bones, flat for the feet. 0 = off.
+    float keepKp;
+    // Half-WIDTH of the collision box, metres. Not cosmetic: a 2px-thin bone has
+    // almost no rotational inertia, so a KEEP_ANGLE controller writing its
+    // angular velocity gets absorbed by its heavier children and loses (measured:
+    // the pelvis sat 97 deg off target). Torso bones need real bulk.
+    float hw;
+} BoneDef;
+
+// A SKIN is one sprite rect deformed by a SUBSET of the bones. Breaking the
+// 1:1 between sprite and body is the whole point: a leg strip spans four.
+typedef struct {
+    const char *name;
+    int   ox, oy, w, h;           // rect on the sheet
+    float px, py;                 // where its top-left sits at rest (screen px)
+    bool  mirror;                 // flip the GEOMETRY horizontally; UVs unchanged
+    int   bones[6], nbones;
+    // SPINE mode only: the bones that form this skin's CHAIN, root to tip. The
+    // chain's points are bone[0]'s start followed by every bone's end, so 3
+    // bones give a 4-point spine. A branching skin (torso, head) leaves this
+    // empty and stays on DQS — a spine is a line, it can't fork.
+    int   chain[5], nchain;
+} SkinDef;
+
+enum { B_PELVIS, B_CHEST, B_HEAD,
+       B_UARM_R, B_LARM_R, B_HAND_R,
+       B_UARM_L, B_LARM_L, B_HAND_L,
+       B_THIGH_R, B_SHIN_R, B_FOOT_R,
+       B_THIGH_L, B_SHIN_L, B_FOOT_L, NBONE };
+
+static const BoneDef BONES[NBONE] = {
+    // name      parent      ax   ay    bx   by   rad    lo    hi   hz   keepKp   hw
+    {"pelvis",  -1,        160,  72,  160,  60,  16,     0,    0, 0.0f, 20.0f, 0.30f},
+    {"chest",    B_PELVIS, 160,  60,  160,  44,  16,   -25,   25, 6.0f,  0.0f, 0.32f},
+    {"head",     B_CHEST,  160,  44,  160,  28,  10,   -40,   40, 3.0f,  6.0f, 0.26f},
+
+    {"uArmR",    B_CHEST,  176,  48,  176,  65,  11,  -150,  150, 1.2f,  0.0f, 0.09f},
+    {"lArmR",    B_UARM_R, 176,  65,  176,  82,  10,  -145,    5, 1.2f,  0.0f, 0.08f},
+    {"handR",    B_LARM_R, 176,  82,  176,  90,   6,   -60,   60, 2.0f,  0.0f, 0.09f},
+
+    {"uArmL",    B_CHEST,  144,  48,  144,  65,  11,  -150,  150, 1.2f,  0.0f, 0.09f},
+    {"lArmL",    B_UARM_L, 144,  65,  144,  82,  10,    -5,  145, 1.2f,  0.0f, 0.08f},
+    {"handL",    B_LARM_L, 144,  82,  144,  90,   6,   -60,   60, 2.0f,  0.0f, 0.09f},
+
+    {"thighR",   B_PELVIS, 166,  74,  166,  97,  13,   -95,   95,10.0f,  9.0f, 0.15f},
+    {"shinR",    B_THIGH_R,166,  97,  166, 118,  12,  -135,    3,10.0f,  9.0f, 0.13f},
+    {"footR",    B_SHIN_R, 166, 118,  178, 124,   7,   -35,   45, 6.0f, 12.0f, 0.10f},
+
+    {"thighL",   B_PELVIS, 154,  74,  154,  97,  13,   -95,   95,10.0f,  9.0f, 0.15f},
+    {"shinL",    B_THIGH_L,154,  97,  154, 118,  12,  -135,    3,10.0f,  9.0f, 0.13f},
+    {"footL",    B_SHIN_L, 154, 118,  142, 124,   7,   -45,   35, 6.0f, 12.0f, 0.10f},
+};
+
+// Listed BACK to FRONT — the painter's order is the whole depth story.
+static const SkinDef SKINS[] = {
+    {"armL",  56, 0, 14, 50, 138, 43, true,  {B_CHEST, B_UARM_L, B_LARM_L, B_HAND_L}, 4,
+                                             {B_UARM_L, B_LARM_L, B_HAND_L}, 3},
+    {"legL",  76, 0, 20, 62, 141, 69, true,  {B_PELVIS, B_THIGH_L, B_SHIN_L, B_FOOT_L}, 4,
+                                             {B_THIGH_L, B_SHIN_L, B_FOOT_L}, 3},
+    {"legR",  76, 0, 20, 62, 160, 69, false, {B_PELVIS, B_THIGH_R, B_SHIN_R, B_FOOT_R}, 4,
+                                             {B_THIGH_R, B_SHIN_R, B_FOOT_R}, 3},
+    {"torso", 24, 0, 28, 41, 146, 40, false, {B_PELVIS, B_CHEST, B_HEAD}, 3,  {0}, 0},
+    {"armR",  56, 0, 14, 50, 169, 43, false, {B_CHEST, B_UARM_R, B_LARM_R, B_HAND_R}, 4,
+                                             {B_UARM_R, B_LARM_R, B_HAND_R}, 3},
+    {"head",   0, 0, 20, 20, 150, 20, false, {B_HEAD, B_CHEST}, 2,            {0}, 0},
+};
+#define NSKIN ((int)(sizeof(SKINS)/sizeof(SKINS[0])))
+
+// ── mesh storage ───────────────────────────────────────────────────────
+#define STEP  3               // grid spacing over the sprite, in sheet px
+#define MAXG  24              // grid columns/rows per skin
+#define MAXV  (MAXG*MAXG)
+#define MAXT  (MAXV*2)
+#define KB    3               // bones blended per vertex (after pruning)
+
+typedef struct {
+    float  uvx, uvy;          // sheet pixel — never moves
+    b2Vec2 bind;              // rest position, world metres
+    int    bone[KB];
+    float  w[KB];
+    b2Vec2 off[KB];           // rest position in that bone's LOCAL frame
+    float  bindAng[KB];       // that bone's rest angle
+    int    nb;
+    float  t, s;              // SPINE bind: arc-length fraction along the chain's
+                              // dense polyline, + signed perpendicular offset (px)
+    float  mrest;             // the miter limit AT BIND for this vertex's position
+} Vtx;
+
+typedef struct {
+    Vtx vtx[MAXV]; int nv;
+    int tri[MAXT][3]; int nt;
+    signed char restSign[MAXT];   // winding at rest; a flip at draw time == the
+                                  // mesh folded through itself right there
+} Mesh;
+
+static b2WorldId world;
+static b2BodyId  ground, bone[NBONE];
+static b2JointId hinge[NBONE];   // the revolute joining each bone to its parent
+static Mesh      mesh[NSKIN];
+
+static b2Vec2    boneLocA[NBONE], boneLocB[NBONE];   // each bone's segment ends, body-local
+static float     boneRest[NBONE];                    // world angle at rest = the KEEP_ANGLE target
+static int       dragBone = -1;
+
+static b2JointId mjoint; static bool dragging = false;
+static int  mode = 0;   // 0=DQS 1=LBS 2=RIGID 3=SPINE. Opens on DQS because DQS
+                        // MEASURES best: an elbow-only fold sweep on the corrected
+                        // rig gives DQS 0 inverted triangles at -70/-95/-120/-138,
+                        // while SPINE sits at a constant ~10 (see the note on
+                        // spine_place — that residual is a spine bug, not a fold
+                        // ceiling, and it is the open item on this cart).
+static bool showMesh = false, showBones = false, folding = false, miter = false;
+static int  keepMode = 1;   // 0 = off, 1 = playtime omega-write, 2 = torque.
+                            // 1 is the default because it MEASURES best, see keep_angle().
+static const char *KEEP_NAME[3] = { "off", "omega", "torque" };
+static const char *MODE_NAME[4] = { "DQS", "LBS", "RIGID", "SPINE" };
+
+// ── little maths ───────────────────────────────────────────────────────
+static float smoothstep(float e0, float e1, float v) {
+    if (v <= e0) return 0; if (v >= e1) return 1;
+    float t = (v - e0) / (e1 - e0);
+    return t * t * (3 - 2 * t);
+}
+// Distance from p to the SEGMENT ab. Using the segment, not the bone's centre,
+// is what stops a limb pinching at the middle of each bone.
+static float dist_seg(float px, float py, float ax, float ay, float bx, float by) {
+    float abx = bx - ax, aby = by - ay, l2 = abx*abx + aby*aby;
+    float t = (l2 < 1e-6f) ? 0 : ((px-ax)*abx + (py-ay)*aby) / l2;
+    if (t < 0) t = 0; if (t > 1) t = 1;
+    float dx = px - (ax + abx*t), dy = py - (ay + aby*t);
+    return sqrtf(dx*dx + dy*dy);
+}
+static inline float bone_angle(int b) { return b2Rot_GetAngle(b2Body_GetRotation(bone[b])); }
+
+// ── SPINE bind — playtime's MESHUSERT spine mode, ported ───────────────
+// Instead of weighting a vertex to bones, decompose it against the limb's AXIS:
+// t = arc-length fraction along a Bezier through the joint chain, s = signed
+// perpendicular offset. At draw time the Bezier is rebuilt from live joints and
+// the vertex is replanted at curve(t) + s * left-normal. No weights, no radii,
+// nothing to tune. Everything below works in SCREEN pixels (float).
+//
+// The one rule that makes rest pose round-trip exactly (spine-mesh.lua's header
+// says this cost them a bug): bind AND evaluate must both go through the same
+// DENSE POLYLINE, and t must be ARC-LENGTH fraction, not the Bezier parameter.
+// Those are different mappings; mixing them shifts every vertex on bind.
+#define SPN_SAMP  33          // dense samples per chain (spine-mesh.lua's depth 5)
+#define SPN_CTRL  24
+#define SPN_BEND  2           // control-point duplication — playtime's "bendiness"
+
+// de Casteljau over n control points.
+static void bez_eval(const float *c, int n, float u, float *x, float *y) {
+    float tx[SPN_CTRL], ty[SPN_CTRL];
+    for (int i = 0; i < n; i++) { tx[i] = c[i*2]; ty[i] = c[i*2+1]; }
+    for (int k = n - 1; k > 0; k--)
+        for (int i = 0; i < k; i++) {
+            tx[i] += u * (tx[i+1] - tx[i]);
+            ty[i] += u * (ty[i+1] - ty[i]);
+        }
+    *x = tx[0]; *y = ty[0];
+}
+
+// Chain points -> dense polyline. Middle control points are duplicated so the
+// curve HUGS the joints instead of smoothing them away (doubleControlPoints).
+static int spine_sample(const float *pts, int npt, float *out) {
+    float c[SPN_CTRL * 2]; int n = 0;
+    for (int i = 0; i < npt; i++) {
+        c[n*2] = pts[i*2]; c[n*2+1] = pts[i*2+1]; n++;
+        if (i > 0 && i < npt - 1)
+            for (int d = 0; d < SPN_BEND && n < SPN_CTRL; d++) {
+                c[n*2] = pts[i*2]; c[n*2+1] = pts[i*2+1]; n++;
+            }
+    }
+    for (int i = 0; i < SPN_SAMP; i++)
+        bez_eval(c, n, (float)i / (SPN_SAMP - 1), &out[i*2], &out[i*2+1]);
+    return SPN_SAMP;
+}
+
+static float spine_arcs(const float *poly, int n, float *arcs) {
+    arcs[0] = 0;
+    for (int i = 1; i < n; i++) {
+        float dx = poly[i*2] - poly[(i-1)*2], dy = poly[i*2+1] - poly[(i-1)*2+1];
+        arcs[i] = arcs[i-1] + sqrtf(dx*dx + dy*dy);
+    }
+    return arcs[n-1];
+}
+
+// Project (px,py) onto the polyline -> (t, s). Overshoot past the first/last
+// segment is preserved rather than clamped, so a vertex beyond the chain's end
+// (the hand past the wrist) records its along-axis offset instead of collapsing
+// onto the endpoint.
+static void spine_project(float px, float py, const float *poly, int n,
+                          const float *arcs, float total, float *outT, float *outS) {
+    float bestD2 = 1e18f; *outT = 0; *outS = 0;
+    for (int i = 1; i < n; i++) {
+        float ax = poly[(i-1)*2], ay = poly[(i-1)*2+1];
+        float dx = poly[i*2] - ax, dy = poly[i*2+1] - ay;
+        float l2 = dx*dx + dy*dy;
+        if (l2 < 1e-12f) continue;
+        float u = ((px-ax)*dx + (py-ay)*dy) / l2;
+        if (i > 1     && u < 0) u = 0;
+        if (i < n - 1 && u > 1) u = 1;
+        float qx = px - (ax + u*dx), qy = py - (ay + u*dy);
+        float d2 = qx*qx + qy*qy;
+        if (d2 < bestD2) {
+            bestD2 = d2;
+            *outT  = (arcs[i-1] + u * sqrtf(l2)) / (total > 1e-9f ? total : 1e-9f);
+            *outS  = ((qx*(-dy) + qy*dx) >= 0 ? 1.0f : -1.0f) * sqrtf(d2);
+        }
+    }
+}
+
+// The MITER CLAMP, from playtime's texturedCurve (box2d-draw-textured.lua:1461).
+// DEFAULT OFF, on measurement: it makes things worse here (rest 6 / fold 16 with
+// it, 0 / 5 without). It assumes a smoothly swept ribbon width; our dense Bezier
+// bunches its samples near a corner, so min(segA,segB) collapses there and the
+// limit crushes the cross-section instead of protecting it. Clamping relative to
+// the bind-pose limit rather than absolutely was tried too, and did not help.
+// Kept behind key C because it is playtime's actual ribbon math and worth seeing.
+// At a bend the inner edge of a swept width crosses itself; the largest offset
+// that cannot cross is min(segA,segB) * tan(interior half-angle). This is the
+// piece playtime wrote for its RIBBON path and never wired into spine-bind
+// (SPINE-MESH-PLAN.md phase 4 still lists it as to-do) — it is what stops the
+// fold-over the joint limits are otherwise there to dodge.
+static float spine_miter(const float *poly, int n, int i) {
+    if (i < 1 || i > n - 2) return 1e9f;
+    float ax = poly[i*2] - poly[(i-1)*2],   ay = poly[i*2+1] - poly[(i-1)*2+1];
+    float bx = poly[(i+1)*2] - poly[i*2],   by = poly[(i+1)*2+1] - poly[i*2+1];
+    float la = sqrtf(ax*ax + ay*ay), lb = sqrtf(bx*bx + by*by);
+    if (la < 1e-6f || lb < 1e-6f) return 1e9f;
+    float dot = (ax*bx + ay*by) / (la*lb);
+    if (dot > 0.9999f) return 1e9f;                 // straight — no limit needed
+    if (dot < -1.0f) dot = -1.0f;
+    float alpha = (3.14159265f - acosf(dot)) * 0.5f;
+    return (la < lb ? la : lb) * tanf(alpha);
+}
+
+// Which polyline segment does arc-length `target` fall in? Bind and draw MUST
+// use this same routine — the relative miter clamp compares a limit measured at
+// bind against one measured at draw, and two different lookups can land on
+// different corners, which quietly makes the ratio garbage (it did).
+static int spine_seg(const float *arcs, int n, float target) {
+    if (target <= arcs[0])   return 1;
+    if (target >= arcs[n-1]) return n - 1;
+    for (int i = 1; i < n; i++) if (target <= arcs[i]) return i;
+    return n - 1;
+}
+
+// Replant a vertex: walk to arc-length t, step s along the local left-normal.
+static void spine_place(const float *poly, int n, const float *arcs, float total,
+                        float t, float s, float mrest, float *ox, float *oy) {
+    float target = t * total;
+    int seg = spine_seg(arcs, n, target);
+
+    float ax = poly[(seg-1)*2], ay = poly[(seg-1)*2+1];
+    float dx = poly[seg*2] - ax, dy = poly[seg*2+1] - ay;
+    float segLen = arcs[seg] - arcs[seg-1];
+    float u = segLen > 1e-9f ? (target - arcs[seg-1]) / segLen : 0.0f;
+    float dlen = sqrtf(dx*dx + dy*dy);
+    float tx = dlen > 1e-9f ? dx/dlen : 1.0f, ty = dlen > 1e-9f ? dy/dlen : 0.0f;
+
+    if (miter && mrest > 0.0f) {
+        // Clamp RELATIVE to the bind pose, not absolutely. A limb chain can have
+        // an authored corner in it — the ankle here turns 63 deg at rest — and an
+        // absolute clamp squashes that corner on frame 0 (measured: 4 inverted
+        // triangles while standing still). Scaling by live/rest leaves the
+        // authored pose untouched and only bites on bending BEYOND it.
+        float lim = spine_miter(poly, n, seg - 1);
+        if (lim < mrest) s *= lim / mrest;
+    }
+    *ox = ax + u*dx + s * (-ty);
+    *oy = ay + u*dy + s * ( tx);
+}
+
+// The chain's points in SCREEN px: bone[0]'s start, then every bone's end.
+// `live` reads the bodies; otherwise the rest pose straight off the table.
+static int spine_chain(const SkinDef *sk, bool live, float *out) {
+    int n = 0;
+    for (int k = 0; k <= sk->nchain; k++) {
+        int b = sk->chain[k == 0 ? 0 : k - 1];
+        if (live) {
+            b2Vec2 w = b2Body_GetWorldPoint(bone[b], k == 0 ? boneLocA[b] : boneLocB[b]);
+            out[n*2] = w.x * PPM; out[n*2+1] = SCREEN_H - w.y * PPM;
+        } else {
+            out[n*2]   = (k == 0) ? BONES[b].ax : BONES[b].bx;
+            out[n*2+1] = (k == 0) ? BONES[b].ay : BONES[b].by;
+        }
+        n++;
+    }
+    return n;
+}
+
+// ── build ──────────────────────────────────────────────────────────────
+static void make_bones(void) {
+    for (int i = 0; i < NBONE; i++) {
+        const BoneDef *d = &BONES[i];
+        float mx = (d->ax + d->bx) * 0.5f, my = (d->ay + d->by) * 0.5f;
+        float dx = d->bx - d->ax, dy = -(d->by - d->ay);      // screen y is down
+        float len = sqrtf(dx*dx + dy*dy) / PPM;
+        // Every bone body rests at rotation IDENTITY and bakes its direction into
+        // the SHAPE instead. Why: a revolute's limit is
+        // b2RelativeAngle(qB,qA) - referenceAngle, and b2RelativeAngle returns
+        // atan2 in (-pi, pi]. Rotating the bodies to point along their segments
+        // gives the pelvis->thigh and chest->arm joints a reference angle of
+        // exactly +/-180 (spine points up, limbs point down) — dead on the branch
+        // cut, where a hair of numerical noise flips the measured angle by a full
+        // turn. The solver then reads a colossal limit violation and snaps the
+        // figure apart on frame 1 (measured: the pelvis 16 deg off after ONE step,
+        // 56 deg after five). Identity bodies make every referenceAngle 0, so no
+        // joint can ever sit on the cut, and bone_angle() becomes a clean
+        // "rotation away from the authored pose".
+        b2BodyDef bd = b2DefaultBodyDef();
+        bd.type = b2_dynamicBody;
+        bd.position = (b2Vec2){ WX(mx), WY(my) };
+        bone[i] = b2CreateBody(world, &bd);
+        b2Polygon box = b2MakeOffsetBox(len * 0.5f, d->hw, (b2Vec2){0,0},
+                                        b2MakeRot(atan2f(dy, dx)));
+        b2ShapeDef sd = b2DefaultShapeDef();
+        sd.density = 1.0f; sd.material.friction = 0.5f;
+        sd.filter.groupIndex = -1;                            // the figure never self-collides
+        b2CreatePolygonShape(bone[i], &sd, &box);
+        boneLocA[i] = b2Body_GetLocalPoint(bone[i], (b2Vec2){ WX(d->ax), WY(d->ay) });
+        boneLocB[i] = b2Body_GetLocalPoint(bone[i], (b2Vec2){ WX(d->bx), WY(d->by) });
+        boneRest[i] = bone_angle(i);        // the pose the KEEP_ANGLE controller defends
+    }
+    for (int i = 0; i < NBONE; i++) {
+        const BoneDef *d = &BONES[i];
+        if (d->parent < 0) continue;      // the root is FREE now: it stands on the
+                                          // floor (and can be thrown off it) rather
+                                          // than hanging from a hook.
+        b2BodyId a = bone[d->parent];
+        b2Vec2 w = { WX(d->ax), WY(d->ay) };
+        b2RevoluteJointDef j = b2DefaultRevoluteJointDef();
+        j.bodyIdA = a; j.bodyIdB = bone[i];
+        j.localAnchorA = b2Body_GetLocalPoint(a, w);
+        j.localAnchorB = b2Body_GetLocalPoint(bone[i], w);
+        j.collideConnected = false;
+        // 0, and it MUST be: see the branch-cut note in make_bones. Every bone
+        // rests at identity, so "joint angle 0" already means "the authored pose"
+        // and lo/hi/targetAngle read as degrees away from it.
+        j.referenceAngle = 0.0f;
+        j.enableLimit = true; j.lowerAngle = d->lo*DEG; j.upperAngle = d->hi*DEG;
+        j.enableSpring = d->hz > 0; j.hertz = d->hz; j.dampingRatio = 0.7f;
+        j.targetAngle = 0;
+        hinge[i] = b2CreateRevoluteJoint(world, &j);
+    }
+}
+
+// Rest screen position of sheet pixel (sx,sy) inside skin s. Mirroring flips
+// the GEOMETRY across the rect; the UV stays (sx,sy), which is the whole trick
+// that lets both legs share one texture.
+static void rest_px(const SkinDef *s, int sx, int sy, float *rx, float *ry) {
+    int dx = sx - s->ox;
+    *rx = s->px + (s->mirror ? (s->w - 1 - dx) : dx);
+    *ry = s->py + (sy - s->oy);
+}
+
+static void bind_vertex(const SkinDef *s, Vtx *v, float rx, float ry) {
+    // weight against every bone this skin names, by distance to its segment
+    // NOTE: `mirror` deliberately does NOT touch the bone segments. It flips the
+    // sprite's GEOMETRY only; the left bones already carry left-side coordinates,
+    // so mirroring here would send them back across the body.
+    float wt[6]; int n = s->nbones;
+    for (int k = 0; k < n; k++) {
+        const BoneDef *d = &BONES[s->bones[k]];
+        wt[k] = 1.0f - smoothstep(0, d->radius, dist_seg(rx, ry, d->ax, d->ay, d->bx, d->by));
+    }
+    // keep the best KB, renormalise (playtime's pruneTopK)
+    v->nb = 0;
+    for (int slot = 0; slot < KB; slot++) {
+        int best = -1; float bw = 1e-6f;
+        for (int k = 0; k < n; k++) {
+            bool taken = false;
+            for (int q = 0; q < v->nb; q++) if (v->bone[q] == s->bones[k]) taken = true;
+            if (!taken && wt[k] > bw) { bw = wt[k]; best = k; }
+        }
+        if (best < 0) break;
+        v->bone[v->nb] = s->bones[best]; v->w[v->nb] = bw; v->nb++;
+    }
+    if (v->nb == 0) {   // outside every radius — glue to the nearest segment
+        int best = 0; float bd = 1e9f;
+        for (int k = 0; k < n; k++) {
+            const BoneDef *d = &BONES[s->bones[k]];
+            float dd = dist_seg(rx, ry, d->ax, d->ay, d->bx, d->by);
+            if (dd < bd) { bd = dd; best = k; }
+        }
+        v->bone[0] = s->bones[best]; v->w[0] = 1.0f; v->nb = 1;
+    }
+    float sum = 0; for (int k = 0; k < v->nb; k++) sum += v->w[k];
+    for (int k = 0; k < v->nb; k++) v->w[k] /= sum;
+
+    v->bind = (b2Vec2){ WX(rx), WY(ry) };
+    for (int k = 0; k < v->nb; k++) {
+        v->off[k]     = b2Body_GetLocalPoint(bone[v->bone[k]], v->bind);
+        v->bindAng[k] = bone_angle(v->bone[k]);
+    }
+}
+
+static bool cell_opaque(int sx, int sy) {
+    for (int y = sy - STEP; y <= sy + STEP; y++)
+        for (int x = sx - STEP; x <= sx + STEP; x++)
+            if (x >= 0 && y >= 0 && x < 128 && y < 128 && sget(x, y) != 0) return true;
+    return false;
+}
+
+static void build_mesh(int si) {
+    const SkinDef *s = &SKINS[si];
+    Mesh *m = &mesh[si];
+    static int vid[MAXG][MAXG];
+    int gw = s->w / STEP + 1, gh = s->h / STEP + 1;
+    if (gw > MAXG) gw = MAXG;
+    if (gh > MAXG) gh = MAXG;
+    m->nv = m->nt = 0;
+    for (int gy = 0; gy < gh; gy++)
+        for (int gx = 0; gx < gw; gx++) {
+            int sx = s->ox + gx*STEP; if (sx >= s->ox + s->w) sx = s->ox + s->w - 1;
+            int sy = s->oy + gy*STEP; if (sy >= s->oy + s->h) sy = s->oy + s->h - 1;
+            // Keep the vertex if ANY pixel in its cell is opaque, not just the
+            // sample. Single-pixel testing chews holes wherever the silhouette
+            // pinches (the torso's waist) — a cell that straddles the edge
+            // should stay, its transparent texels simply draw as nothing.
+            if (!cell_opaque(sx, sy)) { vid[gy][gx] = -1; continue; }
+            Vtx *v = &m->vtx[m->nv];
+            v->uvx = sx; v->uvy = sy;
+            float rx, ry; rest_px(s, sx, sy, &rx, &ry);
+            bind_vertex(s, v, rx, ry);
+            v->t = v->s = 0;
+            if (s->nchain > 0) {                  // second, independent bind
+                float pts[8], poly[SPN_SAMP*2], arcs[SPN_SAMP];
+                int np = spine_chain(s, false, pts);
+                int nd = spine_sample(pts, np, poly);
+                float total = spine_arcs(poly, nd, arcs);
+                spine_project(rx, ry, poly, nd, arcs, total, &v->t, &v->s);
+                // the miter limit at this vertex's rest position — the baseline
+                // the draw-time clamp is measured against
+                v->mrest = spine_miter(poly, nd, spine_seg(arcs, nd, v->t * total) - 1);
+            }
+            vid[gy][gx] = m->nv++;
+        }
+    for (int gy = 0; gy < gh-1; gy++)
+        for (int gx = 0; gx < gw-1; gx++) {
+            int a = vid[gy][gx], b = vid[gy][gx+1], c = vid[gy+1][gx+1], d = vid[gy+1][gx];
+            if (a>=0 && b>=0 && c>=0 && d>=0) {
+                m->tri[m->nt][0]=a; m->tri[m->nt][1]=b; m->tri[m->nt][2]=c; m->nt++;
+                m->tri[m->nt][0]=a; m->tri[m->nt][1]=c; m->tri[m->nt][2]=d; m->nt++;
+            }
+        }
+    // Bake each triangle's rest winding so draw() can spot inversions.
+    for (int t = 0; t < m->nt; t++) {
+        const Vtx *A = &m->vtx[m->tri[t][0]], *B = &m->vtx[m->tri[t][1]], *C = &m->vtx[m->tri[t][2]];
+        float axr = A->bind.x, ayr = A->bind.y, bxr = B->bind.x, byr = B->bind.y, cxr = C->bind.x, cyr = C->bind.y;
+        float cr = (bxr-axr)*(cyr-ayr) - (byr-ayr)*(cxr-axr);
+        m->restSign[t] = cr >= 0 ? 1 : -1;
+    }
+}
+
+static void build(void) {
+    b2WorldDef wd = b2DefaultWorldDef();
+    wd.gravity = (b2Vec2){ 0, -10 };
+    world = b2CreateWorld(&wd);
+    b2BodyDef gd = b2DefaultBodyDef();
+    ground = b2CreateBody(world, &gd);
+    // A horizon to stand on, plus side walls so a thrown figure stays on screen.
+    // High friction: without grippy feet the KEEP_ANGLE torque just spins it.
+    {
+        float W = SCREEN_W/PPM, TOP = SCREEN_H/PPM, fy = WY(FLOOR_PY);
+        b2ShapeDef gs = b2DefaultShapeDef(); gs.material.friction = 1.0f;
+        b2Segment floorSeg = {{0,fy},{W,fy}};  b2CreateSegmentShape(ground, &gs, &floorSeg);
+        b2Segment lft = {{0,fy},{0,TOP}};      b2CreateSegmentShape(ground, &gs, &lft);
+        b2Segment rgt = {{W,fy},{W,TOP}};      b2CreateSegmentShape(ground, &gs, &rgt);
+    }
+    make_bones();
+    for (int i = 0; i < NSKIN; i++) build_mesh(i);
+    // The mesh deliberately overshoots the silhouette by one cell (see
+    // cell_opaque), so it DOES sample transparent texels — without a colorkey
+    // those are opaque black and every limb wears a black halo.
+    colorkey(CLR_BLACK);
+    dragging = false;
+}
+static void reset(void) { b2DestroyWorld(world); build(); }
+
+// ── skinning ───────────────────────────────────────────────────────────
+// DQS in 2D: blend each bone's DELTA rotation as a circular mean, apply that
+// ONE rotation to the bind vertex, then add the weight-averaged translation
+// residual. Blending a single rotation (rather than averaging already-rotated
+// positions, which is LBS) is what stops a folded knee collapsing inward.
+// The live spine for the skin currently being drawn (rebuilt once per skin per
+// frame in draw(), not per vertex). spnN == 0 means "this skin has no chain, or
+// we're not in spine mode" and the weighted path below runs instead.
+static int   flipped = 0;      // triangles inside-out this frame (the fold-over oracle)
+static float spnPoly[SPN_SAMP*2], spnArcs[SPN_SAMP], spnTotal;
+static int   spnN = 0;
+
+static void skin_vertex(const Vtx *v, int *xs, int *ys) {
+    if (mode == 3 && spnN > 0) {
+        float x, y;
+        spine_place(spnPoly, spnN, spnArcs, spnTotal, v->t, v->s, v->mrest, &x, &y);
+        *xs = (int)x; *ys = (int)y; return;
+    }
+    b2Vec2 P[KB];
+    for (int k = 0; k < v->nb; k++) P[k] = b2Body_GetWorldPoint(bone[v->bone[k]], v->off[k]);
+
+    if (mode == 2) {                                   // RIGID: strongest bone only
+        int best = 0;
+        for (int k = 1; k < v->nb; k++) if (v->w[k] > v->w[best]) best = k;
+        *xs = SX(P[best].x); *ys = SY(P[best].y); return;
+    }
+    if (mode == 1) {                                   // LBS: average the positions
+        float x = 0, y = 0;
+        for (int k = 0; k < v->nb; k++) { x += v->w[k]*P[k].x; y += v->w[k]*P[k].y; }
+        *xs = SX(x); *ys = SY(y); return;
+    }
+    float cs = 0, sn = 0;
+    for (int k = 0; k < v->nb; k++) {
+        float dth = bone_angle(v->bone[k]) - v->bindAng[k];
+        cs += v->w[k]*cosf(dth); sn += v->w[k]*sinf(dth);
+    }
+    float th = (cs*cs + sn*sn > 1e-12f) ? atan2f(sn, cs) : 0.0f;
+    float c = cosf(th), s = sinf(th);
+    float rx = c*v->bind.x - s*v->bind.y;              // rotate the BIND vertex once
+    float ry = s*v->bind.x + c*v->bind.y;
+    float tx = 0, ty = 0;
+    for (int k = 0; k < v->nb; k++) { tx += v->w[k]*(P[k].x - rx); ty += v->w[k]*(P[k].y - ry); }
+    *xs = SX(rx + tx); *ys = SY(ry + ty);
+}
+
+// ── KEEP_ANGLE — ported from playtime src/keep-angle.lua ───────────────
+// A PD controller in OMEGA SPACE: it writes the angular velocity straight onto
+// the body instead of applying a torque. That looks like a cheat — it overrides
+// the solver, so a keep-angle bone wins every rotational argument it has with
+// its joints and the floor — but it is playtime's choice and it MEASURES BEST.
+// Head height above the floor (rest 98px), same rig, same frames:
+//
+//     keep mode        f60     f200    f390
+//     off              85.4    83.9    64.3   slowly topples
+//     omega (this)     84.9    84.0    84.0   still standing
+//     torque           85.2    83.8    32.8   collapsed
+//
+// The torque form (boxlab's balance(), kept on mode 2) is the more physical
+// answer and it loses: it asks politely and gravity out-votes it. Judge this by
+// HEAD HEIGHT, never by pelvis tilt — mode 1 writes the pelvis angle directly,
+// so it scores a perfect 0 tilt while lying flat on the floor.
+//
+// playtime's other rule matters as much: switch the behaviour OFF for whatever
+// the user is currently dragging (its `hitted` list), or you are fighting the hand.
+//
+// The target is each bone's REST world angle, captured at build: +90 deg for the
+// spine bones (upright) and the authored tilt for the feet (flat on the floor).
+#define KEEP_KD    0.000015f    // playtime's value — so small it is nearly pure P
+#define KEEP_MAXW  15.0f        // rad/s clamp, also playtime's
+static void keep_angle(void) {
+    if (keepMode == 0) return;
+    for (int i = 0; i < NBONE; i++) {
+        if (BONES[i].keepKp <= 0.0f) continue;
+        if (dragging && dragBone == i) continue;          // playtime's `hitted` rule
+        float diff = boneRest[i] - bone_angle(i);
+        diff = fmodf(diff + PI, 2.0f*PI);                  // wrap to [-pi, pi]
+        if (diff < 0) diff += 2.0f*PI;
+        diff -= PI;
+        float w = b2Body_GetAngularVelocity(bone[i]);
+
+        if (keepMode == 1) {
+            // playtime's literal behaviour: WRITE the angular velocity.
+            float cmd = BONES[i].keepKp * diff - KEEP_KD * w;
+            if (cmd >  KEEP_MAXW) cmd =  KEEP_MAXW;
+            if (cmd < -KEEP_MAXW) cmd = -KEEP_MAXW;
+            b2Body_SetAngularVelocity(bone[i], cmd);
+        } else {
+            // Torque instead (boxlab's balance()). Same PD, but it ASKS the solver
+            // rather than overruling it, so joint and contact impulses survive.
+            float I  = b2Body_GetRotationalInertia(bone[i]);
+            float kd = 2.0f * sqrtf(BONES[i].keepKp);      // ~critical damping
+            b2Body_ApplyTorque(bone[i], (BONES[i].keepKp * diff - kd * w) * I, true);
+        }
+        b2Body_SetAwake(bone[i], true);
+    }
+}
+
+// ── loop ───────────────────────────────────────────────────────────────
+static bool inited = false;
+void update(void) {
+    if (!inited) { build(); inited = true; }
+    if (keyp('R')) reset();
+    if (keyp(' ')) mode = (mode + 1) % 4;
+    if (keyp('M')) showMesh = !showMesh;
+    if (keyp('B')) showBones = !showBones;
+    if (keyp('C')) miter = !miter;   // SPINE mode: the inner-edge clamp, on/off
+    if (keyp('G')) keepMode = (keepMode + 1) % 3;   // off / omega / torque
+    // F = the EXTREME-POSE test. Dragging with the mouse can't reliably reach a
+    // full fold (the mouse joint is force-capped, and the chain would rather
+    // swing at the hip than bend the knee), so drive the two joints straight to
+    // their limit through their own springs. This is the pose that decides
+    // whether the skinning holds — check it after ANY weight/radius change.
+    if (keyp('F')) {
+        folding = !folding;
+        const struct { int b; float deg; } FOLD[2] = { {B_LARM_R, -138}, {B_SHIN_R, -128} };
+        for (int k = 0; k < 2; k++) {
+            b2RevoluteJoint_SetTargetAngle(hinge[FOLD[k].b], folding ? FOLD[k].deg*DEG : 0.0f);
+            b2RevoluteJoint_SetSpringHertz(hinge[FOLD[k].b], folding ? 9.0f : BONES[FOLD[k].b].hz);
+            b2Body_SetAwake(bone[FOLD[k].b], true);
+        }
+    }
+
+    float mwx = WX(mouse_x()), mwy = WY(mouse_y());
+    if (mouse_pressed(MOUSE_LEFT)) {                   // grab the nearest bone centre
+        int best = -1; float bd = 0.55f*0.55f;
+        for (int i = 0; i < NBONE; i++) {
+            b2Vec2 c = b2Body_GetPosition(bone[i]);
+            float d = (mwx-c.x)*(mwx-c.x) + (mwy-c.y)*(mwy-c.y);
+            if (d < bd) { bd = d; best = i; }
+        }
+        if (best >= 0) {
+            b2MouseJointDef d = b2DefaultMouseJointDef();
+            d.bodyIdA = ground; d.bodyIdB = bone[best];
+            d.target = (b2Vec2){mwx, mwy}; d.hertz = 5.0f; d.dampingRatio = 0.9f;
+            // deliberately weak: a strong mouse joint drags the whole figure off its
+            // hook instead of articulating the limb you grabbed.
+            d.maxForce = 1200.0f * b2Body_GetMass(bone[best]);
+            mjoint = b2CreateMouseJoint(world, &d);
+            b2Body_SetAwake(bone[best], true); dragging = true; dragBone = best;
+        }
+    }
+    if (dragging && mouse_down(MOUSE_LEFT)) b2MouseJoint_SetTarget(mjoint, (b2Vec2){mwx, mwy});
+    if (mouse_released(MOUSE_LEFT) && dragging) { b2DestroyJoint(mjoint); dragging = false; dragBone = -1; }
+
+    keep_angle();                      // steer the upright parts BEFORE the solve
+    b2World_Step(world, 1.0f/60.0f, 4);
+
+#ifdef DE_TRACE
+    int tv = 0, tt = 0;
+    for (int i = 0; i < NSKIN; i++) { tv += mesh[i].nv; tt += mesh[i].nt; }
+    watch("verts", "%d", tv); watch("tris", "%d", tt);
+    watch("knee", "%.1f", (bone_angle(B_SHIN_R) - bone_angle(B_THIGH_R)) / DEG);
+    watch("elbow", "%.1f", (bone_angle(B_LARM_R) - bone_angle(B_UARM_R)) / DEG);
+    watch("mode", "%s", MODE_NAME[mode]);
+    watch("flipped", "%d", flipped);
+    watch("pelvisTilt", "%.1f", (bone_angle(B_PELVIS) - boneRest[B_PELVIS]) / DEG);
+    watch("pelvisRest", "%.1f", boneRest[B_PELVIS] / DEG);
+    watch("pelvisAng",  "%.1f", bone_angle(B_PELVIS) / DEG);
+    watch("keep",       "%s", KEEP_NAME[keepMode]);
+    // Height of the head above the floor: the only honest "is it still
+    // standing" number. Pelvis TILT is useless for judging keep-angle mode 1,
+    // which writes that very angle and so scores a perfect 0 while lying down.
+    watch("headUp",     "%.1f", (float)FLOOR_PY - (SCREEN_H - b2Body_GetPosition(bone[B_HEAD]).y*PPM));
+    watch("chestRel",   "%.1f", (bone_angle(B_CHEST)  - bone_angle(B_PELVIS)) / DEG);
+    watch("hipRel",     "%.1f", (bone_angle(B_THIGH_R)- bone_angle(B_PELVIS)) / DEG);
+#endif
+}
+
+void draw(void) {
+    if (!inited) { build(); inited = true; }
+    cls(CLR_DARKER_BLUE);
+    rectfill(0, FLOOR_PY, SCREEN_W-1, SCREEN_H-1, CLR_DARKER_GREY);   // the ground
+    line(0, FLOOR_PY, SCREEN_W-1, FLOOR_PY, CLR_DARK_GREY);           // the horizon
+
+    flipped = 0;
+    for (int i = 0; i < NSKIN; i++) {
+        Mesh *m = &mesh[i];
+        spnN = 0;
+        if (mode == 3 && SKINS[i].nchain > 0) {          // rebuild this limb's spine
+            float pts[8];
+            int np = spine_chain(&SKINS[i], true, pts);
+            spnN = spine_sample(pts, np, spnPoly);
+            spnTotal = spine_arcs(spnPoly, spnN, spnArcs);
+        }
+        for (int t = 0; t < m->nt; t++) {
+            const Vtx *a = &m->vtx[m->tri[t][0]], *b = &m->vtx[m->tri[t][1]], *c = &m->vtx[m->tri[t][2]];
+            int ax, ay, bx, by, cx, cy;
+            skin_vertex(a, &ax, &ay); skin_vertex(b, &bx, &by); skin_vertex(c, &cx, &cy);
+            // screen y is DOWN, world y is UP, so a screen cross of one sign
+            // corresponds to the opposite rest sign — hence the negation.
+            float cr = (float)(bx-ax)*(cy-ay) - (float)(by-ay)*(cx-ax);
+            if ((cr >= 0 ? -1 : 1) != m->restSign[t]) flipped++;
+            tritex(ax, ay, a->uvx, a->uvy, bx, by, b->uvx, b->uvy, cx, cy, c->uvx, c->uvy);
+        }
+        if (showMesh)
+            for (int t = 0; t < m->nt; t++) {
+                const Vtx *a = &m->vtx[m->tri[t][0]], *b = &m->vtx[m->tri[t][1]], *c = &m->vtx[m->tri[t][2]];
+                int ax, ay, bx, by, cx, cy;
+                skin_vertex(a, &ax, &ay); skin_vertex(b, &bx, &by); skin_vertex(c, &cx, &cy);
+                line(ax,ay,bx,by,CLR_DARK_GREY); line(bx,by,cx,cy,CLR_DARK_GREY); line(cx,cy,ax,ay,CLR_DARK_GREY);
+            }
+    }
+
+    if (showBones)
+        for (int i = 0; i < NBONE; i++) {
+            b2Vec2 A = b2Body_GetWorldPoint(bone[i], boneLocA[i]);
+            b2Vec2 B = b2Body_GetWorldPoint(bone[i], boneLocB[i]);
+            line(SX(A.x), SY(A.y), SX(B.x), SY(B.y), CLR_RED);
+            circfill(SX(A.x), SY(A.y), 1, CLR_YELLOW);
+        }
+
+    font(FONT_SMALL);
+    print(MODE_NAME[mode], 4, 4, mode == 0 ? CLR_WHITE : CLR_YELLOW);
+    print(mode == 0 ? "weighted bones, rotation-blended"
+        : mode == 1 ? "linear blend — a folded knee pinches"
+        : mode == 2 ? "rigid — one bone per vertex, seams tear"
+        : miter     ? "spine (t,s) along a Bezier + MITER CLAMP"
+                    : "spine (t,s) along a Bezier, clamp OFF", 30, 4, CLR_LIGHT_GREY);
+    char hud[96];
+    snprintf(hud, sizeof hud, "drag  SPACE mode  G keep:%s  F fold  C clamp  M mesh  B bones  R reset",
+             KEEP_NAME[keepMode]);
+    print(hud, 4, SCREEN_H-10, CLR_LIGHT_GREY);
+}

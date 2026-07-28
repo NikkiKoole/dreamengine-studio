@@ -1,0 +1,8 @@
+# boxhuman — the figure stands on the horizon, held by playtime's KEEP_ANGLE
+# behaviour (pelvis + head + feet). G cycles keep-angle off / omega / torque:
+# watch it topple with the behaviour off, hold with playtime's omega-write, and
+# collapse again on the more "physical" torque form.
+down 120 G
+up   122 G
+down 300 G
+up   302 G

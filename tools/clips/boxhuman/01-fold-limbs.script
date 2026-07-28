@@ -1,0 +1,5 @@
+# boxhuman — settle, kick the right leg out, then swing the left arm up.
+# The point of the clip: ONE leg texture crossing hip+knee+ankle, and ONE arm
+# texture crossing shoulder+elbow+wrist, both bending with no seam to tear.
+drag 20 172 121  95 196 100
+drag 105 149 86 172  96  54

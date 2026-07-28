@@ -1,0 +1,10 @@
+# boxhuman — the EXTREME-POSE test: F folds the right elbow (-132deg) and right
+# knee (-120deg) to their limits, then SPACE walks DQS -> LBS -> RIGID under the
+# identical pose. This is the frame that shows what the blend mode buys you:
+# LBS loses volume on the inside of the knee, RIGID tears the limb into chunks.
+down 30 F
+up   32 F
+down 150 SPACE
+up   152 SPACE
+down 230 SPACE
+up   232 SPACE

@@ -1,0 +1,11 @@
+# boxhuman — fold a limb to its limit, then walk all four deformation modes.
+# Opens on SPINE (the Bezier (t,s) bind + miter clamp), then SPACE to DQS, LBS
+# and RIGID so the same pose is drawn four ways. C at the end drops the clamp.
+down 40 F
+up   42 F
+down 120 SPACE
+up   122 SPACE
+down 190 SPACE
+up   192 SPACE
+down 260 SPACE
+up   262 SPACE

@@ -218,7 +218,13 @@ static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor
 #define STRUMX (SX1 - 106)           // strum zone keeps its width, rides the bridge (= 196 at 320w)
 #define STR_Y0 (saY + 93)            // strings spread WIDER now (10px, was 7) — easy to pick on a phone
 #define STR_DY ((SHAPE_Y - STR_Y0 - 11) / (NSTR - 1))   // SPAN-based → fills down to the chord rows (= 10 at 200h)
-#define STR_Y(s) (STR_Y0 + (s) * STR_DY)
+// TAB ORDER: string 0 is low E but draws at the BOTTOM, high e (string 5) on top — the convention
+// every guitarist reads (higher pitch, higher on the page). Drawing index 0 on top mirrors the neck
+// and reads as a LEFT-handed guitar facing you. Only the RENDER + hit-test flip: the string arrays
+// (OPEN/SHAPE_F/str_midi/pend) and the low→high strum order stay index-ordered.
+#define STR_Y(s) (STR_Y0 + (NSTR - 1 - (s)) * STR_DY)
+#define STR_TOP  STR_Y(NSTR - 1)     // high e — the top string on screen
+#define STR_BOT  STR_Y(0)            // low E  — the bottom string on screen
 #define CHORD_H 21                   // chord buttons ~1.5× taller (was 14), parked at the bottom
 #define SHAPE_Y (saY + saH - 46)     // the two chord rows sit at the BOTTOM (above the home-bar; grow with height)
 #define SHAPE_W (56 * saW / 320)     // rows stretch to fill the safe width (exact 56 at 320w)
@@ -504,7 +510,8 @@ static void strum_down(void) {
 }
 static void set_shape(int sh) { sel_shape = sh; build_strings(); autoplay = false; }
 static void set_root(int r)   { sel_root  = r;  build_strings(); autoplay = false; }
-static int  near_string(int ty) { int s = (ty - STR_Y0 + STR_DY / 2) / STR_DY; return s < 0 ? 0 : s >= NSTR ? NSTR - 1 : s; }
+// screen y → string index (row 0 on screen is the HIGH e, so the row inverts back to an index)
+static int  near_string(int ty) { int r = (ty - STR_Y0 + STR_DY / 2) / STR_DY; r = r < 0 ? 0 : r >= NSTR ? NSTR - 1 : r; return NSTR - 1 - r; }
 static int dot_x(int s) {
     int f = str_fret(s);
     if (f == 0) return SX0 + 2;
@@ -654,7 +661,7 @@ void update(void) {
                 for (int i2 = 0; i2 < NSHAPE; i2++) if (point_in_box(tx, ty, SHAPE_X(i2), SHAPE_Y, SHAPE_W, CHORD_H)) set_shape(i2);
                 if (p->mode == PTR_IDLE)
                     for (int i2 = 0; i2 < NROOT; i2++) if (point_in_box(tx, ty, ROOT_X(i2), ROOT_Y, ROOT_W, CHORD_H)) set_root(i2);
-                if (p->mode == PTR_IDLE && ty >= STR_Y0 - 9 && ty <= STR_Y(NSTR - 1) + 9 && tx >= SX0 - 8 && tx <= SX1 + 8) {
+                if (p->mode == PTR_IDLE && ty >= STR_TOP - 9 && ty <= STR_BOT + 9 && tx >= SX0 - 8 && tx <= SX1 + 8) {
                     p->mode = PTR_PICK; autoplay = false;
                     pick_string(near_string(ty), tx);
                     p->prevY = ty;
@@ -831,7 +838,7 @@ static void draw_rigs(void) {
 }
 
 static void draw_guitar(void) {
-    int by = STR_Y0 - 4, bh = (STR_Y(NSTR - 1) + 8) - by;   // clears the scrollbar above; the neck is taller now
+    int by = STR_TOP - 4, bh = (STR_BOT + 8) - by;   // clears the scrollbar above; the neck is taller now
     rrectfill(saX + 6, by, saW - 12, bh, 6, CLR_BLUE_GREEN);
     rrect(saX + 6, by, saW - 12, bh, 6, CLR_BLUE);
     rrectfill(SX0 - 8, by + 3, SX1 - SX0 + 28, bh - 6, 4, CLR_LIGHT_PEACH);

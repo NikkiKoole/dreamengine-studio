@@ -67,18 +67,12 @@ enum { TRS_BD, TRS_SDB, TRS_SDN, TRS_TOM, TRS_TOMN, TRS_CON, TRS_RS, TRS_CLV,
 //   1 = the schematic's three bands. Costs 3× the voices per crash (9, from 3 bank members × 3 bands).
 // Unequal decays need per-slot `decay_ms`; a per-hit gate length can't do it, because with sustain 0 the
 // slot's decay governs the ring and the gate only ends an already-silent note. Hence real slots.
-static int tr808_cym3 = 0;
+//
+// ✅ DEFAULT IS NOW 1 — the owner's ear picked the three-band cymbal (2026-07-28), A/B'd against the stock
+// voice as rendered WAVs. 0 is KEPT reachable (key C in the tr808 cart), not removed: it is the sound the
+// cart shipped with for a year and a byte-identical render proves it is still exactly that.
+static int tr808_cym3 = 1;
 
-// How much of the two colour bands to mix in — the panel TONE knob's job in Reid's schematic, and a
-// taste knob here. Measured on an isolated crash (tools/clips/tr808/01-cymbal-solo.script); the tail is
-// bit-identical at every setting because only the low band survives it:
-//     mix    strike peak    centroid at strike    centroid walk over the first 200ms
-//     (off)  -14.0 dBFS     11512 Hz              none — flat to within 1.5% for the whole ring
-//     0.02   -12.5          12242                 12380 → 11861 Hz  (520 Hz, subtle)
-//     0.06    -9.9          12967                 ~1500 Hz
-//     0.15    -6.0          14041                 15891 → 12083 Hz  (3800 Hz, obvious)
-//     0.40    -0.4          15475                 widest, but +13.6dB is a different sound not a colour
-// 0.06 is the default: clearly audible migration, and the +4dB strike still reads as the same cymbal.
 // The two colour bands' centre frequencies. Hoisted out of the build so they can be swept with
 // ab-render, because where the TOP band sits is NOT a free choice. Swept on an isolated crash:
 //     hi_hz   whole-file peak   centroid at strike     (low band alone reads 11846 Hz)
@@ -119,6 +113,24 @@ static int tr808_cym3_hi_hz  = 7100;
 // a per-slot base instead of setting it absolutely, and then trim these two slots with instrument_level.
 // Not done yet on purpose: that touches three carts' mixers for a feature still defaulting to OFF.
 static int tr808_cym3_vel = -3;
+
+// How many of the three bank members each COLOUR band gets (1 or 3). The low band always gets all three,
+// as it always did. 3 is the default because it is the version the owner's ear approved (2026-07-28).
+//
+// 1 is a real alternative and measured equivalent, kept because voice economy is a live concern in this
+// cart (tr808.c's docblock: it fires "2-3 squares per hit (full six would eat the 8-voice polyphony)"):
+//     members / vel    strike peak    centroid walk over the first 300ms      voices per crash
+//     3 / -3           -7.2 dBFS      14895 → 12929 → 11844 Hz                9   ← shipped (approved)
+//     1 / -1           -6.8           14843 → 12906 → 11825                   5
+//     1 /  0           -4.6           15619 → 13248 → 11811                   5   (widest walk)
+//     1 / -2           -9.7           13584 → 12466 → 11833                   5
+// So 1/-1 matches the shipped level and walk within 0.4dB and ~30Hz for 4 fewer voices. It is NOT the
+// default anyway, because the numbers are equal but the sound is not identical: with one member the
+// colour bands are a single pitch instead of three enharmonic ones beating against each other, and
+// substituting that for the take that was actually listened to would be a silent change of the verdict.
+// Switch to 1 if voice pressure ever bites. Note vel bottoms out one step earlier here (-3 goes silent,
+// since a lone member fires at VV(2) and the clamp is at 0).
+static int tr808_cym3_members = 3;
 
 // ── per-voice knob maths (arrays are the CART's; 0.5 = neutral) ───────────────
 static int tr808__midi(const float *ktune, int v, int base) {           // ±12 semitones
@@ -279,12 +291,14 @@ static void tr808_fire(int base, int v, int boost, int delay,
             // the SAME members into the upper two bands — the migration comes from one source decaying
             // at three rates, not from three different tones (which would just be three sounds)
             int cvq = tr808_cym3_vel;   // how far the colour bands sit UNDER the low band, in velocity steps
-            schedule_hit(delay, M(79), base + TRS_CYM, VV(CV(0, 6) + cvq), D(450));
             schedule_hit(delay, M(72), base + TRS_CYM, VV(2 + cvq), D(450));
-            schedule_hit(delay, M(66), base + TRS_CYM, VV(CV(5, 0) + cvq), D(450));
-            schedule_hit(delay, M(79), base + TRS_CYH, VV(CV(0, 6) + cvq), D(170));
             schedule_hit(delay, M(72), base + TRS_CYH, VV(2 + cvq), D(170));
-            schedule_hit(delay, M(66), base + TRS_CYH, VV(CV(5, 0) + cvq), D(170));
+            if (tr808_cym3_members == 3) {
+                schedule_hit(delay, M(79), base + TRS_CYM, VV(CV(0, 6) + cvq), D(450));
+                schedule_hit(delay, M(66), base + TRS_CYM, VV(CV(5, 0) + cvq), D(450));
+                schedule_hit(delay, M(79), base + TRS_CYH, VV(CV(0, 6) + cvq), D(170));
+                schedule_hit(delay, M(66), base + TRS_CYH, VV(CV(5, 0) + cvq), D(170));
+            }
         }
         break;
     case TR_OH:  // two bank members; RING fades warm↔bright

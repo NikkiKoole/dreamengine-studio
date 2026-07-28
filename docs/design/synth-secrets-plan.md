@@ -68,6 +68,30 @@ Check the A/B state is actually *visible* in the baked frame before handing it o
 readout makes the ear test unverifiable. `ui-audit.js` will not catch a low-contrast label, only an
 off-screen or overlapping one; read the baked PNG.
 
+**Then also hand over the WAV pair, because that is what actually gets listened to.** Both 1.1 and 1.2
+were decided from rendered files, not from the editor — a file pair can be replayed back to back at will,
+which is exactly what a subtle timbre judgement needs, whereas in the cart you have to re-trigger and
+re-toggle from memory. `--keep` the renders, copy them to `build/ab/` under names that say which is which,
+and give the `afplay` lines:
+
+```bash
+node tools/ab-render.js <cart> --set <flag>=<off>,<on> --frames <n> --keep
+cp <tmp>/…_0.wav build/ab/<cart>-<OFF-name>-stock.wav
+cp <tmp>/…_1.wav build/ab/<cart>-<ON-name>-new.wav
+afplay build/ab/<cart>-<ON-name>-new.wav
+```
+
+Say what to listen *for* and where in the file it happens, and flag anything that could bias the ear —
+above all a **level difference**, since a louder take wins on loudness alone. 1.2 shipped ~6.8 dB hot and
+the caveat had to be stated for the verdict to mean anything.
+
+**When the verdict lands: ship exactly the take that was approved.** Record the winning render's sha and
+verify the new default reproduces it byte-for-byte. This is not ceremony — while tuning 1.2 an experiment
+left `tr808_cym3_vel` at `0` instead of `-3`, which would have shipped a sound 4 dB hotter than the one
+that was judged. Also verify the OFF path still matches its own pre-change sha, so "the old sound is
+untouched" is a measurement rather than a hope. And do not later "improve" a property the ear signed off
+on: if a known caveat was accepted, note in the ledger that it was accepted *on purpose*.
+
 A LISTEN item is **done** when the cart has an audible toggle, the numbers are in the ledger row, and you
 have said which side wins. If neither side clearly wins, the honest outcome is **DROP** — recorded with
 its measurement, so nobody re-litigates it.
@@ -183,7 +207,7 @@ cheapest LISTEN items we have.
 | # | item | kind | rung | cart | note |
 |---|---|---|---|---|---|
 | 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | ✅ **DONE — BREATHING kept as the default** (owner's ear, 2026-07-28), CLASSIC retained on a toggle; middle rung DROPPED. See below |
-| 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **BUILT, baked, awaiting your ear** (2026-07-28). Key **C** = `CY 1BAND`/`CY 3BAND`. See below |
+| 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **DONE — 3BAND is the default** (owner's ear, 2026-07-28), 1BAND kept on key **C**. See below |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | Harder hits should read noisier |
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ⚠ release also governs the bore ring-down, so A/B rather than edit |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | Part 45's whole conclusion, and free |
@@ -228,11 +252,17 @@ description since it becomes a user-facing control. Two traps this one hit, both
 low-contrast readout that `ui-audit` passes clean (it catches off-screen and overlapping text, not
 contrast — read the baked PNG), and a help array grown past its draw-loop bound.
 
-### 1.2 tr808 cymbal — built, baked, awaiting your ear (2026-07-28)
+### 1.2 tr808 cymbal — ✅ THREE BANDS IS THE DEFAULT (owner's ear, 2026-07-28)
 
-Key **C** (or tap `CY 1BAND` on the panel) switches the crash between the stock single band and Reid's
-three-band schematic. Stop the sequencer with SPACE and hit **F**: no preset has a cymbal row, so F is the
-only way to strike it. All of this is `runtime/tr808.h` + a toggle in the cart; **no engine change**.
+**✅ VERDICT (owner, 2026-07-28): the three-band cymbal wins and is now the default**, with the stock
+single-band voice kept on key **C** / tapping `CY 3BAND` — a toggle, not a one-way migration, the same
+shape as 1.1. Judged by ear from rendered WAV pairs (`build/ab/tr808-cymbal-{1BAND-stock,3BAND-new}.wav`).
+The shipped default renders **byte-identically to the take that was actually approved** (sha
+`ff2477695836`) and the OFF path renders byte-identically to the pre-change cart (sha `90dc75069555`), so
+both ends of the switch are provably the exact sounds that were compared.
+
+Stop the sequencer with SPACE and hit **F**: no preset has a cymbal row, so F is the only way to strike it.
+All of this is `runtime/tr808.h` + a toggle in the cart; **no engine change**.
 
 **It works, and the measurement is unambiguous.** On an isolated crash
 (`tools/clips/tr808/01-cymbal-solo.script`, committed) the spectral centroid per 100ms window:
@@ -261,9 +291,24 @@ are gone and what remains *is* the stock low band, converging on it to the sampl
    slot), which would silently overwrite any balance a band set for itself. Velocity is a **cliff**, not a
    fader: `tr808__vv` clamps 0..7 and the cymbal already fires at ~2, so offset −4 goes silent and −3 is
    the last audible step. So 3BAND lands **~6.8 dB hotter at the strike** (−7.2 vs −14.0 dBFS), with no
-   clipping. **Judge the timbre, not the loudness** — and if you like it, the proper fix is to make those
-   two carts' mixer loops scale relative to a per-slot base, then trim these slots normally. Deliberately
-   not done yet: that touches three carts' mixers for something still defaulting to OFF.
+   clipping. **This was flagged for the ear call and the ear approved it anyway**, so the loudness is part
+   of the accepted sound and the mixer refactor is *not* needed. Left undone on purpose: it would touch
+   three carts' mixers to "fix" a level nobody objected to.
+
+**A voice-economy option, measured and deliberately not taken.** Firing only ONE bank member into each
+colour band instead of three (`tr808_cym3_members = 1`, with `vel` at −1) matches the shipped level and
+the shipped centroid walk to within **0.4 dB and ~30 Hz**, for **5 voices per crash instead of 9**:
+
+| members / vel | strike | centroid walk | voices |
+|---|---|---|---|
+| **3 / −3** | −7.2 dBFS | 14895 → 12929 → 11844 Hz | 9 ← shipped (the approved take) |
+| 1 / −1 | −6.8 | 14843 → 12906 → 11825 | 5 |
+| 1 / 0 | −4.6 | 15619 → 13248 → 11811 | 5 (widest walk) |
+
+Not adopted, because equal numbers are not an equal sound: with one member the colour bands are a single
+pitch instead of three enharmonic ones beating together, and quietly swapping that in for the take that
+was actually listened to would be substituting a different sound for an approved verdict. It is a one-line
+switch documented in `tr808.h` for if voice pressure ever bites.
 
 **Also fixed on the way** (the slot count went 14 → 16): `acidcandy.c` hard-coded `#define D909_BASE 23`,
 which the two new slots would have silently overlapped. It is now derived —

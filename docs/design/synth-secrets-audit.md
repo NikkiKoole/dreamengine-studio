@@ -1835,8 +1835,9 @@ This is §J's headline, and it is a specific, sourced, cheap fix.
 
 ### J5. The 808 cymbal's three unequal decays are missing, so our cymbal's spectrum never moves
 
-> **✅ BUILT 2026-07-28** (plan item 1.2, awaiting the owner's ear). `runtime/tr808.h`, runtime-toggled by
-> `tr808_cym3`; key **C** in the `tr808` cart. Measured: the centroid now walks **14895 → 11844 Hz** over
+> **✅ FIXED 2026-07-28 — three bands is now the DEFAULT** (plan item 1.2; the owner's ear picked it over
+> the stock voice, which stays reachable on key **C**). `runtime/tr808.h`, runtime-toggled by
+> `tr808_cym3`. Measured: the centroid now walks **14895 → 11844 Hz** over
 > the first 200ms and then converges bit-exactly onto the stock tail, where the one-band version was flat
 > to within 1.5% for the whole ring. Two corrections to what this section assumed, both from measurement:
 > the upper bands must be **band-pass** (a highpass at 7800 on `INSTR_SQUARE` amplifies *aliasing* — it
@@ -1932,7 +1933,7 @@ from a static table with no velocity term at all. Worth treating as one cross-en
 
 | # | Step | Kind | Where |
 |---|---|---|---|
-| 1 | J5 three-band unequal-decay 808 cymbal | `tr808.h` only, no engine change | `tr808` |
+| 1 | ✅ J5 three-band unequal-decay 808 cymbal — **SHIPPED as the default 2026-07-28** | `tr808.h` only, no engine change | `tr808` |
 | 2 | J9 velocity → snare tone/noise balance | `tr808.h`/`tr909.h` only | `tr808` |
 | 3 | J2 + J3 retarget the "tuned" ratios and mode weights together | engine, two arrays | `tabla` |
 | 4 | J4 strike position by mode *family* | engine, small | `tabla` |

@@ -73,9 +73,10 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > two items merged. `sound.h` now carries a **"the `+` is load-bearing"** warning on the piano comb and
 > **four "✅ VERIFIED against Part N"** notes on tables that matched the book exactly.
 >
-> **Phase 1 (seven cart-only A/Bs) — 1 of 7 done.** `solina` (1.1) has a **WOW switch**: BREATHING (unison
-> spread modulated by a random-shape LFO, staggered per tab — Reid's Part 46 ladder) is now the **default
-> by the owner's ear call**, with CLASSIC kept reachable by key **W** or tapping the label. A third state
+> **Phase 1 (seven cart-only A/Bs) — 2 of 7 done, BOTH confirmed by the owner's ear on 2026-07-28.**
+> `solina` (1.1) has a **WOW switch**: BREATHING (unison spread modulated by a random-shape LFO, staggered
+> per tab — Reid's Part 46 ladder) is the **default by the owner's ear call**, with CLASSIC kept reachable
+> by key **W** or tapping the label. A third state
 > was built and **cut**: it measured indistinguishable from CLASSIC and no oracle we have can see a 0.16 Hz
 > character change under a chord progression — the cut is documented in the cart with the code to restore it.
 >
@@ -85,14 +86,15 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > state 0 and three byte-identical WAVs were nearly written up as "no audible effect". It **exits 2 and
 > shouts on byte-identical variants**. Use it for every LISTEN item; do not hand-roll.
 >
-> **1.2 (`tr808`) is also built and baked, awaiting the same ear call.** Key **C** / tap `CY 1BAND` swaps
-> the crash between the stock single band and Reid's three-band schematic. Stop the sequencer (SPACE) and
-> hit **F** — no preset has a cymbal row, so F is the only way to strike it. The centroid now walks
-> **14895 → 11844 Hz** over 200ms and then converges *bit-exactly* onto the stock tail, where the stock
-> voice was flat for the whole ring; `cym3=0` renders a byte-identical WAV, so the old sound is provably
-> untouched. **One honest caveat to judge around: it is ~6.8 dB hotter at the strike and cannot be
-> level-matched** — `instrument_level` collides with acidcandy/dubjam's per-slot mixers and velocity
-> clamps to silence after 4 steps. Judge the timbre, not the loudness. Two findings worth reusing: a
+> **1.2 (`tr808`) is DONE and the three-band cymbal is the DEFAULT** — same ear call, same day, same shape:
+> the stock single-band voice stays reachable on key **C** / tapping `CY 3BAND`, not removed. Stop the
+> sequencer (SPACE) and hit **F** — no preset has a cymbal row, so F is the only way to strike it. The
+> centroid now walks **14895 → 11844 Hz** over 200ms and then converges *bit-exactly* onto the stock tail,
+> where the stock voice was flat for the whole ring. Both ends are provable: the shipped default renders
+> byte-identically to the take that was approved (`ff2477695836`) and OFF renders byte-identically to the
+> pre-change cart (`90dc75069555`). It IS ~6.8 dB hotter at the strike and can't be level-matched
+> (`instrument_level` collides with acidcandy/dubjam's per-slot mixers, velocity clamps to silence after
+> 4 steps) — that was flagged for the ear call and accepted, so **don't "fix" it later**. Two findings worth reusing: a
 > `FILTER_HIGH` above ~7 kHz on `INSTR_SQUARE` amplifies **aliasing** (that band stem-measured −0.0 dBFS,
 > centroid 21942 Hz vs Nyquist 22050 — always stem-check a high band with `--solo-slot`), and the real
 > 808's 7100 Hz upper bandpass had been sitting in `tr808.c`'s own docblock, unimplemented, since day one.

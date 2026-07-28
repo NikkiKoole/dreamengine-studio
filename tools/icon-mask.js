@@ -282,8 +282,8 @@ async function cmdCheck (file, opts) {
     let nonOpaque = 0
     for (let i = 3; i < data.length; i += C) if (data[i] < 255) nonOpaque++
     console.log(nonOpaque
-      ? `⚠ ${nonOpaque} TRANSPARENT pixels — App Store validation rejects an icon with alpha; flatten onto a background`
-      : `· carries an alpha channel but is fully opaque — fine in the asset catalog, flatten it for a store upload`)
+      ? `⚠ ${nonOpaque} TRANSPARENT pixels — an iOS icon must be OPAQUE or the build fails validation; flatten it onto a background`
+      : `· carries an (unused) alpha channel, every pixel opaque — harmless, actool flattens it`)
   }
   const m = await loadMask(n)
   const g = geometry(m, n)

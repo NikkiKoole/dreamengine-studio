@@ -100,6 +100,41 @@ Results on iOS 26.5 / iPhone 17:
   residual is filter-level difference on high-contrast pixel art, not a treatment iOS is applying,
   and no shift was needed, which confirms the crop and the mask are aligned.
 
+## Drawing a NEW icon — the actual steps
+
+```
+node tools/icon-mask.js template --overlay          # tools/icon-masks/template-1024-overlay.png
+node tools/icon-mask.js template --overlay --inset 28 --out /tmp/guide.png   # + the border curve
+```
+
+1. **Get the overlay layer.** `template --overlay` is transparent inside and red outside, so it
+   floats on top of your artwork in Procreate/Photoshop as a locked top layer: red = gone. The plain
+   `template` (white inside, opaque red outside) is the version to draw *under* if you'd rather.
+   Both are committed at `tools/icon-masks/template-1024*.png`, so you can just open them.
+2. **Draw the background full-bleed to the square edge.** All 1024×1024 of it, right into the
+   corners, even though the corners get thrown away. Anything you leave blank there (white,
+   transparent, a different colour) becomes a hard edge or a halo once the mask cuts.
+3. **Keep everything that matters inside the big circle.** That's the heavy blue guide, and the rule
+   is exact: the inscribed circle is entirely inside the mask, so content inside it cannot be cut.
+4. **If you're drawing your own border or chassis, draw it on the `--inset` curve** (green), not as a
+   rounded rect. A rounded rect's circular corners poke through the mask near the diagonals and the
+   border reads as broken at four points. This is the mistake to know about, and it is invisible
+   until you see the icon on a phone.
+5. **Export 1024×1024 PNG, opaque.** No transparency anywhere, or the build fails validation. An
+   unused alpha channel is harmless (actool flattens it).
+6. **Check it, then look at it small:**
+   ```
+   node tools/icon-mask.js check   my-icon.png    # per corner: flat background (safe) or lost detail
+   node tools/icon-mask.js preview my-icon.png    # all six real sizes, light + dark
+   ```
+   `check` wants all four corners reading ✓ or `·`. `preview` is where you find out the wordmark
+   dies at 87 px — a lo-fi icon usually needs *fewer, bigger* shapes than feels right at 1024.
+7. **Install it:** drop it at `apps/<app>/icon.png` and point the manifest at it
+   (`"icon": "apps/<app>/icon.png"`). `build-app.js` re-prints the verdict when it stages it, and the
+   editor's Apps tab has a 🎨 icon button that runs check + preview for you.
+8. **Optional, when it matters:** `node tools/icon-mask.js device my-icon.png` for the real thing off
+   a booted iOS 26 simulator instead of a prediction.
+
 ## The workflow
 
 ```

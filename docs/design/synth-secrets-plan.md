@@ -1,8 +1,10 @@
 # Synth Secrets — the build plan
 
-STATUS: BUILDING — **Phase 0 is DONE (2026-07-28)**; Phase 1 is next. The ordered work ledger derived from
-[`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is the *findings*; this is the *doing*.
-Phase 0 (free/factual, no ear needed) is complete — its results are in §3. Nothing beyond it is approved.
+STATUS: BUILDING — **Phase 0 DONE; Phase 1 is 4 of 7 (2026-07-28)**: 1.1 solina, 1.2 tr808 cymbal and
+1.3 the 808/909 snare all **shipped by the owner's ear** (each keeping its old sound on a toggle), and
+**1.4 brass is a recorded DROP** — Reid loses all three of his envelope numbers. The ordered work ledger
+derived from [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is the *findings*; this is the
+*doing*. Next: **1.5** (a two-slot layered piano). Nothing past Phase 1 is approved.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -249,7 +251,7 @@ cheapest LISTEN items we have.
 | 1.1 | `solina`: use `LFO_DETUNE` + a Random-shape LFO on it (§F2) | LISTEN | 1 | `solina` | ✅ **DONE — BREATHING kept as the default** (owner's ear, 2026-07-28), CLASSIC retained on a toggle; middle rung DROPPED. See below |
 | 1.2 | 808 cymbal: three bands, three unequal decays (§J5) | LISTEN | 1 | `tr808` | ✅ **DONE — 3BAND is the default** (owner's ear, 2026-07-28), 1BAND kept on key **C**. See below |
 | 1.3 | Velocity → snare tone/noise balance (§J9) | LISTEN | 1 | `tr808`, `tr909` | ✅ **DONE — `dyn=1` is the default** (owner's ear, 2026-07-28) on both machines, 0 kept on key **N**. See below |
-| 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ✅ **BUILT, awaiting your ear.** Key **E** cycles SHIPPED/HORN/REID. **Only 1 of Reid's 3 numbers transfers** — see below |
+| 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ❌ **DROPPED — Reid loses all three** (owner's ear, 2026-07-28). Envelope unchanged, byte-identical. The most instructive item so far; see below |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | Part 45's whole conclusion, and free |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | Two rows in `REG[8][9]` |
 | 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot`, `brass` | Part 51's two liftable tricks, no filter needed for the first |
@@ -413,36 +415,52 @@ endpoints.** A parameter can be audibly doing something and still not be doing t
    `POLY:tap=length` had never been visible to anyone. `ui-audit.js` flags it (it *does* catch off-screen
    text — it's low *contrast* it can't see). Shortened to name the two on-panel buttons instead.
 
-### 1.4 brass amp envelope — built, awaiting your ear (2026-07-28)
+### 1.4 brass amp envelope — ❌ DROPPED: Reid loses all three numbers (owner's ear, 2026-07-28)
 
-Key **E** cycles three envelopes; the live values are shown on the cart's own `instrument(...)` readout,
-which used to hard-code `1,0,4,1200` and would have lied the moment the toggle moved.
+**The most instructive item in Phase 1, precisely because it failed.** Part 26 contradicts all three of our
+brass envelope numbers. Each was built as a live toggle, level-matched, and A/B'd as rendered WAVs. **All
+three lose**, each for a different reason, and the envelope now stands exactly as it shipped — verified
+byte-identical (`af3631b9329e`).
 
-**The headline is that only ONE of Reid's three numbers survives contact with our engine**, and the two
-that don't are the most useful thing this item produced — this is §G ("his patches are subtractive, ours is
-a waveguide") stated in numbers instead of prose:
-
-| | Reid (Part 26) | ours | verdict |
+| | Reid (Part 26) | ours | why his doesn't transfer |
 |---|---|---|---|
-| **attack** | 100 ms | 1 ms | ❌ **doesn't transfer.** Measured, a note already reaches full level in **~40 ms** with the amp attack at 1 ms — that onset is the *bore establishing oscillation*, a thing a Minimoog has no way to do, which is exactly why he needed an envelope to fake it. Applied literally it lands at ~80 ms (envelope and bore overlap rather than add) and starts far softer: a swell, not an articulation. |
-| **sustain** | maximum | 4 of 7 | ❌ **isn't a tone instruction at all.** Our `decay_ms` is 0, so there is no decay stage and sustain is a pure level trim. 4 → 7 measured as **+4.86 dB**, and 20·log₁₀(7/4) = 4.86 dB to the decimal. "Sustain maximum" is arithmetically "turn it up". |
-| **release** | ~instant | 1200 ms | ✅ **he's right, and it's measurable.** Ours keeps sounding for a **full 1.2 s** after key-up. That is a pad, not a horn. |
+| **attack** | 100 ms | 1 ms | A note already reaches full level in **~40 ms** with the amp attack at 1 ms — that onset is the **bore** establishing oscillation. A Minimoog has no bore, which is exactly *why* he needed an envelope to fake one. Applied literally: ~80 ms (envelope and bore overlap rather than add) and a far softer start. A swell, not a note. |
+| **sustain** | maximum | 4 of 7 | `decay_ms` is 0, so there is no decay stage and sustain is a pure **level trim**. 4 → 7 measured **+4.86 dB**; 20·log₁₀(7/4) = 4.86 dB to the decimal. "Sustain maximum" is arithmetically "turn it up". |
+| **release** | ~instant | 1200 ms | **The one I expected to win.** Swept level-matched (119 / 247 / 397 / 596 / 1192 ms tails) the owner picked the **shipped 1192 ms** — the shorter ones read as *cut off*. Same cause as the attack, mirrored: the release doesn't merely close a VCA, it **truncates the bore's ring-down**. Our 1200 ms is not a pad envelope by mistake; it is roughly how long this bore takes to stop ringing. |
 
-So `HORN` changes **only the release** (1 → 120 ms), which keeps it **exactly level-matched** to SHIPPED
-(−20.66 dBFS both) so the A/B is about the tail and nothing else. Folding in his sustain would have made
-the "better" version 4.9 dB louder, and a louder take wins an ear test on loudness alone. `REID` is kept as
-the literal reading for reference, slower attack and +4.9 dB included.
+**Why this is worth more than a win: the short releases were provably CLEAN and still wrong.** The largest
+sample-to-sample step in the release is 61% of peak — *identical in every variant including the shipped
+one*, i.e. just this waveform's own slew. No click, no discontinuity; the 5 ms version falls
+1.00 → 0.50 → 0.16 → 0 over ~6 ms, a smooth ramp. Nothing was broken. It simply amputated a tail the
+physical model was generating, and **no oracle we have can distinguish "a clean short decay" from "the
+resonator was cut off" — only an ear comparing the two.** That is the strongest argument in this whole
+plan for why LISTEN is a category and not a formality.
 
-On the audit's caveat that the release also governs the **bore ring-down**: confirmed, and it matters for
-the literal version. At 5 ms the tail falls 1.00 → 0.50 → 0.16 → 0 in about 6 ms. That is a smooth ramp, so
-it does **not** click — but it plainly cuts the bore off mid-ring rather than letting it decay. `HORN`'s
-120 ms lets it ring down in ~110 ms and stop like a horn.
+**Two calls I got wrong, in order, both caught by the owner:**
 
-Fixed two pre-existing UI faults in the cart while there, both flagged by `ui-audit`: its footer ran to
-x=394 on a 320px screen (so `(mute = wah)` had never been visible to anyone), and the patch readout sat on
-top of the slide's own hint, making the whole left half of that line unreadable — which matters now that
-the line is what shows the A/B state. Three overlaps remain, all pre-existing and untouched (the preset-row
-labels collide with each other, and the title with the mode label).
+1. I shipped 120 ms as the recommendation on the strength of a smooth measured envelope. Wrong: it reads
+   as cut off.
+2. When first told "both newer ones get cut off", I inferred 120 ms needed *lengthening* and swept upward.
+   Also wrong — on a direct A/B against SHIPPED the answer was that **no** shortening works. And a sha
+   check showed the file the owner then called "fine" was byte-identical to the one they had just called
+   cut off, i.e. **an absolute judgement flipped when the comparison was put back.** Always hand over the
+   pair, never a single file, and re-confirm against the incumbent before concluding anything.
+
+**Recorded as a DROP, not silence** (§1's rule): the toggle was removed rather than left as clutter — a
+control whose alternatives both lose is not a feature — and `brass.c` carries the measurements plus the
+four lines needed to rebuild all three states. The driving clip is committed at
+`tools/clips/brass/01-one-note-hold-release.script`.
+
+**This sharpens §G.** Three independent numbers from one worked Reid patch, every one non-transferable to a
+waveguide, each for a *structurally different* reason (the model already does it / the parameter isn't what
+it is on his hardware / it destroys the model's own behaviour). Any future item that lifts numbers from a
+subtractive patch should expect this and A/B rather than edit.
+
+Fixed two pre-existing UI faults while in the cart, both flagged by `ui-audit`: the footer ran to x=394 on
+a 320px screen (so `(mute = wah)` had never been visible to anyone — this also clears the cart's own
+long-standing `de:meta.todo` about it), and the patch readout was printed on top of the slide's hint,
+making half that line unreadable. The readout also stops hard-coding `1,0,4,1200` and now derives from the
+`BRASS_*` constants, so it cannot drift from the patch. Three overlaps remain, all pre-existing.
 
 ---
 
@@ -532,6 +550,15 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 ## 8. Drop candidates
 
 Recording these so they stop costing attention. Each needs one line of agreement to close.
+
+**Closed by measurement + ear, not by agreement — these are settled:**
+
+| item | § | verdict |
+|---|---|---|
+| **Brass envelope (1.4)** | E10 | ❌ **DROPPED 2026-07-28.** All three of Reid's numbers lose on a waveguide; the shipped 1200 ms release *is* the bore's ring-down. Toggle removed, measurements + restore recipe kept in `brass.c`. [Write-up](#14-brass-amp-envelope--dropped-reid-loses-all-three-numbers-owners-ear-2026-07-28) |
+| solina's middle wow rung (1.1) | F2 | ❌ **DROPPED 2026-07-28.** Measured indistinguishable from CLASSIC (centroid 2260 vs 2267 Hz) and no oracle can see a 0.16 Hz character change under a chord progression. Restore code kept in the cart |
+
+**Still candidates, awaiting one line of agreement:**
 
 | item | § | why drop |
 |---|---|---|

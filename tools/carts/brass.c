@@ -13,10 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "Port of the STK BrassInstrument physical model (bore delay line + lip-valve biquad resonator); novel additions are the live-draggable trombone slide (continuous glissando via note_pitch) and the per-voice output-lane mute/wah (note_cutoff + note_res, per decision 0017).",
-  "description": "INSTR_BRASS showcase - the lip-reed family (the tenth modeled ENGINE), and the LAST instrument the wavetables couldn't reach. An STK BrassInstrument waveguide: a bore delay line closed by a flaring bell, driven by a LIP VALVE modeled as a resonant biquad - the buzzing lips, whose resonance sits just above the played pitch (the mechanism behind lip-slurs and harmonic lock). It self-oscillates, so like REED and PIPE it HOLDS for as long as you blow. One id covers trumpet / cornet / flugelhorn / trombone / french horn / tuba. The three engine macros: instrument_harmonics = instrument/bore (0 = tight bright trumpet, walking up through cornet/flugel/trombone/horn to 1 = dark wide tuba - it drives the lip-resonance ratio, the lip Q, and the bell lowpass, never the pitch), instrument_timbre = BRASSINESS (0 = round and mellow; 1 = loud and blatty - the pressure-driven wave-steepening shockwave that makes a real horn open up at fortissimo, so the drive scales with blow pressure AND the macro: blow harder, get blattier), instrument_morph = breath/lip lean-in (0 = soft steady; 1 = a growling breath with deeper vibrato). THE SLIDE (the marquee): brass tracks pitch LIVE, so it slurs and glisses - grab the trombone SLIDE at the top and DRAG it for a continuous glissando (note_pitch + a tight note_glide, the finger IS the slide). Because it HOLDS, all three macros move live on a sounding note - sweep brassiness (SPACE auto-swell) and hear the tone bloom blatty. THE MUTE: closing the bell with a hand/plunger - a swept resonant lowpass on the voice (note_cutoff + note_res, the OUTPUT lane per decision 0017, not an engine macro); drag the MUTE slider open->closed for the pinched/nasal 'tight' sound, and sweep it live for the wah-wah (a plunger plate creeps over the bell in the viz). Plus a VIBRATO slider (note_lfo pitch wobble). Six HARDWARE PRESETS on the number row are the acceptance tests - if 1 trumpet / 2 cornet / 3 flugelhorn / 4 trombone / 5 french horn / 6 tuba don't each sound like themselves, the macro mapping is wrong. MONO + slide (key V, default - a horn is one voice): a new key legato-slides the voice, last-note priority; poly mode blows an independent voice per key. A S D F G H J K blow and hold, Z/X octave, 1..6 voices, drag the SLIDE for a glissando, V mono/poly, drag a slider (live, or LEFT/RIGHT + UP/DOWN), SPACE brassiness swell, M autoplay fanfare on/off. Multitouch: blow a pad per finger, drag the slide while a note drones. Design + STEP-0: instrument-engines.md §8.8.10.",
-  "todo": [
-    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
-  ]
+  "description": "INSTR_BRASS showcase - the lip-reed family (the tenth modeled ENGINE), and the LAST instrument the wavetables couldn't reach. An STK BrassInstrument waveguide: a bore delay line closed by a flaring bell, driven by a LIP VALVE modeled as a resonant biquad - the buzzing lips, whose resonance sits just above the played pitch (the mechanism behind lip-slurs and harmonic lock). It self-oscillates, so like REED and PIPE it HOLDS for as long as you blow. One id covers trumpet / cornet / flugelhorn / trombone / french horn / tuba. The three engine macros: instrument_harmonics = instrument/bore (0 = tight bright trumpet, walking up through cornet/flugel/trombone/horn to 1 = dark wide tuba - it drives the lip-resonance ratio, the lip Q, and the bell lowpass, never the pitch), instrument_timbre = BRASSINESS (0 = round and mellow; 1 = loud and blatty - the pressure-driven wave-steepening shockwave that makes a real horn open up at fortissimo, so the drive scales with blow pressure AND the macro: blow harder, get blattier), instrument_morph = breath/lip lean-in (0 = soft steady; 1 = a growling breath with deeper vibrato). THE SLIDE (the marquee): brass tracks pitch LIVE, so it slurs and glisses - grab the trombone SLIDE at the top and DRAG it for a continuous glissando (note_pitch + a tight note_glide, the finger IS the slide). Because it HOLDS, all three macros move live on a sounding note - sweep brassiness (SPACE auto-swell) and hear the tone bloom blatty. THE MUTE: closing the bell with a hand/plunger - a swept resonant lowpass on the voice (note_cutoff + note_res, the OUTPUT lane per decision 0017, not an engine macro); drag the MUTE slider open->closed for the pinched/nasal 'tight' sound, and sweep it live for the wah-wah (a plunger plate creeps over the bell in the viz). Plus a VIBRATO slider (note_lfo pitch wobble). Six HARDWARE PRESETS on the number row are the acceptance tests - if 1 trumpet / 2 cornet / 3 flugelhorn / 4 trombone / 5 french horn / 6 tuba don't each sound like themselves, the macro mapping is wrong. MONO + slide (key V, default - a horn is one voice): a new key legato-slides the voice, last-note priority; poly mode blows an independent voice per key. A S D F G H J K blow and hold, Z/X octave, 1..6 voices, drag the SLIDE for a glissando, V mono/poly, drag a slider (live, or LEFT/RIGHT + UP/DOWN), SPACE brassiness swell, M autoplay fanfare on/off. Multitouch: blow a pad per finger, drag the slide while a note drones. Design + STEP-0: instrument-engines.md §8.8.10."
 }
 de:meta */
 // brass — INSTR_BRASS showcase: the lip-reed family (the tenth modeled ENGINE). An STK
@@ -139,48 +136,48 @@ static int slide_pitch_to_x(float p) {
     return SLIDE_X + (int)(u * SLIDE_W);
 }
 
-// ── the AMP ENVELOPE: an A/B, not a settled number (audit §E10 / Synth Secrets plan 1.4) ──────
-// Reid tears into brass presets in Part 26 and our shipped numbers contradict him on two of three:
-//     ours: attack 1ms · sustain 4 of 7 · release 1200ms
-//     his:  attack 100ms · sustain MAXIMUM · release effectively instantaneous
-// On the release he is explicit and, measured, plainly right: "because I know that a real brass sound
-// ends very rapidly once you stop blowing the instrument, I want the synthesized sound to do likewise,
-// so I set the Decay switch to Off." Ours fades for a full 1.2s after key-up. That is a pad, not a horn.
+// ── the AMP ENVELOPE: settled by ear, and Reid does NOT win this one (audit §E10 / plan 1.4) ─────
+// Part 26 tears into brass presets and contradicts all three of our numbers. Every one was built as a
+// live toggle, level-matched, and A/B'd against the shipped voice as rendered WAVs. **All three fail here**,
+// each for a different and instructive reason — this is the clearest specimen of §G in the audit: his
+// patches are recipes for a filter-and-VCA machine, ours is a physical model, and the numbers do not
+// transfer even when the musical goal does.
 //
-// His ATTACK is the interesting disagreement, and the reason this is a toggle rather than an edit.
-// Measured on the shipped patch, a note reaches full level in about 40ms WITH the amp attack set to 1ms —
-// that onset is the WAVEGUIDE's own bore establishing oscillation, not an envelope. Reid's 100ms is a
-// subtractive-synth workaround for not having a bore to do it for him, so applying it literally
-// double-counts and lands at ~140ms, which is a swell, not an articulation. This is the §G theme in
-// miniature: his patches are recipes for a filter-and-VCA machine, ours is a physical model, and the
-// numbers do not always transfer even when the goal does.
+//   ATTACK   his 100ms vs our 1ms. Measured, a note already reaches full level in ~40ms WITH the amp
+//            attack at 1ms: that onset is the BORE establishing oscillation. A Minimoog has no bore, which
+//            is exactly why he needed an envelope to fake one. Applied literally it lands at ~80ms
+//            (envelope and bore overlap rather than add) and starts far softer — a swell, not a note.
+//   SUSTAIN  his "maximum" vs our 4 of 7. But decay_ms is 0, so there is no decay stage and sustain is a
+//            pure LEVEL TRIM: 4→7 measured +4.86dB, and 20*log10(7/4) = 4.86dB to the decimal. "Sustain
+//            maximum" is arithmetically "turn it up" — a mix decision, not a finding.
+//   RELEASE  his ~instant vs our 1200ms. This is the one I expected to win, and the ear said no. Sweeping
+//            it (119 / 247 / 397 / 596 / 1192ms tails, all level-matched) the owner picked the SHIPPED
+//            1192ms: the shorter ones read as "cut off". The reason is the same as the attack, mirrored —
+//            in this engine the release does not merely close a VCA, it truncates the BORE's ring-down.
+//            **Our 1200ms is not a pad envelope by mistake; it is roughly how long this bore takes to
+//            stop ringing.** Reid's "the sound ends very rapidly once you stop blowing" is true of the
+//            instrument and false of the model's tail, because a real bell also radiates into a room.
 //
-// And his SUSTAIN turns out not to be a tone instruction either. Our decay_ms is 0, so there is no decay
-// stage: the envelope goes attack straight to the sustain level and holds. Sustain is therefore a pure
-// LEVEL TRIM here, and 4→7 measured as exactly +4.86 dB, which is 20*log10(7/4) to the decimal. "Sustain
-// maximum" is arithmetically "turn it up" — a mix decision, not a finding, and folding it into the A/B
-// would have confounded the release test with a loudness change that always wins an ear test.
+// Measured evidence that the short releases were CLEAN and still wrong, which is the point: the largest
+// sample-to-sample step in the release is 61% of peak, IDENTICAL in every variant including the shipped
+// one — i.e. just this waveform's own slew, no click, no discontinuity. The 5ms version falls
+// 1.00 → 0.50 → 0.16 → 0 over ~6ms: a smooth ramp. Nothing was broken. It simply amputated the tail the
+// physical model was generating, and only an ear comparing the two could tell.
 //
-// So of Reid's three numbers, ONE transfers: the release. HORN therefore changes ONLY that, which keeps it
-// level-matched against SHIPPED so the comparison is about the tail and nothing else. REID stays available
-// as the literal reading, for reference.
-//
-// One caveat that makes even the release a real judgement and not a typo fix: in this engine the release
-// also governs how the BORE rings down, so shortening it truncates the model's own tail, not just the
-// envelope. Measured, the 5ms version falls 1.00 → 0.50 → 0.16 → 0 over ~6ms — a smooth ramp, not a step,
-// so it does not click; it simply cuts the bore off mid-ring.
-enum { BENV_SHIPPED = 0, BENV_HORN, BENV_REID, BENV_N };
-static int benv = BENV_SHIPPED;
-static const short BENV[BENV_N][4] = {     // attack_ms, decay_ms, sustain 0-7, release_ms
-    {   1, 0, 4, 1200 },   // SHIPPED — as the cart has always sounded
-    {   1, 0, 4,  120 },   // HORN    — ONLY the release: Reid's fast stop, level-matched, bore owns attack
-    { 100, 0, 7,    5 },   // REID    — his Part 26 Minimoog numbers taken literally (slower AND +4.9dB)
-};
-static const char *BENV_NAME[BENV_N] = { "SHIPPED", "HORN", "REID" };
+// So the envelope stays EXACTLY as it shipped, and the toggle was removed rather than left as clutter
+// (the §1 DROP rule — a control whose alternatives both lose is not a feature). To hear it again:
+//     static int benv = 0;  // 0 = shipped, 1 = horn, 2 = reid
+//     static const short BENV[3][4] = { {1,0,4,1200}, {1,0,4,120}, {100,0,7,5} };
+//   ...then feed BENV[benv][0..3] to instrument() below and cycle benv on a key.
+// The clip that drove it is committed: tools/clips/brass/01-one-note-hold-release.script.
+#define BRASS_ATTACK_MS    1
+#define BRASS_DECAY_MS     0
+#define BRASS_SUSTAIN      4
+#define BRASS_RELEASE_MS 1200   // ≈ this bore's ring-down; shortening it truncates the model (see above)
 
 static void apply_patch(void) {
-    const short *e = BENV[benv];
-    instrument(I_BRASS, INSTR_BRASS, e[0], e[1], e[2], e[3]);   // held wind voice; E cycles the envelope
+    instrument(I_BRASS, INSTR_BRASS, BRASS_ATTACK_MS, BRASS_DECAY_MS,
+               BRASS_SUSTAIN, BRASS_RELEASE_MS);                // held wind voice — see the note above
     instrument_harmonics(I_BRASS, knob[0]);
     instrument_timbre(I_BRASS, knob[1]);
     instrument_morph(I_BRASS, knob[2]);
@@ -306,10 +303,6 @@ void update(void) {
         apply_patch();
     }
     if (keyp('V'))       { mono = !mono; all_notes_off(); }   // swap mode — clear any stuck voices
-    // E = cycle the amp envelope (§E10). all_notes_off() first because instrument() is set-and-hold: a
-    // sounding note keeps the envelope it was started with, so without this the change appears to do
-    // nothing until the next blow — which reads as a broken key.
-    if (keyp('E'))       { benv = (benv + 1) % BENV_N; all_notes_off(); apply_patch(); }
     if (keyp(KEY_SPACE)) blat = !blat;
     if (keyp('M'))       { autoplay = !autoplay; if (!autoplay && mono && held_n == 0 && !sliding) all_notes_off(); }
     if (keyp('Z') && oct > -2) oct--;
@@ -411,9 +404,9 @@ void draw(void) {
     // the envelope numbers are READ from the live patch, not typed in: this line used to hard-code
     // "1,0,4,1200", which would have quietly lied the moment E cycled the envelope (§E10 / plan 1.4)
     print(str("instrument(I, INSTR_BRASS, %d,%d,%d,%d)  h %.2f t %.2f m %.2f  [E:%s]",
-              BENV[benv][0], BENV[benv][1], BENV[benv][2], BENV[benv][3],
-              knob[0], knob[1], knob[2], BENV_NAME[benv]),
-          8, 31, benv ? CLR_LIME_GREEN : CLR_BLUE_GREEN);   // y=31 not 34: at 34 this collided with the
+              BRASS_ATTACK_MS, BRASS_DECAY_MS, BRASS_SUSTAIN, BRASS_RELEASE_MS,
+              knob[0], knob[1], knob[2]),
+          8, 31, CLR_BLUE_GREEN);   // y=31 not 34: at 34 this collided with the
           // slide's "drag the SLIDE" hint (both FONT_TINY, both starting at x≈8), which had made the whole
           // left half of this diagnostic line unreadable. 31..36 fits between the macro text above (ends
           // y=30) and that hint below (starts y=37).
@@ -508,6 +501,6 @@ void draw(void) {
     // tr909's footer. Shortened rather than extended, which also buys room for the new E key.
     int rx = print("A..K blow  Z/X oct  1..6 voice  V mono ", 10, SCREEN_H - 8, CLR_DARK_GREY);
     int sx = print("SPACE brass", rx, SCREEN_H - 8, CLR_MEDIUM_GREY);
-    print("  E env  drag sliders", sx, SCREEN_H - 8, CLR_DARK_GREY);
+    print("  drag sliders (mute = wah)", sx, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

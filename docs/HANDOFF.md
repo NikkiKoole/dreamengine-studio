@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 3/7).**
+> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, Phase 1 4/7 — three shipped, one DROPPED).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -174,11 +174,36 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > `make-cart --run` now fire `caffeinate -u -t 1` first. See
 > [`guides/debug-harness.md`](guides/debug-harness.md) → "a sleeping display segfaults every harness run".
 >
-> **Resume-at:** pick up Phase 1 at **1.4** (brass preset attack/release A/B) →
+> **1.4 (`brass`) is a recorded DROP, and it is the most instructive item so far.** §E10 lifted three
+> envelope numbers from one worked Reid patch; built as toggles, level-matched, A/B'd — **all three lose on
+> a waveguide**, for structurally different reasons: the model already does it (the bore supplies a ~40 ms
+> onset, so his 100 ms attack double-counts), the parameter isn't what it is on his hardware (with
+> `decay_ms` 0, "sustain maximum" is just +4.86 dB = 20·log₁₀(7/4)), and the value destroys the model's own
+> behaviour (a short release truncates the bore's ring-down — **the shipped 1200 ms is not a pad envelope by
+> mistake, it is roughly this bore's ring-down time**). Envelope left byte-identical (`af3631b9329e`),
+> toggle removed rather than left as clutter, measurements + a 4-line restore recipe kept in `brass.c`.
+> This is now hard evidence under **§G** (the subtractive-imitation engine): the problem is not that his
+> patches *sound* different, it is that his patch *parameters have no faithful translation* into a
+> waveguide's controls. **Never port numbers from a Reid patch by editing — always A/B.**
+>
+> **Two process lessons from it, both of which cost a round trip:**
+> - **The short releases were provably CLEAN and still wrong.** Largest sample-to-sample step in the
+>   release: 61% of peak, *identical to the shipped voice* — no click, and the 5 ms version is a smooth 6 ms
+>   ramp. **No oracle here can tell "a clean short decay" from "the resonator was cut off."** That is the
+>   strongest argument in the plan for why LISTEN is a real category.
+> - **An absolute judgement flipped when the comparison was restored.** Told "both newer ones get cut off",
+>   I swept the release *upward*; the owner then called 120 ms "fine, nothing is cut off" — and a sha check
+>   showed that file was **byte-identical** to the one they had just called cut off. Against SHIPPED
+>   directly, they picked SHIPPED. **Always hand over the pair, never a single file, and re-confirm against
+>   the incumbent before concluding anything.**
+>
+> **Resume-at:** pick up Phase 1 at **1.5** (a two-slot layered piano, §I9 — "Part 45's whole conclusion,
+> and free") →
 > [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#4-phase-1--cart-only-each-its-own-audible-proof).
-> Then 1.5 (two-slot layered piano), 1.6 (Hammond's two extra registrations), 1.7 (loudness→brightness
+> Then 1.6 (Hammond's two extra registrations), 1.7 (loudness→brightness
 > waveform morph + filter-as-gate, in `martenot`/`brass`). Read the ear-call loop above first — the shape of
-> every remaining item is the same, and three worked examples are written up in plan §4 (1.1, 1.2, 1.3).
+> every remaining item is the same, and FOUR worked examples are written up in plan §4 — 1.1/1.2/1.3
+> shipped and 1.4 dropped, which is the one to read first if you have not done a LISTEN item before.
 > After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and keytracking alone
 > closes six chapters' independent requests and is the prerequisite for §G.
 >

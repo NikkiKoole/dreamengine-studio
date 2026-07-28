@@ -851,13 +851,22 @@ Not engine findings, but they undermine the others if left unsaid.
 
 ### E10. The `brass` cart preset contradicts the book on two numbers
 
-> **✅ BUILT 2026-07-28** (plan item 1.4, awaiting the owner's ear). Key **E** in `brass`. **And this section
-> was too credulous: only the RELEASE actually transfers.** Measured, a note already reaches full level in
-> ~40 ms with the amp attack at 1 ms — the *bore* provides the onset, so Reid's 100 ms is a subtractive
-> workaround for hardware with no bore, and applying it makes a swell. And with `decay_ms` 0 there is no
-> decay stage, so sustain is a pure level trim: 4 → 7 is exactly +4.86 dB (= 20·log₁₀(7/4)), a mix decision
-> rather than a finding. The release he is right about: ours runs 1.2 s past key-up. The best §G specimen so
-> far. Full numbers: [plan §4 "1.4"](synth-secrets-plan.md).
+> **❌ DROPPED 2026-07-28 — this section was wrong on all three counts, and that is the finding** (plan item
+> 1.4; built as a toggle, A/B'd, envelope left byte-identical). **None of Reid's numbers transfer to a
+> waveguide**, each for a structurally different reason:
+> - **attack**: a note already reaches full level in ~40 ms with the amp attack at 1 ms — the *bore* makes
+>   the onset. A Minimoog has no bore, which is exactly why he needed an envelope to fake one. Literally
+>   applied it becomes a swell.
+> - **sustain**: with `decay_ms` 0 there is no decay stage, so sustain is a pure level trim. 4 → 7 is
+>   exactly +4.86 dB (= 20·log₁₀(7/4)) — "sustain maximum" is arithmetically "turn it up".
+> - **release**: the one I expected to win. Swept level-matched, the owner picked the **shipped 1200 ms**;
+>   every shorter tail read as *cut off*. The release truncates the **bore's ring-down**, so 1200 ms is not
+>   a pad envelope by mistake — it is about how long this bore takes to stop ringing.
+>
+> And the short releases were provably **clean** (largest sample step 61% of peak, identical to the shipped
+> voice; a smooth 6 ms ramp at 5 ms) and still wrong — no oracle here can tell "a clean short decay" from
+> "the resonator was cut off". The best §G specimen in the audit. Full numbers and the two calls I got wrong:
+> [plan §4 "1.4"](synth-secrets-plan.md).
 
 Cart-side, no engine change, cheapest thing in §E.
 
@@ -1136,6 +1145,22 @@ Grouped because each is small and individually optional.
 ## G. The missing engine class — subtractive imitation
 
 STATUS: EXPLORING — raised by the owner 2026-07-28, mid-audit. Nothing designed yet.
+
+> **Hard evidence arrived from plan item 1.4 (2026-07-28), and it is stronger than this section assumed.**
+> §E10 lifted three envelope numbers from one worked Reid brass patch. Built as toggles, level-matched and
+> A/B'd, **all three failed on `INSTR_BRASS`** — and the reasons were structurally *different*, which is
+> what makes it evidence about the category rather than about one patch:
+> 1. the model **already does it** (the bore supplies a ~40 ms onset, so his 100 ms attack double-counts);
+> 2. the parameter **isn't what it is on his hardware** (with `decay_ms` 0, "sustain maximum" is just
+>    +4.86 dB of gain);
+> 3. the value **destroys the model's own behaviour** (a short release truncates the bore's ring-down —
+>    measurably clean, audibly *cut off*).
+>
+> The lesson for this section: a subtractive-imitation engine is not needed because his patches sound
+> *different*, but because his patch *parameters have no faithful translation* into a waveguide's controls.
+> A translation layer is not the answer; a machine that has an envelope, a filter and a VCA in the first
+> place is. Corollary for the rest of the plan: **never port numbers from a Reid patch by editing — always
+> A/B**, and expect the physical model to already own whatever the envelope was faking.
 
 Both recipe passes so far have opened with the same caveat: **every patch in Synth Secrets is
 subtractive, and all our imitative engines are physical models.** §E says it about brass, §F about

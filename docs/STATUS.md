@@ -1629,8 +1629,32 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     brass, string machines and leads; it must not grow a guitar). Third citation for §C6's attack-level
     envelope, and third place the series says voice allocation is instrument design (§B3, §B7, now
     per-string).
-    Remaining families (pianos, drums, flutes, the rest of the Hammond, delays) still unread — §D5 lists
-    them and now ranks them by expected yield; §E is the template.
+    **§I = recipe pass 4, PIANOS** (Parts 41-44, measured) — and this one came out the **best-matched
+    engine in the audit**, so it is mostly confirmation. The headline: the hammer comb is the **inverse**
+    of the pluck comb, because a pluck point is maximum displacement while "the piano hammer remains in
+    contact with the string long enough to ensure that the position at which the string is struck is a
+    **node** of zero displacement" — and `sound_piano_start` correctly uses an **averaging** comb where
+    `PLUCK`/`GUITAR` use a **differencing** one, which at half-string nulls the fundamental and every odd
+    harmonic exactly as Part 41 describes. The navkit port got a subtle thing right; **nothing in the code
+    records that the sign is load-bearing**, which is §I's step 1. Also confirmed: stretched tuning uses
+    Reid's own mechanism and his reason for it ("a perfectly tuned piano not only sounds out of tune, it
+    sounds dull"); register-dependent decay falls out of the delay line free (measured: A1 at 0.11 after
+    1 s, A4 gone); and Part 44 validates our macro split from an odd direction, since a piano note's
+    brightness and loudness physically *cannot* change once sounded, so note-on voicing plus a live pedal
+    axis is correct. Gaps: hammer position is per-voicing where the book says it varies **1/7 to 1/15
+    across the keyboard**; the **top octave measured gone in half a second** (A4 at 0.01 of peak by
+    500 ms), steeper than a real grand and possibly the same structural cause as §H8's guitar
+    high-register loss; inharmonicity is fixed at note-on so it never grows with level though the book
+    says it depends on amplitude as well as pitch; peak level doesn't taper with pitch; the tricord is
+    capped at two strings with no energy exchange (the **third** coupling gap after §E5's bell and §H5's
+    body). Plus the counter-intuitive one: a real grand's **bottom-octave fundamental is weak** ("the note
+    that you think you hear is to some extent implied by the harmonics"), so our shipped anti-thin
+    sub-oscillator reinforces the partial the instrument has least of — flagged for an A/B, not for
+    removal. And §I9 hands §G its best endorsement, from Reid himself on the layered JX10 patch: "there
+    are times when I would still use it today, in preference to any of the 'real' things."
+    Remaining families (drums, flutes, the rest of the Hammond, delays) still unread — §D5 lists them and
+    now ranks them by expected yield, with **drums (31-40, ten chapters) the largest haul left**; §E is
+    the template.
 
 ---
 

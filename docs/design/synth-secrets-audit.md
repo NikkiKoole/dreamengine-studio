@@ -10,12 +10,20 @@ Nothing here is a bug report. Several divergences are deliberate and documented 
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
 **Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
-chapters. §E, §F and §H are the **recipe** passes, one instrument family at a time (does one engine's
-*voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F strings** and
-**§H plucked strings** are done; remaining families are listed in §D5. **§G** is a design question the
-recipe passes raised: every patch in the book is subtractive and all our imitative engines are physical
-models, which may mean we are missing a category rather than mistranslating one — and §H then bounded
-it, since Reid says outright that subtractive cannot do a guitar.
+chapters. §E, §F, §H and §I are the **recipe** passes, one instrument family at a time (does one
+engine's *voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F
+strings**, **§H plucked strings** and **§I pianos** are done; remaining families are listed in §D5.
+**§G** is a design question the recipe passes raised: every patch in the book is subtractive and all our
+imitative engines are physical models, which may mean we are missing a category rather than
+mistranslating one — and §H then §I bounded it, since Reid says outright that subtractive cannot do a
+guitar or a piano.
+
+Two things a reader should know before trusting any single section. **§C12 was corrected** by §F: Reid
+contradicts himself between Part 10 and Part 46 and explicitly retracts the earlier claim, which §C12
+had quoted as law. And **§I found the best match in the audit** — `INSTR_PIANO` gets a piece of physics
+right that is easy to get backwards — so the passes are not uniformly critical; where we are right,
+that is recorded too, because the point is to keep choices from decaying into accidents in either
+direction.
 
 Note that §C12 was **corrected** by the strings pass. Reid contradicts himself between Part 10 and
 Part 46 and explicitly retracts the earlier claim, which the original §C12 had quoted as law. Expect
@@ -560,29 +568,30 @@ versus exponential envelopes) are both instances of exactly that unfinished chap
 comfort: the canonical text does not settle it either.
 
 **D5. What I did not check.** Parts 19 (duophony), 22 (springs/plates/buckets), 31-39 (drums other than
-the timpani ring-mod passage and the 808 cymbal), **41-43 (pianos, with full JX10 patch listings)**,
-**51-53 (flutes)**, 54-56 and 58 (the rest of the Hammond), 59-62 (delays and effects) were skimmed or
-grep-targeted, not read end to end. They are the remaining *recipe* chapters, and the most likely place
-to find per-engine tuning findings for `PIANO`/`REED`/`PIPE`/`ORGAN` against the physical analysis. Pair
-them with [`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
+the timpani ring-mod passage and the 808 cymbal), **51-53 (flutes)**, 54-56 and 58 (the rest of the
+Hammond), 59-62 (delays and effects) were skimmed or grep-targeted, not read end to end. They are the
+remaining *recipe* chapters, and the most likely place to find per-engine tuning findings for
+`MEMBRANE`/`PIPE`/`REED`/`ORGAN` against the physical analysis. Pair them with
+[`../guides/instrument-recipes.md`](../guides/instrument-recipes.md).
 
-Done so far: **brass (24-27) → §E**, **strings (45-50) → §F**, **plucked strings (28-30) → §H**. §E is
-the template. Suggested next, by expected yield:
+Done so far: **brass (24-27) → §E**, **strings (45-50) → §F**, **plucked strings (28-30) → §H**,
+**pianos (41-44) → §I**. §E is the template. Suggested next, by expected yield:
 
-1. **Pianos (41-43)** — four chapters counting Part 44, with complete Roland JX10 parameter tables for a
-   layered two-patch piano. Pairs with the existing [`piano-engine.md`](piano-engine.md) diagnosis, which
-   now carries a heads-up. §H already turned up piano-adjacent material (`pn_dd`'s comment
-   mis-attributes what two-rate decay signifies; the stretched harmonics are *amplitude*-dependent, not
-   just frequency-dependent, which our static per-note dispersion cannot express).
-2. **Drums (31-39)** — nine chapters against `MEMBRANE`, `tr808`/`tr909`/`morphdrum`. §C4 already
-   extracted the timpani ring-mod recipe from Part 32 and §A5 checked the 808 cymbal against Part 40, so
-   the seam is proven; the other seven chapters are unread. Likely the largest single haul left.
-3. **Flutes (51-53)** against `PIPE`, which carries a known intonation caveat already recorded in
-   `studio.h`, so there is a specific open question to aim at.
-4. **The Hammond (54-58)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep; five
+1. **Drums (31-40)** — ten chapters against `MEMBRANE`, `tr808`/`tr909`/`morphdrum`, `drumkit.h`. The
+   seam is already proven: §C4 pulled the timpani ring-mod recipe out of Part 32 and §A5 checked the 808
+   cymbal against Part 40, both by grep, and both landed. The other eight chapters (timpani ×3, bass
+   drum ×2, snare ×2, metallic percussion ×3, bells, cowbells/claves) are unread. Comfortably the
+   largest single haul left, and the one family where we have *machine* recipes (`tr808.h`, `tr909.h`,
+   `morphdrum.h`) as well as a physical engine, so there are two independent things to check.
+2. **Flutes (51-53)** against `PIPE`, which carries a known intonation caveat already recorded in
+   `studio.h` — the only remaining family with a *specific* open question to aim at.
+3. **The Hammond (54-58)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep; five
    chapters on one instrument almost certainly hold more.
-5. **Delays and effects (59-62)** against our echo/BBD/chorus/spring-reverb stack — the only remaining
-   arc that is about the effects layer rather than an engine.
+4. **Delays and effects (59-62)** against our echo/BBD/chorus/spring-reverb stack — the only remaining
+   arc that is about the effects layer rather than an engine, so it would exercise a different part of
+   the codebase than the four passes so far.
+5. **Reeds** have no dedicated arc; `REED` is covered incidentally by Part 24 (already read for §E) and
+   the clarinet material in Parts 28 and 47. Probably not worth a pass of its own.
 
 ---
 
@@ -1139,15 +1148,28 @@ which we ship or nearly ship. Which suggests the shape is one of:
 parameter values* for every one of those patches, and §E10/§F8 already show our own presets drifting
 from them. A voicing table with a citation per row would be both a feature and a regression test.
 
-**Scope boundary, established by §H (2026-07-28).** The plucked-strings pass found Reid drawing the
-line himself, twice: "you can not create authentic-sounding acoustic guitar patches using analogue
-subtractive synthesis. **This is one occasion when only digital technology will do!**" (Part 28), and
-after rejecting three factory electric-guitar patches, "the world does not permit practical analogue,
-subtractive synthesis to reproduce a guitar sound" (Part 30). So this engine class is right for
-**brass, string machines and leads** — the families where the analogue imitation *is* the desirable
-sound — and explicitly wrong for **plucked strings**, where our physical models are the tool the book
-endorses. §G should not grow a guitar. That is a useful boundary to have before starting rather than
-after.
+**Scope boundary, established by §H and widened by §I (2026-07-28).** Reid draws the line himself,
+three times. Guitar: "you can not create authentic-sounding acoustic guitar patches using analogue
+subtractive synthesis. **This is one occasion when only digital technology will do!**" (Part 28).
+Electric guitar, after rejecting three factory patches: "the world does not permit practical analogue,
+subtractive synthesis to reproduce a guitar sound" (Part 30). Piano: "there has never been a convincing
+acoustic piano produced by subtractive synthesis, additive synthesis, or FM synthesis. Only samples
+appear to do the trick", and "is it impossible to create an acoustic piano patch on an analogue synth?
+The strict answer is 'yes'" (Part 41). In all three he points at physical modelling or samples, which is
+what we already do.
+
+So this engine class is right for **brass, string machines and leads** — the families where the analogue
+imitation *is* the desirable sound — and explicitly wrong for **the struck and plucked strings**. §G
+should not grow a guitar or a piano.
+
+**And §I found Reid stating the §G thesis himself,** which is the strongest endorsement the idea has.
+On the JX10's layered piano patch: "'H1: Acoustic Piano' has many of the characteristics of an acoustic
+or electro-mechanical piano, without sounding anything like the former, or even quite like the latter.
+It's responsive, it's expressive and, for many purposes, it's every bit as usable as a Fender Rhodes 73
+or a Wurlitzer EP200. In fact, **there are times when I would still use it today, in preference to any
+of the 'real' things.**" That is exactly the case for this engine class: the imitation is a worthwhile
+instrument *because* of how it fails, not despite it. Note it also means the voicing table should carry
+**layered** patches, not just single ones (§I9, §F8).
 
 **Honest tension.** It overlaps `INSTR_SAW` + `instrument_filter` + envelopes, which a cart can already
 wire by hand. The argument for doing it anyway is the same one that justified `acid303.h`: tb303 and
@@ -1409,7 +1431,7 @@ Two consequences:
    Reid says explicitly it is *wrong* for plucked strings. So §G should be scoped to the families where
    the analogue imitation is itself the desirable sound, and should not grow a guitar. Noted there.
 
-### Suggested plucked-strings step order
+### Suggested plucked-strings step order (see also §I for the piano half)
 
 | # | Step | Kind | Where |
 |---|---|---|---|
@@ -1422,6 +1444,265 @@ Two consequences:
 | 7 | H7 pick position onto `eng_p[]` | engine, small | `guitar` |
 | 8 | H9 a per-string allocator (cart-land, with §B3) | probably `mono.h`'s sibling | `fretboard` |
 | 9 | H5 body → string feedback (pairs with brass fix #3) | engine, hard | `guitar` |
+
+---
+
+## I. Recipe pass 4 — PIANOS (Parts 41-44)
+
+STATUS: EXPLORING — nothing queued.
+
+Four chapters: Part 41 is the physics, Parts 42-44 build a subtractive piano on a Roland JX10 (with
+a hard-sync tutorial in the middle, because the patch needs it). **This is the best-matched engine in
+the whole audit.** `INSTR_PIANO` gets a subtle piece of physics right that it could easily have got
+wrong, and most of what Part 41 asks for is already shipped, largely thanks to
+[`piano-engine.md`](piano-engine.md)'s fix round. So §I is mostly confirmations, with a short list of
+real gaps and one genuinely counter-intuitive finding.
+
+Sources: Part 41 "Synthesizing Pianos" (SOS October 2002), Parts 42-44 "Synthesizing Acoustic Pianos On
+The Roland JX10" (SOS November, December 2002, January 2003). Engine: `sound_piano_start`
+([`runtime/sound.h:4599`](../../runtime/sound.h)), `sound_piano_sample`
+([`:4693`](../../runtime/sound.h)). Prior art: [`piano-engine.md`](piano-engine.md).
+
+### I0. Measurement taken
+
+`INSTR_PIANO`, grand voicing, no pedal, four octaves of A, amplitude as a fraction of peak (100 ms
+windows, off-tree probe deleted afterwards):
+
+| note | 0.5 s | 1.0 s | 2.0 s |
+|---|---|---|---|
+| A1 (midi 33) | 0.18 | 0.11 | 0.04 |
+| A2 (midi 45) | 0.18 | 0.08 | 0.02 |
+| A3 (midi 57) | 0.07 | 0.03 | 0.00 |
+| A4 (midi 69) | **0.01** | 0.00 | 0.00 |
+
+Taken to check I1's decay claim rather than assert it. It confirms the claim, and incidentally raises
+I5.
+
+### I1. What matches, including one thing that is easy to get backwards
+
+- **The hammer comb is the INVERSE of the pluck comb, and we implement both correctly.** This is the
+  finding I most expected to go the other way. Part 41 draws the distinction explicitly: "Whereas the
+  position at which a guitar string is plucked determines its maximum displacement, **the piano hammer
+  remains in contact with the string long enough to ensure that the position at which the string is
+  struck is a node of zero displacement.**" So the excluded harmonics are the complementary set. His
+  worked case: a hammer at the halfway point means "the fundamental is missing from the resulting
+  sound", and "hammering at the centre will ensure that the sound contains no third harmonic, or fifth,
+  or seventh or ninth… or any of the other odd harmonics."
+
+  Our two engines use *different* combs, and the difference is exactly right:
+
+  | engine | excitation comb | nulls at |
+  |---|---|---|
+  | `PLUCK` / `GUITAR` | **differencing**, `tmp[i] - 0.55·tmp[i+pos]` ([`:2831`](../../runtime/sound.h), [`:4453`](../../runtime/sound.h)) | `n·pos/len` = integer |
+  | `PIANO` | **averaging**, `(tmp[i] + tmp[i+ps])·0.5` ([`:4651`](../../runtime/sound.h)) | `n·ps/len` = ½ + integer |
+
+  The two null sets are exactly interleaved. And at `ps = len/2` the averaging comb nulls `n` = 1, 3,
+  5, 7…, i.e. the fundamental and every odd harmonic, which is Reid's sentence verbatim. The code
+  attributes it to "navkit `applyPickPosition`" and carries no note that the sign is load-bearing —
+  worth adding one, because a future tidy-up that "unified" the two combs would silently break the
+  piano's physics.
+- **Stretched tuning, and by Reid's own mechanism.** `piano_stretch_freq` /`PIANO_STRETCH_K`
+  ([`:4604`](../../runtime/sound.h)). Part 41 explains both the cause (the string needs a finite length
+  to bend over bridge and nut, so its effective length shortens, stretching the series toward
+  1:2:3:4.01:5.02:6.04) and the consequence, which is the good bit: play A440 with the A two octaves
+  up and "because A440 exhibits stretched harmonics, the upper 'A' will, if tuned to 1760Hz, sound a
+  fraction flat! Indeed, the human ear/brain is so accustomed to this that a perfectly tuned piano not
+  only sounds out of tune, **it sounds dull**." His fix is Figure 14: "making the oscillators track the
+  keyboard at a ratio just a fraction greater than 1:1", which is what we do.
+- **Register-dependent decay is free, and measured.** Part 41 Figure 9 wants low notes to decay more
+  slowly than high ones. Because the loop applies a fixed per-*period* loss, higher notes take more
+  loop passes per second, so T60 falls with pitch structurally: I0 shows A1 still at 0.11 after a
+  second while A4 is gone. Nothing to build. Worth recording precisely so nobody adds a redundant
+  register term on top of it.
+- **Two-rate decay, and Part 41 supplies the piano's own cause.** `pn_dd`
+  ([`:4629`](../../runtime/sound.h), relaxing at `0.99975` per sample ≈ 90 ms). Part 41: "the tail can
+  linger for tens of seconds, which tells us that the rate of the decay diminishes as the note
+  progresses. This is because, **as the pairs and tricords interact**, the rate at which energy is
+  transferred to the soundboard diminishes." Note this is a *different* mechanism from the guitar's
+  (Part 28 attributes the guitar's two-rate decay to the string's two polarisation planes). Both
+  instruments have the behaviour, for different reasons — which is exactly why §H3's correction to
+  `pn_dd`'s comment matters: the comment claims two-rate decay is what says "struck, not plucked", and
+  it isn't.
+- **We attempt the stage Reid says nobody has managed.** Part 41 splits a piano note into three
+  stages: the hammer blow, "the transition period during which the strings begin to oscillate
+  harmonically", and the tail. On stage 2: "it is here that the nature of the waveforms is changing
+  most rapidly. I suppose it's possible that we could invent a synth architecture to imitate this, but
+  **I know of nobody who has succeeded**." Our `pn_ksb_cur` brightness bloom (τ ≈ 283 ms,
+  [`:4706`](../../runtime/sound.h)) is a stage-2 model, and a waveguide gets much of the rest
+  structurally, because redistribution among string modes is what the delay line *does*. Reid was
+  writing about subtractive synthesis, so this is not a contradiction — but it is a case where our
+  choice of method buys something he explicitly could not have.
+- **Velocity drives timbre, not just level.** Part 41 Figures 11-13 want brightness to respond to note
+  number, to velocity, and to a contour whose decay rate itself depends on note number. We do
+  velocity → hammer hardness ([`:4624`](../../runtime/sound.h)) and velocity → knock amount
+  ([`:4634`](../../runtime/sound.h)), plus the register-scaled bloom.
+- **Soundboard, sympathetic resonance and pedal.** `pn_body[4]`, `pn_symp`, `pn_dampg` on morph. Part
+  41's sustain-pedal section is a description of sympathetic resonance: "the energy then passes through
+  the bridge and soundboard to excite other strings. Some will vibrate sympathetically, because they
+  share modes of vibration with the initial note."
+- **Our macro assignment is validated from an unexpected direction.** Part 44, on programming the JX10:
+  aftertouch must be zero everywhere because "it's **not possible** to affect the nature of a piano
+  note (other than to curtail it) once it has sounded. Any parameters that let you change the
+  brightness, the loudness, or add vibrato by bearing down on a depressed key must be set to zero." Our
+  PIANO fixes hammer/voicing at note-on and gives the one axis that *can* legitimately change mid-note
+  — the pedal — to `morph`. That is the physically correct split, and it was chosen for the
+  three-macro discipline rather than for this reason.
+
+### I2. Hammer position is per-voicing, where the book says per-register
+
+- **Book:** Part 41: "you would think that, to obtain a consistent tone, piano builders would position
+  the hammers consistently from one end of the keyboard to the other. But this is not the case; you will
+  find them **anywhere from one seventh of the way along the string to about one 15th**. This results in
+  different initial frequency relationships, different interactions as the hammer leaves the string, and
+  a different spectrum for the body of each note."
+- **Engine:** `ps = (int)(pv->strike * len)` ([`:4647`](../../runtime/sound.h)) — one constant per
+  voicing (grand / bright / harpsichord / dulcimer / clavichord / celesta), identical across all 88 keys.
+- **Why it is cheap:** the comb already exists and already scales with `len`. This is a register term on
+  one float, and Reid even gives the range to interpolate across (1/7 → 1/15).
+- **Audible home:** `piano`, `upright` — audible as the top and bottom of the keyboard having distinct
+  characters rather than one voicing transposed.
+
+### I3. Two strings maximum, per-voicing, and they do not exchange energy
+
+- **Book:** Part 41 lays out the register progression: "At the bottom end, single strings are wrapped to
+  high thickness … Next come notes produced by pairs of wrapped strings, then notes produced by triads
+  (or 'tricords') of wrapped strings, and finally tricords of unwrapped strings." And the character is
+  in their imperfection: "it's all but impossible to tune these to the same pitch … the strings will
+  soon become out of phase with one another … This leads to interference, with the strings **swapping
+  energy**, reinforcing and at other times cancelling each others' modes."
+- **Engine:** `pn_detune > 1.00001f` gives an optional *second* string with its own delay line and
+  allpass ([`:4673`](../../runtime/sound.h)). It is chosen per voicing, not per register, capped at two,
+  and it runs with the *same* `effDamp` and the *same* dispersion coefficients as string 1
+  ([`:4743-4750`](../../runtime/sound.h)) with no cross-coupling — only a detune.
+- **The theme:** this is the **third** place a recipe pass has found us modelling a coupled system as
+  independent parts — §E5 (the bell that should fill the series natively), §H5 (the guitar body with no
+  return path into the string), and now the tricord. Worth treating as one architectural question about
+  coupling rather than three separate engine tweaks.
+- **Audible home:** `piano`, `upright`.
+
+### I4. Inharmonicity is fixed at note-on and never responds to level
+
+- **Book:** Part 41 and Part 28 both say the stretching depends on *two* things: "the string appears
+  shorter at high frequencies **and high amplitudes** than it does at low frequencies and low
+  amplitudes. This sharpens higher, **louder** harmonics."
+- **Engine:** `B = pv->stiff² · 0.015 · fscale` where `fscale` derives from `freq` only
+  ([`:4654-4657`](../../runtime/sound.h)). Velocity feeds `hard` (the excitation lowpass) but not `B`.
+  So a fortissimo note has exactly the inharmonicity of a pianissimo one, and it cannot relax as the
+  note decays and the amplitude falls.
+- **Audible home:** `piano` — the tell is that hard and soft strikes differ in brightness but not in
+  the metallic "stretch" of the attack.
+
+### I5. The top octave is gone in half a second
+
+- **Measured (I0):** A4 is at 0.01 of peak by 500 ms and inaudible by 1 s, on the *grand* voicing with
+  no pedal. A real grand's A4 rings for several seconds.
+- **Why it is not simply "correct because Figure 9 says so":** Reid does want shorter decays up the
+  keyboard, and T60 ∝ 1/f is what a fixed per-period loss gives. But 1/f is the naive result, and real
+  pianos are deliberately built to beat it (longer treble strings, and on many designs no dampers at
+  all in the top octave). The measured curve looks steeper than the instrument.
+- **Possible shared cause with §H8.** That item found `GUITAR`/`PLUCK` high notes reduced to almost a
+  pure fundamental (h6-h9 at −74 to −83 dB at A4). Both engines apply loop coefficients that are fixed
+  per period rather than scaled to the note, so both would lose the top of the register for the same
+  structural reason. Worth investigating as one thing.
+- **Audible home:** `piano`, `upright` — audible as the treble sounding plinky or celesta-like.
+
+### I6. Peak level does not fall with pitch
+
+Part 41 Figure 9 shows high notes with **both** a shorter decay and a lower maximum gain, and the
+architecture in Figure 10 routes keyboard tracking to "both the maximum gain of a VCA and the decay
+rate of the contour that shapes it". We get the decay for free (I1) but nothing tapers the peak, so
+our treble arrives at full level and then vanishes. Small, and it interacts with I5 — fixing the decay
+without the level taper may be the wrong half.
+
+### I7. The bottom octave's fundamental should be WEAK, and our sub-oscillator pushes the other way
+
+The counter-intuitive one, and it cuts against a shipped fix.
+
+- **Book:** Part 41: "for the lowest notes on a grand piano, **the fundamental pitch has very low
+  amplitude**, and the note that you think you hear is to some extent implied by the harmonics. This
+  suggests that we require a high-pass filter for the lowest notes in our synthesized sound." Reid then
+  declines to bother, on diminishing returns.
+- **Engine:** `eng_p[0]` is "fundamental reinforcement … a sub-oscillator at the note's pitch,
+  envelope-following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
+  'thin' cure)" ([`runtime/sound.h:337-343`](../../runtime/sound.h)), and `PIANO` uses it.
+- **Why this is worth flagging rather than acting on:** the "thin" complaint was real and the sub-osc
+  fixed it, so this is not a call to remove it. But for the bottom octave specifically it is
+  reinforcing the partial that a real grand has *least* of, which may be why our bass can read as
+  synthetic-round rather than piano-huge. The physically honest version is register-dependent: sub-osc
+  weight tapering off toward the bottom, with the body's low modes carrying the weight instead. That is
+  a testable A/B, not an obvious win.
+- **Audible home:** `piano`, `upright` — bottom two octaves.
+
+### I8. Smaller items
+
+- **Two bridges.** Part 41: pianos "generally have two of them — one for the treble strings, and one
+  for the bass — and … they are coupled through the soundboard", and "using different bridges can
+  change the sound of a piano by a remarkable degree". We have one body per voicing with no bass/treble
+  split. Low priority; listed for completeness.
+- **Soundboard modes are enharmonic and the plate is irregular.** Part 41: "piano soundboards have an
+  irregular shape and are chamfered, so our previous discussions of vibrations in flat plates are, at
+  best, approximations". Our `pn_body[4]` is four biquads, which is the standard coarse approximation
+  and the same order as `gt_body[4]`.
+- **Our hard sync is always ratio-locked; the JX10's is not.** Part 42's two rules: the output pitch is
+  always the master's, and if the master is *lower* than the slave then moving the slave changes timbre.
+  Then the aside that matters: with only the master tracking the keyboard, "the frequency relationship
+  between the master and slave is different for each note, resulting in **different tones for each**".
+  Our `sync_ratio` ([`runtime/sound.h:168`](../../runtime/sound.h)) is a ratio, so the slave tracks and
+  the timbre is constant across the keyboard. There is no way to pin the slave in Hz. This is the exact
+  mirror of §B2: there, nothing tracks when it should; here, something always tracks when you might not
+  want it to.
+
+### I9. Layering is the piano, and §G should encode it
+
+Part 44's conclusion is the most transferable thing in the arc, and it is a *cart* pattern rather than
+an engine one.
+
+- **The claim:** "The secret — and it's an important one — lies in the combination of two sounds that
+  are similar enough to be indistinguishable within the composite, but different enough to create a
+  sound that is more interesting than either of the components in isolation."
+- **The mechanism, and note what he is imitating:** "the detuned harmonics of the complex, sync'd
+  waveforms sweep in and out of phase with one another, reinforcing and then interfering with one
+  another destructively, **to imitate the energy interactions within an acoustic piano**." So the
+  layering is standing in for exactly the tricord coupling of I3.
+- **The role split:** "Piano 1B supplies the initial thunk, while Piano 1A has the richer spectrum and
+  provides more of the body of the sound … Then, towards the end of the note, Piano 1B dominates again
+  (thanks to the longer Decay and Release in ENV2) and the filter closes to leave just the fundamental
+  and a few low harmonics in the tail." Two patches, one detune (`Dual Detune +13`), different
+  envelopes, crossfading roles across the note.
+- **And his honest verdict on it:** "'H1: Acoustic Piano' has many of the characteristics of an acoustic
+  or electro-mechanical piano, without sounding anything like the former, or even quite like the latter.
+  It's responsive, it's expressive and, for many purposes, it's every bit as usable as a Fender Rhodes
+  73 or a Wurlitzer EP200. In fact, there are times when I would still use it today, in preference to
+  any of the 'real' things." That is precisely the §G thesis stated by the author: the imitation is a
+  worthwhile instrument even though it fails as an imitation.
+- **For us:** two slots, a small detune, different envelopes, opposite role weighting across the note.
+  Expressible today with no engine change, and it is what §G's voicing table should hold. Pairs with
+  §F8's 16'/8'/4' string-machine layering.
+- **Audible home:** a two-slot layered patch in `piano`, or `upright`.
+
+### I10. Reid's verdict, for the third instrument in a row
+
+Part 41 opens with it: "there has never been a convincing acoustic piano produced by subtractive
+synthesis, additive synthesis, **or FM synthesis**. Only samples appear to do the trick." And closes:
+"is it impossible to create an acoustic piano patch on an analogue synth? The strict answer is 'yes'."
+He also notes the instruments that did crack it (Roland MKS20 / RD1000 / HP5600) were "based on an early
+physical modelling concept". So: guitar (§H11), electric guitar (§H11), and now piano — three families
+where the book sends you to physical modelling or samples, which is what we already do. Every §I item
+is about improving the waveguide, not adopting his signal chain. §G's boundary widens accordingly:
+**not brass-adjacent only, but specifically "not the struck and plucked strings."**
+
+### Suggested piano step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | I1 comment that the averaging comb's sign is load-bearing | comment only | none |
+| 2 | I2 scale hammer position by register (1/7 → 1/15) | engine, one float | `piano` |
+| 3 | I5 + §H8 investigate the shared high-register loss | measurement first | `piano`, `pluck` |
+| 4 | I4 make inharmonicity level-dependent | engine, small | `piano` |
+| 5 | I9 a two-slot layered piano patch | cart only, free | `piano` |
+| 6 | I6 taper peak level with pitch | engine, small | `piano` |
+| 7 | I7 A/B tapering sub-osc weight in the bottom octave | engine, judgement call | `upright` |
+| 8 | I3 third string + inter-string coupling | engine, hard, with §E5/§H5 | `piano` |
 
 ---
 

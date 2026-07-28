@@ -80,6 +80,7 @@ This page is only the routing layer.
 | App Store metadata fields (title/subtitle/keywords) | **`aso-lint.js`** (char limits, wasted stopwords/comma-spaces, cross-field repeats; offline) |
 | `press.md` or the listing prose (vs the committed brief) | **`aso-coverage.js`** (phrase/word coverage vs `seo-brief.md` + a STUFFING warning — fails only for reading robotic) |
 | `apps/<name>/app.json` store fields, before pushing | **`asc-push.js --check`** (offline gate) / **`--dry-run`** (GETs live + diffs) |
+| an **app icon** (or you're drawing a new one) | **`icon-mask.js check <icon.png>`** — per corner, does the iOS squircle mask cut flat background (safe) or real detail? `--quiet` = release gate. Then **`preview`** (how it reads at all six real display sizes, light + dark) and **`device`** (what a booted iOS 26 simulator actually draws). Design + the measured mask: [`../design/app-icon-mask.md`](../design/app-icon-mask.md) |
 
 ## Orienting *before* a change (don't dive in blind)
 

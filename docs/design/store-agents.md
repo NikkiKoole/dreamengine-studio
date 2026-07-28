@@ -259,6 +259,11 @@ The ordered path from a green cart to "Submitted", and — crucially — **what 
 automates vs. what is web-UI-only**. Every step below was run for real; the tool grew the
 `--category / --age-rating / --price / --content-rights / --review-contact` actions here.
 
+0. **Clear the icon first** — `node tools/icon-mask.js check apps/<app>/icon.png` (does the squircle
+   mask eat real detail?) + `preview` (how it reads at 87px in Settings, not just at 1024). Cheapest
+   fix now, most annoying later: the icon is baked into every build and shown on the product page.
+   §1b / [`app-icon-mask.md`](app-icon-mask.md). `build-app.js` prints the verdict too, but by then
+   you're already building.
 1. **Create the app record** — ASC web UI (Apps → +). `asc-push` finds the app by `bundleId` and
    *dies* if it doesn't exist yet; it can't create it. One-time, manual.
 2. **Push the whole product surface** — one command each, all idempotent, `--dry-run` first:

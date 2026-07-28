@@ -17,7 +17,11 @@
 //     "launcher": "tinyjam-menu",                  // optional menu cart (rung 3): boots first,
 //                                                  // gets ctx 0 + a generated app_roster.h from
 //                                                  // each rack's de:meta; TAB = back to it
-//     "icon": "...", "iap": {}                     // parked: mac-app / iOS rungs
+//     "icon": "apps/<app>/icon.png",               // 1024x1024, OPAQUE (no alpha). iOS masks it to
+//                                                  // a squircle and eats 6.1% — check before you
+//                                                  // ship: tools/icon-mask.js check/preview
+//                                                  // (staging below prints the verdict)
+//     "iap": {}                                    // parked: mac-app / iOS rungs
 //   }
 //
 // What it does:

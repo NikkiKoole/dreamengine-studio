@@ -91,6 +91,29 @@ Generate: feed a `play.js --dump` frame to
 **composites** (crisp integer-upscaled cart on a bg + caption), never stretches, solving the
 cart-aspect ≠ device-aspect gap. See store-agents.md §1.
 
+### The app icon — one square upload, six displayed sizes
+
+You upload **one 1024×1024 PNG, opaque, no alpha** (App Store validation rejects transparency), and
+that is the whole delivery: the asset catalog carries it and every surface derives from it. But it is
+never *shown* as that square. iOS masks it to a squircle, throwing away **6.1%** of the artwork, and
+then downscales it to whichever surface is drawing:
+
+| surface | pixels | note |
+|---|---|---|
+| App Store product page | 1024 | the upload itself |
+| iPhone home screen | **192** | 64pt @3x — **measured on iOS 26.5**, not the stale "180" |
+| iPad home screen | 128 | 64pt @2x |
+| Spotlight / search | 120 | 40pt @3x |
+| Settings | 87 | 29pt @3x |
+| notifications | 60 | 20pt @3x |
+
+Only the home-screen number is measured; the rest are Apple's pt×scale. **Don't design against this
+table — render it**: `node tools/icon-mask.js preview <icon.png>` draws all six, masked, light and
+dark, with the same filter iOS downscales with. The mask geometry, the "inscribed circle is safe"
+rule and the device-verified proof are in
+[`app-icon-mask.md`](app-icon-mask.md); the reverse index entry is in
+[`../guides/checks-and-oracles.md`](../guides/checks-and-oracles.md) §Store.
+
 ### App preview videos — stricter
 
 App previews must be **real on-device capture** (not a marketing-composited edit) — Guideline
@@ -102,13 +125,17 @@ before rendering** rather than trusting a number cached here. Same device famili
 > **⚠︎ driftable.** The screenshot pixel sizes and `store-shots.js` keys in §3 are copied from
 > `tools/store-shots.js`'s `DEVICES` table. If that table changes, this section drifts — re-sync it.
 > Video specs are deliberately *not* pinned here (they move too often); go to the source.
+> The icon table drifts with **Apple**, not with us: the 192 px home-screen figure was measured on
+> iOS 26.5 (it was 180 before iOS 26 grew the grid), so re-verify after a major iOS release with
+> `node tools/icon-mask.js device <icon.png>` rather than trusting it.
 
 ## 4 · How to use this doc
 
 - **Building a responsive cart / writing a rack layout brief?** Design against **§2**; point your
   brief here instead of re-tabling shapes (acidrack-layout-brief.md §7 does this).
 - **Shipping store assets (the fastlane-ish leg)?** Use **§3** + `store-shots.js` (stills) /
-  `make-gif.js --format mp4` (video). The "at least" upload set is 6.9" iPhone + 13" iPad.
+  `make-gif.js --format mp4` (video). The "at least" upload set is 6.9" iPhone + 13" iPad. The icon
+  is one 1024² opaque PNG, but check it with `icon-mask.js` first — §3's icon table says why.
 
 Related: [`device-adaptive-layout.md`](device-adaptive-layout.md) (the engine + product plan) ·
 [`acidrack-layout-brief.md`](acidrack-layout-brief.md) (the first rack brief that designs against

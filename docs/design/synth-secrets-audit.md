@@ -10,9 +10,10 @@ Nothing here is a bug report. Several divergences are deliberate and documented 
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
 **Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
-chapters. §E, §F, §H, §I and §J are the **recipe** passes, one instrument family at a time (does one
+chapters. §E, §F, §H, §I, §J and §K are the **recipe** passes, one instrument family at a time (does one
 engine's *voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F
-strings**, **§H plucked strings**, **§I pianos** and **§J drums** are done; what remains is listed in §D5.
+strings**, **§H plucked strings**, **§I pianos**, **§J drums** and **§K flutes** are done; what remains is
+listed in §D5.
 **§G** is a design question the recipe passes raised: every patch in the book is subtractive and all our
 imitative engines are physical models, which may mean we are missing a category rather than
 mistranslating one — and §H then §I bounded it, since Reid says outright that subtractive cannot do a
@@ -576,30 +577,30 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What is left.** Five recipe passes done: **brass (24-27) → §E**, **strings (46-51) → §F**,
-**plucked strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) → §J**. With the architecture
-chapters in §A-§D (4-13, 15-18, 20-21, 23, 63) that is **roughly 50 of the 63 articles read end to
-end**. §E is the template.
+**D5. What is left.** Six recipe passes done: **brass (24-27) → §E**, **strings (46-51) → §F**, **plucked
+strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) → §J**, **flutes (52-54) → §K**. With the
+architecture chapters in §A-§D (4-13, 15-18, 20-21, 23, 63) that is **roughly 53 of the 63 articles read
+end to end**. §E is the template.
 
 Remaining, by expected yield:
 
-1. **Flutes and pan pipes (52-54)** against `INSTR_PIPE`, which carries a **known intonation caveat
-   already recorded in `studio.h`** ("a low/hollow embouchure and overblow drift flat/unstable at the
-   top"). Only three chapters, but the only remaining family with a specific, already-documented open
-   question to aim at, which makes it the best value left.
-2. **The Hammond (55-59)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep and it
+1. **The Hammond (55-59)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep and it
    landed. Five chapters on one instrument, and `ORGAN` has a lot of surface to check (nine drawbars, key
-   click, percussion ping, scanner chorus, and the leakage we lack).
-3. **Delays and effects (60-62), with Part 22 (springs, plates and buckets)** against our
+   click, percussion ping, scanner chorus, and the leakage we lack). The largest remaining engine arc.
+2. **Delays and effects (60-62), with Part 22 (springs, plates and buckets)** against our
    echo/BBD/chorus/spring-reverb stack. The only remaining arc about the **effects layer** rather than an
-   engine, so it exercises a different part of the codebase than all five passes so far, and it pairs
-   with [`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes.
-   Part 22 is the direct ancestor of our spring-reverb and BBD work and should be read with them.
-4. **Duophony (Part 19)** — one chapter, mostly historical, and its content folds into the §B3
-   note-priority theme. Low yield alone.
-5. **Not worth a pass:** `REED` has no dedicated arc (covered incidentally by Part 24, already read for
-   §E, plus the clarinet material in Parts 28 and 48). Parts 14 (additive) and 22 were partly covered in
-   §A-§D already.
+   engine, so it exercises a different part of the codebase than all six passes so far, and it pairs with
+   [`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes. Part 22
+   is the direct ancestor of our spring-reverb and BBD work and should be read with them.
+3. **Duophony (Part 19)** — one chapter, mostly historical, and its content folds into the §B3
+   note-priority theme. Low yield alone; read it with whatever finally acts on §B3.
+4. **Not worth a pass:** `REED` has no dedicated arc (covered incidentally by Part 24, already read for
+   §E, plus the clarinet material in Parts 28, 48 and 52-53, all now read). Part 14 (additive) was partly
+   covered in §A-§D.
+
+After those two arcs the sieve is complete, and the plan is to turn the step tables into a single
+ordered step-by-step guide (owner, 2026-07-28: "after we've sieved through everything we will spend some
+time to add a step by step guide, but let's first make it complete").
 
 ---
 
@@ -1918,6 +1919,227 @@ from a static table with no velocity term at all. Worth treating as one cross-en
 | 5 | J2b check the principal-vs-fundamental pitch offset | measurement | `tabla` |
 | 6 | J8 level-dependent inharmonicity (with §I4) | engine, cross-family | `tabla`, `piano` |
 | 7 | J10 read Parts 34, 40, 41 properly against the kick, `MALLET`, the cowbell | reading | — |
+
+---
+
+## K. Recipe pass 6 — FLUTES AND PAN PIPES (Parts 52-54)
+
+STATUS: EXPLORING — nothing queued.
+
+Three chapters against `INSTR_PIPE`, and the reason this was ranked next despite being the shortest arc
+left: `studio.h` already carries a **documented open question** about this engine's tuning, and Parts
+52-54 turn out to explain it, correct it, and tell us what real instruments do about it.
+
+Sources: Part 52 "Synthesizing Pan Pipes" (SOS August 2003), Part 53 the recorder (September 2003),
+Part 54 the orchestral flute (October 2003). Engine: `sound_pipe_sample`
+([`runtime/sound.h:3649`](../../runtime/sound.h)).
+
+> **Numbering cross-check:** Part 54 cites "Synth Secrets 49 (see SOS May 2003)" in its own text, and the
+> corrected map in §"The source" puts Part 49 at May 2003. The document confirms its own numbering.
+
+### K0. Measurements taken
+
+`tune-check.js` in recipe mode, which exists for exactly this engine
+(`--engine PIPE --macros h,t,m --range lo-hi`). Errors in cents, `harm` and `timb` held at the showcase
+flute's values where noted.
+
+**Embouchure (morph) versus intonation,** `harm 0, timb 0.38`:
+
+| morph | C4 | F#4 | C5 | F#5 | C6 |
+|---|---|---|---|---|---|
+| **0.70** (focused) | +0.7¢ | +0.7¢ | +1.0¢ | +0.0¢ | −1.5¢ |
+| **0.40** | — | — | **+13.4¢** | **+16.7¢** | +10.4¢ |
+| **0.20** (hollow) | — | — | −5.6¢ | **−19.2¢** | **−330¢** |
+
+**Overblow (harmonics) versus pitch,** `timb 0.38, morph 0.70`:
+
+| harm | C4 | F#4 | C5 |
+|---|---|---|---|
+| 0.5 | −8.5¢ | −13.2¢ | −18.1¢ |
+| **1.0** | −11.1¢ | −19.4¢ | **−26.2¢** |
+
+### K1. What matches, including a second place we beat the hardware
+
+- **Our breath noise is bore-coloured, which is the hard part of a flute patch.** Part 52 is emphatic
+  that a plain noise generator will not do: "the tonal part of the sound and the noise are not
+  independent of one another. The noise has a breathy quality with a distinct pitch related to the note
+  being played … The turbulence occurs within the pipe and at its boundaries, so it must be **coloured by
+  the acoustics of the pipe itself**." Mixing in raw noise "proves no more satisfying … The square wave
+  and the noise seem to be disassociated from one another, and this sounds wrong." His fix needs a formant
+  bank tuned to the note's harmonics — ideally 40 bandpasses, "fortunately … just six bands on the edge of
+  self-oscillation, tuned to octaves and fifths" will do. We inject noise into the *breath* term
+  ([`runtime/sound.h:3669`](../../runtime/sound.h)) so it circulates through the bore and is shaped by it
+  for free. **Second time the audit has found this** — §E1 recorded the same win for brass, where Reid has
+  to omit noise entirely on both the Minimoog and the SH-101. Injecting noise into the excitation rather
+  than the output is quietly one of the best decisions in the engine.
+- **The chiff exists, and Reid rates it the single most important cue.** "The first thing we hear is a
+  noisy 'chiff' that sounds independent of the tone and the breathy noise … Skilled pan pipe players make
+  great use of this, and it is perhaps **the most defining characteristic of the instrument**." We have
+  `pp_attack`, "the tongued 'tu' onset" ([`runtime/sound.h:3668`](../../runtime/sound.h)).
+- **Vibrato lives in pitch, and at about the right rate.** `pp_vib_ph` runs at 5.0 Hz with a wander,
+  commented "a flute's vibrato is pitch, not amp".
+- **Dark tone, bright noise.** Part 52: "the tonal part of the sound is not rich in high-frequency
+  harmonics. In contrast, the noise is most audible at higher frequencies … strong, low harmonics
+  accompanied by a halo of noise". Our bore's open-end radiation lowpass plus a separately-scaled noise
+  term gives that shape.
+- **The engine exists at all.** Part 53 on the recorder: "a simple VCO/VCF/VCA patch will never capture
+  the nuances of the instrument", and he finds *no* factory recorder patch in the books for the Odyssey,
+  Axxe, SH-101, Korg 700/700S/800DV or MS20.
+
+### K2. The `harmonics` macro does not overblow, and the documentation says it does
+
+- **Documented as:** "harmonics = overblow (fundamental → **octave flageolet** + bright)"
+  ([`runtime/studio.h:326`](../../runtime/studio.h)).
+- **Measured (K0):** at `harm 1.0` the pitch stays on the fundamental and goes progressively *flat*
+  (−11¢ at C4 worsening to −26¢ at C5). There is no register jump at any macro value I tested.
+- **What it actually does:** `gain = 2.0f + v->harm * 8.0f` feeds `tanhf(jetOut * gain)`
+  ([`runtime/sound.h:3653`](../../runtime/sound.h), [`:3690`](../../runtime/sound.h)) — it drives the jet
+  nonlinearity harder, which adds harmonic content and pulls the oscillation flat. So it is a
+  **brightness-and-flatten** control, not an overblow.
+- **What the book says overblowing is:** a genuine register jump, and Part 54 is precise about the
+  interval depending on bore topology. A flute: "you will eventually 'overblow' the flute and cause its
+  pitch to **jump an octave**." A cylindrical pipe with one closed end: "cylindrical pipes with one closed
+  end have no even harmonics, so overblowing jumps to the **third harmonic, one-and-a-half octaves** above
+  the fundamental."
+- **Care on what I am claiming:** the *sound* may well read as "blown harder" — more harmonic content is
+  genuinely what harder blowing does (K5). The finding is narrower and firmer: the pitch behaviour does
+  not match either the macro's documentation or the physics, and the doc promises a flageolet the engine
+  cannot produce. Either the implementation or the docstring should move.
+- **Audible home:** `pipe`, `air`.
+
+### K3. The tuning caveat is real physics, the doc has its direction wrong, and real flutes compensate
+
+This is the item the pass was run for.
+
+- **What `studio.h` says today:** "intonation tracks the morph (embouchure) macro — in tune for focused
+  embouchure (morph ≳ 0.5) … but a low/hollow embouchure (morph ≲ 0.4) and overblow (harmonics) drift
+  **flat**/unstable at the top."
+- **Measured (K0):** the focused end is confirmed excellent (worst −1.5¢ across two octaves). But at
+  `morph 0.40` the drift is **sharp**, +13 to +17¢, not flat. Only at `morph 0.20` does it go flat
+  (−19¢ at F#5) and then collapse at C6 (−330¢, and 1046.5/864.71 is not a clean interval, so that is the
+  oscillator failing to lock rather than a register jump). So the drift is **non-monotonic**: sharp
+  through the middle of the range, flat and then unstable at the bottom. Anyone voicing a flute at
+  `morph 0.4` is currently told to expect flat and will hear sharp.
+- **Why the drift exists at all, and this is the satisfying part.** Part 54 gives the mechanism: because
+  the embouchure hole sits a short distance from the bore end with a pressure maximum at the cork, "the
+  **effective length of the flute increases for higher harmonics!** This is analogous to the 'overshoot'
+  I mentioned when we discussed brass instruments, and its effect is to make the harmonic frequencies
+  more and more approximate with increasing harmonic number." So a jet-driven pipe whose effective length
+  depends on jet geometry *genuinely* drifts, and it drifts worse the higher you play — which is exactly
+  the shape of our measurement.
+- **And what real instruments do about it:** "**Flute manufacturers try to compensate for this** by making
+  tiny adjustments to the position of the cork, the shape of the embouchure chimney, and the sizes and
+  positions of the holes." Part 53 adds the player's half: a recorder has several fingerings per nominal
+  note, "some of these pitches will lie almost exactly on a desired note, while some will be a little
+  sharp, and others will be a little flat … a skilled player will pick the right fingering according to
+  the demands of the music."
+- **We already do the compensation, and I can see exactly why it still misses.** This is the useful part,
+  and it corrects my first reading. `sound_pipe_start` already carries the software cork adjustment
+  ([`runtime/sound.h:3605-3619`](../../runtime/sound.h)): the bore is a half wavelength *minus* a
+  jet-derived loop-delay term, `loopDelay = 1.69f + 0.308f * jetLen0`, plus a second-stage ramp for long
+  jets, `ex = 0.40 * (jetLen0 - 5)` **clamped at 0.80**. The comments record the history: a *constant*
+  left `morph ≠ 0` sharp by up to a semitone, and the hollow presets at jetLen 7-8 "ran flat (a ramp to
+  ~-56¢ by G5)" until the ramp was added, because they "need a near-CONSTANT ~+0.8 extra (it SATURATES)".
+
+  `jetLen = 3 + (int)((1 - morph) * 8)`, so my three measurements sit at jetLen **5, 7 and 9**, and the
+  clamp explains all three. Since `targetBore = SR/(2f) - loopDelay`, over-subtracting shortens the bore
+  and reads **sharp**; under-subtracting reads **flat**:
+
+  | morph | jetLen | `ex` | measured | mechanism |
+  |---|---|---|---|---|
+  | 0.70 | 5 | 0.00 | in tune (−1.5¢ worst) | the calibration point |
+  | 0.40 | 7 | **0.80** (clamped) | **+13…+17¢ sharp** | the saturated ramp now over-corrects |
+  | 0.20 | 9 | **0.80** (still clamped) | −19¢, then mode collapse | the clamp under-corrects, and the comment already predicts the mode-flip ("needs jet∝bore") |
+
+  So the ramp saturates at jetLen ≥ 7 and is asked to serve both 7 and 9, fitting neither. It is not a
+  missing feature, it is **a two-point fit carrying a three-point problem**.
+- **Two doc claims need narrowing.** `studio.h` says the drift is *flat*, and at the most plausible
+  mid setting it is *sharp*. And [`audio-notes.md`](audio-notes.md) §18 concludes PIPE is "in tune ~±3¢
+  from C4 to ~E6 **at any sane embouchure**" — morph 0.40 is certainly sane and measures +17¢. Same class
+  of finding as §E9: a recorded number that does not survive re-measurement, which matters most in the
+  docs whose job is to be the as-built record.
+- **Fix shape:** replace the clamped-linear `ex` with a form that has room for three points (a second
+  slope past jetLen 7, or a small table indexed by `jetLen0`), fitted and verified with
+  `tune-check --engine PIPE --macros h,t,m`. Cheap, and the tool and the calibration points already exist.
+- **Audible home:** `pipe`, `air`, and `pipetune` (which exists for this).
+
+### K4. One engine covers three bore topologies that have different harmonic series
+
+- **Book:** the flute family splits along a physical line Parts 52-54 keep returning to.
+  A **pan pipe** is cylindrical and closed at the bottom by a wax plug, so it "can produce **only odd
+  harmonics**", sharing its tonality with square and triangle waves (Part 52). A **recorder** is
+  effectively open, and its spectrum has "a dominant fundamental, with a handful of weak overtones", with
+  "odd and even harmonics … present" — plus the specific quirk that "the recorder's second harmonic is so
+  weak" (Part 53). A **flute** is open at both ends and overblows to the octave (Part 54).
+- **Engine:** `INSTR_PIPE` is documented "flute/recorder/pan pipe" with one bore model and one reflection
+  topology (a single inverting open-end reflection at
+  [`runtime/sound.h:3682`](../../runtime/sound.h)). There is no open-versus-closed axis, so the pan-pipe
+  preset cannot have an odd-only spectrum, and per §K2 no preset overblows at the correct interval either.
+- **Why it may not be worth "fixing" as such:** three macros cannot carry bore topology as a fourth axis,
+  and `eng_p[]` exists for precisely this kind of note-on-only structural switch
+  ([ADR-0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)). A one-bit
+  open/closed flag on `eng_p` would give the family its missing dimension cheaply. Worth measuring our
+  current spectrum first to see which of the three it is actually closest to.
+- **Audible home:** `pipe` (its presets claim all three).
+
+### K5. Blowing harder should brighten, not amplify, and loudness sits on the wrong macro
+
+- **Book:** Part 54, and it is counter-intuitive enough to be worth quoting exactly: "as you blow harder,
+  higher harmonics appear and, as their amplitudes increase, the flute's tone becomes increasingly
+  complex and more sonorous. **Strangely, the flute does not get much louder when you blow harder, but
+  does so when you relax your lips to allow a greater cross-section of air to pass.**" So blowing pressure
+  → brightness; lip aperture → loudness. Two separate controls.
+- **Engine:** `breath = 0.55f + v->timb * 0.35f` multiplies the excitation
+  ([`runtime/sound.h:3657`](../../runtime/sound.h), [`:3690`](../../runtime/sound.h)), so **`timbre`
+  ("breath air") is our loudness axis**, while `morph` ("embouchure") controls jet length and mouth-end
+  coupling but not level. Relative to the physics the two are close to swapped: the aperture control does
+  not set loudness and the air control does.
+- **Held lightly:** this is a three-macro compression of a five-parameter instrument and `timbre` is
+  already doing double duty (excitation energy *and* noise amount), so there is no clean assignment. But
+  it is worth knowing that the loudness axis is not the physical loudness control, especially for anyone
+  wiring expression to it.
+- **Audible home:** `pipe`, `air`.
+
+### K6. The chiff must fire on every note, which needs multi-triggering
+
+Part 52, in the list of things the patch requires from its keyboard: "it's important that the keyboard
+offers **multi-triggering**. This ensures that the chiff occurs at the start of every note, **even when
+you play legato**." That is §B3 again, and note what kind of argument it is: not about feel or
+playability, but about whether the instrument's defining transient happens at all. Our `pp_attack` is
+armed in `sound_pipe_start`, so it fires per *voice*; a cart doing legato by gliding one held voice
+(the `solo.h` pattern) gets no chiff on subsequent notes. That is the right behaviour for a slurred
+phrase and the wrong one for a tongued line, and nothing currently lets a cart choose.
+
+### K7. Keyboard tracking, sixth citation, with a value
+
+Part 54, on the patch's lowpass: "The cutoff frequency of the low-pass filter resides — as discussed — at
+2kHz, although I have found that **pitch tracking of a few percent** is necessary to ensure that high
+notes are reproduced with the correct brightness relative to low notes." Part 52 says the same thing more
+loosely: "an attenuated pitch CV to open the filter … brighter as the pitch rises, but not necessarily in
+a 1:1 relationship. This is, of course, **variable keyboard tracking**." §B2 has now been independently
+requested in Parts 6, 23/24, 26, 46 and 54 — five or six separate chapters depending on how you count —
+which makes it comfortably the most-asked-for missing feature in the series.
+
+### K8. Stretched partials, the fifth family in a row
+
+Part 52: because "the wavefront overshoots the end of the pipe by a small distance … higher modes of
+vibration become progressively inharmonic". Part 53: "the higher harmonics are 'stretched' sharp of their
+mathematical ideal", and on doing anything about it in subtractive synthesis, "there's nothing we can do
+about it". Part 54: the effective length grows with harmonic number. That is brass (§E8), piano (§I4),
+guitar (§H), drums (§J8) and now flutes — **five families, one physical fact**, and our engines model it
+statically at best. It has earned promotion from a per-family footnote to a single cross-engine item.
+
+### Suggested flutes step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | K3 narrow two doc claims: `studio.h`'s "flat" (it is sharp at morph 0.4) and audio-notes §18's "any sane embouchure" | docstrings only | none |
+| 2 | K2 decide whether `harmonics` overblows or is renamed; fix the docstring either way | docstring, or engine | `pipe` |
+| 3 | K3b refit the clamped `ex` ramp so it serves jetLen 5, 7 and 9 | engine, small, tool exists | `pipetune` |
+| 4 | K4 measure which of the three bore spectra we actually produce | measurement first | `pipe` |
+| 5 | K4b an open/closed bore flag on `eng_p` | engine, small | `pipe` |
+| 6 | K5 A/B moving loudness onto the aperture axis | engine, judgement call | `air` |
+| 7 | K8 level-dependent inharmonicity, as one cross-engine item (with §I4, §J8) | engine, cross-family | many |
 
 ---
 

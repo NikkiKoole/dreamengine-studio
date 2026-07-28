@@ -1876,7 +1876,20 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    few cents. ORGAN's "octave low" is its 16′ drawbar, not detuning.
 2. **PIPE was the real bug, and it's fixed.** Octave-low (full- vs half-wavelength bore +
    an inverting reflection) and flat (uncompensated loop delay). Now in tune ~±3¢ from C4 to
-   ~E6 at any sane embouchure. This was the station owner's *"that pipe is hella out of tune"*
+   ~E6 at any sane embouchure.
+   > **⚠ "any sane embouchure" is too strong — re-measured 2026-07-28.** The jet-derived
+   > compensation's second-stage ramp (`ex = 0.40·(jetLen−5)`, **clamped at 0.80**) saturates at
+   > jetLen ≥ 7 and is asked to serve both jetLen 7 and 9, fitting neither. Measured with
+   > `tune-check --engine PIPE`: morph 0.70 (jetLen 5, the calibration point) is in tune, worst
+   > −1.5¢ ✓; morph **0.40** (jetLen 7) is **+13…+17¢ SHARP** (the saturated ramp over-corrects);
+   > morph **0.20** (jetLen 9) is −19¢ then collapses at C6 (the clamp under-corrects, and
+   > `sound_pipe_start`'s own comment already predicts this mode-flip, "needs jet∝bore"). So the
+   > ±3¢ claim holds *near the calibration point*, not across the range. Note `studio.h`'s
+   > docstring has the direction wrong too — it says low embouchure drifts *flat*, and at the most
+   > plausible mid setting it drifts *sharp*. Full analysis + the fix shape (a form with room for
+   > three points) and the physics behind why the drift exists at all (Reid: the flute's "effective
+   > length increases for higher harmonics", which real makers compensate by moving the cork):
+   > [`synth-secrets-audit.md`](synth-secrets-audit.md) §K3. This was the station owner's *"that pipe is hella out of tune"*
    (air's Cherry flute) — the cart-side workaround (register drop, overblow 0) was masking an
    engine bug; with the engine fixed, air's register reopened.
 3. **The decisive lesson: tuning is per-RECIPE, not per-engine — measure in the regime the

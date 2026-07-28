@@ -1723,10 +1723,33 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     second sighting of the noise-through-the-bore win (§E1 found it for brass): Reid needs a formant bank
     of six to forty filters to tune breath noise to the note, and we get it free by injecting noise into
     the excitation. Sixth citation for §B2 keytracking, with a value ("pitch tracking of a few percent").
-    Remaining (§D5 ranks them): the **Hammond 55-59** against `ORGAN`, the largest remaining engine arc;
-    and the **effects arc 60-62 plus Part 22**, the only chapters about the effects layer rather than an
-    engine. Roughly 53 of the 63 articles are now read end to end. After those, the plan is to turn the
-    per-section step tables into one ordered step-by-step guide.
+    **§L = recipe pass 7, THE HAMMOND** (Parts 55-59) — like §I, strongly matched. The nine drawbar ratios
+    are Reid's table **exactly** (0.5/1.5/1.0/2.0/3.0/4.0/5.0/6.0/8.0, i.e. harmonics 1,3,2,4,6,8,10,12,16
+    referenced to the played 8', including the awkward 16'/5⅓'/8' panel order and the skipped harmonics);
+    two of his four named registrations are in our snapped table verbatim (**88 8000 000**, which he calls
+    the punchy Jimmy Smith/Keith Emerson voicing and ours literally labels "jimmy smith", and
+    **88 8888 888**); and our scanner chorus does the one thing he says "**only a couple of Hammond
+    emulators manage to get it right**" — mixing dry with a *single* pitch-modulated instance, because
+    "Roland's three-stage chorus/ensemble is far too lush". It also confirms `audio-notes` §18's "ORGAN
+    reads an octave low" as *correct*: Hammond calls the 8' the unison but "the 16' pitch is the
+    fundamental", so a 16'-heavy registration sounds an octave down while being in tune. Our `leslie()`
+    matches all three points he makes (800 Hz crossover, two rotors at independent rates, independent
+    spin-up/down inertia) on the effect he spends a chapter calling intractable. Gaps cluster on the
+    **percussion**: it is 2nd-harmonic only where the real thing has a **Second/Third** selector (4' vs
+    2⅔'), its decay is fixed ~200 ms where the real thing has **Fast/Slow**, and — the significant one —
+    **it fires on every note, where "Hammond percussion is polyphonic, but of the single-triggering variety,
+    so if a previous note is held, the percussion does not sound"**. That pairs with §K6, where the flute's
+    chiff *requires* multi-triggering: **two instruments we ship need opposite settings of the same
+    switch**, and in both cases it decides whether the instrument's defining transient happens at all. That
+    is the clearest case the audit has made that **§B3 is an engine-level policy an instrument should
+    declare**, not a per-cart convention. Also missing: the two registrations Reid names for what they *do*
+    — **83 4211 100** (closest to 1/n = the nearest a Hammond gets to a sawtooth) and **00 8030 200** (1/n
+    odd-only = a square) — two table rows that add colours the macro cannot currently reach.
+    **Every instrument family is now done.** One arc left: the **effects chapters 60-62 plus Part 22**
+    (springs/plates/buckets), the only ones about the effects layer rather than an engine, pairing with
+    `guides/effects-recipes.md`. Roughly 58 of 63 articles read end to end. Then the step-by-step guide,
+    whose main job is to collect the cheapest items out of eight scattered step tables — several cost
+    nothing at all (a tool run, two cart-only edits, two comment fixes, two table rows).
 
 ---
 

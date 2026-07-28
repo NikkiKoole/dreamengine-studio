@@ -10,10 +10,10 @@ Nothing here is a bug report. Several divergences are deliberate and documented 
 recorded anyway so the choice stays a choice instead of decaying into an accident.
 
 **Layout.** §A-§D are the **architecture** pass (is the engine the right *shape*?), read from the theory
-chapters. §E, §F, §H, §I, §J and §K are the **recipe** passes, one instrument family at a time (does one
-engine's *voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F
-strings**, **§H plucked strings**, **§I pianos**, **§J drums** and **§K flutes** are done; what remains is
-listed in §D5.
+chapters. §E, §F, §H, §I, §J, §K and §L are the **recipe** passes, one instrument family at a time (does
+one engine's *voicing* match the physical analysis?), and they carry measurements. **§E brass**, **§F
+strings**, **§H plucked strings**, **§I pianos**, **§J drums**, **§K flutes** and **§L the Hammond** are
+done; what remains is listed in §D5.
 **§G** is a design question the recipe passes raised: every patch in the book is subtractive and all our
 imitative engines are physical models, which may mean we are missing a category rather than
 mistranslating one — and §H then §I bounded it, since Reid says outright that subtractive cannot do a
@@ -577,30 +577,31 @@ another time." As far as I can find, he never returns to it. Our B2 (Hz versus o
 versus exponential envelopes) are both instances of exactly that unfinished chapter, which is some
 comfort: the canonical text does not settle it either.
 
-**D5. What is left.** Six recipe passes done: **brass (24-27) → §E**, **strings (46-51) → §F**, **plucked
-strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) → §J**, **flutes (52-54) → §K**. With the
-architecture chapters in §A-§D (4-13, 15-18, 20-21, 23, 63) that is **roughly 53 of the 63 articles read
-end to end**. §E is the template.
+**D5. What is left.** Seven recipe passes done: **brass (24-27) → §E**, **strings (46-51) → §F**,
+**plucked strings (28-30) → §H**, **pianos (42-45) → §I**, **drums (31-41) → §J**, **flutes (52-54) →
+§K**, **the Hammond (55-59) → §L**. With the architecture chapters in §A-§D (4-13, 15-18, 20-21, 23, 63)
+that is **roughly 58 of the 63 articles read end to end**. Every instrument family is done. §E is the
+template.
 
-Remaining, by expected yield:
+Remaining:
 
-1. **The Hammond (55-59)** against `INSTR_ORGAN` — §C8 pulled leakage out of Part 57 by grep and it
-   landed. Five chapters on one instrument, and `ORGAN` has a lot of surface to check (nine drawbars, key
-   click, percussion ping, scanner chorus, and the leakage we lack). The largest remaining engine arc.
-2. **Delays and effects (60-62), with Part 22 (springs, plates and buckets)** against our
+1. **Delays and effects (60-62), with Part 22 (springs, plates and buckets)** against our
    echo/BBD/chorus/spring-reverb stack. The only remaining arc about the **effects layer** rather than an
    engine, so it exercises a different part of the codebase than all six passes so far, and it pairs with
    [`../guides/effects-recipes.md`](../guides/effects-recipes.md) rather than instrument-recipes. Part 22
    is the direct ancestor of our spring-reverb and BBD work and should be read with them.
-3. **Duophony (Part 19)** — one chapter, mostly historical, and its content folds into the §B3
+2. **Duophony (Part 19)** — one chapter, mostly historical, and its content folds into the §B3
    note-priority theme. Low yield alone; read it with whatever finally acts on §B3.
-4. **Not worth a pass:** `REED` has no dedicated arc (covered incidentally by Part 24, already read for
+3. **Not worth a pass:** `REED` has no dedicated arc (covered incidentally by Part 24, already read for
    §E, plus the clarinet material in Parts 28, 48 and 52-53, all now read). Part 14 (additive) was partly
    covered in §A-§D.
 
-After those two arcs the sieve is complete, and the plan is to turn the step tables into a single
-ordered step-by-step guide (owner, 2026-07-28: "after we've sieved through everything we will spend some
-time to add a step by step guide, but let's first make it complete").
+**One arc left.** After the effects chapters the sieve is complete, and the plan is then to turn the
+eight per-section step tables into a single ordered step-by-step guide (owner, 2026-07-28: "after we've
+sieved through everything we will spend some time to add a step by step guide, but let's first make it
+complete"). Note that the cheapest items are currently scattered across those eight tables, so the guide's
+main job is to collect them into one order — several cost nothing at all (a tool run, two cart-only edits,
+two comment fixes, two table rows).
 
 ---
 
@@ -2140,6 +2141,160 @@ statically at best. It has earned promotion from a per-family footnote to a sing
 | 5 | K4b an open/closed bore flag on `eng_p` | engine, small | `pipe` |
 | 6 | K5 A/B moving loudness onto the aperture axis | engine, judgement call | `air` |
 | 7 | K8 level-dependent inharmonicity, as one cross-engine item (with §I4, §J8) | engine, cross-family | many |
+
+---
+
+## L. Recipe pass 7 — THE HAMMOND (Parts 55-59)
+
+STATUS: EXPLORING — nothing queued.
+
+Five chapters on one instrument, against `INSTR_ORGAN` plus the `leslie()` effect. Like §I, this comes
+out strongly matched: the drawbar table is exact, and two things Reid says almost nobody gets right are
+things we happen to do. The gaps are small, specific, and cluster around the **percussion**.
+
+Sources: Part 55 "Synthesizing Tonewheel Organs" (SOS November 2003), Part 56 "More On…" (December
+2003), Parts 57-59 "Synthesizing The Rest Of The Hammond Organ" I-III (January, February, March 2004).
+Engine: `sound_organ_start` ([`runtime/sound.h:3065`](../../runtime/sound.h)), `sound_organ_sample`
+([`:3083`](../../runtime/sound.h)), and the Leslie at [`:1521`](../../runtime/sound.h).
+
+### L1. What matches, including two things Reid says emulators get wrong
+
+- **The drawbar ratios are exact, nine for nine, in the awkward panel order.** Part 55 tabulates the
+  drawbars against harmonic number relative to the **16'**, which is the true fundamental: 16'=1,
+  5⅓'=3, 8'=2, 4'=4, 2⅔'=6, 2'=8, 1⅗'=10, 1⅓'=12, 1'=16. Divide by 2 to reference the played 8' unison
+  and you get **0.5, 1.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0** — which is `RAT[9]`
+  ([`runtime/sound.h:3086`](../../runtime/sound.h)) character for character, including the 16'/5⅓'/8'
+  ordering that catches people out. Note the series is *not* harmonics 1-9: it skips 5, 7, 9, 11, 13,
+  14, 15, and we skip them too.
+- **"ORGAN reads an octave low" is correct behaviour, and Reid explains why.** Part 55: "despite
+  Hammond's strange decision to call the 8' the fundamental (or 'Unison') and the 16' drawbar the
+  sub-octave, **the 16' pitch is the fundamental** of a series that includes the first, second, third,
+  fourth, sixth, eighth, 10th, 12th and 16th harmonics." So a registration leaning on the 16' *sounds*
+  an octave down while being in tune, which is exactly how [`audio-notes.md`](audio-notes.md) §18
+  classified it ("transposed, not detuned"). Confirmed from the physics rather than assumed.
+- **Two of Reid's four named registrations are in our snapped table exactly.** `REG[8][9]`
+  ([`runtime/sound.h:3089`](../../runtime/sound.h)) row 3 is `1,1,1,0,0,0,0,0,0` = **88 8000 000**, which
+  Reid singles out as "one of the simplest but most important of these, beloved of Jimmy Smith, Keith
+  Emerson, and heavy rock players the world over … you will immediately recognise its punchy timbre" —
+  and our row is labelled "jimmy smith — fat jazz B3". Row 8 is all-ones = **88 8888 888**, his "all nine
+  harmonics present at maximum amplitude, and is very full and bright", ours labelled "gospel full".
+- **The scanner chorus is right in the way Reid says almost nothing is right.** Part 57 explains the two
+  mode families: on a **V** setting "all of the audio is routed through the scanner, and the signal
+  suffers unadulterated pitch modulation"; on a **C** setting "the output from the scanner unit is
+  **mixed with the unaffected output**", and that is chorus. Then the sting: "This is the key to the best
+  Hammond sounds yet, despite its apparent simplicity, **only a couple of Hammond emulators manage to
+  get it right**", because "The Hammond chorus mixes the straight-through signal with **just a single
+  instance** of the pitch-modulated signal, so Roland's three-stage chorus/ensemble is far too lush." Our
+  comment reads "the scanner CHORUS (C-mode, dry+wet) deepens with morph" and it is a single delay-line
+  instance, not a multi-stage chorus. We are in the couple.
+- **The scanner mechanism and rate both match.** Reid: "a tapped delay line which, if we look closely at
+  the electronics, is a type of phase-shifter constructed from low-pass filters", swept by "a rotating
+  pickup **driven by the tonewheel generator**". Ours is a short delay line with `org_scan_ph` at 6.9 Hz,
+  commented "gear-locked to the motor" — and Reid's own ear-matched figure on the Juno is "six and a bit".
+- **All the drawbars bend together, which is the failure mode he warns about.** Part 57, on faking the
+  scanner with an LFO: "try to ensure that identical amounts of modulation are applied to the DCO and the
+  VCF. **If you don't, the 16' and 8' pitches will deviate more (or less) than the 5 2/3' pitch, which
+  leads to some very unconvincing effects.**" Our nine drawbars all derive from one `freq * pitch_mul`
+  per sample (§8.8.1), so that desync is impossible by construction.
+- **The Leslie matches on every point he makes.** Part 58-59: a treble unit "above 800Hz" and a bass unit
+  below, and "The rotor's chorale speed was different from the horn's, as was its tremolo speed, **and the
+  transition rates**." Our `leslie()` is a navkit Leslie 122 port with "a 1-pole crossover at **800 Hz**",
+  a drum band with gentle sine AM, a horn band with shaped AM plus delay-line Doppler, and "two rotors
+  [spinning] at INDEPENDENT rates with asymmetric spin-up/down inertia (horn light/fast, drum
+  heavy/slow)" ([`runtime/sound.h:1521-1528`](../../runtime/sound.h)). Three for three, including the
+  inertia, on the effect Reid spends a chapter calling intractable.
+- **Key click is a "fault" we model deliberately.** Reid notes both key click and leakage are things
+  "Laurens Hammond considered to be a fault". We have the click; see L6 for the leakage.
+
+### L2. Percussion is second-harmonic only; the real instrument has a Second/Third selector
+
+- **Book:** Part 57 lists the A100's **four** percussion controls — On/Off, **Second/Third**, Normal/Soft,
+  Fast/Slow — and describes the mechanism as "diverting part of the **4' or 2 2/3'** signal through a VCA
+  controlled by an AD contour generator". Since 4' is ratio 2.0 and 2⅔' is ratio 3.0, Second percussion is
+  the 2nd harmonic and Third is the 3rd.
+- **Engine:** `v->org_perc_ph += f * 2.0f * dt` ([`runtime/sound.h:3129`](../../runtime/sound.h)) — the
+  2nd harmonic, hard-coded. There is no third-harmonic option.
+- **Why it is worth having:** Third percussion is a distinctly different colour and a standard part of the
+  vocabulary. It is one multiplier, and the natural home is `eng_p[]` (a note-on structural choice, the
+  documented aux channel) rather than a fourth macro.
+- **Audible home:** `organ`.
+
+### L3. Percussion decay is fixed where the real one has Fast/Slow
+
+`v->org_perc *= 1.0f - dt / 0.2f` ([`runtime/sound.h:3132`](../../runtime/sound.h)) — a single ~200 ms
+decay. Reid's Fast/Slow switch is the fourth of the four controls, and it is one of the two things
+organists actually reach for mid-performance. Our morph-driven amount covers On/Off and Normal/Soft
+between them, so this is the one genuinely missing axis. Also one `eng_p` slot.
+
+### L4. Hammond percussion is SINGLE-triggering, and this is the strongest argument yet for §B3
+
+- **Book:** Part 57, stated plainly: "Hammond percussion is polyphonic, but **of the single-triggering
+  variety, so if a previous note is held, the percussion does not sound**." That is why organists play the
+  percussive attack staccato — legato deliberately suppresses it.
+- **Engine:** `org_perc` is armed in `sound_organ_start`
+  ([`runtime/sound.h:3072-3073`](../../runtime/sound.h)), i.e. per **voice**, so every new note chips
+  regardless of what is held. That is the ARP multi-trigger behaviour applied to an instrument that is
+  famously the opposite.
+- **And here is why this matters beyond the organ.** §K6 found that the flute's chiff *requires*
+  multi-triggering: "it's important that the keyboard offers multi-triggering. This ensures that the chiff
+  occurs at the start of every note, even when you play legato." So **two instruments we ship need
+  opposite settings of the same switch**, and in both cases it is not a matter of feel but of whether the
+  instrument's defining transient happens at all. That is the clearest case the audit has made that §B3
+  (single versus multi trigger) is an **engine-level policy** rather than a per-cart convention — it needs
+  to be a property an instrument declares, because the correct value differs per instrument.
+- **Audible home:** `organ` (play legato and the chip should vanish), against `pipe` (play legato and the
+  chiff should stay).
+
+### L5. Two of Reid's four named registrations are missing, and they are the interesting two
+
+- **Book:** beyond 88 8000 000 and 88 8888 888 (both of which we have, L1), Part 55 names two more and
+  says what they are *for*: **83 4211 100** is "the closest approximation available to a '1/n' harmonic
+  series", and **00 8030 200** is "an approximation to a '1/n' series with all the even harmonics
+  missing". Together: "they are the closest a vintage Hammond can come to producing a **sawtooth wave**
+  and a **square wave**, respectively."
+- **Engine:** our eight recipes are all drawbar-cluster voicings from the 16'/5⅓'/8'/4' family, plus
+  all-bars-out. None grades the upper mutations (1⅗', 1⅓', 1') the way a 1/n approximation does.
+- **Why:** two rows in `REG[8][9]` (or a widened table), and they add two colours the macro genuinely
+  cannot currently reach — an organ imitating a saw and an organ imitating a square, which is a lovely
+  thing to have on a fantasy console and is exactly the kind of "the instrument pretending to be a synth"
+  register §G is about.
+- **Audible home:** `organ`.
+
+### L6. Leakage, with its composition confirmed
+
+§C8 already proposed this from a grep of Part 57. The full quote confirms the composition rather than
+just the existence: leakage is "a mixture of **drawbar pitches and noise** that gives the A100 a
+characteristic, **throaty** quality", and like key click it is something "Laurens Hammond considered to be
+a fault". So a leakage model bleeds the *unpulled* drawbar pitches plus noise under the played
+registration — not simply added hiss, which is what §C8 already said. Reid's own attempt to fake it on a
+Juno failed for a reason that does not apply to us ("the noise passes through the self-oscillating filter,
+and emerges tuned to the 5 2/3' pitch. Bah!"), and he notes it works "far better on the Prophet 10"
+because its filters have zero resonance. Ours has no filter in the way at all.
+
+### L7. Smaller items
+
+- **No V-mode vibrato.** We implement C-mode (dry+wet) only; the real thing offers V-1/V-2/V-3 as 100%
+  wet pitch modulation, six settings in total with the C modes. Very low priority, and Reid agrees:
+  "I never use any of my A100's 'V' settings."
+- **Percussion should steal from the sustain.** "adding percussion also reduces the loudness of the
+  sustained part of the note, but we're going to overlook this." We also overlook it. One multiply.
+- **The scanner has a little AM.** "there is also a small amount of amplitude modulation as the scanner
+  sweeps round the taps, but we should be able to ignore this." Ours is pitch-only. Reid says ignore, so
+  noted only for completeness.
+- **Resonance drains bass, again.** Part 57's reason his Juno patch lands at 67 8321 000 rather than
+  88 8000 000: using the filter to synthesize the 5⅓' drawbar costs low-end because "high filter
+  resonance usually suppresses lower frequencies". Same physical fact as §B/§E's bass-drain note, and a
+  reminder that it is why we model `FILTER_LADDER` and `FILTER_DIODE` that way.
+
+### Suggested Hammond step order
+
+| # | Step | Kind | Where |
+|---|---|---|---|
+| 1 | L5 add the saw-ish and square-ish registrations | two table rows | `organ` |
+| 2 | L2 + L3 Second/Third selector and Fast/Slow decay on `eng_p` | engine, small | `organ` |
+| 3 | L4 percussion single-trigger (with §B3, and against §K6's opposite need) | engine policy | `organ` vs `pipe` |
+| 4 | L6 tonewheel leakage (§C8) | engine, small | `organ` |
+| 5 | L7 percussion steals from the sustain | one multiply | `organ` |
 
 ---
 

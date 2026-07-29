@@ -404,8 +404,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              × velocity × time-window (does inharmonicity respond to LEVEL, does it RELAX);
                              WAV mode for any region. `--check` self-tests against synthetic known-B spectra —
                              RUN IT BEFORE BELIEVING A NULL, since a broken tool and an harmonic engine print
-                             the same table. Found audit §I4b/§I4c (PIANO's dispersion inert + its stretch
-                             cancelled). Modal engines (MALLET/MEMBRANE) are out of frame — no energy at n·f0
+                             the same table. Found audit §I4b/§I4c/§I4d (PIANO's dispersion inert + only half
+                             its Railsback stretch reaching the sound + a loop tuning offset). Modal engines
+                             (MALLET/MEMBRANE) are out of frame — they have no energy at n·f0 at all
              formant-check.js  the VOICE oracle: f0 (autocorrelation, mean + WOBBLE) + F1/F2/F3 formant
                              peaks (Welch-smoothed spectral envelope) of a WAV region — the pitch-moved-AND-
                              formants-held gate for sample_autotune / any pitch-shift (design/transparent-autotune.md)

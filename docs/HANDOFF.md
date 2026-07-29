@@ -323,25 +323,32 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > two defects of the same shape, *a value computed correctly and then never allowed to reach the sound*:
 > **§I4b** PIANO's dispersion chain is **inert** (allpass coefficient 0.9999948 = the identity; B ≈ 2e-6 vs
 > a real grand's ~1e-4; h16 +0.2¢ where it should be ~+22¢; GUITAR and PLUCK too), and **§I4c** the
-> `piano_stretch_freq` seam is **cancelled one frame after note-on** (`v->freq` written back,
-> `v->freq_target` not, so the glide slew undoes it — one-line fix, `v->freq_target = freq`). The two hid
-> each other: the stretch exists to reconcile inharmonicity, and there was none.
+> `piano_stretch_freq` seam works in the **treble only** — `v->freq` is written back but `v->freq_target`
+> is not, so the glide slew undoes it, *except* that an `effLen > len` clamp ([`:4735`](../runtime/sound.h))
+> blocks the undo in the sharp direction. So PIANO ships **half a Railsback curve**: treble stretch tracks
+> the design 1:1 (measured at C5), bass stretch is gone (1/23 at C3). One-line fix, `v->freq_target = freq`.
+> Plus **§I4d**, smaller: with no stretch at all the loop still runs +1.3→+4.0¢ sharp (its own
+> uncompensated delay bookkeeping). §I4b and §I4c hid each other: the stretch exists to reconcile
+> inharmonicity, and there was none.
 > **`sound.h` was NOT changed** — every number is from the committed engine or a sweep that restored the
 > file in a `finally` block.
 >
-> **Resume-at: the OWNER'S CALL on §I4c's tuning, which has no byte-identical option** (PIANO's current
-> tuning is itself an artifact of the bug): (1) today's monotonic +0.8→+9.1¢ sharp drift, (2) mechanism
-> fixed with `PIANO_STRETCH_K = 0` = dead-on ET, (3) mechanism fixed at `K = 2` = the real Railsback
-> stretch. **Recommended (2) now, (3) only together with a real §I4b** — a Railsback stretch is
-> *compensation* for inharmonicity, so applying it to a perfectly harmonic string just detunes the piano
-> against the rest of the cart. §I4b itself is **DESIGN, not a one-liner**: real dispersion adds loop delay
-> and drops the pitch unless the chain's phase delay at the fundamental is subtracted from `len`, and that
-> compensation is the actual work. Then **2.3(b)** (the original level-dependent item) can finally sit on
-> top of it. Full write-up with every table →
+> **Resume-at: the OWNER'S CALL on §I4c's tuning. Recommendation: take the one-line fix at the current
+> `K=2`.** The measured curves say it **changes nothing above B3** and only completes the bass (−2.6¢ at
+> A2, ~−8¢ by A1). The argument that looked decisive against it — *a Railsback stretch is compensation for
+> inharmonicity we do not have (§I4b)* — is moot, because **we already ship the sharp treble half and
+> always have**; the fix stops it being asymmetric. No byte-identical option exists (today's bass tuning is
+> itself the artifact), and the change sits below the ~5–10¢ melodic JND. §I4b stays **DESIGN, not a
+> one-liner**: real dispersion adds loop delay and drops the pitch unless the chain's phase delay at the
+> fundamental is subtracted from `len`, which also interacts with §I4d. Then **2.3(b)** (the original
+> level-dependent item) can finally sit on top of it. Full write-up with every table →
 > [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
-> **Lesson worth carrying:** `sound.h` said *"tune-check flags PIANO by design — that IS the stretch, not
-> a bug"*, and tune-check **passes**. A comment that pre-emptively explains away a gate turned a green
-> check into false confirmation for months. When a comment says a gate should be red, verify it IS red. **2.4 (coupling) should start with a MEASUREMENT, not a build** — §M2's claim that three
+> **Two lessons worth carrying.** (1) `sound.h` said *"tune-check flags PIANO by design — that IS the
+> stretch, not a bug"*, and tune-check **passes**. A comment that pre-emptively explains away a gate turned
+> a green check into false confirmation for months; when a comment says a gate should be red, verify it IS
+> red. (2) The first draft of this finding said the stretch was cancelled outright — measured at **one
+> note** (C3) and generalised. The missing *flat bass* in the tune-check curve was the clue, on screen and
+> read as uninteresting residue. **Measure both halves of a signed curve before describing it.** **2.4 (coupling) should start with a MEASUREMENT, not a build** — §M2's claim that three
 > parallel 1-4 ms delay lines *are* a body, which if it holds may answer the brass bell, the guitar body and
 > the piano tricord cheaply and all at once. Still open from 2.2: `tb303`, `acidrack` and `moog` each still
 > hand-roll their own key assign; converting them one at a time is where the §L4-vs-§K6 argument (Hammond

@@ -1684,8 +1684,11 @@ I5.
 > instead of ~+22¢ — the partials are harmonic to within the measurement. `pt = B·(i+1)·freq/SR` comes out
 > at 2.6e-6 at C3, so the dispersion allpass coefficient is 0.9999948, i.e. the identity. GUITAR
 > (−3.1e-7) and PLUCK (1.6e-8) too. A second, independent defect found alongside it: the
-> `piano_stretch_freq` seam is **cancelled one frame after note-on** (`v->freq` is written back but
-> `v->freq_target` is not, so the glide slew undoes it). Full write-up, evidence and the open call:
+> `piano_stretch_freq` seam works in the **treble only** — `v->freq` is written back but
+> `v->freq_target` is not, so the glide slew undoes it, except that an `effLen > len` clamp happens to
+> block the undo in the sharp direction. So PIANO has been playing **half a Railsback curve**: correct
+> treble stretch, no bass stretch. And a third, smaller one (§I4d): with no stretch at all the loop still
+> runs +1.3→+4.0¢ sharp, its own uncompensated delay bookkeeping. Full write-up, evidence and the open call:
 > [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
 
 - **Book:** Part 42 and Part 28 both say the stretching depends on *two* things: "the string appears

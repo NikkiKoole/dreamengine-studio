@@ -193,9 +193,9 @@ void draw(void) {
         pset(x, y_for_hz(f), CLR_LIGHT_PEACH);                 // the note
         int cy = y_for_hz(hist_c[i]);
         rectfill(x - 1, cy, 3, 2, CLR_LIME_GREEN);             // the cutoff it produced
-        int step = (GW - 12) / 40;
+        int colw = (GW - 12) / 40;   // NOT `step`: spec.h owns that name (see the acidcandy trap)
         if (i > 0) {                                           // join the cutoffs so tracking READS as a slope
-            int px = x + step, py = y_for_hz(hist_c[i-1]);
+            int px = x + colw, py = y_for_hz(hist_c[i-1]);
             line(x, cy, px, py, CLR_DARK_GREEN);
         }
         if (ev_i > 0) {                                        // and the TOP of the filter env's sweep
@@ -204,7 +204,7 @@ void draw(void) {
             // the vertical tick IS the sweep, drawn to scale: on a log axis its LENGTH is the depth in
             // octaves, so "sweep in Hz" visibly shrinks as the phrase climbs and "in OCTAVES" does not
             line(x, py2, x, cy, CLR_DARK_PURPLE);
-            if (i > 0) line(x, py2, x + step, y_for_hz(hist_p[i-1]), CLR_ORANGE);
+            if (i > 0) line(x, py2, x + colw, y_for_hz(hist_p[i-1]), CLR_ORANGE);
         }
     }
     font(FONT_TINY);

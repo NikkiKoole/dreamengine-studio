@@ -9,13 +9,13 @@
   "teaches": ["rigid-body", "procedural-mesh"],
   "lineage": "Slice 4 of the playtime-into-dreamengine port. puppet.c gave the data-driven Rig (parts + sprung hinges); boxskin.c skinned ONE texture across ONE elbow with LBS. This is the whole figure: the 1:1 between sprite and body is broken (15 invisible bones, 6 sprite skins), weights come from distance to a bone SEGMENT rather than to a bone centre (playtime's applySegmentWeights lesson: point-distance collapses mesh width at bone midpoints), and the blend is DQS rather than LBS so a folded knee doesn't candy-wrapper. A whole leg is ONE texture bending at hip, knee AND ankle.",
   "description": {
-    "summary": "FIVE humanoids on a horizon, all instances of one rig table, each built from three numbers: a stiffness multiplier on its joint springs and KEEP_ANGLE gains (the floppiest slumps and piles up, the stiffest stands rigid), an overall SCALE, and a GIRTH that widens it across its own centre line. That gives a small wiry kid, a short barrel, the rig exactly as authored, a tall thin one and a broad bruiser, with no second rig table and no second sprite sheet anywhere. Each limb is a single continuous sprite strip stretched over several Box2D bones. The right leg is one 20x62 texture that bends at the hip, the knee and the ankle; the left leg is the SAME texture mirrored, and all five guys share that one sheet. Each figure gets its own Box2D collision group, so a guy ignores his own limbs but bumps into his neighbours. Press F to fold a limb to its limit, then SPACE to A/B four ways of deforming that texture: a Bezier SPINE, dual-quaternion and linear weighted blends, and rigid one-bone-per-vertex. Every limb is BANDED across its axis on purpose: a flat colour tells you nothing about how a skin deformed, but a regular stripe fans out on the outside of a bend, bunches on the inside, and shears visibly the moment a blend mode gets it wrong.",
-    "detail": "Four deformation modes over one rig, because the interesting question is not how to attach a texture to a bone but what happens at a hard bend. SPINE is playtime's MESHUSERT spine-bind ported: each vertex is stored as (t, s) — arc-length fraction along a Bezier drawn through the limb's joint chain, plus signed perpendicular offset — and replanted each frame on the live curve, with no weights and nothing to tune. On top of it sits a CURVATURE CLAMP. playtime's own miter clamp (written for its ribbon path, never wired into spine-bind) was tried first and measured worse than no clamp: it is the right formula for a polyline corner, but a Bezier spine has no such corner, so min(segA,segB) only measures sample spacing and collapses exactly at a bend. The correct bound is the local radius of curvature - an offset curve folds on the concave side once the offset exceeds R - and clamping to 0.92R takes the fold artifact to zero at every angle tested. The cart carries its own oracle for this — every triangle's winding is baked at bind time and compared each frame, so 'inverted triangles' is a number, not an opinion. At a full elbow-and-knee fold: SPINE+clamp 4, SPINE without clamp 7, DQS 19, LBS 19, RIGID 43, out of 880. The structural move over puppet.c: BONES and SKINS are separate lists. 15 bones are invisible Box2D boxes joined by sprung, angle-limited revolutes (pelvis, chest, head, and upper/lower/extremity for each of four limbs). 6 skins are sprite rects from the sheet, each naming the subset of bones that deforms it. Per skin: a grid over the rect's opaque pixels becomes a triangle mesh; each vertex is weighted by 1-smoothstep(0, radius, distanceToBoneSegment), pruned to the best 3 bones and renormalised; bind pose stores the vertex in each bone's LOCAL frame plus that bone's rest angle. Each frame the vertex is placed by blending the bones' DELTA rotations as a circular mean, rotating the bind vertex once by that blend, then adding the weight-averaged translation residual, and tritex draws the triangles with UVs that never move. Left and right limbs share one sprite rect: the geometry mirrors, the UVs do not. The sprite sheet is drawn as a deformation TEST PATTERN — breton torso, banded sleeves and shorts, striped socks, cross-banded shoes — so the eye can read stretch and shear directly instead of guessing from a silhouette. The per-bone blend radius is what keeps a foot rigid while a thigh blends over 14 pixels. BUILDS: size and girth are one anisotropic transform (uniform about the authored SOLE line so a small guy still stands on the floor, x-only about the CENTRE line so a wide guy stays over his own feet) through which every authored coordinate already passed on its way in. Applying it at BIND rather than at draw is what keeps it free: the mesh is born the size it will be, so the weights, the (t,s) spine pair and the baked rest windings all describe this particular guy, and no per-frame code knows a figure isn't the authored size. Three things have to ride it or the illusion breaks, and each was a visible bug first: the blend radius (a px distance, so a wide guy's outer column would fall outside every radius and skin rigidly), the collision half-width (or neighbours sink into a barrel's belly, since only the shape is solid), and a per-skin share of the girth, because a barrel wants a wide belly and not a wide head. The winding oracle says the transform is honest: in SPINE mode a 400-frame fold peaks at 12 inverted triangles of 22000 against 10 before, statistically the same. The weighted modes do get worse (DQS peaks 45 against 33), and the new per-BUILD flip counter says why, which is the point of having it: the flips land on the small floppy build, which now gets shoved around by heavier neighbours and reaches deeper collapses, not on the wide ones. Springs deliberately do NOT scale with size; the source carries the measurement that says the correction is inert across this range.",
+    "summary": "FIVE DIFFERENT PEOPLE built from one rig table and one sprite sheet: a small kid with a big head and short limbs, a barrel with a long thick torso on short legs, the rig exactly as authored, a lanky one with long legs and a small head, and a broad bruiser. Nothing about them is hand-placed. Each build states a stiffness multiplier for its joint springs (the floppiest sags, the stiffest stands rigid), an overall size, an overall thickness, and how long and how thick the bones of each GROUP are, and the rig walks its own parent chain to work out where every bone and every sprite pixel ends up. Lengthen a thigh and the knee, the ankle, the foot and the whole leg strip follow. Each limb is a single continuous sprite strip stretched over several Box2D bones. The right leg is one 20x62 texture that bends at the hip, the knee and the ankle; the left leg is the SAME texture mirrored, and all five guys share that one sheet. Each figure gets its own Box2D collision group, so a guy ignores his own limbs but bumps into his neighbours. Press F to fold a limb to its limit, then SPACE to A/B four ways of deforming that texture: a Bezier SPINE, dual-quaternion and linear weighted blends, and rigid one-bone-per-vertex. Every limb is BANDED across its axis on purpose: a flat colour tells you nothing about how a skin deformed, but a regular stripe fans out on the outside of a bend, bunches on the inside, and shears visibly the moment a blend mode gets it wrong.",
+    "detail": "Four deformation modes over one rig, because the interesting question is not how to attach a texture to a bone but what happens at a hard bend. SPINE is playtime's MESHUSERT spine-bind ported: each vertex is stored as (t, s) — arc-length fraction along a Bezier drawn through the limb's joint chain, plus signed perpendicular offset — and replanted each frame on the live curve, with no weights and nothing to tune. On top of it sits a CURVATURE CLAMP. playtime's own miter clamp (written for its ribbon path, never wired into spine-bind) was tried first and measured worse than no clamp: it is the right formula for a polyline corner, but a Bezier spine has no such corner, so min(segA,segB) only measures sample spacing and collapses exactly at a bend. The correct bound is the local radius of curvature - an offset curve folds on the concave side once the offset exceeds R - and clamping to 0.92R takes the fold artifact to zero at every angle tested. The cart carries its own oracle for this — every triangle's winding is baked at bind time and compared each frame, so 'inverted triangles' is a number, not an opinion. At a full elbow-and-knee fold: SPINE+clamp 4, SPINE without clamp 7, DQS 19, LBS 19, RIGID 43, out of 880. The structural move over puppet.c: BONES and SKINS are separate lists. 15 bones are invisible Box2D boxes joined by sprung, angle-limited revolutes (pelvis, chest, head, and upper/lower/extremity for each of four limbs). 6 skins are sprite rects from the sheet, each naming the subset of bones that deforms it. Per skin: a grid over the rect's opaque pixels becomes a triangle mesh; each vertex is weighted by 1-smoothstep(0, radius, distanceToBoneSegment), pruned to the best 3 bones and renormalised; bind pose stores the vertex in each bone's LOCAL frame plus that bone's rest angle. Each frame the vertex is placed by blending the bones' DELTA rotations as a circular mean, rotating the bind vertex once by that blend, then adding the weight-averaged translation residual, and tritex draws the triangles with UVs that never move. Left and right limbs share one sprite rect: the geometry mirrors, the UVs do not. The sprite sheet is drawn as a deformation TEST PATTERN — breton torso, banded sleeves and shorts, striped socks, cross-banded shoes — so the eye can read stretch and shear directly instead of guessing from a silhouette. The per-bone blend radius is what keeps a foot rigid while a thigh blends over 14 pixels. BUILDS, and why the rig is now WALKED: an affine transform of the table can make a figure bigger or thicker, and that is all it can do. Real proportions cannot come from it, because BONES[] stores absolute positions, so lengthening a thigh would leave the knee, the ankle, the foot and the leg skin's rest placement exactly where they were. So the table became the REFERENCE pose and each build derives its own rig from it, parent first: a bone keeps its authored direction, takes its group's length, and starts at the same spot on its parent's DERIVED segment, which is what makes a longer chest carry the shoulder up with it and a wider pelvis spread both legs. Two primitives do all of it, and they are the spine bind's decomposition applied per bone instead of per chain: a point maps to (fraction along a bone, signed perpendicular offset), and that pair maps back onto the build's version of that bone with the offset scaled by its thickness. The skins ride the same remap, weight-blended by the smoothstep the skinning already uses so seams between bones stay smooth, which is the substitution that turns a scaled copy into a different build: the leg strip's rest position becomes a function of where the shin ENDED UP. Doing it at BIND and not at draw keeps it free, since the mesh is born the shape this figure is and no per-frame code knows the difference. Two invariants guard it. Round-tripping through both primitives is the identity, so the unproportioned 'author' build must render exactly as the pre-derivation cart did: it does, bit for bit, once the derived rest pose is snapped to a 1/256 px grid (without the snap a vertex authored exactly on an integer came back a hair either side of it and moved a shared triangle edge by a pixel). And the winding oracle says the shapes are honest: a 300-frame fold peaks at 15 inverted triangles of 22000 against 12 for five plain scaled copies, with the weighted modes slightly BETTER than before. The per-build flip counter earns its keep here by showing the two mode families fail for opposite reasons: the weighted blends are wrecked by deep poses (the floppiest build owns 60% of their inversions, the thickest is nearly clean) while SPINE is indifferent to pose and vulnerable to THICKNESS, since an offset curve folds once the offset passes the local radius of curvature. Proportions feed back into the physics too: the big-headed kid is top-heavy and needs roughly twice the joint stiffness of the old floppiest build to stay on its feet (measured 0.41 of its rest height at stiff 0.35, 0.81 at 0.65). Springs deliberately do NOT scale with size; the source carries the measurement that says the correction is inert across this range.",
     "controls": "Drag any bone with the mouse to pose the figure. F drives the right elbow and knee to a full fold (the extreme-pose test - a mouse drag cannot reliably reach it, the chain would rather swing at the hip). SPACE cycles SPINE / DQS / LBS / RIGID. C toggles spine mode's curvature clamp. M shows the mesh wireframe. B shows the bone skeleton. R resets."
   },
   "todo": [
-    "Real PROPORTIONS (long legs, short torso, big head) need the rig authored as bone LENGTHS and DIRECTIONS with positions derived by walking the parent chain. BONES[] stores absolute screen coordinates, so lengthening a thigh today would leave the knee, the ankle and the leg skin's rest placement behind. Scale and girth are as far as an affine transform of the authored table can go. That refactor is worth ~60 lines and pays for itself twice: it gives posing for free, and it is the shape boneskin.h wants anyway.",
-    "Girth is one number per figure with a per-skin share; the honest next rung is per-BONE thickness. In SPINE mode that is nearly free (one multiply on s, the perpendicular offset), which would give a pot belly on thin arms. In DQS the bind offsets are absolute vectors, so it needs decomposing each into along-bone and across-bone components first.",
+    "Proportions are stated per GROUP (torso, head, arm, leg), because 15 numbers per build would be the second rig table this cart refuses to have. Per-BONE would buy a pot belly over a normal chest, or one arm longer than the other, and the machinery already takes it: bg[] and the derived segments are per bone, only the authoring is grouped. What that needs is a way to state it without a wall of numbers, which is a design question rather than a code one.",
+    "The chain walk keeps each bone's AUTHORED direction, so proportions can change lengths and thicknesses but not the rest pose. Letting a build state joint angles too (a slouch, a swagger, splayed feet) is the same walk with a rotation folded in, and it would make the crowd read as five attitudes and not just five bodies.",
     "Stretched stripes: the banding is baked into the sheet, so a scaled limb gets scaled banding. It reads as 'different build' rather than wrong, but five scales of one drawing is not five characters. Genuinely different silhouettes need their own sprite rects.",
     "Promote the skinning half to runtime/boneskin.h once a second cart wants it - the Fig struct, both binds, the four modes and the winding oracle. The crowd refactor already proved the seam: one rig TABLE, N instances.",
     "Spine-bind can't branch, so the torso and head still fall back to DQS. playtime's multi-chain bind (hard per-vertex chain assignment) is the next rung.",
@@ -75,10 +75,6 @@ typedef struct {
     int   ox, oy, w, h;           // rect on the sheet
     float px, py;                 // where its top-left sits at rest (screen px)
     bool  mirror;                 // flip the GEOMETRY horizontally; UVs unchanged
-    float gm;                     // how much of the figure's GIRTH this skin takes
-                                  // (1 = all of it). A barrel wants a wide belly,
-                                  // not a wide head, and a sleeve reads best a
-                                  // little narrower than the torso it hangs off.
     int   bones[6], nbones;
     // SPINE mode only: the bones that form this skin's CHAIN, root to tip. The
     // chain's points are bone[0]'s start followed by every bone's end, so 3
@@ -93,6 +89,10 @@ enum { B_PELVIS, B_CHEST, B_HEAD,
        B_THIGH_R, B_SHIN_R, B_FOOT_R,
        B_THIGH_L, B_SHIN_L, B_FOOT_L, NBONE };
 
+// This table is the REFERENCE pose, not any figure on screen: every build
+// derives its own rig from it (proportion()), and nothing outside that function
+// reads these coordinates directly. Parents MUST come before their children —
+// the chain walk depends on it, and so does bone_group()'s range test.
 static const BoneDef BONES[NBONE] = {
     // name      parent      ax   ay    bx   by   rad    lo    hi   hz   keepKp   hw
     {"pelvis",  -1,        160,  72,  160,  60,  16,     0,    0, 0.0f, 20.0f, 0.30f},
@@ -118,16 +118,16 @@ static const BoneDef BONES[NBONE] = {
 
 // Listed BACK to FRONT — the painter's order is the whole depth story.
 static const SkinDef SKINS[] = {
-    {"armL",  56, 0, 14, 50, 138, 43, true,  0.85f, {B_CHEST, B_UARM_L, B_LARM_L, B_HAND_L}, 4,
-                                                    {B_UARM_L, B_LARM_L, B_HAND_L}, 3},
-    {"legL",  76, 0, 20, 62, 141, 69, true,  0.90f, {B_PELVIS, B_THIGH_L, B_SHIN_L, B_FOOT_L}, 4,
-                                                    {B_THIGH_L, B_SHIN_L, B_FOOT_L}, 3},
-    {"legR",  76, 0, 20, 62, 160, 69, false, 0.90f, {B_PELVIS, B_THIGH_R, B_SHIN_R, B_FOOT_R}, 4,
-                                                    {B_THIGH_R, B_SHIN_R, B_FOOT_R}, 3},
-    {"torso", 24, 0, 28, 41, 146, 40, false, 1.00f, {B_PELVIS, B_CHEST, B_HEAD}, 3,  {0}, 0},
-    {"armR",  56, 0, 14, 50, 169, 43, false, 0.85f, {B_CHEST, B_UARM_R, B_LARM_R, B_HAND_R}, 4,
-                                                    {B_UARM_R, B_LARM_R, B_HAND_R}, 3},
-    {"head",   0, 0, 20, 20, 150, 20, false, 0.45f, {B_HEAD, B_CHEST}, 2,            {0}, 0},
+    {"armL",  56, 0, 14, 50, 138, 43, true,  {B_CHEST, B_UARM_L, B_LARM_L, B_HAND_L}, 4,
+                                             {B_UARM_L, B_LARM_L, B_HAND_L}, 3},
+    {"legL",  76, 0, 20, 62, 141, 69, true,  {B_PELVIS, B_THIGH_L, B_SHIN_L, B_FOOT_L}, 4,
+                                             {B_THIGH_L, B_SHIN_L, B_FOOT_L}, 3},
+    {"legR",  76, 0, 20, 62, 160, 69, false, {B_PELVIS, B_THIGH_R, B_SHIN_R, B_FOOT_R}, 4,
+                                             {B_THIGH_R, B_SHIN_R, B_FOOT_R}, 3},
+    {"torso", 24, 0, 28, 41, 146, 40, false, {B_PELVIS, B_CHEST, B_HEAD}, 3,  {0}, 0},
+    {"armR",  56, 0, 14, 50, 169, 43, false, {B_CHEST, B_UARM_R, B_LARM_R, B_HAND_R}, 4,
+                                             {B_UARM_R, B_LARM_R, B_HAND_R}, 3},
+    {"head",   0, 0, 20, 20, 150, 20, false, {B_HEAD, B_CHEST}, 2,            {0}, 0},
 };
 #define NSKIN ((int)(sizeof(SKINS)/sizeof(SKINS[0])))
 
@@ -173,39 +173,75 @@ typedef struct {
                                           // the crowd is one table, five temperaments
     float     sc;                         // overall SIZE, 1 = the authored rig
     float     girth;                      // thickness ACROSS the figure, 1 = authored
+    // This build's rig, DERIVED from the authored table by proportion() below:
+    // each bone's rest segment in authored space, and its thickness multiplier.
+    // Everything (bones, joints, skin rest placement) reads these, never BONES[]
+    // coordinates directly — BONES[] is the reference pose, not any figure.
+    float     pax[NBONE], pay[NBONE], pbx[NBONE], pby[NBONE];
+    float     bg[NBONE];
+    float     restUp;                     // head height above the floor at rest, px.
+                                          // Captured per build because proportions
+                                          // change it: "is he still standing" can
+                                          // only be read as a fraction of his OWN
+                                          // height, never against a shared number.
 } Fig;
 static Fig fig[NFIG];
 
-// Five BUILDS from one rig: a spring multiplier (temperament), a uniform SCALE,
-// and an x-only GIRTH. Nothing here is a second rig table — the last two are one
-// anisotropic transform (figx/figy below) through which every authored
-// coordinate already passes, so no stage downstream of it — weights, both binds,
-// the winding oracle — needs to know a figure isn't the authored size.
-typedef struct { const char *name; float dx, stiff, sc, girth; } BuildDef;
+// Bones come in four GROUPS, and a build's proportions are stated per group
+// rather than per bone: 15 numbers per figure would be a second rig table, which
+// is the thing this cart refuses to have. The enum order below is what makes the
+// lookup a range test — parents first, then the six arm bones, then the six leg
+// bones (the same ordering proportion()'s chain walk depends on).
+enum { G_TORSO, G_HEAD, G_ARM, G_LEG, NGROUP };
+static int bone_group(int b) {
+    if (b == B_HEAD)    return G_HEAD;
+    if (b <= B_CHEST)   return G_TORSO;    // pelvis, chest
+    if (b <= B_HAND_L)  return G_ARM;      // upper/lower/hand, both sides
+    return G_LEG;                          // thigh/shin/foot, both sides
+}
+
+// Five BUILDS from one rig. Four knobs, no second rig table:
+//   stiff  — multiplier on the joint springs and KEEP_ANGLE gains (temperament)
+//   sc     — uniform SIZE, applied last, about the authored sole line
+//   girth  — overall thickness, multiplying every bone's group thickness
+//   len[] / grth[] — per-GROUP PROPORTIONS: how long and how thick the bones of
+//            each group are relative to the authored rig. This is the knob that
+//            an affine transform of the table could never give: lengthening a
+//            thigh has to carry the knee, the ankle, the foot and the leg skin's
+//            whole rest placement with it, which is why the rig is now WALKED
+//            (proportion()) instead of read off the table.
+typedef struct {
+    const char *name;
+    float dx, stiff, sc, girth;
+    float len[NGROUP], grth[NGROUP];      // { torso, head, arm, leg }
+} BuildDef;
 static const BuildDef BUILDS[NFIG] = {
-    //   name        dx   stiff     sc   girth
-    { "kid",       -124, 0.35f, 0.72f, 0.95f },   // small, slim, floppiest
-    { "barrel",     -62, 0.70f, 0.86f, 1.32f },   // short and wide
-    { "author",       0, 1.00f, 1.00f, 1.00f },   // the rig exactly as authored
-    { "lanky",       62, 1.45f, 1.10f, 0.78f },   // tall and thin
-    { "bruiser",    124, 2.10f, 1.14f, 1.20f },   // tall, broad, stiffest
+    //   name        dx   stiff     sc   girth  len{tor  head  arm   leg}  girth{tor head  arm   leg}
+    { "kid",       -124, 0.65f, 0.72f, 0.95f, {0.95f,1.15f,0.85f,0.82f}, {1.00f,1.25f,0.95f,1.00f} },
+    { "barrel",     -62, 0.85f, 0.86f, 1.28f, {1.08f,0.95f,0.95f,0.85f}, {1.10f,0.80f,0.95f,1.00f} },
+    { "author",       0, 1.00f, 1.00f, 1.00f, {1.00f,1.00f,1.00f,1.00f}, {1.00f,1.00f,1.00f,1.00f} },
+    { "lanky",       62, 1.45f, 1.02f, 0.80f, {1.00f,0.92f,1.15f,1.22f}, {1.00f,1.05f,0.90f,0.90f} },
+    { "bruiser",    124, 2.10f, 1.08f, 1.18f, {1.05f,0.95f,1.10f,0.95f}, {1.15f,0.85f,1.20f,1.05f} },
+    // kid: short limbs under a big head (a child's proportions, not a small
+    // adult). barrel: long thick torso on short legs. lanky: long legs and arms,
+    // small head, thin everywhere. bruiser: heavy torso and arms, short legs.
 };
 
-// The authored rig's centre line and SOLE line. Size scales about the sole, so a
-// small guy still stands ON the floor instead of hovering or sinking; girth
-// scales about the centre line, so a wide guy stays centred over his own feet.
+// The authored rig's centre line and SOLE line. Size scales about the sole so a
+// small guy still stands ON the floor rather than hovering or sinking, and about
+// the centre line so he stays over his own feet. This transform is ISOTROPIC:
+// thickness is no longer a squash in x (it was, for one commit) but a real
+// offset from each bone's own axis, so it survives a limb pointing sideways.
 #define RIG_CX   160.0f
 #define RIG_BY   131.0f
+static inline float figx(const Fig *F, float x) { return RIG_CX + F->dx + (x - RIG_CX) * F->sc; }
 static inline float figy(const Fig *F, float y) { return RIG_BY + (y - RIG_BY) * F->sc; }
-// `g` is the girth actually applied: bones always take the figure's in full,
-// a skin takes the fraction its SkinDef.gm asks for.
-static inline float figxg(const Fig *F, float x, float g) {
-    return RIG_CX + F->dx + (x - RIG_CX) * F->sc * g;
-}
-static inline float figx(const Fig *F, float x) { return figxg(F, x, F->girth); }
-static inline float skin_girth(const Fig *F, const SkinDef *s) {
-    return 1.0f + (F->girth - 1.0f) * s->gm;
-}
+// This build's rest segment for bone b, in screen px. EVERY consumer goes
+// through these four — the derived rig, then the size transform.
+static inline float bone_ax(const Fig *F, int b) { return figx(F, F->pax[b]); }
+static inline float bone_ay(const Fig *F, int b) { return figy(F, F->pay[b]); }
+static inline float bone_bx(const Fig *F, int b) { return figx(F, F->pbx[b]); }
+static inline float bone_by(const Fig *F, int b) { return figy(F, F->pby[b]); }
 
 // SPRINGS DO NOT GET RESCALED WITH SIZE, and that was worth measuring rather
 // than assuming. The suspicion was a scaling law: gravity's torque on a limb
@@ -238,20 +274,28 @@ static int  mode = 3;   // 0=DQS 1=LBS 2=RIGID 3=SPINE. SPINE is the default now
                         // floppy guys collapse and pile up — and there they part.
                         // Peak inverted triangles over a 300-frame F fold, out of
                         // the crowd's 22000, and the same number split by BUILD
-                        // (summed over the run) now that the five differ in size:
+                        // (summed over the run) now that the five are proportioned:
                         //                 peak    kid barrel author lanky bruiser
-                        //   SPINE+clamp     12     451   718     72    40     115
-                        //   DQS             45    4521  1734    221  1076      42
-                        //   LBS             45    4521  1734    221  1076      42
-                        //   RIGID          118   11555  6412   3110  2997       0
-                        // Two things fall out of that split. DQS and LBS are byte
-                        // identical here, as they were before the crowd grew: the
+                        //   SPINE+clamp     15     147  1098     79   466     546
+                        //   DQS             44    3493  1389    242   329     109
+                        //   LBS             44    3493  1389    242   329     109
+                        //   RIGID          106    7940  6397   3203  1670       0
+                        // Three things fall out of that split. DQS and LBS are
+                        // byte identical, as they were before the crowd grew: the
                         // triangles that invert are ones both blends get wrong.
-                        // And the weighted modes' extra flips are NOT the girth —
-                        // the widest build is the CLEANEST of the five in DQS (42
-                        // of 7594) while the small floppy one owns 60% of them.
-                        // Being wide doesn't break a weighted skin; collapsing in
-                        // a heap does, and the floppiest build is the one doing it.
+                        // Second, the two FAMILIES fail for opposite reasons. The
+                        // weighted modes are wrecked by POSE — the floppiest build
+                        // owns 60% of their flips while the thickest is nearly
+                        // clean — because a flat weighted sheet has nowhere to put
+                        // the inside of a hard bend. SPINE inverts that ranking:
+                        // it doesn't care how deep the pose goes, but thickness is
+                        // exactly its weak spot, since an offset curve folds once
+                        // the offset passes the local radius of curvature, so the
+                        // two thick builds contribute 1644 of its 2336 and the
+                        // small one almost none. Third, and the reason the table
+                        // is here: making the five DIFFERENT SHAPES rather than
+                        // five sizes cost almost nothing — 12 to 15 peak in the
+                        // default mode, and the weighted modes came down slightly.
                         // Torso and head have no chain and fall back to DQS either
                         // way, so nothing is lost by defaulting to spine.
 static bool showMesh = false, showBones = false, folding = false, curveClamp = true;
@@ -276,12 +320,86 @@ static float dist_seg(float px, float py, float ax, float ay, float bx, float by
     return sqrtf(dx*dx + dy*dy);
 }
 static inline float bone_angle(const Fig *F, int b) { return b2Rot_GetAngle(b2Body_GetRotation(F->bone[b])); }
-// Distance from a rest-pose skin pixel to bone b's segment, both in THIS figure's
-// transformed coordinates — the one place the build's scale/girth has to meet the
-// authored rig table, so weights measure the guy who exists, not the table's guy.
+// Distance from a rest-pose skin pixel to bone b's segment, both in THIS build's
+// coordinates, so weights measure the guy who exists and not the table's guy.
 static inline float bone_dist(const Fig *F, int b, float rx, float ry) {
-    const BoneDef *d = &BONES[b];
-    return dist_seg(rx, ry, figx(F, d->ax), figy(F, d->ay), figx(F, d->bx), figy(F, d->by));
+    return dist_seg(rx, ry, bone_ax(F,b), bone_ay(F,b), bone_bx(F,b), bone_by(F,b));
+}
+
+// ── proportions: the rig as a CHAIN, not a list of coordinates ──────────
+// The affine transform above can make a figure bigger or thicker, but it can
+// never make its legs longer, because BONES[] stores absolute positions:
+// lengthening a thigh leaves the knee, the ankle, the foot and the leg skin's
+// rest placement exactly where they were. So the build's rig is DERIVED. Two
+// primitives do all of it, and they are the same decomposition the spine bind
+// uses, applied per bone instead of per chain:
+//
+//   bone_uv   a point -> (u, d) against a bone's AUTHORED segment: u is the
+//             fraction along it (deliberately NOT clamped, so a shoe hanging
+//             past the ankle keeps its overhang), d the signed perpendicular
+//             offset in px, positive toward the left normal.
+//   bone_place  (u, d) -> a point on that bone's PROPORTIONED segment, with d
+//             scaled by the bone's thickness.
+//
+// Round-tripping a point through both is the identity when nothing is
+// proportioned, which is the invariant that keeps the "author" build a pixel-
+// exact copy of the rig as drawn (verified by diffing its render).
+static void bone_uv(int b, float px, float py, float *u, float *d) {
+    const BoneDef *k = &BONES[b];
+    float dx = k->bx - k->ax, dy = k->by - k->ay, l2 = dx*dx + dy*dy;
+    if (l2 < 1e-9f) { *u = 0; *d = 0; return; }
+    float l = sqrtf(l2);
+    *u = ((px - k->ax)*dx + (py - k->ay)*dy) / l2;
+    *d = ((px - k->ax)*(-dy) + (py - k->ay)*dx) / l;
+}
+static void bone_place(const Fig *F, int b, float u, float d, float *ox, float *oy) {
+    float ax = F->pax[b], ay = F->pay[b];
+    float dx = F->pbx[b] - ax, dy = F->pby[b] - ay, l = sqrtf(dx*dx + dy*dy);
+    if (l < 1e-9f) { *ox = ax; *oy = ay; return; }
+    float g = d * F->bg[b];
+    *ox = ax + u*dx + g * (-dy/l);
+    *oy = ay + u*dy + g * ( dx/l);
+}
+
+// Walk the rig parent-first, building this figure's rest segments. A bone keeps
+// the DIRECTION it was authored at (proportions don't pose anything, and the
+// bodies must still rest at identity — see the branch-cut note in make_bones)
+// and takes its group's length. Its START is the same (u,d) spot on its parent's
+// derived segment, which is what makes the chain a chain: a longer chest carries
+// the shoulder up with it, a thicker chest carries it outward, and both legs
+// spread when the pelvis does.
+static void proportion(Fig *F, const BuildDef *B) {
+    for (int i = 0; i < NBONE; i++) {              // parents first: the enum guarantees it
+        const BoneDef *d = &BONES[i];
+        int g = bone_group(i);
+        F->bg[i] = B->grth[g] * B->girth;
+        float sx = d->ax, sy = d->ay;
+        if (d->parent >= 0) {
+            float u, off;
+            bone_uv(d->parent, d->ax, d->ay, &u, &off);
+            bone_place(F, d->parent, u, off, &sx, &sy);
+        }
+        // Scaling a bone's LENGTH is just scaling its authored delta. Normalising
+        // to a unit direction and multiplying the length back in says the same
+        // thing and rounds twice doing it, which showed up as a pixel or two of
+        // drift on the unproportioned build.
+        F->pax[i] = sx; F->pay[i] = sy;
+        F->pbx[i] = sx + (d->bx - d->ax) * B->len[g];
+        F->pby[i] = sy + (d->by - d->ay) * B->len[g];
+    }
+    // Re-anchor the SOLE. Longer legs grow DOWNWARD from the pelvis, so without
+    // this a long-legged build spawns with its feet through the floor and gets
+    // shoved out on frame 1. Shift the derived rig so its lowest bone point sits
+    // where the authored rig's does; the size transform about RIG_BY does the rest.
+    float lowRef = -1e9f, lowThis = -1e9f;
+    for (int i = 0; i < NBONE; i++) {
+        if (BONES[i].ay > lowRef)  lowRef  = BONES[i].ay;
+        if (BONES[i].by > lowRef)  lowRef  = BONES[i].by;
+        if (F->pay[i]   > lowThis) lowThis = F->pay[i];
+        if (F->pby[i]   > lowThis) lowThis = F->pby[i];
+    }
+    float shift = lowRef - lowThis;
+    for (int i = 0; i < NBONE; i++) { F->pay[i] += shift; F->pby[i] += shift; }
 }
 
 // ── SPINE bind — playtime's MESHUSERT spine mode, ported ───────────────
@@ -443,8 +561,8 @@ static int spine_chain(const Fig *F, const SkinDef *sk, bool live, float *out) {
             b2Vec2 w = b2Body_GetWorldPoint(F->bone[b], k == 0 ? F->locA[b] : F->locB[b]);
             out[n*2] = w.x * PPM; out[n*2+1] = SCREEN_H - w.y * PPM;
         } else {
-            out[n*2]   = figx(F, (k == 0) ? BONES[b].ax : BONES[b].bx);
-            out[n*2+1] = figy(F, (k == 0) ? BONES[b].ay : BONES[b].by);
+            out[n*2]   = (k == 0) ? bone_ax(F, b) : bone_bx(F, b);
+            out[n*2+1] = (k == 0) ? bone_ay(F, b) : bone_by(F, b);
         }
         n++;
     }
@@ -455,8 +573,8 @@ static int spine_chain(const Fig *F, const SkinDef *sk, bool live, float *out) {
 static void make_bones(Fig *F, int fi) {
     for (int i = 0; i < NBONE; i++) {
         const BoneDef *d = &BONES[i];
-        float ax = figx(F, d->ax), ay = figy(F, d->ay);       // this BUILD's coords,
-        float bx = figx(F, d->bx), by = figy(F, d->by);       // not the table's
+        float ax = bone_ax(F, i), ay = bone_ay(F, i);         // this BUILD's derived
+        float bx = bone_bx(F, i), by = bone_by(F, i);         // rig, not the table's
         float mx = (ax + bx) * 0.5f, my = (ay + by) * 0.5f;
         float dx = bx - ax, dy = -(by - ay);                  // screen y is down
         float len = sqrtf(dx*dx + dy*dy) / PPM;
@@ -480,7 +598,7 @@ static void make_bones(Fig *F, int fi) {
         // would sink into his belly: the skin is wide, but only the SHAPE is solid.
         // (hw is measured across the bone, so girth is exact for the upright bones
         // and a slight over-estimate for the near-horizontal feet.)
-        b2Polygon box = b2MakeOffsetBox(len * 0.5f, d->hw * F->sc * F->girth, (b2Vec2){0,0},
+        b2Polygon box = b2MakeOffsetBox(len * 0.5f, d->hw * F->sc * F->bg[i], (b2Vec2){0,0},
                                         b2MakeRot(atan2f(dy, dx)));
         b2ShapeDef sd = b2DefaultShapeDef();
         sd.density = 1.0f; sd.material.friction = 0.5f;
@@ -498,7 +616,7 @@ static void make_bones(Fig *F, int fi) {
                                           // floor (and can be thrown off it) rather
                                           // than hanging from a hook.
         b2BodyId a = F->bone[d->parent];
-        b2Vec2 w = { WX(figx(F, d->ax)), WY(figy(F, d->ay)) };
+        b2Vec2 w = { WX(bone_ax(F, i)), WY(bone_ay(F, i)) };
         b2RevoluteJointDef j = b2DefaultRevoluteJointDef();
         j.bodyIdA = a; j.bodyIdB = F->bone[i];
         j.localAnchorA = b2Body_GetLocalPoint(a, w);
@@ -518,16 +636,59 @@ static void make_bones(Fig *F, int fi) {
 // Rest screen position of sheet pixel (sx,sy) inside skin s. Mirroring flips
 // the GEOMETRY across the rect; the UV stays (sx,sy), which is the whole trick
 // that lets both legs share one texture.
-// The build's transform is applied HERE, at bind, not at draw: the mesh is born
-// at the size and width this figure is, so scale and girth are baked into every
-// bind — the weights, the (t,s) spine pair and the rest windings all describe
-// THIS guy. Nothing per-frame pays for a figure being big.
+//
+// The build reaches the skin HERE, at bind, and it reaches it THROUGH THE BONES.
+// The sprite is authored against the reference rig, so the pixel is measured
+// against the authored segments and replanted on this figure's derived ones — a
+// per-bone (u,d) remap, weight-blended by the same smoothstep the skinning uses
+// so the seams between bones stay smooth instead of stepping. That single
+// substitution is what turns "a scaled copy" into "a different build": a 22%
+// longer shin drags its share of the leg strip down with it, because the strip's
+// rest position is now a function of where the shin ENDED UP, not of the table.
+//
+// Doing it at bind and not at draw is what keeps it free: the mesh is born the
+// shape this figure is, so the weights, the (t,s) spine pair and the baked rest
+// windings all describe THIS guy, and no per-frame code knows the difference.
 static void rest_px(const Fig *F, const SkinDef *s, int sx, int sy, float *rx, float *ry) {
     int dx = sx - s->ox;
     float ax = s->px + (s->mirror ? (s->w - 1 - dx) : dx);
     float ay = s->py + (sy - s->oy);
-    *rx = figxg(F, ax, skin_girth(F, s));
-    *ry = figy(F, ay);
+
+    float wt[6], sum = 0; int n = s->nbones;
+    for (int k = 0; k < n; k++) {
+        const BoneDef *d = &BONES[s->bones[k]];
+        wt[k] = 1.0f - smoothstep(0, d->radius, dist_seg(ax, ay, d->ax, d->ay, d->bx, d->by));
+        sum += wt[k];
+    }
+    if (sum < 1e-6f) {                 // outside every radius: follow the nearest alone
+        int best = 0; float bd = 1e9f;
+        for (int k = 0; k < n; k++) {
+            const BoneDef *d = &BONES[s->bones[k]];
+            float dd = dist_seg(ax, ay, d->ax, d->ay, d->bx, d->by);
+            if (dd < bd) { bd = dd; best = k; }
+        }
+        for (int k = 0; k < n; k++) wt[k] = (k == best) ? 1.0f : 0.0f;
+        sum = 1.0f;
+    }
+    float bx = 0, by = 0;
+    for (int k = 0; k < n; k++) {
+        if (wt[k] <= 0) continue;
+        float u, d, px, py;
+        bone_uv(s->bones[k], ax, ay, &u, &d);
+        bone_place(F, s->bones[k], u, d, &px, &py);
+        bx += wt[k]*px; by += wt[k]*py;
+    }
+    // The remap is an algebraic identity when nothing is proportioned, but only
+    // to float rounding: a vertex authored exactly ON an integer comes back a
+    // hair either side of it, and that is enough for tritex's int cast to move a
+    // shared triangle edge by a whole pixel. Measured on the unproportioned
+    // build: ~20 pixels of 5700 wrong while the figure was still moving, zero
+    // once it settled. Snapping the derived rest pose to a 1/256 px grid absorbs
+    // an error four orders of magnitude smaller than the quantum, which makes
+    // the "author" build BIT-exact against the pre-derivation renderer (checked
+    // frame by frame) and is invisible to every other build.
+    *rx = figx(F, floorf(bx/sum * 256.0f + 0.5f) / 256.0f);
+    *ry = figy(F, floorf(by/sum * 256.0f + 0.5f) / 256.0f);
 }
 
 static void bind_vertex(const Fig *F, const SkinDef *s, Vtx *v, float rx, float ry) {
@@ -542,7 +703,7 @@ static void bind_vertex(const Fig *F, const SkinDef *s, Vtx *v, float rx, float 
         // distance in px, so leaving it authored-size would make a wide guy's
         // outer column fall outside every radius and skin RIGIDLY, and a small
         // guy's whole limb sit deep inside one radius and over-blend.
-        wt[k] = 1.0f - smoothstep(0, d->radius * F->sc * F->girth, bone_dist(F, s->bones[k], rx, ry));
+        wt[k] = 1.0f - smoothstep(0, d->radius * F->sc * F->bg[s->bones[k]], bone_dist(F, s->bones[k], rx, ry));
     }
     // keep the best KB, renormalise (playtime's pruneTopK)
     v->nb = 0;
@@ -649,8 +810,10 @@ static void build(void) {
         fig[f].stiff = BUILDS[f].stiff;
         fig[f].sc    = BUILDS[f].sc;
         fig[f].girth = BUILDS[f].girth;
+        proportion(&fig[f], &BUILDS[f]);   // derive the rig BEFORE any body exists
         make_bones(&fig[f], f);
         for (int i = 0; i < NSKIN; i++) build_mesh(&fig[f], i);
+        fig[f].restUp = (float)FLOOR_PY - (SCREEN_H - b2Body_GetPosition(fig[f].bone[B_HEAD]).y*PPM);
     }
     // The mesh deliberately overshoots the silhouette by one cell (see
     // cell_opaque), so it DOES sample transparent texels — without a colorkey
@@ -864,7 +1027,7 @@ void update(void) {
     { char b[64]; int n = 0;
       for (int f = 0; f < NFIG; f++) {
         float up = (float)FLOOR_PY - (SCREEN_H - b2Body_GetPosition(fig[f].bone[B_HEAD]).y*PPM);
-        n += snprintf(b+n, sizeof(b)-n, "%s%.2f", f?" ":"", up / (95.0f * BUILDS[f].sc));
+        n += snprintf(b+n, sizeof(b)-n, "%s%.2f", f?" ":"", up / fig[f].restUp);
       }
       watch("standing", "%s", b); }
     watch("chestRel",   "%.1f", (bone_angle(&fig[2], B_CHEST)  - bone_angle(&fig[2], B_PELVIS)) / DEG);

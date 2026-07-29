@@ -10,6 +10,9 @@ derived from [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is th
 recorded DROPs, 1.7 built and awaiting an ear call. It also produced one engine FIX — `instrument_mode`
 rejected two of its own indices, so two `piano` sliders had never worked. Nothing past Phase 1 is approved;
 **Phase 2 (the four cross-cutting themes) is where the leverage is**, starting with keytracking.
+**Phase 2 so far:** 2.1 and 2.2 **SHIPPED**; **2.3's premise FAILED on measurement** — PIANO's dispersion
+chain is inert and its stretched-tuning seam is cancelled a frame after note-on, so there is no
+inharmonicity to make level-dependent (§2.3(a), awaiting an owner call); 2.4 not started.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -651,7 +654,8 @@ per-engine items is the single biggest saving available.
 |---|---|---|---|---|---|
 | 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **SHIPPED (both halves)** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | ✅ **SHIPPED** 2026-07-29 (`mono.h` + `sh101`) | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
-| 2.3 | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise |
+| 2.3(a) | **The premise fails: there is no inharmonicity to make level-dependent** (§I4b, §I4c) | blocks 2.3(b) | ⚠ **MEASURED 2026-07-29** — awaiting a call | one line + a design | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4) **and** its stretched-tuning seam **cancelled one frame after note-on**. GUITAR and PLUCK are harmonic too. Write-up below |
+| 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN — **BLOCKED on 2.3(a)** | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. **The machinery turned out not to work**, so (a) comes first |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
 
 **Sequencing note:** 2.1 and 2.2 are prerequisites for a lot of Phase 3 and for §G, so they come first
@@ -893,6 +897,126 @@ them is one cart at a time, each with its own byte-identity check, and each is w
 argument (Hammond percussion must be SINGLE, flute chiff must be MULTI) will decide whether this ever
 earns promotion into `sound.h` as a property an instrument *declares*. The header is the rung below that,
 and it holds for now.
+
+### 2.3(a) The premise failed — two defects found by measuring first (2026-07-29)
+
+**This row said "prototype on PIANO, which already has the machinery". The machinery does not work.**
+Item 2.3 asks for inharmonicity that responds to level. Before building that, the honest first question is
+how much inharmonicity PIANO has *now* — and the answer is **almost none**. Two independent defects, both
+of the same shape: **a value the engine computes correctly and then never lets reach the sound.**
+
+**Neither was findable with the audio gates we had**, which is the reason this took a new oracle:
+`tune-check` measures the *fundamental*, `harmonic-spec` measures partial *levels* at frequencies it
+*assumes*. A partial that has drifted 30 cents sharp reads as slightly quieter and nothing goes red. So
+this began by building **[`tools/inharm-spec.js`](../../tools/inharm-spec.js)** — partial frequencies in
+cents against the ideal `n·f0`, plus the fitted stiff-string `B` of `f_n = n·f0·√(1+Bn²)` and the residual
+from that law. Same blind-spot family as the one `click-check.js` was built for in 1.4.
+
+**`--check` is load-bearing here and was written before the conclusion.** A tool that reports "no
+inharmonicity" and a tool that is silently broken print the identical table, so the null result means
+nothing until the tool is shown to see the effect. It synthesises stiff-string spectra at known `B` and
+recovers them: `B=0 → 5.8e-11`, `1e-5 → 9.96e-6`, `1e-4 → 9.96e-5`, `5e-4 → 4.98e-4`, with h16 read to
+within 0.5¢. **Only then** was the PIANO reading trustworthy.
+
+#### §I4b — the dispersion chain is inert
+
+INSTR_PIANO, grand voicing, C3, cents sharp of the ideal `n·f0`:
+
+| | h2 | h4 | h6 | h8 | h10 | h12 | h16 | fitted B | resid |
+|---|---|---|---|---|---|---|---|---|---|
+| **vel 1** (pp) | +0.4 | +0.4 | +0.2 | +0.3 | +0.2 | +0.2 | +0.3 | 1.9e-6 | 0.2¢ |
+| **vel 7** (ff) | +0.4 | +0.3 | +0.2 | +0.3 | +0.3 | +0.2 | +0.2 | 1.8e-6 | 0.2¢ |
+
+A real middle-register grand is **B ≈ 1e-4**, which would put h16 about **+22¢** sharp. We measure
+**+0.2¢** and **B ≈ 2e-6** — a factor of ~50 short, i.e. the partials are harmonic to within the width of
+the measurement. It is not a piano-only result: **GUITAR B = −3.1e-7**, **PLUCK B = 1.6e-8**, PIANO
+*dulcimer* −1.5e-6, PIANO *celesta* 1.4e-5 but with a **12.7¢ residual** (noise, not a stiff-string law).
+So audit §H's "stretched harmonics" note has the same status. So does the ✅ in the docstring.
+
+**Cause, and it is arithmetic rather than a dead code path.** `sound_piano_start` sets
+`B = stiff²·0.015` then `pt = B·(i+1)·freq/SR` and `c = (1−pt)/(1+pt)`
+([`sound.h:4687-4696`](../../runtime/sound.h)). At C3 on the grand (`stiff` 0.25) that is
+**pt = 2.6e-6**, so **c = 0.9999948** — a first-order allpass with `c → 1` is the *identity*, so the chain
+passes the string through untouched. Meaningful dispersion needs `pt` in the **0.1–0.5** region, four to
+five orders of magnitude away, and no musical pitch closes that gap because the term is scaled by
+`freq/SR` (≤0.05 across the whole keyboard). Confirmed by sweep: scaling `pt` by **1, 30, 100, 300, 1000,
+3000×** moves the measured B not at all (it stays ~1e-8, i.e. noise). The `if (pt > 0.9f)` clamp on the
+next line is the tell — it guards a ceiling the expression cannot reach.
+
+#### §I4c — the stretched-tuning seam is cancelled one frame after note-on
+
+Chasing §I4b turned up a second, independent defect in the same engine. `piano_stretch_freq` (the
+Feynman/Railsback seam, `PIANO_STRETCH_K`) computes correctly — instrumenting the engine shows a C3
+nominal 130.813 Hz arriving as **130.6617 Hz**, exactly the −2.0¢ that `K=2` specifies. It then does not
+survive:
+
+```
+[pnratio] v->freq=130.6626  pn_initf=130.6617  ratio=1.000007  len=337  effLen=336.998   ← frame 1
+[pnratio] v->freq=130.8115  pn_initf=130.6617  ratio=1.001146  len=337  effLen=336.614   ← frame 2 onward
+```
+
+Note-on sets `v->freq = v->freq_target = sound_midi_to_freq(midi)`
+([`:5229`](../../runtime/sound.h)). `sound_piano_start` then overwrites **`v->freq`** with the stretched
+value — and **not `v->freq_target`** ([`:4633`](../../runtime/sound.h)). So the per-frame glide slew
+`v->freq += (v->freq_target − v->freq) * v->freq_slew` ([`:6398`](../../runtime/sound.h)) pulls it back to
+the nominal within one frame, while `pn_initf` keeps the stretched value. The per-sample pitch tracker
+`ratio = v->freq / pn_initf` is then permanently off by exactly the stretch, and `effLen = len/ratio`
+divides it back out. The sounding pitch is equal temperament. Sweeping `PIANO_STRETCH_K` proves it — at C3
+the design predicts `−K` cents:
+
+| `PIANO_STRETCH_K` | 0 | 2 | 24 | 48 | 120 |
+|---|---|---|---|---|---|
+| predicted | 0¢ | −2¢ | −24¢ | −48¢ | −120¢ |
+| **measured** | +0.22¢ | +0.11¢ | −0.92¢ | −1.99¢ | **−5.20¢** |
+
+About **1/23** of the intended effect, and that residue is not the stretch either — it is the leftover
+`frac` mismatch (the fractional-delay allpass is still derived from the stretched `ideal`).
+
+**The one-line fix is `v->freq_target = freq` alongside the existing write-back.** The comment on that
+line — *"write back so per-sample pitch tracking (ratio = f/pn_initf) stays consistent"* — states the
+intent exactly; it just missed the second field.
+
+**Why this survived so long, and the lesson worth keeping.** `sound.h:4611-4616` says *"It intentionally
+departs from ET, so tune-check flags PIANO by design — that IS the stretch, not a bug."* **tune-check does
+not flag PIANO.** It passes, reporting a smooth monotonic drift from **+0.8¢ at A2 to +9.1¢ at G5** — which
+is not the signed-quadratic ±25¢ curve the design describes (that would be *flat* below C4 and *sharp*
+above), but the loop-delay quantisation error growing as `len` shrinks. **A source comment pre-emptively
+explained away the one gate that would have caught the bug**, so a green check read as confirmation. When
+a comment tells you a gate is *expected* to be red, verify that it IS red — a passing gate under a
+"this will fail by design" comment is a finding, not a relief.
+
+**And the two defects hid each other.** The stretch exists (per
+[`piano-engine.md`](piano-engine.md) §6) so that the stiff
+string's sharp partials agree across notes — *"that clash is what makes plain dispersion read as sour
+metal"*. With no dispersion there was no clash to hear, and with no stretch there was nothing holding the
+dispersion honest. Each bug removed the symptom of the other.
+
+#### What needs a call before 2.3(b) can start
+
+`v->freq_target = freq` is a one-line, unambiguous bug fix — but **it is not safe to just ship, and there
+is no byte-identical option**, because PIANO's *current* tuning is itself an artifact of the bug. Three
+candidates, and the choice depends on whether we also fix §I4b:
+
+1. **Today (buggy)** — monotonic +0.8¢→+9.1¢ sharp drift up the keyboard.
+2. **Mechanism fixed, `PIANO_STRETCH_K = 0`** — dead-on equal temperament.
+3. **Mechanism fixed, `K = 2` (design intent)** — the signed-quadratic Railsback stretch, ~±8¢ two octaves
+   out, ~±18¢ at the extremes.
+
+**Recommendation: (2) now, (3) only together with a real §I4b.** A Railsback stretch is *compensation for
+inharmonicity*; applying it to a string whose partials are perfectly harmonic just detunes the piano
+against everything else in the cart. So the sequence is §I4b first (give the string real dispersion), then
+§I4c's `K` becomes a genuine ear question rather than a bare detune.
+
+§I4b itself is **DESIGN, not a one-liner**: pushing `pt` into a range that actually disperses also adds
+loop delay, which *drops the pitch* unless the dispersion chain's phase delay at the fundamental is
+subtracted from `len` — that compensation is the real work, and it is the same shape as the problem
+`filter-spec.js` was built to watch. It also wants a decision on whether `B` becomes a real per-voicing
+`B` (the physical coefficient, so `inharm-spec` numbers can be compared against published piano data)
+rather than the current arbitrary `stiff²·0.015`.
+
+Both are recorded as findings, not as approved work. **Nothing was changed in `sound.h`** — every number
+above is from a measurement on the committed engine, or from a sweep that restored the file in a
+`finally` block.
 
 ---
 

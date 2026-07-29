@@ -849,6 +849,13 @@ Harmonic levels relative to f1, at timbre 1.00 (the loudest, brassiest case we c
 - **Why it is last:** subtle, and it overlaps fix #3 in the handoff doc. Listed for completeness.
 - **Audible home:** `brasspec` (measurable as harmonic frequencies drifting sharp), `brass`.
 
+> ⚠ **2026-07-29 — "`PIANO` already owns the primitive that fixes this" is false.** That primitive was
+> measured and it is **inert** (allpass coefficient 0.9999948 = the identity; PIANO's own partials are
+> harmonic to within 0.4¢). So this item cannot be closed by reusing it; the primitive has to be made to
+> work first. Also: the "measurable as harmonic frequencies drifting sharp" home now has a tool —
+> `tools/inharm-spec.js --instr BRASS`. See
+> [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+
 ### E9. Two problems with the way we have been measuring brass
 
 Not engine findings, but they undermine the others if left unsaid.
@@ -1670,6 +1677,16 @@ I5.
 - **Audible home:** `piano`, `upright`.
 
 ### I4. Inharmonicity is fixed at note-on and never responds to level
+
+> ⚠ **MEASURED 2026-07-29 — this understates it: there is no inharmonicity to respond.** Item 2.3's
+> "prototype on PIANO, which already has the machinery" does not hold. `tools/inharm-spec.js` (built for
+> this, `--check` green) measures **B ≈ 2e-6** on the grand where a real one is ~1e-4, with h16 at **+0.2¢**
+> instead of ~+22¢ — the partials are harmonic to within the measurement. `pt = B·(i+1)·freq/SR` comes out
+> at 2.6e-6 at C3, so the dispersion allpass coefficient is 0.9999948, i.e. the identity. GUITAR
+> (−3.1e-7) and PLUCK (1.6e-8) too. A second, independent defect found alongside it: the
+> `piano_stretch_freq` seam is **cancelled one frame after note-on** (`v->freq` is written back but
+> `v->freq_target` is not, so the glide slew undoes it). Full write-up, evidence and the open call:
+> [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
 
 - **Book:** Part 42 and Part 28 both say the stretching depends on *two* things: "the string appears
   shorter at high frequencies **and high amplitudes** than it does at low frequencies and low

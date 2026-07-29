@@ -90,7 +90,16 @@ past "nice harp" you have to **add the things STK omits** — none are large.
    exponential release (`instrument(I_PNO, INSTR_PIANO, 1,0,7,2000)` + `hit()`, piano.c) — again
    a pluck envelope.
 
-6. **Tuning fights the inharmonicity (the Feynman point).** We make the partials inharmonic via
+6. **Tuning fights the inharmonicity (the Feynman point).**
+   > ⚠ **MEASURED 2026-07-29 — the premise of this whole item is wrong in both halves.** We do **not**
+   > make the partials inharmonic: `B = stiff²·0.015` yields a dispersion allpass coefficient of
+   > 0.9999948, the identity, and the measured partials are harmonic to within 0.4¢ (fitted B ≈ 2e-6
+   > against a real grand's ~1e-4). And the stretch that was later added to fix this (`PIANO_STRETCH_K`)
+   > is **cancelled one frame after note-on**, so the fundamental is still dead-on ET. The two defects hid
+   > each other. Evidence, and the open call on how to fix it:
+   > [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+
+   We make the partials inharmonic via
    the dispersion allpass chain (`B = stiff²·0.015`, sound.h ~4042 — this *is* our stiff-string
    inharmonicity) but tune the **fundamental** dead-on equal temperament. A real piano tunes the
    *fundamentals* **stretched** (the Railsback curve: bass flat, treble sharp) so the stretched

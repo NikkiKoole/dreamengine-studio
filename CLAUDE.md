@@ -397,6 +397,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)
+             inharm-spec.js  WHERE the partials sit, in cents vs the ideal n·f0 — the third leg beside
+                             harmonic-spec (how LOUD) and filter-spec (what the filter did). Fits the
+                             stiff-string B of f_n = n·f0·√(1+Bn²) + prints the residual, so "the partials
+                             moved, but not the way a string moves them" is visible. Probe mode = any engine
+                             × velocity × time-window (does inharmonicity respond to LEVEL, does it RELAX);
+                             WAV mode for any region. `--check` self-tests against synthetic known-B spectra —
+                             RUN IT BEFORE BELIEVING A NULL, since a broken tool and an harmonic engine print
+                             the same table. Found audit §I4b/§I4c (PIANO's dispersion inert + its stretch
+                             cancelled). Modal engines (MALLET/MEMBRANE) are out of frame — no energy at n·f0
              formant-check.js  the VOICE oracle: f0 (autocorrelation, mean + WOBBLE) + F1/F2/F3 formant
                              peaks (Welch-smoothed spectral envelope) of a WAV region — the pitch-moved-AND-
                              formants-held gate for sample_autotune / any pitch-shift (design/transparent-autotune.md)

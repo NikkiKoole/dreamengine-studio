@@ -316,12 +316,32 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > [`spec-harness.md`](design/spec-harness.md#reserved-names--step-is-the-one-that-bites) — read that BEFORE
 > planning a spec, which would have saved the detour. Those are the natural names in every keyboard cart.
 >
-> **Resume-at:** **2.3, level-dependent inharmonicity (§E8/§H/§I4/§J8/§K8)** — a LISTEN item, so it needs
-> the ear-call loop above →
-> [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#5-phase-2--the-four-cross-cutting-themes).
-> One physical fact (partials sharpen with *amplitude*, not just pitch) modelled statically at best in five
-> engines; prototype on **PIANO**, which already has the machinery, A/B it, then decide whether to
-> generalise. **2.4 (coupling) should start with a MEASUREMENT, not a build** — §M2's claim that three
+> **2.3 was attempted and its PREMISE FAILED (2026-07-29), which is now the live question.** The row said
+> "prototype on PIANO, which already has the machinery" — the machinery does not work. Built
+> [`tools/inharm-spec.js`](../tools/inharm-spec.js) (partial frequencies in cents vs the ideal `n·f0`;
+> `--check` green *first*, because a broken tool and a harmonic engine print the same table) and measured
+> two defects of the same shape, *a value computed correctly and then never allowed to reach the sound*:
+> **§I4b** PIANO's dispersion chain is **inert** (allpass coefficient 0.9999948 = the identity; B ≈ 2e-6 vs
+> a real grand's ~1e-4; h16 +0.2¢ where it should be ~+22¢; GUITAR and PLUCK too), and **§I4c** the
+> `piano_stretch_freq` seam is **cancelled one frame after note-on** (`v->freq` written back,
+> `v->freq_target` not, so the glide slew undoes it — one-line fix, `v->freq_target = freq`). The two hid
+> each other: the stretch exists to reconcile inharmonicity, and there was none.
+> **`sound.h` was NOT changed** — every number is from the committed engine or a sweep that restored the
+> file in a `finally` block.
+>
+> **Resume-at: the OWNER'S CALL on §I4c's tuning, which has no byte-identical option** (PIANO's current
+> tuning is itself an artifact of the bug): (1) today's monotonic +0.8→+9.1¢ sharp drift, (2) mechanism
+> fixed with `PIANO_STRETCH_K = 0` = dead-on ET, (3) mechanism fixed at `K = 2` = the real Railsback
+> stretch. **Recommended (2) now, (3) only together with a real §I4b** — a Railsback stretch is
+> *compensation* for inharmonicity, so applying it to a perfectly harmonic string just detunes the piano
+> against the rest of the cart. §I4b itself is **DESIGN, not a one-liner**: real dispersion adds loop delay
+> and drops the pitch unless the chain's phase delay at the fundamental is subtracted from `len`, and that
+> compensation is the actual work. Then **2.3(b)** (the original level-dependent item) can finally sit on
+> top of it. Full write-up with every table →
+> [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+> **Lesson worth carrying:** `sound.h` said *"tune-check flags PIANO by design — that IS the stretch, not
+> a bug"*, and tune-check **passes**. A comment that pre-emptively explains away a gate turned a green
+> check into false confirmation for months. When a comment says a gate should be red, verify it IS red. **2.4 (coupling) should start with a MEASUREMENT, not a build** — §M2's claim that three
 > parallel 1-4 ms delay lines *are* a body, which if it holds may answer the brass bell, the guitar body and
 > the piano tricord cheaply and all at once. Still open from 2.2: `tb303`, `acidrack` and `moog` each still
 > hand-roll their own key assign; converting them one at a time is where the §L4-vs-§K6 argument (Hammond

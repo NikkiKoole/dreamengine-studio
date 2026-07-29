@@ -219,6 +219,22 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > `MODE_PIANO_DECAY`/`MODE_PIANO_KNOCK` now exist. Still open: `instrument_mode` does not VALIDATE its
 > index, which is how a dead control survives; top of [`STATUS.md`](STATUS.md) → "Open".
 >
+> **⚠ 1.7's MORPH CRACKLED, and the fix produced a new oracle: [`tools/click-check.js`](../tools/click-check.js).**
+> The owner heard it (2026-07-29) before judging the mode. `wave_set` replaces the wavetable under a running
+> oscillator, so every quantised dull step jumped the output from `old[phase]` to `new[phase]` — up to 16
+> one-sample discontinuities per swell. **Two orthogonal causes, and fixing either alone leaves the
+> crackle:** the GRID (a step's jump scales as 1/NDULL; it was 8) and the RATE (`intens` slews up to
+> 0.5/frame, so the index could move dozens of steps in ONE frame, and a multi-step jump is as big as a
+> coarse-grid one — this is the half that still clicked at every note onset after the grid was fixed).
+> NDULL 8 → 64 plus a ±2 steps/frame limit took it from **13 splice-like events (worst 15.4x the local
+> step-rms) to 1 (4.1x)**, against a control that peaks at 3.3x. FILTER renders byte-identical; GATE never
+> enters that branch. **The lesson is not about wavetables:** the plan's own write-up asserted the stepping
+> was "inaudible as stepping on a slow swell", that was the ONE unmeasured claim in an otherwise
+> well-measured item, and it was the one that was wrong. An unmeasured sentence in a measured write-up
+> reads as evidence. Run `click-check` after ANY mid-note table/shape swap — `wav-envelope`'s amplitude and
+> centroid curves look the same whether a transition is a clean ramp or a splice, which is the identical
+> blind spot that made 1.4's brass release call so hard.
+>
 > **PHASE 2 HAS STARTED, AND 2.1 IS DONE IN BOTH HALVES** (`49c398e2` + this one) — the engine can follow
 > the keyboard. (a) `instrument_keytrack(slot, amount)`: one multiply at note-on, `amount` 0 = absolute Hz
 > (the default and byte-identical), 1 = true 1V/oct so a self-oscillating filter can be *played*, 0.93 =

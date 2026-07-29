@@ -106,10 +106,34 @@ int loud_mode = MODE_FILTER;
 // Rebuild the single-cycle wave from whichever stops are lit, normalize, push it into INSTR_USER0 (both
 // VSLOT and DSLOT read it). Called when timbre changes — and, in MODE_MORPH, when the DULL step changes.
 //
-// `dull` 0 = the stops' own wave, 1 = a pure triangle. QUANTISED to 8 steps by the caller on purpose:
-// wave_set() pushes a 128-float table, and doing that every frame is the set-and-hold hazard the fx-lint
-// exists for. Eight steps is inaudible as stepping on a slow swell and rebuilds only when it moves.
-#define NDULL 8
+// `dull` 0 = the stops' own wave, 1 = a pure triangle. QUANTISED, and rebuilt only when the step MOVES.
+//
+// ⚠ THE STEP COUNT IS AN AUDIBLE PARAMETER, NOT A THRIFT ONE — it was 8 and it CRACKLED (owner's ear,
+// 2026-07-29). `wave_set` replaces the table under a running oscillator, so at the swap the output jumps
+// from old[phase] to new[phase]: a one-sample discontinuity, i.e. a click, once per step crossed. Eight
+// steps meant up to 16 of them per swell (up and back), and the comment that used to sit here claimed
+// that was "inaudible" — it had never been measured, and it was wrong.
+//
+// TWO ORTHOGONAL CAUSES, and fixing only one leaves the crackle. Measured with tools/click-check.js on
+// the swell clip: events whose first difference is ≥4x the LOCAL step-rms (the control — MODE_FILTER,
+// which never calls wave_set while a note runs — peaks at 3.3x and has none):
+//     NDULL  8, no rate limit  13 events, worst 15.4x   ← as shipped
+//     NDULL 64, no rate limit   5 events, worst 12.0x   ← grid alone is NOT enough
+//     NDULL 64, limit 4         2 events, worst  7.0x
+//     NDULL 64, limit 2         1 event,  worst  4.1x   ← shipped
+//     NDULL 64, limit 1         1 event,  worst  4.2x   ← saturated, 2 is the knee
+//     NDULL  8, limit 2        13 events, worst 15.4x   ← rate limit alone is NOT enough either
+// (a) the GRID: a step's jump scales as 1/NDULL, so 64 shrinks the crawl-speed click ~9x. (b) the RATE:
+// see the note at the crossing site in update() — a multi-step jump is as big as a coarse-grid one.
+//
+// A finer grid is free: a rebuild writes 64 floats and touches no bus DSP, so this is NOT the
+// set-and-hold hazard `lint-fx-frame` guards (that one is crush/eq/tape reallocating their filters). The
+// `st != wave_dull_step` guard stays anyway — at 64 steps a fast sweep is ~1.4 rebuilds/frame, which is
+// fine, but there is no reason to rewrite an unchanged table.
+// If you touch this, RE-MEASURE with `node tools/click-check.js` — a splice and a clean ramp look
+// identical in an envelope plot, which is exactly how the 8-step version shipped unnoticed.
+#define NDULL 64
+#define DULL_MAX_STEP 2   // max steps the dull may move per frame — see the rate-limit note in update()
 int wave_dull_step = -1;         // which dull step is currently loaded, -1 = none yet
 
 void rebuild_wave_dull(int step) {
@@ -305,6 +329,15 @@ void update(void) {
         cut = 12000;
         int st = (int)((1.0f - intens) * (NDULL - 0.01f));
         if (st < 0) st = 0; else if (st > NDULL - 1) st = NDULL - 1;
+        // RATE-LIMIT the crossing, which is a separate fix from the step COUNT. A fine grid bounds the
+        // click when the touche crawls, but `intens` slews at up to 0.5/frame (note-on), so `st` can jump
+        // dozens of steps in ONE frame — and a multi-step jump is exactly as big as a coarse-grid jump,
+        // which is why finer steps alone left clicks at every note onset. Capping the move per frame
+        // bounds the discontinuity by construction, whatever NDULL is.
+        if (wave_dull_step >= 0) {
+            if      (st > wave_dull_step + DULL_MAX_STEP) st = wave_dull_step + DULL_MAX_STEP;
+            else if (st < wave_dull_step - DULL_MAX_STEP) st = wave_dull_step - DULL_MAX_STEP;
+        }
         if (st != wave_dull_step) rebuild_wave_dull(st);
     } else if (loud_mode == MODE_GATE) {
         // the filter IS the gate: volume is held CONSTANT and the touche drives cutoff alone.

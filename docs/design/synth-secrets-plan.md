@@ -259,7 +259,7 @@ cheapest LISTEN items we have.
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ❌ **DROPPED — Reid loses all three** (owner's ear, 2026-07-28). Envelope unchanged, byte-identical. The most instructive item so far; see below |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | ✅ **DONE — liked, and kept OPT-IN on key L** (owner, 2026-07-28). Layer-off is byte-identical, so it is purely additive. Also **found + fixed** a one-bound engine bug that had killed two sliders — see below |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | ❌ **DROPPED — not two rows after all** (owner, 2026-07-29). The detent table is in the engine; widening it remaps 13 carts. See §8 |
-| 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot` | ✅ **BUILT, awaiting your ear.** Key **0** cycles filter/morph/gate. GATE measures 30dB of range from the filter alone; MORPH is **ear-only** — see below |
+| 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot` | ✅ **BUILT, awaiting your ear.** Key **0** cycles filter/morph/gate. GATE measures 30dB of range from the filter alone; MORPH is **ear-only**. ⚠ MORPH **crackled** and is now fixed (owner's ear 2026-07-29 → 13 splice events down to 1; born the `click-check` oracle) — see below |
 
 **Deliverable:** seven A/Bs, each a baked cart you can play. If all seven land, that is a visibly better
 instrument shelf for zero engine risk.
@@ -562,10 +562,48 @@ filter and morph. The morph is doing what the code says it does — the wave dem
 the renders differ — but whether it reads as Reid's blown-instrument behaviour is a listening call, like
 1.1's middle rung.
 
-**A set-and-hold trap avoided by design:** the morph needs the wavetable to change with loudness, and
-`wave_set()` pushes a 128-float table. Doing that per frame is exactly the hazard `lint-fx-frame` exists
-for, so the dullness is **quantised to 8 steps** and rebuilt only when the step moves — inaudible as
-stepping on a slow swell, and the lint passes.
+**⚠ MORPH CRACKLED, and the write-up you are reading is why it shipped that way.** This paragraph used to
+say the morph's wavetable was "quantised to 8 steps and rebuilt only when the step moves — inaudible as
+stepping on a slow swell". That claim was **never measured**, and the owner's ear caught it (2026-07-29)
+before the ear call on the *mode* had even been made. The lesson is not about wavetables: it is that a
+sentence asserting inaudibility, sitting inside an otherwise well-measured item, reads as evidence. It was
+the only unmeasured claim in item 1.7, and it was the one that was wrong.
+
+**The cause, and there are TWO of them** — fixing either alone leaves the crackle. `wave_set` replaces the
+table under a running oscillator, so at each swap the output jumps from `old[phase]` to `new[phase]`: a
+one-sample discontinuity per step crossed, up to 16 per swell.
+
+1. **The grid.** A step's jump scales as 1/`NDULL`, so 8 steps made each one large.
+2. **The rate.** `intens` slews at up to 0.5/frame at note-on, so the step index could move *dozens* of
+   steps in one frame — and a multi-step jump is exactly as big as a coarse-grid jump. This is why a finer
+   grid alone still clicked at every note onset, which is the part that would have been easy to miss.
+
+Fix: `NDULL` 8 → **64**, plus a **±2 steps/frame rate limit**. Measured with the new
+[`click-check.js`](../../tools/click-check.js) on `01-touche-swell` (events whose first difference is ≥4x
+the *local* step-rms; the control is MODE_FILTER, which never calls `wave_set` while a note runs):
+
+| config | splice-like events | worst |
+|---|---|---|
+| control (MODE_FILTER) | 0 | 3.3x |
+| NDULL 8, no limit — **as shipped** | **13** | **15.4x** |
+| NDULL 64, no limit | 5 | 12.0x |
+| NDULL 64, limit 4 | 2 | 7.0x |
+| **NDULL 64, limit 2 — shipped now** | **1** | **4.1x** (0.6% of peak) |
+| NDULL 64, limit 1 | 1 | 4.2x — saturated, so 2 is the knee |
+| NDULL 8, limit 2 | 13 | 15.4x — the rate limit alone does nothing |
+
+`MODE_FILTER` renders **byte-identical** after the fix, and `MODE_GATE` never enters the morph branch, so
+the two modes still awaiting judgement are untouched. The finer grid is free: a rebuild writes 64 floats
+and touches no bus DSP, so it is not the `lint-fx-frame` hazard (that one is crush/eq/tape reallocating
+filters) — the lint passes and no `[sound]` queue warning appears at ~1.4 rebuilds/frame.
+
+**The oracle is the real output of this bug: [`tools/click-check.js`](../../tools/click-check.js).** First
+difference judged against the *local* step-rms, because a saw's flyback is a huge step and is not a click,
+while an audible click is 6-20x its neighbourhood. Nothing we had could see this: `wav-envelope`'s
+amplitude and centroid curves are identical in shape whether a transition is a clean ramp or a splice —
+the same blind spot that made item 1.4's brass release call so hard ("no oracle here can tell a clean short
+decay from a resonator being cut off"). Indexed in
+[`guides/checks-and-oracles.md`](../guides/checks-and-oracles.md); run it after any mid-note table swap.
 
 **Also fixed `ab-render` while here:** it only matched `static` file-scope values, and this cart declares
 its globals bare (`int loud_mode = …` at column 0), which is a common cart style. It now accepts that form

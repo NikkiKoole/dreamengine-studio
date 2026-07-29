@@ -368,6 +368,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              Design: docs/design/video-distribution.md
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
+             click-check.js  the CLICK/SPLICE oracle: waveform DISCONTINUITIES in a WAV and WHERE (first
+                             difference vs the LOCAL step-rms, so a saw's flyback isn't a false positive; a cart's
+                             own slope ≈2-3x, an audible click 6-20x). `--quiet` = PASS/FAIL gate. Run it after any
+                             mid-note wave_set / table swap / envelope-shape edit — an envelope plot cannot tell a
+                             clean ramp from a splice, which is how martenot's 8-step morph shipped crackling
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
                              cut off by another instrument". Design: docs/design/audio-voice-debugging.md

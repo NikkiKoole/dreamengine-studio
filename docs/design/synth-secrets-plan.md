@@ -821,14 +821,38 @@ his policies. Byte-identical renders prove the mapping instead of arguing it:
 
 | the 101's own controls | is byte-identical to |
 |---|---|
-| PORTA **OFF** (`c44eacfd48a4`) | Reid's **ANY** (`c44eacfd48a4`) |
-| PORTA **AUTO** / **ON** (`3ad0f95fe278`) | Reid's **SINGLE** (`3ad0f95fe278`) |
-| — nothing — | Reid's **MULTI** (`85646e1cdcd9`) |
+| PORTA **OFF** (`ddb9d398da39`) | Reid's **ANY** at PORTA OFF (`ddb9d398da39`) |
+| PORTA **AUTO** / **ON** (`3ad0f95fe278`) | Reid's **SINGLE** at PORTA AUTO (`3ad0f95fe278`) |
+| — nothing — | Reid's **MULTI** (`16e347617178`) |
 
 So the real machine can reach only two of the three characters, and **MULTI is unreachable on its own
 panel**: re-attack on every press but glide on a hand-over. That is a concrete, measured answer to "what
 does conflating the two axes cost you", which is exactly what §B3 asked. (AUTO and ON coincide *for this
 seed* because every press in it is legato; they differ only when the voice is sounding with no key held.)
+
+**⚠ The first version of that table was measured at MISMATCHED glide settings and the equivalences have to
+be read per PORTA position** — which only became true after fixing the bug below. Compare the trigger
+policies at the *same* PORTA setting or the comparison is meaningless.
+
+**A bug the owner heard within minutes of the commit, and the fix is the item's own thesis.** I split
+Reid's two axes in the *decision* (`mono.h` owns re-attack-vs-legato) but left the glide TIME coupled to a
+switch whose OFF position I then ignored: classic mode never reaches `glide_to` with PORTA OFF, but
+SINGLE/MULTI do, so they glided **125 ms with the switch reading OFF**. The owner's words were "some kind
+of detuned arpy character", and the pitch track agrees exactly — mid-slide the fundamental sat at **137.7
+then 134.1 Hz** between D3 (146.8) and C3 (130.8), i.e. audibly out of tune for over 100 ms. `glide_to` now
+reads `(porta_mode == 1) ? 0 : f_porta(porta_v)`, so OFF means 0 ms and a legato move is an instant pitch
+change with no new attack — legato *without* portamento, which is the thing SINGLE is supposed to
+demonstrate. After the fix the same windows read a clean 146.6 → 131.0 with no intermediate pitch, the
+defaults are still byte-identical (`ddb9d398da39`), and SINGLE now renders the same whatever the glide knob
+says. **The lesson: separating two conflated axes is not done when the DECISION splits, only when every
+consumer of both axes splits too.** The glide knob was still reading from the old joint.
+
+**Not a bug, and worth writing down because it surprised the owner too:** this cart's default voice is SAW
+at 1.0 plus the SUB oscillator (a square, exactly −1 octave) at 0.75, with `vmod_v` 0 (no LFO→pitch), TUNE
+centred and no per-source detune anywhere. So the "thick, almost two-note" quality is a genuine octave
+stack, not detuning. The pitch tracker makes it objective: on the same take it locks to **146.6 Hz** (the
+saw) at D3 and to **98.0 Hz** (the sub) at G3, flipping between the two components depending on which
+dominates — a good measurement of how present that sub actually is at 0.75.
 
 **The specs are the point of the header, not an afterthought.** Part 18 is already a test suite: the same
 played sequence through four priorities gives four different pitch sequences, so `mono_selfcheck()`

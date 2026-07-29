@@ -295,6 +295,21 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   n=0 and the "baseline" was sitting on HIGH. I nearly wrote up "the priority switch does not reach the
 >   audio". A `watch()` trace of `mono.prio` caught it. Sibling of CLAUDE.md's zsh word-splitting note.
 >
+> **A FOURTH trap, found by the owner's ear minutes after 2.2 landed, and it is the item's own thesis
+> biting back.** I split Reid's two axes in the DECISION (`mono.h` owns re-attack-vs-legato) but left the
+> glide TIME wired to a switch whose OFF position I then ignored: classic mode never reaches `glide_to` with
+> PORTA OFF, but SINGLE/MULTI do, so they glided **125 ms with the switch reading OFF**. Reported as "some
+> kind of detuned arpy character"; the pitch track agreed exactly (mid-slide the fundamental sat at 137.7
+> then 134.1 Hz between D3 146.8 and C3 130.8 — out of tune for over 100 ms). Fixed: `glide_to` reads
+> `(porta_mode == 1) ? 0 : f_porta(porta_v)`. **SEPARATING TWO CONFLATED AXES IS NOT DONE WHEN THE DECISION
+> SPLITS — only when every CONSUMER of both axes splits too.** It also invalidated the first version of the
+> equivalence table, which had compared trigger policies at *mismatched* glide settings; re-measured at
+> matched PORTA, both equivalences hold.
+> Related, and NOT a bug: this cart's default voice is SAW 1.0 + SUB (square, exactly −1 oct) at 0.75, with
+> no LFO→pitch and TUNE centred — the "thick, two-note" quality is an octave stack, not detuning. The pitch
+> tracker locks to 146.6 Hz (saw) at D3 and 98.0 Hz (sub) at G3 on the same take, which is a neat objective
+> measure of how present that sub is.
+>
 > **Budget for this on any instrument cart:** `spec.h` declares `key_down`/`key_up`, which `sh101` had owned
 > since it was written, so it could not host a spec until they became `sh_key_down`/`sh_key_up`. Already
 > documented next to the `step` trap in

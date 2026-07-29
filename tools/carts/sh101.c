@@ -315,7 +315,14 @@ static void start_note(int midi) {
 }
 
 static void glide_to(int midi) {
-    int ms = f_porta(porta_v);
+    // The PORTA SWITCH owns the glide TIME, including its OFF position; mono.h owns whether the envelope
+    // re-attacks. Splitting those two is the entire point of item 2.2 and I only got half of it right at
+    // first: classic mode never reaches here with the switch OFF, but Reid's SINGLE/MULTI policies do, so
+    // they glided 125 ms with the switch reading OFF. The owner heard it immediately as a "detuned" quality
+    // and the measurement agreed — mid-slide the pitch sat at 137.7 Hz then 134.1 Hz between D3 (146.8) and
+    // C3 (130.8), i.e. audibly out of tune for over 100 ms. With OFF meaning 0 ms, a legato move is now an
+    // instant pitch change with no new attack, which is what legato-without-portamento should be.
+    int ms = (porta_mode == 1) ? 0 : f_porta(porta_v);
     for (int s = 0; s < NSRC; s++)
         if (v[s] >= 0) {
             note_glide(v[s], ms);

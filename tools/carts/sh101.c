@@ -15,11 +15,12 @@
   ],
   "lineage": "Direct model of the Roland SH-101 (1982) monosynth; fourth in the classic-machine family (cr-78, tr-808, tb-303); novel in mixing all four source oscillators simultaneously via live faders and combining sequencer + arpeggiator under a shared LFO/CLK rate slider.",
   "homage": "Roland SH-101 (1982)",
-  "description": "Roland's SH-101 (1982) — the guitar-strap monosynth, fourth box in the classic-machine family (cr-78, tr-808, tb-303), modeled on the real grey panel section for section: TUNE | MODULATOR | VCO | SOURCE MIXER | VCF | VCA | ENV, all vertical faders with tick scales, plus one mid strip holding the sequencer/arpeggio buttons, volume/porta, the AUTO/OFF/ON portamento switch and TRANSPOSE L/M/H — the finger-sized keybed owns the whole bottom half, with a vertical springy BENDER at its left end like the real lever. The SOURCE MIXER is the heart, like the hardware: pulse + saw + sub-osc + noise mixed SIMULTANEOUSLY on four faders (each source is its own engine voice, riding live on a held note via note_vol), with the 3-position sub switch (-1 oct / -2 oct / -2 oct pulse). MODULATOR: LFO with tri / square / random (S&H) / noise waveforms whose RATE slider is also the seq+arp CLOCK, exactly like the real LFO/CLK slider. VCO: MOD (vibrato), RANGE rotary (16' 8' 4' 2'), PW fader + source switch LFO/MAN/ENV. VCF: FREQ RES ENV MOD KYBD — five faders, all live on the ringing voice, with real keyboard tracking. VCA: ADSR or plain GATE. SEQUENCER: LOAD records key presses, PLAY loops them. ARPEGGIO: DOWN / U&D / UP buttons + HOLD latch. PORTAMENTO with the real AUTO/OFF/ON switch (AUTO glides only when legato), Mono, last-note priority. MULTITOUCH: every finger is its own pointer — hold a chord and ride the filter at once; fader grab zones tile each section so a near-miss grabs the nearest fader; sliding a finger across the keys hands the note over legato (AUTO porta glides). TUNE is live and reaches the running arp (instrument_tune). Two-manual computer keyboard covers all 32 keys: ZXCVBNM,./ + SDGHJL; lower, QWERTYUIOP + 2356790 upper, []= top, arrows = octave, SPACE = arp, ? = help."
+  "description": "Roland's SH-101 (1982) — the guitar-strap monosynth, fourth box in the classic-machine family (cr-78, tr-808, tb-303), modeled on the real grey panel section for section: TUNE | MODULATOR | VCO | SOURCE MIXER | VCF | VCA | ENV, all vertical faders with tick scales, plus one mid strip holding the sequencer/arpeggio buttons, volume/porta, the AUTO/OFF/ON portamento switch and TRANSPOSE L/M/H — the finger-sized keybed owns the whole bottom half, with a vertical springy BENDER at its left end like the real lever. The SOURCE MIXER is the heart, like the hardware: pulse + saw + sub-osc + noise mixed SIMULTANEOUSLY on four faders (each source is its own engine voice, riding live on a held note via note_vol), with the 3-position sub switch (-1 oct / -2 oct / -2 oct pulse). MODULATOR: LFO with tri / square / random (S&H) / noise waveforms whose RATE slider is also the seq+arp CLOCK, exactly like the real LFO/CLK slider. VCO: MOD (vibrato), RANGE rotary (16' 8' 4' 2'), PW fader + source switch LFO/MAN/ENV. VCF: FREQ RES ENV MOD KYBD — five faders, all live on the ringing voice, with real keyboard tracking. VCA: ADSR or plain GATE. SEQUENCER: LOAD records key presses, PLAY loops them. ARPEGGIO: DOWN / U&D / UP buttons + HOLD latch. PORTAMENTO with the real AUTO/OFF/ON switch (AUTO glides only when legato). KEY ASSIGN, top-left under TUNE: PRIO picks which held note sounds (LAST / LOW / HIGH / FIRST - hold a low note and solo above it, and PRIO decides whether you hear the solo at all) and TRIG picks whether a press restarts the envelope (101 = the machine's own answer, where the PORTA switch secretly decides it, plus Reid's honest three: SINGLE like a Minimoog, MULTI like an ARP, ANY which re-attacks even when a release hands the voice back). Both start where the cart always was. Measured, PORTA OFF is byte-identical to ANY and PORTA AUTO/ON to SINGLE, so the real 101 can only reach two of the three characters - MULTI is unreachable on its own panel. MULTITOUCH: every finger is its own pointer — hold a chord and ride the filter at once; fader grab zones tile each section so a near-miss grabs the nearest fader; sliding a finger across the keys hands the note over legato (AUTO porta glides). TUNE is live and reaches the running arp (instrument_tune). Two-manual computer keyboard covers all 32 keys: ZXCVBNM,./ + SDGHJL; lower, QWERTYUIOP + 2356790 upper, []= top, arrows = octave, SPACE = arp, ? = help."
 }
 de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
+#include "mono.h"        // note PRIORITY + TRIGGER policy (audit §B3) — the held-key stack lives here now
 #include <math.h>
 #include <string.h>
 
@@ -113,11 +114,26 @@ static int   vol_of(int s)   { return (int)(lv[s] * mvol * 7.0f + 0.5f); }
 static int   v[NSRC] = { -1, -1, -1, -1 };
 static int   cur_midi = NONE;
 
-// held keys: phys = physically down, latch = what HOLD keeps alive
+// held keys: `mono` = physically down (mono.h owns the stack AND the two policies),
+// latch = what HOLD keeps alive (the arpeggiator's own set, unchanged)
 #define MAX_HELD 16
-static int phys[MAX_HELD], nphys = 0;
+static Mono mono;                 // mono.note[] is the old phys[]; mono.sounding is who wins
 static int latch[MAX_HELD], nlatch = 0;
 static int hold_on = 0;
+
+// The panel switches for Reid's two axes (Part 18, audit §B3 / plan 2.2). BOTH default to what this cart
+// already did, so the shipped SH-101 is byte-identical until you touch them:
+//   prio_sel 0 = MONO_LAST, which is what the hand-rolled stack did.
+//   trig_sel 0 = "101", the machine's OWN answer: the PORTAMENTO switch decides whether a legato press
+//     re-attacks. That quietly conflates Reid's two axes — here, gliding the pitch and not retriggering
+//     the envelope are the same code path (glide_to vs start_note) — and hearing that conflation against
+//     his three honest policies is the whole point of the switch.
+// ONE source of truth each, learned the hard way: the first cut kept a `prio_sel` beside `mono.prio` and
+// synced them only inside the tap handler, so init() always forced LAST back and all four priorities
+// rendered BYTE-IDENTICAL — a switch that moved a label and nothing else. mono.prio IS the switch now, and
+// trig_sel (which needs a 4th value the header has no opinion about) is pushed into mono.trig every frame.
+static int trig_sel = 0;          // 0 = 101, else MONO_SINGLE/MULTI/ANY at trig_sel-1
+static const char *TRIG_SEL_NAME[4] = { "101", "SINGLE", "MULTI", "ANY" };
 
 // ── sequencer / arpeggiator ───────────────────────────────────────────────
 #define MAX_SEQ 64
@@ -150,7 +166,9 @@ typedef struct {
 static Ptr ptrs[PTR_MAX];
 static int mx, my;             // mouse position — hover highlights + wheel only
 
-static void key_up(int midi);  // fwd (touch-end releases notes)
+static void sh_key_up(int midi);  // fwd (touch-end releases notes)
+// NB the sh_ prefix is not decoration: spec.h declares key_down()/key_up() as its input-injection API,
+// so a cart that hosts a spec cannot own those names (same trap as `step`). See spec-harness.md.
 
 // sync the pointer table with the engine's touch list: refresh positions,
 // admit new fingers (fresh), release whatever lifted fingers were doing
@@ -167,7 +185,7 @@ static void ptrs_begin_frame(void) {
     for (int i = 0; i < touch_ended_count(); i++) {
         Ptr *p = PTR_FIND(ptrs, touch_ended_id(i));
         if (!p) continue;
-        if (p->midi != NONE) key_up(p->midi);
+        if (p->midi != NONE) sh_key_up(p->midi);
         p->id = PTR_NONE;
     }
 }
@@ -324,30 +342,43 @@ static void stack_pop(int *st, int *n, int midi) {
 
 static int arp_running(void) { return arp_mode >= 0 && nlatch > 0 && !seq_play; }
 
-static void key_down(int midi) {
-    int legato = nphys > 0;
-    if (hold_on && nphys == 0) nlatch = 0;     // new latch group
-    stack_push(phys, &nphys, midi);
+static void sh_key_down(int midi) {
+    int legato = mono.n > 0;
+    if (hold_on && mono.n == 0) nlatch = 0;    // new latch group
+    MonoEvent ev = mono_press(&mono, midi, 100);   // velocity unused: the SOURCE faders set level here
     stack_push(latch, &nlatch, midi);
     if (seq_load && seq_n < MAX_SEQ) seq[seq_n++] = midi;
     if (arp_mode >= 0 || seq_play) return;     // clocked modes own the voice
-    int want_glide = cur_midi != NONE &&
-                     (porta_mode == 2 || (porta_mode == 0 && legato));
-    if (want_glide) glide_to(midi);
-    else            start_note(midi);
+    if (trig_sel == 0) {                       // the 101's own answer — unchanged, porta decides
+        int want_glide = cur_midi != NONE &&
+                         (porta_mode == 2 || (porta_mode == 0 && legato));
+        if (want_glide) glide_to(mono.sounding);
+        else            start_note(mono.sounding);
+        return;
+    }
+    // Reid's policies: the header decided whether this is an attack or a legato move. A re-attack does
+    // NOT glide, because start_note() re-voices from zero — separating glide TIME from re-trigger is the
+    // structural gap this switch exposes, and it is deliberately left visible rather than papered over.
+    if      (ev == MONO_START || ev == MONO_RETRIG) start_note(mono.sounding);
+    else if (ev == MONO_GLIDE)                     glide_to(mono.sounding);
 }
 
-static void key_up(int midi) {
-    stack_pop(phys, &nphys, midi);
+static void sh_key_up(int midi) {
+    MonoEvent ev = mono_release(&mono, midi);
     if (!hold_on) stack_pop(latch, &nlatch, midi);
     if (arp_mode >= 0 || seq_play) return;
     if (hold_on) return;                        // latched: keep ringing
-    if (nphys > 0) {
-        int back = phys[nphys - 1];
-        if (back == cur_midi) return;
-        if (porta_mode != 1) glide_to(back);    // falling back is legato
-        else                 start_note(back);
-    } else stop_note();
+    if (trig_sel == 0) {                        // the 101's own answer — unchanged
+        if (mono.n > 0) {
+            if (mono.sounding == cur_midi) return;
+            if (porta_mode != 1) glide_to(mono.sounding);   // falling back is legato
+            else                 start_note(mono.sounding);
+        } else stop_note();
+        return;
+    }
+    if      (ev == MONO_STOP)   stop_note();
+    else if (ev == MONO_RETRIG) start_note(mono.sounding);   // MONO_ANY: a hand-over re-attacks
+    else if (ev == MONO_GLIDE)  glide_to(mono.sounding);
 }
 
 static void arp_toggle(int mode) {
@@ -630,8 +661,7 @@ static int key_at(int x, int y) {
 
 static int sh_held(int midi) {
     for (int i = 0; i < nlatch; i++) if (latch[i] == midi) return 1;
-    for (int i = 0; i < nphys;  i++) if (phys[i]  == midi) return 1;
-    return 0;
+    return mono_held(&mono, midi);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -643,25 +673,30 @@ void init(void) {
     memset(&prev_p, 0xFF, sizeof prev_p);   // force first sync_slots
     for (int i = 0; i < NKMAP; i++) kmap_midi[i] = NONE;
     PTR_CLEAR(ptrs);
+    mono_init(&mono, MONO_LAST, MONO_SINGLE);   // LAST = what this cart always did; trig_sel 0 overrides
 }
 
 void update(void) {
+    // trig_sel is the switch; mono.trig is derived from it, never edited separately (see its declaration).
+    // In "101" mode the cart ignores the header's verdict anyway, so SINGLE is just a defined resting value.
+    mono.trig = trig_sel ? trig_sel - 1 : MONO_SINGLE;
+
     // ── keybed.h EXCEPTION ───────────────────────────────────────────────────
     // This cart does NOT use runtime/keybed.h (the shared keybed). Its keyboard is
     // drawn as TWO stacked rows (two octaves of one mono synth), which keybed.h's
     // single-row layout can't render yet. So the keyboard stays hand-rolled and MIDI
-    // is wired here cart-side: drain the engine's midi_get() into key_down/key_up.
+    // is wired here cart-side: drain the engine's midi_get() into sh_key_down/sh_key_up.
     // Full keybed.h adoption is deferred — see docs/design/midi-and-keybed.md →
     // "Deferred — exceptional cases". MIDI plays absolute pitches, independent of the
     // on-screen octave, like a real keyboard. (No velocity yet.)
-    // Mono-sounding, but key_down/key_up push/pop the held stack (phys/latch), so holding
+    // Mono-sounding, but sh_key_down/sh_key_up push/pop the held stack (phys/latch), so holding
     // a MIDI CHORD feeds the ARPEGGIATOR + HOLD — poly-held even though it's mono-voiced.
     int mn, mv, mt;
-    while ((mt = midi_get(&mn, &mv)) != 0) { if (mt > 0) key_down(mn); else key_up(mn); }
+    while ((mt = midi_get(&mn, &mv)) != 0) { if (mt > 0) sh_key_down(mn); else sh_key_up(mn); }
 
     for (int i = 0; i < NKMAP; i++) {
-        if (keyp(KMAP[i].k)) { kmap_midi[i] = base + KMAP[i].semi; key_down(kmap_midi[i]); }
-        if (keyr(KMAP[i].k) && kmap_midi[i] != NONE) { key_up(kmap_midi[i]); kmap_midi[i] = NONE; }
+        if (keyp(KMAP[i].k)) { kmap_midi[i] = base + KMAP[i].semi; sh_key_down(kmap_midi[i]); }
+        if (keyr(KMAP[i].k) && kmap_midi[i] != NONE) { sh_key_up(kmap_midi[i]); kmap_midi[i] = NONE; }
     }
     if (keyp(KEY_DOWN)) base = (int)clamp(base - 12, 12, 84);
     if (keyp(KEY_UP))   base = (int)clamp(base + 12, 12, 84);
@@ -714,6 +749,21 @@ void draw(void) {
     // ── TUNE ────────────────────────────────────────────────────────────
     tune_v = ui_knob(1, 22, 58, 9, tune_v, 0);
     print("-", 6, 68, C_LABEL); print("+", 32, 68, C_LABEL);
+
+    // ── KEY ASSIGN (audit §B3): the two questions a one-voice keyboard has to answer.
+    //    Reid counts "at least 24 keyboard characteristics" from these two switches crossed; both start
+    //    where this cart already was, and light up once you leave it. Hold a low note and solo above it —
+    //    that is his own A/B, and PRIO decides whether you hear the solo at all.
+    font(FONT_SMALL);
+    // y starts at 78, not 74: the TUNE "-"/"+" above are FONT_NORMAL (8px tall from y=68), so 74 overlaps
+    // them by 2px — ui-audit catches exactly this and it is invisible until you look at the baked PNG.
+    print("PRIO", 3, 78, C_LABEL);
+    if (ui_opt(2, 86, 40, 9, MONO_PRIO_NAME[mono.prio], mono.prio != MONO_LAST))
+        mono.prio = (mono.prio + 1) % MONO_NPRIO;
+    print("TRIG", 3, 97, C_LABEL);
+    if (ui_opt(2, 105, 40, 9, TRIG_SEL_NAME[trig_sel], trig_sel != 0))
+        trig_sel = (trig_sel + 1) % 4;
+    font(FONT_NORMAL);
 
     // ── MODULATOR ───────────────────────────────────────────────────────
     print("RATE", 48, 26, C_LABEL);
@@ -807,8 +857,8 @@ void draw(void) {
     if (ui_led_btn(212, 124, "UP",   arp_mode == 2)) arp_toggle(2);
     if (ui_led_btn(248, 124, "HOLD", hold_on)) {
         hold_on = !hold_on;
-        if (!hold_on) { nlatch = nphys; memcpy(latch, phys, nphys * sizeof(int));
-                        if (nphys == 0 && arp_mode < 0 && !seq_play) stop_note(); }
+        if (!hold_on) { nlatch = mono.n; memcpy(latch, mono.note, mono.n * sizeof(int));
+                        if (mono.n == 0 && arp_mode < 0 && !seq_play) stop_note(); }
     }
     font(FONT_SMALL);
     print("SEQUENCER", 60, 140, C_LABEL);
@@ -871,12 +921,12 @@ void draw(void) {
         if (p->id == PTR_NONE) continue;
         if (p->fresh && p->widget == 0) {
             int m = key_at(p->cx, p->cy);
-            if (m != NONE) { p->widget = 98; p->midi = m; key_down(m); }
+            if (m != NONE) { p->widget = 98; p->midi = m; sh_key_down(m); }
         } else if (p->widget == 98) {
             int m = key_at(p->cx, p->cy);
             if (m != NONE && m != p->midi) {
-                key_down(m);
-                key_up(p->midi);
+                sh_key_down(m);
+                sh_key_up(p->midi);
                 p->midi = m;
             }
         }
@@ -909,3 +959,31 @@ void draw(void) {
             print(HL[i], 70, 46 + i * 11, i < 3 ? CLR_YELLOW : CLR_LIGHT_GREY);
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// spec — the gameplay/logic gate (node tools/spec.js sh101)
+// ─────────────────────────────────────────────────────────────────────────
+// The voice is audio and the panel is pixels, so neither belongs here. What DOES is the thing this cart
+// gained in plan 2.2: mono.h's priority + trigger policies, which are pure logic over a held-key list and
+// are the one part of a monosynth an oracle can actually judge. Reid's Part 18 is already a test suite —
+// four priorities give four different pitch sequences from the same played notes — so the header carries
+// the assertions (spec.h's "specs on an includeable") and this cart just runs them.
+#ifdef DE_SPEC
+void spec(void) {
+    mono_selfcheck();
+
+    // And the cart-side half: the shipped defaults must BE what the cart always did, since that is what
+    // makes this change opt-in. If either of these flips, the SH-101 silently became a different keyboard.
+    expect_eq(mono.prio, MONO_LAST, "sh101 ships on LAST priority");
+    expect_eq(trig_sel, 0, "sh101 ships on its own 101 trigger answer, not one of Reid's three");
+
+    // The assertion that would have caught the bug this cart actually shipped for ten minutes: the panel
+    // switch and the policy must not be able to diverge. Move the switch, run a frame, and the Mono has to
+    // follow — the first cut synced them only inside the tap handler, so all four priorities rendered
+    // byte-identical and the switch was pure decoration.
+    trig_sel = 2; step(1);
+    expect_eq(mono.trig, MONO_MULTI, "moving the TRIG switch reaches the policy, not just the label");
+    trig_sel = 0; step(1);
+    expect_eq(mono.trig, MONO_SINGLE, "…and back");
+}
+#endif

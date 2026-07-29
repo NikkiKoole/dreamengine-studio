@@ -171,6 +171,16 @@ before anyone discovers it can't be spec'd. `expect`, `expect_eq`, `key_down`, `
 transport variable first (`tstep` / `pstep` / `playhead`) — that is a mechanical but
 repo-wide rename in the cart, so budget for it rather than discovering it mid-task.
 
+**Second real case, 2026-07-29, and it is a whole cart FAMILY rather than one cart:** plan item 2.2 gave
+`sh101` a spec and hit `key_down`/`key_up` immediately — the cart had owned both names since it was
+written. Those are not obscure identifiers in a *keyboard* cart, they are the obvious ones, so every
+keybed/monosynth cart is a candidate for the same collision (`sh101` was the only current one; the fix was
+renaming to `sh_key_down`/`sh_key_up`, six call sites). Worth knowing before you plan a spec on an
+instrument: the list above is short but it is aimed squarely at the words instrument carts use. The longer
+fix — prefixing the harness API (`spec_step`, `spec_key_down`) so the scaffolding stops squatting on
+cart-land vocabulary — is the right shape and is **not** done, because it would touch every existing spec;
+it is recorded here as the option to reach for the next time this costs someone a detour.
+
 ## Which carts warrant a spec — `tools/cart-analyze.js`
 
 Run `node tools/cart-analyze.js` for a ranked report (complexity × mutable global state).

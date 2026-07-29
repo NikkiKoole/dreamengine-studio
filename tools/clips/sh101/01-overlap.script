@@ -1,0 +1,23 @@
+# sh101 — three OVERLAPPING notes, the seed for every priority/trigger A/B (audit §B3, plan 2.2).
+#
+# X(50) then Z(48) then B(55): mid, LOW, HIGH. The order is load-bearing and NOT ascending, which is the
+# trap that cost me two wrong conclusions:
+#   * with an ascending run (Z,X,C = 48,50,52) "last pressed" and "highest held" are the SAME note, so
+#     MONO_LAST and MONO_HIGH render byte-identically and the switch looks broken. Likewise "first" and
+#     "lowest" coincide, so LOW == FIRST. Two of the four schemes are invisible.
+#   * releasing middle-first (-Z then -B) is what exercises the HAND-OVER path, where MONO_ANY re-attacks
+#     and SINGLE/MULTI glide. Release in press order and that difference never happens.
+# mono.h's own selfcheck uses the same shape (64, 60, 67) for exactly this reason.
+#
+#   node tools/ab-render.js sh101 --set trig_sel=0,1,2,3 --script tools/clips/sh101/01-overlap.script --frames 200
+#   node tools/ab-render.js sh101 --set porta_mode=1,0,2 --script tools/clips/sh101/01-overlap.script --frames 200
+#
+# Those two runs together produce the finding: the 101's PORTA switch IS a trigger switch. PORTA OFF is
+# byte-identical to Reid's ANY, PORTA AUTO/ON to his SINGLE, and MULTI is not reachable on the real
+# machine's controls at all.
+down 40 x
+down 60 z
+down 80 b
+up 100 z
+up 120 b
+up 140 x

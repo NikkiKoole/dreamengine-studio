@@ -210,6 +210,18 @@ would be heard.
 
 ### B3. No note priority, no single/multi trigger
 
+> **✅ SHIPPED 2026-07-29** as [`runtime/mono.h`](../../runtime/mono.h) (plan item 2.2) — a cart-land header,
+> zero engine surface: a `Mono` held-key stack + `mono_press`/`mono_release` returning START/GLIDE/RETRIG/
+> STOP, with priority LAST/LOW/HIGH/FIRST and triggering SINGLE/MULTI/ANY (Reid's Figures 8/9/11). `sh101`
+> drives it from PRIO/TRIG panel switches whose defaults are byte-identical to the pre-change cart, and the
+> header carries its own 47-assertion `mono_selfcheck()` built from Part 18's four-priority table.
+> **The finding: the SH-101's PORTAMENTO switch is secretly a trigger switch.** PORTA OFF renders
+> byte-identically to Reid's ANY and PORTA AUTO/ON to his SINGLE, while MULTI (re-attack on every press but
+> glide on a hand-over) is **unreachable on the real machine's controls** — a measured answer to what the
+> engine's conflation of the two axes actually costs. `tb303`, `acidrack` and `moog` still hand-roll theirs;
+> converting them is where the §L4-vs-§K6 argument will decide whether this earns promotion into `sound.h`.
+
+
 - **Book:** Part 18 (SOS October 2000) is dedicated to this. Four priority schemes: lowest, highest,
   last, first, each producing a *different* output from the same played sequence (his Figures 2a-4d).
   Crossed with triggering: single-trigger "retriggers only when you release all other notes" (Figure 8,

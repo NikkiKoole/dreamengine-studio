@@ -1,0 +1,18 @@
+# sh101 — tap the PRIO switch twice (LAST → LOW → HIGH), then play 01-overlap's notes.
+# Proves the panel switch reaches the AUDIO through the real user path, not just the label: with 0/1/2/3
+# taps the four priorities render four distinct shas (ddb9d398da39 / 906eb02d5452 / 4022d3274b84 /
+# 61d2812ec935 at 200 frames).
+#
+# ⚠ THE SHELL TRAP THAT MADE THIS CLIP NECESSARY: generating these scripts with
+#   `for i in $(seq 1 $n)` silently emits TWO clicks when n=0, because BSD/macOS `seq 1 0` prints "1 0"
+# instead of nothing. So the "zero taps" baseline was actually sitting on HIGH, every variant matched, and
+# I nearly wrote up "the priority switch does not reach the audio" as a finding. A trace of mono.prio is
+# what caught it. Committed as a file so the click frames are fixed and no loop can lie about them again.
+click 9 22 90
+click 15 22 90
+down 40 x
+down 60 z
+down 80 b
+up 100 z
+up 120 b
+up 140 x

@@ -650,7 +650,7 @@ per-engine items is the single biggest saving available.
 | # | theme | closes | kind | rung | note |
 |---|---|---|---|---|---|
 | 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **SHIPPED (both halves)** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
-| 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | DESIGN → 3 | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
+| 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | ✅ **SHIPPED** 2026-07-29 (`mono.h` + `sh101`) | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
 | 2.3 | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
 
@@ -791,6 +791,84 @@ two before it (measured: non-monotonic, and both modes read the same at the firs
 acceptance table above comes from the isolated-note probe instead. Renders:
 `build/ab/8b-sweep-{Hz-collapses,OCT-holds}.wav` — the Hz take is **0.9 dB hotter** overall, which is
 exactly the kind of level difference §1 says to name before anyone listens.
+
+---
+
+### 2.2 `mono.h` — note priority + trigger policy — SHIPPED 2026-07-29
+
+**The largest item in the audit, and it needed no engine change at all.** Reid gives Part 18 entirely to
+the two questions a one-voice keyboard must answer — *which* held note sounds, and whether a press
+*restarts the envelope* — and his claim is that this, not the oscillators or the filter, is what decides
+whether a synth feels playable: "my playing sounded punchier on the Odyssey … The answer lay in the
+engineering within the instruments." Four priority schemes crossed with the triggering variants is what he
+counts as "at least 24 keyboard characteristics".
+
+[`runtime/mono.h`](../../runtime/mono.h) is a `Mono` struct (the held-key stack, in press order) plus
+`mono_press`/`mono_release`, which return what the cart should *do*: `MONO_START`, `MONO_GLIDE`,
+`MONO_RETRIG` or `MONO_STOP`. Priority is `MONO_LAST`/`LOW`/`HIGH`/`FIRST`; triggering is `MONO_SINGLE`
+(only onto an empty keyboard — Figure 8, "exactly how a Minimoog works"), `MONO_MULTI` (every press,
+Figure 9, the ARP) or `MONO_ANY` (Figure 11 — any transition, so a *release* that hands the voice over
+re-attacks too). Rung 3 per ADR-0016: it is pure bookkeeping, so it gets no engine surface.
+
+**`sh101` drives it**, with PRIO and TRIG switches in the free space under the TUNE knob. Both default to
+what the cart already did, and the shipped defaults render **byte-identical** to the pre-change cart on an
+overlapping-note seed (`6b67a46db046`).
+
+**THE FINDING, and it is better than the feature: the SH-101's PORTAMENTO switch is secretly a TRIGGER
+switch.** The cart's own answer conflates Reid's two axes — gliding the pitch and not retriggering the
+envelope are the same code path (`glide_to` vs `start_note`) — so moving PORTA silently moves you between
+his policies. Byte-identical renders prove the mapping instead of arguing it:
+
+| the 101's own controls | is byte-identical to |
+|---|---|
+| PORTA **OFF** (`c44eacfd48a4`) | Reid's **ANY** (`c44eacfd48a4`) |
+| PORTA **AUTO** / **ON** (`3ad0f95fe278`) | Reid's **SINGLE** (`3ad0f95fe278`) |
+| — nothing — | Reid's **MULTI** (`85646e1cdcd9`) |
+
+So the real machine can reach only two of the three characters, and **MULTI is unreachable on its own
+panel**: re-attack on every press but glide on a hand-over. That is a concrete, measured answer to "what
+does conflating the two axes cost you", which is exactly what §B3 asked. (AUTO and ON coincide *for this
+seed* because every press in it is legato; they differ only when the voice is sounding with no key held.)
+
+**The specs are the point of the header, not an afterthought.** Part 18 is already a test suite: the same
+played sequence through four priorities gives four different pitch sequences, so `mono_selfcheck()`
+asserts that table outright, plus the attack COUNT per trigger policy (SINGLE 1, MULTI 3, ANY 4 over the
+same six events — if two of those ever come out equal, the switch has stopped meaning anything). 47
+assertions via `node tools/spec.js sh101`, and **every one was watched failing** before it was kept: four
+mutations (LOW inverted, MULTI not retriggering a losing press, ANY not re-attacking on hand-over, FIRST
+behaving like LAST) turn 4/1/1/3 of them red respectively.
+
+**I shipped a decorative switch and the oracle caught it.** The first cut kept a `prio_sel` beside
+`mono.prio` and synced them only inside the tap handler, so `init()` forced LAST back and **all four
+priorities rendered byte-identical** — a switch that moved a label and nothing else. `ab-render`'s
+"byte-identical means the flag never reached the DSP" warning is what flagged it. `mono.prio` is now the
+switch itself, and a spec assertion drives the panel and checks the policy followed, which is the
+assertion that would have caught it.
+
+**Two traps in my own measuring, both of which briefly produced confident wrong conclusions:**
+- **An ascending test sequence cannot see two of the four schemes.** Play 48, 50, 52 and "last pressed"
+  IS "highest held", so LAST ≡ HIGH; likewise FIRST ≡ LOW. The committed seed is deliberately
+  non-monotonic (mid, low, high) and releases middle-first so the hand-over path fires. `mono_selfcheck`
+  uses the same shape for the same reason.
+- **`seq 1 0` prints "1 0" on macOS**, not nothing. A `for i in $(seq 1 $n)` loop generating "n taps"
+  scripts therefore emitted TWO taps at n=0, so the baseline was sitting on HIGH, every variant matched,
+  and I nearly wrote up "the priority switch does not reach the audio". A `watch()` trace of `mono.prio`
+  caught it. Both seeds are now committed files in `tools/clips/sh101/` precisely so no loop can lie about
+  the click frames again. (Sibling of the zsh word-splitting note in CLAUDE.md — the shell keeps finding
+  new ways to invalidate a measurement.)
+
+**A collision worth budgeting for on any instrument cart:** `spec.h` declares `key_down`/`key_up`, which
+`sh101` had owned since it was written, so it could not host a spec until they were renamed to
+`sh_key_down`/`sh_key_up`. It was already documented in
+[`spec-harness.md`](spec-harness.md#reserved-names--step-is-the-one-that-bites) next to the `step` trap —
+reading that first would have saved the detour. Now recorded there as a cart *family* risk, since those are
+the natural names in every keyboard cart.
+
+**Still open, deliberately:** `tb303`, `acidrack` and `moog` still hand-roll their own answers. Converting
+them is one cart at a time, each with its own byte-identity check, and each is where the §L4-vs-§K6
+argument (Hammond percussion must be SINGLE, flute chiff must be MULTI) will decide whether this ever
+earns promotion into `sound.h` as a property an instrument *declares*. The header is the rung below that,
+and it holds for now.
 
 ---
 

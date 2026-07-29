@@ -154,6 +154,13 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          through pset_rgb/rectfill_rgb that wants to read like Shadertoy. raymarch
              keybed.h    polyphonic chromatic keybed (touch+mouse+QWERTY+MIDI) — every keybed
                          cart copies it (epiano/moog/touchpiano/mellotron); NOT ribbons/radio strip
+             mono.h      MONOSYNTH KEY ASSIGN (audit §B3): which held note sounds (priority LAST/LOW/
+                         HIGH/FIRST) and whether a press restarts the envelope (trigger SINGLE/MULTI/ANY),
+                         as one Mono struct + mono_press/_release returning START/GLIDE/RETRIG/STOP. Reid
+                         calls this what decides whether a synth feels playable; tb303/acidrack/moog/sh101
+                         each hand-rolled a different answer. Pure logic, no engine surface, no UI — so it
+                         carries its OWN spec (mono_selfcheck, Part 18's four-priority table). sh101 drives
+                         it (PRIO/TRIG on the panel). NOT keybed.h (the widget) or solo.h (the radio strip)
              solo.h      scale-locked solo strip the player drives over a radio (pairs radio.h)
              radio.h     radio-station chrome (chassis, seeded songs, draggable control knobs)
              improv.h    melodic improvisation for the radio stations (auto-solo)

@@ -267,15 +267,51 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >   and both units read the *same* at the first C). The table came from a four-isolated-notes probe instead,
 >   whose source is pasted in plan §2.1(b) — a ruler is not a cart, so it is documented rather than committed.
 >
-> **Resume-at:** **2.2, trigger policy (§B3)** — the next Phase 2 theme and the other prerequisite for §G →
+> **2.2 IS SHIPPED TOO — [`runtime/mono.h`](../runtime/mono.h), the largest item in the audit, with zero
+> engine change.** A `Mono` held-key stack + `mono_press`/`mono_release` returning START/GLIDE/RETRIG/STOP;
+> priority LAST/LOW/HIGH/FIRST and triggering SINGLE/MULTI/ANY (Reid's Figures 8/9/11). `sh101` drives it
+> from PRIO/TRIG switches under the TUNE knob, defaults byte-identical to the pre-change cart
+> (`ddb9d398da39`). Full write-up: plan item 2.2.
+>
+> **The finding beats the feature: the SH-101's PORTAMENTO switch is secretly a TRIGGER switch.** The cart
+> conflated Reid's two axes (gliding the pitch and not retriggering are the same code path), so PORTA OFF
+> renders **byte-identically** to his ANY, PORTA AUTO/ON to his SINGLE — and **MULTI is unreachable on the
+> real machine's panel**. That is a measured answer to what the conflation costs, which is what §B3 asked.
+>
+> **`mono.h` carries its own 47-assertion spec** (`node tools/spec.js sh101`) because Part 18 *is* a test
+> suite: four priorities, four different pitch sequences from the same played notes. **Every assertion was
+> watched failing first** — four mutations (LOW inverted, MULTI not retriggering a losing press, ANY not
+> re-attacking on hand-over, FIRST behaving like LAST) turn 4/1/1/3 of them red.
+>
+> **Three traps from 2.2, all of which produced a confident wrong conclusion before being caught:**
+> - **I shipped a decorative switch.** The first cut kept `prio_sel` beside `mono.prio` and synced them only
+>   in the tap handler, so `init()` forced LAST back and all four priorities rendered byte-identical.
+>   `ab-render`'s byte-identical warning caught it; `mono.prio` IS the switch now, and a spec assertion
+>   drives the panel and checks the policy followed. **Two sources of truth for one setting is the bug.**
+> - **An ASCENDING test sequence cannot see two of the four schemes** — play 48/50/52 and "last pressed" IS
+>   "highest held" (so LAST ≡ HIGH, and FIRST ≡ LOW). Seeds must be non-monotonic AND release middle-first,
+>   or the hand-over path never fires. Committed as `tools/clips/sh101/01-overlap.script`.
+> - **`seq 1 0` prints "1 0" on macOS**, not nothing, so a `for i in $(seq 1 $n)` loop emitted TWO taps at
+>   n=0 and the "baseline" was sitting on HIGH. I nearly wrote up "the priority switch does not reach the
+>   audio". A `watch()` trace of `mono.prio` caught it. Sibling of CLAUDE.md's zsh word-splitting note.
+>
+> **Budget for this on any instrument cart:** `spec.h` declares `key_down`/`key_up`, which `sh101` had owned
+> since it was written, so it could not host a spec until they became `sh_key_down`/`sh_key_up`. Already
+> documented next to the `step` trap in
+> [`spec-harness.md`](design/spec-harness.md#reserved-names--step-is-the-one-that-bites) — read that BEFORE
+> planning a spec, which would have saved the detour. Those are the natural names in every keyboard cart.
+>
+> **Resume-at:** **2.3, level-dependent inharmonicity (§E8/§H/§I4/§J8/§K8)** — a LISTEN item, so it needs
+> the ear-call loop above →
 > [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#5-phase-2--the-four-cross-cutting-themes).
-> It is a **DESIGN** item, so it needs the owner: §L4 (the Hammond percussion must be **single**-trigger) vs
-> §K6 (the flute chiff must be **multi**-trigger) is the argument, and in both cases the choice decides
-> whether the defining transient happens at all — which is why the plan calls it a property an *instrument
-> declares* rather than a cart convention, starting as a cart-land `mono.h` per ADR-0016. Four monosynth
-> carts currently hand-roll it. Read the ear-call loop above first — every Phase 1 item followed it, and
-> SEVEN worked examples are written up in plan §4. If you have not done a LISTEN item before, read **1.4**
-> first: it is the one that failed, and it shows the shape of an honest DROP.
+> One physical fact (partials sharpen with *amplitude*, not just pitch) modelled statically at best in five
+> engines; prototype on **PIANO**, which already has the machinery, A/B it, then decide whether to
+> generalise. **2.4 (coupling) should start with a MEASUREMENT, not a build** — §M2's claim that three
+> parallel 1-4 ms delay lines *are* a body, which if it holds may answer the brass bell, the guitar body and
+> the piano tricord cheaply and all at once. Still open from 2.2: `tb303`, `acidrack` and `moog` each still
+> hand-roll their own key assign; converting them one at a time is where the §L4-vs-§K6 argument (Hammond
+> percussion must be SINGLE, flute chiff must be MULTI) decides whether `mono.h` earns promotion into
+> `sound.h` as a property an instrument *declares*.
 >
 > **Orienting cold on this thread:** `node tools/orient.js` for the repo, then read plan §1 (the gate + the
 > A/B protocol), §2 (the add-vs-change ladder) and §4 (Phase 1, incl. the three finished write-ups). The

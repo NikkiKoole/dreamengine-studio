@@ -11,7 +11,7 @@
   "description": {
     "summary": "FIVE DIFFERENT PEOPLE built from one rig table and one sprite sheet: a small kid with a big head and short limbs, a barrel with a long thick torso on short legs, the rig exactly as authored, a lanky one with long legs and a small head, and a broad bruiser. Nothing about them is hand-placed. Each build states a stiffness multiplier for its joint springs (the floppiest sags, the stiffest stands rigid), an overall size, an overall thickness, how long and how thick the bones of each GROUP are, and a short list of joints turned away from the authored rest to give it an ATTITUDE: the kid cocks its head and stands with its legs apart, the barrel leans back with its arms off its belly and its feet planted wide, the lanky one stoops with its arms tucked and its knees together, the bruiser cannot put its arms down. Only the middle figure is left square-on, as the control. The rig then walks its own parent chain to work out where every bone and every sprite pixel ends up. Lengthen a thigh and the knee, the ankle, the foot and the whole leg strip follow; tilt a chest and the shoulders, both arms, the head and their skins swing with it. Each limb is a single continuous sprite strip stretched over several Box2D bones. The right leg is one 20x62 texture that bends at the hip, the knee and the ankle; the left leg is the SAME texture mirrored, and all five guys share that one sheet. Each figure gets its own Box2D collision group, so a guy ignores his own limbs but bumps into his neighbours. Press F to fold a limb to its limit, then SPACE to A/B four ways of deforming that texture: a Bezier SPINE, dual-quaternion and linear weighted blends, and rigid one-bone-per-vertex. Every limb is BANDED across its axis on purpose: a flat colour tells you nothing about how a skin deformed, but a regular stripe fans out on the outside of a bend, bunches on the inside, and shears visibly the moment a blend mode gets it wrong.",
     "detail": "Four deformation modes over one rig, because the interesting question is not how to attach a texture to a bone but what happens at a hard bend. SPINE is playtime's MESHUSERT spine-bind ported: each vertex is stored as (t, s) — arc-length fraction along a Bezier drawn through the limb's joint chain, plus signed perpendicular offset — and replanted each frame on the live curve, with no weights and nothing to tune. On top of it sits a CURVATURE CLAMP. playtime's own miter clamp (written for its ribbon path, never wired into spine-bind) was tried first and measured worse than no clamp: it is the right formula for a polyline corner, but a Bezier spine has no such corner, so min(segA,segB) only measures sample spacing and collapses exactly at a bend. The correct bound is the local radius of curvature - an offset curve folds on the concave side once the offset exceeds R - and clamping to 0.92R takes the fold artifact to zero at every angle tested. The cart carries its own oracle for this — every triangle's winding is baked at bind time and compared each frame, so 'inverted triangles' is a number, not an opinion. At a full elbow-and-knee fold: SPINE+clamp 4, SPINE without clamp 7, DQS 19, LBS 19, RIGID 43, out of 880. The structural move over puppet.c: BONES and SKINS are separate lists. 15 bones are invisible Box2D boxes joined by sprung, angle-limited revolutes (pelvis, chest, head, and upper/lower/extremity for each of four limbs). 6 skins are sprite rects from the sheet, each naming the subset of bones that deforms it. Per skin: a grid over the rect's opaque pixels becomes a triangle mesh; each vertex is weighted by 1-smoothstep(0, radius, distanceToBoneSegment), pruned to the best 3 bones and renormalised; bind pose stores the vertex in each bone's LOCAL frame plus that bone's rest angle. Each frame the vertex is placed by blending the bones' DELTA rotations as a circular mean, rotating the bind vertex once by that blend, then adding the weight-averaged translation residual, and tritex draws the triangles with UVs that never move. Left and right limbs share one sprite rect: the geometry mirrors, the UVs do not. The sprite sheet is drawn as a deformation TEST PATTERN — breton torso, banded sleeves and shorts, striped socks, cross-banded shoes — so the eye can read stretch and shear directly instead of guessing from a silhouette. The per-bone blend radius is what keeps a foot rigid while a thigh blends over 14 pixels. BUILDS, and why the rig is now WALKED: an affine transform of the table can make a figure bigger or thicker, and that is all it can do. Real proportions cannot come from it, because BONES[] stores absolute positions, so lengthening a thigh would leave the knee, the ankle, the foot and the leg skin's rest placement exactly where they were. So the table became the REFERENCE pose and each build derives its own rig from it, parent first: a bone keeps its authored direction, takes its group's length, and starts at the same spot on its parent's DERIVED segment, which is what makes a longer chest carry the shoulder up with it and a wider pelvis spread both legs. Two primitives do all of it, and they are the spine bind's decomposition applied per bone instead of per chain: a point maps to (fraction along a bone, signed perpendicular offset), and that pair maps back onto the build's version of that bone with the offset scaled by its thickness. The skins ride the same remap, weight-blended by the smoothstep the skinning already uses so seams between bones stay smooth, which is the substitution that turns a scaled copy into a different build: the leg strip's rest position becomes a function of where the shin ENDED UP. Doing it at BIND and not at draw keeps it free, since the mesh is born the shape this figure is and no per-frame code knows the difference. Two invariants guard it. Round-tripping through both primitives is the identity, so the unproportioned 'author' build must render exactly as the pre-derivation cart did: it does, bit for bit, once the derived rest pose is snapped to a 1/256 px grid (without the snap a vertex authored exactly on an integer came back a hair either side of it and moved a shared triangle edge by a pixel). And the winding oracle says the shapes are honest: a 300-frame fold peaks at 15 inverted triangles of 22000 against 12 for five plain scaled copies, with the weighted modes slightly BETTER than before. The per-build flip counter earns its keep here by showing the two mode families fail for opposite reasons: the weighted blends are wrecked by deep poses (the floppiest build owns 60% of their inversions, the thickest is nearly clean) while SPINE is indifferent to pose and vulnerable to THICKNESS, since an offset curve folds once the offset passes the local radius of curvature. A build's POSE rides the same walk (a rotation folded into the chain, accumulating down it the way a real skeleton does) and becomes that build's rest: the joint limits are measured from it and KEEP_ANGLE defends it, so a stoop stays a stoop under gravity rather than being a starting condition that decays. The bodies still rest at rotation identity with every reference angle at zero, because the pose goes into the SHAPE exactly as the authored direction always did, which keeps the joint branch-cut trap shut. Shape and attitude both feed back into the physics, which is the honest half of doing it this way rather than drawing five sprites: the big-headed kid is top-heavy and needs roughly twice the joint stiffness of the old floppiest build to stay on its feet (measured 0.41 of its rest height at stiff 0.35, 0.82 at 0.65), and the rig being a SIDE view bounds what a pose can even say. Turning a foot here does not splay it outward, it lifts the toe, and a figure balancing on a tilted sole sags: that alone cost the smallest build 0.14 of its standing height, while the head angle it was blamed on measured nothing at all. The rig is a FRONT view, both limbs of a pair being separate bones either side of the centre line, so an angle here swings a limb OUT rather than forward, which is what makes a STANCE expressible at all. The feet are the exception, and it cost a measurement to find: in this plane a foot angle rolls the sole onto its edge, and a figure balancing on the edge of its shoe sags (0.14 of its standing height on the smallest build, next to which the head angle first blamed for it measured nothing). So a foot alone does not inherit the chain's rotation, which is both the fix and the anatomy: you splay your legs and your feet stay flat because the ankle takes up the difference. A stance is therefore one number per build rather than an angle plus a counter-rotation nobody remembers, and it cannot be got wrong by forgetting the second half. The IDLE fidget is the same ask one layer further out, and it exposed something about the rig worth writing down: two different authorities own a bone's angle here. Bones with no keep-angle gain (chest, arms) are steered by their hinge SPRING, so setting the joint's target makes the spring chase it and the build's temperament shows up for free as lag and undershoot. The bones that hold the figure up (head, thighs, shins, feet) are steered by the KEEP_ANGLE controller, which writes angular velocity outright and would simply erase a joint target, so for those the fidget is added to the angle it DEFENDS instead. One ask, accumulated down the chain exactly like the pose, feeding whichever authority owns each bone. It costs nothing measurable: the fold oracle reads 21 inverted triangles of 22000 with five bodies breathing and 20 with them frozen. Springs deliberately do NOT scale with size; the source carries the measurement that says the correction is inert across this range.",
-    "controls": "Drag any bone with the mouse to pose the figure. F drives the right elbow and knee to a full fold (the extreme-pose test - a mouse drag cannot reliably reach it, the chain would rather swing at the hip). SPACE cycles SPINE / DQS / LBS / RIGID. C toggles spine mode's curvature clamp. M shows the mesh wireframe. B shows the bone skeleton. R resets."
+    "controls": "Drag any bone with the mouse to pose the figure. F drives the right elbow and knee to a full fold (the extreme-pose test - a mouse drag cannot reliably reach it, the chain would rather swing at the hip). H turns the whole crowd upside down into handstands, and again to stand them back up (it composes with everything: fold a knee while inverted and you get a tucked handstand). I stops the idle fidget, which is also how you measure a still pose. SPACE cycles SPINE / DQS / LBS / RIGID. C toggles spine mode's curvature clamp. M shows the mesh wireframe. B shows the bone skeleton. R resets."
   },
   "todo": [
     "Proportions are stated per GROUP (torso, head, arm, leg), because 15 numbers per build would be the second rig table this cart refuses to have. Per-BONE would buy a pot belly over a normal chest, or one arm longer than the other, and the machinery already takes it: bg[] and the derived segments are per bone, only the authoring is grouped. What that needs is a way to state it without a wall of numbers, which is a design question rather than a code one.",
@@ -182,6 +182,11 @@ typedef struct {
     float     bg[NBONE];
     float     pang[NBONE];                // accumulated rest rotation down the chain
     float     idleW[NBONE];               // this frame's fidget, as a WORLD angle offset
+    // The HANDSTAND rig: the same derived pose, turned over. Worked out once at
+    // build (it is a rest pose like any other), then the bodies are placed into it.
+    float     hax[NBONE], hay[NBONE], hbx[NBONE], hby[NBONE];
+    float     hang[NBONE];                // ...and the world angle each bone turns by
+    float     hstraddle;                  // the straddle it solved for, degrees
     float     restUp;                     // head height above the floor at rest, px.
                                           // Captured per build because proportions
                                           // change it: "is he still standing" can
@@ -864,6 +869,181 @@ static void build_mesh(Fig *F, int si) {
     }
 }
 
+// ── HANDSTAND — H turns the whole crowd over ────────────────────────────
+// The first attempt was pure control: leave the bodies where they are, add 180
+// degrees to every angle KEEP_ANGLE defends, and let the controller and the floor
+// work out how. It does not work, and the way it fails is worth keeping. Four of
+// the five rolled onto their backs with their limbs waving in the air and the
+// stiffest just stayed standing (head-over-hip at frame 399: +15 +11 -5 +1 -28,
+// where a real handstand is strongly positive and zero means lying down), and the
+// inverted-triangle count went from 2 to 32 because a heap is a much harder pose
+// to skin than a handstand is. The reason is simple once seen: an orientation
+// controller cannot LIFT anything. It owns every bone's angle and not one bone's
+// height, so "be upside down" is satisfied just as well by lying on your back.
+//
+// So the flip is a PLACEMENT and the controller only has to HOLD it, which is the
+// same division of labour as standing up: nothing in this cart ever made a figure
+// stand, it was placed standing and the controller kept it there. Two point
+// reflections do the whole pose, no trigonometry involved:
+//   1. raise the arms overhead — reflect each arm chain through its own shoulder;
+//   2. turn the figure over — reflect everything through the pelvis;
+// then re-anchor onto the sole line exactly as the standing rig does, so the hands
+// come down where the feet stood. Composing those two is why the arms end up
+// pointing at the FLOOR again: they were hanging, and now they are holding.
+//
+// That composition also states the controller's targets, and they are only two
+// rules: every bone defends its standing angle plus 180, EXCEPT the arm chain,
+// which defends the angle it already had. And the KEEP GAINS swap ROLES, because
+// standing on your arms means the arms are legs now: upper arm takes the thigh's
+// gain, forearm the shin's, hand the foot's, and the legs inherit the arms'
+// nothing. A rule rather than a second gain column, and it says the thing a column
+// would have hidden — a handstand is not a new skill for this rig, it is the same
+// skill pointed the other way.
+static bool handstand = false;
+static int keep_role(int b) {
+    switch (b) {
+        case B_UARM_R:  return B_THIGH_R;  case B_THIGH_R: return B_UARM_R;
+        case B_LARM_R:  return B_SHIN_R;   case B_SHIN_R:  return B_LARM_R;
+        case B_HAND_R:  return B_FOOT_R;   case B_FOOT_R:  return B_HAND_R;
+        case B_UARM_L:  return B_THIGH_L;  case B_THIGH_L: return B_UARM_L;
+        case B_LARM_L:  return B_SHIN_L;   case B_SHIN_L:  return B_LARM_L;
+        case B_HAND_L:  return B_FOOT_L;   case B_FOOT_L:  return B_HAND_L;
+        // Standing, the PELVIS defends the spine and the chest is free to sway.
+        // Upside down the chest is the lower link, the one carrying the body's line
+        // out of the shoulders, so it takes the base's job as well.
+        case B_CHEST:   return B_PELVIS;
+        default:        return b;          // the pelvis and head keep their own
+    }
+}
+// A STRADDLE, not a straight-legged handstand, and the reason is the same one the
+// stance rung ran into. This is a front view, so a knee tuck is not available (in
+// this plane bending a knee swings the shin sideways, it cannot fold the heel back)
+// but splaying the legs apart at the hip is — which is a real gymnastic straddle,
+// and it happens to fix the thing that made the first version look broken: arms
+// overhead make an inverted figure TALLER than a standing one (hand to shoulder
+// adds height that a hanging arm never did), so the tallest builds had their shoes
+// clipped off the top of the screen. Opening the legs brings the toes back down,
+// drops the centre of mass and reads as deliberate.
+//
+// The angle is a TRADE, and both ends of it were measured. Wide (34 deg) holds the
+// straightest handstand, but a straddled inverted figure is wider than the 62 px
+// between neighbours, so the crowd shoves itself sideways and the middle build ends
+// up 52 px from where it was placed. Narrow keeps everyone on their own spot but
+// leaves the tallest build's shoes clipped off the top of the screen. Both wants
+// point the same way — open the legs as little as the ceiling allows — so each
+// build SOLVES for its own angle rather than sharing a magic number: the smallest
+// straddle that brings its toes under the top edge. The kid barely needs one, the
+// tall builds open wide, and nobody is wider than they have to be. Change a build's
+// scale and its straddle follows on its own.
+// (More keep-angle GAIN was the obvious third option and it measures worse at every
+// value tried — 1.8x and 3.0x both sag further and multiply inverted triangles. A
+// handstand is not held by squeezing harder. What DID fix the two builds that
+// jackknifed is in keep_role: the chest takes the base's job when inverted.)
+#define HS_MIN_STRADDLE   8.0f
+#define HS_MAX_STRADDLE  40.0f
+#define HS_TOP_MARGIN     5.0f    // screen px to leave above the highest toe
+static void rot_about(float *x, float *y, float cx, float cy, float c, float sn) {
+    float dx = *x - cx, dy = *y - cy;
+    *x = cx + dx*c - dy*sn;
+    *y = cy + dx*sn + dy*c;
+}
+// The handstand rest pose, worked out once at build. Everything here is in the
+// same authored space proportion() left the standing rig in, and each step records
+// the WORLD ANGLE it turned each bone by, because that same number is what the
+// controller has to defend and what place_pose has to write.
+static void derive_handstand(Fig *F) {
+    for (int i = 0; i < NBONE; i++) {
+        F->hax[i] = F->pax[i]; F->hay[i] = F->pay[i];
+        F->hbx[i] = F->pbx[i]; F->hby[i] = F->pby[i];
+        F->hang[i] = 0.0f;
+    }
+    const int ARM[2][3] = { {B_UARM_R, B_LARM_R, B_HAND_R}, {B_UARM_L, B_LARM_L, B_HAND_L} };
+    const int LEG[2][3] = { {B_THIGH_R, B_SHIN_R, B_FOOT_R}, {B_THIGH_L, B_SHIN_L, B_FOOT_L} };
+    for (int s = 0; s < 2; s++) {                        // 1. arms overhead: reflect
+        float sx = F->hax[ARM[s][0]], sy = F->hay[ARM[s][0]];   //    through the shoulder
+        for (int k = 0; k < 3; k++) {
+            int b = ARM[s][k];
+            F->hax[b] = 2*sx - F->hax[b]; F->hay[b] = 2*sy - F->hay[b];
+            F->hbx[b] = 2*sx - F->hbx[b]; F->hby[b] = 2*sy - F->hby[b];
+            F->hang[b] += PI;
+        }
+    }
+    float cx = F->hax[B_PELVIS], cy = F->hay[B_PELVIS];  // 2. over you go: reflect
+    for (int i = 0; i < NBONE; i++) {                    //    through the pelvis
+        F->hax[i] = 2*cx - F->hax[i]; F->hay[i] = 2*cy - F->hay[i];
+        F->hbx[i] = 2*cx - F->hbx[i]; F->hby[i] = 2*cy - F->hby[i];
+        F->hang[i] += PI;                                //    (an arm now has 2PI = none)
+    }
+    // 3. open the legs, as little as the ceiling allows. The figure is scaled
+    //    about RIG_BY afterwards, so the authored-space ceiling depends on this
+    //    build's own size — invert figy() to find it.
+    float ceil = RIG_BY - (RIG_BY - HS_TOP_MARGIN) / F->sc;
+    float deg  = HS_MIN_STRADDLE;
+    for (; deg < HS_MAX_STRADDLE; deg += 1.0f) {
+        float c = cosf(deg*DEG), sn = sinf(deg*DEG), top = 1e9f;
+        for (int i = 0; i < NBONE; i++) {                  // the still parts
+            if (i >= B_THIGH_R) continue;
+            if (F->hay[i] < top) top = F->hay[i];
+            if (F->hby[i] < top) top = F->hby[i];
+        }
+        for (int s = 0; s < 2; s++) {                      // ...and the legs, if opened
+            float sg = (s == 0 ? -1.0f : 1.0f);
+            float hx = F->hax[LEG[s][0]], hy = F->hay[LEG[s][0]];
+            for (int k = 0; k < 3; k++) {
+                int b = LEG[s][k];
+                float x1 = F->hax[b], y1 = F->hay[b], x2 = F->hbx[b], y2 = F->hby[b];
+                rot_about(&x1, &y1, hx, hy, c, sg*sn);
+                rot_about(&x2, &y2, hx, hy, c, sg*sn);
+                if (y1 < top) top = y1;
+                if (y2 < top) top = y2;
+            }
+        }
+        if (top >= ceil) break;                            // it fits
+    }
+    for (int s = 0; s < 2; s++) {
+        float a = (s == 0 ? -1.0f : 1.0f) * deg * DEG;
+        float c = cosf(a), sn = sinf(a);
+        float hx = F->hax[LEG[s][0]], hy = F->hay[LEG[s][0]];   // about the hip
+        for (int k = 0; k < 3; k++) {
+            int b = LEG[s][k];
+            rot_about(&F->hax[b], &F->hay[b], hx, hy, c, sn);
+            rot_about(&F->hbx[b], &F->hby[b], hx, hy, c, sn);
+            F->hang[b] += a;
+        }
+    }
+    F->hstraddle = deg;
+    float lowRef = -1e9f, lowThis = -1e9f;               // 4. hands onto the sole line,
+    for (int i = 0; i < NBONE; i++) {                    //    where the feet used to be
+        if (BONES[i].ay > lowRef)  lowRef  = BONES[i].ay;
+        if (BONES[i].by > lowRef)  lowRef  = BONES[i].by;
+        if (F->hay[i]   > lowThis) lowThis = F->hay[i];
+        if (F->hby[i]   > lowThis) lowThis = F->hby[i];
+    }
+    float shift = lowRef - lowThis;
+    for (int i = 0; i < NBONE; i++) { F->hay[i] += shift; F->hby[i] += shift; }
+}
+// Screen rotations turn the other way from world ones (y is flipped), so the one
+// place both the body transform and the controller target come from is here.
+static inline float hs_rot(const Fig *F, int b) { return handstand ? -F->hang[b] : 0.0f; }
+
+// Put the bodies into one of the two rest poses. The bind data is all body-LOCAL
+// (offsets, and the spine's chain fractions), so every skin follows for free — no
+// rebind, which is the whole reason a keypress can afford to do this.
+static void place_pose(Fig *F, bool up) {
+    for (int i = 0; i < NBONE; i++) {
+        float ax, ay, bx, by;
+        if (up) { ax = figx(F,F->hax[i]); ay = figy(F,F->hay[i]); bx = figx(F,F->hbx[i]); by = figy(F,F->hby[i]); }
+        else    { ax = bone_ax(F,i);      ay = bone_ay(F,i);      bx = bone_bx(F,i);      by = bone_by(F,i);      }
+        b2Vec2 mid = { WX((ax+bx)*0.5f), WY((ay+by)*0.5f) };
+        // The authored direction is baked in the SHAPE, so a body only ever needs
+        // the DELTA from its standing rest.
+        b2Body_SetTransform(F->bone[i], mid, b2MakeRot(up ? -F->hang[i] : 0.0f));
+        b2Body_SetLinearVelocity(F->bone[i], (b2Vec2){0,0});
+        b2Body_SetAngularVelocity(F->bone[i], 0.0f);
+        b2Body_SetAwake(F->bone[i], true);
+    }
+}
+
 static void build(void) {
     b2WorldDef wd = b2DefaultWorldDef();
     wd.gravity = (b2Vec2){ 0, -10 };
@@ -886,6 +1066,7 @@ static void build(void) {
         fig[f].girth = BUILDS[f].girth;
         proportion(&fig[f], &BUILDS[f]);   // derive the rig BEFORE any body exists
         make_bones(&fig[f], f);
+        derive_handstand(&fig[f]);         // the same pose, upside down (H)
         for (int i = 0; i < NSKIN; i++) build_mesh(&fig[f], i);
         fig[f].restUp = (float)FLOOR_PY - (SCREEN_H - b2Body_GetPosition(fig[f].bone[B_HEAD]).y*PPM);
     }
@@ -1024,10 +1205,14 @@ static void keep_angle(void) {
     for (int f = 0; f < NFIG; f++) {
       Fig *F = &fig[f];
       for (int i = 0; i < NBONE; i++) {
-        float kp = BONES[i].keepKp * size_hz(F);
+        // Which job is this bone doing? Standing, its own; upside down, the one
+        // its counterpart does (see keep_role).
+        float kpA = BONES[i].keepKp, kpB = BONES[keep_role(i)].keepKp;
+        float kp = (handstand ? kpB : kpA) * size_hz(F);
         if (kp <= 0.0f) continue;
         if (dragging && dragFig == f && dragBone == i) continue;   // playtime's `hitted` rule
-        float diff = F->rest[i] + F->idleW[i] - bone_angle(F, i);   // rest pose + fidget
+        float want = F->rest[i] + F->idleW[i] + hs_rot(F, i);
+        float diff = want - bone_angle(F, i);                      // rest + fidget + the flip
         diff = fmodf(diff + PI, 2.0f*PI);                  // wrap to [-pi, pi]
         if (diff < 0) diff += 2.0f*PI;
         diff -= PI;
@@ -1061,6 +1246,10 @@ void update(void) {
     if (keyp('B')) showBones = !showBones;
     if (keyp('C')) curveClamp = !curveClamp;   // SPINE mode: the concave-side clamp
     if (keyp('I')) idle = !idle;               // the fidget — off to measure a still pose
+    if (keyp('H')) {                           // turn the whole crowd over
+        handstand = !handstand;
+        for (int f = 0; f < NFIG; f++) place_pose(&fig[f], handstand);
+    }
     if (keyp('G')) keepMode = (keepMode + 1) % 3;   // off / omega / torque
     // F = the EXTREME-POSE test. Dragging with the mouse can't reliably reach a
     // full fold (the mouse joint is force-capped, and the chain would rather
@@ -1154,6 +1343,28 @@ void update(void) {
         n += snprintf(b+n, sizeof(b)-n, "%s%.2f", f?" ":"", up / fig[f].restUp);
       }
       watch("standing", "%s", b); }
+    // Is he actually INVERTED, or just in a heap? Hip height minus head height:
+    // strongly positive standing, strongly negative in a handstand, near zero
+    // means he is lying down and the flip failed. The one honest handstand number
+    // (`standing` above only means anything in the upright world).
+    { char b[64]; int n = 0;
+      for (int f = 0; f < NFIG; f++) {
+        float hip  = SCREEN_H - b2Body_GetPosition(fig[f].bone[B_PELVIS]).y*PPM;
+        float head = SCREEN_H - b2Body_GetPosition(fig[f].bone[B_HEAD]).y*PPM;
+        n += snprintf(b+n, sizeof(b)-n, "%s%+.0f", f?" ":"", head - hip);
+      }
+      watch("headOverHip", "%s", b); }
+    // How far each figure has WANDERED from where it was placed, px. Standing it
+    // is pinned by two flat soles; on its hands it can slide, and this is the
+    // number that says whether a fidget has turned into a walk.
+    { char b[64]; int n = 0;
+      for (int f = 0; f < NFIG; f++)
+        n += snprintf(b+n, sizeof(b)-n, "%s%+.0f", f?" ":"",
+                      b2Body_GetPosition(fig[f].bone[B_PELVIS]).x*PPM - (RIG_CX + BUILDS[f].dx));
+      watch("drift", "%s", b); }
+    { char b[64]; int n = 0;                 // the straddle each build solved for
+      for (int f = 0; f < NFIG; f++) n += snprintf(b+n, sizeof(b)-n, "%s%.0f", f?" ":"", fig[f].hstraddle);
+      watch("straddle", "%s", b); }
     watch("chestRel",   "%.1f", (bone_angle(&fig[2], B_CHEST)  - bone_angle(&fig[2], B_PELVIS)) / DEG);
     watch("hipRel",     "%.1f", (bone_angle(&fig[2], B_THIGH_R)- bone_angle(&fig[2], B_PELVIS)) / DEG);
 #endif
@@ -1237,5 +1448,5 @@ void draw(void) {
     snprintf(hud, sizeof hud, "keep:%s%s", KEEP_NAME[keepMode], idle ? "  idle" : "");
     print(hud, SCREEN_W - 4 - (int)strlen(hud)*5, 4, CLR_LIGHT_GREY);
     print("C clamp  G keep  M mesh  B bones",      4, SCREEN_H-18, CLR_MEDIUM_GREY);
-    print("drag  SPACE mode  I idle  F fold  R reset", 4, SCREEN_H-10, CLR_LIGHT_GREY);
+    print("drag  SPACE mode  I idle  F fold  H handstand  R reset", 4, SCREEN_H-10, CLR_LIGHT_GREY);
 }

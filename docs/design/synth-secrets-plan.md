@@ -898,7 +898,11 @@ argument (Hammond percussion must be SINGLE, flute chiff must be MULTI) will dec
 earns promotion into `sound.h` as a property an instrument *declares*. The header is the rung below that,
 and it holds for now.
 
-### 2.3(a) The premise failed — two defects found by measuring first (2026-07-29)
+### The premise failed: three defects found by measuring first (2026-07-29)
+
+*Item 2.3(a) in the table above. The heading carries no dotted item number on purpose: `handoff.js`
+normalises `2.3(a)` to `2-3-a` while GitHub renders it `23a`, so no single anchor satisfies both and the
+Resume-at link silently breaks.*
 
 **This row said "prototype on PIANO, which already has the machinery". The machinery does not work.**
 Item 2.3 asks for inharmonicity that responds to level. Before building that, the honest first question is

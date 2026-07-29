@@ -98,7 +98,7 @@ past "nice harp" you have to **add the things STK omits** — none are large.
    > only works in the **treble**: the bass half is cancelled a frame after note-on (`v->freq` is written
    > back, `v->freq_target` is not), so we ship **half a Railsback curve** — sharp treble, ET bass. The two
    > defects hid each other. Evidence, and the open call on how to fix it:
-   > [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+   > [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 
    We make the partials inharmonic via
    the dispersion allpass chain (`B = stiff²·0.015`, sound.h ~4042 — this *is* our stiff-string

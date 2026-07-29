@@ -854,7 +854,7 @@ Harmonic levels relative to f1, at timbre 1.00 (the loudest, brassiest case we c
 > harmonic to within 0.4¢). So this item cannot be closed by reusing it; the primitive has to be made to
 > work first. Also: the "measurable as harmonic frequencies drifting sharp" home now has a tool —
 > `tools/inharm-spec.js --instr BRASS`. See
-> [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+> [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 
 ### E9. Two problems with the way we have been measuring brass
 
@@ -1689,7 +1689,7 @@ I5.
 > block the undo in the sharp direction. So PIANO has been playing **half a Railsback curve**: correct
 > treble stretch, no bass stretch. And a third, smaller one (§I4d): with no stretch at all the loop still
 > runs +1.3→+4.0¢ sharp, its own uncompensated delay bookkeeping. Full write-up, evidence and the open call:
-> [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+> [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 
 - **Book:** Part 42 and Part 28 both say the stretching depends on *two* things: "the string appears
   shorter at high frequencies **and high amplitudes** than it does at low frequencies and low

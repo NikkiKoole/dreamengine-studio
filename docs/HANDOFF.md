@@ -342,7 +342,7 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > one-liner**: real dispersion adds loop delay and drops the pitch unless the chain's phase delay at the
 > fundamental is subtracted from `len`, which also interacts with §I4d. Then **2.3(b)** (the original
 > level-dependent item) can finally sit on top of it. Full write-up with every table →
-> [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#23a-the-premise-failed--two-defects-found-by-measuring-first-2026-07-29).
+> [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 > **Two lessons worth carrying.** (1) `sound.h` said *"tune-check flags PIANO by design — that IS the
 > stretch, not a bug"*, and tune-check **passes**. A comment that pre-emptively explains away a gate turned
 > a green check into false confirmation for months; when a comment says a gate should be red, verify it IS

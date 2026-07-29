@@ -11,8 +11,11 @@
     "analog-voice-modeling",
     "additive-synth"
   ],
+  "todo": [
+    "Two pre-existing text collisions ui-audit flags (they predate the Part 51 modes): the 'touche' label is clipped by the '9 palme' diffuseur button bottom-left, and the 'C4 ruban oct+0' readout runs into 'drag a key UP = vibrato' mid-screen."
+  ],
   "lineage": "Models the 1928 Ondes Martenot ribbon synth; novel in summing harmonic stops live into a single-cycle wavetable (wave_set) and combining ribbon glissando, detuned-twin beating, pitch drift, and four diffuseur reverb colours in one instrument.",
-  "description": "The 1928 ribbon synth (Radiohead, film scores, Messiaen) - a two-hand upgrade to the theremin, played MOSTLY on the RIBBON: drag it for continuous pitch (X) while the HEIGHT is the swell (Y) - a real theremin volume hand, the glowing orb rising as it gets louder. ONE eerie voice rings the whole time, plus a DETUNED TWIN that beats against it (the haunting shimmer), a slow analogue pitch-drift, a little drive and an ensemble chorus - deliberately NOT a clean synth. la TOUCHE D'INTENSITE (the left lever) is the dynamics hand: it drives note_vol AND note_cutoff (harder = louder + brighter), rides the swell for the keyboard, and overrides the ribbon's Y when you grab it with a second finger. The CLAVIER (piano) plays tempered notes; drag UP on a held key for VIBRATO (the key-wiggle). The combinable TIMBRE stops O/C/G/N are summed live into one drawn cycle (wave_set) + an S breath layer. The four DIFFUSEURS are the loudspeakers as reverb colour (note_reverb live + the reverb bus): Principal (dry), Resonance (spring), Metallique (a bright gong shimmer, the default) and Palme (a long string-halo). Plays three ways - TOUCH (two hands: touche + ribbon), MOUSE (one pointer), or the computer KEYBOARD: GarageBand note layout (A S D F... whites, W E T Y U... blacks, labelled on the keys), Z/X octave, UP/DOWN ride the touche, and the NUMBER ROW works the buttons (1-5 stops, 6-9 diffuseurs). And key 0 cycles HOW LOUDNESS BECOMES BRIGHTNESS, the two tricks Synth Secrets Part 51 lifts out of the real Ondes: filter (as shipped - a lowpass rides intensity), morph (Reid's no-filter move: the cutoff is parked wide open and the WAVE dulls from the stops toward a triangle as the touche falls, because \"this relationship between loudness and high-frequency content is very much the behaviour of blown, bowed, strummed and struck instruments, and we're recreating it without a filter anywhere to be seen\"), and gate (his brass variant: the volume is held CONSTANT and the touche drives cutoff alone, so the filter both shapes the tone and separates one note from the next - measured, that is 30dB of range from the filter with the VCA untouched)."
+  "description": "The 1928 ribbon synth (Radiohead, film scores, Messiaen) - a two-hand upgrade to the theremin, played MOSTLY on the RIBBON: drag it for continuous pitch (X) while the HEIGHT is the swell (Y) - a real theremin volume hand, the glowing orb rising as it gets louder. ONE eerie voice rings the whole time, plus a DETUNED TWIN that beats against it (the haunting shimmer), a slow analogue pitch-drift, a little drive and an ensemble chorus - deliberately NOT a clean synth. la TOUCHE D'INTENSITE (the left lever) is the dynamics hand: it drives note_vol AND note_cutoff (harder = louder + brighter), rides the swell for the keyboard, and overrides the ribbon's Y when you grab it with a second finger. The CLAVIER (piano) plays tempered notes; drag UP on a held key for VIBRATO (the key-wiggle). The combinable TIMBRE stops O/C/G/N are summed live into one drawn cycle (wave_set) + an S breath layer. The four DIFFUSEURS are the loudspeakers as reverb colour (note_reverb live + the reverb bus): Principal (dry), Resonance (spring), Metallique (a bright gong shimmer, the default) and Palme (a long string-halo). Plays three ways - TOUCH (two hands: touche + ribbon), MOUSE (one pointer), or the computer KEYBOARD: GarageBand note layout (A S D F... whites, W E T Y U... blacks, labelled on the keys), Z/X octave, UP/DOWN ride the touche, and the NUMBER ROW works the buttons (1-5 stops, 6-9 diffuseurs). And key 0 cycles HOW LOUDNESS BECOMES BRIGHTNESS, the two tricks Synth Secrets Part 51 lifts out of the real Ondes. GATE is the default: the volume never moves and the FILTER does both jobs, which is why the touche still feels like a volume hand even though nothing is touching the VCA. The others stay one keypress away - filter (the original - a lowpass rides intensity), morph (Reid's no-filter move: the cutoff is parked wide open and the WAVE dulls from the stops toward a triangle as the touche falls, because \"this relationship between loudness and high-frequency content is very much the behaviour of blown, bowed, strummed and struck instruments, and we're recreating it without a filter anywhere to be seen\"), and gate (his brass variant: the volume is held CONSTANT and the touche drives cutoff alone, so the filter both shapes the tone and separates one note from the next - measured, that is 30dB of range from the filter with the VCA untouched). Within a gesture the volume genuinely never moves; it only drops to zero when you let go of everything, because an Ondes with a ringing voice and no touche pressed has to be SILENT, not quietly droning."
 }
 de:meta */
 #include "studio.h"
@@ -87,21 +90,28 @@ float fracf(float x) { return x - (int)x; }
 // modules driven from a keyboard. Two of his moves are liftable here, and this cart is the obvious home
 // because it already HAS the wire and the pressure button (ribbon + touche).
 //
-//   MODE_FILTER (as shipped) — brightness comes from a lowpass: `cut = 320 + intens^2 * 4600`. Which is
+//   MODE_FILTER (the original) — brightness comes from a lowpass: `cut = 320 + intens^2 * 4600`. Which is
 //     exactly the thing Reid says you do not need.
 //   MODE_MORPH  — his no-filter trick: "you can reduce the amplitude or even eliminate harmonics by
 //     moving the wave from a sawtooth towards a triangle as you reduce the overall loudness … This
 //     relationship between loudness and high-frequency content is very much the behaviour of blown,
 //     bowed, strummed and struck instruments, and we're recreating it WITHOUT A FILTER anywhere to be
 //     seen." So the cutoff is parked wide open and the WAVE dulls toward a triangle as the touche falls.
-//   MODE_GATE   — his brass variant: the filter replaces the VCA. Volume is held CONSTANT and the touche
-//     drives cutoff alone, down to where nothing passes: "the filter is not only shaping the tone of the
-//     sound, it's also differentiating one note from the next. This is incredibly elegant!"
+//   MODE_GATE   ★ THE DEFAULT (owner's ear, 2026-07-29) — his brass variant: the filter replaces the VCA.
+//     Volume is held CONSTANT and the touche drives cutoff alone, down to where nothing passes: "the filter
+//     is not only shaping the tone of the sound, it's also differentiating one note from the next. This is
+//     incredibly elegant!" The touche still reads as a volume hand under the fingers; the 30 dB of range
+//     just comes from the filter instead of the VCA, which is the entire point.
 //
 // This also answers §B9 (velocity does not touch brightness) with a cheaper mechanism than a filter.
 enum { MODE_FILTER = 0, MODE_MORPH, MODE_GATE, NMODE };
 const char *MODE_NAME[NMODE] = { "filter", "morph", "gate" };
-int loud_mode = MODE_FILTER;
+// GATE IS THE DEFAULT by the owner's ear (2026-07-29): "the morph sounds a bit too clean/bright, I like
+// gate". Both losers stay reachable on key 0 — FILTER (as originally shipped) and MORPH — because a
+// verdict is a preference, not a deletion. The ear agreed with the numbers here, which is worth recording:
+// MORPH parks the cutoff at 12 kHz and measured a centroid of 647/587/564 Hz against FILTER's 284/282/377
+// at the same three touche levels, so "too clean/bright" was visible in the table before it was heard.
+int loud_mode = MODE_GATE;
 
 // Rebuild the single-cycle wave from whichever stops are lit, normalize, push it into INSTR_USER0 (both
 // VSLOT and DSLOT read it). Called when timbre changes — and, in MODE_MORPH, when the DULL step changes.
@@ -348,7 +358,15 @@ void update(void) {
         // for the first part of the throw, hence a 24Hz floor and a CUBIC curve rather than a square one.
         // A 12dB/oct lowpass (FILTER_LOW, above) attenuates rather than truly mutes, so this is Reid's
         // effect approached, not reproduced: "at low cutoff nothing passes" is a 24dB/oct claim.
-        v   = 6;
+        // CONSTANT *while the instrument is being played*, not absolutely. This cart keeps one voice
+        // ringing the whole time and relies on note_vol reaching 0 to be silent at rest, so a flat `v = 6`
+        // made it DRONE from boot with nothing touched: measured −15.2 dBFS against FILTER's true silence
+        // on an empty script. That is not a nuance of Reid's trick, it is a broken instrument, and it only
+        // surfaced when GATE was promoted to the default (as a toggle you always arrived here mid-gesture).
+        // `intens` is already snapped to exactly 0 at rest, so it doubles as the gesture flag — and gating
+        // the LAST millimetre is what the real Ondes does anyway: the touche is also the on/off. Within the
+        // playing range the VCA still never moves, which is the whole claim (30 dB from the filter alone).
+        v   = (intens > 0.0f) ? 6 : 0;
         cut = 24 + (int)(intens * intens * intens * 6200);
     } else if (wave_dull_step != 0) {
         rebuild_wave_dull(0);                               // back to FILTER mode: restore the stops' wave

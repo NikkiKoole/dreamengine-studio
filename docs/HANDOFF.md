@@ -202,10 +202,18 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > acceptance tests and layering would retune the yardstick. **1.4** (`brass`) and **1.6** (`organ`) are
 > recorded **DROPs**: Reid loses all three brass envelope numbers (the shipped 1200ms release *is* the
 > bore's ring-down), and the Hammond item was mis-priced by the audit — its detent table is in the engine,
-> so "two rows" would silently remap 13 carts. **1.7** (`martenot`, key **0**) is built and awaiting an ear:
-> filter / morph / gate, where the filter-as-gate measures **30 dB of range with the VCA held constant** and
-> the waveform morph is honestly **ear-only** (the HF proxy reads 0.000 on that voice and the centroid is
-> fundamental-dominated, so it moves the wrong way).
+> so "two rows" would silently remap 13 carts. **1.7** (`martenot`, key **0**) is **DONE — GATE is the
+> default** (owner's ear, 2026-07-29: *"the morph sounds a bit too clean/bright, I like gate"*), with FILTER
+> and MORPH still one keypress away. The filter-as-gate measures **30 dB of range with the VCA held
+> constant**; the morph was honestly **ear-only** (the HF proxy reads 0.000 on that voice and the centroid is
+> fundamental-dominated, so it moves the wrong way) — though here the ear and the table agreed, MORPH's
+> centroid being ~2x FILTER's at a light touch.
+> **⚠ PROMOTING A TOGGLE TO A DEFAULT IS ITS OWN CHANGE.** GATE holds `note_vol` constant and this cart keeps
+> one voice ringing, relying on `note_vol` hitting 0 to be silent at rest — so as a *toggle* nobody ever saw
+> it (you always arrived mid-gesture), and as the *default* the cart **droned from boot**: −15.2 dBFS on an
+> empty script against FILTER's true silence. Fixed by gating on `intens > 0` (already snapped to exactly 0
+> at rest, and the real touche is also the on/off), leaving the VCA untouched inside a gesture. **Whenever
+> you flip a default, re-test the states the toggle never let you reach: boot, rest, and release.**
 >
 > **The recurring lesson of the whole phase, worth carrying into Phase 2:** on these engines **the envelope
 > does not own the tail — the model does.** It landed three separate times (the 808 cymbal's decays, the

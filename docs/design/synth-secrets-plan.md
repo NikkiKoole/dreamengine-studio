@@ -259,7 +259,7 @@ cheapest LISTEN items we have.
 | 1.4 | Brass preset: 1 ms attack → 100 ms, 1200 ms release → short (§E10) | LISTEN | 1 | `brass` | ❌ **DROPPED — Reid loses all three** (owner's ear, 2026-07-28). Envelope unchanged, byte-identical. The most instructive item so far; see below |
 | 1.5 | A two-slot layered piano patch (§I9) | LISTEN | 1 | `piano` | ✅ **DONE — liked, and kept OPT-IN on key L** (owner, 2026-07-28). Layer-off is byte-identical, so it is purely additive. Also **found + fixed** a one-bound engine bug that had killed two sliders — see below |
 | 1.6 | Hammond: the sawtooth-ish and square-ish registrations (§L5) | LISTEN | 2 | `organ` | ❌ **DROPPED — not two rows after all** (owner, 2026-07-29). The detent table is in the engine; widening it remaps 13 carts. See §8 |
-| 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot` | ✅ **BUILT, awaiting your ear.** Key **0** cycles filter/morph/gate. GATE measures 30dB of range from the filter alone; MORPH is **ear-only**. ⚠ MORPH **crackled** and is now fixed (owner's ear 2026-07-29 → 13 splice events down to 1; born the `click-check` oracle) — see below |
+| 1.7 | Loudness→brightness by waveform morph; filter-as-gate (§F7) | LISTEN | 1 | `martenot` | ✅ **DONE — GATE IS THE DEFAULT** (owner's ear, 2026-07-29: *"the morph sounds a bit too clean/bright, I like gate"*). FILTER + MORPH stay on key **0**. Two bugs found on the way: MORPH **crackled** (→ the `click-check` oracle) and GATE **droned at rest** once promoted. See below |
 
 **Deliverable:** seven A/Bs, each a baked cart you can play. If all seven land, that is a visibly better
 instrument shelf for zero engine risk.
@@ -534,7 +534,36 @@ out-of-range one is silently ignored. That is precisely how a dead user-facing c
 compiles, runs, and looks fine. A `[sound] WARNING` would have caught it instantly, and `soundcheck` already
 greps for exactly that. Recorded at the top of [`STATUS.md`](../STATUS.md) → "Open".
 
-### 1.7 martenot — loudness→brightness, Part 51's two tricks (built 2026-07-29)
+### 1.7 martenot — ✅ GATE IS THE DEFAULT (owner's ear, 2026-07-29)
+
+**The verdict:** *"the martenot morph sounds a bit too clean/bright I think? I think I like gate."* So
+`MODE_GATE` ships as the default and both losers stay on key **0** — a verdict is a preference, not a
+deletion.
+
+**The ear agreed with the table, which is worth recording because it usually doesn't.** MORPH parks the
+cutoff at 12 kHz and measured a centroid of **647/587/564 Hz** against FILTER's **284/282/377** at the same
+three touche levels. "Too clean/bright" was visible in the numbers before anyone heard it. That is not an
+argument for skipping the ear — 1.4's brass release measured *clean* and was still wrong — but it is a case
+where the measurement carried real information about the verdict rather than just about the mechanism.
+
+**⚠ PROMOTING A TOGGLE TO A DEFAULT IS ITS OWN CHANGE, and it exposed a bug the toggle had hidden.** GATE
+holds `note_vol` constant, and this cart keeps one voice ringing the whole time, relying on `note_vol`
+reaching 0 to be silent at rest. As a toggle you always arrived in GATE mid-gesture, so nobody saw it: as
+the **default**, the cart droned from boot. Measured on an empty script, FILTER renders true silence
+(peak −inf dBFS) and GATE rendered **−15.2 dBFS of continuous tone**. Not a nuance — a broken instrument.
+
+Fix: `v = (intens > 0.0f) ? 6 : 0`. `intens` is already snapped to exactly 0 at rest, so it doubles as a
+gesture flag, and gating the last millimetre is what the real Ondes does anyway — the touche is also the
+on/off. Within the playing range the VCA still never moves, so the 30 dB claim is untouched. After the fix
+the at-rest render is **bit-identical to FILTER's silence** (peak −inf), and the swell take has **no click
+≥4x** the local step-rms (worst 3.0x, under the 3.3x control).
+
+**A tooling note, because it will bite the next person:** `ab-render` shouts when two variants render
+byte-identical audio, since that usually means the flag never reached the DSP. For the at-rest check
+byte-identical **was the pass condition** (both modes must be silent). The warning is a heuristic about
+*intent*, not a verdict — read what you asked for before believing it.
+
+### 1.7 martenot — how it was built, Part 51's two tricks (built 2026-07-29)
 
 Key **0** cycles three modes; the state shows above the touche. Both of Part 51's liftable moves land in
 one cart, because `martenot` already has the wire and the pressure button that Reid's whole argument rests

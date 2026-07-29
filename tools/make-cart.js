@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 // Usage: node tools/make-cart.js <source.c> <output.cart.png>
+//
+// Env: DE_RUNTIME_DIR=<dir>   compile against a DIFFERENT engine tree instead of runtime/. Also honoured
+//      by play.js (which uses this file as a lib), which makes it the "render against the PRE-change
+//      engine" gate: copy runtime/, restore the file you touched from git into the copy, render the same
+//      cart with the same harness args against both, compare shas. Turns "byte-identical" into a
+//      measurement without a destructive `git checkout` on a hot shared header. See
+//      docs/guides/debug-harness.md → "A/B against the pre-change engine".
 
 const fs   = require('fs')
 const path = require('path')
@@ -8,7 +15,12 @@ const spritePatch = require('./lib/sprite-patch.js')
 
 const ROOT_DIR    = path.join(__dirname, '..')
 const BUILD_DIR   = path.join(ROOT_DIR, 'build')
-const RUNTIME_DIR = path.join(ROOT_DIR, 'runtime')
+// DE_RUNTIME_DIR points the compile at a DIFFERENT engine tree — the "render against the PRE-change
+// engine" gate. Copy runtime/, restore the file you touched from git, and the same cart + same harness
+// args build against both, so "byte-identical" is a measurement instead of an argument. Defaults to ours.
+const RUNTIME_DIR = process.env.DE_RUNTIME_DIR
+  ? path.resolve(process.env.DE_RUNTIME_DIR)
+  : path.join(ROOT_DIR, 'runtime')
 const RAYLIB      = fs.existsSync('/opt/homebrew/opt/raylib') ? '/opt/homebrew/opt/raylib' : '/usr/local/opt/raylib'
 const CART_BIN    = path.join(BUILD_DIR, 'cart')
 

@@ -163,13 +163,20 @@ would be heard.
 
 ### B2. Nothing tracks the keyboard
 
-> **✅ HALF (a) SHIPPED 2026-07-29** — `instrument_keytrack(slot, amount)` exists (plan 2.1a). 0 = absolute
+> **✅ BOTH HALVES SHIPPED 2026-07-29.** Half (a): `instrument_keytrack(slot, amount)` exists (plan 2.1a). 0 = absolute
 > Hz (default, byte-identical), 1 = true 1V/oct, 0.93 = Reid's musical value; with tracking on the cutoff you
 > set is the value at **C4**. Measured across four octaves on a resonant ladder, a fixed cutoff moves the
 > spectral centroid only 391→686 Hz while full tracking moves it 259→1535 Hz, landing on the intended
 > 200/400/800/1600. Applied at note-on only — `note_cutoff()` stays absolute on purpose. New cart
 > [`keytrack`](../../tools/carts/keytrack.c) plots pitch against cutoff so the tracking is *visible*.
-> **Half (b) (env/LFO depth in octaves) is still open** and needs new constants: 59 carts use the Hz form.
+> Half (b) (plan 2.1b): **`ENV_CUTOFF_OCT` / `LFO_CUTOFF_OCT`** express a sweep's depth in octaves, reaching
+> `instrument_env`/`note_env`, `instrument_lfo`/`note_lfo` and `instrument_follow`/`note_follow`. New
+> constants rather than a redefinition, so the **59 carts** on the Hz forms are untouched (four of them
+> render byte-identical). Octave modulation multiplies and is applied *after* the additive Hz terms, so the
+> two units compose in a defined order. Measured on a keytracked ladder with the depth set to +2 octaves at
+> C4 in both units, the octave form's attack centroid doubles per octave (352/696/1379/2746 Hz, ratios
+> 1.98/1.98/1.99) while the Hz form drifts *and inverts* the contour (604/805/1163/1919 — the biggest sweep
+> on the bass note, the smallest on top). `keytrack`'s row 4/5/6 switches units and draws the sweep top.
 
 - **Book:** Part 6 (SOS October 1999, p.140): "If you use a resonant filter with moderate Q and make the
   cutoff frequency track the pitch, you can create a characteristic 'emphasised' quality that remains

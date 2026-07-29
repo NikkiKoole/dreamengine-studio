@@ -6445,6 +6445,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
             // LFOs (one-shot notes only): up to 3 routable sines → pitch / duty / volume / cutoff
             float duty = v->duty, trem = 1.0f, pitch_mul = 1.0f, cutoff = v->flt_cutoff;
+            // OCTAVE-relative cutoff modulation (audit §B2b) accumulates here and multiplies `cutoff`
+            // ONCE, after every additive Hz term — the exact shape pitch_mul already has. Kept separate
+            // so the two units compose in a defined order (Hz offsets first, then the octave scaling)
+            // instead of depending on which mod source happens to run first. 1.0 = untouched.
+            float cutoff_mul = 1.0f;
             float harm_mod = 0.0f, timb_mod = 0.0f, mor_mod = 0.0f;   // macro modulation (engine voices)
             float pan_mod = 0.0f;   // LFO_PAN offset (auto-pan), added to the slewed base pan below
             float detune_mod = 0.0f;   // LFO_DETUNE/ENV_DETUNE offset (semitones), added to the unison spread below
@@ -6459,6 +6464,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     else if (v->lfo_dest[L] == LFO_DUTY)   duty += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_VOLUME) trem *= 1.0f - 0.5f * v->lfo_depth[L] * (1.0f - lfo);
                     else if (v->lfo_dest[L] == LFO_CUTOFF) cutoff += lfo * v->lfo_depth[L];
+                    else if (v->lfo_dest[L] == LFO_CUTOFF_OCT) cutoff_mul *= powf(2.0f, lfo * v->lfo_depth[L]);   // wah in OCTAVES — same swing at every pitch (§B2b)
                     else if (v->lfo_dest[L] == LFO_HARMONICS) harm_mod += lfo * v->lfo_depth[L];   // engine macros (INSTR_PLUCK+)
                     else if (v->lfo_dest[L] == LFO_TIMBRE)    timb_mod += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_MORPH)     mor_mod  += lfo * v->lfo_depth[L];
@@ -6475,6 +6481,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     float m = lvl * v->env_amount[e];
                     if      (v->env_dest[e] == ENV_PITCH)  pitch_mul *= powf(2.0f, m / 12.0f);
                     else if (v->env_dest[e] == ENV_CUTOFF) cutoff    += m;
+                    else if (v->env_dest[e] == ENV_CUTOFF_OCT) cutoff_mul *= powf(2.0f, m);   // the pluck "pew" in OCTAVES (§B2b)
                     else if (v->env_dest[e] == ENV_DUTY)   duty      += m;
                     else if (v->env_dest[e] == ENV_HARMONICS) harm_mod += m;   // engine macros (one-shot contour)
                     else if (v->env_dest[e] == ENV_TIMBRE)    timb_mod += m;
@@ -6487,9 +6494,14 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (v->flw_amount != 0.0f) {
                     float fm = v->flw_amp * v->flw_amount;
                     if      (v->flw_dest == LFO_CUTOFF) cutoff    += fm;
+                    else if (v->flw_dest == LFO_CUTOFF_OCT) cutoff_mul *= powf(2.0f, fm);   // auto-wah whose THROW is in octaves (§B2b)
                     else if (v->flw_dest == LFO_PITCH)  pitch_mul *= powf(2.0f, fm / 12.0f);
                     else if (v->flw_dest == LFO_VOLUME) { float d = fm < 0.0f ? 0.0f : (fm > 1.0f ? 1.0f : fm); trem *= 1.0f - d; }
                 }
+                // apply the octave-relative modulation last, on top of the Hz offsets. Untouched when
+                // nothing routes to an _OCT dest (cutoff_mul is an exact 1.0), which is why every
+                // existing patch renders byte-identically.
+                if (cutoff_mul != 1.0f) cutoff *= cutoff_mul;
                 duty = clampf(0.05f, 0.95f, duty);
                 // slot detune (instrument_tune): read LIVE from the bank each sample,
                 // so ringing voices — scheduled arp/seq hits included — bend with the knob

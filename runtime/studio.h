@@ -420,6 +420,7 @@ void instrument_motion(int slot, float vx, float vy);     // that bus's velocity
 #define LFO_DUTY    1   // PWM / duty sweep — depth 0.0..0.5 (square-wave slots only)
 #define LFO_VOLUME  2   // tremolo — depth 0.0..1.0
 #define LFO_CUTOFF  3   // filter sweep / wah — depth in Hz (needs a filter on the slot)
+#define LFO_CUTOFF_OCT 9 // the same wah, depth in OCTAVES — depth 1 = ±1 octave around the cutoff, so the wobble is the same SIZE on every note (the Hz form is a huge sweep on a bass note and nothing two octaves up). Pairs with instrument_keytrack
 #define LFO_HARMONICS 4 // sweep the harmonics macro (engine voices, INSTR_PLUCK+). SNAPPED — STEPS through detents (wavetype/ratio/instrument). depth 0..1
 #define LFO_TIMBRE  5   // sweep the timbre macro (brightness; on PD-reso = a resonant filter sweep with no filter). depth 0..1
 #define LFO_MORPH   6   // sweep the morph macro (the engine's 3rd axis — PD DCW depth, FM feedback, organ chorus, EP bark). depth 0..1
@@ -452,6 +453,7 @@ void instrument_keytrack(int slot, float amount);  // make the filter cutoff FOL
 // bipolar and its units depend on dest. 3 per slot (which 0..2), so a filter sweep + a pitch
 // blip + a macro contour can run together. there is NO ENV_VOLUME — that's the amp envelope (instrument()).
 #define ENV_CUTOFF  0   // sweep filter cutoff — the pluck "pew"/"dwow". amount in Hz (+ opens then closes). needs a filter on the slot
+#define ENV_CUTOFF_OCT 7 // the same sweep, amount in OCTAVES — amount 2 opens the filter two octaves above the cutoff whatever note you play, so the "pew" keeps its shape up the keyboard (in Hz it flattens out). Pairs with instrument_keytrack
 #define ENV_PITCH   1   // pitch blip — drum punch / attack snap / zap. amount in semitones (+ starts sharp, settles to the note)
 #define ENV_DUTY    2   // pulse-width sweep (square/pulse slots only). amount 0.0..1.0
 #define ENV_HARMONICS 3 // one-shot sweep of the harmonics macro (engine voices; SNAPPED — steps detents). amount 0..1
@@ -459,7 +461,7 @@ void instrument_keytrack(int slot, float amount);  // make the filter cutoff FOL
 #define ENV_MORPH   5   // one-shot sweep of the morph macro (e.g. a per-note PD DCW shape on top of the engine's own). amount 0..1
 #define ENV_DETUNE  6   // one-shot sweep of the unison spread — THE bloom: one thin saw opening into a wall of N on the attack. amount in semitones. needs instrument_unison on
 void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);  // attach mod-envelope `which` (0..2) to a slot. dest ENV_CUTOFF/PITCH/DUTY or the macro dests ENV_HARMONICS/TIMBRE/MORPH. pluck: ENV_CUTOFF amount 1500, attack 0, decay 120. amount 0 = off
-void instrument_follow(int slot, int dest, int attack_ms, int release_ms, float amount);  // envelope FOLLOWER: tracks the slot's own amplitude (fast attack, slow release) → dest LFO_CUTOFF/VOLUME/PITCH. The touch-responsive auto-wah (FILTER_BAND + this) — play harder, it opens more. amount = Hz (cutoff); 0 = off
+void instrument_follow(int slot, int dest, int attack_ms, int release_ms, float amount);  // envelope FOLLOWER: tracks the slot's own amplitude (fast attack, slow release) → dest LFO_CUTOFF/VOLUME/PITCH. The touch-responsive auto-wah (FILTER_BAND + this) — play harder, it opens more. amount = Hz (cutoff), or octaves via LFO_CUTOFF_OCT; 0 = off
 void note_follow(int handle, int dest, int attack_ms, int release_ms, float amount);  // set a held note's envelope follower live — same shape as instrument_follow(); amount 0 = off
 
 // engine macros — three 0..1 knobs that EVERY modeled engine answers; what each knob sweeps

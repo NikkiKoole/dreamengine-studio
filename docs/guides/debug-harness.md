@@ -631,6 +631,36 @@ add an opt-in `DRIVE_NAVKIT` waveshaper mode — navkit's exact `1 + x·3` raw t
 instruments can use navkit drive values directly while the 24 existing carts, default
 `DRIVE_SOFT`, stay untouched. Not built yet; reach for it only when match-by-ear gets annoying.)
 
+### A/B against the pre-change engine (`DE_RUNTIME_DIR`)
+
+The other A/B: not "us vs the reference synth" but **us vs ourselves five minutes ago**. After an engine
+edit the claim you usually need is *"every existing patch is untouched"* — and the honest form of that is a
+sha, not an argument. `make-cart.js` (so `play.js` too) takes the engine tree from the environment:
+
+```bash
+cp -R runtime /tmp/base-runtime                       # everything the cart includes
+git show HEAD:runtime/sound.h > /tmp/base-runtime/sound.h   # ...with YOUR change backed out of the copy
+node tools/play.js filterenv script /dev/null --headless --frames 600 --wav /tmp/new.wav
+DE_RUNTIME_DIR=/tmp/base-runtime \
+node tools/play.js filterenv script /dev/null --headless --frames 600 --wav /tmp/base.wav
+shasum -a 256 /tmp/new.wav /tmp/base.wav              # identical = the change is opt-in, provably
+```
+
+Why the copy rather than `git checkout -- runtime/sound.h` and back: that is a **destructive restore on a
+hot shared file**, and in this repo the working tree is shared with other agents (see CLAUDE.md). Nothing
+in your tree is touched by the flow above.
+
+**Run one control before trusting a run of these.** A baseline tree that silently resolved to the *current*
+engine would report "identical" for everything, which is the failure mode that looks most like success. So
+compile something that *must* fail against it — a cart using the API you just added — and check it does:
+
+```bash
+DE_RUNTIME_DIR=/tmp/base-runtime node tools/play.js keytrack script /dev/null --headless --frames 2
+# expect: use of undeclared identifier 'ENV_CUTOFF_OCT'
+```
+
+Worked example, five carts and its control: [synth-secrets-plan item 2.1(b)](../design/synth-secrets-plan.md#21b-env_cutoff_oct--lfo_cutoff_oct--shipped-2026-07-29).
+
 ### Tuning — is each engine in tune?
 
 `wav-analyze.js` measures *level*, not *pitch* — it can't tell you an engine is

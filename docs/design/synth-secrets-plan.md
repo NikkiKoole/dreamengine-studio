@@ -582,7 +582,7 @@ per-engine items is the single biggest saving available.
 
 | # | theme | closes | kind | rung | note |
 |---|---|---|---|---|---|
-| 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **HALF (a) SHIPPED** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
+| 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **SHIPPED (both halves)** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | DESIGN → 3 | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
 | 2.3 | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
@@ -629,9 +629,101 @@ playable voice). Pair: `build/ab/7-keytrack-{OFF-fixed-Hz,ON-follows}.wav`.
 compile flag** (the window scale factor), so `static const int SCALE[30]` expands to `int 4[30]` and fails
 with a syntax error that points at the array, not the name; and `S` is `#define`d by the starter cart.
 
-**Still open: half (b)** — express `ENV_CUTOFF`/`LFO_CUTOFF` depth in octaves rather than Hz. **59 carts**
-use those destinations, so it must be new constants (`ENV_CUTOFF_OCT` / `LFO_CUTOFF_OCT`) rather than a
-redefinition. Not started.
+### 2.1(b) `ENV_CUTOFF_OCT` / `LFO_CUTOFF_OCT` — SHIPPED 2026-07-29
+
+**The same complaint one level up: a filter env's DEPTH has units too, and Hz is the wrong one.** Half (a)
+made the cutoff follow the note; the sweep on top of it still didn't. `ENV_CUTOFF` asks for Hz, so one
+`+1200 Hz` setting is **three octaves** of sweep on a 200 Hz bass note and **under one** two octaves up —
+the patch's defining "pew" quietly evaporates as you play up the keyboard, which is §B2's complaint again
+with the base cutoff already fixed.
+
+Three new destinations, not a redefinition — **59 carts** use the Hz forms and they are untouched:
+
+| dest | reaches | unit |
+|---|---|---|
+| `ENV_CUTOFF_OCT` (7) | `instrument_env` / `note_env` | octaves, bipolar (2 = the peak opens two octaves up) |
+| `LFO_CUTOFF_OCT` (9) | `instrument_lfo` / `note_lfo` | octaves (depth 1 = ±1 octave) |
+| `LFO_CUTOFF_OCT` | `instrument_follow` / `note_follow` | octaves — an auto-wah whose THROW is pitch-independent |
+
+**One decision worth remembering: octave modulation MULTIPLIES, and it is applied last.** The additive Hz
+terms sum into `cutoff` exactly as before, then a separate `cutoff_mul` (which starts at an exact 1.0)
+multiplies once at the end. That is the shape `pitch_mul` already had, and it buys order-independence: a
+patch mixing a Hz LFO with an octave env means the same thing regardless of which mod source ran first.
+It also composes cleanly with 2.1(a) — keytrack the base, sweep in octaves, and the patch is
+pitch-independent end to end, which is the pair of settings a real synth's KYBD + ENV AMOUNT gives you.
+
+**A VERIFY item again, and the number is the whole argument.** Attack spectral centroid (first 80 ms) of a
+keytracked resonant ladder — base cutoff 200/400/800/1600 Hz — with the sweep set to **+2 octaves at C4 in
+both units**, so only pitch separates them:
+
+| | C3 | C4 | C5 | C6 | ratio per octave |
+|---|---|---|---|---|---|
+| **depth in Hz** (`ENV_CUTOFF` 1200) | 604 Hz | 805 | 1163 | 1919 | 1.33 · 1.44 · 1.65 |
+| **depth in octaves** (`ENV_CUTOFF_OCT` 2.0) | 352 | 696 | 1379 | 2746 | **1.98 · 1.98 · 1.99** |
+
+The octave form doubles per octave to within 1%: the sweep is the same musical gesture everywhere. The Hz
+form doesn't merely flatten out — it **inverts the contour**, giving the bass note the biggest sweep (604
+against 352 at C3, because 1200 Hz is 3 octaves over a 200 Hz base) and the top note the smallest (1919
+against 2746). One setting, five different patches.
+
+**All three destinations were reach-tested, not just the one that produced the table.** The same modulator
+routed to cutoff twice — once in Hz, once in octaves, sized to agree at C4 — through the LFO, the mod-env
+and the follower: `ab-render --set mode=0,1,2,3,4,5` gives **six distinct shas**, so no branch is silently
+dead. (Worth doing deliberately: a wired-but-unreachable control is exactly the class of bug Phase 1 found
+in `instrument_mode`, where two `piano` sliders had never worked.) The OCT variant is the brighter of each
+pair, as it must be, since it keeps sweeping in the top octaves where the Hz form has run out.
+
+**Reproduce it** — four isolated notes, an octave apart, one second apart so no tail pollutes the next
+(`node tools/ab-render.js octprobe --set unit=0,1 --frames 300 --keep`, then
+`node tools/wav-envelope.js <wav> --from 1.00 --to 1.08` at t = 0/1/2/3). The probe is a ruler, not a cart,
+so it is not committed; this is the whole of it:
+
+```c
+#include "studio.h"
+#define SL 5
+static int unit = 1;                       // 0 = Hz env, 1 = OCT env (ab-render flips this)
+static const int NOTES[4] = { 48, 60, 72, 84 };
+static int fired = 0, fr = 0;
+void init(void) {
+    instrument(SL, INSTR_SAW, 2, 0, 7, 90);
+    instrument_filter(SL, FILTER_LADDER, 400, 12);
+    instrument_keytrack(SL, 1.0f);         // base cutoff follows: 200/400/800/1600 Hz
+    if (unit == 0) instrument_env(SL, 0, ENV_CUTOFF,     0, 200, 1200.0f);  // +2 oct at C4 ONLY
+    else           instrument_env(SL, 0, ENV_CUTOFF_OCT, 0, 200,    2.0f);  // +2 oct at EVERY pitch
+}
+void update(void) { if (fired < 4 && fr == fired * 60) { hit(NOTES[fired], SL, 6, 300); fired++; } fr++; }
+void draw(void) { cls(CLR_BLACK); }
+```
+
+**Zero risk, measured the same way as (a):** `filterenv`, `moog`, `22-filter` and `tb303` render
+**byte-identical** to the pre-change engine (`c62132223aba` / `59a6466ca284` / `f6401707fd05` /
+`6106d8552827`). `keytrack` did too, checked *before* it was extended to use the new dests — it cannot be
+re-checked now, which is the point of doing that render first. Gates: soundcheck silent, `tune-check` no new
+drift (same 3 waived residuals), `build-all` 570/570, `ui-audit` clean on `keytrack` (it caught two real
+bugs first: the footer ran 372 px wide on a 320 px screen, and the status line sat under the graph's `50`
+axis label).
+
+**Tool addition that made that measurement honest: `DE_RUNTIME_DIR`.** `make-cart.js` (so `play.js` too)
+now takes an engine tree from the environment. Copy `runtime/`, restore the touched file from git, and the
+same cart with the same harness args renders against **both** engines — so "byte-identical" is a
+measurement rather than an argument, without ever running a destructive `git checkout` on a hot shared
+header. The control that proves the harness works: a cart using `ENV_CUTOFF_OCT` **fails to compile**
+against the baseline tree.
+
+**The cart is [`keytrack`](../../tools/carts/keytrack.c) again, extended rather than cloned**, because this
+is the same finding and the same graph: row **4/5/6** picks the sweep unit, and the graph gains an orange
+**sweep-top** line plus a vertical tick per note. On a log axis that tick's LENGTH *is* the depth in
+octaves — so "sweep in Hz" visibly shrinks as the phrase climbs while "in OCTAVES" holds its length. The
+tour is `3` then `5` versus `6`. Both halves on = the two lines run parallel to the notes.
+
+**The A/B pair is committed** as `tools/clips/keytrack/0{1,2}-sweep-{hz,oct}.script`, and each header says
+what it does **and does not** prove: pressing `3` first is load-bearing (with tracking off the two units
+are identical, so a seed without it would prove nothing), and the pair is the **ear** check only — the
+phrase gates 420 ms notes every 200 ms, so notes overlap and a per-note spectral region is polluted by the
+two before it (measured: non-monotonic, and both modes read the same at the first C). That is why the
+acceptance table above comes from the isolated-note probe instead. Renders:
+`build/ab/8b-sweep-{Hz-collapses,OCT-holds}.wav` — the Hz take is **0.9 dB hotter** overall, which is
+exactly the kind of level difference §1 says to name before anyone listens.
 
 ---
 
@@ -684,7 +776,7 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 | 3.41 | Amp key-tracking, negative for warmth | F8 | LISTEN | 5 | `solina` |
 | 3.42 | Velocity → brightness, per slot | B9 | DESIGN | 5 | `20-instruments` — ⚠ string machines must **not** be velocity-sensitive |
 | 3.43 | Pitch-to-CV: bandpass + slew, per Part 15 | C11 | VERIFY | 6 | `mictune` — aimed at a reproduced defect |
-| 3.44 | Cutoff depth in octaves | B2b | DESIGN | 5 | `filterenv` — the second half of 2.1 |
+| ~~3.44~~ | ~~Cutoff depth in octaves~~ **SHIPPED 2026-07-29 as [2.1(b)](#21b-env_cutoff_oct--lfo_cutoff_oct--shipped-2026-07-29)** — three new dests, 59 Hz-form carts untouched; the demo landed on `keytrack` (same finding, same graph) rather than `filterenv` | B2b | ✅ | 5 | `keytrack` |
 
 ---
 

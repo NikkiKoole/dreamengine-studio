@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-28) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**).**
+> **▶ ACTIVE THREAD (2026-07-29) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2 STARTED: 2.1 SHIPPED, both halves**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -219,14 +219,39 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > `MODE_PIANO_DECAY`/`MODE_PIANO_KNOCK` now exist. Still open: `instrument_mode` does not VALIDATE its
 > index, which is how a dead control survives; top of [`STATUS.md`](STATUS.md) → "Open".
 >
-> **Resume-at:** **Phase 2**, the four cross-cutting themes — start with **keytracking**, which closes six
-> chapters' independent requests at once and is the prerequisite for §G →
-> [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#4-phase-1--cart-only-each-its-own-audible-proof).
-> Read the ear-call loop above first — every Phase 1 item followed it, and SEVEN worked examples are written
-> up in plan §4. If you have not done a LISTEN item before, read **1.4** first: it is the one that failed,
-> and it shows the shape of an honest DROP.
-> After Phase 1, **Phase 2 is where the leverage is**: four cross-cutting themes, and keytracking alone
-> closes six chapters' independent requests and is the prerequisite for §G.
+> **PHASE 2 HAS STARTED, AND 2.1 IS DONE IN BOTH HALVES** (`49c398e2` + this one) — the engine can follow
+> the keyboard. (a) `instrument_keytrack(slot, amount)`: one multiply at note-on, `amount` 0 = absolute Hz
+> (the default and byte-identical), 1 = true 1V/oct so a self-oscillating filter can be *played*, 0.93 =
+> Reid's taste value. (b) `ENV_CUTOFF_OCT` / `LFO_CUTOFF_OCT`: a sweep's DEPTH in octaves instead of Hz,
+> reaching `instrument_env`, `instrument_lfo` and `instrument_follow` (plus the `note_*` twins). Both halves
+> are **VERIFY items** — the acceptance test is a number, not an ear, the first two of those in a while.
+> Full write-ups with the tables: plan §2.1(a)/(b).
+>
+> **Three things from 2.1 worth reusing:**
+> - **`DE_RUNTIME_DIR` now exists** (`make-cart.js`, so `play.js` too): point the compile at another engine
+>   tree, and a cart renders against the **pre-change** engine with identical harness args. That is how
+>   "byte-identical" became a measurement instead of an argument — no destructive `git checkout` on a hot
+>   shared header. Copy `runtime/`, `git show HEAD:runtime/sound.h >` the copy, render both, compare shas.
+>   The control that proves the rig works: a cart using the new constants must FAIL to compile against it.
+> - **Octave modulation multiplies and is applied LAST**, into its own `cutoff_mul` that starts at an exact
+>   1.0 — the shape `pitch_mul` already had. Additive Hz first, then the octave scaling, so a patch mixing
+>   both units means the same thing regardless of which mod source ran first. Copy that pattern for any
+>   future relative-unit destination.
+> - **A committed A/B seed must say what it does NOT prove.** `tools/clips/keytrack/0{1,2}-sweep-*.script`
+>   pass the ear test but cannot carry the acceptance table: the phrase gates 420 ms notes every 200 ms, so
+>   notes overlap and a per-note spectral region is polluted by the two before it (it measured non-monotonic,
+>   and both units read the *same* at the first C). The table came from a four-isolated-notes probe instead,
+>   whose source is pasted in plan §2.1(b) — a ruler is not a cart, so it is documented rather than committed.
+>
+> **Resume-at:** **2.2, trigger policy (§B3)** — the next Phase 2 theme and the other prerequisite for §G →
+> [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md#5-phase-2--the-four-cross-cutting-themes).
+> It is a **DESIGN** item, so it needs the owner: §L4 (the Hammond percussion must be **single**-trigger) vs
+> §K6 (the flute chiff must be **multi**-trigger) is the argument, and in both cases the choice decides
+> whether the defining transient happens at all — which is why the plan calls it a property an *instrument
+> declares* rather than a cart convention, starting as a cart-land `mono.h` per ADR-0016. Four monosynth
+> carts currently hand-roll it. Read the ear-call loop above first — every Phase 1 item followed it, and
+> SEVEN worked examples are written up in plan §4. If you have not done a LISTEN item before, read **1.4**
+> first: it is the one that failed, and it shows the shape of an honest DROP.
 >
 > **Orienting cold on this thread:** `node tools/orient.js` for the repo, then read plan §1 (the gate + the
 > A/B protocol), §2 (the add-vs-change ladder) and §4 (Phase 1, incl. the three finished write-ups). The

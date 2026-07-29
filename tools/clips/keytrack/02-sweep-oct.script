@@ -1,0 +1,17 @@
+# keytrack, filter sweep depth in OCTAVES — the "after" half of audit §B2b (plan 2.1b).
+# Presses 3 (keytrack 1.00, so the BASE cutoff already follows the note) then 6 (ENV_CUTOFF_OCT, depth in octaves).
+#
+# WHY THE 3 FIRST, and it is load-bearing: with tracking off, base and sweep-top are both flat and the two
+# units sound and look IDENTICAL. The Hz form only exposes itself once the base moves — so a seed that
+# skipped the 3 would render an A/B that proves nothing.
+#
+# The cart SELF-PLAYS on boot (running = true), so the four-octave phrase runs with an otherwise empty
+# script. This pair is the EAR check: the sweep is fat down low and gone up top, the twin of 01, where it holds its size at every pitch.
+# It is NOT the ruler — the phrase gates 420 ms notes every 200 ms, so notes OVERLAP and a per-note
+# spectral region is polluted by the two before it (measured: non-monotonic, and the two modes read the
+# same at the first C). The acceptance numbers come from the isolated-note probe recorded in
+# docs/design/synth-secrets-plan.md §2.1(b), not from here.
+down 10 3
+up 13 3
+down 20 6
+up 23 6

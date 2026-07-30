@@ -1371,6 +1371,35 @@ comparison cannot show either. **Now that the compensation works, a musical phra
 (it was not before — that is why the first pair was one note), so the next ear test should be a bass
 passage plus a chord, where the difference should stop being subtle.
 
+##### The PHRASE pair — bass + chords, where inharmonicity earns its keep (2026-07-30)
+
+```bash
+afplay build/ab/piano-phrase-A-OFF-today.wav           # harmonic
+afplay build/ab/piano-phrase-B-real-stiff-string.wav   # stiff, B ≈ 1.1e-4
+```
+
+Four events: **A1 alone**, then **A2 alone** (bass, where the clang lives), then an **A2–C#3–E3 triad**,
+then a **wide A1–E2–C#3–G#3 spread** — the last two being the case a single note cannot show, where the
+stretched partials of *different* notes beat against each other.
+
+Per-note compensation verified across the register before rendering, and the important column is that the
+**pitch is identical in both takes**, so nothing about tuning is in play:
+
+| note | pitch A | pitch B | B (stiff take) | residual |
+|---|---|---|---|---|
+| A1 (m33) | −9.5¢ | **−9.5¢** | 1.2e-4 | 1.0¢ |
+| A2 (m45) | −2.2¢ | **−2.3¢** | 1.2e-4 | 1.0¢ |
+| A3 (m57) | +1.3¢ | **+1.3¢** | 1.1e-4 | 2.0¢ |
+
+(The −9.5¢ at A1 is not an error, it is the Railsback stretch doing its job: `soct = −2.25` gives
+`2·(−2.25)·2.25 = −10.1¢`, and it is present in *both* takes.)
+
+Comparability: **rms matched to 0.22 dB** (−37.76 vs −37.98 dBFS), brightness 0.097 vs 0.096, centroid
+3186 vs 3083 Hz, decay shapes tracking. Peak differs by 2.4 dB (B lower) — and **that is a real
+consequence of inharmonicity, not a rig artifact**: harmonic partials periodically phase-align into tall
+peaks, inharmonic ones never do, so the same rms arrives with a lower crest. Worth knowing rather than
+correcting away.
+
 ##### Design commitment: inharmonicity must be SWAPPABLE, with "perfectly harmonic" available
 
 Asked directly by the owner: *"the path we are taking, will we have the option to swap this around? Say

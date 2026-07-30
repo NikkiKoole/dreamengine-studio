@@ -14,7 +14,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; AUTO button top-right toggles autoplay, which boots ON and stops the moment you play). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; the AUTO button top-right cycles the self-player off / STRUM / TRAVIS, boots on STRUM, and stops the moment you play; TRAVIS is Merle Travis fingerpicking - a metronomic alternating thumb bass under syncopated treble notes, which on the '5' power-chord shape goes sparse because its treble strings are damped). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -39,10 +39,13 @@ de:meta */
 //   FRETTING HAND — ROOT row (Z X C V B N M) moves up the neck (E F G A B C D); SHAPE row (A S D
 //                   F G) sets the chord shape (5 / min / maj / sus4 / 7).
 //   STRUMMING HAND — sweep across the strings over the body (the STRUM zone) to strum; tap a string
-//                    on the neck to pick one; SPACE strums. AUTOPLAY is the AUTO button top-right
-//                    (it boots ON) and ANY chord key or strum switches it off — there is no key that
-//                    turns it back on. (The docs used to claim "M-row toggles autoplay"; M is the D
-//                    root, and pressing it only ever DISABLES autoplay via set_root.)
+//                    on the neck to pick one; SPACE strums. AUTOPLAY is the AUTO button top-right,
+//                    a 3-way that NAMES its state: off / strum / travis. It boots on STRUM, and any
+//                    chord key or strum switches it off — there is no key that turns it back on.
+//                    (The docs used to claim "M-row toggles autoplay"; M is the D root, and pressing
+//                    it only ever DISABLES autoplay via set_root.)
+//                    TRAVIS = the fingerstyle: thumb alternating root/fifth on the beat, fingers
+//                    between. Sparse on the "5" shape, whose treble strings are damped.
 //
 // Mouse + touch both work — every contact is its own pointer. The mouse is merged in explicitly.
 
@@ -294,7 +297,19 @@ static float amp[NSTR];
 static float vib_ph[NSTR];
 static int   pend[NSTR];
 
-static bool  autoplay = true;
+// AUTOPLAY STYLES. Was a bool. TRAVIS is Merle Travis's fingerstyle: the thumb keeps a metronomic
+// alternating bass on the low strings while the fingers pick syncopated notes BETWEEN those beats,
+// so one hand sounds like two players. It lives here rather than as new DSP because the engine
+// already does the hard part — schedule_hit fires SAMPLE-ACCURATELY inside the mixer loop (sound.h:
+// block-edge firing "quantized away exactly the micro-timing that makes grooves feel played"), and
+// Travis picking IS micro-timing: quantise thumb and fingers onto one grid and the independence
+// that defines the technique collapses.
+// It also demos a pedalboard better than strumming does: a constant bass gives delay/reverb
+// something to chew on, and the offbeat trebles expose modulation a chord-every-4-beats cannot.
+enum { AP_OFF, AP_STRUM, AP_TRAVIS };
+static const char *AP_NAME[3] = { "off", "strum", "travis" };
+static int   autoplay = AP_STRUM;
+static int   cart_bpm = 100;        // mirrors the bpm() call in init — the API has no getter
 static int   apos = 0;
 static bool  guitar_in = false;   // GUITAR IN: route the live mic THROUGH the built chain (input_monitor)
 static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor() only on a change (set-and-hold)
@@ -625,7 +640,7 @@ void init(void) {
     instrument_morph(I_MUTE, 0.92f);
     build_strings();
     PTR_CLEAR(ptr);   // a free slot's .id must be PTR_NONE (no longer relies on zero-init)
-    bpm(100);
+    bpm(cart_bpm);
     // a tasteful starting chain (only TREMOLO ringing); the rest sit in the chain, off
     chain_insert(C_BIT, 0); chain[0].on = false;
     chain_insert(C_EQ, 1);  chain[1].on = false;
@@ -655,16 +670,42 @@ static void pluck_str(int s, int vol) {
     amp[s] = 1.0f; vib_ph[s] = 0.0f;
     fmt_on_attack();                          // VOWEL pedal: advance/open the vowel on each pick
 }
+// Pluck ONE string at a future time. Extracted from strum_down so the Travis pattern below can
+// reuse the mute handling and the pend[] vibration trigger instead of duplicating them.
+// pend is in FRAMES, hence the ms·60/1000.
+static void pluck_at(int s, int delay_ms, int vol, int dur_ms) {
+    if (s < 0 || s >= NSTR) return;
+    if (str_muted(s)) schedule_hit(delay_ms, mute_note(s), I_MUTE, 3, 60);   // the pick, not the note
+    else              schedule_hit(delay_ms, str_midi[s], I_GTR, vol, dur_ms);
+    pend[s] = 1 + (delay_ms * 60) / 1000;
+}
 static void strum_down(void) {
-    for (int s = 0; s < NSTR; s++) {
-        if (str_muted(s)) schedule_hit(s * 28, mute_note(s), I_MUTE, 3, 60);   // the pick, not the note
-        else              schedule_hit(s * 28, str_midi[s], I_GTR, 5, gate_ms());
-        pend[s] = 1 + (s * 28 * 60) / 1000;
-    }
+    for (int s = 0; s < NSTR; s++) pluck_at(s, s * 28, 5, gate_ms());
     fmt_on_attack();                          // one vowel advance per strum (a syllable per chord)
 }
-static void set_shape(int sh) { sel_shape = sh; build_strings(); autoplay = false; }
-static void set_root(int r)   { sel_root  = r;  build_strings(); autoplay = false; }
+
+// ONE BEAT of Travis picking, as two eighths:
+//   ON  the beat — the THUMB, alternating bass: string 0 (the root) on beats 1 and 3, string 1
+//                  (the fifth) on 2 and 4. Shorter gate than a strummed note because a Travis thumb
+//                  is palm-damped; it thumps, it does not ring through the next one.
+//                  On beats 1 and 3 a treble is struck WITH it — the "pinch".
+//   OFF the beat — a single treble note. This is the whole technique: the thumb never moves off the
+//                  grid, and everything interesting happens between its notes.
+// The bass alternation needs no chord knowledge: on any barre shape, strings 0 and 1 ARE root and
+// fifth, so str_midi[] hands us the right two pitches at any position for free.
+// On the "5" power-chord shape the three treble strings are damped, so the fingers come out as
+// chks and the pattern goes sparse — which is honest, and what the maker asked for.
+static void travis_beat(int b) {
+    static const int PINCH  [4] = {  5, -1,  3, -1 };   // treble struck WITH the thumb, beats 1 and 3
+    static const int OFFBEAT[4] = {  4,  5,  4,  3 };   // treble on the "&"
+    int half = 30000 / cart_bpm;                        // ms per eighth (60000/bpm/2)
+    pluck_at((b % 2) ? 1 : 0, 0, 6, 420);               // thumb: root · fifth · root · fifth
+    if (PINCH[b] >= 0) pluck_at(PINCH[b], 0, 4, gate_ms());
+    pluck_at(OFFBEAT[b], half, 5, gate_ms());
+    fmt_on_attack();                          // one vowel advance per beat, not per note
+}
+static void set_shape(int sh) { sel_shape = sh; build_strings(); autoplay = AP_OFF; }
+static void set_root(int r)   { sel_root  = r;  build_strings(); autoplay = AP_OFF; }
 // screen y → string index (row 0 on screen is the HIGH e, so the row inverts back to an index)
 static int  near_string(int ty) { int r = (ty - STR_Y0 + STR_DY / 2) / STR_DY; r = r < 0 ? 0 : r >= NSTR ? NSTR - 1 : r; return NSTR - 1 - r; }
 // x of string s's fingered dot. Open (0) sits just past the nut; muted has no dot, but return the
@@ -750,12 +791,12 @@ void update(void) {
     for (int i = 0; i < NSHAPE; i++) if (keyp(SHAPE_KEY[i])) set_shape(i);
     for (int i = 0; i < NROOT;  i++) if (keyp(ROOT_KEY[i]))  set_root(i);
     for (int i = 0; i < chain_n; i++) if (keyp('1' + i) && (chain[i].on || !pedal_locked(chain[i].cat))) { chain[i].on = !chain[i].on; dirty = 1; }
-    if (keyp(KEY_SPACE)) { strum_down(); autoplay = false; }
+    if (keyp(KEY_SPACE)) { strum_down(); autoplay = AP_OFF; }
 
     if (tapp(saX + 4, saY + 2, 56, 11))   { palette_open = !palette_open; if (palette_open) rig_open = false; }
     if (tapp(saX + 64, saY + 2, 46, 11))  { rig_open = !rig_open; if (rig_open) palette_open = false; }
     if (tapp(saX + 114, saY + 2, 54, 11)) { guitar_in = !guitar_in; if (guitar_in) mic_start(); else mic_stop(); }
-    if (tapp(saX + saW - 70, saY + 4, 66, 10)) autoplay = !autoplay;
+    if (tapp(saX + saW - 70, saY + 4, 66, 10)) autoplay = (autoplay + 1) % 3;   // off → strum → travis, and it SAYS which
 
     // GUITAR IN — feed the live mic through the chain you built. Set-and-hold: push only on change.
     // Gain is deliberately SUB-UNITY (0.8): monitoring your own mic through the device speaker feeds
@@ -859,7 +900,7 @@ void update(void) {
                 if (p->mode == PTR_IDLE)
                     for (int i2 = 0; i2 < NROOT; i2++) if (point_in_box(tx, ty, ROOT_X(i2), ROOT_Y, ROOT_W, CHORD_H)) set_root(i2);
                 if (p->mode == PTR_IDLE && ty >= STR_TOP - 9 && ty <= STR_BOT + 9 && tx >= SX0 - 8 && tx <= SX1 + 8) {
-                    p->mode = PTR_PICK; autoplay = false;
+                    p->mode = PTR_PICK; autoplay = AP_OFF;
                     pick_string(near_string(ty), tx);
                     p->prevY = ty;
                 }
@@ -908,7 +949,10 @@ void update(void) {
         // hitting M yanked you to the power chord whatever you had picked — and left you there when
         // you switched it off. Now the progression plays in whatever you selected, which makes the
         // shape row worth touching while it runs: same changes as maj, min, sus4 or 7.
-        if (beat() % 4 == 0) { sel_root = prog[apos % 8]; build_strings(); strum_down(); apos++; }
+        int b = beat() % 4;
+        if (b == 0) { sel_root = prog[apos % 8]; build_strings(); apos++; }   // one chord per bar
+        if (autoplay == AP_STRUM) { if (b == 0) strum_down(); }               // …strummed once
+        else                        travis_beat(b);                          // …or picked all four beats
     }
     for (int s = 0; s < NSTR; s++) if (pend[s] > 0 && --pend[s] == 0) { amp[s] = str_muted(s) ? 0.3f : 1.0f; vib_ph[s] = 0.0f; }   // a damped string barely moves
 
@@ -1265,7 +1309,7 @@ void draw(void) {
     rrectfill(bx + 114, by0, 54, 11, 2, guitar_in ? (mic_live ? CLR_DARK_GREEN : CLR_DARK_RED) : CLR_DARKER_GREY);
     rrect(bx + 114, by0, 54, 11, 2, guitar_in ? CLR_WHITE : CLR_DARK_GREY);
     print(guitar_in ? "GTR: IN" : "GTR IN", bx + 120, saY + 4, guitar_in ? CLR_WHITE : CLR_LIGHT_PEACH);
-    print_right(autoplay ? "AUTO: on" : "AUTO: off", saX + saW - 6, saY + 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    print_right(str("AUTO: %s", AP_NAME[autoplay]), saX + saW - 6, saY + 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     if (palette_open) { font(FONT_TINY); print_centered("UP add   DOWN remove", (saX + 168 + saX + saW - 70) / 2, saY + 5, CLR_MEDIUM_GREY); }
     font(FONT_NORMAL);
 

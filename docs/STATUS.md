@@ -49,11 +49,11 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   fifth 0.59 s, octave 0.59 s, three octaves 0.60 s, three octaves downward 0.59 s. It costs less per
   sample than the one-pole did. The fidelity argument points the same way: a Minimoog's glide knob has no
   numbers on it because a one-pole has no duration to print, so the millisecond unit was always *ours*.
-  ⚠ **BUILT, not shipped — 3.26 is LISTEN-gated and awaits the owner's ear**, and this one changes the
-  FEEL of every glide in the 59 carts that call `note_glide`: their values now buy a real duration rather
-  than a time constant, so slides are roughly 3× snappier (`acid303`'s classic 60 ms is now genuinely
-  60 ms, which is closer to a real 303). Play `heldnotes`, `tb303`, `sh101`, `brass`, `pipe`; measure with
-  `glideprobe`. **And GLIDE SCALE closed it out — as a DIAL, `note_glide_scale(h, amount)`, plus the
+  ✅ **LISTEN PASSED** (owner, by ear, `tb303` then the wind carts). This changed the FEEL of every glide in
+  the 59 carts calling `note_glide` — their values now buy a real duration rather than a time constant, so
+  slides are roughly 3× snappier — and **the flagged risk did not materialise: nothing needed re-dialling**,
+  the snappier slides were preferred (`acid303`'s classic 60 ms is now genuinely 60 ms, closer to a real
+  303 than the ~180-330 ms it had been producing). **And GLIDE SCALE closed it out — as a DIAL, `note_glide_scale(h, amount)`, plus the
   per-slot twins `instrument_glide` / `instrument_glide_scale`.** It shipped as a two-way
   constant-vs-per-octave switch first (the axis a real panel offers) and that was wrong: an RC lag's
   *perceived* duration grows with the interval logarithmically, so the spread from a semitone to three

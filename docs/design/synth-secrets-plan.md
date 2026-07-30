@@ -177,8 +177,9 @@ inventing a rule:
 
 - [0006](../decisions/0006-library-carts-not-engine.md) — capabilities ship as **library carts**, not
   engine API, unless they can't.
-- [0015](../decisions/0015-effects-are-recipes-not-primitives.md) — **the effects roster is CLOSED**, and
-  *"a primitive must prove it can't be a recipe."*
+- [0015](../decisions/0015-effects-are-recipes-not-primitives.md) — *"a primitive must prove it can't be
+  a recipe."* (That gate is the whole rule. Its old "the roster is CLOSED / ~12 functions" half was
+  superseded 2026-07-30: the effect count is ~4x that and there is no cap. Cite the gate, never a count.)
 - [0016](../decisions/0016-combo-organ-recipe-then-macro-or-engine.md) — a recipe now; its own macro axis
   or engine **only when a station proves it**. *"Build the engine when a real customer proves the recipe
   insufficient, not because"* it is theoretically nicer — and only a **built cart** can settle it.
@@ -213,7 +214,8 @@ Applying that to the audit, **nothing clearly earns rung 7**:
   all, and every amp cart we ship is aimed at it. But a pickup is a second tap on an existing Karplus
   line — **rung 6**, an addition to `INSTR_GUITAR`, most likely selected by `eng_p`. Not a new engine.
 - **§M's effects gaps** are all rung 6 inside existing effects (early-reflection taps, chorus paths, BBD
-  scaling). 0015's closed roster is not threatened.
+  scaling). None of them is a new primitive, so 0015's gate is not engaged (there is no roster cap to
+  threaten, per its 2026-07-30 correction).
 - **§C4's ring-mod carrier waveform** is rung 5 — a parameter on an effect we already ship.
 
 So the honest answer to your question: **on this list, we almost never need a new engine or effect.**
@@ -1949,7 +1951,7 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 | 3.23 | Three-phase chorus option | M4 | LISTEN | 6 | `solina`, `juno`, `organ` (must stay single) |
 | 3.24 | BBD saturation scales with tap distance | M6 | LISTEN | 6 | `aquapuss` |
 | 3.25 | 6 dB/oct one-pole filter (= the honest portamento circuit) | C5 | LISTEN | 5 | `22-filter`, `eq` |
-| 3.26 | Glide in semitones, not linear Hz | B1 | LISTEN | 6 | ✅ **BUILT 2026-07-30, awaiting the LISTEN** — `heldnotes` / `glideprobe`; regates all passed (see §3.26 below) |
+| ~~3.26~~ | ~~Glide in semitones, not linear Hz~~ ✅ **SHIPPED 2026-07-30 — LISTEN PASSED** (owner, by ear, on `tb303` then the wind carts) | B1 | LISTEN | 6 | `heldnotes` / `glidescale` / `glideprobe` (see §3.26 below) |
 | 3.27 | Key-scaled envelope times | B10 | LISTEN | 6 | `piano`, `20-instruments` |
 | 3.28 | Per-voice character + round-robin allocation (`analog_feel`) | B7 | LISTEN | 6 | `polystress`, `jangle` — ⚠ must be deterministic per voice index, never `rand()` |
 | 3.29 | Non-monotonic formant amplitudes | B6 | LISTEN | 2 | `vowel` |
@@ -1969,7 +1971,7 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 | 3.43 | Pitch-to-CV: bandpass + slew, per Part 15 | C11 | VERIFY | 6 | `mictune` — aimed at a reproduced defect |
 | ~~3.44~~ | ~~Cutoff depth in octaves~~ **SHIPPED 2026-07-29 as [2.1(b)](#21b-env_cutoff_oct--lfo_cutoff_oct--shipped-2026-07-29)** — three new dests, 59 Hz-form carts untouched; the demo landed on `keytrack` (same finding, same graph) rather than `filterenv` | B2b | ✅ | 5 | `keytrack` |
 
-### 3.26 Glide in pitch, not linear Hz — BUILT 2026-07-30, awaiting the LISTEN
+### 3.26 Glide in pitch, not linear Hz — SHIPPED 2026-07-30, LISTEN PASSED
 
 Full numbers and the regate list live on the finding itself
 ([audit §B1](synth-secrets-audit.md#b1-portamento-glides-in-linear-hz-not-in-pitch)). The short version:
@@ -1981,10 +1983,16 @@ milliseconds — see the subsection below, which is where the interesting argume
 [`glideprobe`](../../tools/carts/glideprobe.c) is the measurement (status `hidden`, recipe in its header);
 `heldnotes` is the thing to actually play, per this row's `cart` column.
 
-**Why it is only BUILT and not SHIPPED: this row is LISTEN-gated and the owner has not heard it yet.**
-Every deterministic gate the finding asked for passes, which is necessary and not sufficient — §1's protocol
-is that a LISTEN item is accepted by ear, and "the oracles are green" is exactly the kind of thing
-[ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) warns about mistaking for the whole bar.
+**LISTEN PASSED 2026-07-30.** Every deterministic gate the finding asked for passed, which is necessary and
+not sufficient — §1's protocol is that a LISTEN item is accepted by *ear*, and "the oracles are green" is
+exactly the kind of thing [ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) warns about
+mistaking for the whole bar. The owner's verdict came in two parts, which is worth recording because the
+worry going in was the wrong one: the flagged risk was that **all 59 glide carts get roughly 3× snappier**
+now that their `ms` buys a real duration instead of a time constant, so the fear was that hand-tuned values
+would suddenly feel wrong. They did not. `tb303` came back first ("i think i like the 303"), then the wind
+carts, and the snappier slides were preferred in both. **Nothing needed re-dialling** — `acid303`'s classic
+60 ms in particular is now genuinely 60 ms, which is closer to a real 303 than the ~180-330 ms it had been
+producing. So the change that looked like it would cost a tuning sweep cost nothing.
 
 #### The second half: `ms` had to start meaning milliseconds — RESOLVED 2026-07-30
 

@@ -80,6 +80,7 @@ static int   oct = 0;
 static bool  autoplay = true;
 static bool  breath = false;       // SPACE: auto-breath swell on held notes
 static bool  mono = false;         // V: monophonic + slide
+static bool  tongue = false;       // T: TONGUED legato (mono) — slide the pitch AND re-articulate the chiff
 static float breath_lfo = 0.0f;
 static int   apos = 0;
 static float airflow = 0.0f;
@@ -152,7 +153,10 @@ static void note_start(int b) {
     if (mono) {
         stack_push(b);
         if (mono_handle < 0) mono_handle = note_on(km(b), I_PIPE, 6);   // first note: real attack
-        else { note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b)); }  // legato slide
+        else {                                                          // legato slide
+            note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b));
+            if (tongue) note_retrig(mono_handle);   // TONGUED legato — the chiff on every note (audit §K6)
+        }
         active_pad = b;
     } else {
         if (handle_of[b] < 0) handle_of[b] = note_on(km(b), I_PIPE, 6);
@@ -205,6 +209,7 @@ void update(void) {
         apply_patch();
     }
     if (keyp('V'))       { mono = !mono; all_notes_off(); }   // swap mode — clear any stuck voices
+    if (keyp('T'))       tongue = !tongue;                    // slur vs tongued legato (mono)
     if (keyp(KEY_SPACE)) breath = !breath;
     if (keyp('M'))       { autoplay = !autoplay; if (!autoplay && mono && held_n == 0) all_notes_off(); }
     if (keyp('Z') && oct > -2) oct--;
@@ -251,7 +256,10 @@ void update(void) {
         if (mono) {
             if (held_n == 0) {
                 if (mono_handle < 0) mono_handle = note_on(km(b), I_PIPE, 6);
-                else { note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b)); }
+                else {
+                    note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b));
+                    if (tongue) note_retrig(mono_handle);   // tongued phrase — chiff per note (§K6)
+                }
                 active_pad = b; glow[b] = 1.0f;
             }
         } else {
@@ -327,8 +335,9 @@ void draw(void) {
     print(str("voice: %s", pname), 108, 24, CLR_LIGHT_YELLOW);
     print(knob[0] < 0.33f ? "fundamental register" : "overblown - octave + bright", 108, 36, CLR_MEDIUM_GREY);
     if (mono)
-        print(held > 0 ? str("mono - sliding (%dms portamento)", slide_ms()) : "mono - press a key, then SLIDE to others",
-              108, 48, held > 0 ? CLR_BLUE : CLR_DARK_GREY);
+        print(held > 0 ? str("mono - %s (%dms portamento)", tongue ? "TONGUED" : "slurred", slide_ms())
+                       : (tongue ? "mono - press a key, then TONGUE to others" : "mono - press a key, then SLIDE to others"),
+              108, 48, held > 0 ? (tongue ? CLR_LIGHT_YELLOW : CLR_BLUE) : CLR_DARK_GREY);
     else
         print(held > 0 ? str("poly - blowing %d note%s", held, held == 1 ? "" : "s") : "poly - press & HOLD keys to blow",
               108, 48, held > 0 ? CLR_PEACH : CLR_DARK_GREY);
@@ -372,8 +381,10 @@ void draw(void) {
     }
 
     font(FONT_TINY);
-    int rx = print("A..K blow   Z/X oct   1..5 voices   V mono   ", 10, SCREEN_H - 8, CLR_DARK_GREY);
-    int sx = print("SPACE breath", rx, SCREEN_H - 8, CLR_MEDIUM_GREY);
-    print("   sliders: drag or arrows", sx, SCREEN_H - 8, CLR_DARK_GREY);
+    // tightened when T was added — the hint line already overflowed the right edge (the cart's todo)
+    int rx = print("A..K blow  Z/X oct  1-5 voices  V mono  ", 10, SCREEN_H - 8, CLR_DARK_GREY);
+    int tx = print("T tongue  ", rx, SCREEN_H - 8, tongue ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    int sx = print("SPACE breath", tx, SCREEN_H - 8, CLR_MEDIUM_GREY);
+    print("  sliders: drag", sx, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

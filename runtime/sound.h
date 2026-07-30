@@ -49,6 +49,12 @@ static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0
 #define INSTR_ENGINE_BASE  INSTR_PLUCK
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
+// ONSET-TRANSIENT lengths for the three wind engines, in samples. Named because they are set in TWO
+// places: the engine's *_start hook (a new voice) and sound_retrig_voice (note_retrig re-articulates a
+// held one). A hardcoded literal in each would drift, and a drifted chiff is exactly the silent kind.
+#define PIPE_ONSET_SAMPLES  ((int)(0.025f * (float)SOUND_SAMPLE_RATE))   // ~25ms tongued "tu"
+#define REED_ONSET_SAMPLES  ((int)(0.028f * (float)SOUND_SAMPLE_RATE))   // ~28ms breathy chiff
+#define BRASS_ONSET_SAMPLES ((int)(0.018f * (float)SOUND_SAMPLE_RATE))   // ~18ms breath/"tah" speak
 
 // One step in an SFX. pitch=0 means silence; vol 0..7.
 typedef struct {
@@ -2315,6 +2321,8 @@ typedef enum {
     SR_INSTR_MULTIBAND = 138, // a=slot, b=low, c=mid, e0=high, e1=up, e2=mix (×1000) — multiband squash on one instrument's bus (instrument_multiband)
     SR_HARMONIZE_MIC = 139,   // a=semis*100, b=voices, c=formant*1000 — LIVE fixed-interval mic harmoniser (harmonize_mic); the AM_SHIFT face of the streaming corrector
     SR_INSTR_KEYTRACK = 140,  // a=slot, b=amount*1000 — KEYBOARD TRACKING of the filter cutoff (instrument_keytrack), audit §B2
+    SR_NOTE_RETRIG  = 141,    // e0/e1=handle — RE-ARTICULATE a held voice (note_retrig): amp+mod envelopes jump back to
+                              // attack and the engine's onset transient re-arms, resonator untouched. Audit §B3/§K6
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2360,7 +2368,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_ENV: case SR_NOTE_MACRO: case SR_NOTE_DRIVE: case SR_NOTE_ECHO:
         case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
-        case SR_CART_SWITCH:
+        case SR_NOTE_RETRIG: case SR_CART_SWITCH:
             return true;
         case SR_LFO_SHAPE: return r.c < 0;   // c<0 = live held note (handle in e0/e1); c>=0 = instrument-slot config
         default: return false;               // set-and-hold config — record it
@@ -3093,21 +3101,32 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
     return out;
 }
 
+// ORGAN percussion depth from the morph macro: it fades in over morph's top ~45%, so a lively B3
+// chips and a still combo organ doesn't. Shared by note-on and note_retrig (which re-arms the chip).
+static inline float sound_organ_perc_amt(float mor) {
+    float perc = (mor - 0.55f) / 0.45f;
+    return perc < 0.0f ? 0.0f : (perc > 1.0f ? 1.0f : perc);
+}
+
+// ORGAN's two ATTACK TRANSIENTS, armed on their own because note_retrig re-arms exactly these and
+// nothing else: the key click (rides timbre — a bright patch clicks harder) and the percussion ping.
+// Deliberately NOT the drawbar phases or the scanner buffer — resetting those mid-note is a click.
+static inline void sound_organ_arm_onset(Voice *v) {
+    v->org_click   = v->timb;                                     // brightness drives the click bite (§8.8.4)
+    v->org_perc    = sound_organ_perc_amt(v->mor);
+    v->org_perc_ph = 0.0f;
+}
+
 // ORGAN note-on: organ tone is continuous (no struck excitation like pluck/mallet) — the
-// drawbar sines simply start sounding. We only ARM the two attack transients here: the key
-// click (rides timbre — a bright patch clicks harder) and the percussion ping (rides morph's
-// top end — a lively B3 chips, a still combo organ doesn't), and clear the borrowed scanner
-// tail so stale Karplus data can't click through.
+// drawbar sines simply start sounding. We only ARM the two attack transients here, and clear
+// the borrowed scanner tail so stale Karplus data can't click through.
 static void sound_organ_start(Voice *v) {
     for (int i = 0; i < 9; i++) v->org_ph[i] = (float)i / 9.0f;   // spread phases: no coherent attack spike
     for (int i = 0; i < ORGAN_SCAN; i++) v->ks_buf[i] = 0.0f;     // clear borrowed scanner delay
     v->org_widx    = 0;
     v->org_scan_ph = 0.0f;
     v->org_lp      = 0.0f;
-    v->org_click   = v->timb;                                     // brightness drives the click bite (§8.8.4)
-    float perc = (v->mor - 0.55f) / 0.45f;                        // percussion fades in over morph's top ~45%
-    v->org_perc    = perc < 0.0f ? 0.0f : (perc > 1.0f ? 1.0f : perc);
-    v->org_perc_ph = 0.0f;
+    sound_organ_arm_onset(v);
     v->org_on      = true;
 }
 
@@ -3541,7 +3560,7 @@ static void sound_reed_start(Voice *v) {
     v->rd_len = len; v->rd_idx = 0; v->rd_initfreq = d0 * f / (float)len;
     v->rd_lp = v->rd_dc_prev = v->rd_dc_state = v->rd_vib_ph = v->rd_tilt = v->rd_noise_lp = 0.0f;
     v->rd_drift_ph = v->rd_drift = 0.0f;
-    v->rd_attack   = (int)(0.028f * (float)SOUND_SAMPLE_RATE);   // ~28ms breathy chiff onset
+    v->rd_attack   = REED_ONSET_SAMPLES;   // breathy chiff onset (note_retrig re-arms this same field)
     v->rd_on = true;
 }
 
@@ -3680,7 +3699,7 @@ static void sound_pipe_start(Voice *v) {
     v->pp_jet_idx = 0;
     v->pp_lp = v->pp_dc_prev = v->pp_dc_state = 0.0f;
     v->pp_vib_ph = v->pp_drift_ph = v->pp_drift = v->pp_noise_lp = 0.0f;
-    v->pp_attack = (int)(0.025f * (float)SOUND_SAMPLE_RATE);   // ~25ms tongued "tu" onset
+    v->pp_attack = PIPE_ONSET_SAMPLES;   // the tongued "tu" onset (note_retrig re-arms this same field)
     v->pp_on = true;
 }
 
@@ -3973,7 +3992,7 @@ static void sound_brass_start(Voice *v) {
     v->br_out_prev = v->br_out_state = 0.0f;
     v->br_env = v->br_hp = 0.0f;
     v->br_vib_ph = v->br_drift_ph = v->br_drift = v->br_noise_lp = 0.0f;
-    v->br_attack = (int)(0.018f * (float)SOUND_SAMPLE_RATE);   // ~18ms breath/"tah" speak onset
+    v->br_attack = BRASS_ONSET_SAMPLES;   // breath/"tah" speak onset (note_retrig re-arms this same field)
     v->br_on = true;
 }
 
@@ -5248,6 +5267,34 @@ static void sound_begin_release(Voice *v) {
     v->held             = false;             // no longer modulatable
 }
 
+// RE-ARTICULATE a held voice — the mirror of sound_begin_release, and the thing every monosynth's
+// trigger switch needs (audit §B3). note_off + a fresh note_on is NOT this: it leaves the old voice
+// ringing at the OLD pitch through its release, under the new attack, with held=false so anything the
+// cart was riding silently stops reaching it. Here there is one voice and one pitch throughout.
+//
+// CLICK-FREE BY CONSTRUCTION, and this is the whole trick: rather than zeroing step_samples (which
+// would step the amp from `sustain` down to 0 — audible), we rewind it to the point on the ATTACK
+// RAMP that already holds the current level. The envelope then continues upward at its own attack
+// rate from exactly where it was, which is also what an analog EG does when you re-gate it mid-note.
+// Level is continuous, so there is no discontinuity to hear. (a_samp == 0 means an instant attack:
+// the level steps UP to peak, same as the hardware, and an upward step at an onset is the intended
+// transient rather than a splice.)
+static void sound_retrig_voice(Voice *v) {
+    float lvl = sound_adsr_gated(v->step_samples, v->a_samp, v->d_samp, v->sustain);
+    v->step_samples = (v->a_samp > 0) ? (int)(lvl * (float)v->a_samp) : 0;
+    // The mod envelopes (filter/pitch sweeps) time off step_samples too, so they re-fire from here —
+    // which is the point: a retriggered note wants its filter sweep back, not just its amplitude.
+    //
+    // ONSET TRANSIENTS re-arm; RESONATORS deliberately do not. Re-exciting a bore or a Karplus line
+    // is a whole new breath/pluck, which is what note_on is for — and for ORGAN, respreading the
+    // drawbar phases mid-note is a discontinuity, i.e. the click this function exists to avoid. So
+    // only the four engines with onset state distinct from their body do anything extra:
+    if      (v->wave == INSTR_PIPE)  v->pp_attack = PIPE_ONSET_SAMPLES;    // the chiff every note needs (§K6)
+    else if (v->wave == INSTR_REED)  v->rd_attack = REED_ONSET_SAMPLES;
+    else if (v->wave == INSTR_BRASS) v->br_attack = BRASS_ONSET_SAMPLES;   // the tongued "tah"
+    else if (v->wave == INSTR_ORGAN) sound_organ_arm_onset(v);             // key click + percussion chip
+}
+
 // ── spatial audio (spatial.md): listener + per-source geometry → pan, distance-gain, Doppler.
 // Dormant until listener()/note_pos()/hit_at(); a voice with sp_on=false keeps sp_gain=1 and
 // doppler_mul=1 (true bypass), so a cart that never positions a sound is byte-identical. ─────────
@@ -5682,6 +5729,10 @@ static void sound_fire_req(SoundReq r) {
     case SR_NOTE_FILTER: {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->flt_mode = r.a;
+    } break;
+    case SR_NOTE_RETRIG: {
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) sound_retrig_voice(v);
     } break;
     case SR_NOTE_GLIDE: {
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -7216,6 +7267,11 @@ void note_filter(int handle, int mode) {
 void note_glide(int handle, int ms) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_GLIDE, ms, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+void note_retrig(int handle) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_RETRIG, 0, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_duty(int handle, float duty) {

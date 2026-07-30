@@ -81,6 +81,9 @@ static int   oct = 0;
 static bool  autoplay = true;
 static bool  blat = false;         // SPACE: auto-brassiness swell on held notes
 static bool  mono = true;          // a horn is monophonic — default on, so the slide makes sense
+static bool  tongue = true;        // T: TONGUED vs SLURRED legato. A horn tongues most repeated notes, so
+                                   // this defaults ON — before note_retrig existed, mono mode COULD NOT
+                                   // re-attack at all: every note after the first was a slur, forever.
 static float blat_lfo = 0.0f;
 static int   apos = 0;
 static float buzz = 0.0f;          // lip-buzz animation phase
@@ -226,7 +229,10 @@ static void note_start(int b) {
     if (mono) {
         stack_push(b);
         if (mono_handle < 0) mono_handle = note_on(km(b), I_BRASS, 6);    // first note: real lip attack
-        else { note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b)); }  // legato slide
+        else {                                                            // legato slide
+            note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b));
+            if (tongue) note_retrig(mono_handle);   // …and TONGUE it: the "tah" speaks again on one voice
+        }
         active_pad = b;
     } else {
         if (handle_of[b] < 0) handle_of[b] = note_on(km(b), I_BRASS, 6);
@@ -303,6 +309,7 @@ void update(void) {
         apply_patch();
     }
     if (keyp('V'))       { mono = !mono; all_notes_off(); }   // swap mode — clear any stuck voices
+    if (keyp('T'))       tongue = !tongue;                    // tongued vs slurred legato (mono)
     if (keyp(KEY_SPACE)) blat = !blat;
     if (keyp('M'))       { autoplay = !autoplay; if (!autoplay && mono && held_n == 0 && !sliding) all_notes_off(); }
     if (keyp('Z') && oct > -2) oct--;
@@ -352,7 +359,10 @@ void update(void) {
         if (mono) {
             if (held_n == 0 && !sliding) {
                 if (mono_handle < 0) mono_handle = note_on(km(b), I_BRASS, 6);
-                else { note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b)); }
+                else {
+                    note_glide(mono_handle, slide_ms()); note_pitch(mono_handle, (float)km(b));
+                    if (tongue) note_retrig(mono_handle);   // a fanfare is TONGUED, not one long slur
+                }
                 active_pad = b; glow[b] = 1.0f;
             }
         } else {
@@ -390,6 +400,8 @@ void draw(void) {
     print("BRASS", 8, 6, CLR_LIGHT_YELLOW);
     font(FONT_SMALL);
     print("lip-reed brass engine", 56, 8, CLR_MEDIUM_GREY);
+    // NOT "V mono+tongue" — two chars longer than "V mono+slide" is enough to collide with the title
+    // (ui-audit caught it). The tongue state lives in the bottom hint row, coloured, instead.
     print_right(mono ? "V mono+slide" : "V poly", SCREEN_W - 102, 8, mono ? CLR_ORANGE : CLR_DARK_GREY);
     print_right(autoplay ? "M fanfare: on" : "M fanfare: off", SCREEN_W - 10, 8, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     font(FONT_NORMAL);
@@ -499,8 +511,11 @@ void draw(void) {
     // Trimmed to FIT: this line ran to x=394 on a 320px screen, so "(mute = wah)" and most of the slider
     // hint had never been visible to anyone (ui-audit flags it) — a pre-existing overflow, same class as
     // tr909's footer. Shortened rather than extended, which also buys room for the new E key.
-    int rx = print("A..K blow  Z/X oct  1..6 voice  V mono ", 10, SCREEN_H - 8, CLR_DARK_GREY);
-    int sx = print("SPACE brass", rx, SCREEN_H - 8, CLR_MEDIUM_GREY);
-    print("  drag sliders (mute = wah)", sx, SCREEN_H - 8, CLR_DARK_GREY);
+    // tail trimmed when T was added — the row is now SHORTER than before the tongue toggle existed,
+    // because inserting "T tongue " pushed "(mute = wah)" off the right edge (ui-audit caught it).
+    int rx = print("A..K blow  Z/X oct  1-6 voice  V mono ", 10, SCREEN_H - 8, CLR_DARK_GREY);
+    int tx = print(tongue ? "T tongue " : "T slur ", rx, SCREEN_H - 8, tongue ? CLR_ORANGE : CLR_DARK_GREY);
+    int sx = print("SPACE brass", tx, SCREEN_H - 8, CLR_MEDIUM_GREY);
+    print("  drag sliders", sx, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

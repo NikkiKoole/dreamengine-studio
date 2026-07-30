@@ -114,7 +114,9 @@ Three corollaries:
    performance gestures `note_pitch` / `note_vol` / `note_glide`; live twins of the
    defines: `note_duty` `note_lfo` `note_env` `note_filter` `note_cutoff` `note_res`
    `note_drive` `note_echo` `note_harmonics` `note_timbre` `note_morph`.
-   Live writes slew per-sample (no zipper).
+   Live writes slew per-sample (no zipper). Plus one **event** rather than a parameter:
+   `note_retrig` re-articulates a voice you are already holding, click-free — the mirror of
+   `note_off`, and what `mono.h`'s `MONO_RETRIG` wants ([`held-notes.md`](held-notes.md)).
 4. **Musical time & theory.** `bpm` `beat` `beat_pos` `every` (the clock, ticked in
    `sound_tick(dt)`) · `euclid` `chance` `degree` (rhythm + scale math).
 
@@ -124,6 +126,7 @@ Three corollaries:
 | Destination | LFO (cycles) | mod-env (one-shot) | live (`note_*`) |
 |---|---|---|---|
 | pitch  | `LFO_PITCH` vibrato   | `ENV_PITCH` punch / zap | `note_pitch` (+ `note_glide`) |
+| *articulation* | — | — | `note_retrig` — re-fire the envelopes + onset on a HELD voice |
 | cutoff | `LFO_CUTOFF` wah      | `ENV_CUTOFF` the "pew"  | `note_cutoff` / `note_res` |
 | duty   | `LFO_DUTY` PWM shimmer| `ENV_DUTY` PWM sweep    | `note_duty` |
 | volume | `LFO_VOLUME` tremolo  | — *(the amp ADSR — deliberate, no `ENV_VOLUME`)* | `note_vol` |

@@ -120,8 +120,18 @@ void note_duty  (int handle, float duty);          // drive pulse width live (no
 void note_lfo   (int handle, int which, int dest, float rate_hz, float depth);  // retune LFO `which` (0..2) live — phase kept, no click
 void note_filter(int handle, int mode);            // switch filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide (int handle, int ms);              // portamento: note_pitch slides over `ms` instead of snapping (0 = snap)
+void note_retrig(int handle);                      // re-articulate: envelopes + the engine's onset fire again on THIS voice, click-free
 void note_off_all(void);                            // panic: release every held note (recover from a leaked handle)
 ```
+
+**`note_retrig` is the one that is not a "drive a parameter" call** — it is an *event* on a held voice, the
+mirror of `note_off`. Reach for it whenever a re-attack is wanted on a note you are already holding: a
+monosynth's trigger switch (`mono.h`'s `MONO_RETRIG`), a tongued wind line, an organ chip. The alternative
+people reach for instead, `note_off` + a fresh `note_on`, is not the same thing: it leaves the abandoned
+voice ringing at the *old* pitch under the new attack (27% louder, twice as long to settle, measured on
+`retrigprobe`), costs a second voice, and sets `held = false` on the old one so anything the cart was riding
+silently stops reaching it. It re-arms onset transients but never resonators — re-exciting a bore or a
+Karplus line is a new breath/pluck, which is what `note_on` is for. Audit §B3/§K6.
 
 **What can go live vs. what snapshots at note-on.** The rule is mechanical: anything the
 mixer reads *per sample* off the voice can be driven live — pitch, volume, filter

@@ -5079,7 +5079,7 @@
   },
   {
     "title": "pedalboard",
-    "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; AUTO button top-right toggles autoplay, which boots ON and stops the moment you play). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice.",
+    "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; the AUTO button top-right cycles the self-player off / STRUM / TRAVIS, boots on STRUM, and stops the moment you play; TRAVIS is Merle Travis fingerpicking - a metronomic alternating thumb bass under syncopated treble notes, which on the '5' power-chord shape goes sparse because its treble strings are damped). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice.",
     "file": "pedalboard.cart.png",
     "created": "2026-06-12",
     "kind": [
@@ -5767,6 +5767,19 @@
     "collection": [
       "responsive"
     ]
+  },
+  {
+    "title": "retrig probe",
+    "description": "Measurement probe for note_retrig, not a playable cart (status hidden). Holds one note and re-articulates it three ways at known times so click-check.js and wav-envelope.js have something deterministic to point at.",
+    "file": "retrigprobe.cart.png",
+    "created": "2026-07-30",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "algorithm-visualization"
+    ],
+    "lineage": "Measurement probe for note_retrig (synth-secrets audit §B3/§K6) — the deterministic target the click-check and onset-transient numbers in audio-notes.md were taken from."
   },
   {
     "title": "reverb spaces",

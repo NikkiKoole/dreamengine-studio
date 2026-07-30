@@ -21,7 +21,12 @@ _Last updated: 2026-07-30 (**THE CONTEMPORARY REBIRTH, RUNGS A + B — a post-ha
   `amount` 1 = true 1V/oct, 0.93 = Reid's taste value) plus **`ENV_CUTOFF_OCT`/`LFO_CUTOFF_OCT`** (sweep
   DEPTH in octaves, not Hz) — item 2.1; **`runtime/mono.h`** (note priority LAST/LOW/HIGH/FIRST × trigger
   SINGLE/MULTI/ANY, the thing that decides whether a monosynth feels playable) — item 2.2, driven by
-  `sh101`; **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
+  `sh101`; **`note_retrig(handle)`** (re-articulate a HELD voice — the envelopes and the engine's onset
+  transient fire again on the voice you already have, click-free, keeping its pitch and glide) — the 2.2
+  postscript, which closed audit **§K6** (the flute chiff needs to fire on every note *even when you play
+  legato*, and until now a cart gliding one held voice could not tongue it at all); `pipe` and `brass` each
+  gained a **T** slur/tongue toggle and `sh101` routes every articulation through one `articulate()` helper;
+  **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
   (real stiff-string inharmonicity, B ≈ 1.1e-4 on the grand) — item 2.3; and **`MODE_BOW_BODY`** (three
   parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) — item 2.4, in progress.
   `eng_p[]` is now **six** wide with the bound at `idx >= 6`.

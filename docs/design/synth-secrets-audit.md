@@ -2227,6 +2227,20 @@ This is the item the pass was run for.
 
 ### K6. The chiff must fire on every note, which needs multi-triggering
 
+> **✅ SHIPPED 2026-07-30** via `note_retrig(handle)` (plan 2.2 postscript). The chiff, the reed's breathy
+> onset and the brass "tah" are `pp_attack` / `rd_attack` / `br_attack` — sample countdowns that are
+> *separate* from the resonator, which is exactly the seam this needed: `note_retrig` re-arms those and the
+> envelopes on the voice you already hold, and deliberately does NOT re-excite the bore (that would be a
+> new breath, i.e. `note_on`). So a cart gliding one held voice can now tongue it. `pipe` and `brass` each
+> got a **T** toggle (slur vs tongued legato); brass defaults ON, because before this its mono mode could
+> not re-attack *at all* — every note after the first was a slur, permanently. Measured on `retrigprobe`
+> with a flat envelope, so the envelope rewind is a provable no-op and only the onset can move the
+> spectrum: brightness **0.036** / centroid **4953 Hz** at the retrig vs a 0.016-0.020 / ~3500 Hz sustain
+> baseline. Note the analysis-window trap that cost one wrong "the chiff never fired" reading: the probe's
+> retrig lands at ~0.98s, not 1.00s, so a 25ms window starting at 1.000 misses it entirely.
+> **§L4 is NOT closed by this** — it needs the mirror image (*suppress* a transient when a note is already
+> held), which is the per-instrument declaration §L4 argues for.
+
 Part 52, in the list of things the patch requires from its keyboard: "it's important that the keyboard
 offers **multi-triggering**. This ensures that the chiff occurs at the start of every note, **even when
 you play legato**." That is §B3 again, and note what kind of argument it is: not about feel or

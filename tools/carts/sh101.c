@@ -314,6 +314,15 @@ static void start_note(int midi) {
     cur_midi = midi;
 }
 
+// Re-fire the envelope on the FOUR source voices we already hold — no reallocation. This is the half
+// that used to be missing: before note_retrig, a re-attack had to go through start_note(), which killed
+// four voices and started four more, leaving four release tails ringing at the OLD pitch under the new
+// attack (measured on the probe: 27% louder, twice as long to settle). A real 101 has ONE VCA.
+static void retrig_note(void) {
+    for (int s = 0; s < NSRC; s++)
+        if (v[s] >= 0) note_retrig(v[s]);
+}
+
 static void glide_to(int midi) {
     // The PORTA SWITCH owns the glide TIME, including its OFF position; mono.h owns whether the envelope
     // re-attacks. Splitting those two is the entire point of item 2.2 and I only got half of it right at
@@ -349,6 +358,17 @@ static void stack_pop(int *st, int *n, int midi) {
 
 static int arp_running(void) { return arp_mode >= 0 && nlatch > 0 && !seq_play; }
 
+// ONE place that decides how the voice answers a note. `reattack` = the envelope should fire again.
+// The two axes are now genuinely separate: the PITCH always moves at the porta time, and the ENVELOPE
+// re-fires or doesn't, independently. That separation is what item 2.2 was after and what the old
+// glide_to-vs-start_note fork could not express — start_note re-voiced from zero, so asking for a
+// re-attack silently also asked for a pitch snap and a second set of voices.
+static void articulate(int midi, int reattack) {
+    if (cur_midi == NONE) { start_note(midi); return; }   // nothing sounding — we must allocate
+    glide_to(midi);                                       // pitch moves at the PORTA time, always
+    if (reattack) retrig_note();                          // …and the envelope re-fires on those voices
+}
+
 static void sh_key_down(int midi) {
     int legato = mono.n > 0;
     if (hold_on && mono.n == 0) nlatch = 0;    // new latch group
@@ -356,18 +376,17 @@ static void sh_key_down(int midi) {
     stack_push(latch, &nlatch, midi);
     if (seq_load && seq_n < MAX_SEQ) seq[seq_n++] = midi;
     if (arp_mode >= 0 || seq_play) return;     // clocked modes own the voice
-    if (trig_sel == 0) {                       // the 101's own answer — unchanged, porta decides
+    if (trig_sel == 0) {                       // the 101's own answer — porta decides
         int want_glide = cur_midi != NONE &&
                          (porta_mode == 2 || (porta_mode == 0 && legato));
-        if (want_glide) glide_to(mono.sounding);
-        else            start_note(mono.sounding);
+        articulate(mono.sounding, !want_glide);
         return;
     }
-    // Reid's policies: the header decided whether this is an attack or a legato move. A re-attack does
-    // NOT glide, because start_note() re-voices from zero — separating glide TIME from re-trigger is the
-    // structural gap this switch exposes, and it is deliberately left visible rather than papered over.
-    if      (ev == MONO_START || ev == MONO_RETRIG) start_note(mono.sounding);
-    else if (ev == MONO_GLIDE)                     glide_to(mono.sounding);
+    // Reid's policies: the header decided whether this is an attack or a legato move, and note_retrig
+    // now lets the cart honour that answer exactly. A re-attack keeps the porta time it was given
+    // instead of snapping — the structural gap this switch used to expose is closed.
+    if      (ev == MONO_START || ev == MONO_RETRIG) articulate(mono.sounding, 1);
+    else if (ev == MONO_GLIDE)                     articulate(mono.sounding, 0);
 }
 
 static void sh_key_up(int midi) {
@@ -375,17 +394,16 @@ static void sh_key_up(int midi) {
     if (!hold_on) stack_pop(latch, &nlatch, midi);
     if (arp_mode >= 0 || seq_play) return;
     if (hold_on) return;                        // latched: keep ringing
-    if (trig_sel == 0) {                        // the 101's own answer — unchanged
+    if (trig_sel == 0) {                        // the 101's own answer
         if (mono.n > 0) {
             if (mono.sounding == cur_midi) return;
-            if (porta_mode != 1) glide_to(mono.sounding);   // falling back is legato
-            else                 start_note(mono.sounding);
+            articulate(mono.sounding, porta_mode == 1);      // PORTA OFF re-attacks; else it's legato
         } else stop_note();
         return;
     }
     if      (ev == MONO_STOP)   stop_note();
-    else if (ev == MONO_RETRIG) start_note(mono.sounding);   // MONO_ANY: a hand-over re-attacks
-    else if (ev == MONO_GLIDE)  glide_to(mono.sounding);
+    else if (ev == MONO_RETRIG) articulate(mono.sounding, 1);   // MONO_ANY: a hand-over re-attacks
+    else if (ev == MONO_GLIDE)  articulate(mono.sounding, 0);
 }
 
 static void arp_toggle(int mode) {

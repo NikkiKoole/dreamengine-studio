@@ -847,9 +847,18 @@ his policies. Byte-identical renders prove the mapping instead of arguing it:
 
 | the 101's own controls | is byte-identical to |
 |---|---|
-| PORTA **OFF** (`ddb9d398da39`) | Reid's **ANY** at PORTA OFF (`ddb9d398da39`) |
+| PORTA **OFF** (`00cd58b00dee`) | Reid's **ANY** at PORTA OFF (`00cd58b00dee`) |
 | PORTA **AUTO** / **ON** (`3ad0f95fe278`) | Reid's **SINGLE** at PORTA AUTO (`3ad0f95fe278`) |
-| — nothing — | Reid's **MULTI** (`16e347617178`) |
+| — nothing — | Reid's **MULTI** (`4c7ba376353e`) |
+
+> Re-measured 2026-07-30 after `note_retrig` landed (see the postscript below). The **equivalences are
+> unchanged**; two of the hashes moved because the re-attack path did. Note what did NOT move:
+> `3ad0f95fe278` is the same value as before, because AUTO/ON is pure legato and `note_retrig` never
+> touches it. Only the PORTA-OFF row and MULTI changed (`ddb9d398da39` → `00cd58b00dee`,
+> `16e347617178` → `4c7ba376353e`), i.e. exactly and only the paths that re-articulate. Reproduce with
+> `node tools/ab-render.js sh101 --set trig_sel=0,1,2,3 --script tools/clips/sh101/01-overlap.script
+> --frames 200`. **`ab-render` will warn that "some variants rendered BYTE-IDENTICAL"** — here that is
+> the finding, not the bug its tripwire normally catches.
 
 So the real machine can reach only two of the three characters, and **MULTI is unreachable on its own
 panel**: re-attack on every press but glide on a hand-over. That is a concrete, measured answer to "what
@@ -869,9 +878,35 @@ then 134.1 Hz** between D3 (146.8) and C3 (130.8), i.e. audibly out of tune for 
 reads `(porta_mode == 1) ? 0 : f_porta(porta_v)`, so OFF means 0 ms and a legato move is an instant pitch
 change with no new attack — legato *without* portamento, which is the thing SINGLE is supposed to
 demonstrate. After the fix the same windows read a clean 146.6 → 131.0 with no intermediate pitch, the
-defaults are still byte-identical (`ddb9d398da39`), and SINGLE now renders the same whatever the glide knob
-says. **The lesson: separating two conflated axes is not done when the DECISION splits, only when every
-consumer of both axes splits too.** The glide knob was still reading from the old joint.
+defaults are still byte-identical (`ddb9d398da39` at the time; `00cd58b00dee` today), and SINGLE now
+renders the same whatever the glide knob says. **The lesson: separating two conflated axes is not done when
+the DECISION splits, only when every consumer of both axes splits too.** The glide knob was still reading
+from the old joint.
+
+**POSTSCRIPT 2026-07-30 — the last consumer that had not split, and it needed the engine after all.**
+The lesson above turned out to apply once more, to the *third* consumer: the ENVELOPE. `mono.h` decided
+re-attack-vs-legato and `glide_to` then owned the glide time honestly, but a cart's only way to *perform* a
+re-attack was `start_note()`, which re-voices from zero — so asking for a re-attack still silently asked
+for a pitch snap and a second set of voices. The axes were split in the decision and in the glide time, and
+still joined at the point of sounding. That is what [`note_retrig(handle)`](../../runtime/studio.h) closes
+(audit §B3/§K6): re-fire the amp + mod envelopes and the engine's onset transient **on the voice you
+already hold**, click-free, keeping pitch and glide. `sh101` now routes every articulation through one
+`articulate(midi, reattack)` helper — pitch always moves at the porta time, the envelope re-fires or does
+not, independently — which is the shape item 2.2 was reaching for from the start.
+
+Measured on [`retrigprobe`](../../tools/carts/retrigprobe.c) (the probe carries both recipes in its header):
+
+| | peak | settle back to sustain |
+|---|---|---|
+| `note_retrig` | 0.79 | 0.4 s |
+| `note_off` + `note_on` (the old path) | **1.00** | **0.8 s** |
+
+The old path is 27% louder and takes twice as long to settle, because the abandoned voice's release sums
+underneath at the *old* pitch. `click-check` puts the retrig at **1.5x** the local step-rms — the same as
+an ordinary note-on attack ramp, i.e. no discontinuity — which holds because the attack is *rewound to the
+point already at the current level* rather than zeroed, so the envelope is continuous by construction.
+And §K6's flute chiff re-arms: brightness **0.036** / centroid **4953 Hz** at the retrig against a
+0.016-0.020 / ~3500 Hz sustain baseline, stronger than the fresh-`note_on` control's 0.031 / 4510 Hz.
 
 **Not a bug, and worth writing down because it surprised the owner too:** this cart's default voice is SAW
 at 1.0 plus the SUB oscillator (a square, exactly −1 octave) at 0.75, with `vmod_v` 0 (no LFO→pitch), TUNE

@@ -26,7 +26,8 @@
 //   ...
 //   switch (mono_press(&mono, midi, vel)) {          // your key-down
 //       case MONO_START:  start_note(mono.sounding); break;   // silence → sounding: a fresh attack
-//       case MONO_RETRIG: start_note(mono.sounding); break;   // re-attack (may be the SAME pitch)
+//       case MONO_RETRIG: glide_to(mono.sounding);            // re-attack (may be the SAME pitch) —
+//                         note_retrig(h);            break;   //   move the pitch, THEN re-fire the env
 //       case MONO_GLIDE:  glide_to(mono.sounding);   break;   // new pitch, envelope untouched = legato
 //       case MONO_NONE:   break;                              // nothing audible changed
 //       case MONO_STOP:   stop_note();               break;   // (press never returns this)
@@ -34,6 +35,14 @@
 //
 // The header decides WHAT should happen; the cart owns HOW (whether a glide takes portamento time, how an
 // attack is voiced). It never calls into the engine, which is also what makes it fully spec-able.
+//
+// ⚠ MONO_RETRIG WANTS `note_retrig(handle)`, NOT a fresh `note_on`. Restarting the voice leaves the OLD
+// one ringing at the OLD pitch underneath through its release (measured: 27% louder, twice as long to
+// settle) and costs a second voice — a monosynth has one. `note_retrig` re-fires the envelope and the
+// engine's onset transient on the voice you already hold, click-free, keeping its pitch and glide. That
+// also DECOUPLES the two axes properly: the pitch still moves at your portamento time while the envelope
+// re-attacks, which the old glide_to-vs-start_note fork could not express (it silently coupled a
+// re-attack to a pitch snap). `sh101`'s `articulate()` is the worked pattern.
 //
 // ── THE TWO AXES ──────────────────────────────────────────────────────────────────────────────────────
 //

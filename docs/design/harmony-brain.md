@@ -311,3 +311,4 @@ call `hb_pick` per step; that's what made the byte-identical proof trivial.
 - [`demand-discovery.md`](demand-discovery.md) / [`field-notes/026-demand-discovery-cross-tribe.md`](../field-notes/026-demand-discovery-cross-tribe.md)
   — where the demand-82 signal and the "chord identify/progression" backlog line come from.
 - [`spec-harness.md`](spec-harness.md) — the deterministic oracle the analyzer must carry.
+- [`bandbox.md`](bandbox.md) — the band-in-a-box rack that consumes this engine's roadmap.

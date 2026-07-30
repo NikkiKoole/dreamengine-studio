@@ -718,7 +718,7 @@ at tracking 0 the line is dead **flat** while the notes climb away from it, and 
 resonance control is there for Reid's Part 63 Juno trick (crank it and the filter's own whistle becomes a
 playable voice). Pair: `build/ab/7-keytrack-{OFF-fixed-Hz,ON-follows}.wav`.
 
-**Two cart-authoring traps hit while writing it**, both worth the CLAUDE.md list: `SCALE` is a **`-D`
+**Two [cart-authoring](../guides/cart-authoring.md) traps hit while writing it**, both worth the CLAUDE.md list: `SCALE` is a **`-D`
 compile flag** (the window scale factor), so `static const int SCALE[30]` expands to `int 4[30]` and fails
 with a syntax error that points at the array, not the name; and `S` is `#define`d by the starter cart.
 

@@ -152,4 +152,6 @@ brief is its step 3, `epianofit` its step 4) ·
 [`device-adaptive-layout.md`](device-adaptive-layout.md) (the engine plan) ·
 [`acidrack-ui-research.md`](acidrack-ui-research.md) (touch/density numbers) ·
 [`design-system.md`](design-system.md) §8.3 (widget/editor swap) · `tools/carts/epianofit.c` (the
-mock) · `tools/carts/epiano.c` (the instrument) · `runtime/keybed.h` · `runtime/lay.h`.
+mock) · `tools/carts/epiano.c` (the instrument) · `runtime/keybed.h` · `runtime/lay.h` ·
+[`0028-sensible-defaults-optional-tweaks.md`](../decisions/0028-sensible-defaults-optional-tweaks.md)
+(the ADR this brief's default-ISO-OCT choice became).

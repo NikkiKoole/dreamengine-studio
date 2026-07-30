@@ -294,7 +294,8 @@ Ranked:
   starts ~5 kHz low and rises via a **negative `ENV_CUTOFF` amount** — the fast-closing sizzle of a
   sampled hat, synthesized. (Applies [`instrument-engines.md`](instrument-engines.md) §8.8:
   inharmonicity reads as metal, and the engine clamps cutoff *after* env addition, so negative
-  amounts are safe.) The 909 shuffle is period-correct (even 16ths drag; audio-notes §14 carries the
+  amounts are safe.) The 909 shuffle is period-correct (even 16ths drag;
+  [`audio-notes.md`](audio-notes.md) §14 carries the
   pre-build assessment). Six presets (Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909,
   Gabber); closed hat chokes open via `instrument_choke`. FLAM grew into a **stroke cycle**: plain →
   flam (1 grace, 22 ms early) → drag (2 graces) → ratchet (4 even hits chopped across the step —

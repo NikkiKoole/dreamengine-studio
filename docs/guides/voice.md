@@ -79,3 +79,6 @@ rhythm is the giveaway of the smoothed version — lean away from it.
   is *for*; editorial prose earns its place by adding the *why* and the *story*.
 - Not breathless ("revolutionary," "powerful," "seamless").
 - Not hedged into mush ("it could be argued that arguably this may perhaps…"). Say it.
+
+Where this voice came from: [`other-projects.md`](../other-projects.md) — the write-ups it was
+synthesized from.

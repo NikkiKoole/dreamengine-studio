@@ -383,7 +383,18 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > just B and pitch — every broken attempt hit a plausible B while sounding like a scattered metallic mess;
 > (2) the uncompensated validated point (2 stages, `c = −0.7770`) had a residual of 1.2¢, so the structure
 > is right until the compensation touches it.
-> **THERE IS AN EAR PAIR, and it is honest:** rather than ship a broken compensation it uses the
+> **⚠ THE EAR PAIR WAS CONFOUNDED AND THE OWNER'S EAR CAUGHT IT — do not re-run a timbre A/B yet.**
+> Reported untrained and without seeing numbers: *"B sounds like the sustain pedal is pressed, it dies out
+> earlier"*. `wav-envelope` confirms it hard: the dispersed take is **11 dB down by 0.26 s and 19 dB down
+> by 1.3 s**, so the pair's dominant audible difference is DECAY, not inharmonicity. My failure: I checked
+> peak and rms, saw rms 4.6 dB low, and flagged it as a level caveat instead of recognising a different
+> decay CURVE, which a level caveat does not cover. **Run `wav-envelope` on any A/B pair before handing it
+> over, not just the level numbers.** The finding underneath is bigger: a real stiff string rings for
+> seconds, so losing sustain means energy is leaving the loop — a first-order allpass is lossless in
+> theory, so suspect its interaction with the averaging/brightness filter and `effDamp`. B's centroid also
+> RISES as it decays (1026 → 1656 Hz), backwards for a struck string. **So §I4b has a THIRD open question:
+> does dispersion in this loop cost sustain, and why.** Answer that before any further ear test.
+> The pair itself, for reference: rather than ship a broken compensation it uses the
 > *uncompensated* validated config pitch-matched with `instrument_tune`, so it compares TIMBRE at one
 > pitch. `build/ab/piano-inharm-{A-OFF-today,B-real-stiff-string}.wav`, both within ~1¢ of pitch, B 1.7e-6
 > vs 2.2e-4, h8 +0.3¢ vs +17.1¢, residual 3.8¢. Caveats: B is ~2× a typical grand (deliberately audible),

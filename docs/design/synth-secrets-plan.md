@@ -1268,6 +1268,36 @@ grand, deliberately on the audible side for a first listen, and the two takes di
 if it loses, check it is not losing on loudness. It also cannot yet be extended to a musical phrase,
 because a phrase needs the per-note compensation that does not work.
 
+##### ⚠ The owner's ear killed this pair, and it was right: the A/B was CONFOUNDED BY DECAY
+
+Reported on first listen, untrained, without seeing any numbers: *"it sounds like B has the sustain pedal
+pressed in, so it dies out earlier"*. Measured with `wav-envelope`, that is not subtle:
+
+| t | A (today) | B (stiff) |
+|---|---|---|
+| 0.13s | 0.43 | 0.20 |
+| 0.26s | 0.29 | **0.08** |
+| 0.65s | 0.15 | 0.04 |
+| 1.31s | 0.09 | **0.01** |
+
+**B is ~11 dB down by 0.26 s and ~19 dB down by 1.3 s.** So the dominant audible difference in that pair
+is the DECAY, not the inharmonicity, and the pair is useless as a timbre test. **The process failure is
+mine and worth naming: I checked peak and rms and never checked the ENVELOPE SHAPE before handing it
+over.** rms being 4.6 dB low was the symptom and I wrote it off as "decays faster, flagged as a caveat"
+instead of recognising it as a confound that invalidates the comparison. A level caveat covers a constant
+offset; it does not cover a different decay curve. Add `wav-envelope` to the pre-handover check for any
+A/B, not just the level numbers.
+
+**And the finding underneath is bigger than the botched A/B.** A real stiff piano string rings for
+*seconds* — losing sustain is the opposite of what dispersion should do, so this is not a voicing
+difference to be re-tuned, it is energy leaving the loop. Two hints for whoever picks it up: B's spectral
+centroid *rises* as it decays (1026 → 1656 Hz while amplitude falls), which is backwards for a struck
+string, and a first-order allpass is theoretically lossless, so the loss is coming from the interaction
+with the rest of the loop (the averaging/brightness filter and `effDamp`) rather than from the allpasses
+themselves. **§I4b now has a third open question alongside the coupled compensation: does dispersion in
+this loop cost sustain, and why.** Until that is answered there is no point running another timbre A/B —
+it would be confounded the same way.
+
 #### Postscript: do not patch a shared engine to search a grid
 
 The first attempt at this measurement patched `runtime/sound.h` and rendered 24 variants. It left the

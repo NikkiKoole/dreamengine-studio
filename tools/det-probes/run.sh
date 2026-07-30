@@ -18,11 +18,12 @@ expect() {
     rotline)   echo "hash=f93ea939dda443a3 | worst_excess=0 worst_components=1 max_churn_per_deg=268";;
     rotspr)    echo "hash=e7bdd988fd0b7357 | NEAREST drop=16 frame_comps<=7 dot=308/360 | SUPER dot=252/360 | ROTSPRITE frame_comps<=2 dot=156/360";;
     textrot)   echo "hash=b57953ef3ef3aca3 | worst components (1=intact): NEAREST=1 SUPER=1 ROTSPRITE=1";;
+    demath)    echo "hash=470e965bbd212c86 | sin(.125)=0.707106829 exp2(0.5)=1.41421366 exp(1)=2.71828175 tanh(1)=0.761594176";;
   esac
 }
 
 fail=0
-for p in detstress stritex rotstroke rotfill rotline rotspr textrot; do
+for p in detstress stritex rotstroke rotfill rotline rotspr textrot demath; do
   echo "== $p =="
   clang -O2 "$p.c" -o "/tmp/$p.arm"  2>/dev/null
   clang -arch x86_64 -O2 "$p.c" -o "/tmp/$p.x86" 2>/dev/null || true

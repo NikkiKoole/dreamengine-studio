@@ -1,6 +1,25 @@
 #ifndef STUDIO_H
 #define STUDIO_H
 
+// Float math must land on the same bits on every device, or replays / ghosts / lockstep can't
+// work and the same cart sounds subtly different in the browser than it does natively.
+//
+// Modern CPUs have a fused multiply-add: it computes a*b+c in one step, keeping the product at
+// full width instead of rounding it first. Compilers use it automatically for any `a*b+c` they
+// see (clang's default is -ffp-contract=on), and it gives a BETTER answer — just a different
+// one. wasm has no scalar FMA instruction, so a native build fuses where the web build cannot,
+// and the two drift apart. Measured: with this off (and runtime/demath.h in place) all 16 audio
+// engines are bit-identical native-vs-wasm; with it on, they are not.
+//
+// This is a file-scope pragma on purpose. It applies to the rest of every translation unit that
+// includes studio.h — the engine, every cart, and the audio harness — so no build script has to
+// remember a flag. There are 19 compiler invocation sites in this repo; a flag would eventually
+// be missed on one, and a missed one fails SILENTLY (it still compiles, just stops matching).
+//
+// It does NOT override an explicit -ffp-contract=fast, which -ffast-math turns on. That is
+// already a standing build rule here (never -ffast-math, tools/det-probes/README.md).
+#pragma STDC FP_CONTRACT OFF
+
 #include <stdbool.h>
 
 // ------------------------------------------------------------

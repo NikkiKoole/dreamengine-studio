@@ -13,11 +13,20 @@
 //   node tools/web-audio-check.js --json
 //   node tools/web-audio-check.js --keep     keep build/.webparity/ (the binaries + WAVs)
 //
-// TWO-TIER verdict (the 2026-06-17 finding): 10/11 engines reproduce to 13-23 bits — the diff
-// sits 75-120 dB below the signal, inaudible. The exception is BOWED: its chaotic stick-slip
-// friction has sensitive dependence on initial conditions, so a 1-ULP libm/FMA difference at the
-// excitation diverges to a different micro-waveform (~-4 dB) — yet it's the SAME note (pitch +
-// level match). So:
+// STATUS 2026-07-30: ALL 16 engines are now BIT-IDENTICAL native-vs-wasm (0 LSB, diff -inf dB),
+// BOWED included. Two changes got it there, and the A/B showed neither alone is enough:
+//   1. runtime/demath.h — deterministic sin/cos/exp/log/pow/tanh, because libm is not spec'd to
+//      the bit and Apple's / emscripten's disagree by ~1 ULP.
+//   2. the file-scope `#pragma STDC FP_CONTRACT OFF` in runtime/studio.h — native fuses a*b+c
+//      into an FMA, wasm has no scalar FMA instruction, so they drifted apart everywhere.
+// So the two-tier verdict below is now SLACK, not a description of reality. Do NOT read a
+// BOWED divergence as "expected chaos" any more: it would mean one of those two regressed.
+// Tightening this to demand 0 LSB is a live option — see the note at the bottom of this header.
+//
+// TWO-TIER verdict (the 2026-06-17 finding, kept as the failure structure): the tiers exist
+// because a chaotic engine CAN diverge from a 1-ULP difference while remaining the same note.
+// That is no longer the case for any engine, but the structure still describes how it would
+// fail if determinism regressed. So:
 //   • Tier 1 SAMPLE parity — diff must sit >= PARITY_FLOOR dB below the signal. Catches a real
 //     codegen regression (a non-chaotic engine would jump from -95 dB to audible).
 //   • Tier 2 PERCEPTUAL parity — for an engine that fails Tier 1 (chaotic), the two renders' RMS

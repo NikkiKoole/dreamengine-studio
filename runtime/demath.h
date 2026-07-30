@@ -1,0 +1,256 @@
+// demath.h — deterministic float math: the same bits on arm64, x86-64 and wasm.
+//
+// WHY THIS EXISTS
+// IEEE 754 mandates correctly-rounded results for + - * / and sqrt, so those agree everywhere.
+// It says NOTHING about sin/cos/tan/exp/log/pow/tanh. Correctly rounding a transcendental is
+// expensive (the table-maker's dilemma), so no libm does it: Apple's libm, glibc, musl and
+// emscripten's all differ by ~1 ULP, and glibc even dispatches to different SIMD kernels
+// depending on the CPU it detects at load time. Same source, same input, different bits.
+//
+// That already cost this repo twice:
+//   • tools/det-probes/README.md — per-pixel rotation broke on an 8px glyph (patched by
+//     quantizing the rotation matrix to 1/4096).
+//   • tools/web-audio-check.js — the BOWED engine's chaotic stick-slip friction amplifies a
+//     1-ULP libm difference into a different micro-waveform, which is why that gate carries a
+//     two-tier verdict instead of demanding sample parity.
+//
+// WHAT TO USE, AND WHAT NOT TO BOTHER WITH
+// Roughly half the math surface needs no help. These are already bit-exact by spec — keep
+// calling libm, do NOT route them through here:
+//     sqrtf fabsf floorf ceilf truncf roundf fmodf fminf fmaxf copysignf ldexpf
+// The ones worth replacing are the transcendentals: sinf cosf tanf atan2f expf logf powf tanhf.
+// This header covers the four that dominate runtime/sound.h. See docs/design/determinism.md.
+//
+// HOW IT STAYS DETERMINISTIC
+//   1. Only + - * / and comparisons. Every one is correctly rounded, so every target agrees.
+//   2. FP contraction is pinned OFF per function. A Horner step is exactly the a*x+b shape a
+//      compiler fuses into an FMA, and an FMA keeps the product at full width instead of
+//      rounding it, so a contracted build and a non-contracted build disagree in the last bit.
+//      -ffp-contract=fast contracts across statements too, so splitting the expression is NOT
+//      enough; the pragma is. It beats clang's default (-ffp-contract=on) but NOT an explicit
+//      -ffp-contract=fast, which -ffast-math turns on. That is already a standing build rule
+//      here ("never -ffast-math", tools/det-probes/README.md) and demath.c gates it.
+//   3. Powers of two are built from the exponent bits, not by calling a library.
+//   4. Results below the normal float range are flushed to zero on purpose. Denormal handling is
+//      a per-CPU mode bit (SSE FTZ/DAZ, ARM FZ), so a denormal result is not portable either.
+//
+// Accuracy: every function below is within ~1 ULP of the correctly-rounded float result, which
+// is at or under the resolution of a float. Coefficients are relative-error least-squares fits;
+// they converge to the classical series (2*pi, ln2, -1/3, 2/15), which is the sanity check.
+
+#ifndef DE_MATH_H
+#define DE_MATH_H
+
+#include <stdint.h>
+#include <string.h>
+
+// Pinned on every function below. Placing it per-function keeps the effect contained to this
+// header: a file-scope pragma in a header silently changes codegen for everything included
+// after it, which is not a thing a header should do to its includer.
+#define DE_NO_CONTRACT _Pragma("clang fp contract(off)")
+
+#define DE_TWO_PI      6.28318530717958647692f
+#define DE_INV_TWO_PI  0.15915494309189533577f  // 1 / (2*pi)
+#define DE_LOG2E       1.44269504088896340736f  // 1 / ln(2)
+
+// ---------------------------------------------------------------- helpers
+
+static inline float de_bits_to_float(uint32_t b) { float f; memcpy(&f, &b, 4); return f; }
+
+// 2^n, exact, built straight from the exponent field. n outside the normal range saturates.
+static inline float de_pow2i(int n) {
+    if (n >  127) return de_bits_to_float(0x7F800000u);   // +inf
+    if (n < -126) return 0.0f;                            // flush, see note 4 above
+    return de_bits_to_float((uint32_t)(n + 127) << 23);
+}
+
+// floor for the range a phase accumulator ever reaches. Above 2^23 a float is already an
+// integer, so it is its own floor.
+static inline float de_floorf(float x) {
+    DE_NO_CONTRACT
+    if (x >= 8388608.0f || x <= -8388608.0f) return x;
+    float t = (float)(int32_t)x;              // truncates toward zero
+    return (t > x) ? t - 1.0f : t;
+}
+
+static inline double de_floord(double x) {
+    DE_NO_CONTRACT
+    if (x >= 4503599627370496.0 || x <= -4503599627370496.0) return x;   // 2^52
+    double t = (double)(int64_t)x;
+    return (t > x) ? t - 1.0 : t;
+}
+
+// ---------------------------------------------------------------- sin / cos
+
+// sin(2*pi*t), t in TURNS. This is the form sound.h actually wants: phase accumulators already
+// run 0..1, so reduction is `t - floorf(t)` (exact) with no pi multiply to lose bits in.
+// The core. Takes turns as a double so the wrap AND the quadrant fold both happen at full
+// precision; only the final small quarter-angle is narrowed to float. Doing it the other way
+// round (narrow first, fold second) costs the fold everything it needs: near half a turn the
+// fold is a subtraction of two nearly-equal numbers, so a float input there leaves the reduced
+// angle with only a couple of correct digits.
+static inline float de_sin_turns_d(double t) {
+DE_NO_CONTRACT
+    // Reduce SYMMETRICALLY into [-0.5, 0.5), not into [0,1). Wrapping a tiny negative phase up
+    // near 1.0 would round most of its precision away (floats step by 1.2e-7 up there).
+    t = t - de_floord(t + 0.5);
+    double q;
+    if      (t >=  0.25) q =  0.5 - t;        // sin(pi - a) == sin(a)
+    else if (t <  -0.25) q = -0.5 - t;        // sin(-pi - a) == sin(a)
+    else                 q =  t;              // already in the good quarter, untouched
+    // q now in [-0.25, 0.25]; odd polynomial, coefficients on x^1..x^9
+    float x = (float)q;
+    float s = x * x;
+    float p = 39.827521108f;
+    p = p * s + -76.588529412f;
+    p = p * s + 81.602718746f;
+    p = p * s + -41.341683053f;
+    p = p * s + 6.2831852837f;
+    return x * p;
+}
+
+// float -> double is exact, so these are the same values the all-float path produced.
+static inline float de_sin_turns(float t) { DE_NO_CONTRACT return de_sin_turns_d((double)t); }
+static inline float de_cos_turns(float t) { DE_NO_CONTRACT return de_sin_turns_d((double)t + 0.25); }
+
+// Radians, for the handful of call sites that are not phase-based. The radians -> turns scale
+// and the wrap run in DOUBLE: in float, x/(2*pi) for x around 20 keeps only ~5 digits of the
+// fractional turn, which is the part that matters. Double + - * / are correctly rounded and
+// mandated by IEEE 754 exactly as the float ones are, so this stays bit-portable. (The old
+// 80-bit x87 hazard does not apply: x86-64 uses SSE, arm64 and wasm are true binary64.)
+static inline float de_sinf(float x) { DE_NO_CONTRACT return de_sin_turns_d((double)x * 0.15915494309189533577); }
+static inline float de_cosf(float x) { DE_NO_CONTRACT return de_sin_turns_d((double)x * 0.15915494309189533577 + 0.25); }
+
+// ---------------------------------------------------------------- exp
+
+// 2^f for f in [-0.5, 0.5] — the shared core. Split out so the exponent reduction can happen in
+// whatever precision the caller needs before the polynomial runs.
+static inline float de_exp2_frac(float f) {
+DE_NO_CONTRACT
+    float p = 0.00015331506148f;
+    p = p * f + 0.0013394718260f;
+    p = p * f + 0.0096184945599f;
+    p = p * f + 0.055503422476f;
+    p = p * f + 0.24022647334f;
+    p = p * f + 0.69314719922f;
+    p = p * f + 1.0000000004f;
+    return p;
+}
+
+// 2^y, reduction in double. Every caller goes through here.
+static inline float de_exp2d(double y) {
+    DE_NO_CONTRACT
+    if (y >=  128.0) return de_bits_to_float(0x7F800000u);
+    if (y <= -126.0) return 0.0f;
+    double n = de_floord(y + 0.5);                       // nearest integer
+    return de_exp2_frac((float)(y - n)) * de_pow2i((int)n);
+}
+
+static inline float de_exp2f(float x) { DE_NO_CONTRACT return de_exp2d((double)x); }
+
+// e^x. The x * log2(e) scale runs in double on purpose: in float it rounds, and a 1-ULP slip in
+// an exponent of magnitude 43 comes out as ~30 ULP in the result (measured, before this fix).
+static inline float de_expf(float x) { DE_NO_CONTRACT return de_exp2d((double)x * 1.4426950408889634074); }
+
+// ---------------------------------------------------------------- tanh
+
+// The soft-clip / saturator that sound.h leans on 33 times.
+static inline float de_tanhf(float x) {
+DE_NO_CONTRACT
+    float a = (x < 0.0f) ? -x : x;
+    float r;
+    if (a < 0.55f) {
+        // Near zero the (e-1)/(e+1) form cancels catastrophically, so use a direct fit.
+        float s = a * a;
+        float p = -0.0063233815386f;
+        p = p * s + 0.021100912969f;
+        p = p * s + -0.053857498316f;
+        p = p * s + 0.13332604656f;
+        p = p * s + -0.33333315774f;
+        p = p * s + 0.99999999932f;
+        r = a * p;
+    } else if (a > 9.0f) {
+        r = 1.0f;                             // tanh(9) is 1 - 2.5e-8, under float resolution
+    } else {
+        float e = de_exp2d((double)a * 2.8853900817779268149);   // e^(2a); >= 3, so no cancellation
+        r = (e - 1.0f) / (e + 1.0f);
+    }
+    return (x < 0.0f) ? -r : r;
+}
+
+// ---------------------------------------------------------------- log / pow
+
+// log2, returned as a double because de_powf multiplies it by the exponent: any error here gets
+// scaled by y, so throwing away the extra bits before that multiply defeats the point.
+// x must be > 0 (0 gives -inf, negative gives NaN, matching libm).
+static inline double de_log2d(float x) {
+    DE_NO_CONTRACT
+    if (x <  0.0f) return (double)de_bits_to_float(0x7FC00000u);   // NaN
+    if (x == 0.0f) return (double)de_bits_to_float(0xFF800000u);   // -inf
+    int e = 0;
+    uint32_t b; memcpy(&b, &x, 4);
+    if ((b >> 23) == 0u) { x = x * 33554432.0f; e = -25; memcpy(&b, &x, 4); }  // lift a denormal
+    e += (int)((b >> 23) & 0xFFu) - 127;
+    b = (b & 0x807FFFFFu) | 0x3F800000u;      // mantissa alone, in [1,2)
+    float m; memcpy(&m, &b, 4);
+    if (m > 1.41421356f) { m = m * 0.5f; e += 1; }   // centre on 1, so t stays small
+    // log2(m) = t * P(t^2) with t = (m-1)/(m+1); P converges to (2/ln2) * [1, 1/3, 1/5, 1/7, 1/9]
+    double t = ((double)m - 1.0) / ((double)m + 1.0);
+    double s = t * t;
+    double p = 0.339784933646;
+    p = p * s + 0.411722327606;
+    p = p * s + 0.577082789151;
+    p = p * s + 0.961796677292;
+    p = p * s + 2.88539008179;
+    return (double)e + t * p;
+}
+
+static inline float de_log2f(float x)  { DE_NO_CONTRACT return (float)de_log2d(x); }
+static inline float de_logf(float x)   { DE_NO_CONTRACT return (float)(de_log2d(x) * 0.69314718055994530942); }
+static inline float de_log10f(float x) { DE_NO_CONTRACT return (float)(de_log2d(x) * 0.30102999566398119521); }
+
+// x^y. This is the one that matters most in sound.h: note frequency is 440 * powf(2, (midi-69)/12),
+// so it sets the oscillator increment, and an error here does not stay put — it accumulates as
+// phase drift for as long as the note sounds.
+static inline float de_powf(float x, float y) {
+    DE_NO_CONTRACT
+    if (y == 0.0f) return 1.0f;
+    if (x == 0.0f) return (y > 0.0f) ? 0.0f : de_bits_to_float(0x7F800000u);
+    if (x < 0.0f) {
+        // Only defined for an integer exponent, same as libm.
+        float ay = (y < 0.0f) ? -y : y;
+        if (de_floorf(ay) != ay) return de_bits_to_float(0x7FC00000u);   // NaN
+        float h = ay * 0.5f;
+        float r = de_exp2d((double)y * de_log2d(-x));
+        return (de_floorf(h) != h) ? -r : r;      // odd exponent keeps the sign
+    }
+    return de_exp2d((double)y * de_log2d(x));
+}
+
+// ---------------------------------------------------------------- odds and ends
+
+static inline float de_tanf(float x) {
+    DE_NO_CONTRACT
+    double t = (double)x * 0.15915494309189533577;
+    return de_sin_turns_d(t) / de_sin_turns_d(t + 0.25);
+}
+
+static inline float de_sinhf(float x) {
+    DE_NO_CONTRACT
+    float a = (x < 0.0f) ? -x : x;
+    float r;
+    if (a < 0.5f) {                            // the exp form cancels here, same as tanh
+        float s = a * a;
+        float p = 1.0f / 362880.0f;
+        p = p * s + 1.0f / 5040.0f;
+        p = p * s + 1.0f / 120.0f;
+        p = p * s + 1.0f / 6.0f;
+        p = p * s + 1.0f;
+        r = a * p;
+    } else {
+        r = 0.5f * (de_expf(a) - de_expf(-a));
+    }
+    return (x < 0.0f) ? -r : r;
+}
+
+#endif // DE_MATH_H

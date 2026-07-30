@@ -53,6 +53,19 @@ symbols, no ABI version-coupling).
   `de_mic_wanted()`. The seam is exported to JS via `EMSCRIPTEN_KEEPALIVE` + a malloc-free scratch
   buffer (`de_mic_scratch`). BUILD-VERIFIED (emcc compiles, both shells carry the glue, exports present);
   live mic needs a browser served over https/localhost (getUserMedia gate).
+  > **⚠ Never request `{ audio: true }` — always pass explicit constraints** (`MIC_CONSTRAINTS`,
+  > kept identical in both shells). `audio: true` accepts the browser's **voice-call** defaults,
+  > and all three are wrong for an instrument input:
+  > - **`echoCancellation`** — the expensive one. With AEC live the browser ducks and re-routes
+  >   system **output** so it can subtract it from the mic. The player experiences this as *"opening
+  >   the mic quietly turned my speakers down"* — reported from the wild 2026-07-30 (Firefox/macOS,
+  >   `pedalboard` GUITAR IN) and initially mistaken for an engine level bug. It is not our gain
+  >   staging; it is the browser's.
+  > - **`autoGainControl`** — rides the level, so a decaying string pumps back *up* as it fades.
+  > - **`noiseSuppression`** — trained on speech; it gates a quiet ring-out as noise.
+  >
+  > Use plain booleans, not `{exact:}`, so a browser lacking one ignores it rather than throwing
+  > `OverconstrainedError`. Same trap will apply to any future in-browser sampling/looping feature.
 - **iOS** — [`AudioEngine.swift`](../../ios/Sources/AudioEngine.swift) installs an `inputNode` tap
   (lazy on `de_mic_wanted`, permission-gated via `requestRecordPermission`, session switched to
   `.playAndRecord`/`.defaultToSpeaker` only while listening) pushing to `de_audio_input`;

@@ -1,6 +1,6 @@
 # Audio threading — the game-thread / audio-thread model (and how it ports)
 
-STATUS: SHIPPED (2026-06-10; iOS backend-preference 2026-06-11) — native thread model + the full web AudioWorklet backend landed (build stages 0–5); all instrument/radio carts published worklet-capable with a runtime-selected ScriptProcessor fallback and a 3-way auto/worklet/plain audio preference (auto-fallback on old iOS). Nothing outstanding beyond the documented iOS-quirk gotchas.
+STATUS: SHIPPED (2026-06-10; iOS backend-preference 2026-06-11, iOS fallback corrected 2026-07-30) — native thread model + the full web AudioWorklet backend landed (build stages 0–5); all instrument/radio carts published worklet-capable with a runtime-selected ScriptProcessor fallback and a 3-way auto/worklet/plain audio preference (auto-fallback on ALL iOS — the original `< 16` version gate silenced every modern iPhone, see the 2026-07-30 correction). Nothing outstanding beyond the documented iOS-quirk gotchas.
 
 > SPEC + RATIONALE (2026-06-10). The portable real-time-audio architecture dreamengine
 > already uses, why it generalizes to native iOS / Switch / desktop, and the staged plan
@@ -281,12 +281,30 @@ device split:
 
 | pref | behaviour |
 |---|---|
-| `auto` (default) | worklet everywhere **except iOS < 16** (UA `iPhone OS`/`CPU OS` major < 16 → plain). iPadOS 13+ poses as "Macintosh" → treated modern → worklet. |
-| `worklet` | force-register the SW (→ isolation) + load `worklet.js` everywhere |
+| `auto` (default) | worklet everywhere **except iOS, any version** → plain. Matches `iPhone`/`iPad`/`iPod` in the UA, plus iPadOS 13+ posing as "Macintosh" (caught by `maxTouchPoints > 1`, which a real Mac never reports). iOS Chrome/Firefox are WebKit underneath and carry `iPhone`/`iPad` in the UA, so the same test covers them. |
+| `worklet` | force-register the SW (→ isolation) + load `worklet.js` everywhere (on iOS: expect silence) |
 | `plain` | force `plain.js` everywhere, no SW |
 
-Default is **worklet on modern iOS** (what most users have) with an auto-fallback to plain only
-on genuinely-old iOS, so old-iOS visitors get *sound*, not silence, without touching anything.
+Default is **plain on every iOS device, worklet everywhere else.** The plain build sounds
+identical (only the timing is looser), so the cost of the fallback is near zero and the cost of
+guessing wrong is a totally silent app.
+
+> ### ⚠ Correction 2026-07-30: the version gate was wrong, and cost a whole platform
+>
+> `auto` originally fell back only on **iOS < 16**, defaulting *modern* iOS to the worklet on the
+> theory that the silence was an old-WebKit bug. It isn't. A player reported **"I was using an
+> up-to-date iPhone. Just wasn't getting any audio"** — the version gate had been routing every
+> current iPhone straight into the path this very section documents as silent, and the only
+> iOS devices that worked were the old ones.
+>
+> The bullet above already said it: *"No clean fixed-in version exists — so a precise version gate
+> is unsafe."* The finding was recorded correctly and the code shipped the unsafe gate anyway.
+> The fallback is now **version-free**. If a future WebKit genuinely fixes #237144, re-enable the
+> worklet on iOS by *measuring on device*, not by reading a version number.
+>
+> **Lesson worth keeping:** the failure was silent, on a platform none of the repo's oracles can
+> reach. There is no headless gate that would have caught it — it took a stranger with an iPhone.
+> Treat "works on my modern iPad" as one data point, not as coverage.
 The **gallery** (`build-site.js`) exposes the same choice as an `audio: auto/worklet/plain`
 toggle writing the same `localStorage` key (shared across the `/dreamengine/` origin), and marks
 dual-backend carts with a **⚡2×audio** badge. **Gotcha baked into the shell:** whenever the

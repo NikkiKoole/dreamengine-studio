@@ -1834,6 +1834,31 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
 These were considered and **cut** — kept here so the decision isn't relitigated.
 Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer or skip" and the 2026-05-30 review.
 
+- **`pedalboard`: on-screen text labels — nut string names, fret numbers, a chord-name readout.**
+  Proposed 2026-07-30 by a screenshot audit, on the reasonable argument that a chord diagram is
+  ambiguous without them. **Cut by the maker the same day: "i dont like that."** Three text overlays
+  would fight a 320×200 lo-fi surface, and two of the three were already solved anyway — the lit
+  root + shape buttons ALREADY read out the chord name, and the 3/5/7/9/12 inlays ARE the
+  guitarist's position system (a real neck has no numbers on it). The one genuine gap was
+  orientation, i.e. which end is the low E. A text-free fix for that — drawing the wound E/A/D
+  strings 2px and the plain G/B/e 1px, which is both true of the instrument and free of screen
+  space — was built, looked at, and **also cut as too noisy**. Orientation stays unlabelled.
+- **Fixing the 3×5 font's malformed `N`.** `FONT_TINY`'s N is `### / #.# / #.# / #.# / #.#` —
+  literally a Π, no diagonal (every other uppercase letter is correct; verified by dumping all 26
+  glyphs). It shows anywhere a cart prints an N at that size: in `pedalboard` alone that is GAIN,
+  SINE, NCH, ENV, RND, SNS and a dozen more. A source fix would help all 74 carts using `FONT_TINY`,
+  but it edits a shared asset in two places (`runtime/font3x5_data.h` + `editor/public/font3x5.png`)
+  and needs the canvas-diff golden re-blessed. **Cut 2026-07-30** — not worth the blast radius.
+  Where legibility actually mattered (pedalboard's keyboard hints) the fix was to use **`FONT_TIC`
+  (6×6), which has a correct N**; that is the pattern to reuse rather than touching the 3×5.
+- **`pedalboard`: choosing a default amp voicing / booting with the cabinet on.** A level-matched
+  four-way A/B was rendered (as-is · +string-weight/click · +cabinet · +detune) and measured — the
+  cabinet moves the spectral centroid ~1 kHz and adds ~17 dB RMS, i.e. it is the whole story, since
+  a clean power chord IS thin (distortion is what fills a bare fifth: at 3:2 the intermodulation
+  products land ON the harmonic series, which is *why* power chords exist). **Cut 2026-07-30** —
+  the cart keeps booting with `AMP: OFF` and the player picks. The five voicings are one flat,
+  visible list now, so choosing is a tap rather than a hidden cycle.
+
 - **A cart-making PLATFORM (outside authors)** — creator accounts, cart upload/sharing from
   strangers, a browser IDE for others, a public compile-strangers'-C server. **Cut**
   (2026-06-22, [decision 0020](decisions/0020-in-house-tool-curated-showcase.md)): dreamengine

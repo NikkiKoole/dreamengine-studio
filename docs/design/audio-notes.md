@@ -2568,8 +2568,35 @@ fully CW), default knobs `SPD 0.35 → 0.45`, `DEP 0.70 → 0.85`. Measured acro
 | 1.0 / 1.0 | 8.91 Hz | 2.000 | tremolo-pan (still reachable, deliberately) |
 | .45 / .00 | — | 0.000 | off |
 
-`WAV` needed no change: LFO shapes are indistinguishable at 4.5 Hz and obvious at 0.8 Hz, so the
-rate fix restores that knob for free. **TREMOLO keeps its linear `0.5 + k*11.5`** — 3-8 Hz *is*
+### 27.5 …and then the fixed rate exposed the SECOND bug: `WAV` had no readout
+
+Fixing the rate made `WAV` audible for the first time, and the same listener immediately hit the
+next thing: *"it feels kinda discrete, like in big steps — first no stereo pan, then suddenly there
+is. what does WAV do here?"*
+
+That is a perfect description of **SQUARE**, and nothing on screen said he was on it. `WAV` is
+`(int)(k[2] * 7.99f)` — **8 discrete LFO shapes behind a knob whose only readout is a pointer
+angle.** Measured pan-trajectory steppiness (max change per 40 ms, 0.79 Hz, full depth):
+
+| shape | max step / 40 ms | trajectory |
+|---|---|---|
+| SINE (default) | 0.272 | smooth sweep |
+| SQUARE | **1.488** | hard L, snap to hard R |
+| TRI | 0.213 | smoothest |
+| S&H | 0.609 | random stepped positions |
+
+So "discrete, big steps" was not a defect at all — it was SQUARE working correctly, on a knob that
+could not tell him he had left SINE. **SHIPPED:** TREMOLO and AUTOPAN's `WAV` label now swaps to the
+shape name (`SINE/SQR/TRI/SAW/RAMP/OPT/S&H/RND`) exactly like the six discrete-mode knobs that
+already did this (`LP/HP/BP/NCH`, `RAW/TS/RAT/MUF`, `GER/SIL`, `FRZN/LIVE`, …). The label is driven
+by *the same expression* that selects the shape, so the two cannot disagree. Amusingly
+`FX_FORMANT`'s MOD label already carried the comment *"the MOD knob shows its mode, like TREM's
+WAV"* — TREM's WAV never had one.
+
+**The general rule this earns:** a knob that selects a DISCRETE mode must display that mode. A
+continuous knob can get away with a pointer angle because you hear the sweep; a mode knob teleports
+you between behaviours with no in-between, so the angle tells you nothing. Worth auditing any other
+`(int)(k * N)` knob in the cart shelf against this. **TREMOLO keeps its linear `0.5 + k*11.5`** — 3-8 Hz *is*
 tremolo, so the same numbers are right there and wrong here. The two knobs look identical and were
 copy-pasted; the bug was assuming one map fits both.
 

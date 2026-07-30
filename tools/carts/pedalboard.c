@@ -823,6 +823,18 @@ static void draw_chain_pedal(int i, int x) {
         if (d->kind == -2 && j == 1) lbl = sl->k[1] < 0.5f ? "GER" : "SIL";   // FUZZ MODE: germanium ↔ silicon
         if (d->kind == FX_DRIVE && j == 1) { static const char *DN[4] = { "RAW","TS","RAT","MUF" }; lbl = DN[(int)(sl->k[1] * 3.99f)]; }   // OD VOICE (RAW / Tube Screamer / RAT / Big Muff via drive_voice)
         if (d->kind == FX_GRAINS && j == 3) lbl = sl->k[3] > 0.5f ? "FRZN" : "LIVE";   // GRAINS FRZ: freeze toggle
+        // TREMOLO / AUTOPAN WAV: 8 DISCRETE LFO shapes behind a continuous-looking knob, and until
+        // now the only readout was the pointer angle — so you could be on SQUARE and have no way to
+        // know. That is not cosmetic here: SINE sweeps (max pan step 0.27 per 40ms) while SQUARE
+        // SNAPS hard L↔R (1.49) and S&H jumps to random spots (0.61). A listener hit exactly this
+        // and reported autopan as "discrete, like in big steps — first no stereo pan, then suddenly
+        // there is", which is a perfect description of SQUARE that nothing on screen explained.
+        // (FX_FORMANT's MOD label above already carried a "like TREM's WAV" comment — TREM's WAV
+        // never actually had one.)
+        if ((d->kind == FX_TREM || d->kind == FX_PAN) && j == 2) {
+            static const char *WN[8] = { "SINE","SQR","TRI","SAW","RAMP","OPT","S&H","RND" };   // = LFO_SHAPE_*
+            lbl = WN[(int)(sl->k[2] * 7.99f)];
+        }
         font(FONT_TINY);                                          // label tucked beside the knob (the empty column)
         if (j & 1) print_right(lbl, kx - kr - 2, ky - 2, lblcol);   // right-column knob → label on its left
         else       print(lbl,       kx + kr + 2, ky - 2, lblcol);   // left-column knob  → label on its right

@@ -43,6 +43,40 @@ const wantCheck = argv.includes('--check')
 const raw = fs.readFileSync(FILE, 'utf8')
 const lines = raw.split('\n')
 
+// ── per-line age, from git blame ─────────────────────────────────────────────
+// WHY THIS IS CONTEXT AND NOT A CHECK. On 2026-07-30 item 25 claimed ui.h's on-device touch pass was
+// still outstanding. It had been answered 52 days earlier — in `touch-notes.md`, the day BEFORE ui.h
+// v1 shipped — and the item sat untouched the whole time. Nothing could catch that: "Still open: the
+// on-device probe run" is structurally identical to a genuinely open item, so `lint-docs` (links),
+// `lint-xrefs` (backlinks) and `stale-doc-check` (does a NAMED thing still exist) are all blind by
+// construction. `stale-doc-check` is doubly blind here because it keys on the FILE's mtime, and
+// STATUS.md is the most-edited doc in the repo — it never looks stale while individual lines rot.
+//
+// Age is the only mechanical signal, and it is far too weak to gate on: 34 of the 53 open items were
+// untouched for 45+ days, and most of those are parked on purpose. So it is printed as CONTEXT in the
+// front door — a reader gets the prior "this line is five months old, verify before trusting it" —
+// and never as a finding. Flagging 64% of a backlog trains people to ignore the tool.
+const lineAge = (() => {
+  try {
+    const out = require('child_process')
+      .execFileSync('git', ['blame', '--date=short', '-l', '--', 'docs/STATUS.md'],
+                    { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 })
+      .split('\n')
+    const today = Date.now()
+    return out.map(l => {
+      const m = l.match(/(\d{4}-\d{2}-\d{2})/)
+      if (!m) return null
+      return Math.round((today - Date.parse(m[1])) / 86400000)
+    })
+  } catch { return null }   // no git / shallow clone / dirty — age is a nicety, never required
+})()
+// youngest line in the entry: how recently ANY of it was revisited
+const ageOf = (e) => {
+  if (!lineAge) return null
+  const a = lineAge.slice(e.line - 1, e.line - 1 + e.len).filter(n => n != null)
+  return a.length ? Math.min(...a) : null
+}
+
 // ── parse ────────────────────────────────────────────────────────────────────
 const SECTIONS = [
   { key: 'shipped', re: /^## Shipped/ },
@@ -228,8 +262,14 @@ if (!wantCheck) {
   console.log('\n' + b('  OPEN') + dim('  (numbers are load-bearing — ~30 "STATUS #N" refs resolve; never renumber)'))
   for (const e of open) {
     if (doneInOpen.includes(e)) continue
-    console.log(`    ${dim('L' + String(e.line).padEnd(5))}#${String(e.num).padEnd(4)}${e.title}`)
+    const a = ageOf(e)
+    const tag = a == null ? '      ' : a >= 45 ? warn(String(a) + 'd').padEnd(15) : dim(String(a) + 'd').padEnd(14)
+    console.log(`    ${dim('L' + String(e.line).padEnd(5))}${tag}#${String(e.num).padEnd(4)}${e.title}`)
   }
+  if (lineAge) console.log(dim('\n  age = days since any line of the item last changed. An old open item is not a bug,'
+    + '\n  but it is the prior for "verify this is still true" — item 25 claimed an on-device pass was'
+    + '\n  outstanding for 52 days after touch-notes had answered it. Not gateable: 34 of 53 items were'
+    + '\n  45d+ stale and most were parked on purpose.'))
   if (doneInOpen.length) console.log(warn(`\n  ⚠ ${doneInOpen.length} listed-open item(s) read as shipped — run --check`))
   console.log(dim('\n  → node tools/status-check.js --check   for ledger drift'))
   process.exit(0)

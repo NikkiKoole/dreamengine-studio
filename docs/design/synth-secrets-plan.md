@@ -659,7 +659,7 @@ per-engine items is the single biggest saving available.
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | ✅ **SHIPPED** 2026-07-29 (`mono.h` + `sh101`) | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
 | 2.3(a) | **The premise failed, and both halves are now FIXED** (§I4b, §I4c, §I4d) | unblocks 2.3(b) | ✅ **SHIPPED 2026-07-30** — §I4c (stretch) + §I4b (`MODE_PIANO_STIFF`) by the owner's ear; §I4d open | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4; GUITAR and PLUCK harmonic too) **and** its stretched-tuning seam working in the **treble only**. §I4c is now fixed and, more importantly, **tune-check now asserts the stretch instead of tolerating it**. Write-up below |
 | 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | ~~five families~~ **ONE** | ❌ **DROPPED 2026-07-30** | — | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. Unblocked by (a), then **dropped**: measuring the five "families" found four have no inharmonicity to modulate at all, so the finding-count that ranked it into Phase 2 was arithmetic on a false premise. On the one engine that qualifies the effect is ±2–4¢ at h8, below noticing, while the cost rose (the relaxation half hits the `effLen` sustain trap). Full write-up + the ranking lesson below |
-| 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
+| 2.4 | **Coupling** (§H5, §I3, §M2; §E5 parked) | ~~four~~ **three** findings | DESIGN → 6 · **premise CHECKED 2026-07-30** | engine | One architectural question: in a real instrument energy flows BOTH ways between the vibrating thing and the body; in ours it only flows out. Premise check (below) **confirms §H5 and §M2's targets outright**, refines §I3, and **parks §E5** as unmeasurable until §E2. **Do §M2's A/B first** — three parallel 1–4 ms delay lines may be a body, cheaply, for guitar + bowed + the piano tricord at once |
 
 **Sequencing note:** 2.1 and 2.2 are prerequisites for a lot of Phase 3 and for §G, so they come first
 even though they are the largest items here. 2.4 should start with a measurement, not a build.
@@ -1462,7 +1462,36 @@ constant across the register, where a real Railsback curve rises at both ends. �
 2.3(b), the original level-dependent item, is now UNBLOCKED** — there is finally inharmonicity to make
 level-dependent.
 
-#### 2.3(b) — ❌ DROPPED 2026-07-30, and the reason is a lesson about ranking by finding-count
+#### 2.4 — PREMISE CHECK, run before trusting the ranking (2026-07-30)
+
+Done because dropping 2.3(b) exposed the method risk: **an item ranked by how many findings one change
+closes is only as good as the premises behind that count.** 2.3(b) counted five families and had one. So
+2.4's four faces were checked in the code and, where a claim was quantitative, re-measured.
+
+**Result: 2.4 survives — three solid faces, one parked.** Better than a re-rank; worse than the four it
+claimed.
+
+| face | claim | verdict |
+|---|---|---|
+| **§M2 / §F4** — `BOWED` has no body at all | ✅ **CONFIRMED** | There is no body state on the engine, full stop. Its own output line is `float out = toBridge * 0.8f` under the comment *"the bridge-side signal (**what the body radiates**)"* — the code names the body it does not model |
+| **§H5** — `GUITAR`'s body is an output filter with no return path | ✅ **CONFIRMED** | `body` is summed from four biquads driven by `dry`, then `mix = dry + gt_bodymix·(body − dry·0.3)`. Nothing is ever written back into `ks_buf`. Coupling is strictly one-way, exactly as the finding says |
+| **§I3** — the piano's strings do not exchange energy | ⚠ **REFINED, not confirmed as stated** | The two loops are genuinely independent (each reads/writes only its own buffer) and are merely summed: `out = (cur + c2) · 0.7f`. **But a weak return path does exist** — `ks_buf[…] += out · pn_symp · 0.015f` feeds the *mixed* output back in, so string 2 → string 1 coupling is real at ≈0.2% gain (`symp` 0.15 on the grand). It is **one-directional** (string 1 gets nothing back from itself into 2) and **single-tap** (at the 3rd partial). So the honest claim is *"no string↔string exchange, plus an asymmetric 0.2% output→string-1 tap"*, not *"no coupling"* |
+| **§E5** — brass's fundamental never stops dominating | ❌ **DOES NOT HOLD as stated → PARKED** | Re-measured at timbre **1.00**, morph **0.00** (morph low because §E9 established the engine's own vibrato smears this analysis and §E2 means it cannot be switched off): **h7 sits at +0.5 dB, i.e. LOUDER than h1**, with h3/h5/h8 all within 7.5 dB and h15 within 20 dB. The audit's *"h1 stays the loudest"* was taken at a different macro position. So this face is **not a reliable count until §E2 lands** |
+
+**The one part of the brass complaint that does hold robustly:** `energy >4kHz / total = 0.0%`, where Reid
+wants it high at forte. That is a broadband measure and far less vibrato-sensitive than per-harmonic levels,
+so the missing "shock-wave blat" stands as a finding even while §E5's fundamental-dominance framing does not.
+
+**What this means for the work.** The two faces §M2 actually targets — `BOWED` having no body and `GUITAR`'s
+body having no return path — are **both confirmed outright**, so §M2's A/B is well-founded and remains the
+right first move. §I3 stays in scope but its existing 0.2% tap must be accounted for rather than assumed
+absent (an A/B against "no coupling" would be measuring the wrong baseline). §E5 leaves the count.
+
+**Cost of this check: four greps and one render.** Set against 2.3(b), which was ranked into Phase 2 on an
+unverified count and would have been built before anyone noticed. Do this for any item whose ranking rests
+on a finding-count.
+
+### 2.3(b) — ❌ DROPPED 2026-07-30, and the reason is a lesson about ranking by finding-count
 
 **Dropped by the owner's call on the reasoning below, immediately after 2.3(a) shipped.** Recorded in full
 because it was one of the highest-ranked items in the whole plan, and because *why* it fell is more useful

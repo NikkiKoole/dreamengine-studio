@@ -456,45 +456,44 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > dark-grey, so decay/knock/velo had ALWAYS been invisible unless selected (`ui-audit` cannot see low
 > contrast; read the baked frame).
 >
-> **Resume-at: (1) re-voice the other five voicings' B by ear** — they scale from `stiff` (celesta 2.4e-4
-> down to clavichord 4.4e-5, plausible ordering but only the grand was ear-checked); **(2) 2.3(b) is ❌ DROPPED (2026-07-30), do not pick it up** — it was the plan's
-> highest-leverage remaining item on paper and measurement killed it. It was ranked "five families, one
-> physical fact", but four of the five have NO inharmonicity to modulate (GUITAR −3.1e-7, PLUCK 1.6e-8;
-> MALLET/MEMBRANE are modal, no energy at n·f0; BRASS is a plain delay) so it is ONE family, not five. On
-> PIANO the effect is ±2–4¢ at h8 (B must ~double to move a partial 10¢) where the owner already heard the
-> FULL static effect as "very subtle" on one note. And the cost rose: the relaxation half hits the `effLen`
-> sustain trap. **THE TRANSFERABLE LESSON: ranking an item by how many findings it closes is only sound
-> while those findings are BELIEVED rather than MEASURED** — `inharm-spec` would have re-ranked this out of
-> Phase 2 in one command, before any work. Two other multi-family items in the plan are ranked the same way
-> and deserve the same check. Unbuilt candidate shapes kept in plan §2.3(b); **(3) §I4d** (the loop's own
-> +1.3→+4.0¢ offset) and the constant-B simplification (a real Railsback B rises at both ends of the
-> keyboard). Queued gates from the specs question: the A/B comparability gate, and a "pitch is invariant
-> across `MODE_PIANO_STIFF`" assertion in `inharm-spec` (needs the spectral method, so not tune-check). After that, §I4b is a
-> real implementation (solve `c` per note from a per-voicing physical B, subtract the cascade's phase delay
-> from *every* line) and **2.3(b) finally unblocks**. Also queued, from the "would specs have caught this?"
-> question — three gates, none of them `spec()`: **(1) a MODE/`eng_p` bounds lint** (the bound exists twice
-> and widening one is a silent no-op; it has now bitten twice), **(2) an A/B comparability gate** (refuse a
-> pair whose envelopes differ), **(3) extend the runtime-seam-plus-differential pattern** across the
-> `instrument_*`/`MODE_*` surface, since *four* bugs this thread were the same shape — a value computed
-> correctly that never reaches the sound. Still open too:
-> with no stretch the loop runs +1.3→+4.0¢ sharp, and that offset is *window-dependent* because the
-> brightness bloom moves `ksb` and hence the loop delay within a note, so bless residuals per measurement
-> window). It also wants a decision on whether `B` becomes the real physical coefficient instead of
-> `stiff²·0.015`, so `inharm-spec` numbers can be compared against published piano data. Then **2.3(b)**
-> (the original level-dependent item) can finally sit on top of it. Full write-up with every table →
-> [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
-> **Two lessons worth carrying.** (1) `sound.h` said *"tune-check flags PIANO by design — that IS the
-> stretch, not a bug"*, and tune-check **passes**. A comment that pre-emptively explains away a gate turned
-> a green check into false confirmation for months; when a comment says a gate should be red, verify it IS
-> red. (2) The first draft of this finding said the stretch was cancelled outright — measured at **one
-> note** (C3) and generalised. The missing *flat bass* in the tune-check curve was the clue, on screen and
-> read as uninteresting residue. **Measure both halves of a signed curve before describing it.** **2.4 (coupling) should start with a MEASUREMENT, not a build** — §M2's claim that three
-> parallel 1-4 ms delay lines *are* a body, which if it holds may answer the brass bell, the guitar body and
-> the piano tricord cheaply and all at once. Still open from 2.2: `tb303`, `acidrack` and `moog` each still
-> hand-roll their own key assign; converting them one at a time is where the §L4-vs-§K6 argument (Hammond
-> percussion must be SINGLE, flute chiff must be MULTI) decides whether `mono.h` earns promotion into
-> `sound.h` as a property an instrument *declares*.
+> **Resume-at — the live queue, most-ready first.**
 >
+> 1. **§M2's A/B (item 2.4).** The live Phase 2 item, premise-checked and needs no ear to start. Three
+>    parallel 1–4 ms delay lines with feedback vs `gt_body`-style biquad formants: does a short-delay
+>    "room" make a convincing instrument body? Reid gives the range explicitly (Part 22, *"about 1mS to
+>    4mS"*) and notes a spring is far too long. Primitives already exist (`moddel_hermite`, the comb
+>    helpers, per-instrument aux buses). Targets `BOWED` (no body at all) and `GUITAR` (body with no return
+>    path) — both premises **confirmed**. Mind that §I3's piano tricord already has a weak 0.2%
+>    output→string-1 tap, so do not A/B it against an assumed zero.
+> 2. **Re-voice the other five piano voicings' `B` by ear.** Cheap, no new mechanism. They currently scale
+>    from `PianoVoicing.stiff` (celesta 2.4e-4 down to clavichord 4.4e-5 — plausible ordering) but **only
+>    the grand was ear-checked**. Use the `stiff` slider in the `piano` cart.
+> 3. **§I4d** — with no stretch the loop still runs +1.3→+4.0¢ sharp (its own uncompensated delay
+>    bookkeeping). Note the offset is **window-dependent**, because the brightness bloom moves `ksb` and
+>    hence the loop delay *within* a note, so any blessed residual is per-measurement-window.
+> 4. **Two gates, both cheap and both earned by this thread.** An **A/B comparability gate** (refuse to call
+>    two WAVs an A/B when peak, rms *or the decay curve* disagree — peak and rms passed on a pair whose
+>    decay differed by 19 dB). And a **"pitch is invariant across `MODE_PIANO_STIFF`"** assertion, which
+>    belongs in `inharm-spec` and NOT tune-check, because it needs the spectral method: YIN cannot track an
+>    inharmonic string (it read +26¢ sharp at conf 0.65).
+> 5. **Also open, lower value:** `B` is constant across the register where a real Railsback curve rises at
+>    both ends; and extending the runtime-seam-plus-differential pattern across the `instrument_*`/`MODE_*`
+>    surface, since *four* bugs in this thread were the same shape — a value computed correctly that never
+>    reaches the sound.
+>
+> **Three lessons this thread paid for, worth carrying to any engine work:**
+> (1) `sound.h` said *"tune-check flags PIANO by design — that IS the stretch, not a bug"* and tune-check
+> **passed**. A comment that pre-emptively explains away a gate turns a green check into false confirmation.
+> When a comment says a gate should be red, **verify that it is red.**
+> (2) The first draft of §I4c said the stretch was cancelled outright — measured at **one note** and
+> generalised, when the missing *flat bass* in the curve was the clue on screen the whole time. **Measure
+> both halves of a signed curve before describing it.**
+> (3) Ranking an item by how many findings it closes is sound **only while those findings are believed
+> rather than measured**. 2.3(b) counted five families and had one. 2.4's check cost four greps and one
+> render, and re-scoped it honestly. **Check the premise of any finding-count before trusting the rank.**
+>
+> Full write-ups, every table, and the cold-start reproduction recipes →
+> [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 > **Orienting cold on this thread:** `node tools/orient.js` for the repo, then read plan §1 (the gate + the
 > A/B protocol), §2 (the add-vs-change ladder) and §4 (Phase 1, incl. the three finished write-ups). The
 > audit is reference only — never add work items to it, only ✅ verdict banners pointing back at the plan.

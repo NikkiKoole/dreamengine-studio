@@ -522,6 +522,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              mic-spike/      SPIKE (audio-input frontier): can the engine HEAR? miniaudio mic capture → live mic_level()/mic_pitch() (Tier-1, docs/design/mic-and-sampling.md). run.sh fetches miniaudio.h + builds; CONFIRMED LIVE on Mac (webcam mic, peak −17 dBFS — level clean, zero-crossing pitch is octave-noisy)
              build-app.js    build a MULTI-CART app from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound/video/sheet contexts (de_switch_cart umbrella) — adding a rack = one manifest line. Bare = a native binary; --mac wraps it signed+notarized via mac-app.sh; --ios stages the set for the Xcode build (ios/device.sh|build.sh APP=<name>)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
+             status-check.js the front+back door for docs/STATUS.md, the shipped/open/cut LEDGER — the one
+                             doc everything tells you to TRUST and the only one held to no standard (both
+                             linters carve it out; neither can see a ledger losing sync with the repo,
+                             because none of it is a broken link). Bare = the index it lacks (counts,
+                             shipped newest-first, the REAL open list). `--check` = drift: a DONE marker
+                             inside Open (38% of the backlog on day one), an over-long entry, an undated
+                             one, Shipped out of order, numbering inversions, a bloated headline, a dead
+                             "see Decided-against" pointer. ⚠ NEVER renumber to fix an inversion — ~30
+                             `STATUS #N` refs across docs/tools/carts resolve today; reorder instead
              lint-aux-params.js  the per-engine AUX PARAM channel (`instrument_mode`/`eng_p[]`) writes its
                              width in FIVE places that must agree (both `eng_p[]` decls, BOTH `idx >= N`
                              bounds — the setter AND the SR_ENG_TUNE handler — the note-on copy, and every

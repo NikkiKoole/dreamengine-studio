@@ -42,6 +42,21 @@ a broken doc link or `#section`).
 > What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
 > one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
 > updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
+> **▶ ACTIVE THREAD (2026-07-30) — `pedalboard`: the guitar rig, and an APP IN REVIEW.**
+> **This lane did not exist until 2026-07-30, and it should have.** A handoff audit found `pedalboard` was
+> the single most active thread in the repo — 18 commits since 07-28 (fret wires warmed into the board, the
+> mute check tracking the hand, TRAVIS picking as a second autoplay style, autoplay keeping YOUR chord
+> shape, boot on G major, `mouse_wheel_x()`) — while appearing in this file exactly once, as one of 23
+> carts that use `INSTR_GUITAR`. A cold agent would not have known the effort existed.
+> It is also a PRODUCT: `apps/pedalboard` has its icon, screenshots, listing and review contact pushed,
+> and is **in review** (see `STATUS.md`). The engine seam it rides is the `input_monitor(gain)` pedal tier
+> that shipped 07-22, so real GUITAR IN → amp → pedals works on desktop.
+> **Resume-at:** the cart's own punch list — `node tools/cart-todos.js pedalboard` — plus
+> [`design/effects-bus-architecture.md` → Increment E, the output stage](design/effects-bus-architecture.md#increment-e--the-output-stage-4th-zone-cabinets--ampcab--leslie)
+> for the amp/cabinet model
+> (`runtime/ampcab.h` is the shared voicing table; `fxicons.h` is the shared pedal LOOK).
+> Hot files: `tools/carts/pedalboard.c`, `runtime/ampcab.h`, `apps/pedalboard/app.json`.
+
 > **▶ ACTIVE THREAD (2026-07-30) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4 is the live item**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
@@ -186,6 +201,8 @@ a broken doc link or `#section`).
 > hip-hop rack needs its own name before it ships).
 
 > **▶ ACTIVE THREAD (2026-07-21) — `bandbox`: the chord-chart SEQUENCER — WIRED (spec 131 green); open = `band.h` extraction + richer per-voice editors.**
+> **Resume-at:** [`design/bandbox.md` → Build plan](design/bandbox.md#build-plan-ordered) — steps 1–6 are
+> done and the cart plays; what is left is the `band.h` extraction and richer per-voice editors.
 > The standalone device-face instrument the `chordwise` analyzer pointed at: a 160×100 face where you
 > compose a chord chart and a genre band (chords/bass/mel/drums/pad) follows it, every voice a lane of
 > **lego-block cells** with per-cell **p-locks**. This session settled the whole LOOK (draw-only mockup,
@@ -221,56 +238,23 @@ a broken doc link or `#section`).
 > **NEXT (the maker's call):** prove a ROOMY branch on a REAL cart — `acidcandy` (a 4-machine rack, D/B the
 > likely pick) turns the mockup into a shipped tablet arrangement and hardens the grammar once more; OR
 > **Layer 4** (make face.h the default), worth it only once L3 is judged proven enough.
-> **acidcandy ROOMY layout — MILESTONE 1 WIRED (2026-07-23) into [`acidcandy.c`](../tools/carts/acidcandy.c) `draw_rack2` (`rack_view==2`).**
-> The `acidcandy_ipad` mockup is now a real `draw_rack2()` (helpers `r2_*`) coexisting behind a toggle
-> (default UNTOUCHED — reach it via the **NEW** button in the old 2×2; **HOME** → 2×2 → **NEW** on desktop).
-> LIVE now: sticky FOCUS, per-machine MUTE, PLAY, MST TEMPO/SWING/GLU/FLT/PUMP + mixer, both 303 knob-columns
-> (acid 5 + FX trio + CL/DF + KEY label), the shared screen (303 note-grid tap/drag-draws real notes · drum 2D
-> voice-grid tap/drag paints · MST PCF/CRU/GAT lanes), 808/909 pad strips (tap=select+audition-when-stopped) +
-> the shared colour-coded context panel. **M2 (next):** the soft-key row is drawn but INERT — wire each key to
-> swap the screen (FLAG/PERF/GEN/KIT + DF deep page/WAVE + KEY editing + per-step ACC/PROB/STRK + 909 METAL XY +
-> MST RES/FB + DELAY buttons + drum MUT/REC + VOL·PAN·FINE). Gate before flipping the default: the feature-parity
-> checklist in [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md). The original draw-only mockup
-> stays at [`acidcandy_ipad`](../tools/carts/acidcandy_ipad.c).**
-> Maker-driven ground-up iPad layout, all 5 machines at once (NOT the roomyface tiles): narrow 303a/303b +
-> MASTER knob-strips bracket a big shared SCREEN; 808(16)/909(11) as pad-bank strips stacked at the bottom.
-> **STICKY FOCUS** (tap a nameplate → that machine's DEEP editor fills the screen; play stays live for all).
-> Screen per focus: 303 = tb303 note-grid (colour=accent, shape=oct/slide/tie); drum = 2D voice-grid; MST =
-> automation lanes. Drums have no column, so the bottom strip = voice PADS + one SHARED colour-coded context
-> panel (in the 909's spare room) that follows the last-picked voice on either machine (blue=808 / yellow=909).
-> Full model + the OPEN questions (drum VCE home, 303 pitch-gutter, 808 grid cell size) are in the cart's
-> `de:meta`; run `node tools/orient.js acidcandy_ipad`.
-> **This REPLACES acidcandy's current iPad rack** — `draw_rack` (acidcandy.c ~L2273, the `rack_view==1` path):
-> a 2×2 of the full phone device-faces (909|808 / 303a|303b) + a master strip = "four phones taped together",
-> four tiny screens, no focal point (the maker isn't happy with it). The mockup's bet = minimal per-machine
-> surfaces + ONE big shared screen via sticky focus. TRADEOFF the maker accepted: give up editing all 4
-> patterns AT ONCE (2×2) for a big calm one-at-a-time deep editor (play stays live for all).
-> **COEXISTENCE (app is under App Store review — do NOT delete the old):** keep `draw_rack` as the shipping
-> DEFAULT; wire the new layout as an ALTERNATE behind a toggle (e.g. `rack_view==2` / a dev flag), flip the
-> default to it only when the maker is FULLY happy, remove the 2×2 only after that.
-> **NEXT = maker locks the screen model, then WIRE** the new `draw_rack` variant — data shapes are concrete
-> (per-step degree/acc/slide/oct/tie for 303s, voice×step for drums); the 303/drum grids already exist in
-> `acidcandy.c` (seq_grid / draw_808 / draw_909) to lift from. **Wiring GATE = the feature-parity checklist**
-> in [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md) (every phone feature must reach the
-> new layout before flipping the default off `draw_rack`; several OPEN: DF deep page, FLAG/PERF/GEN/KIT,
-> MUT/REC, VOL/PAN/FINE, 909 METAL XY, MST RES/FB, DELAY buttons, per-machine SEND).
-> **Resume-at:** [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md) + [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest).
-> Hot files: `runtime/face.h` · `runtime/lay.h` · `runtime/ui.h` (shared — targeted `Edit`s only, the sound.h rule applies).
+> **acidcandy ROOMY — SHIPPED 2026-07-23, and this block used to say the opposite.** It described a
+> COEXISTENCE plan ("app is under App Store review — do NOT delete the old"), a `rack_view==1` path, a NEW
+> button, and an INERT soft-key row. All of that is gone: commit `a16b2527` **removed** the old 2×2
+> `draw_rack` and promoted ROOMY to THE tablet view (`acidcandy.c:106` says so; `rack_view` is now `0` =
+> phone / `2` = ROOMY, auto-selected from `device_class()` at `:3396`, and most of the soft-key row is
+> wired — `r2_dpaint`/`r2_303panel`/`r2_drumpanel`/`r2_mstpanel`). **A reader following the old text would
+> have gone to protect code that no longer exists**, which is why it is called out rather than quietly
+> deleted. Current state and what is genuinely left:
+> [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md) (STATUS: shipped — its checklist is
+> historical).
+> **Resume-at:** [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest)
+> — Layers 1–3 shipped; **Layer 4 (make `face.h` the default) is the open one.** The acidcandy ROOMY proof
+> above is done, so that branch of the NEXT above is closed.
 
-> **▶ ACTIVE THREAD (2026-07-18) — walkbox: a walking-bass step-sequencer ("303 done right, as a real pluck").**
-> A TB-303 workflow driving the upright's real `INSTR_BOWED` pizz voice — the cell nobody had
-> (`acidcandy`/`tb303` = the 303 workflow on a *synth* voice; `upright` = the pluck voice *played
-> live*; **walkbox = 303 workflow + real pluck**). SHIPPED this session, all committed, cart plays:
-> note-bars (draw the line, scale-locked E min-pent) + a **tabbed VEL | LEN drawable lane** (velocity
-> → pluck attack `note_on` vol; length → staccato gate, top of lane = TIE/ring-on) + **SLD/OCT** rows
-> + **SWING** (odd-16th shuffle, a port of tb303's clock) + GLIDE/TEMPO/TONE/RING + RND/CLR. Voice =
-> mono pizz re-pitched per step; SLIDE = same-voice `note_glide` slur (both directions); TIE detaches
-> the voice to ring on. Banked gotcha: `ui.h` `UI_MAX_WID=64` silently drops later widgets → use
-> **one widget per row/lane**, compute the column from touch x (per-cell widgets killed the TIE row +
-> knobs). **Resume-at:** [`design/walkbox.md`](design/walkbox.md) — the articulation roadmap (open:
-> ghost-as-a-muted-timbre, hammer/pull, scoop/fall, presets + save/load) and the **modern-bass
-> voice-swap** direction (the lanes are voice-agnostic; swap the pizz for an electric/sub voice).
-> Hot file: `tools/carts/walkbox.c` (self-contained — no shared-header edits).
+> **⏸ PARKED (last touched 2026-07-18) — `walkbox`, a walking-bass step-sequencer.** Core + articulation
+> play; what is left (ghost notes, hammer-on/pull-off, presets) is a wish list, not a blocker. Ledgered in
+> [`STATUS.md`](STATUS.md). Resume at [`design/walkbox.md`](design/walkbox.md).
 
 > **▶ ACTIVE THREAD (2026-07-18) — the CHORD-BLOOM rack (`chordblossom2`).**
 > The winning answer to "make a radio song playable": NOT a radio turned inside-out (`bossabloom`
@@ -361,9 +345,10 @@ a broken doc link or `#section`).
 >   metric shows octave-continuity / retune-glide / hysteresis all MEASURE as no help → the warble is the streaming
 >   pitch/epoch **resolution**, needs a YIN-grade real-time tracker or the phase vocoder (a dedicated effort, not
 >   spike tweaks). See `design/transparent-autotune.md` §"live real-time path" for the full write-up.
-> **Resume-at: [`design/audio-input-frontier.md`](design/audio-input-frontier.md) — the ranked map.** Auto-tune
+> **Resume-at: [`design/audio-input-frontier.md` → the frontier, ranked](design/audio-input-frontier.md#what-it-opens-next--the-frontier-ranked-by-juice-per-effort).** Auto-tune
 > arc is COMPLETE for the offline feature; the LIVE path is feasible-and-parked (warble). Open frontier, ranked:
-> (1) the **pedal tier / live looper** (the `sound_extin` ring is the built foundation — the loudest unmet wish);
+> (1) the **live looper** — the *pedal tier* half of this SHIPPED 2026-07-22 (`input_monitor(gain)`, and
+>     `pedalboard` became its own app, in review); the looper is the part still open;
 > (2) **vocoder v2 tail** — mic-rate resample (non-44.1k device mics drift the ring) + on-device latency tuning;
 > (3) **beatbox→live drum trigger**; (4) **live-autotune warble** if revisited (real-time YIN / phase vocoder).
 > `voxroll` decouples formant/pitch but only on synth `INSTR_VOICE`, not a real-mic corrector.
@@ -458,84 +443,25 @@ a broken doc link or `#section`).
 > [`control-vocabulary.md`](design/control-vocabulary.md). Cousin lane: the acidrack redesign (R5,
 > `disclose.h`) below — acidcandy is the candy device-face *take*; that lane re-lands acidrack itself.
 
-> **▶ ACTIVE THREAD (2026-07-13) — demand discovery: the reddit-gaps drip is running.**
-> A new tool (`tools/reddit-gaps.js`) mines a music tribe's public RSS for unmet demand → clusters →
-> cross-references our cart shelf → ranks gaps. TWO tribes done
-> ([note 022 · ipadmusic](field-notes/022-demand-discovery-ipadmusic.md),
-> [023 · synthesizers](field-notes/023-demand-discovery-synthesizers.md)) — convergent thesis: the
-> opening is a *cheap, playful, beginner lo-fi toy in classic-gear clothes*, NOT a feature.
-> A macOS LaunchAgent **drips one sub every 6 h** (rotation: `tools/reddit-gaps-subs.txt`), so the
-> caches KEEP GROWING between sessions.
-> - **Where the freshly-downloaded data lands:** `tools/reddit-gaps-cache/<sub>.json` (gitignored —
->   regenerable, never committed per Reddit policy) + the run log `tools/reddit-gaps-cache/drip.log`.
-> - **To see what's been collected next time:** `ls -lt tools/reddit-gaps-cache/` (newest first),
->   then `node tools/reddit-gaps.js <sub>` renders the gap report from cache, or `--raw` dumps the
->   mined wish list. `cat tools/reddit-gaps-cache/drip.log` shows the drip's history.
-> - **Resume-at:** when a sub's cache looks rich, read `--raw` and write the next numbered field note
->   (the interpretation is a judgment step, not automated) — pick-up point in
->   [`design/demand-discovery.md`](design/demand-discovery.md#where-the-findings-live-and-grow).
-> - Hot files: `tools/reddit-gaps.js`, `tools/reddit-gaps-subs.txt`. Drip stop/start/fire-once
->   commands are in that doc's "Continuous fetching — the drip" section.
-> - **First build-output of the thread → the tombola cart** ([`design/tombola.md`](design/tombola.md)):
->   the demand's one genuinely-missing on-grain gap (tape=already `loopstation`, chord-toy=already
->   `chordblossom`), designed as a physics sequencer on the [device-face paradigm](design/device-face-paradigm.md)
->   (§1f = the fuller OP-1 device analysis for the paradigm-sharpening pass). **Shipped 2026-07-14** (`tools/carts/tombola.c`) — see `design/tombola.md`. When
->   building: reuse the new `runtime/physics.h` (verlet balls) + `circlemachine` (note wiring) — the
->   tombola only adds a rotating drum + trigger-line — resume at [`design/tombola.md`](design/tombola.md#prior-art-in-the-repo-reuse-and-what-s-already-covered).
+> **⏸ PARKED (last field note 2026-07-18) — demand discovery, the reddit-gaps drip.** The 6 h LaunchAgent
+> keeps mining and the caches keep growing (24 tribes, 1,411 wishes clustered), so this is a STANDING
+> PROCESS rather than in-flight work; the tombola toy it produced shipped 2026-07-14. Resume — including
+> where the findings live and how to drip the next tribe — at
+> [`design/demand-discovery.md`](design/demand-discovery.md#where-the-findings-live-and-grow).
 
-> **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
-> A research question ("what's the best responsive UI for a music cart?") turned into
-> reusable process + two live design docs + a clearly-scoped new feature to build. **What shipped
-> (docs/tools, all committed):**
-> - [`design/acidrack-ui-research.md`](design/acidrack-ui-research.md) — external survey of the
->   303/909/808 + best clones + the touch/density numbers (48px floor, band table).
-> - [`guides/responsive-instrument-ui.md`](guides/responsive-instrument-ui.md) — the reusable
->   **playbook**: sound→inventory→steal-IA→tier→**brief**→prototype→sweep→hands→ship, with the
->   field-note-018 traps baked in as guards.
-> - [`decisions/0028-sensible-defaults-optional-tweaks.md`](decisions/0028-sensible-defaults-optional-tweaks.md)
->   — the rule: pick the stranger-legible default, ship it, leave a **seam**; don't agonize, don't
->   over-configure. Wired into [design-system](design/design-system.md) §5 + the playbook.
-> - `tools/carts/epianofit.c` — the step-4 layout **MOCK** (no audio): device-fit + finger unit +
->   disclosure across all shapes. Keys: `1-5` lock device / `0` auto / `m` machine / `f` fx / `s`
->   scale / `r` key / `i` iso-layout / `g` force piano-or-grid / `n` native full-bleed.
-> - [`design/epiano-layout-brief.md`](design/epiano-layout-brief.md) — **re-scoped** to the FAITHFUL
->   epiano (the classic `keybed.h` piano that scales with width + a disclosing sound panel).
-> - [`design/scale-grid.md`](design/scale-grid.md) — the scale-locked isomorphic pad grid **split
->   out** as its own feature (a *general* note surface, not epiano's soul — the maker wants the piano
->   kept AND the grid, eventually).
-> - **SHIPPED (2026-07-07): the `scalegrid` cart** (`tools/carts/scalegrid.c`) — the playable,
->   sound-bearing showcase, device-tested on multitouch, pinned by a **71-assertion `spec()`**. 11
->   scales (incl. blues + the SoundForest "FOREST" voicing), ROW = OCT↔4TH toggle, SQR↔HEX packing
->   (equidistant-neighbour Tonnetz grid, nearest-centre hit-test, pixel-correct regular hexagons),
->   fill-both-dims finger-first sizing + a SIZE cycle, and a VOICE cycle (PD/EPIANO/MALLET/ORGAN/PLUCK).
->   No-gap lattice proven across all scales × both modes. The maker's verdict on glass: "a very nice
->   musical toy."
->
-> **Resume-at: the scale-grid "where does it live" question ([scale-grid.md §3](design/scale-grid.md#3-where-does-it-live-answered-b-c)) is ANSWERED B→C** —
-> built as its own cart first, grid maths kept in self-contained pure fns (`compute_grid`/`pad_midi`/
-> `pad_center`/`pad_at`/`hex_verts`). **The one open step: extract those into a `grid.h` library**
-> (twin of `keybed.h`, reuse `solo.h`'s scale-lock) so the whole shelf reuses it — then wire epiano's
-> optional **editor-swap** to it. Separately, epiano's faithful Phase-3 (piano scales with width) per
-> its brief. **Both, eventually — the grid does not replace the beloved piano.**
->
-> **Hot files:** `tools/carts/scalegrid.c` (the shipped grid — extract from here), `runtime/solo.h`
-> (scale-lock to reuse for grid.h); `tools/carts/epianofit.c` (the earlier silent layout mock, still
-> the epiano-brief reference). Gate: `node tools/spec.js scalegrid` (71/0).
+> **⏸ PARKED (last touched 2026-07-07) — responsive instrument UI.** The playbook, ADR-0028, the epianofit
+> mock and the `scalegrid` cart (device-tested, spec 71/0) all shipped. The single open step is extracting
+> the grid into a `grid.h` library — **`runtime/grid.h` does not exist** and nothing has moved since, so
+> this is dormant, not nearly-done. Resume at [`design/scale-grid.md`](design/scale-grid.md).
 
-> **▶ ACTIVE THREAD (2026-07-10) — device-adaptive layout (the acidrack redesign · Phase 3 = R1–R6).**
-> Foundation is DONE (Phases 0–2: `runtime/lay.h` + a resizable/growable-framebuffer canvas + iOS
-> fill/safe-area/rotation). The **`acidwire` wireframe did its job** — interactive, felt on glass across
-> phone portrait/landscape + iPad, all four states; its lessons are field note
-> [020](field-notes/020-the-fit-cart-earns-it-on-glass.md). **R1** (brief) captured, **R2**
-> (`runtime/disclose.h` — shape + finger-budget accordion + stack) SHIPPED + proven in acidwire
-> (`27637b26`/`d96c4404`); **R3** (`finger_px()`/`device_class()` — real backing-scale finger unit)
-> SHIPPED + verified on device (`7102af8b`).
-> **Status + what's-left + the sequence now live in ONE scoreboard — Resume at**
-> [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands-scoreboard).
-> Short version: **R5 next** (port acidrack onto `disclose.h` + `finger_px()` + make the deferred
-> CONTENT calls on glass) → R4 alongside → R6 (`epiano`) last.
-> Hot files: `runtime/disclose.h`, `tools/carts/acidwire.c`, `tools/carts/acidrack.c`. Ledger:
-> [`STATUS.md`](STATUS.md) #2. Exemplar/guide: [`guides/interactive-wireframes.md`](guides/interactive-wireframes.md).
+> **⏸ FOLDED INTO THE `face.h` LANE (2026-07-30) — device-adaptive layout / the acidrack redesign.**
+> Phases 0–2 shipped (`runtime/lay.h`, the resizable canvas, iOS fill/safe-area/rotation), R2
+> (`runtime/disclose.h`) and R3 (`finger_px()`/`device_class()`) shipped and verified on device, and the
+> `acidwire` wireframe did its job (field note 020). **But `acidrack.c` has not moved since 2026-07-14 and
+> `disclose.h` since 07-10, while the tablet answer actually shipped through `face.h` + ROOMY in acidcandy
+> — so this and the faces lane were two lanes describing one thread.** R5 (port acidrack onto `disclose.h`
+> + `finger_px()`) is still open and now rides the faces lane above. Scoreboard:
+> [`device-adaptive-layout.md` → Where this stands](design/device-adaptive-layout.md#where-this-stands).
 
 > **▶ ACTIVE THREAD (2026-07-19) — store / ASO + the app-trailer builder.**
 > **LATEST (2026-07-19) — Tiny Acid Jam is LIVE ON ASC as a draft (the FIRST standalone single).**
@@ -636,38 +562,10 @@ a broken doc link or `#section`).
 > full two-section panel is in HEAD. **Resume at:** eyeball the ☁︎ panel after `make`; screenshots
 > channel is the next unbuilt one (deferred by the maker until there's more screenshot tooling).
 
-> **▶ ACTIVE THREAD (2026-07-07) — leads: the local marketeer (demand generation).** A new
-> tool that answers "where do I post about this cart?" — the generation twin of the `aso-*`
-> capture tools. **What shipped (committed):** `tools/leads.js` (7 commands: `match` cart→tribe→
-> venues · `discover` venue-hunt links + Google-autocomplete signals · `draft` a gift-first post
-> scaffold from the cart's own words · `track` outreach log · `audit` whole-catalogue coverage,
-> free/local · `list` · `--check`) + `tools/leads-ledger.json` (committed, hand-editable; **18
-> tribes**/9 cross-cutting, seeded from [tinyjam-marketing](marketing/tinyjam/tinyjam-marketing.md) §3.9). The model is **buckets**: a tribe =
-> tags + venues + hook; carts auto-match on `de:meta`; a `domain` (music/game/any) pre-filter keeps
-> games off music-press venues. Reddit's free API is dead (403) — discover uses free Google
-> autocomplete + search-url launchers.
-> **Update 2026-07-07 — the MUSIC TAXONOMY is substantially filled: 18 → 34 tribes (run `node tools/leads.js --check` for the live count), music coverage
-> 62% → 90%.** The big idea (from a maker insight): **the tribe is the SCENE, not the FORMAT.** The
-> genre-radio carts each homage a specific artist (jingle=Mac DeMarco, eno=Brian Eno, afrobeat=Fela,
-> house=Daft Punk) → scene tribes keyed on the identity word, with `generative` (r/generative·lines·
-> Disquiet) as a cross-domain FORMAT amplifier. Added: ambient/citypop/afrobeat/frenchhouse/
-> indie-jangle/microtonal/generative, `piano`+`vintage-poly` (homed the piano/juno misfiles),
-> physical-modeling/guitar/world-folk (acoustic cluster), novelty-toy/vocal-synth. Fixed the `moog`
-> subtractive over-match (31→14) and the `drone`/`vowel`/`vocoder` generic-adjective noise (tag on
-> identity, never technique). Model refinement written into `leads-marketeer.md`.
-> **PARKED (maker's call):** the 4 weak-room scenes (satie/bossa/mariachi/tango — stay on the
-> generative amplifier) + games buckets (GTM: web-gallery-only; `arcade` is the one game tribe).
-> **Update 2026-07-07 — the editor Apps-page surface is BUILT v1:** the Apps card gained a **reach**
-> section + **📣 find tribes** button (mirrors the ASO 📊 glance). Per cart of the app it renders
-> tribes + matched tags + hook + venues (clickable → browser) + a copyable **post scaffold**, plus
-> cross-cutting once — "we prep, you post." New `leads.js match --json` + `studio:leads` IPC
-> (app-scoped, loops the app's carts). **NEEDS AN ELECTRON RESTART** (`make`) — main.cjs/preload.cjs
-> changed. Verified via CLI (tinyjam 3-cart aggregation), not yet eyeballed in the running UI.
-> **Resume-at: [`leads-marketeer.md` → Open questions / resume-at](design/leads-marketeer.md#open-questions-resume-at)** (item #4) — (a)
-> maker eyeballs 📣 on the tinyjam card after `make`; (b) v2 = the free-form per-cart **discover box**
-> (autocomplete venue hunt) + a cart-scoped entry point (v1 is app-scoped like the ASO tools). Hot
-> files: `editor/src/shell.js` (+shell.css), `editor/electron/main.cjs`/`preload.cjs`, `tools/leads.js`,
-> `tools/leads-ledger.json` (hand-edit venues). Gate: `node tools/leads.js --check`.
+> **⏸ PARKED (tool unchanged since 2026-07-07) — `leads.js`, the local marketeer.** Built and ledgered in
+> [`STATUS.md`](STATUS.md); the taxonomy has grown through USE (34 tribes today) but the tool itself has
+> not changed. Open: the editor Apps-page surface. Resume at
+> [`design/leads-marketeer.md`](design/leads-marketeer.md#open-questions-resume-at).
 
 ## History & reference (pruned 2026-07-05)
 

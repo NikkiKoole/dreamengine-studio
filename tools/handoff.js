@@ -90,7 +90,11 @@ for (let i = 0; i < lines.length; i++) {
   // Scope the anchor search from the Resume-at line to the END OF THE LANE, not just that one line: a
   // multi-line Resume-at (a numbered queue, say) legitimately carries its anchor a few lines below the
   // label, and requiring it on the label line reported those as unanchored.
-  const rIdx = block.findIndex(l => /\*\*\s*Resume[- ]at/i.test(l))
+  // Match the label ANYWHERE in the line, not only right after `**`: lanes legitimately write it mid-bold
+  // ("**Status + what's-left — Resume at**"), and requiring the prefix reported those as having none. The
+  // drifted spellings (Resume-at / Resume at / resume at) are all accepted on purpose — normalising the
+  // prose is a doc job, and a checker that only sees one spelling is worse than useless.
+  const rIdx = block.findIndex(l => /Resume[- ]at/i.test(l))
   const noResume = rIdx < 0
   const unanchored = rIdx >= 0 &&
     !/\]\([^)\s]+\.md#[^)\s]*\)/.test(block.slice(rIdx).join('\n'))

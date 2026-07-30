@@ -2400,6 +2400,22 @@ Engine: `sound_organ_start` ([`runtime/sound.h:3065`](../../runtime/sound.h)), `
 
 ### L2. Percussion is second-harmonic only; the real instrument has a Second/Third selector
 
+> **✅ SHIPPED 2026-07-30** as **`MODE_ORGAN_PERC_THIRD`** (`instrument_mode` idx 0, ≥0.5 = third). Verified
+> with `harmonic-spec` on a C4 — and the registration choice is what makes the test work at all. On `gospel`
+> it reads as nothing (h2 −3.8→−3.5), because gospel has the 4′ *and* 2⅔′ drawbars fully out, so both
+> harmonics already carry drawbar content and the chip is lost in it. On **`jimmy`** (16′+5⅓′+8′ only, both
+> those drawbars OFF) any energy at h2/h3 **is** the chip:
+>
+> | | h2 (523 Hz) | h3 (785 Hz) |
+> |---|---|---|
+> | SECOND (default) | **−27.2 dB** | −82.6 dB |
+> | THIRD | −84.8 dB | **−23.9 dB** |
+>
+> A ~58 dB swap with h1 and h4 unchanged. **It cost no widening of the aux channel**, which was the expected
+> price: the `MODE_*` index space is per-engine (`MODE_BOW_PIZZ` is also 0) and ORGAN had never touched
+> `eng_p`, so idx 0/1 were free. Default `0.0f` = SECOND, which is what a Hammond does with the THIRD tablet
+> up, so the default is unchanged — verified byte-identical, see §L3.
+
 - **Book:** Part 57 lists the A100's **four** percussion controls — On/Off, **Second/Third**, Normal/Soft,
   Fast/Slow — and describes the mechanism as "diverting part of the **4' or 2 2/3'** signal through a VCA
   controlled by an AD contour generator". Since 4' is ratio 2.0 and 2⅔' is ratio 3.0, Second percussion is
@@ -2426,6 +2442,20 @@ genuinely missing axis. Also one `eng_p` slot.
 > describes them only qualitatively, FAST "like a xylophone or glockenspiel" and SLOW "slowly like a chime").
 > **So our fixed decay already IS the FAST setting, and it is well matched.** What is missing is specifically
 > **SLOW**, not a corrected decay time — which makes this a smaller and better-defined item than it read as.
+>
+> **✅ SHIPPED 2026-07-30** as **`MODE_ORGAN_PERC_SLOW`** (`instrument_mode` idx 1, ≥0.5 = slow), scoped by
+> that correction to just the missing half. `ORGAN_PERC_TAU_FAST` 0.20 / `ORGAN_PERC_TAU_SLOW` 0.80, both
+> named as the **time constants** they are, with the ~4.2× multiplier to audible length written down beside
+> them so the same misreading cannot recur. Measured on `jimmy` by finding where the FAST and SLOW renders
+> re-converge: SLOW's chip persists **~3.0 s** against ~3.36 s predicted, and FAST's **0.83 s** from the
+> earlier §L4 differencing. Both inside their reported real ranges (0.5-1 s, 2.5-5 s).
+>
+> **The default is byte-identical — proven, and the first attempt to prove it FAILED, which was the useful
+> part.** Re-rendering the previous commit's exact script gave a different hash. Before concluding anything
+> I inlined the two literals back and re-rendered: still different. The difference was another agent's
+> `demath` determinism refactor landing in between, **not** the selectors; with that held constant,
+> eng_p-indirection and inlined literals hash identically. Worth keeping as a habit — on a shared engine,
+> *"same script, different bytes"* is not evidence about **your** change until you have held the rest still.
 
 ### L4. Hammond percussion is SINGLE-triggering, and this is the strongest argument yet for §B3
 
@@ -2578,14 +2608,23 @@ because its filters have zero resonance. Ours has no filter in the way at all.
 | # | Step | Kind | Where |
 |---|---|---|---|
 | 1 | L5 add the saw-ish and square-ish registrations | two table rows | `organ` |
-| 2 | L2 + L3 Second/Third selector and Fast/Slow decay on `eng_p` | engine, small | `organ` |
+| ~~2~~ | ~~L2 + L3 Second/Third selector and Fast/Slow decay on `eng_p`~~ ✅ **SHIPPED 2026-07-30** — cost no aux-channel widening (per-engine index space, idx 0/1 were free) | engine, small | `organ` |
 | ~~3~~ | ~~L4 percussion single-trigger~~ ✅ **SHIPPED 2026-07-30** as `instrument_trigger` | engine policy | `organ` vs `pipe` |
 | 4 | L6 tonewheel leakage (§C8) | engine, small | `organ` |
 | ~~5~~ | ~~L7 percussion steals from the sustain **+ cancels the 1′ drawbar**~~ ✅ **SHIPPED 2026-07-30** (−2.14 dB steal, 1′ verified gone at −77 dB) | two multiplies | `organ` |
 
-> **Re-ordered then closed, 2026-07-30.** Step 5 jumped the queue because it was the item the owner actually
-> noticed, and it turned out to be three lines. **The percussion sub-story is now: single-trigger ✅ → trade
-> rather than add ✅ → and what remains is only the two SELECTORS** (L2 Second/Third, L3 Fast/Slow), both
+> **THE PERCUSSION SUB-STORY IS COMPLETE, 2026-07-30.** All four of the real instrument's percussion tablets
+> now exist: depth (the morph macro, already there), trigger (§L4 `instrument_trigger`), harmonic (§L2
+> `MODE_ORGAN_PERC_THIRD`) and decay (§L3 `MODE_ORGAN_PERC_SLOW`), plus the two behaviours that make it
+> *trade* rather than add (§L7). `organ` shows all four in one row under the keys. **What remains on the
+> Hammond at all is only L5 (two registration table rows) and L6 (tonewheel leakage).**
+>
+> The order this happened in was not the planned one, and the reason is worth keeping: step 5 jumped the
+> queue because it was the item the owner actually *noticed*, and it turned out to be three lines. Then §L3's
+> correction shrank step 2 before it was built (our decay already matched FAST, so only SLOW was missing) and
+> §L2 turned out to need no aux-channel widening at all. **Two of the three remaining items got smaller by
+> being looked at properly rather than by being worked on.** Older note, for the record — Step 5 jumped ahead
+> of steps 1, 2 and 4, which then read: **the two SELECTORS** (L2 Second/Third, L3 Fast/Slow), both
 > `eng_p` work, and L3 is now known to need only the SLOW half since our fixed decay already matches FAST.
 > Worth noting how this one arrived: it was sitting in "smaller items" as a one-liner with Reid's own
 > "we're going to overlook this" attached, and it took a listener saying *"that's a lot of perc"* to reveal

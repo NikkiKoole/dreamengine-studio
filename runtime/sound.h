@@ -3146,6 +3146,16 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
 #define ORGAN_PERC_STEAL 0.30f   // drawbar level lost at FULL percussion depth (0.30 → gain 0.70, −3.1 dB)
 #define ORGAN_BAR_1FOOT  8       // index of the 1' drawbar in RAT[] (ratio 8.0), cancelled while perc is on
 
+// PERCUSSION DECAY, the real instrument's FAST/SLOW tablet (§L3). These are exponential TIME CONSTANTS, not
+// audible lengths — a distinction this audit got wrong once and is worth not repeating: the audible tail runs
+// about 4.2× tau (measured, by differencing a TRIG_SINGLE render against a TRIG_MULTI one, which differ by
+// exactly one ping). So 0.20 → ~0.83 s and 0.80 → ~3.3 s. Reported real decays are ~0.5-1 s for FAST and
+// ~2.5-5 s for SLOW (owner reports by ear; Hammond's own manual only says FAST is "like a xylophone or
+// glockenspiel" and SLOW decays "slowly like a chime"), so both land inside their range. FAST is unchanged
+// from what shipped, which is why the default is byte-identical.
+#define ORGAN_PERC_TAU_FAST 0.20f   // ~0.83 s audible — the tablet UP position, and our long-standing default
+#define ORGAN_PERC_TAU_SLOW 0.80f   // ~3.3 s audible — the chime
+
 // ORGAN percussion depth from the morph macro: it fades in over morph's top ~45%, so a lively B3
 // chips and a still combo organ doesn't. Shared by note-on and note_retrig (which re-arms the chip).
 static inline float sound_organ_perc_amt(float mor) {
@@ -3242,11 +3252,19 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
         v->org_click *= 1.0f - dt / 0.003f;
         if (v->org_click < 0.0001f) v->org_click = 0.0f;
     }
-    if (v->org_perc > 0.0001f) {                        // percussion: a 2nd-harmonic ping, fast decay
-        v->org_perc_ph += f * 2.0f * dt;
+    if (v->org_perc > 0.0001f) {                        // percussion: the ping, on the selected harmonic
+        // HARMONIC SELECTOR (§L2) and DECAY SELECTOR (§L3) — the remaining two of the real instrument's
+        // four percussion tablets. Both read `eng_p`, and note the index REUSE: the aux-param index space
+        // is per-engine (MODE_BOW_PIZZ is also 0), and ORGAN had never touched eng_p, so these cost no
+        // widening of the channel — which is the part that has silently broken twice before.
+        // Both default to 0.0f, and both defaults are the right ones: SECOND is what a Hammond does with
+        // the THIRD tablet up, and FAST is the decay we already shipped. So this is byte-identical unless asked.
+        float rat = (v->eng_p[MODE_ORGAN_PERC_THIRD] >= 0.5f) ? 3.0f : 2.0f;   // 2⅔' vs 4' drawbar pitch
+        float tau = (v->eng_p[MODE_ORGAN_PERC_SLOW]  >= 0.5f) ? ORGAN_PERC_TAU_SLOW : ORGAN_PERC_TAU_FAST;
+        v->org_perc_ph += f * rat * dt;
         if (v->org_perc_ph >= 1.0f) v->org_perc_ph -= 1.0f;
         dry += de_sin_turns(v->org_perc_ph) * v->org_perc * 0.4f;
-        v->org_perc *= 1.0f - dt / 0.2f;                // ~200ms
+        v->org_perc *= 1.0f - dt / tau;
         if (v->org_perc < 0.0001f) v->org_perc = 0.0f;
     }
     // morph = animation: the scanner CHORUS (C-mode, dry+wet) deepens with morph; 0 = a

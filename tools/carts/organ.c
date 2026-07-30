@@ -13,7 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "INSTR_ORGAN engine showcase and tuning rig — the Leslie is a verbatim navkit processLeslie port (band-split rotary with mechanical rotor inertia), replacing an earlier per-voice LFO recipe.",
-  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. THE PERCUSSION IS SINGLE-TRIGGERING, which is a fact about the instrument and not a taste setting: on a real Hammond the percussion is one shared circuit that only recharges once every key is up, so a CHORD gives ONE chip rather than one per note, and playing legato kills the chip entirely - which is exactly why organists play that attack staccato. Press P to A/B it against the wrong (one-per-note) behaviour. The key CLICK is unaffected either way, because that is contact bounce in each key's own switch. And the percussion now TRADES rather than just adds, which is what stops it sounding pasted on: while it is engaged the drawbars drop about 2 dB (a real Hammond's deliberate 'volume compensating' drop) and the 1' drawbar is CANCELLED outright, because the percussion diverts that tone generator - so a percussion registration is darker and a touch quieter, exactly like the real instrument. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay, P percussion trigger. Multitouch.",
+  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. THE PERCUSSION IS SINGLE-TRIGGERING, which is a fact about the instrument and not a taste setting: on a real Hammond the percussion is one shared circuit that only recharges once every key is up, so a CHORD gives ONE chip rather than one per note, and playing legato kills the chip entirely - which is exactly why organists play that attack staccato. Press P to A/B it against the wrong (one-per-note) behaviour. The key CLICK is unaffected either way, because that is contact bounce in each key's own switch. And the percussion now TRADES rather than just adds, which is what stops it sounding pasted on: while it is engaged the drawbars drop about 2 dB (a real Hammond's deliberate 'volume compensating' drop) and the 1' drawbar is CANCELLED outright, because the percussion diverts that tone generator - so a percussion registration is darker and a touch quieter, exactly like the real instrument. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay. THE PERCUSSION ROW under the keys is all four of the real instrument's percussion tablets: depth rides the MORPH slider, P is the trigger rule, O picks the HARMONIC (2nd = the 4' drawbar pitch, bright and clear; 3rd = the 2 2/3' pitch, powerful and heavy) and I picks the DECAY (fast ~0.8s like a xylophone, slow ~3.3s like a chime). All four default to what a vintage B3 does with its tablets up. Multitouch.",
   "todo": [
     "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
@@ -48,7 +48,9 @@ de:meta */
 // controls: white keys  A S D F G H J K   ·   black keys  W E . T Y U
 //           hold for sustain (chords welcome — hold several)
 //           Z / X  octave down / up   ·   1..8 presets   ·   L leslie   ·   M autoplay
-//           P  percussion trigger: 1 PER CHORD (the real Hammond) vs one per note (audit §L4)
+//           PERCUSSION, the real instrument's four tablets (audit §L2/§L3/§L4) — depth is the MORPH
+//           slider; P = trigger (1 PER CHORD, the real Hammond, vs one per note); O = harmonic
+//           (2nd = 4' pitch vs 3rd = 2 2/3'); I = decay (fast ~0.8s vs slow ~3.3s chime)
 //           drag a slider (morphs every held note LIVE), or LEFT/RIGHT pick + UP/DOWN turn
 // MULTITOUCH: every finger is its own pointer — hold keys with several fingers while another
 // rides a slider; tap the on-screen octave +/- and Leslie buttons. The desktop mouse arrives
@@ -95,6 +97,11 @@ static int   sel = 0;
 static int   cur_preset = 3;
 static bool  autoplay = true;
 static bool  perc_single = true;   // P: the real Hammond percussion rule (a chord gives ONE chip). §L4
+// The other two of the real instrument's four percussion tablets (§L2, §L3). Both default to the
+// vintage default: SECOND harmonic and FAST decay. Keys O and I because every mnemonic letter
+// (S, D, F, T, H) is already a keybed key — the on-screen labels carry the meaning instead.
+static bool  perc_third = false;   // O: THIRD harmonic (2 2/3' pitch) instead of SECOND (4')
+static bool  perc_slow  = false;   // I: SLOW decay (~3.3s chime) instead of FAST (~0.8s xylophone)
 
 // the Leslie: 0 off, 1 slow (chorale), 2 fast (tremolo). NOW the real bus rotary (instrument_leslie
 // = navkit's processLeslie) — the engine spins the rotors up/down with real inertia. rotor_rate
@@ -215,6 +222,10 @@ void update(void) {
     if (keyp('L')) { lesmode = (lesmode + 1) % 3; apply_leslie(); }
     if (keyp('M')) autoplay = !autoplay;
     if (keyp('P')) { perc_single = !perc_single; instrument_trigger(I_ORG, perc_single ? TRIG_SINGLE : TRIG_MULTI); }
+    // instrument_mode is the NOTE-ON face, so these pick the harmonic/decay for the NEXT chip rather than
+    // bending the one that is ringing — which is what the real tablets do too, the chip having already fired.
+    if (keyp('O')) { perc_third = !perc_third; instrument_mode(I_ORG, MODE_ORGAN_PERC_THIRD, perc_third ? 1.0f : 0.0f); }
+    if (keyp('I')) { perc_slow  = !perc_slow;  instrument_mode(I_ORG, MODE_ORGAN_PERC_SLOW,  perc_slow  ? 1.0f : 0.0f); }
 
     // the on-screen rotor's spin: a VISUAL ease toward the target speed (the AUDIO rotor inertia is
     // the engine's now). off → idle, slow → ~0.8 Hz, fast → ~6.6 Hz (navkit's horn rates).
@@ -316,10 +327,22 @@ void draw(void) {
     font(FONT_SMALL);
     print(str("L leslie %s", lesmode == 2 ? "fast" : lesmode == 1 ? "slow" : "off"),
           LES_X + 24, ry - 3, lesmode ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
-    // the percussion's trigger rule (§L4). "1/chord" is the real Hammond; "all" is not. print_right so
-    // it cannot overrun the edge whichever label is showing (ui-audit caught the left-aligned version).
-    print_right(str("P perc %s", perc_single ? "1/chord" : "all"),
-                SCREEN_W - 4, ry + 5, perc_single ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
+    font(FONT_NORMAL);
+
+    // THE PERCUSSION TABLET ROW — all four of the real instrument's percussion controls, grouped, in the
+    // free band between the keybed bottom (KEY_Y+KEY_H = 120) and the preset names (KNOB_Y-23 = 147).
+    // It started life squeezed under the Leslie readout at ry+13 = 45, which collides with the keybed at
+    // KEY_Y = 48 — and ui-audit could NOT catch that, because the keys are rects, not text. Only the bake
+    // showed it. Worth remembering: the text linter sees text-vs-text, never text-vs-graphics.
+    // ON/OFF is not a key here: the depth rides the MORPH slider, which is where this cart puts it.
+    font(FONT_SMALL);
+    int qx = print("PERC", 8, 128, CLR_INDIGO);
+    qx = print(str("  P %s", perc_single ? "1/chord" : "all"), qx, 128,
+               perc_single ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    qx = print(str("  O %s", perc_third ? "3rd" : "2nd"), qx, 128,
+               perc_third ? CLR_ORANGE : CLR_MEDIUM_GREY);
+    print(str("  I %s", perc_slow ? "slow" : "fast"), qx, 128,
+          perc_slow ? CLR_ORANGE : CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
     // the manual — keybed.h owns layout/voices/glow; we draw it in the organ's colours

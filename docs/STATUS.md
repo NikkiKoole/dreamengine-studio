@@ -52,7 +52,16 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   suppresses the percussion and *keeps* the key click, because the click is contact bounce in each key's own
   switch. "Key down" is the GATE not the `held` flag, so a `hit()`-driven cart is covered and a released
   voice still ringing out correctly does *not* count. `organ` defaults to `TRIG_SINGLE` with **P** to A/B
-  it. **⚠ LISTEN: this changes the organ's sound** (one chip per chord instead of three).
+  it. **⚠ LISTEN: this changes the organ's sound** (one chip per chord instead of three) — owner approved.
+  **THE HAMMOND PERCUSSION IS NOW COMPLETE, all four of the real tablets** — depth (the morph macro),
+  trigger (§L4), and the last two shipped the same day: **`MODE_ORGAN_PERC_THIRD`** (§L2 — the harmonic, 2nd
+  = the 4′ drawbar pitch or 3rd = 2⅔′; verified as a ~58 dB swap of the chip from h2 to h3 with h1/h4
+  untouched) and **`MODE_ORGAN_PERC_SLOW`** (§L3 — decay, FAST 0.83 s vs SLOW ~3.0 s, both inside the
+  reported real ranges). Neither needed the aux channel widened: the `MODE_*` index space is per-engine and
+  ORGAN had never used `eng_p`, so idx 0/1 were free — no five-place hazard. Plus §L7's two multiplies that
+  make the percussion **trade** rather than add. `organ` shows all four tablets in one row under the keys.
+  **All that's left on the Hammond is L5 (two registration rows) and L6 (tonewheel leakage)** — and two of
+  the three items got *smaller by being looked at properly* rather than by being worked on.
   **That also answered plan 4.2, whose premise was wrong**: the "trigger-policy surface" is not one thing in
   either the header or the engine, it is THREE questions that only sound alike — which held note sounds
   (`mono.h`, cart-land), whether a cart can *perform* a re-attack (`note_retrig`, per-note), and whether a

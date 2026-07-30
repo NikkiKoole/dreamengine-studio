@@ -60,7 +60,18 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   reported real ranges). Neither needed the aux channel widened: the `MODE_*` index space is per-engine and
   ORGAN had never used `eng_p`, so idx 0/1 were free — no five-place hazard. Plus §L7's two multiplies that
   make the percussion **trade** rather than add. `organ` shows all four tablets in one row under the keys.
-  **All that's left on the Hammond is L5 (two registration rows) and L6 (tonewheel leakage)** — and two of
+  **And §L6 TONEWHEEL LEAKAGE closed the Hammond out: `MODE_ORGAN_LEAK`** (idx 6, an amount not a switch —
+  `organ` has clean/worn/tired on **N**). The model falls out of the existing loop, because the drawbars it
+  already skips *are* "the unpulled drawbar pitches"; it accumulates outside `ampSum` and lands after the
+  equal-loudness divide, so the bleed is absolute and therefore relatively louder under a sparse
+  registration — which is the real behaviour, for free. Measured on `jimmy`: every unpulled bar arrives at
+  ~−38 dB (≈−27 dB summed) and **h7 stays silent, because h7 is not a Hammond footage** — so it bleeds
+  exactly the drawbar pitches, not hiss. ⚠ **It also corrected §L2's conclusion**: the `MODE_*` index space
+  is per-engine but the **defaults are shared** — idx 2-5 default to `0.5f` for the piano's convention, so
+  leakage parked at idx 2 was *half on, unasked*, caught only because a byte-identity check failed. Now at
+  idx 6 with `eng_p` widened to 7 across all five places, `lint-aux-params` verifying.
+  **THE HAMMOND IS NOW DONE** — every audit item closed bar §L5, which is a recorded CUT (adding
+  registration rows would silently re-map `instrument_harmonics` for 13 carts). And two of
   the three items got *smaller by being looked at properly* rather than by being worked on.
   **That also answered plan 4.2, whose premise was wrong**: the "trigger-policy surface" is not one thing in
   either the header or the engine, it is THREE questions that only sound alike — which held note sounds

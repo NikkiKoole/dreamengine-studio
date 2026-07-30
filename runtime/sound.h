@@ -84,7 +84,7 @@ typedef struct {
     int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
     float sustain;                  // 0..1
     float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
-    float eng_p[6];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale, 4 = piano stretched-tuning scale, 5 = piano stiff-string inharmonicity scale
+    float eng_p[7];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale, 4 = piano stretched-tuning scale, 5 = piano stiff-string inharmonicity scale
     int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
     float lfo_rate[3];              // Hz
     float lfo_depth[3];             // 0 = off; units depend on dest
@@ -382,7 +382,7 @@ typedef struct {
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
     // eng_p[] (set via instrument_mode, note-on — the permanent per-engine aux channel, decision 0017; NOT baked to constants).
-    float  eng_p[6];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale · 4 piano stretch-scale · 5 piano stiff-scale)
+    float  eng_p[7];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale · 4 piano stretch-scale · 5 piano stiff-scale)
     float  eng_subph, eng_env;          // sub-osc phase + envelope follower
     int    eng_click;                   // onset-click samples remaining
     // brass state (INSTR_BRASS): STK BrassInstrument (Cook/Scavone) — a bore delay (REUSES ks_buf,
@@ -3156,6 +3156,13 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
 #define ORGAN_PERC_TAU_FAST 0.20f   // ~0.83 s audible — the tablet UP position, and our long-standing default
 #define ORGAN_PERC_TAU_SLOW 0.80f   // ~3.3 s audible — the chime
 
+// TONEWHEEL LEAKAGE scales (§L6). ⚠ EAR-TUNED, like ORGAN_PERC_STEAL: nobody publishes a leakage figure,
+// and real instruments vary hugely with age and wear, which is exactly why this is an aux param rather than
+// a fixed voicing. At amount 1.0 the tone bleed lands around −26 dB under the registration (the unpulled
+// bars sum incoherently, so ~sqrt(7) of them ≈ 2.6× one wheel). Turn it up for a tired A100.
+#define ORGAN_LEAK_TONE  0.020f     // the unpulled drawbar pitches bleeding through the wiring
+#define ORGAN_LEAK_NOISE 0.010f     // the noise half of Reid's "drawbar pitches AND noise"
+
 // ORGAN percussion depth from the morph macro: it fades in over morph's top ~45%, so a lively B3
 // chips and a still combo organ doesn't. Shared by note-on and note_retrig (which re-arms the chip).
 static inline float sound_organ_perc_amt(float mor) {
@@ -3223,25 +3230,47 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     // envelope would fade the 1' drawbar back in as the chip died away, which no organ does.
     float perc_amt = sound_organ_perc_amt(v->mor);
     bool  perc_on  = perc_amt > 0.0001f;
+    // TONEWHEEL LEAKAGE (§L6/§C8) — the last named Hammond character element we were missing. Reid, Part 57:
+    // leakage is "a mixture of DRAWBAR PITCHES AND NOISE that gives the A100 a characteristic, THROATY
+    // quality", and like key click it is something "Laurens Hammond considered to be a fault".
+    //
+    // The model falls out of the loop below almost for free, because the drawbars this loop currently
+    // `continue`s past ARE "the unpulled drawbar pitches". A real tonewheel generator spins all 91 tones
+    // continuously and leakage is crosstalk in the wiring and matching transformer, so a little of EVERY
+    // tone reaches the output no matter which bars are pulled. Two consequences for where it goes:
+    //   · it accumulates SEPARATELY from `dry` and never enters `ampSum`, because it is not part of the
+    //     registration — feeding ampSum would let the equal-loudness divide promote it to a full drawbar.
+    //   · it is added AFTER that divide, at an absolute level, because the bleed does not scale with how
+    //     many bars you pulled. That also reproduces the real behaviour for free: leakage is relatively
+    //     MORE audible under a sparse registration, because there is less signal to mask it.
+    // Crosstalk bypasses the drawbar, so a leaking tone gets no `tilt` weighting — raw wheel, which is
+    // both simpler and more correct.
+    float leak_amt = v->eng_p[MODE_ORGAN_LEAK];
+    bool  leak_on  = leak_amt > 0.001f;
+    float leak = 0.0f;
     float dry = 0.0f, ampSum = 0.0f;
     for (int i = 0; i < 9; i++) {
         float lvl = reg[i];
-        if (lvl < 0.001f) continue;
         // 1' CANCELLED while percussion is on (§L7) — treated exactly like a drawbar pulled to zero, so
         // it leaves ampSum too and the engine's equal-loudness convention (§8.8.1) reads it as "darker",
         // which is what pulling a drawbar does here. The level change is the separate steal below.
-        if (perc_on && i == ORGAN_BAR_1FOOT) continue;
+        bool pulled = lvl >= 0.001f && !(perc_on && i == ORGAN_BAR_1FOOT);
+        if (!pulled && !leak_on) continue;               // the cheap path: unpulled bars cost nothing
+        float df = f * RAT[i];
+        if (df >= nyq) continue;                         // above Nyquist: drop this drawbar
+        v->org_ph[i] += df * dt;
+        if (v->org_ph[i] >= 1.0f) v->org_ph[i] -= 1.0f;
+        float s = de_sin_turns(v->org_ph[i]);
+        if (!pulled) { leak += s; continue; }             // unpulled: bleeds through, no tilt, not in ampSum
         float w = 1.0f + tilt * (OCT[i] - 1.2f) * 0.45f;
         if (w < 0.0f) w = 0.0f;
         lvl *= w;
-        float df = f * RAT[i];
-        if (df >= nyq) continue;                        // above Nyquist: drop this drawbar
-        v->org_ph[i] += df * dt;
-        if (v->org_ph[i] >= 1.0f) v->org_ph[i] -= 1.0f;
-        dry += de_sin_turns(v->org_ph[i]) * lvl;
+        dry += s * lvl;
         ampSum += lvl;
     }
     if (ampSum > 0.0001f) dry /= ampSum;                // equal loudness across registration + tilt (§8.8.1)
+    // …then the bleed, absolute. Noise as well as tone, per Reid's "drawbar pitches AND noise".
+    if (leak_on) dry += (leak * ORGAN_LEAK_TONE + voice_white(v) * ORGAN_LEAK_NOISE) * leak_amt;
     // PERCUSSION STEALS FROM THE SUSTAIN (§L7). Deliberately AFTER the equal-loudness divide, which would
     // otherwise cancel exactly the level drop we are trying to create — and applied to the DRAWBAR sum only,
     // before the click and the ping are added, because those are what the sustain is being traded FOR.
@@ -5727,6 +5756,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->eng_p[3] = ins->eng_p[3];
     v->eng_p[4] = ins->eng_p[4];
     v->eng_p[5] = ins->eng_p[5];
+    v->eng_p[6] = ins->eng_p[6];
     v->smp_idx     = ins->smp_idx;                     // INSTR_SAMPLE: which recorded buffer + its root freq
     v->smp_root    = ins->smp_root;
     v->smp_start_f = ins->smp_start;                   // chop bounds (fractions) — resolved to sample indices in the start hook / render
@@ -6037,7 +6067,7 @@ static void sound_fire_req(SoundReq r) {
         // pass in tunecheck.c rendered byte-identical to the normal one and the new gate read a 0¢
         // stretch everywhere. Adding a sixth aux param means THREE edits: eng_p[] width, this bound,
         // and the setter's.
-        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 6) return;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 7) return;
         instr_bank[slot].eng_p[idx] = r.c / 1000.0f;
     } break;
     case SR_INSTR_LFO: {
@@ -7609,7 +7639,7 @@ void instrument_mode(int slot, int idx, float value) {   // per-engine aux chann
     //   2026-07-30: idx 4 (MODE_PIANO_STRETCH) added, eng_p widened to 5, bound moved 4 → 5.
     //   2026-07-30: idx 5 (MODE_PIANO_STIFF) added, eng_p widened to 6, bound moved 5 → 6.
     //   `node tools/lint-aux-params.js` now asserts all five places agree — run it after any change here.
-    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 6) return;
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 7) return;
     value = clamp01(value);
     sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
 }
@@ -8879,6 +8909,10 @@ static void sound_reset_state(void) {
         instr_bank[i].eng_p[2]   = 0.5f;   // piano double-decay scale (instrument_mode idx 2) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[3]   = 0.5f;   // piano hammer-knock scale  (instrument_mode idx 3) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[4]   = 0.5f;   // piano stretched-tuning scale (instrument_mode idx 4) — 0.5 = 1.0× PIANO_STRETCH_K, 0 = equal temperament
+        instr_bank[i].eng_p[6]   = 0.0f;   // ORGAN tonewheel leakage (idx 6) — 0 = a clean machine.
+                                           // NOT reusing idx 2-5: those default to 0.5f for the PIANO's
+                                           // "0.5 = the voicing's own value" convention, so an organ param
+                                           // parked there would read 0.5 and be HALF ON unasked (it did).
         instr_bank[i].eng_p[5]   = 0.5f;   // piano stiff-string inharmonicity scale (idx 5) — 0.5 = the voicing's own amount, 0 = a perfectly harmonic string
     }
 

@@ -13,7 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "INSTR_ORGAN engine showcase and tuning rig — the Leslie is a verbatim navkit processLeslie port (band-split rotary with mechanical rotor inertia), replacing an earlier per-voice LFO recipe.",
-  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. THE PERCUSSION IS SINGLE-TRIGGERING, which is a fact about the instrument and not a taste setting: on a real Hammond the percussion is one shared circuit that only recharges once every key is up, so a CHORD gives ONE chip rather than one per note, and playing legato kills the chip entirely - which is exactly why organists play that attack staccato. Press P to A/B it against the wrong (one-per-note) behaviour. The key CLICK is unaffected either way, because that is contact bounce in each key's own switch. And the percussion now TRADES rather than just adds, which is what stops it sounding pasted on: while it is engaged the drawbars drop about 2 dB (a real Hammond's deliberate 'volume compensating' drop) and the 1' drawbar is CANCELLED outright, because the percussion diverts that tone generator - so a percussion registration is darker and a touch quieter, exactly like the real instrument. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay. THE PERCUSSION ROW under the keys is all four of the real instrument's percussion tablets: depth rides the MORPH slider, P is the trigger rule, O picks the HARMONIC (2nd = the 4' drawbar pitch, bright and clear; 3rd = the 2 2/3' pitch, powerful and heavy) and I picks the DECAY (fast ~0.8s like a xylophone, slow ~3.3s like a chime). All four default to what a vintage B3 does with its tablets up. Multitouch.",
+  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. THE PERCUSSION IS SINGLE-TRIGGERING, which is a fact about the instrument and not a taste setting: on a real Hammond the percussion is one shared circuit that only recharges once every key is up, so a CHORD gives ONE chip rather than one per note, and playing legato kills the chip entirely - which is exactly why organists play that attack staccato. Press P to A/B it against the wrong (one-per-note) behaviour. The key CLICK is unaffected either way, because that is contact bounce in each key's own switch. And the percussion now TRADES rather than just adds, which is what stops it sounding pasted on: while it is engaged the drawbars drop about 2 dB (a real Hammond's deliberate 'volume compensating' drop) and the 1' drawbar is CANCELLED outright, because the percussion diverts that tone generator - so a percussion registration is darker and a touch quieter, exactly like the real instrument. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay. THE PERCUSSION ROW under the keys is all four of the real instrument's percussion tablets: depth rides the MORPH slider, P is the trigger rule, O picks the HARMONIC (2nd = the 4' drawbar pitch, bright and clear; 3rd = the 2 2/3' pitch, powerful and heavy) and I picks the DECAY (fast ~0.8s like a xylophone, slow ~3.3s like a chime). All four default to what a vintage B3 does with its tablets up. N adds TONEWHEEL LEAKAGE (clean / worn / tired) - a real generator spins all its tones all the time and a little of every one leaks through the wiring whether you pulled that drawbar or not, which mixed with a bit of noise is the 'throaty' quality Laurens Hammond considered a fault and players came to love; you hear it most under a sparse registration, where there is less sound to hide behind. Multitouch.",
   "todo": [
     "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
@@ -51,6 +51,8 @@ de:meta */
 //           PERCUSSION, the real instrument's four tablets (audit §L2/§L3/§L4) — depth is the MORPH
 //           slider; P = trigger (1 PER CHORD, the real Hammond, vs one per note); O = harmonic
 //           (2nd = 4' pitch vs 3rd = 2 2/3'); I = decay (fast ~0.8s vs slow ~3.3s chime)
+//           N  TONEWHEEL LEAKAGE (audit §L6): clean / worn / tired — the UNPULLED drawbar pitches
+//              plus noise bleeding through, which is the "throaty" quality of a well-used Hammond
 //           drag a slider (morphs every held note LIVE), or LEFT/RIGHT pick + UP/DOWN turn
 // MULTITOUCH: every finger is its own pointer — hold keys with several fingers while another
 // rides a slider; tap the on-screen octave +/- and Leslie buttons. The desktop mouse arrives
@@ -102,6 +104,11 @@ static bool  perc_single = true;   // P: the real Hammond percussion rule (a cho
 // (S, D, F, T, H) is already a keybed key — the on-screen labels carry the meaning instead.
 static bool  perc_third = false;   // O: THIRD harmonic (2 2/3' pitch) instead of SECOND (4')
 static bool  perc_slow  = false;   // I: SLOW decay (~3.3s chime) instead of FAST (~0.8s xylophone)
+// K: TONEWHEEL LEAKAGE (§L6) — the last named Hammond character element. An AMOUNT, not a switch, because
+// real machines differ enormously with wear; three stops is enough to hear what it does.
+static const float LEAK_STOP[3] = { 0.0f, 0.35f, 0.8f };
+static const char *LEAK_NAME[3] = { "clean", "worn", "tired" };
+static int   leak_stop = 0;
 
 // the Leslie: 0 off, 1 slow (chorale), 2 fast (tremolo). NOW the real bus rotary (instrument_leslie
 // = navkit's processLeslie) — the engine spins the rotors up/down with real inertia. rotor_rate
@@ -226,6 +233,9 @@ void update(void) {
     // bending the one that is ringing — which is what the real tablets do too, the chip having already fired.
     if (keyp('O')) { perc_third = !perc_third; instrument_mode(I_ORG, MODE_ORGAN_PERC_THIRD, perc_third ? 1.0f : 0.0f); }
     if (keyp('I')) { perc_slow  = !perc_slow;  instrument_mode(I_ORG, MODE_ORGAN_PERC_SLOW,  perc_slow  ? 1.0f : 0.0f); }
+    // N, not K — K is the 8th white key (KEYBED_WHITE_KEYS "ASDFGHJK"), and a control key that is also a
+    // note key is a silent double-trigger. Every mnemonic letter here is a keybed key; the labels carry it.
+    if (keyp('N')) { leak_stop = (leak_stop + 1) % 3; instrument_mode(I_ORG, MODE_ORGAN_LEAK, LEAK_STOP[leak_stop]); }
 
     // the on-screen rotor's spin: a VISUAL ease toward the target speed (the AUDIO rotor inertia is
     // the engine's now). off → idle, slow → ~0.8 Hz, fast → ~6.6 Hz (navkit's horn rates).
@@ -341,8 +351,12 @@ void draw(void) {
                perc_single ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
     qx = print(str("  O %s", perc_third ? "3rd" : "2nd"), qx, 128,
                perc_third ? CLR_ORANGE : CLR_MEDIUM_GREY);
-    print(str("  I %s", perc_slow ? "slow" : "fast"), qx, 128,
-          perc_slow ? CLR_ORANGE : CLR_MEDIUM_GREY);
+    qx = print(str("  I %s", perc_slow ? "slow" : "fast"), qx, 128,
+               perc_slow ? CLR_ORANGE : CLR_MEDIUM_GREY);
+    // LEAKAGE is not percussion — it is the tonewheel generator itself (§L6) — so it gets its own label.
+    qx = print("   WHEELS", qx, 128, CLR_INDIGO);
+    print(str(" N %s", LEAK_NAME[leak_stop]), qx, 128,
+          leak_stop ? CLR_ORANGE : CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
     // the manual — keybed.h owns layout/voices/glow; we draw it in the organ's colours

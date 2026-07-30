@@ -2415,6 +2415,10 @@ Engine: `sound_organ_start` ([`runtime/sound.h:3065`](../../runtime/sound.h)), `
 > price: the `MODE_*` index space is per-engine (`MODE_BOW_PIZZ` is also 0) and ORGAN had never touched
 > `eng_p`, so idx 0/1 were free. Default `0.0f` = SECOND, which is what a Hammond does with the THIRD tablet
 > up, so the default is unchanged — verified byte-identical, see §L3.
+>
+> **⚠ But see §L6 for the half of this conclusion that was wrong.** "Per-engine index space, so reuse is
+> free" is only true because idx 0-1 happen to default to `0.0f`. Indices **2-5 default to `0.5f`** for the
+> piano's convention, and parking an organ param there silently turns it half on. §L6 hit exactly that.
 
 - **Book:** Part 57 lists the A100's **four** percussion controls — On/Off, **Second/Third**, Normal/Soft,
   Fast/Slow — and describes the mechanism as "diverting part of the **4' or 2 2/3'** signal through a VCA
@@ -2535,6 +2539,40 @@ genuinely missing axis. Also one `eng_p` slot.
 
 ### L6. Leakage, with its composition confirmed
 
+> **✅ SHIPPED 2026-07-30** as **`MODE_ORGAN_LEAK`** (idx 6, 0..1, default 0 = a clean machine) — closing
+> §C8 too, and with it the last named Hammond character element. It is an **amount, not a switch**, because
+> real instruments vary enormously with age and wear; `organ` exposes three stops on **N** (clean/worn/tired).
+>
+> **The model falls out of the existing loop**, which is the nice part: the drawbars `sound_organ_sample`
+> already `continue`s past *are* "the unpulled drawbar pitches". Two placement rules follow from leakage
+> being crosstalk in the wiring rather than part of the registration — it accumulates separately and never
+> enters `ampSum` (which would let the equal-loudness divide promote it to a full drawbar), and it is added
+> *after* that divide at an absolute level, since the bleed does not scale with how many bars you pulled.
+> That reproduces the real behaviour for free: leakage is relatively **more** audible under a sparse
+> registration, because there is less signal to mask it. It also gets no `tilt` weighting — crosstalk
+> bypasses the drawbar.
+>
+> Measured on `jimmy` (16′+5⅓′+8′ only, so six bars are unpulled), per-harmonic against h1:
+>
+> | | h3 (2⅔′) | h4 (2′) | h5 (1⅗′) | h6 (1⅓′) | **h7** | h8 (1′) |
+> |---|---|---|---|---|---|---|
+> | clean | −82.6 | −92.5 | −93.4 | −94.6 | −97.7 | −96.9 |
+> | tired (0.8) | **−36.7** | **−36.8** | **−40.9** | **−37.9** | **−90.9** | **−40.1** |
+>
+> Every unpulled drawbar arrives, and **h7 stays silent in both** — because h7 is not a Hammond footage.
+> So the bleed is *exactly the drawbar pitches* and nothing else, which is Reid's "mixture of drawbar pitches
+> and noise" rather than the added hiss §C8 warned against. h1 and the h2 percussion chip are untouched. Six
+> harmonics at ~−38 dB sum to roughly **−27 dB** at full amount. Scales are **ear-tuned** (`ORGAN_LEAK_TONE`
+> / `_NOISE`), like `ORGAN_PERC_STEAL` — no source publishes a leakage figure.
+>
+> **⚠ A CORRECTION TO §L2's CONCLUSION, found by this item and worth reading before reusing an aux index.**
+> §L2 concluded that the `MODE_*` index space being per-engine makes reuse free. **The index space is
+> per-engine but the DEFAULTS are shared**, so reuse is only free where the existing default happens to suit
+> your engine. Indices 0-1 default to `0.0f` (guitar/piano "off"); **2-5 default to `0.5f`** for the PIANO's
+> "0.5 = the voicing's own value" convention. Leakage was first parked on idx 2 and was therefore **half on,
+> on every organ note, unasked** — caught only because the byte-identity check failed. It now lives at idx 6
+> with `eng_p` widened to 7 across all five places, which `lint-aux-params` verifies.
+
 §C8 already proposed this from a grep of Part 57. The full quote confirms the composition rather than
 just the existence: leakage is "a mixture of **drawbar pitches and noise** that gives the A100 a
 characteristic, **throaty** quality", and like key click it is something "Laurens Hammond considered to be
@@ -2610,9 +2648,15 @@ because its filters have zero resonance. Ours has no filter in the way at all.
 | 1 | L5 add the saw-ish and square-ish registrations | two table rows | `organ` |
 | ~~2~~ | ~~L2 + L3 Second/Third selector and Fast/Slow decay on `eng_p`~~ ✅ **SHIPPED 2026-07-30** — cost no aux-channel widening (per-engine index space, idx 0/1 were free) | engine, small | `organ` |
 | ~~3~~ | ~~L4 percussion single-trigger~~ ✅ **SHIPPED 2026-07-30** as `instrument_trigger` | engine policy | `organ` vs `pipe` |
-| 4 | L6 tonewheel leakage (§C8) | engine, small | `organ` |
+| ~~4~~ | ~~L6 tonewheel leakage (§C8)~~ ✅ **SHIPPED 2026-07-30** as `MODE_ORGAN_LEAK` — the bleed is exactly the drawbar pitches (h7, not a footage, stays silent) | engine, small | `organ` |
 | ~~5~~ | ~~L7 percussion steals from the sustain **+ cancels the 1′ drawbar**~~ ✅ **SHIPPED 2026-07-30** (−2.14 dB steal, 1′ verified gone at −77 dB) | two multiplies | `organ` |
 
+> **THE HAMMOND IS DONE, 2026-07-30 — every item on this list is closed or a recorded CUT.** L6 landed the
+> same day as the percussion work, so what is left is only **L5**, which is a deliberate ❌ **DROP** (adding
+> rows to `REG[8][9]` would silently re-map `instrument_harmonics` for 13 carts, and the safe aux route spends
+> permanent API on two novelty presets — reopen it if the saw/square registrations are wanted, but nothing
+> here is *wrong*). §L1 verified all nine footages against Part 55 already.
+>
 > **THE PERCUSSION SUB-STORY IS COMPLETE, 2026-07-30.** All four of the real instrument's percussion tablets
 > now exist: depth (the morph macro, already there), trigger (§L4 `instrument_trigger`), harmonic (§L2
 > `MODE_ORGAN_PERC_THIRD`) and decay (§L3 `MODE_ORGAN_PERC_SLOW`), plus the two behaviours that make it

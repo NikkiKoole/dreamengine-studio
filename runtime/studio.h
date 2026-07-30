@@ -21,6 +21,11 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include <stdbool.h>
+#include "demath.h"   // de_sinf/de_cosf/de_powf/… — deterministic float math, same bits on every
+                      // device. Reach for these in a cart whose OUTPUT gets compared (a spec()
+                      // oracle, a replay, lockstep, a golden image); plain libm is fine for
+                      // decoration. sqrtf/fabsf/floorf and friends are ALREADY bit-exact by spec —
+                      // there is no de_ version and you don't need one. docs/design/determinism.md
 
 // ------------------------------------------------------------
 // screen
@@ -520,6 +525,7 @@ void instrument_mode(int slot, int idx, float value);  // per-engine aux channel
 #define MODE_PIANO_STRETCH 4   // instrument_mode idx — INSTR_PIANO: STRETCHED-TUNING amount (a real piano tunes its fundamentals bass-flat/treble-sharp — the Railsback curve). 0.5 = the engine's own curve, 0 = plain equal temperament, 1 = double. Set 0 to play in unison with fixed-pitch instruments
 #define MODE_ORGAN_PERC_THIRD 0 // instrument_mode idx — INSTR_ORGAN: >= 0.5 = percussion on the THIRD harmonic (the 2 2/3' drawbar pitch, powerful and heavy), < 0.5 = SECOND (the 4' pitch, bright and clear — a real Hammond's default)
 #define MODE_ORGAN_PERC_SLOW  1 // instrument_mode idx — INSTR_ORGAN: >= 0.5 = SLOW percussion decay (~3.3s, dies away like a chime), < 0.5 = FAST (~0.8s, like a xylophone — the default)
+#define MODE_ORGAN_LEAK       6 // instrument_mode idx — INSTR_ORGAN: TONEWHEEL LEAKAGE 0..1 — the unpulled drawbar pitches + noise bleeding through, the "throaty" quality of a worn tonewheel generator. 0 = a clean machine (default)
 #define MODE_BOW_PIZZ      0   // instrument_mode idx — INSTR_BOWED: >= 0.5 = PIZZICATO (pluck the same string), < 0.5 = arco (bow, self-oscillating hold)
 #define MODE_BOW_BODY      1   // instrument_mode idx — INSTR_BOWED: BODY resonance amount. A violin's body is what makes it a violin rather than a sawtooth, and this engine shipped without one. 0 = no body (the bare string, as before), 1 = all body. (Synth Secrets §M2 — three short parallel delay lines: a body is a small reverberant room)
 void voice_nasal(int handle, float amount);    // INSTR_VOICE nasal color on a held note: 0 = open vowel .. 1 = hummed/nasal (the honk, the chant). The voice's 4th axis, alongside the harmonics/timbre/morph macros (vowel/size/effort)

@@ -1,6 +1,8 @@
-# Napoleon radio — the voices I wanted but can't have yet (blocked on the effects bus)
+# Napoleon radio — the voices I wanted but couldn't have yet (the effects bus has since shipped)
 
-STATUS: EXPLORING — effects wishlist (gated reverb / plate / tape / chorus) blocked on the effects bus; napoleon ships workarounds.
+STATUS: READY TO BUILD — the effects bus SHIPPED and every want below is now unblocked, INCLUDING
+the gate this doc flagged as a missing roster entry. `napoleon.c` still uses none of them (zero
+effect calls as of 2026-07-30), so the remaining work is WIRING, not engine work.
 
 The blind-band brief for **Napoleon radio** ([`napoleon-blind-brief.md`](napoleon-blind-brief.md))
 named an ideal lineup *from the music* — the film's soundtrack + John Swihart's score — before
@@ -19,6 +21,23 @@ reason every station is: **there is no effects bus yet.**
 > by [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md); the build-list
 > (effect → showcase cart → stations rescued) is in [`sound-next-steps.md`](sound-next-steps.md).
 > Pattern sibling: [`afrobeat-effects-wants.md`](afrobeat-effects-wants.md).
+>
+> **UPDATE 2026-07-30 — every want below SHIPPED, and so did the gate. The table's
+> "why it's short today" column is now history; read it as the 2026-06 diagnosis.** What landed:
+> **reverb** (2026-06-10) and a real **spring/plate voicing** via `reverb_spring` (§17 item 32) ·
+> **tape** wow/flutter/sat (2026-06-11) · **chorus**, the real BBD (2026-06-10) · the bus
+> **auto-wah** (2026-06-11, `wah()` + `instrument_wah`).
+>
+> **And the headline: "the gap in the gap" below is closed.** This doc's one *roster candidate* was
+> a noise gate to chop a reverb tail, arguing FOREVER "literally cannot sound like Forever Young
+> without the gate." `gate(threshold, attack_ms, release_ms)` + `instrument_gate` shipped
+> 2026-06-15 (§17 item 26) as a reorderable insert, and the exact Padgham recipe is written down:
+> put `FX_GATE` **after** `FX_REVERB` in `fx_order` (see the `FX_GATE` docstring in `studio.h` and
+> [`../guides/effects-recipes.md`](../guides/effects-recipes.md) "gated reverb" — measured tail
+> energy drops ~5×, showcased in `pedalboard`).
+>
+> So the acceptance test this doc set up is now runnable: **`napoleon.c` has zero effect calls**, and
+> wiring FOREVER's gated snare + SERENADE's plate is the open work. Nothing here is blocked.
 
 ---
 

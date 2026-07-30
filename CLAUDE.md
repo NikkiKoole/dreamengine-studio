@@ -545,6 +545,24 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              DISCOVERABILITY gates: every tools/* and every cart-land runtime/*.h is
                              indexed in CLAUDE.md (headers also in cart-authoring's table) — the "it
                              exists but no agent finds it, so they hand-roll it again" class
+             lint-fxicons.js every `FX_*` insert kind must have a shared GLYPH in runtime/fxicons.h
+                             (body colour + accent + name + icon). The failure is SILENT and worse than
+                             blank: an unregistered kind falls through fx_icon()'s `else` and draws a
+                             convincing REVERB pedal labelled "FX" — which FX_DRIVE + FX_MULTIBAND both
+                             did for six weeks, while TWO carts hand-rolled a private `od_icon()` for
+                             FX_DRIVE (the copy-paste fxicons.h exists to prevent). The fallback kind is
+                             DERIVED from the `else` comment, not hardcoded. `--strict` gates in
+                             repo-doctor; `--selfcheck` = known-answer fixture. Sits at ZERO
+             lint-capability-claims.js  docs that say we CAN'T do something we now CAN — the INVERSE of
+                             stale-doc-check (which finds docs citing code that once existed and is gone).
+                             "missing (no reverb engine)", "not a vocoder — a future effect once the
+                             sidechain lands": true when written, now a lie an agent believes and routes
+                             around, hand-rolling a workaround for a shipped effect. Precision comes from
+                             6 discriminators, chiefly: a capability must PROVABLY ship (a studio.h proof
+                             symbol, so "no octaver" is never flagged) and a PARAGRAPH-scope acknowledgement
+                             ("reverb ✓ SHIPPED") silences it — which is also the escape hatch for
+                             deliberately-historical prose. ADVISORY by design (it judges prose);
+                             `--selfcheck` = 15 known answers, gated in repo-doctor
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
                              unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
                              scope to a feature (`node tools/lint-xrefs.js touch`) to act on it.

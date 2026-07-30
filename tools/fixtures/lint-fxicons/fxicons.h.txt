@@ -1,0 +1,32 @@
+// FIXTURE for `node tools/lint-fxicons.js --selfcheck` — NOT the real fxicons.h.
+// Mirrors the real file's four-dispatcher shape (see the sibling studio.h for the
+// expected answers). Deliberately incomplete; it is never compiled.
+static int fx_body(int kind) {
+    switch (kind) {
+        case FX_ALPHA: return 1;
+        case FX_BETA:  return 2;
+        default:       return 0;
+    }
+}
+static int fx_accent(int kind) {
+    switch (kind) {
+        case FX_ALPHA: return 11;
+        case FX_BETA:  return 12;
+        default:       return 10;
+    }
+}
+static const char *fx_name(int kind) {
+    switch (kind) {
+        case FX_ALPHA: return "ALPHA";
+        default:       return "FX";
+    }
+}
+static void fx_icon(int kind, int cx, int cy, int col, int bg) {
+    if (kind == FX_ALPHA) {
+        (void)cx; (void)cy; (void)col; (void)bg;
+    } else if (kind == FX_BETA) {
+        (void)cx;
+    } else {                            // GAMMA — the fallback glyph
+        (void)cy;
+    }
+}

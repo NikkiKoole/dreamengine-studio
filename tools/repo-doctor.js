@@ -70,6 +70,12 @@ const CHECKS = [
   { name: "selftest: ledger",  tool: "status-check.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: xrefs",   tool: "lint-xrefs.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: doc refs",tool: "stale-doc-check.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: cap claims", tool: "lint-capability-claims.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
+  // GATED from birth (2026-07-30): mechanical (an FX_* kind either has a glyph or it doesn't),
+  // and it was written already AT zero after fixing the two kinds that had shipped without one —
+  // so there is no backlog to work down first, unlike the ledger row above.
+  { name: "fx glyphs",    tool: "lint-fxicons.js",       args: ["--strict"],    gate: true },
   { name: "status ledger", tool: "status-check.js",       args: ["--check"],     gate: false }, // ADVISORY on purpose: 81 findings on the day it was written (2026-07-30 audit). Gate it once the backlog is worked down, like doc-statuses and xrefs graduated.
   { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
   { name: "xrefs",        tool: "lint-xrefs.js",         args: ["--strict"],    gate: true }, // GRADUATED 2026-07-10: both tiers reached 0 (were 58/203) — exempt classes documented in its header
@@ -86,6 +92,11 @@ const CHECKS = [
   // --- ADVISORY: hygiene / backlog / nudges ---
   { name: "handoff",      tool: "handoff.js",            args: ["--check"] },
   { name: "driftable",    tool: "stale-doc-check.js",    args: ["--driftable"], warn: num(/(\d+) likely drifted/) },
+  // ADVISORY on purpose despite currently sitting at 0: it JUDGES prose with regexes, so a
+  // legitimately-historical claim can fire in a way no discriminator sees. The fix is one
+  // acknowledgement line, never a code change — so this must not be able to block anyone.
+  // Graduate it to a gate (--strict) if it holds at 0 through a few real staleness cycles.
+  { name: "cap claims",   tool: "lint-capability-claims.js", args: [], warn: num(/SHIPPED CAPABILITY.*?\((\d+)\)/) },
   { name: "doc freshness",tool: "stale-doc-check.js",    args: [],              warn: num(/(\d+) broken/) },
 ];
 

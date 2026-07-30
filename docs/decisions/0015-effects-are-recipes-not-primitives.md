@@ -1,5 +1,18 @@
-# 0015 — Effects are recipes, not primitives: the roster is closed
-Date: 2026-06-05 · Status: accepted
+# 0015 — Effects are recipes, not primitives: the GATE, not a closed roster
+Date: 2026-06-05 · Status: accepted, **half superseded 2026-07-30** (the gate holds; the closed
+roster and its "~12 functions, forever" count are dead, and were crossed long ago)
+
+> ## THE LIVE RULE (read this, not the count below)
+>
+> **A new effect primitive must prove it cannot be a recipe over what we already ship.** That test,
+> plus the named-function style, is all that survives of this decision. Enforce it. It still refuses
+> things (octaver, per-bus reverb) and it has correctly *admitted* a dozen ports, each one logged.
+>
+> **There is no cap.** The 2026-06-05 roster ("~12 functions, forever") was crossed within a week
+> and is now off by roughly 4x: 22 named master effects, 22 `instrument_*` twins, ~91 declarations in
+> the effects region of `studio.h`. Do not cite this ADR as a reason a *count* is full, and do not
+> cite it to refuse an effect that clears the gate. See the 2026-07-30 entry for the honest reckoning
+> and for what the numbers should be measured against instead.
 
 ## Context
 Drive shipped (`instrument_drive`/`note_drive`, [audio-notes §17](../design/audio-notes.md))
@@ -28,6 +41,13 @@ Keep **named functions**, and close the primitive roster at the §17 taxonomy:
 **~12 functions, forever, for the entire effects story.** Everything else people call an
 "effect" is either a *recipe* of these primitives or a *refusal with the musical need
 covered elsewhere*. A new primitive must prove it cannot be a recipe.
+
+> **[SUPERSEDED 2026-07-30 — the count only. The last sentence is the part that lived.]** "~12
+> functions, forever" was wrong by about 4x and the table above is not the shipped taxonomy: the
+> two-bus send cap held, but the *insert* layer grew to 22 effects, and three of the "Deliberate
+> refusals" below shipped anyway (auto-pan, ring mod, granular/shimmer) along with the vocoder that
+> the 2026-06-12 log says is "still waiting." Read the sentence "a new primitive must prove it cannot
+> be a recipe" as the decision, and everything numeric as period detail.
 
 > **The concrete proof is the pedalboard test:** *would you want it as a pedal on the pedalboard?*
 > If yes it MUST be a real bus effect — a per-voice recipe (`LFO_PAN`, a `note_*` env) categorically
@@ -248,3 +268,44 @@ convention — it's **refusing to admit new primitives**.
   inputs) and still waits on the sidechain path; the formant filter is single-input and complete now. It
   even reused navkit's measured vowel table verbatim (already in `sound.h` for `INSTR_VOICE`), so the port
   was routing, not DSP. Showcase: the `vowel` cart. §17 ledger item 13.
+
+- **2026-07-30 — the reckoning: the count is dead, the gate is alive, and this log had stopped keeping
+  up.** The 2026-06-12 entry already called this ("this decision's enduring value is the **gate, not a
+  fixed count**"), but it buried the admission 200 lines down while the title, the Status line and the
+  Decision table all still announced a closed roster. Six weeks of shipping later, that framing is not
+  merely soft, it is false, and it was being cited *as though true* in three other docs. So the front
+  of this doc now states the live rule and the numbers are marked as period detail. What the audit found:
+
+  - **The count, measured.** 22 named master effects (`autopan` `chorus` `crush` `echo` `eq` `filter`
+    `flanger` `formant` `gate` `grains` `leslie` `multiband` `phaser` `reverb` `ringmod` `shallow`
+    `shimmer` `tape` `tremolo` `univibe` `vocoder` `wah`), 22 `instrument_*` twins, plus `drive`,
+    `sidechain`, and the vocoder's four-function family: ~91 declarations in the effects region of
+    `studio.h` against a budget of ~12.
+  - **Three "Deliberate refusals" shipped, and one had its premise removed.** `autopan()` /
+    `instrument_autopan` shipped, and the refusal's stated reason ("the engine is mono, console
+    identity, not a missing feature") no longer exists at all: the engine went stereo (see
+    [`../design/stereo.md`](../design/stereo.md)). `instrument_ringmod` shipped despite "its musical job
+    is already INSTR_FM's off-integer detents." `instrument_grains` and `instrument_shimmer` shipped
+    despite "DAW-tier; a cart has `wave_set()` and ambition." The **vocoder** shipped as a four-function
+    family (`vocoder` / `vocoder_send` / `vocoder_mic` / `vocoder_unvoiced`) after the 2026-06-12 entry
+    recorded it as "still waits on the sidechain path"; the sidechain path landed too. Only **octaver**
+    is still refused on the original reasoning, and per-bus reverb is still refused (2026-06-11 entry).
+  - **Why this is not a scandal, and what the real defense turned out to be.** Every one of those cleared
+    the gate on its merits and each is a per-bus insert gated by a `*_used[]` flag, so a cart that does
+    not touch it renders byte-identical (soundcheck silent). The thing that actually kept the API from
+    rotting was never the count, it was (a) the gate refusing recipes dressed as primitives, (b) the
+    named-function style keeping each addition self-documenting in autocomplete and the help tab, and
+    (c) the two-bus **send** cap (echo + reverb, one tank each), which genuinely never moved. Measure
+    future additions against those three, not against a number.
+  - **The outside datapoint (2026-07-30).** [airwin2rack](https://github.com/baconpaul/airwin2rack)
+    (baconpaul) packages Chris Johnson's ~390 **Airwindows** effects behind one registry, shipping as a
+    static C++ library, a VCV Rack module, and one CLAP/VST3/AU plugin with an effect browser. It is the
+    maximalist branch of the exact fork this ADR chose the other side of: no recipe discipline, 390 named
+    primitives, one uniform access pattern, and it works fine for its audience. Two things it tells us.
+    First, the failure mode of an uncapped roster is not DSP cost, it is **discoverability**: airwin2rack
+    exists mostly because 390 honest little effects nobody can browse are invisible. Our answer to that
+    is [`../../runtime/fxicons.h`](../../runtime/fxicons.h) (one glyph plus colour per `FX_*`), and it is
+    the thing to invest in as the roster grows, not a cap nobody honours. Second, its core library and
+    the Airwindows DSP are **MIT** (only the DAW-plugin build pulls GPL3 deps: JUCE, VST3 SDK, Rack SDK),
+    so it is license-clean reading material for anything still open here. It is C++ float-per-sample
+    plugin code against our single-header C `sound.h`, so it is reference, not a port target.

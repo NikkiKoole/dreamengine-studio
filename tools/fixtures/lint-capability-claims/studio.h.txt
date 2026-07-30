@@ -1,0 +1,9 @@
+// FIXTURE for `node tools/lint-capability-claims.js --selfcheck` — NOT the real studio.h.
+// Only the PROOF declarations matter: a capability is in the roster iff its symbol is
+// declared here. `shallow` is deliberately ABSENT so the roster-exclusion guard has a
+// subject, and there is no `octaver` anywhere (a genuinely-unbuilt capability).
+void reverb(float size, float damping);
+void chorus(float rate, float depth, float mix);
+void vocoder(float mix);
+void gate(float threshold, int attack_ms, int release_ms);
+void sample_record(int slot, int ms);

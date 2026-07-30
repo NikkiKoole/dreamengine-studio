@@ -29,7 +29,8 @@ de:meta */
 // says OOH / OH / AAH / EH / EEE depending on where the VOWEL knob sits. Sweep it
 // and the chord talks. This is the single-input vowel filter (the talkbox family,
 // played with a knob instead of your mouth) — NOT a vocoder, which needs a second
-// carrier x modulator input (a future effect, once the sidechain path lands).
+// carrier x modulator input. That one ships too now (vocoder(), 2026-07-17 — see the
+// `vocode` / `voxbox` carts); this is the single-input half of the family.
 // The BUS side of the vowel story (color ANY sound); INSTR_VOICE is the
 // instrument side (a synth that sings on its own). Newest box in the effects
 // family: spacecho · cathedral · juno · mistress · tapeloop · clavinet · eq ·

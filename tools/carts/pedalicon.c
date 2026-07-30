@@ -75,11 +75,8 @@ static void shimmer_icon(int cx, int cy, int col) {
     }
     pset(cx, cy - 9, col); circfill(cx + 5, cy - 8, 1, col);
 }
-static void od_icon(int cx, int cy, int col) {
-    line(cx - 12, cy + 4, cx - 8, cy - 4, col); line(cx - 8, cy - 4, cx - 2, cy - 4, col);
-    line(cx - 2, cy - 4, cx + 2, cy + 4, col);  line(cx + 2, cy + 4, cx + 8, cy + 4, col);
-    line(cx + 8, cy + 4, cx + 12, cy - 4, col);
-}
+// (OD's clipped-waveform glyph moved into the shared runtime/fxicons.h as FX_DRIVE, 2026-07-30 —
+//  it was duplicated here and in pedalboard.c, which is the thing fxicons.h exists to prevent.)
 
 // one tile: colored rounded body + accent border + the centred glyph (NO label)
 static void tile(int cat, int x, int y, int w, int h) {
@@ -90,7 +87,6 @@ static void tile(int cat, int x, int y, int w, int h) {
     if      (d->kind == -1)       lofi_icon(cx, cy, d->accent);
     else if (d->kind == -2)       fuzz_icon(cx, cy, d->accent);
     else if (d->kind == -3)       shimmer_icon(cx, cy, d->accent);
-    else if (d->kind == FX_DRIVE) od_icon(cx, cy, d->accent);
     else                          fx_icon(d->kind, cx, cy, d->accent, d->body);
 }
 

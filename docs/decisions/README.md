@@ -51,7 +51,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0012](0012-loderunner-movement-model.md) | Lode Runner movement model: floor division, not rounding | accepted |
 | [0013](0013-cut-music-api.md) | Cut `music()`: the pattern-bank model lost to code-first music | accepted |
 | [0014](0014-cut-unused-convenience-helpers.md) | Cut three zero-adoption helpers (`bezier_cubic`, `anim_once`, `bounce_at_edges`) | accepted |
-| [0015](0015-effects-are-recipes-not-primitives.md) | Effects are recipes, not primitives: the roster is closed | accepted |
+| [0015](0015-effects-are-recipes-not-primitives.md) | Effects are recipes, not primitives: the GATE, not a closed roster | accepted (count superseded) |
 | [0016](0016-combo-organ-recipe-then-macro-or-engine.md) | Combo organ: a recipe now; its own macro axis or engine only when a station proves it | proposed |
 | [0017](0017-three-macro-core-plus-engine-aux-channel.md) | Keep the 3-macro core; a blessed per-engine aux channel for the exceptions (not a 4th macro) | accepted |
 | [0018](0018-effects-keep-params-but-become-modulatable.md) | Effects keep bespoke params (no instrument-style macros) — but make the sweep-safe ones LFO/CV-able (esp. in modrack) | accepted |

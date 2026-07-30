@@ -1,6 +1,9 @@
 # AIR — the voices/effects I wanted but can't have yet
 
-STATUS: SHIPPED — effects wishlist for AIR; reverb/chorus/tape wired in air.c — only the vocoder remains.
+STATUS: SHIPPED — effects wishlist for AIR; reverb/chorus/tape wired in air.c. The last open want, a
+true vocoder, also shipped (2026-07-17, [`vocoder.md`](vocoder.md) phases 1+2): `vocoder(mix)` +
+`vocoder_send(slot,amt)`. Kelly's robot lead can now be a real carrier×modulator, but `air.c` has NOT
+been rewired to use it, so the cart still sings a raw `INSTR_VOICE` vowel.
 
 The blind-band brief for the **AIR** station (Moon Safari; an *artist* station, five song
 archetypes) named an ideal lineup *from the music*, before reading any cousin cart — the

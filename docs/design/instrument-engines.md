@@ -1614,7 +1614,9 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > §8.10.1 PARKED auto-wah**; the bus is the envelope follower's "real home" that note named (the
 > per-voice `instrument_follow` is untouched and stays for its own uses). Showcase: **clavinet** (the
 > funk wakka-wakka). The §8.10 effects roster is essentially complete (echo/reverb/chorus/flanger/
-> tape/auto-wah, all per-instrument).
+> tape/auto-wah, all per-instrument). **[Stale as written, 2026-07-30: "essentially complete" was true
+> of that day's wishlist only. 22 master effects have shipped since, each clearing 0015's gate. There
+> is no closed roster; see [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md).]**
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first
 > engines ship) — begin small. The Leslie (§8.3/§8.8) is the first instance and sets the pattern.

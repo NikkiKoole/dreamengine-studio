@@ -997,14 +997,9 @@ static void shimmer_icon(int cx, int cy, int col) {
     pset(cx, cy - 9, col); circfill(cx + 5, cy - 8, 1, col);   // a spark at the top
 }
 
-// OD (FX_DRIVE) — a soft-clipped, flat-topped waveform (saturation).
-static void od_icon(int cx, int cy, int col) {
-    line(cx - 12, cy + 4, cx - 8, cy - 4, col);   // rise
-    line(cx - 8, cy - 4, cx - 2, cy - 4, col);    // flat top (clipped)
-    line(cx - 2, cy - 4, cx + 2, cy + 4, col);    // fall
-    line(cx + 2, cy + 4, cx + 8, cy + 4, col);    // flat bottom (clipped)
-    line(cx + 8, cy + 4, cx + 12, cy - 4, col);   // rise
-}
+// OD (FX_DRIVE)'s flat-topped clipped waveform now lives in the shared runtime/fxicons.h with every
+// other FX_* glyph (promoted 2026-07-30 — it had been copy-pasted here and in pedalicon.c), so
+// fx_icon() handles it like the rest and the special-case below is gone.
 
 static void draw_chain_pedal(int i, int x) {
     Slot *sl = &chain[i]; const FxDef *d = &CAT[sl->cat];
@@ -1024,7 +1019,6 @@ static void draw_chain_pedal(int i, int x) {
     if (d->kind == -1)      lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -2) fuzz_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -3) shimmer_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
-    else if (d->kind == FX_DRIVE) od_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else fx_icon(d->kind, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, body);
     int kr = knob_rad(d->nk);
     int lblcol = sl->on ? CLR_LIGHT_PEACH : CLR_DARK_GREY;
@@ -1092,7 +1086,6 @@ static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
     if (d->kind == -1)      lofi_icon(x + w / 2, y + 9, d->accent);
     else if (d->kind == -2) fuzz_icon(x + w / 2, y + 9, d->accent);
     else if (d->kind == -3) shimmer_icon(x + w / 2, y + 9, d->accent);
-    else if (d->kind == FX_DRIVE) od_icon(x + w / 2, y + 9, d->accent);
     else fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
     font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, CLR_WHITE); font(FONT_NORMAL);
 }

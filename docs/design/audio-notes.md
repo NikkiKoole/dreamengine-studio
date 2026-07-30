@@ -1219,6 +1219,11 @@ Modrack grew six modules in a day (MACRO/XPOSE/MIX/CMP/DIV/ADSR) and every patch
 still comes out *polite*. That's not taste, it's an audit-able property of the
 engine. Five findings, all verified against `sound.h`:
 
+> **This is the 2026-06-05 DIAGNOSIS, kept as written — all five findings have since been fixed,
+> and this section is why the effects roster exists.** Drive, the master soft-clip, bitcrush, echo,
+> reverb and 20-odd more inserts all shipped; the §17 ledger below is the build log. Read the five
+> below as the origin story, not as the current state of the engine.
+
 1. **Zero nonlinearity in the signal path.** No drive, no waveshaper, no
    clipper, no bitcrush — the only saturation anywhere is the FM modulator's
    self-feedback (`morph`). Grit *is* nonlinearity; a 303's squelch is the
@@ -1461,7 +1466,8 @@ v1, document it on the panel.
     dormant carts byte-identical (soundcheck silent). `SR_FORMANT`=70 / `SR_INSTR_FORMANT`=71. Showcase: the
     **vowel** cart (a saw chord that talks). **It's the BUS half of the vowel story** — color any sound;
     `INSTR_VOICE` is the instrument half (a synth that sings, with polyphonic per-note articulation a bus
-    can't do). **NOT a vocoder** — that's carrier×modulator (two inputs), waiting on the sidechain path.
+    can't do). **NOT a vocoder** — that's carrier×modulator (two inputs). *[Was "waiting on the sidechain
+    path"; that wait ended. The vocoder SHIPPED 2026-07-17 as its own effect, item 36 below.]*
     The 0015 angle: a formant filter is "the SVF reused four times" (like wah was its 4th use), so it clears
     the gate as a filter-reuse, not a new primitive shape — see the 0015 correction.
 
@@ -1854,6 +1860,26 @@ v1, document it on the panel.
     interval shift is its own spike**, like [`transparent-autotune.md`](transparent-autotune.md)'s
     two. Rung B of [`contemporary-rebirth.md`](contemporary-rebirth.md).
 
+36. **The 12-band vocoder (`vocoder` / `vocoder_send` / `vocoder_mic` / `vocoder_unvoiced`)** — the
+    two-input effect, carrier × modulator cross-synthesis. **✓ SHIPPED 2026-07-17** (phases 1-3;
+    logged here 2026-07-30, late). A carrier (the master mix) is split into 12 bands and each is
+    driven by the matching band's envelope from a MODULATOR, so a held chord speaks the modulator's
+    vowels and rhythm. The modulator is either a synth slot (`vocoder_send(slot, amount)`, **send-only:
+    the slot's own dry is muted**, mirroring `sidechain_key`) or the **live mic** (`vocoder_mic`).
+    Phase 3's `vocoder_unvoiced(amount)` is the intelligibility fix: when the modulator goes to
+    broadband hiss the top bands swap to noise instead of the tonal carrier, so consonants (s/t/sh/f)
+    cut through instead of turning to mush. `mix` 0 = dormant → byte-identical.
+    **Two things this settles beyond itself.** (1) It closed the "waiting on the sidechain path" wait
+    that items 13 + 14 both reference: the `sc_key[]` second-input accumulator from Increment D was
+    indeed the right plumbing. (2) The live path needed mic PCM **on the audio thread**, so it built a
+    lock-free SPSC ring (`sound_extin_*`) — which is the infrastructure the whole
+    **live-throughput/pedal tier** (live fuzz, live granular, looper) was blocked on. Determinism
+    carve-out: [ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md) (live-mic-through is
+    live-only, so a mic take does not replay). Showcases: **vocode** (deterministic, two synth
+    sources, doubles as the DSP acceptance test), **voxbox** (sing and the chord speaks),
+    **hardtune** (robot auto-tune: carrier pitch snapped to `mic_pitch`). Design:
+    [`vocoder.md`](vocoder.md). Recipes: [`../guides/effects-recipes.md`](../guides/effects-recipes.md).
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 
@@ -1863,6 +1889,11 @@ broken speaker it should play through.**
 > Leslie, sidechain…) is a recipe of these primitives or a refusal with the musical
 > need covered elsewhere; the pedalboard audit lives in that ADR. A new primitive must
 > prove it can't be a recipe.
+>
+> **[Half wrong, corrected 2026-07-30.] The last sentence is the rule and it still holds. The
+> "~12 functions forever" cap does not: this very ledger has 36 items, and 22 master effects plus
+> 22 `instrument_*` twins shipped, each one clearing 0015's gate on its merits. 0015 was retitled
+> and its count marked as period detail. Cite the gate, never a count.**
 
 ## 18. Tuning measurement — `tune-check.js` + first-engine audit (2026-06-10)
 

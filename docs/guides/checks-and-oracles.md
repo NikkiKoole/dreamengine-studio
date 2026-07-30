@@ -74,6 +74,8 @@ This page is only the routing layer.
 | `index.json` (tags / registration), or **any cart `.c`** (the promoted source hazards: `watch()` non-string format arg, a local shadowing `map`/`line`/`spr`/… ) | **`lint-carts.js`** |
 | anything under `docs/` | **`lint-docs.js`** (links resolve / §-refs / tool-index) |
 | reorganized docs, want gaps not breaks | **`lint-xrefs.js [topic]`** (docs that should cross-link but don't) |
+| **shipped a new effect/capability** (and a doc somewhere swears we can't do it) | **`lint-capability-claims.js`** — the INVERSE of stale-doc-check: prose denying a capability that now EXISTS ("missing (no reverb engine)", "a future effect once the sidechain lands"). Advisory; fix the claim or add a paragraph-scope "✓ SHIPPED" acknowledgement |
+| added an **`FX_*` insert kind** | **`lint-fxicons.js --strict`** — the kind must have a glyph + colours + name in `runtime/fxicons.h`, or it silently draws the REVERB pedal labelled "FX" |
 | a tool a doc describes (is the prose now stale?) | **`stale-doc-check.js [scope]`** (broken-refs tier = real issues; mtime tiers = nudges; `--driftable` = the declared snapshots) |
 | **not sure which meta-check to run / is the self-doc layer healthy?** | **`repo-doctor.js`** — the ONE health strip over all of the above + the generated-page `--check` gates, counts only (embedded in bare `orient`) |
 | a cart's source/sprites (is it baked/published?) | **`cart-status.js --quiet`** |

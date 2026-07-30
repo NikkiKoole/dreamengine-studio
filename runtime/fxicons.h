@@ -31,6 +31,8 @@ static int fx_body(int kind) {
         case FX_GRAINS:  return CLR_INDIGO;
         case FX_SHALLOW: return CLR_DARKER_BLUE;
         case FX_GATE:    return CLR_DARK_GREEN;
+        case FX_DRIVE:   return CLR_DARK_ORANGE;      // matches pedalboard's OD pedal body
+        case FX_MULTIBAND: return CLR_BROWNISH_BLACK; // a near-black mastering rack
         default:         return CLR_DARKER_GREY;
     }
 }
@@ -53,6 +55,8 @@ static int fx_accent(int kind) {
         case FX_GRAINS:  return CLR_MAUVE;
         case FX_SHALLOW: return CLR_BLUE;
         case FX_GATE:    return CLR_GREEN;
+        case FX_DRIVE:   return CLR_PEACH;            // matches pedalboard's OD pedal accent
+        case FX_MULTIBAND: return CLR_YELLOW;         // VU-meter yellow
         default:         return CLR_LIGHT_GREY;
     }
 }
@@ -75,6 +79,8 @@ static const char *fx_name(int kind) {
         case FX_GRAINS:  return "GRAINS";
         case FX_SHALLOW: return "SHALLOW";
         case FX_GATE:    return "GATE";
+        case FX_DRIVE:   return "DRIVE";
+        case FX_MULTIBAND: return "MULTIBAND";
         default:         return "FX";
     }
 }
@@ -166,6 +172,17 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         circfill(cx - 2, cy + 5, 1, col);
         pset(cx + 5, cy + 5, col);
         pset(cx - 6, cy - 3, col);
+    } else if (kind == FX_DRIVE) {                           // a wave clipped flat — the saturation
+        // Promoted VERBATIM from the od_icon() that pedalboard.c + pedalicon.c had each copy-pasted
+        // (2026-07-30), so the shipped pedals draw pixel-identically through the shared path.
+        line(cx - 12, cy + 4, cx - 8, cy - 4, col); line(cx - 8, cy - 4, cx - 2, cy - 4, col);
+        line(cx - 2, cy - 4, cx + 2, cy + 4, col);  line(cx + 2, cy + 4, cx + 8, cy + 4, col);
+        line(cx + 8, cy + 4, cx + 12, cy - 4, col);
+    } else if (kind == FX_MULTIBAND) {                       // three bands squeezed between two plates
+        static const int mb[3] = { 10, 6, 8 };
+        line(cx - 14, cy - 7, cx + 14, cy - 7, col);         // the plate pressing down…
+        line(cx - 14, cy + 7, cx + 14, cy + 7, col);         // …and the one pushing up
+        for (int b = 0; b < 3; b++) rectfill(cx - 11 + b * 8, cy - mb[b] / 2, 5, mb[b], col);
     } else {                                                 // REVERB — expanding rings (the bloom)
         for (int i = 1; i <= 3; i++) circ(cx, cy, i * 3, col);
         pset(cx, cy, col);

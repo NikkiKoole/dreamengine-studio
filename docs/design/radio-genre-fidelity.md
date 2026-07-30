@@ -13,6 +13,18 @@ build, and where are the holes? This is a gap analysis across all 20 stations on
 > neon is a feature, not a failure. The companion [`radio-voices.md`](../guides/radio-voices.md)
 > is the *what-plays-what* inventory; this is the *what's-missing-vs-an-ideal* overlay.
 
+> **⚠ The "engine-limit" reasons below are STALE (checked 2026-07-30). The gaps are still real as
+> *musical* gaps; the stated causes are not.** This ledger was written before the effects bus and the
+> sampler landed, so rows say things like *"missing (no reverb engine)"* and *"(no sampler exists)"*.
+> Since then **reverb** (plus `reverb_spring` — an actual spring voicing, so the spring-crash row's
+> "closest approximation" workaround is obsolete), **chorus**, **tape** (wow/flutter/sat), **Leslie**,
+> **bus compression/glue**, and a real **sampler** (`INSTR_SAMPLE` + `sample_record`) all shipped.
+> The six worst offenders are corrected in place; assume any other *"the engine can't"* aside here
+> needs checking against [`../guides/effects-recipes.md`](../guides/effects-recipes.md) and
+> [`audio-notes.md` §17](audio-notes.md) before you believe it. **Check, don't trust, an
+> EXPLORING-status gap ledger's engine claims** — the whole point of this doc is the musical ideal,
+> and its inventory of our own shelf rots fastest.
+
 ## How this was made
 
 Two passes, deliberately firewalled:
@@ -117,7 +129,8 @@ Timbre holes dominate, but a smaller, more interesting set of **missing mechanis
 3. **yacht** — strong brain (mu chord, Purdie shuffle, gear change) but the two iconic voices
    (Rhodes, sax) faked on FM/square, and organ, mallet color, and stacked vocals absent.
 4. **jingle** — composes like Mac DeMarco (real song-template harmony brain) but doesn't yet
-   *sound* woozy: no real chorus, no shared tape-wow, no pad/EP dusk-color; cheap-wave voices.
+   *sound* woozy: no chorus/tape-wow WIRED (both now exist — `chorus()`/`tape()`), no pad/EP
+   dusk-color; cheap-wave voices.
 5. **lowend** — strong structural brain but the genre-critical upright bass is a SINE and the
    jazz Rhodes a TRI when real BOWED-pizz and EPIANO exist; horns + DJ scratch absent.
 
@@ -169,7 +182,7 @@ Simmons tom fills, gear change, glossy pad/arp/lead); holes are arrangement dyna
 
 - `instrument` · cowbell ride · **missing** · add an `SL_CB` on the unused `808/cowbell` recipe, sparse offbeat ride.
 - `instrument` · snare layered with claps on 2 & 4 · **missing** · fire `808/snare` alongside the clap as a layer.
-- `instrument` · sampled orchestra-hit · **faked** (FM brass stab stands in; no sampler exists) · push closer with a noise-burst + FM-cluster on the bar-turn.
+- `instrument` · sampled orchestra-hit · **faked** (FM brass stab stands in; a sampler DOES exist now — `INSTR_SAMPLE`) · push closer with a noise-burst + FM-cluster on the bar-turn.
 - `instrument` · big detuned Oberheim brass stabs · **partial** · single FM cluster, no detune-VCO stack.
 - `brain` · relative-MAJOR chorus pivot · **partial** · only the semitone gear change lifts; let the chorus start on bIII / recolor tonic to maj7.
 - `brain` · pre-chorus kick-drop + riser · **missing** · add a 1-bar pre that kills the kick and ramps a riser into the existing crash.
@@ -275,8 +288,8 @@ melodica, then a *live dub-engineer mix* — drop-out muting, tempo-synced echo 
 - `instrument` · Hohner melodica (breathy free-reed) · **faked** (filtered SQUARE) · voice on `INSTR_REED` (clarinet/oboe-leaning).
 - `instrument` · horn section (tenor sax + trombone stabs) · **missing** · an `I_HORN` on `INSTR_REED` firing sparse stabs into the echo on transitions.
 - `technique` · the "Big Knob" high-pass sweep · **missing** · step `FILTER_HIGH` cutoff up over a build then snap back on re-entry (instrument_filter supports it).
-- `technique` · spring-reverb crash punctuation · **missing** (no reverb engine) · a metallic noise burst into the echo bus is the closest approximation.
-- `instrument` · repeating vocal shards drowned in delay · **missing** (no sampler) · a short `INSTR_VOICE` blip thrown into the runaway echo.
+- `technique` · spring-reverb crash punctuation · **missing** (was "no reverb engine" — `reverb_spring` now ships a real spring voicing, so use it, not the noise-burst workaround).
+- `instrument` · repeating vocal shards drowned in delay · **missing** (was "no sampler"; `INSTR_SAMPLE` + `sample_record` now exist) · a short `INSTR_VOICE` blip thrown into the runaway echo still works as the cheap version.
 - `instrument` · tube-amp palm-muted fat bass tone · **partial** (clean SINE, right tone) · a touch of drive/harmonics for body.
 
 ## jangle — Jangle / mixolydian slacker pop (Mac DeMarco, One Wayne G)
@@ -339,7 +352,7 @@ but thin on timbre fidelity — the two iconic voices are faked and the organ/ma
 - `instrument` · stacked 3-4 part jazz vocal harmonies · **missing** · an `INSTR_VOICE` pad doubling the pad's chord tones — the human center, absent.
 - `brain` · the ii-V-I machine (chained ii-V, secondary/backdoor dominants, deceptive res) · **partial** (fixed 4-bar loop, no chaining) · a chord generator that chains ii-V + inserts dominants.
 - `technique` · 4-note rootless 3-7-9-13 + common-tone voice-leading · **partial** (3-note voicings) · 4-note voicings + a common-tone pass.
-- `technique` · production polish (chorus/plate/compression/Leslie) · **missing** (engine-limit — no reverb/chorus bus) · hardest to close; the EP tremolo is the one touch present.
+- `technique` · production polish (chorus/plate/compression/Leslie) · **missing** (was "engine-limit — no reverb/chorus bus"; reverb + chorus + glue all ship now, so this is WIRING, not a limit) · the EP tremolo was the one touch present.
 
 ## roadhouse — Modal psych-rock (The Doors)
 
@@ -460,7 +473,7 @@ runs on a 60-BPM beat grid with a finite synced 16-chord loop, and fakes every s
 - `instrument` · Fender Rhodes shimmer · **missing** · an `INSTR_EPIANO` rhodes filling harmonic space.
 - `instrument` · treated wordless choir / sustained vowels · **missing** (biggest upgrade) · the held chord on `INSTR_VOICE` with a fixed open vowel — held vowels phase beautifully.
 - `instrument` · analog drone bed (string/pad synth) · **partial** (good sine+saw bed; not a dedicated string-machine) · least-urgent.
-- `technique` · reverb-as-composition (8-20s tails) · **missing** (no reverb engine) · route bell+pad through `instrument_echo()` with high feedback as a smearing tail.
+- `technique` · reverb-as-composition (8-20s tails) · **missing** (was "no reverb engine") · `reverb(1.0, low damping)` on a `reverb_bus()` does the 8-20s tail for real now; the `instrument_echo()` smear was the stand-in.
 - `technique` · half-speed octave-down tape haze · **partial** (wow covered; no octave drop) · voice the lead an octave lower with softened attack.
 
 ---

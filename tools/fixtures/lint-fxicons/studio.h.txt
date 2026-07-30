@@ -1,0 +1,12 @@
+// FIXTURE for `node tools/lint-fxicons.js --selfcheck` — NOT the real studio.h.
+// Four kinds with known answers:
+//   FX_ALPHA — fully registered in the fixture fxicons.h  → must be SILENT
+//   FX_BETA  — registered except fx_name                  → must report fx_name only
+//   FX_GAMMA — the fx_icon FALLBACK, no colours/name      → fx_icon exempt, rest reported
+//   FX_DELTA — registered nowhere                         → all four reported, in ONE finding
+#define FX_ALPHA    0   // fully covered
+#define FX_BETA     1   // missing its name
+#define FX_GAMMA    2   // the fallback glyph
+#define FX_DELTA    3   // missing entirely
+// Regression guard: the instance-tagging MACRO must never be parsed as a kind.
+#define FX_INST(kind, inst) ((kind) | ((inst) << 5))

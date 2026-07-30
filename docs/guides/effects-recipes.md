@@ -300,8 +300,10 @@ The VOWEL filter — four bandpasses parked at the human formant frequencies (F1
 takes on an "ooh/aah/eee" vocal colour. `vowel` 0–1 sweeps **OO→OH→AH→EH→EE** (sweep it and a synth
 talks); `q` 0–1 narrows the peaks (broad → pronounced/nasal); `mix` 0–1 (0 = off). A wah is the
 one-peak version of this; this is the multi-peak vowel. **Single-input** (the talkbox family, knob
-for a mouth) — *not* a vocoder (that needs a second carrier×modulator input — a future effect once
-the sidechain lands). Reuses navkit's measured vowel table (shared with `INSTR_VOICE`). Master or
+for a mouth) — *not* a vocoder, which is a genuinely different effect (two inputs, carrier×modulator)
+and **ships now**: see the `vocoder` section below. Reach for `formant` when you want a vowel *knob*,
+`vocoder` when you want a second signal to do the talking.
+Reuses navkit's measured vowel table (shared with `INSTR_VOICE`). Master or
 per-instrument. A sweeping `vowel` every frame is fine (it's a coefficient update, no buffer churn —
 unlike crush/tape). **Showcase: `vowel`** (a saw chord that talks).
 
@@ -319,6 +321,34 @@ unlike crush/tape). **Showcase: `vowel`** (a saw chord that talks).
 | syllable-per-pluck | `formant()` re-pushed each note-on with the next vowel in a list, glided | each strum speaks a new vowel — the guitar recites a "word" (cart-side: `formant()` has no trigger input, so the cart advances the vowel on each pluck) | `pedalboard` (STEP mode) |
 | picking-driven open | `formant()` driven by a strum envelope (vowel opens on attack, relaxes) | hands-free vocal swell — the auto-wah gesture wearing a vowel | `pedalboard` (ENV mode) |
 | auto-sweep LFO | `formant()` re-pushed each frame with `vowel = 0.5−0.5·cos(phase)` | the vowel rocks OO↔EE on its own at a set rate — the rhythmic "yoy-yoy" wobble, hands-free | `pedalboard` (LFO mode), `vowel` (AUTO) |
+
+## vocoder — `vocoder(mix)` · `vocoder_send(slot, amount)` · `vocoder_mic(amount)` · `vocoder_unvoiced(amount)`
+
+The **12-band vocoder**: a CARRIER (the master mix) wears a MODULATOR's spectral envelope, so a held
+chord speaks the modulator's vowels and rhythm. The one effect with **two inputs**, which is why it
+was blocked for so long and why `formant` above is not a substitute. Shipped 2026-07-17
+([`../design/vocoder.md`](../design/vocoder.md), phases 1-3).
+
+Three things to get right:
+
+- **The carrier must be broadband and sustained.** A saw chord, held. Every band needs energy or that
+  band has nothing to pass. A sine carrier vocodes to almost nothing.
+- **`vocoder_send` is send-only:** routing a slot to the modulator **mutes its own dry signal**. It
+  shapes, it is not heard. That is the intended behaviour, not a bug to work around.
+- **`vocoder_unvoiced` is what makes words intelligible.** Without it, consonants (s/t/sh/f) become
+  tonal mush, because a broadband hiss has no pitch for the carrier to lend. At >0 the top bands swap
+  to noise when the modulator goes unvoiced, and the consonants cut through. Start at 0.85.
+
+`mix` 0-1 wet (0 = off, dormant, byte-identical). Master-stage, set-and-hold. `vocoder_mic()` makes the
+LIVE mic the modulator, which needs `mic_start()` plus permission and is **live-only**: a mic take does
+not replay deterministically ([ADR-0032](../decisions/0032-live-mic-effects-are-live-only.md)).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| the deterministic vocoder | held `INSTR_SAW` chord as carrier + an `INSTR_VOICE` phrase on `vocoder_send(MOD, 1.0f)` + `vocoder(0.8f)` | the classic robot choir, and it replays exactly (no mic), so it doubles as the DSP acceptance test | `vocode` |
+| ...with consonants | add a second send-only `INSTR_NOISE` slot firing 's'/'t' bursts + `vocoder_unvoiced(0.85f)` | the chord stops slurring and starts *pronouncing* — the single biggest intelligibility win | `vocode` (X A/Bs it) |
+| sing and the chord speaks | held saw chord + `vocoder_mic(1.0f)` + `vocoder(mix)`, carrier raised only while the mic is active | a synth that talks in your actual voice. Keep the carrier silent until the mic opens or you get a drone under everything | `voxbox` |
+| robot auto-tune (T-Pain) | as above but the carrier is a **single** voice whose pitch is `snap_scale(mic_pitch())`, with a retune-speed glide | your melody corrected to a scale in a robot timbre. Instant snap = hard robot; glided = natural correction | `hardtune` |
 
 ## drive — `instrument_drive(slot, amount)` · `note_drive` · `instrument_drive_mode(slot, mode)`
 

@@ -114,8 +114,20 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** The pattern, as implemented in
-`status-check.js` + `tools/fixtures/status-check/ledger.md`:
+**So: if your check makes a judgement, give it a `--selfcheck`.** Three now do, all gated in
+`repo-doctor` (`selftest: ledger` / `selftest: xrefs` / `selftest: doc refs`):
+
+| tool | fixture | pins |
+|---|---|---|
+| `status-check.js --selfcheck` | `tools/fixtures/status-check/ledger.md` | 13 — every finding kind, plus the two shapes that made v1 cry wolf |
+| `lint-xrefs.js --selfcheck` | `tools/fixtures/lint-xrefs/docs/` | 5 — both tiers, plus the HUB and fenced-code exempt classes |
+| `stale-doc-check.js --selfcheck` | `tools/fixtures/stale-doc-check/docs/` | 7 — the four verdicts BROKEN REFERENCES rests on (gone / never-existed / foreign / present) |
+
+Both doc-scanning tools take a **`DE_DOCS_DIR`** override so the fixture is scanned instead of
+`docs/`, while `ROOT` stays the real repo — so the fixture is adjudicated against real `srcExists`
+and real git history, exactly as in production.
+
+The pattern:
 
 - a **tiny synthetic input** carrying one instance of every finding kind;
 - plus a **regression guard for every false positive you actually hit** — the fixture holds the two
@@ -132,6 +144,14 @@ Two rules that fall out of the same day:
 2. **Never suppress silently.** When a check learns to ignore a class, it must still *count* what it
    ignored and be able to list it (`stale-doc-check --all`). A linter that quietly drops findings
    rots in the opposite direction, and nobody notices because the report looks clean.
+3. **Watch every assertion fail once, or it isn't evidence.** Break the heuristic on purpose and
+   confirm the expectation goes red. This is not ceremony — **two of the guards written on the day
+   this page was added were vacuous on the first attempt.** `lint-xrefs`'s fenced-mention guard
+   passed green with fence tracking fully disabled, because the fenced mention named a doc that
+   already had an unfenced mention and was deduped away regardless; the fix (a doc named *only*
+   inside the fence) then fired for the wrong reason, because the sentence introducing the fence
+   named it too. Only the third version actually failed when broken. A green self-test proves
+   nothing until you have seen it go red.
 
 ## Orienting *before* a change (don't dive in blind)
 

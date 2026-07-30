@@ -547,7 +547,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              exists but no agent finds it, so they hand-roll it again" class
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
                              unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
-                             scope to a feature (`node tools/lint-xrefs.js touch`) to act on it
+                             scope to a feature (`node tools/lint-xrefs.js touch`) to act on it.
+                             `--json`; `--selfcheck` = known-answer fixture (both tiers + the HUB and
+                             fenced-code exempt classes), gated in repo-doctor
              stale-doc-check.js  doc-freshness finder. BROKEN REFERENCES tier = a doc cites a code path
                              that ONCE EXISTED and is now gone (renamed/deleted — prose left behind by a move), or
                              a dead `tool --flag`. A never-built file and another repo's path are NOT that and are
@@ -556,7 +558,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              a doc names a tool changed after it; DOC CHURN, --docs). `--driftable` = the CURATED
                              tier: docs that declare a `de:driftable` snapshot of a tool's output, flagged when the
                              tool's inputs moved after the snapshot (see docs/design/driftable-docs.md; surfaced by
-                             cart-status.js). grep + git dates, no dep graph; advisory
+                             cart-status.js). grep + git dates, no dep graph; advisory. `--all` lists what the
+                             broken-refs tier SUPPRESSED (proposals / other repos' paths — it always prints the
+                             count); `--selfcheck` = known-answer fixture, gated in repo-doctor
              handoff.js      the ACTIVE-LANE tracker for docs/HANDOFF.md — keeps it recent + the reliable place to
                              resume complex in-flight work. Bare = FRONT DOOR: list the ▶ ACTIVE THREAD lanes + age
                              (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / broken doc links /

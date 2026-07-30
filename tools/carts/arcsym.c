@@ -103,12 +103,12 @@ static void raster_arc(unsigned char g[GH][GW], float ocx,float ocy,float rr, fl
         int vx[NARC+2], vy[NARC+2], k=0;
         vx[k]=iround(ocx); vy[k]=iround(ocy); k++;          // apex = the arc centre
         for (int i=0;i<=NARC;i++){ float a=a0+(a1-a0)*i/NARC;
-            vx[k]=iround(ocx+cosf(a)*rr); vy[k]=iround(ocy+sinf(a)*rr); k++; }
+            vx[k]=iround(ocx+de_cosf(a)*rr); vy[k]=iround(ocy+de_sinf(a)*rr); k++; }
         fillpoly(g, vx,vy, k);
     } else {
-        int px=iround(ocx+cosf(a0)*rr), py=iround(ocy+sinf(a0)*rr);
+        int px=iround(ocx+de_cosf(a0)*rr), py=iround(ocy+de_sinf(a0)*rr);
         for (int i=1;i<=NARC;i++){ float a=a0+(a1-a0)*i/NARC;
-            int x=iround(ocx+cosf(a)*rr), y=iround(ocy+sinf(a)*rr);
+            int x=iround(ocx+de_cosf(a)*rr), y=iround(ocy+de_sinf(a)*rr);
             bres(g, px,py, x,y); px=x; py=y; }
     }
 }

@@ -159,20 +159,36 @@ the whole thesis reproducible in one command.
 `tools/web-audio-check.js` is the end-to-end gate: it compiles the real engine both ways and
 demands bit-parity on all 16 engines.
 
+## Coverage (2026-07-30, second pass)
+
+`demath.h` is now included by `studio.h`, so `de_*` is available to every cart and every cart-land
+header with nothing to add.
+
+| surface | state |
+|---|---|
+| `runtime/sound.h` | **zero** non-deterministic libm calls |
+| every cart-land `runtime/*.h` | **zero** — `citygen.h` (28), `roadkit.h` (6), `fxicons.h` (5), `radio.h` (2), and one `powf` each in `acid303`/`keybed`/`morphdrum`/`tr808`/`tr909` |
+| the 12 `spec()`-gated carts | swapped (94 calls) — `streetlab` `tweenlab` `roadhouse` `sloop` `arcsym` `sh101` `squarepusher` `squishy` `tr808` `tr909` `citydrive` `mariachi`, plus `skewlab` for `hypotf` |
+| `runtime/stb_image.h` | 2 `pow` calls, **vendored — deliberately left alone** |
+| the other ~560 carts | ~740 calls, decorative, left on libm on purpose |
+
+The geometry swap was the one with real risk, since `roadkit` feeds a spec-locked oracle. Both
+`streetlab`'s spec (104/0) and `road-check --all` came out **unchanged**, so no boundary case moved.
+
 ## Open
 
-- **Carts are not covered.** 834 calls to non-deterministic libm functions across 573 carts, mostly
-  decorative (`sinf` for a title-screen wobble, which nobody will ever notice). The ones that would
-  matter are the 15 carts carrying both a `spec()` gate and unsafe math, especially the geometry
-  ones (`streetlab` `citydrive` `sloop`). The intended fix is to expose `de_*` through `studio.h`
-  so a cart that needs determinism can opt in, leaving decorative use on libm.
-- **`roadkit.h` and `citygen.h`** use trig for geometry that feeds pixel decisions, and `roadkit`
-  has a spec-locked oracle (`streetlab`, 104/0). A 1-ULP shift on another platform could move that
-  count and report a failure with no bug to find.
-- **Not provided yet:** `asinf` `acosf` `atanf` (scalar), `coshf`, `hypotf`, `cbrtf`. Add them the
-  same way if a call site appears.
+- **Most carts still use libm, on purpose.** ~740 calls across ~560 carts, essentially all
+  decorative (a `sinf` driving a title-screen wobble can differ in the last bit forever and nobody
+  will know). The rule is in `studio.h`'s include comment and the
+  [cart-authoring](../guides/cart-authoring.md) table: reach for
+  `de_*` when a cart's **output gets compared** (a `spec()` oracle, a replay, lockstep, a golden
+  image). If a cart later grows a `spec()`, swap it then.
+- **Not provided:** `coshf`, `cbrtf`, `expm1f`, `log1pf`. No call sites exist; add them the same way
+  if one appears.
 - **Denormals** are flushed inside `demath.h`, but the engine at large does not set a consistent
   FTZ/DAZ mode. Not currently a known problem; worth knowing it is unpinned.
+- **`-ffast-math` remains the one thing that defeats all of this**, since it turns on
+  `-ffp-contract=fast` which the pragma cannot override. Already a standing build rule.
 
 ## See also
 

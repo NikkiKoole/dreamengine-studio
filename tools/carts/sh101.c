@@ -95,7 +95,7 @@ static int   porta_mode = 1;    // 0=AUTO 1=OFF 2=ON
 static float bend    = 0.0f;    // bender, ±1 → ±2 semitones, springs back
 
 // ── value mappings ────────────────────────────────────────────────────────
-static float f_cut(float v)  { return 60.0f * powf(2.0f, v * 6.3f); }  // 60..4700 Hz
+static float f_cut(float v)  { return 60.0f * de_powf(2.0f, v * 6.3f); }  // 60..4700 Hz
 static int   f_res(float v)  { return (int)(v * 15.0f + 0.5f); }
 static int   f_att(float v)  { return 1 + (int)(v * v * 1500.0f); }
 static int   f_dec(float v)  { return 10 + (int)(v * v * 2000.0f); }
@@ -290,7 +290,7 @@ static void sync_slots(void) {
 // ─────────────────────────────────────────────────────────────────────────
 
 static float eff_cut(int midi) {
-    float c = f_cut(cut_v) * powf(2.0f, (midi - 60) / 12.0f * kyb_v);
+    float c = f_cut(cut_v) * de_powf(2.0f, (midi - 60) / 12.0f * kyb_v);
     return clamp(c, 40.0f, 8000.0f);
 }
 
@@ -567,7 +567,7 @@ static float ui_knob(int id, int x, int y, int r, float val, int detents) {
     circfill(x, y, r, C_DARK);
     circ(x, y, r, CLR_BLACK);
     float a = 3.7f - shown * 4.25f;   // 7:30 → 12:00 → 4:30, like a real pot
-    line(x, y, x + (int)(cosf(a) * (r - 2)), y - (int)(sinf(a) * (r - 2)), CLR_WHITE);
+    line(x, y, x + (int)(de_cosf(a) * (r - 2)), y - (int)(de_sinf(a) * (r - 2)), CLR_WHITE);
     return val;
 }
 

@@ -1110,7 +1110,7 @@ static void draw_panel(void) {
         circ(SUN_DCX, SUN_DCY, SUN_DR, CLR_LIGHT_GREY);
         float mdx = mouse_x() - SUN_DCX, mdy = mouse_y() - SUN_DCY;
         if (mouse_down(MOUSE_LEFT) && mdx*mdx + mdy*mdy <= (SUN_DR+4)*(SUN_DR+4))
-            bevel_angle = atan2f(mdy, mdx) * RAD2DEG;
+            bevel_angle = de_atan2f(mdy, mdx) * RAD2DEG;
         int sx = SUN_DCX + (int)(cos_deg(bevel_angle) * (SUN_DR - 3));
         int sy = SUN_DCY + (int)(sin_deg(bevel_angle) * (SUN_DR - 3));
         line(SUN_DCX, SUN_DCY, sx, sy, CLR_LIGHT_GREY);          // ray to the sun
@@ -1438,7 +1438,7 @@ static void sp_fill(Stroke *st, int tool, unsigned seed, int n, float speed) {
 }
 static float sp_len2d(float x, float y)     { return sqrtf(x * x + y * y); }
 static float sp_angdiff(float a, float b)   { float d = fmodf(a - b + 540.0f, 360.0f) - 180.0f; return fabsf(d); }
-static float sp_ang(float x, float y)       { return atan2f(y, x) * RAD2DEG; }
+static float sp_ang(float x, float y)       { return de_atan2f(y, x) * RAD2DEG; }
 
 void spec(void) {
     // ── the hash foundation: deterministic, and hashf lands in [0,1) ──

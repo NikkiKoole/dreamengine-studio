@@ -1571,7 +1571,7 @@ static void handle_input(void) {
             float tx = touch_x(i), ty = touch_y(i), dx = tx - WHEEL_CX, dy = ty - WHEEL_CY;
             if (dx * dx + dy * dy <= grab_r2) {
                 wheel_grab = touch_id(i); wpx = tx; wpy = ty; have_ptr = 1;
-                wheel_turn = steer_pos * WHEEL_LOCK; wheel_prev_ang = atan2f(dy, dx) * 57.29578f;
+                wheel_turn = steer_pos * WHEEL_LOCK; wheel_prev_ang = de_atan2f(dy, dx) * 57.29578f;
                 break;
             }
         }
@@ -1579,13 +1579,13 @@ static void handle_input(void) {
             float dx = mouse_x() - WHEEL_CX, dy = mouse_y() - WHEEL_CY;
             if (dx * dx + dy * dy <= grab_r2) {
                 wheel_grab = WHEEL_MOUSE; wpx = mouse_x(); wpy = mouse_y(); have_ptr = 1;
-                wheel_turn = steer_pos * WHEEL_LOCK; wheel_prev_ang = atan2f(dy, dx) * 57.29578f;
+                wheel_turn = steer_pos * WHEEL_LOCK; wheel_prev_ang = de_atan2f(dy, dx) * 57.29578f;
             }
         }
     }
     steer_grab = 0;
     if (have_ptr) {                                    // accumulate the finger's sweep around the hub
-        float pa = atan2f(wpy - WHEEL_CY, wpx - WHEEL_CX) * 57.29578f;
+        float pa = de_atan2f(wpy - WHEEL_CY, wpx - WHEEL_CX) * 57.29578f;
         float d = pa - wheel_prev_ang;
         while (d >  180.0f) d -= 360.0f;               // shortest signed step (no wrap glitch)
         while (d < -180.0f) d += 360.0f;
@@ -3081,7 +3081,7 @@ static void osm_load(const char *path) {
                 obld[n_obld].wy = uy * uc + vy2 * vc;
                 obld[n_obld].hw = (umax - umin) * 0.5f;                    // metres half-extents (converted below)
                 obld[n_obld].hh = (vmax - vmin) * 0.5f;
-                obld[n_obld].ang = atan2f(uy, ux) * 57.29578f;            // metres-frame heading (converted below)
+                obld[n_obld].ang = de_atan2f(uy, ux) * 57.29578f;            // metres-frame heading (converted below)
                 n_obld++;
             }
             continue;
@@ -3274,7 +3274,7 @@ static void draw_osm_roads(void) {
         float loY = ay < by ? ay : by, hiY = ay > by ? ay : by;
         if (hiX < L - w || loX > R + w || hiY < T - w || loY > B + w) continue;
         float dx = bx - ax, dy = by - ay, len = fsqrt(dx * dx + dy * dy);
-        float deg = atan2f(dy, dx) * 57.29578f;
+        float deg = de_atan2f(dy, dx) * 57.29578f;
         // len + w so consecutive segments overlap at the joint (no gap); a stub of length w draws a cap.
         rectfill_rot((int)((ax + bx) * 0.5f), (int)((ay + by) * 0.5f),
                      (int)(len + w), (int)w, deg, osm_road_col(oseg[s].cls));
@@ -3316,7 +3316,7 @@ static void draw_rn2_world(void) {
             float loY = ay < by ? ay : by, hiY = ay > by ? ay : by;
             if (hiX < L - w || loX > R + w || hiY < T - w || loY > B + w) continue;
             float ddx = bx - ax, ddy = by - ay, len = fsqrt(ddx*ddx + ddy*ddy);
-            float deg = atan2f(ddy, ddx) * 57.29578f;
+            float deg = de_atan2f(ddy, ddx) * 57.29578f;
             int c = (eg_e[e].br[i] || eg_e[e].br[i+1]) ? CLR_BROWN : col;           // bridge deck
             rectfill_rot((int)((ax + bx) * 0.5f), (int)((ay + by) * 0.5f),
                          (int)(len + w), (int)w, deg, c);
@@ -3368,7 +3368,7 @@ static void draw_cg_world(void) {
         if (!(hiX < L-(W) || loX > R+(W) || hiY < T-(W) || loY > B+(W))) {                 \
             float ddx = bx-ax, ddy = by-ay, len = fsqrt(ddx*ddx + ddy*ddy);                \
             rectfill_rot((int)((ax+bx)*0.5f), (int)((ay+by)*0.5f),                         \
-                         (int)(len+(W)), (int)(W), atan2f(ddy,ddx)*57.29578f, (COL));      \
+                         (int)(len+(W)), (int)(W), de_atan2f(ddy,ddx)*57.29578f, (COL));      \
         } } while (0)
     float aw = CG_ART_HW * 2.0f * CG_PPM, mw = CG_MINOR_HW * 2.0f * CG_PPM;
     for (int e = 0; e < me_n; e++)                 // minors first (arterials paint over)

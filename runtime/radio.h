@@ -351,7 +351,7 @@ static void rad_knob_face(int x, int y, int r, float t,
     circfill(x, y, r, CLR_DARK_GREY);
     circ(x, y, r, hot ? CLR_WHITE : CLR_BLACK);
     float a = (-0.75f + t * 1.5f) * 3.14159f;
-    line(x, y, x + (int)(sinf(a) * (r - 2)), y - (int)(cosf(a) * (r - 2)), col);
+    line(x, y, x + (int)(de_sinf(a) * (r - 2)), y - (int)(de_cosf(a) * (r - 2)), col);
     print(label, x - text_width(label) / 2, y + r + 3, CLR_LIGHT_GREY);
 }
 

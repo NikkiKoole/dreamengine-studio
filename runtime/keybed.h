@@ -218,7 +218,7 @@ static void keybed_update(void) {
     //    sampler velocity-curve fix. Tune via KEYBED_MIDI_VEL_GAMMA.
     int mn, mv, t;
     while ((t = midi_get(&mn, &mv)) != 0) {
-        if (t > 0) { int v = (int)(7.0f * powf(mv / 127.0f, KEYBED_MIDI_VEL_GAMMA) + 0.5f);
+        if (t > 0) { int v = (int)(7.0f * de_powf(mv / 127.0f, KEYBED_MIDI_VEL_GAMMA) + 0.5f);
                      kb_press(mn, KB_MIDI, v < 1 ? 1 : v > 7 ? 7 : v); }
         else         kb_release(mn, KB_MIDI);
     }

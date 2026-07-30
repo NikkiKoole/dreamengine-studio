@@ -669,7 +669,7 @@ static void jn_arm(float x,float y,float nx,float ny,int k){
   int qx=(int)lroundf(x/J_QUANT), qy=(int)lroundf(y/J_QUANT);
   int i=jn_find(qx,qy,x,y); if(i<0) return;
   JNode*n=&g_jn[i]; if(n->nraw>=J_RAWARM) return;
-  float brg=atan2f(dy,dx)*57.2957795f; if(brg<0) brg+=360.0f;
+  float brg=de_atan2f(dy,dx)*57.2957795f; if(brg<0) brg+=360.0f;
   n->raw[n->nraw]=brg; n->rawk[n->nraw]=(unsigned char)k; n->nraw++;
 }
 static void build_junctions(void){

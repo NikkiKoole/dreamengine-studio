@@ -50,7 +50,7 @@ enum { TR9_ST_PLAIN, TR9_ST_FLAM, TR9_ST_DRAG, TR9_ST_RATCHET, TR9_NSTROKE };
 // ── per-voice knob maths (arrays are the CART's; 0.5 = neutral) ───────────────
 static int tr909__midi(const float *kt, int v, int base) { return base + (int)((kt[v] - 0.5f) * 24.0f + 0.5f); }
 static int tr909__dur(const float *kd, int v, int base) {
-    float s = powf(4.0f, (kd[v] - 0.5f) * 2.0f);
+    float s = de_powf(4.0f, (kd[v] - 0.5f) * 2.0f);
     int d = (int)(base * s + 0.5f);
     return d < 5 ? 5 : d;
 }

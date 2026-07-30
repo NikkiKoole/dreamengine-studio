@@ -61,7 +61,7 @@ typedef struct {
 } Acid;
 
 // ── param → engine-unit mappings (acidrack's superset curves) ────────────────
-static int   acid_cut_hz(Acid *a)   { float top = a->classic ? 6.0f : a->cut_top; return (int)(60.0f * powf(2.0f, a->p[ACID_CUT] * top)); } // range: classic pins vanilla 6.0, else cut_top (6.38 DF)
+static int   acid_cut_hz(Acid *a)   { float top = a->classic ? 6.0f : a->cut_top; return (int)(60.0f * de_powf(2.0f, a->p[ACID_CUT] * top)); } // range: classic pins vanilla 6.0, else cut_top (6.38 DF)
 static int   acid_res_q(Acid *a)    { return (int)(a->p[ACID_RES] * 15.0f); }                     // 0..15 Q (int — instrument_filter's baseline)
 static float acid_res_f(Acid *a)    { return a->p[ACID_RES] * 15.0f; }                            // 0..15 CONTINUOUS — the live note_res ride (analog res, no 16-step stepping)
 static float acid_env_hz(Acid *a)   { return a->p[ACID_ENV] * 3000.0f; }                          // filter-env depth Hz

@@ -42,8 +42,8 @@ static CurbReturn curb_return(float kx, float ky, float e1, float e2, float R){
     float bl=sqrtf(bx*bx+by*by); if(bl<1e-4f){ bx=-d1y; by=d1x; bl=1; } bx/=bl; by/=bl;
     float coshalf = bx*d1x + by*d1y;                       // cos(half-angle) = bisector · edge
     if (coshalf>1) coshalf=1; if (coshalf<-1) coshalf=-1;
-    float half = acosf(coshalf);
-    float sinhalf = sinf(half); if (sinhalf<1e-4f) sinhalf=1e-4f;
+    float half = de_acosf(coshalf);
+    float sinhalf = de_sinf(half); if (sinhalf<1e-4f) sinhalf=1e-4f;
     float tanhalf = sinhalf/coshalf; if (tanhalf<1e-4f) tanhalf=1e-4f;
     float tdist = R / tanhalf;                             // K → tangent point, along each edge
     float cdist = R / sinhalf;                             // K → centre, along the bisector
@@ -148,11 +148,11 @@ static void rk_field_build(RkField*f, float cx, float cy, float HW, const float*
         if (R>maxR) maxR=R;
         float bm=bA+gap*0.5f, kx,ky; edge_corner(cx,cy,HW, bA,bB,bm, &kx,&ky);
         CurbReturn c=curb_return(kx,ky, bA,bB, R);
-        float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
+        float a0=de_atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=de_atan2f(c.t2y-c.oy,c.t2x-c.ox);
         float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
         float *xy=f->fil[f->nfil]; int k=0;
         xy[k++]=kx; xy[k++]=ky;
-        for (int s=0;s<=10;s++){ float a=a0+d*s/10; xy[k++]=c.ox+cosf(a)*R; xy[k++]=c.oy+sinf(a)*R; }
+        for (int s=0;s<=10;s++){ float a=a0+d*s/10; xy[k++]=c.ox+de_cosf(a)*R; xy[k++]=c.oy+de_sinf(a)*R; }
         f->nfil++;
     }
     // fillet-cutoff radius: acute skew corners reach far past a fixed radius — take the furthest vertex.

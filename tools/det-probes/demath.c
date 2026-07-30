@@ -79,6 +79,17 @@ int main(void) {
     for (int i = 0; i <= 50000; i++) feed(de_tanf(-1.5f + (float)i * (3.0f / 50000.0f)));
     for (int i = 0; i <= 50000; i++) feed(de_sinhf(-5.0f + (float)i * (10.0f / 50000.0f)));
 
+    // inverse trig — including both endpoints, where the sqrt(1-x*x) leg goes to zero.
+    for (int i = 0; i <= 100000; i++) {
+        float x = -1.0f + (float)i * (2.0f / 100000.0f);
+        feed(de_asinf(x)); feed(de_acosf(x));
+    }
+    float iseams[] = { -1.0f, -0.99999994f, -0.0f, 0.0f, 0.99999994f, 1.0f };
+    for (int i = 0; i < 6; i++) { feed(de_asinf(iseams[i])); feed(de_acosf(iseams[i])); }
+    for (int i = 0; i <= 50000; i++) feed(de_atanf(-30.0f + (float)i * (60.0f / 50000.0f)));
+    for (int i = 0; i <= 500; i++) for (int j = 0; j <= 500; j++)
+        feed(de_hypotf(-50.0f + (float)i * (100.0f / 500.0f), -50.0f + (float)j * (100.0f / 500.0f)));
+
     // A few spot values printed too, so a mismatch says WHICH function moved.
     printf("hash=%016llx | sin(.125)=%.9g exp2(0.5)=%.9g exp(1)=%.9g tanh(1)=%.9g\n",
            (unsigned long long)h,

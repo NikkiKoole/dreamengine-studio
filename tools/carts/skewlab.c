@@ -70,7 +70,7 @@ static void build(void){
     if (mode == 0){                                   // two long crossing arms through centre
         float far = (float)(SCREEN_W+SCREEN_H);
         Ax[0]=CX-far; Ay[0]=CY;        Bx[0]=CX+far; By[0]=CY;        // arm A: horizontal
-        float r=(90.f+skew)*3.14159265f/180.f, dx=cosf(r), dy=sinf(r);
+        float r=(90.f+skew)*3.14159265f/180.f, dx=de_cosf(r), dy=de_sinf(r);
         Ax[1]=CX-far*dx; Ay[1]=CY-far*dy; Bx[1]=CX+far*dx; By[1]=CY+far*dy;  // arm B: skewed
         nSeg = 2;
     } else {                                          // wiggly road: chords of a multi-sine line
@@ -78,7 +78,7 @@ static void build(void){
         float px=0,py=0;
         for (int i=0;i<=N;i++){
             float x = x0 + (x1-x0)*i/N;
-            float y = CY + amp*(sinf(x*0.045f) + 0.45f*sinf(x*0.11f + 1.3f));  // fake-Perlin sum-of-sines
+            float y = CY + amp*(de_sinf(x*0.045f) + 0.45f*de_sinf(x*0.11f + 1.3f));  // fake-Perlin sum-of-sines
             if (i>0 && nSeg<MAXSEG){ Ax[nSeg]=px; Ay[nSeg]=py; Bx[nSeg]=x; By[nSeg]=y; nSeg++; }
             px=x; py=y;
         }
@@ -89,7 +89,7 @@ static void build(void){
 static float dseg(int xx,int yy,int i){
     float px=xx+0.5f, py=yy+0.5f, dx=Bx[i]-Ax[i], dy=By[i]-Ay[i], L2=dx*dx+dy*dy;
     float t = L2>0 ? ((px-Ax[i])*dx+(py-Ay[i])*dy)/L2 : 0; if(t<0)t=0; if(t>1)t=1;
-    float qx=Ax[i]+t*dx, qy=Ay[i]+t*dy; return hypotf(px-qx, py-qy);
+    float qx=Ax[i]+t*dx, qy=Ay[i]+t*dy; return de_hypotf(px-qx, py-qy);
 }
 // ── THE FIELD (the portable interface). latDist = perpendicular distance to the NEAREST road
 // centreline. EVERY road feature below is a threshold on this one value — asphalt/kerb/sidewalk/

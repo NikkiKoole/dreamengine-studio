@@ -194,22 +194,22 @@ static void sline(int x0,int y0,int x1,int y1,int c){
 // the arc. PAVEMENT sits on the K side of the arc (rounding the re-entrant corner inward); the block keeps
 // its square outer shape. Apex = K (NOT the arc centre O — that fills the block side, the inverted bug).
 static void fill_corner(float kx, float ky, CurbReturn c, float R, int col){
-    float a0 = atan2f(c.t1y-c.oy, c.t1x-c.ox);
-    float a1 = atan2f(c.t2y-c.oy, c.t2x-c.ox);
+    float a0 = de_atan2f(c.t1y-c.oy, c.t1x-c.ox);
+    float a1 = de_atan2f(c.t2y-c.oy, c.t2x-c.ox);
     float d  = a1-a0; while(d> M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;   // shorter sweep (the ≤90° arc)
     enum { N=10 };
     int xy[2*(N+2)]; int k=0;
     xy[k++]=ri(kx); xy[k++]=ri(ky);                        // apex = the sharp corner (pavement side)
-    for (int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*R); xy[k++]=ri(c.oy+sinf(a)*R); }
+    for (int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+de_cosf(a)*R); xy[k++]=ri(c.oy+de_sinf(a)*R); }
     polyfill(xy, N+2, col);
 }
 // stroke just the curb arc (the rounded kerb line)
 static void stroke_corner(CurbReturn c, float R, int col){
-    float a0 = atan2f(c.t1y-c.oy, c.t1x-c.ox);
-    float a1 = atan2f(c.t2y-c.oy, c.t2x-c.ox);
+    float a0 = de_atan2f(c.t1y-c.oy, c.t1x-c.ox);
+    float a1 = de_atan2f(c.t2y-c.oy, c.t2x-c.ox);
     float d  = a1-a0; while(d> M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
     enum { N=10 }; float px=c.t1x, py=c.t1y;
-    for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+cosf(a)*R, y=c.oy+sinf(a)*R;
+    for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+de_cosf(a)*R, y=c.oy+de_sinf(a)*R;
         // SEAM: sline() (above) is the symmetric line, but a NAIVE swap here REGRESSES the kerb
         // 7->27 (measured): the fill is point-mirrored about cx=160 (cells sum 320) while sline is
         // exact only for CELL-mirror endpoints (sum 319). Fixing the kerb needs the stroke snapped
@@ -221,15 +221,15 @@ static void stroke_corner(CurbReturn c, float R, int col){
 // the far (K) side of the arc, so radii > R are inside it ⇒ the band hugs the kerb and meets each arm's
 // outer (kerb-side) bike lane at the tangent points. Reuses the CurbReturn the curb returns already computed.
 static void corner_bike(CurbReturn c, float R){
-    float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
+    float a0=de_atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=de_atan2f(c.t2y-c.oy,c.t2x-c.ox);
     float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
     enum { N=10 }; int xy[4*(N+1)]; int k=0;
-    for (int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*R);         xy[k++]=ri(c.oy+sinf(a)*R); }
-    for (int i=N;i>=0;i--){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*(R+BIKEW)); xy[k++]=ri(c.oy+sinf(a)*(R+BIKEW)); }
+    for (int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+de_cosf(a)*R);         xy[k++]=ri(c.oy+de_sinf(a)*R); }
+    for (int i=N;i>=0;i--){ float a=a0+d*i/N; xy[k++]=ri(c.ox+de_cosf(a)*(R+BIKEW)); xy[k++]=ri(c.oy+de_sinf(a)*(R+BIKEW)); }
     polyfill(xy, 2*(N+1), CLR_BROWN);                              // the terracotta band is SURFACE
     if (!paint) return;
-    float px=c.ox+cosf(a0)*(R+BIKEW), py=c.oy+sinf(a0)*(R+BIKEW);   // the carriageway-side edge line (white) is PAINT
-    for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+cosf(a)*(R+BIKEW), y=c.oy+sinf(a)*(R+BIKEW);
+    float px=c.ox+de_cosf(a0)*(R+BIKEW), py=c.oy+de_sinf(a0)*(R+BIKEW);   // the carriageway-side edge line (white) is PAINT
+    for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+de_cosf(a)*(R+BIKEW), y=c.oy+de_sinf(a)*(R+BIKEW);
         line(ri(px),ri(py),ri(x),ri(y),CLR_WHITE); px=x; py=y; }
 }
 static void dashed(float x0,float y0,float x1,float y1,int col){       // a dashed lane/centre line
@@ -448,8 +448,8 @@ static void draw_driveway(float cx,float cy,float b,float d,int s){
 static float arm_face(const float *brg,int n,int i,float HW){
     float gP=fmodf(brg[i]-brg[(i-1+n)%n]+3600,360), gN=fmodf(brg[(i+1)%n]-brg[i]+3600,360);
     float m=0;
-    if (gP>0.5f&&gP<179.5f){ float d=HW/tanf(gP*0.5f*DEG2RAD); if(d>m)m=d; }
-    if (gN>0.5f&&gN<179.5f){ float d=HW/tanf(gN*0.5f*DEG2RAD); if(d>m)m=d; }
+    if (gP>0.5f&&gP<179.5f){ float d=HW/de_tanf(gP*0.5f*DEG2RAD); if(d>m)m=d; }
+    if (gN>0.5f&&gN<179.5f){ float d=HW/de_tanf(gN*0.5f*DEG2RAD); if(d>m)m=d; }
     return m;
 }
 // PER-SIDE kerb-lane START — a SKEWED arm's two sides face DIFFERENT gaps (one acute, one obtuse), so the
@@ -462,7 +462,7 @@ static float kerb_start(const float *brg,int n,int i,float HW,float R,int side){
                        : fmodf(brg[i]-brg[(i-1+n)%n]+3600,360);
     if (g<=0.5f || g>=179.5f) return 0;                     // straight (a T's back / through side) — NO corner, so the
                                                             // lane runs continuously to the hub (both halves meet there)
-    return (HW+R)/tanf(g*0.5f*DEG2RAD) - 2.f;
+    return (HW+R)/de_tanf(g*0.5f*DEG2RAD) - 2.f;
 }
 // LEFT-TURN ARROW: shaft pointing into the junction (inbound) with a head hooking LEFT (across the
 // centreline) — the glyph that marks a lane as turn-only. Lives in the arm's local frame ⇒ skew-safe.
@@ -586,11 +586,11 @@ static void draw_splitter(float cx,float cy,float b,float inner,float len){
 //    ring hugging its building side. Drive-on-right ⇒ one per convex corner; the exit (yield) is the bA arm. ──
 // fill a constant-width ANNULAR ring [r0,r1] about a fillet centre, swept over t1→t2 — the slip lane band.
 static void fill_ring(CurbReturn c, float r0, float r1, int col){
-    float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
+    float a0=de_atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=de_atan2f(c.t2y-c.oy,c.t2x-c.ox);
     float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
     enum{N=12}; int xy[4*(N+1)]; int k=0;
-    for(int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*r1); xy[k++]=ri(c.oy+sinf(a)*r1); }
-    for(int i=N;i>=0;i--){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*r0); xy[k++]=ri(c.oy+sinf(a)*r0); }
+    for(int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+de_cosf(a)*r1); xy[k++]=ri(c.oy+de_sinf(a)*r1); }
+    for(int i=N;i>=0;i--){ float a=a0+d*i/N; xy[k++]=ri(c.ox+de_cosf(a)*r0); xy[k++]=ri(c.oy+de_sinf(a)*r0); }
     polyfill(xy,2*(N+1),col);
 }
 // a free-right serves a roughly-perpendicular right turn — drawn only for a sensible turn-angle window. PURE.
@@ -629,7 +629,7 @@ static void draw_freeright(float cx,float cy,float bA,float bB,float bm){
     stroke_corner(cc, ri, CLR_WHITE);                 // the slip's outer (kerb-side) lane line ⇒ reads as a lane
     // YIELD where the slip merges onto the EXIT arm (bA = the cc.t1 side). The radius to cc.t1 is ⊥ the arm, so a
     // dashed bar along that radial (across the slip band ri..ro) crosses the slip throat square-on.
-    float a0=atan2f(cc.t1y-cc.oy, cc.t1x-cc.ox), dx=cosf(a0), dy=sinf(a0);
+    float a0=de_atan2f(cc.t1y-cc.oy, cc.t1x-cc.ox), dx=de_cosf(a0), dy=de_sinf(a0);
     for (float r=ri+0.5f; r<ro; r+=2.f)               // transverse dashes across the slip = give-way
         line((int)(cc.ox+dx*r),(int)(cc.oy+dy*r),(int)(cc.ox+dx*(r+1)),(int)(cc.oy+dy*(r+1)),CLR_WHITE);
 }
@@ -647,7 +647,7 @@ static void draw_freeright_island(float cx,float cy,float HW,float bA,float bB,f
     // the slip is now a CONSTANT-width ring [islR, frR] about cc.o at any angle (no more skew-dependent width).
     // give-way dashes (PAINT) across it where it rejoins the exit arm (the bA tangent radius).
     if (!paint) return;
-    float a0=atan2f(cc.t1y-cc.oy, cc.t1x-cc.ox), dx=cosf(a0), dy=sinf(a0);
+    float a0=de_atan2f(cc.t1y-cc.oy, cc.t1x-cc.ox), dx=de_cosf(a0), dy=de_sinf(a0);
     for (float r=islR+0.5f; r<frR; r+=2.f)
         line((int)(cc.ox+dx*r),(int)(cc.oy+dy*r),(int)(cc.ox+dx*(r+1)),(int)(cc.oy+dy*(r+1)),CLR_WHITE);
 }
@@ -1494,7 +1494,7 @@ void spec(void){
       float kp=kerb_start(fs,4,0,16.f,24.f,+1), km=kerb_start(fs,4,0,16.f,24.f,-1);
       expect(!spec_near(kp,km), "skew: an arm's two sides start at DIFFERENT distances (acute vs obtuse corner)");
       expect(km > kp,           "the acute side starts further out than the obtuse side");
-      expect(!spec_near(kp, 16.f/tanf(60*DEG2RAD)+24.f),
+      expect(!spec_near(kp, 16.f/de_tanf(60*DEG2RAD)+24.f),
              "obtuse start uses (HW+R)/tan(half), NOT HW/tan(half)+R — the big-radius skew fix"); }
     { float ft[3]={0,90,180};                                              // a T (north dropped): arm 0's back is a 180 gap
       expect(spec_near(kerb_start(ft,3,0,16.f,8.f,-1), 0), "T back (straight 180 gap): the lane runs through to the hub (start 0)");

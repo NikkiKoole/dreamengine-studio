@@ -268,6 +268,58 @@ static inline float de_atan2f(float y, float x) {
     return (float)(yneg ? -a : a);
 }
 
+// ---------------------------------------------------------------- inverse trig / hypot
+
+// sqrt is IEEE-mandated correctly rounded, so it is already bit-portable — the builtin maps
+// straight to the hardware instruction and needs no libm.
+#define DE_SQRT(x) __builtin_sqrt(x)
+
+static inline float de_atanf(float x) {
+    DE_NO_CONTRACT
+    double a = (x < 0.0f) ? -(double)x : (double)x;
+    double r = (a <= 1.0) ? de_atan_unit(a) : (1.57079632679489662 - de_atan_unit(1.0 / a));
+    return (float)((x < 0.0f) ? -r : r);
+}
+
+// Both take the atan2 shape (angle of the point (cos, sin)) rather than atan(x/sqrt(1-x*x)),
+// which would divide by zero at |x| = 1. Always feeding the polynomial the SMALLER of the two
+// legs over the larger keeps the ratio inside [0,1], so no case needs a special branch.
+//
+// `1 - a*a` looks like it should cancel near a = 1, but it does not: a*a lands in [0.5, 1] there,
+// and a subtraction of two values within a factor of two is exact (Sterbenz).
+static inline float de_asinf(float x) {
+    DE_NO_CONTRACT
+    double v = (double)x;
+    if (v > 1.0 || v < -1.0) return de_bits_to_float(0x7FC00000u);   // NaN, same as libm
+    double a = (v < 0.0) ? -v : v;                       // |x|, the sine of the angle
+    double c = DE_SQRT(1.0 - a * a);                     // the cosine, >= 0
+    double r = (a <= c) ? de_atan_unit(a / c)
+                        : 1.57079632679489662 - de_atan_unit(c / a);
+    return (float)((v < 0.0) ? -r : r);
+}
+
+// Not pi/2 - asin(x): near x = 1 acos is tiny and that subtraction would throw away most of its
+// significant digits. Computing the angle directly keeps full precision at both ends.
+static inline float de_acosf(float x) {
+    DE_NO_CONTRACT
+    double v = (double)x;
+    if (v > 1.0 || v < -1.0) return de_bits_to_float(0x7FC00000u);
+    double a = (v < 0.0) ? -v : v;
+    double c = DE_SQRT(1.0 - a * a);
+    double r = (c <= a) ? de_atan_unit(c / a)             // acos(|x|), in [0, pi/2]
+                        : 1.57079632679489662 - de_atan_unit(a / c);
+    return (float)((v < 0.0) ? (3.14159265358979324 - r) : r);
+}
+
+// sqrt(x*x + y*y). Squaring in DOUBLE removes the overflow/underflow dance libm's hypotf does
+// (a float's square always fits a double), and both the multiply and the sqrt are correctly
+// rounded, so this is deterministic by construction.
+static inline float de_hypotf(float x, float y) {
+    DE_NO_CONTRACT
+    double a = (double)x, b = (double)y;
+    return (float)DE_SQRT(a * a + b * b);
+}
+
 // ---------------------------------------------------------------- odds and ends
 
 static inline float de_tanf(float x) {

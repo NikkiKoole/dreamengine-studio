@@ -238,8 +238,8 @@ static void draw_knob(int x, int y, float val, int col) {
     int cx = x + 3, cy = y + 3;
     circ(cx, cy, 3, CLR_MEDIUM_GREY);
     float a = (135.0f + val * 270.0f) * (3.14159265f / 180.0f);
-    pset(cx + (int)(cosf(a) * 2.5f + 0.5f),
-         cy + (int)(sinf(a) * 2.5f + 0.5f), col);
+    pset(cx + (int)(de_cosf(a) * 2.5f + 0.5f),
+         cy + (int)(de_sinf(a) * 2.5f + 0.5f), col);
 }
 
 // (the tune/decay/colour knob maths + the voice trigger + strokes moved to tr909.h)

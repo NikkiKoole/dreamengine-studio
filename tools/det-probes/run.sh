@@ -18,7 +18,7 @@ expect() {
     rotline)   echo "hash=f93ea939dda443a3 | worst_excess=0 worst_components=1 max_churn_per_deg=268";;
     rotspr)    echo "hash=e7bdd988fd0b7357 | NEAREST drop=16 frame_comps<=7 dot=308/360 | SUPER dot=252/360 | ROTSPRITE frame_comps<=2 dot=156/360";;
     textrot)   echo "hash=b57953ef3ef3aca3 | worst components (1=intact): NEAREST=1 SUPER=1 ROTSPRITE=1";;
-    demath)    echo "hash=1207ff873764212a | sin(.125)=0.707106829 exp2(0.5)=1.41421366 exp(1)=2.71828175 tanh(1)=0.761594176";;
+    demath)    echo "hash=129f889a2eb879fc | sin(.125)=0.707106829 exp2(0.5)=1.41421366 exp(1)=2.71828175 tanh(1)=0.761594176";;
   esac
 }
 

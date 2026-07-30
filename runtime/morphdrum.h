@@ -86,7 +86,7 @@ static const float MD_DEF[MD_NV][MD_NPARAM] = {
 // ── absolute param → engine-unit mappings ────────────────────────────────────
 #define MD_L(a, b, t)  ((a) + ((b) - (a)) * (t))
 static int md_lin(float p, int lo, int hi) { int v = lo + (int)(p * (hi - lo) + 0.5f); return v; }
-static int md_exp(float p, float lo, float oct) { return (int)(lo * powf(2.0f, p * oct)); }
+static int md_exp(float p, float lo, float oct) { return (int)(lo * de_powf(2.0f, p * oct)); }
 static int md_vol(float p) { int v = (int)(p * 7.0f + 0.5f); return v < 0 ? 0 : v > 7 ? 7 : v; }
 static int md_pnote(int i, int base) {             // pentatonic index → midi (unclamped, wraps octaves)
     static const int deg[5] = { 0, 3, 5, 7, 10 };

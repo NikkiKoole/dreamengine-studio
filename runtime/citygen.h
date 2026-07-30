@@ -76,7 +76,7 @@ static float density_at(float x, float y) {
     float bx = x - BOUND_CX, by = y - BOUND_CY;
     float br = fsqrt(bx * bx + by * by);
     if (br > BOUND_R) D *= clamp(1.0f - (br - BOUND_R) / BOUND_FADE, 0, 1);
-    return powf(clamp(D, 0, 1), 0.5f + K_pow * 2.5f);
+    return de_powf(clamp(D, 0, 1), 0.5f + K_pow * 2.5f);
 }
 
 // ── FIELD-DRIVEN SETTLEMENTS — the rung-2 swap. Same lattice cell + jitter as
@@ -229,25 +229,25 @@ static float ar_theta(float x, float y, int fam) {
     float vx = 0, vy = 0;
     float ddx = x - ar_cx, ddy = y - ar_cy;
     float dist = fsqrt(ddx * ddx + ddy * ddy) + 1.0f;
-    float thr = atan2f(ddy, ddx);                        // radial family (spokes + rings)
+    float thr = de_atan2f(ddy, ddx);                        // radial family (spokes + rings)
     float wr = ar_wrad / (1.0f + dist / 1500.0f);        // strong near the core
-    vx += wr * cosf(2 * thr); vy += wr * sinf(2 * thr);
+    vx += wr * de_cosf(2 * thr); vy += wr * de_sinf(2 * thr);
     if (ar_has_hw) {                                     // the entering highway's grid
-        vx += ar_wgrid * cosf(2 * ar_hw_ang);
-        vy += ar_wgrid * sinf(2 * ar_hw_ang);
+        vx += ar_wgrid * de_cosf(2 * ar_hw_ang);
+        vy += ar_wgrid * de_sinf(2 * ar_hw_ang);
     }
     float d = 1500.0f;                                   // terrain: follow the CONTOURS
     float gx = (clamp(height_at(x + d, y), 0, 0.4f) - clamp(height_at(x - d, y), 0, 0.4f)) / (2 * d);
     float gy = (clamp(height_at(x, y + d), 0, 0.4f) - clamp(height_at(x, y - d), 0, 0.4f)) / (2 * d);
     float steep = clamp(fsqrt(gx * gx + gy * gy) * 4000.0f, 0, 1);
     if (steep > 0.03f) {
-        float tht = atan2f(gy, gx) + 1.5708f;            // contour = ⟂ gradient
+        float tht = de_atan2f(gy, gx) + 1.5708f;            // contour = ⟂ gradient
         float wt = 1.3f * steep;
-        vx += wt * cosf(2 * tht); vy += wt * sinf(2 * tht);
+        vx += wt * de_cosf(2 * tht); vy += wt * de_sinf(2 * tht);
     }
     float thn = noise3(x / 9000.0f, y / 9000.0f, seedZ + 3.3f) * 6.2832f;
-    vx += 0.15f * cosf(2 * thn); vy += 0.15f * sinf(2 * thn);
-    float th = 0.5f * atan2f(vy, vx);
+    vx += 0.15f * de_cosf(2 * thn); vy += 0.15f * de_sinf(2 * thn);
+    float th = 0.5f * de_atan2f(vy, vx);
     return fam ? th + 1.5708f : th;
 }
 
@@ -277,11 +277,11 @@ static void ar_trace(float sx0, float sy0, int fam) {
     for (int dir = 0; dir < 2; dir++) {                  // 0 = backward, 1 = forward
         float x = sx0, y = sy0;
         float th = ar_theta(x, y, fam);
-        float hx = cosf(th), hy = sinf(th);
+        float hx = de_cosf(th), hy = de_sinf(th);
         if (!dir) { hx = -hx; hy = -hy; }
         for (int s = 0; s < AR_MAXP / 2 - 1; s++) {
             th = ar_theta(x, y, fam);
-            float dxs = cosf(th), dys = sinf(th);
+            float dxs = de_cosf(th), dys = de_sinf(th);
             if (dxs * hx + dys * hy < 0) { dxs = -dxs; dys = -dys; }   // continuity
             hx = dxs; hy = dys;
             x += dxs * AR_STEP; y += dys * AR_STEP;
@@ -321,7 +321,7 @@ static void ar_find_highway(void) {
             float dd = mx * mx + my * my;
             if (dd < best && dd < 20000.0f * 20000.0f) {
                 best = dd;
-                ar_hw_ang = atan2f(eg_e[e].y[i + 1] - eg_e[e].y[i],
+                ar_hw_ang = de_atan2f(eg_e[e].y[i + 1] - eg_e[e].y[i],
                                    eg_e[e].x[i + 1] - eg_e[e].x[i]);
                 ar_has_hw = 1;
             }
@@ -336,7 +336,7 @@ static void ar_find_highway(void) {
                 float dd = (wx - ar_cx) * (wx - ar_cx) + (wy - ar_cy) * (wy - ar_cy);
                 if (dd > 1 && dd < bd) { bd = dd; bx = wx; by = wy; }
             }
-        if (bd < 1e30f) { ar_hw_ang = atan2f(by - ar_cy, bx - ar_cx); ar_has_hw = 1; }
+        if (bd < 1e30f) { ar_hw_ang = de_atan2f(by - ar_cy, bx - ar_cx); ar_has_hw = 1; }
         else { ar_hw_ang = (float)(wn_hash2(ar_ccx, ar_ccy) % 314u) * 0.01f; ar_has_hw = 1; }
     }
 }
@@ -361,8 +361,8 @@ static void ar_build(void) {
     int qh = 0, qt = 0;
     qx[qt] = ar_cx; qy[qt] = ar_cy; qf[qt++] = 0;                  // the core, both families
     qx[qt] = ar_cx; qy[qt] = ar_cy; qf[qt++] = 1;
-    float ex = ar_cx + cosf(ar_hw_ang) * ar_R * 0.7f;              // the highway gate
-    float ey = ar_cy + sinf(ar_hw_ang) * ar_R * 0.7f;
+    float ex = ar_cx + de_cosf(ar_hw_ang) * ar_R * 0.7f;              // the highway gate
+    float ey = ar_cy + de_sinf(ar_hw_ang) * ar_R * 0.7f;
     qx[qt] = ex; qy[qt] = ey; qf[qt++] = 0;
     qx[qt] = ex; qy[qt] = ey; qf[qt++] = 1;
     while (qh < qt && ar_nl < AR_MAXL) {
@@ -479,7 +479,7 @@ static void ar_faces(void) {
         int e = d >> 1, dir = d & 1;
         int a = dir ? geb[e] : gea[e], b = dir ? gea[e] : geb[e];
         dfrom[d] = a; dto[d] = b;
-        dang[d] = atan2f(gny[b] - gny[a], gnx[b] - gnx[a]);
+        dang[d] = de_atan2f(gny[b] - gny[a], gnx[b] - gnx[a]);
         dvis[d] = 0;
     }
     for (int v = 0; v < g_nn; v++) ncnt[v] = 0;
@@ -612,7 +612,7 @@ static void ms_fill_face(int fi) {
     if (2 * half + 1 > MS_LG) { half = (MS_LG - 1) / 2; step = rad / half; }
     int cols = 2 * half + 1, rows = cols;
     float ang = ms_h01((int)(cx * 0.01f), (int)(cy * 0.01f), (int)seed + 13) * 3.14159265f;
-    float ca_ = cosf(ang), sa = sinf(ang);
+    float ca_ = de_cosf(ang), sa = de_sinf(ang);
     // lay the lattice, keep interior nodes (inside + clear of arterials)
     static int   lg[MS_LG][MS_LG];
     int base = ms_n, ln = 0;
@@ -747,7 +747,7 @@ static void cg_lots(void) {
             float ax = ar_px[l][i], ay = ar_py[l][i], bx = ar_px[l][i+2], by = ar_py[l][i+2];
             float dx = bx-ax, dy = by-ay, len = fsqrt(dx*dx+dy*dy); if (len < 8.0f) continue;
             float px = -dy/len, py = dx/len, mx = (ax+bx)*0.5f, my = (ay+by)*0.5f;
-            float blen = len*0.9f, ang = atan2f(dy,dx)*57.29578f;
+            float blen = len*0.9f, ang = de_atan2f(dy,dx)*57.29578f;
             CGB_ADD(mx + px*aoff, my + py*aoff, blen, ang);
             CGB_ADD(mx - px*aoff, my - py*aoff, blen, ang);
         }
@@ -761,7 +761,7 @@ static void cg_lots(void) {
         float px = -dy / len, py = dx / len;             // perpendicular to the street
         float mx = (ax + bx) * 0.5f, my = (ay + by) * 0.5f;
         float blen = len * 0.86f; if (blen > 140.0f) blen = 140.0f;   // fill the block FACE (terrace)
-        float ang = atan2f(dy, dx) * 57.29578f;
+        float ang = de_atan2f(dy, dx) * 57.29578f;
         for (int s = -1; s <= 1 && cgb_n < CGB_MAX; s += 2) {
             float cx = mx + px * off * s, cy = my + py * off * s;
             float dmin = 1e18f;                          // skip minors that sit on/near an arterial
@@ -807,8 +807,8 @@ static void cg_junctions(void) {
     for (int v = 0; v < g_nn; v++) nnarm[v] = 0;
     for (int e = 0; e < g_ne; e++) {                     // each split arterial segment adds an arm at each end
         int a = gea[e], b = geb[e]; unsigned char cl = ar_cls[ge_line[e]];
-        if (nnarm[a] < CGJ_ARM) { nbrg[a][nnarm[a]] = atan2f(gny[b]-gny[a], gnx[b]-gnx[a])*57.29578f; ncls[a][nnarm[a]]=cl; nnarm[a]++; }
-        if (nnarm[b] < CGJ_ARM) { nbrg[b][nnarm[b]] = atan2f(gny[a]-gny[b], gnx[a]-gnx[b])*57.29578f; ncls[b][nnarm[b]]=cl; nnarm[b]++; }
+        if (nnarm[a] < CGJ_ARM) { nbrg[a][nnarm[a]] = de_atan2f(gny[b]-gny[a], gnx[b]-gnx[a])*57.29578f; ncls[a][nnarm[a]]=cl; nnarm[a]++; }
+        if (nnarm[b] < CGJ_ARM) { nbrg[b][nnarm[b]] = de_atan2f(gny[a]-gny[b], gnx[a]-gnx[b])*57.29578f; ncls[b][nnarm[b]]=cl; nnarm[b]++; }
     }
     for (int v = 0; v < g_nn && cgj_n < CGJ_MAX; v++) {
         if (nnarm[v] < 3) continue;                      // a junction = 3+ arms
@@ -895,7 +895,7 @@ static int citygen_nearest_street(float wx, float wy, float *rx, float *ry, floa
         if (t < 0) t = 0; if (t > 1) t = 1;                                       \
         float qx = (ax) + t * dx, qy = (ay) + t * dy;                             \
         float d = (wx - qx) * (wx - qx) + (wy - qy) * (wy - qy);                  \
-        if (d < best) { best = d; bx = qx; by = qy; bang = atan2f(dy, dx); }      \
+        if (d < best) { best = d; bx = qx; by = qy; bang = de_atan2f(dy, dx); }      \
     } while (0)
     for (int l = 0; l < ar_nl; l++)
         for (int i = 0; i + 1 < ar_np[l]; i++)

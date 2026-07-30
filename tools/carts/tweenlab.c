@@ -43,34 +43,34 @@ de:meta */
 // ── the ease family ─────────────────────────────────────────────────────────
 static float e_linear(float t){ return t; }
 
-static float e_sineIn (float t){ return 1.0f - cosf(t*PI*0.5f); }
-static float e_sineOut(float t){ return sinf(t*PI*0.5f); }
-static float e_sineIO (float t){ return -0.5f*(cosf(PI*t)-1.0f); }
+static float e_sineIn (float t){ return 1.0f - de_cosf(t*PI*0.5f); }
+static float e_sineOut(float t){ return de_sinf(t*PI*0.5f); }
+static float e_sineIO (float t){ return -0.5f*(de_cosf(PI*t)-1.0f); }
 
 static float e_quadIn (float t){ return t*t; }
 static float e_quadOut(float t){ float u=1-t; return 1-u*u; }
-static float e_quadIO (float t){ return t<0.5f? 2*t*t : 1-powf(-2*t+2,2)*0.5f; }
+static float e_quadIO (float t){ return t<0.5f? 2*t*t : 1-de_powf(-2*t+2,2)*0.5f; }
 
 static float e_cubicIn (float t){ return t*t*t; }
 static float e_cubicOut(float t){ float u=1-t; return 1-u*u*u; }
-static float e_cubicIO (float t){ return t<0.5f? 4*t*t*t : 1-powf(-2*t+2,3)*0.5f; }
+static float e_cubicIO (float t){ return t<0.5f? 4*t*t*t : 1-de_powf(-2*t+2,3)*0.5f; }
 
-static float e_expoOut(float t){ return t>=1?1: 1-powf(2,-10*t); }
+static float e_expoOut(float t){ return t>=1?1: 1-de_powf(2,-10*t); }
 
 static float e_circIO(float t){ return t<0.5f? (1-sqrtf(1-4*t*t))*0.5f
-                                              : (sqrtf(1-powf(-2*t+2,2))+1)*0.5f; }
+                                              : (sqrtf(1-de_powf(-2*t+2,2))+1)*0.5f; }
 
 static float e_backIn (float t){ float s=1.70158f; return t*t*((s+1)*t-s); }
 static float e_backOut(float t){ float s=1.70158f; float u=t-1; return u*u*((s+1)*u+s)+1; }
 static float e_backIO (float t){ float s=1.70158f*1.525f;
-  return t<0.5f? (powf(2*t,2)*((s+1)*2*t-s))*0.5f
-               : (powf(2*t-2,2)*((s+1)*(2*t-2)+s)+2)*0.5f; }
+  return t<0.5f? (de_powf(2*t,2)*((s+1)*2*t-s))*0.5f
+               : (de_powf(2*t-2,2)*((s+1)*(2*t-2)+s)+2)*0.5f; }
 
 static float e_elasticOut(float t){ if(t<=0)return 0; if(t>=1)return 1;
-  float p=0.3f; return powf(2,-10*t)*sinf((t-p/4)*TAU/p)+1; }
+  float p=0.3f; return de_powf(2,-10*t)*de_sinf((t-p/4)*TAU/p)+1; }
 static float e_elasticIO (float t){ if(t<=0)return 0; if(t>=1)return 1;
-  float p=0.45f; t*=2; if(t<1) return -0.5f*powf(2,10*t-10)*sinf((t-1-p/4)*TAU/p);
-  return powf(2,-10*(t-1))*sinf((t-1-p/4)*TAU/p)*0.5f+1; }
+  float p=0.45f; t*=2; if(t<1) return -0.5f*de_powf(2,10*t-10)*de_sinf((t-1-p/4)*TAU/p);
+  return de_powf(2,-10*(t-1))*de_sinf((t-1-p/4)*TAU/p)*0.5f+1; }
 
 static float e_bounceOut(float t){ const float n=7.5625f, d=2.75f;
   if(t<1/d)        return n*t*t;
@@ -147,7 +147,7 @@ static float e_rough(float t){
 
 // CustomWiggle (type easeOut): a damped oscillation that wiggles then settles at
 // the middle — N wiggles with amplitude tapering to 0. Centred at 0.5 to read.
-static float e_wiggle(float t){ return 0.5f+0.5f*(1-t)*sinf(t*PI*6.0f); }
+static float e_wiggle(float t){ return 0.5f+0.5f*(1-t)*de_sinf(t*PI*6.0f); }
 
 // draw a filled square rotated `deg` around its center.
 // When the angle is axis-aligned (a multiple of 90 — and a square is identical at
@@ -161,7 +161,7 @@ static void quad_fill(float cx,float cy,float half,float deg,int col){
         rectfill((int)(cx+0.5f)-h, (int)(cy+0.5f)-h, h*2, h*2, col);
         return;
     }
-    float a=deg*PI/180.0f, c=cosf(a), s=sinf(a);
+    float a=deg*PI/180.0f, c=de_cosf(a), s=de_sinf(a);
     float ox[4]={-half,half,half,-half}, oy[4]={-half,-half,half,half};
     int px[4], py[4];
     // round (not truncate) so opposite corners stay symmetric -> no lopsided quad
@@ -350,7 +350,7 @@ static void stag_build(void){
             d=sqrtf(dc*dc+dr*dr)*step*1.6f;
         } else if(stag_origin==2){                // from edges (inverse of center)
             float dc=c-(SG_COLS-1)*0.5f, dr=r-(SG_ROWS-1)*0.5f;
-            float maxd=sqrtf(powf((SG_COLS-1)*0.5f,2)+powf((SG_ROWS-1)*0.5f,2));
+            float maxd=sqrtf(de_powf((SG_COLS-1)*0.5f,2)+de_powf((SG_ROWS-1)*0.5f,2));
             d=(maxd-sqrtf(dc*dc+dr*dr))*step*1.6f;
         } else {                                  // random
             d=sg_rand()* (SG_N*step*0.5f);
@@ -468,10 +468,10 @@ static void draw_motionpath(void){
     float ax,ay,bx,by;
     mp_point(u,&ax,&ay);
     mp_point(fmodf(u+0.05f,MP_N),&bx,&by);
-    float head = mp_autorot ? atan2f(by-ay,bx-ax)*180.0f/PI : 0.0f;
+    float head = mp_autorot ? de_atan2f(by-ay,bx-ax)*180.0f/PI : 0.0f;
 
     // an arrow (triangle) pointing along travel — rotate its 3 points by `head`
-    float a=head*PI/180.0f, c=cosf(a), s=sinf(a);
+    float a=head*PI/180.0f, c=de_cosf(a), s=de_sinf(a);
     float lx[3]={9,-6,-6}, ly[3]={0,-5,5};   // arrow in local space, nose at +x
     int qx[3],qy[3];
     for(int i=0;i<3;i++){ qx[i]=(int)(ax+lx[i]*c-ly[i]*s); qy[i]=(int)(ay+lx[i]*s+ly[i]*c); }
@@ -543,7 +543,7 @@ static void draw_utils(void){
     float t;
     int mx=mouse_x();
     if(mx>10 && mx<SCREEN_W-10) t=clampf(mapRange(90,SCREEN_W-16,0,1,(float)mx),0,1);
-    else t=0.5f+0.5f*sinf(gt*0.9f);
+    else t=0.5f+0.5f*de_sinf(gt*0.9f);
 
     float mr=mapRange(0,1,-50,50,t);                 // remap to a signed range
     util_row(40,"mapRange", t, mapRange(-50,50,0,1,mr), CLR_ORANGE, str("%+.0f", mr));

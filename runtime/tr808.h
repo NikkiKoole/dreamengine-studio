@@ -187,7 +187,7 @@ static int tr808__midi(const float *ktune, int v, int base) {           // ±12 
     return base + (int)((ktune[v] - 0.5f) * 24.0f + 0.5f);
 }
 static int tr808__dur(const float *kdecay, int v, int base) {           // 0.25×..4× decay, 1× at 0.5
-    float s = powf(4.0f, (kdecay[v] - 0.5f) * 2.0f);
+    float s = de_powf(4.0f, (kdecay[v] - 0.5f) * 2.0f);
     int d = (int)(base * s + 0.5f);
     return d < 5 ? 5 : d;
 }

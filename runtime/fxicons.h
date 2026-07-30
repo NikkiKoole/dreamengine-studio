@@ -98,11 +98,11 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
     } else if (kind == FX_CHORUS) {                          // shimmer waves (two offset)
         for (int o = 0; o < 2; o++) {
             int base = cy + (o ? 3 : -3), px = cx - 15, py = base;
-            for (int xx = cx - 15; xx <= cx + 15; xx += 2) { int wy = base + (int)(sinf((xx - cx) * 0.42f + o * 1.6f) * 3.0f); line(px, py, xx, wy, col); px = xx; py = wy; }
+            for (int xx = cx - 15; xx <= cx + 15; xx += 2) { int wy = base + (int)(de_sinf((xx - cx) * 0.42f + o * 1.6f) * 3.0f); line(px, py, xx, wy, col); px = xx; py = wy; }
         }
     } else if (kind == FX_PHASER) {                          // one slow swirl + a notch dot
         int px = cx - 14, py = cy;
-        for (int xx = cx - 14; xx <= cx + 14; xx++) { int wy = cy + (int)(sinf((xx - cx) * 0.26f) * 5.0f); line(px, py, xx, wy, col); px = xx; py = wy; }
+        for (int xx = cx - 14; xx <= cx + 14; xx++) { int wy = cy + (int)(de_sinf((xx - cx) * 0.26f) * 5.0f); line(px, py, xx, wy, col); px = xx; py = wy; }
         circfill(cx, cy, 1, bg);
     } else if (kind == FX_FLANGER) {                         // a jet
         int jx = cx + 7, jy = cy;
@@ -117,8 +117,8 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
     } else if (kind == FX_TREM) {                            // carrier sine inside an AM bulge
         int px = cx - 15, py = cy;
         for (int xx = cx - 15; xx <= cx + 15; xx++) {
-            float u = (float)(xx - (cx - 15)) / 30.0f; float env = sinf(u * 3.14159f);
-            int wy = cy + (int)(sinf((xx - cx) * 1.1f) * env * 6.0f); line(px, py, xx, wy, col); px = xx; py = wy;
+            float u = (float)(xx - (cx - 15)) / 30.0f; float env = de_sinf(u * 3.14159f);
+            int wy = cy + (int)(de_sinf((xx - cx) * 1.1f) * env * 6.0f); line(px, py, xx, wy, col); px = xx; py = wy;
         }
     } else if (kind == FX_WAH) {                             // a resonant bandpass peak
         line(cx - 12, cy + 5, cx - 2, cy - 6, col); line(cx - 2, cy - 6, cx + 2, cy - 6, col);
@@ -154,7 +154,7 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         for (int o = 0; o < 3; o++) {
             int base = cy - 5 + o * 5, px = cx - 13, py = base;
             for (int xx = cx - 13; xx <= cx + 13; xx += 2) {
-                int wy = base + (int)(sinf((xx - cx) * 0.5f + o * 1.3f) * 2.0f);
+                int wy = base + (int)(de_sinf((xx - cx) * 0.5f + o * 1.3f) * 2.0f);
                 line(px, py, xx, wy, col); px = xx; py = wy;
             }
         }

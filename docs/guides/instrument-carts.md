@@ -225,8 +225,8 @@ cleanest examples of "here's what this engine sounds like."
 |---|---|---|
 | **pluck** (`pluck`) | `INSTR_PLUCK` | Karplus-Strong string — eight pentatonic strings, three live knobs. |
 | **guitar** (`guitar`) | `INSTR_GUITAR` | The bodied pluck — PLUCK's string + a resonant body (4 formant biquads). Eight strings, three macros (body/brightness/mute), eight hardware presets incl. pizzicato. Built on `pluck`. |
-| **piano** (`piano`) | `INSTR_PIANO` | The struck stiff string (StifKarp) — KS string + a dispersion allpass chain (the metallic shimmer) + a baked grand-piano soundboard. A one-octave keyboard, three macros (stiffness/hammer/pedal), six presets (grand→celesta). Single-string v1. |
-| **bowed** (`bowed`) | `INSTR_BOWED` (arco + pizz) | The bowed string (Smith/McIntyre stick-slip waveguide) — self-oscillating/held, played by RUBBING: drag a string and the energy ACCUMULATES (rub more → builds & digs in), stop and it rests; a quick TAP plays PIZZICATO — the **same** waveguide flagged `eng_tune(slot,0,1)`, seeded with a pluck and the friction bypassed, so the identical string+body rings down (arco/pizz differ only in excitation). Three macros (position/pressure/speed), six presets (violin→tremolo). The interaction-driven showcase, not just a keyboard. |
+| **piano** (`piano`) | `INSTR_PIANO` | The struck stiff string (StifKarp) — KS string + a dispersion allpass chain (**real inharmonicity since 2026-07-30**: partials stretched sharp, `MODE_PIANO_STIFF`, plus the completed Railsback stretched tuning) + a baked grand-piano soundboard. A one-octave keyboard, seven sliders incl. **stiff** (0 = a perfectly harmonic string), six presets (grand→celesta). Single-string v1. |
+| **bowed** (`bowed`) | `INSTR_BOWED` (arco + pizz) | The bowed string (Smith/McIntyre stick-slip waveguide) — self-oscillating/held, played by RUBBING: drag a string and the energy ACCUMULATES (rub more → builds & digs in), stop and it rests; a quick TAP plays PIZZICATO — the **same** waveguide flagged `eng_tune(slot,0,1)`, seeded with a pluck and the friction bypassed, so the identical string+body rings down (arco/pizz differ only in excitation). Three macros (position/pressure/speed), six presets (violin→tremolo). **Press `B` for the BODY** (`MODE_BOW_BODY`, new 2026-07-30): the engine shipped with no body resonator at all, so a bowed note was a bare string — the toggle is the fastest way to hear what a body does to a string. The interaction-driven showcase, not just a keyboard. |
 | **brass** (`brass`) | `INSTR_BRASS` | The lip-reed family (trumpet→tuba), the LAST engine-blocked instrument. A bore + a self-oscillating pressure valve (reed's core) under a dynamics-swept brass formant — push *brassiness* and the tone opens up blatty. Marquee: **drag the trombone SLIDE** for a live glissando (`note_pitch`). Six hardware presets, mono+slide by default. |
 | **mallet** (`mallet`) | `INSTR_MALLET` | Struck bar simulation. |
 | **organ** (`organ`) | `INSTR_ORGAN` | Nine drawbar sines per key. |
@@ -236,6 +236,13 @@ cleanest examples of "here's what this engine sounds like."
 | **tabla** (`tabla`) | `INSTR_MEMBRANE` | A struck drumhead. |
 | **handpan** (`handpan`) | `INSTR_MALLET` | A steel hang drum — one ding, eight tone fields, every strike a gesture. |
 | **voxlab** (`voxlab`) | `INSTR_VOICE` *(experimental)* | The formant VOICE — a navkit VoicForm port (glottal pulse → 4 vowel formants). **A probe, not a finished showcase**: 7 raw params on sliders via the throwaway `voice_param()` poke, auditioning which 3 become the public macros. Verdict pending in [`probe-carts.md`](../design/probe-carts.md); don't build a voice cart on the API until it's locked. |
+
+> **Building a PIANO or BOWED cart? read the aux-param table first.** Past the three macros these engines
+> carry structural params on the `instrument_mode` channel — piano's double-decay and hammer knock (the
+> harp-vs-piano cues), its stretched tuning and stiff-string inharmonicity; bowed's pizzicato and its body.
+> They are easy to miss because only `studio.h` lists them, so
+> [`instrument-engines.md` → "The AUX params — past the three macros, and WHEN you'd reach for each"](../design/instrument-engines.md)
+> gives each one with the reason you'd want it.
 
 ## Radio stations — auto-composing genre machines
 

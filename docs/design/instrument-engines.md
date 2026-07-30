@@ -216,6 +216,35 @@ That table is *code, curated by taste* — not API surface. The beginner gets th
 always "make it more interesting"; the porter decides which internal params each one sweeps.
 **Infinite internal richness, constant external surface** — the actual middle ground.
 
+#### The AUX params — past the three macros, and WHEN you'd reach for each
+
+The three macros are the whole external surface for most purposes, but a few engines carry extra
+structural params on the `instrument_mode(slot, idx, value)` **aux channel** (decision 0017), read at the
+next note-on. These are the ones that are easy to miss, because nothing but `studio.h` lists them — so
+here they are with the reason you'd want them:
+
+| constant | engine | what it does | reach for it when… |
+|---|---|---|---|
+| `MODE_STRING_WEIGHT` | GUITAR, PIANO | fundamental reinforcement, a sub-oscillator under the string | the string sounds **thin** and you want low-end weight without changing its character |
+| `MODE_STRING_CLICK` | GUITAR, PIANO | attack click / pick-noise amount | the onset is too polite — you want the *finger or plectrum* audible, not just the note |
+| `MODE_PIANO_DECAY` | PIANO | double-decay depth (the fast initial drop into a long aftersound) | it rings like a **harp** instead of a piano. This is the single biggest struck-vs-plucked cue |
+| `MODE_PIANO_KNOCK` | PIANO | hammer-knock amount, velocity-scaled | you want the **thunk** of hammer on string — a soft press barely thumps, a hard strike cracks |
+| `MODE_PIANO_STRETCH` | PIANO | stretched tuning, bass-flat/treble-sharp (Railsback) | **set it to 0** when the piano must sit in unison with a fixed-pitch part (a sampled layer, a chiptune line), where a stretched bass reads as sour rather than rich |
+| `MODE_PIANO_STIFF` | PIANO | stiff-string inharmonicity — partials stretched sharp | you want the **metallic shimmer** in the attack and the **clang in the bass**. Most audible in the BASS and in CHORDS, where stretched partials of different notes refuse to lock; nearly inaudible on a single mid note. Set 0 for a perfectly harmonic string |
+| `MODE_BOW_PIZZ` | BOWED | pluck the same string instead of bowing it | you want arco *and* pizzicato from one instrument — they differ only in how energy enters, exactly as on a real violin |
+| `MODE_BOW_BODY` | BOWED | body resonance (three short parallel delay lines, 1–4 ms) | **almost always, on a violin/cello voice** — the engine's bare string is closer to a sawtooth than an instrument, and the body is what Reid calls the difference between the two. Default is OFF only because the box is one fixed VIOLIN size (a cello wants longer delays) |
+
+**Two things about this channel that have bitten:** the indices are **per-engine namespaces**, so
+`MODE_BOW_PIZZ` and `MODE_STRING_WEIGHT` are both 0 and that is fine — but the **bank defaults are
+per-INDEX, not per-engine**, so a new meaning inherits whatever default that slot already carried for
+another engine (index 2 defaults to 0.5 because PIANO uses it as a scale, which BOWED's body-type
+experiment inherited as a surprise). And the width is written down in five places, so adding one means
+running **`node tools/lint-aux-params.js`** — a missed bound makes the parameter *silently* inert, which
+has happened twice.
+
+Provenance for the piano and bowed entries, including what was measured and what was dropped:
+[`synth-secrets-plan.md` §2.3(a) and §2.4](synth-secrets-plan.md).
+
 #### Composes with the four axes (§10), and with modrack
 
 The macros sit *on the engine/oscillator*; the shipped ADSR / LFO / `instrument_filter` axes

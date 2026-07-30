@@ -63,6 +63,22 @@ int main(void) {
     float tseams[] = { -9.0f, -0.55f, -0.0f, 0.0f, 0.55f, 9.0f };
     for (int i = 0; i < 6; i++) feed(de_tanhf(tseams[i]));
 
+    // log / pow: the exponent path, and the note->Hz case that sets every oscillator increment.
+    for (int i = 1; i <= 100000; i++) feed(de_log2f((float)i * (1000.0f / 100000.0f)));
+    for (int i = 1; i <= 100000; i++) feed(de_logf((float)i * (1000.0f / 100000.0f)));
+    for (int i = 0; i < 128; i++)     feed(440.0f * de_powf(2.0f, ((float)i - 69.0f) / 12.0f));
+    for (int i = 0; i <= 300; i++) for (int j = 0; j <= 300; j++)
+        feed(de_powf(0.05f + (float)i * (20.0f / 300.0f), -8.0f + (float)j * (16.0f / 300.0f)));
+
+    // atan2 over all four quadrants, including both signed zeroes and the axes.
+    for (int i = 0; i <= 700; i++) for (int j = 0; j <= 700; j++)
+        feed(de_atan2f(-10.0f + (float)j * (20.0f / 700.0f), -10.0f + (float)i * (20.0f / 700.0f)));
+    float az[] = { 0.0f, -0.0f, 1.0f, -1.0f };
+    for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) feed(de_atan2f(az[i], az[j]));
+
+    for (int i = 0; i <= 50000; i++) feed(de_tanf(-1.5f + (float)i * (3.0f / 50000.0f)));
+    for (int i = 0; i <= 50000; i++) feed(de_sinhf(-5.0f + (float)i * (10.0f / 50000.0f)));
+
     // A few spot values printed too, so a mismatch says WHICH function moved.
     printf("hash=%016llx | sin(.125)=%.9g exp2(0.5)=%.9g exp(1)=%.9g tanh(1)=%.9g\n",
            (unsigned long long)h,

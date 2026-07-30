@@ -4458,8 +4458,8 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     // octave-symmetric multiplier: ×1.0 at 0.5 (neutral, so the 1D vowel is untouched), out to
     // ≈×0.31 / ×3.25 at the edges (±1.7 octaves). Wide enough to reach inhuman/creature formant
     // placements, but controlled (centered, predictable) — not the old out-of-bounds chaos.
-    vfreq[0] *= exp2f((v->vox_s[8] - 0.5f) * 3.4f);   // openness → F1
-    vfreq[1] *= exp2f((v->vox_s[9] - 0.5f) * 3.4f);   // frontness → F2
+    vfreq[0] *= de_exp2f((v->vox_s[8] - 0.5f) * 3.4f);   // openness → F1
+    vfreq[1] *= de_exp2f((v->vox_s[9] - 0.5f) * 3.4f);   // frontness → F2
     // consonant ONSET: for the first vox_cons_dur seconds of the note, blend the consonant's
     // formants → the vowel (smoothstep "opening"), inject its noise (hiss/burst), and gate the
     // glottal voicing in (unvoiced fricatives only voice up as they open). Then it's pure vowel.
@@ -4802,7 +4802,7 @@ static inline float piano_stretch_freq(float freq, float k) {
 #define PN_B_AT_STIFF_25 1.1e-4f   // target B for `stiff` 0.25 (the grand) at the knob's centre — the
                                    // value the owner's ear approved. Other voicings scale from `stiff`.
 static inline float pn_ap_phase_delay(float w, float c) {   // one allpass's phase delay, in samples
-    float phi = atan2f(-de_sinf(w), c + de_cosf(w)) - atan2f(-c * de_sinf(w), 1.0f + c * de_cosf(w));
+    float phi = de_atan2f(-de_sinf(w), c + de_cosf(w)) - de_atan2f(-c * de_sinf(w), 1.0f + c * de_cosf(w));
     while (phi > 0.0f) phi -= 6.28318531f;
     return -phi / w;
 }
@@ -5263,7 +5263,7 @@ static inline void sound_glide_step(Voice *v) {
         v->freq = v->freq_target; v->gl_len = 0; return;
     }
     v->gl_e *= v->gl_r;
-    v->freq = exp2f(v->gl_from + v->gl_d * ((1.0f - v->gl_e) * GLIDE_NORM));
+    v->freq = de_exp2f(v->gl_from + v->gl_d * ((1.0f - v->gl_e) * GLIDE_NORM));
 }
 
 // A one-shot AD modulation envelope (filter/pitch env): linear attack 0→1 over `a`, then

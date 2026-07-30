@@ -227,6 +227,47 @@ static inline float de_powf(float x, float y) {
     return de_exp2d((double)y * de_log2d(x));
 }
 
+// ---------------------------------------------------------------- atan / atan2
+
+// atan(u) for u in [0,1], in double. Two-stage reduction: fold [tan(pi/12), 1] down onto
+// [-tan(pi/12), tan(pi/12)] with atan(u) = pi/6 + atan((u*sqrt3 - 1)/(sqrt3 + u)), then one short
+// polynomial. Fitting [0,1] directly needs a high-degree poly whose normal equations go
+// ill-conditioned; this way six terms land at 8e-12 relative, far under a float ULP.
+// Coefficients converge to the classical 1, -1/3, 1/5, -1/7 series.
+static inline double de_atan_unit(double u) {
+    DE_NO_CONTRACT
+    double add = 0.0;
+    if (u > 0.26794919243112270) {                      // tan(pi/12)
+        u = (u * 1.7320508075688772 - 1.0) / (1.7320508075688772 + u);
+        add = 0.52359877559829882;                      // pi/6
+    }
+    double s = u * u;
+    double p = -0.076151839713966524;
+    p = p * s + 0.10996260772280680;
+    p = p * s + -0.14281485544443365;
+    p = p * s + 0.19999928298210498;
+    p = p * s + -0.33333332878503963;
+    p = p * s + 0.99999999999513633;
+    return add + u * p;
+}
+
+// The angle of (x,y). Always divides the smaller magnitude by the larger, so the polynomial only
+// ever sees [0,1] and the division cannot overflow. Signs come off the SIGN BIT, not a `< 0`
+// test, so negative zero behaves like libm (atan2(-0.0, 1.0) is -0.0, not +0.0).
+static inline float de_atan2f(float y, float x) {
+    DE_NO_CONTRACT
+    uint32_t xb, yb; memcpy(&xb, &x, 4); memcpy(&yb, &y, 4);
+    int xneg = (int)(xb >> 31), yneg = (int)(yb >> 31);
+    double ax = xneg ? -(double)x : (double)x;
+    double ay = yneg ? -(double)y : (double)y;
+    double a;
+    if (ax == 0.0 && ay == 0.0) a = 0.0;                // atan2(+-0, +0) is +-0
+    else if (ay <= ax)          a = de_atan_unit(ay / ax);
+    else                        a = 1.57079632679489662 - de_atan_unit(ax / ay);   // pi/2 - atan(1/u)
+    if (xneg) a = 3.14159265358979324 - a;              // second/third quadrant
+    return (float)(yneg ? -a : a);
+}
+
 // ---------------------------------------------------------------- odds and ends
 
 static inline float de_tanf(float x) {

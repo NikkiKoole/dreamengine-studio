@@ -319,6 +319,7 @@ static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor
 // and reads as a LEFT-handed guitar facing you. Only the RENDER + hit-test flip: the string arrays
 // (OPEN/SHAPE_F/str_midi/pend) and the low→high strum order stay index-ordered.
 #define STR_Y(s) (STR_Y0 + (NSTR - 1 - (s)) * STR_DY)
+#define NECK_MID (((STR_Y(2)) + (STR_Y(3))) / 2)   // centre line, BETWEEN the two middle strings
 #define STR_TOP  STR_Y(NSTR - 1)     // high e — the top string on screen
 #define STR_BOT  STR_Y(0)            // low E  — the bottom string on screen
 #define CHORD_H 21                   // chord buttons ~1.5× taller (was 14), parked at the bottom
@@ -1047,12 +1048,30 @@ static void draw_guitar(void) {
     // SX0+60 (fret 7.7 — not a fret), so the dots had nothing to line up against and the neck read
     // as wrong even when the dot was right. Frets are drawn on the SAME FRET_X() the dots use, so
     // the two cannot disagree.
-    for (int f = 1; f <= NFRETS; f++)
-        rectfill(FRET_WIRE(f), by + 4, 1, bh - 8, CLR_MEDIUM_GREY);
+    // FRET WIRES AS METAL. A flat 1px grey rule reads as a drawn line; a real nickel fret is a
+    // round wire lit from above, so it runs bright at the top and falls off toward the board. Two
+    // columns (lit edge + shadow edge) give it the round section, three vertical bands give the
+    // falloff. The shadow column is dropped when the frets are packed tighter than 4px.
+    for (int f = 1; f <= NFRETS; f++) {
+        int wx = FRET_WIRE(f), y0 = by + 4, hh = bh - 8;
+        static const int LIT[3] = { CLR_WHITE,      CLR_LIGHT_GREY,  CLR_MEDIUM_GREY };
+        static const int SHD[3] = { CLR_LIGHT_GREY, CLR_MEDIUM_GREY, CLR_DARK_GREY   };
+        for (int b = 0; b < 3; b++) {
+            int ya = y0 + hh * b / 3, yb = y0 + hh * (b + 1) / 3;
+            rectfill(wx, ya, 1, yb - ya, LIT[b]);
+            if (FRET_W >= 4) rectfill(wx + 1, ya, 1, yb - ya, SHD[b]);
+        }
+    }
+    // INLAYS. They belong on the neck's CENTRE LINE, between the two middle strings — the old
+    // `by + bh/2` was 2px low, which put a fret-5 inlay's top pixel on the D-string note dot and
+    // read as "two stacked dots" (reported). NECK_MID is derived from the strings themselves so it
+    // cannot drift again. The 12th's pair sits one string-gap either side, i.e. in the gaps rather
+    // than on the outer strings: the bottom one used to land EXACTLY on the low E line.
     for (int f = 3; f <= NFRETS; f += (f == 9 ? 3 : 2)) {       // inlays at 3 5 7 9 12
         int ix = FRET_X(f);                                     // same lane as the finger dot
-        if (f == 12) { circfill(ix, by + 7, 1, CLR_DARK_BROWN); circfill(ix, by + bh - 8, 1, CLR_DARK_BROWN); }
-        else circfill(ix, by + bh / 2, 1, CLR_DARK_BROWN);
+        if (f == 12) { circfill(ix, NECK_MID - STR_DY, 1, CLR_DARK_BROWN);
+                       circfill(ix, NECK_MID + STR_DY, 1, CLR_DARK_BROWN); }
+        else circfill(ix, NECK_MID, 1, CLR_DARK_BROWN);
     }
     for (int s = 0; s < NSTR; s++) {
         int y = STR_Y(s);
@@ -1088,14 +1107,14 @@ static void draw_guitar(void) {
         rrectfill(x, SHAPE_Y, SHAPE_W, CHORD_H, 3, on ? CLR_ORANGE : CLR_DARKER_GREY);
         rrect(x, SHAPE_Y, SHAPE_W, CHORD_H, 3, on ? CLR_WHITE : CLR_DARK_GREY);
         print_centered(SHAPE_NAME[i], x + SHAPE_W / 2, SHAPE_Y + 8, on ? CLR_BLACK : CLR_MEDIUM_GREY);
-        font(FONT_TINY); print(str("%c", SHAPE_KEY[i]), x + 3, SHAPE_Y + 2, on ? CLR_BLACK : CLR_DARK_GREY); font(FONT_NORMAL);
+        font(FONT_TIC); print(str("%c", SHAPE_KEY[i]), x + 3, SHAPE_Y + 2, on ? CLR_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
     }
     for (int i = 0; i < NROOT; i++) {
         int x = ROOT_X(i); bool on = (i == sel_root);
         rrectfill(x, ROOT_Y, ROOT_W, CHORD_H, 3, on ? CLR_LIME_GREEN : CLR_DARKER_GREY);
         rrect(x, ROOT_Y, ROOT_W, CHORD_H, 3, on ? CLR_WHITE : CLR_DARK_GREY);
         print_centered(ROOT_NAME[i], x + ROOT_W / 2, ROOT_Y + 8, on ? CLR_BLACK : CLR_MEDIUM_GREY);
-        font(FONT_TINY); print(str("%c", ROOT_KEY[i]), x + 3, ROOT_Y + 2, on ? CLR_BLACK : CLR_DARK_GREY); font(FONT_NORMAL);
+        font(FONT_TIC); print(str("%c", ROOT_KEY[i]), x + 3, ROOT_Y + 2, on ? CLR_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
     }
 }
 

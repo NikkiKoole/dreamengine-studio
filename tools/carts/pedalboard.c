@@ -14,7 +14,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; AUTO button top-right toggles autoplay, which boots ON and stops the moment you play). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -39,7 +39,10 @@ de:meta */
 //   FRETTING HAND — ROOT row (Z X C V B N M) moves up the neck (E F G A B C D); SHAPE row (A S D
 //                   F G) sets the chord shape (5 / min / maj / sus4 / 7).
 //   STRUMMING HAND — sweep across the strings over the body (the STRUM zone) to strum; tap a string
-//                    on the neck to pick one; SPACE strums. M-row toggles autoplay.
+//                    on the neck to pick one; SPACE strums. AUTOPLAY is the AUTO button top-right
+//                    (it boots ON) and ANY chord key or strum switches it off — there is no key that
+//                    turns it back on. (The docs used to claim "M-row toggles autoplay"; M is the D
+//                    root, and pressing it only ever DISABLES autoplay via set_root.)
 //
 // Mouse + touch both work — every contact is its own pointer. The mouse is merged in explicitly.
 
@@ -900,8 +903,12 @@ void update(void) {
     formant_tick();   // VOWEL pedal: ease the moving modes (ENV/STEP) and re-push the vowel when it shifts
 
     if (autoplay && every(1)) {
-        static const int prog[8] = { 0, 2, 6, 3, 0, 5, 3, 2 };
-        if (beat() % 4 == 0) { sel_shape = 0; sel_root = prog[apos % 8]; build_strings(); strum_down(); apos++; }
+        static const int prog[8] = { 0, 2, 6, 3, 0, 5, 3, 2 };   // E G D A · E C A G
+        // Autoplay walks the ROOTS and leaves the SHAPE alone. It used to force sel_shape = 0, so
+        // hitting M yanked you to the power chord whatever you had picked — and left you there when
+        // you switched it off. Now the progression plays in whatever you selected, which makes the
+        // shape row worth touching while it runs: same changes as maj, min, sus4 or 7.
+        if (beat() % 4 == 0) { sel_root = prog[apos % 8]; build_strings(); strum_down(); apos++; }
     }
     for (int s = 0; s < NSTR; s++) if (pend[s] > 0 && --pend[s] == 0) { amp[s] = str_muted(s) ? 0.3f : 1.0f; vib_ph[s] = 0.0f; }   // a damped string barely moves
 

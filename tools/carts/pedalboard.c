@@ -86,7 +86,7 @@ typedef struct {
     const char *klabel[MAXK]; float kdef[MAXK];
 } FxDef;
 static const FxDef CAT[NCAT] = {
-    { "BITCRUSH", CLR_DARK_BROWN,    CLR_DARK_ORANGE,  FX_CRUSH,   3, { "BIT","RTE","MIX" },   { 0.50f, 0.40f, 0.60f } },
+    { "BITCRUSH", CLR_DARK_BROWN,    CLR_DARK_ORANGE,  FX_CRUSH,   3, { "BIT","RTE","MIX" },   { 0.50f, 0.60f, 0.60f } },
     { "EQ",       CLR_DARKER_BLUE,   CLR_BLUE,         FX_EQ,      3, { "LO","MID","HI" },     { 0.50f, 0.50f, 0.50f } },
     { "CHORUS",   CLR_DARKER_PURPLE, CLR_PINK,         FX_CHORUS,  3, { "RTE","DEP","MIX" },   { 0.30f, 0.28f, 0.45f } },
     { "PHASER",   CLR_DARK_GREEN,    CLR_LIME_GREEN,   FX_PHASER,  4, { "RTE","DEP","FB","MX" },{ 0.30f, 0.70f, 0.65f, 0.55f } },
@@ -150,6 +150,19 @@ static bool  cabfuzz_applied = false;    // was the cabinet OR fuzz engaged last
 static int   cab_voicing = 2;            // AMP_VC index (CRUNCH)
 static int   cab_speed   = LESLIE_SLOW;  // Leslie rotor speed
 static float cab_k[2]    = { 0.5f, 0.5f }; // amp: GAIN, SAG  ·  leslie: DRIVE, BALANCE
+static const float CAB_KDEF[2] = { 0.5f, 0.5f };   // …their double-click-to-default targets
+// DOUBLE-CLICK-TO-DEFAULT. Keyed by pedal CATEGORY, not slot index: slots reorder when you drag a
+// pedal, and an index match would reset whichever pedal happened to slide under your finger.
+// cat -2 = a cabinet knob (they live outside the chain).
+static int frame_no    = 0;
+static int dbl_cat     = -1, dbl_knob = -1, dbl_frame = -1000;
+#define DBL_FRAMES 22                              // ~0.36s at 60fps — a comfortable double-tap on touch too
+static bool dbl_hit(int cat, int knob) {           // call ON PRESS; true = this press completes a double
+    bool same = (cat == dbl_cat && knob == dbl_knob && frame_no - dbl_frame < DBL_FRAMES);
+    if (same) { dbl_cat = -1; dbl_knob = -1; }     // consume it, so a triple-tap is not two resets
+    else      { dbl_cat = cat; dbl_knob = knob; dbl_frame = frame_no; }
+    return same;
+}
 
 // ── RIG recall (Phase 3): named "legendary setups" that load the WHOLE board at once — which
 // pedals (with their default knobs, all switched on) AND the cabinet tenant/voicing. The cabinet
@@ -393,7 +406,14 @@ static void apply_fx(void) {
         bool act = (idx >= 0) && chain[idx].on;
         const float *k = (idx >= 0) ? chain[idx].k : CAT[c].kdef;
         switch (c) {
-            case C_BIT: crush(16.0f - k[0] * 14.0f, 1.0f + k[1] * 15.0f, act ? k[2] : 0.0f); break;
+            // BIT and RTE are QUANTITIES, not amounts: knob UP = more bits / higher sample rate =
+            // CLEANER. They used to run the other way (up = more destruction) while being labelled
+            // with the physical quantity, so "RTE" turned up meant a LOWER sample rate — reported as
+            // "if RTE is sample rate, I would intuit a higher knob position to be higher fidelity".
+            // He is right, and that is also how real bitcrusher pedals are marked. MIX still goes
+            // up = more effect, so the pedal as a whole keeps "turn it up for more". The knob labels
+            // below show the live VALUE (16b/9b/2b, 44k/11k/3k) so the direction is self-evident.
+            case C_BIT: crush(2.0f + k[0] * 14.0f, 16.0f - k[1] * 15.0f, act ? k[2] : 0.0f); break;
             case C_EQ:  if (act) eq((k[0]-0.5f)*24.0f, (k[1]-0.5f)*24.0f, (k[2]-0.5f)*24.0f); else eq(0.0f, 0.0f, 0.0f); break;
             case C_EQ2: if (act) eq_inst(1, (k[0]-0.5f)*24.0f, (k[1]-0.5f)*24.0f, (k[2]-0.5f)*24.0f); else eq_inst(1, 0.0f, 0.0f, 0.0f); break;
             case C_OD: {  // 2nd bus drive (FX_DRIVE inst 1). VOICE k[1] → drive_voice: 0 RAW/1 TS/2 RAT/3 MUFF; TONE k[2]
@@ -619,6 +639,7 @@ static void commit_drop(Ptr *p) {
 }
 
 void update(void) {
+    frame_no++;
     fit_canvas();   // reflow the canvas to the window ratio BEFORE any hit-testing (keeps tapp 1:1)
     for (int i = 0; i < NSHAPE; i++) if (keyp(SHAPE_KEY[i])) set_shape(i);
     for (int i = 0; i < NROOT;  i++) if (keyp(ROOT_KEY[i]))  set_root(i);
@@ -636,6 +657,18 @@ void update(void) {
     if ((int)guitar_in != ap_gtr_in) { input_monitor(guitar_in ? 0.8f : 0.0f); ap_gtr_in = guitar_in; }
 
     bool overflow = max_scroll() > 0;
+
+    // WHEEL SCROLL. The chain scrolls sideways, so a trackpad two-finger swipe (or a tilt/second
+    // wheel) is the obvious gesture and until now the ONLY way to pan was dragging the little
+    // scrollbar — reported from the wild as "doesn't seem to accept horizontal scroll inputs".
+    // Read BOTH axes and take whichever moved: a plain single-wheel mouse emits no x at all, and on
+    // a horizontally-scrolling panel "wheel down" unambiguously means "further along the chain",
+    // so falling back to y makes the ordinary mouse work instead of doing nothing.
+    if (overflow) {
+        float wx = mouse_wheel_x(), wy = mouse_wheel();
+        float w  = wx != 0.0f ? wx : -wy;          // wheel DOWN (negative) → move right along the chain
+        if (w != 0.0f) { scroll_x += w * 16.0f; clamp_scroll(); }
+    }
 
     int cid[PTR_MAX], cxp[PTR_MAX], cyp[PTR_MAX], nc = 0;
     for (int i = 0; i < touch_count() && nc < PTR_MAX; i++) { cid[nc] = touch_id(i); cxp[nc] = touch_x(i); cyp[nc] = touch_y(i); nc++; }
@@ -662,7 +695,10 @@ void update(void) {
                     for (int j = 0; j < nk; j++)
                         if (point_in_box(tx, ty, knob_cx(px, j) - 11, knob_cy(j, nk) - 7, 22, 14)) { hitk = j; break; }
                     if (point_in_box(tx, ty, px + 8, PED_Y + 57, PED_W - 16, 14) && (chain[s].on || !pedal_locked(chain[s].cat))) { chain[s].on = !chain[s].on; dirty = 1; }
-                    else if (hitk >= 0) { p->mode = PTR_KNOB; p->slot = s; p->knob = hitk; }
+                    else if (hitk >= 0) {
+                        if (dbl_hit(chain[s].cat, hitk)) { chain[s].k[hitk] = CAT[chain[s].cat].kdef[hitk]; dirty = 1; }
+                        p->mode = PTR_KNOB; p->slot = s; p->knob = hitk;
+                    }
                     else { p->mode = PTR_DRAGSLOT; p->slot = s; p->cat = chain[s].cat; }   // anywhere else = drag handle
                 }
             }
@@ -675,8 +711,14 @@ void update(void) {
                         if (cab_tenant == CAB_AMP) cab_voicing = (cab_voicing + 1) % AMPCAB_N;
                         else                       cab_speed   = (cab_speed + 1) % 3;
                         dirty = 1;
-                    } else if (point_in_box(tx, ty, CAB_X + 4, PED_Y + 34, CAB_W / 2 - 4, 24)) { p->mode = PTR_CABKNOB; p->knob = 0; }
-                    else if (point_in_box(tx, ty, CAB_X + CAB_W / 2, PED_Y + 34, CAB_W / 2 - 4, 24)) { p->mode = PTR_CABKNOB; p->knob = 1; }
+                    } else if (point_in_box(tx, ty, CAB_X + 4, PED_Y + 34, CAB_W / 2 - 4, 24)) {
+                        if (dbl_hit(-2, 0)) { cab_k[0] = CAB_KDEF[0]; dirty = 1; }
+                        p->mode = PTR_CABKNOB; p->knob = 0;
+                    }
+                    else if (point_in_box(tx, ty, CAB_X + CAB_W / 2, PED_Y + 34, CAB_W / 2 - 4, 24)) {
+                        if (dbl_hit(-2, 1)) { cab_k[1] = CAB_KDEF[1]; dirty = 1; }
+                        p->mode = PTR_CABKNOB; p->knob = 1;
+                    }
                 }
             }
             // 2. scrollbar
@@ -831,6 +873,10 @@ static void draw_chain_pedal(int i, int x) {
         // there is", which is a perfect description of SQUARE that nothing on screen explained.
         // (FX_FORMANT's MOD label above already carried a "like TREM's WAV" comment — TREM's WAV
         // never actually had one.)
+        if (d->kind == FX_CRUSH && j <= 1) {          // show the VALUE: bit depth, and the actual kHz
+            if (j == 0) lbl = str("%db", (int)(2.0f + sl->k[0] * 14.0f));
+            else        lbl = str("%dk", (int)(44100.0f / (16.0f - sl->k[1] * 15.0f) / 1000.0f + 0.5f));
+        }
         if ((d->kind == FX_TREM || d->kind == FX_PAN) && j == 2) {
             static const char *WN[8] = { "SINE","SQR","TRI","SAW","RAMP","OPT","S&H","RND" };   // = LFO_SHAPE_*
             lbl = WN[(int)(sl->k[2] * 7.99f)];

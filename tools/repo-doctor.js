@@ -63,6 +63,11 @@ const CHECKS = [
   { name: "reflections",  tool: "build-reflections.js",  args: ["--check"],     gate: true },
   { name: "cart index",   tool: "build-cart-index.js",   args: ["--check"],     gate: true },
   { name: "history",      tool: "build-history.js",      args: ["--check"],     gate: true },
+  // GATED, unlike the ledger row below it: this asserts the CHECKER against a known-answer fixture,
+  // so it is deterministic and must always pass. A red ledger row is a backlog; a red selftest row
+  // means the tool's findings cannot be believed at all. See checks-and-oracles.md "self-test the
+  // checker". More meta-linters should grow a --selfcheck and join this row.
+  { name: "checker selftest", tool: "status-check.js",     args: ["--selfcheck"], gate: true },
   { name: "status ledger", tool: "status-check.js",       args: ["--check"],     gate: false }, // ADVISORY on purpose: 81 findings on the day it was written (2026-07-30 audit). Gate it once the backlog is worked down, like doc-statuses and xrefs graduated.
   { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
   { name: "xrefs",        tool: "lint-xrefs.js",         args: ["--strict"],    gate: true }, // GRADUATED 2026-07-10: both tiers reached 0 (were 58/203) — exempt classes documented in its header

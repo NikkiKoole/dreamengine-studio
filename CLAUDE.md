@@ -530,7 +530,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              inside Open (38% of the backlog on day one), an over-long entry, an undated
                              one, Shipped out of order, numbering inversions, a bloated headline, a dead
                              "see Decided-against" pointer. ⚠ NEVER renumber to fix an inversion — ~30
-                             `STATUS #N` refs across docs/tools/carts resolve today; reorder instead
+                             `STATUS #N` refs across docs/tools/carts resolve today; reorder instead.
+                             `--selfcheck` = the KNOWN-ANSWER fixture (tools/fixtures/status-check/): asserts
+                             the checker itself, incl. regression guards for the two false-positive shapes that
+                             fooled v1. Gated in repo-doctor. Copy this pattern into any linter that JUDGES
              lint-aux-params.js  the per-engine AUX PARAM channel (`instrument_mode`/`eng_p[]`) writes its
                              width in FIVE places that must agree (both `eng_p[]` decls, BOTH `idx >= N`
                              bounds — the setter AND the SR_ENG_TUNE handler — the note-on copy, and every

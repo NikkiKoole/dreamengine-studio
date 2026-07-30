@@ -89,6 +89,50 @@ This page is only the routing layer.
 | `apps/<name>/app.json` store fields, before pushing | **`asc-push.js --check`** (offline gate) / **`--dry-run`** (GETs live + diffs) |
 | an **app icon** (or you're drawing a new one) | **`icon-mask.js check <icon.png>`** — per corner, does the iOS squircle mask cut flat background (safe) or real detail? `--quiet` = release gate. Then **`preview`** (how it reads at all six real display sizes, light + dark) and **`device`** (what a booted iOS 26 simulator actually draws). Design + the measured mask: [`../design/app-icon-mask.md`](../design/app-icon-mask.md) |
 
+## Self-test the checker (the asymmetry that cost a whole day)
+
+**A check that judges the repo needs a known-answer fixture just as much as one that judges a
+waveform.** On 2026-07-30 three checks were trusted and wrong within hours of each other:
+
+| check | how it was wrong |
+|---|---|
+| `docs/STATUS.md` itself | 20 of 53 "open" items were shipped; both linters carved it out, so nothing ever measured it |
+| `status-check`'s first `done-in-open` heuristic | 2 false positives — items that *mentioned* a shipped thing while their own work was open |
+| `stale-doc-check`'s BROKEN REFERENCES tier | 47 findings, **0** true positives — every one a proposal or another repo's path |
+
+Each was *declared* authoritative and none was ever measured against a hand count.
+
+The repo had already solved this — **for audio only.** `stereo-check --check`, `inharm-spec --check`,
+`sndi-check --check` and `disp-model --check` all assert themselves against synthetic known-answer
+signals first, and CLAUDE.md says why in as many words: *"a broken analyser and a mono file print the
+same thing."* That discipline never crossed over: at the time of writing, **0 of 10 meta-linters had a
+self-test** while 4 of 7 audio analysers did.
+
+The reason for the gap is worth knowing, because it will recur. When a tool measures the physical
+world you can *imagine* the analyser being wrong. When it measures the repo, "does this link resolve"
+feels self-evidently correct — and it is, right up until the check starts encoding a **judgement**
+("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
+fallible as an FFT, and nobody has built the fixture.
+
+**So: if your check makes a judgement, give it a `--selfcheck`.** The pattern, as implemented in
+`status-check.js` + `tools/fixtures/status-check/ledger.md`:
+
+- a **tiny synthetic input** carrying one instance of every finding kind;
+- plus a **regression guard for every false positive you actually hit** — the fixture holds the two
+  shapes that fooled v1, each commented with why it must *not* fire;
+- assertions on the exact expected set, `--selfcheck` exiting nonzero on any mismatch;
+- **gated** in `repo-doctor` (unlike the findings themselves, which are advisory): a red findings row
+  is a backlog, but a red self-test means the tool's output cannot be believed at all.
+
+Two rules that fall out of the same day:
+
+1. **Verify by hand before you believe a count.** Every one of the three failures above was found by
+   reading the findings, not by tuning the heuristic. Reading 22 items by hand took minutes and
+   overturned the tool twice — once for crying wolf, once for missing five real hits.
+2. **Never suppress silently.** When a check learns to ignore a class, it must still *count* what it
+   ignored and be able to list it (`stale-doc-check --all`). A linter that quietly drops findings
+   rots in the opposite direction, and nobody notices because the report looks clean.
+
 ## Orienting *before* a change (don't dive in blind)
 
 | You want to know… | Run |

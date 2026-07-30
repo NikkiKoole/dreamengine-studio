@@ -34,11 +34,75 @@
 const fs = require('fs')
 const path = require('path')
 const ROOT = path.resolve(__dirname, '..')
-const FILE = path.join(ROOT, 'docs', 'STATUS.md')
+// DE_STATUS_FILE lets --selfcheck aim the whole analysis at a fixture instead of the real ledger.
+const FILE = process.env.DE_STATUS_FILE || path.join(ROOT, 'docs', 'STATUS.md')
 
 const argv = process.argv.slice(2)
 const wantJson = argv.includes('--json')
 const wantCheck = argv.includes('--check')
+
+// ── --selfcheck: does the CHECKER still give the known answers? ───────────────
+// WHY. Three checks in this repo were trusted and wrong on the same day (2026-07-30): the STATUS
+// ledger itself, this tool's first done-in-open heuristic (2 false positives), and
+// stale-doc-check's BROKEN REFERENCES tier (47 findings, 0 true positives). Each was *declared*
+// authoritative and never measured against a hand count.
+//
+// The repo already solved this — for AUDIO. `stereo-check --check`, `inharm-spec --check`,
+// `sndi-check --check` and `disp-model --check` all assert themselves against synthetic
+// known-answer fixtures first, and CLAUDE.md spells out why: "a broken analyser and a mono file
+// print the same thing." That discipline was never carried to the tools that judge the REPO —
+// 0 of 10 meta-linters had a self-test — because "does this link resolve" feels self-evident,
+// right up until the check starts encoding a JUDGEMENT ("is this item done?"), at which point it
+// is exactly as fallible as an FFT.
+//
+// So this freezes the hand-read into an executable artifact. The fixture carries one instance of
+// every finding kind PLUS the two shapes that fooled the first version (an open item citing
+// EXISTING api, and an open item named for v3 noting v1+v2 shipped). Change a heuristic, run this:
+// if the expectations still pass, you have not silently reintroduced a false positive.
+if (argv.includes('--selfcheck')) {
+  const fixture = path.join(__dirname, 'fixtures', 'status-check', 'ledger.md')
+  // the child exits 1 because the fixture is FULL of deliberate findings — that is the point,
+  // so read stdout off the thrown error rather than treating a nonzero exit as a failure
+  let raw
+  try {
+    raw = require('child_process').execFileSync(process.execPath, [__filename, '--json', '--check'],
+      { env: { ...process.env, DE_STATUS_FILE: fixture }, encoding: 'utf8', maxBuffer: 1 << 26 })
+  } catch (e) { raw = e.stdout }
+  const got = JSON.parse(raw)
+  const kinds = (n) => got.problems.filter(p => new RegExp(`item ${n}\\b`).test(p.msg)).map(p => p.kind)
+  const has = (k) => got.problems.some(p => p.kind === k)
+  const T = []
+  const t = (name, ok, detail) => T.push({ name, ok, detail })
+
+  t('item 2 (struck, shipped) → done-in-open MOVE',
+    kinds(2).includes('done-in-open') && /move it to/.test(got.problems.find(p => /item 2\b/.test(p.msg))?.msg || ''))
+  t('item 3 (shipped + tail) → done-in-open SPLIT',
+    /SPLIT it/.test(got.problems.find(p => /item 3\b/.test(p.msg))?.msg || ''))
+  t('item 1 ("already SHIPPED as") → NOT flagged  [regression guard]',
+    !kinds(1).includes('done-in-open'))
+  t('item 40 ("v1 + v2 SHIPPED" under a v3 title) → NOT flagged  [regression guard]',
+    !kinds(40).includes('done-in-open'))
+  t('numbering inversion detected', has('numbering'))
+  t('undated CHANGELOG entry detected', has('undated'))
+  t('undated INVENTORY bullet NOT flagged  [regression guard]',
+    got.problems.filter(p => p.kind === 'undated').length === 1)
+  t('out-of-order Shipped detected', has('unsorted'))
+  t('dated entry stranded in inventory → one aggregated finding',
+    got.problems.filter(p => p.kind === 'log-in-inventory').length === 1)
+  t('dead "see Decided-against" pointer detected', has('dead-pointer'))
+  t('long entry with NO owning doc → too-long',
+    got.problems.some(p => p.kind === 'too-long' && /NO link to an owning design doc/.test(p.msg)))
+  t('long entry WITH an owning doc → NOT flagged  [regression guard]',
+    !got.problems.some(p => p.kind === 'too-long' && /item 7\b/.test(p.msg)))
+  t('short headline NOT flagged', !has('headline'))
+
+  const bad = T.filter(x => !x.ok)
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.name}`)
+  console.log(bad.length
+    ? `\x1b[31mstatus-check --selfcheck FAILED\x1b[0m — ${bad.length} of ${T.length} expectations broken`
+    : `status-check --selfcheck: ${T.length}/${T.length} known answers correct`)
+  process.exit(bad.length ? 1 : 0)
+}
 
 const raw = fs.readFileSync(FILE, 'utf8')
 const lines = raw.split('\n')

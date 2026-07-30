@@ -1094,16 +1094,26 @@ static void draw_guitar(void) {
                        circfill(ix, NECK_MID + STR_DY, 1, CLR_DARK_BROWN); }
         else circfill(ix, NECK_MID, 1, CLR_DARK_BROWN);
     }
+    // THE VIBRATING LENGTH STARTS AT THE FINGER, not the nut. A fretted string is dead between the
+    // nut and the fret — that is what fretting IS — so the wave has to be anchored at the dot and
+    // run to the bridge. It used to span the whole board from SX0 regardless of where you fretted,
+    // which read as the note sounding from the wrong end of the neck. Open strings still run the
+    // full length; a barre now visibly kills the whole left side of the board at once.
     for (int s = 0; s < NSTR; s++) {
         int y = STR_Y(s);
         amp[s] *= 0.93f; vib_ph[s] += 0.6f;
         int col = amp[s] > 0.5f ? CLR_LIGHT_YELLOW : amp[s] > 0.1f ? CLR_DARK_ORANGE : CLR_MEDIUM_GREY;
-        int px = SX0, py = y;
-        for (int xx = SX0 + 8; xx <= SX1; xx += 8) {
-            float t  = (float)(xx - SX0) / (float)(SX1 - SX0);
+        int f   = str_fret(s);
+        int vx0 = (f > 0) ? dot_x(s) : SX0;                    // muted (f < 0) has no dot → nut
+        if (vx0 > SX0) line(SX0, y, vx0, y, CLR_MEDIUM_GREY);  // the damped stretch, always at rest
+        int span = SX1 - vx0; if (span < 1) span = 1;
+        int px = vx0, py = y;
+        for (int xx = vx0 + 8; xx <= SX1; xx += 8) {
+            float t  = (float)(xx - vx0) / (float)span;
             int   wy = y + (int)(amp[s] * 4.0f * sinf(t * 9.42f + vib_ph[s]) * sinf(t * 3.14f));
             line(px, py, xx, wy, col); px = xx; py = wy;
         }
+        if (px < SX1) line(px, py, SX1, y, col);               // close to the bridge (a node)
     }
     // Chord-chart notation, so the neck says the same thing a songbook would:
     //   ✗ at the nut = DAMPED · hollow ring = OPEN · filled dot = fingered at that fret.

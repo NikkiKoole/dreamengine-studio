@@ -420,7 +420,21 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > `wav-envelope` on both takes before calling anything an A/B** — comparability is a property of the
 > envelope, not of peak and rms.
 >
-> **Resume-at: the owner's ear on that pair, then re-voice the six voicings' B.** After that, §I4b is a
+> **OWNER'S VERDICT (2026-07-30): B (the stiff string) WINS, but weakly — *"very subtle, hard to explain
+> the difference, I feel I like B better."*** Green light to continue, not a mandate to default it. The
+> subtlety is expected: a single mid note is the weakest case for inharmonicity, whose payoff is in the
+> BASS and in CHORDS/intervals where stretched partials of different notes beat (the whole reason the
+> Railsback stretch exists). **A phrase is now renderable at last** — it was not before the compensation
+> worked — so the next ear test is a bass passage plus a chord.
+> **Also settled by owner request: inharmonicity MUST be swappable, with "perfectly harmonic" reachable.**
+> Same idiom as `MODE_PIANO_STRETCH`: `0` = pure harmonic (= today's sound, so backward compat is free),
+> `0.5` = the voicing's baked amount, `1` = double; per-voicing amount from the existing
+> `PianoVoicing.stiff`. It is a correctness requirement too, not a convenience — a compile-time constant
+> cannot be A/B'd by a gate, which is half of why §I4b/§I4c hid. ⚠ `eng_p[]` is now FULL (0–4), so index 5
+> means widening the array AND both `idx >= N` bounds AND the four-place registration — **build the bounds
+> lint first**.
+>
+> **Resume-at: the phrase-level ear test (bass + chord), then re-voice the six voicings' B.** After that, §I4b is a
 > real implementation (solve `c` per note from a per-voicing physical B, subtract the cascade's phase delay
 > from *every* line) and **2.3(b) finally unblocks**. Also queued, from the "would specs have caught this?"
 > question — three gates, none of them `spec()`: **(1) a MODE/`eng_p` bounds lint** (the bound exists twice

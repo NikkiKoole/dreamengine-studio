@@ -1357,6 +1357,49 @@ afplay build/ab/piano-inharm-B-real-stiff-string.wav  # stiff:    B 1.1e-4, h16 
 A/B.** Peak and rms passed on the previous pair while its decay differed by 19 dB. Comparability is a
 property of the envelope, not of two scalars.
 
+##### OWNER'S VERDICT on the clean pair: B preferred, "very subtle" (2026-07-30)
+
+Recorded verbatim because the *strength* of a verdict matters as much as its direction: *"it's hard to
+explain the difference I hear, it's very subtle in any case, I feel I like B better."* So **the stiff
+string wins, weakly.** That is a green light to keep going, not a mandate to make it the default.
+
+**The subtlety is expected and the test understates the effect.** A single mid-register note is the
+*weakest* case for inharmonicity: its real payoff is in the **bass** (where stretched partials give the
+clang a real piano has) and in **chords and intervals**, where the stretched partials of *different* notes
+beat against each other — which is the entire reason the Railsback stretch exists (§I4c). A one-note
+comparison cannot show either. **Now that the compensation works, a musical phrase is finally renderable**
+(it was not before — that is why the first pair was one note), so the next ear test should be a bass
+passage plus a chord, where the difference should stop being subtle.
+
+##### Design commitment: inharmonicity must be SWAPPABLE, with "perfectly harmonic" available
+
+Asked directly by the owner: *"the path we are taking, will we have the option to swap this around? Say
+you want a perfect harmonic piano at some point?"* **Yes, and it is not an afterthought — it is the same
+pattern `MODE_PIANO_STRETCH` just established, for the same two reasons.**
+
+The shape, matching `MODE_PIANO_DECAY`/`_KNOCK`/`_STRETCH` exactly so there is one idiom to learn:
+
+| value | meaning |
+|---|---|
+| `0` | **perfectly harmonic** — a pure string, i.e. today's sound |
+| `0.5` | the voicing's own baked amount (1.0×) — the default |
+| `1` | double the voicing's amount |
+
+That gives three things at once. **A pure harmonic piano is always one call away**, which is a legitimate
+musical want (chiptune contexts, unison with fixed-pitch sampled layers, or simply preferring it).
+**Backward compatibility is free**, because `0` reproduces the current engine. And **it is testable**: a
+compile-time constant cannot be A/B'd by a gate, which is half of why §I4b and §I4c hid for so long — so
+the runtime seam is a correctness requirement, not a convenience.
+
+The per-voicing amount should come from the existing `PianoVoicing.stiff` field, which is what was
+*supposed* to drive this all along, so `harmonics` (the voicing macro) keeps varying character — celesta
+stiffer, harpsichord less, per Reid — while the mode index scales it explicitly.
+
+**Cost to be honest about:** `eng_p[]` is now 5 wide and full (indices 0–4), so a sixth parameter means
+widening the array **and both `idx >= N` bounds** (the setter *and* the `SR_ENG_TUNE` handler — the trap
+that has now bitten twice), plus the four-place constant registration. That is precisely the case for
+building the bounds lint in the postscript below *before* adding index 5.
+
 #### Postscript: would `spec()` have caught any of this? Mostly no — three other gates would
 
 Asked directly by the owner mid-thread, and worth answering in writing because the answer redirects effort

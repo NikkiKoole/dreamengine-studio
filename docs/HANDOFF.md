@@ -257,51 +257,6 @@ a broken doc link or `#section`).
 > **Resume-at:** [`design/acidcandy-ipad-layout.md`](design/acidcandy-ipad-layout.md) + [`design/responsive-first-device-face.md`](design/responsive-first-device-face.md#the-layers--cheapest-to-deepest).
 > Hot files: `runtime/face.h` · `runtime/lay.h` · `runtime/ui.h` (shared — targeted `Edit`s only, the sound.h rule applies).
 
-> **▶ ACTIVE THREAD (2026-07-20, later the same day) — harmony brain: SHIPPED v1 — `runtime/harmony.h` + the `chordwise` toy.**
-> The build order below was executed engine-first in one session: **(2) DONE** — `harmony.h` holds the
-> 13-function vocab + `HB_BOSSA`/`HB_COCKTAIL` style tables lifted VERBATIM; bossa + cocktail migrated
-> with **byte-identical pinned-seed WAV A/B** (`cmp == 0`, seed 1234, 900 frames — the `radio.h`
-> seed-compat rule held; the carts keep their walk loops + PRNG, calling `hb_pick`). **(3) DONE** —
-> `hb_suggest` (ranked options + one-word reasons) + `hb_analyze`/`hb_chord_fn` (key-in, triads map to
-> their seventh family, `-1` = honest out-of-vocab). **(4) DONE** — `chordwise` (the demand-82 toy:
-> analyzer strip re-derives numerals every frame, NEXT panel with weight pips + reasons, 13-chord
-> palette in the key, QWERTY entry Q-Y/A-J, doo-wop cold-open) carries the spec: **65 assertions**
-> incl. the all-12-keys round-trip; `hb_selfcheck()` lives in the header (specs-on-an-includeable).
-> **(1) flipped to LAST on purpose:** the LOOK pass is now a steering conversation — the v1 bake is the
-> mockup; maker eyeballs `chordwise` in the editor, steers with reference images, then re-skin.
-> Banked: **spec.js was broken repo-wide** (every cart's spec died at link — AudioToolbox missing since
-> the mic lane) — fixed + streetlab re-verified 104/0.
-> **NEXT (adoption, any order):** the template stations as per-genre weight sets over the one vocab ·
-> chord-aware `improv.h` (feed it the current function) · `pocketbox`/`chordblossom2` speak the vocab ·
-> the chromatic encoding design call (`V/x`).
-> **Resume-at:** [`design/harmony-brain.md`](design/harmony-brain.md#whats-still-open-post-v1-2026-07-20).
-> Hot files: `runtime/harmony.h` (now shared by 3 carts — targeted edits only, the sound.h rule applies).
->
-> *(The original ready-to-build lane, for the record:)*
-> **harmony brain: a shared next-chord + analysis engine (research done, ready to build).**
-> Grew out of the demand-discovery drip: r/musictheory **demand-82** ("progression analyzer/suggester")
-> is the loudest gap any drip has surfaced, and it's on-grain + oracle-verifiable. SHIPPED this session:
-> the brief [`design/harmony-brain.md`](design/harmony-brain.md) with a verified three-layer code map —
-> `bossa.c`/`cocktail.c` already hold a real functional-harmony **Markov engine** (functions + `TRANS`
-> cadence table, `bossa.c:97-118`) but it's **LOCKED in two carts + generate-only**; `rad_lead_to`
-> (`radio.h:96-144`) is the shared **VOICING** block (orthogonal); **analysis + suggestion don't exist**.
-> Plus a deep-research survey (21 sources, 24 verified claims) folded in that **settles the model**:
-> **1st-order Markov over key-relative roman-numeral functions + forced cadences** (= what bossa already
-> does; higher order isn't worth it), and **ANALYZE must take the key as INPUT** (full auto RN analysis
-> is unsolved — 43–52% SOTA) with a diatonic+borrowed-chord lookup, Krumhansl-Schmuckler scalar-product
-> only as a fallback key guess. Genre = **weights over ONE shared vocab**, not different grammars.
-> **Build order when picked up:** (1) mockup-first the chord-toy LOOK, like `ribbonpad`/Ribbon; (2) extract
-> bossa's `TRANS`/functions into a shared `harmony.h`, proving byte-identical seeds survive (the
-> `radio.h` seed-compat rule) — **generate before the inverse**; (3) add `hb_suggest` (TRANS read
-> *forward*, ~2–4 ranked options) + `hb_analyze` (key-in + lookup); (4) a `spec()` oracle = known
-> progressions → canonical roman numerals. **Still open (design calls, not research):** the minimal
-> chromatic encoding (`V/x`, borrowed-degree flags) + the suggest option-count/ranking UX.
-> The insight tying it together: **analysis is generation inverted** — one function vocab + transition
-> model serves radios (generate), `chordblossom2` flavors (voice), `pocketbox`'s chord track, a
-> chord-aware `improv.h`, AND the demand-82 toy. Harmony's `acid303.h`.
-> **Resume-at:** [`design/harmony-brain.md`](design/harmony-brain.md#proposed-shape-a-hypothesis-to-test-not-a-spec).
-> No hot files yet (a new `runtime/harmony.h` + a new cart; the brief is committed).
-
 > **▶ ACTIVE THREAD (2026-07-18) — walkbox: a walking-bass step-sequencer ("303 done right, as a real pluck").**
 > A TB-303 workflow driving the upright's real `INSTR_BOWED` pizz voice — the cell nobody had
 > (`acidcandy`/`tb303` = the 303 workflow on a *synth* voice; `upright` = the pluck voice *played
@@ -528,87 +483,6 @@ a broken doc link or `#section`).
 >   building: reuse the new `runtime/physics.h` (verlet balls) + `circlemachine` (note wiring) — the
 >   tombola only adds a rotating drum + trigger-line — resume at [`design/tombola.md`](design/tombola.md#prior-art-in-the-repo-reuse-and-what-s-already-covered).
 
-> **▶ ACTIVE THREAD (2026-07-10) — editor↔cart workflow: CODE round-trip + the PIXEL side (Option D) SHIPPED.**
-> Closing the gaps that bite when you hand-edit a cart in the editor instead of going through
-> `tools/carts/` + CLI (all in [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md)).
-> **Gap 1b (provenance) + Gap 1 (code save-back) are DONE and committed:**
-> - **`de:meta.slug`** backfilled across all 455 carts (`tools/backfill-slug.js --write`) and
->   **required** by `lint-carts.js` (missing or `slug !== filename` fails). Slug is the PNG→source
->   anchor. (Bug caught + fixed in the backfill: it built the `.replace()` replacement as a STRING, so
->   `$1`/`$&` in a cart's own de:meta expanded — `mule.c`'s `$100` → invalid JSON; now a replacement
->   FUNCTION. Blast radius was 1 cart, repaired.)
-> - **"save to source" button** (editor): writes the Code-tab buffer back to `tools/carts/<slug>.c`
->   and re-bakes the gallery `.cart.png` IN PLACE (keeps thumbnail + sprites/map), regenerates
->   `index.json`. IPC `cart:save-to-source` in `main.cjs`; `saveToSource()` + busy-toast feedback in
->   `shell.js`. Source only; NOT a git commit (stays `node tools/cart-commit.js <slug>`). Key gotcha
->   baked in: it re-embeds like `cart:save` in-place — does NOT shell out to `make-cart.js <src> <png>`,
->   which rebuilds sprites from the `.cart.js` and would BLANK a hand-drawn sheet (`make-cart.js:243`, `bakeSprites`).
-> - Also shipped: a Settings → "cart panel" toggle to hide the save/load/save-to-source row.
-> **PIXEL side (Gap 2, the sprite story = STATUS item 23) — Option D SHIPPED (bake + persist halves).**
-> The finding that **all generator carts are `.cart.js`-driven (ZERO hand-drawn)** meant the real need was
-> *reversible touch-ups on a generator cart* → straight to D (not A's freeze / B's marker). Committed:
-> - **`tools/lib/sprite-patch.js`** — the slot-level overlay CORE (palette-index space, no PNG decode):
->   `fingerprintSlot`/`fingerprintSheet` (over the generator OUTPUT, not the source), `applyPatch`
->   (fast-path → per-slot base-match → pure-addition-over-empty → else STALE: drop loudly + prune, so a
->   wholesale regenerate self-empties), `buildPatch`, stable serialize. Tested 26/26 core + 8/8 bake-int.
-> - **`make-cart.js`** — `buildSpriteSheet` split into `genSlots`+`slotsToSheetPng` (byte-identical, verified
->   on 4 real carts); `bakeSprites()` composites a sibling `tools/carts/<name>.sprites.patch.json`; the
->   `<src> <png>` bake mirrors the surviving patch into the `.cart.png` as `de:spritepatch` (`--run` preserves it).
-> - **Editor save-to-source** (`main.cjs cart:save-to-source` + `shell.js readSheetSlots`/`saveToSource`) —
->   diffs the sprite canvas vs the RE-RUN generator, writes only changed slots (deletes the file when nothing
->   differs). Stateless (generator re-runnable → no snapshot). Data-layer-validated on 5 real carts (untouched
->   sheet ⇒ empty patch, no spurious diffs); **NOT yet eyeballed live** (needs `make` to restart Electron).
-> **Save-path VERIFIED LIVE (2026-07-10, maker)** — hand-edit → save-to-source → patch persists across `--run`.
-> **Discard + indicator BUILT (2026-07-10, data-layer tested 5/5, NOT yet eyeballed live):** the pixels tab shows
-> a `#sprite-patch-bar` naming the hand-owned slots on load (load handlers thread `de:spritepatch` →
-> `applyCart` → `setSpritePatchBar`) + a **"discard hand-edits"** button (`cart:discard-sprite-patch`: delete
-> sibling → re-run generator → drop the chunk → reload canvas). **NEXT:** (1) `make` (main.cjs/preload changed),
-> open a patched cart → confirm the bar names the slot + discard restores the generator sprites; (2) A's freeze
-> stays the future "promote a cart gone hand-drawn" path. **Edge:** a cart whose `.cart.png` already drifted from
-> its generator captures the drift as a patch on first save (defensible; `--run` rebake cleans it).
-> **Resume-at: [`design/editor-cart-workflow.md` → Gap 2 the sprite story](design/editor-cart-workflow.md#gap-2--the-sprite-story--status-open-item-23)** ("Option D — what shipped").
-> Hot files: `editor/electron/main.cjs` (`cart:save-to-source`), `editor/src/shell.js`
-> (`saveToSource`/`readSheetSlots`), `editor/src/sprite-editor.js` (the canvas), `tools/make-cart.js`
-> (`bakeSprites` / the `<src> <png>` bake), `tools/lib/sprite-patch.js` (the core).
-
-> **▶ ACTIVE THREAD (2026-07-10) — the worldgen ladder + the junction grammar (realistic roadgen).**
-> The ladder (rungs 0–3 shipped earlier) is now built end-to-end AND DRIVABLE, and the road-junction
-> grammar is extracted + consumed. All gated + committed:
-> **Rungs 4–5 (in `citygrow`):** per-district minor-street FILL — the arterial graph's planar faces →
-> streetlab-pattern presets (grid/organic/cul-de-sac/superblock) → stitched onto the arterials — then
-> CALIBRATED to real Rotterdam via the new **`sndi-check --compare`** gate (five SNDi metrics dead-on;
-> T-junction share 1.1%→64.6%). Clip `citygrow/03-districts`. The residual deg-4+/circuity gap is a
-> documented STRUCTURAL ceiling (arterial X-crossings + straight minors), not fill tuning.
-> **Rung 5.5:** the grammar extracted to **`runtime/citygen.h`** (behaviour-preserving); **sloop's M
-> key drives a generated CITY** (`citygen_road_at` behind `road_at` — a 3rd producer beside stub / OSM /
-> spine). **Rung 7:** its streets are LINED WITH COLLIDABLE BUILDINGS (`citygen` `cg_lots()` → sloop
-> `OB_HOUSE`). Clips `sloop/06-citygen-city` + `07-citygen-buildings`; `spec.js sloop` 25/0.
-> **The junction grammar — `runtime/roadkit.h` (Track-B):** **B2** the pure geometry (`curb_return`,
-> `edge_corner`, `rk_count_corners`, `rk_cross_hw`) + **B3** the N-arm-native field renderer (`RkField`)
-> extracted from streetlab byte-identical (spec 104/0, mirror-diff 68=68, road-check --all all PASS),
-> and **citydrive draws curb-return junctions through it** (J key, ground metres, projected; a
-> `spec()` 11/0 added first as the render safety net).
-> **B4 SHIPPED 2026-07-10 — the interchange grammar.** roadlab's ramp splines + topology (`Port`,
-> `rk_make_junction`, POLICY/classify_turn) extracted into `roadkit.h` (pure over `Port[]` + `present[]`,
-> byte-identical: roadlab spec 25/0 + render 60/60). **Consumed:** `citygrow` draws citygen's 6 grade-2
-> junctions as real cloverleaf/trumpet interchanges (I key hops between them; a clean cloverleaf renders).
-> Track B (streetlab → roadkit at-grade field + grade-separated interchanges) is COMPLETE.
-> **Resume-at (two open forks, both specced):**
-> (1) **the N+M reconciliation** — unify citygen's world model with `worldnet.h`'s β-skeleton lattice
-> so the N-spine + M-city are ONE infinite world (two gated spine edits: `get_node`/`get_hub` from
-> citygen density; highways lead into citygen cities). See [`worldgen-plan.md`](design/worldgen-plan.md) rung 5.5.
-> (2) **polish** — suppress citydrive's round-joint disc at near junctions so the curb-return fully
-> replaces the blob (today it layers over it) + per-pixel field-fill for exact N-arm asphalt.
-> Hot files: `tools/carts/{citygrow,sloop,citydrive,streetlab,roadlab}.c`, `runtime/{citygen,roadkit,worldnet}.h`
-> (shared — targeted edits only). **`roadkit.h` is now the shared dependency of all five carts** — any edit
-> to it must re-gate every consumer, not just the one you're touching. Gates to keep green: `spec.js sloop`
-> 25/0 · `spec.js streetlab` 104/0 · `spec.js citydrive` 11/0 · **`spec.js roadlab` 25/0** · streetlab
-> `mirror-diff` + `road-check --all` · `sndi-check --compare build/citygrow-city.json
-> data/rotterdam-netherlands.rvb` PASS. For a roadkit interchange edit, the byte-identical render check is
-> the real safety net (topology spec can't see geometry): dump the committed seed
-> `tools/clips/roadlab/01-junction-cycle.script` BEFORE and AFTER the edit and diff — must be byte-identical
-> (`node tools/play.js roadlab script tools/clips/roadlab/01-junction-cycle.script --frames 60 --dump <dir>`).
-
 > **▶ ACTIVE THREAD (2026-07-07) — responsive instrument UI: playbook, epiano, scale-grid.**
 > A research question ("what's the best responsive UI for a music cart?") turned into
 > reusable process + two live design docs + a clearly-scoped new feature to build. **What shipped
@@ -647,40 +521,6 @@ a broken doc link or `#section`).
 > **Hot files:** `tools/carts/scalegrid.c` (the shipped grid — extract from here), `runtime/solo.h`
 > (scale-lock to reuse for grid.h); `tools/carts/epianofit.c` (the earlier silent layout mock, still
 > the epiano-brief reference). Gate: `node tools/spec.js scalegrid` (71/0).
-
-> **▶ ACTIVE THREAD (2026-07-10) — multiplayer: WebRTC P2P (rung 5b) — SHIPPED + PUBLISHED; wire-side diagnostics added (follow-ups parked).**
-> Steps 1–4 shipped (commit `05a5dc76`): the WebRTC DataChannel is now the WEB game
-> transport (`de_rtc_*` EM_JS shim in `runtime/net.h`), the relay reused **unchanged**
-> as signaling only. Play-tested Mac↔iPhone over wifi at LAN speed — the rung-5a
-> problem (3 fps + freezes from tromboning through the Render relay at ~330 ms) is
-> gone. Signaling + the seed handshake ride the channel; everything above the
-> `net_transport_*` seam is untouched. The spike's two potholes are baked in
-> (joiner-announces-first; binary signaling told from `ROLE` by the `DN` magic).
-> **Jitter fix so far = a blunt one:** the phone's ~70 ms wifi radio-sleep spikes
-> stalled the old 3-frame/50 ms cushion (a 1-frame hitch every 1–2 s), so `NET_DELAY`
-> is bumped to a **fixed 10 frames (~165 ms)** — feels good, at the cost of input lag
-> on clean links. **Pairing UI:** a Host/Join split (gallery + in-cart bar); Join via
-> native `prompt()` because an inline `<input>` is blocked by the running cart's key
-> handlers on iOS. **Resume-at:** [`multiplayer-research.md` → the step table](design/multiplayer-research.md#the-step-table)
-> (rung 5b). **Published 2026-07-07** — pong is live on github.io (it's
-> the only netplay cart, so that's the whole rollout; the Render relay needed no
-> redeploy — it's signaling only now). **PARKED follow-ups** (not being worked):
-> **step 5 (adaptive `NET_DELAY`)** — the fixed 10-frame cushion feels good but adds
-> lag on clean links; adaptive sizes it to live jitter to claw that back (the
-> maker's-call "when we want to sand off the floatiness"). **step 7 (TURN)** — for the
-> un-punchable ~10–20% (today they see "connection failed - reload"); needs a free
-> Cloudflare/Metered account. **Diagnostics pass shipped 2026-07-10** (`aaca7a36`): in-band
-> RTT probe (`NET_PKT_PING`/`PONG`, ~2 Hz — step 5a's adaptive input now exists as
-> `net_stat_rtt_ms`), rx inter-arrival gap counter (splits wire-outage from cushion
-> starvation per STALL), wall-clock stamps on every net-debug log line (correlate freezes
-> with a concurrent ping by time of day), and the web tick books stalls into the same
-> counters (the WebRTC path was blind before — F2 now reads the same on both targets).
-> **Next time both machines are on the office wifi:** run
-> [the office-session checklist](design/multiplayer-research.md#next-office-session--the-checklist)
-> (~15 min — seals or refutes the 07-09 shared-AP congestion verdict with direct
-> correlation + first measured look at the phone-side stutter). Hot file if resumed:
-> `runtime/net.h` (targeted `Edit`s, shared). Gate: `node tools/net-check.js`. Local
-> play-test: `node tools/net-relay.js --serve site`.
 
 > **▶ ACTIVE THREAD (2026-07-10) — device-adaptive layout (the acidrack redesign · Phase 3 = R1–R6).**
 > Foundation is DONE (Phases 0–2: `runtime/lay.h` + a resizable/growable-framebuffer canvas + iOS
@@ -795,50 +635,6 @@ a broken doc link or `#section`).
 > the editor JS half was swept into f8bd613f (the Promote-tab agent's commit) — reconciled clean, my
 > full two-section panel is in HEAD. **Resume at:** eyeball the ☁︎ panel after `make`; screenshots
 > channel is the next unbuilt one (deferred by the maker until there's more screenshot tooling).
-
-> **▶ ACTIVE THREAD (2026-07-08) — the Promote tab + the shared-popup pattern (SHIPPED).**
-> (Was "editor media"; shares editor files with the trailer + leads lanes — main/preload need an
-> Electron restart.) The per-cart **Promote tab** is BUILT (A–E) — a tab next to code/pixels/apps,
-> resolving the media-home seam from
-> [`editor-scopes-and-facets.md`](design/editor-scopes-and-facets.md#resolution-2026-07-07-make-promote-ship-promote-is-a-new-per-cart-tab)
-> (Dream → Make → Promote → Ship; Make/Ship already existed, Promote was the homeless verb).
-> **Sections:** **A** clips & takes — list the cart's takes, click one to WATCH it (`.rec`/`.script`
-> native via `studio:replay`, `.beats` via `studio:play-beats`), ● record a take, 🎬 **bake** a take →
-> clip (`studio:bake-clip` → `make-gif --recipe`), auto-refresh on record; **B** stills — 📸
-> `studio:cart-shot` → `editor/public/shots/<cart>/NN-snap.png` (a NEW sibling of `clips/`); **C**
-> trailer; **D** find tribes (cart-scoped `studio:cart-leads`); **E** gallery link. The old toolbar
-> `● rec` button + `showRecord` setting are **RETIRED** — recording is Promote-only.
-> **The shared-popup pattern (the maker's idea):** a scope-neutral tool gets ONE popup opened from
-> BOTH the Promote tab (cart) and the Apps card (app) — `open({kind,name})`, caller supplies scope,
-> popup is scope-blind. Two shipped instances: **trailer builder** (lifted out of the Apps panel into
-> a top-level `.modal`; `openTrailer({kind,name})` — cart stitches one cart's clips, app stitches
-> across an app's) and **keyword research** (`openKeywords` — `aso-research`+`aso-suggest` seeded from
-> de:meta/listing). Browse-y glances stay INLINE (`leadsHtml`/`researchHtml`/`suggestHtml` extracted so
-> popup + inline render identically).
-> **Reels save/load (the .reel *scenario*, not the heavy webm):** a **saved-reels strip** in the
-> builder scoped to the subject (`<subject>.reel` + `<subject>--<variant>.reel`) + a **cross-subject
-> Reels overview** at the top of the Apps page; click any reel → loads its scenario
-> (`studio:list-reels`/`reel-load`; shared `parseReelFile`/`reelClipsFor` helpers). `tlSubject` (list
-> scope) vs `tlApp` (build target) are now split → ready for named variants.
-> **Multi-resolution export SHIPPED (export-ratios.md, both stages, resizable carts):** an **output-ratio
-> picker** on reel-Build (`# size` → compose renders at that canvas) AND a **"bake at" ratio picker** on
-> the Promote 🎬 bake. **Stage 2** = per-ratio clip **variants** (`<label>--<W>x<H>.webm`) that compose
-> PREFERS at a matching size → the reel **FILLS** (else letterbox). Presets: social (16:9/9:16/1:1) +
-> App Store **EVEN half-sizes** (444×960/960×444/600×800, ×2 on delivery — odd widths break ffmpeg pad;
-> `# scale 1` so output = the small canvas). Enabler = **keyboard shortcuts** (position-free take → any
-> ratio). **`onetake` cart** (committed) is the worked proof: keyboard-driven, %-positioned, resizable.
-> **Docs:** [`promote-tab.md`](design/promote-tab.md) (A–E shipped) · [`export-ratios.md`](design/export-ratios.md)
-> (BUILDING — stages 1+2 done) ↔ [`resolution-portable-input.md`](design/resolution-portable-input.md)
-> (the input half) + a filmability note in [`cart-authoring.md`](guides/cart-authoring.md).
-> **Resume at (open builds):** (1) **an EYEBALL PASS** — a big UI stack (Promote tab, popups, reels,
-> ratio pickers, Stage 2) verified only at pipeline/logic level, **none clicked live**: restart Electron,
-> run record→bake→trailer→reel-with-a-text-card→Build-at-a-ratio; flag breakage (likely spots: the ≥2-clips
-> rule, an unbaked clip, or new-IPC wiring). (2) **fixed-layout composite** — the export-ratios gap: a
-> non-resizable cart can't reflow, so it needs a dressed bg+caption letterbox (video `store-shots`).
-> (3) **named reel variants** (💾 save-as; `tlSubject`/`tlApp` split ready) · delivery-exact upscale ·
-> per-cart trailer pre-pop from its reel · delete affordances · published-state dot on E.
-> Hot files: `editor/src/shell.js`(+`shell.css`), `editor/index.html`, `editor/electron/main.cjs`+`preload.cjs`,
-> `tools/compose-clips.js` (variant preference), `tools/make-gif.js` (`--screen`).
 
 > **▶ ACTIVE THREAD (2026-07-07) — leads: the local marketeer (demand generation).** A new
 > tool that answers "where do I post about this cart?" — the generation twin of the `aso-*`

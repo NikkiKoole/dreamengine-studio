@@ -44,6 +44,39 @@ _Last updated: 2026-07-30 (**THE CONTEMPORARY REBIRTH, RUNGS A + B — a post-ha
   inharmonicity to modulate at all). Also fixed en route: `tune-check` could not see PIANO's stretched
   tuning at all, and now asserts it as a **differential** against a runtime stretch-off pass.
 
+- **LOCKSTEP NETPLAY RUNG 5b — browser WebRTC P2P, SHIPPED + PUBLISHED** (2026-07-10). `pong` plays
+  peer-to-peer between two browsers over a DataChannel at ~12 ms on wifi, with the relay reduced to
+  signaling only (`tools/net-relay.js`); live on github.io. Wire-side diagnostics landed the same week (RTT
+  probe, rx-gap and wall-clock logs, web-tick stall detection). **Two follow-ups are PARKED, deliberately:**
+  step 5 (adaptive `NET_DELAY` — the fixed 10-frame cushion holds) and step 7 (TURN, for peers that cannot
+  connect directly). The remaining task is physical, not code: the office-wifi checklist at
+  [multiplayer-research.md](design/multiplayer-research.md#next-office-session--the-checklist). Gate:
+  `node tools/net-check.js`.
+
+- **The per-cart PROMOTE tab + the shared-popup pattern, SHIPPED A–E** (2026-07-08). Record/bake clips,
+  the reel builder with save/load (subject-scoped strip + cross-subject overview), multi-resolution export
+  (output-ratio picker on reel-Build and clip-bake, Stage-2 per-ratio variants that FILL, App Store even
+  half-sizes), and the popup pattern reused by the trailer and keyword-research surfaces from both the cart
+  and app pages. Keyboard shortcuts were the enabler. Design: [promote-tab.md](design/promote-tab.md) +
+  [export-ratios.md](design/export-ratios.md), both stages shipped. **Open, and the reason it is not
+  finished-finished: an EYEBALL PASS — the stack was verified at pipeline/logic level and none of it was
+  clicked live** — plus the fixed-layout composite gap.
+
+- **`walkbox` — a walking-bass step-sequencer, BUILT and PARKED** (2026-07-18). A TB-303 workflow driving
+  the upright's real `INSTR_BOWED` pizzicato voice: draw a line on scale-locked note bars, sculpt a tabbed
+  VEL/LEN lane (velocity → pluck attack, length → staccato gate, top = TIE), flip SLD/OCT rows, dial SWING.
+  Core + articulation ship and play. **Parked with a wish list, not a blocker:** ghost notes, hammer-on/
+  pull-off, presets. Design: [walkbox.md](design/walkbox.md).
+
+- **`tools/leads.js` — the local marketeer, BUILT and PARKED** (2026-07-07). The demand-GENERATION twin of
+  the `aso-*` capture tools: maps a cart's `de:meta` to its tribe(s) and the venues where that tribe
+  gathers (`match`), hunts new venues (`discover`), scaffolds a gift-first post from the cart's own words
+  (`draft`), and tracks outreach (`track add`). Ledger `tools/leads-ledger.json` is committed and
+  hand-editable — **34 tribes / 14 cross-cutting** as of 2026-07-30 (`node tools/leads.js --check` for the
+  live count). The taxonomy has kept growing through use; the tool itself has not changed since it was
+  built. Open: the editor Apps-page surface. Design:
+  [leads-marketeer.md](design/leads-marketeer.md#open-questions-resume-at).
+
 - **The app-icon mask, measured** (2026-07-28) — `tools/icon-mask.js` + a committed
   `tools/icon-masks/ios26-2048.png`. Two apps were in review with their icon corners visibly shaved,
   so we stopped guessing the squircle: **Xcode 26's Icon Composer ships `ictool`**, which renders a

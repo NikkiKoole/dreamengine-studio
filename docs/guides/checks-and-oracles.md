@@ -122,12 +122,20 @@ fallible as an FFT, and nobody has built the fixture.
 | tool | fixture | pins |
 |---|---|---|
 | `status-check.js --selfcheck` | `tools/fixtures/status-check/ledger.md` | 13 — every finding kind, plus the two shapes that made v1 cry wolf |
+| `lint-docs.js --selfcheck` | `tools/fixtures/lint-docs/docs/` | 6 — broken links, and the **hard-vs-soft §-ref split** (a parent-resolved ref is a note, not an error) |
 | `lint-xrefs.js --selfcheck` | `tools/fixtures/lint-xrefs/docs/` | 5 — both tiers, plus the HUB and fenced-code exempt classes |
 | `stale-doc-check.js --selfcheck` | `tools/fixtures/stale-doc-check/docs/` | 7 — the four verdicts BROKEN REFERENCES rests on (gone / never-existed / foreign / present) |
+| `handoff.js --selfcheck` | `tools/fixtures/handoff/HANDOFF.md` | 11 — all five lane judgements, plus **all three** of the false positives that tool shipped with |
 
-Both doc-scanning tools take a **`DE_DOCS_DIR`** override so the fixture is scanned instead of
-`docs/`, while `ROOT` stays the real repo — so the fixture is adjudicated against real `srcExists`
-and real git history, exactly as in production.
+The doc-scanning tools take a **`DE_DOCS_DIR`** override (`handoff` takes `DE_HANDOFF_FILE`) so the
+fixture is scanned instead of `docs/`, while `ROOT` stays the real repo — so the fixture is
+adjudicated against real `srcExists`, real link targets and real git history, exactly as in
+production.
+
+**A fixture whose expectations depend on *today* must template its dates.** `handoff`'s lane-staleness
+judgement is relative to now, so a hard-coded "fresh" date would quietly become a stale one and the
+expectation would invert. The fixture writes `__TODAY__` / `__ANCIENT__` and `--selfcheck` substitutes
+real dates into a temp copy — the fixture cannot rot.
 
 The pattern:
 

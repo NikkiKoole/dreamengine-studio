@@ -152,6 +152,17 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          (rgb/hsv/palette = the IQ cosine palette) + SDF primitives & combinators
                          (sd_sphere/box/torus/plane, op_union/sub/smin). For a cart drawing per-pixel
                          through pset_rgb/rectfill_rgb that wants to read like Shadertoy. raymarch
+             demath.h    DETERMINISTIC float math — the same BITS on arm64/x86-64/wasm: de_sinf/cosf/
+                         tanf/expf/logf/powf/tanhf/atan2f/asinf/acosf/hypotf + de_sin_turns (takes TURNS,
+                         the phase-accumulator form: exact reduction, 45% faster than libm). Auto-included
+                         by studio.h. WHY: IEEE 754 pins down + - * / and sqrt but says NOTHING about the
+                         transcendentals, so every libm rounds them differently — which silently breaks
+                         replays/ghosts/lockstep and made carts sound different in the browser. Reach for
+                         de_* in a cart whose OUTPUT is COMPARED (a spec() oracle, a replay, a golden
+                         image); plain libm is fine for decoration. sqrtf/fabsf/floorf/fmodf/fminf/fmaxf
+                         are ALREADY bit-exact by spec — no de_ version, none needed. Pairs with the
+                         FP_CONTRACT pragma in studio.h (both are required; neither alone works).
+                         Gated by det-probes/demath.c. docs/design/determinism.md
              keybed.h    polyphonic chromatic keybed (touch+mouse+QWERTY+MIDI) — every keybed
                          cart copies it (epiano/moog/touchpiano/mellotron); NOT ribbons/radio strip
              mono.h      MONOSYNTH KEY ASSIGN (audit §B3): which held note sounds (priority LAST/LOW/
@@ -544,7 +555,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-docs.js    validate docs/ cross-references (links resolve, §-refs) + the two
                              DISCOVERABILITY gates: every tools/* and every cart-land runtime/*.h is
                              indexed in CLAUDE.md (headers also in cart-authoring's table) — the "it
-                             exists but no agent finds it, so they hand-roll it again" class
+                             exists but no agent finds it, so they hand-roll it again" class.
+                             `--json`; `--selfcheck` = known-answer fixture (pins the HARD-vs-SOFT §-ref split:
+                             a parent-resolved ref is a NOTE, never an error), gated in repo-doctor
              lint-fxicons.js every `FX_*` insert kind must have a shared GLYPH in runtime/fxicons.h
                              (body colour + accent + name + icon). The failure is SILENT and worse than
                              blank: an unregistered kind falls through fx_icon()'s `else` and draws a
@@ -583,7 +596,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              resume complex in-flight work. Bare = FRONT DOOR: list the ▶ ACTIVE THREAD lanes + age
                              (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / broken doc links /
                              broken #section anchors (write Resume-ats as [text](doc.md#section) so a renamed section
-                             is caught; surfaced by cart-status.js). Same two-door pattern as driftable-docs
+                             is caught; surfaced by cart-status.js). Same two-door pattern as driftable-docs.
+                             `--selfcheck` = known-answer fixture (all five lane judgements + all three false
+                             positives this tool once shipped; dates are TEMPLATED so it can't rot), gated
              repo-doctor.js  ONE health strip over every meta-check (lint-docs/lint-carts + the build-* --check
                              staleness gates as ✗, the advisory linters as ⚠) run in parallel, counts only —
                              listings via --full or the named tool itself; embedded in bare orient. --quiet = CI

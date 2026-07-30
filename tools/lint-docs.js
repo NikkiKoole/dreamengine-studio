@@ -40,7 +40,46 @@
 const fs = require('fs');
 const path = require('path');
 
-const DOCS = path.join(__dirname, '..', 'docs');
+// DE_DOCS_DIR aims the scan at a fixture instead of docs/ — used by --selfcheck.
+// ── --selfcheck: assert the CHECKER against known answers ────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". The subtle judgement here is the
+// HARD-vs-SOFT split on §-refs: a ref that resolves only via a parent heading is a legitimate
+// pointer at a not-yet-subdivided section (a NOTE), while one with no parent at all is an ERROR.
+// Collapse that distinction in either direction and the gate either floods or goes blind — and this
+// tool is a GATE, so a flood gets silenced and a blind spot never gets noticed.
+if (process.argv.slice(2).includes('--selfcheck')) {
+  const cp = require('child_process'), P = require('path');
+  const fx = P.join(__dirname, 'fixtures', 'lint-docs', 'docs');
+  let raw;
+  try {
+    raw = cp.execFileSync(process.execPath, [__filename, '--json'],
+      { env: { ...process.env, DE_DOCS_DIR: fx }, encoding: 'utf8', maxBuffer: 1 << 26 });
+  } catch (e) { raw = e.stdout; }
+  const g = JSON.parse(raw);
+  const anyErr = (re) => g.errors.some(e => re.test(e));
+  const anyNote = (re) => g.notes.some(n => re.test(n));
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+
+  t('a link that does not resolve → ERROR', anyErr(/broken link: \(design\/zzz-missing\.md\)/));
+  t('a §-ref with no section and no parent → ERROR', anyErr(/§99 — no such section/));
+  t('a §-ref resolving via its PARENT → soft note, NOT an error  [hard/soft guard]',
+    anyNote(/§8\.9 resolves only via §8/) && !anyErr(/§8\.9/));
+  t('an exact §-ref hit → silent', !anyErr(/§8\.1/) && !anyNote(/§8\.1/));
+  t('a link that resolves → silent', !anyErr(/owner-doc\.md\)/));
+  t('exactly 2 errors, 1 note  [noise guard]', g.errors.length === 2 && g.notes.length === 1);
+
+  const bad = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`);
+  console.log(bad.length
+    ? `\x1b[31mlint-docs --selfcheck FAILED\x1b[0m — ${bad.length} of ${T.length} expectations broken`
+    : `lint-docs --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(bad.length ? 1 : 0);
+}
+
+const DOCS = process.env.DE_DOCS_DIR
+  ? require('path').resolve(process.env.DE_DOCS_DIR)
+  : path.join(__dirname, '..', 'docs');
 
 // ---------- collect files ----------
 function walk(dir, out = []) {
@@ -181,7 +220,6 @@ const ENGINE_INTERNALS = new Set([
   'studio.h',            // the public API, not a cart-land library
   'sound.h', 'spec.h',   // engine + harness, documented elsewhere in CLAUDE.md
   'color.h', 'game_rect.h', 'platform.h', 'raylib_compat.h',   // platform seams
-  'demath.h',            // engine numerics seam (deterministic transcendentals); not cart-land yet
   'mic.h', 'mic_desktop.h', 'midi_input.h',                    // host input plumbing
   'stb_image.h', 'studio_tcc_symbols.h',                       // vendored / generated
 ]);
@@ -207,6 +245,11 @@ if (fs.existsSync(CLAUDE) && fs.existsSync(RUNTIME) && fs.existsSync(GUIDE)) {
 }
 
 // ---------- report ----------
+if (process.argv.slice(2).includes('--json')) {
+  console.log(JSON.stringify({ errors, notes, files: files.length }, null, 2));
+  process.exitCode = errors.length ? 1 : 0;
+  return;
+}
 if (errors.length) {
   console.log(`ERRORS (${errors.length}):`);
   for (const e of errors) console.log('  ' + e);

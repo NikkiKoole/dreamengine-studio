@@ -21,12 +21,61 @@ const fs = require('fs')
 const path = require('path')
 const ROOT = path.resolve(__dirname, '..')
 const DOCS = path.join(ROOT, 'docs')
-const HANDOFF = path.join(DOCS, 'HANDOFF.md')
+// DE_HANDOFF_FILE aims the parse at a fixture instead of docs/HANDOFF.md — used by --selfcheck.
+// DOCS stays the real docs/ so link + anchor targets resolve exactly as in production.
+const HANDOFF = process.env.DE_HANDOFF_FILE || path.join(DOCS, 'HANDOFF.md')
 const STALE_DAYS = 14
 
 const argv = process.argv.slice(2)
 const asJson = argv.includes('--json')
 const check = argv.includes('--check')
+
+// ── --selfcheck: assert the CHECKER against known answers ────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Every judgement here is a
+// heuristic over hand-written prose, and this tool had THREE false positives on the day it was
+// tightened — each is a regression guard in the fixture now. The fixture TEMPLATES its dates
+// (__TODAY__ / __ANCIENT__) so a "fresh lane" expectation cannot rot into a stale one tomorrow.
+if (process.argv.slice(2).includes('--selfcheck')) {
+  const os = require('os')
+  const src = path.join(__dirname, 'fixtures', 'handoff', 'HANDOFF.md')
+  const iso = (d) => new Date(d).toISOString().slice(0, 10)
+  const today = iso(Date.now())
+  const ancient = iso(Date.now() - 90 * 86400000)
+  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'de-handoff-')), 'HANDOFF.md')
+  fs.writeFileSync(tmp, fs.readFileSync(src, 'utf8')
+    .replace(/__TODAY__/g, today).replace(/__ANCIENT__/g, ancient))
+
+  let raw
+  try {
+    raw = require('child_process').execFileSync(process.execPath, [__filename, '--json'],
+      { env: { ...process.env, DE_HANDOFF_FILE: tmp }, encoding: 'utf8', maxBuffer: 1 << 26 })
+  } catch (e) { raw = e.stdout }
+  const g = JSON.parse(raw)
+  const lane = (frag) => g.lanes.find(l => l.title.toLowerCase().includes(frag.toLowerCase()))
+  const clean = (l) => l && !l.broken.length && !l.brokenAnchors.length && !l.noResume &&
+                       !l.unanchored && !(l.age != null && l.age > g.staleDays)
+  const T = []
+  const t = (n, ok) => T.push({ n, ok })
+
+  t('all 10 lanes parsed', g.lanes.length === 10)
+  t('a clean lane → no finding', clean(lane('a clean lane')))
+  t('an old lane → stale', (lane('a stale lane')?.age ?? 0) > g.staleDays)
+  t('a broken doc link → reported', lane('broken doc link')?.broken.length === 1)
+  t('a broken #anchor → reported', lane('broken section anchor')?.brokenAnchors.length === 1)
+  t('no Resume-at at all → reported', lane('no pick-up point')?.noResume === true)
+  t('Resume-at with no anchor → unanchored', lane('has no anchor')?.unanchored === true)
+  t('anchor a few lines BELOW the label → clean  [regression guard]', clean(lane('below the label')))
+  t('label mid-bold → clean  [regression guard]', clean(lane('label mid-bold')))
+  t('a date qualified with prose still parses  [regression guard]', !!lane('qualified date'))
+  t('a drifted lowercase spelling → clean  [regression guard]', clean(lane('lowercase spelling')))
+
+  const bad = T.filter(x => !x.ok)
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`)
+  console.log(bad.length
+    ? `\x1b[31mhandoff --selfcheck FAILED\x1b[0m — ${bad.length} of ${T.length} expectations broken`
+    : `handoff --selfcheck: ${T.length}/${T.length} known answers correct`)
+  process.exit(bad.length ? 1 : 0)
+}
 
 if (!fs.existsSync(HANDOFF)) { console.error('no docs/HANDOFF.md'); process.exit(2) }
 const lines = fs.readFileSync(HANDOFF, 'utf8').split('\n')

@@ -70,6 +70,8 @@ const CHECKS = [
   { name: "selftest: ledger",  tool: "status-check.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: xrefs",   tool: "lint-xrefs.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: doc refs",tool: "stale-doc-check.js", args: ["--selfcheck"], gate: true },
+  { name: "selftest: links",   tool: "lint-docs.js",       args: ["--selfcheck"], gate: true },
+  { name: "selftest: lanes",   tool: "handoff.js",         args: ["--selfcheck"], gate: true },
   { name: "selftest: cap claims", tool: "lint-capability-claims.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
   // GATED from birth (2026-07-30): mechanical (an FX_* kind either has a glyph or it doesn't),

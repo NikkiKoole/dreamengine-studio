@@ -77,7 +77,7 @@ typedef struct {
     int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
     float sustain;                  // 0..1
     float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
-    float eng_p[4];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale
+    float eng_p[5];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale, 4 = piano stretched-tuning scale
     int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
     float lfo_rate[3];              // Hz
     float lfo_depth[3];             // 0 = off; units depend on dest
@@ -341,7 +341,7 @@ typedef struct {
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
     // eng_p[] (set via instrument_mode, note-on — the permanent per-engine aux channel, decision 0017; NOT baked to constants).
-    float  eng_p[4];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale)
+    float  eng_p[5];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale · 4 piano stretch-scale)
     float  eng_subph, eng_env;          // sub-osc phase + envelope follower
     int    eng_click;                   // onset-click samples remaining
     // brass state (INSTR_BRASS): STK BrassInstrument (Cook/Scavone) — a bore delay (REUSES ks_buf,
@@ -4620,11 +4620,22 @@ static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f 
 // check got read as confirmation for months. tune-check now models this curve explicitly
 // (INTENDED_DETUNE, parsing K from this line) and gates on the RESIDUAL against it, so the stretch
 // is asserted rather than tolerated. If you retune K, that check follows it. Plan §2.3(a).
+// RUNTIME SEAM (2026-07-30): `k` is PIANO_STRETCH_K scaled by MODE_PIANO_STRETCH (eng_p[4], bank
+// default 0.5 → 1.0×), so the curve's strength is settable per instrument AT RUNTIME instead of only
+// by editing this file. Two reasons, and the second is the one that mattered:
+//   · a cart can legitimately want an equal-tempered piano (k = 0) — a chiptune context, or playing
+//     in unison with a fixed-pitch sampled instrument, where a stretched bass just reads as sour;
+//   · a compile-time constant CANNOT BE A/B'd BY A GATE. tune-check now renders this engine with the
+//     stretch off and on IN ONE PASS and asserts the DIFFERENCE equals the intended curve. That is a
+//     far sharper check than measuring absolute pitch, because the difference cancels every constant
+//     error the loop has (§I4d's uncompensated delay, and its drift within a note as `ksb` blooms) —
+//     no blessed per-note baseline, nothing to re-bless when a window changes. §I4c hid for months
+//     partly because this value could not be flipped at render time. Plan §2.3(a).
 #define PIANO_STRETCH_K 2.0f
-static inline float piano_stretch_freq(float freq) {
-    if (PIANO_STRETCH_K == 0.0f) return freq;
+static inline float piano_stretch_freq(float freq, float k) {
+    if (k == 0.0f) return freq;
     float soct = log2f(freq / 261.63f);                // octaves from middle C (C4)
-    return freq * powf(2.0f, (PIANO_STRETCH_K * soct * fabsf(soct)) / 1200.0f);
+    return freq * powf(2.0f, (k * soct * fabsf(soct)) / 1200.0f);
 }
 
 // note-on — navkit playStifKarp verbatim: ONE-period KS buffer + fractional-delay allpass tuning,
@@ -4635,7 +4646,10 @@ static void sound_piano_start(Voice *v) {
     if (vi < 0) vi = 0; if (vi > 5) vi = 5;
     const PianoVoicing *pv = &PIANO_V[vi];
     float freq = v->freq > 20.0f ? v->freq : 20.0f;
-    freq = piano_stretch_freq(freq);                   // STRETCHED-TUNING SEAM (see piano_stretch_freq; PIANO_STRETCH_K 0 = off)
+    // STRETCHED-TUNING SEAM (see piano_stretch_freq). eng_p[4] (MODE_PIANO_STRETCH) scales K: bank
+    // default 0.5 → 1.0× = exactly PIANO_STRETCH_K, so the default is bit-identical to before it was
+    // a parameter; 0 = equal temperament; 1.0 = 2× the curve.
+    freq = piano_stretch_freq(freq, PIANO_STRETCH_K * (v->eng_p[4] * 2.0f));
     v->freq = freq;                                    // write back so per-sample pitch tracking (ratio = f/pn_initf) stays consistent
     v->freq_target = freq;                             // …and the TARGET too, or the per-frame glide slew (v->freq += (freq_target
                                                        // − freq)·freq_slew) drags freq back to the nominal MIDI pitch one frame
@@ -5312,6 +5326,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->eng_p[1] = ins->eng_p[1];
     v->eng_p[2] = ins->eng_p[2];
     v->eng_p[3] = ins->eng_p[3];
+    v->eng_p[4] = ins->eng_p[4];
     v->smp_idx     = ins->smp_idx;                     // INSTR_SAMPLE: which recorded buffer + its root freq
     v->smp_root    = ins->smp_root;
     v->smp_start_f = ins->smp_start;                   // chop bounds (fractions) — resolved to sample indices in the start hook / render
@@ -5583,7 +5598,14 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_ENG_TUNE: {
         int slot = r.a, idx = r.b;
-        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 4) return;
+        // ⚠ THE eng_p BOUND EXISTS TWICE: here, and in instrument_mode() (the public setter). Widening
+        // only one of them is a SILENT no-op — the setter accepts the value, queues it, and this
+        // handler drops it. That is the exact failure mode the setter's own comment describes for idx
+        // 2/3, one layer deeper, and it bit again when idx 4 was added (2026-07-30): the differential
+        // pass in tunecheck.c rendered byte-identical to the normal one and the new gate read a 0¢
+        // stretch everywhere. Adding a sixth aux param means THREE edits: eng_p[] width, this bound,
+        // and the setter's.
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 5) return;
         instr_bank[slot].eng_p[idx] = r.c / 1000.0f;
     } break;
     case SR_INSTR_LFO: {
@@ -7119,7 +7141,7 @@ void instrument_duty(int slot, float duty) {
 }
 
 void instrument_mode(int slot, int idx, float value) {   // per-engine aux channel, note-on face (was eng_tune; decision 0017)
-    // `idx >= 4`, NOT `>= 2`. eng_p is four wide and the PIANO's idx 2 (double-decay scale) and idx 3
+    // `idx >= 5`, NOT `>= 2`. eng_p is five wide and the PIANO's idx 2 (double-decay scale) and idx 3
     // (hammer-knock scale) are implemented end to end — read at sound_piano_start, copied to the voice at
     // note-on, bank-defaulted to 0.5 = 1.0×. This guard rejected them, so both were silently dropped HERE,
     // in the setter, and the piano cart's "decay" and "knock" sliders did nothing for as long as they have
@@ -7127,7 +7149,8 @@ void instrument_mode(int slot, int idx, float value) {   // per-engine aux chann
     // Fixing it is a no-op at rest (a slider at 0.5 sends 0.5, which is exactly the bank default it was
     // already using) and only bites when someone moves one. Found 2026-07-28 via audit §I9. If you add a
     // fifth aux param, widen eng_p[] AND this bound together.
-    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 4) return;
+    //   2026-07-30: idx 4 (MODE_PIANO_STRETCH) added, eng_p widened to 5, bound moved 4 → 5.
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 5) return;
     value = clamp01(value);
     sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
 }
@@ -8393,6 +8416,7 @@ static void sound_reset_state(void) {
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (instrument_mode) — off until set
         instr_bank[i].eng_p[2]   = 0.5f;   // piano double-decay scale (instrument_mode idx 2) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[3]   = 0.5f;   // piano hammer-knock scale  (instrument_mode idx 3) — 0.5 = 1.0× the baked default
+        instr_bank[i].eng_p[4]   = 0.5f;   // piano stretched-tuning scale (instrument_mode idx 4) — 0.5 = 1.0× PIANO_STRETCH_K, 0 = equal temperament
     }
 
     // echo bus: clean slate (matters for libtcc hot-reload + --det reproducibility)

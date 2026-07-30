@@ -28,8 +28,22 @@ static const int ENGINES[] = {
     INSTR_SINE,   INSTR_PLUCK,  INSTR_MALLET, INSTR_FM,    INSTR_ORGAN,
     INSTR_EPIANO, INSTR_PD,     INSTR_REED,   INSTR_PIPE,  INSTR_GUITAR,
     INSTR_PIANO,  INSTR_BOWED,  INSTR_BRASS,
+    INSTR_PIANO,   // ← the DIFFERENTIAL pass; see ET_ENTRY. Keep this LAST.
 };
 #define NENG ((int)(sizeof(ENGINES) / sizeof(ENGINES[0])))
+
+// THE DIFFERENTIAL PASS. The last entry is PIANO again with MODE_PIANO_STRETCH forced to 0, i.e.
+// plain equal temperament. PIANO deliberately does NOT tune to ET (it stretches its fundamentals,
+// bass-flat/treble-sharp — the Railsback curve), and the deviation that creates is smaller than
+// tune-check's warn threshold, so an absolute-pitch check printed a tick whether the stretch worked
+// fully, half-worked, or did nothing at all — which is exactly how audit §I4c survived. Rendering
+// the SAME engine with the stretch off, in the SAME pass and the same measurement window, lets the
+// analyzer assert the DIFFERENCE between the two passes against the intended curve. The difference
+// cancels every constant error the loop carries (§I4d's uncompensated delay, and the way it drifts
+// within a note as the brightness bloom moves `ksb`), so there is nothing to bless and nothing to
+// re-bless when a window changes. Needs the stretch to be a RUNTIME parameter — that is what
+// MODE_PIANO_STRETCH is for. Plan §2.3(a).
+#define ET_ENTRY (NENG - 1)
 
 // four octaves of A (A4 = 69 = 440Hz exactly) — wide enough to expose pitch-dependent
 // detuning and octave-tracking bugs (a flageolet/overblow jumping the wrong way, etc.)
@@ -49,6 +63,7 @@ void init(void) {
     // purpose: we test each engine's AS-SHIPPED default voice (what note() gives you).
     for (int e = 0; e < NENG; e++)
         instrument(SLOT0 + e, ENGINES[e], 4, 60, 7, 140);
+    instrument_mode(SLOT0 + ET_ENTRY, MODE_PIANO_STRETCH, 0.0f);   // the differential pass: stretch OFF
 }
 
 void update(void) {
@@ -75,6 +90,9 @@ void update(void) {
     watch("eng",  "%d", eng < 0 ? -1 : ENGINES[eng]);   // the INSTR_* id, not the index
     watch("emidi", "%d", midi);                          // expected MIDI note (-1 = silence)
     watch("gate", "%d", gate);
+    // 1 = this is the stretch-OFF differential pass (same INSTR_* id as the normal one, so the
+    // analyzer cannot tell them apart from `eng` alone). See ET_ENTRY.
+    watch("et", "%d", eng == ET_ENTRY ? 1 : 0);
 #endif
 }
 

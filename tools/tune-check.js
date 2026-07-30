@@ -9,9 +9,9 @@
 //   node tools/tune-check.js --keep          keep the rendered WAV/trace (build/.tune/)
 //   node tools/tune-check.js --quiet         exit 1 if any note is out of tune (CI gate; the
 //                                            documented residuals in KNOWN_RESIDUALS are waived,
-//                                            so it trips only on NEW drift) — or if an engine with
-//                                            an INTENDED detune (see INTENDED_DETUNE: PIANO's
-//                                            stretched tuning) has drifted off that intent
+//                                            so it trips only on NEW drift) — or if an engine with an
+//                                            INTENDED detune has drifted off it (PIANO's stretched
+//                                            tuning, asserted as a DIFFERENTIAL: see STRETCH_TOL)
 //   node tools/tune-check.js <file.wav> --note <midi>   measure ONE wav against a note
 //
 //   # RECIPE mode — check ONE engine at the macros a CART actually uses, across a range.
@@ -80,26 +80,44 @@ const INTENDED_DETUNE = {
   },
 }
 
-// Blessed residual-against-intent per (engine, note). This is NOT the stretch — the stretch is
-// modelled above and subtracted. What is left is the KS loop's own uncompensated delay offset
-// (audit §I4d: the averaging filter's half sample is never taken out of `len`). Real, smaller,
-// tracked separately, and blessed here so this gate answers "is the stretch right?" rather than
-// re-reporting §I4d. Tolerance is tight on purpose: the defect it exists to catch is ~3¢ at A2.
+// HOW THE INTENT IS ASSERTED: a DIFFERENTIAL, not a blessed baseline.
 //
-// ONLY the default sweep's own notes are blessed, and that matters — the same engine at the same
-// macros reads DIFFERENTLY here and in recipe mode (this sweep: +0.1/+0.4/+0.6¢; `--engine PIANO
-// --range 45-79`: +1.3…+4.0¢), because PIANO's pitch drifts within a note as the brightness bloom
-// moves `ksb` and therefore the loop's effective delay, and the two modes average over different
-// windows. So a residual baseline is only meaningful per measurement window. Recipe mode still
-// PRINTS intent and residual (useful — it is the full-curve view) but does not gate on them.
-const INTENT_TOL = 1.5
-const INTENT_BASELINE = [
-  { engine: 27, midi: 45, cents: 0.1 },   // A2 — the sentinel: this is the note the bass half of
-                                          // the stretch shows up on (§I4c read +3.2¢ here)
-  { engine: 27, midi: 57, cents: 0.4 },   // A3
-  { engine: 27, midi: 69, cents: 0.6 },   // A4 — treble half, unaffected by §I4c
-]
-const baselineFor = (r) => INTENT_BASELINE.find(k => k.engine === r.engine && k.midi === r.midi)
+// The sweep cart renders PIANO twice — once normally, once with MODE_PIANO_STRETCH forced to 0 (see
+// ET_ENTRY in tools/carts/tunecheck.c) — in the same pass and the same measurement window. The
+// difference between the two IS the stretch, so it is compared straight against the intended curve.
+//
+// Why not just measure absolute pitch against the intent and bless the leftover: because the
+// leftover is §I4d, the loop's own uncompensated delay error, and it is NOT a constant. It drifts
+// WITHIN a note as the brightness bloom moves `ksb` and therefore the loop's effective delay, so the
+// same engine at the same macros reads +0.1/+0.4/+0.6¢ on this sweep and +1.3…+4.0¢ under
+// `--engine PIANO --range 45-79`. A blessed number would have been per-measurement-window and would
+// need re-blessing whenever a window moved. Subtracting the two passes cancels it, along with every
+// other constant error the loop carries — which is why the tolerance below can be tight.
+//
+// This is what a RUNTIME seam buys. While the stretch was a compile-time #define there was no way
+// for a gate to flip it, and §I4c hid for months behind an absolute-pitch check that read ✓ whether
+// the feature worked fully, half-worked, or did nothing.
+const STRETCH_TOL = 0.6
+const stretchIntent = INTENDED_DETUNE[27]
+
+// pair each normal PIANO note with its stretch-OFF twin and check the difference
+function checkStretchDifferential(results) {
+  const off = new Map()
+  for (const r of results) if (r.et && r.cents !== null) off.set(r.midi, r)
+  const pairs = []
+  for (const r of results) {
+    if (r.et || r.engine !== 27 || r.cents === null) continue
+    const o = off.get(r.midi)
+    if (!o) continue
+    const measured = r.cents - o.cents
+    const want = stretchIntent(r.midi)
+    if (want === null) continue
+    const bad = Math.abs(measured - want) > STRETCH_TOL
+    r.stretchMeasured = +measured.toFixed(2); r.stretchWant = +want.toFixed(2); r.stretchBad = bad
+    pairs.push(r)
+  }
+  return pairs
+}
 
 // engine id → label, mirrors the INSTR_* block in runtime/studio.h
 const ENGINE_NAMES = {
@@ -255,10 +273,11 @@ function noteWindows(traceFile) {
     if (row.vev !== undefined) continue   // skip voice-trace events (-DDE_TRACE): they share the trace JSONL but carry no gate/window info (would close a note window early)
     const w = row.w || {}
     const gate = +w.gate, eng = +w.eng, emidi = +w.emidi, f = row.f
+    const et = w.et === undefined ? 0 : +w.et   // stretch-OFF differential pass (same INSTR_* id)
     lastFrame = f
     if (gate === 1 && emidi > 0) {
-      if (cur && cur.eng === eng && cur.midi === emidi) cur.f1 = f
-      else { if (cur) notes.push(cur); cur = { eng, midi: emidi, f0: f, f1: f } }
+      if (cur && cur.eng === eng && cur.midi === emidi && cur.et === et) cur.f1 = f
+      else { if (cur) notes.push(cur); cur = { eng, midi: emidi, et, f0: f, f1: f } }
     } else if (cur) { notes.push(cur); cur = null }
   }
   if (cur) notes.push(cur)
@@ -270,8 +289,10 @@ function renderSweep(keep) {
   const dir = path.join(ROOT, 'build', '.tune')
   fs.mkdirSync(dir, { recursive: true })
   const wav = path.join(dir, 'sweep.wav'), trace = path.join(dir, 'sweep.trace.jsonl')
-  // 13 engines × 4 pitches × 62 frames ≈ 3224; over-run is harmless (trace-driven).
-  runPlay('tunecheck', 3400, wav, trace)
+  // 14 sweep entries (13 engines + PIANO's stretch-off differential pass) × 4 pitches × 62 frames
+  // = 3472. Over-run is harmless (the analyzer is trace-driven), but UNDER-run silently truncates
+  // the LAST entries — which is the differential pass, so keep this above NNOTES × PERIOD.
+  runPlay('tunecheck', 3700, wav, trace)
   return { wav, trace, dir }
 }
 
@@ -361,7 +382,8 @@ function analyzeRender(wav, trace) {
     const expected = midiToFreq(nt.midi)
     const mres = measurePitch(s, Math.floor(a + span * 0.12), Math.floor(a + span * 0.88), sr, expected)
     const row = {
-      engine: nt.eng, engineName: ENGINE_NAMES[nt.eng] || `INSTR ${nt.eng}`,
+      engine: nt.eng, engineName: (nt.et ? 'PIANO stretch OFF (differential)' : (ENGINE_NAMES[nt.eng] || `INSTR ${nt.eng}`)),
+      et: nt.et || 0,
       midi: nt.midi, note: midiName(nt.midi), expectedHz: +expected.toFixed(2),
       measuredHz: null, cents: null, octaves: 0,
       confidence: mres ? +mres.confidence.toFixed(2) : 0, verdict: 'no-pitch',
@@ -391,10 +413,12 @@ function printResults(results, sr, title) {
     const cents = r.cents === null ? '' : `${r.cents >= 0 ? '+' : ''}${r.cents.toFixed(1).padStart(5)}¢`
     const meas = r.measuredHz === null ? 'no pitch detected'
       : `meas ${String(r.measuredHz).padStart(8)} Hz   ${cents.padStart(7)}${octLabel(r.octaves)}`
-    // for an intent engine, the ET column alone is not the verdict — show intent + what is left
+    // For an intent engine the ET column alone is not the verdict, so show the intended detune and
+    // what is left after it. REPORTED, NOT GATED: the leftover is §I4d (the loop's own delay error,
+    // which drifts within a note), and it is the differential below that decides pass/fail.
     const intent = r.intentCents === undefined ? ''
       : `   intent ${(r.intentCents >= 0 ? '+' : '') + r.intentCents.toFixed(1)}¢` +
-        `  resid ${(r.residual >= 0 ? '+' : '') + r.residual.toFixed(1)}¢${r.intentBad ? '  ← OFF INTENT' : ''}`
+        `  resid ${(r.residual >= 0 ? '+' : '') + r.residual.toFixed(1)}¢`
     console.log(`  ${m} ${r.note.padEnd(3)} ${String(r.expectedHz).padStart(8)} Hz   ${meas}   conf ${r.confidence}${intent}`)
   }
   const flagged = results.filter(r => r.verdict === 'off' || r.verdict === 'OUT OF TUNE')
@@ -402,17 +426,23 @@ function printResults(results, sr, title) {
   const bad = flagged.filter(r => !r.waived)
   const waived = flagged.filter(r => r.waived)
   const transposed = results.filter(r => r.octaves !== 0)
-  const intentBad = results.filter(r => r.intentBad)
+  const paired = results.filter(r => r.stretchMeasured !== undefined)
+  const intentBad = paired.filter(r => r.stretchBad)
   console.log()
-  if (intentBad.length) {
-    console.log(`${intentBad.length} note(s) do not match their engine's INTENDED detune (tol ±${INTENT_TOL}¢):`)
-    for (const r of intentBad)
-      console.log(`  ✗ ${r.engineName} ${r.note}  measured ${r.cents >= 0 ? '+' : ''}${r.cents}¢, ` +
-        `intent ${r.intentCents >= 0 ? '+' : ''}${r.intentCents}¢ → residual ${r.residual >= 0 ? '+' : ''}${r.residual}¢ ` +
-        `(blessed ${r.intentBase >= 0 ? '+' : ''}${r.intentBase}¢, off by ${(r.residual - r.intentBase >= 0 ? '+' : '') + (r.residual - r.intentBase).toFixed(1)}¢)`)
-    console.log(`  PIANO stretches its fundamentals on purpose (Feynman/Railsback). The ET column is`)
-    console.log(`  inside tolerance either way, which is why this check measures the residual instead.`)
-    console.log(`  See docs/design/synth-secrets-plan.md §2.3(a) (§I4c/§I4d).`)
+  if (paired.length) {
+    console.log(`STRETCHED-TUNING DIFFERENTIAL (PIANO on − PIANO stretch-off, vs the intended curve; tol ±${STRETCH_TOL}¢)`)
+    for (const r of paired)
+      console.log(`  ${r.stretchBad ? '✗' : '·'} ${r.note.padEnd(3)} measured ` +
+        `${(r.stretchMeasured >= 0 ? '+' : '') + r.stretchMeasured.toFixed(2)}¢   want ` +
+        `${(r.stretchWant >= 0 ? '+' : '') + r.stretchWant.toFixed(2)}¢   off by ` +
+        `${(r.stretchMeasured - r.stretchWant >= 0 ? '+' : '') + (r.stretchMeasured - r.stretchWant).toFixed(2)}¢` +
+        `${r.stretchBad ? '  ← STRETCH WRONG' : ''}`)
+    if (intentBad.length) {
+      console.log(`  PIANO stretches its fundamentals on purpose (Feynman/Railsback, MODE_PIANO_STRETCH).`)
+      console.log(`  The ET column above stays inside tolerance whether that curve is right, half-right`)
+      console.log(`  or absent, which is why this is measured as a difference against a stretch-off pass.`)
+      console.log(`  See docs/design/synth-secrets-plan.md §2.3(a) (§I4c).`)
+    }
     console.log()
   }
   if (!bad.length) console.log(waived.length
@@ -445,13 +475,9 @@ function run(opts) {
   if (!opts.recipe) for (const r of results) {
     const k = residualFor(r)
     if (k && r.cents !== null && Math.abs(r.cents - k.cents) <= RESIDUAL_TOL) r.waived = k.why
-    // intent check (default sweep only — recipe mode is a different macro regime)
-    const b = baselineFor(r)
-    if (b && r.residual !== undefined) {
-      r.intentBase = b.cents
-      if (Math.abs(r.residual - b.cents) > INTENT_TOL) r.intentBad = true
-    }
   }
+  // the stretched-tuning differential (default sweep only — it needs the paired stretch-OFF pass)
+  if (!opts.recipe) checkStretchDifferential(results)
   if (opts.json) { console.log(JSON.stringify(results, null, 2)); return results }
   const title = opts.recipe
     ? `${opts.recipe.engine} @ h${opts.recipe.macros[0]} t${opts.recipe.macros[1]} m${opts.recipe.macros[2]}`
@@ -509,7 +535,7 @@ try {
     const results = run({ json, keep, recipe })
     if (quiet) {
       const bad = results.filter(r => (r.verdict === 'off' || r.verdict === 'OUT OF TUNE') && !r.waived)
-      const intentBad = results.filter(r => r.intentBad)
+      const intentBad = results.filter(r => r.stretchBad)
       process.exit(bad.length || intentBad.length ? 1 : 0)
     }
   }

@@ -338,10 +338,19 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > 2.0f, because the treble half has been sounding at K=2 all along so the bass now agrees with what already
 > ships. Changes nothing above B3, completes the bass (−2.6¢ at A2, ~−8¢ by A1), below the melodic JND.
 > **The gate is the durable half.** `tune-check` grew `INTENDED_DETUNE`: an engine that is *supposed* to
-> leave ET declares its curve (K parsed from `sound.h`, one source of truth) and is gated on the RESIDUAL
-> against that intent. Proven red-then-green: at A2 the residual is +3.2¢ without the fix and +0.1¢ with it,
-> `--quiet` 1 → 0. The reason it matters: without the fix A2 measured **+0.0¢ against ET**, so the old check
-> called it perfect — perfectly in tune and perfectly wrong. Also deleted the `sound.h` comment claiming
+> leave ET declares its curve (K parsed from `sound.h`, one source of truth). The reason it matters:
+> without the fix A2 measured **+0.0¢ against ET**, so the old check called it perfect — perfectly in tune
+> and perfectly wrong. **Then sharpened (also 2026-07-30) into a DIFFERENTIAL**, which is the version to
+> know: the stretch is now a runtime parameter, **`MODE_PIANO_STRETCH`** (`instrument_mode` idx 4, default
+> byte-identical, and a real feature — set 0 to play in unison with fixed-pitch parts), so the sweep renders
+> PIANO twice in one pass, once with it off, and asserts the DIFFERENCE against the intended curve. That
+> cancels §I4d and every other constant loop error, so nothing needs blessing: it lands within **0.08¢** at
+> every note against a ±0.6¢ tolerance, where the blessed-baseline version needed ±1.5¢ around three
+> hand-tuned numbers. Still red on §I4c and now localised — A2 off by +2.93¢ while A3/A4 pass, which reads
+> as "the bass half is missing, the treble half is fine". **Trap it cost: the `eng_p` bound exists TWICE**
+> (the public setter AND the `SR_ENG_TUNE` handler); widening only the setter is a silent no-op, which is
+> the same failure the setter's comment documents for idx 2/3, one layer deeper. A sixth aux param needs
+> three edits. Also deleted the `sound.h` comment claiming
 > "tune-check flags PIANO by design", which never was true and is what made a green check read as
 > confirmation. Ear pair (the `piano` cart is C4–C5 so the fix is inaudible there; this is an A1–A4
 > arpeggio + low stack): `build/ab/piano-stretch-{OFF-bass-flat-missing,ON-full-railsback}.wav`.

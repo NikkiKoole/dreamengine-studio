@@ -1080,7 +1080,8 @@ are *supposed* to leave equal temperament declare their intended curve, and the 
 **residual against that intent** instead of the deviation from ET. `K` is parsed out of `sound.h` so there
 is one source of truth and the check follows the constant if anyone retunes it.
 
-Proven to fail on the bug it was written for, per §1's rule:
+Proven to fail on the bug it was written for, per §1's rule (this was the first version, since
+superseded by the differential below):
 
 | | A2 (the sentinel) | A3 | A4 |
 |---|---|---|---|
@@ -1113,6 +1114,52 @@ low stack beating differently, which is the change itself.
 **Also deleted: the comment that caused the blindness.** `sound.h` asserted *"it departs from ET, so
 tune-check flags PIANO by design — that IS the stretch, not a bug."* It never did. That sentence is
 replaced with what actually happened, so the next reader does not re-derive the same false comfort.
+
+### The sharper check: `MODE_PIANO_STRETCH` and a differential gate (2026-07-30)
+
+The blessed-baseline gate above worked but had a flaw worth removing: the number it blesses is §I4d, the
+loop's own delay error, which **is not constant** — it drifts within a note as the brightness bloom moves
+`ksb`, so the same engine at the same macros reads +0.1/+0.4/+0.6¢ on the default sweep and +1.3…+4.0¢
+in recipe mode. Any blessed value is therefore per-measurement-window and needs re-blessing whenever a
+window moves. And the deeper problem: a compile-time `#define` **cannot be A/B'd by a gate at all**, which
+is part of why §I4c hid for months.
+
+**So the stretch became a runtime parameter: `MODE_PIANO_STRETCH` (`instrument_mode` idx 4).** `0.5` is
+the engine's own curve, `0` is plain equal temperament, `1` is double. The default is **byte-identical** to
+before it was a parameter (`PIANO_STRETCH_K * (0.5f * 2.0f)` is exactly `2.0f`), verified by sha against a
+pre-change render. It also earns its place as a feature rather than a test hook: a cart playing the piano
+in unison with a fixed-pitch sampled or chiptune part wants the stretch off, where a stretched bass reads
+as sour rather than rich.
+
+**The gate now renders PIANO twice in one pass** — normally, and with the stretch forced off (`ET_ENTRY`
+in `tunecheck.c`) — and asserts the **difference** against the intended curve. The difference cancels
+every constant error the loop carries, §I4d included, so there is nothing to bless:
+
+| | A2 | A3 | A4 |
+|---|---|---|---|
+| intended curve | −3.13¢ | −0.13¢ | +1.12¢ |
+| **measured difference** | −3.20¢ | −0.10¢ | +1.20¢ |
+| off by | **−0.07¢** | +0.03¢ | +0.08¢ |
+
+Within 0.08¢ everywhere, against a ±0.6¢ tolerance, with no blessed numbers. Compare the old approach's
+±1.5¢ tolerance around three hand-blessed values. And it still fails on §I4c, now with a **localised**
+diagnosis rather than a bare "A2 is off": removing the fix gives A2 off by +2.93¢ ✗, A3 +0.13¢, A4 +0.08¢,
+which reads directly as *the bass half of the curve is missing and the treble half is fine*.
+
+**One trap found while building it, worth the CLAUDE.md-grade warning.** The `eng_p` bound exists
+**twice** — in `instrument_mode()` (the public setter) and again in the `SR_ENG_TUNE` request handler.
+Widening only the setter is a **silent no-op**: it accepts the value, queues it, and the handler drops it.
+The first run of the new gate reported a 0¢ stretch at every note, including the treble where the stretch
+demonstrably works, which is what gave it away. This is the *same* failure mode the setter's own comment
+documents for idx 2 and 3 ("both were silently dropped HERE, in the setter") one layer deeper, and that
+comment's instruction to "widen `eng_p[]` AND this bound together" undercounted the bounds. A sixth aux
+param needs **three** edits: the array width, the handler bound, and the setter bound. Both sites now say
+so. Also: adding a sweep entry means raising `renderSweep`'s frame count, or the *last* entry silently
+truncates — and the last entry is now the differential pass.
+
+Gates: soundcheck silent, `tune-check --quiet` 0, `dc-check` 0, recipe mode still runs, **570/570 carts
+compile**, default render byte-identical, and `api-usage` confirms the new constant is registered in all
+four places.
 
 §I4b is the one that stays **DESIGN, not a one-liner**: pushing `pt` into a range that actually disperses
 also adds loop delay, which drops the pitch unless the chain's phase delay at the fundamental is

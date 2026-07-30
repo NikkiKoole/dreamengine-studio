@@ -127,6 +127,7 @@ Three corollaries:
 |---|---|---|---|
 | pitch  | `LFO_PITCH` vibrato   | `ENV_PITCH` punch / zap | `note_pitch` (+ `note_glide`) |
 | *articulation* | — | — | `note_retrig` — re-fire the envelopes + onset on a HELD voice |
+| *onset veto* | — | — | `instrument_trigger` — per-slot: TRIG_SINGLE withholds the onset while another key is down (the Hammond percussion rule, §L4) |
 | cutoff | `LFO_CUTOFF` wah      | `ENV_CUTOFF` the "pew"  | `note_cutoff` / `note_res` |
 | duty   | `LFO_DUTY` PWM shimmer| `ENV_DUTY` PWM sweep    | `note_duty` |
 | volume | `LFO_VOLUME` tremolo  | — *(the amp ADSR — deliberate, no `ENV_VOLUME`)* | `note_vol` |

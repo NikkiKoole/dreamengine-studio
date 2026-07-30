@@ -126,6 +126,11 @@ typedef struct {
     int   smp_mode;                 // INSTR_SAMPLE playback: SAMPLE_NORMAL(0)/REVERSE/LOOP/PINGPONG. instrument_sample_mode()
     int   gl_ms;                    // PORTAMENTO for this patch (instrument_glide): slide time in ms; 0 = no glide (default)
     float gl_scale;                 // GLIDE SCALE amount (instrument_glide_scale): 0 = constant time (default), 1 = per octave
+    int   trig;                     // TRIGGER POLICY (instrument_trigger), audit §L4: TRIG_MULTI (0, default —
+                                    // every note gets its onset transient) or TRIG_SINGLE (a note started while
+                                    // another key on this slot is still down does NOT). A property the
+                                    // INSTRUMENT declares, because the right answer differs per instrument:
+                                    // Hammond percussion must be single, a flute's chiff must be multi.
 } Instrument;
 
 #define SOUND_LFOS 3
@@ -2337,6 +2342,8 @@ typedef enum {
     SR_INSTR_GLIDE  = 143,    // a=slot, b=ms — PORTAMENTO as a patch property (instrument_glide); a new voice
                               // inherits it, and note_glide still overrides per-voice
     SR_INSTR_GLIDE_SCALE = 144,// a=slot, b=amount*1000 — GLIDE SCALE as a patch property (instrument_glide_scale)
+    SR_INSTR_TRIGGER = 145,   // a=slot, b=TRIG_MULTI/TRIG_SINGLE — whether a note started while another key on
+                              // this slot is down gets its ONSET TRANSIENT (instrument_trigger). Audit §L4
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -5418,6 +5425,45 @@ static void sound_retrig_voice(Voice *v) {
     else if (v->wave == INSTR_ORGAN) sound_organ_arm_onset(v);             // key click + percussion chip
 }
 
+// Is any OTHER voice on this slot still holding its key down? The Hammond percussion question (§L4).
+//
+// "KEY DOWN" IS THE GATE, NOT THE `held` FLAG, and the distinction is load-bearing. `held` is true only
+// for a note_on voice, so a cart driving the organ with hit() (fire-and-forget, a fixed gate) would have
+// been invisible to this and chipped on every note. A voice is holding its key while it is inside its
+// gate — `step_samples < step_len_samples` — which is true for a note_on until note_off and for a hit()
+// until its duration expires. It also correctly EXCLUDES a released voice that is still ringing out,
+// because sound_begin_release() collapses step_len onto step_samples: lifting the key recharges the
+// percussion circuit even though you can still hear the tone decaying, which is what the hardware does.
+static bool sound_slot_key_down(int slot, const Voice *except) {
+    for (int i = 0; i < SOUND_VOICES; i++) {
+        const Voice *o = &voices[i];
+        if (o == except || !o->active || o->sfx_idx >= 0) continue;
+        if (o->instr_slot == slot && o->step_samples < o->step_len_samples) return true;
+    }
+    return false;
+}
+
+// TRIG_SINGLE, at note-on: another key on this slot is already down, so this voice does NOT get its
+// onset transient. The exact mirror of sound_retrig_voice — same four engines, opposite direction.
+//
+// ORGAN SUPPRESSES THE PERCUSSION AND KEEPS THE KEY CLICK, which is the whole fidelity point rather
+// than an oversight. Reid, Part 57, is specific: "Hammond percussion is polyphonic, but of the
+// single-triggering variety, so if a previous note is held, the PERCUSSION does not sound." The
+// percussion is one shared circuit that only recharges once every key is up; the key click is
+// mechanical contact bounce in each key's own switch, so it fires on every press regardless. Those
+// being separate fields is what makes getting it right free — and getting it wrong would be the kind
+// of silent fidelity bug nobody would ever report.
+//
+// RESONATORS AND STRUCK ENGINES ARE UNTOUCHED. For a pluck or a piano the "onset" IS the note, so
+// suppressing it would silence the voice rather than un-articulate it. Only engines whose onset is
+// separable from their body appear here, which is the same set for the same reason as the retrig side.
+static void sound_suppress_onset(Voice *v) {
+    if      (v->wave == INSTR_PIPE)  v->pp_attack = 0;
+    else if (v->wave == INSTR_REED)  v->rd_attack = 0;
+    else if (v->wave == INSTR_BRASS) v->br_attack = 0;
+    else if (v->wave == INSTR_ORGAN) { v->org_perc = 0.0f; v->org_perc_ph = 0.0f; }   // click SURVIVES
+}
+
 // ── spatial audio (spatial.md): listener + per-source geometry → pan, distance-gain, Doppler.
 // Dormant until listener()/note_pos()/hit_at(); a voice with sp_on=false keeps sp_gain=1 and
 // doppler_mul=1 (true bypass), so a cart that never positions a sound is byte-identical. ─────────
@@ -5680,6 +5726,12 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
         v->smp_dir = 1.0f;
         v->smp_on = true;
     }
+    // TRIGGER POLICY (§L4). The engine hooks above have just ARMED this voice's onset transient; if the
+    // slot declares itself single-triggering and another key on it is already down, take it back off.
+    // Deliberately AFTER the hooks rather than conditional inside them: each engine keeps one place that
+    // arms its onset, and the policy is one place that vetoes it. `v` is excluded from the scan because
+    // its own step counters are still stale from whatever used this voice last — they are set below.
+    if (ins->trig == TRIG_SINGLE && sound_slot_key_down(slot, v)) sound_suppress_onset(v);
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
@@ -5884,6 +5936,11 @@ static void sound_fire_req(SoundReq r) {
             float a = r.b / 1000.0f;
             instr_bank[slot].gl_scale = a < 0.0f ? 0.0f : (a > 4.0f ? 4.0f : a);
         }
+    } break;
+    case SR_INSTR_TRIGGER: {
+        int slot = r.a;
+        if (slot >= 0 && slot < SOUND_INSTR_SLOTS)
+            instr_bank[slot].trig = (r.b == TRIG_SINGLE) ? TRIG_SINGLE : TRIG_MULTI;
     } break;
     case SR_NOTE_OFF_ALL: {
         for (int i = 0; i < SOUND_VOICES; i++)
@@ -7433,6 +7490,11 @@ void instrument_glide_scale(int slot, float amount) {
     sound_push_ctrl(SR_INSTR_GLIDE_SCALE, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
 }
 
+void instrument_trigger(int slot, int mode) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_TRIGGER, slot, mode, 0, 0, 0, 0);
+}
+
 void note_duty(int handle, float duty) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_DUTY, (int)(duty * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
@@ -8751,6 +8813,7 @@ static void sound_reset_state(void) {
         instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
         instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
         instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)
+        instr_bank[i].trig       = TRIG_MULTI;  // every note gets its onset — the shipped behaviour
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
         instr_bank[i].sc_send    = 0.0f;

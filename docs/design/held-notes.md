@@ -125,6 +125,7 @@ void note_glide_scale(int handle, float amount);   // how much slide time grows 
 // …and the per-SLOT twins, so glide feel is a patch property set once in init():
 void instrument_glide(int slot, int ms);
 void instrument_glide_scale(int slot, float amount);
+void instrument_trigger(int slot, int mode);       // TRIG_SINGLE: a note started while another key on this slot is DOWN gets no onset transient
 void note_retrig(int handle);                      // re-articulate: envelopes + the engine's onset fire again on THIS voice, click-free
 void note_off_all(void);                            // panic: release every held note (recover from a leaked handle)
 ```

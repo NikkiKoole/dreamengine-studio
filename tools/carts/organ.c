@@ -13,7 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "INSTR_ORGAN engine showcase and tuning rig — the Leslie is a verbatim navkit processLeslie port (band-split rotary with mechanical rotor inertia), replacing an earlier per-voice LFO recipe.",
-  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay. Multitouch.",
+  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. THE PERCUSSION IS SINGLE-TRIGGERING, which is a fact about the instrument and not a taste setting: on a real Hammond the percussion is one shared circuit that only recharges once every key is up, so a CHORD gives ONE chip rather than one per note, and playing legato kills the chip entirely - which is exactly why organists play that attack staccato. Press P to A/B it against the wrong (one-per-note) behaviour. The key CLICK is unaffected either way, because that is contact bounce in each key's own switch. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay, P percussion trigger. Multitouch.",
   "todo": [
     "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
@@ -48,6 +48,7 @@ de:meta */
 // controls: white keys  A S D F G H J K   ·   black keys  W E . T Y U
 //           hold for sustain (chords welcome — hold several)
 //           Z / X  octave down / up   ·   1..8 presets   ·   L leslie   ·   M autoplay
+//           P  percussion trigger: 1 PER CHORD (the real Hammond) vs one per note (audit §L4)
 //           drag a slider (morphs every held note LIVE), or LEFT/RIGHT pick + UP/DOWN turn
 // MULTITOUCH: every finger is its own pointer — hold keys with several fingers while another
 // rides a slider; tap the on-screen octave +/- and Leslie buttons. The desktop mouse arrives
@@ -93,6 +94,7 @@ static float val[NSL] = { 0.44f, 0.55f, 0.75f, 0.0f };   // boot on "jimmy"
 static int   sel = 0;
 static int   cur_preset = 3;
 static bool  autoplay = true;
+static bool  perc_single = true;   // P: the real Hammond percussion rule (a chord gives ONE chip). §L4
 
 // the Leslie: 0 off, 1 slow (chorale), 2 fast (tremolo). NOW the real bus rotary (instrument_leslie
 // = navkit's processLeslie) — the engine spins the rotors up/down with real inertia. rotor_rate
@@ -180,6 +182,12 @@ static void set_preset(int p) {
 
 void init(void) {
     instrument(I_ORG, INSTR_ORGAN, 1, 0, 7, 200);   // gate unused for held notes; release tail
+    // THE PERCUSSION IS SINGLE-TRIGGERING, and that is not a taste setting (audit §L4). Reid, Part 57:
+    // "Hammond percussion is polyphonic, but of the single-triggering variety, so if a previous note is
+    // held, the percussion does not sound." One shared circuit that recharges only when every key is up.
+    // Two consequences you can hear: a CHORD gives ONE chip, not one per note; and playing legato kills
+    // the chip entirely, which is exactly why organists play that attack staccato. Press P to A/B it.
+    instrument_trigger(I_ORG, TRIG_SINGLE);
     keybed_config(I_ORG, 4, NWHITE);                 // base C4, 8 white keys
     keybed_layout(KEY_X(0), KEY_Y, NWHITE * (KEY_W + KEY_GAP), KEY_H);
     keybed_glissando(false);                         // an organ retriggers — sliding a finger shouldn't slur
@@ -206,6 +214,7 @@ void update(void) {
 
     if (keyp('L')) { lesmode = (lesmode + 1) % 3; apply_leslie(); }
     if (keyp('M')) autoplay = !autoplay;
+    if (keyp('P')) { perc_single = !perc_single; instrument_trigger(I_ORG, perc_single ? TRIG_SINGLE : TRIG_MULTI); }
 
     // the on-screen rotor's spin: a VISUAL ease toward the target speed (the AUDIO rotor inertia is
     // the engine's now). off → idle, slow → ~0.8 Hz, fast → ~6.6 Hz (navkit's horn rates).
@@ -307,6 +316,10 @@ void draw(void) {
     font(FONT_SMALL);
     print(str("L leslie %s", lesmode == 2 ? "fast" : lesmode == 1 ? "slow" : "off"),
           LES_X + 24, ry - 3, lesmode ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
+    // the percussion's trigger rule (§L4). "1/chord" is the real Hammond; "all" is not. print_right so
+    // it cannot overrun the edge whichever label is showing (ui-audit caught the left-aligned version).
+    print_right(str("P perc %s", perc_single ? "1/chord" : "all"),
+                SCREEN_W - 4, ry + 5, perc_single ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
     // the manual — keybed.h owns layout/voices/glow; we draw it in the organ's colours

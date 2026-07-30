@@ -2291,8 +2291,9 @@ This is the item the pass was run for.
 > spectrum: brightness **0.036** / centroid **4953 Hz** at the retrig vs a 0.016-0.020 / ~3500 Hz sustain
 > baseline. Note the analysis-window trap that cost one wrong "the chiff never fired" reading: the probe's
 > retrig lands at ~0.98s, not 1.00s, so a 25ms window starting at 1.000 misses it entirely.
-> **§L4 is NOT closed by this** — it needs the mirror image (*suppress* a transient when a note is already
-> held), which is the per-instrument declaration §L4 argues for.
+> §L4 needed the mirror image of this (*suppress* a transient when a note is already held) and **got it the
+> same day** as `instrument_trigger` — `sound_suppress_onset` is the exact opposite of `sound_retrig_voice`
+> over the same four engines. Both findings are now closed, with opposite settings of the same switch.
 
 Part 52, in the list of things the patch requires from its keyboard: "it's important that the keyboard
 offers **multi-triggering**. This ensures that the chiff occurs at the start of every note, **even when
@@ -2418,6 +2419,35 @@ organists actually reach for mid-performance. Our morph-driven amount covers On/
 between them, so this is the one genuinely missing axis. Also one `eng_p` slot.
 
 ### L4. Hammond percussion is SINGLE-triggering, and this is the strongest argument yet for §B3
+
+> **✅ SHIPPED 2026-07-30** as **`instrument_trigger(slot, TRIG_MULTI | TRIG_SINGLE)`** — the engine-level
+> per-instrument declaration this finding argued for, and the mirror of `note_retrig`. At note-on, a
+> `TRIG_SINGLE` slot suppresses the voice's ONSET TRANSIENT when another key on that slot is still down.
+> `organ` now defaults to `TRIG_SINGLE` (**P** A/Bs it), so a chord gives ONE chip and legato kills it.
+>
+> **"Key down" is the GATE, not the `held` flag,** and that distinction is load-bearing: `held` is true only
+> for a `note_on` voice, so a cart driving the organ with `hit()` would have been invisible to the check and
+> chipped on every note. A voice holds its key while `step_samples < step_len_samples`, which covers both,
+> and correctly *excludes* a released voice still ringing out — lifting the key recharges the percussion
+> circuit even though the tone is still decaying, which is what the hardware does.
+>
+> **The percussion is suppressed and the key click is NOT**, which is the fidelity point rather than an
+> oversight. Reid is specific that it is the *percussion* that doesn't sound; the click is contact bounce in
+> each key's own switch and fires on every press. They were already separate fields, so getting it right
+> was free — and getting it wrong would have been a silent fidelity bug nobody would ever report.
+>
+> Measured on `organ` with the click removed (timbre 0) so nothing else could account for the difference,
+> holding one key and adding a second:
+>
+> | | first note (empty keyboard) | second note (key already down) |
+> |---|---|---|
+> | `TRIG_MULTI` | chips | **chips** — centroid +112 Hz at onset, decaying over the percussion's 200 ms |
+> | `TRIG_SINGLE` | chips, *byte-identical to MULTI* | **silent** — identical to MULTI right up to the press |
+>
+> The byte-identical first note is the control that matters: it proves the chip was suppressed rather than
+> broken. **§K6 stays satisfied** — `TRIG_MULTI` is the default, so `pipe` never reaches the suppression
+> path and its chiff still fires on every note. The two instruments the finding said need opposite settings
+> of the same switch now have them.
 
 - **Book:** Part 57, stated plainly: "Hammond percussion is polyphonic, but **of the single-triggering
   variety, so if a previous note is held, the percussion does not sound**." That is why organists play the

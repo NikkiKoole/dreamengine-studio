@@ -373,6 +373,7 @@ void instrument_pan(int slot, float pan);                 // stereo position for
 void instrument_level(int slot, float gain);              // per-slot output LEVEL 0..1 — 1 = unity (default, byte-identical), 0.5 ≈ half, 0 = silent. balance a multi-part mix; ride it live like drive/echo. the level leg of the per-slot mixer (drive/echo/reverb/pan)
 void instrument_glide(int slot, int ms);                   // PORTAMENTO for this patch — every note from this slot slides over `ms` (0 = snap, the default). the per-slot twin of note_glide
 void instrument_glide_scale(int slot, float amount);       // GLIDE SCALE for this patch: 0 = every interval takes the same time (default), GLIDE_ANALOG, 1 = `ms` per octave
+void instrument_trigger(int slot, int mode);               // TRIG_MULTI (default) = every note gets its attack transient; TRIG_SINGLE = only when no other key on this instrument is down (the real Hammond percussion rule)
 void record_arm(void);                                    // PCM SAMPLER: begin the always-on rolling capture of the master output (idempotent; off + byte-identical until called). Call once, then record_grab() any time to snapshot recent audio
 int  record_grab(int sample_slot, float seconds);         // snapshot the last `seconds` of captured audio into PCM sample slot 0..7; peak-normalized + leading/trailing SILENCE TRIMMED (starts at the first audible sample). Returns samples grabbed after trim (0 = not armed / nothing yet). Pair with instrument_sample() + INSTR_SAMPLE
 void instrument_sample(int slot, int sample_slot, int root_midi); // bind an INSTR_SAMPLE instrument slot to a recorded buffer; root_midi = the note that plays it at original speed (e.g. 60 = C4). Higher notes play faster/up in pitch
@@ -400,6 +401,12 @@ int   mic_recording(void);                                // 1 while still captu
 float mic_record_progress(void);                          // capture fill 0..1 — for a REC progress bar
 int   mic_record_rate(void);                              // sample rate of the captured audio (pass to sample_load's caller; = engine rate on desktop)
 int   mic_record_read(float *out, int max);               // copy the captured PCM (mono, -1..1) into out[] (up to max); returns count. Then sample_load() it
+
+// trigger policy — whether a note that starts while another key on the same instrument is still DOWN
+// gets that instrument's attack transient (the organ's percussion chip, a wind engine's breath onset)
+#define TRIG_MULTI  0   // default — every note gets its own attack transient, however you play
+#define TRIG_SINGLE 1   // the transient only sounds when no other key on this instrument is down. a real
+                        // Hammond does this: play legato and the percussion chip deliberately vanishes
 
 // glide scale — how much a slide's time depends on how FAR it travels. `ms` is always the time for a
 // one-octave slide; this only changes what other intervals cost. Named points on a continuous 0..1 dial:

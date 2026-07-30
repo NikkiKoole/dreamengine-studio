@@ -2150,10 +2150,35 @@ months as the AUTO/OFF/ON switch.
 | # | question | § | note |
 |---|---|---|---|
 | 4.1 | Build `subtractive.h`? | G | Rung 3 per 0016. Reid published exact values for ~8 patches; a cited voicing table is a feature *and* a regression test. Scope: brass, string machines, leads — **not** plucked or struck (he says outright subtractive can't reach them) |
-| 4.2 | Shape of the trigger-policy surface | B3 | Header first (2.2), engine only if the header fails. Must let an instrument *declare* single vs multi |
+| ~~4.2~~ | ~~Shape of the trigger-policy surface~~ — ✅ **ANSWERED 2026-07-30: the question had a false premise. It is not header-vs-engine, it is THREE separate things** (§4.2 below) | B3 | Shipped as `mono.h` + `note_retrig` + `instrument_trigger` |
 | 4.3 | Attack-**level** on the mod envelopes | C6 | Cited in Parts 8, 25 and 29 — three families. Unlocks the spit-brass contour we keep failing |
 | 4.4 | Does `harmonics` overblow, or get renamed? | K2 | Either implement the register jump (interval depends on bore topology) or rename the macro. Doc fixed in 0.3 either way |
 | 4.5 | Exponential amp envelope, opt-in only | B4 | ⚠ Highest blast radius in the audit: every note of every cart, and every audio-gate baseline. The book barely argues for it. **Never a default flip** |
+
+### 4.2 The trigger-policy surface — ANSWERED 2026-07-30
+
+The question was posed as *"header first, engine only if the header fails"*, i.e. one surface in one of two
+places. **That premise was wrong.** Chasing §L4 to the end turned "single vs multi trigger" into three
+questions that only sound like one, and each lands in a different place for a different reason:
+
+| the question | where it lives | why there |
+|---|---|---|
+| **Which held note sounds, and should the envelope re-attack?** (Reid's Part 18) | `runtime/mono.h`, cart-land | Pure bookkeeping over a held-key list. No sample-rate work, no voice state, so ADR-0016's lowest rung holds it. Fully spec-able *because* it makes no sound |
+| **Can a cart actually PERFORM a re-attack on a held voice?** | `note_retrig(handle)`, engine, per-note event | Needs the voice's envelope and the engine's onset state. `mono.h` could *decide* on a re-attack but nothing could execute one without allocating a second voice |
+| **Does a POLYPHONIC voice get its onset transient, given what else is already down?** | `instrument_trigger(slot, …)`, engine, per-slot property | Needs to see the other voices on the slot. And the right value is a fact about the *instrument* (§L4 organ vs §K6 flute), so the instrument declares it |
+
+**The middle one is the piece nobody had named.** `mono.h` shipped a decision layer with no way to act on
+half of its own vocabulary: `MONO_RETRIG` had to be performed as `note_off` + a fresh `note_on`, which left
+the abandoned voice ringing at the old pitch and silently coupled "re-attack" to "snap the pitch". Two
+axes split in the decision, joined again at the point of sounding.
+
+**And the third is not the mono question at all**, which is why it resisted the header. §L4's percussion rule
+is *polyphonic*: hold a chord, add a note, and the chip must not sound. No amount of monophonic key-priority
+bookkeeping expresses that, because it is a statement about voices that are all sounding at once.
+
+So the surface is three things, and the shape of each was decided by what it needs to see: a held-key list,
+one voice, or every voice on a slot. Worth keeping as a reusable check — **"how much does this need to see?"
+placed all three correctly**, where "is it engine or cart-land?" had been the wrong question for two of them.
 
 ---
 

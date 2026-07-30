@@ -28,6 +28,18 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   postscript, which closed audit **§K6** (the flute chiff needs to fire on every note *even when you play
   legato*, and until now a cart gliding one held voice could not tongue it at all); `pipe` and `brass` each
   gained a **T** slur/tongue toggle and `sh101` routes every articulation through one `articulate()` helper;
+  **`instrument_trigger(slot, TRIG_MULTI | TRIG_SINGLE)`** — the MIRROR of `note_retrig`, closing audit
+  **§L4**, which the audit called its strongest argument: Hammond percussion is single-triggering, so a
+  chord gives ONE chip and legato kills it entirely (which is why organists play that attack staccato). It
+  suppresses the percussion and *keeps* the key click, because the click is contact bounce in each key's own
+  switch. "Key down" is the GATE not the `held` flag, so a `hit()`-driven cart is covered and a released
+  voice still ringing out correctly does *not* count. `organ` defaults to `TRIG_SINGLE` with **P** to A/B
+  it. **⚠ LISTEN: this changes the organ's sound** (one chip per chord instead of three).
+  **That also answered plan 4.2, whose premise was wrong**: the "trigger-policy surface" is not one thing in
+  either the header or the engine, it is THREE questions that only sound alike — which held note sounds
+  (`mono.h`, cart-land), whether a cart can *perform* a re-attack (`note_retrig`, per-note), and whether a
+  polyphonic voice gets its onset given what else is down (`instrument_trigger`, per-slot). Each landed
+  where it did because of *how much it needs to see*: a held-key list, one voice, or every voice on a slot.
   **portamento now glides in PITCH, not linear Hz** — audit §B1, the audit's own "single clearest
   divergence", plan 3.26: the up/down asymmetry at one time constant went from **45 percentage points to
   4.5**, and a down-glide that used to sit 12.7 semitones sharp two seconds into a "1000 ms" slide now

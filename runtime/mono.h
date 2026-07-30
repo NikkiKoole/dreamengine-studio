@@ -66,12 +66,20 @@
 // A release never stops the voice while any key is still held; it hands over (glide, or re-attack under
 // MONO_ANY). The last release returns MONO_STOP.
 //
-// ── WHY THIS IS A PROPERTY AN INSTRUMENT WANTS TO DECLARE, EVENTUALLY ─────────────────────────────────
+// ── THE INSTRUMENT-DECLARED HALF NOW EXISTS, AND IT IS A DIFFERENT QUESTION ───────────────────────────
 // Two later audit findings collide here, and both are about a defining transient existing at all: §L4 says
 // the Hammond's percussion must be SINGLE-trigger (hold a chord, add a note, and the percussion must NOT
 // re-strike, or it stops being a Hammond), while §K6 says the flute chiff must be MULTI-trigger (every new
 // note needs its own breath onset). So the "right" policy is a fact about an instrument, not a taste
-// setting on a panel. That is the argument for promotion later; for now a cart declares it per patch.
+// setting on a panel.
+//
+// SHIPPED 2026-07-30 as `instrument_trigger(slot, TRIG_MULTI | TRIG_SINGLE)` — and it did NOT promote this
+// header, because it turned out not to be the same question. §L4's rule is POLYPHONIC: whether a voice gets
+// its onset transient given what else is *already sounding* on its slot. This header is monophonic
+// bookkeeping over a held-key list and cannot express that, no matter where it lives. They compose rather
+// than compete: a monosynth uses this to decide re-attack-vs-legato, while an organ patch declares
+// `TRIG_SINGLE` and the engine vetoes the chip on any note added under a held key. Full argument in
+// synth-secrets-plan §4.2.
 //
 // Not to be confused with `solo.h` (a scale-locked solo strip over a radio) or `keybed.h` (the polyphonic
 // chromatic keybed widget). This header has no UI and makes no sound: it is the decision layer between.

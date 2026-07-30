@@ -279,8 +279,12 @@ static const char  ROOT_KEY[NROOT]    = { 'Z', 'X', 'C', 'V', 'B', 'N', 'M' };
 // …and where a FINGER goes: behind the wire, in the middle of the fret space. Putting the dot on
 // FRET_WIRE(f) draws it sitting on the wire itself, which is not how anyone frets a note.
 #define FRET_X(f) ((FRET_WIRE(f) + FRET_WIRE((f) - 1)) / 2 + 1)
-static int  sel_shape = 0;
-static int  sel_root  = 0;
+// Boot on G MAJOR, not the E5 power chord it used to open with. A first strum should sound like a
+// chord: maj rings all six strings (barre at fret 3 = G B D), where the "5" shape damps three of
+// them, so the old default led with a bare fifth AND with half the neck muted. It also puts dots
+// out at frets 3-5 instead of parking everything on the nut, so the fretboard shows what it does.
+static int  sel_shape = 2;   // SHAPE_NAME[2] = "maj"
+static int  sel_root  = 2;   // ROOT_NAME[2]  = "G"  (ROOT_FRET 3)
 static int  str_midi[NSTR];
 
 static float amp[NSTR];

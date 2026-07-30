@@ -66,6 +66,41 @@ symbols, no ABI version-coupling).
   >
   > Use plain booleans, not `{exact:}`, so a browser lacking one ignores it rather than throwing
   > `OverconstrainedError`. Same trap will apply to any future in-browser sampling/looping feature.
+  >
+  > **⚠ "the sound goes softer / more muffled when the mic is on" — the ENGINE is not doing it.**
+  > Reported twice (a web player, then the maker on desktop) and measured 2026-07-30 with the
+  > deterministic rig below. Renders of the same strum:
+  >
+  > | | peak | rms | centroid | sha |
+  > |---|---|---|---|---|
+  > | mic OFF | −16.4 | −38.61 | 4493 Hz | `d4ab3fa084fd` |
+  > | mic ON, fed SILENCE | −16.4 | −38.61 | 4493 Hz | `d4ab3fa084fd` |
+  > | mic ON, fed room tone (−54 dBFS) | −16.4 | −38.57 | 5138 Hz | `db180a6f0b68` |
+  >
+  > Rows 1 and 2 are **byte-identical**: opening the mic is a true no-op on the output. Row 3 is the
+  > control proving the path was live, and note it goes *brighter*, not duller — the monitor adds
+  > signal, it never subtracts. There is no ducker, AGC or sidechain anywhere on `extin_mon_on`; it
+  > is one `mixL += in; mixR += in`. So a real "it got quieter" is coming from **outside our
+  > process**, and there are only two candidates:
+  > - **web:** the browser's `getUserMedia` AEC (see above). Fixed — but check the fix is actually
+  >   DEPLOYED before re-testing, since the published site lags the repo.
+  > - **native/macOS:** the OS re-profiling the built-in audio path when any app opens the built-in
+  >   mic, or a shared device forced to a new sample rate. We use a plain `AudioQueueNewInput` with
+  >   **no** VoiceProcessingIO unit, so we are not asking for it.
+  >
+  > **The 10-second discriminator:** play audio in another app (music, a video) and toggle the
+  > cart's mic on and off. If the *other* app's sound also dips, it is the OS, not us. If only the
+  > cart's does, re-measure with `DE_MIC_WAV` before believing it.
+
+  **Testing the mic deterministically** — `DE_MIC_WAV=<file.wav>` feeds a WAV in place of the live
+  mic (`micwav_load`/`micwav_pump` in `studio.c`, pumped one frame's worth before each render), so
+  a mic-dependent A/B is byte-reproducible and needs no room, no permission prompt and no hands:
+  ```
+  DE_MIC_WAV=room.wav node tools/play.js <cart> replay in.rec --headless --frames 240 --wav out.wav
+  ```
+  This is the answer to "the mic is hard to test". Pair it with a SILENT wav as the control: if
+  silence-in does not render byte-identically to mic-off, the mic path is doing something it should
+  not be.
 - **iOS** — [`AudioEngine.swift`](../../ios/Sources/AudioEngine.swift) installs an `inputNode` tap
   (lazy on `de_mic_wanted`, permission-gated via `requestRecordPermission`, session switched to
   `.playAndRecord`/`.defaultToSpeaker` only while listening) pushing to `de_audio_input`;

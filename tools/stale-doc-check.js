@@ -172,7 +172,7 @@ if (driftable) {
       entries.push({ rel, watch, cmd, asOf, inputs, newest, drifted, lag: drifted ? daysBetween(asOf, newest.dt) : 0 });
     }
   }
-  if (json) { console.log(JSON.stringify({ driftable: entries }, null, 2)); process.exit(strict && entries.some(e => e.drifted) ? 1 : 0); }
+  if (json) { console.log(JSON.stringify({ driftable: entries }, null, 2)); process.exitCode = strict && entries.some(e => e.drifted) ? 1 : 0; return; }
   if (!entries.length) {
     console.log("no `de:driftable` docs registered" + (scope ? ` matching "${scope}"` : "") +
       ".\n  mark one with:  " + d0(`<!-- de:driftable cmd="node tools/foo.js" as-of="YYYY-MM-DD" -->`));
@@ -343,6 +343,11 @@ for (const f of docFiles) {
 // ---- report ----
 if (json) {
   console.log(JSON.stringify({ graceDays, scope: scope || null, broken, findings: shown }, null, 2));
+  // NOT process.exit() here: on a PIPE, stdout is async, and exiting truncates a large payload
+  // mid-object — this report is ~65 KB, so `--json | jq` was failing to parse for anyone who tried.
+  // Setting exitCode lets node flush and exit naturally.
+  process.exitCode = strict && (broken.length || shown.length) ? 1 : 0;
+  return;
   process.exit(strict && (broken.length || shown.length) ? 1 : 0);
 }
 

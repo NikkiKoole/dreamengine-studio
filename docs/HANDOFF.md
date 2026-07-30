@@ -372,9 +372,28 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > "completed" while it kept holding the engine patched during another agent's render. Model the sweep;
 > patch only to confirm ONE point.
 >
-> **Resume-at: §I4b step 2, the implementation, now a known recipe.** Solve `c` from a target B and the
-> note's f0 at note-on, and subtract `θ_ap(w0)·N/w0` from the delay line — that compensation is the actual
-> work and it is the **same delay-budget refactor §I4d needs, so do them together** (§I4d still open:
+> **§I4b STEP 2 WAS ATTEMPTED AND THE RECIPE IS WRONG — the compensation and the dispersion are NOT
+> separable.** Prototyped "solve `c` for a target B, then subtract the cascade's phase delay from the
+> line" and it does not produce a stiff string: measured B overshoots the target 9–14× and the
+> `inharm-spec` **fit residual explodes to 48–96¢**, i.e. the partials are scattered rather than
+> stretched. Calibrating the compensation empirically brings one note into tune but not others (A2 in
+> tune while A3 sits 129¢ sharp). Shortening the line raises the dispersion's effect relative to the loop,
+> so `c` and `L` are a coupled system and `solveDesign`'s 3-step fixed point is the wrong formulation.
+> **TWO RULES FOR THE NEXT ATTEMPT:** (1) the acceptance criterion MUST include the fit **residual**, not
+> just B and pitch — every broken attempt hit a plausible B while sounding like a scattered metallic mess;
+> (2) the uncompensated validated point (2 stages, `c = −0.7770`) had a residual of 1.2¢, so the structure
+> is right until the compensation touches it.
+> **THERE IS AN EAR PAIR, and it is honest:** rather than ship a broken compensation it uses the
+> *uncompensated* validated config pitch-matched with `instrument_tune`, so it compares TIMBRE at one
+> pitch. `build/ab/piano-inharm-{A-OFF-today,B-real-stiff-string}.wav`, both within ~1¢ of pitch, B 1.7e-6
+> vs 2.2e-4, h8 +0.3¢ vs +17.1¢, residual 3.8¢. Caveats: B is ~2× a typical grand (deliberately audible),
+> and the takes differ 4.6 dB in **rms** (peak within 0.8 dB) because the stiff one decays faster — the
+> stiff take is the QUIETER one, so check a verdict against loudness. No musical phrase yet; a phrase
+> needs the per-note compensation that does not work.
+>
+> **Resume-at: §I4b step 2, reformulated.** Solve `c` and the line length as ONE coupled system rather
+> than sequentially, gate on the fit residual, and fold in the **same delay-budget refactor §I4d needs**
+> (§I4d still open:
 > with no stretch the loop runs +1.3→+4.0¢ sharp, and that offset is *window-dependent* because the
 > brightness bloom moves `ksb` and hence the loop delay within a note, so bless residuals per measurement
 > window). It also wants a decision on whether `B` becomes the real physical coefficient instead of

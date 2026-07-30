@@ -1225,6 +1225,49 @@ coefficient so it is comparable to published piano data; then re-voice the six v
 the genuine remaining cost and makes this a LISTEN item. **2.3(b) then becomes the small step it was
 originally billed as.**
 
+#### Step 2, first attempt: the compensation and the dispersion are NOT separable (2026-07-30)
+
+Step 1 said the recipe was "solve `c` for a target B, then subtract the cascade's phase delay from the
+line". **Prototyping that showed the two halves cannot be designed independently, which is a stronger
+statement than "they interact".**
+
+With the line shortened by the computed compensation, the measured result is not a stiff string at all:
+
+| target B | measured B | fit residual | A2 pitch | A3 pitch |
+|---|---|---|---|---|
+| 1e-4, 4 stages | 1.45e-3 (14×) | **42.7¢** | −119.5¢ | — |
+| 1e-4, 4 stages, compensation calibrated to bring A2 into tune | 5.8e-4 | **80.6¢** | −2.3¢ | **+128.8¢** |
+| 1e-4, 2 stages, calibrated | 9.1e-4 | **48.1¢** | −15.5¢ | −8.1¢ |
+
+A fit residual of 48–96¢ means the partials are **scattered, not stretched** — they have stopped
+following `f_n = n·f0·√(1+Bn²)` in any recognisable way. Forcing the fundamental into tune with a
+calibrated compensation does not repair that, and a single global calibration factor does not even hold
+across notes (A2 in tune while A3 sits 129¢ sharp). Shortening the line raises the dispersion's effect
+relative to the loop, so `c` and `L` form a genuine coupled system; the 3-step fixed point in
+`solveDesign` is not the right formulation.
+
+**Two rules for whoever does step 2 properly.** First, **the acceptance criterion must include
+`inharm-spec`'s fit RESIDUAL, not just B and pitch** — every broken attempt above hit a plausible-looking
+B while sounding like a scattered metallic mess, and B alone cannot tell those apart. Second, the
+uncompensated single point that validated the model (2 stages, `c = −0.7770`) had a residual of **1.2¢**,
+so the structure is right when the line is left alone; the damage arrives with the compensation.
+
+**What that leaves for the ear, and it is real.** Rather than ship a broken compensation, the A/B below
+uses the *uncompensated* validated configuration and pitch-matches it with `instrument_tune`, which gives
+a clean comparison of the TIMBRE at one pitch — the actual question. Single held note, struck twice:
+
+```bash
+afplay build/ab/piano-inharm-A-OFF-today.wav            # harmonic: B 1.7e-6, h8 +0.3¢
+afplay build/ab/piano-inharm-B-real-stiff-string.wav    # stiff:    B 2.2e-4, h8 +17.1¢, residual 3.8¢
+```
+
+Both land within ~1¢ of the same pitch (−1.0¢ and −0.4¢), so this is a timbre comparison, not a tuning
+one. **Caveats to state before any verdict:** B ≈ 2.2e-4 is roughly *twice* a typical middle-register
+grand, deliberately on the audible side for a first listen, and the two takes differ by **4.6 dB in rms**
+(peak matches to 0.8 dB) because the dispersed one decays faster — the stiff take is the *quieter* one, so
+if it loses, check it is not losing on loudness. It also cannot yet be extended to a musical phrase,
+because a phrase needs the per-note compensation that does not work.
+
 #### Postscript: do not patch a shared engine to search a grid
 
 The first attempt at this measurement patched `runtime/sound.h` and rendered 24 variants. It left the

@@ -170,11 +170,32 @@ function selfCheck() {
   return fails === 0
 }
 
+// ── as a library ─────────────────────────────────────────────────────────────
+// `require()` it to solve a design point programmatically instead of reading a table off the
+// terminal — that is how the ear-test prototype gets its per-note coefficients, and it matters that
+// they come from the SAME code the self-check validates rather than a reimplementation in C.
+// solveDesign() also closes the loop that solveC() alone leaves open: c is solved against the
+// UNCOMPENSATED line, but the engine will run a line shortened by the compensation, so it iterates.
+function solveDesign(f0, N, bTarget, iters = 3) {
+  const L0 = SR / f0
+  let c = null, comp = 0
+  for (let i = 0; i < iters; i++) {
+    c = solveC(Math.round(L0 - comp), N, bTarget)
+    if (c === null) return null
+    comp = analyse(Math.round(L0 - comp), N, c).dcDelay
+  }
+  const r = analyse(Math.round(L0 - comp), N, c)
+  return { c, comp, B: r.B, resid: r.resid, h16: r.h16 }
+}
+module.exports = { thetaAp, analyse, solveC, solveDesign, SR }
+
 // ── cli ──────────────────────────────────────────────────────────────────────
-const argv = process.argv.slice(2)
-const flag = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d }
-if (argv.includes('--check')) process.exit(selfCheck() ? 0 : 1)
-const stages = flag('--stages', '1,2,4,8').split(',').map(Number)
-const notes = flag('--notes', 'C2,C3,C4,C5,C6').split(',')
-if (argv.includes('--curve')) curveTable(stages, notes.slice(0, 1))
-else costTable(parseFloat(flag('--b', '1e-4')), stages, notes)
+if (require.main === module) {
+  const argv = process.argv.slice(2)
+  const flag = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d }
+  if (argv.includes('--check')) process.exit(selfCheck() ? 0 : 1)
+  const stages = flag('--stages', '1,2,4,8').split(',').map(Number)
+  const notes = flag('--notes', 'C2,C3,C4,C5,C6').split(',')
+  if (argv.includes('--curve')) curveTable(stages, notes.slice(0, 1))
+  else costTable(parseFloat(flag('--b', '1e-4')), stages, notes)
+}

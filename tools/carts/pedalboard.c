@@ -149,6 +149,30 @@ static int   cab_tenant  = CAB_NONE;
 static bool  cabfuzz_applied = false;    // was the cabinet OR fuzz engaged last apply? (untouched session stays byte-identical)
 static int   cab_voicing = 2;            // AMP_VC index (CRUNCH)
 static int   cab_speed   = LESLIE_SLOW;  // Leslie rotor speed
+
+// ── the output stage as ONE FLAT LIST: OFF · the five amps · ROTARY ─────────────────────────────
+// It used to be TWO STACKED HIDDEN CYCLES — tapping the header cycled NONE→AMP→LESLIE and tapping
+// the row below stepped within that kind — with nothing on screen saying either cycle existed. A
+// player hit exactly that: "clicking Cabinet adds amp sims? … clicking Cabinet again goes to
+// modulation? It's surprising / counterintuitive that this cycles through these modes." Third time
+// this repo has paid for a hidden cycle (acidcandy's PICK/PLAY/MUTE/REC pads and its hold-to-open
+// FX hub both cost a session), so: one flat list, arrows you can see, a pip per entry.
+//
+// ROTARY sits among the amps rather than beside them because a Leslie 122 CONTAINS its own power
+// amp — you plug into it INSTEAD of a Marshall. It is a peer output stage, not an effect. (It also
+// cannot be a chain pedal: sound.h pins leslie_process last, "cabinet output stage, not a
+// reorderable pedal", and a pedal that silently always sits last would be a lie in the one cart
+// whose whole premise is that chain order is audible.)
+//
+// tenant+voicing stay the INTERNAL representation — apply_fx and the RIG table speak that language
+// and are untouched. The flat index is purely the UI's view of them.
+#define CAB_SEL_N (AMPCAB_N + 2)         // OFF + 5 amps + ROTARY = 7
+static int cab_sel(void) {
+    return cab_tenant == CAB_NONE ? 0 : cab_tenant == CAB_AMP ? cab_voicing + 1 : AMPCAB_N + 1;
+}
+static const char *cab_sel_name(int i) {
+    return i == 0 ? "OFF" : i <= AMPCAB_N ? AMP_VC[i - 1].name : "ROTARY";
+}
 static float cab_k[2]    = { 0.5f, 0.5f }; // amp: GAIN, SAG  ·  leslie: DRIVE, BALANCE
 static const float CAB_KDEF[2] = { 0.5f, 0.5f };   // …their double-click-to-default targets
 // DOUBLE-TAP TO DEFAULT. Semantics lifted from acidcandy's _knobx (tools/carts/acidcandy.c), which
@@ -340,6 +364,13 @@ static bool pedal_locked(int cat) {
 }
 static int  content_w(void)      { return chain_n * PITCH; }
 static float max_scroll(void)    { float m = (float)(content_w() - VIEW_W); return m < 0 ? 0 : m; }
+static void cab_set_sel(int i) {                     // wraps both ways; the UI's only write path
+    i = (i % CAB_SEL_N + CAB_SEL_N) % CAB_SEL_N;
+    if      (i == 0)          cab_tenant = CAB_NONE;
+    else if (i <= AMPCAB_N) { cab_tenant = CAB_AMP; cab_voicing = i - 1; }
+    else                      cab_tenant = CAB_LESLIE;
+    dirty = 1;
+}
 static void clamp_scroll(void)   { float m = max_scroll(); if (scroll_x < 0) scroll_x = 0; if (scroll_x > m) scroll_x = m; }
 static void chain_insert(int cat, int at) {
     if (chain_n >= NCAT || chain_index(cat) >= 0) return;
@@ -756,13 +787,17 @@ void update(void) {
             // 1b. the pinned CABINET box (right of the chain): header taps cycle the tenant, the
             // selector row steps the voicing/speed, the two knobs drag.
             if (p->mode == PTR_IDLE && ty >= PED_Y && ty < PED_Y + PED_H && tx >= CAB_X) {
-                if (ty < PED_Y + 13) { cab_tenant = (cab_tenant + 1) % 3; dirty = 1; }           // header → none/amp/leslie
+                if (ty < PED_Y + 11) { /* header is a LABEL now, not a control */ }
+                else if (ty < PED_Y + 30) {                                                       // the one selector
+                    if (tx < CAB_X + 14) cab_set_sel(cab_sel() - 1);                              // ‹ prev
+                    else                 cab_set_sel(cab_sel() + 1);                              // › next (also the wide middle)
+                }
+                else if (cab_tenant == CAB_LESLIE && ty >= PED_Y + 58) {                          // STOP/SLOW/FAST
+                    int z = (tx - CAB_X) * 3 / CAB_W; if (z < 0) z = 0; if (z > 2) z = 2;
+                    cab_speed = z; dirty = 1;                                                     // = LESLIE_STOP/SLOW/FAST
+                }
                 else if (cab_tenant != CAB_NONE) {
-                    if (ty < PED_Y + 28) {                                                        // selector row → step
-                        if (cab_tenant == CAB_AMP) cab_voicing = (cab_voicing + 1) % AMPCAB_N;
-                        else                       cab_speed   = (cab_speed + 1) % 3;
-                        dirty = 1;
-                    } else if (point_in_box(tx, ty, CAB_X + 4, PED_Y + 34, CAB_W / 2 - 4, 24)) {
+                    if (point_in_box(tx, ty, CAB_X + 4, PED_Y + 34, CAB_W / 2 - 4, 24)) {
                         km_grab(KM_CAB, 0, cab_k[0]);
                         p->mode = PTR_CABKNOB; p->knob = 0;
                     }
@@ -841,6 +876,7 @@ void update(void) {
 #ifdef DE_TRACE
     watch("chain_n", "%d", chain_n); watch("pal", "%d", palette_open);
     watch("cab", "%d", cab_tenant); watch("voicing", "%d", cab_voicing);
+    watch("sel", "%d", cab_sel()); watch("spd", "%d", cab_speed);   // the flat amp index + rotary speed
 #endif
 }
 
@@ -1067,31 +1103,63 @@ static void draw_guitar(void) {
 // none / guitar amp (a voicing) / Leslie; header taps cycle it, the selector row steps, two knobs.
 static void draw_cabinet(void) {
     int x = CAB_X, cx = x + CAB_W / 2;
-    bool amp = (cab_tenant == CAB_AMP), none = (cab_tenant == CAB_NONE);
+    int sel = cab_sel();
+    bool amp = (cab_tenant == CAB_AMP), none = (cab_tenant == CAB_NONE), rot = (cab_tenant == CAB_LESLIE);
     int accent = amp ? AMP_VC[cab_voicing].col : none ? CLR_DARKER_GREY : CLR_LIGHT_GREY;
-    print(">", VIEW_R + 1, PED_Y + 33, CLR_DARK_GREY);                              // "...into the amp"
+    // "…into the amp". FONT_TINY and parked between the header and the first knob-label row: at the
+    // old FONT_NORMAL/+33 it sat right on the last visible pedal's right-column label (ui-audit's
+    // long-standing "DMP overlaps >").
+    font(FONT_TINY); print(">", VIEW_R + 1, PED_Y + 15, CLR_DARK_GREY); font(FONT_NORMAL);
     rrectfill(x, PED_Y, CAB_W, PED_H, 4, none ? CLR_BROWNISH_BLACK : CLR_DARK_BROWN);
     rrect(x, PED_Y, CAB_W, PED_H, 4, accent);
-    font(FONT_SMALL); print_centered("CABINET", cx, PED_Y + 2, none ? CLR_MEDIUM_GREY : CLR_WHITE); font(FONT_NORMAL);
+    // AMP, not "CABINET": the five entries are ampcab.h AMP voicings (drive + EQ + glue), i.e. the
+    // preamp, not the speaker box. A player read the old label and reasonably expected speakers.
+    font(FONT_SMALL); print_centered("AMP", cx, PED_Y + 2, none ? CLR_MEDIUM_GREY : CLR_WHITE);
+
+    // ONE selector, with the arrows DRAWN so the list is visibly a list (the whole point of the
+    // rework — the old version cycled invisibly). Wide middle = next, so a plain tap still works.
+    print("<", x + 2, PED_Y + 14, CLR_MEDIUM_GREY);          // x+2/-6, not x+4/-8: "HI-GAIN" is the
+    print(">", x + CAB_W - 6, PED_Y + 14, CLR_MEDIUM_GREY);  // widest entry and was touching them
+    print_centered(cab_sel_name(sel), cx, PED_Y + 14, none ? CLR_MEDIUM_GREY : accent);
+    font(FONT_NORMAL);
+    for (int i = 0; i < CAB_SEL_N; i++) {                                           // a pip per entry: where am I, how many are there
+        int px = cx - (CAB_SEL_N * 3) / 2 + i * 3 + 1;
+        pset(px, PED_Y + 24, i == sel ? (none ? CLR_MEDIUM_GREY : accent) : CLR_DARKER_GREY);
+    }
     if (none) {
-        font(FONT_TINY); print_centered("(off)", cx, PED_Y + 17, CLR_DARK_GREY);
-        print_centered("tap", cx, PED_Y + 28, CLR_DARKER_GREY); font(FONT_NORMAL);
-        for (int gy = PED_Y + 40; gy < PED_Y + 64; gy += 3) line(x + 6, gy, x + CAB_W - 6, gy, CLR_DARKER_GREY);  // dim grille
+        for (int gy = PED_Y + 36; gy < PED_Y + 64; gy += 3) line(x + 6, gy, x + CAB_W - 6, gy, CLR_DARKER_GREY);  // dim grille
         return;
     }
-    font(FONT_SMALL);                                                               // selector readout
-    print_centered(amp ? AMP_VC[cab_voicing].name
-                       : cab_speed == LESLIE_STOP ? "STOP" : cab_speed == LESLIE_SLOW ? "SLOW" : "FAST",
-                   cx, PED_Y + 15, accent);
-    font(FONT_NORMAL);
-    int ky = PED_Y + 46, kx0 = x + 15, kx1 = x + CAB_W - 15;
+    int ky = PED_Y + (rot ? 42 : 46), kx0 = x + 15, kx1 = x + CAB_W - 15;   // rotary lifts the knobs:
+                                                                            // the speed row needs the floor
     const char *l0 = amp ? "GAIN" : "DRV", *l1 = amp ? "SAG" : "BAL";
     for (int j = 0; j < 2; j++) {
         int kx = j ? kx1 : kx0;
+        bool turning = (drag_cat == KM_CAB && drag_knob == j);
         circfill(kx, ky, 6, CLR_BROWNISH_BLACK); circ(kx, ky, 6, accent);
         float a = (-135.0f + cab_k[j] * 270.0f) * 0.0174533f;
-        line(kx, ky, kx + (int)(sinf(a) * 5), ky - (int)(cosf(a) * 5), CLR_WHITE);
-        font(FONT_TINY); print_centered(j ? l1 : l0, kx, ky + 8, CLR_LIGHT_PEACH); font(FONT_NORMAL);
+        line(kx, ky, kx + (int)(sinf(a) * 5), ky - (int)(cosf(a) * 5),
+             (turning && drag_fine) ? CLR_ORANGE : CLR_WHITE);
+        font(FONT_TINY);
+        print_centered(turning ? str("%d", (int)(cab_k[j] * 99.0f + 0.5f)) : (j ? l1 : l0),
+                       kx, ky + 8, CLR_LIGHT_PEACH);
+        font(FONT_NORMAL);
+    }
+    // ROTARY's speed on the FRONT PANEL, as the three-way it physically is (the Leslie half-moon
+    // switch). It used to hide inside the same invisible cycle as the amp choice, which buried the
+    // engine's best trick: the rotors take SECONDS to spin up/down, so flipping SLOW<->FAST is the
+    // chorale-to-tremolo swell. That is the most recognisable thing a Leslie does; it should be one
+    // obvious tap, not a discovery.
+    if (rot) {
+        static const char *SPD[3] = { "STP", "SLW", "FST" };
+        font(FONT_TINY);
+        for (int i = 0; i < 3; i++) {
+            int bw = CAB_W / 3, bx = x + i * bw;
+            bool on = (cab_speed == i);
+            rrectfill(bx + 1, PED_Y + 58, bw - 2, 10, 2, on ? CLR_LIGHT_GREY : CLR_BROWNISH_BLACK);
+            print_centered(SPD[i], bx + bw / 2, PED_Y + 61, on ? CLR_BLACK : CLR_MEDIUM_GREY);
+        }
+        font(FONT_NORMAL);
     }
 }
 

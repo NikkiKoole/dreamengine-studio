@@ -91,6 +91,15 @@ symbols, no ABI version-coupling).
   > **The 10-second discriminator:** play audio in another app (music, a video) and toggle the
   > cart's mic on and off. If the *other* app's sound also dips, it is the OS, not us. If only the
   > cart's does, re-measure with `DE_MIC_WAV` before believing it.
+  >
+  > **✅ CONFIRMED macOS, 2026-07-30.** The maker ran exactly that test: with the cart's mic open,
+  > *YouTube in a browser also went tinny*. So it is the OS re-profiling the shared built-in
+  > audio path, system-wide, and there is nothing to fix in the engine or the cart. **Consequence
+  > worth telling a player:** built-in mic + built-in speakers is the bad configuration twice over —
+  > macOS degrades all output, *and* the speakers feed the mic (which is why `input_monitor` is
+  > deliberately sub-unity, so the loop decays instead of howling). Headphones or an interface fix
+  > both at once. GUITAR IN is a real-instrument-through-an-interface feature; on a laptop's own
+  > mic and speakers it will always disappoint, for reasons that are not ours.
 
   **Testing the mic deterministically** — `DE_MIC_WAV=<file.wav>` feeds a WAV in place of the live
   mic (`micwav_load`/`micwav_pump` in `studio.c`, pumped one frame's worth before each render), so

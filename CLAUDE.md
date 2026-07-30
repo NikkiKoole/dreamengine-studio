@@ -406,6 +406,16 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              filter-spec.js  measure a per-voice FILTER's actual response (slope dB/oct, resonance peak,
                              bass drain per res step) via a generated probe cart — acceptance evidence for
                              any sound.h filter change; born from the 303-fidelity spike (audio-notes §25)
+             disp-model.js   the DESIGN counterpart to inharm-spec (which measures a render): what a
+                             dispersion allpass cascade does to a waveguide's partials, computed
+                             ANALYTICALLY from the loop phase condition. Solves the coefficient for a
+                             target inharmonicity B per note/stage-count + reports the phase delay it
+                             adds at the fundamental (which must come OUT of the delay line or the note
+                             plays flat) and what is left of the line. `--curve` = forward sweep,
+                             `--check` = self-test incl. an engine-validated point. Use it INSTEAD of
+                             patching sound.h to search a grid — that is slow, and it holds a shared
+                             engine broken while parallel agents compile (it bit twice; a timeout's
+                             SIGTERM skips the restore). Patch the engine only to CONFIRM one point
              inharm-spec.js  WHERE the partials sit, in cents vs the ideal n·f0 — the third leg beside
                              harmonic-spec (how LOUD) and filter-spec (what the filter did). Fits the
                              stiff-string B of f_n = n·f0·√(1+Bn²) + prints the residual, so "the partials

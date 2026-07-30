@@ -1165,7 +1165,84 @@ four places.
 also adds loop delay, which drops the pitch unless the chain's phase delay at the fundamental is
 subtracted from `len` — that compensation is the real work, and it interacts with §I4d. It also wants a
 decision on whether `B` becomes the real physical coefficient (so `inharm-spec` numbers can be compared
-against published piano data) rather than the current arbitrary `stiff²·0.015`.
+against published piano data) rather than the current arbitrary `stiff²·0.015`. **§I4b step 1 is now
+done — see below.**
+
+### §I4b step 1: the dispersion cascade is FEASIBLE, and the diagnosis was wrong (2026-07-30)
+
+The gating question was "can a cascade of first-order allpasses in the KS loop reach a real grand's
+inharmonicity, and what does it cost in pitch?" **Answer: yes, at every pitch from C2 to C6, for 3–7% of
+the delay line.** The 4-stage structure already in the engine is the right one. What is broken is only the
+coefficient mapping — and not in the way the first diagnosis said.
+
+**Method, and it is the reusable part: [`tools/disp-model.js`](../../tools/disp-model.js), analytic.** A
+KS loop resonates where the round-trip phase lag is a whole number of cycles, `w·L + N·θ_ap(w) = 2πn`, so
+the partial frequencies are a root-find, not a render. This replaced a first attempt that patched
+`sound.h` and rendered a 24-cell grid, which was slow *and* unsafe — see the postscript below. Validated
+against the real engine at one point (C3, 2 stages, `c = −0.7770`):
+
+| | model | engine (`inharm-spec`) |
+|---|---|---|
+| fitted B | 1.00e-4 | **1.02e-4** |
+| h16 | +19.8¢ | **+19.9¢** |
+| fit residual | 1.1¢ | **1.2¢** |
+| f0 | 124.97 Hz | 124.84 Hz |
+
+(The 1.8¢ of f0 disagreement is PIANO's own Railsback stretch plus §I4d, neither of which the model
+includes.) `--check` encodes this point, so a future edit to the maths gets caught.
+
+**Finding 1: the sign is wrong, and the clamp forecloses the fix.** A first-order allpass with
+**positive** `c` has phase delay that *rises* with frequency — `pt` at DC to exactly 1 sample at Nyquist —
+which **flattens** the upper partials. String stiffness needs the opposite, so it needs `c < 0`. The engine
+computes `c = (1−pt)/(1+pt)` with `pt` clamped to ≤ 0.9, so `c` is always in (0.05, 1] and the entire
+useful half of the parameter space is unreachable **by construction**. That is why scaling `pt` by 3000×
+moved nothing: it was scaling inside the wrong half. The `if (pt > 0.9f)` clamp is not a harmless guard on
+an unreachable ceiling, it is the thing standing in the way.
+
+**Finding 2: the pitch dependence is backwards too.** The `|c|` needed for a fixed B *falls* as pitch
+rises — `−0.72` at C3 down to `−0.09` at C6 with 4 stages — because a high note's partials span more of
+the Nyquist band, which is where an allpass's delay variation actually lives. The engine's
+`pt = B·(i+1)·freq/SR` grows with frequency, moving `c` the other way.
+
+**Finding 3: it is affordable, and no register is lost.** Cost of hitting B = 1e-4 (`h16` ideal +21.9¢):
+
+| note | L0 | stages | solved c | delay@f0 | L left | resid | h16 |
+|---|---|---|---|---|---|---|---|
+| C2 | 674 | 4 | −0.8494 | 49.1 | 624.9 | 0.7¢ | +20.5¢ |
+| C3 | 337 | 4 | −0.7215 | 24.7 | 312.3 | 0.7¢ | +20.5¢ |
+| C4 | 169 | 4 | −0.5224 | 12.7 | 156.3 | 0.7¢ | +20.5¢ |
+| C6 | 42 | 4 | −0.0915 | 4.8 | 37.2 | 0.9¢ | +20.1¢ |
+
+`delay@f0` is the compensation that must come out of the delay line; `L left` is what remains, and it
+stays healthy everywhere, so the treble does not run out of line. **More stages track the physical law
+better**: the fit residual falls 1.7¢ (1 stage) → 0.7¢ (4) → 0.4¢ (8), and `h16` converges on the ideal.
+Four stages, which the engine already has, lands within 1.4¢ of a true stiff string.
+
+**So §I4b downgrades from "DESIGN, may not be possible" to "a tractable change with a known recipe":**
+solve `c` from a target B and the note's f0 at note-on; subtract `θ_ap(w0)·N/w0` from the delay line
+(**this is the same delay-budget refactor §I4d needs — do them together**); make B a per-voicing physical
+coefficient so it is comparable to published piano data; then re-voice the six voicings by ear, which is
+the genuine remaining cost and makes this a LISTEN item. **2.3(b) then becomes the small step it was
+originally billed as.**
+
+#### Postscript: do not patch a shared engine to search a grid
+
+The first attempt at this measurement patched `runtime/sound.h` and rendered 24 variants. It left the
+engine broken **twice**, and both failures are worth knowing because a `try/finally` looks like it covers
+them and does not:
+
+1. **A foreground timeout kills with SIGTERM, and node exits without running `finally`.** The sweep hit
+   the 2-minute limit mid-grid and left `pt = 0.03f` compiled into the engine.
+2. **Signal handlers do not help either**, because a signal cannot interrupt a *synchronous*
+   `execFileSync` — the handler only runs once the blocking call returns, which is exactly when you no
+   longer need it. And backgrounding with `&` made the tool report "completed" while node kept running,
+   holding the engine patched **for minutes while another agent was rendering audio**. That render
+   happened not to use `INSTR_PIANO`, so nothing of theirs was corrupted, but that was luck.
+
+The rule that follows: **model the sweep, and patch the engine only to confirm a single chosen point**
+(one render, seconds). When a patch is unavoidable, restore by targeted edit and verify the file matches
+byte-for-byte before doing anything else — `git checkout` on a shared path can take a parallel agent's
+uncommitted work with it.
 
 Nothing here is approved. **`sound.h` was not changed** — every number above is from a measurement on the
 committed engine, or from a sweep that restored the file in a `finally` block.

@@ -355,9 +355,26 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > confirmation. Ear pair (the `piano` cart is C4–C5 so the fix is inaudible there; this is an A1–A4
 > arpeggio + low stack): `build/ab/piano-stretch-{OFF-bass-flat-missing,ON-full-railsback}.wav`.
 >
-> **Resume-at: §I4b, which is the one that still blocks 2.3(b), and is DESIGN not a one-liner.** Real
-> dispersion adds loop delay and drops the pitch unless the chain's phase delay at the fundamental is
-> subtracted from `len`; that compensation is the actual work and it interacts with **§I4d** (still open:
+> **§I4b STEP 1 IS DONE (2026-07-30) and it is FEASIBLE — the diagnosis changed.** Built
+> [`tools/disp-model.js`](../tools/disp-model.js), which computes what a dispersion allpass cascade does
+> to the partials **analytically** (the loop phase condition, so a root-find not a render) and solves the
+> coefficient for a target B. Validated against the engine at one point: model B 1.00e-4 / h16 +19.8¢ vs
+> measured 1.02e-4 / +19.9¢. Results: the 4-stage cascade already in the engine **can** reach a real
+> grand's B = 1e-4 at every pitch C2–C6, costing only 3–7% of the delay line, and no register runs out of
+> line. What is actually wrong is the coefficient mapping, in two ways I had not identified: **the SIGN**
+> (a positive `c` gives phase delay rising with frequency, which FLATTENS partials; stiffness needs
+> `c < 0`, and the `pt ≤ 0.9` clamp makes that unreachable by construction — which is why scaling `pt`
+> 3000× moved nothing, it was the wrong half of the space), and **the pitch dependence** (the needed |c|
+> FALLS with pitch, −0.72 at C3 to −0.09 at C6; the engine's `pt ∝ freq` moves it the other way).
+> **⚠ PROCESS RULE LEARNED THE HARD WAY: do not patch a shared `sound.h` to search a grid.** The first
+> attempt left the engine broken twice — a foreground timeout SIGTERMs node so `finally` never runs, and
+> signal handlers cannot interrupt a synchronous `execFileSync` either, while `&` made the tool report
+> "completed" while it kept holding the engine patched during another agent's render. Model the sweep;
+> patch only to confirm ONE point.
+>
+> **Resume-at: §I4b step 2, the implementation, now a known recipe.** Solve `c` from a target B and the
+> note's f0 at note-on, and subtract `θ_ap(w0)·N/w0` from the delay line — that compensation is the actual
+> work and it is the **same delay-budget refactor §I4d needs, so do them together** (§I4d still open:
 > with no stretch the loop runs +1.3→+4.0¢ sharp, and that offset is *window-dependent* because the
 > brightness bloom moves `ksb` and hence the loop delay within a note, so bless residuals per measurement
 > window). It also wants a decision on whether `B` becomes the real physical coefficient instead of

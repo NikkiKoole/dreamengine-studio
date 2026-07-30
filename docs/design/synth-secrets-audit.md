@@ -1683,7 +1683,10 @@ I5.
 > this, `--check` green) measures **B ≈ 2e-6** on the grand where a real one is ~1e-4, with h16 at **+0.2¢**
 > instead of ~+22¢ — the partials are harmonic to within the measurement. `pt = B·(i+1)·freq/SR` comes out
 > at 2.6e-6 at C3, so the dispersion allpass coefficient is 0.9999948, i.e. the identity. GUITAR
-> (−3.1e-7) and PLUCK (1.6e-8) too. A second, independent defect found alongside it: the
+> (−3.1e-7) and PLUCK (1.6e-8) too. **Step 1 of the fix is measured (2026-07-30):** the 4-stage cascade
+> IS capable of a real grand's B = 1e-4 at every pitch C2–C6 for 3–7% of the delay line, so this is
+> tractable — but the coefficient needs the **opposite SIGN** (a positive `c` flattens partials; stiffness
+> needs `c < 0`, which the `pt ≤ 0.9` clamp makes unreachable) and the **opposite pitch dependence**. A second, independent defect found alongside it: the
 > `piano_stretch_freq` seam works in the **treble only** — `v->freq` is written back but
 > `v->freq_target` is not, so the glide slew undoes it, except that an `effLen > len` clamp happens to
 > block the undo in the sharp direction. So PIANO has been playing **half a Railsback curve**: correct

@@ -64,8 +64,10 @@ function collect(key, startRe) {
   for (let i = start + 1; i < end; i++) {
     const m = lines[i].match(startRe)
     if (!m) continue
+    // An entry ends at the next entry OR at any sub-heading — otherwise the last bullet before a
+    // `###` swallows the whole rest of the section and reads as a 43-line monster.
     let j = i + 1
-    while (j < end && !startRe.test(lines[j])) j++
+    while (j < end && !startRe.test(lines[j]) && !/^#{2,4} /.test(lines[j])) j++
     const body = lines.slice(i, j).join('\n')
     out.push({ num: m[1] || null, line: i + 1, len: j - i, title: titleOf(lines[i]), body })
     i = j - 1
@@ -88,7 +90,20 @@ const DONE_RE = /\b(SHIPPED|✅ DONE|✓ SHIPPED|✓ DONE|FIXED|CLOSED|RESOLVED)
 const struck = (e) => /^\s*\d+b?\.\s*~~/.test(e.body.split('\n')[0])
 
 // ── checks ───────────────────────────────────────────────────────────────────
-const LEN_BUDGET = 25          // an entry past this is a write-up, not a ledger row
+// LENGTH. The first version of this check used a flat 25-line budget, picked before reading the file,
+// and it flagged 21 entries. Once the genuine monsters were dealt with (item 52 at 229 lines restating
+// a 4,800-line pair of design docs, item 42 at 106 lines of ✅-marked shipped tools, item 31 at 41
+// lines of struck root-cause narratives that audio-notes §18 owns), the distribution was: 88 entries,
+// median 9, p75 17, p90 28, max 56 — and EVERY remaining entry over 25 lines already linked its owning
+// design doc. So length by itself had stopped being a defect signal, and a flat 25 was just telling
+// good multi-week write-ups they were too long.
+//
+// What actually goes wrong is length with NOWHERE ELSE FOR IT TO LIVE — a write-up whose rationale has
+// no owning doc, so the ledger has silently become the design record. That is mechanically checkable,
+// and it is the real rule now. The flat cap stays as a backstop for genuine monsters.
+const LEN_BUDGET = 60          // hard backstop: past this it is a write-up whatever it links
+const LEN_SOFT = 25            // past this you must at least link the doc that owns the rationale
+const DOC_LINK_RE = /\]\((?:design|guides|decisions|field-notes)\//
 const HEADLINE_BUDGET = 900    // chars on the `_Last updated:_ ` line
 const problems = []
 const P = (kind, line, msg) => problems.push({ kind, line, msg })
@@ -147,12 +162,16 @@ for (const e of [...shippedLog, ...cut]) if (!dateOf(e.body))
 {
   const strays = shippedInv.filter(e => dateOf(e.body))
   if (strays.length)
-    P('log-in-inventory', invStart, `${strays.length} dated entries sit INSIDE the capability inventory (below line ${invStart}) instead of in the reverse-chronological changelog above it — so "## Shipped" is a changelog and an inventory interleaved, which is why its dates read as unsorted. Lines: ${strays.slice(0, 12).map(e => e.line).join(', ')}${strays.length > 12 ? ', …' : ''}`)
+    P('log-in-inventory', invStart, `${strays.length} dated entries sit INSIDE the capability inventory (below line ${invStart}) rather than in the changelog above it, so "## Shipped" is a changelog and an inventory interleaved. ⚠ This one is a DESIGN DECISION, not a mechanical move: the inventory groups by THEME and the changelog sorts by DATE, so flattening these into date order would scatter a themed run (the netplay rungs are the case in point — and note they are ALREADY fragmented, rung 1 sitting apart from rungs 2-5a which are themselves in reverse order). Pick one: promote them to the changelog, or gather each theme into a named sub-group that is explicitly NOT date-sorted. Lines: ${strays.slice(0, 12).map(e => e.line).join(', ')}${strays.length > 12 ? ', …' : ''}`)
 }
 
-// 3. an over-long entry — rationale belongs in the owning design doc
-for (const e of [...shipped, ...open]) if (e.len > LEN_BUDGET)
-  P('too-long', e.line, `${e.len} lines (budget ${LEN_BUDGET}) — move the rationale to the linked design doc: ${e.title}`)
+// 3. an over-long entry (see the LENGTH note above for why this is not a flat budget)
+for (const e of [...shipped, ...open]) {
+  if (e.len > LEN_BUDGET)
+    P('too-long', e.line, `${e.len} lines — past the ${LEN_BUDGET}-line backstop. Even with a design doc linked, this is a write-up living in a ledger: ${e.title}`)
+  else if (e.len > LEN_SOFT && !DOC_LINK_RE.test(e.body))
+    P('too-long', e.line, `${e.len} lines with NO link to an owning design doc — the ledger has become the design record for this. Give it a home in docs/design (or an ADR) and leave a pointer: ${e.title}`)
+}
 
 // 4. the headline line
 const hl = lines.findIndex(l => l.startsWith('_Last updated:'))

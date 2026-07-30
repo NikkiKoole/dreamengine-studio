@@ -447,6 +447,7 @@ Detail lives in the linked design doc in every case; that is where it was always
 | **14** | **Rasterization consistency** — every filled primitive on one pixel-centre coverage path (outline == boundary of fill), plus the off-screen **bbox clamp** that turned a 46.7 ms worst case into 2.7 ms | 2026-06-01/02 | [rasterization-consistency.md](design/rasterization-consistency.md) · **tail → item 14** |
 | **15** | **Tiny fonts** — `font(FONT_SMALL)` / `font(FONT_TINY)` | 2026-06-01 | [font-rendering.md](design/font-rendering.md) |
 | **20** | **TB-303 bassline cart** — non-refiring `note_glide` slides, accent, staccato gate, live CUT/RES on the ringing voice, piano roll with OCT/ACC/SLD rows | 2026-06-05 | the `tb303` cart · [rebirth-classic.md](design/rebirth-classic.md) |
+| **23** | **Sprite round-trip (option D)** — `tools/lib/sprite-patch.js`, the slot-level overlay: fingerprint the generator OUTPUT not its source, per-slot stale-drop, `make-cart.js` composites a sibling `.sprites.patch.json` on every bake and mirrors it into the `.cart.png` as `de:spritepatch`; the editor's save-to-source writes only the changed slots, plus a hand-owned-slots bar and a "discard hand-edits" button | 2026-07-10 | [editor-cart-workflow.md](design/editor-cart-workflow.md) §Gap 2 · **tail → item 23** |
 | **24** | **Web phantom touch point** — own the touch truth on web (a JS mirror rebuilt from `event.touches`), plus the same-day **tap-as-mouse death** sequel (synthesize the mouse from the touch mirror once a real touch is seen) | 2026-06-06 | [touch-notes.md](design/touch-notes.md) §7–8 |
 | **25** | **`ui.h` v1** — button / slider / knob across mouse + touch + keyboard/gamepad at once: per-contact capture, deferred press resolution, hit-pad inflation, opt-in focus ring | 2026-06-07 | [ui-widgets-notes.md](design/ui-widgets-notes.md) · **tail → item 25** |
 | **27** | **Web debug overlay v1** — `?debug=1` or triple-tap the top-left corner: live touch rings, a console mirror, `onerror` lines, fps, the device touch ceiling | 2026-06-07 | [mobile-web-notes.md](design/mobile-web-notes.md) §6d · **tail → item 27** |
@@ -706,39 +707,23 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     touches, found on-device; tiny tap targets). Full design + device findings:
     [`design/mobile-web-notes.md`](design/mobile-web-notes.md).
 
-23. **The sprite story — two sprite sources of truth** *(new 2026-06-06, surfaced by the
-    editor publish button but it already bites without it)*. A cart's sprites can come from
-    (a) the **sprite editor's canvas** (exported as `build/sprites.png` on every run — what
-    you see is what ships) or (b) a **`.cart.js` generator** (ASCII art / sprite-draw.js
-    programs, rebuilt by `make-cart.js`/`build-site.js` at bake time). They do not know
-    about each other: repaint a generator-cart's sprites in the editor and your pixels ship
-    in that build but the generator still owns the repo truth — the next CLI bake silently
-    reverts them. Same applies to plain sprite touch-ups: there is no path from editor
-    pixels back to `tools/carts/<name>.cart.js`. Options to explore: a pixels→`.cart.js`
-    exporter (slot arrays, lossless), an explicit per-cart marker for which source owns
-    sprites, or a publish-time conflict warning (the editor's publish log already warns
-    when a `.cart.js` exists). A fourth option — a **patch/overlay layer** (diff your
-    hand-edits against the generator output, store the diff, apply it after each bake;
-    fingerprint-stale patches discard, blessed ones promote into source) — is the
-    human-in-the-loop answer; all four are weighed in
-    [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md) §Gap 2 (options
-    A–D). **Option D SHIPPED (2026-07-10) — the bake + persist halves.** `tools/lib/sprite-patch.js`
-    is the slot-level overlay core (fingerprint the generator OUTPUT, not the source; per-slot
-    stale-drop; wholesale-regenerate self-empties). `make-cart.js` composites a sibling
-    `tools/carts/<name>.sprites.patch.json` over the generator on every bake and mirrors the
-    surviving patch into the `.cart.png` as `de:spritepatch`. The editor's **save-to-source** now
-    diffs the sprite canvas against the (re-run) generator and writes only the changed slots as that
-    patch — hand-edits to a generator cart survive the next CLI bake, the generator stays a live
-    program. **Discard + indicator SHIPPED (2026-07-10):** the pixels tab shows a bar naming the
-    hand-owned slots on load (from `de:spritepatch`, threaded through the cart-load handlers) with a
-    **"discard hand-edits"** button (`cart:discard-sprite-patch` — delete the sibling + re-run the
-    generator + drop the chunk + reload the canvas). CLI discard (`rm …sprites.patch.json` + rebake)
-    still works. Gates: `node tools/…` core + bake sims + a discard-logic sim (see the design doc);
-    the editor UI needs a live eyeball (main.cjs/preload changed → `make`). Rule stands for
-    *hand-drawn* carts (no generator; their pixels already live in the `.cart.png`); generator carts
-    now round-trip. Edge: a cart whose committed `.cart.png` sprites already DRIFTED from its
-    generator will capture that drift as a patch on first save — defensible (preserves what's shown),
-    resolved by a clean `--run` rebake.
+23. **The sprite story — the live eyeball that never happened** *(the round-trip shipped 2026-07-10;
+    see the landed table)*. A cart's sprites can come from the **sprite editor's canvas** or from a
+    **`.cart.js` generator**, and the two didn't know about each other — repaint a generator cart's
+    sprites in the editor and the next CLI bake silently reverted them. Option D (a slot-level patch
+    overlay) shipped both halves, so generator carts now round-trip.
+    What's left:
+    - **The editor UI has never been eyeballed live.** `main.cjs`/`preload.cjs` changed, so it needs a
+      dev-server restart (`make`) and a human look to confirm the hand-owned-slots bar and the
+      "discard hand-edits" button render and follow the day/night theme. It was built and
+      bundle-verified, not seen. That note has stood since **2026-07-10**.
+    - **Edge case, defensible but worth knowing:** a cart whose committed `.cart.png` sprites had
+      already DRIFTED from its generator will capture that drift as a patch on first save. That
+      preserves what's shown, which is the right default; a clean `--run` rebake resolves it.
+    The rule still stands for **hand-drawn** carts (no generator — their pixels already live in the
+    `.cart.png`). Options A–D and the reasoning:
+    [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md) §Gap 2.
+
 25. **`ui.h` — the on-device pass + the remaining retrofits** *(v1 shipped 2026-06-07; see the
     landed table)*.
     - **The on-device probe run has never happened**: two knobs at once, fat fingers, the 5-touch
@@ -825,46 +810,28 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
       `lint-carts.js` let an agent *ask* "what's stale / do refs resolve" instead of reading
       everything. That's the right direction; more of it beats more prose.
 
-31. **Engine tuning — some modeled engines play out of tune** *(new 2026-06-10, found by
-    the new `tune-check.js`)*. Run `node tools/tune-check.js` for the live per-engine cents
-    report (SINE is the 0¢ control); full first-run audit + the *why* in
-    [`design/audio-notes.md`](design/audio-notes.md) §18. **The to-do list, worst first:**
-    - ~~**`INSTR_PIPE` (flute) — the bad one.**~~ **FIXED 2026-06-11.** Was an octave low and
-      progressively flat (A2 −13¢ → A5 −159¢): the bore was sized a full wavelength but the
-      inverting open-end reflection resonates at SR/(2·delay), so it rang an octave down, and the
-      uncompensated jet+filter loop delay added the flatness. Fix in `sound_pipe_start`: half-
-      wavelength bore minus a loop-delay term **derived from the note-on jet length** (`1.69 +
-      0.308·jetLen`), sized with the bowed-string fractional-read trick to kill integer
-      quantization. The jet-length term is the key: the embouchure macro (morph) sets the jet, and
-      a constant left morph≠0 sharp by up to a semitone — deriving it keeps the flute in tune
-      across the whole embouchure range. **Now in tune within ~±3¢ from C4 up to ~E6 at typical
-      embouchure** (verified at morph 0.70, the showcase recipe; robust across seeds). First
-      customer: `air.c`'s Cherry flute register reopened 67–83 → 64–86.
-    - **Hollow presets (recorder/breathy/pan-pipe) — FIXED through A5, 2026-06-16 (commit 97a794e).**
-      The jet loop-delay `1.69+0.308·jetLen` under-compensated at long jets (morph ≲ 0.5) → flat to
-      ~−56¢ by G5. Added a clamped-linear jet-delay correction past jetLen 5 (measured need
-      SATURATES at ~+0.8 sample), zero at jetLen ≤ 5 so flute/piccolo are byte-identical. All 5
-      presets in tune through A5; morph-0 extreme improved (A5 −84¢→−32¢). audio-notes §18 #8.
-    - **Residual (minor): the morph≈0 / hollow TOP OCTAVE (above ~A5) still mode-flips** — at a
-      ~20-sample bore the jet ≈ the bore, so the oscillator sits on the overblow edge and flips mode
-      (the `tune-check.js` default sweep, morph 0, still flags PIPE A5 — now −32¢, was −84¢). Any
-      real recipe stays ≤ A5 here. Fully closing it needs a jet-length re-voicing (jet ∝ bore).
-    - **The `--quiet` gate now waives the documented residuals (2026-07-10):** PIPE A4 −13.9¢ /
-      A5 −32.2¢ (the morph-0 ramp above) + BRASS A5 −13.6¢ (the macro-0 remnant of e458af1) are
-      blessed in `KNOWN_RESIDUALS` in `tools/tune-check.js` with a ±6¢ drift band — CI exits 0 in
-      the accepted state and trips only on NEW drift (or a residual that got worse). They still
-      print, marked waived. Fix one for real → delete its line there.
-    - ~~**`INSTR_PLUCK` / `INSTR_REED` / `INSTR_BRASS` — flatten at the top** (A5 −17 to −25¢).~~
-      **FIXED 2026-06-16 (commit e458af1).** The "integer-sample delay-length quantization, fix =
-      fractional read tap" diagnosis was **wrong** — the reads already interpolate. Real fix:
-      REED/BRASS sized the note-on bore from a truncated integer delay (→ sharp high notes, dense
-      sweep showed BRASS C#6 +64.5¢) → use the true fractional delay as init reference; plus subtract
-      the bell-LP loop group delay `(1−lpCoeff)/lpCoeff` (BRASS ×0.5, REED ×1.0). PLUCK: −0.5 on the
-      tap for the Karplus averaging's exact half-sample delay. All in tune now — audio-notes §18 #7.
-    - **In tune, no action:** SINE/MALLET/EPIANO/PD/PIANO/GUITAR/FM, and **BOWED** (≤ +3¢ —
-      whatever's off about the bowed voice, it is *not* pitch; though its default bow PRESSURE
-      wants a bump — [tuning-handoff.md](tuning-handoff.md) → NEXT). **`INSTR_ORGAN`** reads an octave low but is in
-      tune (+3–7¢) — that's the 16′ sub-octave drawbar, expected.
+31. **Engine tuning — the one remaining residual** *(opened 2026-06-10 by the then-new
+    `tune-check.js`; PIPE, REED, BRASS and PLUCK all fixed 2026-06-11/16)*. Run
+    **`node tools/tune-check.js`** for the live per-engine cents report (SINE is the 0¢ control); the
+    per-engine root causes and fixes are written up in
+    [`design/audio-notes.md`](design/audio-notes.md) §18 #7–#8.
+    **The gate is green.** What is left is one bounded residual, deliberately waived rather than
+    hidden — `KNOWN_RESIDUALS` in `tools/tune-check.js` blesses it with a ±6¢ drift band, so CI trips
+    on NEW drift or on this getting worse, and it still prints, marked waived. (That file cites
+    **`STATUS #31`** by number, which is why this item keeps it.)
+    - **`INSTR_PIPE` at morph ≈ 0 (the hollow/recorder voicing) mode-flips above ~A5** — currently
+      A5 −32.2¢ (was −84¢), plus A4 −13.9¢ and a BRASS A5 −13.6¢ macro-0 remnant. At a ~20-sample
+      bore the jet is about as long as the bore, so the oscillator sits on the overblow edge and
+      flips mode. **Any real recipe stays ≤ A5**, which is why this is a residual and not a bug.
+      Closing it for real needs a **jet-length re-voicing (jet ∝ bore)**. Fix one → delete its line
+      from `KNOWN_RESIDUALS`.
+    - *Related, not pitch:* BOWED's default bow PRESSURE wants a bump
+      ([`tuning-handoff.md`](tuning-handoff.md) → NEXT).
+    **In tune, no action:** SINE / MALLET / EPIANO / PD / GUITAR / FM / BOWED (≤ +3¢). **ORGAN** reads
+    an octave low but in tune (+3–7¢) — that is the 16′ sub-octave drawbar, expected. **PIANO is the
+    one engine that deliberately leaves equal temperament** (stretched tuning) and so is gated as a
+    *differential* rather than against ET — see `INTENDED_DETUNE` and
+    [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md) §2.3.
 
 32. **Split `runtime/sound.h` per-engine to cut the parallel-agent collision surface** *(new
     2026-06-11, surfaced when a parallel commit silently clobbered a PIPE tuning fix)*. `sound.h`

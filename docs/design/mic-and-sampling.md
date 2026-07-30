@@ -100,6 +100,22 @@ symbols, no ABI version-coupling).
   > deliberately sub-unity, so the loop decays instead of howling). Headphones or an interface fix
   > both at once. GUITAR IN is a real-instrument-through-an-interface feature; on a laptop's own
   > mic and speakers it will always disappoint, for reasons that are not ours.
+  >
+  > **Refined 2026-07-30: it was a HEADSET, and the real mechanism is the Bluetooth profile
+  > switch.** The maker was already on headphones — headphones *with a mic*. A headset is ONE
+  > device carrying both directions, so opening its mic makes macOS renegotiate it from **A2DP**
+  > (stereo, full bandwidth, output-only) down to **HFP/HSP**, the hands-free profile: mono, ~16 kHz,
+  > telephone quality. That is the "canny" sound, and it is why YouTube degraded too. It happens
+  > between the OS and the headset before a single sample reaches us, so it is unfixable from here
+  > in the strongest sense — there is no API we are declining to call.
+  >
+  > **The fix is routing, not code:** macOS only drops a Bluetooth device to HFP when *that device*
+  > is the active INPUT. Set Input to something else (System Settings → Sound → Input →
+  > MacBook Microphone) and leave Output on the headset, and it stays on A2DP. Splitting input and
+  > output across two devices is also the right rig for GUITAR IN anyway.
+  >
+  > So the player-facing advice is NOT "use headphones" — the maker was already doing that. It is
+  > **"don't let your output device also be your input device."**
 
   **Testing the mic deterministically** — `DE_MIC_WAV=<file.wav>` feeds a WAV in place of the live
   mic (`micwav_load`/`micwav_pump` in `studio.c`, pumped one frame's worth before each render), so

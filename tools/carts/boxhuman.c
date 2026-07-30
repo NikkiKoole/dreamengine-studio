@@ -166,7 +166,19 @@ typedef struct {
 // One rig TABLE, N instances of it. Everything that was a global array is now
 // per-figure: the bodies, the joints, and the six deformed meshes (bind data is
 // per-instance because it is captured in each figure's own world coordinates).
-#define NFIG 5
+// THREE, not five, while the turnover is being worked out. Two reasons, and the
+// first is not tidiness: a figure halfway over is lying horizontal and therefore
+// wider than the gap to its neighbour, so at five the crowd spends the middle of
+// the move shoving itself sideways and you cannot tell a bad turnover from a
+// collision. Three at 84 px apart clears that up. The second is that three is
+// enough to keep what the crowd is FOR — the widest spread of temperament the
+// build table has, soft/reference/stiff at 0.65, 1.00 and 2.10 — so nothing about
+// "one table, N temperaments" is lost. barrel and lanky are still in BUILDS below,
+// commented out, and going back to five is uncommenting them and restoring the dx
+// column to -114 -57 0 57 114. The 84 is bounded by the WALLS, not by the
+// neighbours: bruiser lying horizontal mid-turnover is 111 px wide, so at 96 it
+// reached x=317 against a wall at 320 and jammed into it.
+#define NFIG 3
 typedef struct {
     b2BodyId  bone[NBONE];
     b2JointId hinge[NBONE];
@@ -196,8 +208,18 @@ typedef struct {
     float     hshift;                      // step 5's sole-line re-anchor at fu = 1, px:
                                            // solved once, then ridden by the turnover
     float     fu;                          // HOW FAR OVER: 0 standing, 1 holding a
-                                           // handstand, anything between = mid-flip and
-                                           // this figure is being PLACED, not simulated
+                                           // handstand, anything between = mid-flip, so
+                                           // the PELVIS is on rails and the rest of him
+                                           // is hanging off it being simulated
+    float     flipJ[NBONE];               // the flip's ask in JOINT space (flip_joints):
+                                          // each bone's turn minus its parent's, which
+                                          // is the only thing a revolute can be told
+    b2JointId rootMotor;                   // the invisible hand under the hips while he
+    bool      rootOn;                      // is over — finite force, see drive_root
+    float     settle;                      // frames the hand stays on AFTER arrival
+    float     mass;                        // this build's TOTAL mass, so the hand's
+                                           // strength is stated per body weight and a
+                                           // heavy build is not a weak one
     float     restUp;                     // head height above the floor at rest, px.
                                           // Captured per build because proportions
                                           // change it: "is he still standing" can
@@ -263,18 +285,18 @@ typedef struct {
 } BuildDef;
 static const BuildDef BUILDS[NFIG] = {
     //   name        dx   stiff     sc   girth  len{tor  head  arm   leg}  girth{tor head  arm   leg}
-    { "kid",       -114, 0.65f, 0.72f, 0.95f, {0.95f,1.15f,0.85f,0.82f}, {1.00f,1.25f,0.95f,1.00f},
+    { "kid",        -84, 0.65f, 0.72f, 0.95f, {0.95f,1.15f,0.85f,0.82f}, {1.00f,1.25f,0.95f,1.00f},
         { {B_HEAD,-8}, {B_UARM_R,-9}, {B_UARM_L,9},
           {B_THIGH_R,-6}, {B_THIGH_L,6} }, 5 },                      // head cocked, arms and legs out
-    { "barrel",     -57, 0.85f, 0.86f, 1.28f, {1.08f,0.95f,0.95f,0.85f}, {1.10f,0.80f,0.95f,1.00f},
-        { {B_CHEST,4}, {B_UARM_R,-13}, {B_UARM_L,13},
-          {B_THIGH_R,-8}, {B_THIGH_L,8} }, 5 },                      // leaning back, arms off the belly, planted wide
+//  { "barrel",     -57, 0.85f, 0.86f, 1.28f, {1.08f,0.95f,0.95f,0.85f}, {1.10f,0.80f,0.95f,1.00f},
+//      { {B_CHEST,4}, {B_UARM_R,-13}, {B_UARM_L,13},
+//        {B_THIGH_R,-8}, {B_THIGH_L,8} }, 5 },                      // leaning back, arms off the belly, planted wide
     { "author",       0, 1.00f, 1.00f, 1.00f, {1.00f,1.00f,1.00f,1.00f}, {1.00f,1.00f,1.00f,1.00f},
         { {0,0} }, 0 },                                              // the reference: NO pose, by definition
-    { "lanky",       57, 1.45f, 1.02f, 0.80f, {1.00f,0.92f,1.15f,1.22f}, {1.00f,1.05f,0.90f,0.90f},
-        { {B_CHEST,-7}, {B_HEAD,9}, {B_UARM_R,5}, {B_UARM_L,-5},
-          {B_THIGH_R,2}, {B_THIGH_L,-2} }, 6 },                      // stooped, arms tucked, knees together
-    { "bruiser",    114, 2.10f, 1.08f, 1.18f, {1.05f,0.95f,1.10f,0.95f}, {1.15f,0.85f,1.10f,1.05f},
+//  { "lanky",       57, 1.45f, 1.02f, 0.80f, {1.00f,0.92f,1.15f,1.22f}, {1.00f,1.05f,0.90f,0.90f},
+//      { {B_CHEST,-7}, {B_HEAD,9}, {B_UARM_R,5}, {B_UARM_L,-5},
+//        {B_THIGH_R,2}, {B_THIGH_L,-2} }, 6 },                      // stooped, arms tucked, knees together
+    { "bruiser",     84, 2.10f, 1.08f, 1.18f, {1.05f,0.95f,1.10f,0.95f}, {1.15f,0.85f,1.10f,1.05f},
         { {B_UARM_R,-17}, {B_UARM_L,17}, {B_CHEST,-3},
           {B_THIGH_R,-7}, {B_THIGH_L,7} }, 5 },                      // arms out, chest up, stance wide
     // kid: short limbs under a big head (a child's proportions, not a small
@@ -700,6 +722,8 @@ static void make_bones(Fig *F, int fi) {
         F->locB[i] = b2Body_GetLocalPoint(F->bone[i], (b2Vec2){ WX(bx), WY(by) });
         F->rest[i] = bone_angle(F, i);      // the pose the KEEP_ANGLE controller defends
     }
+    F->mass = 0.0f;                         // what the hand under the hips has to move
+    for (int i = 0; i < NBONE; i++) F->mass += b2Body_GetMass(F->bone[i]);
     for (int i = 0; i < NBONE; i++) {
         const BoneDef *d = &BONES[i];
         if (d->parent < 0) continue;      // the root is FREE now: it stands on the
@@ -1010,13 +1034,13 @@ static void rot_about(float *x, float *y, float cx, float cy, float c, float sn)
 // shape the ceiling solve already arrived at for its own reasons. The move this rig
 // can do is the one it was already holding.
 //
-// Two ways this stays honest. The ENDPOINTS are untouched: every sub-phase returns
-// exactly 0 at u = 0 and exactly 1 at u = 1, and at u = 1 the rotations take the
-// exact point-reflection path (see turn_about), so the pose the crowd holds is the
-// same pose bit for bit and the settled handstand numbers A/B against the instant
-// flip. And nothing here is a new authority — mid-flip a figure is PLACED, exactly
-// as it was placed standing at build and placed inverted on the old keypress, so
-// this adds frames to a mechanism that already existed rather than a second one.
+// The ENDPOINTS are untouched: every sub-phase returns exactly 0 at u = 0 and
+// exactly 1 at u = 1, and at u = 1 the rotations take the exact point-reflection
+// path (see turn_about), so the GEOMETRY this function derives is the same
+// geometry it always derived. What consumes it changed — see place_root and
+// flip_joints. This function stayed pure kinematics through that change, which is
+// the point of having had it: the shape of the move and the way a body is made to
+// take that shape are separate questions, and only the second one moved.
 #define HS_ARC   12.0f    // authored px the hips rise at mid-turnover
 // A sub-phase: 0 before it starts, 1 after it ends, eased in between. Overlapping
 // ranges are what stop this reading as four separate mechanical moves.
@@ -1129,8 +1153,20 @@ static void derive_flip(Fig *F, float u, bool solve) {
     if (solve) {
         float lowRef = -1e9f, lowThis = -1e9f;           // 5. palms onto the sole line,
         for (int i = 0; i < NBONE; i++) {                //    where the feet used to be
-            if (BONES[i].ay > lowRef)  lowRef  = BONES[i].ay;
-            if (BONES[i].by > lowRef)  lowRef  = BONES[i].by;
+            // THIS BUILD's sole line, from its own derived standing rig — NOT BONES[],
+            // which is the reference pose and nobody's actual feet. That was the bug
+            // that made the crowd hang in the air: proportion() gives every build its
+            // own leg lengths, so its soles are not where the table's are, and any
+            // build whose derivation moved them got its palms re-anchored onto a line
+            // that does not exist for it. Bruiser was left 47 px off the floor.
+            //
+            // It was invisible before this rung, which is why it survived: nothing
+            // used to HOLD the figure at the derived height. Placement stopped at
+            // fu = 1 and gravity quietly dropped everyone the last few pixels onto
+            // their hands, so a wrong re-anchor cost one frame nobody could see. A
+            // hand that stays under the hips holds the error up where you can read it.
+            if (F->pay[i] > lowRef)  lowRef  = F->pay[i];
+            if (F->pby[i] > lowRef)  lowRef  = F->pby[i];
             if (F->hay[i]   > lowThis) lowThis = F->hay[i];
             if (F->hby[i]   > lowThis) lowThis = F->hby[i];
         }
@@ -1155,36 +1191,207 @@ static inline bool flipping(const Fig *F) { return F->fu > 0.0f && F->fu < 1.0f;
 // place both the body transform and the controller target come from is here. hang
 // is zero at fu = 0, so this needs no "am I inverted" question asked of it.
 static inline float hs_rot(const Fig *F, int b) { return -F->hang[b]; }
-// A planted palm is a quarter turn at the wrist, and the authored wrist only travels
-// 60 degrees, so the limit has to let go of it while inverted. This is ALL that had
-// to change at the joints — see the table above keep_role for the three firmer-arm
-// ideas that measured worse.
-static void apply_role_joints(Fig *F) {
-    for (int h = 0; h < 2; h++) {
-        int i = h ? B_HAND_L : B_HAND_R;
-        float ex = (F->fu > 0.0f) ? 100.0f*DEG : 0.0f;   // let go of it the moment he
-        b2RevoluteJoint_SetLimits(F->hinge[i], BONES[i].lo*DEG - ex, BONES[i].hi*DEG + ex);
-    }                                                    // leaves the floor, take it back
-}                                                        // the moment he lands on it
 
-// Put the bodies into the rest pose the flip parameter currently describes — which
-// at fu = 0 is this build's standing rig, so ONE path covers standing, holding a
-// handstand, and every frame in between. The bind data is all body-LOCAL (offsets,
-// and the spine's chain fractions), so every skin follows for free — no rebind,
-// which is the whole reason a keypress could afford to do this once and a turnover
-// can afford to do it sixty times.
-static void place_pose(Fig *F) {
+// ── PELVIS ON RAILS, everything else hanging off it ─────────────────────
+// The first working turnover PLACED all fifteen bones every frame, zeroing each
+// one's velocity, and it read exactly the way that describes: not a body going
+// over but a shape lifted out, turned upside down and put back. Three things were
+// missing and all three are the same missing thing. A body with no velocity cannot
+// push the floor it is leaving or shove the neighbour it sweeps past, so nothing
+// CONTACTED. It hands nothing to its children, so the figure reached the handstand
+// dead stopped instead of settling into it. And a bone written to the derivation's
+// answer every frame cannot lag behind it, so no arm trailed, no head was late,
+// nothing overshot — the crowd turned over like five pieces of card.
+//
+// So the placement kept the one job only placement can do and gave up the rest.
+// ONE body, the pelvis, rides the derived trajectory: that is what guarantees the
+// figure actually gets over, and it is the job an orientation controller provably
+// cannot do (it owns every bone's angle and not one bone's HEIGHT, which is why
+// the very first handstand attempt was satisfied just as well by lying down).
+// Every other bone is left dynamic and asked through its own hinge spring, so the
+// turnover arrives at the limbs the way it arrives at a real one — through the
+// skeleton, late and imperfectly.
+//
+// The decomposition that makes one body enough is already in derive_flip, which is
+// why this cost no new geometry. Of its four sub-phases only step 2 turns the
+// figure OVER, and step 2 rotates every bone by the same angle about the same
+// point: a rigid rotation of a chain changes no relative joint angle at all, so it
+// CANCELS out of every joint difference below and survives only as the root's world
+// transform. What is left in joint space is exactly the three asks a body makes
+// with its muscles — raise the arms, open the legs, turn the palms down — and
+// nothing that has to be true of the figure as a whole.
+#define FLIP_JMAX (170.0f*DEG)   // keep the shoulder OFF the branch cut, see below
+static void flip_joints(Fig *F) {
     for (int i = 0; i < NBONE; i++) {
-        float ax = figx(F,F->hax[i]), ay = figy(F,F->hay[i]);
-        float bx = figx(F,F->hbx[i]), by = figy(F,F->hby[i]);
-        b2Vec2 mid = { WX((ax+bx)*0.5f), WY((ay+by)*0.5f) };
-        // The authored direction is baked in the SHAPE, so a body only ever needs
-        // the DELTA from its standing rest.
-        b2Body_SetTransform(F->bone[i], mid, b2MakeRot(hs_rot(F, i)));
-        b2Body_SetLinearVelocity(F->bone[i], (b2Vec2){0,0});
-        b2Body_SetAngularVelocity(F->bone[i], 0.0f);
+        int p = BONES[i].parent;
+        if (p < 0) { F->flipJ[i] = 0.0f; continue; }     // the root has no hinge to ask
+        float t = hs_rot(F, i) - hs_rot(F, p);
+        // A revolute measures its angle with atan2, into (-pi, pi], so an ask of
+        // exactly +/-180 parks the joint ON that branch cut — where a hair of
+        // numerical noise flips the reading by a full turn and the solver reads a
+        // colossal limit violation. That is the precise trap make_bones exists to
+        // keep every joint away from, and the arm raise walks straight into it: a
+        // shoulder that ends 180 degrees from where it started is what "arms
+        // overhead" MEANS in this plane. Clamping ten degrees short costs reach
+        // nobody can see and buys a joint that can be driven at all.
+        //
+        // It is also the diagnosis of a bug the placed version had and nobody
+        // caught: placement does not care about limits, so the held handstand sat
+        // its shoulders at a relative 180 against an authored 150 and the solver
+        // shoved back at both of them all the way. That is the "upper arm sat 90
+        // degrees off target" the arm-stiffness table below was chasing.
+        if (t >  FLIP_JMAX) t =  FLIP_JMAX;
+        if (t < -FLIP_JMAX) t = -FLIP_JMAX;
+        F->flipJ[i] = t;
+    }
+}
+// GOING OVER, A BODY IS TENSE. This is the only place the flip touches a joint's
+// parameters, and everything it does follows from the division of labour above: the
+// motor supplies the root's world rotation, and every hinge holds its RELATIVE
+// angle, so the chain comes round with the pelvis the way a skeleton does. That
+// only works if the hinge can actually hold its angle through a 180-degree turn in
+// 46 frames, and the authored springs cannot — they were tuned for a figure
+// standing about, where a 1.2 Hz arm is a nice floppy hanging arm. At turnover
+// rates a 1.2 Hz arm is a rope. Measured, with only the shoulders and wrists
+// firmed: the crowd came back down with shoulders 100 degrees and hips 60 degrees
+// out of place, stood on that for twenty frames and then toppled.
+//
+// So the tone comes up on EVERY joint for the duration and drops the moment he
+// lands. It multiplies the authored value rather than replacing it, so a build's
+// temperament and the rig's soft/stiff character both survive being tense — an arm
+// is still the floppiest thing on the figure, it is just no longer a rope.
+#define FLIP_TONE 3.0f           // multiplier on every authored spring, while over
+#define FLIP_HZMIN 8.0f          // ...and a floor, for the 1.2 Hz arm joints
+// The SHOULDER gets its own, far higher, and it earns it: of the four sub-phases it
+// is the one with a real journey to make (170 degrees, inside the first 45% of the
+// turnover — about twenty frames) and it is the beat that makes the move legible as
+// a cartwheel rather than a fall. At tone alone the arms simply trailed and the
+// first beat of the choreography was invisible. Raising your arms is the most
+// active thing in this move; the rest of the body can stay compliant.
+#define FLIP_SHZ  22.0f
+#define FLIP_SEX (25.0f*DEG)     // shoulder limit room: authored 150 < the 170 ask
+#define FLIP_HEX (100.0f*DEG)    // wrist room: authored 60 < the 90-degree palm plant
+static void apply_role_joints(Fig *F) {
+    // TWO different spans, and conflating them cost a measurement. TONE belongs to
+    // the MOVEMENT — it is on only while the hand is under the hips. Leaving it on
+    // for the held handstand puts a stiff spring and the keep-angle controller on the
+    // same bone at the same time, and mode 1 writes angular velocity: the spring
+    // stores energy, the write discards whatever the solver did with it, and the pair
+    // pumps (barrel left the screen again, six times its own height). ROOM belongs to
+    // being INVERTED — a shoulder holding a handstand needs its 170 degrees for as
+    // long as he is up there, whether or not anything is still moving him.
+    bool tense = F->rootOn;               // going over
+    bool up    = F->fu > 0.0f;            // upside down, moving or not
+    for (int i = 0; i < NBONE; i++) {
+        if (BONES[i].parent < 0) continue;                 // the root has no hinge
+        float hz = BONES[i].hz;
+        if (tense && hz > 0.0f) {
+            hz *= FLIP_TONE;
+            if (hz < FLIP_HZMIN) hz = FLIP_HZMIN;
+            if (i == B_UARM_R || i == B_UARM_L) hz = FLIP_SHZ;
+        }
+        b2RevoluteJoint_SetSpringHertz(F->hinge[i], hz * size_hz(F));
+        // Only two joints are asked for more than their authored limit allows: a
+        // shoulder that ends 170 degrees from where it started, and a wrist asked
+        // for a quarter turn when it is authored to travel 60 degrees.
+        float ex = 0.0f;
+        if (up && (i == B_UARM_R || i == B_UARM_L)) ex = FLIP_SEX;
+        if (up && (i == B_HAND_R || i == B_HAND_L)) ex = FLIP_HEX;
+        b2RevoluteJoint_SetLimits(F->hinge[i], BONES[i].lo*DEG - ex, BONES[i].hi*DEG + ex);
         b2Body_SetAwake(F->bone[i], true);
     }
+}
+
+// ── the hand under the hips ─────────────────────────────────────────────
+// Drive the PELVIS toward where the flip parameter says it should be, and nothing
+// else. The bind data is all body-LOCAL (offsets, and the spine's chain fractions)
+// so every skin follows whatever the bodies actually did, with no rebind — which
+// is what lets this be approximate sixty times a second and still draw correctly.
+//
+// It took three wrong versions to arrive at a MOTOR, and the wrong ones are worth
+// keeping because they say what the constraint really is. Writing the pelvis's
+// transform each frame does not work: a dynamic body has finite mass, so every
+// joint correction is split with its children, and a small pelvis carrying a chest,
+// a head and two arms gets dragged off the trajectory by them (at 87% of the way
+// over it wanted -157 degrees and sat at -107). Making it KINEMATIC fixes that
+// exactly — infinite mass, the joints can only pull the children — and breaks
+// something worse: an infinite anchor absorbs every reaction, so a controller
+// writing a child's angular velocity has nothing pushing back and the chain gains
+// linear momentum every frame. Measured, that fired the crowd 300 px into the air
+// while holding a textbook handstand. Switching those children to torque instead
+// leaves them too weak to be carried round a 180-degree turn, so the hips jam at
+// their limit and fire the figure off when the root is released. Infinite mass is
+// the common cause of the last two, and a motor is how you get authority without it.
+//
+// A b2MotorJoint against the static ground IS an invisible hand under the hips: it
+// pushes toward a target transform with a FINITE force and torque, so the pelvis
+// has real mass the whole way over, shares its joint corrections like any other
+// body, can be shoved off course by its own children, and lags when it is heavy.
+// Nothing is ever teleported and no velocity is ever fabricated, so momentum and
+// contact are real for all fifteen bones, which is the whole point of the exercise.
+// The strength is stated per BODY WEIGHT so a bruiser is not a weak build.
+#define ROOT_FG   45.0f     // available force, in multiples of the figure's own weight
+#define ROOT_TQ  700.0f     // available torque, N·m per kg of figure
+#define ROOT_CF    0.55f    // how hard it chases position error, [0,1]
+static void drive_root(Fig *F) {
+    int r = B_PELVIS;
+    float ax = figx(F,F->hax[r]), ay = figy(F,F->hay[r]);
+    float bx = figx(F,F->hbx[r]), by = figy(F,F->hby[r]);
+    b2Vec2 mid = { WX((ax+bx)*0.5f), WY((ay+by)*0.5f) };
+    float ang = hs_rot(F, r);       // the authored direction is baked in the SHAPE, so
+                                    // a body only ever needs the DELTA from its rest
+    if (!F->rootOn) {
+        // ground sits at the origin at angle 0, so the offsets ARE world values.
+        b2MotorJointDef d = b2DefaultMotorJointDef();
+        d.bodyIdA = ground; d.bodyIdB = F->bone[r];
+        d.linearOffset = mid; d.angularOffset = ang;
+        d.maxForce  = ROOT_FG * F->mass * 10.0f;   // 10 = |gravity|, so this reads in g
+        d.maxTorque = ROOT_TQ * F->mass;
+        d.correctionFactor = ROOT_CF;
+        F->rootMotor = b2CreateMotorJoint(world, &d);
+        F->rootOn = true;
+    } else {
+        b2MotorJoint_SetLinearOffset(F->rootMotor, mid);
+        b2MotorJoint_SetAngularOffset(F->rootMotor, ang);
+    }
+    b2Body_SetAwake(F->bone[r], true);
+}
+// ...but not the instant he arrives. A SPOTTER stays a moment longer, and this one
+// has to, for a reason that is really a fact about the handstand rather than about
+// the turnover: the held pose is only MARGINALLY stable, and every number in it was
+// tuned against an arrival that was exact to the bit. Hand a marginally stable
+// controller a pose that is merely close, moving, and it tips — and mode 1's
+// omega-write turns that error into fabricated spin, so a bad arrival does not just
+// wobble, it launches (barrel went five times its own height). Keeping the motor on
+// for a beat after he lands costs nothing, converges the pose the honest way, and
+// hands the controller something it can hold. It is also what a spotter is for.
+#define FLIP_SETTLE 60.0f       // frames the hand stays on after he arrives, either end.
+// A second, and it is not a round number chosen for tidiness: the ramp has to be long
+// enough to bleed the turnover's momentum out through the motor instead of handing it
+// back. Swept, judged on where the crowd ends up 250 frames after landing — at 20 the
+// residual skid is 44 px, at 30 it is 159 and the kid falls over (the short ramps are
+// chaotic, not merely weaker), at 45 it is 9, at 60 it is 3 and every build stands
+// exactly where it started.
+// How hard the hand is currently pushing, as a fraction of full strength. Easing it
+// off over the settle rather than destroying the joint outright is the difference
+// between a spotter letting go and a spotter VANISHING. A turnover leaves real
+// momentum in the limbs and the motor is quietly absorbing it; delete the joint in one
+// frame and all of it is handed back at once, which the figure spends as a skid. This
+// was measured to the frame: the crowd stood dead still through the whole return and
+// then began sliding on exactly the frame the joint was destroyed, bruiser travelling
+// 96 px in the next sixty frames and taking the others with it when it arrived.
+static void root_strength(Fig *F, float k) {
+    if (!F->rootOn) return;
+    if (k < 0.0f) k = 0.0f;
+    b2MotorJoint_SetMaxForce (F->rootMotor, k * ROOT_FG * F->mass * 10.0f);
+    b2MotorJoint_SetMaxTorque(F->rootMotor, k * ROOT_TQ * F->mass);
+}
+// Let go once that beat is up. A figure holding a handstand has to be able to fall
+// out of it, which is the whole reason the held pose is worth measuring at all.
+static void release_root(Fig *F) {
+    if (!F->rootOn) return;
+    b2DestroyJoint(F->rootMotor);
+    F->rootOn = false;
 }
 
 static void build(void) {
@@ -1212,6 +1419,13 @@ static void build(void) {
         proportion(&fig[f], &BUILDS[f]);   // derive the rig BEFORE any body exists
         make_bones(&fig[f], f);
         flip_solve(&fig[f]);               // the same pose, upside down, and the way there (H)
+        // fig[] is static and survives a reset, so both of the flip's live pieces
+        // have to be cleared here or R in the middle of a turnover leaves a stale
+        // joint ask on every hinge and a stale motor id that drive_root will think
+        // it already owns.
+        flip_joints(&fig[f]);
+        fig[f].rootOn = false;              // the world just went, so the id is stale
+        fig[f].settle = 0.0f;
         for (int i = 0; i < NSKIN; i++) build_mesh(&fig[f], i);
         fig[f].restUp = (float)FLOOR_PY - (SCREEN_H - b2Body_GetPosition(fig[f].bone[B_HEAD]).y*PPM);
     }
@@ -1267,8 +1481,16 @@ static void idle_pose(void) {
             if (p < 0) continue;                                   // the root has no hinge
             if (folding && (i == B_LARM_R || i == B_SHIN_R)) continue;   // the fold owns those
             if (dragging && dragFig == f && dragBone == i) continue;     // the hand owns this
-            b2RevoluteJoint_SetTargetAngle(F->hinge[i], ask[i]);
-            if (ask[i] != 0.0f) b2Body_SetAwake(F->bone[i], true);
+            // The flip's ask goes out through this same one line, because a joint
+            // with two writers is a joint with none: the fidget used to be the only
+            // thing setting a target, so once the turnover started asking for one
+            // too, whichever ran second won. They ADD instead. flipJ is zero at
+            // fu = 0 and ask is zero mid-flip, so neither ever dilutes the other —
+            // but the addition is what makes the fidget's return after landing a
+            // fade rather than a handover.
+            float want = ask[i] + F->flipJ[i];
+            b2RevoluteJoint_SetTargetAngle(F->hinge[i], want);
+            if (want != 0.0f) b2Body_SetAwake(F->bone[i], true);
         }
     }
 }
@@ -1352,10 +1574,27 @@ static void keep_angle(void) {
     if (keepMode == 0) return;
     for (int f = 0; f < NFIG; f++) {
       Fig *F = &fig[f];
-      // Mid-turnover this figure is PLACED, and an orientation controller writing
-      // angular velocity into a body whose transform is overwritten before the next
-      // step is not steering anything — it is just seeding the contact solve with
-      // spin. It gets its job back when he lands.
+      // OFF WHILE SOMETHING ELSE IS MOVING HIM, and that is the whole rule. Four wrong
+      // answers preceded it, each a different misreading of what holds a figure here.
+      //
+      // Leaving it on to "carry the limbs around" is the tempting one: a turnover is a
+      // WORLD-angle fact about all fifteen bones and joint differences cancel it out on
+      // purpose (see flip_joints), so a world-angle controller looks like the only
+      // thing that can say "come round with me". It cannot do that job safely. Mode 1
+      // writes angular velocity, which is an energy injection by construction —
+      // harmless standing, where a bone is already at its target and the command is
+      // nearly zero, and violent through a 180-degree turn, where the error is large
+      // and the command saturates on most bones for most frames. It launched barrel
+      // five times its own height. Mode 2 asks for torque instead and is simply too
+      // weak on bones this thin: the legs lagged the rotating pelvis until the hips
+      // jammed at their 95-degree limit, then fired the figure 300 px up on release.
+      //
+      // Carrying the limbs was never this controller's job. The MOTOR turns the root
+      // and a hinge holding its relative angle brings the rest round — that is what a
+      // skeleton is. The limbs only needed tone (apply_role_joints). What this
+      // controller owns is the body's LINE, which is why it has to be back on the
+      // moment he stops moving, held or standing: switching it off for the whole time
+      // the hand is on cost two builds their pose (lanky jackknifed, hip over head).
       if (flipping(F)) continue;
       for (int i = 0; i < NBONE; i++) {
         // Which job is this bone doing? Standing, its own. Upside down, the FIRMER
@@ -1407,6 +1646,29 @@ void update(void) {
     if (keyp('C')) curveClamp = !curveClamp;   // SPINE mode: the concave-side clamp
     if (keyp('I')) idle = !idle;               // the fidget — off to measure a still pose
     if (keyp('H')) { handstand = !handstand; flipClock = 0.0f; }   // ...and over they go
+    // J = THE PUPPETMAKER2 EXPERIMENT, kept as a key because it is the honest control
+    // for this whole rung and because the received verdict on it was out of date.
+    // Flip every target at once — the world angle each keep-angle controller defends,
+    // the swapped arm/leg gains, the joint asks, the opened shoulder limits — then
+    // place nothing, drive nothing, and let physics work out how. This is exactly how
+    // puppet-maker2 does "upside down" (one bool; the torso's target becomes -pi, the
+    // leg controllers mute, the arm controllers wake) and it is what this cart tried
+    // first. It failed then, and the note above says why: an orientation controller
+    // owns every bone's ANGLE and not one bone's HEIGHT, so "be upside down" is
+    // satisfied just as well by lying down upside down. That verdict was recorded
+    // before keep_role, the straddle, the palm plant and the chest taking the base's
+    // job existed, so it is worth being able to re-run rather than quote.
+    if (keyp('J')) {
+        handstand = !handstand;              // so the trajectory loop sees fu == tgt
+        for (int f = 0; f < NFIG; f++) {     // and leaves everyone alone
+            Fig *F = &fig[f];
+            release_root(F); F->settle = 0.0f;          // no hand under the hips
+            F->fu = handstand ? 1.0f : 0.0f;            // ...and no frames in between
+            derive_flip(F, F->fu, false);
+            flip_joints(F);
+            apply_role_joints(F);
+        }
+    }
     if (keyp('G')) keepMode = (keepMode + 1) % 3;   // off / omega / torque
     // F = the EXTREME-POSE test. Dragging with the mouse can't reliably reach a
     // full fold (the mouse joint is force-capped, and the chain would rather
@@ -1465,15 +1727,47 @@ void update(void) {
     for (int f = 0; f < NFIG; f++) {
         Fig *F = &fig[f];
         float tgt = handstand ? 1.0f : 0.0f;
-        if (F->fu == tgt) continue;                       // held at one end: physics has him
+        if (F->fu == tgt) {                               // arrived — but the hand stays
+            if (F->rootOn) {                              // under him for a beat, then
+                if (F->settle > 0.0f) {
+                    F->settle -= 1.0f;
+                    drive_root(F);
+                    root_strength(F, F->settle / FLIP_SETTLE);    // ease off, don't vanish
+                }
+                else { release_root(F); apply_role_joints(F); }   // physics has him, and
+            }                                             // the tone comes off WITH the
+            continue;                                     // hand (see apply_role_joints)
+        }
         if (flipClock < f * FLIP_STAGGER) continue;       // the wave has not reached him
         float step = sqrtf(F->stiff) / FLIP_FRAMES;
         F->fu += (tgt > F->fu) ? step : -step;
         if (F->fu > 1.0f) F->fu = 1.0f;
         if (F->fu < 0.0f) F->fu = 0.0f;                   // lands EXACTLY on the endpoint,
-        derive_flip(F, F->fu, false);                     // which is what keeps the held
-        place_pose(F);                                    // pose bit-identical to the
-        apply_role_joints(F);                             // instant flip's
+        // A SPOTTER: the hand stays under the hips a beat after he arrives, at either
+        // end, and then lets go. The beat is what converges the pose, since the held
+        // handstand is only marginally stable and every number in it was tuned against
+        // an arrival that was exact to the bit.
+        //
+        // It used to NEVER let go at the top, because releasing there launched two
+        // builds clean off the screen. That was wrong, and wrong in a way worth
+        // recording: the launch was a CROWD artifact, not a handstand one. Five
+        // figures 57 px apart spend the middle of a turnover lying horizontal, which
+        // is wider than the gap, so they shove each other and every arrival is
+        // corrupted — and mode 1's omega-write turns a corrupted arrival into
+        // fabricated spin. Give them room (NFIG 3, 84 px) and the arrival is clean
+        // enough to let go of: the crowd holds the same handstand with its palms
+        // actually ON the floor (lowest bone 131 px against 128 standing) instead of
+        // hovering 4 px above it in the motor's grip. Gravity does that last little
+        // drop, exactly as it always did before this rung existed.
+        //
+        // The lesson is the one the whole rung keeps teaching: reach for a stronger
+        // authority and you hide the bug that made you want one.
+        F->settle = FLIP_SETTLE;
+        derive_flip(F, F->fu, false);                     // the GEOMETRY of this instant...
+        flip_joints(F);                                   // ...as an ask at each hinge...
+        drive_root(F);                                    // ...and a hand under the hips
+        root_strength(F, 1.0f);                           // at full strength while moving
+        apply_role_joints(F);
     }
 
     idleClock += 1.0f/60.0f;
@@ -1564,6 +1858,38 @@ void update(void) {
     watch("chestAbs",   "%.1f", bone_angle(&fig[2], B_CHEST) / DEG);   // ~180 when inverted
     watch("uArmAbs",    "%.1f", bone_angle(&fig[2], B_UARM_R) / DEG);  // ~0 when holding
     watch("hipRel",     "%.1f", (bone_angle(&fig[2], B_THIGH_R)- bone_angle(&fig[2], B_PELVIS)) / DEG);
+    // How far the HAND is behind the derivation, screen px, per build. This is the
+    // number that says whether the motor is strong enough, and it is the honest
+    // reading of the whole mechanism: zero would mean it is placement again, and
+    // large means the turnover never completes. A few px is a hand with real mass on
+    // the end of it. (Only meaningful while a figure is actually being driven.)
+    { char b[64]; int n = 0;
+      for (int f = 0; f < NFIG; f++) {
+        const Fig *F = &fig[f];
+        float wx = figx(F, (F->hax[B_PELVIS]+F->hbx[B_PELVIS])*0.5f);
+        float wy = figy(F, (F->hay[B_PELVIS]+F->hby[B_PELVIS])*0.5f);
+        b2Vec2 p = b2Body_GetPosition(F->bone[B_PELVIS]);
+        float dx = wx - p.x*PPM, dy = wy - (SCREEN_H - p.y*PPM);
+        n += snprintf(b+n, sizeof(b)-n, "%s%.0f", f?" ":"", sqrtf(dx*dx+dy*dy));
+      }
+      watch("rootLag", "%s", b); }
+    // Lowest bone centre per build, screen px, against FLOOR_PY = 132. THE oracle for
+    // this rung: standing it reads 128-129 (a foot box centre sits just off the floor),
+    // so a handstand that reads the same is a figure resting on its palms and one that
+    // reads 30-47 less is a figure hanging in the air. That is precisely the difference
+    // between a spotter who lets go and one who does not, and it is invisible in every
+    // other number here — headOverHip says "inverted" just as happily 47 px up.
+    { char b[64]; int n = 0;
+      for (int f = 0; f < NFIG; f++) {
+        float lo = -1e9f;
+        for (int i = 0; i < NBONE; i++) {
+          float y = SCREEN_H - b2Body_GetPosition(fig[f].bone[i]).y*PPM;
+          if (y > lo) lo = y;
+        }
+        n += snprintf(b+n, sizeof(b)-n, "%s%.0f", f?" ":"", lo);
+      }
+      watch("lowY", "%s", b); }
+
 #endif
 }
 
@@ -1645,5 +1971,5 @@ void draw(void) {
     snprintf(hud, sizeof hud, "keep:%s%s", KEEP_NAME[keepMode], idle ? "  idle" : "");
     print(hud, SCREEN_W - 4 - (int)strlen(hud)*5, 4, CLR_LIGHT_GREY);
     print("C clamp  G keep  M mesh  B bones",      4, SCREEN_H-18, CLR_MEDIUM_GREY);
-    print("drag  SPACE mode  I idle  F fold  H handstand  R reset", 4, SCREEN_H-10, CLR_LIGHT_GREY);
+    print("drag  SPACE mode  I idle  F fold  H flip  J snap  R reset", 4, SCREEN_H-10, CLR_LIGHT_GREY);
 }

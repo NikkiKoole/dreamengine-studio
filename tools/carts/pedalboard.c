@@ -302,6 +302,12 @@ static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor
 #define PED_H 70                     // a touch shorter (was 72) — trimmed padding feeds the neck
 #define PED_W 54                     // a touch wider — room for the staggered knobs + side labels
 #define PITCH 58                     // pedal size is FIXED → a wider canvas simply shows MORE of the chain
+// Reorder GRAB HANDLE height. 12px was a comfortable mouse target and about a third of a fingertip;
+// this runs it down to where the first knob row's hit box begins (knob_cy(0,·) - 7 = PED_Y + 17), so
+// it is as tall as it can be without stealing a knob. Knobs are hit-tested BEFORE this anyway, so
+// the overlap at the boundary resolves in the knob's favour, and the body below only pans — costing
+// nothing if a press lands one pixel either side.
+#define GRAB_H 17
 #define CHAIN_X0 (saX + 4)
 #define CAB_W   54                   // the pinned output-cabinet box (never scrolls) — "the chain plugs into it"
 #define CAB_X   (saX + saW - CAB_W - 2)    // right-pinned to the safe-area edge (clears the notch)
@@ -791,8 +797,8 @@ void update(void) {
                     // pedal. Splitting them fixes both: a vertical swipe on a body is a pan with
                     // ~zero horizontal delta, i.e. harmless, and the strum band is no longer stolen.
                     // It also makes the cart's own description true ("drag a pedal by its LABEL").
-                    else if (ty < PED_Y + 12) { p->mode = PTR_DRAGSLOT; p->slot = s; p->cat = chain[s].cat; }
-                    else                      { p->mode = PTR_PAN; }
+                    else if (ty < PED_Y + GRAB_H) { p->mode = PTR_DRAGSLOT; p->slot = s; p->cat = chain[s].cat; }
+                    else                          { p->mode = PTR_PAN; }
                 }
             }
             // 1b. the pinned CABINET box (right of the chain): header taps cycle the tenant, the
@@ -948,8 +954,10 @@ static void draw_chain_pedal(int i, int x) {
     rrect(x, PED_Y, PED_W, PED_H, 4, sl->on ? d->accent : CLR_DARKER_GREY);
     font(FONT_SMALL);
     print_centered(d->name, cx, PED_Y + 3, sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
-    for (int g = 0; g < 3; g++)                                  // grip dots: this strip is the
-        pset(x + 3, PED_Y + 3 + g * 2, CLR_DARK_GREY);           // reorder handle (drag it sideways)
+    for (int g = 0; g < 5; g++) {                                // grip dots down BOTH edges: the
+        pset(x + 3,          PED_Y + 4 + g * 3, CLR_DARK_GREY);  // strip they bracket is the reorder
+        pset(x + PED_W - 4,  PED_Y + 4 + g * 3, CLR_DARK_GREY);  // handle (drag it sideways)
+    }
     if (d->kind == -1)      lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -2) fuzz_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -3) shimmer_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);

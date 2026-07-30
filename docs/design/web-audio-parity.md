@@ -1,6 +1,15 @@
 # Web/wasm audio parity — scoping (2026-06-17)
 
-**Status: SCOPING + a CONFIRMED-on-paper bug (no fix applied yet).** This is the one remaining audio
+> **UPDATE 2026-07-30 — Axis 1 is SHIPPED and now BIT-exact.** Axis 1 below correctly predicted both
+> causes ("different FP contraction (FMA) … libm differences"). Both are now fixed:
+> [`runtime/demath.h`](../../runtime/demath.h) (deterministic transcendentals) plus a file-scope
+> `#pragma STDC FP_CONTRACT OFF` in `runtime/studio.h`. **All 16 engines are bit-identical
+> native-vs-wasm, BOWED included** — the chaotic-engine exception described under Phase 1 no longer
+> exists, and `web-audio-check.js` now demands 0 LSB. The A/B showed neither fix alone is enough.
+> Full story: [`determinism.md`](determinism.md). The Phase 1 section below is kept as the record of
+> what was measured in June, not as current behaviour.
+
+**Status: SHIPPED (Axis 1, 2026-07-30) — was SCOPING + a CONFIRMED-on-paper bug.** This is the one remaining audio
 blind spot from the 2026-06-16/17 audit ([STATUS](../STATUS.md) #42, [audio-notes §20](audio-notes.md)).
 Every audio gate we have — `tune-check`, `dc-check`, `level-check`, `fx-check`, `soak-check` — renders the
 **native** build. The emscripten/wasm build players actually hear is verified by **ear only**. This doc
@@ -49,6 +58,12 @@ fix only reaches shipped carts after a web rebuild (`tools/publish-cart.sh` / bu
 `site/` carts still have the old `(0)` worklet until then.
 
 ## ✅ Phase 1 DONE — codegen parity measured + gated (2026-06-17, `tools/web-audio-check.js`)
+
+> ⚠ **Superseded 2026-07-30 (see the update at the top).** Everything below was true of the June
+> build and is kept as the record of how the problem was found. It is no longer a description of
+> current behaviour: the residual 1-LSB noise and the BOWED chaos exception are both gone, and the
+> two-tier verdict is now slack rather than necessary. Do not read "BOWED is expected to diverge"
+> as current truth — today that would mean a determinism regression.
 
 The Axis-1 offline gate is built (`web-audio-host.c` + a raylib shim + `web-audio-check.js`): it compiles
 the engine BOTH ways (clang `-O2` native / emcc `-O2` → Node) and renders each engine solo with identical

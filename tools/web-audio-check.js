@@ -19,14 +19,13 @@
 //      the bit and Apple's / emscripten's disagree by ~1 ULP.
 //   2. the file-scope `#pragma STDC FP_CONTRACT OFF` in runtime/studio.h — native fuses a*b+c
 //      into an FMA, wasm has no scalar FMA instruction, so they drifted apart everywhere.
-// So the two-tier verdict below is now SLACK, not a description of reality. Do NOT read a
-// BOWED divergence as "expected chaos" any more: it would mean one of those two regressed.
-// Tightening this to demand 0 LSB is a live option — see the note at the bottom of this header.
+// THE BAR IS NOW 0 LSB. Do NOT read a BOWED divergence as "expected chaos" any more: it would
+// mean one of those two regressed. The gate fails on anything less than bit-identical, and
+// prints a checklist of what to look at first.
 //
-// TWO-TIER verdict (the 2026-06-17 finding, kept as the failure structure): the tiers exist
-// because a chaotic engine CAN diverge from a 1-ULP difference while remaining the same note.
-// That is no longer the case for any engine, but the structure still describes how it would
-// fail if determinism regressed. So:
+// The older, looser tiers are KEPT — not as the pass condition, but because when this does fail
+// they say HOW BADLY. "1 LSB on one engine" is a different bug from "BOWED went chaotic", and
+// that distinction is the fastest way to the cause. The tiers, worst last:
 //   • Tier 1 SAMPLE parity — diff must sit >= PARITY_FLOOR dB below the signal. Catches a real
 //     codegen regression (a non-chaotic engine would jump from -95 dB to audible).
 //   • Tier 2 PERCEPTUAL parity — for an engine that fails Tier 1 (chaotic), the two renders' RMS
@@ -107,10 +106,13 @@ function run(opts) {
     sh(nativeBin, [nWav, String(FRAMES), String(id)])
     sh('node', [wasmJs, wWav, String(FRAMES), String(id)])
     const c = compare(readWavI16(nWav), readWavI16(wWav))
+    // Tier 0 is the bar now: identical BITS. The looser tiers below it are kept because they say
+    // HOW BADLY determinism broke, which is the first thing you want to know when it does.
     let verdict, sev
-    if (c.belowSignal <= -PARITY_FLOOR) { verdict = 'sample-parity'; sev = 'ok' }
-    else if (c.levelGap <= LEVEL_TOL)   { verdict = 'perceptual (chaotic)'; sev = 'warn' }
-    else                                { verdict = 'DIVERGES'; sev = 'bad' }
+    if (c.maxLsb === 0)                 { verdict = 'BIT-IDENTICAL'; sev = 'ok' }
+    else if (c.belowSignal <= -PARITY_FLOOR) { verdict = 'near-parity, NOT bit-exact'; sev = 'warn' }
+    else if (c.levelGap <= LEVEL_TOL)   { verdict = 'chaotic divergence'; sev = 'bad' }
+    else                                { verdict = 'DIVERGES AUDIBLY'; sev = 'bad' }
     rows.push({ id, name, ...c, verdict, sev })
   }
   if (!opts.keep) fs.rmSync(DIR, { recursive: true, force: true })
@@ -119,18 +121,28 @@ function run(opts) {
 
 function report(rows) {
   console.log(`web audio parity — native (clang) vs wasm (emcc), ${ENGINES.length} engines @ ${FRAMES}f`)
-  console.log(`  (sample-parity = diff >${PARITY_FLOOR}dB below signal; else perceptual if RMS levels match <${LEVEL_TOL}dB)\n`)
+  console.log(`  (the bar is BIT-IDENTICAL: 0 LSB. Looser tiers are reported to say how badly it broke.)\n`)
   const mark = (s) => s === 'bad' ? '✗' : s === 'warn' ? '○' : '·'
   for (const r of rows) {
-    const lvl = r.verdict === 'perceptual (chaotic)' ? `  level gap ${r.levelGap.toFixed(2)}dB` : ''
+    const lvl = r.sev === 'bad' ? `  level gap ${r.levelGap.toFixed(2)}dB` : ''
     console.log(`  ${mark(r.sev)} ${r.name.padEnd(16)} diff ${r.belowSignal.toFixed(1).padStart(7)} dB below signal  (max ${String(r.maxLsb).padStart(5)} LSB, ${r.pctDiff.toFixed(1).padStart(5)}%)  ${r.verdict}${lvl}`)
   }
-  const bad = rows.filter(r => r.sev === 'bad'), chaotic = rows.filter(r => r.sev === 'warn')
+  const off = rows.filter(r => r.sev !== 'ok')
   console.log()
-  if (chaotic.length) console.log(`○ ${chaotic.length} engine(s) sample-diverge but match in level (chaotic — expected): ${chaotic.map(r => r.name).join(', ')}`)
-  if (!bad.length) console.log('✓ wasm matches native: every engine is sample-identical or perceptually equal')
-  else { console.log(`✗ ${bad.length} engine(s) DIVERGE audibly (sample AND level differ) — a real codegen/float bug:`); for (const r of bad) console.log(`    ${r.name}: diff ${r.belowSignal.toFixed(1)}dB below signal, level gap ${r.levelGap.toFixed(2)}dB`) }
-  return bad.length
+  if (!off.length) { console.log(`✓ all ${rows.length} engines BIT-IDENTICAL native-vs-wasm (0 LSB)`); return 0 }
+  console.log(`✗ ${off.length} of ${rows.length} engine(s) are NOT bit-identical — determinism regressed:`)
+  for (const r of off) console.log(`    ${r.name.padEnd(16)} max ${r.maxLsb} LSB, ${r.pctDiff.toFixed(1)}% of samples, ${r.belowSignal.toFixed(1)}dB below signal  (${r.verdict})`)
+  console.log(`
+  This gate demanded only "inaudible" until 2026-07-30, when demath.h + the FP_CONTRACT pragma
+  made all 16 engines exact. If it fails now, check in this order:
+    1. runtime/studio.h still opens with  #pragma STDC FP_CONTRACT OFF
+       (grep -c FP_CONTRACT runtime/studio.h  → 1)
+    2. sound.h still calls de_* and not libm
+       (node -e '…' sweep, or just: grep -cE "(^|[^A-Za-z0-9_])(sinf|cosf|expf|powf|tanhf)\\(" runtime/sound.h → 0)
+    3. no -ffast-math / -ffp-contract=fast crept into a build (the pragma does NOT override it)
+    4. bash tools/det-probes/run.sh — if the demath probe also fails, it's the header, not the engine
+  Background: docs/design/determinism.md`)
+  return off.length
 }
 
 const argv = process.argv.slice(2)

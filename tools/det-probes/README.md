@@ -32,6 +32,7 @@ you convert with `sips -s format png x.ppm --out x.png`):
 | `rotline.c`   | crisp rotated 1px line via `sline` (rotated strokes) | **uniform-width (excess 0) + connected (1 comp) at all 360°**, device-stable; only residual is per-degree *shimmer* (churn up to ~line length), an aesthetic of crisp/no-AA rotation |
 | `rotspr.c`    | rotated *sprite*: nearest vs supersample vs **RotSprite** (EPX×3 upscale→rotate→mode-downscale) | footprint gap-free + device-stable. **RotSprite keeps thin LINES nearly intact** (frame ≤2 pieces vs nearest's 7; diagonal continuous) — the real win. A truly-lone 1px dot is a resolution-floor edge case (nearest 308 > super 252 > RotSprite 156 /360): point-sampling catches a speck best, vote-based methods drop it. |
 | `textrot.c`   | rotated *text* (1px-stroke "E") nearest vs supersample vs RotSprite | text = glyph blits, so it reduces to rotated-sprite algorithms. Surfaced the **trig-determinism caveat** (below); at 8px all methods are rough (RotSprite's edge needs ≥16px) — the practical fix is bigger text (`print_rot_scaled`) |
+| `demath.c`    | `runtime/demath.h` — the engine's own `sin`/`cos`/`tan`/`exp`/`log`/`pow`/`tanh`/`sinh`/`atan2` | the GENERAL fix for the trig caveat below: ~2M results hashed, bit-identical on all three targets **and** at `-ffp-contract=off/on` and every `-O` level. Carries its own **control**: the identical grid through libm prints **three different hashes** where this prints one, so the probe is provably sensitive rather than passing trivially. See [`docs/design/determinism.md`](../../docs/design/determinism.md) |
 
 ## Findings (2026-06-24, Apple M1 host)
 
@@ -48,6 +49,11 @@ on an 8px glyph. **Fix:** quantize the rotation matrix — `c = roundf(cosf(a)*4
 — so the sub-ULP disagreement rounds away. All three per-pixel rotation probes now do this and are
 device-stable. **Implication for goal B:** any software rotation path must derive `(c,s)` from a
 shared/quantized trig (not bare libm), or rotation won't be bit-identical across devices. The
+**general fix landed 2026-07-30**: [`runtime/demath.h`](../../runtime/demath.h) gives deterministic
+`sin`/`cos`/`exp`/`log`/`pow`/`tanh`/`atan2` for every caller, so the 1/4096 quantization is no
+longer the only answer (it stays here because these probes lift their rasterizers verbatim). Note
+the quantization trick does NOT generalise — you cannot quantize an integrator calling `expf` every
+step — which is why the header exists. See [`docs/design/determinism.md`](../../docs/design/determinism.md). The
 *non-rotated* path (Phase 0: `pset`/`rectfill`/fills/`sline`) uses no trig and is unaffected.
 
 `rotfill` also proves **Fork 2's inverse-mapping claim**: rotating a *filled* shape by visiting each

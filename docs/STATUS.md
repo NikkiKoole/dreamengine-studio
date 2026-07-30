@@ -15,6 +15,24 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
 
 ## Shipped ✓
 
+- **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**
+  (2026-07-30). IEEE 754 pins down `+ - * /` and `sqrt` but says nothing about `sin`/`exp`/`pow`/`tanh`,
+  so every libm rounds them differently; and native fuses `a*b+c` into an FMA where wasm, having no
+  scalar FMA instruction, cannot. **Two causes, and the A/B showed neither fix alone is sufficient** —
+  which is why the earlier partial fixes each looked like failures. Shipped: **`runtime/demath.h`**
+  (deterministic `sin`/`cos`/`tan`/`exp`/`log`/`pow`/`tanh`/`sinh`/`atan2`, built from only the
+  correctly-rounded ops; `de_sin_turns` takes TURNS, the form the engine already wanted, so reduction is
+  exact and it runs **45% faster than libm**) plus a file-scope **`#pragma STDC FP_CONTRACT OFF`** in
+  `studio.h` (a pragma not a build flag: 19 compiler invocation sites here, and a missed flag fails
+  *silently*; measured cost **+0.7%**). `sound.h` now has **zero** non-deterministic libm calls — the 8
+  remaining `sqrtf` are correctly left alone, since IEEE mandates `sqrt` correctly rounded. Result:
+  **all 16 audio engines bit-identical native-vs-wasm, BOWED included**, so `web-audio-check`'s two-tier
+  chaotic-engine exception is gone and it now demands 0 LSB. Gated by `det-probes/demath.c`, which
+  carries a libm **control** that prints three different hashes where demath prints one. This closes
+  [`web-audio-parity.md`](design/web-audio-parity.md) Axis 1 (which had predicted both causes) and the
+  `textrot` trig caveat. Carts are NOT yet covered (834 libm calls, mostly decorative) —
+  [`design/determinism.md`](design/determinism.md).
+
 - **SYNTH SECRETS PHASE 1 + PHASE 2 (2.1, 2.2, 2.3) — the engine gained keytracking, a monosynth key-assign
   header, and a piano that is finally a STIFF string** (2026-07-29 → 2026-07-30). The audit
   ([synth-secrets-audit.md](design/synth-secrets-audit.md), 98 findings) became an ordered plan

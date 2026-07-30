@@ -60,7 +60,45 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
-const DOCS = path.join(ROOT, "docs");
+
+// ── --selfcheck: assert the CHECKER against known answers ────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Both tiers here are JUDGEMENTS
+// ("is this prose mention worth linking?", "does B owe A a backlink?") resting on a pile of exempt
+// classes, so they can rot silently in either direction: a broken cue floods the report, and an
+// over-broad exemption makes it print a clean 0/0 while missing everything.
+if (process.argv.slice(2).includes("--selfcheck")) {
+  const cp = require("child_process");
+  const fx = path.join(__dirname, "fixtures", "lint-xrefs", "docs");
+  let raw;
+  try {
+    raw = cp.execFileSync(process.execPath, [__filename, "--json"],
+      { env: { ...process.env, DE_DOCS_DIR: fx }, encoding: "utf8", maxBuffer: 1 << 26 });
+  } catch (e) { raw = e.stdout; }
+  const g = JSON.parse(raw);
+  const base = (p) => p.split("/").pop();
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+
+  t("a prose mention with no link → unlinked mention",
+    g.unlinked.length === 1 && g.unlinked[0].base === "gamma-doc");
+  t("A links B, B doesn't link back → missing backlink",
+    g.missingBacklinks.length === 1 && base(g.missingBacklinks[0].to) === "beta-doc.md");
+  t("a HUB target owes no backlink  [exempt-class guard]",
+    !g.missingBacklinks.some(m => base(m.to) === "STATUS.md"));
+  t("a mention inside a ``` fence is ignored  [regression guard]",
+    !g.unlinked.some(u => u.base === "delta-doc"));
+  t("a properly linked doc is silent  [noise guard]",
+    !g.unlinked.some(u => u.base === "beta-doc"));
+
+  const bad = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m"} ${x.n}`);
+  console.log(bad.length
+    ? `\x1b[31mlint-xrefs --selfcheck FAILED\x1b[0m — ${bad.length} of ${T.length} expectations broken`
+    : `lint-xrefs --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(bad.length ? 1 : 0);
+}
+// DE_DOCS_DIR aims the scan at a fixture instead of docs/ — used by --selfcheck.
+const DOCS = process.env.DE_DOCS_DIR ? path.resolve(process.env.DE_DOCS_DIR) : path.join(ROOT, "docs");
 const scope = process.argv.slice(2).find(a => !a.startsWith("--")) || "";
 const touchesScope = (...rels) => !scope || rels.some(r => r.toLowerCase().includes(scope.toLowerCase()));
 
@@ -191,6 +229,12 @@ const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
 const unlinkedShown = unlinked.filter(u => touchesScope(u.rel, u.target));
 const backShown = missingBack.filter(m => touchesScope(m.to, m.from));
+
+if (process.argv.slice(2).includes("--json")) {
+  console.log(JSON.stringify({ unlinked: unlinkedShown, missingBacklinks: backShown }, null, 2));
+  process.exitCode = process.argv.includes("--strict") && (unlinkedShown.length || backShown.length) ? 1 : 0;
+  return;
+}
 
 if (scope) console.log(dim(`scoped to docs matching "${scope}"\n`));
 

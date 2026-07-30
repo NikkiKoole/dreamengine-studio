@@ -65,7 +65,45 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
-const DOCS = path.join(ROOT, "docs");
+
+// ── --selfcheck: assert the CHECKER against known answers ────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". This tier judged 47 references and
+// got all 47 wrong; the fixture pins the four verdicts that judgement rests on, so the next person to
+// tune a cue cannot silently reintroduce the noise.
+if (process.argv.slice(2).includes("--selfcheck")) {
+  const fx = path.join(__dirname, "fixtures", "stale-doc-check", "docs");
+  let raw;
+  try {
+    raw = require("child_process").execFileSync(process.execPath, [__filename, "--json"],
+      { env: { ...process.env, DE_DOCS_DIR: fx }, encoding: "utf8", maxBuffer: 1 << 26 });
+  } catch (e) { raw = e.stdout; }
+  const g = JSON.parse(raw);
+  const brokenRefs = g.broken.map(b => b.ref);
+  const sup = (why) => g.suppressed.filter(x => x.why === why).map(x => x.ref);
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+
+  t("a path that once existed and is GONE → broken", brokenRefs.includes("runtime/font16x16_data.h"));
+  t("a dead --flag on a real tool → broken", brokenRefs.some(r => /--zzznotaflag/.test(r)));
+  t("a path that EXISTS → silent", !brokenRefs.includes("tools/play.js") && !sup("proposal").includes("tools/play.js"));
+  t("a real --flag on a real tool → silent", !brokenRefs.some(r => /--headless/.test(r)));
+  t("a NEVER-existed path → suppressed as proposal  [regression guard]",
+    sup("proposal").includes("runtime/engines/zzznever.h") && sup("proposal").includes("tools/zzz-gen.js"));
+  t("another repo's path → suppressed as foreign  [regression guard]",
+    sup("foreign").includes("tools/preset_audition.c"));
+  t("exactly 2 broken, no more  [noise guard]", g.broken.length === 2);
+
+  const bad = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m"} ${x.n}`);
+  console.log(bad.length
+    ? `\x1b[31mstale-doc-check --selfcheck FAILED\x1b[0m — ${bad.length} of ${T.length} expectations broken`
+    : `stale-doc-check --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(bad.length ? 1 : 0);
+}
+// DE_DOCS_DIR aims the scan at a fixture instead of docs/ — used by --selfcheck. ROOT stays the real
+// repo on purpose, so the fixture is adjudicated against REAL srcExists + git history, exactly as in
+// production (an untracked fixture doc has no git date, so line 240 skips it for the mtime tiers).
+const DOCS = process.env.DE_DOCS_DIR ? path.resolve(process.env.DE_DOCS_DIR) : path.join(ROOT, "docs");
 const TOOLS = path.join(ROOT, "tools");
 
 // ---- args ----
@@ -77,7 +115,8 @@ const daysIdx = argv.indexOf("--days");
 const graceDays = daysIdx >= 0 ? parseInt(argv[daysIdx + 1], 10) || 0 : 0;
 const showAll = argv.includes("--all"); // list the suppressed proposal/foreign refs too
 const showDocs = argv.includes("--docs"); // expand the noisy doc→doc churn tier (default: count only)
-const driftable = argv.includes("--driftable"); // curated registry mode (see below); ignores the heuristic tiers
+const driftable = argv.includes("--driftable");
+const selfcheck = argv.includes("--selfcheck"); // curated registry mode (see below); ignores the heuristic tiers
 const touchesScope = (...rels) => !scope || rels.some(r => r.toLowerCase().includes(scope.toLowerCase()));
 
 // ---- git last-commit date for every tracked path, in ONE pass ----
@@ -413,7 +452,7 @@ for (const f of docFiles) {
 
 // ---- report ----
 if (json) {
-  console.log(JSON.stringify({ graceDays, scope: scope || null, broken, findings: shown }, null, 2));
+  console.log(JSON.stringify({ graceDays, scope: scope || null, broken, suppressed, findings: shown }, null, 2));
   // NOT process.exit() here: on a PIPE, stdout is async, and exiting truncates a large payload
   // mid-object — this report is ~65 KB, so `--json | jq` was failing to parse for anyone who tried.
   // Setting exitCode lets node flush and exit naturally.

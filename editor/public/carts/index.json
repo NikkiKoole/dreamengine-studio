@@ -3061,7 +3061,7 @@
   },
   {
     "title": "glide probe",
-    "description": "Measurement probe for the glide curve, not a playable cart (status hidden). Glides three octaves up and then back down with a 1000ms time constant, so f0 sampled at exactly one time constant says whether the slide is even in pitch or in linear Hz.",
+    "description": "Measurement probe for the glide curve and its timing, not a playable cart (status hidden). Glides C4 up and back at four intervals (semitone, fifth, octave, three octaves) with a single note_glide setting, so every leg should take the same measured time.",
     "file": "glideprobe.cart.png",
     "created": "2026-07-30",
     "kind": [
@@ -3070,7 +3070,7 @@
     "teaches": [
       "algorithm-visualization"
     ],
-    "lineage": "Measurement probe for the portamento CURVE (synth-secrets audit §B1, plan item 3.26) — glides three octaves up and then the same three octaves down at a known time constant, so the up/down asymmetry of a linear-Hz slew is one number instead of an argument."
+    "lineage": "Measurement probe for portamento (synth-secrets audit §B1, plan item 3.26) — glides between real notes at four intervals with one glide setting, so \"does ms mean ms, at every interval\" is a table instead of an argument."
   },
   {
     "title": "glyph puppet",

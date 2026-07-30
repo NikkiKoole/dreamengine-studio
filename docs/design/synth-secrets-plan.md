@@ -1973,9 +1973,11 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 
 Full numbers and the regate list live on the finding itself
 ([audit §B1](synth-secrets-audit.md#b1-portamento-glides-in-linear-hz-not-in-pitch)). The short version:
-the slew moved to `log2(freq)` in `sound_glide_step()`, and the up/down asymmetry at one time constant
+the slew moved into the pitch domain, and the up/down asymmetry at one time constant
 went from **45 percentage points to 4.5** (82.4%/37.2% → 64.8%/60.3%, against a 63.2% ideal). The tail was
 the worse half: 2.0 s into a 1000 ms down-glide the old curve sat **12.7 semitones sharp**.
+**Then a second change replaced the one-pole entirely with a fixed-duration eased ramp** so that `ms` means
+milliseconds — see the subsection below, which is where the interesting argument is.
 [`glideprobe`](../../tools/carts/glideprobe.c) is the measurement (status `hidden`, recipe in its header);
 `heldnotes` is the thing to actually play, per this row's `cart` column.
 
@@ -1984,21 +1986,59 @@ Every deterministic gate the finding asked for passes, which is necessary and no
 is that a LISTEN item is accepted by ear, and "the oracles are green" is exactly the kind of thing
 [ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) warns about mistaking for the whole bar.
 
-**THE OPEN DECISION, which is the interesting part and should not be settled quietly.** `note_glide(h, ms)`
-sets a **time constant**, not the slide's duration: `k = 1000/(ms·SR)` gives `τ = ms`, so at `ms` you are
-63.2% of the way and the slide is still perceptibly moving at 2-3×`ms`. Fixing the *domain* did not fix
-that, and the two are independent. Three ways out, and they are genuinely different products:
+#### The second half: `ms` had to start meaning milliseconds — RESOLVED 2026-07-30
 
-| | what `ms` would mean | fidelity argument |
-|---|---|---|
-| **keep** | a time constant (63.2%) | Reid, Part 16: hardware portamento *is* an exponential glide, and Part 15 names the RC lag. Most faithful, and what is built |
-| **rescale** | ≈ the audible duration, by making the coefficient `≈5/τ` | keeps the analog curve, makes the readout honest. Cheapest change |
-| **linear ramp** | exactly the duration | what modern softsynths do (Serum/Vital). Abandons the exponential curve |
+Moving the domain fixed the *curve* and left the *unit* wrong, and the two are independent. A one-pole
+approaches asymptotically, so `ms` could only ever name a **time constant**. The gap that opens up is not
+small, and it is not even constant. With remaining distance `D·e^(-t/τ)` and ~5 cents as the floor where a
+sustained pitch stops audibly drifting:
 
-Separately, and nearly free now that the slew is in the pitch domain: **GLIDE SCALE**, the constant-time
-vs time-per-octave axis that real panels expose. Constant time is what we have (the coefficient is already
-interval-independent); per-octave is `k_eff = k / |Δoctaves|`, about three lines. Worth doing as one piece
-of work with whichever `ms` answer wins, not before it.
+| interval | audibly settles at |
+|---|---|
+| 1 semitone (100 cents) | ~3.0 τ |
+| 1 octave (1200 cents) | ~5.5 τ |
+| 3 octaves (3600 cents) | ~6.6 τ |
+
+So a knob reading 1000 ms kept moving for six and a half seconds — **and note the spread in that column.**
+The duration you *perceive* depended on the interval even though the time constant did not, which means a
+one-pole cannot honestly implement "constant time" either. That is the axis a real panel's **GLIDE SCALE**
+switch exposes, so the unit problem was also blocking a feature.
+
+**What shipped: a fixed-duration ramp with an exponential SHAPE**, `sound_glide_start` +
+`sound_glide_step`. The path is `(1 − e^(−5t))/(1 − e^(−5))` over `t ∈ [0,1]`, i.e. an RC lag's curve
+normalised to land exactly on the target instead of asymptoting. Reid's curve and a truthful knob turned out
+not to conflict at all, so this is not a compromise between two designs — it takes the shape from one and
+the contract from the other:
+
+- **`ms` is the duration.** Measured on `glideprobe` at one `note_glide(600)` setting across a 36:1 range of
+  intervals: fifth **0.59 s**, octave **0.59 s**, three octaves **0.60 s**, and the three-octave leg
+  *downward* also **0.59 s**. (The semitone leg is below the measuring floor, not asymmetric: its final 5%
+  is 0.8 Hz of travel and `wav-envelope` reports integer Hz. `gl_len` is a function of `ms` alone.)
+- **The shape is right, not just the endpoints.** At the ramp's halfway point the curve should sit 92.4%
+  through the interval in pitch: measured 1774 Hz against 1787 predicted going up, and 305 against 306
+  coming down.
+- **It is cheaper than what it replaced.** The ease term advances incrementally (`gl_e *= gl_r`), so it is
+  one `exp2f` and two multiplies per gliding sample, against the linear-Hz version's two `log2f` plus an
+  `exp2f`. An idle voice pays one int compare.
+
+**And the fidelity argument points the same way, which is the part worth remembering.** A Minimoog's glide
+knob has no numbers on it. Neither does the SH-101's. That is not an oversight: a true one-pole *has* no
+duration, so there is nothing honest to print. The millisecond unit was **ours** — `note_glide` took an
+`int ms` from the day it shipped — so we had already departed from the hardware at the API level, and
+keeping the one-pole while labelling it `ms` was the *least* faithful option on the table rather than the
+most. The genuinely hardware-shaped alternative is a unitless rate knob, which is not worth breaking 59
+carts for.
+
+> ⚠ **A claim this section previously made as fact, corrected:** it said linear-ramp portamento is "what
+> modern softsynths do (Serum/Vital)". That was a guess presented as knowledge — the vocabulary in the
+> reference list that prompted this work (GLIDE / GLIDE MODE / GLIDE SCALE with a "/oct" readout) reads
+> like Vital's portamento section, but neither synth's actual curve was verified. The argument above does
+> not rest on it.
+
+**Still open, and now genuinely three lines: GLIDE SCALE.** Constant time is what we have (`gl_len` is
+interval-independent by construction). The per-octave alternative is `gl_len = ms_per_oct · |gl_d|`, since
+`gl_d` is already the distance in octaves. It needs an API surface decision (a flag on `note_glide`, or a
+separate `note_glide_scale`) rather than any new DSP.
 
 ---
 

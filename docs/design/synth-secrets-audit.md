@@ -172,10 +172,16 @@ would be heard.
 > `dc-check`/`level-check`/`soak-check`/`soundcheck` clean, and `web-audio-check` still sample-identical
 > native-vs-wasm — worth noting because `log2f`/`exp2f` are exactly where the two could have diverged.
 >
-> **STILL OPEN, and it is a decision rather than a defect:** `ms` is a *time constant*, not the slide's
-> duration. That is faithful to hardware (Reid's exponential glide) but it means a knob reading "1000 ms"
-> is still audibly moving at 2 s. Whether to keep it, rescale it, or add the per-octave **GLIDE SCALE**
-> axis is unresolved — see the plan's 3.26 entry.
+> **AND THEN THE UNIT, resolved the same day.** The domain fix left `ms` naming a *time constant*, so a
+> knob reading 1000 ms kept moving for up to 6.6 τ — and by an amount that depended on the interval, which
+> meant a one-pole could not honestly implement "constant time" either. The one-pole is now gone: portamento
+> is a **fixed-duration ramp with an exponential shape**, so it keeps the RC-lag curve *and* lands on time.
+> Measured at one `note_glide(600)` setting: fifth 0.59 s, octave 0.59 s, three octaves 0.60 s, three
+> octaves downward 0.59 s. It is also cheaper than the one-pole it replaced. Full argument, including why
+> this is *more* hardware-faithful rather than less (a Minimoog's glide knob has no numbers on it because a
+> one-pole has no duration to print — the millisecond unit was always ours), in the plan's 3.26 subsection.
+> The remaining open item is only the per-octave **GLIDE SCALE** axis, which is now an API-surface question
+> rather than a DSP one.
 
 - **Book:** Part 16 (SOS August 2000, p.187): "if you insert a simple Slew Generator into the keyboard
   CV signal path, you smooth the transitions at the oscillator's CV input, thus making the pitch glide

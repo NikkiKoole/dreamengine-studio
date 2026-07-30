@@ -10,82 +10,97 @@
   "teaches": [
     "algorithm-visualization"
   ],
-  "lineage": "Measurement probe for the portamento CURVE (synth-secrets audit §B1, plan item 3.26) — glides three octaves up and then the same three octaves down at a known time constant, so the up/down asymmetry of a linear-Hz slew is one number instead of an argument.",
-  "description": "Measurement probe for the glide curve, not a playable cart (status hidden). Glides three octaves up and then back down with a 1000ms time constant, so f0 sampled at exactly one time constant says whether the slide is even in pitch or in linear Hz."
+  "lineage": "Measurement probe for portamento (synth-secrets audit §B1, plan item 3.26) — glides between real notes at four intervals with one glide setting, so \"does ms mean ms, at every interval\" is a table instead of an argument.",
+  "description": "Measurement probe for the glide curve and its timing, not a playable cart (status hidden). Glides C4 up and back at four intervals (semitone, fifth, octave, three octaves) with a single note_glide setting, so every leg should take the same measured time."
 }
 de:meta */
 #include "studio.h"
 
-// PROBE for the portamento CURVE — audit §B1 / plan 3.26. Not a demo.
+// PROBE for portamento — audit §B1 / plan 3.26. Not a demo.
 //
-// THE TEST, and it is a single number. Reid (Part 15/16) says hardware portamento lags the pitch CV,
-// which is 1V/octave, so a glide is exponential in VOLTAGE, i.e. even in semitones. A one-pole lag on
-// linear Hz is a different curve, and the way to see it is to ask WHERE THE PITCH IS after exactly one
-// time constant. A one-pole is 63.2% of the way through in whatever domain it slews, so:
+// It answers two different questions, and they needed two different fixes:
 //
-//   slewing linear Hz   → up glide is 81.3% through the INTERVAL, down glide only 38.7%.  Not mirrored.
-//   slewing pitch       → both are 63.2%.                                                 Mirrored.
+//   1. IS THE CURVE EVEN IN PITCH?  A slide up and the same slide back down must be mirror images.
+//      The old linear-Hz slew was 82.4% through the interval going up and 37.2% coming down at the
+//      same instant — a 45-point asymmetry. Every leg below is an up/down PAIR so this stays visible.
 //
-// Those two percentages are scale-invariant (they hold for any interval), which is what makes this a
-// clean gate rather than a table of Hz to eyeball.
+//   2. DOES `ms` MEAN MILLISECONDS, AT EVERY INTERVAL?  This is the one a one-pole could never pass.
+//      It approaches asymptotically, so `ms` could only name a time constant, and the duration you
+//      actually HEAR then depended on the interval: with remaining distance `D·e^(-t/τ)` and ~5 cents
+//      as the audibility floor, a semitone settled at ~3.0τ but three octaves took ~6.6τ. So the four
+//      legs below deliberately span a semitone to three octaves at ONE `note_glide` setting. With a
+//      fixed-duration ramp they must all finish together; that is the whole claim.
 //
 // ── HOW TO RUN IT ────────────────────────────────────────────────────────────────────────────────
-//   node tools/play.js glideprobe script /dev/null --headless --frames 480 --wav /tmp/g.wav
-//   node tools/formant-check.js /tmp/g.wav 1.955 2.015     # UP,   one time constant in
-//   node tools/formant-check.js /tmp/g.wav 6.955 7.015     # DOWN, one time constant in
-//   node tools/formant-check.js /tmp/g.wav 5.80 5.90       # UP settled  (expect ~1046 Hz)
-//   node tools/formant-check.js /tmp/g.wav 7.90 7.98       # DOWN settled (expect ~131 Hz)
+//   node tools/play.js glideprobe script /dev/null --headless --frames 820 --wav /tmp/g.wav
+//   node tools/wav-envelope.js /tmp/g.wav 25 --from 0.9 --to 2.6      # semitone leg
+//   node tools/wav-envelope.js /tmp/g.wav 25 --from 3.9 --to 5.6      # fifth
+//   node tools/wav-envelope.js /tmp/g.wav 25 --from 6.9 --to 8.6      # octave
+//   node tools/wav-envelope.js /tmp/g.wav 25 --from 9.9 --to 11.6     # three octaves
 //
-// Convert an f0 to "percent through the interval" with log2(f/131) / 3.
+// Read the CENTROID column: on a sine it tracks pitch closely enough, and the glide is done at the
+// window where it stops changing. Compare that against GLIDE_MS after the leg's start time.
 //
-// WHY THESE NUMBERS: SINE so autocorrelation has nothing to trip on; C3→C6 (three octaves) because the
-// asymmetry grows with the interval and three octaves is the audit's own example; a 1000ms time constant
-// so the pitch barely moves across a 60ms analysis window; and the down-glide starts at frame 360, five
-// time constants after the up-glide, so it begins from a settled note and not mid-slide.
+// TIMING TRAP (same one retrigprobe documents): an event at frame N happens at t=(N-1)/60, so the
+// legs start at 0.983s / 3.983s / 6.983s / 9.983s, NOT on the round seconds. Read them off the frames.
 //
-// TIMING TRAP (the same one retrigprobe documents): an event at frame N happens at t=(N-1)/60, so the
-// glides start at 0.9833s and 5.9833s, NOT 1.0 and 6.0. The measurement windows above already account
-// for it. Read them off the frames, never off the round numbers.
+// WHY SINE: autocorrelation and the centroid both have nothing to trip on, and the envelope must not
+// colour the pitch reading. Same reason tune-check uses it as its control.
 
 #define SLOT 5
-#define LO 48        // C3, 130.81 Hz
-#define HI 84        // C6, 1046.50 Hz — exactly three octaves up
-#define GLIDE_MS 1000
+#define BASE 60          // C4
+#define GLIDE_MS 600     // one setting for every leg — that is the point
+
+// each leg: the note to glide TO, and a label. Up then back down, so the mirror check is free.
+static const int LEG_NOTE[4] = { 61, 67, 72, 96 };            // +1, +7, +12, +36 semitones
+static const char *LEG_NAME[4] = { "semitone", "fifth", "octave", "3 octaves" };
 
 static int h = 0;
 static int f = 0;
+static int leg = -1;
 
 void init(void) {
-    instrument(SLOT, INSTR_SINE, 2, 0, 7, 200);   // flat and sustaining: the envelope must not colour f0
+    instrument(SLOT, INSTR_SINE, 2, 0, 7, 200);   // flat + sustaining
 }
 
 void update(void) {
     f++;
-    if (f == 1)  { h = note_on(LO, SLOT, 6); note_glide(h, GLIDE_MS); }
-    if (f == 60)   note_pitch(h, (float)HI);    // UP   — glide starts at t = 59/60
-    if (f == 360)  note_pitch(h, (float)LO);    // DOWN — glide starts at t = 359/60
-    if (f == 478)  note_off(h);
+    if (f == 1) { h = note_on(BASE, SLOT, 6); note_glide(h, GLIDE_MS); }
+    // leg i: glide UP at frame 60 + i*180, back DOWN 90 frames later. 90 frames = 1.5s, so each
+    // 600ms glide is followed by ~0.9s of steady tone — enough plateau to see where it landed.
+    for (int i = 0; i < 4; i++) {
+        if (f == 60 + i * 180)      { note_pitch(h, (float)LEG_NOTE[i]); leg = i; }
+        if (f == 150 + i * 180)       note_pitch(h, (float)BASE);
+    }
+    if (f == 800) note_off(h);
 }
 
 void draw(void) {
     cls(CLR_BLACK);
     font(FONT_SMALL);
-    print("glide curve probe (audit B1)", 8, 8, CLR_WHITE);
+    print("glide probe (audit B1 / plan 3.26)", 8, 8, CLR_WHITE);
     print("not a demo - see the header for the recipe", 8, 20, CLR_DARK_GREY);
-    // Draw where the PITCH should be, as a 0..1 fraction of the three-octave interval, so a glance
-    // shows the shape: a linear-Hz slew visibly races away from the middle on the way up.
-    int y0 = 60, y1 = 150, x0 = 20, x1 = SCREEN_W - 20;
-    line(x0, y0, x0, y1, CLR_DARKER_GREY);
+    print(str("one setting for every leg:  note_glide(%d)", GLIDE_MS), 8, 34, CLR_LIGHT_YELLOW);
+
+    int y0 = 56, y1 = 150, x0 = 24, x1 = SCREEN_W - 8;
     line(x0, y1, x1, y1, CLR_DARKER_GREY);
-    print("C6", 4, y0 - 3, CLR_DARK_GREY);
-    print("C3", 4, y1 - 3, CLR_DARK_GREY);
-    for (int i = 0; i < 3; i++) {   // the two glide starts + the halfway marks
-        int fr = (i == 0) ? 60 : (i == 1) ? 360 : 478;
-        int x = x0 + (x1 - x0) * fr / 480;
-        line(x, y0, x, y1, CLR_DARKER_GREY);
+    print("C4", 6, y1 - 3, CLR_DARK_GREY);
+    print("C7", 6, y0 - 3, CLR_DARK_GREY);
+    // one bracket per leg, drawn at its interval height so the four spans are visible at a glance
+    for (int i = 0; i < 4; i++) {
+        int up = 60 + i * 180, dn = 150 + i * 180;
+        int xa = x0 + (x1 - x0) * up / 820;
+        int xb = x0 + (x1 - x0) * dn / 820;
+        int semis = LEG_NOTE[i] - BASE;
+        int y = y1 - (y1 - y0) * semis / 36;
+        int c = (leg == i) ? CLR_LIGHT_YELLOW : CLR_DARK_GREY;
+        line(xa, y1, xa, y, c);
+        line(xa, y, xb, y, c);
+        line(xb, y, xb, y1, c);
+        print(LEG_NAME[i], xa + 2, y - 8, c);
     }
-    int px = x0 + (x1 - x0) * (f < 480 ? f : 480) / 480;
-    line(px, y0 - 6, px, y1 + 6, CLR_BLUE);
-    print(str("frame %d   glide tau %dms   C3->C6->C3", f, GLIDE_MS), 8, SCREEN_H - 12, CLR_DARK_GREY);
+    int px = x0 + (x1 - x0) * (f < 820 ? f : 820) / 820;
+    line(px, y0 - 4, px, y1 + 6, CLR_BLUE);
+    print(str("frame %d   every leg should take %dms", f, GLIDE_MS), 8, SCREEN_H - 12, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

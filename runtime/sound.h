@@ -168,7 +168,13 @@ typedef struct {
     bool   held;                   // sustained note_on voice — infinite gate until note_off
     int    owner_slot, owner_gen;  // which handle owns this voice (for stale-handle rejection)
     float  freq_target, vol_target, cutoff_target, duty_target, flt_q_target;
-    float  freq_slew;              // pitch slew coefficient/sample — note_glide() sets it (default = snappy)
+    // PORTAMENTO as a fixed-duration eased ramp (see sound_glide_start). note_glide(ms) sets gl_ms and
+    // ms is the real duration: the ramp lands on the target and stops. gl_e/gl_r advance the ease-out
+    // curve incrementally so the per-sample cost is one exp2f, not an expf as well.
+    int    gl_ms;                  // note_glide() duration in ms; 0 = the short default declick ramp
+    int    gl_pos, gl_len;         // ramp position / length in samples. gl_pos >= gl_len means IDLE
+    float  gl_from, gl_d;          // start pitch (log2 Hz) and the signed distance to travel, in octaves
+    float  gl_e, gl_r;             // running e^(-SHAPE·t): multiply gl_e by gl_r once per sample
     // engine macros (current + slew target, riding the same machinery as cutoff/duty)
     float  harm, timb, mor;
     float  harm_target, timb_target, mor_target;
@@ -4790,7 +4796,7 @@ static void sound_piano_start(Voice *v) {
     freq = piano_stretch_freq(freq, PIANO_STRETCH_K * (v->eng_p[4] * 2.0f));
     v->freq = freq;                                    // write back so per-sample pitch tracking (ratio = f/pn_initf) stays consistent
     v->freq_target = freq;                             // …and the TARGET too, or the per-frame glide slew (v->freq += (freq_target
-                                                       // − freq)·freq_slew) drags freq back to the nominal MIDI pitch one frame
+                                                       // − freq)·slew) dragged freq back to the nominal MIDI pitch one frame
                                                        // later while pn_initf keeps the stretched value — then ratio ≠ 1 forever
                                                        // and effLen = len/ratio divides the stretch back out. That shipped for
                                                        // months, and only in the BASS: the `effLen > len` clamp below happens to
@@ -5114,24 +5120,57 @@ static inline float sound_adsr_gated(int s, int a, int d, float sustain) {
 // still 12.7 SEMITONES sharp of its target, because in Hz terms the remaining distance is tiny while in
 // pitch terms it is enormous. Up shot away and crawled in; down crept and never arrived.
 //
-// COST is why this is gated on `freq != freq_target` rather than run unconditionally: the two logs and an
-// exp2 are real work at 44.1kHz × 32 voices, and the overwhelming majority of samples are a voice sitting
-// on its pitch. A voice not gliding pays one float compare, and — because the early-out leaves `freq`
-// exactly alone — a cart that never glides is byte-identical.
+// IT IS A FIXED-DURATION RAMP, NOT A ONE-POLE, AND THAT IS THE SECOND HALF OF THE FIX. A one-pole
+// approaches asymptotically, so `ms` could only ever name a TIME CONSTANT — and the gap between that and
+// the slide you hear is not small. Remaining distance is `D·e^(-t/τ)`, so taking ~5 cents as the point a
+// sustained pitch stops audibly drifting: a semitone glide settles at ~3.0τ, an octave at ~5.5τ, three
+// octaves at ~6.6τ. A knob reading 1000 ms was audibly moving for six and a half seconds, and — note the
+// spread in those three numbers — the duration you PERCEIVE depended on the interval even though the time
+// constant did not. So a one-pole cannot honestly implement "constant time" either, which is the axis a
+// real panel's GLIDE SCALE switch exposes.
 //
-// THE SNAP MATTERS AS MUCH AS THE DOMAIN. A one-pole approaches asymptotically and never arrives, which
-// (a) is why the down-glide above was still audibly wrong after two time constants and (b) would pin this
-// expensive path permanently hot after any note_pitch, since freq would never equal freq_target again. So
-// once the remaining distance is under a hundredth of a cent — inaudible by three orders of magnitude —
-// land exactly on the target and drop back to the cheap path.
-#define GLIDE_SNAP_LOG2 (1.0e-6f)   // ~0.000012 octave ≈ 0.0002 cent; the "we have arrived" threshold
+// Reid's curve and a truthful knob turn out not to conflict: run the ramp over exactly `ms`, and shape the
+// PATH with the ease-out. `(1 - e^(-5t)) / (1 - e^(-5))` for t in [0,1] is an RC lag's curve, normalised so
+// it lands exactly on 1.0 at the end instead of asymptoting. You keep the analog character (a linear pitch
+// ramp is the thing that sounds mechanical) AND `ms` means milliseconds. Worth knowing WHY that is not a
+// betrayal of the hardware: a Minimoog's glide knob has no numbers on it, and neither does the SH-101's,
+// precisely because a true one-pole has no duration to print. The unit was ours, not theirs — `note_glide`
+// took an `int ms` from day one — so keeping the one-pole and labelling it `ms` was the least faithful
+// option available, not the most.
+//
+// COST: one exp2f and two multiplies per sample while a voice is gliding, because the ease term is advanced
+// INCREMENTALLY (gl_e *= gl_r) rather than recomputed with an expf. That is cheaper than the linear-Hz
+// version it replaced (which needed two log2f and an exp2f). An idle voice pays one int compare, and since
+// the early-out leaves `freq` untouched a cart that never glides is byte-identical.
+#define GLIDE_SHAPE   5.0f          // e-folds across the ramp — the ease-out steepness
+#define GLIDE_NORM    1.0067837f    // 1/(1 − e^−5): rescales the curve so t=1 lands exactly on the target
+#define GLIDE_DECLICK_MS 5          // note_glide never called → a short ramp, anti-zipper only, not a slide
+
+// Begin a glide from wherever the voice is now to freq_target. Called when the TARGET moves (note_pitch),
+// so a pitch change mid-glide re-aims from the current pitch — which is what legato playing wants.
+static inline void sound_glide_start(Voice *v) {
+    float tgt = v->freq_target;
+    if (tgt <= 0.0f || v->freq <= 0.0f) { v->freq = tgt; v->gl_len = 0; return; }   // log2 guard
+    int ms  = v->gl_ms > 0 ? v->gl_ms : GLIDE_DECLICK_MS;
+    int len = (int)(((long long)ms * (long long)SOUND_SAMPLE_RATE) / 1000LL);
+    v->gl_from = log2f(v->freq);
+    v->gl_d    = log2f(tgt) - v->gl_from;
+    // Nothing to travel, or nothing to travel it over: land now rather than run a ramp that does nothing.
+    if (len < 2 || (v->gl_d < 1.0e-7f && v->gl_d > -1.0e-7f)) { v->freq = tgt; v->gl_len = 0; return; }
+    v->gl_len = len;
+    v->gl_pos = 0;
+    v->gl_e   = 1.0f;                                  // e^0
+    v->gl_r   = expf(-GLIDE_SHAPE / (float)len);       // one e-fold step per sample
+}
+
+// One sample of portamento.
 static inline void sound_glide_step(Voice *v) {
-    if (v->freq == v->freq_target) return;                  // the common case: not gliding, pay one compare
-    if (v->freq <= 0.0f || v->freq_target <= 0.0f) { v->freq = v->freq_target; return; }   // log2 guard
-    float cur = log2f(v->freq), tgt = log2f(v->freq_target);
-    float d = tgt - cur;
-    if (d < GLIDE_SNAP_LOG2 && d > -GLIDE_SNAP_LOG2) { v->freq = v->freq_target; return; }  // arrived
-    v->freq = exp2f(cur + d * v->freq_slew);
+    if (v->gl_pos >= v->gl_len) return;                             // idle: one int compare
+    if (++v->gl_pos >= v->gl_len) {                                 // arrived, exactly on schedule
+        v->freq = v->freq_target; v->gl_len = 0; return;
+    }
+    v->gl_e *= v->gl_r;
+    v->freq = exp2f(v->gl_from + v->gl_d * ((1.0f - v->gl_e) * GLIDE_NORM));
 }
 
 // A one-shot AD modulation envelope (filter/pitch env): linear attack 0→1 over `a`, then
@@ -5511,7 +5550,10 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->flt_low        = 0.0f;
     v->flt_band       = 0.0f;
     v->lad_s[0] = v->lad_s[1] = v->lad_s[2] = v->lad_s[3] = 0.0f;
-    v->freq_slew        = 0.006f;   // ~snappy by default; note_glide() slows it for portamento
+    v->gl_ms = 0;                   // no portamento until note_glide() asks; 0 → the short declick ramp
+    v->gl_pos = v->gl_len = 0;      // no ramp in flight (a reused voice must not inherit one)
+    v->gl_from = v->gl_d = 0.0f;
+    v->gl_e = 1.0f; v->gl_r = 0.0f;
     // engine macros ride the same current/target slew pattern as cutoff/duty
     v->harm = v->harm_target = ins->harmonics;
     v->timb = v->timb_target = ins->timbre;
@@ -5715,7 +5757,7 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_NOTE_PITCH: {   // a = midi * 256 (fixed-point float)
         Voice *v = sound_held_voice(r.e0, r.e1);
-        if (v) v->freq_target = sound_midi_to_freq_f(r.a / 256.0f);
+        if (v) { v->freq_target = sound_midi_to_freq_f(r.a / 256.0f); sound_glide_start(v); }
     } break;
     case SR_NOTE_VOL: {
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -5771,10 +5813,9 @@ static void sound_fire_req(SoundReq r) {
     } break;
     case SR_NOTE_GLIDE: {
         Voice *v = sound_held_voice(r.e0, r.e1);
-        if (v) {
-            float k = r.a <= 0 ? 1.0f : 1000.0f / ((float)r.a * (float)SOUND_SAMPLE_RATE);
-            v->freq_slew = k > 1.0f ? 1.0f : k < 0.00001f ? 0.00001f : k;
-        }
+        // Set-and-hold: this is the duration the NEXT note_pitch will take. A ramp already in flight keeps
+        // the time it started with, so re-dialling the knob can't stretch a slide that is already moving.
+        if (v) v->gl_ms = r.a < 0 ? 0 : (r.a > 60000 ? 60000 : r.a);   // cap at a minute of glide
     } break;
     case SR_NOTE_OFF_ALL: {
         for (int i = 0; i < SOUND_VOICES; i++)

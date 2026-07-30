@@ -31,10 +31,17 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   **portamento now glides in PITCH, not linear Hz** — audit §B1, the audit's own "single clearest
   divergence", plan 3.26: the up/down asymmetry at one time constant went from **45 percentage points to
   4.5**, and a down-glide that used to sit 12.7 semitones sharp two seconds into a "1000 ms" slide now
-  lands (it also **snaps** at 0.0002 cent instead of asymptoting forever). ⚠ **BUILT, not shipped —
-  3.26 is LISTEN-gated and awaits the owner's ear**; play `heldnotes`, measure with the new `glideprobe`.
-  Two glide questions stay open on purpose: `ms` is a time *constant* rather than a duration, and the
-  per-octave **GLIDE SCALE** axis (~3 lines now) waits on that answer.
+  lands. **And then `ms` started meaning milliseconds:** the one-pole is gone, replaced by a
+  **fixed-duration ramp with an exponential (RC-lag) shape**, so the curve still eases out like analog
+  portamento but the slide arrives on schedule at *any* interval — measured at one `note_glide(600)`:
+  fifth 0.59 s, octave 0.59 s, three octaves 0.60 s, three octaves downward 0.59 s. It costs less per
+  sample than the one-pole did. The fidelity argument points the same way: a Minimoog's glide knob has no
+  numbers on it because a one-pole has no duration to print, so the millisecond unit was always *ours*.
+  ⚠ **BUILT, not shipped — 3.26 is LISTEN-gated and awaits the owner's ear**, and this one changes the
+  FEEL of every glide in the 59 carts that call `note_glide`: their values now buy a real duration rather
+  than a time constant, so slides are roughly 3× snappier (`acid303`'s classic 60 ms is now genuinely
+  60 ms, which is closer to a real 303). Play `heldnotes`, `tb303`, `sh101`, `brass`, `pipe`; measure with
+  `glideprobe`. Still open: the per-octave **GLIDE SCALE** axis, now an API-surface question, not DSP.
   **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
   (real stiff-string inharmonicity, B ≈ 1.1e-4 on the grand) — item 2.3; and **`MODE_BOW_BODY`** (three
   parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) — item 2.4, in progress.
@@ -1008,111 +1015,29 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     low-note bore would extend it — only worth it if a cart needs sub-E2 portamento.
     [`design/waveguide-bend-handoff.md`](design/waveguide-bend-handoff.md).
 
-42. **Audio TEST-COVERAGE blind spots** *(2026-06-16, found in a "what isn't tested?" audit)* — the
-    engines are well-covered (`tune-check.js` = pitch, `dc-check.js` = DC, the soundcheck tripwire =
-    dropped requests, `build-all.js` = cart-vs-API rot) but whole *categories* have no automated gate.
-    Ranked by leverage; full reasoning in [`design/audio-notes.md`](design/audio-notes.md) §20.
-    - ✅ **Loudness regression gate — SHIPPED `tools/level-check.js`.** The twin of tune-check for
-      *level*: renders the same `tunecheck` sweep (`--det`, deterministic) and measures each note's
-      peak/RMS/crest in dBFS against a committed golden baseline (`tools/level-baseline.json`,
-      re-bless with `--save`). `--quiet` = CI gate (exit 1 on > **4 dB** drift, or new silence/clip).
-      Catches the silent regression a compile + tune-check + dc-check all miss — an engine that got
-      louder/quieter, or one now slamming the master limiter (crest collapse, dynamics squashed).
-      Also flags absolutes with no baseline (SILENT / HOT-on-its-own / loudness-outlier-vs-library).
-      **First-run finding (now FIXED):** the library was uneven — BOWED peaked −1.2 dBFS (+12.8 dB over
-      the median; two sustained bowed notes clipped the limiter) and BRASS A2 +9 dB, while most engines
-      sit −14 to −18. **Trimmed the per-engine output makeup** (`sound.h`: BOWED `dc*3.0→0.7`, −12.6 dB;
-      BRASS `(2.7+dark*0.7)→(0.93+dark*0.24)`, −9.3 dB). Now BOWED −13.8…−20, BRASS −14…−15.7, both at
-      the ~−15.5 median; no HOT/outlier flags. Pitch unchanged (gain is amplitude-only — dc/tune clean),
-      trumpet↔tuba ratio preserved. Baseline re-blessed (`level-baseline.json`); `--quiet` green.
-    - ✅ **Effect STABILITY gate — SHIPPED `tools/fx-check.js`** (+ harness cart `fxcheck.c`,
-      baseline `tools/fx-baseline.json`). Renders a loud sustained chord into the master bus and, one
-      effect at a time, sets THAT effect at its documented EXTREME (echo fb `1.1`, flanger/phaser
-      `±0.95`, filter res `0.99`, etc.), then asserts the output stays finite/bounded: no
-      collapse-to-silence (a NaN through a feedback loop reads as silence in 16-bit), no DC runaway
-      (mean over the full window, *and* both halves must agree in sign — separates true DC from a
-      sub-sonic resonant wobble), no permanent limiter-pinning, and that it moves the signal off the
-      DRY reference (a dead/unwired effect). Baseline records the intrinsic per-effect state so
-      `--quiet` flags only *regressions* (got worse / drifted >4 dB) — known extremes stay green.
-      Stability gate, not a character gate (whether it SOUNDS good is still by ear). **Findings —
-      two real latent bugs at the extremes, both now FIXED:** the **phaser** (fb 0.95, 8 stages)
-      accumulated **−0.13 persistent DC** and the **echo** (fb 1.1 runaway) **−0.04** — both far past
-      `dc-check`'s ~1e-4 clean tolerance. Cause was exactly the failure mode `dc-check.js`'s header
-      warns about (no master DC blocker → every asymmetric/feedback stage must block its own): the
-      phaser allpass cascade and echo `tanh` loop pass/inject DC that high feedback accumulates
-      ~1/(1-fb)×. **Fixed** (a one-pole DC blocker, R=0.999 / ~7 Hz, on each feedback tap — the idiom
-      the `drive` effect already uses, `drv_dc_*`): phaser −0.13→−0.007, echo −0.04→+0.002, audio
-      untouched (corner is sub-sonic). Verified compile-gate + tripwire + dc/tune/level/fx all green,
-      build-all 390/390.
-    - ✅ **Effect STACKING — now covered** (fxcheck.c tests 13–18). Six master-bus chains via
-      `fx_order()`: a lo-fi mastering chain (drive→eq→crush→tape), two resonant combs in series
-      (flanger→phaser), two feedback delays (echo+reverb), an A/B order swap (drive→reverb vs
-      reverb→drive — proves ordering is audible *and* both stay bounded), and an 8-deep kitchen sink.
-      All stay bounded (the worst is "limiter pinned" at the deliberate extreme — expected, baselined).
-      **Incidental find + fix:** the two-combs stack exposed that the **flanger** also accumulated DC
-      at high feedback (−0.03) — the single-effect test had masked it (at fb 0.95 its DC *oscillated* →
-      classed as wobble; in series it settled). Same missing-DC-blocker bug as phaser/echo; fixed with
-      the same one-pole idiom (flanger −0.046→−0.002). So **all three feedback combs (phaser/echo/
-      flanger) are now DC-blocked.** Verified: compile-gate + tripwire + dc/level/fx all green,
-      build-all 390/390.
-    - **The web/wasm audio path is verified only by ear — SCOPED + a CONFIRMED-on-paper pitch bug.**
-      Every gate above runs the NATIVE build; nothing checks the wasm build emits the *same samples*.
-      Scoping + phasing + the source dig: [`design/web-audio-parity.md`](design/web-audio-parity.md).
-      **CONFIRMED from source (2026-06-17): the WORKLET backend (desktop default) plays ~+147¢ sharp on
-      any non-44.1k device.** `sound_worklet_init()` calls `emscripten_create_audio_context(0)` (NULL
-      opts → `new AudioContext()` → device default SR, usually 48000) and `sound_aw_process` fills the
-      128-sample output with NO resampler from 44100-synthesized audio → 48000/44100 = +146.7¢ + 8.8%
-      fast. The **plain** backend resamples (`LoadAudioStream(44100)` via miniaudio) and is correct.
-      Device-dependent, so it ships unnoticed: macOS built-in output is often 44.1k (sounds fine on the
-      owner's Mac), most 48k devices (Windows/Linux/DACs/Bluetooth) are sharp. **✅ FIX APPLIED** (`sound.h`
-      `sound_worklet_init`): the worklet context is now forced to `SOUND_SAMPLE_RATE` via
-      `EmscriptenWebAudioCreateAttributes` (browser resamples to hardware → matches native + the plain
-      backend). Compiles clean native + emcc-worklet. **Follow-up:** on-device confirm (verified by
-      source reading, not yet a browser) + a listen to the resample quality.
-      **The republish follow-up is CLOSED (verified 2026-07-30).** It read "shipped `site/` carts keep the
-      old `(0)` worklet until a web rebuild", and an audit reported that as a LIVE user-facing bug. It is
-      not: the fix landed in `2f2361c1` (2026-06-17) and every published worklet build postdates it (the
-      mass republish on 2026-07-11; oldest `site/*/worklet.js` is 11 Jul, newest 30 Jul). Checked at the
-      BINARY level, not by date alone — the fix compiles `.latencyHint = "interactive"` into the attrs
-      struct, and `strings site/*/worklet.wasm` finds that string in every audio cart sampled while the
-      `plain` backend (which never had attrs) has zero. **Lesson: a "republish" follow-up written next to a
-      source fix goes stale silently, because the next unrelated mass publish quietly satisfies it.**
-      **✅ Phase 1 codegen-parity gate SHIPPED — `tools/web-audio-check.js`** (+ `web-audio-host.c` + a
-      raylib shim): compiles the engine clang-native vs emcc-wasm, renders each engine solo, compares. **The
-      math is faithful: 15/16 engines sample-identical (native↔wasm diff 75–120 dB below signal; TRI
-      byte-exact; the rest libm/FMA ULP noise — inaudible).** Lone exception **BOWED** — chaotic stick-slip
-      friction, so a 1-ULP diff diverges to a different micro-waveform, but the two renders' RMS **levels match
-      to 0.06 dB** (same note, just micro-phase). Two-tier gate (sample parity, perceptual-level fallback for
-      chaotic engines); `--quiet` CI. Net: the only real web bug was the SR (fixed); the codegen is clean.
-    - ✅ **Set-and-hold footgun — now lintable: SHIPPED `tools/lint-fx-frame.js`.** Static check (no
-      render) that flags an UNCONDITIONAL per-frame call to a buffer-rebuilding effect
-      (`crush`/`tape`/`eq`/`chorus`/`reverb`/`flanger`/`phaser`/…) in `update()`/`draw()` — the silent-
-      stutter footgun. Calls inside an `if`/`?:` guard pass; `filter()`/`varispeed()`/`note_*` are
-      excluded (built to ride live); waive with `// fx-lint-ignore`; `--quiet` = CI gate. **Audit came
-      back CLEAN across 390 carts** — the codebase is disciplined here (the lesson stuck), so this is a
-      forward regression guard, not a cleanup. Limitation: only inspects `update()`/`draw()` directly,
-      not helper-routed calls (the groovebox `apply_fx()` pattern — which is the correct structure
-      anyway).
-    - ✅ **Soak gate + denormal guard — SHIPPED.** `tools/soak-check.js` (+ harness `soak.c`) renders
-      ~64s of stress/idle cycles (dense notes through a big reverb+echo tail, then silence) and asserts
-      the long-run failures a short test can't see: stress level STABLE across all 24 cycles (no slow
-      drift, no progressive voice-pool starvation from a leak), idle tails DECAY ≥12 dB below stress (no
-      stuck/leaked voice ringing), the idle floor doesn't CLIMB run-long (no energy/DC accumulation), and
-      nothing blows up. Decay-relative thresholds (not an absolute silence floor), `--quiet` CI gate.
-      First run clean (24 cycles within ~1.5 dB). **Denormal flush-to-zero** added to `sound.h`
-      (`sound_set_denormal_ftz()` at the top of `sound_callback`): a long reverb/echo feedback tail
-      decays into the denormal range where FP ops run 10–100× slower → audio-thread CPU spikes (stutter)
-      on some CPUs, invisible in the output. FTZ+DAZ on x86, FPCR FZ on arm64, no-op on wasm. Output is
-      byte-unchanged (denormals are far below 16-bit), so the level/fx/dc baselines are untouched. The
-      soak proves the tails decay (the audible side); FTZ covers the CPU side (quantifying *that* needs
-      audio-thread timing — a follow-up, the profiler only sees the main thread).
-    - **Micro-bug spotted in the same pass:** `amp_noise_process` + `varispeed_process` run *after* the
-      master soft-clip (the two calls at the end of the mixer callback), and the device output has no
-      final clamp — only `sound_wav_write` clamps, at its `s > 1.0f` / `s < -1.0f` pair — so
-      varispeed's interpolation can push the device signal slightly past ±1.0 → a hard driver clip.
-      Tiny, but a real seam. *(Cited by SYMBOL, not line: this entry originally said `sound.h:5509`
-      and `sound.h:372`, and by 2026-07-30 both pointed at unrelated code in a file that had grown to
-      ~8,800 lines. Line numbers in a hot shared file are guaranteed to rot; grep-able names aren't.)*
+42. **Audio test coverage — the two leftovers** *(audit 2026-06-16; five gates shipped out of it)*.
+    The audit asked "what isn't tested?" and produced **`level-check.js`** (loudness regression),
+    **`fx-check.js`** (effect stability at documented extremes), **`lint-fx-frame.js`** (the
+    set-and-hold footgun), **`soak-check.js`** (+ the denormal guard) and **`web-audio-check.js`**
+    (native↔wasm codegen parity). All five are indexed by task in
+    [`guides/checks-and-oracles.md`](guides/checks-and-oracles.md); the findings they produced — the
+    uneven library (BOWED peaking −1.2 dBFS, the per-engine makeup trims), the phaser's and echo's
+    persistent DC at extreme feedback, and the worklet sample-rate bug — are written up in
+    [`design/audio-notes.md`](design/audio-notes.md) §20 and
+    [`design/web-audio-parity.md`](design/web-audio-parity.md).
+    What is still open:
+    - **On-device confirmation of the worklet sample-rate fix.** The bug (the desktop-default worklet
+      backend played **+147¢ sharp on any non-44.1k device**, because the context took the device rate
+      with no resampler) was found *by reading the source* and fixed the same way. It has never been
+      confirmed in a browser, and the resample quality has never been listened to.
+    - **The varispeed/amp-noise post-clip seam.** `amp_noise_process` + `varispeed_process` run
+      *after* the master soft-clip and the device output has no final clamp (only `sound_wav_write`
+      clamps), so varispeed's interpolation can push the device signal just past ±1.0 into a hard
+      driver clip. Tiny, but real.
+    *(Was 106 lines, ~95 of them ✅-marked write-ups of shipped tools. A lesson from inside it worth
+    keeping: **a "republish" follow-up written next to a source fix goes stale silently**, because the
+    next unrelated mass publish quietly satisfies it — this entry carried one for six weeks, and an
+    audit later reported it as a live user-facing bug when it had been fixed all along.)*
 
 43. **VISUAL test-coverage blind spot — a golden-pixel-diff harness** *(2026-06-23, from the streetlab corner work)*.
     The `spec()` harness (`tools/spec.js`) tests **pure functions and state** — it pinned every geometric *quantity*
@@ -1209,232 +1134,22 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     Schema: [`design/cart-metadata.md`](design/cart-metadata.md#collection-doc-anchored-cross-cutting-threads);
     [`tools/collections.js`](../tools/collections.js) is the CLI roll-up today.
 
-52. **Synth Secrets audit — 22 candidate steps, deliberately NOT queued** *(2026-07-28)*. The engine
-    cross-checked against Gordon Reid's 63-part **Synth Secrets** (SOS 1999-2004), a canonical
-    synthesis text the owner supplied as a PDF (copyrighted, NOT in the repo; cite by part + issue).
-    Full ledger: [`design/synth-secrets-audit.md`](design/synth-secrets-audit.md).
-    **§A what already matches** (recorded so nobody "fixes" it): our ring mod *is* Reid's AM equation
-    with the mix knob as his `a1`/`a2` balance; FM holds a constant modulation index across the
-    keyboard, the one thing he calls impractical on analogue; the vowel formant table matches his
-    adult-male numbers row for row; mod sources sum on shared destinations exactly as his Part 7
-    "biggie" demands; voice stealing (quietest non-held + declick) is better than either policy he
-    describes. **§B ten drifts**, each with a book ref, a `sound.h` line, and the cart it would be
-    heard in — the top three: glide slews **linear Hz** not pitch (his slew generator sits in the
-    1V/oct pitch CV path, so up and down glides don't mirror); **nothing keytracks** (cutoff is
-    absolute Hz everywhere, so no patch is voiced correctly across the keyboard and our three
-    self-oscillating filters can't be played as pitched voices); **no note priority / single-vs-multi
-    trigger** (Part 18's whole subject, "at least 24 keyboard characteristics" — every monosynth cart
-    hand-rolls its own answer). Plus `sound_find_voice` returning the lowest-index free voice with
-    zero per-voice variation, which is a **sourced answer to audio-notes §17** "why everything sounds
-    clean" pointing upstream of the signal path. **§C twelve additions**, cheapest first: LFO delay
-    (delayed vibrato is currently *inexpressible*), LFO rate/depth and resonance as mod destinations,
-    a saw-carrier option for `ringmod` (unlocks the entire analogue inharmonic-metal family we have no
-    engine for), a 6 dB one-pole (which is also the honest portamento circuit), Hammond leakage, and a
-    free `harmonic-spec.js` oracle from his 1:n pulse-width law that costs no code at all.
-    **Owner's working rule, baked into the doc (2026-07-28): one small step at a time, and no engine
-    change lands without a cart where you can hear it** (existing carts are fine to improve). The doc
-    carries a 23-row suggested step order with a named cart per row. Nothing is approved.
-    **§E = recipe pass 1, BRASS** (Parts 24-27, added the same day) — the per-family half of the audit,
-    and the first section with MEASUREMENTS (rendered via `brasspec` + `harmonic-spec`/`wav-envelope`).
-    Ten findings, own 10-step order. The three that matter: (1) **§E4, structural** — Reid runs the amp
-    attack at 100 ms and the *brightness* attack at 600 ms, citing the differing development rates of
-    the harmonics as "the most important audible clue" to an instrument's identity; our `br_env` is a
-    level FOLLOWER with a 14 ms time constant, so measured at 100 ms windows the note arrives fully
-    bright, with no bloom. This is new to the brass thread and a credible answer to
-    [`design/brass-realism-handoff.md`](design/brass-realism-handoff.md)'s standing "very obviously not
-    real brass". (2) **§E9, tooling** — our brass spectral measurements aren't trustworthy: the 372 ms
-    analysis window spans ~2 cycles of an always-on, undefeatable 5.4 Hz lip vibrato, smearing high
-    harmonics more than low ones; and the handoff doc's headline h9→h17 does NOT reproduce from
-    `brasspec`'s committed defaults (h9 at timbre 0.80, h23 at timbre 1.00). Verified it is *not* a
-    regression, but the number needs pinning. (3) **§E5 gives handoff fix #3 a pass/fail number** it
-    never had: Part 24 Fig 8 says the 8th harmonic DOMINATES an overblown note; measured, h1 is still
-    loudest and evens are still suppressed (h2 −31.3 dB). Plus §E10, free and cart-side: `brass.c` uses
-    a 1 ms attack and a 1200 ms release where the book says 100 ms and effectively instantaneous.
-    **§F = recipe pass 2, STRINGS** (Parts 46-51 — string *machines* + *bowed*, both of which we ship;
-    plucked strings are a separate unread arc). Headline: **`INSTR_BOWED` has no body resonator at all**
-    while `GUITAR` (`gt_body[4]`) and `PIANO` (`pn_body[4]`) both do, and Part 48 is explicit that the
-    body is what makes it a violin ("without these … the sound will not be realistic") — we output
-    Reid's *bridge force* where the ear needs his *radiated* spectrum, and the fix primitive is already
-    in the same header. Also: our PWM may be missing the **two-pitch** effect Part 47 proves is the real
-    reason PWM sounds chorused (unverified, and the measurement is specified); `solina` leaves
-    `LFO_DETUNE` and the Random-shape LFOs unused, which are the exact two rungs Part 46 says the
-    ensemble sound lives on (free, cart-only); Part 51 abandons patch-building to argue **continuous
-    control beats components** ("two modules … can be far more expressive … than any number of modules"),
-    which lands on our ribbon/touch surface and the existing `martenot` cart; and cutoff **keytracking is
-    now cited four separate times** across the series, making it the most-requested missing feature in the
-    book. **§C12 was CORRECTED**: Reid retracts Part 10's "every nth harmonic is missing" law in Part 47
-    (the spectrum is a sinc envelope), so the oracle as originally specced would have gated on something
-    false. Expect more of this — the series ran five years and he revises himself.
-    **§G = the missing engine class (owner's idea, 2026-07-28, nothing designed):** every patch in the
-    book is *subtractive* while all our imitative engines are *physical models*, so "a Minimoog playing a
-    trumpet" — a beloved sound in its own right, and the whole 1970s horn/string-machine vocabulary — is
-    a target we don't serve. Probably **not** a new `INSTR_*` but a cart-land `subtractive.h` holding
-    Reid's *published parameter values* as a cited voicing table (the `acid303.h` precedent), which makes
-    it a feature and a regression test at once. Prerequisites are all already specced in §B/§C.
-    Catalogued in [`design/instrument-engines.md`](design/instrument-engines.md) §8.9 and
-    [`design/audio-notes.md`](design/audio-notes.md) §13 as a possible third lever.
-    **§H = recipe pass 3, PLUCKED STRINGS** (Parts 28-30, measured). Headline: **there is no pickup model
-    anywhere, so no electric guitar exists in the roster** — and `combo`, `pedalboard`, `tubescreamer`,
-    `wba` and `mixbooth` all drive `INSTR_GUITAR`, which is documented acoustic-only. The whole dirt chain
-    (`ampcab.h`'s five amps, the TS/RAT/Big Muff `drive_voice` models, the pedalboard) has been built out
-    in front of an acoustic guitar. Part 30 hands us the spec: a pickup senses a short length of string, so
-    it combs the series by position, and because "the output of any harmonic is proportional to the
-    **velocity** of its motion" the low end comes out much flatter than 1/n. That is a second interpolated
-    tap on the existing KS line, differenced — small change, new sound, and the only §H item that unlocks
-    something rather than improving it. Also: PLUCK's pick-position comb is the right mechanism and lands
-    where the physics says (measured), but `pos` is integer-quantized so the notches drift off-harmonic
-    (3.02/6.03/9.05 instead of 3/6/9 at A2, worse up the neck) while `ks_tap_read` and PIANO's
-    fractional-delay allpass both sit in the same file; `GUITAR`/`PLUCK` decay is a single exponential
-    (measured flat ~0.80 per 100 ms window) where Part 28's guitar envelope is two-stage, and **`PIANO`'s
-    `pn_dd` comment mis-attributes why** (a plucked guitar has two-rate decay too, from the string's two
-    polarisation planes, so it isn't what makes a sound "struck"); `GUITAR` has no sympathetic resonance
-    even though Reid's teaching demo for it is literally a guitar; the body is a parallel filter on the
-    output with no return path into the string, which is the **same structural gap as brass fix #3**; and
-    the high register measured close to a pure fundamental (h6-h9 at −74 to −83 dB at A4), flagged as
-    measured-but-undiagnosed. Two validations worth keeping: the 0.55 comb coefficient turns out to be
-    defensible for a reason the code doesn't state (the body puts the notched harmonics back), and **Reid's
-    verdict endorses our approach** — "you can not create authentic-sounding acoustic guitar patches using
-    analogue subtractive synthesis … only digital technology will do", which also **bounds §G** (it is for
-    brass, string machines and leads; it must not grow a guitar). Third citation for §C6's attack-level
-    envelope, and third place the series says voice allocation is instrument design (§B3, §B7, now
-    per-string).
-    **§I = recipe pass 4, PIANOS** (Parts 42-45, measured) — and this one came out the **best-matched
-    engine in the audit**, so it is mostly confirmation. The headline: the hammer comb is the **inverse**
-    of the pluck comb, because a pluck point is maximum displacement while "the piano hammer remains in
-    contact with the string long enough to ensure that the position at which the string is struck is a
-    **node** of zero displacement" — and `sound_piano_start` correctly uses an **averaging** comb where
-    `PLUCK`/`GUITAR` use a **differencing** one, which at half-string nulls the fundamental and every odd
-    harmonic exactly as Part 42 describes. The navkit port got a subtle thing right; **nothing in the code
-    records that the sign is load-bearing**, which is §I's step 1. Also confirmed: stretched tuning uses
-    Reid's own mechanism and his reason for it ("a perfectly tuned piano not only sounds out of tune, it
-    sounds dull"); register-dependent decay falls out of the delay line free (measured: A1 at 0.11 after
-    1 s, A4 gone); and Part 45 validates our macro split from an odd direction, since a piano note's
-    brightness and loudness physically *cannot* change once sounded, so note-on voicing plus a live pedal
-    axis is correct. Gaps: hammer position is per-voicing where the book says it varies **1/7 to 1/15
-    across the keyboard**; the **top octave measured gone in half a second** (A4 at 0.01 of peak by
-    500 ms), steeper than a real grand and possibly the same structural cause as §H8's guitar
-    high-register loss; inharmonicity is fixed at note-on so it never grows with level though the book
-    says it depends on amplitude as well as pitch; peak level doesn't taper with pitch; the tricord is
-    capped at two strings with no energy exchange (the **third** coupling gap after §E5's bell and §H5's
-    body). Plus the counter-intuitive one: a real grand's **bottom-octave fundamental is weak** ("the note
-    that you think you hear is to some extent implied by the harmonics"), so our shipped anti-thin
-    sub-oscillator reinforces the partial the instrument has least of — flagged for an A/B, not for
-    removal. And §I9 hands §G its best endorsement, from Reid himself on the layered JX10 patch: "there
-    are times when I would still use it today, in preference to any of the 'real' things."
-    **§J = recipe pass 5, DRUMS** (Parts 31-41, eleven chapters — the longest arc, and the only family
-    where we ship both a physical engine and faithful *machine* recipes, so there were two independent
-    things to check). Confirmed first: our six `MEMBRANE` mode ratios are **Reid's Table 1 to three
-    decimals** (1.0 / 1.594 / 2.136 / 2.296 / 2.653 / 2.918 vs his 0,1 / 1,1 / 2,1 / 0,2 / 3,1 / 1,2), and
-    `tr808.h`'s snare modes independently match his "approximately 180Hz and 330Hz". Then the gaps, and
-    they cluster: the **"tuned" end of the ratio crossfade is an integer harmonic series and no drum has
-    one** — a real pitched drum is *air-loaded*, which raises the **radial** modes to roughly 1 : 1.47 :
-    1.91 : 2.36, "still too flat to fool the ear … but [conveying] a strong sense of tonality"; our
-    loudest mode is the 0,1 that a real stretched head **resists** ("membranes don't like to wrinkle"), so
-    the principal should be the 1,1 at 1.59×, which also means our perceived pitch may sit a fifth off
-    what a timpanist would call the note; and **strike position is a brightness tilt where the physics is
-    a mode-family selector** — a timpanist strikes a quarter from the edge specifically to "suppress the
-    circular modes", yet our mode 0 is pinned at full weight and can never be reduced. Those three are one
-    fix from three angles, and the mode identities needed to do it are already recoverable from the table.
-    **The best item needs no engine change at all:** Part 39's TR-808 schematic splits the six-oscillator
-    bank into **three bands with three different decay times**, because "this inequality of decay times
-    allows the TR808 to change the mix of lower-, mid- and higher-frequency components as the sound
-    progresses" — which is precisely the spectral migration Part 37 says a real cymbal does. Ours is one
-    band, one highpass, one decay, so the timbre is static as it rings. That is a `tr808.h` edit.
-    Also: the 909's metal really is a 6-bit ROM sample (we already say so, and substitute FM clang — a
-    documented choice, not a drift), but Reid records the gotcha to keep if we ever swap in real samples,
-    since the 909 derives its envelope from the sample's **address counter** so that tuning cannot
-    truncate it, a bug our `INSTR_SAMPLE` would hit as-is. Plus a third sighting of level-dependent
-    inharmonicity (with §I4 and §H), and velocity should move the snare's tone/noise balance.
-    **Numbering correction, same day:** §F and §I were each **off by one** (strings are Parts 46-51 not
-    45-50; pianos 42-45 not 41-44) and §A5 cited the wrong chapter for the 808 cymbal (Part 39, not 40).
-    The *months* were right throughout since they came from page footers; only the numbers moved. The
-    mapping is now **validated against the eleven `PART N:` labels the PDF prints itself**, so it is
-    trustworthy going forward. Fixed everywhere, including the docs that cite back.
-    **§K = recipe pass 6, FLUTES** (Parts 52-54) — run next precisely because `studio.h` already carried an
-    open tuning question about `INSTR_PIPE`, and the chapters resolve it. Reid gives the mechanism: because
-    the embouchure hole sits away from the bore end, "the **effective length of the flute increases for
-    higher harmonics**", so a jet-driven pipe genuinely drifts and drifts worse the higher you play — and
-    real instruments are *built* with compensation, since "flute manufacturers try to compensate for this by
-    making tiny adjustments to the position of the cork". **We already do that in software**, and the
-    interesting finding is why it still misses: `sound_pipe_start`'s second-stage ramp
-    (`ex = 0.40·(jetLen−5)`, **clamped at 0.80**) saturates at jetLen ≥ 7 and is asked to serve both jetLen
-    7 and 9, fitting neither. Measured with `tune-check --engine PIPE`: morph 0.70 (jetLen 5, the
-    calibration point) in tune at −1.5¢ worst ✓; morph **0.40** (jetLen 7) **+13…+17¢ sharp** because the
-    saturated ramp over-corrects; morph **0.20** (jetLen 9) −19¢ then a mode collapse at C6 that the
-    engine's own comment already predicts. **Two doc claims therefore need narrowing** — `studio.h` says low
-    embouchure drifts *flat* when at the most plausible mid setting it drifts *sharp*, and
-    [`design/audio-notes.md`](design/audio-notes.md) §18's "in tune ±3¢ at **any sane embouchure**" holds
-    only near its calibration point (same class as §E9: a recorded number that does not survive
-    re-measurement). Separately and also measured: **the `harmonics` macro does not overblow at all** — no
-    register jump at any value, it drives the jet nonlinearity so it brightens and pulls flat (−26¢ by C5)
-    — yet the docstring promises a "fundamental → octave flageolet". And one engine covers three bore
-    topologies the book treats as physically distinct: a pan pipe is closed at the bottom so it has **only
-    odd harmonics** and overblows a *twelfth*, while a flute is open and overblows an *octave*. Plus a
-    second sighting of the noise-through-the-bore win (§E1 found it for brass): Reid needs a formant bank
-    of six to forty filters to tune breath noise to the note, and we get it free by injecting noise into
-    the excitation. Sixth citation for §B2 keytracking, with a value ("pitch tracking of a few percent").
-    **§L = recipe pass 7, THE HAMMOND** (Parts 55-59) — like §I, strongly matched. The nine drawbar ratios
-    are Reid's table **exactly** (0.5/1.5/1.0/2.0/3.0/4.0/5.0/6.0/8.0, i.e. harmonics 1,3,2,4,6,8,10,12,16
-    referenced to the played 8', including the awkward 16'/5⅓'/8' panel order and the skipped harmonics);
-    two of his four named registrations are in our snapped table verbatim (**88 8000 000**, which he calls
-    the punchy Jimmy Smith/Keith Emerson voicing and ours literally labels "jimmy smith", and
-    **88 8888 888**); and our scanner chorus does the one thing he says "**only a couple of Hammond
-    emulators manage to get it right**" — mixing dry with a *single* pitch-modulated instance, because
-    "Roland's three-stage chorus/ensemble is far too lush". It also confirms `audio-notes` §18's "ORGAN
-    reads an octave low" as *correct*: Hammond calls the 8' the unison but "the 16' pitch is the
-    fundamental", so a 16'-heavy registration sounds an octave down while being in tune. Our `leslie()`
-    matches all three points he makes (800 Hz crossover, two rotors at independent rates, independent
-    spin-up/down inertia) on the effect he spends a chapter calling intractable. Gaps cluster on the
-    **percussion**: it is 2nd-harmonic only where the real thing has a **Second/Third** selector (4' vs
-    2⅔'), its decay is fixed ~200 ms where the real thing has **Fast/Slow**, and — the significant one —
-    **it fires on every note, where "Hammond percussion is polyphonic, but of the single-triggering variety,
-    so if a previous note is held, the percussion does not sound"**. That pairs with §K6, where the flute's
-    chiff *requires* multi-triggering: **two instruments we ship need opposite settings of the same
-    switch**, and in both cases it decides whether the instrument's defining transient happens at all. That
-    is the clearest case the audit has made that **§B3 is an engine-level policy an instrument should
-    declare**, not a per-cart convention. Also missing: the two registrations Reid names for what they *do*
-    — **83 4211 100** (closest to 1/n = the nearest a Hammond gets to a sawtooth) and **00 8030 200** (1/n
-    odd-only = a square) — two table rows that add colours the macro cannot currently reach.
-    **§M = recipe pass 8, DELAYS/REVERB/EFFECTS** (Parts 22, 60-62) — **and this COMPLETES the sieve: all
-    63 articles are now read.** The one arc not about an engine, so it exercises the effects layer instead
-    (echo/BBD, the three reverb tanks, spring reverb, chorus, flanger, tape, grains) and pairs with
-    `guides/effects-recipes.md`. Reid's Part 22 thesis is that a short reverb placed *inside* the patch
-    becomes the instrument's **body** ("the characters of the individual notes change, much like those of an
-    acoustic instrument"), and he closes the article regretting that almost nothing lets you position it
-    there — `reverb_bus()` + `fx_order()` do exactly that, the **third** capability the series treats as out
-    of reach (after §E1 and §K1's bore-coloured noise). It also hands **§F4 a cheaper answer**: a body can
-    be **three parallel delay lines at 1-4 ms with different times**, which is what the hardware did, rather
-    than four biquad formants — worth an A/B on `BOWED`. Gaps: the reverb is Schroeder with a predelay but
-    **no early reflections**, where Reid's impulse response has three regions (direct / discrete early
-    reflections / dense tail), and the fix is a tap list off the predelay buffer we already own; `chorus()`
-    is a deliberate two-path Juno-6 model where Reid's "classic" is three-phase at 120° and Roland's 1978
-    ensemble used four BBDs — and **three things we ship want three different densities**, since §L1 says the
-    Hammond scanner must stay a *single* instance while `solina` declares chorus its entire identity; BBD
-    degradation is "cumulative" per stage in the hardware so it should **compound with tap distance** rather
-    than colouring the tap; and ping-pong, multi-tap and cross-fed (echo-of-echoes) topologies are not
-    expressible, which is worth noting because Part 61's actual argument is for *architecture* freedom over
-    presets, and `fx_order()` already grants half of it. Part 19 (duophony) was read to close the series and
-    contributes one allocation rule to the §B3 theme (a duophonic keyboard takes the **lowest and highest**
-    held notes, not the most recent two).
-    **Nothing in the series is now unexamined. Next is not more reading but the step-by-step guide**, whose
-    job is *collection*: there are nine per-section step tables and the cheapest items are scattered across
-    all of them. Several cost nothing at all — a tool run (§C12), two comment fixes (§I1, §H1), two doc
-    corrections (§K3, §E9), five cart-only edits (§F2, §J5, §J9, §E10, §I9), two table rows (§L5). The guide
-    should also state the four **cross-cutting themes** once instead of nine times: keytracking (§B2, six
-    chapters), level-dependent inharmonicity (five families), trigger policy (§B3, with §L4 and §K6 needing
-    opposite settings), and coupling (§E5/§H5/§I3/§M2 — one architectural question, four faces).
-    **➜ THE PLAN NOW EXISTS (2026-07-28): [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md)**,
-    STATUS READY TO BUILD. Every finding ordered into one ledger and classified **FACT / VERIFY / LISTEN /
-    DESIGN** — the first two are "just do it", the last two need the owner. LISTEN items are built **opt-in
-    from the start** so an A/B is possible and a "worse" verdict costs nothing to abandon; the honest outcome
-    of an inconclusive A/B is DROP, recorded with its measurement. It also answers **when to add a new engine
-    or effect versus change an existing one** from this repo's own ADRs (0006/0015/0016/0017) as a 7-rung
-    ladder — take the lowest rung that holds the finding, escalate only when a *built cart* failed the rung
-    below — and concludes **almost nothing on this list earns a new engine**: §G is a cart-land header, even
-    the electric guitar (§H6) is a second tap on `INSTR_GUITAR`. Phase 0 is ten doc/comment fixes plus five
-    measurements, five of which gate later work; Phase 1 is seven cart-only A/Bs; Phase 2 is the four themes
-    (keytracking alone closes six chapters' requests). Eight items are listed as explicit DROP candidates so
-    they stop costing attention.
+52. **Synth Secrets — phases 3 and 4** *(audit 2026-07-28; phases 0-2 shipped 2026-07-29/30, see the
+    first changelog entry above)*. The engine was cross-checked against Gordon Reid's 63-part **Synth
+    Secrets** (SOS 1999-2004), supplied as a PDF — copyrighted, **not in the repo**, cite by part +
+    issue. That produced 98 findings in three shapes: **§A what already matches** (recorded so nobody
+    "fixes" it), **§B ten drifts** (each with a book ref, a `sound.h` line, and the cart it would be
+    heard in), **§C twelve additions**.
+    - Findings ledger: [`design/synth-secrets-audit.md`](design/synth-secrets-audit.md) (2,700 lines).
+    - The ordered work: [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md), which carries
+      the live per-item state and is the file to read before picking this up. **Phase 0 done ·
+      Phase 1 7/7 · Phase 2 3.5 of 4 · phases 3-4 untouched.** Two items are recorded DROPs and one
+      was a false premise — the plan says which and why, because a dropped item that looks merely
+      unfinished gets re-proposed.
+    - In-flight detail (what to resume mid-lane) lives in [`HANDOFF.md`](HANDOFF.md), not here.
+    *(This entry was 229 lines — 15% of the file — and titled "deliberately NOT queued" while the
+    changelog above recorded two of its phases as shipped. A ledger row should not restate a 4,800-line
+    pair of design docs; it should say where they are and whether the work is live.)*
 
 ---
 

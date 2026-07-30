@@ -1,21 +1,31 @@
 # Synth Secrets — the build plan
 
-STATUS: BUILDING — **Phase 0 DONE; Phase 1 DONE, 7 of 7 (2026-07-29)**: 1.1 solina, 1.2 tr808 cymbal and
-1.3 the 808/909 snare **shipped by the owner's ear** (each keeping its old sound on a toggle); 1.5 the
-layered piano **liked but kept opt-in** (it guards acceptance tests); **1.4 brass and 1.6 Hammond are
-recorded DROPs** — Reid loses all three brass envelope numbers, and the Hammond item was mis-priced;
-1.7 martenot built, awaiting an ear. The ordered work ledger
-derived from [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is the *findings*; this is the
-*doing*. **PHASE 1 IS COMPLETE (7 of 7)**: 1.1/1.2/1.3 shipped by ear, 1.5 liked-but-opt-in, 1.4 and 1.6
-recorded DROPs, 1.7 built and awaiting an ear call. It also produced one engine FIX — `instrument_mode`
-rejected two of its own indices, so two `piano` sliders had never worked. Nothing past Phase 1 is approved;
-**Phase 2 (the four cross-cutting themes) is where the leverage is**, starting with keytracking.
-**Phase 2 so far:** 2.1, 2.2 and **2.3(a) SHIPPED**. 2.3's premise failed on measurement — PIANO's
-dispersion chain was inert and its stretched-tuning seam was cancelled a frame after note-on — and both are
-now FIXED and shipped by the owner's ear (`MODE_PIANO_STIFF`, real stiff-string inharmonicity at B ≈ 1.1e-4,
-plus the completed Railsback curve). **2.3(b) is DROPPED** — measurement showed four of its five "families"
-have no inharmonicity to modulate, so its finding-count ranking rested on a false premise. §I4d open;
-**2.4 is the live Phase 2 item** and needs no ear to start.
+STATUS: BUILDING — **Phase 0 DONE · Phase 1 DONE 7/7 · Phase 2 is 3.5 of 4 · Phases 3-4 untouched.**
+The ordered work ledger derived from [`synth-secrets-audit.md`](synth-secrets-audit.md) (98 findings). The
+audit is the *findings*; this is the *doing*.
+
+- **Phase 1 (7/7, 2026-07-29):** 1.1 solina, 1.2 tr808 cymbal, 1.3 the 808/909 snare and 1.7 martenot
+  **shipped by the owner's ear** (each keeping its old sound on a toggle); 1.5 the layered piano **liked but
+  kept opt-in** (it guards acceptance tests); **1.4 brass and 1.6 Hammond are recorded DROPs** — Reid loses
+  all three brass envelope numbers, and the Hammond item was mis-priced. It also produced one engine FIX:
+  `instrument_mode` rejected two of its own indices, so two `piano` sliders had never worked.
+- **Phase 2 — 2.1 SHIPPED** (`instrument_keytrack` + env/LFO cutoff in octaves) · **2.2 SHIPPED**
+  (`mono.h`: note priority + trigger policy) · **2.3(a) SHIPPED** — its premise failed on measurement
+  (PIANO's dispersion chain was inert AND its stretched-tuning seam was cancelled a frame after note-on),
+  both now fixed and shipped by ear as `MODE_PIANO_STIFF` (real stiff-string inharmonicity, B ≈ 1.1e-4) plus
+  the completed Railsback curve · **2.3(b) DROPPED** (four of its five "families" have no inharmonicity to
+  modulate, so the finding-count that ranked it was a false premise) · **2.4 IN PROGRESS** — premise checked
+  (3 faces solid, §E5 parked), and `BOWED` now has the body it never had (`MODE_BOW_BODY`, opt-in).
+- **Still open in Phase 2:** size the bowed body (it is one fixed VIOLIN box, which is what blocks
+  defaulting it on), `guitar` as a measurement-only cross-check, §I4d (the loop's own +1.3→+4.0¢ offset),
+  and an ear pass on the five unverified piano voicings.
+- **Four oracles came out of the work**, each because nothing existing could see the bug:
+  [`click-check`](../../tools/click-check.js) (splices), [`inharm-spec`](../../tools/inharm-spec.js)
+  (partial frequencies + per-partial decay), [`disp-model`](../../tools/disp-model.js) (dispersion design,
+  analytic), [`lint-aux-params`](../../tools/lint-aux-params.js) (the silently-inert parameter).
+
+**Phase 3 is 47 per-engine LISTEN-gated rows and Phase 4 is 6 needing a decision first — both deliberately
+untouched**, because Phase 2's cross-cutting themes were the higher-leverage bet and still are.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and

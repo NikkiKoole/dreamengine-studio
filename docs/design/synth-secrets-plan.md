@@ -1298,6 +1298,98 @@ themselves. **§I4b now has a third open question alongside the coupled compensa
 this loop cost sustain, and why.** Until that is answered there is no point running another timbre A/B —
 it would be confounded the same way.
 
+##### RESOLVED: dispersion costs NO sustain, and step 2 works. Two bugs, both mine (2026-07-30)
+
+The diagnostic was a controlled decay measurement — hold everything constant, vary one thing:
+
+| case | h1 | h2 | h3 (dB/s) |
+|---|---|---|---|
+| 1 today (no tune, no dispersion) | −8.5 | −9.1 | −10.6 |
+| 2 **tune +0.97st only, NO dispersion** | **−19.6** | **−53.5** | **−55.4** |
+| 3 dispersion + tune | −17.5 | −47.2 | −64.6 |
+| 5 **dispersion, NO tune** | **−7.6** | **−7.8** | **−5.3** |
+
+**Case 2 is the answer: my own pitch-matching hack caused all of it.** No dispersion present at all, just
+`instrument_tune`, and the decay collapses. Case 5 shows dispersion without the tune offset actually
+sustains *better* than today's engine. The owner's ear was reporting a real defect, in my test rig.
+
+**Engine finding worth its own row: bending a Karplus-Strong string DAMPS it.** `instrument_tune` (and
+`note_glide`/`note_pitch`/pitch envelopes) shift pitch through the per-sample `effLen = len / ratio` path,
+so `ratio ≠ 1` forces fractional-interpolation reads *every sample* — a lowpass inside the feedback loop,
+bleeding energy on every round trip. Measured at +0.97 semitones on PIANO: h2 decay goes from −9.1 to
+−53.5 dB/s, a **6× faster** decay. This applies to `PLUCK`, `GUITAR` and `PIANO` alike, and nothing
+documented it. It also means **`instrument_tune` is not a safe way to pitch-match a KS A/B** — compensate
+at note-on instead, where `ratio` stays 1.
+
+**Then the second bug, and it is what actually broke the partial structure: the compensation has to reach
+EVERY delay line in the voice.** `ideal2`, the detuned second string of the grand/bright voicings, is
+computed independently — `SR / (freq * pv->detune)` ([`:4738`](../../runtime/sound.h)) — so shortening
+`ideal` left string 2 uncompensated while it still ran through the same dispersion allpasses. The two
+strings ended up ~80¢ apart, which is what produced the "scattered partials" verdict. Compensate both and
+it comes right:
+
+| | f0 | fitted B | residual | h4 | h8 | h16 | decay h1..h4 |
+|---|---|---|---|---|---|---|---|
+| comp on string 1 only | −2.8¢ | −1.08e-4 | 30.5¢ | −37.8 | −32.7 | −19.9 | −7.7 −7.9 −7.0 −7.2 |
+| **comp on BOTH strings** | **−0.2¢** | **1.13e-4** | **1.4¢** | **+2.3** | **+8.1** | **+22.2** | −8.4 −9.3 −10.4 −20.7 |
+| A today (reference) | −1.5¢ | 1.68e-6 | 0.2¢ | +0.3 | +0.3 | +0.2 | −8.5 −9.1 −10.6 −21.9 |
+
+In tune, a real grand's inharmonicity, a **1.4¢** fit residual, a textbook progressive stretch, and a
+decay curve matched to today's engine. **So the step-1 recipe was right all along** — solve `c` for a
+target B, subtract the cascade's phase delay at note-on — and the earlier "the compensation and the
+dispersion are not separable" conclusion was wrong, an artifact of compensating one string of two.
+(That earlier subsection is left standing above as the record of a wrong turn; this is the correction.)
+
+**Generalise the lesson past the piano:** any per-note delay correction in a multi-line voice has to be
+applied to every line, and the voicings that would expose it are exactly the ones most people test last —
+`harpsi`/`clavichord`/`celesta` all have `detune 1.0` and a single string, so this bug is *invisible*
+unless you test `grand` or `bright`.
+
+**The ear pair is now clean and comparable** (peak within 0.1 dB, brightness 0.144 vs 0.140, decay curves
+tracking), so the only audible difference is the inharmonicity:
+
+```bash
+afplay build/ab/piano-inharm-A-OFF-today.wav          # harmonic: B 1.7e-6
+afplay build/ab/piano-inharm-B-real-stiff-string.wav  # stiff:    B 1.1e-4, h16 +22.2¢, residual 1.4¢
+```
+
+**And a methodology rule earned twice over: run `wav-envelope` on BOTH takes before calling anything an
+A/B.** Peak and rms passed on the previous pair while its decay differed by 19 dB. Comparability is a
+property of the envelope, not of two scalars.
+
+#### Postscript: would `spec()` have caught any of this? Mostly no — three other gates would
+
+Asked directly by the owner mid-thread, and worth answering in writing because the answer redirects effort
+away from the obvious tool. Sorting this thread's bugs by what would actually have caught them:
+
+- **A static bounds LINT would have caught the worst one.** The `eng_p` bound exists twice (the public
+  `instrument_mode` setter *and* the `SR_ENG_TUNE` request handler), and widening only one is a silent
+  no-op. That is three numbers that must agree — `eng_p[N]`, both `idx >= N` guards, and the highest
+  `MODE_*` constant — all greppable. It would also have caught the **earlier instance of the same bug**:
+  the piano decay/knock sliders that were dead for months because the setter rejected indices 2 and 3.
+  Cheapest real win here.
+- **`spec()` could NOT have caught the tuning bugs.** A cart spec runs cart logic headlessly and cannot
+  measure the pitch of rendered audio. §I4c was "a value computed correctly and then overwritten
+  downstream" — invisible from cart-land. That needed an audio oracle, hence tune-check's differential.
+  The one spec-shaped piece, a `<lib>_selfcheck()` asserting the stretch curve's *shape*, would have
+  **passed happily while the bug was live**, because the formula was never wrong. The plumbing was.
+- **An A/B COMPARABILITY gate is missing and should exist.** Before two WAVs may be called an A/B, assert
+  peak, rms **and decay envelope** are within tolerance, else refuse. Checking the first two while the
+  third differed by 19 dB is exactly the failure above.
+
+**But the pattern worth naming is this: four separate bugs in this thread were the same shape — a value
+computed correctly that never reaches the sound.** The inert dispersion (§I4b), the cancelled bass stretch
+(§I4c), the dropped `eng_p` index, and the dead decay/knock sliders before them. `spec()` is the wrong
+instrument for that class. The right one already exists in miniature: **`ab-render` shouts when two
+variants render byte-identical audio.** Generalised — *every engine parameter should be flippable at
+runtime and carry a gate asserting that flipping it changes the output in the intended direction* — that
+single pattern would have caught all four. `MODE_PIANO_STRETCH` plus the tune-check differential is the
+first instance of it; the runtime seam is what makes it possible, which is why a compile-time `#define`
+for a tunable is a testability bug and not just a style choice.
+
+Ranked follow-up: (1) the MODE/`eng_p` bounds lint, (2) the A/B comparability gate, (3) extend the
+runtime-seam-plus-differential pattern across the `instrument_*`/`MODE_*` surface. None is `spec()`.
+
 #### Postscript: do not patch a shared engine to search a grid
 
 The first attempt at this measurement patched `runtime/sound.h` and rendered 24 variants. It left the

@@ -402,9 +402,32 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > stiff take is the QUIETER one, so check a verdict against loudness. No musical phrase yet; a phrase
 > needs the per-note compensation that does not work.
 >
-> **Resume-at: §I4b step 2, reformulated.** Solve `c` and the line length as ONE coupled system rather
-> than sequentially, gate on the fit residual, and fold in the **same delay-budget refactor §I4d needs**
-> (§I4d still open:
+> **✅ RESOLVED (2026-07-30) — step 2 WORKS and the step-1 recipe was right all along.** Both failures
+> above were mine, in the test rig, not in the physics. **(a) `instrument_tune` DAMPS a Karplus-Strong
+> string** — it shifts pitch through the per-sample `effLen = len/ratio` path, so `ratio ≠ 1` forces
+> fractional interpolation every sample, a lowpass inside the feedback loop. Measured at +0.97st on PIANO:
+> h2 decay −9.1 → −53.5 dB/s, **6× faster**. Applies to PLUCK/GUITAR/PIANO, was undocumented, and means
+> **never pitch-match a KS A/B with `instrument_tune`** — compensate at note-on where `ratio` stays 1.
+> Dispersion itself costs NO sustain (it sustains slightly better than today). **(b) The compensation must
+> reach EVERY delay line in the voice**: `ideal2` (the grand/bright second string) is computed
+> independently at `sound.h:4738`, so compensating only `ideal` left string 2 ~80¢ flat of string 1 —
+> *that* was the "scattered partials". Compensate both and it lands: **f0 −0.2¢, B 1.13e-4, residual 1.4¢,
+> h4 +2.3 / h8 +8.1 / h16 +22.2¢, decay matched to today.** Note the trap generalises: the voicings that
+> expose it (`grand`, `bright`) are the only ones with two strings — harpsi/clavichord/celesta have
+> `detune 1.0`, so this bug is INVISIBLE unless you test grand.
+> **Clean ear pair, comparable this time** (peak within 0.1 dB, brightness 0.144 vs 0.140, decay curves
+> tracking): `build/ab/piano-inharm-{A-OFF-today,B-real-stiff-string}.wav`. **Rule earned twice: run
+> `wav-envelope` on both takes before calling anything an A/B** — comparability is a property of the
+> envelope, not of peak and rms.
+>
+> **Resume-at: the owner's ear on that pair, then re-voice the six voicings' B.** After that, §I4b is a
+> real implementation (solve `c` per note from a per-voicing physical B, subtract the cascade's phase delay
+> from *every* line) and **2.3(b) finally unblocks**. Also queued, from the "would specs have caught this?"
+> question — three gates, none of them `spec()`: **(1) a MODE/`eng_p` bounds lint** (the bound exists twice
+> and widening one is a silent no-op; it has now bitten twice), **(2) an A/B comparability gate** (refuse a
+> pair whose envelopes differ), **(3) extend the runtime-seam-plus-differential pattern** across the
+> `instrument_*`/`MODE_*` surface, since *four* bugs this thread were the same shape — a value computed
+> correctly that never reaches the sound. Still open too:
 > with no stretch the loop runs +1.3→+4.0¢ sharp, and that offset is *window-dependent* because the
 > brightness bloom moves `ksb` and hence the loop delay within a note, so bless residuals per measurement
 > window). It also wants a decision on whether `B` becomes the real physical coefficient instead of

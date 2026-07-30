@@ -765,6 +765,16 @@ the wall was hit, and scored against §1's leverage rule.
    tuned +0.06 = unison shimmer (still costs two voices — the polyphony-halving
    unison *flag* of 2b stays deferred); also gamelan ombak in one call. Wired all
    four places + soundcheck PASS; worked example = sh101.c `define_slots()`.
+   > ⚠ **MEASURED 2026-07-30: bending a KARPLUS-STRONG string DAMPS it.** `instrument_tune` (and
+   > `note_glide`/`note_pitch`/pitch envelopes) shift pitch through the per-sample `effLen = len / ratio`
+   > path, so any `ratio ≠ 1` forces fractional-interpolation reads **every sample** — a lowpass inside the
+   > feedback loop, bleeding energy on every round trip. Measured at +0.97 semitones on `INSTR_PIANO`: the
+   > 2nd partial's decay goes from −9.1 to **−53.5 dB/s, six times faster**. Applies to `PLUCK`, `GUITAR`
+   > and `PIANO`. Two consequences: a glide/vibrato on a plucked or struck string costs sustain (may be
+   > desirable, but it is not free and nothing said so), and **`instrument_tune` is not a safe way to
+   > pitch-match a KS A/B** — compensate at note-on, where `ratio` stays 1. Found while chasing a decay
+   > confound in [`synth-secrets-plan.md`](synth-secrets-plan.md) §2.3(a); measure with
+   > `tools/inharm-spec.js` plus a per-partial decay fit.
    **→ SPLIT 2026-06-05 — this gap conflated two architecturally opposite things:**
    - **2a — an FM *engine*** (`INSTR_FM`): the second oscillator is an *inaudible*
      phase-wiggler sealed inside one engine's sample function — you only ever hear

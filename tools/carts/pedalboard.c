@@ -164,6 +164,23 @@ static const float CAB_KDEF[2] = { 0.5f, 0.5f };   // …their double-click-to-d
 // argument per call site, and one went stale when the real default moved (0.9 vs 0.7) so double-tap
 // silently reset to a value the knob never had. Sourcing the reset from the initialiser makes that
 // unrepresentable here.
+// GEAR DRAG, ported from acidcandy's _knobx: vertical = value, but PULL SIDEWAYS to shift into a
+// finer gear (further out = finer), so one gesture gives both coarse and precise. Base step stays
+// pedalboard's own 0.012/px; the gear only ever DIVIDES it. A gear change never jumps the value
+// because this drag is incremental (delta from prevY) rather than anchored to the grab point.
+#define KNOB_STEP    0.012f   // value per canvas px at 1x (a full 0..1 sweep = ~83px)
+#define KNOB_GEAR    22.0f    // sideways px per +1x of fine gear
+#define KNOB_GEARMAX 2.5f     // cap, so FINE still covers real ground
+// which knob a finger is on RIGHT NOW + whether it is in fine gear — draw() reads these, because a
+// mode with no visible sign is not a control (the rule acidcandy's FX-hub entry paid for twice).
+static int  drag_cat = -99, drag_knob = -1;
+static bool drag_fine = false;
+static float knob_gear(int px, int cx) {           // horizontal distance from the knob → gear ratio
+    int ox = px - cx; if (ox < 0) ox = -ox;
+    float g = 1.0f + ox / KNOB_GEAR;
+    return g > KNOB_GEARMAX ? KNOB_GEARMAX : g;
+}
+
 #define KM_N   8
 #define KM_CAB (-2)
 #define TAP_FRAMES 15                              // longer press than this = a drag, not a tap
@@ -673,6 +690,7 @@ static void commit_drop(Ptr *p) {
 
 void update(void) {
     frame_no++;
+    drag_cat = -99; drag_knob = -1; drag_fine = false;   // re-set below by whichever knob is held
     fit_canvas();   // reflow the canvas to the window ratio BEFORE any hit-testing (keeps tapp 1:1)
     for (int i = 0; i < NSHAPE; i++) if (keyp(SHAPE_KEY[i])) set_shape(i);
     for (int i = 0; i < NROOT;  i++) if (keyp(ROOT_KEY[i]))  set_root(i);
@@ -779,10 +797,22 @@ void update(void) {
                 }
             }
         } else if (p->mode == PTR_KNOB) {
-            if (p->slot < chain_n) { chain[p->slot].k[p->knob] = clamp(chain[p->slot].k[p->knob] + (p->prevY - ty) * 0.012f, 0.0f, 1.0f); dirty = 1; }
+            if (p->slot < chain_n) {
+                int   kcx  = knob_cx(ped_screen_x(p->slot), p->knob);
+                float gear = knob_gear(tx, kcx);
+                float *kv  = &chain[p->slot].k[p->knob];
+                float nv   = clamp(*kv + (p->prevY - ty) * KNOB_STEP / gear, 0.0f, 1.0f);
+                if (nv != *kv) { *kv = nv; dirty = 1; }   // only on a REAL change: dirty every frame
+                drag_cat = chain[p->slot].cat;            // re-ran apply_fx 60x/s while merely HOLDING
+                drag_knob = p->knob; drag_fine = gear > 1.5f;   // a knob (the set-and-hold stutter hazard)
+            }
             p->prevY = ty;
         } else if (p->mode == PTR_CABKNOB) {
-            cab_k[p->knob] = clamp(cab_k[p->knob] + (p->prevY - ty) * 0.012f, 0.0f, 1.0f); dirty = 1;
+            int   kcx  = CAB_X + (p->knob ? CAB_W * 3 / 4 : CAB_W / 4);
+            float gear = knob_gear(tx, kcx);
+            float nv   = clamp(cab_k[p->knob] + (p->prevY - ty) * KNOB_STEP / gear, 0.0f, 1.0f);
+            if (nv != cab_k[p->knob]) { cab_k[p->knob] = nv; dirty = 1; }
+            drag_cat = KM_CAB; drag_knob = p->knob; drag_fine = gear > 1.5f;
             p->prevY = ty;
         } else if (p->mode == PTR_PICK) {
             for (int s = 0; s < NSTR; s++) { int ys = STR_Y(s); if ((p->prevY < ys && ty >= ys) || (p->prevY > ys && ty <= ys)) pick_string(s, tx); }
@@ -879,8 +909,11 @@ static void draw_chain_pedal(int i, int x) {
         int kx = knob_cx(x, j), ky = knob_cy(j, d->nk);
         circfill(kx, ky, kr, CLR_BROWNISH_BLACK);
         circ(kx, ky, kr, sl->on ? d->accent : CLR_DARK_GREY);
+        bool turning = (drag_cat == sl->cat && drag_knob == j);   // drag_cat is -99/KM_CAB when idle, so never matches
         float a = (-135.0f + sl->k[j] * 270.0f) * 0.0174533f;
-        line(kx, ky, kx + (int)(sinf(a) * (kr - 1)), ky - (int)(cosf(a) * (kr - 1)), sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
+        int ptcol = (turning && drag_fine) ? CLR_ORANGE            // amber = fine gear, the only sign it is on
+                  : sl->on ? CLR_WHITE : CLR_MEDIUM_GREY;
+        line(kx, ky, kx + (int)(sinf(a) * (kr - 1)), ky - (int)(cosf(a) * (kr - 1)), ptcol);
         const char *lbl = d->klabel[j];
         if (d->kind == FX_FORMANT && j == 3) {                    // the MOD knob shows its mode, like TREM's WAV
             static const char *MN[4] = { "MAN", "ENV", "STP", "LFO" };
@@ -914,6 +947,8 @@ static void draw_chain_pedal(int i, int x) {
             static const char *WN[8] = { "SINE","SQR","TRI","SAW","RAMP","OPT","S&H","RND" };   // = LFO_SHAPE_*
             lbl = WN[(int)(sl->k[2] * 7.99f)];
         }
+        if (turning && lbl == d->klabel[j])                       // still the static name → show the number instead
+            lbl = str("%d", (int)(sl->k[j] * 99.0f + 0.5f));
         font(FONT_TINY);                                          // label tucked beside the knob (the empty column)
         if (j & 1) print_right(lbl, kx - kr - 2, ky - 2, lblcol);   // right-column knob → label on its left
         else       print(lbl,       kx + kr + 2, ky - 2, lblcol);   // left-column knob  → label on its right

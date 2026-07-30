@@ -1048,18 +1048,16 @@ static void draw_guitar(void) {
     // SX0+60 (fret 7.7 — not a fret), so the dots had nothing to line up against and the neck read
     // as wrong even when the dot was right. Frets are drawn on the SAME FRET_X() the dots use, so
     // the two cannot disagree.
-    // FRET WIRES AS METAL. A flat 1px grey rule reads as a drawn line; a real nickel fret is a
-    // round wire lit from above, so it runs bright at the top and falls off toward the board. Two
-    // columns (lit edge + shadow edge) give it the round section, three vertical bands give the
-    // falloff. The shadow column is dropped when the frets are packed tighter than 4px.
+    // FRET WIRES: ONE pixel wide, but graded down its length rather than flat. A real nickel fret
+    // is lit from above, so bright at the top and falling off toward the board; three vertical
+    // bands are enough to read as metal at this size. (A 2px lit-edge + shadow-edge version was
+    // tried and was too heavy — at 12px fret spacing it turned the neck into a ladder.)
     for (int f = 1; f <= NFRETS; f++) {
         int wx = FRET_WIRE(f), y0 = by + 4, hh = bh - 8;
-        static const int LIT[3] = { CLR_WHITE,      CLR_LIGHT_GREY,  CLR_MEDIUM_GREY };
-        static const int SHD[3] = { CLR_LIGHT_GREY, CLR_MEDIUM_GREY, CLR_DARK_GREY   };
+        static const int LIT[3] = { CLR_WHITE, CLR_LIGHT_GREY, CLR_MEDIUM_GREY };
         for (int b = 0; b < 3; b++) {
             int ya = y0 + hh * b / 3, yb = y0 + hh * (b + 1) / 3;
             rectfill(wx, ya, 1, yb - ya, LIT[b]);
-            if (FRET_W >= 4) rectfill(wx + 1, ya, 1, yb - ya, SHD[b]);
         }
     }
     // INLAYS. They belong on the neck's CENTRE LINE, between the two middle strings — the old

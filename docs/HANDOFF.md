@@ -457,8 +457,12 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > contrast; read the baked frame).
 >
 > **Resume-at: (1) re-voice the other five voicings' B by ear** — they scale from `stiff` (celesta 2.4e-4
-> down to clavichord 4.4e-5, plausible ordering but only the grand was ear-checked); **(2) 2.3(b), now
-> UNBLOCKED** — there is finally inharmonicity to make level-dependent; **(3) §I4d** (the loop's own
+> down to clavichord 4.4e-5, plausible ordering but only the grand was ear-checked); **(2) 2.3(b), now UNBLOCKED** — velocity → B is the easy half (scale the target, the solver
+> does the rest), but the RELAXING half has a trap this session paid for: changing `c` mid-note moves the
+> pitch, and the only way to shorten the loop after note-on is the `effLen = len/ratio` read-pointer path,
+> which is EXACTLY the fractional-interpolation path measured to bleed energy every round trip. So the
+> naive version trades relaxation for sustain — the same confound the owner's ear caught. Gate any attempt
+> on `inharm-spec --decay`, not just on B and pitch. Candidate shapes in plan §2.3(b) handoff; **(3) §I4d** (the loop's own
 > +1.3→+4.0¢ offset) and the constant-B simplification (a real Railsback B rises at both ends of the
 > keyboard). Queued gates from the specs question: the A/B comparability gate, and a "pitch is invariant
 > across `MODE_PIANO_STIFF`" assertion in `inharm-spec` (needs the spectral method, so not tune-check). After that, §I4b is a

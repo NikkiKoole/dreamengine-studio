@@ -1460,6 +1460,32 @@ constant across the register, where a real Railsback curve rises at both ends. �
 2.3(b), the original level-dependent item, is now UNBLOCKED** — there is finally inharmonicity to make
 level-dependent.
 
+##### Handing 2.3(b) forward: the easy half, and the trap in the hard half
+
+2.3(b) is now unblocked, and it splits cleanly.
+
+**The easy half — velocity → inharmonicity.** Scale the target `B` by strike velocity at note-on and
+`pn_solve_dispersion()` does the rest; the machinery is already parametric. A `ff` note gets a wider
+stretch than a `pp` one, which is half of what Part 42 describes and closes the static complaint in §I4.
+
+**The hard half — inharmonicity RELAXING as the note decays — has a trap that this session paid for.**
+Reid's claim is about amplitude, so the stretch should shrink as the note dies. But changing `c` mid-note
+changes the loop's phase delay, which **moves the pitch** — and the compensation for that is subtracted
+from `ideal` at note-on, after which the delay-line length is fixed. The only way to shorten the loop
+during a note is the read-pointer path (`effLen = len / ratio`), and **that is precisely the fractional-
+interpolation path measured to bleed energy on every round trip** (a lowpass inside the feedback loop; it
+cost h2 a 6× faster decay at +0.97 semitones — see the `instrument_tune` finding above and in
+[`audio-notes.md`](audio-notes.md)). So the obvious implementation trades inharmonicity relaxation for
+lost sustain, which is the exact confound the owner's ear caught once already.
+
+Shapes worth considering instead, none tried yet: precompute two coefficient sets at note-on and
+crossfade the *allpass coefficients* while leaving the delay line alone (the pitch error is then whatever
+the uncompensated coefficient drift produces — measure it, it may be small enough to ignore or to absorb
+into a fixed offset); or accept a small deliberate pitch drift as physically honest, since a real piano
+string's pitch *does* fall slightly as it decays; or relax only the upper stages, whose contribution at the
+fundamental is smallest. **Whichever route: gate it on `inharm-spec --decay` as well as on B and pitch**,
+because sustain is the thing this trap takes and neither B nor a tuning check can see it going.
+
 ##### Reproducing every measurement in §2.3(a) from a cold start
 
 The WAV pairs above live in `build/ab/`, which is **not committed**, and the scripts that made them were

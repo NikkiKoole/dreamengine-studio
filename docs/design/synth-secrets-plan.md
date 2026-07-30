@@ -10,9 +10,10 @@ derived from [`synth-secrets-audit.md`](synth-secrets-audit.md). The audit is th
 recorded DROPs, 1.7 built and awaiting an ear call. It also produced one engine FIX — `instrument_mode`
 rejected two of its own indices, so two `piano` sliders had never worked. Nothing past Phase 1 is approved;
 **Phase 2 (the four cross-cutting themes) is where the leverage is**, starting with keytracking.
-**Phase 2 so far:** 2.1 and 2.2 **SHIPPED**; **2.3's premise FAILED on measurement** — PIANO's dispersion
-chain is inert and its stretched-tuning seam is cancelled a frame after note-on, so there is no
-inharmonicity to make level-dependent (§2.3(a), awaiting an owner call); 2.4 not started.
+**Phase 2 so far:** 2.1, 2.2 and **2.3(a) SHIPPED**. 2.3's premise failed on measurement — PIANO's
+dispersion chain was inert and its stretched-tuning seam was cancelled a frame after note-on — and both are
+now FIXED and shipped by the owner's ear (`MODE_PIANO_STIFF`, real stiff-string inharmonicity at B ≈ 1.1e-4,
+plus the completed Railsback curve). **2.3(b) is unblocked.** §I4d open; 2.4 not started.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -654,8 +655,8 @@ per-engine items is the single biggest saving available.
 |---|---|---|---|---|---|
 | 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **SHIPPED (both halves)** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | ✅ **SHIPPED** 2026-07-29 (`mono.h` + `sh101`) | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
-| 2.3(a) | **The premise fails: there is no inharmonicity to make level-dependent** (§I4b, §I4c, §I4d) | blocks 2.3(b) | §I4c **SHIPPED 2026-07-30** · §I4b still **DESIGN** · §I4d open | one line + a gate | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4; GUITAR and PLUCK harmonic too) **and** its stretched-tuning seam working in the **treble only**. §I4c is now fixed and, more importantly, **tune-check now asserts the stretch instead of tolerating it**. Write-up below |
-| 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN — **BLOCKED on 2.3(a)** | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. **The machinery turned out not to work**, so (a) comes first |
+| 2.3(a) | **The premise failed, and both halves are now FIXED** (§I4b, §I4c, §I4d) | unblocks 2.3(b) | ✅ **SHIPPED 2026-07-30** — §I4c (stretch) + §I4b (`MODE_PIANO_STIFF`) by the owner's ear; §I4d open | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4; GUITAR and PLUCK harmonic too) **and** its stretched-tuning seam working in the **treble only**. §I4c is now fixed and, more importantly, **tune-check now asserts the stretch instead of tolerating it**. Write-up below |
+| 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN — **UNBLOCKED 2026-07-30** | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. **The machinery turned out not to work**, so (a) came first — and now that PIANO has real, knob-controlled inharmonicity there is finally something to make level-dependent |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
 
 **Sequencing note:** 2.1 and 2.2 are prerequisites for a lot of Phase 3 and for §G, so they come first
@@ -1399,6 +1400,65 @@ Comparability: **rms matched to 0.22 dB** (−37.76 vs −37.98 dBFS), brightnes
 consequence of inharmonicity, not a rig artifact**: harmonic partials periodically phase-align into tall
 peaks, inharmonic ones never do, so the same rms arrives with a lower crest. Worth knowing rather than
 correcting away.
+
+##### ✅ SHIPPED 2026-07-30 — `MODE_PIANO_STIFF`, on the owner's verdict *"B is clearly better in the chords, let's ship it"*
+
+**The engine now has real stiff-string inharmonicity, and §I4b is closed.** What shipped:
+
+- **`pn_solve_dispersion()`** — solves the allpass coefficient from the delay DROP between the fundamental
+  and a reference partial. One scalar equation, **monotone in `c`**, 28 bisection steps at note-on. Do not
+  replace it with a direct fit of `B` over many partials: that is not monotone at strong coefficients and
+  an earlier attempt overshot the target **46×**. The reference partial is 14 where Nyquist allows
+  (calibrated to land within 2% across the register) and backs off in the top octave — C8 still works at
+  reference 4.
+- **The compensation goes into `ideal` AND `ideal2`.** Both delay lines run the same allpasses, and this
+  is the bug that cost the most: compensating only the first leaves the grand's second string ~80¢off.
+- **`MODE_PIANO_STIFF`** (`instrument_mode` idx 5): `0` = a perfectly harmonic string, `0.5` = the
+  voicing's own amount, `1` = double. Target `B` scales from `PianoVoicing.stiff`, calibrated so the grand
+  at centre lands on **1.1e-4** — the exact value the ear approved.
+- The old mapping is gone, with a comment recording *why* it could never have worked (positive `c` flattens
+  partials; the `pt ≤ 0.9` clamp made the useful half of the space unreachable).
+
+Measured on the shipped engine, grand voicing, no patching — **and the row that matters is the pitch, which
+does not move at all**, so the knob is a pure timbre control:
+
+| knob | A1 | C3 | C4 | C5 | fitted B | h8 | residual |
+|---|---|---|---|---|---|---|---|
+| **0.0** | −9.5¢ | −1.0¢ | +1.7¢ | +5.1¢ | 2.4e-6 | +0.3¢ | 0.2¢ |
+| **0.5** | −9.5¢ | −1.0¢ | +1.7¢ | +5.0¢ | **1.1e-4** | **+8.1¢** | 1.0¢ |
+| **1.0** | −9.5¢ | −1.0¢ | +1.7¢ | +5.0¢ | 2.5e-4 | +17.8¢ | 2.9¢ |
+
+**`0` is measured-equivalent to the old engine but NOT byte-identical**, and the reason is worth stating:
+the old chain ran 1–4 allpasses at `c ≈ 0.9999948`, a near-identity that is now skipped entirely. Both
+measure as harmonic (B ≈ 2e-6, h8 +0.3¢), so the difference is inaudible, but do not expect a matching sha.
+
+**It broke tune-check, and the reason is a trap worth knowing: YIN cannot track an inharmonic string.** A
+stiff string is genuinely non-periodic, so autocorrelation locks onto a shorter lag pulled by the stretched
+upper partials — PIANO read **+26.1¢ sharp at A2 with confidence falling to 0.65**, while a spectral-peak
+measurement of the same render puts the fundamental exactly where it belongs. The sharp reading was the
+*detector*. Fix: `tunecheck.c` sets `MODE_PIANO_STIFF 0` for both PIANO passes, so the tuning sweep and the
+stretch differential measure the one thing they are for on a signal their detector can track. Inharmonicity
+has its own oracle (`inharm-spec`, Goertzel-based and immune). **Follow-up:** an automated "pitch is
+invariant across `MODE_PIANO_STIFF`" assertion belongs in `inharm-spec`, not tune-check, precisely because
+it needs the spectral method — the evidence above is measured but not yet automated.
+
+**The `piano` cart gets a `stiff` slider** (4 columns × 2 rows now; a third row falls off-screen). Two
+things came out of that: the knob indices are now a **named enum**, because inserting `stiff` mid-list is
+exactly the cross-wiring trap CLAUDE.md warns about — with raw indices `decay` would have driven `knock`
+and the presets would have written the wrong slots. And a **pre-existing bug surfaced**: the tuning row's
+bars were drawn `CLR_DARKER_GREY` on a `CLR_DARKER_GREY` track, so `decay`/`knock`/`velo` had *always* been
+invisible unless selected. `ui-audit` passed it (it finds off-screen and overlapping, not low contrast),
+which is why reading the baked frame is the other half of that check.
+
+Gates: soundcheck silent · `tune-check --quiet` 0 · `dc-check` 0 · `lint-aux-params` 0 · `lint-fx-frame` 0 ·
+`lint-carts` ok · `api-usage` all four places registered · **570/570 carts compile** · `ui-audit piano`
+clean · baked frame read.
+
+**Still open:** the other five voicings' `B` now scales from `stiff` but only the grand was ear-checked, so
+they want a pass (celesta 2.4e-4 down to clavichord 4.4e-5 — plausible ordering, unverified). `B` is
+constant across the register, where a real Railsback curve rises at both ends. §I4d untouched. **And
+2.3(b), the original level-dependent item, is now UNBLOCKED** — there is finally inharmonicity to make
+level-dependent.
 
 ##### Design commitment: inharmonicity must be SWAPPABLE, with "perfectly harmonic" available
 

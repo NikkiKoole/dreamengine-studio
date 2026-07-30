@@ -64,6 +64,21 @@ void init(void) {
     for (int e = 0; e < NENG; e++)
         instrument(SLOT0 + e, ENGINES[e], 4, 60, 7, 140);
     instrument_mode(SLOT0 + ET_ENTRY, MODE_PIANO_STRETCH, 0.0f);   // the differential pass: stretch OFF
+    // ⚠ INHARMONICITY OFF FOR BOTH PIANO PASSES, and this is a correctness fix, not a convenience.
+    // PIANO ships stiff-string dispersion (MODE_PIANO_STIFF, audit §I4b), which makes the waveform
+    // genuinely NON-PERIODIC — the partials are no longer integer multiples. tune-check detects pitch
+    // with YIN, an autocorrelation-family method, and autocorrelation on an inharmonic signal locks onto
+    // a shorter lag pulled by the stretched upper partials: it read A2 as +26¢ SHARP with confidence
+    // falling to 0.65, while a spectral-peak measurement of the same render puts the fundamental exactly
+    // where it belongs. So the sharp reading was the DETECTOR, not the engine.
+    // Turning dispersion off here keeps this sweep measuring the one thing it is for — TUNING, including
+    // the stretched-tuning differential — on a signal its detector can actually track. Inharmonicity has
+    // its own oracle (tools/inharm-spec.js, which uses Goertzel peaks and is immune to this), and the
+    // evidence that the stiff knob does NOT move pitch lives in plan §2.3(a).
+    // FOLLOW-UP: an automated "pitch is invariant across MODE_PIANO_STIFF" assertion belongs in
+    // inharm-spec, not here, precisely because it needs the spectral method.
+    for (int e = 0; e < NENG; e++)
+        if (ENGINES[e] == INSTR_PIANO) instrument_mode(SLOT0 + e, MODE_PIANO_STIFF, 0.0f);
 }
 
 void update(void) {

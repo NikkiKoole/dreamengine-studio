@@ -75,7 +75,11 @@ static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-
 // + hammer-knock amount (each 0..2x the voicing default at the 0.5 midpoint — LIVE since the engine guard
 // fix, see the note above), plus VELO = strike velocity for the QWERTY/touch keys, where there is no MIDI
 // velocity to read; it drives brightness and knock, not just loudness.
-static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "decay", "knock", "velo" };
+// Knob indices are NAMED, because inserting `stiff` mid-list is exactly the trap CLAUDE.md warns about:
+// with raw indices, every knob after it silently cross-wires (decay would drive knock, and the presets
+// would write the wrong slots). Add a knob = add an enum member + a name; nothing else shifts.
+enum { K_VOICING, K_HAMMER, K_PEDAL, K_STIFF, K_DECAY, K_KNOCK, K_VELO, NKNOB };
+static const char *KNOB_NAME[NKNOB] = { "voicing", "hammer", "pedal", "stiff", "decay", "knock", "velo" };
 
 #define NPRESET 6
 static const char *PRESET_NAME[NPRESET] = { "grand","bright","harpsi","dulcimer","clavi","celesta" };
@@ -108,12 +112,12 @@ static Ptr   ptr[NPTR];
 #define WKEYS  8                    // white keys across
 #define WW     ((SCREEN_W - 20) / WKEYS)
 // slider geometry
-#define KNOB_W    88
+#define KNOB_W    64                   // 4 columns x 2 rows; a 3rd row would fall off-screen
 #define KNOB_TOP  (SCREEN_H - 52)            // row 1 y; row 2 sits 26px below
-#define KNOB_X(k) (14 + ((k) % 3) * 102)
-#define KNOB_Y(k) (KNOB_TOP + ((k) < 3 ? 0 : 26))
+#define KNOB_X(k) (14 + ((k) % 4) * 76)
+#define KNOB_Y(k) (KNOB_TOP + ((k) / 4) * 26)
 
-static float knob[6] = { 0.08f, 0.50f, 0.62f, 0.5f, 0.5f, 0.70f };  // grand voicing; decay+knock 0.5 = engine default (1.0×); velo 0.7 = medium-firm
+static float knob[NKNOB] = { 0.08f, 0.50f, 0.62f, 0.5f, 0.5f, 0.5f, 0.70f };  // grand voicing; stiff+decay+knock 0.5 = engine default (1.0x); velo 0.7 = medium-firm
 
 // ── LAYERING: two slots instead of one (audit §I9 / Synth Secrets plan 1.5) ────────────────────
 // Part 45 ends the piano arc with what Reid calls the important secret, and it is a CART pattern, not an
@@ -140,15 +144,16 @@ static float pno_b_detune = 0.07f;   // semitones (~7 cents): the beat rate IS t
 static float pno_b_dark   = 0.18f;   // how much darker B's timbre sits than A's (the thunk, not the body)
 
 static void push_knobs(void) {
-    instrument_harmonics(I_PNO, knob[0]);
-    instrument_timbre(I_PNO, knob[1]);
-    instrument_morph(I_PNO, knob[2]);
-    instrument_mode(I_PNO, MODE_PIANO_DECAY, knob[3]);   // double-decay depth (0.5 = the voicing default)
-    instrument_mode(I_PNO, MODE_PIANO_KNOCK, knob[4]);   // hammer knock  (0.5 = the voicing default)
+    instrument_harmonics(I_PNO, knob[K_VOICING]);
+    instrument_timbre(I_PNO, knob[K_HAMMER]);
+    instrument_morph(I_PNO, knob[K_PEDAL]);
+    instrument_mode(I_PNO, MODE_PIANO_STIFF, knob[K_STIFF]);   // stiff-string inharmonicity (0.5 = voicing default, 0 = perfectly harmonic)
+    instrument_mode(I_PNO, MODE_PIANO_DECAY, knob[K_DECAY]);   // double-decay depth (0.5 = the voicing default)
+    instrument_mode(I_PNO, MODE_PIANO_KNOCK, knob[K_KNOCK]);   // hammer knock  (0.5 = the voicing default)
 
     // B tracks A's voicing but darker and knockier: it is the thunk and the tail, not the body.
-    float b_tim = knob[1] - pno_b_dark; if (b_tim < 0.0f) b_tim = 0.0f;
-    float b_kno = knob[4] + 0.22f;      if (b_kno > 1.0f) b_kno = 1.0f;
+    float b_tim = knob[K_HAMMER] - pno_b_dark; if (b_tim < 0.0f) b_tim = 0.0f;
+    float b_kno = knob[K_KNOCK] + 0.22f;      if (b_kno > 1.0f) b_kno = 1.0f;
     // ⚠ REID'S ENV2 ROLE-TRADE IS NOT REACHABLE, and this is the honest limit of the item. He has B
     // OUTLIVE A so it is left holding the tail; measured by stem render (play.js --solo-slot), B dies
     // ~0.5s SOONER than A, and nothing available fixes it:
@@ -161,9 +166,10 @@ static void push_knobs(void) {
     // the tricord coupling of §I3) but not his secondary one (the crossfade of roles across the note).
     // Getting that would need a per-slot string-decay aux param — an engine change, so it is Phase 3+ work
     // and deliberately not smuggled in here.
-    instrument_harmonics(I_PNO_B, knob[0]);
+    instrument_harmonics(I_PNO_B, knob[K_VOICING]);
     instrument_timbre(I_PNO_B, b_tim);
-    instrument_morph(I_PNO_B, knob[2]);
+    instrument_morph(I_PNO_B, knob[K_PEDAL]);
+    instrument_mode(I_PNO_B, MODE_PIANO_STIFF, knob[K_STIFF]);
     instrument_mode(I_PNO_B, MODE_PIANO_KNOCK, b_kno);   // B knocks harder — it is the thunk
     instrument_tune(I_PNO_B, pno_layer ? pno_b_detune : 0.0f);
 
@@ -176,12 +182,12 @@ static void push_knobs(void) {
 }
 
 // gate scales with pedal (morph): dry staccato lets go fast, a held pedal rings long
-static int gate_ms(void) { return 500 + (int)(knob[2] * knob[2] * 16000.0f); }
+static int gate_ms(void) { return 500 + (int)(knob[K_PEDAL] * knob[K_PEDAL] * 16000.0f); }
 
 // strike one note at an absolute MIDI pitch (struck — rings down on its own via gate_ms)
 static void play_midi(int midi, int vol) {
     int slot = midi - keybed_base_midi();                                  // 0..12 within the octave
-    instrument_pan(I_PNO, (slot / 12.0f - 0.5f) * 0.9f);                   // gentle fixed pan-by-pitch (knob[5] is now velo)
+    instrument_pan(I_PNO, (slot / 12.0f - 0.5f) * 0.9f);                   // gentle fixed pan-by-pitch (K_VELO is the velocity knob)
     hit(midi, I_PNO, vol, gate_ms());
     if (pno_layer) {
         // the same note on the B layer, detuned. Its longer gate is Reid's ENV2: B outlives A, so it is
@@ -194,12 +200,12 @@ static void play_midi(int midi, int vol) {
 static void play_key(int slot, int vol) { play_midi(keybed_base_midi() + slot, vol); }   // by octave-relative slot
 // keybed.h fires this on each key press (manual-voice mode); a piano key is struck, not held.
 // VELOCITY now drives TIMBRE (brightness + knock), not just loudness — play soft vs hard to hear it.
-// No MIDI vel here, so the velo knob (knob[5]) sets it for QWERTY/touch keys (0..1 → vol 1..7).
-void kb_strike(int midi, int vel) { (void)vel; play_midi(midi, 1 + (int)(knob[5] * 6.0f + 0.5f)); }
+// No MIDI vel here, so the velo knob (K_VELO) sets it for QWERTY/touch keys (0..1 → vol 1..7).
+void kb_strike(int midi, int vel) { (void)vel; play_midi(midi, 1 + (int)(knob[K_VELO] * 6.0f + 0.5f)); }
 
 static void load_preset(int p) {
     preset  = p;
-    knob[0] = PRESET[p][0]; knob[1] = PRESET[p][1]; knob[2] = PRESET[p][2];
+    knob[K_VOICING] = PRESET[p][0]; knob[K_HAMMER] = PRESET[p][1]; knob[K_PEDAL] = PRESET[p][2];
     push_knobs();
 }
 
@@ -223,8 +229,8 @@ void update(void) {
     for (int p = 0; p < NPRESET; p++)
         if (keyp('1' + p)) { load_preset(p); play_key(0, 6); play_key(4, 5); play_key(7, 5); }
 
-    if (keyp(KEY_LEFT))  sel = (sel + 5) % 6;
-    if (keyp(KEY_RIGHT)) sel = (sel + 1) % 6;
+    if (keyp(KEY_LEFT))  sel = (sel + NKNOB - 1) % NKNOB;
+    if (keyp(KEY_RIGHT)) sel = (sel + 1) % NKNOB;
     if (key(KEY_UP) || key(KEY_DOWN)) {
         knob[sel] = clamp(knob[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
         push_knobs();
@@ -248,7 +254,7 @@ void update(void) {
             if (!freeP) continue;
             p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1 };
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) { autoplay = !autoplay; continue; }
-            for (int k = 0; k < 6; k++)
+            for (int k = 0; k < NKNOB; k++)
                 if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y(k) - 6, KNOB_W + 4, 18)) { p->mode = PTR_DRAG; p->k = sel = k; }
         } else if (p->mode == PTR_DRAG) {
             knob[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
@@ -268,9 +274,9 @@ void update(void) {
     }
 
 #ifdef DE_TRACE
-    watch("harm", "%.2f", knob[0]);
-    watch("timb", "%.2f", knob[1]);
-    watch("mor",  "%.2f", knob[2]);
+    watch("harm", "%.2f", knob[K_VOICING]);
+    watch("timb", "%.2f", knob[K_HAMMER]);
+    watch("mor",  "%.2f", knob[K_PEDAL]);
 #endif
 }
 
@@ -304,13 +310,17 @@ void draw(void) {
     }
 
     // two rows of knobs: row 1 = macros, row 2 = weight / attack / width (tuning)
-    for (int k = 0; k < 6; k++) {
+    for (int k = 0; k < NKNOB; k++) {
         int x = KNOB_X(k), y = KNOB_Y(k);
         bool on = (k == sel);
         font(FONT_SMALL);
-        print(KNOB_NAME[k], x, y - 8, on ? CLR_YELLOW : k < 3 ? CLR_MEDIUM_GREY : CLR_DARK_GREY);
+        print(KNOB_NAME[k], x, y - 8, on ? CLR_YELLOW : k < K_STIFF ? CLR_MEDIUM_GREY : CLR_DARK_GREY);
         font(FONT_NORMAL);
-        bar(x, y, KNOB_W, 6, knob[k], on ? CLR_ORANGE : k < 3 ? CLR_BROWN : CLR_DARKER_GREY, CLR_DARKER_GREY);
+        // PRE-EXISTING BUG found while adding `stiff` (2026-07-30): the tuning row's fill was CLR_DARKER_GREY
+        // on a CLR_DARKER_GREY track, so decay/knock/velo were INVISIBLE unless selected — you could not
+        // see their values at all. ui-audit cannot catch this (it finds off-screen and overlapping, not low
+        // contrast; CLAUDE.md says so), which is why reading the baked frame is the other half of the check.
+        bar(x, y, KNOB_W, 6, knob[k], on ? CLR_ORANGE : k < K_STIFF ? CLR_BROWN : CLR_MEDIUM_GREY, CLR_DARKER_GREY);
         if (on) print(">", x - 9, y - 1, CLR_YELLOW);
     }
 

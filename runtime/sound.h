@@ -77,7 +77,7 @@ typedef struct {
     int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
     float sustain;                  // 0..1
     float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
-    float eng_p[5];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale, 4 = piano stretched-tuning scale
+    float eng_p[6];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale, 4 = piano stretched-tuning scale, 5 = piano stiff-string inharmonicity scale
     int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
     float lfo_rate[3];              // Hz
     float lfo_depth[3];             // 0 = off; units depend on dest
@@ -341,7 +341,7 @@ typedef struct {
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
     // eng_p[] (set via instrument_mode, note-on — the permanent per-engine aux channel, decision 0017; NOT baked to constants).
-    float  eng_p[5];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale · 4 piano stretch-scale)
+    float  eng_p[6];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale · 4 piano stretch-scale · 5 piano stiff-scale)
     float  eng_subph, eng_env;          // sub-osc phase + envelope follower
     int    eng_click;                   // onset-click samples remaining
     // brass state (INSTR_BRASS): STK BrassInstrument (Cook/Scavone) — a bore delay (REUSES ks_buf,
@@ -4638,6 +4638,64 @@ static inline float piano_stretch_freq(float freq, float k) {
     return freq * powf(2.0f, (k * soct * fabsf(soct)) / 1200.0f);
 }
 
+// ── STIFF-STRING DISPERSION (audit §I4b; plan §2.3(a)) ──────────────────────────────────────────
+// A real piano string is STIFF, so high-frequency waves travel faster and the partials stretch sharp:
+// f_n = n·f0·√(1+B·n²), with B ≈ 1e-4 for a middle-register grand. That stretch is a large part of why
+// a piano reads as a piano and not a harp, and it is most audible in the BASS and in CHORDS, where the
+// stretched partials of different notes refuse to lock together.
+//
+// The requirement, stated as a delay: resonance needs loop delay D(f_n) = n·SR/f_n, so a stiff string
+// wants D to FALL from L0 at the fundamental to L0/√(1+B·n²) at partial n. A cascade of first-order
+// allpasses supplies exactly that shape — PROVIDED the coefficient is NEGATIVE. This is the trap the
+// engine sat in for years: with c > 0 an allpass's phase delay RISES with frequency (from `pt` at DC to
+// exactly 1 sample at Nyquist), which FLATTENS the upper partials, and the old mapping
+// `c = (1-pt)/(1+pt)` with `pt` clamped to ≤ 0.9 kept c in (0.05, 1] — the useful half of the parameter
+// space was unreachable by construction, so the chain was an identity function and PIANO measured
+// B ≈ 2e-6 (a real grand is ~1e-4; h16 read +0.2¢ where it should be ~+22¢).
+//
+// Solve c from the delay DROP between the fundamental and a reference partial: ONE scalar equation,
+// monotone in c, so a short bisection suffices. Do NOT instead fit B over many partials directly — that
+// is not monotone at strong coefficients and an earlier attempt overshot the target 46×. The reference
+// partial is 14 where Nyquist allows (calibrated: lands within 2% of the target across the whole
+// register) and backs off in the top octave, where 14·f0 would exceed Nyquist.
+// Design, validation and the transfer curves: tools/disp-model.js (`--check` covers the maths).
+#define PN_DISP_STAGES 2      // 2 tracks the √(1+Bn²) law to ~1¢; more stages track it tighter (0.4¢ at
+                              // 8) at proportionally more delay to compensate. 2 is what shipped by ear.
+#define PN_B_AT_STIFF_25 1.1e-4f   // target B for `stiff` 0.25 (the grand) at the knob's centre — the
+                                   // value the owner's ear approved. Other voicings scale from `stiff`.
+static inline float pn_ap_phase_delay(float w, float c) {   // one allpass's phase delay, in samples
+    float phi = atan2f(-sinf(w), c + cosf(w)) - atan2f(-c * sinf(w), 1.0f + c * cosf(w));
+    while (phi > 0.0f) phi -= 6.28318531f;
+    return -phi / w;
+}
+// → *cOut (allpass coefficient, 0 = no dispersion) and *compOut (the phase delay the cascade adds at
+// the fundamental, which the CALLER MUST SUBTRACT FROM EVERY DELAY LINE IN THE VOICE or the note plays
+// flat — see the ideal/ideal2 call sites; compensating only the first line leaves the detuned second
+// string ~80¢ off and the partials read as scattered rather than stretched).
+static void pn_solve_dispersion(float freq, float bTarget, float *cOut, float *compOut) {
+    *cOut = 0.0f; *compOut = 0.0f;
+    if (bTarget <= 1e-7f || freq <= 20.0f) return;
+    int nref = (int)((float)SOUND_SAMPLE_RATE / (2.2f * freq));
+    if (nref > 14) nref = 14;
+    if (nref < 2) return;                                   // no usable reference partial under Nyquist
+    float bn2 = bTarget * (float)(nref * nref);
+    float stretch = sqrtf(1.0f + bn2);
+    float w0 = 6.28318531f * freq / (float)SOUND_SAMPLE_RATE;
+    float wr = w0 * (float)nref * stretch;
+    if (wr >= 3.0788f) return;                              // 0.98·π — reference partial too close to Nyquist
+    float L0 = (float)SOUND_SAMPLE_RATE / freq;
+    float dTarget = L0 * (1.0f - 1.0f / stretch);           // samples of delay the cascade must shed
+    const float nn = (float)PN_DISP_STAGES;
+    float lo = -0.999f, hi = -1e-6f;
+    if (nn * (pn_ap_phase_delay(w0, lo) - pn_ap_phase_delay(wr, lo)) < dTarget) return;   // unreachable
+    for (int it = 0; it < 28; it++) {                       // monotone: more negative c = bigger spread
+        float mid = 0.5f * (lo + hi);
+        if (nn * (pn_ap_phase_delay(w0, mid) - pn_ap_phase_delay(wr, mid)) >= dTarget) lo = mid; else hi = mid;
+    }
+    *cOut = 0.5f * (lo + hi);
+    *compOut = nn * pn_ap_phase_delay(w0, *cOut);
+}
+
 // note-on — navkit playStifKarp verbatim: ONE-period KS buffer + fractional-delay allpass tuning,
 // hammer-shaped excitation, AVERAGING strike comb, per-voicing brightness/damping, dispersion,
 // soundboard, optional detuned 2nd string.
@@ -4662,7 +4720,15 @@ static void sound_piano_start(Voice *v) {
                                                        // write freq_target from the nominal MIDI freq, so a glided piano note
                                                        // still slides to an unstretched destination.
 
-    float ideal = (float)SOUND_SAMPLE_RATE / freq;     // one period, allpass for the remainder
+    // STIFF-STRING DISPERSION: solve the allpass coefficient for this note's target inharmonicity.
+    // Target B scales from the voicing's own `stiff` (so `harmonics` keeps varying character — celesta
+    // metallic, harpsichord nearly pure, per Reid) and from eng_p[5] (MODE_PIANO_STIFF): 0 = a perfectly
+    // harmonic string, 0.5 = the voicing's own amount, 1 = double.
+    float pn_c = 0.0f, pn_comp = 0.0f;
+    pn_solve_dispersion(freq, PN_B_AT_STIFF_25 * (pv->stiff / 0.25f) * (v->eng_p[5] * 2.0f), &pn_c, &pn_comp);
+    // pn_comp comes OUT of the delay line, here and for the 2nd string below — both go through the same
+    // allpasses, so compensating only one leaves them ~80¢ apart (that bug read as "scattered partials").
+    float ideal = (float)SOUND_SAMPLE_RATE / freq - pn_comp;   // one period, allpass for the remainder
     int len = (int)ideal;
     if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
     if (len < 2) len = 2;
@@ -4714,16 +4780,13 @@ static void sound_piano_start(Voice *v) {
       memcpy(tmp, v->ks_buf, len * sizeof(float));
       for (int i = 0; i < len; i++) v->ks_buf[i] = (tmp[i] + tmp[(i + ps) % len]) * 0.5f; }
 
-    // dispersion (inharmonicity) — per voicing
-    float B = pv->stiff * pv->stiff * 0.015f;
-    float fscale = 1.0f + (freq - 261.0f) / 2000.0f;
-    fscale = clampf(0.5f, 3.0f, fscale);
-    B *= fscale;
-    v->pn_disp_n = (pv->stiff < 0.1f) ? 1 : (pv->stiff < 0.4f) ? 2 : (pv->stiff < 0.7f) ? 3 : 4;
+    // dispersion (inharmonicity) — coefficient solved above from the target B.
+    // WAS: `B = stiff²·0.015` then `pt = B·(i+1)·freq/SR`, `c = (1-pt)/(1+pt)` with `pt` clamped ≤ 0.9.
+    // That produced pt ≈ 2.6e-6 at C3, i.e. c = 0.9999948 — the identity — and could never go negative,
+    // which is the direction stiffness actually needs. Measured B was 2e-6 against a grand's 1e-4.
+    v->pn_disp_n = (pn_c != 0.0f) ? PN_DISP_STAGES : 0;
     for (int i = 0; i < 4; i++) {
-        float pt = B * (float)(i + 1) * freq / (float)SOUND_SAMPLE_RATE;
-        if (pt > 0.9f) pt = 0.9f;
-        v->pn_disp_c[i] = (i < v->pn_disp_n) ? (1.0f - pt) / (1.0f + pt) : 0.0f;
+        v->pn_disp_c[i] = (i < v->pn_disp_n) ? pn_c : 0.0f;
         v->pn_disp_s[i] = 0.0f;
     }
     float bbg = 0.5f + 0.5f * PIANO_BODYB[vi];   // navkit scales soundboard gains by bodyBrightness
@@ -4735,7 +4798,7 @@ static void sound_piano_start(Voice *v) {
     v->pn_detune  = pv->detune;
     v->pn_dc_prev = v->pn_dc_state = 0.0f;
     if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
-        float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune);
+        float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune) - pn_comp;   // SAME compensation
         int len2 = (int)ideal2;
         if (len2 > SOUND_KS_MAX - 1) len2 = SOUND_KS_MAX - 1;
         if (len2 < 2) len2 = 2;
@@ -5327,6 +5390,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->eng_p[2] = ins->eng_p[2];
     v->eng_p[3] = ins->eng_p[3];
     v->eng_p[4] = ins->eng_p[4];
+    v->eng_p[5] = ins->eng_p[5];
     v->smp_idx     = ins->smp_idx;                     // INSTR_SAMPLE: which recorded buffer + its root freq
     v->smp_root    = ins->smp_root;
     v->smp_start_f = ins->smp_start;                   // chop bounds (fractions) — resolved to sample indices in the start hook / render
@@ -5605,7 +5669,7 @@ static void sound_fire_req(SoundReq r) {
         // pass in tunecheck.c rendered byte-identical to the normal one and the new gate read a 0¢
         // stretch everywhere. Adding a sixth aux param means THREE edits: eng_p[] width, this bound,
         // and the setter's.
-        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 5) return;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 6) return;
         instr_bank[slot].eng_p[idx] = r.c / 1000.0f;
     } break;
     case SR_INSTR_LFO: {
@@ -7141,7 +7205,7 @@ void instrument_duty(int slot, float duty) {
 }
 
 void instrument_mode(int slot, int idx, float value) {   // per-engine aux channel, note-on face (was eng_tune; decision 0017)
-    // `idx >= 5`, NOT `>= 2`. eng_p is five wide and the PIANO's idx 2 (double-decay scale) and idx 3
+    // `idx >= 6`, NOT `>= 2`. eng_p is six wide and the PIANO's idx 2 (double-decay scale) and idx 3
     // (hammer-knock scale) are implemented end to end — read at sound_piano_start, copied to the voice at
     // note-on, bank-defaulted to 0.5 = 1.0×. This guard rejected them, so both were silently dropped HERE,
     // in the setter, and the piano cart's "decay" and "knock" sliders did nothing for as long as they have
@@ -7150,7 +7214,9 @@ void instrument_mode(int slot, int idx, float value) {   // per-engine aux chann
     // already using) and only bites when someone moves one. Found 2026-07-28 via audit §I9. If you add a
     // fifth aux param, widen eng_p[] AND this bound together.
     //   2026-07-30: idx 4 (MODE_PIANO_STRETCH) added, eng_p widened to 5, bound moved 4 → 5.
-    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 5) return;
+    //   2026-07-30: idx 5 (MODE_PIANO_STIFF) added, eng_p widened to 6, bound moved 5 → 6.
+    //   `node tools/lint-aux-params.js` now asserts all five places agree — run it after any change here.
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 6) return;
     value = clamp01(value);
     sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
 }
@@ -8417,6 +8483,7 @@ static void sound_reset_state(void) {
         instr_bank[i].eng_p[2]   = 0.5f;   // piano double-decay scale (instrument_mode idx 2) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[3]   = 0.5f;   // piano hammer-knock scale  (instrument_mode idx 3) — 0.5 = 1.0× the baked default
         instr_bank[i].eng_p[4]   = 0.5f;   // piano stretched-tuning scale (instrument_mode idx 4) — 0.5 = 1.0× PIANO_STRETCH_K, 0 = equal temperament
+        instr_bank[i].eng_p[5]   = 0.5f;   // piano stiff-string inharmonicity scale (idx 5) — 0.5 = the voicing's own amount, 0 = a perfectly harmonic string
     }
 
     // echo bus: clean slate (matters for libtcc hot-reload + --det reproducibility)

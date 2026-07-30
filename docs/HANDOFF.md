@@ -434,7 +434,34 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > means widening the array AND both `idx >= N` bounds AND the four-place registration — **build the bounds
 > lint first**.
 >
-> **Resume-at: the phrase-level ear test (bass + chord), then re-voice the six voicings' B.** After that, §I4b is a
+> **✅ SHIPPED 2026-07-30 on the verdict *"B is clearly better in the chords, let's ship it"*:
+> `MODE_PIANO_STIFF`** (`instrument_mode` idx 5) — `0` = a perfectly harmonic string, `0.5` = the voicing's
+> own amount, `1` = double; target B scales from `PianoVoicing.stiff`, calibrated so the grand at centre
+> lands on **1.1e-4**, the value the ear approved. `pn_solve_dispersion()` solves the coefficient from the
+> delay DROP between the fundamental and a reference partial — one scalar equation, MONOTONE in c, 28
+> bisection steps at note-on. **Do not replace it with a direct fit of B over many partials: not monotone
+> at strong coefficients, an earlier attempt overshot 46×.** Compensation goes into `ideal` AND `ideal2`.
+> Measured: pitch does NOT move across knob settings (A1 −9.5¢ / C3 −1.0¢ / C4 +1.7¢ at 0, 0.5 and 1.0), B
+> 2.4e-6 → 1.1e-4 → 2.5e-4, h8 +0.3 → +8.1 → +17.8¢. Knob 0 is measured-equivalent to the old engine but
+> **not byte-identical** (the old near-identity allpasses are now skipped entirely).
+> **⚠ TRAP IT EXPOSED: YIN cannot track an inharmonic string.** A stiff string is non-periodic, so
+> autocorrelation locks onto a shorter lag pulled by the stretched partials — PIANO read **+26.1¢ sharp at
+> A2, confidence 0.65**, while a spectral-peak measurement of the same render was exact. `tunecheck.c` now
+> sets `MODE_PIANO_STIFF 0` for both PIANO passes so the tuning sweep and the stretch differential measure
+> what they are for; `inharm-spec` (Goertzel) is the oracle for the dispersion itself.
+> **New gate: `tools/lint-aux-params.js`** — the aux-param width lives in FIVE places and missing one makes
+> a parameter silently inert. Proven red on the real bug. Also: the `piano` cart has a `stiff` slider, its
+> knob indices are now a NAMED ENUM (inserting mid-list would have cross-wired decay→knock, the exact
+> CLAUDE.md trap), and a pre-existing bug surfaced — the tuning row's bars were drawn dark-grey on
+> dark-grey, so decay/knock/velo had ALWAYS been invisible unless selected (`ui-audit` cannot see low
+> contrast; read the baked frame).
+>
+> **Resume-at: (1) re-voice the other five voicings' B by ear** — they scale from `stiff` (celesta 2.4e-4
+> down to clavichord 4.4e-5, plausible ordering but only the grand was ear-checked); **(2) 2.3(b), now
+> UNBLOCKED** — there is finally inharmonicity to make level-dependent; **(3) §I4d** (the loop's own
+> +1.3→+4.0¢ offset) and the constant-B simplification (a real Railsback B rises at both ends of the
+> keyboard). Queued gates from the specs question: the A/B comparability gate, and a "pitch is invariant
+> across `MODE_PIANO_STIFF`" assertion in `inharm-spec` (needs the spectral method, so not tune-check). After that, §I4b is a
 > real implementation (solve `c` per note from a per-voicing physical B, subtract the cascade's phase delay
 > from *every* line) and **2.3(b) finally unblocks**. Also queued, from the "would specs have caught this?"
 > question — three gates, none of them `spec()`: **(1) a MODE/`eng_p` bounds lint** (the bound exists twice

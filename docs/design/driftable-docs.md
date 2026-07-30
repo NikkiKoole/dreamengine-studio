@@ -27,6 +27,17 @@ Ranked best-to-worst; climb it by moving content up a tier where you can:
 3. **Lint the references.** Deterministic checks that literals resolve —
    [`../../tools/stale-doc-check.js`](../../tools/stale-doc-check.js)'s BROKEN REFERENCES tier
    (dead paths/flags), [`lint-docs.js`](../../tools/lint-docs.js), [`lint-xrefs.js`](../../tools/lint-xrefs.js).
+
+   > **A reference linter must distinguish a CLAIM from a PROPOSAL, or it becomes noise** (triaged
+   > 2026-07-30). The BROKEN REFERENCES tier reported 47 findings at a **0% true-positive rate**:
+   > every one was a design doc naming a file it wanted *built*, or a path in another repo. Naming
+   > an unbuilt file is what a design doc is *for*, so flagging it inverts the tool's purpose — and
+   > agents are told to trust that tier, so the noise actively misdirects. The fix was not a better
+   > line-level regex (the "we should build X" cue usually sits in the surrounding paragraph, not the
+   > line with the path on it) but a different question: **did this path ever exist in git history?**
+   > If it never did, the doc is aspirational. If it did and is gone now, prose is pointing at a file
+   > that moved out from under it — which is the actual defect. Suppressed findings stay counted and
+   > listable (`--all`), because a linter that silently drops things rots the other way.
 4. **Register and review** (this note). When the number *can't* be generated in place but IS
    derived, the doc **declares** the dependency and an occasional check flags when the source
    moved. Curated, not inferred — high trust, cheap because the set is tiny.

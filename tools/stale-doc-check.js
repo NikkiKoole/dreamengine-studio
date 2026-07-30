@@ -6,6 +6,7 @@
 //   node tools/stale-doc-check.js               # full report (whole docs/ corpus)
 //   node tools/stale-doc-check.js tools-we-need # SCOPED: only docs whose path matches
 //   node tools/stale-doc-check.js --docs         # also expand the doc→doc churn tier
+//   node tools/stale-doc-check.js --all          # list the suppressed proposal/other-repo refs
 //   node tools/stale-doc-check.js --days 30     # grace: ignore changes <30d after the doc
 //   node tools/stale-doc-check.js --json         # machine-readable  (--strict = exit 1 if any)
 //
@@ -74,6 +75,7 @@ const json = argv.includes("--json");
 const strict = argv.includes("--strict");
 const daysIdx = argv.indexOf("--days");
 const graceDays = daysIdx >= 0 ? parseInt(argv[daysIdx + 1], 10) || 0 : 0;
+const showAll = argv.includes("--all"); // list the suppressed proposal/foreign refs too
 const showDocs = argv.includes("--docs"); // expand the noisy doc→doc churn tier (default: count only)
 const driftable = argv.includes("--driftable"); // curated registry mode (see below); ignores the heuristic tiers
 const touchesScope = (...rels) => !scope || rels.some(r => r.toLowerCase().includes(scope.toLowerCase()));
@@ -296,8 +298,61 @@ for (const e of fs.readdirSync(TOOLS, { withFileTypes: true })) {
 // placeholder paths that are meant to be filled in, not real files
 const isPlaceholder = p => /(?:^|\/)(?:x|foo|bar|baz|name|my)\.(?:js|c|h|sh)$/i.test(p) ||
   /XX|<[a-z]|NN-|\bname\.(?:c|cart)/i.test(p);
-// proposal cues: the doc is sketching a flag/file that doesn't exist YET, not claiming it does
-const proposalCue = l => /\b(or a|would|could|propos|future|someday|todo|maybe|might|imagine|instead of|we('d| would)|a `?--)\b/i.test(l);
+// proposal cues: the doc is sketching a flag/file that doesn't exist YET, not claiming it does.
+//
+// TRIAGED 2026-07-30. This tier is the one CLAUDE.md tells agents to TRUST ("real issues"), and all
+// 47 of its findings were false positives — a 0% true-positive rate. Two causes, both fixed here:
+//
+//   1. `proposalCue` was only ever applied to FLAGS. The path loop ran BEFORE the check, so a design
+//      doc naming the file it wants CREATED was reported as a broken reference — which is the entire
+//      point of a design doc. 35 of the 47. The cue list below grew the vocabulary this repo actually
+//      uses for that ("extract to", "graduate to", "carve into", "does not exist", "drop this in",
+//      the `gen-x.js → runtime/y.h` generation arrow).
+//   2. External-repo paths. `PATH_RE` matches on a \b, which fires *after* a slash, so
+//      `~/Projects/navkit/soundsystem/tools/preset_audition.c` matched as `tools/preset_audition.c`
+//      and was looked up in THIS repo. 12 of the 47 — including two in `other-projects.md`, a doc
+//      that pre-emptively says "Paths below are absolute filesystem paths … so the doc linters don't
+//      try to resolve them". It tried anyway.
+//
+// Suppressed findings stay INSPECTABLE (`--all`) and their count is always printed. A check that
+// silently drops things is how this tier would rot in the other direction.
+const proposalCue = l => /\b(or a|would|could|propos|future|someday|todo|maybe|might|imagine|instead of|we('d| would)|a `?--)\b/i.test(l)
+  || /\b(does ?n[o']t exist|not built|no such|prerequisite: ?build|extract(ion)? to|extract to|graduate (the )?\w+ )/i.test(l)
+  || /\b(carve|drop this in|sibling to|endgame is|its own tool|first tool|waits for|will (be|emit|produce)|to be (built|created|added)|planned)\b/i.test(l)
+  || /\b[a-z0-9-]+\.(?:js|sh)\s*→\s*(?:runtime|tools)\//i.test(l);   // a generation arrow names its OUTPUT
+
+// THE DISCRIMINATOR that made this tier honest. A path can only be a BROKEN reference if the file
+// once existed and is now gone (renamed, deleted, moved) — that is the bug: prose left pointing at a
+// file that moved out from under it. A path that has NEVER existed in this repo's history cannot be
+// that; it is a doc naming something it wants BUILT, which is what a design doc is for.
+//
+// Measured 2026-07-30: of the 47 findings this tier reported, ZERO had ever existed. All 47 were
+// proposals or other repos' paths, i.e. a 0% true-positive rate on the tier CLAUDE.md tells agents to
+// trust. Line-level "proposal cue" regexes could not fix that, because the cue is usually in the
+// surrounding paragraph or the section heading, not the line with the path on it.
+//
+// Cost is one `git log --all --diff-filter=A` (~1.8s, 5k paths), so it runs LAZILY — only when there
+// is at least one candidate to adjudicate — and degrades to the cue heuristics if git is unavailable.
+let _everExisted = null;
+const everExisted = (p) => {
+  if (_everExisted === null) {
+    try {
+      _everExisted = new Set(require("child_process")
+        .execFileSync("git", ["log", "--all", "--pretty=format:", "--name-only", "--diff-filter=AR"],
+                      { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 })
+        .split("\n").map(x => x.trim()).filter(Boolean));
+    } catch { _everExisted = new Set(); }
+  }
+  return _everExisted.size === 0 ? null : _everExisted.has(p);   // null = unknown, fall back to cues
+};
+
+// a path that belongs to ANOTHER repo on this machine, not to dreamengine
+const FOREIGN_DOC = /(?:^|\/)other-projects\.md$/;                       // self-declared outward-pointing hub
+const foreignCue = (l, at) => {
+  const before = l.slice(Math.max(0, at - 60), at);
+  if (/[~/]$/.test(before)) return true;                                   // …/navkit/soundsystem/tools/x.c
+  return /(navkit|soundsystem|\/Users\/|~\/Projects\/|nikkikoole\.github\.io)/i.test(before);
+};
 
 const PATH_RE = /\b((?:tools|runtime|editor\/src|editor\/electron|data-tools|det-probes)\/[A-Za-z0-9_./-]+\.(?:js|cjs|c|h|sh))\b/g;
 // tool basename (real, from toolSource) optionally .js/.sh — each --flag is bound to the
@@ -307,7 +362,8 @@ const PATH_RE = /\b((?:tools|runtime|editor\/src|editor\/electron|data-tools|det
 const TOOLNAME_RE = /\b([a-z][a-z0-9-]{2,})(?:\.(?:js|sh))?\b/g;
 const FLAGONLY_RE = /--[a-z][a-z0-9-]{2,}/g;
 
-const broken = []; // { doc, ln, kind:'path'|'flag', ref, text }
+const broken = [];   // { doc, ln, kind:'path'|'flag', ref, text }
+const suppressed = []; // same shape + why:'proposal'|'foreign' — visible via --all, always counted
 for (const f of docFiles) {
   const rel = path.relative(ROOT, f);
   if (!touchesScope(rel)) continue;
@@ -315,14 +371,26 @@ for (const f of docFiles) {
   const seen = new Set();
   lines.forEach((l, i) => {
     let m;
+    const lineIsProposal = proposalCue(l);
     PATH_RE.lastIndex = 0;
     while ((m = PATH_RE.exec(l))) {
       const p = m[1];
       if (srcExists.has(p) || isPlaceholder(p)) continue;
       const k = "p:" + p + ":" + i; if (seen.has(k)) continue; seen.add(k); // per-LINE, so a fixer sees every occurrence
-      broken.push({ doc: rel, ln: i + 1, kind: "path", ref: p, text: l.trim() });
+      const rec = { doc: rel, ln: i + 1, kind: "path", ref: p, text: l.trim() };
+      let why = null;
+      if (FOREIGN_DOC.test(rel) || foreignCue(l, m.index)) why = "foreign";
+      else {
+        const ever = everExisted(p);
+        // never in history → aspirational, whatever the prose says. Once in history → a real broken
+        // reference EVEN IF the line reads like a proposal (that is prose left behind by a rename).
+        if (ever === false) why = "proposal";
+        else if (ever === null && lineIsProposal) why = "proposal";
+        else if (ever === true) rec.wasRemoved = true;
+      }
+      if (why) suppressed.push({ ...rec, why }); else broken.push(rec);
     }
-    if (proposalCue(l)) return; // a line sketching a possible flag isn't a false claim
+    if (lineIsProposal) return; // a line sketching a possible flag isn't a false claim
     const toolsOnLine = [];
     TOOLNAME_RE.lastIndex = 0;
     while ((m = TOOLNAME_RE.exec(l)))
@@ -335,7 +403,10 @@ for (const f of docFiles) {
         .pop(); // nearest preceding real tool wins
       if (!owner || toolSource.get(owner.name).includes(flag)) continue;
       const k = "f:" + owner.name + flag + ":" + i; if (seen.has(k)) continue; seen.add(k);
-      broken.push({ doc: rel, ln: i + 1, kind: "flag", ref: `${owner.name} ${flag}`, text: l.trim() });
+      const rec = { doc: rel, ln: i + 1, kind: "flag", ref: `${owner.name} ${flag}`, text: l.trim() };
+      // a roadmap rung ("→ 7 (`build-app.js --android` …)") or a named follow-up is a plan, not a claim
+      if (/→\s*\d|open follow-?up|rung \d|\bstaging path\b/i.test(l)) suppressed.push({ ...rec, why: "proposal" });
+      else broken.push(rec);
     }
   });
 }
@@ -396,8 +467,9 @@ if (broken.length) {
   const sorted = [...byDoc.entries()].sort((a, b) =>
     (hasFlag(b[1]) - hasFlag(a[1])) || (weight(a[0]) - weight(b[0])) || b[1].length - a[1].length);
   const nf = broken.filter(b => b.kind === "flag").length, np = broken.length - nf;
-  console.log(bold(`BROKEN REFERENCES (${nf} dead flag${nf !== 1 ? "s" : ""}, ${np} missing path${np !== 1 ? "s" : ""}) — cited but not present now:`));
-  console.log(dim(`  (dead flags = near-certain doc bugs; missing paths may be planned-not-built files, esp. in design/)`));
+  console.log(bold(`BROKEN REFERENCES (${nf} dead flag${nf !== 1 ? "s" : ""}, ${np} missing path${np !== 1 ? "s" : ""}) — cited as EXISTING but not present now:`));
+  console.log(dim(`  (each once EXISTED in git history and is now gone — prose left pointing at a renamed/deleted file.`));
+  console.log(dim(`   never-built proposals and other repos' paths are suppressed; see the count below)`));
   for (const [doc, list] of sorted) {
     console.log(`\n  ${bold(doc)}`);
     for (const b of list.sort((x, y) => (x.kind === "flag" ? 0 : 1) - (y.kind === "flag" ? 0 : 1) || x.ln - y.ln)) {
@@ -405,6 +477,18 @@ if (broken.length) {
       console.log(dim(`      ${clip(b.text, 96)}`));
     }
   }
+  console.log("");
+}
+
+// Suppression is always visible: a check that silently drops findings rots the other way.
+if (suppressed.length) {
+  const np = suppressed.filter(x => x.why === "proposal").length;
+  const nfgn = suppressed.length - np;
+  console.log(dim(`suppressed ${suppressed.length} reference(s) as not-a-claim: `
+    + `${np} proposal/not-yet-built · ${nfgn} another repo's path`)
+    + (showAll ? "" : dim("   → --all to list them")));
+  if (showAll) for (const x of suppressed.sort((a, b) => a.doc.localeCompare(b.doc) || a.ln - b.ln))
+    console.log(dim(`    [${x.why}] ${x.ref} · ${x.doc}:${x.ln}\n      ${clip(x.text, 92)}`));
   console.log("");
 }
 

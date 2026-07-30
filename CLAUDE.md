@@ -545,8 +545,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
                              unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
                              scope to a feature (`node tools/lint-xrefs.js touch`) to act on it
-             stale-doc-check.js  doc-freshness finder. BROKEN REFERENCES tier = real issues (a doc cites a
-                             code path or `tool --flag` that doesn't exist now); mtime tiers = nudges (TOOL DRIFT:
+             stale-doc-check.js  doc-freshness finder. BROKEN REFERENCES tier = a doc cites a code path
+                             that ONCE EXISTED and is now gone (renamed/deleted — prose left behind by a move), or
+                             a dead `tool --flag`. A never-built file and another repo's path are NOT that and are
+                             suppressed with a count (`--all` lists them) — before that discriminator landed the
+                             tier was 47 findings at a 0% true-positive rate, all proposals; mtime tiers = nudges (TOOL DRIFT:
                              a doc names a tool changed after it; DOC CHURN, --docs). `--driftable` = the CURATED
                              tier: docs that declare a `de:driftable` snapshot of a tool's output, flagged when the
                              tool's inputs moved after the snapshot (see docs/design/driftable-docs.md; surfaced by

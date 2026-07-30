@@ -151,17 +151,44 @@ static int   cab_voicing = 2;            // AMP_VC index (CRUNCH)
 static int   cab_speed   = LESLIE_SLOW;  // Leslie rotor speed
 static float cab_k[2]    = { 0.5f, 0.5f }; // amp: GAIN, SAG  ·  leslie: DRIVE, BALANCE
 static const float CAB_KDEF[2] = { 0.5f, 0.5f };   // …their double-click-to-default targets
-// DOUBLE-CLICK-TO-DEFAULT. Keyed by pedal CATEGORY, not slot index: slots reorder when you drag a
-// pedal, and an index match would reset whichever pedal happened to slide under your finger.
-// cat -2 = a cabinet knob (they live outside the chain).
-static int frame_no    = 0;
-static int dbl_cat     = -1, dbl_knob = -1, dbl_frame = -1000;
-#define DBL_FRAMES 22                              // ~0.36s at 60fps — a comfortable double-tap on touch too
-static bool dbl_hit(int cat, int knob) {           // call ON PRESS; true = this press completes a double
-    bool same = (cat == dbl_cat && knob == dbl_knob && frame_no - dbl_frame < DBL_FRAMES);
-    if (same) { dbl_cat = -1; dbl_knob = -1; }     // consume it, so a triple-tap is not two resets
-    else      { dbl_cat = cat; dbl_knob = knob; dbl_frame = frame_no; }
-    return same;
+// DOUBLE-TAP TO DEFAULT. Semantics lifted from acidcandy's _knobx (tools/carts/acidcandy.c), which
+// already solved this: the reset fires on RELEASE, and only if the press was a genuine TAP — the
+// value barely moved AND the press was short. The first cut here fired on PRESS with no such test,
+// which resets the knob whenever you grab it twice in quick succession to nudge it twice: a normal
+// thing to do, and it throws away the value you were dialling in.
+// Keyed by pedal CATEGORY, not slot index — slots reorder when you drag a pedal, and an index match
+// would reset whichever pedal slid under your finger. cat KM_CAB = a cabinet knob (outside the chain).
+//
+// The reset TARGET is CAT[].kdef[] / CAB_KDEF[], i.e. literally the same array chain_insert seeds a
+// new pedal from. acidcandy's todo records the bug that avoids: it passes `def` as a separate
+// argument per call site, and one went stale when the real default moved (0.9 vs 0.7) so double-tap
+// silently reset to a value the knob never had. Sourcing the reset from the initialiser makes that
+// unrepresentable here.
+#define KM_N   8
+#define KM_CAB (-2)
+#define TAP_FRAMES 15                              // longer press than this = a drag, not a tap
+#define DBL_FRAMES 22                              // ~0.36s between the two taps (comfortable on touch)
+#define KM_MOVE    0.02f                           // moved more than this = a drag, not a tap
+static int frame_no = 0;
+static struct { int used, cat, knob, gf, ltf; float gval; } kmeta[KM_N];
+static int kmeta_i(int cat, int knob) {
+    for (int i = 0; i < KM_N; i++) if (kmeta[i].used && kmeta[i].cat == cat && kmeta[i].knob == knob) return i;
+    for (int i = 0; i < KM_N; i++) if (!kmeta[i].used) {
+        kmeta[i].used = 1; kmeta[i].cat = cat; kmeta[i].knob = knob;
+        kmeta[i].gf = 0; kmeta[i].ltf = -1000; kmeta[i].gval = 0.0f;
+        return i;
+    }
+    return 0;                                      // ring full (never: 4 knobs max on screen at once)
+}
+static void km_grab(int cat, int knob, float v) {  // ON PRESS: remember where and when we grabbed
+    int i = kmeta_i(cat, knob); kmeta[i].gval = v; kmeta[i].gf = frame_no;
+}
+static void km_release(int cat, int knob, float *v, float def) {   // ON RELEASE: was it a tap? a double?
+    int i = kmeta_i(cat, knob);
+    float dv = *v - kmeta[i].gval; if (dv < 0) dv = -dv;
+    if (dv > KM_MOVE || frame_no - kmeta[i].gf > TAP_FRAMES) return;   // a drag — not a tap at all
+    if (frame_no - kmeta[i].ltf < DBL_FRAMES) { *v = def; kmeta[i].ltf = -1000; dirty = 1; }  // second tap → reset
+    else kmeta[i].ltf = frame_no;                                      // first tap → arm
 }
 
 // ── RIG recall (Phase 3): named "legendary setups" that load the WHOLE board at once — which
@@ -624,6 +651,12 @@ static int drop_index(Ptr *p) {
 }
 
 static void commit_drop(Ptr *p) {
+    if (p->mode == PTR_KNOB && p->slot >= 0 && p->slot < chain_n) {          // tap-tap on a chain knob → default
+        int cat = chain[p->slot].cat;
+        km_release(cat, p->knob, &chain[p->slot].k[p->knob], CAT[cat].kdef[p->knob]);
+    } else if (p->mode == PTR_CABKNOB && p->knob >= 0 && p->knob < 2) {      // …and on a cabinet knob
+        km_release(KM_CAB, p->knob, &cab_k[p->knob], CAB_KDEF[p->knob]);
+    }
     if (p->mode == PTR_DRAGSLOT) {
         int idx = chain_index(p->cat);
         if (idx < 0) return;
@@ -696,7 +729,7 @@ void update(void) {
                         if (point_in_box(tx, ty, knob_cx(px, j) - 11, knob_cy(j, nk) - 7, 22, 14)) { hitk = j; break; }
                     if (point_in_box(tx, ty, px + 8, PED_Y + 57, PED_W - 16, 14) && (chain[s].on || !pedal_locked(chain[s].cat))) { chain[s].on = !chain[s].on; dirty = 1; }
                     else if (hitk >= 0) {
-                        if (dbl_hit(chain[s].cat, hitk)) { chain[s].k[hitk] = CAT[chain[s].cat].kdef[hitk]; dirty = 1; }
+                        km_grab(chain[s].cat, hitk, chain[s].k[hitk]);
                         p->mode = PTR_KNOB; p->slot = s; p->knob = hitk;
                     }
                     else { p->mode = PTR_DRAGSLOT; p->slot = s; p->cat = chain[s].cat; }   // anywhere else = drag handle
@@ -712,11 +745,11 @@ void update(void) {
                         else                       cab_speed   = (cab_speed + 1) % 3;
                         dirty = 1;
                     } else if (point_in_box(tx, ty, CAB_X + 4, PED_Y + 34, CAB_W / 2 - 4, 24)) {
-                        if (dbl_hit(-2, 0)) { cab_k[0] = CAB_KDEF[0]; dirty = 1; }
+                        km_grab(KM_CAB, 0, cab_k[0]);
                         p->mode = PTR_CABKNOB; p->knob = 0;
                     }
                     else if (point_in_box(tx, ty, CAB_X + CAB_W / 2, PED_Y + 34, CAB_W / 2 - 4, 24)) {
-                        if (dbl_hit(-2, 1)) { cab_k[1] = CAB_KDEF[1]; dirty = 1; }
+                        km_grab(KM_CAB, 1, cab_k[1]);
                         p->mode = PTR_CABKNOB; p->knob = 1;
                     }
                 }

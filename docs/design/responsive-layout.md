@@ -166,6 +166,14 @@ wants. Four concerns, each its own — **one now shipped** (the split-gap), the 
   gesture. Those need two extra `ui.h` bits acidcandy's todo names (a persistent per-widget ring for the
   double-tap clock, and a generic "a widget is being dragged" signal); `ui_knob_cell` ships the plain
   vertical-drag knob for now. Plus maybe a tiny `lay_fit_square(Box, frac)` for other round widgets.
+  **Second customer (2026-07-30):** `pedalboard` now hand-rolls double-tap-to-default too (a player
+  asked for it), copying acidcandy's semantics rather than inventing new ones — so the graduation has
+  two callers wanting it, not one. The *semantics* are now settled and worth carrying over verbatim:
+  **fire on RELEASE, and only if the press barely moved AND was short.** Firing on PRESS (pedalboard's
+  first cut) resets the knob when you grab it twice in quick succession to nudge it twice, which is
+  ordinary use and destroys the value being dialled in. Also settled: source the reset target from the
+  *same declaration the knob is initialised from* (`CAT[].kdef[]`), never a per-call-site `def`
+  argument — acidcandy's todo records a stale one silently resetting to a value the knob never had.
 
 - **✓ SHIPPED (2026-07-20) — gap between a split and its remainder: `lay_split_gap(c, edge, size,
   gap, rest)`.** `lay_split` hands back **edge-flush** rects: the piece you split off and the

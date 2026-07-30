@@ -168,9 +168,12 @@ static const Rig RIG[NRIG] = {
 
 // ── the fretting hand: real guitar tab ──  standard tuning, E-shape MOVEABLE chords.
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };   // E A D G B E (low→high)
+// SHAPE_F[shape][string] = frets ABOVE the barre, or FRET_MUTE for a string the fretting hand
+// damps. MUTE IS NOT FRET 0 — see str_fret() below for the bug that cost us every power chord.
+#define FRET_MUTE (-1)
 static const int SHAPE_F[NSHAPE][NSTR] = {
     // ordered so the THIRD climbs left→right (none → ♭3 → ♮3 → 4): a musical gradient
-    { 0, 2, 2, -1, -1, -1 },   // 5    power — finger root/5th/octave; high strings ring open
+    { 0, 2, 2, FRET_MUTE, FRET_MUTE, FRET_MUTE },   // 5    power — root/5th/octave, top three DAMPED
     { 0, 2, 2,  0,  0,  0 },   // min  E-shape minor
     { 0, 2, 2,  1,  0,  0 },   // maj  E-shape major
     { 0, 2, 2,  2,  0,  0 },   // sus4 suspended fourth
@@ -181,7 +184,19 @@ static const char  SHAPE_KEY[NSHAPE]  = { 'A', 'S', 'D', 'F', 'G' };
 static const int   ROOT_FRET[NROOT]   = { 0, 1, 3, 5, 7, 8, 10 };         // barre fret for E F G A B C D
 static const char *ROOT_NAME[NROOT]   = { "E", "F", "G", "A", "B", "C", "D" };
 static const char  ROOT_KEY[NROOT]    = { 'Z', 'X', 'C', 'V', 'B', 'N', 'M' };
-#define FRET_W 7
+// Neck geometry. NFRETS is the highest the chord table can reach (root D = fret 10, + a shape
+// offset of 2), and FRET_W is DERIVED so all of them always land clear of the strum zone. It used
+// to be a fixed 7px with a `dx > STRUMX-16 → clamp` catch, which silently piled several dots onto
+// the same x once the canvas dropped under ~250px wide (the cart is resizable). Deriving the pitch
+// removes the clamp by construction and lets the drawn frets span the whole neck like a real one.
+#define NFRETS   12
+#define FRET_X0  (SX0 + 6)                                   // fret 0 = the nut
+#define FRET_X1  (STRUMX - 16)                               // fret NFRETS, clear of the strum zone
+#define FRET_W   (((FRET_X1 - FRET_X0) / NFRETS) < 2 ? 2 : (FRET_X1 - FRET_X0) / NFRETS)
+#define FRET_WIRE(f) (FRET_X0 + (f) * FRET_W)                // x of fret f's WIRE
+// …and where a FINGER goes: behind the wire, in the middle of the fret space. Putting the dot on
+// FRET_WIRE(f) draws it sitting on the wire itself, which is not how anyone frets a note.
+#define FRET_X(f) ((FRET_WIRE(f) + FRET_WIRE((f) - 1)) / 2 + 1)
 static int  sel_shape = 0;
 static int  sel_root  = 0;
 static int  str_midi[NSTR];
@@ -241,9 +256,15 @@ static int knob_cy(int j, int nk) { return PED_Y + 24 + j * (nk <= 3 ? 13 : 9); 
 static int knob_rad(int nk)       { return nk <= 3 ? 6 : 5; }
 static int gate_ms(void) { return 1800; }
 
-static int str_fret(int s) { return SHAPE_F[sel_shape][s] < 0 ? 0 : ROOT_FRET[sel_root] + SHAPE_F[sel_shape][s]; }
+// ⚠ A DAMPED string is FRET_MUTE, and fret 0 is the OPEN string — they are not the same thing.
+// This used to fold FRET_MUTE into 0, so the "5" shape's three damped strings sounded as open
+// G/B/e under EVERY root: E5 came out as E minor (the open G is a ♭3), C5 as C major 7. A power
+// chord is defined by having no third, and this one always had one. Reported from the wild
+// 2026-07-30 as "the fret markers don't correspond to the chord voicings".
+static int str_fret(int s) { int f = SHAPE_F[sel_shape][s]; return f < 0 ? FRET_MUTE : ROOT_FRET[sel_root] + f; }
+static bool str_muted(int s) { return str_midi[s] < 0; }
 static void build_strings(void) {
-    for (int s = 0; s < NSTR; s++) str_midi[s] = OPEN[s] + str_fret(s);
+    for (int s = 0; s < NSTR; s++) { int f = str_fret(s); str_midi[s] = f < 0 ? -1 : OPEN[s] + f; }
 }
 
 // ── chain helpers ──
@@ -495,15 +516,21 @@ void init(void) {
     amp[0] = 0.8f; amp[2] = 1.0f; amp[4] = 0.6f;
 }
 
+// A damped string still gets HIT — you just hear the pick, not a note. That percussive "chk" is
+// what a muted string sounds like on a real guitar, and it's also the honest feedback: silence
+// would read as a dead widget. I_MUTE is the same engine at a 180ms gate, so it's a pick, not a pitch.
+#define MUTE_CHK(s) hit(OPEN[s] + 12, I_MUTE, 3, 60)
 static void pluck_str(int s, int vol) {
     if (s < 0 || s >= NSTR) return;
+    if (str_muted(s)) { MUTE_CHK(s); amp[s] = 0.3f; vib_ph[s] = 0.0f; fmt_on_attack(); return; }
     hit(str_midi[s], I_GTR, vol, gate_ms());
     amp[s] = 1.0f; vib_ph[s] = 0.0f;
     fmt_on_attack();                          // VOWEL pedal: advance/open the vowel on each pick
 }
 static void strum_down(void) {
     for (int s = 0; s < NSTR; s++) {
-        schedule_hit(s * 28, str_midi[s], I_GTR, 5, gate_ms());
+        if (str_muted(s)) schedule_hit(s * 28, OPEN[s] + 12, I_MUTE, 3, 60);   // the pick, no pitch
+        else              schedule_hit(s * 28, str_midi[s], I_GTR, 5, gate_ms());
         pend[s] = 1 + (s * 28 * 60) / 1000;
     }
     fmt_on_attack();                          // one vowel advance per strum (a syllable per chord)
@@ -512,11 +539,11 @@ static void set_shape(int sh) { sel_shape = sh; build_strings(); autoplay = fals
 static void set_root(int r)   { sel_root  = r;  build_strings(); autoplay = false; }
 // screen y → string index (row 0 on screen is the HIGH e, so the row inverts back to an index)
 static int  near_string(int ty) { int r = (ty - STR_Y0 + STR_DY / 2) / STR_DY; r = r < 0 ? 0 : r >= NSTR ? NSTR - 1 : r; return NSTR - 1 - r; }
+// x of string s's fingered dot. Open (0) sits just past the nut; muted has no dot, but return the
+// nut so any caller that ignores the mute still gets a sane x rather than a negative one.
 static int dot_x(int s) {
     int f = str_fret(s);
-    if (f == 0) return SX0 + 2;
-    int dx = SX0 + 6 + f * FRET_W;
-    return dx > STRUMX - 16 ? STRUMX - 16 : dx;
+    return f <= 0 ? SX0 + 2 : FRET_X(f);
 }
 static void pick_string(int s, int px) {
     if (s < 0 || s >= NSTR) return;
@@ -695,7 +722,7 @@ void update(void) {
         static const int prog[8] = { 0, 2, 6, 3, 0, 5, 3, 2 };
         if (beat() % 4 == 0) { sel_shape = 0; sel_root = prog[apos % 8]; build_strings(); strum_down(); apos++; }
     }
-    for (int s = 0; s < NSTR; s++) if (pend[s] > 0 && --pend[s] == 0) { amp[s] = 1.0f; vib_ph[s] = 0.0f; }
+    for (int s = 0; s < NSTR; s++) if (pend[s] > 0 && --pend[s] == 0) { amp[s] = str_muted(s) ? 0.3f : 1.0f; vib_ph[s] = 0.0f; }   // a damped string barely moves
 
 #ifdef DE_TRACE
     watch("chain_n", "%d", chain_n); watch("pal", "%d", palette_open);
@@ -843,9 +870,19 @@ static void draw_guitar(void) {
     rrect(saX + 6, by, saW - 12, bh, 6, CLR_BLUE);
     rrectfill(SX0 - 8, by + 3, SX1 - SX0 + 28, bh - 6, 4, CLR_LIGHT_PEACH);
     rectfill(STRUMX, by + 3, SX1 - STRUMX + 4, bh - 6, CLR_PEACH);
-    rectfill(SX0 + 60, by + 3, 5, bh - 6, CLR_DARKER_GREY);
-    rectfill(STRUMX - 8, by + 3, 5, bh - 6, CLR_DARKER_GREY);
-    rectfill(SX0 - 4, by + 2, 3, bh - 4, CLR_MEDIUM_GREY);
+    rectfill(STRUMX - 8, by + 3, 5, bh - 6, CLR_DARKER_GREY);   // neck → strum-zone divider
+    rectfill(SX0 - 4, by + 2, 3, bh - 4, CLR_MEDIUM_GREY);      // the NUT
+    // FRET WIRES + position inlays. There used to be no frets at all: one fat decorative bar sat at
+    // SX0+60 (fret 7.7 — not a fret), so the dots had nothing to line up against and the neck read
+    // as wrong even when the dot was right. Frets are drawn on the SAME FRET_X() the dots use, so
+    // the two cannot disagree.
+    for (int f = 1; f <= NFRETS; f++)
+        rectfill(FRET_WIRE(f), by + 4, 1, bh - 8, CLR_MEDIUM_GREY);
+    for (int f = 3; f <= NFRETS; f += (f == 9 ? 3 : 2)) {       // inlays at 3 5 7 9 12
+        int ix = FRET_X(f);                                     // same lane as the finger dot
+        if (f == 12) { circfill(ix, by + 7, 1, CLR_DARK_BROWN); circfill(ix, by + bh - 8, 1, CLR_DARK_BROWN); }
+        else circfill(ix, by + bh / 2, 1, CLR_DARK_BROWN);
+    }
     for (int s = 0; s < NSTR; s++) {
         int y = STR_Y(s);
         amp[s] *= 0.93f; vib_ph[s] += 0.6f;
@@ -857,10 +894,19 @@ static void draw_guitar(void) {
             line(px, py, xx, wy, col); px = xx; py = wy;
         }
     }
+    // Chord-chart notation, so the neck says the same thing a songbook would:
+    //   ✗ at the nut = DAMPED · hollow ring = OPEN · filled dot = fingered at that fret.
     for (int s = 0; s < NSTR; s++) {
         int f = str_fret(s), y = STR_Y(s);
-        if (f == 0) { circ(SX0 + 2, y, 2, CLR_DARK_RED); }
-        else { int dx = SX0 + 6 + f * FRET_W; if (dx > STRUMX - 16) dx = STRUMX - 16; circfill(dx, y, 2, CLR_DARK_RED); pset(dx - 1, y - 1, CLR_PEACH); }
+        if (f == FRET_MUTE) {                                   // ✗ — was drawn as an open ring, and
+            line(SX0 - 1, y - 2, SX0 + 3, y + 2, CLR_DARK_RED); // sounded as one too (see str_fret)
+            line(SX0 - 1, y + 2, SX0 + 3, y - 2, CLR_DARK_RED);
+        } else if (f == 0) {
+            circ(SX0 + 2, y, 2, CLR_DARK_RED);
+        } else {
+            int dx = FRET_X(f);                                 // same lane as the drawn fret wire
+            circfill(dx, y, 2, CLR_DARK_RED); pset(dx - 1, y - 1, CLR_PEACH);
+        }
     }
     font(FONT_TINY); print_centered("STRUM", (STRUMX + SX1) / 2, by + bh - 7, CLR_DARK_BROWN); font(FONT_NORMAL);
     for (int j = 0; j < PTR_MAX; j++)

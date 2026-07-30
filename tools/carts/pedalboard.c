@@ -14,7 +14,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it, drag a chain pedal by its label sideways to reorder, drag one DOWN out to remove; a scrollbar appears when the chain outgrows the screen. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -27,7 +27,8 @@ de:meta */
 //   • DRAG a chain pedal by its LABEL sideways to REORDER it (the sound reorders with it).
 //   • DRAG a chain pedal DOWN out of the chain to REMOVE it (it returns to the palette).
 //   • drag a KNOB to dial it; tap the FOOTSWITCH to toggle on/off; 1..9 toggle by position.
-// The chain can outgrow the screen — a scrollbar appears; drag it to pan. (REVERB is now a real
+// The chain can outgrow the screen — pan it by dragging a pedal BODY sideways (or the wheel); a
+// thin position bar sits along the top of the rack. (REVERB is now a real
 // dry/wet INSERT (reverb_insert, Increment C), so its POSITION is audible — put it before the
 // bitcrush to crush the wet tail, or after to reverb the crushed guitar. See effects-bus-architecture.md.)
 // The VOWEL pedal (formant filter) makes the guitar TALK; its MOD knob picks what moves the vowel —
@@ -306,7 +307,8 @@ static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor
 #define CAB_X   (saX + saW - CAB_W - 2)    // right-pinned to the safe-area edge (clears the notch)
 #define VIEW_W  view_w()             // chain viewport width: fills from CHAIN_X0 up to the cabinet
 #define VIEW_R  (CHAIN_X0 + view_w())
-#define SB_Y    (PED_Y + PED_H)      // scrollbar track (only drawn on overflow)
+// (SB_Y retired: the scroll bar was a 6px GRAB TARGET here, directly in the strum's landing zone.
+//  It is now a 2px indicator at PED_Y-2 and not a press target at all.)
 #define ILLU_CY (PED_Y + 13)         // illustration center — pulled up, padding trimmed
 #define PAL_Y   (saY + 88)           // palette panel top (when open); a taller canvas just fits more rows
 #define SX0   (saX + 22)             // nut (neck end)
@@ -593,7 +595,7 @@ static void apply_fx(void) {
 }
 
 // ── per-contact pointer pool ── (declared before init so init() can PTR_CLEAR it)
-enum { PTR_IDLE, PTR_KNOB, PTR_PICK, PTR_DRAGSLOT, PTR_DRAGPAL, PTR_SCROLL, PTR_CABKNOB };
+enum { PTR_IDLE, PTR_KNOB, PTR_PICK, PTR_DRAGSLOT, PTR_DRAGPAL, PTR_SCROLL, PTR_CABKNOB, PTR_PAN };
 typedef struct { int id, mode, slot, knob, cat, prevY, x, y; } Ptr;   // id MUST be first (pointer.h)
 static Ptr ptr[PTR_MAX];
 
@@ -782,7 +784,15 @@ void update(void) {
                         km_grab(chain[s].cat, hitk, chain[s].k[hitk]);
                         p->mode = PTR_KNOB; p->slot = s; p->knob = hitk;
                     }
-                    else { p->mode = PTR_DRAGSLOT; p->slot = s; p->cat = chain[s].cat; }   // anywhere else = drag handle
+                    // REORDER is now the HEADER STRIP only; the body PANS the chain sideways.
+                    // Before, the whole pedal body was the reorder handle AND the only touch scroll
+                    // was a 6px bar at PED_Y+PED_H — which is exactly where a downward strum starts.
+                    // So a strum aimed at the strings either grabbed the scrollbar or picked up a
+                    // pedal. Splitting them fixes both: a vertical swipe on a body is a pan with
+                    // ~zero horizontal delta, i.e. harmless, and the strum band is no longer stolen.
+                    // It also makes the cart's own description true ("drag a pedal by its LABEL").
+                    else if (ty < PED_Y + 12) { p->mode = PTR_DRAGSLOT; p->slot = s; p->cat = chain[s].cat; }
+                    else                      { p->mode = PTR_PAN; }
                 }
             }
             // 1b. the pinned CABINET box (right of the chain): header taps cycle the tenant, the
@@ -808,8 +818,9 @@ void update(void) {
                     }
                 }
             }
-            // 2. scrollbar
-            if (p->mode == PTR_IDLE && overflow && ty >= SB_Y && ty <= SB_Y + 6) p->mode = PTR_SCROLL;
+            // 2. (the scroll bar is an INDICATOR now, not a target — it used to sit in the strum's
+            //     way and got tested BEFORE the guitar, so it swallowed the gesture. Pan the chain
+            //     by dragging a pedal body, or use the wheel.)
             // 3. palette chips (only when open)
             if (p->mode == PTR_IDLE && palette_open && ty >= PAL_Y) {
                 int avail[NCAT], na = pal_avail(avail);
@@ -855,6 +866,8 @@ void update(void) {
             p->prevY = ty;
         } else if (p->mode == PTR_SCROLL) {
             scroll_x += (tx - p->x) * (content_w() / (float)VIEW_W); clamp_scroll();
+        } else if (p->mode == PTR_PAN) {
+            scroll_x -= (tx - p->x); clamp_scroll();     // 1:1, content follows the finger
         }
         p->x = tx; p->y = ty;
     }
@@ -935,6 +948,8 @@ static void draw_chain_pedal(int i, int x) {
     rrect(x, PED_Y, PED_W, PED_H, 4, sl->on ? d->accent : CLR_DARKER_GREY);
     font(FONT_SMALL);
     print_centered(d->name, cx, PED_Y + 3, sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
+    for (int g = 0; g < 3; g++)                                  // grip dots: this strip is the
+        pset(x + 3, PED_Y + 3 + g * 2, CLR_DARK_GREY);           // reorder handle (drag it sideways)
     if (d->kind == -1)      lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -2) fuzz_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -3) shimmer_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
@@ -1037,7 +1052,7 @@ static void draw_rigs(void) {
 }
 
 static void draw_guitar(void) {
-    int by = STR_TOP - 4, bh = (STR_BOT + 8) - by;   // clears the scrollbar above; the neck is taller now
+    int by = STR_TOP - 4, bh = (STR_BOT + 8) - by;   // the old scroll bar sat here; the neck owns it now
     rrectfill(saX + 6, by, saW - 12, bh, 6, CLR_BLUE_GREEN);
     rrect(saX + 6, by, saW - 12, bh, 6, CLR_BLUE);
     rrectfill(SX0 - 8, by + 3, SX1 - SX0 + 28, bh - 6, 4, CLR_LIGHT_PEACH);
@@ -1237,12 +1252,14 @@ void draw(void) {
     }
     if (chain_n == 0) { font(FONT_SMALL); print_centered("open PEDALS, drag effects in →", saX + saW / 2, PED_Y + 32, CLR_DARK_GREY); font(FONT_NORMAL); }
 
-    // scrollbar (only on overflow)
+    // SCROLL INDICATOR — moved to the TOP of the rack and thinned to 2px. It used to be a 6px
+    // grabbable bar directly above the strings, i.e. in the strum's landing zone; up here it is out
+    // of the way and, being 2px, plainly a readout rather than something to grab.
     if (max_scroll() > 0) {
-        rectfill(CHAIN_X0, SB_Y + 1, VIEW_W, 3, CLR_DARKER_GREY);
+        rectfill(CHAIN_X0, PED_Y - 2, VIEW_W, 2, CLR_DARKER_GREY);
         int tw = VIEW_W * VIEW_W / content_w();
         int tx = CHAIN_X0 + (int)(scroll_x / max_scroll() * (VIEW_W - tw));
-        rectfill(tx, SB_Y + 1, tw, 3, CLR_LIGHT_GREY);
+        rectfill(tx, PED_Y - 2, tw, 2, CLR_LIGHT_GREY);
     }
 
     if (palette_open)  draw_palette();

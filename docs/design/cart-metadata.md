@@ -127,6 +127,18 @@ its own system anyway. So:
 - **`make-cart.js`** (extend) — on bake, regenerate index.json so **baking auto-registers a cart**.
   This deletes [cart-authoring](../guides/cart-authoring.md) manual step 5.
 
+## Editor internals — where the `.cart.png` chunk code actually lives
+
+Worth knowing before touching either side, because **the chunk helpers are DUPLICATED**:
+`embedCartChunks` / `extractCartChunks` / `makeZtxtChunk` / `crc32` exist in
+`editor/electron/main.cjs` **and standalone again in `tools/make-cart.js`**. A format change has to land in
+both or the editor and the CLI disagree about what a cart file is — and nothing checks that they match.
+
+The renderer reaches them through the `preload.cjs` IPC surface:
+`studio.saveCart` / `loadCart` / `loadCartFile` / `loadCartBuffer` / `getFilePath` (the last needs
+Electron 32+). Dropping a `.png` onto the window loads it as a cart. And `--screenshot` on a cart binary
+renders 3 frames and exits, which is what bakes a thumbnail.
+
 ## Migration (one-time, run while no other agent is active)
 
 1. For each index.json entry, find its cart by `file` stem → inject a `de:meta` block at the top of

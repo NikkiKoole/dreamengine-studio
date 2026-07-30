@@ -77,9 +77,16 @@ xcodebuild test -project TinyjamHello.xcodeproj -scheme TinyjamHello \
   CODE_SIGNING_ALLOWED=NO
 ```
 Expect `Test Suite 'StoreTests' passed` (buys a rack → entitlement unlocks; master pass unlocks all).
-(Any installed sim works — swap the `name=` for one from `xcrun simctl list devices available`, or
-use `-destination 'id=<UDID>'`. The AUv3 host test is the same command with
-`-only-testing:TinyjamHelloTests/AUHostTests`.)
+(Swap the `name=` for one from `xcrun simctl list devices available`, or use `-destination 'id=<UDID>'`.
+The AUv3 host test is the same command with `-only-testing:TinyjamHelloTests/AUHostTests`.)
+
+> ⚠ **NOT any installed sim, since the Xcode 26 upgrade (2026-07-06).** The **iOS 26 sim runtime killed
+> in-app `SKTestSession`** — it now needs a real XCTest run context, not merely XCTest loaded, and dlopen
+> tricks do not help (the 17.2 runtime was auto-deleted during the upgrade). `Store.swift` therefore SKIPS
+> local IAP testing gracefully on iOS 26+, so a run on a 26 sim proves nothing about purchases while still
+> reporting success. **The purchase dev-loop lives on an 18.x runtime:** install the iOS 18.4 runtime and
+> use `DEVICE="iPhone 16 (18.4)" ./build.sh` — verified working 2026-07-06. Device IAP testing still waits
+> on ASC IAP records (Monetization → In-App Purchases); the bundled `.storekit` only covers the sim.
 
 ## Files
 
@@ -128,6 +135,11 @@ then a host note-on → peak 0.106. Engine seam: `midi_input.h` exposes `de_midi
 under `DE_NO_RAYLIB` (portable host-feed, like the web bridge). Next: MIDI CC → cart knobs.
 
 ## Gotchas (hard-won — read before debugging these)
+
+**`open -a Simulator` can launch the WRONG Xcode's Simulator and dyld-crash.** It picks up the stale
+Xcode 15.1 copy left in `~/Downloads`; open the current Xcode's `Simulator.app` by full path instead
+(`/Applications/Xcode26_6.app/Contents/Developer/Applications/Simulator.app`). Found 2026-07-06 alongside
+the `SKTestSession` change above.
 
 - **A Swift collection shared between the main thread and a background `Task` = heap corruption, not
   a "tolerable race."** `Store.unlockedIDs` was a plain `static var Set<String>` read by the C

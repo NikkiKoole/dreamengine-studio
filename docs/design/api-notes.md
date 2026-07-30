@@ -45,10 +45,19 @@ measures each shape's absolute bounding box with `pget` against what we expect):
 
 - **Corner-anchored (`rect`/`rectfill`/`rrect`/`rrectfill`) — EXACT and inclusive.**
   `w×h` pixels spanning `[x .. x+w-1] × [y .. y+h-1]`; outline and fill agree at every
-  radius. (This is now true after the 2026-07-17 fix of a stray `-1` in `rrect_inside`
-  that made rounded rects 1px short on the right+bottom — see `docs/HANDOFF.md`. If a
-  future edit reintroduces it, `shapesize` catches it: the rect/rrect rows must read
-  "EXACT".)
+  radius. If a future edit reintroduces the bug below, `shapesize` catches it: the
+  rect/rrect rows must read "EXACT".
+  - **The 2026-07-17 fix.** `rrect_inside` carried a stray `-1`: right/bottom were
+    `x+w-1-r`/`y+h-1-r` while left/top were `x+r`/`y+r` — asymmetric, so with pixel-centre
+    sampling the straight edges landed at `x+w-2`/`y+h-2` instead of `x+w-1`/`y+h-1`. Changed
+    to `x+w-r`/`y+h-r` (inscribe in `[x,x+w]×[y,y+h]`), so `rrect`/`rrectfill` straight edges
+    now coincide exactly with `rect`/`rectfill` at identical `w,h`. Verified by a probe reading
+    matching right/bottom edges, plus `canvas-diff` PASS (GPU==SW) on `raster_test` + `acidcandy`.
+  - **⚠ MIGRATION, STILL OPEN.** Any cart that compensated for the old behaviour with a `w-1`
+    trick now renders **1px SHORT** — remove the compensation. `acidcandy`'s voice-band was
+    fixed at the time. **If you find another `w-1`-to-align-with-rrectfill comment anywhere,
+    undo it.** (There is no oracle for this one: the cart still compiles and still looks nearly
+    right, so it has to be found by reading.)
 - **Gotcha 1 — center-radius (`circ`/`circfill`/`oval`/`ovalfill`/`ngon`/`star`/`arc`/`ring`)
   are `2r` wide, not `2r+1`, and biased ½px toward top-left.** `disc_inside` samples pixel
   centres (`+0.5`) against an *integer* centre, so `circfill(cx,cy,r)` spans `cx-r .. cx+r-1`

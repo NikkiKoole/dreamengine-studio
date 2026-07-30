@@ -782,6 +782,10 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
   sugar over `de_state()`); a cart wanting `S` for else just removes those defines. **`SCREEN_W`/`SCREEN_H`/
   `SCALE` are `-D` compile flags too**, so `static const int SCALE[30]` expands to `int 4[30]` — the error
   points at the array, not the name, which is why it reads as nonsense (bit `keytrack`).
+- **A regex `.replace()` whose replacement is a STRING lets the SOURCE text inject `$1`/`$&`.** Building a
+  replacement by concatenation means any `$` sequence in the matched content expands: a cart whose `de:meta`
+  contained `$100` produced invalid JSON when `backfill-slug.js` rewrote it. Pass a **function** as the
+  replacement (`(m) => …`) and the string is used literally. Bites any tool that rewrites cart source.
 - **Data-driven carts: name your indices** via an enum (`m->param[VK_FENV]`), never raw numbers —
   inserting a knob mid-list once silently cross-wired knobs + presets.
 - **`watch()`'s 2nd arg is a printf FORMAT STRING, not a value** — `watch(name, fmt, ...)`. Passing a

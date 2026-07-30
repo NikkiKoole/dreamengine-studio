@@ -118,6 +118,18 @@ staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
    API key (`.p8`, JWT/ES256) as #2 — so it comes *after* the upload tool stands up that auth, not
    before. Reader-first is then the low-risk way to exercise the ASC auth.
 
+## App Store Connect record ids (reference, not used by the tooling)
+
+`asc-push.js` resolves an app by `bundleId` (`/v1/apps?filter[bundleId]=…`), so it never needs these — but
+they are what you type into the ASC web UI to find a record, and they exist nowhere else in the repo:
+
+| app | ASC app record id |
+|---|---|
+| Tiny Acid Jam (`apps/tinyacidjam`) | **6792504925** — name reserved globally, created 2026-07-06 |
+
+The ASC **API key id** lives in `~/.appstoreconnect/config.json` (with the `.p8`), never in git — see the
+auth note above. If you need to confirm which key a push used, read it there rather than recording it here.
+
 ## The one rule: scripts prepare → agent decides → scripts execute
 
 ADR-0026 covers the deterministic plumbing: the upload dance, char-limit lint, the

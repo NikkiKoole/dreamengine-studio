@@ -37,6 +37,15 @@ Edit this file as work happens. It is meant to rot forward, not to be rewritten.
 
 ## 1. How we decide something is done
 
+**The owner's standing constraints for this thread** (they outrank anything below):
+
+- **Small steps.** One item at a time, shipped and judged, rather than a batch.
+- **Every engine change must have a cart where you can hear it.** A measurement is not a substitute; if
+  there is nowhere to hear it, the change is not finished.
+- **Nothing is skipped.** An item that turns out not to be worth doing gets a **recorded DROP with its
+  measurement** — not silence. That is why §8 exists and why the drops carry numbers.
+
+
 The audit's items are not all the same *kind* of thing, and that matters more than their size. Four
 kinds, and the kind determines the gate:
 

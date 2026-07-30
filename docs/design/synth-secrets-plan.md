@@ -1693,6 +1693,16 @@ its carts are bass-focused (`walkbox`, `walkroll`, `upright`, `bandbox`). `harmo
 POSITION, so there is no size axis to hang it on. **Sizing the body is the next piece of work**, and until
 it exists, defaulting a violin box onto a cello line would be shipping a known wrong answer.
 
+**And sizing is not just a constant to change — it is blocked on BUFFER SPACE, which
+`disp-model --body --lowest <hz>` now quantifies.** Scaling the shipped delays (ratios preserved) to a
+cello's ~110 Hz air resonance gives **3.19 / 5.65 / 9.09 ms**, so the longest line needs **401 samples where
+the engine's stride is 256** — three lines at 401 is 1203 floats against `pn_ks2`'s 1024 total. **The
+free-buffer trick that made the violin body cost nothing does not stretch to a cello.** Decide before
+coding: find more per-voice space, share ONE body across all voices (physically the right model anyway — an
+instrument has one body, not one per note), or cap the size and accept a small-bodied cello. Encouraging
+note from the same model: the scaled set keeps its character (58 resonances, 43 above 1 kHz, 11.5 dB
+colouring, against the violin's 24 / 19 / 10.9), so the approach scales even where the memory does not.
+
 Gates after the removal: soundcheck silent, `tune-check` 0, `level-check` 0, `dc-check` 0,
 `lint-aux-params` 0, 570/570 carts compile.
 

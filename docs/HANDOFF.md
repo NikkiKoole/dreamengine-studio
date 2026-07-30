@@ -467,6 +467,12 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >    instrument is a longer delay, but BOWED covers violin/viola/cello and several carts are bass-focused
 >    (`walkbox`, `walkroll`, `upright`, `bandbox`) — and `harmonics` is bow POSITION, so there is no size
 >    axis to hang it on. Until sizing exists, defaulting a violin box onto a cello is a known wrong answer.
+>    **SIZING IS BLOCKED ON BUFFER SPACE, and `node tools/disp-model.js --body --lowest 110` quantifies it:**
+>    a cello-sized set is 3.19/5.65/9.09 ms, so the longest line needs **401 samples against the engine's 256
+>    stride** — 3 × 401 = 1203 floats vs `pn_ks2`'s 1024. The free-buffer trick that made the violin body
+>    cost nothing does NOT stretch to a cello. Decide first: find more per-voice space, share ONE body
+>    across voices (physically right — an instrument has one body), or cap the size. The character does
+>    scale (58 resonances, 43 above 1 kHz, 11.5 dB) — only the memory does not.
 >    **Then `guitar`** — still a measurement cross-check ONLY, see the scoping below.
 >    Two traps banked: a 1–4 ms body has a MILLISECOND RT60 so there is no audible tail to A/B on (the
 >    "reverb" IS the frequency response — Reid's duality); and blend a body ADDITIVELY, never as a crossfade,

@@ -170,6 +170,58 @@ function selfCheck() {
   return fails === 0
 }
 
+// ── BODY mode: the comb-resonator body (§M2, plan §2.4) ─────────────────────────────────────────
+// Same discipline as the dispersion half — model it before touching the engine. A feedback comb of delay T
+// resonates at every multiple of 1/T, so the "body is a small reverberant room" construction is a stack of
+// combs whose resonance series interleave. This is what chose combs over biquad formants for BOWED: it
+// predicted resonances at 270 and 435 Hz, and the rendered engine's response peaks landed on 275 and 440.
+//
+// ITS REAL JOB NOW IS SIZING. The shipped delays are a VIOLIN-sized box, and BOWED also plays viola and
+// cello — a bigger instrument is a longer delay. `--lowest <hz>` scales the set to a target lowest
+// resonance (a violin's main air resonance is ~275-300 Hz, a cello's ~100-120) and reports the BUFFER
+// BUDGET, which is the constraint that bites: the engine carves its lines out of `pn_ks2` (1024 floats,
+// 256 per line = 5.8 ms), and a cello does not fit.
+const BODY_LINES = [[1.3, 0.72], [2.3, 0.68], [3.7, 0.62]]   // ms, feedback — as shipped (violin)
+const combMag = (f, ms, fb) => {
+  const N = ms * 0.001 * SR, w = 2 * Math.PI * f / SR
+  const re = 1 - fb * Math.cos(w * N), im = fb * Math.sin(w * N)
+  return 1 / Math.sqrt(re * re + im * im)
+}
+const bodyMag = (f, lines) => lines.reduce((a, [ms, fb]) => a + combMag(f, ms, fb), 0) / lines.length
+
+function bodyReport(lines, stride) {
+  const at = (f) => bodyMag(f, lines)
+  const res = []
+  let prev = at(80), cur = at(81)
+  for (let f = 82; f <= 4000; f++) { const nx = at(f); if (cur > prev && cur >= nx) res.push(f - 1); prev = cur; cur = nx }
+  const vals = []
+  for (let f = 150; f <= 3000; f += 5) vals.push(at(f))
+  const colour = 20 * Math.log10(Math.max(...vals) / Math.min(...vals))
+  const need = Math.ceil(Math.max(...lines.map(l => l[0])) * 0.001 * SR)
+  console.log(`  delays      ${lines.map(l => l[0].toFixed(2) + 'ms').join('  ')}`)
+  console.log(`  resonances  ${res.length} in 80-4000 Hz (${res.filter(f => f > 1000).length} above 1 kHz)`)
+  console.log(`  lowest few  ${res.slice(0, 6).map(f => f + 'Hz').join(' ')}`)
+  console.log(`  colouring   ${colour.toFixed(1)} dB peak-to-trough over 150-3000 Hz  (a real violin body: 20-30)`)
+  console.log(`  buffer      longest line needs ${need} samples; engine stride is ${stride}` +
+    (need > stride ? `  ✗ DOES NOT FIT — pn_ks2 is 1024 floats total, ${lines.length} lines × ${stride}`
+                   : `  ✓ fits`))
+}
+
+function bodyMode(lowest) {
+  console.log('\n§M2 COMB BODY — "an instrument body is a small reverberant room" (Reid, Part 22)\n')
+  console.log('AS SHIPPED on BOWED (violin-sized):')
+  bodyReport(BODY_LINES, 256)
+  if (lowest) {
+    // keep the delay RATIOS (they are chosen incommensurate so the series interleave) and scale the set
+    const lowestNow = 1000 / BODY_LINES[BODY_LINES.length - 1][0]      // longest line's fundamental, Hz
+    const k = lowestNow / lowest
+    const scaled = BODY_LINES.map(([ms, fb]) => [ms * k, fb])
+    console.log(`\nSCALED to a lowest resonance of ${lowest} Hz  (×${k.toFixed(2)} — ratios preserved):`)
+    bodyReport(scaled, 256)
+    console.log('\nreference air resonances: violin ~275-300 Hz · viola ~220-230 · cello ~100-120')
+  }
+}
+
 // ── as a library ─────────────────────────────────────────────────────────────
 // `require()` it to solve a design point programmatically instead of reading a table off the
 // terminal — that is how the ear-test prototype gets its per-note coefficients, and it matters that
@@ -196,6 +248,7 @@ if (require.main === module) {
   if (argv.includes('--check')) process.exit(selfCheck() ? 0 : 1)
   const stages = flag('--stages', '1,2,4,8').split(',').map(Number)
   const notes = flag('--notes', 'C2,C3,C4,C5,C6').split(',')
-  if (argv.includes('--curve')) curveTable(stages, notes.slice(0, 1))
+  if (argv.includes('--body')) bodyMode(parseFloat(flag('--lowest', '0')) || null)
+  else if (argv.includes('--curve')) curveTable(stages, notes.slice(0, 1))
   else costTable(parseFloat(flag('--b', '1e-4')), stages, notes)
 }

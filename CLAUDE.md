@@ -415,7 +415,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              `--check` = self-test incl. an engine-validated point. Use it INSTEAD of
                              patching sound.h to search a grid — that is slow, and it holds a shared
                              engine broken while parallel agents compile (it bit twice; a timeout's
-                             SIGTERM skips the restore). Patch the engine only to CONFIRM one point
+                             SIGTERM skips the restore). Patch the engine only to CONFIRM one point.
+                             `--body` = the §M2 COMB BODY half (an instrument body is a small reverberant
+                             room): resonances + colouring for a set of 1-4 ms lines, and `--lowest <hz>`
+                             SIZES the set for a bigger instrument (violin air ~280 Hz, cello ~110) while
+                             reporting the BUFFER BUDGET — which is the constraint: a cello needs 401
+                             samples/line against the engine's 256 stride, so it does not fit pn_ks2
              inharm-spec.js  WHERE the partials sit, in cents vs the ideal n·f0 — the third leg beside
                              harmonic-spec (how LOUD) and filter-spec (what the filter did). Fits the
                              stiff-string B of f_n = n·f0·√(1+Bn²) + prints the residual, so "the partials

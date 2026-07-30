@@ -1,0 +1,11 @@
+# boxhuman — the crowd goes over and comes back. H no longer snaps a figure
+# upside down: the five steps that derive the handstand pose are taken IN TIME
+# instead of all at once, so the arms come up, the body turns over about the
+# hips, the legs open into the straddle and the palms turn down to meet the
+# floor. Each build's SPEED comes off its own stiffness (the bruiser snaps over
+# in 32 frames, the kid takes 57) and the starts are staggered, so what you
+# watch is a wave rolling down the line.
+down  40 H
+up    43 H
+down 260 H
+up   263 H

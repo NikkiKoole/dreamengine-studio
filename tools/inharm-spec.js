@@ -19,7 +19,17 @@
 //   node tools/inharm-spec.js <wav> --f0 <hz>             measure any WAV (whole file)
 //   node tools/inharm-spec.js <wav> --f0 <hz> --from 0.05 --to 0.35     … one region
 //   node tools/inharm-spec.js --n 20 --json --keep        partial count / machine-readable / keep files
+//   node tools/inharm-spec.js <wav> --f0 <hz> --decay     PER-PARTIAL DECAY RATE (dB/s) instead of cents
 //   node tools/inharm-spec.js --check                     SELF-TEST against synthetic known-B spectra
+//
+// --decay exists because a whole class of confusion lives there. `wav-envelope` gives you the WHOLE
+// signal's amplitude curve, which cannot tell "the fundamental is dying faster" from "only the upper
+// partials are". That distinction is the difference between an implementation bug in the loop and a
+// spectral side-effect. It is what settled the §I4b sustain scare: the owner reported a dispersed piano
+// "dying out earlier", and per-partial decay showed EVERY partial including h1 dying ~2x faster, which
+// ruled out a spectral explanation and pointed at the test rig — `instrument_tune`'s pitch-shift path,
+// which forces per-sample fractional interpolation and so bleeds energy every round trip (audio-notes).
+// Reach for it whenever a voice's sustain changes and you need to know WHERE the energy went.
 //
 // RUN --check BEFORE BELIEVING A NULL RESULT. A tool that reports "no inharmonicity" and a tool that
 // is silently broken produce the same table. --check synthesises stiff-string spectra at known B
@@ -263,6 +273,32 @@ function row(m, cols) {
   return s
 }
 
+// ── per-partial DECAY rate (dB/s), least-squares over a sequence of windows ──────────────────
+// Each partial is located ONCE in an early window (in a stiff string it is not at n·f0), then tracked.
+function decayRates(x, start, len, f0nom, nMax, sr, t0, t1, win) {
+  const f0 = refineF0(x, start, len, f0nom, sr)
+  const out = []
+  for (let n = 1; n <= nMax; n++) {
+    // find this partial's ACTUAL frequency, then fit 20log10(mag) against time
+    const p = n === 1 ? { f: f0 } : findPeak(x, start, len, n * f0 - 0.45 * f0, n * f0 + 0.45 * f0, sr)
+    if (!p) { out.push({ n, ok: false }); continue }
+    const pts = []
+    for (let t = t0; t + win <= t1; t += win / 2) {
+      const s0 = Math.round(t * sr), L = Math.round(win * sr)
+      if (s0 + L > x.length) break
+      const m = mag(x, s0, L, p.f, sr)
+      if (m > 1e-7) pts.push([t + win / 2, 20 * Math.log10(m)])
+    }
+    if (pts.length < 4) { out.push({ n, ok: false }); continue }
+    const k = pts.length
+    const mx = pts.reduce((a, q) => a + q[0], 0) / k, my = pts.reduce((a, q) => a + q[1], 0) / k
+    let sxy = 0, sxx = 0
+    for (const [t, d] of pts) { sxy += (t - mx) * (d - my); sxx += (t - mx) * (t - mx) }
+    out.push({ n, ok: sxx > 0, f: p.f, dbPerSec: sxx > 0 ? sxy / sxx : null })
+  }
+  return { f0, parts: out }
+}
+
 // ── self-test: synthesise a decaying stiff-string spectrum at a KNOWN B and recover it ──────
 function selfCheck(nMax) {
   const sr = 44100, f0 = 130.81, dur = 0.30, len = Math.round(dur * sr)
@@ -316,6 +352,23 @@ function main() {
     const start = Math.max(0, Math.round(from * sr))
     const len = Math.min(s.length - start, Math.round((to - from) * sr))
     if (len < 2048) { console.error('inharm-spec: region too short (need ≥2048 samples)'); process.exit(2) }
+
+    if (has('--decay')) {                          // per-partial decay rate, not cents
+      const t0 = parseFloat(flag('--from', '0.10')), t1 = parseFloat(flag('--to', '1.20'))
+      const win = parseFloat(flag('--win', '0.18'))
+      // locate the partials in an early window, then fit each one's level over [t0, t1]
+      const locStart = Math.round(t0 * sr), locLen = Math.min(Math.round(0.25 * sr), s.length - locStart)
+      const d = decayRates(s, locStart, locLen, f0nom, nMax, sr, t0, t1, win)
+      if (json) { console.log(JSON.stringify({ wav: wavArg, from: t0, to: t1, ...d }, null, 2)); return }
+      console.log(`\nPER-PARTIAL DECAY  ${path.basename(wavArg)}  ${t0}-${t1}s  (f0 ${d.f0.toFixed(2)} Hz)`)
+      console.log('more negative = dies sooner. Compare the SAME partial across two takes.\n')
+      console.log('  n      freq     dB/s')
+      for (const p of d.parts)
+        console.log(`  ${String(p.n).padStart(2)}  ${p.ok ? p.f.toFixed(1).padStart(8) : '       ?'}  ` +
+          `${p.ok && p.dbPerSec !== null ? p.dbPerSec.toFixed(1).padStart(7) : '      ?'}`)
+      return
+    }
+
     const m = measure(s, start, len, f0nom, nMax, sr)
     if (json) { console.log(JSON.stringify({ wav: wavArg, from, to, ...m }, null, 2)); return }
     const h = header(nMax)

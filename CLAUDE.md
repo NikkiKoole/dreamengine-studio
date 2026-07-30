@@ -425,7 +425,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              RUN IT BEFORE BELIEVING A NULL, since a broken tool and an harmonic engine print
                              the same table. Found audit §I4b/§I4c/§I4d (PIANO's dispersion inert + only half
                              its Railsback stretch reaching the sound + a loop tuning offset). Modal engines
-                             (MALLET/MEMBRANE) are out of frame — they have no energy at n·f0 at all
+                             (MALLET/MEMBRANE) are out of frame — they have no energy at n·f0 at all.
+                             `--decay` = PER-PARTIAL decay rate (dB/s): wav-envelope gives the whole
+                             signal, which cannot tell "the fundamental dies faster" (a loop bug) from
+                             "only the upper partials do" (spectral). That distinction settled the §I4b
+                             sustain scare — reach for it whenever sustain changes and you need to know
+                             WHERE the energy went
              formant-check.js  the VOICE oracle: f0 (autocorrelation, mean + WOBBLE) + F1/F2/F3 formant
                              peaks (Welch-smoothed spectral envelope) of a WAV region — the pitch-moved-AND-
                              formants-held gate for sample_autotune / any pitch-shift (design/transparent-autotune.md)

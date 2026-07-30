@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-29) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2 STARTED: 2.1 SHIPPED, both halves**).**
+> **▶ ACTIVE THREAD (2026-07-30) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) unblocked; 2.4 not started**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,

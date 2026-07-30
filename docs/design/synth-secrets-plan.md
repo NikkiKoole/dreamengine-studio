@@ -1460,6 +1460,56 @@ constant across the register, where a real Railsback curve rises at both ends. �
 2.3(b), the original level-dependent item, is now UNBLOCKED** — there is finally inharmonicity to make
 level-dependent.
 
+##### Reproducing every measurement in §2.3(a) from a cold start
+
+The WAV pairs above live in `build/ab/`, which is **not committed**, and the scripts that made them were
+scratchpad throwaways. Everything is regenerable from committed tools — and now that
+`MODE_PIANO_STIFF` is a *runtime* knob, no engine patching is needed for any of it:
+
+```bash
+node tools/inharm-spec.js --check                 # trust the oracle FIRST (a null result and a broken
+                                                  # tool print the same table)
+node tools/inharm-spec.js --midi 48 --voicing 0   # PIANO's inharmonicity, per velocity × time window
+node tools/disp-model.js                          # what a target B costs, per note/stage-count
+node tools/disp-model.js --curve                  # the forward transfer curve, both signs of c
+node tools/tune-check.js                          # the stretched-tuning differential (§I4c)
+node tools/lint-aux-params.js                     # the five-places bound (§the aux-param trap)
+```
+
+To re-render an A/B of the inharmonicity itself, drop this in `tools/carts/_pnab.c`, set the knob to
+`0.0f` for the harmonic take and `0.5f` for the stiff one, and render each:
+
+```c
+#include "studio.h"
+void init(void){ instrument(5, INSTR_PIANO, 1,0,7,3200);
+  instrument_harmonics(5,0.0f); instrument_timbre(5,0.5f); instrument_morph(5,0.55f);
+  instrument_mode(5, MODE_PIANO_STIFF, 0.5f); }        // ← 0.0f = harmonic, 0.5f = the voicing's amount
+static int f=-1;
+void update(void){ f++;
+  if (f == 0)   note_on(33, 5, 6);                                     // A1 alone
+  if (f == 110) note_on(45, 5, 6);                                     // A2 alone
+  if (f == 220) { note_on(45,5,5); note_on(49,5,5); note_on(52,5,5); } // triad
+  if (f == 360) { note_on(33,5,5); note_on(40,5,5); note_on(49,5,5); note_on(56,5,5); } }
+void draw(void){ cls(0); }
+```
+
+```bash
+node tools/play.js _pnab run --headless --frames 540 --wav build/ab/take.wav
+```
+
+**Before calling any such pair an A/B, check it is comparable** — the hard-won rule of this thread:
+
+```bash
+node tools/wav-analyze.js  build/ab/take.wav                        # peak + rms
+node tools/wav-envelope.js build/ab/take.wav 130.8 --from 0 --to 9  # the DECAY CURVE — peak and rms
+                                                                    # passed on a pair whose decay
+                                                                    # differed by 19 dB
+node tools/inharm-spec.js build/ab/take.wav --f0 110 --decay        # per-partial, if sustain differs
+```
+
+Measure structure on an **isolated** note, never on the phrase: overlapping ringing notes make a
+single-`f0` partial analysis meaningless (it read a 28¢ residual on a take that was actually clean).
+
 ##### Design commitment: inharmonicity must be SWAPPABLE, with "perfectly harmonic" available
 
 Asked directly by the owner: *"the path we are taking, will we have the option to swap this around? Say

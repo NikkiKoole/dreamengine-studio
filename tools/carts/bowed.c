@@ -13,7 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "Ports the Smith/McIntyre stick-slip bowed-string waveguide from navkit (bowsweep.c Schelleng-wedge calibration); novel: arco/pizzicato as a single waveguide with friction toggled via eng_tune, plus multitouch rub-velocity as bow speed.",
-  "description": "INSTR_BOWED showcase - the bowed string (violin / viola / cello), the last modeled string engine. A Smith/McIntyre stick-slip friction waveguide: a bow drags the string, the rosin grips then slips, and that friction drives a SELF-OSCILLATING loop - so unlike the plucked/struck strings it HOLDS while sustained and swells as you lean in. STEP-0 (tools/navkit-bowsweep.c) mapped the Schelleng wedge of stable bowing and the three macros are pinned inside it: instrument_harmonics = bow position (0 = sul ponticello, near the bridge, bright/edgy; 1 = sul tasto, over the fingerboard, soft), instrument_timbre = bow pressure (0 = light/clean singing leaning-sawtooth; 1 = heavy/scratchy surface sound - a real articulation, not a bug), instrument_morph = bow speed/swell (0 = gentle; 1 = digging in, louder and cleaner). THE FEEL: you don't press a string, you RUB it - drag back and forth and it speaks; the energy ACCUMULATES, so the longer/harder you rub the more it builds and digs in, and stopping lets the bow rest (silent). A quick TAP instead PLUCKS the string - pizzicato, which is the SAME bowed waveguide: a second INSTR_BOWED slot flagged eng_tune(slot,0,1) seeds the string with a pluck and switches the bow friction off, so the identical string and body ring down (arco and pizz differ only in how energy enters, exactly as on a real violin). Six presets: 1 violin / 2 viola / 3 cello / 4 ponticello / 5 tasto / 6 tremolo. Keyboard: HOLD A S D F G H J to bow, tap Q W E R T Y U to pluck; LEFT/RIGHT pick a knob + UP/DOWN turn, Z/X octave, M autoplay arco. Multitouch: rub a drone with one hand, pluck a melody with the other. Design + STEP-0: instrument-engines.md §8.5 step 9."
+  "description": "INSTR_BOWED showcase - the bowed string (violin / viola / cello), the last modeled string engine. A Smith/McIntyre stick-slip friction waveguide: a bow drags the string, the rosin grips then slips, and that friction drives a SELF-OSCILLATING loop - so unlike the plucked/struck strings it HOLDS while sustained and swells as you lean in. STEP-0 (tools/navkit-bowsweep.c) mapped the Schelleng wedge of stable bowing and the three macros are pinned inside it: instrument_harmonics = bow position (0 = sul ponticello, near the bridge, bright/edgy; 1 = sul tasto, over the fingerboard, soft), instrument_timbre = bow pressure (0 = light/clean singing leaning-sawtooth; 1 = heavy/scratchy surface sound - a real articulation, not a bug), instrument_morph = bow speed/swell (0 = gentle; 1 = digging in, louder and cleaner). THE FEEL: you don't press a string, you RUB it - drag back and forth and it speaks; the energy ACCUMULATES, so the longer/harder you rub the more it builds and digs in, and stopping lets the bow rest (silent). A quick TAP instead PLUCKS the string - pizzicato, which is the SAME bowed waveguide: a second INSTR_BOWED slot flagged eng_tune(slot,0,1) seeds the string with a pluck and switches the bow friction off, so the identical string and body ring down (arco and pizz differ only in how energy enters, exactly as on a real violin). Six presets: 1 violin / 2 viola / 3 cello / 4 ponticello / 5 tasto / 6 tremolo. Keyboard: HOLD A S D F G H J to bow, tap Q W E R T Y U to pluck; LEFT/RIGHT pick a knob + UP/DOWN turn, Z/X octave, M autoplay arco, B BODY on/off. THE BODY (B) is new: this engine shipped with no body resonator at all, so a bowed note was a bare string - Reid's Part 22 point is that an instrument body IS a small reverberant room, and MODE_BOW_BODY builds one from three parallel delay lines at 1-4 ms. Toggle it to hear the difference between a string and a string in a box; it is the single biggest thing separating this from a sawtooth. The box is one fixed VIOLIN size, so the cello preset gets a violin's body for now. Multitouch: rub a drone with one hand, pluck a melody with the other. Design + STEP-0: instrument-engines.md §8.5 step 9."
 }
 de:meta */
 // bowed — INSTR_BOWED showcase: seven strings you BOW by RUBBING, plus pizzicato. The last
@@ -39,7 +39,7 @@ de:meta */
 //                          drag a string sideways while bowing bends nothing; drag a slider to set macros
 //           keyboard    — HOLD A S D F G H J = bow (steady) · tap Q W E R T Y U = pizzicato
 //           1..6 preset (violin/viola/cello/pontic./tasto/tremolo) · LEFT/RIGHT+UP/DOWN knobs
-//           Z/X octave · M autoplay arco on/off  ('P' is the runtime pause overlay)
+//           Z/X octave · M autoplay arco on/off · B BODY on/off  ('P' is the runtime pause overlay)
 //
 // MULTITOUCH: every finger is its own bow — rub a drone with one hand, pluck a melody with the other.
 
@@ -74,6 +74,21 @@ static float kbd_bow[NSTR];    // 1 while a keyboard key holds this string (stea
 static float amp[NSTR];        // visual string vibration
 static float vib_ph[NSTR];
 static float knob[3] = { 0.45f, 0.30f, 0.70f };   // the three macros (starts at "violin")
+
+// BODY (MODE_BOW_BODY) — three short parallel delay lines, 1-4 ms: Reid's Part 22 point that an
+// instrument body IS a small reverberant room. This engine shipped with NO body at all (audit §F4), which
+// is what the toggle exists to demonstrate: 'B' switches between a bare string and a string in a box.
+// ON by default HERE because this is the showcase cart and the body is the thing worth hearing; the
+// ENGINE default stays OFF so the other 13 BOWED carts are untouched.
+// ⚠ Read at NOTE-ON, so the toggle lands on the next note, not on notes already sounding.
+// ⚠ The box is one fixed VIOLIN size, so preset 3 (cello) gets a violin's body — approximate on purpose;
+//   sizing it is open work (plan §2.4).
+static bool body_on = true;
+#define BODY_AMT 1.0f
+static void apply_body(void) {
+    instrument_mode(I_STR, MODE_BOW_BODY, body_on ? BODY_AMT : 0.0f);
+    instrument_mode(I_PIZ, MODE_BOW_BODY, body_on ? BODY_AMT : 0.0f);   // same string, same body
+}
 static int   sel = 0;
 static int   preset = 0;
 static bool  autoplay = true;
@@ -144,6 +159,7 @@ void init(void) {
     PTR_CLEAR(ptr);
     build_strings();
     apply_knobs();
+    apply_body();
     bpm(84);
     atimer = 1.2f;                         // fire the first arco note on frame 1, no dead air
     amp[1] = 0.7f; amp[3] = 1.0f; amp[5] = 0.5f;   // a lively first frame for the thumbnail
@@ -167,6 +183,7 @@ void update(void) {
         apply_knobs();
     }
     if (keyp('M')) autoplay = !autoplay;
+    if (keyp('B')) { body_on = !body_on; apply_body(); pizz(3, 6); }   // pluck so the change is heard at once
     if (keyp('Z') && goct > 1) { goct--; build_strings(); }
     if (keyp('X') && goct < 6) { goct++; build_strings(); }
 
@@ -291,7 +308,9 @@ void draw(void) {
         rectfill(x, y, (int)(knob[k] * KNOB_W), 8, k == sel ? CLR_LIME_GREEN : CLR_MEDIUM_GREY);
         print(KNOB_NAME[k], x, y - 10, k == sel ? CLR_WHITE : CLR_LIGHT_GREY);
     }
-    print("preset:", 8, 24, CLR_MEDIUM_GREY);
-    print(PRESET_NAME[preset], 56, 24, CLR_PEACH);
-    print("1-6 presets  Z/X oct  Q-U pizz", SCREEN_W - 210, 24, CLR_DARK_GREY);
+    // y=24 fits inside 320 with room to spare now: the peach preset NAME needs no "preset:"
+    // label (it was overlapping it), and dropping it frees the width the body readout needs.
+    print(PRESET_NAME[preset], 8, 24, CLR_PEACH);
+    print("B=body", 72, 24, body_on ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    print("1-6  Z/X oct  Q-U pizz", 128, 24, CLR_DARK_GREY);
 }

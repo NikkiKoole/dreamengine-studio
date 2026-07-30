@@ -67,6 +67,7 @@ void de_input_endframe(void) {
     if (el >= 0.5) { de_fps = (int)(de_fps_frames / el + 0.5); de_fps_frames = 0; de_fps_winstart = now; }
 }
 float GetMouseWheelMove(void) { return 0; }
+Vector2 GetMouseWheelMoveV(void) { Vector2 v = {0, 0}; return v; }   // no-Raylib host: no wheel
 // real: rnd()/rnd_float()/shake and procedural carts need varied values (a 0-stub
 // collapses positions/cameras). Deterministic LCG — NOT Raylib's exact sequence, so
 // a no-Raylib render won't be pixel-identical to a seeded Raylib run, just sane.

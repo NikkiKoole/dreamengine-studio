@@ -291,6 +291,7 @@ int GetGlyphIndex(Font font, int codepoint);
 Color GetImageColor(Image image, int x, int y);
 Vector2 GetMousePosition(void);
 float GetMouseWheelMove(void);
+Vector2 GetMouseWheelMoveV(void);
 int GetRandomValue(int min, int max);
 Vector2 GetScreenToWorld2D(Vector2 position, Camera2D camera);
 int GetShaderLocation(Shader shader, const char *uniformName);

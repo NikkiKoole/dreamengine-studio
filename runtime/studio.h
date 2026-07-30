@@ -137,6 +137,7 @@ bool  mouse_down(int button);        // true while the button is held
 bool  mouse_pressed(int button);     // true only on the frame the button was pressed
 bool  mouse_released(int button);    // true only on the frame the button was released
 float mouse_wheel(void);             // scroll this frame: + up / - down, 0 if no scroll
+float mouse_wheel_x(void);           // HORIZONTAL scroll this frame: + right / - left, 0 if none (trackpad two-finger swipe, a tilt/second wheel)
 int   mouse_world_x(void);           // mouse x in world space — undoes the active camera() shift (handy for click-on-world)
 int   mouse_world_y(void);           // mouse y in world space — undoes the active camera() shift
 

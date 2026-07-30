@@ -592,6 +592,7 @@ static unsigned char key_inject_prev[KEYSTATE_N];  // previous frame (for press 
 static int           mouse_inj_x = 0, mouse_inj_y = 0;   // injected canvas-space pointer
 static unsigned char mbtn_inj[3], mbtn_inj_prev[3];      // injected mouse buttons (L/R/M)
 static float         wheel_inj = 0.0f;                   // injected wheel delta (transient: this frame only)
+static float         wheel_inj_x = 0.0f;                 // injected HORIZONTAL wheel delta (same lifetime)
 
 static FILE   *rec_file       = NULL;    // --record: tagged "<frame> k|m|b ..." per change
 static unsigned char key_rec_prev[KEYSTATE_N];     // last recorded down-state per key
@@ -658,7 +659,11 @@ static bool inp_mouse_released(int button) {
 }
 static float inp_mouse_wheel(void) {
     if (inject_input) return wheel_inj;
-    return GetMouseWheelMove();
+    return GetMouseWheelMoveV().y;   // .y, NOT GetMouseWheelMove() — see mouse_wheel_x() below
+}
+static float inp_mouse_wheel_x(void) {
+    if (inject_input) return wheel_inj_x;
+    return GetMouseWheelMoveV().x;
 }
 #else
 // web build: harness is a no-op (clk()/det_mode live above — netplay needs the
@@ -689,7 +694,8 @@ static bool inp_mouse_released(int b) {
     if (web_tm_active) return mbtn_index(b) == 0 && !web_tm_down && web_tm_prev;
     return IsMouseButtonReleased(raylib_mouse_button(b));
 }
-static float inp_mouse_wheel(void) { return GetMouseWheelMove(); }
+static float inp_mouse_wheel(void)   { return GetMouseWheelMoveV().y; }
+static float inp_mouse_wheel_x(void) { return GetMouseWheelMoveV().x; }
 #endif
 
 // lockstep netplay (rungs 1–3 + 5a — docs/design/multiplayer-research.md).
@@ -1893,13 +1899,13 @@ static void harness_input(int fno) {
     if (inject_input) {                                  // replay/script drives keys + mouse
         memcpy(key_inject_prev, key_inject, sizeof key_inject);
         memcpy(mbtn_inj_prev,   mbtn_inj,   sizeof mbtn_inj);
-        wheel_inj = 0.0f;                                // wheel is transient — reset, set only on its frame
+        wheel_inj = wheel_inj_x = 0.0f;                  // wheel is transient — reset, set only on its frame
         while (replay_i < replay_n && replay_ev[replay_i].frame <= fno) {
             InputEvent e = replay_ev[replay_i++];
             if      (e.kind == 0) { if (e.a >= 0 && e.a < KEYSTATE_N) key_inject[e.a] = (unsigned char)(e.b ? 1 : 0); }
             else if (e.kind == 1) { mouse_inj_x = e.a; mouse_inj_y = e.b; }
             else if (e.kind == 2) { if (e.a >= 0 && e.a < 3) mbtn_inj[e.a] = (unsigned char)(e.b ? 1 : 0); }
-            else if (e.kind == 3) { wheel_inj += (float)e.a; }
+            else if (e.kind == 3) { wheel_inj += (float)e.a; wheel_inj_x += (float)e.b; }   // e.b was always parsed, previously discarded
         }
     }
     if (rec_file) {                                      // log live key + mouse changes for replay
@@ -1916,8 +1922,10 @@ static void harness_input(int fno) {
             unsigned char d = IsMouseButtonDown(raylib_mouse_button(BTNS[b])) ? 1 : 0;
             if (d != mbtn_rec_prev[b]) { fprintf(rec_file, "%d b %d %d\n", fno, b, d); mbtn_rec_prev[b] = d; }
         }
-        float wm = inp_mouse_wheel();                    // wheel is transient — log the frames it moves
-        if (wm != 0.0f) fprintf(rec_file, "%d w %d 0\n", fno, (int)wm);
+        float wm = inp_mouse_wheel(), wmx = inp_mouse_wheel_x();   // wheel is transient — log the frames it moves
+        // the 2nd field used to be a hard-coded 0 and the parser already read it into e.b, so
+        // writing X there costs no format change and every existing .rec replays as x = 0.
+        if (wm != 0.0f || wmx != 0.0f) fprintf(rec_file, "%d w %d %d\n", fno, (int)wm, (int)wmx);
         if (fno % 30 == 0) fflush(rec_file);             // periodic flush: a live tail / mid-play "keep take" sees a ~0.5s-fresh file, without a syscall every frame (always-on recording)
     }
 }
@@ -2747,7 +2755,8 @@ static int ev_cmp(const void *a, const void *b) {
 //   <frame> k <keycode> <down>     key
 //   <frame> m <x> <y>              mouse move (canvas space)
 //   <frame> b <button 0|1|2> <down>   mouse button (L/R/M)
-//   <frame> w <delta> 0            mouse wheel (+up / -down), transient on that frame
+//   <frame> w <dy> <dx>            mouse wheel, transient on that frame: dy +up/-down, dx +right/-left
+//                                  (dx was a hard-coded 0 before horizontal scroll existed, so old .rec files replay as dx=0)
 static long replay_hdr_seed = -1;   // a `# seed <n>` header line in the .rec, if present (-1 = none)
 static void load_replay(const char *path) {
     FILE *f = fopen(path, "r");
@@ -3762,6 +3771,7 @@ bool mouse_down(int button)     { return inp_mouse_down(button); }
 bool mouse_pressed(int button)  { return inp_mouse_pressed(button); }
 bool mouse_released(int button) { return inp_mouse_released(button); }
 float mouse_wheel(void)         { return inp_mouse_wheel(); }
+float mouse_wheel_x(void)       { return inp_mouse_wheel_x(); }
 int mouse_world_x(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).x; }
 int mouse_world_y(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).y; }
 void mouse_cursor(int kind) {

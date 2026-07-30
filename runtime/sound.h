@@ -3960,7 +3960,14 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
             wet = 0.0f;
             for (int i = 0; i < 4; i++) wet += sound_biquad_run(&v->gt_body[i], dc);
         }
-        dc = dc * (1.0f - v->bw_bd_amt) + wet * v->bw_bd_amt;
+        // ADDITIVE, not a crossfade, and this was measured the hard way: `dc*(1-amt) + wet*amt` discards
+        // the dry string, so at amt 0.8 you lose 80% of its own long ringdown and a pizzicato note died
+        // TWICE as fast (tail ratio 0.039 vs 0.087 with no body). A body colours a string, it does not
+        // replace it. Same additive shape GUITAR's gt_body uses, for the same reason. NOTE also that a
+        // 1-4 ms body's RT60 is MILLISECONDS, so it adds no audible tail — at these delays the "reverb" IS
+        // the frequency response (Reid's time/frequency duality), which is why the tail is not the thing
+        // to listen for when comparing the two body models.
+        dc = dc + v->bw_bd_amt * (wet - dc * 0.3f);
     }
     return dc * 0.7f;   // makeup gain — trimmed 3.0→0.7 (−12.6 dB) to sit with the palette: BOWED was +13 dB over the library median (level-check), so two notes clipped the limiter
 }

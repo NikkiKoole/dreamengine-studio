@@ -1611,6 +1611,53 @@ string's pitch *does* fall slightly as it decays; or relax only the upper stages
 fundamental is smallest. **Whichever route: gate it on `inharm-spec --decay` as well as on B and pitch**,
 because sustain is the thing this trap takes and neither B nor a tuning check can see it going.
 
+##### §M2 first results: the body WINS, the model is undecided, and the blend was wrong
+
+**Owner's verdict on the first set:** *"I like the newer bowed version better, not sure if 3comb or 4biquad
+sounds better."* So **giving `BOWED` a body is a win** — the §F4 gap is real and audible — and the choice
+between Reid's delay lines and biquad formants is **undecided by ear**, which needs deciding some other way.
+
+**Chasing that surfaced a defect in my own implementation, via a prediction that was wrong.** I expected the
+two models to separate on the TAIL: three feedback combs should ring on after the note stops, four biquads
+have no memory. Pizzicato (`MODE_BOW_PIZZ`) is the natural test. The result inverted it — tail ratio
+(amplitude at 1.6 s over 0.15 s): **none 0.087, combs 0.039, biquads 0.091.** The combs made the note die
+*twice as fast.*
+
+Two things follow, and the first is the more interesting:
+
+1. **A 1–4 ms body has a MILLISECOND RT60, so there is no audible tail to compare.** ~20 round trips of a
+   few ms each: the "reverb" is over before you could hear it as reverb. That is precisely Reid's
+   time/frequency duality point — at these delays the reverberation *is* the frequency response. So the
+   tail can never be the differentiator between the two models, and any A/B looking for one is misframed.
+2. **The blend was a crossfade, and a body colours a string rather than replacing it.** `dc*(1−amt) +
+   wet*amt` discards the dry, so amt 0.8 threw away 80% of the string's own ringdown — the same
+   wet-path-with-loss mistake that produced the earlier sustain confound, in a new place. Changed to the
+   additive form GUITAR's `gt_body` already uses (`dc + amt*(wet − dc*0.3f)`).
+
+**The fix works but is a genuine trade, and the numbers should decide the amount, not me:**
+
+| | colouring @0.8 | colouring @1.0 | pizz tail ratio |
+|---|---|---|---|
+| no body | — | — | 0.087 |
+| **combs, crossfade** (what was heard first) | **26.7 dB** | 16.8 dB | **0.039** ✗ |
+| **combs, additive** (now) | 13.1 dB | **18.5 dB** | **0.053** |
+| **biquads, additive** (now) | 4.6 dB | 5.8 dB | **0.083** ✓ |
+
+So: the take the owner liked coloured hardest *because* it was eating the string. Additive keeps most of the
+sustain and still gives the combs ~3× the biquads' colouring, and the useful comb amount moves up to
+0.8–1.0 (18.5 dB at 1.0 is inside the 20–30 dB a real violin body imposes). The biquads are
+sustain-neutral but weak at any amount.
+
+**Ear set re-rendered at amount 1.0**, rms-matched, so the colouring is comparable to what was judged
+before: `build/ab/bowed-body-{A-none-today,B-3combs,C-4biquads}.wav` (brightness 0.078 / 0.059 / 0.063;
+centroid 3908 / 3836 / 3413 Hz). Pizzicato set alongside it:
+`build/ab/bowed-pizz-{A-none,B-3combs,C-4biquads}.wav`.
+
+**Open, and it is an ear call not a measurement:** the combs colour more but still cost ~40% of the pizz
+tail ratio; the biquads cost nothing and do less. If neither wins, the honest outcome is to keep **combs**
+on the §M2 argument (physically derived, and the mechanism that could also serve guitar and the piano
+tricord) and drop `MODE_BOW_BODYTYPE` rather than carry two bodies forever.
+
 ##### An unlooked-for second benefit of the §I4c fix: PIANO was being silently DAMPED
 
 Caught by `level-check` after the fact, which flagged **PIANO A2 at rms +4.3 dB vs its blessed baseline**

@@ -1491,6 +1491,45 @@ absent (an A/B against "no coupling" would be measuring the wrong baseline). §E
 unverified count and would have been built before anyone noticed. Do this for any item whose ranking rests
 on a finding-count.
 
+#### 2.4 scoping, agreed before any building (2026-07-30)
+
+Prompted by the owner asking *"but we are using guitar in a lot of places?"* — a blast-radius question that
+turned out to matter more than expected, and to change the shape of the work.
+
+| engine | carts | note |
+|---|---|---|
+| `PLUCK` | **40** | not in §M2's scope, but relevant if a body generalises |
+| **`GUITAR`** | **23** | more than double PIANO's footprint |
+| `BOWED` | **14** | all currently getting *no* body at all |
+| `PIANO` | 10 | for comparison — the engine we changed today |
+
+**The composition matters more than the count.** GUITAR's 23 include `combo`, `pedalboard`, `tubescreamer`,
+`mistress`, `springtank`, `wba`, `mixbooth`, `afrobeat`, `thexx`, `mariachi`, `portapop` — essentially the
+entire amp-and-pedal shelf, whose guitar tone has been **voiced by ear against the existing biquad body**.
+Replacing what they were voiced against is not a neutral act, and no oracle would flag the damage.
+
+**So §M2 follows the pattern 2.3(a) proved, and does NOT start by changing a default:**
+
+1. **Build the delay-line body as an opt-in mode index, default preserving today's sound** — exactly what
+   `MODE_PIANO_STIFF` did, where `0` reproduces the current engine. All 37 GUITAR+BOWED carts stay untouched
+   until an ear says otherwise, and the seam is what makes the thing **A/B-able by a gate** (the §I4c
+   lesson: a compile-time constant cannot be flipped by a check).
+2. **Judge it on `bowed`** — the effect is largest there because there is nothing now, and it is where
+   Reid's sawtooth-versus-violin claim is actually testable.
+3. **Treat `guitar` as a measurement cross-check ONLY.** Compare three delay lines against the four biquads
+   head to head, take the numbers, and **do not touch its default.** If the delay-line body also wins on
+   guitar, that is a separate conversation with 23 carts in it, and likely a per-cart opt-in rather than a
+   default flip.
+
+**Aux-channel room exists:** `BOWED` uses only idx 0 (`MODE_BOW_PIZZ`) and `GUITAR` uses 0 and 1, indices
+being per-engine namespaces. `lint-aux-params` now keeps that plumbing honest.
+
+**⚠ ORACLE WARNING, easy to get wrong after a day spent in `inharm-spec`: that is the WRONG tool here.** A
+body resonator imposes a frequency *response* — it changes partial **levels**, not partial **frequencies**.
+So this wants `harmonic-spec` (levels) plus centroid/brightness from `wav-envelope`. And `BOWED`
+self-oscillates and holds while sustained, so there is no decay to measure: the measurement is a
+steady-state spectrum, which also means the `effLen` sustain trap does not apply the way it did to PIANO.
+
 ### 2.3(b) — ❌ DROPPED 2026-07-30, and the reason is a lesson about ranking by finding-count
 
 **Dropped by the owner's call on the reasoning below, immediately after 2.3(a) shipped.** Recorded in full

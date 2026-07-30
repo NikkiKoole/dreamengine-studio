@@ -465,6 +465,17 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >    helpers, per-instrument aux buses). Targets `BOWED` (no body at all) and `GUITAR` (body with no return
 >    path) — both premises **confirmed**. Mind that §I3's piano tricord already has a weak 0.2%
 >    output→string-1 tap, so do not A/B it against an assumed zero.
+>    **SCOPING AGREED, do not skip it:** `GUITAR` is in **23 carts** — essentially the whole amp/pedal shelf
+>    (`combo`, `pedalboard`, `tubescreamer`, `mistress`, `springtank`, `wba`, `mixbooth`, `afrobeat`, `thexx`,
+>    `mariachi`, `portapop`) — all **voiced by ear against the existing biquad body**, and `BOWED` is in 14.
+>    So build the delay-line body as an **opt-in mode index with the default preserving today's sound**
+>    (the `MODE_PIANO_STIFF` pattern, which also makes it gate-A/B-able), **judge it on `bowed`** where the
+>    effect is largest, and treat **`guitar` as a measurement cross-check only — do NOT flip its default.**
+>    Aux room exists: BOWED uses only idx 0, GUITAR 0 and 1.
+>    **⚠ `inharm-spec` is the WRONG oracle here** — a body changes partial LEVELS (a frequency response), not
+>    partial FREQUENCIES. Use `harmonic-spec` + centroid/brightness from `wav-envelope`. And `BOWED`
+>    self-oscillates, so there is no decay to measure: it is a steady-state spectrum, and the `effLen`
+>    sustain trap does not apply as it did to PIANO.
 > 2. **Re-voice the other five piano voicings' `B` by ear.** Cheap, no new mechanism. They currently scale
 >    from `PianoVoicing.stiff` (celesta 2.4e-4 down to clavichord 4.4e-5 — plausible ordering) but **only
 >    the grand was ear-checked**. Use the `stiff` slider in the `piano` cart.

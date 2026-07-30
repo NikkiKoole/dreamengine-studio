@@ -654,7 +654,7 @@ per-engine items is the single biggest saving available.
 |---|---|---|---|---|---|
 | 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **SHIPPED (both halves)** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | ✅ **SHIPPED** 2026-07-29 (`mono.h` + `sh101`) | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
-| 2.3(a) | **The premise fails: there is no inharmonicity to make level-dependent** (§I4b, §I4c, §I4d) | blocks 2.3(b) | ⚠ **MEASURED 2026-07-29** — awaiting a call | one line + a design | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4; GUITAR and PLUCK harmonic too) **and** its stretched-tuning seam working in the **treble only** — the bass half is cancelled a frame after note-on, so the engine has been playing half a Railsback curve. Recommendation: take the one-line fix. Write-up below |
+| 2.3(a) | **The premise fails: there is no inharmonicity to make level-dependent** (§I4b, §I4c, §I4d) | blocks 2.3(b) | §I4c **SHIPPED 2026-07-30** · §I4b still **DESIGN** · §I4d open | one line + a gate | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4; GUITAR and PLUCK harmonic too) **and** its stretched-tuning seam working in the **treble only**. §I4c is now fixed and, more importantly, **tune-check now asserts the stretch instead of tolerating it**. Write-up below |
 | 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN — **BLOCKED on 2.3(a)** | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. **The machinery turned out not to work**, so (a) comes first |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
 
@@ -1013,13 +1013,21 @@ red, verify that it IS red — a passing gate under a "this will fail by design"
 *"that clash is what makes plain dispersion read as sour metal"*. With no dispersion there was no clash to
 hear, and with only half a stretch there was nothing holding the dispersion honest.
 
-#### §I4d — the loop has its own uncompensated tuning offset (new, smaller)
+#### §I4d — the loop has its own uncompensated tuning offset (new, smaller, still open)
 
 Measuring the variants exposed a third thing. With the mechanism fixed and `K=0` (no stretch at all),
-PIANO is **not** in equal temperament: it runs **+1.3¢ at A2 rising to +4.0¢ at G5**. That is the KS loop's
-own delay bookkeeping — the averaging filter `(cur+nxt)*0.5` contributes about half a sample, the
-brightness blend moves it, and none of it is subtracted from `len`, so a fixed sub-sample error becomes a
-larger fraction as `len` shrinks up the keyboard. Small, real, and a separate row from §I4b/§I4c.
+PIANO is **not** in equal temperament: on the `--engine PIANO --range 45-79` view it runs **+1.3¢ at A2
+rising to +4.0¢ at G5**. That is the KS loop's own delay bookkeeping — the averaging filter
+`(cur+nxt)*0.5` contributes about half a sample, the brightness blend moves it, and none of it is
+subtracted from `len`, so a fixed sub-sample error becomes a larger fraction as `len` shrinks up the
+keyboard. Small, real, and a separate row from §I4b/§I4c.
+
+**It is window-dependent, which is worth knowing before anyone blesses a number.** The *same* engine at
+the *same* macros reads **+0.1/+0.4/+0.6¢** on tune-check's default sweep and **+1.3…+4.0¢** in recipe
+mode. Both are correct: PIANO's pitch drifts *within* a note because the brightness bloom moves `ksb`,
+which moves the loop's effective delay, and the two modes average over different windows. So a residual
+baseline is only meaningful per measurement window — which is why the gate below blesses only the default
+sweep's own notes and lets recipe mode report without gating.
 
 #### What needs a call before 2.3(b) can start
 
@@ -1045,11 +1053,66 @@ turns out to be moot, because **we already ship the sharp treble half of that st
 The engine is committed to Railsback in the register where it is most audible; the fix simply stops it
 being asymmetric. Doing nothing is not the conservative option here, it is the inconsistent one.
 
-Caveats to state plainly for the ear call: there is **no byte-identical option** (today's bass tuning is
-itself an artifact), the change is **bass-only and one-directional** (up to −2.6¢ at A2, growing to about
-−8¢ by A1), and it is **below the ~5–10¢ just-noticeable difference for a melodic interval** — so it will
-read not as "the piano is retuned" but as bass notes sitting slightly differently against other
-instruments. §I4d (+1.3→+4.0¢ overall sharpness) is untouched by all three and can be fixed separately.
+Caveats stated plainly: there is **no byte-identical option** (today's bass tuning is itself an artifact),
+the change is **bass-only and one-directional** (up to −2.6¢ at A2, growing to about −8¢ by A1), and it is
+**below the ~5–10¢ just-noticeable difference for a melodic interval** — so it reads not as "the piano is
+retuned" but as bass notes sitting slightly differently against other instruments. §I4d is untouched by
+all three and can be fixed separately.
+
+### §I4c SHIPPED, and the gate that now asserts it (2026-07-30)
+
+**Taken: option (3), the one-line fix at `K=2`.** In `sound_piano_start`, alongside the existing
+write-back:
+
+```c
+v->freq = freq;            // existing: keeps ratio = f/pn_initf consistent
+v->freq_target = freq;     // NEW: ...and stops the per-frame glide slew dragging it back to nominal
+```
+
+`PIANO_STRETCH_K` is unchanged at `2.0f`. That was deliberate: the constant was chosen while the mechanism
+was broken, but the treble half has been sounding at `K=2` the whole time, so keeping it makes the bass
+agree with the treble that already ships rather than introducing a strength nobody has heard.
+
+**The gate came first, and this is the part worth keeping.** An ET-only check could not see this feature at
+all: the deviation the stretch creates is smaller than `WARN_CENTS`, so PIANO printed ✓ with no stretch,
+with half a stretch, and with the full one. So `tune-check` grew an `INTENDED_DETUNE` table — engines that
+are *supposed* to leave equal temperament declare their intended curve, and the gate measures the
+**residual against that intent** instead of the deviation from ET. `K` is parsed out of `sound.h` so there
+is one source of truth and the check follows the constant if anyone retunes it.
+
+Proven to fail on the bug it was written for, per §1's rule:
+
+| | A2 (the sentinel) | A3 | A4 |
+|---|---|---|---|
+| intended detune | −3.1¢ | −0.1¢ | +1.1¢ |
+| **without the fix** — measured vs ET | **+0.0¢** | +0.4¢ | +1.8¢ |
+| **without the fix** — residual | **+3.2¢ ✗ OFF INTENT** | +0.5¢ | +0.6¢ |
+| **with the fix** — measured vs ET | −3.0¢ | +0.3¢ | +1.8¢ |
+| **with the fix** — residual | **+0.1¢ ✓** | +0.4¢ | +0.6¢ |
+
+`--quiet` exits **1** without the fix and **0** with it. Look at the second row: without the fix A2
+measures **+0.0¢ against equal temperament**, which is why the old check called it perfect — it was
+perfectly in tune and perfectly wrong. Residual tolerance is a tight ±1.5¢ because the defect it exists to
+catch is only ~3¢, and the blessed residual (§I4d, the loop's own offset) is per-measurement-window.
+
+Gates: soundcheck silent, `tune-check --quiet` 0, **570/570 carts compile**. The change is confined to
+`sound_piano_start` by construction, so no non-PIANO engine can be affected; the other engines' sweep rows
+are unchanged. Ten carts use `INSTR_PIANO`, and the audible register is the bottom two octaves — note that
+the `piano` cart itself is a C4–C5 keybed, so **the fix is inaudible there**; the ear pair below is a
+deliberate A1–A4 arpeggio plus a low stack instead.
+
+```bash
+afplay build/ab/piano-stretch-OFF-bass-flat-missing.wav   # before: bass sits at ET
+afplay build/ab/piano-stretch-ON-full-railsback.wav       # after:  bass flattens into the curve
+```
+
+Listen to the first three notes (A1, E2, A2) and the low stack at the end. Bias to declare: the pair is
+level-matched to within ~1 dB (peak −12.9 vs −13.4 dBFS, rms −38.0 vs −37.0), the rms difference being the
+low stack beating differently, which is the change itself.
+
+**Also deleted: the comment that caused the blindness.** `sound.h` asserted *"it departs from ET, so
+tune-check flags PIANO by design — that IS the stretch, not a bug."* It never did. That sentence is
+replaced with what actually happened, so the next reader does not re-derive the same false comfort.
 
 §I4b is the one that stays **DESIGN, not a one-liner**: pushing `pt` into a range that actually disperses
 also adds loop delay, which drops the pitch unless the chain's phase delay at the fundamental is

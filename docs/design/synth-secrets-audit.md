@@ -1687,8 +1687,11 @@ I5.
 > `piano_stretch_freq` seam works in the **treble only** — `v->freq` is written back but
 > `v->freq_target` is not, so the glide slew undoes it, except that an `effLen > len` clamp happens to
 > block the undo in the sharp direction. So PIANO has been playing **half a Railsback curve**: correct
-> treble stretch, no bass stretch. And a third, smaller one (§I4d): with no stretch at all the loop still
-> runs +1.3→+4.0¢ sharp, its own uncompensated delay bookkeeping. Full write-up, evidence and the open call:
+> treble stretch, no bass stretch. **§I4c is FIXED (2026-07-30)** — one line, `v->freq_target = freq` — and
+> `tune-check` now models PIANO's intended curve and gates on the *residual* against it, because the ET
+> reading was inside tolerance whether the stretch worked, half-worked or did nothing. §I4b (dispersion)
+> stays open as DESIGN. And a third, smaller one, §I4d, still open: with no stretch at all the loop runs
+> +1.3→+4.0¢ sharp, its own uncompensated delay bookkeeping. Full write-up and evidence:
 > [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 
 - **Book:** Part 42 and Part 28 both say the stretching depends on *two* things: "the string appears

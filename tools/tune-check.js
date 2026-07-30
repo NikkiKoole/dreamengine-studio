@@ -9,7 +9,9 @@
 //   node tools/tune-check.js --keep          keep the rendered WAV/trace (build/.tune/)
 //   node tools/tune-check.js --quiet         exit 1 if any note is out of tune (CI gate; the
 //                                            documented residuals in KNOWN_RESIDUALS are waived,
-//                                            so it trips only on NEW drift)
+//                                            so it trips only on NEW drift) — or if an engine with
+//                                            an INTENDED detune (see INTENDED_DETUNE: PIANO's
+//                                            stretched tuning) has drifted off that intent
 //   node tools/tune-check.js <file.wav> --note <midi>   measure ONE wav against a note
 //
 //   # RECIPE mode — check ONE engine at the macros a CART actually uses, across a range.
@@ -48,6 +50,56 @@ const KNOWN_RESIDUALS = [
   { engine: 29, midi: 81, cents: -13.6, why: 'BRASS macro-0 top-octave remnant of the e458af1 fix' },
 ]
 const residualFor = (r) => KNOWN_RESIDUALS.find(k => k.engine === r.engine && k.midi === r.midi)
+
+// ── INTENDED detune: engines that are SUPPOSED to depart from equal temperament ──────────────
+//
+// An ET-only check cannot see a feature whose whole job is to leave ET. PIANO stretches its
+// fundamentals (Feynman/Railsback: bass flat, treble sharp) and the deviation that creates is
+// smaller than WARN_CENTS across the swept range — so "no stretch", "half a stretch" and "the full
+// stretch" ALL printed ✓ and the gate could not tell them apart. That is exactly how audit §I4c
+// (the bass half of the curve silently cancelled by the glide slew) survived: `sound.h` even
+// carried a comment asserting "tune-check flags PIANO by design", which it never did, so a green
+// check read as confirmation. Plan §2.3(a).
+//
+// So for these engines we also measure the residual AGAINST THE INTENT and gate on that instead.
+// K is parsed out of the engine rather than duplicated here — one source of truth, and the check
+// follows the constant if anyone retunes it.
+const STRETCH_K = (() => {
+  try {
+    const m = fs.readFileSync(path.join(ROOT, 'runtime', 'sound.h'), 'utf8')
+      .match(/^#define\s+PIANO_STRETCH_K\s+([0-9.]+)f?/m)
+    return m ? parseFloat(m[1]) : null
+  } catch { return null }
+})()
+// cents = K · oct·|oct| about middle C (sound_piano_start → piano_stretch_freq)
+const INTENDED_DETUNE = {
+  27: (midi) => {
+    if (STRETCH_K === null) return null
+    const soct = Math.log2(midiToFreq(midi) / 261.63)     // 261.63 = the engine's own literal
+    return STRETCH_K * soct * Math.abs(soct)
+  },
+}
+
+// Blessed residual-against-intent per (engine, note). This is NOT the stretch — the stretch is
+// modelled above and subtracted. What is left is the KS loop's own uncompensated delay offset
+// (audit §I4d: the averaging filter's half sample is never taken out of `len`). Real, smaller,
+// tracked separately, and blessed here so this gate answers "is the stretch right?" rather than
+// re-reporting §I4d. Tolerance is tight on purpose: the defect it exists to catch is ~3¢ at A2.
+//
+// ONLY the default sweep's own notes are blessed, and that matters — the same engine at the same
+// macros reads DIFFERENTLY here and in recipe mode (this sweep: +0.1/+0.4/+0.6¢; `--engine PIANO
+// --range 45-79`: +1.3…+4.0¢), because PIANO's pitch drifts within a note as the brightness bloom
+// moves `ksb` and therefore the loop's effective delay, and the two modes average over different
+// windows. So a residual baseline is only meaningful per measurement window. Recipe mode still
+// PRINTS intent and residual (useful — it is the full-curve view) but does not gate on them.
+const INTENT_TOL = 1.5
+const INTENT_BASELINE = [
+  { engine: 27, midi: 45, cents: 0.1 },   // A2 — the sentinel: this is the note the bass half of
+                                          // the stretch shows up on (§I4c read +3.2¢ here)
+  { engine: 27, midi: 57, cents: 0.4 },   // A3
+  { engine: 27, midi: 69, cents: 0.6 },   // A4 — treble half, unaffected by §I4c
+]
+const baselineFor = (r) => INTENT_BASELINE.find(k => k.engine === r.engine && k.midi === r.midi)
 
 // engine id → label, mirrors the INSTR_* block in runtime/studio.h
 const ENGINE_NAMES = {
@@ -318,6 +370,12 @@ function analyzeRender(wav, trace) {
       const f = octaveFold(mres.hz, expected)
       row.measuredHz = +mres.hz.toFixed(2); row.cents = +f.cents.toFixed(1)
       row.octaves = f.octaves; row.verdict = verdict(f.cents)
+      // engines that intend to leave ET: also measure what is left AFTER the intent
+      const intent = INTENDED_DETUNE[nt.eng]
+      if (intent) {
+        const ic = intent(nt.midi)
+        if (ic !== null) { row.intentCents = +ic.toFixed(1); row.residual = +(f.cents - ic).toFixed(1) }
+      }
     }
     results.push(row)
   }
@@ -333,14 +391,30 @@ function printResults(results, sr, title) {
     const cents = r.cents === null ? '' : `${r.cents >= 0 ? '+' : ''}${r.cents.toFixed(1).padStart(5)}¢`
     const meas = r.measuredHz === null ? 'no pitch detected'
       : `meas ${String(r.measuredHz).padStart(8)} Hz   ${cents.padStart(7)}${octLabel(r.octaves)}`
-    console.log(`  ${m} ${r.note.padEnd(3)} ${String(r.expectedHz).padStart(8)} Hz   ${meas}   conf ${r.confidence}`)
+    // for an intent engine, the ET column alone is not the verdict — show intent + what is left
+    const intent = r.intentCents === undefined ? ''
+      : `   intent ${(r.intentCents >= 0 ? '+' : '') + r.intentCents.toFixed(1)}¢` +
+        `  resid ${(r.residual >= 0 ? '+' : '') + r.residual.toFixed(1)}¢${r.intentBad ? '  ← OFF INTENT' : ''}`
+    console.log(`  ${m} ${r.note.padEnd(3)} ${String(r.expectedHz).padStart(8)} Hz   ${meas}   conf ${r.confidence}${intent}`)
   }
   const flagged = results.filter(r => r.verdict === 'off' || r.verdict === 'OUT OF TUNE')
     .sort((a, b) => Math.abs(b.cents) - Math.abs(a.cents))
   const bad = flagged.filter(r => !r.waived)
   const waived = flagged.filter(r => r.waived)
   const transposed = results.filter(r => r.octaves !== 0)
+  const intentBad = results.filter(r => r.intentBad)
   console.log()
+  if (intentBad.length) {
+    console.log(`${intentBad.length} note(s) do not match their engine's INTENDED detune (tol ±${INTENT_TOL}¢):`)
+    for (const r of intentBad)
+      console.log(`  ✗ ${r.engineName} ${r.note}  measured ${r.cents >= 0 ? '+' : ''}${r.cents}¢, ` +
+        `intent ${r.intentCents >= 0 ? '+' : ''}${r.intentCents}¢ → residual ${r.residual >= 0 ? '+' : ''}${r.residual}¢ ` +
+        `(blessed ${r.intentBase >= 0 ? '+' : ''}${r.intentBase}¢, off by ${(r.residual - r.intentBase >= 0 ? '+' : '') + (r.residual - r.intentBase).toFixed(1)}¢)`)
+    console.log(`  PIANO stretches its fundamentals on purpose (Feynman/Railsback). The ET column is`)
+    console.log(`  inside tolerance either way, which is why this check measures the residual instead.`)
+    console.log(`  See docs/design/synth-secrets-plan.md §2.3(a) (§I4c/§I4d).`)
+    console.log()
+  }
   if (!bad.length) console.log(waived.length
     ? `✓ no new tuning drift (${waived.length} known residual(s) waived — see below)`
     : '✓ every detected pitch is within tuning tolerance')
@@ -371,6 +445,12 @@ function run(opts) {
   if (!opts.recipe) for (const r of results) {
     const k = residualFor(r)
     if (k && r.cents !== null && Math.abs(r.cents - k.cents) <= RESIDUAL_TOL) r.waived = k.why
+    // intent check (default sweep only — recipe mode is a different macro regime)
+    const b = baselineFor(r)
+    if (b && r.residual !== undefined) {
+      r.intentBase = b.cents
+      if (Math.abs(r.residual - b.cents) > INTENT_TOL) r.intentBad = true
+    }
   }
   if (opts.json) { console.log(JSON.stringify(results, null, 2)); return results }
   const title = opts.recipe
@@ -429,7 +509,8 @@ try {
     const results = run({ json, keep, recipe })
     if (quiet) {
       const bad = results.filter(r => (r.verdict === 'off' || r.verdict === 'OUT OF TUNE') && !r.waived)
-      process.exit(bad.length ? 1 : 0)
+      const intentBad = results.filter(r => r.intentBad)
+      process.exit(bad.length || intentBad.length ? 1 : 0)
     }
   }
 } catch (e) { console.error('tune-check:', e.message); process.exit(2) }

@@ -95,9 +95,10 @@ past "nice harp" you have to **add the things STK omits** — none are large.
    > make the partials inharmonic: `B = stiff²·0.015` yields a dispersion allpass coefficient of
    > 0.9999948, the identity, and the measured partials are harmonic to within 0.4¢ (fitted B ≈ 2e-6
    > against a real grand's ~1e-4). And the stretch that was later added to fix this (`PIANO_STRETCH_K`)
-   > only works in the **treble**: the bass half is cancelled a frame after note-on (`v->freq` is written
-   > back, `v->freq_target` is not), so we ship **half a Railsback curve** — sharp treble, ET bass. The two
-   > defects hid each other. Evidence, and the open call on how to fix it:
+   > only worked in the **treble**: the bass half was cancelled a frame after note-on (`v->freq` was written
+   > back, `v->freq_target` was not), so we shipped **half a Railsback curve** — sharp treble, ET bass. The two
+   > defects hid each other. **The stretch half is FIXED (2026-07-30)**, and `tune-check` now asserts the
+   > curve rather than tolerating it; the inert dispersion (§I4b) is still open. Evidence:
    > [`synth-secrets-plan.md` §2.3(a)](synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 
    We make the partials inharmonic via

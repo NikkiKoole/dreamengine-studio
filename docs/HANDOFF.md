@@ -333,15 +333,27 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > **`sound.h` was NOT changed** — every number is from the committed engine or a sweep that restored the
 > file in a `finally` block.
 >
-> **Resume-at: the OWNER'S CALL on §I4c's tuning. Recommendation: take the one-line fix at the current
-> `K=2`.** The measured curves say it **changes nothing above B3** and only completes the bass (−2.6¢ at
-> A2, ~−8¢ by A1). The argument that looked decisive against it — *a Railsback stretch is compensation for
-> inharmonicity we do not have (§I4b)* — is moot, because **we already ship the sharp treble half and
-> always have**; the fix stops it being asymmetric. No byte-identical option exists (today's bass tuning is
-> itself the artifact), and the change sits below the ~5–10¢ melodic JND. §I4b stays **DESIGN, not a
-> one-liner**: real dispersion adds loop delay and drops the pitch unless the chain's phase delay at the
-> fundamental is subtracted from `len`, which also interacts with §I4d. Then **2.3(b)** (the original
-> level-dependent item) can finally sit on top of it. Full write-up with every table →
+> **§I4c is SHIPPED (2026-07-30): the one-line fix at `K=2`, and a gate that asserts the curve.** Owner
+> took the recommendation. `v->freq_target = freq` in `sound_piano_start`; `PIANO_STRETCH_K` untouched at
+> 2.0f, because the treble half has been sounding at K=2 all along so the bass now agrees with what already
+> ships. Changes nothing above B3, completes the bass (−2.6¢ at A2, ~−8¢ by A1), below the melodic JND.
+> **The gate is the durable half.** `tune-check` grew `INTENDED_DETUNE`: an engine that is *supposed* to
+> leave ET declares its curve (K parsed from `sound.h`, one source of truth) and is gated on the RESIDUAL
+> against that intent. Proven red-then-green: at A2 the residual is +3.2¢ without the fix and +0.1¢ with it,
+> `--quiet` 1 → 0. The reason it matters: without the fix A2 measured **+0.0¢ against ET**, so the old check
+> called it perfect — perfectly in tune and perfectly wrong. Also deleted the `sound.h` comment claiming
+> "tune-check flags PIANO by design", which never was true and is what made a green check read as
+> confirmation. Ear pair (the `piano` cart is C4–C5 so the fix is inaudible there; this is an A1–A4
+> arpeggio + low stack): `build/ab/piano-stretch-{OFF-bass-flat-missing,ON-full-railsback}.wav`.
+>
+> **Resume-at: §I4b, which is the one that still blocks 2.3(b), and is DESIGN not a one-liner.** Real
+> dispersion adds loop delay and drops the pitch unless the chain's phase delay at the fundamental is
+> subtracted from `len`; that compensation is the actual work and it interacts with **§I4d** (still open:
+> with no stretch the loop runs +1.3→+4.0¢ sharp, and that offset is *window-dependent* because the
+> brightness bloom moves `ksb` and hence the loop delay within a note, so bless residuals per measurement
+> window). It also wants a decision on whether `B` becomes the real physical coefficient instead of
+> `stiff²·0.015`, so `inharm-spec` numbers can be compared against published piano data. Then **2.3(b)**
+> (the original level-dependent item) can finally sit on top of it. Full write-up with every table →
 > [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
 > **Two lessons worth carrying.** (1) `sound.h` said *"tune-check flags PIANO by design — that IS the
 > stretch, not a bug"*, and tune-check **passes**. A comment that pre-emptively explains away a gate turned

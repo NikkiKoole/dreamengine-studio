@@ -4612,8 +4612,14 @@ static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f 
 // instead of clashing (that clash is what makes plain dispersion read as "sour metal", not piano).
 // Signed-quadratic curve about middle C: cents = K · oct·|oct| → ~±25¢ near the 88-key extremes.
 // Pitch-based (NOT coupled to the stiffness macro — real harpsichords stretch LESS, not more).
-// SEAM: set PIANO_STRETCH_K to 0.0f to disable (back to equal temperament). It intentionally departs
-// from ET, so tune-check flags PIANO by design — that IS the stretch, not a bug.
+// SEAM: set PIANO_STRETCH_K to 0.0f to disable (back to equal temperament).
+// ⚠ THIS COMMENT USED TO SAY "it departs from ET, so tune-check flags PIANO by design — that IS the
+// stretch, not a bug". tune-check NEVER flagged PIANO: the deviation is smaller than its warn
+// threshold across the swept range, so it printed ✓ with no stretch, with half a stretch, and with
+// the full one. That sentence explained away the only gate that could have caught §I4c, and a green
+// check got read as confirmation for months. tune-check now models this curve explicitly
+// (INTENDED_DETUNE, parsing K from this line) and gates on the RESIDUAL against it, so the stretch
+// is asserted rather than tolerated. If you retune K, that check follows it. Plan §2.3(a).
 #define PIANO_STRETCH_K 2.0f
 static inline float piano_stretch_freq(float freq) {
     if (PIANO_STRETCH_K == 0.0f) return freq;
@@ -4631,6 +4637,16 @@ static void sound_piano_start(Voice *v) {
     float freq = v->freq > 20.0f ? v->freq : 20.0f;
     freq = piano_stretch_freq(freq);                   // STRETCHED-TUNING SEAM (see piano_stretch_freq; PIANO_STRETCH_K 0 = off)
     v->freq = freq;                                    // write back so per-sample pitch tracking (ratio = f/pn_initf) stays consistent
+    v->freq_target = freq;                             // …and the TARGET too, or the per-frame glide slew (v->freq += (freq_target
+                                                       // − freq)·freq_slew) drags freq back to the nominal MIDI pitch one frame
+                                                       // later while pn_initf keeps the stretched value — then ratio ≠ 1 forever
+                                                       // and effLen = len/ratio divides the stretch back out. That shipped for
+                                                       // months, and only in the BASS: the `effLen > len` clamp below happens to
+                                                       // block the undo in the sharp direction, so the treble half of the curve
+                                                       // worked and the flat half never existed (audit §I4c, plan §2.3(a)).
+                                                       // NOTE: this makes the stretch a NOTE-ON property. note_glide/note_pitch
+                                                       // write freq_target from the nominal MIDI freq, so a glided piano note
+                                                       // still slides to an unstretched destination.
 
     float ideal = (float)SOUND_SAMPLE_RATE / freq;     // one period, allpass for the remainder
     int len = (int)ideal;

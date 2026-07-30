@@ -38,6 +38,12 @@ const ageOf = d => { const t = Date.parse(d + 'T00:00:00Z'); return Number.isFin
 // single-vs-double-hyphen renderer differences (— removal etc.) — we're detecting "the section is
 // GONE", not policing exact punctuation. Same normalize is applied to both sides.
 const canon = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+// …and the GITHUB form, which DROPS punctuation instead of hyphenating it. The two disagree exactly where
+// a heading contains an apostrophe or a dotted number: "What's still open" → canon `what-s-…` but GitHub
+// `whats-…`; "2.3(a) …" → canon `2-3-a-…` but GitHub `23a-…`. Whichever one you write, the other looks
+// broken, and a link that renders correctly on GitHub was being reported as a dead anchor. Accept BOTH
+// (additive — it cannot make a currently-passing link fail). Found 2026-07-30 by a handoff audit.
+const ghSlug = s => s.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-')
 const anchorCache = new Map()
 function docAnchors(relPath) {          // relPath = 'design/foo.md' (no #), DOCS-relative
   if (anchorCache.has(relPath)) return anchorCache.get(relPath)
@@ -46,7 +52,7 @@ function docAnchors(relPath) {          // relPath = 'design/foo.md' (no #), DOC
   try {
     for (const ln of fs.readFileSync(abs, 'utf8').split('\n')) {
       const h = ln.match(/^#{1,6}\s+(.+?)\s*#*\s*$/)
-      if (h) set.add(canon(h[1]))
+      if (h) { set.add(canon(h[1])); set.add(ghSlug(h[1])) }
     }
   } catch { set = null }                 // unreadable → caller already flags the file as broken
   anchorCache.set(relPath, set)
@@ -73,7 +79,8 @@ for (let i = 0; i < lines.length; i++) {
     if (!fs.existsSync(path.join(DOCS, file))) { broken.push(file); continue }
     if (anchor) {
       const anchors = docAnchors(file)
-      if (anchors && !anchors.has(canon(decodeURIComponent(anchor)))) brokenAnchors.push(`${file}#${anchor}`)
+      const a = decodeURIComponent(anchor)
+      if (anchors && !anchors.has(canon(a)) && !anchors.has(ghSlug(a))) brokenAnchors.push(`${file}#${anchor}`)
     }
   }
   // ⚠ A Resume-at with NO #anchor made the anchor check INERT for that lane — it reported clean because

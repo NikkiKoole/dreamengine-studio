@@ -1949,7 +1949,7 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 | 3.23 | Three-phase chorus option | M4 | LISTEN | 6 | `solina`, `juno`, `organ` (must stay single) |
 | 3.24 | BBD saturation scales with tap distance | M6 | LISTEN | 6 | `aquapuss` |
 | 3.25 | 6 dB/oct one-pole filter (= the honest portamento circuit) | C5 | LISTEN | 5 | `22-filter`, `eq` |
-| 3.26 | Glide in semitones, not linear Hz | B1 | LISTEN | 6 | `heldnotes` — ⚠ regate `tune-check` + `psola-check` |
+| 3.26 | Glide in semitones, not linear Hz | B1 | LISTEN | 6 | ✅ **BUILT 2026-07-30, awaiting the LISTEN** — `heldnotes` / `glideprobe`; regates all passed (see §3.26 below) |
 | 3.27 | Key-scaled envelope times | B10 | LISTEN | 6 | `piano`, `20-instruments` |
 | 3.28 | Per-voice character + round-robin allocation (`analog_feel`) | B7 | LISTEN | 6 | `polystress`, `jangle` — ⚠ must be deterministic per voice index, never `rand()` |
 | 3.29 | Non-monotonic formant amplitudes | B6 | LISTEN | 2 | `vowel` |
@@ -1968,6 +1968,37 @@ Ordered by (cheapest × most likely to be an improvement). Every row is opt-in p
 | 3.42 | Velocity → brightness, per slot | B9 | DESIGN | 5 | `20-instruments` — ⚠ string machines must **not** be velocity-sensitive |
 | 3.43 | Pitch-to-CV: bandpass + slew, per Part 15 | C11 | VERIFY | 6 | `mictune` — aimed at a reproduced defect |
 | ~~3.44~~ | ~~Cutoff depth in octaves~~ **SHIPPED 2026-07-29 as [2.1(b)](#21b-env_cutoff_oct--lfo_cutoff_oct--shipped-2026-07-29)** — three new dests, 59 Hz-form carts untouched; the demo landed on `keytrack` (same finding, same graph) rather than `filterenv` | B2b | ✅ | 5 | `keytrack` |
+
+### 3.26 Glide in pitch, not linear Hz — BUILT 2026-07-30, awaiting the LISTEN
+
+Full numbers and the regate list live on the finding itself
+([audit §B1](synth-secrets-audit.md#b1-portamento-glides-in-linear-hz-not-in-pitch)). The short version:
+the slew moved to `log2(freq)` in `sound_glide_step()`, and the up/down asymmetry at one time constant
+went from **45 percentage points to 4.5** (82.4%/37.2% → 64.8%/60.3%, against a 63.2% ideal). The tail was
+the worse half: 2.0 s into a 1000 ms down-glide the old curve sat **12.7 semitones sharp**.
+[`glideprobe`](../../tools/carts/glideprobe.c) is the measurement (status `hidden`, recipe in its header);
+`heldnotes` is the thing to actually play, per this row's `cart` column.
+
+**Why it is only BUILT and not SHIPPED: this row is LISTEN-gated and the owner has not heard it yet.**
+Every deterministic gate the finding asked for passes, which is necessary and not sufficient — §1's protocol
+is that a LISTEN item is accepted by ear, and "the oracles are green" is exactly the kind of thing
+[ADR-0022](../decisions/0022-collaboration-is-the-north-star.md) warns about mistaking for the whole bar.
+
+**THE OPEN DECISION, which is the interesting part and should not be settled quietly.** `note_glide(h, ms)`
+sets a **time constant**, not the slide's duration: `k = 1000/(ms·SR)` gives `τ = ms`, so at `ms` you are
+63.2% of the way and the slide is still perceptibly moving at 2-3×`ms`. Fixing the *domain* did not fix
+that, and the two are independent. Three ways out, and they are genuinely different products:
+
+| | what `ms` would mean | fidelity argument |
+|---|---|---|
+| **keep** | a time constant (63.2%) | Reid, Part 16: hardware portamento *is* an exponential glide, and Part 15 names the RC lag. Most faithful, and what is built |
+| **rescale** | ≈ the audible duration, by making the coefficient `≈5/τ` | keeps the analog curve, makes the readout honest. Cheapest change |
+| **linear ramp** | exactly the duration | what modern softsynths do (Serum/Vital). Abandons the exponential curve |
+
+Separately, and nearly free now that the slew is in the pitch domain: **GLIDE SCALE**, the constant-time
+vs time-per-octave axis that real panels expose. Constant time is what we have (the coefficient is already
+interval-independent); per-octave is `k_eff = k / |Δoctaves|`, about three lines. Worth doing as one piece
+of work with whichever `ms` answer wins, not before it.
 
 ---
 

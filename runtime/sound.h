@@ -5099,6 +5099,41 @@ static inline float sound_adsr_gated(int s, int a, int d, float sustain) {
     return sustain;
 }
 
+// PORTAMENTO, one sample: slew the voice's pitch toward freq_target (audit §B1, plan 3.26).
+//
+// THE SLEW IS IN PITCH, NOT IN LINEAR HZ. Reid, Part 16: hardware portamento is "an exponential glide
+// between voltages, as it would be on most vintage synths", and Part 15 names the mechanism — a slew
+// generator "is simply a 6dB/oct low-pass filter". What it lags is the pitch CV, which is 1V/OCTAVE. So a
+// hardware glide is exponential in *volts*, i.e. even in semitones, and a semitone step takes the same
+// time wherever you are on the keyboard.
+//
+// A one-pole on linear Hz is a different curve, and it is not subtly different. A one-pole is 63.2% of the
+// way through after one time constant in whatever domain it slews, so measured over three octaves on
+// `glideprobe`: the UP glide was 82.4% through the interval and the DOWN glide only 37.2% — a 45-point
+// asymmetry where both should read 63.2%. Worse at the tail: 2.0s into a 1000ms down-glide the pitch was
+// still 12.7 SEMITONES sharp of its target, because in Hz terms the remaining distance is tiny while in
+// pitch terms it is enormous. Up shot away and crawled in; down crept and never arrived.
+//
+// COST is why this is gated on `freq != freq_target` rather than run unconditionally: the two logs and an
+// exp2 are real work at 44.1kHz × 32 voices, and the overwhelming majority of samples are a voice sitting
+// on its pitch. A voice not gliding pays one float compare, and — because the early-out leaves `freq`
+// exactly alone — a cart that never glides is byte-identical.
+//
+// THE SNAP MATTERS AS MUCH AS THE DOMAIN. A one-pole approaches asymptotically and never arrives, which
+// (a) is why the down-glide above was still audibly wrong after two time constants and (b) would pin this
+// expensive path permanently hot after any note_pitch, since freq would never equal freq_target again. So
+// once the remaining distance is under a hundredth of a cent — inaudible by three orders of magnitude —
+// land exactly on the target and drop back to the cheap path.
+#define GLIDE_SNAP_LOG2 (1.0e-6f)   // ~0.000012 octave ≈ 0.0002 cent; the "we have arrived" threshold
+static inline void sound_glide_step(Voice *v) {
+    if (v->freq == v->freq_target) return;                  // the common case: not gliding, pay one compare
+    if (v->freq <= 0.0f || v->freq_target <= 0.0f) { v->freq = v->freq_target; return; }   // log2 guard
+    float cur = log2f(v->freq), tgt = log2f(v->freq_target);
+    float d = tgt - cur;
+    if (d < GLIDE_SNAP_LOG2 && d > -GLIDE_SNAP_LOG2) { v->freq = v->freq_target; return; }  // arrived
+    v->freq = exp2f(cur + d * v->freq_slew);
+}
+
 // A one-shot AD modulation envelope (filter/pitch env): linear attack 0→1 over `a`, then
 // EXPONENTIAL decay 1→~0 over `d`, then flat 0. `s` = samples since note-on. Exp decay
 // (vs the amp ADSR's linear) is what makes the pluck "pew" and the drum punch feel snappy.
@@ -6609,7 +6644,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // target == current, so this is a no-op for them; SFX set freq/vol
             // directly and are skipped.
             if (v->sfx_idx < 0) {
-                v->freq       += (v->freq_target   - v->freq)       * v->freq_slew;  // glide rate (note_glide)
+                sound_glide_step(v);                                                 // glide rate (note_glide)
                 v->vol        += (v->vol_target    - v->vol)        * SLEW_FAST;   // anti-zipper on gating
                 v->flt_cutoff += (v->cutoff_target - v->flt_cutoff) * SLEW_MED;  // smooth filter sweep
                 v->flt_q      += (v->flt_q_target  - v->flt_q)      * SLEW_MED;  // smooth resonance sweep

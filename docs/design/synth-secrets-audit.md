@@ -141,6 +141,42 @@ would be heard.
 
 ### B1. Portamento glides in linear Hz, not in pitch
 
+> **✅ SHIPPED 2026-07-30** (plan 3.26). The slew now runs on `log2(freq)`, in
+> `sound_glide_step()`. **The asymmetry was 45 percentage points and is now 4.5.** A one-pole is 63.2%
+> through after one time constant *in whatever domain it slews*, which turns this finding into a single
+> scale-invariant number — measured on the new [`glideprobe`](../../tools/carts/glideprobe.c) over three
+> octaves at a 1000 ms time constant:
+>
+> | at one time constant | before | after | even-in-pitch ideal |
+> |---|---|---|---|
+> | glide **up** | 82.4% through the interval | **64.8%** | 63.2% |
+> | glide **down** | 37.2% | **60.3%** | 63.2% |
+>
+> The residual ±1.5 points is measurement bias, not engine error: a sine's spectral centroid reads
+> slightly high, which moves the up and down readings in *opposite* directions in "percent through", so
+> the two bracket 63.2% rather than both sitting above it. The tail number is the one that was really
+> damning, though: 2.0 s into a 1000 ms **down**-glide the old curve was still **12.7 semitones sharp**,
+> because in Hz the remaining distance looks tiny while in pitch it is enormous.
+>
+> Two things came with it that are not the domain change and matter as much. **A SNAP:** a one-pole
+> approaches asymptotically and never arrives, so `freq` never again equalled `freq_target` — which both
+> left the glide audibly unfinished and (once the fast path was gated on that equality) would have pinned
+> the expensive path permanently hot. It now lands exactly on target once inside 0.0002 cent.
+> **A GATE:** the log/exp only run while a voice is actually gliding, so a non-gliding voice pays one
+> float compare and a cart that never glides is byte-identical. Cost is bounded analytically at ~60
+> cycles per gliding voice-sample (≈2.6% of one core with all 32 voices gliding, under 0.4% for a
+> monosynth); the wall-clock renders were dominated by compile time and measured nothing.
+>
+> Re-gated as the finding asked: `tune-check` **no new drift** (the waveguides re-derive delay length
+> from `freq` every sample, so this was the real risk), `psola-check` no artifact regression,
+> `dc-check`/`level-check`/`soak-check`/`soundcheck` clean, and `web-audio-check` still sample-identical
+> native-vs-wasm — worth noting because `log2f`/`exp2f` are exactly where the two could have diverged.
+>
+> **STILL OPEN, and it is a decision rather than a defect:** `ms` is a *time constant*, not the slide's
+> duration. That is faithful to hardware (Reid's exponential glide) but it means a knob reading "1000 ms"
+> is still audibly moving at 2 s. Whether to keep it, rescale it, or add the per-octave **GLIDE SCALE**
+> axis is unresolved — see the plan's 3.26 entry.
+
 - **Book:** Part 16 (SOS August 2000, p.187): "if you insert a simple Slew Generator into the keyboard
   CV signal path, you smooth the transitions at the oscillator's CV input, thus making the pitch glide
   from one note to the next. This, of course, is portamento ... I've depicted the slew as an

@@ -120,6 +120,7 @@ void note_duty  (int handle, float duty);          // drive pulse width live (no
 void note_lfo   (int handle, int which, int dest, float rate_hz, float depth);  // retune LFO `which` (0..2) live — phase kept, no click
 void note_filter(int handle, int mode);            // switch filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide (int handle, int ms);              // portamento: note_pitch slides over `ms` instead of snapping (0 = snap)
+                                                   //   ⚠ `ms` is a TIME CONSTANT (63% of the way), not the slide's duration
 void note_retrig(int handle);                      // re-articulate: envelopes + the engine's onset fire again on THIS voice, click-free
 void note_off_all(void);                            // panic: release every held note (recover from a leaked handle)
 ```
@@ -297,6 +298,13 @@ this primitive.
   the anti-zipper smoothing, imperceptible as a slide), and `note_glide` just turns that
   same knob down to tens/hundreds of ms so it becomes an audible musical portamento. One
   field (`freq_slew`), two behaviours. Subsumes the proposed `slide()` primitive.
+  **Amended 2026-07-30** (audit §B1 / plan 3.26): that slew now runs on `log2(freq)`, not on
+  linear Hz, so a glide is even in *semitones* the way a 1V/oct CV lag is. It had been
+  wrong by 45 percentage points of asymmetry between an up-glide and the same glide down,
+  and a down-glide was still 12.7 semitones sharp two seconds into a "1000 ms" slide. Two
+  caveats worth carrying: `ms` is still a **time constant**, not the slide's duration (an
+  open decision, see plan 3.26), and the slew now **snaps** to the target once inside
+  0.0002 cent, so a glide actually terminates instead of asymptoting forever.
 - **C — live setters compose with slot LFOs** (game drives the base, LFO shimmers on top).
 - **D — `note_vol` stays integer 0..7** (slew already glides the steps smoothly).
 - **E — voice-steal is LRU** (a dead handle silently no-ops, per the contract).

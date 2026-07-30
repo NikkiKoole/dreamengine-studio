@@ -26,6 +26,13 @@ _Last updated: 2026-07-30 (**THE CONTEMPORARY REBIRTH, RUNGS A + B — a post-ha
   postscript, which closed audit **§K6** (the flute chiff needs to fire on every note *even when you play
   legato*, and until now a cart gliding one held voice could not tongue it at all); `pipe` and `brass` each
   gained a **T** slur/tongue toggle and `sh101` routes every articulation through one `articulate()` helper;
+  **portamento now glides in PITCH, not linear Hz** — audit §B1, the audit's own "single clearest
+  divergence", plan 3.26: the up/down asymmetry at one time constant went from **45 percentage points to
+  4.5**, and a down-glide that used to sit 12.7 semitones sharp two seconds into a "1000 ms" slide now
+  lands (it also **snaps** at 0.0002 cent instead of asymptoting forever). ⚠ **BUILT, not shipped —
+  3.26 is LISTEN-gated and awaits the owner's ear**; play `heldnotes`, measure with the new `glideprobe`.
+  Two glide questions stay open on purpose: `ms` is a time *constant* rather than a duration, and the
+  per-octave **GLIDE SCALE** axis (~3 lines now) waits on that answer.
   **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
   (real stiff-string inharmonicity, B ≈ 1.1e-4 on the grand) — item 2.3; and **`MODE_BOW_BODY`** (three
   parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) — item 2.4, in progress.
@@ -1384,9 +1391,16 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       owner's Mac), most 48k devices (Windows/Linux/DACs/Bluetooth) are sharp. **✅ FIX APPLIED** (`sound.h`
       `sound_worklet_init`): the worklet context is now forced to `SOUND_SAMPLE_RATE` via
       `EmscriptenWebAudioCreateAttributes` (browser resamples to hardware → matches native + the plain
-      backend). Compiles clean native + emcc-worklet. **Two follow-ups:** (1) on-device confirm (verified by
-      source reading, not yet a browser) + a listen to the resample quality; (2) **republish** — shipped
-      `site/` carts keep the old `(0)` worklet until a web rebuild.
+      backend). Compiles clean native + emcc-worklet. **Follow-up:** on-device confirm (verified by
+      source reading, not yet a browser) + a listen to the resample quality.
+      **The republish follow-up is CLOSED (verified 2026-07-30).** It read "shipped `site/` carts keep the
+      old `(0)` worklet until a web rebuild", and an audit reported that as a LIVE user-facing bug. It is
+      not: the fix landed in `2f2361c1` (2026-06-17) and every published worklet build postdates it (the
+      mass republish on 2026-07-11; oldest `site/*/worklet.js` is 11 Jul, newest 30 Jul). Checked at the
+      BINARY level, not by date alone — the fix compiles `.latencyHint = "interactive"` into the attrs
+      struct, and `strings site/*/worklet.wasm` finds that string in every audio cart sampled while the
+      `plain` backend (which never had attrs) has zero. **Lesson: a "republish" follow-up written next to a
+      source fix goes stale silently, because the next unrelated mass publish quietly satisfies it.**
       **✅ Phase 1 codegen-parity gate SHIPPED — `tools/web-audio-check.js`** (+ `web-audio-host.c` + a
       raylib shim): compiles the engine clang-native vs emcc-wasm, renders each engine solo, compares. **The
       math is faithful: 15/16 engines sample-identical (native↔wasm diff 75–120 dB below signal; TRI

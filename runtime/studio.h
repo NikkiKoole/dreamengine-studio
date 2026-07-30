@@ -351,7 +351,7 @@ void note_res(int handle, float resonance);               // sweep a held note's
 void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // retune a held note's LFO `which` (0..2) live — dest LFO_PITCH/DUTY/VOLUME/CUTOFF; depth 0 = off
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount);  // set a held note's mod-envelope `which` (0..2) live — same shape as instrument_env(); amount 0 = off
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
-void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap)
+void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap); even in semitones, and `ms` is a rate not an exact duration
 void note_retrig(int handle);                             // play this held note's attack again, on the same voice — no click, keeps the pitch/glide it already had
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
 void note_pan(int handle, float pan);                     // change a held note's stereo position live -1 L..0 center..+1 R (slewed). pair with LFO_PAN for auto-pan

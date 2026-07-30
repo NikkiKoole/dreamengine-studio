@@ -335,22 +335,26 @@ typedef struct {
     float  bw_dc_prev, bw_dc_state;     // output DC blocker (steady bow drives a large DC)
     bool   bw_on;                       // note-on init guard
     bool   bw_pizz;                     // PIZZICATO: seed the string with a pluck + bypass the bow
-    // ── BOWED BODY (§M2, plan 2.4) — EXPERIMENTAL, opt-in, default OFF ─────────────────────────
+    // ── BOWED BODY (§M2, plan 2.4) — opt-in, default OFF ──────────────────────────────────────
     // §F4 found INSTR_BOWED shipping with NO body resonator at all; its output comment even names the
     // body it does not model ("the bridge-side signal — what the body radiates"). Reid's Part 22 says an
     // instrument body IS a small reverberant room, in "the delay range of about 1mS to 4mS", built as
-    // three short parallel lines. Two candidates are implemented so they can be A/B'd (that is §M2's
-    // whole point): three feedback COMBS, versus parallel bandpass BIQUADS like GUITAR's gt_body.
-    // ZERO new buffers: the comb lines live in `pn_ks2` and the biquads in `gt_body`, both of which BOWED
-    // never touches (distinct wave ids never share a voice — the same reuse the brass bore does with
-    // ks_buf). Modelled before building: 3 combs at 1.3/2.3/3.7 ms give 24 resonances in 80-4000 Hz with
-    // 19 of them above 1 kHz, the lowest at 270 and 435 Hz — which is about where a violin's main air
-    // (~275-300) and wood (~400-500) resonances sit. The 4 biquads give 4 resonances, only 1 above 1 kHz,
-    // but ~4 dB more peak-to-trough contrast. Dense-and-physical versus tuned-and-controlled: the ear picks.
+    // three short parallel lines. Both that and a bandpass-formant alternative were built and A/B'd (§M2
+    // asked for exactly that); the owner's ear liked the body but could not separate the two models, so the
+    // COMBS were kept on §M2's own argument — physically derived rather than hand-tuned, ~3x the colouring,
+    // and the mechanism that could also serve GUITAR's body and the piano tricord. The formant variant and
+    // its MODE_BOW_BODYTYPE knob were removed rather than carried forever (verdict: plan §2.4).
+    // ZERO new buffers: the comb lines live in `pn_ks2`, which BOWED never touches (distinct wave ids never
+    // share a voice — the same reuse the brass bore does with ks_buf). Modelled before building: 3 combs at
+    // 1.3/2.3/3.7 ms give 24 resonances in 80-4000 Hz, 19 of them above 1 kHz, the lowest at 270 and 435 Hz
+    // — about where a violin's main air (~275-300) and wood (~400-500) resonances sit. Confirmed in the
+    // render: response peaks land on h5 (275 Hz) and h8 (440 Hz).
+    // ⚠ ONE FIXED SIZE: these delays are a VIOLIN-sized box, applied to every BOWED voice including cellos
+    // and basses. A bigger instrument is a longer delay, and BOWED has no size axis (`harmonics` is bow
+    // POSITION), so sizing it is open work — a reason the default is still OFF.
     int    bw_bd_pos[3], bw_bd_len[3];  // comb read/write positions + lengths (into pn_ks2, stride 256)
     float  bw_bd_lp[3];                 // one-pole damping in each comb loop (a body's RT60 falls with freq)
-    float  bw_bd_amt;                   // dry↔body blend (eng_p[1], MODE_BOW_BODY; 0 = off = today's sound)
-    int    bw_bd_type;                  // 0 = three combs (Reid), 1 = four biquads (eng_p[2])
+    float  bw_bd_amt;                   // body blend (eng_p[1], MODE_BOW_BODY; 0 = off = the bare string)
                                         // friction, so the SAME waveguide (string + body) rings down
                                         // instead of self-oscillating. Set from eng_p[0] >= 0.5 at note-on.
     // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
@@ -3740,13 +3744,6 @@ static inline float sound_pipe_sample(Voice *v, float pitch_mul) {
     return dc * 2.0f;
 }
 
-// Forward-declared because the biquad helpers live further down (with the GUITAR/PIANO engines that have
-// always used them) and BOWED's opt-in body variant needs them here. Declaring beats moving them: this
-// file is edited by several agents at once, so a two-line forward decl is a far smaller blast radius than
-// relocating shared helpers.
-static void sound_biquad_set(SoundBiquad *bq, float fc, float bw, float gain);
-static inline float sound_biquad_run(SoundBiquad *bq, float in);
-
 // ── INSTR_BOWED: bowed string (navkit processBowedOscillator / initBowed, line-for-line) ──
 // BOWED note-on: size the string (full wavelength = nut + bridge halves), SPLIT it at the bow
 // contact point β (from harmonics), and seed both halves with tiny noise so the friction loop
@@ -3812,36 +3809,20 @@ static void sound_bowed_start(Voice *v) {
     v->bw_dc_prev = v->bw_dc_state = 0.0f;
     v->bw_attack = (int)(0.030f * (float)SOUND_SAMPLE_RATE);   // ~30ms bow-bite catch at onset
     // ── body (§M2) — opt-in via MODE_BOW_BODY; amount 0 leaves the voice byte-identical to before ──
-    v->bw_bd_amt  = clamp01(v->eng_p[1]);
-    // ⚠ STRICTLY GREATER, and that matters: eng_p DEFAULTS ARE PER-INDEX, NOT PER-ENGINE. Index 2's bank
-    // default is 0.5f because PIANO uses it for a decay scale where 0.5 means 1.0x. BOWED inherits that
-    // number for a completely different meaning, so a `>= 0.5f` test would silently default to the biquad
-    // body when Reid's three-line body is the one his text actually proposes. `> 0.5f` makes the inherited
-    // default fall on combs; a cart must ask for biquads explicitly. Worth remembering for any new
-    // per-engine aux meaning: check what default the index already carries (lint-aux-params cannot see this).
-    v->bw_bd_type = (v->eng_p[2] > 0.5f) ? 1 : 0;
+    v->bw_bd_amt = clamp01(v->eng_p[1]);
     if (v->bw_bd_amt > 0.0001f) {
-        if (v->bw_bd_type == 0) {
-            // three parallel feedback combs inside Reid's 1-4 ms window, deliberately incommensurate so
-            // their resonance series interleave into a dense modal family instead of stacking into a
-            // single comb. Lines live at pn_ks2 + i*256 (256 samples = 5.8 ms of headroom each).
-            static const float BD_MS[3] = { 1.3f, 2.3f, 3.7f };
-            for (int i = 0; i < 3; i++) {
-                int L = (int)(BD_MS[i] * 0.001f * (float)SOUND_SAMPLE_RATE);
-                if (L < 2) L = 2; if (L > 250) L = 250;
-                v->bw_bd_len[i] = L;
-                v->bw_bd_pos[i] = 0;
-                v->bw_bd_lp[i]  = 0.0f;
-                float *buf = v->pn_ks2 + i * 256;
-                for (int k = 0; k < L; k++) buf[k] = 0.0f;
-            }
-        } else {
-            // the biquad alternative, voiced for a VIOLIN rather than GUITAR's box: main air resonance,
-            // main wood resonance, then two broader upper modes standing in for the bridge hill.
-            static const float BF[4]  = { 280.0f, 460.0f, 1200.0f, 2600.0f };
-            static const float BBW[4] = { 0.55f, 0.50f, 0.70f, 0.80f };
-            static const float BG[4]  = { 0.60f, 0.55f, 0.40f, 0.30f };
-            for (int i = 0; i < 4; i++) sound_biquad_set(&v->gt_body[i], BF[i], BBW[i], BG[i]);
+        // three parallel feedback combs inside Reid's 1-4 ms window, deliberately incommensurate so their
+        // resonance series interleave into a dense modal family instead of stacking into a single comb.
+        // Lines live at pn_ks2 + i*256 (256 samples = 5.8 ms of headroom each).
+        static const float BD_MS[3] = { 1.3f, 2.3f, 3.7f };
+        for (int i = 0; i < 3; i++) {
+            int L = (int)(BD_MS[i] * 0.001f * (float)SOUND_SAMPLE_RATE);
+            if (L < 2) L = 2; if (L > 250) L = 250;
+            v->bw_bd_len[i] = L;
+            v->bw_bd_pos[i] = 0;
+            v->bw_bd_lp[i]  = 0.0f;
+            float *buf = v->pn_ks2 + i * 256;
+            for (int k = 0; k < L; k++) buf[k] = 0.0f;
         }
     }
     v->bw_on = true;
@@ -3943,23 +3924,17 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     // separate coupling question (§H5) and is deliberately NOT done here: Reid warns audio-rate feedback
     // is amplitude modulation and makes sidebands, so that wants a slow side-chain, not this.
     if (v->bw_bd_amt > 0.0001f) {
-        float wet;
-        if (v->bw_bd_type == 0) {
-            wet = 0.0f;
-            static const float BD_FB[3] = { 0.72f, 0.68f, 0.62f };   // < 1 with a lowpass in loop = stable
-            for (int i = 0; i < 3; i++) {
-                float *buf = v->pn_ks2 + i * 256;
-                float y = buf[v->bw_bd_pos[i]];
-                v->bw_bd_lp[i] += 0.5f * (y - v->bw_bd_lp[i]);       // RT60 falls with frequency
-                buf[v->bw_bd_pos[i]] = dc + v->bw_bd_lp[i] * BD_FB[i];
-                v->bw_bd_pos[i] = (v->bw_bd_pos[i] + 1) % v->bw_bd_len[i];
-                wet += y;
-            }
-            wet *= 0.333f;
-        } else {
-            wet = 0.0f;
-            for (int i = 0; i < 4; i++) wet += sound_biquad_run(&v->gt_body[i], dc);
+        float wet = 0.0f;
+        static const float BD_FB[3] = { 0.72f, 0.68f, 0.62f };       // < 1 with a lowpass in loop = stable
+        for (int i = 0; i < 3; i++) {
+            float *buf = v->pn_ks2 + i * 256;
+            float y = buf[v->bw_bd_pos[i]];
+            v->bw_bd_lp[i] += 0.5f * (y - v->bw_bd_lp[i]);           // RT60 falls with frequency
+            buf[v->bw_bd_pos[i]] = dc + v->bw_bd_lp[i] * BD_FB[i];
+            v->bw_bd_pos[i] = (v->bw_bd_pos[i] + 1) % v->bw_bd_len[i];
+            wet += y;
         }
+        wet *= 0.333f;
         // ADDITIVE, not a crossfade, and this was measured the hard way: `dc*(1-amt) + wet*amt` discards
         // the dry string, so at amt 0.8 you lose 80% of its own long ringdown and a pizzicato note died
         // TWICE as fast (tail ratio 0.039 vs 0.087 with no body). A body colours a string, it does not

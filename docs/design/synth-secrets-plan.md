@@ -1658,6 +1658,34 @@ tail ratio; the biquads cost nothing and do less. If neither wins, the honest ou
 on the §M2 argument (physically derived, and the mechanism that could also serve guitar and the piano
 tricord) and drop `MODE_BOW_BODYTYPE` rather than carry two bodies forever.
 
+##### ✅ DECIDED 2026-07-30: keep the COMBS, drop `MODE_BOW_BODYTYPE`
+
+Owner: *"keep combs and drop the bodytype knob."* Done — the formant variant is removed rather than carried
+forever, so `BOWED` has exactly one body and one knob (`MODE_BOW_BODY`).
+
+**Why the combs win despite the ear being unable to separate them.** The verdict came from §M2's own
+argument rather than from a preference: they are **physically derived** (a body IS a small reverberant
+room) rather than hand-tuned per instrument, they impose **~3× the colouring**, they carry **19 resonances
+above 1 kHz where the formants carry 1** — the dense irregular upper region a real body has and four
+biquads structurally cannot produce — and they are the mechanism that could also serve `GUITAR`'s body and
+the piano tricord, which is the entire leverage claim behind item 2.4. The biquads' one advantage was being
+sustain-neutral, and the additive-blend fix narrowed that to ~40% of the pizzicato tail ratio.
+
+Removing it also reverted the two biquad forward-declarations, which existed only for that variant — so the
+engine diff is smaller than it was mid-experiment. Verified after removal: **the OFF path is unchanged**
+(peak −12.74 dBFS, brightness 0.078, centroid 3908 Hz — identical to before) and the surviving comb body
+measures exactly what was judged (brightness 0.059, centroid 3836 Hz).
+
+**Default stays OFF, deliberately, and here is the honest reason.** The body is liked, but all 14 `BOWED`
+carts would change, and there is a real voicing problem first: **the delays are ONE FIXED VIOLIN-SIZED
+box.** A bigger instrument is a longer delay, and `BOWED` covers violin, viola and cello while several of
+its carts are bass-focused (`walkbox`, `walkroll`, `upright`, `bandbox`). `harmonics` on this engine is bow
+POSITION, so there is no size axis to hang it on. **Sizing the body is the next piece of work**, and until
+it exists, defaulting a violin box onto a cello line would be shipping a known wrong answer.
+
+Gates after the removal: soundcheck silent, `tune-check` 0, `level-check` 0, `dc-check` 0,
+`lint-aux-params` 0, 570/570 carts compile.
+
 ##### An unlooked-for second benefit of the §I4c fix: PIANO was being silently DAMPED
 
 Caught by `level-check` after the fact, which flagged **PIANO A2 at rms +4.3 dB vs its blessed baseline**

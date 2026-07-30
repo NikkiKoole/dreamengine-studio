@@ -458,7 +458,21 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >
 > **Resume-at — the live queue, most-ready first.**
 >
-> 1. **§M2's A/B (item 2.4).** The live Phase 2 item, premise-checked and needs no ear to start. Three
+> 1. **§M2 / item 2.4 — PART DONE. `BOWED` HAS A BODY (2026-07-30).** `MODE_BOW_BODY` ships: three parallel
+>    feedback combs at 1.3/2.3/3.7 ms (Reid Part 22), opt-in, **default OFF**. Owner's ear: the body WINS
+>    (audit §F4's gap is real), and the combs were kept over a bandpass-formant variant on §M2's own argument
+>    after the ear could not separate them — `MODE_BOW_BODYTYPE` was dropped rather than carried. Zero new
+>    per-voice buffers (the lines live in `pn_ks2`, which BOWED never touches).
+>    **NEXT HERE, and it blocks defaulting it on: the body is ONE FIXED VIOLIN-SIZED box.** A bigger
+>    instrument is a longer delay, but BOWED covers violin/viola/cello and several carts are bass-focused
+>    (`walkbox`, `walkroll`, `upright`, `bandbox`) — and `harmonics` is bow POSITION, so there is no size
+>    axis to hang it on. Until sizing exists, defaulting a violin box onto a cello is a known wrong answer.
+>    **Then `guitar`** — still a measurement cross-check ONLY, see the scoping below.
+>    Two traps banked: a 1–4 ms body has a MILLISECOND RT60 so there is no audible tail to A/B on (the
+>    "reverb" IS the frequency response — Reid's duality); and blend a body ADDITIVELY, never as a crossfade,
+>    or you discard the string's own ringdown (a crossfade at 0.8 made a pizzicato note die twice as fast).
+>    Ear sets: `build/ab/bowed-body-*.wav` (arco) and `build/ab/bowed-pizz-*.wav`.
+> 1b. **The original §M2 A/B framing**, premise-checked and needing no ear to start. Three
 >    parallel 1–4 ms delay lines with feedback vs `gt_body`-style biquad formants: does a short-delay
 >    "room" make a convincing instrument body? Reid gives the range explicitly (Part 22, *"about 1mS to
 >    4mS"*) and notes a spring is far too long. Primitives already exist (`moddel_hermite`, the comb

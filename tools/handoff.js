@@ -87,9 +87,13 @@ for (let i = 0; i < lines.length; i++) {
   // it had nothing to check. ~a third of the lanes had drifted to a bare doc link or plain prose, so the
   // back door was guarding far less than it appeared to. Flag the absence, not just the breakage.
   // Accept any of the drifted spellings when looking for one (Resume-at / Resume at / resume at).
-  const resumeLine = block.find(l => /\*\*\s*Resume[- ]at/i.test(l))
-  const noResume = !resumeLine
-  const unanchored = !!resumeLine && !/\]\([^)\s]+\.md#[^)\s]*\)/.test(resumeLine)
+  // Scope the anchor search from the Resume-at line to the END OF THE LANE, not just that one line: a
+  // multi-line Resume-at (a numbered queue, say) legitimately carries its anchor a few lines below the
+  // label, and requiring it on the label line reported those as unanchored.
+  const rIdx = block.findIndex(l => /\*\*\s*Resume[- ]at/i.test(l))
+  const noResume = rIdx < 0
+  const unanchored = rIdx >= 0 &&
+    !/\]\([^)\s]+\.md#[^)\s]*\)/.test(block.slice(rIdx).join('\n'))
   lanes.push({ date: m[1], title: m[2].trim(), age: ageOf(m[1]), links: targets, broken, brokenAnchors,
                noResume, unanchored, line: i + 1 })
   i = j

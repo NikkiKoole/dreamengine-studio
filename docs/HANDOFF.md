@@ -25,28 +25,23 @@ thing `orient` prints — the front door); `node tools/handoff.js --check` flags
 broken doc link, or a **broken `#section` anchor** (surfaced by `cart-status.js` — the back door).
 So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-29 (sixteen lanes; newest lane = **the contemporary ReBirth — a post-hardware rack that clones TECHNIQUES, not machines** (`design/contemporary-rebirth.md`): ten of twelve boxes across three candidate racks need zero engine work, and two gap-rungs shipped the same day — Rung A `multiband()`/`instrument_multiband()`/`FX_MULTIBAND` (three-band dynamics with an UPWARD half, the OTT box; `mix` 0 = byte-identical bypass; named `multiband` because five carts already had a local `squash`) showcased by the `hyperbox` hyperpop rack, and half of Rung B `sample_shift()` + `harmonize_mic()` (length-preserving transpose) showcased by the `voxshift` probe. Then the maker LISTENED and reported popping every gate had called clean, which drove the rest of the session: two grain-geometry bugs found and fixed (down-shift zero overlap, 177 hard splices -> 1; and a truncated fractional grain read), and a THIRD defect that resisted three attempts (WSOLA correlation lock raw + normalized, a monotone accumulator, and the lock at a narrow ±8% window) — every one regressing the snap face into PERIOD DOUBLING, all three reverted and now `⚠ DO NOT` comments in `at_psola_slot` with the numbers. Out of that: **`tools/psola-check.js`**, the artifact gate, three detectors because each is blind to what the others catch (a period-doubled take is still perfectly periodic, so a periodicity metric scores that regression as a 2x IMPROVEMENT — only the f0 reading sees it); it killed attempt #3 in one command. Also banked: the amapiano rack audited as a third candidate (zero engine gaps — `INSTR_MEMBRANE`'s morph macro is pitch-bend, so the engine already had a log drum and nobody noticed), and GAP 3's formant dial proven to need a NEW envelope stage rather than the unused `formant` argument, which is a trap (`rubberband-reference.md` §2a-bis: forcing `fstep` to 1 held the formants exactly and moved the pitch not at all). Lesson banked: with a squashed master you mix for the GAPS, not the levels (rms -1.5/crest 1.5 on the first render, a wall with no groove; fixed cart-side to -5.3/5.2). NEXT = the amapiano rack (cheapest, no rung), then Rung C (`beatfx`, a ride-safe beat-synced buffer re-reader). Prior newest = **responsive-first device faces — the `face.h` grammar** (`design/responsive-first-device-face.md`): Layers 1–3 SHIPPED this session — the `deviceface` starter, `ui_*_cell`+`LayLane`, and the declarative `face.h` `FaceZone[]` grammar — proven across three conversions (chipjam/dubjam/grooveface, each driving a refinement: face_sublane/face_screen/face_resize_to); the iPad-Pro spread MOCKED in `roomyface` (B tile / C unhide / D 2×2+master, kept OPEN as a per-cart `device_class()==ROOMY` choice, no engine work); NEXT = prove a ROOMY branch on a real cart (`acidcandy`) or Layer 4 (make face.h the default). Prior newest = **harmony brain — a shared next-chord + analysis engine** (`design/harmony-brain.md`): the demand-discovery drip surfaced r/musictheory demand-82 for a "progression analyzer/suggester", the brief maps bossa's locked functional-Markov engine + folds in a deep-research survey that settles the model (1st-order Markov over roman-numeral functions + forced cadences; ANALYZE takes the key as input), and now SHIPPED v1 the same day: `runtime/harmony.h` (bidirectional — the bossa/cocktail tables extracted with byte-identical pinned-seed WAV proof + hb_suggest/hb_analyze) and the demand-82 toy `chordwise` (24-assert spec); NEXT = the maker's LOOK pass on chordwise + vocab adoption (template stations as weight sets, chord-aware improv.h). Banked en route: spec.js was broken repo-wide (missing AudioToolbox after the mic lane) — fixed. Prior activity = **Tiny Acid Jam shipped to App Store Connect** — `acidcandy` renamed + published as the first $1.99 standalone single, ASC record `6792504925` created + listing pushed live; see the **store/ASO** lane. Newest lane = **walkbox — a walking-bass step-sequencer** (`walkbox`) — a TB-303 workflow on the upright's real `INSTR_BOWED` pizz voice: draw a line on scale-locked note-bars, sculpt a tabbed VEL/LEN lane (velocity → pluck attack; length → staccato gate, top = TIE), flip SLD/OCT rows, dial SWING; the "303 done as a real pluck". Core + articulation ship and play; resume [`design/walkbox.md`](design/walkbox.md). Older: **the chord-bloom rack** (`chordblossom2`) — an instrument you PLAY (chords with your hands) wearing a genre FLAVOR (a backing band that follows you), the winning direction over the radio-rack `bossabloom` (which felt like "radio + UI"); Flavor table NEUTRAL/BOSSA/YACHT/CITYPOP · diatonic KEY mode (keys = the in-key chords) · 3-axis SPICE/RICHNESS/GROOVE · living 4-bar-phrase accompaniment · tiny per-part PEDALBOARD (FX tab) · STOP+REST; NEXT = tune yacht/citypop + per-flavor spice + candy skin, resume `design/bossa-rack.md`. Older: **the Android build target** — the engine runs frameworkless behind `platform.h` (`DE_NO_RAYLIB`), so Android is a host shell + Gradle packaging: spikes 0–4 SHIPPED (NDK compile → GLES2 render → AAudio → touch on an arm64 emulator), the `android/` scaffold + `android/build.sh`, and the editor's **🤖 export .apk** button (sideloadable, no Play account/device); NEXT = save → signed `.aab` → Play Billing → multi-cart app; resume `design/android-plan.md`. Older: **the candy acid RACK** — `acidcandy` packages `acidrack`'s guts (2×303 + 808 + 909 + master) as focusable candy device-faces at 160×100; `tr808.h`/`tr909.h` extracted byte-honest; note-bar free-draw + a flag palette + a drawable PCF + a drag-release-bounce fix; the master FX shelf now lives behind ONE **FX hub** key (chips wearing `fxicons.h` glyphs + a byte-exact **DRY** kill) and a **VOWEL** device whose **SPK** mode makes the 303 notes pronounce a vowel word with glides, rests (**DENS**/**GAP**) and an asymmetric voice gate; NEXT = **SPEAK is hard to hear** (the maker's ear verdict — check the 303s aren't muted, then reroute the formant per-303 via `instrument_formant`; `--solo-slot 6` decides masking-vs-contour in one command) / 808-909 voice completeness / drum depth / arrangement / the mascot — resume the cart's `de:meta.todo[]`. Older: **demand discovery** — `tools/reddit-gaps.js` mines a music tribe's RSS for unmet demand, 2 tribes done (notes 022/023; thesis = a cheap playful lo-fi toy in classic-gear clothes), a 6 h LaunchAgent drip grows caches in `tools/reddit-gaps-cache/`. Older: **editor↔cart workflow** — Gap 1b (`de:meta.slug`) + Gap 1 (code save-back) SHIPPED & committed: slug backfilled across all carts (455 at the time; 543 registered today) + `lint-carts.js` REQUIRES it; the **"save to source" button** writes the Code-tab buffer back to `tools/carts/<slug>.c` + rebakes in place; and the **PIXEL side (Gap 2) Option D SHIPPED** — reversible slot-level sprite PATCHES for generator carts (`tools/lib/sprite-patch.js` core + `make-cart` composite-on-bake + editor save-to-source diff; `de:spritepatch` chunk), so hand-edits survive the next CLI bake; NEXT = eyeball live + a discard button → resume `design/editor-cart-workflow.md` Gap 2 · worldgen ladder — rungs 0–7 SHIPPED (district fill + Rotterdam calibration via `sndi-check --compare`; `citygen.h` extracted → sloop's M drives a generated city w/ collidable buildings) + the junction grammar `roadkit.h` (B2 pure geometry + B3 field renderer, streetlab byte-identical; citydrive draws curb-return junctions through it, J); NEXT = B4 grade dispatch → roadlab interchanges / the N+M infinite-world reconciliation · multiplayer — rung 5b WebRTC P2P BUILT + published (pong live on github.io; ~12ms direct over wifi, relay = signaling only); step 5 (adaptive NET_DELAY) + step 7 (TURN) PARKED; wire-side diagnostics SHIPPED 07-10 (RTT probe + rx-gap + wall-clock logs + web-tick stalls) → next office visit = the checklist in multiplayer-research.md · device-adaptive-layout — the acidwire WIREFRAME CART is built + INTERACTIVE + runs on the iOS sim (dual-mode desktop/device, 4 states incl. focus, touch+mouse, real 303 piano-roll + drum grids, iPad 2×2 grid both orientations, finger-honest); guide interactive-wireframes.md; next = play on glass → narrow-303 input model → R5 re-land into acidrack.c · store/ASO — the ASC upload tool BUILT (`tools/asc-push.js`, ADR-0026): keywords + screenshots pushed live, all 3 IAPs `READY_TO_SUBMIT`; product ids renamed to `com.mipolai.tinyjam.*` (sim-reverified) · editor media — the per-cart **Promote tab SHIPPED (A–E)** + the **shared-popup pattern** (trailer + keyword-research popups, opened from cart AND app) + reels save/load (subject-scoped strip + cross-subject overview) + multi-resolution export (output-ratio picker on reel-Build + clip-bake, Stage-2 per-ratio variants that FILL, App Store even half-sizes); `export-ratios.md` stages 1+2 SHIPPED + the `onetake` proof cart; keyboard shortcuts = the enabler; NEXT = an EYEBALL PASS (none clicked live) + the fixed-layout composite gap · responsive instrument UI — the playbook + ADR-0028 + the epianofit mock shipped; epiano brief re-scoped to the FAITHFUL piano; the scale-grid SHIPPED as the `scalegrid` cart (device-tested, spec 71/0), open step = extract it into a `grid.h` library then wire epiano's editor-swap · leads — the marketeer tool + ledger BUILT (`tools/leads.js`, 18 tribes): cart→tribe→venues, taxonomy being filled cart-by-cart, editor Apps-page surface next → resume `design/leads-marketeer.md`)_
+_Last updated: 2026-07-30._ **The lane list is NOT maintained here — run `node tools/handoff.js`.**
+It prints every lane with its line number and age, read straight from this file, so it cannot drift.
 
 ---
 
 ## Where we are right now
 
-**Sixteen lanes are active in parallel right now** (different areas — pick the one you're resuming):
-(15) **the contemporary ReBirth — a rack that clones TECHNIQUES, not machines** (`design/contemporary-rebirth.md`; rungs A + B shipped: `multiband()` + `sample_shift()`/`harmonize_mic()`, showcased by `hyperbox` + `voxshift`, plus the `psola-check.js` artifact gate; the epoch-phase glitch and the formant dial are BOTH parked with numbers; NEXT = the amapiano rack, then Rung C),
-(14) **responsive-first device faces — the `face.h` grammar** (`design/responsive-first-device-face.md`; Layers 1–3 shipped, proven across chipjam/dubjam/grooveface, tablet spread mocked in `roomyface`; NEXT = a real ROOMY branch or Layer 4),
-(13) **harmony brain — a shared next-chord + analysis engine** (`design/harmony-brain.md`; SHIPPED v1: `runtime/harmony.h` + the `chordwise` toy; LOOK pass + adoption open),
-(12) **walkbox — a walking-bass step-sequencer** (`walkbox` — a TB-303 workflow on the upright's real pizz voice),
-(11) **the chord-bloom rack** (`chordblossom2` — play chords with your hands, a genre FLAVOR band follows),
-(10) **Android build target** (host shell + Gradle → Play; spikes 0–3 + editor 🤖 export .apk shipped),
-(0) **the candy acid rack** (`acidcandy` — `acidrack`'s guts repackaged as candy device-faces),
-(1) **the worldgen ladder** (realistic procedural roadgen), (2) **multiplayer — WebRTC P2P (rung
-5b)**, (3) **device-adaptive layout**, (4) **store / ASO + the app-trailer builder**, (5) **editor
-media (record/replay + where it lands)**, (6) **responsive instrument UI + the scale-grid**,
-(7) **leads — the local marketeer** (find venues to post + track outreach), (8) **editor↔cart
-workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9) **demand discovery
-— the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
-below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
+**Active lanes, newest first.** `node tools/handoff.js` is the index (line · title · age);
+`node tools/handoff.js --check` is the back door (>2wk old · a missing or unanchored Resume-at ·
+a broken doc link or `#section`).
 
+> Two things lived here until 2026-07-30 and were deleted because both had rotted: a prose
+> re-summary of every lane (9.5 KB on a single line) and a hand-numbered index. The index said
+> "sixteen lanes" when there were nineteen, and omitted three — including the newest and topmost.
+> What a reader needs to *choose* a lane is in the front-door output; what they need to *resume*
+> one is in the lane itself. A summary in between is a third copy, and it is the copy nobody
+> updates. If you find yourself writing one again, teach `handoff.js` to print it instead.
 > **▶ ACTIVE THREAD (2026-07-30) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4 is the live item**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
@@ -55,406 +50,12 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > §A-§M; **work happens in [`design/synth-secrets-plan.md`](design/synth-secrets-plan.md)**, which is the
 > ordered ledger. Do not add work items to the audit.
 >
-> **The plan's three rules, which is what makes this resumable:** every item is classified **FACT /
-> VERIFY / LISTEN / DESIGN** — the first two are just-do-it, the last two need the owner. A **LISTEN item
-> is built opt-in from the start** (a flag, an `eng_p` slot, a second slot) so an A/B is possible and a
-> "worse" verdict costs nothing to abandon; an inconclusive A/B resolves to **DROP**, recorded with its
-> measurement. And **when to add a new engine vs change one** is answered from this repo's own ADRs
-> (0006/0015/0016/0017) as a **7-rung ladder** — lowest rung that holds the finding, escalate only when a
-> *built cart* failed the rung below. Verdict: **almost nothing on the list earns a new engine**; §G is a
-> cart-land header, and even the electric guitar (§H6) is a second tap on `INSTR_GUITAR`.
->
-> **Phase 0 SHIPPED (`f10ea94d`)** — ten FACT fixes and five measurements, four of which changed the plan:
-> aliasing on the un-BLEP'd pulse is a **non-issue** (≤ −53 dB even at A5, PWM sweep no worse), so **3.30
-> dropped**; `instrument_lfo` **accepts 80 Hz** (sidebands at exactly ±80 Hz, ~30 dB up), so 3.6 is
-> unblocked and cheaper; `INSTR_PIPE` is a **closed, odd-harmonic pipe** (evens 50-73 dB down), which
-> makes its flute/recorder presets structurally wrong *and* explains why the "octave flageolet" docstring
-> was doubly wrong; and **§H8 + §I5 are one cause** (loop coefficients fixed per pass, not per note), so
-> two items merged. `sound.h` now carries a **"the `+` is load-bearing"** warning on the piano comb and
-> **four "✅ VERIFIED against Part N"** notes on tables that matched the book exactly.
->
-> **HOW THE EAR-CALL LOOP ACTUALLY WORKS — read this before starting an item, it is the whole rhythm of
-> Phase 1.** Every verdict so far was made from **rendered WAV pairs**, not from playing the cart. So:
-> build the change behind a runtime toggle (never a `#define` — the owner cannot A/B a compile-time flag);
-> A/B it with [`tools/ab-render.js`](../tools/ab-render.js) (`--file runtime/x.h` to patch a header);
-> `--keep` the renders and copy them to `build/ab/<cart>-<STATE>-{stock,recommended}.wav`; hand over the
-> `afplay` lines, say what to listen for and **where in the file it happens**, and name anything that could
-> bias the ear (above all a level difference — a louder take wins on loudness alone). Bake the cart too, so
-> it can be played. When the owner picks: flip the default, keep the loser on the toggle, and **verify the
-> shipped default renders byte-identically to the take that was approved** (this caught a near-miss in 1.2
-> where a leftover experiment would have shipped a sound 4 dB hotter than the one judged). The full
-> protocol with all its traps is [plan §1](design/synth-secrets-plan.md#1-how-we-decide-something-is-done).
->
-> **Build the A/B clip so it PROVES its own scope.** 1.3's clips play a preset whose accent row misses the
-> snare, then one whose accents hit it, so the first region must come out byte-identical between settings
-> and the second must differ — a structural claim checked by sha instead of by argument. Committed clips
-> live in `tools/clips/<cart>/`; three exist for this thread and each has a long header comment explaining
-> the trap it exists to avoid (e.g. `tr808` **self-plays** on boot, so a render with an empty script is a
-> full drum pattern, not silence; and no `tr808` preset has a cymbal row at all, so only the F key strikes it).
->
-> **Phase 1 (seven cart-only A/Bs) — 3 of 7 done, ALL THREE confirmed by the owner's ear on 2026-07-28.**
-> `solina` (1.1) has a **WOW switch**: BREATHING (unison spread modulated by a random-shape LFO, staggered
-> per tab — Reid's Part 46 ladder) is the **default by the owner's ear call**, with CLASSIC kept reachable
-> by key **W** or tapping the label. A third state
-> was built and **cut**: it measured indistinguishable from CLASSIC and no oracle we have can see a 0.16 Hz
-> character change under a chord progression — the cut is documented in the cart with the code to restore it.
->
-> **Built a tool on the way: [`tools/ab-render.js`](../tools/ab-render.js).** Flip one file-scope value,
-> render each variant, one table, source restored in a `finally`. It exists because hand-sedding a flag
-> bit me — the regex stopped matching after the first substitution, so every later variant re-rendered
-> state 0 and three byte-identical WAVs were nearly written up as "no audible effect". It **exits 2 and
-> shouts on byte-identical variants**. Use it for every LISTEN item; do not hand-roll.
->
-> **1.2 (`tr808`) is DONE and the three-band cymbal is the DEFAULT** — same ear call, same day, same shape:
-> the stock single-band voice stays reachable on key **C** / tapping `CY 3BAND`, not removed. Stop the
-> sequencer (SPACE) and hit **F** — no preset has a cymbal row, so F is the only way to strike it. The
-> centroid now walks **14895 → 11844 Hz** over 200ms and then converges *bit-exactly* onto the stock tail,
-> where the stock voice was flat for the whole ring. Both ends are provable: the shipped default renders
-> byte-identically to the take that was approved (`ff2477695836`) and OFF renders byte-identically to the
-> pre-change cart (`90dc75069555`). It IS ~6.8 dB hotter at the strike and can't be level-matched
-> (`instrument_level` collides with acidcandy/dubjam's per-slot mixers, velocity clamps to silence after
-> 4 steps) — that was flagged for the ear call and accepted, so **don't "fix" it later**. Two findings worth reusing: a
-> `FILTER_HIGH` above ~7 kHz on `INSTR_SQUARE` amplifies **aliasing** (that band stem-measured −0.0 dBFS,
-> centroid 21942 Hz vs Nyquist 22050 — always stem-check a high band with `--solo-slot`), and the real
-> 808's 7100 Hz upper bandpass had been sitting in `tr808.c`'s own docblock, unimplemented, since day one.
->
-> **1.3 (`tr808` + `tr909`) is DONE — the velocity-dependent snare is the DEFAULT on both.** Key **N**
-> cycles 0/1/2 (state in the 808's `hint()` footer, next to POLY on the 909). `boost` used to be added to
-> the body and noise layers *equally*, so an accent was the same snare turned up; now they tip in opposite
-> directions and an accent buys **+37% noise share for −1.7 dB of level**. Soft hits are byte-identical to
-> the pre-change carts by design, and the shipped defaults match the approved takes (`a6dc6c0a02e7` /
-> `b40f2782577b`). `dyn=2` is kept but degenerates near a centred SNPY knob (tilt 4 zeroes the body, so the
-> accent loses its pitch) — an effect setting, not a subtler one.
->
-> **The most transferable lesson of the thread, from 1.3: print a strength knob's transfer function over its
-> REAL input domain, not its endpoints.** The tilt curve was `(boost * dyn + 1) / 2`, which reads like
-> harmless half-strength scaling — but `boost` in these carts is only ever 0, 1 or 2, so at `dyn=1` the
-> rounding mapped boost 1 *and* boost 2 to the same tilt and the parameter **stopped depending on velocity,
-> which was the entire feature**. It measured as a clear effect, A/B'd as a clear effect, and was one message
-> from shipping as the default; it was caught by evaluating the curve, not by any oracle. A parameter can be
-> audibly doing something and still not be doing the thing you claimed.
->
-> **Two mechanical traps that cost real time, worth knowing before you touch a cart's draw():**
-> a long **`sprintf` into a cart's shared `char buf[32]`** overflows the stack with no crash and no compiler
-> warning — the only symptom in 1.3 was `play.js --dump` writing **zero frames** while audio rendered
-> perfectly (use your own buffer + `snprintf`); and **`ui-audit.js` catches off-screen/overlapping text but
-> NOT low contrast** — it found a pre-existing 370px footer on `tr909`'s 320px screen (so `POLY:tap=length`
-> had never been visible to anyone, now fixed), yet passed `solina`'s invisible grey-on-brown readout. Run
-> it, then also read the baked PNG.
->
-> **`spec()` now guards the structural claims — 16 assertions, `node tools/spec.js tr808 && node tools/spec.js tr909` (11 + 5 — spec.js takes ONE cart and silently ignores extra names).** The
-> owner's prompt ("not just out of vanity, there are real things to prove") is exactly right, because the
-> 1.3 bug proves the gap: *every audible signal said the feature was fine* while it had stopped depending on
-> velocity. So the specs assert what no ear and no audio gate can see — the tilt is strictly increasing in
-> velocity; the cymbal's three decays stay unequal and ordered; the top cymbal band stays at/below its
-> measured aliasing ceiling; the new cymbal slots stay inside `TR808_NSLOT` (the `D909_BASE 25` collision
-> class); and **the preset data the A/B clips depend on** (PLANET ROCK's accents must miss its snare, BOOM
-> BAP's must land on it — a one-character preset edit would otherwise leave the clip testing nothing).
-> The shared banks carry their own via `tr808_selfcheck()` / `tr909_selfcheck()` (spec.h's "specs on an
-> includeable"). **All were verified to FAIL on the original bug before being kept** — re-introduce the old
-> curve and 2 go red on the 808, 1 on the 909. An assertion never seen failing is a guess.
->
-> **A blocker worth knowing before you plan a spec:** `spec.h` reserves **`step`**, the obvious name in a
-> step sequencer. `acidcandy` cannot host a spec at all because of it (it has `static int step` for its
-> transport), and the error points at the cart's own pre-existing line, so it reads like the cart broke.
-> Written up in [`design/spec-harness.md`](design/spec-harness.md#reserved-names--step-is-the-one-that-bites).
-> Consequence here: the 808↔909 tilt-curve **drift** check (they carry duplicate copies on purpose) sits in
-> `tr909.h` behind `#ifdef TR808_H` and self-activates the day a both-headers cart can host a spec. It does
-> not run today. **(EXPIRED — that FX hub shipped 2026-07-28, so `acidcandy.c` has no foreign WIP.)** ~~another agent is building an FX hub
-> in it) — leave it alone and keep it out of your commits.
->
-> **Also corrected an audit error rather than quietly coding around it:** §J9 claimed the snare's tone→noise
-> drift *over the note* was missing. It was already there — the noise layer outlives the body in both
-> machines (130/100ms, 170/90ms) and a hit's centroid climbs 10890 → 12279 Hz across its own decay. Only the
-> velocity half needed building. Expect a few more §-claims to be half-true; check before implementing.
->
-> **Fixed a harness trap that will otherwise eat an hour of anyone's day:** `caffeinate -dims` *prevents*
-> display sleep but cannot **wake** an already-dark screen, so every headless render segfaulted at
-> `signal 11` before frame 1 with a binary that had passed minutes earlier. `play.js`, `spec.js` and
-> `make-cart --run` now fire `caffeinate -u -t 1` first. See
-> [`guides/debug-harness.md`](guides/debug-harness.md) → "a sleeping display segfaults every harness run".
->
-> **1.4 (`brass`) is a recorded DROP, and it is the most instructive item so far.** §E10 lifted three
-> envelope numbers from one worked Reid patch; built as toggles, level-matched, A/B'd — **all three lose on
-> a waveguide**, for structurally different reasons: the model already does it (the bore supplies a ~40 ms
-> onset, so his 100 ms attack double-counts), the parameter isn't what it is on his hardware (with
-> `decay_ms` 0, "sustain maximum" is just +4.86 dB = 20·log₁₀(7/4)), and the value destroys the model's own
-> behaviour (a short release truncates the bore's ring-down — **the shipped 1200 ms is not a pad envelope by
-> mistake, it is roughly this bore's ring-down time**). Envelope left byte-identical (`af3631b9329e`),
-> toggle removed rather than left as clutter, measurements + a 4-line restore recipe kept in `brass.c`.
-> This is now hard evidence under **§G** (the subtractive-imitation engine): the problem is not that his
-> patches *sound* different, it is that his patch *parameters have no faithful translation* into a
-> waveguide's controls. **Never port numbers from a Reid patch by editing — always A/B.**
->
-> **Two process lessons from it, both of which cost a round trip:**
-> - **The short releases were provably CLEAN and still wrong.** Largest sample-to-sample step in the
->   release: 61% of peak, *identical to the shipped voice* — no click, and the 5 ms version is a smooth 6 ms
->   ramp. **No oracle here can tell "a clean short decay" from "the resonator was cut off."** That is the
->   strongest argument in the plan for why LISTEN is a real category.
-> - **An absolute judgement flipped when the comparison was restored.** Told "both newer ones get cut off",
->   I swept the release *upward*; the owner then called 120 ms "fine, nothing is cut off" — and a sha check
->   showed that file was **byte-identical** to the one they had just called cut off. Against SHIPPED
->   directly, they picked SHIPPED. **Always hand over the pair, never a single file, and re-confirm against
->   the incumbent before concluding anything.**
->
-> **PHASE 1 IS DONE, 7 of 7.** Beyond 1.1-1.3 above: **1.5** (`piano`, key **L**) layers two slots ~7 cents
-> apart per Part 45 — liked, but deliberately kept **opt-in**, because this cart's six presets are declared
-> acceptance tests and layering would retune the yardstick. **1.4** (`brass`) and **1.6** (`organ`) are
-> recorded **DROPs**: Reid loses all three brass envelope numbers (the shipped 1200ms release *is* the
-> bore's ring-down), and the Hammond item was mis-priced by the audit — its detent table is in the engine,
-> so "two rows" would silently remap 13 carts. **1.7** (`martenot`, key **0**) is **DONE — GATE is the
-> default** (owner's ear, 2026-07-29: *"the morph sounds a bit too clean/bright, I like gate"*), with FILTER
-> and MORPH still one keypress away. The filter-as-gate measures **30 dB of range with the VCA held
-> constant**; the morph was honestly **ear-only** (the HF proxy reads 0.000 on that voice and the centroid is
-> fundamental-dominated, so it moves the wrong way) — though here the ear and the table agreed, MORPH's
-> centroid being ~2x FILTER's at a light touch.
-> **⚠ PROMOTING A TOGGLE TO A DEFAULT IS ITS OWN CHANGE.** GATE holds `note_vol` constant and this cart keeps
-> one voice ringing, relying on `note_vol` hitting 0 to be silent at rest — so as a *toggle* nobody ever saw
-> it (you always arrived mid-gesture), and as the *default* the cart **droned from boot**: −15.2 dBFS on an
-> empty script against FILTER's true silence. Fixed by gating on `intens > 0` (already snapped to exactly 0
-> at rest, and the real touche is also the on/off), leaving the VCA untouched inside a gesture. **Whenever
-> you flip a default, re-test the states the toggle never let you reach: boot, rest, and release.**
->
-> **The recurring lesson of the whole phase, worth carrying into Phase 2:** on these engines **the envelope
-> does not own the tail — the model does.** It landed three separate times (the 808 cymbal's decays, the
-> brass release, the piano layer's ENV2), and each time a longer release or gate did nothing because the
-> physical model's own decay governs the ring-down. Expect it again, and expect Reid's numbers not to
-> transfer: **never port values from a subtractive patch by editing — always A/B.**
->
-> **Phase 1 also produced one engine FIX** (`41a4c6ea`): `instrument_mode` guarded `idx >= 2` when `eng_p`
-> is four wide, so the PIANO's double-decay and hammer-knock params — implemented end to end — were
-> unreachable and two `piano` sliders had never worked. A no-op at rest, live once a slider moves.
-> `MODE_PIANO_DECAY`/`MODE_PIANO_KNOCK` now exist. Still open: `instrument_mode` does not VALIDATE its
-> index, which is how a dead control survives; top of [`STATUS.md`](STATUS.md) → "Open".
->
-> **⚠ 1.7's MORPH CRACKLED, and the fix produced a new oracle: [`tools/click-check.js`](../tools/click-check.js).**
-> The owner heard it (2026-07-29) before judging the mode. `wave_set` replaces the wavetable under a running
-> oscillator, so every quantised dull step jumped the output from `old[phase]` to `new[phase]` — up to 16
-> one-sample discontinuities per swell. **Two orthogonal causes, and fixing either alone leaves the
-> crackle:** the GRID (a step's jump scales as 1/NDULL; it was 8) and the RATE (`intens` slews up to
-> 0.5/frame, so the index could move dozens of steps in ONE frame, and a multi-step jump is as big as a
-> coarse-grid one — this is the half that still clicked at every note onset after the grid was fixed).
-> NDULL 8 → 64 plus a ±2 steps/frame limit took it from **13 splice-like events (worst 15.4x the local
-> step-rms) to 1 (4.1x)**, against a control that peaks at 3.3x. FILTER renders byte-identical; GATE never
-> enters that branch. **The lesson is not about wavetables:** the plan's own write-up asserted the stepping
-> was "inaudible as stepping on a slow swell", that was the ONE unmeasured claim in an otherwise
-> well-measured item, and it was the one that was wrong. An unmeasured sentence in a measured write-up
-> reads as evidence. Run `click-check` after ANY mid-note table/shape swap — `wav-envelope`'s amplitude and
-> centroid curves look the same whether a transition is a clean ramp or a splice, which is the identical
-> blind spot that made 1.4's brass release call so hard.
->
-> **PHASE 2 HAS STARTED, AND 2.1 IS DONE IN BOTH HALVES** (`49c398e2` + this one) — the engine can follow
-> the keyboard. (a) `instrument_keytrack(slot, amount)`: one multiply at note-on, `amount` 0 = absolute Hz
-> (the default and byte-identical), 1 = true 1V/oct so a self-oscillating filter can be *played*, 0.93 =
-> Reid's taste value. (b) `ENV_CUTOFF_OCT` / `LFO_CUTOFF_OCT`: a sweep's DEPTH in octaves instead of Hz,
-> reaching `instrument_env`, `instrument_lfo` and `instrument_follow` (plus the `note_*` twins). Both halves
-> are **VERIFY items** — the acceptance test is a number, not an ear, the first two of those in a while.
-> Full write-ups with the tables: plan §2.1(a)/(b).
->
-> **Three things from 2.1 worth reusing:**
-> - **`DE_RUNTIME_DIR` now exists** (`make-cart.js`, so `play.js` too): point the compile at another engine
->   tree, and a cart renders against the **pre-change** engine with identical harness args. That is how
->   "byte-identical" became a measurement instead of an argument — no destructive `git checkout` on a hot
->   shared header. Copy `runtime/`, `git show HEAD:runtime/sound.h >` the copy, render both, compare shas.
->   The control that proves the rig works: a cart using the new constants must FAIL to compile against it.
-> - **Octave modulation multiplies and is applied LAST**, into its own `cutoff_mul` that starts at an exact
->   1.0 — the shape `pitch_mul` already had. Additive Hz first, then the octave scaling, so a patch mixing
->   both units means the same thing regardless of which mod source ran first. Copy that pattern for any
->   future relative-unit destination.
-> - **A committed A/B seed must say what it does NOT prove.** `tools/clips/keytrack/0{1,2}-sweep-*.script`
->   pass the ear test but cannot carry the acceptance table: the phrase gates 420 ms notes every 200 ms, so
->   notes overlap and a per-note spectral region is polluted by the two before it (it measured non-monotonic,
->   and both units read the *same* at the first C). The table came from a four-isolated-notes probe instead,
->   whose source is pasted in plan §2.1(b) — a ruler is not a cart, so it is documented rather than committed.
->
-> **2.2 IS SHIPPED TOO — [`runtime/mono.h`](../runtime/mono.h), the largest item in the audit, with zero
-> engine change.** A `Mono` held-key stack + `mono_press`/`mono_release` returning START/GLIDE/RETRIG/STOP;
-> priority LAST/LOW/HIGH/FIRST and triggering SINGLE/MULTI/ANY (Reid's Figures 8/9/11). `sh101` drives it
-> from PRIO/TRIG switches under the TUNE knob, defaults byte-identical to the pre-change cart
-> (`ddb9d398da39`). Full write-up: plan item 2.2.
->
-> **The finding beats the feature: the SH-101's PORTAMENTO switch is secretly a TRIGGER switch.** The cart
-> conflated Reid's two axes (gliding the pitch and not retriggering are the same code path), so PORTA OFF
-> renders **byte-identically** to his ANY, PORTA AUTO/ON to his SINGLE — and **MULTI is unreachable on the
-> real machine's panel**. That is a measured answer to what the conflation costs, which is what §B3 asked.
->
-> **`mono.h` carries its own 47-assertion spec** (`node tools/spec.js sh101`) because Part 18 *is* a test
-> suite: four priorities, four different pitch sequences from the same played notes. **Every assertion was
-> watched failing first** — four mutations (LOW inverted, MULTI not retriggering a losing press, ANY not
-> re-attacking on hand-over, FIRST behaving like LAST) turn 4/1/1/3 of them red.
->
-> **Three traps from 2.2, all of which produced a confident wrong conclusion before being caught:**
-> - **I shipped a decorative switch.** The first cut kept `prio_sel` beside `mono.prio` and synced them only
->   in the tap handler, so `init()` forced LAST back and all four priorities rendered byte-identical.
->   `ab-render`'s byte-identical warning caught it; `mono.prio` IS the switch now, and a spec assertion
->   drives the panel and checks the policy followed. **Two sources of truth for one setting is the bug.**
-> - **An ASCENDING test sequence cannot see two of the four schemes** — play 48/50/52 and "last pressed" IS
->   "highest held" (so LAST ≡ HIGH, and FIRST ≡ LOW). Seeds must be non-monotonic AND release middle-first,
->   or the hand-over path never fires. Committed as `tools/clips/sh101/01-overlap.script`.
-> - **`seq 1 0` prints "1 0" on macOS**, not nothing, so a `for i in $(seq 1 $n)` loop emitted TWO taps at
->   n=0 and the "baseline" was sitting on HIGH. I nearly wrote up "the priority switch does not reach the
->   audio". A `watch()` trace of `mono.prio` caught it. Sibling of CLAUDE.md's zsh word-splitting note.
->
-> **A FOURTH trap, found by the owner's ear minutes after 2.2 landed, and it is the item's own thesis
-> biting back.** I split Reid's two axes in the DECISION (`mono.h` owns re-attack-vs-legato) but left the
-> glide TIME wired to a switch whose OFF position I then ignored: classic mode never reaches `glide_to` with
-> PORTA OFF, but SINGLE/MULTI do, so they glided **125 ms with the switch reading OFF**. Reported as "some
-> kind of detuned arpy character"; the pitch track agreed exactly (mid-slide the fundamental sat at 137.7
-> then 134.1 Hz between D3 146.8 and C3 130.8 — out of tune for over 100 ms). Fixed: `glide_to` reads
-> `(porta_mode == 1) ? 0 : f_porta(porta_v)`. **SEPARATING TWO CONFLATED AXES IS NOT DONE WHEN THE DECISION
-> SPLITS — only when every CONSUMER of both axes splits too.** It also invalidated the first version of the
-> equivalence table, which had compared trigger policies at *mismatched* glide settings; re-measured at
-> matched PORTA, both equivalences hold.
-> Related, and NOT a bug: this cart's default voice is SAW 1.0 + SUB (square, exactly −1 oct) at 0.75, with
-> no LFO→pitch and TUNE centred — the "thick, two-note" quality is an octave stack, not detuning. The pitch
-> tracker locks to 146.6 Hz (saw) at D3 and 98.0 Hz (sub) at G3 on the same take, which is a neat objective
-> measure of how present that sub is.
->
-> **Budget for this on any instrument cart:** `spec.h` declares `key_down`/`key_up`, which `sh101` had owned
-> since it was written, so it could not host a spec until they became `sh_key_down`/`sh_key_up`. Already
-> documented next to the `step` trap in
-> [`spec-harness.md`](design/spec-harness.md#reserved-names--step-is-the-one-that-bites) — read that BEFORE
-> planning a spec, which would have saved the detour. Those are the natural names in every keyboard cart.
->
-> **2.3 was attempted and its PREMISE FAILED (2026-07-29), which is now the live question.** The row said
-> "prototype on PIANO, which already has the machinery" — the machinery does not work. Built
-> [`tools/inharm-spec.js`](../tools/inharm-spec.js) (partial frequencies in cents vs the ideal `n·f0`;
-> `--check` green *first*, because a broken tool and a harmonic engine print the same table) and measured
-> two defects of the same shape, *a value computed correctly and then never allowed to reach the sound*:
-> **§I4b** PIANO's dispersion chain is **inert** (allpass coefficient 0.9999948 = the identity; B ≈ 2e-6 vs
-> a real grand's ~1e-4; h16 +0.2¢ where it should be ~+22¢; GUITAR and PLUCK too), and **§I4c** the
-> `piano_stretch_freq` seam works in the **treble only** — `v->freq` is written back but `v->freq_target`
-> is not, so the glide slew undoes it, *except* that an `effLen > len` clamp ([`:4889`](../runtime/sound.h))
-> blocks the undo in the sharp direction. So PIANO ships **half a Railsback curve**: treble stretch tracks
-> the design 1:1 (measured at C5), bass stretch is gone (1/23 at C3). One-line fix, `v->freq_target = freq`.
-> Plus **§I4d**, smaller: with no stretch at all the loop still runs +1.3→+4.0¢ sharp (its own
-> uncompensated delay bookkeeping). §I4b and §I4c hid each other: the stretch exists to reconcile
-> inharmonicity, and there was none.
-> **`sound.h` was NOT changed** — every number is from the committed engine or a sweep that restored the
-> file in a `finally` block.
->
-> **§I4c is SHIPPED (2026-07-30): the one-line fix at `K=2`, and a gate that asserts the curve.** Owner
-> took the recommendation. `v->freq_target = freq` in `sound_piano_start`; `PIANO_STRETCH_K` untouched at
-> 2.0f, because the treble half has been sounding at K=2 all along so the bass now agrees with what already
-> ships. Changes nothing above B3, completes the bass (−2.6¢ at A2, ~−8¢ by A1), below the melodic JND.
-> **The gate is the durable half.** `tune-check` grew `INTENDED_DETUNE`: an engine that is *supposed* to
-> leave ET declares its curve (K parsed from `sound.h`, one source of truth). The reason it matters:
-> without the fix A2 measured **+0.0¢ against ET**, so the old check called it perfect — perfectly in tune
-> and perfectly wrong. **Then sharpened (also 2026-07-30) into a DIFFERENTIAL**, which is the version to
-> know: the stretch is now a runtime parameter, **`MODE_PIANO_STRETCH`** (`instrument_mode` idx 4, default
-> byte-identical, and a real feature — set 0 to play in unison with fixed-pitch parts), so the sweep renders
-> PIANO twice in one pass, once with it off, and asserts the DIFFERENCE against the intended curve. That
-> cancels §I4d and every other constant loop error, so nothing needs blessing: it lands within **0.08¢** at
-> every note against a ±0.6¢ tolerance, where the blessed-baseline version needed ±1.5¢ around three
-> hand-tuned numbers. Goes red again if §I4c is re-introduced, and LOCALISED — A2 off by +2.93¢ while A3/A4 pass, which
-> reads as "the bass half is missing, the treble half is fine". (It is GREEN today.) **Trap it cost: the `eng_p` bound exists TWICE**
-> (the public setter AND the `SR_ENG_TUNE` handler); widening only the setter is a silent no-op, which is
-> the same failure the setter's comment documents for idx 2/3, one layer deeper. A sixth aux param needs three edits in `sound.h` (the array width and BOTH `idx >= N` bounds) plus the
-> four-place constant registration — `lint-aux-params.js` checks all five places at once. Also deleted the `sound.h` comment claiming
-> "tune-check flags PIANO by design", which never was true and is what made a green check read as
-> confirmation. Ear pair (the `piano` cart is C4–C5 so the fix is inaudible there; this is an A1–A4
-> arpeggio + low stack): `build/ab/piano-stretch-{OFF-bass-flat-missing,ON-full-railsback}.wav`.
->
-> **§I4b STEP 1 IS DONE (2026-07-30) and it is FEASIBLE — the diagnosis changed.** Built
-> [`tools/disp-model.js`](../tools/disp-model.js), which computes what a dispersion allpass cascade does
-> to the partials **analytically** (the loop phase condition, so a root-find not a render) and solves the
-> coefficient for a target B. Validated against the engine at one point: model B 1.00e-4 / h16 +19.8¢ vs
-> measured 1.02e-4 / +19.9¢. Results: the 4-stage cascade already in the engine **can** reach a real
-> grand's B = 1e-4 at every pitch C2–C6, costing only 3–7% of the delay line, and no register runs out of
-> line. What is actually wrong is the coefficient mapping, in two ways I had not identified: **the SIGN**
-> (a positive `c` gives phase delay rising with frequency, which FLATTENS partials; stiffness needs
-> `c < 0`, and the `pt ≤ 0.9` clamp makes that unreachable by construction — which is why scaling `pt`
-> 3000× moved nothing, it was the wrong half of the space), and **the pitch dependence** (the needed |c|
-> FALLS with pitch, −0.72 at C3 to −0.09 at C6; the engine's `pt ∝ freq` moves it the other way).
-> **⚠ PROCESS RULE LEARNED THE HARD WAY: do not patch a shared `sound.h` to search a grid.** The first
-> attempt left the engine broken twice — a foreground timeout SIGTERMs node so `finally` never runs, and
-> signal handlers cannot interrupt a synchronous `execFileSync` either, while `&` made the tool report
-> "completed" while it kept holding the engine patched during another agent's render. Model the sweep;
-> patch only to confirm ONE point.
->
-> **§I4b STEP 2 WAS ATTEMPTED AND THE RECIPE IS WRONG — the compensation and the dispersion are NOT
-> separable.** Prototyped "solve `c` for a target B, then subtract the cascade's phase delay from the
-> line" and it does not produce a stiff string: measured B overshoots the target 9–14× and the
-> `inharm-spec` **fit residual explodes to 48–96¢**, i.e. the partials are scattered rather than
-> stretched. Calibrating the compensation empirically brings one note into tune but not others (A2 in
-> tune while A3 sits 129¢ sharp). Shortening the line raises the dispersion's effect relative to the loop,
-> so `c` and `L` are a coupled system and `solveDesign`'s 3-step fixed point is the wrong formulation.
-> **TWO RULES FOR THE NEXT ATTEMPT:** (1) the acceptance criterion MUST include the fit **residual**, not
-> just B and pitch — every broken attempt hit a plausible B while sounding like a scattered metallic mess;
-> (2) the uncompensated validated point (2 stages, `c = −0.7770`) had a residual of 1.2¢, so the structure
-> is right until the compensation touches it.
-> **⚠ THE EAR PAIR WAS CONFOUNDED AND THE OWNER'S EAR CAUGHT IT — do not re-run a timbre A/B yet.**
-> Reported untrained and without seeing numbers: *"B sounds like the sustain pedal is pressed, it dies out
-> earlier"*. `wav-envelope` confirms it hard: the dispersed take is **11 dB down by 0.26 s and 19 dB down
-> by 1.3 s**, so the pair's dominant audible difference is DECAY, not inharmonicity. My failure: I checked
-> peak and rms, saw rms 4.6 dB low, and flagged it as a level caveat instead of recognising a different
-> decay CURVE, which a level caveat does not cover. **Run `wav-envelope` on any A/B pair before handing it
-> over, not just the level numbers.** The finding underneath is bigger: a real stiff string rings for
-> seconds, so losing sustain means energy is leaving the loop — a first-order allpass is lossless in
-> theory, so suspect its interaction with the averaging/brightness filter and `effDamp`. B's centroid also
-> RISES as it decays (1026 → 1656 Hz), backwards for a struck string. **So §I4b has a THIRD open question:
-> does dispersion in this loop cost sustain, and why.** Answer that before any further ear test.
-> The pair itself, for reference: rather than ship a broken compensation it uses the
-> *uncompensated* validated config pitch-matched with `instrument_tune`, so it compares TIMBRE at one
-> pitch. `build/ab/piano-inharm-{A-OFF-today,B-real-stiff-string}.wav`, both within ~1¢ of pitch, B 1.7e-6
-> vs 2.2e-4, h8 +0.3¢ vs +17.1¢, residual 3.8¢. Caveats: B is ~2× a typical grand (deliberately audible),
-> and the takes differ 4.6 dB in **rms** (peak within 0.8 dB) because the stiff one decays faster — the
-> stiff take is the QUIETER one, so check a verdict against loudness. No musical phrase yet; a phrase
-> needs the per-note compensation that does not work.
->
-> **✅ RESOLVED (2026-07-30) — step 2 WORKS and the step-1 recipe was right all along.** Both failures
-> above were mine, in the test rig, not in the physics. **(a) `instrument_tune` DAMPS a Karplus-Strong
-> string** — it shifts pitch through the per-sample `effLen = len/ratio` path, so `ratio ≠ 1` forces
-> fractional interpolation every sample, a lowpass inside the feedback loop. Measured at +0.97st on PIANO:
-> h2 decay −9.1 → −53.5 dB/s, **6× faster**. Applies to PLUCK/GUITAR/PIANO, was undocumented, and means
-> **never pitch-match a KS A/B with `instrument_tune`** — compensate at note-on where `ratio` stays 1.
-> Dispersion itself costs NO sustain (it sustains slightly better than today). **(b) The compensation must
-> reach EVERY delay line in the voice**: `ideal2` (the grand/bright second string) is computed
-> independently at `sound.h:4862`, so compensating only `ideal` left string 2 ~80¢ flat of string 1 —
-> *that* was the "scattered partials". Compensate both and it lands: **f0 −0.2¢, B 1.13e-4, residual 1.4¢,
-> h4 +2.3 / h8 +8.1 / h16 +22.2¢, decay matched to today.** Note the trap generalises: the voicings that
-> expose it (`grand`, `bright`) are the only ones with two strings — harpsi/clavichord/celesta have
-> `detune 1.0`, so this bug is INVISIBLE unless you test grand.
-> **Clean ear pair, comparable this time** (peak within 0.1 dB, brightness 0.144 vs 0.140, decay curves
-> tracking): `build/ab/piano-inharm-{A-OFF-today,B-real-stiff-string}.wav`. **Rule earned twice: run
-> `wav-envelope` on both takes before calling anything an A/B** — comparability is a property of the
-> envelope, not of peak and rms.
->
-> **OWNER'S VERDICT (2026-07-30): B (the stiff string) WINS, but weakly — *"very subtle, hard to explain
-> the difference, I feel I like B better."*** Green light to continue, not a mandate to default it. The
-> subtlety is expected: a single mid note is the weakest case for inharmonicity, whose payoff is in the
-> BASS and in CHORDS/intervals where stretched partials of different notes beat (the whole reason the
-> Railsback stretch exists). **A phrase is now renderable at last** — it was not before the compensation
-> worked — so the next ear test is a bass passage plus a chord.
-> **Also settled by owner request: inharmonicity MUST be swappable, with "perfectly harmonic" reachable.**
-> Same idiom as `MODE_PIANO_STRETCH`: `0` = pure harmonic (= today's sound, so backward compat is free),
-> `0.5` = the voicing's baked amount, `1` = double; per-voicing amount from the existing
-> `PianoVoicing.stiff`. It is a correctness requirement too, not a convenience — a compile-time constant
-> cannot be A/B'd by a gate, which is half of why §I4b/§I4c hid. ⚠ `eng_p[]` is now FULL (0–4), so index 5
-> means widening the array AND both `idx >= N` bounds AND the four-place registration — **build the bounds
-> lint first**.
->
-> **✅ SHIPPED 2026-07-30 on the verdict *"B is clearly better in the chords, let's ship it"*:
-> `MODE_PIANO_STIFF`** (`instrument_mode` idx 5) — `0` = a perfectly harmonic string, `0.5` = the voicing's
-> own amount, `1` = double; target B scales from `PianoVoicing.stiff`, calibrated so the grand at centre
-> lands on **1.1e-4**, the value the ear approved. `pn_solve_dispersion()` solves the coefficient from the
-> delay DROP between the fundamental and a reference partial — one scalar equation, MONOTONE in c, 28
-> bisection steps at note-on. **Do not replace it with a direct fit of B over many partials: not monotone
-> at strong coefficients, an earlier attempt overshot 46×.** Compensation goes into `ideal` AND `ideal2`.
-> Measured: pitch does NOT move across knob settings (A1 −9.5¢ / C3 −1.0¢ / C4 +1.7¢ at 0, 0.5 and 1.0), B
-> 2.4e-6 → 1.1e-4 → 2.5e-4, h8 +0.3 → +8.1 → +17.8¢. Knob 0 is measured-equivalent to the old engine but
-> **not byte-identical** (the old near-identity allpasses are now skipped entirely).
-> **⚠ TRAP IT EXPOSED: YIN cannot track an inharmonic string.** A stiff string is non-periodic, so
-> autocorrelation locks onto a shorter lag pulled by the stretched partials — PIANO read **+26.1¢ sharp at
-> A2, confidence 0.65**, while a spectral-peak measurement of the same render was exact. `tunecheck.c` now
-> sets `MODE_PIANO_STIFF 0` for both PIANO passes so the tuning sweep and the stretch differential measure
-> what they are for; `inharm-spec` (Goertzel) is the oracle for the dispersion itself.
-> **New gate: `tools/lint-aux-params.js`** — the aux-param width lives in FIVE places and missing one makes
-> a parameter silently inert. Proven red on the real bug. Also: the `piano` cart has a `stiff` slider, its
-> knob indices are now a NAMED ENUM (inserting mid-list would have cross-wired decay→knock, the exact
-> CLAUDE.md trap), and a pre-existing bug surfaced — the tuning row's bars were drawn dark-grey on
-> dark-grey, so decay/knock/velo had ALWAYS been invisible unless selected (`ui-audit` cannot see low
-> contrast; read the baked frame).
+> **The full record is in the plan, not here.** ~400 lines of settled narrative lived in this lane until
+> 2026-07-30 and were deleted after a block-by-block check confirmed every one is already in
+> [`synth-secrets-plan.md`](design/synth-secrets-plan.md), usually with more tables and more numbers.
+> Phase 0 + Phase 1 (7/7), items 2.1 / 2.2 / 2.3(a), the 2.3(b) DROP, the two PIANO defects, the four
+> oracles and every measurement table: all there, and ledgered in [`STATUS.md`](STATUS.md). This lane
+> now holds only what you need to *resume*.
 >
 > **Resume-at — the live queue, most-ready first.**
 >
@@ -520,16 +121,19 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 >
 > Full write-ups, every table, and the cold-start reproduction recipes →
 > [`design/synth-secrets-plan.md` §2.3(a)](design/synth-secrets-plan.md#the-premise-failed-three-defects-found-by-measuring-first-2026-07-29).
-> **Orienting cold on this thread:** `node tools/orient.js` for the repo, then read plan §1 (the gate + the
-> A/B protocol), §2 (the add-vs-change ladder) and §4 (Phase 1, incl. the three finished write-ups). The
-> audit is reference only — never add work items to it, only ✅ verdict banners pointing back at the plan.
-> The owner's standing constraints for this thread: **small steps**, **every engine change must have a cart
-> where you can hear it**, and **nothing is skipped** — an item that turns out not to be worth doing gets a
-> recorded DROP with its measurement, not silence.
-> ⚠ Two process traps already hit: `ui-audit` passes **low-contrast** text (it only catches off-screen and
-> overlapping), so read the baked PNG; and `--run` bakes only the thumbnail, so **re-embed after every
+>
+> **Orienting cold:** `node tools/orient.js`, then plan §1 (the four gate kinds, the A/B protocol, and the
+> owner's standing constraints), §2 (the add-vs-change ladder), §4 (Phase 1, all seven write-ups), and
+> §5 (Phase 2, where the live work is). The audit is reference only — never add work items to it, only
+> ✅ verdict banners pointing back at the plan.
+> **Two process traps already hit:** `ui-audit` passes **low-contrast** text (it only catches off-screen
+> and overlapping), so read the baked PNG; and `--run` bakes only the thumbnail, so **re-embed after every
 > source edit** or the pre-commit hook will (correctly) reject a stale `.cart.png`.
-
+>
+> **Hot files** (several agents share this tree): `runtime/sound.h` — targeted `Edit`s only, never a
+> full-file `Write`, and confirm your change survived the commit (`git show HEAD:runtime/sound.h | grep`).
+> Also `runtime/studio.h`, `editor/src/studioDocs.js`, `editor/src/shell.js` (the four-place API
+> registration), `tools/tune-check.js` + `tools/carts/tunecheck.c`, and `tools/carts/piano.c`/`bowed.c`.
 > **▶ ACTIVE THREAD (2026-07-26) — the CONTEMPORARY ReBirth: rungs A+B shipped, the PSOLA artifact hunt PARKED behind a new gate, amapiano next.**
 > The post-hardware rack: ReBirth cloned unobtainable *machines*, but modern genres were never made on
 > gear, so a contemporary version clones **techniques** (the glide, the ratchet, hard tune, the

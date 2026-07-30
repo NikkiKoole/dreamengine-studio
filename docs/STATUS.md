@@ -418,6 +418,43 @@ never cart-authorable, the generative beat-clock path won;
 
 ---
 
+### The numbered items that landed *(consolidated 2026-07-30)*
+
+These were filed as numbered `## Open` items and are **done**. They sat in Open for weeks to months
+after shipping — 20 of 53 numbered items, so the backlog advertised roughly **38% more open work than
+existed**. That is the single thing this file was getting most wrong.
+
+**They keep their numbers.** ~30 `STATUS #N` references across docs, `tune-check.js`, `sound.h` and
+~10 cart sources resolve today, so a number is an address: it is recorded here, never reused, never
+renumbered. Nine of these also left a genuinely-open remainder, which stays in `## Open` under the
+same number — marked **tail → item N** below.
+
+Detail lives in the linked design doc in every case; that is where it was always written.
+
+| # | what landed | when | detail |
+|---|---|---|---|
+| **2** | **2D geometry helpers** — `ngon`/`star`/`poly`/`thickline`/`rrect`/`vgradient` + the outline siblings, so every filled shape has a matching boundary ring | 2026-06-04 | [geometry-helpers.md](design/geometry-helpers.md) (which also holds the parked `lerp_color` question) |
+| **4** | **Pause overlay v1** — P/ENTER opens, ESC resumes, freezes `update()`, mutes sound, Continue/Restart, `paused()`; plus the 06-05 hardening (key claiming so a full-keyboard cart keeps P, `-DPAUSE_KEY` actually honored, ENTER no longer self-cancelling) | 2026-06-05 | [api-notes.md](design/api-notes.md) §16 · **tail → item 4** |
+| **5** | **The whole sound build-out** — instrument bank (ADSR/duty/LFO/filter), held notes (`note_on`/`note_off` + live setters + slew), modulation envelopes, and all **14 modeled engines** PLUCK → BRASS | 2026-06-05 → 06-10 | [instrument-engines.md](design/instrument-engines.md) §8 · **tail → item 5** |
+| **10** | **Browser URL-sharing** — the whole catalog | 2026-06-05 | [sharing.md](guides/sharing.md) |
+| **14** | **Rasterization consistency** — every filled primitive on one pixel-centre coverage path (outline == boundary of fill), plus the off-screen **bbox clamp** that turned a 46.7 ms worst case into 2.7 ms | 2026-06-01/02 | [rasterization-consistency.md](design/rasterization-consistency.md) · **tail → item 14** |
+| **15** | **Tiny fonts** — `font(FONT_SMALL)` / `font(FONT_TINY)` | 2026-06-01 | [font-rendering.md](design/font-rendering.md) |
+| **20** | **TB-303 bassline cart** — non-refiring `note_glide` slides, accent, staccato gate, live CUT/RES on the ringing voice, piano roll with OCT/ACC/SLD rows | 2026-06-05 | the `tb303` cart · [rebirth-classic.md](design/rebirth-classic.md) |
+| **24** | **Web phantom touch point** — own the touch truth on web (a JS mirror rebuilt from `event.touches`), plus the same-day **tap-as-mouse death** sequel (synthesize the mouse from the touch mirror once a real touch is seen) | 2026-06-06 | [touch-notes.md](design/touch-notes.md) §7–8 |
+| **25** | **`ui.h` v1** — button / slider / knob across mouse + touch + keyboard/gamepad at once: per-contact capture, deferred press resolution, hit-pad inflation, opt-in focus ring | 2026-06-07 | [ui-widgets-notes.md](design/ui-widgets-notes.md) · **tail → item 25** |
+| **27** | **Web debug overlay v1** — `?debug=1` or triple-tap the top-left corner: live touch rings, a console mirror, `onerror` lines, fps, the device touch ceiling | 2026-06-07 | [mobile-web-notes.md](design/mobile-web-notes.md) §6d · **tail → item 27** |
+| **28** | **Library headers findable** — the read-only engine-source viewer moved out of its code-tab overlay into the docs tab as an "engine source" group; cmd-clicking an `#include` opens the same view | 2026-06-07 | `editor/src/navigate.js` · **tail → item 28** |
+| **36** | **modrack MACRO reaches all 14 modeled engines** — `SOUND_INSTR_SLOTS` 32→48 so the 8 unreachable engines got dedicated slots (`eng` knob 0..13); Bandito reworked to MEMBRANE bongos, new BOWED Chamber preset | 2026-06-15 | [instrument-engines.md](design/instrument-engines.md) |
+| **37** | **Polyphony `SOUND_VOICES` 16 → 32** (+ the coupled `SOUND_HANDLE_BITS` 4→5) | 2026-06-15 | [audio-notes.md](design/audio-notes.md) §15 — which now carries the RAM/CPU analysis |
+| **39** | **One `LFO_SHAPE_*` enum across every LFO site** — voice LFOs, `tremolo`/`autopan`, `fx_lfo`, all through one `lfo_wave`/`lfo_eval` dispatcher; SINE stays byte-identical | 2026-06-15 | [decision 0018](decisions/0018-effects-keep-params-but-become-modulatable.md) |
+| **41** | **Waveguide engines can bend pitch DOWN** — BRASS / REED / PIPE / BOWED (each had sized its delay line at the note-on pitch and clamped the read length to it) | 2026-06-16 | [waveguide-bend-handoff.md](design/waveguide-bend-handoff.md) · **tail → item 41** |
+| **45** | **Attach-profile the running cart at its current state** — no cold respawn; an always-present editor `Debug` menu listing every running cart, plus a cart-lifetime `⌘⇧P` | 2026-07-10 | [cart-os.md](design/cart-os.md) · **tail → item 45** |
+| **46** | **The editor cart-browser surfaces the `de:meta` facets** | 2026-06-29 | [cart-metadata.md](design/cart-metadata.md) |
+| **49** | **`de_switch_cart()` + the per-cart sound context** — the umbrella-app seam that makes a multi-cart binary possible | 2026-07-03 | [share-panel.md](design/share-panel.md) · [decision 0027](decisions/0027-sound-state-flows-through-the-request-queue.md) |
+| **50** | **The flight recorder v1** — always-on deterministic session capture | 2026-07-10 | [flight-recorder.md](design/flight-recorder.md) |
+| **51** | **Cart COLLECTIONS** — doc-anchored cross-cutting threads; 62 carts tagged across radio(35)/road(9)/tinyjam(7)/physics(7)/responsive(4)/device-face(3) | 2026-07-14 | [cart-metadata.md](design/cart-metadata.md#collection-doc-anchored-cross-cutting-threads) · **tail → item 51** |
+
+
 ## Open — prioritized
 
 > ### ✅ FIXED — `piano`'s two dead sliders were one bound in the engine (and the bug class remains)
@@ -467,129 +504,41 @@ their `kind[]` tags.
      `explode()` risks making all carts look identical (same concern that killed `hud()`).
      Needs design work on color, shape, lifetime, and movement params first.
      See particle survey + open questions in [`design/api-notes.md`](design/api-notes.md) §C.
-2. ~~**2D geometry helpers**~~ — **SHIPPED** as `ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, `thickline`, `rrect`/`rrectfill`, `vgradient`/`hgradient` (+ outline siblings `arcoutline`/`ringoutline`/`thicklineoutline` so every filled shape has a matching boundary-ring outline). Demo: `shapes.cart.png`. See [`design/geometry-helpers.md`](design/geometry-helpers.md).
-   - *Parked thought (not a build item):* true smooth color interpolation (`lerp_color`/`rgb`) — splits the color model; needs its own ADR. Gradients are dithered.
-   - ~~**BUG: `vgradient` renders INVERTED.**~~ **FIXED 2026-06-04** — swapped color roles in `gradient_band()` (`fillp(pat, cb); rectfill(..., ca)`). Thumbnails re-baked for trafficjam, loveparade, loopstation, shapes.
 3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
    surfaced by the brainstorm review). Touches main-loop drain semantics.
    [`design/api-notes.md`](design/api-notes.md) §11.
-4. **Pause** — runtime-owned pause overlay. (`fps()` SHIPPED — see Shipped above.)
+4. **Pause — the Options submenu + `menuitem()`** *(v1 shipped 2026-06-05, see the landed table)*.
+   What's left of the pause work:
+   - **Options submenu**, matching PICO-8's pause → Options: Sound ON/OFF · Volume · Fullscreen
+     (one `ToggleFullscreen()`) · Controls (read-only display of the current P1/P2 bindings —
+     rebinding stays in the editor settings tab) · Back.
+   - **`menuitem(index, label, callback)`** — let a cart add its own rows ("restart level", "toggle
+     music", "easy mode") to the pause menu, zero layout work for the cart. **~30 carts currently
+     hand-roll their own options screen**, which is the actual argument for this.
+   - **Per-player pause key** — one shared `PAUSE_KEY` today. When gamepad support (item 7) lands,
+     each player wants their own (`P0_PAUSE_KEY`/`P1_PAUSE_KEY`, same `-D` pattern as the other
+     bindings). The architecture already supports it; it just isn't exposed.
    [`design/api-notes.md`](design/api-notes.md) §16.
 
-   **First pass — SHIPPED** (P/ENTER opens, ESC resumes, freezes `update()`,
-   mutes sound, Continue/Restart via `execv`, `paused()` API).
-   **2026-06-05 hardening** (sh101's full keyboard collided with P):
-   - **Key claiming** — a key the cart reads via `key()/keyp()/keyr()` is
-     claimed and skipped by the pause hotkey; claims reset on libtcc hot-reload.
-     A full-keyboard cart keeps P; ENTER still pauses everything.
-   - `-DPAUSE_KEY` (settings → controls) is honored now — the check was
-     hardcoded `KEY_P`, so the rebind never worked.
-   - ENTER can actually open the overlay — the menu used to consume the same
-     press as Continue in the same frame, net no-op.
+5. **Sound expansion — what's left after the engines** *(the bank, held notes, mod envelopes and
+   all 14 modeled engines shipped 2026-06-05 → 06-10; see the landed table)*. The remaining work:
+   - **Zero-setup preset instruments** (`INSTR_PLUCK`/`PAD`/… as ready-made voices, no macro fiddling).
+   - **Cart-side SFX authoring** — the `sfx` bank is hardcoded today. *Direction (2026-06-04):
+     prototype as a PICO-8-style editor CART first* (draw the pitch contour, toggle per step) with
+     **zero new engine API** — `hit()`/`schedule()` + the beat clock for playback, `save_bytes` for
+     persistence, export-as-C into games. `sfx_def()` only if the prototype proves the engine should
+     own banks. *Pattern* authoring is settled-no ([decision 0013](decisions/0013-cut-music-api.md)
+     cut `music()`). See [`design/audio-notes.md`](design/audio-notes.md) §5.6.
+   - **Next engine layer: formant + effects.** Additive stays deferred (`INSTR_SINE` + FM + MALLET
+     cover its near corners; the MT70 family is its first named customer).
+   🅿️ **PARKED — revisit when the effects-bus layer lands:** the per-voice wah (epiano AUTO/TOUCH)
+   and the **envelope follower** (`instrument_follow`/`note_follow`) are *interim*. The realistic
+   "woah woah" auto-wah is a BUS effect and will likely replace them; the follower's real home is
+   bus-level. Kept because they may be handy, flagged so nothing more gets built on them — when
+   [`design/instrument-engines.md`](design/instrument-engines.md) §8.10 is built, decide whether to
+   fold them into the bus wah or remove them.
+   ⚠️ This touches `runtime/sound.h`/`studio.c` — hot shared files; sync before starting.
 
-   **Deferred — Options submenu (document now, build later):**
-   Matches PICO-8's pause → Options screen:
-   - Sound: ON/OFF
-   - Volume: slider/bar
-   - Fullscreen: OFF/ON (one `ToggleFullscreen()` call)
-   - Controls: read-only display of current P1/P2 key bindings (rebinding stays in
-     the editor settings tab)
-   - Back
-
-   **Further deferred:**
-   - **Per-player pause key** — currently one shared `PAUSE_KEY` for both players.
-     When gamepad support lands, each player should have their own pause button
-     (P0_PAUSE_KEY / P1_PAUSE_KEY, same `-D` flag pattern as the other bindings).
-     The architecture already supports it — just not exposed in the UI yet.
-   - **`menuitem(index, label, callback)`** — let carts add custom rows ("restart
-     level", "toggle music", "easy mode") to the pause menu. Zero layout work for
-     the cart; ~30 carts currently hand-roll their own options screens.
-5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) and **held notes**
-   (`note_on`/`note_off` + live setters + slew) now SHIPPED, see above._
-   **NEXT (decided 2026-06-03, built BEFORE the engines): modulation envelopes** — a second/third
-   envelope generator routed to a destination, the one-shot twin of the routable LFO. One call
-   `instrument_env(slot, which, dest, attack_ms, decay_ms, amount)` (+ live `note_env`), **2 dests
-   to ship** — `ENV_CUTOFF` (the pluck "pew/dwow") and `ENV_PITCH` (drum punch / attack snap / zap;
-   `ENV_DUTY` optional) — **2 env slots** so both run at once, **AD shape, exp decay**. Deliberately
-   no `ENV_VOLUME` (= the amp ADSR). This was the missing second EG; doing it first makes every
-   engine + raw wave better and frees the pluck `morph` knob to be *inharmonicity* instead of
-   filter-decay. Demo carts: `pitchenv`, `filterenv`. Spec: [`design/audio-notes.md`](design/audio-notes.md) **§11**.
-   Then, behind it: the **navkit rich-instrument port** (rich non-chiptune voices as `INSTR_*`
-   engines, each played behind a tiny fixed 3-macro API: harmonics/timbre/morph, §8.1.1 — all
-   §8.x refs here = [`design/instrument-engines.md`](design/instrument-engines.md), split out of
-   audio-notes 2026-06-07, numbering preserved).
-   The bite order (instrument-engines §8 status note + §8.8 port sketch):
-     1. ~~**`INSTR_PLUCK`** (Karplus-Strong)~~ **SHIPPED 2026-06-05** — per-voice KS buffer (§8.2)
-        made concrete, full macro surface, `pluck` showcase cart. Station retrofit (jangle/bossa)
-        is the open follow-up.
-     2. ~~**`INSTR_MALLET`** — buffer-free celesta / music-box voice.~~ **SHIPPED 2026-06-05** —
-        4 modal sines + strike click, no buffer, `mallet` showcase cart (5 hardware presets =
-        baked macro positions). First full walk of the §8.8.2 engine-shipping playbook. Open
-        tail: macro taste-tuning + the lowend vibraphone retrofit.
-     3. ~~**`INSTR_FM`** — 2-op + feedback, buffer-free (§12 gap **2a** only — the self-contained
-        engine, NOT the deferred Juno second-osc plumbing, gap 2b). Promoted ahead of the organ
-        2026-06-05: epiano/bell demand is already on the dial.~~ **SHIPPED 2026-06-05** —
-        snapped ratio table, in-note brightness decay (the DX strike), feedback morph; `fm`
-        showcase cart (epiano/bell/bass/brass/clang presets + a live formula scope). Design:
-        instrument-engines §8.8.3. The two named risks both resolved same-day (§8.8.3
-        post-ship findings): epiano tine added → nameplate test PASSED; brass fixed by
-        making brightness follow the amp attack. Open tail: plain taste-tuning + the
-        citypop/lowend epiano retrofits.
-     4. ~~**`INSTR_ORGAN`**~~ **SHIPPED + PUBLISHED 2026-06-07** — Hammond tonewheel, 9 drawbar
-        additive, `organ` showcase cart (full design instrument-engines §8.8.4). Post-ship: a
-        drive-fizz fix (pre-drive HF rolloff) and the shared per-voice **DC blocker** on the drive
-        path both landed. Leslie stays a per-voice recipe / future bus item (0015, §8.10).
-     5. ~~**`INSTR_EPIANO`**~~ **SHIPPED + PUBLISHED 2026-06-08** — Rhodes/Wurli/Clav, 12-mode modal
-        bank + pickup nonlinearity, `epiano` showcase (§8.8.5). Post-ship tuning (by ear + the
-        navkit-render A/B, tools/navkit-render.c): **timbre** given a hammer-hardness tilt so it bites
-        on all 3, **bark** folds in drive (clean→growl), clav has a fast filter-env quack. **Rhodes
-        rebuilt from MEASURED spectra (2026-06-08, second pass)** — the by-ear body/bell split (old
-        `RHO_*` consts) still left a loud sustained inharmonic 4.2× partial that read as an "untuned
-        bell"; FFT of our own render confirmed it. Replaced `RAT[0]` with the real structure
-        (harmonic body 1-6 + sparse fast inharmonic tine bells 6.27×/17.55×/34.4×) + per-mode `DEC_R`
-        + a 2nd-harmonic "voicing" crossfade (Shear 2011 / Münster & Pfeifle 2020), FFT-verified.
-        Added a **tremolo** slider (suitcase/Wurli amp wobble). **Wurli** then got its own A/B pass
-        (2026-06-09): boosted the OCTAVE partials (2,4,8,16) over the reedy 3rd — the 200A's
-        fuller/punchier tone (Reed200 spectral-model crib), FFT-checked + ear-confirmed. **Clav** is
-        still the navkit crib (a near-harmonic struck string — plausible, but not reference-validated
-        like Rhodes/Wurli; candidate for a future pass). The per-voice **wah is provisional** (flagged TEMP! in-cart)
-        — the real auto-wah is a bus effect (§8.10). 🅿️ see PARKED below.
-     7. ~~**`INSTR_MEMBRANE`**~~ **SHIPPED 2026-06-08** — struck drumhead, 6 modal sines, buffer-free,
-        `tabla` showcase (5 kit presets + drumhead viz). Ported from navkit's `processMembraneOscillator`
-        with its live circular-membrane strike-position weighting (timbre) and monotonic pitch-bend chirp
-        (morph); the one deviation — harmonics also crossfades the *ratios* tuned-harmonic↔Bessel (tabla
-        really is harmonic), not just the amps. Hand percussion the 808/909 sine+pitch-env can't reach
-        (instrument-engines §8.5 step 8). (PD shipped separately, item 6.)
-     ~~Next: reed → pipe → buffered piano/guitar pair → bowed~~ **ALL SHIPPED 2026-06-09** — the full
-     wind + string families are done (`INSTR_BOWED` = violin/cello, arco *and* pizzicato from one
-     waveguide; the modeled string family pluck→guitar→piano→bowed is complete). **And `INSTR_BRASS`
-     (29) SHIPPED 2026-06-10** — the lip-reed brass family (trumpet→tuba), the LAST engine-blocked
-     instrument; STEP-0 found the literal lip mass-spring won't self-oscillate, so it's reed's
-     pressure valve + a dynamics-swept brass formant (the blatty "blaaat"); showcase = the `brass`
-     cart's trombone slide (§8.8.10). Now **no instrument is engine-blocked.** Next:
-     **formant + effects layer.** Additive stays deferred
-     (`INSTR_SINE` + FM + MALLET cover its near corners; the MT70 family is its first named customer).
-   The **MT70 finding, corrected 2026-06-07** (the 2026-06-03 "all one pure sine" verdict was a
-   verification artifact — the songs' `osc2*` fields sit ~50 lines into each block and are
-   non-zero): the presets are **2–3 mixed sines with per-partial decay + click** — small
-   additive. Conclusion unchanged, better reasons: *no engine port* — the struck half is
-   `INSTR_MALLET` territory, exact = 2-slot voice stacking, single-voice ≈ SCW + closing
-   `ENV_CUTOFF`; ships as demo/preset carts (instrument-engines §8.9 corrected note).
-   Also still open: zero-setup **preset instruments** (`INSTR_PLUCK`/`PAD`/…) and cart-side
-   **SFX authoring** (the sfx bank is hardcoded today; *pattern* authoring is settled-no —
-   `music()` cut, [decision 0013](decisions/0013-cut-music-api.md)) — *direction 2026-06-04: prototype
-   as a PICO-8-style editor CART first (draw the pitch contour, toggle per step), zero new
-   engine API — hit()/schedule() + beat clock for playback, save_bytes for persistence,
-   export-as-C-code into games; `sfx_def()` only if the prototype proves the engine should
-   own banks. See audio-notes §5.6 direction note.*
-   ⚠️ The port touches `runtime/sound.h`/`studio.c` — shared with the live/libtcc runtime work;
-   sync before starting. [`design/audio-notes.md`](design/audio-notes.md) §5–8, [`design/held-notes.md`](design/held-notes.md).
-   🅿️ **PARKED — revisit when the effects-bus layer (instrument-engines §8.10) lands:** the
-   per-voice wah (epiano AUTO/TOUCH flavours) and the **envelope follower** (`instrument_follow`/
-   `note_follow`) are *interim* — the realistic "woah woah" auto-wah is a BUS effect and will
-   likely replace them; the follower's real home is bus-level. Kept (may be handy) but flagged so
-   we don't build more on them. When §8.10 is built: reassess whether to fold these into the bus
-   wah or remove. Full context: [`design/instrument-engines.md`](design/instrument-engines.md) → §8.10.1 PARKED.
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
 7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.
@@ -605,11 +554,6 @@ their `kind[]` tags.
 9. **Per-game polish pass** — title/game-over screens, hi-scores, sound on every event,
    juice, difficulty curves, readable HUDs. (Reframed as a reference idea bank, not an
    active backlog — see [`POLISH_TODO.md`](POLISH_TODO.md).)
-10. ~~**Browser URL-sharing**~~ — **SHIPPED** (2026-06-05, eleventh pass): the whole catalog
-   is playable at <https://nikkikoole.github.io/dreamengine/> (545 carts), publish is one
-   command (`tools/publish-cart.sh`) or the editor's 🚀 button. The guide's "what's missing
-   is a URL" is resolved — [`guides/sharing.md`](guides/sharing.md) carries the SHIPPED
-   banner. *(Struck 2026-06-07 — the item lagged the eleventh-pass ship by two days.)*
 11. **iPad runtime** — touch is wired in the runtime; needs a build path. [`VISION.md`](VISION.md).
     *Product lens (2026-06-07):* if the tinyjam racks become a paid product, this item is
     the cash register — iOS is where music-app buyers live. Deliberately **waits for
@@ -639,54 +583,17 @@ their `kind[]` tags.
       and stamp — the offscreen canvas, the rotation cache, and runtime sprite editing are then
       the *same feature*, not three. Worth designing the buffer primitive first; the rotation
       atlas becomes one use of it. (Still index-only — no RGB/alpha, unlike Picotron's userdata.)
-14. **Rasterization consistency** *(SHIPPED — every filled primitive on one coverage path)* —
-    every filled primitive now shares one pixel-center coverage definition, so the outline is
-    exactly the boundary of the fill (no rasterizer drift, dither = solid path):
-    `rect`, `circ`/`oval`/`rrect` via `disc_inside`/`ellipse_inside`/`rrect_inside`;
-    `tri`/`trifill`, `quadfill`, `ngon`/`star`/`poly` via even-odd `poly_inside` (concave-safe,
-    winding-independent; `trifill_pat` deleted); `arc`/`arcfill`/`ring` via `sector_fill` (same
-    pixel-centre disc); `thickline` via a capsule coverage (was `quadfill`+caps — the test found
-    a 1px seam crack from a `w*0.5` body vs `w/2` cap mismatch). `trifill` is now CPU per-pixel —
-    3D carts (`solid3d`/`cube3d`) smoke-tested OK; solid3d's face hairlines gone.
-    Detector rewritten to a global invariant (outline == boundary of `fill ∪ outline`): catches
-    a 1px offset at any angle, never false-flags sharp tips; verified to have teeth (GPU tris →
-    282). Open strokes verified by a 4th-page equivalence self-test (ring==annulus, sector-tiling
-    ==disc, thickline solid). Verified: all 11 marker states (3 pages × 4) + 3 equivalence checks
-    = 0.
-    **Still open (verification, not design):** ~~perf of CPU `trifill` vs old GPU~~ **measured
-    (2026-06-01, `podracer`): the cost is real.** CPU `trifill` froze podracer when its haze
-    spammed ~190 large software-filled tris/frame; fixed cart-side by moving bulk fills to GPU
-    (`rectfill`/`line`). **Off-screen bbox clamp — SHIPPED (2026-06-02).** `poly_fill_cov`/
-    `poly_stroke_cov` now intersect their scan box with the on-screen region before scanning,
-    mapped through the camera (`GetScreenToWorld2D` on the four screen corners → conservative
-    AABB, so translate/zoom/rotation are all correct and the image is byte-identical). Huge
-    off-screen tris no longer iterate their full bbox doing point-in-poly tests on cells that
-    plot nothing. Verified output-identical: `raster_test` reports `mismatches:"0"` on all 46
-    analyse frames + `eq total=0`.
-    **It's a performance-cliff guard, not a general speedup** — the cost of a software polygon
-    now scales with its *visible* area, not its *total* area. The effect tracks how far a
-    poly spills off-screen, so it ranges from huge to nil (all measured with the profiler):
-    - `trifill_stress` (synthetic: 12 thin spokes reaching ~1100px off-screen) — **46.7 →
-      2.7ms/frame (~17×), ~21fps → 60fps.** This is the worst-case win, not a typical one.
-    - `solid3d` (real 3D, model fits the screen so faces only spill a little) — 3.18 → 3.02ms
-      avg (~5%), 4.6 → 3.9ms **peak (~15%)**. Modest; the gain is on the frames a face is
-      largest.
-    - `podracer` — **no effect** (0.81 → 0.75ms, noise): it draws zero software polys (haze
-      already on GPU `tritex`/`line`/`rectfill`), so there's nothing on this path to clamp.
-    Takeaway: existing well-behaved carts don't get visibly faster; the value is that a future
-    cart flying the camera into a `quadfill`/`trifill` surface degrades gracefully instead of
-    freezing (the cliff `podracer`'s author had to hand-work-around). *Per-call overhead* is 4
-    `GetScreenToWorld2D` (a matrix inverse) — negligible at observed call counts (solid3d got
-    faster, not slower); if a cart ever draws thousands of tiny on-screen polys/frame, cache
-    the clamp box once per frame (invalidate in `camera()`/`camera_ex()`) instead of per-call.
-    Still open: web GL ES confirmation (`pget` disabled on web); an ADR for the GPU→CPU
-    `tri`/`trifill` + `thickline` behaviour change.
-    **Regression tests** (`raster_test` for the pixels, `trifill_stress` for the clamp's budget) —
-    runnable commands + pass criteria moved 2026-07-30 to
-    [`guides/checks-and-oracles.md`](guides/checks-and-oracles.md), the task→gate index where
-    someone touching a rasterizer actually looks.
-    [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
-15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
+14. **Rasterization consistency — the two verification leftovers** *(the coverage-path unification
+    and the off-screen bbox clamp both shipped 2026-06-01/02; see the landed table)*. Neither of
+    these is design work:
+    - **Web GL ES confirmation** — the invariant detector uses `pget`, which is disabled on web, so
+      the whole coverage path is unverified on the wasm build.
+    - **An ADR** for the GPU→CPU behaviour change in `tri`/`trifill`/`thickline`. It was a real
+      semantics shift (software per-pixel fills, so cost now scales with *visible* area) and it has
+      no decision record.
+    [`design/rasterization-consistency.md`](design/rasterization-consistency.md); the regression
+    commands are in [`guides/checks-and-oracles.md`](guides/checks-and-oracles.md).
+
 16. **Packaging & public distribution** *(not started)* — dreamengine only runs as a dev
     build today. A dev-only icon + app name stopgap landed this session (the running app was
     a generic "Electron"); real packaging (bundler, `.icns`, code-signing/notarization, load
@@ -743,15 +650,6 @@ their `kind[]` tags.
     2-3 suffices at one-step lookahead). UI sketch in the cart header: hover+wheel = pitch,
     C+wheel = cutoff, notch markers on the 9×7px cells. Full design notes at the top of
     `tools/carts/cr78.c`.
-
-20. ~~**TB-303 bassline cart**~~ — **SHIPPED same-day 2026-06-05** as `tools/carts/tb303.c` /
-    `tb303.cart.png` ("parked for another time" lasted about an hour — user asked for it).
-    Exactly as sketched: one `note_on()` voice, `note_glide(60)` slides that don't refire the
-    filter envelope (authentic to the circuit), accent = vol 7 + env amount × ACC knob,
-    staccato gate at 70% of step, five mouse-draggable knobs with CUT/RES applied live to the
-    ringing voice (`note_cutoff`/`note_res`), saw/square switch, mouse piano roll with
-    OCT/ACC/SLD flag rows, and an N-key random acid-line generator (root-heavy minor
-    pentatonic). The classic-machine family is now cr78 + tr808 + tb303.
 
 21. **More classic boxes — the museum shortlist** *(cart-space, zero engine API — parked
     2026-06-05)*. **The ranked list moved 2026-07-30 to
@@ -834,50 +732,15 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     now round-trip. Edge: a cart whose committed `.cart.png` sprites already DRIFTED from its
     generator will capture that drift as a patch on first save — defensible (preserves what's shown),
     resolved by a clean `--run` rebake.
-24. ~~**Web phantom touch point**~~ — **CLOSED 2026-06-06, same day as filed**: root-caused,
-    fix BUILT & DEVICE-PASSED (touchlab/multitouch/touchpiano via the live gallery), and the
-    rebuild tail cleared by the whole-catalog publish (all 263 carts carry the fixed engine).
-    **Same-day sequel (iPad play session): tap-as-mouse death** — taps stop registering in
-    mouse-driven carts until reload; emscripten GLFW's `primaryTouchId` latch sticks when iOS
-    drops a `touchcancel` (WebKit 153064). Fixed with the same medicine: on web, once a real
-    touch is seen the mouse is synthesized from the touch mirror (`web_tm_*` in `studio.c`),
-    GLFW's emulated mouse never read again. Touch-notes **device finding #6**.
-    Spawned **open item 27** (web debug overlay) — three on-device mysteries in one iPad
-    afternoon with zero cable-free visibility.
-    Kept for the record:
-    on web builds a lifted finger's contact can stay in the touch list (most reliably when
-    two fingers release at once); native is clean. Cause: emscripten#4679 (`wontfix`,
-    touchend conflates remaining+lifted touches) stacked on raylib's
-    one-removal-per-touchend (5.5 *and* master). Fix: own the touch truth on web — a JS
-    mirror rebuilt from spec-correct `event.touches` in `web_shell.html`, read by
-    `poll_virtual_touches()` via EM_JS; rebuild-don't-decrement is immune by construction.
-    Acceptance: touchlab two-finger simultaneous-release drumming → `touch_count()` hits 0
-    every time. Then the gestures.h follow-ups (two-finger **pan vs pinch** classifier +
-    id-keyed pinch pair — also why rgestures reads any 2-finger drag as pinch/zoom).
-    Root-cause chain, issue links, full plan: [`design/touch-notes.md`](design/touch-notes.md)
-    **§7–8**. Blocks the capture model of item 25 on web.
-
-25. **`ui.h` — cross-input widget kit** — **v1 SHIPPED 2026-06-07** *(designed 2026-06-06;
-    the item-24 web blocker closed in between)*. `runtime/ui.h` (gestures.h pattern, zero
-    engine API): **button / slider / knob** for mouse + touch + keyboard/gamepad at once —
-    per-contact capture table (two fingers = two knobs), value-address identity (buttons:
-    rect-only — sfxgen's dynamic `str()` label broke pointer identity), hit-pad inflation
-    to mobile-lint's ≥24px with **deferred press resolution** (presses collected in
-    `ui_begin`, routed at `ui_end`; a visual-rect hit beats an inflated one, so 17 sliders
-    at 9px pitch still route correctly), opt-in marching **focus ring** (arrows traverse,
-    LEFT/RIGHT adjust with hold-accel, A activates — written on `btn()` so it inherits
-    gamepad the day item 7 lands), and `ui_grabbed`/`ui_released` events timed so a cart
-    can snapshot undo state before the press-jump lands. Shipped per the second-customer
-    rule: **`uikit`** showcase/probe cart (knobs play a synth voice, sliders drive a ball
-    pit, FOCUS toggles keyboard driving) + the **`sfxgen` retrofit** (17 sliders + 11
-    buttons → widgets, hand-rolled drag machine deleted; behavior-faithful incl. undo —
-    scripted-replay verified). mobile-lint now **inlines runtime/ library headers** before
-    scanning, so all-ui.h carts rank touch-ready by construction (the notes' §5.4
-    contract). **Cut from v1: panel + drag-from** — the per-widget second-customer rule
-    found their named customers speculative; they wait for a real cart that wants them.
-    **Still open:** the on-device probe run (two-knobs-at-once, fat fingers, 5-touch
-    ceiling) and further retrofits (modrack knob rows, sfxed, wave editor). Design + §7
-    build learnings: [`design/ui-widgets-notes.md`](design/ui-widgets-notes.md).
+25. **`ui.h` — the on-device pass + the remaining retrofits** *(v1 shipped 2026-06-07; see the
+    landed table)*.
+    - **The on-device probe run has never happened**: two knobs at once, fat fingers, the 5-touch
+      ceiling. Everything in v1 was verified on desktop and by scripted replay, so the touch claims
+      are argued, not measured — which is the one thing a widget kit should not ship on.
+    - **Further retrofits**: modrack's knob rows, `sfxed`, the wave editor.
+    *(Cut from v1 and still cut: `panel` + `drag-from`. The per-widget second-customer rule found
+    their named customers speculative; they wait for a cart that actually wants them.)*
+    [`design/ui-widgets-notes.md`](design/ui-widgets-notes.md) §7.
 
 26. **Editor hand-editing workflow** *(new 2026-06-06 — explored, sliced)* — three gaps when
     a human edits carts in the editor instead of via `tools/carts/` + CLI: (a) **no
@@ -893,43 +756,23 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     self-describing `de:meta` chunk + generated index is parked as a direction. Proposals +
     priority table: [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md).
 
-27. **Web debug overlay** *(designed 2026-06-06; **v1 SHIPPED 2026-06-07**)* — cable-free
-    on-device visibility for wasm carts: `?debug=1` or **triple-tap the top-left corner**
-    overlays live touch rings straight from `Module.deTouches` (a ring that stays after
-    lifting = phantom; rings the game ignores = bug is past the touch layer), a
-    printh/console mirror, `window.onerror` red lines, fps + the device's touch ceiling.
-    Built per the §6d architecture rule (shell tweaks cost a 263-cart rebuild — learned
-    twice on 2026-06-06): the shell bakes only a ~25-line loader; ALL overlay logic lives
-    in one site-root `debug-overlay.js` (source `runtime/debug-overlay.js`, copied by
-    `build-site.js`) — future overlay iteration is a one-file republish, zero rebuilds.
-    **Still open (v2):** the cart's `watch()` values pushed per frame via EM_JS so the
-    native watch-workflow works on a phone; the `web_tm_*` mouse-synth state readout.
-    Zero-code alternative for deep dives: iPad + cable + Mac Safari remote Web Inspector.
-    Design: [`design/mobile-web-notes.md`](design/mobile-web-notes.md) §6d.
+27. **Web debug overlay v2** *(v1 shipped 2026-06-07; see the landed table)* — two readouts that
+    would close the gap with the native debug workflow:
+    - the cart's **`watch()` values pushed per frame via EM_JS**, so the native watch workflow works
+      on a phone;
+    - the **`web_tm_*` mouse-synth state** readout (which is what item 24's tap-as-mouse fix built).
+    Both are one-file republishes by construction — the shell bakes only a ~25-line loader and all
+    overlay logic lives in `runtime/debug-overlay.js`. Zero-code alternative for a deep dive: iPad +
+    cable + Mac Safari remote Web Inspector.
+    [`design/mobile-web-notes.md`](design/mobile-web-notes.md) §6d.
 
-28. **Library headers hard to find inside the editor** *(new 2026-06-07, surfaced by the
-    ui.h ship)* — **slice (a) SHIPPED same day, and the move it implied got made too.**
-    The fix turned out cleaner than the original sketch: rather than bolt a "library
-    headers" list onto the API reference, the **read-only engine-source viewer moved out
-    of its code-tab overlay and into the docs tab** as a dedicated **"engine source"
-    sidebar group** (`studio.h` · `ui.h` · `gestures.h` · `improv.h` · `radio.h` ·
-    `sound.h` · `studio.c`) — one viewer, two entry points: browse the group, or
-    cmd-click an `#include "x.h"` in your cart and it switches to the docs tab and opens
-    the same view. This **deleted** the code-tab overlay (`#viewer-overlay` HTML/CSS, the
-    ✕/Esc close path, and `outline.js`'s `setOutlineOverride` prototype-scan machinery —
-    the cart outline no longer has to yield to a previewed file). `editor/src/navigate.js`
-    rewritten to a `showEngineFileIn(container, file)` mounter the docs tab calls; the
-    code tab is now always, only your cart. (Reasoning for the move: the headers
-    *belong* with the docs, not floating over your code; the docs tab already had the
-    sidebar + chrome, so the viewer cost ~5 lines of new wiring and removed an overlay.)
-    **Still open:** (b) autocomplete offering `ui.h`/`gestures.h`/… inside an
-    `#include "` quote; (c) *maybe* the starter cart mentioning the lane in a comment.
-    Function-level autocomplete/hover for header symbols stays deliberately out — keyed
-    to `studioDocs.js` and the four-places contract, which is engine-API surface only;
-    the header's top-comment manual is the doc, by the lane's contract.
-    *(Editor change — needs a dev-server restart + a human visual pass to confirm the
-    viewer renders and the day/night theme follows; built and bundle-verified, not yet
-    eyeballed live.)*
+28. **Library headers — the two discoverability leftovers** *(the engine-source viewer moved into
+    the docs tab 2026-06-07; see the landed table)*:
+    - **(b)** autocomplete offering `ui.h`/`gestures.h`/… inside an `#include "` quote;
+    - **(c)** *maybe* the starter cart mentioning the lane in a comment.
+    Function-level autocomplete/hover for header symbols stays deliberately **out**: that is keyed to
+    `studioDocs.js` and the four-places contract, which is engine-API surface only. A cart-land
+    header's own top-comment is its manual, by the lane's contract.
 
 29. **Sub-pixel camera — thin features shimmer when panning at fractional zoom** *(new
     2026-06-09, surfaced by procplaces' zoomable world)* — `camera_ex(int x, int y, float
@@ -1079,82 +922,6 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     *engine* change (a `RenderTexture2D` carts can draw into + sample), since the feedback shader
     already fakes ~80% of the intuition on the live canvas.
 
-36. **✓ SHIPPED 2026-06-15 — modrack MACRO now exposes all 14 modeled engines** *(Option B taken:
-    `SOUND_INSTR_SLOTS` 32→48; the 8 new engines MEMBRANE/REED/PIPE/VOICE/GUITAR/PIANO/BOWED/BRASS
-    got dedicated slots 32–39, `eng` knob 0..13. Bandito reworked to MEMBRANE bongos; new Chamber
-    preset (BOWED). Commits `5db2327` engine, `de5c36f` cart.)* Original investigation below.
-    *(2026-06-15, investigation + decision)*. The engine ships **14 modeled instruments all on the same
-    Mutable-style harmonics/timbre/morph 3-macro interface** (`INSTR_PLUCK/MALLET/FM/ORGAN/EPIANO/PD`
-    — the 6 modrack's MACRO `eng` knob already offers — plus **8 not reachable from modrack**:
-    `MEMBRANE` (tabla/conga/**bongo**/djembe), `REED` (clarinet/sax), `PIPE` (flute), `VOICE`
-    (formant sing/speak), `GUITAR` (string+body), `PIANO` (stiff-string grand/harpsichord),
-    `BOWED` (violin/cello), `BRASS` (trumpet→tuba)). They'd drop straight into MACRO's existing
-    knobs + CV inlets (same 3 macros, all CV-modulatable). Bonus: `MEMBRANE` would give the
-    **Bandito** preset *real* bongos instead of the MALLET stand-in.
-
-    **UPDATE (2026-07-09): the slot blocker is GONE — Option B shipped.** `SOUND_INSTR_SLOTS` was
-    bumped 32→**48** (commit `5db23270`, alongside 16→32 voices), so slots **32–47 are now free**.
-    The remaining modrack work is only wiring the other 8 MACRO engines into those freed slots; the
-    capacity that blocked it no longer does. The allocation below describes the *old* 0–31 layout.
-
-    **The (former) blocker was `SOUND_INSTR_SLOTS = 32` (slots 0–31 all used).** modrack gives each MACRO
-    engine a dedicated slot, and there were no free slots. The allocation:
-    - **0–4** — the engine's raw built-in waves (reserved).
-    - **5–22 (18 slots) — the VOICE module's `wav` knob.** 9 waveforms (`saw/sqr/tri/sin/noi` +
-      4 drawn user tables `org/vox/bel/fld`, baked via `wave_set()`) × **2 envelope banks**:
-      5–13 = normal envelope (own decay), 14–22 = *flat* envelope (full sustain). VOICE plays the
-      flat bank when its `a`/amp jack is patched, so an external ENV is a true VCA instead of
-      fighting the slot's baked decay (`slot = (amp_cv?14:5) + wav`). The biggest tenant.
-    - **23–25** — MACRO engines PLUCK/MALLET/FM.
-    - **26–28** — DRUM kick/snare/hat.
-    - **29–31** — MACRO engines ORGAN/EPIANO/PD.
-
-    **DECISION (2026-06-15): wait until `sound.h` is clean, then do Option B (bump the slot count).**
-    Option B is the cleaner fix and its only real cost is trivial — it was the hot-file timing, not
-    memory, that made us hesitate. Park the whole expansion until `sound.h` is quiet (and ideally
-    until the per-engine split #32 lands, so we bump the count once, in the right place).
-
-    Two paths to the other 8 engines:
-    - **A — reconfigure-on-change (cart-only):** make the six MACRO slots a *pool*; re-init a MACRO's
-      slot to the chosen engine when its `eng` knob changes (set-and-hold — a rare deliberate action).
-      All 14 selectable, ≤6 sounding at once across the patch (generous). Needs a per-engine config
-      table (engine + sustain/release), pool assignment by MACRO-module order, `FMT_ENGINE` grown to
-      14 labels, `eng` range 0..13. Fully unblocked *now* — the fallback if we want it before B.
-    - **B — bump `SOUND_INSTR_SLOTS`** (e.g. 32→44) so each engine gets a permanent slot (all 14
-      simultaneous). **The chosen path, deferred until `sound.h` is clean.** The `.bss` cost is
-      negligible: `instr_bank[SOUND_INSTR_SLOTS]` is the *only* slot-sized array and `sizeof(Instrument)
-      ≈ 200 bytes` (a flat ~50-field struct, no buffers), so 32→44 adds **~2.4 KB** (32 slots = 6.4 KB
-      total) — and `.bss` is **0 download** (zero-filled at launch; wasm: a hair more initial memory).
-      No per-cart buffers, no extra voice state. The genuine blockers are timing, not size: it's a
-      `sound.h` edit (hot file — clobber risk while another agent's in there) and it collides with the
-      per-engine `sound.h` split (#32). Both dissolve once `sound.h` is quiet.
-
-    Engine macro reference (per-engine meaning of each macro) lives in the `INSTR_*` comments in
-    [`runtime/studio.h`](../runtime/studio.h) and [`design/instrument-engines.md`](design/instrument-engines.md).
-
-37. **✓ SHIPPED 2026-06-15 — polyphony `SOUND_VOICES` 16 → 32** *(+ `SOUND_HANDLE_BITS` 4→5;
-    commit `5db2327`, batched with #36's slot bump. Verified soundcheck + tripwire + tune-check.)*
-    Original note below. *(2026-06-15)*.
-    16 voices starves on rich patches: the long-ringing modal/Karplus engines (PLUCK/MALLET/PIANO/
-    GUITAR/MEMBRANE) hold voices through their release, so chords + fast passages + sustained tails
-    overrun the pool. Precedent: the 8→16 flip (audio-notes §15).
-    - **Forces a coupled edit:** `SOUND_HANDLE_BITS` 4 → 5. The note-handle's voice-index field is 4
-      bits (holds 0–15); 32 needs 5 (0–31), and a `_Static_assert` refuses to compile until it's
-      bumped. Mechanically safe — handles are opaque ints to carts, and the encoding just splits at a
-      different bit (gen still fits the int after the shift). Grep first for any hardcoded `& 15` /
-      `>> 4` handle math that doesn't go through `SOUND_HANDLE_MASK`/`_BITS`.
-    - **RAM cost ≈ +150 KB `.bss`** — far bigger than the slot bump because `sizeof(Voice) ≈ 9–10 KB`,
-      dominated by **two 1024-float Karplus delay lines** (`ks_buf` + `pn_ks2`, 4 KB each, present in
-      every voice regardless of engine). 16→32 doubles the ~150 KB pool. Still **0 download**
-      (zero-filled at launch; wasm: ~3 extra 64 KB memory pages).
-    - **The real cost is CPU, not RAM:** every *active* voice is processed per-sample, so 32 doubles
-      worst-case audio-thread load — and the hungry engines are exactly the ones you'd max out. Idle
-      voices cost nothing (pay-for-use), so it raises the ceiling rather than the floor; watch the
-      audio budget on wasm / weak hardware. 24 is a CPU-cautious middle ground, but **32 is clean**
-      (fits the 5-bit handle field exactly).
-    - Same `sound.h` timing as #36 — land both `#define` bumps (+ #32's split if it's ready) in one
-      compile-gated + tripwire'd + tune-checked change.
-
 38. **Boutique-effects leftovers (low priority)** *(2026-06-15)* — the boutique-pedal arc is essentially
     done: **shipped** grains-pitch, the modulation kit (`mod_randwalk`/`mod_sh`/`mod_optical`), Univibe,
     dropout, the `fx_order` 16→32 packing widen, Shallow Water, amp-noise, the noise gate, and the trophy
@@ -1176,45 +943,6 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
       (`echo`+`tape`, the `dub` cart); a faithful port adds the **multi-head** taps + integrated
       degradation, which needs `sound.h` (echo is single-tap). Sized in
       [`navkit-porting-handoff.md`](guides/navkit-porting-handoff.md) → queue; gate on 0015 first.
-
-39. **Unify LFO shape (it's a patchwork)** — ✓ **SHIPPED 2026-06-15.** One `LFO_SHAPE_*` enum
-    (SINE/SQUARE/TRI/SAW/RAMP/OPTICAL/SH/RANDOM) now drives every LFO site through a single
-    `lfo_wave`/`lfo_eval` dispatcher: voice LFOs (new `lfo_shape(slot,which,shape)` +
-    `note_lfo_shape(handle,…)` setters — non-breaking, the 72 `instrument_lfo` carts unchanged),
-    `tremolo`/`autopan` (now take any shape; `TREM_*` are aliases), and `fx_lfo` (gained a `shape`
-    arg). Stateful shapes (S&H/random) embed a deterministically-seeded `ModState` per LFO instance
-    (`--det` byte-reproducible). SINE stays byte-identical (dispatcher returns the same `sinf`); the
-    voice path is skipped entirely at `depth==0`. **Showcase: `lfoshapes`** (8 shapes, live, on pitch
-    or cutoff). **Forward-compat left in place:** promoting `shape` into the `instrument_lfo` signature
-    later is purely additive (storage/dispatcher/request already shape-aware — see the code comment on
-    `instrument_lfo`). **Adopted by existing carts (2026-06-15):** `sh101` now drives its square + S&H LFO
-    waveforms through the engine (sample-accurate, replacing a frame-rate software LFO; only NOISE stays
-    software — no engine white-noise shape); `22-filter` gained an `S` shape selector across all four
-    filters; and ten game/ambient beds whose cutoff LFO was a mechanical sine now use `LFO_SHAPE_RANDOM`
-    for organic drift (`hotline`, `neonrain`, `masseffect`, `podracer`, `dune`, `dwarffort`,
-    `dungeonkeeper`, `turfwar`, `wildfire`, `zoo` — wind/fire/cavern/engine-and-animal roars).
-    Round two (2026-06-15): `pedalboard`'s TREMOLO + AUTOPAN pedals expose all 8 shapes on their WAV
-    knob; `modrack`'s `MOD_LFO` gained a `shp` knob (sin/sqr/tri/saw/rmp/opt — S&H stays the `MOD_SH`
-    module). To make "reuse the dispatcher" literal, a public **`lfo_value(shape, phase)`** now exposes
-    the engine's stateless shape math so carts compute shaped CV / draw waveforms without re-rolling it
-    (modrack's `MOD_LFO` uses it; the hand-rolled mirrors in `lfoshapes`/`22-filter` are candidates to DRY).
-    Original context (the three disconnected places this unified) below for the record:
-    - the main LFO system (`instrument_lfo`/`note_lfo`, driving `LFO_PITCH`/`CUTOFF`/macro dests) is
-      **sine-only** — no shape param (`sinf(lfo_phase·2π)` in `sound.h`); the one place shape would be
-      most expressive has none.
-    - `tremolo`/`autopan` have an **ad-hoc** `shape` arg (`TREM_SINE`/`SQUARE`/`TRI`) — 3 shapes, only
-      those two effects, behind a tremolo-named enum.
-    - the modulation kit (#item B) already has **more** shapes as internal helpers — `mod_optical`
-      (asymmetric bulb ramp), `mod_randwalk` (filtered random), `mod_sh` (sample-&-hold) — baked into
-      specific effects (univibe = optical), not selectable anywhere.
-    - **`fx_lfo` (ADR 0018) shipped 2026-06-15 — also sine-only** (no `shape` arg in the signature), so
-      it's now the prime *consumer* waiting on this: a unified shape vocabulary should thread through it too.
-    **The fix:** a unified `LFO_SHAPE_*` enum (SINE/TRI/SQUARE/SAW/RAMP/S&H/RANDOM/OPTICAL) accepted by
-    `instrument_lfo`/`note_lfo`/`fx_lfo`, folding the `TREM_*` shapes into one vocabulary. **Most of the
-    DSP already exists** (`mod_sh`/`mod_randwalk`/`mod_optical`; tri/square/saw are trivial) — it's a small
-    `lfo_shape(phase, shape)` dispatcher + threading a `shape` arg through the LFO generator. Square-on-
-    cutoff = stepped filter; S&H-on-pitch = random-step arp; etc. Touches `sound.h`; natural sibling to the
-    shipped `fx_mod`/`fx_lfo` work in [0018](decisions/0018-effects-keep-params-but-become-modulatable.md).
 
 39b. **`fx_mod` deferred targets — reverb/delay sends + wah** *(2026-06-15)* — `fx_mod`/`fx_lfo` shipped
     with 7 targets ([0018](decisions/0018-effects-keep-params-but-become-modulatable.md) "Shipped"). The
@@ -1263,31 +991,22 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
       (`note`/`hit`/`tone` vol 0..7) stays int — transients don't perceptibly step. **Worth its own STATUS
       item** given it's justified beyond spatial — the cleanest, lowest-risk audio change on the board.
 
-41. **Waveguide engines can now bend pitch DOWN** *(2026-06-16)* — full orientation +
-    resume steps + measurement workflow: [`design/waveguide-bend-handoff.md`](design/waveguide-bend-handoff.md).
-    ✓ **SHIPPED** for **BRASS / REED /
-    PIPE / BOWED** (commits `8dfd12a` brass, `d7e6957` reed/pipe/bowed). The bug: each engine sized its
-    delay line exactly at the note-on pitch and clamped the read length to it, so a held note could only
-    bend UP — downward `note_glide`/`note_pitch`/pitch-env and the lower half of vibrato all clamped at
-    the note-on pitch (the trombone SLIDE only slid up; bass lines had to re-trigger lower). Fix: size the
-    bore/string ×2.5 (~16 semitones of down-room, capped by `ks_buf`) and pick the init-freq reference so
-    the note-on read length is unchanged → tuning byte-identical (reed/brass) or within ~1–3¢ (pipe at
-    usable embouchure / bowed's chaotic stick-slip); only the clamp ceiling rises. Verified against the
-    pristine baseline; pizzicato still plucks; dc-check + tune-check clean. **PLUCK/GUITAR already had
-    ~1 octave of down-room (2× headroom); the simple oscillators (SINE/TRI/SAW/SQUARE/FM/PD) bend freely.**
-    - **Caveat — BOWED low register is buffer-capped.** Full wavelength is 2× a half-wave engine, so at
-      the bottom of the range the buffer is already at `SOUND_KS_MAX` (1024) and there's no room to
-      lengthen. Measured on the bass: down-bend works from ~**E2 up**, but **E1 (the open low-E, ~41 Hz)
-      can't bend down at all**. Raising the cap (a bigger `ks_buf`, more RAM/voice) or a coarser low-note
-      bore would extend it — only worth it if a cart needs sub-E2 portamento.
-    - **TODO — revisit the carts built AROUND the old limit:** `upright.c` (the upright bass, `INSTR_BOWED`)
-      hard-codes an **up-only** pull-bend (`fabsf(dpx)` → always `+vbend`) and uses fret-walk
-      re-articulation for downward motion *because the engine couldn't bend down* (its description even
-      says "the waveguide string bends UP cleanly but can't be bent below its pitch (verified)"). Now it
-      can: make the pull-bend **signed** (pull down → smooth flatten) above ~E2, keep the fret-walk as the
-      fallback at the very bottom + as the deliberate walking-bass articulation. `pdbass.c` was spun off
-      *only* to get a two-way slide (`INSTR_PD` oscillator) — still valid as the "buzzy CZ" variant, but
-      the upright itself no longer needs the workaround. Update both carts' descriptions when revisited.
+41. **Waveguide down-bend — the carts still built around the old limit** *(the engine fix shipped
+    2026-06-16 for BRASS/REED/PIPE/BOWED; see the landed table)*.
+    - **`upright.c`** (the upright bass, `INSTR_BOWED`) hard-codes an **up-only** pull-bend
+      (`fabsf(dpx)` → always `+vbend`) and uses fret-walk re-articulation for downward motion
+      *because the engine couldn't bend down*. Its description still says so. Now it can: make the
+      pull-bend **signed** (pull down → smooth flatten) above ~E2, keeping the fret-walk as the
+      bottom-of-range fallback *and* as the deliberate walking-bass articulation.
+    - **`pdbass.c`** was spun off *only* to get a two-way slide (`INSTR_PD` oscillator). Still valid
+      as the "buzzy CZ" variant, but the upright no longer needs the workaround.
+    - Update both carts' descriptions when revisited.
+    ⚠️ **Caveat that bounds the fix — BOWED's low register is buffer-capped.** A full wavelength is 2×
+    a half-wave engine, so at the bottom of the range the buffer is already at `SOUND_KS_MAX` (1024)
+    with no room to lengthen. Measured on the bass: down-bend works from ~**E2 up**, but **E1 (the
+    open low E, ~41 Hz) cannot bend down at all**. A bigger `ks_buf` (more RAM per voice) or a coarser
+    low-note bore would extend it — only worth it if a cart needs sub-E2 portamento.
+    [`design/waveguide-bend-handoff.md`](design/waveguide-bend-handoff.md).
 
 42. **Audio TEST-COVERAGE blind spots** *(2026-06-16, found in a "what isn't tested?" audit)* — the
     engines are well-covered (`tune-check.js` = pitch, `dc-check.js` = DC, the soundcheck tripwire =
@@ -1438,40 +1157,14 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     kept clearly separate) would retire the gotcha class. Explicitly **NOT** the cart-os shared-FS idea: the
     dev tools already compose fine through files; this is just tidying where they land. Low leverage, no rush.
 
-45. **✓ SHIPPED 2026-07-10 — attach-profile the *running* cart at its current state (no cold respawn).**
-    The editor now keeps a **process handle table** for native carts (`nativeCarts` in
-    `editor/electron/main.cjs`): `trackNative()` wraps the run/record/replay spawns that used to be
-    fire-and-forget (a throwaway local `const proc`), keyed by pid, auto-removed on exit. This is the
-    "kernel keeping a handle on running cart processes" the item below called for. On top of it, a new
-    `studio:profile-attach` IPC profiles the cart you're **already playing** — both lenses at its current
-    state, no respawn, no kill:
-    - **frame timing** (the `CPU … ms/frame · p95 · % of budget · fps` line) from the live-inspection
-      mailbox: a **pid-targeted** `.bake/profiler_request` (the `pid:` line so a sibling cart can't serve
-      the wrong frame) → a fresh `{frames,workMsAvg,workMsMax,frameMsAvg,calls[],work[]}` dump. Falls back
-      to the cart's own auto-flushed `perf.json`, then a clear note if a backgrounded/`DE_RELEASE` cart
-      never served it. Works in any normal `-Os` build (the profiler counters compile into every native
-      build — no `-DDE_PROFILE`).
-    - **call-tree** from `/usr/bin/sample <pid>` on the same live pid (not killed) → the same `hotspots`
-      shape the cold profiler renders, so `renderProfile()` is unchanged.
-    UI: an **always-present `Debug` menu** in the editor's macOS menu bar (built in `buildAppMenu`; the
-    `showProfiler` setting still gates only the on-canvas ⏱ cold-profile button). It lists each running
-    cart so you pick which to attach to; a cart-lifetime **global `⌘⇧P`** fires it while the *cart* window
-    is focused. Deployed/exported carts have no Electron menu, so it's absent there by construction.
-    **Decision: a new Run does NOT kill the previous native cart** — several carts running at once stays
-    supported (the OS mixes them; `play.js netdemo` relies on it), and the handle table tracks them all.
-    First real use: `citygrow` profiled mid-play showed ~89% of cart CPU in per-frame terrain-noise
-    recompute (a cached-field todo now in its `de:meta`). **Still open** (the table is the groundwork,
-    not the whole thing): multi-cart *as an editor feature* (side-by-side UI + per-run build dirs so runs
-    stop sharing one `build/`) — the cart-os Tier 3 project, unblocked by this. See
-    [cart-os.md](design/cart-os.md) → "Why you can't open two carts today".
-46. ~~**Editor cart-browser doesn't surface the new metadata facets yet**~~ **FIXED 2026-06-29** *(from the de:meta migration)*.
-    Carts now own rich metadata in a `de:meta` block → generated `index.json` (see
-    [`design/cart-metadata.md`](design/cart-metadata.md)); the editor's cart browser now surfaces it (`editor/src/shell.js`):
-    - `CART_GENRE_ORDER` now **mirrors the canonical `GENRES` vocabulary** in `tools/lint-carts.js` (with a sync
-      comment), so all genres get an ordered filter chip — not just the flagged `tycoon`/`tactics`/`word`/`4x` but
-      also `maze`/`space`/`lab`/`dating`, which were silently dropped too.
-    - the derived **`orientation`** facet (`portrait`/`square`, emitted by `build-cart-index.js`) now has chips
-      ("📱 portrait" / "⬛ square", new `orientation` filter axis), surfacing the mobile-shaped carts.
+45. **Two carts open at once, as an editor feature** *(attach-profiling the running cart shipped
+    2026-07-10 and is the groundwork; see the landed table)*. The handle table now tracks every
+    running cart, which unblocks the rest: a **side-by-side UI**, and **per-run build dirs** so
+    concurrent runs stop sharing one `build/`. That is the cart-os Tier 3 project.
+    (A new Run deliberately does **not** kill the previous native cart — several at once stays
+    supported, the OS mixes them, and `play.js netdemo` relies on it.)
+    [`design/cart-os.md`](design/cart-os.md) → "Why you can't open two carts today".
+
 47. **✓ MOSTLY DONE 2026-06-29 — the engine runs WITHOUT Raylib (the `DE_NO_RAYLIB` platform seam)**, the
     foundation for iOS/Switch (iOS Phase 2 / Path B). The real `studio.c` + `sound.h` compile, render, and
     sound with zero Raylib / zero frameworks, verified headless on desktop: omnichord (2D) + **heroes**
@@ -1508,142 +1201,13 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     Open follow-ups (incl. the recommended next) in [`design/ios-plan.md`](design/ios-plan.md) →
     "Phase 2". Full record there too.
 
-49. **✓ SHIPPED 2026-07-03 — `de_switch_cart()` + the per-cart sound context** (umbrella-app
-    build-ladder rung 1, [`design/share-panel.md`](design/share-panel.md) §ladder). Multi-cart
-    bundles switch whole sound worlds — instrument slots, bus FX, wave tables, bpm — per context
-    (0–7), so racks keep their natural slot numbers (the spike's slot-offset wrappers are deleted).
-    Mechanism: a per-context **config-request log** replayed over `sound_reset_state()` (not a
-    field-by-field snapshot — the master-bus surface is ~40 effect families; a log covers every
-    future effect automatically). Ear-verified by the maker (both regressions on this seam were
-    heard, not measured: the slot collision, then tempo jumps from `bpm()`'s queue-bypassing
-    direct write — fixed as queued `SR_BPM`). **The design rule that fell out is
-    [ADR-0027](decisions/0027-sound-state-flows-through-the-request-queue.md): cart-facing sound
-    APIs must never write engine state directly — the queue is what makes the context log
-    complete.** Deterministic oracle: `tools/bundle-spike/proof-sound.sh` (round-trip corr 1.0000,
-    cross-context 0.004). Known not-covered (later rungs): per-cart save dirs (racks share
-    `cart.sav` → the loser falls back to its demo song), sprite sheets, `de_state`, and the
-    video set-and-hold twins (`pal`/`fillp`/`font`/…).
-    **Rung 2 shipped the same day:** `apps/tinyjam/app.json` (the decided `apps/<name>/` home,
-    per [ADR-0026](decisions/0026-store-pipeline-in-house-not-fastlane.md)'s layout) +
-    `tools/build-app.js` — a manifest builds the multi-cart binary; adding a rack = one line.
-    Verified to N=3 (groovebox/epiano/mellotron ad-hoc app). Side-fix that fell out: live-inspection
-    requests can target one process (`pid:<n>` line — two headless bundles raced for the shared
-    `.bake` request files and served the wrong app's frame; debug-harness.md §Live inspection).
-    **Rung 3 shipped the same day too — the launcher cart:** `tools/carts/tinyjam-menu.c`
-    (a real registered cart; standalone = demo roster) + a `launcher` manifest field.
-    `build-app.js` generates `app_roster.h` from each rack's `de:meta` (title + summary,
-    folded to ASCII — bitmap fonts render em-dashes as `?`), the launcher boots first in
-    its own ctx slot, and the shim (not the engine — zero new API) implements
-    `app_launch(i)`/`app_current()`; TAB now toggles rack ↔ overview instead of
-    blind-cycling. Verified headless (menu → acid 136 → yacht 102 → menu + resume marker)
-    and via a play.js keyboard script on the standalone menu. Menu look/feel remains the
-    maker's call. **Rung 4 shipped the same day — the ladder is complete:** `build-app.js`
-    grew a `--mac` flag that hands the linked bundle to `mac-app.sh` with `--name`/`--id`
-    from the manifest, so "which app?" is answered once by the manifest name all the way to
-    the `.app`. `node tools/build-app.js tinyjam --mac` → `build/Tinyjam.app`, notarytool
-    `Accepted` + stapled + `spctl` `accepted / Notarized Developer ID` — opens on any Mac
-    with a double-click (`--no-notarize` for a quick local sign). Per-app icon parked
-    (shared dreamengine icon). No in-editor "export app" button yet — apps live in `apps/`,
-    not the carts panel, so that needs an Apps picker (a later UI rung on this CLI).
-    Differing-resolution racks stay parked (next-spike #3; paths A/B/C scoped in the doc —
-    B is the tractable per-cart RenderTexture step, C the eventual [responsive-layout](design/responsive-layout.md) home).
-    **Cross-cart bleed fixed (2026-07-03) — the video twin of ADR-0027:** `de_switch_cart`
-    was sound-only despite its name, so an outgoing cart's set-and-hold VIDEO state
-    (pal/fillp/font/camera) AND its sprite sheet leaked into the next cart. Now it's an
-    umbrella: `de_sound_switch_cart` (renamed sound half) + `de_gfx_reset()` (video state →
-    defaults, reset-only — every cart re-sets modes in draw, and video has no config queue
-    to replay like sound) + `de_sheet_select(ctx)` (per-cart sheets, baked by build-app.js).
-    Proven by the **bleedtest** rig (bleedred↔bleedblue: pre-fix blue drew red text +
-    hatched bar + red critters; post-fix clean both ways). Deferred: per-cart maps + save
-    dirs (same pattern).
-    **iOS multi-cart build (Spike A) — DONE (2026-07-03):** `build-app.js --ios` stages the
-    multi-cart set into `ios/gen/app` (per-cart wrapper `.c` files that `#define` the entry
-    renames then inline the source — so Xcode's one-defines-set directory build needs no
-    per-file flags — plus the shim, `app_roster.h`, baked data, `gen/app.dims`); `project.yml`
-    sources the `gen/app` DIRECTORY; `ios/device.sh`/`build.sh` gain `APP=<manifest>` mode.
-    **Tinyjam's launcher + racks render on the iOS simulator** (Tiny Jam menu, acid rack /
-    session desk from de:meta, `>` cursor, footer). Same `DE_NO_RAYLIB` engine as single-cart
-    device builds. Serialize iOS builds (shared `gen/app` + one xcodeproj); `simctl` shots need
-    ~a few seconds settle. **On-device: Tinyjam runs on a real iPhone** (`device.sh APP=tinyjam`,
-    maker-confirmed 2026-07-03). **Touch back-to-launcher: hold-to-home** (device-confirmed) —
-    hold the top-left corner ~0.3s → overview; a big fat-finger hit-pad (a tiny tap chip was
-    unhittable on-device), in racks only. Polished nav-bar via a `de_safe_top()` inset (a real
-    reflow of the 240px-full racks) is the deferred, maker-driven redesign. Design + gotchas: [`design/share-panel.md`](design/share-panel.md) next-spike #5.
-    **IAP in the multi-cart app (Spike B) — BUILT + sim-tested (2026-07-03):** `apps/tinyjam/app.json`
-    `iap.products` (price/name/desc/`unlocks[]`) is the single source of truth; `build-app.js --ios`
-    GENERATES `Tinyjam.storekit` from it + threads product/price + an `APP_MASTERPASS` "unlock all"
-    into `app_roster.h`. The launcher shows a locked rack's price, taps buy it, owned racks open, and
-    an "unlock all — $5" row buys the master pass — cross-platform via WEAK `Store_*` stubs (free on
-    Mac/editor). Shelf now: acid $2.99 / session desk free / epiano $2.99 / unlock-all $5. Gotchas +
-    full record: [`design/ios-plan.md`](design/ios-plan.md) ("IAP in the multi-cart app").
-    **STILL TO TACKLE (the umbrella-app backlog, all deferred here):**
-    (1) **Device IAP testing** — the sim path is local-only (`SKTestSession`, sim-only); real device
-    testing needs App Store Connect **sandbox** testers (the pre-ship validation).
-    (2) **Multi-resolution racks / device-adaptive layout** (next-spike #3) — carts must currently
-    share the app's dims; epiano/omnichord had to be bumped 200→240 to join. **Now BUILDING:
-    [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md)** — live-resizable +
-    physically-sized `SCREEN_W/H` so one cart is beautiful on iPhone AND iPad, both orientations; also
-    unblocks honest full-bleed store screenshots/videos. Progress (2026-07-03):
-    • **Phase 0 DONE** — the layout model is proven in cart-land across the whole shape space:
-      `respond` (primitives), `rackfit` (finger-sized emergent reflow), `acidfit` (dense rack +
-      progressive-disclosure accordion), `otafit` (drag-ribbons + a *measured* orientation-lock case).
-      Findings: query the **finger-ratio** not `device_class` (iPad mini ≠ Pro); disclosure **mode** is
-      per-shape (inline / accordion / tabs); orientation may be **locked** per rack; overrides are
-      plain-C + `lay_at`=position:absolute; a future `layout-check` oracle can check all of it.
-    • **`runtime/lay.h` SHIPPED** — the immediate-mode layout vocabulary (`split/at/cell/grid/wrap/
-      aspect/fluid/pad`), a cart-land library header usable by any cart today (registered in the
-      cart-authoring library-headers table + `checks-and-oracles.md`).
-    • **Phase 1 DONE** — runtime `de_sw`/`de_sh`, per-cart `-DDE_RESIZABLE` opt-in (`de_reflow`), cart
-      API `screen_w()`/`screen_h()`, editor ▶-run wiring (`de:meta "resizable"`) + `play.js --resize`
-      sweep / `--show-size` overlay. Byte-identical for fixed carts.
-    • **Growable framebuffer DONE (2026-07-04)** — the fb reallocs to the active size (`de_ensure_fb`/
-      `de_set_canvas`, GPU + SW + smooth), so a resizable cart fills ANY size (not capped at compile max).
-    • **Phase 2 DONE (2026-07-04)** — iOS: `de_resize`/`de_is_resizable`/`de_set_safe_area` seam +
-      `CanvasView` reflows to the device; a resizable cart FILLS iPhone SE / 15 / iPad Pro 12.9, dodges
-      the notch (`safe_rect()`), and reflows on rotate — all verified on the sim. `RESIZABLE=1 ./build.sh`.
-    • **Resume at Phase 3** — per-rack density arrangements (the media-query-like adaptation: more
-      controls on iPad, collapsed/tabbed on iPhone per `acidfit`'s disclosure model). Engine foundation done.
-    (Supersedes the per-cart-RenderTexture / `de_safe_top()` sketch in share-panel.md #3 paths A/B/C.)
-    (3) **Polished back-to-launcher** — the `de_safe_top()` nav-bar reflow (hold-to-home is the temp).
-    (4) ~~**In-editor "export app" button**~~ — **DONE (2026-07-03).** The **Apps view** (`shell.js`
-    `renderAppsList`, IPC `studio:list-apps`/`build-app`/`app-shots`/`press-kit`/`aso-app` in
-    `main.cjs`) lists `apps/*/app.json`; click a card → per-app actions grouped **give / site / sell**:
-    🍎 Mac app · 📱 iOS app (→ `build-app.js --mac`/`--ios`, reveals the built `.app`) · 📸 screenshots
-    (→ `store-shots` into `apps/<name>/screenshots`) · 📄 press kit · 🔎 research keywords
-    (seeds `aso-research` from the app's carts' `de:meta` teaches/titles into the research box) ·
-    💡 suggest keywords (`aso-suggest` — Google-autocomplete demand proxy; words → compose,
-    phrases → website/press SEO) · ✅ lint listing · 🧩 compose
-    keywords (the last two read the manifest's `listing` block). Still open: the App Store *upload*
-    rung (v3 — TestFlight button over an in-house App Store Connect client, ADR-0026).
-    (5) **Before a real release:** verify `StoreKitTest` is fully stripped from device/release builds
-    (currently `[sdk=iphonesimulator*]`-only + `#if targetEnvironment(simulator)`), and the App Store
-    Connect product/price reconciliation (ADR-0026 store pipeline). Per-cart maps + save dirs also
-    still deferred (same pattern as sheets).
-
-50. **✓ v1 SHIPPED 2026-07-10 — the flight recorder: always-on deterministic session capture.**
-    Every native ▶ Run now records its inputs to a rolling per-cart scratch ring
-    (`build/.rec/<slug>/`, gitignored, last 10 sessions, auto-evicted) — cheap because the recorder
-    (`harness_input`) is delta-encoded (nanoseconds/frame; the per-frame `fflush` relaxed to every 30).
-    "Keep take" (Debug menu / global **⌘⇧K**, twin of the attach-profiler's ⌘⇧P on the same handle
-    table) promotes the current session into `tools/clips/<slug>/NN-take.rec` for a clip or an exact
-    bug repro. Enabling mechanism: the recorder writes a `# seed <n>` header and `load_replay` reads
-    it back (`runtime/studio.c`), so a replay self-seeds to the same world with zero extra args
-    (explicit `--seed` still wins; old headerless `.rec` unaffected). Runs become `--det` (fixed
-    timestep + seed) — a settings toggle ("record every play", default on) disables it for
-    wall-clock-sensitive carts; net games + the live backend are skipped. Dodges the mid-play
-    savestate problem: "record from here" is a `make-gif --start` trim, not a state snapshot. Design:
-    [`design/flight-recorder.md`](design/flight-recorder.md).
-51. **✓ SHIPPED 2026-07-14 — cart COLLECTIONS: doc-anchored cross-cutting threads.** The shipped half
-    of field note [`003-curation`](field-notes/003-curation.md)'s "curated collections": a controlled,
-    doc-anchored `collection[]` de:meta field groups carts by research THREAD across `kind`/`genre`
-    (the browsable "show me the road stuff / the radio stations" axis). Vocab + anchors in
-    [`tools/collections-vocab.js`](../tools/collections-vocab.js) (`{slug,title,doc,blurb}`; every slug
-    MUST point at a doc — `lint-carts.js` asserts it exists); `build-cart-index.js` emits it;
-    [`tools/collections.js`](../tools/collections.js) is the roll-up view; `build-context.js` surfaces a
-    cart's threads. Seeded + 62 carts tagged: radio(35), road(9), tinyjam(7), physics(7), responsive(4),
-    device-face(3). Schema: [`design/cart-metadata.md`](design/cart-metadata.md#collection-doc-anchored-cross-cutting-threads).
-    **Still open** (003's OTHER half): the cart-to-cart *relationship* fields (`replaces`/`successor`/`related`),
-    an editor gallery filter, and a generated `docs/collections.html` ★ page.
+51. **Cart collections — the relationship half** *(collections shipped 2026-07-14, 62 carts tagged;
+    see the landed table)*. This is field-notes 003's OTHER half:
+    - the cart-to-cart **relationship fields** (`replaces` / `successor` / `related`);
+    - an **editor gallery filter** by collection;
+    - a generated **`docs/collections.html`** ★ page (the visual twin of the other generated pages).
+    Schema: [`design/cart-metadata.md`](design/cart-metadata.md#collection-doc-anchored-cross-cutting-threads);
+    [`tools/collections.js`](../tools/collections.js) is the CLI roll-up today.
 
 52. **Synth Secrets audit — 22 candidate steps, deliberately NOT queued** *(2026-07-28)*. The engine
     cross-checked against Gordon Reid's 63-part **Synth Secrets** (SOS 1999-2004), a canonical

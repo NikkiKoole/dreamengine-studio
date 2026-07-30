@@ -1110,6 +1110,29 @@ the 16-voice render is 26.5% *quieter* — correct note_off/note_cutoff control
 means fewer wrongly-ringing notes, not just more restored tails. The filter
 ride being the genre's whole form, house is the cart that suffered most.
 Soundcheck tripwire: PASS.
+**Then 16 → 32, SHIPPED 2026-06-15** *(with `SOUND_HANDLE_BITS` 4→5, commit `5db2327`, batched with
+the `SOUND_INSTR_SLOTS` 32→48 bump; moved here from the STATUS ledger 2026-07-30, where it was a
+23-line numbered "open" item four weeks after it landed)*. What 16 starved on was the same class of
+voice, one step up: the long-ringing modal/Karplus engines (`PLUCK`/`MALLET`/`PIANO`/`GUITAR`/
+`MEMBRANE`) hold a voice through its whole release, so chords plus fast passages plus sustained tails
+overrun the pool.
+
+- **It forces a coupled edit.** The note handle's voice-index field is 4 bits (0–15); 32 needs 5, and
+  a `_Static_assert` refuses to compile until `SOUND_HANDLE_BITS` is bumped. Mechanically safe —
+  handles are opaque ints to carts and the encoding just splits at a different bit — but **grep for
+  hardcoded `& 15` / `>> 4` handle math that bypasses `SOUND_HANDLE_MASK`/`_BITS`** before touching it.
+- **RAM ≈ +150 KB `.bss`**, far more than the slot bump, because `sizeof(Voice)` is now **~9–10 KB**,
+  dominated by **two** 1024-float Karplus delay lines (`ks_buf` + `pn_ks2`, 4 KB each, present in
+  every voice regardless of engine). Note this supersedes the ~4.5 KB/voice figure earlier in this
+  section: the second delay line arrived with the buffered string engines. Still **0 download**
+  (zero-filled at launch; wasm just maps ~3 more 64 KB pages).
+- **The real cost is CPU, not RAM.** Every *active* voice is processed per-sample, so 32 doubles the
+  worst-case audio-thread load — and the hungry engines are exactly the ones you would max out. Idle
+  voices cost nothing, so this raises the ceiling rather than the floor; watch the audio budget on
+  wasm and weak hardware. 24 would be the CPU-cautious middle ground, but **32 is the clean number**
+  because it fits the 5-bit handle field exactly.
+
+Gates for that change: soundcheck silent, the tripwire, and `tune-check`.
 
 ## 16. WAV capture + analysis tooling — SHIPPED (2026-06-05)
 

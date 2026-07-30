@@ -91,11 +91,39 @@ const HEADLINE_BUDGET = 900    // chars on the `_Last updated:_ ` line
 const problems = []
 const P = (kind, line, msg) => problems.push({ kind, line, msg })
 
-// 1. the highest-value check: a DONE marker inside `## Open`
-const doneInOpen = open.filter(e => DONE_RE.test(e.title) || struck(e) ||
-  DONE_RE.test(e.body.split('\n').slice(0, 3).join(' ')))
-for (const e of doneInOpen)
-  P('done-in-open', e.line, `item ${e.num} reads as shipped/fixed — move it to "Shipped ✓" (KEEP its number: ~30 "STATUS #N" refs resolve today): ${e.title}`)
+// 1. the highest-value check: a DONE marker inside `## Open`.
+//
+// ONLY the TITLE line counts (or the file's `~~struck~~` idiom). Scanning the body was the first
+// version and it cried wolf: item 1 says "AABB collision already SHIPPED as boxes_touch()" as
+// CONTEXT while its actual open work is discoverability, and item 40 ("spatial audio v3") opens by
+// noting v1 and v2 shipped. Both are open items that mention a shipped thing — the opposite of the
+// finding. A body-only marker is too weak to assert on; those items get caught by `too-long` anyway.
+// Match the whole HEADING LINE, not the bold title: the file often puts the marker just outside the
+// bold ("**Rasterization consistency** *(SHIPPED — …)*", "**Unify LFO shape** — ✓ **SHIPPED**"), and
+// matching only the bold missed five real ones. Then subtract the one context shape that survives
+// that: an item named for a LATER version whose heading notes the earlier ones landed ("spatial
+// audio **v3**" opening "v1 + v2 SHIPPED"), which is an open item, not a closed one.
+// Scan the first THREE lines, because a heading wraps ("**Unify LFO shape** — ✓ **SHIPPED**" fits on
+// one; "**Sound expansion** — _… now SHIPPED_" and "**Library headers …** — slice (a) SHIPPED" do not).
+// Then subtract the two context shapes that a marker-in-window otherwise reads as done:
+//   · "already SHIPPED as boxes_touch()" — item 1 citing EXISTING api while its own work (teaching
+//     discoverability, an explode() design) is wide open
+//   · "v1 + v2 SHIPPED" under a title named for v3 — item 40, likewise open
+// Both were false positives in the first version of this check, found by reading all 22 by hand.
+const TAIL_RE = /\*\*(Still open|Deferred|Further deferred|Remaining|PARKED)/i
+const CONTEXT_RE = /already\s+(?:\*\*)?(?:SHIPPED|DONE)|v\d[^\n]*\+\s*v\d[^\n]*(?:SHIPPED|DONE)/i
+const doneInOpen = open.filter(e => {
+  const head = e.body.split('\n').slice(0, 3).join(' ')
+  return DONE_RE.test(head.replace(CONTEXT_RE, '')) || struck(e)
+})
+for (const e of doneInOpen) {
+  const tail = TAIL_RE.test(e.body)
+  P('done-in-open', e.line, tail
+    ? `item ${e.num} is SHIPPED but still carries an open tail — SPLIT it: leave a short open item with just the tail, move the rest to "Shipped ✓". ${e.title}`
+    : `item ${e.num} reads as shipped/fixed with no open tail — move it to "Shipped ✓". ${e.title}`)
+}
+if (doneInOpen.length)
+  P('done-in-open', bounds.open.start + 1, `⚠ KEEP EVERY NUMBER when you move these — ~30 "STATUS #N" refs across docs, tune-check.js, sound.h and ~10 carts resolve today. Record the number in the destination entry; never reuse or renumber.`)
 
 // 2. an entry with no date at all
 for (const e of [...shipped, ...cut]) if (!dateOf(e.body))

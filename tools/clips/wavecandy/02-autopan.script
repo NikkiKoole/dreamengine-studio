@@ -1,0 +1,8 @@
+# autopan regression seed — press W once to reach width_fx=1, which is
+# autopan(2.0 Hz, depth 1.0, SINE). Gate:
+#   node tools/play.js wavecandy script tools/clips/wavecandy/02-autopan.script \
+#        --headless --frames 420 --wav /tmp/ap.wav
+#   node tools/stereo-check.js /tmp/ap.wav --expect autopan --rate 2.0 --quiet
+# Chosen over pedalboard because the pedal there needs a palette drag; here it is one key.
+down 20 W
+up 23 W

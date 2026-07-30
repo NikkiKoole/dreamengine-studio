@@ -2552,9 +2552,30 @@ already past it.** "Slight changes in amplitude in both channels" is a precise d
 4.5 Hz pan. His other complaint, that SPD "doesn't do anything", is the same fact: across 4.5→12 Hz
 every position sounds like tremolo, so the knob's whole visible travel does nothing *perceptually*.
 
-**Fix (not yet applied — a taste call):** curve the rate and lower the top, e.g.
-`0.15f * powf(60.0f, k)` (0.15 Hz → 9 Hz, midpoint ~1.2 Hz), and raise the default DEP. Same
-question applies to TREMOLO's `SPD`, which uses a comparable linear map.
+**The depth knob was never the problem.** At the OLD default rate, maxing DEP measured excursion
+**2.000** — a full hard-left-to-hard-right sweep, the maximum the effect can produce. The reporter
+asked for "a hard panning tremolo" and was already getting one; at 4.5 Hz the ear simply integrates
+it as amplitude. His description was exactly right, and no depth setting could have fixed it.
+
+**SHIPPED 2026-07-30:** `rate = 0.12f * powf(75.0f, k)` (0.12 Hz fully CCW · ~1 Hz centred · 9 Hz
+fully CW), default knobs `SPD 0.35 → 0.45`, `DEP 0.70 → 0.85`. Measured across the shipped knob:
+
+| SPD / DEP | rate | excursion | reads as |
+|---|---|---|---|
+| .45 / .85 (default) | 0.79 Hz | 1.793 | position |
+| .00 / 1.0 | 0.12 Hz | 2.000 | slow drift |
+| .50 / 1.0 | 1.03 Hz | 2.000 | classic autopan |
+| 1.0 / 1.0 | 8.91 Hz | 2.000 | tremolo-pan (still reachable, deliberately) |
+| .45 / .00 | — | 0.000 | off |
+
+`WAV` needed no change: LFO shapes are indistinguishable at 4.5 Hz and obvious at 0.8 Hz, so the
+rate fix restores that knob for free. **TREMOLO keeps its linear `0.5 + k*11.5`** — 3-8 Hz *is*
+tremolo, so the same numbers are right there and wrong here. The two knobs look identical and were
+copy-pasted; the bug was assuming one map fits both.
+
+**Regression gate:** `tools/clips/wavecandy/02-autopan.script` (one keypress reaches
+`autopan(2.0, 1.0, SINE)`) →
+`stereo-check … --expect autopan --rate 2.0 --quiet`. Verified to FAIL when the pan is off.
 
 ### 27.4 The lesson, which is §20's lesson again
 

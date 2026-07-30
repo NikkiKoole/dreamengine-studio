@@ -1,0 +1,6 @@
+# glidescale — GLIDE_CONSTANT, one pass of the phrase (~9s). The A side.
+# Every slide takes the same 300ms whatever the interval, so the semitone steps
+# crawl and the 22-semitone leap is a blur. Nothing to press: the phrase autoplays.
+#   node tools/play.js glidescale script tools/clips/glidescale/01-constant.script \
+#        --headless --frames 545 --wav /tmp/const.wav
+# frames 545

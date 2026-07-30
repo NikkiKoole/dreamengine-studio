@@ -1,0 +1,7 @@
+# glidescale — GLIDE_PER_OCT, one pass of the phrase (~9s). The B side.
+# S on frame 4 flips the scale before the first slide, so `ms` becomes the time per
+# OCTAVE: the same phrase now costs 25ms for a semitone and 550ms for the big leap.
+#   node tools/play.js glidescale script tools/clips/glidescale/02-per-octave.script \
+#        --headless --frames 545 --wav /tmp/peroct.wav
+# frames 545
+tap 4 S

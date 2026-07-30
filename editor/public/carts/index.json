@@ -3073,6 +3073,21 @@
     "lineage": "Measurement probe for portamento (synth-secrets audit §B1, plan item 3.26) — glides between real notes at four intervals with one glide setting, so \"does ms mean ms, at every interval\" is a table instead of an argument."
   },
   {
+    "title": "glide scale",
+    "description": "The GLIDE SCALE switch, made audible. One monophonic voice slides between notes, and the phrase deliberately alternates tiny steps with two-octave leaps — because that contrast is the whole point of the switch. CONSTANT (the default) gives every slide the same duration, so a semitone step sounds sluggish while a two-octave leap whooshes past. PER OCTAVE makes the time proportional to the distance, so small moves are crisp and big leaps take a long, deliberate swoop. Tap S (or the button) to flip it mid-phrase and hear the same notes change character. GLIDE sets the time (LEFT/RIGHT, or drag the bar), SPACE stops the auto-phrase so you can play the eight pads yourself with Z X C V B N M comma, and the readout prints what each upcoming slide will actually cost in ms.",
+    "file": "glidescale.cart.png",
+    "created": "2026-07-30",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ],
+    "teaches": [
+      "subtractive-synth",
+      "analog-voice-modeling"
+    ],
+    "lineage": "Demo for note_glide_scale (synth-secrets audit §B1) — the GLIDE SCALE switch a real synth panel exposes, made audible by a phrase that deliberately alternates small steps with big leaps."
+  },
+  {
     "title": "glyph puppet",
     "description": "Puppets built from a tiny shared bank of 6x6 glyphs — animated by swapping shapes and nudging cells in whole pixels, never by baking frames. A dude, a dog and a bird share one bank, and events throw glyph confetti (hearts/rings/crosses). The bet: you don't need frames, you need TWO channels. A figure is a loose bag of 6x6 monochrome glyph cells, and it comes alive from (1) SWAPPING which glyph sits in a cell — legs A<->B for a walk, mouth open on a hit, wings up for a flap — and (2) NUDGING cells off their slot. The model is honest lo-fi: everything lives on a small LOGICAL pixel grid, a part lands on any WHOLE logical pixel (free of the 6-cell grid, but never a fractional x=8.5), and the grid is scaled up uniformly afterwards. Motion stays RIGID — idle bob and beat-bounce are one shared offset added to every cell, so connected parts never drift apart; parts move relative to each other ONLY for a deliberate articulation. Nothing is FFT-driven: an internal metronome fires kick/snare events (or SPACE/S by hand) and everything reacts. The payoff is the SHARED BANK: press V to cycle a DUDE, a DOG and a BIRD that reuse the exact same glyphs — the dog's body and the bird's body are the dude's TORSO, the dog's four legs are the LEGS pair placed twice (out of phase for a trot), the bird's two wings and the dog's tail are ARM glyphs; each animal added just ONE new shape (its head). Grow the bank by a glyph, get a whole new cast member. Events also throw PARTICLES — the same 6x6 glyphs as confetti: a white RING pops on every kick, a red HEART on every snare, a yellow CROSS on the off-beat, each rising in clean whole-pixel steps then vanishing. The GRID-SNAP toggle (G) is the A/B for channel 2: snap ON locks every cell on its slot so only glyph-swaps animate (stiff clockwork); snap OFF lets the whole-pixel nudges through and the same shapes breathe. The raw bank is drawn along the bottom so you can see it's shapes, not frames. SPACE or click = a KICK pulse (ring pop). S = a SNARE (dude ta-da / dog bark / bird chirp, + a heart). V = cycle cast (DUDE -> DOG -> BIRD). G = toggle GRID-SNAP (channel-2 life on/off). A = toggle the auto-metronome. LEFT/RIGHT = tempo.",
     "file": "glyphpup.cart.png",

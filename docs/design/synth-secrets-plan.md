@@ -2071,6 +2071,31 @@ definitions coincide) and a useful sanity anchor. The semitone leg is omitted be
 `wav-envelope`'s integer-Hz floor in either mode — noted in the probe's header so nobody re-derives it as a
 bug.
 
+**The audible home is [`glidescale`](../../tools/carts/glidescale.c)**, and the reason it needed to be a new
+cart rather than a switch bolted onto `heldnotes` is itself the lesson: `heldnotes` drives pitch
+*continuously* off the mouse, so per-octave scaling there just reads as a slightly different lag. This axis
+is only audible across **discrete jumps of contrasting size**, so the cart's phrase alternates semitone
+steps with a 22-semitone leap on purpose. Play only steps, or only leaps, and the switch does almost nothing
+you can hear — the contrast IS the demo. Trace-verified costs at 300 ms/oct, straight off `watch`:
+
+| move | semitones | `GLIDE_PER_OCT` | `GLIDE_CONSTANT` |
+|---|---|---|---|
+| 48→47 | 1 | 25 ms | 300 ms |
+| 48→50 | 2 | 50 ms | 300 ms |
+| 47→36 | 11 | 275 ms | 300 ms |
+| 36→48 | 12 | 300 ms | 300 ms |
+| 50→72 | 22 | 550 ms | 300 ms |
+
+A 22:1 spread against a flat one. Three committed clips mint the renders:
+`tools/clips/glidescale/{01-constant,02-per-octave,03-ab-switch}.script` (the third puts both settings in
+one file so you hear the switch rather than comparing two files).
+
+> ⚠ `click-check` flags 64 events on those renders and they are **false positives** — the voice is a SAW,
+> and at MIDI 36 its flyback is one 12.4%-of-peak step per long period against a gentle ramp, which is the
+> exact case the tool's own header names. The tell is that the worst value is *identical* (64.8x) in both
+> settings, so it cannot be the glide. Use SINE (as `glideprobe` does) when the click metric has to mean
+> something.
+
 **That closes the glide work.** All four controls from the reference list now exist: the time knob, the
 even-in-pitch curve, a truthful duration, and the constant-vs-per-octave scale. The one axis still in cart
 land is GLIDE MODE (OFF/LEGATO/ALWAYS), which is where it belongs per ADR-0006 — `sh101` has had it for

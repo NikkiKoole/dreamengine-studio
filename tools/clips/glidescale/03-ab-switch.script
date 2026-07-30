@@ -1,0 +1,7 @@
+# glidescale — both settings back to back in ONE file (~32s), for hearing the switch
+# rather than comparing two files. Two passes of the phrase on GLIDE_CONSTANT, then S
+# flips to GLIDE_PER_OCT for two more. The notes never change; only the slide timing does.
+#   node tools/play.js glidescale script tools/clips/glidescale/03-ab-switch.script \
+#        --headless --frames 1930 --wav /tmp/ab.wav
+# frames 1930
+tap 970 S

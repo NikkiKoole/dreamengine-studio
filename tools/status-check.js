@@ -10,12 +10,14 @@
 // links unpoliced) and `lint-docs.js` carves it out as "append-only history". A five-lens audit on
 // 2026-07-30 found what that permitted:
 //
-//   · 20 of 53 numbered items in `## Open` were marked SHIPPED/DONE/FIXED/CLOSED — 38% of the backlog
-//   · the section header claims "Ordered by leverage"; the order is arrival date
-//   · one item (52) was 226 lines, 12% of the file, and CONTRADICTED the file's own first Shipped entry
-//   · numbers that had doubled or tripled while the prose stood still: "8-voice synth" (32), "~125
-//     functions" (~370), "263 registered carts" (544), "NET_DELAY=3" (10), `sound.h:5509` (6992)
-//   · a `(see Decided-against)` pointer whose subject is not in that section
+//   · 20 of 53 numbered items in `## Open` were shipped — the backlog advertised ~38% more work
+//     than existed. Nine of them ALSO left a real open remainder, buried under the write-up.
+//   · the `_Last updated:_` line had reached 9,064 chars and was the ONLY record of three shipped
+//     things (`FILTER_DIODE`, `filter-spec.js`, `rebirth-classic.md`) — a headline used as an entry
+//   · numbers that doubled or tripled while the prose stood still: "8-voice synth" (32), "~125
+//     functions" (373), "263 registered carts" (545), `sound.h:5509` (a file now 8,800 lines long)
+//   · a `(see Decided-against)` pointer whose target had never been written
+//   · `## Shipped` is a reverse-chronological changelog and a flat capability inventory, interleaved
 //
 // None of it was catchable by a linter, because none of it is a broken link. It is a ledger losing sync
 // with the repo it describes — which is exactly what a tool can check and prose cannot.
@@ -93,23 +95,19 @@ const P = (kind, line, msg) => problems.push({ kind, line, msg })
 
 // 1. the highest-value check: a DONE marker inside `## Open`.
 //
-// ONLY the TITLE line counts (or the file's `~~struck~~` idiom). Scanning the body was the first
-// version and it cried wolf: item 1 says "AABB collision already SHIPPED as boxes_touch()" as
-// CONTEXT while its actual open work is discoverability, and item 40 ("spatial audio v3") opens by
-// noting v1 and v2 shipped. Both are open items that mention a shipped thing — the opposite of the
-// finding. A body-only marker is too weak to assert on; those items get caught by `too-long` anyway.
-// Match the whole HEADING LINE, not the bold title: the file often puts the marker just outside the
-// bold ("**Rasterization consistency** *(SHIPPED — …)*", "**Unify LFO shape** — ✓ **SHIPPED**"), and
-// matching only the bold missed five real ones. Then subtract the one context shape that survives
-// that: an item named for a LATER version whose heading notes the earlier ones landed ("spatial
-// audio **v3**" opening "v1 + v2 SHIPPED"), which is an open item, not a closed one.
-// Scan the first THREE lines, because a heading wraps ("**Unify LFO shape** — ✓ **SHIPPED**" fits on
-// one; "**Sound expansion** — _… now SHIPPED_" and "**Library headers …** — slice (a) SHIPPED" do not).
-// Then subtract the two context shapes that a marker-in-window otherwise reads as done:
-//   · "already SHIPPED as boxes_touch()" — item 1 citing EXISTING api while its own work (teaching
-//     discoverability, an explode() design) is wide open
-//   · "v1 + v2 SHIPPED" under a title named for v3 — item 40, likewise open
-// Both were false positives in the first version of this check, found by reading all 22 by hand.
+// Scan the first THREE lines of the item, then subtract two context shapes. Both halves of that were
+// learned by reading all 22 hits by hand instead of trusting the first version:
+//
+//   · THREE lines, not the bold title. The file often puts the marker just outside the bold
+//     ("**Rasterization consistency** *(SHIPPED — …)*", "**Unify LFO shape** — ✓ **SHIPPED**") or on
+//     the next line ("**Sound expansion** — _… now SHIPPED_"). Matching only the title missed five.
+//   · MINUS the context shapes, or it cries wolf. Item 1 says "AABB collision already SHIPPED as
+//     boxes_touch()" while its own work (teaching discoverability, an `explode()` design) is wide
+//     open; item 40 is "spatial audio **v3**" opening "v1 + v2 SHIPPED". Both are open items that
+//     MENTION a shipped thing — the inverse of the finding.
+//
+// And it reports MOVE vs SPLIT, because half of these shipped-but-still-listed items left a real
+// remainder (ui.h's on-device probe run, upright.c's up-only bend) that a blind move would bury.
 const TAIL_RE = /\*\*(Still open|Deferred|Further deferred|Remaining|PARKED)/i
 const CONTEXT_RE = /already\s+(?:\*\*)?(?:SHIPPED|DONE)|v\d[^\n]*\+\s*v\d[^\n]*(?:SHIPPED|DONE)/i
 const doneInOpen = open.filter(e => {
@@ -125,9 +123,32 @@ for (const e of doneInOpen) {
 if (doneInOpen.length)
   P('done-in-open', bounds.open.start + 1, `⚠ KEEP EVERY NUMBER when you move these — ~30 "STATUS #N" refs across docs, tune-check.js, sound.h and ~10 carts resolve today. Record the number in the destination entry; never reuse or renumber.`)
 
-// 2. an entry with no date at all
-for (const e of [...shipped, ...cut]) if (!dateOf(e.body))
+// 2. an entry with no date at all — but ONLY in the changelog half of `## Shipped`.
+//
+// `## Shipped` is really TWO documents. It opens as a reverse-chronological CHANGELOG of dated
+// entries, then at the first bolded group heading (`**Tooling & environment**`, `**API surface**`,
+// `**Code-first sound**`) it becomes a flat CAPABILITY INVENTORY — "what the engine has today".
+// Inventory bullets are things, not events: "Live inspection", "Profiler", "Font system:", `sget()`.
+// Demanding a date from those is the check being wrong, not the file, and it produced 20 of the
+// original 28 undated findings. A date only means something where the entry records an event.
+const invStart = (() => {
+  for (let i = bounds.shipped.start + 1; i < bounds.shipped.end; i++)
+    if (/^\*\*[A-Z]/.test(lines[i])) return i + 1
+  return bounds.shipped.end
+})()
+const shippedLog = shipped.filter(e => e.line < invStart)
+const shippedInv = shipped.filter(e => e.line >= invStart)
+
+for (const e of [...shippedLog, ...cut]) if (!dateOf(e.body))
   P('undated', e.line, `entry has no (YYYY-MM-DD): ${e.title}`)
+
+// 2b. the structural consequence of that split: dated CHANGELOG entries appended into the middle of
+// the inventory. One finding, not N — the fix is one decision (move them up), not N edits.
+{
+  const strays = shippedInv.filter(e => dateOf(e.body))
+  if (strays.length)
+    P('log-in-inventory', invStart, `${strays.length} dated entries sit INSIDE the capability inventory (below line ${invStart}) instead of in the reverse-chronological changelog above it — so "## Shipped" is a changelog and an inventory interleaved, which is why its dates read as unsorted. Lines: ${strays.slice(0, 12).map(e => e.line).join(', ')}${strays.length > 12 ? ', …' : ''}`)
+}
 
 // 3. an over-long entry — rationale belongs in the owning design doc
 for (const e of [...shipped, ...open]) if (e.len > LEN_BUDGET)
@@ -138,9 +159,10 @@ const hl = lines.findIndex(l => l.startsWith('_Last updated:'))
 if (hl >= 0 && lines[hl].length > HEADLINE_BUDGET)
   P('headline', hl + 1, `_Last updated:_ is ${lines[hl].length} chars (budget ${HEADLINE_BUDGET}) — one date + a sentence + a link; the detail is already in the entry below`)
 
-// 5. Shipped out of reverse-chronological order
+// 5. Shipped out of reverse-chronological order — changelog half only (see #2: the inventory's
+// dates are interleaved by construction, so ordering them is meaningless until 2b is resolved).
 {
-  const dated = shipped.map(e => ({ ...e, d: dateOf(e.body) })).filter(e => e.d)
+  const dated = shippedLog.map(e => ({ ...e, d: dateOf(e.body) })).filter(e => e.d)
   for (let i = 1; i < dated.length; i++)
     if (dated[i].d > dated[i - 1].d)
       P('unsorted', dated[i].line, `Shipped is reverse-chronological, but ${dated[i].d} follows ${dated[i - 1].d}: ${dated[i].title}`)
@@ -199,7 +221,7 @@ if (!problems.length) {
   console.log(`status-check: ledger ok — ${shipped.length} shipped · ${open.length} open · ${cut.length} cut`)
   process.exit(0)
 }
-const order = ['done-in-open', 'dead-pointer', 'numbering', 'headline', 'too-long', 'undated', 'unsorted']
+const order = ['done-in-open', 'dead-pointer', 'numbering', 'headline', 'log-in-inventory', 'too-long', 'undated', 'unsorted']
 // repo-doctor shows the LAST stdout line as this check's one-line summary, so that line must be the
 // count — a trailing explanatory note would be displayed instead of the result.
 problems.sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind) || x.line - y.line)

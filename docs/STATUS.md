@@ -58,39 +58,6 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   inharmonicity to modulate at all). Also fixed en route: `tune-check` could not see PIANO's stretched
   tuning at all, and now asserts it as a **differential** against a runtime stretch-off pass.
 
-- **LOCKSTEP NETPLAY RUNG 5b — browser WebRTC P2P, SHIPPED + PUBLISHED** (2026-07-10). `pong` plays
-  peer-to-peer between two browsers over a DataChannel at ~12 ms on wifi, with the relay reduced to
-  signaling only (`tools/net-relay.js`); live on github.io. Wire-side diagnostics landed the same week (RTT
-  probe, rx-gap and wall-clock logs, web-tick stall detection). **Two follow-ups are PARKED, deliberately:**
-  step 5 (adaptive `NET_DELAY` — the fixed 10-frame cushion holds) and step 7 (TURN, for peers that cannot
-  connect directly). The remaining task is physical, not code: the office-wifi checklist at
-  [multiplayer-research.md](design/multiplayer-research.md#next-office-session--the-checklist). Gate:
-  `node tools/net-check.js`.
-
-- **The per-cart PROMOTE tab + the shared-popup pattern, SHIPPED A–E** (2026-07-08). Record/bake clips,
-  the reel builder with save/load (subject-scoped strip + cross-subject overview), multi-resolution export
-  (output-ratio picker on reel-Build and clip-bake, Stage-2 per-ratio variants that FILL, App Store even
-  half-sizes), and the popup pattern reused by the trailer and keyword-research surfaces from both the cart
-  and app pages. Keyboard shortcuts were the enabler. Design: [promote-tab.md](design/promote-tab.md) +
-  [export-ratios.md](design/export-ratios.md), both stages shipped. **Open, and the reason it is not
-  finished-finished: an EYEBALL PASS — the stack was verified at pipeline/logic level and none of it was
-  clicked live** — plus the fixed-layout composite gap.
-
-- **`walkbox` — a walking-bass step-sequencer, BUILT and PARKED** (2026-07-18). A TB-303 workflow driving
-  the upright's real `INSTR_BOWED` pizzicato voice: draw a line on scale-locked note bars, sculpt a tabbed
-  VEL/LEN lane (velocity → pluck attack, length → staccato gate, top = TIE), flip SLD/OCT rows, dial SWING.
-  Core + articulation ship and play. **Parked with a wish list, not a blocker:** ghost notes, hammer-on/
-  pull-off, presets. Design: [walkbox.md](design/walkbox.md).
-
-- **`tools/leads.js` — the local marketeer, BUILT and PARKED** (2026-07-07). The demand-GENERATION twin of
-  the `aso-*` capture tools: maps a cart's `de:meta` to its tribe(s) and the venues where that tribe
-  gathers (`match`), hunts new venues (`discover`), scaffolds a gift-first post from the cart's own words
-  (`draft`), and tracks outreach (`track add`). Ledger `tools/leads-ledger.json` is committed and
-  hand-editable — **34 tribes / 14 cross-cutting** as of 2026-07-30 (`node tools/leads.js --check` for the
-  live count). The taxonomy has kept growing through use; the tool itself has not changed since it was
-  built. Open: the editor Apps-page surface. Design:
-  [leads-marketeer.md](design/leads-marketeer.md#open-questions-resume-at).
-
 - **The app-icon mask, measured** (2026-07-28) — `tools/icon-mask.js` + a committed
   `tools/icon-masks/ios26-2048.png`. Two apps were in review with their icon corners visibly shaved,
   so we stopped guessing the squircle: **Xcode 26's Icon Composer ships `ictool`**, which renders a
@@ -180,6 +147,12 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
     Ledger: [`design/audio-notes.md`](design/audio-notes.md) §17 #34 + #35; settings in
     [`guides/effects-recipes.md`](guides/effects-recipes.md).
 
+- **`walkbox` — a walking-bass step-sequencer, BUILT and PARKED** (2026-07-18). A TB-303 workflow driving
+  the upright's real `INSTR_BOWED` pizzicato voice: draw a line on scale-locked note bars, sculpt a tabbed
+  VEL/LEN lane (velocity → pluck attack, length → staccato gate, top = TIE), flip SLD/OCT rows, dial SWING.
+  Core + articulation ship and play. **Parked with a wish list, not a blocker:** ghost notes, hammer-on/
+  pull-off, presets. Design: [walkbox.md](design/walkbox.md).
+
 - **Audio input — the mic seam + the vocoder** (2026-07-16/17) — the engine can HEAR and SPEAK.
   A **device-free microphone seam** behind the `platform.h` host contract, wired on **all four
   platforms** (desktop CoreAudio/`AudioQueue` · web `getUserMedia` · iOS `AVAudioSession` · Android
@@ -196,6 +169,33 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   (live-mic-through is live-only; capture-then-freeze stays deterministic). Design:
   [`design/mic-and-sampling.md`](design/mic-and-sampling.md) + [`design/vocoder.md`](design/vocoder.md)
   (vocoder v2 open: sibilance band, mic-rate resample, on-device latency). Desktop + web live-verified.
+
+- **LOCKSTEP NETPLAY RUNG 5b — browser WebRTC P2P, SHIPPED + PUBLISHED** (2026-07-10). `pong` plays
+  peer-to-peer between two browsers over a DataChannel at ~12 ms on wifi, with the relay reduced to
+  signaling only (`tools/net-relay.js`); live on github.io. Wire-side diagnostics landed the same week (RTT
+  probe, rx-gap and wall-clock logs, web-tick stall detection). **Two follow-ups are PARKED, deliberately:**
+  step 5 (adaptive `NET_DELAY` — the fixed 10-frame cushion holds) and step 7 (TURN, for peers that cannot
+  connect directly). The remaining task is physical, not code: the office-wifi checklist at
+  [multiplayer-research.md](design/multiplayer-research.md#next-office-session--the-checklist). Gate:
+  `node tools/net-check.js`.
+
+- **The per-cart PROMOTE tab + the shared-popup pattern, SHIPPED A–E** (2026-07-08). Record/bake clips,
+  the reel builder with save/load (subject-scoped strip + cross-subject overview), multi-resolution export
+  (output-ratio picker on reel-Build and clip-bake, Stage-2 per-ratio variants that FILL, App Store even
+  half-sizes), and the popup pattern reused by the trailer and keyword-research surfaces from both the cart
+  and app pages. Keyboard shortcuts were the enabler. Design: [promote-tab.md](design/promote-tab.md) +
+  [export-ratios.md](design/export-ratios.md), both stages shipped. **Open, and the reason it is not
+  finished-finished: an EYEBALL PASS — the stack was verified at pipeline/logic level and none of it was
+  clicked live** — plus the fixed-layout composite gap.
+
+- **`tools/leads.js` — the local marketeer, BUILT and PARKED** (2026-07-07). The demand-GENERATION twin of
+  the `aso-*` capture tools: maps a cart's `de:meta` to its tribe(s) and the venues where that tribe
+  gathers (`match`), hunts new venues (`discover`), scaffolds a gift-first post from the cart's own words
+  (`draft`), and tracks outreach (`track add`). Ledger `tools/leads-ledger.json` is committed and
+  hand-editable — **34 tribes / 14 cross-cutting** as of 2026-07-30 (`node tools/leads.js --check` for the
+  live count). The taxonomy has kept growing through use; the tool itself has not changed since it was
+  built. Open: the editor Apps-page surface. Design:
+  [leads-marketeer.md](design/leads-marketeer.md#open-questions-resume-at).
 
 **Tooling & environment**
 - Code editor (CodeMirror 6, C syntax, autocomplete + hover + Cmd-click-to-help +
@@ -1441,7 +1441,9 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
 ## Decided-against / deferred ✗
 
 These were considered and **cut** — kept here so the decision isn't relitigated.
-Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer or skip" and the 2026-05-30 review.
+Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer or skip" and its
+[**External brainstorm review** (2026-05-30)](design/api-notes.md#external-brainstorm-review--divmmfsim-ideas-weighed-against-the-carts-2026-05-30)
+— which is where the entries dated `2026-05-30` below were decided.
 
 - **`pedalboard`: on-screen text labels** — nut string names, fret numbers, a chord-name readout.
   Cut 2026-07-30 ("i dont like that"): two of the three were already answered by the interface, and
@@ -1465,15 +1467,17 @@ Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer
   play (wasm), not contribute to. Resolves the old "Sharing the work" open question. The
   tinyjam racks *product* line ([`design/product-notes.md`](design/product-notes.md)) is a separate
   question, unaffected.
-- **Process / coroutine model (DIV-style)** — the would-be "Level-2" learning model.
+- **Process / coroutine model (DIV-style)** (2026-05-30) — the would-be "Level-2" learning model.
   Every shipped cart works cleanly with plain typed static pools, so it's weeks
-  of coroutine/transformer machinery for a model we don't need. [`VISION.md`](VISION.md).
-- **Engine-owned entity system** (God-struct / `SELF` / `val[16]` / ECS) — per-game
-  typed pools with *named* fields beat all of them for a learn-C console.
-- **MMF movement/qualifier engines** (`move_platform`, `move_8dir`) — removes the lesson.
-- **`move_and_collide`** (resolved tile push-out) — low demand; only `platform.c` does
+  of coroutine/transformer machinery for a model we don't need. [`VISION.md`](VISION.md) ·
+  [decision 0001](decisions/0001-cut-coroutine-process-model.md).
+- **Engine-owned entity system** (God-struct / `SELF` / `val[16]` / ECS) (2026-05-30) — "the big
+  rabbit hole" of that review; per-game typed pools with *named* fields beat all of them for a
+  learn-C console.
+- **MMF movement/qualifier engines** (`move_platform`, `move_8dir`) (2026-05-30) — removes the lesson.
+- **`move_and_collide`** (resolved tile push-out) (2026-05-30) — low demand; only `platform.c` does
   the full pattern, and `zelda`/`gta` test against their own data, not `mget`.
-- **DS structures** (lists/maps/grids), **memory arenas**, **PS1 z-sort/ordering table**,
+- **DS structures** (lists/maps/grids) (2026-05-30), **memory arenas**, **PS1 z-sort/ordering table**,
   **tools-as-carts / VFS / fantasy-OS / peek-poke**, a **3D *engine*** (scene graph / mat4
   stack / z-buffer / per-pixel depth) — out of scope. *(The small 3D leaf-helpers
   `rot3`/`project3`/`zsort`/`quadfill` + `V3` ARE shipped — see below and [decision 0009].)*
@@ -1483,9 +1487,9 @@ Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer
   opposite of the point. The same concern is what keeps a no-param `explode()` a research topic
   rather than a build item (item 1). *(This entry written 2026-07-30 — item 1 has said "see
   Decided-against" since the beginning and the target was never actually here.)*
-- **Particle systems** and **pathfinding** — ship as *library carts* (seeds: `astar.c`,
+- **Particle systems** and **pathfinding** (2026-05-30) — ship as *library carts* (seeds: `astar.c`,
   `boids.c`), not engine surface.
-- **Pixel-perfect sprite collision** — eventually maybe; AABB covers 95% first.
+- **Pixel-perfect sprite collision** (2026-05-30) — eventually maybe; AABB covers 95% first.
 - **Turtle graphics API** (`turtle_*`/`pen_*`) — shipped, then **removed 2026-06-01**: only
   `16-spirograph.c` used it, and a turtle is just `dx`/`dy` + `line()`, so it lives in the
   cart now. [decision 0008](decisions/0008-cut-turtle-graphics-api.md).

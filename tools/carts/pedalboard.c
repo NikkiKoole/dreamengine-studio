@@ -1085,7 +1085,22 @@ static void draw_guitar(void) {
     // tried and was too heavy — at 12px fret spacing it turned the neck into a ladder.)
     for (int f = 1; f <= NFRETS; f++) {
         int wx = FRET_WIRE(f), y0 = by + 4, hh = bh - 8;
-        static const int LIT[3] = { CLR_WHITE, CLR_LIGHT_GREY, CLR_MEDIUM_GREY };
+        // …and warmed INTO the board. The middle band used to be CLR_LIGHT_GREY, a COOL grey on a
+        // salmon fretboard, and that clash was the whole of the "noisy" read — the wires looked like
+        // a grid drawn over the wood rather than hardware sitting in it. CLR_PEACH keeps the same
+        // top-lit gradient while sharing the board's hue. The bottom stays CLR_MEDIUM_GREY (which is
+        // already warm, 162/136/121) rather than going fully salmon, because a salmon shadow reads
+        // too close to the ORANGE of a ringing string.
+        //
+        // NB: the obvious way to do this — wrap the wires in blend(BLEND_AVG) so they mix with
+        // whatever is under them — is NOT SAFE. canvas-diff goes 0px → 192px with it: BLEND_* is
+        // implemented on both paths with the same palette and the same 2r²+4g²+3b² metric, but the
+        // GPU blends against a FROZEN SNAPSHOT of the canvas while the software path blends against
+        // the LIVE canvas (studio.c says so at blend_gpu_begin), and the software side averages in
+        // truncating integers where the shader uses floats. Either is enough to flip a
+        // nearest-palette tie. So a blended cart renders differently on the SOFTWARE canvas, which
+        // is the iOS path. Picking the colours by hand costs nothing and stays byte-identical.
+        static const int LIT[3] = { CLR_WHITE, CLR_PEACH, CLR_MEDIUM_GREY };
         for (int b = 0; b < 3; b++) {
             int ya = y0 + hh * b / 3, yb = y0 + hh * (b + 1) / 3;
             rectfill(wx, ya, 1, yb - ya, LIT[b]);

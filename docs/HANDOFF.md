@@ -47,7 +47,7 @@ workflow: cart provenance (`de:meta.slug`) + the save-back round-trip**, and (9)
 — the reddit-gaps drip** (mine a tribe's RSS for unmet demand; caches grow via a 6 h drip). All
 below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.md) + the design board.
 
-> **▶ ACTIVE THREAD (2026-07-30) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) unblocked; 2.4 not started**).**
+> **▶ ACTIVE THREAD (2026-07-30) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4 is the live item**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -457,12 +457,16 @@ below; none is "the" thread. Shipped/open ledger for all: [`STATUS.md`](STATUS.m
 > contrast; read the baked frame).
 >
 > **Resume-at: (1) re-voice the other five voicings' B by ear** — they scale from `stiff` (celesta 2.4e-4
-> down to clavichord 4.4e-5, plausible ordering but only the grand was ear-checked); **(2) 2.3(b), now UNBLOCKED** — velocity → B is the easy half (scale the target, the solver
-> does the rest), but the RELAXING half has a trap this session paid for: changing `c` mid-note moves the
-> pitch, and the only way to shorten the loop after note-on is the `effLen = len/ratio` read-pointer path,
-> which is EXACTLY the fractional-interpolation path measured to bleed energy every round trip. So the
-> naive version trades relaxation for sustain — the same confound the owner's ear caught. Gate any attempt
-> on `inharm-spec --decay`, not just on B and pitch. Candidate shapes in plan §2.3(b) handoff; **(3) §I4d** (the loop's own
+> down to clavichord 4.4e-5, plausible ordering but only the grand was ear-checked); **(2) 2.3(b) is ❌ DROPPED (2026-07-30), do not pick it up** — it was the plan's
+> highest-leverage remaining item on paper and measurement killed it. It was ranked "five families, one
+> physical fact", but four of the five have NO inharmonicity to modulate (GUITAR −3.1e-7, PLUCK 1.6e-8;
+> MALLET/MEMBRANE are modal, no energy at n·f0; BRASS is a plain delay) so it is ONE family, not five. On
+> PIANO the effect is ±2–4¢ at h8 (B must ~double to move a partial 10¢) where the owner already heard the
+> FULL static effect as "very subtle" on one note. And the cost rose: the relaxation half hits the `effLen`
+> sustain trap. **THE TRANSFERABLE LESSON: ranking an item by how many findings it closes is only sound
+> while those findings are BELIEVED rather than MEASURED** — `inharm-spec` would have re-ranked this out of
+> Phase 2 in one command, before any work. Two other multi-family items in the plan are ranked the same way
+> and deserve the same check. Unbuilt candidate shapes kept in plan §2.3(b); **(3) §I4d** (the loop's own
 > +1.3→+4.0¢ offset) and the constant-B simplification (a real Railsback B rises at both ends of the
 > keyboard). Queued gates from the specs question: the A/B comparability gate, and a "pitch is invariant
 > across `MODE_PIANO_STIFF`" assertion in `inharm-spec` (needs the spectral method, so not tune-check). After that, §I4b is a

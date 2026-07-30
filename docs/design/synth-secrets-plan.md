@@ -13,7 +13,9 @@ rejected two of its own indices, so two `piano` sliders had never worked. Nothin
 **Phase 2 so far:** 2.1, 2.2 and **2.3(a) SHIPPED**. 2.3's premise failed on measurement — PIANO's
 dispersion chain was inert and its stretched-tuning seam was cancelled a frame after note-on — and both are
 now FIXED and shipped by the owner's ear (`MODE_PIANO_STIFF`, real stiff-string inharmonicity at B ≈ 1.1e-4,
-plus the completed Railsback curve). **2.3(b) is unblocked.** §I4d open; 2.4 not started.
+plus the completed Railsback curve). **2.3(b) is DROPPED** — measurement showed four of its five "families"
+have no inharmonicity to modulate, so its finding-count ranking rested on a false premise. §I4d open;
+**2.4 is the live Phase 2 item** and needs no ear to start.
 
 The audit ended with nine per-section step tables and ~106 sub-findings, which is a research output, not
 a work list. This file turns it into one ordered ledger, answers **how we decide an item is done**, and
@@ -656,7 +658,7 @@ per-engine items is the single biggest saving available.
 | 2.1 | **Keyboard tracking** (§B2) | Parts 6, 23/24, 26, 46, 54 — six chapters | ✅ **SHIPPED (both halves)** 2026-07-29 | new enum + a call | The most-requested missing feature in the whole series. Part 26 pins the value: cutoff should track at **≈0.93/octave** ("190 percent" per octave, not 200). Two halves: `instrument_keytrack(slot, amount)`, and env/LFO cutoff depth in **octaves** rather than Hz |
 | 2.2 | **Trigger policy** (§B3) | §L4, §K6, §H9, §M8, and four monosynth carts each hand-rolling it | ✅ **SHIPPED** 2026-07-29 (`mono.h` + `sh101`) | `mono.h` | §L4 vs §K6 is the argument: the **Hammond percussion must be single-trigger** and the **flute chiff must be multi-trigger**, and in both cases it decides whether the defining transient happens at all. So it is a property an *instrument declares*, not a cart convention. Start as a cart-land header per 0016 |
 | 2.3(a) | **The premise failed, and both halves are now FIXED** (§I4b, §I4c, §I4d) | unblocks 2.3(b) | ✅ **SHIPPED 2026-07-30** — §I4c (stretch) + §I4b (`MODE_PIANO_STIFF`) by the owner's ear; §I4d open | Measuring before building (as this row told us to) found PIANO's dispersion chain **inert** (B ≈ 2e-6 where a grand is ~1e-4; GUITAR and PLUCK harmonic too) **and** its stretched-tuning seam working in the **treble only**. §I4c is now fixed and, more importantly, **tune-check now asserts the stretch instead of tolerating it**. Write-up below |
-| 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | five families | LISTEN — **UNBLOCKED 2026-07-30** | 6 | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. **The machinery turned out not to work**, so (a) came first — and now that PIANO has real, knob-controlled inharmonicity there is finally something to make level-dependent |
+| 2.3(b) | **Level-dependent inharmonicity** (§E8, §H, §I4, §J8, §K8) | ~~five families~~ **ONE** | ❌ **DROPPED 2026-07-30** | — | One physical fact — partials sharpen with *amplitude* as well as pitch — modelled statically at best in five engines. Prototype on **one** engine (PIANO has the machinery), A/B, then decide whether to generalise. Unblocked by (a), then **dropped**: measuring the five "families" found four have no inharmonicity to modulate at all, so the finding-count that ranked it into Phase 2 was arithmetic on a false premise. On the one engine that qualifies the effect is ±2–4¢ at h8, below noticing, while the cost rose (the relaxation half hits the `effLen` sustain trap). Full write-up + the ranking lesson below |
 | 2.4 | **Coupling** (§E5, §H5, §I3, §M2) | four findings | DESIGN → 6 | engine | One architectural question with four faces: the brass bell that should fill the series natively, the guitar body with no return path, the piano tricord that does not exchange energy, and §M2's cheaper alternative (three parallel 1-4 ms delay lines *are* a body). **Do §M2's A/B first** — it may answer all four cheaply |
 
 **Sequencing note:** 2.1 and 2.2 are prerequisites for a lot of Phase 3 and for §G, so they come first
@@ -1460,7 +1462,62 @@ constant across the register, where a real Railsback curve rises at both ends. �
 2.3(b), the original level-dependent item, is now UNBLOCKED** — there is finally inharmonicity to make
 level-dependent.
 
-##### Handing 2.3(b) forward: the easy half, and the trap in the hard half
+#### 2.3(b) — ❌ DROPPED 2026-07-30, and the reason is a lesson about ranking by finding-count
+
+**Dropped by the owner's call on the reasoning below, immediately after 2.3(a) shipped.** Recorded in full
+because it was one of the highest-ranked items in the whole plan, and because *why* it fell is more useful
+than the fact that it did.
+
+**What it was.** Reid, Parts 42 and 28: a string "appears shorter at high frequencies **and high
+amplitudes**", so inharmonicity should widen with striking force and **relax as the note decays**. Real
+physics, correctly identified by the audit, and not modelled anywhere.
+
+**Reason 1 — the leverage that ranked it was arithmetic on a false premise.** The audit priced this as
+*"five families, one physical fact"*: one change closing §E8 brass, §H guitar, §I4 piano, §J8 drums, §K8
+flutes. That count is what lifted it into Phase 2. Measuring those engines (§I4b above) killed it:
+
+| engine | measured B | verdict |
+|---|---|---|
+| GUITAR | −3.1e-7 | perfectly harmonic — nothing to modulate |
+| PLUCK | 1.6e-8 | perfectly harmonic |
+| MALLET, MEMBRANE | — | modal engines, **no energy at `n·f0` at all**; the frame does not apply |
+| BRASS | — | plain delay + bell lowpass, no dispersion |
+| PIANO | 1.1e-4 (as of today) | the only one with anything to modulate |
+
+So "make inharmonicity level-dependent" cannot close four of the five. Each would first need its own static
+dispersion — an §I4b-sized job **per engine**. **The item is one family, not five.**
+
+**Reason 2 — on that one family the effect is below the noticing threshold, and we now have the ear
+calibration to say so.** From the shipped engine, B must roughly *double* to move a partial ~10¢ (h8 goes
++8.1¢ → +17.8¢ as the knob goes 0.5 → 1.0). A physically realistic velocity-driven swing in B is far less
+than 2× — call it ±20–40%, so **±2–4¢ at h8**. The owner heard the *entire* static effect (the full 8¢ at
+h8, off versus on) as *"very subtle"* on a single note, clear only in chords. A second-order modulation
+worth a few cents, appearing only as a difference between soft and hard strikes that already differ hugely
+in brightness and loudness, would be masked.
+
+**Reason 3 — the price rose while the payoff shrank.** It was priced "prototype, A/B, decide". The
+relaxation half then turned out to run into the `effLen` sustain trap (above): changing `c` mid-note moves
+the pitch, and the only mid-note way to shorten the loop is the fractional-interpolation read path measured
+to bleed energy every round trip. Doing it properly means a time-varying delay budget — surgery in the most
+delicate part of the loop.
+
+**Reason 4 — the expressive want is already served.** PIANO already couples velocity to hammer brightness
+(`hard += (vel − 0.6) · 0.45`), which is the *audible* velocity-timbre effect, and it works.
+
+**THE TRANSFERABLE LESSON, and it is about this plan's own method:** the audit ranked items partly by *how
+many findings one change closes*, and that is a sound heuristic **only while the findings are believed
+rather than measured**. Four of these five "families" turned out not to have the feature the fact was about.
+Before trusting a finding-count to rank an item, **verify the premise holds in each engine it counts** —
+`inharm-spec` would have answered this in one command and re-ranked the item out of Phase 2 before any of
+the work. Two other multi-family items in this plan are ranked the same way and deserve the same check.
+
+**Not dropped: 2.3(a) stands** — static, knob-controlled inharmonicity shipped and was liked. What is
+dropped is making it respond to level. Effort redirected to the five unverified voicings' ear pass, to
+**2.4/§M2** (which has the leverage ratio 2.3(b) was supposed to have, and needs no ear to start), and to
+**§I4d**. The candidate implementation shapes are kept below, unbuilt, in case the premise ever changes —
+i.e. if several engines later gain real dispersion of their own.
+
+##### Handing 2.3(b) forward (kept for reference — the item is DROPPED, see above): the easy half, and the trap in the hard half
 
 2.3(b) is now unblocked, and it splits cleanly.
 
@@ -1709,6 +1766,7 @@ Recording these so they stop costing attention. Each needs one line of agreement
 | **Brass envelope (1.4)** | E10 | ❌ **DROPPED 2026-07-28.** All three of Reid's numbers lose on a waveguide; the shipped 1200 ms release *is* the bore's ring-down. Toggle removed, measurements + restore recipe kept in `brass.c`. [Write-up](#14-brass-amp-envelope--dropped-reid-loses-all-three-numbers-owners-ear-2026-07-28) |
 | **Hammond saw/square registrations (1.6)** | L5 | ❌ **DROPPED 2026-07-29.** The audit called it "two rows in `REG[8][9]`"; it is not. The table lives in the ENGINE as **8 snapped detents**, so adding rows re-maps `instrument_harmonics` for the **13 carts** that set it on an organ slot (harm 0.5 would go from Jimmy Smith to Ballad) — silently, and unfixable by inspection wherever a cart's value came from ear rather than a detent index. The zero-risk route exists (`MODE_ORGAN_XREG` behind ORGAN's aux channel, idx 0 is free) but spends **permanent public API surface on two novelty presets**. And §L1 already verified all nine drawbar footages against Part 55, so the organ is not wrong — these are colours, not a fix. Recorded, not built |
 | solina's middle wow rung (1.1) | F2 | ❌ **DROPPED 2026-07-28.** Measured indistinguishable from CLASSIC (centroid 2260 vs 2267 Hz) and no oracle can see a 0.16 Hz character change under a chord progression. Restore code kept in the cart |
+| **Level-dependent inharmonicity (2.3(b))** | E8, H, I4, J8, K8 | ❌ **DROPPED 2026-07-30** — the item's whole ranking rested on a count that measurement destroyed. See the write-up below |
 
 **Still candidates, awaiting one line of agreement:**
 

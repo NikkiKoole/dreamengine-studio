@@ -380,6 +380,15 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              own slope ≈2-3x, an audible click 6-20x). `--quiet` = PASS/FAIL gate. Run it after any
                              mid-note wave_set / table swap / envelope-shape edit — an envelope plot cannot tell a
                              clean ramp from a splice, which is how martenot's 8-step morph shipped crackling
+             stereo-check.js the STEREO oracle — the ONLY gate that reads L and R apart. Every other audio
+                             tool's `readWavMono()` averages the channels at the door, so autopan / pan_law /
+                             the stereo soft-clip / chorus width had ZERO coverage; worse, a mono downmix is
+                             actively BLIND to antiphase panning (gL+gR ≈ constant, so summing removes it).
+                             Reports corr · width (side/mid) · balance · mono-fold loss · a pan TRACE over
+                             time (excursion + LFO rate — a hard-sweeping pan and a dead-centre file have the
+                             same MEAN pan). `--expect mono|wide|decorrelated|autopan [--rate hz]` = PASS/FAIL
+                             gate, `--check` = self-test vs synthetic signals (RUN IT FIRST — a broken analyser
+                             and a mono file print the same thing). Run after any pan/width/stereo edit
              voice-trace.js  read a --trace run's voice-allocation events (on/off/reuse/steal/choke, naming the
                              victim) → why a voice stopped; twin of play.js --solo-slot (stem render). For "a solo got
                              cut off by another instrument". Design: docs/design/audio-voice-debugging.md

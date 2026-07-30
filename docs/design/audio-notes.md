@@ -2486,3 +2486,79 @@ never gated `a->wave`). Verified via a scripted DF→CL flip (the SAW toggle app
 on 303a, flip to classic and back — SUB must still be there (proves the non-destructive flip). **Then:** fold
 a one-line note into acidcandy's `de:meta.todo[]` (next to the DRIFT-knob entry) and, if the chassis grew a
 new control vocabulary, [`candy-style.md`](candy-style.md).
+
+---
+
+## 27. The stereo blind spot — `tools/stereo-check.js` (2026-07-30)
+
+**Found by a player, not by a gate.** Someone playing `pedalboard` on the web reported the AUTOPAN
+pedal "doesn't seem to do much… I just hear slight changes in amplitude in both left and right
+channels." Nothing in the repo could confirm or refute that, which turned out to be the real finding.
+
+### 27.1 Every audio gate averages the channels at the door
+
+The render is genuinely stereo — `studio.c`'s `wav_stream_open` writes 2ch interleaved 16-bit, and
+has since the stereo work. But every analysis tool reads it through the same `readWavMono()`:
+
+```js
+else s[i] = (b.readInt16LE(data.off + i*2*ch) + b.readInt16LE(data.off + i*2*ch + 2)) / 65536
+```
+
+That line is in `level-check`, `tune-check`, `fx-check`, `dc-check`, `click-check`, `harmonic-spec`,
+`formant-check`, `inharm-spec`, `psola-check`, `soak-check`, `wav-analyze`, `wav-envelope`,
+`wav-modrate`, `wav-correlate`, `filter-spec` and `web-audio-check`. So **`autopan`, `pan_law`, the
+stereo-linked master soft-clip and chorus/flanger width have had zero coverage since they shipped.**
+Any of them could invert, collapse or silently no-op and the whole sheet would stay green.
+
+Worse than lossy — **blind by construction.** `pan_process` is antiphase, `gL = 1−d(1−mod)` and
+`gR = 1−d·mod`, so `gL+gR = 2−d`, a constant. Folding to mono removes auto-panning *almost
+perfectly*, and the deeper the pan the more completely a mono gate cannot see it. The one test you
+would reach for is the one guaranteed to report nothing. (`--check` case 4 pins this: the same
+autopan signal, downmixed, reads as clean `mono`.)
+
+Note the split this exposes: `scope_read2` (the stereo tap) has existed the whole time and nothing
+used it. A capability with no oracle attached is not coverage.
+
+### 27.2 The tool
+
+`stereo-check.js` reads L and R apart and reports `corr` (Pearson, +1 mono / −1 antiphase),
+`width` (side/mid RMS), `balance`, mono-fold loss, and a **pan trace** over time — excursion plus
+dominant LFO rate. The trace matters because *the mean is useless here*: a hard L↔R sweep and a
+dead-centre file have the same average pan. `--expect mono|wide|decorrelated|autopan [--rate hz]`
+turns it into a PASS/FAIL gate; `--check` self-tests against synthetic signals with known answers.
+
+Two definitions worth keeping straight, because conflating them is what the self-test caught:
+**width** is how far off centre the image sits, **correlation** is whether the sides carry
+*different content*. A mono source panned hard left is one signal at two gains: maximally wide,
+`corr` exactly 1.0. So `--expect wide` gates width only.
+
+### 27.3 Verdict on the report: autopan is fine, the KNOB MAPPING is not
+
+With the oracle, the engine cleared immediately. `wavecandy` (`autopan(2.0, 1.0, SINE)`) measures
+excursion **1.891** at **1.93 Hz** against the 2.0 Hz requested. The DSP is correct and dramatic.
+
+`pedalboard`'s pedal also works, and measuring it explains the report exactly:
+
+| pedalboard AUTOPAN | measured rate | pan excursion |
+|---|---|---|
+| SPD 0.35 (the **default**), DEP 0.70 | 4.49 Hz | 1.085 |
+| SPD 0.03, DEP 0.70 | 0.79 Hz | 1.252 |
+| SPD 0.03, DEP 1.00 | 0.79 Hz | **2.000** (hard L ↔ hard R) |
+
+The pedal reaches the full image. The problem is `rate = 0.5 + k*11.5`, a linear 0.5→12 Hz map.
+Panning is heard as *position* below roughly 2 Hz and as *amplitude wobble* above roughly 4 Hz — so
+the entire spatial range lives in the bottom ~13% of the knob, and **the default sits at 4.5 Hz,
+already past it.** "Slight changes in amplitude in both channels" is a precise description of a
+4.5 Hz pan. His other complaint, that SPD "doesn't do anything", is the same fact: across 4.5→12 Hz
+every position sounds like tremolo, so the knob's whole visible travel does nothing *perceptually*.
+
+**Fix (not yet applied — a taste call):** curve the rate and lower the top, e.g.
+`0.15f * powf(60.0f, k)` (0.15 Hz → 9 Hz, midpoint ~1.2 Hz), and raise the default DEP. Same
+question applies to TREMOLO's `SPD`, which uses a comparable linear map.
+
+### 27.4 The lesson, which is §20's lesson again
+
+§20 audited "what is not tested?" and closed the loudness gap. It did not ask *what can our readers
+physically perceive?* — and the answer was "one channel." The gap was not a missing test, it was a
+shared helper quietly discarding half the signal before any test ran. Worth asking of the next
+oracle: what does its input throw away before it looks?

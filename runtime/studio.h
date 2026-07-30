@@ -352,6 +352,7 @@ void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount);  // set a held note's mod-envelope `which` (0..2) live — same shape as instrument_env(); amount 0 = off
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap); even in semitones, and `ms` is the real duration whatever the interval
+void note_glide_scale(int handle, int mode);              // what note_glide's `ms` measures: GLIDE_CONSTANT = the whole slide (default), GLIDE_PER_OCT = the time per octave
 void note_retrig(int handle);                             // play this held note's attack again, on the same voice — no click, keeps the pitch/glide it already had
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
 void note_pan(int handle, float pan);                     // change a held note's stereo position live -1 L..0 center..+1 R (slewed). pair with LFO_PAN for auto-pan
@@ -397,6 +398,10 @@ int   mic_recording(void);                                // 1 while still captu
 float mic_record_progress(void);                          // capture fill 0..1 — for a REC progress bar
 int   mic_record_rate(void);                              // sample rate of the captured audio (pass to sample_load's caller; = engine rate on desktop)
 int   mic_record_read(float *out, int max);               // copy the captured PCM (mono, -1..1) into out[] (up to max); returns count. Then sample_load() it
+
+// glide scale — what note_glide's `ms` is measured against (per held note; pass to note_glide_scale)
+#define GLIDE_CONSTANT 0   // default — `ms` is the WHOLE slide: a semitone and a two-octave leap both take `ms`
+#define GLIDE_PER_OCT  1   // `ms` is the time to travel ONE OCTAVE: total = ms x octaves. near notes slide fast, big leaps take longer
 
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned

@@ -2035,10 +2035,46 @@ carts for.
 > like Vital's portamento section, but neither synth's actual curve was verified. The argument above does
 > not rest on it.
 
-**Still open, and now genuinely three lines: GLIDE SCALE.** Constant time is what we have (`gl_len` is
-interval-independent by construction). The per-octave alternative is `gl_len = ms_per_oct · |gl_d|`, since
-`gl_d` is already the distance in octaves. It needs an API surface decision (a flag on `note_glide`, or a
-separate `note_glide_scale`) rather than any new DSP.
+#### GLIDE SCALE — SHIPPED 2026-07-30, and the API question answered
+
+**`note_glide_scale(handle, GLIDE_CONSTANT | GLIDE_PER_OCT)`.** A separate setter rather than a wider
+`note_glide`, because that is already the house pattern for "pick a variant of a thing you configured"
+(`note_filter`, `note_drive_mode`, `note_lfo_shape` all take a named constant this way), and because it
+leaves `note_glide`'s signature — and therefore all 59 calling carts — completely untouched. Default is
+`GLIDE_CONSTANT`, so nothing changes unless a cart asks.
+
+Named `_scale` and NOT `_mode` on purpose: the reference list that prompted this work uses "GLIDE MODE" for
+a *different* axis (OFF / LEGATO / ALWAYS — *when* a glide happens), which lives in cart land, as `sh101`'s
+PORTA switch and `pipe`/`brass`'s **T** toggle already show. Keeping that name free.
+
+The DSP was one multiply, as predicted: `gl_d` already holds the distance in octaves, so per-octave is
+`gl_len ×= |gl_d|`. Two details that are not the multiply and do matter:
+
+- **The scale applies only to a glide the cart ASKED for.** The default declick ramp is an anti-zipper
+  measure, not a slide; scaling it by a tiny interval would collapse it to the hard step it exists to
+  prevent. So `gl_ms == 0` keeps its fixed length, and a scaled glide is floored at that length too.
+- **This was impossible before the ramp.** A one-pole's *perceived* duration already varied with the
+  interval (3.0 τ for a semitone, 6.6 τ for three octaves), so there was no clean constant to scale away
+  from — the axis needed the fixed-duration ramp to exist first.
+
+Measured on `glideprobe` (`PROBE_PER_OCT`), one `note_glide(600)` in both modes:
+
+| leg | `GLIDE_CONSTANT` | `GLIDE_PER_OCT` | per-oct expected |
+|---|---|---|---|
+| fifth (7/12 oct) | 0.59 s | **0.33 s** | 0.35 s |
+| octave (1 oct) | 0.59 s | **0.59 s** | 0.60 s |
+| three octaves (3 oct) | 0.59 s | **1.82 s** | 1.80 s |
+
+The constant column is unchanged from before the switch existed, which is the regression check. The octave
+row reading the same in both modes is the arithmetic identity you'd want (at exactly one octave the two
+definitions coincide) and a useful sanity anchor. The semitone leg is omitted because it sits below
+`wav-envelope`'s integer-Hz floor in either mode — noted in the probe's header so nobody re-derives it as a
+bug.
+
+**That closes the glide work.** All four controls from the reference list now exist: the time knob, the
+even-in-pitch curve, a truthful duration, and the constant-vs-per-octave scale. The one axis still in cart
+land is GLIDE MODE (OFF/LEGATO/ALWAYS), which is where it belongs per ADR-0006 — `sh101` has had it for
+months as the AUTO/OFF/ON switch.
 
 ---
 

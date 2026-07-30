@@ -121,6 +121,7 @@ void note_lfo   (int handle, int which, int dest, float rate_hz, float depth);  
 void note_filter(int handle, int mode);            // switch filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide (int handle, int ms);              // portamento: note_pitch slides over `ms` instead of snapping (0 = snap)
                                                    //   `ms` IS the duration, at any interval; eases out like an RC lag
+void note_glide_scale(int handle, int mode);       // GLIDE_CONSTANT (ms = the whole slide, default) or GLIDE_PER_OCT (ms per octave)
 void note_retrig(int handle);                      // re-articulate: envelopes + the engine's onset fire again on THIS voice, click-free
 void note_off_all(void);                            // panic: release every held note (recover from a leaked handle)
 ```

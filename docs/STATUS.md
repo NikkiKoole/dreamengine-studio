@@ -41,7 +41,14 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   FEEL of every glide in the 59 carts that call `note_glide`: their values now buy a real duration rather
   than a time constant, so slides are roughly 3× snappier (`acid303`'s classic 60 ms is now genuinely
   60 ms, which is closer to a real 303). Play `heldnotes`, `tb303`, `sh101`, `brass`, `pipe`; measure with
-  `glideprobe`. Still open: the per-octave **GLIDE SCALE** axis, now an API-surface question, not DSP.
+  `glideprobe`. **And GLIDE SCALE closed it out: `note_glide_scale(h, GLIDE_CONSTANT | GLIDE_PER_OCT)`** —
+  a separate setter per the house `note_filter`/`note_drive_mode` pattern, so `note_glide`'s signature and
+  all 59 calling carts are untouched and the default is byte-identical. Per-octave measured 0.33 / 0.59 /
+  1.82 s for a fifth / octave / three octaves against an expected 0.35 / 0.60 / 1.80, while constant stays
+  0.59 s for all three. It needed the fixed-duration ramp first: a one-pole's perceived duration already
+  varied with the interval, so there was no constant to scale away from. The glide work is now complete
+  against the reference feature set (time, curve, honest duration, scale); GLIDE MODE (OFF/LEGATO/ALWAYS)
+  stays in cart land per ADR-0006, where `sh101`'s PORTA switch has had it for months.
   **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
   (real stiff-string inharmonicity, B ≈ 1.1e-4 on the grand) — item 2.3; and **`MODE_BOW_BODY`** (three
   parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) — item 2.4, in progress.

@@ -172,6 +172,7 @@ typedef struct {
     // ms is the real duration: the ramp lands on the target and stops. gl_e/gl_r advance the ease-out
     // curve incrementally so the per-sample cost is one exp2f, not an expf as well.
     int    gl_ms;                  // note_glide() duration in ms; 0 = the short default declick ramp
+    int    gl_scale;               // GLIDE_CONSTANT (ms = the whole slide) or GLIDE_PER_OCT (ms per octave)
     int    gl_pos, gl_len;         // ramp position / length in samples. gl_pos >= gl_len means IDLE
     float  gl_from, gl_d;          // start pitch (log2 Hz) and the signed distance to travel, in octaves
     float  gl_e, gl_r;             // running e^(-SHAPE·t): multiply gl_e by gl_r once per sample
@@ -2329,6 +2330,8 @@ typedef enum {
     SR_INSTR_KEYTRACK = 140,  // a=slot, b=amount*1000 — KEYBOARD TRACKING of the filter cutoff (instrument_keytrack), audit §B2
     SR_NOTE_RETRIG  = 141,    // e0/e1=handle — RE-ARTICULATE a held voice (note_retrig): amp+mod envelopes jump back to
                               // attack and the engine's onset transient re-arms, resonator untouched. Audit §B3/§K6
+    SR_NOTE_GLIDE_SCALE = 142,// a=mode (GLIDE_CONSTANT/GLIDE_PER_OCT), e0/e1=handle — what note_glide's `ms` is
+                              // measured against: the whole slide, or the time to travel one octave. Audit §B1
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2374,7 +2377,7 @@ static bool sound_req_is_event(SoundReq r) {
         case SR_NOTE_ENV: case SR_NOTE_MACRO: case SR_NOTE_DRIVE: case SR_NOTE_ECHO:
         case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
         case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
-        case SR_NOTE_RETRIG: case SR_CART_SWITCH:
+        case SR_NOTE_RETRIG: case SR_NOTE_GLIDE_SCALE: case SR_CART_SWITCH:
             return true;
         case SR_LFO_SHAPE: return r.c < 0;   // c<0 = live held note (handle in e0/e1); c>=0 = instrument-slot config
         default: return false;               // set-and-hold config — record it
@@ -5148,6 +5151,15 @@ static inline float sound_adsr_gated(int s, int a, int d, float sustain) {
 
 // Begin a glide from wherever the voice is now to freq_target. Called when the TARGET moves (note_pitch),
 // so a pitch change mid-glide re-aims from the current pitch — which is what legato playing wants.
+//
+// GLIDE SCALE (note_glide_scale) picks what `ms` is measured against, the axis a real panel exposes:
+//   GLIDE_CONSTANT (default) — `ms` is the whole slide. A semitone and a two-octave leap both take `ms`.
+//   GLIDE_PER_OCT           — `ms` is the time to travel ONE OCTAVE, so total = ms × |interval in octaves|.
+//                             Close notes glide fast, wide leaps take longer. At 500 ms/oct: a semitone
+//                             ≈42 ms, a fifth ≈292 ms, an octave 500 ms, two octaves 1.0 s.
+// `gl_d` is already the distance in octaves, so per-octave is one multiply — the reason this cost nothing
+// once the slew lived in the pitch domain, and the reason it was impossible before (a one-pole's perceived
+// duration already varied with the interval, so there was no clean "constant" to scale away from).
 static inline void sound_glide_start(Voice *v) {
     float tgt = v->freq_target;
     if (tgt <= 0.0f || v->freq <= 0.0f) { v->freq = tgt; v->gl_len = 0; return; }   // log2 guard
@@ -5155,6 +5167,19 @@ static inline void sound_glide_start(Voice *v) {
     int len = (int)(((long long)ms * (long long)SOUND_SAMPLE_RATE) / 1000LL);
     v->gl_from = log2f(v->freq);
     v->gl_d    = log2f(tgt) - v->gl_from;
+    // PER-OCTAVE scaling applies only to a glide the cart actually ASKED for. The default declick ramp is
+    // an anti-zipper measure, not a slide, and scaling it by a tiny interval would turn it back into the
+    // hard step it exists to prevent — so it keeps its fixed length, and a scaled glide never drops below
+    // it either.
+    if (v->gl_ms > 0 && v->gl_scale == GLIDE_PER_OCT) {
+        float oct = v->gl_d < 0.0f ? -v->gl_d : v->gl_d;
+        long long scaled = (long long)((double)len * (double)oct);
+        long long floor_len = ((long long)GLIDE_DECLICK_MS * SOUND_SAMPLE_RATE) / 1000LL;
+        long long cap       = 60LL * SOUND_SAMPLE_RATE;              // a minute of glide is plenty
+        if (scaled < floor_len) scaled = floor_len;
+        if (scaled > cap)       scaled = cap;
+        len = (int)scaled;
+    }
     // Nothing to travel, or nothing to travel it over: land now rather than run a ramp that does nothing.
     if (len < 2 || (v->gl_d < 1.0e-7f && v->gl_d > -1.0e-7f)) { v->freq = tgt; v->gl_len = 0; return; }
     v->gl_len = len;
@@ -5551,6 +5576,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->flt_band       = 0.0f;
     v->lad_s[0] = v->lad_s[1] = v->lad_s[2] = v->lad_s[3] = 0.0f;
     v->gl_ms = 0;                   // no portamento until note_glide() asks; 0 → the short declick ramp
+    v->gl_scale = GLIDE_CONSTANT;   // ms means the whole slide unless note_glide_scale() says otherwise
     v->gl_pos = v->gl_len = 0;      // no ramp in flight (a reused voice must not inherit one)
     v->gl_from = v->gl_d = 0.0f;
     v->gl_e = 1.0f; v->gl_r = 0.0f;
@@ -5816,6 +5842,12 @@ static void sound_fire_req(SoundReq r) {
         // Set-and-hold: this is the duration the NEXT note_pitch will take. A ramp already in flight keeps
         // the time it started with, so re-dialling the knob can't stretch a slide that is already moving.
         if (v) v->gl_ms = r.a < 0 ? 0 : (r.a > 60000 ? 60000 : r.a);   // cap at a minute of glide
+    } break;
+    case SR_NOTE_GLIDE_SCALE: {
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        // Also set-and-hold, and also read at glide START — so the order of note_glide vs
+        // note_glide_scale does not matter, and neither reaches a ramp already in flight.
+        if (v) v->gl_scale = (r.a == GLIDE_PER_OCT) ? GLIDE_PER_OCT : GLIDE_CONSTANT;
     } break;
     case SR_NOTE_OFF_ALL: {
         for (int i = 0; i < SOUND_VOICES; i++)
@@ -7348,6 +7380,11 @@ void note_glide(int handle, int ms) {
 void note_retrig(int handle) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_RETRIG, 0, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+void note_glide_scale(int handle, int mode) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_GLIDE_SCALE, mode, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_duty(int handle, float duty) {

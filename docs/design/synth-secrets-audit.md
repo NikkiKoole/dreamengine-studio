@@ -180,8 +180,12 @@ would be heard.
 > octaves downward 0.59 s. It is also cheaper than the one-pole it replaced. Full argument, including why
 > this is *more* hardware-faithful rather than less (a Minimoog's glide knob has no numbers on it because a
 > one-pole has no duration to print — the millisecond unit was always ours), in the plan's 3.26 subsection.
-> The remaining open item is only the per-octave **GLIDE SCALE** axis, which is now an API-surface question
-> rather than a DSP one.
+> **GLIDE SCALE shipped the same day too**, so this finding is fully closed:
+> `note_glide_scale(h, GLIDE_CONSTANT | GLIDE_PER_OCT)` picks whether `ms` is the whole slide or the time
+> per octave. Measured at one `note_glide(600)`: constant gives 0.59 s at a fifth, an octave and three
+> octaves alike; per-octave gives 0.33 / 0.59 / 1.82 s against an expected 0.35 / 0.60 / 1.80. It needed
+> the fixed-duration ramp to exist first — a one-pole's perceived duration already varied with the interval,
+> so there was no constant to scale away from.
 
 - **Book:** Part 16 (SOS August 2000, p.187): "if you insert a simple Slew Generator into the keyboard
   CV signal path, you smooth the transitions at the oscillator's CV input, thus making the pitch glide

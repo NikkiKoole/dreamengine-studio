@@ -1611,6 +1611,27 @@ string's pitch *does* fall slightly as it decays; or relax only the upper stages
 fundamental is smallest. **Whichever route: gate it on `inharm-spec --decay` as well as on B and pitch**,
 because sustain is the thing this trap takes and neither B nor a tuning check can see it going.
 
+##### An unlooked-for second benefit of the §I4c fix: PIANO was being silently DAMPED
+
+Caught by `level-check` after the fact, which flagged **PIANO A2 at rms +4.3 dB vs its blessed baseline**
+(peak +0.7, so the crest factor *fell* ~4 dB — the note now sustains more relative to its peak). Not a
+regression: a second consequence of the same one-line fix, and it makes the bug worse in hindsight.
+
+Before the fix, `v->freq_target` kept the nominal pitch while `pn_initf` held the stretched one, so
+`ratio = v->freq / pn_initf` sat permanently at 1.001146 instead of exactly 1. That put `effLen = len/ratio`
+just under `len` — **which engages the fractional-interpolation read path on every sample of every piano
+note.** This session measured that path independently and it is lossy: a lowpass inside the feedback loop,
+bleeding energy each round trip (the `instrument_tune` finding). So **§I4c was not only a tuning bug, it was
+quietly damping the entire instrument**, and fixing it handed the piano back sustain nobody knew it was
+missing.
+
+**Consequence to be aware of:** PIANO now runs ~4 dB hotter in rms in the bass across its 10 carts, which
+is a real mix-balance change, not just a timbre one. `level-baseline.json` re-blessed accordingly.
+
+**And a lesson about which gate catches what:** neither `tune-check` nor `inharm-spec` could see this — one
+watches pitch, the other partial frequencies. It took the *level* gate, run late and almost as an
+afterthought. Run `level-check` after any engine change that touches a loop, not just after touching gains.
+
 ##### Reproducing every measurement in §2.3(a) from a cold start
 
 The WAV pairs above live in `build/ab/`, which is **not committed**, and the scripts that made them were

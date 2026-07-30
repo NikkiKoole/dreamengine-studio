@@ -724,14 +724,23 @@ Still open there: a named `noise2_seeded()` helper and/or documenting the idiom 
     `.cart.png`). Options A–D and the reasoning:
     [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md) §Gap 2.
 
-25. **`ui.h` — the on-device pass + the remaining retrofits** *(v1 shipped 2026-06-07; see the
-    landed table)*.
-    - **The on-device probe run has never happened**: two knobs at once, fat fingers, the 5-touch
-      ceiling. Everything in v1 was verified on desktop and by scripted replay, so the touch claims
-      are argued, not measured — which is the one thing a widget kit should not ship on.
-    - **Further retrofits**: modrack's knob rows, `sfxed`, the wave editor.
-    *(Cut from v1 and still cut: `panel` + `drag-from`. The per-widget second-customer rule found
-    their named customers speculative; they wait for a cart that actually wants them.)*
+25. **`ui.h` — two carts still hand-roll their knob rows** *(v1 shipped 2026-06-07; see the landed
+    table)*. `modrack`'s knob rows and `sfxed` never got retrofitted onto the widget kit — neither
+    includes `ui.h`. A refactor opportunity, not a risk: they work, they just carry their own drag
+    machine, so a `ui.h` fix doesn't reach them. (`sfxgen` was the v1 retrofit and did land.)
+    - *Cut from v1 and still cut: `panel` + `drag-from`. The per-widget second-customer rule found
+      their named customers speculative; they wait for a cart that actually wants them.*
+    **The on-device question is CLOSED (2026-07-30), not open** — this item claimed "the on-device
+    probe run has never happened" for seven weeks while the answers sat in
+    [`design/touch-notes.md`](design/touch-notes.md) §7–8 and **93 carts** shipped on `ui.h`:
+    two-finger simultaneous release was **BUILT & DEVICE-PASSED** on a phone the day it was found
+    (§7), and the **5-touch ceiling is device finding #5** — an iPhone fires `touchcancel` for *all*
+    active touches past five, which native UIKit apps get too, so it is documented **correct OS
+    behaviour, do not "fix"**. Both findings are dated 2026-06-06, i.e. the day *before* v1 shipped.
+    *(Recorded because this item was itself the bug the 2026-07-30 ledger audit was about: a
+    "still open" line outliving its answer. It reads as risk — a widget kit whose touch claims were
+    never measured — which is why it was flagged as the most alarming of the four remaining tails,
+    and it was the least. A stale open note is not neutral; it misdirects attention.)*
     [`design/ui-widgets-notes.md`](design/ui-widgets-notes.md) §7.
 
 26. **Editor hand-editing workflow** *(new 2026-06-06 — explored, sliced)* — three gaps when

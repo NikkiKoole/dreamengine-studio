@@ -632,7 +632,15 @@ void init(void) {
 // A damped string still gets HIT — you just hear the pick, not a note. That percussive "chk" is
 // what a muted string sounds like on a real guitar, and it's also the honest feedback: silence
 // would read as a dead widget. I_MUTE is the same engine at a 180ms gate, so it's a pick, not a pitch.
-#define MUTE_CHK(s) hit(OPEN[s] + 12, I_MUTE, 3, 60)
+// …and the thud has a PITCH, which tracks the hand. A damped string is stopped by the BARRE, so
+// the bit that still speaks runs from the barre fret to the bridge: a chk with your hand at the nut
+// is lower and duller than the same chk at the 8th fret. This was pinned to OPEN[s] + 12 no matter
+// where you were on the neck, so every chord's mute sounded identical — which is what the maker
+// heard. The +12 stays (it keeps the thing reading as a click rather than a note); only the
+// tracking is new. pick_string() already does the mirror of this for the NUT-side segment, so the
+// cart was half modelling string position and half ignoring it.
+static int mute_note(int s) { return OPEN[s] + ROOT_FRET[sel_root] + 12; }
+#define MUTE_CHK(s) hit(mute_note(s), I_MUTE, 3, 60)
 static void pluck_str(int s, int vol) {
     if (s < 0 || s >= NSTR) return;
     if (str_muted(s)) { MUTE_CHK(s); amp[s] = 0.3f; vib_ph[s] = 0.0f; fmt_on_attack(); return; }
@@ -642,7 +650,7 @@ static void pluck_str(int s, int vol) {
 }
 static void strum_down(void) {
     for (int s = 0; s < NSTR; s++) {
-        if (str_muted(s)) schedule_hit(s * 28, OPEN[s] + 12, I_MUTE, 3, 60);   // the pick, no pitch
+        if (str_muted(s)) schedule_hit(s * 28, mute_note(s), I_MUTE, 3, 60);   // the pick, not the note
         else              schedule_hit(s * 28, str_midi[s], I_GTR, 5, gate_ms());
         pend[s] = 1 + (s * 28 * 60) / 1000;
     }

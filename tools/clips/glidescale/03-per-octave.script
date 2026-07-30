@@ -1,0 +1,8 @@
+# glidescale — GLIDE_PER_OCT (amount 1.0), one pass of the phrase (~9s).
+# TWO S taps, because S cycles three stops: CONSTANT -> ANALOG -> PER OCT. A single tap would
+# land on ANALOG (that mistake is why this file exists separately from 02).
+#   node tools/play.js glidescale script tools/clips/glidescale/03-per-octave.script \
+#        --headless --frames 545 --wav /tmp/peroct.wav
+# frames 545
+tap 4 S
+tap 14 S

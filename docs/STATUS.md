@@ -41,14 +41,20 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   FEEL of every glide in the 59 carts that call `note_glide`: their values now buy a real duration rather
   than a time constant, so slides are roughly 3× snappier (`acid303`'s classic 60 ms is now genuinely
   60 ms, which is closer to a real 303). Play `heldnotes`, `tb303`, `sh101`, `brass`, `pipe`; measure with
-  `glideprobe`. **And GLIDE SCALE closed it out: `note_glide_scale(h, GLIDE_CONSTANT | GLIDE_PER_OCT)`** —
-  a separate setter per the house `note_filter`/`note_drive_mode` pattern, so `note_glide`'s signature and
-  all 59 calling carts are untouched and the default is byte-identical. Per-octave measured 0.33 / 0.59 /
-  1.82 s for a fifth / octave / three octaves against an expected 0.35 / 0.60 / 1.80, while constant stays
-  0.59 s for all three. It needed the fixed-duration ramp first: a one-pole's perceived duration already
-  varied with the interval, so there was no constant to scale away from. The glide work is now complete
-  against the reference feature set (time, curve, honest duration, scale); GLIDE MODE (OFF/LEGATO/ALWAYS)
-  stays in cart land per ADR-0006, where `sh101`'s PORTA switch has had it for months.
+  `glideprobe`. **And GLIDE SCALE closed it out — as a DIAL, `note_glide_scale(h, amount)`, plus the
+  per-slot twins `instrument_glide` / `instrument_glide_scale`.** It shipped as a two-way
+  constant-vs-per-octave switch first (the axis a real panel offers) and that was wrong: an RC lag's
+  *perceived* duration grows with the interval logarithmically, so the spread from a semitone to three
+  octaves is **1x** constant, **~2.2x** for a real analog lag, **36x** per-octave. **Analog sits between the
+  two panel settings and much closer to constant**, and a binary switch cannot reach it — so the law became
+  `ms × |Δoctaves|^amount` with `GLIDE_CONSTANT`/`GLIDE_ANALOG`/`GLIDE_PER_OCT` as named stops. `ms` is
+  always the time for a one-octave slide at every setting (the octave is the pivot); both endpoints render
+  byte-identical to the switch version. Measured in the engine at amount 0.2: octave 0.58 s vs 600 ms
+  predicted, three octaves 0.76 s vs 747 ms. New cart **`glidescale`** is the audible home (it had to be
+  new: `heldnotes` drives pitch continuously, and this axis is only audible across discrete jumps of
+  contrasting size). The glide work is now complete against the reference feature set (time, curve, honest
+  duration, scale); GLIDE MODE (OFF/LEGATO/ALWAYS) stays in cart land per ADR-0006, where `sh101`'s PORTA
+  switch has had it for months. **The 303's snappier slide was owner-approved on listening.**
   **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
   (real stiff-string inharmonicity, B ≈ 1.1e-4 on the grand) — item 2.3; and **`MODE_BOW_BODY`** (three
   parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) — item 2.4, in progress.

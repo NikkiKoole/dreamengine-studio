@@ -1,0 +1,8 @@
+# glidescale — GLIDE_ANALOG (amount 0.2), one pass of the phrase (~9s).
+# S steps CONSTANT -> ANALOG -> PER OCT, so ONE tap lands on the analog law: bigger leaps take
+# a bit longer, but only a bit (a ~2x spread from a semitone to three octaves, where full
+# per-octave would be 36x). This is the setting a binary switch could never reach.
+#   node tools/play.js glidescale script tools/clips/glidescale/02-analog.script \
+#        --headless --frames 545 --wav /tmp/analog.wav
+# frames 545
+tap 4 S

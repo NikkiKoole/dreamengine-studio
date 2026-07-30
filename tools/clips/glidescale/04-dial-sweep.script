@@ -1,0 +1,8 @@
+# glidescale — all three stops back to back in ONE file (~27s), for hearing the dial move rather
+# than comparing files. One pass CONSTANT, then S to ANALOG for a pass, then S to PER OCT for a
+# pass. The notes never change; only how much the slide time depends on the distance does.
+#   node tools/play.js glidescale script tools/clips/glidescale/04-dial-sweep.script \
+#        --headless --frames 1630 --wav /tmp/sweep.wav
+# frames 1630
+tap 540 S
+tap 1080 S

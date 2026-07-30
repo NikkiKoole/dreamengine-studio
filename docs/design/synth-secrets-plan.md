@@ -2035,13 +2035,54 @@ carts for.
 > like Vital's portamento section, but neither synth's actual curve was verified. The argument above does
 > not rest on it.
 
-#### GLIDE SCALE — SHIPPED 2026-07-30, and the API question answered
+#### GLIDE SCALE — SHIPPED 2026-07-30, as a DIAL, because the switch could not reach the best setting
 
-**`note_glide_scale(handle, GLIDE_CONSTANT | GLIDE_PER_OCT)`.** A separate setter rather than a wider
-`note_glide`, because that is already the house pattern for "pick a variant of a thing you configured"
-(`note_filter`, `note_drive_mode`, `note_lfo_shape` all take a named constant this way), and because it
-leaves `note_glide`'s signature — and therefore all 59 calling carts — completely untouched. Default is
-`GLIDE_CONSTANT`, so nothing changes unless a cart asks.
+**`note_glide_scale(handle, float amount)` + `instrument_glide` / `instrument_glide_scale`.** A separate
+setter rather than a wider `note_glide`, because that is already the house pattern for "pick a variant of a
+thing you configured" (`note_filter`, `note_drive_mode`, `note_lfo_shape` all take a named constant this
+way), and because it leaves `note_glide`'s signature — and therefore all 59 calling carts — completely
+untouched. Default is `GLIDE_CONSTANT`, so nothing changes unless a cart asks.
+
+**It shipped as a two-way switch first, and that was wrong.** Real panels offer constant-time vs
+time-per-octave, so that is where this started. But asking what vintage hardware actually does turns up a
+third answer: an RC lag has a fixed *time constant*, so its perceived duration grows with the interval
+**logarithmically**, not linearly. Taking ~5 cents as the audibility floor and comparing a semitone against
+three octaves (a 36:1 range of distance):
+
+| law | spread, semitone → three octaves | `amount` |
+|---|---|---|
+| constant time | **1x** | 0 |
+| **a real analog lag** | **~2.2x** | **~0.2** |
+| time per octave | **36x** | 1 |
+
+So analog portamento sits *between* the two panel settings and much closer to constant, and per-octave is a
+modern exaggeration rather than the vintage law. **A binary switch cannot reach the most historically
+accurate setting**, which is a bad property for a switch in an engine whose north star is honest simulation.
+Hence a continuous amount, with `GLIDE_CONSTANT` / `GLIDE_ANALOG` / `GLIDE_PER_OCT` as named stops on it.
+
+The law is `gl_len = ms × |Δoctaves| ^ amount`, and **the property that makes the dial coherent: since
+`1^anything == 1`, `ms` is always the time for a ONE-OCTAVE slide, at every setting.** The octave is the
+pivot; `amount` only controls how far other intervals deviate from it. That also keeps both endpoints
+meaning exactly what they meant as a switch — verified the strong way, by *byte-identical renders*: the
+`GLIDE_CONSTANT` and `GLIDE_PER_OCT` demo files hash the same before and after the refactor
+(`10e6c53ac7`, `dfc4a3d894`).
+
+Measured in the ENGINE at `note_glide(600)`, `amount` 0.2 — the octave leg is the sharp test, because if
+that column ever moves the law is broken:
+
+| leg | measured | predicted |
+|---|---|---|
+| **octave** (the pivot) | **0.58 s** | 600 ms |
+| three octaves | **0.76 s** | 747 ms |
+
+and the three-octave leg across the whole dial reads 0.59 s → 0.76 s → 1.82 s at amounts 0 / 0.2 / 1.0.
+
+**`instrument_glide` / `instrument_glide_scale` are the per-slot twins**, and they fell out of the same work
+rather than being a separate idea: the engine already has an `instrument_X` / `note_X` pair for ~20 other
+parameters, and glide was one of the few with only the per-note half. Glide feel is a patch property, so a
+cart should set it once in `init()` instead of re-applying it after every `note_on` — which is exactly the
+kind of thing that gets forgotten in one code path out of four. A voice inherits both from its slot at
+note-on; `note_glide` / `note_glide_scale` still override per-voice.
 
 Named `_scale` and NOT `_mode` on purpose: the reference list that prompted this work uses "GLIDE MODE" for
 a *different* axis (OFF / LEGATO / ALWAYS — *when* a glide happens), which lives in cart land, as `sh101`'s
@@ -2057,7 +2098,7 @@ The DSP was one multiply, as predicted: `gl_d` already holds the distance in oct
   interval (3.0 τ for a semitone, 6.6 τ for three octaves), so there was no clean constant to scale away
   from — the axis needed the fixed-duration ramp to exist first.
 
-Measured on `glideprobe` (`PROBE_PER_OCT`), one `note_glide(600)` in both modes:
+Measured on `glideprobe` (`PROBE_SCALE`), one `note_glide(600)` at the two endpoints:
 
 | leg | `GLIDE_CONSTANT` | `GLIDE_PER_OCT` | per-oct expected |
 |---|---|---|---|
@@ -2066,10 +2107,9 @@ Measured on `glideprobe` (`PROBE_PER_OCT`), one `note_glide(600)` in both modes:
 | three octaves (3 oct) | 0.59 s | **1.82 s** | 1.80 s |
 
 The constant column is unchanged from before the switch existed, which is the regression check. The octave
-row reading the same in both modes is the arithmetic identity you'd want (at exactly one octave the two
-definitions coincide) and a useful sanity anchor. The semitone leg is omitted because it sits below
-`wav-envelope`'s integer-Hz floor in either mode — noted in the probe's header so nobody re-derives it as a
-bug.
+row reading the same in both modes is the arithmetic identity you'd want and a useful sanity anchor. The
+semitone leg is omitted because it sits below `wav-envelope`'s integer-Hz floor in either mode — noted in
+the probe's header so nobody re-derives it as a bug.
 
 **The audible home is [`glidescale`](../../tools/carts/glidescale.c)**, and the reason it needed to be a new
 cart rather than a switch bolted onto `heldnotes` is itself the lesson: `heldnotes` drives pitch
@@ -2086,9 +2126,11 @@ you can hear — the contrast IS the demo. Trace-verified costs at 300 ms/oct, s
 | 36→48 | 12 | 300 ms | 300 ms |
 | 50→72 | 22 | 550 ms | 300 ms |
 
-A 22:1 spread against a flat one. Three committed clips mint the renders:
-`tools/clips/glidescale/{01-constant,02-per-octave,03-ab-switch}.script` (the third puts both settings in
-one file so you hear the switch rather than comparing two files).
+A 22:1 spread against a flat one. Four committed clips mint the renders:
+`tools/clips/glidescale/{01-constant,02-analog,03-per-octave,04-dial-sweep}.script` (the last puts all
+three stops in one file so you hear the dial move rather than comparing files). Note **`03` needs TWO `S`
+taps**, because `S` cycles three stops — one tap lands on ANALOG, and that mistake is why the per-octave
+clip is a separate file with the reason written in it.
 
 > ⚠ `click-check` flags 64 events on those renders and they are **false positives** — the voice is a SAW,
 > and at MIDI 36 its flyback is one 12.4%-of-peak step per long period against a gentle ramp, which is the

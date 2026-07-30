@@ -181,11 +181,18 @@ would be heard.
 > this is *more* hardware-faithful rather than less (a Minimoog's glide knob has no numbers on it because a
 > one-pole has no duration to print — the millisecond unit was always ours), in the plan's 3.26 subsection.
 > **GLIDE SCALE shipped the same day too**, so this finding is fully closed:
-> `note_glide_scale(h, GLIDE_CONSTANT | GLIDE_PER_OCT)` picks whether `ms` is the whole slide or the time
-> per octave. Measured at one `note_glide(600)`: constant gives 0.59 s at a fifth, an octave and three
-> octaves alike; per-octave gives 0.33 / 0.59 / 1.82 s against an expected 0.35 / 0.60 / 1.80. It needed
-> the fixed-duration ramp to exist first — a one-pole's perceived duration already varied with the interval,
-> so there was no constant to scale away from.
+> `note_glide_scale(h, amount)` sets how much a slide's time depends on the distance, as
+> `gl_len = ms × |Δoctaves| ^ amount`. It shipped as a two-way switch first and that was wrong — asking what
+> the hardware does turns up a THIRD answer. An RC lag's perceived duration grows with the interval
+> logarithmically, so the spread from a semitone to three octaves is **1x** for constant time, **~2.2x**
+> for a real analog lag, and **36x** for per-octave: **analog sits between the two panel settings and much
+> closer to constant**, and a binary switch cannot reach it. Hence a dial, with `GLIDE_CONSTANT` /
+> `GLIDE_ANALOG` / `GLIDE_PER_OCT` as named stops. `ms` is always the time for a one-octave slide at every
+> setting (the octave is the pivot, since `1^anything == 1`); measured in the engine at amount 0.2, the
+> octave leg is 0.58 s against 600 ms predicted and three octaves 0.76 s against 747 ms. Both endpoints are
+> byte-identical to the switch version. It needed the fixed-duration ramp to exist first — a one-pole's
+> perceived duration already varied with the interval, so there was no constant to scale away from.
+> `instrument_glide` / `instrument_glide_scale` are the per-slot twins, so glide feel is a patch property.
 
 - **Book:** Part 16 (SOS August 2000, p.187): "if you insert a simple Slew Generator into the keyboard
   CV signal path, you smooth the transitions at the oscillator's CV input, thus making the pitch glide

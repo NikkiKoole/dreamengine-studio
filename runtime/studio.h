@@ -352,7 +352,7 @@ void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount);  // set a held note's mod-envelope `which` (0..2) live — same shape as instrument_env(); amount 0 = off
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap); even in semitones, and `ms` is the real duration whatever the interval
-void note_glide_scale(int handle, int mode);              // what note_glide's `ms` measures: GLIDE_CONSTANT = the whole slide (default), GLIDE_PER_OCT = the time per octave
+void note_glide_scale(int handle, float amount);          // how much a slide's time grows with distance: 0 = not at all, GLIDE_ANALOG, 1 = one `ms` per octave
 void note_retrig(int handle);                             // play this held note's attack again, on the same voice — no click, keeps the pitch/glide it already had
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
 void note_pan(int handle, float pan);                     // change a held note's stereo position live -1 L..0 center..+1 R (slewed). pair with LFO_PAN for auto-pan
@@ -371,6 +371,8 @@ void wave_set(int which, const float *samples, int n);    // fill custom wave IN
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
 void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. voices inherit at note-on. sweep live with note_pan or LFO_PAN
 void instrument_level(int slot, float gain);              // per-slot output LEVEL 0..1 — 1 = unity (default, byte-identical), 0.5 ≈ half, 0 = silent. balance a multi-part mix; ride it live like drive/echo. the level leg of the per-slot mixer (drive/echo/reverb/pan)
+void instrument_glide(int slot, int ms);                   // PORTAMENTO for this patch — every note from this slot slides over `ms` (0 = snap, the default). the per-slot twin of note_glide
+void instrument_glide_scale(int slot, float amount);       // GLIDE SCALE for this patch: 0 = every interval takes the same time (default), GLIDE_ANALOG, 1 = `ms` per octave
 void record_arm(void);                                    // PCM SAMPLER: begin the always-on rolling capture of the master output (idempotent; off + byte-identical until called). Call once, then record_grab() any time to snapshot recent audio
 int  record_grab(int sample_slot, float seconds);         // snapshot the last `seconds` of captured audio into PCM sample slot 0..7; peak-normalized + leading/trailing SILENCE TRIMMED (starts at the first audible sample). Returns samples grabbed after trim (0 = not armed / nothing yet). Pair with instrument_sample() + INSTR_SAMPLE
 void instrument_sample(int slot, int sample_slot, int root_midi); // bind an INSTR_SAMPLE instrument slot to a recorded buffer; root_midi = the note that plays it at original speed (e.g. 60 = C4). Higher notes play faster/up in pitch
@@ -399,9 +401,11 @@ float mic_record_progress(void);                          // capture fill 0..1 �
 int   mic_record_rate(void);                              // sample rate of the captured audio (pass to sample_load's caller; = engine rate on desktop)
 int   mic_record_read(float *out, int max);               // copy the captured PCM (mono, -1..1) into out[] (up to max); returns count. Then sample_load() it
 
-// glide scale — what note_glide's `ms` is measured against (per held note; pass to note_glide_scale)
-#define GLIDE_CONSTANT 0   // default — `ms` is the WHOLE slide: a semitone and a two-octave leap both take `ms`
-#define GLIDE_PER_OCT  1   // `ms` is the time to travel ONE OCTAVE: total = ms x octaves. near notes slide fast, big leaps take longer
+// glide scale — how much a slide's time depends on how FAR it travels. `ms` is always the time for a
+// one-octave slide; this only changes what other intervals cost. Named points on a continuous 0..1 dial:
+#define GLIDE_CONSTANT 0.0f   // default — every interval takes `ms`: a semitone and a two-octave leap alike
+#define GLIDE_ANALOG   0.2f   // what a real analog synth does: bigger leaps take a bit longer, but only a bit
+#define GLIDE_PER_OCT  1.0f   // `ms` is the time PER OCTAVE: near notes slide fast, big leaps take much longer
 
 // pan law — how a pan position maps to L/R gain (master-wide; set once in init(), affects every panned sound)
 #define PAN_LINEAR  0   // default — center keeps full gain (L=R=mix); byte-identical to mono. a centered sound is +3dB vs hard-panned

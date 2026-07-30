@@ -124,6 +124,8 @@ typedef struct {
     float smp_root;                 // INSTR_SAMPLE: the buffer's root freq (Hz) — the pitch at playback speed 1.0
     float smp_start, smp_end;       // INSTR_SAMPLE: the CHOP — play from start..end as fractions 0..1 (default 0,1 = whole). instrument_sample_region()
     int   smp_mode;                 // INSTR_SAMPLE playback: SAMPLE_NORMAL(0)/REVERSE/LOOP/PINGPONG. instrument_sample_mode()
+    int   gl_ms;                    // PORTAMENTO for this patch (instrument_glide): slide time in ms; 0 = no glide (default)
+    float gl_scale;                 // GLIDE SCALE amount (instrument_glide_scale): 0 = constant time (default), 1 = per octave
 } Instrument;
 
 #define SOUND_LFOS 3
@@ -172,7 +174,7 @@ typedef struct {
     // ms is the real duration: the ramp lands on the target and stops. gl_e/gl_r advance the ease-out
     // curve incrementally so the per-sample cost is one exp2f, not an expf as well.
     int    gl_ms;                  // note_glide() duration in ms; 0 = the short default declick ramp
-    int    gl_scale;               // GLIDE_CONSTANT (ms = the whole slide) or GLIDE_PER_OCT (ms per octave)
+    float  gl_scale;               // GLIDE SCALE amount: 0 = constant time, 1 = per octave, ~0.2 = the analog law
     int    gl_pos, gl_len;         // ramp position / length in samples. gl_pos >= gl_len means IDLE
     float  gl_from, gl_d;          // start pitch (log2 Hz) and the signed distance to travel, in octaves
     float  gl_e, gl_r;             // running e^(-SHAPE·t): multiply gl_e by gl_r once per sample
@@ -2330,8 +2332,11 @@ typedef enum {
     SR_INSTR_KEYTRACK = 140,  // a=slot, b=amount*1000 — KEYBOARD TRACKING of the filter cutoff (instrument_keytrack), audit §B2
     SR_NOTE_RETRIG  = 141,    // e0/e1=handle — RE-ARTICULATE a held voice (note_retrig): amp+mod envelopes jump back to
                               // attack and the engine's onset transient re-arms, resonator untouched. Audit §B3/§K6
-    SR_NOTE_GLIDE_SCALE = 142,// a=mode (GLIDE_CONSTANT/GLIDE_PER_OCT), e0/e1=handle — what note_glide's `ms` is
-                              // measured against: the whole slide, or the time to travel one octave. Audit §B1
+    SR_NOTE_GLIDE_SCALE = 142,// a=amount*1000, e0/e1=handle — GLIDE SCALE on a held note: 0 = constant time,
+                              // 1000 = per octave, ~200 = the analog law. Audit §B1
+    SR_INSTR_GLIDE  = 143,    // a=slot, b=ms — PORTAMENTO as a patch property (instrument_glide); a new voice
+                              // inherits it, and note_glide still overrides per-voice
+    SR_INSTR_GLIDE_SCALE = 144,// a=slot, b=amount*1000 — GLIDE SCALE as a patch property (instrument_glide_scale)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -5152,14 +5157,30 @@ static inline float sound_adsr_gated(int s, int a, int d, float sustain) {
 // Begin a glide from wherever the voice is now to freq_target. Called when the TARGET moves (note_pitch),
 // so a pitch change mid-glide re-aims from the current pitch — which is what legato playing wants.
 //
-// GLIDE SCALE (note_glide_scale) picks what `ms` is measured against, the axis a real panel exposes:
-//   GLIDE_CONSTANT (default) — `ms` is the whole slide. A semitone and a two-octave leap both take `ms`.
-//   GLIDE_PER_OCT           — `ms` is the time to travel ONE OCTAVE, so total = ms × |interval in octaves|.
-//                             Close notes glide fast, wide leaps take longer. At 500 ms/oct: a semitone
-//                             ≈42 ms, a fifth ≈292 ms, an octave 500 ms, two octaves 1.0 s.
-// `gl_d` is already the distance in octaves, so per-octave is one multiply — the reason this cost nothing
-// once the slew lived in the pitch domain, and the reason it was impossible before (a one-pole's perceived
-// duration already varied with the interval, so there was no clean "constant" to scale away from).
+// GLIDE SCALE (note_glide_scale / instrument_glide_scale) is a CONTINUOUS amount, not a two-way switch,
+// and the reason is a measurement. Real panels offer constant-time vs time-per-octave, so that is where
+// this started — but neither of those is what vintage hardware does. An RC lag has a fixed time constant,
+// so its *perceived* duration grows with the interval logarithmically rather than linearly. Taking ~5 cents
+// as the audibility floor and comparing a semitone against three octaves (a 36:1 range of distance):
+//
+//   constant time        1×  spread     ← `amount` 0
+//   a real analog lag  ~2.2×  spread    ← `amount` ~0.2   (robust: 1.9-2.6× as the floor moves 2-10 cents)
+//   time per octave     36×  spread     ← `amount` 1
+//
+// So analog portamento sits BETWEEN the two panel settings and much closer to constant, and per-octave is a
+// modern exaggeration rather than the vintage law. A binary switch cannot reach the most historically
+// accurate setting, which is a bad reason to ship a binary switch. Hence:
+//
+//   gl_len = ms × |Δoctaves| ^ amount
+//
+// AND THE PROPERTY THAT MAKES IT COHERENT: since 1^amount == 1 for every amount, **`ms` is always the time
+// for a ONE-OCTAVE slide**, whatever the scale is set to. The octave is the pivot; `amount` only controls
+// how far other intervals deviate from it. That also means both endpoints keep their old meaning exactly —
+// at 0 every interval takes `ms`, at 1 `ms` is per octave — so the shipped constants stay honest.
+//
+// `gl_d` is already the distance in octaves, which is why this is one powf and why it was impossible before
+// the slew moved into the pitch domain (a one-pole's perceived duration already varied with the interval,
+// so there was no clean "constant" to scale away from).
 static inline void sound_glide_start(Voice *v) {
     float tgt = v->freq_target;
     if (tgt <= 0.0f || v->freq <= 0.0f) { v->freq = tgt; v->gl_len = 0; return; }   // log2 guard
@@ -5171,9 +5192,12 @@ static inline void sound_glide_start(Voice *v) {
     // an anti-zipper measure, not a slide, and scaling it by a tiny interval would turn it back into the
     // hard step it exists to prevent — so it keeps its fixed length, and a scaled glide never drops below
     // it either.
-    if (v->gl_ms > 0 && v->gl_scale == GLIDE_PER_OCT) {
+    if (v->gl_ms > 0 && v->gl_scale > 0.0f) {
         float oct = v->gl_d < 0.0f ? -v->gl_d : v->gl_d;
-        long long scaled = (long long)((double)len * (double)oct);
+        // amount 1 is the common case and powf(x,1) is exact but not free, so shortcut it. amount 0 never
+        // reaches here at all, which is what keeps the default path byte-identical.
+        float f = (v->gl_scale == 1.0f) ? oct : powf(oct, v->gl_scale);
+        long long scaled = (long long)((double)len * (double)f);
         long long floor_len = ((long long)GLIDE_DECLICK_MS * SOUND_SAMPLE_RATE) / 1000LL;
         long long cap       = 60LL * SOUND_SAMPLE_RATE;              // a minute of glide is plenty
         if (scaled < floor_len) scaled = floor_len;
@@ -5575,8 +5599,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->flt_low        = 0.0f;
     v->flt_band       = 0.0f;
     v->lad_s[0] = v->lad_s[1] = v->lad_s[2] = v->lad_s[3] = 0.0f;
-    v->gl_ms = 0;                   // no portamento until note_glide() asks; 0 → the short declick ramp
-    v->gl_scale = GLIDE_CONSTANT;   // ms means the whole slide unless note_glide_scale() says otherwise
+    v->gl_ms    = ins->gl_ms;       // PORTAMENTO inherited from the patch (instrument_glide); 0 = the short
+    v->gl_scale = ins->gl_scale;    // declick ramp only. note_glide/note_glide_scale still override per-voice
     v->gl_pos = v->gl_len = 0;      // no ramp in flight (a reused voice must not inherit one)
     v->gl_from = v->gl_d = 0.0f;
     v->gl_e = 1.0f; v->gl_r = 0.0f;
@@ -5847,7 +5871,19 @@ static void sound_fire_req(SoundReq r) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         // Also set-and-hold, and also read at glide START — so the order of note_glide vs
         // note_glide_scale does not matter, and neither reaches a ramp already in flight.
-        if (v) v->gl_scale = (r.a == GLIDE_PER_OCT) ? GLIDE_PER_OCT : GLIDE_CONSTANT;
+        if (v) { float a = r.a / 1000.0f; v->gl_scale = a < 0.0f ? 0.0f : (a > 4.0f ? 4.0f : a); }
+    } break;
+    case SR_INSTR_GLIDE: {
+        int slot = r.a;
+        if (slot >= 0 && slot < SOUND_INSTR_SLOTS)
+            instr_bank[slot].gl_ms = r.b < 0 ? 0 : (r.b > 60000 ? 60000 : r.b);
+    } break;
+    case SR_INSTR_GLIDE_SCALE: {
+        int slot = r.a;
+        if (slot >= 0 && slot < SOUND_INSTR_SLOTS) {
+            float a = r.b / 1000.0f;
+            instr_bank[slot].gl_scale = a < 0.0f ? 0.0f : (a > 4.0f ? 4.0f : a);
+        }
     } break;
     case SR_NOTE_OFF_ALL: {
         for (int i = 0; i < SOUND_VOICES; i++)
@@ -7382,9 +7418,19 @@ void note_retrig(int handle) {
     sound_push_ctrl(SR_NOTE_RETRIG, 0, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
-void note_glide_scale(int handle, int mode) {
+void note_glide_scale(int handle, float amount) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_GLIDE_SCALE, mode, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+    sound_push_ctrl(SR_NOTE_GLIDE_SCALE, (int)(amount * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+void instrument_glide(int slot, int ms) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_GLIDE, slot, ms, 0, 0, 0, 0);
+}
+
+void instrument_glide_scale(int slot, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_GLIDE_SCALE, slot, (int)(amount * 1000.0f), 0, 0, 0, 0);
 }
 
 void note_duty(int handle, float duty) {
@@ -8703,6 +8749,8 @@ static void sound_reset_state(void) {
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].level      = 1.0f;   // unity until instrument_level() — old carts byte-identical
+        instr_bank[i].gl_ms      = 0;      // no portamento until instrument_glide() — old carts unchanged
+        instr_bank[i].gl_scale   = 0.0f;   // constant time (the byte-identical path skips powf entirely)
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
         instr_bank[i].sc_send    = 0.0f;

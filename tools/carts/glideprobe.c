@@ -15,6 +15,7 @@
 }
 de:meta */
 #include "studio.h"
+#include <math.h>   // powf: the readout computes the engine's own ms * |octaves|^amount, not a guess at it
 
 // PROBE for portamento — audit §B1 / plan 3.26. Not a demo.
 //
@@ -31,11 +32,20 @@ de:meta */
 //      legs below deliberately span a semitone to three octaves at ONE `note_glide` setting. With a
 //      fixed-duration ramp they must all finish together; that is the whole claim.
 //
-//   3. AND THE GLIDE SCALE AXIS.  With PROBE_PER_OCT the same four legs are run through
-//      note_glide_scale(GLIDE_PER_OCT), where `ms` is the time per OCTAVE. Now they must deliberately
-//      DIFFER, in exact arithmetic ratios: 600ms/oct gives 50ms / 350ms / 600ms / 1800ms for a
-//      semitone / fifth / octave / three octaves. Same probe, opposite expected result, which is what
-//      makes it a real test of the switch rather than of the ramp.
+//   3. AND THE GLIDE SCALE DIAL.  PROBE_SCALE feeds note_glide_scale, where the law is
+//      `gl_len = ms * |octaves| ^ amount`. Now the legs must deliberately DIFFER, and by a known
+//      amount — same probe, opposite expected result, which is what makes it a test of the dial
+//      rather than of the ramp. At GLIDE_MS 600:
+//
+//        amount   semitone   fifth   octave   3 octaves   spread
+//        0.0        600       600      600       600        1x     (constant time)
+//        0.2        365       539      600       747        2.0x   (the analog law)
+//        1.0         50       350      600      1800       36x     (per octave)
+//
+//      THE INVARIANT WORTH CHECKING FIRST: the OCTAVE column is 600 at every amount, because an octave
+//      is |oct|=1 and 1^anything is 1. If that column ever moves, the law is broken — it is a much
+//      sharper test than eyeballing the others. Measured in the engine at 0.2: octave 0.58s, three
+//      octaves 0.76s.
 //
 // ── HOW TO RUN IT ────────────────────────────────────────────────────────────────────────────────
 //   node tools/play.js glideprobe script /dev/null --headless --frames 1460 --wav /tmp/g.wav
@@ -46,7 +56,7 @@ de:meta */
 //
 // Read the CENTROID column: on a sine it tracks pitch closely enough, and the glide is done at the
 // window where it stops changing. Compare that against GLIDE_MS after the leg's start time.
-// For the per-octave run, set PROBE_PER_OCT to 1 and expect the four legs to differ 1:7:12:36.
+// For a scaled run set PROBE_SCALE (0.2 = analog, 1 = per octave) and check the table above.
 //
 // TIMING TRAP (same one retrigprobe documents): an event at frame N happens at t=(N-1)/60, so the
 // legs start at 0.983s / 6.983s / 12.983s / 18.983s, NOT on the round seconds. Read them off the frames.
@@ -63,9 +73,10 @@ de:meta */
 #define BASE 60          // C4
 #define GLIDE_MS 600     // one setting for every leg — that is the point
 
-// PROBE_PER_OCT switches the GLIDE SCALE axis under test (see the second recipe in the header).
-#ifndef PROBE_PER_OCT
-#define PROBE_PER_OCT 0
+// PROBE_SCALE is the GLIDE SCALE amount under test (see the third recipe in the header). 0 = constant
+// time, 0.2 = the analog law, 1 = per octave; anything between is legal.
+#ifndef PROBE_SCALE
+#define PROBE_SCALE 0.0f
 #endif
 
 // each leg: the note to glide TO, and a label. Up then back down, so the mirror check is free.
@@ -91,9 +102,7 @@ void update(void) {
     if (f == 1) {
         h = note_on(BASE, SLOT, 6);
         note_glide(h, GLIDE_MS);
-#if PROBE_PER_OCT
-        note_glide_scale(h, GLIDE_PER_OCT);
-#endif
+        note_glide_scale(h, PROBE_SCALE);
     }
     for (int i = 0; i < 4; i++) {
         if (f == LEG_UP(i)) { note_pitch(h, (float)LEG_NOTE[i]); leg = i; }
@@ -107,8 +116,7 @@ void draw(void) {
     font(FONT_SMALL);
     print("glide probe (audit B1 / plan 3.26)", 8, 8, CLR_WHITE);
     print("not a demo - see the header for the recipe", 8, 20, CLR_DARK_GREY);
-    print(str("note_glide(%d)   scale: %s", GLIDE_MS,
-              PROBE_PER_OCT ? "GLIDE_PER_OCT" : "GLIDE_CONSTANT"), 8, 34, CLR_LIGHT_YELLOW);
+    print(str("note_glide(%d)   scale amount %.2f", GLIDE_MS, (double)PROBE_SCALE), 8, 34, CLR_LIGHT_YELLOW);
 
     int y0 = 56, y1 = 148, x0 = 24, x1 = SCREEN_W - 8;
     line(x0, y1, x1, y1, CLR_DARKER_GREY);
@@ -125,14 +133,16 @@ void draw(void) {
         line(xa, y, xb, y, c);
         line(xb, y, xb, y1, c);
         print(LEG_NAME[i], xa + 2, y - 8, c);
-        // the EXPECTED slide time for this leg — constant, or scaled by the interval in octaves
-        int want = PROBE_PER_OCT ? (GLIDE_MS * semis) / 12 : GLIDE_MS;
+        // the EXPECTED slide time for this leg under the engine's law: ms * |octaves|^amount
+        int want = (PROBE_SCALE <= 0.0f) ? GLIDE_MS
+                 : (int)((float)GLIDE_MS * powf((float)semis / 12.0f, (float)PROBE_SCALE));
         print(str("%dms", want), xa + 2, y + 2, c);
     }
     int px = x0 + (x1 - x0) * (f < 1460 ? f : 1460) / 1460;
     line(px, y0 - 4, px, y1 + 6, CLR_BLUE);
-    print(str("frame %d   %s", f, PROBE_PER_OCT ? "legs should differ 1:7:12:36"
-                                                : "every leg should take the same time"),
+    print(str("frame %d   %s", f,
+              PROBE_SCALE <= 0.0f ? "every leg should take the same time"
+                                  : "legs should differ; the OCTAVE leg is always exactly GLIDE_MS"),
           8, SCREEN_H - 12, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

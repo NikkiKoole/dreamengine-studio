@@ -43,7 +43,12 @@ static const int PHRASE[NPAD] = { 48, 50, 72, 50, 48, 47, 36, 48 };
 static const char *KEYS = "ZXCVBNM,";
 
 static int   voice = -1;
-static int   per_oct = 0;         // 0 = GLIDE_CONSTANT, 1 = GLIDE_PER_OCT
+// GLIDE SCALE is a DIAL, not a switch, and the middle stop is the interesting one: neither extreme is
+// what vintage hardware does. Three named stops on it, plus UP/DOWN for anywhere in between.
+static const float STOP_AMT[3]  = { GLIDE_CONSTANT, GLIDE_ANALOG, GLIDE_PER_OCT };
+static const char *STOP_NAME[3] = { "CONSTANT", "ANALOG", "PER OCT" };
+static int   stop = 0;            // which named stop we last landed on (-1 once UP/DOWN moves off one)
+static float scale_amt = GLIDE_CONSTANT;
 static int   glide_ms = 300;
 static bool  autoplay = true;
 static int   pos = 0;             // phrase index
@@ -52,16 +57,20 @@ static int   prev = 48;           // where the current slide came from
 static float slide_t = 1.0f;      // 0..1 progress through the current slide, for the viz
 static float glow[NPAD];
 
-// what the NEXT slide from `from` to `to` will actually cost, in ms — the number the switch changes
+// What the NEXT slide from `from` to `to` will actually cost, in ms. Mirrors the engine's law exactly:
+// gl_len = ms * |octaves|^amount. Note the pivot that makes the dial coherent — an octave is |oct|=1 and
+// 1^anything is 1, so `ms` is the time for a one-octave slide at EVERY setting.
 static int slide_cost(int from, int to) {
     int semis = to - from; if (semis < 0) semis = -semis;
-    if (!per_oct) return glide_ms;
-    int ms = (glide_ms * semis) / 12;
-    return ms < 5 ? 5 : ms;       // the engine floors a scaled glide at the declick length
+    if (semis == 0) return 5;                       // nothing to travel: the declick floor
+    if (scale_amt <= 0.0f) return glide_ms;         // constant — distance is ignored
+    float oct = (float)semis / 12.0f;
+    int ms = (int)((float)glide_ms * powf(oct, scale_amt));
+    return ms < 5 ? 5 : ms;                         // the engine floors a scaled glide at the declick length
 }
 
 static void apply_scale(void) {
-    if (voice >= 0) note_glide_scale(voice, per_oct ? GLIDE_PER_OCT : GLIDE_CONSTANT);
+    if (voice >= 0) note_glide_scale(voice, scale_amt);
 }
 
 static void start_voice(void) {
@@ -91,14 +100,21 @@ void init(void) {
 void update(void) {
     int mx = mouse_x(), my = mouse_y();
 
-    if (keyp('S')) { per_oct = !per_oct; apply_scale(); }
+    // S steps through the three named stops; UP/DOWN dials anywhere in between
+    if (keyp('S')) { stop = (stop < 0 ? 0 : stop + 1) % 3; scale_amt = STOP_AMT[stop]; apply_scale(); }
+    if (key(KEY_UP) || key(KEY_DOWN)) {
+        scale_amt = clamp(scale_amt + (key(KEY_UP) ? 0.01f : -0.01f), 0.0f, 1.5f);
+        stop = -1;                                  // no longer sitting on a named stop
+        for (int i = 0; i < 3; i++) if (fabsf(scale_amt - STOP_AMT[i]) < 0.005f) stop = i;
+        apply_scale();
+    }
     if (keyp(KEY_SPACE)) autoplay = !autoplay;
     if (key(KEY_LEFT))  glide_ms = glide_ms > 20  ? glide_ms - 4 : 20;
     if (key(KEY_RIGHT)) glide_ms = glide_ms < 900 ? glide_ms + 4 : 900;
 
-    // the SCALE button
+    // the SCALE button — also steps the stops
     if (mouse_pressed(MOUSE_LEFT) && mx >= SCREEN_W - 84 && mx < SCREEN_W - 8 && my >= 4 && my < 18) {
-        per_oct = !per_oct; apply_scale();
+        stop = (stop < 0 ? 0 : stop + 1) % 3; scale_amt = STOP_AMT[stop]; apply_scale();
     }
     // drag the glide-time bar
     if (mouse_down(MOUSE_LEFT) && my >= 30 && my < 42 && mx >= 60 && mx < 60 + 200)
@@ -121,7 +137,10 @@ void update(void) {
     for (int i = 0; i < NPAD; i++) if (glow[i] > 0) glow[i] -= 0.04f;
 
 #ifdef DE_TRACE
-    watch("per_oct", "%d", per_oct);
+    watch("amt", "%.2f", scale_amt);
+    watch("semi", "%d", slide_cost(0, 1));      // the three costs the dial spreads apart
+    watch("oct",  "%d", slide_cost(0, 12));     // …and the octave, which must stay at glide_ms
+    watch("oct3", "%d", slide_cost(0, 36));
     watch("glide_ms", "%d", glide_ms);
     watch("cost", "%d", cost);
     watch("cur", "%d", cur);
@@ -132,12 +151,14 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     print("GLIDE SCALE", 8, 6, CLR_WHITE);
 
-    // the switch — FONT_SMALL because "S: CONSTANT" in the normal font runs off the edge (ui-audit)
+    // the SCALE readout — the dial, its position, and which named stop it is on (if any)
+    bool named = stop >= 0;
     int bx = SCREEN_W - 84;
-    rectfill(bx, 4, 76, 14, per_oct ? CLR_ORANGE : CLR_DARKER_GREY);
+    rectfill(bx, 4, 76, 14, scale_amt > 0.0f ? CLR_ORANGE : CLR_DARKER_GREY);
     rect(bx, 4, 76, 14, CLR_DARK_GREY);
     font(FONT_SMALL);
-    print(per_oct ? "S: PER OCT" : "S: CONSTANT", bx + 6, 8, per_oct ? CLR_BLACK : CLR_LIGHT_GREY);
+    print(named ? str("S: %s", STOP_NAME[stop]) : str("S: %.2f", scale_amt),
+          bx + 6, 8, scale_amt > 0.0f ? CLR_BLACK : CLR_LIGHT_GREY);
     font(FONT_NORMAL);
 
     // glide time bar
@@ -145,26 +166,24 @@ void draw(void) {
     rectfill(60, 30, 200, 12, CLR_DARKER_PURPLE);
     rectfill(60, 30, (glide_ms - 20) * 200 / 880, 12, CLR_PINK);
     rect(60, 30, 200, 12, CLR_DARK_GREY);
-    print(str("%dms%s", glide_ms, per_oct ? "/oct" : ""), 266, 32, CLR_LIGHT_YELLOW);
+    // "/oct" is true at EVERY scale amount — the octave is the pivot. FONT_SMALL so it fits (ui-audit).
+    font(FONT_SMALL);
+    print(str("%dms/oct", glide_ms), 264, 33, CLR_LIGHT_YELLOW);
+    font(FONT_NORMAL);
 
-    // THE POINT, in numbers: what this slide cost vs what the other setting would have cost
+    // THE POINT, in numbers. The SPREAD from a semitone to three octaves is the whole feature, and it is
+    // the thing the dial moves: 1x at CONSTANT, ~2x at ANALOG, 36x at PER OCT.
     int semis = cur - prev; if (semis < 0) semis = -semis;
-    int other = per_oct ? glide_ms : ((glide_ms * semis) / 12 < 5 ? 5 : (glide_ms * semis) / 12);
+    int lo = slide_cost(0, 1), mid = slide_cost(0, 12), hi = slide_cost(0, 36);
     font(FONT_SMALL);
     if (semis > 0)
-        print(str("last move: %d semitones took %dms   (other setting: %dms)",
-                  semis, slide_cost(prev, cur), other), 12, 50, CLR_LIGHT_GREY);
+        print(str("last move: %d semitones took %dms", semis, slide_cost(prev, cur)), 12, 50, CLR_LIGHT_GREY);
     else
         print("no move yet - the phrase is about to step", 12, 50, CLR_MEDIUM_GREY);
-    font(FONT_NORMAL);
-    // A line that is true whatever just happened, so it also reads in a still: the SPREAD is the feature.
-    // CONSTANT gives every interval the same time; PER OCT scales it, here from a semitone to two octaves.
-    int one = (glide_ms * 1) / 12; if (one < 5) one = 5;
-    int two = glide_ms * 2;
-    font(FONT_SMALL);
-    print(per_oct ? str("PER OCT: 1 semitone %dms ... 2 octaves %dms", one, two)
-                  : str("CONSTANT: 1 semitone %dms ... 2 octaves %dms (the same)", glide_ms, glide_ms),
-          12, 62, per_oct ? CLR_ORANGE : CLR_INDIGO);
+    // Always true, so it reads in a still too. An octave is ALWAYS `ms` — that is the pivot.
+    print(str("1 semi %dms  |  1 oct %dms  |  3 oct %dms   spread %.1fx",
+              lo, mid, hi, (float)hi / (float)(lo > 0 ? lo : 1)),
+          12, 62, scale_amt > 0.0f ? CLR_ORANGE : CLR_INDIGO);
     font(FONT_NORMAL);
 
     // pitch ribbon: prev -> cur, with a head that moves on the engine's real timing

@@ -2413,10 +2413,19 @@ Engine: `sound_organ_start` ([`runtime/sound.h:3065`](../../runtime/sound.h)), `
 
 ### L3. Percussion decay is fixed where the real one has Fast/Slow
 
-`v->org_perc *= 1.0f - dt / 0.2f` ([`runtime/sound.h:3132`](../../runtime/sound.h)) — a single ~200 ms
-decay. Reid's Fast/Slow switch is the fourth of the four controls, and it is one of the two things
-organists actually reach for mid-performance. Our morph-driven amount covers On/Off and Normal/Soft
-between them, so this is the one genuinely missing axis. Also one `eng_p` slot.
+`v->org_perc *= 1.0f - dt / 0.2f` ([`runtime/sound.h:3132`](../../runtime/sound.h)). Reid's Fast/Slow switch
+is the fourth of the four controls, and it is one of the two things organists actually reach for
+mid-performance. Our morph-driven amount covers On/Off and Normal/Soft between them, so this is the one
+genuinely missing axis. Also one `eng_p` slot.
+
+> **⚠ CORRECTION 2026-07-30 — this item said "a single ~200 ms decay" and that number was misleading.**
+> `0.2f` is the exponential **time constant**, not the audible length. Measured on the shipped engine by
+> differencing a `TRIG_SINGLE` against a `TRIG_MULTI` render, which differ by *exactly one percussion ping*:
+> the two converge **0.83 s** after the onset. Reported real-instrument decays are **~0.5-1 s for FAST** and
+> **~2.5-5 s for SLOW** (owner reports by ear, so treat the spread as the error bar; Hammond's own manual
+> describes them only qualitatively, FAST "like a xylophone or glockenspiel" and SLOW "slowly like a chime").
+> **So our fixed decay already IS the FAST setting, and it is well matched.** What is missing is specifically
+> **SLOW**, not a corrected decay time — which makes this a smaller and better-defined item than it read as.
 
 ### L4. Hammond percussion is SINGLE-triggering, and this is the strongest argument yet for §B3
 
@@ -2448,6 +2457,13 @@ between them, so this is the one genuinely missing axis. Also one `eng_p` slot.
 > broken. **§K6 stays satisfied** — `TRIG_MULTI` is the default, so `pipe` never reaches the suppression
 > path and its chiff still fires on every note. The two instruments the finding said need opposite settings
 > of the same switch now have them.
+>
+> **Corroborated by the manufacturer, in almost the same words as the implementation** — Hammond's own SK PRO
+> manual: *"To hear the tones produced by the Percussion Voice buttons, the keys normally must be played in a
+> detached (non-Legato) manner. If you play a single note and then hold it down while playing other keys, the
+> Percussion voice will not play again **until you release all keys** and again play detached notes."* That
+> last clause is exactly `sound_slot_key_down`'s condition — any key still down on the slot, not merely the
+> previous note — so the "release ALL keys" reading was right rather than a guess.
 
 - **Book:** Part 57, stated plainly: "Hammond percussion is polyphonic, but **of the single-triggering
   variety, so if a previous note is held, the percussion does not sound**." That is why organists play the
@@ -2505,6 +2521,25 @@ because its filters have zero resonance. Ours has no filter in the way at all.
   "I never use any of my A100's 'V' settings."
 - **Percussion should steal from the sustain.** "adding percussion also reduces the loudness of the
   sustained part of the note, but we're going to overlook this." We also overlook it. One multiply.
+  > **⭐ PROMOTED 2026-07-30 — the owner's ear found this, from the other end.** After §L4's single-trigger
+  > landed, his reaction to the organ was *"didn't know an organ had that much perc to it"* — and measurement
+  > said the percussion is only **~0.4 dB** on peak and that single-trigger *reduced* percussion energy about
+  > threefold. So it is not too loud; **it reads as pasted on**, and this bullet is why: a real B3's
+  > percussion **trades** rather than adds. Corroborated beyond Reid by Hammond's own SK PRO manual, which
+  > calls the drawbar drop a deliberate **"volume compensating feature"** and describes NORMAL percussion as
+  > *"very prominent compared to the tones produced by the Drawbars"*. The drop is inherent to **all** B-3,
+  > C-3, A-100, RT-3 and M-3, and players hated it enough that the standard mod is to jumper out one resistor
+  > (R1, 3.9 MΩ on B/C-3). **⚠ NO SOURCE PUBLISHES A dB FIGURE** — HammondWiki only says "reduced
+  > substantially". So the amount is a **tuning decision, not a spec match**, which makes this a LISTEN item;
+  > don't send the next agent hunting for a number that isn't out there. Reid overlooks it *because* he is
+  > patching an analogue synth by hand; we have a multiply.
+- **Percussion ON cancels the 1′ drawbar.** *(NEW 2026-07-30 — not previously in this audit, and Reid does
+  not mention it: Part 57 lists the four control tablets but not this.)* On a real B-3/C-3/RT-3, engaging
+  percussion on the upper manual **silences the 8th harmonic (1′) drawbar**, because the percussion diverts
+  that tone generator. Confirmed in the B-3 owner's manual. Ours leaves all nine drawbars running and adds
+  the ping on top, so a percussion-on registration is brighter than the real instrument's. Pairs naturally
+  with the steal-from-sustain multiply above: together they are what makes the chip sound *integrated*
+  rather than laid over the top. One drawbar gain forced to zero while `org_perc` is armed.
 - **The scanner has a little AM.** "there is also a small amount of amplitude modulation as the scanner
   sweeps round the taps, but we should be able to ignore this." Ours is pitch-only. Reid says ignore, so
   noted only for completeness.
@@ -2519,9 +2554,14 @@ because its filters have zero resonance. Ours has no filter in the way at all.
 |---|---|---|---|
 | 1 | L5 add the saw-ish and square-ish registrations | two table rows | `organ` |
 | 2 | L2 + L3 Second/Third selector and Fast/Slow decay on `eng_p` | engine, small | `organ` |
-| 3 | L4 percussion single-trigger (with §B3, and against §K6's opposite need) | engine policy | `organ` vs `pipe` |
+| ~~3~~ | ~~L4 percussion single-trigger~~ ✅ **SHIPPED 2026-07-30** as `instrument_trigger` | engine policy | `organ` vs `pipe` |
 | 4 | L6 tonewheel leakage (§C8) | engine, small | `organ` |
-| 5 | L7 percussion steals from the sustain | one multiply | `organ` |
+| 5 | L7 percussion steals from the sustain **+ cancels the 1′ drawbar** — ⭐ **promoted to next after the owner's ear said the chip reads "pasted on"** | two multiplies | `organ` |
+
+> **Re-ordered 2026-07-30.** Step 5 should now come before steps 1, 2 and 4: it is the item the owner
+> actually noticed, it is two multiplies, and §L3's correction shrank one of the others (our decay already
+> matches FAST, so only SLOW is missing). The percussion sub-story is now: single-trigger ✅ → make it
+> *trade* rather than add → then the Second/Third and Fast/Slow selectors.
 
 ---
 

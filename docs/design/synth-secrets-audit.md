@@ -2521,6 +2521,20 @@ because its filters have zero resonance. Ours has no filter in the way at all.
   "I never use any of my A100's 'V' settings."
 - **Percussion should steal from the sustain.** "adding percussion also reduces the loudness of the
   sustained part of the note, but we're going to overlook this." We also overlook it. One multiply.
+  > **✅ SHIPPED 2026-07-30**, together with the 1′ cancellation below — they are the same idea and land in
+  > the same three lines of `sound_organ_sample`. `ORGAN_PERC_STEAL` (0.30) trims the drawbar sum by
+  > `1 − 0.30 × depth` whenever the percussion tablet is engaged. **Measured −2.14 dB against −2.15 dB
+  > predicted** at `gospel`'s 0.73 depth, isolated by temporarily zeroing the constant (a morph A/B is
+  > useless here — morph also drives the scanner chorus, so it moves brightness for an unrelated reason,
+  > which cost me two misleading renders before I noticed).
+  >
+  > Two placement decisions that are the whole correctness of it. It goes **after** the equal-loudness
+  > divide (§8.8.1), which would otherwise cancel exactly the level drop we are creating. And it applies to
+  > the **drawbar sum only**, before the click and the ping are added, because those are what the sustain is
+  > being traded *for* — visible in the measurement, where peak drops only −1.77 dB against the RMS's −2.14
+  > because the transients are excluded. Gated on the tablet state read live off `morph`, not on the decaying
+  > `org_perc` envelope, so the trim holds for as long as percussion is on rather than fading back with the
+  > chip.
   > **⭐ PROMOTED 2026-07-30 — the owner's ear found this, from the other end.** After §L4's single-trigger
   > landed, his reaction to the organ was *"didn't know an organ had that much perc to it"* — and measurement
   > said the percussion is only **~0.4 dB** on peak and that single-trigger *reduced* percussion energy about
@@ -2540,6 +2554,17 @@ because its filters have zero resonance. Ours has no filter in the way at all.
   the ping on top, so a percussion-on registration is brighter than the real instrument's. Pairs naturally
   with the steal-from-sustain multiply above: together they are what makes the chip sound *integrated*
   rather than laid over the top. One drawbar gain forced to zero while `org_perc` is armed.
+  > **✅ SHIPPED 2026-07-30** as a `continue` on `ORGAN_BAR_1FOOT` (index 8, ratio 8.0) while the tablet is
+  > engaged. **Verified surgically with `harmonic-spec` on a C4 `gospel` note**, where the 1′ is ratio 8.0 =
+  > the 8th harmonic: h8 (2093 Hz) drops **−1.9 dB → −77.0 dB**, i.e. gone, while **every other harmonic is
+  > unchanged to within 0.1 dB** (h1 0.0/0.0, h2 −3.9/−3.8, h3 0.3/0.3, h4 −0.5/−0.5, h5 −2.4/−2.4,
+  > h6 0.3/0.3). "Highest harmonic within 20 dB of f1" moves h8 → h6.
+  >
+  > Implemented as a drawbar pulled to **zero** — excluded from `ampSum` as well as from the sum — so the
+  > engine's equal-loudness convention reads it as *darker at the same level*, which is what pulling any
+  > drawbar does here. Measured: centroid 1152 → 948 Hz, brightness −32%, peak unchanged. Deliberately NOT
+  > combined with the steal's level drop: two separate behaviours, one timbral and one level, and conflating
+  > them would have made both untestable.
 - **The scanner has a little AM.** "there is also a small amount of amplitude modulation as the scanner
   sweeps round the taps, but we should be able to ignore this." Ours is pitch-only. Reid says ignore, so
   noted only for completeness.
@@ -2556,12 +2581,17 @@ because its filters have zero resonance. Ours has no filter in the way at all.
 | 2 | L2 + L3 Second/Third selector and Fast/Slow decay on `eng_p` | engine, small | `organ` |
 | ~~3~~ | ~~L4 percussion single-trigger~~ ✅ **SHIPPED 2026-07-30** as `instrument_trigger` | engine policy | `organ` vs `pipe` |
 | 4 | L6 tonewheel leakage (§C8) | engine, small | `organ` |
-| 5 | L7 percussion steals from the sustain **+ cancels the 1′ drawbar** — ⭐ **promoted to next after the owner's ear said the chip reads "pasted on"** | two multiplies | `organ` |
+| ~~5~~ | ~~L7 percussion steals from the sustain **+ cancels the 1′ drawbar**~~ ✅ **SHIPPED 2026-07-30** (−2.14 dB steal, 1′ verified gone at −77 dB) | two multiplies | `organ` |
 
-> **Re-ordered 2026-07-30.** Step 5 should now come before steps 1, 2 and 4: it is the item the owner
-> actually noticed, it is two multiplies, and §L3's correction shrank one of the others (our decay already
-> matches FAST, so only SLOW is missing). The percussion sub-story is now: single-trigger ✅ → make it
-> *trade* rather than add → then the Second/Third and Fast/Slow selectors.
+> **Re-ordered then closed, 2026-07-30.** Step 5 jumped the queue because it was the item the owner actually
+> noticed, and it turned out to be three lines. **The percussion sub-story is now: single-trigger ✅ → trade
+> rather than add ✅ → and what remains is only the two SELECTORS** (L2 Second/Third, L3 Fast/Slow), both
+> `eng_p` work, and L3 is now known to need only the SLOW half since our fixed decay already matches FAST.
+> Worth noting how this one arrived: it was sitting in "smaller items" as a one-liner with Reid's own
+> "we're going to overlook this" attached, and it took a listener saying *"that's a lot of perc"* to reveal
+> it as the thing standing between our organ and a Hammond. **A finding the source author dismissed is not
+> automatically safe to dismiss** — his reason was that he was hand-patching an analogue synth; ours would
+> have been inertia.
 
 ---
 

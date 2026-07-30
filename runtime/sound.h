@@ -17,6 +17,7 @@
 #include "raylib.h"
 #endif
 #include <math.h>
+#include "demath.h"   // deterministic sin/cos/exp/tanh — see the header for why
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -621,8 +622,8 @@ static void echo_ins_process(float *mixL, float *mixR) {
     if (echo_ins_bbd > 0.0f) {   // BBD clock jitter on the READ tap — only the repeats wobble, dry is untouched
         echo_ins_wph += ECHO_BBD_WOW_RATE / (float)SOUND_SAMPLE_RATE; if (echo_ins_wph >= 1.0f) echo_ins_wph -= 1.0f;
         echo_ins_fph += ECHO_BBD_FLT_RATE / (float)SOUND_SAMPLE_RATE; if (echo_ins_fph >= 1.0f) echo_ins_fph -= 1.0f;
-        rp += echo_ins_bbd * (sinf(echo_ins_wph * SOUND_TWO_PI) * ECHO_BBD_WOW_DEPTH
-                            + sinf(echo_ins_fph * SOUND_TWO_PI) * ECHO_BBD_FLT_DEPTH);
+        rp += echo_ins_bbd * (de_sin_turns(echo_ins_wph) * ECHO_BBD_WOW_DEPTH
+                            + de_sin_turns(echo_ins_fph) * ECHO_BBD_FLT_DEPTH);
     }
     if (rp < 0.0f)                  rp += (float)SOUND_ECHO_MAX;
     if (rp >= (float)SOUND_ECHO_MAX) rp -= (float)SOUND_ECHO_MAX;
@@ -636,7 +637,7 @@ static void echo_ins_process(float *mixL, float *mixR) {
     if (echo_ins_bbd > 0.0f && fb > 1.0f)                             // BBD self-osc HEADROOM: the in-loop LP eats gain, so a bare
         fb = 1.0f + (fb - 1.0f) * (1.0f + 4.0f * echo_ins_bbd);       // fb=1.1 barely sustains. Expand the >1 zone (→ ~1.5 at full bbd)
                                                                       // so "past the red" runs away for real AND re-ignites after a tame
-    echo_ins_buf[echo_ins_widx] = tanhf(in + echo_ins_lp * fb);      // fb >1 self-oscillates into a plateau, not a blowup
+    echo_ins_buf[echo_ins_widx] = de_tanhf(in + echo_ins_lp * fb);      // fb >1 self-oscillates into a plateau, not a blowup
     if (++echo_ins_widx >= SOUND_ECHO_MAX) echo_ins_widx = 0;
     *mixL += echo_ins_lp * echo_ins_mix;                             // wet repeats sit on top of the full dry
     *mixR += echo_ins_lp * echo_ins_mix;
@@ -650,8 +651,8 @@ static int   g_pan_law        = PAN_LINEAR;
 // tone 0..1 → loop-filter cutoff 300 Hz .. ~6.8 kHz (each repeat passes through it once)
 static float sound_echo_coef(float t) {
     t = clamp01(t);
-    float fc = 300.0f * powf(2.0f, t * 4.5f);
-    return 1.0f - expf(-SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE);
+    float fc = 300.0f * de_powf(2.0f, t * 4.5f);
+    return 1.0f - de_expf(-SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE);
 }
 
 // echo INSERT loop coef from the raw tone AND (when BBD on) the delay TIME: a real bucket-brigade's
@@ -884,7 +885,7 @@ static inline float mod_sh(ModState *m, float rate, float dt) {
 // OPTICAL / incandescent LFO SHAPE: phase 0..1 → 0..1, asymmetric (slow brighten, fast dim — the
 // lightbulb throb that makes a Univibe liquid where a sine phaser is even). Caller advances phase.
 static inline float mod_optical(float phase) {
-    return phase < 0.8f ? powf(phase / 0.8f, 0.6f)                    // slow rise over ~80% of the cycle
+    return phase < 0.8f ? de_powf(phase / 0.8f, 0.6f)                    // slow rise over ~80% of the cycle
                         : 1.0f - (phase - 0.8f) / 0.2f;               // quick fall over the last 20%
 }
 
@@ -900,7 +901,7 @@ static inline float lfo_wave(int shape, float phase) {
         case LFO_SHAPE_SAW:     return 1.0f - 2.0f * phase;              // ramp down 1 → −1
         case LFO_SHAPE_RAMP:    return 2.0f * phase - 1.0f;             // ramp up −1 → 1
         case LFO_SHAPE_OPTICAL: return mod_optical(phase) * 2.0f - 1.0f; // bulb throb, mapped to −1..1
-        default:                return sinf(phase * SOUND_TWO_PI);        // LFO_SHAPE_SINE — unchanged
+        default:                return de_sin_turns(phase);        // LFO_SHAPE_SINE — unchanged
     }
 }
 // `phase` is the caller's running 0..1 phase (used by the stateless shapes); `m` carries the per-
@@ -1016,9 +1017,9 @@ static void tape_process(int b, int i, float *mixL, float *mixR) {
     float sat = tape_sat[b][i];
     float L = *mixL, R = *mixR;
     if (sat > 0.0f) {                               // warm saturation (normalized: sat 0 = unity)
-        float g = 1.0f + sat * 2.0f, ng = tanhf(g);
-        L = tanhf(L * g) / ng;
-        R = tanhf(R * g) / ng;
+        float g = 1.0f + sat * 2.0f, ng = de_tanhf(g);
+        L = de_tanhf(L * g) / ng;
+        R = de_tanhf(R * g) / ng;
     }
     int widx = tape_widx[b][i];
     tape_bufL[b][i][widx] = L;                       // write the (saturated) signal to tape
@@ -1027,8 +1028,8 @@ static void tape_process(int b, int i, float *mixL, float *mixR) {
     if (tape_wow[b][i] > 0.0f || tape_flut[b][i] > 0.0f) { // wow + flutter pitch warble (one shared transport)
         tape_wph[b][i] += TAPE_WOW_RATE  / (float)SOUND_SAMPLE_RATE; if (tape_wph[b][i] >= 1.0f) tape_wph[b][i] -= 1.0f;
         tape_fph[b][i] += TAPE_FLUT_RATE / (float)SOUND_SAMPLE_RATE; if (tape_fph[b][i] >= 1.0f) tape_fph[b][i] -= 1.0f;
-        float mod = sinf(tape_wph[b][i] * SOUND_TWO_PI) * tape_wow[b][i]  * TAPE_WOW_DEPTH
-                  + sinf(tape_fph[b][i] * SOUND_TWO_PI) * tape_flut[b][i] * TAPE_FLUT_DEPTH;
+        float mod = de_sin_turns(tape_wph[b][i]) * tape_wow[b][i]  * TAPE_WOW_DEPTH
+                  + de_sin_turns(tape_fph[b][i]) * tape_flut[b][i] * TAPE_FLUT_DEPTH;
         float rp = (float)widx - TAPE_BASE_DELAY + mod;
         while (rp < 0.0f) rp += TAPE_BUF_LEN;
         while (rp >= TAPE_BUF_LEN) rp -= TAPE_BUF_LEN;
@@ -1081,7 +1082,7 @@ static void crush_process(int b, int i, float *mixL, float *mixR) {
     float dryL = *mixL, dryR = *mixR;
     if (++crush_cnt[b][i] >= (int)crush_rate[b][i]) {  // sample-rate reduction: re-sample every `rate`
         crush_cnt[b][i] = 0;
-        float levels = powf(2.0f, crush_bits[b][i]);   // bit-depth reduction: quantize to 2^bits steps
+        float levels = de_powf(2.0f, crush_bits[b][i]);   // bit-depth reduction: quantize to 2^bits steps
         crush_holdL[b][i] = floorf(*mixL * levels + 0.5f) / levels;   // round-to-nearest (symmetric): no DC
         crush_holdR[b][i] = floorf(*mixR * levels + 0.5f) / levels;   // bias, and a decaying tail fades to 0
     }
@@ -1122,13 +1123,13 @@ static float drive_shape(float s, int mode, float dr) {
             float c  = s * g; c = c < -1.0f ? -1.0f : (c > 1.0f ? 1.0f : c);
             return c / hg; }
         case 2: {  // DRIVE_FOLD — sine wavefolder, dry/wet by amount
-            float w = sinf(s * (1.0f + dr * 6.0f) * 1.2f);
+            float w = de_sinf(s * (1.0f + dr * 6.0f) * 1.2f);
             return s * (1.0f - dr) + w * dr; }
         case 3: {  // DRIVE_ASYM — even-harmonic tube
-            float ng = tanhf(g);
-            return (s >= 0.0f) ? tanhf(s * g) / ng : tanhf(s * g * (1.0f - 0.4f * dr)) / ng; }
+            float ng = de_tanhf(g);
+            return (s >= 0.0f) ? de_tanhf(s * g) / ng : de_tanhf(s * g * (1.0f - 0.4f * dr)) / ng; }
         default:   // DRIVE_SOFT (0) — tanh soft-clip
-            return tanhf(s * g) / tanhf(g);
+            return de_tanhf(s * g) / de_tanhf(g);
     }
 }
 
@@ -1213,7 +1214,7 @@ static void wah_process(int b, float *mixL, float *mixR) {
     float in = (*mixL + *mixR) * 0.5f;     // filter the mono sum
     float sweep;
     if (wah_lfo_rate[b] > 0.0f) {           // navkit WAH_MODE_LFO: a sine rocks the band (ignores dynamics)
-        sweep = 0.5f + 0.5f * sinf(wah_lfo_phase[b] * SOUND_TWO_PI);
+        sweep = 0.5f + 0.5f * de_sin_turns(wah_lfo_phase[b]);
         wah_lfo_phase[b] += wah_lfo_rate[b] / (float)SOUND_SAMPLE_RATE;
         if (wah_lfo_phase[b] >= 1.0f) wah_lfo_phase[b] -= 1.0f;
     } else {                                // WAH_MODE_ENVELOPE: peak detector (fast attack, slow release)
@@ -1222,10 +1223,10 @@ static void wah_process(int b, float *mixL, float *mixR) {
         else                    wah_env[b] += 0.0001f * (level - wah_env[b]);   // release
         sweep = wah_env[b]; if (sweep > 1.0f) sweep = 1.0f;
     }
-    float freq = WAH_FREQ_LOW * powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep (300→2500)
+    float freq = WAH_FREQ_LOW * de_powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep (300→2500)
     if (freq > SOUND_SAMPLE_RATE * 0.45f) freq = SOUND_SAMPLE_RATE * 0.45f;
     // TPT state-variable bandpass (Zavalishin)
-    float g = tanf(SOUND_PI * freq / (float)SOUND_SAMPLE_RATE);
+    float g = de_tanf(SOUND_PI * freq / (float)SOUND_SAMPLE_RATE);
     float k = 2.0f - 2.0f * wah_res[b] * 0.99f;                            // resonance → narrow quack
     float a1 = 1.0f / (1.0f + g * (g + k));
     float a2 = g * a1, a3 = g * a2;
@@ -1275,7 +1276,7 @@ static void filter_process(int b, int i, float *mixL, float *mixR) {
     float freq = filt_cut[b][i];
     if (freq < 20.0f) freq = 20.0f;
     if (freq > SOUND_SAMPLE_RATE * 0.45f) freq = SOUND_SAMPLE_RATE * 0.45f;
-    float g  = tanf(SOUND_PI * freq / (float)SOUND_SAMPLE_RATE);
+    float g  = de_tanf(SOUND_PI * freq / (float)SOUND_SAMPLE_RATE);
     float k  = 2.0f - 2.0f * filt_res[b][i] * 0.99f;       // small k = resonant peak
     float a1 = 1.0f / (1.0f + g * (g + k)), a2 = g * a1, a3 = g * a2;
     int   m  = filt_mode[b][i];
@@ -1333,7 +1334,7 @@ static void formant_process(int b, float *mixL, float *mixR) {
     for (int i = 0; i < 4; i++) {
         float fc = fmt_freq[b][i];
         if (fc > SOUND_SAMPLE_RATE * 0.45f) fc = SOUND_SAMPLE_RATE * 0.45f;
-        float g = tanf(SOUND_PI * fc / (float)SOUND_SAMPLE_RATE);   // TPT bandpass (Zavalishin), one per formant
+        float g = de_tanf(SOUND_PI * fc / (float)SOUND_SAMPLE_RATE);   // TPT bandpass (Zavalishin), one per formant
         float k = fmt_k[b][i];
         float a1 = 1.0f / (1.0f + g * (g + k));
         float a2 = g * a1, a3 = g * a2;
@@ -1347,7 +1348,7 @@ static void formant_process(int b, float *mixL, float *mixR) {
         out += v1 * fmt_amp[b][i];          // bandpass output = v1, weighted by the formant's amp
     }
     out *= 1.6f;                            // makeup for the narrow summed bands (dialled by ear)
-    if (out > 1.0f || out < -1.0f) out = tanhf(out);   // soft-clip the wet (navkit filterbank does this) — a resonant peak can't spike
+    if (out > 1.0f || out < -1.0f) out = de_tanhf(out);   // soft-clip the wet (navkit filterbank does this) — a resonant peak can't spike
     *mixL = *mixL * (1.0f - fmt_mix[b]) + out * fmt_mix[b];
     *mixR = *mixR * (1.0f - fmt_mix[b]) + out * fmt_mix[b];
 }
@@ -1393,9 +1394,9 @@ static void fx_set_eq(int b, int i, float low_db, float mid_db, float high_db) {
     if (low_db  < -12.0f) low_db  = -12.0f; if (low_db  > 12.0f) low_db  = 12.0f;
     if (mid_db  < -12.0f) mid_db  = -12.0f; if (mid_db  > 12.0f) mid_db  = 12.0f;
     if (high_db < -12.0f) high_db = -12.0f; if (high_db > 12.0f) high_db = 12.0f;
-    eq_low_g[b][i]  = powf(10.0f, low_db  / 20.0f);
-    eq_mid_g[b][i]  = powf(10.0f, mid_db  / 20.0f);
-    eq_high_g[b][i] = powf(10.0f, high_db / 20.0f);
+    eq_low_g[b][i]  = de_powf(10.0f, low_db  / 20.0f);
+    eq_mid_g[b][i]  = de_powf(10.0f, mid_db  / 20.0f);
+    eq_high_g[b][i] = de_powf(10.0f, high_db / 20.0f);
     eq_used[b][i] = true;
 }
 
@@ -1475,7 +1476,7 @@ static float rm_mix  [SOUND_FX_BUSES];   // dry/wet 0..1
 static float rm_phase[SOUND_FX_BUSES];   // carrier phase 0..1
 static bool  rm_used [SOUND_FX_BUSES];
 static void rm_process(int b, float *mixL, float *mixR) {
-    float c = sinf(rm_phase[b] * SOUND_TWO_PI);
+    float c = de_sin_turns(rm_phase[b]);
     rm_phase[b] += rm_freq[b] * (1.0f / (float)SOUND_SAMPLE_RATE);
     if (rm_phase[b] >= 1.0f) rm_phase[b] -= 1.0f;
     float m = rm_mix[b];
@@ -1530,7 +1531,7 @@ static void phaser_process(int b, float *mixL, float *mixR) {
     phaser_phase[b] += phaser_rate[b] * (1.0f / (float)SOUND_SAMPLE_RATE);
     if (phaser_phase[b] >= 1.0f) phaser_phase[b] -= 1.0f;
     float lfo = phaser_optical[b] ? (mod_optical(phaser_phase[b]) * 2.0f - 1.0f)   // univibe: asymmetric bulb throb
-                                  : sinf(phaser_phase[b] * SOUND_TWO_PI);            // phaser: even sine sweep
+                                  : de_sin_turns(phaser_phase[b]);            // phaser: even sine sweep
     float coeff = 0.5f + lfo * phaser_depth[b] * 0.4f;   // navkit: cCenter 0.5 ± lfo·depth·cRange(0.4)
     int stages = phaser_stages[b];
     float fb = phaser_fb[b], mix = phaser_mix[b];
@@ -1649,8 +1650,8 @@ static float  voc_n_lp[VOC_BANDS], voc_n_bp[VOC_BANDS];   // noise-excitation SV
 static void voc_config(void) {                 // log-spaced band centers 180..7000 Hz (constant; recompute is harmless)
     float lo = 180.0f, hi = 7000.0f;
     for (int k = 0; k < VOC_BANDS; k++) {
-        float fc = lo * powf(hi / lo, (float)k / (float)(VOC_BANDS - 1));
-        float f  = 2.0f * sinf(SOUND_PI * fc / (float)SOUND_SAMPLE_RATE);
+        float fc = lo * de_powf(hi / lo, (float)k / (float)(VOC_BANDS - 1));
+        float f  = 2.0f * de_sinf(SOUND_PI * fc / (float)SOUND_SAMPLE_RATE);
         voc_f[k] = f > 0.99f ? 0.99f : f;      // SVF stability clamp (top band ≈0.96 at 44.1k)
     }
 }
@@ -1789,13 +1790,13 @@ static void leslie_process(int b, float *mixL, float *mixR) {
     // advance the two rotors (shared across channels)
     leslie_drumPh[b] += leslie_drumRt[b] * dt; if (leslie_drumPh[b] >= 1.0f) leslie_drumPh[b] -= 1.0f;
     leslie_hornPh[b] += leslie_hornRt[b] * dt; if (leslie_hornPh[b] >= 1.0f) leslie_hornPh[b] -= 1.0f;
-    float drumAM = 1.0f - 0.3f * (0.5f - 0.5f * cosf(leslie_drumPh[b] * SOUND_TWO_PI));
+    float drumAM = 1.0f - 0.3f * (0.5f - 0.5f * de_cos_turns(leslie_drumPh[b]));
     float ang    = leslie_hornPh[b] * SOUND_TWO_PI;
-    float hornAM = 0.5f + 0.5f * cosf(ang) + 0.12f * cosf(2.0f * ang);   // shaped: directional horn bell
+    float hornAM = 0.5f + 0.5f * de_cosf(ang) + 0.12f * de_cosf(2.0f * ang);   // shaped: directional horn bell
     hornAM = hornAM * 0.75f + 0.15f;
     hornAM = clampf(0.1f, 1.0f, hornAM);
     float delaySamples = LESLIE_BASE_MS * 0.001f * SOUND_SAMPLE_RATE
-                       + LESLIE_DOPP_MS * 0.001f * SOUND_SAMPLE_RATE * leslie_dopp[b] * sinf(ang);
+                       + LESLIE_DOPP_MS * 0.001f * SOUND_SAMPLE_RATE * leslie_dopp[b] * de_sinf(ang);
     float bal = leslie_bal[b];
     float drumLvl = 2.0f * (1.0f - bal); if (drumLvl > 1.0f) drumLvl = 1.0f;
     float hornLvl = 2.0f * bal;          if (hornLvl > 1.0f) hornLvl = 1.0f;
@@ -1887,7 +1888,7 @@ static void _grain_spawn(GrainTank *gt) {
     // ratio×grainSamples input samples — standard granular transpose. reverse = read backwards.
     gt->noiseSeed = gt->noiseSeed * 1103515245u + 12345u;
     float det = ((float)((int)((gt->noiseSeed >> 16) & 0xFFFF)) / 32767.5f - 1.0f) * gt->pitch_spread;
-    float ratio = powf(2.0f, (gt->pitch + det) / 12.0f);
+    float ratio = de_powf(2.0f, (gt->pitch + det) / 12.0f);
     if (gt->reverse) {
         readStart += grainSamples;                                    // start at the grain's far end, read back
         while (readStart >= GRAIN_BUF_LEN) readStart -= GRAIN_BUF_LEN;
@@ -1914,7 +1915,7 @@ static void grains_process(GrainTank *gt, float *mixL, float *mixR) {
     for (int i = 0; i < GRAIN_MAX_GRAINS; i++) {
         GrainVoice *g = &gt->grains[i];
         if (!g->active) continue;
-        float env = 0.5f * (1.0f - cosf(g->envPhase * SOUND_TWO_PI));
+        float env = 0.5f * (1.0f - de_cos_turns(g->envPhase));
         wet += moddel_hermite(gt->buf, GRAIN_BUF_LEN, g->readPos) * env * g->amp;
         g->readPos += g->posInc;
         if (g->readPos >= GRAIN_BUF_LEN) g->readPos -= GRAIN_BUF_LEN;
@@ -2035,7 +2036,7 @@ static void gate_process(int b, float *mixL, float *mixR) {
 }
 static float gate_coef(int ms) {   // one-pole coefficient from a time in ms (sound_follow_coef is defined later)
     if (ms < 1) ms = 1;
-    float c = 1.0f - expf(-1.0f / ((float)ms * 0.001f * (float)SOUND_SAMPLE_RATE));
+    float c = 1.0f - de_expf(-1.0f / ((float)ms * 0.001f * (float)SOUND_SAMPLE_RATE));
     return c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
 }
 static void fx_set_gate(int b, float threshold, int attack_ms, int release_ms) {
@@ -2179,7 +2180,7 @@ static void apply_insert(int kind, int inst, int b, float *L, float *R) {
 // envelope-follower smoothing coefficient from a time in ms (one-pole; 0 ms = instant)
 static float sound_follow_coef(int ms) {
     if (ms <= 0) return 1.0f;
-    float c = 1.0f - expf(-1.0f / ((float)ms * 0.001f * (float)SOUND_SAMPLE_RATE));
+    float c = 1.0f - de_expf(-1.0f / ((float)ms * 0.001f * (float)SOUND_SAMPLE_RATE));
     return c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
 }
 
@@ -2533,7 +2534,7 @@ static void amp_noise_process(float *L, float *R) {
     float hg = noise_hiss * 0.05f;                       // tasteful floor ceiling
     noise_hum_ph += (float)noise_mains / (float)SOUND_SAMPLE_RATE;   // hum: fundamental + 2nd harmonic, centered
     if (noise_hum_ph >= 1.0f) noise_hum_ph -= 1.0f;
-    float hum = (sinf(noise_hum_ph * SOUND_TWO_PI) * 0.7f + sinf(noise_hum_ph * 2.0f * SOUND_TWO_PI) * 0.3f) * noise_hum * 0.035f;
+    float hum = (de_sin_turns(noise_hum_ph) * 0.7f + de_sin_turns(noise_hum_ph * 2.0f) * 0.3f) * noise_hum * 0.035f;
     *L += noise_lpL * hg + hum;
     *R += noise_lpR * hg + hum;
 }
@@ -2567,7 +2568,7 @@ static float octaveup_process(OctaveUp *o, float in) {
         float p = o->ph + g * 0.5f; if (p >= 1.0f) p -= 1.0f;
         float rp = (float)wp - (1.0f - p) * SHIM_GRAIN;  // delay ramps grain→0 as p 0→1 → read sweeps at 2×
         while (rp < 0.0f) rp += SHIM_PBUF;
-        out += moddel_hermite(o->buf, SHIM_PBUF, rp) * sinf(SOUND_PI * p);   // sine window: win0²+win1²=1
+        out += moddel_hermite(o->buf, SHIM_PBUF, rp) * de_sinf(SOUND_PI * p);   // sine window: win0²+win1²=1
     }
     return out * 0.7071f;   // the two constant-power grains can sum >1 at the crossfade — normalize to ~unity
 }
@@ -2596,7 +2597,7 @@ static void shimmer_process(int t, float *mixL, float *mixR) {
     ShimVoice *s = &shim[t];
     float in = (*mixL + *mixR) * 0.5f;
     float shifted = octaveup_process(&s->oct, s->prev);              // pitch the last (DC-blocked) tail up an octave
-    float fb_sig = tanhf(shifted * s->fb);                           // GOVERNOR: soft-clip the feedback → bounded, never a runaway (the echo-bus trick)
+    float fb_sig = de_tanhf(shifted * s->fb);                           // GOVERNOR: soft-clip the feedback → bounded, never a runaway (the echo-bus trick)
     float rev = reverb_process(&s->tank, in + fb_sig);              // dry + recirculated shimmer
     float hp = rev - s->dcx + 0.995f * s->dcy;                      // DC-BLOCKER: recirculation pumps DC into the combs; high-pass it out
     s->dcx = rev; s->dcy = hp; s->prev = hp;
@@ -2643,7 +2644,7 @@ static ModState fxlfo_mod[SOUND_FX_BUSES][FXMOD_N]; // per-target state for S&H/
 static void fxmod_apply(int b, int target, float v) {
     v = clamp01(v);
     switch (target) {
-        case 0: filt_cut[b][0] = 40.0f * powf(450.0f, v); break;   // FXMOD_FILTER_CUT — 40Hz..18kHz exponential (the DJ sweep)
+        case 0: filt_cut[b][0] = 40.0f * de_powf(450.0f, v); break;   // FXMOD_FILTER_CUT — 40Hz..18kHz exponential (the DJ sweep)
         case 1: filt_res[b][0] = v; break;                         // FXMOD_FILTER_RES
         case 2: drvins_amt[b][0] = v;                              // FXMOD_DRIVE
                 drvins_used[b][0] = (drvins_mix[b][0] > 0.0f && v > 0.001f); break;
@@ -2812,11 +2813,11 @@ static void sound_push_ctrl(SoundReqKind kind, int a, int b, int c, int e0, int 
 // ───────── helpers ─────────
 
 static inline float sound_midi_to_freq(int midi) {
-    return 440.0f * powf(2.0f, (midi - 69) / 12.0f);
+    return 440.0f * de_powf(2.0f, (midi - 69) / 12.0f);
 }
 
 static inline float sound_midi_to_freq_f(float midi) {
-    return 440.0f * powf(2.0f, (midi - 69.0f) / 12.0f);
+    return 440.0f * de_powf(2.0f, (midi - 69.0f) / 12.0f);
 }
 
 // PolyBLEP residual to SUBTRACT from a naive saw at its wrap discontinuity — kills the aliasing
@@ -2835,7 +2836,7 @@ static inline float sound_osc(int wave, float phase, float duty, int *noise_stat
     case INSTR_SAW:    return phase * 2.0f - 1.0f;
     case INSTR_TRI:    return phase < 0.5f ? phase * 4.0f - 1.0f : 3.0f - phase * 4.0f;
     case INSTR_NOISE: return white8(noise_state);
-    case INSTR_SINE:   return sinf(phase * SOUND_TWO_PI);
+    case INSTR_SINE:   return de_sin_turns(phase);
     case INSTR_USER0: case INSTR_USER1: case INSTR_USER2: case INSTR_USER3: {
         // custom drawn single-cycle table, linear-interpolated (wave_set fills it)
         const float *w = user_wave[wave - INSTR_USER0];
@@ -2957,7 +2958,7 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
     static const float RB[4] = { 1.0f, 2.756f, 5.404f, 8.933f };
     float f = v->freq * pitch_mul;
     if (f < 20.0f) f = 20.0f;
-    float t60  = 0.09f * expf(v->mor * 4.5f);         // 0.09s → ~8.1s to -60dB
+    float t60  = 0.09f * de_expf(v->mor * 4.5f);         // 0.09s → ~8.1s to -60dB
     float rate = 6.9078f / t60;                       // amp *= (1 - rate·dt) ≈ e^-6.9 at t60
     float out  = 0.0f;
     for (int m = 0; m < 4; m++) {
@@ -2970,7 +2971,7 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
         if (mf >= (float)SOUND_SAMPLE_RATE * 0.45f) continue;   // above Nyquist: decays silently
         v->md_phase[m] += mf * dt;
         if (v->md_phase[m] >= 1.0f) v->md_phase[m] -= 1.0f;
-        out += sinf(v->md_phase[m] * SOUND_TWO_PI) * amp;
+        out += de_sin_turns(v->md_phase[m]) * amp;
     }
     if (v->md_strike > 0) {                           // the mallet contact click (hardness-gated)
         float n = voice_white(v);
@@ -2982,7 +2983,7 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
         if (motor > 1.0f) motor = 1.0f;
         v->md_trem_ph += 5.2f * dt;                   // ~5Hz, the classic vibraphone rate
         if (v->md_trem_ph >= 1.0f) v->md_trem_ph -= 1.0f;
-        out *= 1.0f - 0.45f * motor * (0.5f + 0.5f * sinf(v->md_trem_ph * SOUND_TWO_PI));
+        out *= 1.0f - 0.45f * motor * (0.5f + 0.5f * de_sin_turns(v->md_trem_ph));
     }
     return out * 0.9f;
 }
@@ -3008,7 +3009,7 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     // note toward a 25% floor over ~0.9s — the DX strike-then-mellow signature; a static
     // index reads as cheap organ. Decay derives from step_samples (retriggers per note).
     float beta = v->timb * v->timb * 12.0f
-               * (0.25f + 0.75f * expf(-(float)v->step_samples / (0.9f * (float)SOUND_SAMPLE_RATE)));
+               * (0.25f + 0.75f * de_expf(-(float)v->step_samples / (0.9f * (float)SOUND_SAMPLE_RATE)));
     // brightness follows the amp ATTACK: a slow-attack slot swells into brightness — FM
     // brass speaks instead of arriving pre-brightened (the §8.8.3 brass answer). Instant
     // attacks (epiano/bell/bass) are byte-identical to before.
@@ -3017,24 +3018,24 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     if (f * RATIO[ri] >= (float)SOUND_SAMPLE_RATE * 0.45f) beta = 0.0f;   // mod above Nyquist → pure sine
     // morph = modulator feedback: 0 = pure two-sine FM, up = the modulator self-saturates
     // toward saw → growl → noisy clang at the top (useful percussion territory)
-    float m = sinf(v->fm_mph * SOUND_TWO_PI + v->mor * 1.3f * v->fm_fb * SOUND_PI);
+    float m = de_sinf(v->fm_mph * SOUND_TWO_PI + v->mor * 1.3f * v->fm_fb * SOUND_PI);
     v->fm_fb = m;
     v->fm_mph += f * RATIO[ri] / (float)SOUND_SAMPLE_RATE;
     if (v->fm_mph >= 1.0f) v->fm_mph -= 1.0f;
-    float out = sinf(v->phase * SOUND_TWO_PI + m * beta);
+    float out = de_sinf(v->phase * SOUND_TWO_PI + m * beta);
     // the DX TINE: the E.PIANO 1 attack bell — a quiet 14x ping, ear-verdict driven
     // (audio-notes §8.5 phase 3: "close but not exactly DX Rhodes"). Triple-contained so
     // it can't leak into other presets: it only exists on the 1:1 detent, it dies in
     // ~75ms, and feedback fades it out (growly brass barely hears it). Scaled by timbre —
     // a soft strike has no tine, just like the hardware.
     if (ri == 1) {
-        float td = expf(-(float)v->step_samples / (0.025f * (float)SOUND_SAMPLE_RATE));
+        float td = de_expf(-(float)v->step_samples / (0.025f * (float)SOUND_SAMPLE_RATE));
         float tf = f * 14.0f;
         if (td > 0.002f && tf < (float)SOUND_SAMPLE_RATE * 0.45f) {
             v->fm_tph += tf / (float)SOUND_SAMPLE_RATE;
             if (v->fm_tph >= 1.0f) v->fm_tph -= 1.0f;
             float tm = 1.0f - v->mor; if (tm < 0.0f) tm = 0.0f;
-            out += sinf(v->fm_tph * SOUND_TWO_PI) * 0.18f * v->timb * tm * td;
+            out += de_sin_turns(v->fm_tph) * 0.18f * v->timb * tm * td;
         }
     }
     return out;
@@ -3055,7 +3056,7 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
     // snaps toward 1 on the strike and settles to the timbre value over ~0.25s — the CZ
     // "wowww" navkit omits. morph 0 = static (navkit-flat); 1 = full sweep.
     float d_sus = v->timb;
-    float dcw   = expf(-(float)v->step_samples / (0.25f * (float)SOUND_SAMPLE_RATE));
+    float dcw   = de_expf(-(float)v->step_samples / (0.25f * (float)SOUND_SAMPLE_RATE));
     float d = d_sus + (1.0f - d_sus) * v->mor * dcw;
     if (d > 0.999f) d = 0.999f; else if (d < 0.0f) d = 0.0f;
     float out = 0.0f;
@@ -3065,7 +3066,7 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
             if (phase < 0.5f) dp = phase * (1.0f + d);
             else { float t = (phase - 0.5f) * 2.0f; dp = 0.5f * (1.0f + d) + t * (1.0f - 0.5f * (1.0f + d)); }
             dp = clamp01(dp);
-            out = cosf(dp * SOUND_PI);
+            out = de_cosf(dp * SOUND_PI);
             break;
         }
         case 1: {  // SQUARE: sharpen the transitions at 0.25 / 0.75
@@ -3074,14 +3075,14 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
             else if (phase < 0.5f)  dp = sh + (phase - 0.25f) / 0.25f * (0.5f - sh);
             else if (phase < 0.75f) dp = 0.5f + (phase - 0.5f) / 0.25f * sh;
             else                    dp = 0.5f + sh + (phase - 0.75f) / 0.25f * (0.5f - sh);
-            out = cosf(dp * SOUND_TWO_PI);
+            out = de_cos_turns(dp);
             break;
         }
         case 2: {  // PULSE: compress the active portion to a narrow pulse
             float w = 0.5f - d * 0.45f, dp;
             if (phase < w) dp = phase / w * 0.5f;
             else           dp = 0.5f + (phase - w) / (1.0f - w) * 0.5f;
-            out = cosf(dp * SOUND_TWO_PI);
+            out = de_cos_turns(dp);
             break;
         }
         case 3: {  // DOUBLEPULSE: two peaks per cycle (sync-like, octave-up flavour)
@@ -3089,7 +3090,7 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
             float w = 0.5f - d * 0.4f;
             if (dp < w) dp = dp / w * 0.5f;
             else        dp = 0.5f + (dp - w) / (1.0f - w) * 0.5f;
-            out = cosf(dp * SOUND_TWO_PI);
+            out = de_cos_turns(dp);
             break;
         }
         case 4: {  // SAWPULSE: saw + pulse blend
@@ -3097,11 +3098,11 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
             if (phase < 0.5f) dp1 = phase * (1.0f + d * 0.5f);
             else              dp1 = 0.5f * (1.0f + d * 0.5f) + (phase - 0.5f) * (1.0f - d * 0.25f);
             dp1 = clamp01(dp1);
-            float saw = cosf(dp1 * SOUND_PI);
+            float saw = de_cosf(dp1 * SOUND_PI);
             float w = 0.5f - d * 0.3f, dp2;
             if (phase < w) dp2 = phase / w * 0.5f;
             else           dp2 = 0.5f + (phase - w) / (1.0f - w) * 0.5f;
-            out = (saw + cosf(dp2 * SOUND_TWO_PI)) * 0.5f;
+            out = (saw + de_cos_turns(dp2)) * 0.5f;
             break;
         }
         default: { // 5/6/7 RESONANT: a window gates a cosine at the resonant peak (1 + d·7×).
@@ -3115,12 +3116,35 @@ static inline float sound_pd_sample(Voice *v, float pitch_mul) {
             else if (wt == 6) window = (phase < 0.25f) ? phase * 4.0f                     // RESO2 trapezoid
                                      : (phase < 0.75f) ? 1.0f : (1.0f - phase) * 4.0f;
             else              window = 1.0f - phase;                                      // RESO3 saw (classic CZ)
-            out = window * cosf(phase * resoFreq * SOUND_TWO_PI);
+            out = window * de_cos_turns(phase * resoFreq);
             break;
         }
     }
     return out;
 }
+
+// ORGAN — THE PERCUSSION TRADES, IT DOES NOT JUST ADD (audit §L7). Two behaviours of the real instrument
+// that we used to skip, both one multiply, and together they are the difference between a chip sitting ON
+// TOP of the sound and a chip that is part of it. The owner's ear found this from the far end: after §L4's
+// single-trigger landed his reaction was "didn't know an organ had that much perc to it" — and measurement
+// said the percussion is only ~0.4 dB on peak and that single-trigger had *reduced* percussion energy about
+// threefold. So it was never too loud; it read as pasted on, because it only ever added.
+//
+//   1. THE SUSTAINED TONE GETS QUIETER. Reid, Part 57: "adding percussion also reduces the loudness of the
+//      sustained part of the note, but we're going to overlook this" — he overlooks it because he is
+//      patching an analogue synth by hand. Hammond's own SK PRO manual is blunter, calling the drawbar drop
+//      a deliberate "volume compensating feature", and it is inherent to ALL B-3/C-3/A-100/RT-3/M-3 (players
+//      disliked it enough that the classic mod jumpers out one resistor, R1 3.9 MΩ on a B/C-3).
+//   2. THE 1' DRAWBAR IS CANCELLED. Engaging percussion on the upper manual silences the 8th harmonic (1')
+//      drawbar, because the percussion diverts that tone generator. Confirmed in the B-3 owner's manual;
+//      NOT in Synth Secrets — Part 57 lists the four control tablets but never mentions this one.
+//
+// ⚠ THE STEAL AMOUNT IS A TUNING DECISION, NOT A SPEC MATCH. No source publishes a dB figure: HammondWiki
+// only says "reduced substantially". 0.30 puts full percussion at −3.1 dB on the drawbars and a default
+// `jimmy` registration (depth 0.44) at −1.2 dB. Change it by ear, and do not go hunting for a number that
+// is not out there.
+#define ORGAN_PERC_STEAL 0.30f   // drawbar level lost at FULL percussion depth (0.30 → gain 0.70, −3.1 dB)
+#define ORGAN_BAR_1FOOT  8       // index of the 1' drawbar in RAT[] (ratio 8.0), cancelled while perc is on
 
 // ORGAN percussion depth from the morph macro: it fades in over morph's top ~45%, so a lively B3
 // chips and a still combo organ doesn't. Shared by note-on and note_retrig (which re-arms the chip).
@@ -3184,10 +3208,19 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     // timbre = brightness tilt across the drawbars (a spectral tilt by octave) + click bite
     float tilt = (v->timb - 0.5f) * 2.0f;              // -1 dark .. +1 bright
     float nyq  = (float)SOUND_SAMPLE_RATE * 0.45f;
+    // Is the percussion TABLET engaged? Read live off morph, NOT off the decaying `org_perc` envelope —
+    // on the real instrument the 1' stays cancelled for as long as the tablet is down, so gating on the
+    // envelope would fade the 1' drawbar back in as the chip died away, which no organ does.
+    float perc_amt = sound_organ_perc_amt(v->mor);
+    bool  perc_on  = perc_amt > 0.0001f;
     float dry = 0.0f, ampSum = 0.0f;
     for (int i = 0; i < 9; i++) {
         float lvl = reg[i];
         if (lvl < 0.001f) continue;
+        // 1' CANCELLED while percussion is on (§L7) — treated exactly like a drawbar pulled to zero, so
+        // it leaves ampSum too and the engine's equal-loudness convention (§8.8.1) reads it as "darker",
+        // which is what pulling a drawbar does here. The level change is the separate steal below.
+        if (perc_on && i == ORGAN_BAR_1FOOT) continue;
         float w = 1.0f + tilt * (OCT[i] - 1.2f) * 0.45f;
         if (w < 0.0f) w = 0.0f;
         lvl *= w;
@@ -3195,10 +3228,14 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
         if (df >= nyq) continue;                        // above Nyquist: drop this drawbar
         v->org_ph[i] += df * dt;
         if (v->org_ph[i] >= 1.0f) v->org_ph[i] -= 1.0f;
-        dry += sinf(v->org_ph[i] * SOUND_TWO_PI) * lvl;
+        dry += de_sin_turns(v->org_ph[i]) * lvl;
         ampSum += lvl;
     }
     if (ampSum > 0.0001f) dry /= ampSum;                // equal loudness across registration + tilt (§8.8.1)
+    // PERCUSSION STEALS FROM THE SUSTAIN (§L7). Deliberately AFTER the equal-loudness divide, which would
+    // otherwise cancel exactly the level drop we are trying to create — and applied to the DRAWBAR sum only,
+    // before the click and the ping are added, because those are what the sustain is being traded FOR.
+    if (perc_on) dry *= 1.0f - ORGAN_PERC_STEAL * perc_amt;
     if (v->org_click > 0.0001f) {                       // key click: a short noise burst (~3ms)
         float n = voice_white(v);
         dry += n * v->org_click * 0.35f;
@@ -3208,7 +3245,7 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     if (v->org_perc > 0.0001f) {                        // percussion: a 2nd-harmonic ping, fast decay
         v->org_perc_ph += f * 2.0f * dt;
         if (v->org_perc_ph >= 1.0f) v->org_perc_ph -= 1.0f;
-        dry += sinf(v->org_perc_ph * SOUND_TWO_PI) * v->org_perc * 0.4f;
+        dry += de_sin_turns(v->org_perc_ph) * v->org_perc * 0.4f;
         v->org_perc *= 1.0f - dt / 0.2f;                // ~200ms
         if (v->org_perc < 0.0001f) v->org_perc = 0.0f;
     }
@@ -3223,7 +3260,7 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
         v->ks_buf[v->org_widx] = dry;
         v->org_scan_ph += 6.9f * dt;
         if (v->org_scan_ph >= 1.0f) v->org_scan_ph -= 1.0f;
-        float lfo = sinf(v->org_scan_ph * SOUND_TWO_PI);
+        float lfo = de_sin_turns(v->org_scan_ph);
         float rp  = (float)v->org_widx - (32.0f + lfo * depth);  // tap centered 32 behind the write head
         if (rp < 0.0f) rp += (float)ORGAN_SCAN;
         int   r0 = (int)rp;
@@ -3239,7 +3276,7 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     // Clean (drv=0) is bit-identical: the filter is bypassed entirely.
     if (v->drv > 0.01f) {
         float fc   = 6000.0f - v->drv * 4200.0f;        // ~6kHz light .. ~1.8kHz cranked
-        float coef = 1.0f - expf(-SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE);
+        float coef = 1.0f - de_expf(-SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE);
         v->org_lp += (out - v->org_lp) * coef;
         out = v->org_lp;
     }
@@ -3441,7 +3478,7 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         if (mf >= nyq) continue;                      // above Nyquist: decays silently
         v->ep_ph[i] += mf * dt;
         if (v->ep_ph[i] >= 1.0f) v->ep_ph[i] -= 1.0f;
-        sum += sinf(v->ep_ph[i] * SOUND_TWO_PI) * a;
+        sum += de_sin_turns(v->ep_ph[i]) * a;
     }
     float regDist = (1.0f - v->ep_freqnorm) * (1.0f - v->ep_freqnorm);
     float bark = v->mor;                              // the dig-in growl — live (note_morph)
@@ -3454,7 +3491,7 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         float k3 = dist * 1.5f * velBoost * regDist;
         float k5 = dist * 0.4f * velBoost * regDist;
         out = sum + k3 * sum * s2 + k5 * sum * s2 * s2;
-        out = tanhf(out);
+        out = de_tanhf(out);
     } else if (v->ep_type == 2) {                     // Clav: VERBATIM navkit contact-pickup nonlinearity
         // pickupDist = morph (the honk macro); strikeVelocity = vol (captured). sum² = even
         // harmonics (honk/wah), sum³ = odd (bite), symmetric tanh*1.2 soft-clip.
@@ -3463,7 +3500,7 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         float k2 = dist * 0.8f * velBoost;
         float k3 = dist * 1.0f * velBoost;
         out = sum + k2 * s2 + k3 * sum * s2;
-        out = tanhf(out * 1.2f);
+        out = de_tanhf(out * 1.2f);
     } else {                                          // Rhodes: even harmonics, asymmetric clip.
         // The pickup nonlinearity is the REAL Rhodes harmonic source (Shear §2.2.1, Faraday's law
         // + non-uniform field), so it has an ALWAYS-ON floor (0.15) — even soft notes have grit —
@@ -3474,7 +3511,7 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         float k2 = (0.07f + rbark * 0.35f) * rdist;
         out = sum + k * s2 + k2 * sum * s2;
         float drive = 1.0f + rbark * 0.4f;
-        out = (out >= 0.0f) ? tanhf(out * drive) : tanhf(out * drive * 0.85f) * 0.9f;
+        out = (out >= 0.0f) ? de_tanhf(out * drive) : de_tanhf(out * drive * 0.85f) * 0.9f;
     }
     if (v->ep_click > 0) {                            // the tangent click burst (~2ms, linear decay)
         float n = voice_white(v);
@@ -3530,7 +3567,7 @@ static inline float sound_membrane_sample(Voice *v, float pitch_mul) {
     // the base over ~90ms — navkit's membrane chirp; morph 0 = flat. 808/909 do this to ONE
     // sine, here it bends all six modes together.
     float t = (float)v->step_samples * dt;
-    float bend = 1.0f + v->mor * 0.6f * expf(-t / 0.09f);
+    float bend = 1.0f + v->mor * 0.6f * de_expf(-t / 0.09f);
     // ring: a tuned tabla head SINGS — its loaded skin sustains a pitched tone for ~1.5s+ —
     // while a damped djembe is a short thud. harmonics tilts between the two.
     float t60  = 1.6f - 1.25f * v->harm;                 // ~1.6s tuned tabla ring → ~0.35s djembe thud
@@ -3553,7 +3590,7 @@ static inline float sound_membrane_sample(Voice *v, float pitch_mul) {
         // (the fundamental, mode 0, is unaffected — it's there wherever you strike).
         float pos = 1.0f;
         if (m > 0) pos = (1.0f - v->timb) * (1.0f / (float)(m + 1)) + v->timb * (float)m * 0.15f;
-        out += sinf(v->mb_phase[m] * SOUND_TWO_PI) * amp * pos;
+        out += de_sin_turns(v->mb_phase[m]) * amp * pos;
     }
     if (v->mb_strike > 0) {                              // slap contact click (edge/slap-gated)
         float n = voice_white(v);
@@ -3607,10 +3644,10 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
     // HUMANIZED lip vibrato — a real player's vibrato is not a clean LFO: rate and depth wander,
     // and it lives mostly in PITCH with only a little pressure. A slow ~0.7Hz wobble drifts both.
     v->rd_drift_ph += 0.7f / SR; if (v->rd_drift_ph >= 1.0f) v->rd_drift_ph -= 1.0f;
-    float wob = sinf(v->rd_drift_ph * SOUND_TWO_PI);       // slow wander, shared by rate + depth
+    float wob = de_sin_turns(v->rd_drift_ph);       // slow wander, shared by rate + depth
     v->rd_vib_ph += (5.2f + 0.9f * wob) / SR;              // vibrato rate drifts ~4.3..6.1 Hz
     if (v->rd_vib_ph >= 1.0f) v->rd_vib_ph -= 1.0f;
-    float vib = sinf(v->rd_vib_ph * SOUND_TWO_PI) * vibd * (0.8f + 0.2f * wob);   // depth breathes too
+    float vib = de_sin_turns(v->rd_vib_ph) * vibd * (0.8f + 0.2f * wob);   // depth breathes too
     // breath turbulence — the "air" in the tone, the #1 cue that this is a REAL wind instrument
     // (navkit omits it, so the bare port reads as a synth tooter). Lightly LP the white noise
     // (airy, not hissy), scale by breath pressure so it vanishes when not blowing, add to the
@@ -3651,7 +3688,7 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
     // conical bores support even harmonics (sax buzz); cylindrical suppresses them
     if (bore > 0.3f) {
         float cd = (bore - 0.3f) * 0.7f;
-        boreInput = tanhf(boreInput * (1.0f + cd * 2.0f)) / (1.0f + cd * 2.0f);
+        boreInput = de_tanhf(boreInput * (1.0f + cd * 2.0f)) / (1.0f + cd * 2.0f);
         boreInput += cd * boreInput * boreInput * 0.3f;    // asymmetric → even harmonics
     }
     v->ks_buf[v->rd_idx] = boreInput;
@@ -3742,9 +3779,9 @@ static inline float sound_pipe_sample(Voice *v, float pitch_mul) {
     float breath = 0.55f + v->timb * 0.35f;                // timbre = breath air: excitation energy
     // HUMANIZED pitch vibrato — wandering rate/depth, like reed (a flute's vibrato is pitch, not amp)
     v->pp_drift_ph += 0.7f / SR; if (v->pp_drift_ph >= 1.0f) v->pp_drift_ph -= 1.0f;
-    float wob = sinf(v->pp_drift_ph * SOUND_TWO_PI);
+    float wob = de_sin_turns(v->pp_drift_ph);
     v->pp_vib_ph += (5.0f + 0.8f * wob) / SR; if (v->pp_vib_ph >= 1.0f) v->pp_vib_ph -= 1.0f;
-    float vib = sinf(v->pp_vib_ph * SOUND_TWO_PI) * (0.6f + 0.4f * wob);
+    float vib = de_sin_turns(v->pp_vib_ph) * (0.6f + 0.4f * wob);
     // breath turbulence — the flute IS air; resonate filtered noise through the bore + a slow drift
     float wn = voice_white(v);
     v->pp_noise_lp += 0.6f * (wn - v->pp_noise_lp);
@@ -3772,7 +3809,7 @@ static inline float sound_pipe_sample(Voice *v, float pitch_mul) {
     int jetRead = (v->pp_jet_idx - jetLen + 64) % 64;
     float jetOut = v->pp_jet[jetRead];
     v->pp_jet_idx = (v->pp_jet_idx + 1) % 64;
-    float excitation = tanhf(jetOut * gain) * breath;      // tanh S-curve: self-oscillates when gain·fb > 1
+    float excitation = de_tanhf(jetOut * gain) * breath;      // tanh S-curve: self-oscillates when gain·fb > 1
     // bore input: jet excitation + the reflected wave; write back into the bore
     float boreInput = excitation + reflected * 0.5f;
     v->ks_buf[v->pp_idx] = boreInput;
@@ -3887,9 +3924,9 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     float velocity = bowSpeed * 0.2f;                      // navkit's physical-range scale
     // HUMANIZED pitch vibrato — wandering rate/depth, lives in PITCH (like a real bowed string)
     v->bw_drift_ph += 0.6f / SR; if (v->bw_drift_ph >= 1.0f) v->bw_drift_ph -= 1.0f;
-    float wob = sinf(v->bw_drift_ph * SOUND_TWO_PI);
+    float wob = de_sin_turns(v->bw_drift_ph);
     v->bw_vib_ph += (5.3f + 0.8f * wob) / SR; if (v->bw_vib_ph >= 1.0f) v->bw_vib_ph -= 1.0f;
-    float vib = sinf(v->bw_vib_ph * SOUND_TWO_PI) * (0.6f + 0.4f * wob);
+    float vib = de_sin_turns(v->bw_vib_ph) * (0.6f + 0.4f * wob);
     // bow noise (rosin grip texture) + a slow drift on the bow speed — navkit omits both
     float wn = voice_white(v);
     v->bw_noise_lp += 0.5f * (wn - v->bw_noise_lp);
@@ -3937,7 +3974,7 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
         friction = 0.0f;
     } else {
         float pres = pressure * 5.0f + 0.5f;
-        friction = pres * deltaV * expf(-pres * deltaV * deltaV);
+        friction = pres * deltaV * de_expf(-pres * deltaV * deltaV);
     }
     // outgoing waves from the bow point toward each end
     float toNut = bridgeReturn + friction;
@@ -4048,9 +4085,9 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     float fmtHz  = 900.0f + (1.0f - dark) * 700.0f;   // ~900 (tuba) .. 1600 (trumpet) Hz, fixed
     // HUMANIZED lip vibrato — wandering rate/depth, lives mostly in PITCH (reed/pipe/bowed pattern)
     v->br_drift_ph += 0.7f / SR; if (v->br_drift_ph >= 1.0f) v->br_drift_ph -= 1.0f;
-    float wob = sinf(v->br_drift_ph * SOUND_TWO_PI);             // slow wander, shared by rate + depth
+    float wob = de_sin_turns(v->br_drift_ph);             // slow wander, shared by rate + depth
     v->br_vib_ph += (5.4f + 0.9f * wob) / SR; if (v->br_vib_ph >= 1.0f) v->br_vib_ph -= 1.0f;
-    float vib = sinf(v->br_vib_ph * SOUND_TWO_PI) * vibd * (0.8f + 0.2f * wob);
+    float vib = de_sin_turns(v->br_vib_ph) * vibd * (0.8f + 0.2f * wob);
     // breath turbulence — the "air" cue (reed pattern); resonate filtered noise through the bore + drift
     float wn = voice_white(v);
     v->br_noise_lp += 0.5f * (wn - v->br_noise_lp);
@@ -4089,7 +4126,7 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     // amplitude limiter for the oscillation — a FIXED knee (timbre-INDEPENDENT) so the loop stays
     // stable and its amplitude is consistent at every macro position. All the brass timbre now
     // happens on the OUTPUT (below), where it can be aggressive without risking the oscillation.
-    boreInput = tanhf(boreInput * 2.6f) / 2.6f;
+    boreInput = de_tanhf(boreInput * 2.6f) / 2.6f;
     v->ks_buf[v->br_idx] = boreInput;
     v->br_idx++; if (v->br_idx >= v->br_len) v->br_idx = 0;
     // DC block — steady blow pressure carries a large DC (reed pattern, identical coeff)
@@ -4108,7 +4145,7 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     float wf = SOUND_TWO_PI * fmtHz / SR; if (wf > 2.6f) wf = 2.6f;     // Nyquist guard
     float rf = 0.972f;
     float a2f = rf * rf;
-    float a1f = -2.0f * rf * cosf(wf);
+    float a1f = -2.0f * rf * de_cosf(wf);
     float b0f = 0.5f - 0.5f * a2f;
     float fmt = b0f * (dc - v->br_lip_x2) - a1f * v->br_lip_y1 - a2f * v->br_lip_y2;
     v->br_lip_x2 = v->br_lip_x1; v->br_lip_x1 = dc;
@@ -4129,7 +4166,7 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     // DC offset (so a quiet/mellow voice stays clean).
     float shaped   = voiced * driveOut;
     float asym     = bright * 0.7f;
-    float blaat    = tanhf(shaped + asym) - tanhf(asym);
+    float blaat    = de_tanhf(shaped + asym) - de_tanhf(asym);
     float comp     = 1.0f / (0.72f + 0.28f * driveOut);      // PARTIAL gain comp (not the old level-killing /drive)
     // block the DC the asymmetric shaper injects (a brass shock wave is lopsided → a standing offset →
     // a thump on note-on + wasted headroom). Same one-pole as the drive effect / epiano nonlinearity.
@@ -4372,8 +4409,8 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
 
     // vibrato → pitch (±~1 semitone at full depth)
     v->vox_vib_ph += vibr / SR; if (v->vox_vib_ph >= 1.0f) v->vox_vib_ph -= 1.0f;
-    float vib = sinf(v->vox_vib_ph * SOUND_TWO_PI) * vibd * 0.06f;
-    float freq = v->freq * pitch_mul * powf(2.0f, vib);
+    float vib = de_sin_turns(v->vox_vib_ph) * vibd * 0.06f;
+    float freq = v->freq * pitch_mul * de_powf(2.0f, vib);
     if (freq < 20.0f) freq = 20.0f;
 
     // vowel target formants (centre freq + amp + measured bandwidth, morphed along the path)
@@ -4474,11 +4511,11 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     float t = v->vox_glot_ph, gp;
     float te = oq + 0.1f; if (te > 0.95f) te = 0.95f;
     if (t < oq)      { float tn = t / oq;             gp = 3.0f*tn*tn - 2.0f*tn*tn*tn; }
-    else if (t < te) { float tn = (t - oq)/(te - oq); gp = 0.5f*(1.0f + cosf(tn * SOUND_PI)); }
+    else if (t < te) { float tn = (t - oq)/(te - oq); gp = 0.5f*(1.0f + de_cosf(tn * SOUND_PI)); }
     else             { gp = 0.0f; }
     if (v->vox_creak_skip) gp *= 0.12f;              // creak: this cycle nearly drops out
     // buzziness (10): blend the rich glottal pulse toward a smooth sine (navkit WAVE_VOICE knob)
-    float src = sinf(v->vox_glot_ph * SOUND_TWO_PI) * (1.0f - buzz) + gp * buzz;
+    float src = de_sin_turns(v->vox_glot_ph) * (1.0f - buzz) + gp * buzz;
     src *= gl_gain;                                  // consonant voicing gate
     // spectral tilt: 0 = bright (source bypass) → 1 = dark (heavy 1-pole LP). MONOTONIC —
     // the coefficient must DROP as tilt rises (lower cutoff = more darkening), then crossfade
@@ -4499,7 +4536,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
         float amp = vamp[i];
         // bandwidth: derived (grows with centre) ↔ navkit's measured per-vowel BW (measBW idx 16)
         float bw  = (60.0f + fc_hz * 0.08f) * (1.0f - bwmode) + vbw[i] * bwmode;
-        float f = 2.0f * sinf(SOUND_PI * fc_hz / SR);
+        float f = 2.0f * de_sinf(SOUND_PI * fc_hz / SR);
         if (f > 0.99f) f = 0.99f; else if (f < 0.001f) f = 0.001f;
         float q = fc_hz / (bw + 1.0f);
         if (q < 0.5f) q = 0.5f; else if (q > 20.0f) q = 20.0f;
@@ -4513,7 +4550,7 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
     // which model earns the nasality axis.
     if (nasalAf > 0.001f) {
         float nfc = 350.0f * shift;
-        float f = 2.0f * sinf(SOUND_PI * nfc / SR); if (f > 0.99f) f = 0.99f; else if (f < 0.001f) f = 0.001f;
+        float f = 2.0f * de_sinf(SOUND_PI * nfc / SR); if (f > 0.99f) f = 0.99f; else if (f < 0.001f) f = 0.001f;
         float q = nfc / 101.0f; if (q < 0.5f) q = 0.5f; else if (q > 10.0f) q = 10.0f;
         v->vox_naf_low += f * v->vox_naf_band;
         float high = out - v->vox_naf_low - v->vox_naf_band / q;
@@ -4538,8 +4575,8 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
 // RBJ constant-skirt bandpass — peak gain = `gain`, bandwidth `bw` in octaves. Resets state.
 static void sound_biquad_set(SoundBiquad *bq, float fc, float bw, float gain) {
     float w0 = SOUND_TWO_PI * fc / (float)SOUND_SAMPLE_RATE;
-    float sn = sinf(w0), cs = cosf(w0);
-    float alpha = sn * sinhf(0.34657359f * bw * w0 / (sn > 1e-6f ? sn : 1e-6f));  // 0.3466 = ln2/2
+    float sn = de_sinf(w0), cs = de_cosf(w0);
+    float alpha = sn * de_sinhf(0.34657359f * bw * w0 / (sn > 1e-6f ? sn : 1e-6f));  // 0.3466 = ln2/2
     float a0 = 1.0f + alpha;
     bq->b0 = (alpha * gain) / a0;
     bq->b1 = 0.0f;
@@ -4615,7 +4652,7 @@ static void sound_guitar_start(Voice *v) {
 // coefficient so the loop decays to −60dB in t60 seconds at frequency f (fb^(f·t60)=0.001).
 // ks_tap_read: linear-interpolated read `len_f` samples behind the write head of v->ks_buf,
 // with the buffer wrap. (The echo send uses the same shape on echo_buf — different buffer, not folded.)
-static inline float t60_to_fb(float t60, float f) { return expf(-6.9078f / (t60 * f)); }
+static inline float t60_to_fb(float t60, float f) { return de_expf(-6.9078f / (t60 * f)); }
 static inline float ks_tap_read(Voice *v, float len_f, int alloc) {
     float rpos = (float)v->ks_widx - len_f;
     if (rpos < 0.0f) rpos += (float)alloc;
@@ -4635,7 +4672,7 @@ static inline float sound_guitar_sample(Voice *v, float pitch_mul) {
     if (len_f > (float)alloc - 2.0f) len_f = (float)alloc - 2.0f;
     if (len_f < 2.0f) len_f = 2.0f;
     // morph = mute: T60 from a long open ring (mor=0, ~6s) to a tight pizzicato stop (mor=1, ~80ms)
-    float t60 = 0.08f * expf((1.0f - v->mor) * 4.3f);
+    float t60 = 0.08f * de_expf((1.0f - v->mor) * 4.3f);
     float fb  = t60_to_fb(t60, f);
     float dry = ks_tap_read(v, len_f, alloc);
     // loop filter: the KS damping average, but timbre keeps the upper harmonics (1–3k presence)
@@ -4735,8 +4772,8 @@ static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f 
 #define PIANO_STRETCH_K 2.0f
 static inline float piano_stretch_freq(float freq, float k) {
     if (k == 0.0f) return freq;
-    float soct = log2f(freq / 261.63f);                // octaves from middle C (C4)
-    return freq * powf(2.0f, (k * soct * fabsf(soct)) / 1200.0f);
+    float soct = de_log2f(freq / 261.63f);                // octaves from middle C (C4)
+    return freq * de_powf(2.0f, (k * soct * fabsf(soct)) / 1200.0f);
 }
 
 // ── STIFF-STRING DISPERSION (audit §I4b; plan §2.3(a)) ──────────────────────────────────────────
@@ -4765,7 +4802,7 @@ static inline float piano_stretch_freq(float freq, float k) {
 #define PN_B_AT_STIFF_25 1.1e-4f   // target B for `stiff` 0.25 (the grand) at the knob's centre — the
                                    // value the owner's ear approved. Other voicings scale from `stiff`.
 static inline float pn_ap_phase_delay(float w, float c) {   // one allpass's phase delay, in samples
-    float phi = atan2f(-sinf(w), c + cosf(w)) - atan2f(-c * sinf(w), 1.0f + c * cosf(w));
+    float phi = atan2f(-de_sinf(w), c + de_cosf(w)) - atan2f(-c * de_sinf(w), 1.0f + c * de_cosf(w));
     while (phi > 0.0f) phi -= 6.28318531f;
     return -phi / w;
 }
@@ -5102,7 +5139,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     // the bottom three-quarters of the knob did nothing. Frequency compensation keeps the
     // knob honest across the neck; at the very top the 0.5 average below becomes the real
     // ceiling (it still darkens highs faster — which is what sells "string").
-    float t60 = 0.04f * expf(v->harm * 8.0f);            // 0.04 * 2980^harm seconds to -60dB
+    float t60 = 0.04f * de_expf(v->harm * 8.0f);            // 0.04 * 2980^harm seconds to -60dB
     float fb  = t60_to_fb(t60, f);                       // fb^(freq*t60) = 0.001
     float out = ks_tap_read(v, len_f, alloc);
     v->ks_buf[v->ks_widx] = (out + v->ks_last) * 0.5f * fb;   // damping average + feedback
@@ -5193,8 +5230,8 @@ static inline void sound_glide_start(Voice *v) {
     if (tgt <= 0.0f || v->freq <= 0.0f) { v->freq = tgt; v->gl_len = 0; return; }   // log2 guard
     int ms  = v->gl_ms > 0 ? v->gl_ms : GLIDE_DECLICK_MS;
     int len = (int)(((long long)ms * (long long)SOUND_SAMPLE_RATE) / 1000LL);
-    v->gl_from = log2f(v->freq);
-    v->gl_d    = log2f(tgt) - v->gl_from;
+    v->gl_from = de_log2f(v->freq);
+    v->gl_d    = de_log2f(tgt) - v->gl_from;
     // PER-OCTAVE scaling applies only to a glide the cart actually ASKED for. The default declick ramp is
     // an anti-zipper measure, not a slide, and scaling it by a tiny interval would turn it back into the
     // hard step it exists to prevent — so it keeps its fixed length, and a scaled glide never drops below
@@ -5203,7 +5240,7 @@ static inline void sound_glide_start(Voice *v) {
         float oct = v->gl_d < 0.0f ? -v->gl_d : v->gl_d;
         // amount 1 is the common case and powf(x,1) is exact but not free, so shortcut it. amount 0 never
         // reaches here at all, which is what keeps the default path byte-identical.
-        float f = (v->gl_scale == 1.0f) ? oct : powf(oct, v->gl_scale);
+        float f = (v->gl_scale == 1.0f) ? oct : de_powf(oct, v->gl_scale);
         long long scaled = (long long)((double)len * (double)f);
         long long floor_len = ((long long)GLIDE_DECLICK_MS * SOUND_SAMPLE_RATE) / 1000LL;
         long long cap       = 60LL * SOUND_SAMPLE_RATE;              // a minute of glide is plenty
@@ -5216,7 +5253,7 @@ static inline void sound_glide_start(Voice *v) {
     v->gl_len = len;
     v->gl_pos = 0;
     v->gl_e   = 1.0f;                                  // e^0
-    v->gl_r   = expf(-GLIDE_SHAPE / (float)len);       // one e-fold step per sample
+    v->gl_r   = de_expf(-GLIDE_SHAPE / (float)len);       // one e-fold step per sample
 }
 
 // One sample of portamento.
@@ -5236,7 +5273,7 @@ static inline float sound_ad_env(int s, int a, int d) {
     if (a > 0 && s < a) return (float)s / (float)a;   // attack ramp
     s -= a;
     if (d <= 0 || s >= d) return 0.0f;                // no decay set, or finished → no contribution
-    return expf(-4.0f * (float)s / (float)d);         // e^-4 ≈ 0.018 by the end — punchy, near-zero
+    return de_expf(-4.0f * (float)s / (float)d);         // e^-4 ≈ 0.018 by the end — punchy, near-zero
 }
 
 // Chamberlin state-variable filter — one sample. Updates the voice's running state and
@@ -5247,10 +5284,10 @@ static inline float sound_ad_env(int s, int a, int d) {
 // nl_res = Steiner-Parker nonlinear resonance (tanh on the band feedback = the bite). svf() and
 // steiner() differ ONLY in this flag + their output stage (raw taps vs tanh-driven taps).
 static inline float svf_step(Voice *v, float in, float cutoff_hz, bool nl_res) {
-    float f = 2.0f * sinf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
+    float f = 2.0f * de_sinf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
     if (f > 0.99f) f = 0.99f; else if (f < 0.0005f) f = 0.0005f;   // keep the simple SVF stable
     v->flt_low += f * v->flt_band;
-    float high = in - v->flt_low - v->flt_q * (nl_res ? tanhf(v->flt_band) : v->flt_band);
+    float high = in - v->flt_low - v->flt_q * (nl_res ? de_tanhf(v->flt_band) : v->flt_band);
     v->flt_band += f * high;
     // clamp state so a high-resonance sweep can't blow up
     if      (v->flt_low  >  4.0f) v->flt_low  =  4.0f; else if (v->flt_low  < -4.0f) v->flt_low  = -4.0f;
@@ -5286,7 +5323,7 @@ static inline float ladder_core(Voice *v, float in, float cutoff_hz, bool diode)
     // cutoff is out of [10, ~0.49*SR], so this is a no-op for real audio — pure safety net.
     if      (cutoff_hz < 10.0f)                        cutoff_hz = 10.0f;
     else if (cutoff_hz > SOUND_SAMPLE_RATE * 0.49f)    cutoff_hz = SOUND_SAMPLE_RATE * 0.49f;
-    float g  = tanf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
+    float g  = de_tanf(SOUND_PI * cutoff_hz / (float)SOUND_SAMPLE_RATE);
     float G  = g / (1.0f + g);                          // one-pole TPT integrator gain
     float res = (2.0f - v->flt_q) * (1.0f / 0.13f);     // recover res 0..15 from the damping
     if (res < 0.0f) res = 0.0f; else if (res > 15.0f) res = 15.0f;
@@ -5296,7 +5333,7 @@ static inline float ladder_core(Voice *v, float in, float cutoff_hz, bool diode)
     float S1 = oG * v->lad_s[0], S2 = oG * v->lad_s[1], S3 = oG * v->lad_s[2], S4 = oG * v->lad_s[3];
     float G2 = G * G, G3 = G2 * G, G4 = G3 * G;
     float B  = G3 * S1 + G2 * S2 + G * S3 + S4;         // the ladder's instantaneous feedback term
-    float fb = diode ? tanhf(B * 1.5f) * (1.0f / 1.5f) : B;   // diodes: unity small-signal, clip the scream
+    float fb = diode ? de_tanhf(B * 1.5f) * (1.0f / 1.5f) : B;   // diodes: unity small-signal, clip the scream
     float u  = (in - k * fb) / (1.0f + k * G4);         // resolve the zero-delay input (1+k*G4 > 1, safe)
 
     float y1 = G * u  + S1; v->lad_s[0] = 2.0f * y1 - v->lad_s[0];
@@ -5322,10 +5359,10 @@ static inline float sound_steiner(Voice *v, float in, float cutoff_hz) {
     float high = svf_step(v, in, cutoff_hz, true);   // nonlinear resonance = the bite
     // multimode like the real Steiner-Parker — every tap output-driven for the aggressive voice
     switch (v->flt_mode) {
-        case FILTER_STEINER_HP: return tanhf(high * 1.3f);
-        case FILTER_STEINER_BP: return tanhf(v->flt_band * 1.3f);
-        case FILTER_STEINER_NF: return tanhf((high + v->flt_low) * 1.3f);
-        default:                return tanhf(v->flt_low * 1.3f);   // FILTER_STEINER (lowpass)
+        case FILTER_STEINER_HP: return de_tanhf(high * 1.3f);
+        case FILTER_STEINER_BP: return de_tanhf(v->flt_band * 1.3f);
+        case FILTER_STEINER_NF: return de_tanhf((high + v->flt_low) * 1.3f);
+        default:                return de_tanhf(v->flt_low * 1.3f);   // FILTER_STEINER (lowpass)
     }
 }
 
@@ -5564,7 +5601,7 @@ static void emit_process(int b, float *mixL, float *mixR) {
     for (int g = 0; g < 2; g++) {
         float p = emit_ph[b] + g * 0.5f; if (p >= 1.0f) p -= 1.0f;
         float rp = (float)wp - (1.0f - p) * EMIT_GRAIN; if (rp < 0.0f) rp += EMIT_DL_LEN;
-        float w = sinf(SOUND_PI * p);                 // sine window: w0²+w1²=1
+        float w = de_sinf(SOUND_PI * p);                 // sine window: w0²+w1²=1
         shL += moddel_hermite(emit_bufL[b], EMIT_DL_LEN, rp) * w;
         shR += moddel_hermite(emit_bufR[b], EMIT_DL_LEN, rp) * w;
     }
@@ -5577,7 +5614,7 @@ static void emit_process(int b, float *mixL, float *mixR) {
     float oR = inR * (1.0f - blend) + shR * blend;
     // pan split per the master pan law (same as the per-voice path)
     float pan = emit_pan[b], pL, pR;
-    if (g_pan_law == PAN_POWER) { float th = (pan + 1.0f) * 0.78539816f; pL = cosf(th); pR = sinf(th); }
+    if (g_pan_law == PAN_POWER) { float th = (pan + 1.0f) * 0.78539816f; pL = de_cosf(th); pR = de_sinf(th); }
     else { pL = pan <= 0.0f ? 1.0f : 1.0f - pan; pR = pan >= 0.0f ? 1.0f : 1.0f + pan; }
     *mixL = oL * emit_gain[b] * pL;
     *mixR = oR * emit_gain[b] * pR;
@@ -5639,7 +5676,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     // amount 0 (the default) leaves this multiply as an exact 1.0, so every existing patch is untouched.
     float kt_cut = ins->flt_cutoff;
     if (ins->flt_keytrack != 0.0f)
-        kt_cut *= powf(2.0f, ins->flt_keytrack * (float)(midi - 60) / 12.0f);
+        kt_cut *= de_powf(2.0f, ins->flt_keytrack * (float)(midi - 60) / 12.0f);
     v->flt_cutoff     = v->cutoff_target = kt_cut;
     v->flt_q          = v->flt_q_target  = ins->flt_q;
     v->flt_low        = 0.0f;
@@ -6127,7 +6164,7 @@ static void sound_fire_req(SoundReq r) {
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float semis = r.b / 1000.0f;
         if (semis < -24.0f) semis = -24.0f; if (semis > 24.0f) semis = 24.0f;
-        instr_bank[slot].tune_mul = powf(2.0f, semis / 12.0f);
+        instr_bank[slot].tune_mul = de_powf(2.0f, semis / 12.0f);
     } break;
     case SR_INSTR_UNISON: {   // a=slot, b=voices, c=detune*1000
         int slot = r.a;
@@ -6519,8 +6556,8 @@ static void sound_fire_req(SoundReq r) {
         int atk = r.e0 < 1 ? 1 : r.e0, rel = r.e1 < 1 ? 1 : r.e1;
         sc[vb].key    = key;
         sc[vb].amount = amount;
-        sc[vb].atk    = 1.0f - expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
-        sc[vb].rel    = 1.0f - expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].atk    = 1.0f - de_expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].rel    = 1.0f - de_expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].used   = (amount > 0.0005f);   // amount 0 → dormant (byte-identical)
     } break;
     case SR_SIDECHAIN_KEY: { // a=slot, b=key, c=send*1000
@@ -6585,8 +6622,8 @@ static void sound_fire_req(SoundReq r) {
         int atk = r.c < 1 ? 1 : r.c, rel = r.e0 < 1 ? 1 : r.e0;
         sc[vb].key    = -1;   // self-keyed: reads the bus's own level
         sc[vb].amount = amount;
-        sc[vb].atk    = 1.0f - expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
-        sc[vb].rel    = 1.0f - expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].atk    = 1.0f - de_expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].rel    = 1.0f - de_expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
         sc[vb].used   = (amount > 0.0005f);
     } break;
     case SR_FILTER: {       // a=mode, b=cutoff_hz, c=res*1000 — master resonant filter (bus 0)
@@ -6875,11 +6912,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                                          v->lfo_rate[L], 1.0f / (float)SOUND_SAMPLE_RATE);   // -1..1 (SINE = unchanged)
                     v->lfo_phase[L] += v->lfo_rate[L] / (float)SOUND_SAMPLE_RATE;
                     if (v->lfo_phase[L] >= 1.0f) v->lfo_phase[L] -= 1.0f;
-                    if      (v->lfo_dest[L] == LFO_PITCH)  pitch_mul *= powf(2.0f, (lfo * v->lfo_depth[L]) / 12.0f);
+                    if      (v->lfo_dest[L] == LFO_PITCH)  pitch_mul *= de_powf(2.0f, (lfo * v->lfo_depth[L]) / 12.0f);
                     else if (v->lfo_dest[L] == LFO_DUTY)   duty += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_VOLUME) trem *= 1.0f - 0.5f * v->lfo_depth[L] * (1.0f - lfo);
                     else if (v->lfo_dest[L] == LFO_CUTOFF) cutoff += lfo * v->lfo_depth[L];
-                    else if (v->lfo_dest[L] == LFO_CUTOFF_OCT) cutoff_mul *= powf(2.0f, lfo * v->lfo_depth[L]);   // wah in OCTAVES — same swing at every pitch (§B2b)
+                    else if (v->lfo_dest[L] == LFO_CUTOFF_OCT) cutoff_mul *= de_powf(2.0f, lfo * v->lfo_depth[L]);   // wah in OCTAVES — same swing at every pitch (§B2b)
                     else if (v->lfo_dest[L] == LFO_HARMONICS) harm_mod += lfo * v->lfo_depth[L];   // engine macros (INSTR_PLUCK+)
                     else if (v->lfo_dest[L] == LFO_TIMBRE)    timb_mod += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_MORPH)     mor_mod  += lfo * v->lfo_depth[L];
@@ -6894,9 +6931,9 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     float lvl = sound_ad_env(v->step_samples, v->env_a_samp[e], v->env_d_samp[e]);
                     if (lvl <= 0.0f) continue;
                     float m = lvl * v->env_amount[e];
-                    if      (v->env_dest[e] == ENV_PITCH)  pitch_mul *= powf(2.0f, m / 12.0f);
+                    if      (v->env_dest[e] == ENV_PITCH)  pitch_mul *= de_powf(2.0f, m / 12.0f);
                     else if (v->env_dest[e] == ENV_CUTOFF) cutoff    += m;
-                    else if (v->env_dest[e] == ENV_CUTOFF_OCT) cutoff_mul *= powf(2.0f, m);   // the pluck "pew" in OCTAVES (§B2b)
+                    else if (v->env_dest[e] == ENV_CUTOFF_OCT) cutoff_mul *= de_powf(2.0f, m);   // the pluck "pew" in OCTAVES (§B2b)
                     else if (v->env_dest[e] == ENV_DUTY)   duty      += m;
                     else if (v->env_dest[e] == ENV_HARMONICS) harm_mod += m;   // engine macros (one-shot contour)
                     else if (v->env_dest[e] == ENV_TIMBRE)    timb_mod += m;
@@ -6909,8 +6946,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (v->flw_amount != 0.0f) {
                     float fm = v->flw_amp * v->flw_amount;
                     if      (v->flw_dest == LFO_CUTOFF) cutoff    += fm;
-                    else if (v->flw_dest == LFO_CUTOFF_OCT) cutoff_mul *= powf(2.0f, fm);   // auto-wah whose THROW is in octaves (§B2b)
-                    else if (v->flw_dest == LFO_PITCH)  pitch_mul *= powf(2.0f, fm / 12.0f);
+                    else if (v->flw_dest == LFO_CUTOFF_OCT) cutoff_mul *= de_powf(2.0f, fm);   // auto-wah whose THROW is in octaves (§B2b)
+                    else if (v->flw_dest == LFO_PITCH)  pitch_mul *= de_powf(2.0f, fm / 12.0f);
                     else if (v->flw_dest == LFO_VOLUME) { float d = fm < 0.0f ? 0.0f : (fm > 1.0f ? 1.0f : fm); trem *= 1.0f - d; }
                 }
                 // apply the octave-relative modulation last, on top of the Hz offsets. Untouched when
@@ -6989,16 +7026,16 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                         s = c / hg;
                     } break;
                     case 2: {  // DRIVE_FOLD — sine wavefolder, dry/wet by amount (bounded, no divide)
-                        float w = sinf(s * (1.0f + dr * 6.0f) * 1.2f);
+                        float w = de_sinf(s * (1.0f + dr * 6.0f) * 1.2f);
                         s = s * (1.0f - dr) + w * dr;
                     } break;
                     case 3: {  // DRIVE_ASYM — even-harmonic tube: softer negative half, asymmetry grows with drive
-                        float ng = tanhf(g);
-                        s = (s >= 0.0f) ? tanhf(s * g) / ng
-                                        : tanhf(s * g * (1.0f - 0.4f * dr)) / ng;
+                        float ng = de_tanhf(g);
+                        s = (s >= 0.0f) ? de_tanhf(s * g) / ng
+                                        : de_tanhf(s * g * (1.0f - 0.4f * dr)) / ng;
                     } break;
                     default:   // DRIVE_SOFT (0) — tanh soft-clip (bit-identical to pre-modes)
-                        s = tanhf(s * g) / tanhf(g);
+                        s = de_tanhf(s * g) / de_tanhf(g);
                 }
                 // DC blocker: tanh of an asymmetric wave (e.g. a driven organ registration)
                 // injects a DC offset, which the per-note env ramp turns into a click/thump on
@@ -7024,8 +7061,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 // constant-power: pan [-1,1] → angle [0, π/2]; pL²+pR²=1, center = 0.707 (-3dB).
                 // equal loudness across the sweep. NOT byte-identical to mono — opt-in via pan_law().
                 float th = (pan + 1.0f) * 0.78539816f;   // (pan+1)·π/4
-                pL = cosf(th);
-                pR = sinf(th);
+                pL = de_cosf(th);
+                pR = de_sinf(th);
             } else {
                 // linear (default): pan 0 → pL=pR=1 (a centered voice is byte-identical to mono).
                 pL = pan <= 0.0f ? 1.0f : 1.0f - pan;
@@ -7151,7 +7188,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float echo_wet = dc_block(&echo_dc_x1, &echo_dc_y1, echo_lp, 0.999f);
             // write input + feedback through a tanh: feedback >1.0 saturates into a
             // self-oscillation plateau instead of blowing up — the tape echo behaviour
-            echo_buf[echo_widx] = tanhf(echo_in + echo_wet * echo_fb);
+            echo_buf[echo_widx] = de_tanhf(echo_in + echo_wet * echo_fb);
             if (++echo_widx >= SOUND_ECHO_MAX) echo_widx = 0;
             mixL += echo_wet; mixR += echo_wet;   // echo is a MONO bus in v1 — wet adds to both channels equally (centered)
         }
@@ -7186,7 +7223,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // soft-clip exactly: gain·mix = clipped, so each channel is byte-identical to mono.
         float pk = fabsf(mixL) > fabsf(mixR) ? fabsf(mixL) : fabsf(mixR);
         if (pk > 0.8f) {
-            float clamped = 0.8f + 0.2f * tanhf((pk - 0.8f) * 5.0f);
+            float clamped = 0.8f + 0.2f * de_tanhf((pk - 0.8f) * 5.0f);
             float g = clamped / pk;
             mixL *= g; mixR *= g;
         }
@@ -7685,8 +7722,8 @@ void sample_load(int slot, const float *data, int n) {
 // would ride the sound_extin ring (ADR-0032). Proven in the `mictune` cart spike.
 #define AT_HOP 256                                          // pitch-track hop
 #define AT_ACW 1024                                         // autocorrelation window
-static float at_hz2midi(float hz) { return hz > 0.0f ? 69.0f + 12.0f * 1.442695f * logf(hz / 440.0f) : 0.0f; }
-static float at_midi2hz(float m)  { return 440.0f * powf(2.0f, (m - 69.0f) / 12.0f); }
+static float at_hz2midi(float hz) { return hz > 0.0f ? 69.0f + 12.0f * 1.442695f * de_logf(hz / 440.0f) : 0.0f; }
+static float at_midi2hz(float m)  { return 440.0f * de_powf(2.0f, (m - 69.0f) / 12.0f); }
 static float at_snap(float midi, int root, int scale) {     // nearest note in (root, scale) across octaves
     const uint8_t *deg; int len = sound_scale_table(scale, &deg);
     float best = midi, bd = 1e9f;
@@ -7754,7 +7791,7 @@ static float autotune_mic_process(float x) {
     // formants ride along) — the same axis the offline core has.
     int T = (int)am_T; if (T < 60) T = 60; if (T > 500) T = 500;
     int nv = (am_mode == AM_SHIFT) ? am_nv : 1;
-    float fstep = (am_mode == AM_SHIFT) ? powf(2.0f, am_semis / 12.0f) : 1.0f;   // content + spacing move together
+    float fstep = (am_mode == AM_SHIFT) ? de_powf(2.0f, am_semis / 12.0f) : 1.0f;   // content + spacing move together
     for (int v = 0; v < nv; v++) {
       while (am_ts[v] < am_w - (long)T) {
         long a = am_eps[0], bd = 1L << 60;                    // nearest recorded analysis epoch to am_ts[v]
@@ -7762,7 +7799,7 @@ static float autotune_mic_process(float x) {
         if (a > am_w - T) a = am_w - T;
         for (int j = -T; j <= T; j++) {
             long di = am_ts[v] + j; if (di < am_w - AM_LAT || di < 0) continue;   // don't touch already-output past
-            float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)T));
+            float w = 0.5f * (1.0f + de_cosf(SOUND_PI * (float)j / (float)T));
             am_outbuf[di & AM_MASK] += am_gain * w * am_inbuf[(a + (long)((float)j * fstep)) & AM_MASK];
             am_nrm[di & AM_MASK]    += w;
         }
@@ -7810,7 +7847,7 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
     // fstep = the pitch ratio: the grain CONTENT is resampled as well as re-spaced. Both together are
     // what measures clean (voxshift: f0 lands within 0.5 Hz of target at +3/+5/+7/+12, wobble as low as
     // the raw take). Formants ride along with the pitch — see the header note on the parked hold axis.
-    float fstep = (mode == AT_SHIFT) ? powf(2.0f, semis / 12.0f) : 1.0f;
+    float fstep = (mode == AT_SHIFT) ? de_powf(2.0f, semis / 12.0f) : 1.0f;
     int n = s->len, nHop = (n - AT_ACW) / AT_HOP; if (nHop < 1) nHop = 1;
     int maxEp = n / (SOUND_SAMPLE_RATE / 400) + 8;
     float *in = (float *)malloc((size_t)n * sizeof(float));
@@ -7939,7 +7976,7 @@ static void at_psola_slot(int slot, int mode, int root, int scale, float semis, 
                 float fr = sf - (float)si;
                 if (si < 0 || si + 1 >= n || di < 0 || di >= n) continue;
                 float sv = in[si] + fr * (in[si + 1] - in[si]);
-                float w = 0.5f * (1.0f + cosf(SOUND_PI * (float)j / (float)Tg));
+                float w = 0.5f * (1.0f + de_cosf(SOUND_PI * (float)j / (float)Tg));
                 out[di] += w * sv; norm[di] += w;
             }
             op += Tt;
@@ -8932,7 +8969,7 @@ static void sound_reset_state(void) {
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence
     for (int w = 0; w < SOUND_USER_WAVES; w++)
         for (int i = 0; i < SOUND_WAVE_LEN; i++)
-            user_wave[w][i] = sinf(i / (float)SOUND_WAVE_LEN * SOUND_TWO_PI);
+            user_wave[w][i] = de_sin_turns(i / (float)SOUND_WAVE_LEN);
 
     sound_load_demo_data();
 }

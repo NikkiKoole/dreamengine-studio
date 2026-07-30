@@ -33,7 +33,12 @@
 // What we deliberately DON'T gate at all: docs/design/driftable-docs.md
 // → "what we deliberately don't gate".
 //
-// Plain node, CommonJS, no deps. Children run in parallel; ~3s total.
+// Plain node, CommonJS, no deps. Children run in parallel; ~8s total (was ~3s before the
+// `sw canvas` row, which COMPILES AND RENDERS drawall — the only check here that builds anything).
+// Two consequences worth knowing: the extra ~5s is compile time and does not shrink with --frames,
+// and in a multi-agent repo that row goes ✗ whenever the shared engine is momentarily mid-edit by
+// someone else. That is a true signal (the engine does not build) but it reads as a canvas
+// regression, so check `node tools/canvas-diff.js drawall --golden` directly before believing it.
 // ============================================================================
 
 const { exec } = require("child_process");
@@ -61,6 +66,15 @@ const CHECKS = [
   { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
   { name: "xrefs",        tool: "lint-xrefs.js",         args: ["--strict"],    gate: true }, // GRADUATED 2026-07-10: both tiers reached 0 (were 58/203) — exempt classes documented in its header
   { name: "icon mask",    tool: "icon-mask.js",          args: ["--check"],     gate: true }, // committed app-icon mask vs Apple's ictool; skips (exit 0) without Xcode
+  // The SOFTWARE-CANVAS regression gate. Added 2026-07-30 after it was found RED FOR 20 DAYS: the
+  // golden was blessed at 23:30:33 and `drawall: exercise engine blend()` landed at 23:33:28 without
+  // re-blessing, and because `--golden` was a manual command nobody ran it while every other gate
+  // stayed green. That is exactly the failure this tool exists to stop. Unlike the parity check
+  // (GPU vs SW, which needs a 64px budget because GPUs break texel ties differently), this one
+  // compares the SW render against a committed PNG and is deterministic everywhere, so it is
+  // pixel-exact and a real gate. Costs ~5s and runs in parallel with the rest, so the strip goes
+  // ~3.5s -> ~5.2s rather than 8.7s.
+  { name: "sw canvas",    tool: "canvas-diff.js",        args: ["drawall", "--golden"], gate: true },
   // --- ADVISORY: hygiene / backlog / nudges ---
   { name: "handoff",      tool: "handoff.js",            args: ["--check"] },
   { name: "driftable",    tool: "stale-doc-check.js",    args: ["--driftable"], warn: num(/(\d+) likely drifted/) },

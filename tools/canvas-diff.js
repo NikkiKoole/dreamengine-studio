@@ -76,7 +76,10 @@ const declared = source.match(/\/\/\s*canvas-diff:\s*max\s+(\d+)/);
 const maxPx    = maxArg != null ? parseInt(maxArg, 10)
                : declared      ? parseInt(declared[1], 10)
                :                 0;
-if (maxArg == null && declared) console.error(`canvas-diff: using ${cart}'s declared budget --max ${maxPx} (\`// canvas-diff: max\` in source)\n`);
+// stdout, NOT stderr: this is an informational banner, not an error. On stderr it broke any caller
+// that captures `stdout + stderr` and reads the LAST line as the verdict — repo-doctor did exactly
+// that and showed this banner instead of the PASS/FAIL line.
+if (maxArg == null && declared) console.log(`canvas-diff: using ${cart}'s declared budget --max ${maxPx} (\`// canvas-diff: max\` in source)\n`);
 // strip // line comments + /* */ blocks so a comment mentioning spr_rot doesn't false-positive
 const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 // All rotated PRIMITIVES (rectfill_rot/spr_rot/sspr_ex/print_rot) now render in software. The only

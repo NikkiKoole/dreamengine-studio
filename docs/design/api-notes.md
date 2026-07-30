@@ -483,6 +483,22 @@ Value noise is ~30 lines and good enough. Perlin is ~80 and feels
 better. Either is worth having — organic motion (clouds, wobble,
 flow fields, drifting fog) is otherwise hard to get cheaply.
 
+**As shipped (`studio.c`, `noise_hash`) it IS value noise, not Perlin** *(recorded 2026-06-09 while
+building the `procplaces` procgen testbed; moved here from the STATUS ledger 2026-07-30)*. It hashes
+lattice *values* and smoothstep-interpolates them, where Perlin interpolates *gradients* — so it has
+faint **axis-aligned grid artifacts at low frequency**. Fine for terrain, density and fog; worth
+knowing before leaning on it for anything needing isotropy.
+
+**It is seedable today**, even though `noise`/`noise2` take no seed argument — which reads like a
+missing feature and isn't. Since `noise2(x,y) == noise3(x,y,0)`, **`noise3(x, y, (float)seed)` with
+an INTEGER seed is a fully independent, repeatable field**: the z-slice folds through `noise_hash`
+independently, and an integer z means no interpolation bleed between slices. `procplaces` uses
+exactly this for both its generators and verifies byte-identical re-renders.
+
+*Open (STATUS #21's tail):* whether to add a named `noise2_seeded(x,y,seed)` helper, and/or document
+the `noise3`-as-seed idiom + the value-vs-Perlin caveat in `studioDocs.js` — so the next author
+doesn't read the signatures and conclude "can't seed it."
+
 ### 6. Persistence — high scores and cart state
 
 ```c

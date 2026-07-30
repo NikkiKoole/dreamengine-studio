@@ -567,8 +567,19 @@ draggable. One selector picks the **model** (the MOD-knob/cycle trick), plus **G
 organ patches.
 
 Open forks worth deciding when built:
-- **Always-on amp vs selectable "none"?** A real electric guitar is *always* amped — defaulting to a
-  clean amp (not raw DI) would make the board's default tone better out of the box.
+- **Always-on amp vs selectable "none"?** ~~A real electric guitar is *always* amped — defaulting to a
+  clean amp (not raw DI) would make the board's default tone better out of the box.~~
+  **DECIDED 2026-07-30: the cart keeps booting `AMP: OFF` and the player picks.** The premise was
+  measured first, with a level-matched four-way A/B (as-is · +string-weight/click · +cabinet ·
+  +detune): the cabinet moves the spectral centroid **~1 kHz** and adds **~17 dB RMS**, i.e. it is
+  not a tone tweak, it is the whole story.
+  That *supports* the "always amped" argument acoustically — a clean power chord genuinely IS thin,
+  because **distortion is what fills a bare fifth**: at 3:2 the intermodulation products land ON the
+  harmonic series (which is *why* power chords exist as a musical object). It was cut anyway, on the
+  ADR-0022 legibility half: a boot state that already applies the single biggest transformation in
+  the signal path hides it from the player. Since the five voicings are now one flat visible list,
+  turning the amp on is a **tap**, not a hidden cycle — so the honest default costs one gesture and
+  teaches what the amp does. Ship the transformation *visible*, not *pre-applied*.
 - **Pedal-drive stacks into amp-drive?** Yes, like a real boost-into-preamp — keep them separate
   (pedal dirt vs amp gain) so stacking is a feature.
 - **One cab curve or several?** (1×12 vs 4×12 = different EQ.) One good curve + the voicings is plenty;

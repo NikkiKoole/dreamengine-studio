@@ -365,6 +365,24 @@ Rule: if a label would need `FONT_TINY` to fit on a phone, the layout is too den
 cell is big enough for it (`if (r >= 5)`, `if (pad.h >= 8)`), so a shrinking control loses its
 text before it loses itself (`acidfit.c`).
 
+Also: `FONT_TINY`'s capital **`N` is a Π** (no diagonal — there's no column for one at 3×5). It's a
+known, deliberately-unfixed defect; if your label has an N in it and must be legible, step up to
+`FONT_TIC` (6×6). See [`font-rendering.md`](font-rendering.md#known-defect-font_tinys-n-is-a-π-and-why-were-not-fixing-it).
+
+**Before adding a label at all, check what the instrument already says.** The recurring proposal is
+to caption a diagram that reads as ambiguous *in a screenshot* — but a screenshot has no state and
+no hands. `pedalboard`'s nut string names, fret numbers and chord-name readout were all proposed on
+that argument and **cut 2026-07-30**; two of the three were already answered by the interface (the
+lit root + shape buttons *are* the chord-name readout, and the 3/5/7/9/12 inlays *are* the
+guitarist's position system — a real neck has no numbers on it). Three text overlays would have
+fought a 320×200 surface to re-state what was on screen. The test: would a **player**, mid-use, not
+know this? If the answer only holds for a still image, don't add the text.
+
+The corollary is that a genuine gap still may not be worth screen space. `pedalboard`'s one real
+ambiguity was orientation (which end is the low E). The text-free fix — drawing the wound E/A/D
+strings 2px and the plain G/B/e 1px, which is *true of the instrument* and costs no space — was
+built, looked at, and **also cut as too noisy**. Orientation stays unlabelled.
+
 ---
 
 ### 6.7 · The geometry layer (`lay.h` patterns)

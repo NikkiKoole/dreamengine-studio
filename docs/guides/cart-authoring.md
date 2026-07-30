@@ -268,6 +268,18 @@ background so index-0 transparency reads) — no compile, no run. Tweak the draw
 code, re-run, look again in seconds; `--slots 0-5,28` limits it, `--scale`/`--cols`
 size it. The output is pixel-identical to the baked sheet (shared palette + encoder).
 
+**Still wanted** *(moved here from the STATUS ledger 2026-07-30 — a wishlist for a library belongs
+with the library's docs)*. The gap audit is done: `ovalfill`, `rrectfill`, `ngonfill`, `polyfill` and
+`noise` all landed 2026-06-04, and the current set covers most sprites, so these are all low
+priority — pick one up when a cart actually wants it:
+
+- **Remaining Tier 2 primitives** — `starfill`, `arcfill`, `thickline`, `vgradient`/`hgradient`,
+  `bezier`.
+- **JS-only extras** — `hflip`/`vflip`, `rotate90` (reuse one sprite in 4 orientations, baked).
+- **A stress-test cart** exercising every primitive, as a visual reference *and* a regression guard.
+- **Migrate the terrain-tile carts** (`cannonfodder`, `druglord`, `heroes`, `hotline`, …) onto
+  `noise()` instead of their copy-pasted `(x*a + y*b) % m` patterns.
+
 ### font-bake.js — real TTF text as sprites
 
 For title screens, logos, and big verdict words: `tools/font-bake.js`

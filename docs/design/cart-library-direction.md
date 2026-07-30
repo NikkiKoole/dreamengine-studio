@@ -112,12 +112,12 @@ pattern at the bottom.
 > currently-showcase-only engine *playable*, the biggest untapped sound in the library (cf.
 > the palette's "GUITAR/PIPE/BOWED/PIANO/VOICE have no consumers yet").
 >
-> **Also in the running — the Raymond Scott "pre-Roland wing"** (currently parked in
-> [`../STATUS.md`](../STATUS.md), classic-machine list): the **Circle Machine** (~1959) — a
+> **Also in the running — the Raymond Scott "pre-Roland wing"** (§2e below, the museum
+> shortlist): the **Circle Machine** (~1959) — a
 > *circular* step sequencer (rotating photocell sweeps a ring of brightness knobs) — scores
 > low on *new sound* (it reuses existing oscillators) but high on **new interaction**, a
 > genuinely fresh UI unlike any music cart here; the **Clavivox** (keyboard theremin) is a
-> small `note_glide` instrument. Listed here so they're not lost in STATUS. **The Circle Machine
+> small `note_glide` instrument. **The Circle Machine
 > now has an intent-first design of record: [`scott-blind-brief.md`](scott-blind-brief.md)**
 > (Clavivox + Electronium fold in as follow-on voice modes / carts on the same chassis).
 >
@@ -240,10 +240,10 @@ held-voice + feedback-throw (`dubsiren.c`), and the held-voice-pool + coupled-en
 
 The "fantasy-console Behringer" question: the Roland wing is essentially **complete**
 (cr78/tr808/tr909/tb303/sh101/juno/spacecho + acidrack = the whole RB-338; only the TR-606
-is missing, and STATUS #21 already ranks it first — "an afternoon"). Which hardware *line*
+is missing, and §2e already ranks it first — "an afternoon"). Which hardware *line*
 do we clone next? The full shipped-by-wing inventory is
 [`../guides/instrument-map.md`](../guides/instrument-map.md); this section is the
-assessment. Constraints that shape it: STATUS #21's curatorial line (**analog-circuit
+assessment. Constraints that shape it: §2e's curatorial line (**analog-circuit
 machines only, no sample-playback boxes** — the mellotron's synthesis fake is the one
 licensed exception) and [`instrument-engines.md`](instrument-engines.md)'s FM scope (2-op;
 **the DX7's 6-op/32-algorithm panel is explicitly out** — so a true DX7 is engine-blocked).
@@ -252,9 +252,9 @@ licensed exception) and [`instrument-engines.md`](instrument-engines.md)'s FM sc
 |---|---|---|
 | ★★★★☆ | **Korg Volca line** | The best *line* analogy (shared tiny chassis, sync chain — a natural tinyjam rack family). But half the range duplicates shipped Rolands: Bass ≈ tb303, Beats ≈ 808/909, Modular ≈ easel. The three that add something new: **Volca Drum** (digital membrane percussion — `INSTR_MEMBRANE` has *no drum-machine consumer*; best sound-value), **Volca Keys** (the new thing is **motion sequencing** — knob rides recorded per step, an interaction no cart has), **Volca FM** (most wanted, but it's the DX7 engine problem in miniature). Skip Bass/Beats. |
 | ★★★★☆ | **TE Pocket Operators** | The best *aesthetic* fit of anything on the table: the segmented-LCD animation is half the product, and a pixel fantasy console does that better than the hardware ([`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) already cites the PO-LCD look). **PO-20 Arcade is literally our chiptune waves.** Caveat: `pocketbox` already owns the buttons-only-groovebox *shape*, so a PO cart's new territory is the LCD-character visuals + punch-in FX + unit chaining, not the sound. PO-33 KO is sampler-blocked. |
-| ★★★★☆ | **The Casio wing** | The sleeper — already begun (`mt70`, and `INSTR_PD` *is* the CZ) and everything in it is cheap. **VL-1** (already parked in STATUS #21): calculator keys + the 8-digit ADSR number you literally type to design a sound — peak "deep honest sim behind a humble surface". **CZ-101**: the PD engine has no machine homage while every other engine family got one; zero engine work. SK-1 only as a cheeky fake (finger-drawn waves as "sampling", pocketbox-style). |
+| ★★★★☆ | **The Casio wing** | The sleeper — already begun (`mt70`, and `INSTR_PD` *is* the CZ) and everything in it is cheap. **VL-1** (already parked in §2e): calculator keys + the 8-digit ADSR number you literally type to design a sound — peak "deep honest sim behind a humble surface". **CZ-101**: the PD engine has no machine homage while every other engine family got one; zero engine work. SK-1 only as a cheeky fake (finger-drawn waves as "sampling", pocketbox-style). |
 | ★★☆☆☆ | **Yamaha wing** | DX7 is the biggest missing icon in synth history but engine-blocked (above). A **CS-80** (ribbon + poly aftertouch — touch-native, Vangelis) is buildable today but overlaps juno/solina territory. |
-| ★★★☆☆ | **The museum / pre-Roland wing** | Already curated in STATUS #21: TR-606, EKO ComputeRhythm (draw the punch card), Wurlitzer Sideman (circular playhead), Maestro Rhythm King, and Raymond Scott's Circle Machine — which that list calls the strongest candidate of the lot (visually unlike every music cart we have). Cheapest wins, already ranked. |
+| ★★★☆☆ | **The museum / pre-Roland wing** | Already curated in §2e below: TR-606, EKO ComputeRhythm (draw the punch card), Wurlitzer Sideman (circular playhead), Maestro Rhythm King, and Raymond Scott's Circle Machine — which that list calls the strongest candidate of the lot (visually unlike every music cart we have). Cheapest wins, already ranked. |
 
 **Recommendation.** As a *line* with shared identity, a **"pocket wing"**: PO-20 Arcade +
 Volca Drum + Volca Keys + VL-1 — four small boxes, each adding something no cart has
@@ -267,6 +267,65 @@ Volca Bass/Beats and anything sampler-based — though what a *fantasy-console-l
 could ever look like (mic-as-controller → single-cycle harvest → resynthesis → SK-1-spec
 PCM; the SP-1200 12-bit and SP-404 touchstones) is now sketched in
 [`mic-and-sampling.md`](mic-and-sampling.md).
+
+### 2e. The museum shortlist — more classic boxes (moved here 2026-07-30)
+
+*Cart-space, zero engine API — originally parked 2026-06-05 as STATUS #21, which §2d above cites
+four times. It lives here now: STATUS is a ledger of what shipped, and this is a curated backlog.*
+
+The family so far is **cr78 + tr808 + tb303 + sh101 + tr909 + tr606**, all in `tools/carts/`.
+Curated by API fit, and the curatorial line is **analog-circuit machines only** — sample/tape boxes
+(LinnDrum, DMX, SP-1200, Mellotron) would be caricatures, since the engine has no sample playback.
+Ranked:
+
+- ~~**TR-606 Drumatix (1981)**~~ — **SHIPPED 2026-07-06** as `tr606` ("an afternoon" held). Metal
+  bank at the circuit-analysis frequencies (246.4/308/367/418.2/440.4/627.2 Hz, the beating 418+440
+  pair), kick as the schematic's DOUBLE twin-T with a TONE crossfade, single-mode snare,
+  tempo-linked open-hat decay + the shut-off circuit as `instrument_choke`. One measured
+  infidelity, documented in the cart header: the metal paths use highpasses, not the schematic's
+  7100/3440 Hz bandpasses — with 2 bank members where the circuit sums 6, a narrow band starves
+  between the sparse odd harmonics and a wide one leaks fundamentals (Goertzel-probed).
+  Stock-austere panel (accent only) with the mod culture as a MODS toggle. **The Roland wing is
+  complete.**
+- ~~**TR-909 (1983)**~~ — **SHIPPED 2026-06-05** as `tr909`. Analog kick/snare/toms/rim/clap as
+  assessed (house kick = +30st/35ms swept sine + a click layer on the ATTACK knob). The ROM-sample
+  hats/cymbals got a better workaround than the predicted SFX-editor one: **`INSTR_FM` on the 3.5
+  inharmonic clang detent** (harmonics 0.55, feedback cranked) through a highpass whose cutoff
+  starts ~5 kHz low and rises via a **negative `ENV_CUTOFF` amount** — the fast-closing sizzle of a
+  sampled hat, synthesized. (Applies [`instrument-engines.md`](instrument-engines.md) §8.8:
+  inharmonicity reads as metal, and the engine clamps cutoff *after* env addition, so negative
+  amounts are safe.) The 909 shuffle is period-correct (even 16ths drag; audio-notes §14 carries the
+  pre-build assessment). Six presets (Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909,
+  Gabber); closed hat chokes open via `instrument_choke`. FLAM grew into a **stroke cycle**: plain →
+  flam (1 grace, 22 ms early) → drag (2 graces) → ratchet (4 even hits chopped across the step —
+  post-909, but the techno fill). Plus one deliberate impurity from ear-feedback: a **metal-filter XY
+  pad** (cut × resonance, `instrument_filter` re-aimed live across all five FM/noise metal slots),
+  because the FM hats landed bright and hissy. **This completed the full ReBirth RB-338 rack**
+  (303 + 808 + 909).
+- **EKO ComputeRhythm (1972)** — Jarre's punch-card programmable box; UI gimmick = draw the punch
+  card. Pre-dates the CR-78's "first programmable" claim by six years.
+- **Wurlitzer Sideman (1959)** — the FIRST rhythm machine: tubes + rotating contact wheel; UI = a
+  circular playhead instead of left-to-right. Oldest piece by two decades.
+- **Casio VL-1 (1979)** — "Da Da Da"; calculator keys + the 8-digit ADSR number code you literally
+  type to design a sound. (§2d rates this a top quick win.)
+- **Maestro Rhythm King (1970)** — Sly Stone's funk preset box; simpler/weirder than the CR-78.
+- **Stylophone (1968)** — mouse-as-stylus, ~20 lines, instant Bowie.
+
+**Pre-Roland wing — Raymond Scott** (Manhattan Research Inc., the basement where all of this
+started; Bob Moog sold him circuits in the '50s):
+
+- **Circle Machine (~1959)** — strongest candidate of the whole list: a RING of bulbs, each with a
+  brightness knob, swept by a rotating photocell arm — a step sequencer a decade before the word.
+  Cart: circular sequencer, drag bulb brightness (= pitch/volume per step), rotating playhead
+  instead of left-to-right, rotation speed = tempo. `euclid()` would feel period-appropriate.
+  Visually unlike every other music cart in the studio. **Specced** — intent-first design of
+  record: [`scott-blind-brief.md`](scott-blind-brief.md).
+- **Clavivox (1956)** — keyboard theremin with portamento; the great-grandfather of the tb303
+  cart's `note_glide`. Could be a small mouse-played instrument cart.
+- **Electronium (1959–70s)** — not an instrument, a collaborative composition machine you NUDGE
+  ("faster", "more like that"); Motown bought one and hired Scott as electronic R&D director.
+  Already has descendants here: the bossa/ambient/jangle radio carts. A cart that adds the
+  nudge-interface to a generative engine would close the circle.
 
 ### 3. The few genuinely-missing, *teachable* game types
 

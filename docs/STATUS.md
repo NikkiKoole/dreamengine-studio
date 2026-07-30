@@ -658,15 +658,10 @@ their `kind[]` tags.
     the clamp box once per frame (invalidate in `camera()`/`camera_ex()`) instead of per-call.
     Still open: web GL ES confirmation (`pget` disabled on web); an ADR for the GPU→CPU
     `tri`/`trifill` + `thickline` behaviour change.
-    **Regression test:** `tools/carts/raster_test.c` + `tools/raster_test.script` —
-    drag `editor/public/carts/raster_test.cart.png` into the editor (Z outline, X dither,
-    C cycle 4 pages, SPACE analyse / run equiv), or run headless:
-    `node tools/play.js raster_test script tools/raster_test.script --headless --trace build/raster_trace.jsonl --frames 60`
-    then check every `fs=2` frame reports `mismatches:"0"` and the `eq` line shows `total=0`.
-    **Perf-regression test** (the bbox clamp): `tools/carts/trifill_stress.c` — a pinwheel of
-    thin off-screen tris. In the editor it should hold 60fps even with reach cranked to max; if
-    the clamp regresses, pushing reach tanks the fps. It runs `raster_test` for correctness and
-    the ⏱ profiler for the budget (was ~46.7ms unclamped, ~2.7ms clamped at the defaults).
+    **Regression tests** (`raster_test` for the pixels, `trifill_stress` for the clamp's budget) —
+    runnable commands + pass criteria moved 2026-07-30 to
+    [`guides/checks-and-oracles.md`](guides/checks-and-oracles.md), the task→gate index where
+    someone touching a rasterizer actually looks.
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
 15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
 16. **Packaging & public distribution** *(not started)* — dreamengine only runs as a dev
@@ -736,89 +731,52 @@ their `kind[]` tags.
     pentatonic). The classic-machine family is now cr78 + tr808 + tb303.
 
 21. **More classic boxes — the museum shortlist** *(cart-space, zero engine API — parked
-    2026-06-05; the family so far is cr78 + tr808 + tb303 + sh101 + tr909 + tr606, all in
-    `tools/carts/`)*. Curated by
-    API fit; the curatorial line is **analog-circuit machines only** — sample/tape boxes
-    (LinnDrum, DMX, SP-1200, Mellotron) would be caricatures since the engine has no sample
-    playback. Ranked:
-    - ~~**TR-606 Drumatix (1981)**~~ — **SHIPPED 2026-07-06** as `tools/carts/tr606.c` /
-      `tr606.cart.png` ("an afternoon" held). Metal bank at the circuit-analysis frequencies
-      (246.4/308/367/418.2/440.4/627.2 Hz, the beating 418+440 pair), kick as the schematic's
-      DOUBLE twin-T with a TONE crossfade, single-mode snare, tempo-linked open-hat decay +
-      the shut-off circuit as `instrument_choke`. One measured infidelity, documented in the
-      cart header: the metal paths use highpasses, not the schematic's 7100/3440Hz bandpasses —
-      with 2 bank members where the circuit sums 6, a narrow band starves between the sparse
-      odd harmonics and a wide one leaks fundamentals (Goertzel-probed). Stock-austere panel
-      (accent only) with the mod culture as a MODS toggle. The Roland wing is now complete.
-    - ~~**TR-909 (1983)**~~ — **SHIPPED 2026-06-05** as `tools/carts/tr909.c` / `tr909.cart.png`.
-      Analog kick/snare/toms/rim/clap as assessed (house kick = +30st/35ms swept sine + a click
-      layer on the ATTACK knob). The ROM-sample hats/cymbals got a BETTER workaround than the
-      predicted SFX-editor one: **`INSTR_FM` on the 3.5 inharmonic clang detent** (harmonics
-      0.55, feedback cranked) through a highpass whose cutoff starts ~5kHz low and rises via a
-      **negative `ENV_CUTOFF` amount** — the fast-closing sizzle of a sampled hat, synthesized.
-      (Same-day instrument-engines §8.8 insight applied: inharmonicity reads as metal; the engine clamps cutoff
-      after env addition, so negative amounts are safe.) Swing-knob saga complete: the 909
-      shuffle is period-correct at last (even 16ths drag — audio-notes §14 still carries the
-      pre-build assessment). Six presets (Good Life, The Bells, Energy Flash, Hardfloor,
-      Revolution 909, Gabber); closed hat chokes open via `instrument_choke`. **The
-      classic-machine family (cr78 + tr808 + tb303 + sh101 + tr909) now covers the full
-      ReBirth RB-338 rack** (303 + 808 + 909). Same-day follow-up: **FLAM shipped** after
-      all ("the one panel feature not modeled" lasted one message) — and grew into a
-      **stroke cycle**: right-click cycles plain → flam (1 grace, 22ms early) → drag
-      (2 graces) → ratchet (4 even hits chopped across the step — post-909, but the
-      techno fill); `'f'`/`'d'`/`'r'` in preset rows, cells draw their strokes as ticks,
-      Hardfloor flams its claps + ends the hat row on a ratchet, Gabber drags its snare. Plus a deliberate impurity by ear-feedback: a
-      **metal-filter XY pad** (cut × resonance, `instrument_filter` re-aimed live across
-      all five FM/noise metal slots) because the FM hats landed bright and hissy —
-      defaults nudged fuller than the first build. Sound tripwire: PASS (700 headless
-      frames on Hardfloor incl. flams + pad clicks, no drops).
-    - **EKO ComputeRhythm (1972)** — Jarre's punch-card programmable box; UI gimmick = draw the
-      punch card. Pre-dates the CR-78's "first programmable" claim by six years.
-    - **Wurlitzer Sideman (1959)** — the FIRST rhythm machine: tubes + rotating contact wheel;
-      UI = a circular playhead instead of left-to-right. Oldest piece by two decades.
-    - **Casio VL-1 (1979)** — "Da Da Da"; calculator keys + the 8-digit ADSR number code you
-      literally type to design a sound.
-    - **Maestro Rhythm King (1970)** — Sly Stone's funk preset box; simpler/weirder than CR-78.
-    - **Stylophone (1968)** — mouse-as-stylus, ~20 lines, instant Bowie.
+    2026-06-05)*. **The ranked list moved 2026-07-30 to
+    [`design/cart-library-direction.md`](design/cart-library-direction.md#2e-the-museum-shortlist--more-classic-boxes-moved-here-2026-07-30)
+    §2e**, the doc that was already citing it four times — a curated backlog belongs with the other
+    backlogs, not in a shipped/open ledger. The curatorial line (**analog-circuit machines only**,
+    no sample-playback boxes) and the shipped family (cr78 + tr808 + tb303 + sh101 + tr909 + tr606)
+    are recorded there. Still open; still ranked; `STATUS #21` still means this.
 
-    **Pre-Roland wing — Raymond Scott** (Manhattan Research Inc., the basement where all of
-    this started; Bob Moog sold him circuits in the '50s):
-    - **Circle Machine (~1959)** — strongest candidate of the whole list: a RING of bulbs, each
-      with a brightness knob, swept by a rotating photocell arm — a step sequencer a decade
-      before the word. Cart: circular sequencer, drag bulb brightness (= pitch/volume per
-      step), rotating playhead instead of left-to-right, rotation speed = tempo. `euclid()`
-      would feel period-appropriate. Visually unlike every other music cart in the studio.
-      **Specced** — intent-first design of record: [`design/scott-blind-brief.md`](design/scott-blind-brief.md).
-    - **Clavivox (1956)** — keyboard theremin with portamento; the great-grandfather of the
-      tb303 cart's `note_glide`. Could be a small mouse-played instrument cart.
-    - **Electronium (1959-70s)** — not an instrument, a collaborative composition machine you
-      NUDGE ("faster", "more like that"); Motown bought one and hired Scott as electronic R&D
-      director. Already has descendants here: the bossa/ambient/jangle radio carts. A cart
-      that adds the nudge-interface to a generative engine would close the circle.
-
-> `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 
 **Smaller open items (no design doc yet):** looping ambience (`drone`)/`volume`/mute. Noted
 in [`POLISH_TODO.md`](POLISH_TODO.md).
 
 **Noise is value-noise + the seeding idiom** *(new 2026-06-09, surfaced building the
-`procplaces` procgen testbed)*. The engine's `noise`/`noise2`/`noise3` (`studio.c:2911`) is
-**value noise, not Perlin** — it hashes lattice *values* and smoothstep-interpolates them
-(Perlin interpolates *gradients*), so it has faint axis-aligned grid artifacts at low
-frequency. Fine for terrain/density/fog; worth knowing before leaning on it for anything
-needing isotropy. Crucially it **is seedable today**, even though `noise`/`noise2` take no
-seed: `noise2(x,y)` == `noise3(x,y,0)`, so **`noise3(x, y, (float)seed)` with an INTEGER seed
-is a fully-independent, repeatable field** (the z-slice folds through `noise_hash`
-independently; an integer z = no interpolation bleed). The `procplaces` cart uses exactly
-this (both its generators) and verifies byte-identical re-renders. **Open question:** add a named seeded
-helper (`noise2_seeded(x,y,seed)`?) and/or document the `noise3`-as-seed idiom + the
-value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "can't seed it."
+`procplaces` procgen testbed)* — the finding, the axis-aligned-artifact caveat and the
+**`noise3(x, y, (float)seed)` seeding idiom** moved 2026-07-30 to
+[`design/api-notes.md`](design/api-notes.md) §5, beside the noise signatures themselves.
+Still open there: a named `noise2_seeded()` helper and/or documenting the idiom in `studioDocs.js`.
 
-**`sprite-draw.js` next steps:**
-- ~~Gap audit~~ **DONE** — `ovalfill`, `rrectfill`, `ngonfill`, `polyfill`, `noise` added (2026-06-04).
-- **Remaining Tier 2** — `starfill`, `arcfill`, `thickline`, `vgradient`/`hgradient`, `bezier`. Lower priority; current set covers most sprites.
-- **JS-only extras** — `hflip`/`vflip`, `rotate90` (reuse one sprite in 4 orientations). Also: migrate terrain-tile carts (cannonfodder, druglord, heroes, hotline, etc.) to use `noise()` instead of their copy-pasted `(x*a + y*b) % m` patterns.
-- **Stress-test cart** — a cart exercising all primitives as a visual reference + regression guard.
+**`sprite-draw.js` next steps** — the gap audit is DONE (`ovalfill`, `rrectfill`, `ngonfill`,
+`polyfill`, `noise` added 2026-06-04); the remaining low-priority wishlist (Tier-2 primitives,
+`hflip`/`rotate90`, a stress-test cart, migrating the terrain carts onto `noise()`) moved
+2026-07-30 to [`guides/cart-authoring.md`](guides/cart-authoring.md#sprite-drawjs--the-programmatic-sprite-library).
+
+22. **Mobile-web readiness** *(new 2026-06-05, born from the live gallery + first
+    real-device session)* — desktop-authored carts meet phones now. Shipped from
+    the worklist (both 2026-06-05): ~~`tools/mobile-lint.js`~~ static checker
+    (verdicts rank by *best* phone-usable input path; first `--site` run over 50
+    carts: 3 touch-ready, 34 tap-as-mouse, 5 fixable, 2 keyboard-only, 6 no-input)
+    and ~~gallery input badges~~ (`build-site.js` requires `lint()` and stamps a
+    colored chip per card — 🟢 Mobile Ready / 🟡 Mostly Playable / 🟠 Rough on
+    Mobile / 🔴 Desktop Only; strict: any dead input path demotes, hover/wheel
+    cores rank rough, and a hand-tested `"mobile":` field in index.json
+    overrides the lint; `fixable` shows as desktop-only until touchControls
+    lands). Still
+    open: a per-cart `fit` setting (letterbox / stretch / integer-scale) flowing
+    `.cart.js` → `de:settings` → shell (radios are the first `"stretch"`
+    customers), the **device-facts trio** (`touch_available()` grown into
+    `touch_available`/`device_class`/`touch_ceiling` — researched 2026-06-06
+    incl. the iPad-pretends-to-be-a-Mac detection traps and the
+    ceiling-safeguard pattern against the iPhone 6th-finger mass-cancel;
+    **`touch_ceiling()` SHIPPED same day** — shell computes `Module.deTouchCeiling`,
+    EM_JS read, 4-place wiring, touchpiano header prints "max N fingers";
+    `touch_available`/`device_class` still open, design in mobile-web-notes §5),
+    and the formal touchlab-on-iPhone
+    checklist run (>5-touch assumptions — iPhone Safari caps at ~5 simultaneous
+    touches, found on-device; tiny tap targets). Full design + device findings:
+    [`design/mobile-web-notes.md`](design/mobile-web-notes.md).
 
 23. **The sprite story — two sprite sources of truth** *(new 2026-06-06, surfaced by the
     editor publish button but it already bites without it)*. A cart's sprites can come from
@@ -853,31 +811,6 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     now round-trip. Edge: a cart whose committed `.cart.png` sprites already DRIFTED from its
     generator will capture that drift as a patch on first save — defensible (preserves what's shown),
     resolved by a clean `--run` rebake.
-22. **Mobile-web readiness** *(new 2026-06-05, born from the live gallery + first
-    real-device session)* — desktop-authored carts meet phones now. Shipped from
-    the worklist (both 2026-06-05): ~~`tools/mobile-lint.js`~~ static checker
-    (verdicts rank by *best* phone-usable input path; first `--site` run over 50
-    carts: 3 touch-ready, 34 tap-as-mouse, 5 fixable, 2 keyboard-only, 6 no-input)
-    and ~~gallery input badges~~ (`build-site.js` requires `lint()` and stamps a
-    colored chip per card — 🟢 Mobile Ready / 🟡 Mostly Playable / 🟠 Rough on
-    Mobile / 🔴 Desktop Only; strict: any dead input path demotes, hover/wheel
-    cores rank rough, and a hand-tested `"mobile":` field in index.json
-    overrides the lint; `fixable` shows as desktop-only until touchControls
-    lands). Still
-    open: a per-cart `fit` setting (letterbox / stretch / integer-scale) flowing
-    `.cart.js` → `de:settings` → shell (radios are the first `"stretch"`
-    customers), the **device-facts trio** (`touch_available()` grown into
-    `touch_available`/`device_class`/`touch_ceiling` — researched 2026-06-06
-    incl. the iPad-pretends-to-be-a-Mac detection traps and the
-    ceiling-safeguard pattern against the iPhone 6th-finger mass-cancel;
-    **`touch_ceiling()` SHIPPED same day** — shell computes `Module.deTouchCeiling`,
-    EM_JS read, 4-place wiring, touchpiano header prints "max N fingers";
-    `touch_available`/`device_class` still open, design in mobile-web-notes §5),
-    and the formal touchlab-on-iPhone
-    checklist run (>5-touch assumptions — iPhone Safari caps at ~5 simultaneous
-    touches, found on-device; tiny tap targets). Full design + device findings:
-    [`design/mobile-web-notes.md`](design/mobile-web-notes.md).
-
 24. ~~**Web phantom touch point**~~ — **CLOSED 2026-06-06, same day as filed**: root-caused,
     fix BUILT & DEVICE-PASSED (touchlab/multitouch/touchpiano via the live gallery), and the
     rebuild tail cleared by the whole-catalog publish (all 263 carts carry the fixed engine).
@@ -923,20 +856,6 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     ceiling) and further retrofits (modrack knob rows, sfxed, wave editor). Design + §7
     build learnings: [`design/ui-widgets-notes.md`](design/ui-widgets-notes.md).
 
-27. **Web debug overlay** *(designed 2026-06-06; **v1 SHIPPED 2026-06-07**)* — cable-free
-    on-device visibility for wasm carts: `?debug=1` or **triple-tap the top-left corner**
-    overlays live touch rings straight from `Module.deTouches` (a ring that stays after
-    lifting = phantom; rings the game ignores = bug is past the touch layer), a
-    printh/console mirror, `window.onerror` red lines, fps + the device's touch ceiling.
-    Built per the §6d architecture rule (shell tweaks cost a 263-cart rebuild — learned
-    twice on 2026-06-06): the shell bakes only a ~25-line loader; ALL overlay logic lives
-    in one site-root `debug-overlay.js` (source `runtime/debug-overlay.js`, copied by
-    `build-site.js`) — future overlay iteration is a one-file republish, zero rebuilds.
-    **Still open (v2):** the cart's `watch()` values pushed per frame via EM_JS so the
-    native watch-workflow works on a phone; the `web_tm_*` mouse-synth state readout.
-    Zero-code alternative for deep dives: iPad + cable + Mac Safari remote Web Inspector.
-    Design: [`design/mobile-web-notes.md`](design/mobile-web-notes.md) §6d.
-
 26. **Editor hand-editing workflow** *(new 2026-06-06 — explored, sliced)* — three gaps when
     a human edits carts in the editor instead of via `tools/carts/` + CLI: (a) **no
     save-in-place** — every save is a Save-As dialog (`currentCartFile` only feeds the
@@ -950,6 +869,20 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     (registration deliberately stays a CLI act — the shared-registry rule holds); the
     self-describing `de:meta` chunk + generated index is parked as a direction. Proposals +
     priority table: [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md).
+
+27. **Web debug overlay** *(designed 2026-06-06; **v1 SHIPPED 2026-06-07**)* — cable-free
+    on-device visibility for wasm carts: `?debug=1` or **triple-tap the top-left corner**
+    overlays live touch rings straight from `Module.deTouches` (a ring that stays after
+    lifting = phantom; rings the game ignores = bug is past the touch layer), a
+    printh/console mirror, `window.onerror` red lines, fps + the device's touch ceiling.
+    Built per the §6d architecture rule (shell tweaks cost a 263-cart rebuild — learned
+    twice on 2026-06-06): the shell bakes only a ~25-line loader; ALL overlay logic lives
+    in one site-root `debug-overlay.js` (source `runtime/debug-overlay.js`, copied by
+    `build-site.js`) — future overlay iteration is a one-file republish, zero rebuilds.
+    **Still open (v2):** the cart's `watch()` values pushed per frame via EM_JS so the
+    native watch-workflow works on a phone; the `web_tm_*` mouse-synth state readout.
+    Zero-code alternative for deep dives: iPad + cable + Mac Safari remote Web Inspector.
+    Design: [`design/mobile-web-notes.md`](design/mobile-web-notes.md) §6d.
 
 28. **Library headers hard to find inside the editor** *(new 2026-06-07, surfaced by the
     ui.h ship)* — **slice (a) SHIPPED same day, and the move it implied got made too.**
@@ -1062,7 +995,8 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
 
 32. **Split `runtime/sound.h` per-engine to cut the parallel-agent collision surface** *(new
     2026-06-11, surfaced when a parallel commit silently clobbered a PIPE tuning fix)*. `sound.h`
-    is one ~4300-line file every audio change touches, edited by several agents in one shared
+    is one **~8,800-line** file (it was ~4,300 when this was filed — the argument has doubled
+    with it) every audio change touches, edited by several agents in one shared
     working tree — so a stale full-file edit committed over a neighbour's change silently reverts
     it (no git conflict; "different content" only). Two clobbers happened this session: a
     build-breaking half-finished refactor, and a PIPE `loopDelay` reverted to an older line (still
@@ -1919,30 +1853,20 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
 These were considered and **cut** — kept here so the decision isn't relitigated.
 Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer or skip" and the 2026-05-30 review.
 
-- **`pedalboard`: on-screen text labels — nut string names, fret numbers, a chord-name readout.**
-  Proposed 2026-07-30 by a screenshot audit, on the reasonable argument that a chord diagram is
-  ambiguous without them. **Cut by the maker the same day: "i dont like that."** Three text overlays
-  would fight a 320×200 lo-fi surface, and two of the three were already solved anyway — the lit
-  root + shape buttons ALREADY read out the chord name, and the 3/5/7/9/12 inlays ARE the
-  guitarist's position system (a real neck has no numbers on it). The one genuine gap was
-  orientation, i.e. which end is the low E. A text-free fix for that — drawing the wound E/A/D
-  strings 2px and the plain G/B/e 1px, which is both true of the instrument and free of screen
-  space — was built, looked at, and **also cut as too noisy**. Orientation stays unlabelled.
-- **Fixing the 3×5 font's malformed `N`.** `FONT_TINY`'s N is `### / #.# / #.# / #.# / #.#` —
-  literally a Π, no diagonal (every other uppercase letter is correct; verified by dumping all 26
-  glyphs). It shows anywhere a cart prints an N at that size: in `pedalboard` alone that is GAIN,
-  SINE, NCH, ENV, RND, SNS and a dozen more. A source fix would help all 74 carts using `FONT_TINY`,
-  but it edits a shared asset in two places (`runtime/font3x5_data.h` + `editor/public/font3x5.png`)
-  and needs the canvas-diff golden re-blessed. **Cut 2026-07-30** — not worth the blast radius.
-  Where legibility actually mattered (pedalboard's keyboard hints) the fix was to use **`FONT_TIC`
-  (6×6), which has a correct N**; that is the pattern to reuse rather than touching the 3×5.
-- **`pedalboard`: choosing a default amp voicing / booting with the cabinet on.** A level-matched
-  four-way A/B was rendered (as-is · +string-weight/click · +cabinet · +detune) and measured — the
-  cabinet moves the spectral centroid ~1 kHz and adds ~17 dB RMS, i.e. it is the whole story, since
-  a clean power chord IS thin (distortion is what fills a bare fifth: at 3:2 the intermodulation
-  products land ON the harmonic series, which is *why* power chords exist). **Cut 2026-07-30** —
-  the cart keeps booting with `AMP: OFF` and the player picks. The five voicings are one flat,
-  visible list now, so choosing is a tap rather than a hidden cycle.
+- **`pedalboard`: on-screen text labels** — nut string names, fret numbers, a chord-name readout.
+  Cut 2026-07-30 ("i dont like that"): two of the three were already answered by the interface, and
+  the one real gap (orientation) wasn't worth the space even text-free. The generalized rule —
+  *check what the instrument already says before adding a label; a screenshot has no state and no
+  hands* — is [`design/design-system.md`](design/design-system.md#66--legibility-floor) §6.6.
+- **Fixing the 3×5 font's malformed `N`** (it's a Π — no diagonal fits at 3×5). Cut 2026-07-30: a
+  shared asset in two places + a `canvas-diff` re-bless, for a glyph read from context anyway. The
+  defect, the 74-cart blast radius and the **use `FONT_TIC` instead** pattern are recorded at
+  [`design/font-rendering.md`](design/font-rendering.md#known-defect-font_tinys-n-is-a-π-and-why-were-not-fixing-it).
+- **`pedalboard`: booting with the cabinet on / a default amp voicing.** Cut 2026-07-30 — it keeps
+  booting `AMP: OFF` and the player picks. This resolved a long-standing open fork, so the decision
+  lives with the fork, along with the four-way A/B measurement (the cabinet is ~1 kHz of centroid and
+  ~17 dB RMS, i.e. the whole story) and why a clean power chord is *acoustically* thin:
+  [`design/effects-bus-architecture.md`](design/effects-bus-architecture.md#e5-ui-shape--open-forks-for-the-pedalboard-cart) §E.5.
 
 - **A cart-making PLATFORM (outside authors)** — creator accounts, cart upload/sharing from
   strangers, a browser IDE for others, a public compile-strangers'-C server. **Cut**
@@ -1963,6 +1887,12 @@ Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer
   **tools-as-carts / VFS / fantasy-OS / peek-poke**, a **3D *engine*** (scene graph / mat4
   stack / z-buffer / per-pixel depth) — out of scope. *(The small 3D leaf-helpers
   `rot3`/`project3`/`zsort`/`quadfill` + `V3` ARE shipped — see below and [decision 0009].)*
+- **`hud()` and `game_over_screen()`** — one-call "draw a whole HUD / draw a whole game-over
+  screen" helpers. **Cut** for the reason that a no-param convenience for a *look* makes every
+  cart look the same: a shared `hud()` would give 400 carts one identical status bar, which is the
+  opposite of the point. The same concern is what keeps a no-param `explode()` a research topic
+  rather than a build item (item 1). *(This entry written 2026-07-30 — item 1 has said "see
+  Decided-against" since the beginning and the target was never actually here.)*
 - **Particle systems** and **pathfinding** — ship as *library carts* (seeds: `astar.c`,
   `boids.c`), not engine surface.
 - **Pixel-perfect sprite collision** — eventually maybe; AABB covers 95% first.

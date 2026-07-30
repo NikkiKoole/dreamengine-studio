@@ -163,6 +163,23 @@ recipe, not archaeology.
 `tools/carts/rottext.c` is the playground: it cycles all fonts on **X** and renders each font's
 name in that font (also the `print_rot` angle harness it was originally built for).
 
+#### Known defect: `FONT_TINY`'s `N` is a Π (and why we're not fixing it)
+
+`FONT_TINY`'s capital **N** is `### / #.# / #.# / #.# / #.#` — literally a Π, with no diagonal.
+Every other uppercase letter is correct (verified by dumping all 26 glyphs). At 3×5 there is no
+column to put a diagonal in, so this is a limit of the cell, not a bad bake.
+
+It shows up anywhere a cart prints an N at that size, which is often: in `pedalboard` alone that's
+GAIN, SINE, NCH, ENV, RND and SNS. 74 carts use `FONT_TINY`.
+
+**Cut 2026-07-30** — a source fix would help all 74, but it edits a shared asset in two places
+(`runtime/font3x5_data.h` + `editor/public/font3x5.png`) and needs the `canvas-diff` golden
+re-blessed, for a glyph most readers parse from context anyway.
+
+**The pattern to reuse instead:** where legibility actually matters, step up to **`FONT_TIC` (6×6),
+which has a correct N** and is still small. That's what `pedalboard`'s keyboard hints do. Reach for
+the bigger font, don't touch the 3×5.
+
 ### The atlas format — the contract every font shares
 
 All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` path in

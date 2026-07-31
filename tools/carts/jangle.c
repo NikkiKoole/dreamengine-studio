@@ -16,6 +16,9 @@
   ],
   "lineage": "Third chord-brain example for game-music.md after bossa (Markov) and ambient (modal drift); the novel contribution is the VAMP form — 2-4 chords looped all song with arrangement layers (intro/groove/solo/outro) as the structural motion instead of harmonic change.",
   "homage": "Mac DeMarco - One Wayne G",
+  "todo": [
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "The afternoon sibling of bossa/ambient radio: endless feel-good mixolydian slacker pop, the Mac DeMarco / One Wayne G homage. Every song is a 2-4 chord vamp with NO bridge - the arrangement (intro/groove/solo/outro layers per loop) is the form. Chorused jangle guitar (constant 5.5Hz pitch-LFO warble), drum machine running 2-10ms loose behind the bass (sample-exact groove timing), tape tempo wobble, and a lazy legato lead that slides between mixolydian tones on one held voice via note_glide. Most songs are titled by date stamp, like the tape. Seed on the display pins the composition (JANGLE_SEED / R / [ ] history); the performance re-rolls. SPACE next, LEFT/RIGHT feel, UP/DOWN tempo, M power, H help. Worked example #3 for docs/guides/game-music.md."
 }
 de:meta */

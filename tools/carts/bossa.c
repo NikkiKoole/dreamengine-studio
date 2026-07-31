@@ -16,6 +16,9 @@
     "schedule-driven-agents"
   ],
   "lineage": "Extends the radio.h station chassis with a full jazz-harmony engine: Markov chord walks over harmonic functions, rootless 3-voice voice-leading, and a schedule_hit() step sequencer — the worked example for docs/guides/game-music.md.",
+  "todo": [
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "An endless radio station that composes bossa nova. Every song is generated from a 32-bit seed shown on the display: key, AABA chord progression (Markov walk over jazz harmony - ii-V-I, tritone subs, backdoor dominants), voice-led guitar comping on the bossa clave, surdo bass, shaker, a One Note Samba-style melody cell, tempo, even the title. SPACE next song, R play the same chart again, [ ] song history, LEFT/RIGHT feel (layers), UP/DOWN tempo, M power. Pin a favourite: put its #seed in BOSSA_SEED at the top of the source. The worked example for docs/guides/game-music.md."
 }
 de:meta */

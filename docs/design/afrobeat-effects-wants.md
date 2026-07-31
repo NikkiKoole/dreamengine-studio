@@ -1,6 +1,8 @@
-# Afrobeat — the voices I wanted but can't have yet (blocked on the effects bus)
+# Afrobeat — the voices I wanted but couldn't have yet (the effects bus has since shipped)
 
-STATUS: EXPLORING — wishlist of effects blocked on the effects bus (reverb/chorus already in; wah/tape/leslie/drive/compression still open).
+STATUS: READY TO BUILD — every effect this brief voted for has SHIPPED, including the compression
+this doc flagged as a missing roster entry. `afrobeat.c` wires almost none of them, so the remaining
+work is WIRING, not engine work. (Was EXPLORING/blocked until 2026-07-30; see the update below.)
 
 The blind-band brief for the **Afrobeat** station (Fela Kuti / Tony Allen) named an ideal
 lineup *from the genre*, before reading any cousin cart — the intent-first discipline in
@@ -30,6 +32,24 @@ through an amp, onto tape, with the rhythm guitar through a wah pedal.* That lay
 > the master level — chorus is master-wide in v1, so it widens the whole mix, not just the horns,
 > until per-part aux routing lands). Still open: wah, tape, leslie, drive, and the not-yet-rostered
 > compression.
+>
+> **UPDATE 2026-07-30 — the rest of the list SHIPPED too, and so did compression. The table's
+> "why it's short today" column is now history; read it as the 2026-06 diagnosis.** What landed,
+> want by want: **wah** (`wah()` + `instrument_wah`, 2026-06-11) for the Gentleman chop ·
+> **tape** (`tape(wow,flutter,sat)`, 2026-06-11) for the Afrika-70 console glue · **leslie**
+> (`leslie(speed,drive,balance,doppler,mix)` + `instrument_leslie`, the real rotary cabinet with
+> independent horn/drum rotors and the chorale↔tremolo spin-up) for the organ that "is not really
+> there yet" · **drive** as a bus insert (`drive_insert` + `drive_voice`) beside the per-slot
+> `instrument_drive` we already had. Chorus is also **per-instrument** now (`instrument_chorus`),
+> so the horn-section width no longer has to widen the whole mix: the caveat in the 06-10 note
+> above is gone.
+>
+> **And the headline: "the gap in the gap" is closed.** This doc's one *roster candidate* was
+> **compression**, argued for the pocket bass and the funk-guitar dynamics. It now ships three
+> ways: `glue()` (single-band bus compression), `multiband()` (the 3-band OTT master), and a real
+> **sidechain** for the pumping-glue want. So the acceptance test this doc set up is runnable:
+> `afrobeat.c` currently calls chorus/drive/eq/glue once each and nothing else, and wiring the wah
+> guitar, the Leslie organ and the tape console is the open work. Nothing here is blocked.
 
 ---
 

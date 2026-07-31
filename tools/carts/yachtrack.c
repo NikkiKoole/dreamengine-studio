@@ -22,7 +22,8 @@
     "chord-cell root nudge is two small arrow zones — a vertical drag on the cell would feel better on phones",
     "per-section chord loops (verse vs chorus changes) — v2: a form slot gains a loop index (design doc open question)",
     "naming pass: 'session desk' is the working faceplate; cart name yachtrack parallels acidrack (maker call)",
-    "device-adaptive redesign (Phase 3 — design/device-adaptive-layout.md): CHORD CHART stays primary; drums/hook/band collapse per finger-budget (accordion/tabs) on phone, more inline on iPad; transport + song-code pinned. Spec the section arrangements when picked up"
+    "device-adaptive redesign (Phase 3 — design/device-adaptive-layout.md): CHORD CHART stays primary; drums/hook/band collapse per finger-budget (accordion/tabs) on phone, more inline on iPad; transport + song-code pinned. Spec the section arrangements when picked up",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
   ],
   "description": {
     "summary": "The yacht radio opened up on the producer's desk: the CHORD CHART is the star. Type the radio's 8-hex song code and the exact tune lands as an editable chart - tap the mu chords, reorder the form, edit the drum skeleton and the sax hook - while the session band keeps playing it like players, not a sequencer.",

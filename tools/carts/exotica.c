@@ -16,6 +16,10 @@
   ],
   "lineage": "Martin Denny / Les Baxter exotica homage; first radio station born on the radio.h scaffold rather than copied from dub.c, and the first to combine all three modeled engines (MALLET, PLUCK, FM) in one band.",
   "homage": "Martin Denny / Les Baxter (exotica)",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub.",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "Endless exotica - the Martin Denny / Les Baxter / Arthur Lyman homage: lush vibraphone over lazy latin percussion, faux-tropical lounge from 1957 (Hosono's origin story). The eleventh radio station, with three firsts: born on the runtime/radio.h scaffold instead of a hand-copy; ALL THREE modeled engines in one band (vibraphone lead = INSTR_MALLET with the motor on, nylon rhythm guitar = INSTR_PLUCK, glass-bell sparkles = INSTR_FM); and THE AVIARY - bird calls and frog croaks as an aleatoric performance channel, chance() per bar firing pitch-swooped calls that are never seeded, so replaying a seed replays the tune but the jungle never answers the same way twice (a bird crosses the lagoon window when it sings). Seeded per song: key, lounge changes (borrowed-iv dusk, pagan minor), the vibes cell with tremolo rolls, and the whole BAND's timbre (vibes macros, guitar pick, kit dressing, bird species). SPACE next song, R same tune (new birds), [ ] history, LEFT/RIGHT feel (lull/lounge/luau/rite), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help."
 }
 de:meta */

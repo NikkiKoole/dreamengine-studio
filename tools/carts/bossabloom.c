@@ -15,6 +15,9 @@
     "schedule-driven-agents"
   ],
   "lineage": "The first CHORD-BLOOM rack (docs/design/bossa-rack.md): the bossa radio turned inside-out into an instrument — you PLAY the chord chart, the band (bass/guitar-voicing/melody, all copied verbatim from bossa.c) blooms it live, and the chord-locked solo strip is the jam. The candy device-face skin from bossaface.c.",
+  "todo": [
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": {
     "summary": "Play the changes, the band follows. A bossa chord-bloom rack on the candy device-face: tap a bar to select it, tap a chord from the diatonic FUNCTION palette (tonic=gold, subdominant=green, dominant=orange) to place it — the guitar re-voices, the bass re-walks, and the melody re-pitches around your chord, live and in idiom. GEN rolls a fresh idiomatic AABA; jam the flute over your own changes on the chord-locked solo strip.",
     "controls": "SPACE play/stop · G generate a fresh chart · tap a chart bar to select+audition · tap a palette chord to place it (auditions) · tap VOICE/FEEL to cycle · UP/DOWN tempo · tap the tabs (or 1-4) · drag the solo strip to jam.",

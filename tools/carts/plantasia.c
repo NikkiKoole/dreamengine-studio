@@ -15,6 +15,9 @@
   ],
   "lineage": "Homage to Mort Garson's Plantasia (1976); introduces melody brain #3 — a seeded theme-and-variation generator with an A-A′-B-A songform and key lift — and models the Moog signal chain (INSTR_SAW → FILTER_LADDER + ENV_CUTOFF wow + DRIVE) four ways across the band.",
   "homage": "Mort Garson - Mother Earth's Plantasia (1976)",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub."
+  ],
   "description": "Warm earth music for plants, after Mort Garson's Mother Earth's Plantasia (1976): bright, bouncy, whimsical little Moog SONGS, each for a different houseplant. The family's first MELODY-FORWARD station - the lead is the protagonist, not buried in the mix. Two new things: THE SONGWRITER (melody brain #3), a SEEDED theme-and-variation generator - a singable hook invented from the seed (the SAME every replay, unlike a solo) and developed across an A-A'-B-A songform with a final key-lift, sung by the mono Moog lead with portamento glide + vibrato (a held voice driven per-frame so it can slide); and the TRACK FEELS - the seed rolls one of five named feels (sprightly / swing / waltz / rubato / green), each bundling tempo, meter, groove, kit and density. The band is the dream-synth (moog) signal path four ways: gliding lead, springy filter-pluck bass, burbling sequencer arp, warm pad bed, celesta sparkle, a light synth kit. The window GROWS A HOUSEPLANT as the song plays - sprout, leaves unfurling, a flower opening on the outro; species seed-rolled, the seed on a nursery price-tag. SPACE next, R same seed, [ ] history, LEFT/RIGHT density, UP/DOWN tempo, T tone, M power, B band, H help. Pin via PLANTASIA_SEED."
 }
 de:meta */

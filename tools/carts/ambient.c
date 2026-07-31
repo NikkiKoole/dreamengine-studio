@@ -14,6 +14,10 @@
     "chord-voicing"
   ],
   "lineage": "Night sibling of bossa radio (bossa.c), same seed contract and radio.h chassis; novel in using held note_on voices with note_glide portamento and per-note LFOs instead of plucked events, and replacing cadence-driven harmony with a weighted modal degree walk.",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub.",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "The night sibling of bossa radio: an endless AM station composing beatless ambient drift. Four held pad voices (note_on) morph between chords via note_glide portamento - the sound never stops; per-note LFOs add tape wow and filter breathing. Harmony is a weighted walk over one mode (lydian/dorian/mixolydian/aeolian), no cadences, just drift; sub bass glides under, wind and sparse bell arps above. Every song is a 32-bit seed on the display. SPACE next, R same dream again, [ ] history, LEFT/RIGHT feel, UP/DOWN pace, M power. Pin a favourite via AMBIENT_SEED. Worked example #2 for docs/guides/game-music.md."
 }
 de:meta */

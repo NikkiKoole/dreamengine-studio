@@ -16,6 +16,9 @@
   ],
   "lineage": "Built on the radio.h scaffold (sibling of citypop.c), specializing in the Steely Dan/AOR idiom with a named-chord vocabulary (the mu chord), the Purdie shuffle groove engine, and CR-78 drum circuits borrowed from cr78.c.",
   "homage": "Steely Dan / Hall & Oates (yacht rock)",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub."
+  ],
   "description": "Endless yacht rock / AOR - the Steely Dan / Doobies / Hall & Oates homage, station #12 (second born on the radio.h scaffold). Built around THE MU CHORD - Steely Dan's named invention, a major triad with the added 9th voiced 3-5-9 - in stolen-playbook loop templates (the two-mu vamp, ii-V13 lush, maj7 PLANING, dorian funk) with mu-ify and sus-melt flavor rolls. The comping instrument is the FM epiano on the 1:1 detent, so the DX tine pings every chord; clean PLUCK strat stabs, breathy sax lead, chromatic bass runs INTO every change, citypop anticipations on the and-of-4, and a +2 gear change in the last chorus. Three kit personalities rolled per song: tight session 16ths, the PURDIE half-time shuffle (swung ghosts at vol 1), or CR-78 circuits on loan from cr78.c (the Hall & Oates 'I Can't Go For That' move). SPACE next song, R replay, [ ] history, LEFT/RIGHT feel (dock/cruise/regatta/open sea), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help."
 }
 de:meta */

@@ -15,6 +15,10 @@
   ],
   "lineage": "Ninth in the dreamengine radio family; extends the radio.h chassis with a new 3/4 time signature, solo-instrument density curve, and the alternating-pair chord brain modeled on Gymnopedie No.1's maj7 pendulum.",
   "homage": "Erik Satie (gymnopedies / gnossiennes)",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub.",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "Endless gymnopedies and gnossiennes for solo piano - the Erik Satie homage, ninth of the radio family and its patron saint: Satie invented furniture music (musique d'ameublement, 1917), the idea every station on this dial descends from. Three engine firsts: 3/4 TIME (twelve-step bars), ONE INSTRUMENT (solo piano - the density curve shapes touch and ornament instead of layers), and chord brain #6, THE ALTERNATING PAIR: Satie rocks between two chords for bars on end (Gymnopedie No.1 is Gmaj7-Dmaj7 forever) and lets the pair itself drift between sections. Gymnopedie mode = modal maj7 pendulums, the suspended lilt (bass on 1, chord on 2, beat 3 empty); gnossienne mode = minor with the phrygian-dominant augmented 2nd, mordent ornaments, chord restruck on 3, rubato. Melody enters late, moves stepwise, holds over the barline. Real Satie tempo markings on the display. Seed (SATIE_SEED / R / [ ]), T tone, H help. Worked example #9 for docs/guides/game-music.md."
 }
 de:meta */

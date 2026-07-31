@@ -16,6 +16,10 @@
   ],
   "lineage": "Fourteenth radio station; Vince Guaraldi / Oscar Peterson piano-trio homage, cousin of bossa.c. Novel: the walking bass generator (chord-tone on 1, scale motion through the bar, chromatic approach into beat 4) and the bass-takes-a-solo arc via improv.h.",
   "homage": "Vince Guaraldi / Oscar Peterson (piano trio)",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub.",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "An endless piano-trio set - the Vince Guaraldi / Oscar Peterson lounge homage, station #14. Two blocks make it: THE WALKING BASS, the long-promised ~20-line generator (chord tone on beat 1, scale/arpeggio motion through the middle, a chromatic approach into the next bar's root on beat 4 - four quarters a bar, forever, never repeating), and THE IMPROVISER's second gig - runtime/improv.h, extracted from roadhouse.c by the second-customer rule: the piano solos over full tension arcs, and then THE BASS TAKES A SOLO (same brain, low register, two-thirds density, the room leans in - brushes drop to a whisper, the piano just nods). Harmony is a weighted ii-V-I functional walk with secondary dominants and the tritone sub, cadences FORCED into the last two bars of every 8 - the set always comes home. Swing at 62%: ride pattern ding ding-ga-ding, hat snapping 2 and 4, feathered kick, brush sweeps. Trio set form: head, piano solo, bass solo, piano trades back, head out. R replays the tune - the solos are always new. SPACE next tune, [ ] history, LEFT/RIGHT feel (last call/set one/set two/burner), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help."
 }
 de:meta */

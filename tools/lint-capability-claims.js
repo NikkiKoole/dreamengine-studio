@@ -79,45 +79,11 @@ const ROOT = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 
-// ── the roster: capability → the studio.h symbol that PROVES we ship it ──────
-// `proof` is matched as a declaration in studio.h (`… name(`). Drop the API and the
-// capability leaves the roster automatically, which is the point of discriminator 1.
-// `ambiguous: true` = the word has a common non-audio meaning here, so it only counts
-// with a qualifier noun (discriminator 3).
-const CAPS = [
-  { cap: "reverb",     proof: "reverb",           words: ["reverb"] },
-  { cap: "chorus",     proof: "chorus",           words: ["chorus"] },
-  { cap: "flanger",    proof: "flanger",          words: ["flanger"] },
-  { cap: "phaser",     proof: "phaser",           words: ["phaser"] },
-  { cap: "tremolo",    proof: "tremolo",          words: ["tremolo"] },
-  { cap: "leslie",     proof: "leslie",           words: ["leslie", "rotary speaker"] },
-  { cap: "univibe",    proof: "univibe",          words: ["univibe", "uni-vibe"] },
-  { cap: "formant",    proof: "formant",          words: ["formant filter", "vowel filter"] },
-  { cap: "vocoder",    proof: "vocoder",          words: ["vocoder"] },
-  { cap: "ring mod",   proof: "ringmod",          words: ["ring mod", "ringmod", "ring modulator"] },
-  { cap: "auto-pan",   proof: "autopan",          words: ["auto-pan", "autopan"] },
-  { cap: "multiband",  proof: "multiband",        words: ["multiband"] },
-  { cap: "shimmer",    proof: "shimmer",          words: ["shimmer reverb"] },
-  { cap: "bitcrush",   proof: "crush",            words: ["bitcrush", "bit crush", "bitcrusher"] },
-  { cap: "granular",   proof: "grains",           words: ["granular"] },
-  { cap: "sidechain",  proof: "sidechain",        words: ["sidechain", "side-chain"] },
-  { cap: "varispeed",  proof: "varispeed",        words: ["varispeed"] },
-  { cap: "sampler",    proof: "sample_record",    words: ["sampler"] },
-  { cap: "pitch-shift",proof: "sample_shift",     words: ["pitch-shift", "pitch shifter"] },
-  { cap: "mic input",  proof: "mic_level",        words: ["mic input", "microphone input", "audio input"] },
-  // ambiguous: bare "no gate"/"no filter" are usually about something else entirely
-  { cap: "gate",        proof: "gate",            words: ["gate"],        ambiguous: true },
-  { cap: "filter",      proof: "filter",          words: ["filter"],      ambiguous: true },
-  { cap: "drive",       proof: "instrument_drive",words: ["drive", "overdrive"], ambiguous: true },
-  { cap: "echo/delay",  proof: "echo",            words: ["echo", "delay"], ambiguous: true },
-  { cap: "EQ",          proof: "eq",              words: ["eq"],          ambiguous: true },
-  { cap: "tape",        proof: "tape",            words: ["tape"],        ambiguous: true },
-  { cap: "shallow",     proof: "shallow",         words: ["shallow"],     ambiguous: true },
-  { cap: "compression", proof: "glue",            words: ["compression", "compressor"], ambiguous: true },
-  // "no wah" is nearly always a TEST CONDITION here ("an FFT of both (middle C, no wah)"),
-  // not a claim we lack the pedal — so it needs the qualifier like the other ambiguous words.
-  { cap: "auto-wah",    proof: "wah",             words: ["auto-wah", "autowah", "wah"], ambiguous: true },
-];
+// ── the roster ───────────────────────────────────────────────────────────────
+// Moved to tools/capability-roster.js (2026-07-31) so wants-check.js reads the SAME
+// list. Two copies drift, and the drift is invisible: a capability missing from one
+// makes that tool quietly blind, the exact failure this tool exists to catch.
+const { CAPS, shipsIn } = require("./capability-roster");
 
 const QUALIFIER = "(?:engine|bus|effect|insert|pedal|stage|voicing|module|unit|section)";
 
@@ -216,7 +182,7 @@ const scope  = args.find(a => !a.startsWith("--")) || "";
 
 // ── discriminator 1: keep only capabilities studio.h proves we ship ──────────
 const studioSrc = fs.readFileSync(STUDIO, "utf8");
-const ships = (sym) => new RegExp(`^\\s*(?:void|float|int|const char\\s*\\*)\\s+${sym}\\s*\\(`, "m").test(studioSrc);
+const ships = (sym) => shipsIn(studioSrc, sym);   // capability-roster.js owns the shape
 const roster = CAPS.filter(c => ships(c.proof));
 
 // ── the claim patterns ───────────────────────────────────────────────────────

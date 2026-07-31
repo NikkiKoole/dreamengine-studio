@@ -1,0 +1,9 @@
+// FIXTURE for `node tools/wants-check.js --selfcheck` — NOT the real studio.h.
+// Only the PROOF declarations matter. `shimmer` is deliberately ABSENT so a want can be
+// GENUINELY still blocked (the doc telling the truth), which is the outcome a checker
+// that just shouts "everything shipped!" would get wrong.
+void reverb(float size, float damping);
+void chorus(float rate, float depth, float mix);
+void leslie(int speed, float drive, float balance, float doppler, float mix);
+void glue(int victim_bus, float amount, int attack_ms, int release_ms);
+void multiband(float low, float mid, float high, float up, float mix);

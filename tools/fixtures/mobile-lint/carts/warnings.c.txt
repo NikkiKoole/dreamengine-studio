@@ -1,0 +1,10 @@
+// FIXTURE cart. EXPECT touch-ready + wheel + right/middle + touch>5 + tiny-target(8x8) + text-input.
+#include "studio.h"
+static char buf[32];
+void update(void) {
+  int w = mouse_wheel(); (void)w;
+  if (mouse_down(1)) { }
+  if (touch_x(6) > 0) { }
+  if (tap(10, 10, 8, 8)) { }
+  text_input(buf, 32);
+}

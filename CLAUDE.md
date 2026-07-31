@@ -299,7 +299,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              publish-all.js  batch publish in ONE deploy — run it bare: it CHECKS cart-status, then
                              PROMPTS (smart=not-published+stale / +engine-stale / --all / build-all gate).
                              Resilient build, reuses publish-cart.sh; -y non-interactive, --dry-run preview
-             mobile-lint.js  static report card: can a phone play this cart?
+             mobile-lint.js  static report card: can a phone play this cart? The verdict is a
+                             PRECEDENCE chain (best input path a phone can use, not worst) over source that
+                             is comment-stripped + library-header-inlined with studio.h SKIPPED (its
+                             prototypes name every input fn, so inlining it makes EVERY cart read
+                             touch-ready). `--selfcheck` = known-answer fixture, 27 assertions
              aso-research.js App Store keyword research from FREE public data (iTunes Search API, no account):
                              per term a difficulty proxy + top competitors + your own rank (--app) + mined
                              keyword candidates; --json snapshots. The Search-Term-Rank popularity column waits
@@ -598,7 +602,24 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              symbol, so "no octaver" is never flagged) and a PARAGRAPH-scope acknowledgement
                              ("reverb ✓ SHIPPED") silences it — which is also the escape hatch for
                              deliberately-historical prose. ADVISORY by design (it judges prose);
-                             `--selfcheck` = 15 known answers, gated in repo-doctor
+                             `--selfcheck` = 26 known answers (recall AND suppression), gated in repo-doctor.
+                             Roster shared with wants-check via capability-roster.js
+             wants-check.js  what a `*-wants.md` doc is ACTUALLY still waiting on — the STRUCTURED twin of
+                             lint-capability-claims (which reads prose and therefore has a recall ceiling: it
+                             missed afrobeat entirely, because this repo denies a capability by SCHEDULING it,
+                             "still open: wah, tape, leslie"). This one never reads prose. It parses the
+                             `unblocked by` TABLE COLUMN the genre already writes — that column IS the
+                             dependency list — and reports a want only when THREE facts hold: the doc declares
+                             it blocked on X · X ships (a studio.h proof symbol) · the CART makes no call that
+                             would use it. So the output is a work-list, not a nag, and a row clears itself
+                             when the cart wires it. ⧗ STILL BLOCKED = the doc is telling the truth. Also
+                             cross-checks the doc's own STATUS line (parked in exploring/building while every
+                             want ships = stale by definition, no phrasing involved). `--todo` = actionable
+                             rows only, `--strict` gates, `--selfcheck` = 11 known answers
+             capability-roster.js  (lib, not CLI) the shared capability list: cap → the studio.h `proof`
+                             symbol that shows we ship it → the `wire` symbols that mean a CART used it.
+                             Owned here so lint-capability-claims + wants-check can't drift; same lib shape as
+                             doc-status.js. Drop an API and the capability leaves both tools automatically
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
                              unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
                              scope to a feature (`node tools/lint-xrefs.js touch`) to act on it.

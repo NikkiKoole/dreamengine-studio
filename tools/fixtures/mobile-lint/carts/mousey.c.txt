@@ -1,0 +1,12 @@
+// FIXTURE cart. EXPECT verdict tap-as-mouse, and NO `hover` warning.
+// Browsers map a single tap to a click, so a mouse-button cart is usually fine on a phone.
+//
+// It reads mouse POSITION as well as the button, and that is load-bearing: `hover` fires on
+// (mousePos && !mouseBtn && !touch), so a cart with no mouse_x() at all can never trigger it and
+// the "hover does not fire when a button IS read" assertion would be vacuous. Mutation-tested:
+// change the guard to `if (reads.mousePos)` and this cart goes red.
+#include "studio.h"
+void update(void) {
+  int mx = mouse_x(), my = mouse_y();
+  if (mouse_down(0)) { (void)mx; (void)my; }
+}

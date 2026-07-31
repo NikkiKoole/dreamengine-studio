@@ -1,0 +1,4 @@
+// FIXTURE cart. Mouse POSITION read with no button and no touch. EXPECT no-input + hover:
+// hover has no touch equivalent at all.
+#include "studio.h"
+void draw(void) { int x = mouse_x(); int y = mouse_y(); (void)x; (void)y; }

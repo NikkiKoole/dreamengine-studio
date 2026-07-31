@@ -1,0 +1,16 @@
+// FIXTURE cart. Reads touch AND mouse AND btn AND key. EXPECT touch-ready (the verdict is the
+// BEST input path a phone can use), plus also-reads-keys, btn-without-overlay, keys(Q,Z) and
+// keys-untapped(Z) — Z only, NOT Q.
+//
+// The Q/Z split is load-bearing. keys-untapped skips any line that already has a tap/touch
+// alternative, so Q (which shares its line with tap()) must be excluded while Z (alone on its
+// line) must be listed. Without a key on a tap line the filter is untestable and deleting it
+// changes nothing. Mutation-tested: drop the line filter and this goes keys-untapped(Q,Z).
+#include "studio.h"
+void update(void) {
+  if (touch_count() > 0) { }
+  if (mouse_down(0)) { }
+  if (btn(0, 1)) { }
+  if (key('Q') || tap(0, 0, 20, 20)) { }
+  if (key('Z')) { }
+}

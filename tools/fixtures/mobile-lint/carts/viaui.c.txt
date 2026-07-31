@@ -1,0 +1,5 @@
+// FIXTURE cart. Its own body reads NO input — the whole story is in the inlined library header.
+// EXPECT touch-ready (mobile-web-notes §5.4: an all-widget cart lints green by construction).
+#include "studio.h"
+#include "fakeui.h"
+void update(void) { if (fakeui_button(0, 0, 20, 20)) { } }

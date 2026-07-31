@@ -1,0 +1,3 @@
+// FIXTURE cart. EXPECT verdict fixable — one line (touchControls: true) enables the overlay.
+#include "studio.h"
+void update(void) { if (btn(0, 1)) { } }

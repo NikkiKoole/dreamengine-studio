@@ -116,7 +116,7 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Twelve now do — **207 assertions**
+**So: if your check makes a judgement, give it a `--selfcheck`.** Thirteen now do — **234 assertions**
 — every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
@@ -133,6 +133,7 @@ fallible as an FFT, and nobody has built the fixture.
 | `lint-fx-frame.js --selfcheck` | `tools/fixtures/lint-fx-frame/` | 30 — the footgun shapes, all six gated constructs, the ride-live exclusion list, the waiver **and its no-leak regression**, and line numbers surviving comment stripping |
 | `ui-audit.js --selfcheck` | `tools/fixtures/ui-audit/` | 31 — every finding kind and **every exempt class** (clip / occlusion / identical strings / the ≤3px widget threshold / slivers / transients), plus the waiver subsystem, which has no other coverage anywhere |
 | `cart-dupes.js --selfcheck` | `tools/fixtures/cart-dupes/` | 20 — the normalization trick in **both** directions (a renamed copy must match; different engine calls must not), the drift band vs identical copies, and `HOOK_CUTOFF` |
+| `mobile-lint.js --selfcheck` | `tools/fixtures/mobile-lint/` | 27 — all five verdicts, the **precedence chain** (best input path wins, not worst), the three source transforms incl. the `studio.h` skip, and every warning class |
 
 Fixtures are fed in by **path override, not by restructuring the tool**: doc scanners take
 `DE_DOCS_DIR` (`handoff` takes `DE_HANDOFF_FILE`), source scanners take one env var per input

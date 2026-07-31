@@ -1,0 +1,4 @@
+// FIXTURE cart. Includes ONLY studio.h, whose prototypes name every input function. EXPECT
+// no-input: studio.h is skipped, or every cart in the repo would falsely read touch-ready.
+#include "studio.h"
+void draw(void) { }

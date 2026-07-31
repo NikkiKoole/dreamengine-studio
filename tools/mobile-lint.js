@@ -5,6 +5,7 @@
 //   node tools/mobile-lint.js <name> [<name>...]   lint specific carts
 //   node tools/mobile-lint.js --site               lint every cart published in site/
 //   node tools/mobile-lint.js --all                lint every cart in tools/carts/
+//   node tools/mobile-lint.js --selfcheck          assert the CHECKER (known-answer fixture, 27)
 //
 // Verdicts (input path on a phone):
 //   touch-ready    reads touch_*/tap*/touch_controls, or .cart.js sets touchControls
@@ -46,8 +47,13 @@ const fs   = require('fs')
 const path = require('path')
 
 const ROOT      = path.join(__dirname, '..')
-const CARTS_DIR = path.join(ROOT, 'tools', 'carts')
-const SITE_DIR  = path.join(ROOT, 'site')
+// Overridable so --selfcheck can lint a tiny FIXTURE shelf (tools/fixtures/mobile-lint/) with its
+// own fake runtime header. CART_EXT exists so fixture carts can be `.c.txt`: never compiled, and a
+// real `.c` gets indexed by clangd and read as a cart by anything globbing for sources.
+const CARTS_DIR   = process.env.DE_MOBILE_CARTS_DIR   || path.join(ROOT, 'tools', 'carts')
+const RUNTIME_DIR = process.env.DE_MOBILE_RUNTIME_DIR || path.join(ROOT, 'runtime')
+const CART_EXT    = process.env.DE_MOBILE_CART_EXT    || '.c'
+const SITE_DIR    = path.join(ROOT, 'site')
 
 function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
@@ -59,7 +65,7 @@ function inlineRuntimeIncludes(src, seen) {
   seen = seen || new Set()
   return src.replace(/#include\s+"([^"]+\.h)"/g, (m, h) => {
     if (h === 'studio.h' || seen.has(h)) return ''
-    const f = path.join(ROOT, 'runtime', h)
+    const f = path.join(RUNTIME_DIR, h)
     if (!fs.existsSync(f)) return ''
     seen.add(h)
     return inlineRuntimeIncludes(stripComments(fs.readFileSync(f, 'utf8')), seen)
@@ -67,7 +73,7 @@ function inlineRuntimeIncludes(src, seen) {
 }
 
 function lint(name) {
-  const srcFile = path.join(CARTS_DIR, `${name}.c`)
+  const srcFile = path.join(CARTS_DIR, `${name}${CART_EXT}`)
   if (!fs.existsSync(srcFile)) return { name, verdict: 'MISSING', warnings: [] }
   const src = inlineRuntimeIncludes(stripComments(fs.readFileSync(srcFile, 'utf8')))
   const has = (re) => re.test(src)
@@ -76,7 +82,12 @@ function lint(name) {
   let cfgTouch = false
   const cfgFile = path.join(CARTS_DIR, `${name}.cart.js`)
   if (fs.existsSync(cfgFile)) {
-    try { cfgTouch = !!require(cfgFile).touchControls } catch {}
+    // path.resolve, not the raw join: require() treats a bare RELATIVE path as a module NAME and
+    // throws MODULE_NOT_FOUND, which the catch below swallows — so a relative CARTS_DIR (now
+    // possible via DE_MOBILE_CARTS_DIR) would silently read touchControls as false and downgrade
+    // a touch-ready cart to `fixable`. Production always passed an absolute path, so this only
+    // became reachable with the override; it cost one confused probe to find.
+    try { cfgTouch = !!require(path.resolve(cfgFile)).touchControls } catch {}
   }
 
   const reads = {
@@ -152,6 +163,114 @@ function lint(name) {
 module.exports = { lint }   // build-site.js badges the gallery with these verdicts
 if (require.main !== module) return
 
+// ── --selfcheck: assert the CHECKER against known answers ─────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Re-runs the tool as a child with
+// DE_MOBILE_* pointed at tools/fixtures/mobile-lint/, one fixture cart per judgement.
+//
+// WHY. The verdict is a PRECEDENCE CHAIN — a cart reading touch AND mouse AND btn AND key must
+// rank by the BEST path a phone can use, not the worst — and the whole thing runs on regexes over
+// preprocessed source with three transforms in front of it (comment stripping, library-header
+// inlining, and a studio.h SKIP without which every cart in the repo reads touch-ready). Get the
+// skip wrong and the tool cheerfully reports a green shelf. Nothing measured it.
+if (process.argv.includes('--selfcheck')) {
+  const cp = require('child_process')
+  const FX = path.join(__dirname, 'fixtures', 'mobile-lint')
+  let raw
+  try {
+    raw = cp.execFileSync(process.execPath, [__filename, '--all'], {
+      // ABSOLUTE paths: require() reads a bare relative path as a module name (see the
+      // path.resolve note in lint()), and the fixture's .cart.js must actually load.
+      env: { ...process.env,
+             DE_MOBILE_CARTS_DIR:   path.join(FX, 'carts'),
+             DE_MOBILE_RUNTIME_DIR: path.join(FX, 'runtime'),
+             DE_MOBILE_CART_EXT:    '.c.txt' },
+      encoding: 'utf8', maxBuffer: 1 << 24,
+    })
+  } catch (e) { raw = e.stdout || '' }
+
+  // parse the grouped report back into {cart: {verdict, warnings}}
+  const got = {}
+  let cur = null
+  for (const line of raw.split('\n')) {
+    const h = /^── (\S+) \(\d+\) ──$/.exec(line.trim())
+    if (h) { cur = h[1]; continue }
+    const m = /^  (\S+)\s*(.*)$/.exec(line)
+    if (cur && m && !line.startsWith('  tip:'))
+      // split on ', ' (comma-SPACE), not ',': the report joins warnings with ', ' while a
+      // warning's own PAYLOAD uses bare commas — `keys(A,SPACE)`. Splitting on ',' shreds it
+      // into "keys(A" + "SPACE)" and the keys() assertion can never match.
+      got[m[1]] = { verdict: cur, warnings: m[2].trim() ? m[2].split(', ').map(w => w.trim()) : [] }
+  }
+
+  const T = []
+  const t = (n, ok) => T.push({ n, ok })
+  const v  = (cart) => (got[cart] || {}).verdict
+  const w  = (cart) => (got[cart] || {}).warnings || []
+  const has = (cart, warn) => w(cart).some(x => x === warn || x.startsWith(warn + '('))
+
+  // ── all five verdicts, each on a cart that reads exactly one input path
+  t('parsed the fixture shelf  [blind-pass guard]', Object.keys(got).length === 12)
+  t('verdict: touch_*() reads → touch-ready', v('touchy') === 'touch-ready')
+  t('verdict: mouse button only → tap-as-mouse  [a tap IS a click]', v('mousey') === 'tap-as-mouse')
+  t('verdict: btn() only → fixable  [one line of config away]', v('btnonly') === 'fixable')
+  t('verdict: key() only → keyboard-only  [the overlay cannot synthesize keys]',
+    v('keyonly') === 'keyboard-only')
+  t('verdict: reads nothing → no-input', v('silent') === 'no-input')
+
+  // ── the precedence chain: rank by the BEST path, not the worst
+  t('precedence: a cart reading touch+mouse+btn+key ranks touch-ready  [best path wins]',
+    v('precedence') === 'touch-ready')
+  t('precedence: ...and the dead key path is surfaced as a warning, not buried',
+    has('precedence', 'also-reads-keys'))
+  t('precedence: ...and btn() without the overlay is flagged',
+    has('precedence', 'btn-without-overlay'))
+  t('precedence: btn-without-overlay does NOT fire when touchControls is set  [exempt class]',
+    !has('cfgtouch', 'btn-without-overlay'))
+
+  // ── the three source transforms in front of every regex
+  t('transform: a COMMENTED-OUT input read does not count  [stripComments]',
+    v('commented') === 'no-input' && w('commented').length === 0)
+  t('transform: a quote-included library header IS inlined  [an all-widget cart lints green]',
+    v('viaui') === 'touch-ready')
+  t('transform: studio.h is SKIPPED  [else its prototypes make EVERY cart touch-ready]',
+    v('viastudio') === 'no-input')
+  t('transform: ...and the fixture studio.h really does name every input fn  [inert-fixture guard]',
+    (() => {
+      const sh = fs.readFileSync(path.join(FX, 'runtime', 'studio.h'), 'utf8')
+      return ['touch_count', 'touch_x', 'tap', 'btn', 'key', 'mouse_down', 'mouse_wheel', 'text_input']
+        .every(fn => sh.includes(fn + '('))
+    })())
+  t('config: .cart.js touchControls promotes a btn()-only cart to touch-ready',
+    v('cfgtouch') === 'touch-ready')
+
+  // ── the warning classes
+  t('warn: hover — mouse position with no button and no touch', has('hovery', 'hover'))
+  t('warn: ...and hover does NOT fire when a button IS read  [exempt class]',
+    !has('mousey', 'hover'))
+  t('warn: wheel — no scroll wheel on a phone', has('warnings', 'wheel'))
+  t('warn: right/middle — no second button on a touch screen', has('warnings', 'right/middle'))
+  t('warn: touch>5 — iOS Safari caps at ~5 simultaneous touches', has('warnings', 'touch>5'))
+  t('warn: ...and a touch index UNDER 5 is not flagged  [threshold guard]',
+    !has('touchy', 'touch>5'))
+  t('warn: tiny-target — a tap target under 16 canvas px, with its size', has('warnings', 'tiny-target'))
+  t('warn: text-input — no OS keyboard over the canvas', has('warnings', 'text-input'))
+  t('warn: keys(...) lists the literal keys read', w('keyonly').some(x => x === 'keys(A,SPACE)'))
+  t('warn: keys-untapped names keys with no inline tap alternative',
+    w('precedence').some(x => x === 'keys-untapped(Z)'))
+  t('warn: ...and EXCLUDES a key sharing its line with a tap()  [Q is tappable already]',
+    w('precedence').some(x => x === 'keys(Q,Z)') &&
+    !w('precedence').some(x => x.includes('keys-untapped(Q')))
+  t('warn: a clean cart carries NO warnings  [cry-wolf guard]',
+    w('touchy').length === 0 && w('silent').length === 0 && w('btnonly').length === 0)
+
+  const failed = T.filter(x => !x.ok)
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`)
+  console.log(failed.length
+    ? `\x1b[31mmobile-lint --selfcheck FAILED\x1b[0m — ${failed.length} of ${T.length} expectations broken`
+    : `mobile-lint --selfcheck: ${T.length}/${T.length} known answers correct`)
+  process.exit(failed.length ? 1 : 0)
+}
+
 // ── target selection ──────────────────────────────────────────
 const argv = process.argv.slice(2)
 let names
@@ -162,7 +281,7 @@ if (argv.includes('--site')) {
         .map(d => d.name)
     : []
 } else if (argv.includes('--all')) {
-  names = fs.readdirSync(CARTS_DIR).filter(f => f.endsWith('.c')).map(f => f.slice(0, -2))
+  names = fs.readdirSync(CARTS_DIR).filter(f => f.endsWith(CART_EXT)).map(f => f.slice(0, -CART_EXT.length))
 } else {
   names = argv.filter(a => !a.startsWith('--'))
 }

@@ -1,0 +1,10 @@
+// FIXTURE cart. Every input read is COMMENTED OUT. EXPECT no-input, zero warnings —
+// stripComments() must run before the regexes, or a commented-out call counts as real.
+#include "studio.h"
+void update(void) {
+  // if (touch_count() > 0) { int x = touch_x(0); }
+  // if (key('A')) { }
+  /* if (mouse_down(0)) { }
+     int w = mouse_wheel();
+     text_input(0, 0); */
+}

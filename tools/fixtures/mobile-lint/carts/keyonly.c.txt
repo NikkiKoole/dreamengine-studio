@@ -1,0 +1,3 @@
+// FIXTURE cart. EXPECT verdict keyboard-only + keys(A,SPACE). The overlay cannot synthesize keys.
+#include "studio.h"
+void update(void) { if (key('A')) { } if (keyp(KEY_SPACE)) { } }

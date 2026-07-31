@@ -1,0 +1,4 @@
+// FIXTURE cart. Body reads only btn() — but its .cart.js sets touchControls, which turns on the
+// on-screen stick + A/B overlay that FEEDS btn(). EXPECT touch-ready, not fixable.
+#include "studio.h"
+void update(void) { if (btn(0, 1)) { } }

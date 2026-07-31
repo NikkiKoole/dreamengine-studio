@@ -242,6 +242,13 @@ runtime/   studio.h (public API: constants + declarations), studio.c (Raylib imp
                          citydrive/floorplan/roadview; design/external-data-carts.md. Not committed API.
            Full table + contract: docs/guides/cart-authoring.md → "Cart-land library headers".
            Sound/instrument cart? docs/guides/instrument-carts.md indexes the shelf by block copied.
+           lockup/    NOT shelf — ONE cart's private modules (the `lockup` prison sim), on the
+                      include path only because -I runtime already is. model.h is a FROZEN CONTRACT
+                      (types + signatures + the data tables + the sprite slot map); grid/path/actors/
+                      econ/art/score/hud each implement one slice, include ONLY the contract, and
+                      prefix every static (lkg_/lkp_/lka_/lke_/lkr_/lks_/lkh_) because it is all one
+                      translation unit. Written by 8 parallel agents; the pattern is ADR-0034.
+                      Don't #include these from another cart — copy what you need.
 editor/    electron/ (main.cjs compiles+runs carts; preload.cjs exposes window.studio.*),
            src/ (shell.js IDE chrome, main.js CodeMirror+cmd-click, navigate.js engine-source
            viewer, outline.js, sprite-editor.js, map-editor.js, studioDocs.js = single source for

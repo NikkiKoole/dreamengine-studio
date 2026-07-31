@@ -70,6 +70,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0031](0031-blend-tables-before-palette.md) | Blend tables (`blend()`: AVG/ADD/MUL/SUB) ship before the palette decision — safe because tables build from the live `palette[]` at startup, not baked. BOTH renderers landed + verified: software canvas (live dst) + GPU desktop path (shader + per-scope snapshot). Intended snapshot-vs-live divergence keeps blend out of the canvas-diff parity gate | accepted |
 | [0032](0032-live-mic-effects-are-live-only.md) | Live-mic-through effects are live-only — no deterministic replay for a mic-driven signal path | accepted |
 | [0033](0033-youtube-first-video-distribution.md) | Video distribution: YouTube first (only usable upload API of the short-video venues; TikTok/Reels manual), via an in-house `youtube-push.js` over the Data API v3 — modelled on asc-push (ADR-0026), OAuth2 the one difference. Closes lever #2's last mile | accepted |
+| [0034](0034-contract-first-parallel-authoring.md) | Freeze a CONTRACT HEADER (types, signatures AND data tables) before fanning out parallel authors; one file per agent, every static module-tag-prefixed, modules include the contract and never each other. `lockup`: 8 agents, 12,252 lines, first-attempt link. Records honestly that debugging does not parallelise and that the visual bar stayed soft for want of a concrete benchmark | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

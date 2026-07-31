@@ -3904,6 +3904,26 @@
     "lineage": "The SPIKE for LIVE real-time auto-tune (docs/design/transparent-autotune.md §the live real-time path). The offline sample_autotune() shipped + was confirmed; this tests the hard follow-on: streaming formant-preserving pitch correction on the AUDIO THREAD (autotune_mic) — sing and hear yourself snapped in tune NOW, not record-then-play. The whole question is latency + streaming-epoch quality; the deliverable is a FEEL test, not an oracle number (there is no frozen output). NOT hardtune (robot vocoder) — this keeps your voice."
   },
   {
+    "title": "LOCKUP",
+    "description": "Build and run a prison. You never touch a prisoner - you build the machine and write the timetable, and the machine either meets ninety men's needs or it doesn't. A prison is a machine for meeting needs on a schedule. Every prisoner carries nine needs, and a need can only fall when four things line up at once: a room that serves it, enclosed and holding the objects its type demands; a path there through doors they're allowed through; an hour the REGIME grants; and a free bed, bench, shower head or phone not already taken. Break any one and the need climbs - and danger is the integral of unmet need, never a dice roll, so a riot is always your own arithmetic coming back. Workmen build what you designate, cooks stock the serving tables (no cook, no meal, however many tables you own), guards patrol the sectors you deploy them to and their response time is a path length. Lockdown buys calm by locking every jail door, which kills the need satisfaction that caused the riot in the first place. The score is a lonely slide-guitar Americana bed whose layers, harmony and tempo track the prison's tension, and night is real light: lit blocks glowing across a dark yard. MOUSE drives everything: pick a tool from the palette, drag to paint floors, walls, rooms and zones, click to place doors and objects (R rotates), right-click or DEMOLISH to remove. Drag the map or use ARROWS/WASD to pan. Click a prisoner to inspect his needs, a room to see why it's invalid. Open the REGIME editor and drag activities across the 24 hours - that timetable is the whole game. SPACE pauses, 1/2/4 set speed, TAB cycles the overlays.",
+    "file": "lockup.cart.png",
+    "created": "2026-07-31",
+    "kind": [
+      "game"
+    ],
+    "teaches": [
+      "pathfinding",
+      "finite-state-ai",
+      "schedule-driven-agents",
+      "song-arrangement",
+      "dithering-gradient",
+      "functional-harmony"
+    ],
+    "lineage": "Prison Architect demake built on this library's own colony lineage (dwarffort's designate-and-they-work loop, sims' need-decay-to-object-seek loop), novel in making the REGIME the spine: a 24-hour timetable the whole population obeys, so a need can only fall when a valid room, a reachable path, a permitted hour and a free capacity slot all line up - and danger is the integral of unmet need rather than a dice roll.",
+    "genre": "simulation",
+    "homage": "Prison Architect (2015)"
+  },
+  {
     "title": "Lode Runner",
     "description": "A pocket-sized Lode Runner: sprint a chunky runner across a brick-and-ladder maze, scoop up every glinting chunk of gold, then climb the exit ladder that lights up only once the level is clean. A red guard hunts you on the same rules you obey — run, climb, hang hand-over-hand from ropes, and fall. Caught on open ground and you're done, so dig: Z chews a hole in the floor down-and-left, X down-and-right, dropping the guard into a pit that refills a moment later and crushes anything still stuck. Two single-screen levels, drawn entirely from primitives, with a clean clear/death/restart loop and a saved best. Arrows run/climb/rope, Z dig-left, X dig-right, R restart.",
     "file": "loderunner.cart.png",

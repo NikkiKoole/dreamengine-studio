@@ -166,9 +166,15 @@ a genuine tool post often mentions the album the author made with it.
 - **How much of the 30-day launch window is us not being on the platforms these people ship to?**
   Every launch above is iOS/iPad or browser. Worth reading against
   [demand-generation.md](../design/demand-generation.md) lever #2.
-- **r/TIC80's first real cache lands this rotation.** The open probe from
-  [027](027-demand-discovery-sounddesign-matchpatch.md)/the subs file still stands: for the
-  fantasy-console tribes, is audio *depth* a pull, or is the 4-channel limit a beloved constraint?
+- **r/TIC80's first real cache landed the moment the name was fixed** — 13/13 feeds, 49 threads, 8
+  wishes — and it reads exactly like the crippled r/pico8 run: **every music topic scored 0**, and all
+  8 wishes are *learn-the-tool* ("How do I port my PICO-8 code to TIC-80?", "How do I do stuttered
+  movements?", "I want to make tic80 the gateway to my coding journey"). One rotation of a small sub
+  is thin evidence, but it **converges with r/pico8** rather than contradicting it. The probe from the
+  subs file — for the fantasy-console tribes, is audio *depth* a pull, or is the 4-channel limit a
+  beloved constraint? — now leans toward *neither*: these tribes don't discuss audio at all. If that
+  holds over a full cycle, both slots are better read as `leads.js` **venues** (our people) than as
+  demand-discovery subs, which is the same call note 027 made for r/audioprogramming.
 
 ## Related notes
 

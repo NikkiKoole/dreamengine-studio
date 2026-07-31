@@ -14,7 +14,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - build a chord on TWO rows, then sweep the strings to strum. The ROOT row (Z X C V B N M = E F G A B C D) picks exactly one; the QUALITY row (A S D F G H J = min sus4 sus2 5 | 7 maj7 | add9) MULTI-SELECTS, taps toggling so the chord stays lit while your other hand strums. Major is the ABSENCE of a selection, so the commonest chord costs zero taps beyond a root, and the two wide gaps in the row mark where the rule changes (at most one third, at most one seventh, add9 free). A conflicting tap always lands and silently drops what it conflicts with - nothing is refused. Four lit is the maximum, and the CHORD NAME in the strum zone names what you built (min + 7 + add9 on D reads Dm9), which is how the grammar teaches itself. 22 hand-authored E-shape barre grips x 7 roots = 154 chords, gated by spec(). (SPACE strums; the AUTO button top-right cycles the self-player off / STRUM / TRAVIS, boots on STRUM, and stops the moment you play; TRAVIS is Merle Travis fingerpicking - a metronomic alternating thumb bass under syncopated treble notes, which goes sparse on the '5' and the sus2 family because their treble strings are damped). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - build a chord on TWO rows, then sweep the strings to strum. The ROOT row (Z X C V B N M = E F G A B C D) picks exactly one; the QUALITY row (A S D F G H J = min sus4 sus2 5 | 7 maj7 | add9) MULTI-SELECTS, taps toggling so the chord stays lit while your other hand strums. Major is the ABSENCE of a selection, so the commonest chord costs zero taps beyond a root, and the two wide gaps in the row mark where the rule changes (at most one third, at most one seventh, add9 free). A conflicting tap always lands and silently drops what it conflicts with - nothing is refused. Four lit is the maximum, and the CHORD NAME in the strum zone names what you built (min + 7 + add9 on D reads Dm9), which is how the grammar teaches itself. 22 hand-authored E-shape barre grips x 7 roots = 154 chords, gated by spec(). (SPACE strums; the AUTO button top-right cycles the self-player off / STRUM / TRAVIS and boots on STRUM. ONLY STRUMMING stops it - changing chords does not, so you can audition all 154 under a Travis roll without touching the strings; picking a root takes the harmony from it (your chord sticks instead of being yanked back on the next bar) while the picking hand plays on, and tapping AUTO again hands the progression back; TRAVIS is Merle Travis fingerpicking - a metronomic alternating thumb bass under syncopated treble notes, which goes sparse on the '5' and the sus2 family because their treble strings are damped). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -56,10 +56,14 @@ de:meta */
 //                   is exclusive with add9 (they are the same note — the 2nd IS the 9th).
 //   STRUMMING HAND — sweep across the strings over the body (the STRUM zone) to strum; tap a string
 //                    on the neck to pick one; SPACE strums. AUTOPLAY is the AUTO button top-right,
-//                    a 3-way that NAMES its state: off / strum / travis. It boots on STRUM, and any
-//                    chord key or strum switches it off — there is no key that turns it back on.
-//                    (The docs used to claim "M-row toggles autoplay"; M is the D root, and pressing
-//                    it only ever DISABLES autoplay via set_root.)
+//                    a 3-way that NAMES its state: off / strum / travis. It boots on STRUM, and ONLY
+//                    STRUMMING STOPS IT — SPACE, a sweep across the body, or picking a string. Changing
+//                    CHORDS does not: the quality row never affected it, and picking a ROOT takes the
+//                    harmony from it (the progression stops walking, your chord sticks) while the
+//                    picking hand plays on. So you can audition all 154 chords under a Travis roll
+//                    without touching the strings. Tapping AUTO again hands the progression back.
+//                    Autoplay is really two players — a left hand walking chords and a right hand
+//                    picking them — and only the right one collides with you.
 //                    TRAVIS = the fingerstyle: thumb alternating root/fifth on the beat, fingers
 //                    between. Sparse on any grip with damped treble strings — the "5" and the sus2
 //                    family (the E shape cannot reach a 2nd on the G string).
@@ -463,6 +467,12 @@ static int   pend[NSTR];
 enum { AP_OFF, AP_STRUM, AP_TRAVIS };
 static const char *AP_NAME[3] = { "off", "strum", "travis" };
 static int   autoplay = AP_STRUM;
+// Has the player taken the HARMONY? Autoplay is really two players in one: a left hand walking a
+// chord progression and a right hand strumming/picking it. Touching a chord button fires the left
+// one and keeps the right — so Travis keeps rolling underneath while you change chords, which is the
+// whole point of having 154 of them. Only STRUMMING YOURSELF stops autoplay outright, because that
+// is the one gesture that collides with it: two right hands on the same six strings.
+static bool  ap_own_chord = false;
 static int   cart_bpm = 100;        // mirrors the bpm() call in init — the API has no getter
 static int   apos = 0;
 static bool  guitar_in = false;   // GUITAR IN: route the live mic THROUGH the built chain (input_monitor)
@@ -869,9 +879,9 @@ static void qb_press(int i) {
         default:       sel_add9  = !sel_add9;                                      break;
     }
     chord_norm(QB[i].grp);      // resolve the conflicts this press just created, toward this press
-    build_strings(); autoplay = AP_OFF;
+    build_strings();            // autoplay keeps playing — see ap_own_chord
 }
-static void set_root(int r)   { sel_root  = r;  build_strings(); autoplay = AP_OFF; }
+static void set_root(int r)   { sel_root  = r;  build_strings(); ap_own_chord = true; }
 // screen y → string index (row 0 on screen is the HIGH e, so the row inverts back to an index)
 static int  near_string(int ty) { int r = (ty - STR_Y0 + STR_DY / 2) / STR_DY; r = r < 0 ? 0 : r >= NSTR ? NSTR - 1 : r; return NSTR - 1 - r; }
 // x of string s's fingered dot. Open (0) sits just past the nut; muted has no dot, but return the
@@ -962,7 +972,9 @@ void update(void) {
     if (tapp(saX + 4, saY + 2, 56, 11))   { palette_open = !palette_open; if (palette_open) rig_open = false; }
     if (tapp(saX + 64, saY + 2, 46, 11))  { rig_open = !rig_open; if (rig_open) palette_open = false; }
     if (tapp(saX + 114, saY + 2, 54, 11)) { guitar_in = !guitar_in; if (guitar_in) mic_start(); else mic_stop(); }
-    if (tapp(saX + saW - 70, saY + 4, 66, 10)) autoplay = (autoplay + 1) % 3;   // off → strum → travis, and it SAYS which
+    // off → strum → travis, and it SAYS which. Cycling it also hands the progression back: you asked
+    // for the self-player again, so it walks its own chords until you take one.
+    if (tapp(saX + saW - 70, saY + 4, 66, 10)) { autoplay = (autoplay + 1) % 3; ap_own_chord = false; }
 
     // GUITAR IN — feed the live mic through the chain you built. Set-and-hold: push only on change.
     // Gain is deliberately SUB-UNITY (0.8): monitoring your own mic through the device speaker feeds
@@ -1116,7 +1128,9 @@ void update(void) {
         // you switched it off. Now the progression plays in whatever you selected, which makes the
         // shape row worth touching while it runs: same changes as maj, min, sus4 or 7.
         int b = beat() % 4;
-        if (b == 0) { sel_root = prog[apos % 8]; build_strings(); apos++; }   // one chord per bar
+        // …and it stops walking them the moment YOU pick one, rather than yanking your chord back on
+        // the next bar line. The picking hand plays on.
+        if (b == 0 && !ap_own_chord) { sel_root = prog[apos % 8]; build_strings(); apos++; }   // one chord per bar
         if (autoplay == AP_STRUM) { if (b == 0) strum_down(); }               // …strummed once
         else                        travis_beat(b);                          // …or picked all four beats
     }
@@ -1726,6 +1740,23 @@ void spec(void) {
         expect_eq(qb_dim(i), QB[i].grp != PR_THIRD, str("'%s' dims under the 5 iff it is colour", QB[i].name));
     sel_third = TH_MIN;
     for (int i = 0; i < NQB; i++) expect(!qb_dim(i), str("'%s' is live when the 5 is off", QB[i].name));
+
+    // ── 9b. changing a chord does NOT stop the self-player ──
+    // The rule is "only strumming stops autoplay", and it has to hold for the QUALITY row (which
+    // autoplay never touched) and for the ROOT row (which it walks). A root press takes the harmony
+    // instead of killing the player, so the picking hand rolls on underneath — and the progression
+    // must NOT yank your chord back on the next bar line, which is what ap_own_chord prevents.
+    for (int i = 0; i < NQB; i++) {
+        autoplay = AP_TRAVIS; ap_own_chord = false;
+        sel_third = TH_NONE; sel_sev = SV_NONE; sel_add9 = false;
+        qb_press(i);
+        expect_eq(autoplay, AP_TRAVIS, str("'%s' leaves TRAVIS picking", QB[i].name));
+    }
+    autoplay = AP_TRAVIS; ap_own_chord = false;
+    set_root(4);
+    expect_eq(autoplay, AP_TRAVIS, "picking a root leaves TRAVIS picking too");
+    expect(ap_own_chord, "...but it takes the harmony, so the progression stops walking");
+    expect_eq(sel_root, 4, "...and the root you picked is the root you get");
 
     // ── 10. the row-1 gaps are the grouping, so the geometry is pinned too ──
     // A gap that stops being visibly wider than its neighbours silently deletes the only cue that

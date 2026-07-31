@@ -236,7 +236,11 @@ if (process.argv.includes('--selfcheck')) {
     v('viastudio') === 'no-input')
   t('transform: ...and the fixture studio.h really does name every input fn  [inert-fixture guard]',
     (() => {
-      const sh = fs.readFileSync(path.join(FX, 'runtime', 'studio.h'), 'utf8')
+      // `studio.h.txt`, not `studio.h`: the tool never READS this file (studio.h is skipped
+      // before the path lookup), it is only evidence that the skip has something to skip. Named
+      // with the real extension it also tripped the pre-commit hook's unanchored
+      // `runtime/(sound|studio)\.h` match on every commit touching the fixture.
+      const sh = fs.readFileSync(path.join(FX, 'runtime', 'studio.h.txt'), 'utf8')
       return ['touch_count', 'touch_x', 'tap', 'btn', 'key', 'mouse_down', 'mouse_wheel', 'text_input']
         .every(fn => sh.includes(fn + '('))
     })())

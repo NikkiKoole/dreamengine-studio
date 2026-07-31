@@ -33,9 +33,17 @@ Get #3 wrong and the tool cheerfully reports a green shelf. Nothing measured any
 | `viastudio` | no-input | transform #3 |
 | `cfgtouch` | touch-ready | `.cart.js` `touchControls` promotes a `btn()`-only cart |
 
-`runtime/studio.h` here is deliberately stuffed with input prototypes so the skip has something to
-skip, and `--selfcheck` asserts those prototypes are still present — otherwise trimming it makes
-the `viastudio` assertion vacuous.
+`runtime/studio.h.txt` is deliberately stuffed with input prototypes so the skip has something to
+skip, and `--selfcheck` asserts those prototypes are still there — otherwise trimming the file
+would quietly make the `viastudio` assertion vacuous.
+
+It carries a `.h.txt` suffix even though the two `fake*.h` headers beside it do not, and the
+difference is real: those two are genuinely inlined by the tool, so their names have to resolve
+from a `#include`. `studio.h` is skipped *before* the path lookup and is never read, so nothing
+requires it to be a real header. Named `studio.h` it also tripped the pre-commit hook, whose
+`runtime/(sound|studio)\.h` match was unanchored and so fired on this nested path — compile-checking
+the whole runtime on every commit that touched an unrelated fixture. The hook is now `^`-anchored to
+the two genuinely hot files.
 
 ## Four fixture shapes forced by mutation-testing
 

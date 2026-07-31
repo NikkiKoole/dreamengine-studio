@@ -105,7 +105,10 @@ if [ -n "$drifted" ]; then
   exit 1
 fi
 
-echo "$staged" | grep -qE 'runtime/(sound|studio)\.h' || exit 0
+# ^-anchored: an unanchored match also fired on nested paths like
+# tools/fixtures/mobile-lint/runtime/studio.h.txt, compile-checking the runtime on every commit
+# that touched an unrelated fixture. Only the two REAL hot shared files should arm this.
+echo "$staged" | grep -qE '^runtime/(sound|studio)\.h$' || exit 0
 
 echo "[pre-commit] runtime/sound.h or studio.h staged — compile-checking the runtime…"
 out=$(node tools/play.js soundcheck script /dev/null --headless --frames 2 2>&1)

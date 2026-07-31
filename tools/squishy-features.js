@@ -14,6 +14,8 @@
 //   node tools/squishy-features.js            # run the check, print the matrix, exit nonzero on mismatch
 //   node tools/squishy-features.js --keep      # also leave the grid PNG for eyeballing
 //   node tools/squishy-features.js --png <f>   # diff an existing grid dump instead of rendering
+//   node tools/squishy-features.js --json      # machine-readable verdicts
+//   node tools/squishy-features.js --selfcheck # assert the CHECKER (known-answer fixture)
 //
 // Layout constants MUST match draw_matrix() in tools/carts/squishy.c.
 const fs = require('fs'), zlib = require('zlib'), path = require('path');
@@ -102,6 +104,137 @@ function renderGrid() {
 
 // ── main ──
 const args = process.argv.slice(2);
+
+// ── --selfcheck: assert the CHECKER against known answers ──────────────────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Feeds the checker SYNTHETIC grid
+// PNGs with known per-cell pixel differences (tools/fixtures/squishy-features/make-grid.js), so
+// the judgement is tested without compiling and running the squishy cart — which would make the
+// answer depend on the very render being audited.
+//
+// WHY. Two layers here fail silently and produce a plausible table either way:
+//   1. A HAND-ROLLED PNG DECODER implementing all five scanline filters. Get Paeth or Average
+//      wrong and every cell diff is garbage, but the report still prints tidy numbers. The filter
+//      round-trip below encodes ONE logical image under each of filters 0-4 and demands identical
+//      diffs; nothing else in the repo covers that decoder.
+//   2. CELL GEOMETRY + the APPLIED_MIN threshold. An off-by-one in the cell origin, or a shifted
+//      inset, silently compares the wrong rectangles — and a threshold that drifts turns
+//      "the feature is a no-op for this brush" into "applied" with no visible symptom.
+if (args.includes('--selfcheck')) {
+  const os = require('os');
+  const { makeGrid, CELL_CAP } = require(path.join(__dirname, 'fixtures', 'squishy-features', 'make-grid.js'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'squishy-selfcheck-'));
+  const { execFileSync } = require('child_process');
+  let seq = 0;
+  const run = (opts) => {
+    const f = path.join(tmp, `g${seq++}.png`);
+    fs.writeFileSync(f, makeGrid(opts));
+    let raw, code = 0;
+    // stdio 'pipe' for stderr too: execFileSync INHERITS the child's stderr by default, so the
+    // layout-guard case ("grid dump is 256x256…") printed straight through to our own stderr and
+    // repo-doctor picked THAT up as this row's summary line instead of the 21/21 verdict.
+    try { raw = execFileSync(process.execPath, [__filename, '--png', f, '--json'],
+                             { encoding: 'utf8', maxBuffer: 1 << 26, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    catch (e) { raw = e.stdout || ''; code = e.status; }
+    let j = null; try { j = JSON.parse(raw); } catch {}
+    return { j, code, raw };
+  };
+  // paint a big diff in every cell EXPECT says should apply, and nothing where it says inert —
+  // i.e. a grid that agrees with the intent matrix everywhere
+  const agreeing = {};
+  TOOLS.forEach((name, bi) => {
+    const exp = EXPECT[name]; const row = {};
+    exp.forEach((want, k) => { if (want === 1) row[k + 1] = 60; });
+    agreeing[bi] = row;
+  });
+
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+  const cell = (j, brush, feat) => {
+    const r = (j.rows || []).find(r => r.brush === brush);
+    return (r ? r.cells.find(c => c.feature === feat) : null) || { n: -1, mark: 'ABSENT' };
+  };
+
+  // ── the PASS case, and that it is not passing blind
+  const ok = run({ diffs: agreeing });
+  t('a grid agreeing with EXPECT everywhere PASSes  [cry-wolf guard]',
+    ok.j && ok.j.fails === 0 && ok.code === 0);
+  t('...and it really measured 14 brushes x 7 features  [blind-pass guard]',
+    ok.j && ok.j.rows.length === 14 && ok.j.rows.every(r => r.cells.length === 7));
+  t('...and CELL_CAP agrees between generator and checker  [layout drift guard]',
+    ok.j && ok.j.cellCap === CELL_CAP);
+
+  // ── all four verdicts, from one grid. ink expects every feature; sketch expects only boil+close.
+  const four = run({ diffs: { 0: { 1: 60, /* bevel applies -> ok */ }, 5: { 1: 60 /* sketch bevel: inert-expected but changed -> UNEXP */ } } });
+  t('verdict ok: a feature that should apply and does', cell(four.j, 'ink', 'bevel').mark === 'ok');
+  t('verdict MISS: a feature that should apply but is a no-op  [the bug class]',
+    cell(four.j, 'ink', 'outline').mark === 'MISS');
+  t('verdict inert: a feature declared N/A that does nothing  [exempt class]',
+    cell(four.j, 'sketch', 'dither').mark === 'inert');
+  t('verdict UNEXP: a feature declared N/A that changed the render',
+    cell(four.j, 'sketch', 'bevel').mark === 'UNEXP');
+  t('any disagreement exits nonzero  [it is a gate, not a report]', four.code === 1);
+
+  // `four` holds BOTH a MISS and an UNEXP, so either one alone keeps the exit code at 1 — which
+  // means it cannot prove that EACH is a failure. These two grids isolate them.
+  const onlyMiss = (() => { const d = JSON.parse(JSON.stringify(agreeing)); delete d[0][1]; return run({ diffs: d }); })();
+  t('MISS alone is a failure  [isolated: agreeing everywhere except one no-op]',
+    onlyMiss.j && onlyMiss.j.fails === 1 && onlyMiss.code === 1 &&
+    cell(onlyMiss.j, 'ink', 'bevel').mark === 'MISS');
+  const onlyUnexp = (() => { const d = JSON.parse(JSON.stringify(agreeing)); d[5][1] = 60; return run({ diffs: d }); })();
+  t('UNEXP alone is a failure too  [an N/A feature that started working is news]',
+    onlyUnexp.j && onlyUnexp.j.fails === 1 && onlyUnexp.code === 1 &&
+    cell(onlyUnexp.j, 'sketch', 'bevel').mark === 'UNEXP');
+
+  // ── the APPLIED_MIN threshold, exactly at the boundary
+  const thr = run({ diffs: { 0: { 1: 11, 2: 12 } } });
+  t('threshold: 11 changed pixels is NOT applied  [one under APPLIED_MIN]',
+    cell(thr.j, 'ink', 'bevel').n === 11 && cell(thr.j, 'ink', 'bevel').applied === false);
+  t('threshold: 12 changed pixels IS applied  [exactly APPLIED_MIN]',
+    cell(thr.j, 'ink', 'outline').n === 12 && cell(thr.j, 'ink', 'outline').applied === true);
+
+  // ── the PNG decoder: one logical image under every scanline filter must decode identically
+  const sig = (j) => j.rows.flatMap(r => r.cells.map(c => c.n)).join(',');
+  const base = run({ diffs: { 0: { 1: 50, 5: 33 }, 3: { 2: 77 } }, filter: 0 });
+  const filts = [1, 2, 3, 4].map(filter => run({ diffs: { 0: { 1: 50, 5: 33 }, 3: { 2: 77 } }, filter }));
+  t('decoder: filter 1 (Sub) reconstructs identically', filts[0].j && sig(filts[0].j) === sig(base.j));
+  t('decoder: filter 2 (Up) reconstructs identically',  filts[1].j && sig(filts[1].j) === sig(base.j));
+  t('decoder: filter 3 (Average) reconstructs identically', filts[2].j && sig(filts[2].j) === sig(base.j));
+  t('decoder: filter 4 (Paeth) reconstructs identically  [the fiddliest one]',
+    filts[3].j && sig(filts[3].j) === sig(base.j));
+  t('decoder: ...and the signature is not trivially empty  [inert-fixture guard]',
+    cell(base.j, 'ink', 'bevel').n === 50 && cell(base.j, 'marker', 'outline').n === 77);
+
+  // ── cell ORIGIN. Painted against the cell's BOTTOM edge on purpose: a cell is 22px tall but
+  //    the header offset is only 12px, so a window shifted by the header still overlaps the TOP
+  //    of the cell and a diff painted there is counted anyway (that mutation scored 18/18).
+  const originRow = 13, originCol = 7;
+  const org = run({ diffs: agreeing, bottom: { [originRow]: { [originCol]: 40 } } });
+  t('origin: an exact count survives only if the cell origin includes the header offset',
+    org.j && cell(org.j, TOOLS[originRow], FEATURES[originCol - 1]).n === 60 + 40);
+
+  // ── cell geometry: the 2px inset, and alpha being ignored
+  const geo = run({ diffs: agreeing, outside: { 5: [1, 2] } });
+  t('geometry: a difference OUTSIDE the 2px inset is not counted  [border/label bleed]',
+    geo.j && geo.j.fails === 0 && cell(geo.j, 'sketch', 'bevel').n === 0);
+  const al = run({ diffs: agreeing, alphaOnly: { 5: [1] } });
+  t('geometry: an ALPHA-only difference is not counted  [cellDiff compares RGB]',
+    al.j && al.j.fails === 0 && cell(al.j, 'sketch', 'bevel').n === 0);
+
+  // ── the layout guard: a wrong-sized dump must be refused, not silently mis-offset
+  const wrong = run({ diffs: agreeing, size: 256 });
+  t('layout: a dump of the wrong size is REFUSED (exit 2), not diffed at wrong offsets',
+    wrong.code === 2);
+
+  try { fs.rmSync(tmp, { recursive: true }); } catch {}
+  const failed = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`);
+  console.log(failed.length
+    ? `\x1b[31msquishy-features --selfcheck FAILED\x1b[0m — ${failed.length} of ${T.length} expectations broken`
+    : `squishy-features --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(failed.length ? 1 : 0);
+}
+
+
 const pngArg = args.indexOf('--png');
 const pngFile = pngArg >= 0 ? args[pngArg + 1] : renderGrid();
 const img = decodePNG(pngFile);
@@ -110,26 +243,38 @@ if (img.W !== SCREEN || img.H !== SCREEN) {
   process.exit(2);
 }
 
-const pad = s => s.padEnd(9);
-console.log(`\nsquishy feature × drawtool coverage   (cell diff vs baseline, ⩾${APPLIED_MIN}px = applied)\n`);
-console.log('  ' + pad('brush') + FEATURES.map(f => f.padStart(9)).join(''));
-let fails = 0;
-for (let bi = 0; bi < NTOOLS; bi++) {
-  const name = TOOLS[bi], exp = EXPECT[name] || [1,1,1,1,1];
-  let row = '  ' + pad(name);
-  for (let c = 1; c <= FEATURES.length; c++) {
-    const n = cellDiff(img, bi, c), applied = n >= APPLIED_MIN, want = exp[c - 1] === 1;
-    let mark;
-    if (want && applied)       mark = `✓${n}`;
-    else if (want && !applied) { mark = `✗MISS(${n})`; fails++; }
-    else if (!want && !applied) mark = `·`;
-    else                       { mark = `!UNEXP(${n})`; fails++; }
-    row += mark.padStart(9);
-  }
-  console.log(row);
+// ── the verdicts, computed ONCE ─────────────────────────────────────────────────────────────
+// Shared by --json and the table below. They used to compute `mark` and the failure count
+// SEPARATELY, which is the same "written in two places that must agree" hazard lint-aux-params
+// exists for: mutating the table's verdict logic left --json (and therefore --selfcheck) reading
+// the old answer, so two mutations that made the gate never fail still scored 21/21.
+const grid = TOOLS.map((name, bi) => {
+  const exp = EXPECT[name] || [1,1,1,1,1,1,1];
+  return { brush: name, cells: FEATURES.map((f, k) => {
+    const n = cellDiff(img, bi, k + 1), applied = n >= APPLIED_MIN, want = exp[k] === 1;
+    return { feature: f, n, applied, want,
+             mark: want && applied ? 'ok' : want && !applied ? 'MISS' : !want && !applied ? 'inert' : 'UNEXP' };
+  }) };
+});
+const badCells = grid.flatMap(r => r.cells).filter(c => c.mark === 'MISS' || c.mark === 'UNEXP');
+const fails = badCells.length;
+const cleanup = () => { if (!args.includes('--keep') && pngArg < 0) { try { fs.rmSync(path.dirname(pngFile), { recursive: true }); } catch {} } };
+
+if (args.includes('--json')) {
+  console.log(JSON.stringify({ appliedMin: APPLIED_MIN, cellCap: (ch - 4) * (cw - 4),
+                               screen: { w: img.W, h: img.H }, fails, rows: grid }, null, 2));
+  cleanup();
+  process.exit(fails ? 1 : 0);
 }
+
+const pad = s => s.padEnd(9);
+console.log(`\nsquishy feature × drawtool coverage   (cell diff vs baseline, \u2a7e${APPLIED_MIN}px = applied)\n`);
+console.log('  ' + pad('brush') + FEATURES.map(f => f.padStart(9)).join(''));
+const MARK = { ok: c => `\u2713${c.n}`, MISS: c => `\u2717MISS(${c.n})`, inert: () => '\u00b7', UNEXP: c => `!UNEXP(${c.n})` };
+for (const r of grid)
+  console.log('  ' + pad(r.brush) + r.cells.map(c => MARK[c.mark](c).padStart(9)).join(''));
 console.log('\n  ✓ = feature applies · = intentionally inert (N/A)   ✗MISS = should apply but no-op   !UNEXP = inert-expected but changed');
 
-if (!args.includes('--keep') && pngArg < 0) { try { fs.rmSync(path.dirname(pngFile), { recursive: true }); } catch {} }
+cleanup();
 if (fails) { console.error(`\nFAIL: ${fails} cell(s) disagree with the expected matrix.`); process.exit(1); }
 console.log('\nPASS: every brush applies exactly the features it should.');

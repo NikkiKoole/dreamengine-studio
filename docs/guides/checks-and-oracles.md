@@ -116,7 +116,7 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Fourteen now do — **257 assertions**
+**So: if your check makes a judgement, give it a `--selfcheck`.** Fifteen now do — **278 assertions**
 — every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
@@ -135,6 +135,7 @@ fallible as an FFT, and nobody has built the fixture.
 | `cart-dupes.js --selfcheck` | `tools/fixtures/cart-dupes/` | 20 — the normalization trick in **both** directions (a renamed copy must match; different engine calls must not), the drift band vs identical copies, and `HOOK_CUTOFF` |
 | `mobile-lint.js --selfcheck` | `tools/fixtures/mobile-lint/` | 27 — all five verdicts, the **precedence chain** (best input path wins, not worst), the three source transforms incl. the `studio.h` skip, and every warning class |
 | `cart-analyze.js --selfcheck` | `tools/fixtures/cart-analyze/` | 23 — one cart per verdict branch, the **chain order** (`simple` beats `reactive`), the two anti-inflation counting rules, and the score formula recomputed from the metrics |
+| `squishy-features.js --selfcheck` | `tools/fixtures/squishy-features/` | 21 — synthetic grid PNGs: all four verdicts (and `MISS`/`UNEXP` in isolation), the `APPLIED_MIN` boundary, cell origin + inset + alpha, and **all five PNG scanline filters** decoding identically |
 
 Fixtures are fed in by **path override, not by restructuring the tool**: doc scanners take
 `DE_DOCS_DIR` (`handoff` takes `DE_HANDOFF_FILE`), source scanners take one env var per input

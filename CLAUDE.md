@@ -501,7 +501,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              Gap 1b); dry-run by default, `--write` to apply (449 carts pending)
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
              squishy-features.js  feature×brush COVERAGE oracle for the squishy cart (renders its matrix
-                             grid, pixel-diffs each cell vs baseline → flags silently-no-op features)
+                             grid, pixel-diffs each cell vs baseline → flags silently-no-op features).
+                             `--json`; `--selfcheck` = known-answer fixture (21 assertions over SYNTHETIC
+                             grid PNGs, runs no cart) — incl. all five PNG scanline filters through its
+                             hand-rolled decoder, which nothing else in the repo covers
              build-context.js  assemble a reading briefing for ONE cart: de:meta + todos + related carts +
                              every doc/note that MENTIONS it (with the line) — finds the differently-named home
              cart-outline.js a per-cart READING MAP (twin of build-context, for the SOURCE): data shapes

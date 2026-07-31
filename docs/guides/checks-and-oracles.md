@@ -116,7 +116,7 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Ten now do — **156 assertions**
+**So: if your check makes a judgement, give it a `--selfcheck`.** Eleven now do — **187 assertions**
 — every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
@@ -131,6 +131,7 @@ fallible as an FFT, and nobody has built the fixture.
 | `lint-aux-params.js --selfcheck` | `tools/fixtures/lint-aux-params/` | 14 — every finding kind, and the three checks that pass **vacuously** on zero regex matches |
 | `lint-carts.js --selfcheck` | `tools/fixtures/lint-carts/` | 48 — all three source hazards **and each one's exempt class**, plus a 26-case `de:meta` table |
 | `lint-fx-frame.js --selfcheck` | `tools/fixtures/lint-fx-frame/` | 30 — the footgun shapes, all six gated constructs, the ride-live exclusion list, the waiver **and its no-leak regression**, and line numbers surviving comment stripping |
+| `ui-audit.js --selfcheck` | `tools/fixtures/ui-audit/` | 31 — every finding kind and **every exempt class** (clip / occlusion / identical strings / the ≤3px widget threshold / slivers / transients), plus the waiver subsystem, which has no other coverage anywhere |
 
 Fixtures are fed in by **path override, not by restructuring the tool**: doc scanners take
 `DE_DOCS_DIR` (`handoff` takes `DE_HANDOFF_FILE`), source scanners take one env var per input

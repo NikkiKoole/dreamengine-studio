@@ -18,6 +18,8 @@
 //                                                           layout gate (device-adaptive-layout.md).
 //   node tools/ui-audit.js <name> --explore                 press keys + tap widgets to reveal panels
 //   node tools/ui-audit.js <name> --overlay [out.svg] [--frame N]   visualise the boxes
+//   node tools/ui-audit.js --selfcheck                      assert the CHECKER (known-answer
+//                                                           fixture, 31 assertions; runs no cart)
 //
 // Honest caveats:
 //   • Coverage = the frames it sees. A clip bug that only shows on a long string
@@ -34,8 +36,9 @@ const os   = require('os')
 const { spawnSync } = require('child_process')
 
 const args = process.argv.slice(2)
+const SELFCHECK = args.includes('--selfcheck')
 const name = args[0]
-if (!name || name.startsWith('--')) {
+if (!SELFCHECK && (!name || name.startsWith('--'))) {
   console.error('usage: node tools/ui-audit.js <name> [--frames N] [--explore] [--overlay [out.svg]] [--script f|--beats f] [--json]')
   process.exit(1)
 }
@@ -91,8 +94,7 @@ function discoverKeys() {
 // waiver survives layout jitter but a genuinely new off-screen string still trips.
 // `off` with no side waives any edge. Each waiver tracks whether it fired (stale = clean up).
 const SIDES = new Set(['left', 'top', 'right', 'bottom'])
-function parseWaivers() {
-  const src = fs.readFileSync(path.join(ROOT, 'tools', 'carts', `${name}.c`), 'utf8')
+function parseWaivers(src) {
   const out = []
   for (const m of src.matchAll(/\/\/\s*ui-audit-ignore\s+(.+)$/gm)) {
     const body = m[1].trim()
@@ -120,6 +122,218 @@ function widgetTargets(recs) {
       seen.set(`${cx},${cy}`, { cx, cy })
     }
   return [...seen.values()]
+}
+
+// ── pure analysis helpers (see analyze() below) ─────────────────────────────
+function overlaps(a, b) { return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h }
+function contains(f, t) { return f.x <= t.x && f.y <= t.y && f.x + f.w >= t.x + t.w && f.y + f.h >= t.y + t.h }
+// the VISIBLE text in a frame: drop any string that a LATER fill fully covers
+// (a modal/backdrop painted on top of a previous screen). Draw order = array
+// order, so a fill at a higher index sits on top. Kills "text-behind-a-panel"
+// false positives. A widget's own label is drawn AFTER its fill, so it survives.
+function visibleText(d) {
+  const fills = [], out = []
+  d.forEach((e, i) => { if (e.k === 'f') fills.push({ ...e, i }) })
+  d.forEach((e, i) => {
+    if (e.k !== 't' || !e.t) return
+    if (fills.some(fl => fl.i > i && contains(fl, e))) return   // occluded
+    out.push(e)
+  })
+  return out
+}
+// ── analyse (PURE: per-frame draw records in, findings out) ─────────────────
+// Extracted from the module body so --selfcheck can drive it with a synthetic record set
+// (tools/fixtures/ui-audit/*.jsonl) instead of compiling and running a cart. Everything the
+// report and the overlay need comes back in one object; the CLI destructures it below.
+function analyze(recs, { minFramesReq = 3, waivers = [] } = {}) {
+const offscreen = new Map(), collide = new Map(), byFrame = new Map(), sigByFrame = new Map()
+const wcollide = new Map(), woff = new Map()   // (3) overlapping widgets  (4) off-screen widgets
+let SW = 0, SH = 0, framesSeen = 0
+
+for (const rec of recs) {
+  framesSeen++; SW = rec.sw; SH = rec.sh
+  const d = rec.d || [], f = rec.f
+  byFrame.set(f, rec)
+  const texts = visibleText(d)
+  sigByFrame.set(f, new Set(texts.map(e => e.t)))
+
+  for (const e of texts) {                         // (1) text off the screen edge
+    if (e.c) continue                              // inside clip() → bounded on purpose
+    const sides = []
+    if (e.x < 0)        sides.push('left')
+    if (e.y < 0)        sides.push('top')
+    if (e.x + e.w > SW) sides.push('right')
+    if (e.y + e.h > SH) sides.push('bottom')
+    if (!sides.length) continue
+    const key = `${e.t}@${e.x},${e.y}`, hit = offscreen.get(key)
+    if (hit) { hit.last = f; hit.n++ }
+    else offscreen.set(key, { text: e.t, x: e.x, y: e.y, w: e.w, h: e.h, sides, first: f, last: f, n: 1 })
+  }
+  for (let i = 0; i < texts.length; i++)           // (2) overlapping text labels
+    for (let j = i + 1; j < texts.length; j++) {
+      const a = texts[i], b = texts[j]
+      if (a.t === b.t || !overlaps(a, b)) continue
+      const key = [a.t, b.t].sort().join(' ∩ '), hit = collide.get(key)
+      if (hit) { hit.last = f; hit.n++ } else collide.set(key, { a: a.t, b: b.t, first: f, last: f, n: 1 })
+    }
+
+  // interactive widgets (ui.h rects). (3) two that overlap = piled, unhittable
+  // controls; (4) one past the screen edge = an unreachable control. Both are
+  // things a screenshot won't shout about but a finger will hit — or miss.
+  const wdg = (d || []).filter(e => e.k === 'w' && e.w >= 3 && e.h >= 3)
+  for (const e of wdg) {                             // (4) widget off the edge
+    const sides = []
+    if (e.x < 0)        sides.push('left')
+    if (e.y < 0)        sides.push('top')
+    if (e.x + e.w > SW) sides.push('right')
+    if (e.y + e.h > SH) sides.push('bottom')
+    if (!sides.length) continue
+    const key = `${e.x},${e.y},${e.w}x${e.h}`, hit = woff.get(key)
+    if (hit) { hit.last = f; hit.n++ }
+    else woff.set(key, { x: e.x, y: e.y, w: e.w, h: e.h, sides, first: f, last: f, n: 1 })
+  }
+  for (let i = 0; i < wdg.length; i++)               // (3) widget ∩ widget
+    for (let j = i + 1; j < wdg.length; j++) {
+      const a = wdg[i], b = wdg[j]
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+      if (ox <= 3 || oy <= 3) continue               // mere adjacency/touching is fine
+      const key = `${Math.max(a.x, b.x)},${Math.max(a.y, b.y)}`, hit = wcollide.get(key)
+      if (hit) { hit.last = f; hit.n++ }
+      else wcollide.set(key, { x: Math.max(a.x, b.x), y: Math.max(a.y, b.y), ox, oy, first: f, last: f, n: 1 })
+    }
+}
+
+  // ── transient filter: a real layout bug sits still; something on screen for
+  // only a frame or two is mid-animation (a card dealing in, a number sliding).
+  // Require a finding to persist >= minFrames. Off-screen findings are keyed by
+  // position, so a moving element makes many 1-frame entries that all fall here;
+  // a static clip keeps one entry with a high count. --min-frames 1 shows everything.
+  const minFrames = Math.max(1, Math.min(minFramesReq, framesSeen))
+  const persists = (f) => f.n >= minFrames
+
+  // ── waivers: partition findings into live vs suppressed ─────────────────────
+  const badWaivers = waivers.filter(w => w.kind === 'bad')
+  const isWaived = (f, pred) => { const w = waivers.find(w => pred(f, w)); if (w) { w.used = true; return true } return false }
+  const allOff = [...offscreen.values()], allCol = [...collide.values()]
+  const offSteady = allOff.filter(persists), colSteady = allCol.filter(persists)
+  const transientN = (allOff.length - offSteady.length) + (allCol.length - colSteady.length)
+  const offList = offSteady.filter(f => !isWaived(f, waiveOff))
+  const colList = colSteady.filter(f => !isWaived(f, waiveOver))
+  const wList    = [...wcollide.values()].filter(persists)   // overlapping widgets
+  const woffList = [...woff.values()].filter(persists)       // off-screen widgets
+  const waivedN = (offSteady.length - offList.length) + (colSteady.length - colList.length)
+  const stale   = waivers.filter(w => w.kind !== 'bad' && !w.used)
+
+  return { SW, SH, framesSeen, minFrames, byFrame, sigByFrame,
+           offList, colList, wList, woffList,
+           transientN, waivedN, stale, badWaivers }
+}
+
+// ── --selfcheck: assert the CHECKER against known answers ────────────────────
+// See docs/guides/checks-and-oracles.md "Self-test the checker". analyze() is pure (draw
+// records in, findings out), so this drives it on a synthetic record set from
+// tools/fixtures/ui-audit/ — no cart is compiled or run.
+//
+// WHY IT NEEDS THIS. Every check here is a geometric judgement with an EXEMPT CLASS: text is
+// off-screen unless it sits in a clip(); text overlaps unless the two strings are equal; a
+// widget pair is piled unless the overlap is <=3px; a finding counts unless it lasted fewer
+// than minFrames; and text behind a LATER fill is discounted entirely. Get an exemption wrong
+// in one direction and the tool floods (so someone stops running it); wrong in the other and
+// it reports a clean UI while a control sits off the edge of a phone screen.
+//
+// The waiver subsystem has NO other coverage: `grep -l ui-audit-ignore tools/carts/*.c` returns
+// nothing, so identity matching, side handling, stale and malformed detection have never fired.
+if (SELFCHECK) {
+  const FXD = path.join(__dirname, 'fixtures', 'ui-audit')
+  const load = (f) => fs.readFileSync(path.join(FXD, f), 'utf8').split('\n').filter(Boolean)
+    .map(l => { try { return JSON.parse(l) } catch { return null } })
+    .filter(r => r && r.sw)          // drops the fixture's _readme line, like run() drops junk
+  const findings = load('findings.jsonl'), cleanRecs = load('clean.jsonl')
+  const waiverSrc = fs.readFileSync(path.join(FXD, 'waivers.c.txt'), 'utf8')
+
+  const bare    = analyze(findings, {})                                        // no waivers
+  const waived  = analyze(findings, { waivers: parseWaivers(waiverSrc) })      // waivers applied
+  const min1    = analyze(findings, { minFramesReq: 1 })                       // show transients
+  const clean   = analyze(cleanRecs, {})
+
+  const offTexts  = (a) => a.offList.map(o => o.text)
+  const hasOff    = (a, t) => offTexts(a).includes(t)
+  const sidesOf   = (a, t) => (a.offList.find(o => o.text === t) || {}).sides || []
+  const hasPair   = (a, x, y) => a.colList.some(c => [c.a, c.b].sort().join() === [x, y].sort().join())
+
+  const T = []
+  const t = (n, ok) => T.push({ n, ok })
+
+  // ── (1) text off the screen edge, and the two things that are NOT
+  t('off: text past the right edge is reported', hasOff(bare, 'OFFRIGHT'))
+  t('off: text past the left edge is reported', hasOff(bare, 'OFFLEFT'))
+  t('off: the SIDE is named correctly', sidesOf(bare, 'OFFRIGHT').join() === 'right'
+                                     && sidesOf(bare, 'OFFLEFT').join() === 'left')
+  t('off: text inside a clip() scissor is exempt  [bounded on purpose]', !hasOff(bare, 'CLIPPED'))
+  t('off: text a LATER fill fully covers is exempt  [text-behind-a-panel]', !hasOff(bare, 'BEHIND'))
+  t('off: ...but text drawn AFTER its fill survives  [a widget label must still be checked]',
+    hasOff(bare, 'WIDGETLABEL'))
+
+  // ── (2) overlapping text labels
+  t('overlap: an overlapping text pair is reported', hasPair(bare, 'AAA', 'BBB'))
+  t('overlap: two IDENTICAL strings are not a finding  [exempt-class guard]',
+    !bare.colList.some(c => c.a === 'SAME' || c.b === 'SAME'))
+
+  // ── (3)/(4) widgets: piled controls and unreachable ones
+  t('widget: two widgets overlapping >3px on both axes are reported', bare.wList.length === 1)
+  t('widget: ...reported with the overlap extent', bare.wList[0] && bare.wList[0].ox === 20 && bare.wList[0].oy === 10)
+  t('widget: merely ADJACENT widgets (0px) are exempt', !bare.wList.some(w => w.x === 120))
+  t('widget: a 2px overlap is exempt  [the >3px threshold, not >0]', !bare.wList.some(w => w.x === 168))
+  t('widget: a widget past the screen edge is reported  [unreachable control]',
+    bare.woffList.length === 1 && bare.woffList[0].sides.join() === 'right')
+  t('widget: a sub-3px widget is ignored  [sliver guard]', !bare.woffList.some(w => w.w === 2))
+
+  // ── (5) the transient filter
+  t('transient: a 1-frame finding is hidden by default', !hasOff(bare, 'TRANSIENT'))
+  t('transient: ...and counted, not silently dropped  [no-silent-suppression rule]', bare.transientN === 1)
+  t('transient: --min-frames 1 reveals it', hasOff(min1, 'TRANSIENT'))
+  t('transient: ...and then nothing is left hidden', min1.transientN === 0)
+
+  // ── (6) the waiver subsystem — its only coverage anywhere
+  t('waiver: `off "T" <side>` with the MATCHING side suppresses', !hasOff(waived, 'OFFLEFT'))
+  t('waiver: `off "T"` with NO side waives any edge', !hasOff(waived, 'ANYEDGE'))
+  t('waiver: a waiver for the WRONG side does NOT suppress  [would mask a real regression]',
+    hasOff(waived, 'OFFRIGHT'))
+  t('waiver: `overlap "A" "B"` suppresses the pair, in either order', !hasPair(waived, 'AAA', 'BBB'))
+  // ZOOM is drawn BEFORE ALPHA, so the finding's (a,b) is reverse-alphabetical while the waiver
+  // is written sorted. Only sorting BOTH sides matches it — and without this case the AAA/BBB
+  // pair above passes an order-sensitive comparison too, so the bug would hide (it did).
+  t('waiver: ...proven on a pair whose DRAW order is reverse-alphabetical  [sorted identity]',
+    !hasPair(waived, 'ZOOM', 'ALPHA') && hasPair(bare, 'ZOOM', 'ALPHA'))
+  t('waiver: suppressions are COUNTED, not silently dropped', waived.waivedN === 4)
+  t('waiver: a waiver that matched nothing is reported STALE',
+    waived.stale.some(w => w.text === 'NEVERAPPEARS'))
+  t('waiver: ...and a waiver that DID fire is not called stale',
+    !waived.stale.some(w => w.text === 'OFFLEFT'))
+  t('waiver: a malformed waiver is surfaced, not silently ignored', waived.badWaivers.length === 1)
+
+  // ── (7) the cry-wolf guard, and the blind-pass guard behind it
+  t('clean: a tidy layout reports nothing  [cry-wolf guard]',
+    clean.offList.length === 0 && clean.colList.length === 0 &&
+    clean.wList.length === 0 && clean.woffList.length === 0)
+  t('clean: ...and the analyzer really saw the frames + entries  [blind-pass guard]',
+    clean.framesSeen === 4 && clean.SW === 320 && clean.SH === 200)
+  t('clean: ...and the fixture holds the shapes the checks LOOK at  [inert-fixture guard]',
+    (() => {
+      const d = cleanRecs[0].d
+      return d.filter(e => e.k === 't').length >= 4 && d.filter(e => e.k === 'w').length >= 4 &&
+             d.some(e => e.k === 'f') &&
+             d.some(e => e.k === 't' && e.x + e.w === 320)   // flush to the edge, not past it
+    })())
+  t('findings fixture: the analyzer saw all 6 frames  [blind-pass guard]', bare.framesSeen === 6)
+
+  const failed = T.filter(x => !x.ok)
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`)
+  console.log(failed.length
+    ? `\x1b[31mui-audit --selfcheck FAILED\x1b[0m — ${failed.length} of ${T.length} expectations broken`
+    : `ui-audit --selfcheck: ${T.length}/${T.length} known answers correct`)
+  process.exit(failed.length ? 1 : 0)
 }
 
 // ── plan the session, run, collect per-frame records ────────────────────────
@@ -178,80 +392,15 @@ if (wantExplore && resizeSpec) {
   recs = run(inMode, frames, dumpDir, resizeSpec)
 }
 
-// ── analyse ─────────────────────────────────────────────────────────────────
-const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-const contains = (f, t) => f.x <= t.x && f.y <= t.y && f.x + f.w >= t.x + t.w && f.y + f.h >= t.y + t.h
-// the VISIBLE text in a frame: drop any string that a LATER fill fully covers
-// (a modal/backdrop painted on top of a previous screen). Draw order = array
-// order, so a fill at a higher index sits on top. Kills "text-behind-a-panel"
-// false positives. A widget's own label is drawn AFTER its fill, so it survives.
-function visibleText(d) {
-  const fills = [], out = []
-  d.forEach((e, i) => { if (e.k === 'f') fills.push({ ...e, i }) })
-  d.forEach((e, i) => {
-    if (e.k !== 't' || !e.t) return
-    if (fills.some(fl => fl.i > i && contains(fl, e))) return   // occluded
-    out.push(e)
-  })
-  return out
-}
-const offscreen = new Map(), collide = new Map(), byFrame = new Map(), sigByFrame = new Map()
-const wcollide = new Map(), woff = new Map()   // (3) overlapping widgets  (4) off-screen widgets
-let SW = 0, SH = 0, framesSeen = 0
+// ── analyse: run the pure analyzer over the captured frames ──────────────────
+const A = analyze(recs, {
+  minFramesReq: +opt('--min-frames', 3),
+  waivers: parseWaivers(fs.readFileSync(path.join(ROOT, 'tools', 'carts', `${name}.c`), 'utf8')),
+})
+const { SW, SH, framesSeen, minFrames, byFrame, sigByFrame,
+        offList, colList, wList, woffList,
+        transientN, waivedN, stale, badWaivers } = A
 
-for (const rec of recs) {
-  framesSeen++; SW = rec.sw; SH = rec.sh
-  const d = rec.d || [], f = rec.f
-  byFrame.set(f, rec)
-  const texts = visibleText(d)
-  sigByFrame.set(f, new Set(texts.map(e => e.t)))
-
-  for (const e of texts) {                         // (1) text off the screen edge
-    if (e.c) continue                              // inside clip() → bounded on purpose
-    const sides = []
-    if (e.x < 0)        sides.push('left')
-    if (e.y < 0)        sides.push('top')
-    if (e.x + e.w > SW) sides.push('right')
-    if (e.y + e.h > SH) sides.push('bottom')
-    if (!sides.length) continue
-    const key = `${e.t}@${e.x},${e.y}`, hit = offscreen.get(key)
-    if (hit) { hit.last = f; hit.n++ }
-    else offscreen.set(key, { text: e.t, x: e.x, y: e.y, w: e.w, h: e.h, sides, first: f, last: f, n: 1 })
-  }
-  for (let i = 0; i < texts.length; i++)           // (2) overlapping text labels
-    for (let j = i + 1; j < texts.length; j++) {
-      const a = texts[i], b = texts[j]
-      if (a.t === b.t || !overlaps(a, b)) continue
-      const key = [a.t, b.t].sort().join(' ∩ '), hit = collide.get(key)
-      if (hit) { hit.last = f; hit.n++ } else collide.set(key, { a: a.t, b: b.t, first: f, last: f, n: 1 })
-    }
-
-  // interactive widgets (ui.h rects). (3) two that overlap = piled, unhittable
-  // controls; (4) one past the screen edge = an unreachable control. Both are
-  // things a screenshot won't shout about but a finger will hit — or miss.
-  const wdg = (d || []).filter(e => e.k === 'w' && e.w >= 3 && e.h >= 3)
-  for (const e of wdg) {                             // (4) widget off the edge
-    const sides = []
-    if (e.x < 0)        sides.push('left')
-    if (e.y < 0)        sides.push('top')
-    if (e.x + e.w > SW) sides.push('right')
-    if (e.y + e.h > SH) sides.push('bottom')
-    if (!sides.length) continue
-    const key = `${e.x},${e.y},${e.w}x${e.h}`, hit = woff.get(key)
-    if (hit) { hit.last = f; hit.n++ }
-    else woff.set(key, { x: e.x, y: e.y, w: e.w, h: e.h, sides, first: f, last: f, n: 1 })
-  }
-  for (let i = 0; i < wdg.length; i++)               // (3) widget ∩ widget
-    for (let j = i + 1; j < wdg.length; j++) {
-      const a = wdg[i], b = wdg[j]
-      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
-      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
-      if (ox <= 3 || oy <= 3) continue               // mere adjacency/touching is fine
-      const key = `${Math.max(a.x, b.x)},${Math.max(a.y, b.y)}`, hit = wcollide.get(key)
-      if (hit) { hit.last = f; hit.n++ }
-      else wcollide.set(key, { x: Math.max(a.x, b.x), y: Math.max(a.y, b.y), ox, oy, first: f, last: f, n: 1 })
-    }
-}
 
 // ── explore: which inputs made new UI appear? ───────────────────────────────
 const discovered = []
@@ -315,28 +464,6 @@ if (wantOverlay) {
   overlayInfo = buildOverlay()
   try { for (const fn of fs.readdirSync(dumpDir)) fs.unlinkSync(path.join(dumpDir, fn)); fs.rmdirSync(dumpDir) } catch {}
 }
-
-// ── transient filter: a real layout bug sits still; something on screen for
-// only a frame or two is mid-animation (a card dealing in, a number sliding).
-// Require a finding to persist >= minFrames. Off-screen findings are keyed by
-// position, so a moving element makes many 1-frame entries that all fall here;
-// a static clip keeps one entry with a high count. --min-frames 1 shows everything.
-const minFrames = Math.max(1, Math.min(+opt('--min-frames', 3), framesSeen))
-const persists = (f) => f.n >= minFrames
-
-// ── waivers: partition findings into live vs suppressed ─────────────────────
-const waivers = parseWaivers()
-const badWaivers = waivers.filter(w => w.kind === 'bad')
-const isWaived = (f, pred) => { const w = waivers.find(w => pred(f, w)); if (w) { w.used = true; return true } return false }
-const allOff = [...offscreen.values()], allCol = [...collide.values()]
-const offSteady = allOff.filter(persists), colSteady = allCol.filter(persists)
-const transientN = (allOff.length - offSteady.length) + (allCol.length - colSteady.length)
-const offList = offSteady.filter(f => !isWaived(f, waiveOff))
-const colList = colSteady.filter(f => !isWaived(f, waiveOver))
-const wList    = [...wcollide.values()].filter(persists)   // overlapping widgets
-const woffList = [...woff.values()].filter(persists)       // off-screen widgets
-const waivedN = (offSteady.length - offList.length) + (colSteady.length - colList.length)
-const stale   = waivers.filter(w => w.kind !== 'bad' && !w.used)
 
 // ── report ──────────────────────────────────────────────────────────────────
 if (asJson) {

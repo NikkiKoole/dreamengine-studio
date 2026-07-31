@@ -1,0 +1,34 @@
+// FIXTURE — a stand-in cart source carrying every `// ui-audit-ignore` form. Never compiled.
+// See README.md. `.c.txt`, not `.c`: a fixture cart is never compiled, and a real .c would be
+// read as a cart by anything globbing tools/carts for sources.
+//
+// NO REAL CART USES THIS SUBSYSTEM. As of writing, `grep -l ui-audit-ignore tools/carts/*.c`
+// returns nothing — so waiver parsing, identity matching, side handling, stale detection and
+// malformed detection have never once fired in production. This fixture is their only coverage.
+
+void draw(void) {
+  // a matching side: the finding really is past the left edge, so this suppresses it
+  // ui-audit-ignore off "OFFLEFT" left    — deliberate bleed, the glyph is decorative
+
+  // NO side given: waives whichever edge the string runs past
+  // ui-audit-ignore off "ANYEDGE"         — any edge is fine for this one
+
+  // WRONG side: the finding is past the RIGHT edge, so this must NOT suppress it. A waiver
+  // that fires on the wrong side would silently cover a real regression on another edge.
+  // ui-audit-ignore off "OFFRIGHT" bottom — should not apply
+
+  // a text-overlap pair, matched by identity in either order
+  // ui-audit-ignore overlap "BBB" "AAA"   — known stacked readout
+
+  // The pair BELOW is drawn ZOOM-then-ALPHA, i.e. REVERSE alphabetical. That matters: the
+  // AAA/BBB pair above happens to be drawn in sorted order, so an order-SENSITIVE comparison
+  // would still match it and the bug would hide. This pair is the one that actually proves
+  // both sides get sorted before comparison.
+  // ui-audit-ignore overlap "ALPHA" "ZOOM"  — deliberate overlay, sorted-identity match
+
+  // matches nothing in the run: must be reported STALE so it gets cleaned up
+  // ui-audit-ignore off "NEVERAPPEARS"    — left behind by a rewrite
+
+  // malformed (no quoted string): must be reported as a bad waiver, not silently ignored
+  // ui-audit-ignore off
+}

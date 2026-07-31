@@ -280,7 +280,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              webrtc-spike/   PASSED probe (multiplayer rung 5b): browser WebRTC P2P DataChannel, Mac↔iPhone at
                              ~12ms over wifi (index.html — open on both peers). The relay-free twin of net-relay;
                              design/multiplayer-research.md
-             ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels)
+             ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels).
+                             `--selfcheck` = known-answer fixture (31 assertions, runs NO cart: the
+                             analyzer is pure, so it judges synthetic draw records) covering every
+                             finding kind AND every exempt class (clip / occlusion / identical strings /
+                             the ≤3px widget threshold / slivers / transients) + the whole
+                             `// ui-audit-ignore` waiver subsystem, which no cart exercises. In repo-doctor
              mirror-diff.js  golden-pixel-diff harness: assert a render's symmetry invariant headless
              canvas-diff.js  GPU-vs-software-canvas render oracle: A/Bs a cart in both modes + pixel-diffs;
                              guards the sw_force_gpu/DE_CPU_RASTER gotchas; --bytecheck (sha) / --raw / --max / --heatmap

@@ -77,6 +77,7 @@ const CHECKS = [
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },
+  { name: "selftest: ui audit", tool: "ui-audit.js",       args: ["--selfcheck"], gate: true },
   // GATED from birth (2026-07-30): mechanical (an FX_* kind either has a glyph or it doesn't),
   // and it was written already AT zero after fixing the two kinds that had shipped without one —
   // so there is no backlog to work down first, unlike the ledger row above.

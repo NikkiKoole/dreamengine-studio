@@ -1809,9 +1809,18 @@ BIT-IDENTICAL** native-vs-wasm including BOWED · `lint-aux-params` 0 · 573/573
 higher ratios** (15.9x vs 11.6x), so they are the engine's own attack bite and pizz transients and the box
 in fact softens them. Running that control was the point: the count alone would have read as a regression.
 
+**✅ THE SIZE AXIS IS EAR-CONFIRMED (2026-07-31).** Owner, on `bowed` preset 3: *"this sounds more like a
+real cello now."* Which is the verdict the whole exercise was for. The measured numbers said the box moved
+and moved the right way; this says the box moved to the right *place*. Worth noting what that means for the
+audit: §F4's gap was recorded as "BOWED has no body", and the honest closing statement is larger, because a
+fixed violin body applied to a cello was only ever half a fix. An instrument's body has a SIZE, and the
+engine had no way to say so until a slot could own one box.
+
 **Still open, and it is now an ear call rather than a blocker.** Defaulting the body ON no longer waits on
 sizing, since a cart can say what size instrument it is. What it still waits on is the owner's ear across
-the 14 `BOWED` carts, several of them bass-focused. Also noted: `bowed`'s arco and pizz are two SLOTS, so
+the 14 `BOWED` carts, several of them bass-focused. Not yet judged: whether the new inter-note COUPLING
+through the shared box is too strong on a double-stop (two notes on one slot now colour each other, which
+is new behaviour, not just a resize). Also noted: `bowed`'s arco and pizz are two SLOTS, so
 they get two boxes; they are given the same size, which is as close as the slot model gets to being one
 instrument plucked or bowed.
 

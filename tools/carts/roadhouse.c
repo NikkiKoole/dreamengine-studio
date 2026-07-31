@@ -16,6 +16,10 @@
   ],
   "lineage": "Extends the radio.h station family (first station to use wave_set + improv.h) — novel in that its improviser builds phrase-arc solos with tension/release rather than repeating a fixed cell.",
   "homage": "The Doors (modal psych-rock)",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub.",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "Endless modal psych-rock - the Doors homage, station #13, built to carry THE IMPROVISER (melody brain #2): the first station whose band can take a SOLO. The jam form is head, organ solo, guitar solo, head out - and each 16-bar solo is improvised phrase by phrase: a 3-4 note motif invented at solo start gets stated, answered (inverted), sequenced up the mode, and doubled at the peak of a tension arc (density rises, register climbs, release comes home long), with breath rests between phrases. The improviser is PURE PERFORMANCE - engine rnd, never the seed - so R replays the song but the solos are new every time. A seeded 'how blue' knob biases b3/b7/b5 intrusions over the major-side vamp (the deliberate clash). The band: Vox-style combo organ - the FIRST station to use wave_set (a drawn drawbar cycle on INSTR_USER0); Rhodes PIANO BASS = the FM epiano detent an octave down playing a seeded swung ostinato; Krieger guitar = INSTR_PLUCK with an open-string drone ringing under the solo line; trio kit rolled shuffle / latin / rock. Mixolydian, dorian, or phrygian two-chord vamps (B-A forever). SPACE next jam, R same song new solos, [ ] history, LEFT/RIGHT feel (seance/lounge/jam/storm), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help."
 }
 de:meta */
@@ -345,8 +349,8 @@ static void apply_chair(int idx) {
             // VOX night — the shipped drawbar cycle (8' + 4' + 2 2/3' + 2')
             for (int i = 0; i < 64; i++) {
                 float ph = i / 64.0f;
-                t[i] = 0.55f * sinf(ph *  6.2832f) + 0.28f * sinf(ph * 12.566f)
-                     + 0.18f * sinf(ph * 18.850f) + 0.12f * sinf(ph * 25.133f);
+                t[i] = 0.55f * de_sinf(ph *  6.2832f) + 0.28f * de_sinf(ph * 12.566f)
+                     + 0.18f * de_sinf(ph * 18.850f) + 0.12f * de_sinf(ph * 25.133f);
             }
             wave_set(0, t, 64);
             instrument(I_ORG, INSTR_USER0, 18, 90, 6, 120);      // the combo organ
@@ -359,9 +363,9 @@ static void apply_chair(int idx) {
             // GIBSON G-101 night — reedier, brighter footage: more 2nd/4th, a 6th
             for (int i = 0; i < 64; i++) {
                 float ph = i / 64.0f;
-                t[i] = 0.48f * sinf(ph *  6.2832f) + 0.34f * sinf(ph * 12.566f)
-                     + 0.10f * sinf(ph * 18.850f) + 0.22f * sinf(ph * 25.133f)
-                     + 0.10f * sinf(ph * 37.699f);
+                t[i] = 0.48f * de_sinf(ph *  6.2832f) + 0.34f * de_sinf(ph * 12.566f)
+                     + 0.10f * de_sinf(ph * 18.850f) + 0.22f * de_sinf(ph * 25.133f)
+                     + 0.10f * de_sinf(ph * 37.699f);
             }
             wave_set(0, t, 64);
             instrument(I_ORG, INSTR_USER0, 18, 90, 6, 120);

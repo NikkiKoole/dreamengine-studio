@@ -17,6 +17,10 @@
   ],
   "lineage": "Extends the dreamengine radio station pattern with its first INSTR_BOWED violin section and a fully modeled sesquialtera (6/8 vs 3/4 hemiola) groove engine; the functional harmony and call-and-response copla/respuesta form go further than any prior station.",
   "homage": "Mariachi / son jalisciense",
+  "todo": [
+    "NO WAY TO JAM: the player can only tune the dial, never play along. Add a solo.h scale-locked solo strip (J toggles it) - the strip locks to the station's current key/scale so anything you touch is in tune. Worked examples: air, polopan, jangle, jingle, citypop, dub.",
+    "PLAYS DRY: no reverb, tape or chorus anywhere - the station is a stack of modelled instruments, not a band in a room on a medium. All three ship (plus wah/leslie/gate/glue/multiband/spring). Per-slot sends (instrument_reverb/instrument_chorus) keep the kick and bass dry while the pads bloom; see guides/effects-recipes.md."
+  ],
   "description": "Endless mariachi, live from the plaza - a charro ensemble on a Saturday night, and the FIRST RADIO STATION TO REACH INSTR_BOWED: the violin section is the real bowed-string waveguide (every fiddle on the dial before this was faked on saw, like tango's), two desks panned wide for the ensemble spread, with a portamento scoop INTO the note and vibrato. It's also the second station to reach real INSTR_BRASS - two trumpets voiced a third apart, bright and blatty, that ANSWER the violins call-and-response. The rhythm section (armonia) is three registers of one INSTR_GUITAR engine: a bright short-ringing VIHUELA chattering the manico, a mid GUITARRA, and the woody GUITARRON bass on its root-fifth boom. The brains, all cart-side over radio.h's clock: THE SESQUIALTERA - a 12-sixteenth bar read two ways at once, 6/8 (accents on 0,6) against 3/4 (accents on 0,4,8), with the guitarron anchoring one meter while the vihuela accents the other on hemiola bars - two against three, the son jalisciense's signature cross-rhythm; the GROOVE rolls son (the lilting sesquialtera), vals (a clean 3/4 waltz, no cross-rhythm) or huapango (fast, hard hemiola). FUNCTIONAL HARMONY - a major-or-minor key with a I-IV-V walk, a secondary dominant (V/V) and a FORCED V-to-I cadence, one 8-bar progression locked so every copla sings the same changes. THE COPLA + THE RESPUESTA - the violins state a diatonic melodic cell in parallel thirds (the verse), the trumpets answer it a section later (the figure echoed/inverted, also in thirds); they TRADE, never both on the melody at once. THE ADORNO - in the showy section a soloist (violin or trumpet, rolled) rips a scalar flourish, pure performance rnd so it is new every replay. FORM rolls corto / son / fiesta: an entrada fanfare, coplas, trumpet trades, the adorno, and a remate tag that actually ends the tune. Seeded per song: key, major/minor, the progression, groove, form, tempo, the cell and the trumpet figure. The window is the plaza at night - papel picado banners, a charro in the great sombrero, a trumpet bell flashing when the horns play. SPACE next song, R same tune (a new adorno), [ ] history, LEFT/RIGHT feel (suave/tibio/alegre/fiesta), UP/DOWN tempo, T tone, B band (violines seccion/solo/sinte - sinte swaps the bowed strings for smooth saw synth-strings; trompetas dos/una/off; armonia vihuela/nylon), M power, H help."
 }
 de:meta */
@@ -655,7 +659,7 @@ void draw(void) {
     static const int PAPEL[5] = { CLR_GREEN, CLR_WHITE, CLR_RED, CLR_YELLOW, CLR_PINK };
     for (int t = 0; t < 8; t++) {
         int bx = 36 + t * 13;
-        int sway = (int)(sinf(timer() * 1.2f + t * 0.6f) * 2);
+        int sway = (int)(de_sinf(timer() * 1.2f + t * 0.6f) * 2);
         int col = PAPEL[t % 5];
         for (int r = 0; r < 7; r++)
             line(bx + r, 60 + r + sway, bx + 12 - r, 60 + r + sway, col);

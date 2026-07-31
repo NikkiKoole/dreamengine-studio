@@ -91,6 +91,36 @@ commit real reference material (`docs/design/reference/`) and run it through
 `tools/pixelsnap.js --palette pico32` so a critic judges like-for-like instead of penalising a
 720×450 32-colour canvas for not being 1080p.
 
+## What to try next
+
+Two of the Gauntlet Loop's five steps went unexecuted. In the order they would pay off:
+
+1. **The concrete benchmark** (step 3 — the one this run could not do at all). Commit real reference
+   screenshots to `docs/design/reference/prison-architect/` and run them through
+   `tools/pixelsnap.js --palette pico32` so a critic compares like-for-like rather than being asked
+   to penalise a 720×450 32-colour canvas for not being 1080p. Cheap, and it is the only thing
+   standing between this cart and the blind side-by-side the brief asked for.
+2. **Keep looping** (step 5). We stopped at one critic round for cost reasons. Stopping at N rounds
+   is exactly what the method warns against — you stop when the critic stops finding faults, and
+   with three blocking faults still open, one round demonstrably was not enough.
+
+**The cheap experiment that would settle it:** with the screenshots in place, loop builder-and-critic
+on **one fault only — the night lighting** — until the critic passes it. Night is both the worst
+fault and the most self-contained, so it is the least expensive honest test of whether the loop
+*converges* on this codebase or merely churns. If it converges on night, widen it. If it does not,
+the loop is the wrong tool here, and that is worth learning for the price of a single fault rather
+than a full sweep.
+
+### One anecdote worth keeping, because it is the evidence for step 2 of the method
+
+"Never let the builder grade itself" is not abstract advice; the failure it prevents happened here,
+in one round. The visual-fix agent reported — in good faith and in detail — that it had fixed the
+noisy ground, explaining the three scales it had restructured to do so. Both critics then *measured*
+the result (≈19–25% fleck coverage at a +54 luminance step) and returned the same verdict
+independently: **"changed, not fixed."** The owner's own eye agreed. Had the builder been trusted to
+grade its own work, the run would have shipped believing its worst-known fault was closed. That is
+the whole argument for builder/critic separation, in a single round, on a real codebase.
+
 ## Appendix — the original brief, verbatim
 
 Kept as the honest record of what was actually asked for, typos and all. Reading it against the

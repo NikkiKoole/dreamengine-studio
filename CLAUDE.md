@@ -529,7 +529,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              pathspec. Dry-run by default; `-m "…" --commit` to fire. Bakes the two
                              commit hazards (missed file / foreign-registry sweep) in as guards
              cart-todos.js   the navigable view over every cart's de:meta.todo[] polish punch-list (--grep/--count/<name>)
-             cart-analyze.js complexity + global-state report; ranks spec-worthiness
+             cart-analyze.js complexity + global-state report; ranks spec-worthiness. The verdict is a
+                             FALL-THROUGH chain whose ORDER is the judgement (`simple` is tested first, so a
+                             tiny widget cart is simple, not reactive). `--selfcheck` = known-answer fixture,
+                             23 assertions incl. the score formula recomputed from the metrics
              cart-index.js   computed technique index ("what cart teaches X") + coverage
              cart-dupes.js   cross-cart duplication finder → refactor / drift candidates. Its power is
                              NORMALIZATION: cart-local identifiers collapse to V while the engine vocab

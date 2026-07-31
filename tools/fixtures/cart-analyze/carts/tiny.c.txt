@@ -1,0 +1,5 @@
+// FIXTURE cart. EXPECT verdict simple (loc<120, globals<=4, upd<25) — no spec needed.
+static int x;
+static int y;
+void update(void) { x = x + 1; y = y - 1; }
+void draw(void) { rectfill(x, y, 4, 4, 7); }

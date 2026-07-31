@@ -1,0 +1,48 @@
+// FIXTURE cart. EXPECT verdict stateful via the SECOND branch: no de_state(), but
+// globals>=6 AND arrays>=1 AND upd>=20 AND upd >= drw*0.6 — real mutable state stepped
+// over frames, which wants a step()+expect spec.
+static int a;
+static int b;
+static int c;
+static int d;
+static int e;
+static int f;
+static int grid[16];
+
+void update(void) {
+  grid[0] = grid[0] + 0;
+  grid[1] = grid[1] + 1;
+  grid[2] = grid[2] + 2;
+  grid[3] = grid[3] + 3;
+  grid[4] = grid[4] + 4;
+  grid[5] = grid[5] + 5;
+  grid[6] = grid[6] + 6;
+  grid[7] = grid[7] + 7;
+  grid[8] = grid[8] + 8;
+  grid[9] = grid[9] + 9;
+  grid[10] = grid[10] + 10;
+  grid[11] = grid[11] + 11;
+  grid[12] = grid[12] + 12;
+  grid[13] = grid[13] + 13;
+  grid[14] = grid[14] + 14;
+  grid[15] = grid[15] + 15;
+  grid[0] = grid[0] + 16;
+  grid[1] = grid[1] + 17;
+  grid[2] = grid[2] + 18;
+  grid[3] = grid[3] + 19;
+  grid[4] = grid[4] + 20;
+  grid[5] = grid[5] + 21;
+  grid[6] = grid[6] + 22;
+  grid[7] = grid[7] + 23;
+}
+
+void draw(void) {
+  rectfill(0, 0, 2, 2, 7);
+  rectfill(1, 0, 2, 2, 7);
+  rectfill(2, 0, 2, 2, 7);
+  rectfill(3, 0, 2, 2, 7);
+  rectfill(4, 0, 2, 2, 7);
+  rectfill(5, 0, 2, 2, 7);
+  rectfill(6, 0, 2, 2, 7);
+  rectfill(7, 0, 2, 2, 7);
+}

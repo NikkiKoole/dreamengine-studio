@@ -1,0 +1,6 @@
+// FIXTURE cart. Small AND uses ui.h widgets. EXPECT verdict simple, NOT reactive: the verdict
+// chain tests `simple` first, so a tiny widget cart needs no spec even though it is "reactive".
+// Reorder the chain and this flips — which is the whole point of having this cart.
+static int on;
+void update(void) { if (ui_button(4, 4, 20, 20, "go")) on = !on; }
+void draw(void) { rectfill(0, 0, 8, 8, on ? 7 : 1); }

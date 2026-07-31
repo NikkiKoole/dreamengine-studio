@@ -1,0 +1,15 @@
+// FIXTURE cart. Every declaration below is COMMENTED OUT. EXPECT globals=0, funcs=0, arrays=0,
+// usesState=false, reactive=false — decomment() must run before the counters, or a cart's
+// commented-out scratch code inflates its complexity and it climbs the spec-candidate ranking.
+//
+// static int ghost_a;
+// static int ghost_grid[64];
+/* static int block_ghost;
+   void ghost_fn(int x) {
+     if (ui_button(0, 0, 8, 8, "x")) note_on(0, 60, 1.0f);
+   }
+   S->tick = 1;
+*/
+static int real_one;
+void update(void) { real_one = real_one + 1; }
+void draw(void) { rectfill(0, 0, 2, 2, 7); }

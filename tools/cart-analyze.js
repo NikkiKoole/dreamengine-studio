@@ -17,11 +17,16 @@
 //   simple     small / draw-only                                   → no spec
 //
 // Heuristic, not a compiler. Flags candidates; you judge. CommonJS, plain node.
+//   node tools/cart-analyze.js --selfcheck   assert the CHECKER (known-answer fixture, 23)
 const fs = require('fs');
 const path = require('path');
 
-const dir = path.join(__dirname, 'carts');
-const files = fs.readdirSync(dir).filter(f => f.endsWith('.c')).sort();
+// Overridable so --selfcheck can analyze a tiny FIXTURE shelf (tools/fixtures/cart-analyze/).
+// CART_EXT lets fixture carts be `.c.txt`: never compiled, and a real `.c` gets indexed by clangd
+// and read as a cart by anything globbing for sources.
+const dir = process.env.DE_ANALYZE_CARTS_DIR || path.join(__dirname, 'carts');
+const CART_EXT = process.env.DE_ANALYZE_CART_EXT || '.c';
+const files = fs.readdirSync(dir).filter(f => f.endsWith(CART_EXT)).sort();
 
 // strip /* */ and // comments and "string" / 'c' literals so counts aren't fooled
 function decomment(src) {
@@ -103,7 +108,109 @@ function analyze(file) {
   if (verdict === 'reactive') score *= 0.5;
   if (probe) score += 2;
 
-  return { file: file.replace('.c', ''), loc, funcs, globals, arrays, usesState, probe, upd, drw, reactive, verdict, score: +score.toFixed(1) };
+  return { file: file.slice(0, -CART_EXT.length), loc, funcs, globals, arrays, usesState, probe, upd, drw, reactive, verdict, score: +score.toFixed(1) };
+}
+
+// ---- --selfcheck: assert the CHECKER against known answers ------------------------
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Re-runs the tool as a child with
+// DE_ANALYZE_* pointed at tools/fixtures/cart-analyze/, one fixture cart per verdict and per
+// counting rule, and asserts what it must say.
+//
+// WHY. The verdict is a FALL-THROUGH CHAIN and its ORDER is the judgement: `simple` is tested
+// first, so a tiny widget cart is `simple` and not `reactive` — reorder it and the answer flips
+// for a whole class of carts. Underneath, every metric is a line regex over decommented source,
+// and two of those rules exist purely to stop the score inflating: commented-out scratch code
+// must not count, and `static const` tables are DATA, not the cart's mutable state. Both are
+// silent when wrong: nothing breaks, carts just rank in the wrong order and the spec backlog
+// points somewhere useless.
+if (process.argv.includes('--selfcheck')) {
+  const cp = require('child_process');
+  const FX = path.join(__dirname, 'fixtures', 'cart-analyze');
+  let raw;
+  try {
+    raw = cp.execFileSync(process.execPath, [__filename, '--json'], {
+      env: { ...process.env,
+             DE_ANALYZE_CARTS_DIR: path.join(FX, 'carts'),
+             DE_ANALYZE_CART_EXT:  '.c.txt' },
+      encoding: 'utf8', maxBuffer: 1 << 24,
+    });
+  } catch (e) { raw = e.stdout; }
+  const rows = JSON.parse(raw);
+  const R = {};
+  for (const r of rows) R[r.file] = r;
+
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+  const v = (c) => (R[c] || {}).verdict;
+
+  t('parsed the fixture shelf  [blind-pass guard]', rows.length === 11 && !!R.tiny);
+
+  // ── the five verdicts, each on a cart built to land in exactly one branch
+  t('verdict: small + few globals + light update → simple  [no spec needed]', v('tiny') === 'simple');
+  // statey carries 5 globals and no arrays SO THAT the second stateful branch cannot also claim
+  // it — otherwise deleting this branch changes nothing and the assertion is vacuous.
+  t('verdict: de_state() → stateful  [step()+expect spec]',
+    v('statey') === 'stateful' && R.statey.globals === 5 && R.statey.arrays === 0);
+  t('verdict: globals+arrays+update-heavy → stateful, without de_state  [the 2nd branch]',
+    v('bigstate') === 'stateful' && R.bigstate.usesState === false);
+  t('verdict: draw-dominant → procedural  [golden / frame()+probe spec]', v('proc') === 'procedural');
+  t('verdict: widget/audio machinery → reactive  [light spec or none]', v('react') === 'reactive');
+  t('verdict: everything else → mixed  [the fall-through]', v('mixed') === 'mixed');
+  t('verdict: draw-leaning but under the drw>=60 floor stays mixed  [threshold guard]',
+    v('drawish') === 'mixed' && R.drawish.drw > R.drawish.upd * 1.8 && R.drawish.drw < 60);
+
+  // ── CHAIN ORDER. This is the judgement, not a detail: the same cart gets a different answer
+  //    depending on which branch is asked first.
+  t('chain: a TINY cart that is also reactive reads simple, not reactive  [order matters]',
+    v('tinyreactive') === 'simple' && R.tinyreactive.reactive === true);
+
+  // ── decomment(): commented-out code must not inflate any metric
+  t('decomment: commented-out statics are not globals',
+    R.commented.globals === 1 && R.commented.arrays === 0);
+  t('decomment: a commented-out function is not counted', R.commented.funcs === 0);
+  t('decomment: ui_button/note_on inside a comment do not make a cart reactive',
+    R.commented.reactive === false);
+  t('decomment: an S-> inside a comment does not make a cart stateful',
+    R.commented.usesState === false && v('commented') === 'simple');
+
+  // ── static const is DATA, not state
+  t('globals: `static const` tables are excluded  [5 tables + a scalar, still 2 globals]',
+    R.conster.globals === 2);
+  t('globals: ...and `static inline` helpers too', R.conster.globals === 2 && R.conster.funcs === 1);
+  t('globals: but a mutable `static` ARRAY is counted, in both globals and arrays',
+    R.conster.arrays === 1);
+
+  // ── update() vs draw() are measured apart — the whole basis of stateful-vs-procedural
+  t('bodies: update() and draw() line counts are independent',
+    R.proc.drw === 64 && R.proc.upd === 1 && R.react.upd === 26 && R.react.drw === 6);
+
+  // ── the SCORE formula, recomputed from the reported metrics. This pins the weights AND both
+  //    dampeners at once; a changed constant fails here even if every verdict still agrees.
+  const expect = (r) => {
+    let s = r.loc * 0.01 + r.funcs * 0.4 + r.globals * 0.8 + r.arrays * 1.5 + r.upd * 0.05 +
+            (r.usesState ? 4 : 0);
+    if (r.verdict === 'simple')   s *= 0.2;
+    if (r.verdict === 'reactive') s *= 0.5;
+    if (r.probe) s += 2;
+    return +s.toFixed(1);
+  };
+  t('score: every row matches the documented formula', rows.every(r => r.score === expect(r)));
+  t('score: `simple` is dampened x0.2  [not a spec candidate]',
+    Math.abs(R.tiny.score - +(1.69 * 0.2).toFixed(1)) < 0.06);
+  t('score: `reactive` is dampened x0.5', Math.abs(R.react.score - +(6.51 * 0.5).toFixed(1)) < 0.06);
+  t('score: a probe fn adds exactly +2  [same cart shape, one extra fn]',
+    R.probey.probe === true && Math.abs((R.probey.score - R.mixed.score) - 2.01) < 0.02);
+  t('score: results are ranked by score, descending',
+    rows.every((r, i) => i === 0 || rows[i - 1].score >= r.score));
+  t('score: the de_state() +4 bonus puts that cart on top; the bottom rows are simple',
+    rows[0].file === 'statey' && rows[rows.length - 1].verdict === 'simple');
+
+  const failed = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`);
+  console.log(failed.length
+    ? `\x1b[31mcart-analyze --selfcheck FAILED\x1b[0m — ${failed.length} of ${T.length} expectations broken`
+    : `cart-analyze --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(failed.length ? 1 : 0);
 }
 
 const rows = files.map(analyze).sort((a, b) => b.score - a.score);

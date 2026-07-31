@@ -1,0 +1,47 @@
+// FIXTURE cart. EXPECT globals=2, NOT 8: `static const` lookup tables are DATA, not the
+// cart's mutable global state, and counting them inflates the spec-worthiness score of
+// every cart with a palette or a wavetable. `static inline` helpers are excluded too.
+static const int TABLE0[4] = { 0, 1, 2, 3 };
+static const int TABLE1[4] = { 0, 1, 2, 3 };
+static const int TABLE2[4] = { 0, 1, 2, 3 };
+static const int TABLE3[4] = { 0, 1, 2, 3 };
+static const int TABLE4[4] = { 0, 1, 2, 3 };
+static const float RATIO = 1.5f;
+static inline int clampi(int v) { return v < 0 ? 0 : v; }
+static int mutable_a;
+static int mutable_b[4];
+
+void update(void) {
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+  mutable_a = clampi(mutable_a + TABLE0[2]);
+  mutable_a = clampi(mutable_a + TABLE0[3]);
+  mutable_a = clampi(mutable_a + TABLE0[0]);
+  mutable_a = clampi(mutable_a + TABLE0[1]);
+}
+
+void draw(void) { rectfill(0, 0, 4, 4, 7); }

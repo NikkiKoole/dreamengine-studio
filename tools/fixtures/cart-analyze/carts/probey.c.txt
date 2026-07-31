@@ -1,0 +1,76 @@
+// FIXTURE cart. EXPECT probe=true (+2 score): a point-query fn makes a frame()+expect spec
+// cheap to write, so the ranking rewards it. Same shape as `mixed` otherwise, so the two
+// are directly comparable and the +2 is visible as a score DIFFERENCE.
+static int a;
+static int b;
+static int c;
+static int d;
+static int e;
+
+int height_probe(int x) { return a + x; }
+
+void update(void) {
+  a = a + 0;
+  a = a + 1;
+  a = a + 2;
+  a = a + 3;
+  a = a + 4;
+  a = a + 5;
+  a = a + 6;
+  a = a + 7;
+  a = a + 8;
+  a = a + 9;
+  a = a + 10;
+  a = a + 11;
+  a = a + 12;
+  a = a + 13;
+  a = a + 14;
+  a = a + 15;
+  a = a + 16;
+  a = a + 17;
+  a = a + 18;
+  a = a + 19;
+  a = a + 20;
+  a = a + 21;
+  a = a + 22;
+  a = a + 23;
+  a = a + 24;
+  a = a + 25;
+  a = a + 26;
+  a = a + 27;
+  a = a + 28;
+  a = a + 29;
+}
+
+void draw(void) {
+  rectfill(0, 0, 2, 2, 7);
+  rectfill(1, 0, 2, 2, 7);
+  rectfill(2, 0, 2, 2, 7);
+  rectfill(3, 0, 2, 2, 7);
+  rectfill(4, 0, 2, 2, 7);
+  rectfill(5, 0, 2, 2, 7);
+  rectfill(6, 0, 2, 2, 7);
+  rectfill(7, 0, 2, 2, 7);
+  rectfill(8, 0, 2, 2, 7);
+  rectfill(9, 0, 2, 2, 7);
+  rectfill(10, 0, 2, 2, 7);
+  rectfill(11, 0, 2, 2, 7);
+  rectfill(12, 0, 2, 2, 7);
+  rectfill(13, 0, 2, 2, 7);
+  rectfill(14, 0, 2, 2, 7);
+  rectfill(15, 0, 2, 2, 7);
+  rectfill(16, 0, 2, 2, 7);
+  rectfill(17, 0, 2, 2, 7);
+  rectfill(18, 0, 2, 2, 7);
+  rectfill(19, 0, 2, 2, 7);
+  rectfill(20, 0, 2, 2, 7);
+  rectfill(21, 0, 2, 2, 7);
+  rectfill(22, 0, 2, 2, 7);
+  rectfill(23, 0, 2, 2, 7);
+  rectfill(24, 0, 2, 2, 7);
+  rectfill(25, 0, 2, 2, 7);
+  rectfill(26, 0, 2, 2, 7);
+  rectfill(27, 0, 2, 2, 7);
+  rectfill(28, 0, 2, 2, 7);
+  rectfill(29, 0, 2, 2, 7);
+}

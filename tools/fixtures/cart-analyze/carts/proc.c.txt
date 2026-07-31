@@ -1,0 +1,76 @@
+// FIXTURE cart. EXPECT verdict procedural — logic concentrated in draw() (drw>=60 and
+// drw > upd*1.8), seed-driven. Wants a golden / frame()+probe spec, not step()+expect.
+static int a;
+static int b;
+static int c;
+static int d;
+static int e;
+
+void update(void) { a = a + 1; }
+
+void draw(void) {
+  rectfill(0 % 40, 0 / 40, 2, 2, 0 % 8);
+  rectfill(1 % 40, 1 / 40, 2, 2, 1 % 8);
+  rectfill(2 % 40, 2 / 40, 2, 2, 2 % 8);
+  rectfill(3 % 40, 3 / 40, 2, 2, 3 % 8);
+  rectfill(4 % 40, 4 / 40, 2, 2, 4 % 8);
+  rectfill(5 % 40, 5 / 40, 2, 2, 5 % 8);
+  rectfill(6 % 40, 6 / 40, 2, 2, 6 % 8);
+  rectfill(7 % 40, 7 / 40, 2, 2, 7 % 8);
+  rectfill(8 % 40, 8 / 40, 2, 2, 8 % 8);
+  rectfill(9 % 40, 9 / 40, 2, 2, 9 % 8);
+  rectfill(10 % 40, 10 / 40, 2, 2, 10 % 8);
+  rectfill(11 % 40, 11 / 40, 2, 2, 11 % 8);
+  rectfill(12 % 40, 12 / 40, 2, 2, 12 % 8);
+  rectfill(13 % 40, 13 / 40, 2, 2, 13 % 8);
+  rectfill(14 % 40, 14 / 40, 2, 2, 14 % 8);
+  rectfill(15 % 40, 15 / 40, 2, 2, 15 % 8);
+  rectfill(16 % 40, 16 / 40, 2, 2, 16 % 8);
+  rectfill(17 % 40, 17 / 40, 2, 2, 17 % 8);
+  rectfill(18 % 40, 18 / 40, 2, 2, 18 % 8);
+  rectfill(19 % 40, 19 / 40, 2, 2, 19 % 8);
+  rectfill(20 % 40, 20 / 40, 2, 2, 20 % 8);
+  rectfill(21 % 40, 21 / 40, 2, 2, 21 % 8);
+  rectfill(22 % 40, 22 / 40, 2, 2, 22 % 8);
+  rectfill(23 % 40, 23 / 40, 2, 2, 23 % 8);
+  rectfill(24 % 40, 24 / 40, 2, 2, 24 % 8);
+  rectfill(25 % 40, 25 / 40, 2, 2, 25 % 8);
+  rectfill(26 % 40, 26 / 40, 2, 2, 26 % 8);
+  rectfill(27 % 40, 27 / 40, 2, 2, 27 % 8);
+  rectfill(28 % 40, 28 / 40, 2, 2, 28 % 8);
+  rectfill(29 % 40, 29 / 40, 2, 2, 29 % 8);
+  rectfill(30 % 40, 30 / 40, 2, 2, 30 % 8);
+  rectfill(31 % 40, 31 / 40, 2, 2, 31 % 8);
+  rectfill(32 % 40, 32 / 40, 2, 2, 32 % 8);
+  rectfill(33 % 40, 33 / 40, 2, 2, 33 % 8);
+  rectfill(34 % 40, 34 / 40, 2, 2, 34 % 8);
+  rectfill(35 % 40, 35 / 40, 2, 2, 35 % 8);
+  rectfill(36 % 40, 36 / 40, 2, 2, 36 % 8);
+  rectfill(37 % 40, 37 / 40, 2, 2, 37 % 8);
+  rectfill(38 % 40, 38 / 40, 2, 2, 38 % 8);
+  rectfill(39 % 40, 39 / 40, 2, 2, 39 % 8);
+  rectfill(40 % 40, 40 / 40, 2, 2, 40 % 8);
+  rectfill(41 % 40, 41 / 40, 2, 2, 41 % 8);
+  rectfill(42 % 40, 42 / 40, 2, 2, 42 % 8);
+  rectfill(43 % 40, 43 / 40, 2, 2, 43 % 8);
+  rectfill(44 % 40, 44 / 40, 2, 2, 44 % 8);
+  rectfill(45 % 40, 45 / 40, 2, 2, 45 % 8);
+  rectfill(46 % 40, 46 / 40, 2, 2, 46 % 8);
+  rectfill(47 % 40, 47 / 40, 2, 2, 47 % 8);
+  rectfill(48 % 40, 48 / 40, 2, 2, 48 % 8);
+  rectfill(49 % 40, 49 / 40, 2, 2, 49 % 8);
+  rectfill(50 % 40, 50 / 40, 2, 2, 50 % 8);
+  rectfill(51 % 40, 51 / 40, 2, 2, 51 % 8);
+  rectfill(52 % 40, 52 / 40, 2, 2, 52 % 8);
+  rectfill(53 % 40, 53 / 40, 2, 2, 53 % 8);
+  rectfill(54 % 40, 54 / 40, 2, 2, 54 % 8);
+  rectfill(55 % 40, 55 / 40, 2, 2, 55 % 8);
+  rectfill(56 % 40, 56 / 40, 2, 2, 56 % 8);
+  rectfill(57 % 40, 57 / 40, 2, 2, 57 % 8);
+  rectfill(58 % 40, 58 / 40, 2, 2, 58 % 8);
+  rectfill(59 % 40, 59 / 40, 2, 2, 59 % 8);
+  rectfill(60 % 40, 60 / 40, 2, 2, 60 % 8);
+  rectfill(61 % 40, 61 / 40, 2, 2, 61 % 8);
+  rectfill(62 % 40, 62 / 40, 2, 2, 62 % 8);
+  rectfill(63 % 40, 63 / 40, 2, 2, 63 % 8);
+}

@@ -1,0 +1,45 @@
+// FIXTURE cart. EXPECT verdict reactive — an instrument/UI cart whose state is widget and
+// audio config (note_on / ui_slider). Light spec or none. Big enough to escape `simple`.
+static int a;
+static int b;
+static int c;
+static int d;
+static int e;
+
+void update(void) {
+  if (ui_slider(0, 0, 20, 8, &a)) note_on(0, 60 + 0, 0.8f);
+  if (ui_slider(1, 0, 20, 8, &a)) note_on(0, 60 + 1, 0.8f);
+  if (ui_slider(2, 0, 20, 8, &a)) note_on(0, 60 + 2, 0.8f);
+  if (ui_slider(3, 0, 20, 8, &a)) note_on(0, 60 + 3, 0.8f);
+  if (ui_slider(4, 0, 20, 8, &a)) note_on(0, 60 + 4, 0.8f);
+  if (ui_slider(5, 0, 20, 8, &a)) note_on(0, 60 + 5, 0.8f);
+  if (ui_slider(6, 0, 20, 8, &a)) note_on(0, 60 + 6, 0.8f);
+  if (ui_slider(7, 0, 20, 8, &a)) note_on(0, 60 + 7, 0.8f);
+  if (ui_slider(8, 0, 20, 8, &a)) note_on(0, 60 + 8, 0.8f);
+  if (ui_slider(9, 0, 20, 8, &a)) note_on(0, 60 + 9, 0.8f);
+  if (ui_slider(10, 0, 20, 8, &a)) note_on(0, 60 + 10, 0.8f);
+  if (ui_slider(11, 0, 20, 8, &a)) note_on(0, 60 + 11, 0.8f);
+  if (ui_slider(12, 0, 20, 8, &a)) note_on(0, 60 + 12, 0.8f);
+  if (ui_slider(13, 0, 20, 8, &a)) note_on(0, 60 + 13, 0.8f);
+  if (ui_slider(14, 0, 20, 8, &a)) note_on(0, 60 + 14, 0.8f);
+  if (ui_slider(15, 0, 20, 8, &a)) note_on(0, 60 + 15, 0.8f);
+  if (ui_slider(16, 0, 20, 8, &a)) note_on(0, 60 + 16, 0.8f);
+  if (ui_slider(17, 0, 20, 8, &a)) note_on(0, 60 + 17, 0.8f);
+  if (ui_slider(18, 0, 20, 8, &a)) note_on(0, 60 + 18, 0.8f);
+  if (ui_slider(19, 0, 20, 8, &a)) note_on(0, 60 + 19, 0.8f);
+  if (ui_slider(20, 0, 20, 8, &a)) note_on(0, 60 + 20, 0.8f);
+  if (ui_slider(21, 0, 20, 8, &a)) note_on(0, 60 + 21, 0.8f);
+  if (ui_slider(22, 0, 20, 8, &a)) note_on(0, 60 + 22, 0.8f);
+  if (ui_slider(23, 0, 20, 8, &a)) note_on(0, 60 + 23, 0.8f);
+  if (ui_slider(24, 0, 20, 8, &a)) note_on(0, 60 + 24, 0.8f);
+  if (ui_slider(25, 0, 20, 8, &a)) note_on(0, 60 + 25, 0.8f);
+}
+
+void draw(void) {
+  rectfill(0, 0, 2, 2, 7);
+  rectfill(1, 0, 2, 2, 7);
+  rectfill(2, 0, 2, 2, 7);
+  rectfill(3, 0, 2, 2, 7);
+  rectfill(4, 0, 2, 2, 7);
+  rectfill(5, 0, 2, 2, 7);
+}

@@ -1816,11 +1816,69 @@ audit: §F4's gap was recorded as "BOWED has no body", and the honest closing st
 fixed violin body applied to a cello was only ever half a fix. An instrument's body has a SIZE, and the
 engine had no way to say so until a slot could own one box.
 
-**Still open, and it is now an ear call rather than a blocker.** Defaulting the body ON no longer waits on
-sizing, since a cart can say what size instrument it is. What it still waits on is the owner's ear across
-the 14 `BOWED` carts, several of them bass-focused. Not yet judged: whether the new inter-note COUPLING
-through the shared box is too strong on a double-stop (two notes on one slot now colour each other, which
-is new behaviour, not just a resize). Also noted: `bowed`'s arco and pizz are two SLOTS, so
+**✅ THE COUPLING IS EAR-CONFIRMED TOO (2026-07-31).** Owner, on a double-stop: *"it reads well."* So the
+new inter-note behaviour (two notes on one slot colouring each other through one shell) is wanted, and the
+body is cleared to go on across the carts.
+
+##### Turning it ON, and the two things that blocked the obvious route (2026-07-31)
+
+**1. The blanket engine default is a TRAP, and it is the tonewheel-leakage bug exactly.** The obvious way
+to default the body on is to raise `eng_p[1]`'s bank default. But `eng_p[1]` is *also* GUITAR's and PIANO's
+pick-noise amount (`sound.h:4866`, `:5211`), so that one edit would have switched on an attack click for
+every guitar and piano cart, unasked and unrelated to bowing. **The per-engine index SPACE is free; the
+shared DEFAULTS are not** — which is the same lesson §L6 paid for, one layer down: last time the collision
+was a *value* landing at 0.5 and reading as half-on, this time it would be a *default change* leaking
+sideways into two other engines. So the body is enabled **per cart**, which is the right shape regardless,
+because each instrument also needs its own SIZE and no blanket default can pick that.
+
+**2. The range shipped that morning was too small for the carts that most needed it.** `upright`,
+`walkbox` and `walkroll` are **double basses**, and the axis topped out at a cello.
+`disp-model --body --lowest 60` prices a bass at **4.50x**, a **736-sample** line against the 401 a cello
+needs. `BOW_BODY_MAX` went to 768 and the slope to 4.50x, which costs **72 KB** and is affordable *only
+because the bodies are shared*: per-voice at 32 voices it would have been 288 KB of mostly-idle buffer.
+That is the sharing decision paying for itself a second time. Sizes are now named constants
+(`BOW_SIZE_VIOLIN` / `_VIOLA` / `_CELLO` / `_BASS`) because the numbers come from real air resonances and
+are not guessable.
+
+**Widening did not re-voice the ear-approved cello**, and that was verified rather than assumed:
+`BOW_SIZE_CELLO` is `0.7086f` rather than a round number precisely so its three delay lines stay
+**141/249/401**. Checked two ways — the lengths computed directly, and two different sizes that yield the
+same lengths rendering **byte-identical**. The default path is still `3de65baf5bd8` and the violin body
+render is still `a3806369c27a`, both unchanged by the widening.
+
+**The bass body is emphatically active, and the usual numbers are BLIND to it.** Brightness and centroid
+barely move (0.012 either way) because a 60 Hz box does its work below ~350 Hz. `harmonic-spec` at f0 41 Hz
+is the right instrument and shows the reshaping:
+
+| harmonic | body OFF | body ON | Δ |
+|---|---|---|---|
+| h2 82 Hz | 35.6 | 22.9 | −12.7 |
+| h3 123 Hz | 19.4 | 21.3 | +1.9 |
+| h4 164 Hz | 40.8 | 45.3 | **+4.5** |
+| h5 205 Hz | 80.8 | 74.4 | −6.4 |
+| h7 287 Hz | 8.6 | 12.9 | +4.3 |
+| h8 328 Hz | 39.5 | 22.8 | **−16.7** |
+
+The harmonics that RISE (123 / 164 / 287 Hz) sit on the resonances `disp-model` predicted for this box
+(120 / 179–191 / 291 Hz) and the ones that fall sit between them, so the comb landed where the model said.
+Peak drops ~2 dB, which is a real mix-balance change on those three carts. **Generalises: pick the gate
+by where the effect LIVES.** `wav-envelope`'s brightness/centroid would have reported "no change" on a
+change of ±17 dB, the same shape of mistake as §I4c's *level* gate catching what tune-check could not.
+
+**⚠ An `ab-render` FALSE PASS, worth knowing about.** It reported *"ALL variants rendered BYTE-IDENTICAL"*
+for two clearly different cello sizes, and that nearly got taken as proof the sizing was inaudible. The
+cause was formatting in `studio.h`: the constant was written `0.7086f// comment`, with no space before the
+slashes, so the substitution matched nothing and both variants were the *same source*. The tool's warning
+says "the value did not reach the DSP", and **that includes the case where it never reached the SOURCE** —
+which is the tool's own headline failure mode turned inward. Confirm a substitution actually landed (A/B
+against a deliberately coarse value first) before believing a null.
+
+**Still open: the three bass carts have NOT been judged by ear** (`upright`, `walkbox`, `walkroll`, all
+baked). And the remaining musical BOWED carts are untouched and want the same treatment with their own
+sizes: `mariachi` (two violins), `polopan` (pizz strings), `bandbox` (bass + arco pad), `portapop`,
+`modrack` slot 38. **The four harness carts must stay body-OFF on purpose** — `soundcheck`, `tunecheck`,
+`voicestress` and `pipetune` feed the audio gates, so changing their voicing would move the baselines the
+gates compare against. Also noted: `bowed`'s arco and pizz are two SLOTS, so
 they get two boxes; they are given the same size, which is as close as the slot model gets to being one
 instrument plucked or bowed.
 

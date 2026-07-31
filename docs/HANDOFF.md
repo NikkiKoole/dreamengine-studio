@@ -86,10 +86,22 @@ a broken doc link or `#section`).
 >    loop.** A comb's resonances come from its clock rate, so advancing it per sounding voice would make the
 >    body's pitch track the chord size (a triad ringing ~a twelfth high) — silent, and no gate calls it an
 >    error. `wet_share` is likewise divided by the reader count so the box radiates once, not N times.
->    **NEXT HERE: defaulting it ON is now an EAR call, not a blocked one.** A cart can declare its
->    instrument's size, so the remaining question is just whether the owner likes the body across the 14
->    BOWED carts, several bass-focused (`walkbox`, `walkroll`, `upright`, `bandbox`). Play `bowed` (baked):
->    presets 1/2/3 are violin/viola/cello boxes, B toggles the body.
+>    **Both ear calls are IN (2026-07-31): the cello "sounds more like a real cello", the double-stop
+>    coupling "reads well".** So the body is cleared to go on, and it is going on PER CART.
+>    ⚠ **Do NOT default it on via the bank default of `eng_p[1]` — that index is also GUITAR's and PIANO's
+>    pick-noise amount** (`sound.h:4866`/`:5211`), so raising it would switch on an attack click for every
+>    guitar and piano cart. The per-engine index SPACE is free; the shared DEFAULTS are not (§L6's lesson,
+>    one layer down). Per-cart is right anyway: each instrument needs its own SIZE.
+>    The size range now reaches a **DOUBLE BASS** (`BOW_SIZE_BASS`, 4.50x, 736-sample line, `BOW_BODY_MAX`
+>    768) because the three upright carts are basses and a cello box was still too small. Affordable only
+>    because bodies are shared. `BOW_SIZE_CELLO` is `0.7086f` so widening did not re-voice the approved cello.
+>    **NEXT HERE, in order:** (1) the owner listens to the three baked bass carts — `upright`, `walkbox`,
+>    `walkroll` (body 0.85 at BOW_SIZE_BASS; peak drops ~2 dB, a real mix-balance change). (2) Then the rest
+>    with their own sizes: `mariachi` (2 violins), `polopan` (pizz), `bandbox` (bass + arco pad), `portapop`,
+>    `modrack` slot 38. (3) **Leave `soundcheck`/`tunecheck`/`voicestress`/`pipetune` body-OFF** — they feed
+>    the audio gates, so re-voicing them moves the baselines.
+>    ⚠ Measuring a BASS body? Use `harmonic-spec`, NOT brightness/centroid — a 60 Hz box works below 350 Hz,
+>    so `wav-envelope` reported "no change" across a ±17 dB reshaping. Pick the gate by where the effect lives.
 >    **Then `guitar`** — still a measurement cross-check ONLY, see the scoping below.
 >    Two traps banked: a 1–4 ms body has a MILLISECOND RT60 so there is no audible tail to A/B on (the
 >    "reverb" IS the frequency response — Reid's duality); and blend a body ADDITIVELY, never as a crossfade,

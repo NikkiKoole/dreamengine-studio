@@ -47,6 +47,24 @@
 //   4. ALREADY-ANNOTATED lines are skipped: `was "no reverb engine"`,
 //      `[SUPERSEDED …]`, "no longer true". Correcting in place must not re-fire.
 //   5. Fenced code blocks and docs/archive/ are skipped.
+//   6. REAL-WORLD statements ("a real clav has no reverb") are musicology, not us.
+//   7. QUOTED claims are being discussed, not asserted: `It closed the "waiting on the
+//      sidechain path" wait`. Quoted spans are blanked before matching. The general form
+//      of 4, which only caught the `was "…"` shape.
+//
+// THE 2026-07-31 RECALL PASS. The checker shipped catching outright denials ("no reverb",
+// "X is missing") and reported the corpus clean while afrobeat-effects-wants.md claimed five
+// shipped effects were unavailable. Two defects, both now fixture-asserted:
+//   (a) BLIND TO THE BACKLOG SHAPE. This repo mostly denies a capability by SCHEDULING it:
+//       "still open: wah, tape, leslie", "blocked on the effects bus", "not yet rostered",
+//       "neither amp character nor compression". Seven of the eight phrasings in that one
+//       doc were invisible. See backlogShapes().
+//   (b) THE ACK BLED. Discriminator 2 ran at PARAGRAPH scope, so an "UPDATE — reverb
+//       SHIPPED. … Still open: wah, tape, leslie" block silenced the very capabilities its
+//       own sentence called still open. Now SENTENCE scope. See ackbleed.md.
+// The lesson for the next widening: --selfcheck asserting only the SUPPRESSIONS proves
+// nothing about what the tool FINDS, so a green run and a blind run looked identical. The
+// recall cases are now known answers too, and so is the precision they cost (falsepos.md).
 //
 // ADVISORY by design (exit 0 even with findings; `--strict` to gate). A claim can
 // be legitimately historical in a way no regex sees — a blind-brief quoting what
@@ -74,7 +92,6 @@ const CAPS = [
   { cap: "tremolo",    proof: "tremolo",          words: ["tremolo"] },
   { cap: "leslie",     proof: "leslie",           words: ["leslie", "rotary speaker"] },
   { cap: "univibe",    proof: "univibe",          words: ["univibe", "uni-vibe"] },
-  { cap: "auto-wah",   proof: "wah",              words: ["auto-wah", "autowah"] },
   { cap: "formant",    proof: "formant",          words: ["formant filter", "vowel filter"] },
   { cap: "vocoder",    proof: "vocoder",          words: ["vocoder"] },
   { cap: "ring mod",   proof: "ringmod",          words: ["ring mod", "ringmod", "ring modulator"] },
@@ -97,6 +114,9 @@ const CAPS = [
   { cap: "tape",        proof: "tape",            words: ["tape"],        ambiguous: true },
   { cap: "shallow",     proof: "shallow",         words: ["shallow"],     ambiguous: true },
   { cap: "compression", proof: "glue",            words: ["compression", "compressor"], ambiguous: true },
+  // "no wah" is nearly always a TEST CONDITION here ("an FFT of both (middle C, no wah)"),
+  // not a claim we lack the pedal — so it needs the qualifier like the other ambiguous words.
+  { cap: "auto-wah",    proof: "wah",             words: ["auto-wah", "autowah", "wah"], ambiguous: true },
 ];
 
 const QUALIFIER = "(?:engine|bus|effect|insert|pedal|stage|voicing|module|unit|section)";
@@ -152,6 +172,36 @@ if (has("--selfcheck")) {
   t("an acked capability is silent in the same doc  [discriminator 2]",
     !inFile("parascope.md").some(x => x.cap === "vocoder"));
 
+  // ── RECALL. The checker's failure mode is a clean 0 while blind, and a green
+  // selfcheck asserting only the discriminators proves nothing about what it FINDS.
+  // Every case below is a real phrasing from afrobeat-effects-wants.md that the
+  // 2026-07-30 version missed while reporting the corpus clean.
+  const backlog = inFile("backlog.md");
+  const sawLine = (frag) => backlog.some(x => x.line.toLowerCase().includes(frag));
+  t("'Still open: wah, leslie' is a denial  [recall: the backlog shape]",
+    sawLine("still open: wah"));
+  t("'The reverb is still open' is a denial  [recall]", sawLine("the reverb is still open"));
+  t("'Blocked on the vocoder' is a denial  [recall]", sawLine("blocked on the vocoder"));
+  t("'not yet rostered' is a denial  [recall]", sawLine("not yet rostered"));
+  t("'neither a room nor a vocoder' is a denial  [recall]", sawLine("neither a room nor"));
+  t("'No tape/saturation stage' survives the slash  [recall: qualifier compound]",
+    sawLine("no tape/saturation stage"));
+  t("bare 'no wah pedal' is a denial  [recall: wah was not even a roster word]",
+    sawLine("no wah pedal"));
+
+  // ── the ack must not bleed onto the still-open list beside it ────────────────
+  t("an ack silences the capability it actually names  [ack scope: sentence]",
+    !inFile("ackbleed.md").some(x => x.cap === "reverb"));
+  t("...but NOT one the same paragraph calls still open  [ack scope: the afrobeat bug]",
+    inFile("ackbleed.md").some(x => x.cap === "leslie"));
+
+  // ── the PRECISION cost of that recall, paid back. Both fired on the live corpus
+  // while the patterns were widening; neither is a denial.
+  t("a claim QUOTED in order to close it is not a denial  [discriminator 7]",
+    !inFile("falsepos.md").some(x => x.cap === "sidechain"));
+  t("'(middle C, no wah)' is a test condition, not a missing pedal  [discriminator 3]",
+    !inFile("falsepos.md").some(x => x.cap === "auto-wah"));
+
   const bad = T.filter(x => !x.ok);
   for (const x of T) console.log(`  ${x.ok ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m"} ${x.n}`);
   console.log(bad.length
@@ -171,15 +221,38 @@ const roster = CAPS.filter(c => ships(c.proof));
 
 // ── the claim patterns ───────────────────────────────────────────────────────
 const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// The BACKLOG shapes (added 2026-07-31). The original set only caught outright denials
+// ("no reverb", "X is missing"). This repo's design docs mostly deny a capability by
+// SCHEDULING it instead — "still open: wah, tape, leslie", "blocked on the effects bus",
+// "not yet rostered", "we have neither amp character nor compression". Seven of eight real
+// phrasings from afrobeat-effects-wants.md were invisible to the original set, which is
+// why that doc read clean while claiming five shipped effects were unavailable.
+function backlogShapes(W) {
+  return [
+    new RegExp(`\\b${W}\\b[^.]{0,60}\\b(?:is|are|remains?)?\\s*still\\s+open\\b`, "i"),
+    new RegExp(`\\bstill\\s+open\\b[^.]{0,80}\\b${W}\\b`, "i"),
+    new RegExp(`\\bblocked\\s+on\\b[^.]{0,60}\\b${W}\\b`, "i"),
+    new RegExp(`\\b${W}\\b[^.]{0,40}\\bnot\\s+yet\\s+(?:rostered|built|on\\s+the\\s+roster|a\\s+roster\\s+entry)\\b`, "i"),
+    new RegExp(`\\bnot[-\\s]yet[-\\s]rostered\\b[^.]{0,40}\\b${W}\\b`, "i"),
+    new RegExp(`\\bneither\\b[^.]{0,60}\\bnor\\b[^.]{0,40}\\b${W}\\b`, "i"),
+  ];
+}
+
 function patterns(cap) {
   const alt = cap.words.map(esc).join("|");
   const W = `(?:${alt})`;
   if (cap.ambiguous) {
-    // only the qualified forms — the bare word means something else here too often
+    // only the qualified forms — the bare word means something else here too often.
+    // WQ tolerates a slashed compound before the qualifier ("no tape/saturation stage"),
+    // which the bare `${W}\s+${QUALIFIER}` form missed.
+    const WQ = `${W}(?:\\s*/\\s*[\\w-]+)*`;
     return [
-      new RegExp(`\\bno\\s+(?:real\\s+|true\\s+|proper\\s+|actual\\s+|dedicated\\s+)?${W}\\s+${QUALIFIER}\\b`, "i"),
-      new RegExp(`\\b${W}\\s+${QUALIFIER}\\s+(?:is|are)(?:\\s+still)?\\s+(?:missing|absent|unbuilt|not\\s+built)\\b`, "i"),
-      new RegExp(`\\b(?:lacks|lacking)\\s+(?:a\\s+|any\\s+)?${W}\\s+${QUALIFIER}\\b`, "i"),
+      new RegExp(`\\bno\\s+(?:real\\s+|true\\s+|proper\\s+|actual\\s+|dedicated\\s+)?${WQ}\\s+${QUALIFIER}\\b`, "i"),
+      new RegExp(`\\b${WQ}\\s+${QUALIFIER}\\s+(?:is|are)(?:\\s+still)?\\s+(?:missing|absent|unbuilt|not\\s+built)\\b`, "i"),
+      new RegExp(`\\b(?:lacks|lacking)\\s+(?:a\\s+|any\\s+)?${WQ}\\s+${QUALIFIER}\\b`, "i"),
+      // backlog shapes stay QUALIFIED for ambiguous words: a bare "tape" or "drive" in a
+      // "still open:" list is too often the other meaning to flag on its own.
+      ...backlogShapes(`${WQ}\\s+${QUALIFIER}`),
     ];
   }
   return [
@@ -190,6 +263,7 @@ function patterns(cap) {
     new RegExp(`\\b${W}\\b[^.]{0,40}\\bdoes(?:n't|\\s+not)\\s+exist\\b`, "i"),
     new RegExp(`\\b${W}\\b[^.]{0,60}\\b(?:a\\s+)?future\\s+effect\\b`, "i"),
     new RegExp(`\\bwaiting\\s+on\\b[^.]{0,60}\\b${W}\\b|\\b${W}\\b[^.]{0,40}\\bstill\\s+waits?\\b`, "i"),
+    ...backlogShapes(W),
   ];
 }
 const PATS = new Map(roster.map(c => [c.cap, patterns(c)]));
@@ -204,6 +278,12 @@ const ACK = /(?:✓|\bSHIPPED\b|\bshipped\b|\blanded\b|now\s+(?:ships?|exist|exi
 // ── discriminator 6: a claim about a REAL-WORLD instrument, not about us ──────
 // "a real clav has no tremolo" is musicology, not an engine limit. Narrow on purpose.
 const REAL_WORLD = /\ba real\b[^.]{0,40}\b(?:has|have|had)\s+no\b|\bon a real\b/i;
+// ── discriminator 7: a QUOTED claim is being discussed, not asserted ──────────
+// Prose that closes a wait quotes the wait to name it: `It closed the "waiting on the
+// sidechain path" wait`. That is the opposite of a live denial, but the pattern sees only
+// the quoted words. Blanking quoted spans before matching is the general form of the
+// already-annotated rule (discriminator 4), which only caught the `was "…"` shape.
+const unquote = (s) => s.replace(/"[^"]*"|“[^”]*”/g, " ");
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -239,12 +319,23 @@ for (const file of walk(DOCS)) {
     if (para[i] < 0) return;
     paraText.set(para[i], (paraText.get(para[i]) || "") + " " + l);
   });
+  // ...and SENTENCE scope inside that paragraph (2026-07-31). Paragraph scope let one
+  // sentence's ack bleed onto the capabilities a NEIGHBOURING sentence declared still open:
+  //   **UPDATE — reverb + chorus SHIPPED.** … Still open: wah, tape, leslie, drive.
+  // silenced wah/tape/leslie/drive doc-wide, the exact inversion of the intent, and it is
+  // what hid afrobeat-effects-wants.md. Sentence scope keeps the multi-line-UPDATE fix that
+  // motivated paragraph scope (a sentence still spans lines once the paragraph is joined)
+  // while an ack can no longer cover a still-open list beside it. Emphasis is stripped first
+  // so a bolded "SHIPPED.**" still reads as a sentence end.
+  const sentences = [];
+  for (const text of paraText.values())
+    for (const s of text.replace(/[*_`]/g, "").split(/(?<=[.!?])\s+/))
+      if (s.trim()) sentences.push(s);
+
   const acked = new Set();
   for (const c of roster) {
     const alt = new RegExp(`(?:${c.words.map(esc).join("|")})`, "i");
-    for (const text of paraText.values()) {
-      if (alt.test(text) && ACK.test(text)) { acked.add(c.cap); break; }
-    }
+    if (sentences.some(s => alt.test(s) && ACK.test(s))) acked.add(c.cap);
   }
 
   let fenced = false;
@@ -253,9 +344,10 @@ for (const file of walk(DOCS)) {
     if (fenced) return;                                   // discriminator 5
     if (ANNOTATED.test(line)) return;                     // discriminator 4
     if (REAL_WORLD.test(line)) return;                    // discriminator 6
+    const claimText = unquote(line);                      // discriminator 7
     for (const c of roster) {
       if (acked.has(c.cap)) continue;                      // discriminator 2
-      if (PATS.get(c.cap).some(re => re.test(line))) {
+      if (PATS.get(c.cap).some(re => re.test(claimText))) {
         findings.push({ file: rel, ln: i + 1, cap: c.cap, line: line.trim().slice(0, 160) });
         break;                                             // one finding per line
       }

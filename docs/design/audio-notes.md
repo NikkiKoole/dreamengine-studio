@@ -234,9 +234,10 @@ covers only `drive` + `echo`. Constants: `LFO_HARMONICS/TIMBRE/MORPH` = 4/5/6,
 > (`instrument_duty`/`LFO_DUTY`), full ADSR (`instrument`), resonant multimode filter
 > (`instrument_filter`, per-slot), vibrato + pitch sweep (`instrument_lfo`/`instrument_env`)
 > — and voices are 16 now (§15), with three modeled engines on top
-> ([`instrument-engines.md`](instrument-engines.md)). Still true today: no ring mod / hard
-> sync (AM/ring sits in the engine catalog, instrument-engines §8.9) and no PCM samples
-> (the FM-clang hat workaround covers the 909 case). The honest 2026 comparison is no
+> ([`instrument-engines.md`](instrument-engines.md)). The last three holdouts have SHIPPED
+> too, so nothing in the ❌ table survives: ring mod (`ringmod()` + `FX_RINGMOD`), hard sync
+> (`instrument_sync()`) and PCM samples (`sample_load()`/`instrument_sample()`, plus the mic
+> sampler — the FM-clang hat workaround is no longer the only way to a 909 hat). The honest 2026 comparison is no
 > longer SID/NES — §15 calls it SNES/Amiga-class. Current surface: §2.
 
 Short version: it's chiptune-family, but **cleaner and more generic** than either the

@@ -1,0 +1,32 @@
+// FIXTURE — a stand-in runtime/sound.h. Not compiled, not real. See ../README.md.
+// The bug shape this reproduces: the channel was widened to 4 in the declarations,
+// but only ONE of the two bounds followed, and the note-on copy missed index 2.
+
+typedef struct Instrument {
+  int engine;
+  float eng_p[4];        // EXPECT: width 4
+} Instrument;
+
+typedef struct Voice {
+  int active;
+  float eng_p[4];        // EXPECT: agrees — no decl-disagree finding
+} Voice;
+
+// the public setter — widened correctly
+void instrument_mode(int slot, int idx, float v) {
+  if (idx < 0 || idx >= 4) return;          // EXPECT: matches the width
+  queue_request(SR_ENG_TUNE, slot, idx, v);
+}
+
+// the request handler — NOT widened. EXPECT: bound-mismatch (idx >= 3 vs width 4).
+static void handle_eng_tune(int slot, int idx, float v) {
+  if (idx < 0 || idx >= 3) return;
+  g_ins[slot].eng_p[idx] = v;
+}
+
+static void voice_note_on(Voice *v, Instrument *ins) {
+  v->eng_p[0] = ins->eng_p[0];
+  v->eng_p[1] = ins->eng_p[1];
+  // EXPECT: copy-missing for index 2 — this line was never added
+  v->eng_p[3] = ins->eng_p[3];
+}

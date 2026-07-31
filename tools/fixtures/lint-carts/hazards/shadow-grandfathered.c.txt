@@ -1,0 +1,10 @@
+// FIXTURE — the GRANDFATHERED shadow class. Never compiled. See ../README.md.
+//
+// Read as cart `sensi` this must be silent (`sensi:line` is in GRANDFATHERED_SHADOWS —
+// pre-lint carts are tolerated until someone renames the local and re-embeds). Read as ANY
+// other cart name, the same bytes must be FLAGGED. --selfcheck runs it both ways, which is
+// what proves the exemption is keyed on cart:builtin and not just globally swallowing `line`.
+
+static float line = 0;
+
+void update(void) { line += 1; }

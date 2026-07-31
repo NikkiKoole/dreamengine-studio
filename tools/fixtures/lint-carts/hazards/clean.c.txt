@@ -1,0 +1,32 @@
+// FIXTURE — the CRY-WOLF guard: a well-behaved cart that must report ZERO hazards. Never
+// compiled. See ../README.md.
+//
+// It deliberately touches all three triggers — it calls watch(), it calls touch_id(), it
+// declares a struct — so a clean result here means the checks RAN and found nothing, not that
+// they never engaged. (--selfcheck asserts those three triggers are present in these bytes,
+// because otherwise the day someone trims this fixture down, the cry-wolf guard silently
+// becomes a test that an empty file has no bugs.)
+
+#include "pointer.h"
+
+typedef struct Entity {
+  float timer;    // a field named after a built-in — legal
+  int   id;
+} Entity;
+
+static Entity ents[16];
+static PtrPool pool;
+static int grid[64];
+
+void update(void) {
+  PTR_CLEAR(&pool);
+  for (int i = 0; i < 4; i++) {
+    int id = touch_id(i);
+    if (id < 0) continue;
+    PTR_ACQUIRE(&pool, id, 0, 0);
+  }
+  for (int i = 0; i < 16; i++) ents[i].timer += 1;
+#ifdef DE_TRACE
+  watch("ents", "%d", grid[0]);
+#endif
+}

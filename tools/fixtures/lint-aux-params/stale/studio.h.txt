@@ -1,0 +1,9 @@
+// FIXTURE — a stand-in runtime/studio.h with the MODE_* roster GONE (renamed, moved to
+// another header, or the regex stopped matching it). EXPECT: no-modes.
+//
+// This is the guard that matters most. With zero modes parsed, checks 4 and 5 iterate an
+// empty list and find nothing wrong — so without an explicit "did I see any at all?" the
+// tool reports a clean bill of health while checking nothing.
+
+#define AUX_PARAM_FIX_OK 0
+#define AUX_PARAM_FIX_TWO 1

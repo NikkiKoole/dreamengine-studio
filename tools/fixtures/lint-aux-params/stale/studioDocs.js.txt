@@ -1,0 +1,3 @@
+// FIXTURE — a stand-in editor/src/studioDocs.js. Irrelevant to this case (no modes to
+// look up), present so the checker has all four inputs.
+export const studioDocs = {}

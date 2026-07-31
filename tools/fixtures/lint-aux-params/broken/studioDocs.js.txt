@@ -1,0 +1,7 @@
+// FIXTURE — a stand-in editor/src/studioDocs.js. See ../README.md.
+// MODE_FIX_NODOCS is deliberately absent.
+export const studioDocs = {
+  MODE_FIX_OK:      { sig: '#define MODE_FIX_OK 0',      doc: 'a fully-registered aux param' },
+  MODE_FIX_NOSHELL: { sig: '#define MODE_FIX_NOSHELL 2', doc: 'documented, but not in the help tab' },
+  MODE_FIX_TOOBIG:  { sig: '#define MODE_FIX_TOOBIG 7',  doc: 'registered, but out of range' },
+}

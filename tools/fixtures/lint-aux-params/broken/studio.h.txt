@@ -1,0 +1,7 @@
+// FIXTURE — a stand-in runtime/studio.h MODE_* roster. See ../README.md.
+// Each mode carries exactly one defect so the assertions can be precise.
+
+#define MODE_FIX_OK       0   // in range, in both registries — EXPECT: silent
+#define MODE_FIX_NODOCS   1   // EXPECT: mode-no-docs (absent from studioDocs.js.txt)
+#define MODE_FIX_NOSHELL  2   // EXPECT: mode-no-shell (absent from shell.js.txt)
+#define MODE_FIX_TOOBIG   7   // EXPECT: mode-out-of-range (eng_p[] is only 4 wide)

@@ -471,6 +471,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
                              index.json in sync; owns the tag vocabulary. Also the SOURCE hazards
                              (promoted gotchas): watch() 2nd-arg-must-be-format-string + built-in shadowing
+                             + hand-rolled finger pools. `--selfcheck` = known-answer fixture (48 assertions:
+                             every hazard AND every one of its exempt classes — comment / struct field /
+                             waiver / grandfathered cart / paren-nested arg — plus the de:meta case table),
+                             gated in repo-doctor
              collections-vocab.js  the CONTROLLED, DOC-ANCHORED vocab for cart collection[] — the
                              cross-cutting research THREADS ({slug,title,doc,blurb}, like teaches-vocab.js).
                              A collection = a sprawling experiment that owns a doc; every slug MUST point at
@@ -551,7 +555,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              MODE_* constant + its 4-place registration). Miss one and the parameter
                              SILENTLY does nothing: the setter accepts it, queues it, the handler drops it.
                              Has bitten twice (piano decay/knock dead for months; MODE_PIANO_STRETCH read
-                             as 0). `--quiet` = CI. Run after touching instrument_mode or adding a MODE_*
+                             as 0). `--quiet` = CI, `--json`. Run after touching instrument_mode or adding a
+                             MODE_*. `--selfcheck` = known-answer fixture (14 assertions): every check here is
+                             a regex over C, and THREE of the five pass VACUOUSLY on zero matches (no bounds
+                             found → "all bounds equal the width"), so a rotted pattern prints the same green
+                             ✓ as a healthy engine — the fixture pins those guards. Gated in repo-doctor
              lint-docs.js    validate docs/ cross-references (links resolve, §-refs) + the two
                              DISCOVERABILITY gates: every tools/* and every cart-land runtime/*.h is
                              indexed in CLAUDE.md (headers also in cart-authoring's table) — the "it

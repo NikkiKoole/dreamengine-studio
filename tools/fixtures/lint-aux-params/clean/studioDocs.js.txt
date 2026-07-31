@@ -1,0 +1,6 @@
+// FIXTURE — a stand-in editor/src/studioDocs.js, fully registered.
+export const studioDocs = {
+  MODE_CLEAN_A: { sig: '#define MODE_CLEAN_A 0', doc: 'in range, documented, in the help tab' },
+  MODE_CLEAN_B: { sig: '#define MODE_CLEAN_B 3', doc: 'the last legal index of eng_p[4]' },
+  MODE_CLEAN_C: { sig: '#define MODE_CLEAN_C 0', doc: 'another engine reusing index 0 — legal' },
+}

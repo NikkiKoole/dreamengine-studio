@@ -1,0 +1,21 @@
+// FIXTURE — a stand-in cart source for lint-carts' finger-pool hazard. Never compiled.
+// See ../README.md.
+//
+// The bug: this cart tracks fingers via touch_id() and hand-rolls its own pool, using -1 / <0
+// as the "free slot" id. The editor's synthetic mouse-touch id is NEGATIVE (-2), so a stored
+// finger reads as free again the next frame and taps mis-track (bit morphbox: cells wouldn't
+// reliably toggle or delete). Both planted forms must be caught.
+
+typedef struct Finger { int id; float x, y; } Finger;
+static Finger pool[8];
+
+void update(void) {
+  for (int i = 0; i < 8; i++) {
+    if (pool[i].id < 0) continue;          // FLAGGED: the `< 0` form
+  }
+  for (int i = 0; i < 8; i++) {
+    if (pool[i].id == -1) {                // FLAGGED: the `== -1` form
+      pool[i].id = touch_id(i);
+    }
+  }
+}

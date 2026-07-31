@@ -1,0 +1,14 @@
+// FIXTURE — the SCOPE guard for the finger-pool hazard. Never compiled. See ../README.md.
+// `.id < 0` is an everyday idiom (a free slot in any array of anything). It is only a hazard in
+// a cart that reads raw touch ids, so a cart that never calls touch_id() must be silent —
+// otherwise the lint fires on half the repo and gets waived away wholesale.
+
+typedef struct Bullet { int id; float x, y; } Bullet;
+static Bullet bullets[32];
+
+void update(void) {
+  for (int i = 0; i < 32; i++) {
+    if (bullets[i].id < 0) continue;   // must NOT be flagged: no touch_id() anywhere here
+    bullets[i].x += 1;
+  }
+}

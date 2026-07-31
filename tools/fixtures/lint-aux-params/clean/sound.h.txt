@@ -1,0 +1,33 @@
+// FIXTURE — a stand-in runtime/sound.h, this one CORRECT. See ../README.md.
+// The cry-wolf guard: a channel widened properly in all five places must be silent.
+// Also the blind-pass guard — the checker must still have SEEN width 4 to say so.
+//
+// The declarations are on their own lines because the real ones are, and the regex is
+// line-anchored (`^\s*float eng_p[N];`). Writing the struct as a one-liner here made the
+// first draft of this fixture parse as ZERO declarations — which is the very rot the
+// stale/ case exists to catch, so it failed loudly instead of quietly. Keep the shape real.
+
+typedef struct Instrument {
+  float eng_p[4];
+} Instrument;
+
+typedef struct Voice {
+  float eng_p[4];
+} Voice;
+
+void instrument_mode(int slot, int idx, float v) {
+  if (idx < 0 || idx >= 4) return;
+  queue_request(SR_ENG_TUNE, slot, idx, v);
+}
+
+static void handle_eng_tune(int slot, int idx, float v) {
+  if (idx < 0 || idx >= 4) return;
+  g_ins[slot].eng_p[idx] = v;
+}
+
+static void voice_note_on(Voice *v, Instrument *ins) {
+  v->eng_p[0] = ins->eng_p[0];
+  v->eng_p[1] = ins->eng_p[1];
+  v->eng_p[2] = ins->eng_p[2];
+  v->eng_p[3] = ins->eng_p[3];
+}

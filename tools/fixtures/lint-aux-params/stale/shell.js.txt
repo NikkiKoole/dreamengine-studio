@@ -1,0 +1,3 @@
+// FIXTURE — a stand-in editor/src/shell.js. Irrelevant to this case, present so the
+// checker has all four inputs.
+const sections = []

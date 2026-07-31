@@ -1,0 +1,28 @@
+// FIXTURE — a stand-in cart source for lint-carts' built-in-shadowing hazard. Never compiled.
+// A cart-local named after a studio.h built-in compiles, and then the first CALL of that
+// built-in in the same scope doesn't. See ../README.md.
+
+// FLAGGED: shadows map()
+static int map[64];
+
+// the exempt class that matters most — struct/union/enum FIELDS. `e->timer` cannot clash with
+// timer(), so flagging these would bury the real findings under every entity struct in the repo.
+typedef struct Entity {
+  float timer;      // exempt: a field, not a local
+  int   line;       // exempt
+  struct {
+    int circ;       // exempt: nested one level deeper — the brace classifier must still be inside
+  } inner;
+} Entity;
+
+// the renamed forms the error message recommends — must be silent, or the fix doesn't clear the lint
+static int grid[64];
+static float tmr = 0;
+
+// the deliberate waiver
+static int print = 0;   // lint-shadow-ignore
+
+void update(void) {
+  map[0] = 1;
+  grid[0] = 1;
+}

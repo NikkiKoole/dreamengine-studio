@@ -1,0 +1,186 @@
+{
+  "_readme": [
+    "Known answers for lint-carts' de:meta validator. Each case is fed to validateMeta() and its",
+    "verdict asserted by `node tools/lint-carts.js --selfcheck`.",
+    "",
+    "  label   what the case demonstrates (printed as the assertion name)",
+    "  name    the cart filename stem — the slug must equal it",
+    "  meta    the parsed de:meta object",
+    "  expect  a substring the error message MUST contain, or null to demand ZERO errors",
+    "  only    true = demand EXACTLY one error, so the case proves it isn't riding along on",
+    "          an unrelated second complaint from an otherwise-invalid meta",
+    "",
+    "The vocabularies live in tools/lint-carts.js (kind/genre/status), tools/teaches-vocab.js and",
+    "tools/collections-vocab.js. This file deliberately uses REAL vocab values for the valid cases",
+    "('autotiling', 'road'): a fixture using made-up-but-accepted values would keep passing after",
+    "someone empties the vocab."
+  ],
+  "cases": [
+    {
+      "label": "a fully valid de:meta is silent  [cry-wolf guard]",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "Fix Cart", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": ["autotiling"], "description": "a valid cart" }
+    },
+    {
+      "label": "the richest valid shape is silent too (all optionals, real vocab)",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "Fix Cart", "created": "2026-07-31",
+                "kind": ["game", "tech-demo"], "genre": "arcade", "status": "wip",
+                "teaches": ["autotiling"], "collection": ["road"], "resizable": true,
+                "homage": "Pitfall", "lineage": "descended from the earlier one",
+                "todo": ["tighten the jump"],
+                "description": { "summary": "s", "detail": "d", "controls": "c" } }
+    },
+
+    {
+      "label": "a missing slug is caught  [the PNG→source anchor]",
+      "name": "fixcart", "expect": "missing slug", "only": true,
+      "meta": { "title": "Fix Cart", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "a slug that doesn't match the filename stem is caught  [silent drift]",
+      "name": "fixcart", "expect": "must equal the filename stem", "only": true,
+      "meta": { "slug": "otherslug", "title": "Fix Cart", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "an empty-string slug is caught, not accepted as present",
+      "name": "fixcart", "expect": "non-empty string", "only": true,
+      "meta": { "slug": "", "title": "Fix Cart", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+
+    {
+      "label": "a missing title is caught",
+      "name": "fixcart", "expect": "missing title", "only": true,
+      "meta": { "slug": "fixcart", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "an off-vocabulary status is caught",
+      "name": "fixcart", "expect": "bad status", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31", "status": "someday",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "a non-ISO created date is caught",
+      "name": "fixcart", "expect": "missing/invalid created", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "31 July 2026",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+
+    {
+      "label": "an empty kind[] is caught",
+      "name": "fixcart", "expect": "missing kind[]", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": [], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "an off-vocabulary kind is caught",
+      "name": "fixcart", "expect": "bad kind 'sculpture'", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["sculpture"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "kind 'game' without a genre is caught  [the cross-field rule]",
+      "name": "fixcart", "expect": "requires a genre", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["game"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "...and kind 'game' WITH a genre is silent  [noise guard]",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["game"], "genre": "arcade", "teaches": [], "description": "x" }
+    },
+    {
+      "label": "a genre on a non-game kind is legal  [not the inverse rule]",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "genre": "arcade", "teaches": [], "description": "x" }
+    },
+    {
+      "label": "an off-vocabulary genre is caught",
+      "name": "fixcart", "expect": "bad genre 'metroidvania'", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "genre": "metroidvania", "teaches": [], "description": "x" }
+    },
+
+    {
+      "label": "a missing teaches[] is caught (empty [] is the way to say 'nothing')",
+      "name": "fixcart", "expect": "missing teaches[]", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "description": "x" }
+    },
+    {
+      "label": "an empty teaches[] is legal  [exempt-class guard]",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": "x" }
+    },
+    {
+      "label": "an off-vocabulary teaches tag is caught",
+      "name": "fixcart", "expect": "teaches 'vibes' not in the vocabulary", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": ["vibes"], "description": "x" }
+    },
+    {
+      "label": "an off-vocabulary collection slug is caught  [must anchor to a doc]",
+      "name": "fixcart", "expect": "collection 'misc' not in the vocabulary", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "collection": ["misc"], "description": "x" }
+    },
+
+    {
+      "label": "a description with ONLY controls is legal  [≥1 part is the rule]",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": { "controls": "arrows to move" } }
+    },
+    {
+      "label": "a description object with no string part is caught",
+      "name": "fixcart", "expect": "description must be", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": {} }
+    },
+    {
+      "label": "an empty-string description is caught, not accepted as present",
+      "name": "fixcart", "expect": "description must be", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "description": "" }
+    },
+
+    {
+      "label": "an empty todo[] is caught (drop the field instead)",
+      "name": "fixcart", "expect": "todo must be a non-empty string[]", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "todo": [], "description": "x" }
+    },
+    {
+      "label": "a blank todo entry is caught",
+      "name": "fixcart", "expect": "todo entries must be non-empty strings", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "todo": ["   "], "description": "x" }
+    },
+    {
+      "label": "a non-boolean resizable is caught",
+      "name": "fixcart", "expect": "resizable must be a boolean", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "resizable": "true", "description": "x" }
+    },
+    {
+      "label": "resizable: false is legal, not treated as absent-or-invalid",
+      "name": "fixcart", "expect": null,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "resizable": false, "description": "x" }
+    },
+    {
+      "label": "an empty homage string is caught",
+      "name": "fixcart", "expect": "homage must be a non-empty string", "only": true,
+      "meta": { "slug": "fixcart", "title": "T", "created": "2026-07-31",
+                "kind": ["toy"], "teaches": [], "homage": "", "description": "x" }
+    }
+  ]
+}

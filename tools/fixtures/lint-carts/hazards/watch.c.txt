@@ -1,0 +1,31 @@
+// FIXTURE — a stand-in cart source for lint-carts' watch() hazard. Never compiled.
+// Markers: a line containing FLAG_ MUST be reported; a line containing OK_ must NOT be.
+// See ../README.md.
+
+#ifdef DE_TRACE
+static void trace_it(int n, int x, int i, float v) {
+  watch("OK_fmt", "%d", n);
+
+  // the SIGSEGV: vsnprintf reads the int as a char* and faults at that address (0x4).
+  watch("FLAG_bare", n);
+
+  // the 1st arg has its own comma INSIDE parens. A naive split on "," makes "%d" look like
+  // the 3rd arg and the nested call like the 2nd — flagging a correct call.
+  watch(str("OK_nested_call %d", i), "x=%d", x);
+
+  // a comma inside the format STRING. Same failure mode, different quoting.
+  watch("OK_comma_in_string", "a=%d, b=%d", x, n);
+
+  // commented out — the comment stripper must remove this before the regex sees it.
+  // watch("OK_commented", n);
+
+  /* block-commented too:
+     watch("OK_commented", n);
+  */
+
+  watch("OK_waived", v);   // lint-watch-ignore
+
+  // a second real one, to prove the scan doesn't stop at the first find
+  watch("FLAG_bare_two", x);
+}
+#endif

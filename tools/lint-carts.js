@@ -6,6 +6,7 @@
 // cart's de:meta or baking:
 //
 //   node tools/lint-carts.js
+//   node tools/lint-carts.js --selfcheck   # assert the CHECKER (known-answer fixture, 48 assertions)
 //
 // Rules:
 //   - every de:meta needs title, a non-empty kind[], teaches[] (may be []), description
@@ -37,6 +38,13 @@
 //
 // Growing a vocabulary is fine and expected — add the value here (or in teaches-vocab.js)
 // in the same commit as the first cart that uses it.
+//
+// SELF-TESTED. Every source hazard above is a regex with an EXEMPT CLASS (a comment, a struct
+// field, a waiver, a grandfathered cart, a paren-nested argument, a cart not on touch_id()), and
+// each one is a single `continue` away from either flooding — so someone waives the lint
+// wholesale — or going blind, so the SIGSEGV ships. `--selfcheck` pins all of them against
+// tools/fixtures/lint-carts/ (see its README for the case table and the two fixture shapes that
+// mutation-testing forced).
 
 const fs = require("fs");
 const path = require("path");
@@ -199,23 +207,12 @@ function checkSourceHazards(src, name, errors) {
   scanSpan(last, s.length);
 }
 
-// -----------------------------------------------------------------------------------------
-
-const errors = [];
-const metaCarts = new Set(); // <name>.cart.png for every cart that has a de:meta
-
-for (const f of fs.readdirSync(CARTS).sort()) {
-  if (!f.endsWith(".c")) continue;
-  const name = f.slice(0, -2);
-  const src = fs.readFileSync(path.join(CARTS, f), "utf8");
-  checkSourceHazards(src, name, errors);
-  let m;
-  try { m = readMeta(src, name); }
-  catch (e) { errors.push(`${name}.c: ${e.message}`); continue; }
-  if (!m) continue; // no de:meta = not a gallery cart (test/probe carts) — fine
-
-  const png = `${name}.cart.png`;
-  metaCarts.add(png);
+// ---- de:meta validation ------------------------------------------------------------------
+// PURE: a parsed meta object in, error strings out. Extracted from the cart loop so
+// --selfcheck can drive it with known-answer cases (fixtures/lint-carts/meta/cases.json)
+// instead of needing a fake repo on disk. The loop keeps the one check that isn't pure
+// (does the baked .cart.png exist).
+function validateMeta(m, name, errors) {
   const at = `${name}.c de:meta`;
 
   if (!m.title || typeof m.title !== "string") errors.push(`${at}: missing title`);
@@ -283,9 +280,128 @@ for (const f of fs.readdirSync(CARTS).sort()) {
     ["summary", "detail", "controls"].some(k => typeof d[k] === "string" && d[k].length > 0);
   if (!okString && !okParts)
     errors.push(`${at}: description must be a non-empty string or { summary/detail/controls }`);
+}
+
+// ---- --selfcheck: assert the CHECKER against known answers --------------------------------
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Unlike the other fixtured
+// linters this one does NOT shell out to itself — both halves under test are already pure
+// functions, so --selfcheck calls them directly and needs no fake repo. What it can't cover
+// that way: the index.json-in-sync assertion and the png-exists check, which are inherently
+// about the real tree (build-cart-index.js --check already guards the first).
+//
+// The source hazards are the half worth pinning. Every one of the three is a REGEX WITH AN
+// EXEMPT CLASS — a comment, a struct field, a waiver comment, a grandfathered cart, a
+// paren-nested first argument — and each exempt class is one `continue` away from either
+// flooding (so someone waives the whole lint) or going blind (so the SIGSEGV ships).
+if (process.argv.includes("--selfcheck")) {
+  const FX = path.join(__dirname, "fixtures", "lint-carts");
+  // `.c.txt`, not `.c`: a fixture cart is never compiled, and a real .c here would be picked
+  // up by clangd (phantom diagnostics) and read as a cart by anything globbing for sources.
+  const hazards = (file, name) => {
+    const errs = [];
+    checkSourceHazards(fs.readFileSync(path.join(FX, "hazards", file), "utf8"), name || file.replace(/\.c\.txt$/, ""), errs);
+    return errs;
+  };
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+  const at = (errs, marker) => errs.some(e => e.includes(marker));
+  const srcOf = (file) => fs.readFileSync(path.join(FX, "hazards", file), "utf8").split("\n");
+  // Resolve each finding back to the fixture LINE it points at. Asserting on the message alone
+  // is a trap: the hazard messages don't quote the offending call, so `!errs.some(e =>
+  // e.includes("OK_fmt"))` is true whether or not that line was flagged — a negative assertion
+  // that can never fail. Every not-flagged claim below goes through this instead.
+  const flaggedLines = (errs, file) => {
+    const src = srcOf(file);
+    return errs.map(e => src[(+(e.match(/:(\d+):/) || [0, 0])[1]) - 1] || "");
+  };
+
+  // ── watch(): the 2nd arg must be a format STRING. Paren-aware, comment-stripped.
+  const w = hazards("watch.c.txt"), wf = flaggedLines(w, "watch.c.txt");
+  const wHit = (marker) => wf.some(l => l.includes(marker));
+  t("watch: a bare value as the 2nd arg is caught  [the SIGSEGV]", wHit("FLAG_bare"));
+  t("watch: a proper format string is silent", !wHit("OK_fmt"));
+  t("watch: a comma inside the 1st arg's own parens doesn't shift the args  [paren-aware]",
+    !wHit("OK_nested_call"));
+  t("watch: a comma inside the format STRING doesn't shift the args", !wHit("OK_comma_in_string"));
+  t("watch: a commented-out bad call is not flagged  [comment-stripping]", !wHit("OK_commented"));
+  t("watch: // lint-watch-ignore waives  [escape hatch]", !wHit("OK_waived"));
+  t("watch: every finding lands on a line planted to be found  [line-number guard]",
+    w.length > 0 && wf.every(l => l.includes("FLAG_")));
+  t("watch: finds every planted bad call, not just the first  [loop guard]",
+    w.filter(e => e.includes("format STRING")).length === 2);
+
+  // ── built-in shadowing: a local named map/line/now/… breaks the built-in in that scope.
+  const sh = hazards("shadow.c.txt");
+  t("shadow: a file-scope local shadowing a built-in is caught", at(sh, "'map'"));
+  t("shadow: a STRUCT FIELD named after a built-in is exempt  [brace classifier]",
+    !sh.some(e => e.includes("'timer'")));
+  t("shadow: a nested struct field is exempt too  [depth guard]", !at(sh, "'circ'"));
+  t("shadow: a renamed local (grid/tmr) is silent  [noise guard]", !at(sh, "'grid'"));
+  t("shadow: // lint-shadow-ignore waives", !at(sh, "'print'"));
+  t("shadow: a GRANDFATHERED cart:builtin pair is exempt",
+    hazards("shadow-grandfathered.c.txt", "sensi").length === 0);
+  t("shadow: ...but the SAME source under another cart name IS flagged  [proves it's per-cart]",
+    hazards("shadow-grandfathered.c.txt", "notsensi").some(e => e.includes("'line'")));
+
+  // ── hand-rolled finger pool with a -1 free slot: collides with the editor's -2 mouse touch.
+  const p = hazards("pool.c.txt"), pf = flaggedLines(p, "pool.c.txt");
+  t("pool: `.id < 0` as a free-slot test is caught", pf.some(l => l.includes("`< 0` form")));
+  t("pool: the `== -1` form is caught too", pf.some(l => l.includes("`== -1` form")));
+  t("pool: both findings land on lines planted to be found  [line-number guard]",
+    p.length === 2 && pf.every(l => l.includes("FLAGGED")));
+  t("pool: a cart that includes pointer.h is exempt  [the sanctioned fix]",
+    hazards("pool-ok.c.txt").length === 0);
+  t("pool: a cart that never calls touch_id() is exempt  [scope guard]",
+    hazards("pool-notouch.c.txt").length === 0);
+
+  // ── the cry-wolf guard, and the blind-pass guard hiding behind it.
+  const clean = hazards("clean.c.txt");
+  t("clean: a well-behaved cart reports nothing  [cry-wolf guard]", clean.length === 0);
+  t("clean: ...and the fixture really does exercise all three hazards' triggers  [blind-pass guard]",
+    (() => {
+      const src = fs.readFileSync(path.join(FX, "hazards", "clean.c.txt"), "utf8");
+      return /\bwatch\s*\(/.test(src) && /\btouch_id\s*\(/.test(src) && /\bstruct\b/.test(src);
+    })());
+
+  // ── de:meta vocabulary + shape, from the declarative case table.
+  const cases = JSON.parse(fs.readFileSync(path.join(FX, "meta", "cases.json"), "utf8"));
+  for (const c of cases.cases) {
+    const errs = [];
+    validateMeta(c.meta, c.name, errs);
+    const hit = c.expect === null ? errs.length === 0 : errs.some(e => e.includes(c.expect));
+    t(`meta: ${c.label}`, hit && (c.only !== true || errs.length === 1));
+  }
+
+  const failed = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m"} ${x.n}`);
+  console.log(failed.length
+    ? `\x1b[31mlint-carts --selfcheck FAILED\x1b[0m — ${failed.length} of ${T.length} expectations broken`
+    : `lint-carts --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(failed.length ? 1 : 0);
+}
+
+// -----------------------------------------------------------------------------------------
+
+const errors = [];
+const metaCarts = new Set(); // <name>.cart.png for every cart that has a de:meta
+
+for (const f of fs.readdirSync(CARTS).sort()) {
+  if (!f.endsWith(".c")) continue;
+  const name = f.slice(0, -2);
+  const src = fs.readFileSync(path.join(CARTS, f), "utf8");
+  checkSourceHazards(src, name, errors);
+  let m;
+  try { m = readMeta(src, name); }
+  catch (e) { errors.push(`${name}.c: ${e.message}`); continue; }
+  if (!m) continue; // no de:meta = not a gallery cart (test/probe carts) — fine
+
+  const png = `${name}.cart.png`;
+  metaCarts.add(png);
+
+  validateMeta(m, name, errors);
 
   if (!fs.existsSync(path.join(CARTS_DIR, png)))
-    errors.push(`${at}: has de:meta but no baked ${png} — run: node tools/make-cart.js ${path.relative(ROOT, path.join(CARTS, f))} ${path.relative(ROOT, path.join(CARTS_DIR, png))}`);
+    errors.push(`${name}.c de:meta: has de:meta but no baked ${png} — run: node tools/make-cart.js ${path.relative(ROOT, path.join(CARTS, f))} ${path.relative(ROOT, path.join(CARTS_DIR, png))}`);
 }
 
 // every collection's anchor doc must exist — a dead "read more" home is a hard error

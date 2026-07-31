@@ -1,0 +1,30 @@
+// FIXTURE — the SANCTIONED fix for the finger-pool hazard. Never compiled. See ../README.md.
+//
+// This cart tracks fingers via touch_id() AND writes the `.id < 0` shape the lint matches on —
+// but it includes pointer.h, so it is on the shared pool whose free sentinel is PTR_NONE (-999),
+// which cannot collide with the editor's -2 synthetic mouse touch. Must be silent: this is the
+// state the lint steers carts toward, and a lint that still fires here is telling you to undo
+// the fix.
+//
+// The `.id < 0` below is LOAD-BEARING for the fixture, not incidental. The first draft wrote a
+// bare local (`int id = touch_id(i); if (id < 0)`), which the hazard regex never matches — so
+// the case passed for the wrong reason and deleting the pointer.h exemption outright still
+// scored 48/48. Keep a matchable `.id`-shaped test here or this assertion means nothing.
+
+#include "pointer.h"
+
+typedef struct Slot { int id; float x, y; } Slot;
+static Slot slots[8];
+static PtrPool pool;
+
+void update(void) {
+  PTR_CLEAR(&pool);
+  for (int i = 0; i < 8; i++) {
+    if (slots[i].id < 0) continue;   // exempt: this cart is on pointer.h
+    PTR_ACQUIRE(&pool, slots[i].id, slots[i].x, slots[i].y);
+  }
+  for (int i = 0; i < 8; i++) {
+    int t = touch_id(i);
+    if (t >= 0) slots[i].id = t;
+  }
+}

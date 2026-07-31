@@ -116,8 +116,8 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Three now do, all gated in
-`repo-doctor` (`selftest: ledger` / `selftest: xrefs` / `selftest: doc refs`):
+**So: if your check makes a judgement, give it a `--selfcheck`.** Nine now do — **126 assertions**
+— every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
 |---|---|---|
@@ -126,11 +126,27 @@ fallible as an FFT, and nobody has built the fixture.
 | `lint-xrefs.js --selfcheck` | `tools/fixtures/lint-xrefs/docs/` | 5 — both tiers, plus the HUB and fenced-code exempt classes |
 | `stale-doc-check.js --selfcheck` | `tools/fixtures/stale-doc-check/docs/` | 7 — the four verdicts BROKEN REFERENCES rests on (gone / never-existed / foreign / present) |
 | `handoff.js --selfcheck` | `tools/fixtures/handoff/HANDOFF.md` | 11 — all five lane judgements, plus **all three** of the false positives that tool shipped with |
+| `lint-capability-claims.js --selfcheck` | `tools/fixtures/lint-capability-claims/` | 15 — the discriminators that take it from prose-guessing to precise |
+| `lint-fxicons.js --selfcheck` | `tools/fixtures/lint-fxicons/` | 7 — per-dispatcher registration, plus the derived-fallback exempt class |
+| `lint-aux-params.js --selfcheck` | `tools/fixtures/lint-aux-params/` | 14 — every finding kind, and the three checks that pass **vacuously** on zero regex matches |
+| `lint-carts.js --selfcheck` | `tools/fixtures/lint-carts/` | 48 — all three source hazards **and each one's exempt class**, plus a 26-case `de:meta` table |
 
-The doc-scanning tools take a **`DE_DOCS_DIR`** override (`handoff` takes `DE_HANDOFF_FILE`) so the
-fixture is scanned instead of `docs/`, while `ROOT` stays the real repo — so the fixture is
+Fixtures are fed in by **path override, not by restructuring the tool**: doc scanners take
+`DE_DOCS_DIR` (`handoff` takes `DE_HANDOFF_FILE`), source scanners take one env var per input
+(`DE_AUX_SOUND_H`, `DE_FX_ICONS_H`, …), while `ROOT` stays the real repo — so the fixture is
 adjudicated against real `srcExists`, real link targets and real git history, exactly as in
-production.
+production. Where the judgement is already a **pure function** (`lint-carts`' hazard scanner and
+`de:meta` validator), `--selfcheck` just calls it directly and needs no fixture repo at all;
+extracting that function was the whole cost of fixturing it.
+
+**Name the fixture files `.c.txt` / `.h.txt` / `.js.txt`, never `.c` / `.h` / `.js`.** A fixture is
+never compiled, and a real header here gets indexed by clangd, which then reports phantom
+"undeclared FX_ALPHA" diagnostics at you in unrelated files. A real `.c` also risks being picked
+up by anything globbing for cart sources.
+
+**Fixture more than one case when the findings are mutually exclusive.** `lint-aux-params` needs
+three (`broken/` `clean/` `stale/`): a channel whose `eng_p[]` declarations *disagree* cannot
+simultaneously be the one demonstrating two that agree.
 
 **A fixture whose expectations depend on *today* must template its dates.** `handoff`'s lane-staleness
 judgement is relative to now, so a hard-coded "fresh" date would quietly become a stale one and the
@@ -162,6 +178,25 @@ Two rules that fall out of the same day:
    inside the fence) then fired for the wrong reason, because the sentence introducing the fence
    named it too. Only the third version actually failed when broken. A green self-test proves
    nothing until you have seen it go red.
+4. **A "must NOT be flagged" assertion has to be *able* to fail.** The commonest vacuous shape:
+   marking the good lines in a fixture (`OK_fmt`, `OK_waived`) and then asserting
+   `!errors.some(e => e.includes("OK_fmt"))` — which is true whether or not that line was flagged,
+   because the hazard message quotes its own advice, not the offending call. Six of `lint-carts`'
+   negative assertions were vacuous this way on the first pass. **Resolve the finding back to the
+   line it points at** and assert on *that* text; then a wrongly-flagged `OK_` line fails, and as a
+   bonus you get a line-number guard for free.
+5. **When you break the heuristic on purpose, assert the patch applied.** A `sed`/`python` mutation
+   whose pattern doesn't match leaves the tool untouched, the self-test passes, and it reads exactly
+   like "the fixture has no teeth here." That happened twice while writing rule 4's fixtures — once
+   from heredoc escaping eating a backslash. `assert old in src` before writing, every time. It is
+   the same failure `ab-render.js` exits 2 over: two variants that render identically mean the flag
+   never reached the code, so the numbers are meaningless.
+6. **A fixture case can pass for the wrong reason — check by deleting the exemption.**
+   `lint-carts`' `pool-ok.c.txt` was meant to prove the `pointer.h` exemption works, but its first
+   draft used a bare local (`int id = touch_id(i); if (id < 0)`) that the hazard regex never matched
+   in the first place. Removing the exemption outright still scored a clean 48/48. If an assertion
+   is about an *exempt class*, the fixture must contain something that would otherwise be **caught**
+   — and the mutation that deletes the exemption is how you prove it does.
 
 ## Orienting *before* a change (don't dive in blind)
 

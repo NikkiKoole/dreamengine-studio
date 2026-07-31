@@ -1,0 +1,4 @@
+// FIXTURE — a stand-in editor/src/shell.js help-tab sections, fully registered.
+const sections = [
+  { title: 'sound', keys: ['MODE_CLEAN_A', 'MODE_CLEAN_B', 'MODE_CLEAN_C'] },
+]

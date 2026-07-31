@@ -1,0 +1,5 @@
+// FIXTURE — a stand-in editor/src/shell.js help-tab sections. See ../README.md.
+// MODE_FIX_NOSHELL is deliberately absent.
+const sections = [
+  { title: 'sound', keys: ['MODE_FIX_OK', 'MODE_FIX_NODOCS', 'MODE_FIX_TOOBIG'] },
+]

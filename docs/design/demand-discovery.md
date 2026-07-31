@@ -109,6 +109,34 @@ Caveat: it inherits the taxonomy's coarseness (single-keyword match tags a gear-
 "Synths"), and RSS gives no score, so `hot`-only posts are the weakest tier. Read `[show]` rows,
 skim for *"I made / built / released"* language, and treat it as a lead list, not a verdict.
 
+## The third pass → the launch watch (added 2026-07-31)
+
+The showcase pass above needs a post to have **trended**, which means it can only ever see builds old
+enough to have reached `top-month`/`top-year` (or at minimum `hot`). A launch from *this week* sits in
+`new` alone: it scores `pop 0`, so the showcase drops it — and it's an announcement, not an ask, so no
+wish pattern fires either. Both existing passes are structurally blind to the most time-critical
+signal we have.
+
+`--launches` is the third pass, over the same caches, no fetch:
+
+- **Date-windowed** (`--days`, default 30) — demand data goes stale slowly, supply data goes stale in
+  days.
+- **On-grain only** — someone else's lane isn't a threat.
+- **Flags what stings**: `[OSS]` / `[FREE]` (a free build moves the price floor under a paid cart) and
+  `[BETA]` (still catchable).
+- **Collapses cross-posts** — one launch in r/ipadmusic *and* r/iosmusicproduction reads as one event.
+- **`LAUNCH_NOT` filters music releases**, on the title only: these tribes announce an album with the
+  same grammar they announce an app ("I made…", "Just released…"), but a real tool post often mentions
+  the album the author made *with* it.
+
+It also runs inside `--drip` on a 14-day window, so the drip log carries the signal — by the next
+rotation (5 days) a launch is already old news, and nobody re-reads a cache by hand.
+
+First sweep (24 caches, 30 days): **16 on-grain launches that had been sitting uncounted**, including
+a *free, open-source* iPad chord/scale/interval app — which is
+[field note 024](../field-notes/024-demand-discovery-four-tribes.md)'s "best-evidenced next build",
+shipped by someone else. Full read: [field note 028](../field-notes/028-demand-discovery-instrument-error.md).
+
 ## Usage
 
 ```bash
@@ -118,18 +146,25 @@ node tools/reddit-gaps.js ipadmusic --raw      # also dump every mined wish thre
 node tools/reddit-gaps.js ipadmusic --json     # machine-readable (editor glance / piping)
 node tools/reddit-gaps.js --showcase           # SUPPLY side: celebrated on-grain builds, all caches
 node tools/reddit-gaps.js --showcase pico8     # …one sub · --limit n · --json
+node tools/reddit-gaps.js --launches           # SUPPLY side, fresh: who SHIPPED into our lane
+node tools/reddit-gaps.js --launches --days 14 # …one sub · --limit n · --json
 node tools/reddit-gaps.js --check              # offline self-test on a fixture (CI gate)
 ```
 
 ## Open / next
 
 - **Coverage is coarse with a big library (the main v1 limitation, found on the first live run).**
-  A GAP requires `coverage == 0`, but with 468 carts almost every topic has *some* matching cart, so
-  binary coverage rarely hits zero and the automated "★ GAP" verdict rarely fires. The real value
-  turned out to be the **ranked + clustered wish list** (`--raw`) for a human/agent to read, not the
-  GAP flag. Two sharper signals to try: a **demand-to-coverage ratio** (not binary), and
-  **sub-topic specificity** — a cart matching "synth" doesn't mean we serve the *specific* ask ("a
-  live-performance all-in-one"). The r/ipadmusic run bore this out: loudest demand (MIDI control,
+  ✓ **PARTLY ADDRESSED 2026-07-31** — the ratio idea below shipped as the `THIN` verdict
+  (`demand ≥ 3 × coverage`, `◐`), after ten straight rotations printed "no clean GAP": with a
+  255-cart musicish shelf `coverage == 0` had become structurally unreachable, so `GAP` could
+  never fire and every row read "covered (hot)" no matter how loud the ask (r/ipadmusic: demand 74
+  on MIDI routing vs 23 carts, printed "covered"). Six topic keys were *also* inflating `ours`
+  outright — `score` matching a game score, ` tab ` a UI tab, ` deck` a card deck — now excluded via
+  `COVER_BLIND`. What is **still open** is the deeper half: `ours` counts *carts*, not products a
+  stranger can use, so a mockup, a tech demo and a shipped rack all count as one. See
+  [field note 028](../field-notes/028-demand-discovery-instrument-error.md). Remaining sharper signal
+  to try: **sub-topic specificity** — a cart matching "synth" doesn't mean we serve the *specific*
+  ask ("a live-performance all-in-one"). The r/ipadmusic run bore this out: loudest demand (MIDI control,
   stem separation, time-stretch) is off-grain *utility*; the on-grain, recurring asks were a
   **chord-play toy** ("store chords, play like a drum pad"), a **noodle playground** ("just fuck
   around, switch instruments") and **classic-gear homages** (ARP Odyssey, rompler) — none of which

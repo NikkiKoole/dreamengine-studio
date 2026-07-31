@@ -379,7 +379,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              demand × low coverage × on-grain). No score in RSS → ranks by CLUSTER SIZE. No
                              auth/deps; polite+cached; `--check` self-test; `--drip` = fetch the stalest sub
                              (for a cron/launchd drip); `--ingest <file>` = paste-bridge for browser-saved RSS.
-                             Design: docs/design/demand-discovery.md
+                             THREE passes, each blind to what the others see: wishes (what the tribe ASKED
+                             for) · `--showcase` (what it UPVOTED — needs a post old enough to have trended) ·
+                             `--launches` (who SHIPPED into our lane, date-windowed — a build from this week
+                             has no ask and no time to trend, so the other two CANNOT see it; runs in the drip
+                             log too, since supply news rots in days). `THIN` (◐) = covered on paper but
+                             demand ≥3× our carts — on a 255-cart shelf `GAP` is nearly extinct and THIN is
+                             where the next candidate comes from. Design: docs/design/demand-discovery.md
              reddit-gaps-drip.sh  the scheduled-drip RUNNER for reddit-gaps (loaded by the macOS LaunchAgent
                              com.dreamengine.reddit-gaps-drip): resolves node under launchd's bare env + fires
                              `reddit-gaps.js --drip` (stalest sub in reddit-gaps-subs.txt) every 6h. `zsh tools/reddit-gaps-drip.sh` to fire once

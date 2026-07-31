@@ -48,4 +48,9 @@ chiptunes           # fantasy-console lineage: trackers / LSDj / PICO-8-adjacent
 #   learn-the-tool, NOT unmet-capability — collect a full drip cache before concluding.
 #   Read RAW wishes, not the verdict table: music taxonomy parks game-design chatter as noise.
 pico8
-Tic_80              # TIC-80 — same lineage/audio limits as pico8
+TIC80               # TIC-80 — same lineage/audio limits as pico8. RENAMED 2026-07-31 from "Tic_80",
+#   which does not exist: it 302s to Reddit's subreddit-SEARCH (the no-such-sub behaviour), so all 13
+#   feeds failed every rotation for ~2.5 weeks and the slot cached nothing. The live sub is r/TIC80.
+#   The typo was invisible because --drip always saves a snapshot (deliberately — see drip(), else a
+#   throttled sub stays "stalest" forever and starves the rotation), so the mtime advanced and the
+#   round-robin moved on. drip now warns loudly on this shape; see the DEAD-NAME check.

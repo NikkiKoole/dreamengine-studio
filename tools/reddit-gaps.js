@@ -130,6 +130,30 @@ const TOPICS = [
 const GRAIN_W = { core: 1, edge: 0.5, off: 0.15 };
 const GAP_MIN = 2; // a topic needs >= this many distinct threads to count as real demand
 
+// A topic key is matched against BOTH a tribe's prose and OUR cart prose — but a handful of words
+// mean something different on each side, and they only ever inflate the `ours` column (never the
+// demand one, where the surrounding sentence disambiguates). Found 2026-07-31 after TEN straight
+// rotations printed "no clean GAP": the verdict table had saturated, and part of it was fake
+// coverage. Each of these was hand-verified against the real shelf before being listed — the keys
+// NOT here (patch/analog/" pattern"/transpose/hardware/routing/"export "/scale/random/endless)
+// were checked too and are genuinely ours. Excluded from coverage matching ONLY:
+const COVER_BLIND = new Map([
+  ["score",   "a GAME score (flappy, hotline, catch the star) — not a musical score"],
+  [" tab ",   "a UI tab (acidwire, acidfit, Chordblossom's 'three tabs') — not tablature"],
+  ["convert", "'converts like chipjam', 'converted trivially' — porting prose, not a file converter"],
+  ["external","'external vs finger' trig, 'external-data-carts' — not hardware-companion"],
+  [" pad ",   "an xy/drum PAD control surface — not a sustained synth pad sound"],
+  [" deck",   "a CARD deck (Blackjack, Deckbuilder) — not a DJ deck"],
+]);
+
+// The SECOND half of the saturation problem. `gap` was binary (coverage === 0), and with a
+// 255-cart musicish shelf no core topic is ever 0 — so GAP could essentially never fire again and
+// every row printed "covered (hot)" no matter how loud the ask. r/ipadmusic showed demand 74 on
+// MIDI routing against 23 carts and still read "covered". THIN catches that: covered on paper,
+// swamped in practice. Heuristic, and dimensionally loose on purpose (threads vs carts are
+// different units) — it flags a row for a HUMAN to read, it does not conclude anything.
+const THIN_RATIO = 3;
+
 // The demand-miner's BLIND SPOT (found 2026-07-17 via r/pico8's "303/808/poly-synth groovebox"
 // showcase — dead on-grain, upvoted into top-month+hot, but INVISIBLE to the wish patterns because
 // it's a build announcement, not an ask). A post the tribe UPVOTED that matches our grain is
@@ -345,7 +369,8 @@ function loadCorpus() {
   }));
 }
 function coverage(topic, corpus) {
-  const hits = corpus.filter((c) => { const t = ` ${c.text} `; return topic.keys.some((k) => t.includes(k)); });
+  const keys = topic.keys.filter((k) => !COVER_BLIND.has(k));
+  const hits = corpus.filter((c) => { const t = ` ${c.text} `; return keys.some((k) => t.includes(k)); });
   return { count: hits.length, samples: hits.slice(0, 3).map((h) => h.title) };
 }
 
@@ -361,14 +386,16 @@ function buildReport(scanData, corpus) {
     const demand = threads.length;
     const cov = coverage(topic, corpus);
     const gap = cov.count === 0;
-    const gapScore = demand * GRAIN_W[topic.grain] * (gap ? 2 : 0.4);
+    const thin = !gap && demand >= GAP_MIN && demand >= THIN_RATIO * cov.count;
+    const gapScore = demand * GRAIN_W[topic.grain] * (gap ? 2 : thin ? 1 : 0.4);
     let verdict;
     if (topic.grain === "off") verdict = "off-grain";
     else if (demand === 0) verdict = "no signal";
     else if (gap && demand >= GAP_MIN) verdict = "GAP";
     else if (gap) verdict = "weak gap";
+    else if (thin) verdict = "THIN";
     else verdict = demand >= GAP_MIN ? "covered (hot)" : "covered";
-    return { ...topic, demand, coverage: cov.count, coverSamples: cov.samples, verdict, gapScore,
+    return { ...topic, demand, coverage: cov.count, coverSamples: cov.samples, verdict, gapScore, thin,
       threads: threads.map((t) => ({ title: t.title, link: t.link, types: t.types, feeds: t.feeds.length })) };
   }).sort((a, b) => b.gapScore - a.gapScore);
 
@@ -408,6 +435,91 @@ function showcasesIn(entries) {
   }
   return out.sort((a, b) => b.score - a.score || b.pop - a.pop);
 }
+// ── launch watch: the SUPPLY side (who shipped into our lane, this week) ──────
+// The third pass, and the one the other two are structurally blind to. `mine` asks what the tribe
+// ASKED FOR; `showcasesIn` asks what it UPVOTED (which needs a popularity feed, so it only ever
+// sees posts old enough to have trended). Neither answers "a competitor shipped LAST WEEK" — a
+// brand-new launch sits in `new` only, scores pop 0, and is a build announcement so no wish pattern
+// fires. Found 2026-07-31: 16 launch posts were sitting uncounted in the caches, one of them a FREE
+// open-source build of field-note 024's best-evidenced next cart. Demand data goes stale slowly;
+// supply data goes stale in days, which is exactly why this one is date-windowed.
+const LAUNCH_PATTERNS = [
+  /^\s*(i|we)\s+(made|built|created|just\s+(made|built|released|dropped|launched)|released|launched|finished)\b/i,
+  /^\s*(introducing|announcing|released|launching|just\s+(released|dropped|launched))\b/i,
+  /\bmy\s+(new\s+)?(app|synth|sampler|sequencer|drum\s?machine|instrument|plugin)\b.*\b(is\s+(out|live|here)|released|available)\b/i,
+  /\b(now\s+available|out\s+now)\s+on\s+the\s+app\s?store\b/i,
+  /\btestflight\b/i,
+];
+// These tribes announce MUSIC with the exact same grammar they announce TOOLS ("I made…",
+// "Just released…"), and a finished album is not a competitor. Checked against the title only —
+// the body of a real tool post often mentions the album the author made WITH it.
+const LAUNCH_NOT = [
+  /\b(album|ep|lp|mixtape|beat ?tape|single|song|track|remix|cover|demo reel|playlist|set|jam session)\b/i,
+  /\b(chiptune|tune|piece|composition) about\b/i,
+  /\bperformance patch\b/i,     // a patch built IN someone else's host, not a shipped thing
+];
+// What makes a launch STING more, not just exist. Free/open-source moves the price floor under a
+// paid cart; a beta is still catchable.
+const LAUNCH_FLAGS = [
+  { flag: "OSS",  re: /\bopen[- ]?source\b/i },
+  { flag: "FREE", re: /\b(free|no in.?app purchases?|zero in.?app|donation)\b/i },
+  { flag: "BETA", re: /\b(testflight|beta|looking for (a few )?(beta )?testers)\b/i },
+];
+function launchesIn(entries, sinceMs) {
+  const out = [];
+  for (const e of entries) {
+    const when = Date.parse(e.published || "") || 0;
+    if (!when || when < sinceMs) continue;               // date-windowed: supply news rots fast
+    const title = e.title || "";
+    if (!LAUNCH_PATTERNS.some((re) => re.test(title))) continue;
+    if (LAUNCH_NOT.some((re) => re.test(title))) continue;      // shipped MUSIC, not a shipped tool
+    const ids = topicsFor(`${title} ${e.content}`).filter((x) => x !== "other");
+    const best = grainOf(ids);
+    if (!best || best.grain === "off") continue;         // someone else's lane isn't a threat
+    const blob = `${title} ${e.content || ""}`;
+    out.push({
+      title, link: e.link, published: (e.published || "").slice(0, 10), when,
+      topic: best.label, grain: best.grain,
+      flags: LAUNCH_FLAGS.filter((f) => f.re.test(blob)).map((f) => f.flag),
+    });
+  }
+  return out.sort((a, b) => b.when - a.when);
+}
+function runLaunches(subArg, opts) {
+  const subs = subArg ? [subArg] : allCacheSubs();
+  if (!subs.length) die("--launches: no caches found — run a drip first.");
+  const sinceMs = opts.nowMs - opts.days * 86400000;
+  let rows = [];
+  for (const s of subs) {
+    const data = loadCache(s);
+    if (!data || !data.entries) continue;
+    for (const r of launchesIn(data.entries, sinceMs)) rows.push({ ...r, sub: s });
+  }
+  // The same launch is cross-posted to sibling subs (ipadmusic + iosmusicproduction); collapse by
+  // title so a two-sub launch reads as one event, but keep every sub it landed in.
+  const byTitle = new Map();
+  for (const r of rows) {
+    const k = r.title.toLowerCase().slice(0, 60);
+    if (byTitle.has(k)) { byTitle.get(k).subs.push(r.sub); continue; }
+    byTitle.set(k, { ...r, subs: [r.sub] });
+  }
+  rows = [...byTitle.values()].sort((a, b) => b.when - a.when);
+  if (opts.json) { console.log(JSON.stringify({ subs, days: opts.days, count: rows.length, rows }, null, 2)); return; }
+  console.log("");
+  console.log(bold("  LAUNCH WATCH") + dim(`  · ${subs.length} cache(s) · last ${opts.days} days · ${rows.length} on-grain launch(es)`));
+  console.log(dim("  who SHIPPED into our lane — the supply side. Neither the wish miner nor the showcase"));
+  console.log(dim("  pass can see a brand-new build: it has no ask, and no time to trend yet.\n"));
+  if (!rows.length) { console.log(dim("  nothing on-grain shipped in the window (or the caches are older than it).\n")); return; }
+  for (const r of rows.slice(0, opts.limit)) {
+    const flags = r.flags.length ? " " + r.flags.map((f) => (f === "BETA" ? yellow(`[${f}]`) : red(`[${f}]`))).join("") : "";
+    console.log("  " + dim(r.published) + "  " + bold(r.topic.padEnd(22)) + dim("r/" + r.subs.join(" +r/")) + flags);
+    console.log("    " + r.title.slice(0, 92));
+    console.log("    " + dim(r.link));
+  }
+  if (rows.length > opts.limit) console.log(dim(`\n  … ${rows.length - opts.limit} more (raise with --limit).`));
+  console.log("");
+}
+
 function allCacheSubs() {
   try { return fs.readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, "")); }
   catch { return []; }
@@ -446,9 +558,10 @@ function runShowcase(subArg, opts) {
 }
 
 // ── printing ──────────────────────────────────────────────────────────────────
-const ICON = { "GAP": "★", "weak gap": "◦", "covered (hot)": "●", "covered": "·", "off-grain": " ", "no signal": " " };
+const ICON = { "GAP": "★", "THIN": "◐", "weak gap": "◦", "covered (hot)": "●", "covered": "·", "off-grain": " ", "no signal": " " };
 function paint(v, s) {
   if (v === "GAP") return green(s);
+  if (v === "THIN") return cyan(s);
   if (v === "weak gap") return yellow(s);
   if (v === "covered (hot)" || v === "covered") return dim(s);
   return dim(s);
@@ -457,7 +570,8 @@ function printReport(r, opts) {
   console.log("");
   console.log(bold(`  r/${r.sub}`) + dim(`  · ${r.okFeeds} feeds · ${r.entries} threads · ${r.wishes} wishes mined · ${r.fetchedAt.slice(0, 10)}`));
   if (r.failed && r.failed.length) console.log(dim(`  (feeds that failed: ${r.failed.join(", ")})`));
-  console.log(dim(`  ranked by gap-score = demand × grain × (uncovered?2:0.4). ★=GAP  ●=covered+hot  ·=covered  ◦=weak\n`));
+  console.log(dim(`  ranked by gap-score = demand × grain × (uncovered?2 : thin?1 : 0.4).`));
+  console.log(dim(`  ★=GAP  ◐=THIN (covered on paper, demand ≥${THIN_RATIO}× our carts)  ●=covered+hot  ·=covered  ◦=weak\n`));
   console.log(dim("  verdict         topic                     demand  ours  examples"));
   for (const t of r.topics) {
     if (t.demand === 0 && t.coverage === 0) continue;
@@ -482,6 +596,15 @@ function printReport(r, opts) {
     console.log("\n  " + dim("no clean GAP this run — widen with --queries or --refresh, or the tribe is well-served on-grain."));
   }
 
+  const thins = r.topics.filter((t) => t.verdict === "THIN");
+  if (thins.length) {
+    console.log("\n" + bold("  ◐ THIN COVERAGE (we have carts here, but the ask dwarfs them — read these):"));
+    for (const t of thins.slice(0, 5)) {
+      console.log("\n  " + cyan(bold(t.label)) + dim(`  — ${t.demand} threads vs ${t.coverage} of our carts`));
+      for (const th of t.threads.slice(0, 3)) console.log("    " + dim("•") + " " + th.title.slice(0, 80));
+    }
+  }
+
   if (opts.raw) {
     console.log("\n" + bold(`  RAW WISHES (${r.wishList.length}):`));
     for (const w of r.wishList) console.log("  " + dim("[" + w.types.join("/") + "]") + " " + w.title.slice(0, 78) + "\n    " + dim(w.link));
@@ -501,15 +624,24 @@ function selfCheck() {
     { id: "f", title: "Is there a sheet music notation app with staff view?", content: "", link: "n", feeds: ["q:is there an app", "top-year"] },
     { id: "g", title: "just chatting about my favourite synth today", content: "no ask here", link: "u", feeds: ["hot"] }, // not a wish
     { id: "h", title: "P8-38P - a 303, 808 and poly-synth groovebox", content: "", link: "gb", feeds: ["top-month", "hot", "new"] }, // showcase: a build the tribe upvoted, invisible to wish patterns
+    // THIN fixture: 3 sampler asks against a 1-cart shelf (3 >= 3×1) — covered on paper, swamped.
+    { id: "i", title: "Is there an app that can chop a sample to pads?", content: "", link: "s1", feeds: ["q:is there an app"] },
+    { id: "j", title: "Looking for an app to slice samples", content: "", link: "s2", feeds: ["q:looking for an app"] },
+    { id: "k", title: "any app that does one-shot sampling", content: "", link: "s3", feeds: ["q:any app that"] },
   ];
   const corpus = [
     { title: "acidrack", text: "acid synth 303 subtractive-synth step-sequencer" },
     { title: "epiano", text: "electric piano fm-synth" },
+    { title: "breakchop", text: "sampler chop slice break" },
+    // The COVER_BLIND regression guards: a cart that mentions a game score and a UI tab must NOT
+    // count as notation coverage, and a card deck must not count as DJ coverage. Before the fix
+    // these three words alone put 40 carts under "Notation / sheet music".
+    { title: "flappy", text: "beat your high-score, press tab for the panel, cards off the deck" },
   ];
   const r = buildReport({ sub: "fixture", fetchedAt: "2026-07-13T00:00:00Z", okFeeds: 4, failed: [], entries: FIXTURE }, corpus);
   const problems = [];
   const wish = mine(FIXTURE);
-  if (wish.length !== 6) problems.push(`expected 6 wishes (all but the chit-chat), got ${wish.length}`);
+  if (wish.length !== 9) problems.push(`expected 9 wishes (all but the chit-chat + the showcase), got ${wish.length}`);
   const gen = r.topics.find((t) => t.id === "generative");
   if (!gen || gen.demand < 2) problems.push(`generative should cluster >=2 threads, got ${gen && gen.demand}`);
   if (!gen || gen.verdict !== "GAP") problems.push(`generative should be a GAP (uncovered, >=2), got ${gen && gen.verdict}`);
@@ -520,6 +652,64 @@ function selfCheck() {
   if (!seq || seq.coverage < 1) problems.push(`sequencer should be covered (acidrack), got coverage ${seq && seq.coverage}`);
   const notation = r.topics.find((t) => t.id === "notation");
   if (!notation || notation.verdict !== "off-grain") problems.push(`notation should be off-grain, got ${notation && notation.verdict}`);
+
+  // ── COVER_BLIND: the fake-coverage guards (2026-07-31) ──────────────────────
+  // These assert a NEGATIVE, so they'd pass vacuously if the fixture cart stopped matching at all.
+  // Pin the positive control first: the blind words ARE present in the corpus text.
+  const flappy = corpus.find((x) => x.title === "flappy");
+  for (const k of ["score", " tab ", " deck"])
+    if (!` ${flappy.text} `.includes(k)) problems.push(`fixture broken: "${k}" no longer present in the flappy cart text (the guards below would pass vacuously)`);
+  if (notation && notation.coverage !== 0)
+    problems.push(`notation coverage should be 0 — a game score + a UI tab are not tablature, got ${notation.coverage}`);
+  const dj = r.topics.find((t) => t.id === "dj");
+  if (dj && dj.coverage !== 0) problems.push(`dj coverage should be 0 — a CARD deck is not a DJ deck, got ${dj.coverage}`);
+  for (const [k, why] of COVER_BLIND) {
+    const owner = TOPICS.find((t) => t.keys.includes(k));
+    if (!owner) problems.push(`COVER_BLIND lists "${k}" (${why}) but no topic uses that key — stale entry, so it silences nothing`);
+  }
+
+  // ── THIN: covered on paper, swamped in practice ─────────────────────────────
+  const smp = r.topics.find((t) => t.id === "sampler");
+  if (!smp || smp.coverage !== 1) problems.push(`sampler should be covered by exactly 1 cart (breakchop), got ${smp && smp.coverage}`);
+  if (!smp || smp.demand < 3) problems.push(`sampler should cluster >=3 threads, got ${smp && smp.demand}`);
+  if (!smp || smp.verdict !== "THIN") problems.push(`sampler should be THIN (3 asks vs 1 cart), got ${smp && smp.verdict}`);
+  // ...and THIN must not swallow a genuine GAP, nor fire on a comfortably-covered topic.
+  if (gen && gen.verdict !== "GAP") problems.push("THIN must not outrank an uncovered GAP");
+  if (seq && seq.verdict === "THIN") problems.push(`sequencer (1 ask vs 1 cart) must not be THIN, got ${seq.verdict}`);
+  if (smp && gen && !(gen.gapScore > smp.gapScore)) problems.push("an uncovered GAP must still outrank a THIN row of equal demand");
+
+  // ── launch watch: the supply side ───────────────────────────────────────────
+  const NOW = Date.parse("2026-07-31T00:00:00Z");
+  const LAUNCHES = [
+    { id: "L1", title: "I built a free, open-source iPad app for exploring chords and scales", content: "no subscription", link: "l1", feeds: ["new"], published: "2026-07-23T00:00:00+00:00" },
+    { id: "L2", title: "i just released GCS Model 8 Tape DAW for iPhone (FREE no in app purchases)", content: "tape emulator cassette", link: "l2", feeds: ["new"], published: "2026-07-18T00:00:00+00:00" },
+    { id: "L3", title: "RUN4 - Tape & Texture Machine - looking for TestFlight Beta", content: "sampler loops textures", link: "l3", feeds: ["new"], published: "2026-07-17T00:00:00+00:00" },
+    { id: "L4", title: "I built SheetCue for practicing from score PDFs", content: "sheet music notation staff", link: "l4", feeds: ["new"], published: "2026-07-19T00:00:00+00:00" }, // off-grain → excluded
+    { id: "L5", title: "I built a synth app for iPad", content: "synth", link: "l5", feeds: ["new"], published: "2026-02-01T00:00:00+00:00" },  // outside the window
+    { id: "L6", title: "What does your production stack look like?", content: "synth sampler", link: "l6", feeds: ["new"], published: "2026-07-25T00:00:00+00:00" }, // a question, not a launch
+    // LAUNCH_NOT: these tribes announce MUSIC with the same grammar as TOOLS. An album is not a
+    // competitor. L9's BODY mentions an album on purpose — a real tool post often does.
+    { id: "L7", title: "I made an album of music with synthesizers on it", content: "synth", link: "l7", feeds: ["new"], published: "2026-07-29T00:00:00+00:00" },
+    { id: "L8", title: "Just released this dark synth pop chiptune about an alternate storyline", content: "chiptune", link: "l8", feeds: ["new"], published: "2026-07-10T00:00:00+00:00" },
+    { id: "L9", title: "I built a granular sampler app", content: "I made an album with it to show it off", link: "l9", feeds: ["new"], published: "2026-07-28T00:00:00+00:00" },
+  ];
+  const L = launchesIn(LAUNCHES, NOW - 30 * 86400000);
+  const got = new Set(L.map((x) => x.link));
+  if (!got.has("l1")) problems.push("launch watch missed the open-source chord app (the note-024 collision)");
+  if (!got.has("l2")) problems.push("launch watch missed the 'i just released' tape DAW");
+  if (!got.has("l3")) problems.push("launch watch missed the TestFlight beta");
+  if (got.has("l4")) problems.push("launch watch must exclude off-grain (notation) launches");
+  if (got.has("l5")) problems.push("launch watch must exclude launches outside the --days window");
+  if (got.has("l6")) problems.push("launch watch must not fire on a plain question");
+  if (got.has("l7")) problems.push("launch watch must exclude a shipped ALBUM (not a tool)");
+  if (got.has("l8")) problems.push("launch watch must exclude a shipped TRACK (not a tool)");
+  if (!got.has("l9")) problems.push("launch watch must KEEP a real tool whose body happens to mention an album (LAUNCH_NOT is title-only)");
+  const l1 = L.find((x) => x.link === "l1"), l2 = L.find((x) => x.link === "l2"), l3 = L.find((x) => x.link === "l3");
+  if (l1 && !(l1.flags.includes("OSS") && l1.flags.includes("FREE"))) problems.push(`the open-source app should flag OSS+FREE, got [${l1.flags}]`);
+  if (l2 && !l2.flags.includes("FREE")) problems.push(`'no in app purchases' should flag FREE, got [${l2.flags}]`);
+  if (l3 && !l3.flags.includes("BETA")) problems.push(`a TestFlight post should flag BETA, got [${l3.flags}]`);
+  for (let i = 1; i < L.length; i++)
+    if (L[i - 1].when < L[i].when) { problems.push("launch watch should sort newest-first"); break; }
 
   // showcase pass: catch the celebrated on-grain build the wish miner is blind to
   const shows = showcasesIn(FIXTURE);
@@ -562,9 +752,28 @@ async function drip(argv) {
   // starve the rotation. A real-but-throttled sub keeps its prior threads (scan seeds from cache);
   // it just gets retried on its next turn, not immediately.
   saveCache(pick, data);
+  // DEAD-NAME check. The always-save above is what keeps a throttled sub from starving the rotation
+  // — but it also made a MISSPELLED sub invisible for 2.5 weeks (r/Tic_80, which doesn't exist:
+  // Reddit 302s a bad name to its subreddit-search, so every feed "fails" and the slot silently
+  // burns a turn forever). Throttling looks the same for ONE run; the tell is a sub that has never
+  // once returned an entry. Say so, loudly, instead of logging another quiet zero.
+  if (data.okFeeds === 0 && data.entries.length === 0) {
+    console.log(`  ⚠ DEAD NAME? r/${pick}: 0 feeds ok AND 0 threads cached — ever. A misspelled or`);
+    console.log(`    private sub looks exactly like this. Check the name (Reddit redirects a bad one`);
+    console.log(`    to /subreddits/search) before assuming it's throttling, or it burns a slot each cycle.`);
+  }
   const wishes = mine(data.entries).length;
   const stamp = new Date().toISOString();
   console.log(`[reddit-gaps drip ${stamp}] r/${pick}: ${data.okFeeds} feeds ok, ${data.entries.length} threads, ${wishes} wishes cached`);
+  // Supply-side watch, in the drip log itself. A launch in our lane is time-critical in a way the
+  // demand table isn't: by the next rotation (5 days) it's already old news, and nobody re-reads a
+  // cache by hand. 14-day window so a sub's own rotation gap can't hide one.
+  const fresh = launchesIn(data.entries, Date.now() - 14 * 86400000);
+  for (const l of fresh) {
+    const flags = l.flags.length ? ` [${l.flags.join("/")}]` : "";
+    console.log(`  ⚑ LAUNCH ${l.published} (${l.topic})${flags}: ${l.title.slice(0, 80)}`);
+  }
+  if (fresh.length) console.log(`  ⚑ ${fresh.length} on-grain launch(es) in r/${pick} in the last 14 days — node tools/reddit-gaps.js --launches`);
 }
 
 // ── main ───────────────────────────────────────────────────────────────────
@@ -578,6 +787,16 @@ async function main() {
     const subArg = argv.find((a, idx) => !a.startsWith("--") && !VF.has(argv[idx - 1]));
     return runShowcase(subArg, { limit: parseInt(flag("--limit", "40"), 10), json: argv.includes("--json") });
   }
+  if (argv.includes("--launches")) {
+    const VF = new Set(["--limit", "--days"]);
+    const subArg = argv.find((a, idx) => !a.startsWith("--") && !VF.has(argv[idx - 1]));
+    if (argv.includes("--json")) COLOR = false;
+    return runLaunches(subArg, {
+      limit: parseInt(flag("--limit", "40"), 10),
+      days: parseInt(flag("--days", "30"), 10),
+      nowMs: Date.now(), json: argv.includes("--json"),
+    });
+  }
   const has = (name) => argv.includes(name);
   const VALUE_FLAGS = new Set(["--limit", "--delay", "--queries", "--ingest"]);
   const sub = argv.find((a) => !a.startsWith("--") && !VALUE_FLAGS.has(argv[argv.indexOf(a) - 1]));
@@ -586,6 +805,7 @@ async function main() {
     console.log("usage: node tools/reddit-gaps.js <subreddit> [--refresh] [--limit n] [--delay ms] [--queries \"a,b\"] [--raw] [--json]");
     console.log("       node tools/reddit-gaps.js <subreddit> --ingest <file|dir>   (parse browser-saved RSS instead of fetching)");
     console.log("       node tools/reddit-gaps.js --showcase [sub]                  (celebrated on-grain posts; no sub = all caches)");
+    console.log("       node tools/reddit-gaps.js --launches [sub] [--days 30]      (who SHIPPED into our lane — the supply side)");
     console.log("       node tools/reddit-gaps.js --drip [subs.txt]                 (fetch the stalest sub — for a cron drip)");
     console.log("       node tools/reddit-gaps.js --check");
     console.log("\nMine a tribe's public RSS for unmet demand, cross-referenced against our cart shelf.");

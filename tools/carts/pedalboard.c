@@ -14,7 +14,7 @@
     "granular-synth"
   ],
   "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
-  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; the AUTO button top-right cycles the self-player off / STRUM / TRAVIS, boots on STRUM, and stops the moment you play; TRAVIS is Merle Travis fingerpicking - a metronomic alternating thumb bass under syncopated treble notes, which on the '5' power-chord shape goes sparse because its treble strings are damped). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it. A pedal's LABEL STRIP (the grip dots) is its handle: drag it sideways to reorder, or DOWN out of the rack to remove. Dragging a pedal's BODY pans the chain sideways instead (the mouse wheel does it too), so a downward swipe over the rack never grabs a pedal by accident and never steals a strum aimed at the strings; a thin position bar sits along the TOP of the rack. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - build a chord on TWO rows, then sweep the strings to strum. The ROOT row (Z X C V B N M = E F G A B C D) picks exactly one; the QUALITY row (A S D F G H J = min sus4 sus2 5 | 7 maj7 | add9) MULTI-SELECTS, taps toggling so the chord stays lit while your other hand strums. Major is the ABSENCE of a selection, so the commonest chord costs zero taps beyond a root, and the two wide gaps in the row mark where the rule changes (at most one third, at most one seventh, add9 free). A conflicting tap always lands and silently drops what it conflicts with - nothing is refused. Four lit is the maximum, and the CHORD NAME in the strum zone names what you built (min + 7 + add9 on D reads Dm9), which is how the grammar teaches itself. 22 hand-authored E-shape barre grips x 7 roots = 154 chords, gated by spec(). (SPACE strums; the AUTO button top-right cycles the self-player off / STRUM / TRAVIS, boots on STRUM, and stops the moment you play; TRAVIS is Merle Travis fingerpicking - a metronomic alternating thumb bass under syncopated treble notes, which goes sparse on the '5' and the sus2 family because their treble strings are damped). Mouse and touch both work, every finger its own pointer. (REVERB and DELAY are real dry/wet INSERTS (reverb_insert/echo_insert), so their chain position is audible - crush the wet tail or reverb the crushed guitar.) The OD pedal's VOICE knob picks a famous dirt box via drive_voice() - RAW / Tube Screamer (mid hump) / RAT (hard clip + filter) / Big Muff (fuzz + scoop) - with TONE riding that voice."
 }
 de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
@@ -36,8 +36,24 @@ de:meta */
 // LFO (auto-sweeps on its own; VWL becomes the rate).
 //
 // THE GUITAR (lower half, when the palette is closed):
-//   FRETTING HAND — ROOT row (Z X C V B N M) moves up the neck (E F G A B C D); SHAPE row (A S D
-//                   F G) sets the chord shape (5 / min / maj / sus4 / 7).
+//   FRETTING HAND — two rows, and they are two different KINDS of control.
+//                   ROOT row (Z X C V B N M) = E F G A B C D, exactly one, and it moves the barre
+//                   up the neck. QUALITY row (A S D F G H J) = min · sus4 · sus2 · 5 │ 7 · maj7 │
+//                   add9, and these MULTI-SELECT: taps toggle (they don't hold, so the left hand can
+//                   leave a chord lit and get out of the strumming hand's way). The two wide gaps in
+//                   the row mark where the selection rule changes — at most one third, at most one
+//                   seventh, add9 free. MAJOR IS THE ABSENCE OF A SELECTION: no quality button lit
+//                   is a plain major, so the commonest chord in music costs zero taps beyond a root.
+//                   A conflicting tap always LANDS and silently drops what it conflicts with (sus4
+//                   over min, colour over the 5); nothing is ever refused. Four buttons lit is the
+//                   most you can reach — one root, one third, one seventh, add9 — and the CHORD NAME
+//                   in the strum zone tells you what you built, which is the only way the grammar
+//                   teaches itself: press min → Em, press 7 → Em7, press sus4 → min goes dark.
+//                   22 grips × 7 roots = 154 chords, each one a real playable E-shape barre voicing
+//                   (see GRIP[] — hand-authored, gated by spec()).
+//                   Two rules the guitar itself imposed, rather than theory: `5` greys the colour
+//                   buttons (a power chord is DEFINED by having no third and no seventh), and sus2
+//                   is exclusive with add9 (they are the same note — the 2nd IS the 9th).
 //   STRUMMING HAND — sweep across the strings over the body (the STRUM zone) to strum; tap a string
 //                    on the neck to pick one; SPACE strums. AUTOPLAY is the AUTO button top-right,
 //                    a 3-way that NAMES its state: off / strum / travis. It boots on STRUM, and any
@@ -45,7 +61,8 @@ de:meta */
 //                    (The docs used to claim "M-row toggles autoplay"; M is the D root, and pressing
 //                    it only ever DISABLES autoplay via set_root.)
 //                    TRAVIS = the fingerstyle: thumb alternating root/fifth on the beat, fingers
-//                    between. Sparse on the "5" shape, whose treble strings are damped.
+//                    between. Sparse on any grip with damped treble strings — the "5" and the sus2
+//                    family (the E shape cannot reach a 2nd on the G string).
 //
 // Mouse + touch both work — every contact is its own pointer. The mouse is merged in explicitly.
 
@@ -81,7 +98,6 @@ static void fit_canvas(void) {
 #define I_MUTE 6      // a choked, muted voice for picking the short nut-side string segment
 #define NSTR   6
 #define MAXK   4
-#define NSHAPE 5
 #define NROOT  7
 
 // ── the effect catalog: every pedal you can drag into the chain ──────────────────────────────
@@ -256,19 +272,72 @@ static const Rig RIG[NRIG] = {
 
 // ── the fretting hand: real guitar tab ──  standard tuning, E-shape MOVEABLE chords.
 static const int OPEN[NSTR] = { 40, 45, 50, 55, 59, 64 };   // E A D G B E (low→high)
-// SHAPE_F[shape][string] = frets ABOVE the barre, or FRET_MUTE for a string the fretting hand
-// damps. MUTE IS NOT FRET 0 — see str_fret() below for the bug that cost us every power chord.
+// A chord here is NOT a set of notes — it is a GRIP: six fret offsets above a moveable barre, or
+// FRET_MUTE for a string the fretting hand damps. MUTE IS NOT FRET 0 — see str_fret() below for the
+// bug that cost us every power chord.
+//
+// WHY A TABLE AND NOT FLAGS. The chord buttons look like modifiers you stack (min + 7 + add9), and
+// on a synth that would BE the chord: OR the note-sets together and play them. This is a guitar.
+// Six strings, one hand, a barre plus three fingers — so every button combination has to resolve to
+// a grip somebody can actually fret, and real players don't play note-stacks, they play shapes. So
+// the combinations index a table of hand-authored grips, and the table is allowed to say NO: a
+// combination with no playable E-shape grip simply has no row (see chord_norm() for what happens
+// then). The guitar is the validator, not music theory.
+//
+// Each row carries its own NAME SUFFIX and its own PITCH-CLASS SET, deliberately: one row is the
+// single source of truth for what the strings play AND what the readout calls it, so the two cannot
+// drift. `pcs` is a 12-bit mask of intervals above the root — a SET, so it is blind to which octave
+// a note lands in and to the doubled roots/fifths every guitar voicing has. spec() re-derives it
+// from the sounding str_midi[] for all 7 roots, which is what makes 154 hand-typed frets safe.
 #define FRET_MUTE (-1)
-static const int SHAPE_F[NSHAPE][NSTR] = {
-    // ordered so the THIRD climbs left→right (none → ♭3 → ♮3 → 4): a musical gradient
-    { 0, 2, 2, FRET_MUTE, FRET_MUTE, FRET_MUTE },   // 5    power — root/5th/octave, top three DAMPED
-    { 0, 2, 2,  0,  0,  0 },   // min  E-shape minor
-    { 0, 2, 2,  1,  0,  0 },   // maj  E-shape major
-    { 0, 2, 2,  2,  0,  0 },   // sus4 suspended fourth
-    { 0, 2, 0,  1,  0,  0 },   // 7    E-shape dominant 7
+#define PC(i) (1 << (i))                     // one interval, semitones above the root
+enum { TH_NONE, TH_MIN, TH_SUS4, TH_SUS2, TH_5, NTHIRD };   // the THIRDS group (none = major)
+enum { SV_NONE, SV_7, SV_MAJ7, NSEV };                      // the SEVENTH group
+typedef struct {
+    int third, sev; bool add9;   // the button state this grip answers
+    const char *suffix;          // appended to the root name: "m7", "9", "sus4" …
+    int pcs;                     // pitch classes above the root, as a 12-bit SET
+    int f[NSTR];                 // frets above the barre; FRET_MUTE = damped by the fretting hand
+} Grip;
+// Ordered by third then seventh then add9 — NOT by the on-screen button order (which is by
+// frequency of use). Offsets stay within 0..2 of the barre in every row: that is a real playability
+// bound (barre + three fingers) and it is also what the NFRETS/FRET_W geometry below assumes, so
+// spec() asserts it rather than trusting the next author to notice.
+static const Grip GRIP[] = {
+  // ── third = none: the major family ──
+  { TH_NONE, SV_NONE, false, "",          PC(0)|PC(4)|PC(7),               { 0,2,2,1,0,0 } },
+  { TH_NONE, SV_7,    false, "7",         PC(0)|PC(4)|PC(7)|PC(10),        { 0,2,0,1,0,0 } },
+  { TH_NONE, SV_MAJ7, false, "maj7",      PC(0)|PC(4)|PC(7)|PC(11),        { 0,2,1,1,0,0 } },
+  { TH_NONE, SV_NONE, true,  "add9",      PC(0)|PC(2)|PC(4)|PC(7),         { 0,2,2,1,0,2 } },
+  { TH_NONE, SV_7,    true,  "9",         PC(0)|PC(2)|PC(4)|PC(7)|PC(10),  { 0,2,0,1,0,2 } },
+  { TH_NONE, SV_MAJ7, true,  "maj9",      PC(0)|PC(2)|PC(4)|PC(7)|PC(11),  { 0,2,1,1,0,2 } },
+  // ── third = min ──
+  { TH_MIN,  SV_NONE, false, "m",         PC(0)|PC(3)|PC(7),               { 0,2,2,0,0,0 } },
+  { TH_MIN,  SV_7,    false, "m7",        PC(0)|PC(3)|PC(7)|PC(10),        { 0,2,0,0,0,0 } },
+  { TH_MIN,  SV_MAJ7, false, "mMaj7",     PC(0)|PC(3)|PC(7)|PC(11),        { 0,2,1,0,0,0 } },
+  { TH_MIN,  SV_NONE, true,  "m(add9)",   PC(0)|PC(2)|PC(3)|PC(7),         { 0,2,2,0,0,2 } },
+  { TH_MIN,  SV_7,    true,  "m9",        PC(0)|PC(2)|PC(3)|PC(7)|PC(10),  { 0,2,0,0,0,2 } },
+  { TH_MIN,  SV_MAJ7, true,  "mMaj9",     PC(0)|PC(2)|PC(3)|PC(7)|PC(11),  { 0,2,1,0,0,2 } },
+  // ── third = sus4 (the 4th stands in for the third) ──
+  { TH_SUS4, SV_NONE, false, "sus4",      PC(0)|PC(5)|PC(7),               { 0,2,2,2,0,0 } },
+  { TH_SUS4, SV_7,    false, "7sus4",     PC(0)|PC(5)|PC(7)|PC(10),        { 0,2,0,2,0,0 } },
+  { TH_SUS4, SV_MAJ7, false, "maj7sus4",  PC(0)|PC(5)|PC(7)|PC(11),        { 0,2,1,2,0,0 } },
+  { TH_SUS4, SV_NONE, true,  "sus4(add9)",PC(0)|PC(2)|PC(5)|PC(7),         { 0,2,2,2,0,2 } },
+  { TH_SUS4, SV_7,    true,  "9sus4",     PC(0)|PC(2)|PC(5)|PC(7)|PC(10),  { 0,2,0,2,0,2 } },
+  { TH_SUS4, SV_MAJ7, true,  "maj9sus4",  PC(0)|PC(2)|PC(5)|PC(7)|PC(11),  { 0,2,1,2,0,2 } },
+  // ── third = sus2 (the 2nd stands in for the third). No add9 rows: see chord_norm() — sus2 IS
+  //    the 9th, so add9 would ask for a note already in the grip. The G string goes damped because
+  //    the E shape cannot reach a 2nd there, and the finger barring the two strings below it lands
+  //    across that string anyway, which is how the mute happens in the hand.
+  { TH_SUS2, SV_NONE, false, "sus2",      PC(0)|PC(2)|PC(7),               { 0,2,2,FRET_MUTE,0,2 } },
+  { TH_SUS2, SV_7,    false, "7sus2",     PC(0)|PC(2)|PC(7)|PC(10),        { 0,2,0,FRET_MUTE,0,2 } },
+  { TH_SUS2, SV_MAJ7, false, "maj7sus2",  PC(0)|PC(2)|PC(7)|PC(11),        { 0,2,1,FRET_MUTE,0,2 } },
+  // ── the power chord: root + fifth, nothing else, top three DAMPED. Colour is meaningless here
+  //    (a power chord is DEFINED by having no third and no seventh), so it owns one row and
+  //    chord_norm() clears the colour buttons rather than offering combinations that can't exist.
+  { TH_5,    SV_NONE, false, "5",         PC(0)|PC(7),                     { 0,2,2,FRET_MUTE,FRET_MUTE,FRET_MUTE } },
 };
-static const char *SHAPE_NAME[NSHAPE] = { "5", "min", "maj", "sus4", "7" };
-static const char  SHAPE_KEY[NSHAPE]  = { 'A', 'S', 'D', 'F', 'G' };
+#define NGRIP ((int)(sizeof GRIP / sizeof GRIP[0]))
 static const int   ROOT_FRET[NROOT]   = { 0, 1, 3, 5, 7, 8, 10 };         // barre fret for E F G A B C D
 static const char *ROOT_NAME[NROOT]   = { "E", "F", "G", "A", "B", "C", "D" };
 static const char  ROOT_KEY[NROOT]    = { 'Z', 'X', 'C', 'V', 'B', 'N', 'M' };
@@ -289,9 +358,94 @@ static const char  ROOT_KEY[NROOT]    = { 'Z', 'X', 'C', 'V', 'B', 'N', 'M' };
 // chord: maj rings all six strings (barre at fret 3 = G B D), where the "5" shape damps three of
 // them, so the old default led with a bare fifth AND with half the neck muted. It also puts dots
 // out at frets 3-5 instead of parking everything on the nut, so the fretboard shows what it does.
-static int  sel_shape = 2;   // SHAPE_NAME[2] = "maj"
+static int  sel_third = TH_NONE;   // TH_NONE + SV_NONE + no add9 = plain major
+static int  sel_sev   = SV_NONE;
+static bool sel_add9  = false;
 static int  sel_root  = 2;   // ROOT_NAME[2]  = "G"  (ROOT_FRET 3)
 static int  str_midi[NSTR];
+
+// ── the chord state: three exclusive groups and one independent toggle ──
+// root       exactly one          (the barre position)
+// thirds     at most one          — min · sus4 · sus2 · 5, and NONE means major, which is why the
+//                                  most common chord in music costs zero taps beyond the root
+// seventh    at most one          — 7 · maj7 are the same scale degree, flat or natural
+// add9       on/off, independent  — except where the grip table says otherwise, below
+//
+// chord_norm() is the whole rule set, and it RESOLVES rather than refuses: tapping sus4 while min is
+// lit drops min, silently. Nothing here ever beeps at you or ignores a press — an unreachable
+// combination is a bug in this function, not something the player should have to avoid.
+enum { PR_THIRD, PR_SEV, PR_ADD9 };   // which group was just pressed — chord_norm resolves TOWARD it
+static void chord_norm(int last) {
+    // A power chord has no third and no seventh by definition, so colour cannot apply to it. Either
+    // direction resolves: pressing 5 clears the colour, pressing colour drops the 5.
+    if (sel_third == TH_5) {
+        if (last != PR_THIRD) sel_third = TH_NONE;            // a colour press wins → drop the 5
+        else { sel_sev = SV_NONE; sel_add9 = false; }          // the 5 press wins → clear the colour
+    }
+    // sus2 and add9 are the SAME NOTE (the 2nd = the 9th); sus2 replaces the third, add9 keeps it.
+    // So there is no grip that is both, and the table has no sus2+add9 row to point at. This is the
+    // one exclusion the guitar found for us rather than theory: they are mutually exclusive, and the
+    // reason is legible the moment you watch one go dark.
+    if (sel_third == TH_SUS2 && sel_add9) { if (last == PR_ADD9) sel_third = TH_NONE; else sel_add9 = false; }
+}
+static int grip_of(int third, int sev, bool add9) {
+    for (int i = 0; i < NGRIP; i++)
+        if (GRIP[i].third == third && GRIP[i].sev == sev && GRIP[i].add9 == add9) return i;
+    return -1;
+}
+static const Grip *cur_grip(void) {
+    int i = grip_of(sel_third, sel_sev, sel_add9);
+    return &GRIP[i < 0 ? grip_of(TH_NONE, SV_NONE, false) : i];   // chord_norm makes the fallback dead code
+}
+// The readout, and the only place a chord is NAMED. Both halves come from data the strings also
+// come from, so it cannot describe a chord the hand isn't playing.
+static const char *chord_name(void) { return str("%s%s", ROOT_NAME[sel_root], cur_grip()->suffix); }
+
+// ── row 1: the seven chord-quality buttons ──
+// ORDERED BY HOW OFTEN A HAND REACHES FOR THEM, left→right, not by music theory. The old row was
+// ordered so the third climbed (none → ♭3 → ♮3 → 4), a gradient that dies the moment `maj` stops
+// being a button and becomes the absence of one. Frequency replaces it, and the direction is set by
+// the instrument: the strum zone is at the right (FRET_X1 = STRUMX - 16), so the chord hand is the
+// LEFT one and `min` — far and away the most-used — belongs under it. The rare ones (5, add9) go out
+// at the edges where a thumb has to stretch.
+//
+// `grp` is both the exclusivity group AND the PR_* value chord_norm() wants, so a press passes its
+// own group along and the rule set knows which way to resolve.
+typedef struct { const char *name; char key; int grp, val; } QBtn;
+static const QBtn QB[] = {
+    { "min",  'A', PR_THIRD, TH_MIN  },
+    { "sus4", 'S', PR_THIRD, TH_SUS4 },
+    { "sus2", 'D', PR_THIRD, TH_SUS2 },
+    { "5",    'F', PR_THIRD, TH_5    },
+    { "7",    'G', PR_SEV,   SV_7    },
+    { "maj7", 'H', PR_SEV,   SV_MAJ7 },
+    { "add9", 'J', PR_ADD9,  0       },
+};
+#define NQB ((int)(sizeof QB / sizeof QB[0]))
+// The two WIDE gaps are load-bearing, not decoration: each one falls exactly where the selection
+// rule changes (at-most-one-third │ at-most-one-seventh │ free toggle), so "one orange at a time,
+// but add9 is its own thing" is a rule you can SEE instead of one you have to be told. Derived from
+// the group change rather than hardcoded, so re-ordering the table moves the gaps with it.
+// These three divide the root row's 298px span EXACTLY (7*36 + 4*5 + 2*13 = 298), so row 1 ends
+// flush with row 2 instead of a pixel short. Found by the spec, not by eye — see the flush assert.
+#define QB_CW 36                     // button width in canvas-320 space (fits a 4-char label + 2px)
+#define QB_GAP 5                     // within a group
+#define QB_BGAP 13                   // across a group boundary — must READ as wider; spec asserts it
+static int qb_x0(int i) {            // un-scaled x, so spec() can check the layout with no canvas
+    int x = 11;
+    for (int j = 0; j < i; j++) x += QB_CW + (QB[j + 1].grp != QB[j].grp ? QB_BGAP : QB_GAP);
+    return x;
+}
+static bool qb_on(int i) {
+    return QB[i].grp == PR_THIRD ? sel_third == QB[i].val
+         : QB[i].grp == PR_SEV   ? sel_sev   == QB[i].val
+         :                         sel_add9;
+}
+// A power chord is root + fifth and NOTHING else, so while 5 is lit the colour buttons are drawn
+// dimmed — the rule is stated BEFORE the tap, not explained after it. They stay live: tapping one
+// drops the 5 and lights itself (chord_norm), because a dead button that looks dead is still a
+// button somebody just pressed.
+static bool qb_dim(int i) { return sel_third == TH_5 && QB[i].grp != PR_THIRD; }
 
 static float amp[NSTR];
 static float vib_ph[NSTR];
@@ -347,15 +501,15 @@ static int   ap_gtr_in = -1;      // applied-state shadow — push input_monitor
 // TAB ORDER: string 0 is low E but draws at the BOTTOM, high e (string 5) on top — the convention
 // every guitarist reads (higher pitch, higher on the page). Drawing index 0 on top mirrors the neck
 // and reads as a LEFT-handed guitar facing you. Only the RENDER + hit-test flip: the string arrays
-// (OPEN/SHAPE_F/str_midi/pend) and the low→high strum order stay index-ordered.
+// (OPEN/the grip's f[]/str_midi/pend) and the low→high strum order stay index-ordered.
 #define STR_Y(s) (STR_Y0 + (NSTR - 1 - (s)) * STR_DY)
 #define NECK_MID (((STR_Y(2)) + (STR_Y(3))) / 2)   // centre line, BETWEEN the two middle strings
 #define STR_TOP  STR_Y(NSTR - 1)     // high e — the top string on screen
 #define STR_BOT  STR_Y(0)            // low E  — the bottom string on screen
 #define CHORD_H 21                   // chord buttons ~1.5× taller (was 14), parked at the bottom
 #define SHAPE_Y (saY + saH - 46)     // the two chord rows sit at the BOTTOM (above the home-bar; grow with height)
-#define SHAPE_W (56 * saW / 320)     // rows stretch to fill the safe width (exact 56 at 320w)
-#define SHAPE_X(i) (saX + (12 + (i) * 60) * saW / 320)
+#define SHAPE_W (QB_CW * saW / 320)  // rows stretch to fill the safe width (exact 37 at 320w)
+#define SHAPE_X(i) (saX + qb_x0(i) * saW / 320)
 #define ROOT_Y  (saY + saH - 23)
 #define ROOT_W  (40 * saW / 320)
 #define ROOT_X(i) (saX + (11 + (i) * 43) * saW / 320)
@@ -373,7 +527,7 @@ static int gate_ms(void) { return 1800; }
 // G/B/e under EVERY root: E5 came out as E minor (the open G is a ♭3), C5 as C major 7. A power
 // chord is defined by having no third, and this one always had one. Reported from the wild
 // 2026-07-30 as "the fret markers don't correspond to the chord voicings".
-static int str_fret(int s) { int f = SHAPE_F[sel_shape][s]; return f < 0 ? FRET_MUTE : ROOT_FRET[sel_root] + f; }
+static int str_fret(int s) { int f = cur_grip()->f[s]; return f < 0 ? FRET_MUTE : ROOT_FRET[sel_root] + f; }
 static bool str_muted(int s) { return str_midi[s] < 0; }
 static void build_strings(void) {
     for (int s = 0; s < NSTR; s++) { int f = str_fret(s); str_midi[s] = f < 0 ? -1 : OPEN[s] + f; }
@@ -704,7 +858,19 @@ static void travis_beat(int b) {
     pluck_at(OFFBEAT[b], half, 5, gate_ms());
     fmt_on_attack();                          // one vowel advance per beat, not per note
 }
-static void set_shape(int sh) { sel_shape = sh; build_strings(); autoplay = AP_OFF; }
+// One chord-quality button, pressed. TAPS TOGGLE — they do not hold: on touch the left hand has to
+// be able to leave the buttons lit and get out of the way, because the right thumb needs to strum.
+// Pressing a lit button turns it OFF, which is how you get back to a plain major (the absence of a
+// third) without a `maj` button existing.
+static void qb_press(int i) {
+    switch (QB[i].grp) {
+        case PR_THIRD: sel_third = (sel_third == QB[i].val) ? TH_NONE : QB[i].val; break;
+        case PR_SEV:   sel_sev   = (sel_sev   == QB[i].val) ? SV_NONE : QB[i].val; break;
+        default:       sel_add9  = !sel_add9;                                      break;
+    }
+    chord_norm(QB[i].grp);      // resolve the conflicts this press just created, toward this press
+    build_strings(); autoplay = AP_OFF;
+}
 static void set_root(int r)   { sel_root  = r;  build_strings(); autoplay = AP_OFF; }
 // screen y → string index (row 0 on screen is the HIGH e, so the row inverts back to an index)
 static int  near_string(int ty) { int r = (ty - STR_Y0 + STR_DY / 2) / STR_DY; r = r < 0 ? 0 : r >= NSTR ? NSTR - 1 : r; return NSTR - 1 - r; }
@@ -788,7 +954,7 @@ void update(void) {
     frame_no++;
     drag_cat = -99; drag_knob = -1; drag_fine = false;   // re-set below by whichever knob is held
     fit_canvas();   // reflow the canvas to the window ratio BEFORE any hit-testing (keeps tapp 1:1)
-    for (int i = 0; i < NSHAPE; i++) if (keyp(SHAPE_KEY[i])) set_shape(i);
+    for (int i = 0; i < NQB;    i++) if (keyp(QB[i].key))     qb_press(i);
     for (int i = 0; i < NROOT;  i++) if (keyp(ROOT_KEY[i]))  set_root(i);
     for (int i = 0; i < chain_n; i++) if (keyp('1' + i) && (chain[i].on || !pedal_locked(chain[i].cat))) { chain[i].on = !chain[i].on; dirty = 1; }
     if (keyp(KEY_SPACE)) { strum_down(); autoplay = AP_OFF; }
@@ -896,7 +1062,7 @@ void update(void) {
             }
             // 4. the guitar (only when no overlay is open)
             if (p->mode == PTR_IDLE && !palette_open && !rig_open) {
-                for (int i2 = 0; i2 < NSHAPE; i2++) if (point_in_box(tx, ty, SHAPE_X(i2), SHAPE_Y, SHAPE_W, CHORD_H)) set_shape(i2);
+                for (int i2 = 0; i2 < NQB; i2++) if (point_in_box(tx, ty, SHAPE_X(i2), SHAPE_Y, SHAPE_W, CHORD_H)) qb_press(i2);
                 if (p->mode == PTR_IDLE)
                     for (int i2 = 0; i2 < NROOT; i2++) if (point_in_box(tx, ty, ROOT_X(i2), ROOT_Y, ROOT_W, CHORD_H)) set_root(i2);
                 if (p->mode == PTR_IDLE && ty >= STR_TOP - 9 && ty <= STR_BOT + 9 && tx >= SX0 - 8 && tx <= SX1 + 8) {
@@ -945,7 +1111,7 @@ void update(void) {
 
     if (autoplay && every(1)) {
         static const int prog[8] = { 0, 2, 6, 3, 0, 5, 3, 2 };   // E G D A · E C A G
-        // Autoplay walks the ROOTS and leaves the SHAPE alone. It used to force sel_shape = 0, so
+        // Autoplay walks the ROOTS and leaves the CHORD QUALITY alone. It used to force the shape, so
         // hitting M yanked you to the power chord whatever you had picked — and left you there when
         // you switched it off. Now the progression plays in whatever you selected, which makes the
         // shape row worth touching while it runs: same changes as maj, min, sus4 or 7.
@@ -1200,16 +1366,29 @@ static void draw_guitar(void) {
             circfill(dx, y, 2, CLR_DARK_RED); pset(dx - 1, y - 1, CLR_PEACH);
         }
     }
+    // THE CHORD NAME. With one-of-five buttons the button WAS the name and a readout was redundant
+    // (cut once on exactly that ground — design-system.md). Multi-select changes the premise: no
+    // button says "m9", so the name is now the only thing that teaches the grammar — press min, see
+    // Em; press 7, see Em7; press sus4 and watch min go dark. It sits in the strum zone because that
+    // is the one clear area on the guitar AND where the eye already is mid-strum. FONT_NORMAL, not
+    // FONT_COMIC: the longest name is "Xsus4(add9)" at 11 chars = 88px, and the zone is 106.
+    print_centered(chord_name(), (STRUMX + SX1) / 2, by + 8, CLR_DARK_BROWN);
     font(FONT_TINY); print_centered("STRUM", (STRUMX + SX1) / 2, by + bh - 7, CLR_DARK_BROWN); font(FONT_NORMAL);
     for (int j = 0; j < PTR_MAX; j++)
         if (ptr[j].id != PTR_NONE && ptr[j].mode == PTR_PICK)
             trifill(ptr[j].x - 3, ptr[j].y - 4, ptr[j].x + 3, ptr[j].y - 4, ptr[j].x, ptr[j].y + 4, CLR_WHITE);
-    for (int i = 0; i < NSHAPE; i++) {
-        int x = SHAPE_X(i); bool on = (i == sel_shape);
-        rrectfill(x, SHAPE_Y, SHAPE_W, CHORD_H, 3, on ? CLR_ORANGE : CLR_DARKER_GREY);
-        rrect(x, SHAPE_Y, SHAPE_W, CHORD_H, 3, on ? CLR_WHITE : CLR_DARK_GREY);
-        print_centered(SHAPE_NAME[i], x + SHAPE_W / 2, SHAPE_Y + 8, on ? CLR_BLACK : CLR_MEDIUM_GREY);
-        font(FONT_TIC); print(str("%c", SHAPE_KEY[i]), x + 3, SHAPE_Y + 2, on ? CLR_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
+    // Row 1, and the lit colour carries the grouping: the thirds light ORANGE, the colour buttons
+    // light BLUE, the roots below light GREEN. Three hues for three rules, so "one orange at a time,
+    // one blue seventh, add9 as it pleases" is legible from the lit state alone.
+    for (int i = 0; i < NQB; i++) {
+        int x = SHAPE_X(i); bool on = qb_on(i), dim = qb_dim(i);
+        int fill = on ? (QB[i].grp == PR_THIRD ? CLR_ORANGE : CLR_BLUE) : CLR_DARKER_GREY;
+        int edge = on ? CLR_WHITE : dim ? CLR_DARKER_GREY : CLR_DARK_GREY;
+        int ink  = on ? CLR_BLACK : dim ? CLR_DARK_GREY   : CLR_MEDIUM_GREY;
+        rrectfill(x, SHAPE_Y, SHAPE_W, CHORD_H, 3, fill);
+        rrect(x, SHAPE_Y, SHAPE_W, CHORD_H, 3, edge);
+        print_centered(QB[i].name, x + SHAPE_W / 2, SHAPE_Y + 8, ink);
+        font(FONT_TIC); print(str("%c", QB[i].key), x + 3, SHAPE_Y + 2, ink); font(FONT_NORMAL);
     }
     for (int i = 0; i < NROOT; i++) {
         int x = ROOT_X(i); bool on = (i == sel_root);
@@ -1360,3 +1539,208 @@ void draw(void) {
         if (ptr[j].id != PTR_NONE && (ptr[j].mode == PTR_DRAGSLOT || ptr[j].mode == PTR_DRAGPAL))
             draw_chip(ptr[j].cat, ptr[j].x - 22, ptr[j].y - 13, 44, 26, true);
 }
+
+// ── spec() — the chord-table safety net (docs/design/spec-harness.md) ────────────────────────────
+// 22 grips × 7 roots = 154 chords, every one of them SIX HAND-TYPED FRET NUMBERS. A wrong fret does
+// not crash and does not look wrong: it sounds like a chord, just not the one the readout names, on
+// one root, which is how you find it in a month by ear instead of in a second here. This cart has
+// already paid that bill once — str_fret()'s comment above records FRET_MUTE folding into fret 0 and
+// silently giving every power chord a third, reported from the wild as "the fret markers don't
+// correspond to the chord voicings". The table multiplies that exposure by 22, so it gets a gate.
+//
+// The asserts read the SOUNDING notes (str_midi[], via build_strings — the same path the strum
+// plays), never the table's own numbers, so a typo cannot agree with itself. Run:
+//   node tools/spec.js pedalboard
+#ifdef DE_SPEC
+#include "spec.h"
+
+// the pitch classes actually ringing, as a 12-bit set relative to the barre root
+static int sp_pcs(void) {
+    int m = 0, root = OPEN[0] + ROOT_FRET[sel_root];
+    for (int s = 0; s < NSTR; s++) if (!str_muted(s)) m |= 1 << ((str_midi[s] - root) % 12);
+    return m;
+}
+static void sp_set(int th, int sv, bool a9, int r) {   // no chord_norm: probe raw rows too
+    sel_third = th; sel_sev = sv; sel_add9 = a9; sel_root = r; build_strings();
+}
+
+void spec(void) {
+    // ── 1. every grip plays the chord it claims, on every root ──
+    // The headline assert. pcs is a SET, so it is deliberately blind to the doubled roots and fifths
+    // a six-string voicing has — what it pins is WHICH NOTES, which is what the name means.
+    for (int g = 0; g < NGRIP; g++) {
+        sp_set(GRIP[g].third, GRIP[g].sev, GRIP[g].add9, 0);
+        expect_eq(sp_pcs(), GRIP[g].pcs, str("%s: the strings play the notes the row declares", GRIP[g].suffix));
+    }
+    // …and it must be the same chord in every key: a moveable shape that changes quality when you
+    // slide it is a mis-typed fret, not a voicing.
+    for (int g = 0; g < NGRIP; g++) {
+        int bad = -1;
+        for (int r = 0; r < NROOT; r++) { sp_set(GRIP[g].third, GRIP[g].sev, GRIP[g].add9, r);
+                                          if (sp_pcs() != GRIP[g].pcs) { bad = r; break; } }
+        expect_eq(bad, -1, str("%s: transposes to all 7 roots without changing quality", GRIP[g].suffix));
+    }
+
+    // ── 2. the barre root is the lowest note, in every grip ──
+    // These are root-position voicings: string 0 is the barre itself, so it must sound the root and
+    // nothing may sound below it. A grip that broke this would invert the chord and the bass would
+    // walk when the player slid the shape.
+    for (int g = 0; g < NGRIP; g++) {
+        expect_eq(GRIP[g].f[0], 0, str("%s: string 0 IS the barre (offset 0)", GRIP[g].suffix));
+        sp_set(GRIP[g].third, GRIP[g].sev, GRIP[g].add9, 4);
+        int lo = 999; for (int s = 0; s < NSTR; s++) if (!str_muted(s) && str_midi[s] < lo) lo = str_midi[s];
+        expect_eq(lo, OPEN[0] + ROOT_FRET[4], str("%s: nothing sounds below the root", GRIP[g].suffix));
+    }
+
+    // ── 3. the grips stay inside the hand AND inside the neck ──
+    // Offsets 0..2 above the barre is barre + three fingers. It is also exactly what the geometry
+    // assumes: NFRETS is derived from "root D (fret 10) + a shape offset of 2", so a grip reaching
+    // offset 3 would silently push fret dots past the end of the drawn neck.
+    for (int g = 0; g < NGRIP; g++) {
+        int worst = 0;
+        for (int s = 0; s < NSTR; s++) if (GRIP[g].f[s] > worst) worst = GRIP[g].f[s];
+        expect(worst <= 2, str("%s: reachable — no offset past 2 frets above the barre", GRIP[g].suffix));
+        expect(ROOT_FRET[NROOT - 1] + worst <= NFRETS, str("%s: fits the neck on the highest root", GRIP[g].suffix));
+        for (int s = 0; s < NSTR; s++)
+            expect(GRIP[g].f[s] >= 0 || GRIP[g].f[s] == FRET_MUTE, str("%s: no fret offset below 0 that isn't a mute", GRIP[g].suffix));
+    }
+
+    // ── 4. no two button states are indistinguishable ──
+    // If two rows share a fret pattern, two different lit states play the identical chord under two
+    // different names — the player presses a button and nothing happens. That is how sus2+add9 was
+    // found (the 2nd and the 9th are the same note), and it is why that pair is exclusive instead of
+    // being a row. This assert is what would catch the next one.
+    for (int a = 0; a < NGRIP; a++)
+        for (int b = a + 1; b < NGRIP; b++) {
+            int same = 1;
+            for (int s = 0; s < NSTR; s++) if (GRIP[a].f[s] != GRIP[b].f[s]) { same = 0; break; }
+            expect(!same, str("%s and %s are different grips", GRIP[a].suffix, GRIP[b].suffix));
+        }
+
+    // ── 5. every state the buttons can reach resolves to a grip ──
+    // chord_norm() is the rule set; this walks the ENTIRE cross product of the four controls, applies
+    // it, and demands a row at the other end. An unreachable combination is a bug in chord_norm, not
+    // something a player should have to avoid — this is the assert that says so.
+    for (int th = 0; th < NTHIRD; th++)
+        for (int sv = 0; sv < NSEV; sv++)
+            for (int a9 = 0; a9 < 2; a9++)
+                for (int pr = PR_THIRD; pr <= PR_ADD9; pr++) {
+                    sel_third = th; sel_sev = sv; sel_add9 = (bool)a9;
+                    chord_norm(pr);
+                    expect(grip_of(sel_third, sel_sev, sel_add9) >= 0,
+                           str("state third=%d sev=%d add9=%d (pressed %d) resolves to a grip", th, sv, a9, pr));
+                }
+
+    // ── 6. the resolution rules, stated as the player experiences them ──
+    // Every one of these is "tapping X silently drops Y". None of them may refuse a press.
+    sel_third = TH_MIN; sel_sev = SV_NONE; sel_add9 = false;
+    sel_third = TH_SUS4; chord_norm(PR_THIRD);
+    expect_eq(sel_third, TH_SUS4, "sus4 over min: the press lands (min is simply gone)");
+
+    sel_third = TH_5; sel_sev = SV_7; sel_add9 = true; chord_norm(PR_THIRD);
+    expect_eq(sel_third, TH_5, "5 keeps the press...");
+    expect_eq(sel_sev, SV_NONE, "...and clears the seventh (a power chord has none)");
+    expect(!sel_add9, "...and clears add9 too");
+
+    sel_third = TH_5; sel_sev = SV_7; sel_add9 = false; chord_norm(PR_SEV);
+    expect_eq(sel_sev, SV_7, "the other direction: a 7 press lands...");
+    expect(sel_third != TH_5, "...and drops the 5 instead of being ignored");
+
+    sel_third = TH_SUS2; sel_sev = SV_NONE; sel_add9 = true; chord_norm(PR_ADD9);
+    expect(sel_add9, "add9 over sus2: the press lands...");
+    expect(sel_third != TH_SUS2, "...and sus2 goes dark (it IS the 9th — same note)");
+
+    sel_third = TH_SUS2; sel_sev = SV_NONE; sel_add9 = true; chord_norm(PR_THIRD);
+    expect_eq(sel_third, TH_SUS2, "and pressing sus2 while add9 is lit resolves the other way");
+    expect(!sel_add9, "...dropping add9");
+
+    // ── 7. the readout names what the hand is holding ──
+    // The chord name is the only teacher this cart has for the button grammar: press min, see Em;
+    // press 7, see Em7. So the spelling is pinned, including the owner's worked example.
+    sp_set(TH_MIN, SV_7, true, 6);   expect(!strcmp(chord_name(), "Dm9"),    "root D + min + 7 + add9 reads Dm9");
+    sp_set(TH_NONE, SV_NONE, false, 0); expect(!strcmp(chord_name(), "E"),   "a bare major is just its letter — no suffix");
+    sp_set(TH_5, SV_NONE, false, 2);  expect(!strcmp(chord_name(), "G5"),    "the power chord reads G5");
+    sp_set(TH_SUS4, SV_7, false, 3);  expect(!strcmp(chord_name(), "A7sus4"),"root A + sus4 + 7 reads A7sus4");
+    sp_set(TH_NONE, SV_MAJ7, true, 1);expect(!strcmp(chord_name(), "Fmaj9"), "maj7 + add9 collapses to the maj9 spelling");
+
+    // ── 8. regression guard: the five chords the cart shipped with are untouched ──
+    // The grip table replaced a 5-row SHAPE_F. These are those five rows, verbatim, so the rebuild
+    // cannot have quietly revoiced a chord players already know.
+    static const struct { int th, sv; int f[NSTR]; const char *was; } SHIPPED[] = {
+        { TH_5,    SV_NONE, { 0,2,2,FRET_MUTE,FRET_MUTE,FRET_MUTE }, "5"    },
+        { TH_MIN,  SV_NONE, { 0,2,2,0,0,0 },                         "min"  },
+        { TH_NONE, SV_NONE, { 0,2,2,1,0,0 },                         "maj"  },
+        { TH_SUS4, SV_NONE, { 0,2,2,2,0,0 },                         "sus4" },
+        { TH_NONE, SV_7,    { 0,2,0,1,0,0 },                         "7"    },
+    };
+    for (int i = 0; i < (int)(sizeof SHIPPED / sizeof SHIPPED[0]); i++) {
+        int g = grip_of(SHIPPED[i].th, SHIPPED[i].sv, false), same = g >= 0;
+        for (int s = 0; s < NSTR && same; s++) if (GRIP[g].f[s] != SHIPPED[i].f[s]) same = 0;
+        expect(same, str("the shipped '%s' voicing is unchanged", SHIPPED[i].was));
+    }
+    // ── 9. the seven buttons: complete, toggling, and always landing on a grip ──
+    // Completeness first: the row must reach every third and every seventh the table has, or a grip
+    // exists that no player can ever play.
+    for (int t = TH_MIN; t <= TH_5; t++) {
+        int found = 0;
+        for (int i = 0; i < NQB; i++) if (QB[i].grp == PR_THIRD && QB[i].val == t) found++;
+        expect_eq(found, 1, str("exactly one button selects third %d", t));
+    }
+    for (int v = SV_7; v <= SV_MAJ7; v++) {
+        int found = 0;
+        for (int i = 0; i < NQB; i++) if (QB[i].grp == PR_SEV && QB[i].val == v) found++;
+        expect_eq(found, 1, str("exactly one button selects seventh %d", v));
+    }
+    { int a9 = 0; for (int i = 0; i < NQB; i++) if (QB[i].grp == PR_ADD9) a9++;
+      expect_eq(a9, 1, "exactly one add9 toggle"); }
+
+    // TAPS TOGGLE. Pressing a lit button releases it — and for a third that means landing back on
+    // plain major, which is the whole reason there is no `maj` button to press.
+    for (int i = 0; i < NQB; i++) {
+        sel_third = TH_NONE; sel_sev = SV_NONE; sel_add9 = false;
+        qb_press(i); expect(qb_on(i),  str("'%s' lights on the first tap", QB[i].name));
+        qb_press(i); expect(!qb_on(i), str("'%s' goes dark on the second — taps toggle", QB[i].name));
+    }
+    sel_third = TH_MIN; sel_sev = SV_NONE; sel_add9 = false;
+    qb_press(0); expect_eq(sel_third, TH_NONE, "releasing min lands on plain major (no maj button needed)");
+    expect(!strcmp(cur_grip()->suffix, ""), "...and that really is the major grip");
+
+    // NO PRESS IS EVER REFUSED. Every button, from every state the four controls can be in: the
+    // press must land on a real grip. This is the assert that makes "never beep at someone" a
+    // property of the cart rather than an intention.
+    for (int i = 0; i < NQB; i++) {
+        int badT = -1, badV = -1, badA = -1;
+        for (int t = 0; t < NTHIRD && badT < 0; t++)
+            for (int v = 0; v < NSEV && badT < 0; v++)
+                for (int a = 0; a < 2 && badT < 0; a++) {
+                    sel_third = t; sel_sev = v; sel_add9 = (bool)a; chord_norm(PR_THIRD);
+                    qb_press(i);
+                    if (grip_of(sel_third, sel_sev, sel_add9) < 0) { badT = t; badV = v; badA = a; }
+                }
+        expect(badT < 0, str("'%s' lands on a grip from every state (worst: %d/%d/%d)", QB[i].name, badT, badV, badA));
+    }
+    // The dim is exactly the power-chord rule, no broader: colour dims under 5 and nowhere else, and
+    // a third never dims (there is always another third to pick).
+    sel_third = TH_5; sel_sev = SV_NONE; sel_add9 = false;
+    for (int i = 0; i < NQB; i++)
+        expect_eq(qb_dim(i), QB[i].grp != PR_THIRD, str("'%s' dims under the 5 iff it is colour", QB[i].name));
+    sel_third = TH_MIN;
+    for (int i = 0; i < NQB; i++) expect(!qb_dim(i), str("'%s' is live when the 5 is off", QB[i].name));
+
+    // ── 10. the row-1 gaps are the grouping, so the geometry is pinned too ──
+    // A gap that stops being visibly wider than its neighbours silently deletes the only cue that
+    // the two clusters obey different rules — and nothing else in the cart would notice.
+    expect_eq(qb_x0(0), 11, "row 1 starts on the root row's left edge");
+    for (int i = 0; i + 1 < NQB; i++) {
+        int gap = qb_x0(i + 1) - (qb_x0(i) + QB_CW);
+        int boundary = QB[i + 1].grp != QB[i].grp;
+        expect_eq(gap, boundary ? QB_BGAP : QB_GAP,
+                  str("gap after '%s' is the %s one", QB[i].name, boundary ? "boundary" : "within-group"));
+        expect(gap > 0, str("'%s' does not overlap its neighbour", QB[i].name));
+    }
+    expect(QB_BGAP >= QB_GAP * 2, "a boundary gap READS as wider than a within-group gap");
+    expect_eq(qb_x0(NQB - 1) + QB_CW, 11 + (NROOT - 1) * 43 + 40, "row 1 ends flush with the root row");
+    for (int i = 0; i < NQB; i++)
+        expect((int)strlen(QB[i].name) * 8 <= QB_CW - 2, str("'%s' fits its button at 8px/char", QB[i].name));
+}
+#endif

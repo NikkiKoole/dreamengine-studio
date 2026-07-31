@@ -91,6 +91,45 @@ commit real reference material (`docs/design/reference/`) and run it through
 `tools/pixelsnap.js --palette pico32` so a critic judges like-for-like instead of penalising a
 720×450 32-colour canvas for not being 1080p.
 
+## Appendix — the original brief, verbatim
+
+Kept as the honest record of what was actually asked for, typos and all. Reading it against the
+Consequences above is the most useful part of this ADR: it is a good brief that names four things,
+three of which the machinery delivered and one of which it could not.
+
+```
+I want you to recreate prison architect but in our dreamengine, use drawn sprites, make great
+music utilitzing wht you can, make the music dynamic, The quality shoudl atleast be as good as
+the real game, proeferably better.
+It should be utterly perfect, visually beautiful, with every single thing done at AAA quality—from
+textures to physics to anything you could think of.
+
+Fan out sub-agents and have sub-agents tackle each one individually so that the game is utterly
+perfect. You should /loop on each item and have a separate sub-agent check it visually to ensure
+it looks triple A. That separate sub-agent should be a really harsh critic, and if it doesn't look
+triple A, it should keep going.
+
+Don't stop until each sub-agent is utterly wowed with the quality when compared with the actual
+prison architect. It should literally compare them side by side blind and say which one looks
+better. /loop until it's utterly perfect. Fan out sub-agents and ultracode.
+```
+
+What each ask actually produced:
+
+| The ask | Outcome |
+|---|---|
+| "fan out sub-agents … tackle each one individually" | **Delivered, and it worked** — but only because of the contract, which the brief did not ask for and which turned out to be the whole trick. |
+| "a separate sub-agent check it visually … a really harsh critic" | **Delivered.** Two critics, builder-separate, unable to edit. Both graded it *not* AAA and converged on the same three blocking faults, which is the strongest evidence the pattern works. |
+| "make the music dynamic" | **Delivered** (layers/harmony/tempo tracking `lk.tension`) but **unverified** — the audio gates were never run. Listed in the cart's `todo[]`. |
+| "literally compare them side by side blind and say which one looks better" | **Not possible, and not faked.** The real game is not in this environment. The critics judged against a written spec and said so. This is the one ask the machinery could not honour, and §Consequences explains why it is also the reason the visual half never converged. |
+| "utterly perfect" / "AAA quality" / "don't stop until…" | **Not reached, and the cart says so** — `de:meta.todo[]` carries 19 items, three of them blocking. The loop was also deliberately stopped at one critic round for cost reasons, which is a divergence from the Gauntlet Loop's "keep looping". |
+
+The lesson is not that the brief was wrong. It is that **"utterly perfect" is not a gate, and a
+harsh critic is not an oracle.** `spec()` could settle whether a prisoner can reach a toilet;
+nothing in the run could settle whether the prison looked good enough, so that judgement stayed
+with the owner — which is where it belonged, and is why the cart was handed over to be played
+rather than declared finished.
+
 ## See also
 
 - [docs/design/lockup.md](../design/lockup.md) — the worked example, and its §4 visual bar

@@ -1,0 +1,22 @@
+// FIXTURE — the effects built to be RIDDEN LIVE. Never compiled. Nothing here may be reported,
+// even though every call is unconditional and every-frame — that is what these are FOR. See
+// ../README.md.
+//
+// They slew internally or retune a cheap coefficient rather than rebuilding a ring buffer, so
+// calling them per frame is the intended usage, not the footgun. A lint that fired here would be
+// telling carts to stop riding a DJ filter, which is the whole point of a DJ filter.
+//
+// Load-bearing: these are unconditional calls at the top level of update(), i.e. the exact shape
+// flagged.c.txt gets reported for. The ONLY thing keeping them silent is their absence from the
+// FX set — so this file proves the exclusion list, per the "a case can pass for the wrong reason"
+// rule in checks-and-oracles.md.
+
+void update(void) {
+  filter(0.5f, 0.2f);        // OK_filter — the DJ filter, documented "ride it live"
+  varispeed(1.02f);          // OK_varispeed — slewed tape dive
+  echo(0.3f, 0.4f);          // OK_echo — time-slew
+  tremolo(4.0f, 0.5f);       // OK_tremolo — cheap LFO reset
+  note_cutoff(0, 0.5f);      // OK_note_cutoff — per-note live setter, slewed
+  note_reverb(0, 0.3f);      // OK_note_reverb
+  note_vol(0, 0.8f);         // OK_note_vol
+}

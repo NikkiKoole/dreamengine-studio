@@ -873,7 +873,10 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
   a knob straight into `update()`/`draw()` so `crush()`/`tape()`/`eq()`/`chorus()`/`reverb()` fires
   60×/s rebuilds the bus DSP every frame → **stutter, not a crash** (silent). Re-apply only on change
   (copy `groovebox`'s `apply_fx()`); same for live `note_cutoff`/`note_reverb`/`note_vol`.
-  Linted: `node tools/lint-fx-frame.js` (`--quiet` = CI; waive with `// fx-lint-ignore`).
+  Linted: `node tools/lint-fx-frame.js` (`--quiet` = CI, `--strict` = gate-and-print; waive with
+  `// fx-lint-ignore`; `--selfcheck` = known-answer fixture, 30 assertions — gated in repo-doctor,
+  where the lint itself now sits at zero. Note a `for` BODY IS NOT a gate: `for (i…) crush(i, …)`
+  rebuilds the DSP N times a frame, so put the per-channel `if` INSIDE the loop).
   `filter()`/`varispeed()`/`note_*` are built to be ridden live and excluded.
 - **Porting/tuning a sound engine? A/B against navkit** (`~/Projects/navkit/soundsystem`), the
   reference most `INSTR_*` engines port from. Read

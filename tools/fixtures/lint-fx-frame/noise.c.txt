@@ -1,0 +1,18 @@
+// FIXTURE — comment + string stripping, and the LINE NUMBERS surviving it. Never compiled.
+// Convention: a line carrying the flag marker must be reported, every other line must not.
+// See ../README.md.
+//
+// stripNoise() blanks comments and string literals to spaces while preserving newlines and byte
+// length, so reported line numbers still map to the original file. The real call sits at the
+// BOTTOM, after every kind of stripped construct, so a stripper that dropped bytes or newlines
+// would report it at the wrong line and the assertion would fail.
+
+void update(void) {
+  // crush(0, 8, 0.5f);          <- commented out, must not be reported
+  print("tape(0.5f, 0.2f)", 0, 0);   // an FX name inside a string literal
+  /* eq(0, 0.5f, 0.5f);
+     reverb(0.3f, 0.5f);
+     a multi-line block comment holding two more */
+  my_crush(0, 8, 0.5f);              // a PREFIXED name is a different function, not crush()
+  chorus(0.3f, 0.5f);                // @@FLAG@@ the one real call — must report THIS line
+}

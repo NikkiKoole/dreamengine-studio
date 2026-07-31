@@ -1,0 +1,14 @@
+// FIXTURE — the WAIVER and its one regression. Never compiled. See ../README.md.
+// Convention: a line carrying the flag marker must be reported, every other line must not.
+
+void update(void) {
+  crush(0, 8, 0.5f);         // OK_trailing  fx-lint-ignore
+
+  // fx-lint-ignore
+  tape(0.5f, 0.2f);          // OK_above — a STANDALONE waiver comment on the line above
+
+  foo(1);                    // OK_bystander  fx-lint-ignore
+  chorus(0.3f, 0.5f);        // @@FLAG@@ the waiver above was TRAILING on another statement —
+                             // it must not leak down onto this line, or one ignore silently
+                             // waives everything after it
+}

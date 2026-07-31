@@ -76,10 +76,17 @@ const CHECKS = [
   { name: "selftest: fxicons", tool: "lint-fxicons.js",    args: ["--selfcheck"], gate: true },
   { name: "selftest: aux params", tool: "lint-aux-params.js", args: ["--selfcheck"], gate: true },
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
+  { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },
   // GATED from birth (2026-07-30): mechanical (an FX_* kind either has a glyph or it doesn't),
   // and it was written already AT zero after fixing the two kinds that had shipped without one —
   // so there is no backlog to work down first, unlike the ledger row above.
   { name: "fx glyphs",    tool: "lint-fxicons.js",       args: ["--strict"],    gate: true },
+  // GATED from birth for the same reason as fx glyphs above: it was already AT zero (0 findings
+  // across 573 carts), so there is no backlog to work down. It had been in NO gate at all, which
+  // is why nobody would have noticed if its parser had gone blind — the fixture row above is the
+  // other half of that fix. `--strict`, not `--quiet`: quiet prints nothing when clean, which
+  // makes the health-strip row read "(no output)".
+  { name: "fx per-frame", tool: "lint-fx-frame.js",      args: ["--strict"],    gate: true },
   { name: "status ledger", tool: "status-check.js",       args: ["--check"],     gate: false }, // ADVISORY on purpose: 81 findings on the day it was written (2026-07-30 audit). Gate it once the backlog is worked down, like doc-statuses and xrefs graduated.
   { name: "doc statuses", tool: "design-board.js",       args: ["--lint"],      gate: true }, // GRADUATED 2026-07-10: backlog reached 0 (was 42) — see driftable-docs.md "deliberately don't gate"
   { name: "xrefs",        tool: "lint-xrefs.js",         args: ["--strict"],    gate: true }, // GRADUATED 2026-07-10: both tiers reached 0 (were 58/203) — exempt classes documented in its header

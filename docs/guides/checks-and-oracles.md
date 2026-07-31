@@ -116,7 +116,7 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Nine now do — **126 assertions**
+**So: if your check makes a judgement, give it a `--selfcheck`.** Ten now do — **156 assertions**
 — every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
@@ -130,6 +130,7 @@ fallible as an FFT, and nobody has built the fixture.
 | `lint-fxicons.js --selfcheck` | `tools/fixtures/lint-fxicons/` | 7 — per-dispatcher registration, plus the derived-fallback exempt class |
 | `lint-aux-params.js --selfcheck` | `tools/fixtures/lint-aux-params/` | 14 — every finding kind, and the three checks that pass **vacuously** on zero regex matches |
 | `lint-carts.js --selfcheck` | `tools/fixtures/lint-carts/` | 48 — all three source hazards **and each one's exempt class**, plus a 26-case `de:meta` table |
+| `lint-fx-frame.js --selfcheck` | `tools/fixtures/lint-fx-frame/` | 30 — the footgun shapes, all six gated constructs, the ride-live exclusion list, the waiver **and its no-leak regression**, and line numbers surviving comment stripping |
 
 Fixtures are fed in by **path override, not by restructuring the tool**: doc scanners take
 `DE_DOCS_DIR` (`handoff` takes `DE_HANDOFF_FILE`), source scanners take one env var per input
@@ -197,6 +198,18 @@ Two rules that fall out of the same day:
    in the first place. Removing the exemption outright still scored a clean 48/48. If an assertion
    is about an *exempt class*, the fixture must contain something that would otherwise be **caught**
    — and the mutation that deletes the exemption is how you prove it does.
+7. **A check reporting zero findings while wired into no gate is the most suspicious state there
+   is** — it is indistinguishable from one that has gone blind, and nothing will ever tell you
+   which. `lint-fx-frame` sat at *"✓ 0 findings across 573 carts"*, in no gate, behind a
+   hand-rolled C parser with six exempt classes. It turned out to be working; the fixture also
+   turned up a **doc/behaviour mismatch** its header had carried all along (a `for` body was
+   documented as exempt and never was). Both halves are the fix: the fixture, so a future
+   regression is loud, and the gate, so someone runs it at all.
+8. **Probe each construct before you write the assertion.** Writing the `lint-fx-frame` fixture
+   from its header comment would have baked the wrong expectation for `for` straight into the
+   self-test — freezing the bug as the contract. Feed the tool one tiny input per construct first
+   and record what it *actually* does; then decide which behaviour is right, and fix the code or
+   the prose accordingly. Here the behaviour was right and the prose was wrong.
 
 ## Orienting *before* a change (don't dive in blind)
 

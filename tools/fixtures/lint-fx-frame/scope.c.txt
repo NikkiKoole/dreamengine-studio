@@ -1,0 +1,23 @@
+// FIXTURE — the SCOPE rule: only the bodies of update() and draw() are inspected. Never
+// compiled. Nothing here may be reported. See ../README.md.
+//
+// Both exemptions are deliberate, not oversights:
+//   · init() runs ONCE, so configuring effects there is the recommended fix, not the bug.
+//   · a call routed through a helper is NOT followed. That is the groovebox apply_fx() shape —
+//     the right structure anyway — so under-reporting through a helper is intended. It does mean
+//     a genuinely per-frame apply_fx() call goes unseen; that is a known, documented limit of
+//     the heuristic, and this fixture pins it so nobody "fixes" it into a flood by accident.
+
+void init(void) {
+  crush(0, 8, 0.5f);         // OK_init — configure once, the sanctioned pattern
+  reverb(0.3f, 0.5f);        // OK_init
+}
+
+static void apply_fx(void) {
+  tape(0.5f, 0.2f);          // OK_helper — not followed out of update()
+  chorus(0.3f, 0.5f);        // OK_helper
+}
+
+void update(void) {
+  apply_fx();                // the call the heuristic deliberately does not follow
+}

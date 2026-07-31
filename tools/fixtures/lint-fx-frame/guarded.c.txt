@@ -1,0 +1,36 @@
+// FIXTURE — the CORRECT patterns: an effect reconfigured only when its value changed. Never
+// compiled. Nothing here may be reported. See ../README.md.
+//
+// This file is load-bearing for the cry-wolf guard, and the guard is only meaningful because
+// every call below is a REAL member of the FX set — a fixture full of exempt effect names would
+// pass no matter how broken the conditional detection got. --selfcheck asserts that.
+
+static int ch, mode, a;
+
+void update(void) {
+  if (ch) {
+    crush(0, 8, 0.5f);                // OK_ifblock — inside a conditional body
+  }
+
+  if (ch) tape(0.5f, 0.2f);           // OK_inline — inline if on the call's own statement
+
+  ch ? chorus(0.3f, 0.5f) : 0;        // OK_ternary — guarded by ?:
+
+  while (ch) {
+    flanger(0.4f, 0.3f);              // OK_while — a while header survives to the brace classifier
+  }
+
+  switch (mode) {
+    case 0: phaser(0.5f, 0.5f);       // OK_switch
+  }
+
+  if (a) {
+    mode = 1;
+  } else {
+    wah(0.5f);                        // OK_else
+  }
+}
+
+void draw(void) {
+  if (ch) eq(0, 0.5f, 0.5f);          // OK_draw_inline — the same rules apply in draw()
+}

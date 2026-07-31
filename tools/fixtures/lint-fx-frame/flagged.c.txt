@@ -1,0 +1,16 @@
+// FIXTURE — the FOOTGUN shapes lint-fx-frame exists to catch. Never compiled.
+// Convention: a line carrying the flag marker must be reported, every other line must not.
+// See ../README.md for the marker and the case table.
+
+void update(void) {
+  crush(0, 8, 0.5f);                  // @@FLAG@@ bare call, unconditional, every frame
+  tape(0.5f, 0.2f);                   // @@FLAG@@ a second one — the scan must not stop at the first
+  reverb_bus(0.3f);                   // @@FLAG@@ a multi-word FX name still resolves
+  for (int i = 0; i < 2; i++) {
+    eq(i, 0.5f, 0.5f);                // @@FLAG@@ a for-loop body is NOT a gate — see ../README.md
+  }
+}
+
+void draw(void) {
+  reverb(0.3f, 0.5f);                 // @@FLAG@@ draw() is scanned too, not just update()
+}

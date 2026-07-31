@@ -50,6 +50,12 @@ static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0
 #define INSTR_ENGINE_BASE  INSTR_PLUCK
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
 #define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
+// INSTR_BOWED body resonators (§M2). ONE BODY PER SLOT, not per voice — a violin has one box that all
+// four strings drive, so sharing it is the physically honest model AND the only one that fits: a
+// cello-sized set needs 401 samples per line (disp-model.js --body --lowest 110), which does NOT fit
+// the per-voice buffer the violin body borrowed. Pooled + claimed per slot like fx_bus_for.
+#define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~5KB each
+#define BOW_BODY_MAX       416    // longest line, in samples: cello 9.09ms = 401 @ 44.1k, + headroom
 // ONSET-TRANSIENT lengths for the three wind engines, in samples. Named because they are set in TWO
 // places: the engine's *_start hook (a new voice) and sound_retrig_voice (note_retrig re-articulates a
 // held one). A hardcoded literal in each would drift, and a drifted chiff is exactly the silent kind.
@@ -114,6 +120,7 @@ typedef struct {
     float sc_send;                  // how much this slot drives that key 0..1; 0 = not a trigger (default)
     float voc_send;                 // how much this slot feeds the vocoder MODULATOR 0..1; >0 = send-only (dry muted). vocoder_send()
     int   fx_bus;                   // insert bus for chorus/flanger: 0 = master (default), 1.. = a private aux bus (instrument_chorus/flanger)
+    int   bow_body;                 // INSTR_BOWED shared body: 0 = unclaimed, 1.. = bow_bodies[] index+1 (same "0 = none" convention as fx_bus)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float level;                    // per-slot output level (instrument_level); read LIVE at mix. 1.0 = unity/byte-identical bypass, <1 trims — the mixer leg drive/echo/reverb/pan already had
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
@@ -356,6 +363,8 @@ typedef struct {
     float  bw_dc_prev, bw_dc_state;     // output DC blocker (steady bow drives a large DC)
     bool   bw_on;                       // note-on init guard
     bool   bw_pizz;                     // PIZZICATO: seed the string with a pluck + bypass the bow
+                                        // friction, so the SAME waveguide (string + body) rings down
+                                        // instead of self-oscillating. Set from eng_p[0] >= 0.5 at note-on.
     // ── BOWED BODY (§M2, plan 2.4) — opt-in, default OFF ──────────────────────────────────────
     // §F4 found INSTR_BOWED shipping with NO body resonator at all; its output comment even names the
     // body it does not model ("the bridge-side signal — what the body radiates"). Reid's Part 22 says an
@@ -365,19 +374,12 @@ typedef struct {
     // COMBS were kept on §M2's own argument — physically derived rather than hand-tuned, ~3x the colouring,
     // and the mechanism that could also serve GUITAR's body and the piano tricord. The formant variant and
     // its MODE_BOW_BODYTYPE knob were removed rather than carried forever (verdict: plan §2.4).
-    // ZERO new buffers: the comb lines live in `pn_ks2`, which BOWED never touches (distinct wave ids never
-    // share a voice — the same reuse the brass bore does with ks_buf). Modelled before building: 3 combs at
-    // 1.3/2.3/3.7 ms give 24 resonances in 80-4000 Hz, 19 of them above 1 kHz, the lowest at 270 and 435 Hz
-    // — about where a violin's main air (~275-300) and wood (~400-500) resonances sit. Confirmed in the
-    // render: response peaks land on h5 (275 Hz) and h8 (440 Hz).
-    // ⚠ ONE FIXED SIZE: these delays are a VIOLIN-sized box, applied to every BOWED voice including cellos
-    // and basses. A bigger instrument is a longer delay, and BOWED has no size axis (`harmonics` is bow
-    // POSITION), so sizing it is open work — a reason the default is still OFF.
-    int    bw_bd_pos[3], bw_bd_len[3];  // comb read/write positions + lengths (into pn_ks2, stride 256)
-    float  bw_bd_lp[3];                 // one-pole damping in each comb loop (a body's RT60 falls with freq)
+    // THE BODY IS NOT HERE: it lives PER SLOT in the bow_bodies[] pool, because an instrument has ONE box
+    // that every string drives. See that pool for the model, the sizing, and the once-per-sample rule.
+    // Only the blend AMOUNT is per-voice — the voice reads the shared body's output and mixes it into its
+    // own signal, so the body still passes through this voice's filter/env/drive chain.
     float  bw_bd_amt;                   // body blend (eng_p[1], MODE_BOW_BODY; 0 = off = the bare string)
-                                        // friction, so the SAME waveguide (string + body) rings down
-                                        // instead of self-oscillating. Set from eng_p[0] >= 0.5 at note-on.
+    int    bw_bd_slot;                  // which bow_bodies[] entry this voice feeds; -1 = none (body off)
     // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
@@ -561,6 +563,135 @@ static Instrument    instr_bank[SOUND_INSTR_SLOTS];
 #define SOUND_USER_WAVES 4
 #define SOUND_WAVE_LEN   64
 static float         user_wave[SOUND_USER_WAVES][SOUND_WAVE_LEN];   // INSTR_USER0..3 single-cycle tables (filled via wave_set)
+
+// ── INSTR_BOWED shared bodies (§M2, plan 2.4) — ONE BOX PER SLOT ──────────────────────────────
+// Reid Part 22: an instrument body IS a small reverberant room — three parallel lines in the 1-4 ms
+// window. This shipped PER VOICE first (borrowing pn_ks2), which was wrong two ways:
+//   PHYSICALLY — a violin has ONE body that all four strings drive, so two notes should share a box
+//     and colour each other. Per-voice gave every note its own private violin, and a chord no
+//     more coupled than four violins in four different rooms.
+//   PRACTICALLY — a cello-sized set needs 401 samples per line (`disp-model.js --body --lowest 110`),
+//     and 3x401 = 1203 floats does not fit the 1024-float buffer the violin body borrowed. Sharing
+//     INVERTS the cost: one box per slot gets cheaper as polyphony rises instead of scaling with it,
+//     which is what unblocked sizing at all.
+// ⚠ THE ONCE-PER-SAMPLE RULE — the one way to get this badly wrong. The lines advance ONLY in
+// bow_body_advance(), called once per OUTPUT SAMPLE, never from the voice loop. A comb's resonances
+// are set by how often it is clocked, so stepping it once per sounding VOICE would make the box's
+// pitch track the chord size — play a triad and the body would ring roughly a twelfth high. Voices
+// only ADD to `in` and READ `wet_share`; they never touch pos/len/lp/buf.
+typedef struct {
+    float buf[3][BOW_BODY_MAX];   // the three parallel delay lines
+    int   pos[3], len[3];         // read/write head + length, per line
+    float lp[3];                  // one-pole damping in each loop (a body's RT60 falls with frequency)
+    float in;                     // this sample's summed string input from every voice on the slot
+    float wet_share;              // last sample's output, divided by the number of voices reading it
+    int   readers;                // voices that fed it this sample (refilled every sample)
+    int   quiet;                  // consecutive unfed samples — the lines get zeroed when this runs out
+    float size;                   // the scale factor this box is currently BUILT at (see bow_body_scale)
+    bool  live;                   // claimed by a slot, so worth clocking
+} BowBody;
+static BowBody bow_bodies[SOUND_BOW_BODIES];
+static int     bow_body_next     = 0;   // next free pool entry (claim-only, like fx_next_bus)
+static int     bow_body_overflow = 0;   // slots that wanted a body and found the pool empty (tripwire)
+
+// Reid's three delays. Deliberately incommensurate, so the resonance series interleave into a dense
+// modal family instead of stacking into one comb. At 1.0x these give 24 resonances in 80-4000 Hz, 19
+// of them above 1 kHz, the lowest at 270 and 435 Hz — about where a violin's main air (~275-300) and
+// wood (~400-500) resonances sit, and the render confirms peaks on h5 (275 Hz) and h8 (440 Hz).
+static const float BOW_BODY_MS[3] = { 1.3f, 2.3f, 3.7f };
+
+// Body SIZE (MODE_BOW_SIZE, eng_p[2]) as a scale on those delays — a bigger instrument is a longer
+// delay. eng_p[2] defaults to 0.5f bank-wide and 0.5 maps to exactly 1.0x, so a cart that never sets
+// it gets the violin box it always got. 1.0 = a cello (2.46x = 3.19/5.65/9.09 ms, the set disp-model
+// sized for a 110 Hz lowest note); 0.0 = a small bright box, half a violin.
+static inline float bow_body_scale(float size) {
+    if (size < 0.0f) size = 0.0f; else if (size > 1.0f) size = 1.0f;
+    if (size < 0.5f) return 0.5f + size;             // 0 -> 0.5x  ·  0.5 -> 1.0x
+    return 1.0f + (size - 0.5f) * 2.92f;             // 0.5 -> 1.0x ·  1 -> 2.46x (cello)
+}
+
+// (Re)build a box at a given scale. Clears the lines: changing a delay LENGTH under a ringing box
+// would splice mid-waveform, so a resize is a rebuild, never an in-place stretch.
+static void bow_body_build(BowBody *bd, float scale) {
+    bd->size = scale;
+    for (int i = 0; i < 3; i++) {
+        int L = (int)(BOW_BODY_MS[i] * scale * 0.001f * (float)SOUND_SAMPLE_RATE);
+        if (L < 2) L = 2;
+        if (L > BOW_BODY_MAX - 1) L = BOW_BODY_MAX - 1;
+        bd->len[i] = L;
+        bd->pos[i] = 0;
+        bd->lp[i]  = 0.0f;
+        for (int k = 0; k < BOW_BODY_MAX; k++) bd->buf[i][k] = 0.0f;
+    }
+    bd->in = bd->wet_share = 0.0f;
+    bd->readers = bd->quiet = 0;
+}
+
+// Resolve a slot's body, claiming a pool entry on first use and rebuilding it if the cart asked for a
+// different size. Returns the bow_bodies[] index, or -1 when the pool is empty — the caller then
+// plays the bare string, exactly as if the body were off. It never falls back to another slot's box,
+// which would cross-couple two unrelated instruments (the same reasoning as fx_bus_for's -1).
+static int bow_body_for(int slot, float size) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return -1;
+    float want = bow_body_scale(size);
+    int   idx  = instr_bank[slot].bow_body - 1;
+    if (idx < 0) {
+        if (bow_body_next >= SOUND_BOW_BODIES) { bow_body_overflow++; return -1; }
+        idx = bow_body_next++;
+        instr_bank[slot].bow_body = idx + 1;
+        bow_bodies[idx].live = true;
+        bow_body_build(&bow_bodies[idx], want);
+        return idx;
+    }
+    if (want != bow_bodies[idx].size) bow_body_build(&bow_bodies[idx], want);
+    return idx;
+}
+
+// ONE STEP of every claimed body — once per output sample, from sound_callback before the voice loop.
+// It consumes the input the voices accumulated LAST sample and publishes this sample's output, which
+// is what breaks the circular dependency between "the box needs every string" and "every string needs
+// the box". The one-sample latency sits inside a 57-401 sample delay, so it is inaudible.
+static void bow_body_advance(void) {
+    static const float BD_FB[3] = { 0.72f, 0.68f, 0.62f };   // < 1 with a lowpass in the loop = stable
+    for (int b = 0; b < SOUND_BOW_BODIES; b++) {
+        BowBody *bd = &bow_bodies[b];
+        if (!bd->live) continue;
+        float in = bd->in;
+        int   n  = bd->readers;
+        bd->in = 0.0f;
+        bd->readers = 0;
+        // An unfed box decays in MILLISECONDS, but denormals linger and any residue would leak into
+        // the next note on the slot. Let it ring down, then zero the lines once and park it — a
+        // returning voice resets `quiet` and it starts clocking again.
+        if (n == 0) {
+            if (bd->quiet > 4096) { bd->wet_share = 0.0f; continue; }
+            if (++bd->quiet > 4096) {
+                for (int i = 0; i < 3; i++) {
+                    bd->lp[i] = 0.0f;
+                    for (int k = 0; k < BOW_BODY_MAX; k++) bd->buf[i][k] = 0.0f;
+                }
+                bd->wet_share = 0.0f;
+                continue;
+            }
+        } else {
+            bd->quiet = 0;
+        }
+        float wet = 0.0f;
+        for (int i = 0; i < 3; i++) {
+            float y = bd->buf[i][bd->pos[i]];
+            bd->lp[i] += 0.5f * (y - bd->lp[i]);                 // RT60 falls with frequency
+            bd->buf[i][bd->pos[i]] = in + bd->lp[i] * BD_FB[i];
+            bd->pos[i] = (bd->pos[i] + 1) % bd->len[i];
+            wet += y;
+        }
+        wet *= 0.333f;
+        // Divided by the reader count so the box RADIATES ONCE however many strings drive it: each
+        // voice mixes in its share and the shares sum back to one whole body. Without this a triad
+        // would be three bodies loud. The maths works out exact — in is the SUM of the strings, so
+        // sum_i amt*(wet/N - dc_i*0.3) == amt*(H(sum dc) - 0.3*sum dc), i.e. one box driven by all.
+        bd->wet_share = wet / (float)(n > 0 ? n : 1);
+    }
+}
 
 // ── THE echo bus (audio-notes §17 step 3, decisions/0015) ─────────────────
 // ONE shared delay line — a bus with per-slot sends, not a per-voice effect
@@ -3933,22 +4064,11 @@ static void sound_bowed_start(Voice *v) {
     v->bw_dc_prev = v->bw_dc_state = 0.0f;
     v->bw_attack = (int)(0.030f * (float)SOUND_SAMPLE_RATE);   // ~30ms bow-bite catch at onset
     // ── body (§M2) — opt-in via MODE_BOW_BODY; amount 0 leaves the voice byte-identical to before ──
-    v->bw_bd_amt = clamp01(v->eng_p[1]);
-    if (v->bw_bd_amt > 0.0001f) {
-        // three parallel feedback combs inside Reid's 1-4 ms window, deliberately incommensurate so their
-        // resonance series interleave into a dense modal family instead of stacking into a single comb.
-        // Lines live at pn_ks2 + i*256 (256 samples = 5.8 ms of headroom each).
-        static const float BD_MS[3] = { 1.3f, 2.3f, 3.7f };
-        for (int i = 0; i < 3; i++) {
-            int L = (int)(BD_MS[i] * 0.001f * (float)SOUND_SAMPLE_RATE);
-            if (L < 2) L = 2; if (L > 250) L = 250;
-            v->bw_bd_len[i] = L;
-            v->bw_bd_pos[i] = 0;
-            v->bw_bd_lp[i]  = 0.0f;
-            float *buf = v->pn_ks2 + i * 256;
-            for (int k = 0; k < L; k++) buf[k] = 0.0f;
-        }
-    }
+    // Claim the SLOT's shared box (bow_bodies[], sized by MODE_BOW_SIZE). Note this deliberately does
+    // NOT clear it: the box is mid-ring from whatever else is held on this slot, and wiping it per
+    // note-on would undo the coupling that sharing exists for. bow_body_for only rebuilds on a resize.
+    v->bw_bd_amt  = clamp01(v->eng_p[1]);
+    v->bw_bd_slot = (v->bw_bd_amt > 0.0001f) ? bow_body_for(v->instr_slot, v->eng_p[2]) : -1;
     v->bw_on = true;
 }
 
@@ -4047,18 +4167,14 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     // ── BODY (§M2) — post-string, exactly like GUITAR's gt_body. Feeding it BACK into the string is the
     // separate coupling question (§H5) and is deliberately NOT done here: Reid warns audio-rate feedback
     // is amplitude modulation and makes sidebands, so that wants a slow side-chain, not this.
-    if (v->bw_bd_amt > 0.0001f) {
-        float wet = 0.0f;
-        static const float BD_FB[3] = { 0.72f, 0.68f, 0.62f };       // < 1 with a lowpass in loop = stable
-        for (int i = 0; i < 3; i++) {
-            float *buf = v->pn_ks2 + i * 256;
-            float y = buf[v->bw_bd_pos[i]];
-            v->bw_bd_lp[i] += 0.5f * (y - v->bw_bd_lp[i]);           // RT60 falls with frequency
-            buf[v->bw_bd_pos[i]] = dc + v->bw_bd_lp[i] * BD_FB[i];
-            v->bw_bd_pos[i] = (v->bw_bd_pos[i] + 1) % v->bw_bd_len[i];
-            wet += y;
-        }
-        wet *= 0.333f;
+    // The box is SHARED per slot, so this voice does two things and clocks nothing: it pushes its own
+    // string into the box's input sum, and it reads the box's already-computed output share (see
+    // bow_body_advance — the lines step once per SAMPLE, not once per voice). The blend stays here,
+    // inside the voice, so the body still passes through this voice's own filter/env/drive.
+    if (v->bw_bd_amt > 0.0001f && v->bw_bd_slot >= 0) {
+        BowBody *bd = &bow_bodies[v->bw_bd_slot];
+        bd->in += dc;                                                // drive the shared box
+        bd->readers++;                                               // claim a share of its output
         // ADDITIVE, not a crossfade, and this was measured the hard way: `dc*(1-amt) + wet*amt` discards
         // the dry string, so at amt 0.8 you lose 80% of its own long ringdown and a pizzicato note died
         // TWICE as fast (tail ratio 0.039 vs 0.087 with no body). A body colours a string, it does not
@@ -4066,7 +4182,7 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
         // 1-4 ms body's RT60 is MILLISECONDS, so it adds no audible tail — at these delays the "reverb" IS
         // the frequency response (Reid's time/frequency duality), which is why the tail is not the thing
         // to listen for when comparing the two body models.
-        dc = dc + v->bw_bd_amt * (wet - dc * 0.3f);
+        dc = dc + v->bw_bd_amt * (bd->wet_share - dc * 0.3f);
     }
     return dc * 0.7f;   // makeup gain — trimmed 3.0→0.7 (−12.6 dB) to sit with the palette: BOWED was +13 dB over the library median (level-check), so two notes clipped the limiter
 }
@@ -6876,6 +6992,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         for (int sk = 0; sk < N_SC_KEYS; sk++) sc_key_lvl[sk] = 0.0f;   // sidechain trigger sums, refilled below
         voc_mod = 0.0f;                                                // vocoder modulator send, refilled below
         fxmod_tick();   // ride sweep-safe effect params from CV / engine LFOs (fx_mod/fx_lfo) — no-op until first use
+        bow_body_advance();   // clock every claimed INSTR_BOWED body ONCE per sample — see the pool: doing
+                              // this inside the voice loop would tie the box's pitch to the chord size
 
         for (int di = 0; di < delayed_count; ) {
             if (--delayed[di].delay_samples < 0) {
@@ -8904,6 +9022,7 @@ static void sound_reset_state(void) {
         instr_bank[i].sc_send    = 0.0f;
         instr_bank[i].voc_send   = 0.0f;
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
+        instr_bank[i].bow_body   = 0;      // no shared BOWED body until a note-on with MODE_BOW_BODY > 0 claims one
         instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (instrument_mode) — off until set
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (instrument_mode) — off until set
         instr_bank[i].eng_p[2]   = 0.5f;   // piano double-decay scale (instrument_mode idx 2) — 0.5 = 1.0× the baked default

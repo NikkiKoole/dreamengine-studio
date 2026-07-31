@@ -15,9 +15,10 @@ audit is the *findings*; this is the *doing*.
   both now fixed and shipped by ear as `MODE_PIANO_STIFF` (real stiff-string inharmonicity, B ≈ 1.1e-4) plus
   the completed Railsback curve · **2.3(b) DROPPED** (four of its five "families" have no inharmonicity to
   modulate, so the finding-count that ranked it was a false premise) · **2.4 IN PROGRESS** — premise checked
-  (3 faces solid, §E5 parked), and `BOWED` now has the body it never had (`MODE_BOW_BODY`, opt-in).
-- **Still open in Phase 2:** size the bowed body (it is one fixed VIOLIN box, which is what blocks
-  defaulting it on), `guitar` as a measurement-only cross-check, §I4d (the loop's own +1.3→+4.0¢ offset),
+  (3 faces solid, §E5 parked), and `BOWED` now has the body it never had (`MODE_BOW_BODY`, opt-in) —
+  as ONE SHARED BOX PER SLOT with a size axis (`MODE_BOW_SIZE`, 0.5 violin .. 1 cello), shipped 2026-07-31.
+- **Still open in Phase 2:** default the bowed body ON (no longer blocked on sizing — it now needs the
+  owner's ear across the 14 BOWED carts), `guitar` as a measurement-only cross-check, §I4d (the loop's own +1.3→+4.0¢ offset),
   and an ear pass on the five unverified piano voicings.
 - **Four oracles came out of the work**, each because nothing existing could see the bug:
   [`click-check`](../../tools/click-check.js) (splices), [`inharm-spec`](../../tools/inharm-spec.js)
@@ -1751,6 +1752,68 @@ colouring, against the violin's 24 / 19 / 10.9), so the approach scales even whe
 
 Gates after the removal: soundcheck silent, `tune-check` 0, `level-check` 0, `dc-check` 0,
 `lint-aux-params` 0, 570/570 carts compile.
+
+##### ✅ DECIDED 2026-07-31: ONE BODY PER SLOT, and the size axis that unblocks
+
+Owner, on the three routes above: *"do the 1 body per slot, sounds sensible."* Shipped.
+
+**The model.** A body now lives in a pooled `bow_bodies[8]` array (`BOW_BODY_MAX` 416 samples per line,
+~5 KB each), claimed per slot on the first note-on that asks for a body, exactly the way `fx_bus_for`
+claims an insert bus, and returning `-1` on pool exhaustion so the slot falls back to the bare string
+rather than borrowing another instrument's box. This is the physically honest reading: a violin has one
+shell that all four strings drive, so notes on one slot now colour each other through it. It also inverts
+the cost that blocked sizing, because one box per slot gets *cheaper* as polyphony rises instead of
+scaling with it. A slot IS an instrument, which is why size belongs here and not on the note.
+
+**`MODE_BOW_SIZE` (idx 2) is the size axis**, and it lands on the one index that made this free:
+`eng_p[2]` defaults to `0.5f` bank-wide for the PIANO's "0.5 = the voicing's own value" convention, and
+0.5 maps to exactly 1.0x, the violin box. So every existing cart renders what it always rendered without
+touching a line. 1.0 gives the cello set (2.46x = 3.19/5.65/9.09 ms, the numbers `disp-model --body
+--lowest 110` sized), 0.0 a small bright half-violin. A resize rebuilds and therefore clears the box,
+since changing a delay length under a ringing line would splice, so it is a setup call, not a sweep.
+
+**⚠ THE HAZARD THIS DESIGN HAS, written down because it is silent and would be spectacular.** A comb's
+resonances are set by how often it is *clocked*. The lines are advanced in `bow_body_advance()`, called
+once per OUTPUT SAMPLE from `sound_callback` before the voice loop; voices only add to `in` and read
+`wet_share`. Clock it from inside the voice loop instead and the box's pitch tracks the chord size: a
+triad would ring roughly a twelfth high, no gate would call it an error, and it would read as "the body
+sounds wrong on chords". The one-sample latency this introduces (voices read the output computed from
+last sample's input) is what breaks the circular dependency between "the box needs every string" and
+"every string needs the box", and it sits inside a 57 to 401 sample delay, so it is inaudible.
+
+**And the divisor, which is the other half of being one box.** `wet_share` is the body output divided by
+the number of voices that fed it, so the box radiates ONCE however many strings drive it. The maths is
+exact rather than a fudge: `in` is the sum of the strings, so `sum_i amt*(wet/N - dc_i*0.3)` equals
+`amt*(H(sum dc) - 0.3*sum dc)`, i.e. one body driven by all of them. Without it a triad would be three
+bodies loud. The blend stays inside the voice, so the body still passes through that voice's own
+filter/env/drive, which is what it was voiced against.
+
+**Measurements.**
+
+| check | result |
+|---|---|
+| default path (body off) | **byte-identical**, `3de65baf5bd8` before and after, on `bowed` |
+| size reaches the DSP | body delta at violin 0.5 = **+316 Hz** centroid / +0.076 brightness; at cello 1.0 = **+110 Hz** / +0.021, and +3.8 dB peak against +0.1 |
+| polyphony: resonances hold | body delta mono **+316 Hz** vs triad **+247 Hz**. Not tripled, so the box was not clocked per voice |
+| polyphony: radiates once | triad peak with body **−0.3 dB**, mono **+0.1 dB**. No N-fold body stacking |
+
+The size numbers are a *differential* test on purpose (each is body-on minus body-off at that preset), so
+the presets' differing bow macros largely cancel: had `MODE_BOW_SIZE` never reached the DSP the two deltas
+would be identical, and they are 3x apart. The direction is also the physical one, a bigger box putting
+its resonances lower and so brightening far less while storing more energy.
+
+Gates: soundcheck silent · `tune-check` no new drift · `level-check` every engine in tolerance, all Δ 0.0 ·
+`fx-check` all Δ 0.0 · `soak-check` stable, no leak or accumulation · `web-audio-check` **16/16
+BIT-IDENTICAL** native-vs-wasm including BOWED · `lint-aux-params` 0 · 573/573 carts compile · `spec`
+929/929. `click-check` flags 64 events on a bowed run, but the **body-off control flags the same 64 at
+higher ratios** (15.9x vs 11.6x), so they are the engine's own attack bite and pizz transients and the box
+in fact softens them. Running that control was the point: the count alone would have read as a regression.
+
+**Still open, and it is now an ear call rather than a blocker.** Defaulting the body ON no longer waits on
+sizing, since a cart can say what size instrument it is. What it still waits on is the owner's ear across
+the 14 `BOWED` carts, several of them bass-focused. Also noted: `bowed`'s arco and pizz are two SLOTS, so
+they get two boxes; they are given the same size, which is as close as the slot model gets to being one
+instrument plucked or bowed.
 
 ##### An unlooked-for second benefit of the §I4c fix: PIANO was being silently DAMPED
 

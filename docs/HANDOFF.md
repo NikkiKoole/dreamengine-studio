@@ -57,7 +57,7 @@ a broken doc link or `#section`).
 > (`runtime/ampcab.h` is the shared voicing table; `fxicons.h` is the shared pedal LOOK).
 > Hot files: `tools/carts/pedalboard.c`, `runtime/ampcab.h`, `apps/pedalboard/app.json`.
 
-> **▶ ACTIVE THREAD (2026-07-30) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4 is the live item**).**
+> **▶ ACTIVE THREAD (2026-07-31) — Synth Secrets: the audit is COMPLETE, the build plan is running (Phase 0 done, **PHASE 1 COMPLETE 7/7**, **PHASE 2: 2.1, 2.2 and 2.3(a) SHIPPED — PIANO now has real stiff-string inharmonicity + a completed Railsback curve; 2.3(b) DROPPED on measurement; 2.4's bowed body now SHARED PER SLOT with a size axis, and defaulting it on is the live item**).**
 > The owner supplied Gordon Reid's **Synth Secrets** (Sound On Sound, 63 parts, 1999-2004) and asked for a
 > cross-check against `runtime/sound.h`. **All 63 articles are now read**: an architecture pass plus eight
 > per-family recipe passes, ~106 sub-findings, every one citing both sides (part + issue on the book side,
@@ -74,21 +74,22 @@ a broken doc link or `#section`).
 >
 > **Resume-at — the live queue, most-ready first.**
 >
-> 1. **§M2 / item 2.4 — PART DONE. `BOWED` HAS A BODY (2026-07-30).** `MODE_BOW_BODY` ships: three parallel
->    feedback combs at 1.3/2.3/3.7 ms (Reid Part 22), opt-in, **default OFF**. Owner's ear: the body WINS
->    (audit §F4's gap is real), and the combs were kept over a bandpass-formant variant on §M2's own argument
->    after the ear could not separate them — `MODE_BOW_BODYTYPE` was dropped rather than carried. Zero new
->    per-voice buffers (the lines live in `pn_ks2`, which BOWED never touches).
->    **NEXT HERE, and it blocks defaulting it on: the body is ONE FIXED VIOLIN-SIZED box.** A bigger
->    instrument is a longer delay, but BOWED covers violin/viola/cello and several carts are bass-focused
->    (`walkbox`, `walkroll`, `upright`, `bandbox`) — and `harmonics` is bow POSITION, so there is no size
->    axis to hang it on. Until sizing exists, defaulting a violin box onto a cello is a known wrong answer.
->    **SIZING IS BLOCKED ON BUFFER SPACE, and `node tools/disp-model.js --body --lowest 110` quantifies it:**
->    a cello-sized set is 3.19/5.65/9.09 ms, so the longest line needs **401 samples against the engine's 256
->    stride** — 3 × 401 = 1203 floats vs `pn_ks2`'s 1024. The free-buffer trick that made the violin body
->    cost nothing does NOT stretch to a cello. Decide first: find more per-voice space, share ONE body
->    across voices (physically right — an instrument has one body), or cap the size. The character does
->    scale (58 resonances, 43 above 1 kHz, 11.5 dB) — only the memory does not.
+> 1. **§M2 / item 2.4 — `BOWED` HAS A BODY, AND IT IS NOW ONE SHARED BOX PER SLOT WITH A SIZE (2026-07-31).**
+>    `MODE_BOW_BODY` ships: three parallel feedback combs at 1.3/2.3/3.7 ms (Reid Part 22), opt-in,
+>    **default OFF**. Owner's ear: the body WINS (audit §F4's gap is real), and the combs were kept over a
+>    bandpass-formant variant on §M2's own argument after the ear could not separate them.
+>    **The sizing blocker is GONE.** The owner picked "one body per slot" from the three routes, and it
+>    shipped: a pooled `bow_bodies[8]` claimed per slot (like `fx_bus_for`), plus **`MODE_BOW_SIZE`** on
+>    `eng_p[2]` — whose `0.5f` bank default maps to exactly 1.0x, the violin box, so no existing cart moved.
+>    1.0 = the cello set (3.19/5.65/9.09 ms). Default path verified **byte-identical** (`3de65baf5bd8`).
+>    ⚠ **If you touch this: the box is clocked ONCE PER SAMPLE in `bow_body_advance()`, never from the voice
+>    loop.** A comb's resonances come from its clock rate, so advancing it per sounding voice would make the
+>    body's pitch track the chord size (a triad ringing ~a twelfth high) — silent, and no gate calls it an
+>    error. `wet_share` is likewise divided by the reader count so the box radiates once, not N times.
+>    **NEXT HERE: defaulting it ON is now an EAR call, not a blocked one.** A cart can declare its
+>    instrument's size, so the remaining question is just whether the owner likes the body across the 14
+>    BOWED carts, several bass-focused (`walkbox`, `walkroll`, `upright`, `bandbox`). Play `bowed` (baked):
+>    presets 1/2/3 are violin/viola/cello boxes, B toggles the body.
 >    **Then `guitar`** — still a measurement cross-check ONLY, see the scoping below.
 >    Two traps banked: a 1–4 ms body has a MILLISECOND RT60 so there is no audible tail to A/B on (the
 >    "reverb" IS the frequency response — Reid's duality); and blend a body ADDITIVELY, never as a crossfade,

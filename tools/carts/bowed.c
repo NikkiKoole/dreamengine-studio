@@ -13,7 +13,7 @@
     "analog-voice-modeling"
   ],
   "lineage": "Ports the Smith/McIntyre stick-slip bowed-string waveguide from navkit (bowsweep.c Schelleng-wedge calibration); novel: arco/pizzicato as a single waveguide with friction toggled via eng_tune, plus multitouch rub-velocity as bow speed.",
-  "description": "INSTR_BOWED showcase - the bowed string (violin / viola / cello), the last modeled string engine. A Smith/McIntyre stick-slip friction waveguide: a bow drags the string, the rosin grips then slips, and that friction drives a SELF-OSCILLATING loop - so unlike the plucked/struck strings it HOLDS while sustained and swells as you lean in. STEP-0 (tools/navkit-bowsweep.c) mapped the Schelleng wedge of stable bowing and the three macros are pinned inside it: instrument_harmonics = bow position (0 = sul ponticello, near the bridge, bright/edgy; 1 = sul tasto, over the fingerboard, soft), instrument_timbre = bow pressure (0 = light/clean singing leaning-sawtooth; 1 = heavy/scratchy surface sound - a real articulation, not a bug), instrument_morph = bow speed/swell (0 = gentle; 1 = digging in, louder and cleaner). THE FEEL: you don't press a string, you RUB it - drag back and forth and it speaks; the energy ACCUMULATES, so the longer/harder you rub the more it builds and digs in, and stopping lets the bow rest (silent). A quick TAP instead PLUCKS the string - pizzicato, which is the SAME bowed waveguide: a second INSTR_BOWED slot flagged eng_tune(slot,0,1) seeds the string with a pluck and switches the bow friction off, so the identical string and body ring down (arco and pizz differ only in how energy enters, exactly as on a real violin). Six presets: 1 violin / 2 viola / 3 cello / 4 ponticello / 5 tasto / 6 tremolo. Keyboard: HOLD A S D F G H J to bow, tap Q W E R T Y U to pluck; LEFT/RIGHT pick a knob + UP/DOWN turn, Z/X octave, M autoplay arco, B BODY on/off. THE BODY (B) is new: this engine shipped with no body resonator at all, so a bowed note was a bare string - Reid's Part 22 point is that an instrument body IS a small reverberant room, and MODE_BOW_BODY builds one from three parallel delay lines at 1-4 ms. Toggle it to hear the difference between a string and a string in a box; it is the single biggest thing separating this from a sawtooth. The box is one fixed VIOLIN size, so the cello preset gets a violin's body for now. Multitouch: rub a drone with one hand, pluck a melody with the other. Design + STEP-0: instrument-engines.md §8.5 step 9."
+  "description": "INSTR_BOWED showcase - the bowed string (violin / viola / cello), the last modeled string engine. A Smith/McIntyre stick-slip friction waveguide: a bow drags the string, the rosin grips then slips, and that friction drives a SELF-OSCILLATING loop - so unlike the plucked/struck strings it HOLDS while sustained and swells as you lean in. STEP-0 (tools/navkit-bowsweep.c) mapped the Schelleng wedge of stable bowing and the three macros are pinned inside it: instrument_harmonics = bow position (0 = sul ponticello, near the bridge, bright/edgy; 1 = sul tasto, over the fingerboard, soft), instrument_timbre = bow pressure (0 = light/clean singing leaning-sawtooth; 1 = heavy/scratchy surface sound - a real articulation, not a bug), instrument_morph = bow speed/swell (0 = gentle; 1 = digging in, louder and cleaner). THE FEEL: you don't press a string, you RUB it - drag back and forth and it speaks; the energy ACCUMULATES, so the longer/harder you rub the more it builds and digs in, and stopping lets the bow rest (silent). A quick TAP instead PLUCKS the string - pizzicato, which is the SAME bowed waveguide: a second INSTR_BOWED slot flagged eng_tune(slot,0,1) seeds the string with a pluck and switches the bow friction off, so the identical string and body ring down (arco and pizz differ only in how energy enters, exactly as on a real violin). Six presets: 1 violin / 2 viola / 3 cello / 4 ponticello / 5 tasto / 6 tremolo. Keyboard: HOLD A S D F G H J to bow, tap Q W E R T Y U to pluck; LEFT/RIGHT pick a knob + UP/DOWN turn, Z/X octave, M autoplay arco, B BODY on/off. THE BODY (B) is new: this engine shipped with no body resonator at all, so a bowed note was a bare string - Reid's Part 22 point is that an instrument body IS a small reverberant room, and MODE_BOW_BODY builds one from three parallel delay lines at 1-4 ms. Toggle it to hear the difference between a string and a string in a box; it is the single biggest thing separating this from a sawtooth. THE BOX HAS A SIZE (MODE_BOW_SIZE) and the presets set it, because a bigger instrument is a longer delay: 1 violin and 2 viola get violin-ish boxes, 3 cello gets the full 2.5x one (sized for a 110 Hz lowest note), and the three bow-position presets stay violins because a bow position is not a different instrument. And the body is ONE BOX PER SLOT, shared by every note on it, exactly like a real instrument where all four strings drive the same wooden shell - so a double-stop's two notes colour each other through it instead of each ringing a private violin. Multitouch: rub a drone with one hand, pluck a melody with the other. Design + STEP-0: instrument-engines.md §8.5 step 9."
 }
 de:meta */
 // bowed — INSTR_BOWED showcase: seven strings you BOW by RUBBING, plus pizzicato. The last
@@ -66,6 +66,17 @@ static const float PRESET[NPRESET][3] = {
     { 0.90f, 0.18f, 0.45f },   // tasto     — far over the board, feather pressure: flute-soft
     { 0.40f, 0.35f, 0.85f },   // tremolo   — fast, hard bow speed
 };
+// ...and how BIG each one's body is (MODE_BOW_SIZE): 0.5 = violin, 1 = cello. The bowing presets
+// above only ever changed the BOW; the instrument stayed a violin-sized box whatever you picked,
+// which is why the cello used to sound like a violin played low. Now the box changes too.
+static const float PRESET_SIZE[NPRESET] = {
+    0.50f,   // violin
+    0.64f,   // viola     — a viola is about a seventh longer in the body than a violin
+    1.00f,   // cello     — the full 2.46x box (3.2/5.7/9.1 ms), sized for a 110 Hz lowest note
+    0.50f,   // ponticello— a bow position on a violin, not a different instrument
+    0.50f,   // tasto     — ditto
+    0.50f,   // tremolo   — ditto
+};
 
 static int   midi_of[NSTR];
 static int   hnd[NSTR];        // live held bow handle per string, -1 = not bowing
@@ -81,16 +92,20 @@ static float knob[3] = { 0.45f, 0.30f, 0.70f };   // the three macros (starts at
 // ON by default HERE because this is the showcase cart and the body is the thing worth hearing; the
 // ENGINE default stays OFF so the other 13 BOWED carts are untouched.
 // ⚠ Read at NOTE-ON, so the toggle lands on the next note, not on notes already sounding.
-// ⚠ The box is one fixed VIOLIN size, so preset 3 (cello) gets a violin's body — approximate on purpose;
-//   sizing it is open work (plan §2.4).
+// SIZE (MODE_BOW_SIZE) comes from the preset — and note the arco and pizz slots are given the SAME
+// size deliberately: they are meant to be one instrument bowed or plucked, so they must be one box.
+// (They are two SLOTS, so they get two bodies — the engine shares a body per slot, and these are
+// genuinely two. Same size means two identical boxes, which is as close as the slot model gets.)
+static int   sel = 0;
+static int   preset = 0;   // declared ABOVE apply_body, which reads it for the size
 static bool body_on = true;
 #define BODY_AMT 1.0f
 static void apply_body(void) {
     instrument_mode(I_STR, MODE_BOW_BODY, body_on ? BODY_AMT : 0.0f);
     instrument_mode(I_PIZ, MODE_BOW_BODY, body_on ? BODY_AMT : 0.0f);   // same string, same body
+    instrument_mode(I_STR, MODE_BOW_SIZE, PRESET_SIZE[preset]);
+    instrument_mode(I_PIZ, MODE_BOW_SIZE, PRESET_SIZE[preset]);
 }
-static int   sel = 0;
-static int   preset = 0;
 static bool  autoplay = true;
 static int   apos = 0;
 static float atimer = 0, arub = 0;
@@ -129,6 +144,7 @@ static void load_preset(int p) {
     preset  = p;
     knob[0] = PRESET[p][0]; knob[1] = PRESET[p][1]; knob[2] = PRESET[p][2];
     apply_knobs();
+    apply_body();   // the preset changes the INSTRUMENT, not just the bow — resize the box too
 }
 
 enum { PTR_IDLE, PTR_KNOB, PTR_STR };

@@ -107,8 +107,14 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   switch has had it for months. **The 303's snappier slide was owner-approved on listening.**
   **`MODE_PIANO_STRETCH`** (the Feynman/Railsback stretched tuning) and **`MODE_PIANO_STIFF`**
   (real stiff-string inharmonicity, B ≈ 1.1e-4 on the grand) — item 2.3; and **`MODE_BOW_BODY`** (three
-  parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) — item 2.4, in progress.
-  `eng_p[]` is now **six** wide with the bound at `idx >= 6`.
+  parallel 1–4 ms delay lines: `INSTR_BOWED` had no body resonator at all) plus **`MODE_BOW_SIZE`** — item
+  2.4. The bowed body is **ONE SHARED BOX PER SLOT** (a pooled `bow_bodies[8]` claimed like an fx bus, so a
+  chord's notes colour each other through one shell, as on a real instrument) with a **size axis** where
+  `eng_p[2]`'s `0.5f` default maps to exactly the old violin box (no cart moved) and 1.0 gives a cello.
+  Sharing is what made sizing possible at all: a cello line needs 401 samples, which never fit per-voice.
+  ⚠ The box is clocked **once per output sample**, never per voice — a comb's resonances come from its clock
+  rate, so per-voice clocking would tie the body's pitch to the chord size, silently. Defaulting the body ON
+  is the remaining ear call. `eng_p[]` is now **seven** wide with the bound at `idx >= 7`.
   **Two long-standing engine defects were found by MEASURING rather than reading**, both of the shape *a
   value computed correctly that never reaches the sound*: PIANO's dispersion chain was **inert** (allpass
   coefficient 0.9999948 = the identity; measured B ≈ 2e-6 against a grand's 1e-4) because a positive

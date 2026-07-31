@@ -1,0 +1,22 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// The DRIFTED copy of delta's apply_env(): mostly the same, with a velocity curve and a
+// clamp reordered. High-but-imperfect similarity is exactly the "silent revert" hazard.
+static float env[8];
+static int   held[8];
+
+void apply_env(int slot, float vel) {
+  float a = 0.01f;
+  float d = 0.20f;
+  float s = 0.60f;
+  float r = 0.30f;
+  float curved = vel * vel;
+  env[slot] = curved * s;
+  held[slot] = 1;
+  if (env[slot] > 1.0f) env[slot] = 1.0f;
+  note_on(slot, 60, env[slot] * a * d * r);
+}
+
+void draw(void) {
+  circfill(20, 20, 8, CLR_WHITE);
+  for (int i = 0; i < 8; i++) if (held[i]) rectfill(i * 5, 4, 2, 2, CLR_WHITE);
+}

@@ -1,0 +1,21 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// delta/epsilon carry apply_env() as a copied-then-DRIFTED pair (similarity in [0.6, 0.999)).
+static float env[8];
+static int   held[8];
+
+void apply_env(int slot, float vel) {
+  float a = 0.01f;
+  float d = 0.20f;
+  float s = 0.60f;
+  float r = 0.30f;
+  env[slot] = vel * s;
+  held[slot] = 1;
+  if (env[slot] > 1.0f) env[slot] = 1.0f;
+  if (env[slot] < 0.0f) env[slot] = 0.0f;
+  note_on(slot, 60, env[slot] * a * d * r);
+}
+
+void draw(void) {
+  rectfill(0, 0, 40, 40, CLR_WHITE);
+  for (int i = 0; i < 8; i++) if (held[i]) circfill(i * 5, 4, 2, CLR_WHITE);
+}

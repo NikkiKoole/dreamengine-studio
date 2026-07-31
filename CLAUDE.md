@@ -527,7 +527,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              cart-todos.js   the navigable view over every cart's de:meta.todo[] polish punch-list (--grep/--count/<name>)
              cart-analyze.js complexity + global-state report; ranks spec-worthiness
              cart-index.js   computed technique index ("what cart teaches X") + coverage
-             cart-dupes.js   cross-cart duplication finder → refactor / drift candidates
+             cart-dupes.js   cross-cart duplication finder → refactor / drift candidates. Its power is
+                             NORMALIZATION: cart-local identifiers collapse to V while the engine vocab
+                             (every identifier in runtime/*.h CODE — decommented, or 56% of the "vocabulary"
+                             is header PROSE) stays literal, so API calls are the fingerprint. `--selfcheck`
+                             = known-answer fixture (20 assertions) pinning that trick in BOTH directions
              build-compendium.js  generate docs/cart-compendium.html (--check gates staleness)
              build-design-board.js  generate docs/design-board.html — the VISUAL ★ designs page (every design
                              doc + ADR by lifecycle phase, clickable cards) from design-board.js; --check gates staleness

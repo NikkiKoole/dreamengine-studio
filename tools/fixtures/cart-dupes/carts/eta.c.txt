@@ -1,0 +1,15 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// The identical twin of zeta's clamp_all() — see that file's note.
+static float buf[32];
+
+void clamp_all(int n, float lo, float hi) {
+  for (int i = 0; i < n; i++) {
+    if (buf[i] < lo) buf[i] = lo;
+    if (buf[i] > hi) buf[i] = hi;
+    buf[i] = buf[i] * 0.5f + lo * 0.5f;
+    if (buf[i] != buf[i]) buf[i] = 0.0f;
+  }
+  rectfill(0, 0, n, 2, CLR_WHITE);
+}
+
+void draw(void) { clamp_all(32, 0.0f, 1.0f); }

@@ -24,6 +24,7 @@
 //   node tools/cart-dupes.js --drift         # only the drift report
 //   node tools/cart-dupes.js --extract       # only the extraction report
 //   node tools/cart-dupes.js --json          # machine-readable
+//   node tools/cart-dupes.js --selfcheck     # assert the CHECKER (known-answer fixture, 20)
 //
 // Zero deps, plain node (CommonJS). Costs nothing to run — no LLM.
 
@@ -44,15 +45,38 @@ const JSON_OUT = args.includes('--json');
 const ONLY_DRIFT = args.includes('--drift');
 const ONLY_EXTRACT = args.includes('--extract');
 
-const runtimeDir = path.join(__dirname, '..', 'runtime');
-const cartDir = path.join(__dirname, 'carts');
+// Both inputs are overridable so --selfcheck can point the whole tool at a tiny FIXTURE repo
+// (tools/fixtures/cart-dupes/) instead of the 573-cart shelf. CART_EXT exists so fixture carts
+// can be `.c.txt`: a fixture cart is never compiled, and a real `.c` gets indexed by clangd and
+// read as a cart by anything globbing for sources.
+const runtimeDir = process.env.DE_DUPES_RUNTIME_DIR || path.join(__dirname, '..', 'runtime');
+const cartDir    = process.env.DE_DUPES_CART_DIR    || path.join(__dirname, 'carts');
+const CART_EXT   = process.env.DE_DUPES_CART_EXT    || '.c';
 
-// ---- anchor vocabulary: every identifier that appears in runtime/*.h -------------
+// ---- anchor vocabulary: every identifier that appears in runtime/*.h CODE ---------
+// DECOMMENTED FIRST, and that is load-bearing, not tidiness. Harvesting the raw header text
+// swept every English word in every header COMMENT into the "engine vocabulary": 8709 of 15456
+// entries (56%) were prose — `the`, `and`, `shared`, `extracted`, `carts`, `drifting`. Since an
+// anchored identifier stays LITERAL instead of collapsing to V, that silently defeated the
+// core trick on any cart-local whose name happened to appear in a header comment, so two blocks
+// differing only in a variable name were not recognised as clones. Found 2026-07-31 by the
+// --selfcheck fixture below (the fixture's own anchor set contained the words of its own
+// header comment, which is what made it visible).
+//
+// KNOWN LIMITATION, deliberately not fixed here: PARAMETER names in the prototypes are still
+// harvested, so `i` `j` `k` `n` `x` `y` `w` `h` `tmp` `row` `col` `slot` `vel` remain anchored
+// and a pure loop-variable rename can still hide a clone. Excluding those needs real declaration
+// parsing rather than a word regex; the fixture pins today's behaviour so a future fix is visible.
 const anchor = new Set();
 for (const f of fs.readdirSync(runtimeDir).filter(f => f.endsWith('.h'))) {
   const src = fs.readFileSync(path.join(runtimeDir, f), 'utf8');
-  for (const m of src.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) anchor.add(m[0]);
+  for (const m of decomment(src).matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) anchor.add(m[0]);
 }
+// The normalization SENTINELS must never be vocabulary. `N` really is a header parameter name,
+// so without this a cart-local named N and any numeric literal both normalize to "N" and compare
+// EQUAL — a false match — and the report lists "N"/"V" among a cluster's api calls, which is
+// visible nonsense. (`V` only reached the set via comment prose and is already gone above.)
+anchor.delete('V'); anchor.delete('N');
 const KEYWORDS = new Set(('auto break case char const continue default do double else enum extern ' +
   'float for goto if inline int long register restrict return short signed sizeof static struct ' +
   'switch typedef union unsigned void volatile while bool true false').split(' '));
@@ -110,12 +134,120 @@ function tokenize(src) {
 }
 
 // ---- load carts -----------------------------------------------------------------
-const files = fs.readdirSync(cartDir).filter(f => f.endsWith('.c')).sort();
+const files = fs.readdirSync(cartDir).filter(f => f.endsWith(CART_EXT)).sort();
 const carts = files.map(f => {
   const raw = fs.readFileSync(path.join(cartDir, f), 'utf8');
   const toks = tokenize(decomment(raw));
-  return { name: f.replace(/\.c$/, ''), toks, norm: toks.map(t => t.norm) };
+  return { name: f.slice(0, -CART_EXT.length), toks, norm: toks.map(t => t.norm) };
 });
+
+// ---- --selfcheck: assert the CHECKER against known answers -----------------------
+// See docs/guides/checks-and-oracles.md "Self-test the checker". Runs the whole tool against a
+// 10-cart FIXTURE repo (tools/fixtures/cart-dupes/) with its own tiny anchor header, via the
+// DE_DUPES_* path overrides, and asserts what it must say.
+//
+// WHY. The tool's own header calls normalization "the trick that makes it find REAL clones
+// instead of every `for` loop" — cart-local identifiers collapse to V while the engine/library
+// vocabulary stays literal. Both halves of that are load-bearing IN OPPOSITE DIRECTIONS: lose
+// the collapse and a renamed copy stops matching (a missed clone); lose the literal vocabulary
+// and two blocks calling DIFFERENT engine functions match anyway (a false clone). Nothing
+// measured either. The fixture's alpha/beta/gamma trio is built to pin exactly that pair, and
+// writing it is what exposed the comment-prose bug fixed above.
+if (args.includes('--selfcheck')) {
+  const cp = require('child_process');
+  const FX = path.join(__dirname, 'fixtures', 'cart-dupes');
+  let raw;
+  try {
+    raw = cp.execFileSync(process.execPath, [__filename, '--json', '--min-tokens', '40'], {
+      env: { ...process.env,
+             DE_DUPES_RUNTIME_DIR: path.join(FX, 'runtime'),
+             DE_DUPES_CART_DIR:    path.join(FX, 'carts'),
+             DE_DUPES_CART_EXT:    '.c.txt' },
+      encoding: 'utf8', maxBuffer: 1 << 26,
+    });
+  } catch (e) { raw = e.stdout; }
+  const g = JSON.parse(raw);
+
+  const T = [];
+  const t = (n, ok) => T.push({ n, ok });
+  const cartsOf   = (c) => c.occurrences.map(o => o.cart).sort();
+  // Crash-safe accessors: a MISSING cluster must fail its assertion, not throw. The first draft
+  // read `clusterOf(...).tokens` directly, so the mutation "stop collapsing cart-locals" (which
+  // removes the alpha+beta cluster entirely) died with a TypeError instead of printing which of
+  // the 20 expectations actually broke. A self-test that crashes tells you far less than one
+  // that fails.
+  const clusterOf = (...names) =>
+    g.extraction.find(c => cartsOf(c).join('+') === names.sort().join('+')) || { tokens: -1, apiCalls: [], score: -1, spread: -1 };
+  const driftOf   = (name) => g.drift.find(d => d.name === name);
+
+  // ── the fixture loaded at all
+  t('loads the fixture repo, not the real shelf  [10 carts, tiny anchor]',
+    g.carts.length === 10 && g.anchorSize > 10 && g.anchorSize < 60)
+  t('the normalization SENTINELS are not vocabulary  [V/N collision]',
+    !g.extraction.some(c => c.apiCalls.includes('V') || c.apiCalls.includes('N')))
+
+  // ── THE TRICK, both directions. alpha/beta/gamma are structurally identical; only the
+  //    identifier CLASSES differ, so this trio isolates normalization from everything else.
+  t('normalize: two carts differing ONLY in local names DO cluster  [cart-locals → V]',
+    !!clusterOf('alpha', 'beta'))
+  t('normalize: ...and the cluster is the whole shared block, extended in lockstep',
+    clusterOf('alpha', 'beta').tokens === 178)
+  t('normalize: a cart with the same locals but DIFFERENT engine calls does NOT cluster  ' +
+    '[engine vocab stays literal]',
+    !g.extraction.some(c => cartsOf(c).includes('gamma')))
+  t('normalize: the engine calls are reported as the cluster fingerprint',
+    ['rectfill', 'screen_w', 'ui_button', 'note_on', 'circfill']
+      .every(fn => clusterOf('alpha', 'beta').apiCalls.includes(fn)))
+
+  // ── extraction mechanics
+  t('extraction: an identical helper in 2 carts is a cluster', !!clusterOf('eta', 'zeta'))
+  t('extraction: a block shared by 3 carts reports spread 3  [cart-spread, not pair count]',
+    g.extraction.some(c => c.spread === 3 && cartsOf(c).join('+') === 'iota+kappa+theta'))
+  t('extraction: score is tokens x cart-spread',
+    g.extraction.every(c => c.score === c.tokens * c.spread))
+  t('extraction: every cluster clears --min-tokens  [threshold guard]',
+    g.extraction.length > 0 && g.extraction.every(c => c.tokens >= g.config.MIN_TOKENS))
+  t('extraction: results are ranked by score, descending',
+    g.extraction.every((c, i) => i === 0 || g.extraction[i - 1].score >= c.score))
+  t('extraction: anchorDensity is a fraction  [the "should use a header" signal]',
+    g.extraction.every(c => c.anchorDensity >= 0 && c.anchorDensity <= 1))
+
+  // ── DRIFT: copied THEN diverged, which is neither "identical" nor "unrelated"
+  t('drift: a copied-then-diverged helper is reported', !!driftOf('apply_env'))
+  t('drift: ...with the similarity inside the [DRIFT_LO, DRIFT_HI) band',
+    driftOf('apply_env').medianDriftSim >= g.config.DRIFT_LO &&
+    driftOf('apply_env').medianDriftSim <  g.config.DRIFT_HI)
+  t('drift: ...and it names where every copy lives',
+    driftOf('apply_env').where.join(' ') === 'delta:6 epsilon:7')
+  t('drift: a BYTE-IDENTICAL copy is not drift  [exempt class: that is extraction]',
+    !driftOf('clamp_all'))
+  t('drift: a 3-copy helper separates identical pairs from drifted ones',
+    driftOf('mix_bus') && driftOf('mix_bus').copies === 3 &&
+    driftOf('mix_bus').identicalPairs === 1 && driftOf('mix_bus').driftedPairs === 2 &&
+    driftOf('mix_bus').totalPairs === 3)
+  t('drift: draw() is excluded as an engine HOOK, not flagged as a copy  [HOOK_CUTOFF]',
+    !driftOf('draw') && g.config.HOOK_CUTOFF === 4)
+  t('drift: results are ranked by drifted-pair count',
+    g.drift.every((d, i) => i === 0 || g.drift[i - 1].driftedPairs >= d.driftedPairs))
+
+  // ── the inert-fixture guard: these "must not appear" cases only mean something if the
+  //    fixture actually contains the shapes that would otherwise appear.
+  t('fixture is not inert: gamma and draw() really are present to be excluded',
+    (() => {
+      const dir = path.join(FX, 'carts');
+      const gsrc = fs.readFileSync(path.join(dir, 'gamma.c.txt'), 'utf8');
+      const longDraws = fs.readdirSync(dir)
+        .filter(f => /void draw\(void\) \{[\s\S]{200,}/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+      return /ui_button/.test(gsrc) && /note_off/.test(gsrc) && longDraws.length > g.config.HOOK_CUTOFF;
+    })())
+
+  const failed = T.filter(x => !x.ok);
+  for (const x of T) console.log(`  ${x.ok ? '\x1b[32m✓\x1b[0m' : '\x1b[31m✗\x1b[0m'} ${x.n}`);
+  console.log(failed.length
+    ? `\x1b[31mcart-dupes --selfcheck FAILED\x1b[0m — ${failed.length} of ${T.length} expectations broken`
+    : `cart-dupes --selfcheck: ${T.length}/${T.length} known answers correct`);
+  process.exit(failed.length ? 1 : 0);
+}
 
 // ================================================================================
 // 1. EXTRACTION clusters — maximal normalized blocks shared across ≥2 carts
@@ -295,7 +427,12 @@ drift.sort((a, b) => b.driftedPairs - a.driftedPairs || b.medianDriftSim - a.med
 
 // ---- output ---------------------------------------------------------------------
 if (JSON_OUT) {
-  console.log(JSON.stringify({ extraction: clusters.slice(0, TOP), drift }, null, 2));
+  console.log(JSON.stringify({
+    carts: carts.map(c => c.name),
+    config: { MIN_TOKENS, WINDOW, DRIFT_LO, DRIFT_HI, HOOK_CUTOFF },
+    anchorSize: anchor.size,
+    extraction: clusters.slice(0, TOP), drift,
+  }, null, 2));
   process.exit(0);
 }
 

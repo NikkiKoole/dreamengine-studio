@@ -1,0 +1,30 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// mix_bus() exists in theta/iota/kappa: theta+iota IDENTICAL, kappa DRIFTED. Three copies sits
+// under HOOK_CUTOFF (10 carts x 0.4 = 4), so it is reported — with identicalPairs AND
+// driftedPairs both non-zero, which a two-copy name can never produce.
+static float bus[16];
+static int   route[16];
+
+void mix_bus(int n, float wet) {
+  float sum = 0.0f;
+  for (int i = 0; i < n; i++) {
+    sum = sum + bus[i] * wet;
+    if (route[i] == 1) sum = sum * 0.5f;
+    if (route[i] == 2) sum = sum * 0.25f;
+    sum = sum + wet * 0.01f;
+    if (sum > 4.0f) sum = 4.0f;
+  }
+  bus[0] = sum;
+  note_on(0, 48, sum);
+}
+
+void draw(void) {
+  rectfill(0, 0, screen_w(), screen_h(), CLR_WHITE);
+  for (int i = 0; i < 16; i++) {
+    int bx = 4 + i * 6;
+    int by = 20 + 4;
+    if (ui_button(bx, by, 5, 5, "m")) route[i] = route[i] + 1;
+    circfill(bx + 2, by + 2, 1, CLR_WHITE);
+  }
+  note_off(0);
+}

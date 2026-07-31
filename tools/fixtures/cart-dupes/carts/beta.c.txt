@@ -1,0 +1,23 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// Same block as alpha with every LOCAL renamed. Normalization must make these identical.
+static int cells[16];
+static float amp[16];
+
+void draw(void) {
+  int lit = 0;
+  rectfill(0, 0, screen_w(), screen_h(), CLR_WHITE);
+  for (int k = 0; k < 16; k++) {
+    int bx = 8 + (k % 4) * 20;
+    int by = 8 + (k / 4) * 20;
+    if (ui_button(bx, by, 18, 18, "p")) {
+      cells[k] = 1;
+      amp[k] = 0.8f;
+      note_on(k, 36 + k, amp[k]);
+    }
+    if (cells[k]) {
+      circfill(bx + 9, by + 9, 4, CLR_WHITE);
+      lit = lit + 1;
+    }
+  }
+  rectfill(0, screen_h() - 8, lit * 4, 8, CLR_WHITE);
+}

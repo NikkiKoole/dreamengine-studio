@@ -116,7 +116,7 @@ feels self-evidently correct — and it is, right up until the check starts enco
 ("is this item done?", "is this reference a claim or a proposal?"). At that moment it is exactly as
 fallible as an FFT, and nobody has built the fixture.
 
-**So: if your check makes a judgement, give it a `--selfcheck`.** Eleven now do — **187 assertions**
+**So: if your check makes a judgement, give it a `--selfcheck`.** Twelve now do — **207 assertions**
 — every one gated in `repo-doctor` as a `selftest:` row:
 
 | tool | fixture | pins |
@@ -132,6 +132,7 @@ fallible as an FFT, and nobody has built the fixture.
 | `lint-carts.js --selfcheck` | `tools/fixtures/lint-carts/` | 48 — all three source hazards **and each one's exempt class**, plus a 26-case `de:meta` table |
 | `lint-fx-frame.js --selfcheck` | `tools/fixtures/lint-fx-frame/` | 30 — the footgun shapes, all six gated constructs, the ride-live exclusion list, the waiver **and its no-leak regression**, and line numbers surviving comment stripping |
 | `ui-audit.js --selfcheck` | `tools/fixtures/ui-audit/` | 31 — every finding kind and **every exempt class** (clip / occlusion / identical strings / the ≤3px widget threshold / slivers / transients), plus the waiver subsystem, which has no other coverage anywhere |
+| `cart-dupes.js --selfcheck` | `tools/fixtures/cart-dupes/` | 20 — the normalization trick in **both** directions (a renamed copy must match; different engine calls must not), the drift band vs identical copies, and `HOOK_CUTOFF` |
 
 Fixtures are fed in by **path override, not by restructuring the tool**: doc scanners take
 `DE_DOCS_DIR` (`handoff` takes `DE_HANDOFF_FILE`), source scanners take one env var per input
@@ -199,6 +200,10 @@ Two rules that fall out of the same day:
    in the first place. Removing the exemption outright still scored a clean 48/48. If an assertion
    is about an *exempt class*, the fixture must contain something that would otherwise be **caught**
    — and the mutation that deletes the exemption is how you prove it does.
+   *Three* separate cases hit this in one session: `pool-ok.c.txt` (a bare local the regex never
+   matched), the `AAA`/`BBB` overlap pair (already in sorted order), and `cart-dupes`' sentinel
+   assertion (its fixture header contained no `N` or `V`, so deleting the exclusion was a no-op).
+   It is the single most common way a green fixture means nothing.
 7. **A check reporting zero findings while wired into no gate is the most suspicious state there
    is** — it is indistinguishable from one that has gone blind, and nothing will ever tell you
    which. `lint-fx-frame` sat at *"✓ 0 findings across 573 carts"*, in no gate, behind a

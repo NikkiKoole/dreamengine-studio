@@ -78,6 +78,7 @@ const CHECKS = [
   { name: "selftest: carts",   tool: "lint-carts.js",      args: ["--selfcheck"], gate: true },
   { name: "selftest: fx frame", tool: "lint-fx-frame.js",  args: ["--selfcheck"], gate: true },
   { name: "selftest: ui audit", tool: "ui-audit.js",       args: ["--selfcheck"], gate: true },
+  { name: "selftest: dupes",   tool: "cart-dupes.js",     args: ["--selfcheck"], gate: true },
   // Joined 2026-07-31 (field note 028): reddit-gaps had printed a confident green verdict table for
   // ten straight rotations while three of its signals were degraded — two of them in the false-
   // NEGATIVE direction, which is self-sealing (no finding means no reason to look). Its --check flag

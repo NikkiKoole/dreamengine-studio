@@ -1,0 +1,23 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// alpha/beta share this block VERBATIM except for local NAMES — it must cluster.
+static int pads[16];
+static float gain[16];
+
+void draw(void) {
+  int row = 0;
+  rectfill(0, 0, screen_w(), screen_h(), CLR_WHITE);
+  for (int i = 0; i < 16; i++) {
+    int px = 8 + (i % 4) * 20;
+    int py = 8 + (i / 4) * 20;
+    if (ui_button(px, py, 18, 18, "p")) {
+      pads[i] = 1;
+      gain[i] = 0.8f;
+      note_on(i, 36 + i, gain[i]);
+    }
+    if (pads[i]) {
+      circfill(px + 9, py + 9, 4, CLR_WHITE);
+      row = row + 1;
+    }
+  }
+  rectfill(0, screen_h() - 8, row * 4, 8, CLR_WHITE);
+}

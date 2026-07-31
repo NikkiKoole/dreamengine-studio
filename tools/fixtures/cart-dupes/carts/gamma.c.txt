@@ -1,0 +1,25 @@
+// FIXTURE cart. Never compiled. See ../README.md.
+// Structurally identical to alpha, same local names — but note_off/rect swapped in for
+// note_on/circfill. If the anchor vocabulary were normalized away too, this would wrongly
+// cluster with alpha+beta. It must not.
+static int pads[16];
+static float gain[16];
+
+void draw(void) {
+  int row = 0;
+  circfill(0, 0, screen_w(), CLR_WHITE);
+  for (int i = 0; i < 16; i++) {
+    int px = 8 + (i % 4) * 20;
+    int py = 8 + (i / 4) * 20;
+    if (ui_button(px, py, 18, 18, "p")) {
+      pads[i] = 1;
+      gain[i] = 0.8f;
+      note_off(i);
+    }
+    if (pads[i]) {
+      rectfill(px + 9, py + 9, 4, 4, CLR_WHITE);
+      row = row + 1;
+    }
+  }
+  circfill(0, screen_h() - 8, row * 4, CLR_WHITE);
+}

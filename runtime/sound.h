@@ -54,8 +54,13 @@ static inline float mix_wet(float dry, float wet, float mix) { return dry * (1.0
 // four strings drive, so sharing it is the physically honest model AND the only one that fits: a
 // cello-sized set needs 401 samples per line (disp-model.js --body --lowest 110), which does NOT fit
 // the per-voice buffer the violin body borrowed. Pooled + claimed per slot like fx_bus_for.
-#define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~5KB each
-#define BOW_BODY_MAX       416    // longest line, in samples: cello 9.09ms = 401 @ 44.1k, + headroom
+#define SOUND_BOW_BODIES   8      // pool size — a string-quartet cart wants 4 (2 violins/viola/cello); ~9KB each
+#define BOW_BODY_MAX       768    // longest line, in samples: DOUBLE BASS 16.67ms = 736 @ 44.1k, + headroom.
+                                  // Sized for the biggest instrument BOWED actually covers, not the cello: the
+                                  // engine's own bass carts (upright/walkbox/walkroll) are double basses, and
+                                  // 736 > the 401 a cello needs. Affordable only because bodies are SHARED —
+                                  // 8 × 3 × 768 floats is 72 KB, against the 352 KB echo_buf already here;
+                                  // per-voice at 32 voices it would have been 288 KB for buffers mostly idle.
 // ONSET-TRANSIENT lengths for the three wind engines, in samples. Named because they are set in TWO
 // places: the engine's *_start hook (a new voice) and sound_retrig_voice (note_retrig re-articulates a
 // held one). A hardcoded literal in each would drift, and a drifted chiff is exactly the silent kind.
@@ -602,12 +607,20 @@ static const float BOW_BODY_MS[3] = { 1.3f, 2.3f, 3.7f };
 
 // Body SIZE (MODE_BOW_SIZE, eng_p[2]) as a scale on those delays — a bigger instrument is a longer
 // delay. eng_p[2] defaults to 0.5f bank-wide and 0.5 maps to exactly 1.0x, so a cart that never sets
-// it gets the violin box it always got. 1.0 = a cello (2.46x = 3.19/5.65/9.09 ms, the set disp-model
-// sized for a 110 Hz lowest note); 0.0 = a small bright box, half a violin.
+// it gets the violin box it always got. The top of the range is a DOUBLE BASS (4.50x), not a cello,
+// because that is the biggest instrument BOWED covers and three of its carts are bass carts; the
+// factors come from `disp-model --body --lowest <hz>` (violin ~275 Hz air, cello ~110, bass ~60).
+//   0.0 = a small bright box, half a violin    0.5 = VIOLIN (1.00x)
+//   0.71 = CELLO (2.46x)                       1.0 = DOUBLE BASS (4.50x)
+// The 0.71 anchor is not arbitrary-looking by accident: the range was widened AFTER the cello was
+// ear-approved at the old top, and 0.7086 reproduces that box's three line lengths (141/249/401)
+// EXACTLY, so widening the axis did not re-voice a sound the owner had already signed off.
+// BOW_SIZE_VIOLIN / _VIOLA / _CELLO / _BASS are public constants — they live in studio.h, because a
+// CART is what needs to name them (this header is only ever compiled inside studio.c).
 static inline float bow_body_scale(float size) {
     if (size < 0.0f) size = 0.0f; else if (size > 1.0f) size = 1.0f;
-    if (size < 0.5f) return 0.5f + size;             // 0 -> 0.5x  ·  0.5 -> 1.0x
-    return 1.0f + (size - 0.5f) * 2.92f;             // 0.5 -> 1.0x ·  1 -> 2.46x (cello)
+    if (size < 0.5f) return 0.5f + size;             // 0 -> 0.5x  ·  0.5 -> 1.0x (violin)
+    return 1.0f + (size - 0.5f) * 7.0f;              // 0.5 -> 1.0x · 0.7086 -> 2.46x (cello) · 1 -> 4.50x (bass)
 }
 
 // (Re)build a box at a given scale. Clears the lines: changing a delay LENGTH under a ringing box

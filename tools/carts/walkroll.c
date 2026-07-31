@@ -95,9 +95,14 @@ static float bend_env(int m, float t) {   // pitch offset -1..1 along the note
 }
 
 // ── voice (mono, glide-aware pizz) ──
+#define BODY_AMT 0.85f   // bowed-body blend for the upright (audit §M2); 0 = the bare string
 static void setup_pizz(void) {
     instrument(BASS, INSTR_BOWED, 4, 0, 7, ring_ms());
     instrument_mode(BASS, MODE_BOW_PIZZ, 1.0f);
+    // THE BODY (audit §M2) — an upright is mostly box. BOW_SIZE_BASS is the top of the size range
+    // (4.5x the violin box), which is what that range was widened to reach.
+    instrument_mode(BASS, MODE_BOW_BODY, BODY_AMT);
+    instrument_mode(BASS, MODE_BOW_SIZE, BOW_SIZE_BASS);
     instrument_filter(BASS, FILTER_LOW, tone_hz(), 3);
     instrument_harmonics(BASS, 0.30f);
     instrument_timbre(BASS, 0.30f);

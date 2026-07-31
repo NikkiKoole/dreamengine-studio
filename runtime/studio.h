@@ -528,7 +528,13 @@ void instrument_mode(int slot, int idx, float value);  // per-engine aux channel
 #define MODE_ORGAN_LEAK       6 // instrument_mode idx — INSTR_ORGAN: TONEWHEEL LEAKAGE 0..1 — the unpulled drawbar pitches + noise bleeding through, the "throaty" quality of a worn tonewheel generator. 0 = a clean machine (default)
 #define MODE_BOW_PIZZ      0   // instrument_mode idx — INSTR_BOWED: >= 0.5 = PIZZICATO (pluck the same string), < 0.5 = arco (bow, self-oscillating hold)
 #define MODE_BOW_BODY      1   // instrument_mode idx — INSTR_BOWED: BODY resonance amount. A violin's body is what makes it a violin rather than a sawtooth, and this engine shipped without one. 0 = no body (the bare string, as before), 1 = all body. (Synth Secrets §M2 — three short parallel delay lines: a body is a small reverberant room)
-#define MODE_BOW_SIZE      2   // instrument_mode idx — INSTR_BOWED: how BIG the body is (a bigger instrument is a longer delay). 0.5 = a violin (the default), 1 = a cello, 0 = a small bright box. All the notes on one slot share ONE body, like a real instrument, so this is the size of that instrument
+#define MODE_BOW_SIZE      2   // instrument_mode idx — INSTR_BOWED: how BIG the body is (a bigger instrument is a longer delay). Use the BOW_SIZE_* names: violin (the default) / viola / cello / bass. All the notes on one slot share ONE body, like a real instrument, so this is the size of that instrument
+// The bowed-body sizes, as MODE_BOW_SIZE values. Named because the numbers are not guessable: they come
+// from each instrument's real air resonance (violin ~275 Hz, viola ~225, cello ~110, bass ~60).
+#define BOW_SIZE_VIOLIN 0.50f  // MODE_BOW_SIZE — a violin-sized body (1.00x). The default: a slot that never sets a size gets this
+#define BOW_SIZE_VIOLA  0.53f  // MODE_BOW_SIZE — a viola-sized body (1.21x)
+#define BOW_SIZE_CELLO  0.7086f  // MODE_BOW_SIZE — a cello-sized body (2.46x). Ear-approved 2026-07-31; this exact value keeps its three delay lines (141/249/401) identical to the pre-widening top of the range
+#define BOW_SIZE_BASS   1.00f  // MODE_BOW_SIZE — a DOUBLE BASS-sized body (4.50x), the top of the range and the biggest instrument INSTR_BOWED covers
 void voice_nasal(int handle, float amount);    // INSTR_VOICE nasal color on a held note: 0 = open vowel .. 1 = hummed/nasal (the honk, the chant). The voice's 4th axis, alongside the harmonics/timbre/morph macros (vowel/size/effort)
 void voice_consonant(int handle, int id);      // begin a held INSTR_VOICE note with a consonant onset that morphs into the vowel ("bah"/"mah"/"sss-ah"). Call right after note_on; id 0..21 (b d g m n l s sh ng r w y dh f v z zh th p t k ch), -1 = none. A timed onset
 void voice_coda(int handle, int id);           // close a held INSTR_VOICE note ON a consonant: the vowel morphs into it ("ahh-m"/"oo-d"). Call right before note_off; id 0..21, -1 = none. Mirror of voice_consonant; voiced ids (b d g m n l ng r w y) stay sung

@@ -70,12 +70,12 @@ static const float PRESET[NPRESET][3] = {
 // above only ever changed the BOW; the instrument stayed a violin-sized box whatever you picked,
 // which is why the cello used to sound like a violin played low. Now the box changes too.
 static const float PRESET_SIZE[NPRESET] = {
-    0.50f,   // violin
-    0.64f,   // viola     — a viola is about a seventh longer in the body than a violin
-    1.00f,   // cello     — the full 2.46x box (3.2/5.7/9.1 ms), sized for a 110 Hz lowest note
-    0.50f,   // ponticello— a bow position on a violin, not a different instrument
-    0.50f,   // tasto     — ditto
-    0.50f,   // tremolo   — ditto
+    BOW_SIZE_VIOLIN,   // violin
+    BOW_SIZE_VIOLA,    // viola     — a viola's body is about a fifth longer than a violin's
+    BOW_SIZE_CELLO,    // cello     — the 2.46x box (3.2/5.7/9.1 ms), sized for a 110 Hz lowest note
+    BOW_SIZE_VIOLIN,   // ponticello— a bow position on a violin, not a different instrument
+    BOW_SIZE_VIOLIN,   // tasto     — ditto
+    BOW_SIZE_VIOLIN,   // tremolo   — ditto
 };
 
 static int   midi_of[NSTR];

@@ -112,9 +112,15 @@ static int   tone_hz (void) { return 500 + (int)(k_tone * 2200); }   // 500..270
 static int   ring_ms (void) { return 90 + (int)(k_ring * 700); }      // 90..790 ms
 static const char *NOTES[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 
+#define BODY_AMT 0.85f   // bowed-body blend for the upright (audit §M2); 0 = the bare string
 static void setup_pizz(void) {             // RING knob re-tunes the pizz release live
     instrument(BASS, INSTR_BOWED, 4, 0, 7, ring_ms());
     instrument_mode(BASS, MODE_BOW_PIZZ, 1.0f);               // PIZZICATO: pluck the string instead of bowing
+    // THE BODY (audit §M2). An upright is mostly box: the string alone is the thin, sterile part of
+    // this sound. BOW_SIZE_BASS is the top of the range (4.5x the violin box, ~60 Hz air resonance),
+    // which is what the size axis was widened for — a cello box on a double bass is still too small.
+    instrument_mode(BASS, MODE_BOW_BODY, BODY_AMT);
+    instrument_mode(BASS, MODE_BOW_SIZE, BOW_SIZE_BASS);
     instrument_filter(BASS, FILTER_LOW, tone_hz(), 3);
     instrument_harmonics(BASS, 0.30f);     // dark bow position (round, woody)
     instrument_timbre(BASS, 0.30f);        // warm string
@@ -131,6 +137,8 @@ void init(void) {
     // ARCO — the bow: slow speak, sustains while held, gentle left-hand vibrato
     instrument(ARCOS, INSTR_BOWED, 110, 0, 7, 260);
     instrument_mode(ARCOS, MODE_BOW_PIZZ, 0.0f);              // bowed (self-oscillating, holds)
+    instrument_mode(ARCOS, MODE_BOW_BODY, BODY_AMT);             // the same instrument, so the same box…
+    instrument_mode(ARCOS, MODE_BOW_SIZE, BOW_SIZE_BASS);     // …though a separate SLOT gets a separate one
     instrument_filter(ARCOS, FILTER_LOW, tone_hz() + 400, 4);
     instrument_harmonics(ARCOS, 0.40f);
     instrument_timbre(ARCOS, 0.45f);       // a little bow grain

@@ -2,6 +2,8 @@
 
 status: BUILDING — a Prison Architect demake at full simulation depth. Design + module contract
 written 2026-07-31; modules under parallel construction. Cart: `tools/carts/lockup.c`.
+The authoring method (a frozen contract, then eight agents in parallel) is
+[ADR-0034](../decisions/0034-contract-first-parallel-authoring.md).
 
 > **Homage:** Prison Architect (Introversion, 2015). Lineage runs through this repo's own
 > [`dwarffort`](../guides/cart-specs/dwarffort.md) (designation → A\* → job FSM) and `sims`

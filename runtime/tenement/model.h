@@ -88,6 +88,18 @@
 #define TN_MAX_PATH       128
 #define TN_MAX_OFFERS       6             // offers one object may declare
 
+// ── TnIdx: the type of EVERY index-or-none field ────────────────────────────
+// These were `signed char` and that was a silent corruption bug, found by the `store` agent: the
+// arrays run to 256 and 192, so index 128 and up wrap NEGATIVE, and negative already means "none"
+// (loose on the floor / empty-handed / unclaimed). No crash, no warning, just an item that
+// teleports. It is the third width mistake in this contract after `minutes` as unsigned char, so
+// it gets a TYPE and an assertion rather than four separate fixes.
+typedef short TnIdx;
+#define TN_NONE ((TnIdx)-1)
+_Static_assert(TN_MAX_ITEMS   <= 32767 && TN_MAX_OBJECTS <= 32767 &&
+               TN_MAX_AGENTS  <= 32767 && TN_MAX_ORDERS  <= 32767,
+               "an array outgrew TnIdx: widen TnIdx before raising the bound");
+
 // Pins the geometry the probe settled, so a later "let's just try tw=6" stops
 // compiling instead of quietly leaving the pixel grid (iso-rooms.md §8).
 _Static_assert(TN_TW % 4 == 0,  "TN_TW must be a multiple of 4 or the 2:1 diamond aliases");
@@ -179,8 +191,8 @@ extern const short TN_OBJ_PRICE[TN_OBJ_KIND_COUNT];   // money sink (design §5)
 typedef struct {
     unsigned char store_tag;              // which class of storage accepts it
     unsigned char value;                  // what it sells for at TN_SEAM_EXTERNAL
-    signed   char held_by;                // agent index, or -1
-    signed   char stored_in;              // object index, or -1
+    TnIdx         held_by;                // agent index, or TN_NONE
+    TnIdx         stored_in;              // object index, or TN_NONE
     unsigned char tx, ty;                 // valid only when loose on the floor
 } TnItem;
 
@@ -199,8 +211,8 @@ typedef struct {
     unsigned char household;
     unsigned char need[TN_NEED_COUNT];    // 0 = desperate, 255 = sated (seam 1)
     unsigned char activity;               // TnActivity
-    signed   char target_obj;             // what it is walking to / using
-    signed   char carrying;               // item index, or -1
+    TnIdx         target_obj;             // what it is walking to / using, or TN_NONE
+    TnIdx         carrying;               // item index, or TN_NONE
     short         tx, ty;                 // tile position
     short         until;                  // minute-of-day the current activity ends
     short         return_at;              // OFF_LOT only: minute-of-day it returns
@@ -254,8 +266,8 @@ extern const int      TN_RECIPE_N;
 
 typedef struct {
     unsigned char recipe;
-    signed   char claimed_by;             // agent index, or -1
-    signed   char at_obj;                 // resolved workspot, or -1 (DYNAMIC)
+    TnIdx         claimed_by;             // agent index, or TN_NONE
+    TnIdx         at_obj;                 // resolved workspot, or TN_NONE (DYNAMIC)
     unsigned char household;              // who gets paid
 } TnOrder;
 

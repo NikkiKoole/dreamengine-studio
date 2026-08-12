@@ -19,3 +19,4 @@ build-mac/
 AU/Info-mac.plist
 Mac.entitlements
 MacAU.entitlements
+au-transport-check

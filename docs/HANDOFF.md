@@ -59,10 +59,10 @@ a broken doc link or `#section`).
 > Link** (the same `sync_push_pos()` call as the host path, so small — but the lib is dual-licensed, check
 > that first) · MIDI clock **on iOS** + background audio (what ReBirth for iPad actually shipped) · clock
 > **OUT** ([`midi-out.md`](design/midi-out.md)).
-> **Three known gaps, deliberately recorded rather than fixed:** the carrier app HANGS at launch under
-> Catalyst (CoreAudio on the main thread; harmless to the plug-in, still wrong) · nothing headless asserts
-> the host transport arrives, because `auval` sets no transport blocks and the `AUHostTests.swift` fake
-> isn't written · the engine is **compile-time 44.1 kHz**, so a host at another rate plays sharp and fast
+> **Two known gaps, deliberately recorded rather than fixed** (a third, the missing headless transport
+> gate, was closed by `ios/au-transport-check.swift` — a fake AUv3 host with a `--free` negative
+> control): the carrier app HANGS at launch under
+> Catalyst (CoreAudio on the main thread; harmless to the plug-in, still wrong) · the engine is **compile-time 44.1 kHz**, so a host at another rate plays sharp and fast
 > (fix = a resampler in the render block, never an engine refactor).
 > **Hot files:** `runtime/sync.h`, `runtime/midi_input.h`, `ios/AU/TinyjamAU.swift`, and note that
 > `ios/project.yml` (iOS) and `ios/project-mac.yml` (Mac) are SEPARATE on purpose — don't merge them, and

@@ -5,7 +5,8 @@
 #
 #   zsh ios/mac.sh                 # stage acidcandy → build → register → auval
 #   CART=epiano zsh ios/mac.sh     # a different cart in the plug-in
-#   zsh ios/mac.sh --no-auval      # skip validation (just build + register)
+#   zsh ios/mac.sh --no-auval      # skip auval (still runs the host-transport gate)
+#   ios/au-transport-check --free  # the NEGATIVE CONTROL: no transport blocks, must fail
 #
 # WHAT "REGISTER" MEANS: on macOS an AUv3 lives in an app bundle's PlugIns/ and the system only
 # learns about it when that app is LAUNCHED ONCE. So this opens the app, waits, and quits it. The
@@ -100,6 +101,13 @@ else
 fi
 
 if [ "$WANT_AUVAL" = "1" ]; then
-  echo "▸ auval -v aumu tacj Mpla  (Apple's validator — the real gate)"
+  echo "▸ auval -v aumu tacj Mpla  (Apple's validator)"
   auval -v aumu tacj Mpla 2>&1 | tail -25
 fi
+
+# HOST TRANSPORT gate. auval cannot cover this: it never SETS musicalContextBlock, so it only ever
+# exercises the "host supplies no transport" path. This is a tiny AUv3 HOST that does set it.
+echo "▸ host-transport gate (ios/au-transport-check.swift)"
+xcrun swiftc -O -o au-transport-check au-transport-check.swift -framework AVFoundation
+./au-transport-check
+echo "  (negative control: ./au-transport-check --free must FAIL the tempo check — ratio ~0.5)"

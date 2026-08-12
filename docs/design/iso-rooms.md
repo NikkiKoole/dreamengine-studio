@@ -393,6 +393,36 @@ object set.
 does the editor-crop fix (169 > 128, so the sprite editor would silently truncate it). Worth
 recording as a near-miss: one intermediate scale made that whole capability look unnecessary.
 
+### The bug the oracles could not see, and the assertion that now can
+
+The maker reported "at other rotations I see just a triangle for many furnitures". Real, and worth
+recording in full because of *why* 29 green assertions missed it.
+
+**The symptom:** at some rotations a counter or fridge rendered as a triangular sliver. Diagnosis
+went: the ATLAS was correct (all cells complete at every rotation) → the CELL TABLE was correct →
+`canvas-diff` came back **0px**, so both renderers agreed and nothing was being clipped. That left
+only the cart's own draw order. `play.js --uiaudit` then named it exactly: two walls drawn *after*
+furniture they overlapped, at 10×19px and 10×29px.
+
+**Two causes, both mine.** `push_item` takes an item's depth from its model's **unrotated**
+footprint, but the east/west walls had their art turned 90°, so their world footprint swapped x/y
+and they sorted too near. (That is the "turned multi-tile object" limitation already in the cart's
+todo list — the walls were where it actually bit.) And when the scale changed I moved the
+north/west walls one voxel outside the floor when the wall is **two** voxels thick, so they
+straddled the first row of tiles.
+
+**The fix:** dedicated `wall_*_ns` / `wall_*_ew` models so no wall is ever turned, and the outward
+offset now reads the wall's own thickness out of `ISO_FOOTPRINT` instead of being a literal.
+
+**Why the existing oracles were blind, which is the general lesson.** The depth-sort assertion
+checked that the draw list was *monotone in depth* — and it was. The depths were simply wrong, and a
+sort will happily order wrong numbers correctly. No assertion about the sort itself can catch a bad
+input to the sort. The new check (§6b) makes a claim about **screen overlap** instead: in full-wall
+mode every drawn wall is a far wall, so it must sort before any furniture whose rect it overlaps.
+It was verified by reintroducing the bug — it reports exactly 2 offenders at rot 1, matching what
+`ui-audit` found independently — and it shares `item_rect()` with the drawing code, so it asserts
+against the same rect that actually gets blitted.
+
 ## 8. The verdict this doc must end with
 
 Written back into this file and the cart's `de:meta`:

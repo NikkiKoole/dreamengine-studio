@@ -175,17 +175,42 @@ module.exports = {
       1,
     ]},
 
-    // ── wall segment, one tile long. LOW = a stub that never occludes. ──
-    wall_low: { layers: [
+    // ── wall segments, one tile long, 2 voxels thick. ──
+    // There are separate NS and EW models rather than one model turned 90 degrees, and that is
+    // deliberate: a turned non-square object's WORLD footprint swaps x/y, but the cart derives an
+    // item's depth (and its shadow) from the model's UNROTATED footprint. Turning the art alone
+    // therefore sorted the east/west walls at the wrong depth and they drew OVER furniture
+    // standing in front of them, leaving a triangular sliver of the furniture visible. Baking the
+    // second orientation costs 8 cells and removes the whole class of error for walls.
+    // LOW = a stub that never occludes.
+    wall_low_ns: { layers: [
       ['WWWWWW',
        'WWWWWW'],
       3,
     ]},
+    wall_low_ew: { layers: [
+      ['WW',
+       'WW',
+       'WW',
+       'WW',
+       'WW',
+       'WW'],
+      3,
+    ]},
 
-    // ── wall segment, FULL height: needs the near side cut away. ──
-    wall_full: { layers: [
+    // FULL height: needs the near side cut away.
+    wall_full_ns: { layers: [
       ['WWWWWW',
        'WWWWWW'],
+      11,
+    ]},
+    wall_full_ew: { layers: [
+      ['WW',
+       'WW',
+       'WW',
+       'WW',
+       'WW',
+       'WW'],
       11,
     ]},
 

@@ -173,22 +173,29 @@ static int wall_hidden(int nx, int ny) {
 
 static void build_list(void) {
     n_items = 0;
-    const int wall_model = full_wall ? ISO_WALL_FULL : ISO_WALL_LOW;
+    // Each edge uses a model already ORIENTED for it rather than one model turned 90 degrees. See
+    // the note in room.js: a turned non-square object's world footprint swaps x/y, but push_item
+    // takes the depth centre from the UNROTATED footprint, so a turned wall sorted wrong and drew
+    // over furniture in front of it.
+    const int wall_ns = full_wall ? ISO_WALL_FULL_NS : ISO_WALL_LOW_NS;
+    const int wall_ew = full_wall ? ISO_WALL_FULL_EW : ISO_WALL_LOW_EW;
+    // Walls sit ENTIRELY OUTSIDE the floor. The offset is the wall's own thickness, read from the
+    // baked footprint so it cannot drift from the model: placing them one voxel out instead of two
+    // left them straddling the first row of tiles, which put their depth centre inside the room.
+    const float th_ns = (float)ISO_FOOTPRINT[wall_ns][1];
+    const float th_ew = (float)ISO_FOOTPRINT[wall_ew][0];
 
-    // Perimeter walls, one segment per tile. A segment's art is the same model turned to lie
-    // along its edge, which is the ring collapse in action: 4 edges x 8 views come out of the
-    // same 8 baked cells.
     for (int t = 0; t < ROOM_W; t++) {
         if (!(full_wall && wall_hidden(0, -1)))                    // north edge
-            push_item(wall_model, t * TILE_VOX, -1.0f, rot);
+            push_item(wall_ns, t * TILE_VOX, -th_ns, rot);
         if (!(full_wall && wall_hidden(0, 1)))                     // south edge
-            push_item(wall_model, t * TILE_VOX, ROOM_H * TILE_VOX, rot);
+            push_item(wall_ns, t * TILE_VOX, ROOM_H * TILE_VOX, rot);
     }
     for (int t = 0; t < ROOM_H; t++) {
         if (!(full_wall && wall_hidden(-1, 0)))                    // west edge
-            push_item(wall_model, -1.0f, t * TILE_VOX, (rot + 1) & 3);
+            push_item(wall_ew, -th_ew, t * TILE_VOX, rot);
         if (!(full_wall && wall_hidden(1, 0)))                     // east edge
-            push_item(wall_model, ROOM_W * TILE_VOX, t * TILE_VOX, (rot + 1) & 3);
+            push_item(wall_ew, ROOM_W * TILE_VOX, t * TILE_VOX, rot);
     }
 
     for (int i = 0; i < N_PLACED; i++) {
@@ -202,6 +209,21 @@ static void build_list(void) {
     float px = 1.0f + walk_t, py = 3.0f;
     int   face = (walk_t < (ROOM_W - 2)) ? 1 : 3;
     push_item(ISO_PERSON, px * TILE_VOX, py * TILE_VOX, (rot + face) & 3);
+}
+
+static int is_wall(int model) {
+    return model == ISO_WALL_LOW_NS || model == ISO_WALL_FULL_NS ||
+           model == ISO_WALL_LOW_EW || model == ISO_WALL_FULL_EW;
+}
+
+// Where one item's cell lands on screen. Shared by the drawing and by spec's overlap check, so
+// the assertion is about the SAME rect that actually gets blitted.
+static void item_rect(const Item *it, int *x, int *y, int *w, int *h) {
+    const IsoCell *c = &ISO_CELLS[it->model][it->cell_r];
+    float sx, sy; iso_project(rot, it->vx, it->vy, 0, &sx, &sy);
+    *x = (int)(sx + cam_x) - c->ox;
+    *y = (int)(sy + cam_y) - c->oy;
+    *w = c->w; *h = c->h;
 }
 
 static int cmp_depth(const void *a, const void *b) {
@@ -259,13 +281,11 @@ static void draw_items(void) {
         const IsoCell *c = &ISO_CELLS[it->model][it->cell_r];
         // Walls sit ON the perimeter rather than on the floor, so a footprint shadow under one
         // would just smear along the room's edge.
-        if (it->model != ISO_WALL_LOW && it->model != ISO_WALL_FULL) draw_shadow(it);
-        float sx, sy; iso_project(rot, it->vx, it->vy, 0, &sx, &sy);
+        if (!is_wall(it->model)) draw_shadow(it);
         // The cell's own origin marker tells us where its voxel (0,0,0) lives inside it, so
         // placing it is a subtraction rather than a per-model fudge factor.
-        int dx = (int)(sx + cam_x) - c->ox;
-        int dy = (int)(sy + cam_y) - c->oy;
-        sspr(c->x, c->y, c->w, c->h, dx, dy, c->w, c->h);
+        int dx, dy, dw, dh; item_rect(it, &dx, &dy, &dw, &dh);
+        sspr(c->x, c->y, c->w, c->h, dx, dy, dw, dh);
         drawn_cells++;
         if (show_order) {
             char n[8]; snprintf(n, sizeof n, "%d", i);
@@ -431,6 +451,40 @@ void spec(void) {
         if (wall_hidden(1,  0)) hidden++;
         snprintf(sp_msg, sizeof sp_msg, "rot %d: %d of 4 wall edges cut, wanted 2", r, hidden);
         expect(hidden == 2, sp_msg);
+    }
+
+    // 6b. NO FAR WALL MAY BE DRAWN OVER FURNITURE IT OVERLAPS ON SCREEN.
+    //
+    // This assertion exists because the other 29 did not catch the bug it guards. In FULL-wall mode
+    // every wall still drawn is a FAR wall, so it must sort BEFORE anything standing on the floor
+    // in front of it. Two of them did not: the east/west walls took their depth centre from the
+    // model's UNROTATED footprint while their art was turned 90 degrees, so they sorted too near
+    // and painted over a counter and a fridge, leaving a triangular sliver of each visible.
+    //
+    // The depth-sort check above could never see it: the list WAS monotone in depth. The depths
+    // were simply wrong, and a sort is happy to order wrong numbers correctly. Catching it needs a
+    // claim about SCREEN OVERLAP, which is what this makes.
+    for (int r = 0; r < ISO_ROTS; r++) {
+        rot = r; full_wall = 1; walk_t = 1.0f;
+        iso_camera(r);
+        build_list();
+        qsort(items, n_items, sizeof items[0], cmp_depth);
+        int offenders = 0;
+        for (int i = 0; i < n_items; i++) {
+            if (is_wall(items[i].model)) continue;                 // furniture, drawn at i
+            for (int j = i + 1; j < n_items; j++) {
+                if (!is_wall(items[j].model)) continue;            // a wall drawn LATER
+                int ax, ay, aw, ah, bx, by, bw, bh;
+                item_rect(&items[i], &ax, &ay, &aw, &ah);
+                item_rect(&items[j], &bx, &by, &bw, &bh);
+                int ox = (ax + aw < bx + bw ? ax + aw : bx + bw) - (ax > bx ? ax : bx);
+                int oy = (ay + ah < by + bh ? ay + ah : by + bh) - (ay > by ? ay : by);
+                if (ox > 2 && oy > 2) offenders++;
+            }
+        }
+        snprintf(sp_msg, sizeof sp_msg,
+                 "rot %d: no far wall is drawn over furniture it overlaps (%d offenders)", r, offenders);
+        expect(offenders == 0, sp_msg);
     }
 
     // 7. EVERY BAKED CELL IS INSIDE THE SHEET, with its origin inside itself. A packing bug

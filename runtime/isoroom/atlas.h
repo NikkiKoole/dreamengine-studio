@@ -3,9 +3,9 @@
 // Baked rotation cells for an isometric room. See docs/design/iso-rooms.md.
 #pragma once
 
-#define ISO_SIG      "d802af60"   // guard: the .cart.js re-derives this
+#define ISO_SIG      "4f8e6194"   // guard: the .cart.js re-derives this
 #define ISO_ATLAS_W  128
-#define ISO_ATLAS_H  169
+#define ISO_ATLAS_H  213
 #define ISO_TW       4    // diagonal tile width, px per voxel unit
 #define ISO_TH       2
 #define ISO_CW       4    // cardinal tile width (== ISO_TW keeps the footprint equal)
@@ -22,24 +22,28 @@ typedef enum {
     ISO_TOILET = 2,
     ISO_FRIDGE = 3,
     ISO_COUNTER = 4,
-    ISO_WALL_LOW = 5,
-    ISO_WALL_FULL = 6,
-    ISO_PERSON = 7,
-    ISO_MODEL_COUNT = 8
+    ISO_WALL_LOW_NS = 5,
+    ISO_WALL_LOW_EW = 6,
+    ISO_WALL_FULL_NS = 7,
+    ISO_WALL_FULL_EW = 8,
+    ISO_PERSON = 9,
+    ISO_MODEL_COUNT = 10
 } IsoModel;
 
-static const char *ISO_NAMES[ISO_MODEL_COUNT] = { "sofa", "bed", "toilet", "fridge", "counter", "wall_low", "wall_full", "person" };
+static const char *ISO_NAMES[ISO_MODEL_COUNT] = { "sofa", "bed", "toilet", "fridge", "counter", "wall_low_ns", "wall_low_ew", "wall_full_ns", "wall_full_ew", "person" };
 
 // [model][rotation]. Rotation is 0..7; EVEN = cardinal, ODD = diagonal.
 static const IsoCell ISO_CELLS[ISO_MODEL_COUNT][ISO_ROTS] = {
-    /* sofa       */ { {32,36,36,30,12,12}, {0,68,36,29,36,17}, {36,68,36,29,24,29}, {68,36,36,30,0,24} },
-    /* bed        */ { {0,97,36,26,24,8}, {48,123,36,24,36,18}, {84,123,36,24,12,24}, {36,97,36,26,0,14} },
-    /* toilet     */ { {0,149,16,20,6,11}, {32,149,16,18,18,13}, {48,149,16,18,10,19}, {16,149,16,20,-2,17} },
+    /* sofa       */ { {0,68,36,30,12,12}, {72,68,36,29,36,17}, {0,98,36,29,24,29}, {36,68,36,30,0,24} },
+    /* bed        */ { {84,98,36,26,24,8}, {24,153,36,24,36,18}, {60,153,36,24,12,24}, {0,127,36,26,0,14} },
+    /* toilet     */ { {96,153,16,20,6,11}, {0,179,16,18,18,13}, {16,179,16,18,10,19}, {112,153,16,20,-2,17} },
     /* fridge     */ { {0,0,24,36,12,24}, {24,0,24,36,24,30}, {48,0,24,36,12,36}, {72,0,24,36,0,30} },
-    /* counter    */ { {72,97,24,26,12,14}, {96,97,24,26,24,20}, {0,123,24,26,12,26}, {24,123,24,26,0,20} },
-    /* wall_low   */ { {64,149,16,16,4,8}, {80,149,16,16,16,10}, {96,149,16,16,12,16}, {112,149,16,16,0,14} },
-    /* wall_full  */ { {96,0,16,32,4,24}, {112,0,16,32,16,26}, {0,36,16,32,12,32}, {16,36,16,32,0,30} },
-    /* person     */ { {96,68,12,28,2,23}, {72,68,12,29,12,25}, {84,68,12,29,10,30}, {108,68,12,28,0,28} },
+    /* counter    */ { {36,127,24,26,12,14}, {60,127,24,26,24,20}, {84,127,24,26,12,26}, {0,153,24,26,0,20} },
+    /* wall_low_ns */ { {32,179,16,16,4,8}, {48,179,16,16,16,10}, {64,179,16,16,12,16}, {80,179,16,16,0,14} },
+    /* wall_low_ew */ { {96,179,16,16,12,8}, {112,179,16,16,16,14}, {0,197,16,16,4,16}, {16,197,16,16,0,10} },
+    /* wall_full_ns */ { {96,0,16,32,4,24}, {112,0,16,32,16,26}, {0,36,16,32,12,32}, {16,36,16,32,0,30} },
+    /* wall_full_ew */ { {32,36,16,32,12,24}, {48,36,16,32,16,30}, {64,36,16,32,4,32}, {80,36,16,32,0,26} },
+    /* person     */ { {60,98,12,28,2,23}, {36,98,12,29,12,25}, {48,98,12,29,10,30}, {72,98,12,28,0,28} },
 };
 
 // Voxel footprint per model, in voxel units (8 voxels = one floor tile).
@@ -49,7 +53,9 @@ static const short ISO_FOOTPRINT[ISO_MODEL_COUNT][3] = {
     /* toilet     */ {6,6,6},
     /* fridge     */ {6,6,12},
     /* counter    */ {6,6,7},
-    /* wall_low   */ {6,2,4},
-    /* wall_full  */ {6,2,12},
+    /* wall_low_ns */ {6,2,4},
+    /* wall_low_ew */ {2,6,4},
+    /* wall_full_ns */ {6,2,12},
+    /* wall_full_ew */ {2,6,12},
     /* person     */ {5,3,12},
 };

@@ -63,7 +63,7 @@ tempo knob is dead after the DAW went away is broken. The next tick re-slaves in
 | backend | state | notes |
 |---|---|---|
 | MIDI clock (CoreMIDI, macOS desktop) | ✅ shipped | `midi_input.h` parses `0xF8` tick / `0xFA` start / `0xFB` continue / `0xFC` stop / `0xF2` song-position. System-realtime bytes are checked BEFORE the channel-message switch, because `& 0xF0` cannot tell them apart (they all read `0xF0`) and they arrive interleaved inside a packet |
-| `--midi-clock <bpm>` (harness) | ✅ shipped | a synthetic clock so the gate needs no DAW and no cable. Pushes through the REAL producer API (the `--net-echo` trick: a fake peer down the true path, never a second code path), and on the harness's fixed timestep it is deterministic |
+| `--midi-clock <bpm>` (harness) | ✅ shipped | a synthetic clock so a gate needs no DAW and no cable, deterministic on the fixed timestep. It keeps its OWN tick counter and is the ONLY source while set — see "the ambient clock" below for why that separation is load-bearing (the first cut pushed through the shared producer state, `--net-echo`-style, and a real DAW's ticks added on top) |
 | AUv3 host transport | open | `musicalContextBlock` + `transportStateBlock` read in the render block → `sync_push_pos()`. Gotcha: the host may assign those properties AFTER it fetches `internalRenderBlock`, so capturing them in the closure captures nil — read them via `Unmanaged.passUnretained(self)` or stash them in `allocateRenderResources()` |
 | Ableton Link | open | `sync_push_pos()` from the Link session state. The lib is C++ and dual-licensed; a closed-source app needs the proprietary licence from Ableton, so check that before committing to it |
 | MIDI clock on iOS | open | CoreMIDI exists on iOS; `midi_input.h` currently gates the backend to macOS desktop. This plus background audio is what ReBirth for iPad actually shipped |
@@ -112,6 +112,29 @@ i.e. that we are not running our own clock while claiming to follow theirs. `syn
 clicks on every 16th, accented on the downbeat, because a playhead that *looks* right and
 drifts 30ms is exactly the bug this cart exists to catch.
 
+### The ambient clock: a DAW on your machine leaks into harness runs
+
+Worth reading even if you never touch sync, because it is a general hazard for any host-fed input.
+The engine reads real CoreMIDI, so **a DAW playing anywhere on the dev machine feeds the harness**.
+It bit twice in one afternoon: a `ui-audit` run that never asked for a clock reported a string that
+can only draw while slaved (Ableton was open), and then two identical `--midi-clock` runs produced
+**different traces**, because the synthetic clock was pushing into the same producer state the
+CoreMIDI thread was writing, so real ticks added on top (+1 tick over 300 frames, +3 over 600).
+
+`sync_frame()` now decides the source explicitly, three cases in order:
+
+| you ran | the clock the cart sees |
+|---|---|
+| `--midi-clock <bpm>` | the **synthetic** one, and only it. Real MIDI ignored |
+| any deterministic mode (`script` / `replay` / `--det`) without that flag | **none**. Real MIDI ignored |
+| plain `run` | the **real** one, which is the point of the feature |
+
+So gates are insulated by construction, and "does it follow a real DAW" is checked in `run` mode,
+never in a deterministic one. Three identical `--midi-clock` runs now hash identically. **If you
+add another host-fed input, copy this shape:** ambient hardware state must not be able to reach a
+deterministic run. Also in [`../guides/debug-harness.md`](../guides/debug-harness.md), where someone
+debugging a flaky gate will actually look.
+
 **Against a real DAW on the Mac**, no plugin work needed:
 
 1. Once, in **Audio MIDI Setup → Window → MIDI Studio**: double-click **IAC Driver**, tick
@@ -130,13 +153,35 @@ transport and gate host sync deterministically.
 
 ## Known limits
 
-- ~~**Swing quantization while slaved.**~~ **Checked, and it is fine** (the maker, in Live,
-  2026-08-12). The worry was real on paper: acidcandy's 303 swing compares the fractional part
-  of the 16th against the swing amount, and derived from ticks that fraction only moves in 1/6
-  steps, so shuffle should have felt coarser than on the internal accumulator. It does not.
-  Kept here rather than deleted, because the reasoning was sound and the next person to derive
-  a *finer* feel from tick phase (a groove template, a swing under 1/6 of a 16th) will hit the
-  real version of it.
+- **Swing quantization while slaved: NOT SETTLED.** The maker listened in Live and could not
+  tell a difference, which is evidence but not a verdict, so this stays open on purpose. What we
+  *do* know is the mechanism, from reading the code rather than from ears:
+
+  acidcandy's 303 swings by delaying its step flip while the fractional part of the 16th is
+  below the swing amount (`lf < sw`, `acidcandy.c` in the 303 block). So the feel's resolution
+  is however finely `lf` moves:
+
+  | | steps per 16th | at 132 BPM |
+  |---|---|---|
+  | internal clock, 60 fps | frames per 16th = `900/bpm` | **6.8** |
+  | external clock | ticks per 16th = `SYNC_PPQN/4` | **6** |
+
+  So slaving coarsens the 303's swing resolution by about **12%**, not by a category, and that
+  is the honest explanation for "hard to tell". Two caveats that make it worth keeping open:
+  the gap **widens on a faster display** (a 120Hz device gives the internal path 13.6 steps and
+  the external path still 6) and at slower tempos; and the drums shuffle in **milliseconds**
+  (`swms`, sample-scheduled ahead), continuously, so a drums-vs-303 disagreement of up to one
+  step exists in *both* modes and slaving slightly widens it. Worst case is one tick, ~19ms at
+  132 BPM, usually less.
+
+  **To settle it, measure instead of listening:** render acidcandy with a nonzero SWG at one
+  tempo, once internally and once under `--midi-clock` at the same BPM, and compare 303 note
+  onsets (`click-check.js` finds them; `wav-correlate.js` A/Bs the takes). Equal onset offsets
+  means the coarsening is inaudible by construction. The blocker is setting SWG headless: it is
+  a knob, so it needs a scripted drag or a `gen_song()` preset that sets swing, which is why
+  this is not a gate yet. If it ever *does* need fixing, the fix is to interpolate `sync_beats()`
+  between ticks with elapsed time (re-anchoring on each tick), which is a ~10-line addition here
+  and not a change to any cart.
 - **The tempo knob and transport go read-only while slaved.** Deliberate (be a proper slave,
   the ReBirth model), but acidcandy does not yet *show* that on the MST face, so a maker
   pressing play with a DAW attached gets no explanation. UI follow-up.

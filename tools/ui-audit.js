@@ -9,7 +9,7 @@
 // which logs every print()/spr()/rect()/circ() bounding box per frame, plus each
 // ui.h widget rect (so the auditor knows which boxes are interactive targets).
 //
-//   node tools/ui-audit.js <name> [--frames N] [--script f | --beats f] [--json]
+//   node tools/ui-audit.js <name> [--frames N] [--script f | --beats f] [--midi-clock bpm] [--json]
 //   node tools/ui-audit.js <name> --resize WxH,WxH,…        AUDIT A RESIZE SWEEP — reflow the
 //                                                           canvas through each size (resizable
 //                                                           carts) and flag off-screen / overlap
@@ -39,7 +39,7 @@ const args = process.argv.slice(2)
 const SELFCHECK = args.includes('--selfcheck')
 const name = args[0]
 if (!SELFCHECK && (!name || name.startsWith('--'))) {
-  console.error('usage: node tools/ui-audit.js <name> [--frames N] [--explore] [--overlay [out.svg]] [--script f|--beats f] [--json]')
+  console.error('usage: node tools/ui-audit.js <name> [--frames N] [--explore] [--overlay [out.svg]] [--script f|--beats f] [--midi-clock bpm] [--json]')
   process.exit(1)
 }
 const opt = (flag, def) => { const i = args.indexOf(flag); return i >= 0 && i + 1 < args.length ? args[i + 1] : def }
@@ -47,6 +47,7 @@ const asJson      = args.includes('--json')
 const wantOverlay = args.includes('--overlay')
 const wantExplore = args.includes('--explore')
 const resizeSpec  = opt('--resize', null)   // "WxH,WxH,…" → audit the reflow at every size
+const midiClock   = opt('--midi-clock', null)   // <bpm> → audit the cart's EXTERNAL-CLOCK state (runtime/sync.h)
 const overlayArg  = (() => { const i = args.indexOf('--overlay'); const v = args[i + 1]; return (v && !v.startsWith('--')) ? v : null })()
 
 const ROOT = path.resolve(__dirname, '..')
@@ -62,6 +63,10 @@ function run(inMode, frames, dumpDir, resize) {
   const play = [path.join('tools', 'play.js'), name, ...inMode,
                 '--headless', '--frames', String(frames), '--uiaudit', auditPath]
   if (resize) play.push('--resize', resize)   // sweep sizes; each held RESIZE_HOLD frames, all captured
+  // --midi-clock <bpm>: audit a cart in its EXTERNAL-CLOCK state (runtime/sync.h). Needed because a
+  // deterministic run sees NO real clock by design, so a slaved-only widget is otherwise unreachable
+  // here — and the first such widget (acidcandy's EXT tempo readout) shipped clipping off the bottom.
+  if (midiClock) play.push('--midi-clock', midiClock)
   if (dumpDir) play.push('--dump', dumpDir, '--dump-every', '1')
   const r = spawnSync('node', play, { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'] })
   if (r.stdout) for (const line of r.stdout.toString().split('\n'))

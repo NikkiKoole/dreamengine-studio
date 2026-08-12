@@ -229,6 +229,28 @@ display went off in between). All three tools now fire **`caffeinate -u -t 1` fi
 then run under `-dims`. Driving the binary by hand? Do the same: `caffeinate -u -t 2; sleep 2`
 before your command, not just `-dims` around it.
 
+### Gotcha: a DAW playing on your machine leaks into harness runs
+
+The engine reads real MIDI (CoreMIDI on macOS), and since 2026-08-12 that includes **MIDI clock**
+(`runtime/sync.h`). So if Ableton or any DAW is playing with its sync output enabled, a harness run
+picks up its clock and a sync-aware cart *slaves to it* — in the middle of your gate. It bit twice
+the day the feature landed: a `ui-audit` run with no clock flag reported a string that can only be
+drawn while slaved, and then two identical `--midi-clock` runs produced different traces, because
+real ticks were adding on top of the synthetic ones (+1 tick over 300 frames, +3 over 600).
+
+`sync_frame()` now guards this explicitly, and the rule is worth knowing because it decides what a
+run is even measuring:
+
+| you ran | the clock the cart sees |
+|---|---|
+| `--midi-clock <bpm>` | the **synthetic** one, and **only** it. Real MIDI is ignored |
+| any deterministic mode (`script`, `replay`, `--det`) without that flag | **none**. Real MIDI is ignored |
+| plain `run` | the **real** one, which is the whole point of the feature |
+
+So a gate is insulated by construction, and "does it follow a real DAW" is something you check in
+`run` mode (or with `synccheck`), never in a deterministic one. If you ever add another host-fed
+input, copy this shape: **ambient hardware state must not be able to reach a deterministic run.**
+
 ---
 
 ## Netplay diagnostics — why did it hang? (`F2` · stall log · trace `net`)

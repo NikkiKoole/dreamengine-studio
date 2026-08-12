@@ -18,7 +18,7 @@
     "controls": "Tap a cartridge to focus a machine; tap its LED to mute. PLAY runs the shared transport. 303: drag CUT/RES/ENV/DEC/ACC (sideways = fine, double-tap = reset); the inline DF switch (right of the knob row) flips to the DEEP page (SUB/ADEC/SLDT/TRK + a SAW/SQR WAVE toggle); SEQ/FLAG/FX/GEN soft-keys switch the screen between the roll, the flag palette (arm ACC/SLD/TIE/OCT+/OCT-, then tap bars; loop length = drag the ▼ above the bars), the FX knobs (DRV/SEND/VERB), and the generate menu (CLEAR / MIN / MID / BUSY); on the note-bars tap = note on/off, drag up/down = pitch. 808/909: DIST/SEND/VERB (+909 METAL XY) sit on top always; tap a voice pad to pick it (auditions only while stopped; while playing, light REC to hear taps) — a machine-scoped screen (GEN/PAT/PERF/KIT) snaps to VCE on a voice tap, a voice-scoped one (VCE/FLAG) stays put; VCE shows TUNE/DEC/[character]/VOL/PAN/FINE (character where the machine has one, SNPY/THUD/TONE/RING/ATTK/CLIK); the picker shows the whole roster in one row (all 16/11 voices, acid order); MUT (left column, tap=latch / hold=momentary) flips pad taps to DIRECT per-voice mute — orange pad rims while live; the far-right REC latch (same grammar) punches pad taps onto the current step while playing; left soft-keys VCE/FLAG + MUT, right GEN/PAT/PERF/KIT (the generate menu = CLEAR / MIN / MID / BUSY, KIT = the minimap). Cells: tap = place a hit, DRAG across = paint a fill (VCE/KIT); in FLAG, the palette is two rows — ACC/PROB(/STRK) on top, the p-locks TUN/DEC/<character> below — arm one then work the cells (ACC tap = accent, PROB vertical-slide = trig-chance, STRK tap = cycle flam/drag/ratchet, TUN/DEC/char vertical-slide = a per-step bipolar offset around that voice knob). MST: GLU tames level, FLT is the live DJ filter, PUMP ducks to the kick; SWG + TEMPO are a matching knob pair in the LCD's right gutter (SWG = the one rack-wide swing for drums + both 303s; drag TEMPO 60-200 BPM); the DELAY division buttons (1/16·1/8·DOT·1/4) sit under the LCD, + per-machine SEND; a little DUB pad in the bottom-right corner momentarily throws the delay (HOLD + drag: X = time, Y = feedback)."
   },
   "todo": [
-    "EXTERNAL CLOCK SYNC: SHIPPED (2026-08-12) - the rack follows someone else's tempo through runtime/sync.h (sync_active/sync_playing/sync_beats/sync_bpm). While a clock is present it owns ALL THREE of tempo, transport and POSITION: g_bpm = sync_bpm(), playing = sync_playing() (with the laststep reset their PLAY implies), and g_phase = sync_beats()*4 DERIVED instead of accumulated - an accumulator only knows how fast, never where, so it cannot follow a re-START or a loop jump. The TEMPO knob and the transport button go read-only for as long as the clock is there (the ReBirth model: be a proper slave, don't half-follow), and control comes back ~2s after the clock stops, at the tempo last heard, so nothing lurches. VERIFIED IN ABLETON LIVE by the maker (clock over the IAC bus) AND headless via `play.js acidcandy --midi-clock <bpm>`: step rate measured 99.0 / 159.0 against external 100 / 160, internal unchanged at ~132, renders byte-identical run to run on both paths. SWING VERIFIED TOO (the maker, same session) - the concern was that a tick-derived phase moves in 1/6-of-a-16th steps so shuffle would feel coarser while slaved; it does not. OPEN: (1) the panel does not SHOW that it is slaved - the TEMPO knob just silently stops responding, which reads as a bug; wants an EXT badge + the incoming BPM on the MST face (and probably the transport button dimmed). (2) not in the SONG snapshot (nothing to save - the clock is external). (3) sync_bpm settles within ~0.5 BPM, so the tempo-synced delay is that close and no closer until the CoreMIDI packet timestamps land. Design: docs/design/external-clock-sync.md",
+    "EXTERNAL CLOCK SYNC: SHIPPED (2026-08-12) - the rack follows someone else's tempo through runtime/sync.h (sync_active/sync_playing/sync_beats/sync_bpm). While a clock is present it owns ALL THREE of tempo, transport and POSITION: g_bpm = sync_bpm(), playing = sync_playing() (with the laststep reset their PLAY implies), and g_phase = sync_beats()*4 DERIVED instead of accumulated - an accumulator only knows how fast, never where, so it cannot follow a re-START or a loop jump. The TEMPO knob and the transport button go read-only for as long as the clock is there (the ReBirth model: be a proper slave, don't half-follow), and control comes back ~2s after the clock stops, at the tempo last heard, so nothing lurches. VERIFIED IN ABLETON LIVE by the maker (clock over the IAC bus) AND headless via `play.js acidcandy --midi-clock <bpm>`: step rate measured 99.0 / 159.0 against external 100 / 160, internal unchanged at ~132, renders byte-identical run to run on both paths. SWING: NOT CLAIMED (the maker listened in Live and could not tell a difference, which is evidence and not a verdict). The mechanism is known from the code instead: the 303 swings by delaying its step flip while the 16th's fractional part is under the swing amount, so THAT fraction's resolution IS the swing's resolution - internally it moves once per frame (900/bpm steps per 16th, 6.8 at 132 BPM), from an external clock once per MIDI tick (6). About 12% coarser, not a category change, which is exactly why it is hard to hear; but the gap WIDENS on a 120Hz display (13.6 internal vs still 6) and the drums shuffle in ms and stay continuous, so drums-vs-303 can disagree by up to one step in BOTH modes. A seam comment sits on the `lcs` line at the 303 swing site. To settle it, MEASURE (render the same tempo internal vs --midi-clock with SWG up, compare 303 onsets via click-check) - blocked on setting SWG headless, since it is a knob. If it ever needs fixing the fix is in sync.h, not here: interpolate sync_beats() between ticks. SHOWN ON THE PANEL (2026-08-12, the maker: 'lets show that in the tempo knob'): the TEMPO knob wears an external-clock skin - green chassis, lime needle pointing at THEIR bpm (drawing bpm01 would aim it at a tempo nobody is playing, since the knob value is frozen where you left it), the incoming BPM as its label, and NO widget registered at all so a drag cannot rotate a control that does nothing (that silent rotation was the bug). Both layouts: phone MST bottom-left + the roomy MST column's TMP cell, same geometry as the normal knob so nothing jumps when a clock arrives. The WORD 'EXT' sits next to it, not on it - above the knob it collided with the MST nameplate, and under it there is exactly one text line of room, so the roomy LCD carries 'EXT <bpm>' top-right while the phone gets the word under the readout, falling back to an UNDERLINE on a canvas too short for a third line (ui-audit caught it clipping at y=96 of 100). Transport button also refuses the tap and goes green/grey to mirror their play/stop. (2) not in the SONG snapshot (nothing to save - the clock is external). (3) sync_bpm settles within ~0.5 BPM, so the tempo-synced delay is that close and no closer until the CoreMIDI packet timestamps land. Design: docs/design/external-clock-sync.md",
     "SPK NOW ARMS THE DEVICE - the third false 'it does nothing' (2026-07-29, the maker: 'its still not changing the vowels'). SPK and the device's ON key were INDEPENDENT toggles, and SPK sits to the LEFT of ON, so tapping SPK first is the natural move - which gave a lit SPK button, a word readout visibly walking, and DEAD SILENCE, because with vowon=0 the formant mix is 0 and SPEAK is inert no matter how correctly it runs. PROVEN byte-identical: SPK-lit-device-off rendered the same sha as SPEAK fully off. The new readout made it WORSE, not better - a row that walks while nothing is routed is a readout that LIES. FIXED two ways: (1) turning SPK on now ARMS the device (vowon=1), since asking for speech obviously means wanting to hear it, and ON stays the master kill; (2) the pip row DIMS whenever the device is disarmed, so a walking-but-silent row is impossible. Verified through the UI: a script that taps ONLY SPK and never touches ON now renders different audio (was byte-identical). PATTERN WORTH NAMING, because this feature hit it three times in one day (muted 303s, then SPK-without-ON): a feature with SEVERAL independent preconditions will keep presenting as 'broken' for a different reason each time, and each round costs a full debug cycle. Either collapse the preconditions (what the auto-arm does) or SHOW each one's state; do not rely on the user assembling them.",
     "WORD READOUT + the muted-303 symptom CONFIRMED (2026-07-29). The maker came back with a second, sharper symptom: 'when on speak it kind of just repeats the current vowel'. MEASURED, and it is not a bug in the mechanism - it is the muted 303s, proven by two traces: with both 303s muted (WHICH IS HOW THE RACK BOOTS) vtgt stays 0.500 forever and vstep never leaves 0, i.e. ONE VOWEL REPEATED; with them unmuted vtgt takes five distinct values and vstep walks 0..7. So the reported symptom is exactly, literally what an untriggered SPEAK sounds like. THE REAL BUG WAS THAT YOU COULD NOT TELL, and it was self-inflicted: SPK gives no sign it is waiting for notes, and it REPLACES the VOWL knob with GLID, so you cannot even sweep the vowel by hand to test. That is rule 6 of design/control-vocabulary.md ('a gesture nobody can SEE is not a control') violated by the very session that wrote it. FIX: a WORD READOUT on the VOWEL page (both phone and roomy) - 8 pips, the live syllable lit white, rest slots drawn as a low tick instead of a block. A frozen row now says 'nothing is feeding me' at a glance; a walking row says the mechanism is fine so anything left is voicing, not wiring. It doubles as the DENS display - you watch rests appear in the word as you turn the knob - which no other widget showed. Draw-only, no audio path touched. LESSON, general: when a feature is driven by an EXTERNAL trigger, ship the trigger's state as a readout in the same breath, or every downstream question ('is it broken? is it inaudible? is it not firing?') costs a debugging round to tell apart.",
     "SPEAK IS HARD TO HEAR - the open EAR item, parked 2026-07-29 at the maker's call ('i dont hear it very well can we mark it as todo'). The feature is mechanically PROVEN (see the SPEAK/PAUSES/DENS entries: the vowel walks the word, glides, rests, and every axis measures monotonically) but it does NOT LAND perceptually, so treat this as a voicing/routing problem, not a wiring one. Do NOT re-verify the mechanism, it is already covered by tools/clips/acidcandy/06-speak-vowel-per-note.script. CHECK THE DUMB THING FIRST: both 303 lines boot MUTED (mac[] initialisers) and SPEAK is driven ENTIRELY by 303 note-ons, so with both muted there are zero syllables and all you hear is a STATIC vowel sitting on the drums - which would sound exactly like 'it barely does anything'. Confirm a 303 is unmuted before concluding anything about the voicing. THEN, in order of strength: (1) THE MEASUREMENT ALREADY PREDICTED THIS and it is the top lead - speak-on vs speak-off left the spectral-centroid STD unchanged (1281 static / 1270 speaking) because the 808+909 kit dominates the variance; the vowel moves, the drums bury it. Fix = move the formant OFF the master bus onto the 303s only, instrument_formant(6,...) + (7,...) plus the octave-down sub slots 36/37, so the acid line speaks while the kit stays crisp - and MIX can then go much higher than 0.7 without eating the hats, which is the other half of why it reads as weak. This is a routing change, the whole SPEAK engine is reusable as-is. (2) DIAGNOSE BEFORE REDESIGNING: `node tools/play.js acidcandy ... --solo-slot 6` renders the 303 stem alone - if the speech is clearly there in the stem, it is confirmed a MASKING problem and (1) is the answer; if it is weak even solo, the vowel contour itself is too subtle and the word/Q want widening. That one command decides between two very different fixes, so run it first. (3) The word already spans the full OO..EE range so there is little headroom in vowel CHOICE; more contrast would have to come from Q (narrower, more nasal peaks) or from a formant-shift, which the master formant() does not expose (INSTR_VOICE's SIZE macro does - a hint that a per-voice route is the more expressive home anyway). (4) Lowest priority: the drums could duck while the voice speaks (a sidechain from the vowel gate), but that is a new mechanism where (1) is a one-line reroute.",
@@ -900,6 +900,48 @@ static void gknob(float *v, int cx, int cy, int r, const char *vlabel) {
     font(FONT_TINY); plabel(vlabel, cx, cy + r + 1, held ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
 }
 
+// the live BPM as 2-3 digits — no str()/printf, this runs every frame in the knob + two readouts
+static const char *bpm3(void) {
+    static char b[4]; int bi = (int)(g_bpm + 0.5f), n = 0;
+    if (bi >= 100) b[n++] = '0' + bi / 100;
+    b[n++] = '0' + (bi / 10) % 10; b[n++] = '0' + bi % 10; b[n] = 0;
+    return b;
+}
+
+// tempo_knob_ext — the TEMPO knob's EXTERNAL-CLOCK skin (runtime/sync.h). While something
+// outside is driving us the knob is not a control any more, it is a READOUT of someone else's
+// tempo, so three things change and each fixes a specific lie the normal knob would tell:
+//   · it registers NO widget, so a drag can't move a control that does nothing (before this,
+//     the pointer rotated under your finger while the BPM number sat still — which reads as
+//     the cart being broken, and was the whole reason for this treatment)
+//   · the needle points at THEIR bpm, not at bpm01 — which is frozen wherever you last left
+//     it, so drawing it would aim the needle at a tempo nobody is playing
+//   · green chassis + lime readout: the rack's LCD green means "alive from outside" everywhere
+//     else in this cart. The WORD "EXT" deliberately lives on the LCD next door, not here — a
+//     tag above the knob collided with the MST nameplate in the roomy layout, and there is no
+//     room below it either (r2_kcell budgets exactly one text line under the knob)
+static void tempo_knob_ext(int cx, int cy, int r, const char *vlabel, int tag_below) {
+    float shown = clamp((g_bpm - 60) / 140.0f, 0, 1);
+    float ang = 150 + shown * 240;
+    circfill(cx, cy, r, CLR_DARK_GREEN);
+    int rim = r / 4; if (rim < 1) rim = 1;
+    ring(cx, cy, r - 1 - rim, r - 1, 150, 300, CLR_MEDIUM_GREEN);      // same bevel geometry as gknob…
+    ring(cx, cy, r - 1 - rim, r - 1, -30, 120, CLR_DARK_BLUE);         // …so it reads as the SAME knob, re-skinned
+    ring(cx, cy, r - 3, r, 150, ang, CLR_LIME_GREEN);                  // their tempo, as an arc
+    circ(cx, cy, r, CLR_LIME_GREEN);
+    line(cx + (int)dx(1, ang), cy + (int)dy(1, ang), cx + (int)dx(r - 1, ang), cy + (int)dy(r - 1, ang), CLR_LIME_GREEN);
+    font(FONT_TINY);
+    plabel(vlabel, cx, cy + r + 1, CLR_LIME_GREEN);                    // the incoming BPM
+    // the word, IF it fits. On the phone MST face the whole band is ~20px and already holds a knob
+    // plus its readout, so a third text line runs off the bottom (ui-audit caught it at y=96 of a
+    // 100px canvas). There, UNDERLINE the number instead: one pixel row always fits, and an
+    // underlined lime number under a green knob still says "this is a readout, not your value".
+    int ty = cy + r + 7;
+    if (tag_below && ty + 5 <= screen_h()) plabel("EXT", cx, ty, CLR_MEDIUM_GREEN);
+    else if (tag_below) { int wq = text_width(vlabel);
+                          line(cx - wq / 2, cy + r + 6, cx + wq / 2, cy + r + 6, CLR_MEDIUM_GREEN); }
+}
+
 static int cbtn(unsigned seed, int x, int y, int w, int hh, const char *s, int on2) {
     int pr = 0, hot = 0, foc = 0; void *wid = ui_wid_hash(seed, x, y, w, hh);
     int act = ui_button_core(wid, x, y, w, hh, &foc, &pr, &hot) && !drag_bounce(y, hh);
@@ -1051,9 +1093,12 @@ static void navspine(Box nav) {
         int px = (int)pcell.x, py = (int)pcell.y, pw = (int)pcell.w - 1, ph = (int)pcell.h, pr = 0, hot = 0, fo = 0;
         void *w = ui_wid_hash(0x01u, px, py, pw, ph);
         int actp = ui_button_core(w, px, py, pw, ph, &fo, &pr, &hot), cleanp = nav_clean(w);
-        if (actp && cleanp) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
+        // an external clock owns the transport too, so the tap is REFUSED rather than toggling
+        // `playing` for the one frame it takes update() to overwrite it (a flicker reads as a bug)
+        if (actp && cleanp && !sync_active()) { playing = !playing; laststep = -1; laststep303[0] = laststep303[1] = -1;
                               for (int m = 0; m < M_N; m++) armpat[m] = -1; }
-        rrectfill(px, py, pw, ph, 2, playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN);
+        rrectfill(px, py, pw, ph, 2, sync_active() ? (playing ? CLR_DARK_GREEN : CLR_DARKER_GREY)   // slaved: green = their play, grey = their stop
+                                                  : (playing ? CLR_TRUE_BLUE : CLR_DARK_BROWN));
         rrect(px, py, pw, ph, 2, hot ? CLR_WHITE : CLR_BROWNISH_BLACK);
         int cx = px + pw / 2, cy = py + ph / 2;
         if (playing) { rectfill(cx - 3, cy - 2, 2, 5, CLR_WHITE); rectfill(cx + 1, cy - 2, 2, 5, CLR_WHITE); }
@@ -2158,7 +2203,9 @@ static void draw_mst(Box stage) {
         if (bi >= 100) b[ni++] = '0' + bi / 100;
         b[ni++] = '0' + (bi / 10) % 10; b[ni++] = '0' + bi % 10; b[ni] = 0;
         float rh = bottom.h * 0.34f, rw = tc.w * 0.42f; int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 9);
-        gknob(&bpm01, (int)(tc.x + tc.w / 2), (int)(bottom.y + r + 1), r, b);
+        int kcx = (int)(tc.x + tc.w / 2), kcy = (int)(bottom.y + r + 1);   // SAME spot either way: the knob
+        if (sync_active()) tempo_knob_ext(kcx, kcy, r, b, 1);              // must not jump when a clock arrives
+        else               gknob(&bpm01, kcx, kcy, r, b);
     }
 }
 
@@ -2459,6 +2506,15 @@ void update(void) {
 
             float lp  = g_phase * spd;                                 // this line's own phase
             int   lc  = (int)lp; float lf = lp - lc;
+            // OPEN QUESTION while slaved to an external clock (runtime/sync.h): `lf`'s resolution
+            // IS this swing's resolution. Internally it moves once per frame (900/bpm steps per
+            // 16th = 6.8 at 132 BPM); from an external clock it moves once per MIDI tick (6). So
+            // slaving coarsens the shuffle ~12% — not a category change, which is why the maker
+            // could not hear it, but NOT verified either, and the gap widens on a 120Hz display
+            // where the internal path gets 13.6 steps and this one still gets 6. The drums shuffle
+            // in ms (swms below) and stay continuous, so they can disagree with this by up to one
+            // step in BOTH modes. How to settle it + the ~10-line fix if it needs one:
+            // docs/design/external-clock-sync.md → "Known limits".
             int   lcs = ((lc & 1) && lf < sw) ? lc - 1 : lc;          // swung per-line counter
             if (lcs != laststep303[i]) {
                 laststep303[i] = lcs;
@@ -2626,6 +2682,14 @@ static void r2_kcell(Box c, float *v, const char *lab, float def, int accent) {
     int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 10);
     int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
     r2_knob(v, (int)(c.x + c.w / 2), cy, r, lab, def, accent);
+}
+// the same cell, wearing the external-clock skin — SAME geometry so the knob doesn't move when a
+// clock arrives; only its skin and its meaning change (see tempo_knob_ext)
+static void r2_kcell_ext(Box c) {
+    float rh = c.h * 0.34f, rw = c.w * 0.44f;
+    int r = (int)lay_clamp(rh < rw ? rh : rw, 4, 10);
+    int cy = (int)(c.y + r + 1); if (cy + r + 7 > (int)(c.y + c.h)) cy = (int)(c.y + c.h) - r - 7;
+    tempo_knob_ext((int)(c.x + c.w / 2), cy, r, bpm3(), 0);   // no room under the knob here; the LCD says EXT
 }
 
 // header nameplate: tap the body = FOCUS this machine onto the shared screen; the corner LED = MUTE.
@@ -3061,8 +3125,9 @@ static void r2_bigscreen(Box c, int focus) {
     font(FONT_TINY);
     print(mac[focus].name, x + 4, y + 3, mac[focus].col);
     print(ROLE[focus], x + 34, y + 3, CLR_MEDIUM_GREEN);
-    { char b[8]; int bp = (int)g_bpm, k = 0; if (bp >= 100) b[k++] = '0' + bp / 100; b[k++] = '0' + (bp / 10) % 10; b[k++] = '0' + bp % 10; b[k++] = 0;
-      print(b, x + w - 24, y + 3, CLR_LIME_GREEN); }
+    // BPM, top-right — prefixed EXT when an outside clock owns it (the LCD's half of the knob's story)
+    if (sync_active()) { print("EXT", x + w - 40, y + 3, CLR_MEDIUM_GREEN); print(bpm3(), x + w - 24, y + 3, CLR_LIME_GREEN); }
+    else                 print(bpm3(), x + w - 24, y + 3, CLR_LIME_GREEN);
     if (focus <= M_303B) {   // 303: full-width roll; PERF / GEN are panels REVEALED by the bottom-left chips (roll keeps the room when closed)
         int i = focus, chipH = 11, open = r2_303panel[i];
         int panelH = (open == 2) ? 46 : 26;            // GEN (piano + gen + scale/oct) needs more height than PERF
@@ -3213,7 +3278,11 @@ static void r2_colmst(Box c) {
     static const char *KN[6] = { "TMP", "SWG", "GLU", "PMP", "FLT", "RES" };
     static const float KD[6] = { 0.5143f, 0.0f, 0.30f, 0.0f, 0.5f, 0.35f };
     Box fbr = lay_split(cc, EDGE_BOTTOM, cc.h / 4, &cc);      // FB row (centred, full width)
-    for (int k = 0; k < 6; k++) r2_kcell(lay_grid(cc, 2, 6, k, 1), KV[k], KN[k], KD[k], mac[M_MST].col);
+    for (int k = 0; k < 6; k++) {
+        Box kc = lay_grid(cc, 2, 6, k, 1);
+        if (k == 0 && sync_active()) r2_kcell_ext(kc);        // TMP is a readout while a clock drives us
+        else                         r2_kcell(kc, KV[k], KN[k], KD[k], mac[M_MST].col);
+    }
     r2_kcell(fbr, &mfb, "FB", 0.35f, mac[M_MST].col);
     // 4-channel mini mixer (303a/303b/808/909 faders) + delay division label
     int mmx = (int)mix.x + 2, mmy = (int)mix.y, fw = ((int)mix.w - 4) / 4;

@@ -31,13 +31,25 @@ _Last updated: 2026-07-30 — **Synth Secrets phases 1 + 2**: PIANO's dispersion
   DAW and no cable (the `--net-echo` trick) and is deterministic on the fixed timestep; **`synccheck`**,
   the probe cart that shows AND clicks the clock (a playhead that looks right and drifts 30ms is the bug
   it exists to catch); and **acidcandy following it** (tempo, transport and position all handed over,
-  knob and play button read-only while slaved — the ReBirth model of being a proper slave). **Verified in
-  Ableton Live** by the maker over the IAC bus, swing included (a tick-derived phase moves in 1/6-of-a-16th
-  steps, so shuffle was the predicted casualty and turned out fine). Two real bugs
+  knob and play button read-only while slaved — the ReBirth model of being a proper slave), with the TEMPO knob wearing an
+  EXTERNAL-CLOCK skin (green chassis, needle at THEIR bpm since `bpm01` is frozen, no widget registered so a
+  drag can't move a control that does nothing) in both the phone and roomy layouts. **Verified in Ableton
+  Live** by the maker over the IAC bus. **Swing is deliberately NOT claimed**: he could not tell a
+  difference, which is evidence and not a verdict, so the doc carries the mechanism instead — slaving
+  coarsens the 303's swing resolution from `900/bpm` steps per 16th (frames) to 6 (ticks), about 12% at
+  132 BPM, widening on a 120Hz display — plus the experiment that would settle it and the ~10-line fix
+  if it ever needs one. **Three** real bugs
   found by the harness clock reading back wrong, both in tempo *measurement*: a short window is BIASED not
   noisy (122 for a true 120), and counting the dead time before the first tick made a long window converge
   only from below over ten seconds. Position was exact throughout — that asymmetry is the design.
-  Now within ~0.5 BPM; sub-0.1 wants the CoreMIDI packet timestamps. **Open: Ableton Link and AUv3 host
+  Now within ~0.5 BPM; sub-0.1 wants the CoreMIDI packet timestamps. The third bug is a HARNESS hazard
+  worth knowing generally: **a real DAW on the dev machine leaks into harness runs.** CoreMIDI fed clock
+  into a `ui-audit` run that never asked for it (it reported a string that only draws while slaved), and
+  then two identical `--midi-clock` runs produced DIFFERENT traces because the synthetic clock was pushing
+  into the same producer state the CoreMIDI thread was feeding, so real ticks added on top (+1 tick over
+  300 frames, +3 over 600, varying per run). Fixed with an explicit three-case guard in `sync_frame`:
+  `--midi-clock` is the ONLY source when given, a deterministic run never consults the real clock at all,
+  and a plain `run` (the editor) still follows a real DAW. Three identical runs now hash identically. **Open: Ableton Link and AUv3 host
   transport** (both just call `sync_push_pos()`), MIDI clock on iOS, and clock OUT. Design:
   [`design/external-clock-sync.md`](design/external-clock-sync.md).
 - **FLOAT DETERMINISM — the audio engine now computes the same BITS on arm64, x86-64 and wasm**

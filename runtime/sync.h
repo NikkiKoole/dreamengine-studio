@@ -73,22 +73,44 @@ static float    sync_c_quiet = SYNC_TIMEOUT * 2;      // seconds since the last 
 static double   sync_c_win_t = 0;                     // tempo-measure span: seconds…
 static double   sync_c_win_n = 0;                     // …and ticks over it (0 = no tick seen yet)
 static double   sync_c_pend  = 0;                     // seconds since the last tick-bearing frame
-// --midi-clock <bpm>: a synthetic clock for the harness, so the gate needs no DAW. It
-// pushes through the REAL producer API (the --net-echo trick: a fake peer down the true
-// path, never a second code path), and on the harness's fixed timestep it's deterministic.
+// --midi-clock <bpm>: a synthetic clock for the harness, so a gate needs no DAW and no cable.
+// It keeps its OWN tick counter rather than pushing into the producer state above — see the
+// ambient-clock guard in sync_frame for why that separation is load-bearing.
 static float    sync_synth_bpm = 0;
 static double   sync_synth_acc = 0;
+static uint32_t sync_synth_ticks = 0;
 
 // once per frame, before the cart's update(). dt = the frame delta the rest of the
-// engine clock uses (fixed under --det, so a traced run is reproducible).
-static void sync_frame(float dt) {
-    if (sync_synth_bpm > 0) {                       // harness clock → real producer calls
-        if (!sync_p_run) sync_push_start(1);
+// engine clock uses (fixed under --det, so a traced run is reproducible). det = the
+// harness's deterministic mode.
+static void sync_frame(float dt, int det) {
+    // ── WHICH CLOCK ARE WE ON? Exactly three cases, in this order, and the order is the guard:
+    //   1. --midi-clock given → the SYNTHETIC clock, and it is the ONLY source.
+    //   2. otherwise a deterministic run (--det, script, replay) → NO external clock at all.
+    //   3. otherwise → the real one (CoreMIDI now, an AUv3 host or Link later).
+    //
+    // Both guards exist because a real DAW on the dev machine leaks into the harness. Found the
+    // hard way, twice: first a ui-audit run with no --midi-clock reported a string that only
+    // draws while slaved (Ableton was playing), then two identical --midi-clock runs produced
+    // DIFFERENT traces, because the synthetic clock was pushing into the same producer state the
+    // CoreMIDI thread was feeding, so the real ticks simply added on top (+1 tick over 300
+    // frames, +3 over 600, varying per run). A gate whose result depends on whether someone has
+    // a DAW open is worse than no gate. Hence: the synthetic clock is a separate counter, and a
+    // deterministic run never consults the real one. A plain `run` (the editor) still follows a
+    // real DAW, which is the entire point of the feature.
+    uint32_t msgs, ticks;
+    int      run, absolute;
+    if (sync_synth_bpm > 0) {
         sync_synth_acc += (double)dt * (sync_synth_bpm / 60.0) * SYNC_PPQN;
-        while (sync_synth_acc >= 1.0) { sync_synth_acc -= 1.0; sync_push_tick(); }
+        while (sync_synth_acc >= 1.0) { sync_synth_acc -= 1.0; sync_synth_ticks++; }
+        ticks = sync_synth_ticks; msgs = sync_synth_ticks + 1; run = 1; absolute = 0;
+    } else if (det) {
+        sync_c_active = false; sync_c_playing = false; sync_c_bpm = 0;
+        return;
+    } else {
+        ticks = sync_p_ticks; msgs = sync_p_msgs; run = sync_p_run; absolute = sync_p_abs;
     }
 
-    uint32_t msgs = sync_p_msgs, ticks = sync_p_ticks;
     if (msgs != sync_c_last_msgs) { sync_c_last_msgs = msgs; sync_c_quiet = 0; sync_c_active = true; }
     else                            sync_c_quiet += dt;
     // A stopped-but-connected DAW sends nothing at all, so "active" has to survive a
@@ -100,9 +122,9 @@ static void sync_frame(float dt) {
         sync_c_bpm = 0; sync_c_win_t = 0; sync_c_win_n = 0;
         return;
     }
-    sync_c_playing = sync_p_run != 0;
+    sync_c_playing = run != 0;
 
-    if (sync_p_abs) { sync_c_beats = sync_p_beats; sync_c_bpm = sync_p_bpm; return; }
+    if (absolute) { sync_c_beats = sync_p_beats; sync_c_bpm = sync_p_bpm; return; }
 
     // incremental: beats come straight off the tick count. 1/24 beat is FINER than the 1/4
     // beat a 16th-note step needs, so there is nothing to interpolate for step accuracy —

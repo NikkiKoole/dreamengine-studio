@@ -2397,7 +2397,7 @@ static void loop_step(void) {
         // lurching the sequence forward and skipping beats. See design/audio-timing.md.
         if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
     }
-    sync_frame(frame_dt);   // external clock: derive beats/tempo from whatever is feeding us
+    sync_frame(frame_dt, det_mode);   // external clock: derive beats/tempo from whatever is feeding us (det = ignore an ambient DAW clock)
     sound_tick(frame_dt);
 #else
     // delta time for dt()/the musical clock. det_mode pins it to a fixed step so
@@ -2409,7 +2409,7 @@ static void loop_step(void) {
         double tn = GetTime(); frame_dt = (float)(tn - last_time); last_time = tn;
         if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
     }
-    sync_frame(frame_dt);                  // external clock: derive beats/tempo from whatever is feeding us
+    sync_frame(frame_dt, det_mode);        // external clock: derive beats/tempo from whatever is feeding us (det = ignore an ambient DAW clock)
     sound_tick(frame_dt);
     int fno = frame_count;                 // 0-based index of the frame we're about to run
     harness_input(fno);                    // apply replay/script keys + record live keys
@@ -3210,9 +3210,10 @@ int main(int argc, char **argv) {
         }
         else if (strcmp(argv[i], "--save-dir") == 0 && i + 1 < argc) save_dir_set(argv[++i]);
         else if (strcmp(argv[i], "--wav")    == 0 && i + 1 < argc) wav_path = argv[++i];
-        // --midi-clock <bpm>: a SYNTHETIC external clock, so the sync gate needs no DAW and no
-        // MIDI cable. Pushes real ticks through sync.h's producer API (the --net-echo trick), and
-        // on the harness's fixed timestep it is bit-reproducible. See runtime/sync.h.
+        // --midi-clock <bpm>: a SYNTHETIC external clock, so the sync gate needs no DAW and no MIDI
+        // cable. It is the ONLY clock the cart sees while set (a real DAW playing on the dev machine
+        // would otherwise add its ticks on top and the run stops being reproducible — see the
+        // three-case guard in runtime/sync.h), and on the fixed timestep it is bit-reproducible.
         else if (strcmp(argv[i], "--midi-clock") == 0 && i + 1 < argc) sync_synth_bpm = (float)atof(argv[++i]);
 #ifdef DE_TRACE
         else if (strcmp(argv[i], "--solo-slot") == 0 && i + 1 < argc) {   // stem render: hear only these instrument slot(s). "6" or "5,6"

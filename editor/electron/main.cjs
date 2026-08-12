@@ -158,6 +158,11 @@ function prepareCart(code, cfg) {
 
   fs.writeFileSync(CART_SRC, code)
 
+  // For carts whose sheet the sprite editor cannot hold, re-stage it from the generator BEFORE
+  // the xxd below bakes sprites.png into a header. Done here rather than per-handler so every
+  // path (run / web / app / iOS / live) gets it.
+  stageGeneratorSheet(cfg)
+
   // generate sprites_data.h from sprites.png via xxd (PNG is compressed — stays small)
   const spritesHeader = path.join(BUILD_DIR, 'sprites_data.h')
   const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
@@ -488,6 +493,37 @@ const RING_KEEP = 10
 function cartSlug(cfg) {
   return (cfg?.cartFile || cfg?.cartName || 'scratch').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'scratch'
 }
+// Stage build/sprites.png from a cart's .cart.js GENERATOR, overriding whatever the sprite
+// editor exported, for carts whose sheet the sprite editor cannot hold.
+//
+// WHY: the sprite editor's canvas is a fixed 128×128 (8×8 slots of 16×16). A cart that declares
+// a bigger `sheet` or hands over a raw `atlas` therefore gets SILENTLY CROPPED on the way through
+// it — loading the cart drops its sheet into the 128×128 canvas, and pressing ▶ exports that
+// canvas back over the real one. The cart then samples cells that are no longer there and draws
+// almost nothing, with no error at any layer. (isoroom, a 256×286 atlas: one piece of furniture
+// survived in the top-left corner. Everything else vanished.)
+//
+// The generator is the source of truth for these carts, exactly as it already is for sprites
+// (CLAUDE.md: "generator carts get sprite changes in the generator"), so read it back here and
+// let it win. Slot-grid carts are untouched — they round-trip through the editor fine, and the
+// sprite editor stays their editing surface.
+function stageGeneratorSheet(cfg) {
+  try {
+    const slug = cartSlug(cfg)
+    const cPath = path.join(__dirname, '../../tools/carts', `${slug}.c`)
+    if (!fs.existsSync(cPath.replace(/\.c$/, '.cart.js'))) return
+    const mc = require('../../tools/make-cart.js')
+    try { delete require.cache[require.resolve(cPath.replace(/\.c$/, '.cart.js'))] } catch {}
+    const conf = mc.loadConfig(cPath)
+    // Only override when the editor demonstrably cannot represent the sheet.
+    if (!conf || (!conf.atlas && !conf.sheet)) return
+    fs.mkdirSync(BUILD_DIR, { recursive: true })
+    fs.writeFileSync(path.join(BUILD_DIR, 'sprites.png'), mc.sheetBufFor(conf))
+  } catch (e) {
+    console.warn('stageGeneratorSheet:', e.message)
+  }
+}
+
 function ringDir(slug) { return path.join(BUILD_DIR, '.rec', slug) }
 function sessionStamp() { return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}` }
 function pruneRing(slug) {                                    // keep the newest RING_KEEP, evict the rest

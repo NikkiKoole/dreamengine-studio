@@ -320,6 +320,21 @@ furniture as a black rectangle, with no error anywhere. Now consolidated into on
 `mk.sheetBufFor(cfg)` that all three call. The general shape (three copies of a resolution rule, and
 the new case silently hits the fallback) is worth watching for elsewhere.
 
+**And a third, the worst of them, because it only appears in the editor.** The sprite editor's
+canvas is a fixed **128×128** (`sprite-editor.js`: `mapwidth: 128, mapheight: 128`). Loading a cart
+drops its sheet into that canvas, and pressing ▶ exports the canvas back over `build/sprites.png`.
+So a cart with a bigger sheet is **silently cropped to its top-left 128×128 on every run** — the
+`.cart.png` holds the correct 256×286 atlas, `play.js` renders it perfectly, and the editor draws
+one surviving piece of furniture plus a floor full of shadows, with no error at any layer. The
+divergence between "works under the harness" and "broken in the editor" is what makes it nasty.
+
+Fixed in `prepareCart()` (so every path gets it: run, web, app, iOS, live): a cart that declares
+`atlas` or `sheet` has its sheet **re-staged from the generator**, overriding the editor's export.
+The generator is already the source of truth for such carts. Slot-grid carts are untouched and keep
+the sprite editor as their editing surface. **A wide-sheet cart therefore cannot be pixel-edited in
+the editor** — that was the accepted cost of a declared sheet size, but note it is a stronger
+statement than it first sounded: without this fix such a cart could not even be *run* from there.
+
 Second one, same session: the live-inspection trigger files are **first-poller-wins**, and a stray
 cart process was already running, so the first `profiler_request` was answered by *another cart* and
 returned a plausible-looking profile that was not this cart's at all (141,793 frames, `pset` at 80M,
